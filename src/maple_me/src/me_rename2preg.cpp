@@ -31,14 +31,14 @@ using namespace maple;
 template <MePhaseID id> struct ExtractPhaseClass {};
 
 template <> struct ExtractPhaseClass<MeFuncPhase_IRMAP> {
-  using type = MeIRMap;
+  using Type = MeIRMap;
 };
 
 template <> struct ExtractPhaseClass<MeFuncPhase_ALIASCLASS> {
-  using type = AliasClass;
+  using Type = AliasClass;
 };
 
-template <MePhaseID id, typename RetT = std::add_pointer_t<typename ExtractPhaseClass<id>::type>>
+template <MePhaseID id, typename RetT = std::add_pointer_t<typename ExtractPhaseClass<id>::Type>>
 inline RetT GetAnalysisResult(MeFunction &func, MeFuncResultMgr &funcRst) {
   return static_cast<RetT>(funcRst.GetAnalysisResult(id, &func));
 }
@@ -64,7 +64,7 @@ class OStCache final {
 
  private:
   SSATab &ssaTab;
-  std::map<OStIdx, OriginalSt *> cache; // map var to reg in original symbol
+  std::map<OStIdx, OriginalSt*> cache; // map var to reg in original symbol
 };
 
 class PregCache final {
@@ -80,21 +80,21 @@ class PregCache final {
     }
 
     RegMeExpr *regExpr = creator(irMap);
-    cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
+    (void)cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
     return utils::ToRef(regExpr);
   }
 
   RegMeExpr &CreatePregExpr(const VarMeExpr &varExpr, TyIdx symbolIdx) {
     MIRType &ty = utils::ToRef(GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbolIdx));
-    RegMeExpr *regExpr = ty.GetPrimType() == PTY_ref ?
-      irMap.CreateRegRefMeExpr(ty) : irMap.CreateRegMeExpr(varExpr.GetPrimType());
-    cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
+    RegMeExpr *regExpr = ty.GetPrimType() == PTY_ref ? irMap.CreateRegRefMeExpr(ty)
+                                                     : irMap.CreateRegMeExpr(varExpr.GetPrimType());
+    (void)cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
     return utils::ToRef(regExpr);
   }
 
  private:
   MeIRMap &irMap;
-  std::unordered_map<int32, RegMeExpr *> cache; // maps the VarMeExpr's exprID to RegMeExpr
+  std::unordered_map<int32, RegMeExpr*> cache; // maps the VarMeExpr's exprID to RegMeExpr
 };
 
 class CacheProxy final {
@@ -107,11 +107,11 @@ class CacheProxy final {
     preg = std::make_unique<PregCache>(irMap);
   }
 
-  OStCache &OSt() {
+  OStCache &OSt() const {
     return utils::ToRef(ost);
   }
 
-  PregCache &Preg() {
+  PregCache &Preg() const {
     return utils::ToRef(preg);
   }
 
@@ -147,14 +147,15 @@ class FormalRenaming final {
     }
   }
 
-  void Rename(MIRBuilder &irBuilder) {
+  void Rename(const MIRBuilder &irBuilder) {
     for (size_t i = 0; i < irFunc.GetFormalCount(); ++i) {
       if (!paramUsed[i]) {
         // in this case, the paramter is not used by any statement, promote it
         MIRType &irTy = utils::ToRef(irFunc.GetNthParamType(i));
         MIRPregTable &irPregTbl = utils::ToRef(irFunc.GetPregTab());
         PregIdx16 regIdx = (irTy.GetPrimType() == PTY_ref) ?
-                           irPregTbl.CreateRefPreg(irTy) : irPregTbl.CreatePreg(irTy.GetPrimType());
+            static_cast<PregIdx16>(irPregTbl.CreateRefPreg(irTy)) :
+            static_cast<PregIdx16>(irPregTbl.CreatePreg(irTy.GetPrimType()));
         irFunc.SetFormal(i, irBuilder.CreatePregFormalSymbol(irTy.GetTypeIndex(), regIdx, irFunc));
       } else {
         RegMeExpr *regExpr = renamedReg[i];
@@ -170,10 +171,9 @@ class FormalRenaming final {
 
  private:
   MIRFunction &irFunc;
-
   std::vector<bool> paramUsed; // if parameter is not used, it's false, otherwise true
   // if the parameter got promoted, the nth of func->mirfunc->_formal is the nth of reg_formal_vec, otherwise nullptr;
-  std::vector<RegMeExpr *> renamedReg;
+  std::vector<RegMeExpr*> renamedReg;
 };
 
 class SSARename2Preg {
@@ -201,12 +201,12 @@ class SSARename2Preg {
       for (auto it = func.valid_begin(), eIt = func.valid_end(); it != eIt; ++it) {
         BB &bb = utils::ToRef(*it);
 
-        // rename the phi'ss
+        // rename the phi's
         if (enabledDebug) {
           LogInfo::MapleLogger() << " working on phi part of BB" << bb.GetBBId() << '\n';
         }
-        for (auto &varPhi : bb.GetMevarPhiList()) {
-          Rename2PregPhi(aliasClass, utils::ToRef(varPhi.second), irMap);
+        for (auto &phiList : bb.GetMePhiList()) {
+          Rename2PregPhi(aliasClass, utils::ToRef(phiList.second), irMap);
         }
 
         if (enabledDebug) {
@@ -237,7 +237,8 @@ class SSARename2Preg {
         Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(stmt.GetOpnd(i)));
       }
       Rename2PregCallReturn(aliasClass, utils::ToRef(stmt.GetMustDefList()));
-    } else if (auto *iAssignStmt = safe_cast<IassignMeStmt>(stmt)) {
+    } else if (instance_of<IassignMeStmt>(stmt)) {
+      auto *iAssignStmt = static_cast<IassignMeStmt*>(&stmt);
       Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(iAssignStmt->GetRHS()));
       Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(utils::ToRef(iAssignStmt->GetLHSVal()).GetBase()));
     } else {
@@ -270,26 +271,30 @@ class SSARename2Preg {
 
   // only handle the leaf of load, because all other expressions has been done by previous SSAPre
   void Rename2PregExpr(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt, MeExpr &expr) {
-    if (auto *opExpr = safe_cast<OpMeExpr>(expr)) {
+    if (instance_of<OpMeExpr>(expr)) {
+      auto *opExpr = static_cast<OpMeExpr*>(&expr);
       for (size_t i = 0; i < kOperandNumTernary; ++i) {
         MeExpr *opnd = opExpr->GetOpnd(i);
         if (opnd != nullptr) {
           Rename2PregExpr(aliasClass, irMap, stmt, *opnd);
         }
       }
-    } else if (auto *naryExpr = safe_cast<NaryMeExpr>(expr)) {
-      MapleVector<MeExpr *> &opnds = naryExpr->GetOpnds();
+    } else if (instance_of<NaryMeExpr>(expr)) {
+      auto *naryExpr = static_cast<NaryMeExpr*>(&expr);
+      MapleVector<MeExpr*> &opnds = naryExpr->GetOpnds();
       for (auto *opnd : opnds) {
         Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(opnd));
       }
-    } else if (auto *ivarExpr = safe_cast<IvarMeExpr>(expr)) {
+    } else if (instance_of<IvarMeExpr>(expr)) {
+      auto *ivarExpr = static_cast<IvarMeExpr*>(&expr);
       Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(ivarExpr->GetBase()));
-    } else if (auto *varExpr = safe_cast<VarMeExpr>(expr)) {
+    } else if (instance_of<VarMeExpr>(expr)) {
+      auto *varExpr = static_cast<VarMeExpr*>(&expr);
       Rename2PregLeafRHS(aliasClass, irMap, stmt, *varExpr);
     }
   }
 
-  void Rename2PregLeafRHS(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt, VarMeExpr &varExpr) {
+  void Rename2PregLeafRHS(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt, const VarMeExpr &varExpr) {
     RegMeExpr *regExpr = RenameVar(aliasClass, varExpr);
     if (regExpr != nullptr) {
       (void)irMap.ReplaceMeExprStmt(stmt, varExpr, *regExpr);
@@ -303,10 +308,12 @@ class SSARename2Preg {
     RegMeExpr *regExpr = RenameVar(aliasClass, varExpr);
     if (regExpr != nullptr) {
       MeExpr *oldRhs = nullptr;
-      if (auto *dAStmt = safe_cast<DassignMeStmt>(stmt)) {
-        oldRhs = dAStmt->GetRHS();
-      } else if (auto *mayDAStmt = safe_cast<MaydassignMeStmt>(stmt)) {
-        oldRhs = mayDAStmt->GetRHS();
+      if (instance_of<DassignMeStmt>(stmt)) {
+        auto *dassStmt = static_cast<DassignMeStmt*>(&stmt);
+        oldRhs = dassStmt->GetRHS();
+      } else if (instance_of<MaydassignMeStmt>(stmt)) {
+        auto *mayDassStmt = static_cast<MaydassignMeStmt*>(&stmt);
+        oldRhs = mayDassStmt->GetRHS();
       } else {
         CHECK_FATAL(false, "NYI");
       }
@@ -318,29 +325,34 @@ class SSARename2Preg {
     }
   }
 
-  void Rename2PregPhi(const AliasClass &aliasClass, MeVarPhiNode &varPhiNode, MeIRMap &irMap) {
-    VarMeExpr &varExpr = utils::ToRef(varPhiNode.GetLHS());
+  void Rename2PregPhi(const AliasClass &aliasClass, MePhiNode &varPhiNode, MeIRMap &irMap) {
+    VarMeExpr *lhs = static_cast<VarMeExpr*>(varPhiNode.GetLHS());
+    if (lhs == nullptr) {
+      return;
+    }
+		
+    VarMeExpr &varExpr =(utils::ToRef(lhs));
     RegMeExpr *pRegExpr = RenameVar(aliasClass, varExpr);
     if (pRegExpr == nullptr) {
       return;
     }
     RegMeExpr &regExpr = *pRegExpr;
-    MeRegPhiNode &regPhiNode = utils::ToRef(irMap.CreateMeRegPhi(regExpr));
+    MePhiNode &regPhiNode = utils::ToRef(irMap.CreateMePhi(regExpr));
     regPhiNode.SetDefBB(varPhiNode.GetDefBB());
     UpdateRegPhi(regExpr, varPhiNode.GetOpnds(), regPhiNode);
   }
 
   // update regphinode operands
-  void UpdateRegPhi(const RegMeExpr &curRegExpr, const MapleVector<VarMeExpr*> &phiNodeOpnds,
-                    MeRegPhiNode &regPhiNode) {
+  void UpdateRegPhi(const RegMeExpr &curRegExpr, const MapleVector<ScalarMeExpr *> &phiNodeOpnds,
+                    MePhiNode &regPhiNode) const {
     PregCache &pregCache = cacheProxy.Preg();
-    for (VarMeExpr *phiOpnd : phiNodeOpnds) {
-      const VarMeExpr &varExpr = utils::ToRef(phiOpnd);
+    for (ScalarMeExpr *phiOpnd : phiNodeOpnds) {
+      const VarMeExpr&varExpr = utils::ToRef(static_cast<VarMeExpr *>(phiOpnd));
       RegMeExpr &regExpr = pregCache.CloneRegExprIfNotExist(varExpr, [&curRegExpr](MeIRMap &irMap) {
         return irMap.CreateRegMeExprVersion(curRegExpr);
       });
       regPhiNode.GetOpnds().push_back(&regExpr);
-      regExpr.GetPhiUseSet().insert(&regPhiNode);
+      (void)regExpr.GetPhiUseSet().insert(&regPhiNode);
     }
   }
 
@@ -409,7 +421,6 @@ class SSARename2Preg {
   CacheProxy cacheProxy;
   FormalRenaming formal;
 };
-
 }
 
 namespace maple {
@@ -425,6 +436,5 @@ AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *funcR
 std::string MeDoSSARename2Preg::PhaseName() const {
   return SSARename2Preg::PhaseName();
 }
-
 }  // namespace maple
 

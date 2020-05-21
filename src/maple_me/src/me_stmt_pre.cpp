@@ -12,25 +12,27 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v1 for more details.
  */
-#include "utils.h"
 #include "me_stmt_pre.h"
+#include "utils.h"
 #include "me_dominance.h"
 #include "me_option.h"
 #include "me_ssa_update.h"
+
 // Note: after the movement of assignments, some phi nodes that used to be dead
 // can become live.  Before we run another round of dead store elimination, we
 // should NOT trust the isLive flag in phi nodes.
 // accumulate the BBs that are in the iterated dominance frontiers of bb in
 // the set dfset, visiting each BB only once
 namespace maple {
-void MeStmtPre::GetIterDomFrontier(BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) {
+
+void MeStmtPre::GetIterDomFrontier(const BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) const {
   CHECK_FATAL(bb.GetBBId() < visitedMap.size(), "index out of range in MeStmtPre::GetIterDomFrontier");
   if (visitedMap[bb.GetBBId()]) {
     return;
   }
   visitedMap[bb.GetBBId()] = true;
   for (BBId frontierBBId : dom->GetDomFrontier(bb.GetBBId())) {
-    dfSet.insert(dom->GetDtDfnItem(frontierBBId));
+    (void)dfSet.insert(dom->GetDtDfnItem(frontierBBId));
     BB *frontierBB = GetBB(frontierBBId);
     GetIterDomFrontier(*frontierBB, dfSet, visitedMap);
   }
@@ -42,7 +44,7 @@ void MeStmtPre::CodeMotion() {
       case kOccReal: {
         auto *realOcc = static_cast<MeRealOcc*>(occ);
         if (realOcc->IsSave()) {
-          CHECK_FATAL(realOcc->IsReload() == false, "should be false");
+          CHECK_FATAL(!realOcc->IsReload(), "should be false");
         } else if (realOcc->IsReload()) {
           realOcc->GetBB()->RemoveMeStmt(realOcc->GetMeStmt());
           if (realOcc->GetOpcodeOfMeStmt() == OP_dassign) {
@@ -82,10 +84,10 @@ void MeStmtPre::CodeMotion() {
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                 MapleSet<BBId> *bbSet =
                     ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-                bbSet->insert(occ->GetBB()->GetBBId());
+                (void)bbSet->insert(occ->GetBB()->GetBBId());
                 candsForSSAUpdate[ostIdx] = bbSet;
               } else {
-                candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
+                (void)candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
               }
               // create a new LHS for the dassign in insertedOcc->GetMeStmt()
               VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*dass->GetVarLHS());
@@ -95,14 +97,15 @@ void MeStmtPre::CodeMotion() {
               if (call->GetAssignedLHS() != nullptr) {
                 CHECK_FATAL(call->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
                 auto *var = static_cast<VarMeExpr*>(call->GetAssignedLHS());
+                ASSERT_NOT_NULL(var);
                 OStIdx ostIdx = var->GetOStIdx();
                 if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                   MapleSet<BBId> *bbSet =
                       ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-                  bbSet->insert(occ->GetBB()->GetBBId());
+                  (void)bbSet->insert(occ->GetBB()->GetBBId());
                   candsForSSAUpdate[ostIdx] = bbSet;
                 } else {
-                  candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
+                  (void)candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
                 }
                 VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*var);
                 call->GetMustDefList()->front().UpdateLHS(*newVarVersion);
@@ -115,8 +118,8 @@ void MeStmtPre::CodeMotion() {
               // insert at earlist point in BB, but after statements required
               // to be first statement in BB
               MeStmt *curStmt = to_ptr(insertBB->GetMeStmts().begin());
-              while (curStmt && (curStmt->GetOp() == OP_catch || curStmt->GetOp() == OP_try ||
-                                 curStmt->GetOp() == OP_comment)) {
+              while (curStmt != nullptr && (curStmt->GetOp() == OP_catch || curStmt->GetOp() == OP_try ||
+                                            curStmt->GetOp() == OP_comment)) {
                 curStmt = curStmt->GetNext();
               }
               if (curStmt == nullptr) {
@@ -138,6 +141,7 @@ void MeStmtPre::CodeMotion() {
         break;
       default:
         ASSERT(false, "should not be here");
+        break;
     }
   }
 }
@@ -147,25 +151,25 @@ void MeStmtPre::Finalize1() {
   std::vector<MeOccur*> availDefVec(classCount, nullptr);
   // traversal in preoder DT
   for (MeOccur *occ : allOccs) {
-    uint32 classx = static_cast<uint32>(occ->GetClassID());
+    uint32 classId = static_cast<uint32>(occ->GetClassID());
     switch (occ->GetOccType()) {
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
         if (phiOcc->IsWillBeAvail()) {
-          availDefVec[classx] = phiOcc;
+          availDefVec[classId] = phiOcc;
         }
         break;
       }
       case kOccReal: {
-        MeOccur *availDef = availDefVec[classx];
+        MeOccur *availDef = availDefVec[classId];
         auto *realOcc = static_cast<MeRealOcc*>(occ);
-        if (availDef == nullptr || !availDef->IsDominate(dom, occ)) {
+        if (availDef == nullptr || !availDef->IsDominate(*dom, *occ)) {
           realOcc->SetIsReload(false);
-          availDefVec[classx] = realOcc;
+          availDefVec[classId] = realOcc;
         } else {
           realOcc->SetIsReload(true);
           ASSERT(!realOcc->IsSave(), "real occ with isSave cannot be set isReload");
-          realOcc->SetDef(availDefVec[classx]);
+          realOcc->SetDef(availDefVec[classId]);
           CHECK_NULL_FATAL(realOcc->GetDef());
         }
         break;
@@ -188,7 +192,7 @@ void MeStmtPre::Finalize1() {
             MeStmt *insertedStmt = phiOpnd->GetCurrentMeStmt();
             ASSERT(insertedStmt != nullptr, "NYI");
             MeInsertedOcc *insertedOcc =
-                perCandMemPool->New<MeInsertedOcc>(static_cast<MeExpr*>(nullptr), insertedStmt, phiOpnd->GetBB());
+                perCandMemPool->New<MeInsertedOcc>(static_cast<MeExpr*>(nullptr), insertedStmt, *phiOpnd->GetBB());
             insertedOcc->SetClassID(classCount++);
             phiOpnd->SetDef(insertedOcc);
             phiOpnd->SetClassID(insertedOcc->GetClassID());
@@ -198,7 +202,7 @@ void MeStmtPre::Finalize1() {
             }
             phiOpnd->SetIsInsertedOcc(true);
           } else {
-            phiOpnd->SetDef(availDefVec[classx]);
+            phiOpnd->SetDef(availDefVec[classId]);
           }
         }
         break;
@@ -209,17 +213,18 @@ void MeStmtPre::Finalize1() {
         break;
       default:
         ASSERT(false, "should not be here");
+        break;
     }
   }
   if (GetSSAPreDebug()) {
     PreWorkCand *curCand = workCand;
-    mirModule->GetOut() << "========ssapre candidate " << curCand->GetIndex()
-                        << " after Finalize1===================\n";
+    mirModule->GetOut() << "========ssapre candidate " << curCand->GetIndex() <<
+        " after Finalize1===================\n";
     for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
       MePhiOcc *phiOcc = *it;
       if (phiOcc->IsWillBeAvail()) {
         for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-          ASSERT(phiOpnd->GetDef(), "EPhiFinalizer::DumpFinalize1: phiopndocc cannot have no def");
+          ASSERT(phiOpnd->GetDef() != nullptr, "EPhiFinalizer::DumpFinalize1: phiopndocc cannot have no def");
           MeOccur *defOcc = phiOpnd->GetDef();
           if (defOcc->GetOccType() == kOccInserted) {
             auto *realDefOcc = static_cast<MeInsertedOcc*>(defOcc);
@@ -234,16 +239,16 @@ void MeStmtPre::Finalize1() {
   }
 }
 
-bool MeStmtPre::AllVarsSameVersion(MeRealOcc *realOcc1, MeRealOcc *realOcc2) {
-  MeStmt *stmt1 = realOcc1->GetMeStmt();
+bool MeStmtPre::AllVarsSameVersion(const MeRealOcc &realOcc1, const MeRealOcc &realOcc2) const {
+  const MeStmt *stmt1 = realOcc1.GetMeStmt();
   Opcode op = stmt1->GetOp();
   if (op == OP_intrinsiccallwithtype) {
     return true;
   }
-  if (op == OP_dassign && realOcc1->GetMeExpr() != realOcc2->GetMeExpr()) {
+  if ((op == OP_dassign || op == OP_callassigned) && realOcc1.GetMeExpr() != realOcc2.GetMeExpr()) {
     return false;
   }
-  MeStmt *stmt2 = realOcc2->GetMeStmt();
+  const MeStmt *stmt2 = realOcc2.GetMeStmt();
   for (size_t i = 0; i < stmt1->NumMeStmtOpnds(); ++i) {
     if (stmt1->GetOpnd(i) != stmt2->GetOpnd(i)) {
       return false;
@@ -254,21 +259,21 @@ bool MeStmtPre::AllVarsSameVersion(MeRealOcc *realOcc1, MeRealOcc *realOcc2) {
 
 // collect meExpr's variables and put them into varvec;
 // varvec can only store RegMeExpr and VarMeExpr
-void MeStmtPre::CollectVarForMeStmt(MeStmt *meStmt, MeExpr *meExpr, std::vector<MeExpr*> &varVec) {
-  switch (meStmt->GetOp()) {
+void MeStmtPre::CollectVarForMeStmt(const MeStmt &meStmt, MeExpr *meExpr, std::vector<MeExpr*> &varVec) const {
+  switch (meStmt.GetOp()) {
     case OP_assertnonnull: {
-      auto *unaryStmt = static_cast<UnaryMeStmt*>(meStmt);
+      auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
       if (unaryStmt->GetOpnd()->GetMeOp() == kMeOpVar || unaryStmt->GetOpnd()->GetMeOp() == kMeOpReg) {
         varVec.push_back(unaryStmt->GetOpnd());
       }
       break;
     }
     case OP_dassign: {
-      auto *dassMeStmt = static_cast<DassignMeStmt*>(meStmt);
+      auto *dassMeStmt = static_cast<const DassignMeStmt*>(&meStmt);
       if (dassMeStmt->GetRHS()->GetMeOp() == kMeOpVar || dassMeStmt->GetRHS()->GetMeOp() == kMeOpReg) {
         varVec.push_back(dassMeStmt->GetRHS());
       }
-      if (meExpr) {
+      if (meExpr != nullptr) {
         CHECK_FATAL(meExpr->GetMeOp() == kMeOpVar, "CollectVarForMeStmt:bad meExpr field in realocc node");
         varVec.push_back(meExpr);
       }
@@ -277,11 +282,15 @@ void MeStmtPre::CollectVarForMeStmt(MeStmt *meStmt, MeExpr *meExpr, std::vector<
     case OP_intrinsiccallwithtype:
     case OP_intrinsiccall:
     case OP_callassigned: {
-      auto *nStmt = static_cast<NaryMeStmt*>(meStmt);
+      auto *nStmt = static_cast<const NaryMeStmt*>(&meStmt);
       for (size_t i = 0; i < nStmt->NumMeStmtOpnds(); ++i)
-        if (nStmt->GetOpnds()[i]->GetMeOp() == kMeOpVar || nStmt->GetOpnds()[i]->GetMeOp() == kMeOpReg) {
-          varVec.push_back(nStmt->GetOpnds()[i]);
+        if (nStmt->GetOpnd(i)->GetMeOp() == kMeOpVar || nStmt->GetOpnd(i)->GetMeOp() == kMeOpReg) {
+          varVec.push_back(nStmt->GetOpnd(i));
         }
+      if (meExpr != nullptr) {
+        CHECK_FATAL(meExpr->GetMeOp() == kMeOpVar, "CollectVarForMeStmt:bad meExpr field in realocc node");
+        varVec.push_back(meExpr);
+      }
       break;
     }
     default:
@@ -289,30 +298,30 @@ void MeStmtPre::CollectVarForMeStmt(MeStmt *meStmt, MeExpr *meExpr, std::vector<
   }
 }
 
-void MeStmtPre::CollectVarForCand(MeRealOcc *realOcc, std::vector<MeExpr*> &varVec) {
-  CollectVarForMeStmt(realOcc->GetMeStmt(), realOcc->GetMeExpr(), varVec);
+void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const {
+  CollectVarForMeStmt(*realOcc.GetMeStmt(), realOcc.GetMeExpr(), varVec);
 }
 
-MeStmt *MeStmtPre::CopyMeStmt(MeStmt &meStmt) {
+MeStmt *MeStmtPre::CopyMeStmt(const MeStmt &meStmt) const {
   switch (meStmt.GetOp()) {
     case OP_assertnonnull: {
-      auto *unaryStmt = static_cast<UnaryMeStmt*>(&meStmt);
+      auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
       UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(unaryStmt);
       return newUnaryStmt;
     }
     case OP_dassign: {
-      auto *dass = static_cast<DassignMeStmt*>(&meStmt);
+      auto *dass = static_cast<const DassignMeStmt*>(&meStmt);
       DassignMeStmt *newDass = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), dass);
       return newDass;
     }
     case OP_intrinsiccall:
     case OP_intrinsiccallwithtype: {
-      auto *intrnStmt = static_cast<IntrinsiccallMeStmt*>(&meStmt);
+      auto *intrnStmt = static_cast<const IntrinsiccallMeStmt*>(&meStmt);
       IntrinsiccallMeStmt *newIntrnStmt = irMap->NewInPool<IntrinsiccallMeStmt>(intrnStmt);
       return newIntrnStmt;
     }
     case OP_callassigned: {
-      auto *callAss = static_cast<CallMeStmt*>(&meStmt);
+      auto *callAss = static_cast<const CallMeStmt*>(&meStmt);
       CallMeStmt *newCallAss = irMap->NewInPool<CallMeStmt>(callAss);
       return newCallAss;
     }
@@ -323,18 +332,18 @@ MeStmt *MeStmtPre::CopyMeStmt(MeStmt &meStmt) {
 
 // for each variable in realz that is defined by a phi, replace it by the jth
 // phi opnd; the tagged lhs is returned in the reference parameter lhsvar
-MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc *realZ, size_t j, MeExpr *&lhsVar) {
-  MeOccur *defZ = realZ->GetDef();
-  CHECK_FATAL(defZ, "must be def by phiocc");
+MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc &realZ, size_t j, MeExpr *&lhsVar) const {
+  MeOccur *defZ = realZ.GetDef();
+  CHECK_FATAL(defZ != nullptr, "must be def by phiocc");
   CHECK_FATAL(defZ->GetOccType() == kOccPhiocc, "must be def by phiocc");
-  MeStmt *stmtQ = CopyMeStmt(utils::ToRef(realZ->GetMeStmt()));
-    lhsVar = realZ->GetMeExpr();
-  BB *ephiBB = defZ->GetBB();
+  MeStmt *stmtQ = CopyMeStmt(utils::ToRef(realZ.GetMeStmt()));
+  lhsVar = realZ.GetMeExpr();
+  BB *phiBB = defZ->GetBB();
   CHECK_FATAL(stmtQ != nullptr, "nullptr check");
   switch (stmtQ->GetOp()) {
     case OP_assertnonnull: {
       auto *unaryStmtQ = static_cast<UnaryMeStmt*>(stmtQ);
-      MeExpr *retOpnd = GetReplaceMeExpr(unaryStmtQ->GetOpnd(), ephiBB, j);
+      MeExpr *retOpnd = GetReplaceMeExpr(*unaryStmtQ->GetOpnd(), *phiBB, j);
       if (retOpnd != nullptr) {
         unaryStmtQ->SetMeStmtOpndValue(retOpnd);
       }
@@ -342,13 +351,9 @@ MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc *realZ, size_t j, MeExpr *&lhsV
     }
     case OP_dassign: {
       auto *dassQ = static_cast<DassignMeStmt*>(stmtQ);
-      MeExpr *retOpnd = GetReplaceMeExpr(dassQ->GetRHS(), ephiBB, j);
+      MeExpr *retOpnd = GetReplaceMeExpr(*dassQ->GetRHS(), *phiBB, j);
       if (retOpnd != nullptr) {
         dassQ->SetRHS(retOpnd);
-      }
-      retOpnd = GetReplaceMeExpr(realZ->GetMeExpr(), ephiBB, j);
-      if (retOpnd != nullptr) {
-        lhsVar = retOpnd;
       }
       break;
     }
@@ -357,15 +362,22 @@ MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc *realZ, size_t j, MeExpr *&lhsV
     case OP_callassigned: {
       auto *nStmtQ = static_cast<NaryMeStmt*>(stmtQ);
       for (size_t i = 0; i < nStmtQ->NumMeStmtOpnds(); ++i) {
-        MeExpr *retOpnd = GetReplaceMeExpr(nStmtQ->GetOpnds()[i], ephiBB, j);
+        MeExpr *retOpnd = GetReplaceMeExpr(*nStmtQ->GetOpnd(i), *phiBB, j);
         if (retOpnd != nullptr) {
-          nStmtQ->GetOpnds()[i] = retOpnd;
+          nStmtQ->SetOpnd(i, retOpnd);
         }
       }
       break;
     }
     default:
       ASSERT(false, "MeStmtPre::PhiOpndFromRes4Stmt: NYI");
+      break;
+  }
+  if ((stmtQ->GetOp() == OP_dassign || stmtQ->GetOp() == OP_callassigned) && realZ.GetMeExpr() != nullptr) {
+    MeExpr *retOpnd = GetReplaceMeExpr(*realZ.GetMeExpr(), *phiBB, j);
+    if (retOpnd != nullptr) {
+      lhsVar = retOpnd;
+    }
   }
   return stmtQ;
 }
@@ -375,9 +387,9 @@ void MeStmtPre::Rename2() {
   while (!rename2Set.empty()) {
     MapleSet<uint32>::iterator it = rename2Set.begin();
     MeRealOcc *realOcc = workCand->GetRealOcc(*it);
-    rename2Set.erase(it);
+    (void)rename2Set.erase(it);
     MeOccur *defOcc = realOcc->GetDef();
-    CHECK_FATAL(defOcc, "should be def by phiocc");
+    CHECK_FATAL(defOcc != nullptr, "should be def by phiocc");
     CHECK_FATAL(defOcc->GetOccType() == kOccPhiocc, "should be def by phiocc");
     auto *defPhiOcc = static_cast<MePhiOcc*>(defOcc);
     MapleVector<MePhiOpndOcc*> &phiOpnds = defPhiOcc->GetPhiOpnds();
@@ -386,7 +398,7 @@ void MeStmtPre::Rename2() {
       if (!phiOccOpnd->IsProcessed()) {
         phiOccOpnd->SetIsProcessed(true);
         MeExpr *varY = nullptr;
-        MeStmt *stmtY = PhiOpndFromRes4Stmt(realOcc, i, varY);
+        MeStmt *stmtY = PhiOpndFromRes4Stmt(*realOcc, i, varY);
         stmtY->SetBB(phiOccOpnd->GetBB());
         phiOccOpnd->SetCurrentMeStmt(*stmtY);  // stmtY might be inserted at the end of the block
         MeOccur *defX = phiOccOpnd->GetDef();
@@ -397,13 +409,13 @@ void MeStmtPre::Rename2() {
           auto *realDefX = static_cast<MeRealOcc*>(defX);
           std::vector<MeExpr*> varVecX;
           std::vector<MeExpr*> varVecY;
-          CollectVarForCand(realDefX, varVecX);
-          CollectVarForMeStmt(stmtY, varY, varVecY);
+          CollectVarForCand(*realDefX, varVecX);
+          CollectVarForMeStmt(*stmtY, varY, varVecY);
           CHECK_FATAL(varVecX.size() == varVecY.size(), "vector size should be the same");
           bool hasSameVersion = true;
           size_t checkLimit = varVecY.size();
           if (varY != nullptr) {
-            if (varVecY[checkLimit - 1] == static_cast<DassignMeStmt*>(stmtY)->GetLHS()) {
+            if (varVecY[checkLimit - 1] == realDefX->GetMeStmt()->GetVarLHS()) {
               --checkLimit;
             }
           }
@@ -419,15 +431,15 @@ void MeStmtPre::Rename2() {
         } else if (defX->GetOccType() == kOccPhiocc) {
           std::vector<MeExpr*> varVecY;
           bool allDom = true;
-          CollectVarForMeStmt(stmtY, varY, varVecY);
+          CollectVarForMeStmt(*stmtY, varY, varVecY);
           size_t checkLimit = varVecY.size();
           if (varY != nullptr) {
-            if (varVecY[checkLimit - 1] == static_cast<DassignMeStmt*>(stmtY)->GetLHS()) {
+            if (varVecY[checkLimit - 1] == stmtY->GetVarLHS()) {
               --checkLimit;
             }
           }
           for (size_t k = 0; k < checkLimit; ++k) {
-            if (!DefVarDominateOcc(varVecY[k], defX)) {
+            if (!DefVarDominateOcc(varVecY[k], *defX)) {
               allDom = false;
             }
           }
@@ -438,7 +450,7 @@ void MeStmtPre::Rename2() {
             workCand->GetRealOccs().push_back(occY);
             occY->SetDef(defX);
             occY->SetClassID(defX->GetClassID());
-            rename2Set.insert(occY->GetPosition());
+            (void)rename2Set.insert(occY->GetPosition());
             if (GetSSAPreDebug()) {
               mirModule->GetOut() << "--- rename2 adds to rename2Set manufactured ";
               occY->Dump(*irMap);
@@ -483,13 +495,13 @@ void MeStmtPre::ComputeVarAndDfPhis() {
     switch (stmt->GetOp()) {
       case OP_assertnonnull: {
         auto *unaryStmt = static_cast<UnaryMeStmt*>(stmt);
-        SetVarPhis(unaryStmt->GetOpnd());
+        SetVarPhis(*unaryStmt->GetOpnd());
         break;
       }
       case OP_dassign: {
         auto *dassMeStmt = static_cast<DassignMeStmt*>(stmt);
-        SetVarPhis(dassMeStmt->GetRHS());
-        SetVarPhis(realOcc->GetMeExpr());
+        SetVarPhis(*dassMeStmt->GetRHS());
+        SetVarPhis(*realOcc->GetMeExpr());
         break;
       }
       case OP_intrinsiccall:
@@ -497,7 +509,10 @@ void MeStmtPre::ComputeVarAndDfPhis() {
       case OP_callassigned: {
         auto *nStmt = static_cast<NaryMeStmt*>(stmt);
         for (size_t i = 0; i < nStmt->NumMeStmtOpnds(); ++i) {
-          SetVarPhis(nStmt->GetOpnds()[i]);
+          SetVarPhis(*nStmt->GetOpnd(i));
+        }
+        if (realOcc->GetMeExpr() != nullptr) {
+          SetVarPhis(*realOcc->GetMeExpr());
         }
         break;
       }
@@ -515,12 +530,13 @@ void MeStmtPre::ComputeVarAndDfPhis() {
 // When a real_occ has uses before it in its bb, ignore (do not insert)
 // the real_occ.
 void MeStmtPre::CreateSortedOccs() {
-  // get set of bb dfns that contain uses if candidate is dassign
+  // get set of bb dfns that contain uses if candidate is dassign or callassigned
   MapleSet<uint32> *useDfns;
   PreWorkCand *workCand = GetWorkCand();
   auto *stmtWkCand = static_cast<PreStmtWorkCand*>(workCand);
-  if (stmtWkCand->GetTheMeStmt()->GetOp() == OP_dassign && !stmtWkCand->LHSIsFinal()) {
-    VarMeExpr *lhsVar = static_cast<DassignMeStmt*>(stmtWkCand->GetTheMeStmt())->GetVarLHS();
+  if ((stmtWkCand->GetTheMeStmt()->GetOp() == OP_dassign || stmtWkCand->GetTheMeStmt()->GetOp() == OP_callassigned) &&
+       stmtWkCand->GetTheMeStmt()->GetVarLHS() != nullptr && !stmtWkCand->LHSIsFinal()) {
+    VarMeExpr *lhsVar = stmtWkCand->GetTheMeStmt()->GetVarLHS();
     OStIdx ostIdx = lhsVar->GetOStIdx();
     MapleMap<OStIdx, MapleSet<uint32>*>::iterator uMapIt = useOccurMap.find(ostIdx);
     CHECK_FATAL(uMapIt != useOccurMap.end(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
@@ -538,7 +554,7 @@ void MeStmtPre::CreateSortedOccs() {
     BB *bb = GetBB(bbId);
     CHECK_FATAL(bb != nullptr, "GetBB error");
     for (BB *pred : bb->GetPred()) {
-      phiOpndDfns.insert(dom->GetDtDfnItem(pred->GetBBId()));
+      (void)phiOpndDfns.insert(dom->GetDtDfnItem(pred->GetBBId()));
     }
   }
   std::unordered_map<BBId, std::forward_list<MePhiOpndOcc*>> bb2PhiOpndMap;
@@ -549,8 +565,7 @@ void MeStmtPre::CreateSortedOccs() {
   auto useDfnIt = useDfns->begin();
   MeOccur *nextUseOcc = nullptr;
   if (useDfnIt != useDfns->end()) {
-    CHECK_NULL_FATAL(GetBB(dom->GetDtPreOrderItem(*useDfnIt)));
-    nextUseOcc = perCandMemPool->New<MeOccur>(kOccUse, 0, GetBB(dom->GetDtPreOrderItem(*useDfnIt)), nullptr);
+    nextUseOcc = perCandMemPool->New<MeOccur>(kOccUse, 0, *GetBB(dom->GetDtPreOrderItem(*useDfnIt)), nullptr);
   }
   MeRealOcc *nextRealOcc = nullptr;
   if (realOccIt != workCand->GetRealOccs().end()) {
@@ -562,12 +577,11 @@ void MeStmtPre::CreateSortedOccs() {
   }
   MePhiOcc *nextPhiOcc = nullptr;
   if (phiDfnIt != dfPhiDfns.end()) {
-    CHECK_NULL_FATAL(GetBB(dom->GetDtPreOrderItem(*phiDfnIt)));
-    nextPhiOcc = perCandMemPool->New<MePhiOcc>(GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), &perCandAllocator);
+    nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), perCandAllocator);
   }
   MePhiOpndOcc *nextPhiOpndOcc = nullptr;
   if (phiOpndDfnIt != phiOpndDfns.end()) {
-    nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
+    nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
     std::unordered_map<BBId, std::forward_list<MePhiOpndOcc*>>::iterator it =
         bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
     if (it == bb2PhiOpndMap.end()) {
@@ -587,7 +601,7 @@ void MeStmtPre::CreateSortedOccs() {
     if (nextPhiOcc != nullptr) {
       pickedOcc = nextPhiOcc;
     }
-    if (nextRealOcc && (pickedOcc == nullptr ||
+    if (nextRealOcc != nullptr && (pickedOcc == nullptr ||
         dom->GetDtDfnItem(nextRealOcc->GetBB()->GetBBId()) < dom->GetDtDfnItem(pickedOcc->GetBB()->GetBBId()))) {
       pickedOcc = nextRealOcc;
     }
@@ -595,12 +609,12 @@ void MeStmtPre::CreateSortedOccs() {
         dom->GetDtDfnItem(nextUseOcc->GetBB()->GetBBId()) < dom->GetDtDfnItem(pickedOcc->GetBB()->GetBBId()))) {
       pickedOcc = nextUseOcc;
     }
-    if (nextExitOcc && (pickedOcc == nullptr ||
+    if (nextExitOcc != nullptr && (pickedOcc == nullptr ||
         dom->GetDtDfnItem(nextExitOcc->GetBB()->GetBBId()) < dom->GetDtDfnItem(pickedOcc->GetBB()->GetBBId()))) {
       pickedOcc = nextExitOcc;
     }
-    if (nextPhiOpndOcc && (pickedOcc == nullptr ||
-                           *phiOpndDfnIt < dom->GetDtDfnItem(pickedOcc->GetBB()->GetBBId()))) {
+    if (nextPhiOpndOcc != nullptr && (pickedOcc == nullptr ||
+        *phiOpndDfnIt < dom->GetDtDfnItem(pickedOcc->GetBB()->GetBBId()))) {
       pickedOcc = nextPhiOpndOcc;
     }
     if (pickedOcc != nullptr) {
@@ -611,7 +625,7 @@ void MeStmtPre::CreateSortedOccs() {
           ++useDfnIt;
           if (useDfnIt != useDfns->end()) {
             CHECK_NULL_FATAL(GetBB(dom->GetDtPreOrderItem(*useDfnIt)));
-            nextUseOcc = perCandMemPool->New<MeOccur>(kOccUse, 0, GetBB(dom->GetDtPreOrderItem(*useDfnIt)), nullptr);
+            nextUseOcc = perCandMemPool->New<MeOccur>(kOccUse, 0, *GetBB(dom->GetDtPreOrderItem(*useDfnIt)), nullptr);
           } else {
             nextUseOcc = nullptr;
           }
@@ -640,9 +654,7 @@ void MeStmtPre::CreateSortedOccs() {
           phiOccs.push_back(static_cast<MePhiOcc*>(pickedOcc));
           ++phiDfnIt;
           if (phiDfnIt != dfPhiDfns.end()) {
-            CHECK_FATAL(GetBB(dom->GetDtPreOrderItem(*phiDfnIt)) != nullptr,
-                        "GetBB return null in SSAPre::CreateSortedOccs");
-            nextPhiOcc = perCandMemPool->New<MePhiOcc>(GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), &perCandAllocator);
+            nextPhiOcc = perCandMemPool->New<MePhiOcc>(*GetBB(dom->GetDtPreOrderItem(*phiDfnIt)), perCandAllocator);
           } else {
             nextPhiOcc = nullptr;
           }
@@ -650,7 +662,7 @@ void MeStmtPre::CreateSortedOccs() {
         case kOccPhiopnd:
           ++phiOpndDfnIt;
           if (phiOpndDfnIt != phiOpndDfns.end()) {
-            nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
+            nextPhiOpndOcc = perCandMemPool->New<MePhiOpndOcc>(*GetBB(dom->GetDtPreOrderItem(*phiOpndDfnIt)));
             std::unordered_map<BBId, std::forward_list<MePhiOpndOcc*>>::iterator it =
                 bb2PhiOpndMap.find(dom->GetDtPreOrderItem(*phiOpndDfnIt));
             if (it == bb2PhiOpndMap.end()) {
@@ -665,6 +677,7 @@ void MeStmtPre::CreateSortedOccs() {
           break;
         default:
           ASSERT(false, "CreateSortedOccs: unexpected occty");
+          break;
       }
     }
   } while (pickedOcc != nullptr);
@@ -672,7 +685,7 @@ void MeStmtPre::CreateSortedOccs() {
   if (!realOccInserted) {
     workCand->GetRealOccs().clear();
   }
-  // initialize phiOpnds vector in each MePhiOcc node and  defPhiOcc field in
+  // initialize phiOpnds vector in each MePhiOcc node and defPhiOcc field in
   // each MePhiOpndOcc node
   for (MePhiOcc *phiOcc : phiOccs)
     for (BB *pred : phiOcc->GetBB()->GetPred()) {
@@ -682,8 +695,8 @@ void MeStmtPre::CreateSortedOccs() {
       bb2PhiOpndMap[pred->GetBBId()].pop_front();
     }
   if (GetSSAPreDebug()) {
-    mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex()
-                        << " after phi insert===================\n";
+    mirModule->GetOut() << "========ssapre candidate " << workCand->GetIndex() <<
+        " after phi insert===================\n";
     for (MeOccur *occ : allOccs) {
       occ->Dump(*irMap);
       mirModule->GetOut() << '\n';
@@ -691,33 +704,36 @@ void MeStmtPre::CreateSortedOccs() {
   }
 }
 
-void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, MeExpr *x) {
-  if (x->GetMeOp() == kMeOpVar) {
-    OStIdx ostIdx = static_cast<VarMeExpr*>(x)->GetOStIdx();
+void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, const MeExpr &meExpr) {
+  if (meExpr.GetMeOp() == kMeOpVar) {
+    OStIdx ostIdx = static_cast<const VarMeExpr*>(&meExpr)->GetOStIdx();
     MapleMap<OStIdx, MapleSet<uint32>*>::iterator mapIt;
     mapIt = useOccurMap.find(ostIdx);
     if (mapIt == useOccurMap.end()) {
       return;
     }
     MapleSet<uint32> *bbDfnSet = mapIt->second;
-    bbDfnSet->insert(bbDfn);
+    (void)bbDfnSet->insert(bbDfn);
     return;
   }
-  for (int32 i = 0; i < x->GetNumOpnds(); ++i) {
-    ConstructUseOccurMapExpr(bbDfn, x->GetOpnd(i));
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); ++i) {
+    ConstructUseOccurMapExpr(bbDfn, *meExpr.GetOpnd(i));
   }
 }
 
 void MeStmtPre::ConstructUseOccurMap() {
   for (PreWorkCand *wkCand : workList) {
     auto *stmtWkCand = static_cast<PreStmtWorkCand*>(wkCand);
-    if (stmtWkCand->GetTheMeStmt()->GetOp() != OP_dassign) {
+    if (stmtWkCand->GetTheMeStmt()->GetOp() != OP_dassign && stmtWkCand->GetTheMeStmt()->GetOp() != OP_callassigned) {
       continue;
     }
     if (stmtWkCand->LHSIsFinal()) {
       continue;
     }
-    VarMeExpr *lhsVar = static_cast<DassignMeStmt*>(stmtWkCand->GetTheMeStmt())->GetVarLHS();
+    VarMeExpr *lhsVar = stmtWkCand->GetTheMeStmt()->GetVarLHS();
+    if (lhsVar == nullptr) {
+      continue;
+    }
     OStIdx ostIdx = lhsVar->GetOStIdx();
     if (useOccurMap.find(ostIdx) == useOccurMap.end()) {
       // add an entry for ostIdx
@@ -730,7 +746,7 @@ void MeStmtPre::ConstructUseOccurMap() {
     BB *bb = func->GetAllBBs().at(preOrderDt[i]);
     for (auto &stmt : bb->GetMeStmts()) {
       for (size_t j = 0; j < stmt.NumMeStmtOpnds(); ++j) {
-        ConstructUseOccurMapExpr(i, stmt.GetOpnd(j));
+        ConstructUseOccurMapExpr(static_cast<uint32>(i), *stmt.GetOpnd(j));
       }
     }
   }
@@ -738,20 +754,19 @@ void MeStmtPre::ConstructUseOccurMap() {
 
 // create a new realOcc based on meStmt
 PreStmtWorkCand *MeStmtPre::CreateStmtRealOcc(MeStmt &meStmt, int seqStmt) {
-  uint32 hashIdx = PreStmtWorkCand::ComputeStmtWorkCandHashIndex(meStmt);
-  auto *wkCand = static_cast<PreStmtWorkCand*>(PreWorkCand::GetWorkcandFromIndex(hashIdx));
+  uint32 hashIdx = PreWorkCandHashTable::ComputeStmtWorkCandHashIndex(meStmt);
+  auto *wkCand = static_cast<PreStmtWorkCand*>(preWorkCandHashTable.GetWorkcandFromIndex(hashIdx));
   while (wkCand != nullptr) {
-    MeStmt *x = wkCand->GetTheMeStmt();
-    ASSERT(x != nullptr, "CreateStmtRealOcc: found workcand with theMeStmt as nullptr");
-    if (x->IsTheSameWorkcand(meStmt)) {
+    MeStmt *currStmt = wkCand->GetTheMeStmt();
+    ASSERT(currStmt != nullptr, "CreateStmtRealOcc: found workcand with theMeStmt as nullptr");
+    if (currStmt->IsTheSameWorkcand(meStmt)) {
       break;
     }
     wkCand = static_cast<PreStmtWorkCand*>(wkCand->GetNext());
   }
   MeExpr *meExpr = nullptr;
-  if (meStmt.GetOp() == OP_dassign) {
-    auto &dass = static_cast<DassignMeStmt&>(meStmt);
-    MapleStack<VarMeExpr*> *pStack = versionStackVec.at(dass.GetVarLHS()->GetOStIdx());
+  if ((meStmt.GetOp() == OP_dassign || meStmt.GetOp() == OP_callassigned) && meStmt.GetVarLHS() != nullptr) {
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(meStmt.GetVarLHS()->GetOStIdx());
     meExpr = pStack->top();
   }
   MeRealOcc *newOcc = ssaPreMemPool->New<MeRealOcc>(&meStmt, seqStmt, meExpr);
@@ -760,13 +775,13 @@ PreStmtWorkCand *MeStmtPre::CreateStmtRealOcc(MeStmt &meStmt, int seqStmt) {
     return wkCand;
   }
   // workCand not yet created; create a new one and add to workList
-  wkCand = ssaPreMemPool->New<PreStmtWorkCand>(&ssaPreAllocator, workList.size(), &meStmt, GetPUIdx());
+  wkCand = ssaPreMemPool->New<PreStmtWorkCand>(ssaPreAllocator, workList.size(), meStmt, GetPUIdx());
   wkCand->SetHasLocalOpnd(true);  // dummy
   workList.push_back(wkCand);
   wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
   // add to bucket at workcandHashTable[hashIdx]
-  wkCand->SetNext(*PreWorkCand::GetWorkcandFromIndex(hashIdx));
-  PreWorkCand::SetWorkCandAt(hashIdx, *wkCand);
+  wkCand->SetNext(*preWorkCandHashTable.GetWorkcandFromIndex(hashIdx));
+  preWorkCandHashTable.SetWorkCandAt(hashIdx, *wkCand);
   return wkCand;
 }
 
@@ -776,7 +791,7 @@ void MeStmtPre::VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &ch
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
-    MapleStack<VarMeExpr*> *pStack = versionStackVec.at(it->second->GetLHS()->GetOStIdx());
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(it->second->GetLHS()->GetOStIdx());
     pStack->push(it->second->GetLHS());
   }
 }
@@ -785,7 +800,7 @@ void MeStmtPre::VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &ch
 static bool NoPriorUseInBB(const VarMeExpr *lhsVar, MeStmt *defStmt) {
   for (MeStmt *stmt = defStmt->GetPrev(); stmt != nullptr; stmt = stmt->GetPrev()) {
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-      CHECK_FATAL(stmt->GetOpnd(i), "null ptr check");
+      CHECK_FATAL(stmt->GetOpnd(i) != nullptr, "null ptr check");
       if (stmt->GetOpnd(i)->SymAppears(lhsVar->GetOStIdx())) {
         return false;
       }
@@ -808,14 +823,14 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
     curStackSizeVec[i] = versionStackVec[i]->size();
   }
   // traverse var phi nodes to update versionStack
-  MapleMap<OStIdx, MeVarPhiNode*> &meVarPhiList = bb->GetMevarPhiList();
-  for (auto it = meVarPhiList.begin(); it != meVarPhiList.end(); ++it) {
-    MeVarPhiNode *phiMeNode = it->second;
+  MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
+  for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
+    MePhiNode *phiMeNode = it->second;
     const OriginalSt *ost = ssaTab->GetOriginalStFromID(phiMeNode->GetLHS()->GetOStIdx());
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
-    MapleStack<VarMeExpr*> *pStack = versionStackVec.at(phiMeNode->GetLHS()->GetOStIdx());
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(phiMeNode->GetLHS()->GetOStIdx());
     pStack->push(phiMeNode->GetLHS());
   }
   // traverse statements
@@ -846,7 +861,6 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_retsub:
       case OP_throw:
       case OP_return:
-        //    CreateExitOcc(bb);
         break;
       case OP_iassign: {
         auto &iass = static_cast<IassignMeStmt&>(stmt);
@@ -917,7 +931,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
             (dassMeStmt.GetRHS()->GetOp() == OP_regread &&
              static_cast<RegMeExpr*>(dassMeStmt.GetRHS())->GetRegIdx() == -kSregThrownval)) {
           // update version stacks
-          MapleStack<VarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOStIdx());
+          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOStIdx());
           pStack->push(dassMeStmt.GetVarLHS());
           VersionStackChiListUpdate(*dassMeStmt.GetChiList());
           break;
@@ -931,11 +945,11 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           if (NoPriorUseInBB(dassMeStmt.GetVarLHS(), &stmt)) {
             (void)CreateStmtRealOcc(stmt, seqStmt);
           }
-        } else if (dassMeStmt.GetLHS()->IsUseSameSymbol(*dassMeStmt.GetRHS())) {
-          RemoveUnnecessaryDassign(&dassMeStmt);
+        } else if (dassMeStmt.GetLHS() != nullptr && dassMeStmt.GetLHS()->IsUseSameSymbol(*dassMeStmt.GetRHS())) {
+          RemoveUnnecessaryDassign(dassMeStmt);
         }
         // update version stacks
-        MapleStack<VarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOStIdx());
+        MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOStIdx());
         pStack->push(dassMeStmt.GetVarLHS());
         VersionStackChiListUpdate(*dassMeStmt.GetChiList());
         break;
@@ -956,7 +970,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         auto &intrnStmt = static_cast<IntrinsiccallMeStmt&>(stmt);
         bool allOperandsAreLeaf = true;
         for (size_t i = 0; i < intrnStmt.NumMeStmtOpnds(); ++i) {
-          if (!intrnStmt.GetOpnds()[i]->IsLeaf()) {
+          if (!intrnStmt.GetOpnd(i)->IsLeaf()) {
             allOperandsAreLeaf = false;
             break;
           }
@@ -976,7 +990,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         break;
       }
       default:
-        ASSERT(stmt.GetOp() == OP_comment, "");
+        ASSERT(stmt.GetOp() == OP_comment, "must be OP_comment");
         break;
     }
     if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
@@ -986,14 +1000,14 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         MeExpr *meLHS = mustDefList->front().GetLHS();
         if (meLHS->GetMeOp() == kMeOpVar) {
           auto *lhsVar = static_cast<VarMeExpr*>(meLHS);
-          MapleStack<VarMeExpr*> *pStack = versionStackVec.at(lhsVar->GetOStIdx());
+          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(lhsVar->GetOStIdx());
           pStack->push(lhsVar);
         }
       }
     }
   }
   if (bb->GetAttributes(kBBAttrIsExit) || bb->GetAttributes(kBBAttrWontExit)) {
-    CreateExitOcc(bb);
+    CreateExitOcc(*bb);
   }
   // recurse on child BBs in dominator tree
   const MapleSet<BBId> &domChildren = dom->GetDomChildren(bb->GetBBId());
@@ -1003,7 +1017,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
   }
   // pop the stacks back to their levels on entry
   for (size_t i = 1; i < versionStackVec.size(); ++i) {
-    MapleStack<VarMeExpr*> *pStack = versionStackVec[i];
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec[i];
     if (pStack == nullptr) {
       continue;
     }
@@ -1022,17 +1036,17 @@ void MeStmtPre::BuildWorkList() {
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
-    MapleStack<VarMeExpr*> *versStack = ssaPreMemPool->New<MapleStack<VarMeExpr*>>(ssaPreAllocator.Adapter());
-    versStack->push(static_cast<VarMeExpr*>(irMap->GetOrCreateZeroVersionVarMeExpr(*ost)));
-    versionStackVec[ost->GetIndex()] = versStack;
+    MapleStack<ScalarMeExpr*> *varStack = ssaPreMemPool->New<MapleStack<ScalarMeExpr*>>(ssaPreAllocator.Adapter());
+    varStack->push(static_cast<VarMeExpr*>(irMap->GetOrCreateZeroVersionVarMeExpr(*ost)));
+    versionStackVec[ost->GetIndex()] = varStack;
   }
   BuildWorkListBB(func->GetCommonEntryBB());
 }
 
-void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt *dssMeStmt) {
-  BB *bb = dssMeStmt->GetBB();
-  bb->RemoveMeStmt(dssMeStmt);
-  OStIdx ostIdx = dssMeStmt->GetVarLHS()->GetOStIdx();
+void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt) {
+  BB *bb = dssMeStmt.GetBB();
+  bb->RemoveMeStmt(&dssMeStmt);
+  OStIdx ostIdx = dssMeStmt.GetVarLHS()->GetOStIdx();
   MapleSet<BBId> *bbSet = nullptr;
   if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
     bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
@@ -1040,7 +1054,7 @@ void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt *dssMeStmt) {
   } else {
     bbSet = candsForSSAUpdate[ostIdx];
   }
-  bbSet->insert(bb->GetBBId());
+  (void)bbSet->insert(bb->GetBBId());
 }
 
 AnalysisResult *MeDoStmtPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
@@ -1048,15 +1062,15 @@ AnalysisResult *MeDoStmtPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
   ASSERT(dom != nullptr, "dominance phase has problem");
   auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAP, func));
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  MeStmtPre ssaPre(func, *irMap, *dom, *NewMemPool(), *NewMemPool(), MeOption::stmtprePULimit);
+  MeStmtPre ssaPre(*func, *irMap, *dom, *NewMemPool(), *NewMemPool(), MeOption::stmtprePULimit);
   if (DEBUGFUNC(func)) {
     ssaPre.SetSSAPreDebug(true);
   }
   ssaPre.ApplySSAPRE();
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
-    MemPool *tmp = memPoolCtrler.NewMemPool("MeSSAUpdate");
-    CHECK_FATAL(tmp != nullptr, "must be");
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *tmp);
+    MemPool *memPool = memPoolCtrler.NewMemPool("MeSSAUpdate");
+    CHECK_FATAL(memPool != nullptr, "must be");
+    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *memPool);
     ssaUpdate.Run();
   }
   if (DEBUGFUNC(func)) {
