@@ -145,7 +145,7 @@ bool FEIRTypeMergeHelper::MergeType(UniqueFEIRType &typeDst, const UniqueFEIRTyp
 
 // ---------- FEIRTypeInfer ----------
 FEIRTypeInfer::FEIRTypeInfer(MIRSrcLang argSrcLang,
-                             const std::map<const UniqueFEIRVar*, std::set<UniqueFEIRVar*>> &argMapDefUse)
+                             const std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>> &argMapDefUse)
     : srcLang(argSrcLang),
       mapDefUse(argMapDefUse) {
   LoadTypeDefault();
@@ -193,7 +193,7 @@ UniqueFEIRType FEIRTypeInfer::GetTypeForVarUse(const UniqueFEIRVar &varUse) {
   }
 }
 
-UniqueFEIRType FEIRTypeInfer::GetTypeForVarDef(const UniqueFEIRVar &varDef) {
+UniqueFEIRType FEIRTypeInfer::GetTypeForVarDef(UniqueFEIRVar &varDef) {
   CHECK_NULL_FATAL(varDef);
   if (varDef->GetType()->IsPreciseRefType()) {
     return varDef->GetType()->Clone();
@@ -254,8 +254,9 @@ void FEIRTypeInfer::ProcessVarDef(UniqueFEIRVar &varDef) {
     return;
   }
   if (useTypes.size() > 0) {
-    UniqueFEIRVar varNew = std::make_unique<FEIRVarTypeScatter>(UniqueFEIRVar(varDef->Clone()));
-    FEIRVarTypeScatter *ptrVarNew = static_cast<FEIRVarTypeScatter*>(varNew.get());
+    std::unique_ptr<FEIRVarTypeScatter> varNew =
+        std::make_unique<FEIRVarTypeScatter>(static_cast<UniqueFEIRVar>(varDef->Clone()));
+    FEIRVarTypeScatter *ptrVarNew = varNew.get();
     varDef->SetType(varDef->GetType()->Clone());
     for (const FEIRTypeKey &typeKey : useTypes) {
       ptrVarNew->AddScatterType(typeKey.GetType());
@@ -268,7 +269,7 @@ UniqueFEIRType FEIRTypeInfer::GetTypeByTransForVarUse(const UniqueFEIRVar &varUs
   CHECK_NULL_FATAL(varUse);
   FEIRVarTrans *ptrVarUseTrans = varUse->GetTrans().get();
   CHECK_NULL_FATAL(ptrVarUseTrans);
-  const UniqueFEIRVar &varDef = ptrVarUseTrans->GetVar();
+  UniqueFEIRVar &varDef = ptrVarUseTrans->GetVar();
   CHECK_NULL_FATAL(varDef);
   UniqueFEIRType defType = GetTypeForVarDef(varDef);
   if (defType != nullptr) {

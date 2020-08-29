@@ -24,7 +24,7 @@ namespace maple {
 std::map<MIRSrcLang, std::tuple<bool, PrimType>> FEIRType::langConfig = FEIRType::InitLangConfig();
 
 FEIRType::FEIRType(FEIRTypeKind argKind)
-    : kind(argKind), isZero(false) {}
+    : kind(argKind), isZero(false), srcLang(kSrcLangJava) {}
 
 void FEIRType::CopyFromImpl(const FEIRType &type) {
   kind = type.kind;
@@ -62,11 +62,11 @@ std::map<MIRSrcLang, std::tuple<bool, PrimType>> FEIRType::InitLangConfig() {
   return ans;
 }
 
-MIRType *FEIRType::GenerateMIRTypeAuto(MIRSrcLang srcLang) const {
+MIRType *FEIRType::GenerateMIRTypeAuto(MIRSrcLang argSrcLang) const {
   MPLFE_PARALLEL_FORBIDDEN();
-  auto it = langConfig.find(srcLang);
+  auto it = langConfig.find(argSrcLang);
   if (it == langConfig.end()) {
-    CHECK_FATAL(kLncErr, "unsupported language");
+    CHECK_FATAL(false, "unsupported language");
     return nullptr;
   }
   return GenerateMIRType(std::get<0>(it->second), std::get<1>(it->second));
@@ -205,7 +205,7 @@ void FEIRTypeDefault::LoadFromJavaTypeName(const std::string &typeName, bool inM
     }
   } else if (baseName[0] == 'L') {
     primType = PTY_ref;
-    baseName = inMpl ? baseName : NameMangler::EncodeName(baseName);
+    baseName = inMpl ? baseName : namemangler::EncodeName(baseName);
     typeNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(baseName);
   }
 }
@@ -288,6 +288,25 @@ MIRType *FEIRTypeDefault::GenerateMIRTypeInternal(const GStrIdx &argTypeNameIdx,
   return usePtr ? FEManager::GetTypeManager().GetOrCreatePointerType(*type, ptyPtr) : type;
 }
 
+std::string FEIRTypeDefault::GetTypeNameImpl() const {
+  if (dim == 0) {
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(typeNameIdx);
+  }
+  std::string name;
+  switch (srcLang) {
+    case kSrcLangJava: {
+      for (TypeDim i = 0; i < dim; i++) {
+        (void)name.append("A");
+      }
+      (void)name.append(GlobalTables::GetStrTable().GetStringFromStrIdx(typeNameIdx));
+      return name;
+    }
+    default:
+      CHECK_FATAL(false, "undefined language");
+      return "";
+  }
+}
+
 // ---------- FEIRTypeByName ----------
 FEIRTypeByName::FEIRTypeByName(PrimType argPrimType, const std::string &argTypeName, TypeDim argDim)
     : FEIRTypeDefault(argPrimType, GStrIdx(0), argDim),
@@ -307,7 +326,7 @@ MIRType *FEIRTypeByName::GenerateMIRTypeImpl(bool usePtr, PrimType ptyPtr) const
 }
 
 bool FEIRTypeByName::IsEqualToImpl(const FEIRType &argType) const {
-  if (!FEIRTypeDefault::IsEqualTo(argType)) {
+  if (!FEIRTypeDefault::IsEqualToImpl(argType)) {
     return false;
   }
   const FEIRTypeByName &argTypeName = static_cast<const FEIRTypeByName&>(argType);
