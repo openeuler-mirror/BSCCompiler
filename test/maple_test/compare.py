@@ -49,8 +49,11 @@ def main():
     expected_flags = opts.expected_flag
     if not expected_flags:
         expected_flags.append(EXPECTED_FLAG)
-
-    content = compare_object.read()
+    try:
+        content = compare_object.read()
+    except UnicodeDecodeError as e:
+        print("Wrong stdin encoding:{}\n{}".format(e.object, e))
+        sys.exit(1)
     content_line_map = gen_line_map(content)
 
     print("compare.py input:")
@@ -96,7 +99,7 @@ def main():
         info += "flag: {}, pattern: {} , result: {}, matached at output line: {}".format(
             pattern_flag, pattern, result, output_line_num
         )
-        print(info)
+        print(info.encode(encoding='utf-8', errors='ignore'))
 
         if result is False:
             print("Match End!, Compare Failed")

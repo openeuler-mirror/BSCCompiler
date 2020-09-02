@@ -22,6 +22,7 @@ import time
 import timeit
 import logging
 import platform
+import ctypes
 from textwrap import indent, shorten
 
 from maple_test.configs import construct_logger, get_val
@@ -33,10 +34,29 @@ class TestError(Exception):
     pass
 
 
+def handle_result_encoding(com_out, com_err, logger):
+    try:
+        com_out = com_out.decode(ENCODING, errors="strict")
+        com_err = com_err.decode(ENCODING, errors="strict")
+    except UnicodeDecodeError:
+        com_out = com_out.decode('utf-8', errors="strict")
+        com_err = com_err.decode('utf_8', errors="strict")
+        logger.debug("Can not decode stdout/stderr with {}, using utf-8!".format(ENCODING))
+    return com_out, com_err
+
+
 def run_command_win(cmd, work_dir, timeout, logger, env=None):
-    """Run commands using subprocess on Windows"""
+    """Run commands using subprocess on Windows
+
+    We set PYTHONIOENCODING to utf-8 on Windows to keep up with
+    test case file`s read encoding in compare.py to avoid some
+    character set issues.
+
+    """
     new_env = add_run_path(str(work_dir))
     new_env.update(env)
+    encoding_env = {'PYTHONIOENCODING': 'utf-8'}
+    new_env.update(encoding_env)
     process_command = subprocess.Popen(
         cmd,
         shell=True,
@@ -58,18 +78,20 @@ def run_command_win(cmd, work_dir, timeout, logger, env=None):
         return return_code, com_out, com_err
     else:
         return_code = process_command.returncode
-        com_out = com_out.decode(ENCODING, errors="replace")
-        com_err = com_err.decode(ENCODING, errors="replace")
+        com_out, com_err = handle_result_encoding(com_out, com_err, logger)
         return return_code, com_out, com_err
     finally:
-        process_command.kill()
+        handle = ctypes.windll.kernel32.OpenProcess(1, False, process_command.pid)
+        ctypes.windll.kernel32.TerminateProcess(handle, -1)
+        ctypes.windll.kernel32.CloseHandle(handle)
         logger.debug("return code: %d", return_code)
-        logger.debug("stdout : \n%s", indent(com_out, "+\t", lambda line: True))
-        logger.debug("stderr : \n%s", indent(com_err, "@\t", lambda line: True))
+        logger.debug("stdout : \n%s",
+                     indent(com_out, "+\t", lambda line: True).encode().decode(ENCODING, errors='ignore'))
+        logger.debug("stderr : \n%s",
+                     indent(com_err, "@\t", lambda line: True).encode().decode(ENCODING, errors='ignore'))
 
 
 def run_command_linux(cmd, work_dir, timeout, logger, env=None):
-    """Run commands using subprocess on Linux"""
     new_env = add_run_path(str(work_dir))
     new_env.update(env)
     process_command = subprocess.Popen(
@@ -95,8 +117,7 @@ def run_command_linux(cmd, work_dir, timeout, logger, env=None):
         return return_code, com_out, com_err
     else:
         return_code = process_command.returncode
-        com_out = com_out.decode(ENCODING, errors="replace")
-        com_err = com_err.decode(ENCODING, errors="replace")
+        com_out, com_err = handle_result_encoding(com_out, com_err, logger)
         return return_code, com_out, com_err
     finally:
         process_command.kill()
@@ -105,8 +126,10 @@ def run_command_linux(cmd, work_dir, timeout, logger, env=None):
         except ProcessLookupError:
             pass
         logger.debug("return code: %d", return_code)
-        logger.debug("stdout : \n%s", indent(com_out, "+\t", lambda line: True))
-        logger.debug("stderr : \n%s", indent(com_err, "@\t", lambda line: True))
+        logger.debug("stdout : \n%s",
+                     indent(com_out, "+\t", lambda line: True).encode().decode(ENCODING, errors='ignore'))
+        logger.debug("stderr : \n%s",
+                     indent(com_err, "@\t", lambda line: True).encode().decode(ENCODING, errors='ignore'))
 
 
 def run_commands(
