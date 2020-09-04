@@ -16,7 +16,7 @@ config("mapleallcompilecfg") {
   cflags_cc = []
   cflags_cc += [
     "-std=c++14",
-    "-Werror",
+    "-fno-common",
     "-DTARGAARCH64",
   ]
 
