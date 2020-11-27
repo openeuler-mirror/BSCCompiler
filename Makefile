@@ -63,8 +63,8 @@ mplfeUT:
 install: maple
 	$(shell mkdir -p $(MAPLE_ROOT)/output/ops/linker/; \
 	cp -rf $(MAPLE_ROOT)/build/maplelld.so.lds $(MAPLE_ROOT)/output/ops/linker/; \
-	cp -rf $(MAPLE_ROOT)/src/bin/java2jar $(MAPLE_ROOT)/output/bin/; \
-	cp -rf $(MAPLE_ROOT)/src/bin/jbc2mpl $(MAPLE_ROOT)/output/bin/)
+	cp -rf $(MAPLE_ROOT)/src/mapleall/bin/java2jar $(MAPLE_ROOT)/output/bin/; \
+	cp -rf $(MAPLE_ROOT)/src/mapleall/bin/jbc2mpl $(MAPLE_ROOT)/output/bin/)
 
 .PHONY: clean
 clean:

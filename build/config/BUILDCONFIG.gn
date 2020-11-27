@@ -32,13 +32,13 @@ TEST_BENCHMARK = false
 MEMORY_LEAK_CHECK = false
 MARK_CYCLE_ROOTS = false
 
-OPENSOURCE_DEPS = "${MAPLE_ROOT}/src/deplibs"
+OPENSOURCE_DEPS = "${MAPLE_ROOT}/src/mapleall/deplibs"
 OPENSOURCE_OUTPUT = "${MAPLE_ROOT}/output"
 AST2MPL_ROOT= "${MAPLE_ROOT}/src/ast2mpl"
 IS_AST2MPL_EXISTS = getenv("IS_AST2MPL_EXISTS")
-MAPLEALL_ROOT = "${MAPLE_ROOT}/src"
+MAPLEALL_ROOT = "${MAPLE_ROOT}/src/mapleall"
 MPLFE_ROOT = "${MAPLE_ROOT}/src/mplfe"
-THIRD_PARTY_ROOT = "${MAPLE_ROOT}/src/third_party"
+THIRD_PARTY_ROOT = "${MAPLE_ROOT}/third_party"
 
 # Put all built library files under lib
 GN_ARCHIVE_OUTPUT_DIRECTORY = "${GN_INSTALL_PREFIX}/output/lib"
