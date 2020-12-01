@@ -3,16 +3,16 @@
 #
 # Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
 #
-# OpenArkCompiler is licensed under the Mulan PSL v1.
-# You can use this software according to the terms and conditions of the Mulan PSL v1.
-# You may obtain a copy of Mulan PSL v1 at:
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
 #
-#     http://license.coscl.org.cn/MulanPSL
+#     http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
 # FIT FOR A PARTICULAR PURPOSE.
-# See the Mulan PSL v1 for more details.
+# See the Mulan PSL v2 for more details.
 #
 
 # List all the input args
@@ -22,10 +22,13 @@ declare_args() {
   HOST_ARCH = 64
   MIR_JAVA = 1
   COV_CHECK = 0
+  OPS_ANDROID = 0
+  OPT = "O2"
 }
 
 # Define global args
 MAPLE_ROOT = "${GN_INSTALL_PREFIX}"
+ANDROID_ROOT = "${GN_INSTALL_PREFIX}/android"
 DYNAMICLANG = true
 RC_V2 = true
 TEST_BENCHMARK = false
@@ -34,14 +37,16 @@ MARK_CYCLE_ROOTS = false
 
 OPENSOURCE_DEPS = "${MAPLE_ROOT}/src/mapleall/deplibs"
 OPENSOURCE_OUTPUT = "${MAPLE_ROOT}/output"
-AST2MPL_ROOT= "${MAPLE_ROOT}/src/ast2mpl"
+AST2MPL_ROOT = "${MAPLE_ROOT}/src/ast2mpl"
 IS_AST2MPL_EXISTS = getenv("IS_AST2MPL_EXISTS")
+MAPLEALL_ROOT = "${MAPLE_ROOT}/src"
 MAPLEALL_ROOT = "${MAPLE_ROOT}/src/mapleall"
 MPLFE_ROOT = "${MAPLE_ROOT}/src/mplfe"
+MAPLE_MRT_ROOT = "${MAPLE_ROOT}/src/mrt"
 THIRD_PARTY_ROOT = "${MAPLE_ROOT}/third_party"
 
 # Put all built library files under lib
-GN_ARCHIVE_OUTPUT_DIRECTORY = "${GN_INSTALL_PREFIX}/output/lib"
+GN_ARCHIVE_OUTPUT_DIRECTORY = "${GN_INSTALL_PREFIX}/output/ar"
 GN_LIBRARY_OUTPUT_DIRECTORY = "${GN_INSTALL_PREFIX}/output/lib"
 
 # Put all built binary files under bin
@@ -56,10 +61,12 @@ cflags_c = []
 if (GN_BUILD_TYPE == "RELEASE") {
   cflags_cc += [
     "-O2",
+    "-fno-strict-aliasing",
     "-D_FORTIFY_SOURCE=2",
   ]
   cflags_c += [
     "-O2",
+    "-fno-strict-aliasing",
     "-D_FORTIFY_SOURCE=2",
   ]
 } else if (GN_BUILD_TYPE == "DEBUG") {
@@ -78,10 +85,12 @@ if (GN_BUILD_TYPE == "RELEASE") {
 } else {
   cflags_cc += [
     "-O2",
+    "-fno-strict-aliasing",
     "-g",
   ]
   cflags_c += [
     "-O2",
+    "-fno-strict-aliasing",
     "-g",
   ]
 }
@@ -92,13 +101,22 @@ cflags_c += [
   "-fPIC",
   "-fPIE",
   "-fvisibility=hidden",
+  "-pipe",
+  "-Werror",
+  "-Wdate-time",
+  "-Wfloat-equal",
 ]
+
 cflags_cc += [
   "-Wall",
   "-fstack-protector-strong",
   "-fPIC",
   "-fPIE",
   "-fvisibility=hidden",
+  "-pipe",
+  "-Werror",
+  "-Wdate-time",
+  "-Wfloat-equal",
 ]
 
 if (HOST_ARCH == 64) {
@@ -107,6 +125,15 @@ if (HOST_ARCH == 64) {
 } else {
   cflags_c += [ "-m32" ]
   cflags_cc += [ "-m32" ]
+}
+
+if (OPS_ANDROID == 1) {
+  cflags_c += [
+    "-DUSE_32BIT_REF",
+  ]
+  cflags_cc += [
+    "-DUSE_32BIT_REF",
+  ]
 }
 
 if (DYNAMICLANG) {

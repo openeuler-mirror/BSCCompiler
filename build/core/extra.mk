@@ -12,5 +12,13 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-APP = Arith
-include $(MAPLE_BUILD_CORE)/maple_test.mk
+$(INIT_CXX_SRC): $(ADD_OBJS)
+	cp -f $< $@
+
+ifeq ($(DEBUG), 0)
+$(INIT_CXX_O) : $(INIT_CXX_SRC)
+	$(QEMU_CLANG_CPP) -O2 $(QEMU_CLANG_FLAGS) -c $^ -o $@
+else
+$(INIT_CXX_O) : $(INIT_CXX_SRC)
+	$(QEMU_CLANG_CPP) -O0 -g3 $(QEMU_CLANG_FLAGS) -c $^ -o $@
+endif
