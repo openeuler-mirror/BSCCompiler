@@ -1,0 +1,928 @@
+/*
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+namespace maplert {
+constexpr int kSupportMaxInterfaceMethod = 600;
+
+// this stub is defined in proxy_stub_arm.S/roxy_stub_arm64.S
+#define STUBFUNCPROXY_TYPE_NUM(TYPE, NUM) \
+extern "C" int64_t sfp_##TYPE##_##NUM();
+
+#define STUBFUNCPROXY_NUM(NUM)\
+STUBFUNCPROXY_TYPE_NUM(jlong, NUM)\
+
+STUBFUNCPROXY_NUM(0) STUBFUNCPROXY_NUM(1)
+STUBFUNCPROXY_NUM(2) STUBFUNCPROXY_NUM(3)
+STUBFUNCPROXY_NUM(4) STUBFUNCPROXY_NUM(5)
+STUBFUNCPROXY_NUM(6) STUBFUNCPROXY_NUM(7)
+STUBFUNCPROXY_NUM(8) STUBFUNCPROXY_NUM(9)
+STUBFUNCPROXY_NUM(10) STUBFUNCPROXY_NUM(11)
+STUBFUNCPROXY_NUM(12) STUBFUNCPROXY_NUM(13)
+STUBFUNCPROXY_NUM(14) STUBFUNCPROXY_NUM(15)
+STUBFUNCPROXY_NUM(16) STUBFUNCPROXY_NUM(17)
+STUBFUNCPROXY_NUM(18) STUBFUNCPROXY_NUM(19)
+STUBFUNCPROXY_NUM(20) STUBFUNCPROXY_NUM(21)
+STUBFUNCPROXY_NUM(22) STUBFUNCPROXY_NUM(23)
+STUBFUNCPROXY_NUM(24) STUBFUNCPROXY_NUM(25)
+STUBFUNCPROXY_NUM(26) STUBFUNCPROXY_NUM(27)
+STUBFUNCPROXY_NUM(28) STUBFUNCPROXY_NUM(29)
+STUBFUNCPROXY_NUM(30) STUBFUNCPROXY_NUM(31)
+STUBFUNCPROXY_NUM(32) STUBFUNCPROXY_NUM(33)
+STUBFUNCPROXY_NUM(34) STUBFUNCPROXY_NUM(35)
+STUBFUNCPROXY_NUM(36) STUBFUNCPROXY_NUM(37)
+STUBFUNCPROXY_NUM(38) STUBFUNCPROXY_NUM(39)
+STUBFUNCPROXY_NUM(40) STUBFUNCPROXY_NUM(41)
+STUBFUNCPROXY_NUM(42) STUBFUNCPROXY_NUM(43)
+STUBFUNCPROXY_NUM(44) STUBFUNCPROXY_NUM(45)
+STUBFUNCPROXY_NUM(46) STUBFUNCPROXY_NUM(47)
+STUBFUNCPROXY_NUM(48) STUBFUNCPROXY_NUM(49)
+STUBFUNCPROXY_NUM(50) STUBFUNCPROXY_NUM(51)
+STUBFUNCPROXY_NUM(52) STUBFUNCPROXY_NUM(53)
+STUBFUNCPROXY_NUM(54) STUBFUNCPROXY_NUM(55)
+STUBFUNCPROXY_NUM(56) STUBFUNCPROXY_NUM(57)
+STUBFUNCPROXY_NUM(58) STUBFUNCPROXY_NUM(59)
+STUBFUNCPROXY_NUM(60) STUBFUNCPROXY_NUM(61)
+STUBFUNCPROXY_NUM(62) STUBFUNCPROXY_NUM(63)
+STUBFUNCPROXY_NUM(64) STUBFUNCPROXY_NUM(65)
+STUBFUNCPROXY_NUM(66) STUBFUNCPROXY_NUM(67)
+STUBFUNCPROXY_NUM(68) STUBFUNCPROXY_NUM(69)
+STUBFUNCPROXY_NUM(70) STUBFUNCPROXY_NUM(71)
+STUBFUNCPROXY_NUM(72) STUBFUNCPROXY_NUM(73)
+STUBFUNCPROXY_NUM(74) STUBFUNCPROXY_NUM(75)
+STUBFUNCPROXY_NUM(76) STUBFUNCPROXY_NUM(77)
+STUBFUNCPROXY_NUM(78) STUBFUNCPROXY_NUM(79)
+STUBFUNCPROXY_NUM(80) STUBFUNCPROXY_NUM(81)
+STUBFUNCPROXY_NUM(82) STUBFUNCPROXY_NUM(83)
+STUBFUNCPROXY_NUM(84) STUBFUNCPROXY_NUM(85)
+STUBFUNCPROXY_NUM(86) STUBFUNCPROXY_NUM(87)
+STUBFUNCPROXY_NUM(88) STUBFUNCPROXY_NUM(89)
+STUBFUNCPROXY_NUM(90) STUBFUNCPROXY_NUM(91)
+STUBFUNCPROXY_NUM(92) STUBFUNCPROXY_NUM(93)
+STUBFUNCPROXY_NUM(94) STUBFUNCPROXY_NUM(95)
+STUBFUNCPROXY_NUM(96) STUBFUNCPROXY_NUM(97)
+STUBFUNCPROXY_NUM(98) STUBFUNCPROXY_NUM(99)
+STUBFUNCPROXY_NUM(100) STUBFUNCPROXY_NUM(101)
+STUBFUNCPROXY_NUM(102) STUBFUNCPROXY_NUM(103)
+STUBFUNCPROXY_NUM(104) STUBFUNCPROXY_NUM(105)
+STUBFUNCPROXY_NUM(106) STUBFUNCPROXY_NUM(107)
+STUBFUNCPROXY_NUM(108) STUBFUNCPROXY_NUM(109)
+STUBFUNCPROXY_NUM(110) STUBFUNCPROXY_NUM(111)
+STUBFUNCPROXY_NUM(112) STUBFUNCPROXY_NUM(113)
+STUBFUNCPROXY_NUM(114) STUBFUNCPROXY_NUM(115)
+STUBFUNCPROXY_NUM(116) STUBFUNCPROXY_NUM(117)
+STUBFUNCPROXY_NUM(118) STUBFUNCPROXY_NUM(119)
+STUBFUNCPROXY_NUM(120) STUBFUNCPROXY_NUM(121)
+STUBFUNCPROXY_NUM(122) STUBFUNCPROXY_NUM(123)
+STUBFUNCPROXY_NUM(124) STUBFUNCPROXY_NUM(125)
+STUBFUNCPROXY_NUM(126) STUBFUNCPROXY_NUM(127)
+STUBFUNCPROXY_NUM(128) STUBFUNCPROXY_NUM(129)
+STUBFUNCPROXY_NUM(130) STUBFUNCPROXY_NUM(131)
+STUBFUNCPROXY_NUM(132) STUBFUNCPROXY_NUM(133)
+STUBFUNCPROXY_NUM(134) STUBFUNCPROXY_NUM(135)
+STUBFUNCPROXY_NUM(136) STUBFUNCPROXY_NUM(137)
+STUBFUNCPROXY_NUM(138) STUBFUNCPROXY_NUM(139)
+STUBFUNCPROXY_NUM(140) STUBFUNCPROXY_NUM(141)
+STUBFUNCPROXY_NUM(142) STUBFUNCPROXY_NUM(143)
+STUBFUNCPROXY_NUM(144) STUBFUNCPROXY_NUM(145)
+STUBFUNCPROXY_NUM(146) STUBFUNCPROXY_NUM(147)
+STUBFUNCPROXY_NUM(148) STUBFUNCPROXY_NUM(149)
+STUBFUNCPROXY_NUM(150) STUBFUNCPROXY_NUM(151)
+STUBFUNCPROXY_NUM(152) STUBFUNCPROXY_NUM(153)
+STUBFUNCPROXY_NUM(154) STUBFUNCPROXY_NUM(155)
+STUBFUNCPROXY_NUM(156) STUBFUNCPROXY_NUM(157)
+STUBFUNCPROXY_NUM(158) STUBFUNCPROXY_NUM(159)
+STUBFUNCPROXY_NUM(160) STUBFUNCPROXY_NUM(161)
+STUBFUNCPROXY_NUM(162) STUBFUNCPROXY_NUM(163)
+STUBFUNCPROXY_NUM(164) STUBFUNCPROXY_NUM(165)
+STUBFUNCPROXY_NUM(166) STUBFUNCPROXY_NUM(167)
+STUBFUNCPROXY_NUM(168) STUBFUNCPROXY_NUM(169)
+STUBFUNCPROXY_NUM(170) STUBFUNCPROXY_NUM(171)
+STUBFUNCPROXY_NUM(172) STUBFUNCPROXY_NUM(173)
+STUBFUNCPROXY_NUM(174) STUBFUNCPROXY_NUM(175)
+STUBFUNCPROXY_NUM(176) STUBFUNCPROXY_NUM(177)
+STUBFUNCPROXY_NUM(178) STUBFUNCPROXY_NUM(179)
+STUBFUNCPROXY_NUM(180) STUBFUNCPROXY_NUM(181)
+STUBFUNCPROXY_NUM(182) STUBFUNCPROXY_NUM(183)
+STUBFUNCPROXY_NUM(184) STUBFUNCPROXY_NUM(185)
+STUBFUNCPROXY_NUM(186) STUBFUNCPROXY_NUM(187)
+STUBFUNCPROXY_NUM(188) STUBFUNCPROXY_NUM(189)
+STUBFUNCPROXY_NUM(190) STUBFUNCPROXY_NUM(191)
+STUBFUNCPROXY_NUM(192) STUBFUNCPROXY_NUM(193)
+STUBFUNCPROXY_NUM(194) STUBFUNCPROXY_NUM(195)
+STUBFUNCPROXY_NUM(196) STUBFUNCPROXY_NUM(197)
+STUBFUNCPROXY_NUM(198) STUBFUNCPROXY_NUM(199)
+STUBFUNCPROXY_NUM(200) STUBFUNCPROXY_NUM(201)
+STUBFUNCPROXY_NUM(202) STUBFUNCPROXY_NUM(203)
+STUBFUNCPROXY_NUM(204) STUBFUNCPROXY_NUM(205)
+STUBFUNCPROXY_NUM(206) STUBFUNCPROXY_NUM(207)
+STUBFUNCPROXY_NUM(208) STUBFUNCPROXY_NUM(209)
+STUBFUNCPROXY_NUM(210) STUBFUNCPROXY_NUM(211)
+STUBFUNCPROXY_NUM(212) STUBFUNCPROXY_NUM(213)
+STUBFUNCPROXY_NUM(214) STUBFUNCPROXY_NUM(215)
+STUBFUNCPROXY_NUM(216) STUBFUNCPROXY_NUM(217)
+STUBFUNCPROXY_NUM(218) STUBFUNCPROXY_NUM(219)
+STUBFUNCPROXY_NUM(220) STUBFUNCPROXY_NUM(221)
+STUBFUNCPROXY_NUM(222) STUBFUNCPROXY_NUM(223)
+STUBFUNCPROXY_NUM(224) STUBFUNCPROXY_NUM(225)
+STUBFUNCPROXY_NUM(226) STUBFUNCPROXY_NUM(227)
+STUBFUNCPROXY_NUM(228) STUBFUNCPROXY_NUM(229)
+STUBFUNCPROXY_NUM(230) STUBFUNCPROXY_NUM(231)
+STUBFUNCPROXY_NUM(232) STUBFUNCPROXY_NUM(233)
+STUBFUNCPROXY_NUM(234) STUBFUNCPROXY_NUM(235)
+STUBFUNCPROXY_NUM(236) STUBFUNCPROXY_NUM(237)
+STUBFUNCPROXY_NUM(238) STUBFUNCPROXY_NUM(239)
+STUBFUNCPROXY_NUM(240) STUBFUNCPROXY_NUM(241)
+STUBFUNCPROXY_NUM(242) STUBFUNCPROXY_NUM(243)
+STUBFUNCPROXY_NUM(244) STUBFUNCPROXY_NUM(245)
+STUBFUNCPROXY_NUM(246) STUBFUNCPROXY_NUM(247)
+STUBFUNCPROXY_NUM(248) STUBFUNCPROXY_NUM(249)
+STUBFUNCPROXY_NUM(250) STUBFUNCPROXY_NUM(251)
+STUBFUNCPROXY_NUM(252) STUBFUNCPROXY_NUM(253)
+STUBFUNCPROXY_NUM(254) STUBFUNCPROXY_NUM(255)
+STUBFUNCPROXY_NUM(256) STUBFUNCPROXY_NUM(257)
+STUBFUNCPROXY_NUM(258) STUBFUNCPROXY_NUM(259)
+STUBFUNCPROXY_NUM(260) STUBFUNCPROXY_NUM(261)
+STUBFUNCPROXY_NUM(262) STUBFUNCPROXY_NUM(263)
+STUBFUNCPROXY_NUM(264) STUBFUNCPROXY_NUM(265)
+STUBFUNCPROXY_NUM(266) STUBFUNCPROXY_NUM(267)
+STUBFUNCPROXY_NUM(268) STUBFUNCPROXY_NUM(269)
+STUBFUNCPROXY_NUM(270) STUBFUNCPROXY_NUM(271)
+STUBFUNCPROXY_NUM(272) STUBFUNCPROXY_NUM(273)
+STUBFUNCPROXY_NUM(274) STUBFUNCPROXY_NUM(275)
+STUBFUNCPROXY_NUM(276) STUBFUNCPROXY_NUM(277)
+STUBFUNCPROXY_NUM(278) STUBFUNCPROXY_NUM(279)
+STUBFUNCPROXY_NUM(280) STUBFUNCPROXY_NUM(281)
+STUBFUNCPROXY_NUM(282) STUBFUNCPROXY_NUM(283)
+STUBFUNCPROXY_NUM(284) STUBFUNCPROXY_NUM(285)
+STUBFUNCPROXY_NUM(286) STUBFUNCPROXY_NUM(287)
+STUBFUNCPROXY_NUM(288) STUBFUNCPROXY_NUM(289)
+STUBFUNCPROXY_NUM(290) STUBFUNCPROXY_NUM(291)
+STUBFUNCPROXY_NUM(292) STUBFUNCPROXY_NUM(293)
+STUBFUNCPROXY_NUM(294) STUBFUNCPROXY_NUM(295)
+STUBFUNCPROXY_NUM(296) STUBFUNCPROXY_NUM(297)
+STUBFUNCPROXY_NUM(298) STUBFUNCPROXY_NUM(299)
+STUBFUNCPROXY_NUM(300) STUBFUNCPROXY_NUM(301)
+STUBFUNCPROXY_NUM(302) STUBFUNCPROXY_NUM(303)
+STUBFUNCPROXY_NUM(304) STUBFUNCPROXY_NUM(305)
+STUBFUNCPROXY_NUM(306) STUBFUNCPROXY_NUM(307)
+STUBFUNCPROXY_NUM(308) STUBFUNCPROXY_NUM(309)
+STUBFUNCPROXY_NUM(310) STUBFUNCPROXY_NUM(311)
+STUBFUNCPROXY_NUM(312) STUBFUNCPROXY_NUM(313)
+STUBFUNCPROXY_NUM(314) STUBFUNCPROXY_NUM(315)
+STUBFUNCPROXY_NUM(316) STUBFUNCPROXY_NUM(317)
+STUBFUNCPROXY_NUM(318) STUBFUNCPROXY_NUM(319)
+STUBFUNCPROXY_NUM(320) STUBFUNCPROXY_NUM(321)
+STUBFUNCPROXY_NUM(322) STUBFUNCPROXY_NUM(323)
+STUBFUNCPROXY_NUM(324) STUBFUNCPROXY_NUM(325)
+STUBFUNCPROXY_NUM(326) STUBFUNCPROXY_NUM(327)
+STUBFUNCPROXY_NUM(328) STUBFUNCPROXY_NUM(329)
+STUBFUNCPROXY_NUM(330) STUBFUNCPROXY_NUM(331)
+STUBFUNCPROXY_NUM(332) STUBFUNCPROXY_NUM(333)
+STUBFUNCPROXY_NUM(334) STUBFUNCPROXY_NUM(335)
+STUBFUNCPROXY_NUM(336) STUBFUNCPROXY_NUM(337)
+STUBFUNCPROXY_NUM(338) STUBFUNCPROXY_NUM(339)
+STUBFUNCPROXY_NUM(340) STUBFUNCPROXY_NUM(341)
+STUBFUNCPROXY_NUM(342) STUBFUNCPROXY_NUM(343)
+STUBFUNCPROXY_NUM(344) STUBFUNCPROXY_NUM(345)
+STUBFUNCPROXY_NUM(346) STUBFUNCPROXY_NUM(347)
+STUBFUNCPROXY_NUM(348) STUBFUNCPROXY_NUM(349)
+STUBFUNCPROXY_NUM(350) STUBFUNCPROXY_NUM(351)
+STUBFUNCPROXY_NUM(352) STUBFUNCPROXY_NUM(353)
+STUBFUNCPROXY_NUM(354) STUBFUNCPROXY_NUM(355)
+STUBFUNCPROXY_NUM(356) STUBFUNCPROXY_NUM(357)
+STUBFUNCPROXY_NUM(358) STUBFUNCPROXY_NUM(359)
+STUBFUNCPROXY_NUM(360) STUBFUNCPROXY_NUM(361)
+STUBFUNCPROXY_NUM(362) STUBFUNCPROXY_NUM(363)
+STUBFUNCPROXY_NUM(364) STUBFUNCPROXY_NUM(365)
+STUBFUNCPROXY_NUM(366) STUBFUNCPROXY_NUM(367)
+STUBFUNCPROXY_NUM(368) STUBFUNCPROXY_NUM(369)
+STUBFUNCPROXY_NUM(370) STUBFUNCPROXY_NUM(371)
+STUBFUNCPROXY_NUM(372) STUBFUNCPROXY_NUM(373)
+STUBFUNCPROXY_NUM(374) STUBFUNCPROXY_NUM(375)
+STUBFUNCPROXY_NUM(376) STUBFUNCPROXY_NUM(377)
+STUBFUNCPROXY_NUM(378) STUBFUNCPROXY_NUM(379)
+STUBFUNCPROXY_NUM(380) STUBFUNCPROXY_NUM(381)
+STUBFUNCPROXY_NUM(382) STUBFUNCPROXY_NUM(383)
+STUBFUNCPROXY_NUM(384) STUBFUNCPROXY_NUM(385)
+STUBFUNCPROXY_NUM(386) STUBFUNCPROXY_NUM(387)
+STUBFUNCPROXY_NUM(388) STUBFUNCPROXY_NUM(389)
+STUBFUNCPROXY_NUM(390) STUBFUNCPROXY_NUM(391)
+STUBFUNCPROXY_NUM(392) STUBFUNCPROXY_NUM(393)
+STUBFUNCPROXY_NUM(394) STUBFUNCPROXY_NUM(395)
+STUBFUNCPROXY_NUM(396) STUBFUNCPROXY_NUM(397)
+STUBFUNCPROXY_NUM(398) STUBFUNCPROXY_NUM(399)
+STUBFUNCPROXY_NUM(400) STUBFUNCPROXY_NUM(401)
+STUBFUNCPROXY_NUM(402) STUBFUNCPROXY_NUM(403)
+STUBFUNCPROXY_NUM(404) STUBFUNCPROXY_NUM(405)
+STUBFUNCPROXY_NUM(406) STUBFUNCPROXY_NUM(407)
+STUBFUNCPROXY_NUM(408) STUBFUNCPROXY_NUM(409)
+STUBFUNCPROXY_NUM(410) STUBFUNCPROXY_NUM(411)
+STUBFUNCPROXY_NUM(412) STUBFUNCPROXY_NUM(413)
+STUBFUNCPROXY_NUM(414) STUBFUNCPROXY_NUM(415)
+STUBFUNCPROXY_NUM(416) STUBFUNCPROXY_NUM(417)
+STUBFUNCPROXY_NUM(418) STUBFUNCPROXY_NUM(419)
+STUBFUNCPROXY_NUM(420) STUBFUNCPROXY_NUM(421)
+STUBFUNCPROXY_NUM(422) STUBFUNCPROXY_NUM(423)
+STUBFUNCPROXY_NUM(424) STUBFUNCPROXY_NUM(425)
+STUBFUNCPROXY_NUM(426) STUBFUNCPROXY_NUM(427)
+STUBFUNCPROXY_NUM(428) STUBFUNCPROXY_NUM(429)
+STUBFUNCPROXY_NUM(430) STUBFUNCPROXY_NUM(431)
+STUBFUNCPROXY_NUM(432) STUBFUNCPROXY_NUM(433)
+STUBFUNCPROXY_NUM(434) STUBFUNCPROXY_NUM(435)
+STUBFUNCPROXY_NUM(436) STUBFUNCPROXY_NUM(437)
+STUBFUNCPROXY_NUM(438) STUBFUNCPROXY_NUM(439)
+STUBFUNCPROXY_NUM(440) STUBFUNCPROXY_NUM(441)
+STUBFUNCPROXY_NUM(442) STUBFUNCPROXY_NUM(443)
+STUBFUNCPROXY_NUM(444) STUBFUNCPROXY_NUM(445)
+STUBFUNCPROXY_NUM(446) STUBFUNCPROXY_NUM(447)
+STUBFUNCPROXY_NUM(448) STUBFUNCPROXY_NUM(449)
+STUBFUNCPROXY_NUM(450) STUBFUNCPROXY_NUM(451)
+STUBFUNCPROXY_NUM(452) STUBFUNCPROXY_NUM(453)
+STUBFUNCPROXY_NUM(454) STUBFUNCPROXY_NUM(455)
+STUBFUNCPROXY_NUM(456) STUBFUNCPROXY_NUM(457)
+STUBFUNCPROXY_NUM(458) STUBFUNCPROXY_NUM(459)
+STUBFUNCPROXY_NUM(460) STUBFUNCPROXY_NUM(461)
+STUBFUNCPROXY_NUM(462) STUBFUNCPROXY_NUM(463)
+STUBFUNCPROXY_NUM(464) STUBFUNCPROXY_NUM(465)
+STUBFUNCPROXY_NUM(466) STUBFUNCPROXY_NUM(467)
+STUBFUNCPROXY_NUM(468) STUBFUNCPROXY_NUM(469)
+STUBFUNCPROXY_NUM(470) STUBFUNCPROXY_NUM(471)
+STUBFUNCPROXY_NUM(472) STUBFUNCPROXY_NUM(473)
+STUBFUNCPROXY_NUM(474) STUBFUNCPROXY_NUM(475)
+STUBFUNCPROXY_NUM(476) STUBFUNCPROXY_NUM(477)
+STUBFUNCPROXY_NUM(478) STUBFUNCPROXY_NUM(479)
+STUBFUNCPROXY_NUM(480) STUBFUNCPROXY_NUM(481)
+STUBFUNCPROXY_NUM(482) STUBFUNCPROXY_NUM(483)
+STUBFUNCPROXY_NUM(484) STUBFUNCPROXY_NUM(485)
+STUBFUNCPROXY_NUM(486) STUBFUNCPROXY_NUM(487)
+STUBFUNCPROXY_NUM(488) STUBFUNCPROXY_NUM(489)
+STUBFUNCPROXY_NUM(490) STUBFUNCPROXY_NUM(491)
+STUBFUNCPROXY_NUM(492) STUBFUNCPROXY_NUM(493)
+STUBFUNCPROXY_NUM(494) STUBFUNCPROXY_NUM(495)
+STUBFUNCPROXY_NUM(496) STUBFUNCPROXY_NUM(497)
+STUBFUNCPROXY_NUM(498) STUBFUNCPROXY_NUM(499)
+STUBFUNCPROXY_NUM(500) STUBFUNCPROXY_NUM(501)
+STUBFUNCPROXY_NUM(502) STUBFUNCPROXY_NUM(503)
+STUBFUNCPROXY_NUM(504) STUBFUNCPROXY_NUM(505)
+STUBFUNCPROXY_NUM(506) STUBFUNCPROXY_NUM(507)
+STUBFUNCPROXY_NUM(508) STUBFUNCPROXY_NUM(509)
+STUBFUNCPROXY_NUM(510) STUBFUNCPROXY_NUM(511)
+STUBFUNCPROXY_NUM(512) STUBFUNCPROXY_NUM(513)
+STUBFUNCPROXY_NUM(514) STUBFUNCPROXY_NUM(515)
+STUBFUNCPROXY_NUM(516) STUBFUNCPROXY_NUM(517)
+STUBFUNCPROXY_NUM(518) STUBFUNCPROXY_NUM(519)
+STUBFUNCPROXY_NUM(520) STUBFUNCPROXY_NUM(521)
+STUBFUNCPROXY_NUM(522) STUBFUNCPROXY_NUM(523)
+STUBFUNCPROXY_NUM(524) STUBFUNCPROXY_NUM(525)
+STUBFUNCPROXY_NUM(526) STUBFUNCPROXY_NUM(527)
+STUBFUNCPROXY_NUM(528) STUBFUNCPROXY_NUM(529)
+STUBFUNCPROXY_NUM(530) STUBFUNCPROXY_NUM(531)
+STUBFUNCPROXY_NUM(532) STUBFUNCPROXY_NUM(533)
+STUBFUNCPROXY_NUM(534) STUBFUNCPROXY_NUM(535)
+STUBFUNCPROXY_NUM(536) STUBFUNCPROXY_NUM(537)
+STUBFUNCPROXY_NUM(538) STUBFUNCPROXY_NUM(539)
+STUBFUNCPROXY_NUM(540) STUBFUNCPROXY_NUM(541)
+STUBFUNCPROXY_NUM(542) STUBFUNCPROXY_NUM(543)
+STUBFUNCPROXY_NUM(544) STUBFUNCPROXY_NUM(545)
+STUBFUNCPROXY_NUM(546) STUBFUNCPROXY_NUM(547)
+STUBFUNCPROXY_NUM(548) STUBFUNCPROXY_NUM(549)
+STUBFUNCPROXY_NUM(550) STUBFUNCPROXY_NUM(551)
+STUBFUNCPROXY_NUM(552) STUBFUNCPROXY_NUM(553)
+STUBFUNCPROXY_NUM(554) STUBFUNCPROXY_NUM(555)
+STUBFUNCPROXY_NUM(556) STUBFUNCPROXY_NUM(557)
+STUBFUNCPROXY_NUM(558) STUBFUNCPROXY_NUM(559)
+STUBFUNCPROXY_NUM(560) STUBFUNCPROXY_NUM(561)
+STUBFUNCPROXY_NUM(562) STUBFUNCPROXY_NUM(563)
+STUBFUNCPROXY_NUM(564) STUBFUNCPROXY_NUM(565)
+STUBFUNCPROXY_NUM(566) STUBFUNCPROXY_NUM(567)
+STUBFUNCPROXY_NUM(568) STUBFUNCPROXY_NUM(569)
+STUBFUNCPROXY_NUM(570) STUBFUNCPROXY_NUM(571)
+STUBFUNCPROXY_NUM(572) STUBFUNCPROXY_NUM(573)
+STUBFUNCPROXY_NUM(574) STUBFUNCPROXY_NUM(575)
+STUBFUNCPROXY_NUM(576) STUBFUNCPROXY_NUM(577)
+STUBFUNCPROXY_NUM(578) STUBFUNCPROXY_NUM(579)
+STUBFUNCPROXY_NUM(580) STUBFUNCPROXY_NUM(581)
+STUBFUNCPROXY_NUM(582) STUBFUNCPROXY_NUM(583)
+STUBFUNCPROXY_NUM(584) STUBFUNCPROXY_NUM(585)
+STUBFUNCPROXY_NUM(586) STUBFUNCPROXY_NUM(587)
+STUBFUNCPROXY_NUM(588) STUBFUNCPROXY_NUM(589)
+STUBFUNCPROXY_NUM(590) STUBFUNCPROXY_NUM(591)
+STUBFUNCPROXY_NUM(592) STUBFUNCPROXY_NUM(593)
+STUBFUNCPROXY_NUM(594) STUBFUNCPROXY_NUM(595)
+STUBFUNCPROXY_NUM(596) STUBFUNCPROXY_NUM(597)
+STUBFUNCPROXY_NUM(598) STUBFUNCPROXY_NUM(599)
+
+void (*gstubfunc[kSupportMaxInterfaceMethod])(void) = {
+    (void (*)(void))sfp_jlong_0,
+    (void (*)(void))sfp_jlong_1,
+    (void (*)(void))sfp_jlong_2,
+    (void (*)(void))sfp_jlong_3,
+    (void (*)(void))sfp_jlong_4,
+    (void (*)(void))sfp_jlong_5,
+    (void (*)(void))sfp_jlong_6,
+    (void (*)(void))sfp_jlong_7,
+    (void (*)(void))sfp_jlong_8,
+    (void (*)(void))sfp_jlong_9,
+    (void (*)(void))sfp_jlong_10,
+    (void (*)(void))sfp_jlong_11,
+    (void (*)(void))sfp_jlong_12,
+    (void (*)(void))sfp_jlong_13,
+    (void (*)(void))sfp_jlong_14,
+    (void (*)(void))sfp_jlong_15,
+    (void (*)(void))sfp_jlong_16,
+    (void (*)(void))sfp_jlong_17,
+    (void (*)(void))sfp_jlong_18,
+    (void (*)(void))sfp_jlong_19,
+    (void (*)(void))sfp_jlong_20,
+    (void (*)(void))sfp_jlong_21,
+    (void (*)(void))sfp_jlong_22,
+    (void (*)(void))sfp_jlong_23,
+    (void (*)(void))sfp_jlong_24,
+    (void (*)(void))sfp_jlong_25,
+    (void (*)(void))sfp_jlong_26,
+    (void (*)(void))sfp_jlong_27,
+    (void (*)(void))sfp_jlong_28,
+    (void (*)(void))sfp_jlong_29,
+    (void (*)(void))sfp_jlong_30,
+    (void (*)(void))sfp_jlong_31,
+    (void (*)(void))sfp_jlong_32,
+    (void (*)(void))sfp_jlong_33,
+    (void (*)(void))sfp_jlong_34,
+    (void (*)(void))sfp_jlong_35,
+    (void (*)(void))sfp_jlong_36,
+    (void (*)(void))sfp_jlong_37,
+    (void (*)(void))sfp_jlong_38,
+    (void (*)(void))sfp_jlong_39,
+    (void (*)(void))sfp_jlong_40,
+    (void (*)(void))sfp_jlong_41,
+    (void (*)(void))sfp_jlong_42,
+    (void (*)(void))sfp_jlong_43,
+    (void (*)(void))sfp_jlong_44,
+    (void (*)(void))sfp_jlong_45,
+    (void (*)(void))sfp_jlong_46,
+    (void (*)(void))sfp_jlong_47,
+    (void (*)(void))sfp_jlong_48,
+    (void (*)(void))sfp_jlong_49,
+    (void (*)(void))sfp_jlong_50,
+    (void (*)(void))sfp_jlong_51,
+    (void (*)(void))sfp_jlong_52,
+    (void (*)(void))sfp_jlong_53,
+    (void (*)(void))sfp_jlong_54,
+    (void (*)(void))sfp_jlong_55,
+    (void (*)(void))sfp_jlong_56,
+    (void (*)(void))sfp_jlong_57,
+    (void (*)(void))sfp_jlong_58,
+    (void (*)(void))sfp_jlong_59,
+    (void (*)(void))sfp_jlong_60,
+    (void (*)(void))sfp_jlong_61,
+    (void (*)(void))sfp_jlong_62,
+    (void (*)(void))sfp_jlong_63,
+    (void (*)(void))sfp_jlong_64,
+    (void (*)(void))sfp_jlong_65,
+    (void (*)(void))sfp_jlong_66,
+    (void (*)(void))sfp_jlong_67,
+    (void (*)(void))sfp_jlong_68,
+    (void (*)(void))sfp_jlong_69,
+    (void (*)(void))sfp_jlong_70,
+    (void (*)(void))sfp_jlong_71,
+    (void (*)(void))sfp_jlong_72,
+    (void (*)(void))sfp_jlong_73,
+    (void (*)(void))sfp_jlong_74,
+    (void (*)(void))sfp_jlong_75,
+    (void (*)(void))sfp_jlong_76,
+    (void (*)(void))sfp_jlong_77,
+    (void (*)(void))sfp_jlong_78,
+    (void (*)(void))sfp_jlong_79,
+    (void (*)(void))sfp_jlong_80,
+    (void (*)(void))sfp_jlong_81,
+    (void (*)(void))sfp_jlong_82,
+    (void (*)(void))sfp_jlong_83,
+    (void (*)(void))sfp_jlong_84,
+    (void (*)(void))sfp_jlong_85,
+    (void (*)(void))sfp_jlong_86,
+    (void (*)(void))sfp_jlong_87,
+    (void (*)(void))sfp_jlong_88,
+    (void (*)(void))sfp_jlong_89,
+    (void (*)(void))sfp_jlong_90,
+    (void (*)(void))sfp_jlong_91,
+    (void (*)(void))sfp_jlong_92,
+    (void (*)(void))sfp_jlong_93,
+    (void (*)(void))sfp_jlong_94,
+    (void (*)(void))sfp_jlong_95,
+    (void (*)(void))sfp_jlong_96,
+    (void (*)(void))sfp_jlong_97,
+    (void (*)(void))sfp_jlong_98,
+    (void (*)(void))sfp_jlong_99,
+    (void (*)(void))sfp_jlong_100,
+    (void (*)(void))sfp_jlong_101,
+    (void (*)(void))sfp_jlong_102,
+    (void (*)(void))sfp_jlong_103,
+    (void (*)(void))sfp_jlong_104,
+    (void (*)(void))sfp_jlong_105,
+    (void (*)(void))sfp_jlong_106,
+    (void (*)(void))sfp_jlong_107,
+    (void (*)(void))sfp_jlong_108,
+    (void (*)(void))sfp_jlong_109,
+    (void (*)(void))sfp_jlong_110,
+    (void (*)(void))sfp_jlong_111,
+    (void (*)(void))sfp_jlong_112,
+    (void (*)(void))sfp_jlong_113,
+    (void (*)(void))sfp_jlong_114,
+    (void (*)(void))sfp_jlong_115,
+    (void (*)(void))sfp_jlong_116,
+    (void (*)(void))sfp_jlong_117,
+    (void (*)(void))sfp_jlong_118,
+    (void (*)(void))sfp_jlong_119,
+    (void (*)(void))sfp_jlong_120,
+    (void (*)(void))sfp_jlong_121,
+    (void (*)(void))sfp_jlong_122,
+    (void (*)(void))sfp_jlong_123,
+    (void (*)(void))sfp_jlong_124,
+    (void (*)(void))sfp_jlong_125,
+    (void (*)(void))sfp_jlong_126,
+    (void (*)(void))sfp_jlong_127,
+    (void (*)(void))sfp_jlong_128,
+    (void (*)(void))sfp_jlong_129,
+    (void (*)(void))sfp_jlong_130,
+    (void (*)(void))sfp_jlong_131,
+    (void (*)(void))sfp_jlong_132,
+    (void (*)(void))sfp_jlong_133,
+    (void (*)(void))sfp_jlong_134,
+    (void (*)(void))sfp_jlong_135,
+    (void (*)(void))sfp_jlong_136,
+    (void (*)(void))sfp_jlong_137,
+    (void (*)(void))sfp_jlong_138,
+    (void (*)(void))sfp_jlong_139,
+    (void (*)(void))sfp_jlong_140,
+    (void (*)(void))sfp_jlong_141,
+    (void (*)(void))sfp_jlong_142,
+    (void (*)(void))sfp_jlong_143,
+    (void (*)(void))sfp_jlong_144,
+    (void (*)(void))sfp_jlong_145,
+    (void (*)(void))sfp_jlong_146,
+    (void (*)(void))sfp_jlong_147,
+    (void (*)(void))sfp_jlong_148,
+    (void (*)(void))sfp_jlong_149,
+    (void (*)(void))sfp_jlong_150,
+    (void (*)(void))sfp_jlong_151,
+    (void (*)(void))sfp_jlong_152,
+    (void (*)(void))sfp_jlong_153,
+    (void (*)(void))sfp_jlong_154,
+    (void (*)(void))sfp_jlong_155,
+    (void (*)(void))sfp_jlong_156,
+    (void (*)(void))sfp_jlong_157,
+    (void (*)(void))sfp_jlong_158,
+    (void (*)(void))sfp_jlong_159,
+    (void (*)(void))sfp_jlong_160,
+    (void (*)(void))sfp_jlong_161,
+    (void (*)(void))sfp_jlong_162,
+    (void (*)(void))sfp_jlong_163,
+    (void (*)(void))sfp_jlong_164,
+    (void (*)(void))sfp_jlong_165,
+    (void (*)(void))sfp_jlong_166,
+    (void (*)(void))sfp_jlong_167,
+    (void (*)(void))sfp_jlong_168,
+    (void (*)(void))sfp_jlong_169,
+    (void (*)(void))sfp_jlong_170,
+    (void (*)(void))sfp_jlong_171,
+    (void (*)(void))sfp_jlong_172,
+    (void (*)(void))sfp_jlong_173,
+    (void (*)(void))sfp_jlong_174,
+    (void (*)(void))sfp_jlong_175,
+    (void (*)(void))sfp_jlong_176,
+    (void (*)(void))sfp_jlong_177,
+    (void (*)(void))sfp_jlong_178,
+    (void (*)(void))sfp_jlong_179,
+    (void (*)(void))sfp_jlong_180,
+    (void (*)(void))sfp_jlong_181,
+    (void (*)(void))sfp_jlong_182,
+    (void (*)(void))sfp_jlong_183,
+    (void (*)(void))sfp_jlong_184,
+    (void (*)(void))sfp_jlong_185,
+    (void (*)(void))sfp_jlong_186,
+    (void (*)(void))sfp_jlong_187,
+    (void (*)(void))sfp_jlong_188,
+    (void (*)(void))sfp_jlong_189,
+    (void (*)(void))sfp_jlong_190,
+    (void (*)(void))sfp_jlong_191,
+    (void (*)(void))sfp_jlong_192,
+    (void (*)(void))sfp_jlong_193,
+    (void (*)(void))sfp_jlong_194,
+    (void (*)(void))sfp_jlong_195,
+    (void (*)(void))sfp_jlong_196,
+    (void (*)(void))sfp_jlong_197,
+    (void (*)(void))sfp_jlong_198,
+    (void (*)(void))sfp_jlong_199,
+    (void (*)(void))sfp_jlong_200,
+    (void (*)(void))sfp_jlong_201,
+    (void (*)(void))sfp_jlong_202,
+    (void (*)(void))sfp_jlong_203,
+    (void (*)(void))sfp_jlong_204,
+    (void (*)(void))sfp_jlong_205,
+    (void (*)(void))sfp_jlong_206,
+    (void (*)(void))sfp_jlong_207,
+    (void (*)(void))sfp_jlong_208,
+    (void (*)(void))sfp_jlong_209,
+    (void (*)(void))sfp_jlong_210,
+    (void (*)(void))sfp_jlong_211,
+    (void (*)(void))sfp_jlong_212,
+    (void (*)(void))sfp_jlong_213,
+    (void (*)(void))sfp_jlong_214,
+    (void (*)(void))sfp_jlong_215,
+    (void (*)(void))sfp_jlong_216,
+    (void (*)(void))sfp_jlong_217,
+    (void (*)(void))sfp_jlong_218,
+    (void (*)(void))sfp_jlong_219,
+    (void (*)(void))sfp_jlong_220,
+    (void (*)(void))sfp_jlong_221,
+    (void (*)(void))sfp_jlong_222,
+    (void (*)(void))sfp_jlong_223,
+    (void (*)(void))sfp_jlong_224,
+    (void (*)(void))sfp_jlong_225,
+    (void (*)(void))sfp_jlong_226,
+    (void (*)(void))sfp_jlong_227,
+    (void (*)(void))sfp_jlong_228,
+    (void (*)(void))sfp_jlong_229,
+    (void (*)(void))sfp_jlong_230,
+    (void (*)(void))sfp_jlong_231,
+    (void (*)(void))sfp_jlong_232,
+    (void (*)(void))sfp_jlong_233,
+    (void (*)(void))sfp_jlong_234,
+    (void (*)(void))sfp_jlong_235,
+    (void (*)(void))sfp_jlong_236,
+    (void (*)(void))sfp_jlong_237,
+    (void (*)(void))sfp_jlong_238,
+    (void (*)(void))sfp_jlong_239,
+    (void (*)(void))sfp_jlong_240,
+    (void (*)(void))sfp_jlong_241,
+    (void (*)(void))sfp_jlong_242,
+    (void (*)(void))sfp_jlong_243,
+    (void (*)(void))sfp_jlong_244,
+    (void (*)(void))sfp_jlong_245,
+    (void (*)(void))sfp_jlong_246,
+    (void (*)(void))sfp_jlong_247,
+    (void (*)(void))sfp_jlong_248,
+    (void (*)(void))sfp_jlong_249,
+    (void (*)(void))sfp_jlong_250,
+    (void (*)(void))sfp_jlong_251,
+    (void (*)(void))sfp_jlong_252,
+    (void (*)(void))sfp_jlong_253,
+    (void (*)(void))sfp_jlong_254,
+    (void (*)(void))sfp_jlong_255,
+    (void (*)(void))sfp_jlong_256,
+    (void (*)(void))sfp_jlong_257,
+    (void (*)(void))sfp_jlong_258,
+    (void (*)(void))sfp_jlong_259,
+    (void (*)(void))sfp_jlong_260,
+    (void (*)(void))sfp_jlong_261,
+    (void (*)(void))sfp_jlong_262,
+    (void (*)(void))sfp_jlong_263,
+    (void (*)(void))sfp_jlong_264,
+    (void (*)(void))sfp_jlong_265,
+    (void (*)(void))sfp_jlong_266,
+    (void (*)(void))sfp_jlong_267,
+    (void (*)(void))sfp_jlong_268,
+    (void (*)(void))sfp_jlong_269,
+    (void (*)(void))sfp_jlong_270,
+    (void (*)(void))sfp_jlong_271,
+    (void (*)(void))sfp_jlong_272,
+    (void (*)(void))sfp_jlong_273,
+    (void (*)(void))sfp_jlong_274,
+    (void (*)(void))sfp_jlong_275,
+    (void (*)(void))sfp_jlong_276,
+    (void (*)(void))sfp_jlong_277,
+    (void (*)(void))sfp_jlong_278,
+    (void (*)(void))sfp_jlong_279,
+    (void (*)(void))sfp_jlong_280,
+    (void (*)(void))sfp_jlong_281,
+    (void (*)(void))sfp_jlong_282,
+    (void (*)(void))sfp_jlong_283,
+    (void (*)(void))sfp_jlong_284,
+    (void (*)(void))sfp_jlong_285,
+    (void (*)(void))sfp_jlong_286,
+    (void (*)(void))sfp_jlong_287,
+    (void (*)(void))sfp_jlong_288,
+    (void (*)(void))sfp_jlong_289,
+    (void (*)(void))sfp_jlong_290,
+    (void (*)(void))sfp_jlong_291,
+    (void (*)(void))sfp_jlong_292,
+    (void (*)(void))sfp_jlong_293,
+    (void (*)(void))sfp_jlong_294,
+    (void (*)(void))sfp_jlong_295,
+    (void (*)(void))sfp_jlong_296,
+    (void (*)(void))sfp_jlong_297,
+    (void (*)(void))sfp_jlong_298,
+    (void (*)(void))sfp_jlong_299,
+    (void (*)(void))sfp_jlong_300,
+    (void (*)(void))sfp_jlong_301,
+    (void (*)(void))sfp_jlong_302,
+    (void (*)(void))sfp_jlong_303,
+    (void (*)(void))sfp_jlong_304,
+    (void (*)(void))sfp_jlong_305,
+    (void (*)(void))sfp_jlong_306,
+    (void (*)(void))sfp_jlong_307,
+    (void (*)(void))sfp_jlong_308,
+    (void (*)(void))sfp_jlong_309,
+    (void (*)(void))sfp_jlong_310,
+    (void (*)(void))sfp_jlong_311,
+    (void (*)(void))sfp_jlong_312,
+    (void (*)(void))sfp_jlong_313,
+    (void (*)(void))sfp_jlong_314,
+    (void (*)(void))sfp_jlong_315,
+    (void (*)(void))sfp_jlong_316,
+    (void (*)(void))sfp_jlong_317,
+    (void (*)(void))sfp_jlong_318,
+    (void (*)(void))sfp_jlong_319,
+    (void (*)(void))sfp_jlong_320,
+    (void (*)(void))sfp_jlong_321,
+    (void (*)(void))sfp_jlong_322,
+    (void (*)(void))sfp_jlong_323,
+    (void (*)(void))sfp_jlong_324,
+    (void (*)(void))sfp_jlong_325,
+    (void (*)(void))sfp_jlong_326,
+    (void (*)(void))sfp_jlong_327,
+    (void (*)(void))sfp_jlong_328,
+    (void (*)(void))sfp_jlong_329,
+    (void (*)(void))sfp_jlong_330,
+    (void (*)(void))sfp_jlong_331,
+    (void (*)(void))sfp_jlong_332,
+    (void (*)(void))sfp_jlong_333,
+    (void (*)(void))sfp_jlong_334,
+    (void (*)(void))sfp_jlong_335,
+    (void (*)(void))sfp_jlong_336,
+    (void (*)(void))sfp_jlong_337,
+    (void (*)(void))sfp_jlong_338,
+    (void (*)(void))sfp_jlong_339,
+    (void (*)(void))sfp_jlong_340,
+    (void (*)(void))sfp_jlong_341,
+    (void (*)(void))sfp_jlong_342,
+    (void (*)(void))sfp_jlong_343,
+    (void (*)(void))sfp_jlong_344,
+    (void (*)(void))sfp_jlong_345,
+    (void (*)(void))sfp_jlong_346,
+    (void (*)(void))sfp_jlong_347,
+    (void (*)(void))sfp_jlong_348,
+    (void (*)(void))sfp_jlong_349,
+    (void (*)(void))sfp_jlong_350,
+    (void (*)(void))sfp_jlong_351,
+    (void (*)(void))sfp_jlong_352,
+    (void (*)(void))sfp_jlong_353,
+    (void (*)(void))sfp_jlong_354,
+    (void (*)(void))sfp_jlong_355,
+    (void (*)(void))sfp_jlong_356,
+    (void (*)(void))sfp_jlong_357,
+    (void (*)(void))sfp_jlong_358,
+    (void (*)(void))sfp_jlong_359,
+    (void (*)(void))sfp_jlong_360,
+    (void (*)(void))sfp_jlong_361,
+    (void (*)(void))sfp_jlong_362,
+    (void (*)(void))sfp_jlong_363,
+    (void (*)(void))sfp_jlong_364,
+    (void (*)(void))sfp_jlong_365,
+    (void (*)(void))sfp_jlong_366,
+    (void (*)(void))sfp_jlong_367,
+    (void (*)(void))sfp_jlong_368,
+    (void (*)(void))sfp_jlong_369,
+    (void (*)(void))sfp_jlong_370,
+    (void (*)(void))sfp_jlong_371,
+    (void (*)(void))sfp_jlong_372,
+    (void (*)(void))sfp_jlong_373,
+    (void (*)(void))sfp_jlong_374,
+    (void (*)(void))sfp_jlong_375,
+    (void (*)(void))sfp_jlong_376,
+    (void (*)(void))sfp_jlong_377,
+    (void (*)(void))sfp_jlong_378,
+    (void (*)(void))sfp_jlong_379,
+    (void (*)(void))sfp_jlong_380,
+    (void (*)(void))sfp_jlong_381,
+    (void (*)(void))sfp_jlong_382,
+    (void (*)(void))sfp_jlong_383,
+    (void (*)(void))sfp_jlong_384,
+    (void (*)(void))sfp_jlong_385,
+    (void (*)(void))sfp_jlong_386,
+    (void (*)(void))sfp_jlong_387,
+    (void (*)(void))sfp_jlong_388,
+    (void (*)(void))sfp_jlong_389,
+    (void (*)(void))sfp_jlong_390,
+    (void (*)(void))sfp_jlong_391,
+    (void (*)(void))sfp_jlong_392,
+    (void (*)(void))sfp_jlong_393,
+    (void (*)(void))sfp_jlong_394,
+    (void (*)(void))sfp_jlong_395,
+    (void (*)(void))sfp_jlong_396,
+    (void (*)(void))sfp_jlong_397,
+    (void (*)(void))sfp_jlong_398,
+    (void (*)(void))sfp_jlong_399,
+    (void (*)(void))sfp_jlong_400,
+    (void (*)(void))sfp_jlong_401,
+    (void (*)(void))sfp_jlong_402,
+    (void (*)(void))sfp_jlong_403,
+    (void (*)(void))sfp_jlong_404,
+    (void (*)(void))sfp_jlong_405,
+    (void (*)(void))sfp_jlong_406,
+    (void (*)(void))sfp_jlong_407,
+    (void (*)(void))sfp_jlong_408,
+    (void (*)(void))sfp_jlong_409,
+    (void (*)(void))sfp_jlong_410,
+    (void (*)(void))sfp_jlong_411,
+    (void (*)(void))sfp_jlong_412,
+    (void (*)(void))sfp_jlong_413,
+    (void (*)(void))sfp_jlong_414,
+    (void (*)(void))sfp_jlong_415,
+    (void (*)(void))sfp_jlong_416,
+    (void (*)(void))sfp_jlong_417,
+    (void (*)(void))sfp_jlong_418,
+    (void (*)(void))sfp_jlong_419,
+    (void (*)(void))sfp_jlong_420,
+    (void (*)(void))sfp_jlong_421,
+    (void (*)(void))sfp_jlong_422,
+    (void (*)(void))sfp_jlong_423,
+    (void (*)(void))sfp_jlong_424,
+    (void (*)(void))sfp_jlong_425,
+    (void (*)(void))sfp_jlong_426,
+    (void (*)(void))sfp_jlong_427,
+    (void (*)(void))sfp_jlong_428,
+    (void (*)(void))sfp_jlong_429,
+    (void (*)(void))sfp_jlong_430,
+    (void (*)(void))sfp_jlong_431,
+    (void (*)(void))sfp_jlong_432,
+    (void (*)(void))sfp_jlong_433,
+    (void (*)(void))sfp_jlong_434,
+    (void (*)(void))sfp_jlong_435,
+    (void (*)(void))sfp_jlong_436,
+    (void (*)(void))sfp_jlong_437,
+    (void (*)(void))sfp_jlong_438,
+    (void (*)(void))sfp_jlong_439,
+    (void (*)(void))sfp_jlong_440,
+    (void (*)(void))sfp_jlong_441,
+    (void (*)(void))sfp_jlong_442,
+    (void (*)(void))sfp_jlong_443,
+    (void (*)(void))sfp_jlong_444,
+    (void (*)(void))sfp_jlong_445,
+    (void (*)(void))sfp_jlong_446,
+    (void (*)(void))sfp_jlong_447,
+    (void (*)(void))sfp_jlong_448,
+    (void (*)(void))sfp_jlong_449,
+    (void (*)(void))sfp_jlong_450,
+    (void (*)(void))sfp_jlong_451,
+    (void (*)(void))sfp_jlong_452,
+    (void (*)(void))sfp_jlong_453,
+    (void (*)(void))sfp_jlong_454,
+    (void (*)(void))sfp_jlong_455,
+    (void (*)(void))sfp_jlong_456,
+    (void (*)(void))sfp_jlong_457,
+    (void (*)(void))sfp_jlong_458,
+    (void (*)(void))sfp_jlong_459,
+    (void (*)(void))sfp_jlong_460,
+    (void (*)(void))sfp_jlong_461,
+    (void (*)(void))sfp_jlong_462,
+    (void (*)(void))sfp_jlong_463,
+    (void (*)(void))sfp_jlong_464,
+    (void (*)(void))sfp_jlong_465,
+    (void (*)(void))sfp_jlong_466,
+    (void (*)(void))sfp_jlong_467,
+    (void (*)(void))sfp_jlong_468,
+    (void (*)(void))sfp_jlong_469,
+    (void (*)(void))sfp_jlong_470,
+    (void (*)(void))sfp_jlong_471,
+    (void (*)(void))sfp_jlong_472,
+    (void (*)(void))sfp_jlong_473,
+    (void (*)(void))sfp_jlong_474,
+    (void (*)(void))sfp_jlong_475,
+    (void (*)(void))sfp_jlong_476,
+    (void (*)(void))sfp_jlong_477,
+    (void (*)(void))sfp_jlong_478,
+    (void (*)(void))sfp_jlong_479,
+    (void (*)(void))sfp_jlong_480,
+    (void (*)(void))sfp_jlong_481,
+    (void (*)(void))sfp_jlong_482,
+    (void (*)(void))sfp_jlong_483,
+    (void (*)(void))sfp_jlong_484,
+    (void (*)(void))sfp_jlong_485,
+    (void (*)(void))sfp_jlong_486,
+    (void (*)(void))sfp_jlong_487,
+    (void (*)(void))sfp_jlong_488,
+    (void (*)(void))sfp_jlong_489,
+    (void (*)(void))sfp_jlong_490,
+    (void (*)(void))sfp_jlong_491,
+    (void (*)(void))sfp_jlong_492,
+    (void (*)(void))sfp_jlong_493,
+    (void (*)(void))sfp_jlong_494,
+    (void (*)(void))sfp_jlong_495,
+    (void (*)(void))sfp_jlong_496,
+    (void (*)(void))sfp_jlong_497,
+    (void (*)(void))sfp_jlong_498,
+    (void (*)(void))sfp_jlong_499,
+    (void (*)(void))sfp_jlong_500,
+    (void (*)(void))sfp_jlong_501,
+    (void (*)(void))sfp_jlong_502,
+    (void (*)(void))sfp_jlong_503,
+    (void (*)(void))sfp_jlong_504,
+    (void (*)(void))sfp_jlong_505,
+    (void (*)(void))sfp_jlong_506,
+    (void (*)(void))sfp_jlong_507,
+    (void (*)(void))sfp_jlong_508,
+    (void (*)(void))sfp_jlong_509,
+    (void (*)(void))sfp_jlong_510,
+    (void (*)(void))sfp_jlong_511,
+    (void (*)(void))sfp_jlong_512,
+    (void (*)(void))sfp_jlong_513,
+    (void (*)(void))sfp_jlong_514,
+    (void (*)(void))sfp_jlong_515,
+    (void (*)(void))sfp_jlong_516,
+    (void (*)(void))sfp_jlong_517,
+    (void (*)(void))sfp_jlong_518,
+    (void (*)(void))sfp_jlong_519,
+    (void (*)(void))sfp_jlong_520,
+    (void (*)(void))sfp_jlong_521,
+    (void (*)(void))sfp_jlong_522,
+    (void (*)(void))sfp_jlong_523,
+    (void (*)(void))sfp_jlong_524,
+    (void (*)(void))sfp_jlong_525,
+    (void (*)(void))sfp_jlong_526,
+    (void (*)(void))sfp_jlong_527,
+    (void (*)(void))sfp_jlong_528,
+    (void (*)(void))sfp_jlong_529,
+    (void (*)(void))sfp_jlong_530,
+    (void (*)(void))sfp_jlong_531,
+    (void (*)(void))sfp_jlong_532,
+    (void (*)(void))sfp_jlong_533,
+    (void (*)(void))sfp_jlong_534,
+    (void (*)(void))sfp_jlong_535,
+    (void (*)(void))sfp_jlong_536,
+    (void (*)(void))sfp_jlong_537,
+    (void (*)(void))sfp_jlong_538,
+    (void (*)(void))sfp_jlong_539,
+    (void (*)(void))sfp_jlong_540,
+    (void (*)(void))sfp_jlong_541,
+    (void (*)(void))sfp_jlong_542,
+    (void (*)(void))sfp_jlong_543,
+    (void (*)(void))sfp_jlong_544,
+    (void (*)(void))sfp_jlong_545,
+    (void (*)(void))sfp_jlong_546,
+    (void (*)(void))sfp_jlong_547,
+    (void (*)(void))sfp_jlong_548,
+    (void (*)(void))sfp_jlong_549,
+    (void (*)(void))sfp_jlong_550,
+    (void (*)(void))sfp_jlong_551,
+    (void (*)(void))sfp_jlong_552,
+    (void (*)(void))sfp_jlong_553,
+    (void (*)(void))sfp_jlong_554,
+    (void (*)(void))sfp_jlong_555,
+    (void (*)(void))sfp_jlong_556,
+    (void (*)(void))sfp_jlong_557,
+    (void (*)(void))sfp_jlong_558,
+    (void (*)(void))sfp_jlong_559,
+    (void (*)(void))sfp_jlong_560,
+    (void (*)(void))sfp_jlong_561,
+    (void (*)(void))sfp_jlong_562,
+    (void (*)(void))sfp_jlong_563,
+    (void (*)(void))sfp_jlong_564,
+    (void (*)(void))sfp_jlong_565,
+    (void (*)(void))sfp_jlong_566,
+    (void (*)(void))sfp_jlong_567,
+    (void (*)(void))sfp_jlong_568,
+    (void (*)(void))sfp_jlong_569,
+    (void (*)(void))sfp_jlong_570,
+    (void (*)(void))sfp_jlong_571,
+    (void (*)(void))sfp_jlong_572,
+    (void (*)(void))sfp_jlong_573,
+    (void (*)(void))sfp_jlong_574,
+    (void (*)(void))sfp_jlong_575,
+    (void (*)(void))sfp_jlong_576,
+    (void (*)(void))sfp_jlong_577,
+    (void (*)(void))sfp_jlong_578,
+    (void (*)(void))sfp_jlong_579,
+    (void (*)(void))sfp_jlong_580,
+    (void (*)(void))sfp_jlong_581,
+    (void (*)(void))sfp_jlong_582,
+    (void (*)(void))sfp_jlong_583,
+    (void (*)(void))sfp_jlong_584,
+    (void (*)(void))sfp_jlong_585,
+    (void (*)(void))sfp_jlong_586,
+    (void (*)(void))sfp_jlong_587,
+    (void (*)(void))sfp_jlong_588,
+    (void (*)(void))sfp_jlong_589,
+    (void (*)(void))sfp_jlong_590,
+    (void (*)(void))sfp_jlong_591,
+    (void (*)(void))sfp_jlong_592,
+    (void (*)(void))sfp_jlong_593,
+    (void (*)(void))sfp_jlong_594,
+    (void (*)(void))sfp_jlong_595,
+    (void (*)(void))sfp_jlong_596,
+    (void (*)(void))sfp_jlong_597,
+    (void (*)(void))sfp_jlong_598,
+    (void (*)(void))sfp_jlong_599
+};
+} // namespace maplert
