@@ -1,0 +1,200 @@
+#
+# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+
+if (OPS_ANDROID == 1) {
+  defines = []
+  defines += [
+    "__ANDROID__",
+    "__ANDROID_USE_TLS__",
+    "OPS_ANDROID",
+    "USE_32BIT_REF",
+  ]
+}
+
+config("mrt_c_flags") {
+  cflags_c = []
+  if (GN_BUILD_TYPE == "RELEASE") {
+    cflags_c += [
+      "-O2",
+      "-fno-strict-aliasing",
+    ]
+  } else if (GN_BUILD_TYPE == "DEBUG") {
+    cflags_c += [
+      "-O0",
+      "-g3",
+      "-ftrapv",
+      "-fstack-check",
+    ]
+  } else {
+    cflags_c += [
+      "-O2",
+      "-fno-strict-aliasing",
+      "-g",
+    ]
+  }
+
+  cflags_c += [
+    "-Wall",
+    "-Werror",
+    "-std=c99",
+    "-fPIC",
+    "-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=2",
+    "-fno-common",
+    "-pipe",
+    "-Wextra",
+    "-Wdate-time",
+    "-Wfloat-equal",
+    "-Wshadow",
+  ]
+
+  if (OPS_ANDROID == 0) {
+    cflags_c += [
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
+      "-target",
+      "aarch64-linux-gnu",
+    ]
+  }
+
+  ldflags = cflags_c
+  ldflags += [
+    "-Wl,-z,relro",
+    "-Wl,-z,now",
+    "-Wl,-z,noexecstack",
+  ]
+
+  if (OPS_ANDROID == 1) {
+    ldflags += [ "-Wl,--export-dynamic", ]
+  }
+}
+
+config("mrt_cxx_flags") {
+  cflags_cc = []
+  if (GN_BUILD_TYPE == "RELEASE") {
+    cflags_cc += [
+      "-O2",
+      "-fno-strict-aliasing",
+    ]
+  } else if (GN_BUILD_TYPE == "DEBUG") {
+    cflags_cc += [
+      "-O0",
+      "-g3",
+      "-ftrapv",
+      "-fstack-check",
+    ]
+  } else {
+    cflags_cc += [
+      "-O2",
+      "-fno-strict-aliasing",
+      "-g",
+    ]
+  }
+
+  cflags_cc += [
+    "-Wall",
+    "-Werror",
+    "-fPIC",
+    "-fstack-protector-strong",
+    "-D_FORTIFY_SOURCE=2",
+    "-fno-common",
+    "-pipe",
+    "-Wextra",
+    "-Weffc++",
+    "-Wdate-time",
+    "-Wfloat-equal",
+    "-Wshadow",
+    "-Wformat=2",
+  ]
+
+  if (OPS_ANDROID == 0) {
+    cflags_cc += [
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
+      "-isystem",
+      "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
+      "-target",
+      "aarch64-linux-gnu",
+    ]
+  } else {
+    cflags_cc += [
+      "-march=armv8-a",
+      "-target",
+      "aarch64-linux-android",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc/include",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc/kernel/uapi",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc/kernel/uapi/asm-arm64",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc/kernel/android/scsi",
+      "-isystem",
+      "${MAPLE_ROOT}/android/bionic/libc/kernel/android/uapi",
+      "-isystem",
+      "${ANDROID_CLANG_PATH}/lib64/clang/9.0.3/include",
+    ]
+    include_dirs = [
+      "${MAPLE_ROOT}/android/external/libcxx/include",
+      "${MAPLE_ROOT}/android/external/libcxxabi/include",
+    ]
+  }
+
+  asmflags = cflags_cc
+  ldflags = cflags_cc
+  ldflags += [
+    "-Wl,-z,relro",
+    "-Wl,-z,now",
+    "-Wl,-z,noexecstack",
+  ]
+  if (OPS_ANDROID == 1) {
+    ldflags += [ "-Wl,--export-dynamic", ]
+  }
+}
+
+group("maple-rt") {
+  deps = [
+    "${MAPLE_MRT_ROOT}/compiler-rt:libmplcompiler-rt",
+    "${MAPLE_MRT_ROOT}/dexinterface:libdexinterface",
+    "${MAPLE_MRT_ROOT}/huawei_secure_c:libhuawei_secure_c",
+    "${MAPLE_MRT_ROOT}/interpreter:libzterp",
+    "${MAPLE_MRT_ROOT}/libcore-static-binding-jni:libcore-static-binding-jni",
+    "${MAPLE_MRT_ROOT}/maplert:libmaplert",
+  ]
+}
