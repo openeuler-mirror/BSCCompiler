@@ -1,0 +1,59 @@
+#
+# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+config("mapleallcompilecfg") {
+  cflags_cc = []
+  cflags_cc += [
+    "-std=c++14",
+    "-fno-common",
+    "-DTARGAARCH64",
+  ]
+
+  if (GN_BUILD_TYPE == "DEBUG") {
+    cflags_c += [ "-DDEBUG" ]
+    cflags_cc += [ "-DDEBUG" ]
+  }
+
+  if (HOST_ARCH == 64) {
+    ldflags = []
+    ldflags += [
+      "-fPIC",
+      "-std=c++14",
+      "-rdynamic",
+      "-lpthread",
+      "-Wl,-z,relro",
+      "-Wl,-z,now",
+      "-Wl,-z,noexecstack",
+      "-pie",
+    ]
+  }
+}
+
+group("maple") {
+  deps = [
+    "${MAPLEALL_ROOT}/maple_driver:maple",
+  ]
+}
+
+group("irbuild") {
+  deps = [
+    "${MAPLEALL_ROOT}/maple_ir:irbuild",
+  ]
+}
+
+group("maplegen") {
+  deps = [
+    "${MAPLEALL_ROOT}/maple_be:maplegen",
+  ]
+}
