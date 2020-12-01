@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "feir_stmt.h"
 #include "opcode_info.h"
@@ -26,6 +26,41 @@ namespace maple {
 // ---------- FEIRStmt ----------
 std::list<StmtNode*> FEIRStmt::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   return std::list<StmtNode*>();
+}
+
+bool FEIRStmt::IsStmtInstImpl() const {
+  switch (kind) {
+    case kStmtAssign:
+    case kStmtNonAssign:
+    case kStmtDAssign:
+    case kStmtJavaTypeCheck:
+    case kStmtJavaConstClass:
+    case kStmtJavaConstString:
+    case kStmtJavaMultiANewArray:
+    case kStmtCallAssign:
+    case kStmtJavaDynamicCallAssign:
+    case kStmtIAssign:
+    case kStmtUseOnly:
+    case kStmtReturn:
+    case kStmtBranch:
+    case kStmtGoto:
+    case kStmtCondGoto:
+    case kStmtSwitch:
+    case kStmtArrayStore:
+    case kStmtFieldStore:
+    case kStmtFieldLoad:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool FEIRStmt::IsStmtInstComment() const {
+  return (kind == kStmtPesudoComment);
+}
+
+bool FEIRStmt::ShouldHaveLOC() const {
+  return (IsStmtInstImpl() || IsStmtInstComment());
 }
 
 // ---------- FEIRStmtCheckPoint ----------
@@ -215,7 +250,7 @@ std::list<StmtNode*> FEIRStmtJavaConstString::GenMIRStmtsImpl(MIRBuilder &mirBui
     MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
     args.push_back(mirBuilder.CreateExprAddrof(0, *literalVal));
     StmtNode *stmtCreate = mirBuilder.CreateStmtCallAssigned(
-        FEManager::GetTypeManager().GetMCCGetOrInsertLiteral()->GetPuidx(), args, symbolLocal, OP_callassigned);
+        FEManager::GetTypeManager().GetPuIdxForMCCGetOrInsertLiteral(), args, symbolLocal, OP_callassigned);
     ans.push_back(stmtCreate);
     literalValPtr = symbolLocal;
   }
@@ -237,15 +272,15 @@ FEIRStmtJavaMultiANewArray::FEIRStmtJavaMultiANewArray(std::unique_ptr<FEIRVar> 
     : FEIRStmtAssign(FEIRNodeKind::kStmtJavaMultiANewArray, std::move(argVar)),
       type(std::move(argType)) {}
 
-void FEIRStmtJavaMultiANewArray::AddVarSize(std::unique_ptr<FEIRVar> varSize) {
-  varSize->SetType(FETypeManager::kPrimFEIRTypeI32->Clone());
-  UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(varSize));
+void FEIRStmtJavaMultiANewArray::AddVarSize(std::unique_ptr<FEIRVar> argVarSize) {
+  argVarSize->SetType(FETypeManager::kPrimFEIRTypeI32->Clone());
+  UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(argVarSize));
   exprSizes.push_back(std::move(expr));
 }
 
-void FEIRStmtJavaMultiANewArray::AddVarSizeRev(std::unique_ptr<FEIRVar> varSize) {
-  varSize->SetType(FETypeManager::kPrimFEIRTypeI32->Clone());
-  UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(varSize));
+void FEIRStmtJavaMultiANewArray::AddVarSizeRev(std::unique_ptr<FEIRVar> argVarSize) {
+  argVarSize->SetType(FETypeManager::kPrimFEIRTypeI32->Clone());
+  UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(argVarSize));
   exprSizes.push_front(std::move(expr));
 }
 
@@ -264,7 +299,7 @@ std::list<StmtNode*> FEIRStmtJavaMultiANewArray::GenMIRStmtsImpl(MIRBuilder &mir
   // class annotation
   FEIRStmtJavaConstClass feStmtConstClass(GetVarClass()->Clone(), GetTypeAnnotation()->Clone());
   std::list<StmtNode*> stmtsConstClass = feStmtConstClass.GenMIRStmts(mirBuilder);
-  ans.insert(ans.end(), stmtsConstClass.begin(), stmtsConstClass.end());
+  (void)ans.insert(ans.end(), stmtsConstClass.begin(), stmtsConstClass.end());
   // invoke newInstance
   UniqueFEIRVar varRetCall = var->Clone();
   varRetCall->SetType(FETypeManager::kFEIRTypeJavaObject->Clone());
@@ -272,13 +307,13 @@ std::list<StmtNode*> FEIRStmtJavaMultiANewArray::GenMIRStmtsImpl(MIRBuilder &mir
   feStmtCall.AddExprArg(FEIRBuilder::CreateExprDRead(GetVarClass()->Clone()));
   feStmtCall.AddExprArg(FEIRBuilder::CreateExprDRead(GetVarSize()->Clone()));
   std::list<StmtNode*> stmtsCall = feStmtCall.GenMIRStmts(mirBuilder);
-  ans.insert(ans.end(), stmtsCall.begin(), stmtsCall.end());
+  (void)ans.insert(ans.end(), stmtsCall.begin(), stmtsCall.end());
   // check cast
   var->SetType(type->Clone());
   UniqueFEIRExpr expr = std::make_unique<FEIRExprDRead>(std::move(varRetCall));
   FEIRStmtJavaTypeCheck feStmtCheck(var->Clone(), std::move(expr), type->Clone(), FEIRStmtJavaTypeCheck::kCheckCast);
   std::list<StmtNode*> stmtsCheck = feStmtCheck.GenMIRStmts(mirBuilder);
-  ans.insert(ans.end(), stmtsCheck.begin(), stmtsCheck.end());
+  (void)ans.insert(ans.end(), stmtsCheck.begin(), stmtsCheck.end());
   return ans;
 }
 
@@ -289,7 +324,7 @@ const UniqueFEIRVar &FEIRStmtJavaMultiANewArray::GetVarSize() {
   MPLFE_PARALLEL_FORBIDDEN();
   GStrIdx varNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName("tmpsize");
   UniqueFEIRType varSizeType = FETypeManager::kPrimFEIRTypeI32->Clone();
-  varSizeType->ArrayIncrDim();
+  (void)varSizeType->ArrayIncrDim();
   varSize = std::make_unique<FEIRVarName>(varNameIdx, std::move(varSizeType), true);
   return varSize;
 }
@@ -320,7 +355,7 @@ FEStructMethodInfo &FEIRStmtJavaMultiANewArray::GetMethodInfoNewInstance() {
   }
   std::string methodNameJava = "Ljava/lang/reflect/Array;|newInstance|(Ljava/lang/Class;[I)Ljava/lang/Object;";
   GStrIdx methodNameIdx =
-      GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(NameMangler::EncodeName(methodNameJava));
+      GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(namemangler::EncodeName(methodNameJava));
   methodInfoNewInstance = static_cast<FEStructMethodInfo*>(
       FEManager::GetTypeManager().RegisterStructMethodInfo(methodNameIdx, kSrcLangJava, true));
   return *methodInfoNewInstance;
@@ -764,7 +799,7 @@ std::unique_ptr<FEIRExpr> FEIRExprDRead::CloneImpl() const {
 }
 
 BaseNode *FEIRExprDRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
-  MIRType *type = varSrc->GetType()->GenerateMIRType();
+  MIRType *type = varSrc->GetType()->GenerateMIRTypeAuto();
   MIRSymbol *symbol = varSrc->GenerateMIRSymbol(mirBuilder);
   ASSERT(type != nullptr, "type is nullptr");
   AddrofNode *node = mirBuilder.CreateExprDread(*type, *symbol);
@@ -861,7 +896,7 @@ std::unique_ptr<FEIRExpr> FEIRExprTypeCvt::CloneImpl() const {
 
 BaseNode *FEIRExprTypeCvt::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForParseExpr.find(op);
-  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op));
+  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 
@@ -938,7 +973,7 @@ std::unique_ptr<FEIRExpr> FEIRExprExtractBits::CloneImpl() const {
 
 BaseNode *FEIRExprExtractBits::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForParseExpr.find(op);
-  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op));
+  ASSERT(ptrFunc != funcPtrMapForParseExpr.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 
@@ -1017,7 +1052,7 @@ std::unique_ptr<FEIRExpr> FEIRExprBinary::CloneImpl() const {
 
 BaseNode *FEIRExprBinary::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   auto ptrFunc = funcPtrMapForGenMIRNode.find(op);
-  ASSERT(ptrFunc != funcPtrMapForGenMIRNode.end(), "unsupported op: %s", kOpcodeInfo.GetName(op));
+  ASSERT(ptrFunc != funcPtrMapForGenMIRNode.end(), "unsupported op: %s", kOpcodeInfo.GetName(op).c_str());
   return (this->*(ptrFunc->second))(mirBuilder);
 }
 

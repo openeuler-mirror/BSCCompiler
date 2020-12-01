@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_COMMON_FE_STRUCT_ELEM_INFO_H
 #define MPLFE_INCLUDE_COMMON_FE_STRUCT_ELEM_INFO_H
@@ -119,7 +119,7 @@ class FEStructFieldInfo : public FEStructElemInfo {
  LLT_PRIVATE:
   void LoadFieldType();
   void LoadFieldTypeJava();
-  void PrepareStaticField(MIRStructType &structType);
+  void PrepareStaticField(const MIRStructType &structType);
   void PrepareNonStaticField(MIRStructType &structType, MIRBuilder &mirBuilder);
   bool SearchStructFieldJava(MIRStructType &structType, MIRBuilder &mirBuilder, bool argIsStatic,
                              bool allowPrivate = true);
@@ -134,7 +134,7 @@ class FEStructFieldInfo : public FEStructElemInfo {
 class FEStructMethodInfo : public FEStructElemInfo {
  public:
   FEStructMethodInfo(const GStrIdx &argFullNameIdx, MIRSrcLang argSrcLang, bool argIsStatic);
-  ~FEStructMethodInfo() = default;
+  ~FEStructMethodInfo();
   PUIdx GetPuIdx() const;
   bool IsConstructor() const {
     return isConstructor;
@@ -172,7 +172,7 @@ class FEStructMethodInfo : public FEStructElemInfo {
     return argTypes;
   }
 
-  static std::map<GStrIdx, std::set<GStrIdx>> InitJavaPolymorphicWhiteList();
+  static void InitJavaPolymorphicWhiteList();
 
  LLT_PROTECTED:
   void PrepareImpl(MIRBuilder &mirBuilder, bool argIsStatic) override;

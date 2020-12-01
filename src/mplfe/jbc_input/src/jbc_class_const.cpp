@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "jbc_class_const.h"
 #include <sstream>
@@ -201,6 +201,7 @@ JBCConstClass::JBCConstClass(MapleAllocator &alloc, JBCConstTag t, JBCConstPoolI
 
 JBCConstClass::~JBCConstClass() {
   constUTF8 = nullptr;
+  feType = nullptr;
 }
 
 bool JBCConstClass::ParseFileImpl(BasicIORead &io) {
@@ -217,7 +218,7 @@ bool JBCConstClass::PreProcessImpl(const JBCConstPool &constPool) {
   const std::string &classNameInternal = constUTF8->GetString();
   nameOrin = JBCUtil::ClassInternalNameToFullName(classNameInternal);
   strIdxOrin = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(MapleStringToStd(nameOrin));
-  nameMpl = NameMangler::EncodeName(nameOrin.c_str());
+  nameMpl = namemangler::EncodeName(nameOrin.c_str());
   strIdxMpl = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(MapleStringToStd(nameMpl));
   static_cast<FEIRTypeDefault*>(feType)->LoadFromJavaTypeName(MapleStringToStd(nameMpl), true);
   return true;
@@ -300,7 +301,7 @@ bool JBCConstRef::PrepareFEStructElemInfo() {
   const std::string &className = constClass->GetClassNameOrin();
   const std::string &elemName = constNameAndType->GetName();
   const std::string &descName = constNameAndType->GetDesc();
-  std::string fullName = NameMangler::EncodeName(className + "|" + elemName + "|" + descName);
+  std::string fullName = namemangler::EncodeName(className + "|" + elemName + "|" + descName);
   GStrIdx fullNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName);
   if (tag == kConstFieldRef) {
     feStructElemInfo = FEManager::GetTypeManager().RegisterStructFieldInfo(fullNameIdx, kSrcLangJava, false);
@@ -456,6 +457,7 @@ JBCConstInvokeDynamic::JBCConstInvokeDynamic(MapleAllocator &alloc, JBCConstTag 
 
 JBCConstInvokeDynamic::~JBCConstInvokeDynamic() {
   constNameAndType = nullptr;
+  feStructElemInfo = nullptr;
 }
 
 bool JBCConstInvokeDynamic::PrepareFEStructElemInfo(const std::string &ownerClassName) {
@@ -463,7 +465,7 @@ bool JBCConstInvokeDynamic::PrepareFEStructElemInfo(const std::string &ownerClas
   const std::string &className = ownerClassName + "$DynamicCall$";
   const std::string &elemName = constNameAndType->GetName();
   const std::string &descName = constNameAndType->GetDesc();
-  std::string fullName = NameMangler::EncodeName(className + "|" + elemName + "|" + descName);
+  std::string fullName = namemangler::EncodeName(className + "|" + elemName + "|" + descName);
   GStrIdx fullNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName);
   feStructElemInfo = FEManager::GetTypeManager().RegisterStructMethodInfo(fullNameIdx, kSrcLangJava, false);
   static_cast<FEStructMethodInfo*>(feStructElemInfo)->SetJavaDyamicCall();

@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_COMMON_FE_TYPE_MANAGER_H
 #define MPLFE_INCLUDE_COMMON_FE_TYPE_MANAGER_H
@@ -134,8 +134,8 @@ class FETypeManager {
 
   // ---------- methods for StructElemInfo ----------
   // structIdx = 0: global field/function without owner structure
-  FEStructElemInfo *RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang, bool isStatic);
-  FEStructElemInfo *RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang, bool isStatic);
+  FEStructElemInfo *RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang, bool isStatic);
+  FEStructElemInfo *RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang, bool isStatic);
   FEStructElemInfo *GetStructElemInfo(const GStrIdx &fullNameIdx) const;
 
   // ---------- methods for MIRFunction ----------
@@ -162,12 +162,19 @@ class FETypeManager {
   MIRFunction *CreateFunction(const std::string &methodName, const std::string &returnTypeName,
                               const std::vector<std::string> &argTypeNames, bool isVarg, bool isStatic);
 
+  // FEIRType GetOrCreate
+  const FEIRType *GetOrCreateFEIRTypeByName(const std::string &typeName, const GStrIdx &typeNameIdx,
+                                            MIRSrcLang argSrcLang = kSrcLangJava);
+  const FEIRType *GetOrCreateFEIRTypeByName(const GStrIdx &typeNameIdx, MIRSrcLang argSrcLang = kSrcLangJava);
+  const FEIRType *GetFEIRTypeByName(const std::string &typeName) const;
+  const FEIRType *GetFEIRTypeByName(const GStrIdx &typeNameIdx) const;
+
   // MCC function
   void InitMCCFunctions();
   MIRFunction *GetMCCFunction(const std::string &funcName) const;
   MIRFunction *GetMCCFunction(const GStrIdx &funcNameIdx) const;
-  MIRFunction *GetMCCGetOrInsertLiteral() const {
-    return funcMCCGetOrInsertLiteral;
+  PUIdx GetPuIdxForMCCGetOrInsertLiteral() const {
+    return funcMCCGetOrInsertLiteral->GetPuidx();
   }
 
   // anti-proguard
@@ -221,6 +228,10 @@ class FETypeManager {
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameStaticFuncMap;
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> mpltNameFuncMap;
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> mpltNameStaticFuncMap;
+
+  // ---------- FEIRType list ----------
+  std::unordered_map<GStrIdx, const FEIRType*, GStrIdxHash> nameFEIRTypeMap;
+  std::list<UniqueFEIRType> nameFEIRTypeList;
 
   // ---------- MCC function list  ----------
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameMCCFuncMap;
