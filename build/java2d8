@@ -1,0 +1,66 @@
+#!/bin/bash
+#
+# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+#compile a .java to .dex using javac/dx tool chain, it's faster than jack.
+# using: java2dex-fast.sh xxx.java
+# output: xxx.dex
+
+# assumes javac is in the execution path.
+EXECDIR=${MAPLE_ROOT}/build/
+
+DESTDIR=$(pwd)/java2dex
+mkdir -p ${DESTDIR}
+CLASSES_DEX=$DESTDIR/classes.dex
+CLASSES_JAR=$DESTDIR/classes.jar
+
+
+
+INPUT_FILE=$1
+OUTPUT_FILE=${INPUT_FILE/.*/.dex}
+OUTPUT_JAR_FILE=${INPUT_FILE/.*/.jar}
+
+THIRD_PARTY=${MAPLE_ROOT}/android/out/target/common/obj/
+
+#echo "Compiling $INPUT_FILE to $OUTPUT_FILE in temporary directory $DESTDIR"
+echo "Compiling $INPUT_FILE to $OUTPUT_FILE"
+
+javac -g -d $DESTDIR -bootclasspath $THIRD_PARTY/JAVA_LIBRARIES/core-oj.com.android.art_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/core-libart.com.android.art_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar $@
+
+mkdir -p $DESTDIR/classes
+cd $DESTDIR/classes
+find $DESTDIR -name "*.class" | xargs -i cp {} $DESTDIR/classes
+find $DESTDIR -name "*.jar" | xargs -i cp {} $DESTDIR/
+jar -cvf $CLASSES_JAR *.class
+cd -
+cd $DESTDIR
+
+$EXECDIR/d8 --min-api 39 --output $DESTDIR $CLASSES_JAR --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-oj.com.android.art_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-libart.com.android.art_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar
+cd -
+
+if [ -f $CLASSES_DEX ]; then
+  mv $CLASSES_DEX $OUTPUT_FILE
+#  echo "Successfully built $OUTPUT_FILE"
+fi
+
+if [ -f $CLASSES_JAR ]; then
+  mv $CLASSES_JAR $OUTPUT_JAR_FILE
+#  echo "Successfully built $OUTPUT_FILE"
+fi
+
+cp $DESTDIR/classes/* .
+#echo "Deleting temporary directory $DESTDIR"
+if [ -d ${DESTDIR} ]; then
+    rm -rf ${DESTDIR}
+fi
