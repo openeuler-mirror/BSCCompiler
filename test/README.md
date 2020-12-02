@@ -2,28 +2,36 @@
 
 ## 目录结构
 
-```shell
+```
 test
 ├── main.py   运行测试套入口
 ├── maple_test    测试框架代码
-│   ├── compare.py    结果校验模块
-│   ├── configs.py    参数设置与框架配置文件模块
-│   ├── __init__.py
-│   ├── main.py    内部入口
-│   ├── maple_test.cfg    测试框架配置文件
-│   ├── run.py    命令运行模块
-│   ├── task.py   测试任务准备与运行模块
-│   ├── template.cfg    测试套配置文件模板
-│   ├── test.py   测试用例模块
-│   └── utils.py    通用模块
+│   ├── compare.py    结果校验模块
+│   ├── configs.py    参数设置与框架配置文件模块
+│   ├── __init__.py
+│   ├── main.py    内部入口
+│   ├── maple_test.cfg    测试框架配置文件
+│   ├── run.py    命令运行模块
+│   ├── task.py   测试任务准备与运行模块
+│   ├── template.cfg    测试套配置文件模板
+│   ├── test.py   测试用例模块
+│   └── utils.py    通用模块
 ├── README.md   测试框架说明
 └── testsuite
-    └── irbuild_test    irbuild测试套
+    ├── irbuild_test    irbuild测试套
+    ├── ouroboros 	ouroboros测试套
+    │	├──test.cfg		测试套配置文件
+    │	├──test_android.cfg		测试套手机执行配置文件
+    │	└──testlist		测试内容
+    ├──maple.py		用例编译脚本
+    ├──run.py	 用例执行脚本
+    ├──android_maple.py		Android用例编译脚本
+    └──android_run.py	 Android用例执行脚本
 ```
 
 ## 运行要求
 
-* python版本>=3.5.2
+- python版本>=3.5.2
 
 ## 修改框架配置
 
@@ -32,16 +40,14 @@ test
 ```ini
 [test-home]
 # 指定测试套路径，以‘：’划分
-dir =
-    ../testsuite/irbuild_test:
-    ../testsuite/ouroboros:
+dir = ../testsuite/irbuild_test:../testsuite/ouroboros:
 
 [running]
-#指定运行时的临时路径
+# 指定运行时的临时路径
 temp_dir = ../test_temp/run
 
 [logging]
-#指定运行时保存日志的路径
+# 指定运行时保存日志的路径
 name = ../test_temp/log
 level = INFO
 ```
@@ -54,14 +60,14 @@ level = INFO
 
 #### irbuild_test
 
-```shell
-python3 test/main.py test/testsuite/irbuild_test -j20 -pFAIL
+```
+python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuit/irbuild_test/<test_cfg_file> -j20 -pFAIL
 ```
 
 #### ouroboros
 
-```shell
-python3 test/main.py test/testsuite/ouroboros -j20 -pFAIL
+```
+python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuit/ouroboros/<test_cfg_file> -j20 -pFAIL
 ```
 
 参数说明：指定参数会覆盖框架配置文件中的设置
@@ -135,105 +141,69 @@ Log arguments:
 
 ## ouroboros 测试套
 
-ouroboros测试套是基于 `Java` 测试用例的测试套
+ouroboros测试套是基于 `Java` 测试用例的测试套，当前ouroboros测试支持本地测试及系统版本为华为emui10的android手机测试。
+
+### 测试环境准备
+
+* 本地测试前请首先执行完成`make libcore`。
+
+* android测试前请首先执行完成`make libcore OPS_ANDROID=1`。之后将`openarkcompiler/output/ops/host-x86_64-O2`中的`libcore-all.so`、`libmplandroid.so`和`libmplopenjdk.so`推送至测试手机的`/system/lib64/`下，文件名保持不变。将`openarkcompiler/output/ops/mplsh`推送至测试手机的`/system/bin/`下，并将文件重命名为`mplsh_arm64`。
 
 ### 运行测试套
 
-批量运行ouroboros：参数 `-j20` 设定并行为20
+* 参数`--test_cfg`设定选择的测试套配置，默认使用`test.cfg`进行本地测试，使用`test_android.cfg`将进行android版本的测试。
 
-`python3 test/main.py test/testsuite/ouroboros/ -j20`
+* 在运行android版本的测试前，需要在test_android.cfg中配置测试机所在服务器的ssh及测试机sn，并提前配置完成本地与服务器间的ssh互信。
+
+批量运行ouroboros：参数 `-j20` 设定并行为20。
+
+`python3 test/main.py test/testsuite/ouroboros/ --test_cfg=test/testsuite/ouroboros/<test_cfg_file> -j20`
 
 运行ourobors下的子文件夹：
 
-`python3 test/main.py test/testsuite/ouroboros/string_test -j20`
+`python3 test/main.py test/testsuite/ouroboros/string_test --test_cfg=test/testsuite/ouroboros/<test_cfg_file> -j20`
 
 运行ourobors下的单一测试用例：
 
-`python3 test/main.py test/testsuite/ouroboros/string_test`
+`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/<test_cfg_file>`
 
 只输出失败用例：
 
-`python3 test/main.py test/testsuite/ouroboros/ -j20 -pFAIL`
+`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/<test_cfg_file> -pFAIL`
 
-屏幕输出详细运行日至：
+屏幕输出详细运行日志：
 
-`python3 test/main.py test/testsuite/ouroboros/string_test -j20`
+`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/<test_cfg_file> --verbose`
 
 ### 测试套配置
 
-测试套配置文件路径为 `testsuite/ourobors/test.cfg`, 含有测试套的一些设置和内部变量
+测试套配置文件路径在 `testsuite/ourobors/`下, 以`test.cfg`为例，其中含有测试套的一些设置和内部变量
 
 ```ini
 [suffix]
 java = //
 
 [internal-var]
-maple = python3 ${MAPLE_ROOT}/test/testsuite/maple.py
-run = #
-build_option = --javac="-bootclasspath ${MAPLE_ROOT}/libjava-core/java-core.jar" --maple="-O0 --mplt=${MAPLE_ROOT}/libjava-core/java-core.mplt --option=\"-use-string-factory::: \"" -s maple
-run_option =
+maple = <用例编译脚本>
+run = <用运行脚本>
+build_option = <编译脚本参数>
+run_option = <运行脚本参数>
 
 [description]
 title = Maple Ouroboros Test
 ```
 
-**`[suffix]`**：限定搜索测试用例文件的后缀，以及测试用例中注释符，注释符后会跟随执行语句或者校验语句，当前测试套中的用例为 `java` 文件，`\\` 作为注释符
+**`[suffix]`**：限定搜索测试用例文件的后缀，以及测试用例中注释符，注释符后会跟随执行语句或者校验语句，当前测试套中的用例为 `java` 文件，`//` 作为注释符。
 
-**`[internal-val]`**：内部变量，此处的内部变量会替换用例中相应的变量。例如配置文件中的 `maple = python3 ${MAPLE_ROOT}/test/testsuite/maple.py` ，将会将用例中跟随在 `\\ EXEC:## ouroboros 测试套
+**`[internal-val]`**：内部变量，此处的内部变量会替换用例中相应的变量。例如配置文件中的 `maple = python3 ${MAPLE_ROOT}/test/testsuite/maple.py` ，将会将用例中跟随在 `\\ EXEC: ` 之后的执行语句中的 `%maple` 替换为 `python3 ${MAPLE_ROOT}/test/testsuite/maple.py`。
 
-ouroboros测试套是基于 `Java` 测试用例的测试套
-
-### 运行测试套
-
-批量运行ouroboros：参数 `-j20` 设定并行为20
-
-`python3 test/main.py test/testsuite/ouroboros/ -j20`
-
-运行ourobors下的子文件夹：
-
-`python3 test/main.py test/testsuite/ouroboros/string_test --test_cfg=test/testsuite/ouroboros/test.cfg -j20`
-
-运行ourobors下的单一测试用例：
-
-`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg`
-
-只输出失败用例：
-
-`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg -pFAIL`
-
-屏幕输出详细运行日至：
-
-`python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --verbose`
-
-### 测试套配置
-
-测试套配置文件路径为 `testsuite/ourobors/test.cfg`, 含有测试套的一些设置和内部变量
-
-```ini
-[suffix]
-java = //
-
-[internal-var]
-maple = python3 ${MAPLE_ROOT}/test/testsuite/maple.py
-run = #
-build_option = --javac="-bootclasspath ${MAPLE_ROOT}/libjava-core/java-core.jar" --maple="-O0 --mplt=${MAPLE_ROOT}/libjava-core/java-core.mplt --option=\"-use-string-factory::: \"" -s maple
-run_option =
-
-[description]
-title = Maple Ouroboros Test
-```
-
-**`[suffix]`**：限定搜索测试用例文件的后缀，以及测试用例中注释符，注释符后会跟随执行语句或者校验语句，当前测试套中的用例为 `java` 文件，`\\` 作为注释符
-
-**`[internal-val]`**：内部变量，此处的内部变量会替换用例中相应的变量。例如配置文件中的 `maple = python3 ${MAPLE_ROOT}/test/testsuite/maple.py` ，将会将用例中跟随在 `\\ EXEC: ` 之后的执行语句中的 `%maple` 替换为 `python3 ${MAPLE_ROOT}/test/testsuite/maple.py`。当前的用例只能编译无法运行所以在内部变量 `run` 出用 `shell` 注释符 `#` 代表，注释运行的语句。
-
-**`[description]`**：测试套的描述信息
+**`[description]`**：测试套的描述信息。
 
 ### 测试套列表
 
-默认测试列表路径为 `testsuite/ourobors/testlist`，测试列表规定了运行测试用例的范围，同时指定了排除的测试用例
+默认测试列表路径为 `testsuite/ourobors/testlist`，测试列表规定了运行测试用例的范围，同时指定了排除的测试用例。
 
-```list
+```ini
 [ALL-TEST-CASE]
     arrayboundary_test
     clinit_test
@@ -255,104 +225,21 @@ title = Maple Ouroboros Test
 
 由两个部分组成：`[ALL-TEST-CASE]` 与 `[EXCLUDE-TEST-CASE]`
 
-`[ALL-TEST-CASE]`: 指定了运行测试用例的范围
+**`[ALL-TEST-CASE]`**: 指定了运行测试用例的范围。
 
-`[EXCLUDE-TEST-CASE]`: 不运行的测试用例
+**`[EXCLUDE-TEST-CASE]`**: 不运行的测试用例。
 
-当前测试用例排除了测试套 `testsuite/ourobors` 下子文件夹 `memory_management/Annotation` 中所有的用例文件
- ` 之后的执行语句中的 `%maple` 替换为 `python3 ${MAPLE_ROOT}/test/testsuite/maple.py`。当前的用例只能编译无法运行所以在内部变量 `run` 出用 `shell` 注释符 `#` 代表，注释运行的语句。
-
-**`[description]`**：测试套的描述信息
-
-### 测试套列表
-
-默认测试列表路径为 `testsuite/ourobors/testlist`，测试列表规定了运行测试用例的范围，同时指定了排除的测试用例
-
-```list
-[ALL-TEST-CASE]
-    arrayboundary_test
-    clinit_test
-    eh_test
-    fuzzapi_test
-    other_test
-    parent_test
-    reflection_test
-    stmtpre_test
-    string_test
-    subsumeRC_test
-    thread_test
-    unsafe_test
-    memory_management
-
-[EXCLUDE-TEST-CASE]
-    memory_management/Annotation
-```
-
-由两个部分组成：`[ALL-TEST-CASE]` 与 `[EXCLUDE-TEST-CASE]`
-
-`[ALL-TEST-CASE]`: 指定了运行测试用例的范围
-
-`[EXCLUDE-TEST-CASE]`: 不运行的测试用例
-
-当前测试用例排除了测试套 `testsuite/ourobors` 下子文件夹 `memory_management/Annotation` 中所有的用例文件
-
-#### 完整Main.mpl
-
-```
- func &addf32r(
-  var %i f32, var %j f32
-  ) f32 { 
-   return (
-     add f32(dread f32 %i, dread f32 %j))}
-
- func &addf32I (
-  var %i f32
-  ) f32 { 
-   return (
-     add f32(dread f32 %i,
-       constval f32 1.234f))}
- # EXEC: %irbuild Main.mpl
- # EXEC: %irbuild Main.irb.mpl
- # EXEC: %cmp Main.irb.mpl Main.irb.irb.mpl
-```
-
-#### 1. 测试案例部分
-
-```
- func &addf32r(
-  var %i f32, var %j f32
-  ) f32 { 
-   return (
-     add f32(dread f32 %i, dread f32 %j))}
-
- func &addf32I (
-  var %i f32
-  ) f32 { 
-   return (
-     add f32(dread f32 %i,
-       constval f32 1.234f))}
-```
-
-#### 2. 测试案例运行部分
-
-```
- # EXEC: %irbuild Main.mpl
- # EXEC: %irbuild Main.irb.mpl
- # EXEC: %cmp Main.irb.mpl Main.irb.irb.mpl
-```
-
-三条执行语句：
-
-1. EXEC语句，利用%irbuild，编译Main.mpl为Main.irb.mpl
-2. EXEC语句，利用%irbuild，编译Main.irb.mpl为Main.irb.irb.mpl
-3. EXEC语句，利用%cmp，比较Main.irb.irb.mpl与Main.irb.mpl是否一致，一致测试通过
+当前测试用例排除了测试套 `testsuite/ourobors` 下子文件夹 `memory_management/Annotation` 中所有的用例文件，及部分其他用例。
 
 
-## irbuild测试套配置说明
+## irbuild测试套
+
+irbuild用于对maple中端产物进行测试，仅进行本地测试，不支持手机测试。
 
 irbuild测试套配置：testsuite/irbuild_test/test.cfg
-如果涉及脚本的运行路径需要填写绝对路径或者在环境变量（PATH）中
-例如配置文件中：如果cmp在PATH中，则 cmp = cmp 即可，如果不在则 cmp = /usr/bin/cmp
+如果涉及脚本的运行路径需要填写绝对路径或者在环境变量（PATH）中，例如：
+
+配置文件中：如果cmp在PATH中，则 cmp = cmp 即可，如果不在则 cmp = /usr/bin/cmp
 
 ```ini
 [suffix]
@@ -365,27 +252,6 @@ cmp = /usr/bin/cmp -s
 [description]
 title = Maple Irbuild Test
 ```
-
-### suffix说明
-
-```ini
-[suffix]
-mpl = #
-```
-
-* 测试用例以"mpl"作为文件后缀
-* 文件后缀"mpl"的测试用例内以"#"作为注释符
-
-### 内部变量说明
-
-```ini
-[internal-var]
-irbuild = ${MAPLE_ROOT}/output/bin/irbuild
-cmp = /usr/bin/cmp -s
-```
-
-* 所有测试用例中的EXEC语句内的"%irbuild"会被替换为"${MAPLE_ROOT}/output/bin/irbuild"
-* 所有测试用例中的EXEC语句内的"%cmp"会被替换为"/usr/bin/cmp -s"
 
 ### 运行单个irbuild用例
 
@@ -409,7 +275,7 @@ python3 main.py -pFAIL -pPASS --timeout=180 --test_cfg=testsuite/irbuild_test/te
     └── ...
 ```
 
-### `irbuild_test` 测试用例说明
+### irbuild_test 测试用例说明
 
 #### 完整Main.mpl
 
