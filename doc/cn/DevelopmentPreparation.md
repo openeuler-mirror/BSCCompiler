@@ -22,6 +22,7 @@ sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
 ## 安装Clang编译器并完成配置（用于编译方舟编译器代码）
 
 下载**clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04** (具体版本请根据系统版本确定)
+
 LLVM下载地址：http://releases.llvm.org/download.html#8.0.0
 
 解压并放置到`openarkcompiler/tools`目录
@@ -43,7 +44,9 @@ CLANG_PATH := ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
 ## 安装Ninja、GN并完成配置
 
 下载**Ninja(v1.9.0)**及**GN(Linux Version)**
+
 Ninja下载地址：https://github.com/ninja-build/ninja/releases
+
 GN下载地址：https://gitee.com/xlnb/gn_binary
 
 将GN和Ninja可执行程序放置到`openarkcompiler/tools`目录，然后修改这两个文件为可执行:
@@ -110,7 +113,7 @@ AOSP下载地址：https://source.android.com/source/downloading/
 下载AOSP并编译完成。
 
 * 在openarkcompiler目录下新建链接`android/`，并链接到AOSP的根目录；
-* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-all_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core`目录，并命名为`java-core.jar`；
+* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-all_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core`目录，并命名为`java-core.jar`，同时码云上也提供了编译好的libcore的jar文件，你可以下载直接使用，下载链接`https://gitee.com/mirrors/java-core/`；
 * 将`openarkcompiler/android/prebuilts/sdk/tools/linux/lib/d8.jar`拷贝到`openarkcompiler/third_party/d8/lib/`目录，并命名为`d8.jar`;
 * 在openarkcompiler/tools下新建链接gcc，并链接到AOSP的`openarkcompiler/android/prebuilts/gcc`;
 * 在openarkcompiler/tools下新建链接clang-r353983c，并链接到AOSP的`openarkcompiler/android/prebuilts/clang/host/linux-x86/clang-r353983c`；

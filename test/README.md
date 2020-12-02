@@ -2,7 +2,7 @@
 
 ## 目录结构
 
-```
+```shell
 test
 ├── main.py   运行测试套入口
 ├── maple_test    测试框架代码
