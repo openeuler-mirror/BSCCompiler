@@ -215,7 +215,7 @@ def do_init(components):
     parser.add_argument("-p", "--platform", dest="target", choices=["aarch64"], default="aarch64",
                         help="choose toolchain target, default is aarch64")
     # Select compile phase
-    parser.add_argument("-s", "--stage", dest="stage", choices=["javac", "jar", "maple", "as", "ld"], default="ld",
+    parser.add_argument("-s", "--stage", dest="stage", choices=["java2d8", "dex2mpl", "maple", "as", "ld"], default="ld",
                         help="Select the compiler stage, default is ld")
     # set timeout limitation
     parser.add_argument("--timeout", metavar="TIMEOUT", dest="timeout", default=None, type=int,
@@ -246,8 +246,6 @@ def do_prepare(components, info, maple_root):
     maple_out_lib_path = maple_out_path + "/ops"
     maple_out_bin_path = maple_out_path + "/bin/"
     gnu_bin_path = maple_root + "/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/"
-    javac_options = "-g -d . "
-    jar_options = "-cvf "
     as_options = "-g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c "
     cc_options = "-g3 -O2 -c -march=armv8-a -target aarch64-linux-gnu"
     cxx_options = "-g3 -O2 -c -fPIC -march=armv8-a -target aarch64-linux-gnu"
@@ -256,22 +254,18 @@ def do_prepare(components, info, maple_root):
                    + "-fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T"\
                    + maple_out_lib_path + "/linker/maplelld.so.lds"
 
-    components["javac"].update_info(None, info["javac"])
-    components["jar"].update_info(None, info["jar"])
-    components["jbc2mpl"].update_info(maple_out_bin_path, info["jbc2mpl"])
+    components["java2d8"].update_info(maple_out_bin_path, info["java2d8"])
+    components["dex2mpl"].update_info(maple_out_bin_path, info["dex2mpl"])
     components["maple"].update_info(maple_out_bin_path, info["maple"])
     components["as"].update_info(gnu_bin_path, info["as"])
     components["cc"].update_info(gnu_bin_path, info["cc"])
     components["cxx"].update_info(gnu_bin_path, info["cxx"])
     components["ld"].update_info(gnu_bin_path, info["ld"])
 
-    components["javac"].update_info(None, javac_options)
-    components["jar"].update_info(None, jar_options)
     components["as"].update_info(None, as_options)
     components["cc"].update_info(None, cc_options)
     components["cxx"].update_info(None, cxx_options)
     components["ld"].update_info(None, linker_options)
-
 
 # ------------------------------------------------------------------------
 #
@@ -279,22 +273,14 @@ def do_prepare(components, info, maple_root):
 #
 # -----------------------------------------------------------------------
 def do_update(components, file_type):
-    if file_type == "javac":
-        components.pop("jar")
-        components.pop("jbc2mpl")
+    if file_type == "java2d8":
+        components.pop("dex2mpl")
         components.pop("maple")
         components.pop("as")
         components.pop("cc")
         components.pop("cxx")
         components.pop("ld")
-    elif file_type == "jar":
-        components.pop("jbc2mpl")
-        components.pop("maple")
-        components.pop("as")
-        components.pop("cc")
-        components.pop("cxx")
-        components.pop("ld")
-    elif file_type == "jbc2mpl":
+    elif file_type == "dex2mpl":
         components.pop("maple")
         components.pop("as")
         components.pop("cc")
@@ -340,9 +326,8 @@ def main():
     # initial all tool chain components:
     # set the default name, input suffix, output suffix, and if it support multi-inputs
     components = collections.OrderedDict()
-    components["javac"] = Javac("/usr/bin/javac", ".java", ".class", "")
-    components["jar"] = Jar("/usr/bin/jar", ".class", ".jar", "")
-    components["jbc2mpl"] = SingleCompiler("jbc2mpl", ".jar", ".mpl", "")
+    components["java2d8"] = SingleCompiler("java2d8", ".java", ".dex", "")
+    components["dex2mpl"] = SingleCompiler("dex2mpl", ".dex", ".mpl", "")
     components["maple"] = SingleCompiler("maple", ".mpl", ".VtableImpl.s", "")
     components["as"] = MultiCompiler("clang++", ".s", ".o", "")
     components["cc"] = MultiCompiler("clang", ".c", ".o", "")

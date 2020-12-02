@@ -289,8 +289,7 @@ def do_prepare(components, info, maple_root):
 #
 # -----------------------------------------------------------------------
 def do_update(components, file_type):
-
-    if file_type == "java2de":
+    if file_type == "java2d8":
         components.pop("dex2mpl")
         components.pop("maple")
         components.pop("as")
