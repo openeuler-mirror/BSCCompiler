@@ -114,7 +114,6 @@ AOSP下载地址：https://source.android.com/source/downloading/
 
 * 在openarkcompiler目录下新建链接`android/`，并链接到AOSP的根目录；
 * 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-all_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core`目录，并命名为`java-core.jar`，同时码云上也提供了编译好的libcore的jar文件，你可以下载直接使用，下载链接`https://gitee.com/mirrors/java-core/`；
-* 将`openarkcompiler/android/prebuilts/sdk/tools/linux/lib/d8.jar`拷贝到`openarkcompiler/third_party/d8/lib/`目录，并命名为`d8.jar`;
 * 在openarkcompiler/tools下新建链接gcc，并链接到AOSP的`openarkcompiler/android/prebuilts/gcc`;
 * 在openarkcompiler/tools下新建链接clang-r353983c，并链接到AOSP的`openarkcompiler/android/prebuilts/clang/host/linux-x86/clang-r353983c`；
 * 修改`openarkcompiler/build/config.gni`和`openarkcompiler/buile/core/maple_variables.mk`中`ANDROID_GCC_PATH`和`ANDROID_CLANG_PATH`两个变量，配置为上述gcc和clang-r353982c的所在路径，例如：
@@ -133,7 +132,7 @@ ANDROID_GCC_PATH := ${MAPLE_ROOT}/tools/gcc
 ANDROID_GLANG_PATH := ${MAPLE_ROOT}/tools/clang-r353983c
 ```
 
-## 三方依赖库下载
+## 构建工具依赖下载
 
 ### icu下载并编译
 
@@ -151,3 +150,12 @@ libz下载地址：https://zlib.net
 
 下载1.2.8版本的libz.so，将其放置到`openarkcompiler/third_party/libdex/prebuilts/aarch64-linux-gnu/`路径下，并重命名为`libz.so.1.2.8`。
 
+### r8下载并编译
+
+当前用例编译需要d8.jar支持，请使用d8-1.5.13版本。
+
+r8社区地址：https://r8.googlesource.com/r8
+
+已经编译后的二进制：https://gitee.com/xlnb/r8-d81513/tree/master/d8/lib/d8.jar
+
+将d8.jar放置到`openarkcompiler/third_party/d8/lib/`目录
