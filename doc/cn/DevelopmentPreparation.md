@@ -104,7 +104,7 @@ NDK_PATH = "${MAPLE_ROOT}/tools/android-ndk-r21"
 NDK_PATH := ${MAPLE_ROOT}/tools/android-ndk-r21
 ```
 
-## AOSP编译并完成配置
+## AOSP运行环境依赖
 
 当前编译方舟编译器Sample应用需要使用到Java基础库，我们通过AOSP来获取，请使用Android-10.0.0_r35版本，暂不支持Android11版本。
 
