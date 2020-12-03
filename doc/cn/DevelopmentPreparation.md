@@ -64,7 +64,7 @@ GN := ${MAPLE_ROOT}/tools/gn/gn
 NINJA := ${MAPLE_ROOT}/tools/ninja_1.9.0/ninja
 ```
 
-## 安装gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu并完成配置（用于交叉编译方舟编译器代码）
+## 安装gcc-linaro并完成配置（用于交叉编译方舟编译器代码）
 
 下载**gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu**
 
@@ -84,7 +84,7 @@ GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
 GCC_LINARO_PATH := ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0
 ```
 
-## 安装android-ndk-r21并完成配置（用于编译方舟编译器代码）
+## 安装android-ndk并完成配置（用于编译方舟编译器代码）
 
 下载**android-ndk-r21b-linux-x86_64.zip**
 
