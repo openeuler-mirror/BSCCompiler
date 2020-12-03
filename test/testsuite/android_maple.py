@@ -131,24 +131,7 @@ class MultiCompiler:
         opts.append(options)
         return opts
 
-
-class Javac(MultiCompiler):
-    def prepare(self, file_list):
-        temp_list = file_list.copy()
-        for in_file in temp_list:
-            name = in_file[0:-len(self._in_suffix)]
-            if in_file == name + self._in_suffix:
-                self._is_skipped = False
-                file_list.remove(in_file)
-                self._in_files_name = self._in_files_name + in_file + " "
-            else:
-                continue
-        if not self._is_skipped:
-            self._out_file_name = "*.class"
-            file_list.append(self._out_file_name)
-
-
-class Jar(MultiCompiler):
+class java2mpl(MultiCompiler):
     def prepare(self, file_list):
         global output_name
         temp_list = file_list.copy()
@@ -164,15 +147,6 @@ class Jar(MultiCompiler):
         if not self._is_skipped:
             self._out_file_name = output_name.split("/")[-1].split(".")[0] + self._out_suffix
             file_list.append(self._out_file_name)
-
-    def _gen_cmd(self):
-        # Specify the output file name
-        cmd = [self._name]
-        cmd.extend(self._make_opts())
-        cmd.extend(re.sub(r"\s+", " ", self._out_file_name).strip().split(" "))
-        cmd.extend(re.sub(r"\s+", " ", self._in_files_name).strip().split(" "))
-        return cmd
-
 
 class SingleCompiler(MultiCompiler):
     def prepare(self, file_list):
@@ -289,8 +263,7 @@ def do_prepare(components, info, maple_root):
 #
 # -----------------------------------------------------------------------
 def do_update(components, file_type):
-
-    if file_type == "java2de":
+    if file_type == "java2d8":
         components.pop("dex2mpl")
         components.pop("maple")
         components.pop("as")
@@ -347,9 +320,8 @@ def main():
     # components["jar"] = Jar("/usr/bin/jar", ".class", ".jar", "")
     # components["jbc2mpl"] = SingleCompiler("jbc2mpl", ".jar", ".mpl", "")
 
-    components["java2d8"] = SingleCompiler("java2d8", ".java", ".dex", "")
-    components["dex2mpl"] = SingleCompiler("dex2mpl", ".dex", ".mpl", "")
-
+    components["java2d8"] = java2mpl("java2d8", ".java", ".dex", "")
+    components["dex2mpl"] = java2mpl("dex2mpl", ".dex", ".mpl", "")
     components["maple"] = SingleCompiler("maple", ".mpl", ".VtableImpl.s", "")
     components["as"] = MultiCompiler("clang++", ".s", ".o", "")
     components["cc"] = MultiCompiler("clang", ".c", ".o", "")
