@@ -43,7 +43,7 @@ CLANG_PATH := ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
 
 ## 安装Ninja、GN并完成配置
 
-下载**Ninja(v1.9.0)**及**GN(Linux Version)**
+下载**Ninja(v1.10.0)**及**GN(Linux Version)**
 
 Ninja下载地址：https://github.com/ninja-build/ninja/releases
 
@@ -61,7 +61,7 @@ chmod 775 ninja
 
 ```
 GN := ${MAPLE_ROOT}/tools/gn/gn
-NINJA := ${MAPLE_ROOT}/tools/ninja_1.9.0/ninja
+NINJA := ${MAPLE_ROOT}/tools/ninja_1.10.0/ninja
 ```
 
 ## 安装gcc-linaro并完成配置（用于交叉编译方舟编译器代码）
