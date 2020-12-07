@@ -14,4 +14,6 @@
     memory_management
 
 [EXCLUDE-TEST-CASE]
-
+    memory_management/Annotation/RC0380-rc-Annotation-RCWeakRefTest
+    memory_management/Annotation/RC0381-rc-Annotation-RCWeakRefTest2
+    reflection_test/issue-0000-rt-Reflection-ReflectionforName2
