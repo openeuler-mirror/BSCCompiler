@@ -14,9 +14,6 @@
     memory_management
 
 [EXCLUDE-TEST-CASE]
-    memory_management/Annotation
+    memory_management/Annotation/RC0380-rc-Annotation-RCWeakRefTest
+    memory_management/Annotation/RC0381-rc-Annotation-RCWeakRefTest2
     reflection_test/issue-0000-rt-Reflection-ReflectionforName2
-    reflection_test/RT0202-rt-reflection-AnnotationMultiThread
-    thread_test/RT0180-rt-thread-MonitorTestCase8
-    memory_management/MemoryTest/RC0410-rc-Memory-stressTestCase29
-
