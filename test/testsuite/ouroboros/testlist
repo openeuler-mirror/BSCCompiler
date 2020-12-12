@@ -1,6 +1,7 @@
 [ALL-TEST-CASE]
     arrayboundary_test
     clinit_test
+    compact_test
     eh_test
     fuzzapi_test
     other_test
@@ -19,3 +20,4 @@
     reflection_test/issue-0000-rt-Reflection-ReflectionforName2
     memory_management/MemoryTest/RC0410-rc-Memory-stressTestCase29
     thread_test/RT0180-rt-thread-MonitorTestCase8
+    compact_test/RT0199-rt-compact-AnnotationPackageSetTest
