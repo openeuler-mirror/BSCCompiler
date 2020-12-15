@@ -122,7 +122,7 @@ config.gni
 
 ```
 ANDROID_GCC_PATH = "${MAPLE_ROOT}/tools/gcc"
-ANDROID_GLANG_PATH = "${MAPLE_ROOT}/tools/clang-r353983c"
+ANDROID_CLANG_PATH = "${MAPLE_ROOT}/tools/clang-r353983c"
 ```
 
 maple_variables.mk
