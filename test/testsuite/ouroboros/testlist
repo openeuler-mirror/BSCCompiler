@@ -1,11 +1,11 @@
 [ALL-TEST-CASE]
     arrayboundary_test
     clinit_test
-    compact_test
     eh_test
     fuzzapi_test
     other_test
     parent_test
+    rc_test
     reflection_test
     stmtpre_test
     string_test
@@ -20,4 +20,43 @@
     reflection_test/issue-0000-rt-Reflection-ReflectionforName2
     memory_management/MemoryTest/RC0410-rc-Memory-stressTestCase29
     thread_test/RT0180-rt-thread-MonitorTestCase8
-    compact_test/RT0199-rt-compact-AnnotationPackageSetTest
+    rc_test/RC0249-rc-function-RC_Finalize_03
+    rc_test/RC0433-rc-SoftRef-SoftRefTest03
+    rc_test/RC0440-rc-RCHeader-RCHeaderTest04
+    rc_test/RC0443-rc-PlacementRC-PlacementRCTest01
+    rc_test/RC0449-rc-RP-FinalizerReferenceTest01
+    rc_test/RC0450-rc-RP-FinalizerReferenceTest02
+    rc_test/RC0451-rc-RP-FinalizerReferenceTest03
+    rc_test/RC0453-rc-RP-FinalizerReferenceTest05
+    rc_test/RC0454-rc-RP-FinalizerReferenceTest06
+    rc_test/RC0455-rc-RP-FinalizerReferenceTest07
+    rc_test/RC0456-rc-RP-FinalizerReferenceTest08
+    rc_test/RC0458-rc-GC-TriggerGCTest02
+    rc_test/RC0459-rc-GC-TriggerGCTest03
+    rc_test/RC0463-rc-GC-TriggerGCTest07
+    rc_test/RC0464-rc-GC-TriggerGCTest08
+    rc_test/RC0465-rc-GC-TriggerGCTest09
+    rc_test/RC0466-rc-GC-TriggerGCTest10
+    rc_test/RC0486-rc-StackScan-CB_Thread_01
+    rc_test/RC0487-rc-StackScan-CB_Thread_02
+    rc_test/RC0495-rc-GC-TaskQueue-FrequentSystemGC_01
+    rc_test/RC0496-rc-GC-TaskQueue-StartupInvoke_01
+    rc_test/RC0515-GC-FrequentGCTest01
+    rc_test/common_test/RC0434-rc-SoftRef-SoftRefTest04
+    rc_test/common_test/RC0436-rc-SoftRef-SoftRefTest06
+    rc_test/common_test/RC0437-rc-RCHeader-RCHeaderTest
+    rc_test/common_test/RC0438-rc-RCHeader-RCHeaderTest02
+    rc_test/common_test/RC0439-rc-RCHeader-RCHeaderTest03
+    rc_test/common_test/RC0441-rc-RCHeader-RCHeaderTest06
+    rc_test/common_test/RC0442-rc-RCHeader-RCHeaderTest07
+    rc_test/common_test/RC0445-rc-PlacementRC-PlacementRCTest03
+    rc_test/native_test/RC0411-rc-Annotation-RCPermanentTest
+    rc_test/native_test/RC0412-rc-Annotation-RCPermanentTest2
+    rc_test/native_test/RC0416-rc-Annotation-RCPermanentThread
+    rc_test/native_test/RC0423-rc-Annotation-RCPermanentTest6
+    rc_test/native_test/RC0424-rc-Annotation-RCPermanentThread2
+    rc_test/native_test/RC0425-rc-Annotation-RCPermanentTest7
+    rc_test/native_test/RC0426-rc-Annotation-RCPermanentThread3
+    rc_test/native_test/RC0429-rc-Annotation-RCPermanentTest8
+    rc_test/native_test/RC0430-rc-Annotation-RCPermanentThread4
+    rc_test/native_test/RC0448-rc-Annotation-RCPermanentLimit2
