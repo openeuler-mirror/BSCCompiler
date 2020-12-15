@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID: RefProCase/RefProcessor/src/IsCleanerNotInDeadCycleFreeRef.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: RefProcessor basic testcase：在一个对象是cleaner的环中释放reference
  *- @Condition: no

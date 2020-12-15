@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/annotation/Permanent/RCPermanentTest8
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:添加Permanent annotation的对象，验证申请内存大于64k的情况是否正常，验证是否经过RC策略以及是否为堆内存
  *- @Condition:

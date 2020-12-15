@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/optimization/RC_Array_10.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: Scenario test for RC optimization: test array copy object various scenarios, including:
  *                   1.One, two, three-dimensional array type cyclic assignment

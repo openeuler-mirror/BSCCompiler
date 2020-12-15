@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:rc/stress/Memory_normalTestCase2.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:默认启动80个线程，对62个runslot去申请释放它们所管理的区间大小的内存块，一起释放。同时在起一个线程去申请同样大小的内存块去一半一半地释放。这样会造成大量的释放
  *- @Condition: no

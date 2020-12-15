@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID: RefProCase/RefProcessor/src/NotIsCleanerNotFreeRefFailSetWCBSetAtomicWCB.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: RefProcessor basic testcase: 不是cleaner对象，referent没有释放，没有设置WCB，atomic设置WCB
  *- @Condition: no

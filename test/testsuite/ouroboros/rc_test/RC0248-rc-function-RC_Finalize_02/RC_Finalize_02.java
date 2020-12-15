@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_Finalize_02.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: test Finalizer for RC .
  *- @Condition: no

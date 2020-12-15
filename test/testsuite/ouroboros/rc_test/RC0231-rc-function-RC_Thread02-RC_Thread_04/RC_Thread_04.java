@@ -1,7 +1,6 @@
 /*
  * -@TestCaseID:maple/runtime/rc/function/RC_Thread02/RC_Thread_04.java
  * -@TestCaseName:RC_Thread_04.java
- * -@RequirementID:SR-10620538
  * -@RequirementName:[运行时需求]支持自动内存管理
  * -@Title/Destination:Multi Thread reads or writes static para.It is modified from Cycle_B_1_00180.At the same time，another thread is GC.
  * -@Condition: no

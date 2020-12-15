@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/optimization/RC_Array_05.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: Scenario testing for RC optimization: testing various scenes of 1D, 2D, 3D byte array objects，including：
  *                   1.Parameter modification / parameter has not been modified

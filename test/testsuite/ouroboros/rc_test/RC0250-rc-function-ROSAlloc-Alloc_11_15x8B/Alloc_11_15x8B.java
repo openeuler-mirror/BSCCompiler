@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:Alloc_11_15x8B
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title:ROS Allocator is in charge of applying and releasing objects.This testcase is mainly for testing objects from 11*8B to 15*8B(max)
  *- @Condition: no

@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_Thread01/Cycle_am_00390.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:Change Cycle_a_00390 in RC测试-Cycle-01 to Multi thread testcase.
  *- @Condition: no

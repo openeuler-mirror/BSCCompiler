@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/annotation/Permanent/RCPermanentThread2
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:多线程下调用：@Permanent &@Unowned 在同个case中使用。添加Permanent annotation的数组，验证是否经过RC策略以及是否为堆内存；添加Unowned annotation，确认被正常释放
  *- @Condition:

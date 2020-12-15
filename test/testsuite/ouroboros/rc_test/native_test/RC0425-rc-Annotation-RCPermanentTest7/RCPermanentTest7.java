@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/annotation/Permanent/RCPermanentTest7
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:@Permanent &@Weak在同个case中使用。添加Permanent annotation的数组，验证是否经过RC策略以及是否为堆内存；添加Weak annotation，确认被正常释放
  *- @Condition:

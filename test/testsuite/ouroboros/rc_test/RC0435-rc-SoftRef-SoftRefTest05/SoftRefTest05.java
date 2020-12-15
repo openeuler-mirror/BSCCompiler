@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:SoftRefTest05.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: 环上SoftReference对象在正常情况下不会被释放
  *- @Condition: no

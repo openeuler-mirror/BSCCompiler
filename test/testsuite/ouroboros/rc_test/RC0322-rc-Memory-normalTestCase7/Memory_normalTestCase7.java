@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:rc/stress/Memory_normalTestCase7.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:
  *- @Condition: no

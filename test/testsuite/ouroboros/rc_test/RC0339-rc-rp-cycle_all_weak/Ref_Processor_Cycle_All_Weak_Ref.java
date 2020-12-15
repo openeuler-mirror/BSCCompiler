@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID: maple/runtime/rc/function/Ref_Processor_Cycle_All_Weak_Ref.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: Reference Processor: 1.Circular references, all of which are weak references
  *- @Condition: no

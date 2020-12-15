@@ -2,7 +2,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_newObjectIassign_01.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: 针对RC优化new object assign 做场景测试：对象类中的某个域如果在类初始化时没有做赋值，则不会对它的incref(无集成场景)
  *- @Condition: no

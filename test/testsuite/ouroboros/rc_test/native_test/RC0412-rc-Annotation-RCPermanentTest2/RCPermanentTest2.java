@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/annotation/Permanent/RCPermanentTest2
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:添加/没有Permanent annotation的field，验证是否经过RC策略以及是否为堆内存
  *- @Condition:

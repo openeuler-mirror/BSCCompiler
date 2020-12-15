@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID: maple/runtime/rc/function/FinalizerTest.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *                      等finalizer队列中所有对象执行finalize()方法，确认所有finalize资源顺利释放
  *- @Condition: no
