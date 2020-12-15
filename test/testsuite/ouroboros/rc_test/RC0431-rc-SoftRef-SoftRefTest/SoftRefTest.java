@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:SoftRefTest.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: 测试SoftRefernece的基本内存管理方式：在正常情况下，SoftReference对象不会被回收掉
  *- @Condition: no

@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_Thread01/Nocycle_am_00180.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:Change Nocycle_a_00180 in RC测试-No-Cycle-00.vsd to Multi thread testcase.
  *- @Condition: no

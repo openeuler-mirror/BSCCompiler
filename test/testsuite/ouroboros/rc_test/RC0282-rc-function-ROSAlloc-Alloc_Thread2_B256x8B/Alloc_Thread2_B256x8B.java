@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:Alloc_Thread2_B256x8B
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title:ROS Allocator is in charge of applying and releasing objects.This mulit thread testcase is mainly for testing objects from 1MB to 2MB(max)
  *- @Condition: no

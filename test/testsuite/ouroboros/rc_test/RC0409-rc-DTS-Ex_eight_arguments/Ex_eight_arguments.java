@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:Ex_eight_arguments_static.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: more than 8 arguments method test, include static ,no static, has return value, no return, throw
  *                      Exception,not throw Exception

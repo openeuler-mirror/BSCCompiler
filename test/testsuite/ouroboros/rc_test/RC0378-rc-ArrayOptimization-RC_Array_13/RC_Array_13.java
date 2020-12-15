@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/optimization/RC_Array_13.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination:Scenario test for RC optimization: Test boolean array multi-threaded various scenarios, including:
  *                   1.Five copy scenarios: loop assignment, System.arraycopy(), Arrays.copyOf(), Arrays.copyOfRange(), clone()

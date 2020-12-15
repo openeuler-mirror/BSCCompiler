@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_Dec/Cycle_BDec_00040.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: Cycle_BDec_00040 in RC测试-Cycle-00.vsd
  *- @Condition: no

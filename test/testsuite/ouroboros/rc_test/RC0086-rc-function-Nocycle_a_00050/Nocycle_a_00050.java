@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/Nocycle_a_00050.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: Nocycle_a_00050 in RC测试-No-Cycle-00.vsd.
  *- @Condition: no

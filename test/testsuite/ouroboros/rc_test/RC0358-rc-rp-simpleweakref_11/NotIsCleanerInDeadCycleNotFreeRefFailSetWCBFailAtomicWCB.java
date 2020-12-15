@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID: RefProCase/RefProcessor/src/NotIsCleanerInDeadCycleNotFreeRefFailSetWCBFailAtomicWCB.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: RefProcessor basic testcase: 在不可达的环中，不是cleaner对象，不释放对象，不设置WCB
  *- @Condition: no

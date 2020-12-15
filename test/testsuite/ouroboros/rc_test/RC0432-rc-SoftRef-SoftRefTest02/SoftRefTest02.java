@@ -1,7 +1,6 @@
 /*
  *- @TestCaseID:SoftRefTest02.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: 正常情况下通过system.gc()强制gc时，SoftReference对象不会被回收掉
  *- @Condition: no

@@ -2,7 +2,6 @@
 /*
  *- @TestCaseID:maple/runtime/rc/function/RC_newObjectToField_02.java
  *- @TestCaseName:MyselfClassName
- *- @RequirementID:SR-10620538
  *- @RequirementName:[运行时需求]支持自动内存管理
  *- @Title/Destination: 对于像mR = new Obj（）的语句; 为了分配一个新对象并将其引用分配给一个field，我们正在生成一对冗余的RC Inc / Dec操作
  *- @Condition: no
