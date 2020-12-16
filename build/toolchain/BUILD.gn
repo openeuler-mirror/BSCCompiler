@@ -1,16 +1,16 @@
 #
 # Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
 #
-# OpenArkCompiler is licensed under the Mulan PSL v1.
-# You can use this software according to the terms and conditions of the Mulan PSL v1.
-# You may obtain a copy of Mulan PSL v1 at:
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
 #
-#     http://license.coscl.org.cn/MulanPSL
+#     http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
 # FIT FOR A PARTICULAR PURPOSE.
-# See the Mulan PSL v1 for more details.
+# See the Mulan PSL v2 for more details.
 #
 toolchain("clang") {
   tool("cc") {
@@ -48,7 +48,7 @@ toolchain("clang") {
   tool("alink") {
     rspfile = "{{output}}.rsp"
     rspfile_content = "{{inputs}}"
-    command = "rm -f {{output}} && ${GN_AR_COMPILER} qc {{output}} ${rspfile_content} && ranlib {{output}}"
+    command = "rm -f {{output}} && ${GN_AR_COMPILER} qc {{output}} ${rspfile_content} && ${GN_RANLIB_COMPILER} {{output}}"
     description = "AR {{target_output_name}}{{output_extension}}"
     outputs = [
       "{{output_dir}}/{{target_output_name}}{{output_extension}}",
@@ -78,7 +78,7 @@ toolchain("clang") {
     depend_output = sofile
 
     #output_prefix = ""
-    default_output_dir = "${GN_LIBRARY_OUTPUT_DIRECTORY}"
+    default_output_dir = "${GN_LIBRARY_OUTPUT_DIRECTORY}/${OPT}"
     restat = true
   }
 
@@ -172,7 +172,7 @@ toolchain("cross_compile") {
     depend_output = sofile
 
     #output_prefix = ""
-    default_output_dir = "${GN_LIBRARY_OUTPUT_DIRECTORY}"
+    default_output_dir = "${GN_LIBRARY_OUTPUT_DIRECTORY}/${OPT}"
     restat = true
   }
 

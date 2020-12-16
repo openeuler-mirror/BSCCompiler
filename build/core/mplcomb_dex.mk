@@ -12,5 +12,5 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-APP = Arith
-include $(MAPLE_BUILD_CORE)/maple_test.mk
+$(APP_S): %.VtableImpl.s : %.mpl $(MAPLE_BIN) $(DUPLICATE_DIR)/duplicateFunc.s
+	$(MAPLE_BIN) --infile $< $(MPLCOMBO_FLAGS) --save-temps > comb.log 2>&1

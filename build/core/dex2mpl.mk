@@ -12,5 +12,5 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-APP = Arith
-include $(MAPLE_BUILD_CORE)/maple_test.mk
+$(APP_MPL): %.mpl : %.dex $(DEX2MPL_BIN)
+	$(DEX2MPL_BIN) $(DEX2MPL_FLAGS) -j100 $<
