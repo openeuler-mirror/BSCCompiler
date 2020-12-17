@@ -1,7 +1,15 @@
+android
+third_party/d8*
+third_party/icu*
+third_party/libdex*
+tools/android*
 tools/clang*
-tools/ninja*
+tools/gcc*
 tools/gn*
+tools/icu*
+tools/ninja*
+tools/r8*
+tools/release*
 build/logs*
 libjava-core
 output
-
