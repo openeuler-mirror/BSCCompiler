@@ -27,7 +27,7 @@ endif
 HOST_ARCH := 64
 MIR_JAVA := 1
 GN := $(MAPLE_ROOT)/tools/gn/gn
-NINJA := $(MAPLE_ROOT)/tools/ninja_1.10.0/ninja
+NINJA := $(shell ls $(MAPLE_ROOT)/tools/ninja*/ninja | tail -1)
 
 GN_OPTIONS := \
   GN_INSTALL_PREFIX="$(MAPLE_ROOT)" \
@@ -84,7 +84,7 @@ java-core-def: install
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: install
-install: maple dex2mpl_install
+install: maple dex2mpl_install irbuild
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \

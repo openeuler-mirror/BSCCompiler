@@ -61,13 +61,13 @@ level = INFO
 #### irbuild_test
 
 ```
-python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuit/irbuild_test/<test_cfg_file> -j20 -pFAIL
+python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuite/irbuild_test/<test_cfg_file> -j20 -pFAIL
 ```
 
 #### ouroboros
 
 ```
-python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuit/ouroboros/<test_cfg_file> -j20 -pFAIL
+python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/<test_cfg_file> -j20 -pFAIL
 ```
 
 参数说明：指定参数会覆盖框架配置文件中的设置

@@ -52,6 +52,6 @@ Open the openarkcompiler/Makefile file, and set the two variables GN and NINJA t
 
 ```
 GN := ${MAPLE_ROOT}/tools/gn/gn
-NINJA := ${MAPLE_ROOT}/tools/ninja_1.9.0/ninja
+NINJA := ${MAPLE_ROOT}/tools/ninja/ninja
 ```
 

@@ -18,6 +18,12 @@ sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
 ```
 
+## 安装
+```
+cd tools
+./setup_tools.sh
+```
+
 
 ## 安装Clang编译器并完成配置（用于编译方舟编译器代码）
 
@@ -33,7 +39,7 @@ LLVM下载地址：http://releases.llvm.org/download.html#8.0.0
 CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04"
 ```
 
-* 修改`openarkcompiler/buile/core/maple_variables.mk`文件，将`CLANG_PATH`配置为clang编译器所在路径，例如：
+* 修改`openarkcompiler/build/core/maple_variables.mk`文件，将`CLANG_PATH`配置为clang编译器所在路径，例如：
 
 ```
 CLANG_PATH := ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
@@ -61,7 +67,7 @@ chmod 775 ninja
 
 ```
 GN := ${MAPLE_ROOT}/tools/gn/gn
-NINJA := ${MAPLE_ROOT}/tools/ninja_1.10.0/ninja
+NINJA := ${MAPLE_ROOT}/tools/ninja/ninja
 ```
 
 ## 安装gcc-linaro并完成配置（用于交叉编译方舟编译器代码）
@@ -78,7 +84,7 @@ gcc-linaro-7.5.0下载地址：https://releases.linaro.org/components/toolchain/
 GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
 ```
 
-* 修改`openarkcompiler/buile/core/maple_variables.mk`文件，将`GCC_LINARO_PATH`配置为gcc-linaro-7.5.0所在路径，例如：
+* 修改`openarkcompiler/build/core/maple_variables.mk`文件，将`GCC_LINARO_PATH`配置为gcc-linaro-7.5.0所在路径，例如：
 
 ```
 GCC_LINARO_PATH := ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0
@@ -98,7 +104,7 @@ android-ndk-r21下载地址：https://developer.android.google.cn/ndk/downloads/
 NDK_PATH = "${MAPLE_ROOT}/tools/android-ndk-r21"
 ```
 
-* 修改`openarkcompiler/buile/core/maple_variables.mk`文件，将`NDK_PATH`配置为android-ndk-r21所在路径，例如：
+* 修改`openarkcompiler/build/core/maple_variables.mk`文件，将`NDK_PATH`配置为android-ndk-r21所在路径，例如：
 
 ```
 NDK_PATH := ${MAPLE_ROOT}/tools/android-ndk-r21
@@ -113,10 +119,11 @@ AOSP下载地址：https://source.android.com/source/downloading/
 下载AOSP并编译完成。
 
 * 在openarkcompiler目录下新建链接`android/`，并链接到AOSP的根目录；
-* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-all_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core`目录，并命名为`java-core.jar`，同时码云上也提供了编译好的libcore的jar文件，你可以下载直接使用，下载链接`https://gitee.com/mirrors/java-core/`；
+* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-libart_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core/libart.jar`
+* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-oj_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core/oj.jar`
 * 在openarkcompiler/tools下新建链接gcc，并链接到AOSP的`openarkcompiler/android/prebuilts/gcc`;
 * 在openarkcompiler/tools下新建链接clang-r353983c，并链接到AOSP的`openarkcompiler/android/prebuilts/clang/host/linux-x86/clang-r353983c`；
-* 修改`openarkcompiler/build/config.gni`和`openarkcompiler/buile/core/maple_variables.mk`中`ANDROID_GCC_PATH`和`ANDROID_CLANG_PATH`两个变量，配置为上述gcc和clang-r353982c的所在路径，例如：
+* 修改`openarkcompiler/build/config.gni`和`openarkcompiler/build/core/maple_variables.mk`中`ANDROID_GCC_PATH`和`ANDROID_CLANG_PATH`两个变量，配置为上述gcc和clang-r353982c的所在路径，例如：
 
 config.gni
 
@@ -140,7 +147,7 @@ ANDROID_GLANG_PATH := ${MAPLE_ROOT}/tools/clang-r353983c
 
 icu下载地址：http://site.icu-project.org/home
 
-下载56.1版本的icu4c并编译完成，生成`libicuuc.so`和`libiucdata.so`，将两者放置到`openarkcompiler/third_party/icu/lib/aarch64-linux-gnu`路径下，并重命名为`libicuuc.so.56`和`libiucdata.so.56`。
+下载56.1版本的icu4c并编译完成，生成`libicuuc.so`和`libicudata.so`，将两者放置到`openarkcompiler/third_party/icu/lib/aarch64-linux-gnu`路径下，并重命名为`libicuuc.so.56`和`libicudata.so.56`。
 
 ### libz下载并编译
 
