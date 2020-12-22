@@ -36,7 +36,7 @@ THIRD_PARTY=${MAPLE_ROOT}/android/out/target/common/obj/
 #echo "Compiling $INPUT_FILE to $OUTPUT_FILE in temporary directory $DESTDIR"
 echo "Compiling $INPUT_FILE to $OUTPUT_FILE"
 
-javac -g -d $DESTDIR -bootclasspath $THIRD_PARTY/JAVA_LIBRARIES/core-oj.com.android.art_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/core-libart.com.android.art_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar $@
+javac -g -d $DESTDIR -bootclasspath $THIRD_PARTY/JAVA_LIBRARIES/core-oj_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/core-libart_intermediates/classes.jar:$THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar $@
 
 mkdir -p $DESTDIR/classes
 cd $DESTDIR/classes
@@ -46,7 +46,7 @@ jar -cvf $CLASSES_JAR *.class
 cd -
 cd $DESTDIR
 
-$EXECDIR/d8 --min-api 39 --output $DESTDIR $CLASSES_JAR --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-oj.com.android.art_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-libart.com.android.art_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar
+$EXECDIR/d8 --min-api 39 --output $DESTDIR $CLASSES_JAR --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-oj_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/core-libart_intermediates/classes.jar --classpath $THIRD_PARTY/JAVA_LIBRARIES/services_intermediates/classes.jar
 cd -
 
 if [ -f $CLASSES_DEX ]; then
