@@ -84,18 +84,18 @@ if [ ! -d $ANDROID_DIR/out/target/product/generic_arm64/obj ]; then
   . ./build/envsetup.sh
   lunch 2
   make -j32
+  make core-all
   ln -s $ANDROID_SRCDIR $ANDROID_DIR
   echo Downloaded and built AOSP.
 fi
 
 # create java-core.jar
-if [ ! -f $MAPLE_ROOT/libjava-core/libart.jar ]; then
+if [ ! -f $MAPLE_ROOT/libjava-core/java-core.jar ]; then
   mkdir -p $MAPLE_ROOT/libjava-core
   JLIBDIR=$ANDROID_DIR/out/target/product/generic_arm64/obj/JAVA_LIBRARIES
-  cp -f $JLIBDIR/core-libart_intermediates/javalib.jar $MAPLE_ROOT/libjava-core/libart.jar
-  cp -f $JLIBDIR/core-oj_intermediates/javalib.jar $MAPLE_ROOT/libjava-core/oj.jar
+  cp -f $JLIBDIR/core-all_intermediates/javalib.jar $MAPLE_ROOT/libjava-core/java-core.jar
   cd $MAPLE_ROOT/libjava-core
-  $MAPLE_ROOT/build/d8 --min-api 39 --output . libart.jar oj.jar
+  $MAPLE_ROOT/build/d8 --min-api 39 --output . java-core.jar
   mv classes.dex libcore-all.dex
   echo Copied jar files.
 fi

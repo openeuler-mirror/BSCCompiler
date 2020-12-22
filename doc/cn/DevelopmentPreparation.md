@@ -119,8 +119,7 @@ AOSP下载地址：https://source.android.com/source/downloading/
 下载AOSP并编译完成。
 
 * 在openarkcompiler目录下新建链接`android/`，并链接到AOSP的根目录；
-* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-libart_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core/libart.jar`
-* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-oj_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core/oj.jar`
+* 将`openarkcompiler/android/out/target/product/generic_arm64/obj/JAVA_LIBRARIES/core-all_intermediates/javalib.jar`拷贝到`openarkcompiler/libjava-core`目录，并命名为`java-core.jar`，同时码云上也提供了编译好的libcore的jar文件，你可以下载直接使用，下载链接`https://gitee.com/xlnb/aosp_core_bin`；
 * 在openarkcompiler/tools下新建链接gcc，并链接到AOSP的`openarkcompiler/android/prebuilts/gcc`;
 * 在openarkcompiler/tools下新建链接clang-r353983c，并链接到AOSP的`openarkcompiler/android/prebuilts/clang/host/linux-x86/clang-r353983c`；
 * 修改`openarkcompiler/build/config.gni`和`openarkcompiler/build/core/maple_variables.mk`中`ANDROID_GCC_PATH`和`ANDROID_CLANG_PATH`两个变量，配置为上述gcc和clang-r353982c的所在路径，例如：
