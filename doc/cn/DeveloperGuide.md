@@ -95,3 +95,8 @@ cp output/compile_commands.json ./
 - `cp output/compile_commands.json ./` 将output目录之下的compile_commands.json复制到当前目录之下，它是clang-tidy运行所需要的编译命令；
 
 - `./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/share/clang/run-clang-tidy.py` 调用clang-tidy进行批量检查的脚本run-clang-tidy.py，其中 `./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/`目录是之前配置的clang编译器的发行包主目录； `-clang-tidy-binary` 是指明clang-tidy的具体位置； `-clang-apply-replacements-binary` 是指明run-clang-tidy.py所依赖的clang-apply-replacements的位置； `src/maple_driver/` 是要进行源码检查的目录。
+
+## 编译器注意事项
+
+- 方舟编译器前端暂时不支持字节码校验，未符合dex、jbc语义的字节码输入可能造成编译器Crash。
+- 方舟编译器中后端暂时不支持IR中间件语法校验，未符合MapleIR语义的中间件输入可能造成编译器Crash。
