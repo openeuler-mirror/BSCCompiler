@@ -21,6 +21,32 @@
     memory_management/MemoryTest/RC0410-rc-Memory-stressTestCase29
     thread_test/RT0180-rt-thread-MonitorTestCase8
     rc_test/RC0249-rc-function-RC_Finalize_03
+    rc_test/RC0380-rc-Annotation-RCWeakRefTest
+    rc_test/RC0381-rc-Annotation-RCWeakRefTest2
+    rc_test/RC0383-rc-Annotation-RCWeakRefTest4
+    rc_test/RC0384-rc-Annotation-RCWeakRefThreadTest
+    rc_test/RC0385-rc-Annotation-RCUnownedRefTest
+    rc_test/RC0386-rc-Annotation-RCUnownedRefTest2
+    rc_test/RC0387-rc-Annotation-RCUnownedRefUnCycle
+    rc_test/RC0389-rc-Annotation-RCUnownedRefUncycleThread
+    rc_test/RC0392-rc-Annotation-RCAnnotationThread02
+    rc_test/RC0394-rc-Annotation-RCAnnotationThread04
+    rc_test/RC0395-rc-Annotation-RCAnnotationThread05
+    rc_test/RC0396-rc-Annotation-RCAnnotationOneCycle
+    rc_test/RC0397-rc-Annotation-RCAnnotationOneCycleThread
+    rc_test/RC0398-rc-Annotation-RCAnnotationTwoCycle
+    rc_test/RC0399-rc-Annotation-RCAnnotationTwoCycle2
+    rc_test/RC0400-rc-Annotation-RCAnnotationTwoCycleThread
+    rc_test/RC0401-rc-Annotation-RCAnnotationTwoCycleThread2
+    rc_test/RC0402-rc-Annotation-RCAnnotationMultiCycle
+    rc_test/RC0403-rc-Annotation-RCAnnotationMultiCycle2
+    rc_test/RC0404-rc-Annotation-RCAnnotationMultiCycleThread
+    rc_test/RC0405-rc-Annotation-RCAnnotationMultiCycleThread2
+    rc_test/RC0417-rc-Annotation-RCUnownedRefTest3
+    rc_test/RC0418-rc-Annotation-RCUnownedRefThreadTest3
+    rc_test/RC0419-rc-Annotation-RCUnownedLocalTest
+    rc_test/RC0420-rc-Annotation-RCUnownedLocalThreadTest
+    rc_test/RC0421-rc-Annotation-RCUnownedOuterTest
     rc_test/RC0433-rc-SoftRef-SoftRefTest03
     rc_test/RC0440-rc-RCHeader-RCHeaderTest04
     rc_test/RC0443-rc-PlacementRC-PlacementRCTest01
@@ -42,6 +68,8 @@
     rc_test/RC0495-rc-GC-TaskQueue-FrequentSystemGC_01
     rc_test/RC0496-rc-GC-TaskQueue-StartupInvoke_01
     rc_test/RC0515-GC-FrequentGCTest01
+    rc_test/common_test/RC0427-rc-Annotation-RCMixTest
+    rc_test/common_test/RC0428-rc-Annotation-RCMixThreadTest
     rc_test/common_test/RC0434-rc-SoftRef-SoftRefTest04
     rc_test/common_test/RC0436-rc-SoftRef-SoftRefTest06
     rc_test/common_test/RC0437-rc-RCHeader-RCHeaderTest
@@ -52,6 +80,9 @@
     rc_test/common_test/RC0445-rc-PlacementRC-PlacementRCTest03
     rc_test/native_test/RC0411-rc-Annotation-RCPermanentTest
     rc_test/native_test/RC0412-rc-Annotation-RCPermanentTest2
+    rc_test/native_test/RC0413-rc-Annotation-RCPermanentTest3
+    rc_test/native_test/RC0414-rc-Annotation-RCPermanentTest4
+    rc_test/native_test/RC0415-rc-Annotation-RCPermanentTest5
     rc_test/native_test/RC0416-rc-Annotation-RCPermanentThread
     rc_test/native_test/RC0423-rc-Annotation-RCPermanentTest6
     rc_test/native_test/RC0424-rc-Annotation-RCPermanentThread2
@@ -60,3 +91,29 @@
     rc_test/native_test/RC0429-rc-Annotation-RCPermanentTest8
     rc_test/native_test/RC0430-rc-Annotation-RCPermanentThread4
     rc_test/native_test/RC0448-rc-Annotation-RCPermanentLimit2
+    memory_management/Annotation/RC0383-rc-Annotation-RCWeakRefTest4
+    memory_management/Annotation/RC0384-rc-Annotation-RCWeakRefThreadTest
+    memory_management/Annotation/RC0386-rc-Annotation-RCUnownedRefTest2
+    memory_management/Annotation/RC0387-rc-Annotation-RCUnownedRefUnCycle
+    memory_management/Annotation/RC0389-rc-Annotation-RCUnownedRefUncycleThread
+    memory_management/Annotation/RC0391-rc-Annotation-RCAnnotationThread01
+    memory_management/Annotation/RC0392-rc-Annotation-RCAnnotationThread02
+    memory_management/Annotation/RC0393-rc-Annotation-RCAnnotationThread03
+    memory_management/Annotation/RC0394-rc-Annotation-RCAnnotationThread04
+    memory_management/Annotation/RC0395-rc-Annotation-RCAnnotationThread05
+    memory_management/Annotation/RC0396-rc-Annotation-RCAnnotationOneCycle
+    memory_management/Annotation/RC0397-rc-Annotation-RCAnnotationOneCycleThread
+    memory_management/Annotation/RC0398-rc-Annotation-RCAnnotationTwoCycle
+    memory_management/Annotation/RC0399-rc-Annotation-RCAnnotationTwoCycle2
+    memory_management/Annotation/RC0400-rc-Annotation-RCAnnotationTwoCycleThread
+    memory_management/Annotation/RC0401-rc-Annotation-RCAnnotationTwoCycleThread2
+    memory_management/Annotation/RC0402-rc-Annotation-RCAnnotationMultiCycle
+    memory_management/Annotation/RC0403-rc-Annotation-RCAnnotationMultiCycle2
+    memory_management/Annotation/RC0404-rc-Annotation-RCAnnotationMultiCycleThread
+    memory_management/Annotation/RC0405-rc-Annotation-RCAnnotationMultiCycleThread2
+    memory_management/Annotation/RC0419-rc-Annotation-RCUnownedLocalTest
+    memory_management/Annotation/RC0420-rc-Annotation-RCUnownedLocalThreadTest
+    memory_management/Annotation/RC0421-rc-Annotation-RCUnownedOuterTest
+    memory_management/Annotation/RC0428-rc-Annotation-RCMixThreadTest
+    memory_management/Annotation/issue-RC0388-rc-Annotation-RCUnownedRefUnCycle02
+    memory_management/Annotation/issue-RC0390-rc-Annotation-RCUnownedRefUncycleThread2
