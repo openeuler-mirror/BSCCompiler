@@ -101,6 +101,25 @@ dex2mpl_install:
 	$(shell rsync -a -L $(MAPLE_BIN_DIR)/dex2mpl_android $(INSTALL_DIR)/bin/dex2mpl;)
 endif
 
+.PHONY: setup
+setup:
+	(cd tools; ./setup_tools.sh)
+
+.PHONY: test1
+test1:
+	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --fail-verbose --debug
+
+.PHONY: test_irbuild
+test_irbuild:
+	python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuite/irbuild_test/test.cfg -j20 -pFAIL
+
+.PHONY: test_ourboros
+test_ourboros:
+	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
+
+.PHONY: testall
+testall: test_irbuild test_ourboros
+
 .PHONY: clean
 clean:
 	@rm -rf output/
