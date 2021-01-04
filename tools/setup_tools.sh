@@ -75,6 +75,14 @@ if [ ! -f $MAPLE_ROOT/third_party/d8/lib/d8.jar ]; then
   echo Downloaded AOSP.
 fi
 
+if [ ! -d $MAPLE_ROOT/third_party/icu ]; then
+  cd $TOOLS
+  git clone https://gitee.com/xlnb/icu4c.git
+  mkdir -p $MAPLE_ROOT/third_party/icu
+  cp -r icu4c/lib/ $MAPLE_ROOT/third_party/icu/
+  echo Download icu4c libs
+fi
+
 # download and build andriod source
 if [ ! -d $ANDROID_DIR/out/target/product/generic_arm64/obj ]; then
   mkdir -p $ANDROID_SRCDIR
