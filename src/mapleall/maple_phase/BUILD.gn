@@ -1,0 +1,24 @@
+include_libmplphase = [
+  "${MAPLEALL_ROOT}/maple_me/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLEALL_ROOT}/maple_phase/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/mpl2mpl/include",
+  "${MAPLEALL_ROOT}/huawei_secure_c/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+]
+
+src_libmplphase = [
+  "src/phase_impl.cpp",
+  "src/phase_driver.cpp",
+]
+
+configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
+
+static_library("libmplphase") {
+  sources = src_libmplphase
+  include_dirs = include_libmplphase
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+}
