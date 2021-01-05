@@ -17,7 +17,8 @@
 set -e
 
 if [ -z "$MAPLE_ROOT" ]; then
-  export MAPLE_ROOT=$(pwd)/..
+  echo "Please \"source build/envsetup.sh\" to setup environment"
+  exit 1
 fi
 echo MAPLE_ROOT: $MAPLE_ROOT
 
