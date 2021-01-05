@@ -47,6 +47,7 @@ fi
 
 if [ ! -f $TOOLS/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ]; then
   cd $TOOLS
+  echo Start wget llvm-8.0.0........................
   wget https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
   echo unpacking clang+llvm ...
   tar xf clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
@@ -55,6 +56,7 @@ fi
 
 if [ ! -f $TOOLS/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ]; then
   cd $TOOLS
+  echo Start wget gcc-linaro-7.5.0...................
   wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz
   echo unpacking gcc ...
   tar xf gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz
@@ -77,7 +79,7 @@ if [ ! -f $MAPLE_ROOT/third_party/d8/lib/d8.jar ]; then
   git clone https://gitee.com/xlnb/r8-d81513.git
   mkdir -p $MAPLE_ROOT/third_party/d8/lib
   cp -f r8-d81513/d8/lib/d8.jar $MAPLE_ROOT/third_party/d8/lib
-  echo Downloaded AOSP.
+  echo Downloaded d8.jar.
 fi
 
 if [ ! -d $MAPLE_ROOT/third_party/icu ]; then
@@ -86,7 +88,7 @@ if [ ! -d $MAPLE_ROOT/third_party/icu ]; then
   git clone https://gitee.com/xlnb/icu4c.git
   mkdir -p $MAPLE_ROOT/third_party/icu
   cp -r icu4c/lib/ $MAPLE_ROOT/third_party/icu/
-  echo Download icu4c libs
+  echo Downloaded icu4c libs
 fi
 
 # download and build andriod source
@@ -96,7 +98,7 @@ if [ ! -d $ANDROID_DIR/out/target/product/generic_arm64 ]; then
   git clone https://gitee.com/xlnb/aosp_core_bin.git
   cp -r aosp_core_bin/android $MAPLE_ROOT/
   cp -r aosp_core_bin/libjava-core $MAPLE_ROOT/ 
-  echo Download AOSP CORE LIB
+  echo Downloaded AOSP CORE LIB
 fi
 
 if [ ! -L $TOOLS/gcc ] && [ "$android_env" == "android" ]; then
@@ -113,6 +115,7 @@ fi
 
 if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2.8 ]; then
   cd $TOOLS
+  echo Start wget libz.............................
   wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.2.8.dfsg-2ubuntu4_arm64.deb
   mkdir -p libz_extract
   dpkg --extract zlib1g_1.2.8.dfsg-2ubuntu4_arm64.deb libz_extract
