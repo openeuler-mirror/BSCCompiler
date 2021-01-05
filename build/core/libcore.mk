@@ -65,7 +65,7 @@ include $(MAPLE_BUILD_CORE)/extra.mk
 include $(MAPLE_BUILD_CORE)/mplcomb_dex.mk
 include $(MAPLE_BUILD_CORE)/dex2mpl.mk
 
-$(APP_DEX): %.dex : $(D8)
+$(APP_DEX): %.dex : $(D8) $(LIB_CORE_JAR)
 	$(D8) --min-api 39 --output . $(LIB_CORE_JAR)
 	mv classes.dex $(APP_DEX)
 

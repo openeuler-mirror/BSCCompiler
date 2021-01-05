@@ -16,11 +16,14 @@
 
 set -e
 
+if [ -z "$MAPLE_ROOT" ]; then
+  export MAPLE_ROOT=$(pwd)/..
+fi
+echo MAPLE_ROOT: $MAPLE_ROOT
+
 android_env=$1
 
-TOOLS=$(pwd)
-export MAPLE_ROOT=$TOOLS/..
-echo MAPLE_ROOT: $MAPLE_ROOT
+TOOLS=$MAPLE_ROOT/tools
 
 ANDROID_VERSION=android-10.0.0_r35
 ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION

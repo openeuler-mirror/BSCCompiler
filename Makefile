@@ -106,16 +106,16 @@ setup:
 	(cd tools; ./setup_tools.sh)
 
 .PHONY: test1
-test1:
+test1: libcore
 	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --fail-verbose --debug
 
 .PHONY: test_irbuild
-test_irbuild:
+test_irbuild: install
 	python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuite/irbuild_test/test.cfg -j20 -pFAIL
 
 .PHONY: test_ourboros
-test_ourboros:
-	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
+test_ourboros: libcore
+	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --fail_exit -pFAIL
 
 .PHONY: testall
 testall: test_irbuild test_ourboros
