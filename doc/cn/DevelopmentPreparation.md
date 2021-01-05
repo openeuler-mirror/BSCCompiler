@@ -18,10 +18,10 @@ sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
 ```
 
-## 安装
+## 自动安装工具
 ```
-cd tools
-./setup_tools.sh
+source build/envsetup.sh
+tools/setup_tools.sh
 ```
 
 

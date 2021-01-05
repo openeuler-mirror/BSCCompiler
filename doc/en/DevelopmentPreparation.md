@@ -18,6 +18,11 @@ sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
 ```
 
+## Auto Installation of Tools
+```
+source build/envsetup.sh
+tools/setup_tools.sh
+```
 
 ## Installing and Configuring Clang (for Compiling the OpenArkCompiler Code)
 
@@ -36,7 +41,7 @@ ${MAPLE_ROOT} is the root directory of the OpenArkCompiler source code.
 
 ## Installing and configuring Ninja and GN
 
-Download **Ninja(v1.9.0)** and **GN(Linux Version)**
+Download **Ninja(v1.10.0)** and **GN(Linux Version)**
 Ninja download address: https://github.com/ninja-build/ninja/releases
 GN download address: https://gitee.com/xlnb/gn_binary
 

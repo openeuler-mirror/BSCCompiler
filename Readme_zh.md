@@ -34,6 +34,13 @@ OpenArkCompiler是来自华为方舟编译器的开源项目。
 
 **计划持续更新...**
 
+## 如何使用
+- source build/envsetup.sh
+- make setup
+- make
+- make libcore
+- make testall
+
 ## 孵化器项目
 - FutureWei编译器分支 https://gitee.com/openarkcompiler-incubator/mapleall
 - Maple Engine https://gitee.com/openarkcompiler-incubator/maple_engine
