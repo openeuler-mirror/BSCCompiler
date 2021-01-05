@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 #
 # Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
 #
@@ -15,6 +15,11 @@
 #
 
 set -e
+
+if [ -z "$MAPLE_ROOT" ]; then
+  echo "Please \"source build/envsetup.sh\" to setup environment"
+  exit 1
+fi
 
 today=$(date +%Y-%m-%d-%H_%M)
 
