@@ -115,7 +115,7 @@ test_irbuild: install
 
 .PHONY: test_ourboros
 test_ourboros: libcore
-	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --fail_exit -pFAIL
+	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
 
 .PHONY: testall
 testall: test_irbuild test_ourboros
