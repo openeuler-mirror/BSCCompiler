@@ -1,16 +1,16 @@
 #
 # Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
 #
-# OpenArkCompiler is licensed under the Mulan PSL v1.
-# You can use this software according to the terms and conditions of the Mulan PSL v1.
-# You may obtain a copy of Mulan PSL v1 at:
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
 #
-#     http://license.coscl.org.cn/MulanPSL
+#     http://license.coscl.org.cn/MulanPSL2
 #
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
 # EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
 # FIT FOR A PARTICULAR PURPOSE.
-# See the Mulan PSL v1 for more details.
+# See the Mulan PSL v2 for more details.
 #
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 if (COV_CHECK == 1) {
@@ -28,7 +28,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/mempool/include",
-  "${MAPLEALL_ROOT}/huawei_secure_c/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
 ]
 
 static_library("lib_mplfe_util") {
@@ -91,14 +91,12 @@ executable("mplfe") {
     ":lib_mplfe_input",
     ":lib_mplfe_jbc_input",
     ":lib_mplfe_util",
-    "${MAPLEALL_ROOT}/huawei_secure_c:libHWSecureC",
+    "${MAPLE_ROOT}/third_party/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
-  ]
-  libs = [
-    "${OPENSOURCE_DEPS}/libmempool.a",
-    "${OPENSOURCE_DEPS}/libmplutil.a",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/maple_util:libmplutil",
   ]
   ldflags = [ "-lz" ]
 }
@@ -110,7 +108,7 @@ include_jbc_input_directories = [
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/mempool/include",
-  "${MAPLEALL_ROOT}/huawei_secure_c/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
 ]
 
 static_library("lib_mplfe_jbc_input") {
