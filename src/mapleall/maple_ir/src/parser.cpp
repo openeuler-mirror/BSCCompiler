@@ -86,43 +86,6 @@ MIRFunction *MIRParser::CreateDummyFunction() {
   return func;
 }
 
-void MIRParser::ResetMaxPregNo(MIRFunction &func) {
-  for (uint32 i = 0; i < func.GetFormalCount(); ++i) {
-    MIRSymbol *formalSt = func.GetFormal(i);
-    if (formalSt && formalSt->IsPreg()) {
-      // no special register appears in the formals
-      uint32 pRegNO = static_cast<uint32>(formalSt->GetPreg()->GetPregNo());
-      if (pRegNO > maxPregNo) {
-        maxPregNo = pRegNO;
-      }
-    }
-  }
-}
-
-MIRPreg *MIRParser::CreateMirPreg(uint32 pregNo) const {
-  return mod.GetMemPool()->New<MIRPreg>(pregNo);
-}
-
-PregIdx MIRParser::LookupOrCreatePregIdx(uint32 pregNo, bool isRef, MIRFunction &func) {
-  MIRPregTable *pRegTab = func.GetPregTab();
-  PregIdx idx = pRegTab->GetPregIdxFromPregno(pregNo);
-  if (idx == 0) {
-    if (pregNo > maxPregNo) {
-      maxPregNo = pregNo;
-    }
-    MIRPreg *preg = CreateMirPreg(pregNo);
-    if (isRef) {
-      preg->SetPrimType(PTY_ref);
-    }
-    size_t pregIndex = pRegTab->GetPregTable().size();
-    CHECK_FATAL(pregIndex <= INT_MAX, "pregIndex out of range");
-    idx = static_cast<PregIdx>(pregIndex);
-    pRegTab->GetPregTable().push_back(preg);
-    pRegTab->SetPregNoToPregIdxMapItem(pregNo, idx);
-  }
-  return idx;
-}
-
 bool MIRParser::IsDelimitationTK(TokenKind tk) const {
   switch (tk) {
     case TK_rparen:
@@ -250,41 +213,24 @@ bool MIRParser::ParseSpecialReg(PregIdx &pRegIdx) {
   return false;
 }
 
-bool MIRParser::ParseRefPseudoReg(PregIdx &pRegIdx) {
-  uint32 pRegNO = static_cast<uint32>(lexer.GetTheIntVal());
-  ASSERT(pRegNO <= 0xffff, "preg number must be 16 bits");
-  pRegIdx = LookupOrCreatePregIdx(pRegNO, true, *mod.CurFunction());
+bool MIRParser::ParsePseudoReg(PrimType primType, PregIdx &pRegIdx) {
+  uint32 pregNo = static_cast<uint32>(lexer.GetTheIntVal());
+  ASSERT(pregNo <= 0xffff, "preg number must be 16 bits");
+  MIRFunction *curfunc = mod.CurFunction();
+  pRegIdx = curfunc->GetPregTab()->EnterPregNo(pregNo, primType);
+  MIRPreg *preg = curfunc->GetPregTab()->PregFromPregIdx(pRegIdx);
+  if (primType != kPtyInvalid) {
+    if (preg->GetPrimType() != primType) {
+      if ((primType == PTY_ref || primType == PTY_ptr) && (preg->GetPrimType() == PTY_ref || preg->GetPrimType() == PTY_ptr))
+        ;  // PTY_ref and PTY_ptr are compatible with each other
+      else {
+        Error("inconsistent preg primitive type at ");
+        return false;
+      }
+    }
+  }
   lexer.NextToken();
   return true;
-}
-
-bool MIRParser::ParsePseudoReg(PrimType primType, PregIdx &pRegIdx) {
-  MIRFunction *func = mod.CurFunction();
-  ASSERT(func != nullptr, "func nullptr check");
-  pRegIdx = LookupOrCreatePregIdx(static_cast<uint32>(lexer.GetTheIntVal()), false, *func);
-  MIRPreg *preg = func->GetPregTab()->PregFromPregIdx(pRegIdx);
-
-  if (primType == kPtyInvalid || preg->GetPrimType() == primType) {
-    lexer.NextToken();
-    return true;
-  }
-
-  // check type consistenency for the preg
-  if (preg->GetPrimType() == kPtyInvalid) {
-    preg->SetPrimType(primType);
-    lexer.NextToken();
-    return true;
-  }
-
-  if ((primType == PTY_ref || primType == PTY_ptr) &&
-      (preg->GetPrimType() == PTY_ref || preg->GetPrimType() == PTY_ptr)) {
-    // PTY_ref and PTY_ptr are compatible with each other
-    lexer.NextToken();
-    return true;
-  }
-
-  Error("inconsistent preg primitive type at ");
-  return false;
 }
 
 bool MIRParser::CheckPrimAndDerivedType(TokenKind tokenKind, TyIdx &tyIdx) {
@@ -1662,10 +1608,9 @@ bool MIRParser::ParseDeclareReg(MIRSymbol &symbol, MIRFunction &func) {
   }
   symbol.SetTyIdx(tyIdx);
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-  PregIdx pRegIdx = LookupOrCreatePregIdx(thePRegNO, mirType->GetPrimType() == PTY_ref, func);
+  PregIdx pRegIdx = func.GetPregTab()->EnterPregNo(thePRegNO, mirType->GetPrimType(), mirType);
   MIRPregTable *pRegTab = func.GetPregTab();
   MIRPreg *preg = pRegTab->PregFromPregIdx(pRegIdx);
-  preg->SetIsRef(mirType->GetPrimType() == PTY_ref);
   preg->SetPrimType(mirType->GetPrimType());
   symbol.SetPreg(preg);
   if (!ParseVarTypeAttrs(symbol)) {
@@ -1977,8 +1922,6 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
   if (lexer.GetTokenKind() == TK_lbrace) {  // #2 parse Function body
     funcSymbol->SetAppearsInCode(true);
     definedLabels.clear();
-    maxPregNo = 0;
-    ResetMaxPregNo(*func);  // reset the maxPregNo due to the change of parameters
     mod.SetCurFunction(func);
     mod.AddFunction(func);
     // set maple line number for function
@@ -1995,7 +1938,7 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
       return false;
     }
     func->SetBody(block);
-    mod.CurFunction()->GetPregTab()->SetIndex(maxPregNo + 1);
+
     // set source file number for function
     func->GetSrcPosition().SetLineNum(firstLineNum);
     func->GetSrcPosition().SetFileNum(lastFileNum);

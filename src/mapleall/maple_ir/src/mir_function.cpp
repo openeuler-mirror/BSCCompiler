@@ -509,7 +509,7 @@ const MIRType *MIRFunction::GetNodeType(const BaseNode &node) const {
   }
   if (node.GetOpCode() == OP_regread) {
     const auto &nodeReg = static_cast<const RegreadNode&>(node);
-    const MIRPreg *pReg = GetPregTab()->PregFromPregIdx(nodeReg.GetRegIdx());
+    MIRPreg *pReg = GetPregTab()->PregFromPregIdx(nodeReg.GetRegIdx());
     if (pReg->GetPrimType() == PTY_ref) {
       return pReg->GetMIRType();
     }

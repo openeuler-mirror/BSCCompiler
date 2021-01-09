@@ -36,9 +36,6 @@ class MIRParser {
 
   ~MIRParser() = default;
 
-  MIRPreg *CreateMirPreg(uint32 pregNo) const;
-  PregIdx LookupOrCreatePregIdx(uint32 pregNo, bool isref, MIRFunction &curfunc);
-  void ResetMaxPregNo(MIRFunction&);
   MIRFunction *CreateDummyFunction();
   void ResetCurrentFunction() {
     mod.SetCurFunction(dummyFunction);
@@ -91,7 +88,6 @@ class MIRParser {
   bool ParseStatement(StmtNodePtr &stmt);
   bool ParseSpecialReg(PregIdx &pregIdx);
   bool ParsePseudoReg(PrimType pty, PregIdx &pregIdx);
-  bool ParseRefPseudoReg(PregIdx&);
   bool ParseStmtBlock(BlockNodePtr &blk);
   bool ParsePrototype(MIRFunction &fn, MIRSymbol &funcSt, TyIdx &funcTyIdx);
   bool ParseFunction(uint32 fileIdx = 0);
@@ -283,7 +279,6 @@ class MIRParser {
   uint32 lastLineNum = 0;                    // to remember second number after LOC
   uint32 firstLineNum = 0;                   // to track function starting line
   std::map<TyIdx, TyIdx> typeDefIdxMap;      // map previous declared tyIdx
-  uint32 maxPregNo = 0;                      // max pregNo seen so far in current function
   bool firstImport = true;                   // Mark the first imported mplt file
   bool paramParseLocalType = false;          // param for ParseTypedef
   uint32 paramFileIdx = 0;                   // param for ParseMIR()

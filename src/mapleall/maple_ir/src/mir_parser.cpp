@@ -194,7 +194,9 @@ bool MIRParser::ParseStmtDoloop(StmtNodePtr &stmt) {
   stmt = doLoopNode;
   lexer.NextToken();
   if (lexer.GetTokenKind() == TK_preg) {
-    PregIdx pregIdx = LookupOrCreatePregIdx(static_cast<uint32>(lexer.GetTheIntVal()), false, *mod.CurFunction());
+    uint32 pregNo = static_cast<uint32>(lexer.GetTheIntVal());
+    MIRFunction *curfunc = mod.CurFunction();
+    PregIdx pregIdx = curfunc->GetPregTab()->EnterPregNo(pregNo, kPtyInvalid);
     doLoopNode->SetIsPreg(true);
     doLoopNode->SetDoVarStFullIdx(pregIdx);
     // let other appearances handle the preg primitive type
@@ -1483,7 +1485,7 @@ bool MIRParser::ParseStmtBlockForReg() {
     return false;
   }
   PregIdx pregIdx;
-  if (!ParseRefPseudoReg(pregIdx)) {
+  if (!ParsePseudoReg(PTY_ref, pregIdx)) {
     return false;
   }
   MIRPreg *preg = mod.CurFunction()->GetPregTab()->PregFromPregIdx(pregIdx);
@@ -1841,22 +1843,15 @@ bool MIRParser::ParseExprRegread(BaseNodePtr &expr) {
   expr->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx));
   if (lexer.GetTokenKind() == TK_specialreg) {
     PregIdx tempPregIdx = regRead->GetRegIdx();
-    bool isSuccess = ParseSpecialReg(tempPregIdx);
+    bool isSuccess =  ParseSpecialReg(tempPregIdx);
     regRead->SetRegIdx(tempPregIdx);
     return isSuccess;
   }
   if (lexer.GetTokenKind() == TK_preg) {
-    if (expr->GetPrimType() == PTY_ptr || expr->GetPrimType() == PTY_ref) {
-      PregIdx tempPregIdx = regRead->GetRegIdx();
-      bool isSuccess = ParseRefPseudoReg(tempPregIdx);
-      regRead->SetRegIdx(tempPregIdx);
-      return isSuccess;
-    } else {
-      PregIdx tempPregIdx = regRead->GetRegIdx();
-      bool isSuccess = ParsePseudoReg(expr->GetPrimType(), tempPregIdx);
-      regRead->SetRegIdx(tempPregIdx);
-      return isSuccess;
-    }
+    PregIdx tempPregIdx = regRead->GetRegIdx();
+    bool isSuccess = ParsePseudoReg(regRead->GetPrimType(), tempPregIdx);
+    regRead->SetRegIdx(tempPregIdx);
+    return isSuccess;
   }
   Error("expect special or pseudo register but get ");
   return false;

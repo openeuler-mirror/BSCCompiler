@@ -154,7 +154,7 @@ class FormalRenaming final {
         MIRType &irTy = utils::ToRef(irFunc.GetNthParamType(i));
         MIRPregTable &irPregTbl = utils::ToRef(irFunc.GetPregTab());
         PregIdx16 regIdx = (irTy.GetPrimType() == PTY_ref) ?
-            static_cast<PregIdx16>(irPregTbl.CreateRefPreg(irTy)) :
+            static_cast<PregIdx16>(irPregTbl.CreatePreg(PTY_ref, &irTy)) :
             static_cast<PregIdx16>(irPregTbl.CreatePreg(irTy.GetPrimType()));
         irFunc.GetFormalDefVec()[i].formalSym = irBuilder.CreatePregFormalSymbol(irTy.GetTypeIndex(), regIdx, irFunc);
       } else {

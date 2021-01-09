@@ -21,6 +21,8 @@
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {
+extern void PrintIndentation(int32 );
+
 // these special registers are encoded by negating the enumeration
 enum SpecialReg : signed int {
   kSregSp = 1,
@@ -29,14 +31,17 @@ enum SpecialReg : signed int {
   kSregThrownval = 4,
   kSregMethodhdl = 5,
   kSregRetval0 = 6,
-  kSregLast = 7,
+  kSregRetval1 = 7,
+  kSregLast = 8,
 };
 #if MIR_FEATURE_FULL
 class MIRPreg {
  public:
-  explicit MIRPreg(uint32 n = 0) : MIRPreg(n, nullptr) {}
+  explicit MIRPreg(uint32 n = 0) : MIRPreg(n, kPtyInvalid, nullptr) {}
 
-  MIRPreg(uint32 n, MIRType *mType) : pregNo(n), mirType(mType) {}
+  MIRPreg(uint32 n, PrimType ptyp) : primType(ptyp), pregNo(n) {}
+
+  MIRPreg(uint32 n, PrimType ptyp, MIRType *mType) : primType(ptyp), pregNo(n), mirType(mType) {}
 
   ~MIRPreg() = default;
   void SetNeedRC(bool needRC = true) {
@@ -48,11 +53,7 @@ class MIRPreg {
   }
 
   bool IsRef() const {
-    return isRef;
-  }
-
-  void SetIsRef(bool isRef) {
-    this->isRef = isRef;
+    return mirType != nullptr && primType == PTY_ref;
   }
 
   PrimType GetPrimType() const {
@@ -81,7 +82,6 @@ class MIRPreg {
 
  private:
   PrimType primType = kPtyInvalid;
-  bool isRef = false;
   bool needRC = false;
   int32 pregNo;  // the number in maple IR after the %
   MIRType *mirType;
@@ -89,11 +89,9 @@ class MIRPreg {
 
 class MIRPregTable {
  public:
-  static constexpr uint32 kMaxUserPregIndex = 10000;
   MIRPregTable(MIRModule *mod, MapleAllocator *allocator)
       : pregNoToPregIdxMap(allocator->Adapter()),
         pregTable(allocator->Adapter()),
-        module(mod),
         mAllocator(allocator) {
     pregTable.push_back(nullptr);
     specPregTable[0].SetPregNo(0);
@@ -103,6 +101,7 @@ class MIRPregTable {
     specPregTable[kSregThrownval].SetPregNo(-kSregThrownval);
     specPregTable[kSregMethodhdl].SetPregNo(-kSregMethodhdl);
     specPregTable[kSregRetval0].SetPregNo(-kSregRetval0);
+    specPregTable[kSregRetval1].SetPregNo(-kSregRetval1);
     for (uint32 i = 0; i < kSregLast; ++i) {
       specPregTable[i].SetPrimType(PTY_unknown);
     }
@@ -110,44 +109,26 @@ class MIRPregTable {
 
   ~MIRPregTable();
 
-  PregIdx CreatePreg(PrimType primType) {
-    uint32 index = pregIndex++;
-    MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(index);
-    preg->SetPrimType(primType);
-    PregIdx idx = static_cast<PregIdx>(pregTable.size());
-    ASSERT(idx < USHRT_MAX, "will has problem if over 16 bits");
-    pregTable.push_back(preg);
-    pregNoToPregIdxMap[index] = idx;
-    pregTable[idx]->SetMIRType(GlobalTables::GetTypeTable().GetPrimType(primType));
+  PregIdx CreatePreg(PrimType primType, MIRType *mtype = nullptr) {
+    ASSERT(!mtype || mtype->primType == PTY_ref || mtype->primType == PTY_ptr, "ref or ptr type");
+    uint32 index = ++maxPregNo;
+    MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(index, primType, mtype);
+    return AddPreg(preg);
+  }
+
+  PregIdx ClonePreg(MIRPreg *rfpreg) {
+    PregIdx idx = CreatePreg(rfpreg->GetPrimType(), rfpreg->GetMIRType());
+    MIRPreg *preg = pregTable[idx];
+    preg->SetNeedRC(rfpreg->NeedRC());
     return idx;
   }
 
-  PregIdx CreateRefPreg(MIRType &mirType) {
-    ASSERT(mirType.GetPrimType() == PTY_ref, "only ref type needed");
-    PregIdx idx = CreatePreg(mirType.GetPrimType());
-    pregTable[idx]->SetMIRType(&mirType);
-    return idx;
-  }
-
-  PregIdx CreateRefPreg(MIRPreg &mirPreg) {
-    uint32 index = pregIndex++;
-    MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(index, mirPreg.GetMIRType());
-    preg->SetPrimType(mirPreg.GetPrimType());
-    preg->SetMIRType(mirPreg.GetMIRType());
-    preg->SetNeedRC(mirPreg.NeedRC());
-    PregIdx idx = static_cast<PregIdx>(pregTable.size());
-    ASSERT(idx < USHRT_MAX, "will has problem if over 16 bits");
-    pregTable.push_back(preg);
-    pregNoToPregIdxMap[index] = idx;
-    return idx;
-  }
-
-  MIRPreg *PregFromPregIdx(PregIdx pregIdx) {
-    return const_cast<MIRPreg*>(const_cast<const MIRPregTable*>(this)->PregFromPregIdx(pregIdx));
-  }
-  const MIRPreg *PregFromPregIdx(PregIdx pregIdx) const {
-    // pregIdx < 0 denotes special register
-    return (pregIdx < 0) ? &specPregTable[-pregIdx] : pregTable.at(pregIdx);
+  MIRPreg *PregFromPregIdx(PregIdx pregidx) {
+    if (pregidx < 0) {  // special register
+      return &specPregTable[-pregidx];
+    } else {
+      return pregTable.at(pregidx);
+    }
   }
 
   PregIdx GetPregIdxFromPregno(uint32 pregNo) {
@@ -155,7 +136,23 @@ class MIRPregTable {
     return (it == pregNoToPregIdxMap.end()) ? PregIdx(0) : it->second;
   }
 
-  void DumpRef(int32);
+  void DumpPregsWithTypes(int32 indent) {
+    MapleVector<MIRPreg *> &pregtable = pregTable;
+    for (uint32 i = 1; i < pregtable.size(); i++) {
+      MIRPreg *mirpreg = pregtable[i];
+      if (mirpreg->GetMIRType() == nullptr) {
+        continue;
+      }
+      PrintIndentation(indent);
+      LogInfo::MapleLogger() << "reg ";
+      LogInfo::MapleLogger() << "%" << mirpreg->GetPregNo();
+      LogInfo::MapleLogger() << " ";
+      mirpreg->GetMIRType()->Dump(0);
+      LogInfo::MapleLogger() << " " << (mirpreg->NeedRC() ? 1 : 0);
+      LogInfo::MapleLogger() << "\n";
+    }
+  }
+
   size_t Size() const {
     return pregTable.size();
   }
@@ -172,8 +169,10 @@ class MIRPregTable {
   PregIdx EnterPregNo(uint32 pregNo, PrimType ptyp, MIRType *ty = nullptr) {
     PregIdx idx = GetPregIdxFromPregno(pregNo);
     if (idx == 0) {
-      MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(pregNo, ty);
-      preg->SetPrimType(ptyp);
+      if (pregNo > maxPregNo) {
+        maxPregNo = pregNo;
+      }
+      MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(pregNo, ptyp, ty);
       return AddPreg(preg);
     }
     return idx;
@@ -196,20 +195,19 @@ class MIRPregTable {
     pregNoToPregIdxMap[key] = value;
   }
 
-  uint32 GetIndex() const {
-    return pregIndex;
+  uint32 GetMaxPregNo() const {
+    return maxPregNo;
   }
 
-  void SetIndex(uint32 index) {
-    pregIndex = index;
+  void SetMaxPregNo(uint32 index) {
+    maxPregNo = index;
   }
 
  private:
-  uint32 pregIndex = kMaxUserPregIndex;          // user(maple_ir)'s preg must less than this value
+  uint32 maxPregNo = 0;  //  the max pregNo that has been allocated
   MapleMap<uint32, PregIdx> pregNoToPregIdxMap;  // for quick lookup based on pregno
   MapleVector<MIRPreg*> pregTable;
   MIRPreg specPregTable[kSregLast];  // for the MIRPreg nodes corresponding to special registers
-  MIRModule *module;
   MapleAllocator *mAllocator;
 };
 

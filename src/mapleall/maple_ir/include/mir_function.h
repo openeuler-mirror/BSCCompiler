@@ -489,10 +489,7 @@ class MIRFunction {
       labelTab = module->GetMemPool()->New<MIRLabelTable>(module->GetMPAllocator());
     }
   }
-  MIRPregTable *GetPregTab() {
-    return pregTab;
-  }
-  const MIRPregTable *GetPregTab() const {
+  MIRPregTable *GetPregTab() const {
     return pregTab;
   }
   void SetPregTab(MIRPregTable *tab) {

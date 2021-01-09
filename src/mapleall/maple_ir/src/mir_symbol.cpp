@@ -400,24 +400,4 @@ bool MIRLabelTable::AddToStringLabelMap(LabelIdx labelIdx) {
   strIdxToLabIdxMap[strIdx] = labelIdx;
   return true;
 }
-
-void MIRPregTable::DumpRef(int32 indent) {
-  MapleVector<MIRPreg*> &pRegTable = pregTable;
-  for (size_t i = 1; i < pRegTable.size(); ++i) {
-    MIRPreg *mirPReg = pRegTable[i];
-    if (mirPReg->GetPrimType() != PTY_ref) {
-      continue;
-    }
-    if (mirPReg->GetMIRType() == nullptr) {
-      continue;
-    }
-    PrintIndentation(indent);
-    LogInfo::MapleLogger() << "reg ";
-    LogInfo::MapleLogger() << "%" << mirPReg->GetPregNo();
-    LogInfo::MapleLogger() << " ";
-    mirPReg->GetMIRType()->Dump(0);
-    LogInfo::MapleLogger() << " " << (mirPReg->NeedRC() ? 1 : 0);
-    LogInfo::MapleLogger() << "\n";
-  }
-}
 }  // namespace maple
