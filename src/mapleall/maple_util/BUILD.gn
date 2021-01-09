@@ -1,0 +1,31 @@
+src_libmplutil = [
+  "src/mpl_logging.cpp",
+  "src/muid.cpp",
+  "src/namemangler.cpp",
+  "src/literalstrname.cpp",
+  "src/file_layout.cpp",
+  "src/mpl_scheduler.cpp",
+  "src/itab_util.cpp",
+  "src/mpl_timer.cpp",
+  "src/profile.cpp",
+  "src/string_utils.cpp",
+  "src/error_code.cpp",
+  "src/thread_env.cpp",
+]
+
+include_libmplutil = [
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLE_ROOT}/third-party/bounds_checking_function/include",
+]
+
+configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
+
+static_library("libmplutil") {
+  sources = src_libmplutil
+  include_dirs = include_libmplutil
+  libs = [ "pthread" ]
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
+}
