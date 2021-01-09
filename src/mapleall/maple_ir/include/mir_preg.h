@@ -110,7 +110,7 @@ class MIRPregTable {
   ~MIRPregTable();
 
   PregIdx CreatePreg(PrimType primType, MIRType *mtype = nullptr) {
-    ASSERT(!mtype || mtype->primType == PTY_ref || mtype->primType == PTY_ptr, "ref or ptr type");
+    ASSERT(!mtype || mtype->GetPrimType() == PTY_ref || mtype->GetPrimType() == PTY_ptr, "ref or ptr type");
     uint32 index = ++maxPregNo;
     MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(index, primType, mtype);
     return AddPreg(preg);
