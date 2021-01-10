@@ -14,7 +14,7 @@
 #
 OPT := O2
 DEBUG := 0
-LIB_CORE_PATH := $(MAPLE_ROOT)/libjava-core
+LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core
 LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 

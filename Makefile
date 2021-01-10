@@ -74,12 +74,13 @@ maple-rt: java-core-def
 
 .PHONY: libcore
 libcore: install maple-rt
-	cd $(MAPLE_ROOT)/libjava-core; \
+	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
 	$(MAKE) install OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: java-core-def
 java-core-def: install
-	cd $(MAPLE_ROOT)/libjava-core; \
+	cp -rp $(MAPLE_ROOT)/libjava-core $(MAPLE_BUILD_OUTPUT)/; \
+	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
 	ln -f -s $(MAPLE_ROOT)/build/core/libcore.mk ./makefile; \
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
@@ -123,15 +124,6 @@ testall: test_irbuild test_ourboros
 .PHONY: clean
 clean:
 	@rm -rf $(MAPLE_BUILD_OUTPUT)/
-	@rm -f libjava-core/libcore-all.*
-	@rm -f libjava-core/*.mpl
-	@rm -f libjava-core/*.mplt
-	@rm -f libjava-core/*.groots.txt
-	@rm -f libjava-core/*.primordials.txt
-	@rm -rf libjava-core/comb.log
-	@rm -rf libjava-core/*.muid
-	@rm -f libjava-core/*.s
-	@rm -rf libjava-core/*.o
 
 .PHONY: clobber
 clobber: clean
