@@ -18,7 +18,7 @@ include_libmplutil = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
-  "${MAPLE_ROOT}/third-party/bounds_checking_function/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
