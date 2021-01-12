@@ -13,23 +13,24 @@
 
 ## 源码编译
 
-在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler，默认输出路径 openarkcompiler/output/bin。
+在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler，默认输出路径 openarkcompiler/output/TYPE/bin, TYPE: aarch64-clang-release。
 
 ```
-source build/envsetup.sh
+source build/envsetup.sh arm release
+make setup
 make
 ```
 
 命令说明：
 
-- `source build/envsetup.sh` 初始化环境，将OpenArkCompiler工具链路径openarkcompiler/output/bin设置到环境变量中；
+- `source build/envsetup.sh arm release` 初始化环境，将OpenArkCompiler工具链路径openarkcompiler/output/TYPE/bin设置到环境变量中；
 - `make` 编译OpenArkCompiler的Release版本；
 - `make BUILD_TYPE=DEBUG` 编译OpenArkCompiler的Debug版本。
 
-在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler及maple runtime部分，默认输出路径 openarkcompiler/output。
+在openarkcompiler目录下执行以下命令，编译出OpenArkCompiler及maple runtime部分，默认输出路径 openarkcompiler/output/TYPE。
 
 ```
-source build/envsetup.sh
+source build/envsetup.sh arm release
 make libcore
 ```
 
@@ -58,7 +59,7 @@ source build/build.sh
 编译前，请先在openarkcompiler目录下创建libjava-core目录，拷贝java-core.jar到此目录下，在openarkcompiler目录执行以下命令：
 
 ```
-source build/envsetup.sh
+source build/envsetup.sh arm release
 make
 cd libjava-core
 jbc2mpl -injar java-core.jar -out libjava-core
@@ -73,7 +74,7 @@ jbc2mpl -injar java-core.jar -out libjava-core
 以samples/helloworld/代码为例，在openarkcompiler/目录下执行以下命令：
 
 ```
-source build/envsetup.sh
+source build/envsetup.sh arm release
 make
 cd samples/helloworld/
 make
@@ -86,13 +87,13 @@ make
 静态源码检查之前，需要先编译出OpenArkCompiler。此后，以检查src/maple_driver源码为例，在openarkcompiler目录下执行以下命令：
 
 ```
-cp output/compile_commands.json ./
+cp output/TYPE/compile_commands.json ./
 ./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/share/clang/run-clang-tidy.py -clang-tidy-binary='./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang-tidy' -clang-apply-replacements-binary='./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang-apply-replacements' src/maple_driver/
 ```
 
 命令说明：
 
-- `cp output/compile_commands.json ./` 将output目录之下的compile_commands.json复制到当前目录之下，它是clang-tidy运行所需要的编译命令；
+- `cp output/TYPE/compile_commands.json ./` 将output/TYPE目录之下的compile_commands.json复制到当前目录之下，它是clang-tidy运行所需要的编译命令；
 
 - `./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/share/clang/run-clang-tidy.py` 调用clang-tidy进行批量检查的脚本run-clang-tidy.py，其中 `./tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/`目录是之前配置的clang编译器的发行包主目录； `-clang-tidy-binary` 是指明clang-tidy的具体位置； `-clang-apply-replacements-binary` 是指明run-clang-tidy.py所依赖的clang-apply-replacements的位置； `src/maple_driver/` 是要进行源码检查的目录。
 

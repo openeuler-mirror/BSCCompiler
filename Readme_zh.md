@@ -35,7 +35,7 @@ OpenArkCompiler是来自华为方舟编译器的开源项目。
 **计划持续更新...**
 
 ## 如何使用
-- source build/envsetup.sh
+- source build/envsetup.sh arm release
 - make setup
 - make
 - make libcore

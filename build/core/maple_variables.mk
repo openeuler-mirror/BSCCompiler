@@ -14,7 +14,7 @@
 #
 OPT := O2
 DEBUG := 0
-LIB_CORE_PATH := $(MAPLE_ROOT)/libjava-core
+LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core
 LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 
@@ -36,7 +36,7 @@ APP_O := $(foreach APP, $(TARGETS), $(APP).VtableImpl.o)
 APP_QEMU_SO := $(foreach APP, $(TARGETS), $(APP).VtableImpl.qemu.so)
 APP_VTABLEIMPL_MPL := $(foreach APP, $(TARGETS), $(APP).VtableImpl.mpl)
 
-MAPLE_OUT := $(MAPLE_ROOT)/output
+MAPLE_OUT := $(MAPLE_BUILD_OUTPUT)
 JAVA2JAR := $(MAPLE_OUT)/bin/java2jar
 JBC2MPL_BIN := $(MAPLE_OUT)/bin/jbc2mpl
 MAPLE_BIN := $(MAPLE_OUT)/bin/maple

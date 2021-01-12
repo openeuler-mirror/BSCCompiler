@@ -216,7 +216,7 @@ def do_init(components):
 # -----------------------------------------------------------------------
 def do_prepare(components, info, maple_root):
     global output_name
-    maple_out_path = maple_root + "/output"
+    maple_out_path = os.environ.get("MAPLE_BUILD_OUTPUT")
     maple_out_lib_path = maple_out_path + "/ops"
     maple_out_bin_path = maple_out_path + "/bin/"
     gnu_bin_path = maple_root + "/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/"
