@@ -121,12 +121,16 @@ test_ourboros: libcore
 .PHONY: testall
 testall: test_irbuild test_ourboros
 
+.PHONY: cleanrsd
+cleanrsd:
+	@rm -rf libjava-core/libcore-all.* libjava-core/m* libjava-core/comb.*
+
 .PHONY: clean
-clean:
-	@rm -rf $(MAPLE_BUILD_OUTPUT)/
+clean: cleanrsd
+	@rm -rf $(MAPLE_BUILD_OUTPUT)
 
 .PHONY: clobber
-clobber: clean
+clobber: cleanrsd
 	@rm -rf output
 
 define build_gn
