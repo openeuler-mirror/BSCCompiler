@@ -242,6 +242,17 @@ void CatchNode::Dump() const {
   this->BaseNode::Dump();
 }
 
+void CppCatchNode::Dump( int32 indent) const {
+  PrintIndentation(indent);
+  LogInfo::MapleLogger() << kOpcodeInfo.GetName(op);
+  if (exceptionTyIdx.GetIdx() != 0) {
+    LogInfo::MapleLogger() << " { ";
+    GlobalTables::GetTypeTable().GetTypeFromTyIdx(exceptionTyIdx)->Dump(indent + 1);
+    LogInfo::MapleLogger() << " }";
+  }
+  LogInfo::MapleLogger() << std::endl;
+}
+
 void UnaryNode::DumpOpnd(const MIRModule&, int indent) const {
   LogInfo::MapleLogger() << " (";
   uOpnd->Dump(indent);

@@ -529,6 +529,18 @@ class IreadFPoffNode : public BaseNode {
   int32 offset = 0;
 };
 
+class IreadPCoffNode : public IreadFPoffNode {
+  public:
+
+  IreadPCoffNode(Opcode o, PrimType typ, uint8 numopns) {
+    op = o;
+    ptyp = typ;
+    numOpnds = numopns;
+  }
+};
+
+typedef IreadPCoffNode AddroffPCNode;
+
 class BinaryOpnds {
  public:
   virtual ~BinaryOpnds() = default;
@@ -1311,10 +1323,10 @@ class AddroflabelNode : public BaseNode {
   }
 
  private:
-  uint32 offset = 0;
+  LabelIdx offset = 0;
 };
 
-// for cleanuptry, catch, finally, retsub, endtry, membaracquire, membarrelease,
+// for cleanuptry, jscatch, finally, retsub, endtry, membaracquire, membarrelease,
 // membarstoreload, membarstorestore
 class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
  public:
@@ -1509,7 +1521,7 @@ class GotoNode : public StmtNode {
   uint32 offset = 0;
 };
 
-// try
+// jstry
 class JsTryNode : public StmtNode {
  public:
   JsTryNode() : StmtNode(OP_jstry) {}
@@ -1548,7 +1560,7 @@ class JsTryNode : public StmtNode {
   uint16 finallyOffset = 0;
 };
 
-// try
+// try, cpptry
 class TryNode : public StmtNode {
  public:
   explicit TryNode(MapleAllocator &allocator) : StmtNode(OP_try), offsets(allocator.Adapter()) {}
@@ -1671,6 +1683,32 @@ class CatchNode : public StmtNode {
  private:
   // TyIdx exception_tyidx;
   MapleVector<TyIdx> exceptionTyIdxVec;
+};
+
+// cppcatch
+class CppCatchNode : public StmtNode {
+ public:
+  explicit CppCatchNode(TyIdx idx) : StmtNode(OP_cppcatch), exceptionTyIdx(idx) {}
+  explicit CppCatchNode() : CppCatchNode(TyIdx(0)) {}
+
+  CppCatchNode(CppCatchNode &node) = delete;
+  CppCatchNode &operator=(const CppCatchNode &node) = delete;
+  ~CppCatchNode() = default;
+
+  void Dump(int32 indent) const override;
+
+  CppCatchNode *CloneTree(MapleAllocator &allocator) const override {
+    CppCatchNode *node = allocator.GetMemPool()->New<CppCatchNode>();
+    node->SetStmtID(stmtIDNext++);
+    node->exceptionTyIdx = exceptionTyIdx;
+    return node;
+  }
+
+  CppCatchNode *CloneTree(MIRModule *mod) const {
+    return CppCatchNode::CloneTree(*mod->CurFuncCodeMemPoolAllocator());
+  }
+ public:
+  TyIdx exceptionTyIdx;
 };
 
 using CasePair = std::pair<int32, LabelIdx>;
@@ -1833,7 +1871,7 @@ class MultiwayNode : public StmtNode {
   MCaseVector multiWayTable;
 };
 
-// eval, throw, free, decref, incref, decrefreset, assertnonnull
+// eval, throw, free, decref, incref, decrefreset, assertnonnull, igoto
 class UnaryStmtNode : public StmtNode {
  public:
   explicit UnaryStmtNode(Opcode o) : StmtNode(o, 1) {}
@@ -2574,6 +2612,8 @@ class IassignFPoffNode : public UnaryStmtNode {
   int32 offset = 0;
 };
 
+typedef IassignFPoffNode IassignPCoffNode;
+
 // used by return, syncenter, syncexit
 class NaryStmtNode : public StmtNode, public NaryOpnds {
  public:
@@ -2642,21 +2682,13 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
   }
 };
 
-class ReturnValuePart {
- public:
-  explicit ReturnValuePart(MapleAllocator &allocator) : returnValues(allocator.Adapter()) {}
-
-  virtual ~ReturnValuePart() = default;
-
- private:
-  CallReturnVector returnValues;
-};
-
 // used by call, virtualcall, virtualicall, superclasscall, interfacecall,
 // interfaceicall, customcall
+// polymorphiccall
 // callassigned, virtualcallassigned, virtualicallassigned,
 // superclasscallassigned, interfacecallassigned, interfaceicallassigned,
 // customcallassigned
+// polymorphiccallassigned
 class CallNode : public NaryStmtNode {
  public:
   CallNode(MapleAllocator &allocator, Opcode o) : NaryStmtNode(allocator, o), returnValues(allocator.Adapter()) {}
@@ -2936,8 +2968,7 @@ class IntrinsiccallNode : public NaryStmtNode {
 };
 
 // used by callinstant, virtualcallinstant, superclasscallinstant and
-// interfacecallinstant
-// for callinstantassigned, virtualcallinstantassigned,
+// interfacecallinstant, callinstantassigned, virtualcallinstantassigned,
 // superclasscallinstantassigned and interfacecallinstantassigned
 class CallinstantNode : public CallNode {
  public:
