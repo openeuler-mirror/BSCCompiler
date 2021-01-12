@@ -88,7 +88,7 @@ else
 fi
 
 unset MAPLE_DEBUG
-export MAPLE_DEBUG=0
+export MAPLE_DEBUG=${DEBUG}
 
 unset TARGET_PROCESSOR
 export TARGET_PROCESSOR=${PLATFORM}

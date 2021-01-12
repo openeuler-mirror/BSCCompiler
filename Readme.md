@@ -40,6 +40,8 @@ Open the front end, back end, and compilation optimization of compilers. Support
 
 ## How to use
 - source build/envsetup.sh arm release
+  or
+- source build/envsetup.sh arm debug
 - make setup
 - make
 - make libcore
