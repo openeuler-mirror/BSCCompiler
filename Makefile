@@ -14,9 +14,9 @@
 #
 # Makefile for OpenArkCompiler
 OPT := O2
-DEBUG := 0
+DEBUG := $(MAPLE_DEBUG)
 OPS_ANDROID := 0
-INSTALL_DIR := $(MAPLE_ROOT)/output
+INSTALL_DIR := $(MAPLE_BUILD_OUTPUT)
 MAPLE_BIN_DIR := $(MAPLE_ROOT)/src/mapleall/bin
 MRT_ROOT := $(MAPLE_ROOT)/src/mrt
 ifeq ($(DEBUG),0)
@@ -74,12 +74,13 @@ maple-rt: java-core-def
 
 .PHONY: libcore
 libcore: install maple-rt
-	cd $(MAPLE_ROOT)/libjava-core; \
+	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
 	$(MAKE) install OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: java-core-def
 java-core-def: install
-	cd $(MAPLE_ROOT)/libjava-core; \
+	cp -rp $(MAPLE_ROOT)/libjava-core $(MAPLE_BUILD_OUTPUT)/; \
+	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
 	ln -f -s $(MAPLE_ROOT)/build/core/libcore.mk ./makefile; \
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
@@ -115,23 +116,18 @@ test_irbuild: install
 
 .PHONY: test_ourboros
 test_ourboros: libcore
-	python3 test/main.py test//testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
+	python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
 
 .PHONY: testall
 testall: test_irbuild test_ourboros
 
 .PHONY: clean
 clean:
-	@rm -rf output/
-	@rm -f libjava-core/libcore-all.*
-	@rm -f libjava-core/*.mpl
-	@rm -f libjava-core/*.mplt
-	@rm -f libjava-core/*.groots.txt
-	@rm -f libjava-core/*.primordials.txt
-	@rm -rf libjava-core/comb.log
-	@rm -rf libjava-core/*.muid
-	@rm -f libjava-core/*.s
-	@rm -rf libjava-core/*.o
+	@rm -rf $(MAPLE_BUILD_OUTPUT)/
+
+.PHONY: clobber
+clobber: clean
+	@rm -rf output
 
 define build_gn
     mkdir -p $(INSTALL_DIR); \

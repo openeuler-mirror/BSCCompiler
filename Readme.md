@@ -39,7 +39,7 @@ Open the front end, back end, and compilation optimization of compilers. Support
 - Maple Engine https://gitee.com/openarkcompiler-incubator/maple_engine
 
 ## How to use
-- source build/envsetup.sh
+- source build/envsetup.sh arm release
 - make setup
 - make
 - make libcore

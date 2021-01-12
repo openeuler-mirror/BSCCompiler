@@ -64,10 +64,11 @@ def construct_qemu_cmd(execute_cmd, execute_option):
     execute_option["execute_files"] = ":".join(
         [str(file) for file in execute_option["execute_files"]]
     )
-    LIBZ_SO = maple_root + "/output/ops/third_party"
-    RUNTIME_SO = maple_root + "/output/ops/host-x86_64-" + execute_option["mrt_type"]
+    maple_out_path = os.environ.get("MAPLE_BUILD_OUTPUT")
+    LIBZ_SO = maple_out_path + "/ops/third_party"
+    RUNTIME_SO = maple_out_path + "/ops/host-x86_64-" + execute_option["mrt_type"]
     APP_SO = os.getcwd()
-    MPLSH = maple_root + "/output/ops/mplsh"
+    MPLSH = maple_out_path + "/ops/mplsh"
     execute_cmd["run_case"] = (
         "/usr/bin/qemu-aarch64 "
         "-L /usr/aarch64-linux-gnu -E LD_LIBRARY_PATH={LIBZ_SO}:{RUNTIME_SO}:{APP_SO} "

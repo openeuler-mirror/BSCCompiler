@@ -70,7 +70,7 @@ group("maplegendef") {
                             root_build_dir),
                 rebase_path("${MAPLEALL_ROOT}/maple_be/include/ad/cortex_a55",
                             root_build_dir),
-                rebase_path("${MAPLE_ROOT}/output/common/target",
+                rebase_path("${MAPLE_BUILD_OUTPUT}/common/target",
                             root_build_dir),
               ])
 }

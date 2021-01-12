@@ -16,7 +16,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_be/include/cg",
   "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
   "${MAPLEALL_ROOT}/maple_be/include/ad",
-  "${MAPLE_ROOT}/output/common/target",
+  "${MAPLE_BUILD_OUTPUT}/common/target",
   "${MAPLEALL_ROOT}/maple_be/include/ad/target",
   "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
   "${MAPLEALL_ROOT}/maple_be/include/be",
