@@ -23,7 +23,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_be/include/be",
   "${MAPLEALL_ROOT}/maple_be/include/ad",
   "${MAPLEALL_ROOT}/maple_be/include/ad/target",
-  "${MAPLE_ROOT}/output/common/target",
+  "${MAPLE_BUILD_OUTPUT}/common/target",
   "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
   "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
   "${MAPLEALL_ROOT}/maple_driver/defs",
