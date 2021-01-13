@@ -1349,7 +1349,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
         offset = &CreateImmOperand(GetBaseOffset(*symLoc) + stImm.GetOffset(), k64BitSize, false);
         immOpndsRequiringOffsetAdjustmentForRefloc[symLoc] = offset;
       }
-    } else {
+    } else if (mirModule.IsJavaModule()) {
       auto it = immOpndsRequiringOffsetAdjustment.find(symLoc);
       if ((it != immOpndsRequiringOffsetAdjustment.end()) && (symbol->GetType()->GetPrimType() != PTY_agg)) {
         offset = (*it).second;
@@ -1359,6 +1359,9 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
           immOpndsRequiringOffsetAdjustment[symLoc] = offset;
         }
       }
+    } else {
+      // Do not cache modified symbol location
+      offset = &CreateImmOperand(GetBaseOffset(*symLoc) + stImm.GetOffset(), 64, false);
     }
 
     SelectAdd(result, *GetBaseReg(*symLoc), *offset, PTY_u64);
