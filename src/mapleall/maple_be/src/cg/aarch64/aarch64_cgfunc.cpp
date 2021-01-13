@@ -2000,6 +2000,11 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     int32 head0bitNum = GetHead0BitNum(immVal);
     const int32 bitNum = k64BitSize - head0bitNum - tail0bitNum;
     RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
+    if (isAfterRegAlloc) {
+      RegType regty = GetRegTyFromPrimTy(primType);
+      uint8 bytelen = GetPrimTypeSize(primType);
+      regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
+    }
 
     if (bitNum <= k16ValidBit) {
       int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF;
@@ -2103,6 +2108,11 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
   int32 head0bitNum = GetHead0BitNum(immVal);
   const int32 bitNum = k64BitSize - head0bitNum - tail0bitNum;
   RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
+  if (isAfterRegAlloc) {
+    RegType regty = GetRegTyFromPrimTy(primType);
+    uint8 bytelen = GetPrimTypeSize(primType);
+    regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
+  }
 
   if (bitNum <= k16ValidBit) {
     int64 newImm = (static_cast<uint64>(immVal) >> static_cast<uint32>(tail0bitNum)) & 0xFFFF;
