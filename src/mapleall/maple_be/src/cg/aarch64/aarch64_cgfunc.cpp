@@ -5228,13 +5228,20 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     ASSERT((!IsFPLRAddedToCalleeSavedList() ||
             ((it != memOpndsRequiringOffsetAdjustment.end()) || (storageClass == kScFormal))),
            "Memory operand of this symbol should have been added to the hash table");
+    int32 stOffset = GetBaseOffset(*symLoc);
     if (it != memOpndsRequiringOffsetAdjustment.end()) {
       if (GetMemlayout()->IsLocalRefLoc(symbol)) {
         if (!forLocalRef) {
           return *(it->second);
         }
-      } else {
+      } else if (mirModule.IsJavaModule()) {
         return *(it->second);
+      } else {
+        Operand *offOpnd = (it->second)->GetOffset();
+        if (((static_cast<AArch64OfstOperand*>(offOpnd))->GetOffsetValue() == (stOffset + offset)) &&
+            (it->second->GetSize() == size)) {
+          return *(it->second);
+        }
       }
     }
     it = memOpndsForStkPassedArguments.find(idx);
@@ -5249,7 +5256,6 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     }
 
     AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(GetBaseReg(*symLoc));
-    int32 stOffset = GetBaseOffset(*symLoc);
     int32 totalOffset = stOffset + offset;
     /* needs a fresh copy of OfstOperand as we may adjust its offset at a later stage. */
     AArch64OfstOperand *offsetOpnd = memPool->New<AArch64OfstOperand>(totalOffset, k64BitSize);
