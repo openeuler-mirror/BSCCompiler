@@ -108,7 +108,7 @@ setup:
 
 .PHONY: test1
 test1: libcore
-	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --fail-verbose --debug
+	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --verbose --debug
 
 .PHONY: test_irbuild
 test_irbuild: install
