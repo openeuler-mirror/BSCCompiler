@@ -775,7 +775,7 @@ class CGFunc {
     volReleaseInsn = insn;
   }
 
-  bool IsAfterRegAlloc() {
+  bool IsAfterRegAlloc() const {
     return isAfterRegAlloc;
   }
 

@@ -1361,7 +1361,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
       }
     } else {
       // Do not cache modified symbol location
-      offset = &CreateImmOperand(GetBaseOffset(*symLoc) + stImm.GetOffset(), 64, false);
+      offset = &CreateImmOperand(GetBaseOffset(*symLoc) + stImm.GetOffset(), k64BitSize, false);
     }
 
     SelectAdd(result, *GetBaseReg(*symLoc), *offset, PTY_u64);
@@ -2002,7 +2002,7 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
     RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
     if (isAfterRegAlloc) {
       RegType regty = GetRegTyFromPrimTy(primType);
-      uint8 bytelen = GetPrimTypeSize(primType);
+      uint32 bytelen = GetPrimTypeSize(primType);
       regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
     }
 
@@ -2110,7 +2110,7 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
   RegOperand &regOpnd = CreateRegisterOperandOfType(primType);
   if (isAfterRegAlloc) {
     RegType regty = GetRegTyFromPrimTy(primType);
-    uint8 bytelen = GetPrimTypeSize(primType);
+    uint32 bytelen = GetPrimTypeSize(primType);
     regOpnd = GetOrCreatePhysicalRegisterOperand((AArch64reg)(R16), bytelen, regty);
   }
 
@@ -5237,7 +5237,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
       } else if (mirModule.IsJavaModule()) {
         return *(it->second);
       } else {
-        Operand *offOpnd = (it->second)->GetOffset();
+        Operand* offOpnd = (it->second)->GetOffset();
         if (((static_cast<AArch64OfstOperand*>(offOpnd))->GetOffsetValue() == (stOffset + offset)) &&
             (it->second->GetSize() == size)) {
           return *(it->second);
