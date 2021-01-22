@@ -102,7 +102,7 @@ class CGFunc {
 
   void LayoutStackFrame() {
     CHECK_FATAL(memLayout != nullptr, "memLayout should has been initialized in constructor");
-    memLayout->LayoutStackFrame();
+    memLayout->LayoutStackFrame(structCopySize, maxParamStackSize);
   }
 
   bool HasCall() const {
@@ -371,6 +371,14 @@ class CGFunc {
 
   int32 GetTotalNumberOfInstructions() const {
     return totalInsns;
+  }
+
+  int32 GetStructCopySize() const {
+    return structCopySize;
+  }
+
+  int32 GetMaxParamStackSize() const {
+    return maxParamStackSize;
   }
 
   virtual void ProcessLazyBinding() = 0;
@@ -805,6 +813,8 @@ class CGFunc {
   MapleMap<PregIdx, StIdx> *pregsToVarsMap = nullptr;
 #endif
   int32 totalInsns = 0;
+  int32 structCopySize;
+  int32 maxParamStackSize;
   bool hasProEpilogue = false;
   bool isVolLoad = false;
   bool isVolStore = false;
