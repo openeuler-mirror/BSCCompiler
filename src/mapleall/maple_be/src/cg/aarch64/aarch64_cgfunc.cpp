@@ -823,10 +823,14 @@ RegOperand *AArch64CGFunc::ExtractNewMemBase(MemOperand &memOpnd) {
 void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opnd0) {
   MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(stIdx);
   int32 offset = 0;
+  bool parmCopy = false;
   if (fieldId != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
     ASSERT(structType != nullptr, "SelectDassign: non-zero fieldID for non-structure");
     offset = GetBecommon().GetFieldOffset(*structType, fieldId).first;
+    if (symbol->GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(symbol->GetTyIdx().GetIdx()) > k16ByteSize) {
+      parmCopy = true;
+    }
   }
   uint32 regSize = GetPrimTypeBitSize(rhsPType);
   MIRType *type = symbol->GetType();
@@ -842,7 +846,18 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   }
 
   uint32 dataSize = GetPrimTypeBitSize(type->GetPrimType());
-  MemOperand *memOpnd = &GetOrCreateMemOpnd(*symbol, offset, dataSize);
+  MemOperand *memOpnd;
+  if (parmCopy) {
+    // For struct formals > 16 bytes, this is the pointer to the struct copy.
+    // Load the base pointer first.
+    RegOperand *vreg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+    MemOperand *baseMemOpnd = &GetOrCreateMemOpnd(*symbol, 0, k64BitSize);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), *vreg, *baseMemOpnd));
+    // Create the indirect store mem opnd from the base pointer.
+    memOpnd = &CreateMemOpnd(*vreg, offset, dataSize);
+  } else {
+    memOpnd = &GetOrCreateMemOpnd(*symbol, offset, dataSize);
+  }
   AArch64MemOperand &archMemOperand = *static_cast<AArch64MemOperand*>(memOpnd);
   if ((memOpnd->GetMemVaryType() == kNotVary) && IsImmediateOffsetOutOfRange(archMemOperand, dataSize)) {
     memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, dataSize);
@@ -1296,20 +1311,35 @@ Operand *AArch64CGFunc::SelectDread(DreadNode &expr) {
 
   PrimType symType = symbol->GetType()->GetPrimType();
   int32 offset = 0;
+  bool parmCopy = false;
   if (expr.GetFieldID() != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
     ASSERT(structType != nullptr, "SelectDread: non-zero fieldID for non-structure");
     symType = structType->GetFieldType(expr.GetFieldID())->GetPrimType();
     offset = GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first;
+    if (symbol->GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(symbol->GetTyIdx().GetIdx()) > k16ByteSize) {
+      parmCopy = true;
+    }
   }
   CHECK_FATAL(symType != PTY_agg, "dread type error");
   uint32 dataSize = GetPrimTypeSize(symType) * kBitsPerByte;
-  MemOperand &memOpnd = GetOrCreateMemOpnd(*symbol, offset, dataSize);
-  if ((memOpnd.GetMemVaryType() == kNotVary) &&
-      IsImmediateOffsetOutOfRange(static_cast<AArch64MemOperand&>(memOpnd), dataSize)) {
-    return &SplitOffsetWithAddInstruction(static_cast<AArch64MemOperand&>(memOpnd), dataSize);
+  MemOperand *memOpnd;
+  if (parmCopy) {
+    // For struct formals > 16 bytes, this is the pointer to the struct copy.
+    // Load the base pointer first.
+    RegOperand *vreg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+    MemOperand *baseMemOpnd = &GetOrCreateMemOpnd(*symbol, 0, k64BitSize);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), *vreg, *baseMemOpnd));
+    // Create the indirect load mem opnd from the base pointer.
+    memOpnd = &CreateMemOpnd(*vreg, offset, dataSize);
+  } else {
+    memOpnd = &GetOrCreateMemOpnd(*symbol, offset, dataSize);
   }
-  return &memOpnd;
+  if ((memOpnd->GetMemVaryType() == kNotVary) &&
+      IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(memOpnd), dataSize)) {
+    return &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSize);
+  }
+  return memOpnd;
 }
 
 RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
