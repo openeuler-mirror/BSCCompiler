@@ -438,6 +438,8 @@ class AArch64CGFunc : public CGFunc {
 
   bool HasStackLoadStore();
 
+  MemOperand &LoadStructCopyBase(MIRSymbol &symbol, int32 offset, int datasize) override;
+
   int32 GetSplitBaseOffset() const {
     return splitStpldpBaseOffset;
   }
