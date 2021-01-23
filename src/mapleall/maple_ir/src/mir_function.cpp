@@ -485,9 +485,9 @@ void MIRFunction::SetBaseClassFuncNames(GStrIdx strIdx) {
     baseClassStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(className);
     std::string funcNameWithType = name.substr(pos + width, name.length() - pos - width);
     baseFuncWithTypeStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcNameWithType);
-    size_t index = name.find(namemangler::kRigthBracketStr);
+    size_t index = name.find(namemangler::kRightBracketStr);
     if (index != std::string::npos) {
-      size_t posEnd = index + (std::string(namemangler::kRigthBracketStr)).length();
+      size_t posEnd = index + (std::string(namemangler::kRightBracketStr)).length();
       funcNameWithType = name.substr(pos + width, posEnd - pos - width);
     }
     baseFuncSigStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcNameWithType);
