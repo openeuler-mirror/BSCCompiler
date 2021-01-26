@@ -819,8 +819,10 @@ class CGFunc {
   bool isVolLoad = false;
   bool isVolStore = false;
   bool isAfterRegAlloc = false;
+  bool isAggParamInReg = false;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
+  RegOperand *aggParamReg = nullptr;
   ReachingDefinition *reachingDef = nullptr;
 
   int32 dbgCallFrameOffset = 0;
