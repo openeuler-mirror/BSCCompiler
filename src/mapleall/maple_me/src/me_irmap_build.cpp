@@ -1,0 +1,67 @@
+/*
+ * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
+ * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
+ * You may obtain a copy of MulanPSL - 2.0 at:
+ *
+ *   https://opensource.org/licenses/MulanPSL-2.0
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the MulanPSL - 2.0 for more details.
+ */
+
+#include "me_irmap_build.h"
+#include "me_ssa.h"
+#include "me_prop.h"
+#include "me_alias_class.h"
+#include "me_dse.h"
+
+// This phase converts Maple IR to MeIR.
+
+namespace maple {
+
+AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
+  Dominance *dom = static_cast<Dominance *>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  CHECK_FATAL(dom, "dominance phase has problem");
+
+  MemPool *irmapmp = NewMemPool();
+
+  MeIRMap *irMap = irmapmp->New<MeIRMap>(*func, *irmapmp);
+  func->SetIRMap(irMap);
+#if DEBUG
+  globalIRMap = irMap;
+#endif
+  IRMapBuild irmapbuild(irMap, dom);
+  std::vector<bool> bbIrmapProcessed(func->NumBBs(), false);
+  irmapbuild.BuildBB(*func->GetCommonEntryBB(), bbIrmapProcessed);
+  if (DEBUGFUNC(func)) {
+    irMap->Dump();
+  }
+
+  // delete mempool for meirmap temporaries
+  // delete input IR code for current function
+  MIRFunction *mirFunc = func->GetMirFunc();
+  mirFunc->GetCodeMempool()->Release();
+  mirFunc->SetCodeMemPool(nullptr);
+
+  // delete versionst_table
+  // nullify all references to the versionst_table contents
+  for (uint32 i = 0; i < func->GetMeSSATab()->GetVersionStTable().GetVersionStVectorSize(); i++) {
+    func->GetMeSSATab()->GetVersionStTable().SetVersionStVectorItem(i, nullptr);
+  }
+  // clear BB's phiList which uses versionst; nullify first_stmt_, last_stmt_
+  auto eIt = func->valid_end();
+  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+    auto *bb = *bIt;
+    bb->ClearPhiList();
+    bb->SetFirst(nullptr);
+    bb->SetLast(nullptr);
+  }
+  func->GetMeSSATab()->GetVersionStTable().GetVSTAlloc().GetMemPool()->Release();
+  return irMap;
+}
+
+}  // namespace maple
