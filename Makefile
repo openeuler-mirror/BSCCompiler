@@ -38,7 +38,7 @@ GN_OPTIONS := \
   OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: default
-default: install
+default: install mplfe
 
 .PHONY: maplegen
 maplegen:
