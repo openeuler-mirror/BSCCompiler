@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "fe_type_manager.h"
 #include <fstream>
@@ -20,6 +20,7 @@
 #include "global_tables.h"
 #include "fe_timer.h"
 #include "fe_config_parallel.h"
+#include "feir_type_helper.h"
 
 namespace maple {
 const UniqueFEIRType FETypeManager::kPrimFEIRTypeUnknown = std::make_unique<FEIRTypeDefault>(PTY_unknown);
@@ -43,7 +44,8 @@ FETypeManager::FETypeManager(MIRModule &moduleIn)
       mp(memPoolCtrler.NewMemPool("mempool for FETypeManager")),
       allocator(mp),
       builder(&module),
-      srcLang(kSrcLangJava) {
+      srcLang(kSrcLangJava),
+      funcMCCGetOrInsertLiteral(nullptr) {
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaObject.get())->LoadFromJavaTypeName("Ljava/lang/Object;", false);
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaClass.get())->LoadFromJavaTypeName("Ljava/lang/Class;", false);
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaString.get())->LoadFromJavaTypeName("Ljava/lang/String;", false);
@@ -51,6 +53,7 @@ FETypeManager::FETypeManager(MIRModule &moduleIn)
 
 FETypeManager::~FETypeManager() {
   mp = nullptr;
+  funcMCCGetOrInsertLiteral = nullptr;
 }
 
 void FETypeManager::ReleaseMemPool() {
@@ -303,13 +306,13 @@ void FETypeManager::AddClassToModule(const MIRStructType &structType) {
   module.AddClass(structType.GetTypeIndex());
 }
 
-FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang,
+FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang,
                                                          bool isStatic) {
   FEStructElemInfo *ptrInfo = GetStructElemInfo(fullNameIdx);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  UniqueFEStructElemInfo info = std::make_unique<FEStructFieldInfo>(fullNameIdx, srcLang, isStatic);
+  UniqueFEStructElemInfo info = std::make_unique<FEStructFieldInfo>(fullNameIdx, argSrcLang, isStatic);
   ptrInfo = info.get();
   listStructElemInfo.push_back(std::move(info));
   CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(fullNameIdx, ptrInfo)).second == true,
@@ -317,13 +320,13 @@ FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(const GStrIdx &fullName
   return ptrInfo;
 }
 
-FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang,
+FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang,
                                                           bool isStatic) {
   FEStructElemInfo *ptrInfo = GetStructElemInfo(fullNameIdx);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  UniqueFEStructElemInfo info = std::make_unique<FEStructMethodInfo>(fullNameIdx, srcLang, isStatic);
+  UniqueFEStructElemInfo info = std::make_unique<FEStructMethodInfo>(fullNameIdx, argSrcLang, isStatic);
   ptrInfo = info.get();
   listStructElemInfo.push_back(std::move(info));
   CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(fullNameIdx, ptrInfo)).second == true,
@@ -380,7 +383,6 @@ MIRFunction *FETypeManager::CreateFunction(const GStrIdx &nameIdx, const TyIdx &
   MemPool *mpModule = module.GetMemPool();
   ASSERT(mpModule, "mem pool is nullptr");
   mirFunc = mpModule->New<MIRFunction>(&module, funcSymbol->GetStIdx());
-  mirFunc->Init();
   size_t idx = GlobalTables::GetFunctionTable().GetFuncTable().size();
   CHECK_FATAL(idx < UINT32_MAX, "PUIdx is out of range");
   mirFunc->SetPuidx(static_cast<uint32>(idx));
@@ -421,6 +423,51 @@ MIRFunction *FETypeManager::CreateFunction(const std::string &methodName, const 
     argsTypeIdx.push_back(argType->GetTypeIndex());
   }
   return CreateFunction(nameIdx, returnType->GetTypeIndex(), argsTypeIdx, isVarg, isStatic);
+}
+
+const FEIRType *FETypeManager::GetOrCreateFEIRTypeByName(const std::string &typeName, const GStrIdx &typeNameIdx,
+                                                         MIRSrcLang argSrcLang) {
+  const FEIRType *feirType = GetFEIRTypeByName(typeName);
+  if (feirType != nullptr) {
+    return feirType;
+  }
+  MPLFE_PARALLEL_FORBIDDEN();
+  UniqueFEIRType uniType;
+  switch (argSrcLang) {
+    case kSrcLangJava:
+      uniType = FEIRTypeHelper::CreateTypeByJavaName(typeName, true, false);
+      break;
+    default:
+      CHECK_FATAL(false, "unsupported language");
+      return nullptr;
+  }
+  feirType = uniType.get();
+  nameFEIRTypeList.push_back(std::move(uniType));
+  if (typeNameIdx == 0) {
+    nameFEIRTypeMap[GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName)] = feirType;
+  } else {
+    nameFEIRTypeMap[typeNameIdx] = feirType;
+  }
+  return feirType;
+}
+
+const FEIRType *FETypeManager::GetOrCreateFEIRTypeByName(const GStrIdx &typeNameIdx, MIRSrcLang argSrcLang) {
+  const std::string &typeName = GlobalTables::GetStrTable().GetStringFromStrIdx(typeNameIdx);
+  return GetOrCreateFEIRTypeByName(typeName, typeNameIdx, argSrcLang);
+}
+
+const FEIRType *FETypeManager::GetFEIRTypeByName(const std::string &typeName) const {
+  GStrIdx typeNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
+  return GetFEIRTypeByName(typeNameIdx);
+}
+
+const FEIRType *FETypeManager::GetFEIRTypeByName(const GStrIdx &typeNameIdx) const {
+  auto it = nameFEIRTypeMap.find(typeNameIdx);
+  if (it == nameFEIRTypeMap.end()) {
+    return nullptr;
+  } else {
+    return it->second;
+  }
 }
 
 bool FETypeManager::IsAntiProguardFieldStruct(const GStrIdx &structNameIdx) {

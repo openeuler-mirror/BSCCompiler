@@ -3572,7 +3572,7 @@ void AArch64CGFunc::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
   for (const auto &itPair : switchTable) {
     LabelIdx labelIdx = itPair.second;
     GetCurBB()->PushBackRangeGotoLabel(labelIdx);
-    MIRConst *mirConst = memPool->New<MIRLblConst>(labelIdx, *etype);
+    MIRConst *mirConst = memPool->New<MIRLblConst>(labelIdx, GetFunction().GetPuidx(), *etype);
     arrayConst->PushBack(mirConst);
   }
 

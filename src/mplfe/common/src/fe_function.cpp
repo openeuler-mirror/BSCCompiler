@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "fe_function.h"
 #include "general_bb.h"
@@ -20,6 +20,7 @@
 #include "feir_var_name.h"
 #include "feir_var_reg.h"
 #include "mplfe_env.h"
+#include "feir_builder.h"
 
 namespace maple {
 FEFunction::FEFunction(MIRFunction &argMIRFunction, const std::unique_ptr<FEFunctionPhaseResult> &argPhaseResultTotal)
@@ -425,13 +426,13 @@ bool FEFunction::UpdateFormal(const std::string &phaseName) {
     MIRSymbol *sym = nullptr;
     if (idx == 0 && HasThis()) {
       GStrIdx thisNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName("_this");
-      std::unique_ptr<FEIRVar> varThis = std::make_unique<FEIRVarName>(thisNameIdx, argVar->GetType()->Clone());
+      varThis = std::make_unique<FEIRVarName>(thisNameIdx, argVar->GetType()->Clone());
       sym = varThis->GenerateMIRSymbol(FEManager::GetMIRBuilder());
     } else {
       sym = argVar->GenerateMIRSymbol(FEManager::GetMIRBuilder());
     }
     sym->SetStorageClass(kScFormal);
-    mirFunction.AddFormal(sym);
+    mirFunction.AddArgument(sym);
     idx++;
   }
   return phaseResult.Finish();
@@ -452,6 +453,25 @@ bool FEFunction::ReleaseGenStmts(const std::string &phaseName) {
     genStmtList.clear();
   }
   return phaseResult.Finish();
+}
+
+FEIRStmtPesudoLOC *FEFunction::GetLOCForStmt(const FEIRStmt &feIRStmt) {
+  if (!feIRStmt.ShouldHaveLOC()) {
+    return nullptr;
+  }
+  FELinkListNode *prevNode = static_cast<FELinkListNode*>(feIRStmt.GetPrev());
+  while (prevNode != nullptr) {
+    if ((*static_cast<FEIRStmt*>(prevNode)).ShouldHaveLOC()) {
+      return nullptr;
+    }
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(prevNode);
+    if (stmt->GetKind() == kStmtPesudoLOC) {
+      FEIRStmtPesudoLOC *loc = static_cast<FEIRStmtPesudoLOC*>(stmt);
+      return loc;
+    }
+    prevNode = prevNode->GetPrev();
+  }
+  return nullptr;
 }
 
 void FEFunction::BuildMapLabelIdx() {
@@ -569,10 +589,23 @@ bool FEFunction::SetupFEIRStmtSwitch(FEIRStmtSwitch &stmt) {
 }
 
 void FEFunction::EmitToMIRStmt() {
+  if (HasThis()) {
+    // Insert _this assignment
+    UniqueFEIRExpr exprDRead = FEIRBuilder::CreateExprDRead(varThis->Clone());
+    UniqueFEIRStmt stmtDAssign = FEIRBuilder::CreateStmtDAssign(argVarList.begin()->get()->Clone(),
+                                                                std::move(exprDRead));
+    FEIRStmt *ptrFEIRStmt = RegisterFEIRStmt(std::move(stmtDAssign));
+    feirStmtHead->InsertAfter(ptrFEIRStmt);
+  }
   FELinkListNode *nodeStmt = feirStmtHead->GetNext();
   while (nodeStmt != nullptr && nodeStmt != feirStmtTail) {
     FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
+    FEIRStmtPesudoLOC *pesudoLoc = GetLOCForStmt(*stmt);
     std::list<StmtNode*> mirStmts = stmt->GenMIRStmts(FEManager::GetMIRBuilder());
+    if (pesudoLoc != nullptr) {
+      mirStmts.front()->GetSrcPos().SetFileNum(static_cast<uint16>(pesudoLoc->GetSrcFileIdx()));
+      mirStmts.front()->GetSrcPos().SetLineNum(pesudoLoc->GetLineNumber());
+    }
     for (StmtNode *mirStmt : mirStmts) {
       FEManager::GetMIRBuilder().AddStmtInCurrentFunctionBody(*mirStmt);
     }
