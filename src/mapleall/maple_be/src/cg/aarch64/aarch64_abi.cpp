@@ -461,7 +461,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc) {
 }
 
 int32 ParmLocator::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, PLocInfo &pLoc, uint64 &typeSize,
-                                                  int32 typeAlign) {
+                                                   int32 typeAlign) {
   /*
    * In AArch64, integer-float or float-integer
    * argument passing is not allowed. All should go through

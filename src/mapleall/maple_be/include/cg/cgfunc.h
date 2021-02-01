@@ -867,17 +867,13 @@ class CGFunc {
   }
 
   // See if the symbol is a structure parameter that requires a copy.
-  bool IsParamStructCopy(MIRSymbol &symbol) {
+  bool IsParamStructCopy(const MIRSymbol &symbol) {
     if (symbol.GetStorageClass() == kScFormal &&
-        GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > 16) {
+        GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
       return true;
     }
     return false;
   }
-
-  // For struct parameter that is copied to stack, load the base address.
-  // Return the mem opnd with the base address.
-  virtual MemOperand &LoadStructCopyBase(MIRSymbol &symbol, int32 offset, int datasize) = 0;
 
  private:
   CGFunc &operator=(const CGFunc &cgFunc);

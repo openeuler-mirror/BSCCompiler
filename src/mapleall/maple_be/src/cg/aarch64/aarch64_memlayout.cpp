@@ -26,7 +26,7 @@ using namespace maple;
  *  which is used to pass arguments that cannot be
  *  passed through registers
  */
-uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt, int32 &aggCopySize, bool isIcall) {
+uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  int32 &aggCopySize, bool isIcall) {
   /* instantiate a parm locator */
   ParmLocator parmLocator(be);
   uint32 sizeOfArgsToStkPass = 0;
@@ -198,7 +198,8 @@ void AArch64MemLayout::LayoutEAVariales(std::vector<MIRSymbol*> &tempVar) {
   }
 }
 
-void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays, int32 &structCopySize, int32 &maxParmStackSize) {
+void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
+                                       int32 &structCopySize, int32 &maxParmStackSize) {
   for (auto sym : returnDelays) {
     uint32 stIndex = sym->GetStIndex();
     TyIdx tyIdx = sym->GetTyIdx();

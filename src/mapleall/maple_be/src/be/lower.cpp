@@ -160,7 +160,7 @@ BaseNode *CGLowerer::LowerIaddrof(const IreadNode &iaddrof) {
     return iaddrof.Opnd(0);
   }
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrof.GetTyIdx());
-  MIRPtrType *pointerTy = dynamic_cast<MIRPtrType*>(type);
+  MIRPtrType *pointerTy = static_cast<MIRPtrType*>(type);
   CHECK_FATAL(pointerTy != nullptr, "LowerIaddrof: expect a pointer type at iaddrof node");
   MIRStructType *structTy = static_cast<MIRStructType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerTy->GetPointedTyIdx()));
