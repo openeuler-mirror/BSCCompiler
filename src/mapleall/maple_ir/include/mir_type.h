@@ -24,9 +24,6 @@
 #include "mempool_allocator.h"
 #endif  // MIR_FEATURE_FULL
 
-#define POINTER_SIZE 8
-#define POINTER_P2SIZE 3
-
 namespace maple {
 constexpr int kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 
@@ -42,7 +39,7 @@ const std::string kJstrTypeName = "constStr";
 extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // verify if primType1 and primType2 match
 extern uint32 GetPrimTypeSize(PrimType primType);                         // answer in bytes; 0 if unknown
 extern uint32 GetPrimTypeP2Size(PrimType primType);                       // answer in bytes in power-of-two.
-extern const PrimType GetSignedPrimType(PrimType pty);                    // return signed version
+extern PrimType GetSignedPrimType(PrimType pty);                          // return signed version
 extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 
@@ -631,6 +628,18 @@ class MIRArrayType : public MIRType {
     this->dim = dim;
   }
 
+  TypeAttrs GetTypeAttrs() const {
+    return typeAttrs;
+  }
+
+  TypeAttrs& GetTypeAttrs() {
+    return typeAttrs;
+  }
+
+  void SetTypeAttrs(TypeAttrs attrs) {
+    typeAttrs = attrs;
+  }
+
   MIRType *GetElemType() const;
 
   MIRType *CopyMIRTypeNode() const override {
@@ -843,6 +852,14 @@ class MIRStructType : public MIRType {
 
   void SetIsUsed(bool flag) {
     isUsed = flag;
+  }
+
+  bool IsCPlusPlus() const {
+    return isCPlusPlus;
+  }
+
+  void SetIsCPlusPlus(bool flag) {
+    isCPlusPlus = flag;
   }
 
   GStrIdx GetFieldGStrIdx(FieldID id) const {
@@ -1630,6 +1647,10 @@ class MIRInstantVectorType : public MIRType {
   }  // size unknown
 
   const GenericInstantVector &GetInstantVec() const {
+    return instantVec;
+  }
+
+  GenericInstantVector &GetInstantVec() {
     return instantVec;
   }
 
