@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -160,7 +160,7 @@ BaseNode *CGLowerer::LowerIaddrof(const IreadNode &iaddrof) {
     return iaddrof.Opnd(0);
   }
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrof.GetTyIdx());
-  MIRPtrType *pointerTy = static_cast<MIRPtrType*>(type);
+  MIRPtrType *pointerTy = dynamic_cast<MIRPtrType*>(type);
   CHECK_FATAL(pointerTy != nullptr, "LowerIaddrof: expect a pointer type at iaddrof node");
   MIRStructType *structTy = static_cast<MIRStructType*>(
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerTy->GetPointedTyIdx()));
@@ -1249,7 +1249,7 @@ void CGLowerer::LowerEntry(MIRFunction &func) {
   }
 }
 
-void CGLowerer::LowerPseudoRegs(MIRFunction &func) {
+void CGLowerer::LowerPseudoRegs(const MIRFunction &func) const {
   for (uint32 i = 1; i < func.GetPregTab()->Size(); ++i) {
     MIRPreg *ipr = func.GetPregTab()->PregFromPregIdx(i);
     PrimType primType = ipr->GetPrimType();
@@ -1588,7 +1588,8 @@ LabelIdx CGLowerer::GetLabelIdx(MIRFunction &curFunc) const {
 }
 
 void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
-  bool needProcessArrayExpr = !ShouldOptarray() && (mirModule.GetSrcLang() == kSrcLangJava);
+  bool needProcessArrayExpr =
+      !ShouldOptarray() && ((mirModule.GetSrcLang() == kSrcLangDex) || (mirModule.GetSrcLang() == kSrcLangJava));
   if (!needProcessArrayExpr) {
     return;
   }
