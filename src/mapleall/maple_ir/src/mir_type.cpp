@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -133,6 +133,10 @@ bool IsNoCvtNeeded(PrimType toType, PrimType fromType) {
     case PTY_i8:
     case PTY_i16:
       return fromType == PTY_i32;
+    case PTY_u64:
+      return fromType == PTY_ptr;
+    case PTY_ptr:
+      return fromType == PTY_u64;
     default:
       return false;
   }
@@ -230,7 +234,7 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
 }
 
 // return the signed version that has the same size
-const PrimType GetSignedPrimType(PrimType pty) {
+PrimType GetSignedPrimType(PrimType pty) {
   switch (pty) {
     case PTY_ptr:
     case PTY_ref:
@@ -488,6 +492,45 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << ") ";
   GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx)->Dump(indent + 1);
   LogInfo::MapleLogger() << ">";
+}
+
+static constexpr uint64 RoundUpConst(uint64 offset, uint8 align) {
+  return (-align) & (offset + align - 1);
+}
+
+static inline uint64 RoundUp(uint64 offset, uint8 align) {
+  if (align == 0) {
+    return offset;
+  }
+  return RoundUpConst(offset, align);
+}
+
+static constexpr uint64 RoundDownConst(uint64 offset, uint8 align) {
+  return (-align) & offset;
+}
+
+static inline uint64 RoundDown(uint64 offset, uint8 align) {
+  if (align == 0) {
+    return offset;
+  }
+  return RoundDownConst(offset, align);
+}
+
+size_t MIRArrayType::GetSize() const {
+  size_t elemsize = GetElemType()->GetSize();
+  if (elemsize == 0) {
+    return 0;
+  }
+  elemsize = RoundUp(elemsize, typeAttrs.GetAlign());
+  size_t numelems = sizeArray[0];
+  for (int i = 1; i < dim; i++) {
+    numelems *= sizeArray[i];
+  }
+  return elemsize * numelems;
+}
+
+uint32 MIRArrayType::GetAlign() const {
+  return std::max(GetElemType()->GetAlign(), typeAttrs.GetAlign());
 }
 
 void MIRArrayType::Dump(int indent, bool dontUseName) const {
@@ -919,27 +962,78 @@ static void DumpInterfaces(std::vector<TyIdx> interfaces, int indent) {
 
 size_t MIRStructType::GetSize() const {
   if (typeKind == kTypeUnion) {
-    size_t maxSize = GetElemType(0)->GetSize();
-    for (size_t i = 1; i < fields.size(); ++i) {
-      size_t size = GetElemType(i)->GetSize();
-      if (size == 0) {
-        return 0;
-      }
+    if (fields.size() == 0) {
+      return isCPlusPlus ? 1 : 0;
+    }
+    size_t maxSize = 0;
+    for (size_t i = 0; i < fields.size(); ++i) {
+      TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(i);
+      MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
+      size_t size = RoundUp(fieldType->GetSize(), tfap.second.GetAlign());
       if (maxSize < size) {
         maxSize = size;
       }
     }
     return maxSize;
   }
-  size_t size = 0;
+  // since there may be bitfields, perform a layout process for the fields
+  size_t byteOfst = 0;
+  size_t bitOfst = 0;
   for (size_t i = 0; i < fields.size(); ++i) {
-    size_t fieldSize = GetElemType(i)->GetSize();
-    if (fieldSize == 0) {
-      return 0;
+    TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(i);
+    MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
+    if (fieldType->GetKind() != kTypeBitField) {
+      if (byteOfst * 8 < bitOfst) {
+        byteOfst = (bitOfst >> 3) + 1;
+      }
+      byteOfst = RoundUp(byteOfst, std::max(fieldType->GetAlign(), tfap.second.GetAlign()));
+      byteOfst += fieldType->GetSize();
+      bitOfst = byteOfst * 8;
+    } else {
+      MIRBitFieldType *bitfType = static_cast<MIRBitFieldType *>(fieldType);
+      if (bitfType->GetFieldSize() == 0) {  // special case, for aligning purpose
+        bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
+        byteOfst = bitOfst >> 3;
+      } else {
+        if (RoundDown(bitOfst + bitfType->GetFieldSize() - 1, GetPrimTypeBitSize(bitfType->GetPrimType())) !=
+            RoundDown(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()))) {
+          bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
+          byteOfst = bitOfst >> 3;
+        }
+        bitOfst += bitfType->GetFieldSize();
+        byteOfst = bitOfst >> 3;
+      }
     }
-    size += fieldSize;
   }
-  return size;
+  if (byteOfst * 8 < bitOfst) {
+    byteOfst = (bitOfst >> 3) + 1;
+  }
+  byteOfst = RoundUp(byteOfst, GetAlign());
+  if (byteOfst == 0 && isCPlusPlus) {
+    return 1;  // empty struct in C++ has size 1
+  }
+  return byteOfst;
+}
+
+uint32 MIRStructType::GetAlign() const {
+  if (fields.size() == 0) {
+    return 0;
+  }
+  uint8 maxAlign = 1;
+  for (size_t i = 0; i < fields.size(); ++i) {
+    TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(i);
+    MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
+    uint32 algn = fieldType->GetAlign();
+    if (fieldType->GetKind() == kTypeBitField) {
+      algn = GetPrimTypeSize(fieldType->GetPrimType());
+    } else {
+      algn = std::max(algn, tfap.second.GetAlign());
+    }
+    if (maxAlign < algn) {
+      maxAlign = algn;
+    }
+  }
+  return maxAlign;
 }
 
 void MIRStructType::DumpFieldsAndMethods(int indent, bool hasMethod) const {
@@ -1152,6 +1246,21 @@ std::string MIRArrayType::GetMplTypeName() const {
   return ss.str();
 }
 
+bool MIRArrayType::HasFields() const {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(eTyIdx);
+  return elemType->HasFields();
+}
+
+size_t MIRArrayType::NumberOfFieldIDs() {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(eTyIdx);
+  return elemType->NumberOfFieldIDs();
+}
+
+MIRStructType *MIRArrayType::EmbeddedStructType() {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(eTyIdx);
+  return elemType->EmbeddedStructType();
+}
+
 MIRType *MIRFarrayType::GetElemType() const {
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(elemTyIdx);
 }
@@ -1173,6 +1282,21 @@ std::string MIRFarrayType::GetMplTypeName() const {
   return ss.str();
 }
 
+bool MIRFarrayType::HasFields() const {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(elemTyIdx);
+  return elemType->HasFields();
+}
+
+size_t MIRFarrayType::NumberOfFieldIDs() {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(elemTyIdx);
+  return elemType->NumberOfFieldIDs();
+}
+
+MIRStructType *MIRFarrayType::EmbeddedStructType() {
+  MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(elemTyIdx);
+  return elemType->EmbeddedStructType();
+}
+
 bool MIRFuncType::EqualTo(const MIRType &type) const {
   if (type.GetKind() != typeKind) {
     return false;
@@ -1191,7 +1315,24 @@ bool MIRBitFieldType::EqualTo(const MIRType &type) const {
 }
 
 bool MIRStructType::EqualTo(const MIRType &type) const {
-  return (typeKind == type.GetKind() && nameStrIdx == type.GetNameStrIdx());
+  if (type.GetKind() != typeKind) {
+    return false;
+  }
+  const MIRStructType *p = dynamic_cast<const MIRStructType*>(&type);
+  CHECK_FATAL(p != nullptr, "p is null in MIRStructType::EqualTo");
+  if (fields != p->fields) {
+    return false;
+  }
+  if (staticFields != p->staticFields) {
+    return false;
+  }
+  if (parentFields != p->parentFields) {
+    return false;
+  }
+  if (methods != p->methods) {
+    return false;
+  }
+  return true;
 }
 
 std::string MIRStructType::GetCompactMplTypeName() const {
@@ -1203,6 +1344,9 @@ MIRType *MIRStructType::GetElemType(uint32 n) const {
 }
 
 MIRType *MIRStructType::GetFieldType(FieldID fieldID) {
+  if (fieldID == 0) {
+    return this;
+  }
   const FieldPair &fieldPair = TraverseToField(fieldID);
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
 }
@@ -1220,11 +1364,52 @@ std::string MIRStructType::GetMplTypeName() const {
 }
 
 bool MIRClassType::EqualTo(const MIRType &type) const {
-  return (typeKind == type.GetKind() && nameStrIdx == type.GetNameStrIdx());
+  if (type.GetKind() != typeKind) {
+    return false;
+  }
+  bool structeq = MIRStructType::EqualTo(type);
+  if (!structeq) {
+    return false;
+  }
+
+  const MIRClassType &classty = static_cast<const MIRClassType &>(type);
+  // classes have parent except empty/thirdparty classes
+  if (parentTyIdx != classty.parentTyIdx) {
+    return false;
+  }
+
+  if (interfacesImplemented != classty.interfacesImplemented) {
+    return false;
+  }
+  if (info != classty.info) {
+    return false;
+  }
+  if (infoIsString != classty.infoIsString) {
+    return false;
+  }
+  return true;
 }
 
 bool MIRInterfaceType::EqualTo(const MIRType &type) const {
-  return (typeKind == type.GetKind() && nameStrIdx == type.GetNameStrIdx());
+  if (type.GetKind() != typeKind) {
+    return false;
+  }
+  bool structeq = MIRStructType::EqualTo(type);
+  if (!structeq) {
+    return false;
+  }
+
+  const MIRInterfaceType &interfacety = static_cast<const MIRInterfaceType &>(type);
+  if (parentsTyIdx != interfacety.parentsTyIdx) {
+    return false;
+  }
+  if (info != interfacety.info) {
+    return false;
+  }
+  if (infoIsString != interfacety.infoIsString) {
+    return false;
+  }
+  return true;
 }
 
 bool MIRTypeByName::EqualTo(const MIRType &type) const {
@@ -1397,6 +1582,15 @@ bool MIRInterfaceType::HasTypeParam() const {
   return false;
 }
 
+size_t MIRClassType::NumberOfFieldIDs() {
+  size_t parentFieldIDs = 0;
+  if (parentTyIdx != TyIdx(0)) {
+    MIRType *parentty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentTyIdx);
+    parentFieldIDs = parentty->NumberOfFieldIDs();
+  }
+  return parentFieldIDs + MIRStructType::NumberOfFieldIDs();
+}
+
 FieldPair MIRClassType::TraverseToFieldRef(FieldID &fieldID) const {
   if (parentTyIdx != 0u) {
     auto *parentClassType =
@@ -1454,6 +1648,16 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
   CHECK_FATAL(pointedType != nullptr, "invalid ptr type");
   return pointedType->GetCompactMplTypeName();
+}
+
+size_t MIRStructType::NumberOfFieldIDs() {
+  size_t count = 0;
+  for (FieldPair curpair : fields) {
+    count++;
+    MIRType *curfieldtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(curpair.second.first);
+    count += curfieldtype->NumberOfFieldIDs();
+  }
+  return count;
 }
 
 TypeAttrs FieldAttrs::ConvertToTypeAttrs() {
