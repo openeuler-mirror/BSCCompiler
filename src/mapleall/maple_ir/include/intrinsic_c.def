@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -76,7 +76,7 @@ DEF_MIR_INTRINSIC(C_sinh,\
 DEF_MIR_INTRINSIC(C_ffs,\
                   "ffs", INTRNISPURE, kArgTyI32, kArgTyI32)
 DEF_MIR_INTRINSIC(C_va_start,\
-                  "sinh"/*dummy*/, INTRNISPURE, kArgTyVoid, kArgTyPtr, kArgTyI32)
+                  "sinh"/*dummy*/, INTRNISPURE | INTRNISSPECIAL, kArgTyVoid, kArgTyPtr, kArgTyI32)
 DEF_MIR_INTRINSIC(C_constant_p,\
                   "sinh"/*dummy*/, 0, kArgTyI32, kArgTyDynany)
 DEF_MIR_INTRINSIC(C_clz32,\
