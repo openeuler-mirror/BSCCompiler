@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +21,7 @@
 #include "me_builder.h"
 
 namespace maple {
-class IRMapBuild;
+class IRMapBuild; // circular dependency exists, no other choice
 
 class IRMap : public AnalysisResult {
   friend IRMapBuild;
@@ -93,6 +93,7 @@ class IRMap : public AnalysisResult {
       meStmt.Dump(this);
     }
   }
+
   virtual void Dump() = 0;
   virtual void SetCurFunction(const BB&) {}
 
@@ -135,6 +136,7 @@ class IRMap : public AnalysisResult {
   MapleAllocator &GetIRMapAlloc() {
     return irMapAlloc;
   }
+
   int32 GetExprID() const {
     return exprID;
   }

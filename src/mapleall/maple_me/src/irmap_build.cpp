@@ -1,16 +1,16 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
- * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
- * You may obtain a copy of MulanPSL - 2.0 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *   https://opensource.org/licenses/MulanPSL-2.0
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the MulanPSL - 2.0 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 
 #include "factory.h"
@@ -48,7 +48,8 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
   const OriginalSt *ost = vst.GetOrigSt();
   ASSERT(ost->IsPregOst(), "GetOrCreateRegFromVerSt: PregOST expected");
   auto *regx =
-      irMap->NewInPool<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(), ost->GetIndex(), vindex);
+      irMap->NewInPool<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(),
+                                  ost->GetIndex(), vindex);
   regx->InitBase(OP_regread, ost->GetMIRPreg()->GetPrimType(), 0);
   irMap->regMeExprTable.push_back(regx);
   irMap->vst2MeExprTable[vindex] = regx;
@@ -74,7 +75,7 @@ MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt
 
 // build Me chilist from MayDefNode list
 void IRMapBuild::BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes,
-                         MapleMap<OStIdx, ChiMeNode*> &outList) {
+                              MapleMap<OStIdx, ChiMeNode*> &outList) {
   for (auto &mayDefNode : mayDefNodes) {
     VersionSt *opndSt = mayDefNode.GetOpnd();
     VersionSt *resSt = mayDefNode.GetResult();
@@ -84,17 +85,17 @@ void IRMapBuild::BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes,
     lhs->SetDefBy(kDefByChi);
     lhs->SetDefChi(*chiMeStmt);
     chiMeStmt->SetLHS(lhs);
-    outList.insert(std::make_pair(lhs->GetOStIdx(), chiMeStmt));
+    (void)outList.insert(std::make_pair(lhs->GetOStIdx(), chiMeStmt));
   }
 }
 
 void IRMapBuild::BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList &mustDefList,
-                             MapleVector<MustDefMeNode> &mustDefMeList) {
+                                  MapleVector<MustDefMeNode> &mustDefMeList) {
   for (auto &mustDefNode : mustDefList) {
     VersionSt *vst = mustDefNode.GetResult();
     VarMeExpr *lhs = GetOrCreateVarFromVerSt(*vst);
     ASSERT(lhs->GetMeOp() == kMeOpReg || lhs->GetMeOp() == kMeOpVar, "unexpected opcode");
-    mustDefMeList.push_back(MustDefMeNode(lhs, &meStmt));
+    mustDefMeList.emplace_back(MustDefMeNode(lhs, &meStmt));
   }
 }
 
@@ -128,7 +129,7 @@ void IRMapBuild::BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, VarM
   for (auto &mayUseNode : mayUseList) {
     VersionSt *vst = mayUseNode.GetOpnd();
     VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
-    muList.insert(std::make_pair(varMeExpr->GetOStIdx(), varMeExpr));
+    (void)muList.insert(std::make_pair(varMeExpr->GetOStIdx(), varMeExpr));
   }
 }
 
@@ -161,7 +162,7 @@ void IRMapBuild::SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode) {
 MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
   Opcode op = mirNode.GetOpCode();
   if (op == OP_dread) {
-    auto &addrOfNode = static_cast<AddrofSSANode &>(mirNode);
+    auto &addrOfNode = static_cast<AddrofSSANode&>(mirNode);
     VersionSt *vst = addrOfNode.GetSSAVar();
     VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
     varMeExpr->InitBase(mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
@@ -174,7 +175,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
   }
 
   if (op == OP_regread) {
-    auto &regNode = static_cast<RegreadSSANode &>(mirNode);
+    auto &regNode = static_cast<RegreadSSANode&>(mirNode);
     VersionSt *vst = regNode.GetSSAVar();
     RegMeExpr *regMeExpr = GetOrCreateRegFromVerSt(*vst);
     regMeExpr->InitBase(mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
@@ -244,8 +245,8 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
     case OP_free:
     case OP_switch: {
       auto &unaryStmt = static_cast<UnaryStmtNode&>(stmt);
-      auto *unMeStmt =
-          static_cast<UnaryMeStmt*>((op == OP_switch) ? irMap->NewInPool<SwitchMeStmt>(&stmt) : irMap->New<UnaryMeStmt>(&stmt));
+      auto *unMeStmt = static_cast<UnaryMeStmt*>((op == OP_switch) ? irMap->NewInPool<SwitchMeStmt>(&stmt)
+                                                                   : irMap->New<UnaryMeStmt>(&stmt));
       unMeStmt->SetOpnd(0, BuildExpr(*unaryStmt.Opnd(0)));
       return unMeStmt;
     }
@@ -441,5 +442,4 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
     BuildBB(*irMap->GetBB(childBBId), bbIRMapProcessed);
   }
 }
-
 }  // namespace maple
