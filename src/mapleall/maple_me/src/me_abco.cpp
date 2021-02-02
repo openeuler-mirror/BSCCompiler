@@ -265,7 +265,7 @@ bool MeABC::BuildBrMeStmtInGraph(MeStmt &meStmt) {
 
 MeExpr *MeABC::TryToResolveVar(MeExpr &expr, bool isConst) {
   std::set<MePhiNode*> visitedPhi;
-  ConstMeExpr dummyExpr(kInvalidExprID, nullptr);
+  ConstMeExpr dummyExpr(kInvalidExprID, nullptr, PTY_unknown);
   MeExpr *tmp = TryToResolveVar(expr, visitedPhi, dummyExpr, isConst);
   if (tmp != nullptr && tmp != &dummyExpr) {
     return tmp;
