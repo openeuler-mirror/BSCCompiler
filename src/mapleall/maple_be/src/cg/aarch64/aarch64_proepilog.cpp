@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -86,10 +86,21 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     insn.SetDoNotRemove(true);
     cgFunc.GetCurBB()->AppendInsn(insn);
 
+    int vArea = 0;
+    if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+      AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
+      if (ml->GetSizeOfGRSaveArea() > 0) {
+        vArea += RoundUp(ml->GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
+      }
+      if (ml->GetSizeOfVRSaveArea() > 0) {
+        vArea += RoundUp(ml->GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
+      }
+    }
+
     int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                    static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
-    AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos,
-                                                                                     kSizeOfPtr * kBitsPerByte);
+                    static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
+    AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP,
+    stkSize - kOffset8MemPos - vArea, kSizeOfPtr * kBitsPerByte);
     if (downStk->GetMemVaryType() == kNotVary &&
         aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
       downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
@@ -133,12 +144,23 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   insn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(insn);
 
+  int vArea = 0;
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+    AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
+    if (ml->GetSizeOfGRSaveArea() > 0) {
+      vArea += RoundUp(ml->GetSizeOfGRSaveArea(), kAarch64StackPtrAlignment);
+    }
+    if (ml->GetSizeOfVRSaveArea() > 0) {
+      vArea += RoundUp(ml->GetSizeOfVRSaveArea(), kAarch64StackPtrAlignment);
+    }
+  }
+
   AArch64RegOperand &checkOp =
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                  static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
-  AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos,
-                                                                                   kSizeOfPtr * kBitsPerByte);
+                  static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
+  AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>
+                               (RFP, stkSize - kOffset8MemPos - vArea, kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(downStk), k64BitSize, R10);
   }
@@ -550,6 +572,14 @@ void AArch64GenProEpilog::GeneratePushRegs() {
                  (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
 
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+    // GR/VR save areas are above the callee save area
+    AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
+    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr*2) +
+                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr*2);
+    offset -= saveareasize;
+  }
+
   for (; it != regsToSave.end(); ++it) {
     AArch64reg reg = *it;
     CHECK_FATAL(reg != RFP, "stray RFP in callee_saved_list?");
@@ -583,6 +613,40 @@ void AArch64GenProEpilog::GeneratePushRegs() {
    * for pop pairs as well.
    */
   aarchCGFunc.SetSplitBaseOffset(0);
+}
+
+void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  CG *currCG = cgFunc.GetCG();
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+    AArch64MemLayout *memlayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
+    uint32 dataSizeBits = kSizeOfPtr * kBitsPerByte;
+    int32 offset = memlayout->GetGRSaveAreaBaseLoc();
+    if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
+      offset += kSizeOfPtr;  // End of area should be aligned. Hole between VR and GR area
+    }
+    int32 start_regno = 8 - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
+    ASSERT(start_regno <= 8, "Incorrect starting GR regno for GR Save Area");
+    for (uint32 i = start_regno + (uint32)R0; i < (uint32)R8; i++) {
+      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
+      RegOperand &reg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand((AArch64reg)i, 64, kRegTyInt);
+      Insn &inst = currCG->BuildInstruction<AArch64Insn>(
+                     aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+      cgFunc.GetCurBB()->AppendInsn(inst);
+      offset += kSizeOfPtr;
+    }
+    offset = memlayout->GetVRSaveAreaBaseLoc();
+    start_regno = 8 - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * 2));
+    ASSERT(start_regno <= 8, "Incorrect starting GR regno for VR Save Area");
+    for (uint32 i = start_regno + (uint32)V0; i < (uint32)V8; i++) {
+      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
+      RegOperand &reg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand((AArch64reg)i, 64, kRegTyInt);
+      Insn &inst = currCG->BuildInstruction<AArch64Insn>(
+                     aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+      cgFunc.GetCurBB()->AppendInsn(inst);
+      offset += (kSizeOfPtr * 2);
+    }
+  }
 }
 
 void AArch64GenProEpilog::AppendInstructionStackCheck(AArch64reg reg, RegType rty, int32 offset) {
@@ -658,6 +722,7 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
                                                  aarchCGFunc.CreateCfiRegOperand(RFP, k64BitSize)));
     }
   }
+  GeneratePushUnnamedVarargRegs();
   if (currCG->DoCheckSOE()) {
     AppendInstructionStackCheck(R16, kRegTyInt, kSoeChckOffset);
   }
@@ -676,6 +741,12 @@ void AArch64GenProEpilog::GenerateRet(BB &bb) {
  * Otherwise, return false, create the ret insn.
  */
 bool AArch64GenProEpilog::TestPredsOfRetBB(const BB &exitBB) {
+  AArch64MemLayout *ml = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
+  if (cgFunc.GetMirModule().IsCModule() &&
+      (cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) ||
+       ml->GetSizeOfLocals() > 0 || cgFunc.HasVLAOrAlloca())) {
+    return false;
+  }
   for (auto tmpBB : exitBB.GetPreds()) {
     Insn *firstInsn = tmpBB->GetFirstInsn();
     if ((firstInsn == nullptr || tmpBB->IsCommentBB()) && (!tmpBB->GetPreds().empty())) {
@@ -883,6 +954,14 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   int32 offset = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
                  (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+
+  if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
+    // GR/VR save areas are above the callee save area
+    AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
+    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr*2) +
+                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr*2);
+    offset -= saveareasize;
+  }
 
   /*
    * We are using a cleared dummy block; so insertPoint cannot be ret;

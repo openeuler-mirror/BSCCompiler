@@ -47,6 +47,11 @@ enum MemSegmentKind : uint8 {
    *    (or we may allocate them in caller-saved; may be this is better...)
    */
   kMsArgsRegPassed,
+  /*
+   * GR/VR Save areas for unnamed arguments under vararg functions
+   */
+  kMsGrSaveArea,
+  kMsVrSaveArea,
   /* local (auto) variables */
   kMsRefLocals,
   kMsLocals,
