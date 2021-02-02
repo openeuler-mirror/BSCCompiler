@@ -1010,7 +1010,7 @@ VarMeExpr *RCLowering::CreateNewTmpVarMeExpr(bool isLocalRefVar) {
 
 AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
   if (func->GetIRMap() == nullptr) {
-    auto *hmap = static_cast<MeIRMap*>(funcResMgr->GetAnalysisResult(MeFuncPhase_IRMAP, func));
+    auto *hmap = static_cast<MeIRMap*>(funcResMgr->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
     CHECK_FATAL(hmap != nullptr, "hssamap has problem");
     func->SetIRMap(hmap);
   }

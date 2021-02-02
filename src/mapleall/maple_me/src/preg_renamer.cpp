@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -118,7 +118,7 @@ void PregRenamer::RunSelf() const {
 }
 
 AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAP, func));
+  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   PregRenamer pregRenamer(*NewMemPool(), *func, *irMap, DEBUGFUNC(func));
   pregRenamer.RunSelf();
   if (DEBUGFUNC(func)) {

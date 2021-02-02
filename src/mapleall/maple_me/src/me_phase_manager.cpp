@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,7 +44,7 @@
 #include "me_may2dassign.h"
 #include "me_loop_analysis.h"
 #include "me_ssa.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "me_bb_layout.h"
 #include "me_emit.h"
 #include "me_rc_lowering.h"
@@ -156,7 +156,7 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
 #endif
   // call constant folding
   maple::ConstantFold cf(mirModule);
-  cf.Simplify(mirFunc->GetBody());
+  (void)cf.Simplify(mirFunc->GetBody());
 
   func.Prepare(rangeNum);
   if (timePhases) {
