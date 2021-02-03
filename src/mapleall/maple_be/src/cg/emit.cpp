@@ -237,15 +237,6 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
   if (Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeAlignTable()) {
     ASSERT(false, "container empty check");
   }
-#if TARGARM32 || TARGAARCH64
-  std::string align = std::to_string(
-      static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
-#else
-  std::string align = std::to_string(
-      static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
-#endif
-  std::string size = std::to_string(
-      Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
   switch (label) {
     case kAsmGlbl: {
       Emit(asmInfo->GetGlobal());
@@ -272,12 +263,20 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmComm: {
+      std::string size;
+      if (isFlexibleArray) {
+        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
+      } else {
+        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
+      }
       Emit(asmInfo->GetComm());
       Emit(symName);
       Emit(", ");
       Emit(size);
       Emit(", ");
 #if PECOFF
+      std::string align = std::to_string(
+          static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
       emit(align);
 #else /* ELF */
       /* output align, symbol name begin with "classInitProtectRegion" align is 4096 */
@@ -285,8 +284,8 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       MIRStorageClass storage = mirSymbol.GetStorageClass();
       if (symName.find("classInitProtectRegion") == 0) {
         Emit(4096);
-      } else if ((kind == kTypeStruct || kind == kTypeClass || kind == kTypeArray || kind == kTypeUnion) &&
-                 (storage == kScGlobal || storage == kScPstatic || storage == kScFstatic)) {
+      } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
+                 ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
         Emit(std::to_string(k8ByteSize));
       } else {
         Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
@@ -296,6 +295,8 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmAlign: {
+      std::string align = std::to_string(
+          static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
       Emit(asmInfo->GetAlign());
       Emit(align);
       Emit("\n");
@@ -307,6 +308,12 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmSize: {
+      std::string size;
+      if (isFlexibleArray) {
+        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
+      } else {
+        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
+      }
       Emit(asmInfo->GetSize());
       Emit(symName);
       Emit(", ");
@@ -395,6 +402,9 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst) {
    * convert all \s to \\s in std::string for storing in .string
    */
   const char *str = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue()).c_str();
+  if (isFlexibleArray) {
+    arraySize += strlen(str) + k1ByteSize;
+  }
   constexpr int bufSize = 6;
   while (*str) {
     char buf[bufSize];
@@ -469,18 +479,27 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32) 
         EmitAsmLabel(asmName);
       }
       Emit(intCt.GetValue());
+      if (isFlexibleArray) {
+        arraySize += (sizeInBits / kBitsPerByte);
+      }
       break;
     }
     case kConstFloatConst: {
       MIRFloatConst &floatCt = static_cast<MIRFloatConst&>(mirConst);
       EmitAsmLabel(asmName);
       Emit(std::to_string(floatCt.GetIntValue()));
+      if (isFlexibleArray) {
+        arraySize += k4ByteFloatSize;
+      }
       break;
     }
     case kConstDoubleConst: {
       MIRDoubleConst &doubleCt = static_cast<MIRDoubleConst&>(mirConst);
       EmitAsmLabel(asmName);
       Emit(std::to_string(doubleCt.GetIntValue()));
+      if (isFlexibleArray) {
+        arraySize += k8ByteDoubleSize;
+      }
       break;
     }
     case kConstStrConst: {
@@ -1385,6 +1404,10 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
   uint32 fieldIdx = 1;
   for (uint32 i = 0; i < num; ++i) {
+    if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
+      isFlexibleArray = Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
+      arraySize = 0;
+    }
     MIRConst *elemConst = structCt.GetAggConstElement(fieldIdx);
     MIRType &elemType = *structType.GetElemType(i);
     MIRType *nextElemType = nullptr;

@@ -135,7 +135,7 @@ class BECommon {
     return LOWERED_PTR_TYPE;
   }
 
-  /* update typeSizeTable and tableAlignTable when new type is created */
+  /* update typeSizeTable and typeAlignTable when new type is created */
   void UpdateTypeTable(MIRType &ty) {
     if (!TyIsInSizeAlignTable(ty)) {
       AddAndComputeSizeAlign(ty);
@@ -176,26 +176,32 @@ class BECommon {
   void AddTypeSizeAndAlign(const TyIdx tyIdx, uint64 value) {
     if (typeSizeTable.size() == tyIdx) {
       typeSizeTable.emplace_back(value);
-      tableAlignTable.emplace_back(value);
+      typeAlignTable.emplace_back(value);
     } else {
       CHECK_FATAL(typeSizeTable.size() > tyIdx, "there are some types haven't set type size and align, %d");
     }
   }
 
   uint8 GetTypeAlign(uint32 idx) const {
-    return tableAlignTable.at(idx);
+    return typeAlignTable.at(idx);
   }
   uint32 GetSizeOfTypeAlignTable() const {
-    return tableAlignTable.size();
+    return typeAlignTable.size();
   }
   bool IsEmptyOfTypeAlignTable() const {
-    return tableAlignTable.empty();
+    return typeAlignTable.empty();
   }
   void SetTypeAlign(uint32 idx, uint8 value) {
-    tableAlignTable.at(idx) = value;
+    typeAlignTable.at(idx) = value;
   }
   void AddTypeAlign(uint8 value) {
-    tableAlignTable.emplace_back(value);
+    typeAlignTable.emplace_back(value);
+  }
+  bool GetHasFlexibleArray(uint32 idx) const {
+    return typeAlignTable.at(idx);
+  }
+  void SetHasFlexibleArray(uint32 idx, bool value) {
+    typeAlignTable.at(idx) = value;
   }
 
   FieldID GetStructFieldCount(uint32 idx) const {
@@ -221,7 +227,8 @@ class BECommon {
 
   MIRModule &mirModule;
   MapleVector<uint64> typeSizeTable;           /* index is TyIdx */
-  MapleVector<uint8> tableAlignTable;          /* index is TyIdx */
+  MapleVector<uint8> typeAlignTable;          /* index is TyIdx */
+  MapleVector<bool> typeHasFlexibleArray;     /* struct with flexible array */
   /*
    * gives number of fields inside
    * each struct inclusive of nested structs, for speeding up
