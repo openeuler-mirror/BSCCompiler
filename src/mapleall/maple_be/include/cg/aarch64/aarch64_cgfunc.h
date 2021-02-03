@@ -272,7 +272,7 @@ class AArch64CGFunc : public CGFunc {
     return GetOrCreatePhysicalRegisterOperand(RFP, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   }
 
-  RegOperand &GenStructParamIndex(RegOperand &base, BaseNode &indexExpr, int shift);
+  RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift);
 
   MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef = false);
 
@@ -556,9 +556,17 @@ class AArch64CGFunc : public CGFunc {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, oty, oty));
   }
 
-  void SelectParmListDreadSmallAggregate(const MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator);
-  void SelectParmListDreadLargeAggregate(const MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
+  void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
+  void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds);
+  AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
+                                                      int32 copyOffset, AArch64reg reg);
+  void SelectParmListDreadSmallAggregate(MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator);
+  void SelectParmListIreadSmallAggregate(const BaseNode &argExpr, AArch64ListOperand &srcOpnds,
+                                         ParmLocator &parmLocator);
+  void SelectParmListDreadLargeAggregate(MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                          int32 &structCopyOffset);
+  void SelectParmListIreadLargeAggregate(const BaseNode &argExpr, AArch64ListOperand &srcOpnds,
+                                         ParmLocator &parmLocator, int32 &structCopyOffset);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                   int32 &structCopyOffset);
 
