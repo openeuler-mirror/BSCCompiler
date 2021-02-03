@@ -116,6 +116,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAddrof(AddrofNode &expr) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr) override;
 
+  PrimType GetDestTypeFromAggSize(uint32 bitSize);
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr) override;
 
   Operand *SelectIntConst(MIRIntConst &intConst) override;

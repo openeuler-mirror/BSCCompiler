@@ -1484,6 +1484,26 @@ Operand &AArch64CGFunc::SelectAddrofFunc(AddroffuncNode &expr) {
   return operand;
 }
 
+/* For an entire aggregate that can fit inside a single 8 byte register.  */
+PrimType AArch64CGFunc::GetDestTypeFromAggSize(uint32 bitSize) {
+  switch (bitSize) {
+  case 8:
+    return PTY_u8;
+    break;
+  case 16:
+    return PTY_u16;
+    break;
+  case 32:
+    return PTY_u32;
+    break;
+  case 64:
+    return PTY_u64;
+    break;
+  default:
+    CHECK_FATAL(false, "aggregate of unhandled size");
+  }
+}
+
 Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
   int32 offset = 0;
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr.GetTyIdx());
@@ -1549,8 +1569,12 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
   } else {
     if (pointedType->IsStructType()) {
       MIRStructType *structType = static_cast<MIRStructType*>(pointedType);
-      /* size << 3, that is size * 8, change bytes to bits */
-      bitSize = structType->GetSize() << 3;
+      if (expr.GetFieldID()) {
+        /* size << 3, that is size * 8, change bytes to bits */
+        bitSize = structType->GetSize() << 3;
+      } else {
+        destType = GetDestTypeFromAggSize(bitSize);
+      }
     } else {
       bitSize = GetPrimTypeBitSize(destType);
     }
