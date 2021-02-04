@@ -1,130 +1,113 @@
-/*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
- *
- * OpenArkCompiler is licensed under Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
- * You may obtain a copy of Mulan PSL v2 at:
- *
- *     http://license.coscl.org.cn/MulanPSL2
- *
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
- * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v2 for more details.
- */
-#include "preg_renamer.h"
 #include "alias_class.h"
 #include "mir_builder.h"
 #include "me_irmap.h"
+#include "preg_renamer.h"
+#include "union_find.h"
 
 namespace maple {
-void PregRenamer::EnqueDefUses(std::list<RegMeExpr*> &qu, RegMeExpr *node, std::set<RegMeExpr*> &curVisited) const {
-  CHECK_NULL_FATAL(node);
-  // get its define
-  if (node->GetDefBy() == kDefByPhi) {
-    MePhiNode &defPhi = node->GetDefPhi();
-    for (auto it : defPhi.GetOpnds()) {
-      RegMeExpr *neibNode = static_cast<RegMeExpr *>(it);  // node's connected register node
-      if (neibNode != node && curVisited.find(neibNode) == curVisited.end()) {
-        qu.push_back(neibNode);
-        (void)curVisited.insert(neibNode);
-      }
-    }
-  }
-  // get the phi which uses node as an operand
-  MapleSet<MePhiNode*> &phiUseSet = node->GetPhiUseSet();
-  for (auto setIt : phiUseSet) {
-    MePhiNode *meRegPhi = setIt;
-    RegMeExpr *lhsReg = static_cast<RegMeExpr *>(meRegPhi->GetLHS());
-    if (lhsReg != node && curVisited.find(lhsReg) == curVisited.end()) {
-      qu.push_back(lhsReg);
-      (void)curVisited.insert(lhsReg);
-    }
-    for (auto opdIt : meRegPhi->GetOpnds()) {
-      RegMeExpr *opndReg = static_cast<RegMeExpr *>(opdIt);
-      if (opndReg != node && curVisited.find(opndReg) == curVisited.end()) {
-        qu.push_back(opndReg);
-        (void)curVisited.insert(opndReg);
-      }
-    }
-  }
-}
 
 void PregRenamer::RunSelf() const {
   // BFS the graph of register phi node;
-  std::set<RegMeExpr*> curVisited;
-  const MapleVector<RegMeExpr*> &regMeExprTable = irMap->GetRegMeExprTable();
-  MIRPregTable *pregTab = func->GetMirFunc()->GetPregTab();
-  std::vector<bool> firstAppearTable(pregTab->GetPregTable().size());
+  std::set<RegMeExpr *> curvisited;
+  const MapleVector<MeExpr *> &regmeexprtable = meirmap->GetVerst2MeExprTable();
+  MIRPregTable *pregtab = func->GetMirFunc()->GetPregTab();
+  std::vector<bool> firstappeartable(pregtab->GetPregTable().size());
   uint32 renameCount = 0;
-  for (auto it : regMeExprTable) {
-    RegMeExpr *regMeExpr = it;
-    if (regMeExpr->GetRegIdx() < 0) {
-      continue;  // special register
-    }
-    if (curVisited.find(regMeExpr) != curVisited.end()) {
+  UnionFind unionFind(*mp, regmeexprtable.size());
+  // iterate all the bbs' phi to setup the union
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == nullptr || bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB()) {
       continue;
     }
-    // BFS the node and add all related nodes to the vector;
-    std::vector<RegMeExpr*> candidates;
-    std::list<RegMeExpr*> qu;
-    qu.push_back(regMeExpr);
-    candidates.push_back(regMeExpr);
-    bool useDefFromZeroVersion = false;
-    bool definedInTryBlock = false;
-    while (!qu.empty()) {
-      RegMeExpr *curNode = qu.back();
-      qu.pop_back();
-      // put all its neighbors into the queue
-      EnqueDefUses(qu, curNode, curVisited);
-      (void)curVisited.insert(curNode);
-      candidates.push_back(curNode);
-      if (curNode->GetDefBy() == kDefByNo) {
-        // if any use are from zero version, we stop renaming all the candidates related to it issue #1420
-        useDefFromZeroVersion = true;
-      } else if (curNode->DefByBB() != nullptr && curNode->DefByBB()->GetAttributes(kBBAttrIsTry)) {
-        definedInTryBlock = true;
+    MapleMap<OStIdx, MePhiNode *> &mePhiList =  bb->GetMePhiList();
+    for (MapleMap<OStIdx, MePhiNode *>::iterator it = mePhiList.begin();
+      it != mePhiList.end(); it++) {
+      OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(it->first);
+      if (!ost->IsPregOst()) { // only handle reg phi
+        continue;
+      }
+      MePhiNode *meRegPhi = it->second;
+      uint32 vstIdx = meRegPhi->GetLHS()->GetVstIdx();
+      uint32 nOpnds = meRegPhi->GetOpnds().size();
+      for (uint32 i = 0; i < nOpnds; i++) {
+        unionFind.Union(vstIdx, meRegPhi->GetOpnd(i)->GetVstIdx());
       }
     }
-    if (useDefFromZeroVersion || definedInTryBlock) {
-      continue;  // must be zero version. issue #1420
+  }
+  std::map<uint32, std::vector<uint32> > root2childrenMap;
+  for (uint32 i = 0; i< regmeexprtable.size(); i++) {
+    MeExpr *meexpr = regmeexprtable[i];
+    if (!meexpr || meexpr->GetMeOp() != kMeOpReg)
+      continue;
+    RegMeExpr *regmeexpr = static_cast<RegMeExpr *> (meexpr);
+    if (regmeexpr->GetRegIdx() < 0) {
+      continue;  // special register
     }
+    uint32 rootVstidx = unionFind.Root(i);
+
+    std::map<uint32, std::vector<uint32>>::iterator mpit = root2childrenMap.find(rootVstidx);
+    if (mpit == root2childrenMap.end()) {
+      std::vector<uint32> vec(1, i);
+      root2childrenMap[rootVstidx] = vec;
+    } else {
+      std::vector<uint32> &vec = mpit->second;
+      vec.push_back(i);
+    }
+  }
+
+  for (std::map<uint32, std::vector<uint32> >::iterator it = root2childrenMap.begin();
+         it != root2childrenMap.end(); it++) {
+     std::vector<uint32> &vec = it->second;
+     bool isIntryOrZerov = false;  // in try block or zero version
+     for (uint32 i = 0; i < vec.size(); i++) {
+      uint32 vstIdx = vec[i];
+      ASSERT(vstIdx < regmeexprtable.size(), "over size");
+      RegMeExpr *tregMeexpr = static_cast<RegMeExpr *> (regmeexprtable[vstIdx]);
+      if (tregMeexpr->GetDefBy() == kDefByNo ||
+          tregMeexpr->DefByBB()->GetAttributes(kBBAttrIsTry)) {
+        isIntryOrZerov = true;
+        break;
+      }
+
+    }
+    if (isIntryOrZerov)
+      continue;
     // get all the nodes in candidates the same register
-    PregIdx newPregIdx = regMeExpr->GetRegIdx();
-    ASSERT(static_cast<size_t>(newPregIdx) < firstAppearTable.size(), "oversize ");
-    if (!firstAppearTable[newPregIdx]) {
+    RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(regmeexprtable[it->first]);
+    PregIdx16 newpregidx = regMeexpr->GetRegIdx();
+    ASSERT(static_cast<uint32>(newpregidx) < firstappeartable.size(), "oversize ");
+    if (!firstappeartable[newpregidx]) {
       // use the previous register
-      firstAppearTable[newPregIdx] = true;
+      firstappeartable[newpregidx] = true;
       continue;
     }
-    newPregIdx = (regMeExpr->GetPrimType() == PTY_ref) ?
-                 pregTab->CreatePreg(PTY_ref, pregTab->PregFromPregIdx(regMeExpr->GetRegIdx())->GetMIRType()) :
-                 pregTab->CreatePreg(regMeExpr->GetPrimType());
-    ++renameCount;
-    if (enabledDebug) {
-      LogInfo::MapleLogger() << "%" <<
-          pregTab->PregFromPregIdx(static_cast<PregIdx>(regMeExpr->GetRegIdx()))->GetPregNo();
-      LogInfo::MapleLogger() << " renamed to %" << pregTab->PregFromPregIdx(newPregIdx)->GetPregNo() << '\n';
+    newpregidx = pregtab->ClonePreg(*pregtab->PregFromPregIdx(regMeexpr->GetRegIdx()));
+    renameCount++;
+    if (DEBUGFUNC(func)) {
+      std::cout << "%" << pregtab->PregFromPregIdx(static_cast<uint32>(regMeexpr->GetRegIdx()))->GetPregNo();
+      std::cout << " renamed to %" << pregtab->PregFromPregIdx(static_cast<uint32>(newpregidx))->GetPregNo() << std::endl;
     }
     // reneme all the register
-    for (auto candiIt : candidates) {
-      RegMeExpr *candiRegNode = candiIt;
-      candiRegNode->SetRegIdx(newPregIdx);  // rename it to a new register
-    }
-    if (renameCount == MeOption::pregRenameLimit) {
-      break;
+    for (uint32 i = 0; i < vec.size(); i++) {
+      RegMeExpr *canregnode =  static_cast<RegMeExpr *> (regmeexprtable[vec[i]]);
+      // std::cout << "rename %"<< canregnode->regidx << "to %" << newpregidx << std::endl;
+      canregnode->SetRegIdx(newpregidx);  // rename it to a new register
     }
   }
 }
 
-AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  PregRenamer pregRenamer(*NewMemPool(), *func, *irMap, DEBUGFUNC(func));
-  pregRenamer.RunSelf();
+AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
+  MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  std::string renamePhaseName = PhaseName();
+  MemPool *renamemp = memPoolCtrler.NewMemPool(renamePhaseName);
+  PregRenamer pregrenamer(renamemp, func, irmap);
+  pregrenamer.RunSelf();
   if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << "------------after pregrename:-------------------\n";
-    func->Dump(false);
+    std::cout << "------------after pregrename:-------------------\n";
+    func->Dump();
   }
+  memPoolCtrler.DeleteMemPool(renamemp);
   return nullptr;
 }
+
 }  // namespace maple

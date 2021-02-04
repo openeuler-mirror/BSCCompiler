@@ -51,7 +51,6 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
       irMap->NewInPool<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(),
                                   ost->GetIndex(), vindex);
   regx->InitBase(OP_regread, ost->GetMIRPreg()->GetPrimType(), 0);
-  irMap->regMeExprTable.push_back(regx);
   irMap->vst2MeExprTable[vindex] = regx;
   return regx;
 }
