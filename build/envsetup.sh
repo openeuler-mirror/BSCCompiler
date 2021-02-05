@@ -87,6 +87,14 @@ else
   return
 fi
 
+OS_VERSION=`uname -v | sed -e "s/^.[0-9]*.//" -e "s/.....-.*//"`
+if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
+  OLD_OS=1
+else
+  OLD_OS=0
+fi
+export OLD_OS=${OLD_OS}
+
 unset MAPLE_DEBUG
 export MAPLE_DEBUG=${DEBUG}
 

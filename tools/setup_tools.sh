@@ -31,7 +31,7 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
-if [ "$android_env" == "android" ]; then
+if [ "$OLD_OS" == "1" ]; then
   if [ ! -f $TOOLS/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ]; then
     cd $TOOLS
     echo Start wget llvm-8.0.0 ...
@@ -40,7 +40,9 @@ if [ "$android_env" == "android" ]; then
     tar xf clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
     echo Downloaded clang+llvm.
   fi
+fi
 
+if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
     cd $TOOLS
     wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip
