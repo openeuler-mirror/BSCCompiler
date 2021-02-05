@@ -41,6 +41,14 @@ fi
 export GCOV_PREFIX=${MAPLE_ROOT}/report/gcda
 export GCOV_PREFIX_STRIP=7
 
+OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
+if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
+  OLD_OS=1
+else
+  OLD_OS=0
+fi
+export OLD_OS=${OLD_OS}
+
 # workaround for current build
 if [ "$#" -eq 0 ]; then
 unset MAPLE_BUILD_OUTPUT
@@ -86,14 +94,6 @@ else
   print_usage
   return
 fi
-
-OS_VERSION=`uname -v | sed -e "s/^.[0-9]*.//" -e "s/.....-.*//"`
-if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
-  OLD_OS=1
-else
-  OLD_OS=0
-fi
-export OLD_OS=${OLD_OS}
 
 unset MAPLE_DEBUG
 export MAPLE_DEBUG=${DEBUG}
