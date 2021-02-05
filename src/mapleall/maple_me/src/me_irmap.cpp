@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,7 +15,6 @@
 #include "me_irmap.h"
 
 namespace maple {
-
 void MeIRMap::Dump() {
   // back up mempool and use a new mempool every time
   // we dump IRMap, restore the mempool afterwards
@@ -44,5 +43,4 @@ void MeIRMap::Dump() {
   memPoolCtrler.DeleteMemPool(mirFunction->GetCodeMempool());
   mirFunction->SetMemPool(backup);
 }
-
 }  // namespace maple

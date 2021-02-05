@@ -53,6 +53,9 @@ constexpr uint32 k4BitShift = 2; /* 4 is 1 << 2; */
 constexpr uint32 k8BitShift = 3;  /* 8 is 1 << 3; */
 constexpr uint32 k16BitShift = 4; /* 16 is 1 << 4 */
 
+constexpr uint32 k4ByteFloatSize = 4;
+constexpr uint32 k8ByteDoubleSize = 8;
+
 /* Storage location of operands in one insn */
 constexpr int32 kInsnFirstOpnd = 0;
 constexpr int32 kInsnSecondOpnd = 1;

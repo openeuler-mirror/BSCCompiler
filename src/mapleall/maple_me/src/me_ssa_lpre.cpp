@@ -170,7 +170,10 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   PreWorkCand *workCand = GetWorkCand();
   auto *varMeExpr = static_cast<VarMeExpr*>(workCand->GetTheMeExpr());
   const OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(varMeExpr->GetOStIdx());
-  if (!ost->IsFormal()) {
+  if (!ost->IsFormal() || ost->IsAddressTaken()) {
+    return;
+  }
+  if (ost->GetFieldID() != 0) {
     return;
   }
   if (assignedFormals.find(ost->GetIndex()) != assignedFormals.end()) {

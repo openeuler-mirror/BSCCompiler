@@ -18,7 +18,6 @@
 #include "mir_builder.h"
 
 namespace maple {
-
 VarMeExpr *IRMap::CreateVarMeExprVersion(const VarMeExpr &origExpr) {
   auto *varMeExpr = New<VarMeExpr>(&irMapAlloc, exprID++, origExpr.GetOStIdx(), vst2MeExprTable.size(), origExpr.GetPrimType());
   vst2MeExprTable.push_back(varMeExpr);
@@ -504,5 +503,4 @@ MeExpr *IRMap::CreateAddrofMeExprFromSymbol(MIRSymbol &st, PUIdx puIdx) {
   AddrofMeExpr addrOfMe(kInvalidExprID, PTY_ptr, baseOst->GetIndex());
   return HashMeExpr(addrOfMe);
 }
-
 }  // namespace maple

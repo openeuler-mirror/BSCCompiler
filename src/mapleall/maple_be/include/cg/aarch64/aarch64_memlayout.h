@@ -163,19 +163,40 @@ class AArch64MemLayout : public MemLayout {
     return segLocals.GetSize();
   }
 
+  void SetSizeOfGRSaveArea(int32 sz) {
+    segGrSaveArea.SetSize(sz);
+  }
+
+  int32 GetSizeOfGRSaveArea() {
+    return segGrSaveArea.GetSize();
+  }
+
+  inline void SetSizeOfVRSaveArea(int32 sz) {
+    segVrSaveArea.SetSize(sz);
+  }
+
+  int32 GetSizeOfVRSaveArea() {
+    return segVrSaveArea.GetSize();
+  }
+
   int32 GetSizeOfRefLocals() {
     return segRefLocals.GetSize();
   }
 
   int32 GetRefLocBaseLoc() const;
+  int32 GetGRSaveAreaBaseLoc();
+  int32 GetVRSaveAreaBaseLoc();
 
  private:
   MemSegment segRefLocals = MemSegment(kMsRefLocals);
   /* callee saved register R19-R28 (10) */
   MemSegment segSpillReg = MemSegment(kMsSpillReg);
   MemSegment segLocals = MemSegment(kMsLocals);  /* these are accessed via Frame Pointer */
+  MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
+  MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
   int32 fixStackSize = 0;
   void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx);
+  void LayoutVarargParams();
   void LayoutFormalParams();
   void LayoutActualParams();
   void LayoutLocalVariales(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays);

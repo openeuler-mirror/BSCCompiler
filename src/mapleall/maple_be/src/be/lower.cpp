@@ -1242,6 +1242,8 @@ void CGLowerer::LowerEntry(MIRFunction &func) {
       formals.emplace_back(formal);
     }
 
+    beCommon.AddElementToFuncReturnType(func, func.GetReturnTyIdx());
+
     func.UpdateFuncTypeAndFormalsAndReturnType(formals, TyIdx(PTY_void), true);
     auto *funcType = func.GetMIRFuncType();
     ASSERT(funcType != nullptr, "null ptr check");
