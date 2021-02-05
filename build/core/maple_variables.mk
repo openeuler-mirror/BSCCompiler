@@ -18,7 +18,6 @@ LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core
 LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 
-CLANG_PATH := $(MAPLE_ROOT)/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
 ANDROID_GCC_PATH := $(MAPLE_ROOT)/tools/gcc
 ANDROID_CLANG_PATH := $(MAPLE_ROOT)/tools/clang-r353983c
 GCC_LINARO_PATH := $(MAPLE_ROOT)/tools/gcc-linaro-7.5.0
@@ -53,7 +52,7 @@ LDS := $(MAPLE_ROOT)/src/mrt/maplert/linker/maplelld.so.lds
 DUPLICATE_DIR := $(MAPLE_ROOT)/src/mrt/codetricks/arch/arm64
 
 ifeq ($(OPS_ANDROID), 0)
-    QEMU_CLANG_CPP := $(CLANG_PATH)/bin/clang++
+    QEMU_CLANG_CPP := clang++
 else
     QEMU_CLANG_CPP := $(ANDROID_CLANG_PATH)/bin/clang++
 endif
@@ -65,13 +64,13 @@ ifeq ($(OPS_ANDROID), 0)
     QEMU_CLANG_FLAGS += -nostdlibinc \
       --gcc-toolchain=$(GCC_LINARO_PATH) \
       --sysroot=$(GCC_LINARO_PATH)/aarch64-linux-gnu/libc \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0 \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed \
-      -isystem $(GCC_LINARO_PATH)/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include \
-      -isystem $(GCC_LINARO_PATH)/bin/../aarch64-linux-gnu/libc/usr/include \
+      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0 \
+      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu \
+      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/backward \
+      -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include \
+      -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed \
+      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include \
+      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/libc/usr/include \
       -target aarch64-linux-gnu
 else
     QEMU_CLANG_FLAGS := -Wall -fstack-protector-strong -fPIC -Werror -Wno-unused-command-line-argument \
