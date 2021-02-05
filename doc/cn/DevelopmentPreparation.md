@@ -10,12 +10,21 @@
 
 ## 开发环境推荐
 
-您需要安装一个64位版本的Ubuntu（推荐Ubuntu 16.04）
+您需要安装一个64位版本的Ubuntu（Ubuntu 16.04，18.04，20.04皆可）
 
 
 ```
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python
 sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
+
+Ubuntu 16.04:
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
+
+Ubuntu 18.04:
+sudo apt-get -y install gcc-7-aarch64-linux-gnu g++-7-aarch64-linux-gnu
+
+Ubuntu 20.04:
+sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu
 ```
 
 ## 自动安装工具
@@ -25,7 +34,7 @@ tools/setup_tools.sh
 ```
 
 
-## 安装Clang编译器并完成配置（用于编译方舟编译器代码）
+## 安装Clang编译器并完成配置（用于编译方舟编译器代码，已改为使用系统安装的Clang）
 
 下载**clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04** (具体版本请根据系统版本确定)
 
