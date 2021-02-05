@@ -30,9 +30,9 @@ VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
   }
   const OriginalSt *ost = vst.GetOrigSt();
   ASSERT(ost->IsSymbolOst(), "GetOrCreateVarFromVerSt: wrong ost_type");
-  auto *varx = irMap->New<VarMeExpr>(&irMap->irMapAlloc, irMap->exprID++, ost->GetIndex(), vindex);
+  auto *varx = irMap->New<VarMeExpr>(&irMap->irMapAlloc, irMap->exprID++, ost->GetIndex(), vindex,
+     GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType());
   ASSERT(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
-  varx->InitBase(OP_dread, GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->GetPrimType(), 0);
   varx->SetFieldID(ost->GetFieldID());
   irMap->vst2MeExprTable[vindex] = varx;
   return varx;
@@ -47,10 +47,8 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
   }
   const OriginalSt *ost = vst.GetOrigSt();
   ASSERT(ost->IsPregOst(), "GetOrCreateRegFromVerSt: PregOST expected");
-  auto *regx =
-      irMap->NewInPool<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(),
-                                  ost->GetIndex(), vindex);
-  regx->InitBase(OP_regread, ost->GetMIRPreg()->GetPrimType(), 0);
+  auto *regx = irMap->NewInPool<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(),
+                                           ost->GetIndex(), vindex, ost->GetMIRPreg()->GetPrimType());
   irMap->regMeExprTable.push_back(regx);
   irMap->vst2MeExprTable[vindex] = regx;
   return regx;
@@ -165,12 +163,9 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
     auto &addrOfNode = static_cast<AddrofSSANode&>(mirNode);
     VersionSt *vst = addrOfNode.GetSSAVar();
     VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
-    varMeExpr->InitBase(mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
-    if (vst->GetOrigSt()->IsRealSymbol()) {
-      ASSERT(!vst->GetOrigSt()->IsPregOst(), "not expect preg symbol here");
-      varMeExpr->SetPtyp(GlobalTables::GetTypeTable().GetTypeFromTyIdx(vst->GetOrigSt()->GetTyIdx())->GetPrimType());
-      varMeExpr->SetFieldID(addrOfNode.GetFieldID());
-    }
+    ASSERT(!vst->GetOrigSt()->IsPregOst(), "not expect preg symbol here");
+    varMeExpr->SetPtyp(GlobalTables::GetTypeTable().GetTypeFromTyIdx(vst->GetOrigSt()->GetTyIdx())->GetPrimType());
+    varMeExpr->SetFieldID(addrOfNode.GetFieldID());
     return varMeExpr;
   }
 
@@ -178,7 +173,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
     auto &regNode = static_cast<RegreadSSANode&>(mirNode);
     VersionSt *vst = regNode.GetSSAVar();
     RegMeExpr *regMeExpr = GetOrCreateRegFromVerSt(*vst);
-    regMeExpr->InitBase(mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
+    regMeExpr->SetPtyp(mirNode.GetPrimType());
     return regMeExpr;
   }
 
