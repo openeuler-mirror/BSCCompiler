@@ -130,3 +130,17 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
   cp -f libz_extract/lib/aarch64-linux-gnu/libz.so.1.2.8 $ZLIBDIR
   echo Downloaded libz.
 fi
+
+# install qemu-user 2.5
+if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
+  cd $TOOLS
+  echo Start wget qemu-user ...
+  rm -rf qemu
+  mkdir -p qemu
+  cd qemu
+  wget http://security.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
+  echo Install qemu-aarch64 ...
+  sudo apt install ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
+  touch done
+  echo Installed qemu-aarch64
+fi
