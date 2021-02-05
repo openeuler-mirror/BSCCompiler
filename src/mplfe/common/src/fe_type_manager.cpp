@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -142,7 +142,7 @@ void FETypeManager::CheckSameNamePolicy() const {
   if (result.size() > 0) {
     WARN(kLncWarn, "========== Structs list with the same name ==========");
   }
-  for (const std::pair<GStrIdx, std::list<GStrIdx>> &item : result) {
+  for (const std::pair<const GStrIdx, std::list<GStrIdx>> &item : result) {
     std::string typeName = GlobalTables::GetStrTable().GetStringFromStrIdx(item.first);
     WARN(kLncWarn, "Type: %s", typeName.c_str());
     for (const GStrIdx &mpltNameIdx : item.second) {
@@ -383,6 +383,7 @@ MIRFunction *FETypeManager::CreateFunction(const GStrIdx &nameIdx, const TyIdx &
   MemPool *mpModule = module.GetMemPool();
   ASSERT(mpModule, "mem pool is nullptr");
   mirFunc = mpModule->New<MIRFunction>(&module, funcSymbol->GetStIdx());
+  mirFunc->AllocSymTab();
   size_t idx = GlobalTables::GetFunctionTable().GetFuncTable().size();
   CHECK_FATAL(idx < UINT32_MAX, "PUIdx is out of range");
   mirFunc->SetPuidx(static_cast<uint32>(idx));

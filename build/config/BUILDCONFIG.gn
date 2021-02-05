@@ -108,6 +108,7 @@ cflags_c += [
   "-Werror",
   "-Wdate-time",
   "-Wfloat-equal",
+  "-Wno-c99-designator",
 ]
 
 cflags_cc += [
@@ -120,6 +121,7 @@ cflags_cc += [
   "-Werror",
   "-Wdate-time",
   "-Wfloat-equal",
+  "-Wno-c99-designator",
 ]
 
 if (HOST_ARCH == 64) {
