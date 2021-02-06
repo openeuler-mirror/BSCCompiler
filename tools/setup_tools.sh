@@ -142,7 +142,10 @@ if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
   cd qemu
   wget http://security.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
   echo Install qemu-aarch64 ...
-  sudo apt install ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
+  # use the following to make sure only the specific version of qemu-user is isstalled
+  # the first version sometimes insists to install the system default qemu-user.
+  # sudo apt install ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
+  sudo dpkg -i ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb || sudo apt install -f
   touch done
   echo Installed qemu-aarch64
 fi
