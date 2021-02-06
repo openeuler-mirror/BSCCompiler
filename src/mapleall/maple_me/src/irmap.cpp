@@ -76,7 +76,8 @@ MeExpr *IRMap::CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base) {
 }
 
 VarMeExpr *IRMap::CreateNewVarMeExpr(OStIdx ostIdx, PrimType pType, FieldID fieldID) {
-  VarMeExpr *varMeExpr = meBuilder.BuildVarMeExpr(exprID++, ostIdx, vst2MeExprTable.size(), pType, fieldID);
+  VarMeExpr *varMeExpr = New<VarMeExpr>(&GetIRMapAlloc(), exprID++, ostIdx, vst2MeExprTable.size(), pType);
+  varMeExpr->SetFieldID(fieldID);
   PushBackVerst2MeExprTable(varMeExpr);
   return varMeExpr;
 }
@@ -255,7 +256,50 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
   }
 
   if (resultExpr == nullptr) {
-    resultExpr = &meBuilder.CreateMeExpr(exprID++, meExpr);
+    switch (meExpr.GetMeOp()) {
+      case kMeOpIvar:
+        resultExpr = New<IvarMeExpr>(exprID, static_cast<IvarMeExpr&>(meExpr));
+        break;
+      case kMeOpOp:
+        resultExpr = New<OpMeExpr>(static_cast<OpMeExpr&>(meExpr), exprID);
+        break;
+      case kMeOpConst:
+        resultExpr = New<ConstMeExpr>(exprID, static_cast<ConstMeExpr&>(meExpr).GetConstVal(), meExpr.GetPrimType());
+        break;
+      case kMeOpConststr:
+        resultExpr = New<ConststrMeExpr>(exprID, static_cast<ConststrMeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
+        break;
+      case kMeOpConststr16:
+        resultExpr = New<Conststr16MeExpr>(exprID, static_cast<Conststr16MeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
+        break;
+      case kMeOpSizeoftype:
+        resultExpr = New<SizeoftypeMeExpr>(exprID, meExpr.GetPrimType(), static_cast<SizeoftypeMeExpr&>(meExpr).GetTyIdx());
+        break;
+      case kMeOpFieldsDist: {
+        auto &expr = static_cast<FieldsDistMeExpr&>(meExpr);
+        resultExpr = New<FieldsDistMeExpr>(exprID, meExpr.GetPrimType(), expr.GetTyIdx(), expr.GetFieldID1(), expr.GetFieldID2());
+        break;
+      }
+      case kMeOpAddrof:
+        resultExpr = New<AddrofMeExpr>(exprID, meExpr.GetPrimType(), static_cast<AddrofMeExpr&>(meExpr).GetOstIdx());
+        static_cast<AddrofMeExpr*>(resultExpr)->SetFieldID(static_cast<AddrofMeExpr&>(meExpr).GetFieldID());
+        break;
+      case kMeOpNary:
+        resultExpr = NewInPool<NaryMeExpr>(exprID, static_cast<NaryMeExpr&>(meExpr));
+        break;
+      case kMeOpAddroffunc:
+        resultExpr = New<AddroffuncMeExpr>(exprID, static_cast<AddroffuncMeExpr&>(meExpr).GetPuIdx());
+        break;
+      case kMeOpGcmalloc:
+        resultExpr = New<GcmallocMeExpr>(exprID, meExpr.GetOp(), meExpr.GetPrimType(), static_cast<GcmallocMeExpr&>(meExpr).GetTyIdx());
+        break;
+      default:
+        CHECK_FATAL(false, "not yet implement");
+    }
+    exprID++;
+    if (meExpr.GetMeOp() == kMeOpOp || meExpr.GetMeOp() == kMeOpNary) {
+      resultExpr->UpdateDepth();
+    }
     PutToBucket(hashIdx, *resultExpr);
   }
   return resultExpr;
@@ -472,6 +516,19 @@ MeExpr *IRMap::CreateMeExprTypeCvt(PrimType pType, PrimType opndptyp, MeExpr &op
   opMeExpr.SetOpnd(0, &opnd0);
   opMeExpr.SetOpndType(opndptyp);
   return HashMeExpr(opMeExpr);
+}
+
+UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd) {
+  UnaryMeStmt *unaryMeStmt = New<UnaryMeStmt>(op);
+  unaryMeStmt->SetMeStmtOpndValue(opnd);
+  return unaryMeStmt;
+}
+
+UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src) {
+  UnaryMeStmt *unaryMeStmt = CreateUnaryMeStmt(op, opnd);
+  unaryMeStmt->SetBB(bb);
+  unaryMeStmt->SetSrcPos(*src);
+  return unaryMeStmt;
 }
 
 IntrinsiccallMeStmt *IRMap::CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, TyIdx tyIdx) {

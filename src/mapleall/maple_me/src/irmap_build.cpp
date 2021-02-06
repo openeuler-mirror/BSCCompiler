@@ -19,6 +19,7 @@
 // Methods to convert Maple IR to MeIR
 
 namespace maple {
+using MeExprBuildFactory = FunctionFactory<Opcode, MeExpr*, const IRMapBuild*, BaseNode&>;
 using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, AccessSSANodes&>;
 
 VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
@@ -157,6 +158,125 @@ void IRMapBuild::SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode) {
   }
 }
 
+MeExpr *IRMapBuild::BuildAddrofMeExpr(BaseNode &mirNode) const {
+  auto &addrofNode = static_cast<AddrofSSANode&>(mirNode);
+  AddrofMeExpr *meExpr = new AddrofMeExpr(kInvalidExprID, addrofNode.GetPrimType(), addrofNode.GetSSAVar()->GetOrigSt()->GetIndex());
+  meExpr->SetFieldID(addrofNode.GetFieldID());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildAddroffuncMeExpr(BaseNode &mirNode) const {
+  AddroffuncMeExpr *meExpr = new AddroffuncMeExpr(kInvalidExprID, static_cast<AddroffuncNode&>(mirNode).GetPUIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildGCMallocMeExpr(BaseNode &mirNode) const {
+  GcmallocMeExpr *meExpr = new GcmallocMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), static_cast<GCMallocNode&>(mirNode).GetTyIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildSizeoftypeMeExpr(BaseNode &mirNode) const {
+  SizeoftypeMeExpr *meExpr = new SizeoftypeMeExpr(kInvalidExprID, mirNode.GetPrimType(), static_cast<SizeoftypeNode&>(mirNode).GetTyIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildFieldsDistMeExpr(BaseNode &mirNode) const {
+  auto &fieldsDistNode = static_cast<FieldsDistNode&>(mirNode);
+  FieldsDistMeExpr *meExpr = new FieldsDistMeExpr(kInvalidExprID, mirNode.GetPrimType(), fieldsDistNode.GetTyIdx(),
+                                                    fieldsDistNode.GetFiledID1(), fieldsDistNode.GetFiledID2());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildIvarMeExpr(BaseNode &mirNode) const {
+  auto &ireadSSANode = static_cast<IreadSSANode&>(mirNode);
+  IvarMeExpr *meExpr = new IvarMeExpr(kInvalidExprID, mirNode.GetPrimType(), ireadSSANode.GetTyIdx(), ireadSSANode.GetFieldID());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildConstMeExpr(BaseNode &mirNode) const {
+  auto &constvalNode = static_cast<ConstvalNode &>(mirNode);
+  ConstMeExpr *meExpr = new ConstMeExpr(kInvalidExprID, constvalNode.GetConstVal(), mirNode.GetPrimType());
+  meExpr->SetOp(OP_constval);
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildConststrMeExpr(BaseNode &mirNode) const {
+  ConststrMeExpr *meExpr = new ConststrMeExpr(kInvalidExprID, static_cast<ConststrNode&>(mirNode).GetStrIdx(), mirNode.GetPrimType());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildConststr16MeExpr(BaseNode &mirNode) const {
+  Conststr16MeExpr *meExpr = new Conststr16MeExpr(kInvalidExprID, static_cast<Conststr16Node&>(mirNode).GetStrIdx(), mirNode.GetPrimType());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForCompare(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  meExpr->SetOpndType(static_cast<CompareNode&>(mirNode).GetOpndType());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForTypeCvt(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  meExpr->SetOpndType(static_cast<TypeCvtNode&>(mirNode).FromType());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForRetype(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  auto &retypeNode = static_cast<RetypeNode&>(mirNode);
+  meExpr->SetOpndType(retypeNode.FromType());
+  meExpr->SetTyIdx(retypeNode.GetTyIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForIread(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  auto &ireadNode = static_cast<IreadNode&>(mirNode);
+  meExpr->SetTyIdx(ireadNode.GetTyIdx());
+  meExpr->SetFieldID(ireadNode.GetFieldID());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForExtractbits(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  auto &extractbitsNode = static_cast<ExtractbitsNode&>(mirNode);
+  meExpr->SetBitsOffSet(extractbitsNode.GetBitsOffset());
+  meExpr->SetBitsSize(extractbitsNode.GetBitsSize());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForJarrayMalloc(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  meExpr->SetTyIdx(static_cast<JarrayMallocNode&>(mirNode).GetTyIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildOpMeExprForResolveFunc(BaseNode &mirNode) const {
+  OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
+  meExpr->SetFieldID(static_cast<ResolveFuncNode&>(mirNode).GetPuIdx());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildNaryMeExprForArray(BaseNode &mirNode) const {
+  auto &arrayNode = static_cast<ArrayNode&>(mirNode);
+  NaryMeExpr *meExpr =
+      new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds(), arrayNode.GetTyIdx(), INTRN_UNDEFINED, arrayNode.GetBoundsCheck());
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildNaryMeExprForIntrinsicop(BaseNode &mirNode) const {
+  NaryMeExpr *meExpr =
+      new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds(), TyIdx(0), static_cast<IntrinsicopNode&>(mirNode).GetIntrinsic(), false);
+  return meExpr;
+}
+
+MeExpr *IRMapBuild::BuildNaryMeExprForIntrinsicWithType(BaseNode &mirNode) const {
+  auto &intrinNode = static_cast<IntrinsicopNode&>(mirNode);
+  NaryMeExpr *meExpr = new NaryMeExpr(&irMap->irMapAlloc, kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds(), intrinNode.GetTyIdx(), intrinNode.GetIntrinsic(), false);
+  return meExpr;
+}
+
 MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
   Opcode op = mirNode.GetOpCode();
   if (op == OP_dread) {
@@ -177,7 +297,9 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
     return regMeExpr;
   }
 
-  MeExpr *meExpr = irMap->meBuilder.BuildMeExpr(mirNode);
+  auto func = CreateProductFunction<MeExprBuildFactory>(mirNode.GetOpCode());
+  ASSERT(func != nullptr, "NIY BuildExpe");
+  MeExpr *meExpr = func(this, mirNode);
   SetMeExprOpnds(*meExpr, mirNode);
 
   if (op == OP_iread) {
@@ -192,12 +314,76 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
   }
 
   MeExpr *retMeExpr = irMap->HashMeExpr(*meExpr);
+  delete meExpr;
 
   if (op == OP_iread) {
     ASSERT(static_cast<IvarMeExpr*>(retMeExpr)->GetMu() != nullptr, "BuildExpr: ivar node cannot have mu == nullptr");
   }
 
   return retMeExpr;
+}
+
+void IRMapBuild::InitMeExprBuildFactory() {
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_addrof, &IRMapBuild::BuildAddrofMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_addroffunc, &IRMapBuild::BuildAddroffuncMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_gcmalloc, &IRMapBuild::BuildGCMallocMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_gcpermalloc, &IRMapBuild::BuildGCMallocMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_sizeoftype, &IRMapBuild::BuildSizeoftypeMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_fieldsdist, &IRMapBuild::BuildFieldsDistMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_iread, &IRMapBuild::BuildIvarMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_constval, &IRMapBuild::BuildConstMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_conststr, &IRMapBuild::BuildConststrMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_conststr16, &IRMapBuild::BuildConststr16MeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_eq, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_ne, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_lt, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_gt, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_le, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_ge, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_cmpg, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_cmpl, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_cmp, &IRMapBuild::BuildOpMeExprForCompare);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_ceil, &IRMapBuild::BuildOpMeExprForTypeCvt);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_cvt, &IRMapBuild::BuildOpMeExprForTypeCvt);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_floor, &IRMapBuild::BuildOpMeExprForTypeCvt);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_round, &IRMapBuild::BuildOpMeExprForTypeCvt);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_trunc, &IRMapBuild::BuildOpMeExprForTypeCvt);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_retype, &IRMapBuild::BuildOpMeExprForRetype);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_abs, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_bnot, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_lnot, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_neg, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_recip, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_sqrt, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_alloca, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_malloc, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_iaddrof, &IRMapBuild::BuildOpMeExprForIread);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_sext, &IRMapBuild::BuildOpMeExprForExtractbits);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_zext, &IRMapBuild::BuildOpMeExprForExtractbits);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_extractbits, &IRMapBuild::BuildOpMeExprForExtractbits);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_gcmallocjarray, &IRMapBuild::BuildOpMeExprForJarrayMalloc);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_gcpermallocjarray, &IRMapBuild::BuildOpMeExprForJarrayMalloc);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_resolveinterfacefunc, &IRMapBuild::BuildOpMeExprForResolveFunc);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_resolvevirtualfunc, &IRMapBuild::BuildOpMeExprForResolveFunc);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_sub, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_mul, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_div, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_rem, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_ashr, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_lshr, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_shl, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_max, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_min, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_band, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_bior, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_bxor, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_land, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_lior, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_add, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_select, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_array, &IRMapBuild::BuildNaryMeExprForArray);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_intrinsicop, &IRMapBuild::BuildNaryMeExprForIntrinsicop);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_intrinsicopwithtype, &IRMapBuild::BuildNaryMeExprForIntrinsicWithType);
 }
 
 MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
@@ -374,7 +560,7 @@ MeStmt *IRMapBuild::BuildMeStmt(StmtNode &stmt) {
   return func(this, stmt, *ssaPart);
 }
 
-bool IRMapBuild::InitMeStmtFactory() {
+void IRMapBuild::InitMeStmtFactory() {
   RegisterFactoryFunction<MeStmtFactory>(OP_dassign, &IRMapBuild::BuildDassignMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_regassign, &IRMapBuild::BuildRegassignMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_iassign, &IRMapBuild::BuildIassignMeStmt);
@@ -408,7 +594,6 @@ bool IRMapBuild::InitMeStmtFactory() {
   RegisterFactoryFunction<MeStmtFactory>(OP_throw, &IRMapBuild::BuildThrowMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_syncenter, &IRMapBuild::BuildSyncMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_syncexit, &IRMapBuild::BuildSyncMeStmt);
-  return true;
 }
 
 // recursively invoke itself in a pre-order traversal of the dominator tree of

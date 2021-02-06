@@ -153,18 +153,16 @@ void AnalyzeRC::IdentifyRCStmts() {
         // this part for inserting decref
         if (lhsRef->GetMeOp() == kMeOpVar) {
           // insert a decref statement
-          UnaryMeStmt &decrefStmt = meBuilder.BuildUnaryMeStmt(
-              OP_decref, *GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), bb, stmt.GetSrcPosition());
+          UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
+              OP_decref, GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), &bb, &stmt.GetSrcPosition());
           // insertion position is before stmt
-          bb.InsertMeStmtBefore(&stmt, &decrefStmt);
+          bb.InsertMeStmtBefore(&stmt, decrefStmt);
         } else {
           auto *lhsIvar = static_cast<IvarMeExpr*>(lhsRef);
           {
             // insert a decref statement
-            IvarMeExpr &ivarMeExpr = utils::ToRef(safe_cast<IvarMeExpr>(
-                meBuilder.CreateMeExpr(kInvalidExprID, *lhsIvar)));
-            ivarMeExpr.SetDefStmt(nullptr);
-            ivarMeExpr.SetMuVal(nullptr);
+            IvarMeExpr ivarMeExpr(-1, lhsIvar->GetPrimType(), lhsIvar->GetTyIdx(), lhsIvar->GetFieldID());
+            ivarMeExpr.SetBase(lhsIvar->GetBase());
             // form mu from chiList
             auto &iass = static_cast<IassignMeStmt&>(stmt);
             MapleMap<OStIdx, ChiMeNode*>::iterator xit = iass.GetChiList()->begin();
@@ -176,11 +174,11 @@ void AnalyzeRC::IdentifyRCStmts() {
               }
             }
             ASSERT(xit != iass.GetChiList()->end(), "IdentifyRCStmts: failed to find corresponding chi node");
-            UnaryMeStmt &decrefStmt = meBuilder.BuildUnaryMeStmt(
-                OP_decref, *irMap.HashMeExpr(ivarMeExpr), bb, stmt.GetSrcPosition());
+            UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
+                OP_decref, irMap.HashMeExpr(ivarMeExpr), &bb, &stmt.GetSrcPosition());
             // insertion position is before stmt
-            bb.InsertMeStmtBefore(&stmt, &decrefStmt);
-            ost = GetOriginalSt(*decrefStmt.GetOpnd());
+            bb.InsertMeStmtBefore(&stmt, decrefStmt);
+            ost = GetOriginalSt(*decrefStmt->GetOpnd());
             ASSERT(ost != nullptr, "IdentifyRCStmts: cannot get SymbolOriginalSt");
             (void)FindOrCreateRCItem(*ost);
           }
@@ -295,7 +293,7 @@ DassignMeStmt *AnalyzeRC::CreateDassignInit(OriginalSt &ost, BB &bb) {
 }
 
 UnaryMeStmt *AnalyzeRC::CreateIncrefZeroVersion(const OriginalSt &ost) {
-  return &meBuilder.BuildUnaryMeStmt(OP_incref, *irMap.GetOrCreateZeroVersionVarMeExpr(ost));
+  return irMap.CreateUnaryMeStmt(OP_incref, irMap.GetOrCreateZeroVersionVarMeExpr(ost));
 }
 
 void AnalyzeRC::OptimizeRC() {
