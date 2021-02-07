@@ -844,6 +844,9 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   }
 
   uint32 dataSize = GetPrimTypeBitSize(type->GetPrimType());
+  if (type->GetPrimType() == PTY_agg) {
+    dataSize = GetPrimTypeBitSize(PTY_a64);
+  }
   MemOperand *memOpnd = nullptr;
   if (parmCopy) {
     memOpnd = &LoadStructCopyBase(*symbol, offset, dataSize);
@@ -855,8 +858,12 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
     memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, dataSize);
   }
 
-  ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer)), "NYI dassign type");
+  ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer) ||
+      (type->GetKind() == kTypeStruct) || (type->GetKind() == kTypeArray)), "NYI dassign type");
   PrimType ptyp = type->GetPrimType();
+  if (ptyp == PTY_agg) {
+    ptyp = PTY_a64;
+  }
 
   AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone;
   if (isVolStore) {
@@ -1186,13 +1193,19 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
+    bool parmCopy = IsParamStructCopy(*rhsSymbol);
     for (uint32 i = 0; i < (lhsSize / alignUsed); ++i) {
       /* generate the load */
-      Operand &rhsMemOpnd = GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      Operand *rhsMemOpnd;
+      if (parmCopy) {
+        rhsMemOpnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      } else {
+        rhsMemOpnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      }
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, alignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
       GetCurBB()->AppendInsn(
-          GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32), result, rhsMemOpnd));
+          GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32), result, *rhsMemOpnd));
       /* generate the store */
       AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(lhsOffset + i * alignUsed, k32BitSize);
       Operand &lhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, alignUsed * k8BitSize,
@@ -1418,8 +1431,10 @@ Operand *AArch64CGFunc::SelectAddrof(AddrofNode &expr) {
   int32 offset = 0;
   if (expr.GetFieldID() != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-    ASSERT(structType != nullptr, "SelectAddrof: non-zero fieldID for non-structure");
-    offset = GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first;
+    // with array of structs, it is possible to have nullptr
+    if (structType) {
+      offset = GetBecommon().GetFieldOffset(*structType, expr.GetFieldID()).first;
+    }
   }
   if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
       ((expr.GetFieldID() != 0) ||
