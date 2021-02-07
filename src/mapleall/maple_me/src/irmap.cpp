@@ -110,16 +110,14 @@ VarMeExpr *IRMap::CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx) {
 }
 
 RegMeExpr *IRMap::CreateRegMeExprVersion(const OriginalSt &pregOSt) {
-  auto *regReadExpr =
-      NewInPool<RegMeExpr>(exprID++, pregOSt.GetPregIdx(), pregOSt.GetPuIdx(), pregOSt.GetIndex(), 0, pregOSt.GetMIRPreg()->GetPrimType());
-  regMeExprTable.push_back(regReadExpr);
+  auto *regReadExpr = NewInPool<RegMeExpr>(exprID++, pregOSt.GetPregIdx(), pregOSt.GetPuIdx(),
+                                           pregOSt.GetIndex(), 0, pregOSt.GetMIRPreg()->GetPrimType());
   return regReadExpr;
 }
 
 RegMeExpr *IRMap::CreateRegMeExprVersion(const RegMeExpr &origExpr) {
-  auto *regReadExpr =
-      NewInPool<RegMeExpr>(exprID++, origExpr.GetRegIdx(), origExpr.GetPuIdx(), origExpr.GetOstIdx(), 0, origExpr.GetPrimType());
-  regMeExprTable.push_back(regReadExpr);
+  auto *regReadExpr = NewInPool<RegMeExpr>(exprID++, origExpr.GetRegIdx(), origExpr.GetPuIdx(),
+                                           origExpr.GetOstIdx(), 0, origExpr.GetPrimType());
   return regReadExpr;
 }
 
@@ -136,7 +134,6 @@ RegMeExpr *IRMap::CreateRefRegMeExpr(const MIRSymbol &mirSt) {
   }
   OriginalSt *oSt = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
   auto *regreadexpr = NewInPool<RegMeExpr>(exprID++, regIdx, mirFunc->GetPuidx(), oSt->GetIndex(), 0, pType);
-  regMeExprTable.push_back(regreadexpr);
   return regreadexpr;
 }
 
@@ -146,7 +143,6 @@ RegMeExpr *IRMap::CreateRegMeExpr(PrimType pType) {
   ASSERT(regIdx <= 0xffff, "register oversized");
   OriginalSt *ost = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
   auto *regReadExpr = NewInPool<RegMeExpr>(exprID++, regIdx, mirFunc->GetPuidx(), ost->GetIndex(), 0, pType);
-  regMeExprTable.push_back(regReadExpr);
   return regReadExpr;
 }
 
@@ -155,8 +151,8 @@ RegMeExpr *IRMap::CreateRegRefMeExpr(MIRType &mirType) {
   PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(PTY_ref, &mirType);
   ASSERT(regIdx <= 0xffff, "register oversized");
   OriginalSt *ost = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
-  auto *regReadExpr = NewInPool<RegMeExpr>(exprID++, regIdx, mirFunc->GetPuidx(), ost->GetIndex(), 0, mirType.GetPrimType());
-  regMeExprTable.push_back(regReadExpr);
+  auto *regReadExpr = NewInPool<RegMeExpr>(exprID++, regIdx, mirFunc->GetPuidx(),
+                                           ost->GetIndex(), 0, mirType.GetPrimType());
   return regReadExpr;
 }
 

@@ -471,8 +471,7 @@ class RegMeExpr : public ScalarMeExpr {
   RegMeExpr(MapleAllocator *alloc, int32 exprid, PregIdx preg, PUIdx pidx, OStIdx oidx, uint32 vidx, PrimType ptyp)
       : ScalarMeExpr(exprid, oidx, vidx, kMeOpReg, OP_regread, ptyp),
         regIdx(preg),
-        puIdx(pidx),
-        phiUseSet(std::less<MePhiNode*>(), alloc->Adapter()) {}
+        puIdx(pidx) {}
 
   ~RegMeExpr() = default;
 
@@ -493,19 +492,13 @@ class RegMeExpr : public ScalarMeExpr {
     return puIdx;
   }
 
-  MapleSet<MePhiNode*> &GetPhiUseSet() {
-    return phiUseSet;
-  }
-
   bool IsNormalReg() const {
     return regIdx >= 0;
   }
 
  private:
   PregIdx16 regIdx;
-  bool recursivePtr = false;  // if pointer to recursive data structures;
   PUIdx puIdx;
-  MapleSet<MePhiNode*> phiUseSet;  // the use set of this reg node, used by preg renamer
 };
 
 class ConstMeExpr : public MeExpr {

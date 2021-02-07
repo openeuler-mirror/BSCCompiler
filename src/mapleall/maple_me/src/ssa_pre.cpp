@@ -187,7 +187,6 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
           regOpnd = irMap->CreateRegMeExprVersion(static_cast<RegMeExpr&>(*curTemp));
         }
         phiReg->GetOpnds().push_back(regOpnd);
-        (void)regOpnd->GetPhiUseSet().insert(phiReg);  // record all the uses phi node for preg renaming
       }
       (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
       if (workCand->NeedLocalRefVar() && phiOcc->GetVarPhi() != nullptr) {

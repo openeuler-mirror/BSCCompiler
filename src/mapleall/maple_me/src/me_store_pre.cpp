@@ -115,7 +115,6 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       RegMeExpr *regPhiOpnd = EnsureRHSInCurTemp(*pred);
       CHECK_NULL_FATAL(regPhiOpnd);
       regPhi->GetOpnds().push_back(regPhiOpnd);
-      (void)regPhiOpnd->GetPhiUseSet().insert(regPhi);
     }
     // insert the regPhi
     (void)bb.GetMePhiList().insert(std::make_pair(lhsReg->GetOstIdx(), regPhi));

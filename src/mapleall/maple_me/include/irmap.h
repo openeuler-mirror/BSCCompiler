@@ -34,7 +34,6 @@ class IRMap : public AnalysisResult {
         mapHashLength(hashTableSize),
         hashTable(mapHashLength, nullptr, irMapAlloc.Adapter()),
         vst2MeExprTable(ssaTab.GetVersionStTableSize(), nullptr, irMapAlloc.Adapter()),
-        regMeExprTable(irMapAlloc.Adapter()),
         lpreTmps(irMapAlloc.Adapter()),
         vst2Decrefs(irMapAlloc.Adapter()),
         meBuilder(irMapAlloc) {}
@@ -161,10 +160,6 @@ class IRMap : public AnalysisResult {
     vst2MeExprTable.push_back(item);
   }
 
-  const MapleVector<RegMeExpr*> &GetRegMeExprTable() const {
-    return regMeExprTable;
-  }
-
   MapleUnorderedMap<OStIdx, RegMeExpr*>::iterator GetLpreTmpsEnd() {
     return lpreTmps.end();
   }
@@ -217,7 +212,6 @@ class IRMap : public AnalysisResult {
   uint32 mapHashLength;                            // size of hashTable
   MapleVector<MeExpr*> hashTable;                  // the value number hash table
   MapleVector<MeExpr*> vst2MeExprTable;            // map versionst to MeExpr.
-  MapleVector<RegMeExpr*> regMeExprTable;          // record all the regmeexpr created by ssa_pre
   MapleUnorderedMap<OStIdx, RegMeExpr*> lpreTmps;  // for passing LPRE's temp usage to SPRE
   MapleUnorderedMap<VarMeExpr*, MapleSet<MeStmt*>*> vst2Decrefs;  // map versionst to decrefreset.
   bool needAnotherPass = false;                    // set to true if CFG has changed

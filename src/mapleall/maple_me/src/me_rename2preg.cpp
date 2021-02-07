@@ -352,7 +352,6 @@ class SSARename2Preg {
         return irMap.CreateRegMeExprVersion(curRegExpr);
       });
       regPhiNode.GetOpnds().push_back(&regExpr);
-      (void)regExpr.GetPhiUseSet().insert(&regPhiNode);
     }
   }
 
