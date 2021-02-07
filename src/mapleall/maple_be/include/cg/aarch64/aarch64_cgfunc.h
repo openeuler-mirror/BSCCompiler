@@ -116,6 +116,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAddrof(AddrofNode &expr) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr) override;
 
+  PrimType GetDestTypeFromAggSize(uint32 bitSize);
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr) override;
 
   Operand *SelectIntConst(MIRIntConst &intConst) override;
@@ -556,9 +557,17 @@ class AArch64CGFunc : public CGFunc {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, oty, oty));
   }
 
-  void SelectParmListDreadSmallAggregate(const MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator);
-  void SelectParmListDreadLargeAggregate(const MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
+  void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
+  void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds);
+  AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
+                                                      int32 copyOffset, AArch64reg reg);
+  void SelectParmListDreadSmallAggregate(MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator);
+  void SelectParmListIreadSmallAggregate(const BaseNode &argExpr, AArch64ListOperand &srcOpnds,
+                                         ParmLocator &parmLocator);
+  void SelectParmListDreadLargeAggregate(MIRSymbol &sym, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                          int32 &structCopyOffset);
+  void SelectParmListIreadLargeAggregate(const BaseNode &argExpr, AArch64ListOperand &srcOpnds,
+                                         ParmLocator &parmLocator, int32 &structCopyOffset);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                   int32 &structCopyOffset);
 
