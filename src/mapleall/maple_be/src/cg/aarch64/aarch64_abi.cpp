@@ -211,7 +211,7 @@ int32 ClassifyAggregate(BECommon &be, MIRType &mirType, AArch64ArgumentClass cla
   for (i = 0; i < sizeOfTyInDwords; ++i) {
     classes[i] = kAArch64NoClass;
   }
-  if ((mirType.GetKind() != kTypeStruct) && (mirType.GetKind() != kTypeArray)) {
+  if ((mirType.GetKind() != kTypeStruct) && (mirType.GetKind() != kTypeArray) && (mirType.GetKind() != kTypeUnion)) {
     return ProcessNonStructAndNonArrayWhenClassifyAggregate(mirType, classes, classesLength);
   }
   int32 subNumRegs;
