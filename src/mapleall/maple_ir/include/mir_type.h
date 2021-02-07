@@ -396,6 +396,9 @@ class GenericAttrs {
 #if MIR_FEATURE_FULL
 constexpr size_t kShiftNumOfTypeKind = 8;
 constexpr size_t kShiftNumOfNameStrIdx = 6;
+
+class MIRStructType;
+
 class MIRType {
  public:
   MIRType(MIRTypeKind kind, PrimType pType) : typeKind(kind), primType(pType) {}
@@ -458,6 +461,10 @@ class MIRType {
     return GetPrimTypeSize(primType);
   }
 
+  virtual uint32 GetAlign() const {
+    return GetPrimTypeSize(primType);
+  }
+
   virtual bool HasVolatileField() const {
     return false;
   }
@@ -515,6 +522,9 @@ class MIRType {
     constexpr uint8 idxShift = 2;
     return ((static_cast<uint32>(primType) << idxShift) + (typeKind << kShiftNumOfTypeKind)) % kTypeHashLength;
   }
+  virtual bool HasFields() const { return false; }
+  virtual size_t NumberOfFieldIDs() { return 0; } // total number of field IDs the type is consisted of, excluding its own field ID
+  virtual MIRStructType *EmbeddedStructType() { return nullptr; }  // return any struct type directly embedded in this type
 
  protected:
   MIRTypeKind typeKind;
@@ -628,15 +638,15 @@ class MIRArrayType : public MIRType {
     this->dim = dim;
   }
 
-  TypeAttrs GetTypeAttrs() const {
+  const TypeAttrs &GetTypeAttrs() const {
     return typeAttrs;
   }
 
-  TypeAttrs& GetTypeAttrs() {
+  TypeAttrs &GetTypeAttrs() {
     return typeAttrs;
   }
 
-  void SetTypeAttrs(TypeAttrs attrs) {
+  void SetTypeAttrs(const TypeAttrs &attrs) {
     typeAttrs = attrs;
   }
 
@@ -652,18 +662,8 @@ class MIRArrayType : public MIRType {
 
   void Dump(int indent, bool dontUseName) const override;
 
-  size_t GetSize() const override {
-    size_t elemSize = GetElemType()->GetSize();
-    if (elemSize == 0) {
-      return 0;
-    }
-    size_t numElems = sizeArray[0];
-    for (size_t i = 1; i < dim; ++i) {
-      CHECK_FATAL(i < kMaxArrayDim, "array index out of range");
-      numElems *= sizeArray[i];
-    }
-    return elemSize * numElems;
-  }
+  size_t GetSize() const override;
+  uint32 GetAlign() const override;
 
   size_t GetHashIndex() const override {
     constexpr uint8 idxShift = 2;
@@ -672,12 +672,16 @@ class MIRArrayType : public MIRType {
       CHECK_FATAL(i < kMaxArrayDim, "array index out of range");
       hIdx += (sizeArray[i] << i);
     }
-    hIdx += (typeAttrs.GetAttrFlag() << 3) + typeAttrs.GetAlignValue();
+    constexpr uint8 attrShift = 3;
+    hIdx += (typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue();
     return hIdx % kTypeHashLength;
   }
 
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
+  bool HasFields() const override;
+  size_t NumberOfFieldIDs() override;
+  MIRStructType *EmbeddedStructType() override;
  private:
   TyIdx eTyIdx{ 0 };
   uint16 dim = 0;
@@ -723,6 +727,10 @@ class MIRFarrayType : public MIRType {
 
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
+
+  bool HasFields() const override;
+  size_t NumberOfFieldIDs() override;
+  MIRStructType *EmbeddedStructType() override;
 
  private:
   TyIdx elemTyIdx;
@@ -988,6 +996,7 @@ class MIRStructType : public MIRType {
   bool IsLocal() const;
 
   size_t GetSize() const override;
+  uint32 GetAlign() const override;
 
   size_t GetHashIndex() const override {
     return ((static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind)) %
@@ -1080,6 +1089,10 @@ class MIRStructType : public MIRType {
   virtual void PushbackIsString(bool) {
     CHECK_FATAL(false, "can not use PushbackIsString");
   }
+
+  bool HasFields() const override { return true; }
+  size_t NumberOfFieldIDs() override;
+  MIRStructType *EmbeddedStructType() override { return this; }
 
   virtual FieldPair TraverseToFieldRef(FieldID &fieldID) const;
   std::string GetMplTypeName() const override;
@@ -1298,6 +1311,8 @@ class MIRClassType : public MIRStructType {
            kTypeHashLength;
   }
 
+  size_t NumberOfFieldIDs() override;
+
  private:
   TyIdx parentTyIdx{ 0 };
   std::vector<TyIdx> interfacesImplemented{};  // for the list of interfaces the class implements
@@ -1411,6 +1426,10 @@ class MIRInterfaceType : public MIRStructType {
     return ((static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind)) %
            kTypeHashLength;
   }
+
+  bool HasFields() const override { return false; }
+  size_t NumberOfFieldIDs() override { return 0; }
+  MIRStructType *EmbeddedStructType() override { return nullptr; }
 
  private:
   std::vector<TyIdx> parentsTyIdx{};  // multiple inheritence
