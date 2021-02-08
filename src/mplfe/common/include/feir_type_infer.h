@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_FEIR_TYPE_INFER_H
 #define MPLFE_INCLUDE_FEIR_TYPE_INFER_H
@@ -52,7 +52,7 @@ class FEIRTypeMergeHelper {
 
 class FEIRTypeInfer {
  public:
-  FEIRTypeInfer(MIRSrcLang argSrcLang, const std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>> &argMapDefUse);
+  FEIRTypeInfer(MIRSrcLang argSrcLang, const FEIRDefUseChain &argMapDefUse);
   ~FEIRTypeInfer() = default;
   void LoadTypeDefault();
   void Reset();
@@ -65,10 +65,19 @@ class FEIRTypeInfer {
   MIRSrcLang srcLang;
   UniqueFEIRType typeDefault;
   FEIRTypeMergeHelper mergeHelper;
-  const std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>> &mapDefUse;
+  const FEIRDefUseChain &mapDefUse;
   std::set<const UniqueFEIRVar*> visitVars;
   bool withCircle = false;
   bool first = false;
+};
+
+class FEIRTypeCvtHelper {
+ public:
+  static Opcode ChooseCvtOpcodeByFromTypeAndToType(const FEIRType &fromType, const FEIRType &toType);
+
+ private:
+  static bool IsRetypeable(const FEIRType &fromType, const FEIRType &toType);
+  static bool IsIntCvt2Ref(const FEIRType &fromType, const FEIRType &toType);
 };
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_FEIR_TYPE_INFER_H

@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "jbc_class.h"
 #include <sstream>
@@ -44,7 +44,7 @@ bool JBCClassElem::ParseFile(MapleAllocator &allocator, BasicIORead &io, const J
       return false;
     }
     attrs.push_back(attr);
-    attrMap.RegisterAttr(attr);
+    attrMap.RegisterAttr(*attr);
   }
   return true;
 }
@@ -82,8 +82,14 @@ SimpleXMLElem *JBCClassMethod::GenXmlElemImpl(MapleAllocator &allocator, const J
 bool JBCClassMethod::PreProcess() {
   bool success = true;
   for (JBCAttr *attr : attrs) {
-    if (attr->GetKind() == kAttrCode) {
-      success = success && attr->PreProcess(klass.GetConstPool());
+    switch (attr->GetKind()) {
+      case kAttrCode:
+      case kAttrLocalVariableTable:
+      case kAttrLocalVariableTypeTable:
+        success = success && attr->PreProcess(klass.GetConstPool());
+        break;
+      default:
+        break;
     }
   }
   return success;
@@ -91,6 +97,25 @@ bool JBCClassMethod::PreProcess() {
 
 const JBCAttrCode *JBCClassMethod::GetCode() const {
   return static_cast<const JBCAttrCode*>(attrMap.GetAttr(jbc::JBCAttrKind::kAttrCode));
+}
+
+bool JBCClassMethod::IsVirtual() const {
+  std::string classNameOrg = GetClass().GetClassNameOrin();
+  CHECK_FATAL(classNameOrg.length() > 2, "Invalid calss name: %s", classNameOrg.c_str()); // LclassName;
+  std::string className = classNameOrg.substr(1, classNameOrg.length() - 2);
+  return (accessFlag & kAccMethodFinal) == 0 && (accessFlag & kAccMethodPrivate) == 0 &&
+         (accessFlag & kAccMethodProtected) == 0 && (accessFlag & kAccMethodStatic) == 0 &&
+         GetName().compare(className) != 0 && GetName().compare("<init>") != 0 && GetName().compare("<clinit>") != 0;
+}
+
+bool JBCClassMethod::HasCode() const {
+  uint16 flag = GetAccessFlag();
+  return ((flag & kAccMethodAbstract) == 0) && ((flag & kAccMethodNative) == 0);
+}
+
+bool JBCClassMethod::IsNative() const {
+  uint16 flag = GetAccessFlag();
+  return flag & kAccMethodNative;
 }
 
 // ---------- JBCClass ----------
@@ -152,7 +177,7 @@ bool JBCClass::ParseFileForConstPool(BasicIORead &io) {
   for (uint16_t i = 1; i < header.constPoolCount && success; i += (wide ? kIdxOffWide : kIdxOff)) {
     JBCConst *objConst = JBCConst::InConst(allocator, io);
     if (objConst != nullptr) {
-      (void)constPool.InsertConst(objConst);
+      (void)constPool.InsertConst(*objConst);
       wide = objConst->IsWide();
       if (wide) {
         constPool.InsertConstDummyForWide();
@@ -200,7 +225,7 @@ bool JBCClass::ParseFileForAttrs(BasicIORead &io) {
       return false;
     }
     tbAttrs.push_back(attr);
-    attrMap.RegisterAttr(attr);
+    attrMap.RegisterAttr(*attr);
   }
   return success;
 }

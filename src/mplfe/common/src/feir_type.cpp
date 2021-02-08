@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "feir_type.h"
 #include <functional>
@@ -18,6 +18,7 @@
 #include "mpl_logging.h"
 #include "fe_manager.h"
 #include "fe_config_parallel.h"
+#include "fe_utils.h"
 
 namespace maple {
 // ---------- FEIRType ----------
@@ -69,7 +70,8 @@ MIRType *FEIRType::GenerateMIRTypeAuto(MIRSrcLang argSrcLang) const {
     CHECK_FATAL(false, "unsupported language");
     return nullptr;
   }
-  return GenerateMIRType(std::get<0>(it->second), std::get<1>(it->second));
+  PrimType pTy = GetPrimType();
+  return GenerateMIRType(std::get<0>(it->second), pTy == PTY_begin ? std::get<1>(it->second) : pTy);
 }
 
 // ---------- FEIRTypeDefault ----------
@@ -80,7 +82,16 @@ FEIRTypeDefault::FEIRTypeDefault(PrimType argPrimType)
     : FEIRTypeDefault(argPrimType, GStrIdx(0), 0) {}
 
 FEIRTypeDefault::FEIRTypeDefault(PrimType argPrimType, const GStrIdx &argTypeNameIdx)
-    : FEIRTypeDefault(argPrimType, argTypeNameIdx, 0) {}
+    : FEIRTypeDefault(argPrimType, argTypeNameIdx, 0) {
+  std::string typeName = GlobalTables::GetStrTable().GetStringFromStrIdx(argTypeNameIdx);
+  uint8 typeDim = FEUtils::GetDim(typeName);
+  if (typeDim != 0) {
+    dim = typeDim;
+    typeName = typeName.substr(dim);
+    typeNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(typeName);
+    primType = FEUtils::GetPrimType(typeNameIdx);
+  }
+}
 
 FEIRTypeDefault::FEIRTypeDefault(PrimType argPrimType, const GStrIdx &argTypeNameIdx, TypeDim argDim)
     : FEIRType(kFEIRTypeDefault),
@@ -165,7 +176,6 @@ void FEIRTypeDefault::SetPrimTypeImpl(PrimType pt) {
 }
 
 void FEIRTypeDefault::LoadFromJavaTypeName(const std::string &typeName, bool inMpl) {
-  MPLFE_PARALLEL_FORBIDDEN();
   uint32 dimLocal = 0;
   std::string baseName = FETypeManager::GetBaseTypeName(typeName, dimLocal, inMpl);
   CHECK_FATAL(dimLocal <= FEConstants::kDimMax, "invalid array type %s (dim is too big)", typeName.c_str());
@@ -392,6 +402,6 @@ PrimType FEIRTypePointer::GetPrimTypeImpl() const {
 }
 
 void FEIRTypePointer::SetPrimTypeImpl(PrimType pt) {
-  CHECK_FATAL(false, "should not run here");
+  CHECK_FATAL(false, "PrimType %d should not run here", pt);
 }
 }  // namespace maple

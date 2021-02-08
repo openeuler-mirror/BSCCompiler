@@ -46,29 +46,30 @@ class IRMapBuild {
   void BuildPhiMeNode(BB&);
   void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode);
 
-  OpMeExpr *BuildOpMeExpr(BaseNode &mirNode) const {
-    OpMeExpr *meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
+  OpMeExpr *BuildOpMeExpr(const BaseNode &mirNode) const {
+    auto meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
     return meExpr;
   }
-  MeExpr *BuildAddrofMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildAddroffuncMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildGCMallocMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildSizeoftypeMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildFieldsDistMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildIvarMeExpr(BaseNode &mirNode) const;
+
+  MeExpr *BuildAddrofMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildAddroffuncMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildGCMallocMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildSizeoftypeMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildFieldsDistMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildIvarMeExpr(const BaseNode &mirNode) const;
   MeExpr *BuildConstMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildConststrMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildConststr16MeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForCompare(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForTypeCvt(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForRetype(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForIread(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForExtractbits(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForJarrayMalloc(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForResolveFunc(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForArray(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicop(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicWithType(BaseNode &mirNode) const;
+  MeExpr *BuildConststrMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildConststr16MeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForCompare(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForRetype(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForIread(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForExtractbits(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForArray(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const;
   MeExpr *BuildExpr(BaseNode&);
   static void InitMeExprBuildFactory();
 

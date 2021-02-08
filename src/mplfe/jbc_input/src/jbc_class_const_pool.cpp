@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "jbc_class_const_pool.h"
 #include <sstream>
@@ -24,10 +24,9 @@ JBCConstPool::JBCConstPool(MapleAllocator &alloc)
   pool.push_back(nullptr);
 }
 
-uint16 JBCConstPool::InsertConst(JBCConst *objConst) {
-  CHECK_NULL_FATAL(objConst);
+uint16 JBCConstPool::InsertConst(JBCConst &objConst) {
   size_t ans = pool.size();
-  pool.push_back(objConst);
+  pool.push_back(&objConst);
   CHECK_FATAL(ans < 0xFFFF, "const pool is full");
   return static_cast<uint16>(ans);
 }
@@ -142,7 +141,7 @@ JBCConstUTF8 *JBCConstPool::NewConstUTF8(uint16 &idx, const std::string &str) {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConstUTF8 *constItem = mp->New<JBCConstUTF8>(allocator, kConstUTF8, str);
-  idx = InsertConst(constItem);
+  idx = InsertConst(*constItem);
   return constItem;
 }
 
@@ -150,7 +149,7 @@ JBCConst4Byte *JBCConstPool::NewConst4Byte(uint16 &idx, int32 value) {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConst4Byte *constItem = mp->New<JBCConst4Byte>(allocator, kConstInteger, value);
-  idx = InsertConst(constItem);
+  idx = InsertConst(*constItem);
   return constItem;
 }
 
@@ -158,7 +157,7 @@ JBCConst4Byte *JBCConstPool::NewConst4Byte(uint16 &idx, float value) {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConst4Byte *constItem = mp->New<JBCConst4Byte>(allocator, kConstFloat, value);
-  idx = InsertConst(constItem);
+  idx = InsertConst(*constItem);
   return constItem;
 }
 
@@ -166,7 +165,7 @@ JBCConst8Byte *JBCConstPool::NewConst8Byte(uint16 &idx, int64 value) {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConst8Byte *constItem = mp->New<JBCConst8Byte>(allocator, kConstLong, value);
-  idx = InsertConst(constItem);
+  idx = InsertConst(*constItem);
   return constItem;
 }
 
@@ -174,7 +173,7 @@ JBCConst8Byte *JBCConstPool::NewConst8Byte(uint16 &idx, double value) {
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConst8Byte *constItem = mp->New<JBCConst8Byte>(allocator, kConstDouble, value);
-  idx = InsertConst(constItem);
+  idx = InsertConst(*constItem);
   return constItem;
 }
 
@@ -183,11 +182,11 @@ JBCConstClass *JBCConstPool::NewConstClass(uint16 &idx, const std::string &class
   ASSERT(mp != nullptr, "mempool is nullptr");
   std::string classNameInternal = JBCConst::FullNameToInternalName(className);
   JBCConstUTF8 *constUTF8 = mp->New<JBCConstUTF8>(allocator, kConstUTF8, classNameInternal);
-  uint16 idxTmp = InsertConst(constUTF8);
+  uint16 idxTmp = InsertConst(*constUTF8);
   CHECK_FATAL(idxTmp != UINT16_MAX, "constpool insert failed");
   JBCConstClass *constClass = mp->New<JBCConstClass>(allocator, kConstClass, idxTmp);
   CHECK_FATAL(constClass->PreProcess(*this), "New ConstClass failed");
-  idx = InsertConst(constClass);
+  idx = InsertConst(*constClass);
   return constClass;
 }
 
@@ -195,11 +194,11 @@ JBCConstString *JBCConstPool::NewConstString(uint16 &idx, const std::string &str
   MemPool *mp = allocator.GetMemPool();
   ASSERT(mp != nullptr, "mempool is nullptr");
   JBCConstUTF8 *constUTF8 = mp->New<JBCConstUTF8>(allocator, kConstUTF8, str);
-  uint16 idxTmp = InsertConst(constUTF8);
+  uint16 idxTmp = InsertConst(*constUTF8);
   CHECK_FATAL(idxTmp != UINT16_MAX, "constpool insert failed");
   JBCConstString *constString = mp->New<JBCConstString>(allocator, kConstString, idxTmp);
   CHECK_FATAL(constString->PreProcess(*this), "New ConstClass failed");
-  idx = InsertConst(constString);
+  idx = InsertConst(*constString);
   return constString;
 }
 
@@ -217,7 +216,7 @@ JBCConstRef *JBCConstPool::NewConstRef(uint16 &idx, JBCConstTag tag, const std::
   CHECK_NULL_FATAL(constNameAndType);
   JBCConstRef *constRef = mp->New<JBCConstRef>(allocator, tag, idxConstClass, idxConstNameAndType);
   CHECK_FATAL(constRef->PreProcess(*this), "New ConstClass failed");
-  idx = InsertConst(constRef);
+  idx = InsertConst(*constRef);
   return constRef;
 }
 
@@ -235,7 +234,7 @@ JBCConstNameAndType *JBCConstPool::NewConstNameAndType(uint16 &idx, const std::s
   JBCConstNameAndType *constNameAndType = mp->New<JBCConstNameAndType>(allocator, kConstNameAndType, idxConstName,
                                                                        idxConstDesc);
   CHECK_FATAL(constNameAndType->PreProcess(*this), "New ConstClass failed");
-  idx = InsertConst(constNameAndType);
+  idx = InsertConst(*constNameAndType);
   return constNameAndType;
 }
 }  // namespace jbc

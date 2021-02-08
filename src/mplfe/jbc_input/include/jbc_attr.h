@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -73,7 +73,7 @@ class JBCAttrMap {
  public:
   explicit JBCAttrMap(MapleAllocator &allocatorIn);
   ~JBCAttrMap() = default;
-  void RegisterAttr(JBCAttr *attr);
+  void RegisterAttr(JBCAttr &attr);
   std::list<JBCAttr*> GetAttrs(JBCAttrKind kind) const;
   const JBCAttr *GetAttr(JBCAttrKind kind) const;
   bool PreProcess(const JBCConstPool &constPool);

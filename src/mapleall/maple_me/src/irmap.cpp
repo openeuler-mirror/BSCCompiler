@@ -265,17 +265,21 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         resultExpr = New<ConstMeExpr>(exprID, static_cast<ConstMeExpr&>(meExpr).GetConstVal(), meExpr.GetPrimType());
         break;
       case kMeOpConststr:
-        resultExpr = New<ConststrMeExpr>(exprID, static_cast<ConststrMeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
+        resultExpr =
+            New<ConststrMeExpr>(exprID, static_cast<ConststrMeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
         break;
       case kMeOpConststr16:
-        resultExpr = New<Conststr16MeExpr>(exprID, static_cast<Conststr16MeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
+        resultExpr =
+            New<Conststr16MeExpr>(exprID, static_cast<Conststr16MeExpr&>(meExpr).GetStrIdx(), meExpr.GetPrimType());
         break;
       case kMeOpSizeoftype:
-        resultExpr = New<SizeoftypeMeExpr>(exprID, meExpr.GetPrimType(), static_cast<SizeoftypeMeExpr&>(meExpr).GetTyIdx());
+        resultExpr =
+            New<SizeoftypeMeExpr>(exprID, meExpr.GetPrimType(), static_cast<SizeoftypeMeExpr&>(meExpr).GetTyIdx());
         break;
       case kMeOpFieldsDist: {
         auto &expr = static_cast<FieldsDistMeExpr&>(meExpr);
-        resultExpr = New<FieldsDistMeExpr>(exprID, meExpr.GetPrimType(), expr.GetTyIdx(), expr.GetFieldID1(), expr.GetFieldID2());
+        resultExpr = New<FieldsDistMeExpr>(exprID, meExpr.GetPrimType(), expr.GetTyIdx(),
+                                           expr.GetFieldID1(), expr.GetFieldID2());
         break;
       }
       case kMeOpAddrof:
@@ -289,12 +293,13 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         resultExpr = New<AddroffuncMeExpr>(exprID, static_cast<AddroffuncMeExpr&>(meExpr).GetPuIdx());
         break;
       case kMeOpGcmalloc:
-        resultExpr = New<GcmallocMeExpr>(exprID, meExpr.GetOp(), meExpr.GetPrimType(), static_cast<GcmallocMeExpr&>(meExpr).GetTyIdx());
+        resultExpr = New<GcmallocMeExpr>(exprID, meExpr.GetOp(), meExpr.GetPrimType(),
+                                         static_cast<GcmallocMeExpr&>(meExpr).GetTyIdx());
         break;
       default:
         CHECK_FATAL(false, "not yet implement");
     }
-    exprID++;
+    ++exprID;
     if (meExpr.GetMeOp() == kMeOpOp || meExpr.GetMeOp() == kMeOpNary) {
       resultExpr->UpdateDepth();
     }

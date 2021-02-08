@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -27,6 +27,7 @@ JBCFunction::JBCFunction(const JBCClassMethod2FEHelper &argMethodHelper, MIRFunc
       methodHelper(argMethodHelper),
       method(methodHelper.GetMethod()),
       context(method.GetConstPool(), stack2feHelper, method.GetCode()) {
+  srcLang = MIRSrcLang::kSrcLangJava;
 }
 
 JBCFunction::~JBCFunction() {
@@ -43,9 +44,12 @@ void JBCFunction::InitImpl() {
 void JBCFunction::PreProcessImpl() {
 }
 
-void JBCFunction::ProcessImpl() {
+bool JBCFunction::ProcessImpl() {
   FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "JBCFunction::Process() for %s", method.GetFullName().c_str());
   bool success = true;
+  if (!methodHelper.HasCode()) {
+    return success;  // Skip abstract and native method, not emit it to mpl but mplts.
+  }
   success = success && GenerateGeneralStmt("create general stmt");
   success = success && BuildGeneralBB("build general bb");
   success = success && BuildGeneralCFG("build general cfg");
@@ -65,6 +69,7 @@ void JBCFunction::ProcessImpl() {
     error = true;
     ERR(kLncErr, "JBCFunction::Process() failed for %s", method.GetFullName().c_str());
   }
+  return success;
 }
 
 void JBCFunction::FinishImpl() {
@@ -85,8 +90,10 @@ void JBCFunction::FinishImpl() {
     DumpGeneralCFGGraph();
   }
   (void)UpdateFormal("finish/update formal");
-  (void)EmitToMIR("finish/emit to mir");
-  (void)ReleaseGenStmts("finish/release memory");
+  // Not gen func body for abstract method
+  if (methodHelper.HasCode() || methodHelper.IsNative()) {
+    (void)EmitToMIR("finish/emit to mir");
+  }
   bool recordTime = FEOptions::GetInstance().IsDumpPhaseTime() || FEOptions::GetInstance().IsDumpPhaseTimeDetail();
   if (phaseResultTotal != nullptr && recordTime) {
     phaseResultTotal->Combine(phaseResult);
@@ -260,8 +267,8 @@ bool JBCFunction::BuildGeneralCFG(const std::string &phaseName) {
     GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
     const JBCStmt *stmtHead = static_cast<const JBCStmt*>(bb->GetStmtNoAuxHead());
     if (stmtHead != nullptr && stmtHead->GetKind() == JBCStmtKind::kJBCStmtPesudoCatch) {
-      bb->AddPredBB(pesudoBBCatchPred);
-      pesudoBBCatchPred->AddSuccBB(bb);
+      bb->AddPredBB(*pesudoBBCatchPred);
+      pesudoBBCatchPred->AddSuccBB(*bb);
     }
     nodeBB = nodeBB->GetNext();
   }
@@ -381,6 +388,7 @@ bool JBCFunction::BuildStmtFromInstruction(const jbc::JBCAttrCode &code) {
         stmt = RegisterGeneralStmt(std::make_unique<JBCStmtInst>(*op));
         break;
     }
+    stmt->SetThrowable(op->IsThrowable());
     static_cast<JBCStmt*>(stmt)->SetPC(pc);
     genStmtTail->InsertBefore(stmt);
     context.UpdateMapPCStmtInst(pc, stmt);
@@ -395,7 +403,7 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForBranch(const jbc::JBCOp &op
   GeneralStmt *stmt = uniStmt.get();
   const jbc::JBCOpBranch &opBranch = static_cast<const jbc::JBCOpBranch&>(op);
   GeneralStmt *target = BuildAndUpdateLabel(opBranch.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
@@ -406,7 +414,7 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForGoto(const jbc::JBCOp &op) 
   stmt->SetFallThru(false);
   const jbc::JBCOpGoto &opGoto = static_cast<const jbc::JBCOpGoto&>(op);
   GeneralStmt *target = BuildAndUpdateLabel(opGoto.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
@@ -418,10 +426,10 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op
   const jbc::JBCOpSwitch &opSwitch = static_cast<const jbc::JBCOpSwitch&>(op);
   for (const std::pair<const int32, uint32> &targetInfo : opSwitch.GetTargets()) {
     GeneralStmt *target = BuildAndUpdateLabel(targetInfo.second, uniStmt);
-    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   }
   GeneralStmt *target = BuildAndUpdateLabel(opSwitch.GetDefaultTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
@@ -432,7 +440,7 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForJsr(const jbc::JBCOp &op) {
   stmt->SetFallThru(false);
   const jbc::JBCOpJsr &opJsr = static_cast<const jbc::JBCOpJsr&>(op);
   GeneralStmt *target = BuildAndUpdateLabel(opJsr.GetTarget(), uniStmt);
-  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+  static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
@@ -451,7 +459,7 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForRet(const jbc::JBCOp &op) {
   for (auto itTarget : itJsrInfo->second) {
     uint32 pc = itTarget.second;
     GeneralStmt *target = BuildAndUpdateLabel(pc, uniStmt);
-    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(target);
+    static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   }
   return stmt;
 }
@@ -500,7 +508,7 @@ void JBCFunction::BuildStmtForTry(const jbc::JBCAttrCode &code) {
     for (uint32 handlerPC : it->second) {
       auto itHandler = mapPCCatchStmt.find(handlerPC);
       CHECK_FATAL(itHandler != mapPCCatchStmt.end(), "catch stmt not exist");
-      stmtTry->AddCatchStmt(itHandler->second);
+      stmtTry->AddCatchStmt(*(itHandler->second));
     }
     context.UpdateMapPCTryStmt(startEnd.first, stmtTry);
     // EndTry
@@ -655,7 +663,7 @@ GeneralStmt *JBCFunction::BuildAndUpdateLabel(uint32 dstPC, const std::unique_pt
     stmtLabel = it->second;
   }
   ASSERT(stmtLabel != nullptr, "null ptr check");
-  stmtLabel->AddPred(srcStmt.get());
+  stmtLabel->AddPred(*srcStmt);
   return stmtLabel;
 }
 

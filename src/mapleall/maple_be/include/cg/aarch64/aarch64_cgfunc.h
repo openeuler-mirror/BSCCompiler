@@ -95,6 +95,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIassign(IassignNode &stmt) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
   void SelectReturn(Operand *opnd0) override;
+  void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &opnd0, Operand &opnd1,
                       PrimType primType);
@@ -115,8 +116,10 @@ class AArch64CGFunc : public CGFunc {
   void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd);
   Operand *SelectAddrof(AddrofNode &expr) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr) override;
+  Operand &SelectAddrofLabel(AddroflabelNode &expr) override;
 
-  PrimType GetDestTypeFromAggSize(uint32 bitSize);
+  PrimType GetDestTypeFromAggSize(uint32 bitSize) const;
+
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr) override;
 
   Operand *SelectIntConst(MIRIntConst &intConst) override;
@@ -600,7 +603,7 @@ class AArch64CGFunc : public CGFunc {
   bool GenerateCompareWithZeroInstruction(Opcode jmpOp, Opcode cmpOp, bool is64Bits,
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
-  void SelectCVaStart(IntrinsiccallNode &intrnNode);
+  void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectMPLClinitCheck(IntrinsiccallNode&);
   void SelectMPLProfCounterInc(IntrinsiccallNode &intrnNode);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */

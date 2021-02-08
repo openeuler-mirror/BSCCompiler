@@ -17,9 +17,16 @@ if (COV_CHECK == 1) {
   cflags = [ "-DENABLE_COV_CHECK=1" ]
 }
 
+cflags += [
+  "-DMIR_FEATURE_FULL=1",
+  "-DMPLFE_FULL_INFO_DUMP=1",
+]
+
 include_directories = [
   "${MPLFE_ROOT}/common/include",
   "${MPLFE_ROOT}/jbc_input/include",
+  "${MPLFE_ROOT}/bc_input/include",
+  "${MPLFE_ROOT}/dex_input/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_util/include",
@@ -90,6 +97,8 @@ executable("mplfe") {
   deps = [
     ":lib_mplfe_input",
     ":lib_mplfe_jbc_input",
+    ":lib_mplfe_bc_input",
+    ":lib_mplfe_dex_input",
     ":lib_mplfe_util",
     "${MAPLE_ROOT}/third_party/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
@@ -132,5 +141,96 @@ static_library("lib_mplfe_jbc_input") {
     "${MPLFE_ROOT}/jbc_input/src/jbc_util.cpp",
   ]
   include_dirs = include_jbc_input_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+include_bc_input_directories = [
+  "${MPLFE_ROOT}/common/include",
+  "${MPLFE_ROOT}/bc_input/include",
+  "${MPLFE_ROOT}/dex_input/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+]
+
+static_library("lib_mplfe_bc_input") {
+  sources = [
+    "${MPLFE_ROOT}/bc_input/src/bc_io.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_parser_base.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_class.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_function.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_util.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_instruction.cpp",
+    "${MPLFE_ROOT}/bc_input/src/ark_annotation_map.cpp",
+    "${MPLFE_ROOT}/bc_input/src/ark_annotation_processor.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_pragma.cpp",
+  ]
+  include_dirs = include_bc_input_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+include_dex_input_directories = [
+  "${MPLFE_ROOT}/common/include",
+  "${MPLFE_ROOT}/bc_input/include",
+  "${MPLFE_ROOT}/dex_input/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+]
+
+static_library("lib_mplfe_dex_input") {
+  sources = [
+    "${MPLFE_ROOT}/dex_input/src/dex_class.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_file_util.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_op.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_strfac.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_pragma.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_encode_value.cpp",
+    "${MPLFE_ROOT}/dex_input/src/class_loader_context.cpp",
+    "${MPLFE_ROOT}/dex_input/src/class_linker.cpp",
+  ]
+
+  # for libdexfile
+  include_dirs_dex = [
+    "${ANDROID_ROOT}/system/core/include",
+  ]
+  include_dirs_libdexfile = [
+    #for libdexfile -start
+    "${ANDROID_ROOT}/system/core/liblog/include",
+    "${ANDROID_ROOT}/system/core/libutils/include",
+    "${ANDROID_ROOT}/system/core/base/include",
+    "${ANDROID_ROOT}/system/core/libziparchive/include",
+    "${ANDROID_ROOT}/art/libartpalette/include",
+    "${ANDROID_ROOT}/art/libartbase",
+    "${ANDROID_ROOT}/art/libdexfile",
+    "${ANDROID_ROOT}/include",
+    "${THIRD_PARTY_ROOT}/libnativehelper/include_jni",
+    #for libdexfile -end
+  ]
+
+  sources += [
+    "${MPLFE_ROOT}/dex_input/src/dex_parser.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_reader.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dexfile_interface.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dexfile_factory.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dexfile_libdexfile.cpp",
+  ]
+  deps_libdexfile = [
+    "${ANDROID_ROOT}/art/libdexfile:libdexfile",
+    "${ANDROID_ROOT}/system/core/libziparchive:libziparchive",
+    "${ANDROID_ROOT}/system/core/base:libbase",
+  ]
+  lib_dex = [
+    "${ANDROID_ROOT}/out/soong/.intermediates/system/core/liblog/liblog/linux_glibc_x86_64_static/liblog.a",
+  ]
+  deps = deps_libdexfile
+  libs = lib_dex
+  include_dirs = include_dex_input_directories + include_dirs_libdexfile + include_dirs_dex
   output_dir = "${root_out_dir}/ar"
 }

@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_FEIR_TYPE_H
 #define MPLFE_INCLUDE_FEIR_TYPE_H
@@ -36,7 +36,11 @@ class FEIRType {
   virtual ~FEIRType() = default;
   static std::unique_ptr<FEIRType> NewType(FEIRTypeKind argKind = kFEIRTypeDefault);
   static std::map<MIRSrcLang, std::tuple<bool, PrimType>> InitLangConfig();
-  MIRType *GenerateMIRTypeAuto(MIRSrcLang srcLang) const;
+  MIRType *GenerateMIRTypeAuto(MIRSrcLang argSrcLang) const;
+  MIRType *GenerateMIRTypeAuto() const {
+    return GenerateMIRTypeAuto(srcLang);
+  }
+
   bool IsSameKind(const FEIRType &type) const {
     return kind == type.kind;
   }
@@ -51,6 +55,10 @@ class FEIRType {
 
   void SetPrimType(PrimType pt) {
     SetPrimTypeImpl(pt);
+  }
+
+  MIRSrcLang GetSrcLang() const {
+    return srcLang;
   }
 
   bool IsZero() const {
@@ -69,7 +77,7 @@ class FEIRType {
     return CloneImpl();
   }
 
-  MIRType *GenerateMIRType(MIRSrcLang srcLang, bool usePtr) const {
+  MIRType *GenerateMIRType(MIRSrcLang argSrcLang, bool usePtr) const {
     return GenerateMIRType(usePtr);
   }
 
@@ -125,6 +133,10 @@ class FEIRType {
     return HashImpl();
   }
 
+  std::string GetTypeName() const {
+    return GetTypeNameImpl();
+  }
+
   static std::map<MIRSrcLang, std::tuple<bool, PrimType>> langConfig;
 
  protected:
@@ -137,15 +149,22 @@ class FEIRType {
   virtual bool IsEqualToImpl(const std::unique_ptr<FEIRType> &argType) const;
   virtual bool IsEqualToImpl(const FEIRType &argType) const;
   virtual size_t HashImpl() const = 0;
-  virtual PrimType GetPrimTypeImpl() const = 0;
+  virtual PrimType GetPrimTypeImpl() const {
+    return PTY_begin;  // Means no valid primtype
+  }
+
   virtual void SetPrimTypeImpl(PrimType pt) = 0;
   virtual bool IsRefImpl() const = 0;
   virtual bool IsArrayImpl() const = 0;
   virtual bool IsPreciseImpl() const = 0;
   virtual bool IsValidImpl() const = 0;
+  virtual std::string GetTypeNameImpl() const {
+    return "";
+  }
 
   FEIRTypeKind kind : 7;
   bool isZero : 1;
+  MIRSrcLang srcLang : 8;
 };  // class FEIRType
 
 using UniqueFEIRType = std::unique_ptr<FEIRType>;
@@ -204,6 +223,7 @@ class FEIRTypeDefault : public FEIRType {
   void SetPrimTypeImpl(PrimType pt) override;
   MIRType *GenerateMIRTypeInternal(const GStrIdx &argTypeNameIdx, bool usePtr) const;
   MIRType *GenerateMIRTypeInternal(const GStrIdx &argTypeNameIdx, bool usePtr, PrimType ptyPtr) const;
+  std::string GetTypeNameImpl() const override;
 
   bool IsRefImpl() const override {
     return dim > 0 || !IsScalarPrimType(primType);
@@ -283,7 +303,7 @@ class FEIRTypePointer : public FEIRType {
   virtual PrimType GetPrimTypeImpl() const override;
   virtual void SetPrimTypeImpl(PrimType pt) override;
   virtual bool IsRefImpl() const override {
-    return baseType->IsRef();
+    return true;  // pointer type is ref
   }
 
   virtual bool IsArrayImpl() const override {

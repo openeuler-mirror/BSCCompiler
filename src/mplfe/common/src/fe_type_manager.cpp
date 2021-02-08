@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,6 +21,7 @@
 #include "fe_timer.h"
 #include "fe_config_parallel.h"
 #include "feir_type_helper.h"
+#include "fe_macros.h"
 
 namespace maple {
 const UniqueFEIRType FETypeManager::kPrimFEIRTypeUnknown = std::make_unique<FEIRTypeDefault>(PTY_unknown);
@@ -49,15 +50,36 @@ FETypeManager::FETypeManager(MIRModule &moduleIn)
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaObject.get())->LoadFromJavaTypeName("Ljava/lang/Object;", false);
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaClass.get())->LoadFromJavaTypeName("Ljava/lang/Class;", false);
   static_cast<FEIRTypeDefault*>(kFEIRTypeJavaString.get())->LoadFromJavaTypeName("Ljava/lang/String;", false);
+  sameNamePolicy.SetFlag(FETypeSameNamePolicy::kFlagUseLastest);
 }
 
 FETypeManager::~FETypeManager() {
   mp = nullptr;
   funcMCCGetOrInsertLiteral = nullptr;
+
+  funcMCCStaticFieldGetBool = nullptr;
+  funcMCCStaticFieldGetByte = nullptr;
+  funcMCCStaticFieldGetShort = nullptr;
+  funcMCCStaticFieldGetChar = nullptr;
+  funcMCCStaticFieldGetInt = nullptr;
+  funcMCCStaticFieldGetLong = nullptr;
+  funcMCCStaticFieldGetFloat = nullptr;
+  funcMCCStaticFieldGetDouble = nullptr;
+  funcMCCStaticFieldGetObject = nullptr;
+
+  funcMCCStaticFieldSetBool = nullptr;
+  funcMCCStaticFieldSetByte = nullptr;
+  funcMCCStaticFieldSetShort = nullptr;
+  funcMCCStaticFieldSetChar = nullptr;
+  funcMCCStaticFieldSetInt = nullptr;
+  funcMCCStaticFieldSetLong = nullptr;
+  funcMCCStaticFieldSetFloat = nullptr;
+  funcMCCStaticFieldSetDouble = nullptr;
+  funcMCCStaticFieldSetObject = nullptr;
 }
 
 void FETypeManager::ReleaseMemPool() {
-  memPoolCtrler.DeleteMemPool(mp);
+  delete mp;
   mp = nullptr;
 }
 
@@ -114,6 +136,16 @@ void FETypeManager::UpdateStructNameTypeMapFromTypeTable(const std::string &mplt
         // type is not existed
         structNameSrcMap[structType->GetNameStrIdx()] = mpltNameIdx;
       }
+    }
+  }
+}
+
+void FETypeManager::SetMirImportedTypes(FETypeFlag flag) {
+  for (auto &item : structNameTypeMap) {
+    MIRStructType *type = item.second.first;
+    if ((type != nullptr) && FETypeManager::IsStructType(*type)) {
+      type->SetIsImported(true);
+      item.second.second = flag;
     }
   }
 }
@@ -192,20 +224,56 @@ MIRStructType *FETypeManager::CreateClassOrInterfaceType(const GStrIdx &nameIdx,
 MIRStructType *FETypeManager::GetOrCreateClassOrInterfaceType(const GStrIdx &nameIdx, bool isInterface,
                                                               FETypeFlag typeFlag, bool &isCreate) {
   // same name policy: mpltSys > dex > mpltApk > mplt
-  auto it = structNameTypeMap.find(nameIdx);
+  const std::unordered_map<GStrIdx, FEStructTypePair, GStrIdxHash>::iterator &it  = structNameTypeMap.find(nameIdx);
   if (it != structNameTypeMap.end()) {
-    // type is existed
     uint16 flagExist = it->second.second & FETypeFlag::kSrcMask;
     uint16 flagNew = typeFlag & FETypeFlag::kSrcMask;
+    // type is existed, use existed type
     if (flagNew > flagExist) {
       isCreate = false;
       return it->second.first;
+    }
+    // type is existed when src input, replace with new type
+    if (typeFlag == FETypeFlag::kSrcInput && it->second.second != FETypeFlag::kSrcMpltApk) {
+      UpdateDupTypes(nameIdx, isInterface, it);
     }
   }
   MIRStructType *structType = CreateClassOrInterfaceType(nameIdx, isInterface, typeFlag);
   isCreate = true;
   CHECK_NULL_FATAL(structType);
   return structType;
+}
+
+void FETypeManager::UpdateDupTypes(const GStrIdx &nameIdx, bool isInterface,
+    const std::unordered_map<GStrIdx, FEStructTypePair, GStrIdxHash>::iterator &importedTypeIt) {
+  FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "duplicated type %s from src",
+                GlobalTables::GetStrTable().GetStringFromStrIdx(nameIdx).c_str());
+  MIRStructType *importedType = importedTypeIt->second.first;
+  MIRStructType *newType = nullptr;
+  // If locally defined type and imported type have the same name, but one is of interface and another one
+  // is of class type, we need to update the type
+  if ((importedType->IsMIRClassType() && isInterface) ||
+      (importedType->IsMIRInterfaceType() && !isInterface)) {
+    if (isInterface) {
+      newType = new MIRInterfaceType(kTypeInterfaceIncomplete);
+    } else {
+      newType = new MIRClassType(kTypeClassIncomplete);
+    }
+    newType->SetTypeIndex(importedType->GetTypeIndex());
+    importedType->SetTypeIndex(TyIdx(-1));
+    newType->SetNameStrIdx(importedType->GetNameStrIdx());
+    importedType->SetNameStrIdxItem(0);
+    CHECK_FATAL(newType->GetTypeIndex() < GlobalTables::GetTypeTable().GetTypeTable().size(),
+                "newType->_ty_idx >= GlobalTables::GetTypeTable().type_table_.size()");
+    GlobalTables::GetTypeTable().GetTypeTable()[newType->GetTypeIndex()] = newType;
+  } else {
+    importedType->ClearContents();
+  }
+  (void)structNameTypeMap.erase(importedTypeIt);
+  auto it = structNameSrcMap.find(nameIdx);
+  if (it != structNameSrcMap.end()) {
+    (void)structNameSrcMap.erase(it);
+  }
 }
 
 MIRType *FETypeManager::GetOrCreateClassOrInterfacePtrType(const GStrIdx &nameIdx, bool isInterface,
@@ -230,6 +298,14 @@ MIRStructType *FETypeManager::GetStructTypeFromName(const GStrIdx &nameIdx) {
   }
 }
 
+uint32 FETypeManager::GetTypeIDFromMplClassName(const std::string &mplClassName) const {
+  auto const &it = classNameTypeIDMap.find(mplClassName);
+  if (it != classNameTypeIDMap.end()) {
+    return it->second;
+  }
+  return UINT32_MAX; // some type id not in the dex file, give UINT32_MAX
+}
+
 MIRType *FETypeManager::GetOrCreateTypeFromName(const std::string &name, FETypeFlag typeFlag, bool usePtr) {
   CHECK_FATAL(!name.empty(), "type name is empty");
   PrimType pty = GetPrimType(name);
@@ -249,7 +325,7 @@ MIRType *FETypeManager::GetOrCreateTypeFromName(const std::string &name, FETypeF
     case 'A': {
       uint32 dim = 0;
       bool isCreate = false;
-      std::string elemTypeName = GetBaseTypeName(name, dim, true);
+      const std::string &elemTypeName = GetBaseTypeName(name, dim, true);
       MIRType *elemType = GetMIRTypeForPrim(elemTypeName);
       if (elemType == nullptr) {
         elemType = GetOrCreateClassOrInterfaceType(elemTypeName, false, typeFlag, isCreate);
@@ -306,30 +382,28 @@ void FETypeManager::AddClassToModule(const MIRStructType &structType) {
   module.AddClass(structType.GetTypeIndex());
 }
 
-FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang,
-                                                         bool isStatic) {
-  FEStructElemInfo *ptrInfo = GetStructElemInfo(fullNameIdx);
+FEStructElemInfo *FETypeManager::RegisterStructFieldInfo(
+    const StructElemNameIdx &structElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
+  std::lock_guard<std::mutex> lk(feTypeManagerMtx);
+  FEStructElemInfo *ptrInfo = GetStructElemInfo(structElemNameIdx.full);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  UniqueFEStructElemInfo info = std::make_unique<FEStructFieldInfo>(fullNameIdx, argSrcLang, isStatic);
-  ptrInfo = info.get();
-  listStructElemInfo.push_back(std::move(info));
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(fullNameIdx, ptrInfo)).second == true,
+  ptrInfo = mp->New<FEStructFieldInfo>(structElemNameIdx, argSrcLang, isStatic);
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second == true,
               "register struct elem info failed");
   return ptrInfo;
 }
 
-FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang argSrcLang,
-                                                          bool isStatic) {
-  FEStructElemInfo *ptrInfo = GetStructElemInfo(fullNameIdx);
+FEStructElemInfo *FETypeManager::RegisterStructMethodInfo(
+    const StructElemNameIdx &structElemNameIdx, MIRSrcLang argSrcLang, bool isStatic) {
+  std::lock_guard<std::mutex> lk(feTypeManagerMtx);
+  FEStructElemInfo *ptrInfo = GetStructElemInfo(structElemNameIdx.full);
   if (ptrInfo != nullptr) {
     return ptrInfo;
   }
-  UniqueFEStructElemInfo info = std::make_unique<FEStructMethodInfo>(fullNameIdx, argSrcLang, isStatic);
-  ptrInfo = info.get();
-  listStructElemInfo.push_back(std::move(info));
-  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(fullNameIdx, ptrInfo)).second == true,
+  ptrInfo = mp->New<FEStructMethodInfo>(structElemNameIdx, argSrcLang, isStatic);
+  CHECK_FATAL(mapStructElemInfo.insert(std::make_pair(structElemNameIdx.full, ptrInfo)).second == true,
               "register struct elem info failed");
   return ptrInfo;
 }
@@ -373,6 +447,7 @@ MIRFunction *FETypeManager::CreateFunction(const GStrIdx &nameIdx, const TyIdx &
   funcSymbol->SetNameStrIdx(nameIdx);
   bool added = GlobalTables::GetGsymTable().AddToStringSymbolMap(*funcSymbol);
   if (!added) {
+    funcSymbol = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameIdx);
     mirFunc = funcSymbol->GetFunction();
     if (mirFunc != nullptr) {
       return mirFunc;
@@ -402,6 +477,7 @@ MIRFunction *FETypeManager::CreateFunction(const GStrIdx &nameIdx, const TyIdx &
   mirFunc->SetMIRFuncType(functype);
   mirFunc->SetReturnTyIdx(retTypeIdx);
   if (isStatic) {
+    mirFunc->SetAttr(FUNCATTR_static);
     CHECK_FATAL(nameStaticFuncMap.insert(std::make_pair(nameIdx, mirFunc)).second, "nameStaticFuncMap insert failed");
   } else {
     CHECK_FATAL(nameFuncMap.insert(std::make_pair(nameIdx, mirFunc)).second, "nameFuncMap insert failed");
@@ -484,12 +560,15 @@ bool FETypeManager::IsStructType(const MIRType &type) {
 
 PrimType FETypeManager::GetPrimType(const std::string &name) {
 #define LOAD_ALGO_PRIMARY_TYPE
-#define PRIMTYPE(P)            \
-  if (name.compare(#P) == 0) { \
-    return PTY_##P;            \
-  }
+#define PRIMTYPE(P)
+  static std::unordered_map<std::string, PrimType> typeMap = {
 #include "prim_types.def"
+  };
 #undef PRIMTYPE
+  auto it = typeMap.find(name);
+  if (it != typeMap.end()) {
+    return it->second;
+  }
   return kPtyInvalid;
 }
 
@@ -558,8 +637,22 @@ std::string FETypeManager::TypeAttrsToString(const TypeAttrs &attrs) {
   return ss.str();
 }
 
+void FETypeManager::MarkExternStructType() {
+  for (auto elem : structNameTypeMap) {
+    if (elem.second.second != FETypeFlag::kSrcInput &&
+        elem.second.second != FETypeFlag::kSrcMplt &&
+        elem.second.second != FETypeFlag::kSrcMpltSys &&
+        elem.second.second != FETypeFlag::kSrcMpltApk) {
+      module.AddExternStructType(elem.second.first);
+    }
+  }
+}
+
 void FETypeManager::InitMCCFunctions() {
   InitFuncMCCGetOrInsertLiteral();
+  if (FEOptions::GetInstance().IsAOT()) {
+    InitFuncMCCStaticField();
+  }
 }
 
 void FETypeManager::InitFuncMCCGetOrInsertLiteral() {
@@ -568,7 +661,43 @@ void FETypeManager::InitFuncMCCGetOrInsertLiteral() {
   MIRType *typeString = kFEIRTypeJavaString->GenerateMIRTypeAuto(kSrcLangJava);
   std::vector<TyIdx> argsType;
   funcMCCGetOrInsertLiteral = CreateFunction(nameIdx, typeString->GetTypeIndex(), argsType, false, false);
+  funcMCCGetOrInsertLiteral->SetAttr(FUNCATTR_pure);
+  funcMCCGetOrInsertLiteral->SetAttr(FUNCATTR_nosideeffect);
+  funcMCCGetOrInsertLiteral->SetAttr(FUNCATTR_noprivate_defeffect);
   nameMCCFuncMap[nameIdx] = funcMCCGetOrInsertLiteral;
+}
+
+void FETypeManager::InitFuncMCCStaticField() {
+  std::map<GStrIdx, std::pair<char, MIRFunction*>> MCCIdxFuncMap = {
+      { FEUtils::GetMCCStaticFieldGetBoolIdx(),   std::make_pair('Z', funcMCCStaticFieldGetBool) },
+      { FEUtils::GetMCCStaticFieldGetByteIdx(),   std::make_pair('B', funcMCCStaticFieldGetByte) },
+      { FEUtils::GetMCCStaticFieldGetShortIdx(),  std::make_pair('S', funcMCCStaticFieldGetShort) },
+      { FEUtils::GetMCCStaticFieldGetCharIdx(),   std::make_pair('C', funcMCCStaticFieldGetChar) },
+      { FEUtils::GetMCCStaticFieldGetIntIdx(),    std::make_pair('I', funcMCCStaticFieldGetInt) },
+      { FEUtils::GetMCCStaticFieldGetLongIdx(),   std::make_pair('J', funcMCCStaticFieldGetLong) },
+      { FEUtils::GetMCCStaticFieldGetFloatIdx(),  std::make_pair('F', funcMCCStaticFieldGetFloat) },
+      { FEUtils::GetMCCStaticFieldGetDoubleIdx(), std::make_pair('D', funcMCCStaticFieldGetDouble) },
+      { FEUtils::GetMCCStaticFieldGetObjectIdx(), std::make_pair('R', funcMCCStaticFieldGetObject) },
+      { FEUtils::GetMCCStaticFieldSetBoolIdx(),   std::make_pair('Z', funcMCCStaticFieldSetBool) },
+      { FEUtils::GetMCCStaticFieldSetByteIdx(),   std::make_pair('B', funcMCCStaticFieldSetByte) },
+      { FEUtils::GetMCCStaticFieldSetShortIdx(),  std::make_pair('S', funcMCCStaticFieldSetShort) },
+      { FEUtils::GetMCCStaticFieldSetCharIdx(),   std::make_pair('C', funcMCCStaticFieldSetChar) },
+      { FEUtils::GetMCCStaticFieldSetIntIdx(),    std::make_pair('I', funcMCCStaticFieldSetInt) },
+      { FEUtils::GetMCCStaticFieldSetLongIdx(),   std::make_pair('J', funcMCCStaticFieldSetLong) },
+      { FEUtils::GetMCCStaticFieldSetFloatIdx(),  std::make_pair('F', funcMCCStaticFieldSetFloat) },
+      { FEUtils::GetMCCStaticFieldSetDoubleIdx(), std::make_pair('D', funcMCCStaticFieldSetDouble) },
+      { FEUtils::GetMCCStaticFieldSetObjectIdx(), std::make_pair('R', funcMCCStaticFieldSetObject) },
+  };
+
+  for (auto &idxFun : MCCIdxFuncMap) {
+    std::vector<TyIdx> argsType;
+    MIRType *typeMCC = GetMIRTypeForPrim(idxFun.second.first);
+    idxFun.second.second = CreateFunction(idxFun.first, typeMCC->GetTypeIndex(), argsType, false, false);
+    idxFun.second.second->SetAttr(FUNCATTR_pure);
+    idxFun.second.second->SetAttr(FUNCATTR_nosideeffect);
+    idxFun.second.second->SetAttr(FUNCATTR_noprivate_defeffect);
+    nameMCCFuncMap[idxFun.first] = idxFun.second.second;
+  }
 }
 
 MIRFunction *FETypeManager::GetMCCFunction(const std::string &funcName) const {

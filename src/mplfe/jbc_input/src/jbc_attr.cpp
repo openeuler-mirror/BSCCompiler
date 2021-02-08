@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -70,17 +70,16 @@ JBCAttrKind JBCAttr::AttrKind(const std::string &str) {
 JBCAttrMap::JBCAttrMap(MapleAllocator &allocatorIn)
     : allocator(allocatorIn), mapAttrs(std::less<JBCAttrKind>(), allocator.Adapter()) {}
 
-void JBCAttrMap::RegisterAttr(JBCAttr *attr) {
-  CHECK_FATAL(attr != nullptr, "input attr is nullptr");
-  JBCAttrKind kind = attr->GetKind();
+void JBCAttrMap::RegisterAttr(JBCAttr &attr) {
+  JBCAttrKind kind = attr.GetKind();
   MapleMap<JBCAttrKind, MapleList<JBCAttr*>*>::const_iterator it = mapAttrs.find(kind);
   if (it == mapAttrs.end()) {
     MemPool *mp = allocator.GetMemPool();
     MapleList<JBCAttr*> *attrList = mp->New<MapleList<JBCAttr*>>(allocator.Adapter());
-    attrList->push_back(attr);
+    attrList->push_back(&attr);
     CHECK_FATAL(mapAttrs.insert(std::make_pair(kind, attrList)).second, "mapAttrs insert error");
   } else {
-    it->second->push_back(attr);
+    it->second->push_back(&attr);
   }
 }
 
@@ -363,7 +362,7 @@ bool JBCAttrCode::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io, cons
       return false;
     }
     attrs.push_back(attr);
-    attrMap.RegisterAttr(attr);
+    attrMap.RegisterAttr(*attr);
   }
   // ParseOpcode
   success = ParseOpcodes(allocator);

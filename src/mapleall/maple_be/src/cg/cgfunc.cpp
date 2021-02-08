@@ -133,6 +133,12 @@ Operand *HandleAddroffunc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
   return &cgFunc.SelectAddrofFunc(addroffuncNode);
 }
 
+Operand *HandleAddrofLabel(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
+  (void)parent;
+  auto &addrofLabelNode = static_cast<AddroflabelNode&>(expr);
+  return &cgFunc.SelectAddrofLabel(addrofLabelNode);
+}
+
 Operand *HandleIread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   auto &ireadNode = static_cast<IreadNode&>(expr);
   return cgFunc.SelectIread(parent, ireadNode);
@@ -340,6 +346,7 @@ void InitHandleExprFactory() {
   RegisterFactoryFunction<HandleExprFactory>(OP_rem, HandleRem);
   RegisterFactoryFunction<HandleExprFactory>(OP_addrof, HandleAddrof);
   RegisterFactoryFunction<HandleExprFactory>(OP_addroffunc, HandleAddroffunc);
+  RegisterFactoryFunction<HandleExprFactory>(OP_addroflabel, HandleAddrofLabel);
   RegisterFactoryFunction<HandleExprFactory>(OP_iread, HandleIread);
   RegisterFactoryFunction<HandleExprFactory>(OP_sub, HandleSub);
   RegisterFactoryFunction<HandleExprFactory>(OP_band, HandleBand);
@@ -403,6 +410,13 @@ void HandleGoto(StmtNode &stmt, CGFunc &cgFunc) {
   if ((gotoNode.GetNext() != nullptr) && (gotoNode.GetNext()->GetOpCode() != OP_label)) {
     ASSERT(cgFunc.GetCurBB()->GetPrev()->GetLastStmt() == &stmt, "check the relation between BB and stmt");
   }
+}
+
+void HandleIgoto(StmtNode &stmt, CGFunc &cgFunc) {
+  auto &igotoNode = static_cast<UnaryStmtNode&>(stmt);
+  Operand *targetOpnd = cgFunc.HandleExpr(stmt, *igotoNode.Opnd(0));
+  cgFunc.SelectIgoto(targetOpnd);
+  cgFunc.SetCurBB(*cgFunc.StartNewBB(igotoNode));
 }
 
 void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
@@ -642,6 +656,7 @@ using HandleStmtFactory = FunctionFactory<Opcode, void, StmtNode&, CGFunc&>;
 void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_label, HandleLabel);
   RegisterFactoryFunction<HandleStmtFactory>(OP_goto, HandleGoto);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_igoto, HandleIgoto);
   RegisterFactoryFunction<HandleStmtFactory>(OP_brfalse, HandleCondbr);
   RegisterFactoryFunction<HandleStmtFactory>(OP_brtrue, HandleCondbr);
   RegisterFactoryFunction<HandleStmtFactory>(OP_return, HandleReturn);

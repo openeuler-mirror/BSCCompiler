@@ -1,16 +1,16 @@
 /*
  * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "jbc_opcode.h"
 #include "jbc_class_const.h"
@@ -35,7 +35,7 @@ JBCOpcodeInfo JBCOp::opcodeInfo;
 std::vector<JBCPrimType> JBCOp::emptyPrimTypes;
 
 JBCOp::JBCOp(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn)
-    : op(opIn), kind(kindIn), wide(wideIn) {}
+    : alloc(allocator), op(opIn), kind(kindIn), wide(wideIn) {}
 
 bool JBCOp::CheckNotWide(const BasicIORead &io) const {
   // wide only can be used with i/f/l/d/aload, i/f/l/d/astore, ret, and iinc
@@ -1240,7 +1240,7 @@ std::string JBCOpInvoke::GetMethodDescription(const JBCConstPool &constPool) con
 
 // ---------- JBCOpJsrRet ----------
 JBCOpJsr::JBCOpJsr(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKind kindIn, bool wideIn)
-    : JBCOp(allocator, opIn, kindIn, wideIn), target(0) {}
+    : JBCOp(allocator, opIn, kindIn, wideIn), target(0), slotIdx(0), jsrID(0) {}
 
 bool JBCOpJsr::ParseFileImpl(BasicIORead &io) {
   if (JBCOp::CheckNotWide(io) == false) {
@@ -1357,7 +1357,7 @@ GStrIdx JBCOpNew::GetTypeNameIdx(const JBCConstPool &constPool) const {
       return constClass->GetClassNameIdxMpl();
     }
     case jbc::kOpNewArray:
-      return GStrIdx(0);
+      return GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetPrimTypeName());
     default:
       ASSERT(false, "Unexpected opcode %s for New", GetOpcodeName().c_str());
       return GStrIdx(0);
