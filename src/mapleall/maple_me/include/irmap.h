@@ -18,7 +18,6 @@
 #include "ver_symbol.h"
 #include "ssa_tab.h"
 #include "me_ir.h"
-#include "me_builder.h"
 
 namespace maple {
 class IRMapBuild; // circular dependency exists, no other choice
@@ -35,8 +34,7 @@ class IRMap : public AnalysisResult {
         hashTable(mapHashLength, nullptr, irMapAlloc.Adapter()),
         vst2MeExprTable(ssaTab.GetVersionStTableSize(), nullptr, irMapAlloc.Adapter()),
         lpreTmps(irMapAlloc.Adapter()),
-        vst2Decrefs(irMapAlloc.Adapter()),
-        meBuilder(irMapAlloc) {}
+        vst2Decrefs(irMapAlloc.Adapter()) {}
 
   virtual ~IRMap() = default;
   virtual BB *GetBB(BBId id) = 0;
@@ -102,6 +100,8 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateMeExprCompare(Opcode, PrimType, PrimType, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprSelect(PrimType, MeExpr&, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprTypeCvt(PrimType, PrimType, MeExpr&);
+  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
+  UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
   IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, MeExpr *ret,
@@ -217,7 +217,6 @@ class IRMap : public AnalysisResult {
   bool needAnotherPass = false;                    // set to true if CFG has changed
   bool dumpStmtNum = false;
   BB *curBB = nullptr;  // current maple_me::BB being visited
-  MeBuilder meBuilder;
 
   bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
   void PutToBucket(uint32, MeExpr&);
