@@ -161,6 +161,7 @@ class CGFunc {
   virtual void SelectIassign(IassignNode &stmt) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) = 0;
   virtual void SelectReturn(Operand *opnd) = 0;
+  virtual void SelectIgoto(Operand *opnd0) = 0;
   virtual void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) = 0;
   virtual void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &opnd0) = 0;
   virtual void SelectCondSpecialCase2(const CondGotoNode &stmt, BaseNode &opnd0) = 0;
@@ -177,6 +178,7 @@ class CGFunc {
   virtual RegOperand *SelectRegread(RegreadNode &expr) = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr) = 0;
   virtual Operand &SelectAddrofFunc(AddroffuncNode &expr) = 0;
+  virtual Operand &SelectAddrofLabel(AddroflabelNode &expr) = 0;
   virtual Operand *SelectIread(const BaseNode &parent, IreadNode &expr) = 0;
   virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
   virtual Operand *SelectFloatConst(MIRFloatConst &floatConst) = 0;
@@ -868,7 +870,7 @@ class CGFunc {
     return offset;
   }
 
-  // See if the symbol is a structure parameter that requires a copy.
+  /* See if the symbol is a structure parameter that requires a copy. */
   bool IsParamStructCopy(const MIRSymbol &symbol) {
     if (symbol.GetStorageClass() == kScFormal &&
         GetBecommon().GetTypeSize(symbol.GetTyIdx().GetIdx()) > k16ByteSize) {
