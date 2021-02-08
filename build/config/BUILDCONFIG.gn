@@ -31,6 +31,12 @@ MAPLE_ROOT = getenv("MAPLE_ROOT")
 ANDROID_ROOT = "${MAPLE_ROOT}/android"
 MAPLE_BUILD_TYPE = getenv("MAPLE_BUILD_TYPE")
 MAPLE_BUILD_OUTPUT = getenv("MAPLE_BUILD_OUTPUT")
+OLD_OS = getenv("OLD_OS")
+if (OLD_OS == "1") {
+  DESIGNATOR="-Wno-gnu-designator"
+} else {
+  DESIGNATOR="-Wno-c99-designator"
+}
 
 DYNAMICLANG = true
 RC_V2 = true
@@ -108,6 +114,7 @@ cflags_c += [
   "-Werror",
   "-Wdate-time",
   "-Wfloat-equal",
+  "${DESIGNATOR}",
 ]
 
 cflags_cc += [
@@ -120,6 +127,7 @@ cflags_cc += [
   "-Werror",
   "-Wdate-time",
   "-Wfloat-equal",
+  "${DESIGNATOR}",
 ]
 
 if (HOST_ARCH == 64) {
