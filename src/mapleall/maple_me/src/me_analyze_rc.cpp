@@ -84,7 +84,7 @@ void RCItem::Dump() {
   LogInfo::Info() << '\n';
 }
 
-RCItem *AnalyzeRC::FindOrCreateRCItem(const OriginalSt &ost) {
+RCItem *AnalyzeRC::FindOrCreateRCItem(OriginalSt &ost) {
   auto mapIt = rcItemsMap.find(ost.GetIndex());
   if (mapIt != rcItemsMap.end()) {
     return mapIt->second;
@@ -107,21 +107,21 @@ RCItem *AnalyzeRC::FindOrCreateRCItem(const OriginalSt &ost) {
 OriginalSt *AnalyzeRC::GetOriginalSt(const MeExpr &refLHS) const {
   if (refLHS.GetMeOp() == kMeOpVar) {
     auto &varMeExpr = static_cast<const VarMeExpr&>(refLHS);
-    return ssaTab.GetSymbolOriginalStFromID(varMeExpr.GetOStIdx());
+    return varMeExpr.GetOst();
   }
   ASSERT(refLHS.GetMeOp() == kMeOpIvar, "GetOriginalSt: unexpected node type");
   auto &ivarMeExpr = static_cast<const IvarMeExpr&>(refLHS);
   if (ivarMeExpr.GetMu() != nullptr) {
-    return ssaTab.GetSymbolOriginalStFromID(ivarMeExpr.GetMu()->GetOStIdx());
+    return ivarMeExpr.GetMu()->GetOst();
   }
   ASSERT(ivarMeExpr.GetDefStmt() != nullptr, "GetOriginalSt: ivar with mu==nullptr has no defStmt");
   IassignMeStmt *iass = ivarMeExpr.GetDefStmt();
   CHECK_FATAL(!iass->GetChiList()->empty(), "GetOriginalSt: ivar with mu==nullptr has empty chiList at its def");
-  return ssaTab.GetSymbolOriginalStFromID(iass->GetChiList()->begin()->second->GetLHS()->GetOStIdx());
+  return iass->GetChiList()->begin()->second->GetLHS()->GetOst();
 }
 
 VarMeExpr *AnalyzeRC::GetZeroVersionVarMeExpr(const VarMeExpr &var) {
-  const OriginalSt *ost = ssaTab.GetSymbolOriginalStFromID(var.GetOStIdx());
+  OriginalSt *ost = var.GetOst();
   return irMap.GetOrCreateZeroVersionVarMeExpr(*ost);
 }
 
@@ -147,7 +147,7 @@ void AnalyzeRC::IdentifyRCStmts() {
     for (auto &stmt : bb.GetMeStmts()) {
       MeExpr *lhsRef = stmt.GetLHSRef(ssaTab, skipLocalRefVars);
       if (lhsRef != nullptr) {
-        const OriginalSt *ost = GetOriginalSt(*lhsRef);
+        OriginalSt *ost = GetOriginalSt(*lhsRef);
         ASSERT(ost != nullptr, "IdentifyRCStmts: cannot get SymbolOriginalSt");
         (void)FindOrCreateRCItem(*ost);
         // this part for inserting decref
@@ -168,7 +168,7 @@ void AnalyzeRC::IdentifyRCStmts() {
             MapleMap<OStIdx, ChiMeNode*>::iterator xit = iass.GetChiList()->begin();
             for (; xit != iass.GetChiList()->end(); ++xit) {
               ChiMeNode *chi = xit->second;
-              if (chi->GetRHS()->GetOStIdx() == ost->GetIndex()) {
+              if (chi->GetRHS()->GetOst() == ost) {
                 ivarMeExpr.SetMuVal(chi->GetRHS());
                 break;
               }
@@ -287,12 +287,12 @@ void AnalyzeRC::RenameUses(MeStmt &meStmt) {
 }
 
 DassignMeStmt *AnalyzeRC::CreateDassignInit(OriginalSt &ost, BB &bb) {
-  VarMeExpr *lhs = irMap.CreateNewVarMeExpr(ost, PTY_ref, ost.GetFieldID());
+  VarMeExpr *lhs = irMap.CreateNewVarMeExpr(&ost, PTY_ref);
   MeExpr *rhs = irMap.CreateIntConstMeExpr(0, PTY_ref);
   return irMap.CreateDassignMeStmt(utils::ToRef(lhs), utils::ToRef(rhs), bb);
 }
 
-UnaryMeStmt *AnalyzeRC::CreateIncrefZeroVersion(const OriginalSt &ost) {
+UnaryMeStmt *AnalyzeRC::CreateIncrefZeroVersion(OriginalSt &ost) {
   return irMap.CreateUnaryMeStmt(OP_incref, irMap.GetOrCreateZeroVersionVarMeExpr(ost));
 }
 
@@ -352,7 +352,7 @@ bool AnalyzeRC::NeedDecRef(IvarMeExpr &ivar) const {
     return true;
   }
   auto *baseVar = static_cast<VarMeExpr*>(base);
-  const MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(baseVar->GetOStIdx());
+  const MIRSymbol *sym = baseVar->GetOst()->GetMIRSymbol();
   if (sym->GetStorageClass() != kScFormal || sym != func.GetMirFunc()->GetFormal(0)) {
     return true;
   }
@@ -398,7 +398,7 @@ void AnalyzeRC::RemoveUnneededCleanups() {
     size_t i = 0;
     for (; i < intrn->NumMeStmtOpnds(); ++i) {
       auto varMeExpr = static_cast<VarMeExpr*>(intrn->GetOpnd(i));
-      if (varMeExpr->IsZeroVersion(ssaTab)) {
+      if (varMeExpr->IsZeroVersion()) {
         continue;
       }
       if (nextPos != i) {

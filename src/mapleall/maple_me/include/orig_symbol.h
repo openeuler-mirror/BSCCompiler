@@ -290,15 +290,12 @@ class OriginalStTable {
     ASSERT(ost.IsRealSymbol(), "runtime check error");
     return ost.GetMIRSymbol();
   }
-  MIRSymbol *GetMIRSymbolFromOriginalSt(OriginalSt &ost) {
-    return const_cast<MIRSymbol *>(const_cast<const OriginalStTable*>(this)->GetMIRSymbolFromOriginalSt(ost));
-  }
 
   const MIRSymbol *GetMIRSymbolFromID(OStIdx id) const {
-    return GetMIRSymbolFromOriginalSt(*GetOriginalStFromID(id, false));
+    return GetOriginalStFromID(id, false)->GetMIRSymbol();
   }
   MIRSymbol *GetMIRSymbolFromID(OStIdx id) {
-    return GetMIRSymbolFromOriginalSt(*GetOriginalStFromID(id, false));
+    return GetOriginalStFromID(id, false)->GetMIRSymbol();
   }
 
   MapleAllocator &GetAlloc() {

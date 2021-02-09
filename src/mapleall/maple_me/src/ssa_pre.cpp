@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -51,7 +51,7 @@ MeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
     RegMeExpr *regVar = nullptr;
     if (meExpr.GetMeOp() == kMeOpVar) {
       auto *varMeExpr = static_cast<const VarMeExpr*>(&meExpr);
-      const MIRSymbol *sym = ssaTab->GetMIRSymbolFromID(varMeExpr->GetOStIdx());
+      const MIRSymbol *sym = varMeExpr->GetOst()->GetMIRSymbol();
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
       regVar = ty->GetPrimType() == PTY_ref ? irMap->CreateRegRefMeExpr(*ty)
                                             : irMap->CreateRegMeExpr(ty->GetPrimType());
@@ -80,7 +80,7 @@ MeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
     }
     curTemp = regVar;
     if (preKind == kLoadPre) {
-      irMap->SetLpreTmps(static_cast<const VarMeExpr*>(&meExpr)->GetOStIdx(), *regVar);
+      irMap->SetLpreTmps(static_cast<const VarMeExpr*>(&meExpr)->GetOst()->GetIndex(), *regVar);
     }
     return regVar;
   } else {
@@ -104,7 +104,7 @@ VarMeExpr *SSAPre::CreateNewCurLocalRefVar() {
     FieldID fieldID = ivarMeExpr->GetFieldID();
     curLocalRefVar = irMap->CreateNewLocalRefVarTmp(NewTempStrIdx(), realMIRType->GetPointedTyIdxWithFieldID(fieldID));
     ASSERT_NOT_NULL(curLocalRefVar);
-    ssaTab->SetEPreLocalRefVar(curLocalRefVar->GetOStIdx(), true);
+    ssaTab->SetEPreLocalRefVar(curLocalRefVar->GetOst()->GetIndex(), true);
     SetAddedNewLocalRefVars(true);
     return curLocalRefVar;
   }
@@ -132,7 +132,7 @@ void SSAPre::GenerateSaveInsertedOcc(MeInsertedOcc &insertedOcc) {
     newMeStmt = irMap->CreateDassignMeStmt(*localRefVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
     localRefVar->SetDefByStmt(*newMeStmt);
     insertedOcc.GetBB()->InsertMeStmtLastBr(newMeStmt);
-    EnterCandsForSSAUpdate(localRefVar->GetOStIdx(), *insertedOcc.GetBB());
+    EnterCandsForSSAUpdate(localRefVar->GetOst()->GetIndex(), *insertedOcc.GetBB());
     newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *localRefVar, *insertedOcc.GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     insertedOcc.GetBB()->InsertMeStmtLastBr(newMeStmt);
@@ -167,7 +167,7 @@ void SSAPre::GenerateSavePhiOcc(MePhiOcc &phiOcc) {
     phiVar->SetDefBB(phiOcc.GetBB());
     phiOcc.SetVarPhi(*phiVar);
     // update the phi opnds later
-    EnterCandsForSSAUpdate(localRefVar->GetOStIdx(), *phiOcc.GetBB());
+    EnterCandsForSSAUpdate(localRefVar->GetOst()->GetIndex(), *phiOcc.GetBB());
   }
 }
 
@@ -188,7 +188,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
         }
         phiReg->GetOpnds().push_back(regOpnd);
       }
-      (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
+      (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOst()->GetIndex(), phiReg));
       if (workCand->NeedLocalRefVar() && phiOcc->GetVarPhi() != nullptr) {
         MePhiNode *phiVar = phiOcc->GetVarPhi();
         for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
@@ -197,13 +197,13 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
           if (regOpnd == nullptr) {
             // create a zero version
             CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
-            const OriginalSt *ost = ssaTab->GetOriginalStFromID(curLocalRefVar->GetOStIdx());
+            OriginalSt *ost = curLocalRefVar->GetOst();
             localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
           } else {
             MapleMap<RegMeExpr*, VarMeExpr*>::iterator mapIt = temp2LocalRefVarMap.find(regOpnd);
             if (mapIt == temp2LocalRefVarMap.end()) {
               CHECK_FATAL(curLocalRefVar != nullptr, "null ptr check");
-              const OriginalSt *ost = ssaTab->GetOriginalStFromID(curLocalRefVar->GetOStIdx());
+              OriginalSt *ost = curLocalRefVar->GetOst();
               localRefVarOpnd = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
             } else {
               localRefVarOpnd = mapIt->second;
@@ -211,7 +211,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
           }
           phiVar->GetOpnds().push_back(localRefVarOpnd);
         }
-        (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOStIdx(), phiVar));
+        (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOst()->GetIndex(), phiVar));
       }
     } else {
       MePhiNode *phiVar = phiOcc->GetVarPhi();
@@ -223,7 +223,7 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
         }
         phiVar->GetOpnds().push_back(varOpnd);
       }
-      (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOStIdx(), phiVar));
+      (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiVar->GetOpnd(0)->GetOst()->GetIndex(), phiVar));
     }
   }
 }
@@ -1169,7 +1169,7 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
     switch (varMeExpr->GetDefBy()) {
       case kDefByNo:
         // zero version vst dominate everything
-        return ssaTab->IsInitVersion(varMeExpr->GetVstIdx(), varMeExpr->GetOStIdx());
+        return ssaTab->IsInitVersion(varMeExpr->GetVstIdx(), varMeExpr->GetOst()->GetIndex());
       case kDefByStmt: {
         MeStmt *meStmt = varMeExpr->GetDefStmt();
         CHECK_FATAL(meStmt != nullptr, "should have a def meStmt");
@@ -1258,7 +1258,7 @@ bool SSAPre::CheckIfAnyLocalOpnd(const MeExpr &meExpr) const {
       return true;
     case kMeOpVar: {
       auto *varMeExpr = static_cast<const VarMeExpr*>(&meExpr);
-      const MIRSymbol *st = ssaTab->GetMIRSymbolFromID(varMeExpr->GetOStIdx());
+      const MIRSymbol *st = varMeExpr->GetOst()->GetMIRSymbol();
       return st->IsLocal();
     }
     case kMeOpIvar: {
@@ -1482,7 +1482,7 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
           if (!GetRegReadAtReturn()) {
             if ((*it)->GetMeOp() == kMeOpVar) {
               auto *varMeExpr = static_cast<VarMeExpr*>(*it);
-              const OriginalSt *ost = ssaTab->GetOriginalStFromID(varMeExpr->GetOStIdx());
+              const OriginalSt *ost = varMeExpr->GetOst();
               if (!ost->IsFormal()) {
                 continue;
               }
@@ -1540,7 +1540,7 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
         if (!GetRcLoweringOn() && (*it)->IsLeaf() && (*it)->GetMeOp() == kMeOpVar) {
           // affects LPRE only; some later phase needs to transform dread to addrof
           auto *varMeExpr = static_cast<VarMeExpr*>(*it);
-          const MIRSymbol *sym = ssaTab->GetMIRSymbolFromID(varMeExpr->GetOStIdx());
+          const MIRSymbol *sym = varMeExpr->GetOst()->GetMIRSymbol();
           if (sym->GetAttr(ATTR_static)) {
             // its address may be taken
             continue;
