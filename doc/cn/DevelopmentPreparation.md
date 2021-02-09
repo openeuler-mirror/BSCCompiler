@@ -14,7 +14,7 @@
 
 
 ```
-sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu
 sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
 
 Ubuntu 16.04:
