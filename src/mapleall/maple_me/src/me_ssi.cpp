@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -28,7 +28,7 @@ VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
   OriginalSt *ost = ssaTab.GetOriginalStFromID(static_cast<const VarMeExpr*>(&opnd)->GetOStIdx());
   CHECK_NULL_FATAL(ost);
   CHECK_FATAL(!ost->IsVolatile(), "must be");
-  VarMeExpr *var = irMap->NewInPool<VarMeExpr>(irMap->GetExprID(), ost->GetIndex(),
+  VarMeExpr *var = irMap->New<VarMeExpr>(irMap->GetExprID(), ost->GetIndex(),
                                                irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
   irMap->SetExprID(irMap->GetExprID() + 1);
   irMap->PushBackVerst2MeExprTable(var);

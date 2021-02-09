@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -165,6 +165,7 @@ class MeExpr {
 
  private:
   MeExpr *FindSymAppearance(OStIdx oidx);  // find the appearance of the symbol
+  bool IsDexMerge() const;
 
   Opcode op;
   PrimType primType;
@@ -311,9 +312,8 @@ class ScalarMeExpr : public MeExpr {
 // represant dread
 class VarMeExpr final : public ScalarMeExpr {
  public:
-  VarMeExpr(MapleAllocator *alloc, int32 exprid, OStIdx oidx, size_t vidx, PrimType ptyp)
-      : ScalarMeExpr(exprid, oidx, vidx, kMeOpVar, OP_dread, ptyp),
-        inferredTypeCandidates(alloc->Adapter()) {}
+  VarMeExpr(int32 exprid, OStIdx oidx, size_t vidx, PrimType ptyp)
+      : ScalarMeExpr(exprid, oidx, vidx, kMeOpVar, OP_dread, ptyp) {}
 
   ~VarMeExpr() = default;
 
@@ -344,19 +344,6 @@ class VarMeExpr final : public ScalarMeExpr {
   void SetInferredTyIdx(TyIdx inferredTyIdxVal) {
     inferredTyIdx = inferredTyIdxVal;
   }
-
-  const MapleVector<TyIdx> &GetInferredTypeCandidates() const {
-    return inferredTypeCandidates;
-  }
-
-  void AddInferredTypeCandidate(TyIdx idx) {
-    inferredTypeCandidates.push_back(idx);
-  }
-
-  void ClearInferredTypeCandidates() {
-    inferredTypeCandidates.clear();
-  }
-
   bool GetMaybeNull() const {
     return maybeNull;
   }
@@ -373,12 +360,19 @@ class VarMeExpr final : public ScalarMeExpr {
     noDelegateRC = noDelegateRCVal;
   }
 
+  bool GetNoSubsumeRC() const {
+    return noSubsumeRC;
+  }
+
+  void SetNoSubsumeRC(bool noSubsumeRCVal) {
+    noSubsumeRC = noSubsumeRCVal;
+  }
 
  private:
   bool noDelegateRC = false;  // true if this cannot be optimized by delegaterc
+  bool noSubsumeRC = false;   // true if this cannot be optimized by subsumrc
   FieldID fieldID = 0;
   TyIdx inferredTyIdx{ 0 }; /* Non zero if it has a known type (allocation type is seen). */
-  MapleVector<TyIdx> inferredTypeCandidates;
   bool maybeNull = true;  // false if definitely not null
 };
 
@@ -468,7 +462,7 @@ class MePhiNode {
 
 class RegMeExpr : public ScalarMeExpr {
  public:
-  RegMeExpr(MapleAllocator *alloc, int32 exprid, PregIdx preg, PUIdx pidx, OStIdx oidx, uint32 vidx, PrimType ptyp)
+  RegMeExpr(int32 exprid, PregIdx preg, PUIdx pidx, OStIdx oidx, uint32 vidx, PrimType ptyp)
       : ScalarMeExpr(exprid, oidx, vidx, kMeOpReg, OP_regread, ptyp),
         regIdx(preg),
         puIdx(pidx) {}
@@ -503,7 +497,9 @@ class RegMeExpr : public ScalarMeExpr {
 
 class ConstMeExpr : public MeExpr {
  public:
-  ConstMeExpr(int32 exprID, MIRConst *constValParam, PrimType t) : MeExpr(exprID, kMeOpConst, OP_constval, t, 0), constVal(constValParam) {}
+  ConstMeExpr(int32 exprID, MIRConst *constValParam, PrimType t)
+      : MeExpr(exprID, kMeOpConst, OP_constval, t, 0), constVal(constValParam) {}
+
   ~ConstMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -552,7 +548,8 @@ class ConstMeExpr : public MeExpr {
 
 class ConststrMeExpr : public MeExpr {
  public:
-  ConststrMeExpr(int32 exprID, UStrIdx idx, PrimType t) : MeExpr(exprID, kMeOpConststr, OP_conststr, t, 0), strIdx(idx) {}
+  ConststrMeExpr(int32 exprID, UStrIdx idx, PrimType t)
+      : MeExpr(exprID, kMeOpConststr, OP_conststr, t, 0), strIdx(idx) {}
 
   ~ConststrMeExpr() = default;
 
@@ -575,7 +572,9 @@ class ConststrMeExpr : public MeExpr {
 
 class Conststr16MeExpr : public MeExpr {
  public:
-  Conststr16MeExpr(int32 exprID, U16StrIdx idx, PrimType t) : MeExpr(exprID, kMeOpConststr16, OP_conststr16, t, 0), strIdx(idx) {}
+  Conststr16MeExpr(int32 exprID, U16StrIdx idx, PrimType t)
+      : MeExpr(exprID, kMeOpConststr16, OP_conststr16, t, 0), strIdx(idx) {}
+
   ~Conststr16MeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -597,7 +596,9 @@ class Conststr16MeExpr : public MeExpr {
 
 class SizeoftypeMeExpr : public MeExpr {
  public:
-  SizeoftypeMeExpr(int32 exprid, PrimType t, TyIdx idx) : MeExpr(exprid, kMeOpSizeoftype, OP_sizeoftype, t, 0), tyIdx(idx) {}
+  SizeoftypeMeExpr(int32 exprid, PrimType t, TyIdx idx)
+      : MeExpr(exprid, kMeOpSizeoftype, OP_sizeoftype, t, 0), tyIdx(idx) {}
+
   ~SizeoftypeMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -654,7 +655,8 @@ class FieldsDistMeExpr : public MeExpr {
 
 class AddrofMeExpr : public MeExpr {
  public:
-  AddrofMeExpr(int32 exprid, PrimType t, OStIdx idx) : MeExpr(exprid, kMeOpAddrof, OP_addrof, t, 0), ostIdx(idx), fieldID(0) {}
+  AddrofMeExpr(int32 exprid, PrimType t, OStIdx idx)
+      : MeExpr(exprid, kMeOpAddrof, OP_addrof, t, 0), ostIdx(idx), fieldID(0) {}
 
   ~AddrofMeExpr() = default;
 
@@ -687,7 +689,8 @@ class AddrofMeExpr : public MeExpr {
 
 class AddroffuncMeExpr : public MeExpr {
  public:
-  AddroffuncMeExpr(int32 exprID, PUIdx puIdx) : MeExpr(exprID, kMeOpAddroffunc, OP_addroffunc, PTY_ptr, 0), puIdx(puIdx) {}
+  AddroffuncMeExpr(int32 exprID, PUIdx puIdx)
+      : MeExpr(exprID, kMeOpAddroffunc, OP_addroffunc, PTY_ptr, 0), puIdx(puIdx) {}
 
   ~AddroffuncMeExpr() = default;
 
@@ -712,16 +715,17 @@ class AddroflabelMeExpr : public MeExpr {
  public:
   LabelIdx labelIdx;
 
-  AddroflabelMeExpr(int32 exprid, LabelIdx lidx) : MeExpr(exprid, kMeOpAddroflabel, OP_addroflabel, PTY_ptr, 0), labelIdx(lidx) {}
+  AddroflabelMeExpr(int32 exprid, LabelIdx lidx)
+      : MeExpr(exprid, kMeOpAddroflabel, OP_addroflabel, PTY_ptr, 0), labelIdx(lidx) {}
 
   ~AddroflabelMeExpr() {}
 
   void Dump(const IRMap *, int32 indent = 0) const override;
-  bool IsIdentical(MeExpr *meexpr) {
+  bool IsIdentical(const MeExpr *meexpr) const {
     if (meexpr->GetOp() != GetOp()) {
       return false;
     }
-    const AddroflabelMeExpr *x = static_cast<const AddroflabelMeExpr *>(meexpr);
+    const AddroflabelMeExpr *x = static_cast<const AddroflabelMeExpr*>(meexpr);
     if (labelIdx != x->labelIdx) {
       return false;
     }
@@ -730,13 +734,15 @@ class AddroflabelMeExpr : public MeExpr {
   BaseNode &EmitExpr(SSATab&) override;
 
   uint32 GetHashIndex() const override {
-    return labelIdx << 4;
+    constexpr uint32 shiftNum = 4;
+    return labelIdx << shiftNum;
   }
 };
 
 class GcmallocMeExpr : public MeExpr {
  public:
-  GcmallocMeExpr(int32 exprid, Opcode o, PrimType t, TyIdx tyid) : MeExpr(exprid, kMeOpGcmalloc, o, t, 0), tyIdx(tyid) {}
+  GcmallocMeExpr(int32 exprid, Opcode o, PrimType t, TyIdx tyid)
+      : MeExpr(exprid, kMeOpGcmalloc, o, t, 0), tyIdx(tyid) {}
 
   ~GcmallocMeExpr() = default;
 
@@ -758,7 +764,8 @@ class GcmallocMeExpr : public MeExpr {
 
 class OpMeExpr : public MeExpr {
  public:
-  explicit OpMeExpr(int32 exprID, Opcode o, PrimType t, size_t n) : MeExpr(exprID, kMeOpOp, o, t, n), tyIdx(TyIdx(0)) {}
+  OpMeExpr(int32 exprID, Opcode o, PrimType t, size_t n)
+      : MeExpr(exprID, kMeOpOp, o, t, n), tyIdx(TyIdx(0)) {}
 
   OpMeExpr(const OpMeExpr &opMeExpr, int32 exprID)
       : MeExpr(exprID, kMeOpOp, opMeExpr.GetOp(), opMeExpr.GetPrimType(), opMeExpr.GetNumOpnds()),
@@ -858,7 +865,7 @@ class OpMeExpr : public MeExpr {
 
 class IvarMeExpr : public MeExpr {
  public:
-  explicit IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
+  IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
       : MeExpr(exprid, kMeOpIvar, OP_iread, t, 1), tyIdx(tidx), fieldID(fid) {}
 
   IvarMeExpr(int32 exprid, const IvarMeExpr &ivarme)
@@ -968,8 +975,13 @@ class IvarMeExpr : public MeExpr {
 // for array, intrinsicop and intrinsicopwithtype
 class NaryMeExpr : public MeExpr {
  public:
-  NaryMeExpr(MapleAllocator *alloc, int32 expID, Opcode o, PrimType t, size_t n, TyIdx tyIdx, MIRIntrinsicID intrinID, bool bCheck)
-      : MeExpr(expID, kMeOpNary, o, t, n), tyIdx(tyIdx), intrinsic(intrinID), opnds(alloc->Adapter()), boundCheck(bCheck) {}
+  NaryMeExpr(MapleAllocator *alloc, int32 expID, Opcode o, PrimType t,
+             size_t n, TyIdx tyIdx, MIRIntrinsicID intrinID, bool bCheck)
+      : MeExpr(expID, kMeOpNary, o, t, n),
+        tyIdx(tyIdx),
+        intrinsic(intrinID),
+        opnds(alloc->Adapter()),
+        boundCheck(bCheck) {}
 
   NaryMeExpr(MapleAllocator *alloc, int32 expID, const NaryMeExpr &meExpr)
       : MeExpr(expID, kMeOpNary, meExpr.GetOp(), meExpr.GetPrimType(), meExpr.GetNumOpnds()),
