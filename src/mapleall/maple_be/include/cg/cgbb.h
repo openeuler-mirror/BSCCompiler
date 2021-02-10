@@ -75,6 +75,7 @@ class BB {
     kBBFallthru,  /* default */
     kBBIf,        /* conditional branch */
     kBBGoto,      /* unconditional branch */
+    kBBIgoto,
     kBBReturn,
     kBBIntrinsic,  /* BB created by inlining intrinsics; shares a lot with BB_if */
     kBBRangeGoto,

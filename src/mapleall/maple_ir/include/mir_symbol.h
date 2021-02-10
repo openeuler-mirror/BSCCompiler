@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -311,7 +311,7 @@ class MIRSymbol {
     return srcPosition;
   }
 
-  void SetSrcPosition(SrcPosition &position) {
+  void SetSrcPosition(const SrcPosition &position) {
     srcPosition = position;
   }
 
@@ -419,6 +419,14 @@ class MIRSymbol {
     return nameStrIdx < msym.nameStrIdx;
   }
 
+  static uint32 LastPrintedLineNum() {
+    return lastPrintedLineNum;
+  }
+
+  static void SetLastPrintedLineNum(uint32 val) {
+    lastPrintedLineNum = val;
+  }
+
   // Please keep order of the fields, avoid paddings.
  private:
   TyIdx tyIdx{ 0 };
@@ -443,7 +451,6 @@ class MIRSymbol {
   static GStrIdx reflectClassNameIdx;
   static GStrIdx reflectMethodNameIdx;
   static GStrIdx reflectFieldNameIdx;
- public:
   static uint32 lastPrintedLineNum;     // used during printing ascii output
 };
 
@@ -588,6 +595,10 @@ class MIRLabelTable {
 
   MapleVector<GStrIdx> GetLabelTable() {
     return labelTable;
+  }
+
+  MapleUnorderedSet<LabelIdx> GetAddrTakenLabels() {
+    return addrTakenLabels;
   }
 
   const MapleMap<GStrIdx, LabelIdx> &GetStrIdxToLabelIdxMap() const {
