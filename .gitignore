@@ -3,11 +3,15 @@ third_party/d8*
 third_party/icu*
 third_party/libdex*
 tools/android*
+tools/aosp*
 tools/clang*
 tools/gcc*
 tools/gn*
 tools/icu*
+tools/libz*
+tools/zlib*
 tools/ninja*
+tools/qemu*
 tools/r8*
 tools/release*
 build/logs*
