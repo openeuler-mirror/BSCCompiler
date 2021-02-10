@@ -138,9 +138,8 @@ if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
-  mkdir -p qemu
+  git clone https://gitee.com/hu-_-wen/qemu.git
   cd qemu
-  wget http://security.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
   echo Install qemu-aarch64 ...
   # use the following to make sure only the specific version of qemu-user is isstalled
   # the first version sometimes insists to install the system default qemu-user.
