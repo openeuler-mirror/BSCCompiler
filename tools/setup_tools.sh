@@ -117,7 +117,7 @@ if [ ! -d $ANDROID_DIR/out/target/product/generic_arm64 ]; then
   echo Start clone AOSP CORE LIB ...
   git clone https://gitee.com/xlnb/aosp_core_bin.git
   cp -r aosp_core_bin/android $MAPLE_ROOT/
-  cp -r aosp_core_bin/libjava-core $MAPLE_ROOT/ 
+  cp -r aosp_core_bin/libjava-core $MAPLE_ROOT/
   echo Downloaded AOSP CORE LIB
 fi
 
@@ -138,9 +138,8 @@ if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
-  mkdir -p qemu
+  git clone https://gitee.com/hu-_-wen/qemu.git
   cd qemu
-  wget http://security.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
   echo Install qemu-aarch64 ...
   # use the following to make sure only the specific version of qemu-user is isstalled
   # the first version sometimes insists to install the system default qemu-user.
