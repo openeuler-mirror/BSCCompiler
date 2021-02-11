@@ -137,6 +137,10 @@ class Emitter {
     currentMop = mOp;
   }
 
+  std::vector<UStrIdx> &GetStringPtr() {
+    return stringPtr;
+  }
+
   void EmitAsmLabel(AsmLabel label);
   void EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label);
   void EmitFileInfo(const std::string &fileName);
@@ -147,8 +151,9 @@ class Emitter {
   void EmitCombineBfldValue(StructEmitInfo &structEmitInfo);
   void EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mirConst, const MIRType *nextType,
                             uint64 fieldOffset);
-  void EmitScalarConstant(MIRConst &mirConst, bool newLine = true, bool flag32 = false);
-  void EmitStrConstant(const MIRStrConst &mirStrConst);
+  void EmitScalarConstant(MIRConst &mirConst, bool newLine = true, bool flag32 = false, bool isIndirect = false);
+  void EmitStr(const std::string& mplStr, bool emitAscii = false, bool emitNewline = false);
+  void EmitStrConstant(const MIRStrConst &mirStrConst, bool isAscii = false, bool isIndirect = false);
   void EmitStr16Constant(const MIRStr16Const &mirStr16Const);
   void EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, uint32 itabConflictIndex,
                     const std::map<GStrIdx, MIRType*> &strIdx2Type, size_t idx);
@@ -166,6 +171,7 @@ class Emitter {
   void EmitGlobalVar(const MIRSymbol &globalVar);
   void EmitStaticFields(const std::vector<MIRSymbol*> &fields);
   void EmitLiteral(const MIRSymbol &literal, const std::map<GStrIdx, MIRType*> &strIdx2Type);
+  void EmitStringPointers();
   void GetHotAndColdMetaSymbolInfo(const std::vector<MIRSymbol*> &mirSymbolVec,
                                    std::vector<MIRSymbol*> &hotFieldInfoSymbolVec,
                                    std::vector<MIRSymbol*> &coldFieldInfoSymbolVec, const std::string &prefixStr,
@@ -178,6 +184,7 @@ class Emitter {
   void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec);
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
+  void EmitLocalVariable(CGFunc &cgFunc);
   void EmitGlobalVariable();
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
@@ -202,9 +209,9 @@ class Emitter {
     return *this;
   }
 
-  void EmitLabelRef(const std::string &name, LabelIdx labIdx);
-  void EmitStmtLabel(const std::string &name, LabelIdx labIdx);
-  void EmitLabelPair(const std::string &name, const LabelPair &pairLabel);
+  void EmitLabelRef(LabelIdx labIdx);
+  void EmitStmtLabel(LabelIdx labIdx);
+  void EmitLabelPair(const LabelPair &pairLabel);
 
   /* Emit signed/unsigned integer literals in decimal or hexadecimal */
   void EmitDecSigned(int64 num);
@@ -224,6 +231,10 @@ class Emitter {
 
   uint64 GetFuncInsnCount() const {
     return funcInsnCount;
+  }
+
+  CG *GetCG() const {
+    return cg;
   }
 
   void ClearFuncInsnCount() {
@@ -268,6 +279,7 @@ class Emitter {
     MIRModule &mirModule = *cg.GetMIRModule();
     memPool = mirModule.GetMemPool();
     asmInfo = memPool->New<AsmInfo>(*memPool);
+    stringPtr.resize(GlobalTables::GetUStrTable().StringTableSize());
   }
 
   ~Emitter() = default;
@@ -284,8 +296,9 @@ class Emitter {
   const AsmInfo *asmInfo;
   std::ofstream outStream;
   MemPool *memPool;
-  uint16 arraySize;
+  uint32 arraySize;
   bool isFlexibleArray;
+  std::vector<UStrIdx> stringPtr;
 #if 1/* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
   uint64 javaInsnCount = 0;
