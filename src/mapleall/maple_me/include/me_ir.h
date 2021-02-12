@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -92,10 +92,6 @@ class MeExpr {
     return exprID;
   }
 
-  uint8 GetDepth() const {
-    return depth;
-  }
-
   uint32 GetTreeID() const {
     return treeID;
   }
@@ -106,6 +102,10 @@ class MeExpr {
 
   virtual void Dump(const IRMap*, int32 indent = 0) const {
     (void)indent;
+  }
+
+  virtual size_t GetDepth() const {
+    return 0;
   }
 
   virtual bool IsZero() const {
@@ -145,7 +145,6 @@ class MeExpr {
     return nullptr;
   }
 
-  void UpdateDepth();                      // update the depth, suppose all sub nodes have already depth done.
   MeExpr &GetAddrExprBase();               // get the base of the address expression
   // in the expression; nullptr otherwise
   bool SymAppears(OStIdx oidx);  // check if symbol appears in the expression
@@ -165,13 +164,13 @@ class MeExpr {
 
  private:
   MeExpr *FindSymAppearance(OStIdx oidx);  // find the appearance of the symbol
+  bool IsDexMerge() const;
 
   Opcode op;
   PrimType primType;
   uint8 numOpnds;
   MeExprOp meOp;
   int32 exprID;
-  uint8 depth = 0;
   uint32 treeID = 0;  // for bookkeeping purpose during SSAPRE
   MeExpr *next = nullptr;
 };
@@ -373,9 +372,17 @@ class VarMeExpr final : public ScalarMeExpr {
     noDelegateRC = noDelegateRCVal;
   }
 
+  bool GetNoSubsumeRC() const {
+    return noSubsumeRC;
+  }
+
+  void SetNoSubsumeRC(bool noSubsumeRCVal) {
+    noSubsumeRC = noSubsumeRCVal;
+  }
 
  private:
   bool noDelegateRC = false;  // true if this cannot be optimized by delegaterc
+  bool noSubsumeRC = false;   // true if this cannot be optimized by subsumrc
   FieldID fieldID = 0;
   TyIdx inferredTyIdx{ 0 }; /* Non zero if it has a known type (allocation type is seen). */
   MapleVector<TyIdx> inferredTypeCandidates;
@@ -468,7 +475,7 @@ class MePhiNode {
 
 class RegMeExpr : public ScalarMeExpr {
  public:
-  RegMeExpr(MapleAllocator *alloc, int32 exprid, PregIdx preg, PUIdx pidx, OStIdx oidx, uint32 vidx, PrimType ptyp)
+  RegMeExpr(int32 exprid, PregIdx preg, PUIdx pidx, OStIdx oidx, uint32 vidx, PrimType ptyp)
       : ScalarMeExpr(exprid, oidx, vidx, kMeOpReg, OP_regread, ptyp),
         regIdx(preg),
         puIdx(pidx) {}
@@ -503,7 +510,9 @@ class RegMeExpr : public ScalarMeExpr {
 
 class ConstMeExpr : public MeExpr {
  public:
-  ConstMeExpr(int32 exprID, MIRConst *constValParam, PrimType t) : MeExpr(exprID, kMeOpConst, OP_constval, t, 0), constVal(constValParam) {}
+  ConstMeExpr(int32 exprID, MIRConst *constValParam, PrimType t)
+      : MeExpr(exprID, kMeOpConst, OP_constval, t, 0), constVal(constValParam) {}
+
   ~ConstMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -552,7 +561,8 @@ class ConstMeExpr : public MeExpr {
 
 class ConststrMeExpr : public MeExpr {
  public:
-  ConststrMeExpr(int32 exprID, UStrIdx idx, PrimType t) : MeExpr(exprID, kMeOpConststr, OP_conststr, t, 0), strIdx(idx) {}
+  ConststrMeExpr(int32 exprID, UStrIdx idx, PrimType t)
+      : MeExpr(exprID, kMeOpConststr, OP_conststr, t, 0), strIdx(idx) {}
 
   ~ConststrMeExpr() = default;
 
@@ -575,7 +585,9 @@ class ConststrMeExpr : public MeExpr {
 
 class Conststr16MeExpr : public MeExpr {
  public:
-  Conststr16MeExpr(int32 exprID, U16StrIdx idx, PrimType t) : MeExpr(exprID, kMeOpConststr16, OP_conststr16, t, 0), strIdx(idx) {}
+  Conststr16MeExpr(int32 exprID, U16StrIdx idx, PrimType t)
+      : MeExpr(exprID, kMeOpConststr16, OP_conststr16, t, 0), strIdx(idx) {}
+
   ~Conststr16MeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -597,7 +609,9 @@ class Conststr16MeExpr : public MeExpr {
 
 class SizeoftypeMeExpr : public MeExpr {
  public:
-  SizeoftypeMeExpr(int32 exprid, PrimType t, TyIdx idx) : MeExpr(exprid, kMeOpSizeoftype, OP_sizeoftype, t, 0), tyIdx(idx) {}
+  SizeoftypeMeExpr(int32 exprid, PrimType t, TyIdx idx)
+      : MeExpr(exprid, kMeOpSizeoftype, OP_sizeoftype, t, 0), tyIdx(idx) {}
+
   ~SizeoftypeMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
@@ -654,7 +668,8 @@ class FieldsDistMeExpr : public MeExpr {
 
 class AddrofMeExpr : public MeExpr {
  public:
-  AddrofMeExpr(int32 exprid, PrimType t, OStIdx idx) : MeExpr(exprid, kMeOpAddrof, OP_addrof, t, 0), ostIdx(idx), fieldID(0) {}
+  AddrofMeExpr(int32 exprid, PrimType t, OStIdx idx)
+      : MeExpr(exprid, kMeOpAddrof, OP_addrof, t, 0), ostIdx(idx), fieldID(0) {}
 
   ~AddrofMeExpr() = default;
 
@@ -687,7 +702,8 @@ class AddrofMeExpr : public MeExpr {
 
 class AddroffuncMeExpr : public MeExpr {
  public:
-  AddroffuncMeExpr(int32 exprID, PUIdx puIdx) : MeExpr(exprID, kMeOpAddroffunc, OP_addroffunc, PTY_ptr, 0), puIdx(puIdx) {}
+  AddroffuncMeExpr(int32 exprID, PUIdx puIdx)
+      : MeExpr(exprID, kMeOpAddroffunc, OP_addroffunc, PTY_ptr, 0), puIdx(puIdx) {}
 
   ~AddroffuncMeExpr() = default;
 
@@ -712,16 +728,17 @@ class AddroflabelMeExpr : public MeExpr {
  public:
   LabelIdx labelIdx;
 
-  AddroflabelMeExpr(int32 exprid, LabelIdx lidx) : MeExpr(exprid, kMeOpAddroflabel, OP_addroflabel, PTY_ptr, 0), labelIdx(lidx) {}
+  AddroflabelMeExpr(int32 exprid, LabelIdx lidx)
+      : MeExpr(exprid, kMeOpAddroflabel, OP_addroflabel, PTY_ptr, 0), labelIdx(lidx) {}
 
   ~AddroflabelMeExpr() {}
 
   void Dump(const IRMap *, int32 indent = 0) const override;
-  bool IsIdentical(MeExpr *meexpr) {
+  bool IsIdentical(const MeExpr *meexpr) const {
     if (meexpr->GetOp() != GetOp()) {
       return false;
     }
-    const AddroflabelMeExpr *x = static_cast<const AddroflabelMeExpr *>(meexpr);
+    const AddroflabelMeExpr *x = static_cast<const AddroflabelMeExpr*>(meexpr);
     if (labelIdx != x->labelIdx) {
       return false;
     }
@@ -730,13 +747,15 @@ class AddroflabelMeExpr : public MeExpr {
   BaseNode &EmitExpr(SSATab&) override;
 
   uint32 GetHashIndex() const override {
-    return labelIdx << 4;
+    constexpr uint32 shiftNum = 4;
+    return labelIdx << shiftNum;
   }
 };
 
 class GcmallocMeExpr : public MeExpr {
  public:
-  GcmallocMeExpr(int32 exprid, Opcode o, PrimType t, TyIdx tyid) : MeExpr(exprid, kMeOpGcmalloc, o, t, 0), tyIdx(tyid) {}
+  GcmallocMeExpr(int32 exprid, Opcode o, PrimType t, TyIdx tyid)
+      : MeExpr(exprid, kMeOpGcmalloc, o, t, 0), tyIdx(tyid) {}
 
   ~GcmallocMeExpr() = default;
 
@@ -758,7 +777,8 @@ class GcmallocMeExpr : public MeExpr {
 
 class OpMeExpr : public MeExpr {
  public:
-  explicit OpMeExpr(int32 exprID, Opcode o, PrimType t, size_t n) : MeExpr(exprID, kMeOpOp, o, t, n), tyIdx(TyIdx(0)) {}
+  OpMeExpr(int32 exprID, Opcode o, PrimType t, size_t n)
+      : MeExpr(exprID, kMeOpOp, o, t, n), tyIdx(TyIdx(0)) {}
 
   OpMeExpr(const OpMeExpr &opMeExpr, int32 exprID)
       : MeExpr(exprID, kMeOpOp, opMeExpr.GetOp(), opMeExpr.GetPrimType(), opMeExpr.GetNumOpnds()),
@@ -766,6 +786,7 @@ class OpMeExpr : public MeExpr {
         opndType(opMeExpr.opndType),
         bitsOffset(opMeExpr.bitsOffset),
         bitsSize(opMeExpr.bitsSize),
+        depth(opMeExpr.depth),
         tyIdx(opMeExpr.tyIdx),
         fieldID(opMeExpr.fieldID) {}
 
@@ -781,14 +802,23 @@ class OpMeExpr : public MeExpr {
   bool IsUseSameSymbol(const MeExpr&) const override;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
   BaseNode &EmitExpr(SSATab&) override;
+  size_t GetDepth() const override {
+    return depth;
+  }
   MeExpr *GetOpnd(size_t i) const override {
     CHECK_FATAL(i < kOperandNumTernary, "OpMeExpr cannot have more than 3 operands");
     return opnds[i];
   }
 
-  void SetOpnd(size_t idx, MeExpr *opndsVal) override {
+  void SetOpnd(size_t idx, MeExpr *x) override {
     CHECK_FATAL(idx < kOperandNumTernary, "out of range in  OpMeExpr::SetOpnd");
-    opnds[idx] = opndsVal;
+    opnds[idx] = x;
+    if (depth <= x->GetDepth()) {
+      depth = x->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
   }
 
   PrimType GetOpndType() {
@@ -852,13 +882,14 @@ class OpMeExpr : public MeExpr {
   PrimType opndType = kPtyInvalid;  // from type
   uint8 bitsOffset = 0;
   uint8 bitsSize = 0;
+  uint8 depth = 0;
   TyIdx tyIdx;
   FieldID fieldID = 0;  // this is also used to store puIdx
 };
 
 class IvarMeExpr : public MeExpr {
  public:
-  explicit IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
+  IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
       : MeExpr(exprid, kMeOpIvar, OP_iread, t, 1), tyIdx(tidx), fieldID(fid) {}
 
   IvarMeExpr(int32 exprid, const IvarMeExpr &ivarme)
@@ -873,6 +904,9 @@ class IvarMeExpr : public MeExpr {
   ~IvarMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
+  size_t GetDepth() const override {
+    return base->GetDepth() + 1;
+  }
   BaseNode &EmitExpr(SSATab&) override;
   bool IsVolatile(const SSATab&) const override {
     return IsVolatile();
@@ -968,14 +1002,20 @@ class IvarMeExpr : public MeExpr {
 // for array, intrinsicop and intrinsicopwithtype
 class NaryMeExpr : public MeExpr {
  public:
-  NaryMeExpr(MapleAllocator *alloc, int32 expID, Opcode o, PrimType t, size_t n, TyIdx tyIdx, MIRIntrinsicID intrinID, bool bCheck)
-      : MeExpr(expID, kMeOpNary, o, t, n), tyIdx(tyIdx), intrinsic(intrinID), opnds(alloc->Adapter()), boundCheck(bCheck) {}
+  NaryMeExpr(MapleAllocator *alloc, int32 expID, Opcode o, PrimType t,
+             size_t n, TyIdx tyIdx, MIRIntrinsicID intrinID, bool bCheck)
+      : MeExpr(expID, kMeOpNary, o, t, n),
+        tyIdx(tyIdx),
+        intrinsic(intrinID),
+        opnds(alloc->Adapter()),
+        boundCheck(bCheck) {}
 
   NaryMeExpr(MapleAllocator *alloc, int32 expID, const NaryMeExpr &meExpr)
       : MeExpr(expID, kMeOpNary, meExpr.GetOp(), meExpr.GetPrimType(), meExpr.GetNumOpnds()),
         tyIdx(meExpr.tyIdx),
         intrinsic(meExpr.intrinsic),
         opnds(alloc->Adapter()),
+        depth(meExpr.depth),
         boundCheck(meExpr.boundCheck) {
     for (size_t i = 0; i < meExpr.opnds.size(); ++i) {
       opnds.push_back(meExpr.opnds[i]);
@@ -985,6 +1025,9 @@ class NaryMeExpr : public MeExpr {
   ~NaryMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
+  size_t GetDepth() const override {
+    return depth;
+  }
   bool IsIdentical(NaryMeExpr&) const;
   bool IsUseSameSymbol(const MeExpr&) const override;
   BaseNode &EmitExpr(SSATab&) override;
@@ -1010,14 +1053,25 @@ class NaryMeExpr : public MeExpr {
     return opnds;
   }
 
-  void SetOpnds(MapleVector<MeExpr*> &newOpnds) {
-    ASSERT(newOpnds.size() == GetNumOpnds(), "inconsistent operand numbers");
-    opnds = newOpnds;
-  }
-
   void SetOpnd(size_t idx, MeExpr *val) override {
     ASSERT(idx < opnds.size(), "out of range in NaryMeStmt::GetOpnd");
     opnds[idx] = val;
+    if (depth <= val->GetDepth()) {
+      depth = val->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
+  }
+
+  void PushOpnd(MeExpr *x) {
+    opnds.push_back(x);
+    if (depth <= x->GetDepth()) {
+      depth = x->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
   }
 
   bool GetBoundCheck() {
@@ -1046,6 +1100,7 @@ class NaryMeExpr : public MeExpr {
   TyIdx tyIdx;
   MIRIntrinsicID intrinsic;
   MapleVector<MeExpr*> opnds;
+  uint8 depth = 0;
   bool boundCheck;
 };
 
