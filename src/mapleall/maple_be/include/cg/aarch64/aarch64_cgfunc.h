@@ -109,7 +109,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectComment(CommentNode &comment) override;
 
   void HandleCatch() override;
-  Operand *SelectDread(AddrofNode &expr) override;
+  Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) override;
   RegOperand *SelectRegread(RegreadNode &expr) override;
 
   void SelectAddrof(Operand &result, StImmOperand &stImm);

@@ -30,7 +30,7 @@ using namespace maple;
 Operand *HandleDread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &dreadNode = static_cast<AddrofNode&>(expr);
-  return cgFunc.SelectDread(dreadNode);
+  return cgFunc.SelectDread(parent, dreadNode);
 }
 
 Operand *HandleRegread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {

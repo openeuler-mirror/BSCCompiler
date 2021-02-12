@@ -1304,7 +1304,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
   }
 }
 
-Operand *AArch64CGFunc::SelectDread(DreadNode &expr) {
+Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(expr.GetStIdx());
   if (symbol->IsEhIndex()) {
     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_i32);
@@ -1325,8 +1325,41 @@ Operand *AArch64CGFunc::SelectDread(DreadNode &expr) {
     parmCopy = IsParamStructCopy(*symbol);
   }
   CHECK_FATAL(symType != PTY_agg, "dread type error");
-  uint32 dataSize = GetPrimTypeSize(symType) * kBitsPerByte;
-  MemOperand *memOpnd = nullptr;
+  uint32 dataSize = GetPrimTypeBitSize(symType);
+  uint32 aggSize = 0;
+  if (symType == PTY_agg) {
+    if (expr.GetPrimType() == PTY_agg) {
+      aggSize = GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx());
+      dataSize = k64BitSize;
+    } else {
+      dataSize = GetPrimTypeBitSize(expr.GetPrimType());
+    }
+  }
+  MemOperand *memOpnd;
+  if (aggSize > k8ByteSize) {
+    if (parent.op == OP_eval) {
+      if (symbol->GetAttr(ATTR_volatile)) {
+        /* Need to generate loads for the upper parts of the struct. */
+        Operand &dest = AArch64RegOperand::GetZeroRegister(k64BitSize);
+        uint32 numLoads = RoundUp(aggSize, k64BitSize) / k64BitSize;
+        for (uint32 o = 0; o < numLoads; ++o) {
+          if (parmCopy) {
+            memOpnd = &LoadStructCopyBase(*symbol, offset + o * kSizeOfPtr , kSizeOfPtr);
+          } else {
+            memOpnd = &GetOrCreateMemOpnd(*symbol, offset + o * kSizeOfPtr, kSizeOfPtr);
+          }
+          if (IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand *>(memOpnd), kSizeOfPtr)) {
+            memOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand *>(memOpnd), kSizeOfPtr);
+          }
+          SelectCopy(dest, PTY_u64, *memOpnd, PTY_u64);
+        }
+      } else {
+        /* No side-effects.  No need to generate anything for eval. */
+      }
+    } else {
+      CHECK_FATAL(0,"SelectDread: Illegal agg size");
+    }
+  }
   if (parmCopy) {
     memOpnd = &LoadStructCopyBase(*symbol, offset, dataSize);
   } else {
@@ -1575,7 +1608,15 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
 
   RegType regType = GetRegTyFromPrimTy(expr.GetPrimType());
   uint32 regSize = GetPrimTypeSize(expr.GetPrimType());
-  if (regSize < k4ByteSize) {
+  if (expr.GetFieldID() == 0 && pointedType->GetPrimType() == PTY_agg) {
+    /* Maple IR can passing small struct to be loaded into a single register. */
+    if (regType == kRegTyFloat) {
+      /* regsize is correct */
+    } else {
+      uint32 sz = GetBecommon().GetTypeSize(pointedType->GetTypeIndex().GetIdx());
+      regSize = (sz <= 4) ? k4ByteSize : k8ByteSize;
+    }
+  } else if (regSize < k4ByteSize) {
     regSize = k4ByteSize;  /* 32-bit */
   }
   regno_t vRegNO;
@@ -1606,6 +1647,27 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
       }
     } else {
       bitSize = GetPrimTypeBitSize(destType);
+    }
+    if (regType == kRegTyFloat) {
+      destType = expr.GetPrimType();
+      bitSize = GetPrimTypeBitSize(destType);
+    } else if (destType == PTY_agg) {
+      switch (bitSize) {
+      case k8BitSize:
+        destType = PTY_u8;
+        break;
+      case k16BitSize:
+        destType = PTY_u16;
+        break;
+      case k32BitSize:
+        destType = PTY_u32;
+        break;
+      case k64BitSize:
+        destType = PTY_u64;
+        break;
+      default:
+        CHECK_FATAL(false, "SelectIread: aggregate of wrong size");
+      }
     }
   }
 
