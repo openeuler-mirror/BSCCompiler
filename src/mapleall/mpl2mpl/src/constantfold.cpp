@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -119,6 +119,7 @@ StmtNode *ConstantFold::Simplify(StmtNode *node) {
     case OP_decrefreset:
     case OP_regassign:
     case OP_assertnonnull:
+    case OP_igoto:
       return SimplifyUnary(static_cast<UnaryStmtNode*>(node));
     case OP_assertge:
     case OP_assertlt:
@@ -274,7 +275,8 @@ MIRIntConst *ConstantFold::FoldIntConstComparisonMIRConst(Opcode opcode, PrimTyp
   bool greater = (intConst0.GetValue() > intConst1.GetValue());
   bool equal = (intConst0.GetValue() == intConst1.GetValue());
   bool less = (intConst0.GetValue() < intConst1.GetValue());
-  bool use64 = GetPrimTypeSize(opndType) == 8;
+  constexpr uint32 eightBytes = 8;
+  bool use64 = GetPrimTypeSize(opndType) == eightBytes;
   switch (opcode) {
     case OP_eq: {
       if (use64) {
@@ -879,7 +881,7 @@ ConstvalNode *ConstantFold::FoldConstComparison(Opcode opcode, PrimType resultTy
                                                 const ConstvalNode &const0, const ConstvalNode &const1) const {
   ConstvalNode *returnValue = nullptr;
   if (IsPrimitiveInteger(opndType) || IsPrimitiveDynInteger(opndType)) {
-    returnValue = FoldIntConstComparison(opcode, resultType, opndType,  const0, const1);
+    returnValue = FoldIntConstComparison(opcode, resultType, opndType, const0, const1);
   } else if (opndType == PTY_f32 || opndType == PTY_f64) {
     returnValue = FoldFPConstComparison(opcode, resultType, opndType, const0, const1);
   } else {
@@ -1249,7 +1251,7 @@ MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType
         return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(floatValue);
       }
     } else {
-      uint64 fromValue = constValue.GetValue();
+      uint64 fromValue = static_cast<uint64>(constValue.GetValue());
       float floatValue = round(static_cast<float>(fromValue));
       if (static_cast<uint64>(floatValue) == fromValue) {
         return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(floatValue);
@@ -1264,7 +1266,7 @@ MIRConst *ConstantFold::FoldRoundMIRConst(const MIRConst &cst, PrimType fromType
         return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(doubleValue);
       }
     } else {
-      uint64 fromValue = constValue.GetValue();
+      uint64 fromValue = static_cast<uint64>(constValue.GetValue());
       double doubleValue = round(static_cast<double>(fromValue));
       if (static_cast<uint64>(doubleValue) == fromValue) {
         return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(doubleValue);
@@ -1578,14 +1580,14 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       } else {
         // when cst is zero
         // 0 || X -> (X != 0);
-        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(OP_ne, primType, r->GetPrimType(), r,
-                            mirModule->GetMIRBuilder()->CreateIntConst(0, r->GetPrimType()));
+        result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(
+            OP_ne, primType, r->GetPrimType(), r, mirModule->GetMIRBuilder()->CreateIntConst(0, r->GetPrimType()));
       }
     } else if ((op == OP_cand || op == OP_land) && cst != 0) {
       // 5 && X -> (X != 0)
       sum = 0;
-      result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(OP_ne, primType, r->GetPrimType(), r,
-                          mirModule->GetMIRBuilder()->CreateIntConst(0, r->GetPrimType()));
+      result = mirModule->CurFuncCodeMemPool()->New<CompareNode>(
+          OP_ne, primType, r->GetPrimType(), r, mirModule->GetMIRBuilder()->CreateIntConst(0, r->GetPrimType()));
     } else if ((op == OP_bior || op == OP_bxor) && cst == 0) {
       // 0 | X -> X
       // 0 ^ X -> X
@@ -1761,7 +1763,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldCompare(CompareNode *node) {
   ConstvalNode *lConst = safe_cast<ConstvalNode>(lp.first);
   ConstvalNode *rConst = safe_cast<ConstvalNode>(rp.first);
   if (lConst != nullptr && rConst != nullptr && !IsPrimitiveDynType(node->GetOpndType())) {
-    result = FoldConstComparison(node->GetOpCode(), node->GetPrimType(), node->GetOpndType(), 
+    result = FoldConstComparison(node->GetOpCode(), node->GetPrimType(), node->GetOpndType(),
                                  *lConst, *rConst);
   } else {
     BaseNode *l = PairToExpr(node->Opnd(0)->GetPrimType(), lp);
@@ -1935,6 +1937,65 @@ StmtNode *ConstantFold::SimplifyDassign(DassignNode *node) {
   return node;
 }
 
+StmtNode *ConstantFold::SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base) {
+  auto *mirTypeOfIass = GlobalTables::GetTypeTable().GetTypeFromTyIdx(node.GetTyIdx());
+  if (!mirTypeOfIass->IsMIRPtrType()) {
+    return &node;
+  }
+  auto *iassPtType = static_cast<MIRPtrType*>(mirTypeOfIass);
+
+  MIRSymbol *lhsSym = mirModule->CurFunction()->GetLocalOrGlobalSymbol(base.GetStIdx());
+  TyIdx lhsTyIdx = lhsSym->GetTyIdx();
+  if (base.GetFieldID() != 0) {
+    auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
+    if (!mirType->IsStructType()) {
+      return &node;
+    }
+    lhsTyIdx = static_cast<MIRStructType*>(mirType)->GetFieldType(base.GetFieldID())->GetTypeIndex();
+  }
+  if (iassPtType->GetPointedTyIdx() == lhsTyIdx) {
+    DassignNode *dassignNode = mirModule->CurFuncCodeMemPool()->New<DassignNode>();
+    dassignNode->SetStIdx(base.GetStIdx());
+    dassignNode->SetRHS(node.GetRHS());
+    dassignNode->SetFieldID(base.GetFieldID() + node.GetFieldID());
+    return dassignNode;
+  }
+  return &node;
+}
+
+StmtNode *ConstantFold::SimplifyIassignWithIaddrofBaseNode(IassignNode &node, const IaddrofNode &base) {
+  auto *mirTypeOfIass = GlobalTables::GetTypeTable().GetTypeFromTyIdx(node.GetTyIdx());
+  if (!mirTypeOfIass->IsMIRPtrType()) {
+    return &node;
+  }
+  auto *iassPtType = static_cast<MIRPtrType*>(mirTypeOfIass);
+
+  if (base.GetFieldID() == 0) {
+    // this iaddrof is redundant
+    node.SetAddrExpr(base.Opnd(0));
+    return &node;
+  }
+
+  auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(base.GetTyIdx());
+  if (!mirType->IsMIRPtrType()) {
+    return &node;
+  }
+  auto *iaddrofPtType = static_cast<MIRPtrType*>(mirType);
+
+  MIRStructType *lhsStructTy =
+    static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofPtType->GetPointedTyIdx()));
+  TyIdx lhsTyIdx = lhsStructTy->GetFieldType(base.GetFieldID())->GetTypeIndex();
+  if (iassPtType->GetPointedTyIdx() == lhsTyIdx) {
+    // eliminate the iaddrof by updating the iassign's fieldID and tyIdx
+    node.SetFieldID(node.GetFieldID() + base.GetFieldID());
+    node.SetTyIdx(base.GetTyIdx());
+    node.SetOpnd(base.Opnd(0), 0);
+    // recursive call for the new iassign
+    return SimplifyIassign(&node);
+  }
+  return &node;
+}
+
 StmtNode *ConstantFold::SimplifyIassign(IassignNode *node) {
   CHECK_NULL_FATAL(node);
   BaseNode *returnValue = nullptr;
@@ -1946,55 +2007,19 @@ StmtNode *ConstantFold::SimplifyIassign(IassignNode *node) {
   if (returnValue != nullptr) {
     node->SetRHS(returnValue);
   }
-  MIRPtrType *iassPtType = dynamic_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx()));
-  if (iassPtType == nullptr) {
+  auto *mirTypeOfIass = GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx());
+  if (!mirTypeOfIass->IsMIRPtrType()) {
     return node;
   }
+
   auto *opnd = node->Opnd(0);
   ASSERT_NOT_NULL(opnd);
   switch (opnd->GetOpCode()) {
     case OP_addrof: {
-      AddrofNode *addrofNode = static_cast<AddrofNode*>(opnd);
-      MIRSymbol *lhsSym = mirModule->CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
-      TyIdx lhsTyIdx = lhsSym->GetTyIdx();
-      if (addrofNode->GetFieldID() != 0) {
-        MIRStructType *lhsStructTy = dynamic_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
-        if (lhsStructTy == nullptr) {
-          break;
-        }
-        lhsTyIdx = lhsStructTy->GetFieldType(addrofNode->GetFieldID())->GetTypeIndex();
-      }
-      if (iassPtType->GetPointedTyIdx() == lhsTyIdx) {
-        DassignNode *dassignNode = mirModule->CurFuncCodeMemPool()->New<DassignNode>();
-        dassignNode->SetStIdx(addrofNode->GetStIdx());
-        dassignNode->SetRHS(node->GetRHS());
-        dassignNode->SetFieldID(addrofNode->GetFieldID() + node->GetFieldID());
-        return dassignNode;
-      }
-      break;
+      return SimplifyIassignWithAddrofBaseNode(*node, static_cast<AddrofNode&>(*opnd));
     }
     case OP_iaddrof: {
-      IreadNode *iaddrofNode = static_cast<IreadNode*>(opnd);
-      MIRPtrType *iaddrofPtType = dynamic_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofNode->GetTyIdx()));
-      if (iaddrofPtType == nullptr) {
-        break;
-      }
-      if (iaddrofNode->GetFieldID() == 0) {
-        // this iaddrof is redundant
-        node->SetAddrExpr(iaddrofNode->Opnd(0));
-        break;
-      }
-      MIRStructType *lhsStructTy = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofPtType->GetPointedTyIdx()));
-      TyIdx lhsTyIdx = lhsStructTy->GetFieldType(iaddrofNode->GetFieldID())->GetTypeIndex();
-      if (iassPtType->GetPointedTyIdx() == lhsTyIdx) {
-        // eliminate the iaddrof by updating the iassign's fieldID and tyIdx
-        node->SetFieldID(node->GetFieldID() + iaddrofNode->GetFieldID());
-        node->SetTyIdx(iaddrofNode->GetTyIdx());
-        node->SetOpnd(iaddrofNode->Opnd(0), 0);
-        // recursive call for the new iassign
-        return SimplifyIassign(node);
-      }
-      break;
+      return SimplifyIassignWithIaddrofBaseNode(*node, static_cast<IreadNode&>(*opnd));
     }
     default:
       break;

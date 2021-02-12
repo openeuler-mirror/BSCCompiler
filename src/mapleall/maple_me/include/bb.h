@@ -35,6 +35,7 @@ enum BBKind {
   kBBReturn,
   kBBAfterGosub,  // the BB that follows a gosub, as it is an entry point
   kBBSwitch,
+  kBBIgoto,
   kBBInvalid
 };
 

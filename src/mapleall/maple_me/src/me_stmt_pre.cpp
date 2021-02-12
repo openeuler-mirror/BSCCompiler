@@ -850,6 +850,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_brtrue:
       case OP_brfalse:
       case OP_switch:
+      case OP_igoto:
         break;
       case OP_membaracquire:
       case OP_membarrelease:

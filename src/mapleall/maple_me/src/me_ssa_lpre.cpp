@@ -325,6 +325,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), false, nullptr, false);
       break;
     }
+    case kMeOpAddroflabel:
     default:
       break;
   }

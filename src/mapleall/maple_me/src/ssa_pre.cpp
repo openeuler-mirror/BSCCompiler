@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -1455,6 +1455,7 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     case OP_incref:
     case OP_decrefreset:
     case OP_eval:
+    case OP_igoto:
     case OP_assertnonnull:
     case OP_free: {
       auto *unaryStmt = static_cast<UnaryMeStmt*>(meStmt);

@@ -104,6 +104,13 @@ BaseNode &AddroffuncMeExpr::EmitExpr(SSATab &ssaTab) {
   return *addroffuncNode;
 }
 
+BaseNode &AddroflabelMeExpr::EmitExpr(SSATab &ssaTab) {
+  auto *addroflabelNode =
+      ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<AddroflabelNode>(labelIdx);
+  addroflabelNode->SetPrimType(PTY_ptr);
+  return *addroflabelNode;
+}
+
 BaseNode &GcmallocMeExpr::EmitExpr(SSATab &ssaTab) {
   auto *gcMallocNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<GCMallocNode>(
       Opcode(GetOp()), PrimType(GetPrimType()), tyIdx);
