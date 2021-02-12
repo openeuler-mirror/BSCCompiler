@@ -56,22 +56,6 @@ bool MeExpr::IsTheSameWorkcand(const MeExpr &expr) const {
   return IsUseSameSymbol(expr);
 }
 
-void MeExpr::UpdateDepth() {
-  uint8 maxDepth = 0;
-  for (int32 i = 0; i < GetNumOpnds(); ++i) {
-    MeExpr *opnd = GetOpnd(i);
-    if (opnd == nullptr) {
-      continue;
-    }
-    uint8 curDepth = opnd->GetDepth();
-    if (curDepth > maxDepth) {
-      maxDepth = curDepth;
-    }
-  }
-  ASSERT(maxDepth < UINT8_MAX, "runtime check error");
-  depth = static_cast<uint8>(maxDepth + 1);
-}
-
 // get the definition of this
 // for example:
 // v2 = x + b

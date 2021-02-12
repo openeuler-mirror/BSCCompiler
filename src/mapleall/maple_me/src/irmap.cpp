@@ -281,9 +281,6 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
         CHECK_FATAL(false, "not yet implement");
     }
     exprID++;
-    if (meExpr.GetMeOp() == kMeOpOp || meExpr.GetMeOp() == kMeOpNary) {
-      resultExpr->UpdateDepth();
-    }
     PutToBucket(hashIdx, *resultExpr);
   }
   return resultExpr;
