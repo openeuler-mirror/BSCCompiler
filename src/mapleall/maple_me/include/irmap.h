@@ -105,6 +105,9 @@ class IRMap : public AnalysisResult {
                                                  TyIdx tyIdx = TyIdx());
   IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, MeExpr *ret,
                                                          TyIdx tyIdx = TyIdx());
+  MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
+  MeExpr *SimplifyMeExpr(MeExpr *x);
+
   template <class T, typename... Arguments>
   T *NewInPool(Arguments&&... args) {
     return irMapAlloc.GetMemPool()->New<T>(&irMapAlloc, std::forward<Arguments>(args)...);
