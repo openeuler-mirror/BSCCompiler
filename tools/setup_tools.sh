@@ -133,8 +133,17 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
   echo Downloaded libz.
 fi
 
-# install qemu-user 2.5
-if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
+# install qemu-user 2.5.0
+installQemu="false";
+if [ ! -f /usr/bin/qemu-aarch64 ]; then
+  installQemu="true";
+else
+  version=`/usr/bin/qemu-aarch64 -version | sed "s/^.*version.\([0-9.]*\).*/\1/" | head -1`
+  if [ "$version" != "2.5.0" ]; then
+    installQemu="true";
+  fi
+fi
+if [ "$installQemu" == "true" ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
@@ -145,6 +154,5 @@ if [ ! -f $MAPLE_ROOT/tools/qemu/done ]; then
   # the first version sometimes insists to install the system default qemu-user.
   # sudo apt install ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
   sudo dpkg -i ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb || sudo apt install -f
-  touch done
   echo Installed qemu-aarch64
 fi
