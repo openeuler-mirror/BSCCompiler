@@ -1004,8 +1004,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
                                                                     result, lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
     }
-  } else {  /* rhs is iread */
-    ASSERT(stmt.GetRHS()->GetOpCode() == OP_iread, "SelectAggDassign: NYI");
+  } else if (stmt.GetRHS()->GetOpCode() == OP_iread) {
     IreadNode *rhsIread = static_cast<IreadNode*>(stmt.GetRHS());
     RegOperand *addrOpnd = static_cast<RegOperand*>(HandleExpr(*rhsIread, *rhsIread->Opnd(0)));
     addrOpnd = &LoadIntoRegister(*addrOpnd, rhsIread->Opnd(0)->GetPrimType());
@@ -1065,6 +1064,28 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
           GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(newAlignUsed * k8BitSize, PTY_u32), result, lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
     }
+  } else {
+    ASSERT(stmt.GetRHS()->op == OP_regread, "SelectAggDassign: NYI");
+    bool isRet = false;
+    if (lhsType->GetKind() == kTypeStruct || lhsType->GetKind() == kTypeUnion) {
+      RegreadNode *rhsregread = static_cast<RegreadNode *>(stmt.GetRHS());
+      PregIdx pregIdx = rhsregread->GetRegIdx();
+      if (IsSpecialPseudoRegister(pregIdx)) {
+        if ((-pregIdx) == kSregRetval0) {
+          CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggDassign: Incorrect agg size");
+          RegOperand &parm1 = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
+          Operand &memopnd1 = GetOrCreateMemOpnd(*lhsSymbol, 0, k64BitSize);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_u64), parm1, memopnd1));
+          if (lhsSize > k8ByteSize) {
+            RegOperand &parm2 = GetOrCreatePhysicalRegisterOperand(R1, k64BitSize, kRegTyInt);
+            Operand &memopnd2 = GetOrCreateMemOpnd(*lhsSymbol, k8ByteSize, k64BitSize);
+            GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_u64), parm2, memopnd2));
+          }
+          isRet = true;
+        }
+      }
+    }
+    CHECK_FATAL(isRet, "SelectAggDassign: NYI");
   }
 }
 
@@ -1145,8 +1166,18 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
   ASSERT(stmt.Opnd(0) != nullptr, "null ptr check");
   Operand &lhsAddrOpnd = LoadIntoRegister(AddrOpnd, stmt.Opnd(0)->GetPrimType());
   int32 lhsOffset = 0;
-  MIRPtrType *lhsPointerType =
-      static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx()));
+  MIRType *stmtType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx());
+  MIRSymbol *addrSym = nullptr;
+  MIRPtrType *lhsPointerType;
+  if (stmtType->GetPrimType() == PTY_agg) {
+    /* Move into regs */
+    AddrofNode &addrofnode = static_cast<AddrofNode &>(stmt.GetAddrExprBase());
+    addrSym = mirModule.CurFunction()->GetLocalOrGlobalSymbol(addrofnode.GetStIdx());
+    MIRType *addrty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrSym->GetTyIdx());
+    lhsPointerType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(addrty->GetTypeIndex()));
+  } else {
+    lhsPointerType = static_cast<MIRPtrType*>(stmtType);
+  }
   MIRType *lhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsPointerType->GetPointedTyIdx());
   if (stmt.GetFieldID() != 0) {
     MIRStructType *structType = static_cast<MIRStructType*>(lhsType);
@@ -1189,6 +1220,41 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       ASSERT(structType != nullptr, "SelectAggIassign: non-zero fieldID for non-structure");
       rhsType = structType->GetFieldType(rhsDread->GetFieldID());
       rhsOffset = GetBecommon().GetFieldOffset(*structType, rhsDread->GetFieldID()).first;
+    }
+    if (stmtType->GetPrimType() == PTY_agg) {
+      // generate move to regs.
+      CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggIassign: illegal struct size");
+      // aggregates are 8 byte aligned.
+      Operand *rhsmemopnd = nullptr;
+      RegOperand *result[kTwoRegister]; /* maximum 16 bytes, 2 registers */
+      bool parmCopy = IsParamStructCopy(*rhsSymbol);
+      uint32 loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
+      uint32 numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+      for (uint32 i = 0; i < numRegs; i++) {
+        if (parmCopy) {
+          rhsmemopnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * 8, loadSize * kBitsPerByte);
+        } else {
+          rhsmemopnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * 8, loadSize * kBitsPerByte);
+        }
+        result[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, loadSize));
+        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(loadSize * kBitsPerByte, PTY_u32), *(result[i]), *rhsmemopnd);
+        GetCurBB()->AppendInsn(ld);
+       }
+      for (uint32 i = 0; i < numRegs; i++) {
+        AArch64reg preg = (i == 0 ? R0 : R1);
+        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize * kBitsPerByte, kRegTyInt);
+        MOperator mop = (loadSize == 4) ? MOP_wmovrr: MOP_xmovrr;
+        Insn &mov = GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *(result[i]));
+        GetCurBB()->AppendInsn(mov);
+      }
+      // Create artificial dependency to extend the live range
+      for (uint32 i = 0; i < numRegs; i++) {
+        AArch64reg preg = (i == 0 ? R0 : R1);
+        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize * kBitsPerByte, kRegTyInt);
+        Insn &pseudo = cg->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_int, dest);
+        GetCurBB()->AppendInsn(pseudo);
+      }
+      return;
     }
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
@@ -1252,6 +1318,36 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       rhsType = rhsStructType->GetFieldType(rhsIread->GetFieldID());
       rhsOffset = GetBecommon().GetFieldOffset(*rhsStructType, rhsIread->GetFieldID()).first;
       isRefField = GetBecommon().IsRefField(*rhsStructType, rhsIread->GetFieldID());
+    }
+    if (stmtType->GetPrimType() == PTY_agg) {
+      // generate move to regs.
+      CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggIassign: illegal struct size");
+      RegOperand *result[kTwoRegister]; /* maximum 16 bytes, 2 registers */
+      uint32 loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
+      uint32 numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+      for (uint32 i = 0; i < numRegs; i++) {
+        AArch64OfstOperand *rhsOffOpnd = &GetOrCreateOfstOpnd(rhsOffset + i * loadSize, loadSize * kBitsPerByte);
+        Operand &rhsmemopnd =
+            GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, loadSize, rhsAddrOpnd, nullptr, rhsOffOpnd, nullptr);
+        result[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, loadSize));
+        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(loadSize * kBitsPerByte, PTY_u32), *(result[i]), rhsmemopnd);
+        ld.MarkAsAccessRefField(isRefField);
+        GetCurBB()->AppendInsn(ld);
+      }
+      for (uint32 i = 0; i < numRegs; i++) {
+        AArch64reg preg = (i == 0 ? R0 : R1);
+        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize * kBitsPerByte, kRegTyInt);
+        Insn &mov = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovrr, dest, *(result[i]));
+        GetCurBB()->AppendInsn(mov);
+      }
+      // Create artificial dependency to extend the live range
+      for (uint32 i = 0; i < numRegs; i++) {
+        AArch64reg preg = (i == 0 ? R0 : R1);
+        RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize * kBitsPerByte, kRegTyInt);
+        Insn &pseudo = cg->BuildInstruction<AArch64Insn>(MOP_pseudo_ret_int, dest);
+        GetCurBB()->AppendInsn(pseudo);
+      }
+      return;
     }
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
