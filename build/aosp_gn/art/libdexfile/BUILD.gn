@@ -1,0 +1,45 @@
+include_directories = [
+  "${ANDROID_ROOT}/system/core/base/include",
+  "${ANDROID_ROOT}/system/core/libziparchive/include",
+  "${ANDROID_ROOT}/system/core/liblog/include",
+  "${ANDROID_ROOT}/system/core/libutils/include",
+  "${ANDROID_ROOT}/art/libartpalette/include",
+  "${ANDROID_ROOT}/art/libartbase",
+  "${ANDROID_ROOT}/art/libdexfile",
+  "${ANDROID_ROOT}/include",
+  "${THIRD_PARTY_ROOT}/libnativehelper/include_jni",
+]
+
+sources_files = [
+  "dex/art_dex_file_loader.cc",
+  "dex/compact_dex_file.cc",
+  "dex/compact_offset_table.cc",
+  "dex/descriptors_names.cc",
+  "dex/dex_file.cc",
+  "dex/dex_file_exception_helpers.cc",
+  "dex/dex_file_layout.cc",
+  "dex/dex_file_loader.cc",
+  "dex/dex_file_tracking_registrar.cc",
+  "dex/dex_file_verifier.cc",
+  "dex/dex_instruction.cc",
+  "dex/modifiers.cc",
+  "dex/primitive.cc",
+  "dex/signature.cc",
+  "dex/standard_dex_file.cc",
+  "dex/type_lookup_table.cc",
+  "dex/utf.cc",
+]
+
+static_library("libdexfile") {
+  sources = sources_files
+
+  include_dirs = include_directories
+
+  cflags_cc += [
+    "-Wno-defaulted-function-deleted",
+    "-std=gnu++17",
+    "-fPIC",
+  ]
+
+  output_dir = "${root_out_dir}/lib"
+}

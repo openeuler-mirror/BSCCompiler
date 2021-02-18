@@ -49,6 +49,21 @@ else
 fi
 export OLD_OS=${OLD_OS}
 
+AOSP_GN_FILE=system/core/base/BUILD.gn
+AOSP_GN_SOURCE=${MAPLE_ROOT}/build/aosp_gn/${AOSP_GN_FILE}
+AOSP_GN_TARGET=${MAPLE_ROOT}/android/${AOSP_GN_FILE}
+
+if [ ! -f ${AOSP_GN_TARGET} ]; then
+  rsync -a -L ${MAPLE_ROOT}/build/aosp_gn/system ${MAPLE_ROOT}/android/
+  rsync -a -L ${MAPLE_ROOT}/build/aosp_gn/art ${MAPLE_ROOT}/android/
+  cd ${MAPLE_ROOT}/android/
+  patch -p0 < ${MAPLE_ROOT}/build/aosp_gn/system_001.patch
+  patch -p0 < ${MAPLE_ROOT}/build/aosp_gn/art_001.patch
+  mkdir -p include
+  rsync -a -L ${MAPLE_ROOT}/src/mplfe/dex_input/include/string_view_format.h include/
+  cd -
+fi
+
 # workaround for current build
 if [ "$#" -eq 0 ]; then
 unset MAPLE_BUILD_OUTPUT
@@ -120,4 +135,3 @@ unset MAPLE_EXECUTE_BIN
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 
 export PATH=$PATH:${MAPLE_EXECUTE_BIN}
-

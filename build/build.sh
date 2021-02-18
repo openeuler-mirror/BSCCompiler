@@ -14,7 +14,7 @@
 # See the Mulan PSL v2 for more details.
 #
 set -e
-source build/envsetup.sh
+source build/envsetup.sh arm release
 make clean
 option=$@
 model=$1
