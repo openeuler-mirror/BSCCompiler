@@ -3699,8 +3699,45 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
       }
     } else {
       /* same size, so resOpnd can be set */
-      AArch64RegOperand *reg = static_cast<AArch64RegOperand*>(resOpnd);
-      reg->SetRegisterNumber(static_cast<AArch64RegOperand*>(opnd0)->GetRegisterNumber());
+      if ((mirModule.GetSrcLang() == kSrcLangJava) || (IsSignedInteger(fromType) == IsSignedInteger(toType)) ||
+          (GetPrimTypeSize(toType) > 4)) {
+        AArch64RegOperand *reg = static_cast<AArch64RegOperand*>(resOpnd);
+        reg->SetRegisterNumber(static_cast<AArch64RegOperand*>(opnd0)->GetRegisterNumber());
+      } else if (IsUnsignedInteger(toType)) {
+        MOperator mop;
+        switch (toType) {
+        case PTY_u8:
+          mop = MOP_xuxtb32;
+          break;
+        case PTY_u16:
+          mop = MOP_xuxth32;
+          break;
+        case PTY_u32:
+          mop = MOP_xuxtw64;
+          break;
+        default:
+          CHECK_FATAL(0,"Unhandled unsigned convert");
+        }
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, *resOpnd, *opnd0));
+      } else {
+        // signed target
+        uint32 size = GetPrimTypeSize(toType);
+        MOperator mop;
+        switch (toType) {
+        case PTY_i8:
+          mop = (size > 4) ? MOP_xsxtb64 : MOP_xsxtb32;
+          break;
+        case PTY_i16:
+          mop = (size > 4) ? MOP_xsxth64 : MOP_xsxth32;
+          break;
+        case PTY_i32:
+          mop = MOP_xsxtw64;
+          break;
+        default:
+          CHECK_FATAL(0,"Unhandled unsigned convert");
+        }
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, *resOpnd, *opnd0));
+      }
     }
 #endif
   }
