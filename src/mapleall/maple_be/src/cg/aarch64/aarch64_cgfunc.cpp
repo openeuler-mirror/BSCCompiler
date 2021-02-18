@@ -1075,11 +1075,13 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
           CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggDassign: Incorrect agg size");
           RegOperand &parm1 = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
           Operand &memopnd1 = GetOrCreateMemOpnd(*lhsSymbol, 0, k64BitSize);
-          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_u64), parm1, memopnd1));
+          MOperator mop1 = PickStInsn(k64BitSize, PTY_u64);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop1, parm1, memopnd1));
           if (lhsSize > k8ByteSize) {
             RegOperand &parm2 = GetOrCreatePhysicalRegisterOperand(R1, k64BitSize, kRegTyInt);
             Operand &memopnd2 = GetOrCreateMemOpnd(*lhsSymbol, k8ByteSize, k64BitSize);
-            GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_u64), parm2, memopnd2));
+            MOperator mop2 = PickStInsn(k64BitSize, PTY_u64);
+            GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop2, parm2, memopnd2));
           }
           isRet = true;
         }
@@ -1232,19 +1234,20 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       uint32 numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
       for (uint32 i = 0; i < numRegs; i++) {
         if (parmCopy) {
-          rhsmemopnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * 8, loadSize * kBitsPerByte);
+          rhsmemopnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * k8ByteSize, loadSize * kBitsPerByte);
         } else {
-          rhsmemopnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * 8, loadSize * kBitsPerByte);
+          rhsmemopnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * k8ByteSize, loadSize * kBitsPerByte);
         }
         result[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, loadSize));
-        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(loadSize * kBitsPerByte, PTY_u32), *(result[i]), *rhsmemopnd);
+        MOperator mop1 = PickLdInsn(loadSize * kBitsPerByte, PTY_u32);
+        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(mop1, *(result[i]), *rhsmemopnd);
         GetCurBB()->AppendInsn(ld);
        }
       for (uint32 i = 0; i < numRegs; i++) {
         AArch64reg preg = (i == 0 ? R0 : R1);
         RegOperand &dest = GetOrCreatePhysicalRegisterOperand(preg, loadSize * kBitsPerByte, kRegTyInt);
-        MOperator mop = (loadSize == 4) ? MOP_wmovrr: MOP_xmovrr;
-        Insn &mov = GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *(result[i]));
+        MOperator mop2 = (loadSize == k4ByteSize) ? MOP_wmovrr: MOP_xmovrr;
+        Insn &mov = GetCG()->BuildInstruction<AArch64Insn>(mop2, dest, *(result[i]));
         GetCurBB()->AppendInsn(mov);
       }
       // Create artificial dependency to extend the live range
@@ -1330,7 +1333,8 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
         Operand &rhsmemopnd =
             GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, loadSize, rhsAddrOpnd, nullptr, rhsOffOpnd, nullptr);
         result[i] = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, loadSize));
-        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(loadSize * kBitsPerByte, PTY_u32), *(result[i]), rhsmemopnd);
+        MOperator mop1 = PickLdInsn(loadSize * kBitsPerByte, PTY_u32);
+        Insn &ld = GetCG()->BuildInstruction<AArch64Insn>(mop1, *(result[i]), rhsmemopnd);
         ld.MarkAsAccessRefField(isRefField);
         GetCurBB()->AppendInsn(ld);
       }
