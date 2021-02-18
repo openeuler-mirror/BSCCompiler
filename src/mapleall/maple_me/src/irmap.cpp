@@ -220,7 +220,9 @@ IvarMeExpr *IRMap::BuildIvarFromOpMeExpr(OpMeExpr &opMeExpr) {
 }
 
 IvarMeExpr *IRMap::BuildLHSIvarFromIassMeStmt(IassignMeStmt &iassignMeStmt) {
-  return BuildLHSIvar(*iassignMeStmt.GetLHSVal()->GetBase(), iassignMeStmt, iassignMeStmt.GetLHSVal()->GetFieldID());
+  IvarMeExpr *ivarx =  BuildLHSIvar(*iassignMeStmt.GetLHSVal()->GetBase(), iassignMeStmt, iassignMeStmt.GetLHSVal()->GetFieldID());
+  ivarx->SetVolatileFromBaseSymbol(iassignMeStmt.GetLHS()->GetVolatileFromBaseSymbol());
+  return ivarx;
 }
 
 void IRMap::PutToBucket(uint32 hashIdx, MeExpr &meExpr) {

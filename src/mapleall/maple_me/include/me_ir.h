@@ -878,7 +878,8 @@ class IvarMeExpr : public MeExpr {
         defStmt(ivarme.defStmt),
         base(ivarme.base),
         tyIdx(ivarme.tyIdx),
-        fieldID(ivarme.fieldID) {
+        fieldID(ivarme.fieldID),
+        volatileFromBaseSymbol(ivarme.volatileFromBaseSymbol) {
     mu = ivarme.mu;
   }
 
@@ -951,6 +952,14 @@ class IvarMeExpr : public MeExpr {
     maybeNull = maybeNullVal;
   }
 
+  bool GetVolatileFromBaseSymbol() const {
+    return volatileFromBaseSymbol;
+  }
+
+  void SetVolatileFromBaseSymbol(bool value) {
+    volatileFromBaseSymbol = value;
+  }
+
   VarMeExpr *GetMu() {
     return mu;
   }
@@ -973,6 +982,7 @@ class IvarMeExpr : public MeExpr {
   TyIdx inferredTyIdx{ 0 };  // may be a subclass of above tyIdx
   FieldID fieldID = 0;
   bool maybeNull = true;  // false if definitely not null
+  bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
   VarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
 };
 
@@ -1866,7 +1876,7 @@ class IassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  MeExpr *GetLHS() const {
+  IvarMeExpr *GetLHS() const {
     return lhsVar;
   }
 

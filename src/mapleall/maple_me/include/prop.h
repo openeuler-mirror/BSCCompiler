@@ -35,10 +35,27 @@ class Prop {
     bool propagateAtPhi;
   };
 
-  Prop(IRMap&, Dominance&, MemPool&, std::vector<BB*> &&bbVec, BB &commonEntryBB, const PropConfig &config);
+  Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config);
   virtual ~Prop() = default;
-
-  void DoProp();
+  virtual BB *GetBB(BBId id) {
+    return nullptr;
+  }
+  MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi) const;
+  MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm) const;
+  MeExpr &PropIvar(IvarMeExpr &ivarMeExpr) const;
+  void PropUpdateDef(MeExpr &meExpr);
+  void PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList);
+  void PropUpdateMustDefList(MeStmt *mestmt);
+  void TraversalBB(BB &bb);
+  uint32 GetVstLiveStackVecSize() const {
+    return vstLiveStackVec.size();
+  }
+  MapleStack<MeExpr *> *GetVstLiveStackVec(uint32 i) {
+    return vstLiveStackVec[i];
+  }
+  void SetCurBB(BB *bb) {
+    curBB = bb;
+  }
 
  protected:
   virtual void UpdateCurFunction(BB&) const {
@@ -51,29 +68,20 @@ class Prop {
   Dominance &dom;
 
  private:
-  using SafeMeExprPtr = utils::SafePtr<MeExpr>;
-  void TraversalBB(BB &bb);
-  void PropUpdateDef(MeExpr &meExpr);
   void TraversalMeStmt(MeStmt &meStmt);
-  void PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList);
   void CollectSubVarMeExpr(const MeExpr &expr, std::vector<const MeExpr*> &exprVec) const;
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
-                           const std::vector<std::stack<SafeMeExprPtr>> &vstLiveStack) const;
+                           const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const;
   bool IvarIsFinalField(const IvarMeExpr &ivarMeExpr) const;
   bool Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const;
-  MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi) const;
-  MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm) const;
-  MeExpr &PropIvar(IvarMeExpr &ivarMeExpr) const;
   MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
 
   IRMap &irMap;
   SSATab &ssaTab;
   MIRModule &mirModule;
   MapleAllocator propMapAlloc;
-  std::vector<BB*> bbVec;
-  BB &commonEntryBB;
-  std::vector<std::stack<SafeMeExprPtr>> vstLiveStackVec;
-  std::vector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
+  MapleVector<MapleStack<MeExpr *> *> vstLiveStackVec;
+  MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;
 };

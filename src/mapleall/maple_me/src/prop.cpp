@@ -21,27 +21,26 @@ using namespace maple;
 const int kPropTreeLevel = 15;  // tree height threshold to increase to
 
 namespace maple {
-Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, std::vector<BB*> &&bbVec, BB &commonEntryBB,
-           const PropConfig &config)
+Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config)
     : dom(dom),
       irMap(irMap),
       ssaTab(irMap.GetSSATab()),
       mirModule(irMap.GetSSATab().GetModule()),
       propMapAlloc(&memPool),
-      bbVec(bbVec),
-      commonEntryBB(commonEntryBB),
-      vstLiveStackVec(),
-      bbVisited(bbVec.size(), false),
+      vstLiveStackVec(propMapAlloc.Adapter()),
+      bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
       config(config) {
   const MapleVector<OriginalSt*> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
     OriginalSt *ost = originalStVec[i];
     ASSERT(ost->GetIndex() == i, "inconsistent originalst_table index");
+    MapleStack<MeExpr *> *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
     MeExpr *expr = irMap.GetMeExpr(ost->GetZeroVersionIndex());
     if (expr != nullptr) {
-      vstLiveStackVec[i].push(expr);
+      verstStack->push(expr);
     }
+    vstLiveStackVec[i] = verstStack;
   }
 }
 
@@ -57,12 +56,20 @@ void Prop::PropUpdateDef(MeExpr &meExpr) {
     }
     ostIdx = regExpr.GetOst()->GetIndex();
   }
-  vstLiveStackVec.at(ostIdx).push(meExpr);
+  vstLiveStackVec[ostIdx]->push(&meExpr);
 }
 
 void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
   for (auto it = chiList.begin(); it != chiList.end(); ++it) {
     PropUpdateDef(*static_cast<VarMeExpr*>(it->second->GetLHS()));
+  }
+}
+
+void Prop::PropUpdateMustDefList(MeStmt *mestmt) {
+  MapleVector<MustDefMeNode> *mustdefList = mestmt->GetMustDefList();
+  if (!mustdefList->empty()) {
+    MeExpr *melhs = mustdefList->front().GetLHS();
+    PropUpdateDef(*static_cast<VarMeExpr *>(melhs));
   }
 }
 
@@ -92,7 +99,7 @@ void Prop::CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> 
 // the version of progation of x1 is a1, but the top of the stack of symbol a is a2, so it's not consistent
 // warning: I suppose the vector vervec is on the stack, otherwise would cause memory leak
 bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
-                               const std::vector<std::stack<SafeMeExprPtr>> &vstLiveStack) const {
+                               const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const {
   for (auto it = vstVec.begin(); it != vstVec.end(); ++it) {
     // iterate each cur defintion of related symbols of rhs, check the version
     const MeExpr *subExpr = *it;
@@ -103,14 +110,14 @@ bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
     } else {
       stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOst()->GetIndex();
     }
-    auto &pStack = vstLiveStack.at(stackIdx);
-    if (pStack.empty()) {
+    MapleStack<MeExpr *> *pStack = vstLiveStack.at(stackIdx);
+    if (pStack->empty()) {
       // no definition so far go ahead
       continue;
     }
-    SafeMeExprPtr curDef = pStack.top();
+    MeExpr * curDef = pStack->top();
     CHECK_FATAL(curDef->GetMeOp() == kMeOpVar || curDef->GetMeOp() == kMeOpReg, "error: cur def error");
-    if (subExpr != curDef.get()) {
+    if (subExpr != curDef) {
       return false;
     }
   }
@@ -469,9 +476,9 @@ void Prop::TraversalBB(BB &bb) {
   curBB = &bb;
 
   // record stack size for variable versions before processing rename. It is used for stack pop up.
-  std::vector<size_t> curStackSizeVec(vstLiveStackVec.size());
+  MapleVector<size_t> curStackSizeVec(vstLiveStackVec.size(), propMapAlloc.Adapter());
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    curStackSizeVec[i] = vstLiveStackVec[i].size();
+    curStackSizeVec[i] = vstLiveStackVec[i]->size();
   }
 
   // update var phi nodes
@@ -484,21 +491,18 @@ void Prop::TraversalBB(BB &bb) {
     TraversalMeStmt(meStmt);
   }
 
-  auto &domChildren = dom.GetDomChildren(bb.GetBBId());
-  for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
-    TraversalBB(utils::ToRef(bbVec[*it]));
+  MapleSet<BBId> &domChildren = dom.GetDomChildren(bb.GetBBId());
+  for (MapleSet<BBId>::iterator it = domChildren.begin(); it != domChildren.end(); ++it) {
+    BBId childbbid = *it;
+    TraversalBB(*GetBB(childbbid));
   }
 
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    auto &liveStack = vstLiveStackVec[i];
+    MapleStack<MeExpr *> *liveStack = vstLiveStackVec[i];
     size_t curSize = curStackSizeVec[i];
-    while (liveStack.size() > curSize) {
-      liveStack.pop();
+    while (liveStack->size() > curSize) {
+      liveStack->pop();
     }
   }
-}
-
-void Prop::DoProp() {
-  TraversalBB(commonEntryBB);
 }
 }  // namespace maple

@@ -348,6 +348,9 @@ bool IvarMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
 }
 
 bool IvarMeExpr::IsVolatile() const {
+  if (volatileFromBaseSymbol) {
+    return true;
+  }
   auto *type = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(type->GetPointedTyIdx());
   if (fieldID == 0) {

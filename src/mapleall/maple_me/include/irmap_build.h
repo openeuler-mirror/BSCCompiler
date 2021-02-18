@@ -19,15 +19,18 @@
 #include "dominance.h"
 
 namespace maple {
+class Prop;
+
 // This class contains methods to convert Maple IR to MeIR.
 class IRMapBuild {
  public:
-  IRMapBuild(IRMap *hmap, Dominance *dom)
+  IRMapBuild(IRMap *hmap, Dominance *dom, Prop *prop)
       : irMap(hmap),
         mirModule(hmap->GetMIRModule()),
         ssaTab(irMap->GetSSATab()),
         dominance(*dom),
-        curBB(nullptr) {
+        curBB(nullptr),
+        propagater(prop) {
     InitMeExprBuildFactory();
     InitMeStmtFactory();
   }
@@ -44,7 +47,7 @@ class IRMapBuild {
   void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList&, MapleVector<MustDefMeNode>&);
   void BuildMuList(TypeOfMayUseList&, MapleMap<OStIdx, VarMeExpr*>&);
   void BuildPhiMeNode(BB&);
-  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode);
+  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atparm, bool noProp);
 
   OpMeExpr *BuildOpMeExpr(BaseNode &mirNode) const {
     OpMeExpr *meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
@@ -69,7 +72,7 @@ class IRMapBuild {
   MeExpr *BuildNaryMeExprForArray(BaseNode &mirNode) const;
   MeExpr *BuildNaryMeExprForIntrinsicop(BaseNode &mirNode) const;
   MeExpr *BuildNaryMeExprForIntrinsicWithType(BaseNode &mirNode) const;
-  MeExpr *BuildExpr(BaseNode&);
+  MeExpr *BuildExpr(BaseNode&, bool atParm, bool noProp);
   static void InitMeExprBuildFactory();
 
   MeStmt *BuildMeStmtWithNoSSAPart(StmtNode &stmt);
@@ -92,6 +95,7 @@ class IRMapBuild {
   SSATab &ssaTab;
   Dominance &dominance;
   BB *curBB;  // current mapleme::BB being visited
+  Prop *propagater;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_IRMAP_BUILD_H
