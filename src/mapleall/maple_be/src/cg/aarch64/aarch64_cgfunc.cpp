@@ -5699,7 +5699,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     SelectAddrof(stAddrOpnd, stOpnd);
     /* AArch64MemOperand::AddrMode_B_OI */
     return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
-                                            nullptr, &GetOrCreateOfstOpnd(offset, k32BitSize), &symbol);
+                                            nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
   } else if ((storageClass == kScPstatic) || (storageClass == kScFstatic)) {
     if (symbol.GetSKind() == kStConst) {
       ASSERT(offset == 0, "offset should be 0 for constant literals");
