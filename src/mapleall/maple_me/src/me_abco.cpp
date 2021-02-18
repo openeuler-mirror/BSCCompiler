@@ -67,7 +67,7 @@ bool MeABC::CollectABC() {
 }
 
 bool MeABC::IsVirtualVar(const VarMeExpr &var, const SSATab &ssaTab) const {
-  const OriginalSt *ost = ssaTab.GetOriginalStFromID(var.GetOStIdx());
+  const OriginalSt *ost = var.GetOst();
   return ost->GetIndirectLev() > 0;
 }
 
@@ -744,7 +744,7 @@ void MeABC::AddUseDef(MeExpr &meExpr) {
       break;
     }
     case kDefByNo: {
-      CHECK_FATAL(varOpnd1->IsZeroVersion(irMap->GetSSATab()), "must be");
+      CHECK_FATAL(varOpnd1->IsZeroVersion(), "must be");
       break;
     }
     case kDefByMustDef: {

@@ -77,8 +77,8 @@ void RCLowering::MarkAllRefOpnds() {
       }
       if (lhsRef->GetMeOp() == kMeOpVar) {
         auto *var = static_cast<VarMeExpr*>(lhsRef);
-        cleanUpVars[var->GetOStIdx()] = var;
-        ssaTab.UpdateVarOstMap(var->GetOStIdx(), varOStMap);
+        cleanUpVars[var->GetOst()->GetIndex()] = var;
+        ssaTab.UpdateVarOstMap(var->GetOst()->GetIndex(), varOStMap);
       }
       stmt.EnableNeedDecref();
       MeExpr *rhs = stmt.GetRHS();
@@ -145,13 +145,13 @@ MIRIntrinsicID RCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicI
 
 IntrinsiccallMeStmt *RCLowering::GetVarRHSHandleStmt(const MeStmt &stmt) {
   auto *var = static_cast<VarMeExpr*>(stmt.GetRHS());
-  const MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(var->GetOStIdx());
+  const MIRSymbol *sym = var->GetOst()->GetMIRSymbol();
   if (!sym->IsGlobal() || sym->IsFinal()) {
     return nullptr;
   }
   // load global into temp and update rhs to temp
   std::vector<MeExpr*> opnds;
-  bool isVolatile = var->IsVolatile(ssaTab);
+  bool isVolatile = var->IsVolatile();
   MIRIntrinsicID rcCallID = INTRN_UNDEFINED;
   rcCallID = isVolatile ? PrepareVolatileCall(stmt, INTRN_MCCLoadRefSVol) : INTRN_MCCLoadRefS;
   opnds.push_back(irMap.CreateAddrofMeExpr(*var));
@@ -206,7 +206,7 @@ void RCLowering::HandleAssignMeStmtRHS(MeStmt &stmt) {
   }
   if (stmt.GetOp() == OP_regassign) {
     stmt.GetBB()->ReplaceMeStmt(&stmt, loadCall);
-    if (rhs->IsVolatile(ssaTab)) {
+    if (rhs->IsVolatile()) {
       stmt.SetOpnd(1, loadCall->GetMustDefList()->front().GetLHS());
     }
   } else {
@@ -233,7 +233,7 @@ void RCLowering::HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
   if (lhs->GetMeOp() != kMeOpVar) {
     return;
   }
-  auto *ost = ssaTab.GetOriginalStFromID(static_cast<VarMeExpr*>(lhs)->GetOStIdx());
+  auto *ost = ssaTab.GetOriginalStFromID(static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex());
   if (!ost->IsSymbolOst()) {
     return;
   }
@@ -287,7 +287,7 @@ bool RCLowering::RCFirst(MeExpr &rhs) {
   }
   if (rhs.GetMeOp() == kMeOpVar) {
     auto &rhsVar = static_cast<VarMeExpr&>(rhs);
-    const MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(rhsVar.GetOStIdx());
+    const MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(rhsVar.GetOst()->GetIndex());
     return sym->IsLocal();
   }
   return rhs.GetMeOp() == kMeOpReg;
@@ -307,7 +307,7 @@ void RCLowering::PreprocessAssignMeStmt(MeStmt &stmt) {
   if (lhs->GetMeOp() != kMeOpVar) {
     return;
   }
-  const MIRSymbol *lsym = ssaTab.GetMIRSymbolFromID(stmt.GetVarLHS()->GetOStIdx());
+  const MIRSymbol *lsym = stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
   if (stmt.GetOp() == OP_dassign && (lsym->GetStorageClass() == kScAuto || lsym->GetStorageClass() == kScFormal)) {
     assignedPtrSym.insert(lsym);
   }
@@ -335,7 +335,7 @@ void RCLowering::HandleAssignMeStmtRegLHS(MeStmt &stmt) {
 }
 
 void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
-  const MIRSymbol *lsym = ssaTab.GetMIRSymbolFromID(stmt.GetVarLHS()->GetOStIdx());
+  const MIRSymbol *lsym = stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
   if (lsym->IsGlobal()) {
     // decref could be optimized away after if null check
     HandleAssignToGlobalVar(stmt);
@@ -347,7 +347,7 @@ void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
 }
 
 MIRType *RCLowering::GetArrayNodeType(const VarMeExpr &var) {
-  const MIRSymbol *arrayElemSym = ssaTab.GetMIRSymbolFromID(var.GetOStIdx());
+  const MIRSymbol *arrayElemSym = var.GetOst()->GetMIRSymbol();
   MIRType *baseType = arrayElemSym->GetType();
   MIRType *arrayElemType = nullptr;
   if (baseType != nullptr) {
@@ -528,7 +528,7 @@ MIRIntrinsicID RCLowering::SelectWriteBarrier(const MeStmt &stmt) {
   CHECK_FATAL(lhs != nullptr, "null ptr check");
   MeExprOp meOp = lhs->GetMeOp();
   CHECK_FATAL((meOp == kMeOpVar || meOp == kMeOpIvar), "Not Expected meOp");
-  if (lhs->IsVolatile(ssaTab)) {
+  if (lhs->IsVolatile()) {
     if (meOp == kMeOpVar) {
       return PrepareVolatileCall(stmt, incWithLHS ? (decWithLHS ? INTRN_MCCWriteSVol : INTRN_MCCWriteSVolNoDec)
                                                   : (decWithLHS ? INTRN_MCCWriteSVolNoInc : INTRN_MCCWriteSVolNoRC));
@@ -663,7 +663,7 @@ IntrinsiccallMeStmt *FindCleanupIntrinsic(const MeStmt &ret) {
 void RCLowering::HandleReturnVar(RetMeStmt &ret) {
   auto *retVar = static_cast<VarMeExpr*>(ret.GetOpnd(0));
   CHECK_FATAL(retVar != nullptr, "retVal null ptr check");
-  MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(retVar->GetOStIdx());
+  MIRSymbol *sym = retVar->GetOst()->GetMIRSymbol();
   if (sym != nullptr && sym->IgnoreRC()) {
     return;
   }
@@ -709,11 +709,11 @@ void RCLowering::HandleReturnRegread(RetMeStmt &ret) {
     // remove argument from intrinsiccall MPL_CLEANUP_LOCALREFVARS (dread ref %Reg1_R5678, ...
     const MapleVector<MeExpr*> *opnds = &cleanup->GetOpnds();
     for (auto iter = opnds->begin(); iter != opnds->end(); ++iter) {
-      if (*iter == retVar || (!isAnalyzed && static_cast<VarMeExpr*>(*iter)->GetOStIdx() == retVar->GetOStIdx())) {
+      if (*iter == retVar || (!isAnalyzed && static_cast<VarMeExpr*>(*iter)->GetOst() == retVar->GetOst())) {
         cleanup->EraseOpnds(iter);
         cleanup->PushBackOpnd(retVar);  // pin it to end of std::vector
         cleanup->SetIntrinsic(INTRN_MPL_CLEANUP_LOCALREFVARS_SKIP);
-        MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(retVar->GetOStIdx());
+        MIRSymbol *sym = retVar->GetOst()->GetMIRSymbol();
         if (sym->GetAttr(ATTR_localrefvar)) {
           func.GetMirFunc()->InsertMIRSymbol(sym);
         }
@@ -958,7 +958,7 @@ void RCLowering::ReplaceDecResetWithDec(MeStmt &prevStmt, const MeStmt &stmt) {
   auto *addrofMeExpr = static_cast<AddrofMeExpr*>(stmt.GetOpnd(0));
   ASSERT_NOT_NULL(addrofMeExpr);
   auto *dass = static_cast<DassignMeStmt*>(&prevStmt);
-  if (dass->GetRHS()->GetMeOp() != kMeOpReg || dass->GetVarLHS()->GetOStIdx() != addrofMeExpr->GetOstIdx()) {
+  if (dass->GetRHS()->GetMeOp() != kMeOpReg || dass->GetVarLHS()->GetOst()->GetIndex() != addrofMeExpr->GetOstIdx()) {
     return;
   }
   BB *bb = stmt.GetBB();
@@ -1001,7 +1001,7 @@ VarMeExpr *RCLowering::CreateNewTmpVarMeExpr(bool isLocalRefVar) {
     irMap.PushBackVerst2MeExprTable(nullptr);
     ost->PushbackVersionIndex(ost->GetZeroVersionIndex());
   }
-  VarMeExpr *varMeExpr = irMap.CreateNewVarMeExpr(*ost, PTY_ref, 0);
+  VarMeExpr *varMeExpr = irMap.CreateNewVarMeExpr(ost, PTY_ref);
   if (isLocalRefVar) {
     tmpLocalRefVars.insert(varMeExpr);
   }

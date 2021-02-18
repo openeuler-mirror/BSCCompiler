@@ -33,7 +33,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // no need generate any code, but change formal declaration to preg
     CHECK_FATAL(regOrVar->GetMeOp() == kMeOpReg, "formals not promoted to register");
     auto *varMeExpr = static_cast<VarMeExpr*>(realOcc.GetMeExpr());
-    const MIRSymbol *oldFormalSt = ssaTab->GetMIRSymbolFromID(varMeExpr->GetOStIdx());
+    const MIRSymbol *oldFormalSt = varMeExpr->GetOst()->GetMIRSymbol();
     auto *regFormal = static_cast<RegMeExpr*>(regOrVar);
     MIRSymbol *newFormalSt = mirModule->GetMIRBuilder()->CreatePregFormalSymbol(oldFormalSt->GetTyIdx(),
                                                                                 regFormal->GetRegIdx(),
@@ -169,7 +169,7 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   }
   PreWorkCand *workCand = GetWorkCand();
   auto *varMeExpr = static_cast<VarMeExpr*>(workCand->GetTheMeExpr());
-  const OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(varMeExpr->GetOStIdx());
+  OriginalSt *ost = varMeExpr->GetOst();
   if (!ost->IsFormal() || ost->IsAddressTaken()) {
     return;
   }
@@ -200,7 +200,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
   if (meStmt.GetOp() == OP_dassign || meStmt.GetOp() == OP_maydassign) {
     VarMeExpr *lhs = meStmt.GetVarLHS();
     CHECK_NULL_FATAL(lhs);
-    const OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(lhs->GetOStIdx());
+    const OriginalSt *ost = lhs->GetOst();
     if (ost->IsFormal()) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
@@ -221,7 +221,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       return;
     }
     auto *theLHS = static_cast<VarMeExpr*>(mustDefList->front().GetLHS());
-    const OriginalSt *ost = ssaTab->GetOriginalStFromID(theLHS->GetOStIdx());
+    const OriginalSt *ost = theLHS->GetOst();
     if (ost->IsFormal()) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
@@ -250,7 +250,7 @@ void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
       continue;
     }
     auto *varMeExpr = static_cast<VarMeExpr*>(workCand->GetTheMeExpr());
-    const OriginalSt *ost = ssaTab->GetOriginalStFromID(varMeExpr->GetOStIdx());
+    const OriginalSt *ost = varMeExpr->GetOst();
     if (ost->IsFormal()) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
@@ -267,7 +267,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       auto *varMeExpr = static_cast<VarMeExpr*>(&meExpr);
-      const OriginalSt *ost = ssaTab->GetOriginalStFromID(varMeExpr->GetOStIdx());
+      const OriginalSt *ost = varMeExpr->GetOst();
       if (ost->IsVolatile()) {
         break;
       }

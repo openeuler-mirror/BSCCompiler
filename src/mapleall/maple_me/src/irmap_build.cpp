@@ -22,39 +22,38 @@ namespace maple {
 using MeExprBuildFactory = FunctionFactory<Opcode, MeExpr*, const IRMapBuild*, BaseNode&>;
 using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, AccessSSANodes&>;
 
-VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
+VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(VersionSt &vst) {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->vst2MeExprTable.size(), "GetOrCreateVarFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->vst2MeExprTable.at(vindex);
   if (meExpr != nullptr) {
     return static_cast<VarMeExpr*>(meExpr);
   }
-  const OriginalSt *ost = vst.GetOrigSt();
+  OriginalSt *ost = vst.GetOst();
   ASSERT(ost->IsSymbolOst(), "GetOrCreateVarFromVerSt: wrong ost_type");
-  PrimType primType = GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType();
-  auto *varx = irMap->New<VarMeExpr>(&irMap->irMapAlloc, irMap->exprID++, ost->GetIndex(), vindex, primType);
+  auto *varx = irMap->NewInPool<VarMeExpr>(irMap->exprID++, ost, vindex,
+     GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType());
   ASSERT(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
-  varx->SetFieldID(ost->GetFieldID());
   irMap->vst2MeExprTable[vindex] = varx;
   return varx;
 }
 
-RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
+RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(VersionSt &vst) {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->vst2MeExprTable.size(), " GetOrCreateRegFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->vst2MeExprTable[vindex];
   if (meExpr != nullptr) {
     return static_cast<RegMeExpr*>(meExpr);
   }
-  const OriginalSt *ost = vst.GetOrigSt();
+  OriginalSt *ost = vst.GetOst();
   ASSERT(ost->IsPregOst(), "GetOrCreateRegFromVerSt: PregOST expected");
-  auto *regx = irMap->New<RegMeExpr>(irMap->exprID++, ost->GetPregIdx(), mirModule.CurFunction()->GetPuidx(),
-                                     ost->GetIndex(), vindex, ost->GetMIRPreg()->GetPrimType());
+  auto *regx = irMap->New<RegMeExpr>(irMap->exprID++,
+                                           ost, vindex, ost->GetMIRPreg()->GetPrimType());
   irMap->vst2MeExprTable[vindex] = regx;
   return regx;
 }
 
-MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) {
+MeExpr *IRMapBuild::BuildLHSVar(VersionSt &vst, DassignMeStmt &defMeStmt) {
   VarMeExpr *meDef = GetOrCreateVarFromVerSt(vst);
   meDef->SetDefStmt(&defMeStmt);
   meDef->SetDefBy(kDefByStmt);
@@ -62,7 +61,7 @@ MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) 
   return meDef;
 }
 
-MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign) {
+MeExpr *IRMapBuild::BuildLHSReg(VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign) {
   RegMeExpr *meDef = GetOrCreateRegFromVerSt(vst);
   meDef->SetPtyp(regassign.GetPrimType());
   meDef->SetDefStmt(&defMeStmt);
@@ -83,7 +82,7 @@ void IRMapBuild::BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes,
     lhs->SetDefBy(kDefByChi);
     lhs->SetDefChi(*chiMeStmt);
     chiMeStmt->SetLHS(lhs);
-    (void)outList.insert(std::make_pair(lhs->GetOStIdx(), chiMeStmt));
+    (void)outList.insert(std::make_pair(lhs->GetOst()->GetIndex(), chiMeStmt));
   }
 }
 
@@ -127,7 +126,7 @@ void IRMapBuild::BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, VarM
   for (auto &mayUseNode : mayUseList) {
     VersionSt *vst = mayUseNode.GetOpnd();
     VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
-    (void)muList.insert(std::make_pair(varMeExpr->GetOStIdx(), varMeExpr));
+    (void)muList.insert(std::make_pair(varMeExpr->GetOst()->GetIndex(), varMeExpr));
   }
 }
 
@@ -284,7 +283,6 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
     VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
     ASSERT(!vst->GetOrigSt()->IsPregOst(), "not expect preg symbol here");
     varMeExpr->SetPtyp(GlobalTables::GetTypeTable().GetTypeFromTyIdx(vst->GetOrigSt()->GetTyIdx())->GetPrimType());
-    varMeExpr->SetFieldID(addrOfNode.GetFieldID());
     return varMeExpr;
   }
 
@@ -468,7 +466,7 @@ MeStmt *IRMapBuild::BuildMaydassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPar
   auto *meStmt = irMap->NewInPool<MaydassignMeStmt>(&stmt);
   auto &dassiNode = static_cast<DassignNode&>(stmt);
   meStmt->SetRHS(BuildExpr(*dassiNode.GetRHS()));
-  meStmt->SetMayDassignSym(ssaPart.GetSSAVar()->GetOrigSt());
+  meStmt->SetMayDassignSym(ssaPart.GetSSAVar()->GetOst());
   meStmt->SetFieldID(dassiNode.GetFieldID());
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));
   return meStmt;

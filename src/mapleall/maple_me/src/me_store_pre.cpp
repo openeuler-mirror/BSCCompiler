@@ -49,7 +49,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
   for (auto itStmt = meStmts.rbegin(); itStmt != meStmts.rend(); ++itStmt) {
     if (itStmt->GetOp() == OP_dassign) {
       auto *dass = static_cast<DassignMeStmt*>(to_ptr(itStmt));
-      if (dass->GetVarLHS()->GetOStIdx() != workCand->GetOst()->GetIndex()) {
+      if (dass->GetVarLHS()->GetOst() != workCand->GetOst()) {
         continue;
       }
       if (enabledDebug) {
@@ -57,7 +57,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       }
       ASSERT_NOT_NULL(curTemp);
       if (dass->GetRHS()->GetMeOp() == kMeOpReg &&
-          static_cast<RegMeExpr*>(dass->GetRHS())->GetOstIdx() == curTemp->GetOstIdx()) {
+          static_cast<RegMeExpr*>(dass->GetRHS())->GetOst() == curTemp->GetOst()) {
         return static_cast<RegMeExpr*>(dass->GetRHS());
       }
       // create and insert regassign before dass
@@ -79,7 +79,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
           continue;
         }
         auto *lhsVar = static_cast<VarMeExpr*>(mdLHS);
-        if (lhsVar->GetOStIdx() != workCand->GetOst()->GetIndex()) {
+        if (lhsVar->GetOst() != workCand->GetOst()) {
           continue;
         }
         if (enabledDebug) {
@@ -117,7 +117,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       regPhi->GetOpnds().push_back(regPhiOpnd);
     }
     // insert the regPhi
-    (void)bb.GetMePhiList().insert(std::make_pair(lhsReg->GetOstIdx(), regPhi));
+    (void)bb.GetMePhiList().insert(std::make_pair(lhsReg->GetOst()->GetIndex(), regPhi));
     return lhsReg;
   }
   // continue at immediate dominator
@@ -261,9 +261,9 @@ void MeStorePre::CreateSpreUseOccsThruAliasing(const OriginalSt &muOst, BB &bb) 
 void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) const {
   if (meExpr.GetMeOp() == kMeOpVar) {
     auto *var = static_cast<const VarMeExpr*>(&meExpr);
-    const OriginalSt *ost = ssaTab->GetOriginalStFromID(var->GetOStIdx());
+    const OriginalSt *ost = var->GetOst();
     if (!ost->IsVolatile()) {
-      CreateUseOcc(var->GetOStIdx(), bb);
+      CreateUseOcc(var->GetOst()->GetIndex(), bb);
     }
     return;
   }
@@ -276,7 +276,7 @@ void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) const {
   if (meExpr.GetMeOp() == kMeOpIvar) {
     auto *ivarMeExpr = static_cast<const IvarMeExpr*>(&meExpr);
     if (ivarMeExpr->GetMu() != nullptr) {
-      CreateSpreUseOccsThruAliasing(*ssaTab->GetOriginalStFromID(ivarMeExpr->GetMu()->GetOStIdx()), bb);
+      CreateSpreUseOccsThruAliasing(*ivarMeExpr->GetMu()->GetOst(), bb);
     }
   }
 }
@@ -308,7 +308,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
     if (stmt->GetOp() == OP_dassign) {
       auto *dass = static_cast<DassignMeStmt*>(to_ptr(stmt));
       if (dass->GetLHS()->GetPrimType() != PTY_ref) {
-        lhsOstIdx = dass->GetVarLHS()->GetOStIdx();
+        lhsOstIdx = dass->GetVarLHS()->GetOst()->GetIndex();
       }
     } else if (kOpcodeInfo.IsCallAssigned(stmt->GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt->GetMustDefList();
@@ -316,7 +316,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
       if (!mustDefList->empty()) {
         MeExpr *mdLHS = mustDefList->front().GetLHS();
         if (mdLHS->GetMeOp() == kMeOpVar && mdLHS->GetPrimType() != PTY_ref) {
-          lhsOstIdx = static_cast<VarMeExpr*>(mdLHS)->GetOStIdx();
+          lhsOstIdx = static_cast<VarMeExpr*>(mdLHS)->GetOst()->GetIndex();
         }
       }
     }
@@ -336,7 +336,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
       if (naryMeStmt != nullptr) {
         CHECK_NULL_FATAL(naryMeStmt->GetMuList());
         for (std::pair<OStIdx, VarMeExpr*> muPair : *(naryMeStmt->GetMuList())) {
-          CreateSpreUseOccsThruAliasing(*ssaTab->GetOriginalStFromID(muPair.second->GetOStIdx()), *bb);
+          CreateSpreUseOccsThruAliasing(*muPair.second->GetOst(), *bb);
         }
       }
     }
