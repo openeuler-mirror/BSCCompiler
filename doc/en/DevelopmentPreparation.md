@@ -10,18 +10,29 @@
 
 ## Recommended Development Environment
 
-Install a 64-bit Ubuntu (Ubuntu 16.04 is recommended).
+Install a 64-bit Ubuntu (Ubuntu 16.04, 18.04 or 20.04 is required).
 
 
 ```
-sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless
+sudo apt-get -y install git build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
+
+Ubuntu 16.04:
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
+
+Ubuntu 18.04:
+sudo apt-get -y install gcc-7-aarch64-linux-gnu g++-7-aarch64-linux-gnu
+
+Ubuntu 20.04:
+sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu
 ```
 
 ## Auto Installation of Tools
 ```
-source build/envsetup.sh
-tools/setup_tools.sh
+source build/envsetup.sh arm release
+make setup
+
+Note: the following steps are for reference only. All required tools are installed during above "make setup"
 ```
 
 ## Installing and Configuring Clang (for Compiling the OpenArkCompiler Code)

@@ -34,10 +34,6 @@ Open the front end, back end, and compilation optimization of compilers. Support
 
 **Updating...**
 
-## OpenArkCompiler Incubator
-- FutureWei Mapleall https://gitee.com/openarkcompiler-incubator/mapleall
-- Maple Engine https://gitee.com/openarkcompiler-incubator/maple_engine
-
 ## How to use
 - source build/envsetup.sh arm release
   or
@@ -46,6 +42,10 @@ Open the front end, back end, and compilation optimization of compilers. Support
 - make
 - make libcore
 - make testall
+
+## OpenArkCompiler Incubator
+- FutureWei Mapleall https://gitee.com/openarkcompiler-incubator/mapleall
+- Maple Engine https://gitee.com/openarkcompiler-incubator/maple_engine
 
 ## Related Documents
 

@@ -29,10 +29,11 @@ sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu
 
 ## 自动安装工具
 ```
-source build/envsetup.sh
-tools/setup_tools.sh
-```
+source build/envsetup.sh arm release
+make setup
 
+以下的步骤只是作为参考，需要的工具都已经在 "make setup" 一步自动安装完成。
+```
 
 ## 安装Clang编译器并完成配置（用于编译方舟编译器代码，20.04已改为使用系统安装的Clang）
 
