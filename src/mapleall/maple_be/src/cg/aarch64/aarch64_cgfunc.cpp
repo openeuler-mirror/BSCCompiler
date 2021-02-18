@@ -1996,7 +1996,9 @@ void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcod
 
     if (isImm) {
       /* Special cases, i.e., comparing with zero */
-      if (static_cast<AArch64ImmOperand*>(opnd1)->IsZero() && (Globals::GetInstance()->GetOptimLevel() > 0)) {
+      /* Do not perform optimization for C, unlike Java which has no unsigned int. */
+      if (static_cast<AArch64ImmOperand*>(opnd1)->IsZero() && (Globals::GetInstance()->GetOptimLevel() > 0) &&
+          ((mirModule.GetSrcLang() != kSrcLangC) || ((primType != PTY_u64) && (primType != PTY_u32)))) {
         bool finish = GenerateCompareWithZeroInstruction(jmpOp, cmpOp, is64Bits, targetOpnd, *opnd0);
         if (finish) {
           return;
