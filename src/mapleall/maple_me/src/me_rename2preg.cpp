@@ -48,14 +48,14 @@ class OStCache final {
   explicit OStCache(SSATab &ssaTab) : ssaTab(ssaTab) {}
   ~OStCache() = default;
 
-  const OriginalSt *Find(OStIdx ostIdx) const {
+  OriginalSt *Find(OStIdx ostIdx) const {
     auto it = cache.find(ostIdx);
     return it == cache.end() ? nullptr : it->second;
   }
 
   OriginalSt &CreatePregOst(const RegMeExpr &regExpr, const OriginalSt &ost) {
     OriginalStTable &ostTbl = ssaTab.GetOriginalStTable();
-    OriginalSt *regOst = ostTbl.CreatePregOriginalSt(regExpr.GetRegIdx(), regExpr.GetPuIdx());
+    OriginalSt *regOst = ostTbl.CreatePregOriginalSt(regExpr.GetRegIdx(), ssaTab.GetModule().CurFunction()->GetPuidx());
     utils::ToRef(regOst).SetIsFormal(ost.IsFormal());
     cache[ost.GetIndex()] = regOst;
     return *regOst;
@@ -128,7 +128,7 @@ class FormalRenaming final {
 
   ~FormalRenaming() = default;
 
-  void MarkUsed(const OriginalSt &ost) {
+  void MarkUsed(OriginalSt &ost) {
     if (ost.IsFormal() && ost.IsSymbolOst()) {
       const MIRSymbol *sym = ost.GetMIRSymbol();
       uint32 idx = irFunc.GetFormalIndex(sym);
@@ -206,7 +206,9 @@ class SSARename2Preg {
           LogInfo::MapleLogger() << " working on phi part of BB" << bb.GetBBId() << '\n';
         }
         for (auto &phiList : bb.GetMePhiList()) {
-          Rename2PregPhi(aliasClass, utils::ToRef(phiList.second), irMap);
+          if (phiList.second->GetLHS()->GetMeOp() != kMeOpReg) {
+            Rename2PregPhi(aliasClass, utils::ToRef(phiList.second), irMap);
+          }
         }
 
         if (enabledDebug) {
@@ -260,12 +262,12 @@ class SSARename2Preg {
       return;
     }
 
-    OriginalSt &ost = utils::ToRef(utils::ToRef(ssaTab).GetOriginalStFromID(lhs->GetOStIdx()));
+    OriginalSt *ost = lhs->GetOst();
     RegMeExpr *regExpr = RenameVar(aliasClass, *lhs);
     if (regExpr != nullptr) {
       mustDefNode.UpdateLHS(*regExpr);
     } else {
-      CHECK_FATAL(ost.IsRealSymbol(), "NYI");
+      CHECK_FATAL(ost->IsRealSymbol(), "NYI");
     }
   }
 
@@ -356,10 +358,10 @@ class SSARename2Preg {
   }
 
   RegMeExpr *RenameVar(const AliasClass &aliasClass, const VarMeExpr &varExpr) {
-    const OriginalSt &ost = utils::ToRef(utils::ToRef(ssaTab).GetOriginalStFromID(varExpr.GetOStIdx()));
-    formal.MarkUsed(ost);
+    OriginalSt *ost = varExpr.GetOst();
+    formal.MarkUsed(*ost);
 
-    if (varExpr.GetFieldID() != 0) {
+    if (varExpr.GetOst()->GetFieldID() != 0) {
       return nullptr;
     }
 
@@ -367,20 +369,20 @@ class SSARename2Preg {
       return nullptr;
     }
 
-    if (ost.GetIndirectLev() != 0) {
+    if (ost->GetIndirectLev() != 0) {
       return nullptr;
     }
 
-    CHECK_FATAL(ost.IsRealSymbol(), "NYI");
-    const MIRSymbol &irSymbol = utils::ToRef(ost.GetMIRSymbol());
+    CHECK_FATAL(ost->IsRealSymbol(), "NYI");
+    const MIRSymbol &irSymbol = utils::ToRef(ost->GetMIRSymbol());
     if (irSymbol.GetAttr(ATTR_localrefvar)) {
       return nullptr;
     }
-    if (ost.IsFormal() && varExpr.GetPrimType() == PTY_ref) {
+    if (ost->IsFormal() && varExpr.GetPrimType() == PTY_ref) {
       return nullptr;
     }
 
-    const OriginalSt *cacheOSt = cacheProxy.OSt().Find(ost.GetIndex());
+    OriginalSt *cacheOSt = cacheProxy.OSt().Find(ost->GetIndex());
     if (cacheOSt != nullptr) {
       // replaced previously
       return &cacheProxy.Preg().CloneRegExprIfNotExist(varExpr, [cacheOSt](MeIRMap &irMap) {
@@ -391,29 +393,29 @@ class SSARename2Preg {
     if (!irSymbol.IsLocal()) {
       return nullptr;
     }
-    if (ost.IsAddressTaken()) {
+    if (ost->IsAddressTaken()) {
       return nullptr;
     }
-    const AliasElem *aliasElem = GetAliasElem(aliasClass, ost);
+    const AliasElem *aliasElem = GetAliasElem(aliasClass, *ost);
     if (aliasElem == nullptr || aliasElem->GetClassSet() != nullptr) {
       return nullptr;
     }
 
     RegMeExpr &newRegExpr = cacheProxy.Preg().CreatePregExpr(varExpr, irSymbol.GetTyIdx());
-    OriginalSt &pregOst = cacheProxy.OSt().CreatePregOst(newRegExpr, ost);
+    OriginalSt &pregOst = cacheProxy.OSt().CreatePregOst(newRegExpr, *ost);
 
-    formal.MarkRenamed(ost, irSymbol, newRegExpr);
+    formal.MarkRenamed(*ost, irSymbol, newRegExpr);
 
     if (enabledDebug) {
-      ost.Dump();
-      LogInfo::MapleLogger() << "(ost idx " << ost.GetIndex() << ") renamed to ";
+      ost->Dump();
+      LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
       pregOst.Dump();
       LogInfo::MapleLogger() << '\n';
     }
     return &newRegExpr;
   }
 
-  const AliasElem *GetAliasElem(const AliasClass &aliasClass, const OriginalSt &ost) const {
+  const AliasElem *GetAliasElem(const AliasClass &aliasClass, OriginalSt &ost) const {
     if (ost.GetIndex() >= aliasClass.GetAliasElemCount()) {
       return nullptr;
     }
@@ -427,7 +429,7 @@ class SSARename2Preg {
   CacheProxy cacheProxy;
   FormalRenaming formal;
 };
-}  // namespace
+} // namespace
 
 namespace maple {
 

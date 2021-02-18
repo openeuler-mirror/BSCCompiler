@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -227,13 +227,13 @@ void Prop::PropUpdateDef(MeExpr &meExpr) {
   ASSERT(meExpr.GetMeOp() == kMeOpVar || meExpr.GetMeOp() == kMeOpReg, "meExpr error");
   OStIdx ostIdx;
   if (meExpr.GetMeOp() == kMeOpVar) {
-    ostIdx = static_cast<VarMeExpr&>(meExpr).GetOStIdx();
+    ostIdx = static_cast<VarMeExpr&>(meExpr).GetOst()->GetIndex();
   } else {
     auto &regExpr = static_cast<RegMeExpr&>(meExpr);
     if (!regExpr.IsNormalReg()) {
       return;
     }
-    ostIdx = regExpr.GetOstIdx();
+    ostIdx = regExpr.GetOst()->GetIndex();
   }
   vstLiveStackVec.at(ostIdx).push(meExpr);
 }
@@ -277,9 +277,9 @@ bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
     CHECK_FATAL(subExpr->GetMeOp() == kMeOpVar || subExpr->GetMeOp() == kMeOpReg, "error: sub expr error");
     uint32 stackIdx = 0;
     if (subExpr->GetMeOp() == kMeOpVar) {
-      stackIdx = static_cast<const VarMeExpr*>(subExpr)->GetOStIdx();
+      stackIdx = static_cast<const VarMeExpr*>(subExpr)->GetOst()->GetIndex();
     } else {
-      stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOstIdx();
+      stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOst()->GetIndex();
     }
     auto &pStack = vstLiveStack.at(stackIdx);
     if (pStack.empty()) {
@@ -338,10 +338,10 @@ bool Prop::Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const
     }
     case kMeOpVar: {
       auto &varMeExpr = static_cast<const VarMeExpr&>(expr);
-      if (varMeExpr.IsVolatile(ssaTab)) {
+      if (varMeExpr.IsVolatile()) {
         return false;
       }
-      const MIRSymbol *st = ssaTab.GetMIRSymbolFromID(varMeExpr.GetOStIdx());
+      const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
       if (!config.propagateGlobalRef && st->IsGlobal() && !st->IsFinal() && !st->IgnoreRC()) {
         return false;
       }
@@ -401,8 +401,8 @@ bool Prop::Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const
 
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) const {
-  const MIRSymbol *st = ssaTab.GetMIRSymbolFromID(varMeExpr.GetOStIdx());
-  if (st->IsInstrumented() || varMeExpr.IsVolatile(ssaTab)) {
+  const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
+  if (st->IsInstrumented() || varMeExpr.IsVolatile()) {
     return varMeExpr;
   }
 

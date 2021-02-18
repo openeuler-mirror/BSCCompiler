@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -74,7 +74,7 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     phi->SetIsLive(true);  // always make it live, for correctness
     if (phi->GetLHS() == nullptr) {
       // create a new VarMeExpr defined by this phi
-      VarMeExpr *newVar = irMap.CreateNewVarMeExpr(it2->first, ssaTab.GetPrimType(it2->first), 0);
+      VarMeExpr *newVar = irMap.CreateNewVarMeExpr(ssaTab.GetOriginalStFromID(it2->first), ssaTab.GetPrimType(it2->first));
       phi->UpdateLHS(*newVar);
       it1->second->push(newVar);  // push the stack
     } else {
@@ -89,7 +89,7 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
   switch (meExpr.GetMeOp()) {
     case kMeOpVar: {
       auto &varExpr = static_cast<VarMeExpr&>(meExpr);
-      auto it = renameStacks.find(varExpr.GetOStIdx());
+      auto it = renameStacks.find(varExpr.GetOst()->GetIndex());
       if (it == renameStacks.end()) {
         return &meExpr;
       }
@@ -136,7 +136,8 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
     }
     case kMeOpNary: {
       auto &naryMeExpr = static_cast<NaryMeExpr&>(meExpr);
-      NaryMeExpr newMeExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, meExpr.GetOp(), meExpr.GetPrimType(), meExpr.GetNumOpnds(), naryMeExpr.GetTyIdx(), naryMeExpr.GetIntrinsic(),
+      NaryMeExpr newMeExpr(&irMap.GetIRMapAlloc(), kInvalidExprID, meExpr.GetOp(), meExpr.GetPrimType(),
+                           meExpr.GetNumOpnds(), naryMeExpr.GetTyIdx(), naryMeExpr.GetIntrinsic(),
                            naryMeExpr.GetBoundCheck());
       for (size_t i = 0; i < naryMeExpr.GetOpnds().size(); ++i) {
         newMeExpr.GetOpnds().push_back(RenameExpr(*naryMeExpr.GetOpnd(i), needRehash));
@@ -199,7 +200,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       continue;
     }
     CHECK_FATAL(lhsVar != nullptr, "stmt doesn't have lhs?");
-    auto it = renameStacks.find(lhsVar->GetOStIdx());
+    auto it = renameStacks.find(lhsVar->GetOst()->GetIndex());
     if (it == renameStacks.end()) {
       continue;
     }
@@ -260,7 +261,7 @@ void MeSSAUpdate::Run() {
   InsertPhis();
   // push zero-version varmeexpr nodes to rename stacks
   for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
-    const OriginalSt *ost = ssaTab.GetSymbolOriginalStFromID(it->first);
+    OriginalSt *ost = ssaTab.GetSymbolOriginalStFromID(it->first);
     VarMeExpr *zeroVersVar = irMap.GetOrCreateZeroVersionVarMeExpr(*ost);
     MapleStack<ScalarMeExpr*> *renameStack = it->second;
     renameStack->push(zeroVersVar);

@@ -53,7 +53,7 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateIaddrofMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
   MeExpr *CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
   RegMeExpr *CreateRegMeExpr(PrimType);
-  RegMeExpr *CreateRegMeExprVersion(const OriginalSt&);
+  RegMeExpr *CreateRegMeExprVersion(OriginalSt&);
   RegMeExpr *CreateRegMeExprVersion(const RegMeExpr&);
   MeExpr *ReplaceMeExprExpr(MeExpr&, const MeExpr&, MeExpr&);
   bool ReplaceMeExprStmt(MeStmt&, const MeExpr&, MeExpr&);
@@ -61,7 +61,7 @@ class IRMap : public AnalysisResult {
     return vst2MeExprTable[verid];
   }
 
-  VarMeExpr *GetOrCreateZeroVersionVarMeExpr(const OriginalSt &ost);
+  VarMeExpr *GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost);
   MeExpr *GetMeExpr(size_t index) {
     ASSERT(index < vst2MeExprTable.size(), "index out of range");
     MeExpr *meExpr = vst2MeExprTable.at(index);
@@ -71,8 +71,7 @@ class IRMap : public AnalysisResult {
     return meExpr;
   }
 
-  VarMeExpr *CreateNewVarMeExpr(OStIdx oStIdx, PrimType pType, FieldID fieldID);
-  VarMeExpr *CreateNewVarMeExpr(OriginalSt &oSt, PrimType pType, FieldID fieldID);
+  VarMeExpr *CreateNewVarMeExpr(OriginalSt *ost, PrimType pType);
   VarMeExpr *CreateNewGlobalTmp(GStrIdx strIdx, PrimType pType);
   VarMeExpr *CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx);
   DassignMeStmt *CreateDassignMeStmt(MeExpr&, MeExpr&, BB&);

@@ -114,17 +114,17 @@ AliasElem &AliasClass::FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt) {
 AliasElem *AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
   switch (expr.GetOpCode()) {
     case OP_addrof: {
-      OriginalSt &oSt = *static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOrigSt();
+      OriginalSt &oSt = *static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
       oSt.SetAddressTaken();
       FindOrCreateAliasElem(oSt);
       return &FindOrCreateAliasElemOfAddrofOSt(oSt);
     }
     case OP_dread: {
-      OriginalSt &ost = *static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOrigSt();
+      OriginalSt &ost = *static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
       return FindOrCreateAliasElem(ost);
     }
     case OP_regread: {
-      OriginalSt &oSt = *static_cast<RegreadSSANode&>(expr).GetSSAVar()->GetOrigSt();
+      OriginalSt &oSt = *static_cast<RegreadSSANode&>(expr).GetSSAVar()->GetOst();
       return (oSt.IsSpecialPreg()) ? nullptr : FindOrCreateAliasElem(oSt);
     }
     case OP_iread: {
@@ -167,7 +167,7 @@ AliasElem *AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
 void AliasClass::SetNotAllDefsSeenForMustDefs(const StmtNode &callas) {
   MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(callas);
   for (auto &mustDef : mustDefs) {
-    AliasElem *aliasElem = FindOrCreateAliasElem(*mustDef.GetResult()->GetOrigSt());
+    AliasElem *aliasElem = FindOrCreateAliasElem(*mustDef.GetResult()->GetOst());
     aliasElem->SetNextLevNotAllDefsSeen(true);
   }
 }
@@ -212,7 +212,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       ASSERT_NOT_NULL(stmt.Opnd(0));
       AliasElem *rhsAe = CreateAliasElemsExpr(*stmt.Opnd(0));
       // LHS
-      OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOrigSt();
+      OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
       ASSERT_NOT_NULL(lhsAe);
       ApplyUnionForDassignCopy(*lhsAe, rhsAe, *stmt.Opnd(0));
@@ -857,7 +857,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt) {
   for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
     BaseNode *addrBase = stmt.Opnd(i);
     if (addrBase->IsSSANode()) {
-      OriginalSt *oSt = static_cast<SSANode*>(addrBase)->GetSSAVar()->GetOrigSt();
+      OriginalSt *oSt = static_cast<SSANode*>(addrBase)->GetSSAVar()->GetOst();
       if (addrBase->GetOpCode() == OP_addrof) {
         AliasElem *opndAE = osym2Elem[oSt->GetIndex()];
         if (opndAE->GetClassSet() != nullptr) {
@@ -899,7 +899,7 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
   MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(stmt);
   for (MustDefNode &mustDef : mustDefs) {
     VersionSt *vst = mustDef.GetResult();
-    OriginalSt *ost = vst->GetOrigSt();
+    OriginalSt *ost = vst->GetOst();
     AliasElem *lhsAe = osym2Elem[ost->GetIndex()];
     if (lhsAe->GetClassSet() == nullptr || lhsAe->IsNotAllDefsSeen()) {
       continue;

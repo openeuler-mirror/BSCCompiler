@@ -35,11 +35,11 @@ class IRMapBuild {
   void BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed);
 
  private:
-  VarMeExpr *GetOrCreateVarFromVerSt(const VersionSt &vst);
-  RegMeExpr *GetOrCreateRegFromVerSt(const VersionSt &vst);
+  VarMeExpr *GetOrCreateVarFromVerSt(VersionSt &vst);
+  RegMeExpr *GetOrCreateRegFromVerSt(VersionSt &vst);
 
-  MeExpr *BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt);
-  MeExpr *BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign);
+  MeExpr *BuildLHSVar(VersionSt &vst, DassignMeStmt &defMeStmt);
+  MeExpr *BuildLHSReg(VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign);
   void BuildChiList(MeStmt&, TypeOfMayDefList&, MapleMap<OStIdx, ChiMeNode*>&);
   void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList&, MapleVector<MustDefMeNode>&);
   void BuildMuList(TypeOfMayUseList&, MapleMap<OStIdx, VarMeExpr*>&);

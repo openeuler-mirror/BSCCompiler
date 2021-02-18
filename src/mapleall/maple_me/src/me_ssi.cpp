@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -24,11 +24,10 @@ VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
     return nullptr;
   }
   CHECK_FATAL(opnd.GetMeOp() == kMeOpVar, "must be");
-  SSATab &ssaTab = irMap->GetSSATab();
-  OriginalSt *ost = ssaTab.GetOriginalStFromID(static_cast<const VarMeExpr*>(&opnd)->GetOStIdx());
+  OriginalSt *ost = static_cast<const VarMeExpr*>(&opnd)->GetOst();
   CHECK_NULL_FATAL(ost);
   CHECK_FATAL(!ost->IsVolatile(), "must be");
-  VarMeExpr *var = irMap->NewInPool<VarMeExpr>(irMap->GetExprID(), ost->GetIndex(),
+  VarMeExpr *var = irMap->NewInPool<VarMeExpr>(irMap->GetExprID(), ost,
                                                irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
   irMap->SetExprID(irMap->GetExprID() + 1);
   irMap->PushBackVerst2MeExprTable(var);
@@ -213,7 +212,7 @@ void MeSSI::InsertPiNodes() {
 }
 
 bool MeSSI::ExistedPhiNode(BB &bb, VarMeExpr &rhs) {
-  return bb.GetMePhiList().find(rhs.GetOStIdx()) != bb.GetMePhiList().end();
+  return bb.GetMePhiList().find(rhs.GetOst()->GetIndex()) != bb.GetMePhiList().end();
 }
 
 bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) {
@@ -226,12 +225,12 @@ bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) {
   CHECK_FATAL(!piStmts.empty(), "should not be empty");
   CHECK_FATAL(piStmts.size() <= kPiStmtUpperBound, "must be");
   PiassignMeStmt *pi1 = piStmts.at(0);
-  if (pi1->GetLHS()->GetOStIdx() == rhs.GetOStIdx()) {
+  if (pi1->GetLHS()->GetOst() == rhs.GetOst()) {
     return true;
   }
   if (piStmts.size() == kPiStmtUpperBound) {
     PiassignMeStmt *pi2 = piStmts.at(1);
-    if (pi2->GetLHS()->GetOStIdx() == rhs.GetOStIdx()) {
+    if (pi2->GetLHS()->GetOst() == rhs.GetOst()) {
       return true;
     }
   }
@@ -245,7 +244,7 @@ void MeSSI::CreatePhi(VarMeExpr &rhs, BB &dfBB) {
   newPhi->SetDefBB(&dfBB);
   newPhi->GetOpnds().resize(dfBB.GetPred().size(), &rhs);
   newPhi->SetPiAdded();
-  dfBB.GetMePhiList().insert(std::make_pair(phiNewLHS->GetOStIdx(), newPhi));
+  dfBB.GetMePhiList().insert(std::make_pair(phiNewLHS->GetOst()->GetIndex(), newPhi));
   DefPoint *newDef = GetMemPool()->New<DefPoint>(DefPoint::DefineKind::kDefByPhi);
   newDef->SetDefPhi(*newPhi);
   newDefPoints.push_back(newDef);
@@ -270,7 +269,7 @@ void MeSSI::InsertPhiNodes() {
     BB *oldDefBB = rhs->DefByBB();
     if (oldDefBB == nullptr) {
       oldDefBB = meFunc->GetCommonEntryBB();
-      CHECK_FATAL(rhs->IsZeroVersion(irMap->GetSSATab()), "must be");
+      CHECK_FATAL(rhs->IsZeroVersion(), "must be");
     }
     CHECK_NULL_FATAL(oldDefBB);
     MapleSet<BBId> &dfs = dom->GetDomFrontier(newDefBB->GetBBId());
@@ -359,13 +358,13 @@ void MeSSI::ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar) {
       CHECK_FATAL(!piStmts.empty(), "should not be empty");
       CHECK_FATAL(piStmts.size() <= kPiStmtUpperBound, "must be");
       PiassignMeStmt *pi1 = piStmts.at(0);
-      if (pi1->GetLHS()->GetOStIdx() == newVar.GetOStIdx()) {
+      if (pi1->GetLHS()->GetOst() == newVar.GetOst()) {
         pi1->SetRHS(newVar);
         continue;
       }
       if (piStmts.size() == kPiStmtUpperBound) {
         PiassignMeStmt *pi2 = piStmts.at(1);
-        if (pi2->GetLHS()->GetOStIdx() == newVar.GetOStIdx()) {
+        if (pi2->GetLHS()->GetOst() == newVar.GetOst()) {
           pi2->SetRHS(newVar);
           continue;
         }
@@ -380,7 +379,7 @@ void MeSSI::ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar) {
     }
     CHECK_FATAL(index < succBB->GetPred().size(), "must be");
     MapleMap<OStIdx, MePhiNode*> &phiList = succBB->GetMePhiList();
-    auto it2 = phiList.find(newVar.GetOStIdx());
+    auto it2 = phiList.find(newVar.GetOst()->GetIndex());
     if (it2 != phiList.end()) {
       MePhiNode *phi = it2->second;
       ScalarMeExpr *oldVar = phi->GetOpnd(index);
@@ -562,17 +561,17 @@ bool MeSSI::ReplaceStmt(MeStmt &meStmt, VarMeExpr &newVar, VarMeExpr &oldVar) {
   } else {
     (void)ReplaceStmtWithNewVar(meStmt, oldVar, newVar, true);
   }
-  const OStIdx &ostIdx = newVar.GetOStIdx();
+  const OStIdx &ostIdx = newVar.GetOst()->GetIndex();
   MapleMap<OStIdx, ChiMeNode*> *chiList = meStmt.GetChiList();
   if (chiList != nullptr && chiList->find(ostIdx) != chiList->end()) {
     return true;
   }
   MeExpr *lhs = meStmt.GetAssignedLHS();
-  if (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOStIdx() == ostIdx) {
+  if (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex() == ostIdx) {
     return true;
   }
   lhs = meStmt.GetLHS();
-  return (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOStIdx() == ostIdx);
+  return (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex() == ostIdx);
 }
 
 void MeSSI::Rename() {

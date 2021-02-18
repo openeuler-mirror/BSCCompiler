@@ -20,22 +20,21 @@
 
 namespace maple {
 bool VarMeExpr::IsValidVerIdx(const SSATab &ssaTab) const {
-  const OriginalSt *ost = ssaTab.GetOriginalStFromID(GetOStIdx());
-  if (ost == nullptr || !ost->IsSymbolOst()) {
+  if (!GetOst()->IsSymbolOst()) {
     return false;
   }
-  StIdx stIdx = ost->GetMIRSymbol()->GetStIdx();
+  StIdx stIdx = GetOst()->GetMIRSymbol()->GetStIdx();
   return stIdx.Islocal() ? ssaTab.GetModule().CurFunction()->GetSymTab()->IsValidIdx(stIdx.Idx())
                          : GlobalTables::GetGsymTable().IsValidIdx(stIdx.Idx());
 }
 
 BaseNode &VarMeExpr::EmitExpr(SSATab &ssaTab) {
-  MIRSymbol *symbol = ssaTab.GetMIRSymbolFromID(GetOStIdx());
+  MIRSymbol *symbol = GetOst()->GetMIRSymbol();
   if (symbol->IsLocal()) {
     symbol->ResetIsDeleted();
   }
   auto *addrofNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<AddrofNode>(
-      OP_dread, PrimType(GetPrimType()), symbol->GetStIdx(), GetFieldID());
+      OP_dread, PrimType(GetPrimType()), symbol->GetStIdx(), GetOst()->GetFieldID());
   ASSERT(addrofNode->GetPrimType() != kPtyInvalid, "runtime check error");
   ASSERT(IsValidVerIdx(ssaTab), "runtime check error");
   return *addrofNode;
@@ -276,12 +275,12 @@ StmtNode &MeStmt::EmitStmt(SSATab &ssaTab) {
 
 StmtNode &DassignMeStmt::EmitStmt(SSATab &ssaTab) {
   auto *dassignStmt = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<DassignNode>();
-  MIRSymbol *symbol = ssaTab.GetMIRSymbolFromID(GetVarLHS()->GetOStIdx());
+  MIRSymbol *symbol = GetVarLHS()->GetOst()->GetMIRSymbol();
   if (symbol->IsLocal()) {
     symbol->ResetIsDeleted();
   }
   dassignStmt->SetStIdx(symbol->GetStIdx());
-  dassignStmt->SetFieldID(GetVarLHS()->GetFieldID());
+  dassignStmt->SetFieldID(GetVarLHS()->GetOst()->GetFieldID());
   dassignStmt->SetRHS(&GetRHS()->EmitExpr(ssaTab));
   dassignStmt->SetSrcPos(GetSrcPosition());
   return *dassignStmt;
@@ -317,7 +316,7 @@ void MeStmt::EmitCallReturnVector(SSATab &ssaTab, CallReturnVector &nRets) {
   }
   MeExpr *meExpr = mustDefs->front().GetLHS();
   if (meExpr->GetMeOp() == kMeOpVar) {
-    OriginalSt *ost = ssaTab.GetOriginalStFromID(static_cast<VarMeExpr*>(meExpr)->GetOStIdx());
+    OriginalSt *ost = static_cast<VarMeExpr*>(meExpr)->GetOst();
     MIRSymbol *symbol = ost->GetMIRSymbol();
     nRets.push_back(CallReturnPair(symbol->GetStIdx(), RegFieldPair(0, 0)));
   } else if (meExpr->GetMeOp() == kMeOpReg) {
