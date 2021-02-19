@@ -156,3 +156,15 @@ if [ "$installQemu" == "true" ]; then
   sudo dpkg -i ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb || sudo apt install -f
   echo Installed qemu-aarch64
 fi
+
+if [ ! -f $TOOLS/open64_prebuilt/README.md ]; then
+  git clone https://gitee.com/open64ark/open64_prebuilt.git
+fi
+if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
+  cd $TOOLS/open64_prebuilt/x86
+  git pull
+  tar zxf open64ark-aarch64.tar.gz
+  tar zxf open64ark-riscv.tar.gz
+  mv riscv riscv64
+  echo Downloaded open64_prebuilt.
+fi
