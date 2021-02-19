@@ -13,6 +13,8 @@
 # See the MulanPSL - 2.0 for more details.
 #
 
+set -e
+
 [ -n "$MAPLE_ROOT" ] || { echo MAPLE_ROOT not set. Please source envsetup.sh.; exit 1; }
 
 CURRDIR=`pwd`
