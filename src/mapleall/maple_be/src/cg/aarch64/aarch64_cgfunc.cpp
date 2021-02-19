@@ -3653,7 +3653,15 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
     } else {
       /* Unsigned */
       if (is64Bit) {
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xuxtw64, *resOpnd, *opnd0));
+        if (fsize == 8) {
+          ImmOperand &immOpnd = CreateImmOperand(0xff, k64BitSize, false);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, *resOpnd, *opnd0, immOpnd));
+        } else if (fsize == 16) {
+          ImmOperand &immOpnd = CreateImmOperand(0xffff, k64BitSize, false);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xandrri13, *resOpnd, *opnd0, immOpnd));
+        } else {
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xuxtw64, *resOpnd, *opnd0));
+        }
       } else {
         ASSERT(((fsize == k8BitSize) || (fsize == k16BitSize)), "incorrect from size");
         if (fsize == k8BitSize) {
