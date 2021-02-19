@@ -70,6 +70,9 @@ constexpr int32 kInsnEighthOpnd = 7;
 constexpr uint32 kOneRegister = 1;
 constexpr uint32 kTwoRegister = 2;
 
+/* Size of struct for memcpy */
+constexpr uint32 kParmMemcpySize = 40;
+
 /* Check whether the value is an even number. */
 constexpr int32 kDivide2 = 2;
 constexpr int32 kRegNum2 = 2;
