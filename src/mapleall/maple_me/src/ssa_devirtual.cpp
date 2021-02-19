@@ -187,8 +187,9 @@ bool SSADevirtual::DevirtualizeCall(CallMeStmt &callStmt) {
       } else {
         if (thisParm->GetMeOp() == kMeOpVar) {
           auto *varMeExpr = static_cast<VarMeExpr*>(thisParm);
-          const MapleVector<TyIdx> inferredTypeCandidates = varMeExpr->GetInferredTypeCandidates();
-          if (inferredTypeCandidates.size() > 0) {
+          MapleMap<int, MapleVector<TyIdx>*>::iterator mapit = inferredTypeCandidatesMap.find(varMeExpr->GetExprID());
+          if (mapit != inferredTypeCandidatesMap.end() && mapit->second->size() > 0) {
+            const MapleVector<TyIdx> &inferredTypeCandidates = *mapit->second;
             GStrIdx funcName = mirFunc.GetBaseFuncNameWithTypeStrIdx();
             MIRFunction *inferredFunction = nullptr;
             size_t i = 0;
@@ -339,7 +340,7 @@ void SSADevirtual::PropIvarInferredType(IvarMeExpr &ivar) const {
   }
 }
 
-void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) const {
+void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) {
   MapleVector<ScalarMeExpr*> opnds = varPhi.GetOpnds();
   auto *lhs = varPhi.GetLHS();
   // RegPhiNode cases NYI
@@ -348,7 +349,12 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) const {
   }
   VarMeExpr *lhsVar = static_cast<VarMeExpr*>(varPhi.GetLHS());
 
-  const MapleVector<TyIdx> &inferredTypeCandidates = lhsVar->GetInferredTypeCandidates();
+  auto mapit = inferredTypeCandidatesMap.find(lhsVar->GetExprID());
+  if (mapit == inferredTypeCandidatesMap.end()) {
+    MapleVector<TyIdx> *tyIdxCandidates = devirtualAlloc.GetMemPool()->New<MapleVector<TyIdx>>(devirtualAlloc.Adapter());
+    inferredTypeCandidatesMap[lhsVar->GetExprID()] = tyIdxCandidates;
+  }
+  MapleVector<TyIdx> &inferredTypeCandidates = *inferredTypeCandidatesMap[lhsVar->GetExprID()];
   for (size_t i = 0; i < opnds.size(); ++i) {
     VarMeExpr *opnd = static_cast<VarMeExpr *>(opnds[i]);
     PropVarInferredType(*opnd);
@@ -360,10 +366,10 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) const {
         }
       }
       if (j == inferredTypeCandidates.size()) {
-        lhsVar->AddInferredTypeCandidate(opnd->GetInferredTyIdx());
+        inferredTypeCandidates.push_back(opnd->GetInferredTyIdx());
       }
     } else {
-      lhsVar->ClearInferredTypeCandidates();
+      inferredTypeCandidates.clear();
       break;
     }
   }
