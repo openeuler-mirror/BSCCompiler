@@ -1,6 +1,6 @@
 include_directories = [
-  "${ANDROID_ROOT}/system/core/base/include",
-  "${ANDROID_ROOT}/include",
+  "${AOSP_ROOT}/system/core/base/include",
+  "${AOSP_ROOT}/include",
 ]
 
 source_files = [

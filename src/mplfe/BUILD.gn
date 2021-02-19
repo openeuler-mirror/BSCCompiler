@@ -198,19 +198,19 @@ static_library("lib_mplfe_dex_input") {
 
   # for libdexfile
   include_dirs_dex = [
-    "${ANDROID_ROOT}/system/core/include",
+    "${AOSP_ROOT}/system/core/include",
   ]
   include_dirs_libdexfile = [
     #for libdexfile -start
-    "${ANDROID_ROOT}/system/core/liblog/include",
-    "${ANDROID_ROOT}/system/core/libutils/include",
-    "${ANDROID_ROOT}/system/core/base/include",
-    "${ANDROID_ROOT}/system/core/libziparchive/include",
-    "${ANDROID_ROOT}/art/libartpalette/include",
-    "${ANDROID_ROOT}/art/libartbase",
-    "${ANDROID_ROOT}/art/libdexfile",
-    "${ANDROID_ROOT}/include",
-    "${THIRD_PARTY_ROOT}/libnativehelper/include_jni",
+    "${AOSP_ROOT}/system/core/liblog/include",
+    "${AOSP_ROOT}/system/core/libutils/include",
+    "${AOSP_ROOT}/system/core/base/include",
+    "${AOSP_ROOT}/system/core/libziparchive/include",
+    "${AOSP_ROOT}/art/libartpalette/include",
+    "${AOSP_ROOT}/art/libartbase",
+    "${AOSP_ROOT}/art/libdexfile",
+    "${AOSP_ROOT}/include",
+    "${AOSP_ROOT}/libnativehelper/include_jni",
     #for libdexfile -end
   ]
 
@@ -222,12 +222,12 @@ static_library("lib_mplfe_dex_input") {
     "${MPLFE_ROOT}/dex_input/src/dexfile_libdexfile.cpp",
   ]
   deps_libdexfile = [
-    "${ANDROID_ROOT}/art/libdexfile:libdexfile",
-    "${ANDROID_ROOT}/system/core/libziparchive:libziparchive",
-    "${ANDROID_ROOT}/system/core/base:libbase",
+    "${AOSP_ROOT}/art/libdexfile:libdexfile",
+    "${AOSP_ROOT}/system/core/libziparchive:libziparchive",
+    "${AOSP_ROOT}/system/core/base:libbase",
   ]
   lib_dex = [
-    "${ANDROID_ROOT}/out/soong/.intermediates/system/core/liblog/liblog/linux_glibc_x86_64_static/liblog.a",
+    "${AOSP_ROOT}/system/core/liblog/liblog.a",
   ]
   deps = deps_libdexfile
   libs = lib_dex

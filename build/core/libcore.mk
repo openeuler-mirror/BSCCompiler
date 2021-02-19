@@ -81,7 +81,7 @@ install: libcore_so deplibs
 	rsync -a -L $(MAPLE_OUT)/lib/$(OPT)/libcore-all.so $(MAPLE_OUT)/ops/host-x86_64-$(OPT); \
 	rsync -a -L $(MAPLE_OUT)/libjava-core/mrt_module_init.o $(MAPLE_OUT)/ops/; \
 	rsync -a -L $(MAPLE_OUT)/libjava-core/libcore-all.mplt $(MAPLE_OUT)/ops/; \
-	rsync -a -L $(MAPLE_ROOT)/third_party/libnativehelper $(MAPLE_OUT)/ops/; \
+	rsync -a -L $(MAPLE_ROOT)/third_party/aosp_10.0.0_r35/libnativehelper $(MAPLE_OUT)/ops/; \
 	rsync -a -L $(MAPLE_ROOT)/android/out/target/common/obj/JAVA_LIBRARIES $(MAPLE_OUT)/ops/third_party; \
 	rsync -a -L $(MAPLE_ROOT)/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2.8 $(MAPLE_OUT)/ops/third_party/libz.so.1; \
 	rsync -a -L $(MAPLE_ROOT)/third_party/icu/lib/aarch64-linux-gnu/* $(MAPLE_OUT)/ops/third_party/; \
