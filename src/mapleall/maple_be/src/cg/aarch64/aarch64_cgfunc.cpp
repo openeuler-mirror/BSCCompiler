@@ -5457,6 +5457,7 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   GetCurBB()->SetHasCall();
   if (retType != nullptr) {
     callInsn.SetRetSize(retType->GetSize());
+    callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
   }
 
   GetFunction().SetHasCall();
@@ -5491,6 +5492,7 @@ void AArch64CGFunc::SelectIcall(IcallNode &icallNode, Operand &srcOpnd) {
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallNode.GetRetTyIdx());
   if (retType != nullptr) {
     callInsn.SetRetSize(retType->GetSize());
+    callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
   }
 
   GetCurBB()->AppendInsn(callInsn);
@@ -5985,6 +5987,7 @@ void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Opera
   MIRType *callRetType = GlobalTables::GetTypeTable().GetTypeTable().at(static_cast<int32>(retPrimType));
   if (callRetType != nullptr) {
     callInsn.SetRetSize(callRetType->GetSize());
+    callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(callRetType->GetPrimType()));
   }
   GetFunction().SetHasCall();
   /* get return value */
