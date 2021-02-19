@@ -27,8 +27,8 @@ VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
   OriginalSt *ost = static_cast<const VarMeExpr*>(&opnd)->GetOst();
   CHECK_NULL_FATAL(ost);
   CHECK_FATAL(!ost->IsVolatile(), "must be");
-  VarMeExpr *var = irMap->NewInPool<VarMeExpr>(irMap->GetExprID(), ost,
-                                               irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
+  VarMeExpr *var = irMap->New<VarMeExpr>(irMap->GetExprID(), ost,
+                                         irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
   irMap->SetExprID(irMap->GetExprID() + 1);
   irMap->PushBackVerst2MeExprTable(var);
   ost->PushbackVersionIndex(var->GetVstIdx());

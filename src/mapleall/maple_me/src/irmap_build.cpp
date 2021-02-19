@@ -31,8 +31,8 @@ VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(VersionSt &vst) {
   }
   OriginalSt *ost = vst.GetOst();
   ASSERT(ost->IsSymbolOst(), "GetOrCreateVarFromVerSt: wrong ost_type");
-  auto *varx = irMap->NewInPool<VarMeExpr>(irMap->exprID++, ost, vindex,
-     GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType());
+  auto *varx = irMap->New<VarMeExpr>(irMap->exprID++, ost, vindex,
+      GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType());
   ASSERT(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
   irMap->vst2MeExprTable[vindex] = varx;
   return varx;

@@ -19,7 +19,8 @@
 
 namespace maple {
 VarMeExpr *IRMap::CreateVarMeExprVersion(const VarMeExpr &origExpr) {
-  auto *varMeExpr = New<VarMeExpr>(&irMapAlloc, exprID++, origExpr.GetOst(), vst2MeExprTable.size(), origExpr.GetPrimType());
+  auto *varMeExpr = New<VarMeExpr>(exprID++, origExpr.GetOst(),
+                                   vst2MeExprTable.size(), origExpr.GetPrimType());
   vst2MeExprTable.push_back(varMeExpr);
   return varMeExpr;
 }
@@ -75,7 +76,7 @@ MeExpr *IRMap::CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base) {
 }
 
 VarMeExpr *IRMap::CreateNewVarMeExpr(OriginalSt *ost, PrimType pType) {
-  VarMeExpr *varMeExpr = New<VarMeExpr>(&GetIRMapAlloc(), exprID++, ost, vst2MeExprTable.size(), pType);
+  VarMeExpr *varMeExpr = New<VarMeExpr>(exprID++, ost, vst2MeExprTable.size(), pType);
   PushBackVerst2MeExprTable(varMeExpr);
   return varMeExpr;
 }
@@ -85,7 +86,7 @@ VarMeExpr *IRMap::CreateNewGlobalTmp(GStrIdx strIdx, PrimType pType) {
       mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)pType, strIdx, kStVar, kScGlobal, nullptr, kScopeGlobal);
   st->SetIsTmp(true);
   OriginalSt *oSt = ssaTab.CreateSymbolOriginalSt(*st, 0, 0);
-  auto *varx = New<VarMeExpr>(&irMapAlloc, exprID++, oSt, oSt->GetZeroVersionIndex(), pType);
+  auto *varx = New<VarMeExpr>(exprID++, oSt, oSt->GetZeroVersionIndex(), pType);
   return varx;
 }
 
@@ -97,7 +98,7 @@ VarMeExpr *IRMap::CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx) {
   oSt->SetZeroVersionIndex(vst2MeExprTable.size());
   vst2MeExprTable.push_back(nullptr);
   oSt->PushbackVersionIndex(oSt->GetZeroVersionIndex());
-  auto *newLocalRefVar = New<VarMeExpr>(&irMapAlloc, exprID++, oSt, vst2MeExprTable.size(), PTY_ref);
+  auto *newLocalRefVar = New<VarMeExpr>(exprID++, oSt, vst2MeExprTable.size(), PTY_ref);
   vst2MeExprTable.push_back(newLocalRefVar);
   return newLocalRefVar;
 }
@@ -196,7 +197,8 @@ VarMeExpr *IRMap::GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost) {
     vst2MeExprTable.push_back(nullptr);
   }
   if (vst2MeExprTable[ost.GetZeroVersionIndex()] == nullptr) {
-    auto *varMeExpr = NewInPool<VarMeExpr>(exprID++, &ost, ost.GetZeroVersionIndex(), GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost.GetTyIdx())->GetPrimType());
+    auto *varMeExpr = New<VarMeExpr>(exprID++, &ost, ost.GetZeroVersionIndex(),
+                                     GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost.GetTyIdx())->GetPrimType());
     ASSERT(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
     vst2MeExprTable[ost.GetZeroVersionIndex()] = varMeExpr;
     return varMeExpr;

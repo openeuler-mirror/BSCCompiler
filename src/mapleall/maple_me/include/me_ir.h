@@ -308,9 +308,8 @@ class ScalarMeExpr : public MeExpr {
 // represant dread
 class VarMeExpr final : public ScalarMeExpr {
  public:
-  VarMeExpr(MapleAllocator *alloc, int32 exprid, OriginalSt *ost, size_t vidx, PrimType ptyp)
-      : ScalarMeExpr(exprid, ost, vidx, kMeOpVar, OP_dread, ptyp),
-        inferredTypeCandidates(alloc->Adapter()) {}
+  VarMeExpr(int32 exprid, OriginalSt *ost, size_t vidx, PrimType ptyp)
+      : ScalarMeExpr(exprid, ost, vidx, kMeOpVar, OP_dread, ptyp) {}
 
   ~VarMeExpr() = default;
 
@@ -333,19 +332,6 @@ class VarMeExpr final : public ScalarMeExpr {
   void SetInferredTyIdx(TyIdx inferredTyIdxVal) {
     inferredTyIdx = inferredTyIdxVal;
   }
-
-  const MapleVector<TyIdx> &GetInferredTypeCandidates() const {
-    return inferredTypeCandidates;
-  }
-
-  void AddInferredTypeCandidate(TyIdx idx) {
-    inferredTypeCandidates.push_back(idx);
-  }
-
-  void ClearInferredTypeCandidates() {
-    inferredTypeCandidates.clear();
-  }
-
   bool GetMaybeNull() const {
     return maybeNull;
   }
@@ -374,7 +360,6 @@ class VarMeExpr final : public ScalarMeExpr {
   bool noDelegateRC = false;  // true if this cannot be optimized by delegaterc
   bool noSubsumeRC = false;   // true if this cannot be optimized by subsumrc
   TyIdx inferredTyIdx{ 0 }; /* Non zero if it has a known type (allocation type is seen). */
-  MapleVector<TyIdx> inferredTypeCandidates;
   bool maybeNull = true;  // false if definitely not null
 };
 
