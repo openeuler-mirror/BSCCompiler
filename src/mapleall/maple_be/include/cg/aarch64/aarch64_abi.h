@@ -83,7 +83,8 @@ class ParmLocator {
   ~ParmLocator() = default;
 
   // Return size of aggregate structure copy on stack.
-  int32 LocateNextParm(MIRType &mirType, PLocInfo &pLoc);
+  int32 LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst = false);
+  void InitPLocInfo(PLocInfo &pLoc);
 
  private:
   BECommon &beCommon;

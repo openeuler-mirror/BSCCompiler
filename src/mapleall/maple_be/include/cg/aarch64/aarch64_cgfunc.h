@@ -578,7 +578,7 @@ class AArch64CGFunc : public CGFunc {
                                         AArch64ListOperand &srcOpnds);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                   int32 &structCopyOffset);
-
+  uint32 SelectParmListGetStructReturnSize(StmtNode &naryNode);
   void SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, AArch64ListOperand &srcOpnds,

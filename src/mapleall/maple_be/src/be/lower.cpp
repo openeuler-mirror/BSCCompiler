@@ -512,7 +512,12 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   MIRSymbol *retSt = curFunc->GetFormal(0);
   MIRPtrType *retTy = static_cast<MIRPtrType*>(retSt->GetType());
   IassignNode *iassign = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
-  iassign->SetTyIdx(retTy->GetTypeIndex());
+  if (beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) > k16ByteSize || !opnd0 || opnd0->GetPrimType() != PTY_agg) {
+    iassign->SetTyIdx(retTy->GetTypeIndex());
+  } else {
+    /* struct goes into register. */
+    iassign->SetTyIdx(retTy->GetPointedTyIdx());
+  }
   iassign->SetFieldID(0);
   iassign->SetRHS(opnd0);
   if (retSt->IsPreg()) {
@@ -825,26 +830,33 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
       } else {
         sym = GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
       }
+      bool sizeIs0 = false;
       if (sym) {
         retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
+        if (beCommon.GetTypeSize(retType->GetTypeIndex().GetIdx()) == 0) {
+          sizeIs0 = true;
+        }
       }
-      RegFieldPair regFieldPair = p2nRets[0].second;
-      if (!regFieldPair.IsReg()) {
-        uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
-        DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID);
-        CHECK_FATAL(dn->GetFieldID() == 0, "make sure dn's fieldID return 0");
-        LowerDassign(*dn, *blk);
-        CHECK_FATAL(&newCall == blk->GetLast() || newCall.GetNext() == blk->GetLast(), "");
-        dStmt = (&newCall == blk->GetLast()) ? nullptr : blk->GetLast();
-        CHECK_FATAL(newCall.GetNext() == dStmt, "make sure newCall's next equal dStmt");
-      } else {
-        PregIdx pregIdx = static_cast<PregIdx>(regFieldPair.GetPregIdx());
-        MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
-        RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(mirPreg->GetPrimType(), -kSregRetval0);
-        RegassignNode *regAssign =
-            mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(), regFieldPair.GetPregIdx(), regNode);
-        blk->AddStatement(regAssign);
-        dStmt = regAssign;
+      if (sizeIs0 == false) {
+        RegFieldPair regFieldPair = p2nRets[0].second;
+        if (!regFieldPair.IsReg()) {
+          uint16 fieldID = static_cast<uint16>(regFieldPair.GetFieldID());
+          DassignNode *dn = SaveReturnValueInLocal(stIdx, fieldID);
+          CHECK_FATAL(dn->GetFieldID() == 0, "make sure dn's fieldID return 0");
+          LowerDassign(*dn, *blk);
+          CHECK_FATAL(&newCall == blk->GetLast() || newCall.GetNext() == blk->GetLast(), "");
+          dStmt = (&newCall == blk->GetLast()) ? nullptr : blk->GetLast();
+          CHECK_FATAL(newCall.GetNext() == dStmt, "make sure newCall's next equal dStmt");
+        } else {
+          PregIdx pregIdx = static_cast<PregIdx>(regFieldPair.GetPregIdx());
+          MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
+          RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(mirPreg->GetPrimType(), -kSregRetval0);
+          RegassignNode *regAssign =
+              mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(), regFieldPair.GetPregIdx(),
+                                                             regNode);
+          blk->AddStatement(regAssign);
+          dStmt = regAssign;
+        }
       }
     }
     blk->ResetBlock();
@@ -912,6 +924,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       auto &origCall = static_cast<IcallNode&>(stmt);
       newCall = GenIcallNode(funcCalled, origCall);
       p2nRets = &origCall.GetReturnVec();
+      static_cast<IcallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     default:
