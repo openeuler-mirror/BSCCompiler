@@ -537,7 +537,7 @@ void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
 void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   Insn *prevInsn = insn.GetPreviousMachineInsn();
-  if ((prevInsn == nullptr) || (prevInsn->IsCall() && prevInsn->GetIsCallReturnSigned())) {
+  if (prevInsn == nullptr) {
     return;
   }
   auto &regOpnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -556,6 +556,9 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   }
   if (&insn == bb.GetFirstInsn() || regOpnd0.GetRegisterNumber() != regOpnd1.GetRegisterNumber() ||
       !prevInsn->IsMachineInstruction()) {
+    return;
+  }
+  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && prevInsn->IsCall() && prevInsn->GetIsCallReturnSigned()) {
     return;
   }
   if (thisMop == MOP_xuxtb32) {
