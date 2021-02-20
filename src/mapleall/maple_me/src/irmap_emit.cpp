@@ -43,9 +43,9 @@ BaseNode &VarMeExpr::EmitExpr(SSATab &ssaTab) {
 BaseNode &RegMeExpr::EmitExpr(SSATab &ssaTab) {
   auto *regRead = ssaTab.GetModule().CurFunction()->GetCodeMemPool()->New<RegreadNode>();
   regRead->SetPrimType(GetPrimType());
-  regRead->SetRegIdx(regIdx);
-  ASSERT(regIdx < 0 ||
-         static_cast<uint32>(static_cast<int32>(regIdx)) < ssaTab.GetModule().CurFunction()->GetPregTab()->Size(),
+  regRead->SetRegIdx(GetRegIdx());
+  ASSERT(GetRegIdx() < 0 ||
+         static_cast<uint32>(static_cast<int32>(GetRegIdx())) < ssaTab.GetModule().CurFunction()->GetPregTab()->Size(),
          "RegMeExpr::EmitExpr: pregIdx exceeds preg table size");
   return *regRead;
 }

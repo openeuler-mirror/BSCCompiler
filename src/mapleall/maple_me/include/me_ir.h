@@ -232,6 +232,10 @@ class ScalarMeExpr : public MeExpr {
     return ost;
   }
 
+  void SetOst(OriginalSt *o) {
+    ost = o;
+  }
+
   size_t GetVstIdx() const {
     return vstIdx;
   }
@@ -292,7 +296,22 @@ class ScalarMeExpr : public MeExpr {
     def.defMustDef = &defMustDef;
   }
 
+  PregIdx GetRegIdx() const {
+    ASSERT(ost->IsPregOst(), "GetPregIdx: not a preg");
+    return ost->GetPregIdx();
+  }
+
+  bool IsNormalReg() const {
+    ASSERT(ost->IsPregOst(), "GetPregIdx: not a preg");
+    return ost->GetPregIdx() >= 0;
+  }
+
   BB *GetDefByBBMeStmt(const Dominance&, MeStmtPtr&) const;
+  void Dump(const IRMap*, int32 indent = 0) const override;
+  BaseNode &EmitExpr(SSATab&) override;
+  bool IsSameVariableValue(const VarMeExpr&) const override;
+  ScalarMeExpr *FindDefByStmt(std::set<ScalarMeExpr*> &visited);
+
  private:
   OriginalSt *ost;
   uint32 vstIdx;    // the index in MEOptimizer's VersionStTable, 0 if not in VersionStTable
@@ -304,6 +323,8 @@ class ScalarMeExpr : public MeExpr {
     MustDefMeNode *defMustDef;  // definition by callassigned
   } def;
 };
+
+using RegMeExpr = ScalarMeExpr;
 
 // represant dread
 class VarMeExpr final : public ScalarMeExpr {
@@ -445,35 +466,6 @@ class MePhiNode {
   bool isLive = true;
   BB *defBB = nullptr;  // the bb that defines this phi
   bool isPiAdded = false;
-};
-
-class RegMeExpr : public ScalarMeExpr {
- public:
-  RegMeExpr(int32 exprid, OriginalSt *ost, uint32 vidx, PrimType ptyp)
-      : ScalarMeExpr(exprid, ost, vidx, kMeOpReg, OP_regread, ptyp),
-        regIdx(ost->GetPregIdx()) {}
-
-  ~RegMeExpr() = default;
-
-  void Dump(const IRMap*, int32 indent = 0) const override;
-  BaseNode &EmitExpr(SSATab&) override;
-  bool IsSameVariableValue(const VarMeExpr&) const override;
-  RegMeExpr *FindDefByStmt(std::set<RegMeExpr*> &visited);
-
-  PregIdx16 GetRegIdx() const {
-    return regIdx;
-  }
-
-  void SetRegIdx(PregIdx16 regIdxVal) {
-    regIdx = regIdxVal;
-  }
-
-  bool IsNormalReg() const {
-    return regIdx >= 0;
-  }
-
- private:
-  PregIdx16 regIdx;
 };
 
 class ConstMeExpr : public MeExpr {

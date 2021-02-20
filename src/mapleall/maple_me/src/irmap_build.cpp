@@ -48,7 +48,7 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(VersionSt &vst) {
   OriginalSt *ost = vst.GetOst();
   ASSERT(ost->IsPregOst(), "GetOrCreateRegFromVerSt: PregOST expected");
   auto *regx = irMap->New<RegMeExpr>(irMap->exprID++,
-                                           ost, vindex, ost->GetMIRPreg()->GetPrimType());
+                                           ost, vindex, kMeOpReg, OP_regread, ost->GetMIRPreg()->GetPrimType());
   irMap->vst2MeExprTable[vindex] = regx;
   return regx;
 }
