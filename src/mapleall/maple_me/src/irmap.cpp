@@ -276,6 +276,9 @@ MeExpr *IRMap::HashMeExpr(MeExpr &meExpr) {
       case kMeOpAddroffunc:
         resultExpr = New<AddroffuncMeExpr>(exprID, static_cast<AddroffuncMeExpr&>(meExpr).GetPuIdx());
         break;
+      case kMeOpAddroflabel:
+        resultExpr = New<AddroflabelMeExpr>(exprID, static_cast<AddroflabelMeExpr&>(meExpr).labelIdx);
+        break;
       case kMeOpGcmalloc:
         resultExpr = New<GcmallocMeExpr>(exprID, meExpr.GetOp(), meExpr.GetPrimType(), static_cast<GcmallocMeExpr&>(meExpr).GetTyIdx());
         break;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -195,8 +195,8 @@ bool MIRParser::ParseStmtDoloop(StmtNodePtr &stmt) {
   lexer.NextToken();
   if (lexer.GetTokenKind() == TK_preg) {
     uint32 pregNo = static_cast<uint32>(lexer.GetTheIntVal());
-    MIRFunction *curfunc = mod.CurFunction();
-    PregIdx pregIdx = curfunc->GetPregTab()->EnterPregNo(pregNo, kPtyInvalid);
+    MIRFunction *mirFunc = mod.CurFunction();
+    PregIdx pregIdx = mirFunc->GetPregTab()->EnterPregNo(pregNo, kPtyInvalid);
     doLoopNode->SetIsPreg(true);
     doLoopNode->SetDoVarStFullIdx(pregIdx);
     // let other appearances handle the preg primitive type
@@ -1184,6 +1184,10 @@ bool MIRParser::ParseUnaryStmtDecRefReset(StmtNodePtr &stmt) {
   return ParseUnaryStmt(OP_decrefreset, stmt);
 }
 
+bool MIRParser::ParseUnaryStmtIGoto(StmtNodePtr &stmt) {
+  return ParseUnaryStmt(OP_igoto, stmt);
+}
+
 bool MIRParser::ParseUnaryStmtEval(StmtNodePtr &stmt) {
   return ParseUnaryStmt(OP_eval, stmt);
 }
@@ -1843,7 +1847,7 @@ bool MIRParser::ParseExprRegread(BaseNodePtr &expr) {
   expr->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx));
   if (lexer.GetTokenKind() == TK_specialreg) {
     PregIdx tempPregIdx = regRead->GetRegIdx();
-    bool isSuccess =  ParseSpecialReg(tempPregIdx);
+    bool isSuccess = ParseSpecialReg(tempPregIdx);
     regRead->SetRegIdx(tempPregIdx);
     return isSuccess;
   }
@@ -2267,6 +2271,7 @@ bool MIRParser::ParseExprAddroflabel(BaseNodePtr &expr) {
   }
   LabelIdx lblIdx = mod.CurFunction()->GetOrCreateLableIdxFromName(lexer.GetName());
   addrOfLabelNode->SetOffset(lblIdx);
+  mod.CurFunction()->GetLabelTab()->GetAddrTakenLabels().insert(lblIdx);
   lexer.NextToken();
   return true;
 }
@@ -2628,8 +2633,8 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     return false;
   }
   CHECK_FATAL(expr != nullptr, "null ptr check");
-  if (expr->GetOpCode() != OP_addrof && expr->GetOpCode() != OP_addroffunc && expr->GetOpCode() != OP_conststr &&
-      expr->GetOpCode() != OP_conststr16) {
+  if (expr->GetOpCode() != OP_addrof && expr->GetOpCode() != OP_addroffunc && expr->GetOpCode() != OP_addroflabel &&
+      expr->GetOpCode() != OP_conststr && expr->GetOpCode() != OP_conststr16) {
     Error("ParseConstAddrLeafExpr expects one of OP_addrof, OP_addroffunc, OP_conststr and OP_conststr16");
     return false;
   }
@@ -2643,7 +2648,23 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrType(ptyIdx, (mod.IsJavaModule() ? PTY_ref : PTY_ptr));
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRAddrofConst>(anode->GetStIdx(), anode->GetFieldID(), *exprTy);
+    int32 ofst = 0;
+    if (lexer.GetTokenKind() == TK_lparen) {
+      lexer.NextToken();
+      if (lexer.GetTokenKind() != TK_intconst) {
+        Error("ParseConstAddrLeafExpr: wrong offset specification for addrof");
+        return false;
+      } else {
+        ofst = lexer.GetTheIntVal();
+      }
+      lexer.NextToken();
+      if (lexer.GetTokenKind() != TK_rparen) {
+        Error("ParseConstAddrLeafExpr expects closing paren after offset value for addrof");
+        return false;
+      }
+      lexer.NextToken();
+    }
+    cexpr = mod.CurFuncCodeMemPool()->New<MIRAddrofConst>(anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
   } else if (expr->GetOpCode() == OP_addroffunc) {
     auto *aof = static_cast<AddroffuncNode*>(expr);
     MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(aof->GetPUIdx());
@@ -2653,6 +2674,10 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
     cexpr = mod.CurFuncCodeMemPool()->New<MIRAddroffuncConst>(aof->GetPUIdx(), *exprTy);
+  } else if (expr->op == OP_addroflabel) {
+    AddroflabelNode *aol = static_cast<AddroflabelNode *>(expr);
+    MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+    cexpr = mod.CurFuncCodeMemPool()->New<MIRLblConst>(aol->GetOffset(), mod.CurFunction()->GetPuidx(), *mirtype);
   } else if (expr->GetOpCode() == OP_conststr) {
     auto *cs = static_cast<ConststrNode*>(expr);
     UStrIdx stridx = cs->GetStrIdx();
@@ -2819,6 +2844,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_decref] = &MIRParser::ParseUnaryStmtDecRef;
   funcPtrMap[TK_incref] = &MIRParser::ParseUnaryStmtIncRef;
   funcPtrMap[TK_decrefreset] = &MIRParser::ParseUnaryStmtDecRefReset;
+  funcPtrMap[TK_igoto] = &MIRParser::ParseUnaryStmtIGoto;
   funcPtrMap[TK_jscatch] = &MIRParser::ParseStmtMarker;
   funcPtrMap[TK_finally] = &MIRParser::ParseStmtMarker;
   funcPtrMap[TK_cleanuptry] = &MIRParser::ParseStmtMarker;

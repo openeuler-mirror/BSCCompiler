@@ -203,6 +203,7 @@ uint32 PreWorkCandHashTable::ComputeWorkCandHashIndex(const MeExpr &meExpr) {
   switch (meOp) {
     case kMeOpAddrof:
     case kMeOpAddroffunc:
+    case kMeOpAddroflabel:
     case kMeOpGcmalloc:
     case kMeOpConst:
     case kMeOpConststr:

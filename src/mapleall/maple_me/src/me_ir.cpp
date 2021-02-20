@@ -785,6 +785,12 @@ void AddroffuncMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
+void AddroflabelMeExpr::Dump(const IRMap *irMap, int32) const {
+  LogInfo::MapleLogger() << "ADDROFLABEL:";
+  LogInfo::MapleLogger() << " @" << irMap->GetMIRModule().CurFunction()->GetLabelName(labelIdx);
+  LogInfo::MapleLogger() << " mx" << GetExprID();
+}
+
 void GcmallocMeExpr::Dump(const IRMap*, int32) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger() << " ";

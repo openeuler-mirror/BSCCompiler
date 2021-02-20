@@ -168,6 +168,11 @@ MeExpr *IRMapBuild::BuildAddroffuncMeExpr(BaseNode &mirNode) const {
   return meExpr;
 }
 
+MeExpr *IRMapBuild::BuildAddroflabelMeExpr(BaseNode &mirNode) const {
+  AddroflabelMeExpr *meExpr = new AddroflabelMeExpr(kInvalidExprID, static_cast<AddroflabelNode&>(mirNode).GetOffset());
+  return meExpr;
+}
+
 MeExpr *IRMapBuild::BuildGCMallocMeExpr(BaseNode &mirNode) const {
   GcmallocMeExpr *meExpr = new GcmallocMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), static_cast<GCMallocNode&>(mirNode).GetTyIdx());
   return meExpr;
@@ -323,6 +328,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode) {
 void IRMapBuild::InitMeExprBuildFactory() {
   RegisterFactoryFunction<MeExprBuildFactory>(OP_addrof, &IRMapBuild::BuildAddrofMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_addroffunc, &IRMapBuild::BuildAddroffuncMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_addroflabel, &IRMapBuild::BuildAddroflabelMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_gcmalloc, &IRMapBuild::BuildGCMallocMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_gcpermalloc, &IRMapBuild::BuildGCMallocMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_sizeoftype, &IRMapBuild::BuildSizeoftypeMeExpr);
@@ -420,6 +426,7 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
     }
     case OP_assertnonnull:
     case OP_eval:
+    case OP_igoto:
     case OP_free:
     case OP_switch: {
       auto &unaryStmt = static_cast<UnaryStmtNode&>(stmt);

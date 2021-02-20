@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -93,8 +93,8 @@ class MIRParser {
   bool ParseFunction(uint32 fileIdx = 0);
   bool ParseStorageClass(MIRSymbol &st) const;
   bool ParseDeclareVar(MIRSymbol&);
-  bool ParseDeclareReg(MIRSymbol&, MIRFunction&);
-  bool ParseDeclareFormal(FormalDef *);
+  bool ParseDeclareReg(MIRSymbol&, const MIRFunction&);
+  bool ParseDeclareFormal(FormalDef&);
   bool ParsePrototypeRemaining(MIRFunction&, std::vector<TyIdx> &, std::vector<TypeAttrs>&, bool&);
 
   // Stmt Parser
@@ -142,6 +142,7 @@ class MIRParser {
   bool ParseUnaryStmtDecRef(StmtNodePtr&);
   bool ParseUnaryStmtIncRef(StmtNodePtr&);
   bool ParseUnaryStmtDecRefReset(StmtNodePtr&);
+  bool ParseUnaryStmtIGoto(StmtNodePtr&);
   bool ParseUnaryStmtEval(StmtNodePtr&);
   bool ParseUnaryStmtFree(StmtNodePtr&);
   bool ParseUnaryStmtAssertNonNull(StmtNodePtr&);
