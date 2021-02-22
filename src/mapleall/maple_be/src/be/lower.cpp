@@ -2846,6 +2846,7 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
 
   BlockNode *newBody = LowerBlock(*origBody);
+  beCommon.FinalizeTypeTable();
   func.SetBody(newBody);
   if (needBranchCleanup) {
     CleanupBranches(func);
