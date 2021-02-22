@@ -117,7 +117,12 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   SetStructFieldCount(structType.GetTypeIndex(), fields.size());
   if (fields.size() == 0 && mirModule.IsCModule()) {
     SetTypeAlign(tyIdx.GetIdx(), 1);
-    SetTypeSize(tyIdx.GetIdx(), 1);
+    if (structType.IsCPlusPlus()) {
+      SetTypeSize(tyIdx.GetIdx(), 1);
+    } else {
+      /* empty struct is not supported in C, but gcc allows for it as size 0 */
+      SetTypeSize(tyIdx.GetIdx(), 0);
+    }
     return;
   }
   for (size_t j = 0; j < fields.size(); ++j) {
