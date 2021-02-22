@@ -1,4 +1,4 @@
-android
+android/*
 third_party/d8*
 third_party/icu*
 third_party/libdex*
