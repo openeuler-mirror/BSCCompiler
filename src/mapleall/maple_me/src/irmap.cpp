@@ -105,12 +105,12 @@ VarMeExpr *IRMap::CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx) {
 }
 
 RegMeExpr *IRMap::CreateRegMeExprVersion(OriginalSt &pregOSt) {
-  auto *regReadExpr = New<RegMeExpr>(exprID++, &pregOSt, 0, pregOSt.GetMIRPreg()->GetPrimType());
+  RegMeExpr *regReadExpr = New<RegMeExpr>(exprID++, &pregOSt, 0, kMeOpReg, OP_regread, pregOSt.GetMIRPreg()->GetPrimType());
   return regReadExpr;
 }
 
 RegMeExpr *IRMap::CreateRegMeExprVersion(const RegMeExpr &origExpr) {
-  auto *regReadExpr = New<RegMeExpr>(exprID++, origExpr.GetOst(), 0, origExpr.GetPrimType());
+  auto *regReadExpr = New<RegMeExpr>(exprID++, origExpr.GetOst(), 0, kMeOpReg, OP_regread, origExpr.GetPrimType());
   return regReadExpr;
 }
 
@@ -126,7 +126,7 @@ RegMeExpr *IRMap::CreateRefRegMeExpr(const MIRSymbol &mirSt) {
     preg->SetNeedRC();
   }
   OriginalSt *oSt = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
-  auto *regreadexpr = New<RegMeExpr>(exprID++, oSt, 0, pType);
+  auto *regreadexpr = New<RegMeExpr>(exprID++, oSt, 0, kMeOpReg, OP_regread, pType);
   return regreadexpr;
 }
 
@@ -135,7 +135,7 @@ RegMeExpr *IRMap::CreateRegMeExpr(PrimType pType) {
   PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(pType);
   ASSERT(regIdx <= 0xffff, "register oversized");
   OriginalSt *ost = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
-  auto *regReadExpr = New<RegMeExpr>(exprID++, ost, 0, pType);
+  auto *regReadExpr = New<RegMeExpr>(exprID++, ost, 0, kMeOpReg, OP_regread, pType);
   return regReadExpr;
 }
 
@@ -144,7 +144,7 @@ RegMeExpr *IRMap::CreateRegRefMeExpr(MIRType &mirType) {
   PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(PTY_ref, &mirType);
   ASSERT(regIdx <= 0xffff, "register oversized");
   OriginalSt *ost = ssaTab.GetOriginalStTable().CreatePregOriginalSt(regIdx, mirFunc->GetPuidx());
-  auto *regReadExpr = New<RegMeExpr>(exprID++, ost, 0, mirType.GetPrimType());
+  auto *regReadExpr = New<RegMeExpr>(exprID++, ost, 0, kMeOpReg, OP_regread, mirType.GetPrimType());
   return regReadExpr;
 }
 
