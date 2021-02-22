@@ -19,15 +19,18 @@
 #include "dominance.h"
 
 namespace maple {
+class Prop;
+
 // This class contains methods to convert Maple IR to MeIR.
 class IRMapBuild {
  public:
-  IRMapBuild(IRMap *hmap, Dominance *dom)
+  IRMapBuild(IRMap *hmap, Dominance *dom, Prop *prop)
       : irMap(hmap),
         mirModule(hmap->GetMIRModule()),
         ssaTab(irMap->GetSSATab()),
         dominance(*dom),
-        curBB(nullptr) {
+        curBB(nullptr),
+        propagater(prop) {
     InitMeExprBuildFactory();
     InitMeStmtFactory();
   }
@@ -44,33 +47,34 @@ class IRMapBuild {
   void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList&, MapleVector<MustDefMeNode>&);
   void BuildMuList(TypeOfMayUseList&, MapleMap<OStIdx, VarMeExpr*>&);
   void BuildPhiMeNode(BB&);
-  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode);
+  void SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atparm, bool noProp);
 
-  OpMeExpr *BuildOpMeExpr(BaseNode &mirNode) const {
-    OpMeExpr *meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
+  OpMeExpr *BuildOpMeExpr(const BaseNode &mirNode) const {
+    auto meExpr = new OpMeExpr(kInvalidExprID, mirNode.GetOpCode(), mirNode.GetPrimType(), mirNode.GetNumOpnds());
     return meExpr;
   }
-  MeExpr *BuildAddrofMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildAddroffuncMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildAddroflabelMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildGCMallocMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildSizeoftypeMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildFieldsDistMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildIvarMeExpr(BaseNode &mirNode) const;
+
+  MeExpr *BuildAddrofMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildAddroffuncMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildAddroflabelMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildGCMallocMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildSizeoftypeMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildFieldsDistMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildIvarMeExpr(const BaseNode &mirNode) const;
   MeExpr *BuildConstMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildConststrMeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildConststr16MeExpr(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForCompare(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForTypeCvt(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForRetype(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForIread(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForExtractbits(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForJarrayMalloc(BaseNode &mirNode) const;
-  MeExpr *BuildOpMeExprForResolveFunc(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForArray(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicop(BaseNode &mirNode) const;
-  MeExpr *BuildNaryMeExprForIntrinsicWithType(BaseNode &mirNode) const;
-  MeExpr *BuildExpr(BaseNode&);
+  MeExpr *BuildConststrMeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildConststr16MeExpr(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForCompare(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForTypeCvt(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForRetype(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForIread(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForExtractbits(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const;
+  MeExpr *BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForArray(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForIntrinsicop(const BaseNode &mirNode) const;
+  MeExpr *BuildNaryMeExprForIntrinsicWithType(const BaseNode &mirNode) const;
+  MeExpr *BuildExpr(BaseNode&, bool atParm, bool noProp);
   static void InitMeExprBuildFactory();
 
   MeStmt *BuildMeStmtWithNoSSAPart(StmtNode &stmt);
@@ -93,6 +97,7 @@ class IRMapBuild {
   SSATab &ssaTab;
   Dominance &dominance;
   BB *curBB;  // current mapleme::BB being visited
+  Prop *propagater;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_IRMAP_BUILD_H

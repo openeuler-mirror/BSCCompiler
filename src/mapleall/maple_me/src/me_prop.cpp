@@ -34,7 +34,7 @@ AnalysisResult *MeDoMeProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
   bool propIloadRef = MeOption::propIloadRef;
   MeProp meProp(*hMap, *dom, *NewMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
       MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi });
-  meProp.DoProp();
+  meProp.TraversalBB(*func->GetCommonEntryBB());
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
     func->Dump(false);
