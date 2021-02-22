@@ -437,12 +437,7 @@ ConstvalNode *ConstantFold::FoldIntConstComparison(Opcode opcode, PrimType resul
   return resultConst;
 }
 
-ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
-                                               const ConstvalNode &const1) const {
-  const MIRIntConst *intConst0 = safe_cast<MIRIntConst>(const0.GetConstVal());
-  const MIRIntConst *intConst1 = safe_cast<MIRIntConst>(const1.GetConstVal());
-  CHECK_NULL_FATAL(intConst0);
-  CHECK_NULL_FATAL(intConst1);
+MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0, const MIRIntConst *intConst1) const {
   int64 intValueOfConst0 = intConst0->GetValue();
   int64 intValueOfConst1 = intConst1->GetValue();
   uint64 result64 = 0;
@@ -474,7 +469,7 @@ ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultTyp
       break;
     }
     case OP_div: {
-      if (IsUnsignedInteger(const0.GetPrimType())) {
+      if (IsUnsignedInteger(resultType)) {
         if (useResult64) {
           result64 = static_cast<uint64>(intValueOfConst0) / static_cast<uint64>(intValueOfConst1);
         } else {
@@ -490,7 +485,7 @@ ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultTyp
       break;
     }
     case OP_rem: {
-      if (IsUnsignedInteger(const0.GetPrimType())) {
+      if (IsUnsignedInteger(resultType)) {
         if (useResult64) {
           result64 = static_cast<uint64>(intValueOfConst0) % static_cast<uint64>(intValueOfConst1);
         } else {
@@ -530,7 +525,7 @@ ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultTyp
       break;
     }
     case OP_max: {
-      if (IsUnsignedInteger(const0.GetPrimType())) {
+      if (IsUnsignedInteger(resultType)) {
         if (useResult64) {
           result64 = (static_cast<uint64>(intValueOfConst0) >= static_cast<uint64>(intValueOfConst1)) ?
                      static_cast<uint64>(intValueOfConst0) : static_cast<uint64>(intValueOfConst1);
@@ -550,7 +545,7 @@ ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultTyp
       break;
     }
     case OP_min: {
-      if (IsUnsignedInteger(const0.GetPrimType())) {
+      if (IsUnsignedInteger(resultType)) {
         if (useResult64) {
           result64 = (static_cast<uint64>(intValueOfConst0) <= static_cast<uint64>(intValueOfConst1)) ?
                      static_cast<uint64>(intValueOfConst0) : static_cast<uint64>(intValueOfConst1);
@@ -632,9 +627,19 @@ ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultTyp
   } else {
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(result32, type);
   }
+  return constValue;
+}
+
+ConstvalNode *ConstantFold::FoldIntConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
+                                               const ConstvalNode &const1) const {
+  const MIRIntConst *intConst0 = safe_cast<MIRIntConst>(const0.GetConstVal());
+  const MIRIntConst *intConst1 = safe_cast<MIRIntConst>(const1.GetConstVal());
+  CHECK_NULL_FATAL(intConst0);
+  CHECK_NULL_FATAL(intConst1);
+  MIRConst *constValue = FoldIntConstBinaryMIRConst(opcode, resultType, intConst0, intConst1);
   // form the ConstvalNode
   ConstvalNode *resultConst = mirModule->CurFuncCodeMemPool()->New<ConstvalNode>();
-  resultConst->SetPrimType(type.GetPrimType());
+  resultConst->SetPrimType(resultType);
   resultConst->SetConstVal(constValue);
   return resultConst;
 }

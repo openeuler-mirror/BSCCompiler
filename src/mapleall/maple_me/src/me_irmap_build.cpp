@@ -34,9 +34,19 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
 #if DEBUG
   globalIRMap = irMap;
 #endif
-  IRMapBuild irmapbuild(irMap, dom);
-  std::vector<bool> bbIrmapProcessed(func->NumBBs(), false);
-  irmapbuild.BuildBB(*func->GetCommonEntryBB(), bbIrmapProcessed);
+  MemPool *propMp = nullptr;
+  if (!func->GetMIRModule().IsJavaModule()) {
+    // create propgation
+    propMp = memPoolCtrler.NewMemPool("meirbuild prop");
+    MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false});
+    IRMapBuild irmapbuild(irMap, dom, &meprop);
+    std::vector<bool> bbIrmapProcessed(func->NumBBs(), false);
+    irmapbuild.BuildBB(*func->GetCommonEntryBB(), bbIrmapProcessed);
+  } else {
+    IRMapBuild irmapbuild(irMap, dom, nullptr);
+    std::vector<bool> bbIrmapProcessed(func->NumBBs(), false);
+    irmapbuild.BuildBB(*func->GetCommonEntryBB(), bbIrmapProcessed);
+  }
   if (DEBUGFUNC(func)) {
     irMap->Dump();
   }
@@ -61,6 +71,11 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
     bb->SetLast(nullptr);
   }
   func->GetMeSSATab()->GetVersionStTable().GetVSTAlloc().GetMemPool()->Release();
+  funcResMgr->InvalidAnalysisResult(MeFuncPhase_SSA, func);
+  funcResMgr->InvalidAnalysisResult(MeFuncPhase_DSE, func);
+  if (propMp) {
+    memPoolCtrler.DeleteMemPool(propMp);
+  }
   return irMap;
 }
 }  // namespace maple

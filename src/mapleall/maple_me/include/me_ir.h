@@ -92,10 +92,6 @@ class MeExpr {
     return exprID;
   }
 
-  uint8 GetDepth() const {
-    return depth;
-  }
-
   uint32 GetTreeID() const {
     return treeID;
   }
@@ -106,6 +102,10 @@ class MeExpr {
 
   virtual void Dump(const IRMap*, int32 indent = 0) const {
     (void)indent;
+  }
+
+  virtual size_t GetDepth() const {
+    return 0;
   }
 
   virtual bool IsZero() const {
@@ -145,7 +145,6 @@ class MeExpr {
     return nullptr;
   }
 
-  void UpdateDepth();                      // update the depth, suppose all sub nodes have already depth done.
   MeExpr &GetAddrExprBase();               // get the base of the address expression
   // in the expression; nullptr otherwise
   bool SymAppears(OStIdx oidx);  // check if symbol appears in the expression
@@ -158,7 +157,7 @@ class MeExpr {
   MeExpr *ResolveMeExprValue();
   bool CouldThrowException() const;
   bool IsAllOpndsIdentical(const MeExpr &meExpr) const;
-  bool PointsToSomethingThatNeedsIncRef(SSATab &ssaTab);
+  bool PointsToSomethingThatNeedsIncRef();
   virtual uint32 GetHashIndex() const {
     return 0;
   }
@@ -172,7 +171,6 @@ class MeExpr {
   uint8 numOpnds;
   MeExprOp meOp;
   int32 exprID;
-  uint8 depth = 0;
   uint32 treeID = 0;  // for bookkeeping purpose during SSAPRE
   MeExpr *next = nullptr;
 };
@@ -230,6 +228,10 @@ class ScalarMeExpr : public MeExpr {
 
   OriginalSt *GetOst() const {
     return ost;
+  }
+
+  OStIdx GetOstIdx() const {
+    return ost->GetIndex();
   }
 
   size_t GetVstIdx() const {
@@ -319,11 +321,15 @@ class VarMeExpr final : public ScalarMeExpr {
 
   bool IsVolatile() const override;
   // indicate if the variable is local variable but not a function formal variable
-  bool IsPureLocal(const SSATab&, const MIRFunction&) const;
+  bool IsPureLocal(const MIRFunction&) const;
   bool IsZeroVersion() const;
   bool IsSameVariableValue(const VarMeExpr&) const override;
   VarMeExpr &ResolveVarMeValue();
   bool PointsToStringLiteral();
+
+  FieldID GetFieldID() const {
+    return GetOst()->GetFieldID();
+  }
 
   TyIdx GetInferredTyIdx() const {
     return inferredTyIdx;
@@ -754,6 +760,7 @@ class OpMeExpr : public MeExpr {
         opndType(opMeExpr.opndType),
         bitsOffset(opMeExpr.bitsOffset),
         bitsSize(opMeExpr.bitsSize),
+        depth(opMeExpr.depth),
         tyIdx(opMeExpr.tyIdx),
         fieldID(opMeExpr.fieldID) {}
 
@@ -769,14 +776,23 @@ class OpMeExpr : public MeExpr {
   bool IsUseSameSymbol(const MeExpr&) const override;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
   BaseNode &EmitExpr(SSATab&) override;
+  size_t GetDepth() const override {
+    return depth;
+  }
   MeExpr *GetOpnd(size_t i) const override {
     CHECK_FATAL(i < kOperandNumTernary, "OpMeExpr cannot have more than 3 operands");
     return opnds[i];
   }
 
-  void SetOpnd(size_t idx, MeExpr *opndsVal) override {
+  void SetOpnd(size_t idx, MeExpr *x) override {
     CHECK_FATAL(idx < kOperandNumTernary, "out of range in  OpMeExpr::SetOpnd");
-    opnds[idx] = opndsVal;
+    opnds[idx] = x;
+    if (depth <= x->GetDepth()) {
+      depth = x->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
   }
 
   PrimType GetOpndType() {
@@ -840,6 +856,7 @@ class OpMeExpr : public MeExpr {
   PrimType opndType = kPtyInvalid;  // from type
   uint8 bitsOffset = 0;
   uint8 bitsSize = 0;
+  uint8 depth = 0;
   TyIdx tyIdx;
   FieldID fieldID = 0;  // this is also used to store puIdx
 };
@@ -854,13 +871,17 @@ class IvarMeExpr : public MeExpr {
         defStmt(ivarme.defStmt),
         base(ivarme.base),
         tyIdx(ivarme.tyIdx),
-        fieldID(ivarme.fieldID) {
+        fieldID(ivarme.fieldID),
+        volatileFromBaseSymbol(ivarme.volatileFromBaseSymbol) {
     mu = ivarme.mu;
   }
 
   ~IvarMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
+  size_t GetDepth() const override {
+    return base->GetDepth() + 1;
+  }
   BaseNode &EmitExpr(SSATab&) override;
   bool IsVolatile() const override;
   bool IsFinal();
@@ -924,6 +945,14 @@ class IvarMeExpr : public MeExpr {
     maybeNull = maybeNullVal;
   }
 
+  bool GetVolatileFromBaseSymbol() const {
+    return volatileFromBaseSymbol;
+  }
+
+  void SetVolatileFromBaseSymbol(bool value) {
+    volatileFromBaseSymbol = value;
+  }
+
   VarMeExpr *GetMu() {
     return mu;
   }
@@ -946,6 +975,7 @@ class IvarMeExpr : public MeExpr {
   TyIdx inferredTyIdx{ 0 };  // may be a subclass of above tyIdx
   FieldID fieldID = 0;
   bool maybeNull = true;  // false if definitely not null
+  bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
   VarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
 };
 
@@ -965,6 +995,7 @@ class NaryMeExpr : public MeExpr {
         tyIdx(meExpr.tyIdx),
         intrinsic(meExpr.intrinsic),
         opnds(alloc->Adapter()),
+        depth(meExpr.depth),
         boundCheck(meExpr.boundCheck) {
     for (size_t i = 0; i < meExpr.opnds.size(); ++i) {
       opnds.push_back(meExpr.opnds[i]);
@@ -974,6 +1005,9 @@ class NaryMeExpr : public MeExpr {
   ~NaryMeExpr() = default;
 
   void Dump(const IRMap*, int32 indent = 0) const override;
+  size_t GetDepth() const override {
+    return depth;
+  }
   bool IsIdentical(NaryMeExpr&) const;
   bool IsUseSameSymbol(const MeExpr&) const override;
   BaseNode &EmitExpr(SSATab&) override;
@@ -999,14 +1033,25 @@ class NaryMeExpr : public MeExpr {
     return opnds;
   }
 
-  void SetOpnds(MapleVector<MeExpr*> &newOpnds) {
-    ASSERT(newOpnds.size() == GetNumOpnds(), "inconsistent operand numbers");
-    opnds = newOpnds;
-  }
-
   void SetOpnd(size_t idx, MeExpr *val) override {
     ASSERT(idx < opnds.size(), "out of range in NaryMeStmt::GetOpnd");
     opnds[idx] = val;
+    if (depth <= val->GetDepth()) {
+      depth = val->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
+  }
+
+  void PushOpnd(MeExpr *x) {
+    opnds.push_back(x);
+    if (depth <= x->GetDepth()) {
+      depth = x->GetDepth();
+      if (depth != UINT8_MAX) {
+        depth++;
+      }
+    }
   }
 
   bool GetBoundCheck() {
@@ -1035,6 +1080,7 @@ class NaryMeExpr : public MeExpr {
   TyIdx tyIdx;
   MIRIntrinsicID intrinsic;
   MapleVector<MeExpr*> opnds;
+  uint8 depth = 0;
   bool boundCheck;
 };
 
@@ -1090,7 +1136,7 @@ class MeStmt {
     return nullptr;
   }
 
-  void EmitCallReturnVector(SSATab &ssaTab, CallReturnVector &nRets);
+  void EmitCallReturnVector(CallReturnVector &nRets);
   virtual MapleVector<MustDefMeNode> *GetMustDefList() {
     return nullptr;
   }
@@ -1158,7 +1204,7 @@ class MeStmt {
     return nullptr;
   }
 
-  virtual MeExpr *GetLHSRef(SSATab&, bool) {
+  virtual MeExpr *GetLHSRef(bool) {
     return nullptr;
   }
 
@@ -1544,7 +1590,7 @@ class DassignMeStmt : public MeStmt {
     return lhs;
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar);
   void UpdateLHS(VarMeExpr &var) {
     lhs = &var;
     var.SetDefBy(kDefByStmt);
@@ -1727,7 +1773,7 @@ class MaydassignMeStmt : public MeStmt {
     return chiList.begin()->second->GetLHS();
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar);
   StmtNode &EmitStmt(SSATab &ssaTab);
 
  private:
@@ -1797,7 +1843,7 @@ class IassignMeStmt : public MeStmt {
     chiList = value;
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar);
   bool NeedDecref() const {
     return needDecref;
   }
@@ -1823,7 +1869,7 @@ class IassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  MeExpr *GetLHS() const {
+  IvarMeExpr *GetLHS() const {
     return lhsVar;
   }
 
@@ -1951,7 +1997,7 @@ class AssignedPart {
   virtual ~AssignedPart() = default;
 
   void DumpAssignedPart(const IRMap *irMap) const;
-  VarMeExpr *GetAssignedPartLHSRef(SSATab &ssaTab, bool excludeLocalRefVar);
+  VarMeExpr *GetAssignedPartLHSRef(bool excludeLocalRefVar);
 
  protected:
   MapleVector<MustDefMeNode> mustDefList;
@@ -2031,8 +2077,8 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar) {
-    return GetAssignedPartLHSRef(ssaTab, excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+    return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
   VarMeExpr *GetVarLHS() {
@@ -2126,8 +2172,8 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar) {
-    return GetAssignedPartLHSRef(ssaTab, excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+    return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
   bool NeedDecref() const {
@@ -2246,8 +2292,8 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetLHSRef(SSATab &ssaTab, bool excludeLocalRefVar) {
-    return GetAssignedPartLHSRef(ssaTab, excludeLocalRefVar);
+  MeExpr *GetLHSRef(bool excludeLocalRefVar) {
+    return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
   bool NeedDecref() const {

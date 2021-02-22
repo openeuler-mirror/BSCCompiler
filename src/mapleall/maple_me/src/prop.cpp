@@ -16,231 +16,60 @@
 #include "me_irmap.h"
 #include "dominance.h"
 
-namespace {
 using namespace maple;
 
 const int kPropTreeLevel = 15;  // tree height threshold to increase to
 
-// (typeA -> typeB -> typeC) => (typeA -> typeC)
-bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
-  if (IsPrimitiveInteger(typeA)) {
-    if (IsPrimitiveInteger(typeB)) {
-      if (IsPrimitiveInteger(typeC)) {
-        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) || GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC);
-      } else if (IsPrimitiveFloat(typeC)) {
-        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA);
-      }
-    } else if (IsPrimitiveFloat(typeB)) {
-      if (IsPrimitiveFloat(typeC)) {
-        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC);
-      }
-    }
-  } else if (IsPrimitiveFloat(typeA)) {
-    if (IsPrimitiveFloat(typeB) && IsPrimitiveFloat(typeC)) {
-      return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) || GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC);
-    }
-  }
-  return false;
-}
-} // namespace
-
 namespace maple {
-Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, std::vector<BB*> &&bbVec, BB &commonEntryBB,
-           const PropConfig &config)
+Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config)
     : dom(dom),
       irMap(irMap),
       ssaTab(irMap.GetSSATab()),
       mirModule(irMap.GetSSATab().GetModule()),
       propMapAlloc(&memPool),
-      bbVec(bbVec),
-      commonEntryBB(commonEntryBB),
-      vstLiveStackVec(),
-      bbVisited(bbVec.size(), false),
+      vstLiveStackVec(propMapAlloc.Adapter()),
+      bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
       config(config) {
   const MapleVector<OriginalSt*> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
     OriginalSt *ost = originalStVec[i];
     ASSERT(ost->GetIndex() == i, "inconsistent originalst_table index");
+    MapleStack<MeExpr *> *verstStack = propMapAlloc.GetMemPool()->New<MapleStack<MeExpr *>>(propMapAlloc.Adapter());
     MeExpr *expr = irMap.GetMeExpr(ost->GetZeroVersionIndex());
     if (expr != nullptr) {
-      vstLiveStackVec[i].push(expr);
+      verstStack->push(expr);
     }
+    vstLiveStackVec[i] = verstStack;
   }
-}
-
-MeExpr *Prop::SimplifyCvtMeExpr(const OpMeExpr &opMeExpr) const {
-  MeExpr *opnd0 = opMeExpr.GetOpnd(0);
-
-  // convert a const expr
-  if (opnd0->GetMeOp() == kMeOpConst) {
-    return nullptr;
-  }
-
-  // convert a convert expr
-  if (opnd0->GetOp() == OP_cvt) {
-    auto *cvtOpnd0 = static_cast<OpMeExpr*>(opnd0);
-    // simplify "cvt type1 type2 (cvt type2 type3 (expr ))" to "cvt type1 type3 expr"
-    auto typeA = cvtOpnd0->GetOpnd(0)->GetPrimType();
-    auto typeB = cvtOpnd0->GetPrimType();
-    auto typeC = opMeExpr.GetPrimType();
-    if (IgnoreInnerTypeCvt(typeA, typeB, typeC)) {
-      return irMap.CreateMeExprTypeCvt(typeC, typeA, utils::ToRef(cvtOpnd0->GetOpnd(0)));
-    }
-  }
-  return nullptr;
-}
-
-MeExpr *Prop::SimplifyCompareSelectConstMeExpr(const OpMeExpr &opMeExpr, const MeExpr &opMeOpnd0, MeExpr &opnd1,
-    MeExpr &opnd01, MeExpr &opnd02) const {
-  // b, c and compare operand are all constant
-  auto *constOpnd1 = static_cast<ConstMeExpr&>(opnd1).GetConstVal();
-  auto *constOpnd01 = static_cast<ConstMeExpr&>(opnd01).GetConstVal();
-  auto *constOpnd02 = static_cast<ConstMeExpr&>(opnd02).GetConstVal();
-
-  bool isNe = opMeExpr.GetOp() == OP_ne;
-  if (constOpnd01->IsZero() && constOpnd02->IsOne()) {
-    if ((!isNe && constOpnd1->IsZero()) ||
-        (isNe && constOpnd1->IsOne())) {
-      std::swap(constOpnd01, constOpnd02);
-    }
-  } else if (constOpnd01->IsOne() && constOpnd02->IsZero()) {
-    if ((!isNe && constOpnd1->IsZero()) ||
-        (isNe && constOpnd1->IsOne())) {
-      std::swap(constOpnd01, constOpnd02);
-    }
-  } else {
-    return nullptr;
-  }
-
-  // negative one is invalid ExprID
-  OpMeExpr newopMeExpr(-1, OP_select, PTY_u1, 3);
-  newopMeExpr.SetOpnd(0, opMeOpnd0.GetOpnd(0));
-
-  ConstMeExpr exNewOpnds01(-1, constOpnd01, PTY_u1);
-  MeExpr *newOpnd01 = irMap.HashMeExpr(exNewOpnds01);
-
-  ConstMeExpr exNewOpnds02(-1, constOpnd02, PTY_u1);
-  MeExpr *newOpnds02 = irMap.HashMeExpr(exNewOpnds02);
-
-  newopMeExpr.SetOpnd(1, newOpnd01);
-  newopMeExpr.SetOpnd(2, newOpnds02);
-
-  return irMap.HashMeExpr(newopMeExpr);
-}
-
-MeExpr *Prop::SimplifyCompareConstWithConst(OpMeExpr &opMeExpr) const {
-  return nullptr;
-}
-
-MeExpr *Prop::SimplifyCompareConstWithAddress(const OpMeExpr &opMeExpr) const {
-  MeExpr *opnd0 = opMeExpr.GetOpnd(0);
-  MeExpr *opnd1 = opMeExpr.GetOpnd(1);
-  Opcode opcode = opMeExpr.GetOp();
-  bool isNeOrEq = (opcode == OP_ne || opcode == OP_eq);
-  if (isNeOrEq) {
-    MIRConst *constOpnd = nullptr;
-    if (opnd0->GetMeOp() == kMeOpAddrof && opnd1->GetMeOp() == kMeOpConst) {
-      constOpnd = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
-    } else if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpAddrof) {
-      constOpnd = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
-    }
-
-    if (constOpnd != nullptr && constOpnd->IsZero()) {
-      // addrof will not be zero, so this comparison can be replaced with a constant
-      auto *resConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-          static_cast<int64>(opcode == OP_ne), utils::ToRef(GlobalTables::GetTypeTable().GetUInt1()));
-      return irMap.CreateConstMeExpr(opMeExpr.GetPrimType(), *resConst);
-    }
-  }
-  return nullptr;
-}
-
-MeExpr *Prop::SimplifyCompareWithZero(const OpMeExpr &opMeExpr) const {
-  Opcode opcode = opMeExpr.GetOp();
-  MeExpr *opnd0 = opMeExpr.GetOpnd(0);
-  MeExpr *opnd1 = opMeExpr.GetOpnd(1);
-  if (opnd0->GetOp() == OP_cmp && opnd1->GetMeOp() == kMeOpConst) {
-    auto *constVal = static_cast<ConstMeExpr*>(opnd1)->GetConstVal();
-    if (constVal->GetKind() == kConstInt && constVal->IsZero()) {
-      auto *subOpnd0 = opnd0->GetOpnd(0);
-      auto *subOpnd1 = opnd0->GetOpnd(1);
-      return irMap.CreateMeExprCompare(opcode, PTY_u1, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
-    }
-  }
-  return nullptr;
-}
-
-MeExpr *Prop::SimplifyCompareMeExpr(OpMeExpr &opMeExpr) const {
-  // compare constant with constant
-  auto *newConstExpr = SimplifyCompareConstWithConst(opMeExpr);
-  if (newConstExpr != nullptr) {
-    return newConstExpr;
-  }
-
-  // compare constant with addrof
-  auto *newOpExpr = SimplifyCompareConstWithAddress(opMeExpr);
-  if (newOpExpr != nullptr) {
-    return newOpExpr;
-  }
-
-  MeExpr *opnd0 = opMeExpr.GetOpnd(0);
-  MeExpr *opnd1 = opMeExpr.GetOpnd(1);
-  Opcode opcode = opMeExpr.GetOp();
-  bool isNeOrEq = (opcode == OP_ne || opcode == OP_eq);
-  // compare select (a ? b : c) with constant 0 or 1
-  if (isNeOrEq && opnd0->GetOp() == OP_select &&
-      (opnd1->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd1->GetPrimType()))) {
-    auto *opMeOpnd0 = static_cast<OpMeExpr*>(opnd0);
-    MeExpr *opnd01 = opMeOpnd0->GetOpnd(1);
-    MeExpr *opnd02 = opMeOpnd0->GetOpnd(2);
-    if (!(opnd01->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd01->GetPrimType()) &&
-        opnd02->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd02->GetPrimType()))) {
-      return nullptr;
-    }
-
-    return SimplifyCompareSelectConstMeExpr(opMeExpr, *opMeOpnd0, *opnd1, *opnd01, *opnd02);
-  }
-
-  // compare compareRes with zero
-  newOpExpr = SimplifyCompareWithZero(opMeExpr);
-  if (newOpExpr != nullptr) {
-    return newOpExpr;
-  }
-  return nullptr;
-}
-
-MeExpr *Prop::SimplifyMeExpr(OpMeExpr &opMeExpr) const {
-  Opcode opcode = opMeExpr.GetOp();
-  if (kOpcodeInfo.IsCompare(opcode)) {
-    return SimplifyCompareMeExpr(opMeExpr);
-  }
-
-  if (opcode == OP_cvt) {
-    return SimplifyCvtMeExpr(opMeExpr);
-  }
-
-  return nullptr;
 }
 
 void Prop::PropUpdateDef(MeExpr &meExpr) {
   ASSERT(meExpr.GetMeOp() == kMeOpVar || meExpr.GetMeOp() == kMeOpReg, "meExpr error");
   OStIdx ostIdx;
   if (meExpr.GetMeOp() == kMeOpVar) {
-    ostIdx = static_cast<VarMeExpr&>(meExpr).GetOst()->GetIndex();
+    ostIdx = static_cast<VarMeExpr&>(meExpr).GetOstIdx();
   } else {
     auto &regExpr = static_cast<RegMeExpr&>(meExpr);
     if (!regExpr.IsNormalReg()) {
       return;
     }
-    ostIdx = regExpr.GetOst()->GetIndex();
+    ostIdx = regExpr.GetOstIdx();
   }
-  vstLiveStackVec.at(ostIdx).push(meExpr);
+  vstLiveStackVec[ostIdx]->push(&meExpr);
 }
 
 void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
   for (auto it = chiList.begin(); it != chiList.end(); ++it) {
     PropUpdateDef(*static_cast<VarMeExpr*>(it->second->GetLHS()));
+  }
+}
+
+void Prop::PropUpdateMustDefList(MeStmt *mestmt) {
+  MapleVector<MustDefMeNode> *mustdefList = mestmt->GetMustDefList();
+  if (!mustdefList->empty()) {
+    MeExpr *melhs = mustdefList->front().GetLHS();
+    PropUpdateDef(*static_cast<VarMeExpr *>(melhs));
   }
 }
 
@@ -270,25 +99,25 @@ void Prop::CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> 
 // the version of progation of x1 is a1, but the top of the stack of symbol a is a2, so it's not consistent
 // warning: I suppose the vector vervec is on the stack, otherwise would cause memory leak
 bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
-                               const std::vector<std::stack<SafeMeExprPtr>> &vstLiveStack) const {
+                               const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const {
   for (auto it = vstVec.begin(); it != vstVec.end(); ++it) {
     // iterate each cur defintion of related symbols of rhs, check the version
     const MeExpr *subExpr = *it;
     CHECK_FATAL(subExpr->GetMeOp() == kMeOpVar || subExpr->GetMeOp() == kMeOpReg, "error: sub expr error");
     uint32 stackIdx = 0;
     if (subExpr->GetMeOp() == kMeOpVar) {
-      stackIdx = static_cast<const VarMeExpr*>(subExpr)->GetOst()->GetIndex();
+      stackIdx = static_cast<const VarMeExpr*>(subExpr)->GetOstIdx();
     } else {
-      stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOst()->GetIndex();
+      stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOstIdx();
     }
-    auto &pStack = vstLiveStack.at(stackIdx);
-    if (pStack.empty()) {
+    MapleStack<MeExpr *> *pStack = vstLiveStack.at(stackIdx);
+    if (pStack->empty()) {
       // no definition so far go ahead
       continue;
     }
-    SafeMeExprPtr curDef = pStack.top();
+    MeExpr * curDef = pStack->top();
     CHECK_FATAL(curDef->GetMeOp() == kMeOpVar || curDef->GetMeOp() == kMeOpReg, "error: cur def error");
-    if (subExpr != curDef.get()) {
+    if (subExpr != curDef) {
       return false;
     }
   }
@@ -514,15 +343,20 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
     }
     case kMeOpOp: {
       auto &meOpExpr = static_cast<OpMeExpr&>(meExpr);
-      OpMeExpr newMeExpr(meOpExpr, -1);
+      OpMeExpr newMeExpr(-1, meOpExpr.GetOp(), meOpExpr.GetPrimType(), meOpExpr.GetNumOpnds());
 
       for (size_t i = 0; i < newMeExpr.GetNumOpnds(); ++i) {
-        newMeExpr.SetOpnd(i, &PropMeExpr(utils::ToRef(newMeExpr.GetOpnd(i)), subProped, false));
+        newMeExpr.SetOpnd(i, &PropMeExpr(utils::ToRef(meOpExpr.GetOpnd(i)), subProped, false));
       }
 
       if (subProped) {
         isProped = true;
-        MeExpr *simplifyExpr = SimplifyMeExpr(newMeExpr);
+        newMeExpr.SetOpndType(meOpExpr.GetOpndType());
+        newMeExpr.SetBitsOffSet(meOpExpr.GetBitsOffSet());
+        newMeExpr.SetBitsSize(meOpExpr.GetBitsSize());
+        newMeExpr.SetTyIdx(meOpExpr.GetTyIdx());
+        newMeExpr.SetFieldID(meOpExpr.GetFieldID());
+        MeExpr *simplifyExpr = irMap.SimplifyOpMeExpr(&newMeExpr);
         return simplifyExpr != nullptr ? *simplifyExpr : utils::ToRef(irMap.HashMeExpr(newMeExpr));
       } else {
         return meOpExpr;
@@ -642,9 +476,9 @@ void Prop::TraversalBB(BB &bb) {
   curBB = &bb;
 
   // record stack size for variable versions before processing rename. It is used for stack pop up.
-  std::vector<size_t> curStackSizeVec(vstLiveStackVec.size());
+  MapleVector<size_t> curStackSizeVec(vstLiveStackVec.size(), propMapAlloc.Adapter());
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    curStackSizeVec[i] = vstLiveStackVec[i].size();
+    curStackSizeVec[i] = vstLiveStackVec[i]->size();
   }
 
   // update var phi nodes
@@ -657,21 +491,18 @@ void Prop::TraversalBB(BB &bb) {
     TraversalMeStmt(meStmt);
   }
 
-  auto &domChildren = dom.GetDomChildren(bb.GetBBId());
-  for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
-    TraversalBB(utils::ToRef(bbVec[*it]));
+  MapleSet<BBId> &domChildren = dom.GetDomChildren(bb.GetBBId());
+  for (MapleSet<BBId>::iterator it = domChildren.begin(); it != domChildren.end(); ++it) {
+    BBId childbbid = *it;
+    TraversalBB(*GetBB(childbbid));
   }
 
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    auto &liveStack = vstLiveStackVec[i];
+    MapleStack<MeExpr *> *liveStack = vstLiveStackVec[i];
     size_t curSize = curStackSizeVec[i];
-    while (liveStack.size() > curSize) {
-      liveStack.pop();
+    while (liveStack->size() > curSize) {
+      liveStack->pop();
     }
   }
-}
-
-void Prop::DoProp() {
-  TraversalBB(commonEntryBB);
 }
 }  // namespace maple

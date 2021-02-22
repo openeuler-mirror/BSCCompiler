@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,6 +50,7 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRConst *FoldRoundMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldTypeCvtMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const MIRConst&) const;
+  MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
 
  private:
@@ -58,6 +59,8 @@ class ConstantFold : public FuncOptimizeImpl {
   StmtNode *SimplifyCondGoto(CondGotoNode *node);
   StmtNode *SimplifyCondGotoSelect(CondGotoNode *node) const;
   StmtNode *SimplifyDassign(DassignNode *node);
+  StmtNode *SimplifyIassignWithAddrofBaseNode(IassignNode &node, const AddrofNode &base);
+  StmtNode *SimplifyIassignWithIaddrofBaseNode(IassignNode &node, const IaddrofNode &base);
   StmtNode *SimplifyIassign(IassignNode *node);
   StmtNode *SimplifyNary(NaryStmtNode *node);
   StmtNode *SimplifyIcall(IcallNode *node);
@@ -88,9 +91,10 @@ class ConstantFold : public FuncOptimizeImpl {
                                     const ConstvalNode &const1) const;
   ConstvalNode *FoldConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
                                 const ConstvalNode &const1) const;
-  ConstvalNode *FoldIntConstComparison(Opcode opcode, PrimType resultType, PrimType opndType, const ConstvalNode &const0,
-                                       const ConstvalNode &const1) const;
-  MIRIntConst *FoldIntConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRIntConst&, const MIRIntConst&) const;
+  ConstvalNode *FoldIntConstComparison(Opcode opcode, PrimType resultType, PrimType opndType,
+                                       const ConstvalNode &const0, const ConstvalNode &const1) const;
+  MIRIntConst *FoldIntConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRIntConst&,
+                                              const MIRIntConst&) const;
   ConstvalNode *FoldIntConstBinary(Opcode opcode, PrimType resultType, const ConstvalNode &const0,
                                    const ConstvalNode &const1) const;
   ConstvalNode *FoldFPConstComparison(Opcode opcode, PrimType resultType, PrimType opndType, const ConstvalNode &const0,
