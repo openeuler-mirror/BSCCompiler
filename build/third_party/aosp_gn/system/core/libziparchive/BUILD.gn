@@ -5,6 +5,7 @@ include_directories = [
   "${AOSP_ROOT}/system/core/libziparchive",
   "${AOSP_ROOT}/system/core/liblog/include",
   "${AOSP_ROOT}/system/core/libutils/include",
+  "${AOSP_ROOT}/system/include",
   "${AOSP_ROOT}/include",
 ]
 
