@@ -62,19 +62,23 @@ namespace maplebe {
 using namespace maple;
 using namespace cfi;
 
-void Emitter::EmitLabelRef(const std::string &name, LabelIdx labIdx) {
-  outStream << ".L." << name << "." << labIdx;
+void Emitter::EmitLabelRef(LabelIdx labIdx) {
+  PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+  const char *idx = strdup(std::to_string(pIdx).c_str());
+  outStream << ".L." << idx << "__" << labIdx;
 }
 
-void Emitter::EmitStmtLabel(const std::string &name, LabelIdx labIdx) {
-  EmitLabelRef(name, labIdx);
+void Emitter::EmitStmtLabel(LabelIdx labIdx) {
+  EmitLabelRef(labIdx);
   outStream << ":\n";
 }
 
-void Emitter::EmitLabelPair(const std::string &name, const LabelPair &pairLabel) {
+void Emitter::EmitLabelPair(const LabelPair &pairLabel) {
   ASSERT(pairLabel.GetEndOffset() || pairLabel.GetStartOffset(), "NYI");
-  outStream << ".L." << name << "." << pairLabel.GetEndOffset()->GetLabelIdx() << " - "
-            << ".L." << name << "." << pairLabel.GetStartOffset()->GetLabelIdx() << "\n";
+  PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+  const char *idx = strdup(std::to_string(pIdx).c_str());
+  outStream << ".L." << idx << "__" << pairLabel.GetEndOffset()->GetLabelIdx() << " - "
+            << ".L." << idx << "__" << pairLabel.GetStartOffset()->GetLabelIdx() << "\n";
 }
 
 AsmLabel Emitter::GetTypeAsmInfoName(PrimType primType) const {
@@ -232,11 +236,17 @@ void Emitter::EmitAsmLabel(AsmLabel label) {
 
 void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
   MIRType *mirType = mirSymbol.GetType();
-  const std::string &symName = mirSymbol.GetName();
-
+  std::string symName;
+  if (mirSymbol.GetStorageClass() == kScPstatic && mirSymbol.IsLocal()) {
+    PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+    symName = mirSymbol.GetName() + std::to_string(pIdx);
+  } else {
+    symName = mirSymbol.GetName();
+  }
   if (Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeAlignTable()) {
     ASSERT(false, "container empty check");
   }
+
   switch (label) {
     case kAsmGlbl: {
       Emit(asmInfo->GetGlobal());
@@ -276,7 +286,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       Emit(", ");
 #if PECOFF
       std::string align = std::to_string(
-          static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
+        static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
       emit(align);
 #else /* ELF */
       /* output align, symbol name begin with "classInitProtectRegion" align is 4096 */
@@ -395,7 +405,71 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   }
 }
 
-void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst) {
+void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewline) {
+  const char *str = mplStr.c_str();
+  size_t len = mplStr.size();
+
+  if (emitAscii) {
+    Emit("\t.ascii\t\"");  // Do not terminate with \0
+  } else {
+    Emit("\t.string\t\"");
+  }
+
+  // don't expand special character in a writeout to .s,
+  // convert all \s to \\s in string for storing in .string
+  for (int i = 0; i < len; i++) {
+    // Referred to GNU AS: 3.6.1.1 Strings
+    char buf[5];
+    if (isprint(*str)) {
+      buf[0] = *str;
+      buf[1] = 0;
+      if (*str == '\\' || *str == '\"') {
+        buf[0] = '\\';
+        buf[1] = *str;
+        buf[2] = 0;
+      }
+      Emit(buf);
+    } else if (*str == '\b') {
+      Emit("\\b");
+    } else if (*str == '\n') {
+      Emit("\\n");
+    } else if (*str == '\r') {
+      Emit("\\r");
+    } else if (*str == '\t') {
+      Emit("\\t");
+    } else if (*str == '\0') {
+      buf[0] = '\\';
+      buf[1] = '0';
+      buf[2] = 0;
+      Emit(buf);
+    } else {
+      // all others, print as number
+      int ret = snprintf_s(buf, sizeof(buf), 4, "\\%03o", (*str) & 0xFF);
+      if (ret < 0) {
+        FATAL(kLncFatal, "snprintf_s failed");
+      }
+      buf[4] = '\0';
+      Emit(buf);
+    }
+    str++;
+  }
+
+  Emit("\"");
+  if (emitNewline) {
+    Emit("\n");
+  }
+}
+
+void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isAscii, bool isIndirect) {
+  if (isIndirect) {
+    uint32 strId = mirStrConst.GetValue().GetIdx();
+    std::vector<UStrIdx> &sPtr = GetStringPtr();
+    if (sPtr[strId] == 0) {
+      sPtr[strId] = mirStrConst.GetValue();
+    }
+    Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+    return;
+  }
   Emit("\t.string \"");
   /*
    * don't expand special character in a writeout to .s,
@@ -403,7 +477,7 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst) {
    */
   const char *str = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue()).c_str();
   if (isFlexibleArray) {
-    arraySize += strlen(str) + k1ByteSize;
+    arraySize += static_cast<uint32>(strlen(str)) + k1ByteSize;
   }
   constexpr int bufSize = 6;
   while (*str) {
@@ -463,7 +537,7 @@ void Emitter::EmitStr16Constant(const MIRStr16Const &mirStr16Const) {
   }
 }
 
-void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32) {
+void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, bool isIndirect) {
   MIRType &mirType = mirConst.GetType();
   AsmLabel asmName = GetTypeAsmInfoName(mirType.GetPrimType());
   switch (mirConst.GetKind()) {
@@ -504,7 +578,11 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32) 
     }
     case kConstStrConst: {
       MIRStrConst &strCt = static_cast<MIRStrConst&>(mirConst);
-      EmitStrConstant(strCt);
+      if (cg->GetMIRModule()->IsCModule()) {
+        EmitStrConstant(strCt, false, isIndirect);
+      } else {
+        EmitStrConstant(strCt);
+      }
       break;
     }
     case kConstStr16Const: {
@@ -514,9 +592,18 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32) 
     }
     case kConstAddrof: {
       MIRAddrofConst &symAddr = static_cast<MIRAddrofConst&>(mirConst);
-      MIRSymbol *symAddrSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(symAddr.GetSymbolIndex().Idx());
-      ASSERT(symAddrSym != nullptr, "null ptr check");
-      EmitAddressString(symAddrSym->GetName());
+      StIdx stIdx = symAddr.GetSymbolIndex();
+      MIRSymbol *symAddrSym = stIdx.IsGlobal() ? GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx())
+        : CG::GetCurCGFunc()->GetMirModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
+      if (stIdx.IsGlobal() == false && symAddrSym->GetStorageClass() == kScPstatic) {
+        PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+        Emit("\t.quad\t" + symAddrSym->GetName() + std::to_string(pIdx));
+      } else {
+        Emit("\t.quad\t" + symAddrSym->GetName());
+      }
+      if (symAddr.GetOffset() != 0) {
+        Emit(" + ").Emit(symAddr.GetOffset());
+      }
       break;
     }
     case kConstAddrofFunc: {
@@ -1370,7 +1457,18 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
   for (size_t i = 0; i < uNum; ++i) {
     MIRConst *elemConst = arrayCt.GetConstVecItem(i);
     if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
-      EmitScalarConstant(*elemConst);
+      if (cg->GetMIRModule()->IsCModule()) {
+        bool strLiteral = false;
+        if (arrayType.GetDim() == 1) {
+          MIRType *ety = arrayType.GetElemType();
+          if (ety->GetPrimType() == PTY_i8 || ety->GetPrimType() == PTY_u8) {
+            strLiteral = true;
+          }
+        }
+        EmitScalarConstant(*elemConst, true, false, strLiteral == false);
+      } else {
+        EmitScalarConstant(*elemConst);
+      }
     } else if (elemConst->GetType().GetKind() == kTypeArray) {
       EmitArrayConstant(*elemConst);
     } else if (elemConst->GetType().GetKind() == kTypeStruct || elemConst->GetType().GetKind() == kTypeClass) {
@@ -1432,7 +1530,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     } else {
       if (elemConst != nullptr) {
         if (IsPrimitiveScalar(elemType.GetPrimType())) {
-          EmitScalarConstant(*elemConst);
+          EmitScalarConstant(*elemConst, true, false, true);
         } else if (elemType.GetKind() == kTypeArray) {
           EmitArrayConstant(*elemConst);
         } else if ((elemType.GetKind() == kTypeStruct) || (elemType.GetKind() == kTypeClass)) {
@@ -1721,6 +1819,65 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
           tabConst->GetType(), tabConst->GetFieldId());
 #endif
       aggConst->SetConstVecItem(size - 1, *tabConst);
+    }
+  }
+}
+
+void Emitter::EmitStringPointers() {
+  Emit(asmInfo->GetSection()).Emit(asmInfo->GetData()).Emit("\n");
+  for (auto idx: stringPtr) {
+    if (idx == 0) {
+      continue;
+    }
+    uint32 strId = idx.GetIdx();
+    const char *str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx).c_str();
+    Emit("\t.align 3\n");
+    Emit(".LSTR__").Emit(strId).Emit(":\n");
+    std::string mplstr(str);
+    EmitStr(mplstr, false, true);
+  }
+}
+
+void Emitter::EmitLocalVariable(CGFunc &cgfunc) {
+  // function local pstatic initialization
+  if (cg->GetMIRModule()->IsCModule()) {
+    MIRSymbolTable *lSymTab = cgfunc.GetMirModule().CurFunction()->GetSymTab();
+    if (lSymTab != nullptr) {
+      // anything larger than is created by cg
+      size_t lsize = cgfunc.GetLSymSize();
+      for (size_t i = 0; i < lsize; i++) {
+        MIRSymbol *st = lSymTab->GetSymbolFromStIdx(i);
+        if (st != nullptr && st->GetStorageClass() == kScPstatic) {
+          // Local static names can repeat.
+          // Append the current program unit index to the name.
+          PUIdx pIdx = cgfunc.GetMirModule().CurFunction()->GetPuidx();
+          std::string localname = st->GetName() + std::to_string(pIdx);
+          static std::vector<std::string> emittedLocalSym;
+          bool found = false;
+          for (auto name : emittedLocalSym) {
+            if (name == localname) {
+              found = true;
+              break;
+            }
+          }
+          if (found) {
+            continue;
+          }
+          emittedLocalSym.push_back(localname);
+
+          Emit(asmInfo->GetSection());
+          Emit(asmInfo->GetData());
+          Emit("\n");
+          EmitAsmLabel(*st, kAsmAlign);
+          MIRConst *ct = st->GetKonst();
+          if (ct == nullptr) {
+            EmitAsmLabel(*st, kAsmComm);
+          } else {
+            EmitAsmLabel(*st, kAsmSyname);
+            EmitScalarConstant(*ct, true, false, true/*isIndirect*/);
+          }
+        }
+      }
     }
   }
 }
@@ -2014,7 +2171,15 @@ void Emitter::EmitGlobalVariable() {
       EmitAsmLabel(*mirSymbol, kAsmSyname);
       MIRConst *mirConst = mirSymbol->GetKonst();
       if (IsPrimitiveScalar(mirType->GetPrimType())) {
-        EmitScalarConstant(*mirConst);
+        if (IsAddress(mirType->GetPrimType())) {
+          uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
+          CHECK_FATAL(sizeinbits == 64, "EmitGlobalVariable: pointer must be of size 8");
+        }
+        if (cg->GetMIRModule()->IsCModule()) {
+          EmitScalarConstant(*mirConst, true, false, true);
+        } else {
+          EmitScalarConstant(*mirConst);
+        }
       } else if (mirType->GetKind() == kTypeArray) {
         if (mirSymbol->HasAddrOfValues()) {
           EmitConstantTable(*mirSymbol, *mirConst, strIdx2Type);
@@ -2041,8 +2206,21 @@ void Emitter::EmitGlobalVariable() {
       EmitAsmLabel(*mirSymbol, kAsmSyname);
       MIRConst *mirConst = mirSymbol->GetKonst();
       EmitScalarConstant(*mirConst);
+    } else if (mirSymbol->GetStorageClass() == kScPstatic) {
+      Emit(asmInfo->GetSection());
+      Emit(asmInfo->GetData());
+      Emit("\n");
+      EmitAsmLabel(*mirSymbol, kAsmAlign);
+      MIRConst *ct = mirSymbol->GetKonst();
+      if (ct == nullptr) {
+        EmitAsmLabel(*mirSymbol, kAsmComm);
+      } else {
+        EmitAsmLabel(*mirSymbol, kAsmSyname);
+        EmitScalarConstant(*ct, true, false, true);
+      }
     }
   } /* end proccess all mirSymbols. */
+  EmitStringPointers();
   /* emit global var */
   EmitGlobalVars(globalVarVec);
   /* emit literal std::strings */
@@ -2459,7 +2637,9 @@ void ImmOperand::Dump() const {
 
 void LabelOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   (void)opndProp;
-  (void)emitter.Emit(".L.").Emit(parentFunc).Emit(".").Emit(labelIndex);
+  PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
+  const char *idx = strdup(std::to_string(pIdx).c_str());
+  (void)emitter.Emit(".L.").Emit(idx).Emit("__").Emit(labelIndex);
 }
 
 void LabelOperand::Dump() const {

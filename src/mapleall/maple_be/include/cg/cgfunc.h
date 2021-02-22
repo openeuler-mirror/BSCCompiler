@@ -797,6 +797,10 @@ class CGFunc {
     return shortFuncName;
   }
 
+  size_t GetLSymSize() const {
+    return lSymSize;
+  }
+
   virtual InsnVisitor *NewInsnModifier() = 0;
 
  protected:
@@ -804,6 +808,7 @@ class CGFunc {
   uint32 firstNonPregVRegNO;
   uint32 vRegCount;                       /* for assigning a number for each CG virtual register */
   uint32 maxRegCount;                     /* for the current virtual register number limit */
+  size_t lSymSize;                        /* size of local symbol table imported */
   MapleVector<VirtualRegNode> vRegTable;  /* table of CG's virtual registers indexed by v_reg no */
   MapleUnorderedMap<regno_t, RegOperand*> vRegOperandTable;
   MapleUnorderedMap<PregIdx, MemOperand*> pRegSpillMemOperands;

@@ -818,14 +818,14 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
     StmtNode *dStmt = nullptr;
     MIRType *retType = nullptr;
     if (p2nRets.size() == 1) {
-      MIRSymbol *sym;
+      MIRSymbol *sym = nullptr;
       StIdx stIdx = p2nRets[0].first;
       if (stIdx.IsGlobal()) {
         sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx());
       } else {
         sym = GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
       }
-      if (sym) {
+      if (sym != nullptr) {
         retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
       }
       RegFieldPair regFieldPair = p2nRets[0].second;
@@ -1187,7 +1187,7 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
   }
 
   if (retTy && beCommon.GetTypeSize(retTy->GetTypeIndex().GetIdx()) <= k16ByteSize) {
-    // return structure fitting in one or two regs.
+    /* return structure fitting in one or two regs. */
     return &callNode;
   }
 
@@ -1235,6 +1235,7 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
   addrofNode->SetPrimType(LOWERED_PTR_TYPE);
   addrofNode->SetStIdx(dsgnSt->GetStIdx());
   addrofNode->SetFieldID(0);
+
   if (callNode.op == OP_icall) {
     auto ond = callNode.GetNopnd().begin();
     newNopnd.emplace_back(*ond);
@@ -1248,6 +1249,7 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
       newNopnd.emplace_back(opnd);
     }
   }
+
   callNode.SetNOpnd(newNopnd);
   callNode.SetNumOpnds(static_cast<uint8>(newNopnd.size()));
   CHECK_FATAL(nextStmt != nullptr, "nullptr is not expected");
@@ -2540,6 +2542,9 @@ StmtNode *CGLowerer::LowerIntrinsiccall(IntrinsiccallNode &intrincall, BlockNode
   }
   if (intrnID == INTRN_MPL_CLEAR_STACK) {
     return LowerIntrinsicMplClearStack(intrincall, newBlk);
+  }
+  if (intrnID == INTRN_C_va_start) {
+    return &intrincall;
   }
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];
   if (intrinDesc->IsSpecial()) {
