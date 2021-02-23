@@ -277,7 +277,7 @@ void CGCFG::FindAndMarkUnreachable(CGFunc &func) {
     if (bb->GetFirstStmt() == func.GetCleanupLabel() || InSwitchTable(bb->GetLabIdx(), func) ||
         bb == func.GetFirstBB() || bb == func.GetLastBB()) {
       toBeAnalyzedBBs.push(bb);
-    } else {
+    } else if (bb->IsLabelTaken() == false) {
       bb->SetUnreachable(true);
     }
     bb = bb->GetNext();
@@ -336,7 +336,8 @@ void CGCFG::FlushUnReachableStatusAndRemoveRelations(BB &bb, const CGFunc &func)
                      (it->GetPreds().empty() || (it->GetPreds().size() == 1 && it->GetEhPreds().front() == it)) &&
                      it->GetEhPreds().empty() &&
                      !InSwitchTable(it->GetLabIdx(), *cgFunc) &&
-                     !cgFunc->IsExitBB(*it);
+                     !cgFunc->IsExitBB(*it) &&
+                     (it->IsLabelTaken() == false);
     if (!needFlush) {
       continue;
     }
@@ -500,11 +501,29 @@ Insn *CGCFG::FindLastCondBrInsn(BB &bb) const {
   return nullptr;
 }
 
+void CGCFG::MarkLabelTakenBB() {
+  if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return;
+  }
+  for (BB *bb = cgFunc->GetFirstBB(); bb != nullptr; bb = bb->GetNext()) {
+    if (cgFunc->GetFunction().GetLabelTab()->GetAddrTakenLabels().find(bb->GetLabIdx()) !=
+        cgFunc->GetFunction().GetLabelTab()->GetAddrTakenLabels().end()) {
+      cgFunc->SetHasTakenLabel();
+      bb->SetLabelTaken();
+    }
+  }
+}
+
 /*
  * analyse the CFG to find the BBs that are not reachable from function entries
  * and delete them
  */
 void CGCFG::UnreachCodeAnalysis() {
+  if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC &&
+      (cgFunc->HasTakenLabel() ||
+      (cgFunc->GetEHFunc() && cgFunc->GetEHFunc()->GetLSDAHeader()))) {
+    return;
+  }
   /*
    * Find all reachable BBs by dfs in cgfunc and mark their field<unreachable> false,
    * then all other bbs should be unreachable.
@@ -524,7 +543,9 @@ void CGCFG::UnreachCodeAnalysis() {
     } else {
       (void)unreachBBs.insert(bb);
     }
-    bb->SetUnreachable(true);
+    if (bb->IsLabelTaken() == false) {
+      bb->SetUnreachable(true);
+    }
     bb = bb->GetNext();
   }
 
