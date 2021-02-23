@@ -146,6 +146,9 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
         allocedSizeInBits += fieldSize;
         allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) /
                                             kBitsPerByte);
+        if (fieldSize == 0) {
+          allocedSizeInBits = allocedSize *8;
+        }
       } else {
         /* pad alloced_size according to the field alignment */
         allocedSize = RoundUp(allocedSize, fieldAlign);
@@ -160,7 +163,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
      * Last struct element of a struct with more than one member
      * is a flexible array if it is an array of size 0.
      */
-    if ((j != 0) && ((j+1) == fields.size()) &&
+    if ((j != 0) && ((j + 1) == fields.size()) &&
         (fieldType->GetKind() == kTypeArray) &&
         (GetTypeSize(fieldTyIdx.GetIdx()) == 0)) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
@@ -611,7 +614,7 @@ void BECommon::AddElementToJClassLayout(MIRClassType &klass, JClassFieldInfo inf
   layout.emplace_back(info);
 }
 
-void BECommon::AddElementToFuncReturnType(MIRFunction &func, TyIdx tyIdx) {
+void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) {
   TyIdx &ty = funcReturnType.at(&func);
   ty = tyIdx;
 }
