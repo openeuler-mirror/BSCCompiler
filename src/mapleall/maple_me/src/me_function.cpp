@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,6 +19,7 @@
 #include "me_cfg.h"
 #include "mir_lower.h"
 #include "mir_builder.h"
+#include "constantfold.h"
 #include "me_irmap.h"
 #include "me_phase.h"
 
@@ -35,6 +36,8 @@ void MeFunction::PartialInit(bool isSecondPass) {
   regNum = 0;
   hasEH = false;
   secondPass = isSecondPass;
+  ConstantFold cf(mirModule);
+  cf.Simplify(mirModule.CurFunction()->GetBody());
   if (mirModule.IsJavaModule() && (!mirModule.CurFunction()->GetInfoVector().empty())) {
     std::string string("INFO_registers");
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(string);
@@ -562,7 +565,7 @@ void MeFunction::CloneBasicBlock(BB &newBB, const BB &orig) {
     newStmt->SetPrev(nullptr);
     newBB.AddStmtNode(newStmt);
     if (meSSATab != nullptr) {
-      meSSATab->CreateSSAStmt(*newStmt);
+      meSSATab->CreateSSAStmt(*newStmt, &newBB);
     }
   }
 }
@@ -576,7 +579,7 @@ void MeFunction::SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB) {
       StmtNode *nextStmt = stmt->GetNext();
       newBB.AddStmtNode(stmt);
       if (meSSATab != nullptr) {
-        meSSATab->CreateSSAStmt(*stmt);
+        meSSATab->CreateSSAStmt(*stmt, &newBB);
       }
       stmt = nextStmt;
     }

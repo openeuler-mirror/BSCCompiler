@@ -12,11 +12,11 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "me_stmt_pre.h"
 #include "utils.h"
 #include "me_dominance.h"
 #include "me_option.h"
 #include "me_ssa_update.h"
+#include "me_stmt_pre.h"
 
 // Note: after the movement of assignments, some phi nodes that used to be dead
 // can become live.  Before we run another round of dead store elimination, we
@@ -49,7 +49,7 @@ void MeStmtPre::CodeMotion() {
           realOcc->GetBB()->RemoveMeStmt(realOcc->GetMeStmt());
           if (realOcc->GetOpcodeOfMeStmt() == OP_dassign) {
             auto *dass = static_cast<DassignMeStmt*>(realOcc->GetMeStmt());
-            OStIdx ostIdx = dass->GetVarLHS()->GetOst()->GetIndex();
+            OStIdx ostIdx = dass->GetVarLHS()->GetOstIdx();
             if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
               candsForSSAUpdate[ostIdx] =
                   ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
@@ -59,7 +59,7 @@ void MeStmtPre::CodeMotion() {
             if (call->GetAssignedLHS() != nullptr) {
               CHECK_FATAL(call->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
               auto *var = static_cast<VarMeExpr*>(call->GetAssignedLHS());
-              OStIdx ostIdx = var->GetOst()->GetIndex();
+              OStIdx ostIdx = var->GetOstIdx();
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                 candsForSSAUpdate[ostIdx] =
                     ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
@@ -80,7 +80,7 @@ void MeStmtPre::CodeMotion() {
             auto *insertedOcc = static_cast<MeInsertedOcc*>(defOcc);
             if (insertedOcc->GetOpcodeOfMeStmt() == OP_dassign) {
               auto *dass = static_cast<DassignMeStmt*>(insertedOcc->GetMeStmt());
-              OStIdx ostIdx = dass->GetVarLHS()->GetOst()->GetIndex();
+              OStIdx ostIdx = dass->GetVarLHS()->GetOstIdx();
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                 MapleSet<BBId> *bbSet =
                     ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
@@ -98,7 +98,7 @@ void MeStmtPre::CodeMotion() {
                 CHECK_FATAL(call->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
                 auto *var = static_cast<VarMeExpr*>(call->GetAssignedLHS());
                 ASSERT_NOT_NULL(var);
-                OStIdx ostIdx = var->GetOst()->GetIndex();
+                OStIdx ostIdx = var->GetOstIdx();
                 if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
                   MapleSet<BBId> *bbSet =
                       ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
@@ -537,7 +537,7 @@ void MeStmtPre::CreateSortedOccs() {
   if ((stmtWkCand->GetTheMeStmt()->GetOp() == OP_dassign || stmtWkCand->GetTheMeStmt()->GetOp() == OP_callassigned) &&
        stmtWkCand->GetTheMeStmt()->GetVarLHS() != nullptr && !stmtWkCand->LHSIsFinal()) {
     VarMeExpr *lhsVar = stmtWkCand->GetTheMeStmt()->GetVarLHS();
-    OStIdx ostIdx = lhsVar->GetOst()->GetIndex();
+    OStIdx ostIdx = lhsVar->GetOstIdx();
     MapleMap<OStIdx, MapleSet<uint32>*>::iterator uMapIt = useOccurMap.find(ostIdx);
     CHECK_FATAL(uMapIt != useOccurMap.end(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
     useDfns = uMapIt->second;
@@ -706,7 +706,7 @@ void MeStmtPre::CreateSortedOccs() {
 
 void MeStmtPre::ConstructUseOccurMapExpr(uint32 bbDfn, const MeExpr &meExpr) {
   if (meExpr.GetMeOp() == kMeOpVar) {
-    OStIdx ostIdx = static_cast<const VarMeExpr*>(&meExpr)->GetOst()->GetIndex();
+    OStIdx ostIdx = static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx();
     MapleMap<OStIdx, MapleSet<uint32>*>::iterator mapIt;
     mapIt = useOccurMap.find(ostIdx);
     if (mapIt == useOccurMap.end()) {
@@ -734,7 +734,7 @@ void MeStmtPre::ConstructUseOccurMap() {
     if (lhsVar == nullptr) {
       continue;
     }
-    OStIdx ostIdx = lhsVar->GetOst()->GetIndex();
+    OStIdx ostIdx = lhsVar->GetOstIdx();
     if (useOccurMap.find(ostIdx) == useOccurMap.end()) {
       // add an entry for ostIdx
       useOccurMap[ostIdx] = ssaPreMemPool->New<MapleSet<uint32>>(ssaPreAllocator.Adapter());
@@ -766,7 +766,7 @@ PreStmtWorkCand *MeStmtPre::CreateStmtRealOcc(MeStmt &meStmt, int seqStmt) {
   }
   MeExpr *meExpr = nullptr;
   if ((meStmt.GetOp() == OP_dassign || meStmt.GetOp() == OP_callassigned) && meStmt.GetVarLHS() != nullptr) {
-    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(meStmt.GetVarLHS()->GetOst()->GetIndex());
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(meStmt.GetVarLHS()->GetOstIdx());
     meExpr = pStack->top();
   }
   MeRealOcc *newOcc = ssaPreMemPool->New<MeRealOcc>(&meStmt, seqStmt, meExpr);
@@ -791,7 +791,7 @@ void MeStmtPre::VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &ch
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
-    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(it->second->GetLHS()->GetOst()->GetIndex());
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(it->second->GetLHS()->GetOstIdx());
     pStack->push(it->second->GetLHS());
   }
 }
@@ -801,7 +801,7 @@ static bool NoPriorUseInBB(const VarMeExpr *lhsVar, MeStmt *defStmt) {
   for (MeStmt *stmt = defStmt->GetPrev(); stmt != nullptr; stmt = stmt->GetPrev()) {
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
       CHECK_FATAL(stmt->GetOpnd(i) != nullptr, "null ptr check");
-      if (stmt->GetOpnd(i)->SymAppears(lhsVar->GetOst()->GetIndex())) {
+      if (stmt->GetOpnd(i)->SymAppears(lhsVar->GetOstIdx())) {
         return false;
       }
     }
@@ -830,7 +830,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
     if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
       continue;
     }
-    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(phiMeNode->GetLHS()->GetOst()->GetIndex());
+    MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(phiMeNode->GetLHS()->GetOstIdx());
     pStack->push(phiMeNode->GetLHS());
   }
   // traverse statements
@@ -932,7 +932,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
             (dassMeStmt.GetRHS()->GetOp() == OP_regread &&
              static_cast<RegMeExpr*>(dassMeStmt.GetRHS())->GetRegIdx() == -kSregThrownval)) {
           // update version stacks
-          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOst()->GetIndex());
+          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOstIdx());
           pStack->push(dassMeStmt.GetVarLHS());
           VersionStackChiListUpdate(*dassMeStmt.GetChiList());
           break;
@@ -942,7 +942,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
           stmtWkCand->SetLHSIsFinal(true);
-        } else if (!dassMeStmt.GetRHS()->SymAppears(varMeExpr->GetOst()->GetIndex()) && dassMeStmt.GetRHS()->Pure()) {
+        } else if (!dassMeStmt.GetRHS()->SymAppears(varMeExpr->GetOstIdx()) && dassMeStmt.GetRHS()->Pure()) {
           if (NoPriorUseInBB(dassMeStmt.GetVarLHS(), &stmt)) {
             (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
           }
@@ -950,7 +950,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           RemoveUnnecessaryDassign(dassMeStmt);
         }
         // update version stacks
-        MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOst()->GetIndex());
+        MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(dassMeStmt.GetVarLHS()->GetOstIdx());
         pStack->push(dassMeStmt.GetVarLHS());
         VersionStackChiListUpdate(*dassMeStmt.GetChiList());
         break;
@@ -1001,7 +1001,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         MeExpr *meLHS = mustDefList->front().GetLHS();
         if (meLHS->GetMeOp() == kMeOpVar) {
           auto *lhsVar = static_cast<VarMeExpr*>(meLHS);
-          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(lhsVar->GetOst()->GetIndex());
+          MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(lhsVar->GetOstIdx());
           pStack->push(lhsVar);
         }
       }
@@ -1047,7 +1047,7 @@ void MeStmtPre::BuildWorkList() {
 void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt) {
   BB *bb = dssMeStmt.GetBB();
   bb->RemoveMeStmt(&dssMeStmt);
-  OStIdx ostIdx = dssMeStmt.GetVarLHS()->GetOst()->GetIndex();
+  OStIdx ostIdx = dssMeStmt.GetVarLHS()->GetOstIdx();
   MapleSet<BBId> *bbSet = nullptr;
   if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
     bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -134,15 +134,15 @@ class OriginalSt {
   }
 
   size_t GetVersionIndex(size_t version) const {
-    ASSERT(version < versionsIndex.size(), "version out of range");
-    return versionsIndex.at(version);
+    ASSERT(version < versionsIndices.size(), "version out of range");
+    return versionsIndices.at(version);
   }
 
-  const MapleVector<size_t> &GetVersionsIndex() const {
-    return versionsIndex;
+  const MapleVector<size_t> &GetVersionsIndices() const {
+    return versionsIndices;
   }
-  void PushbackVersionIndex(size_t index) {
-    versionsIndex.push_back(index);
+  void PushbackVersionsIndices(size_t index) {
+    versionsIndices.push_back(index);
   }
 
   size_t GetZeroVersionIndex() const {
@@ -207,7 +207,7 @@ class OriginalSt {
       OSTType ostType, bool ignoreRC, SymOrPreg sysOrPreg)
       : ostType(ostType),
         index(index),
-        versionsIndex(alloc.Adapter()),
+        versionsIndices(alloc.Adapter()),
         fieldID(fieldID),
         isLocal(local),
         isFormal(isFormal),
@@ -217,8 +217,8 @@ class OriginalSt {
 
   OSTType ostType;
   OStIdx index;                       // index number in originalStVector
-  MapleVector<size_t> versionsIndex;  // the i-th element refers the index of versionst in versionst table
-  size_t zeroVersionIndex = 0;            // same as versionsIndex[0]
+  MapleVector<size_t> versionsIndices;  // the i-th element refers the index of versionst in versionst table
+  size_t zeroVersionIndex = 0;            // same as versionsIndices[0]
   TyIdx tyIdx{ 0 };                        // type of this symbol at this level; 0 for unknown
   FieldID fieldID;                    // at each level of indirection
   int8 indirectLev = 0;                   // level of indirection; -1 for address, 0 for itself
@@ -316,9 +316,9 @@ class OriginalStTable {
     originalStVector[id]->SetZeroVersionIndex(zeroVersionIndexParam);
   }
 
-  size_t GetVersionsIndexSize(const OStIdx &id) const {
+  size_t GetVersionsIndicesSize(const OStIdx &id) const {
     ASSERT(id < originalStVector.size(), "symbol table index out of range");
-    return originalStVector[id]->GetVersionsIndex().size();
+    return originalStVector[id]->GetVersionsIndices().size();
   }
 
   void UpdateVarOstMap(const OStIdx &id, std::map<OStIdx, OriginalSt*> &varOstMap) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -17,17 +17,19 @@
 #include "ssa_tab.h"
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
+#include "dominance.h"
 
 namespace maple {
 void SSA::InitRenameStack(OriginalStTable &oTable, size_t bbSize, VersionStTable &verStTab) {
   vstStacks.resize(oTable.Size());
-  vstVersions.resize(oTable.Size(), 0);
   bbRenamed.resize(bbSize, false);
   for (size_t i = 1; i < oTable.Size(); ++i) {
-    MapleStack<VersionSt*> *vStack = ssaAlloc.GetMemPool()->New<MapleStack<VersionSt*>>(ssaAlloc.Adapter());
     const OriginalSt *ost = oTable.GetOriginalStFromID(OStIdx(i));
-    VersionSt *temp = (ost->GetIndirectLev() >= 0) ? verStTab.GetVersionStFromID(ost->GetZeroVersionIndex(), true)
-                                                   : &verStTab.GetDummyVersionSt();
+    if (ost->GetIndirectLev() < 0) {
+      continue;
+    }
+    MapleStack<VersionSt*> *vStack = ssaAlloc.GetMemPool()->New<MapleStack<VersionSt*>>(ssaAlloc.Adapter());
+    VersionSt *temp = verStTab.GetVersionStVectorItem(ost->GetZeroVersionIndex());
     vStack->push(temp);
     vstStacks[i] = vStack;
   }
@@ -36,13 +38,13 @@ void SSA::InitRenameStack(OriginalStTable &oTable, size_t bbSize, VersionStTable
 VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
   CHECK_FATAL(vSym.GetVersion() == 0, "rename before?");
   // volatile variables will keep zero version.
-  OriginalSt *oSt = vSym.GetOst();
+  const OriginalSt *oSt = vSym.GetOst();
   if (oSt->IsVolatile() || oSt->IsSpecialPreg()) {
     return &vSym;
   }
-  CHECK_FATAL(vSym.GetOrigIdx() < vstVersions.size(), "index out of range in SSA::CreateNewVersion");
+  ASSERT(vSym.GetVersion() == kInitVersion, "renamed before");
   VersionSt *newVersionSym =
-      ssaTab->GetVersionStTable().CreateVSymbol(&vSym, ++vstVersions[vSym.GetOrigIdx()]);
+      ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
   vstStacks[vSym.GetOrigIdx()]->push(newVersionSym);
   newVersionSym->SetDefBB(&defBB);
   return newVersionSym;
@@ -51,10 +53,7 @@ VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
 void SSA::RenamePhi(BB &bb) {
   for (auto phiIt = bb.GetPhiList().begin(); phiIt != bb.GetPhiList().end(); ++phiIt) {
     VersionSt *vSym = (*phiIt).second.GetResult();
-    // It shows that this BB has been renamed.
-    if (vSym->GetVersion() > 0) {
-      return;
-    }
+
     VersionSt *newVersionSym = CreateNewVersion(*vSym, bb);
     (*phiIt).second.SetResult(*newVersionSym);
     newVersionSym->SetDefType(VersionSt::kPhi);
@@ -148,6 +147,44 @@ void SSA::RenamePhiUseInSucc(const BB &bb) {
       CHECK_FATAL(phiNode.GetPhiOpnd(index)->GetOrigIdx() < vstStacks.size(),
                   "out of range SSA::RenamePhiUseInSucc");
       phiNode.SetPhiOpnd(index, *vstStacks.at(phiNode.GetPhiOpnd(index)->GetOrigIdx())->top());
+    }
+  }
+}
+
+void SSA::RenameBB(BB &bb) {
+  if (GetBBRenamed(bb.GetBBId())) {
+    return;
+  }
+
+  SetBBRenamed(bb.GetBBId(), true);
+
+  // record stack size for variable versions before processing rename. It is used for stack pop up.
+  std::vector<uint32> oriStackSize(GetVstStacks().size());
+  for (size_t i = 1; i < GetVstStacks().size(); ++i) {
+    if (GetVstStacks()[i] == nullptr) {
+      continue;
+    }
+    oriStackSize[i] = GetVstStack(i)->size();
+  }
+  RenamePhi(bb);
+  for (auto &stmt : bb.GetStmtNodes()) {
+    RenameUses(stmt);
+    RenameDefs(stmt, bb);
+    RenameMustDefs(stmt, bb);
+  }
+  RenamePhiUseInSucc(bb);
+  // Rename child in Dominator Tree.
+  ASSERT(bb.GetBBId() < dom->GetDomChildrenSize(), "index out of range in MeSSA::RenameBB");
+  const MapleSet<BBId> &children = dom->GetDomChildren(bb.GetBBId());
+  for (const BBId &child : children) {
+    RenameBB(*bbVec[child]);
+  }
+  for (size_t i = 1; i < GetVstStacks().size(); ++i) {
+    if (GetVstStacks()[i] == nullptr) {
+      continue;
+    }
+    while (GetVstStack(i)->size() > oriStackSize[i]) {
+      PopVersionSt(i);
     }
   }
 }

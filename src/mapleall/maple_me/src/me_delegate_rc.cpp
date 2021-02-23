@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -55,8 +55,15 @@ const std::set<maple::MIRIntrinsicID> canThrowIntrinsicsList {
     maple::INTRN_MPL_CLINIT_CHECK,
     maple::INTRN_MPL_BOUNDARY_CHECK,
     maple::INTRN_JAVA_CLINIT_CHECK,
+    maple::INTRN_JAVA_CLINIT_CHECK_SGET,
+    maple::INTRN_JAVA_CLINIT_CHECK_SPUT,
+    maple::INTRN_JAVA_CLINIT_CHECK_NEW,
     maple::INTRN_JAVA_CHECK_CAST,
     maple::INTRN_JAVA_THROW_ARITHMETIC,
+    maple::INTRN_JAVA_THROW_CLASSCAST,
+};
+const std::set<std::string> whitelistFunc {
+#include "rcwhitelist.def"
 };
 }
 
@@ -300,6 +307,10 @@ RegMeExpr *DelegateRC::RHSTempDelegated(MeExpr &rhs, const MeStmt &useStmt) {
   if (ost->IsFormal() || ost->GetMIRSymbol()->IsGlobal()) {
     return nullptr;
   }
+  // The index number in originalStVector is bigger than two.
+  if ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2) {
+    return nullptr;
+  }
   if (rhsVar.GetDefBy() == kDefByMustDef) {
     MustDefMeNode &mustDef = rhsVar.GetDefMustDef();
     ASSERT(mustDef.GetLHS() == &rhsVar, "DelegateRCTemp: inconsistent mustdef");
@@ -408,6 +419,10 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
       }
       VarMeExpr *lhsVar = stmt.GetVarLHS();
       CHECK_FATAL(lhsVar != nullptr, "null lhs check");
+      const OriginalSt *ost = lhsVar->GetOst();
+      if (Options::lazyBinding != 0 || !ost->GetMIRSymbol()->IsGlobal()) {
+        break;
+      }
       MeExpr *rhs = stmt.GetRHS();
       CHECK_FATAL(rhs != nullptr, "null rhs check");
       RegMeExpr *curReg = RHSTempDelegated(*rhs, stmt);
@@ -418,6 +433,10 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
       break;
     }
     case OP_return: {
+      std::string funcName = func.GetMirFunc()->GetName();
+      if (whitelistFunc.find(funcName) != whitelistFunc.end()) {
+        break;
+      }
       auto &retStmt = static_cast<RetMeStmt&>(stmt);
       if (!retStmt.NumMeStmtOpnds()) {
         break;
@@ -714,7 +733,7 @@ std::set<OStIdx> DelegateRC::RenameAndGetLiveLocalRefVar() {
         CHECK_FATAL(lhs != nullptr, "null ptr check");
         const OriginalSt *ost = lhs->GetOst();
         if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC() && lhs->GetPrimType() == PTY_ref) {
-          (void)liveLocalrefvars.insert(lhs->GetOst()->GetIndex());
+          (void)liveLocalrefvars.insert(lhs->GetOstIdx());
         }
       } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
         MapleVector<MustDefMeNode> *mustdefList = stmt.GetMustDefList();
@@ -727,7 +746,7 @@ std::set<OStIdx> DelegateRC::RenameAndGetLiveLocalRefVar() {
           auto *varLhs = static_cast<VarMeExpr*>(theLhs);
           const OriginalSt *ost = varLhs->GetOst();
           if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC()) {
-            (void)liveLocalrefvars.insert(varLhs->GetOst()->GetIndex());
+            (void)liveLocalrefvars.insert(ost->GetIndex());
           }
         }
       }
@@ -757,7 +776,7 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
     IntrinsiccallMeStmt *intrin = static_cast<IntrinsiccallMeStmt*>(stmt);
     for (size_t i = 0; i < intrin->NumMeStmtOpnds(); ++i) {
       auto *varMeExpr = static_cast<VarMeExpr*>(intrin->GetOpnd(i));
-      if (liveLocalrefvars.find(varMeExpr->GetOst()->GetIndex()) == liveLocalrefvars.end()) {
+      if (liveLocalrefvars.find(varMeExpr->GetOstIdx()) == liveLocalrefvars.end()) {
         continue;
       }
       if (nextPos != i) {
