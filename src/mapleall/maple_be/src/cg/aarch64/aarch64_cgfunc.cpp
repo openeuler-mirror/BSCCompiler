@@ -6403,7 +6403,12 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
 }
 
 MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
-  auto p = pRegSpillMemOperands.find(i);
+  MapleUnorderedMap<PregIdx, MemOperand *>::iterator p;
+  if (GetCG()->GetOptimizeLevel() == CGOptions::kLevel0) {
+    p = pRegSpillMemOperands.end();
+  } else {
+    p = pRegSpillMemOperands.find(i);
+  }
   if (p != pRegSpillMemOperands.end()) {
     return p->second;
   }
