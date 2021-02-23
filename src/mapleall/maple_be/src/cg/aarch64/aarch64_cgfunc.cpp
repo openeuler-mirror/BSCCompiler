@@ -3534,9 +3534,39 @@ void AArch64CGFunc::SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, Pri
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, resOpnd, *srcOpnd));
 }
 
-Operand *AArch64CGFunc::SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0) {
+Operand *AArch64CGFunc::SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0) {
   PrimType ftype = node.FromType();
+  PrimType rtype = node.GetPrimType();
+  bool is64Bits = (ftype == PTY_f64);
+  std::vector<Operand *> opndVec;
+  RegOperand *resOpnd;
+  if (is64Bits) {
+    resOpnd = &GetOrCreatePhysicalRegisterOperand(D0, k64BitSize, kRegTyFloat);
+  } else {
+    resOpnd = &GetOrCreatePhysicalRegisterOperand(S0, k32BitSize, kRegTyFloat);
+  }
+  opndVec.push_back(resOpnd);
+  RegOperand &regOpnd0 = LoadIntoRegister(opnd0, ftype);
+  opndVec.push_back(&regOpnd0);
+  std::string libName;
+  if (roundType == kCeil) {
+    libName.assign(is64Bits ? "ceil" : "ceilf");
+  } else if (roundType == kFloor) {
+    libName.assign(is64Bits ? "floor" : "floorf");
+  } else {
+    libName.assign(is64Bits ? "round" : "roundf");
+  }
+  SelectLibCall(libName, opndVec, ftype, rtype);
+
+  return resOpnd;
+}
+
+Operand *AArch64CGFunc::SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0) {
   PrimType itype = node.GetPrimType();
+  if ((mirModule.GetSrcLang() == kSrcLangC) && ((itype == PTY_f64) || (itype == PTY_f32))) {
+    SelectRoundLibCall(roundType, node, opnd0);
+  }
+  PrimType ftype = node.FromType();
   ASSERT(((ftype == PTY_f64) || (ftype == PTY_f32)), "wrong float type");
   bool is64Bits = (ftype == PTY_f64);
   RegOperand &resOpnd = CreateRegisterOperandOfType(itype);
