@@ -109,7 +109,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectComment(CommentNode &comment) override;
 
   void HandleCatch() override;
-  Operand *SelectDread(AddrofNode &expr) override;
+  Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) override;
   RegOperand *SelectRegread(RegreadNode &expr) override;
 
   void SelectAddrof(Operand &result, StImmOperand &stImm);
@@ -562,8 +562,8 @@ class AArch64CGFunc : public CGFunc {
 
   void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
   void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds);
-  void CreateCallStructParamMemcpy(MIRSymbol *sym, RegOperand *addropnd, uint32 structSize, int32 copyOffset,
-                                   int32 fromOffset);
+  void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
+                                   uint32 structSize, int32 copyOffset, int32 fromOffset);
   AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
                                                       int32 copyOffset, AArch64reg reg);
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
