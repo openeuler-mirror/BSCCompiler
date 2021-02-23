@@ -19,6 +19,7 @@ OPS_ANDROID := 0
 INSTALL_DIR := $(MAPLE_BUILD_OUTPUT)
 MAPLE_BIN_DIR := $(MAPLE_ROOT)/src/mapleall/bin
 MRT_ROOT := $(MAPLE_ROOT)/src/mrt
+ANDROID_ROOT := $(MAPLE_ROOT)/android
 ifeq ($(DEBUG),0)
   BUILD_TYPE := RELEASE
 else
@@ -38,10 +39,18 @@ GN_OPTIONS := \
   OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: default
-default: install mplfe
+default: install
+
+.PHONY: install_patch
+install_patch:
+	@bash build/third_party/patch.sh patch
+
+.PHONY: uninstall_patch
+uninstall_patch:
+	@bash build/third_party/patch.sh unpatch
 
 .PHONY: maplegen
-maplegen:
+maplegen:install_patch
 	$(call build_gn, $(GN_OPTIONS), maplegen)
 
 .PHONY: maplegendef
@@ -61,7 +70,7 @@ ast2mpl:
 	$(call build_gn, $(GN_OPTIONS), ast2mpl)
 
 .PHONY: mplfe
-mplfe:
+mplfe: install_patch
 	$(call build_gn, $(GN_OPTIONS), mplfe)
 
 .PHONY: mplfeUT
@@ -122,11 +131,12 @@ test_ourboros: libcore
 testall: test_irbuild test_ourboros
 
 .PHONY: cleanrsd
-cleanrsd:
+cleanrsd:uninstall_patch
 	@rm -rf libjava-core/libcore-all.* libjava-core/m* libjava-core/comb.*
 
 .PHONY: clean
 clean: cleanrsd
+	@rm -rf $(MAPLE_BUILD_OUTPUT)/
 	@rm -rf $(MAPLE_BUILD_OUTPUT)
 
 .PHONY: clobber

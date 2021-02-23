@@ -1,0 +1,476 @@
+diff -ur system_aosp/core/base/cmsg.cpp system/core/base/cmsg.cpp
+--- system_aosp/core/base/cmsg.cpp	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/cmsg.cpp	2021-01-29 10:36:40.905961768 +0800
+@@ -21,7 +21,7 @@
+ #include <stdlib.h>
+ #include <sys/socket.h>
+ #include <sys/user.h>
+-
++#include <unistd.h>
+ #include <memory>
+
+ #include <android-base/logging.h>
+@@ -33,7 +33,7 @@
+                                  const std::vector<int>& fds) {
+   size_t cmsg_space = CMSG_SPACE(sizeof(int) * fds.size());
+   size_t cmsg_len = CMSG_LEN(sizeof(int) * fds.size());
+-  if (cmsg_space >= PAGE_SIZE) {
++  if (cmsg_space >= sysconf(_SC_PAGE_SIZE)) {
+     errno = ENOMEM;
+     return -1;
+   }
+@@ -75,7 +75,7 @@
+   fds->clear();
+
+   size_t cmsg_space = CMSG_SPACE(sizeof(int) * max_fds);
+-  if (cmsg_space >= PAGE_SIZE) {
++  if (cmsg_space >= sysconf(_SC_PAGE_SIZE)) {
+     errno = ENOMEM;
+     return -1;
+   }
+diff -ur system_aosp/core/base/include/android-base/logging.h system/core/base/include/android-base/logging.h
+--- system_aosp/core/base/include/android-base/logging.h	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/include/android-base/logging.h	2021-01-29 10:36:40.905961768 +0800
+@@ -81,7 +81,7 @@
+
+ enum LogSeverity {
+   VERBOSE,
+-  DEBUG,
++  DEBUG_S,
+   INFO,
+   WARNING,
+   ERROR,
+@@ -181,7 +181,7 @@
+ // Note: DO NOT USE DIRECTLY. This is an implementation detail.
+ #define SEVERITY_LAMBDA(severity) ([&]() {    \
+   using ::android::base::VERBOSE;             \
+-  using ::android::base::DEBUG;               \
++  using ::android::base::DEBUG_S;             \
+   using ::android::base::INFO;                \
+   using ::android::base::WARNING;             \
+   using ::android::base::ERROR;               \
+@@ -248,7 +248,7 @@
+ // Logs a message to logcat with the specified log ID on Android otherwise to
+ // stderr. If the severity is FATAL it also causes an abort.
+ // Use an expression here so we can support the << operator following the macro,
+-// like "LOG(DEBUG) << xxx;".
++// like "LOG(DEBUG_S) << xxx;".
+ #define LOG_TO(dest, severity) LOGGING_PREAMBLE(severity) && LOG_STREAM_TO(dest, severity)
+
+ // A variant of LOG that also logs the current errno value. To be used when
+diff -ur system_aosp/core/base/include/android-base/strings.h system/core/base/include/android-base/strings.h
+--- system_aosp/core/base/include/android-base/strings.h	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/include/android-base/strings.h	2021-01-29 10:36:40.905961768 +0800
+@@ -19,6 +19,7 @@
+ #include <sstream>
+ #include <string>
+ #include <vector>
++#include "string_view_format.h"
+
+ namespace android {
+ namespace base {
+@@ -56,17 +57,17 @@
+ extern template std::string Join(const std::vector<const char*>&, const std::string&);
+
+ // Tests whether 's' starts with 'prefix'.
+-bool StartsWith(std::string_view s, std::string_view prefix);
+-bool StartsWith(std::string_view s, char prefix);
+-bool StartsWithIgnoreCase(std::string_view s, std::string_view prefix);
++bool StartsWith(StringView s, StringView prefix);
++bool StartsWith(StringView s, char prefix);
++bool StartsWithIgnoreCase(StringView s, StringView prefix);
+
+ // Tests whether 's' ends with 'suffix'.
+-bool EndsWith(std::string_view s, std::string_view suffix);
+-bool EndsWith(std::string_view s, char suffix);
+-bool EndsWithIgnoreCase(std::string_view s, std::string_view suffix);
++bool EndsWith(StringView s, StringView suffix);
++bool EndsWith(StringView s, char suffix);
++bool EndsWithIgnoreCase(StringView s, StringView suffix);
+
+ // Tests whether 'lhs' equals 'rhs', ignoring case.
+-bool EqualsIgnoreCase(std::string_view lhs, std::string_view rhs);
++bool EqualsIgnoreCase(StringView lhs, StringView rhs);
+
+ }  // namespace base
+ }  // namespace android
+diff -ur system_aosp/core/base/logging.cpp system/core/base/logging.cpp
+--- system_aosp/core/base/logging.cpp	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/logging.cpp	2021-01-29 10:36:40.905961768 +0800
+@@ -16,10 +16,11 @@
+
+ #if defined(_WIN32)
+ #include <windows.h>
++#include "android-base/threads.h"
+ #endif
+
+ #include "android-base/logging.h"
+-
++#include <string.h>
+ #include <fcntl.h>
+ #include <inttypes.h>
+ #include <libgen.h>
+@@ -167,7 +168,7 @@
+   static constexpr int kLogSeverityToKernelLogLevel[] = {
+       [android::base::VERBOSE] = 7,              // KERN_DEBUG (there is no verbose kernel log
+                                                  //             level)
+-      [android::base::DEBUG] = 7,                // KERN_DEBUG
++      [android::base::DEBUG_S] = 7,              // KERN_DEBUG_S
+       [android::base::INFO] = 6,                 // KERN_INFO
+       [android::base::WARNING] = 4,              // KERN_WARNING
+       [android::base::ERROR] = 3,                // KERN_ERROR
+@@ -310,7 +311,7 @@
+           gMinimumLogSeverity = VERBOSE;
+           continue;
+         case 'd':
+-          gMinimumLogSeverity = DEBUG;
++          gMinimumLogSeverity = DEBUG_S;
+           continue;
+         case 'i':
+           gMinimumLogSeverity = INFO;
+diff -ur system_aosp/core/base/mapped_file.cpp system/core/base/mapped_file.cpp
+--- system_aosp/core/base/mapped_file.cpp	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/mapped_file.cpp	2021-01-29 10:36:40.905961768 +0800
+@@ -76,7 +76,7 @@
+   if (base_ != nullptr) UnmapViewOfFile(base_);
+   if (handle_ != nullptr) CloseHandle(handle_);
+ #else
+-  if (base_ != nullptr) munmap(base_, size_ + offset_);
++  if (base_ != nullptr) munmap(base_, size_);
+ #endif
+
+   base_ = nullptr;
+diff -ur system_aosp/core/base/strings.cpp system/core/base/strings.cpp
+--- system_aosp/core/base/strings.cpp	2021-01-29 10:43:34.145594722 +0800
++++ system/core/base/strings.cpp	2021-01-29 10:36:40.905961768 +0800
+@@ -87,32 +87,32 @@
+ template std::string Join(const std::vector<std::string>&, const std::string&);
+ template std::string Join(const std::vector<const char*>&, const std::string&);
+
+-bool StartsWith(std::string_view s, std::string_view prefix) {
++bool StartsWith(StringView s, StringView prefix) {
+   return s.substr(0, prefix.size()) == prefix;
+ }
+
+-bool StartsWith(std::string_view s, char prefix) {
++bool StartsWith(StringView s, char prefix) {
+   return !s.empty() && s.front() == prefix;
+ }
+
+-bool StartsWithIgnoreCase(std::string_view s, std::string_view prefix) {
++bool StartsWithIgnoreCase(StringView s, StringView prefix) {
+   return s.size() >= prefix.size() && strncasecmp(s.data(), prefix.data(), prefix.size()) == 0;
+ }
+
+-bool EndsWith(std::string_view s, std::string_view suffix) {
++bool EndsWith(StringView s, StringView suffix) {
+   return s.size() >= suffix.size() && s.substr(s.size() - suffix.size(), suffix.size()) == suffix;
+ }
+
+-bool EndsWith(std::string_view s, char suffix) {
++bool EndsWith(StringView s, char suffix) {
+   return !s.empty() && s.back() == suffix;
+ }
+
+-bool EndsWithIgnoreCase(std::string_view s, std::string_view suffix) {
++bool EndsWithIgnoreCase(StringView s, StringView suffix) {
+   return s.size() >= suffix.size() &&
+          strncasecmp(s.data() + (s.size() - suffix.size()), suffix.data(), suffix.size()) == 0;
+ }
+
+-bool EqualsIgnoreCase(std::string_view lhs, std::string_view rhs) {
++bool EqualsIgnoreCase(StringView lhs, StringView rhs) {
+   return lhs.size() == rhs.size() && strncasecmp(lhs.data(), rhs.data(), lhs.size()) == 0;
+ }
+
+diff -ur system_aosp/core/include/cutils/android_filesystem_config.h system/core/include/cutils/android_filesystem_config.h
+--- system_aosp/core/include/cutils/android_filesystem_config.h	2021-01-29 10:43:42.185665405 +0800
++++ system/core/include/cutils/android_filesystem_config.h	2021-01-29 10:36:40.909961804 +0800
+@@ -144,6 +144,7 @@
+ /* The range 2900-2999 is reserved for OEM, and must never be
+  * used here */
+ #define AID_OEM_RESERVED_START 2900
++#define AID_HDB           2901  /* access hdbservice */
+ #define AID_OEM_RESERVED_END 2999
+
+ /* The 3000 series are intended for use as supplemental group id's only.
+@@ -161,6 +162,38 @@
+
+ /* The range 5000-5999 is also reserved for OEM, and must never be used here. */
+ #define AID_OEM_RESERVED_2_START 5000
++
++/* Huawei Extend AID */
++/*
++ * 1. ALL huawei extend AID should add VENDOR prefix,e.g. AID_VENDOR_XXXX
++ * 2. If the added AID was used in vendor partition only, Add it to config.fs
++ *    vendor/huawei/chipset_common/config/common/config.fs
++ * 3. Huawei AID range:
++ *    AID used in system partition: 5501-5900
++ *    AID used in vendor partiton only: 5900-5999
++ * 4. wiki: http://3ms.huawei.com/hi/group/2844405/wiki_5160709.html?for_statistic_from=creation_group_wiki
++*/
++
++#define AID_VENDOR_HDB 5501 /* access hdbservice*/
++
++#define AID_VENDOR_DSM 5502 /* dsm access */
++
++#define AID_VENDOR_HWHFD 5503 /* Huawei kernel hot fix daemon */
++
++#define AID_VENDOR_SKYTONE 5504 /* access skytone */
++
++#define AID_VENDOR_ACT_RCS 5505 /* access device actr */
++
++#define AID_VENDOR_ODMF 5506 /* access AI model files */
++
++#define AID_VENDOR_INSTALLER 5507  /* access installer files */
++
++#define AID_VENDOR_HBS    5508 /* access hbs data */
++
++#define AID_DSM 5509 /* dsm access */
++
++#define AID_VENDOR_FACEID 5510 /* acess faceid */
++
+ #define AID_OEM_RESERVED_2_END 5999
+
+ #define AID_EVERYBODY 9997 /* shared between all apps in the same profile */
+diff -ur system_aosp/core/include/cutils/fs.h system/core/include/cutils/fs.h
+--- system_aosp/core/include/cutils/fs.h	2021-01-29 10:43:42.185665405 +0800
++++ system/core/include/cutils/fs.h	2021-01-29 10:36:40.909961804 +0800
+@@ -45,6 +45,14 @@
+  */
+ extern int fs_prepare_dir(const char* path, mode_t mode, uid_t uid, gid_t gid);
+
++/* DTS2016051401335 AR000485VM FixUid l00214442 20160514 begin */
++/*
++ * Ensure that directory exists with given mode and owners.  If it exists
++ * with a different mode or owners, they are fixed to match the given values recursively.
++ */
++extern int fs_prepare_dir_fixup_recursive(const char* path, mode_t mode, uid_t uid, gid_t gid, int allow_fixup);
++/* DTS2016051401335 AR000485VM FixUid l00214442 20160514 end */
++
+ /*
+  * Ensure that directory exists with given mode and owners.  If it exists
+  * with different owners, they are not fixed and -1 is returned.
+diff -ur system_aosp/core/include/cutils/trace.h system/core/include/cutils/trace.h
+--- system_aosp/core/include/cutils/trace.h	2021-01-29 10:43:42.185665405 +0800
++++ system/core/include/cutils/trace.h	2021-01-29 10:36:40.909961804 +0800
+@@ -18,7 +18,6 @@
+ #define _LIBS_CUTILS_TRACE_H
+
+ #include <inttypes.h>
+-#include <stdatomic.h>
+ #include <stdbool.h>
+ #include <stdint.h>
+ #include <stdio.h>
+@@ -88,7 +87,7 @@
+ #elif ATRACE_TAG > ATRACE_TAG_VALID_MASK
+ #error ATRACE_TAG must be defined to be one of the tags defined in cutils/trace.h
+ #endif
+-
++using namespace std;
+ /**
+  * Opens the trace file for writing and reads the property for initial tags.
+  * The atrace.tags.enableflags property sets the tags to trace.
+diff -ur system_aosp/core/include/log/log_id.h system/core/include/log/log_id.h
+--- system_aosp/core/include/log/log_id.h	2021-01-29 10:43:42.185665405 +0800
++++ system/core/include/log/log_id.h	2021-01-29 10:36:40.909961804 +0800
+@@ -58,6 +58,8 @@
+ log_id_t android_name_to_log_id(const char* logName);
+ const char* android_log_id_to_name(log_id_t log_id);
+
++int __hwlog_setparam(int paramid, const char *val);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff -ur system_aosp/core/include/private/android_filesystem_config.h system/core/include/private/android_filesystem_config.h
+--- system_aosp/core/include/private/android_filesystem_config.h	2021-01-29 10:43:42.185665405 +0800
++++ system/core/include/private/android_filesystem_config.h	2021-01-29 10:36:40.909961804 +0800
+@@ -144,6 +144,7 @@
+ /* The range 2900-2999 is reserved for OEM, and must never be
+  * used here */
+ #define AID_OEM_RESERVED_START 2900
++#define AID_HDB           2901  /* access hdbservice */
+ #define AID_OEM_RESERVED_END 2999
+
+ /* The 3000 series are intended for use as supplemental group id's only.
+@@ -161,6 +162,38 @@
+
+ /* The range 5000-5999 is also reserved for OEM, and must never be used here. */
+ #define AID_OEM_RESERVED_2_START 5000
++
++/* Huawei Extend AID */
++/*
++ * 1. ALL huawei extend AID should add VENDOR prefix,e.g. AID_VENDOR_XXXX
++ * 2. If the added AID was used in vendor partition only, Add it to config.fs
++ *    vendor/huawei/chipset_common/config/common/config.fs
++ * 3. Huawei AID range:
++ *    AID used in system partition: 5501-5900
++ *    AID used in vendor partiton only: 5900-5999
++ * 4. wiki: http://3ms.huawei.com/hi/group/2844405/wiki_5160709.html?for_statistic_from=creation_group_wiki
++*/
++
++#define AID_VENDOR_HDB 5501 /* access hdbservice*/
++
++#define AID_VENDOR_DSM 5502 /* dsm access */
++
++#define AID_VENDOR_HWHFD 5503 /* Huawei kernel hot fix daemon */
++
++#define AID_VENDOR_SKYTONE 5504 /* access skytone */
++
++#define AID_VENDOR_ACT_RCS 5505 /* access device actr */
++
++#define AID_VENDOR_ODMF 5506 /* access AI model files */
++
++#define AID_VENDOR_INSTALLER 5507  /* access installer files */
++
++#define AID_VENDOR_HBS    5508 /* access hbs data */
++
++#define AID_DSM 5509 /* dsm access */
++
++#define AID_VENDOR_FACEID 5510 /* acess faceid */
++
+ #define AID_OEM_RESERVED_2_END 5999
+
+ #define AID_EVERYBODY 9997 /* shared between all apps in the same profile */
+diff -ur system_aosp/core/include/utils/Flattenable.h system/core/include/utils/Flattenable.h
+--- system_aosp/core/include/utils/Flattenable.h	2021-01-29 10:43:42.189665440 +0800
++++ system/core/include/utils/Flattenable.h	2021-01-29 10:36:40.909961804 +0800
+@@ -47,12 +47,7 @@
+
+     template<size_t N>
+     static size_t align(void*& buffer) {
+-        static_assert(!(N & (N - 1)), "Can only align to a power of 2.");
+-        void* b = buffer;
+-        buffer = reinterpret_cast<void*>((uintptr_t(buffer) + (N-1)) & ~(N-1));
+-        size_t delta = size_t(uintptr_t(buffer) - uintptr_t(b));
+-        memset(b, 0, delta);
+-        return delta;
++        return align<N>( const_cast<void const*&>(buffer) );
+     }
+
+     static void advance(void*& buffer, size_t& size, size_t offset) {
+diff -ur system_aosp/core/include/utils/String8.h system/core/include/utils/String8.h
+--- system_aosp/core/include/utils/String8.h	2021-01-29 10:43:42.189665440 +0800
++++ system/core/include/utils/String8.h	2021-01-29 10:36:40.909961804 +0800
+@@ -58,6 +58,9 @@
+     explicit                    String8(const char16_t* o, size_t numChars);
+     explicit                    String8(const char32_t* o);
+     explicit                    String8(const char32_t* o, size_t numChars);
++    //fix bug of sogou input method
++    explicit                    String8(unsigned short const* o);
++    //fix bug of sogou input method
+                                 ~String8();
+
+     static inline const String8 empty();
+diff -ur system_aosp/core/liblog/include/log/log_id.h system/core/liblog/include/log/log_id.h
+--- system_aosp/core/liblog/include/log/log_id.h	2021-01-29 10:43:56.097787709 +0800
++++ system/core/liblog/include/log/log_id.h	2021-01-29 10:36:40.909961804 +0800
+@@ -58,6 +58,8 @@
+ log_id_t android_name_to_log_id(const char* logName);
+ const char* android_log_id_to_name(log_id_t log_id);
+
++int __hwlog_setparam(int paramid, const char *val);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff -ur system_aosp/core/liblog/include_vndk/log/log_id.h system/core/liblog/include_vndk/log/log_id.h
+--- system_aosp/core/liblog/include_vndk/log/log_id.h	2021-01-29 10:43:56.097787709 +0800
++++ system/core/liblog/include_vndk/log/log_id.h	2021-01-29 10:36:40.909961804 +0800
+@@ -58,6 +58,8 @@
+ log_id_t android_name_to_log_id(const char* logName);
+ const char* android_log_id_to_name(log_id_t log_id);
+
++int __hwlog_setparam(int paramid, const char *val);
++
+ #ifdef __cplusplus
+ }
+ #endif
+diff -ur system_aosp/core/liblog/liblog.map.txt system/core/liblog/liblog.map.txt
+--- system_aosp/core/liblog/liblog.map.txt	2021-01-29 10:43:56.097787709 +0800
++++ system/core/liblog/liblog.map.txt	2021-01-29 10:36:40.909961804 +0800
+@@ -63,6 +63,7 @@
+     __android_log_security; # apex
+     android_log_reset; #vndk
+     android_log_parser_reset; #vndk
++    __hwlog_setparam;
+ };
+
+ LIBLOG_PRIVATE {
+diff -ur system_aosp/core/libutils/include/utils/Flattenable.h system/core/libutils/include/utils/Flattenable.h
+--- system_aosp/core/libutils/include/utils/Flattenable.h	2021-01-29 10:44:02.421843310 +0800
++++ system/core/libutils/include/utils/Flattenable.h	2021-01-29 10:36:40.909961804 +0800
+@@ -47,12 +47,7 @@
+
+     template<size_t N>
+     static size_t align(void*& buffer) {
+-        static_assert(!(N & (N - 1)), "Can only align to a power of 2.");
+-        void* b = buffer;
+-        buffer = reinterpret_cast<void*>((uintptr_t(buffer) + (N-1)) & ~(N-1));
+-        size_t delta = size_t(uintptr_t(buffer) - uintptr_t(b));
+-        memset(b, 0, delta);
+-        return delta;
++        return align<N>( const_cast<void const*&>(buffer) );
+     }
+
+     static void advance(void*& buffer, size_t& size, size_t offset) {
+diff -ur system_aosp/core/libutils/include/utils/String8.h system/core/libutils/include/utils/String8.h
+--- system_aosp/core/libutils/include/utils/String8.h	2021-01-29 10:44:02.421843310 +0800
++++ system/core/libutils/include/utils/String8.h	2021-01-29 10:36:40.909961804 +0800
+@@ -58,6 +58,9 @@
+     explicit                    String8(const char16_t* o, size_t numChars);
+     explicit                    String8(const char32_t* o);
+     explicit                    String8(const char32_t* o, size_t numChars);
++    //fix bug of sogou input method
++    explicit                    String8(unsigned short const* o);
++    //fix bug of sogou input method
+                                 ~String8();
+
+     static inline const String8 empty();
+diff -ur system_aosp/core/libziparchive/zip_archive.cc system/core/libziparchive/zip_archive.cc
+--- system_aosp/core/libziparchive/zip_archive.cc	2021-01-29 10:44:10.001909933 +0800
++++ system/core/libziparchive/zip_archive.cc	2021-01-29 10:36:40.913961839 +0800
+@@ -33,6 +33,7 @@
+
+ #include <memory>
+ #include <vector>
++#include "string_view_format.h"
+
+ #if defined(__APPLE__)
+ #define lseek64 lseek
+@@ -103,8 +104,8 @@
+
+ static uint32_t ComputeHash(const ZipString& name) {
+ #if !defined(_WIN32)
+-  return std::hash<std::string_view>{}(
+-      std::string_view(reinterpret_cast<const char*>(name.name), name.name_length));
++  return std::hash<StringView>{}(
++      StringView(reinterpret_cast<const char*>(name.name), name.name_length));
+ #else
+   // Remove this code path once the windows compiler knows how to compile the above statement.
+   uint32_t hash = 0;
+diff -ur system_aosp/core/libziparchive/zip_archive_private.h system/core/libziparchive/zip_archive_private.h
+--- system_aosp/core/libziparchive/zip_archive_private.h	2021-01-29 10:44:10.001909933 +0800
++++ system/core/libziparchive/zip_archive_private.h	2021-01-29 10:36:40.913961839 +0800
+@@ -138,7 +138,7 @@
+
+ /**
+  * More space efficient string representation of strings in an mmaped zipped file than
+- * std::string_view or ZipString. Using ZipString as an entry in the ZipArchive hashtable wastes
++ * StringView or ZipString. Using ZipString as an entry in the ZipArchive hashtable wastes
+  * space. ZipString stores a pointer to a string (on 64 bit, 8 bytes) and the length to read from
+  * that pointer, 2 bytes. Because of alignment, the structure consumes 16 bytes, wasting 6 bytes.
+  * ZipStringOffset stores a 4 byte offset from a fixed location in the memory mapped file instead
+diff -ur system_aosp/core/libziparchive/zip_writer.cc system/core/libziparchive/zip_writer.cc
+--- system_aosp/core/libziparchive/zip_writer.cc	2021-01-29 10:44:10.001909933 +0800
++++ system/core/libziparchive/zip_writer.cc	2021-01-29 10:36:40.913961839 +0800
+@@ -358,7 +358,7 @@
+   CHECK(z_stream_->avail_out != 0);
+
+   // Prepare the input.
+-  z_stream_->next_in = reinterpret_cast<const uint8_t*>(data);
++  z_stream_->next_in = (unsigned char *)(data);
+   z_stream_->avail_in = len;
+
+   while (z_stream_->avail_in > 0) {

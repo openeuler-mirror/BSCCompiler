@@ -1,0 +1,32 @@
+include_directories = [
+  "${AOSP_ROOT}/system/core/base/include",
+  "${AOSP_ROOT}/include",
+]
+
+source_files = [
+  "chrono_utils.cpp",
+  "cmsg.cpp",
+  "file.cpp",
+  "logging.cpp",
+  "mapped_file.cpp",
+  "parsenetaddress.cpp",
+  "properties.cpp",
+  "quick_exit.cpp",
+  "stringprintf.cpp",
+  "strings.cpp",
+  "test_utils.cpp",
+  "threads.cpp",
+]
+
+static_library("libbase") {
+  sources = source_files
+
+  include_dirs = include_directories
+
+  cflags_cc += [
+    "-std=gnu++17",
+    "-fPIC",
+  ]
+
+  output_dir = "${root_out_dir}/lib"
+}

@@ -1,0 +1,24 @@
+include_directories = [
+  "${AOSP_ROOT}/system/core/include",
+  "${AOSP_ROOT}/system/core/base/include",
+  "${AOSP_ROOT}/system/core/libziparchive/include",
+  "${AOSP_ROOT}/system/core/libziparchive",
+  "${AOSP_ROOT}/system/core/liblog/include",
+  "${AOSP_ROOT}/system/core/libutils/include",
+  "${AOSP_ROOT}/include",
+]
+
+static_library("libziparchive") {
+  sources = [
+    "zip_archive.cc",
+    "zip_archive_stream_entry.cc",
+    "zip_writer.cc",
+  ]
+
+  include_dirs = include_directories
+  cflags_cc += [
+    "-std=gnu++17",
+    "-fPIC",
+  ]
+  output_dir = "${root_out_dir}/lib"
+}

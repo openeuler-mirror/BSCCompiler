@@ -14,8 +14,8 @@
 
 
 ```
-sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu
-sudo apt-get -y install openjdk-8-jdk git-core build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless
+sudo apt-get -y install git build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
 
 Ubuntu 16.04:
 sudo apt-get -y install gcc-5-aarch64-linux-gnu g++-5-aarch64-linux-gnu
@@ -29,12 +29,13 @@ sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu
 
 ## 自动安装工具
 ```
-source build/envsetup.sh
-tools/setup_tools.sh
+source build/envsetup.sh arm release
+make setup
+
+以下的步骤只是作为参考，需要的工具都已经在 "make setup" 一步自动安装完成。
 ```
 
-
-## 安装Clang编译器并完成配置（用于编译方舟编译器代码，已改为使用系统安装的Clang）
+## 安装Clang编译器并完成配置（用于编译方舟编译器代码，20.04已改为使用系统安装的Clang）
 
 下载**clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04** (具体版本请根据系统版本确定)
 
