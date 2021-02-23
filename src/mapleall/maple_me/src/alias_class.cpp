@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -98,7 +98,7 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx
   CHECK_FATAL(newOst != nullptr, "null ptr check");
   if (newOst->GetIndex() == osym2Elem.size()) {
     osym2Elem.push_back(nullptr);
-    ssaTab.GetVersionStTable().CreateVersionSt(newOst, kInitVersion);
+    ssaTab.GetVersionStTable().CreateZeroVersionSt(newOst);
   }
   return FindOrCreateAliasElem(*newOst);
 }
@@ -423,7 +423,7 @@ AliasElem *AliasClass::FindOrCreateDummyNADSAe() {
   dummySym->SetIsTmp(true);
   dummySym->SetIsDeleted();
   OriginalSt *dummyOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*dummySym, 0, 0);
-  ssaTab.GetVersionStTable().FindOrCreateVersionSt(dummyOst, kInitVersion);
+  ssaTab.GetVersionStTable().CreateZeroVersionSt(dummyOst);
   if (osym2Elem.size() == dummyOst->GetIndex()) {
     AliasElem *dummyAe = acMemPool.New<AliasElem>(osym2Elem.size(), *dummyOst);
     dummyAe->SetNotAllDefsSeen(true);
@@ -629,7 +629,7 @@ void AliasClass::InsertMayUseExpr(BaseNode &expr) {
     rhsAe = FindOrCreateDummyNADSAe();
   }
   auto &ireadNode = static_cast<IreadSSANode&>(expr);
-  ireadNode.SetSSAVar(*ssaTab.GetVersionStTable().GetVersionStFromID(rhsAe->GetOriginalSt().GetZeroVersionIndex()));
+  ireadNode.SetSSAVar(*ssaTab.GetVersionStTable().GetZeroVersionSt(&rhsAe->GetOriginalSt()));
   ASSERT(ireadNode.GetSSAVar() != nullptr, "AliasClass::InsertMayUseExpr(): iread cannot have empty mayuse");
 }
 
@@ -683,7 +683,7 @@ void AliasClass::CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUs
 void AliasClass::InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, TypeOfMayUseList &mayUseNodes) {
   for (OriginalSt *ost : mayUseOsts) {
     mayUseNodes.emplace_back(
-        MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(ost->GetZeroVersionIndex())));
+        MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex())));
   }
 }
 
@@ -750,7 +750,7 @@ void AliasClass::InsertMayUseAll(const StmtNode &stmt) {
   for (AliasElem *aliasElem : id2Elem) {
     if (aliasElem->GetOriginalSt().GetIndirectLev() >= 0 && !aliasElem->GetOriginalSt().IsPregOst()) {
       mayUseNodes.emplace_back(
-          MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
+          MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
     }
   }
 }
@@ -776,7 +776,7 @@ void AliasClass::InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, TypeOfMayDe
                                   StmtNode &stmt) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
     mayDefNodes.emplace_back(
-        MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+        MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
   }
 }
 
@@ -834,7 +834,7 @@ void AliasClass::InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOs
   for (OriginalSt *mayDefOst : mayDefOsts) {
     if (!mayDefOst->IsFinal()) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
     }
   }
 }
@@ -887,7 +887,7 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt) {
     AliasElem *aliasElem = id2Elem[elemID];
     OriginalSt &ostOfAliasAE = aliasElem->GetOriginalSt();
     if (!ostOfAliasAE.IsFinal()) {
-      VersionSt *vst0 = ssaTab.GetVersionStTable().GetVersionStFromID(ostOfAliasAE.GetZeroVersionIndex());
+      VersionSt *vst0 = ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAliasAE.GetZeroVersionIndex());
       theSSAPart->GetMayUseNodes().emplace_back(MayUseNode(vst0));
       theSSAPart->GetMayDefNodes().emplace_back(MayDefNode(vst0, &stmt));
     }
@@ -971,7 +971,7 @@ void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, Type
   for (OriginalSt *mayDefOst : mayDefOsts) {
     if (!hasNoPrivateDefEffect || !mayDefOst->IsPrivate()) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
     }
   }
 }
@@ -1012,7 +1012,7 @@ void AliasClass::InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &ma
   for (OriginalSt *mayUseOst : mayUseOsts) {
     if (!mayUseOst->IsFinal()) {
       mayUseNodes.emplace_back(
-          MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayUseOst->GetZeroVersionIndex())));
+          MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayUseOst->GetZeroVersionIndex())));
     }
   }
 }
@@ -1050,7 +1050,7 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt) {
     std::string typeNameOfStmt = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx())->GetName();
     if (typeNameOfOst.find(typeNameOfStmt) != std::string::npos) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(ostOfAE.GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAE.GetZeroVersionIndex()), &stmt));
     }
   }
 }

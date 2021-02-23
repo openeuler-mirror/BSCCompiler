@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "dominance.h"
 #include "me_analyzector.h"
 #include "utils.h"
 
@@ -81,7 +82,7 @@ void AnalyzeCtor::ProcessStmt(MeStmt &stmt) {
 }
 
 AnalysisResult *MeDoAnalyzeCtor::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResultMgr) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  Dominance *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   auto *kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   ASSERT_NOT_NULL(dom);
   ASSERT_NOT_NULL(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
