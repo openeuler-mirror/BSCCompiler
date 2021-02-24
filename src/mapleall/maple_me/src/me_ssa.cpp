@@ -47,9 +47,8 @@
 namespace maple {
 
 void MeSSA::InsertPhiNode() {
-  OriginalStTable *otable = &func->GetMeSSATab()->GetOriginalStTable();
-  for (size_t i = 1; i < otable->Size(); ++i) {
-    OriginalSt *ost = otable->GetOriginalStFromID(OStIdx(i));
+  for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
+    OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
     if (ost->GetIndirectLev() < 0) {
       continue;
     }
