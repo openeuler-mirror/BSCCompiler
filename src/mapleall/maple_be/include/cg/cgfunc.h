@@ -174,7 +174,7 @@ class CGFunc {
   virtual void HandleCatch() = 0;
 
   /* select expr */
-  virtual Operand *SelectDread(AddrofNode &expr) = 0;
+  virtual Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) = 0;
   virtual RegOperand *SelectRegread(RegreadNode &expr) = 0;
   virtual Operand *SelectAddrof(AddrofNode &expr) = 0;
   virtual Operand &SelectAddrofFunc(AddroffuncNode &expr) = 0;
