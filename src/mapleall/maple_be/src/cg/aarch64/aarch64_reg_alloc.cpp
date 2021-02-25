@@ -538,6 +538,9 @@ void AArch64RegAllocator::SetupRegLiveness(BB *bb) {
 
   uint32 id = 1;
   FOR_BB_INSNS_REV(insn, bb) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
     insn->SetId(id);
     id++;
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
