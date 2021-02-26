@@ -55,7 +55,7 @@ maplegen:install_patch
 
 .PHONY: maplegendef
 maplegendef: maplegen
-	$(call build_gn, $(GN_OPTIONS), aarch64isa_headers maplegendef)
+	$(call build_gn, $(GN_OPTIONS), maplegendef)
 
 .PHONY: maple
 maple: maplegendef
