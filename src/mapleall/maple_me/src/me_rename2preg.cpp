@@ -12,437 +12,353 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "alias_class.h"
 #include "me_rename2preg.h"
-#include <utils.h>
 #include "mir_builder.h"
 #include "me_irmap.h"
-#include "alias_class.h"
 
 // This phase mainly renames the variables to pseudo register.
 // Only non-ref-type variables (including parameters) with no alias are
 // workd on here.  Remaining variables are left to LPRE phase.  This is
 // because for ref-type variables, their stores have to be left intact.
 
-namespace {
-using namespace maple;
-
-// Part1: Generalize GetAnalysisResult from MeFuncResultMgr
-template <MePhaseID id> struct ExtractPhaseClass {};
-
-template <> struct ExtractPhaseClass<MeFuncPhase_IRMAPBUILD> {
-  using Type = MeIRMap;
-};
-
-template <> struct ExtractPhaseClass<MeFuncPhase_ALIASCLASS> {
-  using Type = AliasClass;
-};
-
-template <MePhaseID id, typename RetT = std::add_pointer_t<typename ExtractPhaseClass<id>::Type>>
-inline RetT GetAnalysisResult(MeFunction &func, MeFuncResultMgr &funcRst) {
-  return static_cast<RetT>(funcRst.GetAnalysisResult(id, &func));
-}
-
-// Part2: Phase implementation.
-class OStCache final {
- public:
-  explicit OStCache(SSATab &ssaTab) : ssaTab(ssaTab) {}
-  ~OStCache() = default;
-
-  OriginalSt *Find(OStIdx ostIdx) const {
-    auto it = cache.find(ostIdx);
-    return it == cache.end() ? nullptr : it->second;
-  }
-
-  OriginalSt &CreatePregOst(const RegMeExpr &regExpr, const OriginalSt &ost) {
-    OriginalStTable &ostTbl = ssaTab.GetOriginalStTable();
-    OriginalSt *regOst = ostTbl.CreatePregOriginalSt(regExpr.GetRegIdx(), ssaTab.GetModule().CurFunction()->GetPuidx());
-    utils::ToRef(regOst).SetIsFormal(ost.IsFormal());
-    cache[ost.GetIndex()] = regOst;
-    return *regOst;
-  }
-
- private:
-  SSATab &ssaTab;
-  std::map<OStIdx, OriginalSt*> cache; // map var to reg in original symbol
-};
-
-class PregCache final {
- public:
-  explicit PregCache(MeIRMap &irMap) : irMap(irMap) {}
-  ~PregCache() = default;
-
-  RegMeExpr &CloneRegExprIfNotExist(const VarMeExpr &varExpr,
-                                    const std::function<RegMeExpr *(MeIRMap &)> &creator) {
-    auto it = cache.find(varExpr.GetExprID());
-    if (it != cache.end()) {
-      return utils::ToRef(it->second);
-    }
-
-    RegMeExpr *regExpr = creator(irMap);
-    (void)cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
-    return utils::ToRef(regExpr);
-  }
-
-  RegMeExpr &CreatePregExpr(const VarMeExpr &varExpr, TyIdx symbolIdx) {
-    MIRType &ty = utils::ToRef(GlobalTables::GetTypeTable().GetTypeFromTyIdx(symbolIdx));
-    RegMeExpr *regExpr = ty.GetPrimType() == PTY_ref ? irMap.CreateRegRefMeExpr(ty)
-                                                     : irMap.CreateRegMeExpr(varExpr.GetPrimType());
-    (void)cache.insert(std::make_pair(varExpr.GetExprID(), regExpr));
-    return utils::ToRef(regExpr);
-  }
-
- private:
-  MeIRMap &irMap;
-  std::unordered_map<int32, RegMeExpr*> cache; // maps the VarMeExpr's exprID to RegMeExpr
-};
-
-class CacheProxy final {
- public:
-  CacheProxy() = default;
-  ~CacheProxy() = default;
-
-  void Init(SSATab &ssaTab, MeIRMap &irMap) {
-    ost = std::make_unique<OStCache>(ssaTab);
-    preg = std::make_unique<PregCache>(irMap);
-  }
-
-  OStCache &OSt() const {
-    return utils::ToRef(ost);
-  }
-
-  PregCache &Preg() const {
-    return utils::ToRef(preg);
-  }
-
- private:
-  std::unique_ptr<OStCache> ost;
-  std::unique_ptr<PregCache> preg;
-};
-
-class FormalRenaming final {
- public:
-  explicit FormalRenaming(MIRFunction &irFunc)
-      : irFunc(irFunc),
-        paramUsed(irFunc.GetFormalCount(), false),
-        renamedReg(irFunc.GetFormalCount(), nullptr) {}
-
-  ~FormalRenaming() = default;
-
-  void MarkUsed(OriginalSt &ost) {
-    if (ost.IsFormal() && ost.IsSymbolOst()) {
-      const MIRSymbol *sym = ost.GetMIRSymbol();
-      uint32 idx = irFunc.GetFormalIndex(sym);
-      paramUsed[idx] = true;
-    }
-  }
-
-  void MarkRenamed(const OriginalSt &ost, const MIRSymbol &irSymbol, RegMeExpr &regExpr) {
-    if (ost.IsFormal()) {
-      uint32 idx = irFunc.GetFormalIndex(&irSymbol);
-      CHECK_FATAL(paramUsed[idx], "param used not set correctly.");
-      if (!renamedReg[idx]) {
-        renamedReg[idx] = &regExpr;
-      }
-    }
-  }
-
-  void Rename(const MIRBuilder &irBuilder) {
-    for (size_t i = 0; i < irFunc.GetFormalCount(); ++i) {
-      if (!paramUsed[i]) {
-        // in this case, the paramter is not used by any statement, promote it
-        MIRType &irTy = utils::ToRef(irFunc.GetNthParamType(i));
-        MIRPregTable &irPregTbl = utils::ToRef(irFunc.GetPregTab());
-        PregIdx16 regIdx = (irTy.GetPrimType() == PTY_ref) ?
-            static_cast<PregIdx16>(irPregTbl.CreatePreg(PTY_ref, &irTy)) :
-            static_cast<PregIdx16>(irPregTbl.CreatePreg(irTy.GetPrimType()));
-        irFunc.GetFormalDefVec()[i].formalSym = irBuilder.CreatePregFormalSymbol(irTy.GetTypeIndex(), regIdx, irFunc);
-      } else {
-        RegMeExpr *regExpr = renamedReg[i];
-        if (regExpr != nullptr) {
-          PregIdx16 regIdx = regExpr->GetRegIdx();
-          MIRSymbol &irSym = utils::ToRef(irFunc.GetFormal(i));
-          MIRSymbol *newIrSym = irBuilder.CreatePregFormalSymbol(irSym.GetTyIdx(), regIdx, irFunc);
-          irFunc.GetFormalDefVec()[i].formalSym = newIrSym;
-        }
-      }
-    }
-  }
-
- private:
-  MIRFunction &irFunc;
-  std::vector<bool> paramUsed; // if parameter is not used, it's false, otherwise true
-  // if the parameter got promoted, the nth of func->mirfunc->_formal is the nth of reg_formal_vec, otherwise nullptr;
-  std::vector<RegMeExpr*> renamedReg;
-};
-
-class SSARename2Preg {
- public:
-  SSARename2Preg(MIRFunction &irFunc, SSATab *ssaTab, bool enabledDebug)
-      : ssaTab(ssaTab),
-        enabledDebug(enabledDebug),
-        formal(irFunc) {}
-
-  virtual ~SSARename2Preg() = default;
-
-  static const std::string &PhaseName() {
-    static const std::string name = "rename2preg";
-    return name;
-  }
-
-  void Run(MeFunction &func, MeFuncResultMgr *pFuncRst) {
-    bool emptyFunc = func.empty();
-    if (!emptyFunc) {
-      MeFuncResultMgr &funcRst = utils::ToRef(pFuncRst);
-      MeIRMap &irMap = utils::ToRef(GetAnalysisResult<MeFuncPhase_IRMAPBUILD>(func, funcRst));
-      const AliasClass &aliasClass = utils::ToRef(GetAnalysisResult<MeFuncPhase_ALIASCLASS>(func, funcRst));
-
-      cacheProxy.Init(utils::ToRef(ssaTab), irMap);
-
-      for (auto it = func.valid_begin(), eIt = func.valid_end(); it != eIt; ++it) {
-        BB &bb = utils::ToRef(*it);
-
-        // rename the phi's
-        if (enabledDebug) {
-          LogInfo::MapleLogger() << " working on phi part of BB" << bb.GetBBId() << '\n';
-        }
-        for (auto &phiList : bb.GetMePhiList()) {
-          if (phiList.second->GetLHS()->GetMeOp() != kMeOpReg) {
-            Rename2PregPhi(aliasClass, utils::ToRef(phiList.second), irMap);
-          }
-        }
-
-        if (enabledDebug) {
-          LogInfo::MapleLogger() << " working on stmt part of BB" << bb.GetBBId() << '\n';
-        }
-        for (MeStmt &stmt : bb.GetMeStmts()) {
-          Rename2PregStmt(aliasClass, irMap, stmt);
-        }
-      }
-    }
-
-    MIRBuilder &irBuilder = utils::ToRef(func.GetMIRModule().GetMIRBuilder());
-    formal.Rename(irBuilder);
-
-    if (!emptyFunc && enabledDebug) {
-      func.Dump(false);
-    }
-  }
-
- private:
-  void Rename2PregStmt(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt) {
-    Opcode code = stmt.GetOp();
-    if (IsDAssign(code)) {
-      Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(stmt.GetRHS()));
-      Rename2PregLeafLHS(aliasClass, utils::ToRef(stmt.GetVarLHS()), stmt, irMap);
-    } else if (IsCallAssigned(code)) {
-      for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
-        Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(stmt.GetOpnd(i)));
-      }
-      Rename2PregCallReturn(aliasClass, utils::ToRef(stmt.GetMustDefList()));
-    } else if (instance_of<IassignMeStmt>(stmt)) {
-      auto *iAssignStmt = static_cast<IassignMeStmt*>(&stmt);
-      Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(iAssignStmt->GetRHS()));
-      Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(utils::ToRef(iAssignStmt->GetLHSVal()).GetBase()));
-    } else {
-      for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
-        Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(stmt.GetOpnd(i)));
-      }
-    }
-  }
-
-  void Rename2PregCallReturn(const AliasClass &aliasClass, MapleVector<MustDefMeNode> &mustDefNodes) {
-    if (mustDefNodes.empty()) {
-      return;
-    }
-
-    CHECK_FATAL(mustDefNodes.size() == 1, "NYI");
-    MustDefMeNode &mustDefNode = mustDefNodes.front();
-    auto *lhs = safe_cast<VarMeExpr>(mustDefNode.GetLHS());
-    if (lhs == nullptr) {
-      return;
-    }
-
-    OriginalSt *ost = lhs->GetOst();
-    RegMeExpr *regExpr = RenameVar(aliasClass, *lhs);
-    if (regExpr != nullptr) {
-      mustDefNode.UpdateLHS(*regExpr);
-    } else {
-      CHECK_FATAL(ost->IsRealSymbol(), "NYI");
-    }
-  }
-
-  // only handle the leaf of load, because all other expressions has been done by previous SSAPre
-  void Rename2PregExpr(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt, MeExpr &expr) {
-    if (instance_of<OpMeExpr>(expr)) {
-      auto *opExpr = static_cast<OpMeExpr*>(&expr);
-      for (size_t i = 0; i < kOperandNumTernary; ++i) {
-        MeExpr *opnd = opExpr->GetOpnd(i);
-        if (opnd != nullptr) {
-          Rename2PregExpr(aliasClass, irMap, stmt, *opnd);
-        }
-      }
-    } else if (instance_of<NaryMeExpr>(expr)) {
-      auto *naryExpr = static_cast<NaryMeExpr*>(&expr);
-      MapleVector<MeExpr*> &opnds = naryExpr->GetOpnds();
-      for (auto *opnd : opnds) {
-        Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(opnd));
-      }
-    } else if (instance_of<IvarMeExpr>(expr)) {
-      auto *ivarExpr = static_cast<IvarMeExpr*>(&expr);
-      Rename2PregExpr(aliasClass, irMap, stmt, utils::ToRef(ivarExpr->GetBase()));
-    } else if (instance_of<VarMeExpr>(expr)) {
-      auto *varExpr = static_cast<VarMeExpr*>(&expr);
-      Rename2PregLeafRHS(aliasClass, irMap, stmt, *varExpr);
-    }
-  }
-
-  void Rename2PregLeafRHS(const AliasClass &aliasClass, MeIRMap &irMap, MeStmt &stmt, const VarMeExpr &varExpr) {
-    RegMeExpr *regExpr = RenameVar(aliasClass, varExpr);
-    if (regExpr != nullptr) {
-      (void)irMap.ReplaceMeExprStmt(stmt, varExpr, *regExpr);
-    }
-  }
-
-  void Rename2PregLeafLHS(const AliasClass &aliasClass,
-                          const VarMeExpr &varExpr,
-                          MeStmt &stmt,
-                          MeIRMap &irMap) {
-    RegMeExpr *regExpr = RenameVar(aliasClass, varExpr);
-    if (regExpr != nullptr) {
-      MeExpr *oldRhs = nullptr;
-      if (instance_of<DassignMeStmt>(stmt)) {
-        auto *dassStmt = static_cast<DassignMeStmt*>(&stmt);
-        oldRhs = dassStmt->GetRHS();
-      } else if (instance_of<MaydassignMeStmt>(stmt)) {
-        auto *mayDassStmt = static_cast<MaydassignMeStmt*>(&stmt);
-        oldRhs = mayDassStmt->GetRHS();
-      } else {
-        CHECK_FATAL(false, "NYI");
-      }
-
-      auto &regAssignStmt = utils::ToRef(irMap.New<RegassignMeStmt>(regExpr, oldRhs));
-      regAssignStmt.CopyBase(stmt);
-      utils::ToRef(stmt.GetBB()).InsertMeStmtBefore(&stmt, &regAssignStmt);
-      utils::ToRef(stmt.GetBB()).RemoveMeStmt(&stmt);
-    }
-  }
-
-  void Rename2PregPhi(const AliasClass &aliasClass, MePhiNode &varPhiNode, MeIRMap &irMap) {
-    VarMeExpr *lhs = static_cast<VarMeExpr*>(varPhiNode.GetLHS());
-    if (lhs == nullptr) {
-      return;
-    }
-
-    VarMeExpr &varExpr = (utils::ToRef(lhs));
-    RegMeExpr *pRegExpr = RenameVar(aliasClass, varExpr);
-    if (pRegExpr == nullptr) {
-      return;
-    }
-    RegMeExpr &regExpr = *pRegExpr;
-    MePhiNode &regPhiNode = utils::ToRef(irMap.CreateMePhi(regExpr));
-    regPhiNode.SetDefBB(varPhiNode.GetDefBB());
-    UpdateRegPhi(regExpr, varPhiNode.GetOpnds(), regPhiNode);
-  }
-
-  // update regphinode operands
-  void UpdateRegPhi(const RegMeExpr &curRegExpr, const MapleVector<ScalarMeExpr*> &phiNodeOpnds,
-                    MePhiNode &regPhiNode) const {
-    PregCache &pregCache = cacheProxy.Preg();
-    for (ScalarMeExpr *phiOpnd : phiNodeOpnds) {
-      const VarMeExpr &varExpr = utils::ToRef(static_cast<VarMeExpr*>(phiOpnd));
-      RegMeExpr &regExpr = pregCache.CloneRegExprIfNotExist(varExpr, [&curRegExpr](MeIRMap &irMap) {
-        return irMap.CreateRegMeExprVersion(curRegExpr);
-      });
-      regPhiNode.GetOpnds().push_back(&regExpr);
-    }
-  }
-
-  RegMeExpr *RenameVar(const AliasClass &aliasClass, const VarMeExpr &varExpr) {
-    OriginalSt *ost = varExpr.GetOst();
-    formal.MarkUsed(*ost);
-
-    if (varExpr.GetOst()->GetFieldID() != 0) {
-      return nullptr;
-    }
-
-    if (varExpr.GetPrimType() == PTY_agg) {
-      return nullptr;
-    }
-
-    if (ost->GetIndirectLev() != 0) {
-      return nullptr;
-    }
-
-    CHECK_FATAL(ost->IsRealSymbol(), "NYI");
-    const MIRSymbol &irSymbol = utils::ToRef(ost->GetMIRSymbol());
-    if (irSymbol.GetAttr(ATTR_localrefvar)) {
-      return nullptr;
-    }
-    if (ost->IsFormal() && varExpr.GetPrimType() == PTY_ref) {
-      return nullptr;
-    }
-
-    OriginalSt *cacheOSt = cacheProxy.OSt().Find(ost->GetIndex());
-    if (cacheOSt != nullptr) {
-      // replaced previously
-      return &cacheProxy.Preg().CloneRegExprIfNotExist(varExpr, [cacheOSt](MeIRMap &irMap) {
-        return irMap.CreateRegMeExprVersion(*cacheOSt);
-      });
-    }
-
-    if (!irSymbol.IsLocal()) {
-      return nullptr;
-    }
-    if (ost->IsAddressTaken()) {
-      return nullptr;
-    }
-    const AliasElem *aliasElem = GetAliasElem(aliasClass, *ost);
-    if (aliasElem == nullptr || aliasElem->GetClassSet() != nullptr) {
-      return nullptr;
-    }
-
-    RegMeExpr &newRegExpr = cacheProxy.Preg().CreatePregExpr(varExpr, irSymbol.GetTyIdx());
-    OriginalSt &pregOst = cacheProxy.OSt().CreatePregOst(newRegExpr, *ost);
-
-    formal.MarkRenamed(*ost, irSymbol, newRegExpr);
-
-    if (enabledDebug) {
-      ost->Dump();
-      LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
-      pregOst.Dump();
-      LogInfo::MapleLogger() << '\n';
-    }
-    return &newRegExpr;
-  }
-
-  const AliasElem *GetAliasElem(const AliasClass &aliasClass, OriginalSt &ost) const {
-    if (ost.GetIndex() >= aliasClass.GetAliasElemCount()) {
-      return nullptr;
-    }
-    return aliasClass.FindAliasElem(ost);
-  }
-
- private:
-  SSATab *ssaTab;
-  bool enabledDebug;
-
-  CacheProxy cacheProxy;
-  FormalRenaming formal;
-};
-} // namespace
-
 namespace maple {
 
-AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *funcRst, ModuleResultMgr *) {
-  MeFunction &rFunc = utils::ToRef(func);
-  SSARename2Preg phase(utils::ToRef(rFunc.GetMirFunc()), rFunc.GetMeSSATab(), DEBUGFUNC(func));
-  phase.Run(rFunc, funcRst);
+RegMeExpr *SSARename2Preg::RenameVar(VarMeExpr *varmeexpr) {
+  if (varmeexpr->GetOst()->GetFieldID() != 0) {
+    return nullptr;
+  }
+  const OriginalSt *ost = varmeexpr->GetOst();
+  if (ost->GetIndirectLev() != 0) {
+    return nullptr;
+  }
+  const MIRSymbol *mirst = ost->GetMIRSymbol();
+  if (mirst->GetAttr(ATTR_localrefvar)) {
+    return nullptr;
+  }
+  if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {
+    return nullptr;
+  }
+  if (ost->IsVolatile()) {
+    return nullptr;
+  }
+  if (sym2reg_map.find(ost->GetIndex()) != sym2reg_map.end()) {
+    // replaced previously
+    MapleUnorderedMap<int, RegMeExpr *>::iterator verit = vstidx2reg_map.find(varmeexpr->GetExprID());
+    RegMeExpr *varreg = nullptr;
+    if (verit != vstidx2reg_map.end()) {
+      varreg = verit->second;
+    } else {
+      OriginalSt *pregOst = sym2reg_map[ost->GetIndex()];
+      varreg = meirmap->CreateRegMeExprVersion(*pregOst);
+      vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), varreg));
+    }
+    return varreg;
+  } else {
+    const OriginalSt *origOst = ost;
+    if (origOst->GetIndex() >= aliasclass->GetAliasElemCount()) {
+      return nullptr;
+    }
+    if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
+      return nullptr;
+    }
+    if (origOst->IsAddressTaken()) {
+      return nullptr;
+    }
+    AliasElem *aliaselem = GetAliasElem(origOst);
+    if (aliaselem && aliaselem->GetClassSet()) {
+      return nullptr;
+    }
+    RegMeExpr *curtemp = nullptr;
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirst->GetTyIdx());
+    if (ty->GetKind() != kTypeScalar && ty->GetKind() != kTypePointer) {
+      return nullptr;
+    }
+    curtemp = meirmap->CreateRegMeExpr(*ty);
+    OriginalSt *pregOst = ssaTab->GetOriginalStTable().CreatePregOriginalSt(curtemp->GetRegIdx(), func->GetMirFunc()->GetPuidx());
+    pregOst->SetIsFormal(ost->IsFormal());
+    sym2reg_map[ost->GetIndex()] = pregOst;
+    vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
+    if (ost->IsFormal()) {
+      uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
+      CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
+      if (!reg_formal_vec[parmindex]) {
+        reg_formal_vec[parmindex] = curtemp;
+      }
+    }
+    if (DEBUGFUNC(func)) {
+      ost->Dump();
+      LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
+      pregOst->Dump();
+      LogInfo::MapleLogger() << std::endl;
+    }
+    return curtemp;
+  }
+}
+
+void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist) {
+  if (mustdeflist.empty()) {
+    return;
+  }
+  CHECK_FATAL(mustdeflist.size() == 1, "NYI");
+  {
+    MustDefMeNode &mustdefmenode = mustdeflist.front();
+    MeExpr *melhs = mustdefmenode.GetLHS();
+    if (melhs->GetMeOp() != kMeOpVar) {
+      return;
+    };
+    VarMeExpr *lhs = static_cast<VarMeExpr *>(melhs);
+    SetupParmUsed(lhs);
+
+    RegMeExpr *varreg = RenameVar(lhs);
+    if (varreg != nullptr) {
+      mustdefmenode.UpdateLHS(*varreg);
+    }
+  }
+}
+
+// update regphinode operands
+void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode, const RegMeExpr *curtemp,
+                                  const VarMeExpr *lhs) {
+  // update phi's opnds
+  for (uint32 i = 0; i < mevarphinode->GetOpnds().size(); i++) {
+    ScalarMeExpr *opndexpr = mevarphinode->GetOpnds()[i];
+    ASSERT(opndexpr->GetOst()->GetIndex() == lhs->GetOst()->GetIndex(), "phi is not correct");
+    MapleUnorderedMap<int, RegMeExpr *>::iterator verit = vstidx2reg_map.find(opndexpr->GetExprID());
+    RegMeExpr *opndtemp = nullptr;
+    if (verit == vstidx2reg_map.end()) {
+      opndtemp = meirmap->CreateRegMeExprVersion(*curtemp);
+      vstidx2reg_map.insert(std::make_pair(opndexpr->GetExprID(), opndtemp));
+    } else {
+      opndtemp = verit->second;
+    }
+    regphinode->GetOpnds().push_back(opndtemp);
+  }
+}
+
+void SSARename2Preg::Rename2PregPhi(BB *mebb, MePhiNode *mevarphinode,
+       MapleMap<OStIdx, MePhiNode *> &regPhiList) {
+  VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode->GetLHS());
+  SetupParmUsed(lhs);
+  RegMeExpr *lhsreg = RenameVar(lhs);
+  if (lhsreg != nullptr) {
+    MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
+    regphinode->SetDefBB(mevarphinode->GetDefBB());
+    UpdateRegPhi(mevarphinode, regphinode, lhsreg, lhs);
+    regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
+  }
+}
+
+void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, VarMeExpr *varmeexpr) {
+  SetupParmUsed(varmeexpr);
+  RegMeExpr *varreg = RenameVar(varmeexpr);
+  if (varreg != nullptr) {
+    meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
+  }
+}
+
+void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, VarMeExpr *varmeexpr) {
+  SetupParmUsed(varmeexpr);
+  RegMeExpr *varreg = RenameVar(varmeexpr);
+  if (varreg != nullptr) {
+    Opcode desop = mestmt->GetOp();
+    CHECK_FATAL(desop == OP_dassign || desop == OP_maydassign, "NYI");
+    MeExpr *oldrhs = (desop == OP_dassign) ? (static_cast<DassignMeStmt *>(mestmt)->GetRHS())
+                                           : (static_cast<MaydassignMeStmt *>(mestmt)->GetRHS());
+    if (GetPrimTypeSize(oldrhs->GetPrimType()) > GetPrimTypeSize(varreg->GetPrimType())) {
+      // insert integer truncation
+      if (GetPrimTypeSize(varreg->GetPrimType()) >= 4) {
+        oldrhs = meirmap->CreateMeExprTypeCvt(varreg->GetPrimType(), oldrhs->GetPrimType(), *oldrhs);
+      } else {
+        Opcode extOp = IsSignedInteger(varreg->GetPrimType()) ? OP_sext : OP_zext;
+        PrimType newPrimType = PTY_u32;
+        if (IsSignedInteger(varreg->GetPrimType())) {
+          newPrimType = PTY_i32;
+        }
+        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+        opmeexpr.SetBitsSize(GetPrimTypeSize(varreg->GetPrimType()) * 8);
+        opmeexpr.SetOpnd(0, oldrhs);
+        oldrhs = meirmap->HashMeExpr(opmeexpr);
+      }
+    }
+    RegassignMeStmt *regssmestmt = meirmap->New<RegassignMeStmt>(varreg, oldrhs);
+    regssmestmt->CopyBase(*mestmt);
+    mestmt->GetBB()->InsertMeStmtBefore(mestmt, regssmestmt);
+    mestmt->GetBB()->RemoveMeStmt(mestmt);
+  }
+}
+
+void SSARename2Preg::SetupParmUsed(const VarMeExpr *varmeexpr) {
+  const OriginalSt *ost = varmeexpr->GetOst();
+  if (ost->IsFormal() && ost->IsSymbolOst()) {
+    const MIRSymbol *mirst = ost->GetMIRSymbol();
+    uint32 index = func->GetMirFunc()->GetFormalIndex(mirst);
+    parm_used_vec[index] = true;
+  }
+}
+
+// only handle the leaf of load, because all other expressions has been done by previous SSAPre
+void SSARename2Preg::Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr) {
+  MeExprOp meOp = meexpr->GetMeOp();
+  switch (meOp) {
+    case kMeOpIvar:
+    case kMeOpOp:
+    case kMeOpNary: {
+      for (int32 i = 0; i < meexpr->GetNumOpnds(); i++) {
+        Rename2PregExpr(mestmt, meexpr->GetOpnd(i));
+      }
+      break;
+    }
+    case kMeOpVar:
+      Rename2PregLeafRHS(mestmt, static_cast<VarMeExpr *>(meexpr));
+      break;
+    case kMeOpAddrof: {
+      AddrofMeExpr *addrofx = static_cast<AddrofMeExpr *>(meexpr);
+      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrofx->GetOstIdx());
+      if (ost->IsFormal()) {
+        const MIRSymbol *mirst = ost->GetMIRSymbol();
+        uint32 index = func->GetMirFunc()->GetFormalIndex(mirst);
+        parm_used_vec[index] = true;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return;
+}
+
+void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
+  Opcode op = stmt->GetOp();
+  switch (op) {
+    case OP_dassign:
+    case OP_maydassign: {
+      CHECK_FATAL(stmt->GetRHS() && stmt->GetVarLHS(), "null ptr check");
+      Rename2PregExpr(stmt, stmt->GetRHS());
+      Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
+      break;
+    }
+    case OP_callassigned:
+    case OP_virtualcallassigned:
+    case OP_virtualicallassigned:
+    case OP_superclasscallassigned:
+    case OP_interfacecallassigned:
+    case OP_interfaceicallassigned:
+    case OP_customcallassigned:
+    case OP_polymorphiccallassigned:
+    case OP_icallassigned:
+    case OP_intrinsiccallassigned:
+    case OP_xintrinsiccallassigned:
+    case OP_intrinsiccallwithtypeassigned: {
+      for (int32 i = 0; i < stmt->NumMeStmtOpnds(); i++) {
+        Rename2PregExpr(stmt, stmt->GetOpnd(i));
+      }
+      MapleVector<MustDefMeNode> *mustdeflist = stmt->GetMustDefList();
+      Rename2PregCallReturn(*mustdeflist);
+      break;
+    }
+    case OP_iassign: {
+      IassignMeStmt *ivarstmt = static_cast<IassignMeStmt *>(stmt);
+      Rename2PregExpr(stmt, ivarstmt->GetRHS());
+      Rename2PregExpr(stmt, ivarstmt->GetLHS()->GetBase());
+      break;
+    }
+    default:
+      for (int32 i = 0; i < stmt->NumMeStmtOpnds(); i++) {
+        Rename2PregExpr(stmt, stmt->GetOpnd(i));
+      }
+      break;
+  }
+}
+
+void SSARename2Preg::UpdateMirFunctionFormal() {
+  MIRFunction *mirFunc = func->GetMirFunc();
+  const MIRBuilder *mirbuilder = mirModule->GetMIRBuilder();
+  for (uint32 i = 0; i < mirFunc->GetFormalDefVec().size(); i++) {
+    if (!parm_used_vec[i]) {
+      // in this case, the paramter is not used by any statement, promote it
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunc->GetFormalDefVec()[i].formalTyIdx);
+      if (mirType->GetPrimType() != PTY_agg) {
+        PregIdx16 regIdx = mirFunc->GetPregTab()->CreatePreg(mirType->GetPrimType(), mirType->GetPrimType() == PTY_ref ? mirType : nullptr);
+        mirFunc->GetFormalDefVec()[i].formalSym = mirbuilder->CreatePregFormalSymbol(mirType->GetTypeIndex(), regIdx, *mirFunc);
+      }
+    } else {
+      RegMeExpr *regformal = reg_formal_vec[i];
+      if (regformal) {
+        PregIdx16 regIdx = regformal->GetRegIdx();
+        MIRSymbol *oldformalst = mirFunc->GetFormalDefVec()[i].formalSym;
+        MIRSymbol *newformalst = mirbuilder->CreatePregFormalSymbol(oldformalst->GetTyIdx(), regIdx, *mirFunc);
+        mirFunc->GetFormalDefVec()[i].formalSym = newformalst;
+      }
+    }
+  }
+}
+
+void SSARename2Preg::Init() {
+  uint32 formalsize = func->GetMirFunc()->GetFormalDefVec().size();
+  parm_used_vec.resize(formalsize);
+  reg_formal_vec.resize(formalsize);
+}
+
+void SSARename2Preg::RunSelf() {
+  Init();
+  for (BB *mebb : func->GetAllBBs()) {
+    if (mebb == nullptr) {
+      continue;
+    }
+    // rename the phi'ss
+    if (DEBUGFUNC(func)) {
+      LogInfo::MapleLogger() << " working on phi part of BB" << mebb->GetBBId() << std::endl;
+    }
+    MapleMap<OStIdx, MePhiNode *> &phiList = mebb->GetMePhiList();
+    MapleMap<OStIdx, MePhiNode *> regPhiList(func->GetIRMap()->GetIRMapAlloc().Adapter());
+    for (std::pair<const OStIdx, MePhiNode *> apair : phiList) {
+      if (!apair.second->UseReg()) {
+        Rename2PregPhi(mebb, apair.second, regPhiList);
+      }
+    }
+    phiList.insert(regPhiList.begin(), regPhiList.end());
+
+    if (DEBUGFUNC(func)) {
+      LogInfo::MapleLogger() << " working on stmt part of BB" << mebb->GetBBId() << std::endl;
+    }
+    for (MeStmt &stmt : mebb->GetMeStmts()) {
+      Rename2PregStmt(&stmt);
+    }
+  }
+
+  UpdateMirFunctionFormal();
+}
+
+void SSARename2Preg::PromoteEmptyFunction() {
+  Init();
+  UpdateMirFunctionFormal();
+}
+
+AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrMgr) {
+  MeIRMap *irMap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  ASSERT(irMap != nullptr, "");
+
+  MemPool *renamemp = memPoolCtrler.NewMemPool(PhaseName().c_str());
+  if (func->GetAllBBs().size() == 0) {
+    // empty function, we only promote the parameter
+    SSARename2Preg emptyrenamer(renamemp, func, nullptr, nullptr);
+    emptyrenamer.PromoteEmptyFunction();
+    memPoolCtrler.DeleteMemPool(renamemp);
+    return nullptr;
+  }
+
+  AliasClass *aliasclass = static_cast<AliasClass *>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+  ASSERT(aliasclass != nullptr, "");
+
+  SSARename2Preg ssarename2preg(renamemp, func, irMap, aliasclass);
+  ssarename2preg.RunSelf();
+  if (DEBUGFUNC(func)) {
+    irMap->Dump();
+  }
+  memPoolCtrler.DeleteMemPool(renamemp);
 
   return nullptr;
 }
 
-std::string MeDoSSARename2Preg::PhaseName() const {
-  return SSARename2Preg::PhaseName();
-}
 }  // namespace maple
-

@@ -71,21 +71,22 @@ void RCLowering::MarkAllRefOpnds() {
   // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
   for (auto bIt = func.valid_begin(), eIt = func.valid_end(); bIt != eIt; ++bIt) {
     for (auto &stmt : (*bIt)->GetMeStmts()) {
-      MeExpr *lhsRef = stmt.GetLHSRef(ssaTab, false);
+      MeExpr *lhsRef = stmt.GetLHSRef(false);
       if (lhsRef == nullptr) {
         continue;
       }
       if (lhsRef->GetMeOp() == kMeOpVar) {
         auto *var = static_cast<VarMeExpr*>(lhsRef);
-        cleanUpVars[var->GetOst()->GetIndex()] = var;
-        ssaTab.UpdateVarOstMap(var->GetOst()->GetIndex(), varOStMap);
+        const OStIdx &ostIdx = var->GetOstIdx();
+        cleanUpVars[ostIdx] = var;
+        ssaTab.UpdateVarOstMap(ostIdx, varOStMap);
       }
       stmt.EnableNeedDecref();
       MeExpr *rhs = stmt.GetRHS();
       if (rhs == nullptr) {
         continue;
       }
-      if (rhs->PointsToSomethingThatNeedsIncRef(ssaTab)) {
+      if (rhs->PointsToSomethingThatNeedsIncRef()) {
         stmt.EnableNeedIncref();
       } else {
         stmt.DisableNeedIncref();
@@ -233,7 +234,7 @@ void RCLowering::HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
   if (lhs->GetMeOp() != kMeOpVar) {
     return;
   }
-  auto *ost = ssaTab.GetOriginalStFromID(static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex());
+  auto *ost = static_cast<VarMeExpr*>(lhs)->GetOst();
   if (!ost->IsSymbolOst()) {
     return;
   }
@@ -287,7 +288,7 @@ bool RCLowering::RCFirst(MeExpr &rhs) {
   }
   if (rhs.GetMeOp() == kMeOpVar) {
     auto &rhsVar = static_cast<VarMeExpr&>(rhs);
-    const MIRSymbol *sym = ssaTab.GetMIRSymbolFromID(rhsVar.GetOst()->GetIndex());
+    const MIRSymbol *sym = rhsVar.GetOst()->GetMIRSymbol();
     return sym->IsLocal();
   }
   return rhs.GetMeOp() == kMeOpReg;
@@ -335,7 +336,7 @@ void RCLowering::HandleAssignMeStmtRegLHS(MeStmt &stmt) {
 }
 
 void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
-  const MIRSymbol *lsym = stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
+  const MIRSymbol *lsym =stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
   if (lsym->IsGlobal()) {
     // decref could be optimized away after if null check
     HandleAssignToGlobalVar(stmt);
@@ -614,7 +615,7 @@ void RCLowering::BBLower(BB &bb) {
   needSpecialHandleException = bb.GetAttributes(kBBAttrIsCatch);
   for (auto &stmt : bb.GetMeStmts()) {
     if ((func.GetHints() & kAnalyzeRCed) == 0) {
-      pendingDec = stmt.GetLHSRef(ssaTab, false);
+      pendingDec = stmt.GetLHSRef(false);
     }
     Opcode opcode = stmt.GetOp();
     if (opcode == OP_return) {
@@ -958,7 +959,7 @@ void RCLowering::ReplaceDecResetWithDec(MeStmt &prevStmt, const MeStmt &stmt) {
   auto *addrofMeExpr = static_cast<AddrofMeExpr*>(stmt.GetOpnd(0));
   ASSERT_NOT_NULL(addrofMeExpr);
   auto *dass = static_cast<DassignMeStmt*>(&prevStmt);
-  if (dass->GetRHS()->GetMeOp() != kMeOpReg || dass->GetVarLHS()->GetOst()->GetIndex() != addrofMeExpr->GetOstIdx()) {
+  if (dass->GetRHS()->GetMeOp() != kMeOpReg || dass->GetVarLHS()->GetOstIdx() != addrofMeExpr->GetOstIdx()) {
     return;
   }
   BB *bb = stmt.GetBB();
@@ -997,11 +998,11 @@ VarMeExpr *RCLowering::CreateNewTmpVarMeExpr(bool isLocalRefVar) {
   std::string name = std::string("__RCTemp__").append(std::to_string(++tmpCount));
   OriginalSt *ost = RetrieveOSt(name, isLocalRefVar);
   if (ost->GetZeroVersionIndex() == 0) {
-    ost->SetZeroVersionIndex(irMap.GetVerst2MeExprTableSize());
-    irMap.PushBackVerst2MeExprTable(nullptr);
+    ost->SetZeroVersionIndex(irMap.GetVerst2MeExprTable().size());
+    irMap.GetVerst2MeExprTable().push_back(nullptr);
     ost->PushbackVersionIndex(ost->GetZeroVersionIndex());
   }
-  VarMeExpr *varMeExpr = irMap.CreateNewVarMeExpr(ost, PTY_ref);
+  VarMeExpr *varMeExpr = irMap.CreateVarMeExprVersion(ost);
   if (isLocalRefVar) {
     tmpLocalRefVars.insert(varMeExpr);
   }

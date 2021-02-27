@@ -74,7 +74,7 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     phi->SetIsLive(true);  // always make it live, for correctness
     if (phi->GetLHS() == nullptr) {
       // create a new VarMeExpr defined by this phi
-      VarMeExpr *newVar = irMap.CreateNewVarMeExpr(ssaTab.GetOriginalStFromID(it2->first), ssaTab.GetPrimType(it2->first));
+      VarMeExpr *newVar = irMap.CreateVarMeExprVersion(ssaTab.GetOriginalStFromID(it2->first));
       phi->UpdateLHS(*newVar);
       it1->second->push(newVar);  // push the stack
     } else {
@@ -89,7 +89,7 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
   switch (meExpr.GetMeOp()) {
     case kMeOpVar: {
       auto &varExpr = static_cast<VarMeExpr&>(meExpr);
-      auto it = renameStacks.find(varExpr.GetOst()->GetIndex());
+      auto it = renameStacks.find(varExpr.GetOstIdx());
       if (it == renameStacks.end()) {
         return &meExpr;
       }
@@ -200,7 +200,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       continue;
     }
     CHECK_FATAL(lhsVar != nullptr, "stmt doesn't have lhs?");
-    auto it = renameStacks.find(lhsVar->GetOst()->GetIndex());
+    auto it = renameStacks.find(lhsVar->GetOstIdx());
     if (it == renameStacks.end()) {
       continue;
     }
