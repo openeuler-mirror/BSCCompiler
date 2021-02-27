@@ -167,7 +167,7 @@ class AArch64MemLayout : public MemLayout {
     segGrSaveArea.SetSize(sz);
   }
 
-  int32 GetSizeOfGRSaveArea() {
+  int32 GetSizeOfGRSaveArea() const {
     return segGrSaveArea.GetSize();
   }
 
@@ -175,7 +175,7 @@ class AArch64MemLayout : public MemLayout {
     segVrSaveArea.SetSize(sz);
   }
 
-  int32 GetSizeOfVRSaveArea() {
+  int32 GetSizeOfVRSaveArea() const {
     return segVrSaveArea.GetSize();
   }
 
@@ -195,6 +195,7 @@ class AArch64MemLayout : public MemLayout {
   MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
   MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
   int32 fixStackSize = 0;
+  void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align);
   void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx);
   void LayoutVarargParams();
   void LayoutFormalParams();
