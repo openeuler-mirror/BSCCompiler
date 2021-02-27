@@ -428,10 +428,10 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   }
   Insn *insn = nullptr;
   uint32 ssize = src.GetSize();
-  if (!IsPrimitiveFloat(stype)) {
+  if (IsPrimitiveFloat(stype)) {
+    CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
     insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
   } else {
-    CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
     insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
   }
 
@@ -3061,7 +3061,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
       } else if ((operatorCode == kIOR) || (operatorCode == kEOR)) {
         SelectCopy(resOpnd, primType, opnd0, primType);
       }
-    } else if (immOpnd->IsAllOnes()) {
+    } else if ((is64Bits && immOpnd->IsAllOnes()) || (!is64Bits && immOpnd->IsAllOnes32bit())) {
       if (operatorCode == kAND) {
         SelectCopy(resOpnd, primType, opnd0, primType);
       } else if (operatorCode == kIOR) {

@@ -117,7 +117,12 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   SetStructFieldCount(structType.GetTypeIndex(), fields.size());
   if (fields.size() == 0 && mirModule.IsCModule()) {
     SetTypeAlign(tyIdx.GetIdx(), 1);
-    SetTypeSize(tyIdx.GetIdx(), 1);
+    if (structType.IsCPlusPlus()) {
+      SetTypeSize(tyIdx.GetIdx(), 1);
+    } else {
+      /* empty struct is not supported in C, but gcc allows for it as size 0 */
+      SetTypeSize(tyIdx.GetIdx(), 0);
+    }
     return;
   }
   for (size_t j = 0; j < fields.size(); ++j) {
@@ -160,7 +165,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
      * Last struct element of a struct with more than one member
      * is a flexible array if it is an array of size 0.
      */
-    if ((j != 0) && ((j+1) == fields.size()) &&
+    if ((j != 0) && ((j + 1) == fields.size()) &&
         (fieldType->GetKind() == kTypeArray) &&
         (GetTypeSize(fieldTyIdx.GetIdx()) == 0)) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
@@ -611,7 +616,7 @@ void BECommon::AddElementToJClassLayout(MIRClassType &klass, JClassFieldInfo inf
   layout.emplace_back(info);
 }
 
-void BECommon::AddElementToFuncReturnType(MIRFunction &func, TyIdx tyIdx) {
+void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) {
   TyIdx &ty = funcReturnType.at(&func);
   ty = tyIdx;
 }
@@ -633,6 +638,15 @@ MIRType *BECommon::BeGetOrCreateFunctionType(TyIdx tyIdx, const std::vector<TyId
   }
   AddAndComputeSizeAlign(*newType);
   return newType;
+}
+
+void BECommon::FinalizeTypeTable() {
+  if (mirModule.GetSrcLang() == kSrcLangC && (GlobalTables::GetTypeTable().GetTypeTableSize() > GetSizeOfTypeSizeTable())) {
+    for (uint32 i = GetSizeOfTypeSizeTable(); i < GlobalTables::GetTypeTable().GetTypeTableSize(); ++i) {
+      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
+      AddAndComputeSizeAlign(*ty);
+    }
+  }
 }
 
 BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
