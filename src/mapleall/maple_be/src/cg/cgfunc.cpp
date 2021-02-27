@@ -1119,6 +1119,7 @@ void CGFunc::HandleFunction() {
   }
   MarkCleanupEntryBB();
   DetermineReturnTypeofCall();
+  theCFG->MarkLabelTakenBB();
   theCFG->UnreachCodeAnalysis();
   SplitStrLdrPair();
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
