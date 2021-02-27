@@ -28,7 +28,7 @@ function debug_test {
 
 function release_test {
     source build/envsetup.sh arm release
-    
+
     make clean
 
     make
@@ -79,11 +79,6 @@ function release_test {
 }
 
 function main {
-    if [ -z "$MAPLE_ROOT" ]; then
-        echo "Please \"source build/envsetup.sh\" to setup environment"
-        exit 1
-    fi
-
     debug_test
 
     release_test
