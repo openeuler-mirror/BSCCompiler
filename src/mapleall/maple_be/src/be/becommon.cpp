@@ -151,6 +151,9 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
         allocedSizeInBits += fieldSize;
         allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) /
                                             kBitsPerByte);
+        if (fieldSize == 0) {
+          allocedSizeInBits = allocedSize *8;
+        }
       } else {
         /* pad alloced_size according to the field alignment */
         allocedSize = RoundUp(allocedSize, fieldAlign);
