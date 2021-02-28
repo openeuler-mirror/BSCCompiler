@@ -152,7 +152,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
         allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) /
                                             kBitsPerByte);
         if (fieldSize == 0) {
-          allocedSizeInBits = allocedSize *8;
+          allocedSizeInBits = allocedSize * kBitsPerByte;
         }
       } else {
         /* pad alloced_size according to the field alignment */
@@ -644,7 +644,8 @@ MIRType *BECommon::BeGetOrCreateFunctionType(TyIdx tyIdx, const std::vector<TyId
 }
 
 void BECommon::FinalizeTypeTable() {
-  if (mirModule.GetSrcLang() == kSrcLangC && (GlobalTables::GetTypeTable().GetTypeTableSize() > GetSizeOfTypeSizeTable())) {
+  if (mirModule.GetSrcLang() == kSrcLangC &&
+      (GlobalTables::GetTypeTable().GetTypeTableSize() > GetSizeOfTypeSizeTable())) {
     for (uint32 i = GetSizeOfTypeSizeTable(); i < GlobalTables::GetTypeTable().GetTypeTableSize(); ++i) {
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
       AddAndComputeSizeAlign(*ty);

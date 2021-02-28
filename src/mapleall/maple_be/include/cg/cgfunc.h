@@ -801,7 +801,7 @@ class CGFunc {
     return lSymSize;
   }
 
-  bool HasTakenLabel() {
+  bool HasTakenLabel() const{
     return hasTakenLabel;
   }
 

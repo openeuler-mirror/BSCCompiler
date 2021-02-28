@@ -269,10 +269,10 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
 
   for (uint32 i = 0; i < aarchCGFunc->GetFunction().GetFormalCount(); ++i) {
     if (i == 0) {
-      MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+      MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
       if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
         TyIdx idx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
-        if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= 16) {
+        if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
           continue;
         }
       }

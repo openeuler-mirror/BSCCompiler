@@ -2233,7 +2233,8 @@ void Emitter::EmitGlobalVariable() {
         } else {
           EmitArrayConstant(*mirConst);
         }
-      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass || mirType->GetKind() == kTypeUnion) {
+      } else if (mirType->GetKind() == kTypeStruct || mirType->GetKind() == kTypeClass ||
+                 mirType->GetKind() == kTypeUnion) {
         if (mirSymbol->HasAddrOfValues()) {
           EmitConstantTable(*mirSymbol, *mirConst, strIdx2Type);
         } else {
@@ -2267,7 +2268,8 @@ void Emitter::EmitGlobalVariable() {
       } else if (kTypeArray == mirType->GetKind()) {
         EmitAsmLabel(*mirSymbol, kAsmSyname);
         EmitArrayConstant(*ct);
-      } else if (kTypeStruct == mirType->GetKind() || kTypeClass == mirType->GetKind() || kTypeUnion == mirType->GetKind()) {
+      } else if (kTypeStruct == mirType->GetKind() || kTypeClass == mirType->GetKind() ||
+                 kTypeUnion == mirType->GetKind()) {
         EmitAsmLabel(*mirSymbol, kAsmSyname);
         EmitStructConstant(*ct);
       } else {

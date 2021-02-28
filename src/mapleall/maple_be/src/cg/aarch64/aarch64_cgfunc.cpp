@@ -5226,19 +5226,19 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
 
 uint32 AArch64CGFunc::SelectParmListGetStructReturnSize(StmtNode &naryNode) {
   if (naryNode.GetOpCode() == OP_call) {
-    CallNode &callNode = static_cast<CallNode &>(naryNode);
+    CallNode &callNode = static_cast<CallNode&>(naryNode);
     MIRFunction *callFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode.GetPUIdx());
     TyIdx retIdx = callFunc->GetReturnTyIdx();
     if ((GetBecommon().GetTypeSize(retIdx.GetIdx()) == 0) && GetBecommon().HasFuncReturnType(*callFunc)) {
       return GetBecommon().GetTypeSize(GetBecommon().GetFuncReturnType(*callFunc));
     }
   } else if (naryNode.GetOpCode() == OP_icall) {
-    IcallNode &icallNode = static_cast<IcallNode &>(naryNode);
+    IcallNode &icallNode = static_cast<IcallNode&>(naryNode);
     CallReturnVector *p2nrets = &icallNode.GetReturnVec();
-    if (p2nrets->size() == 1) {
+    if (p2nrets->size() == k1ByteSize) {
       StIdx stIdx = (*p2nrets)[0].first;
       MIRSymbol *sym = GetBecommon().GetMIRModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
-      if (sym) {
+      if (sym != nullptr) {
         return GetBecommon().GetTypeSize(sym->GetTyIdx().GetIdx());
       }
     }
