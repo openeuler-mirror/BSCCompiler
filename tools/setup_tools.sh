@@ -134,26 +134,14 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
 fi
 
 # install qemu-user 2.5.0
-installQemu="false";
-if [ ! -f /usr/bin/qemu-aarch64 ]; then
-  installQemu="true";
-else
-  version=`/usr/bin/qemu-aarch64 -version | sed "s/^.*version.\([0-9.]*\).*/\1/" | head -1`
-  if [ "$version" != "2.5.0" ]; then
-    installQemu="true";
-  fi
-fi
-if [ "$installQemu" == "true" ]; then
+if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
   git clone https://gitee.com/hu-_-wen/qemu.git
   cd qemu
-  echo Install qemu-aarch64 ...
-  # use the following to make sure only the specific version of qemu-user is isstalled
-  # the first version sometimes insists to install the system default qemu-user.
-  # sudo apt install ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb
-  sudo dpkg -i ./qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb || sudo apt install -f
+  mkdir -p package
+  dpkg-deb -R qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb package
   echo Installed qemu-aarch64
 fi
 

@@ -101,6 +101,9 @@ install: maple dex2mpl_install irbuild
 	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
 	rsync -a -L $(MAPLE_BIN_DIR)/jbc2mpl $(INSTALL_DIR)/bin/;)
 
+.PHONY: all
+all: install mplfe libcore
+
 ifeq ($(OPS_ANDROID),0)
 .PHONY: dex2mpl_install
 dex2mpl_install:
