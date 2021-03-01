@@ -19,6 +19,16 @@ LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 
 CLANG_PATH := $(MAPLE_ROOT)/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
+ifdef OLD_OS
+  ifeq ($(OLD_OS), 0)
+    CLANG_PATH := /usr
+  endif
+endif
+
+ifndef OPS_ANDROID
+  OPS_ANDROID := 0
+endif
+
 ANDROID_GCC_PATH := $(MAPLE_ROOT)/tools/gcc
 ANDROID_CLANG_PATH := $(MAPLE_ROOT)/tools/clang-r353983c
 GCC_LINARO_PATH := $(MAPLE_ROOT)/tools/gcc-linaro-7.5.0
