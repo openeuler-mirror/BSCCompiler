@@ -195,7 +195,7 @@ class AArch64MemLayout : public MemLayout {
   MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
   MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
   int32 fixStackSize = 0;
-  void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align);
+  void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const;
   void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx);
   void LayoutVarargParams();
   void LayoutFormalParams();

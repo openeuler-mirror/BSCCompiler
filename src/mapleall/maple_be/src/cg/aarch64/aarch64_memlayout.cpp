@@ -51,7 +51,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   }
 
   aggCopySize = 0;
-  for (uint32 anum = 0; i < stmt.NumOpnds(); ++i, ++ anum) {
+  for (uint32 anum = 0; i < stmt.NumOpnds(); ++i, ++anum) {
     BaseNode *opnd = stmt.Opnd(i);
     MIRType *ty = nullptr;
     if (opnd->GetPrimType() != PTY_agg) {
@@ -97,9 +97,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   return sizeOfArgsToStkPass;
 }
 
-void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) {
+void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const {
   if (be.GetTypeSize(typeIdx) > k16ByteSize) {
-    // size > 16 is passed on stack, the formal is just a pointer to the copy on stack.
+    /* size > 16 is passed on stack, the formal is just a pointer to the copy on stack. */
     align = kSizeOfPtr;
     size = kSizeOfPtr;
   } else {

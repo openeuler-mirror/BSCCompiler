@@ -361,7 +361,7 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd) {
 }
 }  /* namespace AArch64Abi */
 
-void ParmLocator::InitPLocInfo(PLocInfo &pLoc) {
+void ParmLocator::InitPLocInfo(PLocInfo &pLoc) const {
   pLoc.reg0 = kRinvalid;
   pLoc.reg1 = kRinvalid;
   pLoc.memOffset = nextStackArgAdress;

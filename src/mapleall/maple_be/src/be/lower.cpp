@@ -512,7 +512,7 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   MIRSymbol *retSt = curFunc->GetFormal(0);
   MIRPtrType *retTy = static_cast<MIRPtrType*>(retSt->GetType());
   IassignNode *iassign = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
-  if (beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) > k16ByteSize || !opnd0 || opnd0->GetPrimType() != PTY_agg) {
+  if ((beCommon.GetTypeSize(retTy->GetPointedTyIdx().GetIdx()) > k16ByteSize) || (opnd0->GetPrimType() != PTY_agg)) {
     iassign->SetTyIdx(retTy->GetTypeIndex());
   } else {
     /* struct goes into register. */
@@ -924,7 +924,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       auto &origCall = static_cast<IcallNode&>(stmt);
       newCall = GenIcallNode(funcCalled, origCall);
       p2nRets = &origCall.GetReturnVec();
-      static_cast<IcallNode *>(newCall)->SetReturnVec(*p2nRets);
+      static_cast<IcallNode*>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     default:

@@ -18,7 +18,7 @@
 #include "operand.h"
 #include "mad.h"
 
-#define DEFINE_MOP(op,...) op,
+#define DEFINE_MOP(op, ...) op,
 enum AArch64MOP_t : maple::uint32 {
 #include "aarch64_md.def"
   kMopLast
