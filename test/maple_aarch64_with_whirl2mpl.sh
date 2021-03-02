@@ -23,9 +23,9 @@ rel=`realpath --relative-to=$MAPLE_ROOT $CURRDIR`
 dir=$1
 src=$2
 if [ $# -le 2 ]; then
-  dump=0
+  verbose=0
 else
-  dump=$3
+  verbose=$3
 fi
 
 WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_whirl2mpl
@@ -58,7 +58,7 @@ qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out > output.log
 
 cat cmd.log >> allcmd.log
 
-if [ $dump -eq 1 ]; then
+if [ $verbose -eq 1 ]; then
   cat cmd.log
   cat output.log
 fi
