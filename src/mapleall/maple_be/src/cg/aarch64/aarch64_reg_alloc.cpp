@@ -123,7 +123,10 @@ Operand *AArch64RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (!regOpnd.IsVirtualRegister()) {
     auto reg = static_cast<AArch64reg>(regOpnd.GetRegisterNumber());
     availRegSet[reg] = true;
-    ReleaseReg(reg);
+    uint32 id = GetRegLivenessId(&regOpnd);
+    if (id && (id <= insn.GetId())) {
+      ReleaseReg(reg);
+    }
     return &opnd;
   }
 
@@ -132,14 +135,20 @@ Operand *AArch64RegAllocator::AllocDestOpnd(Operand &opnd, const Insn &insn) {
   if (regMapIt != regMap.end()) {
     AArch64reg reg = regMapIt->second;
     if (!insn.IsCondDef()) {
-      ReleaseReg(reg);
+      uint32 id = GetRegLivenessId(&regOpnd);
+      if (id && (id <= insn.GetId())) {
+        ReleaseReg(reg);
+      }
     }
   } else {
     /* AllocatePhysicalRegister insert a mapping from vreg no to phy reg no into regMap */
     if (AllocatePhysicalRegister(regOpnd)) {
       regMapIt = regMap.find(regOpnd.GetRegisterNumber());
       if (!insn.IsCondDef()) {
-        ReleaseReg(regMapIt->second);
+        uint32 id = GetRegLivenessId(&regOpnd);
+        if (id && (id <= insn.GetId())) {
+          ReleaseReg(regMapIt->second);
+        }
       }
     } else {
       /* For register spill. use 0 register as spill register */
@@ -519,9 +528,40 @@ void AArch64RegAllocator::ComputeBlockOrder() {
   }
 }
 
+uint32 AArch64RegAllocator::GetRegLivenessId(Operand *opnd) {
+  auto regIt = regLiveness.find(opnd);
+  return ((regIt == regLiveness.end()) ? 0 : regIt->second);
+}
+
+void AArch64RegAllocator::SetupRegLiveness(BB *bb) {
+  regLiveness.clear();
+
+  uint32 id = 1;
+  FOR_BB_INSNS_REV(insn, bb) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    insn->SetId(id);
+    id++;
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    uint32 opndNum = insn->GetOperandSize();
+    for (uint32 i = 0; i < opndNum; i++) {
+      Operand &opnd = insn->GetOperand(i);
+      AArch64OpndProp *aarch64Opndprop = static_cast<AArch64OpndProp *>(md->operand[i]);
+      if (!aarch64Opndprop->IsRegDef()) {
+        continue;
+      }
+      if (opnd.IsRegister()) {
+        regLiveness[&opnd] = insn->GetId();
+      }
+    }
+  }
+}
+
 bool DefaultO0RegAllocator::AllocateRegisters() {
   InitAvailReg();
   PreAllocate();
+  cgFunc->SetIsAfterRegAlloc();
 
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   /*
@@ -537,6 +577,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       continue;
     }
 
+    SetupRegLiveness(bb);
     FOR_BB_INSNS_REV(insn, bb) {
       if (!insn->IsMachineInstruction()) {
         continue;
@@ -564,7 +605,10 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
             regno_t regNO = regOpnd.GetRegisterNumber();
             rememberRegs.push_back(static_cast<AArch64reg>(regOpnd.IsVirtualRegister() ? regMap[regNO] : regNO));
           } else if (!insn->IsCondDef()) {
-            ReleaseReg(regOpnd);
+            uint32 id = GetRegLivenessId(&regOpnd);
+            if (id && (id <= insn->GetId())) {
+              ReleaseReg(regOpnd);
+            }
           }
           insn->SetOperand(i, a64CGFunc->GetOrCreatePhysicalRegisterOperand(
               regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
