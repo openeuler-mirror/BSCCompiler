@@ -437,15 +437,16 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
   for (int i = 0; i < len; i++) {
     /* Referred to GNU AS: 3.6.1.1 Strings */
     constexpr int kBufSize = 5;
+    constexpr int kFirstChar = 0;
     constexpr int kSecondChar = 1;
     constexpr int kThirdChar = 2;
     constexpr int kLastChar = 4;
     char buf[kBufSize];
     if (isprint(*str)) {
-      buf[0] = *str;
+      buf[kFirstChar] = *str;
       buf[kSecondChar] = 0;
       if (*str == '\\' || *str == '\"') {
-        buf[0] = '\\';
+        buf[kFirstChar] = '\\';
         buf[kSecondChar] = *str;
         buf[kThirdChar] = 0;
       }
@@ -459,7 +460,7 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
     } else if (*str == '\t') {
       Emit("\\t");
     } else if (*str == '\0') {
-      buf[0] = '\\';
+      buf[kFirstChar] = '\\';
       buf[kSecondChar] = '0';
       buf[kThirdChar] = 0;
       Emit(buf);
@@ -484,49 +485,19 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
 void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   if (isIndirect) {
     uint32 strId = mirStrConst.GetValue().GetIdx();
-    std::vector<UStrIdx> &sPtr = GetStringPtr();
-    if (sPtr[strId] == 0) {
-      sPtr[strId] = mirStrConst.GetValue();
+    if (stringPtr[strId] == 0) {
+      stringPtr[strId] = mirStrConst.GetValue();
     }
     Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
     return;
   }
-  Emit("\t.string \"");
-  /*
-   * don't expand special character in a writeout to .s,
-   * convert all \s to \\s in std::string for storing in .string
-   */
-  const char *str = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue()).c_str();
+
+  const std::string ustr = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue());
+  size_t len = ustr.size();
   if (isFlexibleArray) {
-    arraySize += static_cast<uint32>(strlen(str)) + k1ByteSize;
+    arraySize += len + 1;
   }
-  constexpr int bufSize = 6;
-  while (*str) {
-    char buf[bufSize];
-    if (isprint(*str)) {
-      buf[0] = *str;
-      buf[1] = 0;
-      Emit(buf);
-    } else if (*str == '\n') {
-      Emit("\\n");
-    } else if (*str == '\t') {
-      Emit("\\t");
-    } else {
-      /*
-       * all others, print as number
-       * fetch  str's lower 8 bit data
-       */
-      int ret = snprintf_s(buf, sizeof(buf), bufSize - 1, "\\\\x%02x",
-                           static_cast<uint32>(static_cast<unsigned char>(*str)) & 0xFF);
-      if (ret < 0) {
-        FATAL(kLncFatal, "snprintf_s failed");
-      }
-      buf[bufSize - 1] = '\0';
-      Emit(buf);
-    }
-    str++;
-  }
-  Emit("\"");
+  EmitStr(ustr, false, false);
 }
 
 void Emitter::EmitStr16Constant(const MIRStr16Const &mirStr16Const) {
