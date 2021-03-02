@@ -2306,28 +2306,34 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
 Operand &AArch64CGFunc::SelectCGArrayElemAdd(BinaryNode &node) {
   BaseNode *opnd0 = node.Opnd(0);
   BaseNode *opnd1 = node.Opnd(1);
-  ASSERT(opnd0->GetOpCode() == OP_addrof, "Internal error, opnd0->op should be OP_addrof.");
   ASSERT(opnd1->GetOpCode() == OP_constval, "Internal error, opnd1->op should be OP_constval.");
 
-  /* OP_addrof */
-  AddrofNode *addrofNode = static_cast<AddrofNode*>(opnd0);
-  MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
-  ASSERT(addrofNode->GetFieldID() == 0, "For debug SelectCGArrayElemAdd.");
+  switch (opnd0->op) {
+  case OP_regread: {
+    RegreadNode *regreadNode = static_cast<RegreadNode *>(opnd0);
+    return *SelectRegread(*regreadNode);
+  }
+  case OP_addrof: {
+    AddrofNode *addrofNode = static_cast<AddrofNode *>(opnd0);
+    MIRSymbol &symbol = *mirModule.CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
+    ASSERT(addrofNode->GetFieldID() == 0, "For debug SelectCGArrayElemAdd.");
 
-  PrimType pType = addrofNode->GetPrimType();
-  regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(pType));
-  Operand &result = CreateVirtualRegisterOperand(vRegNO);
+    PrimType primType = addrofNode->GetPrimType();
+    regno_t vRegNo = NewVReg(kRegTyInt, GetPrimTypeSize(primType));
+    Operand &result = CreateVirtualRegisterOperand(vRegNo);
 
-  /* OP_constval */
-  ConstvalNode *constvalNode = static_cast<ConstvalNode*>(opnd1);
-  MIRConst *mirConst = constvalNode->GetConstVal();
-  ASSERT(mirConst != nullptr, "nullptr check");
-  CHECK_FATAL(mirConst->GetKind() == kConstInt, "expect Constint Type");
-  MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(mirConst);
-  SelectAddrof(result, CreateStImmOperand(*symbol, mirIntConst->GetValue(), 0));
+    // OP_constval
+    ConstvalNode *constvalNode = static_cast<ConstvalNode *>(opnd1);
+    MIRConst *mirConst = constvalNode->GetConstVal();
+    MIRIntConst *mirIntConst = static_cast<MIRIntConst *>(mirConst);
+    SelectAddrof(result, CreateStImmOperand(symbol, mirIntConst->GetValue(), 0));
 
-  return result;
-}
+    return result;
+  }
+  default:
+    CHECK_FATAL(0, "Internal error, cannot handle opnd0.");
+  }
+	}
 
 void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
   Operand::OperandType opnd1Type = opnd1.GetKind();
