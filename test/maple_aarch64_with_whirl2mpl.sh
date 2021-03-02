@@ -18,23 +18,26 @@ set -e
 [ -n "$MAPLE_ROOT" ] || { echo MAPLE_ROOT not set. Please source envsetup.sh.; exit 1; }
 
 CURRDIR=`pwd`
-WORKDIR=$CURRDIR/aarch64_use_whirl2mpl
+rel=`realpath --relative-to=$MAPLE_ROOT $CURRDIR`
+
+dir=$1
+src=$2
+if [ $# -le 2 ]; then
+  dump=0
+else
+  dump=$3
+fi
+
+WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_whirl2mpl
 
 mkdir -p $WORKDIR
+cp $dir/$src.c $WORKDIR
 cd $WORKDIR
 
 echo ======================================================================== > cmd.log
 echo ============= Use clangfe/whirl2mpl as C Frontend ======================= >> cmd.log
 echo ======================================================================== >> cmd.log
 echo cd $WORKDIR >> cmd.log
-
-if [ $# -eq 0 ]; then
-  src=printHuawei
-else
-  src=$1
-fi
-
-cp $CURRDIR/$src.c .
 
 V=$(cd /usr/lib/gcc-cross/aarch64-linux-gnu/; ls | head -1)
 FLAGS="-cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/$V/include"
@@ -53,7 +56,10 @@ echo /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s >> cmd.log
 echo qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out >> cmd.log
 qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out > output.log
 
-if [ $# -eq 0 ]; then
+cat cmd.log >> allcmd.log
+
+if [ $dump -eq 1 ]; then
   cat cmd.log
   cat output.log
 fi
+
