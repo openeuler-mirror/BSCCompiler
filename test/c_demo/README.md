@@ -27,4 +27,4 @@ Besides maple compiler, included are processes using C front end tools:
 #### 使用说明
   run the following scripts for details
 
-  ./maple_aarch64_with_whirl2mpl.sh
+  ../maple_aarch64_with_whirl2mpl.sh . printHuawei 1
