@@ -5064,7 +5064,7 @@ void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *s
 }
 
 void AArch64CGFunc::CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds) {
-  AArch64RegOperand parmOpnd = GetOrCreatePhysicalRegisterOperand(reg, k64BitSize, kRegTyInt);
+  AArch64RegOperand &parmOpnd = GetOrCreatePhysicalRegisterOperand(reg, k64BitSize, kRegTyInt);
   GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), parmOpnd, memOpnd));
   srcOpnds.PushOpnd(parmOpnd);
 }
