@@ -115,9 +115,14 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   uint64 allocedSize = 0;
   uint64 allocedSizeInBits = 0;
   SetStructFieldCount(structType.GetTypeIndex(), fields.size());
-  if (fields.size() == 0 && mirModule.IsCModule()) {
-    SetTypeAlign(tyIdx.GetIdx(), 1);
-    SetTypeSize(tyIdx.GetIdx(), 1);
+  if (fields.size() == 0) {
+    if (structType.IsCPlusPlus()) {
+      SetTypeSize(tyIdx.GetIdx(), 1); // empty struct in C++ has size 1
+      SetTypeAlign(tyIdx.GetIdx(), 1);
+    } else {
+      SetTypeSize(tyIdx.GetIdx(), 0);
+      SetTypeAlign(tyIdx.GetIdx(), 8);
+    }
     return;
   }
   for (size_t j = 0; j < fields.size(); ++j) {
@@ -160,7 +165,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
      * Last struct element of a struct with more than one member
      * is a flexible array if it is an array of size 0.
      */
-    if ((j != 0) && ((j+1) == fields.size()) &&
+    if ((j != 0) && ((j + 1) == fields.size()) &&
         (fieldType->GetKind() == kTypeArray) &&
         (GetTypeSize(fieldTyIdx.GetIdx()) == 0)) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
@@ -611,7 +616,7 @@ void BECommon::AddElementToJClassLayout(MIRClassType &klass, JClassFieldInfo inf
   layout.emplace_back(info);
 }
 
-void BECommon::AddElementToFuncReturnType(MIRFunction &func, TyIdx tyIdx) {
+void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) {
   TyIdx &ty = funcReturnType.at(&func);
   ty = tyIdx;
 }

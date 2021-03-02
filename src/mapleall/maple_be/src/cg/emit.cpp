@@ -243,6 +243,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
   } else {
     symName = mirSymbol.GetName();
   }
+
   if (Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeAlignTable()) {
     ASSERT(false, "container empty check");
   }
@@ -285,9 +286,14 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       Emit(size);
       Emit(", ");
 #if PECOFF
+#if TARGARM || TARGAARCH64 || TARGARK || TARGRISCV64
       std::string align = std::to_string(
         static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
-      emit(align);
+#else
+      std::string align = std::to_string(
+        Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()));
+#endif
+      emit(align.c_str());
 #else /* ELF */
       /* output align, symbol name begin with "classInitProtectRegion" align is 4096 */
       MIRTypeKind kind = mirSymbol.GetType()->GetKind();
@@ -296,7 +302,12 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
         Emit(4096);
       } else if (((kind == kTypeStruct) || (kind == kTypeClass) || (kind == kTypeArray) || (kind == kTypeUnion)) &&
                  ((storage == kScGlobal) || (storage == kScPstatic) || (storage == kScFstatic))) {
-        Emit(std::to_string(k8ByteSize));
+        int32 align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex());
+        if (kSizeOfPtr < align) {
+          Emit(std::to_string(align));
+        } else {
+          Emit(std::to_string(k8ByteSize));
+        }
       } else {
         Emit(std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex())));
       }
@@ -320,9 +331,10 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
     case kAsmSize: {
       std::string size;
       if (isFlexibleArray) {
-        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
+          size = std::to_string(
+              Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()) + arraySize);
       } else {
-        size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
+          size = std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex()));
       }
       Emit(asmInfo->GetSize());
       Emit(symName);
@@ -410,23 +422,29 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
   size_t len = mplStr.size();
 
   if (emitAscii) {
-    Emit("\t.ascii\t\"");  // Do not terminate with \0
+    Emit("\t.ascii\t\"");  /* Do not terminate with \0 */
   } else {
     Emit("\t.string\t\"");
   }
 
-  // don't expand special character in a writeout to .s,
-  // convert all \s to \\s in string for storing in .string
+  /*
+   * don't expand special character in a writeout to .s,
+   * convert all \s to \\s in string for storing in .string
+   */
   for (int i = 0; i < len; i++) {
-    // Referred to GNU AS: 3.6.1.1 Strings
-    char buf[5];
+    /* Referred to GNU AS: 3.6.1.1 Strings */
+    constexpr int kBufSize = 5;
+    constexpr int kSecondChar = 1;
+    constexpr int kThirdChar = 2;
+    constexpr int kLastChar = 4;
+    char buf[kBufSize];
     if (isprint(*str)) {
       buf[0] = *str;
-      buf[1] = 0;
+      buf[kSecondChar] = 0;
       if (*str == '\\' || *str == '\"') {
         buf[0] = '\\';
-        buf[1] = *str;
-        buf[2] = 0;
+        buf[kSecondChar] = *str;
+        buf[kThirdChar] = 0;
       }
       Emit(buf);
     } else if (*str == '\b') {
@@ -439,16 +457,16 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
       Emit("\\t");
     } else if (*str == '\0') {
       buf[0] = '\\';
-      buf[1] = '0';
-      buf[2] = 0;
+      buf[kSecondChar] = '0';
+      buf[kThirdChar] = 0;
       Emit(buf);
     } else {
-      // all others, print as number
-      int ret = snprintf_s(buf, sizeof(buf), 4, "\\%03o", (*str) & 0xFF);
+      /* all others, print as number */
+      int ret = snprintf_s(buf, sizeof(buf), k4BitSize, "\\%03o", (*str) & 0xFF);
       if (ret < 0) {
         FATAL(kLncFatal, "snprintf_s failed");
       }
-      buf[4] = '\0';
+      buf[kLastChar] = '\0';
       Emit(buf);
     }
     str++;
@@ -460,7 +478,7 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
   }
 }
 
-void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isAscii, bool isIndirect) {
+void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   if (isIndirect) {
     uint32 strId = mirStrConst.GetValue().GetIdx();
     std::vector<UStrIdx> &sPtr = GetStringPtr();
@@ -579,7 +597,7 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
     case kConstStrConst: {
       MIRStrConst &strCt = static_cast<MIRStrConst&>(mirConst);
       if (cg->GetMIRModule()->IsCModule()) {
-        EmitStrConstant(strCt, false, isIndirect);
+        EmitStrConstant(strCt, isIndirect);
       } else {
         EmitStrConstant(strCt);
       }
@@ -594,7 +612,7 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       MIRAddrofConst &symAddr = static_cast<MIRAddrofConst&>(mirConst);
       StIdx stIdx = symAddr.GetSymbolIndex();
       MIRSymbol *symAddrSym = stIdx.IsGlobal() ? GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx())
-        : CG::GetCurCGFunc()->GetMirModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
+          : CG::GetCurCGFunc()->GetMirModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
       if (stIdx.IsGlobal() == false && symAddrSym->GetStorageClass() == kScPstatic) {
         PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
         Emit("\t.quad\t" + symAddrSym->GetName() + std::to_string(pIdx));
@@ -1838,18 +1856,20 @@ void Emitter::EmitStringPointers() {
   }
 }
 
-void Emitter::EmitLocalVariable(CGFunc &cgfunc) {
-  // function local pstatic initialization
+void Emitter::EmitLocalVariable(const CGFunc &cgfunc) {
+  /* function local pstatic initialization */
   if (cg->GetMIRModule()->IsCModule()) {
     MIRSymbolTable *lSymTab = cgfunc.GetMirModule().CurFunction()->GetSymTab();
     if (lSymTab != nullptr) {
-      // anything larger than is created by cg
+      /* anything larger than is created by cg */
       size_t lsize = cgfunc.GetLSymSize();
       for (size_t i = 0; i < lsize; i++) {
         MIRSymbol *st = lSymTab->GetSymbolFromStIdx(i);
         if (st != nullptr && st->GetStorageClass() == kScPstatic) {
-          // Local static names can repeat.
-          // Append the current program unit index to the name.
+          /*
+           * Local static names can repeat.
+           * Append the current program unit index to the name.
+           */
           PUIdx pIdx = cgfunc.GetMirModule().CurFunction()->GetPuidx();
           std::string localname = st->GetName() + std::to_string(pIdx);
           static std::vector<std::string> emittedLocalSym;
@@ -1874,7 +1894,7 @@ void Emitter::EmitLocalVariable(CGFunc &cgfunc) {
             EmitAsmLabel(*st, kAsmComm);
           } else {
             EmitAsmLabel(*st, kAsmSyname);
-            EmitScalarConstant(*ct, true, false, true/*isIndirect*/);
+            EmitScalarConstant(*ct, true, false, true /* isIndirect */);
           }
         }
       }
@@ -2173,7 +2193,7 @@ void Emitter::EmitGlobalVariable() {
       if (IsPrimitiveScalar(mirType->GetPrimType())) {
         if (IsAddress(mirType->GetPrimType())) {
           uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
-          CHECK_FATAL(sizeinbits == 64, "EmitGlobalVariable: pointer must be of size 8");
+          CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
         }
         if (cg->GetMIRModule()->IsCModule()) {
           EmitScalarConstant(*mirConst, true, false, true);
