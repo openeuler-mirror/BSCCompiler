@@ -118,6 +118,10 @@ endif
 setup:
 	(cd tools; ./setup_tools.sh)
 
+.PHONY: demo
+demo:
+	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1
+
 .PHONY: test1
 test1: libcore
 	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --verbose --debug
@@ -131,7 +135,8 @@ test_ourboros: libcore
 	python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
 
 .PHONY: testall
-testall: test_irbuild test_ourboros
+testall: 
+	$(MAKE) -C test all
 
 .PHONY: cleanrsd
 cleanrsd:uninstall_patch
