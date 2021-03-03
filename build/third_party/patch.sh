@@ -17,8 +17,8 @@
 THIRD_PARTY_PATH=$MAPLE_ROOT/third_party
 TOOLS_PATH=$MAPLE_ROOT/build/third_party
 AOSP_PATH=$THIRD_PARTY_PATH/aosp_10.0.0_r35
-TEMP_PATH=$THIRD_PARTY_PATH/temp
 AOSP_GN_PATH=$TOOLS_PATH/aosp_gn
+TEMP_PATH=$THIRD_PARTY_PATH/temp
 
 function install_patch {
     if [ -d $TEMP_PATH ];then
@@ -30,9 +30,7 @@ function install_patch {
 
     #backup source code
     cd $THIRD_PARTY_PATH
-    mkdir -p $TEMP_PATH
-    tar -zcf aosp_10.0.0_r35.tar.gz aosp_10.0.0_r35/
-    mv aosp_10.0.0_r35.tar.gz $TEMP_PATH/
+    cp -r aosp_10.0.0_r35 temp
 
     #patch
     cd $AOSP_PATH
@@ -46,20 +44,20 @@ function install_patch {
     cp $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $AOSP_PATH/system/core/libziparchive/
     cp $AOSP_GN_PATH/system/core/base/BUILD.gn $AOSP_PATH/system/core/base/
 
+    #recover source directory
+    cd $THIRD_PARTY_PATH
+    mv aosp_10.0.0_r35 aosp_modified
+    mv temp aosp_10.0.0_r35
 }
 
 
 function uninstall_patch {
-    if [ ! -d $TEMP_PATH ];then
+    if [ ! -d $THIRD_PARTY_PATH/aosp_modified ];then
         exit 0
     fi
 
     cd $THIRD_PARTY_PATH
-    rm -rf $AOSP_PATH
-    mv $TEMP_PATH/aosp_10.0.0_r35.tar.gz .
-    tar -zxvf aosp_10.0.0_r35.tar.gz > 0
-    rm -rf $TEMP_PATH
-    rm -rf aosp_10.0.0_r35.tar.gz
+    rm -rf aosp_modified
 }
 
 function main {
