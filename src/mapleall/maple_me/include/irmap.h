@@ -32,7 +32,7 @@ class IRMap : public AnalysisResult {
         irMapAlloc(&memPool),
         mapHashLength(hashTableSize),
         hashTable(mapHashLength, nullptr, irMapAlloc.Adapter()),
-        vst2MeExprTable(ssaTab.GetVersionStTableSize(), nullptr, irMapAlloc.Adapter()),
+        verst2MeExprTable(ssaTab.GetVersionStTableSize(), nullptr, irMapAlloc.Adapter()),
         lpreTmps(irMapAlloc.Adapter()),
         vst2Decrefs(irMapAlloc.Adapter()) {}
 
@@ -40,40 +40,53 @@ class IRMap : public AnalysisResult {
   virtual BB *GetBB(BBId id) = 0;
   virtual BB *GetBBForLabIdx(LabelIdx lidx, PUIdx pidx = 0) = 0;
   MeExpr *HashMeExpr(MeExpr &meExpr);
-  IvarMeExpr *BuildIvarFromOpMeExpr(OpMeExpr &opMeExpr);
   IvarMeExpr *BuildLHSIvarFromIassMeStmt(IassignMeStmt &iassignMeStmt);
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID);
-  RegMeExpr *CreateRegRefMeExpr(const MeExpr&);
-  RegMeExpr *CreateRegRefMeExpr(MIRType&);
-  VarMeExpr *CreateVarMeExprVersion(const VarMeExpr&);
-  MeExpr *CreateAddrofMeExpr(OStIdx ostIdx);
   MeExpr *CreateAddrofMeExpr(MeExpr&);
   MeExpr *CreateAddroffuncMeExpr(PUIdx);
   MeExpr *CreateAddrofMeExprFromSymbol(MIRSymbol& sym, PUIdx  puIdx);
   MeExpr *CreateIaddrofMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
   MeExpr *CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
-  RegMeExpr *CreateRegMeExpr(PrimType);
+
+  // for creating VarMeExpr
+  VarMeExpr *CreateVarMeExprVersion(OriginalSt *ost);
+  VarMeExpr *CreateVarMeExprVersion(const VarMeExpr &varx) {
+    return CreateVarMeExprVersion(varx.GetOst());
+  }
+  VarMeExpr *GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost);
+  VarMeExpr *CreateNewVar(GStrIdx strIdx, PrimType primType, bool isGlobal);
+  VarMeExpr *CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx);
+
+  // for creating RegMeExpr
   RegMeExpr *CreateRegMeExprVersion(OriginalSt&);
-  RegMeExpr *CreateRegMeExprVersion(const RegMeExpr&);
+  RegMeExpr *CreateRegMeExprVersion(const RegMeExpr &regx) {
+    return CreateRegMeExprVersion(*regx.GetOst());
+  }
+  RegMeExpr *CreateRegMeExpr(PrimType);
+  RegMeExpr *CreateRegMeExpr(MIRType&);
+  RegMeExpr *CreateRegMeExpr(const MeExpr &meexpr) {
+    MIRType *mirType = meexpr.GetType();
+    if (mirType == nullptr || mirType->GetPrimType() == PTY_agg) {
+      return CreateRegMeExpr(meexpr.GetPrimType());
+    }
+    return CreateRegMeExpr(*mirType);
+  }
+
   MeExpr *ReplaceMeExprExpr(MeExpr&, const MeExpr&, MeExpr&);
   bool ReplaceMeExprStmt(MeStmt&, const MeExpr&, MeExpr&);
   MeExpr *GetMeExprByVerID(uint32 verid) const {
-    return vst2MeExprTable[verid];
+    return verst2MeExprTable[verid];
   }
 
-  VarMeExpr *GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost);
   MeExpr *GetMeExpr(size_t index) {
-    ASSERT(index < vst2MeExprTable.size(), "index out of range");
-    MeExpr *meExpr = vst2MeExprTable.at(index);
+    ASSERT(index < verst2MeExprTable.size(), "index out of range");
+    MeExpr *meExpr = verst2MeExprTable.at(index);
     if (meExpr != nullptr) {
       ASSERT(meExpr->GetMeOp() == kMeOpVar || meExpr->GetMeOp() == kMeOpReg, "opcode error");
     }
     return meExpr;
   }
 
-  VarMeExpr *CreateNewVarMeExpr(OriginalSt *ost, PrimType pType);
-  VarMeExpr *CreateNewGlobalTmp(GStrIdx strIdx, PrimType pType);
-  VarMeExpr *CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx);
   DassignMeStmt *CreateDassignMeStmt(MeExpr&, MeExpr&, BB&);
   IassignMeStmt *CreateIassignMeStmt(TyIdx, IvarMeExpr&, MeExpr&, const MapleMap<OStIdx, ChiMeNode*>&);
   RegassignMeStmt *CreateRegassignMeStmt(MeExpr&, MeExpr&, BB&);
@@ -95,6 +108,7 @@ class IRMap : public AnalysisResult {
 
   MeExpr *CreateIntConstMeExpr(int64, PrimType);
   MeExpr *CreateConstMeExpr(PrimType, MIRConst&);
+  MeExpr *CreateMeExprUnary(Opcode, PrimType, MeExpr&);
   MeExpr *CreateMeExprBinary(Opcode, PrimType, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprCompare(Opcode, PrimType, PrimType, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprSelect(PrimType, MeExpr&, MeExpr&, MeExpr&);
@@ -146,20 +160,12 @@ class IRMap : public AnalysisResult {
     exprID = id;
   }
 
-  const MapleVector<MeExpr*> &GetVerst2MeExprTable() const {
-    return vst2MeExprTable;
+  MapleVector<MeExpr*> &GetVerst2MeExprTable() {
+    return verst2MeExprTable;
   }
 
   MeExpr *GetVerst2MeExprTableItem(int i) {
-    return vst2MeExprTable[i];
-  }
-
-  size_t GetVerst2MeExprTableSize() const {
-    return vst2MeExprTable.size();
-  }
-
-  void PushBackVerst2MeExprTable(MeExpr *item) {
-    vst2MeExprTable.push_back(item);
+    return verst2MeExprTable[i];
   }
 
   MapleUnorderedMap<OStIdx, RegMeExpr*>::iterator GetLpreTmpsEnd() {
@@ -213,7 +219,7 @@ class IRMap : public AnalysisResult {
   int32 exprID = 0;                                // for allocating exprid_ in MeExpr
   uint32 mapHashLength;                            // size of hashTable
   MapleVector<MeExpr*> hashTable;                  // the value number hash table
-  MapleVector<MeExpr*> vst2MeExprTable;            // map versionst to MeExpr.
+  MapleVector<MeExpr*> verst2MeExprTable;          // map versionst to MeExpr.
   MapleUnorderedMap<OStIdx, RegMeExpr*> lpreTmps;  // for passing LPRE's temp usage to SPRE
   MapleUnorderedMap<VarMeExpr*, MapleSet<MeStmt*>*> vst2Decrefs;  // map versionst to decrefreset.
   bool needAnotherPass = false;                    // set to true if CFG has changed
@@ -222,7 +228,6 @@ class IRMap : public AnalysisResult {
 
   bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
   void PutToBucket(uint32, MeExpr&);
-  RegMeExpr *CreateRefRegMeExpr(const MIRSymbol&);
   BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
 };
