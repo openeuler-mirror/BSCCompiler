@@ -19,9 +19,10 @@ TOOLS_PATH=$MAPLE_ROOT/build/third_party
 AOSP_PATH=$THIRD_PARTY_PATH/aosp_10.0.0_r35
 AOSP_GN_PATH=$TOOLS_PATH/aosp_gn
 TEMP_PATH=$THIRD_PARTY_PATH/temp
+MODIFIED_AOSP_PATH=$THIRD_PARTY_PATH/aosp_modified
 
 function install_patch {
-    if [ -d $TEMP_PATH ];then
+    if [ -d $MODIFIED_AOSP_PATH ];then
         echo "Already Patched."
         exit 0
     fi
@@ -52,12 +53,11 @@ function install_patch {
 
 
 function uninstall_patch {
-    if [ ! -d $THIRD_PARTY_PATH/aosp_modified ];then
+    if [ ! -d $MODIFIED_AOSP_PATH ];then
         exit 0
     fi
 
-    cd $THIRD_PARTY_PATH
-    rm -rf aosp_modified
+    rm -rf $MODIFIED_AOSP_PATH $TEMP_PATH
 }
 
 function main {
