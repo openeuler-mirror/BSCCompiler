@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -45,135 +45,28 @@
 // returns from those recursive calls, we restores the stack of current SSA names to
 // the state that existed before the current block was visited.
 namespace maple {
-void MeSSA::BuildSSA() {
-  InsertPhiNode();
-  InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), func->GetAllBBs().size(),
-                  func->GetMeSSATab()->GetVersionStTable());
-  // recurse down dominator tree in pre-order traversal
-  const MapleSet<BBId> &children = dom->GetDomChildren(func->GetCommonEntryBB()->GetBBId());
-  for (const auto &child : children) {
-    RenameBB(*func->GetBBFromID(child));
-  }
-}
-
-void MeSSA::CollectDefBBs(std::map<OStIdx, std::set<BBId>> &ostDefBBs) {
-  // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
-  for (auto bIt = func->valid_begin(), eIt = func->valid_end(); bIt != eIt; ++bIt) {
-    auto *bb = *bIt;
-    for (auto &stmt : bb->GetStmtNodes()) {
-      if (!kOpcodeInfo.HasSSADef(stmt.GetOpCode())) {
-        continue;
-      }
-      TypeOfMayDefList &mayDefs = GetSSATab()->GetStmtsSSAPart().GetMayDefNodesOf(stmt);
-      for (auto iter = mayDefs.begin(); iter != mayDefs.end(); ++iter) {
-        auto &mayDef = *iter;
-        OStIdx ostIdx = mayDef.GetResult()->GetOrigIdx();
-        const OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(ostIdx);
-        if (ost != nullptr && (!ost->IsFinal() || func->GetMirFunc()->IsConstructor())) {
-          ostDefBBs[ostIdx].insert(bb->GetBBId());
-        } else if (stmt.GetOpCode() == OP_intrinsiccallwithtype) {
-          auto &inNode = static_cast<IntrinsiccallNode&>(stmt);
-          if (inNode.GetIntrinsic() == INTRN_JAVA_CLINIT_CHECK) {
-            ostDefBBs[ostIdx].insert(bb->GetBBId());
-          }
-        }
-      }
-      if (stmt.GetOpCode() == OP_dassign || stmt.GetOpCode() == OP_maydassign) {
-        VersionSt *vst = GetSSATab()->GetStmtsSSAPart().GetAssignedVarOf(stmt);
-        OriginalSt *ost = vst->GetOst();
-        if (ost != nullptr && (!ost->IsFinal() || func->GetMirFunc()->IsConstructor())) {
-          ostDefBBs[vst->GetOrigIdx()].insert(bb->GetBBId());
-        }
-      }
-      // Needs to handle mustDef in callassigned stmt
-      if (!kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
-        continue;
-      }
-      MapleVector<MustDefNode> &mustDefs = GetSSATab()->GetStmtsSSAPart().GetMustDefNodesOf(stmt);
-      for (auto iter = mustDefs.begin(); iter != mustDefs.end(); ++iter) {
-        OriginalSt *ost = iter->GetResult()->GetOst();
-        if (ost != nullptr && (!ost->IsFinal() || func->GetMirFunc()->IsConstructor())) {
-          ostDefBBs[ost->GetIndex()].insert(bb->GetBBId());
-        }
-      }
-    }
-  }
-}
 
 void MeSSA::InsertPhiNode() {
-  std::map<OStIdx, std::set<BBId>> ost2DefBBs;
-  CollectDefBBs(ost2DefBBs);
-  OriginalStTable *otable = &func->GetMeSSATab()->GetOriginalStTable();
-  for (size_t i = 1; i < otable->Size(); ++i) {
-    OriginalSt *ost = otable->GetOriginalStFromID(OStIdx(i));
-    VersionSt *vst = func->GetMeSSATab()->GetVersionStTable().GetVersionStFromID(ost->GetZeroVersionIndex(), true);
-    CHECK_FATAL(vst != nullptr, "null ptr check");
-    if (ost2DefBBs[ost->GetIndex()].empty()) {
+  for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
+    OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
+    if (ost->GetIndirectLev() < 0) {
       continue;
     }
-    // volatile variables will not have ssa form.
-    if (ost->IsVolatile()) {
+    if (!ssaTab->HasDefBB(ost->GetIndex())) {
       continue;
     }
-    std::deque<BB*> workList;
-    for (auto it = ost2DefBBs[ost->GetIndex()].begin(); it != ost2DefBBs[ost->GetIndex()].end(); ++it) {
-      BB *defBB = func->GetAllBBs()[*it];
-      if (defBB != nullptr) {
-        workList.push_back(defBB);
-      }
+    if (ost->IsVolatile()) { // volatile variables will not have ssa form.
+      continue;
     }
-    while (!workList.empty()) {
-      BB *defBB = workList.front();
-      workList.pop_front();
-      MapleSet<BBId> &dfs = dom->GetDomFrontier(defBB->GetBBId());
-      for (auto bbID : dfs) {
-        BB *dfBB = func->GetBBFromID(bbID);
-        CHECK_FATAL(dfBB != nullptr, "null ptr check");
-        if (dfBB->PhiofVerStInserted(*vst) == nullptr) {
-          workList.push_back(dfBB);
-          dfBB->InsertPhi(&func->GetAlloc(), vst);
-          if (enabledDebug) {
-            ost->Dump();
-            LogInfo::MapleLogger() << " Defined In: BB" << defBB->GetBBId() << " Insert Phi Here: BB"
-                                   << dfBB->GetBBId() << '\n';
-          }
-        }
-      }
+    std::set<BBId> phibbs;
+    for (BBId bbid : *ssaTab->GetDefBBs4Ost(ost->GetIndex())) {
+      phibbs.insert(dom->iterDomFrontier[bbid].begin(), dom->iterDomFrontier[bbid].end());
     }
-  }
-}
-
-MeSSA::MeSSA(MeFunction &func, Dominance &dom, MemPool &memPool, bool enabledDebug)
-    : SSA(memPool, *func.GetMeSSATab()), AnalysisResult(&memPool), func(&func), dom(&dom), enabledDebug(enabledDebug) {}
-
-void MeSSA::RenameBB(BB &bb) {
-  if (GetBBRenamed(bb.GetBBId())) {
-    return;
-  }
-
-  SetBBRenamed(bb.GetBBId(), true);
-
-  // record stack size for variable versions before processing rename. It is used for stack pop up.
-  std::vector<uint32> oriStackSize(GetVstStacks().size());
-  for (size_t i = 1; i < GetVstStacks().size(); ++i) {
-    oriStackSize[i] = GetVstStack(i)->size();
-  }
-  RenamePhi(bb);
-  for (auto &stmt : bb.GetStmtNodes()) {
-    RenameUses(stmt);
-    RenameDefs(stmt, bb);
-    RenameMustDefs(stmt, bb);
-  }
-  RenamePhiUseInSucc(bb);
-  // Rename child in Dominator Tree.
-  ASSERT(bb.GetBBId() < dom->GetDomChildrenSize(), "index out of range in MeSSA::RenameBB");
-  const MapleSet<BBId> &children = dom->GetDomChildren(bb.GetBBId());
-  for (const BBId &child : children) {
-    RenameBB(*func->GetBBFromID(child));
-  }
-  for (size_t i = 1; i < GetVstStacks().size(); ++i) {
-    while (GetVstStack(i)->size() > oriStackSize[i]) {
-      PopVersionSt(i);
+    VersionSt *vst = ssaTab->GetVersionStTable().GetZeroVersionSt(ost);
+    for (BBId bbid : phibbs) {
+      BB *phiBB = bbVec[bbid];
+      CHECK_FATAL(phiBB != nullptr, "MeSSA::InsertPhiNode: non-existent BB for definition");
+      phiBB->InsertPhi(&func->GetMeSSATab()->GetVersAlloc(), vst);
     }
   }
 }
@@ -224,9 +117,20 @@ AnalysisResult *MeDoSSA::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, Modu
   auto *ssaTab = static_cast<SSATab*>(funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func));
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
   MemPool *ssaMp = NewMemPool();
-  auto *ssa = ssaMp->New<MeSSA>(*func, *dom, *ssaMp, DEBUGFUNC(func));
-  ssa->BuildSSA();
+  auto *ssa = ssaMp->New<MeSSA>(*func, func->GetMeSSATab(), *dom, *ssaMp);
+
+  ssa->InsertPhiNode();
+
+  ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), func->GetAllBBs().size(), func->GetMeSSATab()->GetVersionStTable());
+
+  // recurse down dominator tree in pre-order traversal
+  MapleSet<BBId> *children = &dom->domChildren[func->GetCommonEntryBB()->GetBBId()];
+  for (BBId child : *children) {
+    ssa->RenameBB(*func->GetBBFromID(child));
+  }
+
   ssa->VerifySSA();
+
   if (DEBUGFUNC(func)) {
     ssaTab->GetVersionStTable().Dump(&ssaTab->GetModule());
   }

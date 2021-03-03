@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -29,10 +29,11 @@ class MayDefNode;  // circular dependency exists, no other choice
 class MustDefNode;  // circular dependency exists, no other choice
 class VersionStTable;  // circular dependency exists, no other choice
 class OriginalSt;  // circular dependency exists, no other choice
-constexpr size_t kInvalidVersionID = static_cast<size_t>(-1);
+
 class VersionSt {
  public:
   enum DefType {
+    kUnknown,
     kAssign,
     kPhi,
     kMayDef,
@@ -81,13 +82,11 @@ class VersionSt {
     return ost->GetIndex();
   }
 
-  const OriginalSt *GetOrigSt() const {
+  OriginalSt *GetOst() const {
     return ost;
   }
-  OriginalSt *GetOst() {
-    return ost;
-  }
-  void SetOrigSt(OriginalSt *ost) {
+
+  void SetOst(OriginalSt *ost) {
     this->ost = ost;
   }
 
@@ -153,7 +152,7 @@ class VersionSt {
   int version;      // starts from 0 for each symbol
   OriginalSt *ost;  // the index of related originalst in originalst_table
   BB *defBB = nullptr;
-  DefType defType = kAssign;
+  DefType defType = kUnknown;
 
   union DefStmt {
     StmtNode *assign;
@@ -168,32 +167,18 @@ class VersionSt {
 class VersionStTable {
  public:
   explicit VersionStTable(MemPool &vstMp) : vstAlloc(&vstMp), versionStVector(vstAlloc.Adapter()) {
-    versionStVector.push_back(&dummyVST);
+    versionStVector.push_back(static_cast<VersionSt*>(nullptr));
   }
 
   ~VersionStTable() = default;
 
-  VersionSt *CreateVersionSt(OriginalSt *ost, size_t version);
-  VersionSt *FindOrCreateVersionSt(OriginalSt *ost, size_t version);
-  VersionSt *GetVersionStFromID(size_t id, bool checkFirst = false) const {
-    if (checkFirst && id >= versionStVector.size()) {
-      return nullptr;
-    }
-    ASSERT(id < versionStVector.size(), "symbol table index out of range");
-    return versionStVector[id];
-  }
+  VersionSt *CreateNextVersionSt(OriginalSt *ost);
 
-  VersionSt &GetDummyVersionSt() {
-    return dummyVST;
-  }
+  void CreateZeroVersionSt(OriginalSt *ost);
 
-  VersionSt *CreateVSymbol(VersionSt *vst, size_t version) {
-    OriginalSt *ost = vst->GetOst();
-    return CreateVersionSt(ost, version);
-  }
-
-  bool Verify() const {
-    return true;
+  VersionSt *GetZeroVersionSt(OriginalSt *ost) {
+    CHECK_FATAL(ost->GetVersionsIndices().size() != 0, "GetZeroVersionSt:: zero version has not been created");
+    return versionStVector[ost->GetZeroVersionIndex()];
   }
 
   size_t GetVersionStVectorSize() const {
@@ -219,7 +204,6 @@ class VersionStTable {
  private:
   MapleAllocator vstAlloc;                   // this stores versionStVector
   MapleVector<VersionSt*> versionStVector;   // the vector that map a versionst's index to its pointer
-  static VersionSt dummyVST;
 };
 }       // namespace maple
 #endif  // MAPLE_ME_INCLUDE_VER_SYMBOL_H

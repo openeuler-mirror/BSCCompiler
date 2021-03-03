@@ -98,7 +98,7 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx
   CHECK_FATAL(newOst != nullptr, "null ptr check");
   if (newOst->GetIndex() == osym2Elem.size()) {
     osym2Elem.push_back(nullptr);
-    ssaTab.GetVersionStTable().CreateVersionSt(newOst, kInitVersion);
+    ssaTab.GetVersionStTable().CreateZeroVersionSt(newOst);
   }
   return FindOrCreateAliasElem(*newOst);
 }
@@ -427,7 +427,7 @@ AliasElem *AliasClass::FindOrCreateDummyNADSAe() {
   dummySym->SetIsTmp(true);
   dummySym->SetIsDeleted();
   OriginalSt *dummyOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*dummySym, 0, 0);
-  ssaTab.GetVersionStTable().FindOrCreateVersionSt(dummyOst, kInitVersion);
+  ssaTab.GetVersionStTable().CreateZeroVersionSt(dummyOst);
   if (osym2Elem.size() == dummyOst->GetIndex()) {
     AliasElem *dummyAe = acMemPool.New<AliasElem>(osym2Elem.size(), *dummyOst);
     dummyAe->SetNotAllDefsSeen(true);
@@ -633,7 +633,7 @@ void AliasClass::InsertMayUseExpr(BaseNode &expr) {
     rhsAe = FindOrCreateDummyNADSAe();
   }
   auto &ireadNode = static_cast<IreadSSANode&>(expr);
-  ireadNode.SetSSAVar(*ssaTab.GetVersionStTable().GetVersionStFromID(rhsAe->GetOriginalSt().GetZeroVersionIndex()));
+  ireadNode.SetSSAVar(*ssaTab.GetVersionStTable().GetZeroVersionSt(&rhsAe->GetOriginalSt()));
   ASSERT(ireadNode.GetSSAVar() != nullptr, "AliasClass::InsertMayUseExpr(): iread cannot have empty mayuse");
 }
 
@@ -687,7 +687,7 @@ void AliasClass::CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUs
 void AliasClass::InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, TypeOfMayUseList &mayUseNodes) {
   for (OriginalSt *ost : mayUseOsts) {
     mayUseNodes.emplace_back(
-        MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(ost->GetZeroVersionIndex())));
+        MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(ost->GetZeroVersionIndex())));
   }
 }
 
@@ -754,7 +754,7 @@ void AliasClass::InsertMayUseAll(const StmtNode &stmt) {
   for (AliasElem *aliasElem : id2Elem) {
     if (aliasElem->GetOriginalSt().GetIndirectLev() >= 0 && !aliasElem->GetOriginalSt().IsPregOst()) {
       mayUseNodes.emplace_back(
-          MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
+          MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
     }
   }
 }
@@ -777,18 +777,19 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<Original
 }
 
 void AliasClass::InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, TypeOfMayDefList &mayDefNodes,
-                                  StmtNode &stmt) {
+                                  StmtNode &stmt, BBId bbid) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
     mayDefNodes.emplace_back(
-        MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+        MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
+    ssaTab.AddDefBB4Ost(mayDefOst->GetIndex(), bbid);
   }
 }
 
-void AliasClass::InsertMayDefDassign(StmtNode &stmt) {
+void AliasClass::InsertMayDefDassign(StmtNode &stmt, BBId bbid) {
   std::set<OriginalSt*> mayDefOsts;
   CollectMayDefForDassign(stmt, mayDefOsts);
   TypeOfMayDefList &mayDefNodes = ssaTab.GetStmtsSSAPart().GetMayDefNodesOf(stmt);
-  InsertMayDefNode(mayDefOsts, mayDefNodes, stmt);
+  InsertMayDefNode(mayDefOsts, mayDefNodes, stmt, bbid);
 }
 
 bool AliasClass::IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const {
@@ -834,28 +835,30 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
 }
 
 void AliasClass::InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOsts,
-                                                 TypeOfMayDefList &mayDefNodes, StmtNode &stmt) {
+                                                 TypeOfMayDefList &mayDefNodes, StmtNode &stmt,
+                                                 BBId bbid) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
     if (!mayDefOst->IsFinal()) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
+      ssaTab.AddDefBB4Ost(mayDefOst->GetIndex(), bbid);
     }
   }
 }
 
-void AliasClass::InsertMayDefIassign(StmtNode &stmt) {
+void AliasClass::InsertMayDefIassign(StmtNode &stmt, BBId bbid) {
   std::set<OriginalSt*> mayDefOsts;
   CollectMayDefForIassign(stmt, mayDefOsts);
   TypeOfMayDefList &mayDefNodes = ssaTab.GetStmtsSSAPart().GetMayDefNodesOf(stmt);
   if (mayDefOsts.size() == 1) {
-    InsertMayDefNode(mayDefOsts, mayDefNodes, stmt);
+    InsertMayDefNode(mayDefOsts, mayDefNodes, stmt, bbid);
   } else {
-    InsertMayDefNodeExcludeFinalOst(mayDefOsts, mayDefNodes, stmt);
+    InsertMayDefNodeExcludeFinalOst(mayDefOsts, mayDefNodes, stmt, bbid);
   }
   ASSERT(!mayDefNodes.empty(), "AliasClass::InsertMayUseIassign(): iassign cannot have empty maydef");
 }
 
-void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt) {
+void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt, BBId bbid) {
   std::set<unsigned int> aliasSet;
   // collect the full alias set first
   for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
@@ -891,9 +894,10 @@ void AliasClass::InsertMayDefUseSyncOps(StmtNode &stmt) {
     AliasElem *aliasElem = id2Elem[elemID];
     OriginalSt &ostOfAliasAE = aliasElem->GetOriginalSt();
     if (!ostOfAliasAE.IsFinal()) {
-      VersionSt *vst0 = ssaTab.GetVersionStTable().GetVersionStFromID(ostOfAliasAE.GetZeroVersionIndex());
+      VersionSt *vst0 = ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAliasAE.GetZeroVersionIndex());
       theSSAPart->GetMayUseNodes().emplace_back(MayUseNode(vst0));
       theSSAPart->GetMayDefNodes().emplace_back(MayDefNode(vst0, &stmt));
+      ssaTab.AddDefBB4Ost(ostOfAliasAE.GetIndex(), bbid);
     }
   }
 }
@@ -972,11 +976,13 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
 }
 
 void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, TypeOfMayDefList &mayDefNodes,
-                                         StmtNode &stmt, bool hasNoPrivateDefEffect) {
+                                         StmtNode &stmt, BBId bbid,
+                                         bool hasNoPrivateDefEffect) {
   for (OriginalSt *mayDefOst : mayDefOsts) {
     if (!hasNoPrivateDefEffect || !mayDefOst->IsPrivate()) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayDefOst->GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayDefOst->GetZeroVersionIndex()), &stmt));
+      ssaTab.AddDefBB4Ost(mayDefOst->GetIndex(), bbid);
     }
   }
 }
@@ -984,7 +990,7 @@ void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, Type
 // Insert mayDefs and mayUses for the callees.
 // Four kinds of mayDefs and mayUses are inserted, which are caused by callee
 // opnds, not_all_def_seen_ae, globalsAffectedByCalls, and mustDefs.
-void AliasClass::InsertMayDefUseCall(StmtNode &stmt, bool hasSideEffect, bool hasNoPrivateDefEffect) {
+void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool hasSideEffect, bool hasNoPrivateDefEffect) {
   auto *theSSAPart = static_cast<MayDefMayUsePart*>(ssaTab.GetStmtsSSAPart().SSAPartOf(stmt));
   std::set<OriginalSt*> mayDefUseOstsA;
   // 1. collect mayDefs and mayUses caused by callee-opnds
@@ -994,7 +1000,7 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, bool hasSideEffect, bool ha
   InsertMayUseNode(mayDefUseOstsA, theSSAPart->GetMayUseNodes());
   // insert may def node, if the callee has side-effect.
   if (hasSideEffect) {
-    InsertMayDefNodeForCall(mayDefUseOstsA, theSSAPart->GetMayDefNodes(), stmt, hasNoPrivateDefEffect);
+    InsertMayDefNodeForCall(mayDefUseOstsA, theSSAPart->GetMayDefNodes(), stmt, bbid, hasNoPrivateDefEffect);
   }
   // 3. insert mayDefs and mayUses caused by globalsAffectedByCalls
   std::set<OriginalSt*> mayDefUseOstsB;
@@ -1002,12 +1008,12 @@ void AliasClass::InsertMayDefUseCall(StmtNode &stmt, bool hasSideEffect, bool ha
   InsertMayUseNode(mayDefUseOstsB, theSSAPart->GetMayUseNodes());
   // insert may def node, if the callee has side-effect.
   if (hasSideEffect) {
-    InsertMayDefNodeExcludeFinalOst(mayDefUseOstsB, theSSAPart->GetMayDefNodes(), stmt);
+    InsertMayDefNodeExcludeFinalOst(mayDefUseOstsB, theSSAPart->GetMayDefNodes(), stmt, bbid);
     if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
       // 4. insert mayDefs caused by the mustDefs
       std::set<OriginalSt*> mayDefOstsC;
       CollectMayDefForMustDefs(stmt, mayDefOstsC);
-      InsertMayDefNodeExcludeFinalOst(mayDefOstsC, theSSAPart->GetMayDefNodes(), stmt);
+      InsertMayDefNodeExcludeFinalOst(mayDefOstsC, theSSAPart->GetMayDefNodes(), stmt, bbid);
     }
   }
 }
@@ -1017,7 +1023,7 @@ void AliasClass::InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &ma
   for (OriginalSt *mayUseOst : mayUseOsts) {
     if (!mayUseOst->IsFinal()) {
       mayUseNodes.emplace_back(
-          MayUseNode(ssaTab.GetVersionStTable().GetVersionStFromID(mayUseOst->GetZeroVersionIndex())));
+          MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(mayUseOst->GetZeroVersionIndex())));
     }
   }
 }
@@ -1025,7 +1031,7 @@ void AliasClass::InsertMayUseNodeExcludeFinalOst(const std::set<OriginalSt*> &ma
 // Insert mayDefs and mayUses for intrinsiccall.
 // Four kinds of mayDefs and mayUses are inserted, which are caused by callee
 // opnds, not_all_def_seen_ae, globalsAffectedByCalls, and mustDefs.
-void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt) {
+void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid) {
   auto *theSSAPart = static_cast<MayDefMayUsePart*>(ssaTab.GetStmtsSSAPart().SSAPartOf(stmt));
   auto &intrinNode = static_cast<IntrinsiccallNode&>(stmt);
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrinNode.GetIntrinsic()];
@@ -1036,17 +1042,17 @@ void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt) {
   CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOsts);
   InsertMayUseNodeExcludeFinalOst(mayDefUseOsts, theSSAPart->GetMayUseNodes());
   if (!intrinDesc->HasNoSideEffect() || calleeHasSideEffect) {
-    InsertMayDefNodeExcludeFinalOst(mayDefUseOsts, theSSAPart->GetMayDefNodes(), stmt);
+    InsertMayDefNodeExcludeFinalOst(mayDefUseOsts, theSSAPart->GetMayDefNodes(), stmt, bbid);
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     // 3. insert maydefs caused by the mustdefs
     std::set<OriginalSt*> mayDefOsts;
     CollectMayDefForMustDefs(stmt, mayDefOsts);
-    InsertMayDefNodeExcludeFinalOst(mayDefOsts, theSSAPart->GetMayDefNodes(), stmt);
+    InsertMayDefNodeExcludeFinalOst(mayDefOsts, theSSAPart->GetMayDefNodes(), stmt, bbid);
   }
 }
 
-void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt) {
+void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid) {
   TypeOfMayDefList &mayDefNodes = ssaTab.GetStmtsSSAPart().GetMayDefNodesOf(stmt);
   for (OStIdx ostIdx : globalsMayAffectedByClinitCheck) {
     AliasElem *aliasElem = osym2Elem[ostIdx];
@@ -1055,7 +1061,8 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt) {
     std::string typeNameOfStmt = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx())->GetName();
     if (typeNameOfOst.find(typeNameOfStmt) != std::string::npos) {
       mayDefNodes.emplace_back(
-          MayDefNode(ssaTab.GetVersionStTable().GetVersionStFromID(ostOfAE.GetZeroVersionIndex()), &stmt));
+          MayDefNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAE.GetZeroVersionIndex()), &stmt));
+      ssaTab.AddDefBB4Ost(ostOfAE.GetIndex(), bbid);
     }
   }
 }
@@ -1090,7 +1097,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     }
     case OP_call:
     case OP_callassigned: {
-      InsertMayDefUseCall(stmt, CallHasSideEffect(static_cast<CallNode&>(stmt)),
+      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(static_cast<CallNode&>(stmt)),
                           CallHasNoPrivateDefEffect(static_cast<CallNode&>(stmt)));
       return;
     }
@@ -1110,15 +1117,15 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcall:
     case OP_polymorphiccall:
     case OP_icall: {
-      InsertMayDefUseCall(stmt, true, false);
+      InsertMayDefUseCall(stmt, bbID, true, false);
       return;
     }
     case OP_intrinsiccallwithtype: {
       auto &intrnNode = static_cast<IntrinsiccallNode&>(stmt);
       if (intrnNode.GetIntrinsic() == INTRN_JAVA_CLINIT_CHECK) {
-        InsertMayDefUseClinitCheck(intrnNode);
+        InsertMayDefUseClinitCheck(intrnNode, bbID);
       }
-      InsertMayDefUseIntrncall(stmt);
+      InsertMayDefUseIntrncall(stmt, bbID);
       return;
     }
     case OP_intrinsiccall:
@@ -1126,21 +1133,21 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtypeassigned: {
-      InsertMayDefUseIntrncall(stmt);
+      InsertMayDefUseIntrncall(stmt, bbID);
       return;
     }
     case OP_maydassign:
     case OP_dassign: {
-      InsertMayDefDassign(stmt);
+      InsertMayDefDassign(stmt, bbID);
       return;
     }
     case OP_iassign: {
-      InsertMayDefIassign(stmt);
+      InsertMayDefIassign(stmt, bbID);
       return;
     }
     case OP_syncenter:
     case OP_syncexit: {
-      InsertMayDefUseSyncOps(stmt);
+      InsertMayDefUseSyncOps(stmt, bbID);
       return;
     }
     default:
