@@ -394,7 +394,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   int dim = arrayType->GetDim();
   MIRType *innerType = nullptr;
   MIRArrayType *innerArrayType = nullptr;
-  uint32 elemSize = 0;
+  uint64 elemSize = 0;
   if (dim == 1) {
     innerType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType->GetElemTyIdx());
     if (innerType->GetKind() == kTypeArray) {
@@ -409,7 +409,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
     }
   }
 
-  int32 numIndex = array.NumOpnds() - 1;
+  int32 numIndex = static_cast<int>(array.NumOpnds()) - 1;
   MIRArrayType *curArrayType = arrayType;
   BaseNode *resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(0));
   if (dim > 1) {
@@ -426,22 +426,22 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
           innerType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(innerArrayType->GetElemTyIdx());
         }
       } else {
-        CHECK_FATAL(arrayType->GetSizeArrayItem(i) > 0, "Zero size array dimension");
+        CHECK_FATAL(arrayType->GetSizeArrayItem(static_cast<uint32>(i)) > 0, "Zero size array dimension");
         for (int j = i + 1; j < dim; j++) {
-          mpyDim *= arrayType->GetSizeArrayItem(j);
+          mpyDim *= arrayType->GetSizeArrayItem(static_cast<uint32>(j));
         }
       }
 
-      BaseNode *index = static_cast<ConstvalNode *>(array.GetIndex(i));
+      BaseNode *index = static_cast<ConstvalNode *>(array.GetIndex(static_cast<size_t>(i)));
       bool isConst = false;
-      int32 indexVal = 0;
+      int64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
         indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetValue();
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
-                    indexVal * mpyDim,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            indexVal * static_cast<int64>(mpyDim),
+            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *newValNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(newConstNode);
         newValNode->SetPrimType(array.GetPrimType());
         if (i == 0) {
@@ -452,14 +452,14 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
         }
       }
       if (i > 0 && isConst == false) {
-        resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(i));
+        resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(static_cast<size_t>(i)));
       }
 
       BaseNode *mpyNode;
       if (isConst) {
         MIRIntConst *mulConst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    mpyDim * indexVal,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            static_cast<int64>(mpyDim) * indexVal,
+            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array.GetPrimType());
         mpyNode = mulSize;
@@ -470,8 +470,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
         mpyNode = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
         mpyNode->SetPrimType(array.GetPrimType());
         MIRIntConst *mulConst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    mpyDim,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array.GetPrimType());
         mpyNode->SetOpnd(NodeConvert(array.GetPrimType(), *mulSize), 0);
@@ -492,7 +491,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
 
   BaseNode *rMul = nullptr;
   // esize is the size of the array element (eg. int = 4 long = 8)
-  uint32 esize;
+  uint64 esize;
   if (nestedArray) {
     esize = elemSize;
   } else {
@@ -504,17 +503,15 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
     ConstvalNode *idxNode = static_cast<ConstvalNode *>(resNode);
     int64 idx = static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetValue();
     MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    idx * esize,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+        idx * static_cast<int64>(esize), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     rMul->SetPrimType(array.GetPrimType());
     if (dim == 1 && array.GetBase()->op == OP_addrof) {
       opadd = OP_CG_array_elem_add;
     }
   } else {
-    MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    esize,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+    MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(esize,
+        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     BaseNode *eSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     eSize->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);

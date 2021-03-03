@@ -495,7 +495,7 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   const std::string ustr = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue());
   size_t len = ustr.size();
   if (isFlexibleArray) {
-    arraySize += len + 1;
+    arraySize += static_cast<uint32>(len) + 1;
   }
   EmitStr(ustr, false, false);
 }
