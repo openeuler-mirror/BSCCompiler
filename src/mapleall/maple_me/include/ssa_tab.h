@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -27,16 +27,37 @@ class SSATab : public AnalysisResult {
   SSATab(MemPool *memPool, MemPool *versMp, MIRModule *mod)
       : AnalysisResult(memPool),
         mirModule(*mod),
+        versAlloc(versMp),
         versionStTable(*versMp),
         originalStTable(*memPool, *mod),
-        stmtsSSAPart(versMp) {}
+        stmtsSSAPart(versMp),
+        defBBs4Ost(16, nullptr, versAlloc.Adapter()) {}
 
   ~SSATab() = default;
 
   BaseNode *CreateSSAExpr(BaseNode &expr);
-  void CreateSSAStmt(StmtNode &stmt);
+  void CreateSSAStmt(StmtNode &stmt, BB *curbb);
+  bool HasDefBB(OStIdx oidx) {
+    return oidx < defBBs4Ost.size() && defBBs4Ost[oidx] && !defBBs4Ost[oidx]->empty();
+  }
+  void AddDefBB4Ost(OStIdx oidx, BBId bbid) {
+    if (oidx >= defBBs4Ost.size()) {
+      defBBs4Ost.resize(oidx + 16, nullptr);
+    }
+    if (defBBs4Ost[oidx] == nullptr) {
+      defBBs4Ost[oidx] = versAlloc.GetMemPool()->New<MapleSet<BBId>>(versAlloc.Adapter());
+    }
+    defBBs4Ost[oidx]->insert(bbid);
+  }
+  MapleSet<BBId> *GetDefBBs4Ost(OStIdx oidx) {
+    return defBBs4Ost[oidx];
+  }
   VersionSt *GetVerSt(size_t verIdx) {
-    return versionStTable.GetVersionStFromID(verIdx);
+    return versionStTable.GetVersionStVectorItem(verIdx);
+  }
+
+  MapleAllocator &GetVersAlloc() {
+    return versAlloc;
   }
 
   // following are handles to methods in originalStTable
@@ -134,8 +155,8 @@ class SSATab : public AnalysisResult {
     originalStTable.SetZeroVersionIndex(ostIdx, zeroVersionIndexParam);
   }
 
-  size_t GetVersionsIndexSize(const OStIdx &ostIdx) const {
-    return originalStTable.GetVersionsIndexSize(ostIdx);
+  size_t GetVersionsIndicesSize(const OStIdx &ostIdx) const {
+    return originalStTable.GetVersionsIndicesSize(ostIdx);
   }
 
   void UpdateVarOstMap(const OStIdx &ostIdx, std::map<OStIdx, OriginalSt*> &varOstMap) {
@@ -144,7 +165,7 @@ class SSATab : public AnalysisResult {
 
   // MIRSymbol query
   const MIRSymbol &GetStmtMIRSymbol(const StmtNode &stmt) const {
-    return *(GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOrigSt()->GetMIRSymbol());
+    return *(GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst()->GetMIRSymbol());
   }
 
   bool IsInitVersion(size_t vstIdx, const OStIdx &ostIdx) const {
@@ -154,9 +175,11 @@ class SSATab : public AnalysisResult {
   }
  private:
   MIRModule &mirModule;
+  MapleAllocator versAlloc;
   VersionStTable versionStTable;  // this uses special versMp because it will be freed earlier
   OriginalStTable originalStTable;
   StmtsSSAPart stmtsSSAPart;  // this uses special versMp because it will be freed earlier
+  MapleVector<MapleSet<BBId> *> defBBs4Ost; // gives the set of BBs that has def for each original symbol
   bool wholeProgramScope = false;
 };
 }  // namespace maple

@@ -20,29 +20,16 @@
 // If some assignments have been deleted, the current implementation does not
 // delete useless phi's, and these useless phi's may end up hving identical
 // phi operands.
+
 namespace maple {
-// accumulate the BBs that are in the iterated dominance frontiers of bb in
-// the set dfSet, visiting each BB only once
-void MeSSAUpdate::GetIterDomFrontier(const BB &bb, MapleSet<BBId> &dfSet, std::vector<bool> &visitedMap) const {
-  CHECK_FATAL(bb.GetBBId() < visitedMap.size(), "index out of range in MeSSAUpdate::GetIterDomFrontier");
-  if (visitedMap[bb.GetBBId()]) {
-    return;
-  }
-  visitedMap[bb.GetBBId()] = true;
-  for (auto frontierBBId : dom.GetDomFrontier(bb.GetBBId())) {
-    dfSet.insert(frontierBBId);
-    BB *frontierBB = func.GetBBFromID(frontierBBId);
-    GetIterDomFrontier(*frontierBB, dfSet, visitedMap);
-  }
-}
 
 void MeSSAUpdate::InsertPhis() {
+  MapleMap<OStIdx, MapleSet<BBId> *>::iterator it = updateCands.begin();
   MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());
-  for (auto it = updateCands.begin(); it != updateCands.end(); ++it) {
-    std::vector<bool> visitedMap(func.GetAllBBs().size(), false);
+  for (; it != updateCands.end(); ++it) {
     dfSet.clear();
     for (const auto &bbId : *it->second) {
-      GetIterDomFrontier(*func.GetBBFromID(bbId), dfSet, visitedMap);
+      dfSet.insert(dom.iterDomFrontier[bbId].begin(), dom.iterDomFrontier[bbId].end());
     }
     for (const auto &bbId : dfSet) {
       // insert a phi node
@@ -74,7 +61,8 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     phi->SetIsLive(true);  // always make it live, for correctness
     if (phi->GetLHS() == nullptr) {
       // create a new VarMeExpr defined by this phi
-      VarMeExpr *newVar = irMap.CreateNewVarMeExpr(ssaTab.GetOriginalStFromID(it2->first), ssaTab.GetPrimType(it2->first));
+      VarMeExpr *newVar =
+          irMap.CreateNewVarMeExpr(ssaTab.GetOriginalStFromID(it2->first), ssaTab.GetPrimType(it2->first));
       phi->UpdateLHS(*newVar);
       it1->second->push(newVar);  // push the stack
     } else {
@@ -89,7 +77,7 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
   switch (meExpr.GetMeOp()) {
     case kMeOpVar: {
       auto &varExpr = static_cast<VarMeExpr&>(meExpr);
-      auto it = renameStacks.find(varExpr.GetOst()->GetIndex());
+      auto it = renameStacks.find(varExpr.GetOstIdx());
       if (it == renameStacks.end()) {
         return &meExpr;
       }
@@ -200,7 +188,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       continue;
     }
     CHECK_FATAL(lhsVar != nullptr, "stmt doesn't have lhs?");
-    auto it = renameStacks.find(lhsVar->GetOst()->GetIndex());
+    auto it = renameStacks.find(lhsVar->GetOstIdx());
     if (it == renameStacks.end()) {
       continue;
     }

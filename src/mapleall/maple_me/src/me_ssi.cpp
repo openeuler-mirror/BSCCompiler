@@ -31,7 +31,7 @@ VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
                                          irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
   irMap->SetExprID(irMap->GetExprID() + 1);
   irMap->PushBackVerst2MeExprTable(var);
-  ost->PushbackVersionIndex(var->GetVstIdx());
+  ost->PushbackVersionsIndices(var->GetVstIdx());
   return var;
 }
 
@@ -212,7 +212,7 @@ void MeSSI::InsertPiNodes() {
 }
 
 bool MeSSI::ExistedPhiNode(BB &bb, VarMeExpr &rhs) {
-  return bb.GetMePhiList().find(rhs.GetOst()->GetIndex()) != bb.GetMePhiList().end();
+  return bb.GetMePhiList().find(rhs.GetOstIdx()) != bb.GetMePhiList().end();
 }
 
 bool MeSSI::ExistedPiNode(BB &bb, BB &parentBB, const VarMeExpr &rhs) {
@@ -244,7 +244,7 @@ void MeSSI::CreatePhi(VarMeExpr &rhs, BB &dfBB) {
   newPhi->SetDefBB(&dfBB);
   newPhi->GetOpnds().resize(dfBB.GetPred().size(), &rhs);
   newPhi->SetPiAdded();
-  dfBB.GetMePhiList().insert(std::make_pair(phiNewLHS->GetOst()->GetIndex(), newPhi));
+  dfBB.GetMePhiList().insert(std::make_pair(phiNewLHS->GetOstIdx(), newPhi));
   DefPoint *newDef = GetMemPool()->New<DefPoint>(DefPoint::DefineKind::kDefByPhi);
   newDef->SetDefPhi(*newPhi);
   newDefPoints.push_back(newDef);
@@ -379,7 +379,7 @@ void MeSSI::ReplacePiPhiInSuccs(BB &bb, VarMeExpr &newVar) {
     }
     CHECK_FATAL(index < succBB->GetPred().size(), "must be");
     MapleMap<OStIdx, MePhiNode*> &phiList = succBB->GetMePhiList();
-    auto it2 = phiList.find(newVar.GetOst()->GetIndex());
+    auto it2 = phiList.find(newVar.GetOstIdx());
     if (it2 != phiList.end()) {
       MePhiNode *phi = it2->second;
       ScalarMeExpr *oldVar = phi->GetOpnd(index);
@@ -561,17 +561,17 @@ bool MeSSI::ReplaceStmt(MeStmt &meStmt, VarMeExpr &newVar, VarMeExpr &oldVar) {
   } else {
     (void)ReplaceStmtWithNewVar(meStmt, oldVar, newVar, true);
   }
-  const OStIdx &ostIdx = newVar.GetOst()->GetIndex();
+  const OStIdx &ostIdx = newVar.GetOstIdx();
   MapleMap<OStIdx, ChiMeNode*> *chiList = meStmt.GetChiList();
   if (chiList != nullptr && chiList->find(ostIdx) != chiList->end()) {
     return true;
   }
   MeExpr *lhs = meStmt.GetAssignedLHS();
-  if (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex() == ostIdx) {
+  if (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOstIdx() == ostIdx) {
     return true;
   }
   lhs = meStmt.GetLHS();
-  return (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOst()->GetIndex() == ostIdx);
+  return (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOstIdx() == ostIdx);
 }
 
 void MeSSI::Rename() {
