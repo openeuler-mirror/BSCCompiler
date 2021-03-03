@@ -1097,7 +1097,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     }
     case OP_call:
     case OP_callassigned: {
-      InsertMayDefUseCall(stmt, CallHasSideEffect(static_cast<CallNode&>(stmt)),
+      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(static_cast<CallNode&>(stmt)),
                           CallHasNoPrivateDefEffect(static_cast<CallNode&>(stmt)));
       return;
     }
