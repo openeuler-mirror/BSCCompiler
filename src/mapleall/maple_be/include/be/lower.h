@@ -134,6 +134,7 @@ class CGLowerer {
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
   BaseNode *LowerArrayForLazyBiding(BaseNode &baseNode, BaseNode &offsetNode, const BaseNode &parent);
   BaseNode *LowerArray(ArrayNode &array, const BaseNode &parent);
+  BaseNode *LowerCArray(ArrayNode &array);
 
   DassignNode *SaveReturnValueInLocal(StIdx, uint16);
   void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retTy = nullptr);
@@ -156,7 +157,7 @@ class CGLowerer {
   virtual BlockNode *LowerReturn(NaryStmtNode &retNode);
   void LowerEntry(MIRFunction &func);
 
-  StmtNode *LowerCall(CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *reTty = nullptr);
+  StmtNode *LowerCall(CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retTy = nullptr);
   void SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, BlockNode &newBlk);
 
   void CleanupBranches(MIRFunction &func) const;

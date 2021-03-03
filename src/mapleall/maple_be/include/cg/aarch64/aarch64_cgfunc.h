@@ -578,7 +578,7 @@ class AArch64CGFunc : public CGFunc {
                                         AArch64ListOperand &srcOpnds);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                   int32 &structCopyOffset);
-
+  uint32 SelectParmListGetStructReturnSize(StmtNode &naryNode);
   void SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOpnds, bool isCallNative = false);
   Operand *SelectClearStackCallParam(const AddrofNode &expr, int64 &offsetValue);
   void SelectClearStackCallParmList(const StmtNode &naryNode, AArch64ListOperand &srcOpnds,
@@ -596,6 +596,7 @@ class AArch64CGFunc : public CGFunc {
                               bool is64Bits, bool IsBitmaskImmediate, bool isBitNumLessThan16) const;
   Operand *SelectMinOrMax(bool isMin, const BinaryNode &node, Operand &opnd0, Operand &opnd1);
   void SelectMinOrMax(bool isMin, Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType);
+  Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   Operand *SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
     AArch64SymbolAlloc *symLoc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetLocOfSpillRegister(vrNum));

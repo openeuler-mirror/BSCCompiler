@@ -51,7 +51,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   }
 
   aggCopySize = 0;
-  for (; i < stmt.NumOpnds(); ++i) {
+  for (uint32 anum = 0; i < stmt.NumOpnds(); ++i, ++anum) {
     BaseNode *opnd = stmt.Opnd(i);
     MIRType *ty = nullptr;
     if (opnd->GetPrimType() != PTY_agg) {
@@ -88,7 +88,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
       }
     }
     PLocInfo ploc;
-    aggCopySize += parmLocator.LocateNextParm(*ty, ploc);
+    aggCopySize += parmLocator.LocateNextParm(*ty, ploc, anum == 0);
     if (ploc.reg0 != 0) {
       continue;  /* passed in register, so no effect on actual area */
     }
@@ -97,10 +97,24 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   return sizeOfArgsToStkPass;
 }
 
+void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const {
+  if (be.GetTypeSize(typeIdx) > k16ByteSize) {
+    /* size > 16 is passed on stack, the formal is just a pointer to the copy on stack. */
+    align = kSizeOfPtr;
+    size = kSizeOfPtr;
+  } else {
+    align = be.GetTypeAlign(typeIdx);
+    size = be.GetTypeSize(typeIdx);
+  }
+}
+
 void AArch64MemLayout::SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx) {
-  segment.SetSize(static_cast<int32>(RoundUp(static_cast<uint64>(segment.GetSize()), be.GetTypeAlign(typeIdx))));
+  uint32 size;
+  uint32 align;
+  SetSizeAlignForTypeIdx(typeIdx, size, align);
+  segment.SetSize(static_cast<int32>(RoundUp(static_cast<uint64>(segment.GetSize()), align)));
   symbolAlloc.SetOffset(segment.GetSize());
-  segment.SetSize(segment.GetSize() + static_cast<int32>(be.GetTypeSize(typeIdx)));
+  segment.SetSize(segment.GetSize() + static_cast<int32>(size));
   segment.SetSize(static_cast<int32>(RoundUp(static_cast<uint64>(segment.GetSize()), kSizeOfPtr)));
 }
 
@@ -115,7 +129,7 @@ void AArch64MemLayout::LayoutVarargParams() {
       if (i == 0) {
         if (be.HasFuncReturnType(*func)) {
           TyIdx tidx = be.GetFuncReturnType(*func);
-          if (be.GetTypeSize(tidx.GetIdx()) <= 16) {
+          if (be.GetTypeSize(tidx.GetIdx()) <= k16ByteSize) {
             continue;
           }
         }
@@ -138,7 +152,7 @@ void AArch64MemLayout::LayoutVarargParams() {
       }
     }
     SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * kSizeOfPtr);
-    SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * 2);
+    SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * k2ByteSize);
   }
 }
 
@@ -150,7 +164,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     bool noStackPara = false;
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
-    parmLocator.LocateNextParm(*ty, ploc);
+    parmLocator.LocateNextParm(*ty, ploc, i == 0);
     uint32 stIndex = sym->GetStIndex();
     AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
@@ -160,18 +174,24 @@ void AArch64MemLayout::LayoutFormalParams() {
         symLoc->SetMemSegment(segRefLocals);
         SetSegmentSize(*symLoc, segRefLocals, ptyIdx);
       } else if (!sym->IsPreg()) {
+        uint32 size;
+        uint32 align;
+        SetSizeAlignForTypeIdx(ptyIdx, size, align);
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         /* the type's alignment requirement may be smaller than a registser's byte size */
-        segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), be.GetTypeAlign(ptyIdx)));
+        segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), align));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
-        segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + be.GetTypeSize(ptyIdx));
+        segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
       }
       noStackPara = true;
     } else {  /* stack */
+      uint32 size;
+      uint32 align;
+      SetSizeAlignForTypeIdx(ptyIdx, size, align);
       symLoc->SetMemSegment(GetSegArgsStkPassed());
-      segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), be.GetTypeAlign(ptyIdx)));
+      segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), align));
       symLoc->SetOffset(segArgsStkPassed.GetSize());
-      segArgsStkPassed.SetSize(segArgsStkPassed.GetSize() + be.GetTypeSize(ptyIdx));
+      segArgsStkPassed.SetSize(segArgsStkPassed.GetSize() + size);
       /* We need it as dictated by the AArch64 ABI $5.4.2 C12 */
       segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr));
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
@@ -423,5 +443,4 @@ int32 AArch64MemLayout::GetVRSaveAreaBaseLoc() {
   total -= SizeOfArgsToStackPass();
   return total;
 }
-
 }  /* namespace maplebe */

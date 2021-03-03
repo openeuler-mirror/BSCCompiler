@@ -518,6 +518,12 @@ class BB {
   void SetIsProEpilog(bool arg) {
     isProEpilog = arg;
   }
+  bool IsLabelTaken() const {
+    return labelTaken;
+  }
+  void SetLabelTaken() {
+    labelTaken = true;
+  }
   long GetInternalFlag1() const {
     return internalFlag1;
   }
@@ -683,6 +689,7 @@ class BB {
    */
   bool isCleanup = false;  /* true if the bb is cleanup bb. otherwise, false. */
   bool isProEpilog = false;  /* Temporary tag for modifying prolog/epilog bb. */
+  bool labelTaken = false;  /* Block label is taken indirectly and can be used to jump to it. */
   /*
    * Different meaning for each data flow analysis.
    * For aarchregalloc.cpp, the bb is part of cleanup at end of function.

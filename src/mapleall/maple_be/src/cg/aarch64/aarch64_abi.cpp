@@ -361,6 +361,12 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd) {
 }
 }  /* namespace AArch64Abi */
 
+void ParmLocator::InitPLocInfo(PLocInfo &pLoc) const {
+  pLoc.reg0 = kRinvalid;
+  pLoc.reg1 = kRinvalid;
+  pLoc.memOffset = nextStackArgAdress;
+}
+
 /*
  * Refer to ARM IHI 0055C_beta: Procedure Call Standard for
  * the ARM 64-bit Architecture. $5.4.2
@@ -375,12 +381,31 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd) {
  * starting from the beginning, one call per parameter in sequence; it returns
  * the information on how each parameter is passed in pLoc
  */
-int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc) {
+int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst) {
+  InitPLocInfo(pLoc);
+
+  if (isFirst) {
+    MIRFunction *func = const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
+    if (beCommon.HasFuncReturnType(*func)) {
+      uint32 size = beCommon.GetTypeSize(beCommon.GetFuncReturnType(*func));
+      if (size == 0) {
+        /* For return struct size 0 there is no return value. */
+        return 0;
+      } else if (size > k16ByteSize) {
+        /* For return struct size > 16 bytes the pointer returns in x8. */
+        pLoc.reg0 = R8;
+        return kSizeOfPtr;
+      }
+      /* For return struct size less or equal to 16 bytes, the values
+       * are returned in register pairs.  Do nothing here.
+       */
+    }
+  }
   uint64 typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex());
+  if (typeSize == 0) {
+    return 0;
+  }
   int32 typeAlign = beCommon.GetTypeAlign(mirType.GetTypeIndex());
-  pLoc.reg0 = kRinvalid;
-  pLoc.reg1 = kRinvalid;
-  pLoc.memOffset = nextStackArgAdress;
   /*
    * Rule C.12 states that we do round nextStackArgAdress up before we use its value
    * according to the alignment requirement of the argument being processed.

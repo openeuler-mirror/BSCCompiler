@@ -801,6 +801,14 @@ class CGFunc {
     return lSymSize;
   }
 
+  bool HasTakenLabel() const{
+    return hasTakenLabel;
+  }
+
+  void SetHasTakenLabel() {
+    hasTakenLabel = true;
+  }
+
   virtual InsnVisitor *NewInsnModifier() = 0;
 
  protected:
@@ -827,6 +835,7 @@ class CGFunc {
   bool isVolStore = false;
   bool isAfterRegAlloc = false;
   bool isAggParamInReg = false;
+  bool hasTakenLabel = false;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
   RegOperand *aggParamReg = nullptr;

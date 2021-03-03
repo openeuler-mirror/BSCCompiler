@@ -31,7 +31,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
   PLocInfo ploc;
   for (uint32 i = 0; i < aarchCGFunc->GetFunction().GetFormalCount(); ++i) {
     MIRType *ty = aarchCGFunc->GetFunction().GetNthParamType(i);
-    parmlocator.LocateNextParm(*ty, ploc);
+    parmlocator.LocateNextParm(*ty, ploc, i == 0);
     if (ploc.reg0 == kRinvalid) {
       continue;
     }
@@ -268,8 +268,17 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   PLocInfo ploc;
 
   for (uint32 i = 0; i < aarchCGFunc->GetFunction().GetFormalCount(); ++i) {
+    if (i == 0) {
+      MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+      if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
+        TyIdx idx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
+        if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
+          continue;
+        }
+      }
+    }
     MIRType *ty = aarchCGFunc->GetFunction().GetNthParamType(i);
-    parmlocator.LocateNextParm(*ty, ploc);
+    parmlocator.LocateNextParm(*ty, ploc, i == 0);
     MIRSymbol *sym = aarchCGFunc->GetFunction().GetFormal(i);
 
     /* load locarefvar formals to store in the reflocals. */

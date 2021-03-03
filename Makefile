@@ -55,7 +55,7 @@ maplegen:install_patch
 
 .PHONY: maplegendef
 maplegendef: maplegen
-	$(call build_gn, $(GN_OPTIONS), aarch64isa_headers maplegendef)
+	$(call build_gn, $(GN_OPTIONS), maplegendef)
 
 .PHONY: maple
 maple: maplegendef
@@ -101,6 +101,9 @@ install: maple dex2mpl_install irbuild
 	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
 	rsync -a -L $(MAPLE_BIN_DIR)/jbc2mpl $(INSTALL_DIR)/bin/;)
 
+.PHONY: all
+all: install mplfe libcore
+
 ifeq ($(OPS_ANDROID),0)
 .PHONY: dex2mpl_install
 dex2mpl_install:
@@ -115,6 +118,10 @@ endif
 setup:
 	(cd tools; ./setup_tools.sh)
 
+.PHONY: demo
+demo:
+	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1
+
 .PHONY: test1
 test1: libcore
 	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --verbose --debug
@@ -127,8 +134,13 @@ test_irbuild: install
 test_ourboros: libcore
 	python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
 
+.PHONY: c_test
+c_test:
+	$(MAKE) -C test c_test
+
 .PHONY: testall
-testall: test_irbuild test_ourboros
+testall: 
+	$(MAKE) -C test all
 
 .PHONY: cleanrsd
 cleanrsd:uninstall_patch

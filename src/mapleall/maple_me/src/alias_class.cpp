@@ -237,30 +237,34 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       auto &call = static_cast<CallNode&>(stmt);
       ASSERT(call.GetPUIdx() < GlobalTables::GetFunctionTable().GetFuncTable().size(),
              "index out of range in AliasClass::ApplyUnionForCopies");
+      if (CallHasSideEffect(call)) {
+        SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(),
+                               CallHasNoPrivateDefEffect(call));
+      }
+      break;
+    }
+    case OP_virtualcall:
+    case OP_superclasscall:
+    case OP_interfacecall:
+    case OP_customcall:
+    case OP_polymorphiccall:
+    case OP_virtualcallassigned:
+    case OP_superclasscallassigned:
+    case OP_interfacecallassigned:
+    case OP_customcallassigned:
+    case OP_polymorphiccallassigned: {
+      auto &call = static_cast<NaryStmtNode&>(stmt);
       SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
       break;
     }
     case OP_icall:
     case OP_icallassigned:
-    case OP_virtualcall:
     case OP_virtualicall:
-    case OP_superclasscall:
-    case OP_interfacecall:
     case OP_interfaceicall:
-    case OP_customcall:
-    case OP_polymorphiccall:
-    case OP_virtualcallassigned:
     case OP_virtualicallassigned:
-    case OP_superclasscallassigned:
-    case OP_interfacecallassigned:
-    case OP_interfaceicallassigned:
-    case OP_customcallassigned:
-    case OP_polymorphiccallassigned: {
-      auto &call = static_cast<CallNode&>(stmt);
-      if (CallHasSideEffect(call)) {
-        SetPtrOpndsNextLevNADS(1, static_cast<unsigned int>(call.NumOpnds()),
-                               call.GetNopnd(), CallHasNoPrivateDefEffect(call));
-      }
+    case OP_interfaceicallassigned: {
+      auto &call = static_cast<NaryStmtNode&>(stmt);
+      SetPtrOpndsNextLevNADS(1, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
       break;
     }
     case OP_intrinsiccall:
@@ -919,8 +923,9 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
 }
 
 void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts) {
-  for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
-    BaseNode *expr = stmt.Opnd(i);
+  size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
+  for (; opndId < stmt.NumOpnds(); ++opndId) {
+    BaseNode *expr = stmt.Opnd(opndId);
     if (!IsPotentialAddress(expr->GetPrimType())) {
       continue;
     }
@@ -939,7 +944,7 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
 
       if (indAe->GetOriginalSt().IsFinal()) {
         // only final fields pointed to by the first opnd(this) are considered.
-        if (i != 0) {
+        if (opndId != 0) {
           continue;
         }
 
@@ -1090,7 +1095,12 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
       InsertMayUseAll(stmt);
       return;
     }
-    case OP_callassigned:
+    case OP_call:
+    case OP_callassigned: {
+      InsertMayDefUseCall(stmt, CallHasSideEffect(static_cast<CallNode&>(stmt)),
+                          CallHasNoPrivateDefEffect(static_cast<CallNode&>(stmt)));
+      return;
+    }
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:
     case OP_superclasscallassigned:
@@ -1099,7 +1109,6 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcallassigned:
     case OP_polymorphiccallassigned:
     case OP_icallassigned:
-    case OP_call:
     case OP_virtualcall:
     case OP_virtualicall:
     case OP_superclasscall:
@@ -1108,8 +1117,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcall:
     case OP_polymorphiccall:
     case OP_icall: {
-      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(static_cast<CallNode&>(stmt)),
-          CallHasNoPrivateDefEffect(static_cast<CallNode&>(stmt)));
+      InsertMayDefUseCall(stmt, bbID, true, false);
       return;
     }
     case OP_intrinsiccallwithtype: {
