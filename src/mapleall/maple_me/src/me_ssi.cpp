@@ -30,7 +30,7 @@ VarMeExpr *MeSSI::CreateNewPiExpr(const MeExpr &opnd) {
   VarMeExpr *var = irMap->New<VarMeExpr>(irMap->GetExprID(), ost,
                                          irMap->GetVerst2MeExprTable().size(), opnd.GetPrimType());
   irMap->SetExprID(irMap->GetExprID() + 1);
-  irMap->PushBackVerst2MeExprTable(var);
+  irMap->GetVerst2MeExprTable().push_back(var);
   ost->PushbackVersionsIndices(var->GetVstIdx());
   return var;
 }
