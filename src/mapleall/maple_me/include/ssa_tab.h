@@ -36,7 +36,7 @@ class SSATab : public AnalysisResult {
   ~SSATab() = default;
 
   BaseNode *CreateSSAExpr(BaseNode &expr);
-  void CreateSSAStmt(StmtNode &stmt, BB *curbb);
+  void CreateSSAStmt(StmtNode &stmt, const BB *curbb);
   bool HasDefBB(OStIdx oidx) {
     return oidx < defBBs4Ost.size() && defBBs4Ost[oidx] && !defBBs4Ost[oidx]->empty();
   }
@@ -47,7 +47,7 @@ class SSATab : public AnalysisResult {
     if (defBBs4Ost[oidx] == nullptr) {
       defBBs4Ost[oidx] = versAlloc.GetMemPool()->New<MapleSet<BBId>>(versAlloc.Adapter());
     }
-    defBBs4Ost[oidx]->insert(bbid);
+    (void)defBBs4Ost[oidx]->insert(bbid);
   }
   MapleSet<BBId> *GetDefBBs4Ost(OStIdx oidx) {
     return defBBs4Ost[oidx];

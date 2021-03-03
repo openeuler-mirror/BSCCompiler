@@ -15,6 +15,7 @@
 #include "me_rc_lowering.h"
 #include <cstring>
 #include "me_option.h"
+#include "dominance.h"
 
 // RCLowering phase generate RC intrinsic for reference assignment
 // based on previous analyze results. RC intrinsic will later be lowered

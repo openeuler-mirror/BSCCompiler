@@ -23,7 +23,7 @@ namespace maple {
 using MeExprBuildFactory = FunctionFactory<Opcode, MeExpr*, const IRMapBuild*, BaseNode&>;
 using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, AccessSSANodes&>;
 
-VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(VersionSt &vst) {
+VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->vst2MeExprTable.size(), "GetOrCreateVarFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->vst2MeExprTable.at(vindex);
@@ -39,7 +39,7 @@ VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(VersionSt &vst) {
   return varx;
 }
 
-RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(VersionSt &vst) {
+RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
   size_t vindex = vst.GetIndex();
   ASSERT(vindex < irMap->vst2MeExprTable.size(), " GetOrCreateRegFromVerSt: index %d is out of range", vindex);
   MeExpr *meExpr = irMap->vst2MeExprTable[vindex];
@@ -54,7 +54,7 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(VersionSt &vst) {
   return regx;
 }
 
-MeExpr *IRMapBuild::BuildLHSVar(VersionSt &vst, DassignMeStmt &defMeStmt) {
+MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) {
   VarMeExpr *meDef = GetOrCreateVarFromVerSt(vst);
   meDef->SetDefStmt(&defMeStmt);
   meDef->SetDefBy(kDefByStmt);
@@ -62,7 +62,7 @@ MeExpr *IRMapBuild::BuildLHSVar(VersionSt &vst, DassignMeStmt &defMeStmt) {
   return meDef;
 }
 
-MeExpr *IRMapBuild::BuildLHSReg(VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign) {
+MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign) {
   RegMeExpr *meDef = GetOrCreateRegFromVerSt(vst);
   meDef->SetPtyp(regassign.GetPrimType());
   meDef->SetDefStmt(&defMeStmt);

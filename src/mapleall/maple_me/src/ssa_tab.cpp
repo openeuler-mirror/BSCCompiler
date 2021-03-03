@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -63,7 +63,7 @@ BaseNode *SSATab::CreateSSAExpr(BaseNode &expr) {
   return nullptr;
 }
 
-void SSATab::CreateSSAStmt(StmtNode &stmt, BB *curbb) {
+void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
   for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
     BaseNode *newOpnd = CreateSSAExpr(*stmt.Opnd(i));
     if (newOpnd != nullptr) {
@@ -133,7 +133,8 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, BB *curbb) {
             MIRSymbol *st = symTab->GetSymbolFromStIdx(stidx.Idx());
             ost = FindOrCreateSymbolOriginalSt(*st, mirModule.CurFunction()->GetPuidx(), retPair.second.GetFieldID());
           } else {
-            ost = originalStTable.FindOrCreatePregOriginalSt(retPair.second.GetPregIdx(), mirModule.CurFunction()->GetPuidx());
+            ost = originalStTable.FindOrCreatePregOriginalSt(retPair.second.GetPregIdx(),
+                                                             mirModule.CurFunction()->GetPuidx());
           }
           versionStTable.CreateZeroVersionSt(ost);
           VersionSt *vst = versionStTable.GetZeroVersionSt(ost);

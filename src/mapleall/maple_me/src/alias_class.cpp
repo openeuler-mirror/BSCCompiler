@@ -753,8 +753,8 @@ void AliasClass::InsertMayUseAll(const StmtNode &stmt) {
   TypeOfMayUseList &mayUseNodes = ssaTab.GetStmtsSSAPart().GetMayUseNodesOf(stmt);
   for (AliasElem *aliasElem : id2Elem) {
     if (aliasElem->GetOriginalSt().GetIndirectLev() >= 0 && !aliasElem->GetOriginalSt().IsPregOst()) {
-      mayUseNodes.emplace_back(
-          MayUseNode(ssaTab.GetVersionStTable().GetVersionStVectorItem(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
+      mayUseNodes.emplace_back(MayUseNode(
+          ssaTab.GetVersionStTable().GetVersionStVectorItem(aliasElem->GetOriginalSt().GetZeroVersionIndex())));
     }
   }
 }
