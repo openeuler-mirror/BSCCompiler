@@ -51,18 +51,6 @@ group("ast2mpl") {
   }
 }
 
-group("aarch64isa_headers") {
-  exec_script(
-      "${MAPLEALL_ROOT}/maple_be/src/cg/script/genmop.py",
-      [
-        rebase_path("${MAPLEALL_ROOT}/maple_be/src/cg/aarch64/aarch64_md.def",
-                    root_build_dir),
-        rebase_path(
-            "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64/aarch64_isa.def",
-            root_build_dir),
-      ])
-}
-
 group("maplegendef") {
   exec_script("${MAPLEALL_ROOT}/maple_be/mdgen/gendef.py",
               [
