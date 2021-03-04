@@ -22,7 +22,6 @@
 // phi operands.
 
 namespace maple {
-
 void MeSSAUpdate::InsertPhis() {
   MapleMap<OStIdx, MapleSet<BBId> *>::iterator it = updateCands.begin();
   MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());

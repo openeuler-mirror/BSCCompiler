@@ -45,7 +45,6 @@
 // returns from those recursive calls, we restores the stack of current SSA names to
 // the state that existed before the current block was visited.
 namespace maple {
-
 void MeSSA::InsertPhiNode() {
   for (size_t i = 1; i < ssaTab->GetOriginalStTable().Size(); ++i) {
     OriginalSt *ost = ssaTab->GetOriginalStFromID(OStIdx(i));
@@ -121,7 +120,8 @@ AnalysisResult *MeDoSSA::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, Modu
 
   ssa->InsertPhiNode();
 
-  ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), func->GetAllBBs().size(), func->GetMeSSATab()->GetVersionStTable());
+  ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), func->GetAllBBs().size(),
+                       func->GetMeSSATab()->GetVersionStTable());
 
   // recurse down dominator tree in pre-order traversal
   MapleSet<BBId> *children = &dom->domChildren[func->GetCommonEntryBB()->GetBBId()];

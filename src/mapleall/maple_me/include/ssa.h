@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -90,7 +90,7 @@ class SSA {
 
   virtual ~SSA() = default;
 
-  void InitRenameStack(OriginalStTable&, size_t, VersionStTable&);
+  void InitRenameStack(const OriginalStTable&, size_t, const VersionStTable&);
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
   void RenamePhi(BB &bb);
   void RenameDefs(StmtNode &stmt, BB &defBB);

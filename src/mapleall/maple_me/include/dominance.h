@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -50,7 +50,7 @@ class Dominance : public AnalysisResult {
   void ComputeDominance();
   void ComputeDomFrontiers();
   void ComputeDomChildren();
-  void GetIterDomFrontier(BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap);
+  void GetIterDomFrontier(const BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap);
   void ComputeIterDomFrontiers();
   void ComputeDtPreorder(const BB &bb, size_t &num);
   void ComputeDtDfn();
@@ -60,7 +60,7 @@ class Dominance : public AnalysisResult {
   void ComputePostDominance();
   void ComputePdomFrontiers();
   void ComputePdomChildren();
-  void GetIterPdomFrontier(BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap);
+  void GetIterPdomFrontier(const BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap);
   void ComputeIterPdomFrontiers();
   void ComputePdtPreorder(const BB &bb, size_t &num);
   void ComputePdtDfn();

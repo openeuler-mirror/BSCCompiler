@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -24,8 +24,10 @@
 namespace maple {
 class MeSSA : public SSA, public AnalysisResult {
  public:
-  MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool) :
-    SSA(memPool, *stab, func.GetAllBBs(), &dom), AnalysisResult(&memPool), func(&func), dom(&dom) {}
+  MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool)
+      : SSA(memPool, *stab, func.GetAllBBs(), &dom),
+        AnalysisResult(&memPool),
+        func(&func) {}
 
   ~MeSSA() = default;
 
@@ -35,7 +37,6 @@ class MeSSA : public SSA, public AnalysisResult {
  private:
   void VerifySSAOpnd(const BaseNode &node) const;
   MeFunction *func;
-  Dominance *dom;
 };
 
 class MeDoSSA : public MeFuncPhase {

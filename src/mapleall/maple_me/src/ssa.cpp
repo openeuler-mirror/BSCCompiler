@@ -20,7 +20,7 @@
 #include "dominance.h"
 
 namespace maple {
-void SSA::InitRenameStack(OriginalStTable &oTable, size_t bbSize, VersionStTable &verStTab) {
+void SSA::InitRenameStack(const OriginalStTable &oTable, size_t bbSize, const VersionStTable &verStTab) {
   vstStacks.resize(oTable.Size());
   bbRenamed.resize(bbSize, false);
   for (size_t i = 1; i < oTable.Size(); ++i) {

@@ -176,7 +176,7 @@ class VersionStTable {
 
   void CreateZeroVersionSt(OriginalSt *ost);
 
-  VersionSt *GetZeroVersionSt(OriginalSt *ost) {
+  VersionSt *GetZeroVersionSt(const OriginalSt *ost) const {
     CHECK_FATAL(ost->GetVersionsIndices().size() != 0, "GetZeroVersionSt:: zero version has not been created");
     return versionStVector[ost->GetZeroVersionIndex()];
   }
