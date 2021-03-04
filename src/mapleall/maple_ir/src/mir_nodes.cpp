@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,6 +21,7 @@
 #include "opcode_info.h"
 #include "namemangler.h"
 #include "utils.h"
+#include "verification.h"
 
 namespace maple {
 MIRModule *theMIRModule = nullptr;
@@ -242,7 +243,7 @@ void CatchNode::Dump() const {
   this->BaseNode::Dump();
 }
 
-void CppCatchNode::Dump( int32 indent) const {
+void CppCatchNode::Dump(int32 indent) const {
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetName(op);
   if (exceptionTyIdx.GetIdx() != 0) {
@@ -1172,40 +1173,6 @@ void CommentNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << "#" << comment << '\n';
 }
 
-// mirnode verification support
-bool ExcludeSmallIntTypeVerify(const BaseNode &opnd) {
-  switch (opnd.GetPrimType()) {
-    case PTY_u1:
-    case PTY_i8:
-    case PTY_u8:
-    case PTY_i16:
-    case PTY_u16:
-      return false;
-    default:
-      break;
-  }
-  return true;
-}
-
-bool ArithTypeVerify(const BaseNode &opnd) {
-  bool verifyResult = ExcludeSmallIntTypeVerify(opnd);
-  if (!verifyResult) {
-    LogInfo::MapleLogger() << "\n#Error:u1,i8,u8,i16,u16 should not be used as types of arithmetic operations\n";
-    opnd.Dump();
-  }
-  return verifyResult;
-}
-
-inline bool ReadTypeVerify(const BaseNode &opnd) {
-  bool verifyResult = ExcludeSmallIntTypeVerify(opnd);
-  if (!verifyResult) {
-    LogInfo::MapleLogger()
-        << "\n#Error:u1,i8,u8,i16,u16 should not be used as result types for dread/iread/regread/ireadoff/ireadfpoff\n";
-    opnd.Dump();
-  }
-  return verifyResult;
-}
-
 inline bool IntTypeVerify(PrimType pTyp) {
   return pTyp == PTY_i32 || pTyp == PTY_u32 || pTyp == PTY_i64 || pTyp == PTY_u64;
 }
@@ -1258,7 +1225,7 @@ inline bool BinaryTypeVerify(PrimType pType) {
 }
 
 inline bool BinaryGenericVerify(const BaseNode &bOpnd0, const BaseNode &bOpnd1) {
-  return bOpnd0.Verify() && bOpnd1.Verify() && ArithTypeVerify(bOpnd0) && ArithTypeVerify(bOpnd1);
+  return bOpnd0.Verify() && bOpnd1.Verify();
 }
 
 inline bool CompareTypeVerify(PrimType pType) {
@@ -1379,50 +1346,11 @@ inline MIRTypeKind GetPointedTypeKind(TyIdx tyIdx) {
   return pointedType->GetKind();
 }
 
-bool GetFieldType(MIRSrcLang srcLang, const MIRStructType *structType, FieldID targetFid, TyIdx &tyIdx) {
-  if (structType == nullptr) {
-    return false;
-  }
-  // For Java module class, find targetFid in inheritance chain firstly
-  if (srcLang == kSrcLangJava) {
-    if (structType->GetKind() == kTypeClass || structType->GetKind() == kTypeClassIncomplete) {
-      const auto *classType = static_cast<const MIRClassType*>(structType);
-      std::stack<MIRStructType*> inheritChain;
-      TyIdx parentTyIdx = classType->GetParentTyIdx();
-      while (parentTyIdx > 0u) {
-        auto *parentType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentTyIdx));
-        inheritChain.push(parentType);
-        parentTyIdx = static_cast<MIRClassType*>(parentType)->GetParentTyIdx();
-      }
-      targetFid -= inheritChain.size();
-      while (!inheritChain.empty()) {
-        auto *curClassType = static_cast<MIRClassType*>(inheritChain.top());
-        if (static_cast<uint32>(targetFid) > 0 && static_cast<uint32>(targetFid) <= curClassType->GetFieldsSize()) {
-          tyIdx = curClassType->GetFieldsElemt(targetFid - 1).second.first;
-          return true;
-        } else {
-          targetFid -= curClassType->GetFieldsSize();
-        }
-        inheritChain.pop();
-      }
-      if (static_cast<uint32>(targetFid) > 0 && static_cast<uint32>(targetFid) <= classType->GetFieldsSize()) {
-        tyIdx = classType->GetFieldsElemt(targetFid - 1).second.first;
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-MIRTypeKind GetFieldTypeKind(const MIRStructType *structType, FieldID fieldId) {
+MIRTypeKind GetFieldTypeKind(MIRStructType *structType, FieldID fieldId) {
   TyIdx fieldTyIdx;
   if (fieldId > 0) {
-    bool isValid = GetFieldType(theMIRModule->GetSrcLang(), structType, fieldId, fieldTyIdx);
-    // when mpl does not have complete class info
-    if (!isValid) {
-      LogInfo::MapleLogger() << "\n#Error:field not found, must have complete class info\n";
-      return kTypeInvalid;
-    }
+    MIRType *mirType = structType->GetFieldType(fieldId);
+    fieldTyIdx = mirType->GetTypeIndex();
   } else {
     ASSERT(static_cast<unsigned>(-fieldId) < structType->GetParentFieldsSize() + 1, "array index out of range");
     fieldTyIdx = structType->GetParentFieldsElemt(-fieldId - 1).second.first;
@@ -1497,15 +1425,12 @@ bool UnaryNode::Verify() const {
   } else if (GetOpCode() == OP_recip || GetOpCode() == OP_sqrt) {
     resTypeVerf = UnaryTypeVerify2(GetPrimType());
   }
-  bool opndTypeVerf = true;
-  if (GetOpCode() != OP_lnot) {
-    opndTypeVerf = ArithTypeVerify(*uOpnd);
-  }
+
   // When an opcode only specifies one type, check for compatibility
   // between the operands and the result-type.
   bool compVerf = CompatibleTypeVerify(*uOpnd, *this);
   bool opndExprVerf = uOpnd->Verify();
-  return resTypeVerf && opndTypeVerf && compVerf && opndExprVerf;
+  return resTypeVerf && compVerf && opndExprVerf;
 }
 
 bool TypeCvtNode::Verify() const {
@@ -1523,10 +1448,244 @@ bool TypeCvtNode::Verify() const {
   return opndTypeVerf && opndSizeVerf && opndExprVerf;
 }
 
+void AddRuntimeVerifyError(std::string errMsg, VerifyResult &verifyResult) {
+  LogInfo::MapleLogger() << "\n#Error: " << errMsg << '\n';
+  // Throw Verify Error
+  verifyResult.AddPragmaVerifyError(verifyResult.GetCurrentClassName(), std::move(errMsg));
+}
+
+bool RetypeNode::VerifyPrimTypesAndOpnd() const {
+  PrimType toPrimType = GetPrimType();
+  PrimType fromPrimType = Opnd(0)->GetPrimType();
+  if (GetPrimTypeSize(toPrimType) != GetPrimTypeSize(fromPrimType)) {
+    LogInfo::MapleLogger() << "\n#Error: The size of opnd0 and prim-type must be the same\n";
+    return false;
+  }
+
+  if (!IsPrimitivePoint(toPrimType) || !IsPrimitivePoint(fromPrimType)) {
+    LogInfo::MapleLogger() << "\n#Error: Wrong prim-type in retype node, should be ref or ptr\n";
+    return false;
+  }
+  return Opnd(0)->Verify();
+}
+
+bool RetypeNode::CheckFromJarray(const MIRType &from, const MIRType &to, VerifyResult &verifyResult) const {
+  // Array types are subtypes of Object.
+  // The intent is also that array types are subtypes of Cloneable and java.io.Serializable.
+  if (IsInterfaceOrClass(to)) {
+    Klass &toKlass = utils::ToRef(verifyResult.GetKlassHierarchy().GetKlassFromStrIdx(to.GetNameStrIdx()));
+    const std::string &toKlassName = toKlass.GetKlassName();
+    const std::string &javaLangObject = namemangler::kJavaLangObjectStr;
+    const std::string javaLangCloneable = "Ljava_2Flang_2FCloneable_3B";
+    const std::string javaIoSerializable = "Ljava_2Fio_2FSerializable_3B";
+    if (toKlassName == javaLangObject || toKlassName == javaIoSerializable || toKlassName == javaLangCloneable) {
+      return true;
+    }
+  }
+
+  AddRuntimeVerifyError("Java array " + from.GetName() + " is not assignable to " + to.GetName(), verifyResult);
+  return false;
+}
+
+bool RetypeNode::IsJavaAssignable(const MIRType &from, const MIRType &to, VerifyResult &verifyResult) const {
+  // isJavaAssignable(arrayOf(X), arrayOf(Y)) :- compound(X), compound(Y), isJavaAssignable(X, Y).
+  // arrayOf(X), arrayOf(Y) should already be X, Y here
+  if (from.IsMIRJarrayType()) {
+    return CheckFromJarray(from, to, verifyResult);
+  }
+  // isJavaAssignable(arrayOf(X), arrayOf(Y)) :- atom(X), atom(Y), X = Y.
+  // This rule is not applicable to Maple IR
+  if (from.IsScalarType() && to.IsScalarType()) {
+    return true;
+  }
+
+  if (IsInterfaceOrClass(from) && IsInterfaceOrClass(to)) {
+    const KlassHierarchy &klassHierarchy = verifyResult.GetKlassHierarchy();
+    const std::string javaLangObject = namemangler::kJavaLangObjectStr;
+    Klass &fromKlass = utils::ToRef(klassHierarchy.GetKlassFromStrIdx(from.GetNameStrIdx()));
+    Klass &toKlass = utils::ToRef(klassHierarchy.GetKlassFromStrIdx(to.GetNameStrIdx()));
+    // We can cast everything to java.lang.Object, but interface isn't subclass of that, so we need this branch
+    if (toKlass.GetKlassName() == javaLangObject) {
+      return true;
+    }
+    // isJavaAssignable(class(_, _), class(To, L)) :- loadedClass(To, L, ToClass), classIsInterface(ToClass).
+    // isJavaAssignable(From, To) :- isJavaSubclassOf(From, To).
+    bool isAssignableKlass = klassHierarchy.IsSuperKlass(&toKlass, &fromKlass) ||
+                             klassHierarchy.IsSuperKlassForInterface(&toKlass, &fromKlass) ||
+                             klassHierarchy.IsInterfaceImplemented(&toKlass, &fromKlass);
+    if (isAssignableKlass) {
+      return true;
+    }
+    AddRuntimeVerifyError("Java type " + fromKlass.GetKlassName() + " is NOT assignable to " + toKlass.GetKlassName(),
+                          verifyResult);
+    return false;
+  }
+  AddRuntimeVerifyError(from.GetName() + " is NOT assignable to " + to.GetName(), verifyResult);
+  return false;
+}
+
+bool RetypeNode::VerifyCompleteMIRType(const MIRType &from, const MIRType &to, bool isJavaRefType,
+                                       VerifyResult &verifyResult) const {
+  if (from.IsScalarType() && to.IsScalarType() && !isJavaRefType) {
+    if (GetPTYGroup(from.GetPrimType()) == GetPTYGroup(to.GetPrimType())) {
+      return true;
+    }
+    LogInfo::MapleLogger() << "\n#Error: retype scalar type failed\n";
+    return false;
+  }
+  MIRSrcLang srcLang = verifyResult.GetMIRModule().GetSrcLang();
+  if (srcLang != kSrcLangJava && srcLang != kSrcLangJbc && srcLang != kSrcLangDex) {
+    return true;
+  }
+  isJavaRefType |= IsJavaRefType(from) && IsJavaRefType(to);
+  if (isJavaRefType) {
+    return IsJavaAssignable(from, to, verifyResult);
+  }
+
+  if (from.GetKind() != to.GetKind()) {
+    if (from.GetPrimType() == PTY_void || to.GetPrimType() == PTY_void) {
+      return true;
+    }
+    LogInfo::MapleLogger() << "\n#Error: Retype different kind: from " << from.GetKind() <<
+                              " to " << to.GetKind() << "\n";
+    return false;
+  }
+  return true;
+}
+
+bool RetypeNode::VerifyJarrayDimention(const MIRJarrayType &from, const MIRJarrayType &to,
+                                       VerifyResult &verifyResult) const {
+  int fromDim = const_cast<MIRJarrayType&>(from).GetDim();
+  int toDim = const_cast<MIRJarrayType&>(to).GetDim();
+  if (fromDim == toDim) {
+    return true;
+  } else if (fromDim > toDim) {
+    const MIRType *toElemType = to.GetElemType();
+    while (toElemType != nullptr && (toElemType->IsMIRJarrayType() || toElemType->IsMIRPtrType())) {
+      toElemType = toElemType->IsMIRJarrayType() ?
+                   static_cast<const MIRJarrayType*>(toElemType)->GetElemType() :
+                   static_cast<const MIRPtrType*>(toElemType)->GetPointedType();
+    }
+    if (toElemType != nullptr && CheckFromJarray(from, *toElemType, verifyResult)) {
+      return true;
+    }
+  }
+  Dump(0);
+  std::string errorMsg = "Arrays have different dimentions: from " + std::to_string(fromDim) +
+                         " to " + std::to_string(toDim);
+  AddRuntimeVerifyError(std::move(errorMsg), verifyResult);
+  return false;
+}
+
+bool RetypeNode::Verify(VerifyResult& verifyResult) const {
+  // If RetypeNode::Verify return false, Dump this node to show the wrong IR
+  if (!VerifyPrimTypesAndOpnd()) {
+    Dump(0);
+    LogInfo::MapleLogger() << "\n#Error: Verify PrimTypes and Opnd failed in retype node\n";
+    return false;
+  }
+  bool isJavaRefType = false;
+  const MIRType *fromMIRType = verifyResult.GetCurrentFunction()->GetNodeType(*Opnd(0));
+  const MIRType *toMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+  while (fromMIRType != nullptr && toMIRType != nullptr && BothPointerOrJarray(*fromMIRType, *toMIRType)) {
+    if (fromMIRType->IsMIRJarrayType()) {
+      isJavaRefType = true;
+      if (!VerifyJarrayDimention(static_cast<const MIRJarrayType&>(*fromMIRType),
+                                 static_cast<const MIRJarrayType&>(*toMIRType), verifyResult)) {
+        return false;
+      }
+      fromMIRType = static_cast<const MIRJarrayType*>(fromMIRType)->GetElemType();
+      toMIRType = static_cast<const MIRJarrayType*>(toMIRType)->GetElemType();
+    } else {
+      fromMIRType = static_cast<const MIRPtrType*>(fromMIRType)->GetPointedType();
+      toMIRType = static_cast<const MIRPtrType*>(toMIRType)->GetPointedType();
+    }
+  }
+  if (fromMIRType == nullptr || toMIRType == nullptr) {
+    Dump(0);
+    LogInfo::MapleLogger() << "\n#Error: MIRType is nullptr in retype node\n";
+    return false;
+  }
+
+  if (fromMIRType->IsIncomplete() || toMIRType->IsIncomplete()) {
+    // Add Deferred Check
+    const std::string &currentClassName = verifyResult.GetCurrentClassName();
+    LogInfo::MapleLogger(kLlDbg) << "Add AssignableCheck from " << fromMIRType->GetName() <<
+                                    " to " << toMIRType->GetName() <<
+                                    " in class " << currentClassName << '\n';
+    verifyResult.AddPragmaAssignableCheck(currentClassName, fromMIRType->GetName(), toMIRType->GetName());
+    // Deferred Assignable Check returns true because we should collect all the deferred checks for runtime
+    return true;
+  }
+
+  if (VerifyCompleteMIRType(*fromMIRType, *toMIRType, isJavaRefType, verifyResult)) {
+    return true;
+  }
+  Dump(0);
+  LogInfo::MapleLogger() << "\n#Error: Verify Complete MIRType failed in retype node\n";
+  return false;
+}
+
+bool UnaryStmtNode::VerifyThrowable(VerifyResult &verifyResult) const {
+  const BaseNode *rhs = GetRHS();
+  if (rhs == nullptr) {
+    return true;
+  }
+
+  const MIRType *mirType = verifyResult.GetCurrentFunction()->GetNodeType(*rhs);
+  if (mirType != nullptr && mirType->IsMIRPtrType()) {
+    mirType = static_cast<const MIRPtrType*>(mirType)->GetPointedType();
+  }
+  if (mirType != nullptr) {
+    if (mirType->GetPrimType() == PTY_void) {
+      return true;
+    }
+    if (mirType->IsIncomplete()) {
+      // Add Deferred Check
+      const std::string &currentClassName = verifyResult.GetCurrentClassName();
+      std::string throwableName = "Ljava_2Flang_2FThrowable_3B";
+      LogInfo::MapleLogger(kLlDbg) << "Add AssignableCheck from " << mirType->GetName() <<
+                                      " to " << throwableName <<
+                                      " in class " << currentClassName << '\n';
+      verifyResult.AddPragmaAssignableCheck(currentClassName, mirType->GetName(), std::move(throwableName));
+      // Deferred Assignable Check returns true because we should collect all the deferred checks for runtime
+      return true;
+    }
+    if (mirType->IsMIRClassType() && static_cast<const MIRClassType*>(mirType)->IsExceptionType()) {
+      return true;
+    }
+  }
+  Dump(0);
+  std::string errMsg = (mirType == nullptr ? "nullptr" : mirType->GetName());
+  errMsg += " is NOT throwable.";
+  AddRuntimeVerifyError(std::move(errMsg), verifyResult);
+  return false;
+}
+
+bool IntrinsicopNode::Verify(VerifyResult &verifyResult) const {
+  if (GetIntrinsic() == INTRN_JAVA_ARRAY_LENGTH && !VerifyJArrayLength(verifyResult)) {
+    return false;
+  }
+  return VerifyOpnds();
+}
+
+bool IntrinsicopNode::VerifyJArrayLength(VerifyResult &verifyResult) const {
+  BaseNode &val = utils::ToRef(Opnd(0));
+  const MIRType *valType = verifyResult.GetCurrentFunction()->GetNodeType(val);
+  if (valType != nullptr && valType->IsMIRPtrType()) {
+    valType = static_cast<const MIRPtrType*>(valType)->GetPointedType();
+    if (valType != nullptr && !valType->IsMIRJarrayType()) {
+      Dump(0);
+      AddRuntimeVerifyError("Operand of array length is not array", verifyResult);
+      return false;
+    }
+  }
+  return true;
+}
 
 bool IreadNode::Verify() const {
   bool addrExprVerf = Opnd(0)->Verify();
-  bool pTypeVerf = ReadTypeVerify(*this);
+  bool pTypeVerf = true;
   bool structVerf = true;
   if (GetTypeKind(tyIdx) != kTypePointer) {
     LogInfo::MapleLogger() << "\n#Error:<type> must be a pointer type\n";
@@ -1567,23 +1726,19 @@ bool IreadNode::Verify() const {
 }
 
 bool RegreadNode::Verify() const {
-  bool pTypeVerf = ReadTypeVerify(*this);
-  return pTypeVerf;
+  return true;
 }
 
 bool IreadoffNode::Verify() const {
-  bool pTypeVerf = ReadTypeVerify(*this);
-  return pTypeVerf;
+  return true;
 }
 
 bool IreadFPoffNode::Verify() const {
-  bool pTypeVerf = ReadTypeVerify(*this);
-  return pTypeVerf;
+  return true;
 }
 
 bool ExtractbitsNode::Verify() const {
   bool opndExprVerf = Opnd(0)->Verify();
-  bool opndTypeVerf = ArithTypeVerify(*Opnd(0));
   bool compVerf = CompatibleTypeVerify(*Opnd(0), *this);
   bool resTypeVerf = UnaryTypeVerify0(GetPrimType());
   constexpr int numBitsInByte = 8;
@@ -1592,7 +1747,7 @@ bool ExtractbitsNode::Verify() const {
     LogInfo::MapleLogger()
         << "\n#Error: The operand of extractbits must be large enough to contain the specified bitfield\n";
   }
-  return opndExprVerf && opndTypeVerf && compVerf && resTypeVerf && opnd0SizeVerf;
+  return opndExprVerf && compVerf && resTypeVerf && opnd0SizeVerf;
 }
 
 bool BinaryNode::Verify() const {
@@ -1602,7 +1757,7 @@ bool BinaryNode::Verify() const {
     if ((IsAddress(GetBOpnd(0)->GetPrimType()) && !IsAddress(GetBOpnd(1)->GetPrimType())) ||
         (!IsAddress(GetBOpnd(0)->GetPrimType()) && IsAddress(GetBOpnd(1)->GetPrimType()))) {
       resTypeVerf = true;  // don't print the same kind of error message twice
-      if (GetOpCode() != OP_add && GetOpCode() != OP_sub) {
+      if (GetOpCode() != OP_add && GetOpCode() != OP_sub && GetOpCode() != OP_CG_array_elem_add) {
         LogInfo::MapleLogger() << "\n#Error: Only add and sub are allowed for pointer arithemetic\n";
         this->Dump();
       } else if (!IsAddress(GetPrimType())) {
@@ -1713,7 +1868,6 @@ bool AddrofNode::Verify() const {
   bool pTypeVerf = true;
   bool structVerf = IsStructureVerify(fieldID, GetStIdx());
   if (GetOpCode() == OP_dread) {
-    pTypeVerf = ReadTypeVerify(*this);
     if (fieldID == 0 && IsStructureTypeKind(GetTypeKind(GetStIdx()))) {
       if (GetPrimType() != PTY_agg) {
         pTypeVerf = false;
@@ -1835,6 +1989,13 @@ bool BlockNode::Verify() const {
     }
   }
   return true;
+}
+
+bool BlockNode::Verify(VerifyResult &verifyResult) const {
+  auto &nodes = GetStmtNodes();
+  return !std::any_of(nodes.begin(), nodes.end(), [&verifyResult](auto &stmt){
+    return !stmt.Verify(verifyResult);
+  });
 }
 
 bool DoloopNode::Verify() const {
