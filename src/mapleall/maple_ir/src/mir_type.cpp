@@ -494,22 +494,22 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   LogInfo::MapleLogger() << ">";
 }
 
-static constexpr uint64 RoundUpConst(uint64 offset, uint8 align) {
+static constexpr uint64 RoundUpConst(uint64 offset, uint32 align) {
   return (-align) & (offset + align - 1);
 }
 
-static inline uint64 RoundUp(uint64 offset, uint8 align) {
+static inline uint64 RoundUp(uint64 offset, uint32 align) {
   if (align == 0) {
     return offset;
   }
   return RoundUpConst(offset, align);
 }
 
-static constexpr uint64 RoundDownConst(uint64 offset, uint8 align) {
+static constexpr uint64 RoundDownConst(uint64 offset, uint32 align) {
   return (-align) & offset;
 }
 
-static inline uint64 RoundDown(uint64 offset, uint8 align) {
+static inline uint64 RoundDown(uint64 offset, uint32 align) {
   if (align == 0) {
     return offset;
   }
@@ -523,7 +523,7 @@ size_t MIRArrayType::GetSize() const {
   }
   elemsize = RoundUp(elemsize, typeAttrs.GetAlign());
   size_t numelems = sizeArray[0];
-  for (int i = 1; i < dim; i++) {
+  for (uint16 i = 1; i < dim; i++) {
     numelems *= sizeArray[i];
   }
   return elemsize * numelems;
@@ -979,34 +979,35 @@ size_t MIRStructType::GetSize() const {
   // since there may be bitfields, perform a layout process for the fields
   size_t byteOfst = 0;
   size_t bitOfst = 0;
+  constexpr uint32 bitNumPerByte = 8;
+  constexpr uint32 shiftNum = 3;
   for (size_t i = 0; i < fields.size(); ++i) {
-    TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(i);
+    TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(static_cast<FieldID>(i));
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
     if (fieldType->GetKind() != kTypeBitField) {
-      if (byteOfst * 8 < bitOfst) {
-        byteOfst = (bitOfst >> 3) + 1;
+      if (byteOfst * bitNumPerByte < bitOfst) {
+        byteOfst = (bitOfst >> shiftNum) + 1;
       }
       byteOfst = RoundUp(byteOfst, std::max(fieldType->GetAlign(), tfap.second.GetAlign()));
       byteOfst += fieldType->GetSize();
-      bitOfst = byteOfst * 8;
+      bitOfst = byteOfst * bitNumPerByte;
     } else {
-      MIRBitFieldType *bitfType = static_cast<MIRBitFieldType *>(fieldType);
+      MIRBitFieldType *bitfType = static_cast<MIRBitFieldType*>(fieldType);
       if (bitfType->GetFieldSize() == 0) {  // special case, for aligning purpose
         bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
-        byteOfst = bitOfst >> 3;
+        byteOfst = bitOfst >> shiftNum;
       } else {
         if (RoundDown(bitOfst + bitfType->GetFieldSize() - 1, GetPrimTypeBitSize(bitfType->GetPrimType())) !=
             RoundDown(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()))) {
           bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
-          byteOfst = bitOfst >> 3;
         }
         bitOfst += bitfType->GetFieldSize();
-        byteOfst = bitOfst >> 3;
+        byteOfst = bitOfst >> shiftNum;
       }
     }
   }
-  if (byteOfst * 8 < bitOfst) {
-    byteOfst = (bitOfst >> 3) + 1;
+  if (byteOfst * bitNumPerByte < bitOfst) {
+    byteOfst = (bitOfst >> shiftNum) + 1;
   }
   byteOfst = RoundUp(byteOfst, GetAlign());
   if (byteOfst == 0 && isCPlusPlus) {
@@ -1019,7 +1020,7 @@ uint32 MIRStructType::GetAlign() const {
   if (fields.size() == 0) {
     return 0;
   }
-  uint8 maxAlign = 1;
+  uint32 maxAlign = 1;
   for (size_t i = 0; i < fields.size(); ++i) {
     TyIdxFieldAttrPair tfap = GetFieldTyIdxAttrPair(i);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
@@ -1251,7 +1252,7 @@ bool MIRArrayType::HasFields() const {
   return elemType->HasFields();
 }
 
-size_t MIRArrayType::NumberOfFieldIDs() {
+size_t MIRArrayType::NumberOfFieldIDs() const {
   MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(eTyIdx);
   return elemType->NumberOfFieldIDs();
 }
@@ -1287,7 +1288,7 @@ bool MIRFarrayType::HasFields() const {
   return elemType->HasFields();
 }
 
-size_t MIRFarrayType::NumberOfFieldIDs() {
+size_t MIRFarrayType::NumberOfFieldIDs() const {
   MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(elemTyIdx);
   return elemType->NumberOfFieldIDs();
 }
@@ -1318,8 +1319,12 @@ bool MIRStructType::EqualTo(const MIRType &type) const {
   if (type.GetKind() != typeKind) {
     return false;
   }
-  const MIRStructType *p = dynamic_cast<const MIRStructType*>(&type);
-  CHECK_FATAL(p != nullptr, "p is null in MIRStructType::EqualTo");
+  if (type.GetNameStrIdx() != nameStrIdx) {
+    return false;
+  }
+
+  ASSERT(type.IsStructType(), "p is null in MIRStructType::EqualTo");
+  const MIRStructType *p = static_cast<const MIRStructType*>(&type);
   if (fields != p->fields) {
     return false;
   }
@@ -1347,7 +1352,7 @@ MIRType *MIRStructType::GetFieldType(FieldID fieldID) {
   if (fieldID == 0) {
     return this;
   }
-  const FieldPair &fieldPair = TraverseToField(fieldID);
+  const FieldPair &fieldPair = TraverseToFieldRef(fieldID);
   return GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
 }
 
@@ -1582,7 +1587,7 @@ bool MIRInterfaceType::HasTypeParam() const {
   return false;
 }
 
-size_t MIRClassType::NumberOfFieldIDs() {
+size_t MIRClassType::NumberOfFieldIDs() const {
   size_t parentFieldIDs = 0;
   if (parentTyIdx != TyIdx(0)) {
     MIRType *parentty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(parentTyIdx);
@@ -1650,7 +1655,7 @@ std::string MIRPtrType::GetCompactMplTypeName() const {
   return pointedType->GetCompactMplTypeName();
 }
 
-size_t MIRStructType::NumberOfFieldIDs() {
+size_t MIRStructType::NumberOfFieldIDs() const {
   size_t count = 0;
   for (FieldPair curpair : fields) {
     count++;
