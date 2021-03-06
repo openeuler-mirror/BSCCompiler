@@ -236,7 +236,7 @@ class CGFunc {
   virtual Operand *SelectLazyLoadStatic(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) = 0;
   virtual void GenerateYieldpoint(BB &bb) = 0;
-  virtual Operand &ProcessReturnReg(PrimType primType) = 0;
+  virtual Operand &ProcessReturnReg(PrimType primType, int32 sReg) = 0;
 
   virtual Operand &GetOrCreateRflag() = 0;
   virtual const Operand *GetRflag() const = 0;
@@ -251,7 +251,7 @@ class CGFunc {
   virtual int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) = 0;
   virtual Operand &GetZeroOpnd(uint32 size) = 0;
   virtual Operand &CreateCfiRegOperand(uint32 reg, uint32 size) = 0;
-  virtual Operand &GetTargetRetOperand(PrimType primType) = 0;
+  virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   virtual Operand &CreateImmOperand(PrimType primType, int64 val) = 0;
   virtual Operand *CreateZeroOperand(PrimType primType) = 0;
 

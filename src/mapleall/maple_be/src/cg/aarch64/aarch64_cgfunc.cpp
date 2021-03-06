@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "aarch64_cg.h"
 #include "aarch64_cgfunc.h"
 #include <vector>
 #include <cstdint>
@@ -1073,7 +1074,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       if (IsSpecialPseudoRegister(pregIdx)) {
         if ((-pregIdx) == kSregRetval0) {
           CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggDassign: Incorrect agg size");
-          RegOperand &parm1 = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
+          RegOperand &parm1 = GetOrCreateSpecialRegisterOperand(pregIdx);
           Operand &memopnd1 = GetOrCreateMemOpnd(*lhsSymbol, 0, k64BitSize);
           MOperator mop1 = PickStInsn(k64BitSize, PTY_u64);
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop1, parm1, memopnd1));
@@ -1794,6 +1795,37 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
       insn.SetComment("null-check");
     }
     GetCurBB()->AppendInsn(insn);
+
+    if (parent.op != OP_eval) {
+      const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
+      OpndProp *prop = md->GetOperand(0);
+      if ((static_cast<AArch64OpndProp *>(prop)->GetSize()) < insn.GetOperand(0).GetSize()) {
+        switch (destType) {
+        case PTY_i8:
+          mOp = MOP_xsxtb64;
+          break;
+        case PTY_i16:
+          mOp = MOP_xsxth64;
+          break;
+        case PTY_i32:
+          mOp = MOP_xsxtw64;
+          break;
+        case PTY_u8:
+          mOp = MOP_xuxtb32;
+          break;
+        case PTY_u16:
+          mOp = MOP_xuxth32;
+          break;
+        case PTY_u32:
+          mOp = MOP_xuxtw64;
+          break;
+        default:
+          break;
+        }
+        GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(
+            mOp, insn.GetOperand(0), insn.GetOperand(0)));
+      }
+    }
   } else {
     AArch64CGFunc::SelectLoadAcquire(*result, destType, *memOpnd, destType, memOrd, false);
   }
@@ -2032,15 +2064,7 @@ void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcod
                                    Operand &origOpnd1, PrimType primType) {
   Operand *opnd0 = &origOpnd0;
   Operand *opnd1 = &origOpnd1;
-  if ((Globals::GetInstance()->GetOptimLevel() > 0) &&
-      opnd0->IsIntImmediate() &&
-      static_cast<AArch64ImmOperand*>(opnd0)->IsZero() &&
-      (!opnd1->IsIntImmediate() || static_cast<AArch64ImmOperand*>(opnd1)->IsZero())) {
-    opnd0 = (opnd0->GetSize() <= k32BitSize) ? &AArch64RegOperand::Get32bitZeroRegister()
-                                             : &AArch64RegOperand::Get64bitZeroRegister();
-  } else {
-    opnd0 = &LoadIntoRegister(origOpnd0, primType);
-  }
+  opnd0 = &LoadIntoRegister(origOpnd0, primType);
 
   bool is64Bits = GetPrimTypeBitSize(primType) == k64BitSize;
   bool isFloat = IsPrimitiveFloat(primType);
@@ -4339,14 +4363,30 @@ void AArch64CGFunc::GenerateYieldpoint(BB &bb) {
   bb.AppendInsn(yieldPoint);
 }
 
-Operand &AArch64CGFunc::ProcessReturnReg(PrimType primType) {
-  return GetTargetRetOperand(primType);
+Operand &AArch64CGFunc::ProcessReturnReg(PrimType primType, int32 sReg) {
+  return GetTargetRetOperand(primType, sReg);
 }
 
-Operand &AArch64CGFunc::GetTargetRetOperand(PrimType primType) {
+Operand &AArch64CGFunc::GetTargetRetOperand(PrimType primType, int32 sReg) {
   uint32 bitSize = GetPrimTypeBitSize(primType) < k32BitSize ? k32BitSize : GetPrimTypeBitSize(primType);
-  return GetOrCreatePhysicalRegisterOperand(IsPrimitiveFloat(primType) ? S0 : R0, bitSize,
-                                            GetRegTyFromPrimTy(primType));
+  AArch64reg pReg;
+  if (sReg < 0) {
+    return GetOrCreatePhysicalRegisterOperand(IsPrimitiveFloat(primType) ? S0 : R0, bitSize,
+                                              GetRegTyFromPrimTy(primType));
+  } else {
+    switch (sReg) {
+    case kSregRetval0:
+      pReg = IsPrimitiveFloat(primType) ? S0 : R0;
+      break;
+    case kSregRetval1:
+      pReg = R1;
+      break;
+    default:
+      pReg = RLAST_INT_REG;
+      ASSERT(0, "GetTargetRetOperand: NYI");
+    }
+    return GetOrCreatePhysicalRegisterOperand(pReg, bitSize, GetRegTyFromPrimTy(primType));
+  }
 }
 
 RegOperand &AArch64CGFunc::CreateRegisterOperandOfType(PrimType primType) {
@@ -5394,7 +5434,7 @@ void AArch64CGFunc::IntrinsifyGetAndAddInt(AArch64ListOperand &srcOpnds, PrimTyp
   RegOperand *objOpnd = *(++iter);
   RegOperand *offOpnd = *(++iter);
   RegOperand *deltaOpnd = *(++iter);
-  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(pty));
+  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(pty, -1));
   LabelIdx labIdx = CreateLabel();
   LabelOperand &targetOpnd = GetOrCreateLabelOperand(labIdx);
   RegOperand &tempOpnd0 = CreateRegisterOperandOfType(PTY_i64);
@@ -5425,7 +5465,7 @@ void AArch64CGFunc::IntrinsifyGetAndSetInt(AArch64ListOperand &srcOpnds, PrimTyp
   RegOperand *objOpnd = *(++iter);
   RegOperand *offOpnd = *(++iter);
   RegOperand *newValueOpnd = *(++iter);
-  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(pty));
+  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(pty, -1));
   LabelIdx labIdx = CreateLabel();
   LabelOperand &targetOpnd = GetOrCreateLabelOperand(labIdx);
   RegOperand &tempOpnd0 = CreateRegisterOperandOfType(PTY_i64);
@@ -5456,7 +5496,7 @@ void AArch64CGFunc::IntrinsifyCompareAndSwapInt(AArch64ListOperand &srcOpnds, Pr
   RegOperand *offOpnd = *(++iter);
   RegOperand *expectedValueOpnd = *(++iter);
   RegOperand *newValueOpnd = *(++iter);
-  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(PTY_i64));
+  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(PTY_i64, -1));
   RegOperand &tempOpnd0 = CreateRegisterOperandOfType(PTY_i64);
   RegOperand &tempOpnd1 = CreateRegisterOperandOfType(pty);
   LabelIdx labIdx1 = CreateLabel();
@@ -5543,7 +5583,7 @@ void AArch64CGFunc::GenerateIntrnInsnForStrIndexOf(BB &bb, RegOperand &srcString
   RegOperand &patternStringBaseOpnd = CreateRegisterOperandOfType(pty);
   bb.AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(addOp, patternStringBaseOpnd, patternString,
                                                        immStringBaseOffset));
-  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(PTY_i32));
+  auto &retVal = static_cast<RegOperand&>(GetTargetRetOperand(PTY_i32, -1));
   std::vector<Operand*> intrnOpnds;
   intrnOpnds.emplace_back(&retVal);
   intrnOpnds.emplace_back(&srcStringBaseOpnd);
