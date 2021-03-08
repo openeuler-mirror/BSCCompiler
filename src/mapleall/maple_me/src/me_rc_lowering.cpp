@@ -15,6 +15,7 @@
 #include "me_rc_lowering.h"
 #include <cstring>
 #include "me_option.h"
+#include "dominance.h"
 
 // RCLowering phase generate RC intrinsic for reference assignment
 // based on previous analyze results. RC intrinsic will later be lowered
@@ -998,11 +999,11 @@ VarMeExpr *RCLowering::CreateNewTmpVarMeExpr(bool isLocalRefVar) {
   std::string name = std::string("__RCTemp__").append(std::to_string(++tmpCount));
   OriginalSt *ost = RetrieveOSt(name, isLocalRefVar);
   if (ost->GetZeroVersionIndex() == 0) {
-    ost->SetZeroVersionIndex(irMap.GetVerst2MeExprTableSize());
-    irMap.PushBackVerst2MeExprTable(nullptr);
+    ost->SetZeroVersionIndex(irMap.GetVerst2MeExprTable().size());
+    irMap.GetVerst2MeExprTable().push_back(nullptr);
     ost->PushbackVersionsIndices(ost->GetZeroVersionIndex());
   }
-  VarMeExpr *varMeExpr = irMap.CreateNewVarMeExpr(ost, PTY_ref);
+  VarMeExpr *varMeExpr = irMap.CreateVarMeExprVersion(ost);
   if (isLocalRefVar) {
     tmpLocalRefVars.insert(varMeExpr);
   }

@@ -332,7 +332,7 @@ RegMeExpr *DelegateRC::RHSTempDelegated(MeExpr &rhs, const MeStmt &useStmt) {
     if (ost->GetMIRSymbol()->GetType()->GetPrimType() == PTY_ptr) {
       curReg = irMap.CreateRegMeExpr(PTY_ptr);
     } else {
-      curReg = irMap.CreateRegRefMeExpr(rhsVar);
+      curReg = irMap.CreateRegMeExpr(rhsVar);
     }
     refVar2RegMap[&rhsVar] = curReg;  // record this replacement
     mustDef.UpdateLHS(*curReg);
@@ -361,7 +361,7 @@ RegMeExpr *DelegateRC::RHSTempDelegated(MeExpr &rhs, const MeStmt &useStmt) {
     }
     // replace temp by a new preg
     rhsVar.SetDefBy(kDefByNo);
-    RegMeExpr *curReg = irMap.CreateRegRefMeExpr(rhsVar);
+    RegMeExpr *curReg = irMap.CreateRegMeExpr(rhsVar);
     refVar2RegMap[&rhsVar] = curReg;  // record this replacement
     // create new regassign statement
     MeStmt *regass = irMap.CreateRegassignMeStmt(*curReg, *rhsExpr, *defStmt->GetBB());
@@ -632,7 +632,7 @@ void DelegateRC::DelegateHandleNoRCStmt(MeStmt &stmt, bool addDecref) {
   // replace temp by a new preg
   MeStmt *newStmt = &stmt;
   theLhs->SetDefBy(kDefByNo);
-  RegMeExpr *curReg = irMap.CreateRegRefMeExpr(*theLhs);
+  RegMeExpr *curReg = irMap.CreateRegMeExpr(*theLhs);
   refVar2RegMap[theLhs] = curReg;  // record this replacement
   if (rhsExpr != nullptr) {
     // create new regassign statement
