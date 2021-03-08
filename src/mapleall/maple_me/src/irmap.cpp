@@ -494,8 +494,8 @@ IntrinsiccallMeStmt *IRMap::CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx
 MeExpr *IRMap::CreateAddrofMeExprFromSymbol(MIRSymbol &st, PUIdx puIdx) {
   OriginalSt *baseOst = ssaTab.FindOrCreateSymbolOriginalSt(st, puIdx, 0);
   if (baseOst->GetZeroVersionIndex() == 0) {
-    baseOst->SetZeroVersionIndex(vst2MeExprTable.size());
-    vst2MeExprTable.push_back(nullptr);
+    baseOst->SetZeroVersionIndex(verst2MeExprTable.size());
+    verst2MeExprTable.push_back(nullptr);
     baseOst->PushbackVersionsIndices(baseOst->GetZeroVersionIndex());
   }
 
