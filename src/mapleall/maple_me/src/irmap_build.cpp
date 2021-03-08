@@ -25,8 +25,8 @@ using MeStmtFactory = FunctionFactory<Opcode, MeStmt*, IRMapBuild*, StmtNode&, A
 
 VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
   size_t vindex = vst.GetIndex();
-  ASSERT(vindex < irMap->vst2MeExprTable.size(), "GetOrCreateVarFromVerSt: index %d is out of range", vindex);
-  MeExpr *meExpr = irMap->vst2MeExprTable.at(vindex);
+  ASSERT(vindex < irMap->verst2MeExprTable.size(), "GetOrCreateVarFromVerSt: index %d is out of range", vindex);
+  MeExpr *meExpr = irMap->verst2MeExprTable.at(vindex);
   if (meExpr != nullptr) {
     return static_cast<VarMeExpr*>(meExpr);
   }
@@ -35,14 +35,14 @@ VarMeExpr *IRMapBuild::GetOrCreateVarFromVerSt(const VersionSt &vst) {
   auto *varx = irMap->New<VarMeExpr>(irMap->exprID++, ost, vindex,
       GlobalTables::GetTypeTable().GetTypeTable()[ost->GetTyIdx().GetIdx()]->GetPrimType());
   ASSERT(!GlobalTables::GetTypeTable().GetTypeTable().empty(), "container check");
-  irMap->vst2MeExprTable[vindex] = varx;
+  irMap->verst2MeExprTable[vindex] = varx;
   return varx;
 }
 
 RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
   size_t vindex = vst.GetIndex();
-  ASSERT(vindex < irMap->vst2MeExprTable.size(), " GetOrCreateRegFromVerSt: index %d is out of range", vindex);
-  MeExpr *meExpr = irMap->vst2MeExprTable[vindex];
+  ASSERT(vindex < irMap->verst2MeExprTable.size(), " GetOrCreateRegFromVerSt: index %d is out of range", vindex);
+  MeExpr *meExpr = irMap->verst2MeExprTable[vindex];
   if (meExpr != nullptr) {
     return static_cast<RegMeExpr*>(meExpr);
   }
@@ -50,7 +50,7 @@ RegMeExpr *IRMapBuild::GetOrCreateRegFromVerSt(const VersionSt &vst) {
   ASSERT(ost->IsPregOst(), "GetOrCreateRegFromVerSt: PregOST expected");
   auto *regx = irMap->New<RegMeExpr>(irMap->exprID++,
                                      ost, vindex, kMeOpReg, OP_regread, ost->GetMIRPreg()->GetPrimType());
-  irMap->vst2MeExprTable[vindex] = regx;
+  irMap->verst2MeExprTable[vindex] = regx;
   return regx;
 }
 
@@ -58,7 +58,7 @@ MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) 
   VarMeExpr *meDef = GetOrCreateVarFromVerSt(vst);
   meDef->SetDefStmt(&defMeStmt);
   meDef->SetDefBy(kDefByStmt);
-  irMap->vst2MeExprTable.at(vst.GetIndex()) = meDef;
+  irMap->verst2MeExprTable.at(vst.GetIndex()) = meDef;
   return meDef;
 }
 
@@ -67,7 +67,7 @@ MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt
   meDef->SetPtyp(regassign.GetPrimType());
   meDef->SetDefStmt(&defMeStmt);
   meDef->SetDefBy(kDefByStmt);
-  irMap->vst2MeExprTable.at(vst.GetIndex()) = meDef;
+  irMap->verst2MeExprTable.at(vst.GetIndex()) = meDef;
   return meDef;
 }
 

@@ -120,10 +120,12 @@ OriginalSt *AnalyzeRC::GetOriginalSt(const MeExpr &refLHS) const {
   return iass->GetChiList()->begin()->second->GetLHS()->GetOst();
 }
 
+#if 1
 VarMeExpr *AnalyzeRC::GetZeroVersionVarMeExpr(const VarMeExpr &var) {
   OriginalSt *ost = var.GetOst();
   return irMap.GetOrCreateZeroVersionVarMeExpr(*ost);
 }
+#endif
 
 // check if incref needs to be inserted after this ref pointer assignment;
 // if it is callassigned, the incref has already been done in the callee;
@@ -135,7 +137,7 @@ bool AnalyzeRC::NeedIncref(const MeStmt &stmt) const {
   }
   MeExpr *rhs = stmt.GetRHS();
   CHECK_NULL_FATAL(rhs);
-  return rhs->PointsToSomethingThatNeedsIncRef(ssaTab);
+  return rhs->PointsToSomethingThatNeedsIncRef();
 }
 
 // identify assignments to ref pointers and insert decref before it and incref
@@ -145,7 +147,7 @@ void AnalyzeRC::IdentifyRCStmts() {
   for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto &bb = **bIt;
     for (auto &stmt : bb.GetMeStmts()) {
-      MeExpr *lhsRef = stmt.GetLHSRef(ssaTab, skipLocalRefVars);
+      MeExpr *lhsRef = stmt.GetLHSRef(skipLocalRefVars);
       if (lhsRef != nullptr) {
         OriginalSt *ost = GetOriginalSt(*lhsRef);
         ASSERT(ost != nullptr, "IdentifyRCStmts: cannot get SymbolOriginalSt");
@@ -154,7 +156,11 @@ void AnalyzeRC::IdentifyRCStmts() {
         if (lhsRef->GetMeOp() == kMeOpVar) {
           // insert a decref statement
           UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
+#if 1
               OP_decref, GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), &bb, &stmt.GetSrcPosition());
+#else
+              OP_decref, irMap.GetOrCreateZeroVersionVarMeExpr(*ost), &bb, &stmt.GetSrcPosition());
+#endif
           // insertion position is before stmt
           bb.InsertMeStmtBefore(&stmt, decrefStmt);
         } else {
@@ -220,7 +226,7 @@ void AnalyzeRC::TraverseStmt(BB &bb) {
         static_cast<IntrinsiccallMeStmt&>(meStmt).GetIntrinsic() == INTRN_MPL_CLEANUP_LOCALREFVARS)) {
       RenameUses(meStmt);
     } else {
-      MeExpr *lhsRef = meStmt.GetLHSRef(ssaTab, skipLocalRefVars);
+      MeExpr *lhsRef = meStmt.GetLHSRef(skipLocalRefVars);
       if (lhsRef == nullptr) {
         continue;
       }
@@ -287,7 +293,7 @@ void AnalyzeRC::RenameUses(MeStmt &meStmt) {
 }
 
 DassignMeStmt *AnalyzeRC::CreateDassignInit(OriginalSt &ost, BB &bb) {
-  VarMeExpr *lhs = irMap.CreateNewVarMeExpr(&ost, PTY_ref);
+  VarMeExpr *lhs = irMap.CreateVarMeExprVersion(&ost);
   MeExpr *rhs = irMap.CreateIntConstMeExpr(0, PTY_ref);
   return irMap.CreateDassignMeStmt(utils::ToRef(lhs), utils::ToRef(rhs), bb);
 }
@@ -417,7 +423,11 @@ void AnalyzeRC::RemoveUnneededCleanups() {
 }
 
 void AnalyzeRC::Run() {
-  func.SetHints(func.GetHints() | kAnalyzeRCed);
+  if (func.GetHints() & kPlacementRCed) {
+    skipLocalRefVars = true;
+  } else {
+    func.SetHints(func.GetHints() | kAnalyzeRCed);
+  }
   IdentifyRCStmts();
   if (!skipLocalRefVars) {
     CreateCleanupIntrinsics();

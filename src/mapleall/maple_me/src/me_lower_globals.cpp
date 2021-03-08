@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -122,7 +122,9 @@ void MeLowerGlobals::Run() {
           baseOst = ssaTable->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(),
               func.GetMirFunc()->GetPuidx(), 0);
         }
-        MeExpr *addrof = irMap->CreateAddrofMeExpr(baseOst->GetIndex());
+        AddrofMeExpr addrofmeexpr(-1, PTY_ptr, baseOst->GetIndex());
+        AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(irMap->HashMeExpr(addrofmeexpr));
+
         MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
         if (ost->IsVolatile()) {
           TypeAttrs attrs;

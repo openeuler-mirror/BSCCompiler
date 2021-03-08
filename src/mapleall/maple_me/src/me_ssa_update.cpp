@@ -60,8 +60,7 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     phi->SetIsLive(true);  // always make it live, for correctness
     if (phi->GetLHS() == nullptr) {
       // create a new VarMeExpr defined by this phi
-      VarMeExpr *newVar =
-          irMap.CreateNewVarMeExpr(ssaTab.GetOriginalStFromID(it2->first), ssaTab.GetPrimType(it2->first));
+      VarMeExpr *newVar = irMap.CreateVarMeExprVersion(ssaTab.GetOriginalStFromID(it2->first));
       phi->UpdateLHS(*newVar);
       it1->second->push(newVar);  // push the stack
     } else {
