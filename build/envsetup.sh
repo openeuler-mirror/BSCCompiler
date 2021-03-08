@@ -41,6 +41,9 @@ fi
 export GCOV_PREFIX=${MAPLE_ROOT}/report/gcda
 export GCOV_PREFIX_STRIP=7
 
+# display OS version
+lsb_release -d
+
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
   OLD_OS=1
@@ -112,6 +115,7 @@ export TARGET_TOOLCHAIN=clang
 
 unset MAPLE_BUILD_TYPE
 export MAPLE_BUILD_TYPE=${TARGET_PROCESSOR}-${TARGET_TOOLCHAIN}-${TARGET_SCOPE}
+echo "Build:          $MAPLE_BUILD_TYPE"
 
 unset MAPLE_BUILD_OUTPUT
 export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
@@ -120,3 +124,9 @@ unset MAPLE_EXECUTE_BIN
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 
 export PATH=$PATH:${MAPLE_EXECUTE_BIN}
+
+if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
+  echo " "
+  echo "!!! please run \"make setup\" to get proper qemu-aarch64"
+  echo " "
+fi
