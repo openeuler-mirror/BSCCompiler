@@ -1,5 +1,5 @@
 #
-# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+# Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -77,6 +77,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_reaching.cpp",
   "src/cg/aarch64/aarch64_schedule.cpp",
   "src/cg/aarch64/aarch64_strldr.cpp",
+  "src/cg/aarch64/aarch64_lsra.cpp",
 ]
 
 src_libcg = [
@@ -120,7 +121,7 @@ configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 static_library("libmplad") {
   sources = src_libmplad
   include_dirs = include_directories
-  output_dir = "${root_out_dir}/ar"
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 
   cflags_cc += [ "-DRC_NO_MMAP" ]
 }
@@ -138,7 +139,7 @@ static_library("libmplbe") {
   sources = src_libmplbe
   deps = deps_libmplbe
   include_dirs = include_directories
-  output_dir = "${root_out_dir}/ar"
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
 
 source_set("libcgaarch64") {
@@ -150,7 +151,7 @@ static_library("libcg") {
   sources = src_libcg
   include_dirs = include_directories
   deps = deps_libcg
-  output_dir = "${root_out_dir}/ar"
+  output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
 
 executable("maplegen") {
