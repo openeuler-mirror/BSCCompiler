@@ -154,7 +154,7 @@ class MIRFunction {
   }
 
   void AddArgument(MIRSymbol *st) {
-    FormalDef formalDef(st, st->GetTyIdx(), st->GetAttrs());
+    FormalDef formalDef(st->GetNameStrIdx(), st, st->GetTyIdx(), st->GetAttrs());
     formalDefVec.push_back(formalDef);
   }
 
