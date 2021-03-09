@@ -267,16 +267,18 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   ParmLocator parmlocator(aarchCGFunc->GetBecommon());
   PLocInfo ploc;
 
-  for (uint32 i = 0; i < aarchCGFunc->GetFunction().GetFormalCount(); ++i) {
-    if (i == 0) {
-      MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
-      if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
-        TyIdx idx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
-        if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
-          continue;
-        }
+  uint32 formalCount = aarchCGFunc->GetFunction().GetFormalCount();
+  uint32 start = 0;
+  if (formalCount) {
+    MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+    if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
+      TyIdx idx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
+      if (aarchCGFunc->GetBecommon().GetTypeSize(idx) <= k16BitSize) {
+        start = 1;
       }
     }
+  }
+  for (uint32 i = start; i < formalCount; ++i) {
     MIRType *ty = aarchCGFunc->GetFunction().GetNthParamType(i);
     parmlocator.LocateNextParm(*ty, ploc, i == 0);
     MIRSymbol *sym = aarchCGFunc->GetFunction().GetFormal(i);
