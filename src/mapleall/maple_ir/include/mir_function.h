@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -24,6 +24,7 @@
 #include "mir_nodes.h"
 #include "profile.h"
 
+#define DEBUGME true
 
 namespace maple {
 // mapping src (java) variable to mpl variables to display debug info
@@ -53,8 +54,9 @@ class FormalDef {
   TypeAttrs formalAttrs = TypeAttrs();  // the formal's type attributes
 
   FormalDef() {};
-  FormalDef(MIRSymbol *s, TyIdx tidx, TypeAttrs at) : formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
-  FormalDef(GStrIdx sidx, MIRSymbol *s, TyIdx tidx, TypeAttrs at) : formalStrIdx(sidx), formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
+  FormalDef(MIRSymbol *s, const TyIdx &tidx, const TypeAttrs &at) : formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
+  FormalDef(const GStrIdx &sidx, MIRSymbol *s, const TyIdx &tidx, const TypeAttrs &at)
+      : formalStrIdx(sidx), formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
 };
 
 class MeFunction;  // circular dependency exists, no other choice
@@ -94,6 +96,7 @@ class MIRFunction {
 
   const std::string &GetBaseFuncNameWithType() const;
 
+  const std::string &GetBaseFuncSig() const;
 
   const std::string &GetSignature() const;
 
@@ -155,6 +158,10 @@ class MIRFunction {
     formalDefVec.push_back(formalDef);
   }
 
+  void AddFormalDef(const FormalDef &formalDef) {
+    formalDefVec.push_back(formalDef);
+  }
+
   size_t GetParamSize() const {
     CHECK_FATAL(funcType != nullptr, "funcType is nullptr");
     return funcType->GetParamTypeList().size();
@@ -175,7 +182,8 @@ class MIRFunction {
 
   const TypeAttrs &GetNthParamAttr(size_t i) const {
     ASSERT(i < formalDefVec.size(), "array index out of range");
-    return formalDefVec[i].formalAttrs;
+    ASSERT(formalDefVec[i].formalSym != nullptr, "null ptr check");
+    return formalDefVec[i].formalSym->GetAttrs();
   }
 
   void UpdateFuncTypeAndFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs = false);
@@ -368,8 +376,8 @@ class MIRFunction {
   uint32 GetInfo(GStrIdx strIdx) const;
   uint32 GetInfo(const std::string &str) const;
   bool IsAFormal(const MIRSymbol *st) const {
-    for (MapleVector<FormalDef>::const_iterator it = formalDefVec.begin(); it != formalDefVec.end(); it++) {
-      if (st == it->formalSym) {
+    for (const auto &formalDef : formalDefVec) {
+      if (st == formalDef.formalSym) {
         return true;
       }
     }
@@ -377,11 +385,30 @@ class MIRFunction {
   }
 
   uint32 GetFormalIndex(const MIRSymbol *symbol) const {
-    for (size_t i = 0; i < formalDefVec.size(); ++i)
+    for (size_t i = 0; i < formalDefVec.size(); ++i) {
       if (formalDefVec[i].formalSym == symbol) {
         return i;
       }
+    }
     return 0xffffffff;
+  }
+
+  bool IsAFormalName(const GStrIdx idx) const {
+    for (const auto &formalDef : formalDefVec) {
+      if (idx == formalDef.formalStrIdx) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const FormalDef GetFormalFromName(const GStrIdx idx) const {
+    for (size_t i = 0; i < formalDefVec.size(); ++i) {
+      if (formalDefVec[i].formalStrIdx == idx) {
+        return formalDefVec[i];
+      }
+    }
+    return FormalDef();
   }
 
   // tell whether this function is a Java method
@@ -391,10 +418,23 @@ class MIRFunction {
 
   const MIRType *GetNodeType(const BaseNode &node) const;
 
+#ifdef DEBUGME
   void SetUpGDBEnv();
   void ResetGDBEnv();
+#endif
+  void ReleaseMemory() {
+    memPoolCtrler.DeleteMemPool(codeMemPoolTmp);
+    codeMemPoolTmp = nullptr;
+  }
 
   MemPool *GetCodeMempool() {
+    if (useTmpMemPool) {
+      if (codeMemPoolTmp == nullptr) {
+        codeMemPoolTmp = memPoolCtrler.NewMemPool("func code mempool");
+        codeMemPoolTmpAllocator.SetMemPool(codeMemPoolTmp);
+      }
+      return codeMemPoolTmp;
+    }
     if (codeMemPool == nullptr) {
       codeMemPool = memPoolCtrler.NewMemPool("func code mempool");
       codeMemPoolAllocator.SetMemPool(codeMemPool);
@@ -404,6 +444,9 @@ class MIRFunction {
 
   MapleAllocator &GetCodeMemPoolAllocator() {
     GetCodeMempool();
+    if (useTmpMemPool) {
+      return codeMemPoolTmpAllocator;
+    }
     return codeMemPoolAllocator;
   }
 
@@ -415,6 +458,7 @@ class MIRFunction {
     return codeMemPoolAllocator;
   }
 
+  void EnterFormals();
   void NewBody();
 
   MIRModule *GetModule() {
@@ -442,6 +486,12 @@ class MIRFunction {
     symbolTableIdx = stIdx;
   }
 
+  int32 GetSCCId() const {
+    return sccID;
+  }
+  void SetSCCId(int32 id) {
+    sccID = id;
+  }
 
   MIRFuncType *GetMIRFuncType() {
     return funcType;
@@ -489,15 +539,17 @@ class MIRFunction {
       labelTab = module->GetMemPool()->New<MIRLabelTable>(module->GetMPAllocator());
     }
   }
+
   MIRPregTable *GetPregTab() const {
     return pregTab;
   }
+
   void SetPregTab(MIRPregTable *tab) {
     pregTab = tab;
   }
   void AllocPregTab() {
     if (pregTab == nullptr) {
-      pregTab = module->GetMemPool()->New<MIRPregTable>(module, &module->GetMPAllocator());
+      pregTab = module->GetMemPool()->New<MIRPregTable>(&module->GetMPAllocator());
     }
   }
   MIRPreg *GetPregItem(PregIdx idx) {
@@ -520,7 +572,8 @@ class MIRFunction {
   SrcPosition &GetSrcPosition() {
     return GetFuncSymbol()->GetSrcPosition();
   }
-  void SetSrcPosition(SrcPosition &position) {
+
+  void SetSrcPosition(const SrcPosition &position) {
     GetFuncSymbol()->SetSrcPosition(position);
   }
 
@@ -592,6 +645,25 @@ class MIRFunction {
     (*aliasVarMap)[idx] = vars;
   }
 
+  bool HasVlaOrAlloca() const {
+    return hasVlaOrAlloca;
+  }
+  void SetVlaOrAlloca(bool has) {
+    hasVlaOrAlloca = has;
+  }
+
+  bool HasFreqMap() {
+    return floatReqMap != nullptr;
+  }
+  const MapleMap<uint32, uint32> &GetFreqMap() const {
+    return *floatReqMap;
+  }
+  void SetFreqMap(uint32 stmtID, uint32 freq) {
+    if (floatReqMap == nullptr) {
+      floatReqMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+    }
+    (*floatReqMap)[stmtID] = freq;
+  }
 
   bool WithLocInfo() const {
     return withLocInfo;
@@ -600,6 +672,19 @@ class MIRFunction {
     withLocInfo = withInfo;
   }
 
+  bool IsDirty() const {
+    return isDirty;
+  }
+  void SetDirty(bool dirty) {
+    isDirty = dirty;
+  }
+
+  bool IsFromMpltInline() const {
+    return fromMpltInline;
+  }
+  void SetFromMpltInline(bool isInline) {
+    fromMpltInline = isInline;
+  }
 
   uint8 GetLayoutType() const {
     return layoutType;
@@ -705,15 +790,35 @@ class MIRFunction {
   void SetFormalDefVec(const MapleVector<FormalDef> &currFormals) {
     formalDefVec = currFormals;
   }
+
   MapleVector<FormalDef> &GetFormalDefVec() {
     return formalDefVec;
   }
+
+  const FormalDef &GetFormalDefAt(size_t i) const {
+    return formalDefVec[i];
+  }
+
+  const MIRSymbol *GetFormal(size_t i) const {
+    return formalDefVec[i].formalSym;
+  }
+
   MIRSymbol *GetFormal(size_t i) {
     return formalDefVec[i].formalSym;
   }
+
+  const std::string &GetFormalName(size_t i) const {
+    auto *formal = formalDefVec[i].formalSym;
+    if (formal != nullptr) {
+      return formal->GetName();
+    }
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(formalDefVec[i].formalStrIdx);
+  }
+
   size_t GetFormalCount() const {
     return formalDefVec.size();
   }
+
   void ClearFormals() {
     formalDefVec.clear();
   }
@@ -819,6 +924,13 @@ class MIRFunction {
     return genericLocalVar[str];
   }
 
+  MemPool *GetCodeMemPoolTmp() {
+    if (codeMemPoolTmp == nullptr) {
+      codeMemPoolTmp = memPoolCtrler.NewMemPool("func code mempool");
+      codeMemPoolTmpAllocator.SetMemPool(codeMemPoolTmp);
+    }
+    return codeMemPoolTmp;
+  }
 
   void AddProfileDesc(uint64 hash, uint32 start, uint32 end) {
     profileDesc = module->GetMemPool()->New<IRProfileDesc>(hash, start, end);
@@ -837,11 +949,12 @@ class MIRFunction {
   PUIdx puIdx = 0;           // the PU index of this function
   PUIdx puIdxOrigin = 0;     // the original puIdx when initial generation
   StIdx symbolTableIdx;  // the symbol table index of this function
+  int32 sccID = -1;  // the scc id of this function, for mplipa
   MIRFuncType *funcType = nullptr;
   TyIdx inferredReturnTyIdx{0};     // the actual return type of of this function (may be a
                                     // subclass of the above). 0 means can not be inferred.
   TyIdx classTyIdx{0};              // class/interface type this function belongs to
-  MapleVector<FormalDef> formalDefVec{module->GetMPAllocator().Adapter()};  // the formals in func definition
+  MapleVector<FormalDef> formalDefVec{module->GetMPAllocator().Adapter()};  // the formals in function definition
   MapleSet<MIRSymbol*> retRefSym{module->GetMPAllocator().Adapter()};
 
   MapleVector<GenericDeclare*> genericDeclare{module->GetMPAllocator().Adapter()};
@@ -865,8 +978,12 @@ class MIRFunction {
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MapleMap<GStrIdx, MIRAliasVars> *aliasVarMap = nullptr;  // source code alias variables
                                                                                     // for debuginfo
+  MapleMap<uint32, uint32> *floatReqMap = nullptr;  // save bb frequency in its last_stmt.
+  bool hasVlaOrAlloca = false;
   bool withLocInfo = true;
 
+  bool isDirty = false;
+  bool fromMpltInline = false;  // Whether this function is imported from mplt_inline file or not.
   uint8_t layoutType = kLayoutUnused;
   uint16 frameSize = 0;
   uint16 upFormalSize = 0;
@@ -914,6 +1031,9 @@ class MIRFunction {
   // funcname + types of args, no type of retv
   GStrIdx baseFuncSigStrIdx{0};
   GStrIdx signatureStrIdx{0};
+  MemPool *codeMemPoolTmp{nullptr};
+  MapleAllocator codeMemPoolTmpAllocator{nullptr};
+  bool useTmpMemPool = false;
 
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);
