@@ -292,6 +292,11 @@ class FieldAttrs {
     return !(*this == tA);
   }
 
+  void Clear() {
+    attrFlag = 0;
+    attrAlign = 0;
+  }
+
   void DumpAttributes() const;
   TypeAttrs ConvertToTypeAttrs();
 
@@ -397,7 +402,7 @@ class GenericAttrs {
 constexpr size_t kShiftNumOfTypeKind = 8;
 constexpr size_t kShiftNumOfNameStrIdx = 6;
 
-class MIRStructType;
+class MIRStructType; // circular dependency exists, no other choice
 
 class MIRType {
  public:
@@ -522,9 +527,12 @@ class MIRType {
     constexpr uint8 idxShift = 2;
     return ((static_cast<uint32>(primType) << idxShift) + (typeKind << kShiftNumOfTypeKind)) % kTypeHashLength;
   }
+
   virtual bool HasFields() const { return false; }
-  virtual size_t NumberOfFieldIDs() { return 0; } // total number of field IDs the type is consisted of, excluding its own field ID
-  virtual MIRStructType *EmbeddedStructType() { return nullptr; }  // return any struct type directly embedded in this type
+  // total number of field IDs the type is consisted of, excluding its own field ID
+  virtual size_t NumberOfFieldIDs() const { return 0; }
+  // return any struct type directly embedded in this type
+  virtual MIRStructType *EmbeddedStructType() { return nullptr; }
 
  protected:
   MIRTypeKind typeKind;
@@ -680,8 +688,9 @@ class MIRArrayType : public MIRType {
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
   bool HasFields() const override;
-  size_t NumberOfFieldIDs() override;
+  size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
+
  private:
   TyIdx eTyIdx{ 0 };
   uint16 dim = 0;
@@ -729,7 +738,7 @@ class MIRFarrayType : public MIRType {
   std::string GetCompactMplTypeName() const override;
 
   bool HasFields() const override;
-  size_t NumberOfFieldIDs() override;
+  size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
 
  private:
@@ -1091,7 +1100,7 @@ class MIRStructType : public MIRType {
   }
 
   bool HasFields() const override { return true; }
-  size_t NumberOfFieldIDs() override;
+  size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override { return this; }
 
   virtual FieldPair TraverseToFieldRef(FieldID &fieldID) const;
@@ -1311,7 +1320,7 @@ class MIRClassType : public MIRStructType {
            kTypeHashLength;
   }
 
-  size_t NumberOfFieldIDs() override;
+  size_t NumberOfFieldIDs() const override;
 
  private:
   TyIdx parentTyIdx{ 0 };
@@ -1428,7 +1437,7 @@ class MIRInterfaceType : public MIRStructType {
   }
 
   bool HasFields() const override { return false; }
-  size_t NumberOfFieldIDs() override { return 0; }
+  size_t NumberOfFieldIDs() const override { return 0; }
   MIRStructType *EmbeddedStructType() override { return nullptr; }
 
  private:
