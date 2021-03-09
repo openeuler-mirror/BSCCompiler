@@ -876,7 +876,7 @@ bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
                                                                              : OP_xintrinsiccallassigned);
   auto *intrnCallNode = mod.CurFuncCodeMemPool()->New<IntrinsiccallNode>(mod, o);
   lexer.NextToken();
-  if (o == !isAssigned ? OP_intrinsiccall : OP_intrinsiccallassigned) {
+  if (o == (!isAssigned ? OP_intrinsiccall : OP_intrinsiccallassigned)) {
     intrnCallNode->SetIntrinsic(GetIntrinsicID(lexer.GetTokenKind()));
   } else {
     intrnCallNode->SetIntrinsic(static_cast<MIRIntrinsicID>(lexer.GetTheIntVal()));
@@ -2271,7 +2271,7 @@ bool MIRParser::ParseExprAddroflabel(BaseNodePtr &expr) {
   }
   LabelIdx lblIdx = mod.CurFunction()->GetOrCreateLableIdxFromName(lexer.GetName());
   addrOfLabelNode->SetOffset(lblIdx);
-  mod.CurFunction()->GetLabelTab()->GetAddrTakenLabels().insert(lblIdx);
+  (void)mod.CurFunction()->GetLabelTab()->GetAddrTakenLabels().insert(lblIdx);
   lexer.NextToken();
   return true;
 }
@@ -2648,14 +2648,14 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrType(ptyIdx, (mod.IsJavaModule() ? PTY_ref : PTY_ptr));
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    int32 ofst = 0;
+    uint32 ofst = 0;
     if (lexer.GetTokenKind() == TK_lparen) {
       lexer.NextToken();
       if (lexer.GetTokenKind() != TK_intconst) {
         Error("ParseConstAddrLeafExpr: wrong offset specification for addrof");
         return false;
       } else {
-        ofst = lexer.GetTheIntVal();
+        ofst = static_cast<uint32>(lexer.GetTheIntVal());
       }
       lexer.NextToken();
       if (lexer.GetTokenKind() != TK_rparen) {
