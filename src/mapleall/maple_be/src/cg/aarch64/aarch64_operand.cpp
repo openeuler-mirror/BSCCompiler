@@ -32,7 +32,8 @@ const char *CondOperand::ccStrs[kCcLast] = {
 bool AArch64RegOperand::IsSaveReg(MIRType &type, BECommon &beCommon) const {
   ReturnMechanism retMechanism(type, beCommon);
   if (retMechanism.GetRegCount() > 0) {
-    return GetRegisterNumber() == retMechanism.GetReg0() || GetRegisterNumber() == retMechanism.GetReg1();
+    return GetRegisterNumber() == retMechanism.GetReg0() || GetRegisterNumber() == retMechanism.GetReg1() ||
+           GetRegisterNumber() == retMechanism.GetReg2() || GetRegisterNumber() == retMechanism.GetReg3();
   }
   return false;
 }

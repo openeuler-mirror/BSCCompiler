@@ -51,7 +51,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   }
 
   aggCopySize = 0;
-  for (uint32 anum = 0; i < stmt.NumOpnds(); ++i, ++ anum) {
+  for (uint32 anum = 0; i < stmt.NumOpnds(); ++i, ++anum) {
     BaseNode *opnd = stmt.Opnd(i);
     MIRType *ty = nullptr;
     if (opnd->GetPrimType() != PTY_agg) {
@@ -97,9 +97,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
   return sizeOfArgsToStkPass;
 }
 
-void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) {
+void AArch64MemLayout::SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const {
   if (be.GetTypeSize(typeIdx) > k16ByteSize) {
-    // size > 16 is passed on stack, the formal is just a pointer to the copy on stack.
+    /* size > 16 is passed on stack, the formal is just a pointer to the copy on stack. */
     align = kSizeOfPtr;
     size = kSizeOfPtr;
   } else {
@@ -150,6 +150,20 @@ void AArch64MemLayout::LayoutVarargParams() {
           nFpRegs++;
         }
       }
+      if (ploc.reg2 != kRinvalid) {
+        if (ploc.reg2 >= R0 && ploc.reg2 <= R7) {
+          nIntRegs++;
+        } else if (ploc.reg2 >= V0 && ploc.reg2 <= V7) {
+          nFpRegs++;
+        }
+      }
+      if (ploc.reg3 != kRinvalid) {
+        if (ploc.reg3 >= R0 && ploc.reg3 <= R7) {
+          nIntRegs++;
+        } else if (ploc.reg2 >= V0 && ploc.reg2 <= V7) {
+          nFpRegs++;
+        }
+      }
     }
     SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * kSizeOfPtr);
     SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * k2ByteSize);
@@ -169,7 +183,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
     SetSymAllocInfo(stIndex, *symLoc);
     if (ploc.reg0 != kRinvalid) {  /* register */
-      symLoc->SetRegisters(ploc.reg0, ploc.reg1);
+      symLoc->SetRegisters(ploc.reg0, ploc.reg1, ploc.reg2, ploc.reg3);
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
         symLoc->SetMemSegment(segRefLocals);
         SetSegmentSize(*symLoc, segRefLocals, ptyIdx);

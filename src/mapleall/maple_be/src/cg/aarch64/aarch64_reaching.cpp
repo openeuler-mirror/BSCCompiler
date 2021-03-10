@@ -45,9 +45,6 @@ void AArch64ReachingDefinition::InitStartGen() {
     RegType regType = (pLoc.reg0 < V0) ? kRegTyInt : kRegTyFloat;
     uint32 srcBitSize = ((symSize < k4ByteSize) ? k4ByteSize : symSize) * kBitsPerByte;
 
-    AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg0, srcBitSize, regType);
-
     MOperator mOp;
     if (regType == kRegTyInt) {
       if (srcBitSize <= k32BitSize) {
@@ -63,13 +60,27 @@ void AArch64ReachingDefinition::InitStartGen() {
       }
     }
 
+    AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+
+    RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg0, srcBitSize, regType);
     Insn &pseudoInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd);
     bb->InsertInsnBegin(pseudoInsn);
     pseudoInsns.emplace_back(&pseudoInsn);
-
     if (pLoc.reg1) {
-      regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg1, srcBitSize, regType);
-      Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd);
+      RegOperand &regOpnd1 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg1, srcBitSize, regType);
+      Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd1);
+      bb->InsertInsnBegin(pseudoInsn1);
+      pseudoInsns.emplace_back(&pseudoInsn1);
+    }
+    if (pLoc.reg2) {
+      RegOperand &regOpnd2 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg2, srcBitSize, regType);
+      Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd2);
+      bb->InsertInsnBegin(pseudoInsn1);
+      pseudoInsns.emplace_back(&pseudoInsn1);
+    }
+    if (pLoc.reg3) {
+      RegOperand &regOpnd3 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(pLoc.reg3, srcBitSize, regType);
+      Insn &pseudoInsn1 = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd3);
       bb->InsertInsnBegin(pseudoInsn1);
       pseudoInsns.emplace_back(&pseudoInsn1);
     }
