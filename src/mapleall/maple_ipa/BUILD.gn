@@ -12,27 +12,30 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-include_libmplphase = [
+include_directories = [
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
-  "${MAPLEALL_ROOT}/maple_util/include",
-  "${MAPLEALL_ROOT}/mempool/include",
-  "${MAPLEALL_ROOT}/maple_phase/include",
-  "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
-  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+  "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
 ]
 
-src_libmplphase = [
-  "src/phase_impl.cpp",
-  "src/phase_driver.cpp",
+src_libmplipa = [
+  "src/interleaved_manager.cpp",
+  "src/module_phase_manager.cpp",
+  "src/clone.cpp",
+  "src/retype.cpp",
+  "src/call_graph.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 
-static_library("libmplphase") {
-  sources = src_libmplphase
-  include_dirs = include_libmplphase
+static_library("libmplipa") {
+  sources = src_libmplipa
+  include_dirs = include_directories
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 }
