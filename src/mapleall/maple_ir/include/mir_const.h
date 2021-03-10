@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -44,14 +44,14 @@ class MIRConst {
 
   virtual ~MIRConst() = default;
 
-  virtual void Dump(const MIRSymbolTable *localsymtab = nullptr) const;
+  virtual void Dump(const MIRSymbolTable *localSymTab = nullptr) const;
 
   uint32 GetFieldId() const {
     return fieldID;
   }
 
   void SetFieldID(uint32 fieldIdx) {
-    DoSetFieldID(fieldIdx);
+    fieldID = fieldIdx;
   }
 
   virtual bool IsZero() const {
@@ -87,13 +87,13 @@ class MIRConst {
     return type;
   }
 
+  void SetType(MIRType &t) {
+    type = t;
+  }
+
  private:
   MIRType &type;
   MIRConstKind kind;
-  virtual void DoSetFieldID(uint32 fieldIdx) {
-    CHECK_FATAL(kind != kConstInt, "must be");
-    fieldID = fieldIdx;
-  }
 
  protected:
   uint32 fieldID;
@@ -116,10 +116,11 @@ class MIRIntConst : public MIRConst {
 
   int64 GetValueUnderType() const;
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool IsZero() const override {
     return value == 0 && IsPrimitiveInteger(GetType().GetPrimType());
   }
+
   bool IsGeZero() {
     return value >= 0 && IsPrimitiveInteger(GetType().GetPrimType());
   }
@@ -158,17 +159,15 @@ class MIRIntConst : public MIRConst {
 
  private:
   int64 value;
-  void DoSetFieldID(uint32 fieldIdx) override {
-    CHECK_FATAL(false, "Can't Use This Interface in This Object");
-    (void)fieldIdx;
-  }
 };
 
 class MIRAddrofConst : public MIRConst {
  public:
-  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, uint32 fieldID = 0) : MIRConst(ty, kConstAddrof), stIdx(sy), fldID(fi), offset(0) {}
+  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty)
+      : MIRConst(ty, kConstAddrof), stIdx(sy), fldID(fi), offset(0) {}
 
-  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, int32 ofst, uint32 fieldID = 0) : MIRConst(ty, kConstAddrof, fieldID), stIdx(sy), fldID(fi), offset(ofst) {}
+  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, int32 ofst, uint32 fieldID = 0)
+      : MIRConst(ty, kConstAddrof, fieldID), stIdx(sy), fldID(fi), offset(ofst) {}
 
   ~MIRAddrofConst() = default;
 
@@ -184,7 +183,7 @@ class MIRAddrofConst : public MIRConst {
     return offset;
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
 
   bool operator==(const MIRConst &rhs) const override;
 
@@ -209,7 +208,7 @@ class MIRAddroffuncConst : public MIRConst {
     return puIdx;
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
 
   bool operator==(const MIRConst &rhs) const override;
 
@@ -223,12 +222,12 @@ class MIRAddroffuncConst : public MIRConst {
 
 class MIRLblConst : public MIRConst {
  public:
-  MIRLblConst(LabelIdx val, PUIdx pidx, MIRType &type, uint32 fieldID = 0) : MIRConst(type, kConstLblConst, fieldID), value(val), puIdx(pidx) {}
+  MIRLblConst(LabelIdx val, PUIdx pidx, MIRType &type, uint32 fieldID = 0)
+      : MIRConst(type, kConstLblConst, fieldID), value(val), puIdx(pidx) {}
 
   ~MIRLblConst() = default;
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
-
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
 
   MIRLblConst *Clone(MemPool &memPool) const override {
@@ -256,7 +255,7 @@ class MIRStrConst : public MIRConst {
 
   ~MIRStrConst() = default;
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
 
   MIRStrConst *Clone(MemPool &memPool) const override {
@@ -278,17 +277,17 @@ class MIRStrConst : public MIRConst {
 
 class MIRStr16Const : public MIRConst {
  public:
-  MIRStr16Const(U16StrIdx val, MIRType &type, uint32 fieldID = 0) : MIRConst(type, kConstStr16Const, fieldID), value(val) {}
+  MIRStr16Const(const U16StrIdx &val, MIRType &type, uint32 fieldID = 0)
+      : MIRConst(type, kConstStr16Const, fieldID), value(val) {}
 
   MIRStr16Const(const std::u16string &str, MIRType &type, uint32 fieldID = 0);
-
   ~MIRStr16Const() = default;
 
   static PrimType GetPrimType() {
     return kPrimType;
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
 
   MIRStr16Const *Clone(MemPool &memPool) const override {
@@ -333,16 +332,16 @@ class MIRFloatConst : public MIRConst {
     return GetFloatValue();
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool IsZero() const override {
     return fabs(value.floatValue) <= 1e-6;
   }
 
-  bool IsGeZero() {
+  bool IsGeZero() const {
     return value.floatValue >= 0;
   }
 
-  bool IsNeg() {
+  bool IsNeg() const {
     return ((value.intValue & 0x80000000) == 0x80000000);
   }
 
@@ -401,16 +400,16 @@ class MIRDoubleConst : public MIRConst {
     return kPrimType;
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool IsZero() const override {
     return fabs(value.dValue) <= 1e-15;
   }
 
-  bool IsGeZero() {
+  bool IsGeZero() const {
     return value.dValue >= 0;
   }
 
-  bool IsNeg() {
+  bool IsNeg() const {
     return ((value.intValue & 0x8000000000000000LL) == 0x8000000000000000LL);
   }
 
@@ -440,7 +439,8 @@ class MIRDoubleConst : public MIRConst {
 
 class MIRFloat128Const : public MIRConst {
  public:
-  MIRFloat128Const(const uint64 &val, MIRType &type, uint32 fieldID = 0) : MIRConst(type, kConstFloat128Const, fieldID) {
+  MIRFloat128Const(const uint64 &val, MIRType &type, uint32 fieldID = 0)
+      : MIRConst(type, kConstFloat128Const, fieldID) {
     value = &val;
   }
 
@@ -474,7 +474,7 @@ class MIRFloat128Const : public MIRConst {
     return res;
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
 
  private:
   static const PrimType kPrimType = PTY_f128;
@@ -522,7 +522,7 @@ class MIRAggConst : public MIRConst {
     constVec.push_back(elem);
   }
 
-  void Dump(const MIRSymbolTable *localsymtab = nullptr) const override;
+  void Dump(const MIRSymbolTable *localSymTab) const override;
   bool operator==(const MIRConst &rhs) const override;
 
   MIRAggConst *Clone(MemPool &memPool) const override {
@@ -537,7 +537,8 @@ class MIRAggConst : public MIRConst {
 class MIRStConst : public MIRConst {
  public:
   MIRStConst(MIRModule &mod, MIRType &type, uint32 fieldID = 0)
-      : MIRConst(type, kConstStConst, fieldID), stVec(mod.GetMPAllocator().Adapter()),
+      : MIRConst(type, kConstStConst, fieldID),
+        stVec(mod.GetMPAllocator().Adapter()),
         stOffsetVec(mod.GetMPAllocator().Adapter()) {}
 
   const MapleVector<MIRSymbol*> &GetStVec() const {

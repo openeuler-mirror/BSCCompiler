@@ -487,7 +487,7 @@ bool MIRParser::ParseStmtBr(StmtNodePtr &stmt) {
   return true;
 }
 
-bool MIRParser::ParseSwitchCase(int32 &constVal, LabelIdx &lblIdx) {
+bool MIRParser::ParseSwitchCase(int64 &constVal, LabelIdx &lblIdx) {
   // syntax <intconst0>: goto <label0>
   if (lexer.GetTokenKind() != TK_intconst) {
     Error("expect intconst in switch but get ");
@@ -539,9 +539,9 @@ bool MIRParser::ParseStmtSwitch(StmtNodePtr &stmt) {
   // ...
   // <intconstn>: goto <labeln>
   TokenKind tk = lexer.NextToken();
-  std::set<int32> casesSet;
+  std::set<int64> casesSet;
   while (tk != TK_rbrace) {
-    int32 constVal = 0;
+    int64 constVal = 0;
     LabelIdx lbl = 0;
     if (!ParseSwitchCase(constVal, lbl)) {
       Error("parse switch case failed ");
@@ -591,7 +591,7 @@ bool MIRParser::ParseStmtRangegoto(StmtNodePtr &stmt) {
   int32 minIdx = UINT16_MAX;
   int32 maxIdx = 0;
   while (tk != TK_rbrace) {
-    int32 constVal = 0;
+    int64 constVal = 0;
     LabelIdx lbl = 0;
     if (!ParseSwitchCase(constVal, lbl)) {
       Error("parse switch case failed ");

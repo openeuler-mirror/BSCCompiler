@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,6 +20,7 @@
 #include "opcodes.h"
 #include "opcode_info.h"
 #include "mir_type.h"
+#include "cmpl.h"
 #include "mir_module.h"
 #include "mir_const.h"
 #include "maple_string.h"
@@ -30,6 +31,7 @@ namespace maple {
 extern MIRModule *theMIRModule;
 class MIRPregTable;  // circular dependency exists, no other choice
 class TypeTable;  // circular dependency exists, no other choice
+class VerifyResult;  // circular dependency exists, no other choice
 
 struct RegFieldPair {
  public:
@@ -67,7 +69,7 @@ using CallReturnVector = MapleVector<CallReturnPair>;
 // Made public so that other modules (such as maplebe) can print intrinsic names
 // in debug information or comments in assembly files.
 const char *GetIntrinsicName(MIRIntrinsicID intrn);
-class BaseNode {
+class BaseNode : public BaseNodeT {
  public:
   explicit BaseNode(Opcode o) {
     op = o;
@@ -186,15 +188,13 @@ class BaseNode {
     return true;
   }
 
+  virtual bool Verify(VerifyResult &) const {
+    return Verify();
+  }
+
   virtual bool IsSSANode() const {
     return false;
   }
- protected:
-  Opcode op;
-  PrimType ptyp;
-  uint8 typeFlag;  // a flag to speed up type related operations in the VM
-  uint8 numOpnds;  // only used for N-ary operators, switch and rangegoto
-                   // operands immediately before each node
 };
 
 class UnaryNode : public BaseNode {
@@ -210,6 +210,10 @@ class UnaryNode : public BaseNode {
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
   void Dump(int32 indent) const override;
   bool Verify() const override;
+
+  bool Verify(VerifyResult &) const override {
+    return Verify();
+  }
 
   UnaryNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<UnaryNode>(*this);
@@ -255,6 +259,10 @@ class TypeCvtNode : public UnaryNode {
   void Dump(int32 indent) const override;
   bool Verify() const override;
 
+  bool Verify(VerifyResult &) const override {
+    return Verify();
+  }
+
   TypeCvtNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<TypeCvtNode>(*this);
     node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
@@ -285,6 +293,7 @@ class RetypeNode : public TypeCvtNode {
 
   virtual ~RetypeNode() = default;
   void Dump(int32 indent) const override;
+  bool Verify(VerifyResult &verifyResult) const override;
 
   RetypeNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<RetypeNode>(*this);
@@ -301,6 +310,28 @@ class RetypeNode : public TypeCvtNode {
   }
 
  private:
+  bool VerifyPrimTypesAndOpnd() const;
+  bool CheckFromJarray(const MIRType &from, const MIRType &to, VerifyResult &verifyResult) const;
+  bool VerifyCompleteMIRType(const MIRType &from, const MIRType &to, bool isJavaRefType,
+                             VerifyResult &verifyResult) const;
+  bool VerifyJarrayDimention(const MIRJarrayType &from, const MIRJarrayType &to, VerifyResult &verifyResult) const;
+  bool IsJavaAssignable(const MIRType &from, const MIRType &to, VerifyResult &verifyResult) const;
+
+  bool BothPointerOrJarray(const MIRType &from, const MIRType &to) const {
+    if (from.GetKind() != to.GetKind()) {
+      return false;
+    }
+    return from.IsMIRPtrType() || from.IsMIRJarrayType();
+  }
+
+  bool IsInterfaceOrClass(const MIRType &mirType) const {
+    return mirType.IsMIRClassType() || mirType.IsMIRInterfaceType();
+  }
+
+  bool IsJavaRefType(const MIRType &mirType) const {
+    return mirType.IsMIRJarrayType() || mirType.IsMIRClassType() || mirType.IsMIRInterfaceType();
+  }
+
   TyIdx tyIdx = TyIdx(0);
 };
 
@@ -530,7 +561,7 @@ class IreadFPoffNode : public BaseNode {
 };
 
 class IreadPCoffNode : public IreadFPoffNode {
-  public:
+ public:
 
   IreadPCoffNode(Opcode o, PrimType typ, uint8 numopns) {
     op = o;
@@ -916,6 +947,7 @@ class IntrinsicopNode : public NaryNode {
 
   void Dump(int32 indent) const override;
   bool Verify() const override;
+  bool Verify(VerifyResult &verifyResult) const override;
 
   IntrinsicopNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<IntrinsicopNode>(allocator, *this);
@@ -946,6 +978,9 @@ class IntrinsicopNode : public NaryNode {
   const IntrinDesc &GetIntrinDesc() const {
     return IntrinDesc::intrinTable[intrinsic];
   }
+
+  bool VerifyJArrayLength(VerifyResult &verifyResult) const;
+
  private:
   MIRIntrinsicID intrinsic;
   TyIdx tyIdx;
@@ -1363,6 +1398,10 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return true;
   }
 
+  virtual bool Verify(VerifyResult &) const override {
+    return Verify();
+  }
+
   const SrcPosition &GetSrcPos() const {
     return srcPosition;
   }
@@ -1688,10 +1727,10 @@ class CatchNode : public StmtNode {
 // cppcatch
 class CppCatchNode : public StmtNode {
  public:
-  explicit CppCatchNode(TyIdx idx) : StmtNode(OP_cppcatch), exceptionTyIdx(idx) {}
+  explicit CppCatchNode(const TyIdx &idx) : StmtNode(OP_cppcatch), exceptionTyIdx(idx) {}
   explicit CppCatchNode() : CppCatchNode(TyIdx(0)) {}
 
-  CppCatchNode(CppCatchNode &node) = delete;
+  CppCatchNode(const CppCatchNode &node) = delete;
   CppCatchNode &operator=(const CppCatchNode &node) = delete;
   ~CppCatchNode() = default;
 
@@ -1704,14 +1743,14 @@ class CppCatchNode : public StmtNode {
     return node;
   }
 
-  CppCatchNode *CloneTree(MIRModule *mod) const {
-    return CppCatchNode::CloneTree(*mod->CurFuncCodeMemPoolAllocator());
+  CppCatchNode *CloneTree(const MIRModule &mod) const {
+    return CppCatchNode::CloneTree(*mod.CurFuncCodeMemPoolAllocator());
   }
  public:
   TyIdx exceptionTyIdx;
 };
 
-using CasePair = std::pair<int32, LabelIdx>;
+using CasePair = std::pair<int64, LabelIdx>;
 using CaseVector = MapleVector<CasePair>;
 class SwitchNode : public StmtNode {
  public:
@@ -1890,6 +1929,13 @@ class UnaryStmtNode : public StmtNode {
     return uOpnd->Verify();
   }
 
+  bool Verify(VerifyResult &verifyResult) const override {
+    if (GetOpCode() == OP_throw && !VerifyThrowable(verifyResult)) {
+      return false;
+    }
+    return uOpnd->Verify(verifyResult);
+  }
+
   UnaryStmtNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<UnaryStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
@@ -1917,7 +1963,10 @@ class UnaryStmtNode : public StmtNode {
   void SetOpnd(BaseNode *node, size_t) override {
     uOpnd = node;
   }
+
  private:
+  bool VerifyThrowable(VerifyResult &verifyResult) const;
+
   BaseNode *uOpnd = nullptr;
 };
 
@@ -2147,6 +2196,7 @@ class BlockNode : public StmtNode {
   void Dump(int32 indent, const MIRSymbolTable *theSymTab, MIRPregTable *thePregTab,
             bool withInfo, bool isFuncbody) const;
   bool Verify() const override;
+  bool Verify(VerifyResult &verifyResult) const override;
 
   void Dump(int32 indent) const override {
     Dump(indent, nullptr, nullptr, false, false);

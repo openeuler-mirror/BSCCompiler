@@ -801,6 +801,9 @@ bool MIRParser::ParseStructType(TyIdx &styIdx) {
     return false;
   }
   MIRStructType structType(tkind);
+  if (mod.GetSrcLang() == kSrcLangCPlusPlus) {
+    structType.SetIsCPlusPlus(true);
+  }
   if (!ParseFields(structType)) {
     return false;
   }
@@ -1365,63 +1368,79 @@ bool MIRParser::ParseDerivedType(TyIdx &tyIdx, MIRTypeKind kind) {
   return true;
 }
 
-void MIRParser::FixupForwardReferencedTypeByMap() {
-  for (size_t i = 1; i < GlobalTables::GetTypeTable().GetTypeTable().size(); ++i) {
-    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(i));
-    if (type->GetKind() == kTypePointer) {
-      auto *ptrType = static_cast<MIRPtrType*>(type);
-      std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(ptrType->GetPointedTyIdx());
+void MIRParser::FixForwardReferencedTypeForOneAgg(MIRType *type) {
+  if (type->GetKind() == kTypePointer) {
+    auto *ptrType = static_cast<MIRPtrType*>(type);
+    std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(ptrType->GetPointedTyIdx());
+    if (it != typeDefIdxMap.end()) {
+      ptrType->SetPointedTyIdx(it->second);
+    }
+  } else if (type->GetKind() == kTypeArray) {
+    MIRArrayType *arrayType = static_cast<MIRArrayType *>(type);
+    std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(arrayType->GetElemTyIdx());
+    if (it != typeDefIdxMap.end()) {
+      arrayType->SetElemTyIdx(it->second);
+    }
+  } else if (type->GetKind() == kTypeFArray || type->GetKind() == kTypeJArray) {
+    MIRFarrayType *arrayType = static_cast<MIRFarrayType *>(type);
+    std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(arrayType->GetElemTyIdx());
+    if (it != typeDefIdxMap.end()) {
+      arrayType->SetElemtTyIdx(it->second);
+    }
+  } else if (type->GetKind() == kTypeStruct || type->GetKind() == kTypeStructIncomplete ||
+             type->GetKind() == kTypeUnion || type->GetKind() == kTypeClass ||
+             type->GetKind() == kTypeClassIncomplete || type->GetKind() == kTypeInterface ||
+             type->GetKind() == kTypeInterfaceIncomplete) {
+    if (type->GetKind() == kTypeClass || type->GetKind() == kTypeClassIncomplete) {
+      auto *classType = static_cast<MIRClassType*>(type);
+      std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(classType->GetParentTyIdx());
       if (it != typeDefIdxMap.end()) {
-        ptrType->SetPointedTyIdx(it->second);
+        classType->SetParentTyIdx(it->second);
       }
-    } else if (type->GetKind() == kTypeStruct || type->GetKind() == kTypeStructIncomplete ||
-               type->GetKind() == kTypeUnion || type->GetKind() == kTypeClass ||
-               type->GetKind() == kTypeClassIncomplete || type->GetKind() == kTypeInterface ||
-               type->GetKind() == kTypeInterfaceIncomplete) {
-      if (type->GetKind() == kTypeClass || type->GetKind() == kTypeClassIncomplete) {
-        auto *classType = static_cast<MIRClassType*>(type);
-        std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(classType->GetParentTyIdx());
-        if (it != typeDefIdxMap.end()) {
-          classType->SetParentTyIdx(it->second);
-        }
-        for (size_t j = 0; j < classType->GetInterfaceImplemented().size(); ++j) {
-          std::map<TyIdx, TyIdx>::iterator it2 = typeDefIdxMap.find(classType->GetNthInterfaceImplemented(j));
-          if (it2 != typeDefIdxMap.end()) {
-            classType->SetNthInterfaceImplemented(j, it2->second);
-          }
-        }
-      } else if (type->GetKind() == kTypeInterface || type->GetKind() == kTypeInterfaceIncomplete) {
-        auto *interfaceType = static_cast<MIRInterfaceType*>(type);
-        for (uint32 j = 0; j < interfaceType->GetParentsTyIdx().size(); ++j) {
-          std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(interfaceType->GetParentsElementTyIdx(j));
-          if (it != typeDefIdxMap.end()) {
-            interfaceType->SetParentsElementTyIdx(j, it->second);
-          }
+      for (size_t j = 0; j < classType->GetInterfaceImplemented().size(); ++j) {
+        std::map<TyIdx, TyIdx>::iterator it2 = typeDefIdxMap.find(classType->GetNthInterfaceImplemented(j));
+        if (it2 != typeDefIdxMap.end()) {
+          classType->SetNthInterfaceImplemented(j, it2->second);
         }
       }
-      auto *structType = static_cast<MIRStructType*>(type);
-      for (uint32 j = 0; j < structType->GetFieldsSize(); ++j) {
-        TyIdx fieldTyIdx = structType->GetElemTyIdx(j);
-        std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(fieldTyIdx);
+    } else if (type->GetKind() == kTypeInterface || type->GetKind() == kTypeInterfaceIncomplete) {
+      auto *interfaceType = static_cast<MIRInterfaceType*>(type);
+      for (uint32 j = 0; j < interfaceType->GetParentsTyIdx().size(); ++j) {
+        std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(interfaceType->GetParentsElementTyIdx(j));
         if (it != typeDefIdxMap.end()) {
-          structType->SetElemtTyIdx(j, it->second);
-        }
-      }
-      for (size_t j = 0; j < structType->GetStaticFields().size(); ++j) {
-        TyIdx fieldTyIdx = structType->GetStaticElemtTyIdx(j);
-        std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(fieldTyIdx);
-        if (it != typeDefIdxMap.end()) {
-          structType->SetStaticElemtTyIdx(j, it->second);
-        }
-      }
-      for (size_t j = 0; j < structType->GetMethods().size(); ++j) {
-        TyIdx methodTyIdx = structType->GetMethodsElement(j).second.first;
-        std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(methodTyIdx);
-        if (it != typeDefIdxMap.end()) {
-          structType->SetMethodTyIdx(j, it->second);
+          interfaceType->SetParentsElementTyIdx(j, it->second);
         }
       }
     }
+    auto *structType = static_cast<MIRStructType*>(type);
+    for (uint32 j = 0; j < structType->GetFieldsSize(); ++j) {
+      TyIdx fieldTyIdx = structType->GetElemTyIdx(j);
+      std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(fieldTyIdx);
+      if (it != typeDefIdxMap.end()) {
+        structType->SetElemtTyIdx(j, it->second);
+      }
+    }
+    for (size_t j = 0; j < structType->GetStaticFields().size(); ++j) {
+      TyIdx fieldTyIdx = structType->GetStaticElemtTyIdx(j);
+      std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(fieldTyIdx);
+      if (it != typeDefIdxMap.end()) {
+        structType->SetStaticElemtTyIdx(j, it->second);
+      }
+    }
+    for (size_t j = 0; j < structType->GetMethods().size(); ++j) {
+      TyIdx methodTyIdx = structType->GetMethodsElement(j).second.first;
+      std::map<TyIdx, TyIdx>::iterator it = typeDefIdxMap.find(methodTyIdx);
+      if (it != typeDefIdxMap.end()) {
+        structType->SetMethodTyIdx(j, it->second);
+      }
+    }
+  }
+}
+
+void MIRParser::FixupForwardReferencedTypeByMap() {
+  for (size_t i = 1; i < GlobalTables::GetTypeTable().GetTypeTable().size(); ++i) {
+    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(i));
+    FixForwardReferencedTypeForOneAgg(type);
   }
 }
 
@@ -1453,7 +1472,7 @@ bool MIRParser::ParseTypedef() {
       if (!mod.IsCModule()) {
         CHECK_FATAL(prevType->IsStructType(), "type error");
       }
-      prevStructType = static_cast<MIRStructType*>(prevType);
+      prevStructType = dynamic_cast<MIRStructType*>(prevType);
       if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
         // allow duplicated type def if kKeepFirst is set which is the default
         if (options & kKeepFirst) {
@@ -1478,7 +1497,8 @@ bool MIRParser::ParseTypedef() {
     prevTyIdx = mod.CurFunction()->GetTyIdxFromGStrIdx(strIdx);
     if (prevTyIdx != 0u) {
       MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
-      if ((prevType->GetKind() != kTypeByName) && (prevType->IsStructType() && !prevType->IsIncomplete())) {
+      prevStructType = dynamic_cast<MIRStructType *>(prevType);
+      if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
         Error("redefined local type name ");
         return false;
       }
@@ -2000,6 +2020,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
     }
     theConst = mirConst;
   } else {  // aggregates
+    FixForwardReferencedTypeForOneAgg(&type);
     if (type.GetKind() == kTypeArray) {
       auto &arrayType = static_cast<MIRArrayType&>(type);
       MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType.GetElemTyIdx());
@@ -2036,14 +2057,18 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
               return false;
             }
           } else {
-            std::vector<uint32> sizeSubArray;
-            ASSERT(arrayType.GetDim() > 1, "array dim must large then 1");
-            for (uint16 i = 1; i < arrayType.GetDim(); ++i) {
-              sizeSubArray.push_back(arrayType.GetSizeArrayItem(i));
+            TyIdx elemTyIdx;
+            if (arrayType.GetDim() == 1) {
+              elemTyIdx = elemType->GetTypeIndex();
+            } else {
+              std::vector<uint32> sizeSubArray;
+              for (uint16 i = 1; i < arrayType.GetDim(); ++i) {
+                sizeSubArray.push_back(arrayType.GetSizeArrayItem(i));
+              }
+              MIRArrayType subArrayType(elemType->GetTypeIndex(), sizeSubArray);
+              elemTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&subArrayType);
             }
-            MIRArrayType subArrayType(elemType->GetTypeIndex(), sizeSubArray);
-            TyIdx arrayTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&subArrayType);
-            if (!ParseInitValue(subConst, arrayTyIdx)) {
+            if (!ParseInitValue(subConst, elemTyIdx)) {
               Error("initializaton value wrong when parsing sub array ");
               return false;
             }
@@ -2064,11 +2089,12 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         }
       } while (tokenKind != TK_rbrack);
       lexer.NextToken();
-    } else if (type.GetKind() == kTypeStruct) {
+    } else if (type.GetKind() == kTypeStruct || type.GetKind() == kTypeUnion) {
       MIRAggConst *newConst = mod.GetMemPool()->New<MIRAggConst>(mod, type);
-      uint32 theFieldID;
+      uint32 theFieldIdx;
       TyIdx fieldTyIdx;
       theConst = newConst;
+      MapleVector<MIRConst *> &constvec = newConst->GetConstVec();
       tokenKind = lexer.NextToken();
       if (tokenKind == TK_rbrack) {
         if (allowEmpty) {
@@ -2084,12 +2110,13 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           Error("expect field ID in struct initialization but get ");
           return false;
         }
-        theFieldID = lexer.GetTheIntVal();
+        theFieldIdx = lexer.GetTheIntVal();
         if (lexer.NextToken() != TK_eqsign) {
           Error("expect = after field ID in struct initialization but get ");
           return false;
         }
-        fieldTyIdx = static_cast<MIRStructType&>(type).GetFieldTyIdx(theFieldID);
+        FieldPair thepair = static_cast<MIRStructType &>(type).GetFields()[theFieldIdx-1];
+        fieldTyIdx = thepair.second.first;
         if (fieldTyIdx == 0u) {
           Error("field ID out of range at struct initialization at ");
           return false;
@@ -2117,13 +2144,8 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           return false;
         }
         ASSERT(subConst != nullptr, "subConst is null in MIRParser::ParseInitValue");
-        if (subConst->GetKind() == kConstInt) {
-          subConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              static_cast<MIRIntConst*>(subConst)->GetValue(), subConst->GetType(), theFieldID);
-        } else {
-          subConst->SetFieldID(theFieldID);
-        }
-        newConst->PushBack(subConst);
+        subConst->SetFieldID(theFieldIdx);
+        constvec.push_back(subConst);
         tokenKind = lexer.GetTokenKind();
         // parse comma or rbrack
         if (tokenKind == TK_coma) {
