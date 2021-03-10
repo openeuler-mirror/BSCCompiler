@@ -36,8 +36,8 @@ Operand *HandleDread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 Operand *HandleRegread(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &regReadNode = static_cast<RegreadNode&>(expr);
-  if (regReadNode.GetRegIdx() == -kSregRetval0) {
-    return &cgFunc.ProcessReturnReg(regReadNode.GetPrimType());
+  if (regReadNode.GetRegIdx() == -kSregRetval0 || regReadNode.GetRegIdx() == -kSregRetval1) {
+    return &cgFunc.ProcessReturnReg(regReadNode.GetPrimType(), -(regReadNode.GetRegIdx()));
   }
   return cgFunc.SelectRegread(regReadNode);
 }
@@ -401,6 +401,7 @@ void HandleLabel(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleGoto(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &gotoNode = static_cast<GotoNode&>(stmt);
   cgFunc.SetCurBBKind(BB::kBBGoto);
   cgFunc.SelectGoto(gotoNode);
@@ -420,6 +421,7 @@ void HandleIgoto(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &condGotoNode = static_cast<CondGotoNode&>(stmt);
   BaseNode *condNode = condGotoNode.Opnd(0);
   ASSERT(condNode != nullptr, "expect first operand of cond br");
@@ -503,6 +505,7 @@ void HandleCondbr(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleReturn(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &retNode = static_cast<NaryStmtNode&>(stmt);
   cgFunc.HandleRetCleanup(retNode);
   ASSERT(retNode.NumOpnds() <= 1, "NYI return nodes number > 1");
@@ -516,6 +519,7 @@ void HandleReturn(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleCall(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &callNode = static_cast<CallNode&>(stmt);
   cgFunc.SelectCall(callNode);
   if (cgFunc.GetCurBB()->GetKind() != BB::kBBFallthru) {
@@ -533,6 +537,7 @@ void HandleCall(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleICall(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &icallNode = static_cast<IcallNode&>(stmt);
   cgFunc.GetCurBB()->SetHasCall();
   Operand *opnd0 = cgFunc.HandleExpr(stmt, *icallNode.GetNopndAt(0));
@@ -606,6 +611,7 @@ void HandleEval(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleRangeGoto(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.UpdateFrequency(stmt);
   auto &rangeGotoNode = static_cast<RangeGotoNode&>(stmt);
   cgFunc.SetCurBBKind(BB::kBBRangeGoto);
   cgFunc.SelectRangeGoto(rangeGotoNode, *cgFunc.HandleExpr(rangeGotoNode, *rangeGotoNode.Opnd(0)));
@@ -688,6 +694,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       spillRegMemOperands(allocator.Adapter()),
       reuseSpillLocMem(allocator.Adapter()),
       labelMap(std::less<LabelIdx>(), allocator.Adapter()),
+      hasVLAOrAlloca(mirFunc.HasVlaOrAlloca()),
       cg(&cg),
       mirModule(mod),
       memPool(&memPool),
@@ -742,6 +749,10 @@ StmtNode *CGFunc::HandleFirstStmt() {
   BlockNode *block = func.GetBody();
 
   ASSERT(block != nullptr, "get func body block failed in CGFunc::GenerateInstruction");
+  bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
+  if (withFreqInfo) {
+    frequency = kFreqBase;
+  }
   StmtNode *stmt = block->GetFirst();
   if (stmt == nullptr) {
     return nullptr;
@@ -1092,6 +1103,20 @@ void CGFunc::ProcessExitBBVec() {
   }
 }
 
+void CGFunc::UpdateCallBBFrequency() {
+  if (!func.HasFreqMap() || func.GetFreqMap().empty()) {
+    return;
+  }
+  FOR_ALL_BB(bb, this) {
+    if (bb->GetKind() != BB::kBBFallthru || !bb->HasCall()) {
+      continue;
+    }
+    ASSERT(bb->GetSuccs().size() <= 1, "fallthru BB has only one successor.");
+    if (!bb->GetSuccs().empty()) {
+      bb->SetFrequency((*(bb->GetSuccsBegin()))->GetFrequency());
+    }
+  }
+}
 
 void CGFunc::HandleFunction() {
   /* select instruction */
@@ -1114,6 +1139,7 @@ void CGFunc::HandleFunction() {
   /* build control flow graph */
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
+  UpdateCallBBFrequency();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();
   }
