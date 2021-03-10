@@ -2543,8 +2543,9 @@ at 1 for the first field of the sub-struct.  Example:
                   @f2 <%SS>,
                   @f3:4 i32} = [
         1 = 99,        # field f1 is initialized to 99
-        2 = [1= 10.0, 2=22.2], # fields f2.g1 and f2.g2 initialized to 10 and
-                       # 22.2 respectively
+        2 = [1= 10.0f, 2=22.2f],
+                       # fields f2.g1 and f2.g2 initialized to
+                       # 10.0f and 22.2f respectively
         3 = 15 ]       # field f3 (4 bits in size) has field number 3 in
                        # struct %s and is initialized to 15
 ```
