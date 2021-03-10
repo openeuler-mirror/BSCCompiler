@@ -508,6 +508,10 @@ class MIRFunction {
     inferredReturnTyIdx = tyIdx;
   }
 
+  MIRTypeNameTable *GetTypeNameTab() const {
+    return typeNameTab;
+  }
+
   void AllocTypeNameTab() {
     if (typeNameTab == nullptr) {
       typeNameTab = module->GetMemPool()->New<MIRTypeNameTable>(module->GetMPAllocator());

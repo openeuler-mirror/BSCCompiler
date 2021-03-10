@@ -31,6 +31,8 @@ using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
 using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
 
+class BinaryMplImport;
+
 // to facilitate the use of unordered_map
 class TyIdxHash {
  public:
@@ -80,6 +82,7 @@ class IntConstCmp {
 };
 
 class TypeTable {
+  friend BinaryMplImport;
  public:
   static MIRType *voidPtrType;
 
@@ -115,6 +118,8 @@ class TypeTable {
   }
 
   void SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type);
+
+  MIRType *GetOrCreateMIRTypeNode(MIRType &ptype);
 
   TyIdx GetOrCreateMIRType(MIRType *pType) {
     return GetOrCreateMIRTypeNode(*pType)->GetTypeIndex();
@@ -359,7 +364,6 @@ class TypeTable {
   }
 
   MIRType *CreateAndUpdateMirTypeNode(MIRType &pType);
-  MIRType *GetOrCreateMIRTypeNode(MIRType &ptype);
   MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &printFields,
                                     MIRModule &module, bool forStruct = true);
   MIRType *GetOrCreateClassOrInterface(const std::string &name, MIRModule &module, bool forClass);
@@ -371,6 +375,8 @@ class TypeTable {
   std::unordered_map<TyIdx, TyIdx, TyIdxHash> ptrTypeMap;
   std::unordered_map<TyIdx, TyIdx, TyIdxHash> refTypeMap;
   std::vector<MIRType*> typeTable;
+ public:
+  TyIdx lastDefaultTyIdx;
 };
 
 class StrPtrHash {
