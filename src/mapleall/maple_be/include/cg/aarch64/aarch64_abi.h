@@ -64,8 +64,12 @@ enum AArch64ArgumentClass : uint8 {
 struct PLocInfo {
   AArch64reg reg0;  /* 0 means parameter is stored on the stack */
   AArch64reg reg1;
+  AArch64reg reg2;  /* can have up to 4 single precision fp registers */
+  AArch64reg reg3;  /* for small structure return. */
   int32 memOffset;
   int32 memSize;
+  uint32 fpSize;
+  uint32 numFpPureRegs;
 };
 
 /*
@@ -84,6 +88,7 @@ class ParmLocator {
 
   /* Return size of aggregate structure copy on stack. */
   int32 LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst = false);
+  int32 LocateRetVal(MIRType &retType, PLocInfo &ploc);
   void InitPLocInfo(PLocInfo &pLoc) const;
 
  private:
@@ -108,6 +113,35 @@ class ParmLocator {
 
   AArch64reg AllocateSIMDFPRegister() {
     return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::floatParmRegs[nextFloatRegNO++] : kRinvalid;
+  }
+
+  inline void AllocateNSIMDFPRegisters(PLocInfo &ploc, uint32 num) {
+    if ((nextFloatRegNO + num - 1) < AArch64Abi::kNumFloatParmRegs) {
+      switch (num) {
+      case 1:
+        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        break;
+      case 2:
+        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        break;
+      case 3:
+        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        break;
+      case 4:
+        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        ploc.reg3 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+        break;
+      default:
+        CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");
+      }
+    } else {
+      ploc.reg0 = kRinvalid;
+    }
   }
 
   void RoundNGRNUpToNextEven() {
@@ -140,6 +174,14 @@ class ReturnMechanism {
     return reg1;
   }
 
+  AArch64reg GetReg2() const {
+    return reg2;
+  }
+
+  AArch64reg GetReg3() const {
+    return reg3;
+  }
+
   void SetupToReturnThroughMemory() {
     regCount = 1;
     reg0 = R8;
@@ -151,6 +193,8 @@ class ReturnMechanism {
   uint8 regCount;             /* number of registers <= 2 storing the return value */
   AArch64reg reg0;            /* first register storing the return value */
   AArch64reg reg1;            /* second register storing the return value */
+  AArch64reg reg2;            /* third register storing the return value */
+  AArch64reg reg3;            /* fourth register storing the return value */
   PrimType primTypeOfReg0;    /* the primitive type stored in reg0 */
   PrimType primTypeOfReg1;    /* the primitive type stored in reg1 */
 };

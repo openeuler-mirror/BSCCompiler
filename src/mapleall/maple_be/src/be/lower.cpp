@@ -55,11 +55,14 @@ struct ExtFuncDescrT {
 
 namespace {
 std::pair<MIRIntrinsicID, const std::string> cgBuiltins[] = {
-  { INTRN_JAVA_ARRAY_LENGTH, "MCC_JavaArrayLength" },
-  { INTRN_JAVA_ARRAY_FILL, "MCC_JavaArrayFill" },
-  { INTRN_JAVA_CHECK_CAST, "MCC_JavaCheckCast" },
-  { INTRN_JAVA_INSTANCE_OF, "MCC_JavaInstanceOf" },
-  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_JavaPolymorphicCall" },
+  { INTRN_JAVA_ARRAY_LENGTH, "MCC_DexArrayLength" },
+  { INTRN_JAVA_ARRAY_FILL, "MCC_DexArrayFill" },
+  { INTRN_JAVA_CHECK_CAST, "MCC_DexCheckCast" },
+  { INTRN_JAVA_INSTANCE_OF, "MCC_DexInstanceOf" },
+  { INTRN_JAVA_INTERFACE_CALL, "MCC_DexInterfaceCall" },
+  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_DexPolymorphicCall" },
+  { INTRN_MCC_DeferredFillNewArray, "MCC_DeferredFillNewArray" },
+  { INTRN_MCC_DeferredInvoke, "MCC_DeferredInvoke" },
   { INTRN_JAVA_CONST_CLASS, "MCC_GetReferenceToClass" },
   { INTRN_JAVA_GET_CLASS, "MCC_GetClass" },
   { INTRN_MPL_SET_CLASS, "MCC_SetJavaClass" },
@@ -1047,6 +1050,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       auto &origCall = static_cast<CallNode&>(stmt);
       newCall = GenCallNode(stmt, funcCalled, origCall);
       p2nRets = &origCall.GetReturnVec();
+      static_cast<CallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_intrinsiccallassigned:
@@ -1064,12 +1068,14 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       }
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, intrincall);
       p2nRets = &intrincall.GetReturnVec();
+      static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_intrinsiccallwithtypeassigned: {
       auto &origCall = static_cast<IntrinsiccallNode&>(stmt);
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, origCall);
       p2nRets = &origCall.GetReturnVec();
+      static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_icallassigned: {
@@ -1908,6 +1914,7 @@ BaseNode *CGLowerer::LowerExpr(const BaseNode &parent, BaseNode &expr, BlockNode
       return LowerIntrinsicop(parent, static_cast<IntrinsicopNode&>(expr), blkNode);
 
     case OP_alloca: {
+      GetCurrentFunc()->SetVlaOrAlloca(true);
       return &expr;
     }
     case OP_rem:
