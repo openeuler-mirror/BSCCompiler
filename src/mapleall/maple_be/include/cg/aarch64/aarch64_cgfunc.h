@@ -205,7 +205,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopy(Operand &dest, PrimType dtype, Operand &src, PrimType stype);
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
-  Operand &GetTargetRetOperand(PrimType primType) override;
+  Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
   const Operand *GetRflag() const override;
   Operand &GetOrCreatevaryreg();
@@ -322,7 +322,7 @@ class AArch64CGFunc : public CGFunc {
 
   Operand &GetOrCreateFuncNameOpnd(const MIRSymbol &symbol);
   void GenerateYieldpoint(BB &bb) override;
-  Operand &ProcessReturnReg(PrimType primType) override;
+  Operand &ProcessReturnReg(PrimType primType, int32 sReg) override;
   void GenerateCleanupCode(BB &bb) override;
   bool NeedCleanup() override;
   void GenerateCleanupCodeForExtEpilog(BB &bb) override;
