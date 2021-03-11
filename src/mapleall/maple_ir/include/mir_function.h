@@ -577,7 +577,7 @@ class MIRFunction {
     return GetFuncSymbol()->GetSrcPosition();
   }
 
-  void SetSrcPosition(const SrcPosition &position) {
+  void SetSrcPosition(SrcPosition &position) {
     GetFuncSymbol()->SetSrcPosition(position);
   }
 
@@ -609,7 +609,7 @@ class MIRFunction {
     fileIndex = newFileIndex;
   }
 
-  const MIRInfoVector &GetInfoVector() const {
+  MIRInfoVector &GetInfoVector() {
     return info;
   }
 
@@ -625,9 +625,10 @@ class MIRFunction {
     info[idx].second = num;
   }
 
-  const MapleVector<bool> &InfoIsString() const {
+  MapleVector<bool> &InfoIsString() {
     return infoIsString;
   }
+
   void PushbackIsString(bool isString) {
     infoIsString.push_back(isString);
   }
@@ -636,7 +637,7 @@ class MIRFunction {
     return aliasVarMap != nullptr;
   }
 
-  const MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
+  MapleMap<GStrIdx, MIRAliasVars> &GetAliasVarMap() {
     if (aliasVarMap == nullptr) {
       aliasVarMap = module->GetMemPool()->New<MapleMap<GStrIdx, MIRAliasVars>>(module->GetMPAllocator().Adapter());
     }
@@ -851,7 +852,7 @@ class MIRFunction {
       symTab = module->GetMemPool()->New<MIRSymbolTable>(module->GetMPAllocator());
     }
   }
-  const MIRLabelTable *GetLabelTab() const {
+  MIRLabelTable *GetLabelTab() const {
     CHECK_FATAL(labelTab != nullptr, "must be");
     return labelTab;
   }
