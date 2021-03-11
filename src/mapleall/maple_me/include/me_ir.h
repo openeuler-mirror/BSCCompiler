@@ -2521,11 +2521,11 @@ class CatchMeStmt : public MeStmt {
 
 class SwitchMeStmt : public UnaryMeStmt {
  public:
-  SwitchMeStmt(MapleAllocator *alloc, const StmtNode *stt)
+  SwitchMeStmt(MapleAllocator *alloc, StmtNode *stt)
       : UnaryMeStmt(stt),
-        defaultLabel(static_cast<const SwitchNode*>(stt)->GetDefaultLabel()),
+        defaultLabel(static_cast<SwitchNode*>(stt)->GetDefaultLabel()),
         switchTable(alloc->Adapter()) {
-    switchTable = static_cast<const SwitchNode*>(stt)->GetSwitchTable();
+    switchTable = static_cast<SwitchNode*>(stt)->GetSwitchTable();
   }
 
   ~SwitchMeStmt() = default;

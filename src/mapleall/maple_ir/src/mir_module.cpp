@@ -12,7 +12,6 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "mir_module.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -273,9 +272,10 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
   }
 }
 
-void MIRModule::Dump(bool emitStructureType) const {
+void MIRModule::Dump(bool emitStructureType,
+                     std::unordered_set<std::string> *dumpFuncSet) const {
   DumpGlobals(emitStructureType);
-  DumpFunctionList();
+  DumpFunctionList(dumpFuncSet);
 }
 
 void MIRModule::DumpGlobalArraySymbol() const {
@@ -304,9 +304,23 @@ void MIRModule::Emit(const std::string &outFileName) const {
   file.close();
 }
 
-void MIRModule::DumpFunctionList(bool skipBody) const {
-  for (MIRFunction *func : functionList) {
-    func->Dump(skipBody);
+void MIRModule::DumpFunctionList(const std::unordered_set<std::string> *dumpFuncSet) const {
+  for (MIRFunction *mirFunc : functionList) {
+    if (dumpFuncSet == nullptr || dumpFuncSet->empty()) {
+      mirFunc->Dump();
+    } else {  // dump only if this func matches any name in *dumpFuncSet
+      const std::string &name = mirFunc->GetName();
+      bool matched = false;
+      for (std::string elem : *dumpFuncSet) {
+        if (name.find(elem.c_str()) != std::string::npos) {
+          matched = true;
+          break;
+        }
+      }
+      if (matched) {
+        mirFunc->Dump();
+      }
+    }
   }
 }
 
@@ -329,7 +343,7 @@ void MIRModule::OutputFunctionListAsciiMpl(const std::string &phaseName) {
   std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
   LogInfo::MapleLogger().rdbuf(mplFile.rdbuf());  // change cout's buffer to that of file
   DumpGlobalArraySymbol();
-  DumpFunctionList();
+  DumpFunctionList(nullptr);
   LogInfo::MapleLogger().rdbuf(backup);  // restore cout's buffer
   mplFile.close();
 }
@@ -462,9 +476,12 @@ MIRFunction *MIRModule::FindEntryFunction() {
 }
 
 // given the phase name (including '.' at beginning), output the program in the
-// module in ascii form to the file with either .mpl or .mmpl suffix, and file
-// stem from this->fileName appended with phasename
-void MIRModule::OutputAsciiMpl(const std::string &phaseName, bool emitStructureType) {
+// module to the file with given file suffix, and file stem from
+// this->fileName appended with phaseName
+void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
+                               std::unordered_set<std::string> *dumpFuncSet,
+                               bool emitStructureType, bool binaryform) {
+  ASSERT(!(emitStructureType && binaryform), "Cannot emit type info in .bpl");
   std::string fileStem;
   std::string::size_type lastDot = fileName.find_last_of('.');
   if (lastDot == std::string::npos) {
@@ -473,18 +490,20 @@ void MIRModule::OutputAsciiMpl(const std::string &phaseName, bool emitStructureT
     fileStem = fileName.substr(0, lastDot).append(phaseName);
   }
   std::string outfileName;
-  if (flavor >= kMmpl) {
-    outfileName = fileStem.append(".mmpl");
+  outfileName = fileStem + suffix;
+  if (!binaryform) {
+    std::ofstream mplFile;
+    mplFile.open(outfileName, std::ios::trunc);
+    std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
+    LogInfo::MapleLogger().rdbuf(mplFile.rdbuf());  // change LogInfo::MapleLogger()'s buffer to that of file
+    Dump(emitStructureType, dumpFuncSet);
+    LogInfo::MapleLogger().rdbuf(backup);  // restore LogInfo::MapleLogger()'s buffer
+    mplFile.close();
   } else {
-    outfileName = fileStem.append(".mpl");
+    BinaryMplt binMplt(*this);
+    binMplt.GetBinExport().not2mplt = true;
+    binMplt.Export(outfileName);
   }
-  std::ofstream mplFile;
-  mplFile.open(outfileName, std::ios::trunc);
-  std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
-  LogInfo::MapleLogger().rdbuf(mplFile.rdbuf());  // change cout's buffer to that of file
-  Dump(emitStructureType);
-  LogInfo::MapleLogger().rdbuf(backup);  // restore cout's buffer
-  mplFile.close();
 }
 
 uint32 MIRModule::GetFileinfo(GStrIdx strIdx) const {
