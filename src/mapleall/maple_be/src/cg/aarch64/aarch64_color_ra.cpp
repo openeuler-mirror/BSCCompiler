@@ -2539,6 +2539,9 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
          * mov xd, x16
          */
         baseRegNO = lr.GetSpillReg();
+        if (baseRegNO > RLAST_INT_REG) {
+          baseRegNO = R17;
+        }
       } else {
         /* dest will use R17 as baseRegister when offset out-of-range
          * mov x16, xs

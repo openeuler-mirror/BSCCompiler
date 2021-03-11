@@ -3938,6 +3938,13 @@ void AArch64CGFunc::SelectAArch64Select(Operand &dest, Operand &o0, Operand &o1,
   uint32 mOpCode = isIntType ? ((dsize == k64BitSize) ? MOP_xcselrrrc : MOP_wcselrrrc)
                              : ((dsize == k64BitSize) ? MOP_dcselrrrc
                                                       : ((dsize == k32BitSize) ? MOP_scselrrrc : MOP_hcselrrrc));
+  if (o1.IsImmediate()) {
+    uint32 movOp = (dsize == 64 ? MOP_xmovri64 : MOP_xmovri32);
+    RegOperand &movDest = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, (dsize == k64BitSize) ? k8ByteSize : k4ByteSize));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(movOp, movDest, o1));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpCode, dest, o0, movDest, cond));
+    return;
+  }
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpCode, dest, o0, o1, cond));
 }
 
