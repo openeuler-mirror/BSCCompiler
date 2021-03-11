@@ -22,10 +22,11 @@ rel=`realpath --relative-to=$MAPLE_ROOT $CURRDIR`
 
 dir=$1
 src=$2
-if [ $# -le 2 ]; then
+opt=$3
+if [ $# -le 3 ]; then
   verbose=0
 else
-  verbose=$3
+  verbose=$4
 fi
 
 WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_whirl2mpl
@@ -47,8 +48,14 @@ $MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/clangfe $FLAGS $src.c > doit.l
 echo $MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/whirl2mpl -a $src.B >> cmd.log
 $MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/whirl2mpl -a $src.B >> doit.log 2>&1
 
-echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-O2 -quiet\" $src.mpl >> cmd.log
-$MAPLE_EXECUTE_BIN/maple --run=mplcg --option="-O2 -quiet" $src.mpl >> doit.log 2>&1
+
+if [ $opt -eq 0 ]; then
+  echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-quiet\" $src.mpl >> cmd.log
+  $MAPLE_EXECUTE_BIN/maple --run=mplcg --option="-quiet" $src.mpl >> doit.log 2>&1
+else
+  echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-O2 -quiet\" $src.mpl >> cmd.log
+  $MAPLE_EXECUTE_BIN/maple --run=mplcg --option="-O2 -quiet" $src.mpl >> doit.log 2>&1
+fi
 
 echo /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s >> cmd.log
 /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s

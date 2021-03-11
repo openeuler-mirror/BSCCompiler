@@ -21,5 +21,5 @@ CASES=$(basename $(wildcard *.c))
 all: $(CASES)
 
 % : %.c
-	$(CCMD) . $@ $(VERBOSE)
+	$(CCMD) . $@ $(OPTIMIZE) $(VERBOSE)
 
