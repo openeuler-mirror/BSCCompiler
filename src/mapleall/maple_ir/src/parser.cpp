@@ -507,7 +507,7 @@ bool MIRParser::ParsePragma(MIRStructType &type) {
   p->SetKind(it->second);
 
   if (tk == TK_param) {
-    tk = lexer.NextToken();
+    lexer.NextToken();
     p->SetParamNum(lexer.GetTheIntVal());
   }
   tk = lexer.NextToken();
@@ -516,7 +516,7 @@ bool MIRParser::ParsePragma(MIRStructType &type) {
     return false;
   }
   p->SetStrIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName()));
-  tk = lexer.NextToken();
+  lexer.NextToken();
   TyIdx tyIdx;
   if (!ParseType(tyIdx)) {
     Error("parsing pragma error: wrong type ");
@@ -525,8 +525,12 @@ bool MIRParser::ParsePragma(MIRStructType &type) {
   p->SetTyIdx(tyIdx);
   tk = lexer.GetTokenKind();
   if (tk != TK_lbrace) {
-    Error("parsing pragma error: expecting { but get ");
-    return false;
+    TyIdx tyIdxEx;
+    if (!ParseType(tyIdxEx)) {
+      Error("parsing pragma error: wrong type ");
+      return false;
+    }
+    p->SetTyIdxEx(tyIdxEx);
   }
   tk = lexer.NextToken();
   while (tk != TK_rbrace) {
@@ -810,7 +814,7 @@ bool MIRParser::ParseStructType(TyIdx &styIdx) {
   if (styIdx != 0u) {
     MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(styIdx);
     if (prevType->GetKind() != kTypeByName) {
-      ASSERT(prevType->GetKind() == kTypeStruct || prevType->GetKind() == kTypeStructIncomplete,
+      ASSERT(prevType->GetKind() == kTypeStruct || prevType->IsIncomplete(),
              "type kind should be consistent.");
       if (static_cast<MIRStructType*>(prevType)->IsIncomplete() && !(structType.IsIncomplete())) {
         structType.SetNameStrIdx(prevType->GetNameStrIdx());
@@ -847,7 +851,7 @@ bool MIRParser::ParseClassType(TyIdx &styidx) {
     prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(styidx);
   }
   if (prevType != nullptr && prevType->GetKind() != kTypeByName) {
-    ASSERT(prevType->GetKind() == kTypeClass || prevType->GetKind() == kTypeClassIncomplete,
+    ASSERT(prevType->GetKind() == kTypeClass || prevType->IsIncomplete(),
            "type kind should be consistent.");
     if (static_cast<MIRClassType*>(prevType)->IsIncomplete() && !(classType.IsIncomplete())) {
       classType.SetNameStrIdx(prevType->GetNameStrIdx());
@@ -890,7 +894,7 @@ bool MIRParser::ParseInterfaceType(TyIdx &sTyIdx) {
   }
   if (sTyIdx != 0u) {
     MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sTyIdx);
-    ASSERT(prevType->GetKind() == kTypeInterface || prevType->GetKind() == kTypeInterfaceIncomplete,
+    ASSERT(prevType->GetKind() == kTypeInterface || prevType->IsIncomplete(),
            "type kind should be consistent.");
     if (static_cast<MIRInterfaceType*>(prevType)->IsIncomplete() && !(interfaceType.IsIncomplete())) {
       interfaceType.SetNameStrIdx(prevType->GetNameStrIdx());
@@ -1458,7 +1462,6 @@ bool MIRParser::ParseTypedef() {
   const std::string &name = lexer.GetName();
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   TyIdx prevTyIdx;
-  MIRStructType *prevStructType = nullptr;
   TyIdx tyIdx(0);
   // dbginfo class/interface init
   if (tokenKind == TK_gname) {
@@ -1472,8 +1475,7 @@ bool MIRParser::ParseTypedef() {
       if (!mod.IsCModule()) {
         CHECK_FATAL(prevType->IsStructType(), "type error");
       }
-      prevStructType = dynamic_cast<MIRStructType*>(prevType);
-      if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
+      if ((prevType->GetKind() != kTypeByName) && !prevType->IsIncomplete()) {
         // allow duplicated type def if kKeepFirst is set which is the default
         if (options & kKeepFirst) {
           lexer.NextToken();
@@ -1497,8 +1499,7 @@ bool MIRParser::ParseTypedef() {
     prevTyIdx = mod.CurFunction()->GetTyIdxFromGStrIdx(strIdx);
     if (prevTyIdx != 0u) {
       MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
-      prevStructType = dynamic_cast<MIRStructType *>(prevType);
-      if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
+      if ((prevType->GetKind() != kTypeByName) && !prevType->IsIncomplete()) {
         Error("redefined local type name ");
         return false;
       }
@@ -2115,7 +2116,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           Error("expect = after field ID in struct initialization but get ");
           return false;
         }
-        FieldPair thepair = static_cast<MIRStructType &>(type).GetFields()[theFieldIdx-1];
+        FieldPair thepair = static_cast<MIRStructType &>(type).GetFields()[theFieldIdx - 1];
         fieldTyIdx = thepair.second.first;
         if (fieldTyIdx == 0u) {
           Error("field ID out of range at struct initialization at ");
