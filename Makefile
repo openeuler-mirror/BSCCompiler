@@ -120,7 +120,7 @@ setup:
 
 .PHONY: demo
 demo:
-	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1
+	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1 1
 
 .PHONY: test1
 test1: libcore
