@@ -1,0 +1,92 @@
+#
+# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+
+#!/bin/bash
+set -e
+#set -x
+# compile a .java to .dex using javac/dx tool chain.
+# using: java2dex.sh xxx.java
+# output: xxx.dex
+
+while getopts 'i:o:p:s:' args;
+do
+    case ${args} in
+        i)  INPUT_FILE=${OPTARG};;
+        p)  CLASSES_JAR_FILE=${OPTARG};;
+        o)  OUT_FILE=${OPTARG};;
+        s)  USE_SIMPLEJAVA=${OPTARG};;
+        *)  echo "invaild param:"${OPTARG};;
+    esac
+done
+
+CASEDIR=$(pwd)
+DESTDIR=$(pwd)/java2dex
+mkdir -p ${DESTDIR}
+JAVA_FILE=${INPUT_FILE//:/' '}
+CLASS_FILE_ALL=${JAVA_FILE//\.java/\.class}
+CLASS_FILE=*.class
+JAR_FILE=`echo ${OUT_FILE} |awk -F. '{print $1}'`".jar"
+CLASS_PATH='--classpath '${CLASSES_JAR_FILE//:/' --classpath '}
+
+java_file_exist=0
+for i in ${JAVA_FILE}
+do
+    if [ -f $i ];then
+        java_file_exist=1
+        break
+    fi
+done
+
+if [ ${java_file_exist} -eq 1 ];then
+    javac -g -d ${DESTDIR} -bootclasspath ${CLASSES_JAR_FILE} ${JAVA_FILE}
+fi
+
+mkdir -p ${DESTDIR}/classes
+cd ${DESTDIR}/classes
+
+if [ -z ${USE_SIMPLEJAVA} ];then
+    find ${DESTDIR} -name "*.class" | xargs -i cp {} ${DESTDIR}/classes
+else
+    find ${DESTDIR} -name ${CLASS_FILE_ALL} | xargs -i cp {} ${DESTDIR}/classes
+fi
+
+class_file_exist=0
+for i in ${CLASS_FILE_ALL}
+do
+    x=`basename $i`
+    if [ -f ${DESTDIR}/classes/$x ];then
+        class_file_exist=1
+        cp ${DESTDIR}/classes/*.class ${CASEDIR}
+        break
+    fi
+done
+
+if [ ${class_file_exist} -eq 1 ];then
+    jar -cvf $DESTDIR/${JAR_FILE} ${CLASS_FILE}
+fi
+
+if [ -f ${DESTDIR}/${JAR_FILE} ];then
+    java -Xmx1024M -jar ${MAPLE_ROOT}/third_party/d8/lib/d8.jar --min-api 39 --output ${DESTDIR} ${DESTDIR}/${JAR_FILE} ${CLASS_PATH}
+fi
+
+if [ -f ${DESTDIR}/classes.dex ];then
+    cp ${DESTDIR}/classes.dex ${CASEDIR}/${OUT_FILE}
+fi
+
+if [ -f ${DESTDIR}/*.jar ];then
+    cp ${DESTDIR}/*.jar ${CASEDIR}
+fi
+
+rm -rf ${DESTDIR}
+
