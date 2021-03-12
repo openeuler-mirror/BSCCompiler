@@ -22,5 +22,5 @@ class Linker(ShellOperator):
         self.lib = lib
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c ${APP}.VtableImpl.s && ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${APP}.VtableImpl.o -L${OUT_ROOT}/aarch64-clang-release/ops/" + self.lib + " -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o ${APP}.so ${OUT_ROOT}/aarch64-clang-release/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/aarch64-clang-release/ops/linker/maplelld.so.lds"
+        self.command = "${CLANG_PATH}/clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c ${APP}.VtableImpl.s && ${CLANG_PATH}/clang++ ${APP}.VtableImpl.o -L${OUT_ROOT}/aarch64-clang-release/ops/" + self.lib + " -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o ${APP}.so ${OUT_ROOT}/aarch64-clang-release/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/aarch64-clang-release/ops/linker/maplelld.so.lds"
         return super().get_final_command(variables)

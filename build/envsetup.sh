@@ -45,18 +45,16 @@ lsb_release -d
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
   OLD_OS=1
+  CLANG_PATH=${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin
+  QEMU_PATH=/usr/bin
 else
   OLD_OS=0
+  CLANG_PATH=/usr/bin
+  QEMU_PATH=${MAPLE_ROOT}/tools/qemu/package/usr/bin
 fi
 export OLD_OS=${OLD_OS}
-
-# workaround for current build
-if [ "$#" -eq 0 ]; then
-  export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output
-  export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/bin
-  export MAPLE_DEBUG=0
-  return
-fi
+export CLANG_PATH=${CLANG_PATH}
+export QEMU_PATH=${QEMU_PATH}
 
 # support multiple ARCH and BUILD_TYPE
 

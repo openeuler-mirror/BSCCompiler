@@ -40,6 +40,7 @@ function release_test {
 
     cd $MAPLE_ROOT
     mm testall
+    make c_test
 }
 
 function main {
