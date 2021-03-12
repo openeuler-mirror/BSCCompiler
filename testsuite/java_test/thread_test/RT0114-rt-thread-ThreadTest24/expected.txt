@@ -1,0 +1,3 @@
+in the new thread, isInterrupted() returns -- true
+isInterrupted() finally returns -- false
+PASS

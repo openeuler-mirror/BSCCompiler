@@ -1,0 +1,3 @@
+The default handler has been set, should print true -- true
+Default handler should be null, and the test is -- null
+PASS

@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+*/
+
+
+import java.io.PrintStream;
+import java.lang.reflect.Constructor;
+import java.util.Arrays;
+public class ConstructorNativeUncover {
+	private static int res = 99;
+	public ConstructorNativeUncover() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+	public static void main(String[] args) {
+		int result = 2;
+		ConstructorDemo1();
+		if(result == 2 && res == 97) {
+			res = 0;
+		}
+		System.out.println(res);
+	}
+	public static void ConstructorDemo1() {
+		ConstructorNativeUncover constructorNativeUncover = new ConstructorNativeUncover();
+		test(constructorNativeUncover);
+	}
+	/**
+	 * public native Class<?>[] getExceptionTypes();
+	 * @param constructorNativeUncover
+	 * @return
+	*/
+
+	public static boolean test(ConstructorNativeUncover constructorNativeUncover) {
+			try {
+			Class class1 = constructorNativeUncover.getClass();
+			Constructor constructor = class1.getConstructor(new Class[] {});
+			Class[] classes = constructor.getExceptionTypes();
+			if(classes.length == 0 && classes.getClass().toString().equals("class [Ljava.lang.Class;")) {
+//				System.out.println(classes.getClass().toString());
+//				System.out.println(classes.length);
+				ConstructorNativeUncover.res = ConstructorNativeUncover.res - 2;
+			}
+				}catch(NoSuchMethodException e) {
+		e.printStackTrace();
+		return false;
+	}
+			return true;
+	}
+}

@@ -1,0 +1,121 @@
+i=0 codePointAt=113
+q Unicode is:113
+i=1 codePointAt=119
+w Unicode is:119
+i=2 codePointAt=101
+e Unicode is:101
+i=3 codePointAt=114
+r Unicode is:114
+i=4 codePointAt=116
+t Unicode is:116
+i=5 codePointAt=121
+y Unicode is:121
+i=0 codePointAt=32
+  Unicode is:32
+i=1 codePointAt=64
+@ Unicode is:64
+i=2 codePointAt=33
+! Unicode is:33
+i=3 codePointAt=46
+. Unicode is:46
+i=4 codePointAt=38
+& Unicode is:38
+i=5 codePointAt=37
+% Unicode is:37
+i=0 codePointAt=97
+a Unicode is:97
+i=1 codePointAt=98
+b Unicode is:98
+i=2 codePointAt=99
+c Unicode is:99
+i=3 codePointAt=49
+1 Unicode is:49
+i=4 codePointAt=50
+2 Unicode is:50
+i=5 codePointAt=51
+3 Unicode is:51
+codePointBefore(): 0out of length
+0 out of length
+i=1 codePointBefore=113
+q Unicode is:113
+i=2 codePointBefore=119
+w Unicode is:119
+i=3 codePointBefore=101
+e Unicode is:101
+i=4 codePointBefore=114
+r Unicode is:114
+i=5 codePointBefore=116
+t Unicode is:116
+codePointBefore(): 0out of length
+0 out of length
+i=1 codePointBefore=32
+  Unicode is:32
+i=2 codePointBefore=64
+@ Unicode is:64
+i=3 codePointBefore=33
+! Unicode is:33
+i=4 codePointBefore=46
+. Unicode is:46
+i=5 codePointBefore=38
+& Unicode is:38
+codePointBefore(): 0out of length
+0 out of length
+i=1 codePointBefore=97
+a Unicode is:97
+i=2 codePointBefore=98
+b Unicode is:98
+i=3 codePointBefore=99
+c Unicode is:99
+i=4 codePointBefore=49
+1 Unicode is:49
+i=5 codePointBefore=50
+2 Unicode is:50
+i=0 codePointCount=3
+q~r codePointCount is :3
+i=1 codePointCount=3
+w~t codePointCount is :3
+i=2 codePointCount=3
+e~y codePointCount is :3
+i=3 codePointCount=3
+r~u codePointCount is :3
+i=0 codePointCount=3
+ ~. codePointCount is :3
+i=1 codePointCount=3
+@~& codePointCount is :3
+i=2 codePointCount=3
+!~% codePointCount is :3
+i=3 codePointCount=3
+3 out of length
+i=0 codePointCount=3
+a~1 codePointCount is :3
+i=1 codePointCount=3
+b~2 codePointCount is :3
+i=2 codePointCount=3
+c~3 codePointCount is :3
+i=3 codePointCount=3
+3 out of length
+i=0 offsetByCodePoints=3
+q offsetByCodePoints +3 is :3
+i=1 offsetByCodePoints=5
+w offsetByCodePoints +3 is :5
+i=2 offsetByCodePoints=7
+e offsetByCodePoints +3 is :7
+i=3 offsetByCodePoints=9
+r offsetByCodePoints +3 is :9
+i=0 offsetByCodePoints=3
+  offsetByCodePoints +3 is :3
+i=1 offsetByCodePoints=5
+@ offsetByCodePoints +3 is :5
+offsetByCodePoints(): 2+3  out of length
+! offsetByCodePoints +3 is :5
+offsetByCodePoints(): 3+3  out of length
+. offsetByCodePoints +3 is :5
+i=0 offsetByCodePoints=3
+a offsetByCodePoints +3 is :3
+i=1 offsetByCodePoints=5
+b offsetByCodePoints +3 is :5
+offsetByCodePoints(): 2+3  out of length
+c offsetByCodePoints +3 is :5
+offsetByCodePoints(): 3+3  out of length
+1 offsetByCodePoints +3 is :5
+0

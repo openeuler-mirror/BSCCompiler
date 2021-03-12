@@ -1,0 +1,5 @@
+Thread 1' state -- TIMED_WAITING
+IllegalThreadStateException has been thrown when start the already started thread
+Thread 2' state -- TERMINATED
+IllegalThreadStateException has been thrown when start the already finished thread
+PASS

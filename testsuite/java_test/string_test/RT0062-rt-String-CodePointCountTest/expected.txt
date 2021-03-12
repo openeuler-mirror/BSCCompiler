@@ -1,0 +1,49 @@
+i=0 codePointCount=3
+q codePointCount is :3
+i=1 codePointCount=3
+w codePointCount is :3
+i=2 codePointCount=3
+e codePointCount is :3
+i=3 codePointCount=3
+r codePointCount is :3
+i=0 codePointCount=3
+  codePointCount is :3
+i=1 codePointCount=3
+@ codePointCount is :3
+i=2 codePointCount=3
+! codePointCount is :3
+i=3 codePointCount=3
+. codePointCount is :3
+i=0 codePointCount=3
+a codePointCount is :3
+i=1 codePointCount=3
+b codePointCount is :3
+i=2 codePointCount=3
+c codePointCount is :3
+i=3 codePointCount=3
+1 codePointCount is :3
+i=0 codePointCount=3
+q codePointCount is :3
+i=1 codePointCount=3
+w codePointCount is :3
+i=2 codePointCount=3
+e codePointCount is :3
+i=3 codePointCount=3
+r codePointCount is :3
+i=0 codePointCount=3
+  codePointCount is :3
+i=1 codePointCount=3
+@ codePointCount is :3
+i=2 codePointCount=3
+! codePointCount is :3
+i=3 codePointCount=3
+. codePointCount is :3
+i=0 codePointCount=3
+a codePointCount is :3
+i=1 codePointCount=3
+b codePointCount is :3
+i=2 codePointCount=3
+c codePointCount is :3
+i=3 codePointCount=3
+1 codePointCount is :3
+0

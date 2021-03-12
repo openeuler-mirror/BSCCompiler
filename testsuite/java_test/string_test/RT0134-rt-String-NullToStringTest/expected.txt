@@ -1,0 +1,9 @@
+str1 : <0>
+str1 : <123>
+str1 : <null>
+str2 : <>
+str2 : <abc>
+str2 : <null>
+null
+<null>
+0

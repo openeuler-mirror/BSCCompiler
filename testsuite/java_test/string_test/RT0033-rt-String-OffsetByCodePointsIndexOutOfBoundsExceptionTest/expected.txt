@@ -1,0 +1,73 @@
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+q offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+w offsetByCodePoints is :5
+i=2 offsetByCodePoints=7
+e offsetByCodePoints is :7
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+  offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+@ offsetByCodePoints is :5
+offsetByCodePoints(): 2 IndexOutOfBounds
+! offsetByCodePoints is :5
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+a offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+b offsetByCodePoints is :5
+offsetByCodePoints(): 2 IndexOutOfBounds
+c offsetByCodePoints is :5
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+offsetByCodePoints(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+offsetByCodePoints(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+offsetByCodePoints(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+offsetByCodePoints(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+offsetByCodePoints(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+offsetByCodePoints(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+q offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+w offsetByCodePoints is :5
+i=2 offsetByCodePoints=7
+e offsetByCodePoints is :7
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+  offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+@ offsetByCodePoints is :5
+offsetByCodePoints(): 2 IndexOutOfBounds
+! offsetByCodePoints is :5
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 offsetByCodePoints=3
+a offsetByCodePoints is :3
+i=1 offsetByCodePoints=5
+b offsetByCodePoints is :5
+offsetByCodePoints(): 2 IndexOutOfBounds
+c offsetByCodePoints is :5
+offsetByCodePoints(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+offsetByCodePoints(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+offsetByCodePoints(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+offsetByCodePoints(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+0

@@ -1,0 +1,109 @@
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+q codePointCount is :3
+i=1 codePointCount=3
+w codePointCount is :3
+i=2 codePointCount=3
+e codePointCount is :3
+i=3 codePointCount=3
+r codePointCount is :3
+i=4 codePointCount=3
+t codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+  codePointCount is :3
+i=1 codePointCount=3
+@ codePointCount is :3
+i=2 codePointCount=3
+! codePointCount is :3
+i=3 codePointCount=3
+. codePointCount is :3
+codePointCount(): 4 IndexOutOfBounds
+& codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+a codePointCount is :3
+i=1 codePointCount=3
+b codePointCount is :3
+i=2 codePointCount=3
+c codePointCount is :3
+i=3 codePointCount=3
+1 codePointCount is :3
+codePointCount(): 4 IndexOutOfBounds
+2 codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointCount(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointCount(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointCount(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointCount(): 3 IndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointCount(): 4 IndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointCount(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointCount(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointCount(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointCount(): 3 IndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointCount(): 4 IndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+q codePointCount is :3
+i=1 codePointCount=3
+w codePointCount is :3
+i=2 codePointCount=3
+e codePointCount is :3
+i=3 codePointCount=3
+r codePointCount is :3
+i=4 codePointCount=3
+t codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+  codePointCount is :3
+i=1 codePointCount=3
+@ codePointCount is :3
+i=2 codePointCount=3
+! codePointCount is :3
+i=3 codePointCount=3
+. codePointCount is :3
+codePointCount(): 4 IndexOutOfBounds
+& codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+i=0 codePointCount=3
+a codePointCount is :3
+i=1 codePointCount=3
+b codePointCount is :3
+i=2 codePointCount=3
+c codePointCount is :3
+i=3 codePointCount=3
+1 codePointCount is :3
+codePointCount(): 4 IndexOutOfBounds
+2 codePointCount is :3
+codePointCount(): -1 IndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointCount(): 0 IndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointCount(): 1 IndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointCount(): 2 IndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointCount(): 3 IndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointCount(): 4 IndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+0

@@ -1,0 +1,10 @@
+<begin>qwertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96<end>
+<begin> @!.&%<end>
+<begin>abc123abc<end>
+<begin><end>
+<begin><end>
+<begin>qwertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96<end>
+<begin> @!.&%<end>
+<begin>abc123ABC<end>
+<begin><end>
+0
