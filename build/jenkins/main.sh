@@ -39,7 +39,7 @@ function release_test {
     fi
 
     cd $MAPLE_ROOT
-    make testall
+    mm testall
 }
 
 function main {
