@@ -1,0 +1,73 @@
+index: -1  String index out of range
+i=0  charAt=113
+i=1  charAt=119
+i=2  charAt=101
+i=3  charAt=114
+i=4  charAt=116
+i=5  charAt=121
+i=6  charAt=117
+i=7  charAt=105
+index: -1  String index out of range
+i=0  charAt=32
+i=1  charAt=64
+i=2  charAt=33
+i=3  charAt=46
+i=4  charAt=38
+i=5  charAt=37
+i=6  charAt=40
+i=7  charAt=41
+index: -1  String index out of range
+i=0  charAt=97
+i=1  charAt=98
+i=2  charAt=99
+i=3  charAt=49
+i=4  charAt=50
+i=5  charAt=51
+index: 6  String index out of range
+index: 7  String index out of range
+index: -1  String index out of range
+index: 0  String index out of range
+index: 1  String index out of range
+index: 2  String index out of range
+index: 3  String index out of range
+index: 4  String index out of range
+index: 5  String index out of range
+index: 6  String index out of range
+index: 7  String index out of range
+index: -1  String index out of range
+i=0  setcharAt=Awertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=1  setcharAt=AAertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=2  setcharAt=AAArtyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=3  setcharAt=AAAAtyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=4  setcharAt=AAAAAyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=5  setcharAt=AAAAAAuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=6  setcharAt=AAAAAAAiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+i=7  setcharAt=AAAAAAAAop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+index: -1  String index out of range
+i=0  setcharAt=A@!.&%()*
+i=1  setcharAt=AA!.&%()*
+i=2  setcharAt=AAA.&%()*
+i=3  setcharAt=AAAA&%()*
+i=4  setcharAt=AAAAA%()*
+i=5  setcharAt=AAAAAA()*
+i=6  setcharAt=AAAAAAA)*
+i=7  setcharAt=AAAAAAAA*
+index: -1  String index out of range
+i=0  setcharAt=Abc123
+i=1  setcharAt=AAc123
+i=2  setcharAt=AAA123
+i=3  setcharAt=AAAA23
+i=4  setcharAt=AAAAA3
+i=5  setcharAt=AAAAAA
+index: 6  String index out of range
+index: 7  String index out of range
+index: -1  String index out of range
+index: 0  String index out of range
+index: 1  String index out of range
+index: 2  String index out of range
+index: 3  String index out of range
+index: 4  String index out of range
+index: 5  String index out of range
+index: 6  String index out of range
+index: 7  String index out of range
+0

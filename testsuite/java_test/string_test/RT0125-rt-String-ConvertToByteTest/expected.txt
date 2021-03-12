@@ -1,0 +1,3 @@
+123 convert(8) to Byte:83
+-1a convert(16) to Byte:-26
+0

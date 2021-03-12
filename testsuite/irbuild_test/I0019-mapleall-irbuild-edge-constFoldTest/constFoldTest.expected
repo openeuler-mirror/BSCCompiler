@@ -1,0 +1,508 @@
+Compare irbuild result!
+Main.irb.mpl and Main.irb.irb.mpl are the same
+id 65535
+numfuncs 0
+type $Hello <struct {
+  @h i32,
+  @e i32,
+  @l i32,
+  @o i32}>
+type $Person <struct {
+  @age i32,
+  @extra <$Hello>,
+  @sex u1}>
+func &testSum (var %i i32) i32
+func &testSqrt (var %i i32) f32
+func &testConstVarFold00 (var %a i32) i32
+func &testConstVarFold01 (var %a i32) i32
+func &testConstVarFold02 (var %a i32) i32
+func &testConstVarFold03 (var %a i32) i32
+func &testConstVarFold04 (var %a i32) i32
+func &testConstVarFold05 (var %a i32) i32
+func &testConstVarFold06 (var %a i32) i32
+func &testConstVarFold07 (var %a i32) i32
+func &testConstVarFold08 (var %a i32) i32
+func &testConstVarFold09 (var %a i32) i32
+func &testConstVarFold10 (var %a i32) i32
+func &testConstVarFold11 (var %a i32) i32
+func &testConstVarFold12 (var %a i32) i32
+func &testConstVarFold13 (var %a i32) i32
+func &testConstVarFold15 (var %a i32) i32
+func &testConstVarFold16 (var %a i32) i32
+func &testConstantFoldAdd00 (var %a i32, var %b i32) i32
+func &testConstantFoldAdd01 (var %a i32, var %b i32) i32
+func &testConstVarFold20 (var %a i32) i32
+func &testConstFold0 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold1 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold2 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold3 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold4 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold5 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold6 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold7 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold8 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold9 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold10 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold11 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold12 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold13 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold14 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold15 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFold16 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldDiv0 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldFloor00 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldFloor01 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldFloor02 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldExtractbitsNode00 () i32
+func &testConstFoldExtractbitsNode01 () i32
+func &testConstFoldExtractbitsNode02 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldExtractbitsNode03 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldCompareNode00 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldCompareNode01 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldTernaryNode00 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldTernaryNode01 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldTernaryNode02 (var %a i32, var %b i32, var %c i32) i32
+func &testConstFoldIassignNode00 (var %a i32) void
+func &testConstFoldIassignNode01 (var %a i32) void
+func &testConstFoldIassignNode02 (var %a i32) void
+func &testConstFoldIassignNode03 (var %a i32) void
+func &testConstFoldIassignNode04 (var %a i32) void
+func &testConstFoldIassignNode05 (var %a i32) void
+func &testConstFoldIassignNode06 (var %a i32) void
+func &testConstFoldSwitchNode00 () void
+func &testConstFoldSwitchNode01 () void
+func &testConstFoldSwitchNode02 (var %a i32) void
+func &testConstFoldArrayNode00 (var %x i32) void
+func &testDepositbitsNodeNode00 (var %a i32, var %c i32) i32
+func &testDepositbitsNodeNode01 () i32
+func &testSum (var %i i32) i32 {
+  funcid 0
+  # 1 + 8 -> 9
+  return (constval i32 0x9)
+}
+func &testSqrt (var %i i32) f32 {
+  funcid 0
+  # sqrt(4.0) -> 2.0
+  return (constval f32 2f)
+}
+func &testConstVarFold00 (var %a i32) i32 {
+  funcid 0
+  # 5 + (5 + a) -> a + 10
+  return (add i32 (dread i32 %a, constval i32 0xa))
+}
+func &testConstVarFold01 (var %a i32) i32 {
+  funcid 0
+  # 5 + (5 - a) -> 10 - a
+  return (sub i32 (constval i32 0xa, dread i32 %a))
+}
+func &testConstVarFold02 (var %a i32) i32 {
+  funcid 0
+  # 5 + (a + 5) ->  a + 10
+  return (add i32 (dread i32 %a, constval i32 0xa))
+}
+func &testConstVarFold03 (var %a i32) i32 {
+  funcid 0
+  # 6 + (a - 5) ->  a + 1
+  return (add i32 (dread i32 %a, constval i32 0x1))
+}
+func &testConstVarFold04 (var %a i32) i32 {
+  funcid 0
+  # 5 * (5 * a) -> 5 * (5 * a)
+  return (mul i32 (
+    constval i32 0x5,
+    mul i32 (constval i32 0x5, dread i32 %a)))
+}
+func &testConstVarFold05 (var %a i32) i32 {
+  funcid 0
+  # 5 * (a * 5) -> 5 * (a * 5)
+  return (mul i32 (
+    constval i32 0x5,
+    mul i32 (dread i32 %a, constval i32 0x5)))
+}
+func &testConstVarFold06 (var %a i32) i32 {
+  funcid 0
+  # 3 - (2 - a) -> a + 1
+  return (add i32 (dread i32 %a, constval i32 0x1))
+}
+func &testConstVarFold07 (var %a i32) i32 {
+  funcid 0
+  # 3 - (2 + a) -> 1 - a
+  return (sub i32 (constval i32 0x1, dread i32 %a))
+}
+func &testConstVarFold08 (var %a i32) i32 {
+  funcid 0
+  # 3 - (a + 2) -> 1 - a
+  return (sub i32 (constval i32 0x1, dread i32 %a))
+}
+func &testConstVarFold09 (var %a i32) i32 {
+  funcid 0
+  # 3 - (a - 2) -> 5 - a
+  return (sub i32 (constval i32 0x5, dread i32 %a))
+}
+func &testConstVarFold10 (var %a i32) i32 {
+  funcid 0
+  # (2 + a) - 3 -> a - 1
+  return (sub i32 (dread i32 %a, constval i32 0x1))
+}
+func &testConstVarFold11 (var %a i32) i32 {
+  funcid 0
+  # (2 - a) - 3 -> -a - 1
+  return (sub i32 (
+    neg i32 (dread i32 %a),
+    constval i32 0x1))
+}
+func &testConstVarFold12 (var %a i32) i32 {
+  funcid 0
+  # (a + 2) - 3 -> a - 1
+  return (sub i32 (dread i32 %a, constval i32 0x1))
+}
+func &testConstVarFold13 (var %a i32) i32 {
+  funcid 0
+  #  (a - 2) - 3 -> a - 5
+  return (sub i32 (dread i32 %a, constval i32 0x5))
+}
+func &testConstVarFold15 (var %a i32) i32 {
+  funcid 0
+  # 1 + (5 + ((5 - a) - 3)) -> 8 - a
+  return (sub i32 (constval i32 0x8, dread i32 %a))
+}
+func &testConstVarFold16 (var %a i32) i32 {
+  funcid 0
+  # 1 + (5 + ((5 - a) * 3)) -> ((5 - a) * 3) + 6
+  return (add i32 (
+    mul i32 (
+      sub i32 (constval i32 0x5, dread i32 %a),
+      constval i32 0x3),
+    constval i32 0x6))
+}
+func &testConstantFoldAdd00 (var %a i32, var %b i32) i32 {
+  funcid 0
+  # (-a) + b --> (-a) + b
+  return (add i32 (
+    neg i32 (dread i32 %a),
+    dread i32 %b))
+}
+func &testConstantFoldAdd01 (var %a i32, var %b i32) i32 {
+  funcid 0
+  #  a + (-b) --> a + (-b)
+  return (add i32 (
+    dread i32 %a,
+    neg i32 (dread i32 %b)))
+}
+func &testConstVarFold20 (var %a i32) i32 {
+  funcid 0
+  # 5.0f + (5 - a) -> same, no folding with floating point numbers
+  return (add f32 (
+    constval f32 5f,
+    sub i32 (constval i32 0x5, dread i32 %a)))
+}
+func &testConstFold0 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a + 5) + ((2 + c) + (4 + 2))) -> ((a + c) + 13)
+  return (add i32 (
+    add i32 (dread i32 %a, dread i32 %c),
+    constval i32 0xd))
+}
+func &testConstFold1 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a + 5) + (2 + c)) -> ((a + c) + 7)
+  return (add i32 (
+    add i32 (dread i32 %a, dread i32 %c),
+    constval i32 0x7))
+}
+func &testConstFold2 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) - ((b - c) - (4 - 2))) -> ((a - (b - c)) - 3)
+  return (sub i32 (
+    sub i32 (
+      dread i32 %a,
+      sub i32 (dread i32 %b, dread i32 %c)),
+    constval i32 0x3))
+}
+func &testConstFold3 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) + ((b - c) - (4 - 2))) -> ((a + (b - c)) - 7)
+  return (sub i32 (
+    add i32 (
+      dread i32 %a,
+      sub i32 (dread i32 %b, dread i32 %c)),
+    constval i32 0x7))
+}
+func &testConstFold4 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) - ((4 - 2) - (4 - b))) -> ((a - b) - 3)
+  return (sub i32 (
+    sub i32 (dread i32 %a, dread i32 %b),
+    constval i32 0x3))
+}
+func &testConstFold5 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((5 - a) - ((b - 4) - (4 - b))) -> (((-a) - (b - (-b))) + 13)
+  return (add i32 (
+    sub i32 (
+      neg i32 (dread i32 %a),
+      sub i32 (
+        dread i32 %b,
+        neg i32 (dread i32 %b))),
+    constval i32 0xd))
+}
+func &testConstFold6 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((5 - a) - ((4 - b) - (b - 4))) -> (((-a) - ((-b) - b)) - 3)
+  return (sub i32 (
+    sub i32 (
+      neg i32 (dread i32 %a),
+      sub i32 (
+        neg i32 (dread i32 %b),
+        dread i32 %b)),
+    constval i32 0x3))
+}
+func &testConstFold7 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) - ((4 + 2) - (4 - (b - c)))) -> ((a - (b - c)) - 7)
+  return (sub i32 (
+    sub i32 (
+      dread i32 %a,
+      sub i32 (dread i32 %b, dread i32 %c)),
+    constval i32 0x7))
+}
+func &testConstFold8 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) - ((4 + 2) - (4 * (b - c)))) -> ((a - (-(4 * (b - c)))) - 11)
+  return (sub i32 (
+    sub i32 (
+      dread i32 %a,
+      neg i32 (mul i32 (
+        constval i32 0x4,
+        sub i32 (dread i32 %b, dread i32 %c)))),
+    constval i32 0xb))
+}
+func &testConstFold9 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((a - 5) - ((4 + 2) - (-(4 - (b - c))))) -> ((a - (-(b - c))) - 15)
+  return (sub i32 (
+    sub i32 (
+      dread i32 %a,
+      neg i32 (sub i32 (dread i32 %b, dread i32 %c))),
+    constval i32 0xf))
+}
+func &testConstFold10 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((4 + 2) * (-(4 - (3 - c)))) -> (6 * ((-c) - 1))
+  return (mul i32 (
+    constval i32 0x6,
+    sub i32 (
+      neg i32 (dread i32 %c),
+      constval i32 0x1)))
+}
+func &testConstFold11 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((4 + 2) * (4 - (3 - c))) -> (6 * (c + 1))
+  return (mul i32 (
+    constval i32 0x6,
+    add i32 (dread i32 %c, constval i32 0x1)))
+}
+func &testConstFold12 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((4 + 2) * (~(4 - (3 - c)))) -> (6 * (~(c + 1)))
+  return (mul i32 (
+    constval i32 0x6,
+    bnot i32 (add i32 (dread i32 %c, constval i32 0x1))))
+}
+func &testConstFold13 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (5 * (((4 - 2) + (2 & 4)) - (4 - (c | 3)))) -> (5 * ((c | 3) - 2))
+  return (mul i32 (
+    constval i32 0x5,
+    sub i32 (
+      bior i32 (dread i32 %c, constval i32 0x3),
+      constval i32 0x2)))
+}
+func &testConstFold14 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (5 * (((4 - 2) + (2 & 4)) * (4 - (c | 3)))) -> (5 * (2 * (4 - (c | 3))))
+  return (mul i32 (
+    constval i32 0x5,
+    mul i32 (
+      constval i32 0x2,
+      sub i32 (
+        constval i32 0x4,
+        bior i32 (dread i32 %c, constval i32 0x3)))))
+}
+func &testConstFold15 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((1 + 0) * (~(4 - (0 * c)))) -> (~4)
+  return (constval i32 0xfffffffffffffffb)
+}
+func &testConstFold16 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ((~(4 - (c * 0))) * (1 + 0)) -> (~4)
+  return (constval i32 0xfffffffffffffffb)
+}
+func &testConstFoldDiv0 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (5 / 0) * (1 + 1) -> 2
+  return (constval i32 0x2)
+}
+func &testConstFoldFloor00 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (floor(4.25) + c) * (1 + 1) -> (c + 4) * 2
+  return (mul i32 (
+    add i32 (dread i32 %c, constval i32 0x4),
+    constval i32 0x2))
+}
+func &testConstFoldFloor01 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (floor(4.25) + 2) * (1 + 1) -> 12
+  return (constval i32 0xc)
+}
+func &testConstFoldFloor02 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # floor((floor(4.25) + 1) + (1 + a)) -> floor(a + 6)
+  return (floor i32 i32 (add i32 (dread i32 %a, constval i32 0x6)))
+}
+func &testConstFoldExtractbitsNode00 () i32 {
+  funcid 0
+  # 487 = 00111100111
+  # extractbits i32 6 5 (487) = 7 = 0111
+  return (constval i32 0x7)
+}
+func &testConstFoldExtractbitsNode01 () i32 {
+  funcid 0
+  # 487 = 00111100111
+  # extractbits i32 4 5 (487) = -2 = 0xfffffffffffffffe
+  return (constval i32 0xfffffffffffffffe)
+}
+func &testConstFoldExtractbitsNode02 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # 487 = 00111100111
+  # extractbits i32 4 5 (487) = -2 = 0xfffffffffffffffe
+  # extractbits((extractbits(487) + 1) + (1 + a)) -> extractbits(a)
+  return (extractbits i32 4 5 (dread i32 %a))
+}
+func &testConstFoldExtractbitsNode03 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # 487 = 00111100111
+  # extractbits i32 6 5 (487) = 7 = 0111
+  # extractbits((extractbits(487) + 1) + (1 + a)) -> extractbits(a + 9)
+  return (extractbits i32 6 5 (add i32 (dread i32 %a, constval i32 0x9)))
+}
+func &testConstFoldCompareNode00 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (ge(6, 2) + 1) + (1 + 2) -> 5
+  return (constval u1 0x5)
+}
+func &testConstFoldCompareNode01 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # ge((ge(6, 2) + 1), (1 + a)) -> ge(2, a + 1)
+  return (ge i32 i32 (
+    constval u1 0x2,
+    add i32 (dread i32 %a, constval i32 0x1)))
+}
+func &testConstFoldTernaryNode00 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (6 > 2 ? 5 : 0) + (1 + 2) -> 8
+  return (constval i32 0x8)
+}
+func &testConstFoldTernaryNode01 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # (6 > 10 ? 5 : 0) + (1 + a) -> (a + 1)
+  return (add i32 (dread i32 %a, constval i32 0x1))
+}
+func &testConstFoldTernaryNode02 (var %a i32, var %b i32, var %c i32) i32 {
+  funcid 0
+  # 6 > a ? (1 + 6) + (1 + a) : 0 -> 6 > a ? a + 8 : 0
+  return (select i32 (
+    ge i32 i32 (constval i32 0x6, dread i32 %a),
+    add i32 (dread i32 %a, constval i32 0x8),
+    constval i32 0x0))
+}
+func &testConstFoldIassignNode00 (var %a i32) void {
+  funcid 0
+  # this is equivalent to dassign %a 0 (constval i32 0x6)
+  dassign %a 0 (constval i32 0x6)
+}
+func &testConstFoldIassignNode01 (var %a i32) void {
+  funcid 0
+  var %bob <$Person>
+  # this is equivalent to dassign %bob 5 (constval i32 0x6)
+  dassign %bob 5 (constval i32 0x6)
+}
+func &testConstFoldIassignNode02 (var %a i32) void {
+  funcid 0
+  # this is equivalent to dassign %a 0 (constval i32 0x6)
+  dassign %a 0 (constval i32 0x6)
+}
+func &testConstFoldIassignNode03 (var %a i32) void {
+  funcid 0
+  var %bob <$Person>
+  # this is equivalent to dassign %bob 5 (constval i32 0x6)
+  dassign %bob 5 (constval i32 0x6)
+}
+func &testConstFoldIassignNode04 (var %a i32) void {
+  funcid 0
+  var %bob <$Person>
+  # this is equivalent to dassign %bob 5 (constval i32 0x6)
+  dassign %bob 5 (constval i32 0x6)
+}
+func &testConstFoldIassignNode05 (var %a i32) void {
+  funcid 0
+  var %b <* i32>
+  dassign %b 0 (addrof ptr %a)
+  # this is equivalent to iassign <* i32> 0 (dread ptr %a, constval i32 0x6)
+  iassign <* i32> 0 (dread ptr %a, constval i32 0x6)
+}
+func &testConstFoldIassignNode06 (var %a i32) void {
+  funcid 0
+  var %bob <$Person>
+  # this is equivalent to dassign %a 0 (dread i32 %bob 1)
+  dassign %a 0 (dread i32 %bob 1)
+}
+func &testConstFoldSwitchNode00 () void {
+  funcid 0
+  # switch (1+4) ... -> goto @lab1
+  goto @lab1
+@lab0   return (constval i32 0x1)
+@labdft   return (constval i32 0x2)
+@lab9   return (constval i32 0x3)
+@lab1   return (constval i32 0x4)
+}
+func &testConstFoldSwitchNode01 () void {
+  funcid 0
+  # switch (1 + 10) ... -> goto @labdft
+  goto @labdft
+@lab0   return (constval i32 0x1)
+@labdft   return (constval i32 0x2)
+@lab9   return (constval i32 0x3)
+@lab1   return (constval i32 0x4)
+}
+func &testConstFoldSwitchNode02 (var %a i32) void {
+  funcid 0
+  # switch (5 + (5 - a)) ... -> switch (10 - a) ...
+  switch (sub i32 (constval i32 0xa, dread i32 %a)) @labdft {
+    -2: goto @lab0
+    5: goto @lab1
+    8: goto @lab9 }
+@lab0   return (constval i32 0x1)
+@labdft   return (constval i32 0x2)
+@lab9   return (constval i32 0x3)
+@lab1   return (constval i32 0x4)
+}
+func &testConstFoldArrayNode00 (var %x i32) void {
+  funcid 0
+  var %a <* <[15][15] i32>>
+  # fold indexes -> array ptr <* <[15][15] i32>> (constval i32 0x6, constval i32 0x4)
+  dassign %x 0 (iread i32 <* i32> 0 (array ptr <* <[15][15] i32>> (constval i32 0x6, constval i32 0x4)))
+}
+func &testDepositbitsNodeNode00 (var %a i32, var %c i32) i32 {
+  funcid 0
+  return (depositbits i32 1 23 (
+    add i32 (
+      add i32 (dread i32 %a, dread i32 %c),
+      constval i32 0xd),
+    constval i32 0xc))
+}
+func &testDepositbitsNodeNode01 () i32 {
+  funcid 0
+  return (constval i32 0x18)
+}

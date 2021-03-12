@@ -1,0 +1,2 @@
+joining thread has received the InterruptedException
+interrupt status has been cleared, if the output is false -- false

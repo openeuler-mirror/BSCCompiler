@@ -1,0 +1,16 @@
+#! /usr/bin/python3
+import os
+import subprocess
+
+f = open('./java_signature_test.txt', 'r')
+data = f.readlines()
+
+for line in data:
+    print(line)
+    cmd = "mplverf --javaname '"+line + "'"
+    cmd = cmd.split()
+    result = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+    print(result.decode("utf-8"))
+
+
+

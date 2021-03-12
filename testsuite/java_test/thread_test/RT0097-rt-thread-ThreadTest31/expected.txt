@@ -1,0 +1,8 @@
+isInterrupted() returns -- false
+after executing interrupt()
+isInterrupted() returns -- true
+1st should true -- true
+isInterrupted() returns -- false
+2nd should false -- false
+isInterrupted() returns -- false
+PASS

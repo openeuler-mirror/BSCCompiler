@@ -1,0 +1,51 @@
+#!/bin/bash
+
+OPT=O2
+THREADS=$(cat /proc/cpuinfo| grep "processor"| wc -l)
+PWD=$(pwd)
+num=${#CASE_ROOT}
+let num++
+
+#mm OPT=O0
+if [ $# = 1 ] && [[ "x${1}" =~ ^xOPT=.* ]]
+then
+    TARGET=${PWD:${num}}
+    OPT=${1#*=}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --mod=${OPT}
+
+#mm clean
+elif [ $# = 1 ] && [ "x${1}" = "xclean" ]
+then
+    TARGET=${PWD:${num}}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --clean
+
+#mm testall
+elif [ $# = 1 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ]
+then
+    TARGET=${1}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+
+#mm testall OPT=O0
+elif [ $# = 2 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ] && [[ "x${2}" =~ ^xOPT=.* ]]
+then
+    OPT=${2#*=}
+    TARGET=${1}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+
+#mm app_test
+elif [ $# = 1 ] && [ -d ${CASE_ROOT}/${1} ]
+then
+    TARGET=${1}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+
+#mm app_test OPT=O2
+elif [ $# = 2 ] && [ -d ${CASE_ROOT}/${1} ] && [[ "x${2}" =~ ^xOPT=.* ]]
+then
+    TARGET=${1}
+    OPT=${2#*=}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+
+else
+    echo "Input Wrong~!"
+    exit 1
+fi
