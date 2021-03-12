@@ -608,7 +608,7 @@ bool BECommon::TyIsInSizeAlignTable(const MIRType &ty) const {
 }
 
 void BECommon::AddAndComputeSizeAlign(MIRType &ty) {
-  CHECK_FATAL(ty.GetTypeIndex() == typeSizeTable.size(), "make sure the ty idx is exactly the table size");
+  FinalizeTypeTable(ty);
   typeAlignTable.emplace_back(mirModule.IsCModule());
   typeSizeTable.emplace_back(0);
   ComputeTypeSizesAligns(ty);
@@ -643,12 +643,15 @@ MIRType *BECommon::BeGetOrCreateFunctionType(TyIdx tyIdx, const std::vector<TyId
   return newType;
 }
 
-void BECommon::FinalizeTypeTable() {
-  if (mirModule.GetSrcLang() == kSrcLangC &&
-      (GlobalTables::GetTypeTable().GetTypeTableSize() > GetSizeOfTypeSizeTable())) {
-    for (uint32 i = GetSizeOfTypeSizeTable(); i < GlobalTables::GetTypeTable().GetTypeTableSize(); ++i) {
-      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
-      AddAndComputeSizeAlign(*ty);
+void BECommon::FinalizeTypeTable(MIRType &ty) {
+  if (ty.GetTypeIndex() > GetSizeOfTypeSizeTable()) {
+    if (mirModule.GetSrcLang() == kSrcLangC) {
+      for (uint32 i = GetSizeOfTypeSizeTable(); i < ty.GetTypeIndex(); ++i) {
+        MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
+        AddAndComputeSizeAlign(*ty);
+      }
+    } else {
+      CHECK_FATAL(ty.GetTypeIndex() == typeSizeTable.size(), "make sure the ty idx is exactly the table size");
     }
   }
 }

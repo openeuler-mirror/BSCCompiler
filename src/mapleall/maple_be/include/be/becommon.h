@@ -143,7 +143,7 @@ class BECommon {
   }
 
   /* Global type table might be updated during lowering for C/C++. */
-  void FinalizeTypeTable();
+  void FinalizeTypeTable(MIRType &ty);
 
   uint32 GetFieldIdxIncrement(const MIRType &ty) const {
     if (ty.GetKind() == kTypeClass) {
