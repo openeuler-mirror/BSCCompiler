@@ -55,11 +55,14 @@ struct ExtFuncDescrT {
 
 namespace {
 std::pair<MIRIntrinsicID, const std::string> cgBuiltins[] = {
-  { INTRN_JAVA_ARRAY_LENGTH, "MCC_JavaArrayLength" },
-  { INTRN_JAVA_ARRAY_FILL, "MCC_JavaArrayFill" },
-  { INTRN_JAVA_CHECK_CAST, "MCC_JavaCheckCast" },
-  { INTRN_JAVA_INSTANCE_OF, "MCC_JavaInstanceOf" },
-  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_JavaPolymorphicCall" },
+  { INTRN_JAVA_ARRAY_LENGTH, "MCC_DexArrayLength" },
+  { INTRN_JAVA_ARRAY_FILL, "MCC_DexArrayFill" },
+  { INTRN_JAVA_CHECK_CAST, "MCC_DexCheckCast" },
+  { INTRN_JAVA_INSTANCE_OF, "MCC_DexInstanceOf" },
+  { INTRN_JAVA_INTERFACE_CALL, "MCC_DexInterfaceCall" },
+  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_DexPolymorphicCall" },
+  { INTRN_MCC_DeferredFillNewArray, "MCC_DeferredFillNewArray" },
+  { INTRN_MCC_DeferredInvoke, "MCC_DeferredInvoke" },
   { INTRN_JAVA_CONST_CLASS, "MCC_GetReferenceToClass" },
   { INTRN_JAVA_GET_CLASS, "MCC_GetClass" },
   { INTRN_MPL_SET_CLASS, "MCC_SetJavaClass" },
@@ -826,7 +829,7 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   DepositbitsNode *depositBits = mirModule.CurFuncCodeMemPool()->New<DepositbitsNode>();
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   depositBits->SetBitsOffset(byteBitOffsets.second);
-  depositBits->SetBitsOffset(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
+  depositBits->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   depositBits->SetBOpnd(ireadNode, 0);
   depositBits->SetBOpnd(iassign.GetRHS(), 1);
 
@@ -1908,6 +1911,7 @@ BaseNode *CGLowerer::LowerExpr(const BaseNode &parent, BaseNode &expr, BlockNode
       return LowerIntrinsicop(parent, static_cast<IntrinsicopNode&>(expr), blkNode);
 
     case OP_alloca: {
+      GetCurrentFunc()->SetVlaOrAlloca(true);
       return &expr;
     }
     case OP_rem:
