@@ -1,0 +1,25 @@
+false
+*****
+false
+*****
+false
+*****
+true
+ is:isEmpty
+ is:""
+*****
+true
+ is:isEmpty
+ is:""
+*****
+false
+*****
+false
+*****
+false
+*****
+true
+ is:isEmpty
+ is:""
+*****
+0

@@ -1,0 +1,7 @@
+helloworld executes interrupt()
+isInterrupted() returns -- true
+1st interrupted() should true -- true
+isInterrupted() returns -- false
+2nd interrupted() should false -- false
+isInterrupted() returns -- false
+PASS

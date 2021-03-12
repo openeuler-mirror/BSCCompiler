@@ -1,0 +1,16 @@
+========================StringReplaceAllTest_1
+@bc123@bc
+      
+@bc123@bc
+
+
+@bc123ABC
+      
+@bc123ABC
+
+test add: regular expression
+@@@123ABC-@@@123ABC
+abc@123ABC-abc@123ABC
+@@@@-01-02-@@@@-01-02
+abc123@ABC-abc123@ABC
+@@@123ABC-abc123ABC

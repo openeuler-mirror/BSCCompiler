@@ -1,0 +1,163 @@
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+qwertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 1
+wertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 2
+ertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 3
+rtyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 4
+tyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 5
+yuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 6
+uiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 7
+iop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+ @!.&%
+beginIndex= 1
+@!.&%
+beginIndex= 2
+!.&%
+beginIndex= 3
+.&%
+beginIndex= 4
+&%
+beginIndex= 5
+%
+beginIndex= 6
+
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+abc123
+beginIndex= 1
+bc123
+beginIndex= 2
+c123
+beginIndex= 3
+123
+beginIndex= 4
+23
+beginIndex= 5
+3
+beginIndex= 6
+
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+
+beginIndex= 1
+StringIndexOutOfBounds 1_1
+beginIndex= 2
+StringIndexOutOfBounds 1_1
+beginIndex= 3
+StringIndexOutOfBounds 1_1
+beginIndex= 4
+StringIndexOutOfBounds 1_1
+beginIndex= 5
+StringIndexOutOfBounds 1_1
+beginIndex= 6
+StringIndexOutOfBounds 1_1
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+
+beginIndex= 1
+StringIndexOutOfBounds 1_1
+beginIndex= 2
+StringIndexOutOfBounds 1_1
+beginIndex= 3
+StringIndexOutOfBounds 1_1
+beginIndex= 4
+StringIndexOutOfBounds 1_1
+beginIndex= 5
+StringIndexOutOfBounds 1_1
+beginIndex= 6
+StringIndexOutOfBounds 1_1
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+qwertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 1
+wertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 2
+ertyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 3
+rtyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 4
+tyuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 5
+yuiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 6
+uiop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= 7
+iop{}[]\|asdfghjkl;:'"zxcvbnm,.<>/?~`1234567890-=!@#$%^&*()_+ ASDFGHJKLQWERTYUIOPZXCVBNM0x96
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+ @!.&%
+beginIndex= 1
+@!.&%
+beginIndex= 2
+!.&%
+beginIndex= 3
+.&%
+beginIndex= 4
+&%
+beginIndex= 5
+%
+beginIndex= 6
+
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+abc123
+beginIndex= 1
+bc123
+beginIndex= 2
+c123
+beginIndex= 3
+123
+beginIndex= 4
+23
+beginIndex= 5
+3
+beginIndex= 6
+
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+beginIndex= -1
+StringIndexOutOfBounds 1_1
+beginIndex= 0
+
+beginIndex= 1
+StringIndexOutOfBounds 1_1
+beginIndex= 2
+StringIndexOutOfBounds 1_1
+beginIndex= 3
+StringIndexOutOfBounds 1_1
+beginIndex= 4
+StringIndexOutOfBounds 1_1
+beginIndex= 5
+StringIndexOutOfBounds 1_1
+beginIndex= 6
+StringIndexOutOfBounds 1_1
+beginIndex= 7
+StringIndexOutOfBounds 1_1
+0

@@ -1,0 +1,145 @@
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+q codePointBefore is:0
+i=1 codePointBefore=113
+w codePointBefore is:113
+i=2 codePointBefore=119
+e codePointBefore is:119
+i=3 codePointBefore=101
+r codePointBefore is:101
+i=4 codePointBefore=114
+t codePointBefore is:114
+i=5 codePointBefore=116
+y codePointBefore is:116
+i=6 codePointBefore=121
+u codePointBefore is:121
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+  codePointBefore is:0
+i=1 codePointBefore=32
+@ codePointBefore is:32
+i=2 codePointBefore=64
+! codePointBefore is:64
+i=3 codePointBefore=33
+. codePointBefore is:33
+i=4 codePointBefore=46
+& codePointBefore is:46
+i=5 codePointBefore=38
+% codePointBefore is:38
+i=6 codePointBefore=37
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+a codePointBefore is:0
+i=1 codePointBefore=97
+b codePointBefore is:97
+i=2 codePointBefore=98
+c codePointBefore is:98
+i=3 codePointBefore=99
+1 codePointBefore is:99
+i=4 codePointBefore=49
+2 codePointBefore is:49
+i=5 codePointBefore=50
+3 codePointBefore is:50
+i=6 codePointBefore=51
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointBefore(): 1 StringIndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointBefore(): 2 StringIndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointBefore(): 3 StringIndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointBefore(): 4 StringIndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+codePointBefore(): 5 StringIndexOutOfBounds
+charAt(): 5 StringIndexOutOfBounds
+codePointBefore(): 6 StringIndexOutOfBounds
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointBefore(): 1 StringIndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointBefore(): 2 StringIndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointBefore(): 3 StringIndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointBefore(): 4 StringIndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+codePointBefore(): 5 StringIndexOutOfBounds
+charAt(): 5 StringIndexOutOfBounds
+codePointBefore(): 6 StringIndexOutOfBounds
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+q codePointBefore is:0
+i=1 codePointBefore=113
+w codePointBefore is:113
+i=2 codePointBefore=119
+e codePointBefore is:119
+i=3 codePointBefore=101
+r codePointBefore is:101
+i=4 codePointBefore=114
+t codePointBefore is:114
+i=5 codePointBefore=116
+y codePointBefore is:116
+i=6 codePointBefore=121
+u codePointBefore is:121
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+  codePointBefore is:0
+i=1 codePointBefore=32
+@ codePointBefore is:32
+i=2 codePointBefore=64
+! codePointBefore is:64
+i=3 codePointBefore=33
+. codePointBefore is:33
+i=4 codePointBefore=46
+& codePointBefore is:46
+i=5 codePointBefore=38
+% codePointBefore is:38
+i=6 codePointBefore=37
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+a codePointBefore is:0
+i=1 codePointBefore=97
+b codePointBefore is:97
+i=2 codePointBefore=98
+c codePointBefore is:98
+i=3 codePointBefore=99
+1 codePointBefore is:99
+i=4 codePointBefore=49
+2 codePointBefore is:49
+i=5 codePointBefore=50
+3 codePointBefore is:50
+i=6 codePointBefore=51
+charAt(): 6 StringIndexOutOfBounds
+codePointBefore(): -1 StringIndexOutOfBounds
+charAt(): -1 StringIndexOutOfBounds
+codePointBefore(): 0 StringIndexOutOfBounds
+charAt(): 0 StringIndexOutOfBounds
+codePointBefore(): 1 StringIndexOutOfBounds
+charAt(): 1 StringIndexOutOfBounds
+codePointBefore(): 2 StringIndexOutOfBounds
+charAt(): 2 StringIndexOutOfBounds
+codePointBefore(): 3 StringIndexOutOfBounds
+charAt(): 3 StringIndexOutOfBounds
+codePointBefore(): 4 StringIndexOutOfBounds
+charAt(): 4 StringIndexOutOfBounds
+codePointBefore(): 5 StringIndexOutOfBounds
+charAt(): 5 StringIndexOutOfBounds
+codePointBefore(): 6 StringIndexOutOfBounds
+charAt(): 6 StringIndexOutOfBounds
+0

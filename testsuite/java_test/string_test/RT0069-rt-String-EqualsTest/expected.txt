@@ -1,0 +1,12 @@
+abc123 equals ****** : false
+abc123 equals abc123 : true
+abc123 equals  : false
+abc123 equals  : false
+abc123 equals ABc123 : false
+****** equals ****** : true
+abc123 equals ****** : false
+abc123 equals abc123 : true
+abc123 equals  : false
+abc123 equals null : false
+abc123 equals abc123 : true
+0

@@ -1,0 +1,2 @@
+set the new name -- maple_thread ---- maple_thread
+setName() should not accept null names

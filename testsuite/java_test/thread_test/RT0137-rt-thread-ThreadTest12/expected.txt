@@ -1,0 +1,2 @@
+the child thread of a daemon thread is daemon --- true
+the child thread of a non-daemon thread is non-daemon --- false

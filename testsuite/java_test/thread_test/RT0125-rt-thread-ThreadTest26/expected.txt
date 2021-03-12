@@ -1,0 +1,3 @@
+should be same -- true
+Thread's thread group is expected to be a handler -- true
+PASS

@@ -1,0 +1,2 @@
+isInterrupted() finally returns -- true
+PASS

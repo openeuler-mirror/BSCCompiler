@@ -1,0 +1,10 @@
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+class java.lang.String
+0

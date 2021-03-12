@@ -1,0 +1,11 @@
+str1 !
+str1 !
+str1 !
+str1 !
+str1 !
+str1 !
+str1 !
+str == abc123abc
+str1 !
+str1 !
+0
