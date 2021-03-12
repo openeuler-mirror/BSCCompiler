@@ -1,0 +1,8 @@
+9
+9 -- 10 -- 9
+4 === 4
+IllegalArgumentException has be thrown when new priority out of the legal range
+helloworld2
+TERMINATED
+5
+5

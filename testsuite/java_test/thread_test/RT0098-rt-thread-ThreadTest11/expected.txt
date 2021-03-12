@@ -1,0 +1,2 @@
+The newly created thread must not be daemon, and isDaemon()'s result is -- false
+The thread must be daemon, and isDaemon()'s result is -- true

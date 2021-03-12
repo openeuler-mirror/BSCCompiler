@@ -1,0 +1,3 @@
+Test if programe got passed!
+condition is value, goto assertEqual
+Check if condition value would be Zero

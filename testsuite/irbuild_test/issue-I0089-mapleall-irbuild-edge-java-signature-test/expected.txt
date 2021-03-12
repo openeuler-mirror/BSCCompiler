@@ -1,0 +1,128 @@
+LHelloWorld;|main|(Ljava/lang/String;)V	
+
+Info  00: Test passed.
+
+Ldalvik/system/BlockGuard$1;|onWriteToDisk|()V	
+
+Info  00: Test passed.
+
+Ldalvik/system/BlockGuard;|getThreadPolicy|()Ldalvik/system/BlockGuard$Policy;	
+
+Info  00: Test passed.
+
+Ldalvik/system/VMRuntime;|registerNativeAllocation|(I)V	
+
+Info  00: Test passed.
+
+Ljava/io/BufferedWriter;|<clinit>|()V	
+
+Info  00: Test passed.
+
+Ljava/io/BufferedWriter;|<init>|(Ljava/io/Writer;I)V	
+
+Info  00: Test passed.
+
+Ljava/io/BufferedWriter;|write|(Ljava/lang/String;II)V	
+
+Info  00: Test passed.
+
+Ljava/io/FileOutputStream;|<init>|(Ljava/lang/String;)V
+
+Info  00: Test passed.
+
+Ljava/io/FileOutputStream;|write|([BII)V	
+
+Info  00: Test passed.
+
+Ljava/lang/Daemons$FinalizerDaemon;|-get0|()Ljava/lang/Daemons$FinalizerDaemon;	
+
+Info  00: Test passed.
+
+Ljava/lang/ref/Reference;|get|()Ljava/lang/Object;	
+
+Info  00: Test passed.
+
+Ljava/lang/ref/Reference;|getReferent|()Ljava/lang/Object;	
+
+Info  00: Test passed.
+
+Ljava/lang/ref/Reference;|<init>|(Ljava/lang/Object;Ljava/lang/ref/ReferenceQueue;)V	
+
+Info  00: Test passed.
+
+Ljava/lang/String;|getChars|(II[CI)V
+
+Info  00: Test passed.
+
+Ljava/lang/ThreadLocal;|getMap|(Ljava/lang/Thread;)Ljava/lang/ThreadLocal$ThreadLocalMap;	
+
+Info  00: Test passed.
+
+Ljava/lang/ThreadLocal$ThreadLocalMap;|getEntry|(Ljava/lang/ThreadLocal;)Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;	
+
+Info  00: Test passed.
+
+Ljava/lang/ThreadLocal$ThreadLocalMap;|-wrap0|(Ljava/lang/ThreadLocal$ThreadLocalMap;Ljava/lang/ThreadLocal;)Ljava/lang/ThreadLocal$ThreadLocalMap$Entry;	
+
+Info  00: Test passed.
+
+Ljava/nio/Buffer;|<init>|(IIIII)V	
+
+Info  00: Test passed.
+
+Ljava/nio/ByteBuffer;|array|()[B	
+
+Info  00: Test passed.
+
+Ljava/nio/ByteBuffer;|<init>|(IIII[BI)V
+
+Info  00: Test passed.
+
+Ljava/nio/CharBuffer;|wrap|([CII)Ljava/nio/CharBuffer;	
+
+Info  00: Test passed.
+
+Ljava/nio/charset/CharsetEncoderICU;|<init>|(Ljava/nio/charset/Charset;FF[BJ)V	
+
+Info  00: Test passed.
+
+Ljava/nio/charset/Charset;|<init>|(Ljava/lang/String;[Ljava/lang/String;)V	
+
+Info  00: Test passed.
+
+Llibcore/icu/ICU;|U_FAILURE|(I)Z	
+
+Info  00: Test passed.
+
+Llibcore/icu/NativeConverter;|encode|(J[CI[BI[IZ)I	
+
+Info  00: Test passed.
+
+Llibcore/icu/NativeConverter;|setCallbackEncode|(JII[B)V	
+
+Info  00: Test passed.
+
+Llibcore/io/BlockGuardOs;|write|(Ljava/io/FileDescriptor;[BII)I	
+
+Info  00: Test passed.
+
+Llibcore/io/Posix;|writeBytes|(Ljava/io/FileDescriptor;Ljava/lang/Object;II)I	
+
+Info  00: Test passed.
+
+Lsun/nio/cs/StreamEncoder;|implWrite|([CII)V	
+
+Info  00: Test passed.
+
+Ljava/lang/StringFactory;|newStringFromChars|(II[C)Ljava/lang/String;
+
+Info  00: Test passed.
+
+Llibcore/icu/NativeConverter;|getSubstitutionBytes|(J)[B
+
+Info  00: Test passed.
+
+LA;|fooALA|([I[LA;J)LA;
+
+Info  00: Test passed.
+

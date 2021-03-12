@@ -1,0 +1,8 @@
+Thread[main,5,main]
+Thread[main,5,main]
+main
+thread's name is -- Thread-0 -- 7
+thread's priority is -- 5 -- 15
+thread's group is -- main -- 18
+thread name -- Thread[Thread-1,5,main]
+thread group --- java.lang.ThreadGroup[name=main,maxpri=10] --- java.lang.ThreadGroup[name=main,maxpri=10]

@@ -1,0 +1,2 @@
+#Addf32 test
+#Test case for fload add with 32bit architecture

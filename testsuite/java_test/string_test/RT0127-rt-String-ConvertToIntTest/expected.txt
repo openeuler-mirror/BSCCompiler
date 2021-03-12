@@ -1,0 +1,3 @@
+convert(10) to int: 1234
+convert(8) to int: 668
+0

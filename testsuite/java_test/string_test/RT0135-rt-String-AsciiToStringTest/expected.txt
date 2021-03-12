@@ -1,0 +1,4 @@
+a b^c~AB
+a b^c~AB
+a b^c~AB
+0

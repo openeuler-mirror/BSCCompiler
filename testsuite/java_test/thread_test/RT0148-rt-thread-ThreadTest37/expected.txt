@@ -1,0 +1,6 @@
+sleep(long millis) OK
+IllegalArgumentException for sleep(long millis) as: millis < 0
+sleep(long millis, int nanos) OK
+IllegalArgumentException for sleep(long millis, int nanos) as: nanos < 0
+IllegalArgumentException for sleep(long millis, int nanos) as: nanos > 999999
+IllegalArgumentException for sleep(long millis, int nanos) as: millis < 0
