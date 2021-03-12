@@ -17,7 +17,7 @@ from api import *
 O0 = {
     "clean": [
         Shell(
-            "rm -rf *.mpl *.dex *.class *.mplt *.s *.so *.o *.log *.jar"
+            "rm -rf *.mpl *.dex *.class *.mplt *.s *.so *.o *.log *.jar *.VtableImpl.primordials.txt"
         )
     ],
     "compile": [
