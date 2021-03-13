@@ -495,7 +495,7 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
   const std::string ustr = GlobalTables::GetUStrTable().GetStringFromStrIdx(mirStrConst.GetValue());
   size_t len = ustr.size();
   if (isFlexibleArray) {
-    arraySize += len + 1;
+    arraySize += static_cast<uint32>(len) + 1;
   }
   EmitStr(ustr, false, false);
 }
@@ -1504,6 +1504,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   /* total size of emitted elements size. */
   uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
   uint32 fieldIdx = 1;
+  if (structType.GetKind() == kTypeUnion) {
+    fieldIdx = structCt.GetConstVecItem(0)->GetFieldId();
+  }
   for (uint32 i = 0; i < num; ++i) {
     if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
       isFlexibleArray = Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
