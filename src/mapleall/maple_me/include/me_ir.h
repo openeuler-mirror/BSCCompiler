@@ -1167,11 +1167,11 @@ class MeStmt {
     CHECK_FATAL(false, "should be implemented");
   }
 
-  const virtual MeExpr *GetAssignedLHS() const {
+  const virtual ScalarMeExpr *GetAssignedLHS() const {
     return nullptr;
   }
 
-  virtual MeExpr *GetAssignedLHS() {
+  virtual ScalarMeExpr *GetAssignedLHS() {
     return nullptr;
   }
 
@@ -1206,7 +1206,8 @@ class MeStmt {
 
   virtual void DisableNeedIncref() {}
 
-  virtual MeExpr *GetLHS() const {
+  virtual ScalarMeExpr *GetLHS() const {
+    CHECK_FATAL(false, "MeStmt::GetLHS() should not be called");
     return nullptr;
   }
 
@@ -1219,10 +1220,6 @@ class MeStmt {
   }
 
   virtual VarMeExpr *GetVarLHS() {
-    return nullptr;
-  }
-
-  virtual RegMeExpr *GetRegLHS() {
     return nullptr;
   }
 
@@ -1363,28 +1360,20 @@ class ChiMeNode {
 
 class MustDefMeNode {
  public:
-  MustDefMeNode(MeExpr *x, MeStmt *meStmt) : lhs(x), base(meStmt) {
-    if (x->GetMeOp() == kMeOpReg) {
-      auto *reg = static_cast<RegMeExpr*>(x);
-      reg->SetDefBy(kDefByMustDef);
-      reg->SetDefMustDef(*this);
-    } else {
-      CHECK(x->GetMeOp() == kMeOpVar, "unexpected opcode");
-      auto *var = static_cast<VarMeExpr*>(x);
-      var->SetDefBy(kDefByMustDef);
-      var->SetDefMustDef(*this);
-    }
+  MustDefMeNode(ScalarMeExpr *x, MeStmt *meStmt) : lhs(x), base(meStmt) {
+    x->SetDefBy(kDefByMustDef);
+    x->SetDefMustDef(*this);
   }
 
-  const MeExpr *GetLHS() const {
+  const ScalarMeExpr *GetLHS() const {
     return lhs;
   }
 
-  MeExpr *GetLHS() {
+  ScalarMeExpr *GetLHS() {
     return lhs;
   }
 
-  void SetLHS(MeExpr *value) {
+  void SetLHS(ScalarMeExpr *value) {
     lhs = value;
   }
 
@@ -1425,18 +1414,10 @@ class MustDefMeNode {
     return *this;
   }
 
-  void UpdateLHS(MeExpr &x) {
+  void UpdateLHS(ScalarMeExpr &x) {
     lhs = &x;
-    if (x.GetMeOp() == kMeOpReg) {
-      auto &reg = static_cast<RegMeExpr&>(x);
-      reg.SetDefBy(kDefByMustDef);
-      reg.SetDefMustDef(*this);
-    } else {
-      ASSERT(lhs->GetMeOp() == kMeOpVar, "unexpected opcode");
-      auto &var = static_cast<VarMeExpr&>(x);
-      var.SetDefBy(kDefByMustDef);
-      var.SetDefMustDef(*this);
-    }
+    x.SetDefBy(kDefByMustDef);
+    x.SetDefMustDef(*this);
   }
 
   ~MustDefMeNode() = default;
@@ -1444,7 +1425,7 @@ class MustDefMeNode {
   void Dump(const IRMap*) const;
 
  private:
-  MeExpr *lhs;  // could be var or register, can we make this private?
+  ScalarMeExpr *lhs;  // could be var or register, can we make this private?
   MeStmt *base;
   bool isLive = true;
 };
@@ -1497,23 +1478,14 @@ class PiassignMeStmt : public MeStmt {
   bool isToken = false;
 };
 
-class DassignMeStmt : public MeStmt {
+class AssignMeStmt : public MeStmt {
  public:
-  DassignMeStmt(MapleAllocator *alloc, const StmtNode *stt)
-      : MeStmt(stt),
-        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
+  AssignMeStmt(const StmtNode *stt) : MeStmt(stt) {}
 
-  explicit DassignMeStmt(MapleAllocator *alloc)
-      : MeStmt(OP_dassign),
-        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
+  explicit AssignMeStmt(Opcode op, ScalarMeExpr *thelhs, MeExpr *rhsVal): MeStmt(op), rhs(rhsVal), lhs(thelhs) {
+  }
 
-  DassignMeStmt(MapleAllocator *alloc, const DassignMeStmt *dass)
-      : MeStmt(dass->GetOp()),
-        rhs(dass->rhs),
-        lhs(dass->GetVarLHS()),
-        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
-
-  ~DassignMeStmt() = default;
+  ~AssignMeStmt() = default;
 
   size_t NumMeStmtOpnds() const {
     return kOperandNumUnary;
@@ -1527,48 +1499,77 @@ class DassignMeStmt : public MeStmt {
     rhs = val;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
-    return &chiList;
+  void Dump(const IRMap*) const;
+
+  bool NeedIncref() const {
+    return needIncref;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
-    chiList = value;
+  void SetNeedIncref(bool value) {
+    needIncref = value;
   }
 
   bool NeedDecref() const {
     return needDecref;
   }
 
-  void SetNeedDecref(bool isNeedDecref) {
-    needDecref = isNeedDecref;
+  void SetNeedDecref(bool value) {
+    needDecref = value;
   }
 
-  void SetNeedIncref(bool isNeedIncref) {
-    needIncref = isNeedIncref;
+  ScalarMeExpr *GetLHS() const {
+    return lhs;
   }
 
-  void EnableNeedDecref() {
-    needDecref = true;
+  MeExpr *GetRHS() const {
+    return rhs;
   }
 
-  void DisableNeedDecref() {
-    needDecref = false;
+  void SetRHS(MeExpr *value) {
+    rhs = value;
   }
 
-  bool NeedIncref() const {
-    return needIncref;
+  void SetLHS(ScalarMeExpr *value) {
+    lhs = value;
   }
 
-  void EnableNeedIncref() {
-    needIncref = true;
+  void UpdateLhs(ScalarMeExpr *var) {
+    lhs = var;
+    var->SetDefBy(kDefByStmt);
+    var->SetDefStmt(this);
   }
 
-  void DisableNeedIncref() {
-    needIncref = false;
+  StmtNode &EmitStmt(SSATab &ssaTab);
+
+ protected:
+  MeExpr *rhs = nullptr;
+  ScalarMeExpr *lhs = nullptr;
+  bool needIncref = false;  // to be determined by analyzerc phase
+  bool needDecref = false;  // to be determined by analyzerc phase
+};
+
+class DassignMeStmt : public AssignMeStmt {
+ public:
+  DassignMeStmt(MapleAllocator *alloc, const StmtNode *stt)
+      : AssignMeStmt(stt),
+        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
+
+  explicit DassignMeStmt(MapleAllocator *alloc, VarMeExpr *thelhs, MeExpr *rhsVal)
+      : AssignMeStmt(OP_dassign, thelhs, rhsVal),
+        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
+
+  DassignMeStmt(MapleAllocator *alloc, const DassignMeStmt *dass)
+      : AssignMeStmt(dass->GetOp(), dass->GetLHS(), dass->GetRHS()),
+        chiList(std::less<OStIdx>(), alloc->Adapter()) {}
+
+  ~DassignMeStmt() = default;
+
+  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+    return &chiList;
   }
 
-  void SetNoNeedIncref() {
-    needIncref = false;
+  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
+    chiList = value;
   }
 
   bool Propagated() const {
@@ -1588,113 +1589,24 @@ class DassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  MeExpr *GetLHS() const {
-    return lhs;
-  }
-
-  void SetLHS(VarMeExpr *value) {
-    lhs = value;
-  }
-
-  MeExpr *GetRHS() const {
-    return rhs;
-  }
-
-  void SetRHS(MeExpr *value) {
-    rhs = value;
-  }
 
   VarMeExpr *GetVarLHS() const {
-    return lhs;
+    return static_cast<VarMeExpr *>(lhs);
   }
 
   VarMeExpr *GetVarLHS() {
-    return lhs;
+    return static_cast<VarMeExpr *>(lhs);
   }
 
   MeExpr *GetLHSRef(bool excludeLocalRefVar);
-  void UpdateLHS(VarMeExpr &var) {
-    lhs = &var;
-    var.SetDefBy(kDefByStmt);
-    var.SetDefStmt(this);
-  }
+
 
   StmtNode &EmitStmt(SSATab &ssaTab);
 
  private:
-  MeExpr *rhs = nullptr;
-  VarMeExpr *lhs = nullptr;
   MapleMap<OStIdx, ChiMeNode*> chiList;
   bool propagated = false;     // the RHS has been propagated forward
-  bool needDecref = false;     // to be determined by analyzerc phase
-  bool needIncref = false;     // to be determined by analyzerc phase
   bool wasMayDassign = false;  // was converted back to dassign by may2dassign phase
-};
-
-class RegassignMeStmt : public MeStmt {
- public:
-  explicit RegassignMeStmt(const StmtNode *stt) : MeStmt(stt) {}
-
-  RegassignMeStmt() : MeStmt(OP_regassign) {}
-
-  RegassignMeStmt(RegMeExpr *reg, MeExpr *val) : MeStmt(OP_regassign), rhs(val), lhs(reg) {
-    reg->SetDefBy(kDefByStmt);
-    reg->SetDefStmt(this);
-  }
-
-  ~RegassignMeStmt() = default;
-
-  size_t NumMeStmtOpnds() const {
-    return kOperandNumUnary;
-  }
-
-  MeExpr *GetOpnd(size_t) const {
-    return rhs;
-  }
-
-  void SetOpnd(size_t, MeExpr *val) {
-    rhs = val;
-  }
-
-  void Dump(const IRMap*) const;
-  bool NeedIncref() const {
-    return needIncref;
-  }
-
-  void EnableNeedIncref() {
-    needIncref = true;
-  }
-
-  void DisableNeedIncref() {
-    needIncref = false;
-  }
-
-  MeExpr *GetLHS() const {
-    return lhs;
-  }
-
-  MeExpr *GetRHS() const {
-    return rhs;
-  }
-
-  void SetRHS(MeExpr *value) {
-    rhs = value;
-  }
-
-  RegMeExpr *GetRegLHS() {
-    return lhs;
-  }
-
-  void SetLHS(RegMeExpr *value) {
-    lhs = value;
-  }
-
-  StmtNode &EmitStmt(SSATab &ssaTab);
-
- private:
-  MeExpr *rhs = nullptr;
-  RegMeExpr *lhs = nullptr;
-  bool needIncref = false;  // to be determined by analyzerc phase
 };
 
 class MaydassignMeStmt : public MeStmt {
@@ -1775,7 +1687,7 @@ class MaydassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  MeExpr *GetLHS() const {
+  VarMeExpr *GetLHS() const {
     return chiList.begin()->second->GetLHS();
   }
 
@@ -1891,10 +1803,6 @@ class IassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  IvarMeExpr *GetLHS() const {
-    return lhsVar;
-  }
-
   MeExpr *GetRHS() const {
     return rhs;
   }
@@ -2091,11 +1999,11 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.size();
   }
 
-  const MeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetAssignedLHS() {
+  ScalarMeExpr *GetAssignedLHS() {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
@@ -2143,7 +2051,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   MIRFunction &GetTargetFunction();
   StmtNode &EmitStmt(SSATab &ssaTab);
 
-  void SetCallReturn(MeExpr&);
+  void SetCallReturn(ScalarMeExpr&);
 
  private:
   PUIdx puIdx = 0;
@@ -2190,7 +2098,7 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList;
   }
 
-  const MeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
@@ -2306,11 +2214,11 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return mustDefList[i];
   }
 
-  const MeExpr *GetAssignedLHS() const {
+  const ScalarMeExpr *GetAssignedLHS() const {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
-  MeExpr *GetAssignedLHS() {
+  ScalarMeExpr *GetAssignedLHS() {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 

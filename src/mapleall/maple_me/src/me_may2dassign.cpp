@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,7 +30,7 @@ void May2Dassign::DoIt() {
       VarMeExpr *theLhs = mass.GetChiList()->begin()->second->GetLHS();
       ASSERT(mass.GetMayDassignSym() == theLhs->GetOst(),
              "MeDoMay2Dassign: cannot find maydassign lhs");
-      auto *dass = static_cast<DassignMeStmt*>(irMap->CreateDassignMeStmt(*theLhs, *mass.GetRHS(), *bb));
+      auto *dass = static_cast<DassignMeStmt*>(irMap->CreateAssignMeStmt(*theLhs, *mass.GetRHS(), *bb));
       dass->SetNeedDecref(mass.NeedDecref());
       dass->SetNeedIncref(mass.NeedIncref());
       dass->SetWasMayDassign(true);

@@ -100,7 +100,7 @@ bool RegMeExpr::IsSameVariableValue(const VarMeExpr &expr) const {
   }
 
   if (GetMeOp() == kMeOpReg && GetDefBy() == kDefByStmt && GetDefStmt()->GetOp() == OP_regassign) {
-    auto *stmt = static_cast<RegassignMeStmt*>(GetDefStmt());
+    auto *stmt = static_cast<AssignMeStmt*>(GetDefStmt());
     if (stmt->GetRHS() == &expr) {
       return true;
     }
@@ -218,7 +218,7 @@ MeExpr &MeExpr::GetAddrExprBase() {
       baseVar = baseVar->FindDefByStmt(visited);
       if (baseVar != nullptr && baseVar->GetDefBy() == kDefByStmt) {
         MeStmt *baseDefStmt = baseVar->GetDefStmt();
-        auto *regAssign = static_cast<RegassignMeStmt*>(baseDefStmt);
+        auto *regAssign = static_cast<AssignMeStmt*>(baseDefStmt);
         MeExpr *rhs = regAssign->GetRHS();
         // Following we only consider array, add and sub
         // Prevent the following situation for reg %1
@@ -722,12 +722,12 @@ void MePhiNode::Dump(const IRMap *irMap) const {
     LogInfo::MapleLogger() << "VAR:";
     ost->Dump();
   } else {
-    PregIdx16 regId = static_cast<RegMeExpr*>(lhs)->GetRegIdx();
+    PregIdx regId = static_cast<RegMeExpr*>(lhs)->GetRegIdx();
     LogInfo::MapleLogger() << "REGVAR: " << regId;
     LogInfo::MapleLogger() << "(%"
                            << irMap->GetMIRModule().CurFunction()
                                                    ->GetPregTab()
-                                                   ->PregFromPregIdx(static_cast<PregIdx>(regId))
+                                                   ->PregFromPregIdx(regId)
                                                    ->GetPregNo()
                            << ")";
   }
@@ -762,7 +762,7 @@ void RegMeExpr::Dump(const IRMap *irMap, int32) const {
   LogInfo::MapleLogger() << "REGINDX:" << GetRegIdx();
   LogInfo::MapleLogger()
       << " %"
-      << irMap->GetMIRModule().CurFunction()->GetPregTab()->PregFromPregIdx(static_cast<PregIdx>(GetRegIdx()))->GetPregNo();
+      << irMap->GetMIRModule().CurFunction()->GetPregTab()->PregFromPregIdx(GetRegIdx())->GetPregNo();
   LogInfo::MapleLogger() << " mx" << GetExprID();
 }
 
@@ -1039,7 +1039,7 @@ void DassignMeStmt::Dump(const IRMap *irMap) const {
   DumpChiList(irMap, chiList);
 }
 
-void RegassignMeStmt::Dump(const IRMap *irMap) const {
+void AssignMeStmt::Dump(const IRMap *irMap) const {
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   CHECK_FATAL(lhs != nullptr, "lhs is null");
   lhs->Dump(irMap);
@@ -1486,7 +1486,7 @@ MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(VarMeExpr &expr) {
   return GenericGetChiListFromVarMeExprInner(expr, visited);
 }
 
-void CallMeStmt::SetCallReturn(MeExpr &curexpr) {
+void CallMeStmt::SetCallReturn(ScalarMeExpr &curexpr) {
   MustDefMeNode &mustDefMeNode = GetMustDefList()->front();
   mustDefMeNode.UpdateLHS(curexpr);
 }

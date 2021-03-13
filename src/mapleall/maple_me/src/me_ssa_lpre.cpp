@@ -20,11 +20,11 @@ namespace maple {
 void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
   ASSERT(GetPUIdx() == workCand->GetPUIdx() || workCand->GetPUIdx() == 0,
          "GenerateSaveRealOcc: inconsistent puIdx");
-  MeExpr *regOrVar = CreateNewCurTemp(*realOcc.GetMeExpr());
+  ScalarMeExpr *regOrVar = CreateNewCurTemp(*realOcc.GetMeExpr());
   CHECK_NULL_FATAL(regOrVar);
   if (!realOcc.IsLHS()) {
     // create a new meStmt before realOcc->GetMeStmt()
-    MeStmt *newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
+    MeStmt *newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
     // replace realOcc->GetMeStmt()'s occ with regOrVar
@@ -60,18 +60,16 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // change original dassign/maydassign to regassign;
     // use placement new to modify in place, because other occ nodes are pointing
     // to this statement in order to get to the rhs expression;
-    // this assume RegassignMeStmt has smaller size then DassignMeStmt and
+    // this assume AssignMeStmt has smaller size then DassignMeStmt and
     // MaydassignMeStmt
-    RegassignMeStmt *rass = new (realOcc.GetMeStmt()) RegassignMeStmt();
-    rass->SetLHS(static_cast<RegMeExpr*>(regOrVar));
-    rass->SetRHS(savedRHS);
+    AssignMeStmt *rass = new (realOcc.GetMeStmt()) AssignMeStmt(OP_regassign, static_cast<RegMeExpr*>(regOrVar), savedRHS);
     rass->SetSrcPos(savedSrcPos);
     rass->SetBB(savedBB);
     rass->SetPrev(savedPrev);
     rass->SetNext(savedNext);
     regOrVar->SetDefByStmt(*rass);
     // create new dassign for original lhs
-    MeStmt *newDassign = irMap->CreateDassignMeStmt(*theLHS, *regOrVar, *savedBB);
+    MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *savedBB);
     theLHS->SetDefByStmt(*newDassign);
     savedBB->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
   } else {
@@ -86,7 +84,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
       // change mustDef lhs to regOrVar
       mustDefMeNode->UpdateLHS(*regOrVar);
       // create new dassign for original lhs
-      MeStmt *newDassign = irMap->CreateDassignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
+      MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
       theLHS->SetDefByStmt(*newDassign);
       realOcc.GetMeStmt()->GetBB()->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
     } else {
@@ -272,7 +270,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();
-      if (sym->IsInstrumented()) {
+      if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;
       }

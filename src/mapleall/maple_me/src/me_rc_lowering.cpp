@@ -21,6 +21,9 @@
 // based on previous analyze results. RC intrinsic will later be lowered
 // in Code Generation
 namespace {
+const std::set<std::string> whiteListFunc {
+#include "rcwhitelist.def"
+};
 }
 
 namespace maple {
@@ -41,7 +44,10 @@ void RCLowering::Prepare() {
     LogInfo::MapleLogger() << "Handling function " << mirFunction->GetName() << '\n';
   }
   func.SetHints(func.GetHints() | kRcLowered);
-  isAnalyzed = (func.GetHints() & kAnalyzeRCed) != 0;
+  isAnalyzed = (func.GetHints() & (kAnalyzeRCed | kPlacementRCed)) != 0;
+  rcCheckReferent = (mirFunction->GetName() ==
+                     "Ljava_2Flang_2Fref_2FReference_3B_7C_3Cinit_3E_7C_"
+                     "28Ljava_2Flang_2FObject_3BLjava_2Flang_2Fref_2FReferenceQueue_3B_29V");
 }
 
 void RCLowering::PreRCLower() {
@@ -55,6 +61,10 @@ void RCLowering::PreRCLower() {
 
   MarkAllRefOpnds();
   CreateCleanupIntrinsics();
+  auto *bb = func.GetCommonEntryBB();
+  CHECK_FATAL(bb != nullptr, "null ptr check");
+  UpdateRefVarVersions(*bb);
+  UnmarkNotNeedDecRefOpnds();
 }
 
 void RCLowering::MarkLocalRefVar() {
@@ -96,6 +106,111 @@ void RCLowering::MarkAllRefOpnds() {
   }
 }
 
+// Mark the statement that needs incref or decref
+void RCLowering::UpdateRefVarVersions(BB &bb) {
+  std::map<OStIdx, size_t> savedStackSize;
+  RecordVarPhiVersions(savedStackSize, bb);
+
+  // traverse the BB stmts
+  TraverseAllStmts(bb);
+
+  // recursive call in preorder traversal of dominator tree
+  ASSERT(bb.GetBBId() < dominance->GetDomChildrenSize(), "index out of range");
+  const MapleSet<BBId> &domChildren = dominance->GetDomChildren(bb.GetBBId());
+  for (const auto &id : domChildren) {
+    UpdateRefVarVersions(*func.GetAllBBs().at(id));
+  }
+
+  // restore the stacks to their size at entry to this function invocation
+  RestoreVersionRecords(savedStackSize);
+}
+
+void RCLowering::RecordVarPhiVersions(std::map<OStIdx, size_t> &savedStackSize, const BB &bb) {
+  for (const auto &item : varOStMap) {
+    if (!item.second->IsLocal()) {
+      continue;
+    }
+    // record stack size
+    savedStackSize[item.second->GetIndex()] = varVersions[item.second->GetIndex()].size();
+    // if there is a phi, push stack
+    auto it = bb.GetMePhiList().find(item.second->GetIndex());
+    if (it != bb.GetMePhiList().end()) {
+      varVersions[item.second->GetIndex()].push_back((*it).second->GetLHS());
+    }
+  }
+}
+
+void RCLowering::TraverseAllStmts(BB &bb) {
+  MeStmts &stmts = bb.GetMeStmts();
+  if (stmts.empty()) {
+    return;
+  }
+
+  for (auto &stmt : stmts) {
+    MeExpr *lhsRef = stmt.GetLHSRef(false);
+    if (lhsRef == nullptr) {
+      continue;
+    }
+    OStIdx ostIdx(0);
+    if (lhsRef->GetMeOp() == kMeOpVar) {
+      ostIdx = static_cast<VarMeExpr*>(lhsRef)->GetOstIdx();
+    } else {
+      ASSERT(lhsRef->GetMeOp() == kMeOpIvar, "PreRCLower: Not Expected meop");
+      auto *ivar = static_cast<IvarMeExpr*>(lhsRef);
+      if (ivar->GetMu() != nullptr) {
+        ostIdx = ivar->GetMu()->GetOstIdx();
+      } else {
+        ASSERT(ivar->GetDefStmt() != nullptr, "PreRCLower: ivar with mu==nullptr has no defStmt");
+        IassignMeStmt *iass = ivar->GetDefStmt();
+        ASSERT(!iass->GetChiList()->empty(), "PreRCLower: ivar with mu==nullptr has empty chiList at its def");
+        ostIdx = iass->GetChiList()->begin()->second->GetLHS()->GetOstIdx();
+      }
+    }
+    ASSERT(ostIdx != 0, "PreRCLower: cannot get ostIdx");
+    if (varOStMap.find(ostIdx) != varOStMap.end()) {
+      if (!varVersions[ostIdx].empty()) {
+        decOpnds[&stmt] = varVersions[ostIdx].back();
+      } else {
+        decOpnds[&stmt] = irMap.GetOrCreateZeroVersionVarMeExpr(*varOStMap[ostIdx]);
+      }
+    } else if (stmt.GetOp() == OP_intrinsiccall &&
+               static_cast<IntrinsiccallMeStmt&>(stmt).GetIntrinsic() == INTRN_MPL_CLEANUP_LOCALREFVARS) {
+      auto &intrn = static_cast<IntrinsiccallMeStmt&>(stmt);
+      for (size_t i = 0; i < intrn.NumMeStmtOpnds(); ++i) {
+        auto *varMeExpr = static_cast<VarMeExpr*>(intrn.GetOpnd(i));
+        if (!varVersions[ostIdx].empty()) {
+          intrn.SetOpnd(i, varVersions[varMeExpr->GetOstIdx()].back());
+        }
+      }
+    }
+    varVersions[ostIdx].push_back(lhsRef);
+  }
+}
+
+void RCLowering::RestoreVersionRecords(std::map<OStIdx, size_t> &savedStackSize) {
+  for (const auto &item : varOStMap) {
+    if (!item.second->IsLocal()) {
+      continue;
+    }
+    size_t lastSize = savedStackSize[item.second->GetIndex()];
+    while (varVersions[item.second->GetIndex()].size() > lastSize) {
+      varVersions[item.second->GetIndex()].pop_back();
+    }
+  }
+}
+
+void RCLowering::UnmarkNotNeedDecRefOpnds() {
+  for (auto item : decOpnds) {
+    if (item.first->GetLHSRef(false)->GetMeOp() == kMeOpVar) {
+      auto *var = static_cast<VarMeExpr*>(item.second);
+      OriginalSt *ost = varOStMap[var->GetOstIdx()];
+      if (ost->IsLocal() && !ost->IsFormal() && (var->IsZeroVersion() || var->GetDefBy() == kDefByNo)) {
+        item.first->DisableNeedDecref();
+      }
+    }
+  }
+}
+
 void RCLowering::CreateCleanupIntrinsics() {
   for (BB *bb : func.GetCommonExitBB()->GetPred()) {
     MeStmt *lastMeStmt = to_ptr(bb->GetMeStmts().rbegin());
@@ -125,7 +240,7 @@ IntrinsiccallMeStmt *RCLowering::CreateRCIntrinsic(MIRIntrinsicID intrnID, const
                                                    std::vector<MeExpr*> &opnds, bool assigned) {
   IntrinsiccallMeStmt *intrn = nullptr;
   if (assigned) {
-    MeExpr *ret = (stmt.GetOp() == OP_regassign) ? stmt.GetLHS() : irMap.CreateRegMeExpr(PTY_ref);
+    ScalarMeExpr *ret = (stmt.GetOp() == OP_regassign) ? stmt.GetLHS() : irMap.CreateRegMeExpr(PTY_ref);
     intrn = irMap.CreateIntrinsicCallAssignedMeStmt(intrnID, opnds, ret);
   } else {
     intrn = irMap.CreateIntrinsicCallMeStmt(intrnID, opnds);
@@ -155,8 +270,10 @@ IntrinsiccallMeStmt *RCLowering::GetVarRHSHandleStmt(const MeStmt &stmt) {
   std::vector<MeExpr*> opnds;
   bool isVolatile = var->IsVolatile();
   MIRIntrinsicID rcCallID = INTRN_UNDEFINED;
-  rcCallID = isVolatile ? PrepareVolatileCall(stmt, INTRN_MCCLoadRefSVol) : INTRN_MCCLoadRefS;
-  opnds.push_back(irMap.CreateAddrofMeExpr(*var));
+  if (!MeOption::strictNaiveRC || isVolatile) {
+    rcCallID = isVolatile ? PrepareVolatileCall(stmt, INTRN_MCCLoadRefSVol) : INTRN_MCCLoadRefS;
+    opnds.push_back(irMap.CreateAddrofMeExpr(*var));
+  }
 
   // rhs is not special, skip
   if (rcCallID == INTRN_UNDEFINED) {
@@ -196,10 +313,12 @@ void RCLowering::HandleAssignMeStmtRHS(MeStmt &stmt) {
   MeExpr *rhs = stmt.GetRHS();
   CHECK_FATAL(rhs != nullptr, "rhs is nullptr in RCLowering::HandleAssignMeStmtRHS");
   IntrinsiccallMeStmt *loadCall = nullptr;
+  bool isRCWeak = false;
   std::vector<MeExpr*> opnds;
   if (rhs->GetMeOp() == kMeOpVar) {
     loadCall = GetVarRHSHandleStmt(stmt);
   } else if (rhs->GetMeOp() == kMeOpIvar) {
+    isRCWeak = static_cast<IvarMeExpr*>(rhs)->IsRCWeak();
     loadCall = GetIvarRHSHandleStmt(stmt);
   }
   // rhs is not special, skip
@@ -208,7 +327,7 @@ void RCLowering::HandleAssignMeStmtRHS(MeStmt &stmt) {
   }
   if (stmt.GetOp() == OP_regassign) {
     stmt.GetBB()->ReplaceMeStmt(&stmt, loadCall);
-    if (rhs->IsVolatile()) {
+    if (rhs->IsVolatile() && !isRCWeak) {
       stmt.SetOpnd(1, loadCall->GetMustDefList()->front().GetLHS());
     }
   } else {
@@ -243,7 +362,17 @@ void RCLowering::HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
   if (retSym == nullptr) {
     return;
   }
+  // rcunowned needs special handling
+  if (retSym->IgnoreRC() && !retSym->GetAttr(ATTR_rcunowned)) {
+    return;
+  }
   assignedPtrSym.insert(retSym);
+  if (retSym->GetAttr(ATTR_rcunowned)) {
+    // if retSym is rcunowned, we need to introduce a new localrefvar to decref in cleanup
+    MeStmt *regToTmp = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *lhs, *bb);
+    bb->InsertMeStmtAfter(&stmt, regToTmp);
+    return;
+  }
   if (!stmt.NeedDecref()) {
     return;
   }
@@ -263,8 +392,8 @@ void RCLowering::IntroduceRegRetIntoCallAssigned(MeStmt &stmt) {
 void RCLowering::HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec) {
   BB *bb = stmt.GetBB();
   CHECK_FATAL(bb != nullptr, "bb null ptr check");
-  RegassignMeStmt *backup = irMap.CreateRegassignMeStmt(*irMap.CreateRegMeExpr(PTY_ref), pendingDec, *bb);
-  std::vector<MeExpr*> opnds = { backup->GetRegLHS() };
+  AssignMeStmt *backup = irMap.CreateAssignMeStmt(*irMap.CreateRegMeExpr(PTY_ref), pendingDec, *bb);
+  std::vector<MeExpr*> opnds = { backup->GetLHS() };
   IntrinsiccallMeStmt *decRefCall = CreateRCIntrinsic(INTRN_MCCDecRef, stmt, opnds);
   if (!instance_of<CallMeStmt>(stmt)) {
     bb->InsertMeStmtBefore(&stmt, backup);
@@ -274,7 +403,7 @@ void RCLowering::HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec)
     // instead of change callassign {dassign} to backup; callassign {dassign}; decref
     // callassign {regassign}; backup; dassign (regread); decref
     RegMeExpr *curTmp = irMap.CreateRegMeExpr(PTY_ref);
-    MeStmt *regToVar = irMap.CreateDassignMeStmt(*stmt.GetAssignedLHS(), *curTmp, *bb);
+    MeStmt *regToVar = irMap.CreateAssignMeStmt(*stmt.GetAssignedLHS(), *curTmp, *bb);
     stmt.GetMustDefList()->front().UpdateLHS(*curTmp);
     bb->InsertMeStmtAfter(&stmt, decRefCall);
     bb->InsertMeStmtAfter(&stmt, regToVar);
@@ -297,7 +426,12 @@ bool RCLowering::RCFirst(MeExpr &rhs) {
 
 void RCLowering::PreprocessAssignMeStmt(MeStmt &stmt) {
   BB *bb = stmt.GetBB();
-  MeExpr *lhs = stmt.GetLHS();
+  MeExpr *lhs = nullptr;
+  if (stmt.GetOp() != OP_iassign) {
+    lhs = stmt.GetLHS();
+  } else {
+    lhs = static_cast<IassignMeStmt &>(stmt).GetLHSVal();
+  }
   CHECK_FATAL(lhs != nullptr, "null ptr check");
   MeExpr *rhs = stmt.GetRHS();
   CHECK_FATAL(rhs != nullptr, "null ptr check");
@@ -321,7 +455,7 @@ void RCLowering::PreprocessAssignMeStmt(MeStmt &stmt) {
     // if new obj is assigned to unowned refvar, we need a localrefvar
     // to decref at exit
     // introduce new localrefvar = lhs after current stmt
-    MeStmt *backup = irMap.CreateDassignMeStmt(*CreateNewTmpVarMeExpr(true), *lhs, *bb);
+    MeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *lhs, *bb);
     // backup will not have any incref/decref
     bb->InsertMeStmtAfter(&stmt, backup);
   }
@@ -338,6 +472,9 @@ void RCLowering::HandleAssignMeStmtRegLHS(MeStmt &stmt) {
 
 void RCLowering::HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec) {
   const MIRSymbol *lsym =stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
+  if (lsym->IgnoreRC()) {
+    return;
+  }
   if (lsym->IsGlobal()) {
     // decref could be optimized away after if null check
     HandleAssignToGlobalVar(stmt);
@@ -444,7 +581,7 @@ void RCLowering::HandleAssignToLocalVar(MeStmt &stmt, MeExpr *pendingDec) {
       IntrinsiccallMeStmt *decCall = CreateRCIntrinsic(INTRN_MCCDecRef, stmt, opnds);
       bb->InsertMeStmtBefore(&stmt, decCall);
     } else {
-      RegassignMeStmt *backup = irMap.CreateRegassignMeStmt(*irMap.CreateRegMeExpr(PTY_ref), *pendingDec, *bb);
+      AssignMeStmt *backup = irMap.CreateAssignMeStmt(*irMap.CreateRegMeExpr(PTY_ref), *pendingDec, *bb);
       bb->InsertMeStmtBefore(&stmt, backup);
       std::vector<MeExpr*> opnds = { backup->GetLHS() };
       IntrinsiccallMeStmt *decCall = CreateRCIntrinsic(INTRN_MCCDecRef, stmt, opnds);
@@ -494,7 +631,25 @@ void RCLowering::HandleAssignMeStmtIvarLHS(MeStmt &stmt) {
     fieldSet.insert(fieldID);
   }
   MeExpr *rhsInner = stmt.GetRHS();
+  bool isReferent = false;
+  if (rcCheckReferent) {
+    // check if iassign field is volatile T referent;
+    FieldID id = mirModule.GetMIRBuilder()->GetStructFieldIDFromFieldNameParentFirst(ptype, "referent");
+    if (id == iassign.GetLHSVal()->GetFieldID()) {
+      std::vector<MeExpr*> opnds = { &lhsInner->GetBase()->GetAddrExprBase(), rhsInner };
+      IntrinsiccallMeStmt *writeReferentCall = CreateRCIntrinsic(INTRN_MCCWriteReferent, stmt, opnds);
+      stmt.GetBB()->InsertMeStmtAfter(&stmt, writeReferentCall);
+      isReferent = true;
+    }
+  }
   MIRIntrinsicID intrinsicID = SelectWriteBarrier(stmt);
+  if (isReferent) {  // optimize storeload again due to referent handling
+    MeStmt *next = stmt.GetNext();
+    if (next != nullptr) {
+      next = next->GetNext();
+    }
+    CheckRemove(next, OP_membarstoreload);
+  }
   std::vector<MeExpr*> opnds =
       { &lhsInner->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*lhsInner), rhsInner };
   IntrinsiccallMeStmt *writeRefCall = CreateRCIntrinsic(intrinsicID, stmt, opnds);
@@ -503,12 +658,18 @@ void RCLowering::HandleAssignMeStmtIvarLHS(MeStmt &stmt) {
 }
 
 void RCLowering::HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
+  HandlePerManent(stmt);
   PreprocessAssignMeStmt(stmt);
   if (!stmt.NeedIncref() && !stmt.NeedDecref()) {
     return;
   }
   HandleAssignMeStmtRHS(stmt);
-  MeExpr *lhs = stmt.GetLHS();
+  MeExpr *lhs = nullptr;
+  if (stmt.GetOp() != OP_iassign) {
+    lhs = stmt.GetLHS();
+  } else {
+    lhs = static_cast<IassignMeStmt &>(stmt).GetLHSVal();
+  }
   CHECK_FATAL(lhs != nullptr, "null ptr check");
   if (lhs->GetMeOp() == kMeOpReg) {
     HandleAssignMeStmtRegLHS(stmt);
@@ -519,6 +680,60 @@ void RCLowering::HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
   }
 }
 
+void RCLowering::HandlePerManent(MeStmt &stmt) {
+  VarMeExpr *lhs = stmt.GetVarLHS();
+  if (lhs == nullptr) {
+    return;
+  }
+
+  const MIRSymbol *sym = lhs->GetOst()->GetMIRSymbol();
+  if (sym->GetType()->GetPrimType() != PTY_ref) {
+    return;
+  }
+  if (!sym->IsStatic() || !sym->IsFinal()) {
+    return;
+  }
+
+  MeExpr *rhs = stmt.GetRHS();
+  MeStmt *defStmt = nullptr;
+  if (rhs->GetMeOp() == kMeOpVar) {
+    auto *var = static_cast<VarMeExpr*>(rhs);
+    if (var->GetDefBy() == kDefByStmt) {
+      defStmt = var->GetDefStmt();
+    }
+  } else if (rhs->GetMeOp() == kMeOpReg) {
+    auto *regVar = static_cast<RegMeExpr*>(rhs);
+    if (regVar->GetDefBy() == kDefByStmt) {
+      defStmt = regVar->GetDefStmt();
+    }
+  }
+  if (defStmt != nullptr) {
+    MeExpr *rhsOfDefStmt = defStmt->GetRHS();
+    if (rhsOfDefStmt->IsGcmalloc() && !HasCallOrBranch(*defStmt, stmt)) {
+      if (rhsOfDefStmt->GetOp() == OP_gcmalloc) {
+        rhsOfDefStmt->SetOp(OP_gcpermalloc);
+      } else if (rhsOfDefStmt->GetOp() == OP_gcmallocjarray) {
+        rhsOfDefStmt->SetOp(OP_gcpermallocjarray);
+      }
+      return;
+    }
+  }
+  std::vector<MeExpr*> opnds = { rhs };
+  IntrinsiccallMeStmt *setPermanentCall = CreateRCIntrinsic(INTRN_MCCSetPermanent, stmt, opnds);
+  stmt.GetBB()->InsertMeStmtBefore(&stmt, setPermanentCall);
+}
+
+bool RCLowering::HasCallOrBranch(const MeStmt &from, const MeStmt &to) {
+  if (from.GetBB() != to.GetBB()) {
+    return true;
+  }
+  for (const MeStmt *stmt = &from; stmt != &to; stmt = stmt->GetNextMeStmt()) {
+    if (kOpcodeInfo.IsCall(stmt->GetOp())) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // align with order in rcinsertion, otherwise missing weak volatile
 // note that we are generating INTRN_MCCWriteNoRC so write_barrier is supported,
@@ -526,7 +741,12 @@ void RCLowering::HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
 MIRIntrinsicID RCLowering::SelectWriteBarrier(const MeStmt &stmt) {
   bool incWithLHS = stmt.NeedIncref();
   bool decWithLHS = stmt.NeedDecref();
-  MeExpr *lhs = stmt.GetLHS();
+  MeExpr *lhs = nullptr;
+  if (stmt.GetOp() != OP_iassign) {
+    lhs = stmt.GetLHS();
+  } else {
+    lhs = static_cast<const IassignMeStmt &>(stmt).GetLHSVal();
+  }
   CHECK_FATAL(lhs != nullptr, "null ptr check");
   MeExprOp meOp = lhs->GetMeOp();
   CHECK_FATAL((meOp == kMeOpVar || meOp == kMeOpIvar), "Not Expected meOp");
@@ -557,6 +777,7 @@ void RCLowering::RCLower() {
     if (bIt == func.common_entry() || bIt == func.common_exit()) {
       continue;
     }
+    EpreFixup(**bIt);
     BBLower(**bIt);
   }
 }
@@ -615,8 +836,8 @@ void RCLowering::BBLower(BB &bb) {
   initializedFields.clear();
   needSpecialHandleException = bb.GetAttributes(kBBAttrIsCatch);
   for (auto &stmt : bb.GetMeStmts()) {
-    if ((func.GetHints() & kAnalyzeRCed) == 0) {
-      pendingDec = stmt.GetLHSRef(false);
+    if (!isAnalyzed && decOpnds.find(&stmt) != decOpnds.end()) {
+      pendingDec = decOpnds[&stmt];
     }
     Opcode opcode = stmt.GetOp();
     if (opcode == OP_return) {
@@ -662,6 +883,38 @@ IntrinsiccallMeStmt *FindCleanupIntrinsic(const MeStmt &ret) {
   return nullptr;
 }
 
+// epre could have change dassign (iread) to regassign (iread) + dassign (regread)
+// as a result, LoadRefField was not generated. This function fixes up the issue
+// by checking rhs to see if it is regread and then try to
+// propagate incref from current stmt back to regassign from iread which had no incref
+void RCLowering::EpreFixup(BB &bb) {
+  for (auto &stmt : bb.GetMeStmts()) {
+    // remove decref as mpl2mpl will insert based on ref assign
+    if (!stmt.NeedIncref()) {
+      continue;
+    }
+    MeExpr *rhs = stmt.GetRHS();
+    if (stmt.GetOp() != OP_dassign || rhs == nullptr || rhs->GetOp() != OP_regread) {
+      continue;
+    }
+    auto *rhsVar = static_cast<RegMeExpr*>(rhs);
+    if (rhsVar->GetDefBy() != kDefByStmt) {
+      continue;
+    }
+    MeStmt *defStmt = rhsVar->GetDefStmt();
+    if (defStmt->GetBB() != stmt.GetBB()) {
+      continue;  // we cannot fix up across bb
+    }
+    CHECK_FATAL(defStmt->GetRHS() != nullptr, "null ptr check");
+    if (defStmt->NeedIncref() || defStmt->GetRHS()->GetOp() != OP_iread) {
+      continue;
+    }
+    // pull incref from regread stmt to regassign
+    defStmt->EnableNeedIncref();
+    stmt.DisableNeedIncref();
+  }
+}
+
 void RCLowering::HandleReturnVar(RetMeStmt &ret) {
   auto *retVar = static_cast<VarMeExpr*>(ret.GetOpnd(0));
   CHECK_FATAL(retVar != nullptr, "retVal null ptr check");
@@ -680,7 +933,9 @@ void RCLowering::HandleReturnVar(RetMeStmt &ret) {
     // must be regreadAtReturn
     // checking localrefvar because some objects are meta
     HandleReturnRegread(ret);
-  } else {
+  } else if (!((func.GetHints() & kPlacementRCed) && sym != nullptr && sym->GetStorageClass() == kScFormal &&
+               assignedPtrSym.count(sym) > 0)) {
+    // if returning formal, incref unless placementRC is used and formal is NOT reassigned
     HandleReturnFormal(ret);
   }
 }
@@ -690,11 +945,20 @@ void RCLowering::HandleReturnGlobal(RetMeStmt &ret) {
   CHECK_FATAL(bb != nullptr, "bb null ptr check");
   auto *retVar = static_cast<VarMeExpr*>(ret.GetOpnd(0));
   CHECK_FATAL(retVar != nullptr, "retVal null ptr check");
-  std::vector<MeExpr*> opnds = { irMap.CreateAddrofMeExpr(*retVar) };
-  IntrinsiccallMeStmt *loadCall = CreateRCIntrinsic(INTRN_MCCLoadRefS, ret, opnds, true);
-  bb->InsertMeStmtBefore(&ret, loadCall);
-  ret.SetOpnd(0, loadCall->GetMustDefList()->front().GetLHS());
-
+  if (MeOption::strictNaiveRC) {
+    RegMeExpr *curTmp = irMap.CreateRegMeExpr(PTY_ref);
+    AssignMeStmt *regAssStmt = irMap.CreateAssignMeStmt(*curTmp, *retVar, *bb);
+    bb->InsertMeStmtBefore(&ret, regAssStmt);
+    std::vector<MeExpr*> opnds = { regAssStmt->GetLHS() };
+    IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, *regAssStmt, opnds, true);
+    bb->InsertMeStmtBefore(&ret, incCall);
+    ret.SetOpnd(0, curTmp);
+  } else {
+    std::vector<MeExpr*> opnds = { irMap.CreateAddrofMeExpr(*retVar) };
+    IntrinsiccallMeStmt *loadCall = CreateRCIntrinsic(INTRN_MCCLoadRefS, ret, opnds, true);
+    bb->InsertMeStmtBefore(&ret, loadCall);
+    ret.SetOpnd(0, loadCall->GetMustDefList()->front().GetLHS());
+  }
 }
 
 void RCLowering::HandleReturnRegread(RetMeStmt &ret) {
@@ -750,11 +1014,20 @@ void RCLowering::HandleReturnIvar(RetMeStmt &ret) {
     ret.GetBB()->InsertMeStmtBefore(&ret, loadCall);
     ret.SetOpnd(0, loadCall->GetMustDefList()->front().GetLHS());
   } else {
-    std::vector<MeExpr*> opnds = { &retIvar->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*retIvar) };
-    MeStmt *loadCall = CreateRCIntrinsic(INTRN_MCCLoadRef, ret, opnds, true);
-    ret.GetBB()->InsertMeStmtBefore(&ret, loadCall);
-    ret.SetOpnd(0, loadCall->GetMustDefList()->front().GetLHS());
-
+    if (MeOption::strictNaiveRC) {
+      RegMeExpr *curTmp = irMap.CreateRegMeExpr(PTY_ref);
+      AssignMeStmt *regAssStmt = irMap.CreateAssignMeStmt(*curTmp, *retIvar, *ret.GetBB());
+      ret.GetBB()->InsertMeStmtBefore(&ret, regAssStmt);
+      std::vector<MeExpr*> opnds = { regAssStmt->GetLHS() };
+      IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, *regAssStmt, opnds, true);
+      ret.GetBB()->InsertMeStmtBefore(&ret, incCall);
+      ret.SetOpnd(0, curTmp);
+    } else {
+      std::vector<MeExpr*> opnds = { &retIvar->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*retIvar) };
+      IntrinsiccallMeStmt *loadCall = CreateRCIntrinsic(INTRN_MCCLoadRef, ret, opnds, true);
+      ret.GetBB()->InsertMeStmtBefore(&ret, loadCall);
+      ret.SetOpnd(0, loadCall->GetMustDefList()->front().GetLHS());
+    }
   }
 }
 
@@ -804,7 +1077,7 @@ void RCLowering::HandleReturnWithCleanup() {
     } else {
       // incref by default
       RegMeExpr *tmpReg = irMap.CreateRegMeExpr(PTY_ref);
-      RegassignMeStmt *temp = irMap.CreateRegassignMeStmt(*tmpReg, *retVal, *stmt->GetBB());
+      AssignMeStmt *temp = irMap.CreateAssignMeStmt(*tmpReg, *retVal, *stmt->GetBB());
       stmt->GetBB()->InsertMeStmtBefore(stmt, temp);
       std::vector<MeExpr*> opnds = { tmpReg };
       IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, *stmt, opnds);
@@ -827,7 +1100,7 @@ void RCLowering::HandleReturnNeedBackup() {
       continue;
     }
     RegMeExpr *curTmp = irMap.CreateRegMeExpr(retVal->GetPrimType());
-    MeStmt *regAssign = irMap.CreateRegassignMeStmt(*curTmp, *retVal, *ret->GetBB());
+    MeStmt *regAssign = irMap.CreateAssignMeStmt(*curTmp, *retVal, *ret->GetBB());
     ret->GetBB()->InsertMeStmtBefore(ret, regAssign);
     ret->SetOpnd(0, curTmp);
   }
@@ -844,6 +1117,10 @@ void RCLowering::HandleReturnStmt() {
 }
 
 void RCLowering::HandleArguments() {
+  // placementRC would have already addressed formals
+  if (func.GetHints() & kPlacementRCed) {
+    return;
+  }
   // handle arguments, if the formal gets modified
   // insert incref at entry and decref before all returns
   MIRFunction *mirFunc = func.GetMirFunc();
@@ -884,12 +1161,105 @@ void RCLowering::PostRCLower() {
 }
 
 void RCLowering::Finish() {
+  CheckRefs();
   if (enabledDebug) {
     LogInfo::MapleLogger() << "\n============== After RC LOWERING =============" << '\n';
     func.Dump(false);
   }
 }
 
+void RCLowering::CheckRefs() {
+  ParseCheckFlag();
+  if (checkRefFormal) {
+    CheckFormals();
+  }
+  for (BB *bb : func.GetAllBBs()) {
+    if (bb == nullptr) {
+      continue;
+    }
+    if (checkRefAssign) {
+      CheckRefsInAssignStmt(*bb);
+    }
+    if (checkRefReturn) {
+      CheckRefReturn(*bb);
+    }
+  }
+}
+
+void RCLowering::ParseCheckFlag() {
+  if (MeOption::checkRefUsedInFuncs.find(func.GetName()) != MeOption::checkRefUsedInFuncs.end() ||
+      MeOption::checkRefUsedInFuncs.find("ALL") != MeOption::checkRefUsedInFuncs.end() ||
+      MeOption::checkRefUsedInFuncs.find("*") != MeOption::checkRefUsedInFuncs.end()) {
+    checkRefFormal = true;
+    checkRefAssign = true;
+    checkRefReturn = true;
+  } else {
+    if (MeOption::checkRefUsedInFuncs.find("FORMAL") != MeOption::checkRefUsedInFuncs.end()) {
+      checkRefFormal = true;
+    }
+    if (MeOption::checkRefUsedInFuncs.find("ASSIGN") != MeOption::checkRefUsedInFuncs.end()) {
+      checkRefAssign = true;
+    }
+    if (MeOption::checkRefUsedInFuncs.find("RETURN") != MeOption::checkRefUsedInFuncs.end()) {
+      checkRefReturn = true;
+    }
+  }
+}
+
+void RCLowering::CheckFormals() {
+  MIRFunction *mirFunc = func.GetMirFunc();
+  BB *firstBB = func.GetFirstBB();
+  if (firstBB->IsMeStmtEmpty()) {
+    return;
+  }
+  for (size_t i = 0; i < mirFunc->GetFormalCount(); ++i) {
+    MIRSymbol *sym = mirFunc->GetFormal(i);
+    if (sym == nullptr) {
+      continue;
+    }
+    if (sym->IgnoreRC()) {
+      continue;
+    }
+    MeStmt &firstMeStmt = firstBB->GetMeStmts().front();
+    VarMeExpr *argVar = CreateVarMeExprFromSym(*sym);
+    std::vector<MeExpr*> exprs = { argVar, irMap.CreateIntConstMeExpr(++checkRCIndex, PTY_u32) };
+    IntrinsiccallMeStmt *checkCall = CreateRCIntrinsic(INTRN_MCCCheck, firstMeStmt, exprs);
+    firstBB->InsertMeStmtBefore(&firstMeStmt, checkCall);
+  }
+}
+
+void RCLowering::CheckRefsInAssignStmt(BB &bb) {
+  for (MeStmt &stmt : bb.GetMeStmts()) {
+    if (!stmt.IsAssign()) {
+      continue;
+    }
+    MeExpr *lhs = stmt.GetLHS();
+    CHECK_NULL_FATAL(lhs);
+    if (lhs->GetPrimType() != PTY_ref && lhs->GetPrimType() != PTY_ptr) {
+      continue;
+    }
+    std::vector<MeExpr*> opnds = { lhs, irMap.CreateIntConstMeExpr(++checkRCIndex, PTY_u32) };
+    IntrinsiccallMeStmt *checkCall = irMap.CreateIntrinsicCallMeStmt(INTRN_MCCCheck, opnds);
+    bb.InsertMeStmtAfter(&stmt, checkCall);
+  }
+}
+
+void RCLowering::CheckRefReturn(BB &bb) {
+  if (bb.GetKind() != kBBReturn) {
+    return;
+  }
+  MeStmt *lastMeStmt = to_ptr(bb.GetMeStmts().rbegin());
+  if (lastMeStmt == nullptr || lastMeStmt->GetOp() != OP_return || lastMeStmt->NumMeStmtOpnds() == 0) {
+    return;
+  }
+  MeExpr* ret = lastMeStmt->GetOpnd(0);
+  if (ret->GetPrimType() != PTY_ref && ret->GetPrimType() != PTY_ptr) {
+    return;
+  }
+  std::vector<MeExpr*> opnds = { ret };
+  IntrinsiccallMeStmt *checkCall = irMap.CreateIntrinsicCallMeStmt(INTRN_MCCCheck, opnds);
+  bb.InsertMeStmtBefore(lastMeStmt, checkCall);
+}
 
 static inline bool CheckIntrinsicID(MeStmt *stmt, MIRIntrinsicID id) {
   if (!CheckOp(stmt, OP_intrinsiccall)) {
@@ -907,6 +1277,14 @@ static inline MeStmt *GetPrevMeStmt(const MeStmt &stmt) {
   return prevStmt;
 }
 
+static inline MeStmt *GetNextMeStmt(const MeStmt &stmt) {
+  MeStmt *nextStmt = stmt.GetPrev();
+  while (CheckOp(nextStmt, OP_comment)) {
+    nextStmt = nextStmt->GetNext();
+  }
+  return nextStmt;
+}
+
 // iterate over stmts and find back-to-back incref/decref
 // and merge them into one intrinsic if needed
 void RCLowering::CompactRC(BB &bb) {
@@ -921,6 +1299,27 @@ void RCLowering::CompactRC(BB &bb) {
       MeStmt *prevStmt = GetPrevMeStmt(stmt);
       if (CheckIntrinsicID(prevStmt, INTRN_MCCIncRef)) {
         CompactIncAndDec(*prevStmt, stmt);
+      }
+    }
+    if ((func.GetHints() & kPlacementRCed) == 0) {
+      continue;
+    }
+    if (!CheckIntrinsicID(&stmt, INTRN_MCCDecRefReset)) {
+      continue;
+    }
+    MeStmt *prevStmt = GetPrevMeStmt(stmt);
+    if (CheckIntrinsicID(prevStmt, INTRN_MCCDecRefReset)) {
+      CompactAdjacentDecReset(*prevStmt, stmt);
+    }
+    if (CheckOp(prevStmt, OP_dassign)) {
+      ReplaceDecResetWithDec(*prevStmt, stmt);
+    }
+    if (CheckIntrinsicID(prevStmt, INTRN_MCCIncRef)) {
+      CompactIncAndDecReset(*prevStmt, stmt);
+    } else {
+      MeStmt *nextStmt = GetNextMeStmt(stmt);
+      if (CheckIntrinsicID(nextStmt, INTRN_MCCIncRef)) {
+        CompactIncAndDecReset(*nextStmt, stmt);
       }
     }
   }
@@ -1010,16 +1409,260 @@ VarMeExpr *RCLowering::CreateNewTmpVarMeExpr(bool isLocalRefVar) {
   return varMeExpr;
 }
 
+// Fast path: Special RC handling for simple methods
+// where local ref assignments can be ignored
+// functions with global write cannot use fast path
+void RCLowering::FastBBLower(BB &bb) {
+  MapleMap<uint32, MeStmt*> exceptionAllocsites(func.GetAlloc().Adapter());
+  for (auto &stmt : bb.GetMeStmts()) {
+    if (CheckOp(&stmt, OP_incref) || CheckOp(&stmt, OP_decref) ||
+        CheckIntrinsicID(&stmt, INTRN_MPL_CLEANUP_LOCALREFVARS)) {
+      // ignore RC operations inserted by analyzerc
+      bb.RemoveMeStmt(&stmt);
+    }else if (CheckOp(&stmt, OP_throw)) {
+      FastLowerThrowStmt(stmt, exceptionAllocsites);
+    }else if (CheckOp(&stmt, OP_return)) {
+      FastLowerRetStmt(stmt);
+    }else if (stmt.IsAssign()) {
+      MeExpr *lhs = stmt.GetLHSRef(false);
+      if (lhs == nullptr) {
+        continue;
+      }
+      if (lhs->GetMeOp() == kMeOpVar) {
+        FastLowerAssignToVar(stmt, exceptionAllocsites);
+      } else if (lhs->GetMeOp() == kMeOpIvar) {
+        FastLowerAssignToIvar(stmt);
+      }
+    }else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
+      MIRType *retType = stmt.GetReturnType();
+      if (retType != nullptr && retType->GetPrimType() == PTY_ref) {
+        FastLowerCallAssignedStmt(stmt);
+      }
+    }
+  }
+
+  for (auto iter : exceptionAllocsites) {
+    MeStmt *stmt = iter.second;
+    AssignMeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *stmt->GetLHS(), *stmt->GetBB());
+    stmt->GetBB()->InsertMeStmtAfter(stmt, backup);
+  }
+}
+
+void RCLowering::FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites) {
+  auto &throwMeStmt = static_cast<ThrowMeStmt&>(stmt);
+  // insert localrefvar for decref on throw arg
+  MeExpr *throwVal = throwMeStmt.GetOpnd();
+  BB *bb = stmt.GetBB();
+  CHECK_FATAL(bb != nullptr, "bb nullptr check");
+  AssignMeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *throwVal, *bb);
+  bb->InsertMeStmtBefore(&throwMeStmt, backup);
+  if (throwVal->GetMeOp() == kMeOpVar) {
+    auto *var = static_cast<VarMeExpr*>(throwVal);
+    MapleMap<uint32, MeStmt*>::iterator iter;
+    iter = exceptionAllocsites.find(var->GetVstIdx());
+    if (iter != exceptionAllocsites.end()) {
+      exceptionAllocsites.erase(iter);
+    }
+  }
+}
+
+void RCLowering::FastLowerRetStmt(MeStmt &stmt) {
+  auto &retMeStmt = static_cast<RetMeStmt&>(stmt);
+  const MapleVector<MeExpr*> &opnds = retMeStmt.GetOpnds();
+  if (opnds.empty()) {
+    // function return void
+    return;
+  }
+  MeExpr *ret = opnds[0];
+  PrimType retPtyp = ret->GetPrimType();
+  if (retPtyp != PTY_ref) {
+    return;
+  }
+  if (ret->GetMeOp() == kMeOpVar) {
+    FastLowerRetVar(retMeStmt);
+  } else if (ret->GetMeOp() == kMeOpReg) {
+    FastLowerRetReg(retMeStmt);
+  } else {
+    // ret->GetMeOp() == kMeOpIvar etc
+    // return ivar, put into temp and IncRef
+    FastLowerRetIvar(retMeStmt);
+  }
+}
+
+void RCLowering::FastLowerRetVar(RetMeStmt &stmt) {
+  auto *val = static_cast<VarMeExpr*>(stmt.GetOpnd(0));
+  const MIRSymbol *sym = val->GetOst()->GetMIRSymbol();
+  if (val->GetDefBy() == kDefByStmt && CheckOp(val->GetDefStmt(), OP_dassign)) {
+    // gcmalloc already has incref
+    ASSERT_NOT_NULL(val->GetDefStmt()->GetRHS());
+    Opcode op = val->GetDefStmt()->GetRHS()->GetOp();
+    if (op == OP_gcmalloc || op == OP_gcmallocjarray) {
+      return;
+    }
+  }
+  if (sym != nullptr && !sym->IgnoreRC()) {
+    std::vector<MeExpr*> opnds = { val };
+    IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, stmt, opnds, true);
+    stmt.SetOpnd(0, incCall->GetMustDefList()->front().GetLHS());
+    stmt.GetBB()->InsertMeStmtBefore(&stmt, incCall);
+  }
+}
+
+void RCLowering::FastLowerRetIvar(RetMeStmt &stmt) {
+  BB *bb = stmt.GetBB();
+  CHECK_NULL_FATAL(bb);
+  AssignMeStmt *tmpRet = irMap.CreateAssignMeStmt(*irMap.CreateRegMeExpr(PTY_ref), *stmt.GetOpnd(0), *bb);
+  bb->InsertMeStmtBefore(&stmt, tmpRet);
+  std::vector<MeExpr*> opnds = { tmpRet->GetLHS() };
+  IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, stmt, opnds);
+  bb->InsertMeStmtBefore(&stmt, incCall);
+  stmt.SetOpnd(0, tmpRet->GetLHS());
+}
+
+void RCLowering::FastLowerRetReg(RetMeStmt &stmt) {
+  auto *regRet = static_cast<RegMeExpr*>(stmt.GetOpnd(0));
+  if (regRet->GetDefBy() == kDefByStmt && CheckOp(regRet->GetDefStmt(), OP_regassign)) {
+    MeExpr *rhs = regRet->GetDefStmt()->GetRHS();
+    ASSERT_NOT_NULL(rhs);
+    if (rhs->GetOp() == OP_gcmalloc || rhs->GetOp() == OP_gcmallocjarray) {
+      return;
+    }
+  }
+  std::vector<MeExpr*> opnds = { regRet };
+  IntrinsiccallMeStmt *incCall = CreateRCIntrinsic(INTRN_MCCIncRef, stmt, opnds);
+  stmt.GetBB()->InsertMeStmtBefore(&stmt, incCall);
+}
+
+void RCLowering::FastLowerAssignToVar(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites) {
+  VarMeExpr *lhs = stmt.GetVarLHS();
+  ASSERT_NOT_NULL(lhs);
+  if (stmt.NeedIncref() || stmt.NeedDecref()) {
+    const MIRSymbol *lSym = lhs->GetOst()->GetMIRSymbol();
+    if (lSym->IgnoreRC()) {
+      return;
+    }
+    ASSERT(!lSym->IsGlobal(), "Write to global not expected");
+  }
+  if (stmt.GetOp() != OP_dassign) {
+    return;
+  }
+  ASSERT_NOT_NULL(stmt.GetRHS());
+  if (!(stmt.GetRHS()->IsGcmalloc())) {
+    return;
+  }
+  auto *rhs = static_cast<GcmallocMeExpr*>(stmt.GetRHS());
+  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhs->GetTyIdx());
+  Klass *klass = klassHierarchy.GetKlassFromStrIdx(type->GetNameStrIdx());
+  CHECK_FATAL(klass != nullptr, "null ptr check");
+  if (klass->IsExceptionKlass()) {
+    exceptionAllocsites[lhs->GetVstIdx()] = &stmt;
+  } else {
+    // add a localrefvar temp to compensate incref with new object
+    BB *bb = stmt.GetBB();
+    CHECK_FATAL(bb != nullptr, "bb nullptr check");
+    AssignMeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *lhs, *bb);
+    bb->InsertMeStmtAfter(&stmt, backup);
+  }
+}
+
+void RCLowering::FastLowerAssignToIvar(MeStmt &stmt) {
+  // only handle lhs
+  MeExpr *rhs = stmt.GetRHS();
+  ASSERT_NOT_NULL(rhs);
+  bool incWithLHS = stmt.NeedIncref();
+  bool decWithLHS = stmt.NeedDecref();
+  if (!incWithLHS && (rhs->GetOp() == OP_regread)) {
+    // check for regread
+    auto *rhsVar = static_cast<RegMeExpr*>(rhs);
+    if (rhsVar->GetDefBy() == kDefByStmt) {
+      incWithLHS = rhsVar->GetDefStmt()->NeedIncref();
+    } else {
+      // callassign is fine as IncRef has been done inside call, just skip
+      ASSERT(rhsVar->GetDefBy() == kDefByMustDef, "not supported yet");
+    }
+  }
+  if (!incWithLHS && !decWithLHS) {
+    return;
+  }
+  HandleAssignMeStmtRHS(stmt);
+  rhs = stmt.GetRHS();
+  IvarMeExpr *lhs = (static_cast<IassignMeStmt&>(stmt)).GetLHSVal();
+  BB *bb = stmt.GetBB();
+  CHECK_FATAL(bb != nullptr, "bb nullptr check");
+  if (lhs->IsVolatile()) {
+    CheckRemove(stmt.GetPrev(), OP_membarrelease);
+    CheckRemove(stmt.GetNext(), OP_membarstoreload);
+  }
+  std::vector<MeExpr*> opnds = { &lhs->GetBase()->GetAddrExprBase(), irMap.CreateAddrofMeExpr(*lhs), rhs };
+  IntrinsiccallMeStmt *writeRefCall = CreateRCIntrinsic(SelectWriteBarrier(stmt), stmt, opnds);
+  bb->ReplaceMeStmt(&stmt, writeRefCall);
+  CheckArrayStore(*writeRefCall);
+}
+
+void RCLowering::FastLowerCallAssignedStmt(MeStmt &stmt) {
+  MapleVector<MustDefMeNode> *mustDefs = stmt.GetMustDefList();
+  ASSERT_NOT_NULL(mustDefs);
+
+  BB *bb = stmt.GetBB();
+  CHECK_FATAL(bb != nullptr, "bb null ptr check");
+  if (mustDefs->empty()) {
+    // introduce a ret and decref on it
+    RegMeExpr *curTmp = irMap.CreateRegMeExpr(PTY_ref);
+    ASSERT_NOT_NULL(stmt.GetMustDefList());
+    stmt.GetMustDefList()->push_back(MustDefMeNode(curTmp, &stmt));
+    std::vector<MeExpr*> opnds = { curTmp };
+    IntrinsiccallMeStmt *decRefCall = CreateRCIntrinsic(INTRN_MCCDecRef, stmt, opnds);
+    bb->InsertMeStmtAfter(&stmt, decRefCall);
+  } else {
+    CHECK_FATAL(mustDefs->size() == 1, "return val count check");
+    MeExpr *lhs = mustDefs->front().GetLHS();
+    if (lhs->GetMeOp() != kMeOpVar) {
+      return;
+    }
+    const OriginalSt *ost = static_cast<VarMeExpr*>(lhs)->GetOst();
+    if (!ost->IsSymbolOst()) {
+      return;
+    }
+    const MIRSymbol *retSym = ost->GetMIRSymbol();
+    // if retSym is null, that means we do not need decref
+    // to offset the incref before function return, just break
+    if (retSym == nullptr || retSym->IgnoreRC()) {
+      return;
+    }
+    // insert localrefvar for decref on ret
+    AssignMeStmt *backup = irMap.CreateAssignMeStmt(*CreateNewTmpVarMeExpr(true), *lhs, *bb);
+    bb->InsertMeStmtAfter(&stmt, backup);
+  }
+}
+
 AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
+  auto *kh = static_cast<KlassHierarchy*>(moduleResMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+  ASSERT_NOT_NULL(kh);
   if (func->GetIRMap() == nullptr) {
     auto *hmap = static_cast<MeIRMap*>(funcResMgr->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
     CHECK_FATAL(hmap != nullptr, "hssamap has problem");
     func->SetIRMap(hmap);
   }
   CHECK_FATAL(func->GetMeSSATab() != nullptr, "ssatab has problem");
-  RCLowering rcLowering(*func, DEBUGFUNC(func));
+  RCLowering rcLowering(*func, *kh, DEBUGFUNC(func));
 
   rcLowering.Prepare();
+  if (!rcLowering.GetIsAnalyzed()) {
+    auto *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+    CHECK_FATAL(dom != nullptr, "dominance phase has problem");
+    rcLowering.SetDominance(*dom);
+  }
+  MIRFunction *mirFunction = func->GetMirFunc();
+  if (whiteListFunc.find(mirFunction->GetName()) != whiteListFunc.end() ||
+      mirFunction->GetAttr(FUNCATTR_rclocalunowned)) {
+    auto eIt = func->valid_end();
+    for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+      auto *bb = *bIt;
+      rcLowering.FastBBLower(*bb);
+    }
+    rcLowering.Finish();
+    return nullptr;
+  }
   rcLowering.PreRCLower();
   rcLowering.RCLower();
   // handle all the extra RC work

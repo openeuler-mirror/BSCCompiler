@@ -41,6 +41,7 @@ class IRMap : public AnalysisResult {
   virtual BB *GetBBForLabIdx(LabelIdx lidx, PUIdx pidx = 0) = 0;
   MeExpr *HashMeExpr(MeExpr &meExpr);
   IvarMeExpr *BuildLHSIvarFromIassMeStmt(IassignMeStmt &iassignMeStmt);
+  IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx &tyIdx, FieldID fieldID);
   IvarMeExpr *BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID);
   MeExpr *CreateAddrofMeExpr(MeExpr&);
   MeExpr *CreateAddroffuncMeExpr(PUIdx);
@@ -53,6 +54,7 @@ class IRMap : public AnalysisResult {
   VarMeExpr *CreateVarMeExprVersion(const VarMeExpr &varx) {
     return CreateVarMeExprVersion(varx.GetOst());
   }
+  RegMeExpr *CreateRegRefMeExpr(const MeExpr &meExpr);
   VarMeExpr *GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost);
   VarMeExpr *CreateNewVar(GStrIdx strIdx, PrimType primType, bool isGlobal);
   VarMeExpr *CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx);
@@ -87,9 +89,8 @@ class IRMap : public AnalysisResult {
     return meExpr;
   }
 
-  DassignMeStmt *CreateDassignMeStmt(MeExpr&, MeExpr&, BB&);
   IassignMeStmt *CreateIassignMeStmt(TyIdx, IvarMeExpr&, MeExpr&, const MapleMap<OStIdx, ChiMeNode*>&);
-  RegassignMeStmt *CreateRegassignMeStmt(MeExpr&, MeExpr&, BB&);
+  AssignMeStmt *CreateAssignMeStmt(ScalarMeExpr&, MeExpr&, BB&);
   void InsertMeStmtBefore(BB&, MeStmt&, MeStmt&);
   MePhiNode *CreateMePhi(ScalarMeExpr&);
 
@@ -117,7 +118,7 @@ class IRMap : public AnalysisResult {
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
-  IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, MeExpr *ret,
+  IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, ScalarMeExpr *ret,
                                                          TyIdx tyIdx = TyIdx());
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
