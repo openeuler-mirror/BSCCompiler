@@ -1504,6 +1504,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   /* total size of emitted elements size. */
   uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
   uint32 fieldIdx = 1;
+  if (structType.GetKind() == kTypeUnion) {
+    fieldIdx = structCt.GetConstVecItem(0)->GetFieldId();
+  }
   for (uint32 i = 0; i < num; ++i) {
     if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
       isFlexibleArray = Globals::GetInstance()->GetBECommon()->GetHasFlexibleArray(mirType.GetTypeIndex().GetIdx());
