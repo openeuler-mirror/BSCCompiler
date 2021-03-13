@@ -92,7 +92,7 @@ void PlacementRC::HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt) {
   }
 
   // Generate a copy to tempVar and regard this as the last use of workCand
-  DassignMeStmt *newDass = irMap->CreateDassignMeStmt(*tempVar, *realOcc.GetVar(), realOcc.GetBB());
+  DassignMeStmt *newDass = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*tempVar, *realOcc.GetVar(), realOcc.GetBB()));
   newDass->SetSrcPos(thwStmt.GetSrcPosition());
   newDass->EnableNeedDecref();
   tempVar->SetDefByStmt(*newDass);
@@ -105,8 +105,8 @@ void PlacementRC::HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt) {
   realOcc.GetBB().InsertMeStmtBefore(newDass, decrefStmt);
   // Store nullptr into workCand
   VarMeExpr *candVar = irMap->CreateVarMeExprVersion(*realOcc.GetVar());
-  DassignMeStmt *resetDass =
-      irMap->CreateDassignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
+  AssignMeStmt *resetDass =
+      irMap->CreateAssignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
   resetDass->SetSrcPos(thwStmt.GetSrcPosition());
   candVar->SetDefByStmt(*resetDass);
   realOcc.GetBB().InsertMeStmtBefore(&thwStmt, resetDass);
@@ -258,13 +258,13 @@ void PlacementRC::CheckAndInsert(BB &bb, SOcc *occ) {
       CHECK_FATAL(mustDefList != nullptr, "mustdef list must be not nullptr.");
       CHECK_FATAL(!mustDefList->empty(), "mustdef list must be not empty.");
       MustDefMeNode *mustDefMeNode = &mustDefList->front();
-      MeExpr *mdLHS = mustDefMeNode->GetLHS();
+      ScalarMeExpr *mdLHS = mustDefMeNode->GetLHS();
       ASSERT(mdLHS->GetMeOp() == kMeOpVar, "MeExprOp of mustDefMeNode lhs must be kMeOpVar");
       ASSERT(static_cast<VarMeExpr *>(mdLHS)->GetOstIdx() == workCand->GetTheVar()->GetOstIdx(), "ostIdx not equal");
       RegMeExpr *curReg = irMap->CreateRegMeExpr(PTY_ref);
       mustDefMeNode->UpdateLHS(*curReg);
       // Create new dassign for original lhs
-      MeStmt *newDass = irMap->CreateDassignMeStmt(*mdLHS, *curReg, bb);
+      MeStmt *newDass = irMap->CreateAssignMeStmt(*mdLHS, *curReg, bb);
       mdLHS->SetDefByStmt(*newDass);
       newDass->SetSrcPos(defStmt->GetSrcPosition());
       bb.InsertMeStmtAfter(defStmt, newDass);
@@ -450,7 +450,7 @@ void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryI
 
   // Store nullptr into workCand
   VarMeExpr *candVar = irMap->CreateVarMeExprVersion(*realOcc.GetVar());
-  auto *resetDass = irMap->CreateDassignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
+  auto *resetDass = irMap->CreateAssignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
   resetDass->SetSrcPos(entryIncref->GetSrcPosition());
   candVar->SetDefByStmt(*resetDass);
   func->GetFirstBB()->InsertMeStmtBefore(entryIncref, resetDass);
@@ -473,7 +473,7 @@ void PlacementRC::ReplaceOpndWithReg(MeExpr &opnd, BB &lastUseBB, const SRealOcc
   // Save this operand in a preg
   RegMeExpr *curReg = opnd.GetPrimType() != PTY_ref ? irMap->CreateRegMeExpr(opnd.GetPrimType())
                                                     : irMap->CreateRegMeExpr(opnd);
-  MeStmt *regAss = irMap->CreateRegassignMeStmt(*curReg, opnd, lastUseBB);
+  MeStmt *regAss = irMap->CreateAssignMeStmt(*curReg, opnd, lastUseBB);
   curReg->SetDefByStmt(*regAss);
   lastUseBB.InsertMeStmtBefore(realOcc.GetStmt(), regAss);
 
@@ -488,7 +488,7 @@ void PlacementRC::HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt 
     CHECK_NULL_FATAL(mustDefList);
     if (!mustDefList->empty()) {
       MustDefMeNode *mustDefMeNode = &mustDefList->front();
-      MeExpr *mdLHS = mustDefMeNode->GetLHS();
+      ScalarMeExpr *mdLHS = mustDefMeNode->GetLHS();
       if (!realOcc.GetRealFromDef()) {
         if (mdLHS->GetMeOp() == kMeOpVar &&
             static_cast<VarMeExpr*>(mdLHS)->GetOst() == realOcc.GetVar()->GetOst()) {
@@ -496,7 +496,7 @@ void PlacementRC::HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt 
           mustDefMeNode->UpdateLHS(*curReg);
 
           // Create new dassign for original lhs
-          MeStmt *newDass = irMap->CreateDassignMeStmt(*mdLHS, *curReg, lastUseBB);
+          MeStmt *newDass = irMap->CreateAssignMeStmt(*mdLHS, *curReg, lastUseBB);
           mdLHS->SetDefByStmt(*newDass);
           newDass->SetSrcPos(realOcc.GetStmt()->GetSrcPosition());
           lastUseBB.InsertMeStmtAfter(realOcc.GetStmt(), newDass);
@@ -596,7 +596,7 @@ void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
   if (realOcc.GetVar()->PointsToStringLiteral()) {
     MeExpr *zeroExpr = irMap->CreateIntConstMeExpr(0, realOcc.GetVar()->GetPrimType());
     VarMeExpr *newVar = irMap->CreateVarMeExprVersion(*realOcc.GetVar());
-    DassignMeStmt *newstmt = irMap->CreateDassignMeStmt(*newVar, *zeroExpr, realOcc.GetBB());
+    DassignMeStmt *newstmt = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*newVar, *zeroExpr, realOcc.GetBB()));
     realOcc.GetBB().ReplaceMeStmt(decrefStmt, newstmt);
     return;
   }
@@ -739,7 +739,7 @@ void PlacementRC::ReplaceRHSWithPregForDassign(MeStmt &stmt, BB &bb) const {
       DassignMeStmt &dass = static_cast<DassignMeStmt&>(stmt);
       if (IsDereferenced(*dass.GetRHS(), ost->GetIndex())) {
         RegMeExpr *regTemp = irMap->CreateRegMeExpr(*theLHS);
-        RegassignMeStmt *rass = irMap->CreateRegassignMeStmt(*regTemp, *dass.GetRHS(), bb);
+        AssignMeStmt *rass = irMap->CreateAssignMeStmt(*regTemp, *dass.GetRHS(), bb);
         regTemp->SetDefByStmt(*rass);
         bb.InsertMeStmtBefore(&stmt, rass);
         dass.SetRHS(regTemp);
@@ -777,7 +777,7 @@ bool PlacementRC::DoesDassignInsertedForCallAssigned(MeStmt &stmt, BB &bb) const
   CHECK_NULL_FATAL(mustDefList);
   CHECK_FATAL(!mustDefList->empty(), "container check");
   mustDefList->front().UpdateLHS(*regTemp);
-  DassignMeStmt *dass = irMap->CreateDassignMeStmt(*theLHS, *regTemp, bb);
+  DassignMeStmt *dass = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*theLHS, *regTemp, bb));
   theLHS->SetDefByStmt(*dass);
   bb.InsertMeStmtAfter(&stmt, dass);
   return true;

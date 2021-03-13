@@ -62,7 +62,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       }
       // create and insert regassign before dass
       RegMeExpr *lhsReg = irMap->CreateRegMeExprVersion(*curTemp);
-      RegassignMeStmt *rass = irMap->CreateRegassignMeStmt(*lhsReg, *dass->GetRHS(), bb);
+      AssignMeStmt *rass = irMap->CreateAssignMeStmt(*lhsReg, *dass->GetRHS(), bb);
       rass->SetSrcPos(itStmt->GetSrcPosition());
       lhsReg->SetDefByStmt(*rass);
       bb.InsertMeStmtBefore(dass, rass);
@@ -89,7 +89,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
         RegMeExpr *lhsReg = irMap->CreateRegMeExprVersion(*curTemp);
         mustDefList->front().UpdateLHS(*lhsReg);
         // create dassign
-        DassignMeStmt *dass = irMap->CreateDassignMeStmt(*lhsVar, *lhsReg, bb);
+        AssignMeStmt *dass = irMap->CreateAssignMeStmt(*lhsVar, *lhsReg, bb);
         dass->SetSrcPos(itStmt->GetSrcPosition());
         lhsVar->SetDefByStmt(*dass);
         bb.InsertMeStmtAfter(to_ptr(itStmt), dass);
@@ -117,7 +117,7 @@ RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
       regPhi->GetOpnds().push_back(regPhiOpnd);
     }
     // insert the regPhi
-    (void)bb.GetMePhiList().insert(std::make_pair(lhsReg->GetOst()->GetIndex(), regPhi));
+    (void)bb.GetMePhiList().insert(std::make_pair(lhsReg->GetOstIdx(), regPhi));
     return lhsReg;
   }
   // continue at immediate dominator
@@ -145,7 +145,7 @@ void MeStorePre::CodeMotion() {
       CheckCreateCurTemp();
       CHECK_FATAL(insertBB->GetPred().size() == 1, "CodeMotion: encountered critical edge");
       RegMeExpr *rhsReg = EnsureRHSInCurTemp(*insertBB->GetPred(0));
-      DassignMeStmt *newDass = irMap->CreateDassignMeStmt(*lhsVar, *rhsReg, *insertBB);
+      AssignMeStmt *newDass = irMap->CreateAssignMeStmt(*lhsVar, *rhsReg, *insertBB);
       lhsVar->SetDefByStmt(*newDass);
       // insert at earliest point in BB, but after statements required to be
       // first statements in BBG
@@ -198,7 +198,7 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
   if (mapIt != workCandMap.end()) {
     wkCand = mapIt->second;
   } else {
-    const OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
+    OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
     wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
     workCandMap[ostIdx] = wkCand;
     // if it is local symbol, insert artificial real occ at common_exit_bb
@@ -263,7 +263,7 @@ void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) const {
     auto *var = static_cast<const VarMeExpr*>(&meExpr);
     const OriginalSt *ost = var->GetOst();
     if (!ost->IsVolatile()) {
-      CreateUseOcc(var->GetOst()->GetIndex(), bb);
+      CreateUseOcc(var->GetOstIdx(), bb);
     }
     return;
   }
@@ -308,7 +308,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
     if (stmt->GetOp() == OP_dassign) {
       auto *dass = static_cast<DassignMeStmt*>(to_ptr(stmt));
       if (dass->GetLHS()->GetPrimType() != PTY_ref) {
-        lhsOstIdx = dass->GetVarLHS()->GetOst()->GetIndex();
+        lhsOstIdx = dass->GetVarLHS()->GetOstIdx();
       }
     } else if (kOpcodeInfo.IsCallAssigned(stmt->GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt->GetMustDefList();
@@ -316,7 +316,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
       if (!mustDefList->empty()) {
         MeExpr *mdLHS = mustDefList->front().GetLHS();
         if (mdLHS->GetMeOp() == kMeOpVar && mdLHS->GetPrimType() != PTY_ref) {
-          lhsOstIdx = static_cast<VarMeExpr*>(mdLHS)->GetOst()->GetIndex();
+          lhsOstIdx = static_cast<VarMeExpr*>(mdLHS)->GetOstIdx();
         }
       }
     }

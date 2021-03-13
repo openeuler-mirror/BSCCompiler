@@ -24,6 +24,22 @@
 // accumulate the BBs that are in the iterated dominance frontiers of bb in
 // the set dfset, visiting each BB only once
 namespace maple {
+static bool IsParaAndRetTypeRefOrPtr(const CallMeStmt &stmt) {
+  const MIRFunction &func = stmt.GetTargetFunction();
+  if (func.GetName() == "MCC_GetOrInsertLiteral") {
+    return false;
+  }
+  for (auto it : stmt.GetOpnds()) {
+    if (it->GetPrimType() == PTY_ref || it->GetPrimType() == PTY_ptr) {
+      return true;
+    }
+  }
+  const MeExpr *expr = stmt.GetAssignedLHS();
+  if (expr != nullptr && (expr->GetPrimType() == PTY_ref || expr->GetPrimType() == PTY_ptr)) {
+    return true;
+  }
+  return false;
+}
 
 void MeStmtPre::GetIterDomFrontier(const BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) const {
   CHECK_FATAL(bb.GetBBId() < visitedMap.size(), "index out of range in MeStmtPre::GetIterDomFrontier");
@@ -91,7 +107,7 @@ void MeStmtPre::CodeMotion() {
               }
               // create a new LHS for the dassign in insertedOcc->GetMeStmt()
               VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*dass->GetVarLHS());
-              dass->UpdateLHS(*newVarVersion);
+              dass->UpdateLhs(newVarVersion);
             } else if (insertedOcc->GetOpcodeOfMeStmt() == OP_callassigned) {
               auto *call = static_cast<CallMeStmt*>(insertedOcc->GetMeStmt());
               if (call->GetAssignedLHS() != nullptr) {
@@ -988,6 +1004,45 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_callassigned: {
         auto &callAss = static_cast<CallMeStmt&>(stmt);
         VersionStackChiListUpdate(*callAss.GetChiList());
+        MIRFunction &callee = callAss.GetTargetFunction();
+        if (!callAss.GetChiList()->empty() || !callee.IsPure() || !callee.IsNoThrowException()) {
+          break;
+        }
+        if (IsParaAndRetTypeRefOrPtr(callAss)) {
+          break;
+        }
+
+        bool allOperandsAreLeafAndPure = true;
+        for (MeExpr *o : callAss.GetOpnds()) {
+          if (!o->IsLeaf() || !o->Pure()) {
+            allOperandsAreLeafAndPure = false;
+            break;
+          }
+        }
+        if (!allOperandsAreLeafAndPure) {
+          break;
+        }
+        if (callAss.GetMustDefList()->empty()) {
+          (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
+          break;
+        }
+        VarMeExpr &varMeExpr = utils::ToRef(safe_cast<VarMeExpr>(callAss.GetMustDefList()->front().GetLHS()));
+        const OriginalSt *ost = ssaTab->GetOriginalStFromID(varMeExpr.GetOstIdx());
+        if (ost->IsFinal()) {
+          PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
+          stmtWkCand->SetLHSIsFinal(true);
+        } else {
+          bool allOperandFeasible = true;
+          for (MeExpr *o : callAss.GetOpnds()) {
+            if (o->SymAppears(varMeExpr.GetOstIdx())) {
+              allOperandFeasible = false;
+              break;
+            }
+          }
+          if (allOperandFeasible && NoPriorUseInBB(&varMeExpr, &stmt)) {
+            (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
+          }
+        }
         break;
       }
       default:

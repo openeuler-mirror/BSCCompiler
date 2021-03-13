@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -43,7 +43,8 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         mirModule.GetOut() << "========== HSSA DSE is deleting this stmt: ";
         meStmt.Dump(&irMap);
       }
-      if (meStmt.GetOp() != OP_dassign && (meStmt.IsCondBr() || meStmt.GetOp() == OP_switch || meStmt.GetOp() == OP_igoto)) {
+      if (meStmt.GetOp() != OP_dassign &&
+          (meStmt.IsCondBr() || meStmt.GetOp() == OP_switch || meStmt.GetOp() == OP_igoto)) {
         // update CFG
         while (bb.GetSucc().size() != 1) {
           BB *succ = bb.GetSucc().back();
@@ -339,7 +340,7 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
              (decoupleStatic && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
     }
     case OP_regassign: {
-      auto &rasgn = static_cast<const RegassignMeStmt&>(meStmt);
+      auto &rasgn = static_cast<const AssignMeStmt&>(meStmt);
       return ExprNonDeletable(*rasgn.GetRHS());
     }
     case OP_maydassign:

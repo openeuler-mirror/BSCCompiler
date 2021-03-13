@@ -42,7 +42,7 @@ class IRMapBuild {
   RegMeExpr *GetOrCreateRegFromVerSt(const VersionSt &vst);
 
   MeExpr *BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt);
-  MeExpr *BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign);
+  MeExpr *BuildLHSReg(const VersionSt &vst, AssignMeStmt &defMeStmt, const RegassignNode &regassign);
   void BuildChiList(MeStmt&, TypeOfMayDefList&, MapleMap<OStIdx, ChiMeNode*>&);
   void BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList&, MapleVector<MustDefMeNode>&);
   void BuildMuList(TypeOfMayUseList&, MapleMap<OStIdx, VarMeExpr*>&);
@@ -79,7 +79,7 @@ class IRMapBuild {
 
   MeStmt *BuildMeStmtWithNoSSAPart(StmtNode &stmt);
   MeStmt *BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
-  MeStmt *BuildRegassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
+  MeStmt *BuildAssignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
   MeStmt *BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
   MeStmt *BuildMaydassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
   MeStmt *BuildCallMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart);
