@@ -1469,7 +1469,8 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
       }
     } else if (elemConst->GetType().GetKind() == kTypeArray) {
       EmitArrayConstant(*elemConst);
-    } else if (elemConst->GetType().GetKind() == kTypeStruct || elemConst->GetType().GetKind() == kTypeClass) {
+    } else if (elemConst->GetType().GetKind() == kTypeStruct || elemConst->GetType().GetKind() == kTypeClass ||
+               elemConst->GetType().GetKind() == kTypeUnion) {
       EmitStructConstant(*elemConst);
     } else {
       ASSERT(false, "should not run here");
@@ -1535,7 +1536,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
         if (IsPrimitiveScalar(elemType.GetPrimType())) {
           EmitScalarConstant(*elemConst, true, false, true);
         } else if (elemType.GetKind() == kTypeArray) {
-          EmitArrayConstant(*elemConst);
+          if (elemType.GetSize() != 0) {
+            EmitArrayConstant(*elemConst);
+          }
         } else if ((elemType.GetKind() == kTypeStruct) || (elemType.GetKind() == kTypeClass)) {
           EmitStructConstant(*elemConst);
         } else {
