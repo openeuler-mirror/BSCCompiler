@@ -68,3 +68,6 @@ Open the front end, back end, and compilation optimization of compilers. Support
 
 ## License
 - [LICENSE](license/LICENSE)
+
+## Real-time Chat Channel
+- [Discard-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
