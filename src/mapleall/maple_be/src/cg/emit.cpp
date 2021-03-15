@@ -1451,7 +1451,19 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
   MIRAggConst &arrayCt = static_cast<MIRAggConst&>(mirConst);
   MIRArrayType &arrayType = static_cast<MIRArrayType&>(mirType);
   size_t uNum = arrayCt.GetConstVec().size();
-  int64 iNum = (arrayType.GetSizeArrayItem(0) > 0) ? (static_cast<int64>(arrayType.GetSizeArrayItem(0))) - uNum : 0;
+  uint32 dim = arrayType.GetSizeArrayItem(0);
+  TyIdx scalarIdx = arrayType.GetElemTyIdx();
+  if (uNum == 0 && dim) {
+    MIRType *subTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(scalarIdx);
+    while (subTy->GetKind() == kTypeArray) {
+      MIRArrayType *aSubTy = static_cast<MIRArrayType *>(subTy);
+      if (aSubTy->GetSizeArrayItem(0) > 0) {
+        dim *= (aSubTy->GetSizeArrayItem(0));
+      }
+      scalarIdx = aSubTy->GetElemTyIdx();
+      subTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(scalarIdx);
+    }
+  }
   for (size_t i = 0; i < uNum; ++i) {
     MIRConst *elemConst = arrayCt.GetConstVecItem(i);
     if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
@@ -1476,13 +1488,19 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
       ASSERT(false, "should not run here");
     }
   }
+  int64 iNum = (arrayType.GetSizeArrayItem(0) > 0) ? (static_cast<int64>(arrayType.GetSizeArrayItem(0))) - uNum : 0;
   if (iNum > 0) {
     CHECK_FATAL(!Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeSizeTable(), "container empty check");
     CHECK_FATAL(!arrayCt.GetConstVec().empty(), "container empty check");
-    uint64 unInSizeInByte = static_cast<uint64>(iNum) * static_cast<uint64>(
-        Globals::GetInstance()->GetBECommon()->GetTypeSize(arrayCt.GetConstVecItem(0)->GetType().GetTypeIndex()));
-    if (unInSizeInByte != 0) {
-      EmitNullConstant(unInSizeInByte);
+    if (uNum > 0) {
+      uint64 unInSizeInByte = static_cast<uint64>(iNum) * static_cast<uint64>(
+          Globals::GetInstance()->GetBECommon()->GetTypeSize(arrayCt.GetConstVecItem(0)->GetType().GetTypeIndex()));
+      if (unInSizeInByte != 0) {
+        EmitNullConstant(unInSizeInByte);
+      }
+    } else {
+      uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(scalarIdx.GetIdx()) * dim;
+      Emit("\t.zero\t").Emit(size).Emit("\n");
     }
   }
   Emit("\n");
