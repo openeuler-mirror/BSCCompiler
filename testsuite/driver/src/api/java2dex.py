@@ -24,5 +24,5 @@ class Java2dex(ShellOperator):
         self.infile = infile
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/build/java2dex  -o " + self.outfile + " -p " + ":".join(self.jar_file) + " -i " + ":".join(self.infile)
+        self.command = "bash ${MAPLE_ROOT}/build/java2dex  -o " + self.outfile + " -p " + ":".join(self.jar_file) + " -i " + ":".join(self.infile)
         return super().get_final_command(variables)
