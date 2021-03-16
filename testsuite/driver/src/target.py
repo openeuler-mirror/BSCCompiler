@@ -19,7 +19,7 @@ from env_var import EnvVar
 
 class Target(object):
 
-    case_regx = re.compile('^[A-Z]{1,5}[0-9]{3,10}-[a-zA-Z0-9_.]')
+    case_regx = re.compile('^[A-Z]{1,9}[0-9]{3,10}-[a-zA-Z0-9_.]')
     module_regx = re.compile('^[a-z0-9_]{1,20}_test$')
 
     def __init__(self, target):
