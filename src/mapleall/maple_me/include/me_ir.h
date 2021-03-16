@@ -1202,6 +1202,8 @@ class MeStmt {
     return false;
   }
 
+  virtual void SetNeedIncref(bool val = true) {}
+
   virtual void EnableNeedIncref() {}
 
   virtual void DisableNeedIncref() {}
@@ -1505,8 +1507,16 @@ class AssignMeStmt : public MeStmt {
     return needIncref;
   }
 
-  void SetNeedIncref(bool value) {
+  void SetNeedIncref(bool value = true) {
     needIncref = value;
+  }
+
+  void EnableNeedIncref() {
+    needIncref = true;
+  }
+
+  void DisableNeedIncref() {
+    needIncref = false;
   }
 
   bool NeedDecref() const {
@@ -1658,6 +1668,10 @@ class MaydassignMeStmt : public MeStmt {
     return needIncref;
   }
 
+  void SetNeedIncref(bool val = true) {
+    needIncref = val;
+  }
+
   void EnableNeedIncref() {
     needIncref = true;
   }
@@ -1792,6 +1806,10 @@ class IassignMeStmt : public MeStmt {
 
   bool NeedIncref() const {
     return needIncref;
+  }
+
+  void SetNeedIncref(bool val = true) {
+    needIncref = val;
   }
 
   void EnableNeedIncref() {
