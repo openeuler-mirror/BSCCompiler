@@ -18,13 +18,6 @@ LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core
 LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 
-CLANG_PATH := $(MAPLE_ROOT)/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
-ifdef OLD_OS
-  ifeq ($(OLD_OS), 0)
-    CLANG_PATH := /usr
-  endif
-endif
-
 ifndef OPS_ANDROID
   OPS_ANDROID := 0
 endif
@@ -63,7 +56,7 @@ LDS := $(MAPLE_ROOT)/src/mrt/maplert/linker/maplelld.so.lds
 DUPLICATE_DIR := $(MAPLE_ROOT)/src/mrt/codetricks/arch/arm64
 
 ifeq ($(OPS_ANDROID), 0)
-    QEMU_CLANG_CPP := $(CLANG_PATH)/bin/clang++
+    QEMU_CLANG_CPP := $(CLANG_PATH)/clang++
 else
     QEMU_CLANG_CPP := $(ANDROID_CLANG_PATH)/bin/clang++
 endif
