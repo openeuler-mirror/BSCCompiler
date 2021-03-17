@@ -25,9 +25,11 @@ class AArch64SymbolAlloc : public SymbolAlloc {
 
   ~AArch64SymbolAlloc() = default;
 
-  void SetRegisters(AArch64reg r0, AArch64reg r1) {
+  void SetRegisters(AArch64reg r0, AArch64reg r1, AArch64reg r2, AArch64reg r3) {
     reg0 = r0;
     reg1 = r1;
+    reg2 = r2;
+    reg3 = r3;
   }
 
   inline bool IsRegister() {
@@ -37,6 +39,8 @@ class AArch64SymbolAlloc : public SymbolAlloc {
  private:
   AArch64reg reg0 = kRinvalid;
   AArch64reg reg1 = kRinvalid;
+  AArch64reg reg2 = kRinvalid;
+  AArch64reg reg3 = kRinvalid;
 };
 
 /*
@@ -195,7 +199,7 @@ class AArch64MemLayout : public MemLayout {
   MemSegment segGrSaveArea = MemSegment(kMsGrSaveArea);
   MemSegment segVrSaveArea = MemSegment(kMsVrSaveArea);
   int32 fixStackSize = 0;
-  void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align);
+  void SetSizeAlignForTypeIdx(uint32 typeIdx, uint32 &size, uint32 &align) const;
   void SetSegmentSize(AArch64SymbolAlloc &symbolAlloc, MemSegment &segment, uint32 typeIdx);
   void LayoutVarargParams();
   void LayoutFormalParams();

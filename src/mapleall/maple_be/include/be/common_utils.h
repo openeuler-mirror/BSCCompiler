@@ -45,6 +45,7 @@ constexpr uint32 k1ByteSize = 1;
 constexpr uint32 k2ByteSize = 2;
 constexpr uint32 k4ByteSize = 4;
 constexpr uint32 k8ByteSize = 8;
+constexpr uint32 k12ByteSize = 12;
 constexpr uint32 k14ByteSize = 14;
 constexpr uint32 k15ByteSize = 15;
 constexpr uint32 k16ByteSize = 16;
@@ -69,6 +70,7 @@ constexpr int32 kInsnEighthOpnd = 7;
 /* Number of registers */
 constexpr uint32 kOneRegister = 1;
 constexpr uint32 kTwoRegister = 2;
+constexpr uint32 kFourRegister = 4;
 
 /* Size of struct for memcpy */
 constexpr uint32 kParmMemcpySize = 40;

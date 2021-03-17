@@ -524,6 +524,12 @@ class AArch64CGFunc : public CGFunc {
     regno_t regNOCatch;  /* For O2. */
     Operand *opndCatch;  /* For O0-O1. */
   } uCatch;
+  enum fpParamState {
+    kNotFp,
+    kFp32Bit,
+    kFp64Bit,
+    kStateUnknown,
+  };
   Operand *rcc = nullptr;
   Operand *vary = nullptr;
   Operand *fsp = nullptr;  /* used to point the address of local variables and formal parameters */
@@ -561,11 +567,12 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
-  void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds);
+  void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds,
+                                      fpParamState state);
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
   AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
-                                                      int32 copyOffset, AArch64reg reg);
+                                                      int32 copyOffset, PLocInfo &pLoc);
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          ParmLocator &parmLocator);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,

@@ -55,11 +55,14 @@ struct ExtFuncDescrT {
 
 namespace {
 std::pair<MIRIntrinsicID, const std::string> cgBuiltins[] = {
-  { INTRN_JAVA_ARRAY_LENGTH, "MCC_JavaArrayLength" },
-  { INTRN_JAVA_ARRAY_FILL, "MCC_JavaArrayFill" },
-  { INTRN_JAVA_CHECK_CAST, "MCC_JavaCheckCast" },
-  { INTRN_JAVA_INSTANCE_OF, "MCC_JavaInstanceOf" },
-  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_JavaPolymorphicCall" },
+  { INTRN_JAVA_ARRAY_LENGTH, "MCC_DexArrayLength" },
+  { INTRN_JAVA_ARRAY_FILL, "MCC_DexArrayFill" },
+  { INTRN_JAVA_CHECK_CAST, "MCC_DexCheckCast" },
+  { INTRN_JAVA_INSTANCE_OF, "MCC_DexInstanceOf" },
+  { INTRN_JAVA_INTERFACE_CALL, "MCC_DexInterfaceCall" },
+  { INTRN_JAVA_POLYMORPHIC_CALL, "MCC_DexPolymorphicCall" },
+  { INTRN_MCC_DeferredFillNewArray, "MCC_DeferredFillNewArray" },
+  { INTRN_MCC_DeferredInvoke, "MCC_DeferredInvoke" },
   { INTRN_JAVA_CONST_CLASS, "MCC_GetReferenceToClass" },
   { INTRN_JAVA_GET_CLASS, "MCC_GetClass" },
   { INTRN_MPL_SET_CLASS, "MCC_SetJavaClass" },
@@ -394,7 +397,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
   int dim = arrayType->GetDim();
   MIRType *innerType = nullptr;
   MIRArrayType *innerArrayType = nullptr;
-  uint32 elemSize = 0;
+  uint64 elemSize = 0;
   if (dim == 1) {
     innerType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType->GetElemTyIdx());
     if (innerType->GetKind() == kTypeArray) {
@@ -409,7 +412,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
     }
   }
 
-  int32 numIndex = array.NumOpnds() - 1;
+  int32 numIndex = static_cast<int>(array.NumOpnds()) - 1;
   MIRArrayType *curArrayType = arrayType;
   BaseNode *resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(0));
   if (dim > 1) {
@@ -426,22 +429,22 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
           innerType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(innerArrayType->GetElemTyIdx());
         }
       } else {
-        CHECK_FATAL(arrayType->GetSizeArrayItem(i) > 0, "Zero size array dimension");
+        CHECK_FATAL(arrayType->GetSizeArrayItem(static_cast<uint32>(i)) > 0, "Zero size array dimension");
         for (int j = i + 1; j < dim; j++) {
-          mpyDim *= arrayType->GetSizeArrayItem(j);
+          mpyDim *= arrayType->GetSizeArrayItem(static_cast<uint32>(j));
         }
       }
 
-      BaseNode *index = static_cast<ConstvalNode *>(array.GetIndex(i));
+      BaseNode *index = static_cast<ConstvalNode *>(array.GetIndex(static_cast<size_t>(i)));
       bool isConst = false;
-      int32 indexVal = 0;
+      int64 indexVal = 0;
       if (index->op == OP_constval) {
         ConstvalNode *constNode = static_cast<ConstvalNode *>(index);
         indexVal = (static_cast<MIRIntConst *>(constNode->GetConstVal()))->GetValue();
         isConst = true;
         MIRIntConst *newConstNode = mirModule.GetMemPool()->New<MIRIntConst>(
-                    indexVal * mpyDim,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            indexVal * static_cast<int64>(mpyDim),
+            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *newValNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(newConstNode);
         newValNode->SetPrimType(array.GetPrimType());
         if (i == 0) {
@@ -452,14 +455,14 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
         }
       }
       if (i > 0 && isConst == false) {
-        resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(i));
+        resNode = NodeConvert(array.GetPrimType(), *array.GetIndex(static_cast<size_t>(i)));
       }
 
       BaseNode *mpyNode;
       if (isConst) {
         MIRIntConst *mulConst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    mpyDim * indexVal,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            static_cast<int64>(mpyDim) * indexVal,
+            *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array.GetPrimType());
         mpyNode = mulSize;
@@ -470,8 +473,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
         mpyNode = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
         mpyNode->SetPrimType(array.GetPrimType());
         MIRIntConst *mulConst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    mpyDim,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+            mpyDim, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array.GetPrimType());
         mpyNode->SetOpnd(NodeConvert(array.GetPrimType(), *mulSize), 0);
@@ -492,7 +494,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
 
   BaseNode *rMul = nullptr;
   // esize is the size of the array element (eg. int = 4 long = 8)
-  uint32 esize;
+  uint64 esize;
   if (nestedArray) {
     esize = elemSize;
   } else {
@@ -504,17 +506,15 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
     ConstvalNode *idxNode = static_cast<ConstvalNode *>(resNode);
     int64 idx = static_cast<MIRIntConst *>(idxNode->GetConstVal())->GetValue();
     MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    idx * esize,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+        idx * static_cast<int64>(esize), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     rMul->SetPrimType(array.GetPrimType());
     if (dim == 1 && array.GetBase()->op == OP_addrof) {
       opadd = OP_CG_array_elem_add;
     }
   } else {
-    MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(
-                    esize,
-                    *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
+    MIRIntConst *econst = mirModule.GetMemPool()->New<MIRIntConst>(esize,
+        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     BaseNode *eSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     eSize->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
@@ -1050,6 +1050,7 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       auto &origCall = static_cast<CallNode&>(stmt);
       newCall = GenCallNode(stmt, funcCalled, origCall);
       p2nRets = &origCall.GetReturnVec();
+      static_cast<CallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_intrinsiccallassigned:
@@ -1067,12 +1068,14 @@ BlockNode *CGLowerer::LowerCallAssignedStmt(StmtNode &stmt) {
       }
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, intrincall);
       p2nRets = &intrincall.GetReturnVec();
+      static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_intrinsiccallwithtypeassigned: {
       auto &origCall = static_cast<IntrinsiccallNode&>(stmt);
       newCall = GenIntrinsiccallNode(stmt, funcCalled, handledAtLowerLevel, origCall);
       p2nRets = &origCall.GetReturnVec();
+      static_cast<IntrinsiccallNode *>(newCall)->SetReturnVec(*p2nRets);
       break;
     }
     case OP_icallassigned: {
@@ -1202,7 +1205,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         newBlk->AddStatement(stmt);
         break;
       case OP_throw:
-        if (mirModule.GetSrcLang() == kSrcLangJava) {
+        if (mirModule.IsJavaModule()) {
           if (GenerateExceptionHandlingCode()) {
             LowerStmt(*stmt, *newBlk);
             newBlk->AddStatement(stmt);
@@ -1792,8 +1795,7 @@ LabelIdx CGLowerer::GetLabelIdx(MIRFunction &curFunc) const {
 }
 
 void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
-  bool needProcessArrayExpr =
-      !ShouldOptarray() && ((mirModule.GetSrcLang() == kSrcLangDex) || (mirModule.GetSrcLang() == kSrcLangJava));
+  bool needProcessArrayExpr = !ShouldOptarray() && mirModule.IsJavaModule();
   if (!needProcessArrayExpr) {
     return;
   }
@@ -1911,6 +1913,7 @@ BaseNode *CGLowerer::LowerExpr(const BaseNode &parent, BaseNode &expr, BlockNode
       return LowerIntrinsicop(parent, static_cast<IntrinsicopNode&>(expr), blkNode);
 
     case OP_alloca: {
+      GetCurrentFunc()->SetVlaOrAlloca(true);
       return &expr;
     }
     case OP_rem:
@@ -2819,7 +2822,7 @@ void CGLowerer::LowerGCMalloc(const BaseNode &node, const GCMallocNode &gcmalloc
   auto *curFunc = mirModule.CurFunction();
   if (classSym->GetAttr(ATTR_abstract) || classSym->GetAttr(ATTR_interface)) {
     MIRFunction *funcSecond = mirBuilder->GetOrCreateFunction("MCC_Reflect_ThrowInstantiationError",
-                                                             (TyIdx)(LOWERED_PTR_TYPE));
+                                                              (TyIdx)(LOWERED_PTR_TYPE));
     funcSecond->AllocSymTab();
     BaseNode *arg = mirBuilder->CreateExprAddrof(0, *classSym);
     if (node.GetOpCode() == OP_dassign) {
@@ -3024,8 +3027,7 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
     CleanupBranches(func);
   }
 
-  if (mirModule.GetSrcLang() == kSrcLangJava && func.GetBody()->GetFirst() &&
-      GenerateExceptionHandlingCode()) {
+  if (mirModule.IsJavaModule() && func.GetBody()->GetFirst() && GenerateExceptionHandlingCode()) {
     LowerTryCatchBlocks(*func.GetBody());
   }
 }
