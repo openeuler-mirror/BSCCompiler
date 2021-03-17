@@ -56,7 +56,7 @@ LDS := $(MAPLE_ROOT)/src/mrt/maplert/linker/maplelld.so.lds
 DUPLICATE_DIR := $(MAPLE_ROOT)/src/mrt/codetricks/arch/arm64
 
 ifeq ($(OPS_ANDROID), 0)
-    QEMU_CLANG_CPP := $(CLANG_PATH)/clang++
+    QEMU_CLANG_CPP := $(TOOL_BIN_PATH)/clang++
 else
     QEMU_CLANG_CPP := $(ANDROID_CLANG_PATH)/bin/clang++
 endif
