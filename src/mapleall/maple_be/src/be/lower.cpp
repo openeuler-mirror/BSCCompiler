@@ -831,7 +831,7 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   DepositbitsNode *depositBits = mirModule.CurFuncCodeMemPool()->New<DepositbitsNode>();
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   depositBits->SetBitsOffset(byteBitOffsets.second);
-  depositBits->SetBitsOffset(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
+  depositBits->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   depositBits->SetBOpnd(ireadNode, 0);
   depositBits->SetBOpnd(iassign.GetRHS(), 1);
 
@@ -3025,7 +3025,6 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
   CHECK_FATAL(origBody != nullptr, "origBody should not be nullptr");
 
   BlockNode *newBody = LowerBlock(*origBody);
-  beCommon.FinalizeTypeTable();
   func.SetBody(newBody);
   if (needBranchCleanup) {
     CleanupBranches(func);
