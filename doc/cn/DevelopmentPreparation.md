@@ -43,16 +43,10 @@ LLVM下载地址：http://releases.llvm.org/download.html#8.0.0
 
 解压并放置到`openarkcompiler/tools`目录
 
-* 修改`openarkcompiler/build/config.gni`文件，将`CLANG_PATH`变量配置为clang编译器所在路径，例如：
+* 修改`openarkcompiler/build/envsetup.sh`文件，将`CLANG_PATH`变量配置为clang编译器所在路径，例如：
 
 ```
-CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04"
-```
-
-* 修改`openarkcompiler/build/core/maple_variables.mk`文件，将`CLANG_PATH`配置为clang编译器所在路径，例如：
-
-```
-CLANG_PATH := ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04
+CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin"
 ```
 
 其中${MAPLE_ROOT}为openarkcompiler源码根目录。
