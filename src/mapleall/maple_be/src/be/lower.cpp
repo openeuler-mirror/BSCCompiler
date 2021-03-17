@@ -660,8 +660,10 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
     retNode.SetOpnd(LowerExpr(retNode, *retNode.GetNopndAt(i), *blk), i);
   }
   BaseNode *opnd0 = retNode.Opnd(0);
-  CHECK_FATAL(opnd0 != nullptr, "return struct should have a kid");
-  CHECK_FATAL(opnd0->GetPrimType() == PTY_agg, "return struct should have a kid");
+  if (!(opnd0 && opnd0->GetPrimType() == PTY_agg)) {
+    // It is possible function never returns and have a dummy return const instead of a struct.
+    maple::LogInfo::MapleLogger(kLlWarn) << "return struct should have a kid" << std::endl;
+  }
 
   MIRFunction *curFunc = GetCurrentFunc();
   MIRSymbol *retSt = curFunc->GetFormal(0);
@@ -1391,7 +1393,9 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
   MIRSymbol *dsgnSt = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dassignNode->GetStIdx());
   CHECK_FATAL(dsgnSt->GetType()->IsStructType(), "expects a struct type");
   MIRStructType *structTy = static_cast<MIRStructType*>(dsgnSt->GetType());
-  CHECK_FATAL(structTy != nullptr, "expects that the assignee variable should have a struct type");
+  if (structTy == nullptr) {
+    return &callNode;
+  }
 
   RegreadNode *regReadNode = nullptr;
   if (dassignNode->Opnd(0)->GetOpCode() == OP_regread) {
