@@ -24,6 +24,7 @@ declare_args() {
   COV_CHECK = 0
   OPS_ANDROID = 0
   OPT = "O2"
+  TARGET = ""
 }
 
 # Define global args
@@ -173,7 +174,6 @@ if (MARK_CYCLE_ROOTS) {
 cflags_cc += [ "-DMIR_FEATURE_FULL=1" ]
 
 if (MIR_JAVA == 1) {
-  TARGET = "aarch64"
   cflags_cc += [ "-DMIR_JAVA=1" ]
 } else {
   TARGET = "vm"
