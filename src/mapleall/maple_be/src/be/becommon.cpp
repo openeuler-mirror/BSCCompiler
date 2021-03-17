@@ -121,7 +121,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
       SetTypeAlign(tyIdx.GetIdx(), 1);
     } else {
       SetTypeSize(tyIdx.GetIdx(), 0);
-      SetTypeAlign(tyIdx.GetIdx(), 8);
+      SetTypeAlign(tyIdx.GetIdx(), k8ByteSize);
     }
     return;
   }
