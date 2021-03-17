@@ -158,6 +158,7 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   echo Downloaded open64_prebuilt.
 fi
 
+mkdir -p ${TOOL_BIN_PATH}
 if [ "$OLD_OS" == "1" ]; then
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ${TOOL_BIN_PATH}/clang
