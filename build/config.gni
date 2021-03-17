@@ -14,11 +14,6 @@
 #
 # Toolchain setup
 
-if (OLD_OS == "1") {
-  CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04"
-} else {
-  CLANG_PATH = "/usr"
-}
 ANDROID_GCC_PATH = "${MAPLE_ROOT}/tools/gcc"
 ANDROID_CLANG_PATH = "${MAPLE_ROOT}/tools/clang-r353983c"
 GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
@@ -30,10 +25,10 @@ if (OPS_ANDROID == 1) {
   GN_AR_COMPILER = "${ANDROID_CLANG_PATH}/bin/llvm-ar"
   GN_RANLIB_COMPILER = "${NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
 } else {
-  GN_C_COMPILER = "${CLANG_PATH}/bin/clang"
-  GN_CXX_COMPILER = "${CLANG_PATH}/bin/clang++"
-  GN_AR_COMPILER = "${CLANG_PATH}/bin/llvm-ar"
-  GN_RANLIB_COMPILER = "${CLANG_PATH}/bin/llvm-ranlib"
+  GN_C_COMPILER = "${CLANG_PATH}/clang"
+  GN_CXX_COMPILER = "${CLANG_PATH}/clang++"
+  GN_AR_COMPILER = "${CLANG_PATH}/llvm-ar"
+  GN_RANLIB_COMPILER = "${CLANG_PATH}/llvm-ranlib"
 }
 
 target_toolchain = "//build/toolchain:clang"
