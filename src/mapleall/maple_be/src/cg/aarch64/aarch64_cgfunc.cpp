@@ -750,6 +750,9 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
       q1 = opndVal - addend;
     }
     ImmOperand &immAddend = CreateImmOperand(addend, k64BitSize, true);
+    if (memOpnd.GetOffsetImmediate()->GetVary() == kUnAdjustVary) {
+      immAddend.SetVary(kUnAdjustVary);
+    }
     RegOperand &resOpnd = (baseRegNum == AArch64reg::kRinvalid)
                            ? CreateRegisterOperandOfType(PTY_i64)
                            : GetOrCreatePhysicalRegisterOperand(baseRegNum, kSizeOfPtr * kBitsPerByte, kRegTyInt);
