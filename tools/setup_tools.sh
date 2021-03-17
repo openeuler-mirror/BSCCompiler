@@ -157,3 +157,18 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   mv riscv riscv64
   echo Downloaded open64_prebuilt.
 fi
+
+if [ "$OLD_OS" == "1" ]; then
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ${TOOL_BIN_PATH}/clang
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+else
+  ln -s -f /usr/bin/clang++ ${TOOL_BIN_PATH}/clang++
+  ln -s -f /usr/bin/clang ${TOOL_BIN_PATH}/clang
+  ln -s -f /usr/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+  ln -s -f /usr/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+  ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+fi
+ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_PATH}/clangfe
