@@ -14,8 +14,6 @@
 #
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 
-cflags_cc += [ "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"" ]
-
 include_directories = [
   "${MAPLEALL_ROOT}",
   "${MAPLEALL_ROOT}/maple_be/include",
