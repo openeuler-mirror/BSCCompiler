@@ -1546,9 +1546,9 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
   RegOperand &reg = GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   if (Globals::GetInstance()->GetOptimLevel() == 0) {
     MemOperand *src = GetPseudoRegisterSpillMemoryOperand(pregIdx);
-    PrimType stype = GetTypeFromPseudoRegIdx(pregIdx);
     MIRPreg *preg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
-    uint32 srcBitLength = GetPrimTypeSize(preg->GetPrimType()) * kBitsPerByte;
+    PrimType stype = preg->GetPrimType();
+    uint32 srcBitLength = GetPrimTypeSize(stype) * kBitsPerByte;
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(srcBitLength, stype), reg, *src));
   }
   return &reg;
