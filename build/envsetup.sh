@@ -43,25 +43,12 @@ export GCOV_PREFIX_STRIP=7
 lsb_release -d
 
 export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
-mkdir -p ${TOOL_BIN_PATH}
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
-  OLD_OS=1
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ${TOOL_BIN_PATH}/clang
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+  export OLD_OS=1
 else
-  OLD_OS=0
-  ln -s -f /usr/bin/clang++ ${TOOL_BIN_PATH}/clang++
-  ln -s -f /usr/bin/clang ${TOOL_BIN_PATH}/clang
-  ln -s -f /usr/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
-  ln -s -f /usr/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-  ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+  export OLD_OS=0
 fi
-ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_PATH}/clangfe
-export OLD_OS=${OLD_OS}
 
 # support multiple ARCH and BUILD_TYPE
 
