@@ -620,8 +620,7 @@ void BECommon::AddElementToJClassLayout(MIRClassType &klass, JClassFieldInfo inf
 }
 
 void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) {
-  TyIdx &ty = funcReturnType.at(&func);
-  ty = tyIdx;
+  funcReturnType[&func] = tyIdx;
 }
 
 MIRType *BECommon::BeGetOrCreatePointerType(const MIRType &pointedType) {

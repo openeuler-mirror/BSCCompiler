@@ -25,11 +25,27 @@ void AArch64MoveRegArgs::Run() {
 }
 
 void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsList,
-                                             std::vector<uint32> &indexList) const {
+                                             std::vector<uint32> &indexList,
+                                             std::map<uint32, AArch64reg> &pairReg,
+                                             std::vector<uint32> &numFpRegs,
+                                             std::vector<uint32> &fpSize) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  uint32 numFormal = aarchCGFunc->GetFunction().GetFormalCount();
+  numFpRegs.resize(numFormal);
+  fpSize.resize(numFormal);
   ParmLocator parmlocator(aarchCGFunc->GetBecommon());
   PLocInfo ploc;
-  for (uint32 i = 0; i < aarchCGFunc->GetFunction().GetFormalCount(); ++i) {
+  uint32 start = 0;
+  if (numFormal) {
+    MIRFunction *func = const_cast<MIRFunction *>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
+    if (aarchCGFunc->GetBecommon().HasFuncReturnType(*func)) {
+      TyIdx tyIdx = aarchCGFunc->GetBecommon().GetFuncReturnType(*func);
+      if (aarchCGFunc->GetBecommon().GetTypeSize(tyIdx) <= k16ByteSize) {
+        start = 1;
+      }
+    }
+  }
+  for (uint32 i = start; i < numFormal; ++i) {
     MIRType *ty = aarchCGFunc->GetFunction().GetNthParamType(i);
     parmlocator.LocateNextParm(*ty, ploc, i == 0);
     if (ploc.reg0 == kRinvalid) {
@@ -45,23 +61,74 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
     if (ploc.reg1 == kRinvalid) {
       continue;
     }
+    if (ploc.numFpPureRegs) {
+      uint32 index = indexList.size() - 1;
+      numFpRegs[index] = ploc.numFpPureRegs;
+      fpSize[index] = ploc.fpSize;
+      continue;
+    }
     aarchCGFunc->PushElemIntoFormalRegList(ploc.reg1);
+    pairReg[i] = ploc.reg1;
+    if (ploc.reg2 == kRinvalid) {
+      continue;
+    }
+    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg2);
+    if (ploc.reg3 == kRinvalid) {
+      continue;
+    }
+    aarchCGFunc->PushElemIntoFormalRegList(ploc.reg3);
   }
 }
 
-ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, uint32 argIndex) const {
+ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, std::vector<uint32> &numFpRegs,
+                                       std::vector<uint32> &fpSize, uint32 argIndex) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   ArgInfo argInfo;
   argInfo.reg = argsList[argIndex];
   argInfo.mirTy = aarchCGFunc->GetFunction().GetNthParamType(argIndex);
   argInfo.symSize = aarchCGFunc->GetBecommon().GetTypeSize(argInfo.mirTy->GetTypeIndex());
-  argInfo.stkSize = (argInfo.symSize < k4ByteSize) ? k4ByteSize : argInfo.symSize;
+  argInfo.memPairSecondRegSize = 0;
+  argInfo.doMemPairOpt = false;
+  if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
+    if (numFpRegs[argIndex] > kOneRegister) {
+      argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
+    } else {
+      if (argInfo.symSize > k12ByteSize) {
+        argInfo.memPairSecondRegSize = k8ByteSize;
+      } else {
+        /* Round to 4 the stack space required for storing the struct */
+        argInfo.memPairSecondRegSize = k4ByteSize;
+      }
+      argInfo.doMemPairOpt = true;
+      argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+    }
+  } else if (argInfo.symSize > k16ByteSize) {
+    /* For large struct passing, a pointer to the copy is used. */
+    argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+  } if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
+    /* For small aggregate parameter, set to minimum of 4 bytes. */
+    argInfo.symSize = argInfo.stkSize = k4ByteSize;
+  } else if (numFpRegs[argIndex] > kOneRegister) {
+    argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
+  } else {
+    argInfo.stkSize = (argInfo.symSize < k4ByteSize) ? k4ByteSize : argInfo.symSize;
+    if (argInfo.symSize > k4ByteSize) {
+      argInfo.symSize = k8ByteSize;
+    }
+  }
   argInfo.regType = (argInfo.reg < V0) ? kRegTyInt : kRegTyFloat;
   argInfo.sym = aarchCGFunc->GetFunction().GetFormal(argIndex);
   CHECK_NULL_FATAL(argInfo.sym);
   argInfo.symLoc =
       static_cast<const AArch64SymbolAlloc*>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(argInfo.sym->GetStIndex()));
   CHECK_NULL_FATAL(argInfo.symLoc);
+  if (argInfo.doMemPairOpt && (aarchCGFunc->GetBaseOffset(*(argInfo.symLoc)) & 0x7)) {
+    /* Do not optimize for struct reg pair for unaligned access.
+     * However, this symbol requires two parameter registers, separate stores must be generated.
+     */
+    argInfo.symSize = kSizeOfPtr;
+    argInfo.doMemPairOpt = false;
+  }
   return argInfo;
 }
 
@@ -122,7 +189,23 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
   aarchCGFunc->GetCurBB()->AppendInsn(pushInsn);
 }
 
-void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo) {
+void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpnd, uint32 stBitSize, AArch64reg dest,
+                                    int32 offset) {
+  AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  MOperator mOp = aarchCGFunc->PickStInsn(stBitSize, argInfo.mirTy->GetPrimType());
+  RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
+
+  AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(offset, k32BitSize);
+  MemOperand *memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
+                         stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
+  Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *memOpnd);
+  if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
+    insn.SetComment(std::string("store param: ").append(argInfo.sym->GetName()));
+  }
+  aarchCGFunc->GetCurBB()->AppendInsn(insn);
+}
+
+void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint32 numFpRegs, uint32 fpSize) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   int32 stOffset = aarchCGFunc->GetBaseOffset(*argInfo.symLoc);
   AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(aarchCGFunc->GetBaseReg(*argInfo.symLoc));
@@ -155,6 +238,24 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo) {
     insn.SetComment(std::string("store param: ").append(argInfo.sym->GetName()));
   }
   aarchCGFunc->GetCurBB()->AppendInsn(insn);
+
+  if (argInfo.doMemPairOpt) {
+    /* second half of the struct passing by registers. */
+    uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
+    GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
+  } else if (numFpRegs > 1) {
+    uint32 fpSizeBits = fpSize * kBitsPerByte;
+    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 1);
+    GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp2, (stOffset + fpSize));
+    if (numFpRegs > 2) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 2);
+      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + (fpSize * 2)));
+    }
+    if (numFpRegs > 3) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 3);
+      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + (fpSize * 3)));
+    }
+  }
 }
 
 void AArch64MoveRegArgs::MoveRegisterArgs() {
@@ -165,18 +266,26 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
 
   std::map<uint32, AArch64reg> movePara;
   std::vector<uint32> moveParaIndex;
-  CollectRegisterArgs(movePara, moveParaIndex);
+  std::map<uint32, AArch64reg> pairReg;
+  std::vector<uint32> numFpRegs;
+  std::vector<uint32> fpSize;
+  CollectRegisterArgs(movePara, moveParaIndex, pairReg, numFpRegs, fpSize);
 
   std::vector<uint32>::iterator it;
   std::vector<uint32>::iterator next;
   for (it = moveParaIndex.begin(); it != moveParaIndex.end(); ++it) {
     uint32 firstIndex = *it;
-    ArgInfo firstArgInfo = GetArgInfo(movePara, firstIndex);
+    ArgInfo firstArgInfo = GetArgInfo(movePara, numFpRegs, fpSize, firstIndex);
     next = it;
     ++next;
-    if (next != moveParaIndex.end()) {
-      uint32 secondIndex = *next;
-      ArgInfo secondArgInfo = GetArgInfo(movePara, secondIndex);
+    if ((next != moveParaIndex.end()) || (firstArgInfo.doMemPairOpt)) {
+      uint32 secondIndex = (firstArgInfo.doMemPairOpt) ? firstIndex : *next;
+      ArgInfo secondArgInfo = GetArgInfo(movePara, numFpRegs, fpSize, secondIndex);
+      secondArgInfo.reg = (firstArgInfo.doMemPairOpt) ? pairReg[firstIndex] : movePara[secondIndex];
+      secondArgInfo.symSize = (firstArgInfo.doMemPairOpt) ? firstArgInfo.memPairSecondRegSize : secondArgInfo.symSize;
+      secondArgInfo.symLoc = (firstArgInfo.doMemPairOpt) ? secondArgInfo.symLoc :
+                                 static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
+                                     secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
       if (IsInSameSegment(firstArgInfo, secondArgInfo)) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
@@ -184,7 +293,7 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
         continue;
       }
     }
-    GenerateStrInsn(firstArgInfo);
+    GenerateStrInsn(firstArgInfo, pairReg[firstIndex], numFpRegs[firstIndex], fpSize[firstIndex]);
   }
 
   aarchCGFunc->GetFirstBB()->InsertAtBeginning(*aarchCGFunc->GetDummyBB());
@@ -267,7 +376,7 @@ void AArch64MoveRegArgs::MoveVRegisterArgs() {
   ParmLocator parmlocator(aarchCGFunc->GetBecommon());
   PLocInfo ploc;
 
-  uint32 formalCount = aarchCGFunc->GetFunction().GetFormalCount();
+  uint32 formalCount = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   uint32 start = 0;
   if (formalCount) {
     MIRFunction *func = const_cast<MIRFunction*>(aarchCGFunc->GetBecommon().GetMIRModule().CurFunction());
