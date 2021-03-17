@@ -42,19 +42,26 @@ export GCOV_PREFIX_STRIP=7
 # display OS version
 lsb_release -d
 
+export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
+mkdir -p ${TOOL_BIN_PATH}
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
   OLD_OS=1
-  CLANG_PATH=${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin
-  QEMU_PATH=/usr/bin
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ${TOOL_BIN_PATH}/clang
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 else
   OLD_OS=0
-  CLANG_PATH=/usr/bin
-  QEMU_PATH=${MAPLE_ROOT}/tools/qemu/package/usr/bin
+  ln -s -f /usr/bin/clang++ ${TOOL_BIN_PATH}/clang++
+  ln -s -f /usr/bin/clang ${TOOL_BIN_PATH}/clang
+  ln -s -f /usr/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+  ln -s -f /usr/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+  ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 fi
+ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_PATH}/clangfe
 export OLD_OS=${OLD_OS}
-export CLANG_PATH=${CLANG_PATH}
-export QEMU_PATH=${QEMU_PATH}
 
 # support multiple ARCH and BUILD_TYPE
 
@@ -99,7 +106,7 @@ echo "Build:          $MAPLE_BUILD_TYPE"
 export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
-export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
+export PATH=${TOOL_BIN_PATH}:$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
 if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "

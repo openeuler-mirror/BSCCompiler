@@ -14,10 +14,10 @@
 
 from api import *
 
-O0 = {
+O2 = {
     "clean": [
         Shell(
-            "rm -rf *.mpl *.dex *.class *.mplt *.s *.so *.o *.log *.jar *.VtableImpl.primordials.txt"
+            "rm -rf *.mpl *.dex *.class *.mplt *.s *.so *.o *.log *.jar"
         )
     ],
     "compile": [
@@ -39,9 +39,9 @@ O0 = {
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             run=["me", "mpl2mpl", "mplcg"],
             option={
-                "me": "--quiet",
-                "mpl2mpl": "--quiet --regnativefunc --maplelinker --emitVtableImpl",
-                "mplcg": "--quiet --no-pie --fpic --verbose-asm --maplelinker"
+                "me": "--O2 --quiet",
+                "mpl2mpl": "--O2 --quiet --regnativefunc --no-nativeopt --maplelinker --emitVtableImpl",
+                "mplcg": "--O2 --quiet --no-pie --fpic --verbose-asm --maplelinker"
             },
             global_option="",
             infile="${APP}.mpl"

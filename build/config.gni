@@ -25,10 +25,10 @@ if (OPS_ANDROID == 1) {
   GN_AR_COMPILER = "${ANDROID_CLANG_PATH}/bin/llvm-ar"
   GN_RANLIB_COMPILER = "${NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
 } else {
-  GN_C_COMPILER = "${CLANG_PATH}/clang"
-  GN_CXX_COMPILER = "${CLANG_PATH}/clang++"
-  GN_AR_COMPILER = "${CLANG_PATH}/llvm-ar"
-  GN_RANLIB_COMPILER = "${CLANG_PATH}/llvm-ranlib"
+  GN_C_COMPILER = "${TOOL_BIN_PATH}/clang"
+  GN_CXX_COMPILER = "${TOOL_BIN_PATH}/clang++"
+  GN_AR_COMPILER = "${TOOL_BIN_PATH}/llvm-ar"
+  GN_RANLIB_COMPILER = "${TOOL_BIN_PATH}/llvm-ranlib"
 }
 
 target_toolchain = "//build/toolchain:clang"

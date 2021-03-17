@@ -32,8 +32,8 @@ ANDROID_ROOT = "${MAPLE_ROOT}/android"
 AOSP_ROOT = "${MAPLE_ROOT}/third_party/aosp_modified"
 MAPLE_BUILD_TYPE = getenv("MAPLE_BUILD_TYPE")
 MAPLE_BUILD_OUTPUT = getenv("MAPLE_BUILD_OUTPUT")
-CLANG_PATH = getenv("CLANG_PATH")
-QEMU_PATH = getenv("QEMU_PATH")
+TOOL_BIN_PATH = getenv("TOOL_BIN_PATH")
+QEMU_PATH = getenv("TOOL_BIN_PATH")
 OLD_OS = getenv("OLD_OS")
 if (OLD_OS == "1") {
   DESIGNATOR="-Wno-gnu-designator"
