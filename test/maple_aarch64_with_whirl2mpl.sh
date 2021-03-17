@@ -14,8 +14,9 @@
 #
 
 set -e
+set -x
 
-[ -n "$MAPLE_ROOT" ] || { echo MAPLE_ROOT not set. Please source envsetup.sh.; exit 1; }
+#[ -n "$MAPLE_ROOT" ] || { echo MAPLE_ROOT not set. Please source envsetup.sh.; exit 1; }
 
 CURRDIR=`pwd`
 rel=`realpath --relative-to=$MAPLE_ROOT $CURRDIR`
