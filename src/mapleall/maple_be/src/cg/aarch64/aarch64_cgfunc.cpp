@@ -1155,11 +1155,6 @@ void AArch64CGFunc::SelectIassign(IassignNode &stmt) {
         isRefField = true;  /* write into an object array or a high-dimensional array */
       }
     }
-    if (pointedType->GetPrimType() == PTY_agg) {
-      maple::LogInfo::MapleLogger(kLlErr) << "Error: cannot find field in " <<
-          GlobalTables::GetStrTable().GetStringFromStrIdx(pointedType->GetNameStrIdx()) << '\n';
-      exit(-1);
-    }
   }
 
   PrimType styp = stmt.GetRHS()->GetPrimType();
@@ -1919,6 +1914,10 @@ Operand *SelectLiteral(T *c, MIRFunction *func, uint32 labelIdx, AArch64CGFunc *
   st->SetTyIdx(TyIdx(primType));
   uint32 typeBitSize = GetPrimTypeBitSize(primType);
 
+  if (cgFunc->GetMirModule().IsCModule() &&
+      (T::GetPrimType() == PTY_f32 || T::GetPrimType() == PTY_f64)) {
+    return static_cast<Operand *>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
+  }
   if (T::GetPrimType() == PTY_f32) {
     return (fabs(c->GetValue()) < std::numeric_limits<float>::denorm_min())
         ? static_cast<Operand*>(&cgFunc->GetOrCreateFpZeroOperand(typeBitSize))
