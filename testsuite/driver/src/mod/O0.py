@@ -52,7 +52,7 @@ O0 = {
     ],
     "run": [
         Mplsh(
-            qemu="qemu-aarch64",
+            qemu="${TOOL_BIN_PATH}/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
                 "${OUT_ROOT}/aarch64-clang-release/ops/third_party",
