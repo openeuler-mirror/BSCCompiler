@@ -42,19 +42,13 @@ export GCOV_PREFIX_STRIP=7
 # display OS version
 lsb_release -d
 
+export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
-  OLD_OS=1
-  CLANG_PATH=${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin
-  QEMU_PATH=/usr/bin
+  export OLD_OS=1
 else
-  OLD_OS=0
-  CLANG_PATH=/usr/bin
-  QEMU_PATH=${MAPLE_ROOT}/tools/qemu/package/usr/bin
+  export OLD_OS=0
 fi
-export OLD_OS=${OLD_OS}
-export CLANG_PATH=${CLANG_PATH}
-export QEMU_PATH=${QEMU_PATH}
 
 # support multiple ARCH and BUILD_TYPE
 
@@ -99,7 +93,7 @@ echo "Build:          $MAPLE_BUILD_TYPE"
 export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
-export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
+export PATH=${TOOL_BIN_PATH}:$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
 if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "
