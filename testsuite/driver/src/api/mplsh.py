@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Mplsh(ShellOperator):
 
-    def __init__(self, mplsh, xbootclasspath, infile, garbage_collection_kind, return_value_list=[0], env=None, qemu=None, qemu_libc=None, qemu_ld_lib=None, main="${APP}", args=None, redirection=None):
+    def __init__(self, mplsh, xbootclasspath, infile, garbage_collection_kind, return_value_list=None, env=None, qemu=None, qemu_libc=None, qemu_ld_lib=None, main="${APP}", args=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.env = env
         self.qemu = qemu

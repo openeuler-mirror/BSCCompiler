@@ -43,7 +43,7 @@ CO0 = {
     ],
     "run": [
         Shell(
-            "qemu-aarch64 -L /usr/aarch64-linux-gnu/ ${APP}.out"
+            "${TOOL_BIN_PATH}/qemu-aarch64 -L /usr/aarch64-linux-gnu/ ${APP}.out"
         )
     ]
 }

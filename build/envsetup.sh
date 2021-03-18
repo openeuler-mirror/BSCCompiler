@@ -90,7 +90,7 @@ echo "Build:          $MAPLE_BUILD_TYPE"
 export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
-export PATH=${TOOL_BIN_PATH}:$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
+export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
 if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "
