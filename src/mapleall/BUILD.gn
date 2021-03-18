@@ -17,8 +17,28 @@ config("mapleallcompilecfg") {
   cflags_cc += [
     "-std=c++17",
     "-fno-common",
-    "-DTARGAARCH64",
   ]
+
+  if(TARGET == "aarch64"){
+    cflags_cc += [
+      "-DTARGAARCH64",
+      "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
+    ]
+  }
+
+  if(TARGET == "riscv64"){
+    cflags_cc += [
+      "-DTARGRISCV64",
+      "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
+    ]
+  }
+
+  if(TARGET == "ark"){
+    cflags_cc += [
+      "-DTARGARK",
+      "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
+    ]
+  }
 
   if (GN_BUILD_TYPE == "DEBUG") {
     cflags_c += [ "-DDEBUG" ]
