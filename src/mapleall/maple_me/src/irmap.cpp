@@ -21,7 +21,7 @@
 namespace maple {
 VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
   VarMeExpr *varMeExpr = New<VarMeExpr>(exprID++, ost, verst2MeExprTable.size(),
-        GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->GetPrimType());
+      GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->GetPrimType());
   verst2MeExprTable.push_back(varMeExpr);
   return varMeExpr;
 }
@@ -72,9 +72,9 @@ MeExpr *IRMap::CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base) {
 VarMeExpr *IRMap::CreateNewVar(GStrIdx strIdx, PrimType pType, bool isGlobal) {
   MIRSymbol *st =
       mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)pType, strIdx, kStVar,
-        isGlobal ? kScGlobal : kScAuto,
-        isGlobal ? nullptr : mirModule.CurFunction(),
-        isGlobal ? kScopeGlobal : kScopeLocal);
+                                              isGlobal ? kScGlobal : kScAuto,
+                                              isGlobal ? nullptr : mirModule.CurFunction(),
+                                              isGlobal ? kScopeGlobal : kScopeLocal);
   if (isGlobal) {
     st->SetIsTmp(true);
   }
@@ -103,7 +103,8 @@ VarMeExpr *IRMap::CreateNewLocalRefVarTmp(GStrIdx strIdx, TyIdx tIdx) {
 
 RegMeExpr *IRMap::CreateRegMeExprVersion(OriginalSt &pregOSt) {
   RegMeExpr *regReadExpr =
-      New<RegMeExpr>(exprID++, &pregOSt, verst2MeExprTable.size(), kMeOpReg, OP_regread, pregOSt.GetMIRPreg()->GetPrimType());
+      New<RegMeExpr>(exprID++, &pregOSt, verst2MeExprTable.size(), kMeOpReg,
+                     OP_regread, pregOSt.GetMIRPreg()->GetPrimType());
   verst2MeExprTable.push_back(regReadExpr);
   return regReadExpr;
 }
@@ -133,6 +134,48 @@ RegMeExpr *IRMap::CreateRegMeExpr(MIRType &mirType) {
   return CreateRegMeExprVersion(*ost);
 }
 
+RegMeExpr *IRMap::CreateRegRefMeExpr(const MeExpr &meExpr) {
+  MIRType *mirType = nullptr;
+  switch (meExpr.GetMeOp()) {
+    case kMeOpVar: {
+      auto &varMeExpr = static_cast<const VarMeExpr&>(meExpr);
+      const OriginalSt *ost = varMeExpr.GetOst();
+      ASSERT(ost->GetTyIdx() != 0u, "expect ost->tyIdx to be initialized");
+      mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
+      break;
+    }
+    case kMeOpIvar: {
+      auto &ivarMeExpr = static_cast<const IvarMeExpr&>(meExpr);
+      MIRType *ptrMirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivarMeExpr.GetTyIdx());
+      ASSERT(ptrMirType->GetKind() == kTypePointer, "must be point type for ivar");
+      auto *realMirType = static_cast<MIRPtrType*>(ptrMirType);
+      FieldID fieldID = ivarMeExpr.GetFieldID();
+      if (fieldID > 0) {
+        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(realMirType->GetPointedTyIdxWithFieldID(fieldID));
+      } else {
+        mirType = realMirType->GetPointedType();
+      }
+      ASSERT(mirType->GetPrimType() == meExpr.GetPrimType() ||
+             !(IsAddress(mirType->GetPrimType()) && IsAddress(meExpr.GetPrimType())),
+             "inconsistent type");
+      ASSERT(mirType->GetPrimType() == PTY_ref, "CreateRegRefMeExpr: only ref type expected");
+      break;
+    }
+    case kMeOpOp:
+      if (meExpr.GetOp() == OP_retype) {
+        auto &opMeExpr = static_cast<const OpMeExpr&>(meExpr);
+        ASSERT(opMeExpr.GetTyIdx() != 0u, "expect opMeExpr.tyIdx to be initialized");
+        mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(opMeExpr.GetTyIdx());
+        break;
+      }
+      // fall thru
+      [[clang::fallthrough]];
+    default:
+      return CreateRegMeExpr(PTY_ptr);
+  }
+  return CreateRegMeExpr(*mirType);
+}
+
 VarMeExpr *IRMap::GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost) {
   ASSERT(ost.GetZeroVersionIndex() != 0,
          "GetOrCreateZeroVersionVarMeExpr: version index of osym's kInitVersion not set");
@@ -146,6 +189,13 @@ VarMeExpr *IRMap::GetOrCreateZeroVersionVarMeExpr(OriginalSt &ost) {
     return varMeExpr;
   }
   return static_cast<VarMeExpr*>(verst2MeExprTable[ost.GetZeroVersionIndex()]);
+}
+
+IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx &tyIdx, FieldID fieldID) {
+  auto *meDef = New<IvarMeExpr>(exprID++, primType, tyIdx, fieldID);
+  meDef->SetBase(&baseAddr);
+  PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
+  return meDef;
 }
 
 IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID) {
@@ -412,7 +462,7 @@ MeExpr *IRMap::CreateConstMeExpr(PrimType pType, MIRConst &mirConst) {
 
 MeExpr *IRMap::CreateIntConstMeExpr(int64 value, PrimType pType) {
   auto *intConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType));
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType), 0/*fieldID*/);
   return CreateConstMeExpr(pType, *intConst);
 }
 
