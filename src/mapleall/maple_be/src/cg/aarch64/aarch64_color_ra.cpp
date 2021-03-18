@@ -2465,7 +2465,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   }
 
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = phyOpnd.GetRegisterNumber();
+    regno_t pregNO = R17;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), false, &insn);
   }
@@ -2500,7 +2500,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
 
   bool isOutOfRange = false;
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = phyOpnd.GetRegisterNumber();
+    regno_t pregNO = R17;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), true, &insn);
     isOutOfRange = true;
