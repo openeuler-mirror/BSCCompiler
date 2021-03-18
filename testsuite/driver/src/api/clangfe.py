@@ -26,5 +26,5 @@ class Clangfe(ShellOperator):
         self.infile = infile
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe -cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/" + str(Clangfe.aarch64_linux_gnu_version) + "/include " + self.infile
+        self.command = "clangfe -cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/" + str(Clangfe.aarch64_linux_gnu_version) + "/include " + self.infile
         return super().get_final_command(variables)
