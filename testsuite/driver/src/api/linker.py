@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Linker(ShellOperator):
 
-    def __init__(self, lib, return_value_list=[0], redirection=None):
+    def __init__(self, lib, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.lib = lib
 

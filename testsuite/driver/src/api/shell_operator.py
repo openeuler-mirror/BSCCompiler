@@ -16,7 +16,10 @@ class ShellOperator(object):
 
     def __init__(self, return_value_list, redirection=None):
         self.command = ""
-        self.return_value_list = return_value_list
+        if return_value_list is None:
+            self.return_value_list = [0]
+        else:
+            self.return_value_list = return_value_list
         self.redirection = redirection
 
     def get_redirection(self):
