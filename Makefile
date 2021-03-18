@@ -36,7 +36,8 @@ GN_OPTIONS := \
   HOST_ARCH=$(HOST_ARCH) \
   MIR_JAVA=$(MIR_JAVA) \
   OPT="$(OPT)" \
-  OPS_ANDROID=$(OPS_ANDROID)
+  OPS_ANDROID=$(OPS_ANDROID) \
+  TARGET="$(TARGET_PROCESSOR)" \
 
 .PHONY: default
 default: install

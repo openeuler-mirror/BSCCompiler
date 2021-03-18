@@ -14,11 +14,9 @@
 #
 include_directories = [
   "${MAPLEALL_ROOT}/maple_be/include/cg",
-  "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
   "${MAPLEALL_ROOT}/maple_be/include/ad",
   "${MAPLE_BUILD_OUTPUT}/common/target",
   "${MAPLEALL_ROOT}/maple_be/include/ad/target",
-  "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
   "${MAPLEALL_ROOT}/maple_be/include/be",
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/maple_util/include",
@@ -29,6 +27,36 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
 ]
+
+deps_libcg = []
+
+deps_libmplbe = [
+  ":libcglowerer",
+]
+
+if(TARGET == "aarch64"){
+  include_directories += [
+    "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
+    "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
+  ]
+  deps_libcg += [ ":libcgaarch64", ]
+}
+
+if(TARGET == "riscv64"){
+  include_directories += [
+    "${MAPLEALL_ROOT}/maple_be/include/cg/riscv64",
+    "${MAPLEALL_ROOT}/maple_be/include/be/riscv64",
+  ]
+  deps_libcg += [ ":libcgriscv64", ]
+}
+
+if(TARGET == "ark"){
+  include_directories += [
+    "${MAPLEALL_ROOT}/maple_be/include/cg/ark",
+    "${MAPLEALL_ROOT}/maple_be/include/be/ark",
+  ]
+  deps_libcg += [ ":libcgark", ]
+}
 
 src_libmplad = [ "src/ad/mad.cpp" ]
 
@@ -42,11 +70,6 @@ src_libmplbe = [
   "src/be/becommon.cpp",
   "src/be/switch_lowerer.cpp",
   "src/be/rt.cpp",
-]
-
-deps_libmplbe = [
-  ":libcglowerer",
-  ":libbeaarch64",
 ]
 
 src_libcgaarch64 = [
@@ -80,6 +103,14 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_lsra.cpp",
 ]
 
+src_libcgriscv64 = [
+  "src/cg/riscv64/foo.cpp",
+]
+
+src_libcgark = [
+  "src/cg/ark/foo.cpp",
+]
+
 src_libcg = [
   "src/cg/args.cpp",
   "src/cg/cfgo.cpp",
@@ -110,9 +141,6 @@ src_libcg = [
   "src/cg/yieldpoint.cpp",
 ]
 
-deps_libcg = []
-deps_libcg += [ ":libcgaarch64" ]
-
 cflags_cc -= [ "-DRC_NO_MMAP" ]
 cflags_cc -= [ "-DMIR_JAVA=1" ]
 
@@ -124,10 +152,6 @@ static_library("libmplad") {
   output_dir = "${root_out_dir}/lib/${HOST_ARCH}"
 
   cflags_cc += [ "-DRC_NO_MMAP" ]
-}
-
-source_set("libbeaarch64") {
-  include_dirs = include_directories
 }
 
 source_set("libcglowerer") {
@@ -144,6 +168,16 @@ static_library("libmplbe") {
 
 source_set("libcgaarch64") {
   sources = src_libcgaarch64
+  include_dirs = include_directories
+}
+
+source_set("libcgriscv64") {
+  sources = src_libcgriscv64
+  include_dirs = include_directories
+}
+
+source_set("libcgark") {
+  sources = src_libcgark
   include_dirs = include_directories
 }
 
