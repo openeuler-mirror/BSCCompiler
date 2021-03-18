@@ -288,10 +288,10 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
 #if PECOFF
 #if TARGARM || TARGAARCH64 || TARGARK || TARGRISCV64
       std::string align = std::to_string(
-        static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
+          static_cast<int>(log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()))));
 #else
       std::string align = std::to_string(
-        Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()));
+          Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirType->GetTypeIndex()));
 #endif
       emit(align.c_str());
 #else /* ELF */

@@ -30,6 +30,7 @@ constexpr uint32 kBaseOffsetAlignment = 3;
  * constants.
  */
 constexpr uint32 k1FConst = 31;
+constexpr uint32 k0BitSize = 0;
 constexpr uint32 k4BitSize = 4;
 constexpr uint32 k6BitSize = 6;
 constexpr uint32 k8BitSize = 8;
@@ -54,6 +55,8 @@ constexpr uint32 k4BitShift = 2; /* 4 is 1 << 2; */
 constexpr uint32 k8BitShift = 3;  /* 8 is 1 << 3; */
 constexpr uint32 k16BitShift = 4; /* 16 is 1 << 4 */
 
+constexpr uint32 kDwordSizeTwo = 2;
+
 constexpr uint32 k4ByteFloatSize = 4;
 constexpr uint32 k8ByteDoubleSize = 8;
 
@@ -70,6 +73,7 @@ constexpr int32 kInsnEighthOpnd = 7;
 /* Number of registers */
 constexpr uint32 kOneRegister = 1;
 constexpr uint32 kTwoRegister = 2;
+constexpr uint32 kThreeRegister = 3;
 constexpr uint32 kFourRegister = 4;
 
 /* Size of struct for memcpy */

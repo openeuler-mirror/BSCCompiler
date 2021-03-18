@@ -661,7 +661,7 @@ BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   }
   BaseNode *opnd0 = retNode.Opnd(0);
   if (!(opnd0 && opnd0->GetPrimType() == PTY_agg)) {
-    // It is possible function never returns and have a dummy return const instead of a struct.
+    /* It is possible function never returns and have a dummy return const instead of a struct. */
     maple::LogInfo::MapleLogger(kLlWarn) << "return struct should have a kid" << std::endl;
   }
 

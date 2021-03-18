@@ -2606,7 +2606,7 @@ bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type) {
       Error("constant value incompatible with integer type at ");
       return false;
     }
-    stype = mod.GetMemPool()->New<MIRIntConst>(lexer.GetTheIntVal(), type);
+    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type);
   } else if (ptp == PTY_f32) {
     if (lexer.GetTokenKind() != TK_floatconst) {
       Error("constant value incompatible with single-precision float type at ");

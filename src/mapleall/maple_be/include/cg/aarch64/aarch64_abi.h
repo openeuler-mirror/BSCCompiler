@@ -95,7 +95,7 @@ class ParmLocator {
   BECommon &beCommon;
   int32 paramNum           = 0;  /* number of all types of parameters processed so far */
   int32 nextGeneralRegNO   = 0;  /* number of integer parameters processed so far */
-  int32 nextFloatRegNO     = 0;  /* number of float parameters processed so far */
+  uint32 nextFloatRegNO    = 0;  /* number of float parameters processed so far */
   int32 nextStackArgAdress = 0;
 
   AArch64reg AllocateGPRegister() {
@@ -115,29 +115,29 @@ class ParmLocator {
     return (nextFloatRegNO < AArch64Abi::kNumFloatParmRegs) ? AArch64Abi::floatParmRegs[nextFloatRegNO++] : kRinvalid;
   }
 
-  inline void AllocateNSIMDFPRegisters(PLocInfo &ploc, uint32 num) {
+  void AllocateNSIMDFPRegisters(PLocInfo &ploc, uint32 num) {
     if ((nextFloatRegNO + num - 1) < AArch64Abi::kNumFloatParmRegs) {
       switch (num) {
-      case 1:
-        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        break;
-      case 2:
-        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        break;
-      case 3:
-        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        break;
-      case 4:
-        ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        ploc.reg3 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
-        break;
-      default:
-        CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");
+        case kOneRegister:
+          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          break;
+        case kTwoRegister:
+          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          break;
+        case kThreeRegister:
+          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          break;
+        case kFourRegister:
+          ploc.reg0 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg1 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg2 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          ploc.reg3 = AArch64Abi::floatParmRegs[nextFloatRegNO++];
+          break;
+        default:
+          CHECK_FATAL(0, "AllocateNSIMDFPRegisters: unsupported");
       }
     } else {
       ploc.reg0 = kRinvalid;
@@ -154,7 +154,7 @@ class ParmLocator {
 /* given the type of the return value, determines the return mechanism */
 class ReturnMechanism {
  public:
-  ReturnMechanism(MIRType &retType, BECommon &be);
+  ReturnMechanism(MIRType &retType, const BECommon &be);
 
   ~ReturnMechanism() = default;
 
