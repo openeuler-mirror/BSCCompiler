@@ -474,7 +474,7 @@ ConstvalNode *MIRBuilder::CreateConstval(MIRConst *mirConst) {
 
 ConstvalNode *MIRBuilder::CreateIntConst(int64 val, PrimType pty) {
   auto *mirConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetPrimType(pty));
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetPrimType(pty), 0/*fieldID*/);
   return GetCurrentFuncCodeMp()->New<ConstvalNode>(pty, mirConst);
 }
 
@@ -497,7 +497,7 @@ ConstvalNode *MIRBuilder::CreateFloat128Const(const uint64 *val) {
 }
 
 ConstvalNode *MIRBuilder::GetConstInt(MemPool &memPool, int val) {
-  auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetInt64());
+  auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(val, *GlobalTables::GetTypeTable().GetInt64(), 0/*fieldID*/);
   return memPool.New<ConstvalNode>(PTY_i32, mirConst);
 }
 

@@ -17,6 +17,9 @@
 #include <iostream>
 #include <memory>
 #include <functional>
+#include <mutex>
+#include <shared_mutex>
+#include "thread_env.h"
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "types_def.h"
@@ -31,7 +34,7 @@ using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
 using FieldPair = std::pair<GStrIdx, TyIdxFieldAttrPair>;
 using FieldVector = std::vector<FieldPair>;
 
-class BinaryMplImport;
+class BinaryMplImport; // circular dependency exists, no other choice
 
 // to facilitate the use of unordered_map
 class TyIdxHash {
@@ -118,7 +121,6 @@ class TypeTable {
   }
 
   void SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type);
-
   MIRType *GetOrCreateMIRTypeNode(MIRType &ptype);
 
   TyIdx GetOrCreateMIRType(MIRType *pType) {
@@ -341,6 +343,7 @@ class TypeTable {
   void PushIntoFieldVector(FieldVector &fields, const std::string &name, MIRType &type);
   void AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, MIRType &fieldType);
 
+  TyIdx lastDefaultTyIdx;
  private:
   using MIRTypePtr = MIRType*;
   struct Hash {
@@ -375,8 +378,7 @@ class TypeTable {
   std::unordered_map<TyIdx, TyIdx, TyIdxHash> ptrTypeMap;
   std::unordered_map<TyIdx, TyIdx, TyIdxHash> refTypeMap;
   std::vector<MIRType*> typeTable;
- public:
-  TyIdx lastDefaultTyIdx;
+  mutable std::shared_timed_mutex mtx;
 };
 
 class StrPtrHash {
@@ -424,6 +426,14 @@ class StringTable {
   }
 
   U GetStrIdxFromName(const T &str) const {
+    if (ThreadEnv::IsMeParallel()) {
+      std::shared_lock<std::shared_timed_mutex> lock(mtx);
+      auto it = stringTableMap.find(&str);
+      if (it == stringTableMap.end()) {
+        return U(0);
+      }
+      return it->second;
+    }
     auto it = stringTableMap.find(&str);
     if (it == stringTableMap.end()) {
       return U(0);
@@ -434,6 +444,14 @@ class StringTable {
   U GetOrCreateStrIdxFromName(const T &str) {
     U strIdx = GetStrIdxFromName(str);
     if (strIdx == 0u) {
+      if (ThreadEnv::IsMeParallel()) {
+        std::unique_lock<std::shared_timed_mutex> lock(mtx);
+        strIdx.reset(stringTable.size());
+        T *newStr = new T(str);
+        stringTable.push_back(newStr);
+        stringTableMap[newStr] = strIdx;
+        return strIdx;
+      }
       strIdx.reset(stringTable.size());
       T *newStr = new T(str);
       stringTable.push_back(newStr);
@@ -443,10 +461,19 @@ class StringTable {
   }
 
   size_t StringTableSize() const {
+    if (ThreadEnv::IsMeParallel()) {
+      std::shared_lock<std::shared_timed_mutex> lock(mtx);
+      return stringTable.size();
+    }
     return stringTable.size();
   }
 
   const T &GetStringFromStrIdx(U strIdx) const {
+    if (ThreadEnv::IsMeParallel()) {
+      std::shared_lock<std::shared_timed_mutex> lock(mtx);
+      ASSERT(strIdx < stringTable.size(), "array index out of range");
+      return *stringTable[strIdx];
+    }
     ASSERT(strIdx < stringTable.size(), "array index out of range");
     return *stringTable[strIdx];
   }
@@ -454,6 +481,7 @@ class StringTable {
  private:
   std::vector<const T*> stringTable;  // index is uint32
   std::unordered_map<const T*, U, StrPtrHash, StrPtrEqual> stringTableMap;
+  mutable std::shared_timed_mutex mtx;
 };
 
 class FPConstTable {
@@ -476,6 +504,10 @@ class FPConstTable {
   void PostInit();
   MIRFloatConst *DoGetOrCreateFloatConst(float);
   MIRDoubleConst *DoGetOrCreateDoubleConst(double);
+  MIRFloatConst *DoGetOrCreateFloatConstThreadSafe(float);
+  MIRDoubleConst *DoGetOrCreateDoubleConstThreadSafe(double);
+  std::shared_timed_mutex floatMtx;
+  std::shared_timed_mutex doubleMtx;
   std::unordered_map<float, MIRFloatConst*> floatConstTable;     // map float const value to the table;
   std::unordered_map<double, MIRDoubleConst*> doubleConstTable;  // map double const value to the table;
   MIRFloatConst *nanFloatConst = nullptr;
@@ -494,7 +526,7 @@ class IntConstTable {
   IntConstTable &operator=(const IntConstTable &p) = delete;
   ~IntConstTable();
 
-  MIRIntConst *GetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID = 0);
+  MIRIntConst *GetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID);
 
   static std::unique_ptr<IntConstTable> Create() {
     auto p = std::unique_ptr<IntConstTable>(new IntConstTable());
@@ -504,6 +536,8 @@ class IntConstTable {
  private:
   IntConstTable() = default;
   MIRIntConst *DoGetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID);
+  MIRIntConst *DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type, uint32 fieldID);
+  std::shared_timed_mutex mtx;
   std::unordered_map<IntConstKey, MIRIntConst*, IntConstHash, IntConstCmp> intConstTable;
 };
 
