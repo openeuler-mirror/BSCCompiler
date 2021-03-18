@@ -567,8 +567,9 @@ BaseNode *CGLowerer::LowerDreadBitfield(DreadNode &dread) {
   ireadNode->SetOpnd(addNode, 0);
   MIRType pointedType(kTypeScalar, fType->GetPrimType());
   TyIdx pointedTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointedType);
-  MIRPtrType pointType(pointedTyIdx);
-  ireadNode->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  const MIRType *pointToType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
+  MIRType *pointType = beCommon.BeGetOrCreatePointerType(*pointToType);
+  ireadNode->SetTyIdx(pointType->GetTypeIndex());
 
   ExtractbitsNode *extrBitsNode = mirModule.CurFuncCodeMemPool()->New<ExtractbitsNode>(OP_extractbits);
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
@@ -622,8 +623,9 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
   ireadNode->SetOpnd(addNode, 0);
   MIRType pointedType(kTypeScalar, fType->GetPrimType());
   TyIdx pointedTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointedType);
-  MIRPtrType pointType(pointedTyIdx);
-  ireadNode->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  const MIRType *pointToType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
+  MIRType *pointType = beCommon.BeGetOrCreatePointerType(*pointToType);
+  ireadNode->SetTyIdx(pointType->GetTypeIndex());
 
   ExtractbitsNode *extrBitsNode = mirModule.CurFuncCodeMemPool()->New<ExtractbitsNode>(OP_extractbits);
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
@@ -756,8 +758,9 @@ StmtNode *CGLowerer::LowerDassignBitfield(DassignNode &dassign, BlockNode &newBl
   ireadNode->SetOpnd(addNode, 0);
   MIRType pointedType(kTypeScalar, fType->GetPrimType());
   TyIdx pointedTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointedType);
-  MIRPtrType pointType(pointedTyIdx);
-  ireadNode->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  const MIRType *pointToType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
+  MIRType *pointType = beCommon.BeGetOrCreatePointerType(*pointToType);
+  ireadNode->SetTyIdx(pointType->GetTypeIndex());
 
   DepositbitsNode *depositBits = mirModule.CurFuncCodeMemPool()->New<DepositbitsNode>();
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
@@ -767,7 +770,7 @@ StmtNode *CGLowerer::LowerDassignBitfield(DassignNode &dassign, BlockNode &newBl
   depositBits->SetBOpnd(dassign.GetRHS(), 1);
 
   IassignNode *iassignStmt = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
-  iassignStmt->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  iassignStmt->SetTyIdx(pointType->GetTypeIndex());
   iassignStmt->SetOpnd(addNode->CloneTree(mirModule.GetCurFuncCodeMPAllocator()), 0);
   iassignStmt->SetRHS(depositBits);
 
@@ -825,8 +828,9 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   ireadNode->SetOpnd(addNode, 0);
   MIRType pointedType(kTypeScalar, fType->GetPrimType());
   TyIdx pointedTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointedType);
-  MIRPtrType pointType(pointedTyIdx);
-  ireadNode->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  const MIRType *pointToType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
+  MIRType *pointType = beCommon.BeGetOrCreatePointerType(*pointToType);
+  ireadNode->SetTyIdx(pointType->GetTypeIndex());
 
   DepositbitsNode *depositBits = mirModule.CurFuncCodeMemPool()->New<DepositbitsNode>();
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
@@ -836,7 +840,7 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   depositBits->SetBOpnd(iassign.GetRHS(), 1);
 
   IassignNode *iassignStmt = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
-  iassignStmt->SetTyIdx(GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType));
+  iassignStmt->SetTyIdx(pointType->GetTypeIndex());
   iassignStmt->SetOpnd(addNode->CloneTree(mirModule.GetCurFuncCodeMPAllocator()), 0);
   iassignStmt->SetRHS(depositBits);
 
