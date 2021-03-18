@@ -2147,7 +2147,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           return false;
         }
         ASSERT(subConst != nullptr, "subConst is null in MIRParser::ParseInitValue");
-        subConst->SetFieldID(theFieldIdx);
+        CHECK_FATAL(subConst->GetFieldId() == theFieldIdx, "ParseInitValue: field id not set correctly");
         constvec.push_back(subConst);
         tokenKind = lexer.GetTokenKind();
         // parse comma or rbrack
