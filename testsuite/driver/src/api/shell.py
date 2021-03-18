@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Shell(ShellOperator):
 
-    def __init__(self, command, return_value_list=[0], redirection=None):
+    def __init__(self, command, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.command = command
 
