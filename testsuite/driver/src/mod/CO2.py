@@ -31,7 +31,7 @@ CO2 = {
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             run=["mplcg"],
             option={
-                "mplcg": "-O2 --quiet"
+                "mplcg": "-O2 --quiet --no-schedule"
             },
             global_option="",
             infile="${APP}.mpl"
