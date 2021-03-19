@@ -22,7 +22,7 @@
 #include "file_utils.h"
 
 #include "lower.h"
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_cg.h"
 #include "aarch64/aarch64_emitter.h"
 #elif TARGARM32
@@ -293,7 +293,7 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
 CG *DriverRunner::CreateCGAndBeCommon(const std::string &outputFile, const std::string &originBaseName) {
   CG *cg = nullptr;
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   cg = new AArch64CG(*theModule, *cgOptions, cgOptions->GetEHExclusiveFunctionNameVec(),
                      CGOptions::GetCyclePatternMap());
   cg->SetEmitter(*theModule->GetMemPool()->New<AArch64AsmEmitter>(*cg, outputFile));

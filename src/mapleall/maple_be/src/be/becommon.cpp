@@ -15,7 +15,11 @@
 #include "becommon.h"
 #include <cinttypes>
 #include <list>
+#if TARGAARCH64
 #include "aarch64_rt.h"
+#elif TARGRISCV64
+#include "riscv64_rt.h"
+#endif
 #include "cg_option.h"
 #include "mir_builder.h"
 #include "mpl_logging.h"
@@ -117,7 +121,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   SetStructFieldCount(structType.GetTypeIndex(), fields.size());
   if (fields.size() == 0) {
     if (structType.IsCPlusPlus()) {
-      SetTypeSize(tyIdx.GetIdx(), 1); // empty struct in C++ has size 1
+      SetTypeSize(tyIdx.GetIdx(), 1); /* empty struct in C++ has size 1 */
       SetTypeAlign(tyIdx.GetIdx(), 1);
     } else {
       SetTypeSize(tyIdx.GetIdx(), 0);
@@ -642,12 +646,12 @@ MIRType *BECommon::BeGetOrCreateFunctionType(TyIdx tyIdx, const std::vector<TyId
   return newType;
 }
 
-void BECommon::FinalizeTypeTable(MIRType &ty) {
+void BECommon::FinalizeTypeTable(const MIRType &ty) {
   if (ty.GetTypeIndex() > GetSizeOfTypeSizeTable()) {
     if (mirModule.GetSrcLang() == kSrcLangC) {
       for (uint32 i = GetSizeOfTypeSizeTable(); i < ty.GetTypeIndex(); ++i) {
-        MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
-        AddAndComputeSizeAlign(*ty);
+        MIRType *tyTmp = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
+        AddAndComputeSizeAlign(*tyTmp);
       }
     } else {
       CHECK_FATAL(ty.GetTypeIndex() == typeSizeTable.size(), "make sure the ty idx is exactly the table size");
@@ -673,7 +677,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeTable().at(index);
       std::pair<int32, int32> byteBitOffset =
           GetFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       ASSERT(GetAddressPrimType() == PTY_a64, "incorrect address type, expect a PTY_a64");
 #endif
       return mirModule.GetMIRBuilder()->CreateExprBinary(

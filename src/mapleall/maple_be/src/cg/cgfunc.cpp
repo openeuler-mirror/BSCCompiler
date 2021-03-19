@@ -65,7 +65,7 @@ Operand *HandleConstVal(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
 Operand *HandleConstStr(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &constStrNode = static_cast<ConststrNode&>(expr);
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
       constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
 #else
@@ -77,7 +77,7 @@ Operand *HandleConstStr(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
 Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &constStr16Node = static_cast<Conststr16Node&>(expr);
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
       constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
 #else
@@ -623,7 +623,7 @@ void HandleMembar(StmtNode &stmt, CGFunc &cgFunc) {
   if (stmt.GetOpCode() != OP_membarrelease) {
     return;
   }
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   if (CGOptions::UseBarriersForVolatile()) {
     return;
   }
@@ -788,7 +788,7 @@ bool CGFunc::CheckSkipMembarOp(StmtNode &stmt) {
   if ((opCode == OP_membarstorestore) && func.IsConstructor() && MemBarOpt(stmt)) {
     return true;;
   }
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   if ((!CGOptions::UseBarriersForVolatile()) && (nextStmt->GetOpCode() == OP_membaracquire)) {
     isVolLoad = true;
   }

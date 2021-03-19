@@ -297,7 +297,7 @@ class CGFunc {
       maxRegCount += kRegIncrStepLen;
       vRegTable.resize(maxRegCount);
     }
-#if TARGAARCH64 || TARGX86_64
+#if TARGAARCH64 || TARGX86_64 || TARGRISCV64
     if (size < k4ByteSize) {
       size = k4ByteSize;
     }
