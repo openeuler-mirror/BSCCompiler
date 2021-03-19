@@ -25,7 +25,11 @@
 #include "intrinsic_op.h"
 #include "mir_builder.h"
 #include "opcode_info.h"
+#if TARGAARCH64
 #include "aarch64_rt.h"
+#elif TARGRISCV64
+#include "riscv64_rt.h"
+#endif
 #include "securec.h"
 #include "string_utils.h"
 
@@ -655,7 +659,7 @@ void CGLowerer::LowerTypePtr(BaseNode &node) const {
 }
 
 
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
 BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   for (size_t i = 0; i < retNode.GetNopndSize(); ++i) {
@@ -1169,14 +1173,14 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_intrinsiccall:
       case OP_call:
       case OP_icall:
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         LowerCallStmt(*stmt, nextStmt, *newBlk);
 #else
         LowerStmt(*stmt, *newBlk);
 #endif
         break;
       case OP_return: {
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         if (GetCurrentFunc()->IsReturnStruct()) {
           newBlk->AppendStatementsFromBlock(*LowerReturnStruct(static_cast<NaryStmtNode&>(*stmt)));
         } else {
@@ -1189,7 +1193,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
           CHECK_FATAL(tmpBlockNode != nullptr, "nullptr is not expected");
           newBlk->AppendStatementsFromBlock(*tmpBlockNode);
         }
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         }
 #endif
         break;
@@ -1324,7 +1328,7 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
 
   for (size_t i = 0; i < callNode.GetNopndSize(); ++i) {
     BaseNode *newOpnd = LowerExpr(callNode, *callNode.GetNopndAt(i), newBlk);
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     callNode.SetOpnd(newOpnd, i);
 #else
     SplitCallArg(callNode, newOpnd, i, newBlk);

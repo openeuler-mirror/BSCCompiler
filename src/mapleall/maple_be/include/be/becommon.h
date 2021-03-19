@@ -27,7 +27,7 @@
 namespace maplebe {
 using namespace maple;
 
-#if TARGX86_64 || TARGAARCH64
+#if TARGX86_64 || TARGAARCH64 || TARGRISCV64
 #define LOWERED_PTR_TYPE PTY_a64
 constexpr uint8 kSizeOfPtr = 8;
 #elif TARGX86 || TARGARM32 || TARGVM
