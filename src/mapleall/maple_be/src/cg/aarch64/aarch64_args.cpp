@@ -30,7 +30,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
                                              std::vector<uint32> &numFpRegs,
                                              std::vector<uint32> &fpSize) const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  uint32 numFormal = aarchCGFunc->GetFunction().GetFormalCount();
+  uint32 numFormal = static_cast<uint32>(aarchCGFunc->GetFunction().GetFormalCount());
   numFpRegs.resize(numFormal);
   fpSize.resize(numFormal);
   ParmLocator parmlocator(aarchCGFunc->GetBecommon());
@@ -62,7 +62,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
       continue;
     }
     if (ploc.numFpPureRegs) {
-      uint32 index = indexList.size() - 1;
+      uint32 index = static_cast<uint32>(indexList.size()) - 1;
       numFpRegs[index] = ploc.numFpPureRegs;
       fpSize[index] = ploc.fpSize;
       continue;
@@ -243,17 +243,17 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
     /* second half of the struct passing by registers. */
     uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
-  } else if (numFpRegs > 1) {
+  } else if (numFpRegs > kOneRegister) {
     uint32 fpSizeBits = fpSize * kBitsPerByte;
-    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 1);
-    GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp2, (stOffset + fpSize));
-    if (numFpRegs > 2) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 2);
-      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + (fpSize * 2)));
+    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kOneRegister);
+    GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp2, (stOffset + static_cast<int>(fpSize)));
+    if (numFpRegs > kTwoRegister) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kTwoRegister);
+      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k4BitShift)));
     }
-    if (numFpRegs > 3) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 3);
-      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + (fpSize * 3)));
+    if (numFpRegs > kThreeRegister) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kThreeRegister);
+      GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k8BitShift)));
     }
   }
 }
@@ -284,8 +284,8 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
       secondArgInfo.reg = (firstArgInfo.doMemPairOpt) ? pairReg[firstIndex] : movePara[secondIndex];
       secondArgInfo.symSize = (firstArgInfo.doMemPairOpt) ? firstArgInfo.memPairSecondRegSize : secondArgInfo.symSize;
       secondArgInfo.symLoc = (firstArgInfo.doMemPairOpt) ? secondArgInfo.symLoc :
-                                 static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
-                                     secondArgInfo.sym->GetStIndex()));
+          static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
+              secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
       if (IsInSameSegment(firstArgInfo, secondArgInfo)) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
