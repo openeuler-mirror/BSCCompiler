@@ -243,16 +243,16 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
     /* second half of the struct passing by registers. */
     uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
-  } else if (numFpRegs > 1) {
+  } else if (numFpRegs > kOneRegister) {
     uint32 fpSizeBits = fpSize * kBitsPerByte;
-    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + static_cast<int>(k4BitShift));
+    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kOneRegister);
     GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp2, (stOffset + static_cast<int>(fpSize)));
-    if (numFpRegs > 2) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 2);
+    if (numFpRegs > kTwoRegister) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kTwoRegister);
       GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k4BitShift)));
     }
-    if (numFpRegs > 3) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + 3);
+    if (numFpRegs > kThreeRegister) {
+      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kThreeRegister);
       GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k8BitShift)));
     }
   }
