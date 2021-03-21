@@ -36,7 +36,8 @@ GN_OPTIONS := \
   HOST_ARCH=$(HOST_ARCH) \
   MIR_JAVA=$(MIR_JAVA) \
   OPT="$(OPT)" \
-  OPS_ANDROID=$(OPS_ANDROID)
+  OPS_ANDROID=$(OPS_ANDROID) \
+  TARGET="$(TARGET_PROCESSOR)" \
 
 .PHONY: default
 default: install
@@ -120,27 +121,20 @@ setup:
 
 .PHONY: demo
 demo:
-	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1
+	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1 1
 
-.PHONY: test1
-test1: libcore
-	python3 test/main.py test/testsuite/ouroboros/string_test/RT0001-rt-string-ReflectString/ReflectString.java --test_cfg=test/testsuite/ouroboros/test.cfg --verbose --debug
-
-.PHONY: test_irbuild
-test_irbuild: install
-	python3 test/main.py test/testsuite/irbuild_test --test_cfg=test/testsuite/irbuild_test/test.cfg -j20 -pFAIL
-
-.PHONY: test_ourboros
-test_ourboros: libcore
-	python3 test/main.py test/testsuite/ouroboros --test_cfg=test/testsuite/ouroboros/test.cfg --timeout=180 -j20 --retry 1 --fail_exit -pFAIL
-
-.PHONY: c_test
-c_test:
-	$(MAKE) -C test c_test
-
-.PHONY: testall
-testall: 
-	$(MAKE) -C test all
+THREADS := 50
+ifneq ($(findstring test,$(MAKECMDGOALS)),)
+TESTTARGET := $(MAKECMDGOALS)
+ifdef TARGET
+REALTARGET := $(TARGET)
+else
+REALTARGET := $(TESTTARGET)
+endif
+.PHONY: $(TESTTARGET)
+${TESTTARGET}:
+	@python3 $(MAPLE_ROOT)/testsuite/driver/src/driver.py --target=$(REALTARGET) --run-path=$(MAPLE_ROOT)/output/testsuite $(if $(MOD), --mod=$(MOD),) --j=$(THREADS) --retry --report=$(MAPLE_ROOT)/report.txt
+endif
 
 .PHONY: cleanrsd
 cleanrsd:uninstall_patch
