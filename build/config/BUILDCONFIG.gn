@@ -24,6 +24,7 @@ declare_args() {
   COV_CHECK = 0
   OPS_ANDROID = 0
   OPT = "O2"
+  TARGET = ""
 }
 
 # Define global args
@@ -32,6 +33,8 @@ ANDROID_ROOT = "${MAPLE_ROOT}/android"
 AOSP_ROOT = "${MAPLE_ROOT}/third_party/aosp_modified"
 MAPLE_BUILD_TYPE = getenv("MAPLE_BUILD_TYPE")
 MAPLE_BUILD_OUTPUT = getenv("MAPLE_BUILD_OUTPUT")
+TOOL_BIN_PATH = getenv("TOOL_BIN_PATH")
+QEMU_PATH = getenv("TOOL_BIN_PATH")
 OLD_OS = getenv("OLD_OS")
 if (OLD_OS == "1") {
   DESIGNATOR="-Wno-gnu-designator"
@@ -171,7 +174,6 @@ if (MARK_CYCLE_ROOTS) {
 cflags_cc += [ "-DMIR_FEATURE_FULL=1" ]
 
 if (MIR_JAVA == 1) {
-  TARGET = "aarch64"
   cflags_cc += [ "-DMIR_JAVA=1" ]
 } else {
   TARGET = "vm"

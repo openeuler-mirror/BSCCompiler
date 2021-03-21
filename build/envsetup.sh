@@ -26,13 +26,11 @@ if [ "$#" -lt 2 ]; then
 fi
 
 curdir=$(pwd)
-unset MAPLE_ROOT
 export MAPLE_ROOT=${curdir}
-unset ANDROID_ROOT
+export CASE_ROOT=${curdir}/testsuite
+export OUT_ROOT=${curdir}/output
 export ANDROID_ROOT=${curdir}/android
-unset MAPLE_BUILD_CORE
 export MAPLE_BUILD_CORE=${MAPLE_ROOT}/build/core
-unset IS_AST2MPL_EXISTS
 if [ -d ${MAPLE_ROOT}/src/ast2mpl ]; then
   export IS_AST2MPL_EXISTS=1
 else
@@ -44,25 +42,12 @@ export GCOV_PREFIX_STRIP=7
 # display OS version
 lsb_release -d
 
+export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
-  OLD_OS=1
+  export OLD_OS=1
 else
-  OLD_OS=0
-fi
-export OLD_OS=${OLD_OS}
-
-# workaround for current build
-if [ "$#" -eq 0 ]; then
-unset MAPLE_BUILD_OUTPUT
-export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output
-
-unset MAPLE_EXECUTE_BIN
-export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/bin
-
-unset MAPLE_DEBUG
-export MAPLE_DEBUG=0
-return
+  export OLD_OS=0
 fi
 
 # support multiple ARCH and BUILD_TYPE
@@ -70,18 +55,15 @@ fi
 if [ $1 = "arm" ]; then
   PLATFORM=aarch64
   USEOJ=0
+elif [ $1 = "riscv" ]; then
+  PLATFORM=riscv64
+  USEOJ=0
 elif [ $1 = "engine" ]; then
   PLATFORM=ark
   USEOJ=1
 elif [ $1 = "ark" ]; then
   PLATFORM=ark
   USEOJ=1
-elif [ $1 = "ark2" ]; then
-  PLATFORM=ark
-  USEOJ=2
-elif [ $1 = "riscv" ]; then
-  PLATFORM=riscv64
-  USEOJ=0
 else
   print_usage
   return
@@ -98,32 +80,17 @@ else
   return
 fi
 
-unset MAPLE_DEBUG
 export MAPLE_DEBUG=${DEBUG}
-
-unset TARGET_PROCESSOR
 export TARGET_PROCESSOR=${PLATFORM}
-
-unset TARGET_SCOPE
 export TARGET_SCOPE=${TYPE}
-
-unset USE_OJ_LIBCORE
 export USE_OJ_LIBCORE=${USEOJ}
-
-unset TARGET_TOOLCHAIN
 export TARGET_TOOLCHAIN=clang
-
-unset MAPLE_BUILD_TYPE
 export MAPLE_BUILD_TYPE=${TARGET_PROCESSOR}-${TARGET_TOOLCHAIN}-${TARGET_SCOPE}
 echo "Build:          $MAPLE_BUILD_TYPE"
-
-unset MAPLE_BUILD_OUTPUT
 export MAPLE_BUILD_OUTPUT=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}
-
-unset MAPLE_EXECUTE_BIN
 export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
-
-export PATH=$PATH:${MAPLE_EXECUTE_BIN}
+export TEST_BIN=${CASE_ROOT}/driver/script
+export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
 if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "

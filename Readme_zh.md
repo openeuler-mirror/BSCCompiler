@@ -67,3 +67,6 @@ OpenArkCompiler是来自华为方舟编译器的开源项目。
 
 ## 许可证
 - [LICENSE](license/LICENSE)
+
+## 开发者交流频道
+- [Discard-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
