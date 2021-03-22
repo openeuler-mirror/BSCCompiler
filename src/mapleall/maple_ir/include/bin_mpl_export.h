@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,6 +20,8 @@
 #include "mir_preg.h"
 #include "parser_opt.h"
 #include "module_phase.h"
+#include "ea_connection_graph.h"
+#include "call_graph.h"
 
 namespace maple {
 enum : uint8 {
@@ -100,10 +102,12 @@ class BinaryMplExport {
   explicit BinaryMplExport(MIRModule &md);
   virtual ~BinaryMplExport() = default;
 
-  void Export(const std::string &fname);
+  void Export(const std::string &fname, std::unordered_set<std::string> *dumpFuncSet);
   void WriteNum(int64 x);
   void Write(uint8 b);
-  void OutputType(TyIdx tyIdx);
+  void OutputType(TyIdx tyIdx, bool canUseTypename);
+  void OutputTypeViaTypeName(TyIdx tidx) { OutputType(tidx, true); }
+  void WriteFunctionBodyField(uint64 contentIdx, std::unordered_set<std::string> *dumpFuncSet);
   void OutputConst(MIRConst *c);
   void OutputConstBase(const MIRConst &c);
   void OutputTypeBase(const MIRType &type);
@@ -123,19 +127,38 @@ class BinaryMplExport {
   void OutputInfo(const std::vector<MIRInfoPair> &info, const std::vector<bool> &infoIsString);
   void OutputPragmaVec(const std::vector<MIRPragma*> &pragmaVec);
   void OutputClassTypeData(const MIRClassType &type);
-  void OutputSymbol(const MIRSymbol *sym);
+  void OutputSymbol(MIRSymbol *sym);
   void OutputFunction(PUIdx puIdx);
-  void OutWords(uint8 &typeTagged, int64 targetTag, uint16 size);
   void OutputInterfaceTypeData(const MIRInterfaceType &type);
+  void OutputSrcPos(const SrcPosition &pos);
+  void OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMap);
+  void OutputInfoVector(const MIRInfoVector &infovector, const MapleVector<bool> &infovector_isstring);
+  void OutputFuncIdInfo(MIRFunction *func);
+  void OutputLocalSymbol(MIRSymbol *sym);
+  void OutputLocalSymTab(const MIRFunction *func);
+  void OutputPregTab(const MIRFunction *func);
+  void OutputLabelTab(const MIRFunction *func);
+  void OutputLocalTypeNameTab(const MIRTypeNameTable *tnametab);
+  void OutputFormalsStIdx(MIRFunction *func);
+  void OutputFuncViaSymName(PUIdx puIdx);
+  void OutputExpression(BaseNode *e);
+  void OutputBaseNode(const BaseNode *b);
+  void OutputReturnValues(const CallReturnVector *retv);
+  void OutputBlockNode(BlockNode *block);
+
   const MIRModule &GetMIRModule() const {
     return mod;
   }
 
  private:
-  void WriteContentField(int fieldNum, uint64 *fieldStartP);
+  void WriteContentField4mplt(int fieldNum, uint64 *fieldStartP);
+  void WriteContentField4nonmplt(int fieldNum, uint64 *fieldStartP);
+  void WriteContentField4nonJava(int fieldNum, uint64 *fieldStartP);
   void WriteStrField(uint64 contentIdx);
-  void WriteTypeField(uint64 contentIdx);
+  void WriteHeaderField(uint64 contentIdx);
+  void WriteTypeField(uint64 contentIdx, bool useClassList = true);
   void Init();
+  void WriteSymField(uint64 contentIdx);
   void WriteInt(int32 x);
   uint8 Read();
   int32 ReadInt();
@@ -156,6 +179,10 @@ class BinaryMplExport {
   std::unordered_map<const MIRSymbol*, int64> symMark;
   std::unordered_map<MIRType*, int64> typMark;
   static int typeMarkOffset;  // offset of mark (tag in binmplimport) resulting from duplicated function
+
+ public:
+  bool not2mplt;  // this export is not to an mplt file
+  std::unordered_map<uint32, int64> callInfoMark;
 };
 
 }  // namespace maple

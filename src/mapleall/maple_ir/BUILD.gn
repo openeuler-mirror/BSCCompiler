@@ -48,6 +48,8 @@ src_libmplir = [
   "src/printing.cpp",
   "src/bin_mpl_import.cpp",
   "src/bin_mpl_export.cpp",
+  "src/bin_func_export.cpp",
+  "src/bin_func_import.cpp",
 ]
 
 src_irbuild = [ "src/driver.cpp" ]
