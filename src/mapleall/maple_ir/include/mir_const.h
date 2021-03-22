@@ -163,8 +163,8 @@ class MIRIntConst : public MIRConst {
 
 class MIRAddrofConst : public MIRConst {
  public:
-  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty)
-      : MIRConst(ty, kConstAddrof), stIdx(sy), fldID(fi), offset(0) {}
+  MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, uint32 fieldID = 0)
+      : MIRConst(ty, kConstAddrof, fieldID), stIdx(sy), fldID(fi), offset(0) {}
 
   MIRAddrofConst(StIdx sy, FieldID fi, MIRType &ty, int32 ofst, uint32 fieldID = 0)
       : MIRConst(ty, kConstAddrof, fieldID), stIdx(sy), fldID(fi), offset(ofst) {}
@@ -548,7 +548,7 @@ class MIRStConst : public MIRConst {
     stVec.push_back(sym);
   }
 
-  const MIRSymbol *GetStVecItem(size_t index) const {
+  MIRSymbol *GetStVecItem(size_t index) {
     CHECK_FATAL(index < stVec.size(), "array index out of range");
     return stVec[index];
   }

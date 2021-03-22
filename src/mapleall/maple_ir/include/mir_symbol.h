@@ -222,7 +222,9 @@ class MIRSymbol {
   }
 
   bool IsFinal() const {
-    return (typeAttrs.GetAttr(ATTR_final) || typeAttrs.GetAttr(ATTR_readonly)) || IsLiteral() || IsLiteralPtr();
+    return ((typeAttrs.GetAttr(ATTR_final) || typeAttrs.GetAttr(ATTR_readonly)) &&
+            staticFinalBlackList.find(GetName()) == staticFinalBlackList.end()) ||
+           IsLiteral() || IsLiteralPtr();
   }
 
   bool IsWeak() const {
@@ -311,7 +313,7 @@ class MIRSymbol {
     return srcPosition;
   }
 
-  void SetSrcPosition(const SrcPosition &position) {
+  void SetSrcPosition(SrcPosition &position) {
     srcPosition = position;
   }
 
@@ -402,6 +404,8 @@ class MIRSymbol {
   bool IsMuidRangeTab() const;
   bool IsArrayClassCache() const;
   bool IsArrayClassCacheName() const;
+  bool IsForcedGlobalFunc() const;
+  bool IsForcedGlobalClassinfo() const;
   bool IsGctibSym() const;
   bool IsPrimordialObject() const;
   bool IgnoreRC() const;
@@ -448,6 +452,8 @@ class MIRSymbol {
   GStrIdx nameStrIdx{ 0 };
   SymbolType value = { nullptr };
   SrcPosition srcPosition;      // where the symbol is defined
+  // following cannot be assumed final even though they are declared final
+  static const std::set<std::string> staticFinalBlackList;
   static GStrIdx reflectClassNameIdx;
   static GStrIdx reflectMethodNameIdx;
   static GStrIdx reflectFieldNameIdx;
@@ -467,21 +473,22 @@ class MIRSymbolTable {
     return idx < symbolTable.size();
   }
 
-  const MIRSymbol *GetSymbolFromStIdx(uint32 idx, bool checkFirst = false) const {
+  MIRSymbol *GetSymbolFromStIdx(uint32 idx, bool checkFirst = false) const {
     if (checkFirst && idx >= symbolTable.size()) {
       return nullptr;
     }
     CHECK_FATAL(IsValidIdx(idx), "symbol table index out of range");
     return symbolTable[idx];
   }
-  MIRSymbol *GetSymbolFromStIdx(uint32 idx, bool checkFirst = false) {
-    return const_cast<MIRSymbol*>(const_cast<const MIRSymbolTable*>(this)->GetSymbolFromStIdx(idx, checkFirst));
-  }
 
   MIRSymbol *CreateSymbol(uint8 scopeID) {
     auto *st = mAllocator.GetMemPool()->New<MIRSymbol>(symbolTable.size(), scopeID);
     symbolTable.push_back(st);
     return st;
+  }
+
+  void PushNullSymbol() {
+    symbolTable.push_back(nullptr);
   }
 
   // add sym from other symbol table, happens in inline
@@ -512,10 +519,6 @@ class MIRSymbolTable {
     return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
   }
 
-  const MIRSymbol *GetSymbolFromStrIdx(GStrIdx idx, bool checkFirst = false) const {
-    return GetSymbolFromStIdx(GetStIdxFromStrIdx(idx).Idx(), checkFirst);
-  }
-
   void Dump(bool isLocal, int32 indent = 0, bool printDeleted = false) const;
   size_t GetSymbolTableSize() const {
     return symbolTable.size();
@@ -523,6 +526,19 @@ class MIRSymbolTable {
 
   void Clear() {
     symbolTable.clear();
+  }
+
+  MIRSymbol *CloneLocalSymbol(const MIRSymbol &oldSym) const {
+    auto *memPool = mAllocator.GetMemPool();
+    auto *newSym = memPool->New<MIRSymbol>(oldSym);
+    if (oldSym.GetSKind() == kStConst) {
+      newSym->SetKonst(oldSym.GetKonst()->Clone(*memPool));
+    } else if (oldSym.GetSKind() == kStPreg) {
+      newSym->SetPreg(memPool->New<MIRPreg>(*oldSym.GetPreg()));
+    } else if (oldSym.GetSKind() == kStFunc) {
+      CHECK_FATAL(false, "%s has unexpected local func symbol", oldSym.GetName().c_str());
+    }
+    return newSym;
   }
 
  private:
@@ -597,7 +613,11 @@ class MIRLabelTable {
     return labelTable;
   }
 
-  MapleUnorderedSet<LabelIdx> GetAddrTakenLabels() {
+  const MapleUnorderedSet<LabelIdx> &GetAddrTakenLabels() const {
+    return addrTakenLabels;
+  }
+
+  MapleUnorderedSet<LabelIdx> &GetAddrTakenLabels() {
     return addrTakenLabels;
   }
 
@@ -613,6 +633,7 @@ class MIRLabelTable {
   MapleAllocator mAllocator;
   MapleMap<GStrIdx, LabelIdx> strIdxToLabIdxMap;
   MapleVector<GStrIdx> labelTable;  // map label idx to label name
+ public:
   MapleUnorderedSet<LabelIdx> addrTakenLabels; // those appeared in addroflabel or MIRLblConst
 };
 }  // namespace maple

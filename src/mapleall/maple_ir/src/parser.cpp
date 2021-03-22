@@ -523,6 +523,7 @@ bool MIRParser::ParsePragma(MIRStructType &type) {
     return false;
   }
   p->SetTyIdx(tyIdx);
+
   tk = lexer.GetTokenKind();
   if (tk != TK_lbrace) {
     TyIdx tyIdxEx;
@@ -532,6 +533,7 @@ bool MIRParser::ParsePragma(MIRStructType &type) {
     }
     p->SetTyIdxEx(tyIdxEx);
   }
+
   tk = lexer.NextToken();
   while (tk != TK_rbrace) {
     auto *e = mod.GetMemPool()->New<MIRPragmaElement>(mod);
@@ -2027,6 +2029,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
       MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType.GetElemTyIdx());
       MIRAggConst *newConst = mod.GetMemPool()->New<MIRAggConst>(mod, type);
       theConst = newConst;
+      MapleVector<MIRConst *> &constvec = newConst->GetConstVec();
       tokenKind = lexer.NextToken();
       if (tokenKind == TK_rbrack) {
         if (allowEmpty) {
@@ -2078,7 +2081,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           Error("expect const value or group of const values but get ");
           return false;
         }
-        newConst->PushBack(subConst);
+        constvec.push_back(subConst);
         // parse comma or rbrack
         tokenKind = lexer.GetTokenKind();
         if (tokenKind == TK_coma) {
