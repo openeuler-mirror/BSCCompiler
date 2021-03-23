@@ -876,7 +876,7 @@ bool MIRParser::ParseStmtIntrinsiccall(StmtNodePtr &stmt, bool isAssigned) {
                                                                              : OP_xintrinsiccallassigned);
   auto *intrnCallNode = mod.CurFuncCodeMemPool()->New<IntrinsiccallNode>(mod, o);
   lexer.NextToken();
-  if (o == (!isAssigned ? OP_intrinsiccall : OP_intrinsiccallassigned)) {
+  if (o == !isAssigned ? OP_intrinsiccall : OP_intrinsiccallassigned) {
     intrnCallNode->SetIntrinsic(GetIntrinsicID(lexer.GetTokenKind()));
   } else {
     intrnCallNode->SetIntrinsic(static_cast<MIRIntrinsicID>(lexer.GetTheIntVal()));
@@ -2606,7 +2606,7 @@ bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type, uint32 field
       Error("constant value incompatible with integer type at ");
       return false;
     }
-    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type, fieldID);
+    stype = mod.GetMemPool()->New<MIRIntConst>(lexer.GetTheIntVal(), type, fieldID);
   } else if (ptp == PTY_f32) {
     if (lexer.GetTokenKind() != TK_floatconst) {
       Error("constant value incompatible with single-precision float type at ");

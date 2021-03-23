@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Dex2mpl(ShellOperator):
 
-    def __init__(self, dex2mpl, mplt, litprofile, infile, return_value_list=[0], redirection=None):
+    def __init__(self, dex2mpl, mplt, litprofile, infile, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.dex2mpl = dex2mpl
         self.mplt = mplt

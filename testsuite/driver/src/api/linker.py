@@ -17,10 +17,10 @@ from api.shell_operator import ShellOperator
 
 class Linker(ShellOperator):
 
-    def __init__(self, lib, return_value_list=[0], redirection=None):
+    def __init__(self, lib, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.lib = lib
 
     def get_command(self, variables):
-        self.command = "clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c ${APP}.VtableImpl.s && clang++ ${APP}.VtableImpl.o -L${OUT_ROOT}/aarch64-clang-release/ops/" + self.lib + " -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o ${APP}.so ${OUT_ROOT}/aarch64-clang-release/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/aarch64-clang-release/ops/linker/maplelld.so.lds"
+        self.command = "${TOOL_BIN_PATH}/clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c ${APP}.VtableImpl.s && ${TOOL_BIN_PATH}/clang++ ${APP}.VtableImpl.o -L${OUT_ROOT}/aarch64-clang-release/ops/" + self.lib + " -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o ${APP}.so ${OUT_ROOT}/aarch64-clang-release/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/aarch64-clang-release/ops/linker/maplelld.so.lds"
         return super().get_final_command(variables)

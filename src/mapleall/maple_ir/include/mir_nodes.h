@@ -1615,6 +1615,10 @@ class TryNode : public StmtNode {
   void Dump(int32 indent) const override;
   void Dump() const;
 
+  MapleVector<LabelIdx> &GetOffsets() {
+    return offsets;
+  }
+
   LabelIdx GetOffset(size_t i) const {
     ASSERT(i < offsets.size(), "array index out of range");
     return offsets.at(i);
@@ -1812,7 +1816,7 @@ class SwitchNode : public StmtNode {
     defaultLabel = idx;
   }
 
-  const CaseVector &GetSwitchTable() const {
+  CaseVector &GetSwitchTable() {
     return switchTable;
   }
 

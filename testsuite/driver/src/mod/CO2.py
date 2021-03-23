@@ -31,7 +31,7 @@ CO2 = {
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             run=["mplcg"],
             option={
-                "mplcg": "-O2 --quiet"
+                "mplcg": "-O2 --quiet --no-schedule"
             },
             global_option="",
             infile="${APP}.mpl"
@@ -43,7 +43,7 @@ CO2 = {
     ],
     "run": [
         Shell(
-            "qemu-aarch64 -L /usr/aarch64-linux-gnu/ ${APP}.out"
+            "${TOOL_BIN_PATH}/qemu-aarch64 -L /usr/aarch64-linux-gnu/ ${APP}.out"
         )
     ]
 }

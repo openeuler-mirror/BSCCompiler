@@ -21,10 +21,10 @@ class Clangfe(ShellOperator):
 
     aarch64_linux_gnu_version = os.listdir("/usr/lib/gcc-cross/aarch64-linux-gnu")[0]
 
-    def __init__(self, infile, return_value_list=[0], redirection=None):
+    def __init__(self, infile, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.infile = infile
 
     def get_command(self, variables):
-        self.command = "clangfe -cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/" + str(Clangfe.aarch64_linux_gnu_version) + "/include " + self.infile
+        self.command = "${TOOL_BIN_PATH}/clangfe -cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/" + str(Clangfe.aarch64_linux_gnu_version) + "/include " + self.infile
         return super().get_final_command(variables)

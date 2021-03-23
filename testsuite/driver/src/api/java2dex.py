@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Java2dex(ShellOperator):
 
-    def __init__(self, jar_file, outfile, infile, return_value_list=[0], redirection=None):
+    def __init__(self, jar_file, outfile, infile, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.jar_file = jar_file
         self.outfile = outfile

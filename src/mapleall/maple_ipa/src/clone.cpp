@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -25,6 +25,9 @@
 namespace maple {
 ReplaceRetIgnored::ReplaceRetIgnored(MemPool *memPool)
     : memPool(memPool), allocator(memPool), toBeClonedFuncNames(allocator.Adapter()) {
+#define ORIFUNC(ORIGINAL, CLONED) toBeClonedFuncNames.insert(MapleString(#ORIGINAL, memPool));
+#include "tobe_cloned_funcs.def"
+#undef ORIFUNC
 }
 
 bool ReplaceRetIgnored::RealShouldReplaceWithVoidFunc(Opcode op, size_t nRetSize,
@@ -132,18 +135,19 @@ MIRFunction *Clone::CloneFunction(MIRFunction &originalFunction, const std::stri
 
 void Clone::CloneArgument(MIRFunction &originalFunction, ArgVector &argument) const {
   for (size_t i = 0; i < originalFunction.GetFormalCount(); ++i) {
-    argument.push_back(ArgPair(originalFunction.GetFormal(i)->GetName(), originalFunction.GetNthParamType(i)));
+    auto &formalName = originalFunction.GetFormalName(i);
+    argument.push_back(ArgPair(formalName, originalFunction.GetNthParamType(i)));
   }
 }
 
-void Clone::CopyFuncInfo(const MIRFunction &originalFunction, MIRFunction &newFunc) const {
+void Clone::CopyFuncInfo(MIRFunction &originalFunction, MIRFunction &newFunc) const {
   auto funcNameIdx = newFunc.GetBaseFuncNameStrIdx();
   auto fullNameIdx = newFunc.GetNameStrIdx();
   auto classNameIdx = newFunc.GetBaseClassNameStrIdx();
   auto metaFullNameIdx = mirBuilder.GetOrCreateStringIndex(kFullNameStr);
   auto metaClassNameIdx = mirBuilder.GetOrCreateStringIndex(kClassNameStr);
   auto metaFuncNameIdx = mirBuilder.GetOrCreateStringIndex(kFuncNameStr);
-  const MIRInfoVector &fnInfo = originalFunction.GetInfoVector();
+  MIRInfoVector &fnInfo = originalFunction.GetInfoVector();
   const MapleVector<bool> &infoIsString = originalFunction.InfoIsString();
   size_t size = fnInfo.size();
   for (size_t i = 0; i < size; ++i) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -17,7 +17,7 @@
 #include <vector>
 #include <unordered_set>
 #include <limits>
-#include "bin_mpl_export.h"
+#include "bin_mplt.h"
 #include "mir_function.h"
 #include "namemangler.h"
 #include "opcode_info.h"
@@ -61,13 +61,11 @@ int64 BinaryMplImport::ReadNum() {
 }
 
 void BinaryMplImport::ReadAsciiStr(std::string &str) {
-  uint8 ch = Read();
-  std::ostringstream strStream(str);
-  while (ch != '\0') {
-    strStream << ch;
-    ch = Read();
+  int64 n = ReadNum();
+  for (int64 i = 0; i < n; i++) {
+    uint8 ch = Read();
+    str.push_back(static_cast<char>(ch));
   }
-  str = strStream.str();
 }
 
 void BinaryMplImport::ReadFileAt(const std::string &name, int32 offset) {
@@ -112,29 +110,39 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
   uint32 fieldID;
   MemPool *memPool = (func == nullptr) ? mod.GetMemPool() : func->GetCodeMempool();
 
+  ImportConstBase(kind, type, fieldID);
   switch (tag) {
     case kBinKindConstInt:
-      ImportConstBase(kind, type, fieldID);
       return GlobalTables::GetIntConstTable().GetOrCreateIntConst(ReadNum(), *type, fieldID);
     case kBinKindConstAddrof: {
-      ImportConstBase(kind, type, fieldID);
       MIRSymbol *sym = InSymbol(func);
       CHECK_FATAL(sym != nullptr, "null ptr check");
       FieldID fi = ReadNum();
-      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type);
+      int32 ofst = ReadNum();
+      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type, ofst, fieldID);
+    }
+    case kBinKindConstAddrofLocal: {
+      uint32 fullidx = ReadNum();
+      FieldID fi = ReadNum();
+      int32 ofst = ReadNum();
+      return memPool->New<MIRAddrofConst>(StIdx(fullidx), fi, *type, ofst, fieldID);
     }
     case kBinKindConstAddrofFunc: {
-      ImportConstBase(kind, type, fieldID);
       PUIdx puIdx = ImportFunction();
       return memPool->New<MIRAddroffuncConst>(puIdx, *type, fieldID);
     }
+    case kBinKindConstAddrofLabel: {
+      LabelIdx lidx = ReadNum();
+      PUIdx puIdx = func->GetPuidx();
+      MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type, fieldID);
+      func->GetLabelTab()->addrTakenLabels.insert(lidx);
+      return lblConst;
+    }
     case kBinKindConstStr: {
-      ImportConstBase(kind, type, fieldID);
       UStrIdx ustr = ImportUsrStr();
       return memPool->New<MIRStrConst>(ustr, *type, fieldID);
     }
     case kBinKindConstStr16: {
-      ImportConstBase(kind, type, fieldID);
       Conststr16Node *cs;
       cs = memPool->New<Conststr16Node>();
       cs->SetPrimType(type->GetPrimType());
@@ -146,7 +154,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       std::u16string str16;
       (void)namemangler::UTF8ToUTF16(str16, ostr.str());
       cs->SetStrIdx(GlobalTables::GetU16StrTable().GetOrCreateStrIdxFromName(str16));
-      return memPool->New<MIRStr16Const>(cs->GetStrIdx(), *type);
+      return memPool->New<MIRStr16Const>(cs->GetStrIdx(), *type, fieldID);
     }
     case kBinKindConstFloat: {
       union {
@@ -167,8 +175,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue);
     }
     case kBinKindConstAgg: {
-      ImportConstBase(kind, type, fieldID);
-      MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type);
+      MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type, fieldID);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         aggConst->PushBack(ImportConst(func));
@@ -176,8 +183,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       return aggConst;
     }
     case kBinKindConstSt: {
-      ImportConstBase(kind, type, fieldID);
-      MIRStConst *stConst = mod.GetMemPool()->New<MIRStConst>(mod, *type);
+      MIRStConst *stConst = mod.GetMemPool()->New<MIRStConst>(mod, *type, fieldID);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         stConst->PushbackSymbolToSt(InSymbol(func));
@@ -324,6 +330,13 @@ void BinaryMplImport::UpdateMethodSymbols() {
     auto *funcType = static_cast<MIRFuncType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx()));
     fn->SetMIRFuncType(funcType);
     fn->SetReturnStruct(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx()));
+    if (fn->GetFormalDefVec().size() != 0) {
+      continue;  // already updated in ImportFunction()
+    }
+    for (size_t i = 0; i < funcType->GetParamTypeList().size(); i++ ) {
+      FormalDef formalDef(nullptr, funcType->GetParamTypeList()[i], funcType->GetParamAttrsList()[i]);
+      fn->GetFormalDefVec().push_back(formalDef);
+    }
   }
 }
 
@@ -430,16 +443,20 @@ void BinaryMplImport::ImportClassTypeData(MIRClassType &type) {
   }
   ImportInterfacesOfClassType(type.GetInterfaceImplemented());
   ImportInfoIsStringOfStructType(type);
-  ImportInfoOfStructType(type);
-  ImportPragmaOfStructType(type);
+  if (!inIPA) {
+    ImportInfoOfStructType(type);
+    ImportPragmaOfStructType(type);
+  }
   SetClassTyidxOfMethods(type);
 }
 
 void BinaryMplImport::ImportInterfaceTypeData(MIRInterfaceType &type) {
   ImportInterfacesOfClassType(type.GetParentsTyIdx());
   ImportInfoIsStringOfStructType(type);
-  ImportInfoOfStructType(type);
-  ImportPragmaOfStructType(type);
+  if (!inIPA) {
+    ImportInfoOfStructType(type);
+    ImportPragmaOfStructType(type);
+  }
   SetClassTyidxOfMethods(type);
 }
 
@@ -458,7 +475,7 @@ void BinaryMplImport::Reset() {
   uStrTab.push_back(UStrIdx(0));  // Dummy
   symTab.push_back(nullptr);      // Dummy
   funcTab.push_back(nullptr);     // Dummy
-  for (int32 pti = 0; pti <= static_cast<int32>(PTY_agg); ++pti) {
+  for (int32 pti = static_cast<int32>(PTY_begin); pti < static_cast<int32>(PTY_end); ++pti) {
     typTab.push_back(GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(pti)));
   }
 }
@@ -470,13 +487,13 @@ TypeAttrs BinaryMplImport::ImportTypeAttrs() {
   return ta;
 }
 
-void BinaryMplImport::ImportTypePairs(MIRInstantVectorType &insVecType) {
+void BinaryMplImport::ImportTypePairs(std::vector<TypePair> &insVecType) {
   int64 size = ReadNum();
   for (int64 i = 0; i < size; ++i) {
     TyIdx t0 = ImportType();
     TyIdx t1 = ImportType();
     TypePair tp(t0, t1);
-    insVecType.AddInstant(tp);
+    insVecType.push_back(tp);
   }
 }
 
@@ -500,8 +517,6 @@ void BinaryMplImport::CompleteAggInfo(TyIdx tyIdx) {
 }
 
 TyIdx BinaryMplImport::ImportType(bool forPointedType) {
-  PrimType primType = (PrimType)0;
-  GStrIdx strIdx(0);
   int64 tag = ReadNum();
   static MIRType *typeNeedsComplete = nullptr;
   static int ptrLev = 0;
@@ -512,6 +527,22 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
     CHECK_FATAL(static_cast<size_t>(-tag) < typTab.size(), "index out of bounds");
     return typTab.at(-tag)->GetTypeIndex();
   }
+  if (tag == kBinKindTypeViaTypename) {
+    GStrIdx typenameStrIdx = ImportStr();
+    TyIdx tyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(typenameStrIdx);
+    if (tyIdx != 0) {
+      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      typTab.push_back(ty);
+      return tyIdx;
+    }
+    MIRTypeByName ltype(typenameStrIdx);
+    ltype.SetNameIsLocal(false);
+    MIRType *type = GlobalTables::GetTypeTable().GetOrCreateMIRTypeNode(ltype);
+    typTab.push_back(type);
+    return type->GetTypeIndex();
+  }
+  PrimType primType = (PrimType)0;
+  GStrIdx strIdx(0);
   bool nameIsLocal = false;
   ImportTypeBase(primType, strIdx, nameIsLocal);
 
@@ -526,6 +557,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       ++ptrLev;
       type.SetPointedTyIdx(ImportType(true));
       --ptrLev;
+      type.SetTypeAttrs(ImportTypeAttrs());
       MIRType *origType = &InsertInTypeTables(type);
       typTab[idx] = origType;
       if (typeNeedsComplete != nullptr && ptrLev == 0) {
@@ -573,6 +605,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       size_t idx = typTab.size();
       typTab.push_back(nullptr);
       type.SetElemTyIdx(ImportType(forPointedType));
+      type.SetTypeAttrs(ImportTypeAttrs());
       MIRType *origType = &InsertInTypeTables(type);
       typTab[idx] = origType;
       return origType->GetTypeIndex();
@@ -609,7 +642,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       type.SetNameIsLocal(nameIsLocal);
       auto *origType = static_cast<MIRInstantVectorType*>(&InsertInTypeTables(type));
       typTab.push_back(origType);
-      ImportTypePairs(*origType);
+      ImportTypePairs(origType->GetInstantVec());
       return origType->GetTypeIndex();
     }
     case kBinKindTypeGenericInstant: {
@@ -617,7 +650,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       type.SetNameIsLocal(nameIsLocal);
       auto *origType = static_cast<MIRGenericInstantType*>(&InsertInTypeTables(type));
       typTab.push_back(origType);
-      ImportTypePairs(*origType);
+      ImportTypePairs(origType->GetInstantVec());
       origType->SetGenericTyIdx(ImportType());
       return origType->GetTypeIndex();
     }
@@ -729,20 +762,24 @@ MIRType &BinaryMplImport::InsertInTypeTables(MIRType &type) {
     resultTypePtr = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
     if (tyIdx + 1 == GlobalTables::GetTypeTable().GetTypeTable().size() && !resultTypePtr->IsNameIsLocal()) {
       GStrIdx stridx = resultTypePtr->GetNameStrIdx();
-      if (IsObject(*resultTypePtr)) {
+      if (stridx != 0) {
         mod.GetTypeNameTab()->SetGStrIdxToTyIdx(stridx, tyIdx);
-        mod.AddClass(tyIdx);
         mod.PushbackTypeDefOrder(stridx);
-        if (!IsIncomplete(*resultTypePtr)) {
-          GlobalTables::GetTypeNameTable().SetGStrIdxToTyIdx(stridx, tyIdx);
+        if (IsObject(*resultTypePtr)) {
+          mod.AddClass(tyIdx);
+          if (!IsIncomplete(*resultTypePtr)) {
+            GlobalTables::GetTypeNameTable().SetGStrIdxToTyIdx(stridx, tyIdx);
+          }
         }
-      } else if (resultTypePtr->GetKind() == kTypeByName) {
-        mod.GetTypeNameTab()->SetGStrIdxToTyIdx(stridx, tyIdx);
       }
     }
   }
   return *resultTypePtr;
 }
+
+void BinaryMplImport::UpdateDebugInfo() {
+}
+
 
 void BinaryMplImport::SetupEHRootType() {
   // setup eh root type with most recent Ljava_2Flang_2FObject_3B
@@ -785,15 +822,30 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
     sym->SetAttrs(ImportTypeAttrs());
     sym->SetIsTmp(ReadNum() != 0);
     sym->SetIsImported(imported);
+    uint32 thepregno = 0;
     if (skind == kStPreg) {
-      CHECK_FATAL(false, "outing kStPreg");
+      CHECK_FATAL(scope == kScopeLocal && func != nullptr, "Expecting kScopeLocal");
+      thepregno = ReadNum();
     } else if (skind == kStConst || skind == kStVar) {
-      CHECK_FATAL(false, "outing kStConst or kStVar");
+      sym->SetKonst(ImportConst(func));
     } else if (skind == kStFunc) {
       PUIdx puidx = ImportFunction();
-      TyIdx tyidx = ImportType();
-      sym->SetTyIdx(tyidx);
-      sym->SetFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx));
+      if (puidx != 0) {
+        sym->SetFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puidx));
+      }
+    }
+    if (skind == kStVar || skind == kStFunc) {
+      ImportSrcPos(sym->GetSrcPosition());
+    }
+    TyIdx tyIdx = ImportType();
+    sym->SetTyIdx(tyIdx);
+    if (skind == kStPreg) {
+      MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
+      PregIdx pregidx = func->GetPregTab()->EnterPregNo(thepregno, mirType->GetPrimType(), mirType);
+      MIRPregTable *pregTab = func->GetPregTab();
+      MIRPreg *preg = pregTab->PregFromPregIdx(pregidx);
+      preg->SetPrimType(mirType->GetPrimType());
+      sym->SetPreg(preg);
     }
     return sym;
   }
@@ -802,10 +854,16 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
 PUIdx BinaryMplImport::ImportFunction() {
   int64 tag = ReadNum();
   if (tag == 0) {
+    mod.SetCurFunction(nullptr);
     return 0;
   } else if (tag < 0) {
     CHECK_FATAL(static_cast<size_t>(-tag) < funcTab.size(), "index out of bounds");
-    return funcTab.at(-tag)->GetPuidx();
+    if (-tag == funcTab.size()) { // function was exported before its symbol
+      return (PUIdx)0;
+    }
+    PUIdx puIdx =  funcTab[-tag]->GetPuidx();
+    mod.SetCurFunction(GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx));
+    return puIdx;
   }
   CHECK_FATAL(tag == kBinFunction, "expecting kBinFunction");
   MIRSymbol *funcSt = InSymbol(nullptr);
@@ -820,16 +878,37 @@ PUIdx BinaryMplImport::ImportFunction() {
     funcTab.push_back(func);
   }
   funcSt->SetFunction(func);
+  methodSymbols.push_back(funcSt);
   if (mod.IsJavaModule()) {
     func->SetBaseClassFuncNames(funcSt->GetNameStrIdx());
   }
-  TyIdx retType = ImportType();
-  func->SetReturnTyIdx(retType);
+  TyIdx funcTyIdx = ImportType();
+  func->SetMIRFuncType(static_cast<MIRFuncType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcTyIdx)));
 
   func->SetStIdx(funcSt->GetStIdx());
   func->SetFuncAttrs(ReadNum());
   func->SetFlag(ReadNum());
-  func->SetClassTyIdx(ImportType());
+  /*func->SetClassTyIdx(*/ImportType();  // not set the field to mimic parser
+  // import formal parameter informcation
+  size_t size = ReadNum();
+  if (func->GetFormalDefVec().size() == 0) {
+    for (size_t i = 0; i < size; i++) {
+      GStrIdx strIdx = ImportStr();
+      TyIdx tyIdx = ImportType();
+      FormalDef formalDef(strIdx, nullptr, tyIdx, TypeAttrs());
+      formalDef.formalAttrs.SetAttrFlag(ReadNum());
+      func->GetFormalDefVec().push_back(formalDef);
+    }
+  } else {
+    CHECK_FATAL(func->GetFormalDefVec().size() >= size, "ImportFunction: inconsistent number of formals");
+    for (size_t i = 0; i < size; i++) {
+      func->GetFormalDefVec()[i].formalStrIdx = ImportStr();
+      func->GetFormalDefVec()[i].formalTyIdx = ImportType();
+      func->GetFormalDefVec()[i].formalAttrs.SetAttrFlag(ReadNum());
+    }
+  }
+
+  mod.SetCurFunction(func);
   return func->GetPuidx();
 }
 
@@ -850,6 +929,51 @@ void BinaryMplImport::ReadStrField() {
   CHECK_FATAL(tag == ~kBinStrStart, "pattern mismatch in Read STR");
 }
 
+void BinaryMplImport::ReadHeaderField() {
+  SkipTotalSize();
+  mod.SetFlavor((MIRFlavor)ReadNum());
+  mod.SetSrcLang((MIRSrcLang)ReadNum());
+  mod.SetID(ReadNum());
+  mod.SetNumFuncs(ReadNum());
+  std::string inStr;
+  ReadAsciiStr(inStr);
+  mod.SetEntryFuncName(inStr);
+  ImportInfoVector(mod.GetFileInfo(), mod.GetFileInfoIsString());
+
+  int32 size = ReadNum();
+  MIRInfoPair infopair;
+  for (int32 i = 0; i < size; i++) {
+    infopair.first = ImportStr();
+    infopair.second = ReadNum();
+    mod.PushbackFileInfo(infopair);
+  }
+
+  size = ReadNum();
+  for (int32 i = 0; i < size; i++) {
+    GStrIdx gStrIdx  = ImportStr();
+    mod.GetImportFiles().push_back(gStrIdx);
+    std::string importfilename = GlobalTables::GetStrTable().GetStringFromStrIdx(gStrIdx);
+    // record the imported file for later reading summary info, if exists
+    mod.PushbackImportedMplt(importfilename);
+    BinaryMplt *binMplt = new BinaryMplt(mod);
+    binMplt->GetBinImport().imported = true;
+
+    INFO(kLncInfo, "importing %s", importfilename.c_str());
+    if (!binMplt->GetBinImport().Import(importfilename, false)) {  // not a binary mplt
+      FATAL(kLncFatal, "cannot open binary MPLT file: %s\n", importfilename.c_str());
+    } else {
+      INFO(kLncInfo, "finished import of %s", importfilename.c_str());
+    }
+    if (i == 0) {
+      binMplt->SetImportFileName(importfilename);
+      mod.SetBinMplt(binMplt);
+    }
+  }
+  int32 tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinHeaderStart, "pattern mismatch in Read Import");
+  return;
+}
+
 void BinaryMplImport::ReadTypeField() {
   SkipTotalSize();
 
@@ -860,6 +984,29 @@ void BinaryMplImport::ReadTypeField() {
   int64 tag = 0;
   tag = ReadNum();
   CHECK_FATAL(tag == ~kBinTypeStart, "pattern mismatch in Read TYPE");
+}
+
+void BinaryMplImport::ReadSymField() {
+  SkipTotalSize();
+  int32 size = ReadInt();
+  for (int64 i = 0; i < size; i++) {
+    InSymbol(nullptr);
+  }
+  int64 tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinSymStart, "pattern mismatch in Read SYM");
+  return;
+}
+
+void BinaryMplImport::ReadSymTabField() {
+  SkipTotalSize();
+  int32 size = ReadInt();
+  for (int64 i = 0; i < size; i++) {
+    std::string str;
+    ReadAsciiStr(str);
+  }
+  int64 tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinSymTabStart, "pattern mismatch in Read TYPE");
+  return;
 }
 
 void BinaryMplImport::ReadContentField() {
@@ -886,10 +1033,11 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
   Reset();
   ReadFileAt(fname, 0);
   int32 magic = ReadInt();
-  if (kMpltMagicNumber != magic) {  // not a binary mplt file
+  if (kMpltMagicNumber != magic && (kMpltMagicNumber+0x10) != magic) {
     buf.clear();
     return false;
   }
+  importingFromMplt = kMpltMagicNumber == magic;
   int64 fieldID = ReadNum();
   while (fieldID != kBinFinish) {
     switch (fieldID) {
@@ -901,12 +1049,32 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
         ReadStrField();
         break;
       }
+      case kBinHeaderStart: {
+        ReadHeaderField();
+        break;
+      }
       case kBinTypeStart: {
         ReadTypeField();
         break;
       }
+      case kBinSymStart: {
+        if (readSymbols) {
+          ReadSymField();
+        } else {
+          Jump2NextField();
+        }
+        break;
+      }
+      case kBinSymTabStart: {
+        ReadSymTabField();
+        break;
+      }
       case kBinCgStart: {
         Jump2NextField();
+        break;
+      }
+      case kBinFunctionBodyStart: {
+        ReadFunctionBodyField();
         break;
       }
       default:
