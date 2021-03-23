@@ -1509,8 +1509,8 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
         EmitNullConstant(unInSizeInByte);
       }
     } else {
-      uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(scalarIdx.GetIdx()) * dim;
-      Emit("\t.zero\t").Emit(size).Emit("\n");
+      uint64 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(scalarIdx.GetIdx()) * dim;
+      Emit("\t.zero\t").Emit(static_cast<int64>(size)).Emit("\n");
     }
   }
   Emit("\n");
@@ -1528,7 +1528,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   if (structType.GetKind() == kTypeUnion) {
     num = 1;
   } else {
-    num = structType.GetFieldsSize();
+    num = static_cast<uint8>(structType.GetFieldsSize());
   }
   /* total size of emitted elements size. */
   uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
@@ -1551,8 +1551,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType.GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
-        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, elemType);
-        zeroFill->SetFieldID(fieldIdx);
+        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, elemType, fieldIdx);
+        CHECK_FATAL(zeroFill->GetFieldId() == fieldIdx, "EmitStructConst: fieldID not set correctly");
         elemConst = zeroFill;
       }
       uint64 fieldOffset =

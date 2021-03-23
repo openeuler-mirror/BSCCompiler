@@ -462,7 +462,7 @@ MIRType *ArrayNode::GetArrayType(const TypeTable &tt) {
 const BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) const {
   const auto *arrayType = static_cast<const MIRArrayType*>(GetArrayType(tt));
   auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      i, *tt.GetTypeFromTyIdx(arrayType->GetElemTyIdx()));
+      i, *tt.GetTypeFromTyIdx(arrayType->GetElemTyIdx()), 0/*fieldID*/);
   return mod.CurFuncCodeMemPool()->New<ConstvalNode>(mirConst);
 }
 BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) {
@@ -1533,8 +1533,7 @@ bool RetypeNode::VerifyCompleteMIRType(const MIRType &from, const MIRType &to, b
     LogInfo::MapleLogger() << "\n#Error: retype scalar type failed\n";
     return false;
   }
-  MIRSrcLang srcLang = verifyResult.GetMIRModule().GetSrcLang();
-  if (srcLang != kSrcLangJava && srcLang != kSrcLangJbc && srcLang != kSrcLangDex) {
+  if (!verifyResult.GetMIRModule().IsJavaModule()) {
     return true;
   }
   isJavaRefType |= IsJavaRefType(from) && IsJavaRefType(to);

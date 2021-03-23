@@ -2007,7 +2007,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
   if (tokenKind != TK_lbrack) {  // scalar
     MIRConst *mirConst = nullptr;
     if (IsConstValue(tokenKind)) {
-      if (!ParseScalarValue(mirConst, type)) {
+      if (!ParseScalarValue(mirConst, type, 0/*fieldID*/)) {
         Error("ParseInitValue expect scalar value");
         return false;
       }
@@ -2044,7 +2044,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         // parse single const or another dimension array
         MIRConst *subConst = nullptr;
         if (IsConstValue(tokenKind)) {
-          if (!ParseScalarValue(subConst, *elemType)) {
+          if (!ParseScalarValue(subConst, *elemType, 0/*fieldID*/)) {
             Error("ParseInitValue expect scalar value");
             return false;
           }
@@ -2128,7 +2128,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         tokenKind = lexer.NextToken();
         MIRConst *subConst = nullptr;
         if (IsConstValue(tokenKind)) {
-          if (!ParseScalarValue(subConst, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx))) {
+          if (!ParseScalarValue(subConst, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx), theFieldIdx)) {
             Error("ParseInitValue expect scalar value");
             return false;
           }
