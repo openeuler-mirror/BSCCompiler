@@ -815,16 +815,12 @@ bool MIRParser::ParseStructType(TyIdx &styIdx) {
   }
   if (styIdx != 0u) {
     MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(styIdx);
-    if (prevType->GetKind() != kTypeByName) {
-      ASSERT(prevType->GetKind() == kTypeStruct || prevType->IsIncomplete(),
-             "type kind should be consistent.");
-      if (static_cast<MIRStructType*>(prevType)->IsIncomplete() && !(structType.IsIncomplete())) {
-        structType.SetNameStrIdx(prevType->GetNameStrIdx());
-        structType.SetTypeIndex(styIdx);
-        GlobalTables::GetTypeTable().SetTypeWithTyIdx(styIdx, *structType.CopyMIRTypeNode());
-      }
-    } else {
-      styIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&structType);
+    ASSERT(prevType->GetKind() == kTypeStruct || prevType->IsIncomplete(),
+           "type kind should be consistent.");
+    if (static_cast<MIRStructType*>(prevType)->IsIncomplete() && !(structType.IsIncomplete())) {
+      structType.SetNameStrIdx(prevType->GetNameStrIdx());
+      structType.SetTypeIndex(styIdx);
+      GlobalTables::GetTypeTable().SetTypeWithTyIdx(styIdx, *structType.CopyMIRTypeNode());
     }
   } else {
     styIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&structType);
@@ -1464,6 +1460,7 @@ bool MIRParser::ParseTypedef() {
   const std::string &name = lexer.GetName();
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   TyIdx prevTyIdx;
+  MIRStructType *prevStructType = nullptr;
   TyIdx tyIdx(0);
   // dbginfo class/interface init
   if (tokenKind == TK_gname) {
@@ -1477,7 +1474,8 @@ bool MIRParser::ParseTypedef() {
       if (!mod.IsCModule()) {
         CHECK_FATAL(prevType->IsStructType(), "type error");
       }
-      if ((prevType->GetKind() != kTypeByName) && !prevType->IsIncomplete()) {
+      prevStructType = dynamic_cast<MIRStructType*>(prevType);
+      if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
         // allow duplicated type def if kKeepFirst is set which is the default
         if (options & kKeepFirst) {
           lexer.NextToken();
@@ -1501,7 +1499,8 @@ bool MIRParser::ParseTypedef() {
     prevTyIdx = mod.CurFunction()->GetTyIdxFromGStrIdx(strIdx);
     if (prevTyIdx != 0u) {
       MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
-      if ((prevType->GetKind() != kTypeByName) && !prevType->IsIncomplete()) {
+      prevStructType = dynamic_cast<MIRStructType *>(prevType);
+      if ((prevType->GetKind() != kTypeByName) && (prevStructType && !prevStructType->IsIncomplete())) {
         Error("redefined local type name ");
         return false;
       }
@@ -1510,7 +1509,7 @@ bool MIRParser::ParseTypedef() {
   // at this point,if prev_tyidx is not zero, this type name has been
   // forward-referenced
   tokenKind = lexer.NextToken();
-  tyIdx = prevTyIdx;
+  tyIdx = kInitTyIdx;
   if (IsPrimitiveType(tokenKind)) {
     if (!ParsePrimType(tyIdx)) {
       Error("expect primitive type after typedef but get ");
@@ -1519,14 +1518,6 @@ bool MIRParser::ParseTypedef() {
   } else if (!ParseDerivedType(tyIdx, kTypeUnknown)) {
     Error("error passing derived type at ");
     return false;
-  }
-  if (prevTyIdx != 0u) {
-    MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
-    MIRType *newType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    MIRStructType *newStructType = dynamic_cast<MIRStructType*>(newType);
-    if (prevType->GetKind() != kTypeByName || newStructType == nullptr){
-      return true;
-    }
   }
   // for class/interface types, prev_tyidx could also be set during processing
   // so we check again right before SetGStrIdxToTyIdx
@@ -1547,6 +1538,14 @@ bool MIRParser::ParseTypedef() {
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->SetNameStrIdx(strIdx);
     }
   }
+
+  if (prevTyIdx != TyIdx(0) && prevTyIdx != tyIdx) {
+    // replace all uses of prev_tyidx by tyIdx in typeTable
+    typeDefIdxMap[prevTyIdx] = tyIdx;                            // record the real tydix
+    // remove prev_tyidx from classlist
+    mod.RemoveClass(prevTyIdx);
+  }
+
   // Merge class or interface type at the cross-module level
   ASSERT(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
@@ -2007,7 +2006,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
   if (tokenKind != TK_lbrack) {  // scalar
     MIRConst *mirConst = nullptr;
     if (IsConstValue(tokenKind)) {
-      if (!ParseScalarValue(mirConst, type, 0/*fieldID*/)) {
+      if (!ParseScalarValue(mirConst, type, 0 /* fieldID */)) {
         Error("ParseInitValue expect scalar value");
         return false;
       }
@@ -2044,7 +2043,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         // parse single const or another dimension array
         MIRConst *subConst = nullptr;
         if (IsConstValue(tokenKind)) {
-          if (!ParseScalarValue(subConst, *elemType, 0/*fieldID*/)) {
+          if (!ParseScalarValue(subConst, *elemType, 0 /* fieldID */)) {
             Error("ParseInitValue expect scalar value");
             return false;
           }
