@@ -1551,8 +1551,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType.GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
-        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, elemType);
-        zeroFill->SetFieldID(fieldIdx);
+        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, elemType, fieldIdx);
+        CHECK_FATAL(zeroFill->GetFieldId() == fieldIdx, "EmitStructConst: fieldID not set correctly");
         elemConst = zeroFill;
       }
       uint64 fieldOffset =

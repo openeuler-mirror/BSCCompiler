@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+
 #include "reflection_analysis.h"
 #include <unordered_map>
 #include <algorithm>
@@ -34,6 +35,7 @@ using namespace maple;
 constexpr uint64 kMethodNotVirtual = 0x00000001;
 constexpr uint64 kMethodFinalize = 0x00000002;
 constexpr uint64 kMethodSignature = 0x00000008;
+constexpr uint64 kMethodMetaCompact = 0x00000004;
 constexpr uint64 kMethodAbstract = 0x00000010;
 constexpr uint64 kFieldOffsetIspOffset = 0x00000001;
 
@@ -102,6 +104,7 @@ constexpr char kMethodNameStr[] = "methodname";
 constexpr char kInitFuntionStr[] = "_3Cinit_3E";
 constexpr char kClassinforoStr[] = "classinforo";
 constexpr char kClassloaderStr[] = "classloader";
+constexpr char kINFOFileName[] = "INFO_filename";
 constexpr char kLebPadding0Str[] = "lebPadding0";
 constexpr char kNumOfFieldsStr[] = "numoffields";
 constexpr char kClinitbridgeStr[] = "clinitbridge";
@@ -155,6 +158,14 @@ std::string ReflectionAnalysis::strTabStartHot = std::string(1, '\0');
 std::string ReflectionAnalysis::strTabBothHot = std::string(1, '\0');
 std::string ReflectionAnalysis::strTabRunHot = std::string(1, '\0');
 bool ReflectionAnalysis::strTabInited = false;
+uint32_t ReflectionAnalysis::hotMethodMeta = 0;
+uint32_t ReflectionAnalysis::totalMethodMeta = 0;
+uint32_t ReflectionAnalysis::hotClassMeta = 0;
+uint32_t ReflectionAnalysis::totalClassMeta = 0;
+uint32_t ReflectionAnalysis::hotFieldMeta = 0;
+uint32_t ReflectionAnalysis::totalFieldMeta = 0;
+uint32_t ReflectionAnalysis::hotCStr = 0;
+uint32_t ReflectionAnalysis::totalCStr = 0;
 std::map<std::list<Klass*>, std::string> ReflectionAnalysis::superClasesIdxMap{};
 
 void ReflectionAnalysis::GenFieldTypeClassInfo(const MIRType &type, const Klass &klass, std::string &classInfo,
@@ -254,6 +265,7 @@ void ReflectionAnalysis::InitReflectString() {
 uint32 ReflectionAnalysis::FindOrInsertRepeatString(const std::string &str, bool isHot, uint8 hotType) {
   if (strTabInited == false) {
     // Add default hot strings.
+    InitReflectString();
     strTabInited = true;
   }
   return FirstFindOrInsertRepeatString(str, isHot, hotType);
@@ -435,6 +447,9 @@ uint32 ReflectionAnalysis::GetTypeNameIdxFromType(const MIRType &type, const Kla
     case kTypePointer: {
       auto *ptype = static_cast<const MIRPtrType&>(type).GetPointedType();
       if (ptype->GetKind() == kTypeArray || ptype->GetKind() == kTypeJArray) {
+        if (kRADebug && 0) {
+          ptype->Dump(0, false);
+        }
         CHECK_NULL_FATAL(ptype);
         const std::string &javaName = static_cast<MIRJarrayType*>(ptype)->GetJavaName();
         std::string klassJavaDescriptor;
@@ -784,6 +799,12 @@ void ReflectionAnalysis::GenMethodMeta(const Klass &klass, MIRStructType &method
   uint32 fieldID = 1;
   // @method_in_vtable_index
   uint32 methodInVtabIndex = GetMethodInVtabIndex(klass, func);
+  if (Options::deferredVisit2 && VtableAnalysis::IsVtableCandidate(func)) {
+    // We generate new vtable index in the order of idx instead of -10 when DAI2.0 is open.
+    // As idx begins at 0, we add 1 to vtable index so it would be starting with 1.
+    methodInVtabIndex = (methodInVtabIndex != static_cast<uint16>(kMethodNotFound)) ? methodInVtabIndex
+                                                                                    : static_cast<uint32>(idx + 1);
+  }
   mirBuilder.AddIntFieldConst(methodsInfoType, newConst, fieldID++, methodInVtabIndex);
   // @declaringclass
   MIRSymbol *dklassSt = GetOrCreateSymbol(CLASSINFO_PREFIX_STR + func.GetBaseClassName(), classMetadataTyIdx);
@@ -934,7 +955,107 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
   return methodSignatureSt;
 }
 
-MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass &klass) {
+void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoCompactType, int idx,
+                                              MIRSymbol &funcSym, MIRAggConst &aggConst, int &allDeclaringClassOffset,
+                                              std::unordered_map<uint32, std::string> &baseNameMp,
+                                              std::unordered_map<uint32, std::string> &fullNameMp) {
+  MIRFunction &func = *funcSym.GetFunction();
+  MIRAggConst &newConstCompact = *mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, methodsInfoCompactType);;
+  std::vector<uint8> methodsCompactLeb128Vec;
+  uint32 fieldIDCompact = 1;
+
+  // @vtableIndex && flag
+  uint32 methodInVtabIndex = GetMethodInVtabIndex(klass, func);
+  if (Options::deferredVisit2 && VtableAnalysis::IsVtableCandidate(func)) {
+    // We generate new vtable index in the order of idx instead of -10 when DAI2.0 is open.
+    // As idx begins at 0, we add 1 to vtable index so it would be starting with 1.
+    methodInVtabIndex = (methodInVtabIndex != static_cast<uint16>(kMethodNotFound)) ? methodInVtabIndex
+                                                                                    : static_cast<uint32>(idx + 1);
+  }
+  constexpr int methodInVtabShift = 16;
+  uint32 flag = GetMethodFlag(func);
+  int32 methodInVtabIndexAndFlag = ((flag | kMethodMetaCompact) << methodInVtabShift) | methodInVtabIndex;
+  mirBuilder.AddIntFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, methodInVtabIndexAndFlag);
+  int sizeOfMethodMetaCompactLeb128 = sizeof(int32);
+  int declaringClassOffset = allDeclaringClassOffset + sizeof(int32);
+
+  // @addr: point function addr
+  MIRSymbol *methodAddrSt = GenMethodAddrData(funcSym);
+  if (methodAddrSt != nullptr) {
+    mirBuilder.AddAddrofFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, *methodAddrSt);
+    sizeOfMethodMetaCompactLeb128 += sizeof(int32);
+    declaringClassOffset += sizeof(int32);
+  } else {
+    mirBuilder.AddIntFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact++, 0);
+  }
+
+  // @declaringclass offset, leb128
+  namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, static_cast<uint32>(declaringClassOffset));
+
+  // @modifier
+  uint32 mod = GetMethodModifier(klass, func);
+  namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, mod);
+
+  // @methodname
+  std::string baseName = baseNameMp[func.GetBaseFuncNameStrIdx()];
+  uint32 methodnameIdx = FindOrInsertReflectString(baseName);
+  namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, methodnameIdx);
+
+  // @argsize: Number of arguments.
+  size_t argsSize = func.GetParamSize();
+  namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, static_cast<uint32_t>(argsSize));
+
+  // @methodsignature
+  std::string fullname = fullNameMp[func.GetBaseFuncNameWithTypeStrIdx()];
+  std::string signature = GetSignatureFromFullName(fullname);
+  std::vector<std::string> typeNames;
+  GetSignatureTypeNames(signature, typeNames);
+  for (auto typeName : typeNames) {
+    uint32 typeNameIdx = FindOrInsertReflectString(typeName);
+    namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, typeNameIdx);
+  }
+
+  // @annotation
+  int annotationIdx = SolveAnnotation(*klass.GetMIRStructType(), func);
+  namemangler::GetUnsignedLeb128Encode(methodsCompactLeb128Vec, static_cast<uint32>(annotationIdx));
+
+  // @leb128
+  sizeOfMethodMetaCompactLeb128 += methodsCompactLeb128Vec.size();
+  allDeclaringClassOffset += sizeOfMethodMetaCompactLeb128;
+  for (auto byte : methodsCompactLeb128Vec) {
+    uint8 byteValue = byte;
+    mirBuilder.AddIntFieldConst(methodsInfoCompactType, newConstCompact, fieldIDCompact, byteValue);
+  }
+  aggConst.PushBack(&newConstCompact);
+}
+
+MIRSymbol *ReflectionAnalysis::GenMethodsMetaCompact(const Klass &klass,
+                                                     std::vector<std::pair<MethodPair*, int>> &methodInfoVec,
+                                                     std::unordered_map<uint32, std::string> &baseNameMp,
+                                                     std::unordered_map<uint32, std::string> &fullNameMp) {
+  MIRStructType *classType = klass.GetMIRStructType();
+  size_t arraySize = classType->GetMethods().size();
+  auto &methodsInfoCompactType =
+      static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(methodsInfoCompactTyIdx));
+  MIRArrayType &arrayType = *GlobalTables::GetTypeTable().GetOrCreateArrayType(methodsInfoCompactType, arraySize);
+  MIRAggConst *aggConst = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, arrayType);
+  ASSERT(aggConst != nullptr, "null ptr check!");
+  int allDeclaringClassOffset = sizeof(int32);
+  int idx = 0;
+  for (auto &methodInfo : methodInfoVec) {
+    MIRSymbol *funcSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodInfo.first->first.Idx());
+    reflectionMuidStr += funcSym->GetName();
+    GenMethodMetaCompact(klass, methodsInfoCompactType, idx++, *funcSym, *aggConst,
+                         allDeclaringClassOffset, baseNameMp, fullNameMp);
+  }
+  MIRSymbol *methodsArraySt = GetOrCreateSymbol(namemangler::kMethodsInfoCompactPrefixStr + klass.GetKlassName(),
+                                                arrayType.GetTypeIndex(), true);
+  methodsArraySt->SetStorageClass(kScFstatic);
+  methodsArraySt->SetKonst(aggConst);
+  return methodsArraySt;
+}
+
+MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass &klass, bool isHot) {
   MIRStructType *classType = klass.GetMIRStructType();
   if (classType == nullptr || classType->GetMethods().empty()) {
     return nullptr;
@@ -950,9 +1071,11 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass &klass) {
   // Sort constVec by hashcode.
   HashCodeComparator comparator(baseNameMp, fullNameMp);
   std::sort(methodinfoVec.begin(), methodinfoVec.end(), comparator);
-  MIRSymbol *methodsArraySt = GenMethodsMeta(klass, methodinfoVec, baseNameMp, fullNameMp);
+  MIRSymbol *methodsArraySt = isHot ? GenMethodsMeta(klass, methodinfoVec, baseNameMp, fullNameMp) :
+                                      GenMethodsMetaCompact(klass, methodinfoVec, baseNameMp, fullNameMp);
   return methodsArraySt;
 }
+
 void ReflectionAnalysis::GenFieldOffsetConst(MIRAggConst &newConst, const Klass &klass,
                                              const MIRStructType &type, std::pair<FieldPair, int> &fieldInfo,
                                              uint32 metaFieldID) {
@@ -1154,8 +1277,80 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMeta(const Klass &klass, std::vector<std
   return fieldsArraySt;
 }
 
-MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass &klass) {
+void ReflectionAnalysis::GenFieldMetaCompact(const Klass &klass, MIRStructType &fieldsInfoCompactType,
+                                             std::pair<FieldPair, int> &fieldInfo, MIRAggConst &aggConstCompact) {
+  MIRModule &module = *mirModule;
+  std::vector<uint8> fieldCompactLeb128Vec;
+  FieldPair fieldP = fieldInfo.first;
+  MIRAggConst *newConstCompact = module.GetMemPool()->New<MIRAggConst>(module, fieldsInfoCompactType);
+  ASSERT(newConstCompact != nullptr, "null ptr check!");
+  uint32 fieldIDCompact = 1;
+
+  // @pOffset
+  MIRSymbol *fieldsOffsetSt = GenFieldOffsetData(klass, fieldInfo);
+  mirBuilder.AddAddrofFieldConst(fieldsInfoCompactType, *newConstCompact, fieldIDCompact++, *fieldsOffsetSt);
+  // @modifier
+  FieldAttrs fa = fieldP.second.second;
+  uint32 modifier = GetFieldModifier(fa);
+  namemangler::GetUnsignedLeb128Encode(fieldCompactLeb128Vec, modifier);
+  // @type
+  TyIdx fieldTyIdx = fieldP.second.first;
+  std::string fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(fieldP.first);
+  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
+  uint32 typeNameIdx = GetTypeNameIdxFromType(*ty, klass, fieldName);
+  namemangler::GetUnsignedLeb128Encode(fieldCompactLeb128Vec, typeNameIdx);
+  // @fieldName
+  bool isStaticField = (fieldInfo.second == -1);
+  ConvertFieldName(fieldName, isStaticField);
+  uint32 fieldname32Idx = FindOrInsertReflectString(fieldName);
+  namemangler::GetUnsignedLeb128Encode(fieldCompactLeb128Vec, fieldname32Idx);
+  // @annotation
   MIRStructType *classType = klass.GetMIRStructType();
+  std::string annoArr;
+  std::map<int, int> idxNumMap;
+  GenAnnotation(idxNumMap, annoArr, *classType, kPragmaVar, fieldName, ty->GetTypeIndex());
+  uint32 annotationIdx = GetAnnoCstrIndex(idxNumMap, annoArr, true);
+  namemangler::GetUnsignedLeb128Encode(fieldCompactLeb128Vec, annotationIdx);
+
+  constexpr uint32 lebpaddingIdx = 2u;
+  uint32 fieldID = lebpaddingIdx;  // lebpadding index
+  for (auto byte : fieldCompactLeb128Vec) {
+    uint8 byteValue = byte;
+    mirBuilder.AddIntFieldConst(fieldsInfoCompactType, *newConstCompact, fieldID, byteValue);
+  }
+  aggConstCompact.GetConstVec().push_back(newConstCompact);
+  (void)fieldIDCompact;
+}
+
+MIRSymbol *ReflectionAnalysis::GenFieldsMetaCompact(const Klass &klass,
+                                                    std::vector<std::pair<FieldPair, int>> &fieldsVector) {
+  size_t size = fieldsVector.size();
+  auto &fieldsInfoCompactType =
+      static_cast<MIRStructType&>(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldsInfoCompactTyIdx));
+  MIRArrayType *arrayTypeCompact = GlobalTables::GetTypeTable().GetOrCreateArrayType(fieldsInfoCompactType, size);
+  MIRAggConst *aggConstCompact = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, *arrayTypeCompact);
+  ASSERT(aggConstCompact != nullptr, "null ptr check!");
+  for (auto &fieldInfo : fieldsVector) {
+    FieldPair fieldP = fieldInfo.first;
+    std::string fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(fieldInfo.first.first);
+    TyIdx fieldTyIdx = fieldP.second.first;
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
+    ASSERT(ty != nullptr, "null ptr check!");
+    // Collect the the information about the fieldName and fieldtyidx.
+    reflectionMuidStr += fieldName;
+    reflectionMuidStr += ty->GetName();
+    GenFieldMetaCompact(klass, fieldsInfoCompactType, fieldInfo, *aggConstCompact);
+  }
+  MIRSymbol *fieldsArrayStCompact = GetOrCreateSymbol(
+      namemangler::kFieldsInfoCompactPrefixStr + klass.GetKlassName(), arrayTypeCompact->GetTypeIndex(), true);
+  fieldsArrayStCompact->SetStorageClass(kScFstatic);
+  fieldsArrayStCompact->SetKonst(aggConstCompact);
+  return fieldsArrayStCompact;
+}
+
+MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass &klass, bool isHot) {
+  MIRStructType *classType = klass.GetMIRStructType();
+  ASSERT(classType != nullptr, "null ptr check!");
   FieldVector fields = classType->GetFields();
   FieldVector staticFields = classType->GetStaticFields();
   ASSERT(fields.size() < fields.max_size() - staticFields.size(), "size too large");
@@ -1163,6 +1358,7 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass &klass) {
   if (size == 0) {
     return nullptr;
   }
+
   std::vector<std::pair<FieldPair, uint16>> fieldHashvec(size);
   size_t i = 0;
   for (; i < fields.size(); ++i) {
@@ -1198,7 +1394,8 @@ MIRSymbol *ReflectionAnalysis::GenFieldsMetaData(const Klass &klass) {
     ++j;
   }
   ASSERT(i == size, "In class %s: %d fields seen, BUT %d fields declared", klass.GetKlassName().c_str(), i, size);
-  MIRSymbol *fieldsArraySt = GenFieldsMeta(klass, fieldinfoVec, fieldHashvec);
+  MIRSymbol *fieldsArraySt = isHot ? GenFieldsMeta(klass, fieldinfoVec, fieldHashvec) :
+                                     GenFieldsMetaCompact(klass, fieldinfoVec);
   return fieldsArraySt;
 }
 
@@ -1460,7 +1657,12 @@ void ReflectionAnalysis::GenHotClassNameString(const Klass &klass) {
 
 uint32 ReflectionAnalysis::FindOrInsertReflectString(const std::string &str) {
   uint8 hotType = 0;
-  return ReflectionAnalysis::FindOrInsertRepeatString(str, false, hotType);
+  bool isHot = mirModule->GetProfile().CheckReflectionStrHot(str, hotType);
+  if (isHot) {
+    hotCStr++;
+  }
+  totalCStr++;
+  return ReflectionAnalysis::FindOrInsertRepeatString(str, isHot, hotType);
 }
 
 MIRSymbol *ReflectionAnalysis::GetClinitFuncSymbol(const Klass &klass) {
@@ -1490,7 +1692,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
     return;
   }
 
-
+  bool compactMeta = Options::compactMeta;
   std::string klassName = klass.GetKlassName();
   reflectionMuidStr += klassName;
   std::string klassJavaDescriptor;
@@ -1520,7 +1722,13 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
     }
   }
   if (!hasAdded) {
-    MIRSymbol *fieldsSt = GenFieldsMetaData(klass);
+    bool profilFieldeHot = module.GetProfile().CheckFieldHot(klassJavaDescriptor);
+    bool isHotFields = compactMeta ? profilFieldeHot : true;
+    if (profilFieldeHot) {
+      hotFieldMeta++;
+    }
+    totalFieldMeta++;
+    MIRSymbol *fieldsSt = GenFieldsMetaData(klass, isHotFields);
     if (fieldsSt != nullptr) {
       numOfFields = safe_cast<MIRAggConst>(fieldsSt->GetKonst())->GetConstVec().size();
       // All meta data will be weak if dummy constructors.
@@ -1532,7 +1740,13 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   // @methods: All methods.
   uint32 numOfMethods = 0;
   MIRSymbol *methodsSt;
-  methodsSt = GenMethodsMetaData(klass);
+  bool isProfHotMethod = module.GetProfile().CheckMethodHot(klassJavaDescriptor);
+  bool isHotMethods = compactMeta ? isProfHotMethod : true;
+  if (isProfHotMethod) {
+    hotMethodMeta++;
+  }
+  totalMethodMeta++;
+  methodsSt = GenMethodsMetaData(klass, isHotMethods);
   if (methodsSt != nullptr) {
     numOfMethods = safe_cast<MIRAggConst>(methodsSt->GetKonst())->GetConstVec().size();
     mirBuilder.AddAddrofFieldConst(classMetadataROType, *newConst, fieldID++, *methodsSt);
@@ -1582,11 +1796,24 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   bool isAnonymous = IsAnonymousClass(annoArray);
   bool isLocalClass = IsLocalClass(annoArray);
   CheckPrivateInnerAndNoSubClass(klass, annoArray);
+
+  bool isColdClass = !(module.GetProfile().CheckClassHot(klassJavaDescriptor));
+  if ((Options::lazyBinding || Options::hotFix) && !isLibcore) {
+    isColdClass = true;
+  }
+  if (!isColdClass) {
+    hotClassMeta++;
+  }
+  totalClassMeta++;
 #ifndef USE_32BIT_REF
   // @flag
   // Array class and primitive class is not generated by compiler.
   uint32 flag = klass.GetFlag(kClassHasFinalizer | kClassReference | kClassFinalizerreferenceSentinel);
   flag = isAnonymous ? (flag | kClassIsanonymousclass) : flag;
+  flag = isColdClass ? (flag | kClassIscoldclass) : flag;
+  flag = klass.HasFlag(kClassRuntimeVerify) ? (flag | kClassRuntimeVerify) : flag;
+  flag = (Options::lazyBinding && !isLibcore) ? (flag | kClassLazyBindingClass) : flag;
+  flag = Options::buildApp ? flag | kClassNeedDecouple : flag;
   mirBuilder.AddIntFieldConst(classMetadataROType, *newConst, fieldID++, flag);
   // @numofsuperclasses
   CHECK_FATAL(superClassSize <= 0xffff, "Error:the size of superClass is too big");
@@ -1632,6 +1859,10 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   // Array class and primitive class is not generated by compiler.
   uint32 flag = klass.GetFlag(kClassHasFinalizer | kClassReference | kClassFinalizerreferenceSentinel);
   flag = isAnonymous ? (flag | kClassIsanonymousclass) : flag;
+  flag = isColdClass ? (flag | kClassIscoldclass) : flag;
+  flag = klass.HasFlag(kClassRuntimeVerify) ? (flag | kClassRuntimeVerify) : flag;
+  flag = (Options::lazyBinding && !isLibcore) ? (flag | kClassLazyBindingClass) : flag;
+  flag = Options::buildApp ? flag | kClassNeedDecouple : flag;
   mirBuilder.AddIntFieldConst(classMetadataType, *newConst, fieldID++, flag);
   // @numofsuperclasses
   CHECK_FATAL(superClassSize <= 0xffff, "Error:the size of superClass is too big");
@@ -1639,7 +1870,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
 #endif  // USE_32BIT_REF
   // @itab
   GStrIdx strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(ITAB_PREFIX_STR + klass.GetKlassName());
-  if (strIdx != 0u) {
+  if (strIdx != 0u && !Options::buildApp) {
     MIRSymbol *itableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
     mirBuilder.AddAddrofFieldConst(classMetadataType, *newConst, fieldID++, *itableSymbolType);
   } else {
@@ -1647,7 +1878,7 @@ void ReflectionAnalysis::GenClassMetaData(Klass &klass) {
   }
   // @vtab
   strIdx = GlobalTables::GetStrTable().GetStrIdxFromName(VTAB_PREFIX_STR + klass.GetKlassName());
-  if (strIdx != 0u) {
+  if (strIdx != 0u && !Options::buildApp) {
     MIRSymbol *vtableSymbolType = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
     mirBuilder.AddAddrofFieldConst(classMetadataType, *newConst, fieldID++, *vtableSymbolType);
   } else {
@@ -1905,9 +2136,6 @@ static void ReflectionAnalysisGenStrTab(MIRModule &mirModule, const std::string 
                                         const std::string &strTabName) {
   MIRBuilder *mirBuilder = mirModule.GetMIRBuilder();
   size_t strTabSize = strTab.length();
-  if (strTabSize == 1) {
-    return;
-  }
   MIRArrayType &strTabType =
       *GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), strTabSize);
   MIRSymbol *strTabSt = mirBuilder->CreateGlobalDecl(strTabName, strTabType);
@@ -1918,7 +2146,7 @@ static void ReflectionAnalysisGenStrTab(MIRModule &mirModule, const std::string 
   strTabSt->SetStorageClass(kScFstatic);
   for (char c : strTab) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        c, *GlobalTables::GetTypeTable().GetUInt8());
+        c, *GlobalTables::GetTypeTable().GetUInt8(), 0/*fieldID*/);
     strTabAggconst->PushBack(newConst);
   }
   strTabSt->SetKonst(strTabAggconst);
@@ -1962,8 +2190,33 @@ void ReflectionAnalysis::MarkWeakMethods() {
   }
 }
 
+void ReflectionAnalysis::DumpPGOSummary() {
+  LogInfo::MapleLogger() << "PGO summary \n";
+  LogInfo::MapleLogger() << "hot method meta " << ReflectionAnalysis::hotMethodMeta << " total "
+                         << ReflectionAnalysis::totalMethodMeta << std::setprecision(2) << " ratio "
+                         << (static_cast<float>(hotMethodMeta) / totalMethodMeta) << "\n";
+  LogInfo::MapleLogger() << "hot field meta " << ReflectionAnalysis::hotFieldMeta << " total "
+                         << ReflectionAnalysis::totalFieldMeta << std::setprecision(2) << " ratio "
+                         << (static_cast<float>(hotFieldMeta) / totalFieldMeta) << "\n";
+  LogInfo::MapleLogger() << "hot c-str meta " << ReflectionAnalysis::hotCStr << " total "
+                         << ReflectionAnalysis::totalCStr  << std::setprecision(2) << " ratio "
+                         << (static_cast<float>(hotCStr) / totalCStr) << "\n";
+  LogInfo::MapleLogger() << "hot class " << ReflectionAnalysis::hotClassMeta << " total "
+                         << ReflectionAnalysis::totalClassMeta  << std::setprecision(2) << " ratio "
+                         << (static_cast<float>(hotClassMeta) / totalClassMeta) << "\n";
+}
 
 void ReflectionAnalysis::Run() {
+  uint32 dexNameIdx = mirModule->GetFileinfo(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(kINFOFileName));
+  const std::string &dexName = GlobalTables::GetStrTable().GetStringFromStrIdx(GStrIdx(dexNameIdx));
+  bool deCompressSucc = mirModule->GetProfile().DeCompress(Options::profile, dexName, kAll);
+  if (!deCompressSucc) {
+    LogInfo::MapleLogger() << "WARN: DeCompress() failed in ReflectionAnalysis::Run()\n";
+  }
+  if (Options::profileFunc) {
+    mirModule->GetProfile().SetProfileMode();
+  }
+  isLazyBindingOrDecouple = (Options::lazyBinding && !isLibcore) || Options::buildApp;
   MarkWeakMethods();
   GenMetadataType(*mirModule);
   const MapleVector<Klass*> &klasses = klassH->GetTopoSortedKlasses();
@@ -1997,6 +2250,9 @@ AnalysisResult *DoReflectionAnalysis::Run(MIRModule *module, ModuleResultMgr *mo
     CHECK_FATAL(false, "failed to allocate memory");
   }
   rv->Run();
+  if (Options::genPGOReport) {
+    rv->DumpPGOSummary();
+  }
   // This is a transform phase, delete mempool.
   memPoolCtrler.DeleteMemPool(memPool);
   return nullptr;
