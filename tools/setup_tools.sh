@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+# Copyright (C) [2020-2021] Futurewei Technologies, Inc. All rights reverved.
 #
 # Licensed under the Mulan Permissive Software License v2.
 # You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -156,6 +156,14 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   tar zxf open64ark-riscv.tar.gz
   mv riscv riscv64
   echo Downloaded open64_prebuilt.
+fi
+
+if [ ! -f $MAPLE_ROOT/third_party/dwarf/include/Dwarf.h ]; then
+  cd $TOOLS
+  rm -rf dwarf $MAPLE_ROOT/third_party/dwarf
+  git clone https://gitee.com/hu-_-wen/dwarf_h.git dwarf
+  mv dwarf $MAPLE_ROOT/third_party/
+  echo Downloaded dwarf header files.
 fi
 
 mkdir -p ${TOOL_BIN_PATH}

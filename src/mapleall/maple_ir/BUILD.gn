@@ -22,6 +22,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
+  "${MAPLE_ROOT}/third_party/dwarf/include",
 ]
 
 src_libmplir = [
@@ -46,10 +47,13 @@ src_libmplir = [
   "src/mir_parser.cpp",
   "src/mir_pragma.cpp",
   "src/printing.cpp",
+  "src/bin_func_import.cpp",
+  "src/bin_func_export.cpp",
   "src/bin_mpl_import.cpp",
   "src/bin_mpl_export.cpp",
-  "src/bin_func_export.cpp",
-  "src/bin_func_import.cpp",
+  "${MAPLEALL_ROOT}/maple_ipa/src/ea_connection_graph.cpp",
+  "src/debug_info.cpp",
+  "src/debug_info_util.cpp",
 ]
 
 src_irbuild = [ "src/driver.cpp" ]
@@ -71,6 +75,22 @@ static_library("libmplir") {
 
 executable("irbuild") {
   sources = src_irbuild
+  include_dirs = include_directories
+  deps = [
+    ":libmplir",
+    "${MAPLE_ROOT}/third_party/bounds_checking_function:libHWSecureC",
+    "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${MAPLEALL_ROOT}/maple_phase:libmplphase",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/maple_util:libmplutil",
+  ]
+}
+
+src_mpldbg = [ "src/mpl_dbg.cpp" ]
+
+executable("mpldbg") {
+  sources = src_mpldbg
   include_dirs = include_directories
   deps = [
     ":libmplir",

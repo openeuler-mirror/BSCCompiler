@@ -249,7 +249,7 @@ class MIRModule {
   }
 
   void DumpGlobals(bool emitStructureType = true) const;
-  void Dump(bool emitStructureType = true, std::unordered_set<std::string> *dumpFuncSet = nullptr) const;
+  void Dump(bool emitStructureType = true, const std::unordered_set<std::string> *dumpFuncSet = nullptr) const;
   void DumpToFile(const std::string &fileNameStr, bool emitStructureType = true) const;
   void DumpInlineCandidateToFile(const std::string &fileNameStr) const;
   const std::string &GetFileNameFromFileNum(uint32 fileNum) const;
@@ -275,7 +275,7 @@ class MIRModule {
   MIRFunction *FindEntryFunction();
   uint32 GetFileinfo(GStrIdx strIdx) const;
   void OutputAsciiMpl(const char *phaseName, const char *suffix,
-                      std::unordered_set<std::string> *dumpFuncSet = nullptr,
+                      const std::unordered_set<std::string> *dumpFuncSet = nullptr,
                       bool emitStructureType = true, bool binaryform = false);
   void OutputFunctionListAsciiMpl(const std::string &phaseName);
   const std::string &GetFileName() const {
@@ -548,6 +548,16 @@ class MIRModule {
     eaSummary[funcNameIdx] = eaCg;
   }
 
+  DebugInfo *GetDbgInfo() {
+    return dbgInfo;
+  }
+  void SetWithDbgInfo(bool v) {
+    withDbgInfo = v;
+  }
+  bool IsWithDbgInfo() {
+    return withDbgInfo;
+  }
+
  private:
   void DumpTypeTreeToCxxHeaderFile(MIRType &ty, std::unordered_set<MIRType*> &dumpedClasses) const;
 
@@ -574,6 +584,10 @@ class MIRModule {
   std::string fileName;
   TyIdx throwableTyIdx{0};  // a special type that is the base of java exception type. only used for java
   bool withProfileInfo = false;
+
+  DebugInfo *dbgInfo;
+  bool withDbgInfo = false;
+
   // for cg in mplt
   BinaryMplt *binMplt = nullptr;
   bool inIPA = false;
