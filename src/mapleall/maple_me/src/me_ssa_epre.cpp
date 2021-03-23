@@ -15,6 +15,15 @@
 #include "me_ssa_epre.h"
 #include "me_dominance.h"
 #include "me_ssa_update.h"
+#include "me_placement_rc.h"
+
+namespace {
+const std::set<std::string> propWhiteList {
+#define PROPILOAD(funcName) #funcName,
+#include "propiloadlist.def"
+#undef PROPILOAD
+};
+}
 
 // accumulate the BBs that are in the iterated dominance frontiers of bb in
 // the set dfSet, visiting each BB only once
@@ -41,12 +50,15 @@ void MeSSAEPre::BuildWorkList() {
 }
 
 bool MeSSAEPre::IsThreadObjField(const IvarMeExpr &expr) const {
+  if (klassHierarchy == nullptr) {
+    return false;
+  }
   if (expr.GetFieldID() == 0) {
     return false;
   }
   auto *type = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr.GetTyIdx()));
-  TyIdx runnableInterface = klassHierarchy.GetKlassFromLiteral("Ljava_2Flang_2FRunnable_3B")->GetTypeIdx();
-  Klass *klass = klassHierarchy.GetKlassFromTyIdx(type->GetPointedTyIdx());
+  TyIdx runnableInterface = klassHierarchy->GetKlassFromLiteral("Ljava_2Flang_2FRunnable_3B")->GetTypeIdx();
+  Klass *klass = klassHierarchy->GetKlassFromTyIdx(type->GetPointedTyIdx());
   if (klass == nullptr) {
     return false;
   }
@@ -68,16 +80,25 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
   ASSERT(dom != nullptr, "dominance phase has problem");
   auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  KlassHierarchy *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
-  CHECK_FATAL(kh != nullptr, "KlassHierarchy phase has problem");
+  KlassHierarchy *kh = nullptr;
+  if (func->GetMIRModule().IsJavaModule()) {
+    kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+    CHECK_FATAL(kh != nullptr, "KlassHierarchy phase has problem");
+  }
   bool eprePULimitSpecified = MeOption::eprePULimit != UINT32_MAX;
   uint32 epreLimitUsed =
       (eprePULimitSpecified && puCount != MeOption::eprePULimit) ? UINT32_MAX : MeOption::epreLimit;
   MemPool *ssaPreMemPool = NewMemPool();
   bool epreIncludeRef = MeOption::epreIncludeRef;
-  MeSSAEPre ssaPre(*func, *irMap, *dom, *kh, *ssaPreMemPool, *NewMemPool(), epreLimitUsed, epreIncludeRef,
+  if (!MeOption::gcOnly && propWhiteList.find(func->GetName()) != propWhiteList.end()) {
+    epreIncludeRef = false;
+  }
+  MeSSAEPre ssaPre(*func, *irMap, *dom, kh, *ssaPreMemPool, *NewMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
+  if (func->GetHints() & kPlacementRCed) {
+    ssaPre.SetPlacementRC(true);
+  }
   if (eprePULimitSpecified && puCount == MeOption::eprePULimit && epreLimitUsed != UINT32_MAX) {
     LogInfo::MapleLogger() << "applying EPRE limit " << epreLimitUsed << " in function " <<
         func->GetMirFunc()->GetName() << "\n";
@@ -90,6 +111,11 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     MemPool *tmp = NewMemPool();
     MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *tmp);
     ssaUpdate.Run();
+  }
+  if ((func->GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {
+    PlacementRC placeRC(*func, *dom, *ssaPreMemPool, DEBUGFUNC(func));
+    placeRC.preKind = MeSSUPre::kSecondDecrefPre;
+    placeRC.ApplySSUPre();
   }
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== EPRE =============" << "\n";
