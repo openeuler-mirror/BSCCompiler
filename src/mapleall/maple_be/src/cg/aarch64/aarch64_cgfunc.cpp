@@ -74,6 +74,26 @@ MOperator stFs[kFloatByteSizeDimension] = { MOP_sstr, MOP_dstr };
 MOperator ldFsAcq[kFloatByteSizeDimension] = { MOP_undef, MOP_undef };
 MOperator stFsRel[kFloatByteSizeDimension] = { MOP_undef, MOP_undef };
 
+/* extended to unsigned ints */
+MOperator uextIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
+  /*  u8         u16          u32          u64      */
+  { MOP_undef, MOP_xuxtb32, MOP_xuxtb32, MOP_xuxtb32},  /* u8/i8   */
+  { MOP_undef, MOP_undef,   MOP_xuxth32, MOP_xuxth32},  /* u16/i16 */
+  { MOP_undef, MOP_undef,   MOP_xuxtw64, MOP_xuxtw64},  /* u32/i32 */
+  { MOP_undef, MOP_undef,   MOP_undef,   MOP_undef}     /* u64/u64 */
+};
+
+/* extended to signed ints */
+MOperator extIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
+  /*  i8         i16          i32          i64      */
+  { MOP_undef, MOP_xsxtb32, MOP_xsxtb32, MOP_xsxtb64},  /* u8/i8   */
+  { MOP_undef, MOP_undef,   MOP_xsxth32, MOP_xsxth64},  /* u16/i16 */
+  { MOP_undef, MOP_undef,   MOP_undef,   MOP_xsxtw64},  /* u32/i32 */
+  { MOP_undef, MOP_undef,   MOP_undef,   MOP_undef}     /* u64/u64 */
+};
+
+/* extended to signed ints */
+
 MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd) {
   ASSERT(__builtin_popcount(static_cast<uint32>(memOrd)) <= 1, "must be kMoNone or kMoAcquire");
   ASSERT(primType != PTY_ptr, "should have been lowered");
@@ -124,6 +144,24 @@ MOperator AArch64CGFunc::PickLdInsn(uint32 bitSize, PrimType primType, AArch64is
 
 MOperator AArch64CGFunc::PickStInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd) {
   return PickLdStInsn(false, bitSize, primType, memOrd);
+}
+
+MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) {
+  int32 sBitSize = GetPrimTypeBitSize(stype);
+  int32 dBitSize = GetPrimTypeBitSize(dtype);
+  /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
+  if (IsPrimitiveInteger(stype) && IsPrimitiveInteger(dtype)) {
+    MOperator(*table)[kIntByteSizeDimension];
+    table = IsUnsignedInteger(dtype) ? uextIs : extIs;
+    /* __builtin_ffs(x) returns: 8 -> 4, 16 -> 5, 32 -> 6, 64 -> 7 */
+    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - 4;
+    ASSERT(row <= 3, "wrong bitSize");
+    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - 4;
+    ASSERT(col <= 3, "wrong bitSize");
+    return table[row][col];
+  }
+  CHECK_FATAL(0, "extend not primitive integer");
+  return MOP_undef;
 }
 
 MOperator AArch64CGFunc::PickMovInsn(PrimType primType) {
@@ -429,11 +467,21 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   }
   Insn *insn = nullptr;
   uint32 ssize = src.GetSize();
+  PrimType regTy = PTY_void;
+  RegOperand *loadReg;
+  MOperator mop = MOP_undef;
   if (IsPrimitiveFloat(stype)) {
     CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
     insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
   } else {
-    insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
+    mop = PickExtInsn(dtype, stype);
+    if (ssize == (GetPrimTypeSize(dtype) * kBitsPerByte) || mop == MOP_undef) {
+      insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
+    } else {
+      regTy = dsize == k64BitSize ? dtype : PTY_i32;
+      loadReg = &CreateRegisterOperandOfType(regTy);
+      insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), *loadReg, src);
+    }
   }
 
   if (GetCG()->GenerateVerboseCG()) {
@@ -453,6 +501,10 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   }
 
   GetCurBB()->AppendInsn(*insn);
+
+  if (regTy != PTY_void && mop != MOP_undef) {
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *loadReg));
+  }
 }
 
 bool AArch64CGFunc::IsImmediateValueInRange(MOperator mOp, int64 immVal, bool is64Bits,
@@ -1532,6 +1584,10 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   if ((memOpnd->GetMemVaryType() == kNotVary) &&
       IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(memOpnd), dataSize)) {
     return &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSize);
+  }
+  if (symType != expr.GetPrimType()) {
+    RegOperand *opnd = &LoadIntoRegister(*memOpnd, expr.GetPrimType(), symType);
+    return opnd;
   }
   return memOpnd;
 }

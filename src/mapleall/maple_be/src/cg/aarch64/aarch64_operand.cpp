@@ -175,11 +175,7 @@ bool StImmOperand::Less(const Operand &right) const{
 void StImmOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   CHECK_FATAL(opndProp != nullptr, "opndProp is nullptr in  StImmOperand::Emit");
   if (static_cast<const AArch64OpndProp*>(opndProp)->IsLiteralLow12()) {
-    emitter.Emit("#:lo12:" + GetName());
-    if (offset != 0) {
-      emitter.Emit("+" + std::to_string(offset));
-    }
-    return;
+    emitter.Emit("#:lo12:");
   }
   if (CGOptions::IsPIC() && (symbol->GetStorageClass() == kScGlobal || symbol->GetStorageClass() == kScExtern)) {
     emitter.Emit(":got:" + GetName());
