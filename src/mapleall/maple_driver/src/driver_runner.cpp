@@ -12,6 +12,7 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include "compiler.h"
 #include "driver_runner.h"
 #include <iostream>
 #include <typeinfo>
@@ -129,19 +130,34 @@ ErrorCode DriverRunner::ParseInput(const std::string &outputFile, const std::str
   MPLTimer timer;
   timer.Start();
 
-  MIRParser parser(*theModule);
   ErrorCode ret = kErrorNoError;
-  bool parsed;
   if (!fileParsed) {
-    MPLTimer parseMirTimer;
-    parseMirTimer.Start();
-    parsed = parser.ParseMIR(0, 0, false, true);
-    parseMirTimer.Stop();
-    InterleavedManager::interleavedTimer.emplace_back(
-        std::pair<std::string, time_t>("parseMpl", parseMirTimer.ElapsedMicroseconds()));
-    if (!parsed) {
-      ret = kErrorExit;
-      parser.EmitError(outputFile);
+    if (inputFileType != kFileTypeBpl) {
+      MIRParser parser(*theModule);
+      MPLTimer parseMirTimer;
+      parseMirTimer.Start();
+      bool parsed = parser.ParseMIR(0, 0, false, true);
+      parseMirTimer.Stop();
+      InterleavedManager::interleavedTimer.emplace_back(
+          std::pair<std::string, time_t>("parseMpl", parseMirTimer.ElapsedMicroseconds()));
+      if (!parsed) {
+        ret = kErrorExit;
+        parser.EmitError(outputFile);
+      }
+    } else {
+      BinaryMplImport binMplt(*theModule);
+      binMplt.SetImported(false);
+      std::string modid = theModule->GetFileName();
+      MPLTimer importMirTimer;
+      importMirTimer.Start();
+      bool imported = binMplt.Import(modid, true);
+      importMirTimer.Stop();
+      InterleavedManager::interleavedTimer.emplace_back(
+          std::pair<std::string, time_t>("parseMpl", importMirTimer.ElapsedMicroseconds()));
+      if (!imported) {
+        ret = kErrorExit;
+        LogInfo::MapleLogger() << "Cannot open .bpl file: %s" << modid << '\n';
+      }
     }
   }
   timer.Stop();
@@ -340,7 +356,9 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
   mirLowerer.Init();
   CGLowerer theLowerer(*theModule, *beCommon, cg.GenerateExceptionHandlingCode(), cg.GenerateVerboseCG());
   theLowerer.RegisterBuiltIns();
-  theLowerer.InitArrayClassCacheTableIndex();
+  if (JAVALANG) {
+    theLowerer.InitArrayClassCacheTableIndex();
+  }
   theLowerer.RegisterExternalLibraryFunctions();
   theLowerer.SetCheckLoadStore(CGOptions::IsCheckArrayStore());
   timer.Stop();
