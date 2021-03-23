@@ -584,14 +584,17 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
     } else {  /* for unions, bitfields are treated as non-bitfields */
       if (curFieldID == fieldID) {
         return std::pair<int32, int32>(0, 0);
-      } else if (fieldType->GetKind() == kTypeStruct) {
-        /* union cannot be kTypeClass */
-        if ((curFieldID + GetStructFieldCount(fieldTyIdx)) >= fieldID) {
-          return GetFieldOffset(static_cast<MIRStructType&>(*fieldType), fieldID - curFieldID);
-        }
-        curFieldID += GetStructFieldCount(fieldTyIdx) + 1;
       } else {
-        ++curFieldID;
+        MIRStructType *subStructTy = fieldType->EmbeddedStructType();
+        if (subStructTy == nullptr) {
+          curFieldID++;
+        } else {
+          if ((curFieldID + GetStructFieldCount(subStructTy->GetTypeIndex())) < fieldID) {
+            curFieldID += GetStructFieldCount(subStructTy->GetTypeIndex()) + 1;
+          } else {
+            return GetFieldOffset(*subStructTy, fieldID - curFieldID);
+          }
+        }
       }
     }
   }
