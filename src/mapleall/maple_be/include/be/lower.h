@@ -95,7 +95,7 @@ class CGLowerer {
     return mirModule.CurFunction();
   }
 
-  BaseNode *LowerExpr(const BaseNode&, BaseNode&, BlockNode&);
+  BaseNode *LowerExpr(BaseNode&, BaseNode&, BlockNode&);
 
   BaseNode *LowerDread(DreadNode &dread);
 
@@ -130,6 +130,10 @@ class CGLowerer {
   }
 
   BaseNode *LowerIaddrof(const IreadNode &iaddrof);
+  BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
+  BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
+  bool IsComplexSelect(const TernaryNode &tNode);
+  BaseNode *LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
   BaseNode *LowerArrayForLazyBiding(BaseNode &baseNode, BaseNode &offsetNode, const BaseNode &parent);
