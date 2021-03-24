@@ -1596,7 +1596,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
       }
       /* element is uninitialized, emit null constant. */
     }
-    fieldIdx += Globals::GetInstance()->GetBECommon()->GetFieldIdxIncrement(elemType);
+    fieldIdx++;
   }
 
   uint32 opSize = size - sEmitInfo->GetTotalSize();
