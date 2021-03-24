@@ -534,6 +534,7 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
     uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
+    uint8 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "fieldAlign should not equal 0");
     if (structType.GetKind() != kTypeUnion) {
       if (fieldType->GetKind() == kTypeBitField) {
@@ -563,10 +564,26 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
         allocedSizeInBits += fieldSize;
         allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlign * kBitsPerByte) / kBitsPerByte);
       } else {
-        allocedSize = RoundUp(allocedSize, fieldAlign);
+        uint32 fldSizeInBits = fieldTypeSize * k8BitSize;
+        bool leftOverBits = false;
+        uint32 offset = 0;
+
+        if (allocedSizeInBits == allocedSize * k8BitSize) {
+          allocedSize = RoundUp(allocedSize, fieldAlign);
+          offset = allocedSize;
+        } else {
+          /* still some leftover bits on allocated words, we calculate things based on bits then. */
+          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fldSizeInBits - k1BitSize) / fieldAlignBits) {
+            /* the field is crossing the align boundary of its base type */
+            allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
+          }
+          allocedSize = RoundUp(allocedSize, fieldAlign);
+          offset = (allocedSizeInBits / fieldAlignBits) * fieldAlign;
+          leftOverBits =  true;
+        }
 
         if (curFieldID == fieldID) {
-          return std::pair<int32, int32>(allocedSize, 0);
+          return std::pair<int32, int32>(offset, 0);
         } else if (fieldType->GetKind() == kTypeStruct) {
           if ((curFieldID + GetStructFieldCount(fieldTyIdx)) >= fieldID) {
             MIRStructType *subStructType = static_cast<MIRStructType*>(fieldType);
@@ -578,8 +595,13 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
           ++curFieldID;
         }
 
-        allocedSize += fieldTypeSize;
-        allocedSizeInBits = allocedSize * kBitsPerByte;
+        if (leftOverBits) {
+          allocedSizeInBits += fldSizeInBits;
+          allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
+        } else {
+          allocedSize += fieldTypeSize;
+          allocedSizeInBits = allocedSize * kBitsPerByte;
+        }
       }
     } else {  /* for unions, bitfields are treated as non-bitfields */
       if (curFieldID == fieldID) {
