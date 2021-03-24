@@ -14,6 +14,8 @@
  */
 #if TARGAARCH64
 #include "aarch64_ebo.h"
+#elif TARGRISCV64
+#include "riscv64_ebo.h"
 #endif
 #if TARGARM32
 #include "arm32_ebo.h"
