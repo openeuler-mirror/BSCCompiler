@@ -3698,7 +3698,7 @@ static bool LIsPrimitivePointer(PrimType ptype) {
 }
 
 Operand *AArch64CGFunc::SelectRetype(TypeCvtNode &node, Operand &opnd0) {
-  PrimType fromType = node.FromType();
+  PrimType fromType = node.Opnd(0)->GetPrimType();
   PrimType toType = node.GetPrimType();
   ASSERT(GetPrimTypeSize(fromType) == GetPrimTypeSize(toType), "retype bit widith doesn' match");
   if (LIsPrimitivePointer(fromType) && LIsPrimitivePointer(toType)) {
