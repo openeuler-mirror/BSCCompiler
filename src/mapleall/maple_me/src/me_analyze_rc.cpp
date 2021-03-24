@@ -15,6 +15,8 @@
 #include "me_analyze_rc.h"
 #include "me_option.h"
 #include "me_dominance.h"
+#include "me_delegate_rc.h"
+#include "me_subsum_rc.h"
 
 // This phase analyzes the defs and uses of ref pointers in the function and
 // performs the following modifications to the code:
@@ -120,12 +122,10 @@ OriginalSt *AnalyzeRC::GetOriginalSt(const MeExpr &refLHS) const {
   return iass->GetChiList()->begin()->second->GetLHS()->GetOst();
 }
 
-#if 1
 VarMeExpr *AnalyzeRC::GetZeroVersionVarMeExpr(const VarMeExpr &var) {
   OriginalSt *ost = var.GetOst();
   return irMap.GetOrCreateZeroVersionVarMeExpr(*ost);
 }
-#endif
 
 // check if incref needs to be inserted after this ref pointer assignment;
 // if it is callassigned, the incref has already been done in the callee;
@@ -156,11 +156,7 @@ void AnalyzeRC::IdentifyRCStmts() {
         if (lhsRef->GetMeOp() == kMeOpVar) {
           // insert a decref statement
           UnaryMeStmt *decrefStmt = irMap.CreateUnaryMeStmt(
-#if 1
               OP_decref, GetZeroVersionVarMeExpr(static_cast<const VarMeExpr&>(*lhsRef)), &bb, &stmt.GetSrcPosition());
-#else
-              OP_decref, irMap.GetOrCreateZeroVersionVarMeExpr(*ost), &bb, &stmt.GetSrcPosition());
-#endif
           // insertion position is before stmt
           bb.InsertMeStmtBefore(&stmt, decrefStmt);
         } else {
@@ -295,7 +291,7 @@ void AnalyzeRC::RenameUses(MeStmt &meStmt) {
 DassignMeStmt *AnalyzeRC::CreateDassignInit(OriginalSt &ost, BB &bb) {
   VarMeExpr *lhs = irMap.CreateVarMeExprVersion(&ost);
   MeExpr *rhs = irMap.CreateIntConstMeExpr(0, PTY_ref);
-  return irMap.CreateDassignMeStmt(utils::ToRef(lhs), utils::ToRef(rhs), bb);
+  return static_cast<DassignMeStmt *>(irMap.CreateAssignMeStmt(utils::ToRef(lhs), utils::ToRef(rhs), bb));
 }
 
 UnaryMeStmt *AnalyzeRC::CreateIncrefZeroVersion(OriginalSt &ost) {
@@ -455,10 +451,14 @@ AnalysisResult *MeDoAnalyzeRC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     LogInfo::Info() << "\n============== After ANALYZE RC =============" << '\n';
     func->Dump(false);
   }
+  if (MeOption::subsumRC && MeOption::rcLowering && MeOption::optLevel > 0) {
+    (void)m->GetAnalysisResult(MeFuncPhase_SUBSUMRC, func);
+  }
   if (!MeOption::noDelegateRC && MeOption::rcLowering && MeOption::optLevel > 0) {
     m->GetAnalysisResult(MeFuncPhase_DELEGATERC, func);
   }
-  if (!MeOption::noCondBasedRC && MeOption::rcLowering && MeOption::optLevel > 0) {
+  if (!MeOption::noCondBasedRC && !(func->GetHints() & kPlacementRCed) &&
+      MeOption::rcLowering && MeOption::optLevel > 0) {
     m->GetAnalysisResult(MeFuncPhase_CONDBASEDRC, func);
   }
   if (DEBUGFUNC(func)) {

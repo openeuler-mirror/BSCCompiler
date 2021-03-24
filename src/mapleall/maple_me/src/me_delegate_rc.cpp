@@ -364,7 +364,7 @@ RegMeExpr *DelegateRC::RHSTempDelegated(MeExpr &rhs, const MeStmt &useStmt) {
     RegMeExpr *curReg = irMap.CreateRegMeExpr(rhsVar);
     refVar2RegMap[&rhsVar] = curReg;  // record this replacement
     // create new regassign statement
-    MeStmt *regass = irMap.CreateRegassignMeStmt(*curReg, *rhsExpr, *defStmt->GetBB());
+    MeStmt *regass = irMap.CreateAssignMeStmt(*curReg, *rhsExpr, *defStmt->GetBB());
     curReg->SetDefByStmt(*regass);
     if (defStmtNeedIncref) {
       regass->EnableNeedIncref();
@@ -542,7 +542,9 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
         return false;
       }
       const OriginalSt *ost = theLhs->GetOst();
-      if (!ost->IsLocal() || ost->IsFormal()) {
+      if (!ost->IsLocal() || ost->IsFormal() ||
+          // avoid multi-version vars because of it is hard to find the decrefreset.
+          ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2)) {
         return false;
       }
       if (ost->GetMIRSymbol()->IsInstrumented()) {
@@ -569,6 +571,10 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
           onlyWithDecref = false;
           return false;
         }
+        // except reset of localrefvar because of special handle throw operand
+        if ((func.GetHints() & kPlacementRCed) && theRhs->GetOp() == OP_constval) {
+          return false;
+        }
         return true;
       }
       break;
@@ -588,7 +594,9 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
           return false;
         }
         const OriginalSt *ost = theLhs->GetOst();
-        if (!ost->IsLocal() || ost->IsFormal()) {
+        if (!ost->IsLocal() || ost->IsFormal() ||
+            // avoid multi-version vars because of it is hard to find the decrefreset.
+            ((func.GetHints() & kPlacementRCed) && ssaTab.GetVersionsIndicesSize(ost->GetIndex()) > 2)) {
           return false;
         }
         if (verStCantDelegate[theLhs->GetVstIdx()]) {
@@ -636,7 +644,7 @@ void DelegateRC::DelegateHandleNoRCStmt(MeStmt &stmt, bool addDecref) {
   refVar2RegMap[theLhs] = curReg;  // record this replacement
   if (rhsExpr != nullptr) {
     // create new regassign statement
-    MeStmt *regass = irMap.CreateRegassignMeStmt(*curReg, *rhsExpr, *stmt.GetBB());
+    MeStmt *regass = irMap.CreateAssignMeStmt(*curReg, *rhsExpr, *stmt.GetBB());
     curReg->SetDefByStmt(*regass);
     bb.ReplaceMeStmt(newStmt, regass);
     newStmt = regass;  // for inserting defref after it below
@@ -785,6 +793,26 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
       ++nextPos;
     }
     intrin->EraseOpnds(intrin->GetOpnds().begin() + nextPos, intrin->GetOpnds().end());
+  }
+  if (func.GetHints() & kPlacementRCed) {  // delete decref if opnd not in livelocalrefvars
+    auto eIt = func.valid_end();
+    for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+      auto *bb = *bIt;
+      for (auto &stmt : bb->GetMeStmts()) {
+        if (stmt.GetOp() != OP_decrefreset) {
+          continue;
+        }
+        if (stmt.GetOpnd(0)->GetMeOp() != kMeOpAddrof) {
+          continue;
+        }
+        auto *varMeExpr = static_cast<AddrofMeExpr*>(stmt.GetOpnd(0));
+        const OriginalSt *ost = ssaTab.GetOriginalStFromID(varMeExpr->GetOstIdx());
+        if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC() &&
+            liveLocalrefvars.find(varMeExpr->GetOstIdx()) == liveLocalrefvars.end()) {
+          bb->RemoveMeStmt(&stmt);
+        }
+      }
+    }
   }
 }
 

@@ -30,7 +30,7 @@ namespace maple {
 // 4. STMTFRE (Full Redundancy Elimination for Statements) - me_stmt_fre.cpp
 //    (called when performing STMTPRE).
 // ================ Step 6: Code Motion =================
-MeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
+ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
   if (workCand->NeedLocalRefVar() && GetPlacementRCOn()) {
     curTemp = CreateNewCurLocalRefVar();
     return curTemp;
@@ -113,15 +113,11 @@ VarMeExpr *SSAPre::CreateNewCurLocalRefVar() {
 void SSAPre::GenerateSaveInsertedOcc(MeInsertedOcc &insertedOcc) {
   ASSERT(GetPUIdx() == workCand->GetPUIdx() || workCand->GetPUIdx() == 0,
          "GenerateSaveInsertedOcc: inconsistent puIdx");
-  MeExpr *regOrVar = CreateNewCurTemp(*insertedOcc.GetMeExpr());
+  ScalarMeExpr *regOrVar = CreateNewCurTemp(*insertedOcc.GetMeExpr());
   MeStmt *newMeStmt = nullptr;
   ASSERT_NOT_NULL(workCand);
   if (!workCand->NeedLocalRefVar() || GetPlacementRCOn()) {
-    if (regOrVar->GetMeOp() == kMeOpReg) {
-      newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
-    } else {
-      newMeStmt = irMap->CreateDassignMeStmt(*regOrVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
-    }
+    newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     insertedOcc.GetBB()->InsertMeStmtLastBr(newMeStmt);
     insertedOcc.SetSavedExpr(*regOrVar);
@@ -129,11 +125,11 @@ void SSAPre::GenerateSaveInsertedOcc(MeInsertedOcc &insertedOcc) {
     // regOrVar is MeOp_reg and lcoalrefvar is kMeOpVar
     VarMeExpr *localRefVar = CreateNewCurLocalRefVar();
     temp2LocalRefVarMap[static_cast<RegMeExpr*>(regOrVar)] = localRefVar;
-    newMeStmt = irMap->CreateDassignMeStmt(*localRefVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
+    newMeStmt = irMap->CreateAssignMeStmt(*localRefVar, *insertedOcc.GetMeExpr(), *insertedOcc.GetBB());
     localRefVar->SetDefByStmt(*newMeStmt);
     insertedOcc.GetBB()->InsertMeStmtLastBr(newMeStmt);
     EnterCandsForSSAUpdate(localRefVar->GetOstIdx(), *insertedOcc.GetBB());
-    newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *localRefVar, *insertedOcc.GetBB());
+    newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *localRefVar, *insertedOcc.GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     insertedOcc.GetBB()->InsertMeStmtLastBr(newMeStmt);
     insertedOcc.SetSavedExpr(*regOrVar);
@@ -1433,7 +1429,7 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       break;
     }
     case OP_regassign: {
-      auto *rassMeStmt = static_cast<RegassignMeStmt*>(meStmt);
+      auto *rassMeStmt = static_cast<AssignMeStmt*>(meStmt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *rassMeStmt->GetRHS(), isRebuilt, tempVar, true);
       break;
     }

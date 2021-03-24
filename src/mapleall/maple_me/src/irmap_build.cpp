@@ -62,7 +62,7 @@ MeExpr *IRMapBuild::BuildLHSVar(const VersionSt &vst, DassignMeStmt &defMeStmt) 
   return meDef;
 }
 
-MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, RegassignMeStmt &defMeStmt, const RegassignNode &regassign) {
+MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, AssignMeStmt &defMeStmt, const RegassignNode &regassign) {
   RegMeExpr *meDef = GetOrCreateRegFromVerSt(vst);
   meDef->SetPtyp(regassign.GetPrimType());
   meDef->SetDefStmt(&defMeStmt);
@@ -516,8 +516,8 @@ MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   return meStmt;
 }
 
-MeStmt *IRMapBuild::BuildRegassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
-  auto *meStmt = irMap->New<RegassignMeStmt>(&stmt);
+MeStmt *IRMapBuild::BuildAssignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
+  auto *meStmt = irMap->New<AssignMeStmt>(&stmt);
   auto &regNode = static_cast<RegassignNode&>(stmt);
   meStmt->SetRHS(BuildExpr(*regNode.Opnd(0), false, false));
   auto *regLHS = static_cast<RegMeExpr*>(BuildLHSReg(*ssaPart.GetSSAVar(), *meStmt, regNode));
@@ -530,7 +530,7 @@ MeStmt *IRMapBuild::BuildRegassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart
 
 MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   auto &iasNode = static_cast<IassignNode&>(stmt);
-  auto *meStmt = irMap->NewInPool<IassignMeStmt>(&stmt);
+  IassignMeStmt *meStmt = irMap->NewInPool<IassignMeStmt>(&stmt);
   meStmt->SetTyIdx(iasNode.GetTyIdx());
   meStmt->SetRHS(BuildExpr(*iasNode.GetRHS(), false, false));
   meStmt->SetLHSVal(irMap->BuildLHSIvar(*BuildExpr(*iasNode.Opnd(0), false, false), *meStmt, iasNode.GetFieldID()));
@@ -544,7 +544,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
       }
     }
     if (isVolt) {
-      meStmt->GetLHS()->SetVolatileFromBaseSymbol(true);
+      meStmt->GetLHSVal()->SetVolatileFromBaseSymbol(true);
     }
   }
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));
@@ -663,7 +663,7 @@ MeStmt *IRMapBuild::BuildMeStmt(StmtNode &stmt) {
 
 void IRMapBuild::InitMeStmtFactory() {
   RegisterFactoryFunction<MeStmtFactory>(OP_dassign, &IRMapBuild::BuildDassignMeStmt);
-  RegisterFactoryFunction<MeStmtFactory>(OP_regassign, &IRMapBuild::BuildRegassignMeStmt);
+  RegisterFactoryFunction<MeStmtFactory>(OP_regassign, &IRMapBuild::BuildAssignMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_iassign, &IRMapBuild::BuildIassignMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_maydassign, &IRMapBuild::BuildMaydassignMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_call, &IRMapBuild::BuildCallMeStmt);

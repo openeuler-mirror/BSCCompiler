@@ -570,6 +570,9 @@ bool MeSSI::ReplaceStmt(MeStmt &meStmt, VarMeExpr &newVar, VarMeExpr &oldVar) {
   if (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOstIdx() == ostIdx) {
     return true;
   }
+  if (meStmt.GetOp() != OP_dassign) {
+    return false;
+  }
   lhs = meStmt.GetLHS();
   return (lhs != nullptr && lhs->GetMeOp() == kMeOpVar && static_cast<VarMeExpr*>(lhs)->GetOstIdx() == ostIdx);
 }
