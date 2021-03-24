@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +19,7 @@ namespace {
 }
 
 namespace maple {
-void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, MeExpr &regOrVar) {
+void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar) {
   CHECK_FATAL(realOcc.GetOpcodeOfMeStmt() == OP_iassign, "GenerateSaveLHSReal: only iassign expected");
   auto *iass = static_cast<IassignMeStmt*>(realOcc.GetMeStmt());
   IvarMeExpr *theLHS = iass->GetLHSVal();
@@ -31,16 +31,14 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, MeExpr &regOrVar) {
   BB *savedBB = iass->GetBB();
   MeStmt *savedPrev = iass->GetPrev();
   MeStmt *savedNext = iass->GetNext();
-  RegassignMeStmt *rass = nullptr;
+  AssignMeStmt *rass = nullptr;
   if (!workCand->NeedLocalRefVar() || GetPlacementRCOn()) {
     CHECK_FATAL(regOrVar.GetMeOp() == kMeOpReg, "GenerateSaveLHSRealocc: EPRE temp must b e preg here");
     // change original iassign to regassign;
     // use placement new to modify in place, because other occ nodes are pointing
     // to this statement in order to get to the rhs expression;
-    // this assumes RegassignMeStmt has smaller size then IassignMeStmt
-    rass = new (iass) RegassignMeStmt();
-    rass->SetLHS(static_cast<RegMeExpr*>(&regOrVar));
-    rass->SetRHS(savedRHS);
+    // this assumes AssignMeStmt has smaller size then IassignMeStmt
+    rass = new (iass) AssignMeStmt(OP_regassign, static_cast<RegMeExpr*>(&regOrVar), savedRHS);
     rass->SetSrcPos(savedSrcPos);
     rass->SetBB(savedBB);
     rass->SetPrev(savedPrev);
@@ -54,18 +52,16 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, MeExpr &regOrVar) {
     // use placement new to modify in place, because other occ nodes are pointing
     // to this statement in order to get to the rhs expression;
     // this assumes DassignMeStmt has smaller size then IassignMeStmt
-    DassignMeStmt *dass = new (iass) DassignMeStmt(&irMap->GetIRMapAlloc());
-    dass->SetLHS(localRefVar);
-    dass->SetRHS(savedRHS);
+    DassignMeStmt *dass = new (iass) DassignMeStmt(&irMap->GetIRMapAlloc(), localRefVar, savedRHS);
     dass->SetSrcPos(savedSrcPos);
     dass->SetBB(savedBB);
     dass->SetPrev(savedPrev);
     dass->SetNext(savedNext);
     localRefVar->SetDefByStmt(*dass);
-    rass = irMap->CreateRegassignMeStmt(regOrVar, *localRefVar, *savedBB);
+    rass = irMap->CreateAssignMeStmt(regOrVar, *localRefVar, *savedBB);
     regOrVar.SetDefByStmt(*rass);
     savedBB->InsertMeStmtAfter(dass, rass);
-    EnterCandsForSSAUpdate(localRefVar->GetOst()->GetIndex(), *savedBB);
+    EnterCandsForSSAUpdate(localRefVar->GetOstIdx(), *savedBB);
   }
   // create new iassign for original lhs
   IassignMeStmt *newIass = irMap->NewInPool<IassignMeStmt>(savedTyIdx, theLHS, &regOrVar, &savedChiList);
@@ -83,7 +79,7 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, MeExpr &regOrVar) {
 void SSAEPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
   ASSERT(GetPUIdx() == workCand->GetPUIdx() || workCand->GetPUIdx() == 0,
          "GenerateSaveRealOcc: inconsistent puIdx");
-  MeExpr *regOrVar = CreateNewCurTemp(*realOcc.GetMeExpr());
+  ScalarMeExpr *regOrVar = CreateNewCurTemp(*realOcc.GetMeExpr());
   if (realOcc.IsLHS()) {
     GenerateSaveLHSRealocc(realOcc, *regOrVar);
     return;
@@ -98,34 +94,50 @@ void SSAEPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     static_cast<DassignMeStmt*>(realOcc.GetMeStmt())->GetVarLHS()->SetNoDelegateRC(true);
   }
   if (!workCand->NeedLocalRefVar() || isRHSOfDassign || GetPlacementRCOn()) {
-    if (regOrVar->GetMeOp() == kMeOpReg) {
-      newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
-    } else {
-      newMeStmt = irMap->CreateDassignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
-    }
+    newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
   } else {
     // regOrVar is MeOp_reg and localRefVar is kMeOpVar
     VarMeExpr *localRefVar = CreateNewCurLocalRefVar();
     temp2LocalRefVarMap[static_cast<RegMeExpr*>(regOrVar)] = localRefVar;
-    newMeStmt = irMap->CreateDassignMeStmt(*localRefVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
+    newMeStmt = irMap->CreateAssignMeStmt(*localRefVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     localRefVar->SetDefByStmt(*newMeStmt);
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
-    newMeStmt = irMap->CreateRegassignMeStmt(*regOrVar, *localRefVar, *realOcc.GetMeStmt()->GetBB());
+    newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *localRefVar, *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
-    EnterCandsForSSAUpdate(localRefVar->GetOst()->GetIndex(), *realOcc.GetMeStmt()->GetBB());
+    EnterCandsForSSAUpdate(localRefVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
   }
   // replace realOcc->GetMeStmt()'s occ with regOrVar
   bool isReplaced = irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);
   // rebuild worklist
-  if (isReplaced) {
+  if (isReplaced  && !ReserveCalFuncAddrForDecouple(*realOcc.GetMeExpr())) {
     BuildWorkListStmt(*realOcc.GetMeStmt(), realOcc.GetSequence(), true, regOrVar);
   }
   realOcc.SetSavedExpr(*regOrVar);
 }
 
+#ifdef USE_32BIT_REF
+static constexpr int kFieldIDOfFuncAddrInClassMeta = 8;
+#else
+static constexpr int kFieldIDOfFuncAddrInClassMeta = 6;
+#endif
+bool SSAEPre::ReserveCalFuncAddrForDecouple(MeExpr &meExpr) const {
+  if (!Options::buildApp) {
+    return false;
+  }
+  bool virtualFuncAddr = false;
+  if (meExpr.GetMeOp() == kMeOpIvar) {
+    auto &ivar = static_cast<IvarMeExpr&>(meExpr);
+    auto ptrTyIdx = ivar.GetTyIdx();
+    auto *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTyIdx);
+    virtualFuncAddr =
+        (static_cast<MIRPtrType*>(ptrType)->GetPointedType()->GetName() == namemangler::kClassMetadataTypeName) &&
+        (ivar.GetFieldID() == kFieldIDOfFuncAddrInClassMeta);
+  }
+  return virtualFuncAddr;
+}
 
 void SSAEPre::GenerateReloadRealOcc(MeRealOcc &realOcc) {
   CHECK_FATAL(!realOcc.IsLHS(), "GenerateReloadRealOcc: cannot be LHS occurrence");
@@ -152,7 +164,7 @@ void SSAEPre::GenerateReloadRealOcc(MeRealOcc &realOcc) {
   // replace realOcc->GetMeStmt()'s occ with regOrVar
   bool isReplaced = irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);
   // update worklist
-  if (isReplaced) {
+  if (isReplaced && !ReserveCalFuncAddrForDecouple(*realOcc.GetMeExpr())) {
     BuildWorkListStmt(*realOcc.GetMeStmt(), realOcc.GetSequence(), true, regOrVar);
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,10 +37,52 @@ static bool CaseValOfSwitchIsSuccInt(const maple::CaseVector &switchTable) {
 }
 
 namespace maple {
+#define MATCH_STMT(stmt, kOpCode) do {                                           \
+  while ((stmt) != nullptr && (stmt)->GetOpCode() == OP_comment) {               \
+    (stmt) = (stmt)->GetNext();                                                  \
+  }                                                                              \
+  if ((stmt) == nullptr || (stmt)->GetOpCode() != (kOpCode)) {                   \
+    return false;                                                                \
+  }                                                                              \
+} while (0) // END define
 // determine if need to be replaced by assertnonnull
 bool MeCFG::IfReplaceWithAssertNonNull(const BB &bb) const {
-  (void) bb;
-  return false;
+  const StmtNode *stmt = bb.GetStmtNodes().begin().d();
+  constexpr const char npeTypeName[] = "Ljava_2Flang_2FNullPointerException_3B";
+  GStrIdx npeGStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(npeTypeName);
+  TyIdx npeTypeIdx = func.GetMIRModule().GetTypeNameTab()->GetTyIdxFromGStrIdx(npeGStrIdx);
+  // match first stmt
+  MATCH_STMT(stmt, OP_intrinsiccallwithtype);
+
+  auto *cNode = static_cast<const IntrinsiccallNode*>(stmt);
+  if (cNode->GetTyIdx() != npeTypeIdx) {
+    return false;
+  }
+  stmt = stmt->GetNext();
+  // match second stmt
+  MATCH_STMT(stmt, OP_dassign);
+
+  auto *dassignNode = static_cast<const DassignNode*>(stmt);
+  if (dassignNode->GetRHS()->GetOpCode() != OP_gcmalloc) {
+    return false;
+  }
+  auto *gcMallocNode = static_cast<GCMallocNode*>(dassignNode->GetRHS());
+  if (gcMallocNode->GetTyIdx() != npeTypeIdx) {
+    return false;
+  }
+  stmt = stmt->GetNext();
+  // match third stmt
+  MATCH_STMT(stmt, OP_callassigned);
+
+  auto *callNode = static_cast<const CallNode*>(stmt);
+  if (GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx())->GetName() !=
+      "Ljava_2Flang_2FNullPointerException_3B_7C_3Cinit_3E_7C_28_29V") {
+    return false;
+  }
+  stmt = stmt->GetNext();
+  MATCH_STMT(stmt, OP_throw);
+
+  return true;
 }
 
 void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVector<BB*> &exitBlocks) {
@@ -123,7 +165,7 @@ void MeCFG::AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks) {
       bb.SetAttributes(kBBAttrIsExit);  // may exit
       exitBlocks.push_back(&bb);
     }
-  } else if ((func.GetMIRModule().GetSrcLang() == kSrcLangJava) && bb.GetAttributes(kBBAttrIsExit)) {
+  } else if (func.GetMIRModule().IsJavaModule() && bb.GetAttributes(kBBAttrIsExit)) {
     // deal with throw bb, if throw bb in a tryblock and has finallyhandler
     auto &stmtNodes = bb.GetStmtNodes();
     if (!stmtNodes.empty() && stmtNodes.back().GetOpCode() == OP_throw) {
@@ -535,6 +577,52 @@ void MeCFG::FixMirCFG() {
 
 // replace "if() throw NPE()" with assertnonnull
 void MeCFG::ReplaceWithAssertnonnull() {
+  constexpr char rnnTypeName[] =
+      "Ljava_2Futil_2FObjects_3B_7CrequireNonNull_7C_28Ljava_2Flang_2FObject_3B_29Ljava_2Flang_2FObject_3B";
+  if (func.GetName() == rnnTypeName) {
+    return;
+  }
+  for (LabelIdx lblIdx : patternSet) {
+    BB *bb = func.GetLabelBBAt(lblIdx);
+    // if BB->pred_.size()==0, it won't enter this function
+    for (size_t i = 0; i < bb->GetPred().size(); ++i) {
+      BB *innerBB = bb->GetPred(i);
+      if (innerBB->GetKind() == kBBCondGoto) {
+        StmtNode &stmt = innerBB->GetStmtNodes().back();
+        Opcode stmtOp = stmt.GetOpCode();
+        ASSERT(stmt.IsCondBr(), "CondGoto BB with no condGoto stmt");
+        auto &condGotoNode = static_cast<CondGotoNode&>(stmt);
+        if ((stmtOp == OP_brtrue && condGotoNode.Opnd(0)->GetOpCode() != OP_eq) ||
+            (stmtOp == OP_brfalse && condGotoNode.Opnd(0)->GetOpCode() != OP_ne)) {
+          continue;
+        }
+        auto *cmpNode = static_cast<CompareNode*>(condGotoNode.Opnd(0));
+        BaseNode *opnd = nullptr;
+        if (cmpNode->GetOpndType() != PTY_ref && cmpNode->GetOpndType() != PTY_ptr) {
+          continue;
+        }
+        if (cmpNode->GetBOpnd(0)->GetOpCode() == OP_constval) {
+          auto *constNode = static_cast<ConstvalNode*>(cmpNode->GetBOpnd(0));
+          if (!constNode->GetConstVal()->IsZero()) {
+            continue;
+          }
+          opnd = cmpNode->GetBOpnd(1);
+        } else if (cmpNode->GetBOpnd(1)->GetOpCode() == OP_constval) {
+          auto *constNode = static_cast<ConstvalNode*>(cmpNode->GetBOpnd(1));
+          if (!constNode->GetConstVal()->IsZero()) {
+            continue;
+          }
+          opnd = cmpNode->GetBOpnd(0);
+        }
+        ASSERT(opnd != nullptr, "Compare with non-zero");
+        UnaryStmtNode *nullCheck = func.GetMIRModule().GetMIRBuilder()->CreateStmtUnary(OP_assertnonnull, opnd);
+        innerBB->ReplaceStmt(&stmt, nullCheck);
+        innerBB->SetKind(kBBFallthru);
+        innerBB->RemoveSucc(*bb);
+        --i;
+      }
+    }
+  }
 }
 
 bool MeCFG::IsStartTryBB(maple::BB &meBB) const {
@@ -672,18 +760,14 @@ void MeCFG::ConvertMePhiList2IdentityAssigns(BB &meBB) const {
     // replace phi with identify assignment as it only has 1 opnd
     const OriginalSt *ost = func.GetMeSSATab()->GetOriginalStFromID(phiIt->first);
     if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
-      auto *dassign = func.GetIRMap()->NewInPool<DassignMeStmt>();
       MePhiNode *varPhi = phiIt->second;
-      dassign->SetLHS(static_cast<VarMeExpr*>(varPhi->GetLHS()));
-      dassign->SetRHS(varPhi->GetOpnd(0));
+      auto *dassign = func.GetIRMap()->NewInPool<DassignMeStmt>(static_cast<VarMeExpr*>(varPhi->GetLHS()), varPhi->GetOpnd(0));
       dassign->SetBB(varPhi->GetDefBB());
       dassign->SetIsLive(varPhi->GetIsLive());
       meBB.PrependMeStmt(dassign);
     } else if (ost->IsPregOst()) {
-      auto *regAss = func.GetIRMap()->New<RegassignMeStmt>();
       MePhiNode *regPhi = phiIt->second;
-      regAss->SetLHS(static_cast<RegMeExpr*>(regPhi->GetLHS()));
-      regAss->SetRHS(regPhi->GetOpnd(0));
+      auto *regAss = func.GetIRMap()->New<AssignMeStmt>(OP_regassign, static_cast<RegMeExpr*>(regPhi->GetLHS()), regPhi->GetOpnd(0));
       regAss->SetBB(regPhi->GetDefBB());
       regAss->SetIsLive(regPhi->GetIsLive());
       meBB.PrependMeStmt(regAss);

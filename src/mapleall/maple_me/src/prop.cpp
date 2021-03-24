@@ -15,6 +15,7 @@
 #include "prop.h"
 #include "me_irmap.h"
 #include "dominance.h"
+#include "constantfold.h"
 
 using namespace maple;
 
@@ -30,7 +31,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       vstLiveStackVec(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
       config(config) {
-  const MapleVector<OriginalSt*> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
+  const MapleVector<OriginalSt *> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
     OriginalSt *ost = originalStVec[i];
@@ -99,7 +100,7 @@ void Prop::CollectSubVarMeExpr(const MeExpr &meExpr, std::vector<const MeExpr*> 
 // the version of progation of x1 is a1, but the top of the stack of symbol a is a2, so it's not consistent
 // warning: I suppose the vector vervec is on the stack, otherwise would cause memory leak
 bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
-                               const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const {
+                               const MapleVector<MapleStack<MeExpr*>*> &vstLiveStack) const {
   for (auto it = vstVec.begin(); it != vstVec.end(); ++it) {
     // iterate each cur defintion of related symbols of rhs, check the version
     const MeExpr *subExpr = *it;
@@ -110,12 +111,12 @@ bool Prop::IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
     } else {
       stackIdx = static_cast<const RegMeExpr*>(subExpr)->GetOstIdx();
     }
-    MapleStack<MeExpr *> *pStack = vstLiveStack.at(stackIdx);
+    auto &pStack = vstLiveStack.at(stackIdx);
     if (pStack->empty()) {
       // no definition so far go ahead
       continue;
     }
-    MeExpr * curDef = pStack->top();
+    MeExpr *curDef = pStack->top();
     CHECK_FATAL(curDef->GetMeOp() == kMeOpVar || curDef->GetMeOp() == kMeOpReg, "error: cur def error");
     if (subExpr != curDef) {
       return false;
@@ -275,7 +276,7 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) const {
 
 MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm) const {
   if (regMeExpr.GetDefBy() == kDefByStmt) {
-    RegassignMeStmt *defStmt = static_cast<RegassignMeStmt*>(regMeExpr.GetDefStmt());
+    AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(regMeExpr.GetDefStmt());
     MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
     if (rhs.GetDepth() <= kPropTreeLevel && Propagatable(rhs, utils::ToRef(defStmt->GetBB()), atParm)) {
       return rhs;
@@ -435,8 +436,8 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
       break;
     }
     case OP_regassign: {
-      auto &regMeStmt = static_cast<RegassignMeStmt&>(meStmt);
-      PropUpdateDef(static_cast<RegMeExpr&>(utils::ToRef(regMeStmt.GetRegLHS())));
+      auto &regMeStmt = static_cast<AssignMeStmt&>(meStmt);
+      PropUpdateDef(static_cast<RegMeExpr&>(utils::ToRef(regMeStmt.GetLHS())));
       break;
     }
     default:
@@ -491,14 +492,14 @@ void Prop::TraversalBB(BB &bb) {
     TraversalMeStmt(meStmt);
   }
 
-  MapleSet<BBId> &domChildren = dom.GetDomChildren(bb.GetBBId());
-  for (MapleSet<BBId>::iterator it = domChildren.begin(); it != domChildren.end(); ++it) {
+  auto &domChildren = dom.GetDomChildren(bb.GetBBId());
+  for (auto it = domChildren.begin(); it != domChildren.end(); ++it) {
     BBId childbbid = *it;
     TraversalBB(*GetBB(childbbid));
   }
 
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
-    MapleStack<MeExpr *> *liveStack = vstLiveStackVec[i];
+    MapleStack<MeExpr*> *liveStack = vstLiveStackVec[i];
     size_t curSize = curStackSizeVec[i];
     while (liveStack->size() > curSize) {
       liveStack->pop();

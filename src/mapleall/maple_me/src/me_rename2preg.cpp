@@ -24,7 +24,7 @@
 
 namespace maple {
 
-RegMeExpr *SSARename2Preg::RenameVar(VarMeExpr *varmeexpr) {
+RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
   if (varmeexpr->GetOst()->GetFieldID() != 0) {
     return nullptr;
   }
@@ -44,14 +44,14 @@ RegMeExpr *SSARename2Preg::RenameVar(VarMeExpr *varmeexpr) {
   }
   if (sym2reg_map.find(ost->GetIndex()) != sym2reg_map.end()) {
     // replaced previously
-    MapleUnorderedMap<int, RegMeExpr *>::iterator verit = vstidx2reg_map.find(varmeexpr->GetExprID());
+    auto verit = vstidx2reg_map.find(varmeexpr->GetExprID());
     RegMeExpr *varreg = nullptr;
     if (verit != vstidx2reg_map.end()) {
       varreg = verit->second;
     } else {
       OriginalSt *pregOst = sym2reg_map[ost->GetIndex()];
       varreg = meirmap->CreateRegMeExprVersion(*pregOst);
-      vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), varreg));
+      (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), varreg));
     }
     return varreg;
   } else {
@@ -75,10 +75,11 @@ RegMeExpr *SSARename2Preg::RenameVar(VarMeExpr *varmeexpr) {
       return nullptr;
     }
     curtemp = meirmap->CreateRegMeExpr(*ty);
-    OriginalSt *pregOst = ssaTab->GetOriginalStTable().CreatePregOriginalSt(curtemp->GetRegIdx(), func->GetMirFunc()->GetPuidx());
+    OriginalSt *pregOst =
+        ssaTab->GetOriginalStTable().CreatePregOriginalSt(curtemp->GetRegIdx(), func->GetMirFunc()->GetPuidx());
     pregOst->SetIsFormal(ost->IsFormal());
     sym2reg_map[ost->GetIndex()] = pregOst;
-    vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
+    (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
     if (ost->IsFormal()) {
       uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
       CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
@@ -106,7 +107,7 @@ void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdefli
     MeExpr *melhs = mustdefmenode.GetLHS();
     if (melhs->GetMeOp() != kMeOpVar) {
       return;
-    };
+    }
     VarMeExpr *lhs = static_cast<VarMeExpr *>(melhs);
     SetupParmUsed(lhs);
 
@@ -124,20 +125,20 @@ void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode
   for (uint32 i = 0; i < mevarphinode->GetOpnds().size(); i++) {
     ScalarMeExpr *opndexpr = mevarphinode->GetOpnds()[i];
     ASSERT(opndexpr->GetOst()->GetIndex() == lhs->GetOst()->GetIndex(), "phi is not correct");
-    MapleUnorderedMap<int, RegMeExpr *>::iterator verit = vstidx2reg_map.find(opndexpr->GetExprID());
+    auto verit = vstidx2reg_map.find(opndexpr->GetExprID());
     RegMeExpr *opndtemp = nullptr;
     if (verit == vstidx2reg_map.end()) {
       opndtemp = meirmap->CreateRegMeExprVersion(*curtemp);
-      vstidx2reg_map.insert(std::make_pair(opndexpr->GetExprID(), opndtemp));
+      (void)vstidx2reg_map.insert(std::make_pair(opndexpr->GetExprID(), opndtemp));
     } else {
       opndtemp = verit->second;
     }
     regphinode->GetOpnds().push_back(opndtemp);
   }
+  (void)lhs;
 }
 
-void SSARename2Preg::Rename2PregPhi(BB *mebb, MePhiNode *mevarphinode,
-       MapleMap<OStIdx, MePhiNode *> &regPhiList) {
+void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, MePhiNode *> &regPhiList) {
   VarMeExpr *lhs = static_cast<VarMeExpr*>(mevarphinode->GetLHS());
   SetupParmUsed(lhs);
   RegMeExpr *lhsreg = RenameVar(lhs);
@@ -145,19 +146,19 @@ void SSARename2Preg::Rename2PregPhi(BB *mebb, MePhiNode *mevarphinode,
     MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
     regphinode->SetDefBB(mevarphinode->GetDefBB());
     UpdateRegPhi(mevarphinode, regphinode, lhsreg, lhs);
-    regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
+    (void)regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
   }
 }
 
-void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, VarMeExpr *varmeexpr) {
+void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
   SetupParmUsed(varmeexpr);
   RegMeExpr *varreg = RenameVar(varmeexpr);
   if (varreg != nullptr) {
-    meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
+    (void)meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
   }
 }
 
-void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, VarMeExpr *varmeexpr) {
+void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
   SetupParmUsed(varmeexpr);
   RegMeExpr *varreg = RenameVar(varmeexpr);
   if (varreg != nullptr) {
@@ -181,7 +182,7 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, VarMeExpr *varmeexpr) {
         oldrhs = meirmap->HashMeExpr(opmeexpr);
       }
     }
-    RegassignMeStmt *regssmestmt = meirmap->New<RegassignMeStmt>(varreg, oldrhs);
+    AssignMeStmt *regssmestmt = meirmap->New<AssignMeStmt>(OP_regassign, varreg, oldrhs);
     regssmestmt->CopyBase(*mestmt);
     mestmt->GetBB()->InsertMeStmtBefore(mestmt, regssmestmt);
     mestmt->GetBB()->RemoveMeStmt(mestmt);
@@ -204,7 +205,7 @@ void SSARename2Preg::Rename2PregExpr(MeStmt *mestmt, MeExpr *meexpr) {
     case kMeOpIvar:
     case kMeOpOp:
     case kMeOpNary: {
-      for (int32 i = 0; i < meexpr->GetNumOpnds(); i++) {
+      for (uint32 i = 0; i < meexpr->GetNumOpnds(); ++i) {
         Rename2PregExpr(mestmt, meexpr->GetOpnd(i));
       }
       break;
@@ -250,7 +251,7 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtypeassigned: {
-      for (int32 i = 0; i < stmt->NumMeStmtOpnds(); i++) {
+      for (uint32 i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
         Rename2PregExpr(stmt, stmt->GetOpnd(i));
       }
       MapleVector<MustDefMeNode> *mustdeflist = stmt->GetMustDefList();
@@ -260,11 +261,11 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
     case OP_iassign: {
       IassignMeStmt *ivarstmt = static_cast<IassignMeStmt *>(stmt);
       Rename2PregExpr(stmt, ivarstmt->GetRHS());
-      Rename2PregExpr(stmt, ivarstmt->GetLHS()->GetBase());
+      Rename2PregExpr(stmt, ivarstmt->GetLHSVal()->GetBase());
       break;
     }
     default:
-      for (int32 i = 0; i < stmt->NumMeStmtOpnds(); i++) {
+      for (uint32 i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
         Rename2PregExpr(stmt, stmt->GetOpnd(i));
       }
       break;
@@ -279,13 +280,15 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
       // in this case, the paramter is not used by any statement, promote it
       MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunc->GetFormalDefVec()[i].formalTyIdx);
       if (mirType->GetPrimType() != PTY_agg) {
-        PregIdx16 regIdx = mirFunc->GetPregTab()->CreatePreg(mirType->GetPrimType(), mirType->GetPrimType() == PTY_ref ? mirType : nullptr);
-        mirFunc->GetFormalDefVec()[i].formalSym = mirbuilder->CreatePregFormalSymbol(mirType->GetTypeIndex(), regIdx, *mirFunc);
+        PregIdx16 regIdx = mirFunc->GetPregTab()->CreatePreg(
+            mirType->GetPrimType(), mirType->GetPrimType() == PTY_ref ? mirType : nullptr);
+        mirFunc->GetFormalDefVec()[i].formalSym =
+            mirbuilder->CreatePregFormalSymbol(mirType->GetTypeIndex(), regIdx, *mirFunc);
       }
     } else {
       RegMeExpr *regformal = reg_formal_vec[i];
       if (regformal) {
-        PregIdx16 regIdx = regformal->GetRegIdx();
+        PregIdx regIdx = regformal->GetRegIdx();
         MIRSymbol *oldformalst = mirFunc->GetFormalDefVec()[i].formalSym;
         MIRSymbol *newformalst = mirbuilder->CreatePregFormalSymbol(oldformalst->GetTyIdx(), regIdx, *mirFunc);
         mirFunc->GetFormalDefVec()[i].formalSym = newformalst;
@@ -314,7 +317,7 @@ void SSARename2Preg::RunSelf() {
     MapleMap<OStIdx, MePhiNode *> regPhiList(func->GetIRMap()->GetIRMapAlloc().Adapter());
     for (std::pair<const OStIdx, MePhiNode *> apair : phiList) {
       if (!apair.second->UseReg()) {
-        Rename2PregPhi(mebb, apair.second, regPhiList);
+        Rename2PregPhi(apair.second, regPhiList);
       }
     }
     phiList.insert(regPhiList.begin(), regPhiList.end());
@@ -336,6 +339,10 @@ void SSARename2Preg::PromoteEmptyFunction() {
 }
 
 AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrMgr) {
+  if (func->GetAllBBs().empty()) {
+    return nullptr;
+  }
+  (void)mrMgr;
   MeIRMap *irMap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irMap != nullptr, "");
 

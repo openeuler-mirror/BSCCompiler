@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -24,6 +24,20 @@
 // We can devirtual the b.foo() to be Derived::foo().
 namespace maple {
 bool SSADevirtual::debug = false;
+static bool NonNullRetValue(const MIRFunction &called) {
+  static const std::unordered_set<std::string> nonNullRetValueFuncs = {
+      "Ljava_2Futil_2FArrayList_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FHashSet_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Lsun_2Fsecurity_2Fjca_2FProviderList_24ServiceList_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FServiceLoader_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FCollections_24UnmodifiableCollection_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FAbstractList_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FTreeSet_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2Fconcurrent_2FConcurrentSkipListMap_24KeySet_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B",
+      "Ljava_2Futil_2FCollections_24CheckedCollection_3B_7Citerator_7C_28_29Ljava_2Futil_2FIterator_3B"
+  };
+  return nonNullRetValueFuncs.find(called.GetName()) != nonNullRetValueFuncs.end();
+}
 
 static bool MaybeNull(const MeExpr &expr) {
   if (expr.GetMeOp() == kMeOpVar) {
@@ -351,7 +365,7 @@ void SSADevirtual::VisitVarPhiNode(MePhiNode &varPhi) {
 
   auto mapit = inferredTypeCandidatesMap.find(lhsVar->GetExprID());
   if (mapit == inferredTypeCandidatesMap.end()) {
-    MapleVector<TyIdx> *tyIdxCandidates = devirtualAlloc.GetMemPool()->New<MapleVector<TyIdx>>(devirtualAlloc.Adapter());
+    auto tyIdxCandidates = devirtualAlloc.GetMemPool()->New<MapleVector<TyIdx>>(devirtualAlloc.Adapter());
     inferredTypeCandidatesMap[lhsVar->GetExprID()] = tyIdxCandidates;
   }
   MapleVector<TyIdx> &inferredTypeCandidates = *inferredTypeCandidatesMap[lhsVar->GetExprID()];
@@ -452,7 +466,7 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
       break;
     }
     case OP_regassign: {
-      auto *regMeStmt = static_cast<RegassignMeStmt*>(&meStmt);
+      auto *regMeStmt = static_cast<AssignMeStmt*>(&meStmt);
       VisitMeExpr(regMeStmt->GetRHS());
       break;
     }
@@ -605,6 +619,9 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
   MIRFunction &called = callMeStmt->GetTargetFunction();
   if (called.GetInferredReturnTyIdx() != 0u) {
     lhsVar->SetInferredTyIdx(called.GetInferredReturnTyIdx());
+    if (NonNullRetValue(called)) {
+      lhsVar->SetMaybeNull(false);
+    }
     if (SSADevirtual::debug) {
       MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsVar->GetInferredTyIdx());
       LogInfo::MapleLogger() << "[SSA-DEVIRT] [TYPE-INFERRING] mx" << lhsVar->GetExprID() << " ";
