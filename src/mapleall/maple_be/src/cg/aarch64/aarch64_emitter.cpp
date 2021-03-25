@@ -18,6 +18,22 @@
 
 namespace {
 using namespace maple;
+const std::unordered_set<std::string> kJniNativeFuncList = {
+  "Landroid_2Fos_2FParcel_3B_7CnativeWriteString_7C_28JLjava_2Flang_2FString_3B_29V_native",
+  "Landroid_2Fos_2FParcel_3B_7CnativeReadString_7C_28J_29Ljava_2Flang_2FString_3B_native",
+  "Landroid_2Fos_2FParcel_3B_7CnativeWriteInt_7C_28JI_29V_native",
+  "Landroid_2Fos_2FParcel_3B_7CnativeReadInt_7C_28J_29I_native",
+  "Landroid_2Fos_2FParcel_3B_7CnativeWriteInterfaceToken_7C_28JLjava_2Flang_2FString_3B_29V_native",
+  "Landroid_2Fos_2FParcel_3B_7CnativeEnforceInterface_7C_28JLjava_2Flang_2FString_3B_29V_native"
+};
+// map func name to <filename, insnCount> pair
+using Func2CodeInsnMap = std::unordered_map<std::string, std::pair<std::string, uint32>>;
+Func2CodeInsnMap func2CodeInsnMap {
+    { "Ljava_2Flang_2FString_3B_7ChashCode_7C_28_29I",
+      { "maple/mrt/codetricks/arch/arm64/hashCode.s", 29 } },
+    { "Ljava_2Flang_2FString_3B_7Cequals_7C_28Ljava_2Flang_2FObject_3B_29Z",
+      { "maple/mrt/codetricks/arch/arm64/stringEquals.s", 50 } }
+};
 constexpr uint32 kQuadInsnCount = 2;
 constexpr uint32 kInsnSize = 4;
 
@@ -255,6 +271,7 @@ void AArch64AsmEmitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {
 }
 
 void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std::string &name, LabelIdx labIdx) {
+  (void)name;
   CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
   AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
@@ -265,14 +282,13 @@ void AArch64AsmEmitter::EmitBBHeaderLabel(FuncEmitInfo &funcEmitInfo, const std:
     label.SetLabelOrder(currCG->GetLabelOrderCnt());
     currCG->IncreaseLabelOrderCnt();
   }
-
   PUIdx pIdx = currCG->GetMIRModule()->CurFunction()->GetPuidx();
   const char *puIdx = strdup(std::to_string(pIdx).c_str());
   const std::string &labelName = cgFunc.GetFunction().GetLabelTab()->GetName(labIdx);
   if (currCG->GenerateVerboseCG()) {
     emitter.Emit(".L.").Emit(puIdx).Emit("__").Emit(labIdx).Emit(":\t//label order ").Emit(label.GetLabelOrder());
     if (!labelName.empty() && labelName.at(0) != '@') {
-      //If label name has @ as its first char, it is not from MIR
+      /* If label name has @ as its first char, it is not from MIR */
       emitter.Emit(", MIR: @").Emit(labelName).Emit("\n");
     } else {
       emitter.Emit("\n");
@@ -317,12 +333,39 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
   const std::string &funcName = std::string(cgFunc.GetShortFuncName().c_str());
 
+  // manually replace function with optimized assembly language
+  if (CGOptions::IsReplaceASM()) {
+    auto it = func2CodeInsnMap.find(funcSt->GetName());
+    if (it != func2CodeInsnMap.end()) {
+      std::string optFile = it->second.first;
+      struct stat buffer;
+      if (stat(optFile.c_str(), &buffer) == 0) {
+        std::ifstream codetricksFd(optFile);
+        if (!codetricksFd.is_open()) {
+          ERR(kLncErr, " %s open failed!", optFile.c_str());
+          LogInfo::MapleLogger() << "wrong" << '\n';
+        } else {
+          std::string contend;
+          while (getline(codetricksFd, contend)) {
+            emitter.Emit(contend + "\n");
+          }
+        }
+      }
+      emitter.IncreaseJavaInsnCount(it->second.second);
+#ifdef EMIT_INSN_COUNT
+      EmitJavaInsnAddr(funcEmitInfo);
+#endif /* ~EMIT_INSN_COUNT */
+      return;
+    }
+  }
   std::string funcStName = funcSt->GetName();
   if (funcSt->GetFunction()->GetAttr(FUNCATTR_weak)) {
     (void)emitter.Emit("\t.weak\t" + funcStName + "\n");
     (void)emitter.Emit("\t.hidden\t" + funcStName + "\n");
   } else if (funcSt->GetFunction()->GetAttr(FUNCATTR_local)) {
     (void)emitter.Emit("\t.local\t" + funcStName + "\n");
+  } else if (funcSt->GetFunction() && (funcSt->GetFunction()->IsJava() == false) && funcSt->GetFunction()->IsStatic()) {
+    // nothing
   } else {
     bool isExternFunction = false;
     (void)emitter.Emit("\t.globl\t").Emit(funcSt->GetName()).Emit("\n");
@@ -381,7 +424,6 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       LSDAHeader *lsdaHeader = ehFunc->GetLSDAHeader();
       PUIdx pIdx = emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
       const std::string &idx = strdup(std::to_string(pIdx).c_str());
-
       /*  .word .Label.lsda_label-func_start_label */
       (void)emitter.Emit("\t.word .L." + idx).Emit("__").Emit(lsdaHeader->GetLSDALabel()->GetLabelIdx());
       (void)emitter.Emit("-.L." + idx).Emit("__").Emit(cgFunc.GetStartLabel()->GetLabelIdx()).Emit("\n");

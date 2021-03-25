@@ -2701,6 +2701,11 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   if (intrinNode.GetIntrinsic() == INTRN_MPL_READ_ARRAYCLASS_CACHE_ENTRY) {
     return &intrinNode;
   }
+  if (intrnID == INTRN_C_constant_p) {
+    BaseNode *opnd = intrinNode.Opnd(0);
+    return mirModule.GetMIRBuilder()->CreateIntConst(opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
+                                                     opnd->op == OP_conststr || opnd->op == OP_conststr16, PTY_i32);
+  }
   CHECK_FATAL(false, "unexpected intrinsic type in CGLowerer::LowerIntrinsicop");
   return &intrinNode;
 }
