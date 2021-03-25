@@ -105,6 +105,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
+  Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 

@@ -7199,6 +7199,41 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   }
 }
 
+Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnnode) {
+  BaseNode *argexpr = intrnnode.Opnd(0);
+  PrimType ptype = argexpr->GetPrimType();
+  Operand *opnd = HandleExpr(intrnnode, *argexpr);
+  MOperator mop;
+  if (GetPrimTypeSize(ptype) == 4) {
+    mop = MOP_wclz;
+  } else {
+    mop = MOP_xclz;
+  }
+  RegOperand &dst = CreateRegisterOperandOfType(ptype);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, dst, *opnd));
+  return &dst;
+}
+
+Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnnode) {
+  BaseNode *argexpr = intrnnode.Opnd(0);
+  PrimType ptype = argexpr->GetPrimType();
+  Operand *opnd = HandleExpr(intrnnode, *argexpr);
+  MOperator clzmop;
+  MOperator rbitmop;
+  if (GetPrimTypeSize(ptype) == 4) {
+    clzmop = MOP_wclz;
+    rbitmop = MOP_wrbit;
+  } else {
+    clzmop = MOP_xclz;
+    rbitmop = MOP_xrbit;
+  }
+  RegOperand &dst1 = CreateRegisterOperandOfType(ptype);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(rbitmop, dst1, *opnd));
+  RegOperand &dst2 = CreateRegisterOperandOfType(ptype);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(clzmop, dst2, dst1));
+  return &dst2;
+}
+
 /*
  * NOTE: consider moving the following things into aarch64_cg.cpp  They may
  * serve not only inrinsics, but other MapleIR instructions as well.
