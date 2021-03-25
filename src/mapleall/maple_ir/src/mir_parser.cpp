@@ -1871,7 +1871,8 @@ bool MIRParser::ParseExprConstval(BaseNodePtr &expr) {
   exprConst->SetPrimType(GetPrimitiveType(typeTk));
   lexer.NextToken();
   MIRConst *constVal = nullptr;
-  if (!ParseScalarValue(constVal, *GlobalTables::GetTypeTable().GetPrimType(exprConst->GetPrimType()), 0/*fieldID*/)) {
+  if (!ParseScalarValue(constVal, *GlobalTables::GetTypeTable().GetPrimType(exprConst->GetPrimType()),
+                        0 /* fieldID */)) {
     Error("expect scalar type but get ");
     return false;
   }
@@ -2606,7 +2607,7 @@ bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type, uint32 field
       Error("constant value incompatible with integer type at ");
       return false;
     }
-    stype = mod.GetMemPool()->New<MIRIntConst>(lexer.GetTheIntVal(), type, fieldID);
+    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type, fieldID);
   } else if (ptp == PTY_f32) {
     if (lexer.GetTokenKind() != TK_floatconst) {
       Error("constant value incompatible with single-precision float type at ");
