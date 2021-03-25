@@ -943,6 +943,23 @@ void AArch64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   }
 }
 
+Operand &AArch64CGFunc::GenLargeAggFormalMemOpnd(MIRSymbol &sym, uint32 align, int32 offset) {
+  Operand *memOpnd;
+  if (sym.GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(sym.GetTyIdx()) > k16ByteSize) {
+    /* formal of size of greater than 16 is copied by the caller and the pointer to it is passed. */
+    /* otherwise it is passed in register and is accessed directly. */
+    memOpnd = &GetOrCreateMemOpnd(sym, 0, align * kBitsPerByte);
+    RegOperand *vreg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+    Insn &ldInsn = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), *vreg, *memOpnd);
+    GetCurBB()->AppendInsn(ldInsn);
+    memOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, vreg, nullptr,
+                                  &GetOrCreateOfstOpnd(offset, k32BitSize), nullptr);
+  } else {
+    memOpnd = &GetOrCreateMemOpnd(sym, offset, align * kBitsPerByte);
+  }
+  return *memOpnd;
+}
+
 void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
   MIRSymbol *lhsSymbol = GetFunction().GetLocalOrGlobalSymbol(stmt.GetStIdx());
   int32 lhsOffset = 0;
@@ -980,7 +997,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32),
                                                                     result, rhsMemOpnd));
       /* generate the store */
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(*lhsSymbol, lhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, alignUsed, (lhsOffset + i * alignUsed));
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(alignUsed * k8BitSize, PTY_u32),
                                                                     result, lhsMemOpnd));
     }
@@ -1000,7 +1017,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(newAlignUsed * k8BitSize, PTY_u32),
                                                                     result, rhsMemOpnd));
       /* generate the store */
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(*lhsSymbol, lhsOffset + lhsSizeCovered, newAlignUsed * k8BitSize);
+      Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, newAlignUsed, (lhsOffset + lhsSizeCovered));
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(newAlignUsed * k8BitSize, PTY_u32),
                                                                     result, lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
@@ -1036,7 +1053,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
       /* generate the store */
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(*lhsSymbol, lhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, alignUsed, (lhsOffset + i * alignUsed));
       GetCurBB()->AppendInsn(
           GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(alignUsed * k8BitSize, PTY_u32), result, lhsMemOpnd));
     }
@@ -1060,7 +1077,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
       /* generate the store */
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(*lhsSymbol, lhsOffset + lhsSizeCovered, newAlignUsed * k8BitSize);
+      Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, newAlignUsed, (lhsOffset + lhsSizeCovered));
       GetCurBB()->AppendInsn(
           GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(newAlignUsed * k8BitSize, PTY_u32), result, lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
