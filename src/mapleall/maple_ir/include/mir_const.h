@@ -490,10 +490,15 @@ class MIRAggConst : public MIRConst {
   ~MIRAggConst() = default;
 
   MIRConst *GetAggConstElement(unsigned int fieldidx) {
-    CHECK_FATAL(fieldidx < constVec.size() + 1, "invalid index for constVec");
-    CHECK_FATAL(constVec[fieldidx - 1] != nullptr, "exist nullptr in constVec");
-    CHECK_FATAL(constVec[fieldidx - 1]->GetFieldId() == fieldidx, "fieldidx unmatched");
-    return constVec[fieldidx - 1];
+    for (size_t i = 0; i < constVec.size(); ++i) {
+      if (constVec[i] == nullptr) {
+        CHECK_FATAL(false, "exist nullptr in constVec");
+      }
+      if (fieldidx == constVec[i]->GetFieldId()) {
+        return constVec[i];
+      }
+    }
+    return nullptr;
   }
 
   const MapleVector<MIRConst*> &GetConstVec() const {
