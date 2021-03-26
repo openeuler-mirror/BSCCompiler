@@ -76,6 +76,12 @@ constexpr uint32 kTwoRegister = 2;
 constexpr uint32 kThreeRegister = 3;
 constexpr uint32 kFourRegister = 4;
 
+/* position of an operand within an instruction */
+constexpr uint32 kOperandPosition0 = 0;
+constexpr uint32 kOperandPosition1 = 1;
+constexpr uint32 kOperandPosition2 = 2;
+
+
 /* Size of struct for memcpy */
 constexpr uint32 kParmMemcpySize = 40;
 

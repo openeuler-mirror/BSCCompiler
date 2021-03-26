@@ -750,6 +750,9 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
       q1 = opndVal - addend;
     }
     ImmOperand &immAddend = CreateImmOperand(addend, k64BitSize, true);
+    if (memOpnd.GetOffsetImmediate()->GetVary() == kUnAdjustVary) {
+      immAddend.SetVary(kUnAdjustVary);
+    }
     RegOperand &resOpnd = (baseRegNum == AArch64reg::kRinvalid)
                            ? CreateRegisterOperandOfType(PTY_i64)
                            : GetOrCreatePhysicalRegisterOperand(baseRegNum, kSizeOfPtr * kBitsPerByte, kRegTyInt);
@@ -1545,9 +1548,9 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
   RegOperand &reg = GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
   if (Globals::GetInstance()->GetOptimLevel() == 0) {
     MemOperand *src = GetPseudoRegisterSpillMemoryOperand(pregIdx);
-    PrimType stype = GetTypeFromPseudoRegIdx(pregIdx);
     MIRPreg *preg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
-    uint32 srcBitLength = GetPrimTypeSize(preg->GetPrimType()) * kBitsPerByte;
+    PrimType stype = preg->GetPrimType();
+    uint32 srcBitLength = GetPrimTypeSize(stype) * kBitsPerByte;
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(srcBitLength, stype), reg, *src));
   }
   return &reg;

@@ -52,7 +52,6 @@ class InsnVisitor {
    */
   virtual void ModifyJumpTarget(BB &newTarget, BB &bb) = 0;
   /* Check if it requires to add extra gotos when relocate bb */
-  virtual MOperator FlipConditionOp(MOperator flippedOp, int &targetIdx) = 0;
   virtual Insn *CloneInsn(Insn &originalInsn) = 0;
   /* Create a new virtual register operand which has the same type and size as the given one. */
   virtual RegOperand *CreateVregFromReg(const RegOperand &reg) = 0;
