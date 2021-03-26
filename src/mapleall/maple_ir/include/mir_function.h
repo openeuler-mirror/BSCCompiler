@@ -204,6 +204,14 @@ class MIRFunction {
   MIRSymbol *GetLocalOrGlobalSymbol(const StIdx &idx, bool checkFirst = false);
 
   void SetAttrsFromSe(uint8 specialEffect);
+
+  FuncAttrs GetAttrs() const {
+    return funcAttrs;
+  }
+  void SetAttrs(FuncAttrs attr) {
+    funcAttrs = attr;
+  }
+
   bool GetAttr(FuncAttrKind attrKind) const {
     return funcAttrs.GetAttr(attrKind);
   }
@@ -290,6 +298,10 @@ class MIRFunction {
     return funcAttrs.GetAttr(FUNCATTR_pure);
   }
 
+  bool IsFirstArgReturn() const {
+    return funcAttrs.GetAttr(FUNCATTR_firstarg_return);
+  }
+
   void SetVarArgs() {
     funcAttrs.SetAttr(FUNCATTR_varargs);
   }
@@ -324,6 +336,10 @@ class MIRFunction {
 
   void SetPure() {
     funcAttrs.SetAttr(FUNCATTR_pure);
+  }
+
+  void SetFirstArgReturn() {
+    funcAttrs.SetAttr(FUNCATTR_firstarg_return);
   }
 
   void UnsetNoDefArgEffect() {
@@ -370,6 +386,11 @@ class MIRFunction {
 
   void SetNoReturn();
   bool NeverReturns() const;
+
+  void SetHasSetjmp();
+  bool HasSetjmp() const;
+
+  void SetReturnStruct(MIRType *retType);
 
   bool IsEmpty() const;
   bool IsClinit() const;
@@ -577,7 +598,7 @@ class MIRFunction {
     return GetFuncSymbol()->GetSrcPosition();
   }
 
-  void SetSrcPosition(SrcPosition &position) {
+  void SetSrcPosition(const SrcPosition &position) {
     GetFuncSymbol()->SetSrcPosition(position);
   }
 

@@ -30,6 +30,7 @@ enum FuncProp : uint32_t {
                                    // than once per function since they
                                    // can only be printed at the beginning of a block
   kFuncPropNeverReturn = 1U << 4,  // the function when called never returns
+  kFuncPropHasSetjmp = 1U << 5,    // the function contains call to setjmp
 };
 }  // namespace
 
@@ -61,6 +62,9 @@ const std::string &MIRFunction::GetBaseFuncNameWithType() const {
   return GlobalTables::GetStrTable().GetStringFromStrIdx(baseFuncWithTypeStrIdx);
 }
 
+const std::string &MIRFunction::GetBaseFuncSig() const {
+  return GlobalTables::GetStrTable().GetStringFromStrIdx(baseFuncSigStrIdx);
+}
 
 const std::string &MIRFunction::GetSignature() const {
   return GlobalTables::GetStrTable().GetStringFromStrIdx(signatureStrIdx);
@@ -147,6 +151,20 @@ void MIRFunction::SetReturnStruct(MIRType &retType) {
     flag |= kFuncPropRetStruct;
   }
 }
+void MIRFunction::SetReturnStruct(MIRType *retType) {
+  switch (retType->GetKind()) {
+    case kTypeUnion:
+    case kTypeStruct:
+    case kTypeStructIncomplete:
+    case kTypeClass:
+    case kTypeClassIncomplete:
+    case kTypeInterface:
+    case kTypeInterfaceIncomplete:
+      flag |= kFuncPropRetStruct;
+      break;
+    default:;
+  }
+}
 
 bool MIRFunction::IsUserFunc() const {
   return flag & kFuncPropUserFunc;
@@ -170,6 +188,14 @@ void MIRFunction::SetNoReturn() {
 }
 bool MIRFunction::NeverReturns() const {
   return flag & kFuncPropNeverReturn;
+}
+
+void MIRFunction::SetHasSetjmp() {
+  flag |= kFuncPropHasSetjmp;
+}
+
+bool MIRFunction::HasSetjmp() const {
+  return flag & kFuncPropHasSetjmp;
 }
 
 void MIRFunction::SetAttrsFromSe(uint8 specialEffect) {
@@ -598,6 +624,7 @@ void MIRFunction::NewBody() {
   }
 }
 
+#ifdef DEBUGME
 void MIRFunction::SetUpGDBEnv() {
   if (codeMemPool != nullptr) {
     memPoolCtrler.DeleteMemPool(codeMemPool);
@@ -610,4 +637,5 @@ void MIRFunction::ResetGDBEnv() {
   memPoolCtrler.DeleteMemPool(codeMemPool);
   codeMemPool = nullptr;
 }
+#endif
 }  // namespace maple
