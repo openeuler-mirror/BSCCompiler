@@ -2486,6 +2486,10 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
+  bool isLastInsn = false;
+  if (insn.GetBB()->GetKind() == BB::kBBIf && insn.GetBB()->IsLastInsn(&insn)) {
+    isLastInsn = true;
+  }
 
   auto &regOpnd = static_cast<const RegOperand&>(opnd);
   uint32 regNO = regOpnd.GetRegisterNumber();
@@ -2505,14 +2509,23 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
                                                          static_cast<AArch64reg>(pregNO), true, &insn);
     isOutOfRange = true;
   }
-  Insn &ldrInsn =
-      cg->BuildInstruction<AArch64Insn>(a64CGFunc->PickLdInsn(spillMem->GetSize(), stype), phyOpnd, *spillMem);
   std::string comment = " RELOAD for spill vreg: " + std::to_string(regNO);
-  ldrInsn.SetComment(comment);
-  if (isOutOfRange) {
-    insn.GetBB()->InsertInsnAfter(*insn.GetNext(), ldrInsn);
+  if (isLastInsn) {
+    for (auto tgtBB : insn.GetBB()->GetSuccs()) {
+      MOperator mOp = a64CGFunc->PickLdInsn(spillMem->GetSize(), stype);
+      Insn *newLd = &cg->BuildInstruction<AArch64Insn>(mOp, phyOpnd, *spillMem);
+      newLd->SetComment(comment);
+      tgtBB->InsertInsnBegin(*newLd);
+    }
   } else {
-    insn.GetBB()->InsertInsnAfter(insn, ldrInsn);
+    MOperator mOp = a64CGFunc->PickLdInsn(spillMem->GetSize(), stype);
+    Insn &ldrInsn = cg->BuildInstruction<AArch64Insn>(mOp, phyOpnd, *spillMem);
+    ldrInsn.SetComment(comment);
+    if (isOutOfRange) {
+      insn.GetBB()->InsertInsnAfter(*(insn.GetNext()), ldrInsn);
+    } else {
+      insn.GetBB()->InsertInsnAfter(insn, ldrInsn);
+    }
   }
 }
 

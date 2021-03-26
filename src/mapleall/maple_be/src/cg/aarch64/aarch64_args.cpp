@@ -172,11 +172,17 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, PTY_a64);
     }
     AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(firstArgInfo.symLoc->GetOffset(), k32BitSize);
+    if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+      offsetOpnd.SetVary(kUnAdjustVary);
+    }
     memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
                                                                    firstArgInfo.stkSize * kBitsPerByte,
                                                                    *baseReg, nullptr, &offsetOpnd, firstArgInfo.sym);
   } else {
     AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+      offsetOpnd.SetVary(kUnAdjustVary);
+    }
     memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
                                                                    firstArgInfo.stkSize * kBitsPerByte,
                                                                    *baseOpnd, nullptr, &offsetOpnd, firstArgInfo.sym);
@@ -196,6 +202,9 @@ void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpn
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
 
   AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(offset, k32BitSize);
+  if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+    offsetOpnd.SetVary(kUnAdjustVary);
+  }
   MemOperand *memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
                          stBitSize, baseOpnd, nullptr, &offsetOpnd, argInfo.sym);
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *memOpnd);
@@ -222,11 +231,17 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
       aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, PTY_a64);
     }
     AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(argInfo.symLoc->GetOffset(), k32BitSize);
+    if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+      offsetOpnd.SetVary(kUnAdjustVary);
+    }
     memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
                                                                    argInfo.symSize * kBitsPerByte, *baseReg,
                                                                    nullptr, &offsetOpnd, argInfo.sym);
   } else {
     AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(stOffset, k32BitSize);
+    if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
+      offsetOpnd.SetVary(kUnAdjustVary);
+    }
     memOpnd = aarchCGFunc->GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi,
                                                                    argInfo.symSize * kBitsPerByte, *baseOpnd,
                                                                    nullptr, &offsetOpnd, argInfo.sym);
@@ -245,14 +260,14 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
   } else if (numFpRegs > kOneRegister) {
     uint32 fpSizeBits = fpSize * kBitsPerByte;
-    AArch64reg regFp2 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kOneRegister);
+    AArch64reg regFp2 = static_cast<AArch64reg>(argInfo.reg + kOneRegister);
     GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp2, (stOffset + static_cast<int>(fpSize)));
     if (numFpRegs > kTwoRegister) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kTwoRegister);
+      AArch64reg regFp3 = static_cast<AArch64reg>(argInfo.reg + kTwoRegister);
       GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k4BitShift)));
     }
     if (numFpRegs > kThreeRegister) {
-      AArch64reg regFp3 = static_cast<AArch64reg>(static_cast<int>(argInfo.reg) + kThreeRegister);
+      AArch64reg regFp3 = static_cast<AArch64reg>(argInfo.reg + kThreeRegister);
       GenOneInsn(argInfo, *baseOpnd, fpSizeBits, regFp3, (stOffset + static_cast<int>(fpSize * k8BitShift)));
     }
   }

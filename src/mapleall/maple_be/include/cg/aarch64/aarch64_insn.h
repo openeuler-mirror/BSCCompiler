@@ -155,6 +155,12 @@ class AArch64Insn : public Insn {
 
   uint32 GetLatencyType() const override;
 
+  uint32 GetJumpTargetIdx() const override;
+
+  uint32 GetJumpTargetIdxFromMOp(MOperator mOp) const override;
+
+  MOperator FlipConditionOp(MOperator flippedOp, int &targetIdx) override;
+
   bool CheckRefField(size_t opndIndex, bool isEmit) const;
 
  private:
@@ -163,7 +169,7 @@ class AArch64Insn : public Insn {
   void EmitAdrpLdr(const CG&, Emitter&) const;
   void EmitLazyBindingRoutine(Emitter&) const;
   void EmitClinitTail(Emitter&) const;
-  void EmitAdrpLabel(Emitter &) const;
+  void EmitAdrpLabel(Emitter&) const;
   void EmitLazyLoad(Emitter&) const;
   void EmitLazyLoadStatic(Emitter&) const;
   void EmitArrayClassCacheLoad(Emitter&) const;
