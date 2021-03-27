@@ -31,6 +31,9 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &options) const
   if (options.GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
     return options.GetOutputFolder() + options.GetOutputName() + ".VtableImpl.mpl";
   }
+  if (options.GetInputFileType() == InputFileType::kFileTypeBpl) {
+    return options.GetOutputFolder() + options.GetOutputName() + ".bpl";
+  }
   return options.GetOutputFolder() + options.GetOutputName() + ".mpl";
 }
 
@@ -97,37 +100,67 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options) const {
                          << GetInputFileName(options) << options.GetPrintCommandStr() << '\n';
 }
 
-bool MapleCombCompiler::MakeMeOptions(const MplOptions &options) {
-  MeOption &meOption = MeOption::GetInstance();
-  auto it = options.GetExeOptions().find(kBinNameMe);
-  if (it == options.GetExeOptions().end()) {
-    LogInfo::MapleLogger() << "no me input options\n";
-    return false;
+ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) {
+  auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMe);
+  if (it == options.GetRunningExes().end()) {
+    return kErrorNoError;
   }
-  bool result = meOption.SolveOptions(it->second, options.HasSetDebugFlag());
+  MeOption &meOption = MeOption::GetInstance();
+  auto itOpt = options.GetExeOptions().find(kBinNameMe);
+  if (itOpt == options.GetExeOptions().end()) {
+    LogInfo::MapleLogger() << "no me input options\n";
+    return kErrorCompileFail;
+  }
+  bool result = meOption.SolveOptions(itOpt->second, options.HasSetDebugFlag());
   if (result == false) {
     LogInfo::MapleLogger() << "Meet error me options\n";
-    return false;
+    return kErrorCompileFail;
   }
-  return true;
+  // Set me options for driver runner
+  runner.SetMeOptions(&MeOption::GetInstance());
+  return kErrorNoError;
 }
 
-bool MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options) {
-  auto &mpl2mplOption = Options::GetInstance();
-  auto it = options.GetExeOptions().find(kBinNameMpl2mpl);
-  if (it == options.GetExeOptions().end()) {
-    LogInfo::MapleLogger() << "no mpl2mpl input options\n";
-    return false;
+ErrorCode MapleCombCompiler::MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner) {
+  auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMpl2mpl);
+  if (it == options.GetRunningExes().end()) {
+    return kErrorNoError;
   }
-  bool result = mpl2mplOption.SolveOptions(it->second, options.HasSetDebugFlag());
+  auto &mpl2mplOption = Options::GetInstance();
+  auto itOption = options.GetExeOptions().find(kBinNameMpl2mpl);
+  if (itOption == options.GetExeOptions().end()) {
+    LogInfo::MapleLogger() << "no mpl2mpl input options\n";
+    return kErrorCompileFail;
+  }
+  bool result = mpl2mplOption.SolveOptions(itOption->second, options.HasSetDebugFlag());
   if (result == false) {
     LogInfo::MapleLogger() << "Meet error mpl2mpl options\n";
-    return false;
+    return kErrorCompileFail;
   }
-  return true;
+  // Set mpl2mpl options for driver runner
+  runner.SetMpl2mplOptions(&Options::GetInstance());
+  return kErrorNoError;
 }
 
-ErrorCode MapleCombCompiler::Compile(const MplOptions &options, std::unique_ptr<MIRModule> &theModule) {
+std::string MapleCombCompiler::DecideOutExe(const MplOptions &options) {
+  std::string printOutExe = "";
+  auto &selectExes = options.GetSelectedExes();
+  if (selectExes[selectExes.size() - 1] == kBinNameMapleComb) {
+    auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMpl2mpl);
+    if (it != options.GetRunningExes().end()) {
+      printOutExe = kBinNameMpl2mpl;
+      return printOutExe;
+    }
+    it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMe);
+    if (it != options.GetRunningExes().end()) {
+      printOutExe = kBinNameMe;
+      return printOutExe;
+    }
+  }
+  return selectExes[selectExes.size() - 1];
+}
+
+ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) {
   MemPool *optMp = memPoolCtrler.NewMemPool("maplecomb mempool");
   std::string fileName = GetInputFileName(options);
   bool fileParsed = true;
@@ -135,28 +168,39 @@ ErrorCode MapleCombCompiler::Compile(const MplOptions &options, std::unique_ptr<
     theModule = std::make_unique<MIRModule>(fileName);
     fileParsed = false;
   }
-  MeOption &meOptions = MeOption::GetInstance();
-  Options &mpl2mplOptions = Options::GetInstance();
-  auto it = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMe);
-  if (it != options.GetRunningExes().end()) {
-    bool result = MakeMeOptions(options);
-    if (!result) {
-      return kErrorCompileFail;
-    }
-  }
-  auto iterMpl2Mpl = std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(), kBinNameMpl2mpl);
-  if (iterMpl2Mpl != options.GetRunningExes().end()) {
-    bool result = MakeMpl2MplOptions(options);
-    if (!result) {
-      return kErrorCompileFail;
-    }
-  }
+  options.PrintCommand();
+  LogInfo::MapleLogger() << "Starting maplecomb\n";
 
-  LogInfo::MapleLogger() << "Starting mpl2mpl&mplme\n";
-  PrintCommand(options);
-  DriverRunner runner(theModule.get(), options.GetRunningExes(), options.GetInputFileType(), &mpl2mplOptions, fileName, &meOptions,
+  DriverRunner runner(theModule.get(), options.GetSelectedExes(), options.GetInputFileType(), fileName,
                       fileName, fileName, optMp, fileParsed,
                       options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl());
+  // Parse the input file
+  ErrorCode ret = runner.ParseInput();
+  if (ret != kErrorNoError) {
+    memPoolCtrler.DeleteMemPool(optMp);
+    return ret;
+  }
+  // Add running phases and default options according to the srcLang (only for auto mode)
+  ret = options.AppendCombOptions(theModule->GetSrcLang());
+  if (ret != kErrorNoError) {
+    memPoolCtrler.DeleteMemPool(optMp);
+    return ret;
+  }
+
+  ret = MakeMeOptions(options, runner);
+  if (ret != kErrorNoError) {
+    memPoolCtrler.DeleteMemPool(optMp);
+    return ret;
+  }
+  ret = MakeMpl2MplOptions(options, runner);
+  if (ret != kErrorNoError) {
+    memPoolCtrler.DeleteMemPool(optMp);
+    return ret;
+  }
+  runner.SetPrintOutExe(DecideOutExe(options));
+  if (options.HasSetDebugFlag()) {
+    PrintCommand(options);
+  }
   ErrorCode nErr = runner.Run();
 
   memPoolCtrler.DeleteMemPool(optMp);
