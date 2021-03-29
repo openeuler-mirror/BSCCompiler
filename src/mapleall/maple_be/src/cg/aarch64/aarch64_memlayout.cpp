@@ -64,8 +64,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
         MIRSymbol *sym = be.GetMIRModule().CurFunction()->GetLocalOrGlobalSymbol(dread->GetStIdx());
         ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
         if (dread->GetFieldID() != 0) {
-          ASSERT(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "expect struct or class");
-          if (ty->GetKind() == kTypeStruct) {
+          ASSERT(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass ||
+                 ty->GetKind() == kTypeUnion, "expect struct or class");
+          if (ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeUnion) {
             ty = static_cast<MIRStructType*>(ty)->GetFieldType(dread->GetFieldID());
           } else {
             ty = static_cast<MIRClassType*>(ty)->GetFieldType(dread->GetFieldID());
@@ -78,8 +79,9 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
         ASSERT(ty->GetKind() == kTypePointer, "expect pointer");
         ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(static_cast<MIRPtrType*>(ty)->GetPointedTyIdx());
         if (iread->GetFieldID() != 0) {
-          ASSERT(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "expect struct or class");
-          if (ty->GetKind() == kTypeStruct) {
+          ASSERT(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass ||
+                 ty->GetKind() == kTypeUnion, "expect struct or class");
+          if (ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeUnion) {
             ty = static_cast<MIRStructType*>(ty)->GetFieldType(iread->GetFieldID());
           } else {
             ty = static_cast<MIRClassType*>(ty)->GetFieldType(iread->GetFieldID());

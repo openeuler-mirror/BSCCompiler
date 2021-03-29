@@ -1542,16 +1542,19 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
       arraySize = 0;
     }
     MIRConst *elemConst = structCt.GetAggConstElement(fieldIdx);
-    MIRType &elemType = *structType.GetElemType(i);
+    MIRType *elemType = structType.GetElemType(i);
+    if (structType.GetKind() == kTypeUnion) {
+      elemType = &(elemConst->GetType());
+    }
     MIRType *nextElemType = nullptr;
     if (i != static_cast<uint32>(num - 1)) {
       nextElemType = structType.GetElemType(i + 1);
     }
-    uint32 elemSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(elemType.GetTypeIndex());
+    uint32 elemSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(elemType->GetTypeIndex());
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
-    if (elemType.GetKind() == kTypeBitField) {
+    if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
-        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, elemType, fieldIdx);
+        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType, fieldIdx);
         CHECK_FATAL(zeroFill->GetFieldId() == fieldIdx, "EmitStructConst: fieldID not set correctly");
         elemConst = zeroFill;
       }
@@ -1564,13 +1567,14 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
-        if (IsPrimitiveScalar(elemType.GetPrimType())) {
+        if (IsPrimitiveScalar(elemType->GetPrimType())) {
           EmitScalarConstant(*elemConst, true, false, true);
-        } else if (elemType.GetKind() == kTypeArray) {
-          if (elemType.GetSize() != 0) {
+        } else if (elemType->GetKind() == kTypeArray) {
+          if (elemType->GetSize() != 0) {
             EmitArrayConstant(*elemConst);
           }
-        } else if ((elemType.GetKind() == kTypeStruct) || (elemType.GetKind() == kTypeClass)) {
+        } else if ((elemType->GetKind() == kTypeStruct) || (elemType->GetKind() == kTypeClass) ||
+                   (elemType->GetKind() == kTypeUnion)) {
           EmitStructConstant(*elemConst);
         } else {
           ASSERT(false, "should not run here");
