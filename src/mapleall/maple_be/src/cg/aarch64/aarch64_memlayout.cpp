@@ -88,7 +88,7 @@ uint32 AArch64MemLayout::ComputeStackSpaceRequirementForCall(StmtNode &stmt,  in
       }
     }
     PLocInfo ploc;
-    aggCopySize += parmLocator.LocateNextParm(*ty, ploc, anum == 0);
+    aggCopySize += parmLocator.LocateNextParm(*ty, ploc);
     if (ploc.reg0 != 0) {
       continue;  /* passed in register, so no effect on actual area */
     }
