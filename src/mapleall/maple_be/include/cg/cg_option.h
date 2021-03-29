@@ -104,7 +104,7 @@ class CGOptions : public MapleDriverOptionBase {
    * function at each function entry.
    */
   static const OptionFlag kDefaultOptions = OptionFlag(
-#if TARGAARCH64 || TARGARM32
+#if TARGAARCH64 || TARGARM32 || TARGRISCV64
     kDoCg | kGenPie | kDoColorRegAlloc
 #else
     kDoCg
@@ -264,6 +264,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool DumpPhase(const std::string &phase);
   static bool FuncFilter(const std::string &name);
   void SplitPhases(const std::string &str, std::unordered_set<std::string> &set);
+  void SetRange(const std::string &str, const std::string&, Range&);
 
   int32 GetOptimizeLevel() const {
     return optimizeLevel;
@@ -400,6 +401,49 @@ class CGOptions : public MapleDriverOptionBase {
   static void SetDumpFunc(const std::string &func) {
     dumpFunc = func;
   }
+  static size_t FindIndexInProfileData(char data) {
+    return profileData.find(data);
+  }
+
+  static void SetProfileData(const std::string &path) {
+    profileData = path;
+  }
+
+  static std::string &GetProfileData() {
+    return profileData;
+  }
+
+  static const std::string GetProfileDataSubStr(size_t begin, size_t end) {
+    return profileData.substr(begin, end);
+  }
+
+  static const std::string GetProfileDataSubStr(size_t position) {
+    return profileData.substr(position);
+  }
+
+  static bool IsProfileDataEmpty() {
+    return profileData.empty();
+  }
+
+  static const std::string &GetProfileFuncData() {
+    return profileFuncData;
+  }
+
+  static bool IsProfileFuncDataEmpty() {
+    return profileFuncData.empty();
+  }
+
+  static void SetProfileFuncData(const std::string &data) {
+    profileFuncData = data;
+  }
+
+  static const std::string &GetProfileClassData() {
+    return profileClassData;
+  }
+
+  static void SetProfileClassData(const std::string &data) {
+    profileClassData = data;
+  }
 
   static const std::string &GetDuplicateAsmFile() {
     return duplicateAsmFile;
@@ -416,6 +460,69 @@ class CGOptions : public MapleDriverOptionBase {
   static bool UseRange() {
     return range.enable;
   }
+  static const std::string &GetFastFuncsAsmFile() {
+    return fastFuncsAsmFile;
+  }
+
+  static bool IsFastFuncsAsmFileEmpty() {
+    return fastFuncsAsmFile.empty();
+  }
+
+  static void SetFastFuncsAsmFile(const std::string &fileName) {
+    fastFuncsAsmFile = fileName;
+  }
+
+  static Range &GetRange() {
+    return range;
+  }
+
+  static uint64 GetRangeBegin() {
+    return range.begin;
+  }
+
+  static uint64 GetRangeEnd() {
+    return range.end;
+  }
+
+  static Range &GetSpillRanges() {
+    return spillRanges;
+  }
+
+  static uint64 GetSpillRangesBegin() {
+    return spillRanges.begin;
+  }
+
+  static uint64 GetSpillRangesEnd() {
+    return spillRanges.end;
+  }
+
+  static uint64 GetLSRABBOptSize() {
+    return lsraBBOptSize;
+  }
+
+  static void SetLSRABBOptSize(uint64 size) {
+    lsraBBOptSize = size;
+  }
+
+  static void SetLSRAInsnOptSize(uint64 size) {
+    lsraInsnOptSize = size;
+  }
+
+  static uint64 GetOverlapNum() {
+    return overlapNum;
+  }
+
+  static void SetOverlapNum(uint64 num) {
+    overlapNum = num;
+  }
+
+  static uint8 GetFastAllocMode() {
+    return fastAllocMode;
+  }
+
+  static void SetFastAllocMode(uint8 mode) {
+    fastAllocMode = mode;
+  }
 
   static void EnableBarriersForVolatile() {
     useBarriersForVolatile = true;
@@ -427,6 +534,13 @@ class CGOptions : public MapleDriverOptionBase {
 
   static bool UseBarriersForVolatile() {
     return useBarriersForVolatile;
+  }
+  static void EnableFastAlloc() {
+    fastAlloc = true;
+  }
+
+  static bool IsFastAlloc() {
+    return fastAlloc;
   }
 
   static void EnableDumpBefore() {
@@ -536,6 +650,41 @@ class CGOptions : public MapleDriverOptionBase {
   static bool DoGlobalOpt() {
     return doGlobalOpt;
   }
+  static void EnablePreLSRAOpt() {
+    doPreLSRAOpt = true;
+  }
+
+  static void DisablePreLSRAOpt() {
+    doPreLSRAOpt = false;
+  }
+
+  static bool DoPreLSRAOpt() {
+    return doPreLSRAOpt;
+  }
+
+  static void EnableLocalRefSpill() {
+    doLocalRefSpill = true;
+  }
+
+  static void DisableLocalRefSpill() {
+    doLocalRefSpill = false;
+  }
+
+  static bool DoLocalRefSpill() {
+    return doLocalRefSpill;
+  }
+
+  static void EnableCalleeToSpill() {
+    doCalleeToSpill = true;
+  }
+
+  static void DisableCalleeToSpill() {
+    doCalleeToSpill = false;
+  }
+
+  static bool DoCalleeToSpill() {
+    return doCalleeToSpill;
+  }
 
   static void EnablePrePeephole() {
     doPrePeephole = true;
@@ -583,6 +732,13 @@ class CGOptions : public MapleDriverOptionBase {
 
   static bool DoSchedule() {
     return doSchedule;
+  }
+  static void EnableWriteRefFieldOpt() {
+    doWriteRefFieldOpt = true;
+  }
+
+  static void DisableWriteRefFieldOpt() {
+    doWriteRefFieldOpt = false;
   }
   static bool DoWriteRefFieldOpt() {
     return doWriteRefFieldOpt;
@@ -674,6 +830,17 @@ class CGOptions : public MapleDriverOptionBase {
 
   static bool IsMapleLinker() {
     return mapleLinker;
+  }
+  static void EnableReplaceASM() {
+    replaceASM = true;
+  }
+
+  static void DisableReplaceASM() {
+    replaceASM = false;
+  }
+
+  static bool IsReplaceASM() {
+    return replaceASM;
   }
 
   static void EnablePrintFunction() {
@@ -780,6 +947,21 @@ class CGOptions : public MapleDriverOptionBase {
     return simulateSched;
   }
 
+  static void SetABIType(const std::string &type) {
+    if (type == "hard") {
+      abiType = kABIHard;
+    } else if (type == "soft") {
+      CHECK_FATAL(false, "float-abi=soft is not supported Currently.");
+    } else if (type == "softfp") {
+      abiType = kABISoftFP;
+    } else {
+      CHECK_FATAL(false, "unexpected abi-type, only hard, soft and softfp are supported");
+    }
+  }
+
+  static ABIType GetABIType() {
+    return abiType;
+  }
 
   static void SetEmitFileType(const std::string &type) {
     if (type == "asm") {
@@ -883,6 +1065,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool bruteForceSched;
   /* if true do SimulateSched */
   static bool simulateSched;
+  static ABIType abiType;
   static EmitFileType emitFileType;
   /* if true generate adrp/ldr/blr */
   static bool genLongCalls;
@@ -891,6 +1074,21 @@ class CGOptions : public MapleDriverOptionBase {
   static bool emitBlockMarker;
   static Range range;
   static bool inRange;
+  static std::string profileData;
+  static std::string profileFuncData;
+  static std::string profileClassData;
+  static std::string fastFuncsAsmFile;
+  static Range spillRanges;
+  static uint64 lsraBBOptSize;
+  static uint64 lsraInsnOptSize;
+  static uint64 overlapNum;
+  static uint8 fastAllocMode;
+  static bool fastAlloc;
+  static bool doPreLSRAOpt;
+  static bool doLocalRefSpill;
+  static bool doCalleeToSpill;
+  static bool replaceASM;
+  static std::string literalProfile;
 };
 }  /* namespace maplebe */
 

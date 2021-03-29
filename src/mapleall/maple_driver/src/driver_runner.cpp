@@ -23,7 +23,7 @@
 #include "file_utils.h"
 
 #include "lower.h"
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_cg.h"
 #include "aarch64/aarch64_emitter.h"
 #elif TARGARM32
@@ -83,19 +83,9 @@ ErrorCode DriverRunner::Run() {
     LogInfo::MapleLogger() << "Fatal error: no exe specified" << '\n';
     return kErrorExit;
   }
-
-  printOutExe = exeNames[exeNames.size() - 1];
-
-  // Prepare output file
-  auto lastDot = actualInput.find_last_of(".");
-  std::string baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
   std::string originBaseName = baseName;
-  std::string outputFile = baseName.append(GetPostfix());
-
-  ErrorCode ret = ParseInput(outputFile, originBaseName);
-  if (ret != kErrorNoError) {
-    return kErrorExit;
-  }
+  outputFile = baseName;
+  outputFile.append(GetPostfix());
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     std::string vtableImplFile = originBaseName;
     vtableImplFile.append(".VtableImpl.mpl");
@@ -110,7 +100,7 @@ bool DriverRunner::IsFramework() const {
   return false;
 }
 
-std::string DriverRunner::GetPostfix() const {
+std::string DriverRunner::GetPostfix() {
   if (printOutExe == kMplMe) {
     return ".me.mpl";
   }
@@ -118,22 +108,26 @@ std::string DriverRunner::GetPostfix() const {
     return ".VtableImpl.mpl";
   }
   if (printOutExe == kMplCg) {
-    return ".VtableImpl.s";
+    if (theModule->GetSrcLang() == kSrcLangC) {
+      return ".s";
+    } else {
+      return ".VtableImpl.s";
+    }
   }
   return "";
 }
 
-ErrorCode DriverRunner::ParseInput(const std::string &outputFile, const std::string &originBaseName) const {
+ErrorCode DriverRunner::ParseInput() const {
   CHECK_MODULE(kErrorExit);
 
+  std::string originBaseName = baseName;
   LogInfo::MapleLogger() << "Starting parse input" << '\n';
   MPLTimer timer;
   timer.Start();
-
+  MIRParser parser(*theModule);
   ErrorCode ret = kErrorNoError;
   if (!fileParsed) {
     if (inputFileType != kFileTypeBpl) {
-      MIRParser parser(*theModule);
       MPLTimer parseMirTimer;
       parseMirTimer.Start();
       bool parsed = parser.ParseMIR(0, 0, false, true);
@@ -142,7 +136,7 @@ ErrorCode DriverRunner::ParseInput(const std::string &outputFile, const std::str
           std::pair<std::string, time_t>("parseMpl", parseMirTimer.ElapsedMicroseconds()));
       if (!parsed) {
         ret = kErrorExit;
-        parser.EmitError(outputFile);
+        parser.EmitError(actualInput);
       }
     } else {
       BinaryMplImport binMplt(*theModule);
@@ -160,6 +154,40 @@ ErrorCode DriverRunner::ParseInput(const std::string &outputFile, const std::str
       }
     }
   }
+  // read in optimized mpl routines
+  if (MeOption::optLevel == kLevelO2 && !Options::lazyBinding &&
+      Options::skipPhase != "inline" && Options::buildApp == 0 &&
+      Options::useInline && Options::useCrossModuleInline && JAVALANG) {
+    const MapleVector<std::string> &inputMplt = theModule->GetImportedMplt();
+    auto it = inputMplt.cbegin();
+    for (++it; it != inputMplt.cend(); ++it) {
+      const std::string &curStr = *it;
+      auto lastDotInner = curStr.find_last_of(".");
+      std::string tmp = (lastDotInner == std::string::npos) ? curStr : curStr.substr(0, lastDotInner);
+      if (tmp.find("framework") != std::string::npos && originBaseName.find("framework") != std::string::npos) {
+        continue;
+      }
+      // Skip the import file
+      if (tmp.find(FileUtils::GetFileName(originBaseName, true)) != std::string::npos) {
+        continue;
+      }
+      size_t index = curStr.rfind(".");
+      CHECK_FATAL(index != std::string::npos, "can not find .");
+
+      std::string inputInline = curStr.substr(0, index + 1) + "mplt_inline";
+      std::ifstream optFile(inputInline);
+      if (!optFile.is_open()) {
+        continue;
+      }
+
+      LogInfo::MapleLogger() << "Starting parse " << inputInline << '\n';
+      bool parsed = parser.ParseInlineFuncBody(optFile);
+      if (!parsed) {
+        parser.EmitError(outputFile);
+      }
+      optFile.close();
+    }
+  }
   timer.Stop();
   LogInfo::MapleLogger() << "Parse consumed " << timer.Elapsed() << "s" << '\n';
   return ret;
@@ -169,7 +197,7 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, cons
   CHECK_MODULE();
   theMIRModule = theModule;
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
-    LogInfo::MapleLogger() << "Processing mpl2mpl&mplme" << '\n';
+    LogInfo::MapleLogger() << "Processing maplecomb" << '\n';
 
     InterleavedManager mgr(optMp, theModule, meInput, timePhases);
     std::vector<std::string> phases;
@@ -189,7 +217,7 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, cons
     emitVtableMplTimer.Stop();
     mgr.SetEmitVtableImplTime(emitVtableMplTimer.ElapsedMicroseconds());
     timer.Stop();
-    LogInfo::MapleLogger() << " Mpl2mpl&mplme consumed " << timer.Elapsed() << "s" << '\n';
+    LogInfo::MapleLogger() << " maplecomb consumed " << timer.Elapsed() << "s" << '\n';
   }
 }
 
@@ -309,7 +337,7 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
 CG *DriverRunner::CreateCGAndBeCommon(const std::string &outputFile, const std::string &originBaseName) {
   CG *cg = nullptr;
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   cg = new AArch64CG(*theModule, *cgOptions, cgOptions->GetEHExclusiveFunctionNameVec(),
                      CGOptions::GetCyclePatternMap());
   cg->SetEmitter(*theModule->GetMemPool()->New<AArch64AsmEmitter>(*cg, outputFile));

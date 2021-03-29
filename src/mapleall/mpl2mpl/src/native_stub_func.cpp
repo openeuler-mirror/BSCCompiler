@@ -309,7 +309,7 @@ void NativeStubFuncGeneration::GenerateRegFuncTabEntry() {
   uint64 locIdx = regFuncTabConst->GetConstVec().size();
   auto *newConst =
     GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>((locIdx << locIdxShift) | locIdxMask),
-                                                         *GlobalTables::GetTypeTable().GetVoidPtr(), 0/*fieldID*/);
+                                                         *GlobalTables::GetTypeTable().GetVoidPtr(), 0 /* fieldID */);
   regFuncTabConst->PushBack(newConst);
 }
 
@@ -330,11 +330,11 @@ void NativeStubFuncGeneration::GenerateRegTabEntry(const MIRFunction &func) {
   uint32 baseFuncNameWithTypeIdx = ReflectionAnalysis::FindOrInsertRepeatString(tmp, true);    // always used
   uint32 classIdx = ReflectionAnalysis::FindOrInsertRepeatString(base, true);  // always used
   // Using MIRIntConst instead of MIRStruct for RegTable.
-  auto *baseConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(classIdx, *GlobalTables::GetTypeTable().GetVoidPtr(), 0/*fieldID*/);
+  auto *baseConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      classIdx, *GlobalTables::GetTypeTable().GetVoidPtr(), 0 /* fieldID */);
   regTableConst->PushBack(baseConst);
-  auto *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(baseFuncNameWithTypeIdx,
-                                                                        *GlobalTables::GetTypeTable().GetVoidPtr(), 0/*fieldID*/);
+  auto *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      baseFuncNameWithTypeIdx, *GlobalTables::GetTypeTable().GetVoidPtr(), 0 /* fieldID */);
   regTableConst->PushBack(newConst);
 }
 
@@ -378,7 +378,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
       builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetUInt1(),
                                  *GlobalTables::GetTypeTable().GetPtr(),
                                  regReadExpr, builder->CreateIntConst(MByteRef::kPositiveOffsetBias, PTY_ptr));
-#elif defined(TARGAARCH64)
+#elif defined(TARGAARCH64) || defined(TARGRISCV64)
   // define a temp register for bitwise-and operation
   constexpr int intConstLength = 1;
   BaseNode *andExpr = builder->CreateExprBinary(OP_band, *GlobalTables::GetTypeTable().GetPtr(), regReadExpr,
@@ -415,7 +415,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
       func.GetBody()->AddStatement(wrapperCall);
     } else if (!Options::regNativeDynamicOnly) { // Qemu
       func.GetBody()->AddStatement(funcPtrAssign);
-#ifdef TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       func.GetBody()->AddStatement(flagSymAssign);
 #endif
       // Get find_native_func function
@@ -472,7 +472,7 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
       }
     } else { // EMUI
       func.GetBody()->AddStatement(funcPtrAssign);
-#ifdef TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       func.GetBody()->AddStatement(flagSymAssign);
 #endif
       MIRFunction *findNativeFunc = builder->GetOrCreateFunction(namemangler::kFindNativeFunc,

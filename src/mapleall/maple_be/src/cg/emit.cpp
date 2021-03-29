@@ -88,7 +88,7 @@ AsmLabel Emitter::GetTypeAsmInfoName(PrimType primType) const {
     case k1ByteSize:
       return kAsmByte;
     case k2ByteSize:
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       return kAsmShort;
 #else
       return kAsmValue;
@@ -652,7 +652,7 @@ void Emitter::EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemCons
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -674,7 +674,7 @@ void Emitter::EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemCons
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -690,7 +690,7 @@ void Emitter::EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemCons
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -727,7 +727,7 @@ void Emitter::EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemCons
       Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       Emit("\t.quad\t");
 #else
       Emit("\t.word\t");
@@ -747,7 +747,7 @@ void Emitter::EmitAddrofFuncConst(const MIRSymbol &mirSymbol, MIRConst &elemCons
     return;
   }
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -778,7 +778,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -804,7 +804,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -830,7 +830,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -850,7 +850,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
     Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -927,7 +927,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
       Emit("\t.long\t");
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       Emit("\t.quad\t");
 #else
       Emit("\t.word\t");
@@ -949,7 +949,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
   }
 
   if (StringUtils::StartsWith(stName, kLocalClassInfoStr)) {
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -964,7 +964,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
       (mirSymbol.IsReflectionClassInfo() && (idx == static_cast<uint32>(ClassProperty::kInfoRo)))) {
     Emit("\t.word\t");
   } else {
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -972,7 +972,7 @@ void Emitter::EmitAddrofSymbolConst(const MIRSymbol &mirSymbol, MIRConst &elemCo
   }
 #else
 
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -1389,7 +1389,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
       return;
     }
     std::string prefix = rangeIdx2PrefixStr[flag];
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad\t");
 #else
     Emit("\t.word\t");
@@ -1710,7 +1710,7 @@ void Emitter::EmitFuncLayoutInfo(const MIRSymbol &layout) {
     EmitAsmLabel(kAsmData);
     Emit(asmInfo->GetAlign());
     Emit("  3\n" + markerName + ":\n");
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.quad ");
 #else
     Emit("\t.word ");
@@ -2436,7 +2436,7 @@ void Emitter::EmitGlobalVariable() {
 #endif
 }
 void Emitter::EmitAddressString(const std::string &address) {
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   Emit("\t.quad\t" + address);
 #else
   Emit("\t.word\t" + address);
@@ -2451,7 +2451,7 @@ void Emitter::EmitGlobalRootList(const MIRSymbol &gcrootsSt) {
   bool gcrootsFlag = true;
   uint64 vecSize = 0;
   for (const auto &gcrootsName : nameVec) {
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     Emit("\t.type\t" + gcrootsName + ", @object\n" + "\t.p2align 3\n");
 #else
     Emit("\t.type\t" + gcrootsName + ", %object\n" + "\t.p2align 3\n");
@@ -2631,7 +2631,7 @@ void Emitter::EmitDWRef(const std::string &name) {
   Emit("\t.type DW.ref." + name + ", \%object\n");
   Emit("\t.size DW.ref." + name + ",8\n");
   Emit("DW.ref." + name + ":\n");
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   Emit("\t.xword " + name + "\n");
 #else
   Emit("\t.word " + name + "\n");

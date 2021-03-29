@@ -25,7 +25,11 @@
 #include "intrinsic_op.h"
 #include "mir_builder.h"
 #include "opcode_info.h"
+#if TARGAARCH64
 #include "aarch64_rt.h"
+#elif TARGRISCV64
+#include "riscv64_rt.h"
+#endif
 #include "securec.h"
 #include "string_utils.h"
 
@@ -223,7 +227,7 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
   blkNode.InsertAfter(blkNode.GetLast(), dassignNode);
 
   BaseNode *dreadNode = mirbuilder->CreateExprDread(*dassignNodeSym);
-  for (int32 i = 0; i < parent.NumOpnds(); i++) {
+  for (size_t i = 0; i < parent.NumOpnds(); i++) {
     if (parent.Opnd(i) == &tNode) {
       parent.SetOpnd(dreadNode, i);
       break;
@@ -236,12 +240,12 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
 /* Check if the operand of the select node is complex enough for either
  * functionality or performance reason so we need to lower it to if-then-else.
  */
-bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) {
+bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
     if (tNode.GetPrimType() == PTY_agg)
       return true;
 
     /* Iread may have side effect which may cause correctness issue. */
-    if (tNode.Opnd(1)->op == OP_iread ||tNode.Opnd(2)->op == OP_iread)
+    if (tNode.Opnd(1)->op == OP_iread || tNode.Opnd(2)->op == OP_iread)
       return true;
 
     return false;
@@ -261,7 +265,8 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
       resultTy = mirModule.CurFunction()->GetLocalOrGlobalSymbol(trueNode->GetStIdx())->GetType();
     } else if (tNode.Opnd(1)->op == OP_iread) {
       IreadNode *trueNode = static_cast<IreadNode *>(tNode.Opnd(1));
-      MIRPtrType *ptrty = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(trueNode->GetTyIdx()));
+      MIRPtrType *ptrty =
+          static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(trueNode->GetTyIdx()));
       resultTy = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrty->GetPointedTyIdx()));
       if (trueNode->GetFieldID() != 0) {
         MIRStructType *structty = static_cast<MIRStructType *>(resultTy);
@@ -274,7 +279,7 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
     resultTy =  GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)(tNode.GetPrimType()));
   }
 
-  MIRSymbol * resultSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
+  MIRSymbol *resultSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
   CondGotoNode *brTargetStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
   brTargetStmt->SetOpnd(tNode.Opnd(0), 0);
   LabelIdx targetIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
@@ -295,7 +300,8 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
   lableStmt->SetLabelIdx(targetIdx);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
-  DassignNode *dassignFalse = mirbuilder->CreateStmtDassign(static_cast<MIRSymbol&>(*resultSym), 0, tNode.Opnd(2));
+  DassignNode *dassignFalse =
+      mirbuilder->CreateStmtDassign(static_cast<MIRSymbol&>(*resultSym), 0, tNode.Opnd(2));
   blkNode.InsertAfter(blkNode.GetLast(), dassignFalse);
 
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
@@ -303,7 +309,7 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
   BaseNode *dreadNode = mirbuilder->CreateExprDread(*resultSym);
-  for (int32 i = 0; i < parent.NumOpnds(); i++) {
+  for (size_t i = 0; i < parent.NumOpnds(); i++) {
     if (parent.Opnd(i) == &tNode) {
       parent.SetOpnd(dreadNode, i);
       break;
@@ -787,7 +793,7 @@ void CGLowerer::LowerTypePtr(BaseNode &node) const {
 }
 
 
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
 BlockNode *CGLowerer::LowerReturnStruct(NaryStmtNode &retNode) {
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   for (size_t i = 0; i < retNode.GetNopndSize(); ++i) {
@@ -1303,14 +1309,14 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       case OP_intrinsiccall:
       case OP_call:
       case OP_icall:
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         LowerCallStmt(*stmt, nextStmt, *newBlk);
 #else
         LowerStmt(*stmt, *newBlk);
 #endif
         break;
       case OP_return: {
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         if (GetCurrentFunc()->IsReturnStruct()) {
           newBlk->AppendStatementsFromBlock(*LowerReturnStruct(static_cast<NaryStmtNode&>(*stmt)));
         } else {
@@ -1323,7 +1329,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
           CHECK_FATAL(tmpBlockNode != nullptr, "nullptr is not expected");
           newBlk->AppendStatementsFromBlock(*tmpBlockNode);
         }
-#if TARGARM32 || TARGAARCH64
+#if TARGARM32 || TARGAARCH64 || TARGRISCV64
         }
 #endif
         break;
@@ -1458,7 +1464,7 @@ StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNod
 
   for (size_t i = 0; i < callNode.GetNopndSize(); ++i) {
     BaseNode *newOpnd = LowerExpr(callNode, *callNode.GetNopndAt(i), newBlk);
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
     callNode.SetOpnd(newOpnd, i);
 #else
     SplitCallArg(callNode, newOpnd, i, newBlk);
@@ -2703,8 +2709,9 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
   }
   if (intrnID == INTRN_C_constant_p) {
     BaseNode *opnd = intrinNode.Opnd(0);
-    return mirModule.GetMIRBuilder()->CreateIntConst(opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
-                                                     opnd->op == OP_conststr || opnd->op == OP_conststr16, PTY_i32);
+    int64 val = (opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
+                 opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
+    return mirModule.GetMIRBuilder()->CreateIntConst(val, PTY_i32);
   }
   CHECK_FATAL(false, "unexpected intrinsic type in CGLowerer::LowerIntrinsicop");
   return &intrinNode;
