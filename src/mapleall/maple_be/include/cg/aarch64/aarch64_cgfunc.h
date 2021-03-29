@@ -579,7 +579,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          int32 offset, ParmLocator &parmLocator, FieldID fieldID);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator);
+                                         int32 offset, ParmLocator &parmLocator);
   void SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          ParmLocator &parmLocator, int32 &structCopyOffset);
   void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
