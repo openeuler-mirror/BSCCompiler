@@ -445,6 +445,19 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
       }
       break;
     }
+    case BB::kBBIgoto: {
+      for (Insn *insn = curBB.GetLastInsn(); insn != nullptr; insn = insn->GetPrev()) {
+        if (insn->GetMachineOpcode() == MOP_adrp_label) {
+          LabelIdx label = static_cast<ImmOperand&>(insn->GetOperand(1)).GetValue();
+          for (BB *bb : curBB.GetSuccs()) {
+            if (bb->GetLabIdx() == label) {
+              return bb;
+            }
+          }
+        }
+      }
+      CHECK_FATAL(false, "Cannot find label in Igoto bb");
+    }
     case BB::kBBFallthru: {
       return (branchOnly ? nullptr : curBB.GetNext());
     }
