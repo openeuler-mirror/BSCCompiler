@@ -138,6 +138,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
       fieldTypeSize = GetTypeSize(fieldTyIdx);
     }
     uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
+    uint8 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
     if ((fieldType->GetKind() == kTypeStruct) || (fieldType->GetKind() == kTypeClass)) {
       AppendStructFieldCount(structType.GetTypeIndex(), GetStructFieldCount(fieldTyIdx));
@@ -159,10 +160,28 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
           allocedSizeInBits = allocedSize * kBitsPerByte;
         }
       } else {
-        /* pad alloced_size according to the field alignment */
-        allocedSize = RoundUp(allocedSize, fieldAlign);
-        allocedSize += fieldTypeSize;
-        allocedSizeInBits = allocedSize * kBitsPerByte;
+        uint32 fldsizeinbits = fieldTypeSize * kBitsPerByte;
+        bool leftoverbits = false;
+
+        if (allocedSizeInBits == allocedSize * kBitsPerByte) {
+          allocedSize = RoundUp(allocedSize, fieldAlign);
+        } else {
+          /* still some leftover bits on allocated words, we calculate things based on bits then. */
+          if (allocedSizeInBits / fieldAlignBits != (allocedSizeInBits + fldsizeinbits - 1) / fieldAlignBits) {
+            /* the field is crossing the align boundary of its base type */
+            allocedSizeInBits = RoundUp(allocedSizeInBits, fieldAlignBits);
+          }
+          leftoverbits =  true;
+        }
+        if (leftoverbits) {
+          allocedSizeInBits += fldsizeinbits;
+          allocedSize = std::max(allocedSize, RoundUp(allocedSizeInBits, fieldAlignBits) / kBitsPerByte);
+        } else {
+          /* pad alloced_size according to the field alignment */
+          allocedSize = RoundUp(allocedSize, fieldAlign);
+          allocedSize += fieldTypeSize;
+          allocedSizeInBits = allocedSize * 8;
+        }
       }
     } else {  /* for unions, bitfields are treated as non-bitfields */
       allocedSize = std::max(allocedSize, static_cast<uint64>(fieldTypeSize));
