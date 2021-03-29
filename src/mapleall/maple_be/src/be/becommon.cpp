@@ -15,7 +15,11 @@
 #include "becommon.h"
 #include <cinttypes>
 #include <list>
+#if TARGAARCH64
 #include "aarch64_rt.h"
+#elif TARGRISCV64
+#include "riscv64_rt.h"
+#endif
 #include "cg_option.h"
 #include "mir_builder.h"
 #include "mpl_logging.h"
@@ -676,7 +680,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeTable().at(index);
       std::pair<int32, int32> byteBitOffset =
           GetFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       ASSERT(GetAddressPrimType() == PTY_a64, "incorrect address type, expect a PTY_a64");
 #endif
       return mirModule.GetMIRBuilder()->CreateExprBinary(

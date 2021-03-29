@@ -78,7 +78,7 @@ bool Ebo::IsFrameReg(Operand &opnd) const {
 }
 
 Operand *Ebo::GetZeroOpnd(uint32 size) const {
-#ifdef TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   return &cgFunc->GetZeroOpnd(size);
 #else
   return nullptr;
@@ -557,7 +557,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
     }
   }
   /* move reg, wzr, store vreg, mem ==> store wzr, mem */
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   if (opnd->IsZeroRegister() && opndIndex == 0 &&
       (insn.GetMachineOpcode() == MOP_wstr || insn.GetMachineOpcode() == MOP_xstr)) {
     if (EBO_DUMP) {
@@ -926,7 +926,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
         continue;
       }
 /* this part optimize some spacial case after RA. */
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
       if (!beforeRegAlloc && insn->IsEffectiveCopy()) {
         int32 idx = insn->CopyOperands();
         OpndInfo *opInfo = insnInfo->origOpnd[idx];
@@ -1296,7 +1296,7 @@ AnalysisResult *CgDoEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
   MemPool *eboMp = NewMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
 #endif
 #if TARGARM32
@@ -1322,7 +1322,7 @@ AnalysisResult *CgDoEbo1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) 
   live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
   MemPool *eboMp = NewMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
 #endif
 #if TARGARM32
@@ -1348,7 +1348,7 @@ AnalysisResult *CgDoPostEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMg
   live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
   MemPool *eboMp = NewMemPool();
   Ebo *ebo = nullptr;
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, false, PhaseName());
 #endif
 #if TARGARM32

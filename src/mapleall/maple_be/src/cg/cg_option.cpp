@@ -38,13 +38,23 @@ std::string CGOptions::skipFrom = "";
 std::string CGOptions::skipAfter = "";
 std::string CGOptions::dumpFunc = "*";
 std::string CGOptions::globalVarProfile = "";
+std::string CGOptions::profileData = "";
+std::string CGOptions::profileFuncData = "";
+std::string CGOptions::profileClassData = "";
 #ifdef TARGARM32
 std::string CGOptions::duplicateAsmFile = "";
 #else
 std::string CGOptions::duplicateAsmFile = "maple/mrt/codetricks/arch/arm64/duplicateFunc.s";
 #endif
 Range CGOptions::range = Range();
-#if TARGAARCH64
+std::string CGOptions::fastFuncsAsmFile = "";
+Range CGOptions::spillRanges = Range();
+uint8 CGOptions::fastAllocMode = 0;  /* 0: fast, 1: spill all */
+bool CGOptions::fastAlloc = false;
+uint64 CGOptions::lsraBBOptSize = 150000;
+uint64 CGOptions::lsraInsnOptSize = 200000;
+uint64 CGOptions::overlapNum = 28;
+#if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
 bool CGOptions::useBarriersForVolatile = true;
@@ -75,14 +85,19 @@ bool CGOptions::hotFix = false;
 bool CGOptions::debugSched = false;
 bool CGOptions::bruteForceSched = false;
 bool CGOptions::simulateSched = false;
+CGOptions::ABIType CGOptions::abiType = kABIHard;
 CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::gcOnly = false;
-bool CGOptions::quiet = true;
+bool CGOptions::quiet = false;
 
 bool CGOptions::doPreSchedule = false;
 bool CGOptions::emitBlockMarker = true;
 bool CGOptions::inRange = false;
+bool CGOptions::doPreLSRAOpt = false;
+bool CGOptions::doLocalRefSpill = false;
+bool CGOptions::doCalleeToSpill = false;
+bool CGOptions::replaceASM = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -97,9 +112,15 @@ enum OptionIndex : uint64 {
   kIco,
   kSlo,
   kGo,
+  kPreLSRAOpt,
+  kLocalrefSpill,
+  kOptCallee,
   kPrepeep,
   kPeep,
+  kPreSchedule,
   kSchedule,
+  kWriteRefFieldOpt,
+  kDumpOlog,
   kCGNativeOpt,
   kInsertCall,
   kTrace,
@@ -108,6 +129,7 @@ enum OptionIndex : uint64 {
   kGenGctib,
   kCGBarrier,
   kGenPrimorList,
+  kRaLinear,
   kRaColor,
   kConstFoldOpt,
   kSuppressFinfo,
@@ -126,15 +148,25 @@ enum OptionIndex : uint64 {
   kDebugAsmMix,
   kProfilingInfo,
   kProfileEnable,
+  kLSRABB,
+  kLSRAInsn,
+  kLSRAOverlap,
   kCGO0,
   kCGO1,
   kCGO2,
   kProepilogue,
   kYieldPoing,
   kLocalRc,
+  kCGRange,
+  kFastAlloc,
+  kSpillRange,
+  kDuplicateBB,
   kCalleeCFI,
   kCyclePatternList,
   kDuplicateToDelPlt,
+  kDuplicateToDelPlt2,
+  kReplaceAsm,
+  kEmitBlockMarker,
   kInsertSoe,
   kCheckArrayStore,
   kPrintFunction,
@@ -147,6 +179,8 @@ enum OptionIndex : uint64 {
   kDebugSched,
   kBruteForceSched,
   kSimulateSched,
+  kCrossLoc,
+  kABIType,
   kEmitFileType,
   kLongCalls,
 };
@@ -222,6 +256,16 @@ const Descriptor kUsage[] = {
     "  --no-cg\n",
     "mplcg",
     {} },
+  { kReplaceAsm,
+    kEnable,
+    "",
+    "replaceasm",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    "  --replaceasm                \tReplace the the assembly code\n"
+    "  --no-replaceasm\n",
+    "mplcg",
+    {} },
   { kCGLazyBinding,
     kEnable,
     "",
@@ -291,6 +335,36 @@ const Descriptor kUsage[] = {
     "  --no-globalopt\n",
     "mplcg",
     {} },
+  { kPreLSRAOpt,
+    kEnable,
+    "",
+    "prelsra",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --prelsra                   \tPerform live interval simplification in LSRA\n"
+    "  --no-prelsra\n",
+    "mplcg",
+    {} },
+  { kLocalrefSpill,
+    kEnable,
+    "",
+    "lsra-lvarspill",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lsra-lvarspill            \tPerform LSRA spill using local ref var stack locations\n"
+    "  --no-lsra-lvarspill\n",
+    "mplcg",
+    {} },
+  { kOptCallee,
+    kEnable,
+    "",
+    "lsra-optcallee",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lsra-optcallee            \tSpill callee if only one def to use\n"
+    "  --no-lsra-optcallee\n",
+    "mplcg",
+    {} },
   { kPrepeep,
     kEnable,
     "",
@@ -311,6 +385,16 @@ const Descriptor kUsage[] = {
     "  --no-peep\n",
     "mplcg",
     {} },
+  { kPreSchedule,
+    kEnable,
+    "",
+    "preschedule",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --preschedule               \tPerform prescheduling\n"
+    "  --no-preschedule\n",
+    "mplcg",
+    {} },
   { kSchedule,
     kEnable,
     "",
@@ -319,6 +403,26 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --schedule                  \tPerform scheduling\n"
     "  --no-schedule\n",
+    "mplcg",
+    {} },
+  { kWriteRefFieldOpt,
+    kEnable,
+    "",
+    "writefieldopt",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --writefieldopt                  \tPerform WriteRefFieldOpt\n"
+    "  --no-writefieldopt\n",
+    "mplcg",
+    {} },
+  { kDumpOlog,
+    kEnable,
+    "",
+    "dump-olog",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --dump-olog                 \tDump CFGO and ICO debug information\n"
+    "  --no-dump-olog\n",
     "mplcg",
     {} },
   { kCGNativeOpt,
@@ -387,6 +491,15 @@ const Descriptor kUsage[] = {
     kBuildTypeProduct,
     kArgCheckPolicyNone,
     "  --add-debug-trace           \tInstrument the output .s file to print call traces at runtime\n",
+    "mplcg",
+    {} },
+  { kProfileEnable,
+    0,
+    "",
+    "add-func-profile",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNone,
+    "  --add-func-profile          \tInstrument the output .s file to record func at runtime\n",
     "mplcg",
     {} },
   { kCGClassList,
@@ -477,6 +590,24 @@ const Descriptor kUsage[] = {
     "  --gmixedasm                 \tComment out both original source file and mpl file for debugging\n",
     "mplcg",
     {} },
+  { kProfilingInfo,
+    0,
+    "p",
+    "",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNone,
+    "  -p                          \tGenerate profiling infomation\n",
+    "mplcg",
+    {} },
+  { kRaLinear,
+    0,
+    "",
+    "with-ra-linear-scan",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNone,
+    "  --with-ra-linear-scan       \tDo linear-scan register allocation\n",
+    "mplcg",
+    {} },
   { kRaColor,
     0,
     "",
@@ -530,6 +661,33 @@ const Descriptor kUsage[] = {
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                          \tDo some optimization.\n",
+    "mplcg",
+    {} },
+  { kLSRABB,
+    0,
+    "",
+    "lsra-bb",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --lsra-bb=NUM               \tSwitch to spill mode if number of bb in function exceeds NUM\n",
+    "mplcg",
+    {} },
+  { kLSRAInsn,
+    0,
+    "",
+    "lsra-insn",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --lsra-insn=NUM             \tSwitch to spill mode if number of instructons in function exceeds NUM\n",
+    "mplcg",
+    {} },
+  { kLSRAOverlap,
+    0,
+    "",
+    "lsra-overlap",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --lsra-overlap=NUM          \toverlap NUM to decide pre spill in lsra\n",
     "mplcg",
     {} },
   { kSuppressFinfo,
@@ -636,6 +794,43 @@ const Descriptor kUsage[] = {
     "  --no-use-barriers-for-volatile\n",
     "mplcg",
     {} },
+  { kCGRange,
+    0,
+    "",
+    "range",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --range=NUM0,NUM1           \tOptimize only functions in the range [NUM0, NUM1]\n",
+    "mplcg",
+    {} },
+  { kFastAlloc,
+    0,
+    "",
+    "fast-alloc",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --fast-alloc=[0/1]          \tO2 RA fast mode, set to 1 to spill all registers\n",
+    "mplcg",
+    {} },
+  { kSpillRange,
+    0,
+    "",
+    "spill_range",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --spill_range=NUM0,NUM1     \tO2 RA spill registers in the range [NUM0, NUM1]\n",
+    "mplcg",
+    {} },
+  { kDuplicateBB,
+    kEnable,
+    "",
+    "dup-bb",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --dup-bb                 \tAllow cfg optimizer to duplicate bb\n"
+    "  --no-dup-bb              \tDon't allow cfg optimizer to duplicate bb\n",
+    "mplcg",
+    {} },
   { kCalleeCFI,
     kEnable,
     "",
@@ -674,6 +869,25 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyRequired,
     "  --duplicate_asm_list        \tDuplicate asm functions to delete plt call\n"
     "                              \t--duplicate_asm_list=list_file\n",
+    "mplcg",
+    {} },
+  { kDuplicateToDelPlt2,
+    0,
+    "",
+    "duplicate_asm_list2",
+    kBuildTypeProduct,
+    kArgCheckPolicyRequired,
+    "  --duplicate_asm_list2       \tDuplicate more asm functions to delete plt call\n"
+    "                              \t--duplicate_asm_list2=list_file\n",
+    "mplcg",
+    {} },
+  { kEmitBlockMarker,
+    0,
+    "",
+    "block-marker",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --block-marker              \tEmit block marker symbols in emitted assembly files\n",
     "mplcg",
     {} },
   { kInsertSoe,
@@ -723,6 +937,28 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --simulate-schedule         \tdo simulate schedule\n"
     "  --no-simulate-schedule\n",
+    "mplcg",
+    {} },
+  { kCrossLoc,
+    kEnable,
+    "",
+    "cross-loc",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --cross-loc                 \tcross loc insn schedule\n"
+    "  --no-cross-loc\n",
+    "mplcg",
+    {} },
+  { kABIType,
+    0,
+    "",
+    "float-abi",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --float-abi=name            \tPrint the abi type.\n"
+    "                              \tname=hard: abi-hard (Default)\n"
+    "                              \tname=soft: abi-soft\n"
+    "                              \tname=softfp: abi-softfp\n",
     "mplcg",
     {} },
   { kEmitFileType,
@@ -836,8 +1072,18 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kCGMapleLinker:
         (opt.Type() == kEnable) ? EnableMapleLinker() : DisableMapleLinker();
         break;
+      case kFastAlloc:
+        EnableFastAlloc();
+        SetFastAllocMode(std::stoul(opt.Args(), nullptr));
+        break;
       case kCGBarrier:
         (opt.Type() == kEnable) ? EnableBarriersForVolatile() : DisableBarriersForVolatile();
+        break;
+      case kSpillRange:
+        SetRange(opt.Args(), "--pill-range", GetSpillRanges());
+        break;
+      case kCGRange:
+        SetRange(opt.Args(), "--range", GetRange());
         break;
       case kCGDumpBefore:
         (opt.Type() == kEnable) ? EnableDumpBefore() : DisableDumpBefore();
@@ -853,6 +1099,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kDuplicateToDelPlt:
         SetDuplicateAsmFile(opt.Args());
+        break;
+      case kDuplicateToDelPlt2:
+        SetFastFuncsAsmFile(opt.Args());
         break;
       case kInsertCall:
         SetInstrumentationFunction(opt.Args());
@@ -896,6 +1145,10 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kProfilingInfo:
         SetOption(kWithProfileCode);
         SetParserOption(kWithProfileInfo);
+        break;
+      case kRaLinear:
+        SetOption(kDoLinearScanRegAlloc);
+        ClearOption(kDoColorRegAlloc);
         break;
       case kRaColor:
         SetOption(kDoColorRegAlloc);
@@ -960,6 +1213,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kObjMap:
         SetGenerateObjectMap(opt.Type() == kEnable);
         break;
+      case kReplaceAsm:
+        (opt.Type() == kEnable) ? EnableReplaceASM() : DisableReplaceASM();
+        break;
       case kCGLazyBinding:
         (opt.Type() == kEnable) ? EnableLazyBinding() : DisableLazyBinding();
         break;
@@ -989,17 +1245,38 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kGo:
         (opt.Type() == kEnable) ? EnableGlobalOpt() : DisableGlobalOpt();
         break;
+      case kPreLSRAOpt:
+        (opt.Type() == kEnable) ? EnablePreLSRAOpt() : DisablePreLSRAOpt();
+        break;
+      case kLocalrefSpill:
+        (opt.Type() == kEnable) ? EnableLocalRefSpill() : DisableLocalRefSpill();
+        break;
+      case kOptCallee:
+        (opt.Type() == kEnable) ? EnableCalleeToSpill() : DisableCalleeToSpill();
+        break;
       case kPrepeep:
         (opt.Type() == kEnable) ? EnablePrePeephole() : DisablePrePeephole();
         break;
       case kPeep:
         (opt.Type() == kEnable) ? EnablePeephole() : DisablePeephole();
         break;
+      case kPreSchedule:
+        (opt.Type() == kEnable) ? EnablePreSchedule() : DisablePreSchedule();
+        break;
       case kSchedule:
         (opt.Type() == kEnable) ? EnableSchedule() : DisableSchedule();
         break;
+      case kWriteRefFieldOpt:
+        (opt.Type() == kEnable) ? EnableWriteRefFieldOpt() : DisableWriteRefFieldOpt();
+        break;
+      case kDumpOlog:
+        (opt.Type() == kEnable) ? EnableDumpOptimizeCommonLog() : DisableDumpOptimizeCommonLog();
+        break;
       case kCGNativeOpt:
         DisableNativeOpt();
+        break;
+      case kDuplicateBB:
+        (opt.Type() == kEnable) ? DisableNoDupBB() : EnableNoDupBB();
         break;
       case kCalleeCFI:
         (opt.Type() == kEnable) ? DisableNoCalleeCFI() : EnableNoCalleeCFI();
@@ -1007,6 +1284,15 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kProepilogue:
         (opt.Type() == kEnable) ? SetOption(CGOptions::kProEpilogueOpt)
                                 : ClearOption(CGOptions::kProEpilogueOpt);
+        break;
+      case kLSRABB:
+        SetLSRABBOptSize(std::stoul(opt.Args(), nullptr));
+        break;
+      case kLSRAInsn:
+        SetLSRAInsnOptSize(std::stoul(opt.Args(), nullptr));
+        break;
+      case kLSRAOverlap:
+        SetOverlapNum(std::stoul(opt.Args(), nullptr));
         break;
       case kCGO0:
         // Already handled above in DecideMplcgRealLevel
@@ -1038,6 +1324,12 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kSimulateSched:
         (opt.Type() == kEnable) ? EnableSimulateSched() : DisableSimulateSched();
         break;
+      case kProfilePath:
+        SetProfileData(opt.Args());
+        break;
+      case kABIType:
+        SetABIType(opt.Args());
+        break;
       case kEmitFileType:
         SetEmitFileType(opt.Args());
         break;
@@ -1051,6 +1343,13 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
         break;
     }
+  }
+  // override some options when dwarf is generated
+  if (WithDwarf()) {
+    DisableEBO();
+    DisableCFGO();
+    DisableICO();
+    SetOption(CGOptions::kDebugFriendly);
   }
   return true;
 }
@@ -1091,6 +1390,17 @@ void CGOptions::ParseCyclePattern(const std::string &fileName) {
   }
 }
 
+void CGOptions::SetRange(const std::string &str, const std::string &cmd, Range &subRange) {
+  const std::string &tmpStr = str;
+  size_t comma = tmpStr.find_first_of(",", 0);
+  subRange.enable = true;
+
+  if (comma != std::string::npos) {
+    subRange.begin = std::stoul(tmpStr.substr(0, comma), nullptr);
+    subRange.end = std::stoul(tmpStr.substr(comma + 1, std::string::npos - (comma + 1)), nullptr);
+  }
+  CHECK_FATAL(range.begin < range.end, "invalid values for %s=%lu,%lu", cmd.c_str(), subRange.begin, subRange.end);
+}
 
 /* Set default options according to different languages. */
 void CGOptions::SetDefaultOptions(const maple::MIRModule &mod) {
@@ -1107,12 +1417,16 @@ void CGOptions::EnableO0() {
 
 void CGOptions::EnableO1() {
   optimizeLevel = kLevel1;
-  ClearOption(kProEpilogueOpt);
+  doPreLSRAOpt = true;
+  doCalleeToSpill = true;
+  SetOption(kConstFold);
+  SetOption(kProEpilogueOpt);
   ClearOption(kUseStackGuard);
 }
 
 void CGOptions::EnableO2() {
   optimizeLevel = kLevel2;
+#if TARGARM32
   doEBO = true;
   doCFGO = true;
   doICO = true;
@@ -1120,10 +1434,31 @@ void CGOptions::EnableO2() {
   doPeephole = true;
   doStoreLoadOpt = true;
   doGlobalOpt = true;
+  doPreLSRAOpt = false;
+  doLocalRefSpill = false;
+  doCalleeToSpill = false;
+  doPreSchedule = false;
+  doSchedule = true;
+  doWriteRefFieldOpt = false;
+  SetOption(kConstFold);
+  ClearOption(kProEpilogueOpt);
+#else
+  doEBO = true;
+  doCFGO = true;
+  doICO = true;
+  doPrePeephole = true;
+  doPeephole = true;
+  doStoreLoadOpt = true;
+  doGlobalOpt = true;
+  doPreLSRAOpt = true;
+  doLocalRefSpill = true;
+  doCalleeToSpill = true;
   doPreSchedule = false;
   doSchedule = true;
   doWriteRefFieldOpt = true;
-  ClearOption(kProEpilogueOpt);
+  SetOption(kConstFold);
+  SetOption(kProEpilogueOpt);
+#endif
   ClearOption(kUseStackGuard);
 }
 
