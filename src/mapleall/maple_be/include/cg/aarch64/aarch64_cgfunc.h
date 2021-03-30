@@ -436,6 +436,7 @@ class AArch64CGFunc : public CGFunc {
 
   MOperator PickStInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
   MOperator PickLdInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
+  MOperator PickExtInsn(PrimType dtype, PrimType stype);
 
   bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
@@ -565,6 +566,10 @@ class AArch64CGFunc : public CGFunc {
 
   RegOperand &LoadIntoRegister(Operand &o, PrimType oty) {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, oty, oty));
+  }
+
+  RegOperand &LoadIntoRegister(Operand &o, PrimType dty, PrimType sty) {
+    return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, sty, dty));
   }
 
   void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
