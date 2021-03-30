@@ -18,6 +18,10 @@
 #include "aarch64_ico.h"
 #include "aarch64_isa.h"
 #include "aarch64_insn.h"
+#elif TARGRISCV64
+#include "riscv64_ico.h"
+#include "riscv64_isa.h"
+#include "riscv64_insn.h"
 #elif TARGARM32
 #include "arm32_ico.h"
 #include "arm32_isa.h"

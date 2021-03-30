@@ -14,6 +14,8 @@
  */
 #if TARGAARCH64
 #include "aarch64_reaching.h"
+#elif TARGRISCV64
+#include "riscv64_reaching.h"
 #endif
 #if TARGARM32
 #include "arm32_reaching.h"

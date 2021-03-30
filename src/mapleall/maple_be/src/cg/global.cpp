@@ -14,6 +14,8 @@
  */
 #if TARGAARCH64
 #include "aarch64_global.h"
+#elif TARGRISCV64
+#include "riscv64_global.h"
 #endif
 #if TARGARM32
 #include "arm32_global.h"

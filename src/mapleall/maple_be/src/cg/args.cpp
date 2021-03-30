@@ -15,6 +15,8 @@
 #include "args.h"
 #if TARGAARCH64
 #include "aarch64_args.h"
+#elif TARGRISCV64
+#include "riscv64_args.h"
 #endif
 #if TARGARM32
 #include "arm32_args.h"

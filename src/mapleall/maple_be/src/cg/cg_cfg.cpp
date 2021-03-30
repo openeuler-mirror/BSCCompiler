@@ -15,6 +15,8 @@
 #include "cg_cfg.h"
 #if TARGAARCH64
 #include "aarch64_insn.h"
+#elif TARGRISCV64
+#include "riscv64_insn.h"
 #endif
 #if TARGARM32
 #include "arm32_insn.h"

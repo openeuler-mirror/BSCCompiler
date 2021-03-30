@@ -18,6 +18,8 @@
 #include "common_utils.h"
 #if TARGAARCH64
 #include "aarch64_peep.h"
+#elif TARGRISCV64
+#include "riscv64_peep.h"
 #endif
 #if TARGARM32
 #include "arm32_peep.h"

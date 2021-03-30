@@ -24,7 +24,11 @@
 #include "global.h"
 #include "strldr.h"
 #include "peep.h"
+#if TARGAARCH64
 #include "aarch64_fixshortbranch.h"
+#elif TARGRISCV64
+#include "riscv64_fixshortbranch.h"
+#endif
 #include "live.h"
 #include "loop.h"
 #include "mpl_timer.h"
