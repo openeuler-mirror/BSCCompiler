@@ -16,6 +16,8 @@
 #include <set>
 #if TARGAARCH64
 #include "aarch64_live.h"
+#elif TARGRISCV64
+#include "riscv64_live.h"
 #endif
 #if TARGARM32
 #include "arm32_live.h"

@@ -15,6 +15,8 @@
 #include "offset_adjust.h"
 #if TARGAARCH64
 #include "aarch64_offset_adjust.h"
+#elif TARGRISCV64
+#include "riscv64_offset_adjust.h"
 #endif
 #if TARGARM32
 #include "arm32_offset_adjust.h"
