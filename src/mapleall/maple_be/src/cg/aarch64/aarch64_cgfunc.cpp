@@ -92,8 +92,6 @@ MOperator extIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
   { MOP_undef, MOP_undef,   MOP_undef,   MOP_undef}     /* u64/u64 */
 };
 
-/* extended to signed ints */
-
 MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd) {
   ASSERT(__builtin_popcount(static_cast<uint32>(memOrd)) <= 1, "must be kMoNone or kMoAcquire");
   ASSERT(primType != PTY_ptr, "should have been lowered");
@@ -146,7 +144,7 @@ MOperator AArch64CGFunc::PickStInsn(uint32 bitSize, PrimType primType, AArch64is
   return PickLdStInsn(false, bitSize, primType, memOrd);
 }
 
-MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) {
+MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) const {
   int32 sBitSize = GetPrimTypeBitSize(stype);
   int32 dBitSize = GetPrimTypeBitSize(dtype);
   /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
@@ -154,9 +152,9 @@ MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) {
     MOperator(*table)[kIntByteSizeDimension];
     table = IsUnsignedInteger(dtype) ? uextIs : extIs;
     /* __builtin_ffs(x) returns: 8 -> 4, 16 -> 5, 32 -> 6, 64 -> 7 */
-    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - 4;
+    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - k4BitSize;
     ASSERT(row <= 3, "wrong bitSize");
-    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - 4;
+    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - k4BitSize;
     ASSERT(col <= 3, "wrong bitSize");
     return table[row][col];
   }
@@ -468,7 +466,7 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   Insn *insn = nullptr;
   uint32 ssize = src.GetSize();
   PrimType regTy = PTY_void;
-  RegOperand *loadReg;
+  RegOperand *loadReg = nullptr;
   MOperator mop = MOP_undef;
   if (IsPrimitiveFloat(stype)) {
     CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
@@ -501,7 +499,6 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   }
 
   GetCurBB()->AppendInsn(*insn);
-
   if (regTy != PTY_void && mop != MOP_undef) {
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *loadReg));
   }
@@ -998,7 +995,7 @@ void AArch64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   }
 }
 
-Operand &AArch64CGFunc::GenLargeAggFormalMemOpnd(MIRSymbol &sym, uint32 align, int32 offset) {
+Operand &AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset) {
   Operand *memOpnd;
   if (sym.GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(sym.GetTyIdx()) > k16ByteSize) {
     /* formal of size of greater than 16 is copied by the caller and the pointer to it is passed. */
@@ -2203,7 +2200,7 @@ void AArch64CGFunc::SelectIgoto(Operand *opnd0) {
 }
 
 void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
-                                   Operand &origOpnd1, PrimType primType) {
+                                   Operand &origOpnd1, PrimType primType, bool signedCond) {
   Operand *opnd0 = &origOpnd0;
   Operand *opnd1 = &origOpnd1;
   opnd0 = &LoadIntoRegister(origOpnd0, primType);
@@ -2249,7 +2246,8 @@ void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcod
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, rflag, *opnd0, *opnd1));
   }
 
-  MOperator jmpOperator = PickJmpInsn(jmpOp, cmpOp, isFloat, IsSignedInteger(primType));
+  bool isSigned = IsPrimitiveInteger(primType) ? IsSignedInteger(primType) : (signedCond ? true : false);
+  MOperator jmpOperator = PickJmpInsn(jmpOp, cmpOp, isFloat, isSigned);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, targetOpnd));
 }
 
@@ -2286,7 +2284,9 @@ void AArch64CGFunc::SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &expr) {
   PrimType pType = static_cast<CompareNode*>(condNode)->GetOpndType();
   isFloat = IsPrimitiveFloat(pType);
   Operand &rflag = GetOrCreateRflag();
-  MOperator jmpOp = PickJmpInsn(stmt.GetOpCode(), cmpOp, isFloat, IsSignedInteger(pType));
+  bool isSigned = IsPrimitiveInteger(pType) ? IsSignedInteger(pType) :
+                                              (IsSignedInteger(condNode->GetPrimType()) ? true : false);
+  MOperator jmpOp = PickJmpInsn(stmt.GetOpCode(), cmpOp, isFloat, isSigned);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(jmpOp, rflag, targetOpnd));
 }
 
@@ -2355,7 +2355,7 @@ void AArch64CGFunc::SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &
     pType = condNode->GetPrimType();
   }
 
-  SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType);
+  SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType, IsSignedInteger(condNode->GetPrimType()));
 }
 
 void AArch64CGFunc::SelectGoto(GotoNode &stmt) {
@@ -7284,7 +7284,7 @@ Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnnode) {
   PrimType ptype = argexpr->GetPrimType();
   Operand *opnd = HandleExpr(intrnnode, *argexpr);
   MOperator mop;
-  if (GetPrimTypeSize(ptype) == 4) {
+  if (GetPrimTypeSize(ptype) == k4ByteSize) {
     mop = MOP_wclz;
   } else {
     mop = MOP_xclz;
@@ -7300,7 +7300,7 @@ Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnnode) {
   Operand *opnd = HandleExpr(intrnnode, *argexpr);
   MOperator clzmop;
   MOperator rbitmop;
-  if (GetPrimTypeSize(ptype) == 4) {
+  if (GetPrimTypeSize(ptype) == k4ByteSize) {
     clzmop = MOP_wclz;
     rbitmop = MOP_wrbit;
   } else {

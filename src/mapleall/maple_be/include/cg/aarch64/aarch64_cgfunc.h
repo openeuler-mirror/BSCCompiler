@@ -91,7 +91,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
-  Operand &GenLargeAggFormalMemOpnd(MIRSymbol &sym, uint32 alignUsed, int32 offset);
+  Operand &GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
@@ -99,7 +99,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &opnd0, Operand &opnd1,
-                      PrimType primType);
+                      PrimType primType, bool signedCond);
   void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &opnd0) override;
   void SelectCondSpecialCase2(const CondGotoNode &stmt, BaseNode &opnd0) override;
   void SelectGoto(GotoNode &stmt) override;
@@ -438,7 +438,7 @@ class AArch64CGFunc : public CGFunc {
 
   MOperator PickStInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
   MOperator PickLdInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
-  MOperator PickExtInsn(PrimType dtype, PrimType stype);
+  MOperator PickExtInsn(PrimType dtype, PrimType stype) const;
 
   bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
