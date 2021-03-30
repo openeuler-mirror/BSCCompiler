@@ -225,6 +225,8 @@ class CGLowerer {
    */
   bool IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic);
 
+  bool IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic);
+
  private:
 
   void SetCurrentFunc(MIRFunction *func) {

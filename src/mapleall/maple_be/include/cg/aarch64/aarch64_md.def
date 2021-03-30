@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan PSL v1.
  * You can use this software according to the terms and conditions of the Mulan PSL v1.
@@ -109,6 +109,16 @@ DEFINE_MOP(MOP_xvmuls, {mopdReg32FD,mopdReg32FS,mopdReg32FS},0,kLtFpmul,"fmul","
 DEFINE_MOP(MOP_xvmuld, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpmul,"fmul","0,1,2",1)
 /*MOP_xsmullrrr */
 DEFINE_MOP(MOP_xsmullrrr, {mopdReg64ID,mopdReg32IS,mopdReg32IS},0,kLtMul,"smull","0,1,2",1)
+
+/* AARCH64 leading zeros, reverse bits (for trailing zeros) */
+/* MOP_wclz */
+DEFINE_MOP(MOP_wclz, {mopdReg32ID,mopdReg32IS},0,kLtAlu,"clz","0,1", 1)
+/* MOP_xclz */
+DEFINE_MOP(MOP_xclz, {mopdReg64ID,mopdReg64IS},0,kLtAlu,"clz","0,1", 1)
+/* MOP_wrbit */
+DEFINE_MOP(MOP_wrbit, {mopdReg32ID,mopdReg32IS},0,kLtAlu,"rbit","0,1", 1)
+/* MOP_xrbit */
+DEFINE_MOP(MOP_xrbit, {mopdReg64ID,mopdReg64IS},0,kLtAlu,"rbit","0,1", 1)
 
 /* AARCH64 Conversions */
 /* MOP_xsxtb32 */

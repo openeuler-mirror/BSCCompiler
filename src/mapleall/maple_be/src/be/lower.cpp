@@ -2069,6 +2069,9 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     }
 
     case OP_intrinsicop:
+      if (IsIntrinsicOpHandledAtLowerLevel(static_cast<IntrinsicopNode&>(expr).GetIntrinsic())) {
+        return &expr;
+      }
       return LowerIntrinsicop(parent, static_cast<IntrinsicopNode&>(expr), blkNode);
 
     case OP_alloca: {
@@ -3129,6 +3132,20 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
 bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   /* only INTRN_MPL_ATOMIC_EXCHANGE_PTR now. */
   return intrinsic == INTRN_MPL_ATOMIC_EXCHANGE_PTR;
+}
+
+bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
+  switch (intrinsic) {
+#if TARGAARCH64
+  case INTRN_C_clz32:
+  case INTRN_C_clz64:
+  case INTRN_C_ctz32:
+  case INTRN_C_ctz64:
+    return true;
+#endif
+  default:
+    return false;
+  }
 }
 
 void CGLowerer::InitArrayClassCacheTableIndex() {

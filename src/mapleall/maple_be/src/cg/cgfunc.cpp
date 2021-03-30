@@ -323,6 +323,12 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       auto mirIntConst = static_cast<MIRIntConst*>(constNode->GetConstVal());
       return cgFunc.SelectLoadArrayClassCache(*st, mirIntConst->GetValue(), intrinsicopNode.GetPrimType());
     }
+    case INTRN_C_clz32:
+    case INTRN_C_clz64:
+      return cgFunc.SelectCclz(intrinsicopNode);
+    case INTRN_C_ctz32:
+    case INTRN_C_ctz64:
+      return cgFunc.SelectCctz(intrinsicopNode);
     default:
       ASSERT(false, "Should not reach here.");
       return nullptr;
