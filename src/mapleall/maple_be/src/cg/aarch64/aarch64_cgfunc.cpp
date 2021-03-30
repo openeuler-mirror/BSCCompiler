@@ -92,8 +92,6 @@ MOperator extIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
   { MOP_undef, MOP_undef,   MOP_undef,   MOP_undef}     /* u64/u64 */
 };
 
-/* extended to signed ints */
-
 MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd) {
   ASSERT(__builtin_popcount(static_cast<uint32>(memOrd)) <= 1, "must be kMoNone or kMoAcquire");
   ASSERT(primType != PTY_ptr, "should have been lowered");
@@ -146,7 +144,7 @@ MOperator AArch64CGFunc::PickStInsn(uint32 bitSize, PrimType primType, AArch64is
   return PickLdStInsn(false, bitSize, primType, memOrd);
 }
 
-MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) {
+MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) const {
   int32 sBitSize = GetPrimTypeBitSize(stype);
   int32 dBitSize = GetPrimTypeBitSize(dtype);
   /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
@@ -154,9 +152,9 @@ MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) {
     MOperator(*table)[kIntByteSizeDimension];
     table = IsUnsignedInteger(dtype) ? uextIs : extIs;
     /* __builtin_ffs(x) returns: 8 -> 4, 16 -> 5, 32 -> 6, 64 -> 7 */
-    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - 4;
+    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - k4BitSize;
     ASSERT(row <= 3, "wrong bitSize");
-    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - 4;
+    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - k4BitSize;
     ASSERT(col <= 3, "wrong bitSize");
     return table[row][col];
   }
@@ -468,7 +466,7 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   Insn *insn = nullptr;
   uint32 ssize = src.GetSize();
   PrimType regTy = PTY_void;
-  RegOperand *loadReg;
+  RegOperand *loadReg = nullptr;
   MOperator mop = MOP_undef;
   if (IsPrimitiveFloat(stype)) {
     CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
@@ -501,7 +499,6 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   }
 
   GetCurBB()->AppendInsn(*insn);
-
   if (regTy != PTY_void && mop != MOP_undef) {
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mop, dest, *loadReg));
   }
@@ -998,7 +995,7 @@ void AArch64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   }
 }
 
-Operand &AArch64CGFunc::GenLargeAggFormalMemOpnd(MIRSymbol &sym, uint32 align, int32 offset) {
+Operand &AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset) {
   Operand *memOpnd;
   if (sym.GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(sym.GetTyIdx()) > k16ByteSize) {
     /* formal of size of greater than 16 is copied by the caller and the pointer to it is passed. */
@@ -1044,13 +1041,19 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
+    bool parmCopy = IsParamStructCopy(*rhsSymbol);
     for (uint32 i = 0; i < (lhsSize / alignUsed); i++) {
       /* generate the load */
-      Operand &rhsMemOpnd = GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      Operand *rhsMemOpnd;
+      if (parmCopy) {
+        rhsMemOpnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      } else {
+        rhsMemOpnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      }
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, alignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32),
-                                                                    result, rhsMemOpnd));
+                                                                    result, *rhsMemOpnd));
       /* generate the store */
       Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, alignUsed, (lhsOffset + i * alignUsed));
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(alignUsed * k8BitSize, PTY_u32),
@@ -7284,7 +7287,7 @@ Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnnode) {
   PrimType ptype = argexpr->GetPrimType();
   Operand *opnd = HandleExpr(intrnnode, *argexpr);
   MOperator mop;
-  if (GetPrimTypeSize(ptype) == 4) {
+  if (GetPrimTypeSize(ptype) == k4ByteSize) {
     mop = MOP_wclz;
   } else {
     mop = MOP_xclz;
@@ -7300,7 +7303,7 @@ Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnnode) {
   Operand *opnd = HandleExpr(intrnnode, *argexpr);
   MOperator clzmop;
   MOperator rbitmop;
-  if (GetPrimTypeSize(ptype) == 4) {
+  if (GetPrimTypeSize(ptype) == k4ByteSize) {
     clzmop = MOP_wclz;
     rbitmop = MOP_wrbit;
   } else {
