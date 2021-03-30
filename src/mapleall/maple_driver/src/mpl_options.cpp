@@ -111,22 +111,16 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         return kErrorExitHelp;
       }
       case kMeOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameMe);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        meOptArgs = opt.Args();
+        printExtraOptStr << " --me-opt=" << "\"" << meOptArgs << "\"";
         break;
       case kMpl2MplOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameMpl2mpl);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        mpl2mplOptArgs = opt.Args();
+        printExtraOptStr << " --mpl2mpl-opt=" << "\"" << mpl2mplOptArgs << "\"";
         break;
       case kMplcgOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameMplcg);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        mplcgOptArgs = opt.Args();
+        printExtraOptStr << " --mplcg-opt=" << "\"" << mplcgOptArgs << "\"";
         break;
       case kTimePhases:
         timePhases = true;
@@ -189,22 +183,6 @@ ErrorCode MplOptions::DecideRunType() {
           optimizationLevel = kO2;
         }
         break;
-      case kCLangOptimization0:
-        if (runMode == RunMode::kCustomRun) {  // O0 and run should not appear at the same time
-          runModeConflict = true;
-        } else {
-          runMode = RunMode::kAutoRun;
-          optimizationLevel = kCLangO0;
-        }
-            break;
-      case kCLangOptimization2:
-        if (runMode == RunMode::kCustomRun) {  // O0 and run should not appear at the same time
-          runModeConflict = true;
-        } else {
-          runMode = RunMode::kAutoRun;
-          optimizationLevel = kCLangO2;
-        }
-            break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
           runModeConflict = true;
@@ -257,16 +235,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
       break;
   }
   if (isNeedMapleComb) {
-    ret = AppendDefaultCombOptions();
-    if (ret != kErrorNoError) {
-      return ret;
-    }
+    selectedExes.push_back(kBinNameMapleComb);
   }
   if (isNeedMplcg) {
-    ret = AppendDefaultCgOptions();
-    if (ret != kErrorNoError) {
-      return ret;
-    }
+    selectedExes.push_back(kBinNameMplcg);
   }
   return ret;
 }
@@ -356,51 +328,61 @@ bool MplOptions::Init(const std::string &inputFile) {
   return true;
 }
 
-ErrorCode MplOptions::AppendDefaultCombOptions() {
+ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
   ErrorCode ret = kErrorNoError;
-  if (optimizationLevel == kO0 || optimizationLevel == kCLangO0) {
+  if (runMode == RunMode::kCustomRun) {
+    return ret;
+  }
+  if (optimizationLevel == kO0) {
     ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO0, sizeof(kMeDefaultOptionsO0) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
     }
-    if (optimizationLevel == kO0) {
+    if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0,
                                  sizeof(kMpl2MplDefaultOptionsO0) / sizeof(MplOption));
+      UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
     }
     if (ret != kErrorNoError) {
       return ret;
     }
-  } else if (optimizationLevel == kO2 || optimizationLevel == kCLangO2) {
+  } else if (optimizationLevel == kO2) {
     ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2, sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
     }
-    if (optimizationLevel == kO2) {
+    if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
                                  sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
+      UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
     }
     if (ret != kErrorNoError) {
       return ret;
     }
   }
+  UpdatePhaseOption(meOptArgs, kBinNameMe);
   return ret;
 }
 
-ErrorCode MplOptions::AppendDefaultCgOptions() {
+ErrorCode MplOptions::AppendMplcgOptions() {
   ErrorCode ret = kErrorNoError;
-  if (optimizationLevel == kO0 || optimizationLevel == kCLangO0) {
+  if (runMode == RunMode::kCustomRun) {
+    return ret;
+  }
+  if (optimizationLevel == kO0) {
     ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0,
                                sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
     }
-  } else if (optimizationLevel == kO2 || optimizationLevel == kCLangO2) {
+  } else if (optimizationLevel == kO2) {
     ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
                                sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
     if (ret != kErrorNoError) {
       return ret;
     }
   }
+  UpdatePhaseOption(mplcgOptArgs, kBinNameMplcg);
   return ret;
 }
 
@@ -469,7 +451,83 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
     auto iter = std::find(runningExes.begin(), runningExes.end(), results[i]);
     if (iter == runningExes.end()) {
       runningExes.push_back(results[i]);
+      selectedExes.push_back(results[i]);
     }
+  }
+}
+
+std::string MplOptions::GetInputFileNameForPrint() const{
+  if (!runningExes.empty()) {
+    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl
+        || runningExes[0] == kBinNameMplcg) {
+      return inputFiles;
+    }
+  }
+  if (inputFileType == InputFileType::kFileTypeVtableImplMpl) {
+    return outputFolder + outputName + ".VtableImpl.mpl";
+  }
+  if (inputFileType == InputFileType::kFileTypeBpl) {
+    return outputFolder + outputName + ".bpl";
+  }
+  return outputFolder + outputName + ".mpl";
+}
+
+void MplOptions::PrintCommand() {
+  if (hasPrinted) {
+    return;
+  }
+  std::ostringstream optionStr;
+  if (runMode == RunMode::kAutoRun) {
+    if (optimizationLevel == kO0) {
+      optionStr << " -O0";
+    } else if (optimizationLevel == kO2) {
+      optionStr << " -O2";
+    }
+    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
+                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
+  }
+  if (runMode == RunMode::kCustomRun) {
+    PrintDetailCommand(true);
+  }
+  hasPrinted = true;
+}
+void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
+                               std::string &runStr) {
+  std::string connectSym = "";
+  if (exeOptions.find(exeName) != exeOptions.end()) {
+    if (!firstComb) {
+      runStr += (":" + exeName);
+      optionStr += ":";
+    } else {
+      runStr += exeName;
+      firstComb = false;
+    }
+    auto it = exeOptions.find(exeName);
+    for (const mapleOption::Option &opt : it->second) {
+      connectSym = !opt.Args().empty() ? "=" : "";
+      optionStr += (" --" + opt.OptionKey() + connectSym + opt.Args());;
+    }
+  }
+}
+void MplOptions::PrintDetailCommand(bool isBeforeParse) {
+  if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end()
+      && exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
+    return;
+  }
+  std::string runStr = "--run=";
+  std::string optionStr;
+  optionStr += "--option=\"";
+  bool firstComb = true;
+  connectOptStr(optionStr, kBinNameMe, firstComb, runStr);
+  connectOptStr(optionStr, kBinNameMpl2mpl, firstComb, runStr);
+  connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
+  optionStr += "\"";
+  if (isBeforeParse) {
+    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
+                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
+  } else {
+    LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
+                           << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
   }
 }
 }  // namespace maple
