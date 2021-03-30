@@ -170,6 +170,8 @@ class CGFunc {
   virtual void SelectCall(CallNode &callNode) = 0;
   virtual void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) = 0;
   virtual void SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) = 0;
+  virtual Operand *SelectCclz(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectCctz(IntrinsicopNode &intrinopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
