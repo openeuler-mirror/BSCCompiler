@@ -517,6 +517,10 @@ class MIRType {
     return typeKind == kTypeScalar;
   }
 
+  bool IsMIRTypeByName() const {
+    return typeKind == kTypeByName;
+  }
+
   bool ValidateClassOrInterface(const std::string &className, bool noWarning) const;
   bool IsOfSameType(MIRType &type);
   const std::string &GetName() const;
@@ -888,6 +892,10 @@ class MIRStructType : public MIRType {
     return TraverseToField(id).second;
   }
 
+  TyIdxFieldAttrPair GetTyidxFieldAttrPair(uint32 n) const {
+    return fields.at(n).second;
+  }
+
   TyIdx GetFieldTyIdx(FieldID id) const {
     const FieldPair &fieldPair = TraverseToField(id);
     return fieldPair.second.first;
@@ -1126,8 +1134,9 @@ class MIRStructType : public MIRType {
   std::vector<GenericDeclare*> genericDeclare;
   std::map<GStrIdx, AnnotationType*> fieldGenericDeclare;
   std::vector<GenericType*> inheritanceGeneric;
- private:
+ public:
   FieldPair TraverseToField(FieldID fieldID) const ;
+ private:
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
@@ -1466,8 +1475,18 @@ class MIRBitFieldType : public MIRType {
   }
 
   size_t GetSize() const override {
-    return 0;
+    if (fieldSize == 0) {
+      return 0;
+    } else if (fieldSize <= 8) {
+      return 1;
+    } else {
+      return (fieldSize + 7) / 8;
+    }
   }  // size not be in bytes
+
+  uint32 GetAlign() const override {
+    return 0;
+  }  // align not be in bytes
 
   size_t GetHashIndex() const override {
     return ((static_cast<uint32>(primType) << fieldSize) + (typeKind << kShiftNumOfTypeKind)) % kTypeHashLength;
