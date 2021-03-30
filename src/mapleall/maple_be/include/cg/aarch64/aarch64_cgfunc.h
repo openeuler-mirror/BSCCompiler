@@ -91,7 +91,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
-  Operand &GenLargeAggFormalMemOpnd(MIRSymbol &sym, uint32 alignUsed, int32 offset);
+  Operand &GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
@@ -438,7 +438,7 @@ class AArch64CGFunc : public CGFunc {
 
   MOperator PickStInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
   MOperator PickLdInsn(uint32 bitSize, PrimType primType, AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
-  MOperator PickExtInsn(PrimType dtype, PrimType stype);
+  MOperator PickExtInsn(PrimType dtype, PrimType stype) const;
 
   bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
@@ -580,15 +580,15 @@ class AArch64CGFunc : public CGFunc {
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
   AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
-                                                      int32 copyOffset, const PLocInfo &pLoc);
+                                                      int32 copyOffset, int32 fromOffset, const PLocInfo &pLoc);
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          ParmLocator &parmLocator);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          ParmLocator &parmLocator);
   void SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset);
+                                         ParmLocator &parmLocator, int32 structCopyOffset, int32 fromOffset);
   void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset);
+                                         ParmLocator &parmLocator, int32 structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, ParmLocator &parmLocator,
                                         AArch64ListOperand &srcOpnds);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
