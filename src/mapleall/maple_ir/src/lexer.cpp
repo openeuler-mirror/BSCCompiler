@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,6 +20,7 @@
 #include "mir_module.h"
 #include "securec.h"
 #include "utils.h"
+#include "debug_info.h"
 
 namespace maple {
 int32 HexCharToDigit(char c) {
@@ -85,6 +86,7 @@ void MIRLexer::PrepareForFile(const std::string &filename) {
   } else {
     lineNum = 1;
   }
+  module.GetDbgInfo()->UpdateMsg(lineNum, line.c_str());
   kind = TK_invalid;
 }
 
@@ -540,7 +542,8 @@ TokenKind MIRLexer::LexToken() {
     if (ReadALine() < 0) {
       return TK_eof;
     }
-    ++lineNum;  // a new line readed.
+    ++lineNum;  // a new line read.
+    module.GetDbgInfo()->UpdateMsg(lineNum, line.c_str());
     // skip spaces
     c = GetCurrentCharWithUpperCheck();
     while (c == ' ' || c == '\t') {
