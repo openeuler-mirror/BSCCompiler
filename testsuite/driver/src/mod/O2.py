@@ -23,20 +23,20 @@ O2 = {
     "compile": [
         Java2dex(
             jar_file=[
-                "${OUT_ROOT}/aarch64-clang-release/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
-                "${OUT_ROOT}/aarch64-clang-release/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
             ],
             outfile="${APP}.dex",
             infile=["${APP}.java","${EXTRA_JAVA_FILE}"]
         ),
         Dex2mpl(
-            dex2mpl="${OUT_ROOT}/aarch64-clang-release/bin/dex2mpl",
-            mplt="${OUT_ROOT}/aarch64-clang-release/libjava-core/libcore-all.mplt",
+            dex2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/dex2mpl",
+            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt",
             litprofile="${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list",
             infile="${APP}.dex"
         ),
         Maple(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
             run=["me", "mpl2mpl", "mplcg"],
             option={
                 "me": "--O2 --quiet",
@@ -55,11 +55,11 @@ O2 = {
             qemu="${TOOL_BIN_PATH}/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${OUT_ROOT}/aarch64-clang-release/ops/third_party",
-                "${OUT_ROOT}/aarch64-clang-release/ops/host-x86_64-O2",
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party",
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2",
                 "./"
             ],
-            mplsh="${OUT_ROOT}/aarch64-clang-release/ops/mplsh",
+            mplsh="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",

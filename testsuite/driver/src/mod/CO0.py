@@ -28,7 +28,7 @@ CO0 = {
             infile="${APP}.B"
         ),
         Maple(
-            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
+            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
             run=["mplcg"],
             option={
                 "mplcg": "--quiet"
