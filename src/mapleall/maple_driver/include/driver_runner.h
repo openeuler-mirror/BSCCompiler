@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,15 +32,13 @@ extern const std::string mplME;
 
 class DriverRunner final {
  public:
-  DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType, Options *mpl2mplOptions,
-               std::string mpl2mplInput, MeOption *meOptions, const std::string &meInput, std::string actualInput,
+  DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
+               std::string mpl2mplInput, const std::string &meInput, std::string actualInput,
                MemPool *optMp, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
       : theModule(theModule),
         exeNames(exeNames),
-        mpl2mplOptions(mpl2mplOptions),
         mpl2mplInput(mpl2mplInput),
-        meOptions(meOptions),
         meInput(meInput),
         actualInput(actualInput),
         optMp(optMp),
@@ -48,12 +46,19 @@ class DriverRunner final {
         timePhases(timePhases),
         genVtableImpl(genVtableImpl),
         genMeMpl(genMeMpl),
-        inputFileType(inpFileType) {}
+        inputFileType(inpFileType) {
+    auto lastDot = actualInput.find_last_of(".");
+    baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
+  }
 
-  DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType, std::string actualInput, MemPool *optMp,
-               bool fileParsed = false, bool timePhases = false, bool genVtableImpl = false, bool genMeMpl = false)
-      : DriverRunner(theModule, exeNames, inpFileType, nullptr, "", nullptr, "", actualInput, optMp, fileParsed, timePhases,
-                     genVtableImpl, genMeMpl) {}
+  DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
+               std::string actualInput, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
+               bool genVtableImpl = false, bool genMeMpl = false)
+      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, optMp, fileParsed, timePhases,
+                     genVtableImpl, genMeMpl) {
+    auto lastDot = actualInput.find_last_of(".");
+    baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
+  }
 
   ~DriverRunner() = default;
 
@@ -63,10 +68,23 @@ class DriverRunner final {
     this->cgOptions = cgOptions;
     this->cgInput = cgInput;
   }
+  ErrorCode ParseInput() const;
+
+  void SetPrintOutExe (const std::string outExe) {
+    printOutExe = outExe;
+  }
+
+  void SetMpl2mplOptions(Options *options) {
+    mpl2mplOptions = options;
+  }
+
+  void SetMeOptions(MeOption *options) {
+      meOptions = options;
+  }
+
  private:
   bool IsFramework() const;
-  ErrorCode ParseInput(const std::string &outputFile, const std::string &oriBasename) const;
-  std::string GetPostfix() const;
+  std::string GetPostfix();
   void InitPhases(InterleavedManager &mgr, const std::vector<std::string> &phases) const;
   void AddPhases(InterleavedManager &mgr, const std::vector<std::string> &phases,
                  const PhaseManager &phaseManager) const;
@@ -83,7 +101,7 @@ class DriverRunner final {
   void ProcessExtraTime(const std::vector<long> &extraPhasesTime, const std::vector<std::string> &extraPhasesName,
                         CgFuncPhaseManager &cgfpm) const;
   MIRModule *theModule;
-  std::vector<std::string> exeNames;
+  std::vector<std::string> exeNames = {};
   Options *mpl2mplOptions = nullptr;
   std::string mpl2mplInput;
   MeOption *meOptions = nullptr;
@@ -94,8 +112,11 @@ class DriverRunner final {
   bool timePhases = false;
   bool genVtableImpl = false;
   bool genMeMpl = false;
+  std::string printOutExe = "";
+  std::string baseName;
+  std::string outputFile;
   InputFileType inputFileType;
-  std::string printOutExe;
+  bool hasDebugFlag = false;
 };
 }  // namespace maple
 
