@@ -1041,13 +1041,19 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     rhsAlign = GetBecommon().GetTypeAlign(rhsType->GetTypeIndex());
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
+    bool parmCopy = IsParamStructCopy(*rhsSymbol);
     for (uint32 i = 0; i < (lhsSize / alignUsed); i++) {
       /* generate the load */
-      Operand &rhsMemOpnd = GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      Operand *rhsMemOpnd;
+      if (parmCopy) {
+        rhsMemOpnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      } else {
+        rhsMemOpnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset + i * alignUsed, alignUsed * k8BitSize);
+      }
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, alignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32),
-                                                                    result, rhsMemOpnd));
+                                                                    result, *rhsMemOpnd));
       /* generate the store */
       Operand &lhsMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, alignUsed, (lhsOffset + i * alignUsed));
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(alignUsed * k8BitSize, PTY_u32),
