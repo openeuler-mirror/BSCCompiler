@@ -2206,7 +2206,7 @@ void AArch64CGFunc::SelectIgoto(Operand *opnd0) {
 }
 
 void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &origOpnd0,
-                                   Operand &origOpnd1, PrimType primType) {
+                                   Operand &origOpnd1, PrimType primType, bool signedCond) {
   Operand *opnd0 = &origOpnd0;
   Operand *opnd1 = &origOpnd1;
   opnd0 = &LoadIntoRegister(origOpnd0, primType);
@@ -2252,7 +2252,8 @@ void AArch64CGFunc::SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcod
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, rflag, *opnd0, *opnd1));
   }
 
-  MOperator jmpOperator = PickJmpInsn(jmpOp, cmpOp, isFloat, IsSignedInteger(primType));
+  bool isSigned = IsPrimitiveInteger(primType) ? IsSignedInteger(primType) : (signedCond ? true : false);
+  MOperator jmpOperator = PickJmpInsn(jmpOp, cmpOp, isFloat, isSigned);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, targetOpnd));
 }
 
@@ -2289,7 +2290,9 @@ void AArch64CGFunc::SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &expr) {
   PrimType pType = static_cast<CompareNode*>(condNode)->GetOpndType();
   isFloat = IsPrimitiveFloat(pType);
   Operand &rflag = GetOrCreateRflag();
-  MOperator jmpOp = PickJmpInsn(stmt.GetOpCode(), cmpOp, isFloat, IsSignedInteger(pType));
+  bool isSigned = IsPrimitiveInteger(pType) ? IsSignedInteger(pType) :
+                                              (IsSignedInteger(condNode->GetPrimType()) ? true : false);
+  MOperator jmpOp = PickJmpInsn(stmt.GetOpCode(), cmpOp, isFloat, isSigned);
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(jmpOp, rflag, targetOpnd));
 }
 
@@ -2358,7 +2361,7 @@ void AArch64CGFunc::SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &
     pType = condNode->GetPrimType();
   }
 
-  SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType);
+  SelectCondGoto(targetOpnd, stmt.GetOpCode(), cmpOp, opnd0, opnd1, pType, IsSignedInteger(condNode->GetPrimType()));
 }
 
 void AArch64CGFunc::SelectGoto(GotoNode &stmt) {

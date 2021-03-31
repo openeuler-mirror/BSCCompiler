@@ -177,13 +177,24 @@ void AArch64MemLayout::LayoutFormalParams() {
   PLocInfo ploc;
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
     MIRSymbol *sym = mirFunction->GetFormal(i);
+    uint32 stIndex = sym->GetStIndex();
+    AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
+    SetSymAllocInfo(stIndex, *symLoc);
+    if (i == 0) {
+      if (be.HasFuncReturnType(*mirFunction)) {
+        symLoc->SetMemSegment(GetSegArgsRegPassed());
+        symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
+        TyIdx tidx = be.GetFuncReturnType(*mirFunction);
+        if (be.GetTypeSize(tidx.GetIdx()) > k16ByteSize) {
+          segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + kSizeOfPtr);
+        }
+        continue;
+      }
+    }
     bool noStackPara = false;
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
     parmLocator.LocateNextParm(*ty, ploc, i == 0);
-    uint32 stIndex = sym->GetStIndex();
-    AArch64SymbolAlloc *symLoc = memAllocator->GetMemPool()->New<AArch64SymbolAlloc>();
-    SetSymAllocInfo(stIndex, *symLoc);
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(ploc.reg0, ploc.reg1, ploc.reg2, ploc.reg3);
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {
@@ -302,6 +313,11 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
 
 void AArch64MemLayout::LayoutActualParams() {
   for (size_t i = 0; i < mirFunction->GetFormalCount(); ++i) {
+    if (i == 0) {
+      if (be.HasFuncReturnType(*mirFunction)) {
+        continue;
+      }
+    }
     MIRSymbol *sym = mirFunction->GetFormal(i);
     if (sym->IsPreg()) {
       continue;
