@@ -1500,8 +1500,10 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
   }
   int64 iNum = (arrayType.GetSizeArrayItem(0) > 0) ? (static_cast<int64>(arrayType.GetSizeArrayItem(0))) - uNum : 0;
   if (iNum > 0) {
-    CHECK_FATAL(!Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeSizeTable(), "container empty check");
-    CHECK_FATAL(!arrayCt.GetConstVec().empty(), "container empty check");
+    if (!cg->GetMIRModule()->IsCModule()) {
+      CHECK_FATAL(!Globals::GetInstance()->GetBECommon()->IsEmptyOfTypeSizeTable(), "container empty check");
+      CHECK_FATAL(!arrayCt.GetConstVec().empty(), "container empty check");
+    }
     if (uNum > 0) {
       uint64 unInSizeInByte = static_cast<uint64>(iNum) * static_cast<uint64>(
           Globals::GetInstance()->GetBECommon()->GetTypeSize(arrayCt.GetConstVecItem(0)->GetType().GetTypeIndex()));
