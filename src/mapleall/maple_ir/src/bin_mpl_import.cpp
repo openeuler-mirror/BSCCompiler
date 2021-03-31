@@ -135,7 +135,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       LabelIdx lidx = ReadNum();
       PUIdx puIdx = func->GetPuidx();
       MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type, fieldID);
-      func->GetLabelTab()->addrTakenLabels.insert(lidx);
+      (void)func->GetLabelTab()->addrTakenLabels.insert(lidx);
       return lblConst;
     }
     case kBinKindConstStr: {
@@ -333,7 +333,7 @@ void BinaryMplImport::UpdateMethodSymbols() {
     if (fn->GetFormalDefVec().size() != 0) {
       continue;  // already updated in ImportFunction()
     }
-    for (size_t i = 0; i < funcType->GetParamTypeList().size(); i++ ) {
+    for (size_t i = 0; i < funcType->GetParamTypeList().size(); ++i) {
       FormalDef formalDef(nullptr, funcType->GetParamTypeList()[i], funcType->GetParamAttrsList()[i]);
       fn->GetFormalDefVec().push_back(formalDef);
     }
@@ -475,6 +475,7 @@ void BinaryMplImport::Reset() {
   uStrTab.push_back(UStrIdx(0));  // Dummy
   symTab.push_back(nullptr);      // Dummy
   funcTab.push_back(nullptr);     // Dummy
+  eaCgTab.push_back(nullptr);
   for (int32 pti = static_cast<int32>(PTY_begin); pti < static_cast<int32>(PTY_end); ++pti) {
     typTab.push_back(GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(pti)));
   }
@@ -508,7 +509,7 @@ void BinaryMplImport::CompleteAggInfo(TyIdx tyIdx) {
     auto *classType = static_cast<MIRClassType*>(type);
     ImportStructTypeData(*classType);
     ImportClassTypeData(*classType);
-  } else if (type->GetKind() == kTypeStruct) {
+  } else if (type->GetKind() == kTypeStruct || type->GetKind() == kTypeUnion) {
     auto *structType = static_cast<MIRStructType*>(type);
     ImportStructTypeData(*structType);
   } else {
@@ -554,10 +555,10 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       type.SetNameIsLocal(nameIsLocal);
       size_t idx = typTab.size();
       typTab.push_back(nullptr);
+      type.SetTypeAttrs(ImportTypeAttrs());
       ++ptrLev;
       type.SetPointedTyIdx(ImportType(true));
       --ptrLev;
-      type.SetTypeAttrs(ImportTypeAttrs());
       MIRType *origType = &InsertInTypeTables(type);
       typTab[idx] = origType;
       if (typeNeedsComplete != nullptr && ptrLev == 0) {
@@ -611,7 +612,7 @@ TyIdx BinaryMplImport::ImportType(bool forPointedType) {
       return origType->GetTypeIndex();
     }
     case kBinKindTypeFunction: {
-      MIRFuncType type(strIdx, mod.GetMPAllocator());
+      MIRFuncType type(strIdx);
       type.SetNameIsLocal(nameIsLocal);
       size_t idx = typTab.size();
       typTab.push_back(nullptr);
@@ -735,10 +736,12 @@ MIRType &BinaryMplImport::InsertInTypeTables(MIRType &type) {
   TyIdx prevTyIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(type.GetNameStrIdx());
   if (prevTyIdx != 0u && !type.IsNameIsLocal()) {
     MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTyIdx);
-    if ((IsIncomplete(*prevType) && IsIncomplete(type)) || (!IsIncomplete(*prevType) && !IsIncomplete(type)) ||
-        (!IsIncomplete(*prevType) && IsIncomplete(type))) {
+    if (!prevType->IsMIRTypeByName() &&
+        ((IsIncomplete(*prevType) && IsIncomplete(type)) ||
+         (!IsIncomplete(*prevType) && !IsIncomplete(type)) ||
+         (!IsIncomplete(*prevType) && IsIncomplete(type)))) {
       resultTypePtr = prevType->CopyMIRTypeNode();
-      if (resultTypePtr->GetKind() == kTypeStruct || resultTypePtr->GetKind() == kTypeStructIncomplete) {
+      if (resultTypePtr->GetKind() == kTypeStruct || resultTypePtr->GetKind() == kTypeUnion || resultTypePtr->GetKind() == kTypeStructIncomplete) {
         tmpStruct.push_back(static_cast<MIRStructType*>(resultTypePtr));
       } else if (resultTypePtr->GetKind() == kTypeClass || resultTypePtr->GetKind() == kTypeClassIncomplete) {
         tmpClass.push_back(static_cast<MIRClassType*>(resultTypePtr));
@@ -776,10 +779,6 @@ MIRType &BinaryMplImport::InsertInTypeTables(MIRType &type) {
   }
   return *resultTypePtr;
 }
-
-void BinaryMplImport::UpdateDebugInfo() {
-}
-
 
 void BinaryMplImport::SetupEHRootType() {
   // setup eh root type with most recent Ljava_2Flang_2FObject_3B
@@ -886,10 +885,44 @@ PUIdx BinaryMplImport::ImportFunction() {
   func->SetMIRFuncType(static_cast<MIRFuncType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcTyIdx)));
 
   func->SetStIdx(funcSt->GetStIdx());
-  func->SetFuncAttrs(ReadNum());
+  if (!inCG) {
+    func->SetFuncAttrs(ReadNum());  // merge side effect
+  } else {
+    if (!func->IsDirty()) {
+      func->SetDirty(true);
+      func->SetFuncAttrs(ReadNum());  // merge side effect
+    } else {
+      FuncAttrs tmp;
+      tmp.SetAttrFlag(ReadNum());
+      if (func->IsNoDefArgEffect() != tmp.GetAttr(FUNCATTR_nodefargeffect)) {
+        tmp.SetAttr(FUNCATTR_nodefargeffect, true);
+      }
+      if (func->IsNoDefEffect() != tmp.GetAttr(FUNCATTR_nodefeffect)) {
+        tmp.SetAttr(FUNCATTR_nodefeffect, true);
+      }
+      if (func->IsNoRetGlobal() != tmp.GetAttr(FUNCATTR_noretglobal)) {
+        tmp.SetAttr(FUNCATTR_noretglobal, true);
+      }
+      if (func->IsNoThrowException() != tmp.GetAttr(FUNCATTR_nothrow_exception)) {
+        tmp.SetAttr(FUNCATTR_nothrow_exception, true);
+      }
+      if (func->IsIpaSeen() != tmp.GetAttr(FUNCATTR_ipaseen)) {
+        tmp.SetAttr(FUNCATTR_ipaseen);
+      }
+      if (func->IsPure() != tmp.GetAttr(FUNCATTR_pure)) {
+        tmp.SetAttr(FUNCATTR_pure, true);
+      }
+      if (func->IsNoRetArg() != tmp.GetAttr(FUNCATTR_noretarg)) {
+        tmp.SetAttr(FUNCATTR_noretarg, true);
+      }
+      if (func->IsNoPrivateDefEffect() != tmp.GetAttr(FUNCATTR_noprivate_defeffect)) {
+        tmp.SetAttr(FUNCATTR_noprivate_defeffect, true);
+      }
+      func->SetFuncAttrs(tmp);
+    }
+  }
   func->SetFlag(ReadNum());
-  /*func->SetClassTyIdx(*/ImportType();  // not set the field to mimic parser
-  // import formal parameter informcation
+  (void)ImportType();  // not set the field to mimic parser
   size_t size = ReadNum();
   if (func->GetFormalDefVec().size() == 0) {
     for (size_t i = 0; i < size; i++) {
@@ -986,11 +1019,293 @@ void BinaryMplImport::ReadTypeField() {
   CHECK_FATAL(tag == ~kBinTypeStart, "pattern mismatch in Read TYPE");
 }
 
+CallInfo *BinaryMplImport::ImportCallInfo() {
+  int64 tag = ReadNum();
+  if (tag < 0) {
+    CHECK_FATAL(static_cast<size_t>(-tag) < callInfoTab.size(), "index out of bounds");
+    return callInfoTab.at(-tag);
+  }
+  CHECK_FATAL(tag == kBinCallinfo, "expecting kBinCallinfo");
+  CallType ctype = (CallType)ReadNum();  // call type
+  uint32 loopDepth = static_cast<uint32>(ReadInt());
+  uint32 id = static_cast<uint32>(ReadInt());
+  bool argLocal = Read() == 1;
+  MIRSymbol *funcSym = InSymbol(nullptr);
+  CHECK_FATAL(funcSym != nullptr, "func_sym is null in BinaryMplImport::InCallInfo");
+  CallInfo *ret = mod.GetMemPool()->New<CallInfo>(ctype, *funcSym->GetFunction(),
+                                                  static_cast<StmtNode*>(nullptr), loopDepth, id, argLocal);
+  callInfoTab.push_back(ret);
+  return ret;
+}
+
+void BinaryMplImport::MergeDuplicated(PUIdx methodPuidx, std::vector<CallInfo*> &targetSet,
+                                      std::vector<CallInfo*> &newSet) {
+  if (targetSet.empty()) {
+    (void)targetSet.insert(targetSet.begin(), newSet.begin(), newSet.end());
+    std::unordered_set<uint32> tmp;
+    mod.AddValueToMethod2TargetHash(methodPuidx, tmp);
+    for (size_t i = 0; i < newSet.size(); ++i) {
+      mod.InsertTargetHash(methodPuidx, newSet[i]->GetID());
+    }
+  } else {
+    for (size_t i = 0; i < newSet.size(); ++i) {
+      CallInfo *newItem = newSet[i];
+      if (!mod.HasTargetHash(methodPuidx, newItem->GetID())) {
+        targetSet.push_back(newItem);
+        mod.InsertTargetHash(methodPuidx, newItem->GetID());
+      }
+    }
+  }
+}
+
+void BinaryMplImport::ReadCgField() {
+  SkipTotalSize();
+
+  int32 size = ReadInt();
+  int64 tag = 0;
+
+  for (int i = 0; i < size; ++i) {
+    tag = ReadNum();
+    CHECK_FATAL(tag == kStartMethod, " should be start point of method");
+    MIRSymbol *tmpInSymbol = InSymbol(nullptr);
+    CHECK_FATAL(tmpInSymbol != nullptr, "null ptr check");
+    PUIdx methodPuidx = tmpInSymbol->GetFunction()->GetPuidx();
+    CHECK_FATAL(methodPuidx, "should not be 0");
+    if (mod.GetMethod2TargetMap().find(methodPuidx) == mod.GetMethod2TargetMap().end()) {
+      std::vector<CallInfo*> targetSetTmp;
+      mod.AddMemToMethod2TargetMap(methodPuidx, targetSetTmp);
+    }
+    int32 targSize = ReadInt();
+    std::vector<CallInfo*> targetSet;
+    callInfoTab.clear();
+    callInfoTab.push_back(nullptr);
+    for (int32 j = 0; j < targSize; ++j) {
+      CallInfo *callInfo = ImportCallInfo();
+      targetSet.push_back(callInfo);
+    }
+    MergeDuplicated(methodPuidx, mod.GetMemFromMethod2TargetMap(methodPuidx), targetSet);
+    tag = ReadNum();
+    CHECK_FATAL(tag == ~kStartMethod, " should be start point of method");
+  }
+  tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinCgStart, "pattern mismatch in Read CG");
+}
+
+void BinaryMplImport::ReadEaField() {
+  ReadInt();
+  int size = ReadInt();
+  for (int i = 0; i < size; ++i) {
+    GStrIdx funcName = ImportStr();
+    int nodesSize = ReadInt();
+    EAConnectionGraph *newEaCg = mod.GetMemPool()->New<EAConnectionGraph>(&mod, &mod.GetMPAllocator(), funcName, true);
+    newEaCg->ResizeNodes(nodesSize, nullptr);
+    InEaCgNode(*newEaCg);
+    int eaSize = ReadInt();
+    for (int j = 0; j < eaSize; ++j) {
+      EACGBaseNode *node = &InEaCgNode(*newEaCg);
+      newEaCg->funcArgNodes.push_back(node);
+    }
+    mod.SetEAConnectionGraph(funcName, newEaCg);
+  }
+  CHECK_FATAL(ReadNum() == ~kBinEaStart, "pattern mismatch in Read EA");
+}
+
+void BinaryMplImport::ReadSeField() {
+  SkipTotalSize();
+
+  int32 size = ReadInt();
+#ifdef MPLT_DEBUG
+  LogInfo::MapleLogger() << "SE SIZE : " << size << '\n';
+#endif
+  for (int32 i = 0; i < size; ++i) {
+    GStrIdx funcName = ImportStr();
+    uint8 specialEffect = Read();
+    TyIdx tyIdx = kInitTyIdx;
+    if ((specialEffect & kPureFunc) == kPureFunc) {
+      tyIdx = ImportType();
+    }
+    const std::string &funcStr = GlobalTables::GetStrTable().GetStringFromStrIdx(funcName);
+    if (funcStr == "Ljava_2Flang_2FObject_3B_7Cwait_7C_28_29V") {
+      specialEffect = 0;
+    }
+    auto *funcSymbol =
+        GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(funcStr));
+    MIRFunction *func = funcSymbol != nullptr ? mirBuilder.GetFunctionFromSymbol(*funcSymbol) : nullptr;
+    if (func != nullptr) {
+      func->SetAttrsFromSe(specialEffect);
+    } else if ((specialEffect & kPureFunc) == kPureFunc) {
+      func = mirBuilder.GetOrCreateFunction(funcStr, tyIdx);
+      func->SetAttrsFromSe(specialEffect);
+    }
+  }
+  int64 tag = ReadNum();
+  CHECK_FATAL(tag == ~kBinSeStart, "pattern mismatch in Read TYPE");
+}
+
+void BinaryMplImport::InEaCgBaseNode(EACGBaseNode &base, EAConnectionGraph &newEaCg, bool firstPart) {
+  if (firstPart) {
+    base.SetEAStatus((EAStatus)ReadNum());
+    base.SetID(ReadInt());
+  } else {
+    // start to in points to
+    int size = ReadInt();
+    for (int i = 0; i < size; ++i) {
+      EACGBaseNode *point2Node = &InEaCgNode(newEaCg);
+      CHECK_FATAL(point2Node->IsObjectNode(), "must be");
+      (void)base.pointsTo.insert(static_cast<EACGObjectNode*>(point2Node));
+    }
+    // start to in in
+    size = ReadInt();
+    for (int i = 0; i < size; ++i) {
+      EACGBaseNode *point2Node = &InEaCgNode(newEaCg);
+      base.InsertInSet(point2Node);
+    }
+    // start to in out
+    size = ReadInt();
+    for (int i = 0; i < size; ++i) {
+      EACGBaseNode *point2Node = &InEaCgNode(newEaCg);
+      base.InsertOutSet(point2Node);
+    }
+  }
+}
+
+void BinaryMplImport::InEaCgActNode(EACGActualNode &actual) {
+  actual.isPhantom = Read() == 1;
+  actual.isReturn = Read() == 1;
+  actual.argIdx = Read();
+  actual.callSiteInfo = static_cast<uint32>(ReadInt());
+}
+
+void BinaryMplImport::InEaCgFieldNode(EACGFieldNode &field, EAConnectionGraph &newEaCg) {
+  field.SetFieldID(ReadInt());
+  int size = ReadInt();
+  for (int i = 0; i < size; ++i) {
+    EACGBaseNode* node = &InEaCgNode(newEaCg);
+    CHECK_FATAL(node->IsObjectNode(), "must be");
+    (void)field.belongsTo.insert(static_cast<EACGObjectNode*>(node));
+  }
+  field.isPhantom = Read() == 1;
+}
+
+void BinaryMplImport::InEaCgObjNode(EACGObjectNode &obj, EAConnectionGraph &newEaCg) {
+  Read();
+  obj.isPhantom = true;  int size = ReadInt();
+  for (int i = 0; i < size; ++i) {
+    EACGBaseNode *node = &InEaCgNode(newEaCg);
+    CHECK_FATAL(node->IsFieldNode(), "must be");
+    auto *field = static_cast<EACGFieldNode*>(node);
+    obj.fieldNodes[static_cast<EACGFieldNode*>(field)->GetFieldID()] = field;
+  }
+  // start to in point by
+  size = ReadInt();
+  for (int i = 0; i < size; ++i) {
+    EACGBaseNode *point2Node = &InEaCgNode(newEaCg);
+    (void)obj.pointsBy.insert(point2Node);
+  }
+}
+
+void BinaryMplImport::InEaCgRefNode(EACGRefNode &ref) {
+  ref.isStaticField = Read() == 1 ? true : false;
+}
+
+EACGBaseNode &BinaryMplImport::InEaCgNode(EAConnectionGraph &newEaCg) {
+  int64 tag = ReadNum();
+  if (tag < 0) {
+    CHECK_FATAL(static_cast<uint64>(-tag) < eaCgTab.size(), "index out of bounds");
+    return *eaCgTab[-tag];
+  }
+  CHECK_FATAL(tag == kBinEaCgNode, "must be");
+  NodeKind kind = (NodeKind)ReadNum();
+  EACGBaseNode *node = nullptr;
+  switch (kind) {
+    case kObejectNode:
+      node = new EACGObjectNode(&mod, &mod.GetMPAllocator(), &newEaCg);
+      break;
+    case kReferenceNode:
+      node = new EACGRefNode(&mod, &mod.GetMPAllocator(), &newEaCg);
+      break;
+    case kFieldNode:
+      node = new EACGFieldNode(&mod, &mod.GetMPAllocator(), &newEaCg);
+      break;
+    case kActualNode:
+      node = new EACGActualNode(&mod, &mod.GetMPAllocator(), &newEaCg);
+      break;
+    default:
+      CHECK_FATAL(false, "impossible");
+  }
+  node->SetEACG(&newEaCg);
+  eaCgTab.push_back(node);
+  InEaCgBaseNode(*node, newEaCg, true);
+  newEaCg.SetNodeAt(node->id - 1, node);
+  if (node->IsActualNode()) {
+    CHECK_FATAL(ReadNum() == kBinEaCgActNode, "must be");
+    InEaCgActNode(static_cast<EACGActualNode&>(*node));
+  } else if (node->IsFieldNode()) {
+    CHECK_FATAL(ReadNum() == kBinEaCgFieldNode, "must be");
+    InEaCgFieldNode(static_cast<EACGFieldNode&>(*node), newEaCg);
+  } else if (node->IsObjectNode()) {
+    CHECK_FATAL(ReadNum() == kBinEaCgObjNode, "must be");
+    InEaCgObjNode(static_cast<EACGObjectNode&>(*node), newEaCg);
+  } else if (node->IsReferenceNode()) {
+    CHECK_FATAL(ReadNum() == kBinEaCgRefNode, "must be");
+    InEaCgRefNode(static_cast<EACGRefNode&>(*node));
+  }
+  InEaCgBaseNode(*node, newEaCg, false);
+  CHECK_FATAL(ReadNum() == ~kBinEaCgNode, "must be");
+  return *node;
+}
+
+EAConnectionGraph* BinaryMplImport::ReadEaCgField() {
+  if (ReadNum() == ~kBinEaCgStart) {
+    return nullptr;
+  }
+  ReadInt();
+  GStrIdx funcStr = ImportStr();
+  int nodesSize = ReadInt();
+  EAConnectionGraph *newEaCg = mod.GetMemPool()->New<EAConnectionGraph>(&mod, &mod.GetMPAllocator(), funcStr, true);
+  newEaCg->ResizeNodes(nodesSize, nullptr);
+  InEaCgNode(*newEaCg);
+  CHECK_FATAL(newEaCg->GetNode(0)->IsObjectNode(), "must be");
+  CHECK_FATAL(newEaCg->GetNode(1)->IsReferenceNode(), "must be");
+  CHECK_FATAL(newEaCg->GetNode(2)->IsFieldNode(), "must be");
+  newEaCg->globalField = static_cast<EACGFieldNode*>(newEaCg->GetNode(2));
+  newEaCg->globalObj = static_cast<EACGObjectNode*>(newEaCg->GetNode(0));
+  newEaCg->globalRef = static_cast<EACGRefNode*>(newEaCg->GetNode(1));
+  CHECK_FATAL(newEaCg->globalField && newEaCg->globalObj && newEaCg->globalRef, "must be");
+  int32 nodeSize = ReadInt();
+  for (int j = 0; j < nodeSize; ++j) {
+    EACGBaseNode *node = &InEaCgNode(*newEaCg);
+    newEaCg->funcArgNodes.push_back(node);
+  }
+
+  int32 callSitesize = ReadInt();
+  for (int i = 0; i < callSitesize; ++i) {
+    uint32 id = static_cast<uint32>(ReadInt());
+    newEaCg->callSite2Nodes[id] = mod.GetMemPool()->New<MapleVector<EACGBaseNode*>>(mod.GetMPAllocator().Adapter());
+    int32 calleeArgSize = ReadInt();
+    for (int j = 0; j < calleeArgSize; ++j) {
+      EACGBaseNode *node = &InEaCgNode(*newEaCg);
+      newEaCg->callSite2Nodes[id]->push_back(node);
+    }
+  }
+
+#ifdef DEBUG
+  for (EACGBaseNode *node : newEaCg->GetNodes()) {
+    if (node == nullptr) {
+      continue;
+    }
+    node->CheckAllConnectionInNodes();
+  }
+#endif
+  CHECK_FATAL(ReadNum() == ~kBinEaCgStart, "pattern mismatch in Read EACG");
+  return newEaCg;
+}
+
 void BinaryMplImport::ReadSymField() {
   SkipTotalSize();
   int32 size = ReadInt();
   for (int64 i = 0; i < size; i++) {
-    InSymbol(nullptr);
+    (void)InSymbol(nullptr);
   }
   int64 tag = ReadNum();
   CHECK_FATAL(tag == ~kBinSymStart, "pattern mismatch in Read SYM");
@@ -1029,16 +1344,47 @@ void BinaryMplImport::Jump2NextField() {
   ReadNum();  // skip end tag for this field
 }
 
+void BinaryMplImport::UpdateDebugInfo() {
+}
+
 bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool readSe) {
   Reset();
   ReadFileAt(fname, 0);
   int32 magic = ReadInt();
-  if (kMpltMagicNumber != magic && (kMpltMagicNumber+0x10) != magic) {
+  if (kMpltMagicNumber != magic && (kMpltMagicNumber + 0x10) != magic) {
     buf.clear();
     return false;
   }
   importingFromMplt = kMpltMagicNumber == magic;
   int64 fieldID = ReadNum();
+  if (readSe) {
+    while (fieldID != kBinFinish) {
+      if (fieldID == kBinSeStart) {
+#ifdef MPLT_DEBUG
+        LogInfo::MapleLogger() << "read SE of : " << fname << '\n';
+#endif
+        BinaryMplImport tmp(mod);
+        tmp.Reset();
+        tmp.buf = buf;
+        tmp.bufI = bufI;
+        tmp.importFileName = fname;
+        tmp.ReadSeField();
+        Jump2NextField();
+      } else if (fieldID == kBinEaStart) {
+        BinaryMplImport tmp(mod);
+        tmp.Reset();
+        tmp.buf = buf;
+        tmp.bufI = bufI;
+        tmp.importFileName = fname;
+        tmp.ReadEaField();
+        Jump2NextField();
+      } else {
+        Jump2NextField();
+      }
+      fieldID = ReadNum();
+    }
+    return true;
+  }
   while (fieldID != kBinFinish) {
     switch (fieldID) {
       case kBinContentStart: {
@@ -1070,7 +1416,43 @@ bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool re
         break;
       }
       case kBinCgStart: {
+        if (readSymbols) {
+#ifdef MPLT_DEBUG
+          LogInfo::MapleLogger() << "read CG of : " << fname << '\n';
+#endif
+          BinaryMplImport tmp(mod);
+          tmp.Reset();
+          tmp.inIPA = true;
+          tmp.buf = buf;
+          tmp.bufI = bufI;
+          tmp.importFileName = fname;
+          tmp.ReadCgField();
+          tmp.UpdateMethodSymbols();
+          Jump2NextField();
+        } else {
+          Jump2NextField();
+        }
+        break;
+      }
+      case kBinSeStart: {
         Jump2NextField();
+        break;
+      }
+      case kBinEaStart: {
+        if (readSymbols) {
+#ifdef MPLT_DEBUG
+          LogInfo::MapleLogger() << "read EA of : " << fname << '\n';
+#endif
+          BinaryMplImport tmp(mod);
+          tmp.Reset();
+          tmp.buf = buf;
+          tmp.bufI = bufI;
+          tmp.importFileName = fname;
+          tmp.ReadEaField();
+          Jump2NextField();
+        } else {
+          Jump2NextField();
+        }
         break;
       }
       case kBinFunctionBodyStart: {
