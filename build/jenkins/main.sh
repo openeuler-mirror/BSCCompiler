@@ -14,7 +14,7 @@ function debug_test {
     make irbuild
     make mplfe
     make irbuild_test
-    # make c_test
+    make c_test
 }
 
 function release_test {
