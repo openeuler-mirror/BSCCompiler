@@ -166,6 +166,9 @@ void BlockNode::AddStatement(StmtNode *stmt) {
 }
 
 void BlockNode::AppendStatementsFromBlock(BlockNode &blk) {
+  if (blk.GetStmtNodes().empty()) {
+    return;
+  }
   stmtNodeList.splice(stmtNodeList.end(), blk.GetStmtNodes());
 }
 
@@ -462,7 +465,7 @@ MIRType *ArrayNode::GetArrayType(const TypeTable &tt) {
 const BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) const {
   const auto *arrayType = static_cast<const MIRArrayType*>(GetArrayType(tt));
   auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-      i, *tt.GetTypeFromTyIdx(arrayType->GetElemTyIdx()), 0/*fieldID*/);
+      i, *tt.GetTypeFromTyIdx(arrayType->GetElemTyIdx()), 0 /* fieldID */);
   return mod.CurFuncCodeMemPool()->New<ConstvalNode>(mirConst);
 }
 BaseNode *ArrayNode::GetDim(const MIRModule &mod, TypeTable &tt, int i) {
