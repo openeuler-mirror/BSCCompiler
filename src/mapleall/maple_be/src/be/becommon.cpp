@@ -140,9 +140,9 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
     uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
-    if ((fieldType->GetKind() == kTypeStruct) || (fieldType->GetKind() == kTypeClass) ||
-        (fieldType->GetKind() == kTypeUnion)) {
-      AppendStructFieldCount(structType.GetTypeIndex(), GetStructFieldCount(fieldTyIdx));
+    MIRStructType *subStructType = fieldType->EmbeddedStructType();
+    if (subStructType != nullptr) {
+      AppendStructFieldCount(structType.GetTypeIndex(), GetStructFieldCount(subStructType->GetTypeIndex()));
     }
     if (structType.GetKind() != kTypeUnion) {
       if (fieldType->GetKind() == kTypeBitField) {
@@ -614,14 +614,15 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
           return std::pair<int32, int32>(offset, 0);
         } else {
           MIRStructType *subStructType = fieldType->EmbeddedStructType();
-          if (subStructType != nullptr) {
-            if ((curFieldID + GetStructFieldCount(fieldTyIdx)) >= fieldID) {
+          if (subStructType == nullptr) {
+            ++curFieldID;
+          } else {
+            if ((curFieldID + GetStructFieldCount(subStructType->GetTypeIndex())) < fieldID) {
+              curFieldID += GetStructFieldCount(subStructType->GetTypeIndex()) + 1;
+            } else {
               std::pair<int32, int32> result = GetFieldOffset(*subStructType, fieldID - curFieldID);
               return std::pair<int32, int32>(result.first + allocedSize, result.second);
             }
-            curFieldID += GetStructFieldCount(fieldTyIdx) + 1;
-          } else {
-            ++curFieldID;
           }
         }
 
@@ -637,14 +638,14 @@ std::pair<int32, int32> BECommon::GetFieldOffset(MIRStructType &structType, Fiel
       if (curFieldID == fieldID) {
         return std::pair<int32, int32>(0, 0);
       } else {
-        MIRStructType *subStructTy = fieldType->EmbeddedStructType();
-        if (subStructTy == nullptr) {
+        MIRStructType *subStructType = fieldType->EmbeddedStructType();
+        if (subStructType == nullptr) {
           curFieldID++;
         } else {
-          if ((curFieldID + GetStructFieldCount(subStructTy->GetTypeIndex())) < fieldID) {
-            curFieldID += GetStructFieldCount(subStructTy->GetTypeIndex()) + 1;
+          if ((curFieldID + GetStructFieldCount(subStructType->GetTypeIndex())) < fieldID) {
+            curFieldID += GetStructFieldCount(subStructType->GetTypeIndex()) + 1;
           } else {
-            return GetFieldOffset(*subStructTy, fieldID - curFieldID);
+            return GetFieldOffset(*subStructType, fieldID - curFieldID);
           }
         }
       }
