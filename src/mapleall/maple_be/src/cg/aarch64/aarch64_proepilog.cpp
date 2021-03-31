@@ -19,6 +19,14 @@ namespace maplebe {
 using namespace maple;
 
 namespace {
+const std::set<std::string> kFrameWhiteListFunc {
+#include "framewhitelist.def"
+};
+
+bool IsFuncNeedFrame(const std::string &funcName) {
+  return kFrameWhiteListFunc.find(funcName) != kFrameWhiteListFunc.end();
+}
+constexpr uint32 k2BitSize = 2;
 constexpr int32 kSoeChckOffset = 8192;
 
 enum RegsPushPop : uint8 {
@@ -61,6 +69,155 @@ inline void AppendInstructionTo(Insn &insn, CGFunc &func) {
 }
 }
 
+bool AArch64GenProEpilog::HasLoop() {
+  FOR_ALL_BB(bb, &cgFunc) {
+    if (bb->IsBackEdgeDest()) {
+      return true;
+    }
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (insn->HasLoop()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/*
+ *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
+ *  Return value: true if is empty bb, otherwise false.
+ */
+bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
+  FOR_BB_INSNS_REV_SAFE(insn, &bb, prev_insn) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    MOperator insnMop = insn->GetMachineOpcode();
+    switch (insnMop) {
+      case MOP_wmovrr:
+      case MOP_xmovrr: {
+        CHECK_FATAL(insn->GetOperand(0).IsRegister(), "operand0 is not register");
+        CHECK_FATAL(insn->GetOperand(1).IsRegister(), "operand1 is not register");
+        auto &reg1 = static_cast<AArch64RegOperand&>(insn->GetOperand(0));
+        auto &reg2 = static_cast<AArch64RegOperand&>(insn->GetOperand(1));
+
+        if (reg1.GetRegisterNumber() != R0 || reg2.GetRegisterNumber() != R0) {
+          return false;
+        }
+
+        bb.RemoveInsn(*insn);
+        break;
+      }
+      case MOP_xbl:
+      case MOP_xblr: {
+        (void)callInsns.insert(insn);
+        return false;
+      }
+      default:
+        return false;
+    }
+  }
+
+  return true;
+}
+
+/* Recursively invoke this function until exitBB's precursor not exist. */
+void AArch64GenProEpilog::TailCallBBOpt(const BB &exitBB, std::set<Insn*> &callInsns) {
+  for (auto tmpBB : exitBB.GetPreds()) {
+    if (tmpBB->GetSuccs().size() != 1 || !tmpBB->GetEhSuccs().empty() || tmpBB->GetKind() != BB::kBBFallthru) {
+      continue;
+    }
+
+    if (OptimizeTailBB(*tmpBB, callInsns)) {
+      TailCallBBOpt(*tmpBB, callInsns);
+    }
+  }
+}
+
+/*
+ *  If a function without callee-saved register, and end with a function call,
+ *  then transfer bl/blr to b/br.
+ *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
+ */
+bool AArch64GenProEpilog::TailCallOpt() {
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  BB *exitBB = nullptr;
+  const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
+
+  size_t calleeSavedRegSize = 2;
+  CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
+
+  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() || HasLoop() ||
+      cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive) || IsFuncNeedFrame(cgFunc.GetName())) {
+    return false;
+  }
+
+  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
+  CHECK_FATAL(exitBBSize == 1, "Should not be exist multiple exits.");
+
+  if (exitBBSize == 0) {
+    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
+        cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
+      exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
+    } else {
+      exitBB = cgFunc.GetLastBB()->GetPrev();
+    }
+  } else {
+    exitBB = cgFunc.GetExitBBsVec().front();
+  }
+
+  CHECK_FATAL(exitBB->GetFirstInsn() == nullptr, "exit bb should be empty.");
+
+  /* Count how many call insns in the whole function. */
+  uint32 nCount = 0;
+  bool hasGetStackClass = false;
+
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (insn->IsCall()) {
+        if (insn->GetMachineOpcode() == MOP_xbl) {
+          auto &target = static_cast<FuncNameOperand&>(insn->GetOperand(0));
+          if (IsFuncNeedFrame(target.GetName())) {
+            hasGetStackClass = true;
+          }
+        }
+        ++nCount;
+      }
+    }
+  }
+
+  if ((nCount > 0 && cgFunc.GetFunction().GetAttr(FUNCATTR_interface)) || hasGetStackClass) {
+    return false;
+  }
+
+  std::set<Insn*> callInsns;
+  TailCallBBOpt(*exitBB, callInsns);
+
+  if (nCount != callInsns.size()) {
+    return false;
+  }
+  /* Replace all of the call insns. */
+  for (auto callInsn : callInsns) {
+    MOperator insnMop = callInsn->GetMachineOpcode();
+    switch (insnMop) {
+      case MOP_xbl: {
+        callInsn->SetMOP(MOP_tail_call_opt_xbl);
+        break;
+      }
+      case MOP_xblr: {
+        callInsn->SetMOP(MOP_tail_call_opt_xblr);
+        break;
+      }
+      default:
+        ASSERT(false, "Internal error.");
+        break;
+    }
+  }
+  return true;
+}
 
 void AArch64GenProEpilog::GenStackGuard(BB &bb) {
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
@@ -99,8 +256,9 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
 
     int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
                     static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
-    AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP,
-    stkSize - kOffset8MemPos - vArea, kSizeOfPtr * kBitsPerByte);
+    AArch64MemOperand *downStk =
+        aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos - vArea,
+                                                            kSizeOfPtr * kBitsPerByte);
     if (downStk->GetMemVaryType() == kNotVary &&
         aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
       downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
@@ -159,8 +317,9 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
                   static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
-  AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>
-                               (RFP, stkSize - kOffset8MemPos - vArea, kSizeOfPtr * kBitsPerByte);
+  AArch64MemOperand *downStk =
+      aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos - vArea,
+                                                          kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(downStk), k64BitSize, R10);
   }
@@ -172,7 +331,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   cgFunc.SelectBxor(stAddrOpnd, stAddrOpnd, checkOp, PTY_u64);
   LabelIdx failLable = aarchCGFunc.CreateLabel();
   aarchCGFunc.SelectCondGoto(aarchCGFunc.GetOrCreateLabelOperand(failLable), OP_brtrue, OP_eq,
-                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64);
+                             stAddrOpnd, aarchCGFunc.CreateImmOperand(0, k64BitSize, false), PTY_u64, false);
 
   MIRSymbol *failFunc = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(
       GlobalTables::GetStrTable().GetStrIdxFromName(std::string("__stack_chk_fail")));
@@ -196,6 +355,447 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   return *newBB;
 }
 
+/*
+ * The following functions are for pattern matching for fast path
+ * where function has early return of spedified pattern load/test/return
+ */
+void AArch64GenProEpilog::ReplaceMachedOperand(Insn &orig, Insn &target, const RegOperand &matchedOpnd,
+                                               bool isFirstDst) {
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  for (uint32 i = 0; i < target.GetOpndNum(); ++i) {
+    Operand *src = target.GetOpnd(i);
+    CHECK_FATAL(src != nullptr, "src is null in ReplaceMachedOperand");
+    if (src->IsRegister()) {
+      RegOperand *reg = static_cast<RegOperand*>(src);
+      if (reg != &matchedOpnd) {
+        continue;
+      }
+      if (isFirstDst) {
+        Operand *origSrc = orig.GetOpnd(0);
+        RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
+        CHECK_FATAL(origPhys != nullptr, "pointer is null");
+        regno_t regNO = origPhys->GetRegisterNumber();
+        RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
+                                                                          matchedOpnd.GetSize(), kRegTyInt);
+        target.SetOpnd(i, phys);
+      } else {
+        /* Replace the operand with the src of inst */
+        RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
+                                                                          reg->GetSize(), kRegTyInt);
+        target.SetOpnd(i, phys);
+      }
+      return;
+    }
+    if (src->IsMemoryAccessOperand()) {
+      MemOperand *memOpnd = static_cast<MemOperand*>(src);
+      Operand *base = memOpnd->GetBaseRegister();
+      Operand *offset = memOpnd->GetIndexRegister();
+      if (base != nullptr && base->IsRegister()) {
+        RegOperand *reg = static_cast<RegOperand*>(base);
+        if (reg != &matchedOpnd) {
+          continue;
+        }
+        if (isFirstDst) {
+          Operand *origSrc = orig.GetOpnd(0);
+          RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
+          CHECK_FATAL(origPhys != nullptr, "orig_phys cast failed");
+          regno_t regNO = origPhys->GetRegisterNumber();
+          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
+                                                                            matchedOpnd.GetSize(), kRegTyInt);
+          memOpnd->SetBaseRegister(phys);
+        } else {
+          /* Replace the operand with the src of inst */
+          RegOperand &phys =
+              aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), base->GetSize(), kRegTyInt);
+          memOpnd->SetBaseRegister(phys);
+        }
+        return;
+      }
+      if (offset != nullptr && offset->IsRegister()) {
+        RegOperand *reg = static_cast<RegOperand*>(offset);
+        if (reg != &matchedOpnd) {
+          continue;
+        }
+        if (isFirstDst) {
+          Operand *origSrc = orig.GetOpnd(0);
+          RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
+          CHECK_FATAL(origPhys != nullptr, "orig_phys is nullptr in ReplaceMachedOperand");
+          regno_t regNO = origPhys->GetRegisterNumber();
+          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
+                                                                            matchedOpnd.GetSize(), kRegTyInt);
+          memOpnd->SetIndexRegister(phys);
+        } else {
+          /* Replace the operand with the src of inst */
+          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
+                                                                            offset->GetSize(), kRegTyInt);
+          memOpnd->SetIndexRegister(phys);
+        }
+        return;
+      }
+    }
+  }
+  if (!isFirstDst) {
+    RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
+                                                                      matchedOpnd.GetSize(), kRegTyInt);
+    orig.SetResult(0, phys);
+  }
+}
+
+bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, RegOperand &targetOpnd, Insn *&load,
+                                                 Insn *&mov, Insn *&depMov, std::list<Insn*> &list) {
+  load = nullptr;
+  mov = nullptr;
+  depMov = nullptr;
+  BB *pred = &ifbb;
+  /*
+   * Pattern match,  (*) instruction are moved down below branch.
+   *   mov reg1, R0                         mov  reg1, R0                        *
+   *   ld  Rx  , [reg1, const]              ld   R16 , [R0, const]
+   *   mov reg2, Rx                   =>    mov  reg2, R16    <- this may exist  *
+   *                                        mov  Rx  , R16    <- replicate       *
+   *   cbr       Rx, label                  cbr        R16, label
+   *
+   *   R16 is used because it is used as spill register.
+   *   Need to modify if different register allcoation mechanism is used.
+   */
+  do {
+    FOR_BB_INSNS_REV(insn, pred) {
+      if (insn == ifbb.GetLastInsn()) {
+        continue;
+      }
+      if (insn->IsImmaterialInsn()) {
+        continue;
+      }
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+
+      bool found = false;  /* allowing for only one src to be register */
+      for (uint32 r = 0; r < insn->GetResultNum(); ++r) {
+        Operand *dst = insn->GetResult(r);
+        CHECK_FATAL(dst != nullptr, "pointer is null");
+        if (!dst->IsRegister()) {
+          continue;
+        }
+        RegOperand *regOpnd = static_cast<RegOperand*>(dst);
+        if (regOpnd != &targetOpnd) {
+          continue;
+        }
+        if (load != nullptr) {
+          if (mov != nullptr) {
+            return false;
+          }
+          MOperator opCode = insn->GetMachineOpcode();
+          if (opCode != MOP_xmovrr) {
+            return false;
+          }
+          Operand *mvSrc = insn->GetOpnd(0);
+          RegOperand *mvRegSrc = static_cast<RegOperand*>(mvSrc);
+          CHECK_FATAL(mvRegSrc != nullptr, "mv_regsrc cast failed");
+          regno_t mvReg = mvRegSrc->GetRegisterNumber();
+          /* make it very specific for now */
+          if (mvReg != R0) {
+            return false;
+          }
+          Operand *mvDst = insn->GetResult(0);
+          RegOperand *mvRegDst = static_cast<RegOperand*>(mvDst);
+          CHECK_FATAL(mvRegDst != nullptr, "mv_regdst cast failed");
+          mvReg = mvRegDst->GetRegisterNumber();
+          if (mvReg != R20) {
+            return false;
+          }
+          mov = insn;
+        }
+        /* Found def, continue dep chain with src */
+        for (uint32 s = 0; s < insn->GetOpndNum(); ++s) {
+          Operand *src = insn->GetOpnd(s);
+          CHECK_FATAL(src != nullptr, "src is nullptr in BackwardFindDependency");
+          if (src->IsRegister()) {
+            if (found) {
+              return false;
+            }
+            RegOperand *preg = static_cast<RegOperand*>(src);
+            targetOpnd = *preg;
+            if (!preg->IsPhysicalRegister() || insn->GetMachineOpcode() != MOP_xmovrr) {
+              return false;
+            }
+            /*
+             * Skipping the start of the dependency chain because
+             * the the parameter reg will be propagated leaving
+             * the mov instruction alone to be relocated down
+             * to the cold path.
+             */
+            found = false;
+          } else if (src->IsMemoryAccessOperand()) {
+            MemOperand *memOpnd = static_cast<MemOperand*>(src);
+            Operand *base = memOpnd->GetBaseRegister();
+            Operand *offset = memOpnd->GetIndexRegister();
+            if (base != nullptr && base->IsRegister()) {
+              if (found) {
+                return false;
+              }
+              load = insn;
+              targetOpnd = *(static_cast<RegOperand*>(base));
+              found = true;
+              Operand *ldDst = insn->GetResult(0);
+              RegOperand *ldRdst = static_cast<RegOperand*>(ldDst);
+              CHECK_FATAL(ldRdst != nullptr, "ld_rdst is nullptr in BackwardFindDependency");
+              if (ldRdst->GetRegisterNumber() != R1) {
+                return false;  /* hard code for now. */
+              }
+              /* Make sure instruction depending on load is mov and cond br */
+              for (Insn *ni = insn->GetNext(); ni != nullptr; ni = ni->GetNext()) {
+                if (ni->GetMachineOpcode() == MOP_xmovrr || ni->GetMachineOpcode() == MOP_wmovrr) {
+                  Operand *dep = ni->GetOpnd(0);
+                  RegOperand *rdep = static_cast<RegOperand*>(dep);
+                  if (rdep == ldRdst) {
+                    if (depMov != nullptr) {
+                      return false;
+                    }
+                    depMov = ni;
+                  }
+                }
+              }
+            }
+            if (offset != nullptr && offset->IsRegister()) {
+              return false;
+            }
+          }
+        }
+      }
+      if (!found) {
+        list.push_back(insn);
+      }
+    }
+    if (pred->GetPreds().empty()) {
+      break;
+    }
+    pred = pred->GetPreds().front();
+  } while (pred != nullptr);
+
+  return true;
+}
+
+void AArch64GenProEpilog::ForwardPropagateAndRename(Insn &mov, Insn &load, const BB &terminateBB) {
+  /*
+   * This is specialized function to work with IsolateFastPath().
+   * The control flow and instruction pattern must be recognized.
+   */
+  Insn *insn = &mov;
+  bool isFirstDst = true;
+  /* process mov and load two instructions */
+  for (int32 i = 0; i < 2; ++i) {
+    /* Finish the bb the mov is in */
+    for (Insn *target = insn->GetNext(); target != nullptr; target = target->GetNext()) {
+      if (target->IsImmaterialInsn()) {
+        continue;
+      }
+      if (!target->IsMachineInstruction()) {
+        continue;
+      }
+      Operand *dst = insn->GetResult(0);
+      RegOperand *rdst = static_cast<RegOperand*>(dst);
+      CHECK_FATAL(rdst != nullptr, "rdst is nullptr in ForwardPropagateAndRename");
+      ReplaceMachedOperand(*insn, *target, *rdst, isFirstDst);
+    }
+    CHECK_FATAL(!insn->GetBB()->GetSuccs().empty(), "null succs check!");
+    BB *bb = insn->GetBB()->GetSuccs().front();
+    while (1) {
+      FOR_BB_INSNS(target, bb) {
+        if (!target->IsMachineInstruction()) {
+          continue;
+        }
+        Operand *dst = insn->GetResult(0);
+        RegOperand *rdst = static_cast<RegOperand*>(dst);
+        CHECK_FATAL(rdst != nullptr, "rdst is nullptr in ForwardPropagateAndRename");
+        ReplaceMachedOperand(*insn, *target, *rdst, isFirstDst);
+      }
+      if (bb == &terminateBB) {
+        break;
+      }
+      CHECK_FATAL(!bb->GetSuccs().empty(), "null succs check!");
+      bb = bb->GetSuccs().front();
+    }
+    insn = &load;
+    isFirstDst = false;
+  }
+}
+
+BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
+  /*
+   * Detect "if (cond) return" fast path, and move extra instructions
+   * to the slow path.
+   * Must match the following block structure.  BB1 can be a series of
+   * single-pred/single-succ blocks.
+   *     BB1 ops1 cmp-br to BB3        BB1 cmp-br to BB3
+   *     BB2 ops2 br to retBB    ==>   BB2 ret
+   *     BB3 slow path                 BB3 ops1 ops2
+   * BB3 will be used to generate prolog stuff.
+   */
+  if (bb.GetPrev() != nullptr) {
+    return nullptr;
+  }
+  BB *ifBB = nullptr;
+  BB *returnBB = nullptr;
+  BB *coldBB = nullptr;
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  CG *currCG = cgFunc.GetCG();
+  {
+    BB &curBB = bb;
+    /* Look for straight line code */
+    while (1) {
+      if (curBB.GetEhSuccs().empty()) {
+        return nullptr;
+      }
+      if (curBB.GetSuccs().size() == 1) {
+        if (curBB.HasCall()) {
+          return nullptr;
+        }
+        BB *succ = curBB.GetSuccs().front();
+        if (succ->GetPreds().size() != 1 || !succ->GetEhPreds().empty()) {
+          return nullptr;
+        }
+        curBB = *succ;
+      } else if (curBB.GetKind() == BB::kBBIf) {
+        ifBB = &curBB;
+        break;
+      } else {
+        return nullptr;
+      }
+    }
+  }
+  /* targets of if bb can only be reached by if bb */
+  {
+    CHECK_FATAL(!ifBB->GetSuccs().empty(), "null succs check!");
+    BB *first = ifBB->GetSuccs().front();
+    BB *second = ifBB->GetSuccs().back();
+    if (first->GetPreds().size() != 1 || !first->GetEhPreds().empty()) {
+      return nullptr;
+    }
+    if (second->GetPreds().size() != 1 || !second->GetEhPreds().empty()) {
+      return nullptr;
+    }
+
+    /* One target of the if bb jumps to a return bb */
+    CHECK_FATAL(!first->GetSuccs().empty(), "null succs check!");
+    if (first->GetKind() != BB::kBBGoto || first->GetSuccs().front()->GetKind() != BB::kBBReturn) {
+      return nullptr;
+    }
+    if (second->GetSuccs().empty()) {
+      return nullptr;
+    }
+    returnBB = first;
+    coldBB = second;
+  }
+  /*
+   * The control flow matches at this point.
+   * Make sure the hot bb contains atmost a
+   * 'mov x0, value' and 'b'.
+   */
+  {
+    CHECK_FATAL(returnBB != nullptr, "null ptr check");
+    const int32 twoInsnInReturnBB = 2;
+    if (returnBB->NumInsn() > twoInsnInReturnBB) {
+      return nullptr;
+    }
+    Insn *first = returnBB->GetFirstInsn();
+    while (first->IsImmaterialInsn()) {
+      first = first->GetNext();
+    }
+    if (first == returnBB->GetLastInsn()) {
+      if (!first->IsBranch()) {
+        return nullptr;
+      }
+    } else {
+      MOperator opCode = first->GetMachineOpcode();
+      /* only allow mov constant */
+      if (opCode != MOP_xmovri64 && opCode != MOP_xmovri32) {
+        return nullptr;
+      }
+      Insn *last = returnBB->GetLastInsn();
+      if (!last->IsBranch()) {
+        return nullptr;
+      }
+    }
+  }
+
+  /*
+   * Resolve any register usage issues.
+   * 1) Any use of parameter registes must be renamed
+   * 2) Any usage of callee saved register that needs saving in prolog
+   *    must be able to move down into the cold path.
+   */
+
+  /* Find the branch's src register for backward propagation. */
+  Insn *condBr = ifBB->GetLastInsn();
+  auto &targetOpnd = static_cast<RegOperand&>(condBr->GetOperand(0));
+  if (targetOpnd.GetRegisterType() != kRegTyInt) {
+    return nullptr;
+  }
+
+  /* Search backward looking for dependencies for the cond branch */
+  std::list<Insn*> insnList;  /* instructions to be moved to coldbb */
+  Insn *ld = nullptr;
+  Insn *mv = nullptr;
+  Insn *depMv = nullptr;
+  /*
+   * The mv is the 1st move using the parameter register leading to the branch
+   * The ld is the load using the parameter register indirectly for the branch
+   * The depMv is the move which preserves the result of the load but might
+   *    destroy a parameter register which will be moved below the branch.
+   */
+  if (!BackwardFindDependency(*ifBB, targetOpnd, ld, mv, depMv, insnList)) {
+    return nullptr;
+  }
+  if (ld == nullptr || mv == nullptr) {
+    return nullptr;
+  }
+  /*
+   * depMv can be live out, so duplicate it
+   * and set dest to output of ld and src R16
+   */
+  if (depMv != nullptr) {
+    CHECK_FATAL(depMv->GetMachineOpcode(), "return check");
+    Insn &newMv = currCG->BuildInstruction<AArch64Insn>(
+        depMv->GetMachineOpcode(), ld->GetOperand(0),
+        aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
+                                                       depMv->GetOperand(1).GetSize(), kRegTyInt));
+    insnList.push_front(&newMv);
+    /* temporary put it some where */
+    CHECK_FATAL(coldBB != nullptr, "null ptr check");
+    static_cast<void>(coldBB->InsertInsnBegin(newMv));
+  } else {
+    uint32 regSize = ld->GetOperand(0).GetSize();
+    Insn &newMv = currCG->BuildInstruction<AArch64Insn>(
+        (regSize <= k32BitSize) ? MOP_xmovri32 : MOP_xmovri64, ld->GetOperand(0),
+        aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), regSize, kRegTyInt));
+    insnList.push_front(&newMv);
+    /* temporary put it some where */
+    CHECK_FATAL(coldBB != nullptr, "null ptr check");
+    static_cast<void>(coldBB->InsertInsnBegin(newMv));
+  }
+
+  ForwardPropagateAndRename(*mv, *ld, *returnBB);
+
+  for (auto *in : insnList) {
+    in->GetBB()->RemoveInsn(*in);
+    CHECK_FATAL(coldBB != nullptr, "null ptr check");
+    static_cast<void>(coldBB->InsertInsnBegin(*in));
+  }
+
+  /* All instructions are in the right place, replace branch to ret bb to just ret. */
+  CHECK_FATAL(returnBB != nullptr, "null ptr check");
+  returnBB->RemoveInsn(*returnBB->GetLastInsn());
+  returnBB->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xret));
+  /* bb is now a retbb and has no succ. */
+  returnBB->SetKind(BB::kBBReturn);
+  BB *tgtBB = returnBB->GetSuccs().front();
+  auto predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
+  tgtBB->ErasePreds(predIt);
+  returnBB->ClearSuccs();
+
+  return coldBB;
+}
 
 AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddInstruction(const AArch64MemOperand &mo,
                                                                                           uint32 bitLen,
@@ -573,10 +1173,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
-    // GR/VR save areas are above the callee save area
+    /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr*2) +
-                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr*2);
+    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
     offset -= saveareasize;
   }
 
@@ -623,28 +1223,30 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
     uint32 dataSizeBits = kSizeOfPtr * kBitsPerByte;
     int32 offset = memlayout->GetGRSaveAreaBaseLoc();
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
-      offset += kSizeOfPtr;  // End of area should be aligned. Hole between VR and GR area
+      offset += kSizeOfPtr;  /* End of area should be aligned. Hole between VR and GR area */
     }
-    int32 start_regno = 8 - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
-    ASSERT(start_regno <= 8, "Incorrect starting GR regno for GR Save Area");
-    for (uint32 i = start_regno + (uint32)R0; i < (uint32)R8; i++) {
+    int32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
+    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
+    for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
-      RegOperand &reg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand((AArch64reg)i, 64, kRegTyInt);
-      Insn &inst = currCG->BuildInstruction<AArch64Insn>(
-                     aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+      RegOperand &reg =
+          aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
+      Insn &inst =
+          currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
       cgFunc.GetCurBB()->AppendInsn(inst);
       offset += kSizeOfPtr;
     }
     offset = memlayout->GetVRSaveAreaBaseLoc();
-    start_regno = 8 - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * 2));
-    ASSERT(start_regno <= 8, "Incorrect starting GR regno for VR Save Area");
-    for (uint32 i = start_regno + (uint32)V0; i < (uint32)V8; i++) {
+    start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * k2BitSize));
+    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
+    for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
       Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
-      RegOperand &reg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand((AArch64reg)i, 64, kRegTyInt);
-      Insn &inst = currCG->BuildInstruction<AArch64Insn>(
-                     aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+      RegOperand &reg =
+          aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
+      Insn &inst =
+          currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
       cgFunc.GetCurBB()->AppendInsn(inst);
-      offset += (kSizeOfPtr * 2);
+      offset += (kSizeOfPtr * k2BitSize);
     }
   }
 }
@@ -956,10 +1558,10 @@ void AArch64GenProEpilog::GeneratePopRegs() {
                  cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
-    // GR/VR save areas are above the callee save area
+    /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr*2) +
-                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr*2);
+    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
     offset -= saveareasize;
   }
 
@@ -1108,9 +1710,13 @@ void AArch64GenProEpilog::Run() {
   CHECK_FATAL(cgFunc.GetFunction().GetBody()->GetFirst()->GetOpCode() == OP_label,
               "The first statement should be a label");
   cgFunc.SetHasProEpilogue(true);
-
   if (cgFunc.GetHasProEpilogue()) {
     GenStackGuard(*(cgFunc.GetFirstBB()));
+  }
+  BB *proLog = nullptr;
+  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel2) {
+    /* There are some O2 dependent assumptions made */
+    proLog = IsolateFastPath(*(cgFunc.GetFirstBB()));
   }
 
   if (cgFunc.IsExitBBsVecEmpty()) {
@@ -1122,7 +1728,13 @@ void AArch64GenProEpilog::Run() {
     }
   }
 
-  GenerateProlog(*(cgFunc.GetFirstBB()));
+  if (proLog != nullptr) {
+    GenerateProlog(*proLog);
+    proLog->SetFastPath(true);
+    cgFunc.GetFirstBB()->SetFastPath(true);
+  } else {
+    GenerateProlog(*(cgFunc.GetFirstBB()));
+  }
 
   for (auto *exitBB : cgFunc.GetExitBBsVec()) {
     GenerateEpilog(*exitBB);

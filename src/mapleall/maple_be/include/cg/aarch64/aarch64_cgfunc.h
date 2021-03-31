@@ -99,7 +99,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectIgoto(Operand *opnd0) override;
   void SelectCondGoto(CondGotoNode &stmt, Operand &opnd0, Operand &opnd1) override;
   void SelectCondGoto(LabelOperand &targetOpnd, Opcode jmpOp, Opcode cmpOp, Operand &opnd0, Operand &opnd1,
-                      PrimType primType);
+                      PrimType primType, bool signedCond);
   void SelectCondSpecialCase1(CondGotoNode &stmt, BaseNode &opnd0) override;
   void SelectCondSpecialCase2(const CondGotoNode &stmt, BaseNode &opnd0) override;
   void SelectGoto(GotoNode &stmt) override;

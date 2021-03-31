@@ -328,7 +328,7 @@ int32 ParmLocator::LocateRetVal(MIRType &retType, PLocInfo &pLoc) {
   if (retSize <= k16ByteSize) {
     /* For return struct size less or equal to 16 bytes, the values */
     /* are returned in register pairs. */
-    AArch64ArgumentClass classes[kMaxRegCount]; /* Max of four floats. */
+    AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass }; /* Max of four floats. */
     uint32 fpSize;
     uint32 numRegs = static_cast<uint32>(ClassifyAggregate(beCommon, retType, classes, sizeof(classes), fpSize));
     if (classes[0] == kAArch64FloatClass) {
@@ -386,7 +386,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
        * are returned in register pairs.
        * Check for pure float struct.
        */
-      AArch64ArgumentClass classes[kMaxRegCount];
+      AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass };
       uint32 fpSize;
       MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(beCommon.GetFuncReturnType(*func));
       uint32 numRegs = static_cast<uint32>(ClassifyAggregate(beCommon, *retType, classes, sizeof(classes), fpSize));
@@ -660,7 +660,7 @@ ReturnMechanism::ReturnMechanism(MIRType &retTy, const BECommon &be)
         return;
       }
       uint32 fpSize;
-      AArch64ArgumentClass classes[kMaxRegCount];
+      AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass };
       regCount = static_cast<uint8>(ClassifyAggregate(be, retTy, classes,
                                                       sizeof(classes) / sizeof(AArch64ArgumentClass), fpSize));
       if (classes[0] == kAArch64FloatClass) {
