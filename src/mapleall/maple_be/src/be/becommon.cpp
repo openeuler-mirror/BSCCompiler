@@ -319,6 +319,9 @@ void BECommon::ComputeArrayTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   }
   SetTypeSize(tyIdx, elemSize * numElems);
   SetTypeAlign(tyIdx, GetTypeAlign(elemType->GetTypeIndex()));
+  if (GetTypeAlign(tyIdx) < elemAlign) {
+    SetTypeAlign(tyIdx, elemAlign);
+  }
 }
 
 void BECommon::ComputeFArrayOrJArrayTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
