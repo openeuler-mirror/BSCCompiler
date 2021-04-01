@@ -582,15 +582,15 @@ class AArch64CGFunc : public CGFunc {
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
   AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
-                                                      int32 copyOffset, const PLocInfo &pLoc);
+                                                      int32 copyOffset, int32 fromOffset, const PLocInfo &pLoc);
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          int32 offset, ParmLocator &parmLocator, FieldID fieldID);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          int32 offset, ParmLocator &parmLocator);
   void SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset);
+                                         ParmLocator &parmLocator, int32 structCopyOffset, int32 fromOffset);
   void SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                         ParmLocator &parmLocator, int32 &structCopyOffset);
+                                         ParmLocator &parmLocator, int32 structCopyOffset, int32 fromOffset);
   void CreateCallStructMemcpyToParamReg(MIRType &structType, int32 structCopyOffset, ParmLocator &parmLocator,
                                         AArch64ListOperand &srcOpnds);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
