@@ -89,6 +89,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   argInfo.symSize = aarchCGFunc->GetBecommon().GetTypeSize(argInfo.mirTy->GetTypeIndex());
   argInfo.memPairSecondRegSize = 0;
   argInfo.doMemPairOpt = false;
+  argInfo.CreateTwoStores  = false;
   if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
     if (numFpRegs[argIndex] > kOneRegister) {
       argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
@@ -128,6 +129,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
      */
     argInfo.symSize = kSizeOfPtr;
     argInfo.doMemPairOpt = false;
+    argInfo.CreateTwoStores = true;
   }
   return argInfo;
 }
@@ -254,7 +256,7 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
   }
   aarchCGFunc->GetCurBB()->AppendInsn(insn);
 
-  if (argInfo.doMemPairOpt) {
+  if (argInfo.CreateTwoStores || argInfo.doMemPairOpt) {
     /* second half of the struct passing by registers. */
     uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
