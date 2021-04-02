@@ -198,9 +198,6 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
     }
   }
-  if (mirModule.GetSrcLang() == kSrcLangC && GetTypeAlign(tyIdx) < k8ByteSize) {
-    SetTypeAlign(tyIdx, k8ByteSize);
-  }
   SetTypeSize(tyIdx, RoundUp(allocedSize, GetTypeAlign(tyIdx.GetIdx())));
 }
 
