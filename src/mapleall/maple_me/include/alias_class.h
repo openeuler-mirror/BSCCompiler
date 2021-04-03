@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -83,6 +83,17 @@ class AliasElem {
   MapleSet<unsigned int> *assignSet = nullptr;   // points to the set of members that have assignments among themselves
 };
 
+// this is only for use as return value of CreateAliasElemsExpr()
+class AliasInfo {
+ public:
+  AliasElem *ae;
+  FieldID fieldID;             // corresponds to fieldID in OP-addrof/OP_iaddrof
+
+  AliasInfo() : ae(nullptr), fieldID(0) {}
+  AliasInfo(AliasElem *ae0, FieldID fld) : ae(ae0), fieldID(fld) {}
+  ~AliasInfo() {}
+};
+
 class AliasClass : public AnalysisResult {
  public:
   AliasClass(MemPool &memPool, MIRModule &mod, SSATab &ssaTabParam, bool lessThrowAliasParam, bool ignoreIPA,
@@ -145,6 +156,8 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForPointedTos();
   void CollectRootIDOfNextLevelNodes(const OriginalSt &ost, std::set<unsigned int> &rootIDOfNADSs);
   void UnionForNotAllDefsSeen();
+  void ApplyUnionForStorageOverlaps();
+  void UnionForAggAndFields();
   void CollectAliasGroups(std::map<unsigned int, std::set<unsigned int>> &aliasGroups);
   bool AliasAccordingToType(TyIdx tyIdxA, TyIdx tyIdxB);
   bool AliasAccordingToFieldID(const OriginalSt &ostA, const OriginalSt &ostB);
@@ -167,12 +180,13 @@ class AliasClass : public AnalysisResult {
   bool CallHasNoPrivateDefEffect(const CallNode &stmt) const;
   AliasElem *FindOrCreateAliasElem(OriginalSt &ost);
   AliasElem *FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx, FieldID fieldId);
-  AliasElem *CreateAliasElemsExpr(BaseNode &expr);
+  AliasInfo CreateAliasElemsExpr(BaseNode &expr);
   void SetNotAllDefsSeenForMustDefs(const StmtNode &callas);
   void SetPtrOpndNextLevNADS(const BaseNode &opnd, AliasElem *aliasElem, bool hasNoPrivateDefEffect);
   void SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end, MapleVector<BaseNode*> &opnds,
                               bool hasNoPrivateDefEffect);
   void ApplyUnionForDassignCopy(const AliasElem &lhsAe, const AliasElem *rhsAe, const BaseNode &rhs);
+  void CreateMirroringAliasElems(OriginalSt *ost1, OriginalSt *ost2);
   AliasElem *FindOrCreateDummyNADSAe();
   bool IsPointedTo(OriginalSt &oSt);
   AliasElem &FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt);
