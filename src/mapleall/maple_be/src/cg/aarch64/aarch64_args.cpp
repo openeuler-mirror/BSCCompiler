@@ -106,7 +106,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   } else if (argInfo.symSize > k16ByteSize) {
     /* For large struct passing, a pointer to the copy is used. */
     argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
-  } if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
+  } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
     /* For small aggregate parameter, set to minimum of 4 bytes. */
     argInfo.symSize = argInfo.stkSize = k4ByteSize;
   } else if (numFpRegs[argIndex] > kOneRegister) {
