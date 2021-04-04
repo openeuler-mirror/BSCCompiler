@@ -123,8 +123,8 @@ def main(orig_args):
             if mode in default_mode_set:
                 mode_set = {mode}
             elif len(case_names) == 1:
-                print(case_name + " doesn't have OPT " + mode)
-                print(case_name + " OPT : " + str(default_mode_set))
+                print(case_name + " doesn't have MODE " + mode)
+                print(case_name + " MODE : " + str(default_mode_set))
                 sys.exit(1)
         else:
             mode_set = default_mode_set
