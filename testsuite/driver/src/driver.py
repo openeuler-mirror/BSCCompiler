@@ -21,7 +21,7 @@ import multiprocessing
 
 from env_var import EnvVar
 from target import Target
-from mod_table import ModTable
+from mode_table import ModeTable
 from case import Case
 from task import RunCaseTask, RunCasesTask, CleanCaseTask, GenShellScriptTask
 
@@ -39,7 +39,7 @@ env_args.add_option('--report', dest="report", default=None, help="Report output
 target_args.add_option('-j', '--jobs', dest="jobs", type=int, default=multiprocessing.cpu_count(), help='Number of parallel jobs')
 target_args.add_option('--retry', dest="retry", action='store_true', default=False, help='Rerun failed and timeout cases')
 target_args.add_option('--run-path', dest="run_path", default=None, help='Where to run cases')
-target_args.add_option('--mod', dest="mod", default=None, help='Which mod to run')
+target_args.add_option('--mode', dest="mode", default=None, help='Which mode to run')
 # TODO: Add phone test
 target_args.add_option('--platform', dest="platform", default="qemu", help='qemu or phone')
 target_args.add_option('--clean', dest="clean", action='store_true', default=False, help='clean the path')
@@ -77,31 +77,31 @@ def main(orig_args):
     cmd_json_output = opt.cmd_json_output
     jobs = opt.jobs
     retry = opt.retry
-    mod = opt.mod
+    mode = opt.mode
     report = opt.report
 
     EnvVar(sdk_root, test_suite_root, source_code_root)
     prebuild(run_path)
 
-    mod_tables = {}
+    mode_tables = {}
     if target + ".conf" in os.listdir(EnvVar.CONFIG_FILE_PATH):
-        mod_tables[target] = ModTable(os.path.join(EnvVar.CONFIG_FILE_PATH, target + ".conf"))
+        mode_tables[target] = modeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, target + ".conf"))
     else:
         for file in os.listdir(EnvVar.CONFIG_FILE_PATH):
             if file.endswith("conf") and file != "testallops.conf" :
-                mod_tables[file.split(".")[0]] = ModTable(os.path.join(EnvVar.CONFIG_FILE_PATH, file))
+                mode_tables[file.split(".")[0]] = modeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, file))
 
     if clean:
-        target_mod_set = set()
-        for mod_table in mod_tables.keys():
-            target_mod_set = target_mod_set.union(mod_tables[mod_table].get_target_mod_set(target))
-        the_case = Case(target, target_mod_set)
+        target_mode_set = set()
+        for mode_table in mode_tables.keys():
+            target_mode_set = target_mode_set.union(mode_tables[mode_table].get_target_mode_set(target))
+        the_case = Case(target, target_mode_set)
         task = CleanCaseTask(the_case)
         task.run()
         sys.exit(0)
 
-    if target in mod_tables.keys():
-        targets = mod_tables[target].get_targets()
+    if target in mode_tables.keys():
+        targets = mode_tables[target].get_targets()
     elif os.path.exists(os.path.join(EnvVar.TEST_SUITE_ROOT, target)):
         targets = [target]
     else:
@@ -115,21 +115,21 @@ def main(orig_args):
         case_names = case_names.union(the_target.get_cases())
 
     for case_name in case_names:
-        mod_set = set()
-        default_mod_set = set()
-        for mod_table in mod_tables.keys():
-            default_mod_set = default_mod_set.union(mod_tables[mod_table].get_target_mod_set(case_name))
-        if mod is not None:
-            if mod in default_mod_set:
-                mod_set = {mod}
+        mode_set = set()
+        default_mode_set = set()
+        for mode_table in mode_tables.keys():
+            default_mode_set = default_mode_set.union(mode_tables[mode_table].get_target_mode_set(case_name))
+        if mode is not None:
+            if mode in default_mode_set:
+                mode_set = {mode}
             elif len(case_names) == 1:
-                print(case_name + " doesn't have OPT " + mod)
-                print(case_name + " OPT : " + str(default_mod_set))
+                print(case_name + " doesn't have OPT " + mode)
+                print(case_name + " OPT : " + str(default_mode_set))
                 sys.exit(1)
         else:
-            mod_set = default_mod_set
-        if len(mod_set) != 0:
-            cases.append(Case(case_name, mod_set))
+            mode_set = default_mode_set
+        if len(mode_set) != 0:
+            cases.append(Case(case_name, mode_set))
 
     if cmd_json_output is not None:
         task = GenShellScriptTask(cases)
