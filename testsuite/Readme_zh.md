@@ -54,9 +54,12 @@ testsuite
 
 在MAPLE_ROOT下，即代码根目录下，执行：
 
+
 make testall  批量跑testsuite/driver/config/testall.conf指定的所有测试套
 
+
 make testall MODE=O2    批量跑testsuite/driver/config/testall.conf指定的所有测试套中支持O2流程模式的部分
+
 
 支持自定义测试套：
 
