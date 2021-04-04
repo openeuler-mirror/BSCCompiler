@@ -52,20 +52,25 @@ testsuite
 
 ### 批量运行
 
-在MAPLE_ROOT下，即代码根目录下，如：
+在MAPLE_ROOT下，即代码根目录下，执行如：
 
 make testall  批量跑testsuite/driver/config/testall.conf指定的所有测试套
 
+
 make testall MODE=O2    批量跑testsuite/driver/config/testall.conf指定的所有测试套中支持O2流程模式的部分
 
+
 make java_test/app_test    批量跑测试套java_test/app_test，这里测试套名称可以是相对testsuite的相对路径
+
 
 make java_test/app_test MODE=O02     批量跑测试套java_test/app_test中支持O2流程模式的部分
 
 
-支持自定义测试套，在testsuite/driver/config下，写测试套配置文件，语法见后文[测试套配置]，之后可以在MAPLE_ROOT下，如：
+
+支持自定义测试套，在testsuite/driver/config下，写测试套配置文件，语法见后文[测试套配置]，之后可以在MAPLE_ROOT下，执行如：
 
 make [target_name] [MODE=mod]     
+
 
 
 ### 调试模式运行
