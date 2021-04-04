@@ -1,17 +1,17 @@
 #!/bin/bash
 
-OPT=O2
+MODE=O2
 THREADS=$(cat /proc/cpuinfo| grep "processor"| wc -l)
 PWD=$(pwd)
 num=${#CASE_ROOT}
 let num++
 
-#mm OPT=O0
-if [ $# = 1 ] && [[ "x${1}" =~ ^xOPT=.* ]]
+#mm MODE=O0
+if [ $# = 1 ] && [[ "x${1}" =~ ^xMODE=.* ]]
 then
     TARGET=${PWD:${num}}
-    OPT=${1#*=}
-    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --mod=${OPT}
+    MODE=${1#*=}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --mode=${MODE}
 
 #mm clean
 elif [ $# = 1 ] && [ "x${1}" = "xclean" ]
@@ -25,25 +25,25 @@ then
     TARGET=${1}
     python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
 
-#mm testall OPT=O0
-elif [ $# = 2 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ] && [[ "x${2}" =~ ^xOPT=.* ]]
+#mm testall MODE=O0
+elif [ $# = 2 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ] && [[ "x${2}" =~ ^xMODE=.* ]]
 then
-    OPT=${2#*=}
+    MODE=${2#*=}
     TARGET=${1}
-    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mode=${MODE} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
 
 #mm app_test
 elif [ $# = 1 ] && [ -d ${CASE_ROOT}/${1} ]
 then
     TARGET=${1}
-    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mode=${MODE} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
 
-#mm app_test OPT=O2
-elif [ $# = 2 ] && [ -d ${CASE_ROOT}/${1} ] && [[ "x${2}" =~ ^xOPT=.* ]]
+#mm app_test MODE=O2
+elif [ $# = 2 ] && [ -d ${CASE_ROOT}/${1} ] && [[ "x${2}" =~ ^xMODE=.* ]]
 then
     TARGET=${1}
-    OPT=${2#*=}
-    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mod=${OPT} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
+    MODE=${2#*=}
+    python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mode=${MODE} --j=${THREADS} --retry --report=${MAPLE_ROOT}/report.txt
 
 else
     echo "Input Wrong~!"
