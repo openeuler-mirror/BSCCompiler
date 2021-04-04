@@ -14,7 +14,7 @@
 
 import os
 
-mod_dict = locals()
+mode_dict = locals()
 my_dir = os.path.dirname(__file__)
 for py in os.listdir(my_dir):
     if py == '__init__.py':
@@ -22,5 +22,5 @@ for py in os.listdir(my_dir):
 
     if py.endswith('.py'):
         name = py[:-3]
-        mod = __import__(__name__, globals(), locals(), ['%s' % name])
-        mod_dict[name] = getattr(getattr(mod, name), name)
+        mode = __import__(__name__, globals(), locals(), ['%s' % name])
+        mode_dict[name] = getattr(getattr(mode, name), name)
