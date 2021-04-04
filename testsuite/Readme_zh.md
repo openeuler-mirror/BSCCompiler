@@ -139,3 +139,37 @@ testsuite
 2.流程模式必须是在testsuite/driver/mode中存在的已配置的流程模式
 
 3.配置文件中，支持#注释和空行
+
+
+## 流程模式配置
+
+流程模式配置文件在路径 testsuite/driver/src/mode 下，每一个流程模式配置文件里有且只有一个dict，dict 的变量名即为这个流程模式的名字，且一定与改流程模式配置文件的名字保持一致，否则无法正确加载。
+
+流程模式的dict封装结构如下：
+
+    mode_name = {
+       
+        phase_name1 : [
+		
+		    api1，
+			
+			api2，
+			
+			...
+		
+		]，
+		
+		phase_name2 : [
+		
+		    api1，
+			
+			api2，
+			
+			...
+		
+		]，
+		
+		...
+			
+	}
+	
