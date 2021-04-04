@@ -113,7 +113,7 @@ testsuite
 
 支持流程模式集合和流程模式同时使用，如：
 
-    java_test/app_test: java_common_mode_set， special_mode
+    java_test/app_test: java_common_mode_set， special_mode_set
 
 
 支持路径配置覆盖，如：
@@ -180,7 +180,7 @@ testsuite
 
 调用封装描述case测试的主干流程，phase_name 要存在于 上文流程模式配置文件里dict封装中的key中，()里为case相关的入参，格式为
 
-    [var_name]=[var_value]
+    var_name=var_value
 
 多个入参用','相连，无入参时()不可缺省
 
