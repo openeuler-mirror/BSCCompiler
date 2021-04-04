@@ -20,7 +20,7 @@ from basic_tools.string import split_string_by_comma_not_in_double_quotes, get_s
 
 class TestCFG(object):
 
-    mod_phase_pattern = re.compile('^[0-9a-zA-Z_]+$')
+    mode_phase_pattern = re.compile('^[0-9a-zA-Z_]+$')
 
     def __init__(self, test_cfg_path):
         self.test_cfg_content = read_file(test_cfg_path)
@@ -30,15 +30,15 @@ class TestCFG(object):
         self.parse_test_cfg_contest()
 
     def parse_test_cfg_contest(self):
-        mod_list = ["default"]
+        mode_list = ["default"]
         for line in self.test_cfg_content:
             if line.endswith(":"):
-                mod_list = line[:-1].split(",")
-                for mod in mod_list:
-                    self.test_cfg[mod] = []
+                mode_list = line[:-1].split(",")
+                for mode in mode_list:
+                    self.test_cfg[mode] = []
             else:
-                for mod in mod_list:
-                    if "(" in line and line[-1] == ")" and TestCFG.mod_phase_pattern.match(line.split("(")[0]):
+                for mode in mode_list:
+                    if "(" in line and line[-1] == ")" and TestCFG.mode_phase_pattern.match(line.split("(")[0]):
                         phase = line.split("(")[0]
                         variable_table = {}
                         variables_list = split_string_by_comma_not_in_double_quotes(get_string_in_outermost_brackets(line))
@@ -51,12 +51,12 @@ class TestCFG(object):
                                 variable_table[variable_name] = variable_value
                             else:
                                 variable_table["APP"] = variable
-                        self.test_cfg[mod].append((phase, variable_table))
+                        self.test_cfg[mode].append((phase, variable_table))
                     elif "=" in line and " " not in line:
                         global_variable_name = line.split("=")[0]
                         global_variable_value = "=".join(line.split("=")[1:])
                         if global_variable_value.startswith('"') and global_variable_value.endswith('"'):
                             global_variable_value = global_variable_value[1:-1]
-                        self.test_cfg[mod].append(("global", {global_variable_name: global_variable_value}))
+                        self.test_cfg[mode].append(("global", {global_variable_name: global_variable_value}))
                     else:
-                        self.test_cfg[mod].append(("shell", line))
+                        self.test_cfg[mode].append(("shell", line))
