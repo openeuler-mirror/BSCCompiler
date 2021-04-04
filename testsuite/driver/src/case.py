@@ -19,15 +19,15 @@ import sys
 from api.shell import Shell
 from test_cfg import TestCFG
 from env_var import EnvVar
-from mod import *
+from mode import *
 from shell_executor import ShellExecutor
 
 
 class Case(object):
 
-    def __init__(self, case_name, mods):
+    def __init__(self, case_name, modes):
         self.case_name = case_name
-        self.mods = mods
+        self.modes = modes
         self.case_timeout = 900
         self.case_cpu = 0.7
         self.case_memory = 0
@@ -36,68 +36,68 @@ class Case(object):
         self.shell_command_suite = {}
 
     def parse_config_file(self):
-        for mod in self.mods:
-            self.shell_command_suite[mod] = []
-            global_variables = {"CASE": self.case_name, "OPT": mod}
-            if mod in self.test_cfg_content.keys():
-                mod_cfg_content = self.test_cfg_content[mod]
+        for mode in self.modes:
+            self.shell_command_suite[mode] = []
+            global_variables = {"CASE": self.case_name, "MODE": mode}
+            if mode in self.test_cfg_content.keys():
+                mode_cfg_content = self.test_cfg_content[mode]
             else:
-                mod_cfg_content = self.test_cfg_content["default"]
-            for line in mod_cfg_content:
+                mode_cfg_content = self.test_cfg_content["default"]
+            for line in mode_cfg_content:
                 if line[0] == "global":
                     global_variables.update(line[1])
                 elif line[0] == "shell":
-                    self.shell_command_suite[mod].append(Shell(line[1]).get_command(global_variables))
+                    self.shell_command_suite[mode].append(Shell(line[1]).get_command(global_variables))
                 else:
                     local_variables = line[1]
                     variables = global_variables.copy()
                     variables.update(local_variables)
                     phase = line[0]
-                    if phase in globals()[mod].keys():
-                        for command_object in globals()[mod][phase]:
-                            self.shell_command_suite[mod].append(command_object.get_command(variables))
+                    if phase in globals()[mode].keys():
+                        for command_object in globals()[mode][phase]:
+                            self.shell_command_suite[mode].append(command_object.get_command(variables))
                     else:
                         print(line[0] + " not found !")
                         os._exit(1)
 
     def generate_test_script(self):
-        for mod in self.mods:
-            mod_file_path = os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name, "." + mod + "_test.sh")
-            f = open(mod_file_path, 'w')
+        for mode in self.modes:
+            mode_file_path = os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name, "." + mode + "_test.sh")
+            f = open(mode_file_path, 'w')
             f.write("#!/bin/bash\n")
             f.write("set -e\n")
             f.write("set -x\n")
-            for line in self.shell_command_suite[mod]:
+            for line in self.shell_command_suite[mode]:
                 f.write(line + '\n')
             f.close()
-            os.chmod(mod_file_path, stat.S_IRWXU)
+            os.chmode(mode_file_path, stat.S_IRWXU)
 
     def clean(self):
         os.chdir(os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name))
-        for mod in self.shell_command_suite.keys():
-            for command in self.shell_command_suite[mod]:
+        for mode in self.shell_command_suite.keys():
+            for command in self.shell_command_suite[mode]:
                 if command.startswith("rm "):
                     os.system(command)
 
     def get_case_package(self):
         case_list = []
-        for mod in self.mods:
+        for mode in self.modes:
             case_list.append({
                 "name": self.case_name,
                 "memory": self.case_memory,
                 "cpu": self.case_cpu,
-                "option": mod,
-                "cmd": "cd ${WORKSPACE}/out/host/test/" + self.case_name + ";export OUT_ROOT=${WORKSPACE}/out;bash ." + mod + "_test.sh",
+                "option": mode,
+                "cmd": "cd ${WORKSPACE}/out/host/test/" + self.case_name + ";export OUT_ROOT=${WORKSPACE}/out;bash ." + mode + "_test.sh",
                 "timeout": self.case_timeout
             })
         return case_list
 
     def run(self, detail = False):
         result_table = {}
-        for mod in self.mods:
+        for mode in self.modes:
             result, result_in_color = "PASSED", "\033[1;32mPASSED\033[0m"
-            log_file = open(os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name, mod + "_run.log"), "w+")
-            for command in self.shell_command_suite[mod]:
+            log_file = open(os.path.join(EnvVar.TEST_SUITE_ROOT, self.case_name, mode + "_run.log"), "w+")
+            for command in self.shell_command_suite[mode]:
                 log_file.write("[[ CMD : " + command + " ]]\n")
                 if detail:
                     print("\033[1;32m[[ CMD : " + command + " ]]\033[0m")
@@ -123,7 +123,7 @@ class Case(object):
                     log_file.write("ERROR : FAILED !\n")
                     result, result_in_color = "FAILED", "\033[1;31mFAILED\033[0m"
                     break
-            print(self.case_name + " " + mod + " " + result_in_color)
+            print(self.case_name + " " + mode + " " + result_in_color)
             sys.stdout.flush()
-            result_table[mod] = result
+            result_table[mode] = result
         return {self.case_name: result_table}

@@ -101,18 +101,18 @@ class RunCasesTask(Task):
 
     def result_parse(self):
         for case_name in self.results.keys():
-            again_mod = set()
-            for mod in self.results[case_name].keys():
-                if self.results[case_name][mod] == "PASSED":
+            again_mode = set()
+            for mode in self.results[case_name].keys():
+                if self.results[case_name][mode] == "PASSED":
                     self.pass_num += 1
-                elif self.results[case_name][mod] == "FAILED":
-                    self.fail_cases_list.append(case_name + " " + mod)
-                    again_mod.add(mod)
-                elif self.results[case_name][mod] == "TIMEOUT":
-                    self.timeout_cases_list.append(case_name + " " + mod)
-                    again_mod.add(mod)
-            if len(again_mod) != 0:
-                self.again_cases.append(Case(case_name, again_mod))
+                elif self.results[case_name][mode] == "FAILED":
+                    self.fail_cases_list.append(case_name + " " + mode)
+                    again_mode.add(mode)
+                elif self.results[case_name][mode] == "TIMEOUT":
+                    self.timeout_cases_list.append(case_name + " " + mode)
+                    again_mode.add(mode)
+            if len(again_mode) != 0:
+                self.again_cases.append(Case(case_name, again_mode))
         self.fail_num = len(self.fail_cases_list)
         self.timeout_num = len(self.timeout_cases_list)
         if len(self.again_cases) == 0:
