@@ -49,7 +49,7 @@ class ModeTable(object):
                 for target in self.mode_table.keys():
                     if options in self.mode_table[target]:
                         self.mode_table[target].remove(options)
-                        self.mode_table[target] = self.mode_table[target].union(self.mode_table_content["OPTION_SUITE"][options])
+                        self.mode_table[target] = self.mode_table[target].union(self.mode_table_content["MODE_SET"][options])
         if "BAN_TEST_SUITE" in self.mode_table_content.keys():
             for target in self.mode_table_content["BAN_TEST_SUITE"].keys():
                 if "all" in self.mode_table_content["BAN_TEST_SUITE"][target]:
