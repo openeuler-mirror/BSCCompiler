@@ -67,7 +67,7 @@ testsuite
 
 
 
-支持自定义测试套，在testsuite/driver/config下，写测试套配置文件，语法见后文[测试套配置]，之后可以在MAPLE_ROOT下，执行如：
+支持自定义测试套，在testsuite/driver/config下，写测试套配置文件，文件名必须以test开头，便于和编译target区分，语法见后文[测试套配置]，之后可以在MAPLE_ROOT下，执行如：
 
     make [target_name] [MODE=mod]     
 
@@ -125,11 +125,11 @@ testsuite
 
 #### ban列表 [BAN_TEST_SUITE]
 
-    基于指定测试套默认的能运行的流程模式集合[DEFAULT_TEST_SUITE]中，将不能运行的模式注释掉的ban列表，如果cmp在PATH中，如：
+基于指定测试套默认的能运行的流程模式集合[DEFAULT_TEST_SUITE]中，将不能运行的模式注释掉的ban列表，如果cmp在PATH中，如：
 	
 	java_test/app_test/APP0001-app-Application-Application-helloworld: O0     这一行声明这个case O0模式不跑，那么这个case将跑除了O0之外的测试套中指定的流程模式集合[DEFAULT_TEST_SUITE]
-	
-	同样的测试套可以多次出现在ban列表中，ban列表中测试套注释掉的模式为多行的并集。
+
+同样的测试套可以多次出现在ban列表中，ban列表中测试套注释掉的模式为多行的并集。
 	
 
 说明：
@@ -143,33 +143,51 @@ testsuite
 
 ## 流程模式配置
 
-流程模式配置文件在路径 testsuite/driver/src/mode 下，每一个流程模式配置文件里有且只有一个dict，dict 的变量名即为这个流程模式的名字，且一定与改流程模式配置文件的名字保持一致，否则无法正确加载。
+流程模式配置文件在路径 testsuite/driver/src/mode 下，每一个流程模式配置文件里有且只有一个dict，dict 的变量名即为这个流程模式的名字，且一定与改流程模式配置文件的名字保持一致，否则无法正确加载，该文件需符合python3语法。
 
 流程模式的dict封装结构如下：
 
     mode_name = {
-       
         phase_name1 : [
-		
 		    api1，
-			
 			api2，
-			
 			...
-		
 		]，
-		
 		phase_name2 : [
-		
 		    api1，
-			
 			api2，
-			
 			...
-		
 		]，
-		
 		...
-			
 	}
-	
+
+其中，dict的key值为要封装的一个阶段流程的名称，如 clean compile run等，而对应的value为由若干个api组成的流程描述。
+
+常用的api，建议封装在testsuite/driver/src/api 下面，每个api尽可能抽象并与业务解耦，这样才能最大程度复用，可变内容在实例化时用入参传入，在api解析时拼装成一条完整的shell命令
+
+不常用的api，提供最原始的Shell api封装,可以直接写shell命令
+
+
+## 用例配置
+
+用例所在文件夹命名规范为^[A-Z]{1,9}[0-9]{3,10}-[a-zA-Z0-9_.]，1到9个大写字母加3到10位数字组成用例文件夹开头，后面用“-”链接若干由大小写字母，数字，'_' , '.'组成的字符串
+
+用例所在文件夹下有test.cfg，即用例对应的配置文件，配置文件语法为：
+    
+	phase_name1()
+	phase_name2(var1=1,var2="test")
+	...
+
+调用封装描述case测试的主干流程，phase_name 要存在于 上文流程模式配置文件里dict封装中的key中，()里为case相关的入参，格式为
+
+    [var_name]=[var_value]
+
+多个入参用','相连，无入参时()不可缺省
+
+另 主类名传参时，如
+    
+    compile(APP=HelloWorld)
+
+可简写为
+
+    compile(HelloWorld)
