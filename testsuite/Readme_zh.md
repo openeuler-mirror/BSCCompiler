@@ -59,7 +59,7 @@ testsuite
 测试套集合配置文件在testsuite/driver/config目录，里面可以添加多个测试套集合配置文件，每个配置文件包含流程模式集合，指定测试套能运行的流程模式集合，ban列表，配置文件语法如下：
 
 
-流程模式集合 [MODE_SET]
+#####流程模式集合 [MODE_SET]
 
     mode_set_name: mode1, mode2    将mode1 mode2两个流程模式封装为mod_set_name
 
@@ -68,7 +68,7 @@ testsuite
 
 
 
-指定测试套能运行的流程模式集合 [DEFAULT_TEST_SUITE]
+#####指定测试套能运行的流程模式集合 [DEFAULT_TEST_SUITE]
 
     java_test/app_test: common_mode_set    testsuite下java_test/app_test路径下的case都能跑common_option中的模式流程，等价于：java_test/app_test: O0, O2
 
@@ -85,7 +85,7 @@ testsuite
 
 
 
-ban列表 [BAN_TEST_SUITE]
+#####ban列表 [BAN_TEST_SUITE]
 
     基于指定测试套
 
