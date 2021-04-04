@@ -43,22 +43,22 @@ class ModeTable(object):
         self._parse()
 
     def _parse(self):
-        self.mode_table = self.mode_table_content["DEFAULT_SUITE"]
-        if "OPTION_SUITE" in self.mode_table_content.keys():
-            for options in self.mode_table_content["OPTION_SUITE"].keys():
+        self.mode_table = self.mode_table_content["DEFAULT_TEST_SUITE"]
+        if "MODE_SET" in self.mode_table_content.keys():
+            for options in self.mode_table_content["MODE_SET"].keys():
                 for target in self.mode_table.keys():
                     if options in self.mode_table[target]:
                         self.mode_table[target].remove(options)
                         self.mode_table[target] = self.mode_table[target].union(self.mode_table_content["OPTION_SUITE"][options])
-        if "BAN_SUITE" in self.mode_table_content.keys():
-            for target in self.mode_table_content["BAN_SUITE"].keys():
-                if "all" in self.mode_table_content["BAN_SUITE"][target]:
+        if "BAN_TEST_SUITE" in self.mode_table_content.keys():
+            for target in self.mode_table_content["BAN_TEST_SUITE"].keys():
+                if "all" in self.mode_table_content["BAN_TEST_SUITE"][target]:
                     self.mode_table[target] = set()
                     continue
                 father_target = target
                 while father_target not in self.mode_table.keys():
                     father_target = os.path.dirname(father_target)
-                self.mode_table[target] = self.mode_table[father_target] - self.mode_table_content["BAN_SUITE"][target]
+                self.mode_table[target] = self.mode_table[father_target] - self.mode_table_content["BAN_TEST_SUITE"][target]
 
     def get_target_mode_set(self, target):
         while target not in self.mode_table.keys() and len(target) != 0:
