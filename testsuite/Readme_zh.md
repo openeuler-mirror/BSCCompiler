@@ -77,15 +77,15 @@ testsuite
 
 比如要调试java_test/app_test/APP0001-app-Application-Application-helloworld，则切换路径到这个case下面，执行：
 
-mm MODE=O2
+    mm MODE=O2
 
 执行的流程模式自选，如不清楚这个case支持具体哪些测试模式，可以输入一个错误的模式名称，如mm MODE=xx，这样会提示支持的模式都有哪些。
 
-执行的命令行会打印出来，可以复制后直接在本地粘贴执行，便于调试。
+执行的命令行会打印出来，可以复制后直接在当前路径下粘贴执行，便于调试。
 
 清理调试运行生成的文件，执行：
 
-mm clean
+    mm clean
 
 
 ## 测试套配置
