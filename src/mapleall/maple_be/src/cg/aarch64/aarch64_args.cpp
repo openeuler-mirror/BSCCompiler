@@ -304,9 +304,11 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
           static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
               secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
-      if (IsInSameSegment(firstArgInfo, secondArgInfo)) {
+      if (firstArgInfo.doMemPairOpt || IsInSameSegment(firstArgInfo, secondArgInfo)) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
-        it = next;
+        if (firstArgInfo.doMemPairOpt == false) {
+          it = next;
+        }
         continue;
       }
     }
