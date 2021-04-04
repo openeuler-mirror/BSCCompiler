@@ -85,11 +85,11 @@ def main(orig_args):
 
     mode_tables = {}
     if target + ".conf" in os.listdir(EnvVar.CONFIG_FILE_PATH):
-        mode_tables[target] = modeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, target + ".conf"))
+        mode_tables[target] = ModeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, target + ".conf"))
     else:
         for file in os.listdir(EnvVar.CONFIG_FILE_PATH):
             if file.endswith("conf") and file != "testallops.conf" :
-                mode_tables[file.split(".")[0]] = modeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, file))
+                mode_tables[file.split(".")[0]] = ModeTable(os.path.join(EnvVar.CONFIG_FILE_PATH, file))
 
     if clean:
         target_mode_set = set()
