@@ -137,7 +137,7 @@ REALTARGET := $(TESTTARGET)
 endif
 .PHONY: $(TESTTARGET)
 ${TESTTARGET}:
-	@python3 $(MAPLE_ROOT)/testsuite/driver/src/driver.py --target=$(REALTARGET) --run-path=$(MAPLE_ROOT)/output/testsuite $(if $(MOD), --mod=$(MOD),) --j=$(THREADS) --retry --report=$(MAPLE_ROOT)/report.txt
+	@python3 $(MAPLE_ROOT)/testsuite/driver/src/driver.py --target=$(REALTARGET) --run-path=$(MAPLE_ROOT)/output/$(MAPLE_BUILD_TYPE)/testsuite $(if $(MOD), --mod=$(MOD),) --j=$(THREADS) --retry --report=$(MAPLE_ROOT)/report.txt
 endif
 
 .PHONY: cleanrsd
