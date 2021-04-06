@@ -22,11 +22,11 @@ IR = {
     ],
     "compile": [
         Irbuild(
-            irbuild="${OUT_ROOT}/aarch64-clang-release/bin/irbuild",
+            irbuild="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/irbuild",
             infile="${APP}.mpl"
         ),
         Irbuild(
-            irbuild="${OUT_ROOT}/aarch64-clang-release/bin/irbuild",
+            irbuild="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/irbuild",
             infile="${APP}.irb.mpl"
         ),
         CheckFileEqual(

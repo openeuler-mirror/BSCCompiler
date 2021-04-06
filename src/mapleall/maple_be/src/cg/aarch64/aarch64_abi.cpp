@@ -501,9 +501,6 @@ int32 ParmLocator::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, PLocInfo &p
    * either all single fp or all double fp, then it can be passed by float-float.
    */
   AArch64ArgumentClass classes[kMaxRegCount] = { kAArch64NoClass };
-#if DEBUG
-  int32 saveIntParmNum = nextGeneralRegNO;
-#endif
   typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex().GetIdx());
   int32 aggCopySize = 0;
   if (typeSize > k16ByteSize) {
@@ -534,7 +531,6 @@ int32 ParmLocator::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, PLocInfo &p
       CHECK_FATAL(false, "param passing in FP reg not allowed here");
     } else {
       pLoc.reg0 = AllocateGPRegister();
-      ASSERT(nextGeneralRegNO == saveIntParmNum, "RegNo should be saved pramRegNO");
       /* Rule C.11 */
       ASSERT((pLoc.reg0 != kRinvalid) || (nextGeneralRegNO == AArch64Abi::kNumIntParmRegs),
              "reg0 should not be kRinvalid or nextGeneralRegNO should equal kNumIntParmRegs");
