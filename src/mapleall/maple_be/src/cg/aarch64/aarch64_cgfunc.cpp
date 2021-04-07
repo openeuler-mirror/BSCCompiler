@@ -5576,9 +5576,11 @@ uint32 AArch64CGFunc::SelectParmListGetStructReturnSize(StmtNode &naryNode) {
     CallNode &callNode = static_cast<CallNode&>(naryNode);
     MIRFunction *callFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode.GetPUIdx());
     TyIdx retIdx = callFunc->GetReturnTyIdx();
-    if ((GetBecommon().GetTypeSize(retIdx.GetIdx()) == 0) && GetBecommon().HasFuncReturnType(*callFunc)) {
+    uint32 retSize = GetBecommon().GetTypeSize(retIdx.GetIdx());
+    if ((retSize == 0) && GetBecommon().HasFuncReturnType(*callFunc)) {
       return GetBecommon().GetTypeSize(GetBecommon().GetFuncReturnType(*callFunc));
     }
+    return retSize;
   } else if (naryNode.GetOpCode() == OP_icall) {
     IcallNode &icallNode = static_cast<IcallNode&>(naryNode);
     CallReturnVector *p2nrets = &icallNode.GetReturnVec();
