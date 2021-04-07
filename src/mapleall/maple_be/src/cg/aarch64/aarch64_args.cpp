@@ -89,7 +89,6 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   argInfo.symSize = aarchCGFunc->GetBecommon().GetTypeSize(argInfo.mirTy->GetTypeIndex());
   argInfo.memPairSecondRegSize = 0;
   argInfo.doMemPairOpt = false;
-  argInfo.CreateTwoStores  = false;
   if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
     if (numFpRegs[argIndex] > kOneRegister) {
       argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
@@ -106,7 +105,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   } else if (argInfo.symSize > k16ByteSize) {
     /* For large struct passing, a pointer to the copy is used. */
     argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
-  } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
+  } if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
     /* For small aggregate parameter, set to minimum of 4 bytes. */
     argInfo.symSize = argInfo.stkSize = k4ByteSize;
   } else if (numFpRegs[argIndex] > kOneRegister) {
@@ -129,7 +128,6 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
      */
     argInfo.symSize = kSizeOfPtr;
     argInfo.doMemPairOpt = false;
-    argInfo.CreateTwoStores = true;
   }
   return argInfo;
 }
@@ -256,7 +254,7 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
   }
   aarchCGFunc->GetCurBB()->AppendInsn(insn);
 
-  if (argInfo.CreateTwoStores || argInfo.doMemPairOpt) {
+  if (argInfo.doMemPairOpt) {
     /* second half of the struct passing by registers. */
     uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
@@ -304,11 +302,9 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
           static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
               secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
-      if (firstArgInfo.doMemPairOpt || IsInSameSegment(firstArgInfo, secondArgInfo)) {
+      if (IsInSameSegment(firstArgInfo, secondArgInfo)) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
-        if (firstArgInfo.doMemPairOpt == false) {
-          it = next;
-        }
+        it = next;
         continue;
       }
     }
