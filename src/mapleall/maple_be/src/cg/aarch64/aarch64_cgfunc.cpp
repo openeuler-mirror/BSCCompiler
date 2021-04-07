@@ -3896,9 +3896,9 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
       if (fsize > tsize) {
         if (IsSignedInteger(toType)) {
           if (origValue < 0) {
-            signValue = 0xFFFFFFFFFFFFFFFF & (1ULL << static_cast<uint32>(tsize));
+            signValue = 0xFFFFFFFFFFFFFFFFLL & (1ULL << static_cast<uint32>(tsize));
           }
-          newValue = static_cast<uint64>(origValue) & ((1ULL << static_cast<uint32>(tsize)) - 1u) &
+          newValue = (static_cast<uint64>(origValue) & ((1ULL << static_cast<uint32>(tsize)) - 1u)) |
                      static_cast<uint64>(signValue);
         } else {
           newValue = static_cast<uint64>(origValue) & ((1ULL << static_cast<uint32>(tsize)) - 1u);
