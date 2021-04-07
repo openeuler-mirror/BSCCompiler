@@ -163,7 +163,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       } value;
 
       value.ivalue = ReadNum();
-      return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(value.fvalue);
+      return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(value.fvalue, fieldID);
     }
     case kBinKindConstDouble: {
       union {
@@ -172,7 +172,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       } value;
 
       value.ivalue = ReadNum();
-      return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue);
+      return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue, fieldID);
     }
     case kBinKindConstAgg: {
       MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type, fieldID);
@@ -741,7 +741,8 @@ MIRType &BinaryMplImport::InsertInTypeTables(MIRType &type) {
          (!IsIncomplete(*prevType) && !IsIncomplete(type)) ||
          (!IsIncomplete(*prevType) && IsIncomplete(type)))) {
       resultTypePtr = prevType->CopyMIRTypeNode();
-      if (resultTypePtr->GetKind() == kTypeStruct || resultTypePtr->GetKind() == kTypeUnion || resultTypePtr->GetKind() == kTypeStructIncomplete) {
+      if (resultTypePtr->GetKind() == kTypeStruct || resultTypePtr->GetKind() == kTypeUnion ||
+          resultTypePtr->GetKind() == kTypeStructIncomplete) {
         tmpStruct.push_back(static_cast<MIRStructType*>(resultTypePtr));
       } else if (resultTypePtr->GetKind() == kTypeClass || resultTypePtr->GetKind() == kTypeClassIncomplete) {
         tmpClass.push_back(static_cast<MIRClassType*>(resultTypePtr));
@@ -1342,9 +1343,6 @@ void BinaryMplImport::Jump2NextField() {
   uint32 totalSize = static_cast<uint32>(ReadInt());
   bufI += (totalSize - sizeof(uint32));
   ReadNum();  // skip end tag for this field
-}
-
-void BinaryMplImport::UpdateDebugInfo() {
 }
 
 bool BinaryMplImport::Import(const std::string &fname, bool readSymbols, bool readSe) {

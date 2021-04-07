@@ -102,6 +102,18 @@ class TypeTable {
     return typeTable;
   }
 
+  auto &GetTypeHashTable() const {
+    return typeHashTable;
+  }
+
+  auto &GetPtrTypeMap() const {
+    return ptrTypeMap;
+  }
+
+  auto &GetRefTypeMap() const {
+    return refTypeMap;
+  }
+
   MIRType *GetTypeFromTyIdx(TyIdx tyIdx) {
     return const_cast<MIRType*>(const_cast<const TypeTable*>(this)->GetTypeFromTyIdx(tyIdx));
   }
@@ -316,12 +328,13 @@ class TypeTable {
     return voidPtrType;
   }
 
+  void UpdateMIRType(const MIRType &pType, const TyIdx tyIdx);
   MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray);
   MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint32 size);  // For one dimention array
   MIRType *GetOrCreateFarrayType(const MIRType &elem);
   MIRType *GetOrCreateJarrayType(const MIRType &elem);
-  MIRType *GetOrCreateFunctionType(MIRModule &module, TyIdx, const std::vector<TyIdx>&, const std::vector<TypeAttrs>&,
-                                   bool isVarg = false, bool isSimpCreate = false);
+  MIRType *GetOrCreateFunctionType(const TyIdx&, const std::vector<TyIdx>&, const std::vector<TypeAttrs>&,
+                                   bool isVarg = false);
   MIRType *GetOrCreateStructType(const std::string &name, const FieldVector &fields, const FieldVector &prntFields,
                                  MIRModule &module) {
     return GetOrCreateStructOrUnion(name, fields, prntFields, module);
@@ -490,8 +503,8 @@ class FPConstTable {
   FPConstTable &operator=(const FPConstTable &p) = delete;
   ~FPConstTable();
 
-  MIRFloatConst *GetOrCreateFloatConst(float);     // get the const from floatConstTable or create a new one
-  MIRDoubleConst *GetOrCreateDoubleConst(double);  // get the const from doubleConstTable or create a new one
+  MIRFloatConst *GetOrCreateFloatConst(float fval, uint32 fieldID);     // get the const from floatConstTable or create a new one
+  MIRDoubleConst *GetOrCreateDoubleConst(double fval, uint32 fieldID);  // get the const from doubleConstTable or create a new one
 
   static std::unique_ptr<FPConstTable> Create() {
     auto p = std::unique_ptr<FPConstTable>(new FPConstTable());
