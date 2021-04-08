@@ -41,7 +41,7 @@ include_directories = [
   "${MPLFE_ROOT}/ast_input/include",
   "${MPLFE_ROOT}/ast_input/lib",
   "${LLVMINC}",
-  "${MAPLE_ROOT}/../ThirdParty/cfe-8.0.0.src/tools",
+  "//../ThirdParty/cfe-8.0.0.src/tools",
 ]
 
 static_library("lib_mplfe_util") {
