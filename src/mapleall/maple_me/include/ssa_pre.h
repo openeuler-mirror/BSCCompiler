@@ -75,7 +75,11 @@ class SSAPre {
   virtual PUIdx GetPUIdx() const = 0;
   virtual void SetCurFunction(PUIdx) const {}
 
-  virtual void GetIterDomFrontier(const BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) const = 0;
+  void GetIterDomFrontier(BB *bb, MapleSet<uint32> *dfset) {
+    for (BBId bbid : dom->iterDomFrontier[bb->GetBBId()]) {
+      dfset->insert(dom->GetDtDfnItem(bbid));
+    }
+  }
   void SetSpillAtCatch(bool status) {
     spillAtCatch = status;
   }
