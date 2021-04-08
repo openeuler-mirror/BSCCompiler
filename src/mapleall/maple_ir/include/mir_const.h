@@ -40,7 +40,7 @@ enum MIRConstKind {
 class MIRConst {
  public:
   explicit MIRConst(MIRType &type, MIRConstKind constKind = kConstInvalid, uint32 fieldID = 0)
-      : type(type), kind(constKind), fieldID(fieldID) {}
+      : type(&type), kind(constKind), fieldID(fieldID) {}
 
   virtual ~MIRConst() = default;
 
@@ -80,19 +80,19 @@ class MIRConst {
   }
 
   MIRType &GetType() {
-    return type;
+    return *type;
   }
 
   const MIRType &GetType() const {
-    return type;
+    return *type;
   }
 
   void SetType(MIRType &t) {
-    type = t;
+    type = &t;
   }
 
  private:
-  MIRType &type;
+  MIRType *type;
   MIRConstKind kind;
 
  protected:
