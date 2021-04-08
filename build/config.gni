@@ -14,6 +14,16 @@
 #
 # Toolchain setup
 
+if (OLD_OS == "1") {
+  CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04"
+} else {
+  CLANG_PATH = "/usr"
+}
+LLVMINC = "${CLANG_PATH}/include"
+LLVMLIBDIR = "${CLANG_PATH}/lib"
+CFE_SRC_DIR = "${MAPLE_ROOT}/../third-party/cfe-8.0.0.src"
+CFE_SRC_PATH = "${MAPLE_ROOT}/../ThirdParty/cfe-8.0.0.src"
+
 ANDROID_GCC_PATH = "${MAPLE_ROOT}/tools/gcc"
 ANDROID_CLANG_PATH = "${MAPLE_ROOT}/tools/clang-r353983c"
 GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
