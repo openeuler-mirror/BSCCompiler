@@ -645,7 +645,7 @@ BaseNode *CGLowerer::LowerCArray(ArrayNode &array) {
         idx * static_cast<int64>(esize), *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(array.GetPrimType())));
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(econst);
     rMul->SetPrimType(array.GetPrimType());
-    if (dim == 1 && array.GetBase()->op == OP_addrof) {
+    if (dim == 1 && array.GetBase()->op == OP_addrof && static_cast<AddrofNode *>(array.GetBase())->GetFieldID() == 0) {
       opadd = OP_CG_array_elem_add;
     }
   } else {
@@ -3129,7 +3129,7 @@ void CGLowerer::LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &
   blkNode.AppendStatementsFromBlock(*LowerCallAssignedStmt(*callAssign));
 }
 
-bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
+bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) const {
   /* only INTRN_MPL_ATOMIC_EXCHANGE_PTR now. */
   return intrinsic == INTRN_MPL_ATOMIC_EXCHANGE_PTR;
 }
