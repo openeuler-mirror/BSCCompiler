@@ -5534,7 +5534,6 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
     if (symSize <= k16ByteSize) {
       SelectParmListDreadSmallAggregate(*sym, *ty, srcOpnds, rhsOffset, parmLocator, dread.GetFieldID());
     } else if (symSize > kParmMemcpySize) {
-//      CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5560,7 +5559,6 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
       }
 
-//      CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5611,6 +5609,9 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32
     if (symSize > kParmMemcpySize) {
       CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
+    } else if (symSize > k16ByteSize) {
+      uint32 numMemOp = static_cast<uint32>(RoundUp(symSize, kSizeOfPtr) / kSizeOfPtr);
+      structCopyOffset += (numMemOp * kSizeOfPtr);
     }
   } else if (argExpr.GetOpCode() == OP_iread) {
     IreadNode &iread = static_cast<IreadNode &>(argExpr);
@@ -5632,6 +5633,9 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32
 
       CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
+    } else if (symSize > k16ByteSize) {
+      uint32 numMemOp = static_cast<uint32>(RoundUp(symSize, kSizeOfPtr) / kSizeOfPtr);
+      structCopyOffset += (numMemOp * kSizeOfPtr);
     }
   }
 }
