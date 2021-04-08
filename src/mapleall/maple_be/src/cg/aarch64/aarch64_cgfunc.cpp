@@ -5239,7 +5239,7 @@ void AArch64CGFunc::SelectParmListIreadSmallAggregate(const IreadNode &iread, MI
 }
 
 void AArch64CGFunc::SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
-                                                      ParmLocator &parmLocator, int32 structCopyOffset,
+                                                      ParmLocator &parmLocator, int32 &structCopyOffset,
                                                       int32 fromOffset) {
   /*
    * Pass larger sized struct on stack.
@@ -5275,7 +5275,7 @@ void AArch64CGFunc::SelectParmListDreadLargeAggregate(MIRSymbol &sym, MIRType &s
 
 void AArch64CGFunc::SelectParmListIreadLargeAggregate(const IreadNode &iread, MIRType &structType,
                                                       AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
-                                                      int32 structCopyOffset, int32 fromOffset) {
+                                                      int32 &structCopyOffset, int32 fromOffset) {
   int32 symSize = GetBecommon().GetTypeSize(structType.GetTypeIndex().GetIdx());
   RegOperand *addrOpnd0 = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
   RegOperand *addrOpnd1 = &LoadIntoRegister(*addrOpnd0, iread.Opnd(0)->GetPrimType());
@@ -5534,7 +5534,7 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
     if (symSize <= k16ByteSize) {
       SelectParmListDreadSmallAggregate(*sym, *ty, srcOpnds, rhsOffset, parmLocator, dread.GetFieldID());
     } else if (symSize > kParmMemcpySize) {
-      CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
+//      CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5560,7 +5560,7 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
       }
 
-      CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
+//      CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5595,6 +5595,61 @@ uint32 AArch64CGFunc::SelectParmListGetStructReturnSize(StmtNode &naryNode) {
   return 0;
 }
 
+void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset) {
+  uint64 symSize;
+  int32 rhsOffset = 0;
+  if (argExpr.GetOpCode() == OP_dread) {
+    DreadNode &dread = static_cast<DreadNode &>(argExpr);
+    MIRSymbol *sym = GetBecommon().GetMIRModule().CurFunction()->GetLocalOrGlobalSymbol(dread.GetStIdx());
+    MIRType *ty = sym->GetType();
+    if (dread.GetFieldID() != 0) {
+      MIRStructType *structty = static_cast<MIRStructType *>(ty);
+      ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(structty->GetFieldTyIdx(dread.GetFieldID()));
+      rhsOffset = GetBecommon().GetFieldOffset(*structty, dread.GetFieldID()).first;
+    }
+    symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex().GetIdx());
+    if (symSize > kParmMemcpySize) {
+      CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
+      structCopyOffset += RoundUp(symSize, kSizeOfPtr);
+    }
+  } else if (argExpr.GetOpCode() == OP_iread) {
+    IreadNode &iread = static_cast<IreadNode &>(argExpr);
+    MIRPtrType *pointerty = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iread.GetTyIdx()));
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointerty->GetPointedTyIdx());
+    if (iread.GetFieldID() != 0) {
+      MIRStructType *structty = static_cast<MIRStructType *>(ty);
+      ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(structty->GetFieldTyIdx(iread.GetFieldID()));
+      rhsOffset = GetBecommon().GetFieldOffset(*structty, iread.GetFieldID()).first;
+    }
+    symSize = GetBecommon().GetTypeSize(ty->GetTypeIndex().GetIdx());
+    if (symSize > kParmMemcpySize) {
+      RegOperand *ireadOpnd = static_cast<RegOperand*>(HandleExpr(iread, *(iread.Opnd(0))));
+      RegOperand *addrOpnd = &LoadIntoRegister(*ireadOpnd, iread.Opnd(0)->GetPrimType());
+      if (rhsOffset > 0) {
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *addrOpnd, *addrOpnd,
+                                                                      CreateImmOperand(rhsOffset, k64BitSize, false)));
+      }
+
+      CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
+      structCopyOffset += RoundUp(symSize, kSizeOfPtr);
+    }
+  }
+}
+
+void AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start) {
+  size_t i = start;
+  int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
+  for (; i < naryNode.NumOpnds(); ++i) {
+    BaseNode *argExpr = naryNode.Opnd(i);
+    PrimType primType = argExpr->GetPrimType();
+    ASSERT(primType != PTY_void, "primType should not be void");
+    if (primType != PTY_agg) {
+      continue;
+    }
+    SelectParmListPreprocessLargeStruct(*argExpr, structCopyOffset);
+  }
+}
+
 /*
    SelectParmList generates an instrunction for each of the parameters
    to load the parameter value into the corresponding register.
@@ -5602,12 +5657,13 @@ uint32 AArch64CGFunc::SelectParmListGetStructReturnSize(StmtNode &naryNode) {
    they may be needed in the register allocation phase.
  */
 void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOpnds, bool isCallNative) {
-  ParmLocator parmLocator(GetBecommon());
-  PLocInfo ploc;
   size_t i = 0;
   if ((naryNode.GetOpCode() == OP_icall) || isCallNative) {
     i++;
   }
+  SelectParmListPreprocess(naryNode, i);
+  ParmLocator parmLocator(GetBecommon());
+  PLocInfo ploc;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
   for (uint32 pnum = 0; i < naryNode.NumOpnds(); ++i, ++pnum) {
     MIRType *ty = nullptr;
