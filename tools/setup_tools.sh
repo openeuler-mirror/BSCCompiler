@@ -158,11 +158,11 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   echo Downloaded open64_prebuilt.
 fi
 
-if [ ! -f $MAPLE_ROOT/third_party/dwarf/include/Dwarf.h ]; then
+if [ ! -f $MAPLE_ROOT/third_party/dwarf_h/include/Dwarf.h ]; then
   cd $TOOLS
-  rm -rf dwarf $MAPLE_ROOT/third_party/dwarf
-  git clone https://gitee.com/hu-_-wen/dwarf_h.git dwarf
-  mv dwarf $MAPLE_ROOT/third_party/
+  rm -rf dwarf $MAPLE_ROOT/third_party/dwarf*
+  git clone https://gitee.com/hu-_-wen/dwarf_h.git
+  mv dwarf_h $MAPLE_ROOT/third_party/
   echo Downloaded dwarf header files.
 fi
 
@@ -181,3 +181,13 @@ else
   ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 fi
 ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_PATH}/clangfe
+
+if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
+  cd $MAPLE_ROOT/../
+  git clone https://gitee.com/openarkcompiler/ThirdParty.git
+  cd -
+else
+  cd $MAPLE_ROOT/../ThirdParty
+  git pull origin master
+  cd -
+fi
