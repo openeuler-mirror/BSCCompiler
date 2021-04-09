@@ -3239,7 +3239,7 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
       } else if ((operatorCode == kIOR) || (operatorCode == kEOR)) {
         SelectCopy(resOpnd, primType, opnd0, primType);
       }
-    } else if ((is64Bits && immOpnd->IsAllOnes()) || (!is64Bits && immOpnd->IsAllOnes32bit())) {
+    } else if ((immOpnd->IsAllOnes()) || (!is64Bits && immOpnd->IsAllOnes32bit())) {
       if (operatorCode == kAND) {
         SelectCopy(resOpnd, primType, opnd0, primType);
       } else if (operatorCode == kIOR) {
@@ -5355,7 +5355,7 @@ AArch64RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol
     MemOperand &baseOpnd = GetOrCreateMemOpnd(sym, 0, memSize);
     RegOperand &base = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
     GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), base, baseOpnd));
-    memOpnd = &CreateMemOpnd(base, offset, memSize);
+    memOpnd = &CreateMemOpnd(base, (offset + parmNum * kSizeOfPtr), memSize);
   } else if (ploc.fpSize) {
     memOpnd = &GetOrCreateMemOpnd(sym, (ploc.fpSize * parmNum + offset), memSize);
   } else {
@@ -5534,7 +5534,6 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
     if (symSize <= k16ByteSize) {
       SelectParmListDreadSmallAggregate(*sym, *ty, srcOpnds, rhsOffset, parmLocator, dread.GetFieldID());
     } else if (symSize > kParmMemcpySize) {
-//      CreateCallStructParamMemcpy(sym, nullptr, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5560,7 +5559,6 @@ void AArch64CGFunc::SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOpe
                                                                       CreateImmOperand(rhsOffset, k64BitSize, false)));
       }
 
-//      CreateCallStructParamMemcpy(nullptr, addrOpnd, symSize, structCopyOffset, rhsOffset);
       CreateCallStructMemcpyToParamReg(*ty, structCopyOffset, parmLocator, srcOpnds);
       structCopyOffset += RoundUp(symSize, kSizeOfPtr);
     } else {
@@ -5636,7 +5634,7 @@ void AArch64CGFunc::SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32
   }
 }
 
-void AArch64CGFunc::SelectParmListPreprocess(StmtNode &naryNode, size_t start) {
+void AArch64CGFunc::SelectParmListPreprocess(const StmtNode &naryNode, size_t start) {
   size_t i = start;
   int32 structCopyOffset = GetMaxParamStackSize() - GetStructCopySize();
   for (; i < naryNode.NumOpnds(); ++i) {
