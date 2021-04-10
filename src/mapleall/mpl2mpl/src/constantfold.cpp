@@ -1487,11 +1487,12 @@ std::pair<BaseNode*, int64> ConstantFold::FoldExtractbits(ExtractbitsNode *node)
 
 std::pair<BaseNode*, int64> ConstantFold::FoldIread(IreadNode *node) {
   CHECK_NULL_FATAL(node);
-  BaseNode *result = node;
   Opcode op = node->GetOpCode();
   FieldID fieldID = node->GetFieldID();
   std::pair<BaseNode*, int64> p = DispatchFold(node->Opnd(0));
   BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
+  node->SetOpnd(e, 0);
+  BaseNode *result = node;
   if (op == OP_iaddrof && e->GetOpCode() == OP_addrof) {
     AddrofNode *addrofNode = static_cast<AddrofNode*>(e);
     AddrofNode *newAddrof = addrofNode->CloneTree(mirModule->GetCurFuncCodeMPAllocator());
@@ -1504,18 +1505,14 @@ std::pair<BaseNode*, int64> ConstantFold::FoldIread(IreadNode *node) {
     TyIdx typeId = msy->GetTyIdx();
     CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
     MIRType *msyType = GlobalTables::GetTypeTable().GetTypeTable()[typeId];
-    if (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass) {
-      FieldID newFieldId = fieldID + addrofNode->GetFieldID();
-      MIRStructType *stty = static_cast<MIRStructType*>(msyType);
-      // 0 for type itself
-      MIRType *fieldTy = newFieldId == 0 ? stty : stty->GetFieldType(newFieldId);
-      result =
-          mirModule->CurFuncCodeMemPool()->New<AddrofNode>(OP_dread, fieldTy->GetPrimType(),
-                                                           addrofNode->GetStIdx(), newFieldId);
+    if (addrofNode->GetFieldID() != 0 &&
+        (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass)) {
+      msyType = static_cast<MIRStructType *>(msyType)->GetFieldType(addrofNode->GetFieldID());
     }
-  } else if (e != node->Opnd(0)) {
-    result = mirModule->CurFuncCodeMemPool()->New<IreadNode>(
-        op, PrimType(node->GetPrimType()), node->GetTyIdx(), fieldID, static_cast<BaseNode*>(e));
+    MIRPtrType *ptrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx()));
+    if (ptrType->GetPointedType() == msyType) {
+      result = mirModule->CurFuncCodeMemPool()->New<AddrofNode>(OP_dread, node->GetPrimType(), addrofNode->GetStIdx(), node->GetFieldID() + addrofNode->GetFieldID());
+    }
   }
   return std::make_pair(result, 0);
 }
