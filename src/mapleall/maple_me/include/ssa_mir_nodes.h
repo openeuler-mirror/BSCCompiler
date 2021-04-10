@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -66,6 +66,8 @@ class MayDefNode {
   VersionSt *opnd;
   VersionSt *result;
   StmtNode *stmt;
+ public:
+  VersionSt *base = nullptr; // only provided if indirectLev is 1 and attached to iassign
 };
 
 class MayUseNode {
@@ -559,5 +561,10 @@ class RegreadSSANode : public SSANode {
 void GenericSSAPrint(const MIRModule &mod, const StmtNode &stmtNode, int32 indent, StmtsSSAPart &stmtsSSAPart);
 TypeOfMayDefList *SSAGenericGetMayDefsFromVersionSt(const VersionSt &sym, StmtsSSAPart &stmtsSSAPart);
 bool HasMayUseOpnd(const BaseNode &baseNode, SSATab &func);
+
+inline bool HasMallocOpnd(const BaseNode *x) {
+  return x->op == OP_malloc || x->op == OP_gcmalloc || x->op == OP_gcmallocjarray || x->op == OP_alloca ||
+         x->op == OP_stackmalloc || x->op == OP_stackmallocjarray;
+}
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_MIR_NODES_H
