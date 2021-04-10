@@ -17,6 +17,8 @@
 #include "dominance.h"
 #include "constantfold.h"
 
+#define JAVALANG (mirModule.IsJavaModule())
+
 using namespace maple;
 
 const int kPropTreeLevel = 15;  // tree height threshold to increase to
@@ -229,6 +231,101 @@ bool Prop::Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const
   return true;
 }
 
+// if lhs is smaller than rhs, insert operation to simulate the truncation
+// effect of rhs being stored into lhs; otherwise, just return rhs
+MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
+  if (JAVALANG || !IsPrimitiveInteger(rhs->GetPrimType())) {
+    return rhs;
+  }
+  TyIdx lhsTyIdx(0);
+  MIRType *lhsTy = nullptr;
+  if (lhs->GetMeOp() == kMeOpVar) {
+    VarMeExpr *varx = static_cast<VarMeExpr *>(lhs);
+    lhsTyIdx = varx->GetOst()->GetTyIdx();
+    lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
+  } else if (lhs->GetMeOp() == kMeOpIvar) {
+    IvarMeExpr *ivarx = static_cast<IvarMeExpr *>(lhs);
+    MIRPtrType *ptType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivarx->GetTyIdx()));
+    lhsTyIdx = ptType->GetPointedTyIdx();
+    lhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx);
+    if (ivarx->GetFieldID() != 0) {
+      lhsTy = static_cast<MIRStructType *>(lhsTy)->GetFieldType(ivarx->GetFieldID());
+    }
+  } else {
+    return rhs;
+  }
+  if (lhsTy->GetKind() == kTypeBitField) {
+    MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsTy);
+    if (GetPrimTypeBitSize(rhs->GetPrimType()) <= bitfieldTy->GetFieldSize()) {
+      return rhs;
+    }
+    // insert OP_zext or OP_sext
+    Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
+    PrimType newPrimType = PTY_u32;
+    if (bitfieldTy->GetFieldSize() <= 32) {
+      if (IsSignedInteger(lhsTy->GetPrimType())) {
+        newPrimType = PTY_i32;
+      }
+    } else {
+      if (IsSignedInteger(lhsTy->GetPrimType())) {
+        newPrimType = PTY_i64;
+      } else {
+        newPrimType = PTY_u64;
+      }
+    }
+    OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+    opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
+    opmeexpr.SetOpnd(0, rhs);
+    return irMap.HashMeExpr(opmeexpr);
+  }
+  if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
+      lhsTy->GetPrimType() != PTY_ptr  && lhsTy->GetPrimType() != PTY_ref &&
+      GetPrimTypeSize(lhsTy->GetPrimType()) < rhs->GetPrimType()) {
+    if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
+      return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
+    } else {
+      Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
+      PrimType newPrimType = PTY_u32;
+      if (IsSignedInteger(lhsTy->GetPrimType())) {
+        newPrimType = PTY_i32;
+      }
+      OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+      opmeexpr.SetBitsSize(GetPrimTypeSize(lhsTy->GetPrimType()) * 8);
+      opmeexpr.SetOpnd(0, rhs);
+      return irMap.HashMeExpr(opmeexpr);
+    }
+  }
+  // if lhs is function pointer and rhs is not, insert a retype
+  if (lhsTy->GetKind() == kTypePointer) {
+    MIRPtrType *lhsPtrType = static_cast<MIRPtrType *>(lhsTy);
+    if (lhsPtrType->GetPointedType()->GetKind() == kTypeFunction) {
+      bool needRetype = true;
+      MIRType *rhsTy = nullptr;
+      if (rhs->GetMeOp() == kMeOpVar) {
+        VarMeExpr *rhsvarx = static_cast<VarMeExpr *>(rhs);
+        rhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsvarx->GetOst()->GetTyIdx());
+      } else if (rhs->GetMeOp() == kMeOpIvar) {
+        IvarMeExpr *rhsivarx = static_cast<IvarMeExpr *>(rhs);
+        MIRPtrType *rhsPtrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsivarx->GetTyIdx()));
+        rhsTy = rhsPtrType->GetPointedType();
+        if (rhsivarx->GetFieldID() != 0) {
+          rhsTy = static_cast<MIRStructType *>(rhsTy)->GetFieldType(rhsivarx->GetFieldID());
+        }
+      }
+      if (rhsTy != nullptr && rhsTy == lhsPtrType) {
+        needRetype = false;
+      }
+      if (needRetype) {
+        OpMeExpr opmeexpr(-1, OP_retype, lhsPtrType->GetPrimType(), 1);
+        opmeexpr.SetTyIdx(lhsPtrType->GetTypeIndex());
+        opmeexpr.SetOpnd(0, rhs);
+        return irMap.HashMeExpr(opmeexpr);
+      }
+    }
+  }
+  return rhs;
+}
+
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) const {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
@@ -246,6 +343,7 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) const {
       if (rhs->GetMeOp() == kMeOpIvar && rhs->GetPrimType() == PTY_ref) {
         defStmt->SetPropagated(true);
       }
+      rhs = CheckTruncation(&varMeExpr, rhs);
       return utils::ToRef(rhs);
     } else {
       return varMeExpr;
