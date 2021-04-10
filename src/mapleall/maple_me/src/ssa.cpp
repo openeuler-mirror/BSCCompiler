@@ -70,7 +70,7 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
     newVersionSym->SetAssignNode(&stmt);
     theSSAPart->SetSSAVar(*newVersionSym);
   }
-  if (kOpcodeInfo.HasSSADef(opcode)) {
+  if (kOpcodeInfo.HasSSADef(opcode) && opcode != OP_regassign) {
     TypeOfMayDefList &mayDefList = theSSAPart->GetMayDefNodes();
     for (auto it = mayDefList.begin(); it != mayDefList.end(); ++it) {
       MayDefNode &mayDef = *it;
