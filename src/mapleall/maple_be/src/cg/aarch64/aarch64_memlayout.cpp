@@ -206,6 +206,10 @@ void AArch64MemLayout::LayoutFormalParams() {
         SetSizeAlignForTypeIdx(ptyIdx, size, align);
         symLoc->SetMemSegment(GetSegArgsRegPassed());
         /* the type's alignment requirement may be smaller than a registser's byte size */
+        if (ty->GetPrimType() == PTY_agg &&  be.GetTypeSize(ptyIdx) > k4ByteSize) {
+          /* struct param aligned on 8 byte boundary unless it is small enough */
+          align = kSizeOfPtr;
+        }
         segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), align));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
         segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + size);
@@ -262,7 +266,13 @@ void AArch64MemLayout::LayoutLocalVariales(std::vector<MIRSymbol*> &tempVar, std
         continue;
       }
       symLoc->SetMemSegment(segLocals);
-      segLocals.SetSize(RoundUp(segLocals.GetSize(), be.GetTypeAlign(tyIdx)));
+      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      uint32 align = be.GetTypeAlign(tyIdx);
+      if (ty->GetPrimType() == PTY_agg && align < k8BitSize) {
+        segLocals.SetSize(RoundUp(segLocals.GetSize(), k8BitSize));
+      } else {
+        segLocals.SetSize(RoundUp(segLocals.GetSize(), align));
+      }
       symLoc->SetOffset(segLocals.GetSize());
       segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
     }
