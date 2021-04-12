@@ -87,7 +87,7 @@ class AliasElem {
 class AliasInfo {
  public:
   AliasElem *ae;
-  FieldID fieldID;             // corresponds to fieldID in OP-addrof/OP_iaddrof
+  FieldID fieldID; // corresponds to fieldID in OP-addrof/OP_iaddrof
 
   AliasInfo() : ae(nullptr), fieldID(0) {}
   AliasInfo(AliasElem *ae0, FieldID fld) : ae(ae0), fieldID(fld) {}
