@@ -99,7 +99,7 @@ java-core-def: install
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: install
-install: maple dex2mpl_install irbuild
+install: maple dex2mpl_install irbuild mplfe
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \

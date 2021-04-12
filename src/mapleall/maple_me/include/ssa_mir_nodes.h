@@ -62,12 +62,11 @@ class MayDefNode {
     LogInfo::MapleLogger() << ")\n";
   }
 
+  VersionSt *base = nullptr; // only provided if indirectLev is 1 and attached to iassign
  private:
   VersionSt *opnd;
   VersionSt *result;
   StmtNode *stmt;
- public:
-  VersionSt *base = nullptr; // only provided if indirectLev is 1 and attached to iassign
 };
 
 class MayUseNode {
