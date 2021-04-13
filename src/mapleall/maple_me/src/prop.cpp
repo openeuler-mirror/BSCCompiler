@@ -561,7 +561,6 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
     for (auto &node : utils::ToRef(mustDefList)) {
       MeExpr *meLhs = node.GetLHS();
-      CHECK_FATAL(meLhs->GetMeOp() == kMeOpVar, "error: lhs is not var");
       PropUpdateDef(utils::ToRef(static_cast<VarMeExpr*>(meLhs)));
     }
   }
