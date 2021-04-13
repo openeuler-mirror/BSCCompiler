@@ -173,6 +173,15 @@ void HDSE::MarkRegDefByStmt(RegMeExpr &regMeExpr) {
     case kDefByPhi:
       MarkPhiRequired(regMeExpr.GetDefPhi());
       break;
+    case kDefByChi: {
+      ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0, 
+             "MarkRegDefByStmt: preg cannot be defined by chi");
+      auto *defChi = &regMeExpr.GetDefChi();
+      if (defChi != nullptr) {
+        MarkChiNodeRequired(*defChi);
+      }
+      break;
+    }
     case kDefByMustDef: {
       MustDefMeNode *mustDef = &regMeExpr.GetDefMustDef();
       if (!mustDef->GetIsLive()) {
