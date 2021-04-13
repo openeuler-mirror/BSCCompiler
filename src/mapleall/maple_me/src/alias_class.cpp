@@ -564,7 +564,7 @@ void AliasClass::UnionForAggAndFields() {
   // collect alias elements with same MIRSymbol, and the ost is zero level.
   for (auto *aliasElem : id2Elem) {
     OriginalSt &ost = aliasElem->GetOriginalSt();
-    if (ost.GetIndirectLev() == 0) {
+    if (ost.GetIndirectLev() == 0 && ost.IsSymbolOst()) {
       (void)symbol2AEs[ost.GetMIRSymbol()->GetStIndex()].insert(aliasElem->GetClassID());
     }
   }
@@ -1085,7 +1085,7 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
       if (ostOfAliasAE.GetTyIdx() != pointedTyIdx && pointedTyIdx != 0) {
         continue;
       }
-    } else {
+    } else if (ostOfAliasAE.IsSymbolOst()) {
       if (ostOfAliasAE.GetMIRSymbol() == ostOfLhsAe->GetMIRSymbol() &&
           ostOfAliasAE.GetFieldID() != ostOfLhsAe->GetFieldID() &&
           ostOfAliasAE.GetFieldID() != 0 && ostOfLhsAe->GetFieldID() != 0) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,9 +37,8 @@ class Prop {
 
   Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config);
   virtual ~Prop() = default;
-  virtual BB *GetBB(BBId id) {
-    return nullptr;
-  }
+
+  MeExpr *CheckTruncation(MeExpr *lhs, MeExpr *rhs) const;
   MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi) const;
   MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm) const;
   MeExpr &PropIvar(IvarMeExpr &ivarMeExpr) const;
@@ -48,7 +47,7 @@ class Prop {
   void PropUpdateMustDefList(MeStmt *mestmt);
   void TraversalBB(BB &bb);
   uint32 GetVstLiveStackVecSize() const {
-    return vstLiveStackVec.size();
+    return static_cast<uint32>(vstLiveStackVec.size());
   }
   MapleStack<MeExpr *> *GetVstLiveStackVec(uint32 i) {
     return vstLiveStackVec[i];
@@ -68,6 +67,10 @@ class Prop {
   Dominance &dom;
 
  private:
+  virtual BB *GetBB(BBId) {
+    return nullptr;
+  }
+
   void TraversalMeStmt(MeStmt &meStmt);
   void CollectSubVarMeExpr(const MeExpr &expr, std::vector<const MeExpr*> &exprVec) const;
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
