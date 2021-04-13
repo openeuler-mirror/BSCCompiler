@@ -28,18 +28,6 @@ const std::set<std::string> propWhiteList {
 // accumulate the BBs that are in the iterated dominance frontiers of bb in
 // the set dfSet, visiting each BB only once
 namespace maple {
-void MeSSAEPre::GetIterDomFrontier(const BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) const {
-  CHECK_FATAL(bb.GetBBId() < visitedMap.size(), "index out of range in MeSSAEPre::GetIterDomFrontier");
-  if (visitedMap[bb.GetBBId()]) {
-    return;
-  }
-  visitedMap[bb.GetBBId()] = true;
-  for (BBId frontierBBId : dom->GetDomFrontier(bb.GetBBId())) {
-    (void)dfSet.insert(dom->GetDtDfnItem(frontierBBId));
-    BB *frontierBB = GetBB(frontierBBId);
-    GetIterDomFrontier(*frontierBB, dfSet, visitedMap);
-  }
-}
 
 void MeSSAEPre::BuildWorkList() {
   const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();

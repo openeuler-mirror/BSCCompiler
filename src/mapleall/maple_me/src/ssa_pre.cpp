@@ -401,8 +401,7 @@ void SSAPre::SetSave(MeOccur &defX) {
     BB *fromBb = defX.GetBB();
     MapleSet<uint32> itFrontier(perCandAllocator.Adapter());
     CHECK_FATAL(!dom->IsBBVecEmpty(), "the size to be allocated is 0");
-    std::vector<bool> visitedMap(dom->GetBBVecSize(), false);
-    GetIterDomFrontier(*fromBb, itFrontier, visitedMap);
+    GetIterDomFrontier(fromBb, &itFrontier);
     for (MePhiOcc *phiOcc : phiOccs) {
       if (!phiOcc->IsWillBeAvail()) {
         continue;

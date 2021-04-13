@@ -62,7 +62,8 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // to this statement in order to get to the rhs expression;
     // this assume AssignMeStmt has smaller size then DassignMeStmt and
     // MaydassignMeStmt
-    AssignMeStmt *rass = new (realOcc.GetMeStmt()) AssignMeStmt(OP_regassign, static_cast<RegMeExpr*>(regOrVar), savedRHS);
+    auto *rass =
+        new (realOcc.GetMeStmt()) AssignMeStmt(OP_regassign, static_cast<RegMeExpr*>(regOrVar), savedRHS);
     rass->SetSrcPos(savedSrcPos);
     rass->SetBB(savedBB);
     rass->SetPrev(savedPrev);
@@ -127,22 +128,6 @@ MeExpr *MeSSALPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
   return (retVar != nullptr) ? retVar : meExprZ;
 }
 
-// accumulate the BBs that are in the iterated dominance frontiers of bb in
-// the set dfSet, visiting each BB only once
-void MeSSALPre::GetIterDomFrontier(const BB &bb, MapleSet<uint32> &dfSet, std::vector<bool> &visitedMap) const {
-  CHECK_FATAL(bb.GetBBId() < visitedMap.size(), "index out of range in MeSSALPre::GetIterDomFrontier");
-  if (visitedMap[bb.GetBBId()]) {
-    return;
-  }
-  visitedMap[bb.GetBBId()] = true;
-  CHECK_FATAL(bb.GetBBId() < dom->GetDomFrontierSize(), "index out of range in MeSSALPre::GetIterDomFrontier");
-  for (BBId frontierBBId : dom->GetDomFrontier(bb.GetBBId())) {
-    (void)dfSet.insert(dom->GetDtDfnItem(frontierBBId));
-    BB *frontierBB = GetBB(frontierBBId);
-    GetIterDomFrontier(*frontierBB, dfSet, visitedMap);
-  }
-}
-
 void MeSSALPre::ComputeVarAndDfPhis() {
   varPhiDfns.clear();
   dfPhiDfns.clear();
@@ -150,10 +135,9 @@ void MeSSALPre::ComputeVarAndDfPhis() {
   const MapleVector<MeRealOcc*> &realOccList = workCand->GetRealOccs();
   CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
-    std::vector<bool> visitedMap(dom->GetBBVecSize(), false);
     MeRealOcc *realOcc = *it;
     BB *defBB = realOcc->GetBB();
-    GetIterDomFrontier(*defBB, dfPhiDfns, visitedMap);
+    GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
     if (meExpr->GetMeOp() == kMeOpVar) {
       SetVarPhis(*meExpr);
