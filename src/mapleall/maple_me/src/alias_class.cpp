@@ -591,7 +591,7 @@ AliasElem *AliasClass::FindOrCreateDummyNADSAe() {
   ASSERT_NOT_NULL(dummySym);
   dummySym->SetIsTmp(true);
   dummySym->SetIsDeleted();
-  OriginalSt *dummyOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*dummySym, 0, 0);
+  OriginalSt *dummyOst = ssaTab.GetOriginalStTable().FindOrCreateSymbolOriginalSt(*dummySym, 0, 0);
   ssaTab.GetVersionStTable().CreateZeroVersionSt(dummyOst);
   if (osym2Elem.size() == dummyOst->GetIndex()) {
     AliasElem *dummyAe = acMemPool.New<AliasElem>(osym2Elem.size(), *dummyOst);
@@ -984,7 +984,7 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<Original
         (void)mayDefOsts.insert(ostOfAliasAe);
       }
     } else {
-      if (ostOfAliasAe->GetMIRSymbol() == ostOfLhsAe->GetMIRSymbol() &&
+      if (ostOfAliasAe->IsSameSymOrPreg(ostOfLhsAe) &&
           fldIDA != fldIDB &&
           lhsSymType->GetKind() != kTypeUnion) {
         MIRType *aliasAeType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostOfAliasAe->GetTyIdx());
@@ -1085,8 +1085,8 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
       if (ostOfAliasAE.GetTyIdx() != pointedTyIdx && pointedTyIdx != 0) {
         continue;
       }
-    } else if (ostOfAliasAE.IsSymbolOst()) {
-      if (ostOfAliasAE.GetMIRSymbol() == ostOfLhsAe->GetMIRSymbol() &&
+    } else {
+      if (ostOfAliasAE.IsSameSymOrPreg(ostOfLhsAe) &&
           ostOfAliasAE.GetFieldID() != ostOfLhsAe->GetFieldID() &&
           ostOfAliasAE.GetFieldID() != 0 && ostOfLhsAe->GetFieldID() != 0) {
         MIRType *aliasAeType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostOfAliasAE.GetTyIdx());
@@ -1202,7 +1202,12 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
     for (unsigned int elemID : *(lhsAe->GetClassSet())) {
       bool isNotAllDefsSeen = false;
       for (AliasElem *notAllDefsSeenAe : notAllDefsSeenClassSetRoots) {
-        if (notAllDefsSeenAe->GetClassSet()->find(elemID) != notAllDefsSeenAe->GetClassSet()->end()) {
+        if (notAllDefsSeenAe->GetClassSet() == nullptr) {
+          if (elemID == notAllDefsSeenAe->GetClassID()) {
+            isNotAllDefsSeen = true;
+            break;  // inserted already
+          }
+        } else if (notAllDefsSeenAe->GetClassSet()->find(elemID) != notAllDefsSeenAe->GetClassSet()->end()) {
           isNotAllDefsSeen = true;
           break;  // inserted already
         }

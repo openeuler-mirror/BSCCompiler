@@ -121,6 +121,16 @@ class OriginalSt {
     return ostType == kPregOst && symOrPreg.pregIdx < 0;
   }
 
+  bool IsSameSymOrPreg(OriginalSt *ost) const {
+    if (ostType != ost->ostType) {
+      return false;
+    }
+    if (IsSymbolOst()) {
+      return symOrPreg.mirSt == ost->symOrPreg.mirSt;
+    }
+    return symOrPreg.pregIdx == ost->symOrPreg.pregIdx;
+  }
+
   int8 GetIndirectLev() const {
     return indirectLev;
   }
