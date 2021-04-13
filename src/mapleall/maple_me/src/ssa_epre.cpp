@@ -230,8 +230,7 @@ void SSAEPre::ComputeVarAndDfPhis() {
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
     BB *defBB = realOcc->GetBB();
-    std::vector<bool> visitedMap(dom->GetBBVecSize(), false);
-    GetIterDomFrontier(*defBB, dfPhiDfns, visitedMap);
+    GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
     switch (meExpr->GetMeOp()) {
       case kMeOpOp: {
