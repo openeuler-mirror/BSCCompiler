@@ -593,14 +593,16 @@ AliasElem *AliasClass::FindOrCreateDummyNADSAe() {
   dummySym->SetIsDeleted();
   OriginalSt *dummyOst = ssaTab.GetOriginalStTable().FindOrCreateSymbolOriginalSt(*dummySym, 0, 0);
   ssaTab.GetVersionStTable().CreateZeroVersionSt(dummyOst);
-  if (osym2Elem.size() == dummyOst->GetIndex()) {
-    AliasElem *dummyAe = acMemPool.New<AliasElem>(osym2Elem.size(), *dummyOst);
+  if (osym2Elem.size() > dummyOst->GetIndex() && osym2Elem[dummyOst->GetIndex()] != nullptr) {
+    return osym2Elem[dummyOst->GetIndex()];
+  } else {
+    AliasElem *dummyAe = acMemPool.New<AliasElem>(id2Elem.size(), *dummyOst);
     dummyAe->SetNotAllDefsSeen(true);
     id2Elem.push_back(dummyAe);
     osym2Elem.push_back(dummyAe);
     unionFind.NewMember();
+    return dummyAe;
   }
-  return osym2Elem[dummyOst->GetIndex()];
 }
 
 // This is applicable only for C language.  For each ost that is a struct,

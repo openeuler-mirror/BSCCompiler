@@ -67,8 +67,8 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
       } else {
         ty = realMIRType->GetPointedType();
       }
-      CHECK_FATAL(ty->GetPrimType() == meExpr.GetPrimType() ||
-                  !(IsAddress(ty->GetPrimType()) && IsAddress(meExpr.GetPrimType())) ||
+      CHECK_FATAL(GetRegPrimType(ty->GetPrimType()) == GetRegPrimType(meExpr.GetPrimType()) ||
+                  (IsAddress(ty->GetPrimType()) && IsAddress(meExpr.GetPrimType())) ||
                   (ty->GetPrimType() == PTY_ptr && meExpr.GetPrimType() == PTY_ref) ||
                   (ty->GetPrimType() == PTY_ref && meExpr.GetPrimType() == PTY_ptr),
                   "inconsistent type");
