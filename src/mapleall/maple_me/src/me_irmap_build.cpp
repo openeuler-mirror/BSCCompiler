@@ -35,7 +35,7 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
   globalIRMap = irMap;
 #endif
   MemPool *propMp = nullptr;
-  if (!func->GetMIRModule().IsJavaModule()) {
+  if (!func->GetMIRModule().IsJavaModule() && MeOption::propDuringBuild) {
     // create propgation
     propMp = memPoolCtrler.NewMemPool("meirbuild prop");
     MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false});
