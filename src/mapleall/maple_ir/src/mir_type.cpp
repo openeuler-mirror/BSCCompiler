@@ -57,6 +57,22 @@ PrimType GetRegPrimType(PrimType primType) {
   }
 }
 
+PrimType GetReg64PrimType(PrimType primType) {
+  switch (primType) {
+    case PTY_i8:
+    case PTY_i16:
+    case PTY_i32:
+      return PTY_i64;
+    case PTY_u1:
+    case PTY_u8:
+    case PTY_u16:
+    case PTY_u32:
+      return PTY_u64;
+    default:
+      return primType;
+  }
+}
+
 bool VerifyPrimType(PrimType primType1, PrimType primType2) {
   switch (primType1) {
     case PTY_u1:
@@ -979,12 +995,13 @@ size_t MIRStructType::GetSize() const {
   // since there may be bitfields, perform a layout process for the fields
   size_t byteOfst = 0;
   size_t bitOfst = 0;
+  constexpr uint32 shiftNum = 3;
   for (size_t i = 0; i < fields.size(); ++i) {
     TyIdxFieldAttrPair tfap = GetTyidxFieldAttrPair(i);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tfap.first);
     if (fieldType->GetKind() != kTypeBitField) {
       if (byteOfst * 8 < bitOfst) {
-        byteOfst = (bitOfst >> 3) + 1;
+        byteOfst = (bitOfst >> shiftNum) + 1;
       }
       byteOfst = RoundUp(byteOfst, std::max(fieldType->GetAlign(), tfap.second.GetAlign()));
       byteOfst += fieldType->GetSize();
@@ -993,20 +1010,20 @@ size_t MIRStructType::GetSize() const {
       MIRBitFieldType *bitfType = static_cast<MIRBitFieldType *>(fieldType);
       if (bitfType->GetFieldSize() == 0) {  // special case, for aligning purpose
         bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
-        byteOfst = bitOfst >> 3;
+        byteOfst = bitOfst >> shiftNum;
       } else {
         if (RoundDown(bitOfst + bitfType->GetFieldSize() - 1, GetPrimTypeBitSize(bitfType->GetPrimType())) !=
             RoundDown(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()))) {
           bitOfst = RoundUp(bitOfst, GetPrimTypeBitSize(bitfType->GetPrimType()));
-          byteOfst = bitOfst >> 3;
+          byteOfst = bitOfst >> shiftNum;
         }
         bitOfst += bitfType->GetFieldSize();
-        byteOfst = bitOfst >> 3;
+        byteOfst = bitOfst >> shiftNum;
       }
     }
   }
   if (byteOfst * 8 < bitOfst) {
-    byteOfst = (bitOfst >> 3) + 1;
+    byteOfst = (bitOfst >> shiftNum) + 1;
   }
   byteOfst = RoundUp(byteOfst, GetAlign());
   if (byteOfst == 0 && isCPlusPlus) {
@@ -1446,25 +1463,25 @@ FieldPair MIRStructType::TraverseToFieldRef(FieldID &fieldID) const {
     return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
   }
 
-  uint32 fieldidx = 0;
-  FieldPair curpair = fields[0];
+  uint32 fieldIdx = 0;
+  FieldPair curPair = fields[0];
   while (fieldID > 1) {
-    fieldID--;
-    MIRType *curfieldtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(curpair.second.first);
-    MIRStructType *substructty = curfieldtype->EmbeddedStructType();
-    if (substructty != nullptr) {
-      curpair = substructty->TraverseToFieldRef(fieldID);
-      if (fieldID == 1 && curpair.second.first != TyIdx(0)) {
-        return curpair;
+    --fieldID;
+    MIRType *curFieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(curPair.second.first);
+    MIRStructType *subStructTy = curFieldType->EmbeddedStructType();
+    if (subStructTy != nullptr) {
+      curPair = subStructTy->TraverseToFieldRef(fieldID);
+      if (fieldID == 1 && curPair.second.first != TyIdx(0)) {
+        return curPair;
       }
     }
-    fieldidx++;
-    if (fieldidx == fields.size()) {
+    ++fieldIdx;
+    if (fieldIdx == fields.size()) {
       return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
     }
-    curpair = fields[fieldidx];
+    curPair = fields[fieldIdx];
   }
-  return curpair;
+  return curPair;
 }
 
 FieldPair MIRStructType::TraverseToField(FieldID fieldID) const {
@@ -1614,15 +1631,15 @@ bool MIRPtrType::IsPointedTypeVolatile(int fieldID) const {
   return pointedTy->IsVolatile(fieldID);
 }
 
-TyIdxFieldAttrPair MIRPtrType::GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldid) const {
-  if (fldid == 0) {
+TyIdxFieldAttrPair MIRPtrType::GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldId) const {
+  if (fldId == 0) {
     return TyIdxFieldAttrPair(pointedTyIdx, FieldAttrs());
   }
   MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
-  MIRStructType *structty = ty->EmbeddedStructType();
-  CHECK_FATAL(structty,
-         "MIRPtrType::GetPointedTyidxWithFieldId(): cannot have non-zero fieldID for something other than a struct");
-  return structty->TraverseToField(fldid).second;
+  MIRStructType *structTy = ty->EmbeddedStructType();
+  CHECK_FATAL(structTy,
+      "MIRPtrType::GetPointedTyidxWithFieldId(): cannot have non-zero fieldID for something other than a struct");
+  return structTy->TraverseToField(fldId).second;
 }
 
 TyIdx MIRPtrType::GetPointedTyIdxWithFieldID(FieldID fieldID) const {
