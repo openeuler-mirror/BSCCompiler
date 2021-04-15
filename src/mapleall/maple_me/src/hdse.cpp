@@ -433,8 +433,16 @@ void HDSE::MarkSingleUseLive(MeExpr &meExpr) {
     }
     case kMeOpIvar: {
       auto *base = static_cast<IvarMeExpr&>(meExpr).GetBase();
-      if (base != nullptr) {
-        MarkSingleUseLive(*base);
+      MarkSingleUseLive(*base);
+      VarMeExpr *mu = static_cast<IvarMeExpr&>(meExpr).GetMu();
+      if (mu->GetDefBy() != kDefByNo) {
+        MapleMap<OStIdx, ChiMeNode *> *chiList = GenericGetChiListFromVarMeExpr(*mu);
+        if (chiList != nullptr) {
+          MapleMap<OStIdx, ChiMeNode *>::iterator it = chiList->begin();
+          for (; it != chiList->end(); it++) {
+            MarkChiNodeRequired(*it->second);
+          }
+        }
       }
       break;
     }
