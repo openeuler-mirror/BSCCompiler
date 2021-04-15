@@ -91,8 +91,12 @@ void IRMapBuild::BuildMustDefList(MeStmt &meStmt, TypeOfMustDefList &mustDefList
                                   MapleVector<MustDefMeNode> &mustDefMeList) {
   for (auto &mustDefNode : mustDefList) {
     VersionSt *vst = mustDefNode.GetResult();
-    VarMeExpr *lhs = GetOrCreateVarFromVerSt(*vst);
-    ASSERT(lhs->GetMeOp() == kMeOpReg || lhs->GetMeOp() == kMeOpVar, "unexpected opcode");
+    ScalarMeExpr *lhs = nullptr;
+    if (vst->GetOst()->IsSymbolOst()) {
+      lhs = GetOrCreateVarFromVerSt(*vst);
+    } else {
+      lhs = GetOrCreateRegFromVerSt(*vst);
+    }
     mustDefMeList.emplace_back(MustDefMeNode(lhs, &meStmt));
   }
 }

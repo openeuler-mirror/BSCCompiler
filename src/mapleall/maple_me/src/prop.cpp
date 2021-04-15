@@ -279,7 +279,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
     return irMap.HashMeExpr(opmeexpr);
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
-      lhsTy->GetPrimType() != PTY_ptr  && lhsTy->GetPrimType() != PTY_ref &&
+      lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref &&
       GetPrimTypeSize(lhsTy->GetPrimType()) < rhs->GetPrimType()) {
     if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
       return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
@@ -306,7 +306,8 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
         rhsTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsvarx->GetOst()->GetTyIdx());
       } else if (rhs->GetMeOp() == kMeOpIvar) {
         IvarMeExpr *rhsivarx = static_cast<IvarMeExpr *>(rhs);
-        MIRPtrType *rhsPtrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsivarx->GetTyIdx()));
+        MIRPtrType *rhsPtrType =
+            static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsivarx->GetTyIdx()));
         rhsTy = rhsPtrType->GetPointedType();
         if (rhsivarx->GetFieldID() != 0) {
           rhsTy = static_cast<MIRStructType *>(rhsTy)->GetFieldType(rhsivarx->GetFieldID());
@@ -561,7 +562,6 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
     for (auto &node : utils::ToRef(mustDefList)) {
       MeExpr *meLhs = node.GetLHS();
-      CHECK_FATAL(meLhs->GetMeOp() == kMeOpVar, "error: lhs is not var");
       PropUpdateDef(utils::ToRef(static_cast<VarMeExpr*>(meLhs)));
     }
   }
