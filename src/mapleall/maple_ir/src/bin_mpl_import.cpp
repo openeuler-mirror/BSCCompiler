@@ -89,14 +89,10 @@ void BinaryMplImport::ReadFileAt(const std::string &name, int32 offset) {
   CHECK_FATAL(result == static_cast<size_t>(size), "Error while reading the binary file: %s", name.c_str());
 }
 
-void BinaryMplImport::ImportConstBase(MIRConstKind &kind, MIRTypePtr &type, uint32 &fieldID) {
+void BinaryMplImport::ImportConstBase(MIRConstKind &kind, MIRTypePtr &type) {
   kind = static_cast<MIRConstKind>(ReadNum());
   TyIdx tyidx = ImportType();
   type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyidx);
-  int64 tmp = ReadNum();
-  CHECK_FATAL(tmp <= INT_MAX, "num out of range");
-  CHECK_FATAL(tmp >= INT_MIN, "num out of range");
-  fieldID = static_cast<uint32>(tmp);
 }
 
 MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
@@ -107,40 +103,39 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
 
   MIRConstKind kind;
   MIRType *type = nullptr;
-  uint32 fieldID;
-  MemPool *memPool = (func == nullptr) ? mod.GetMemPool() : func->GetCodeMempool();
+  MemPool *memPool = mod.GetMemPool();
 
-  ImportConstBase(kind, type, fieldID);
+  ImportConstBase(kind, type);
   switch (tag) {
     case kBinKindConstInt:
-      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(ReadNum(), *type, fieldID);
+      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(ReadNum(), *type);
     case kBinKindConstAddrof: {
       MIRSymbol *sym = InSymbol(func);
       CHECK_FATAL(sym != nullptr, "null ptr check");
       FieldID fi = ReadNum();
       int32 ofst = ReadNum();
-      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type, ofst, fieldID);
+      return memPool->New<MIRAddrofConst>(sym->GetStIdx(), fi, *type, ofst);
     }
     case kBinKindConstAddrofLocal: {
       uint32 fullidx = ReadNum();
       FieldID fi = ReadNum();
       int32 ofst = ReadNum();
-      return memPool->New<MIRAddrofConst>(StIdx(fullidx), fi, *type, ofst, fieldID);
+      return memPool->New<MIRAddrofConst>(StIdx(fullidx), fi, *type, ofst);
     }
     case kBinKindConstAddrofFunc: {
       PUIdx puIdx = ImportFunction();
-      return memPool->New<MIRAddroffuncConst>(puIdx, *type, fieldID);
+      return memPool->New<MIRAddroffuncConst>(puIdx, *type);
     }
     case kBinKindConstAddrofLabel: {
       LabelIdx lidx = ReadNum();
       PUIdx puIdx = func->GetPuidx();
-      MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type, fieldID);
+      MIRLblConst *lblConst = memPool->New<MIRLblConst>(lidx, puIdx, *type);
       (void)func->GetLabelTab()->addrTakenLabels.insert(lidx);
       return lblConst;
     }
     case kBinKindConstStr: {
       UStrIdx ustr = ImportUsrStr();
-      return memPool->New<MIRStrConst>(ustr, *type, fieldID);
+      return memPool->New<MIRStrConst>(ustr, *type);
     }
     case kBinKindConstStr16: {
       Conststr16Node *cs;
@@ -154,7 +149,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       std::u16string str16;
       (void)namemangler::UTF8ToUTF16(str16, ostr.str());
       cs->SetStrIdx(GlobalTables::GetU16StrTable().GetOrCreateStrIdxFromName(str16));
-      return memPool->New<MIRStr16Const>(cs->GetStrIdx(), *type, fieldID);
+      return memPool->New<MIRStr16Const>(cs->GetStrIdx(), *type);
     }
     case kBinKindConstFloat: {
       union {
@@ -163,7 +158,7 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       } value;
 
       value.ivalue = ReadNum();
-      return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(value.fvalue, fieldID);
+      return GlobalTables::GetFpConstTable().GetOrCreateFloatConst(value.fvalue);
     }
     case kBinKindConstDouble: {
       union {
@@ -172,18 +167,20 @@ MIRConst *BinaryMplImport::ImportConst(MIRFunction *func) {
       } value;
 
       value.ivalue = ReadNum();
-      return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue, fieldID);
+      return GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(value.dvalue);
     }
     case kBinKindConstAgg: {
-      MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type, fieldID);
+      MIRAggConst *aggConst = mod.GetMemPool()->New<MIRAggConst>(mod, *type);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
-        aggConst->PushBack(ImportConst(func));
+        auto fieldId = static_cast<uint32>(ReadInt64());
+        auto fieldConst = ImportConst(func);
+        aggConst->AddItem(fieldConst, fieldId);
       }
       return aggConst;
     }
     case kBinKindConstSt: {
-      MIRStConst *stConst = mod.GetMemPool()->New<MIRStConst>(mod, *type, fieldID);
+      MIRStConst *stConst = mod.GetMemPool()->New<MIRStConst>(mod, *type);
       int64 size = ReadNum();
       for (int64 i = 0; i < size; ++i) {
         stConst->PushbackSymbolToSt(InSymbol(func));

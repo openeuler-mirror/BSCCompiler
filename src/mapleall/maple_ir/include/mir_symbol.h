@@ -293,6 +293,10 @@ class MIRSymbol {
     return isDeleted;
   }
 
+  bool IsVar() const {
+    return sKind == kStVar;
+  }
+
   bool IsPreg() const {
     return sKind == kStPreg;
   }
@@ -313,7 +317,7 @@ class MIRSymbol {
     return srcPosition;
   }
 
-  void SetSrcPosition(SrcPosition &position) {
+  void SetSrcPosition(const SrcPosition &position) {
     srcPosition = position;
   }
 
@@ -409,7 +413,7 @@ class MIRSymbol {
   bool IsGctibSym() const;
   bool IsPrimordialObject() const;
   bool IgnoreRC() const;
-  void Dump(bool isLocal, int32 indent, bool suppressinit = false) const;
+  void Dump(bool isLocal, int32 indent, bool suppressinit = false, const MIRSymbolTable *localsymtab = nullptr) const;
   void DumpAsLiteralVar() const;
   bool operator==(const MIRSymbol &msym) const {
     return nameStrIdx == msym.nameStrIdx;
@@ -552,10 +556,10 @@ class MIRSymbolTable {
 class MIRLabelTable {
  public:
   explicit MIRLabelTable(MapleAllocator &allocator)
-      : mAllocator(allocator),
+      : addrTakenLabels(allocator.Adapter()),
+        mAllocator(allocator),
         strIdxToLabIdxMap(std::less<GStrIdx>(), mAllocator.Adapter()),
-        labelTable(mAllocator.Adapter()),
-        addrTakenLabels(mAllocator.Adapter()) {
+        labelTable(mAllocator.Adapter()) {
     labelTable.push_back(GStrIdx(kDummyLabel));  // push dummy label index 0
   }
 
@@ -628,13 +632,13 @@ class MIRLabelTable {
     strIdxToLabIdxMap.erase(idx);
   }
 
+  MapleUnorderedSet<LabelIdx> addrTakenLabels; // those appeared in addroflabel or MIRLblConst
+
  private:
   static constexpr uint32 kDummyLabel = 0;
   MapleAllocator mAllocator;
   MapleMap<GStrIdx, LabelIdx> strIdxToLabIdxMap;
   MapleVector<GStrIdx> labelTable;  // map label idx to label name
- public:
-  MapleUnorderedSet<LabelIdx> addrTakenLabels; // those appeared in addroflabel or MIRLblConst
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_SYMBOL_H
