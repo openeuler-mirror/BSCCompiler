@@ -82,7 +82,7 @@ MIRType *TypeTable::CreateAndUpdateMirTypeNode(MIRType &pType) {
   if (pType.IsMIRPtrType()) {
     auto &pty = static_cast<MIRPtrType&>(pType);
     if (pty.GetTypeAttrs() == TypeAttrs()) {
-      if (pty.GetPrimType() == PTY_ptr) {
+      if (pty.GetPrimType() != PTY_ref) {
         ptrTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
       } else {
         refTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
@@ -100,7 +100,7 @@ MIRType* TypeTable::GetOrCreateMIRTypeNode(MIRType &pType) {
   if (pType.IsMIRPtrType()) {
     auto &type = static_cast<MIRPtrType&>(pType);
     if (type.GetTypeAttrs() == TypeAttrs()) {
-      auto *pMap = (type.GetPrimType() == PTY_ptr ? &ptrTypeMap : &refTypeMap);
+      auto *pMap = (type.GetPrimType() != PTY_ref ? &ptrTypeMap : &refTypeMap);
       auto *otherPMap = (type.GetPrimType() == PTY_ref ? &ptrTypeMap : &refTypeMap);
       {
         std::shared_lock<std::shared_timed_mutex> lock(mtx);
@@ -262,25 +262,25 @@ void FPConstTable::PostInit() {
   minusZeroDoubleConst = new MIRDoubleConst(-0.0, typeDouble);
 }
 
-MIRIntConst *IntConstTable::GetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID) {
+MIRIntConst *IntConstTable::GetOrCreateIntConst(int64 val, MIRType &type) {
   if (ThreadEnv::IsMeParallel()) {
-    return DoGetOrCreateIntConstTreadSafe(val, type, fieldID);
+    return DoGetOrCreateIntConstTreadSafe(val, type);
   }
-  return DoGetOrCreateIntConst(val, type, fieldID);
+  return DoGetOrCreateIntConst(val, type);
 }
 
-MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID) {
-  uint64 idid = static_cast<uint64>(type.GetTypeIndex()) + (static_cast<uint64>(fieldID) << 32); // shift bit is 32
+MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type) {
+  uint64 idid = static_cast<uint64>(type.GetTypeIndex()); // shift bit is 32
   IntConstKey key(val, idid);
   if (intConstTable.find(key) != intConstTable.end()) {
     return intConstTable[key];
   }
-  intConstTable[key] = new MIRIntConst(val, type, fieldID);
+  intConstTable[key] = new MIRIntConst(val, type);
   return intConstTable[key];
 }
 
-MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type, uint32 fieldID) {
-  uint64 idid = static_cast<uint64>(type.GetTypeIndex()) + (static_cast<uint64>(fieldID) << 32); // shift bit is 32
+MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type) {
+  uint64 idid = static_cast<uint64>(type.GetTypeIndex()); // shift bit is 32
   IntConstKey key(val, idid);
   {
     std::shared_lock<std::shared_timed_mutex> lock(mtx);
@@ -289,7 +289,7 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &t
     }
   }
   std::unique_lock<std::shared_timed_mutex> lock(mtx);
-  intConstTable[key] = new MIRIntConst(val, type, fieldID);
+  intConstTable[key] = new MIRIntConst(val, type);
   return intConstTable[key];
 }
 
@@ -299,11 +299,7 @@ IntConstTable::~IntConstTable() {
   }
 }
 
-MIRFloatConst *FPConstTable::GetOrCreateFloatConst(float floatVal, uint32 fieldID) {
-  if (fieldID != 0) {
-    MIRFloatConst *fconst = new MIRFloatConst(floatVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_f32), fieldID);
-    return fconst;
-  }
+MIRFloatConst *FPConstTable::GetOrCreateFloatConst(float floatVal) {
   if (std::isnan(floatVal)) {
     return nanFloatConst;
   }
@@ -325,7 +321,8 @@ MIRFloatConst *FPConstTable::DoGetOrCreateFloatConst(float floatVal) {
     return it->second;
   }
   // create a new one
-  auto *floatConst = new MIRFloatConst(floatVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx{ PTY_f32 }));
+  auto *floatConst =
+      new MIRFloatConst(floatVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx{ PTY_f32 }));
   floatConstTable[floatVal] = floatConst;
   return floatConst;
 }
@@ -340,16 +337,13 @@ MIRFloatConst *FPConstTable::DoGetOrCreateFloatConstThreadSafe(float floatVal) {
   }
   // create a new one
   std::unique_lock<std::shared_timed_mutex> lock(floatMtx);
-  auto *floatConst = new MIRFloatConst(floatVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx{ PTY_f32 }));
+  auto *floatConst =
+      new MIRFloatConst(floatVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx{ PTY_f32 }));
   floatConstTable[floatVal] = floatConst;
   return floatConst;
 }
 
-MIRDoubleConst *FPConstTable::GetOrCreateDoubleConst(double doubleVal, uint32 fieldID) {
-  if (fieldID != 0) {
-    MIRDoubleConst *dconst = new MIRDoubleConst(doubleVal, *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_f64), fieldID);
-    return dconst;
-  }
+MIRDoubleConst *FPConstTable::GetOrCreateDoubleConst(double doubleVal) {
   if (std::isnan(doubleVal)) {
     return nanDoubleConst;
   }
