@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -168,6 +168,21 @@ bool MIRSymbol::IsArrayClassCacheName() const {
   return StringUtils::StartsWith(GetName(), kArrayClassCacheNameTable);
 }
 
+bool MIRSymbol::IsForcedGlobalFunc() const {
+  return StringUtils::StartsWith(GetName(), kJavaLangClassStr) ||
+         StringUtils::StartsWith(GetName(), kReflectionClassesPrefixStr) ||
+         StringUtils::StartsWith(GetName(), "Ljava_2Fnio_2FDirectByteBuffer_3B_7C_3Cinit_3E_7C_28JI_29V");
+}
+
+// mrt/maplert/include/mrt_classinfo.h
+bool MIRSymbol::IsForcedGlobalClassinfo() const {
+  std::unordered_set<std::string> mrtUse {
+#include "mrt_direct_classinfo_list.def"
+  };
+  return std::find(mrtUse.begin(), mrtUse.end(), GetName()) != mrtUse.end() ||
+         StringUtils::StartsWith(GetName(), "__cinf_Llibcore_2Freflect_2FGenericSignatureParser_3B");
+}
+
 bool MIRSymbol::IsClassInitBridge() const {
   return StringUtils::StartsWith(GetName(), CLASS_INIT_BRIDGE_PREFIX_STR);
 }
@@ -292,7 +307,7 @@ bool MIRSymbol::IgnoreRC() const {
   return strIdx == reflectClassNameIdx;
 }
 
-void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit) const {
+void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit, const MIRSymbolTable *localsymtab) const {
   if (sKind == kStVar || sKind == kStFunc) {
     if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum) {
       LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << std::endl;
@@ -345,7 +360,7 @@ void MIRSymbol::Dump(bool isLocal, int32 indent, bool suppressInit) const {
   }
   if (IsConst() && !suppressInit && !(IsLiteral() && GetStorageClass() == kScExtern)) {
     LogInfo::MapleLogger() << " = ";
-    GetKonst()->Dump();
+    GetKonst()->Dump(localsymtab);
   }
   LogInfo::MapleLogger() << '\n';
 }
@@ -356,6 +371,11 @@ void MIRSymbol::DumpAsLiteralVar() const {
   }
 }
 
+const std::set<std::string> MIRSymbol::staticFinalBlackList{
+    "Ljava_2Flang_2FSystem_3B_7Cout",
+    "Ljava_2Flang_2FSystem_3B_7Cerr",
+    "Ljava_2Flang_2FSystem_3B_7Cin",
+};
 
 void MIRSymbolTable::Dump(bool isLocal, int32 indent, bool printDeleted) const {
   size_t size = symbolTable.size();
@@ -367,7 +387,7 @@ void MIRSymbolTable::Dump(bool isLocal, int32 indent, bool printDeleted) const {
     if (!printDeleted && symbol->IsDeleted()) {
       continue;
     }
-    symbol->Dump(isLocal, indent);
+    symbol->Dump(isLocal, indent, false/*suppressinit*/, this);
   }
 }
 
