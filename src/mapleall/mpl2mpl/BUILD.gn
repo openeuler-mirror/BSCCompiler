@@ -21,12 +21,13 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/mempool/include",
-  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
 src_libmpl2mpl = [
   "src/class_init.cpp",
   "src/gen_check_cast.cpp",
+  "src/barrierinsertion.cpp",
   "src/muid_replacement.cpp",
   "src/reflection_analysis.cpp",
   "src/vtable_analysis.cpp",
@@ -38,6 +39,8 @@ src_libmpl2mpl = [
   "src/constantfold.cpp",
   "src/coderelayout.cpp",
   "src/annotation_analysis.cpp",
+  "src/preme.cpp",
+  "src/scalarreplacement.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
