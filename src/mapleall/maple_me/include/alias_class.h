@@ -176,8 +176,8 @@ class AliasClass : public AnalysisResult {
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
-  bool CallHasSideEffect(const CallNode &stmt) const;
-  bool CallHasNoPrivateDefEffect(const CallNode &stmt) const;
+  bool CallHasSideEffect(StmtNode *stmt) const;
+  bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   AliasElem *FindOrCreateAliasElem(OriginalSt &ost);
   AliasElem *FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx, FieldID fieldId);
   AliasInfo CreateAliasElemsExpr(BaseNode &expr);

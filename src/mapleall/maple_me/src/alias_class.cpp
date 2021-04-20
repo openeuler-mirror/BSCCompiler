@@ -102,12 +102,26 @@ bool AliasClass::CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, Fun
   return hasAttr;
 }
 
-bool AliasClass::CallHasSideEffect(const CallNode &stmt) const {
-  return calleeHasSideEffect ? true : !CallHasNoSideEffectOrPrivateDefEffect(stmt, FUNCATTR_nosideeffect);
+bool AliasClass::CallHasSideEffect(StmtNode *stmt) const {
+  if (calleeHasSideEffect) {
+    return true;
+  }
+  CallNode *callstmt = dynamic_cast<CallNode *>(stmt);
+  if (callstmt == nullptr) {
+    return true;
+  }
+  return !CallHasNoSideEffectOrPrivateDefEffect(*callstmt, FUNCATTR_nosideeffect);
 }
 
-bool AliasClass::CallHasNoPrivateDefEffect(const CallNode &stmt) const {
-  return calleeHasSideEffect ? false : CallHasNoSideEffectOrPrivateDefEffect(stmt, FUNCATTR_noprivate_defeffect);
+bool AliasClass::CallHasNoPrivateDefEffect(StmtNode *stmt) const {
+  if (calleeHasSideEffect) {
+    return true;
+  }
+  CallNode *callstmt = dynamic_cast<CallNode *>(stmt);
+  if (callstmt == nullptr) {
+    return true;
+  }
+  return CallHasNoSideEffectOrPrivateDefEffect(*callstmt, FUNCATTR_noprivate_defeffect);
 }
 
 // here starts pass 1 code
@@ -373,49 +387,70 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_call:
     case OP_callassigned: {
+      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+        CreateAliasElemsExpr(*stmt.Opnd(i));
+      }
       auto &call = static_cast<CallNode&>(stmt);
       ASSERT(call.GetPUIdx() < GlobalTables::GetFunctionTable().GetFuncTable().size(),
              "index out of range in AliasClass::ApplyUnionForCopies");
-      if (mirModule.IsCModule() || CallHasSideEffect(call)) {
+      if (mirModule.IsCModule() || CallHasSideEffect(&call)) {
         SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(),
-                               CallHasNoPrivateDefEffect(call));
+                               CallHasNoPrivateDefEffect(&call));
       }
       break;
     }
     case OP_virtualcall:
+    case OP_virtualicall:
     case OP_superclasscall:
     case OP_interfacecall:
+    case OP_interfaceicall:
     case OP_customcall:
     case OP_polymorphiccall:
     case OP_virtualcallassigned:
+    case OP_virtualicallassigned:
     case OP_superclasscallassigned:
     case OP_interfacecallassigned:
+    case OP_interfaceicallassigned:
     case OP_customcallassigned:
     case OP_polymorphiccallassigned: {
-      auto &call = static_cast<NaryStmtNode&>(stmt);
-      SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
+      if (CallHasSideEffect(&stmt)) {
+        bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
+        auto &call = static_cast<NaryStmtNode&>(stmt);
+        for (int32 i = 1; i < call.NumOpnds(); i++) {
+          AliasInfo ainfo = CreateAliasElemsExpr(*call.Opnd(i));
+          if (IsPotentialAddress(call.Opnd(i)->GetPrimType(), &mirModule) && ainfo.ae != nullptr) {
+            if (call.Opnd(i)->GetOpCode() == OP_addrof && IsReadOnlyOst(ainfo.ae->GetOriginalSt())) {
+              continue;
+            }
+            if (hasnoprivatedefeffect && ainfo.ae->GetOriginalSt().IsPrivate()) {
+              continue;
+            }
+            ainfo.ae->SetNextLevNotAllDefsSeen(true);
+          }
+        }
+      }
       break;
     }
     case OP_icall:
-    case OP_icallassigned:
-    case OP_virtualicall:
-    case OP_interfaceicall:
-    case OP_virtualicallassigned:
-    case OP_interfaceicallassigned: {
+    case OP_icallassigned: {
+      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+        CreateAliasElemsExpr(*stmt.Opnd(i));
+      }
       auto &call = static_cast<NaryStmtNode&>(stmt);
       SetPtrOpndsNextLevNADS(1, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
       break;
     }
     case OP_intrinsiccall:
     case OP_intrinsiccallassigned: {
+      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+        CreateAliasElemsExpr(*stmt.Opnd(i));
+      }
       auto &intrnNode = static_cast<IntrinsiccallNode&>(stmt);
       if (intrnNode.GetIntrinsic() == INTRN_JAVA_POLYMORPHIC_CALL) {
         SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(intrnNode.NumOpnds()), intrnNode.GetNopnd(), false);
-        break;
       }
-      //  fallthrough;
+      break;
     }
-    [[clang::fallthrough]];
     default:
       for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
@@ -1409,8 +1444,8 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     }
     case OP_call:
     case OP_callassigned: {
-      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(static_cast<CallNode&>(stmt)),
-                          CallHasNoPrivateDefEffect(static_cast<CallNode&>(stmt)));
+      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(&stmt),
+                          CallHasNoPrivateDefEffect(&stmt));
       return;
     }
     case OP_virtualcallassigned:
