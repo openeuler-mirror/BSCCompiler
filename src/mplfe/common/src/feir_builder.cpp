@@ -74,15 +74,22 @@ UniqueFEIRVar FEIRBuilder::CreateVarName(GStrIdx nameIdx, PrimType primType, boo
 
 UniqueFEIRVar FEIRBuilder::CreateVarName(const std::string &name, PrimType primType, bool isGlobal,
                                          bool withType) {
-  GStrIdx nameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(name);
-  if (nameIdx == 0) {
-    UniqueFEIRVar var = std::make_unique<FEIRVarNameSpec>(name, withType);
-    var->GetType()->SetPrimType(primType);
-    var->SetGlobal(isGlobal);
-    return var;
-  } else {
-    return CreateVarName(nameIdx, primType, isGlobal, withType);
-  }
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  return CreateVarName(nameIdx, primType, isGlobal, withType);
+}
+
+UniqueFEIRVar FEIRBuilder::CreateVarNameForC(GStrIdx nameIdx, MIRType &mirType, bool isGlobal, bool withType,
+                                             TypeDim dim) {
+  UniqueFEIRType type = std::make_unique<FEIRTypeNative>(mirType);
+  UniqueFEIRVar var = std::make_unique<FEIRVarName>(nameIdx, std::move(type), withType);
+  var->SetGlobal(isGlobal);
+  return var;
+}
+
+UniqueFEIRVar FEIRBuilder::CreateVarNameForC(const std::string &name, MIRType &mirType, bool isGlobal, bool withType,
+                                             TypeDim dim) {
+  GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
+  return CreateVarNameForC(nameIdx, mirType, isGlobal, withType, dim);
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprDRead(UniqueFEIRVar srcVar) {
@@ -143,6 +150,21 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstF64(double val) {
   return std::make_unique<FEIRExprConst>(val);
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprZeroConst(PrimType primType) {
+  switch (primType) {
+    case PTY_f32:
+      return CreateExprConstF32(0.0f);
+    case PTY_f64:
+      return CreateExprConstF64(0.0);
+    case PTY_f128:
+      // Not Implemented
+      CHECK_FATAL(false, "Not Implemented");
+      return nullptr;
+    default:
+      return std::make_unique<FEIRExprConst>(int64{ 0 }, primType);
+  }
+}
+
 UniqueFEIRExpr FEIRBuilder::CreateExprMathUnary(Opcode op, UniqueFEIRVar var0) {
   UniqueFEIRExpr opnd0 = CreateExprDRead(std::move(var0));
   return std::make_unique<FEIRExprUnary>(op, std::move(opnd0));
@@ -159,6 +181,10 @@ UniqueFEIRExpr FEIRBuilder::CreateExprMathBinary(Opcode op, UniqueFEIRVar var0, 
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprMathBinary(Opcode op, UniqueFEIRExpr expr0, UniqueFEIRExpr expr1) {
+  return std::make_unique<FEIRExprBinary>(op, std::move(expr0), std::move(expr1));
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprBinary(Opcode op, UniqueFEIRExpr expr0, UniqueFEIRExpr expr1) {
   return std::make_unique<FEIRExprBinary>(op, std::move(expr0), std::move(expr1));
 }
 
@@ -236,6 +262,14 @@ UniqueFEIRExpr FEIRBuilder::CreateExprJavaArrayLength(UniqueFEIRExpr exprArray) 
   return expr;
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, UniqueFEIRExpr argExprIndex,
+                                                     UniqueFEIRType argTypeNative) {
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprArrayStoreForC>(std::move(argExprArray), std::move(argExprIndex),
+                                                                                          std::move(argTypeNative));
+  CHECK_NULL_FATAL(expr);
+  return expr;
+}
+
 UniqueFEIRStmt FEIRBuilder::CreateStmtDAssign(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, bool hasException) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtDAssign>(std::move(dstVar), std::move(srcExpr));
   FEIRStmtDAssign *ptrStmt = static_cast<FEIRStmtDAssign*>(stmt.get());
@@ -245,6 +279,12 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtDAssign(UniqueFEIRVar dstVar, UniqueFEIREx
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtGoto(uint32 targetLabelIdx) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtGoto>(targetLabelIdx);
+  CHECK_NULL_FATAL(stmt);
+  return stmt;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateStmtGoto(std::string labelName) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtGotoForC>(std::move(labelName));
   CHECK_NULL_FATAL(stmt);
   return stmt;
 }

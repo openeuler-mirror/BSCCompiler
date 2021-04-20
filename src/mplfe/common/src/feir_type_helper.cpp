@@ -1,16 +1,16 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "feir_type_helper.h"
 #include "fe_type_manager.h"
@@ -25,7 +25,7 @@ UniqueFEIRType FEIRTypeHelper::CreateTypeByPrimType(PrimType primType, TypeDim d
   }
 }
 
-UniqueFEIRType FEIRTypeHelper::CreateTypeByJavaName(const std::string typeName, bool inMpl, bool usePtr) {
+UniqueFEIRType FEIRTypeHelper::CreateTypeByJavaName(const std::string &typeName, bool inMpl, bool usePtr) {
   uint32 dim = 0;
   std::string baseName = FETypeManager::GetBaseTypeName(typeName, dim, inMpl);
   CHECK_FATAL(dim <= FEConstants::kDimMax, "invalid array type %s (dim is too big)", typeName.c_str());
@@ -35,7 +35,7 @@ UniqueFEIRType FEIRTypeHelper::CreateTypeByJavaName(const std::string typeName, 
     newType = CreateTypeByJavaNamePrim(baseName[0], dim8);
     CHECK_FATAL(newType != nullptr, "unsupported java type name %s: ", typeName.c_str());
   } else if (baseName[0] == 'L') {
-    baseName = inMpl ? baseName : NameMangler::EncodeName(baseName);
+    baseName = inMpl ? baseName : namemangler::EncodeName(baseName);
     GStrIdx typeNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(baseName);
     if (typeNameIdx == 0) {
       newType = std::make_unique<FEIRTypeByName>(PTY_ref, baseName, dim8);
@@ -131,6 +131,12 @@ UniqueFEIRType FEIRTypeHelper::CreateTypeByDereferrence(const UniqueFEIRType &sr
 
 UniqueFEIRType FEIRTypeHelper::CreateTypeDefault(PrimType primType, const GStrIdx &typeNameIdx, TypeDim dim) {
   UniqueFEIRType type = std::make_unique<FEIRTypeDefault>(primType, typeNameIdx, dim);
+  CHECK_FATAL(type->IsValid(), "invalid type");
+  return type;
+}
+
+UniqueFEIRType FEIRTypeHelper::CreateTypeNative(MIRType &mirType) {
+  UniqueFEIRType type = std::make_unique<FEIRTypeNative>(mirType);
   CHECK_FATAL(type->IsValid(), "invalid type");
   return type;
 }

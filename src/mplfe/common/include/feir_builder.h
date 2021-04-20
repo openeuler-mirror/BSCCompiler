@@ -37,6 +37,10 @@ class FEIRBuilder {
                                      bool withType = false);
   static UniqueFEIRVar CreateVarName(const std::string &name, PrimType primType, bool isGlobal = false,
                                      bool withType = false);
+  static UniqueFEIRVar CreateVarNameForC(GStrIdx nameIdx, MIRType &mirType, bool isGlobal = false,
+                                         bool withType = false, TypeDim dim = 0);
+  static UniqueFEIRVar CreateVarNameForC(const std::string &name, MIRType &mirType, bool isGlobal = false,
+                                         bool withType = false, TypeDim dim = 0);
   // Expr
   static UniqueFEIRExpr CreateExprDRead(UniqueFEIRVar srcVar);
   static UniqueFEIRExpr CreateExprAddrof(const std::vector<uint32> &array);
@@ -52,10 +56,12 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprConstI64(int64 val);
   static UniqueFEIRExpr CreateExprConstF32(float val);
   static UniqueFEIRExpr CreateExprConstF64(double val);
+  static UniqueFEIRExpr CreateExprZeroConst(PrimType primType);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRVar var0);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRExpr expr);
   static UniqueFEIRExpr CreateExprMathBinary(Opcode op, UniqueFEIRVar var0, UniqueFEIRVar var1);
   static UniqueFEIRExpr CreateExprMathBinary(Opcode op, UniqueFEIRExpr expr0, UniqueFEIRExpr expr1);
+  static UniqueFEIRExpr CreateExprBinary(Opcode op, UniqueFEIRExpr expr0, UniqueFEIRExpr expr1);
   static UniqueFEIRExpr CreateExprSExt(UniqueFEIRVar srcVar);
   static UniqueFEIRExpr CreateExprSExt(UniqueFEIRExpr srcExpr, PrimType dstType);
   static UniqueFEIRExpr CreateExprZExt(UniqueFEIRVar srcVar);
@@ -70,9 +76,12 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprJavaNewArray(UniqueFEIRType type, UniqueFEIRExpr exprSize, uint32 typeID,
                                                bool isRcPermanent);
   static UniqueFEIRExpr CreateExprJavaArrayLength(UniqueFEIRExpr exprArray);
+  static UniqueFEIRExpr CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, UniqueFEIRExpr argExprIndex,
+                                                 UniqueFEIRType argTypeNative);
   // Stmt
   static UniqueFEIRStmt CreateStmtDAssign(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, bool hasException = false);
   static UniqueFEIRStmt CreateStmtGoto(uint32 targetLabelIdx);
+  static UniqueFEIRStmt CreateStmtGoto(std::string labelName);
   static UniqueFEIRStmt CreateStmtCondGoto(uint32 targetLabelIdx, Opcode op, UniqueFEIRExpr expr);
   static UniqueFEIRStmt CreateStmtSwitch(UniqueFEIRExpr expr);
   static UniqueFEIRStmt CreateStmtJavaConstClass(UniqueFEIRVar dstVar, UniqueFEIRType type);
