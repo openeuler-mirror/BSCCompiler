@@ -21,7 +21,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
-  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
 src_libmplipa = [
@@ -30,6 +30,12 @@ src_libmplipa = [
   "src/clone.cpp",
   "src/retype.cpp",
   "src/call_graph.cpp",
+  "src/inline.cpp",
+  "src/method_replace.cpp",
+  "src/ipa_escape_analysis.cpp",
+  "src/do_ipa_escape_analysis.cpp",
+  "src/ea_connection_graph.cpp",
+  "src/ipa_option.cpp",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
