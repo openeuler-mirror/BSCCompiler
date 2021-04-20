@@ -1181,10 +1181,9 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     std::string reflectStrTabPrefix = isHotReflectStr ? hotStr : kReflectionStrtabPrefixStr;
     std::string strTabName = reflectStrTabPrefix + cg->GetMIRModule()->GetFileNameAsPostfix();
     /* left shift 2 bit to get low 30 bit data for MIRIntConst */
-    elemConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        index >> 2, elemConst->GetType(), elemConst->GetFieldId());
+    elemConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(index >> 2, elemConst->GetType());
     intConst = safe_cast<MIRIntConst>(elemConst);
-    aggConst.SetConstVecItem(idx, *intConst);
+    aggConst.SetItem(idx, intConst, aggConst.GetFieldIdItem(idx));
 #ifdef USE_32BIT_REF
     if (stName.find(ITAB_CONFLICT_PREFIX_STR) == 0) {
       EmitScalarConstant(*elemConst, false, true);
@@ -1524,7 +1523,6 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   MIRType &mirType = mirConst.GetType();
   MIRAggConst &structCt = static_cast<MIRAggConst&>(mirConst);
   MIRStructType &structType = static_cast<MIRStructType&>(mirType);
-  ASSERT(structType.GetKind() != kTypeUnion, "NYI, not support now.");
   /* all elements of struct. */
   uint8 num;
   if (structType.GetKind() == kTypeUnion) {
@@ -1536,7 +1534,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
   uint32 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(structType.GetTypeIndex());
   uint32 fieldIdx = 1;
   if (structType.GetKind() == kTypeUnion) {
-    fieldIdx = structCt.GetConstVecItem(0)->GetFieldId();
+    fieldIdx = structCt.GetFieldIdItem(0);
   }
   for (uint32 i = 0; i < num; ++i) {
     if (((i + 1) == num) && cg->GetMIRModule()->GetSrcLang() == kSrcLangC) {
@@ -1556,8 +1554,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
-        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType, fieldIdx);
-        CHECK_FATAL(zeroFill->GetFieldId() == fieldIdx, "EmitStructConst: fieldID not set correctly");
+        MIRIntConst *zeroFill = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *elemType);
         elemConst = zeroFill;
       }
       uint64 fieldOffset =
@@ -1854,14 +1851,13 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
 #ifdef USE_32BIT_REF
       /* #define COLD VTAB ITAB END FLAG  0X4000000000000000 */
       tabConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-          static_cast<uint32>(tabConst->GetValue()) | 0X40000000, tabConst->GetType(), tabConst->GetFieldId());
+          static_cast<uint32>(tabConst->GetValue()) | 0X40000000, tabConst->GetType());
 #else
       /* #define COLD VTAB ITAB END FLAG  0X4000000000000000 */
       tabConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-          static_cast<int64>(static_cast<uint64>(tabConst->GetValue()) | 0X4000000000000000),
-          tabConst->GetType(), tabConst->GetFieldId());
+          static_cast<int64>(static_cast<uint64>(tabConst->GetValue()) | 0X4000000000000000), tabConst->GetType());
 #endif
-      aggConst->SetConstVecItem(size - 1, *tabConst);
+      aggConst->SetItem(size - 1, tabConst, aggConst->GetFieldIdItem(size - 1));
     }
   }
 }
@@ -2662,7 +2658,6 @@ void Emitter::EmitHexUnsigned(uint64 num) {
   outStream.flags(flag);
 }
 
-
 #define XSTR(s) str(s)
 #define str(s) #s
 
@@ -2681,7 +2676,6 @@ void Emitter::EmitDIHeaderFileInfo() {
   Emit("// dummy header file 2\n");
   Emit("// dummy header file 3\n");
 }
-
 
 void Emitter::EmitHugeSoRoutines(bool lastRoutine) {
   if (!lastRoutine && (javaInsnCount < (static_cast<uint64>(hugeSoSeqence) *
