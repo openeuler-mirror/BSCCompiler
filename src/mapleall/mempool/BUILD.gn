@@ -7,7 +7,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
-  "${MAPLE_ROOT}/third_party/bounds_checking_function/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
@@ -28,7 +28,7 @@ executable("MemPool") {
 
   deps = [
     ":libmempool",
-    "${MAPLE_ROOT}/third_party/bounds_checking_function:libHWSecureC",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
   ]
