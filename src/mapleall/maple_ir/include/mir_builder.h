@@ -295,10 +295,6 @@ class MIRBuilder {
   MIRSymbol *GetOrCreateGlobalDecl(const std::string &str, TyIdx tyIdx, bool &created) const;
   MIRSymbol *GetOrCreateLocalDecl(const std::string &str, TyIdx tyIdx, MIRSymbolTable &symbolTable,
                                   bool &created) const;
-  bool IsValidCallReturn(const MIRSymbol &ret) const {
-    return ret.GetStorageClass() == kScAuto || ret.GetStorageClass() == kScFormal ||
-           ret.GetStorageClass() == kScExtern || ret.GetStorageClass() == kScGlobal;
-  }
 
   MIRModule *mirModule;
   MapleSet<TyIdx> incompleteTypeRefedSet;
