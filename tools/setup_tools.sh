@@ -78,7 +78,7 @@ fi
 if [ ! -f $TOOLS/gn/gn ]; then
   cd $TOOLS
   echo Start clone gn ...
-  git clone https://gitee.com/xlnb/gn_binary.git gn
+  git clone --depth 1 https://gitee.com/xlnb/gn_binary.git gn
   chmod +x gn/gn
   echo Downloaded gn.
 fi
@@ -96,7 +96,7 @@ fi
 if [ ! -f $MAPLE_ROOT/third_party/d8/lib/d8.jar ]; then
   cd $TOOLS
   echo Start clone d8 ...
-  git clone https://gitee.com/xlnb/r8-d81513.git
+  git clone --depth 1 https://gitee.com/xlnb/r8-d81513.git
   mkdir -p $MAPLE_ROOT/third_party/d8/lib
   cp -f r8-d81513/d8/lib/d8.jar $MAPLE_ROOT/third_party/d8/lib
   echo Downloaded d8.jar.
@@ -105,7 +105,7 @@ fi
 if [ ! -d $MAPLE_ROOT/third_party/icu ]; then
   cd $TOOLS
   echo Start clone ICU4C ...
-  git clone https://gitee.com/xlnb/icu4c.git
+  git clone --depth 1 https://gitee.com/xlnb/icu4c.git
   mkdir -p $MAPLE_ROOT/third_party/icu
   cp -r icu4c/lib/ $MAPLE_ROOT/third_party/icu/
   echo Downloaded icu4c libs
@@ -115,7 +115,7 @@ fi
 if [ ! -d $ANDROID_DIR/out/target/product/generic_arm64 ]; then
   cd $TOOLS
   echo Start clone AOSP CORE LIB ...
-  git clone https://gitee.com/xlnb/aosp_core_bin.git
+  git clone --depth 1 https://gitee.com/xlnb/aosp_core_bin.git
   cp -r aosp_core_bin/android $MAPLE_ROOT/
   cp -r aosp_core_bin/libjava-core $MAPLE_ROOT/
   echo Downloaded AOSP CORE LIB
@@ -138,7 +138,7 @@ if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
-  git clone https://gitee.com/hu-_-wen/qemu.git
+  git clone --depth 1 https://gitee.com/hu-_-wen/qemu.git
   cd qemu
   mkdir -p package
   dpkg-deb -R qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb package
@@ -147,7 +147,7 @@ fi
 
 if [ ! -f $TOOLS/open64_prebuilt/README.md ]; then
   cd $TOOLS
-  git clone https://gitee.com/open64ark/open64_prebuilt.git
+  git clone --depth 1 https://gitee.com/open64ark/open64_prebuilt.git
 fi
 if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   cd $TOOLS/open64_prebuilt/x86
@@ -161,7 +161,7 @@ fi
 if [ ! -f $MAPLE_ROOT/third_party/dwarf_h/include/Dwarf.h ]; then
   cd $TOOLS
   rm -rf dwarf $MAPLE_ROOT/third_party/dwarf*
-  git clone https://gitee.com/hu-_-wen/dwarf_h.git
+  git clone --depth 1 https://gitee.com/hu-_-wen/dwarf_h.git
   mv dwarf_h $MAPLE_ROOT/third_party/
   echo Downloaded dwarf header files.
 fi
@@ -184,7 +184,7 @@ ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_
 
 if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
   cd $MAPLE_ROOT/../
-  git clone https://gitee.com/openarkcompiler/ThirdParty.git
+  git clone --depth 1 https://gitee.com/openarkcompiler/ThirdParty.git
   cd -
 else
   cd $MAPLE_ROOT/../ThirdParty
