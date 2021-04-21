@@ -31,12 +31,12 @@ class AArch64CGFunc : public CGFunc {
       : CGFunc(mod, c, f, b, memPool, mallocator, funcId),
         calleeSavedRegs(mallocator.Adapter()),
         formalRegList(mallocator.Adapter()),
-        phyRegOperandTable(std::less<AArch64RegOperand>(), mallocator.Adapter()),
+        phyRegOperandTable(mallocator.Adapter()),
         hashLabelOpndTable(mallocator.Adapter()),
-        hashOfstOpndTable(std::less<AArch64OfstOperand>(), mallocator.Adapter()),
-        hashMemOpndTable(std::less<AArch64MemOperand>(), mallocator.Adapter()),
-        memOpndsRequiringOffsetAdjustment(std::less<StIdx>(), mallocator.Adapter()),
-        memOpndsForStkPassedArguments(std::less<StIdx>(), mallocator.Adapter()),
+        hashOfstOpndTable(mallocator.Adapter()),
+        hashMemOpndTable(mallocator.Adapter()),
+        memOpndsRequiringOffsetAdjustment(mallocator.Adapter()),
+        memOpndsForStkPassedArguments(mallocator.Adapter()),
         immOpndsRequiringOffsetAdjustment(mallocator.Adapter()),
         immOpndsRequiringOffsetAdjustmentForRefloc(mallocator.Adapter()) {
     uCatch.regNOCatch = 0;
@@ -516,16 +516,16 @@ class AArch64CGFunc : public CGFunc {
   Insn *yieldPointInsn = nullptr;   /* The insn of yield point at the entry of the func. */
   IntrinsiccallNode *cleanEANode = nullptr;
 
-  MapleMap<AArch64RegOperand, AArch64RegOperand*> phyRegOperandTable;  /* machine register operand table */
+  MapleUnorderedMap<phyRegIdx, AArch64RegOperand*> phyRegOperandTable;  /* machine register operand table */
   MapleUnorderedMap<LabelIdx, LabelOperand*> hashLabelOpndTable;
-  MapleMap<AArch64OfstOperand, AArch64OfstOperand*> hashOfstOpndTable;
-  MapleMap<AArch64MemOperand, AArch64MemOperand*> hashMemOpndTable;
+  MapleUnorderedMap<OfstRegIdx, AArch64OfstOperand*> hashOfstOpndTable;
+  MapleUnorderedMap<AArch64MemOperand, AArch64MemOperand*> hashMemOpndTable;
   /*
    * Local variables, formal parameters that are passed via registers
    * need offset adjustment after callee-saved registers are known.
    */
-  MapleMap<StIdx, AArch64MemOperand*> memOpndsRequiringOffsetAdjustment;
-  MapleMap<StIdx, AArch64MemOperand*> memOpndsForStkPassedArguments;
+  MapleUnorderedMap<StIdx, AArch64MemOperand*> memOpndsRequiringOffsetAdjustment;
+  MapleUnorderedMap<StIdx, AArch64MemOperand*> memOpndsForStkPassedArguments;
   MapleUnorderedMap<AArch64SymbolAlloc*, AArch64ImmOperand*> immOpndsRequiringOffsetAdjustment;
   MapleUnorderedMap<AArch64SymbolAlloc*, AArch64ImmOperand*> immOpndsRequiringOffsetAdjustmentForRefloc;
   union {

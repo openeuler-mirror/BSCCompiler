@@ -1996,13 +1996,13 @@ Operand *SelectLiteral(T *c, MIRFunction *func, uint32 labelIdx, AArch64CGFunc *
     return static_cast<Operand *>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
   }
   if (T::GetPrimType() == PTY_f32) {
-    return (fabs(c->GetValue()) < std::numeric_limits<float>::denorm_min())
-        ? static_cast<Operand*>(&cgFunc->GetOrCreateFpZeroOperand(typeBitSize))
-        : static_cast<Operand*>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
+    return (fabs(c->GetValue()) < std::numeric_limits<float>::denorm_min()) ?
+        static_cast<Operand*>(&cgFunc->GetOrCreateFpZeroOperand(typeBitSize)) :
+        static_cast<Operand*>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
   } else if (T::GetPrimType() == PTY_f64) {
-    return (fabs(c->GetValue()) < std::numeric_limits<double>::denorm_min())
-        ? static_cast<Operand*>(&cgFunc->GetOrCreateFpZeroOperand(typeBitSize))
-        : static_cast<Operand*>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
+    return (fabs(c->GetValue()) < std::numeric_limits<double>::denorm_min()) ?
+        static_cast<Operand*>(&cgFunc->GetOrCreateFpZeroOperand(typeBitSize)) :
+        static_cast<Operand*>(&cgFunc->GetOrCreateMemOpnd(*st, 0, typeBitSize));
   } else {
     CHECK_FATAL(false, "Unsupported const type");
   }
@@ -6250,16 +6250,25 @@ RegOperand &AArch64CGFunc::GetOrCreateSpecialRegisterOperand(PregIdx sregIdx, Pr
 
 AArch64RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(AArch64reg regNO, uint32 size,
                                                                      RegType kind, uint32 flag) {
-  size = (size <= k32BitSize) ? k32BitSize : k64BitSize;
-
-  auto it = phyRegOperandTable.find(AArch64RegOperand(regNO, size, kind, flag));
-  if (it != phyRegOperandTable.end()) {
-    return *(it->second);
+  uint64 aarch64PhyRegIdx = regNO;
+  ASSERT(flag == 0, "Do not expect flag here");
+  if (size <= k32BitSize) {
+    size = k32BitSize;
+    aarch64PhyRegIdx = aarch64PhyRegIdx << 1;
+  }  else {
+    size = k64BitSize;
+    aarch64PhyRegIdx = (aarch64PhyRegIdx << 1) + 1;
   }
-
-  AArch64RegOperand *o = memPool->New<AArch64RegOperand>(regNO, size, kind, flag);
-  phyRegOperandTable[*o] = o;
-  return *o;
+  ASSERT(aarch64PhyRegIdx < k256BitSize, "phyRegOperandTable index out of range");
+  AArch64RegOperand *phyRegOpnd = nullptr;
+  auto phyRegIt = phyRegOperandTable.find(aarch64PhyRegIdx);
+  if (phyRegIt != phyRegOperandTable.end()) {
+    phyRegOpnd = phyRegOperandTable[aarch64PhyRegIdx];
+  } else {
+    phyRegOpnd = memPool->New<AArch64RegOperand>(regNO, size, kind, flag);
+    phyRegOperandTable.insert({aarch64PhyRegIdx, phyRegOpnd});
+  }
+  return *phyRegOpnd;
 }
 
 const LabelOperand *AArch64CGFunc::GetLabelOperand(LabelIdx labIdx) const {
@@ -6296,13 +6305,18 @@ LabelOperand &AArch64CGFunc::CreateFuncLabelOperand(const MIRSymbol &funcSymbol)
 }
 
 AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint32 offset, uint32 size) {
-  AArch64OfstOperand tOfstOpnd(offset, size);
-  auto it = hashOfstOpndTable.find(tOfstOpnd);
+  uint64 aarch64OfstRegIdx = offset;
+  aarch64OfstRegIdx = (aarch64OfstRegIdx << 1);
+  if (size == k64BitSize) {
+    ++aarch64OfstRegIdx;
+  }
+  ASSERT(size == k32BitSize || size == k64BitSize, "ofStOpnd size check");
+  auto it = hashOfstOpndTable.find(aarch64OfstRegIdx);
   if (it != hashOfstOpndTable.end()) {
     return *it->second;
   }
   AArch64OfstOperand *res = memPool->New<AArch64OfstOperand>(offset, size);
-  hashOfstOpndTable[tOfstOpnd] = res;
+  hashOfstOpndTable[aarch64OfstRegIdx] = res;
   return *res;
 }
 
