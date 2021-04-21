@@ -84,6 +84,9 @@ class FEIRBuilder {
   static UniqueFEIRStmt CreateStmtGoto(std::string labelName);
   static UniqueFEIRStmt CreateStmtCondGoto(uint32 targetLabelIdx, Opcode op, UniqueFEIRExpr expr);
   static UniqueFEIRStmt CreateStmtSwitch(UniqueFEIRExpr expr);
+  static UniqueFEIRStmt CreateStmtIfWithoutElse(UniqueFEIRExpr cond, std::list<UniqueFEIRStmt> &thenStmts);
+  static UniqueFEIRStmt CreateStmtIf(UniqueFEIRExpr cond, std::list<UniqueFEIRStmt> &thenStmts,
+                                     std::list<UniqueFEIRStmt> &elseStmts);
   static UniqueFEIRStmt CreateStmtJavaConstClass(UniqueFEIRVar dstVar, UniqueFEIRType type);
   static UniqueFEIRStmt CreateStmtJavaConstString(UniqueFEIRVar dstVar, const std::string &strVal);
   static UniqueFEIRStmt CreateStmtJavaCheckCast(UniqueFEIRVar dstVar, UniqueFEIRVar srcVar, UniqueFEIRType type);

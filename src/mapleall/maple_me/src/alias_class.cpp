@@ -994,9 +994,8 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<Original
           continue;
         }
         if (lhsAeType->HasFields()) {
-          if ((ostOfAliasAe->GetFieldID() < ostOfLhsAe->GetFieldID()) ||
-              (ostOfAliasAe->GetFieldID() >
-               (ostOfLhsAe->GetFieldID() + static_cast<int32>(lhsAeType->NumberOfFieldIDs())))) {
+          if ((fldIDB < fldIDA) ||
+              (fldIDB > (fldIDA + static_cast<int32>(lhsAeType->NumberOfFieldIDs())))) {
             if (!aliasAeType->HasFields()) {
               continue;
             }
@@ -1011,6 +1010,7 @@ void AliasClass::CollectMayDefForDassign(const StmtNode &stmt, std::set<Original
           }
         }
       }
+      (void)mayDefOsts.insert(ostOfAliasAe);
     }
   }
 }

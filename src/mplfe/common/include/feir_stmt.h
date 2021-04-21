@@ -1052,7 +1052,7 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
   std::string fieldName;
 };
 
-// ---------- FEIRStmtDAssign ----------
+// ---------- FEIRStmtIAssign ----------
 class FEIRStmtIAssign : public FEIRStmt {
  public:
   FEIRStmtIAssign(UniqueFEIRType argAddrType, UniqueFEIRExpr argAddrExpr, UniqueFEIRExpr argBaseExpr, FieldID id)
@@ -1941,28 +1941,43 @@ class FEIRStmtPesudoCommentForInst : public FEIRStmtPesudoComment {
   uint32 pc = invalid;
 };
 
+// ---------- FEIRStmtIf ----------
 class FEIRStmtIf : public FEIRStmt {
  public:
-  FEIRStmtIf(UniqueFEIRExpr argCondExpr, std::list<UniqueFEIRStmt> argThenStmts)
-      : FEIRStmt(FEIRNodeKind::kStmtIf),
-        condExpr(std::move(argCondExpr)),
-        thenStmts(std::move(argThenStmts)) {}
+  FEIRStmtIf(UniqueFEIRExpr argCondExpr, std::list<UniqueFEIRStmt> &argThenStmts);
+  FEIRStmtIf(UniqueFEIRExpr argCondExpr,
+             std::list<UniqueFEIRStmt> &argThenStmts,
+             std::list<UniqueFEIRStmt> &argElseStmts);
   ~FEIRStmtIf() = default;
+
+  void SetCondExpr(UniqueFEIRExpr argCondExpr) {
+    CHECK_NULL_FATAL(argCondExpr);
+    condExpr = std::move(argCondExpr);
+  }
 
   void SetHasElse(bool argHasElse) {
     hasElse = argHasElse;
   }
 
-  void SetElseStmts(std::list<UniqueFEIRStmt> argElseStmts) {
-    elseStmts = std::move(argElseStmts);
+  void SetThenStmts(std::list<UniqueFEIRStmt> &stmts) {
+    std::move(begin(stmts), end(stmts), std::inserter(thenStmts, end(thenStmts)));
+  }
+
+  void SetElseStmts(std::list<UniqueFEIRStmt> &stmts) {
+    std::move(begin(stmts), end(stmts), std::inserter(elseStmts, end(elseStmts)));
   }
 
  protected:
-  bool IsBranchImpl() const override {
+  std::string DumpDotStringImpl() const override;
+  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+  bool IsFallThroughImpl() const override {
     return true;
   }
 
-  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+  bool IsBranchImpl() const override {
+    return true;
+  }
 
  private:
   UniqueFEIRExpr condExpr;

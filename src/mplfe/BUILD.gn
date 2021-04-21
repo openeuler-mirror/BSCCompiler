@@ -41,7 +41,7 @@ include_directories = [
   "${MPLFE_ROOT}/ast_input/include",
   "${MPLFE_ROOT}/ast_input/lib",
   "${LLVMINC}",
-  "${THIRD_PARTY_ROOT}/cfe-8.0.0.src/tools",
+  "${THIRD_PARTY_ROOT}/clang-10.0.0.src/tools",
 ]
 
 static_library("lib_mplfe_util") {
@@ -268,6 +268,7 @@ static_library("lib_ast_interface") {
   output_dir = "${root_out_dir}/ar"
   libs = [
     "${LLVMLIBDIR}/libclang.so",
+    "${LLVMLIBDIR}/libclang-cpp.so",
     "${LLVMLIBDIR}/libclangFrontend.a",
     "${LLVMLIBDIR}/libclangDriver.a",
     "${LLVMLIBDIR}/libclangSerialization.a",

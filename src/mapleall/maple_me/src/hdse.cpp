@@ -174,7 +174,7 @@ void HDSE::MarkRegDefByStmt(RegMeExpr &regMeExpr) {
       MarkPhiRequired(regMeExpr.GetDefPhi());
       break;
     case kDefByChi: {
-      ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0, 
+      ASSERT(regMeExpr.GetOst()->GetIndirectLev() > 0,
              "MarkRegDefByStmt: preg cannot be defined by chi");
       auto *defChi = &regMeExpr.GetDefChi();
       if (defChi != nullptr) {
@@ -383,7 +383,12 @@ void HDSE::MarkLastStmtInPDomBBRequired(const BB &bb) {
   for (BBId cdBBId : postDom.GetPdomFrontierItem(bb.GetBBId())) {
     BB *cdBB = bbVec[cdBBId];
     CHECK_FATAL(cdBB != nullptr, "cdBB is null in HDSE::MarkLastStmtInPDomBBRequired");
-    if (cdBB == &bb || cdBB->IsMeStmtEmpty()) {
+    if (cdBB == &bb) {
+      continue;
+    }
+    if (cdBB->IsMeStmtEmpty()) {
+      CHECK_FATAL(cdBB->GetAttributes(kBBAttrIsTry), "empty bb in pdom frontier must have try attributes");
+      MarkLastStmtInPDomBBRequired(*cdBB);
       continue;
     }
     auto &lastStmt = cdBB->GetMeStmts().back();
@@ -439,7 +444,7 @@ void HDSE::MarkSingleUseLive(MeExpr &meExpr) {
         MapleMap<OStIdx, ChiMeNode *> *chiList = GenericGetChiListFromVarMeExpr(*mu);
         if (chiList != nullptr) {
           MapleMap<OStIdx, ChiMeNode *>::iterator it = chiList->begin();
-          for (; it != chiList->end(); it++) {
+          for (; it != chiList->end(); ++it) {
             MarkChiNodeRequired(*it->second);
           }
         }
