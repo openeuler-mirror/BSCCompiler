@@ -30,11 +30,10 @@ function install_patch {
     echo "Preparing the build environment..."
 
     #backup source code
-    cd $THIRD_PARTY_PATH
-    cp -r aosp_10.0.0_r35 temp
+    cp -rH $AOSP_PATH $MODIFIED_AOSP_PATH
 
     #patch
-    cd $AOSP_PATH
+    cd $MODIFIED_AOSP_PATH
     patch -p0 < $TOOLS_PATH/system_001.patch
     patch -p0 < $TOOLS_PATH/art_001.patch
     mkdir -p include/
@@ -44,20 +43,11 @@ function install_patch {
     cp $AOSP_GN_PATH/art/libdexfile/BUILD.gn $AOSP_PATH/art/libdexfile/
     cp $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $AOSP_PATH/system/core/libziparchive/
     cp $AOSP_GN_PATH/system/core/base/BUILD.gn $AOSP_PATH/system/core/base/
-
-    #recover source directory
-    cd $THIRD_PARTY_PATH
-    mv aosp_10.0.0_r35 aosp_modified
-    mv temp aosp_10.0.0_r35
 }
 
 
 function uninstall_patch {
-    if [ ! -d $MODIFIED_AOSP_PATH ];then
-        exit 0
-    fi
-
-    rm -rf $MODIFIED_AOSP_PATH $TEMP_PATH
+    rm -rf $MODIFIED_AOSP_PATH
 }
 
 function main {
