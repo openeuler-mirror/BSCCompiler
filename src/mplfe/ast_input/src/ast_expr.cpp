@@ -531,8 +531,30 @@ UniqueFEIRExpr ASTCharacterLiteral::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &s
 
 // ---------- ASTConditionalOperator ----------
 UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  CHECK_FATAL(false, "NIY");
-  return nullptr;
+  UniqueFEIRExpr condFEIRExpr = condExpr->Emit2FEExpr(stmts);
+  std::list<UniqueFEIRStmt> trueStmts;
+  UniqueFEIRExpr trueFEIRExpr = trueExpr->Emit2FEExpr(trueStmts);
+  std::list<UniqueFEIRStmt> falseStmts;
+  UniqueFEIRExpr falseFEIRExpr = falseExpr->Emit2FEExpr(falseStmts);
+  // There are no extra nested statements in the expressions, (e.g., a < 1 ? 1 : 2), use ternary FEIRExpr
+  if (trueStmts.empty() && falseStmts.empty()) {
+    return FEIRBuilder::CreateExprTernary(OP_select, std::move(condFEIRExpr),
+                                          std::move(trueFEIRExpr), std::move(falseFEIRExpr));
+  }
+  // Otherwise, (e.g., a < 1 ? 1 : a++) create a temporary var to hold the return trueExpr or falseExpr value
+  CHECK_FATAL(trueFEIRExpr->GetPrimType() == falseFEIRExpr->GetPrimType(),
+              "The types of trueFEIRExpr and falseFEIRExpr are inconsistent");
+  MIRType *retType = trueFEIRExpr->GetType()->GenerateMIRTypeAuto();
+  UniqueFEIRVar tempVar = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("levVar_"), *retType);
+  UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
+  UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
+  UniqueFEIRStmt retTrueStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVar), std::move(trueFEIRExpr));
+  trueStmts.emplace_back(std::move(retTrueStmt));
+  UniqueFEIRStmt retFalseStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVarCloned1), std::move(falseFEIRExpr));
+  falseStmts.emplace_back(std::move(retFalseStmt));
+  UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
+  stmts.emplace_back(std::move(stmtIf));
+  return FEIRBuilder::CreateExprDRead(std::move(tempVarCloned2));
 }
 
 // ---------- ASTConstantExpr ----------

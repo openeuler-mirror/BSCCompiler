@@ -280,6 +280,10 @@ bool DelegateRC::ContainAllTheUses(const VarMeExpr &rhsVar, const MeStmt &fromSt
     if (MayThrowException(*cur)) {
       return false;
     }
+    // function call contains yieldpoint, we cant not optimize across a call
+    if (kOpcodeInfo.IsCall(cur->GetOp()) && !IsIntrinsic(*cur)) {
+      return false;
+    }
     if (IsCleanUpStmt(*cur)) {
       continue;
     }

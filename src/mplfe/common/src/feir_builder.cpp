@@ -301,6 +301,18 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtSwitch(UniqueFEIRExpr expr) {
   return stmt;
 }
 
+UniqueFEIRStmt FEIRBuilder::CreateStmtIfWithoutElse(UniqueFEIRExpr cond, std::list<UniqueFEIRStmt> &thenStmts) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtIf>(std::move(cond), thenStmts);
+  return stmt;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateStmtIf(UniqueFEIRExpr cond,
+                                         std::list<UniqueFEIRStmt> &thenStmts,
+                                         std::list<UniqueFEIRStmt> &elseStmts) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtIf>(std::move(cond), thenStmts, elseStmts);
+  return stmt;
+}
+
 UniqueFEIRStmt FEIRBuilder::CreateStmtJavaConstClass(UniqueFEIRVar dstVar, UniqueFEIRType type) {
   UniqueFEIRType dstType = FETypeManager::kFEIRTypeJavaClass->Clone();
   dstVar->SetType(std::move(dstType));

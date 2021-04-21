@@ -909,6 +909,57 @@ std::string FEIRStmtSwitch2::DumpDotStringImpl() const {
   return ss.str();
 }
 
+// ---------- FEIRStmtIf ----------
+FEIRStmtIf::FEIRStmtIf(UniqueFEIRExpr argCondExpr, std::list<UniqueFEIRStmt> &argThenStmts)
+    : FEIRStmt(FEIRNodeKind::kStmtIf) {
+  SetCondExpr(std::move(argCondExpr));
+  hasElse = false;
+  SetThenStmts(argThenStmts);
+}
+
+FEIRStmtIf::FEIRStmtIf(UniqueFEIRExpr argCondExpr,
+                       std::list<UniqueFEIRStmt> &argThenStmts,
+                       std::list<UniqueFEIRStmt> &argElseStmts)
+    : FEIRStmt(FEIRNodeKind::kStmtIf) {
+  SetCondExpr(std::move(argCondExpr));
+  SetThenStmts(argThenStmts);
+  if (argElseStmts.empty()) {
+    hasElse = false;
+  } else {
+    hasElse = true;
+    SetElseStmts(argElseStmts);
+  }
+}
+
+std::list<StmtNode*> FEIRStmtIf::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
+  BaseNode *condBase = condExpr->GenMIRNode(mirBuilder);
+  IfStmtNode *stmt;
+  if (hasElse) {
+    stmt = mirBuilder.CreateStmtIfThenElse(condBase);
+  } else {
+    stmt = mirBuilder.CreateStmtIf(condBase);
+  }
+  for (const auto &thenStmt : thenStmts) {
+    for(auto thenNode : thenStmt->GenMIRStmts(mirBuilder)) {
+      stmt->GetThenPart()->AddStatement(thenNode);
+    }
+  }
+  if (hasElse) {
+    for (const auto &elseStmt : elseStmts) {
+      for(auto elseNode : elseStmt->GenMIRStmts(mirBuilder)) {
+        stmt->GetElsePart()->AddStatement(elseNode);
+      }
+    }
+  }
+  return std::list<StmtNode*>({ stmt });
+}
+
+std::string FEIRStmtIf::DumpDotStringImpl() const {
+  std::stringstream ss;
+  ss << "<stmt" << id << "> " << id << ": " << GetFEIRNodeKindDescription(kind);
+  return ss.str();
+}
+
 // ---------- FEIRStmtSwitchForC ----------
 FEIRStmtSwitchForC::FEIRStmtSwitchForC(UniqueFEIRExpr argCondExpr, bool argHasDefault)
     : FEIRStmt(FEIRNodeKind::kStmtSwitch),
@@ -3407,35 +3458,6 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fid, addrNode, baseNode);
   ans.emplace_back(iAssignNode);
   return ans;
-}
-
-std::list<StmtNode*> FEIRStmtIf::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
-  std::list<StmtNode*> stmts;
-  IfStmtNode *ifNode;
-  BaseNode *condNode = condExpr->GenMIRNode(mirBuilder);
-  if (hasElse) {
-    ifNode = mirBuilder.CreateStmtIfThenElse(condNode);
-  } else {
-    ifNode = mirBuilder.CreateStmtIf(condNode);
-  }
-  BlockNode *thenBlock = ifNode->GetThenPart();
-  for (auto &stmt : thenStmts) {
-    std::list<StmtNode*> mirStmts = stmt->GenMIRStmts(mirBuilder);
-    for (auto stmtNode : mirStmts) {
-      thenBlock->AddStatement(stmtNode);
-    }
-  }
-  if (hasElse) {
-    BlockNode *elseBlock = ifNode->GetElsePart();
-    for (auto &stmt : elseStmts) {
-      std::list<StmtNode*> mirStmts = stmt->GenMIRStmts(mirBuilder);
-      for (auto stmtNode : mirStmts) {
-        elseBlock->AddStatement(stmtNode);
-      }
-    }
-  }
-  stmts.emplace_back(ifNode);
-  return stmts;
 }
 
 std::list<StmtNode*> FEIRStmtDoWhile::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
