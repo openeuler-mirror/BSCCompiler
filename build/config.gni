@@ -14,11 +14,8 @@
 #
 # Toolchain setup
 
-if (OLD_OS == "1") {
-  CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04"
-} else {
-  CLANG_PATH = "/usr"
-}
+CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04"
+
 LLVMINC = "${CLANG_PATH}/include"
 LLVMLIBDIR = "${CLANG_PATH}/lib"
 CFE_SRC_DIR = "${MAPLE_ROOT}/../third-party/clang-10.0.0.src"
