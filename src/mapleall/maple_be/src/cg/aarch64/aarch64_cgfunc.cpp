@@ -1606,13 +1606,10 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   }
   if ((memOpnd->GetMemVaryType() == kNotVary) &&
       IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(memOpnd), dataSize)) {
-    return &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSize);
+    memOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSize);
   }
-  if (symType != expr.GetPrimType()) {
-    RegOperand *opnd = &LoadIntoRegister(*memOpnd, expr.GetPrimType(), symType);
-    return opnd;
-  }
-  return memOpnd;
+  RegOperand *opnd = &LoadIntoRegister(*memOpnd, expr.GetPrimType(), symType);
+  return opnd;
 }
 
 RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
@@ -4116,7 +4113,7 @@ void AArch64CGFunc::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
     LabelIdx labelIdx = itPair.second;
     GetCurBB()->PushBackRangeGotoLabel(labelIdx);
     MIRConst *mirConst = memPool->New<MIRLblConst>(labelIdx, GetFunction().GetPuidx(), *etype);
-    arrayConst->PushBack(mirConst);
+    arrayConst->AddItem(mirConst, 0);
   }
 
   MIRSymbol *lblSt = GetFunction().GetSymTab()->CreateSymbol(kScopeLocal);
