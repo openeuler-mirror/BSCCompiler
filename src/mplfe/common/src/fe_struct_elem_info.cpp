@@ -1,73 +1,57 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #include "fe_struct_elem_info.h"
 #include "global_tables.h"
 #include "mpl_logging.h"
 #include "namemangler.h"
+#include "feir_builder.h"
+#include "feir_var_name.h"
 #include "fe_utils.h"
 #include "fe_manager.h"
 #include "jbc_util.h"
+#include "fe_options.h"
+#include "bc_util.h"
 
 namespace maple {
 // ---------- FEStructElemInfo ----------
-FEStructElemInfo::FEStructElemInfo(const GStrIdx &argFullNameIdx, MIRSrcLang argSrcLang, bool argIsStatic)
-    : fullNameIdx(argFullNameIdx),
-      srcLang(argSrcLang),
-      isStatic(argIsStatic),
+FEStructElemInfo::FEStructElemInfo(MapleAllocator &allocatorIn, const StructElemNameIdx &argStructElemNameIdx,
+                                   MIRSrcLang argSrcLang, bool argIsStatic)
+    : isStatic(argIsStatic),
       isMethod(false),
       isDefined(false),
       isFromDex(false),
       isPrepared(false),
-      structNameIdx(0) {
-      // fieldNameIdx(0),
-      // typeNameIdx(0),
-      // fieldID(0) {
-  Init();
+      srcLang(argSrcLang),
+      allocator(allocatorIn),
+      structElemNameIdx(argStructElemNameIdx),
+      actualContainer(allocator.GetMemPool()) {
 }
 
-void FEStructElemInfo::Init() {
-  switch (srcLang) {
-    case kSrcLangJava:
-      InitJava();
-      break;
-    default:
-      WARN(kLncWarn, "unsupported language");
-      break;
-  }
-}
-
-void FEStructElemInfo::InitJava() {
-  std::string fullNameMpl = GlobalTables::GetStrTable().GetStringFromStrIdx(fullNameIdx);
-  std::string fullNameJava = NameMangler::DecodeName(fullNameMpl);
-  std::vector<std::string> names = FEUtils::Split(fullNameJava, '|');
-  // 3 parts: ClassName|ElemName|Signature
-  CHECK_FATAL(names.size() == 3, "invalid elem name %s", fullNameJava.c_str());
-  // names[0]: structName
-  structNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(NameMangler::EncodeName(names[0]));
-  // names[1]: elemName
-  elemNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(NameMangler::EncodeName(names[1]));
-  // names[2]: signature
-  signatureNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(NameMangler::EncodeName(names[2]));
+UniqueFEIRType FEStructElemInfo::GetActualContainerType() const {
+  // Invokable after prepared
+  return FEIRBuilder::CreateTypeByJavaName(actualContainer.c_str(), true);
 }
 
 // ---------- FEStructFieldInfo ----------
-FEStructFieldInfo::FEStructFieldInfo(const GStrIdx &argFullNameIdx, MIRSrcLang argSrcLang, bool argIsStatic)
-    : FEStructElemInfo(argFullNameIdx, argSrcLang, argIsStatic),
+FEStructFieldInfo::FEStructFieldInfo(MapleAllocator &allocatorIn, const StructElemNameIdx &argStructElemNameIdx,
+                                     MIRSrcLang argSrcLang, bool argIsStatic)
+    : FEStructElemInfo(allocatorIn, argStructElemNameIdx, argSrcLang, argIsStatic),
       fieldType(nullptr),
       fieldNameIdx(0),
-      fieldID(0) {
+      fieldID(0),
+      isVolatile(false) {
   isMethod = false;
   LoadFieldType();
 }
@@ -77,11 +61,15 @@ void FEStructFieldInfo::PrepareImpl(MIRBuilder &mirBuilder, bool argIsStatic) {
     return;
   }
   // Prepare
-  const std::string &structName = GetStructName();
-  std::string rawName = structName + NameMangler::kNameSplitterStr + GetElemName();
+  actualContainer = GetStructName();
+  const std::string stdActualContainer = actualContainer.c_str();
+  std::string rawName = stdActualContainer + namemangler::kNameSplitterStr + GetElemName();
+  if (isStatic &&
+      FEOptions::GetInstance().GetModeJavaStaticFieldName() != FEOptions::ModeJavaStaticFieldName::kNoType) {
+    rawName = rawName + namemangler::kNameSplitterStr + GetSignatureName();
+  }
   fieldNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(rawName);
-  fieldID = UINT32_MAX;
-  MIRStructType *structType = FEManager::GetTypeManager().GetStructTypeFromName(structName);
+  MIRStructType *structType = FEManager::GetTypeManager().GetStructTypeFromName(stdActualContainer);
   if (structType == nullptr) {
     isDefined = false;
     isPrepared = true;
@@ -91,7 +79,6 @@ void FEStructFieldInfo::PrepareImpl(MIRBuilder &mirBuilder, bool argIsStatic) {
   if (isDefined) {
     return;
   }
-  rawName = rawName + NameMangler::kNameSplitterStr + GetSignatureName();
   WARN(kLncErr, "use undefined %s field %s", argIsStatic ? "static" : "", rawName.c_str());
   isPrepared = true;
   isStatic = argIsStatic;
@@ -103,6 +90,9 @@ void FEStructFieldInfo::LoadFieldType() {
     case kSrcLangJava:
       LoadFieldTypeJava();
       break;
+    case kSrcLangC:
+      WARN(kLncWarn, "kSrcLangC LoadFieldType NYI");
+      break;
     default:
       WARN(kLncWarn, "unsupported language");
       break;
@@ -110,27 +100,31 @@ void FEStructFieldInfo::LoadFieldType() {
 }
 
 void FEStructFieldInfo::LoadFieldTypeJava() {
-  fieldType = std::make_unique<FEIRTypeDefault>(PTY_unknown);
-  static_cast<FEIRTypeDefault*>(fieldType.get())->LoadFromJavaTypeName(GetSignatureName(), true);
+  fieldType = allocator.GetMemPool()->New<FEIRTypeDefault>(PTY_unknown);
+  static_cast<FEIRTypeDefault*>(fieldType)->LoadFromJavaTypeName(GetSignatureName(), true);
 }
 
-void FEStructFieldInfo::PrepareStaticField(MIRStructType &structType) {
+void FEStructFieldInfo::PrepareStaticField(const MIRStructType &structType) {
   std::string ownerStructName = structType.GetName();
   const std::string &fieldName = GetElemName();
-  std::string fullName = ownerStructName + NameMangler::kNameSplitterStr + fieldName;
+  std::string fullName = ownerStructName + namemangler::kNameSplitterStr + fieldName;
+  if (FEOptions::GetInstance().GetModeJavaStaticFieldName() != FEOptions::ModeJavaStaticFieldName::kNoType) {
+    fullName += namemangler::kNameSplitterStr + GetSignatureName();
+  }
   fieldNameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName);
   isPrepared = true;
   isStatic = true;
 }
 
-void FEStructFieldInfo::PrepareNonStaticField(MIRStructType &structType, MIRBuilder &mirBuilder) {
+void FEStructFieldInfo::PrepareNonStaticField(MIRBuilder &mirBuilder) {
   FEIRTypeDefault feType(PTY_unknown);
   feType.LoadFromJavaTypeName(GetSignatureName(), true);
-  MIRType *fieldType = feType.GenerateMIRTypeAuto(srcLang);
+  MIRType *fieldMIRType = feType.GenerateMIRTypeAuto(srcLang);
   uint32 idx = 0;
   uint32 idx1 = 0;
-  mirBuilder.TraverseToNamedFieldWithType(structType, elemNameIdx, fieldType->GetTypeIndex(), idx1, idx);
-  fieldID = idx;
+  MIRStructType *structType = FEManager::GetTypeManager().GetStructTypeFromName(GetStructName());
+  mirBuilder.TraverseToNamedFieldWithType(*structType, structElemNameIdx.elem, fieldMIRType->GetTypeIndex(), idx1, idx);
+  fieldID = static_cast<FieldID>(idx);
   isPrepared = true;
   isStatic = false;
 }
@@ -140,12 +134,18 @@ bool FEStructFieldInfo::SearchStructFieldJava(MIRStructType &structType, MIRBuil
   if (structType.IsIncomplete()) {
     return false;
   }
-  GStrIdx nameIdx = elemNameIdx;
+  GStrIdx nameIdx = structElemNameIdx.elem;
   if (argIsStatic) {
-    // suppose anti-proguard is off
-    std::string fullName = structType.GetCompactMplTypeName() + NameMangler::kNameSplitterStr + GetElemName();
+    // suppose anti-proguard is off in jbc.
+    // Turn on anti-proguard in jbc: -java-staticfield-name=smart && JBCClass2FEHelper::isStaticFieldProguard(false)
+    // Turn on anti-proguard in BC: -java-staticfield-name=smart
+    std::string fullName = structType.GetCompactMplTypeName() + namemangler::kNameSplitterStr + GetElemName();
+    if (FEOptions::GetInstance().GetModeJavaStaticFieldName() != FEOptions::ModeJavaStaticFieldName::kNoType) {
+      fullName += namemangler::kNameSplitterStr + GetSignatureName();
+    }
     nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName);
   }
+  actualContainer = structType.GetCompactMplTypeName();
   const FieldVector &fields = argIsStatic ? structType.GetStaticFields() : structType.GetFields();
   for (const FieldPair &fieldPair : fields) {
     if (fieldPair.first != nameIdx) {
@@ -158,21 +158,22 @@ bool FEStructFieldInfo::SearchStructFieldJava(MIRStructType &structType, MIRBuil
       if (argIsStatic) {
         PrepareStaticField(structType);
       } else {
-        PrepareNonStaticField(structType, mirBuilder);
+        PrepareNonStaticField(mirBuilder);
       }
+      isVolatile = fieldPair.second.second.GetAttr(FLDATTR_volatile);
       return true;
     }
   }
   // search parent
   bool found = false;
   if (structType.GetKind() == kTypeClass) {
-    // parent
     MIRClassType &classType = static_cast<MIRClassType&>(structType);
-    found = SearchStructFieldJava(classType.GetParentTyIdx(), mirBuilder, argIsStatic, false);
     // implemented
     for (const TyIdx &tyIdx : classType.GetInterfaceImplemented()) {
       found = found || SearchStructFieldJava(tyIdx, mirBuilder, argIsStatic, false);
     }
+    // parent
+    found = found || SearchStructFieldJava(classType.GetParentTyIdx(), mirBuilder, argIsStatic, false);
   } else if (structType.GetKind() == kTypeInterface) {
     // parent
     MIRInterfaceType &interfaceType = static_cast<MIRInterfaceType&>(structType);
@@ -204,8 +205,8 @@ bool FEStructFieldInfo::SearchStructFieldJava(const TyIdx &tyIdx, MIRBuilder &mi
 }
 
 bool FEStructFieldInfo::CompareFieldType(const FieldPair &fieldPair) const {
-  MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
-  std::string typeName = fieldType->GetCompactMplTypeName();
+  MIRType *fieldMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+  std::string typeName = fieldMIRType->GetCompactMplTypeName();
   if (GetSignatureName().compare(typeName) == 0) {
     return true;
   } else {
@@ -214,31 +215,23 @@ bool FEStructFieldInfo::CompareFieldType(const FieldPair &fieldPair) const {
 }
 
 // ---------- FEStructMethodInfo ----------
-std::map<GStrIdx, std::set<GStrIdx>> FEStructMethodInfo::javaPolymorphicWhiteList =
-    FEStructMethodInfo::InitJavaPolymorphicWhiteList();
-
-FEStructMethodInfo::FEStructMethodInfo(const GStrIdx &argFullNameIdx, MIRSrcLang argSrcLang, bool argIsStatic)
-    : FEStructElemInfo(argFullNameIdx, argSrcLang, argIsStatic),
-      methodNameIdx(fullNameIdx),
-      mirFunc(nullptr),
+FEStructMethodInfo::FEStructMethodInfo(MapleAllocator &allocatorIn, const StructElemNameIdx &argStructElemNameIdx,
+                                       MIRSrcLang argSrcLang, bool argIsStatic)
+    : FEStructElemInfo(allocatorIn, argStructElemNameIdx, argSrcLang, argIsStatic),
       isReturnVoid(false),
       isJavaPolymorphicCall(false),
-      isJavaDynamicCall(false) {
+      isJavaDynamicCall(false),
+      methodNameIdx(argStructElemNameIdx.full),
+      mirFunc(nullptr),
+      argTypes(allocator.Adapter()) {
   isMethod = true;
   LoadMethodType();
 }
 
-std::map<GStrIdx, std::set<GStrIdx>> FEStructMethodInfo::InitJavaPolymorphicWhiteList() {
-  MPLFE_PARALLEL_FORBIDDEN();
-  std::map<GStrIdx, std::set<GStrIdx>> ans;
-  StringTable<std::string, GStrIdx> &strTable = GlobalTables::GetStrTable();
-  GStrIdx idxMethodHandle =
-      strTable.GetOrCreateStrIdxFromName(NameMangler::EncodeName("Ljava/lang/invoke/MethodHandle;"));
-  bool success = true;
-  success = success && ans[idxMethodHandle].insert(strTable.GetOrCreateStrIdxFromName("invoke")).second;
-  success = success && ans[idxMethodHandle].insert(strTable.GetOrCreateStrIdxFromName("invokeBasic")).second;
-  success = success && ans[idxMethodHandle].insert(strTable.GetOrCreateStrIdxFromName("invokeExact")).second;
-  return ans;
+FEStructMethodInfo::~FEStructMethodInfo() {
+  mirFunc = nullptr;
+  retType = nullptr;
+  ownerType = nullptr;
 }
 
 PUIdx FEStructMethodInfo::GetPuIdx() const {
@@ -254,6 +247,8 @@ void FEStructMethodInfo::PrepareImpl(MIRBuilder &mirBuilder, bool argIsStatic) {
     case kSrcLangJava:
       PrepareImplJava(mirBuilder, argIsStatic);
       break;
+    case kSrcLangC:
+      break;
     default:
       CHECK_FATAL(false, "unsupported src lang");
   }
@@ -262,12 +257,12 @@ void FEStructMethodInfo::PrepareImpl(MIRBuilder &mirBuilder, bool argIsStatic) {
 
 void FEStructMethodInfo::PrepareImplJava(MIRBuilder &mirBuilder, bool argIsStatic) {
   // Prepare
-  const std::string &structName = GetStructName();
+  actualContainer = GetStructName();
   MIRStructType *structType = nullptr;
-  if (!structName.empty() && structName[0] == 'A') {
+  if (!actualContainer.empty() && actualContainer[0] == 'A') {
     structType = FEManager::GetTypeManager().GetStructTypeFromName("Ljava_2Flang_2FObject_3B");
   } else {
-    structType = FEManager::GetTypeManager().GetStructTypeFromName(structName);
+    structType = FEManager::GetTypeManager().GetStructTypeFromName(actualContainer.c_str());
   }
   isStatic = argIsStatic;
   isDefined = false;
@@ -277,12 +272,12 @@ void FEStructMethodInfo::PrepareImplJava(MIRBuilder &mirBuilder, bool argIsStati
       return;
     }
   } else if (isJavaDynamicCall) {
-    methodNameIdx = fullNameIdx;
+    methodNameIdx = structElemNameIdx.full;
     isDefined = true;
     PrepareMethod();
     return;
   }
-  std::string methodName = GlobalTables::GetStrTable().GetStringFromStrIdx(fullNameIdx);
+  std::string methodName = GlobalTables::GetStrTable().GetStringFromStrIdx(structElemNameIdx.full);
   WARN(kLncWarn, "undefined %s method: %s", isStatic ? "static" : "", methodName.c_str());
 }
 
@@ -290,6 +285,8 @@ void FEStructMethodInfo::LoadMethodType() {
   switch (srcLang) {
     case kSrcLangJava:
       LoadMethodTypeJava();
+      break;
+    case kSrcLangC:
       break;
     default:
       WARN(kLncWarn, "unsupported language");
@@ -299,28 +296,28 @@ void FEStructMethodInfo::LoadMethodType() {
 
 void FEStructMethodInfo::LoadMethodTypeJava() {
   std::string signatureJava =
-      NameMangler::DecodeName(GlobalTables::GetStrTable().GetStringFromStrIdx(fullNameIdx));
+      namemangler::DecodeName(GlobalTables::GetStrTable().GetStringFromStrIdx(structElemNameIdx.full));
   std::vector<std::string> typeNames = jbc::JBCUtil::SolveMethodSignature(signatureJava);
   CHECK_FATAL(typeNames.size() > 0, "invalid method signature: %s", signatureJava.c_str());
   // constructor check
   const std::string &funcName = GetElemName();
   isConstructor = (funcName.find("init_28") == 0);
   // return type
-  retType = std::make_unique<FEIRTypeDefault>(PTY_unknown);
+  retType = allocator.GetMemPool()->New<FEIRTypeDefault>(PTY_unknown);
   if (typeNames[0].compare("V") == 0) {
     isReturnVoid = true;
   }
-  static_cast<FEIRTypeDefault*>(retType.get())->LoadFromJavaTypeName(typeNames[0], false);
+  static_cast<FEIRTypeDefault*>(retType)->LoadFromJavaTypeName(typeNames[0], false);
   // argument types
   argTypes.clear();
   for (size_t i = 1; i < typeNames.size(); i++) {
-    UniqueFEIRType argType = std::make_unique<FEIRTypeDefault>(PTY_unknown);
-    static_cast<FEIRTypeDefault*>(argType.get())->LoadFromJavaTypeName(typeNames[i], false);
-    argTypes.push_back(std::move(argType));
+    FEIRType *argType = allocator.GetMemPool()->New<FEIRTypeDefault>(PTY_unknown);
+    static_cast<FEIRTypeDefault*>(argType)->LoadFromJavaTypeName(typeNames[i], false);
+    argTypes.push_back(argType);
   }
   // owner type
-  ownerType = std::make_unique<FEIRTypeDefault>(PTY_unknown);
-  static_cast<FEIRTypeDefault*>(ownerType.get())->LoadFromJavaTypeName(GetStructName(), true);
+  ownerType = allocator.GetMemPool()->New<FEIRTypeDefault>(PTY_unknown);
+  static_cast<FEIRTypeDefault*>(ownerType)->LoadFromJavaTypeName(GetStructName(), true);
 }
 
 void FEStructMethodInfo::PrepareMethod() {
@@ -328,13 +325,38 @@ void FEStructMethodInfo::PrepareMethod() {
   if (mirFunc == nullptr) {
     MIRType *mirRetType = retType->GenerateMIRTypeAuto(srcLang);
     // args type
+    std::vector<std::unique_ptr<FEIRVar>> argVarList;
     std::vector<TyIdx> argsTypeIdx;
-    for (const UniqueFEIRType &argType : argTypes) {
+    if (!isStatic) {
+      UniqueFEIRVar regVar = std::make_unique<FEIRVarName>(FEUtils::GetThisIdx(), ownerType->Clone(), false);
+      argVarList.emplace_back(std::move(regVar));
+      argsTypeIdx.emplace_back(ownerType->GenerateMIRType(srcLang, true)->GetTypeIndex());
+    }
+    uint8 regNum = 1;
+    for (const FEIRType *argType : argTypes) {
+      UniqueFEIRVar regVar = FEIRBuilder::CreateVarReg(regNum, argType->Clone(), false);
+      ++regNum;
+      argVarList.emplace_back(std::move(regVar));
       MIRType *mirArgType = argType->GenerateMIRTypeAuto(srcLang);
       argsTypeIdx.push_back(mirArgType->GetTypeIndex());
     }
     mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, mirRetType->GetTypeIndex(), argsTypeIdx, false,
                                                          isStatic);
+    // Update formals for external function,
+    // defined function will be update formals later in FEFunction::UpdateFormal
+    for (const std::unique_ptr<FEIRVar> &argVar : argVarList) {
+      MIRType *mirTy = argVar->GetType()->GenerateMIRTypeAuto();
+      std::string name = argVar->GetName(*mirTy);
+#ifndef USE_OPS
+      MIRSymbol *sym = SymbolBuilder::Instance().GetOrCreateLocalSymbol(*mirTy, name, *mirFunc);
+      sym->SetStorageClass(kScFormal);
+      mirFunc->AddFormal(sym);
+#else
+      MIRSymbol *sym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(name, *mirTy, *mirFunc);
+      sym->SetStorageClass(kScFormal);
+      mirFunc->AddArgument(sym);
+#endif
+    }
   }
   isPrepared = true;
 }
@@ -344,26 +366,26 @@ bool FEStructMethodInfo::SearchStructMethodJava(MIRStructType &structType, MIRBu
   if (structType.IsIncomplete()) {
     return false;
   }
-  std::string fullName = structType.GetCompactMplTypeName() + NameMangler::kNameSplitterStr + GetElemName() +
-                         NameMangler::kNameSplitterStr + GetSignatureName();
+  actualContainer = structType.GetCompactMplTypeName();
+  std::string fullName = structType.GetCompactMplTypeName() + namemangler::kNameSplitterStr + GetElemName() +
+                         namemangler::kNameSplitterStr + GetSignatureName();
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fullName);
-  // PolymorphicCall Check
-  if (CheckJavaPolymorphicCall()) {
-    isJavaPolymorphicCall = true;
-    methodNameIdx = nameIdx;
-    PrepareMethod();
-    return true;
-  }
   for (const MethodPair &methodPair : structType.GetMethods()) {
-    const MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodPair.first.Idx(), true);
-    CHECK_NULL_FATAL(sym);
     if (methodPair.second.second.GetAttr(FUNCATTR_private) && !allowPrivate) {
       continue;
     }
     if (methodPair.second.second.GetAttr(FUNCATTR_static) != argIsStatic) {
       continue;
     }
+#ifndef USE_OPS
+    const MIRFunction *func = methodPair.first;
+    CHECK_NULL_FATAL(func);
+    if (func->GetNameStrIdx() == nameIdx) {
+#else
+    const MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(methodPair.first.Idx(), true);
+    CHECK_NULL_FATAL(sym);
     if (sym->GetNameStrIdx() == nameIdx) {
+#endif
       isStatic = argIsStatic;
       if (isStatic) {
         methodNameIdx = nameIdx;
@@ -415,13 +437,5 @@ bool FEStructMethodInfo::SearchStructMethodJava(const TyIdx &tyIdx, MIRBuilder &
     ERR(kLncErr, "parent type should be StructType");
     return false;
   }
-}
-
-bool FEStructMethodInfo::CheckJavaPolymorphicCall() const {
-  auto it = javaPolymorphicWhiteList.find(structNameIdx);
-  if (it == javaPolymorphicWhiteList.end()) {
-    return false;
-  }
-  return it->second.find(elemNameIdx) != it->second.end();
 }
 }  // namespace maple

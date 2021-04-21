@@ -32,12 +32,12 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 ANDROID_DIR=$MAPLE_ROOT/android
 
 if [ "$OLD_OS" == "1" ]; then
-  if [ ! -f $TOOLS/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ]; then
+  if [ ! -f $TOOLS/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
     cd $TOOLS
-    echo Start wget llvm-8.0.0 ...
-    wget https://releases.llvm.org/8.0.0/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+    echo Start wget llvm-10.0.0 ...
+    wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
     echo unpacking clang+llvm ...
-    tar xf clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04.tar.xz
+    tar xf clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
     echo Downloaded clang+llvm.
   fi
 fi
@@ -158,20 +158,20 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   echo Downloaded open64_prebuilt.
 fi
 
-if [ ! -f $MAPLE_ROOT/third_party/dwarf/include/Dwarf.h ]; then
+if [ ! -f $MAPLE_ROOT/third_party/dwarf_h/include/Dwarf.h ]; then
   cd $TOOLS
-  rm -rf dwarf $MAPLE_ROOT/third_party/dwarf
-  git clone https://gitee.com/hu-_-wen/dwarf_h.git dwarf
-  mv dwarf $MAPLE_ROOT/third_party/
+  rm -rf dwarf $MAPLE_ROOT/third_party/dwarf*
+  git clone https://gitee.com/hu-_-wen/dwarf_h.git
+  mv dwarf_h $MAPLE_ROOT/third_party/
   echo Downloaded dwarf header files.
 fi
 
 mkdir -p ${TOOL_BIN_PATH}
 if [ "$OLD_OS" == "1" ]; then
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang ${TOOL_BIN_PATH}/clang
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
-  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+  ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
   ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 else
   ln -s -f /usr/bin/clang++ ${TOOL_BIN_PATH}/clang++
@@ -181,3 +181,13 @@ else
   ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 fi
 ln -s -f ${MAPLE_ROOT}/tools/open64_prebuilt/x86/aarch64/bin/clangfe ${TOOL_BIN_PATH}/clangfe
+
+if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
+  cd $MAPLE_ROOT/../
+  git clone https://gitee.com/openarkcompiler/ThirdParty.git
+  cd -
+else
+  cd $MAPLE_ROOT/../ThirdParty
+  git pull origin master
+  cd -
+fi

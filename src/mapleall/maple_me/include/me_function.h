@@ -296,7 +296,7 @@ class MeFunction : public FuncEmit {
   }
 
   BB *NewBasicBlock();
-  BB &InsertNewBasicBlock(const BB &position);
+  BB &InsertNewBasicBlock(const BB &position, bool isInsertBefore = true);
   void DeleteBasicBlock(const BB &bb);
   BB *NextBB(const BB *bb);
   BB *PrevBB(const BB *bb);
@@ -518,7 +518,6 @@ class MeFunction : public FuncEmit {
                    std::vector<uint32> &lowestOrder, std::vector<bool> &inStack, std::stack<uint32> &visitStack);
   void CreateBasicBlocks();
   void SetTryBlockInfo(const StmtNode *nextStmt, StmtNode *tryStmt, BB *lastTryBB, BB *curBB, BB *newBB);
-  void RemoveEhEdgesInSyncRegion();
   MIRFunction *CurFunction() const {
     return mirModule.CurFunction();
   }

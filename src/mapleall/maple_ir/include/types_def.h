@@ -20,6 +20,7 @@
 // reinventing our own primitive types.
 #include <cstdint>
 #include <cstddef>
+#include <functional>
 #include "mpl_number.h"
 
 namespace maple {
@@ -107,6 +108,8 @@ class StIdx {  // scope nesting level + symbol table index
 };
 
 using LabelIdx = uint32;
+using phyRegIdx = uint64;
+using OfstRegIdx = uint64;
 using LabelIDOrder = uint32;
 using PUIdx = uint32;
 using PregIdx = int32;
@@ -133,4 +136,16 @@ constexpr uint8 kOperandNumUnary = 1;
 constexpr uint8 kOperandNumBinary = 2;
 constexpr uint8 kOperandNumTernary = 3;
 }  // namespace maple
+namespace std {
+template<> // function-template-specialization
+class std::hash<maple::StIdx> {
+ public:
+  size_t operator()(const maple::StIdx &x) const {
+    std::size_t seed = 0;
+    hash_combine(seed, x.Scope());
+    hash_combine(seed, x.Idx());
+    return seed;
+  }
+};
+}
 #endif  // MAPLE_IR_INCLUDE_TYPES_DEF_H
