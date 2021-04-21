@@ -56,7 +56,7 @@ void LiveAnalysis::InitAndGetDefUse() {
 
 /* Out[BB] = Union all of In[Succs(BB)] */
 bool LiveAnalysis::GenerateLiveOut(BB &bb) {
-  DataInfo bbLiveOutBak = *(bb.GetLiveOut());
+  const MapleVector<uint64>bbLiveOutBak(bb.GetLiveOut()->GetInfo());
   for (auto succBB : bb.GetSuccs()) {
     if (succBB->GetLiveInChange() && !succBB->GetLiveIn()->NoneBit()) {
       bb.LiveOutOrBits(*succBB->GetLiveIn());
@@ -81,7 +81,7 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) {
 
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
 bool LiveAnalysis::GenerateLiveIn(BB &bb) {
-  DataInfo bbLiveInBak = *(bb.GetLiveIn());
+  const MapleVector<uint64>bbLiveInBak(bb.GetLiveIn()->GetInfo());
   if (!bb.GetInsertUse()) {
     bb.SetLiveInInfo(*bb.GetUse());
     bb.SetInsertUse(true);
