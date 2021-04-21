@@ -31,15 +31,13 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
-if [ "$OLD_OS" == "1" ]; then
-  if [ ! -f $TOOLS/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
-    cd $TOOLS
-    echo Start wget llvm-10.0.0 ...
-    wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-    echo unpacking clang+llvm ...
-    tar xf clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-    echo Downloaded clang+llvm.
-  fi
+if [ ! -f $TOOLS/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
+  cd $TOOLS
+  echo Start wget llvm-10.0.0 ...
+  wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+  echo unpacking clang+llvm ...
+  tar xf clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+  echo Downloaded clang+llvm.
 fi
 
 if [ "$android_env" == "android" ]; then
