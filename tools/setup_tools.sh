@@ -143,8 +143,10 @@ if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   echo Installed qemu-aarch64
 fi
 
-if [ ! -f $TOOLS/open64_prebuilt/README.md ]; then
+version=0c8b7db
+if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
   cd $TOOLS
+  rm -rf open64_prebuilt
   git clone --depth 1 https://gitee.com/open64ark/open64_prebuilt.git
 fi
 if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
@@ -153,6 +155,7 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   tar zxf open64ark-aarch64.tar.gz
   tar zxf open64ark-riscv.tar.gz
   mv riscv riscv64
+  touch $TOOLS/open64_prebuilt/V_$version
   echo Downloaded open64_prebuilt.
 fi
 
