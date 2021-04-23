@@ -308,10 +308,7 @@ void AliasClass::SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end,
 
 // based on ost1's extra level ost's, ensure corresponding ones exist for ost2
 void AliasClass::CreateMirroringAliasElems(OriginalSt *ost1, OriginalSt *ost2) {
-  if (!ost1->IsSymbolOst() || !ost2->IsSymbolOst()) {
-    return;
-  }
-  if (ost1->GetMIRSymbol() == ost2->GetMIRSymbol()) {
+  if (ost1->IsSameSymOrPreg(ost2)) {
     return;
   }
   MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(*ost1);
@@ -344,9 +341,6 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
       ASSERT_NOT_NULL(lhsAe);
       ApplyUnionForDassignCopy(*lhsAe, rhsAinfo.ae, *stmt.Opnd(0));
-      if (stmt.GetOpCode() == OP_regassign) {
-        return;
-      }
       // at p = x, if the next level of either side exists, create other
       // side's next level
       if (mirModule.IsCModule() && rhsAinfo.ae &&
@@ -411,15 +405,13 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       auto &intrnNode = static_cast<IntrinsiccallNode&>(stmt);
       if (intrnNode.GetIntrinsic() == INTRN_JAVA_POLYMORPHIC_CALL) {
         SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(intrnNode.NumOpnds()), intrnNode.GetNopnd(), false);
-        break;
       }
-      //  fallthrough;
+      break;
     }
-    [[clang::fallthrough]];
-    default:
-      for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
-        CreateAliasElemsExpr(*stmt.Opnd(i));
-      }
+    default: ;
+  }
+  for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
+    CreateAliasElemsExpr(*stmt.Opnd(i));
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     SetNotAllDefsSeenForMustDefs(stmt);
@@ -478,39 +470,90 @@ void AliasClass::UnionAllPointedTos() {
     unionFind.Union(pointedTos[0]->GetClassID(), pointedTos[i]->GetClassID());
   }
 }
-
-void AliasClass::UpdateNextLevelNodes(std::vector<OriginalSt*> &nextLevelOsts, const AliasElem &aliasElem) {
-  for (size_t elemID : *(aliasElem.GetAssignSet())) {
-    for (OriginalSt *nextLevelNode : *(GetAliasAnalysisTable()->GetNextLevelNodes(id2Elem[elemID]->GetOriginalSt()))) {
-      nextLevelOsts.push_back(nextLevelNode);
-    }
-  }
-}
-
-void AliasClass::UnionNodes(std::vector<OriginalSt*> &nextLevelOsts) {
-  for (size_t i = 0; i < nextLevelOsts.size(); ++i) {
-    OriginalSt *ost1 = nextLevelOsts[i];
-    for (size_t j = i + 1; j < nextLevelOsts.size(); ++j) {
-      OriginalSt *ost2 = nextLevelOsts[j];
-      if ((ost1->GetFieldID() == 0 || ost2->GetFieldID() == 0 || ost1->GetFieldID() == ost2->GetFieldID()) &&
-          !(ost1->IsFinal() || ost2->IsFinal())) {
-        unionFind.Union(FindAliasElem(*ost1)->GetClassID(), FindAliasElem(*ost2)->GetClassID());
-        break;
+// process the union among the pointed's of assignsets
+void AliasClass::ApplyUnionForPointedTos() {
+  // first, process nextLevNotAllDefsSeen for alias elems with no assignment
+  for (AliasElem *aliaselem : id2Elem) {
+    if (aliaselem->GetAssignSet() == nullptr) {
+      if (aliaselem->IsNextLevNotAllDefsSeen()) {
+        MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
+        MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
+        for (; ostit != nextLevelNodes->end(); ostit++) {
+          AliasElem *indae = FindAliasElem(**ostit);
+          if (!indae->GetOriginalSt().IsFinal()) {
+            indae->SetNotAllDefsSeen(true);
+          }
+        }
       }
     }
   }
-}
 
-// process the union among the pointed's of assignsets
-void AliasClass::ApplyUnionForPointedTos() {
-  for (auto *aliasElem : id2Elem) {
-    if (aliasElem->GetAssignSet() == nullptr) {
+  MapleSet<uint> tempset(std::less<uint>(), acAlloc.Adapter());
+  for (AliasElem *aliaselem : id2Elem) {
+    if (aliaselem->GetAssignSet() == nullptr) {
       continue;
     }
+
+    // iterate through all the alias elems to check if any has indirectLev > 0
+    // or if any has nextLevNotAllDefsSeen being true
+    bool hasNextLevNotAllDefsSeen = false;
+    for (MapleSet<uint>::iterator setit = aliaselem->GetAssignSet()->begin(); setit != aliaselem->GetAssignSet()->end();
+         setit++) {
+      AliasElem *ae0 = id2Elem[*setit];
+      if (ae0->GetOriginalSt().GetIndirectLev() > 0 || ae0->IsNotAllDefsSeen() || ae0->IsNextLevNotAllDefsSeen()) {
+        hasNextLevNotAllDefsSeen = true;
+        break;
+      }
+    }
+    if (hasNextLevNotAllDefsSeen) {
+      // make all pointedto's in this assignSet notAllDefsSeen
+      for (MapleSet<uint>::iterator setit = aliaselem->GetAssignSet()->begin(); setit != aliaselem->GetAssignSet()->end();
+           setit++) {
+        AliasElem *ae0 = id2Elem[*setit];
+        MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(ae0->GetOriginalSt());
+        MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
+        for (; ostit != nextLevelNodes->end(); ostit++) {
+          AliasElem *indae = FindAliasElem(**ostit);
+          if (!indae->GetOriginalSt().IsFinal()) {
+            indae->SetNotAllDefsSeen(true);
+          }
+        }
+      }
+      continue;
+    }
+
     // apply union among the assignSet elements
-    std::vector<OriginalSt*> nextLevelOsts;
-    UpdateNextLevelNodes(nextLevelOsts, *aliasElem);
-    UnionNodes(nextLevelOsts);
+    tempset = *(aliaselem->GetAssignSet());
+    do {
+      // pick one alias element
+      MapleSet<uint>::iterator pickit = tempset.begin();
+      if (pickit == tempset.end()) {
+        break;  // done processing all elements in assignSet
+      }
+      AliasElem *ae1 = id2Elem[*pickit];
+      tempset.erase(pickit);
+      for (MapleSet<uint>::iterator setit = tempset.begin(); setit != tempset.end(); setit++) {
+        AliasElem *ae2 = id2Elem[*setit];
+        MapleVector<OriginalSt *> *nextLevelNodes1 = GetAliasAnalysisTable()->GetNextLevelNodes(ae1->GetOriginalSt());
+        MapleVector<OriginalSt *>::iterator ost1it = nextLevelNodes1->begin();
+        for (; ost1it != nextLevelNodes1->end(); ost1it++) {
+          MapleVector<OriginalSt *> *nextLevelNodes2 = GetAliasAnalysisTable()->GetNextLevelNodes(ae2->GetOriginalSt());
+          MapleVector<OriginalSt *>::iterator ost2it = nextLevelNodes2->begin();
+          for (; ost2it != nextLevelNodes2->end(); ost2it++) {
+            bool hasFieldid0 = (*ost1it)->GetFieldID() == 0 || (*ost2it)->GetFieldID() == 0;
+            if (((*ost1it)->GetFieldID() != (*ost2it)->GetFieldID()) && !hasFieldid0) {
+              continue;
+            }
+            if (((*ost1it)->IsFinal() || (*ost2it)->IsFinal())) {
+              continue;
+            }
+            AliasElem *indae1 = FindAliasElem(**ost1it);
+            AliasElem *indae2 = FindAliasElem(**ost2it);
+            unionFind.Union(indae1->GetClassID(), indae2->GetClassID());
+          }
+        }
+      }
+    } while (true);
   }
 }
 
@@ -557,6 +600,72 @@ void AliasClass::UnionForNotAllDefsSeen() {
   }
 }
 
+void AliasClass::UnionForNotAllDefsSeenCLang() {
+  std::vector<AliasElem *> notAllDefsSeenAes;
+  for (AliasElem *ae : id2Elem) {
+    if (ae->IsNotAllDefsSeen()) {
+      notAllDefsSeenAes.push_back(ae);
+    }
+  }
+
+  if (notAllDefsSeenAes.empty()) {
+    return;
+  }
+
+  // notAllDefsSeenAe is the first notAllDefsSeen AliasElem.
+  // Union notAllDefsSeenAe with the other notAllDefsSeen aes.
+  AliasElem *notAllDefsSeenAe = notAllDefsSeenAes[0];
+  notAllDefsSeenAes.erase(notAllDefsSeenAes.begin());
+  for (AliasElem *ae : notAllDefsSeenAes) {
+    unionFind.Union(notAllDefsSeenAe->GetClassID(), ae->GetClassID());
+  }
+
+  uint rootIdOfNotAllDefsSeenAe = unionFind.Root(notAllDefsSeenAe->GetClassID());
+  for (AliasElem *ae : id2Elem) {
+    if (unionFind.Root(ae->GetClassID()) == rootIdOfNotAllDefsSeenAe) {
+      ae->SetNotAllDefsSeen(true);
+    }
+  }
+
+  // iterate through originalStTable; if the symbol (at level 0) is
+  // notAllDefsSeen, then set the same for all its level 1 members; then
+  // for each level 1 member of each symbol, if any is set notAllDefsSeen,
+  // set all members at that level to same;
+  for (uint32 i = 1; i < ssaTab.GetOriginalStTableSize(); i++) {
+    OriginalSt *ost = ssaTab.GetOriginalStTable().GetOriginalStFromID(OStIdx(i));
+    if (!ost->IsSymbolOst()) {
+      continue;
+    }
+    AliasElem *ae = osym2Elem[ost->GetIndex()];
+    if (ae == nullptr) {
+      continue;
+    }
+    OriginalSt *ostOfAe = &(ae->GetOriginalSt());
+    bool hasNotAllDefsSeen = ae->IsNotAllDefsSeen() || ostOfAe->GetMIRSymbol()->GetStorageClass() == kScFormal;
+    MapleForwardList<OriginalSt *>::iterator it;
+    if (!hasNotAllDefsSeen) {
+      // see if any at level 1 has notAllDefsSeen set
+      for (OriginalSt *nextLevelNode : *GetAliasAnalysisTable()->GetNextLevelNodes(*ost)) {
+        ae = osym2Elem[nextLevelNode->GetIndex()];
+        if (ae != nullptr && ae->IsNotAllDefsSeen()) {
+          hasNotAllDefsSeen = true;
+          break;
+        }
+      }
+    }
+    if (hasNotAllDefsSeen) {
+      // set to true for all members at this level
+      for (OriginalSt *nextLevelNode : *GetAliasAnalysisTable()->GetNextLevelNodes(*ost)) {
+        AliasElem *ae = osym2Elem[nextLevelNode->GetIndex()];
+        if (ae != nullptr) {
+          ae->SetNotAllDefsSeen(true);
+          unionFind.Union(notAllDefsSeenAe->GetClassID(), ae->GetClassID());
+        }
+      }
+    }
+  }
+}
+
 void AliasClass::UnionForAggAndFields() {
   // key: index of MIRSymbol; value: id of alias element.
   std::map<uint32, std::set<uint32>> symbol2AEs;
@@ -565,7 +674,7 @@ void AliasClass::UnionForAggAndFields() {
   for (auto *aliasElem : id2Elem) {
     OriginalSt &ost = aliasElem->GetOriginalSt();
     if (ost.GetIndirectLev() == 0 && ost.IsSymbolOst()) {
-      (void)symbol2AEs[ost.GetMIRSymbol()->GetStIndex()].insert(aliasElem->GetClassID());
+      (void)symbol2AEs[ost.GetMIRSymbol()->GetStIdx().FullIdx()].insert(aliasElem->GetClassID());
     }
   }
 

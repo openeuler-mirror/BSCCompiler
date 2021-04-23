@@ -156,6 +156,7 @@ class AliasClass : public AnalysisResult {
   void ApplyUnionForPointedTos();
   void CollectRootIDOfNextLevelNodes(const OriginalSt &ost, std::set<unsigned int> &rootIDOfNADSs);
   void UnionForNotAllDefsSeen();
+  void UnionForNotAllDefsSeenCLang();
   void ApplyUnionForStorageOverlaps();
   void UnionForAggAndFields();
   void CollectAliasGroups(std::map<unsigned int, std::set<unsigned int>> &aliasGroups);
@@ -217,8 +218,6 @@ class AliasClass : public AnalysisResult {
   void InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid);
   virtual BB *GetBB(BBId id) = 0;
   void ProcessIdsAliasWithRoot(const std::set<unsigned int> &idsAliasWithRoot, std::vector<unsigned int> &newGroups);
-  void UpdateNextLevelNodes(std::vector<OriginalSt*> &nextLevelOsts, const AliasElem &aliasElem);
-  void UnionNodes(std::vector<OriginalSt*> &nextLevelOsts);
   int GetOffset(const Klass &super, const Klass &base) const;
 
   MemPool &acMemPool;
