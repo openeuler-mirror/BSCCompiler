@@ -1242,6 +1242,18 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
         }
         return dom->Dominate(*defBB, *occBB);
       }
+      case kDefByChi: {
+        MeStmt *mestmt = regMeExpr->GetDefChi().GetBase();
+        if (!mestmt) {
+          return true;  // it's a original variable dominate everything
+        }
+        BB *defBB = mestmt->GetBB();
+        if (occBB == defBB) {
+          return false;
+        } else {
+          return dom->Dominate(*defBB, *occBB);
+        }
+      }
       default:
         CHECK_FATAL(false, "NYI");
     }

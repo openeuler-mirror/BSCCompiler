@@ -56,7 +56,11 @@ void MeAliasClass::DoAliasAnalysis() {
     UnionAllPointedTos();
   } else {
     ApplyUnionForPointedTos();
-    UnionForNotAllDefsSeen();
+    if (mirModule.IsJavaModule()) {
+      UnionForNotAllDefsSeen();
+    } else {
+      UnionForNotAllDefsSeenCLang();
+    }
     if (mirModule.IsCModule()) {
       ApplyUnionForStorageOverlaps();
     }
