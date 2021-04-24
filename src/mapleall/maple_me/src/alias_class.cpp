@@ -159,12 +159,9 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx
     if (ainfo.ae == nullptr) {
       return nullptr;
     }
-  } else {
-    if (ainfo.ae == nullptr ||
-        (fieldId && (ainfo.ae->GetOriginalSt().GetIndirectLev() != -1) &&
-         (ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx))) {
-      return FindOrCreateDummyNADSAe();
-    }
+  } else if (ainfo.ae == nullptr ||
+             (fieldId && ainfo.ae->GetOriginalSt().GetIndirectLev() != -1 && ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx)) {
+    return FindOrCreateDummyNADSAe();
   }
   OriginalSt *newOst = nullptr;
   if (mirModule.IsCModule() && ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx) {
@@ -472,17 +469,30 @@ void AliasClass::UnionAllPointedTos() {
 }
 // process the union among the pointed's of assignsets
 void AliasClass::ApplyUnionForPointedTos() {
-  // first, process nextLevNotAllDefsSeen for alias elems with no assignment
+  // first, process nextLevNotAllDefsSeen for alias elems
   for (AliasElem *aliaselem : id2Elem) {
-    if (aliaselem->GetAssignSet() == nullptr) {
-      if (aliaselem->IsNextLevNotAllDefsSeen()) {
-        MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
-        MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
-        for (; ostit != nextLevelNodes->end(); ostit++) {
-          AliasElem *indae = FindAliasElem(**ostit);
-          if (!indae->GetOriginalSt().IsFinal()) {
-            indae->SetNotAllDefsSeen(true);
-          }
+    if (aliaselem->IsNextLevNotAllDefsSeen()) {
+      MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
+      MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
+      for (; ostit != nextLevelNodes->end(); ostit++) {
+        AliasElem *indae = FindAliasElem(**ostit);
+        if (!indae->GetOriginalSt().IsFinal() && !indae->IsNotAllDefsSeen()) {
+          indae->SetNotAllDefsSeen(true);
+          indae->SetNextLevNotAllDefsSeen(true);
+        }
+      }
+    }
+  }
+  // do one more time to ensure proper propagation
+  for (AliasElem *aliaselem : id2Elem) {
+    if (aliaselem->IsNextLevNotAllDefsSeen()) {
+      MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
+      MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
+      for (; ostit != nextLevelNodes->end(); ostit++) {
+        AliasElem *indae = FindAliasElem(**ostit);
+        if (!indae->GetOriginalSt().IsFinal() && !indae->IsNotAllDefsSeen()) {
+          indae->SetNotAllDefsSeen(true);
+          indae->SetNextLevNotAllDefsSeen(true);
         }
       }
     }
@@ -1335,6 +1345,47 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
   }
 }
 
+void AliasClass::CollectMayUseForNextLevel(OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts, const StmtNode &stmt, bool isFirstOpnd) {
+  for (OriginalSt *nextLevelOst : *(GetAliasAnalysisTable()->GetNextLevelNodes(*ost))) {
+    AliasElem *indAe = FindAliasElem(*nextLevelOst);
+
+    if (indAe->GetOriginalSt().IsFinal()) {
+      // only final fields pointed to by the first opnd(this) are considered.
+      if (!isFirstOpnd) {
+        continue;
+      }
+
+      auto *callerFunc = mirModule.CurFunction();
+      if (!callerFunc->IsConstructor()) {
+        continue;
+      }
+
+      PUIdx puIdx = static_cast<const CallNode&>(stmt).GetPUIdx();
+      auto *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
+      if (!calleeFunc->IsConstructor()) {
+        continue;
+      }
+
+      if (callerFunc->GetBaseClassNameStrIdx() != calleeFunc->GetBaseClassNameStrIdx()) {
+        continue;
+      }
+    }
+
+    if (indAe->GetClassSet() == nullptr) {
+      (void)mayUseOsts.insert(&indAe->GetOriginalSt());
+      CollectMayUseForNextLevel(&indAe->GetOriginalSt(), mayUseOsts, stmt, false);
+    } else {
+      for (unsigned int elemID : *(indAe->GetClassSet())) {
+        OriginalSt *ost1 = &id2Elem[elemID]->GetOriginalSt();
+        if (mayUseOsts.find(ost1) == mayUseOsts.end()) {
+          (void)mayUseOsts.insert(ost1);
+          CollectMayUseForNextLevel(ost1, mayUseOsts, stmt, false);
+        }
+      }
+    }
+  }
+}
+
 void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts) {
   size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
   for (; opndId < stmt.NumOpnds(); ++opndId) {
@@ -1344,7 +1395,8 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
     }
 
     AliasInfo aInfo = CreateAliasElemsExpr(*expr);
-    if (aInfo.ae == nullptr || aInfo.ae->IsNextLevNotAllDefsSeen()) {
+    if (aInfo.ae == nullptr || 
+        (aInfo.ae->IsNextLevNotAllDefsSeen() && aInfo.ae->GetOriginalSt().GetIndirectLev() > 0)) {
       continue;
     }
 
@@ -1352,39 +1404,7 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
       continue;
     }
 
-    for (OriginalSt *nextLevelOst : *(GetAliasAnalysisTable()->GetNextLevelNodes(aInfo.ae->GetOriginalSt()))) {
-      AliasElem *indAe = FindAliasElem(*nextLevelOst);
-
-      if (indAe->GetOriginalSt().IsFinal()) {
-        // only final fields pointed to by the first opnd(this) are considered.
-        if (opndId != 0) {
-          continue;
-        }
-
-        auto *callerFunc = mirModule.CurFunction();
-        if (!callerFunc->IsConstructor()) {
-          continue;
-        }
-
-        PUIdx puIdx = static_cast<const CallNode&>(stmt).GetPUIdx();
-        auto *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
-        if (!calleeFunc->IsConstructor()) {
-          continue;
-        }
-
-        if (callerFunc->GetBaseClassNameStrIdx() != calleeFunc->GetBaseClassNameStrIdx()) {
-          continue;
-        }
-      }
-
-      if (indAe->GetClassSet() == nullptr) {
-        (void)mayUseOsts.insert(&indAe->GetOriginalSt());
-      } else {
-        for (unsigned int elemID : *(indAe->GetClassSet())) {
-          (void)mayUseOsts.insert(&id2Elem[elemID]->GetOriginalSt());
-        }
-      }
-    }
+    CollectMayUseForNextLevel(&aInfo.ae->GetOriginalSt(), mayUseOsts, stmt, opndId == 0);
   }
 }
 

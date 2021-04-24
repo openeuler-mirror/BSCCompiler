@@ -192,6 +192,7 @@ class AliasClass : public AnalysisResult {
   bool IsPointedTo(OriginalSt &oSt);
   AliasElem &FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt);
   void CollectMayDefForMustDefs(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
+  void CollectMayUseForNextLevel(OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts, const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
   void InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, TypeOfMayDefList &mayDefNodes,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
