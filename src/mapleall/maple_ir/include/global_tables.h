@@ -379,6 +379,10 @@ class TypeTable {
     return newType;
   }
 
+  void PushNull() { typeTable.push_back(nullptr); }
+  void PopBack() { typeTable.pop_back(); }
+
+  void CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete);
   MIRType *CreateAndUpdateMirTypeNode(MIRType &pType);
   MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &printFields,
                                     MIRModule &module, bool forStruct = true);
@@ -503,8 +507,10 @@ class FPConstTable {
   FPConstTable &operator=(const FPConstTable &p) = delete;
   ~FPConstTable();
 
-  MIRFloatConst *GetOrCreateFloatConst(float fval, uint32 fieldID);     // get the const from floatConstTable or create a new one
-  MIRDoubleConst *GetOrCreateDoubleConst(double fval, uint32 fieldID);  // get the const from doubleConstTable or create a new one
+  // get the const from floatConstTable or create a new one
+  MIRFloatConst *GetOrCreateFloatConst(float fval);
+  // get the const from doubleConstTable or create a new one
+  MIRDoubleConst *GetOrCreateDoubleConst(double fval);
 
   static std::unique_ptr<FPConstTable> Create() {
     auto p = std::unique_ptr<FPConstTable>(new FPConstTable());
@@ -539,7 +545,7 @@ class IntConstTable {
   IntConstTable &operator=(const IntConstTable &p) = delete;
   ~IntConstTable();
 
-  MIRIntConst *GetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID);
+  MIRIntConst *GetOrCreateIntConst(int64 val, MIRType &type);
 
   static std::unique_ptr<IntConstTable> Create() {
     auto p = std::unique_ptr<IntConstTable>(new IntConstTable());
@@ -548,8 +554,8 @@ class IntConstTable {
 
  private:
   IntConstTable() = default;
-  MIRIntConst *DoGetOrCreateIntConst(int64 val, MIRType &type, uint32 fieldID);
-  MIRIntConst *DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type, uint32 fieldID);
+  MIRIntConst *DoGetOrCreateIntConst(int64 val, MIRType &type);
+  MIRIntConst *DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type);
   std::shared_timed_mutex mtx;
   std::unordered_map<IntConstKey, MIRIntConst*, IntConstHash, IntConstCmp> intConstTable;
 };
