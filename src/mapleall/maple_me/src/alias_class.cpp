@@ -159,7 +159,8 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx
       return nullptr;
     }
   } else if (ainfo.ae == nullptr ||
-             (fieldId && ainfo.ae->GetOriginalSt().GetIndirectLev() != -1 && ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx)) {
+             (fieldId && ainfo.ae->GetOriginalSt().GetIndirectLev() != -1 &&
+              ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx)) {
     return FindOrCreateDummyNADSAe();
   }
   OriginalSt *newOst = nullptr;
@@ -187,6 +188,25 @@ AliasElem &AliasClass::FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt) {
   return *FindOrCreateAliasElem(*addrofOst);
 }
 
+AliasElem &AliasClass::FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(OriginalSt &ost) {
+  OriginalSt *zeroFieldIDOst = ssaTab.FindOrCreateSymbolOriginalSt(*ost.GetMIRSymbol(), ost.GetPuIdx(), 0);
+  if (zeroFieldIDOst->GetIndex() == osym2Elem.size()) {
+    osym2Elem.push_back(nullptr);
+    ssaTab.GetVersionStTable().CreateZeroVersionSt(zeroFieldIDOst);
+  }
+  FindOrCreateAliasElem(*zeroFieldIDOst);
+
+  OriginalSt *addrofOst = GetAliasAnalysisTable()->FindOrCreateAddrofSymbolOriginalSt(*zeroFieldIDOst);
+  if (ost.GetFieldID() != 0) {
+    GetAliasAnalysisTable()->prevLevelNode.insert(std::make_pair(ost.GetIndex(), addrofOst));
+    GetAliasAnalysisTable()->GetNextLevelNodes(*addrofOst)->push_back(&ost);
+  }
+  if (addrofOst->GetIndex() == osym2Elem.size()) {
+    osym2Elem.push_back(nullptr);
+  }
+  return *FindOrCreateAliasElem(*addrofOst);
+}
+
 AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
   switch (expr.GetOpCode()) {
     case OP_addrof: {
@@ -198,8 +218,12 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       return AliasInfo(ae, addrof.GetFieldID());
     }
     case OP_dread: {
-      OriginalSt &ost = *static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
-      AliasElem *ae = FindOrCreateAliasElem(ost);
+      OriginalSt *ost = static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
+      if (ost->GetFieldID() != 0) {
+        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+      }
+
+      AliasElem *ae = FindOrCreateAliasElem(*ost);
       return AliasInfo(ae, 0);
     }
     case OP_regread: {
@@ -334,6 +358,10 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       AliasInfo rhsAinfo = CreateAliasElemsExpr(*stmt.Opnd(0));
       // LHS
       OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
+      if (ost->GetFieldID() != 0) {
+        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+      }
+
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
       ASSERT_NOT_NULL(lhsAe);
       ApplyUnionForDassignCopy(*lhsAe, rhsAinfo.ae, *stmt.Opnd(0));
@@ -471,7 +499,8 @@ void AliasClass::ApplyUnionForPointedTos() {
   // first, process nextLevNotAllDefsSeen for alias elems
   for (AliasElem *aliaselem : id2Elem) {
     if (aliaselem->IsNextLevNotAllDefsSeen()) {
-      MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
+      MapleVector<OriginalSt *> *nextLevelNodes =
+          GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
       MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
       for (; ostit != nextLevelNodes->end(); ++ostit) {
         AliasElem *indae = FindAliasElem(**ostit);
@@ -485,7 +514,8 @@ void AliasClass::ApplyUnionForPointedTos() {
   // do one more time to ensure proper propagation
   for (AliasElem *aliaselem : id2Elem) {
     if (aliaselem->IsNextLevNotAllDefsSeen()) {
-      MapleVector<OriginalSt *> *nextLevelNodes = GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
+      MapleVector<OriginalSt *> *nextLevelNodes =
+          GetAliasAnalysisTable()->GetNextLevelNodes(aliaselem->GetOriginalSt());
       MapleVector<OriginalSt *>::iterator ostit = nextLevelNodes->begin();
       for (; ostit != nextLevelNodes->end(); ++ostit) {
         AliasElem *indae = FindAliasElem(**ostit);
@@ -748,6 +778,8 @@ void AliasClass::ApplyUnionForStorageOverlaps() {
     if (mirType->GetKind() != kTypePointer) {
       continue;
     }
+
+    // work on the next indirect level
     auto nextLevOsts = GetAliasAnalysisTable()->GetNextLevelNodes(*ost);
     if (nextLevOsts == nullptr) {
       continue;
@@ -1366,7 +1398,8 @@ void AliasClass::CollectMayDefForMustDefs(const StmtNode &stmt, std::set<Origina
   }
 }
 
-void AliasClass::CollectMayUseForNextLevel(OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts, const StmtNode &stmt, bool isFirstOpnd) {
+void AliasClass::CollectMayUseForNextLevel(const OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts,
+                                           const StmtNode &stmt, bool isFirstOpnd) {
   for (OriginalSt *nextLevelOst : *(GetAliasAnalysisTable()->GetNextLevelNodes(*ost))) {
     AliasElem *indAe = FindAliasElem(*nextLevelOst);
 
@@ -1416,7 +1449,7 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
     }
 
     AliasInfo aInfo = CreateAliasElemsExpr(*expr);
-    if (aInfo.ae == nullptr || 
+    if (aInfo.ae == nullptr ||
         (aInfo.ae->IsNextLevNotAllDefsSeen() && aInfo.ae->GetOriginalSt().GetIndirectLev() > 0)) {
       continue;
     }
