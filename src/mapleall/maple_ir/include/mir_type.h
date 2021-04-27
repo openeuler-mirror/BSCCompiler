@@ -24,6 +24,9 @@
 #include "mempool_allocator.h"
 #endif  // MIR_FEATURE_FULL
 
+#define POINTER_SIZE 8
+#define POINTER_P2SIZE 3
+
 namespace maple {
 constexpr int kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 
@@ -51,8 +54,8 @@ inline uint32 GetPrimTypeBitSize(PrimType primType) {
 #endif  // MIR_FEATURE_FULL
 // return the same type with size increased to register size
 PrimType GetRegPrimType(PrimType primType);
-PrimType GetReg64PrimType(PrimType primType);
 PrimType GetDynType(PrimType primType);
+PrimType GetReg64PrimType(PrimType primType);
 PrimType GetNonDynType(PrimType primType);
 
 inline bool IsAddress(PrimitiveType primitiveType) {
@@ -588,6 +591,8 @@ class MIRPtrType : public MIRType {
   bool IsPointedTypeVolatile(int fieldID) const;
 
   void Dump(int indent, bool dontUseName = false) const override;
+  size_t GetSize() const override { return POINTER_SIZE; }
+  uint32 GetAlign() const override { return POINTER_SIZE; }
   TyIdxFieldAttrPair GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldId) const;
   TyIdx GetPointedTyIdxWithFieldID(FieldID fieldID) const;
   size_t GetHashIndex() const override {

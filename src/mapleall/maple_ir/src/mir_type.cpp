@@ -160,10 +160,22 @@ bool IsNoCvtNeeded(PrimType toType, PrimType fromType) {
 
 // answer in bytes; 0 if unknown
 uint32 GetPrimTypeSize(PrimType primType) {
+  if (primType == PTY_ref || primType == PTY_ptr) {
+#if TARGX86_64 || TARGAARCH64
+    primType = PTY_a64;
+#elif TARGX86 || TARGARM32 || TARGVM
+    primType = PTY_a32;
+#else
+    ASSERT(false, "NIY");
+#endif
+  }
   switch (primType) {
     case PTY_void:
     case PTY_agg:
       return 0;
+    case PTY_ptr:
+    case PTY_ref:
+      return POINTER_SIZE;
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
@@ -208,6 +220,9 @@ uint32 GetPrimTypeSize(PrimType primType) {
 // answer is n if size in byte is (1<<n) (0: 1B; 1: 2B, 2: 4B, 3: 8B, 4:16B)
 uint32 GetPrimTypeP2Size(PrimType primType) {
   switch (primType) {
+    case PTY_ptr:
+    case PTY_ref:
+      return POINTER_P2SIZE;
     case PTY_u1:
     case PTY_i8:
     case PTY_u8:
