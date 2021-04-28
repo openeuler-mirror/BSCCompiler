@@ -17,6 +17,7 @@
 #include "mir_nodes.h"
 #include "module_phase.h"
 #include "phase_impl.h"
+#include "me_verify.h"
 
 namespace maple {
 class ConstantFold : public FuncOptimizeImpl {
@@ -46,11 +47,12 @@ class ConstantFold : public FuncOptimizeImpl {
   virtual ~ConstantFold() = default;
 
   template <class T> T CalIntValueFromFloatValue(T value, const MIRType &resultType) const;
-  MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType) const;
+  MIRConst *FoldFloorMIRConst(const MIRConst&, PrimType, PrimType, bool isFloor = true) const;
   MIRConst *FoldRoundMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldTypeCvtMIRConst(const MIRConst&, PrimType, PrimType) const;
   MIRConst *FoldSignExtendMIRConst(Opcode, PrimType, uint8, const MIRConst&) const;
-  MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType, const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
+  MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType,
+                                       const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
 
  private:
@@ -131,6 +133,9 @@ class DoConstantFold : public ModulePhase {
 
   AnalysisResult *Run(MIRModule *mod, ModuleResultMgr *mrm) override {
     OPT_TEMPLATE(ConstantFold);
+    if (MeOption::meVerify) {
+      VerifyGlobalTypeTable();
+    }
     return nullptr;
   }
 };

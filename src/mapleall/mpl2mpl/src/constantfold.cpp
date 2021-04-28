@@ -1207,11 +1207,14 @@ T ConstantFold::CalIntValueFromFloatValue(T value, const MIRType &resultType) co
   return value;
 }
 
-MIRConst *ConstantFold::FoldFloorMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType) const {
+MIRConst *ConstantFold::FoldFloorMIRConst(const MIRConst &cst, PrimType fromType, PrimType toType, bool isFloor) const {
   MIRType &resultType = *GlobalTables::GetTypeTable().GetPrimType(toType);
   if (fromType == PTY_f32) {
     const auto &constValue = static_cast<const MIRFloatConst&>(cst);
-    float floatValue = floor(constValue.GetValue());
+    float floatValue = constValue.GetValue();
+    if (isFloor) {
+      floatValue = floor(constValue.GetValue());
+    }
     if (FloatToIntOverflow(floatValue, toType)) {
       return nullptr;
     }
@@ -1219,7 +1222,10 @@ MIRConst *ConstantFold::FoldFloorMIRConst(const MIRConst &cst, PrimType fromType
     return GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(floatValue), resultType);
   } else {
     const auto &constValue = static_cast<const MIRDoubleConst&>(cst);
-    double doubleValue = floor(constValue.GetValue());
+    double doubleValue = constValue.GetValue();
+    if (isFloor) {
+      doubleValue = floor(constValue.GetValue());
+    }
     if (DoubleToIntOverflow(doubleValue, toType)) {
       return nullptr;
     }
@@ -1329,7 +1335,7 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
     uint32 toSize = GetPrimTypeBitSize(toType);
     if (toSize > fromSize) {
       Opcode op = OP_zext;
-      if (IsSignedInteger(toType) && IsSignedInteger(fromType)) {
+      if (IsSignedInteger(fromType)) {
         op = OP_sext;
       }
       toConst = FoldSignExtendMIRConst(op, toType, fromSize, cst);
@@ -1362,7 +1368,7 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
     return toConst;
   }
   if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
-    return FoldFloorMIRConst(cst, fromType, toType);
+    return FoldFloorMIRConst(cst, fromType, toType, false);
   }
   if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
     return FoldRoundMIRConst(cst, fromType, toType);
@@ -1483,33 +1489,40 @@ std::pair<BaseNode*, int64> ConstantFold::FoldExtractbits(ExtractbitsNode *node)
 
 std::pair<BaseNode*, int64> ConstantFold::FoldIread(IreadNode *node) {
   CHECK_NULL_FATAL(node);
-  Opcode op = node->GetOpCode();
-  FieldID fieldID = node->GetFieldID();
   std::pair<BaseNode*, int64> p = DispatchFold(node->Opnd(0));
   BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
   node->SetOpnd(e, 0);
   BaseNode *result = node;
-  if (op == OP_iaddrof && e->GetOpCode() == OP_addrof) {
-    AddrofNode *addrofNode = static_cast<AddrofNode*>(e);
+  if (e->GetOpCode() != OP_addrof) {
+    return std::make_pair(result, 0);
+  }
+
+  AddrofNode *addrofNode = static_cast<AddrofNode*>(e);
+  MIRSymbol *msy = mirModule->CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
+  TyIdx typeId = msy->GetTyIdx();
+  CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
+  MIRType *msyType = GlobalTables::GetTypeTable().GetTypeTable()[typeId];
+  if (addrofNode->GetFieldID() != 0 &&
+      (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass)) {
+    msyType = static_cast<MIRStructType *>(msyType)->GetFieldType(addrofNode->GetFieldID());
+  }
+  MIRPtrType *ptrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx()));
+  // If the high level type of iaddrof/iread doesn't match
+  // the type of addrof's rhs, this optimization cannot be done.
+  if (ptrType->GetPointedType() != msyType) {
+    return std::make_pair(result, 0);
+  }
+
+  Opcode op = node->GetOpCode();
+  FieldID fieldID = node->GetFieldID();
+  if (op == OP_iaddrof) {
     AddrofNode *newAddrof = addrofNode->CloneTree(mirModule->GetCurFuncCodeMPAllocator());
     CHECK_NULL_FATAL(newAddrof);
     newAddrof->SetFieldID(newAddrof->GetFieldID() + fieldID);
     result = newAddrof;
-  } else if (op == OP_iread && e->GetOpCode() == OP_addrof) {
-    AddrofNode *addrofNode = static_cast<AddrofNode*>(e);
-    MIRSymbol *msy = mirModule->CurFunction()->GetLocalOrGlobalSymbol(addrofNode->GetStIdx());
-    TyIdx typeId = msy->GetTyIdx();
-    CHECK_FATAL(GlobalTables::GetTypeTable().GetTypeTable().empty() == false, "container check");
-    MIRType *msyType = GlobalTables::GetTypeTable().GetTypeTable()[typeId];
-    if (addrofNode->GetFieldID() != 0 &&
-        (msyType->GetKind() == kTypeStruct || msyType->GetKind() == kTypeClass)) {
-      msyType = static_cast<MIRStructType *>(msyType)->GetFieldType(addrofNode->GetFieldID());
-    }
-    MIRPtrType *ptrType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(node->GetTyIdx()));
-    if (ptrType->GetPointedType() == msyType) {
-      result = mirModule->CurFuncCodeMemPool()->New<AddrofNode>(
+  } else if (op == OP_iread) {
+    result = mirModule->CurFuncCodeMemPool()->New<AddrofNode>(
           OP_dread, node->GetPrimType(), addrofNode->GetStIdx(), node->GetFieldID() + addrofNode->GetFieldID());
-    }
   }
   return std::make_pair(result, 0);
 }
