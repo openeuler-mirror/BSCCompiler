@@ -193,6 +193,15 @@ void MeStorePre::CodeMotion() {
 // ================ Step 0: collect occurrences ================
 // create a new real occurrence for the store of meStmt of symbol oidx
 void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
+  // skip vars with alias until we can deal with chi
+  if (ostIdx >= aliasClass->GetAliasElemCount()) {
+    return;
+  }
+  AliasElem *ae = aliasClass->FindAliasElem(*ssaTab->GetSymbolOriginalStFromID(ostIdx));
+  if (ae->GetClassSet() != nullptr) {
+    return;
+  }
+
   SpreWorkCand *wkCand = nullptr;
   auto mapIt = workCandMap.find(ostIdx);
   if (mapIt != workCandMap.end()) {
@@ -201,7 +210,7 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
     OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
     wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
     workCandMap[ostIdx] = wkCand;
-    // if it is local symbol, insert artificial real occ at common_exit_bb
+    // if it is local symbol, insert artificial use occ at common_exit_bb
     if (ost->IsLocal()) {
       SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCommonExitBB());
       wkCand->GetRealOccs().push_back(artOcc);
@@ -224,41 +233,42 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
 }
 
 // create a new use occurrence for symbol oidx in given bb
-void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) const {
+void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) {
   SpreWorkCand *wkCand = nullptr;
   auto mapIt = workCandMap.find(ostIdx);
   if (mapIt == workCandMap.end()) {
-    return;
+    OriginalSt *ost = ssaTab->GetSymbolOriginalStFromID(ostIdx);
+    wkCand = spreMp->New<SpreWorkCand>(spreAllocator, *ost);
+    workCandMap[ostIdx] = wkCand;
+    // if it is local symbol, insert artificial real occ at common_exit_bb
+    if (ost->IsLocal()) {
+      SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCommonExitBB());
+      wkCand->GetRealOccs().push_back(artOcc);
+    }
+  } else {
+    wkCand = mapIt->second;
   }
-  wkCand = mapIt->second;
-  CHECK_FATAL(!wkCand->GetRealOccs().empty(), "empty container check");
-  SOcc *lastOcc = wkCand->GetRealOccs().back();
-  if (lastOcc->GetOccTy() == kSOccUse && &lastOcc->GetBB() == &bb) {
-    return;  // no need to push consecutive use occurrences at same BB
+
+  if (!wkCand->GetRealOccs().empty()) {
+    SOcc *lastOcc = wkCand->GetRealOccs().back();
+    if (lastOcc->GetOccTy() == kSOccUse && &lastOcc->GetBB() == &bb) {
+      return;  // no need to push consecutive use occurrences at same BB
+    }
   }
+
   SUseOcc *newOcc = spreMp->New<SUseOcc>(bb);
   wkCand->GetRealOccs().push_back(newOcc);
 }
 
 // create use occurs for all the symbols that alias with muost
-void MeStorePre::CreateSpreUseOccsThruAliasing(const OriginalSt &muOst, BB &bb) const {
+void MeStorePre::CreateSpreUseOccsThruAliasing(const OriginalSt &muOst, BB &bb) {
   if (muOst.GetIndex() >= aliasClass->GetAliasElemCount()) {
     return;
   }
-  AliasElem *ae = aliasClass->FindAliasElem(muOst);
-  if (ae->GetClassSet() == nullptr) {
-    return;
-  }
-  for (auto setIt = ae->GetClassSet()->begin(); setIt != ae->GetClassSet()->end(); ++setIt) {
-    unsigned int elemId = *setIt;
-    AliasElem *ae0 = aliasClass->FindID2Elem(elemId);
-    if (ae0->GetOriginalSt().GetIndirectLev() == 0) {
-      CreateUseOcc(ae0->GetOriginalSt().GetIndex(), bb);
-    }
-  }
+  CreateUseOcc(muOst.GetIndex(), bb);
 }
 
-void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) const {
+void MeStorePre::FindAndCreateSpreUseOccs(const MeExpr &meExpr, BB &bb) {
   if (meExpr.GetMeOp() == kMeOpVar) {
     auto *var = static_cast<const VarMeExpr*>(&meExpr);
     const OriginalSt *ost = var->GetOst();
@@ -307,7 +317,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
     OStIdx lhsOstIdx(0);
     if (stmt->GetOp() == OP_dassign) {
       auto *dass = static_cast<DassignMeStmt*>(to_ptr(stmt));
-      if (dass->GetLHS()->GetPrimType() != PTY_ref) {
+      if (dass->GetLHS()->GetPrimType() != PTY_ref && dass->GetLHS()->GetPrimType() != PTY_agg) {
         lhsOstIdx = dass->GetVarLHS()->GetOstIdx();
       }
     } else if (kOpcodeInfo.IsCallAssigned(stmt->GetOp())) {
@@ -315,7 +325,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
       CHECK_NULL_FATAL(mustDefList);
       if (!mustDefList->empty()) {
         MeExpr *mdLHS = mustDefList->front().GetLHS();
-        if (mdLHS->GetMeOp() == kMeOpVar && mdLHS->GetPrimType() != PTY_ref) {
+        if (mdLHS->GetMeOp() == kMeOpVar && mdLHS->GetPrimType() != PTY_ref && mdLHS->GetPrimType() != PTY_agg) {
           lhsOstIdx = static_cast<VarMeExpr*>(mdLHS)->GetOstIdx();
         }
       }
