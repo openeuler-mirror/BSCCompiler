@@ -50,6 +50,9 @@ ASTBinaryOperatorExpr *ASTParser::AllocBinaryOperatorExpr(MapleAllocator &alloca
       return ASTDeclsBuilder::ASTExprBuilder<ASTAssignExpr>(allocator);
     }
   }
+  if (bo.getOpcode() == clang::BO_Comma) {
+    return ASTDeclsBuilder::ASTExprBuilder<ASTBOComma>(allocator);
+  }
   // [C++ 5.5] Pointer-to-member operators.
   if (bo.isPtrMemOp()) {
     return ASTDeclsBuilder::ASTExprBuilder<ASTBOPtrMemExpr>(allocator);
@@ -594,6 +597,8 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
   clang::UnaryOperator::Opcode clangOpCode = uo.getOpcode();
   MIRType *subType = astFile->CvtType(subExpr->getType());
   astUOExpr->SetSubType(subType);
+  MIRType *uoType = astFile->CvtType(uo.getType());
+  astUOExpr->SetUOType(uoType);
   if (clangOpCode == clang::UO_PostInc || clangOpCode == clang::UO_PostDec ||
       clangOpCode == clang::UO_PreInc || clangOpCode == clang::UO_PreDec) {
     const auto *declRefExpr = llvm::dyn_cast<clang::DeclRefExpr>(subExpr);
@@ -619,8 +624,6 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
     }
   }
 
-  MIRType *uoType = astFile->CvtType(uo.getType());
-  astUOExpr->SetUOType(uoType);
   ASTExpr *astExpr = ProcessExpr(allocator, subExpr);
   if (astExpr == nullptr) {
     return nullptr;
@@ -675,7 +678,7 @@ ASTExpr *ASTParser::ProcessExprBinaryConditionalOperator(MapleAllocator &allocat
     return nullptr;
   }
   astBinaryConditionalOperator->SetFalseExpr(falseExpr);
-  astBinaryConditionalOperator->SetRetType(astFile->CvtType(expr.getFalseExpr()->getType()));
+  astBinaryConditionalOperator->SetType(astFile->CvtType(expr.getType()));
   return astBinaryConditionalOperator;
 }
 
@@ -710,7 +713,7 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
   uint32 n = expr.getNumInits();
   clang::Expr * const *le = expr.getInits();
   for (uint32 i = 0; i < n; ++i) {
-    const clang::Expr *eExpr = expr.hasArrayFiller() ? expr.getArrayFiller() : le[i];
+    const clang::Expr *eExpr = le[i];
     ASTExpr *astExpr = ProcessExpr(allocator, eExpr);
     if (astExpr == nullptr) {
       return nullptr;
@@ -724,11 +727,29 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
   ASTOffsetOfExpr *astOffsetOfExpr = ASTDeclsBuilder::ASTExprBuilder<ASTOffsetOfExpr>(allocator);
   CHECK_FATAL(astOffsetOfExpr != nullptr, "astOffsetOfExpr is nullptr");
   clang::FieldDecl *field = expr.getComponent(0).getField();
-  // structType should get from global struct map, temporarily don't have
-  MIRType *structType = astFile->CvtType(field->getParent()->getTypeForDecl()->getCanonicalTypeInternal());
+  const clang::QualType qualType = field->getParent()->getTypeForDecl()->getCanonicalTypeInternal();
+  MIRType *structType = astFile->CvtType(qualType);
   astOffsetOfExpr->SetStructType(structType);
   std::string filedName = astFile->GetMangledName(*field);
   astOffsetOfExpr->SetFieldName(filedName);
+  const auto *recordType = llvm::cast<clang::RecordType>(qualType);
+  clang::RecordDecl *recordDecl = recordType->getDecl();
+  const clang::ASTRecordLayout &recordLayout = astFile->GetContext()->getASTRecordLayout(recordDecl);
+
+  clang::RecordDecl::field_iterator it;
+  uint64_t filedIdx = 0;
+  for (it = recordDecl->field_begin(); it != recordDecl->field_end(); ++it) {
+    std::string name = (*it)->getNameAsString();
+    if (name == filedName) {
+      filedIdx = (*it)->getFieldIndex();
+      break;
+    }
+  }
+  CHECK_FATAL(it != recordDecl->field_end(), "cann't find field %s in the struct", filedName.c_str());
+  uint64 offsetInBits = recordLayout.getFieldOffset(filedIdx);
+  size_t offset = offsetInBits >> kBitToByteShift;
+  astOffsetOfExpr->SetOffset(offset);
+
   return astOffsetOfExpr;
 }
 
@@ -822,7 +843,10 @@ ASTExpr *ASTParser::ProcessExprDesignatedInitUpdateExpr(MapleAllocator &allocato
     return nullptr;
   }
   astDesignatedInitUpdateExpr->SetBaseExpr(baseExpr);
-  ASTExpr *updaterExpr = ProcessExpr(allocator, expr.getUpdater());
+  clang::InitListExpr *initListExpr = expr.getUpdater();
+  MIRType *initListType = astFile->CvtType(expr.getType());
+  astDesignatedInitUpdateExpr->SetInitListType(initListType);
+  ASTExpr *updaterExpr = ProcessExpr(allocator, initListExpr);
   if (updaterExpr == nullptr) {
     return nullptr;
   }
@@ -853,6 +877,7 @@ ASTExpr *ASTParser::ProcessExprConditionalOperator(MapleAllocator &allocator, co
     return nullptr;
   }
   astConditionalOperator->SetFalseExpr(astFalseExpr);
+  astConditionalOperator->SetType(astFile->CvtType(expr.getType()));
   return astConditionalOperator;
 }
 
@@ -1006,7 +1031,7 @@ ASTExpr *ASTParser::ProcessExprIntegerLiteral(MapleAllocator &allocator, const c
   ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   ASSERT(astIntegerLiteral != nullptr, "astIntegerLiteral is nullptr");
   uint64 val = 0;
-  MIRType *type;
+  MIRType *type = nullptr;
   llvm::APInt api = expr.getValue();
   if (api.getBitWidth() > kInt32Width) {
     val = *api.getRawData();
@@ -1046,6 +1071,7 @@ ASTExpr *ASTParser::ProcessExprImplicitCastExpr(MapleAllocator &allocator, const
   ASTImplicitCastExpr *astImplicitCastExpr = ASTDeclsBuilder::ASTExprBuilder<ASTImplicitCastExpr>(allocator);
   CHECK_FATAL(astImplicitCastExpr != nullptr, "astImplicitCastExpr is nullptr");
   switch (expr.getCastKind()) {
+    case clang::CK_IntegralRealToComplex:
     case clang::CK_NoOp:
     case clang::CK_ArrayToPointerDecay:
     case clang::CK_FunctionToPointerDecay:
@@ -1079,6 +1105,9 @@ ASTExpr *ASTParser::ProcessExprDeclRefExpr(MapleAllocator &allocator, const clan
       if (expr.getDecl()->getKind() == clang::Decl::Var) {
         const auto *varDecl = llvm::cast<clang::VarDecl>(expr.getDecl()->getCanonicalDecl());
         astDecl->SetGlobal(!varDecl->isLocalVarDeclOrParm());
+      } else {
+        // For comes from `EnumConstant`
+        astDecl->SetGlobal(expr.getDecl()->getParentFunctionOrMethod() == nullptr);
       }
       astRefExpr->SetASTDecl(astDecl);
       astRefExpr->SetType(refType);
@@ -1105,7 +1134,6 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
     return nullptr;
   }
   astBinOpExpr->SetRetType(retType);
-
   clang::Expr *lExpr = bo.getLHS();
   if (lExpr != nullptr) {
     ASTExpr *astLExpr = ProcessExpr(allocator, lExpr);
@@ -1301,6 +1329,7 @@ bool ASTParser::PreProcessAST() {
       case clang::Decl::Typedef:
         break;
       case clang::Decl::Enum:
+        globalEnumDecles.emplace_back(child);
         break;
       default: {
         WARN(kLncWarn, "Unsupported decl kind: %u", child->getKind());
@@ -1319,6 +1348,7 @@ ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &de
     DECL_CASE(Field);
     DECL_CASE(Record);
     DECL_CASE(Var);
+    DECL_CASE(Enum);
     default:
       CHECK_FATAL(false, "NIY");
       return nullptr;
@@ -1432,6 +1462,12 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   if (fieldType == nullptr) {
     return nullptr;
   }
+  if (decl.isBitField()) {
+    unsigned bitSize = decl.getBitWidthValue(*(astFile->GetContext()));
+    MIRBitFieldType mirBFType(static_cast<uint8>(bitSize), fieldType->GetPrimType());
+    auto bfTypeIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&mirBFType);
+    fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(bfTypeIdx);
+  }
   GenericAttrs attrs;
   astFile->CollectAttrs(decl, attrs, kPublic);
   return ASTDeclsBuilder::ASTFieldBuilder(allocator, fileName, fieldName, std::vector<MIRType*>{fieldType}, attrs);
@@ -1451,9 +1487,38 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   astFile->CollectAttrs(varDecl, attrs, kPublic);
   ASTVar *astVar = ASTDeclsBuilder::ASTVarBuilder(allocator, fileName, varName, std::vector<MIRType*>{varType}, attrs);
   if (varDecl.hasInit()) {
-    astVar->SetInitExpr(ProcessExpr(allocator, varDecl.getInit()));
+    auto initExpr = varDecl.getInit();
+    auto astInitExpr = ProcessExpr(allocator, initExpr);
+    if (initExpr->getStmtClass() == clang::Stmt::InitListExprClass) {
+      static_cast<ASTInitListExpr*>(astInitExpr)->SetInitListVarName(varName);
+    }
+    astVar->SetInitExpr(astInitExpr);
   }
   return astVar;
+}
+
+ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::EnumDecl &enumDecl) {
+  GenericAttrs attrs;
+  astFile->CollectAttrs(*clang::dyn_cast<const clang:: NamedDecl>(&enumDecl), attrs, kPublic);
+  const std::string &enumName = clang::dyn_cast<const clang:: NamedDecl>(&enumDecl)->getNameAsString();
+  ASTLocalEnumDecl *localEnumDecl = ASTDeclsBuilder::ASTLocalEnumDeclBuilder(allocator, fileName, enumName,
+      std::vector<MIRType*>{}, attrs);
+  TraverseDecl(&enumDecl, [&](clang::Decl *child) {
+    CHECK_FATAL(child->getKind() == clang::Decl::EnumConstant, "Unsupported decl kind: %u", child->getKind());
+    GenericAttrs attrs0;
+    astFile->CollectAttrs(*clang::dyn_cast<clang:: NamedDecl>(child), attrs0, kPublic);
+    const std::string &varName = clang::dyn_cast<clang:: NamedDecl>(child)->getNameAsString();
+    MIRType *mirType = astFile->CvtType(clang::dyn_cast<clang::ValueDecl>(child)->getType());
+    ASTVar *astVar =
+        ASTDeclsBuilder::ASTVarBuilder(allocator, fileName, varName, std::vector<MIRType*>{mirType}, attrs0);
+    auto constExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
+    constExpr->SetVal(
+        static_cast<uint64>(clang::dyn_cast<clang:: EnumConstantDecl>(child)->getInitVal().getExtValue()));
+    constExpr->SetType(mirType->GetPrimType());
+    astVar->SetInitExpr(constExpr);
+    localEnumDecl->PushConstantVar(astVar);
+  });
+  return localEnumDecl;
 }
 
 bool ASTParser::RetrieveStructs(MapleAllocator &allocator, MapleList<ASTStruct*> &structs) {
@@ -1499,6 +1564,28 @@ bool ASTParser::RetrieveGlobalVars(MapleAllocator &allocator, MapleList<ASTVar*>
   return true;
 }
 
+bool ASTParser::ProcessGlobalEnums(MapleAllocator &allocator, MapleList<ASTVar*> &vars) {
+  for (auto gEnumDecl : globalEnumDecles) {
+    TraverseDecl(gEnumDecl, [&](clang::Decl *child) {
+      CHECK_FATAL(child->getKind() == clang::Decl::EnumConstant, "Unsupported decl kind: %u", child->getKind());
+      GenericAttrs attrs;
+      astFile->CollectAttrs(*clang::dyn_cast<clang:: NamedDecl>(child), attrs, kPublic);
+      const std::string &varName = clang::dyn_cast<clang:: NamedDecl>(child)->getNameAsString();
+      MIRType *mirType = astFile->CvtType(clang::dyn_cast<clang::ValueDecl>(child)->getType());
+      ASTVar *astVar =
+          ASTDeclsBuilder::ASTVarBuilder(allocator, fileName, varName, std::vector<MIRType*>{mirType}, attrs);
+      auto constExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
+      constExpr->SetVal(
+          static_cast<uint64>(clang::dyn_cast<clang:: EnumConstantDecl>(child)->getInitVal().getExtValue()));
+      constExpr->SetType(mirType->GetPrimType());
+      astVar->SetInitExpr(constExpr);
+      astVar->SetGlobal(true);
+      vars.emplace_back(astVar);
+    });
+  }
+  return true;
+}
+
 const std::string &ASTParser::GetSourceFileName() const {
   return fileName;
 }
@@ -1507,24 +1594,27 @@ const uint32 ASTParser::GetFileIdx() const {
   return fileIdx;
 }
 
-void ASTParser::TraverseDecl(clang::Decl *decl, std::function<void (clang::Decl*)> const &functor) {
-  uint32 srcFileNum = 2; // src files start from 2, 1 is mpl file
+void ASTParser::TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor) {
   if (decl == nullptr) {
     return;
   }
-  // set srcfileinfo
-  for (auto *declRange : clang::dyn_cast<clang::DeclContext>(decl)->decls()) {
-    clang::FullSourceLoc fullLocation = astFile->GetAstContext()->getFullLoc(declRange->getBeginLoc());
-    if (fullLocation.isValid() && fullLocation.isFileID()) {
-      const clang::FileEntry *fileEntry = fullLocation.getFileEntry();
-      ASSERT_NOT_NULL(fileEntry);
-      GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileEntry->getName().data());
-      FEManager::GetModule().PushbackFileInfo(MIRInfoPair(idx, srcFileNum++));
-      break;
-    }
-  }
-  for (auto *child : clang::dyn_cast<clang::DeclContext>(decl)->decls()) {
+  for (auto *child : clang::dyn_cast<const clang::DeclContext>(decl)->decls()) {
+    SetSourceFileInfo(child);
     functor(child);
+  }
+}
+
+void ASTParser::SetSourceFileInfo(clang::Decl *decl) {
+  clang::FullSourceLoc fullLocation = astFile->GetAstContext()->getFullLoc(decl->getBeginLoc());
+  if (fullLocation.isValid() && fullLocation.isFileID()) {
+    const clang::FileEntry *fileEntry = fullLocation.getFileEntry();
+    ASSERT_NOT_NULL(fileEntry);
+    size_t oldSize = GlobalTables::GetStrTable().StringTableSize();
+    GStrIdx idx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileEntry->getName().data());
+    // Not duplicate
+    if (oldSize != GlobalTables::GetStrTable().StringTableSize()) {
+      FEManager::GetModule().PushbackFileInfo(MIRInfoPair(idx, srcFileNum++));
+    }
   }
 }
 }  // namespace maple
