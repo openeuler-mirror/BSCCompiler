@@ -327,6 +327,7 @@ class CGFunc {
       case PTY_a32:
       case PTY_a64:
       case PTY_ptr:
+      case PTY_agg:
         return kRegTyInt;
       case PTY_f32:
       case PTY_f64:

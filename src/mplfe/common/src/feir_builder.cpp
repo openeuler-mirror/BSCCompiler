@@ -78,18 +78,16 @@ UniqueFEIRVar FEIRBuilder::CreateVarName(const std::string &name, PrimType primT
   return CreateVarName(nameIdx, primType, isGlobal, withType);
 }
 
-UniqueFEIRVar FEIRBuilder::CreateVarNameForC(GStrIdx nameIdx, MIRType &mirType, bool isGlobal, bool withType,
-                                             TypeDim dim) {
+UniqueFEIRVar FEIRBuilder::CreateVarNameForC(GStrIdx nameIdx, MIRType &mirType, bool isGlobal, bool withType) {
   UniqueFEIRType type = std::make_unique<FEIRTypeNative>(mirType);
   UniqueFEIRVar var = std::make_unique<FEIRVarName>(nameIdx, std::move(type), withType);
   var->SetGlobal(isGlobal);
   return var;
 }
 
-UniqueFEIRVar FEIRBuilder::CreateVarNameForC(const std::string &name, MIRType &mirType, bool isGlobal, bool withType,
-                                             TypeDim dim) {
+UniqueFEIRVar FEIRBuilder::CreateVarNameForC(const std::string &name, MIRType &mirType, bool isGlobal, bool withType) {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
-  return CreateVarNameForC(nameIdx, mirType, isGlobal, withType, dim);
+  return CreateVarNameForC(nameIdx, mirType, isGlobal, withType);
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprDRead(UniqueFEIRVar srcVar) {
@@ -116,14 +114,24 @@ UniqueFEIRExpr FEIRBuilder::CreateExprAddrofVar(UniqueFEIRVar srcVar) {
   return expr;
 }
 
-UniqueFEIRExpr FEIRBuilder::CreateExprTernary(Opcode op, UniqueFEIRExpr cExpr,
+UniqueFEIRExpr FEIRBuilder::CreateExprAddrofFunc(const std::string &addr) {
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprAddrofFunc>(addr);
+  return expr;
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprTernary(Opcode op, UniqueFEIRType type, UniqueFEIRExpr cExpr,
                                               UniqueFEIRExpr tExpr, UniqueFEIRExpr fExpr) {
-  UniqueFEIRExpr expr = std::make_unique<FEIRExprTernary>(op, std::move(cExpr), std::move(tExpr), std::move(fExpr));
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprTernary>(op, std::move(type), std::move(cExpr),
+                                                          std::move(tExpr), std::move(fExpr));
   return expr;
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprConstRefNull() {
   return std::make_unique<FEIRExprConst>(int64{ 0 }, PTY_ref);
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprConstPtrNull() {
+  return std::make_unique<FEIRExprConst>(int64{ 0 }, PTY_ptr);
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprConstI8(int8 val) {
@@ -142,6 +150,10 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstI64(int64 val) {
   return std::make_unique<FEIRExprConst>(val, PTY_i64);
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprConstU64(uint64 val) {
+  return std::make_unique<FEIRExprConst>(val, PTY_u64);
+}
+
 UniqueFEIRExpr FEIRBuilder::CreateExprConstF32(float val) {
   return std::make_unique<FEIRExprConst>(val);
 }
@@ -150,18 +162,30 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstF64(double val) {
   return std::make_unique<FEIRExprConst>(val);
 }
 
-UniqueFEIRExpr FEIRBuilder::CreateExprZeroConst(PrimType primType) {
+// Create a const expr of specified prime type with fixed value.
+// Note that loss of precision, byte value is only supported.
+UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int8 val) {
   switch (primType) {
-    case PTY_f32:
-      return CreateExprConstF32(0.0f);
-    case PTY_f64:
-      return CreateExprConstF64(0.0);
+    case PTY_u8:
+    case PTY_u16:
+    case PTY_u32:
+    case PTY_u64:
+    case PTY_i8:
+    case PTY_i16:
+    case PTY_i32:
+    case PTY_i64:
+      return std::make_unique<FEIRExprConst>(static_cast<int64>(val), primType);
     case PTY_f128:
       // Not Implemented
       CHECK_FATAL(false, "Not Implemented");
       return nullptr;
+    case PTY_f32:
+      return CreateExprConstF32(static_cast<float>(val));
+    case PTY_f64:
+      return CreateExprConstF64(static_cast<double>(val));
     default:
-      return std::make_unique<FEIRExprConst>(int64{ 0 }, primType);
+      CHECK_FATAL(false, "unsupported const prime type");
+      return nullptr;
   }
 }
 
@@ -283,8 +307,8 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtGoto(uint32 targetLabelIdx) {
   return stmt;
 }
 
-UniqueFEIRStmt FEIRBuilder::CreateStmtGoto(std::string labelName) {
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtGotoForC>(std::move(labelName));
+UniqueFEIRStmt FEIRBuilder::CreateStmtGoto(const std::string &labelName) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtGotoForC>(labelName);
   CHECK_NULL_FATAL(stmt);
   return stmt;
 }
@@ -387,6 +411,13 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmt(UniqueFEIRVar varElem, U
   (void)arrayType->ArrayIncrDim();
   UniqueFEIRExpr exprElem = CreateExprDRead(std::move(varElem));
   UniqueFEIRExpr exprArray = CreateExprDRead(std::move(varArray));
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
+                                                             std::move(exprIndex), std::move(arrayType));
+  return stmt;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
+                                                            UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
                                                              std::move(exprIndex), std::move(arrayType));
   return stmt;

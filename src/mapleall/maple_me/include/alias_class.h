@@ -150,6 +150,7 @@ class AliasClass : public AnalysisResult {
   }
 
   void ApplyUnionForCopies(StmtNode &stmt);
+  void UnionAddrofOstOfUnionFields();
   void CreateAssignSets();
   void DumpAssignSets();
   void UnionAllPointedTos();

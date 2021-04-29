@@ -57,6 +57,9 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     BB *savedBB = realOcc.GetMeStmt()->GetBB();
     MeStmt *savedPrev = realOcc.GetMeStmt()->GetPrev();
     MeStmt *savedNext = realOcc.GetMeStmt()->GetNext();
+    // judge if lhs has smaller size than rhs, if so, we need solve truncation.
+    savedRHS = GetTruncExpr(*theLHS, *savedRHS);
+
     // change original dassign/maydassign to regassign;
     // use placement new to modify in place, because other occ nodes are pointing
     // to this statement in order to get to the rhs expression;
@@ -93,6 +96,35 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     }
   }
   realOcc.SetSavedExpr(*regOrVar);
+}
+
+MeExpr *MeSSALPre::GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS) {
+  MIRType *lhsType = theLHS.GetType();
+  if (theLHS.GetType()->GetKind() != kTypeBitField) {
+    return &savedRHS;
+  }
+  MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsType);
+  if (GetPrimTypeBitSize(savedRHS.GetPrimType()) <= bitfieldTy->GetFieldSize()) {
+    return &savedRHS;
+  }
+  // insert OP_zext or OP_sext
+  Opcode extOp = IsSignedInteger(lhsType->GetPrimType()) ? OP_sext : OP_zext;
+  PrimType newPrimType = PTY_u32;
+  if (bitfieldTy->GetFieldSize() <= GetPrimTypeBitSize(PTY_u32)) {
+    if (IsSignedInteger(lhsType->GetPrimType())) {
+      newPrimType = PTY_i32;
+    }
+  } else {
+    if (IsSignedInteger(lhsType->GetPrimType())) {
+      newPrimType = PTY_i64;
+    } else {
+      newPrimType = PTY_u64;
+    }
+  }
+  OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+  opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
+  opmeexpr.SetOpnd(0, &savedRHS);
+  return irMap->HashMeExpr(opmeexpr);
 }
 
 void MeSSALPre::GenerateReloadRealOcc(MeRealOcc &realOcc) {

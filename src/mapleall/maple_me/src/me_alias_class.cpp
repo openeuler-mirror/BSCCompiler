@@ -47,6 +47,7 @@ void MeAliasClass::DoAliasAnalysis() {
       ApplyUnionForCopies(stmt);
     }
   }
+  UnionAddrofOstOfUnionFields();
   CreateAssignSets();
   if (enabledDebug) {
     DumpAssignSets();
