@@ -1655,8 +1655,10 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
     } while (nextBB != nullptr);
     if (nextBB != nullptr && !nextBB->IsEmpty()) {
       cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_remember_state));
+      cgFunc.GetCurBB()->SetHasCfi();
       nextBB->InsertInsnBefore(*nextBB->GetFirstInsn(),
                                currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_restore_state));
+      nextBB->SetHasCfi();
     }
   }
 
@@ -1688,6 +1690,9 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
 
   GenerateRet(*(cgFunc.GetCurBB()));
   epilogBB.AppendBBInsns(*cgFunc.GetCurBB());
+  if (cgFunc.GetCurBB()->GetHasCfi()) {
+    epilogBB.SetHasCfi();
+  }
 
   cgFunc.SetCurBB(*formerCurBB);
   aarchCGFunc.GetDummyBB()->SetIsProEpilog(false);
