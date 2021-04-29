@@ -1311,7 +1311,7 @@ bool MIRParser::ParseNaryStmt(StmtNodePtr &stmt, Opcode op) {
     } else {
       MIRType *intType = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_i32);
       // default 2 for __sync_enter_fast()
-      MIRIntConst *intConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(2, *intType, 0);
+      MIRIntConst *intConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(2, *intType);
       ConstvalNode *exprConst = mod.GetMemPool()->New<ConstvalNode>();
       exprConst->SetPrimType(PTY_i32);
       exprConst->SetConstVal(intConst);
@@ -1871,8 +1871,7 @@ bool MIRParser::ParseExprConstval(BaseNodePtr &expr) {
   exprConst->SetPrimType(GetPrimitiveType(typeTk));
   lexer.NextToken();
   MIRConst *constVal = nullptr;
-  if (!ParseScalarValue(constVal, *GlobalTables::GetTypeTable().GetPrimType(exprConst->GetPrimType()),
-                        0 /* fieldID */)) {
+  if (!ParseScalarValue(constVal, *GlobalTables::GetTypeTable().GetPrimType(exprConst->GetPrimType()))) {
     Error("expect scalar type but get ");
     return false;
   }
@@ -2600,27 +2599,27 @@ bool MIRParser::ParseExprIntrinsicop(BaseNodePtr &expr) {
   return true;
 }
 
-bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type, uint32 fieldID) {
+bool MIRParser::ParseScalarValue(MIRConstPtr &stype, MIRType &type) {
   PrimType ptp = type.GetPrimType();
   if (IsPrimitiveInteger(ptp) || IsPrimitiveDynType(ptp) || ptp == PTY_gen) {
     if (lexer.GetTokenKind() != TK_intconst) {
       Error("constant value incompatible with integer type at ");
       return false;
     }
-    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type, fieldID);
+    stype = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lexer.GetTheIntVal(), type);
   } else if (ptp == PTY_f32) {
     if (lexer.GetTokenKind() != TK_floatconst) {
       Error("constant value incompatible with single-precision float type at ");
       return false;
     }
-    MIRFloatConst *fConst = GlobalTables::GetFpConstTable().GetOrCreateFloatConst(lexer.GetTheFloatVal(), fieldID);
+    MIRFloatConst *fConst = GlobalTables::GetFpConstTable().GetOrCreateFloatConst(lexer.GetTheFloatVal());
     stype = fConst;
   } else if (ptp == PTY_f64) {
     if (lexer.GetTokenKind() != TK_doubleconst && lexer.GetTokenKind() != TK_intconst) {
       Error("constant value incompatible with double-precision float type at ");
       return false;
     }
-    MIRDoubleConst *dconst = GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(lexer.GetTheDoubleVal(), fieldID);
+    MIRDoubleConst *dconst = GlobalTables::GetFpConstTable().GetOrCreateDoubleConst(lexer.GetTheDoubleVal());
     stype = dconst;
   } else {
     return false;
@@ -2665,7 +2664,7 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
       }
       lexer.NextToken();
     }
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRAddrofConst>(anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
+    cexpr = mod.GetMemPool()->New<MIRAddrofConst>(anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
   } else if (expr->GetOpCode() == OP_addroffunc) {
     auto *aof = static_cast<AddroffuncNode*>(expr);
     MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(aof->GetPUIdx());
@@ -2674,11 +2673,11 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrType(ptyIdx);
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRAddroffuncConst>(aof->GetPUIdx(), *exprTy);
+    cexpr = mod.GetMemPool()->New<MIRAddroffuncConst>(aof->GetPUIdx(), *exprTy);
   } else if (expr->op == OP_addroflabel) {
     AddroflabelNode *aol = static_cast<AddroflabelNode *>(expr);
     MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRLblConst>(aol->GetOffset(), mod.CurFunction()->GetPuidx(), *mirtype);
+    cexpr = mod.GetMemPool()->New<MIRLblConst>(aol->GetOffset(), mod.CurFunction()->GetPuidx(), *mirtype);
   } else if (expr->GetOpCode() == OP_conststr) {
     auto *cs = static_cast<ConststrNode*>(expr);
     UStrIdx stridx = cs->GetStrIdx();
@@ -2686,7 +2685,9 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrtype(ptyIdx);
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrtype);
     MIRType *exprty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRStrConst>(stridx, *exprty);
+    // func code mempool will be released after irmap, but MIRStrConst won't be passed to me ir.
+    // So MIRStrConst can NOT be allocated in func code mempool.
+    cexpr = mod.CurFunction()->GetDataMemPool()->New<MIRStrConst>(stridx, *exprty);
   } else {
     auto *cs = static_cast<Conststr16Node*>(expr);
     U16StrIdx stridx = cs->GetStrIdx();
@@ -2694,7 +2695,9 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrType(ptyIdx);
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    cexpr = mod.CurFuncCodeMemPool()->New<MIRStr16Const>(stridx, *exprTy);
+    // func code mempool will be released after irmap, but MIRStr16Const won't be passed to me ir.
+    // So MIRStr16Const can NOT be allocated in func code mempool.
+    cexpr = mod.CurFunction()->GetDataMemPool()->New<MIRStr16Const>(stridx, *exprTy);
   }
   return true;
 }
