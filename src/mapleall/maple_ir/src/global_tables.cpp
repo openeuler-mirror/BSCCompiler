@@ -74,6 +74,40 @@ void TypeTable::UpdateMIRType(const MIRType &pType, const TyIdx tyIdx) {
   SetTypeWithTyIdx(tyIdx, *nType);
 }
 
+// used only by bin_mpl_import
+void TypeTable::CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete) {
+  MIRType *nType = pType.CopyMIRTypeNode();
+  nType->SetTypeIndex(tyIdxUsed);
+  typeTable[tyIdxUsed] = nType;
+
+  if (pType.IsMIRPtrType()) {
+    auto &pty = static_cast<MIRPtrType&>(pType);
+    if (pty.GetTypeAttrs() == TypeAttrs()) {
+      if (pty.GetPrimType() != PTY_ref) {
+        ptrTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
+      } else {
+        refTypeMap[pty.GetPointedTyIdx()] = nType->GetTypeIndex();
+      }
+    } else {
+      (void)typeHashTable.insert(nType);
+    }
+  } else {
+    (void)typeHashTable.insert(nType);
+  }
+
+  GStrIdx stridx = pType.GetNameStrIdx();
+  if (stridx != 0) {
+    module->GetTypeNameTab()->SetGStrIdxToTyIdx(stridx, tyIdxUsed);
+    module->PushbackTypeDefOrder(stridx);
+    if (isObject) {
+      module->AddClass(tyIdxUsed);
+      if (!isIncomplete) {
+        GlobalTables::GetTypeNameTable().SetGStrIdxToTyIdx(stridx, tyIdxUsed);
+      }
+    }
+  }
+}
+
 MIRType *TypeTable::CreateAndUpdateMirTypeNode(MIRType &pType) {
   MIRType *nType = pType.CopyMIRTypeNode();
   nType->SetTypeIndex(TyIdx(typeTable.size()));
