@@ -93,8 +93,7 @@ class BinaryMplImport {
   void InsertInHashTable(MIRType &ptype);
   void SetupEHRootType();
   void UpdateMethodSymbols();
-  void UpdateDebugInfo();
-  void ImportConstBase(MIRConstKind &kind, MIRTypePtr &type, uint32 &fieldID);
+  void ImportConstBase(MIRConstKind &kind, MIRTypePtr &type);
   MIRConst *ImportConst(MIRFunction *func);
   GStrIdx ImportStr();
   UStrIdx ImportUsrStr();
@@ -103,6 +102,7 @@ class BinaryMplImport {
   MIRBitFieldType *CreateBitFieldType(uint8 fieldsize, PrimType pt, GStrIdx strIdx) const;
   void CompleteAggInfo(TyIdx tyIdx);
   TyIdx ImportType(bool forPointedType = false);
+  TyIdx ImportTypeNonJava();
   void ImportTypeBase(PrimType &primType, GStrIdx &strIdx, bool &nameIsLocal);
   void InSymTypeTable();
   void ImportTypePairs(std::vector<TypePair> &insVecType);
@@ -122,25 +122,22 @@ class BinaryMplImport {
   void ImportInterfaceTypeData(MIRInterfaceType &type);
   PUIdx ImportFunction();
   MIRSymbol *InSymbol(MIRFunction *func);
-
-  void ImportInfoVector(MIRInfoVector &infovector, MapleVector<bool> &infovector_isstring);
+  void ImportInfoVector(MIRInfoVector &infoVector, MapleVector<bool> &infoVectorIsString);
   void ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab);
   void ImportFuncIdInfo(MIRFunction *func);
   void ImportLocalSymbol(MIRFunction *func);
   void ImportLocalSymTab(MIRFunction *func);
-  void ImportPregTab(MIRFunction *func);
+  void ImportPregTab(const MIRFunction *func);
   void ImportLabelTab(MIRFunction *func);
   void ImportFormalsStIdx(MIRFunction *func);
   void ImportAliasMap(MIRFunction *func);
   void ImportSrcPos(SrcPosition &pos);
-  void ImportBaseNode(Opcode &o, PrimType &typ, uint8 &numopr);
+  void ImportBaseNode(Opcode &o, PrimType &typ, uint8 &numOpr);
   PUIdx ImportFuncViaSymName();
   BaseNode *ImportExpression(MIRFunction *func);
-
   void ImportReturnValues(MIRFunction *func, CallReturnVector *retv);
   BlockNode *ImportBlockNode(MIRFunction *fn);
   void ReadFunctionBodyField();
-
   void ReadFileAt(const std::string &modid, int32 offset);
   uint8 Read();
   int64 ReadInt64();
@@ -161,13 +158,12 @@ class BinaryMplImport {
   std::vector<MIRStructType*> tmpStruct;
   std::vector<MIRClassType*> tmpClass;
   std::vector<MIRInterfaceType*> tmpInterface;
-  std::vector<MIRType*> typTab;
+  std::vector<TyIdx> typTab;
   std::vector<MIRFunction*> funcTab;
   std::vector<MIRSymbol*> symTab;
   std::vector<CallInfo*> callInfoTab;
   std::vector<EACGBaseNode*> eaCgTab;
   std::vector<MIRSymbol*> methodSymbols;
-  std::map<TyIdx, TyIdx> typeDefIdxMap;  // map previous declared tyIdx
   std::vector<bool> definedLabels;
   std::string importFileName;
 };
