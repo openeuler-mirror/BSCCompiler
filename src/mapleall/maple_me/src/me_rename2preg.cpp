@@ -16,6 +16,7 @@
 #include "me_rename2preg.h"
 #include "mir_builder.h"
 #include "me_irmap.h"
+#include "me_option.h"
 
 // This phase mainly renames the variables to pseudo register.
 // Only non-ref-type variables (including parameters) with no alias are
@@ -74,6 +75,9 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     if (ty->GetKind() != kTypeScalar && ty->GetKind() != kTypePointer) {
       return nullptr;
     }
+    if (rename2pregCount >= MeOption::rename2pregLimit) {
+      return nullptr;
+    }
     curtemp = meirmap->CreateRegMeExpr(*ty);
     OriginalSt *pregOst =
         ssaTab->GetOriginalStTable().CreatePregOriginalSt(curtemp->GetRegIdx(), func->GetMirFunc()->GetPuidx());
@@ -87,11 +91,12 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
         reg_formal_vec[parmindex] = curtemp;
       }
     }
+    rename2pregCount++;
     if (DEBUGFUNC(func)) {
       ost->Dump();
       LogInfo::MapleLogger() << "(ost idx " << ost->GetIndex() << ") renamed to ";
       pregOst->Dump();
-      LogInfo::MapleLogger() << std::endl;
+      LogInfo::MapleLogger() << " (count: " << rename2pregCount << ")" << std::endl;
     }
     return curtemp;
   }
@@ -135,6 +140,7 @@ void SSARename2Preg::UpdateRegPhi(MePhiNode *mevarphinode, MePhiNode *regphinode
     }
     regphinode->GetOpnds().push_back(opndtemp);
   }
+  regphinode->GetDefBB()->GetMePhiList().insert(std::make_pair(regphinode->GetLHS()->GetOstIdx(), regphinode));
   (void)lhs;
 }
 
@@ -146,6 +152,8 @@ void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, Me
     MePhiNode *regphinode = meirmap->CreateMePhi(*lhsreg);
     regphinode->SetDefBB(mevarphinode->GetDefBB());
     UpdateRegPhi(mevarphinode, regphinode, lhsreg, lhs);
+    regphinode->SetIsLive(mevarphinode->GetIsLive());
+    mevarphinode->SetIsLive(false);
     (void)regPhiList.insert(std::make_pair(lhsreg->GetOst()->GetIndex(), regphinode));
   }
 }
@@ -346,24 +354,24 @@ AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, Mo
   MeIRMap *irMap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irMap != nullptr, "");
 
-  MemPool *renamemp = memPoolCtrler.NewMemPool(PhaseName().c_str());
+  MemPool *renamemp = memPoolCtrler.NewMemPool(PhaseName().c_str(), true /* isLocalPool */);
   if (func->GetAllBBs().size() == 0) {
     // empty function, we only promote the parameter
-    SSARename2Preg emptyrenamer(renamemp, func, nullptr, nullptr);
-    emptyrenamer.PromoteEmptyFunction();
-    memPoolCtrler.DeleteMemPool(renamemp);
+    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, func, nullptr, nullptr);
+    emptyrenamer->PromoteEmptyFunction();
+    delete renamemp;
     return nullptr;
   }
 
   AliasClass *aliasclass = static_cast<AliasClass *>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
   ASSERT(aliasclass != nullptr, "");
 
-  SSARename2Preg ssarename2preg(renamemp, func, irMap, aliasclass);
-  ssarename2preg.RunSelf();
+  auto *phase = renamemp->New<SSARename2Preg>(renamemp, func, irMap, aliasclass);
+  phase->RunSelf();
   if (DEBUGFUNC(func)) {
     irMap->Dump();
   }
-  memPoolCtrler.DeleteMemPool(renamemp);
+  delete renamemp;
 
   return nullptr;
 }

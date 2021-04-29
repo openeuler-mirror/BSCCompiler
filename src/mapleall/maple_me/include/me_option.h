@@ -84,6 +84,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 threads;
   static bool ignoreInferredRetType;
   static uint32 pregRenameLimit;
+  static uint32 rename2pregLimit;
   static uint32 delRcPULimit;
   static uint32 profileBBHotRate;
   static uint32 profileBBColdRate;
