@@ -440,6 +440,7 @@ void HDSE::MarkSingleUseLive(MeExpr &meExpr) {
       auto *base = static_cast<IvarMeExpr&>(meExpr).GetBase();
       MarkSingleUseLive(*base);
       VarMeExpr *mu = static_cast<IvarMeExpr&>(meExpr).GetMu();
+      workList.push_front(mu);
       if (mu->GetDefBy() != kDefByNo) {
         MapleMap<OStIdx, ChiMeNode *> *chiList = GenericGetChiListFromVarMeExpr(*mu);
         if (chiList != nullptr) {

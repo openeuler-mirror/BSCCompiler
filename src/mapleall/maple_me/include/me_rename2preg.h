@@ -18,21 +18,19 @@
 #include "me_function.h"
 
 namespace maple {
-
 class SSARename2Preg {
  public:
   SSARename2Preg(MemPool *mp, MeFunction *f, MeIRMap *hmap, AliasClass *alias)
-    : alloc(mp),
-      func(f),
-      meirmap(hmap),
-      ssaTab(f->GetMeSSATab()),
-      mirModule(&f->GetMIRModule()),
-      aliasclass(alias),  // ostidx2reg_map(alloc.Adapter()),
-
-      sym2reg_map(std::less<OStIdx>(), alloc.Adapter()),
-      vstidx2reg_map(alloc.Adapter()),
-      parm_used_vec(alloc.Adapter()),
-      reg_formal_vec(alloc.Adapter()) {}
+      : alloc(mp),
+        func(f),
+        meirmap(hmap),
+        ssaTab(f->GetMeSSATab()),
+        mirModule(&f->GetMIRModule()),
+        aliasclass(alias),
+        sym2reg_map(std::less<OStIdx>(), alloc.Adapter()),
+        vstidx2reg_map(alloc.Adapter()),
+        parm_used_vec(alloc.Adapter()),
+        reg_formal_vec(alloc.Adapter()) {}
 
   void RunSelf();
   void PromoteEmptyFunction();
@@ -47,12 +45,12 @@ class SSARename2Preg {
 
   void Rename2PregStmt(MeStmt *);
   void Rename2PregExpr(MeStmt *, MeExpr *);
-  void Rename2PregLeafRHS(MeStmt *, VarMeExpr *);
-  void Rename2PregLeafLHS(MeStmt *, VarMeExpr *);
-  void Rename2PregPhi(BB *, MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
+  void Rename2PregLeafRHS(MeStmt *, const VarMeExpr *);
+  void Rename2PregLeafLHS(MeStmt *, const VarMeExpr *);
+  void Rename2PregPhi(MePhiNode *, MapleMap<OStIdx, MePhiNode *> &);
   void UpdateRegPhi(MePhiNode *, MePhiNode *, const RegMeExpr *, const VarMeExpr *);
   void Rename2PregCallReturn(MapleVector<MustDefMeNode> &);
-  RegMeExpr *RenameVar(VarMeExpr *);
+  RegMeExpr *RenameVar(const VarMeExpr *);
   void UpdateMirFunctionFormal();
   void SetupParmUsed(const VarMeExpr *);
   void Init();
@@ -71,6 +69,8 @@ class SSARename2Preg {
   MapleVector<bool> parm_used_vec;                       // if parameter is not used, it's false, otherwise true
   // if the parameter got promoted, the nth of func->mirFunc->_formal is the nth of reg_formal_vec, otherwise nullptr;
   MapleVector<RegMeExpr *> reg_formal_vec;
+ public:
+  uint32 rename2pregCount = 0;
 };
 
 class MeDoSSARename2Preg : public MeFuncPhase {
