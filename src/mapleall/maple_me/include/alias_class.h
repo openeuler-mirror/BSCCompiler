@@ -177,8 +177,8 @@ class AliasClass : public AnalysisResult {
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
-  bool CallHasSideEffect(const CallNode &stmt) const;
-  bool CallHasNoPrivateDefEffect(const CallNode &stmt) const;
+  bool CallHasSideEffect(StmtNode *stmt) const;
+  bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   AliasElem *FindOrCreateAliasElem(OriginalSt &ost);
   AliasElem *FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx, FieldID fieldId);
   AliasInfo CreateAliasElemsExpr(BaseNode &expr);
@@ -192,7 +192,8 @@ class AliasClass : public AnalysisResult {
   bool IsPointedTo(OriginalSt &oSt);
   AliasElem &FindOrCreateAliasElemOfAddrofOSt(OriginalSt &oSt);
   void CollectMayDefForMustDefs(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
-  void CollectMayUseForNextLevel(OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts, const StmtNode &stmt, bool isFirstOpnd);
+  void CollectMayUseForNextLevel(const OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts,
+                                 const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
   void InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, TypeOfMayDefList &mayDefNodes,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
