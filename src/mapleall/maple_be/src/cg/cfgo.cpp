@@ -129,7 +129,7 @@ bool ChainingPattern::MoveSuccBBAsCurBBNext(BB &curBB, BB &sucBB) {
    * without the judge below, there is
    * Assembler Error: CFI state restore without previous remember
    */
-  if (sucBB.GetFirstInsn() != nullptr && sucBB.GetFirstInsn()->IsCfiInsn()) {
+  if (sucBB.GetHasCfi() || (sucBB.GetFirstInsn() != nullptr && sucBB.GetFirstInsn()->IsCfiInsn())) {
     return false;
   }
   Log(curBB.GetId());
@@ -170,7 +170,7 @@ bool ChainingPattern::RemoveGotoInsn(BB &curBB, BB &sucBB) {
 }
 
 bool ChainingPattern::ClearCurBBAndResetTargetBB(BB &curBB, BB &sucBB) {
-  if (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn()) {
+  if (curBB.GetHasCfi() || (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn())) {
     return false;
   }
   Insn *brInsn = nullptr;
@@ -241,7 +241,10 @@ bool ChainingPattern::Optimize(BB &curBB) {
      *   3. BB2 is of goto kind. Otherwise, the original fall through will be broken
      *   4. BB2 is neither catch BB nor switch case BB
      */
-    if (sucBB == nullptr) {
+    if (sucBB == nullptr || curBB.GetEhSuccs().size() != sucBB->GetEhSuccs().size()) {
+      return false;
+    }
+    if (!curBB.GetEhSuccs().empty() && (curBB.GetEhSuccs().front() != sucBB->GetEhSuccs().front())) {
       return false;
     }
     if (sucBB->GetKind() == BB::kBBGoto &&
@@ -598,7 +601,7 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       return false;
     }
 
-    if (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn()) {
+    if (curBB.GetHasCfi() || (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn())) {
       return false;
     }
 
@@ -700,7 +703,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
       return false;
     }
     if (curBB.NumInsn() <= kThreshold) {
-      if (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn()) {
+      if (curBB.GetHasCfi() || (curBB.GetFirstInsn() != nullptr && curBB.GetFirstInsn()->IsCfiInsn())) {
         return false;
       }
       Log(curBB.GetId());
@@ -708,6 +711,12 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
         return false;
       }
       for (BB *bb : candidates) {
+        if (curBB.GetEhSuccs().size() != bb->GetEhSuccs().size()) {
+          continue;
+        }
+        if (!curBB.GetEhSuccs().empty() && (curBB.GetEhSuccs().front() != bb->GetEhSuccs().front())) {
+          continue;
+        }
         bb->RemoveInsn(*bb->GetLastInsn());
         FOR_BB_INSNS(insn, (&curBB)) {
           Insn *clonedInsn = cgFunc->GetTheCFG()->CloneInsn(*insn);
