@@ -378,7 +378,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_call:
     case OP_callassigned: {
-      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
       }
       auto &call = static_cast<CallNode&>(stmt);
@@ -407,7 +407,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       if (CallHasSideEffect(&stmt)) {
         bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
         auto &call = static_cast<NaryStmtNode&>(stmt);
-        for (int32 i = 1; i < call.NumOpnds(); i++) {
+        for (uint32 i = 1; i < call.NumOpnds(); ++i) {
           AliasInfo ainfo = CreateAliasElemsExpr(*call.Opnd(i));
           if (IsPotentialAddress(call.Opnd(i)->GetPrimType(), &mirModule) && ainfo.ae != nullptr) {
             if (call.Opnd(i)->GetOpCode() == OP_addrof && IsReadOnlyOst(ainfo.ae->GetOriginalSt())) {
@@ -424,7 +424,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_icall:
     case OP_icallassigned: {
-      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
       }
       auto &call = static_cast<NaryStmtNode&>(stmt);
@@ -433,7 +433,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_intrinsiccall:
     case OP_intrinsiccallassigned: {
-      for (int32 i = 0; i < stmt.NumOpnds(); i++) {
+      for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
       }
       auto &intrnNode = static_cast<IntrinsiccallNode&>(stmt);
@@ -449,6 +449,29 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
     SetNotAllDefsSeenForMustDefs(stmt);
+  }
+}
+
+void AliasClass::UnionAddrofOstOfUnionFields() {
+  // map stIdx of union to aliasElem of addrofOst of union fields
+  std::map<StIdx, AliasElem*> sym2AddrofOstAE;
+  for (auto *aliasElem : id2Elem) {
+    auto &ost = aliasElem->GetOriginalSt();
+    // indirect level of addrof ost eq -1
+    if (ost.GetIndirectLev() != -1) {
+      continue;
+    }
+    ASSERT(ost.IsSymbolOst(), "only symbol has address");
+    if (ost.GetMIRSymbol()->GetType()->GetKind() != kTypeUnion) {
+      continue;
+    }
+    StIdx stIdx = ost.GetMIRSymbol()->GetStIdx();
+    auto it = sym2AddrofOstAE.find(stIdx);
+    if (it != sym2AddrofOstAE.end()) {
+      unionFind.Union(it->second->id, aliasElem->id);
+    } else {
+      sym2AddrofOstAE[stIdx] = aliasElem;
+    }
   }
 }
 

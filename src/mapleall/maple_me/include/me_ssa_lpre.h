@@ -34,6 +34,7 @@ class MeSSALPre : public SSAPre {
 
  private:
   void GenerateSaveRealOcc(MeRealOcc&) override;
+  MeExpr *GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS);
   void GenerateReloadRealOcc(MeRealOcc&) override;
   MeExpr *PhiOpndFromRes(MeRealOcc&, size_t) const override;
   void ComputeVarAndDfPhis() override;
