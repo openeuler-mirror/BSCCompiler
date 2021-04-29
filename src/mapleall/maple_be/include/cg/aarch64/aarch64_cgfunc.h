@@ -91,7 +91,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
-  Operand &GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
+  AArch64MemOperand &GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset,
+                                              const RegOperand &addReg);
+  AArch64MemOperand &FixLargeMemOpnd(MemOperand &memOpnd, uint32 align, const RegOperand &addReg);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
@@ -445,8 +447,9 @@ class AArch64CGFunc : public CGFunc {
   MOperator PickExtInsn(PrimType dtype, PrimType stype) const;
 
   bool CheckIfSplitOffsetWithAdd(const AArch64MemOperand &memOpnd, uint32 bitLen);
+  RegOperand *GetBaseRegForSplit(uint32 baseRegNum);
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
-                                                   AArch64reg baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
+                                                   uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
                                                    Insn *insn = nullptr);
   AArch64MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int32 offset);
 
@@ -668,6 +671,7 @@ class AArch64CGFunc : public CGFunc {
   MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode &addrExpr, int32 offset,
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int32 offset);
+  std::string GenerateMemOpndVerbose(const Operand &src);
 };
 }  /* namespace maplebe */
 

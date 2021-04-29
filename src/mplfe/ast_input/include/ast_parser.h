@@ -26,7 +26,8 @@ class ASTParser {
  public:
   ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn)
       : fileIdx(fileIdxIn), fileName(fileNameIn), globalVarDecles(allocatorIn.Adapter()),
-        funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()) {}
+        funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
+        globalEnumDecles(allocatorIn.Adapter()) {}
   virtual ~ASTParser() = default;
   bool OpenFile();
   bool Verify();
@@ -35,6 +36,8 @@ class ASTParser {
   bool RetrieveStructs(MapleAllocator &allocator, MapleList<ASTStruct*> &structs);
   bool RetrieveFuncs(MapleAllocator &allocator, MapleList<ASTFunc*> &funcs);
   bool RetrieveGlobalVars(MapleAllocator &allocator, MapleList<ASTVar*> &vars);
+
+  bool ProcessGlobalEnums(MapleAllocator &allocator, MapleList<ASTVar*> &vars);
 
   const std::string &GetSourceFileName() const;
   const uint32 GetFileIdx() const;
@@ -62,6 +65,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(WhileStmt);
   ASTStmt *PROCESS_STMT(DoStmt);
   ASTStmt *PROCESS_STMT(BreakStmt);
+  ASTStmt *PROCESS_STMT(LabelStmt);
   ASTStmt *PROCESS_STMT(ContinueStmt);
   ASTStmt *PROCESS_STMT(CompoundStmt);
   ASTStmt *PROCESS_STMT(GotoStmt);
@@ -127,10 +131,13 @@ ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   ASTDecl *PROCESS_DECL(Function);
   ASTDecl *PROCESS_DECL(Record);
   ASTDecl *PROCESS_DECL(Var);
+  ASTDecl *PROCESS_DECL(Enum);
 
  private:
-  void TraverseDecl(clang::Decl *decl, std::function<void (clang::Decl*)> const &functor);
+  void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor);
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
+  void SetSourceFileInfo(clang::Decl *decl);
+  uint32 GetSizeFromQualType(const clang::QualType qualType);
   uint32 fileIdx;
   const std::string fileName;
   std::unique_ptr<LibAstFile> astFile;
@@ -138,7 +145,10 @@ ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   MapleList<clang::Decl*> globalVarDecles;
   MapleList<clang::Decl*> funcDecles;
   MapleList<clang::Decl*> recordDecles;
+  MapleList<clang::Decl*> globalEnumDecles;
   ASTInput *astIn = nullptr;
+
+  uint32 srcFileNum = 2; // src files start from 2, 1 is mpl file
 };
 }  // namespace maple
 #endif // MPLFE_AST_INPUT_INCLUDE_AST_PARSER_H
