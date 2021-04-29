@@ -274,13 +274,21 @@ void MeDoLoopCanon::FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb) 
     return;
   }
   bool hasTry = false;
+  bool hasIgoto = false;
   for (BB *pred : bb->GetPred()) {
     // backege or preheader is try bb
     if (pred->GetAttributes(kBBAttrIsTry)) {
       hasTry = true;
     }
   }
-  if (!hasTry) {
+  // backedge is constructed by igoto 
+  if (bb->GetBBLabel() != 0) {
+    const MapleUnorderedSet<LabelIdx> &addrTakenLabels = func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels();
+    if (addrTakenLabels.find(bb->GetBBLabel()) != addrTakenLabels.end()) {
+      hasIgoto = true;
+    }
+  }
+  if ((!hasTry) && (!hasIgoto)) {
     for (BB *pred : bb->GetPred()) {
       // add backege bb
       if (dom.Dominate(*bb, *pred)) {
