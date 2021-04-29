@@ -143,7 +143,7 @@ if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   echo Installed qemu-aarch64
 fi
 
-version=0c8b7db
+version=810ab06
 if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
   cd $TOOLS
   rm -rf open64_prebuilt
@@ -151,7 +151,8 @@ if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
 fi
 if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   cd $TOOLS/open64_prebuilt/x86
-  git pull
+  git fetch origin
+  git checkout $version
   tar zxf open64ark-aarch64.tar.gz
   tar zxf open64ark-riscv.tar.gz
   mv riscv riscv64
