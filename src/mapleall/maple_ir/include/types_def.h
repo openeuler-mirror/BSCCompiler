@@ -138,7 +138,7 @@ constexpr uint8 kOperandNumTernary = 3;
 }  // namespace maple
 namespace std {
 template<> // function-template-specialization
-class std::hash<maple::StIdx> {
+class hash<maple::StIdx> {
  public:
   size_t operator()(const maple::StIdx &x) const {
     std::size_t seed = 0;
