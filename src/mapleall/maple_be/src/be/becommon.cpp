@@ -138,6 +138,8 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
       fieldTypeSize = GetTypeSize(fieldTyIdx);
     }
     uint8 fieldAlign = GetTypeAlign(fieldTyIdx);
+    uint8 attrAlign = structType.GetTyidxFieldAttrPair(j).second.GetAlign();
+    fieldAlign = std::max(fieldAlign, attrAlign);
     uint64 fieldAlignBits = fieldAlign * kBitsPerByte;
     CHECK_FATAL(fieldAlign != 0, "expect fieldAlign not equal 0");
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
@@ -197,9 +199,6 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
         (GetTypeSize(fieldTyIdx.GetIdx()) == 0)) {
       SetHasFlexibleArray(tyIdx.GetIdx(), true);
     }
-  }
-  if (mirModule.GetSrcLang() == kSrcLangC && GetTypeAlign(tyIdx) < k8ByteSize) {
-    SetTypeAlign(tyIdx, k8ByteSize);
   }
   SetTypeSize(tyIdx, RoundUp(allocedSize, GetTypeAlign(tyIdx.GetIdx())));
 }
