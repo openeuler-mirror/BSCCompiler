@@ -1588,6 +1588,8 @@ void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid) {
     for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
       InsertMayUseExpr(*stmt.Opnd(i));
     }
+  } else {
+    CollectMayUseForCallOpnd(stmt, mayDefUseOsts);
   }
   // 2. collect mayDefs and mayUses caused by not_all_defs_seen_ae
   CollectMayUseFromNADS(mayDefUseOsts);
