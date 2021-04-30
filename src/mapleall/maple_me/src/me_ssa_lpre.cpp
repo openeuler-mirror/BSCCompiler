@@ -215,6 +215,12 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     VarMeExpr *lhs = meStmt.GetVarLHS();
     CHECK_NULL_FATAL(lhs);
     const OriginalSt *ost = lhs->GetOst();
+    if (mirModule->IsCModule()) {
+      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
+      if (ty->GetKind() == kTypeBitField || ty->GetSize() < 4) {
+        return;  // no advantage
+      }
+    }
     if (ost->IsFormal()) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
