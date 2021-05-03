@@ -40,9 +40,9 @@ function install_patch {
     cp -r ${MAPLE_ROOT}/src/mplfe/dex_input/include/string_view_format.h include/
 
     #add third_party gn
-    cp $AOSP_GN_PATH/art/libdexfile/BUILD.gn $AOSP_PATH/art/libdexfile/
-    cp $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $AOSP_PATH/system/core/libziparchive/
-    cp $AOSP_GN_PATH/system/core/base/BUILD.gn $AOSP_PATH/system/core/base/
+    cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn art/libdexfile/
+    cp -f $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn system/core/libziparchive/
+    cp -f $AOSP_GN_PATH/system/core/base/BUILD.gn system/core/base/
 }
 
 
