@@ -42,6 +42,10 @@ GN_OPTIONS := \
 .PHONY: default
 default: install
 
+.PHONY: directory
+directory:
+	$(shell mkdir -p $(INSTALL_DIR)/bin;)
+
 .PHONY: install_patch
 install_patch:
 	@bash build/third_party/patch.sh patch
@@ -63,7 +67,7 @@ maple: maplegendef
 	$(call build_gn, $(GN_OPTIONS), maple)
 
 .PHONY: irbuild
-irbuild:
+irbuild: install_patch
 	$(call build_gn, $(GN_OPTIONS), irbuild)
 
 .PHONY: mpldbg
@@ -111,11 +115,11 @@ all: install mplfe libcore
 
 ifeq ($(OPS_ANDROID),0)
 .PHONY: dex2mpl_install
-dex2mpl_install:
+dex2mpl_install: directory
 	$(shell rsync -a -L $(MAPLE_BIN_DIR)/dex2mpl $(INSTALL_DIR)/bin/;)
 else
 .PHONY: dex2mpl_install
-dex2mpl_install:
+dex2mpl_install: directory
 	$(shell rsync -a -L $(MAPLE_BIN_DIR)/dex2mpl_android $(INSTALL_DIR)/bin/dex2mpl;)
 endif
 
