@@ -1105,7 +1105,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
           ++cnt;
         }
       }
-      ASSERT(cnt <= cgFunc->GetTotalNumberOfInstructions(), "Incorrect insn count");
+      ASSERT(cnt <= cgFunc.GetTotalNumberOfInstructions(), "Incorrect insn count");
       if (cnt <= kNumInsnThreashold) {
         doMultiPass = true;
         doLRA = false;
