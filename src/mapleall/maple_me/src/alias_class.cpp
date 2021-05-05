@@ -208,11 +208,11 @@ AliasElem &AliasClass::FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(OriginalSt &o
     osym2Elem.push_back(nullptr);
     ssaTab.GetVersionStTable().CreateZeroVersionSt(zeroFieldIDOst);
   }
-  FindOrCreateAliasElem(*zeroFieldIDOst);
+  (void)FindOrCreateAliasElem(*zeroFieldIDOst);
 
   OriginalSt *addrofOst = GetAliasAnalysisTable()->FindOrCreateAddrofSymbolOriginalSt(*zeroFieldIDOst);
   if (ost.GetFieldID() != 0) {
-    GetAliasAnalysisTable()->prevLevelNode.insert(std::make_pair(ost.GetIndex(), addrofOst));
+    (void)GetAliasAnalysisTable()->prevLevelNode.insert(std::make_pair(ost.GetIndex(), addrofOst));
     GetAliasAnalysisTable()->GetNextLevelNodes(*addrofOst)->push_back(&ost);
   }
   if (addrofOst->GetIndex() == osym2Elem.size()) {
@@ -234,7 +234,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
     case OP_dread: {
       OriginalSt *ost = static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
       if (ost->GetFieldID() != 0) {
-        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+        (void)FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
       }
 
       AliasElem *ae = FindOrCreateAliasElem(*ost);
@@ -306,11 +306,105 @@ void AliasClass::SetNotAllDefsSeenForMustDefs(const StmtNode &callas) {
   }
 }
 
+// given a struct/union assignment, regard it as if the fields that appear
+// in the code are also assigned
+void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const OriginalSt *rhsost) {
+  if (lhsost->GetIndirectLev() == 0 && rhsost->GetIndirectLev() == 0) {
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsost->GetTyIdx());
+    MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
+    uint32 numFieldIDs = mirStructType->NumberOfFieldIDs();
+    for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
+      MIRType *fieldType = mirStructType->GetFieldType(fieldID);
+      if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
+        continue;
+      }
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      auto lhsit = mirSt2Ost.find(SymbolFieldPair(lhsost->GetMIRSymbol()->GetStIdx(), fieldID));
+      auto rhsit = mirSt2Ost.find(SymbolFieldPair(rhsost->GetMIRSymbol()->GetStIdx(), fieldID));
+      if (lhsit == mirSt2Ost.end() && rhsit == mirSt2Ost.end()) {
+        continue;
+      }
+      // the OriginalSt of at least one side has appearance in code
+      OriginalSt *lhsFieldOst = nullptr;
+      OriginalSt *rhsFieldOst = nullptr;
+      if (lhsit == mirSt2Ost.end()) {
+        // create a new OriginalSt for lhs field
+        lhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*lhsost->GetMIRSymbol(), lhsost->GetPuIdx(), fieldID);
+        osym2Elem.push_back(nullptr);
+        ssaTab.GetVersionStTable().CreateZeroVersionSt(lhsFieldOst);
+
+        rhsFieldOst = ssaTab.GetOriginalStFromID(rhsit->second);
+      } else {
+        lhsFieldOst = ssaTab.GetOriginalStFromID(lhsit->second);
+
+        if (rhsit == mirSt2Ost.end()) {
+          // create a new OriginalSt for rhs field
+          rhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*rhsost->GetMIRSymbol(), rhsost->GetPuIdx(), fieldID);
+          osym2Elem.push_back(nullptr);
+          ssaTab.GetVersionStTable().CreateZeroVersionSt(rhsFieldOst);
+        } else {
+          rhsFieldOst = ssaTab.GetOriginalStFromID(rhsit->second);
+        }
+      }
+      AliasElem *aeOfLHSField = FindOrCreateAliasElem(*lhsFieldOst);
+      AliasElem *aeOfRHSField = FindOrCreateAliasElem(*rhsFieldOst);
+      unionFind.Union(aeOfLHSField->id, aeOfRHSField->id);
+    }
+  } else if (lhsost->GetIndirectLev() == 0) {
+    // make any field in this struct that has appeared NADS
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsost->GetTyIdx());
+    MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
+    uint32 numFieldIDs = mirStructType->NumberOfFieldIDs();
+    for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
+      MIRType *fieldType = mirStructType->GetFieldType(fieldID);
+      if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
+        continue;
+      }
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      auto it = mirSt2Ost.find(SymbolFieldPair(lhsost->GetMIRSymbol()->GetStIdx(), fieldID));
+      if (it == mirSt2Ost.end()) {
+        continue;
+      }
+      OriginalSt *lhsFieldOst = ssaTab.GetOriginalStFromID(it->second);
+      AliasElem *aeOfLHSField = FindOrCreateAliasElem(*lhsFieldOst);
+      aeOfLHSField->SetNotAllDefsSeen(true);
+    }
+  } else {  // rhsost->GetIndirectLev() == 0)
+    // make any field in this struct that has appeared NADS
+    MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsost->GetTyIdx());
+    MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
+    uint32 numFieldIDs = mirStructType->NumberOfFieldIDs();
+    for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
+      MIRType *fieldType = mirStructType->GetFieldType(fieldID);
+      if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
+        continue;
+      }
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      auto it = mirSt2Ost.find(SymbolFieldPair(rhsost->GetMIRSymbol()->GetStIdx(), fieldID));
+      if (it == mirSt2Ost.end()) {
+        continue;
+      }
+      OriginalSt *rhsFieldOst = ssaTab.GetOriginalStFromID(it->second);
+      AliasElem *aeOfrHSField = FindOrCreateAliasElem(*rhsFieldOst);
+      aeOfrHSField->SetNotAllDefsSeen(true);
+    }
+  }
+}
+
 void AliasClass::ApplyUnionForDassignCopy(const AliasElem &lhsAe, const AliasElem *rhsAe, const BaseNode &rhs) {
   if (rhsAe == nullptr || rhsAe->GetOriginalSt().GetIndirectLev() > 0 || rhsAe->IsNotAllDefsSeen()) {
     AliasElem *aliasElem = FindAliasElem(lhsAe.GetOriginalSt());
     aliasElem->SetNextLevNotAllDefsSeen(true);
     return;
+  }
+  if (mirModule.IsCModule()) {
+    TyIdx lhsTyIdx = lhsAe.GetOriginalSt().GetTyIdx();
+    TyIdx rhsTyIdx = rhsAe->GetOriginalSt().GetTyIdx();
+    MIRType *rhsType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(rhsTyIdx);
+    if (lhsTyIdx == rhsTyIdx &&
+        (rhsType->GetKind() == kTypeStruct || rhsType->GetKind() == kTypeUnion)) {
+      ApplyUnionForFieldsInAggCopy(&lhsAe.GetOriginalSt(), &rhsAe->GetOriginalSt());
+    }
   }
   if (!IsPotentialAddress(rhs.GetPrimType(), &mirModule) ||
       kOpcodeInfo.NotPure(rhs.GetOpCode()) ||
@@ -373,7 +467,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       // LHS
       OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
       if (ost->GetFieldID() != 0) {
-        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+        (void)FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
       }
 
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
@@ -990,6 +1084,46 @@ void AliasClass::CollectNotAllDefsSeenAes() {
   for (AliasElem *aliasElem : id2Elem) {
     if (aliasElem->IsNotAllDefsSeen() && aliasElem->GetClassID() == unionFind.Root(aliasElem->GetClassID())) {
       notAllDefsSeenClassSetRoots.push_back(aliasElem);
+    }
+  }
+}
+
+void AliasClass::UnionNextLevelOfAliasOst() {
+  std::map<uint32, std::vector<OriginalSt*>> rootId2AliasedOsts;
+  for (AliasElem *aliasElem : id2Elem) {
+    uint32 id = aliasElem->GetClassID();
+    uint32 rootID = unionFind.Root(id);
+    if (id != rootID) {
+      auto &ost = aliasElem->GetOriginalSt();
+      auto *nextLevelOsts = GetAliasAnalysisTable()->GetNextLevelNodes(ost);
+      (void)rootId2AliasedOsts[rootID].insert(
+          rootId2AliasedOsts[rootID].end(), nextLevelOsts->begin(), nextLevelOsts->end());
+    }
+  }
+  for (auto &rootIdPair : rootId2AliasedOsts) {
+    auto &nextLevelOsts = rootIdPair.second;
+    if (nextLevelOsts.empty()) {
+      continue;
+    }
+    auto &rootOst = id2Elem[rootIdPair.first]->GetOriginalSt();
+    auto *nextLevelOstOfRoot = GetAliasAnalysisTable()->GetNextLevelNodes(rootOst);
+    (void)nextLevelOsts.insert(nextLevelOsts.end(), nextLevelOstOfRoot->begin(), nextLevelOstOfRoot->end());
+
+    for (uint32 idA = 0; idA < nextLevelOsts.size(); ++idA) {
+      auto *ostA = nextLevelOsts[idA];
+      for (uint32 idB = idA + 1; idB < nextLevelOsts.size(); ++idB) {
+        auto *ostB = nextLevelOsts[idB];
+        bool hasFieldid0 = ostA->GetFieldID() == 0 || ostB->GetFieldID() == 0;
+        if ((ostA->GetFieldID() != ostB->GetFieldID()) && !hasFieldid0) {
+          continue;
+        }
+        if ((ostA->IsFinal() || ostB->IsFinal())) {
+          continue;
+        }
+        AliasElem *indaeA = FindAliasElem(*ostA);
+        AliasElem *indaeB = FindAliasElem(*ostB);
+        unionFind.Union(indaeA->GetClassID(), indaeB->GetClassID());
+      }
     }
   }
 }
