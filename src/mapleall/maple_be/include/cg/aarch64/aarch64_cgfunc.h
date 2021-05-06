@@ -179,8 +179,6 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0) override;
   Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1) override;
-  void SelectDepositBits(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 bitOffset, uint32 bitSize,
-                         PrimType regType) override;
   Operand *SelectLnot(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectNeg(UnaryNode &node, Operand &opnd0) override;
   void SelectNeg(Operand &dest, Operand &opnd0, PrimType primType);
