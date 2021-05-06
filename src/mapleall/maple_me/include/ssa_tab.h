@@ -83,7 +83,7 @@ class SSATab : public AnalysisResult {
   }
   OriginalSt *GetSymbolOriginalStFromID(OStIdx id) {
     OriginalSt *ost = originalStTable.GetOriginalStFromID(id);
-    ASSERT(ost->IsSymbolOst(), "GetSymbolOriginalStFromid: id has wrong ost type");
+    ASSERT(ost->IsSymbolOst() || ost->GetIndirectLev() > 0, "GetSymbolOriginalStFromid: id has wrong ost type");
     return ost;
   }
 
