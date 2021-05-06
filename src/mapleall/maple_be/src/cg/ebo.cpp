@@ -197,6 +197,10 @@ bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndRe
   if (insn.IsDestRegAlsoSrcReg()) {
     return false;
   }
+  if (IsPseudoRet(insn)) {
+    return false;
+  }
+
   return ((IsOfSameClass(oldOpnd, *opndReplace) && (oldOpnd.GetSize() <= opndReplace->GetSize())) ||
           ((tmpInfo != nullptr) && IsMovToSIMDVmov(insn, *tmpInfo->insn)));
 }
