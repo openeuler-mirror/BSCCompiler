@@ -255,7 +255,7 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     }
 
     int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                    static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
+                    static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
     AArch64MemOperand *downStk =
         aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos - vArea,
                                                             kSizeOfPtr * kBitsPerByte);
@@ -316,7 +316,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   AArch64RegOperand &checkOp =
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
   int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                  static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass() - vArea;
+                  static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
   AArch64MemOperand *downStk =
       aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RFP, stkSize - kOffset8MemPos - vArea,
                                                           kSizeOfPtr * kBitsPerByte);
