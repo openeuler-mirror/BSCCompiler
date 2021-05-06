@@ -158,17 +158,15 @@ bool IsNoCvtNeeded(PrimType toType, PrimType fromType) {
   }
 }
 
+#if TARGX86_64 || TARGAARCH64
+  #define POINTER_SIZE 8
+  #define POINTER_P2SIZE 3
+#elif TARGX86 || TARGARM32 || TARGVM
+  #define POINTER_SIZE 4
+  #define POINTER_P2SIZE 2
+#endif
 // answer in bytes; 0 if unknown
 uint32 GetPrimTypeSize(PrimType primType) {
-  if (primType == PTY_ref || primType == PTY_ptr) {
-#if TARGX86_64 || TARGAARCH64
-    primType = PTY_a64;
-#elif TARGX86 || TARGARM32 || TARGVM
-    primType = PTY_a32;
-#else
-    ASSERT(false, "NIY");
-#endif
-  }
   switch (primType) {
     case PTY_void:
     case PTY_agg:
@@ -574,6 +572,7 @@ void MIRArrayType::Dump(int indent, bool dontUseName) const {
   }
   LogInfo::MapleLogger() << " ";
   GlobalTables::GetTypeTable().GetTypeFromTyIdx(eTyIdx)->Dump(indent + 1);
+  GetTypeAttrs().DumpAttributes();
   LogInfo::MapleLogger() << ">";
 }
 
@@ -1254,7 +1253,7 @@ bool MIRArrayType::EqualTo(const MIRType &type) const {
     return false;
   }
   const auto &pType = static_cast<const MIRArrayType&>(type);
-  if (dim != pType.GetDim() || eTyIdx != pType.GetElemTyIdx()) {
+  if (dim != pType.GetDim() || eTyIdx != pType.GetElemTyIdx() || typeAttrs != pType.GetTypeAttrs()) {
     return false;
   }
   for (size_t i = 0; i < dim; ++i) {
@@ -1645,6 +1644,9 @@ bool MIRPtrType::IsPointedTypeVolatile(int fieldID) const {
   MIRType *pointedTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(GetPointedTyIdx());
   return pointedTy->IsVolatile(fieldID);
 }
+
+size_t MIRPtrType::GetSize() const { return POINTER_SIZE; }
+uint32 MIRPtrType::GetAlign() const { return POINTER_SIZE; }
 
 TyIdxFieldAttrPair MIRPtrType::GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldId) const {
   if (fldId == 0) {
