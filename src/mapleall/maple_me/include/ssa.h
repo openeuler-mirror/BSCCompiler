@@ -142,6 +142,8 @@ class SSA {
   SSATab *ssaTab;
   MapleVector<BB *> &bbVec;
   Dominance *dom;
+ public:
+  bool runRenameOnly = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSA_H

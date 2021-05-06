@@ -1527,6 +1527,7 @@ class IassignNode : public StmtNode {
  private:
   TyIdx tyIdx;
   FieldID fieldID;
+ public:
   BaseNode *addrExpr;
   BaseNode *rhs;
 };
@@ -1814,6 +1815,10 @@ class SwitchNode : public StmtNode {
 
   void SetDefaultLabel(LabelIdx idx) {
     defaultLabel = idx;
+  }
+
+  const CaseVector &GetSwitchTable() const {
+    return switchTable;
   }
 
   CaseVector &GetSwitchTable() {
