@@ -208,11 +208,11 @@ AliasElem &AliasClass::FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(OriginalSt &o
     osym2Elem.push_back(nullptr);
     ssaTab.GetVersionStTable().CreateZeroVersionSt(zeroFieldIDOst);
   }
-  FindOrCreateAliasElem(*zeroFieldIDOst);
+  (void)FindOrCreateAliasElem(*zeroFieldIDOst);
 
   OriginalSt *addrofOst = GetAliasAnalysisTable()->FindOrCreateAddrofSymbolOriginalSt(*zeroFieldIDOst);
   if (ost.GetFieldID() != 0) {
-    GetAliasAnalysisTable()->prevLevelNode.insert(std::make_pair(ost.GetIndex(), addrofOst));
+    (void)GetAliasAnalysisTable()->prevLevelNode.insert(std::make_pair(ost.GetIndex(), addrofOst));
     GetAliasAnalysisTable()->GetNextLevelNodes(*addrofOst)->push_back(&ost);
   }
   if (addrofOst->GetIndex() == osym2Elem.size()) {
@@ -234,7 +234,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
     case OP_dread: {
       OriginalSt *ost = static_cast<AddrofSSANode&>(expr).GetSSAVar()->GetOst();
       if (ost->GetFieldID() != 0) {
-        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+        (void)FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
       }
 
       AliasElem *ae = FindOrCreateAliasElem(*ost);
@@ -373,7 +373,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       // LHS
       OriginalSt *ost = ssaTab.GetStmtsSSAPart().GetAssignedVarOf(stmt)->GetOst();
       if (ost->GetFieldID() != 0) {
-        FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
+        (void)FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
       }
 
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
@@ -994,6 +994,46 @@ void AliasClass::CollectNotAllDefsSeenAes() {
   }
 }
 
+void AliasClass::UnionNextLevelOfAliasOst() {
+  std::map<uint32, std::vector<OriginalSt*>> rootId2AliasedOsts;
+  for (AliasElem *aliasElem : id2Elem) {
+    uint32 id = aliasElem->GetClassID();
+    uint32 rootID = unionFind.Root(id);
+    if (id != rootID) {
+      auto &ost = aliasElem->GetOriginalSt();
+      auto *nextLevelOsts = GetAliasAnalysisTable()->GetNextLevelNodes(ost);
+      (void)rootId2AliasedOsts[rootID].insert(
+          rootId2AliasedOsts[rootID].end(), nextLevelOsts->begin(), nextLevelOsts->end());
+    }
+  }
+  for (auto &rootIdPair : rootId2AliasedOsts) {
+    auto &nextLevelOsts = rootIdPair.second;
+    if (nextLevelOsts.empty()) {
+      continue;
+    }
+    auto &rootOst = id2Elem[rootIdPair.first]->GetOriginalSt();
+    auto *nextLevelOstOfRoot = GetAliasAnalysisTable()->GetNextLevelNodes(rootOst);
+    (void)nextLevelOsts.insert(nextLevelOsts.end(), nextLevelOstOfRoot->begin(), nextLevelOstOfRoot->end());
+
+    for (uint32 idA = 0; idA < nextLevelOsts.size(); ++idA) {
+      auto *ostA = nextLevelOsts[idA];
+      for (uint32 idB = idA + 1; idB < nextLevelOsts.size(); ++idB) {
+        auto *ostB = nextLevelOsts[idB];
+        bool hasFieldid0 = ostA->GetFieldID() == 0 || ostB->GetFieldID() == 0;
+        if ((ostA->GetFieldID() != ostB->GetFieldID()) && !hasFieldid0) {
+          continue;
+        }
+        if ((ostA->IsFinal() || ostB->IsFinal())) {
+          continue;
+        }
+        AliasElem *indaeA = FindAliasElem(*ostA);
+        AliasElem *indaeB = FindAliasElem(*ostB);
+        unionFind.Union(indaeA->GetClassID(), indaeB->GetClassID());
+      }
+    }
+  }
+}
+
 void AliasClass::CreateClassSets() {
   // iterate through all the alias elems
   for (AliasElem *aliasElem : id2Elem) {
@@ -1588,6 +1628,8 @@ void AliasClass::InsertMayDefUseIntrncall(StmtNode &stmt, BBId bbid) {
     for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
       InsertMayUseExpr(*stmt.Opnd(i));
     }
+  } else {
+    CollectMayUseForCallOpnd(stmt, mayDefUseOsts);
   }
   // 2. collect mayDefs and mayUses caused by not_all_defs_seen_ae
   CollectMayUseFromNADS(mayDefUseOsts);
