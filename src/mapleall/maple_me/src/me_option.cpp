@@ -95,6 +95,7 @@ bool MeOption::nativeOpt = true;
 bool MeOption::enableEA = false;
 bool MeOption::placementRC = false;
 bool MeOption::subsumRC = false;
+bool MeOption::performFSAA = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 #if MIR_JAVA
@@ -181,7 +182,7 @@ enum OptionIndex {
   kDassignPre,
   kAssign2finalPre,
   kSubsumRC,
-  kNoSubsumRC,
+  kPerformFSAA,
   kRegReadAtReturn,
   kProPatphi,
   kNoProPatphi,
@@ -747,6 +748,16 @@ const Descriptor kUsage[] = {
     "  --subsumrc               \tDelete decrements for localrefvars whose live range is just in\n"
     "                           \tanother which point to the same obj\n"
     "  --no-subsumrc            \tDisable subsumrc\n",
+    "me",
+    {} },
+  { kPerformFSAA,
+    kEnable,
+    "",
+    "performFSAA",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --performFSAA            \tPerform flow sensitive alias analysis\n"
+    "  --no-performFSAA         \tDisable flow sensitive alias analysis\n",
     "me",
     {} },
   { kCheckCastOpt,
@@ -1326,6 +1337,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
       case kSubsumRC:
         subsumRC = (opt.Type() == kEnable);
         epreIncludeRef = (opt.Type() == kEnable);
+        break;
+      case kPerformFSAA:
+        performFSAA = (opt.Type() == kEnable);
         break;
       case kMeInlineHint:
         inlineFuncList = opt.Args();

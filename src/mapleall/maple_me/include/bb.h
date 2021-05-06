@@ -284,6 +284,10 @@ class BB {
     return meStmtList.empty();
   }
 
+  bool IsReturnBB() const {
+    return kind == kBBReturn && !stmtNodeList.empty() && stmtNodeList.back().GetOpCode() == OP_return;
+  }
+
   void FindReachableBBs(std::vector<bool> &visitedBBs) const;
   void FindWillExitBBs(std::vector<bool> &visitedBBs) const;
   const PhiNode *PhiofVerStInserted(const VersionSt &versionSt) const;
@@ -466,7 +470,9 @@ class BB {
   uint32 frequency = 0;
   BBKind kind = kBBUnknown;
   uint32 attributes = 0;
+ public:
   StmtNodes stmtNodeList;
+ private:
   MeStmts meStmtList;
   BB *group;
 };

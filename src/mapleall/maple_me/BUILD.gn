@@ -88,6 +88,7 @@ src_libmplme = [
   "src/me_subsum_rc.cpp",
   "src/me_func_opt.cpp",
   "src/me_verify.cpp",
+  "src/me_fsaa.cpp",
 ]
 
 src_libmplmewpo = [

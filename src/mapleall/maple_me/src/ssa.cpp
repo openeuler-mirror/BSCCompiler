@@ -43,8 +43,12 @@ VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
     return &vSym;
   }
   ASSERT(vSym.GetVersion() == kInitVersion, "renamed before");
-  VersionSt *newVersionSym =
-      ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
+  VersionSt *newVersionSym = nullptr;
+  if (!runRenameOnly) {
+    newVersionSym = ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
+  } else {
+    newVersionSym = &vSym;
+  }
   vstStacks[vSym.GetOrigIdx()]->push(newVersionSym);
   newVersionSym->SetDefBB(&defBB);
   return newVersionSym;

@@ -121,6 +121,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool nativeOpt;
   static bool placementRC;
   static bool subsumRC;
+  static bool performFSAA;
   static std::string inlineFuncList;
   static bool meVerify;
 #if MIR_JAVA
