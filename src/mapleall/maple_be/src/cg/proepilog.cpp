@@ -28,6 +28,9 @@ namespace maplebe {
 using namespace maple;
 
 Insn *GenProEpilog::InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter) {
+  if (cgFunc.GenCfi() == false) {
+    return &insertAfter;
+  }
   CG *currCG = cgFunc.GetCG();
   ASSERT(currCG != nullptr, "get cg failed in InsertCFIDefCfaOffset");
   cfiOffset = AddtoOffsetFromCFA(cfiOffset);
