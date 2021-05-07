@@ -295,6 +295,10 @@ class MIRModule {
     return srcLang == kSrcLangC || srcLang == kSrcLangCPlusPlus;
   }
 
+  bool IsCPlusPlusModule() const {
+    return srcLang == kSrcLangCPlusPlus;
+  }
+
   bool IsCharModule() const {
     return srcLang == kSrcLangChar;
   }
@@ -554,7 +558,7 @@ class MIRModule {
   void SetWithDbgInfo(bool v) {
     withDbgInfo = v;
   }
-  bool IsWithDbgInfo() {
+  bool IsWithDbgInfo() const {
     return withDbgInfo;
   }
 
@@ -585,7 +589,7 @@ class MIRModule {
   TyIdx throwableTyIdx{0};  // a special type that is the base of java exception type. only used for java
   bool withProfileInfo = false;
 
-  DebugInfo *dbgInfo;
+  DebugInfo *dbgInfo = nullptr;
   bool withDbgInfo = false;
 
   // for cg in mplt

@@ -840,7 +840,7 @@ void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg 
   AppendInstructionTo(pushInsn, cgFunc);
 
   /* Append CFi code */
-  if (!CGOptions::IsNoCalleeCFI()) {
+  if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
     int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
     stackFrameSize -= cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
     int32 cfiOffset = stackFrameSize - offset;
@@ -870,7 +870,7 @@ void AArch64GenProEpilog::AppendInstructionPushSingle(AArch64reg reg, RegType rt
   AppendInstructionTo(pushInsn, cgFunc);
 
   /* Append CFI code */
-  if (!CGOptions::IsNoCalleeCFI()) {
+  if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
     int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
     stackFrameSize -= cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
     int32 cfiOffset = stackFrameSize - offset;
@@ -1029,9 +1029,11 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
   if (!cgFunc.HasVLAOrAlloca()) {
     cfiOffsetSecond -= argsToStkPassSize;
   }
-  BB *curBB = cgFunc.GetCurBB();
-  ipoint = curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RFP, -cfiOffsetSecond, k64BitSize));
-  curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffsetSecond + kOffset8MemPos, k64BitSize));
+  if (cgFunc.GenCfi()) {
+    BB *curBB = cgFunc.GetCurBB();
+    ipoint = curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RFP, -cfiOffsetSecond, k64BitSize));
+    curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffsetSecond + kOffset8MemPos, k64BitSize));
+  }
 }
 
 void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty) {
@@ -1100,9 +1102,11 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
     CHECK_FATAL(ipoint != nullptr, "ipoint should not be nullptr at this point");
     cfiOffset = GetOffsetFromCFA();
   }
-  BB *curBB = cgFunc.GetCurBB();
-  ipoint = curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RFP, -cfiOffset, k64BitSize));
-  curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + kOffset8MemPos, k64BitSize));
+  if (cgFunc.GenCfi()) {
+    BB *curBB = cgFunc.GetCurBB();
+    ipoint = curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RFP, -cfiOffset, k64BitSize));
+    curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffset + kOffset8MemPos, k64BitSize));
+  }
 }
 
 /*
@@ -1151,14 +1155,18 @@ void AArch64GenProEpilog::GeneratePushRegs() {
     Operand &immOpnd = aarchCGFunc.CreateImmOperand(argsToStkPassSize, k32BitSize, true);
     aarchCGFunc.SelectAdd(fpOpnd, spOpnd, immOpnd, PTY_u64);
     cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(
-        RFP, static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() - argsToStkPassSize,
-        k64BitSize));
+    if (cgFunc.GenCfi()) {
+      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(
+          RFP, static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() - argsToStkPassSize,
+          k64BitSize));
+    }
   } else {
     aarchCGFunc.SelectCopy(fpOpnd, PTY_u64, spOpnd, PTY_u64);
     cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
-    cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_register,
-        aarchCGFunc.CreateCfiRegOperand(RFP, k64BitSize)));
+    if (cgFunc.GenCfi()) {
+      cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_register,
+          aarchCGFunc.CreateCfiRegOperand(RFP, k64BitSize)));
+    }
   }
 
   MapleVector<AArch64reg>::const_iterator it = regsToSave.begin();
@@ -1313,15 +1321,19 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       Operand &immOpnd = aarchCGFunc.CreateImmOperand(argsToStkPassSize, k32BitSize, true);
       aarchCGFunc.SelectAdd(fpOpnd, spOpnd, immOpnd, PTY_u64);
       cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(
-          RFP, static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() - argsToStkPassSize,
-          k64BitSize));
+      if (cgFunc.GenCfi()) {
+        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(
+            RFP, static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() - argsToStkPassSize,
+            k64BitSize));
+      }
     } else {
       aarchCGFunc.SelectCopy(fpOpnd, PTY_u64, spOpnd, PTY_u64);
       cgFunc.GetCurBB()->GetLastInsn()->SetFrameDef(true);
-      cgFunc.GetCurBB()->AppendInsn(
-          currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_register,
-                                                 aarchCGFunc.CreateCfiRegOperand(RFP, k64BitSize)));
+      if (cgFunc.GenCfi()) {
+        cgFunc.GetCurBB()->AppendInsn(
+            currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_def_cfa_register,
+                                                   aarchCGFunc.CreateCfiRegOperand(RFP, k64BitSize)));
+      }
     }
   }
   GeneratePushUnnamedVarargRegs();
@@ -1386,7 +1398,7 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(AArch64reg reg, RegType rty
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 
   /* Append CFI code. */
-  if (!CGOptions::IsNoCalleeCFI()) {
+  if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
     cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(reg, k64BitSize));
   }
 }
@@ -1409,7 +1421,7 @@ void AArch64GenProEpilog::AppendInstructionPopPair(AArch64reg reg0, AArch64reg r
   cgFunc.GetCurBB()->AppendInsn(popInsn);
 
   /* Append CFI code */
-  if (!CGOptions::IsNoCalleeCFI()) {
+  if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
     cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(reg0, k64BitSize));
     cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(reg1, k64BitSize));
   }
@@ -1449,10 +1461,12 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
     Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
     aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
-    int64 cfiOffset = GetOffsetFromCFA();
-    BB *curBB = cgFunc.GetCurBB();
-    curBB->InsertInsnAfter(*(curBB->GetLastInsn()),
-                           aarchCGFunc.CreateCfiDefCfaInsn(RSP, cfiOffset - stackFrameSize, k64BitSize));
+    if (cgFunc.GenCfi()) {
+      int64 cfiOffset = GetOffsetFromCFA();
+      BB *curBB = cgFunc.GetCurBB();
+      curBB->InsertInsnAfter(*(curBB->GetLastInsn()),
+                             aarchCGFunc.CreateCfiDefCfaInsn(RSP, cfiOffset - stackFrameSize, k64BitSize));
+    }
   }
 
   if (!cgFunc.HasVLAOrAlloca() && argsToStkPassSize > 0) {
@@ -1471,9 +1485,11 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
     cgFunc.GetCurBB()->AppendInsn(deallocInsn);
   }
 
-  /* Append CFI restore */
-  cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
-  cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+  if (cgFunc.GenCfi()) {
+    /* Append CFI restore */
+    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
+    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+  }
 }
 
 void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg reg0, AArch64reg reg1, RegType rty) {
@@ -1495,9 +1511,11 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       o2 = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RSP, 0, kSizeOfPtr * kBitsPerByte);
       Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, *o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
-      /* Append CFI restore */
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+      if (cgFunc.GenCfi()) {
+        /* Append CFI restore */
+        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
+        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+      }
       Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
       Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
       aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
@@ -1505,8 +1523,10 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       AArch64MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(stackFrameSize, kSizeOfPtr * kBitsPerByte);
       Insn &deallocInsn = currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, o2);
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
-      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+      if (cgFunc.GenCfi()) {
+        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
+        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+      }
     }
   } else {
     Operand *o2;
@@ -1518,8 +1538,10 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
       cgFunc.GetCurBB()->AppendInsn(deallocInsn);
     }
 
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+    if (cgFunc.GenCfi()) {
+      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RFP, k64BitSize));
+      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiRestoreInsn(RLR, k64BitSize));
+    }
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
     Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
     aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
@@ -1603,7 +1625,9 @@ void AArch64GenProEpilog::GeneratePopRegs() {
     AppendInstructionDeallocateCallFrameDebug(RFP, RLR, kRegTyInt);
   }
 
-  cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(RSP, 0, k64BitSize));
+  if (cgFunc.GenCfi()) {
+    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(RSP, 0, k64BitSize));
+  }
   /*
    * in case we split stp/ldp instructions,
    * so that we generate a load-into-base-register instruction
@@ -1653,7 +1677,7 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
       }
       nextBB = nextBB->GetNext();
     } while (nextBB != nullptr);
-    if (nextBB != nullptr && !nextBB->IsEmpty()) {
+    if (nextBB != nullptr && !nextBB->IsEmpty() && cgFunc.GenCfi()) {
       cgFunc.GetCurBB()->AppendInsn(currCG->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_remember_state));
       cgFunc.GetCurBB()->SetHasCfi();
       nextBB->InsertInsnBefore(*nextBB->GetFirstInsn(),
@@ -1679,7 +1703,9 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
       if (stackFrameSize > 0) {
         Operand &immOpnd = aarchCGFunc.CreateImmOperand(stackFrameSize, k32BitSize, true);
         aarchCGFunc.SelectAdd(spOpnd, spOpnd, immOpnd, PTY_u64);
-        cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(RSP, 0, k64BitSize));
+        if (cgFunc.GenCfi()) {
+          cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCfiDefCfaInsn(RSP, 0, k64BitSize));
+        }
       }
     }
   }

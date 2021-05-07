@@ -124,6 +124,9 @@ void LabelOperand::Dump() const {
 
 namespace maplebe {
 AnalysisResult *CgDoGenCfi::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
+  if (cgFunc->GenCfi() == false) {
+    return nullptr;
+  }
   (void)cgFuncResultMgr;
   ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoGenCfi");
   cgFunc->GenerateCfiPrologEpilog();
