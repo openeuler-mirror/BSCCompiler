@@ -95,7 +95,7 @@ bool MeOption::nativeOpt = true;
 bool MeOption::enableEA = false;
 bool MeOption::placementRC = false;
 bool MeOption::subsumRC = false;
-bool MeOption::performFSAA = false;
+bool MeOption::performFSAA = true;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 #if MIR_JAVA
