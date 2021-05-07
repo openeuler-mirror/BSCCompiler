@@ -141,8 +141,10 @@ class CGLowerer {
   BaseNode *LowerCArray(ArrayNode &array);
 
   DassignNode *SaveReturnValueInLocal(StIdx, uint16);
-  void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retTy = nullptr);
-  BlockNode *LowerCallAssignedStmt(StmtNode &stmt);
+  void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false);
+  BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
+  bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar);
+
   BaseNode *LowerRem(BaseNode &rem, BlockNode &block);
 
   void LowerStmt(StmtNode &stmt, BlockNode &block);
@@ -161,7 +163,7 @@ class CGLowerer {
   virtual BlockNode *LowerReturn(NaryStmtNode &retNode);
   void LowerEntry(MIRFunction &func);
 
-  StmtNode *LowerCall(CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retTy = nullptr);
+  StmtNode *LowerCall(CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retty = nullptr, bool uselvar = false);
   void SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, BlockNode &newBlk);
 
   void CleanupBranches(MIRFunction &func) const;
@@ -223,7 +225,7 @@ class CGLowerer {
    * Such intrinsics will bypass the lowering of "assigned",
    * and let mplcg handle the intrinsic results which are not return values.
    */
-  bool IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic);
+  bool IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) const;
 
   bool IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic);
 
@@ -262,7 +264,7 @@ class CGLowerer {
                                     IntrinsiccallNode &origCall);
   StmtNode *GenIcallNode(PUIdx &funcCalled, IcallNode &origCall);
   BlockNode *GenBlockNode(StmtNode &newCall, const CallReturnVector &p2nRets, const Opcode &opcode,
-                          const PUIdx &funcCalled, bool handledAtLowerLevel);
+                          const PUIdx &funcCalled, bool handledAtLowerLevel, bool uselvar);
   BaseNode *GetClassInfoExprFromRuntime(const std::string &classInfo);
   BaseNode *GetClassInfoExprFromArrayClassCache(const std::string &classInfo);
   BaseNode *GetClassInfoExpr(const std::string &classInfo);
