@@ -85,6 +85,9 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
       mayDef.SetResult(newVersionSym);
       newVersionSym->SetDefType(VersionSt::kMayDef);
       newVersionSym->SetMayDef(&mayDef);
+      if (opcode == OP_iassign && mayDef.base != nullptr) {
+        mayDef.base = vstStacks[mayDef.base->GetOrigIdx()]->top();
+      }
     }
   }
 }
