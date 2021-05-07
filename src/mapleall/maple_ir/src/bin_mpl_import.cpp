@@ -1021,7 +1021,7 @@ PUIdx BinaryMplImport::ImportFunction() {
     mod.SetCurFunction(nullptr);
     return 0;
   } else if (tag < 0) {
-    CHECK_FATAL(static_cast<size_t>(-tag) < funcTab.size(), "index out of bounds");
+    CHECK_FATAL(-tag <= funcTab.size(), "index out of bounds");
     if (-tag == funcTab.size()) { // function was exported before its symbol
       return (PUIdx)0;
     }
@@ -1186,7 +1186,7 @@ void BinaryMplImport::ReadTypeField() {
     }
   } else {
     for (int64 i = 0; i < size; ++i) {
-      ImportTypeNonJava();
+      (void)ImportTypeNonJava();
     }
   }
   int64 tag = 0;
