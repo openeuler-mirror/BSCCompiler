@@ -180,6 +180,9 @@ bool Prop::Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const
       if (LocalToDifferentPU(st->GetStIdx(), fromBB)) {
         return false;
       }
+      if (varMeExpr.GetDefBy() == kDefByMustDef && varMeExpr.GetType()->GetPrimType() == PTY_agg) {
+        return false;  // keep temps for storing call return values single use
+      }
       // get the current definition version
       std::vector<const MeExpr*> varMeExprVec;
       CollectSubVarMeExpr(expr, varMeExprVec);
@@ -214,6 +217,13 @@ bool Prop::Propagatable(const MeExpr &expr, const BB &fromBB, bool atParm) const
     }
     case kMeOpOp: {
       if (kOpcodeInfo.NotPure(expr.GetOp())) {
+        return false;
+      }
+      break;
+    }
+    case kMeOpConststr:
+    case kMeOpConststr16: {
+      if (mirModule.IsCModule()) {
         return false;
       }
       break;
