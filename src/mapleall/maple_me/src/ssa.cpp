@@ -43,8 +43,12 @@ VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
     return &vSym;
   }
   ASSERT(vSym.GetVersion() == kInitVersion, "renamed before");
-  VersionSt *newVersionSym =
-      ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
+  VersionSt *newVersionSym = nullptr;
+  if (!runRenameOnly) {
+    newVersionSym = ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
+  } else {
+    newVersionSym = &vSym;
+  }
   vstStacks[vSym.GetOrigIdx()]->push(newVersionSym);
   newVersionSym->SetDefBB(&defBB);
   return newVersionSym;
@@ -81,6 +85,9 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
       mayDef.SetResult(newVersionSym);
       newVersionSym->SetDefType(VersionSt::kMayDef);
       newVersionSym->SetMayDef(&mayDef);
+      if (opcode == OP_iassign && mayDef.base != nullptr) {
+        mayDef.base = vstStacks[mayDef.base->GetOrigIdx()]->top();
+      }
     }
   }
 }
