@@ -455,7 +455,7 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
     }
     case OP_sub: {
       if (useResult64) {
-        result64 = static_cast<uint64>(intValueOfConst0 - intValueOfConst1);
+        result64 = static_cast<uint64>(intValueOfConst0) - static_cast<uint64>(intValueOfConst1);
       } else {
         result32 = static_cast<uint32>(intValueOfConst0) - static_cast<uint32>(intValueOfConst1);
       }
@@ -1191,16 +1191,14 @@ template <class T>
 T ConstantFold::CalIntValueFromFloatValue(T value, const MIRType &resultType) const {
   ASSERT(kByteSizeOfBit64 >= resultType.GetSize(), "unsurpported type");
   size_t shiftNum = (kByteSizeOfBit64 - resultType.GetSize()) * kBitSizePerByte;
-  int64 max = 0;
-  int64 min = 0;
-  if (IsSignedInteger(resultType.GetPrimType())) {
-    max = static_cast<int64>(LONG_LONG_MAX >> shiftNum);
-    min = (LONG_LONG_MIN >> shiftNum);
-  } else {
-    max = static_cast<int64>(ULONG_LONG_MAX >> shiftNum);
-  }
-  if (value > max) {
+  bool isSigned = IsSignedInteger(resultType.GetPrimType());
+  int64 max = LONG_LONG_MAX >> shiftNum;
+  uint64 umax = ULONG_LONG_MAX >> shiftNum;
+  int64 min = isSigned ? (LONG_LONG_MIN >> shiftNum) : 0;
+  if (isSigned && (value > max)) {
     return max;
+  } else if (!isSigned && (value > umax)) {
+    return umax;
   } else if (value < min) {
     return min;
   }
@@ -1613,7 +1611,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
     } else if ((op == OP_bior || op == OP_bxor) && cst == 0) {
       // 0 | X -> X
       // 0 ^ X -> X
-      sum = 0;
+      sum = rp.second;
       result = r;
     } else {
       result = NewBinaryNode(node, op, primType, l, PairToExpr(rPrimTypes, rp));
@@ -1643,7 +1641,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = l;
     } else if (op == OP_band && cst == -1) {
       // X & (-1) -> X
-      sum = 0;
+      sum = lp.second;
       result = l;
     } else if (op == OP_bior && cst == -1) {
       // X | (-1) -> -1
@@ -1656,6 +1654,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
         result = mirModule->GetMIRBuilder()->CreateIntConst(1, cstTyp);
       } else if (cst == 0) {
         // X || 0 -> X
+        sum = lp.second;
         result = l;
       } else {
         result = NewBinaryNode(node, op, primType, PairToExpr(lPrimTypes, lp), r);
@@ -1665,7 +1664,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // X << 0 -> X
       // X | 0 -> X
       // X ^ 0 -> X
-      sum = 0;
+      sum = lp.second;
       result = l;
     } else if (op == OP_bxor && cst == 1 && primType != PTY_u1) {
       // bxor i32 (

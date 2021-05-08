@@ -19,9 +19,6 @@
 #include "mir_symbol.h"
 #include "orig_symbol.h"
 
-// This file defines the data structure VersionSt that represents an SSA version
-struct BBId;
-
 namespace maple {
 class BB;  // circular dependency exists, no other choice
 class PhiNode;  // circular dependency exists, no other choice
@@ -60,7 +57,7 @@ class VersionSt {
     defBB = defbb;
   }
 
-  const BB *GetDefBB() const {
+  BB *GetDefBB() const {
     return defBB;
   }
 
