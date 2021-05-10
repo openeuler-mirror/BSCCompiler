@@ -65,6 +65,7 @@ bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;
 bool CGOptions::doGlobalOpt = false;
+bool CGOptions::doMultiPassColorRA = false;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
 bool CGOptions::doSchedule = false;
@@ -119,6 +120,7 @@ enum OptionIndex : uint64 {
   kPeep,
   kPreSchedule,
   kSchedule,
+  kMultiPassRA,
   kWriteRefFieldOpt,
   kDumpOlog,
   kCGNativeOpt,
@@ -403,6 +405,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --schedule                  \tPerform scheduling\n"
     "  --no-schedule\n",
+    "mplcg",
+    {} },
+  { kMultiPassRA,
+    kEnable,
+    "",
+    "fullcolor",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --fullcolor                  \tPerform multi-pass coloring RA\n"
+    "  --no-fullcolor\n",
     "mplcg",
     {} },
   { kWriteRefFieldOpt,
@@ -1265,6 +1277,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kSchedule:
         (opt.Type() == kEnable) ? EnableSchedule() : DisableSchedule();
+        break;
+      case kMultiPassRA:
+        (opt.Type() == kEnable) ? EnableMultiPassColorRA() : DisableMultiPassColorRA();
         break;
       case kWriteRefFieldOpt:
         (opt.Type() == kEnable) ? EnableWriteRefFieldOpt() : DisableWriteRefFieldOpt();

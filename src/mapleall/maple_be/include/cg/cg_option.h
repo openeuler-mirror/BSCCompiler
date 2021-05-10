@@ -650,6 +650,19 @@ class CGOptions : public MapleDriverOptionBase {
   static bool DoGlobalOpt() {
     return doGlobalOpt;
   }
+
+  static void EnableMultiPassColorRA() {
+    doMultiPassColorRA = true;
+  }
+
+  static void DisableMultiPassColorRA() {
+    doMultiPassColorRA = false;
+  }
+
+  static bool DoMultiPassColorRA() {
+    return doMultiPassColorRA;
+  }
+
   static void EnablePreLSRAOpt() {
     doPreLSRAOpt = true;
   }
@@ -1040,6 +1053,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doICO;
   static bool doStoreLoadOpt;
   static bool doGlobalOpt;
+  static bool doMultiPassColorRA;
   static bool doPrePeephole;
   static bool doPeephole;
   static bool doSchedule;
