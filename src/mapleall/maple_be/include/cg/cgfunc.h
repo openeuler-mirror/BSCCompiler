@@ -216,8 +216,6 @@ class CGFunc {
   virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1) = 0;
-  virtual void SelectDepositBits(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 boffset, uint32 bitSize,
-                                 PrimType primType1) = 0;
   virtual Operand *SelectLnot(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectNeg(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectRecip(UnaryNode &node, Operand &opnd0) = 0;
