@@ -535,7 +535,7 @@ bool AArch64CGFunc::IsStoreMop(MOperator mOp) const {
   }
 }
 
-void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg) {
+void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg, Insn *curInsn) {
   bool useMovz = BetterUseMOVZ(immVal);
   bool useMovk = false;
   /* get lower 32 bits of the immediate */
@@ -550,6 +550,7 @@ void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg
   }
 
   uint64 sa = 0;
+  auto *bb = (curInsn != nullptr) ? curInsn->GetBB() : GetCurBB();
   for (int64 i = 0 ; i < maxLoopTime; ++i, sa += k16BitSize) {
     /* create an imm opereand which represents the i-th 16-bit chunk of the immediate */
     uint64 chunkVal = (static_cast<uint64>(immVal) >> sa) & 0x0000FFFFULL;
@@ -558,16 +559,22 @@ void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg
     }
     ImmOperand &src16 = CreateImmOperand(chunkVal, k16BitSize, false);
     LogicalShiftLeftOperand *lslOpnd = GetLogicalShiftLeftOperand(sa, true);
+    Insn *newInsn = nullptr;
     if (!useMovk) {
       /* use movz or movn */
       if (!useMovz) {
         src16.BitwiseNegate();
       }
       MOperator mOpCode = useMovz ? MOP_xmovzri16 : MOP_xmovnri16;
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpCode, destReg, src16, *lslOpnd));
+      newInsn = &GetCG()->BuildInstruction<AArch64Insn>(mOpCode, destReg, src16, *lslOpnd);
       useMovk = true;
     } else {
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovkri16, destReg, src16, *lslOpnd));
+      newInsn = &GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovkri16, destReg, src16, *lslOpnd);
+    }
+    if (curInsn != nullptr) {
+      bb->InsertInsnBefore(*curInsn, *newInsn);
+    } else {
+      bb->AppendInsn(*newInsn);
     }
   }
 
@@ -575,7 +582,11 @@ void AArch64CGFunc::SplitMovImmOpndInstruction(int64 immVal, RegOperand &destReg
     /* copy lower 32 bits to higher 32 bits */
     AArch64ImmOperand &immOpnd = CreateImmOperand(k32BitSize, k8BitSize, false);
     Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MPO_xbfirri6i6, destReg, destReg, immOpnd, immOpnd);
-    GetCurBB()->AppendInsn(insn);
+    if (curInsn != nullptr) {
+      bb->InsertInsnBefore(*curInsn, insn);
+    } else {
+      bb->AppendInsn(insn);
+    }
   }
 }
 
@@ -1503,21 +1514,28 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
     ASSERT(alignUsed != 0, "expect non-zero");
     for (uint32 i = 0; i < (lhsSize / alignUsed); i++) {
       /* generate the load */
+      uint32 operandSize = alignUsed * k8BitSize;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsOffset + i * alignUsed, k32BitSize);
-      Operand &rhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, alignUsed * k8BitSize,
+      Operand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, operandSize,
           static_cast<AArch64RegOperand*>(rhsAddrOpnd), nullptr, &rhsOfstOpnd, nullptr);
+      if (IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(rhsMemOpnd), operandSize)) {
+        rhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(rhsMemOpnd), operandSize);
+      }
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, alignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
       Insn &insn =
-          GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(alignUsed * k8BitSize, PTY_u32), result, rhsMemOpnd);
+          GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(operandSize, PTY_u32), result, *rhsMemOpnd);
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
       /* generate the store */
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsOffset + i * alignUsed, k32BitSize);
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, alignUsed * k8BitSize,
+      Operand *lhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, operandSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &lhsOfstOpnd, nullptr);
+      if (IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(lhsMemOpnd), operandSize)) {
+        lhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(lhsMemOpnd), operandSize);
+      }
       GetCurBB()->AppendInsn(
-          GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(alignUsed * k8BitSize, PTY_u32), result, lhsMemOpnd));
+          GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(operandSize, PTY_u32), result, *lhsMemOpnd));
     }
     /* take care of extra content at the end less than the unit of alignUsed */
     uint64 lhsSizeCovered = (lhsSize / alignUsed) * alignUsed;
@@ -2641,27 +2659,6 @@ void AArch64CGFunc::SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
       uint32 zeroNum = __builtin_ffsll(immValue) - 1;
       int64 headVal = static_cast<uint64>(immValue) >> zeroNum;
       /*
-       * if (headVal + 1) & (headVal) == 0, that is (immVal >> zeroNum) + 1 == 1 << n
-       *   otherOp * immVal = (otherOp * (immVal >> zeroNum) * (1 << zeroNum)
-       *                    = (otherOp * ((immVal >> zeroNum) + 1) - otherOp) * (1 << zeroNum)
-       */
-      if (((static_cast<uint64>(headVal) + 1) & static_cast<uint64>(headVal)) == 0) {
-        if (otherOp->GetKind() != Operand::kOpdRegister) {
-          otherOp = &SelectCopy(*otherOp, primType, primType);
-        }
-        AArch64ImmOperand &shiftNum1 = CreateImmOperand(__builtin_ffsll(headVal + 1) - 1, dsize, false);
-        RegOperand &tmpOpnd = CreateRegisterOperandOfType(primType);
-        SelectShift(tmpOpnd, *otherOp, shiftNum1, kShiftLeft, primType);
-        SelectSub(resOpnd, tmpOpnd, *otherOp, primType);
-        AArch64ImmOperand &shiftNum2 = CreateImmOperand(zeroNum, dsize, false);
-        SelectShift(resOpnd, resOpnd, shiftNum2, kShiftLeft, primType);
-        if (imm->GetValue() < 0) {
-          SelectNeg(resOpnd, resOpnd, primType);
-        }
-
-        return;
-      }
-      /*
        * if (headVal - 1) & (headVal - 2) == 0, that is (immVal >> zeroNum) - 1 == 1 << n
        * otherOp * immVal = (otherOp * (immVal >> zeroNum) * (1 << zeroNum)
        * = (otherOp * ((immVal >> zeroNum) - 1) + otherOp) * (1 << zeroNum)
@@ -2836,7 +2833,6 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
     const int64 dividor = (imm.GetValue() >= 0) ? imm.GetValue() : ((-1) * imm.GetValue());
     const int64 Log2OfDividor = IsPowerOf2(dividor);
     if ((dividor != 0) && (Log2OfDividor > 0)) {
-      GetCurBB()->RemoveInsn(*GetCurBB()->GetLastInsn());
       if (is64Bits) {
         CHECK_FATAL(Log2OfDividor < k64BitSize, "imm out of bound");
         AArch64ImmOperand &rightShiftValue = CreateImmOperand(k64BitSize - Log2OfDividor, k64BitSize, isSigned);
@@ -3503,9 +3499,10 @@ inline bool IsMoveWideKeepable(uint32 bitOffset, uint32 bitSize, bool is64Bits) 
 }
 
 /* we use the fact that A ^ B ^ A == B, A ^ 0 = A */
-void AArch64CGFunc::SelectDepositBits(Operand &resOpnd, Operand &opnd0, Operand &opnd1, uint32 bitOffset,
-                                      uint32 bitSize, PrimType regType) {
-  RegOperand &t1opnd = CreateRegisterOperandOfType(regType);
+Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1) {
+  uint32 bitOffset = node.GetBitsOffset();
+  uint32 bitSize = node.GetBitsSize();
+  PrimType regType = node.GetPrimType();
   bool is64Bits = GetPrimTypeBitSize(regType) == k64BitSize;
   /*
    * if operand 1 is immediate and fits in MOVK, use it
@@ -3513,38 +3510,20 @@ void AArch64CGFunc::SelectDepositBits(Operand &resOpnd, Operand &opnd0, Operand 
    * MOVK Xd, #imm{, LSL #shift} ; 64-bit general registers
    */
   if (opnd1.IsIntImmediate() && IsMoveWideKeepable(bitOffset, bitSize, is64Bits)) {
+    RegOperand &resOpnd = CreateRegisterOperandOfType(regType);
     SelectCopy(resOpnd, regType, opnd0, regType);
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>((is64Bits ? MOP_xmovkri16 : MOP_wmovkri16),
                                                                   resOpnd, opnd1,
                                                                   *GetLogicalShiftLeftOperand(bitOffset, is64Bits)));
+    return &resOpnd;
   } else {
-    /*
-     * Merge-form of Itanium deposit
-     * 1. (opnd0>>bitsOffset) ^ opnd1
-     */
-    int32 bitLen = is64Bits ? kBitLenOfShift64Bits : kBitLenOfShift32Bits;
-    Operand &shiftOpnd = CreateBitShiftOperand(BitShiftOperand::kLSR, bitOffset, bitLen);
-    /* bit-shift the first operand to the right by offset and XOR with the second operand */
-    SelectBxorShift(t1opnd, &opnd1, &opnd0, shiftOpnd, regType);
-    /*
-     * bit-shift the result to the left by offset, retain size bits from offset, clear the rest.
-     * ubfiz t1opnd, bitsOffset, size
-     */
-    uint32 mopUbfiz = is64Bits ? MOP_xubfizrri6i6 : MOP_wubfizrri5i5;
-    /* XOR the result with the first operand */
+    Operand &movOpnd = LoadIntoRegister(opnd1, regType);
+    uint32 mopBfi = is64Bits ? MPO_xbfirri6i6 : MPO_wbfirri5i5;
     AArch64ImmOperand &immOpnd1 = CreateImmOperand(bitOffset, k8BitSize, false);
     AArch64ImmOperand &immOpnd2 = CreateImmOperand(bitSize, k8BitSize, false);
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopUbfiz, t1opnd, t1opnd, immOpnd1, immOpnd2));
-    /* opnd0 ^ t1opnd */
-    SelectBxor(resOpnd, opnd0, t1opnd, regType);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mopBfi, opnd0, movOpnd, immOpnd1, immOpnd2));
+    return &opnd0;
   }
-}
-
-Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1) {
-  PrimType dtype = node.GetPrimType();
-  RegOperand &resOpnd = CreateRegisterOperandOfType(dtype);
-  SelectDepositBits(resOpnd, opnd0, opnd1, node.GetBitsOffset(), node.GetBitsSize(), dtype);
-  return &resOpnd;
 }
 
 Operand *AArch64CGFunc::SelectLnot(UnaryNode &node, Operand &srcOpnd) {
