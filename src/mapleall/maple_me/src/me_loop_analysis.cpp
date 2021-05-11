@@ -203,7 +203,9 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
   }
   if (!loop.Has(*loop.head->GetPred(0))) {
     loop.preheader = loop.head->GetPred(0);
-    CHECK_FATAL(loop.preheader->GetKind() == kBBFallthru, "must be kBBFallthru");
+    CHECK_FATAL(loop.preheader->GetKind() == kBBFallthru ||
+                loop.preheader->GetKind() == kBBGoto, 
+                "must be kBBFallthru or kBBGoto");
     CHECK_FATAL(loop.Has(*loop.head->GetPred(1)), "must be latch bb");
     loop.latch = loop.head->GetPred(1);
     CHECK_FATAL(!loop.latch->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");

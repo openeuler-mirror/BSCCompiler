@@ -1202,7 +1202,7 @@ class MeStmt {
     return false;
   }
 
-  virtual void SetNeedIncref(bool val = true) {}
+  virtual void SetNeedIncref(bool) {}
 
   virtual void EnableNeedIncref() {}
 
@@ -1482,10 +1482,9 @@ class PiassignMeStmt : public MeStmt {
 
 class AssignMeStmt : public MeStmt {
  public:
-  AssignMeStmt(const StmtNode *stt) : MeStmt(stt) {}
+  explicit AssignMeStmt(const StmtNode *stt) : MeStmt(stt) {}
 
-  explicit AssignMeStmt(Opcode op, ScalarMeExpr *thelhs, MeExpr *rhsVal): MeStmt(op), rhs(rhsVal), lhs(thelhs) {
-  }
+  AssignMeStmt(Opcode op, ScalarMeExpr *theLhs, MeExpr *rhsVal): MeStmt(op), rhs(rhsVal), lhs(theLhs) {}
 
   ~AssignMeStmt() = default;
 
@@ -1527,6 +1526,14 @@ class AssignMeStmt : public MeStmt {
     needDecref = value;
   }
 
+  void EnableNeedDecref() {
+    needDecref = true;
+  }
+
+  void DisableNeedDecref() {
+    needDecref = false;
+  }
+
   ScalarMeExpr *GetLHS() const {
     return lhs;
   }
@@ -1564,8 +1571,8 @@ class DassignMeStmt : public AssignMeStmt {
       : AssignMeStmt(stt),
         chiList(std::less<OStIdx>(), alloc->Adapter()) {}
 
-  explicit DassignMeStmt(MapleAllocator *alloc, VarMeExpr *thelhs, MeExpr *rhsVal)
-      : AssignMeStmt(OP_dassign, thelhs, rhsVal),
+  DassignMeStmt(MapleAllocator *alloc, VarMeExpr *theLhs, MeExpr *rhsVal)
+      : AssignMeStmt(OP_dassign, theLhs, rhsVal),
         chiList(std::less<OStIdx>(), alloc->Adapter()) {}
 
   DassignMeStmt(MapleAllocator *alloc, const DassignMeStmt *dass)
@@ -1609,8 +1616,6 @@ class DassignMeStmt : public AssignMeStmt {
   }
 
   MeExpr *GetLHSRef(bool excludeLocalRefVar);
-
-
   StmtNode &EmitStmt(SSATab &ssaTab);
 
  private:
@@ -1939,8 +1944,14 @@ class AssignedPart {
  public:
   explicit AssignedPart(MapleAllocator *alloc) : mustDefList(alloc->Adapter()) {}
 
-  explicit AssignedPart(const MapleVector<MustDefMeNode> &mustDefList)
-      : mustDefList(mustDefList) {}
+  AssignedPart(MapleAllocator *alloc, MeStmt *defStmt, const MapleVector<MustDefMeNode> &mustDefList)
+      : mustDefList(alloc->Adapter()) {
+    for (auto &mustDef : mustDefList) {
+      auto newMustDefNode = alloc->GetMemPool()->New<MustDefMeNode>(mustDef);
+      newMustDefNode->SetBase(defStmt);
+      this->mustDefList.push_back(*newMustDefNode);
+    }
+  }
 
   virtual ~AssignedPart() = default;
 
@@ -1975,7 +1986,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   CallMeStmt(MapleAllocator *alloc, const CallMeStmt *cstmt)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),
-        AssignedPart(cstmt->mustDefList),
+        AssignedPart(alloc, this, cstmt->mustDefList),
         puIdx(cstmt->GetPUIdx()) {}
 
   virtual ~CallMeStmt() = default;
@@ -2093,7 +2104,7 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   IcallMeStmt(MapleAllocator *alloc, const IcallMeStmt *cstmt)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),
-        AssignedPart(cstmt->mustDefList),
+        AssignedPart(alloc, this, cstmt->mustDefList),
         retTyIdx(cstmt->retTyIdx),
         stmtID(cstmt->stmtID) {}
 
@@ -2189,7 +2200,7 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
   IntrinsiccallMeStmt(MapleAllocator *alloc, const IntrinsiccallMeStmt *intrn)
       : NaryMeStmt(alloc, intrn),
         MuChiMePart(alloc),
-        AssignedPart(intrn->mustDefList),
+        AssignedPart(alloc, this, intrn->mustDefList),
         intrinsic(intrn->GetIntrinsic()),
         tyIdx(intrn->tyIdx),
         retPType(intrn->retPType) {}
@@ -2352,6 +2363,7 @@ class GotoMeStmt : public MeStmt {
  public:
   explicit GotoMeStmt(const StmtNode *stt) : MeStmt(stt), offset(static_cast<const GotoNode*>(stt)->GetOffset()) {}
   explicit GotoMeStmt(const GotoMeStmt &condGoto) : MeStmt(MeStmt(condGoto.GetOp())), offset(condGoto.GetOffset()) {}
+  explicit GotoMeStmt(uint32 o): MeStmt(OP_goto), offset(o) {}
 
   ~GotoMeStmt() = default;
 
@@ -2421,6 +2433,10 @@ class TryMeStmt : public MeStmt {
 
   void OffsetsPushBack(LabelIdx curr) {
     offsets.push_back(curr);
+  }
+
+  const MapleVector<LabelIdx> &GetOffsets() const {
+    return offsets;
   }
 
   StmtNode &EmitStmt(SSATab &ssaTab);
