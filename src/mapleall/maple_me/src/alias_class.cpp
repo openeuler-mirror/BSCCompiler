@@ -65,14 +65,14 @@ static bool OpCanFormAddress(Opcode op) {
   return false;
 }
 
-inline bool IsNullOrDummySymbolOst(OriginalSt *ost) {
+inline bool IsNullOrDummySymbolOst(const OriginalSt *ost) {
   if ((ost == nullptr) || (ost && ost->IsSymbolOst() && (ost->GetMIRSymbol()->GetName() == "__nads_dummysym__"))) {
     return true;
   }
   return false;
 }
 
-inline bool OriginalStIsAuto(OriginalSt *ost) {
+inline bool OriginalStIsAuto(const OriginalSt *ost) {
   if (!ost->IsSymbolOst()) {
     return false;
   }
@@ -172,9 +172,7 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &expr, TyIdx tyIdx
     if (ainfo.ae == nullptr) {
       return nullptr;
     }
-  } else if (ainfo.ae == nullptr ||
-             (fieldId && ainfo.ae->GetOriginalSt().GetIndirectLev() != -1 &&
-              ainfo.ae->GetOriginalSt().GetTyIdx() != tyIdx)) {
+  } else if (ainfo.ae == nullptr || IsNullOrDummySymbolOst(ainfo.ae->GetOst())) {
     return FindOrCreateDummyNADSAe();
   }
   OriginalSt *newOst = nullptr;
@@ -318,7 +316,8 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
         continue;
       }
-      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost =
+          ssaTab.GetOriginalStTable().mirSt2Ost;
       auto lhsit = mirSt2Ost.find(SymbolFieldPair(lhsost->GetMIRSymbol()->GetStIdx(), fieldID));
       auto rhsit = mirSt2Ost.find(SymbolFieldPair(rhsost->GetMIRSymbol()->GetStIdx(), fieldID));
       if (lhsit == mirSt2Ost.end() && rhsit == mirSt2Ost.end()) {
@@ -329,7 +328,8 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
       OriginalSt *rhsFieldOst = nullptr;
       if (lhsit == mirSt2Ost.end()) {
         // create a new OriginalSt for lhs field
-        lhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*lhsost->GetMIRSymbol(), lhsost->GetPuIdx(), fieldID);
+        lhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(
+            *lhsost->GetMIRSymbol(), lhsost->GetPuIdx(), fieldID);
         osym2Elem.push_back(nullptr);
         ssaTab.GetVersionStTable().CreateZeroVersionSt(lhsFieldOst);
 
@@ -339,7 +339,8 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
 
         if (rhsit == mirSt2Ost.end()) {
           // create a new OriginalSt for rhs field
-          rhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(*rhsost->GetMIRSymbol(), rhsost->GetPuIdx(), fieldID);
+          rhsFieldOst = ssaTab.GetOriginalStTable().CreateSymbolOriginalSt(
+              *rhsost->GetMIRSymbol(), rhsost->GetPuIdx(), fieldID);
           osym2Elem.push_back(nullptr);
           ssaTab.GetVersionStTable().CreateZeroVersionSt(rhsFieldOst);
         } else {
@@ -360,7 +361,8 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
         continue;
       }
-      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost =
+          ssaTab.GetOriginalStTable().mirSt2Ost;
       auto it = mirSt2Ost.find(SymbolFieldPair(lhsost->GetMIRSymbol()->GetStIdx(), fieldID));
       if (it == mirSt2Ost.end()) {
         continue;
@@ -379,7 +381,8 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
         continue;
       }
-      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost = ssaTab.GetOriginalStTable().mirSt2Ost;
+      MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> &mirSt2Ost =
+          ssaTab.GetOriginalStTable().mirSt2Ost;
       auto it = mirSt2Ost.find(SymbolFieldPair(rhsost->GetMIRSymbol()->GetStIdx(), fieldID));
       if (it == mirSt2Ost.end()) {
         continue;
@@ -1408,30 +1411,31 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
   auto &iassignNode = static_cast<IassignNode&>(stmt);
   AliasInfo baseAinfo = CreateAliasElemsExpr(*iassignNode.Opnd(0));
   AliasElem *lhsAe = nullptr;
-  if (baseAinfo.ae != nullptr &&
-      (!mirModule.IsCModule() ||
-       iassignNode.GetFieldID() == 0 ||
-       baseAinfo.ae->GetOriginalSt().GetIndirectLev() == -1 ||
-       baseAinfo.ae->GetOriginalSt().GetTyIdx() == iassignNode.GetTyIdx())) {
+  if (baseAinfo.ae != nullptr) {
     // get the next-level-ost that will be assigned to
-    FieldID fldOfIass = iassignNode.GetFieldID() + baseAinfo.fieldID;
-    if (mirModule.IsCModule() &&
-        baseAinfo.ae->GetOriginalSt().GetTyIdx() != iassignNode.GetTyIdx()) {
-      fldOfIass = 0;
-    }
-    OriginalSt *lhsOst = nullptr;
-    TyIdx tyIdxOfIass = iassignNode.GetTyIdx();
-    OriginalSt &ostOfBaseExpr = baseAinfo.ae->GetOriginalSt();
-    TyIdx tyIdxOfBaseOSt = ostOfBaseExpr.GetTyIdx();
-    for (OriginalSt *nextLevelNode : *(GetAliasAnalysisTable()->GetNextLevelNodes(ostOfBaseExpr))) {
-      FieldID fldOfNextLevelOSt = nextLevelNode->GetFieldID();
-      if (IsEquivalentField(tyIdxOfIass, fldOfIass, tyIdxOfBaseOSt, fldOfNextLevelOSt)) {
-        lhsOst = nextLevelNode;
-        break;
+    if (mirModule.IsCModule() && baseAinfo.ae->GetOriginalSt().GetTyIdx() != iassignNode.GetTyIdx()) {
+      // in case of type incompatible, set fieldId to zero of the mayDefed virtual-var
+      lhsAe = FindOrCreateExtraLevAliasElem(*iassignNode.Opnd(0), baseAinfo.ae->GetOriginalSt().GetTyIdx(), 0);
+    } else if (!mirModule.IsCModule() || iassignNode.GetFieldID() == 0 ||
+               baseAinfo.ae->GetOriginalSt().GetIndirectLev() == -1 ||
+               baseAinfo.ae->GetOriginalSt().GetTyIdx() == iassignNode.GetTyIdx()) {
+      OriginalSt *lhsOst = nullptr;
+      TyIdx tyIdxOfIass = iassignNode.GetTyIdx();
+      OriginalSt &ostOfBaseExpr = baseAinfo.ae->GetOriginalSt();
+      TyIdx tyIdxOfBaseOSt = ostOfBaseExpr.GetTyIdx();
+      FieldID fldOfIass = iassignNode.GetFieldID() + baseAinfo.fieldID;
+      for (OriginalSt *nextLevelNode : *(GetAliasAnalysisTable()->GetNextLevelNodes(ostOfBaseExpr))) {
+        FieldID fldOfNextLevelOSt = nextLevelNode->GetFieldID();
+        if (IsEquivalentField(tyIdxOfIass, fldOfIass, tyIdxOfBaseOSt, fldOfNextLevelOSt)) {
+          lhsOst = nextLevelNode;
+          break;
+        }
       }
+      CHECK_FATAL(lhsOst != nullptr, "AliasClass::InsertMayUseExpr: cannot find next level ost");
+      lhsAe = osym2Elem[lhsOst->GetIndex()];
+    } else {
+      lhsAe = FindOrCreateDummyNADSAe();
     }
-    CHECK_FATAL(lhsOst != nullptr, "AliasClass::InsertMayUseExpr: cannot find next level ost");
-    lhsAe = osym2Elem[lhsOst->GetIndex()];
   } else {
     lhsAe = FindOrCreateDummyNADSAe();
   }
