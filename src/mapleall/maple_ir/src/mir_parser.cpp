@@ -811,6 +811,12 @@ bool MIRParser::ParseStmtCall(StmtNodePtr &stmt) {
     callStmt = mod.CurFuncCodeMemPool()->New<CallNode>(mod, o);
   }
   callStmt->SetPUIdx(pIdx);
+
+  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFuncTable()[pIdx];
+  if (callee->GetName() == "setjmp") {
+    mod.CurFunction()->SetHasSetjmp();
+  }
+
   MapleVector<BaseNode*> opndsVec(mod.CurFuncCodeMemPoolAllocator()->Adapter());
   if (!ParseExprNaryOperand(opndsVec)) {
     return false;
@@ -1746,9 +1752,13 @@ bool MIRParser::ParseDeclaredSt(StIdx &stidx) {
   stidx.SetFullIdx(0);
   GStrIdx stridx = GlobalTables::GetStrTable().GetStrIdxFromName(lexer.GetName());
   if (stridx == 0u) {
-    Error("symbol not declared ");
-    stidx.SetFullIdx(0);
-    return false;
+    GStrIdx newStridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
+    st->SetNameStrIdx(newStridx);
+    st->SetSKind(kStVar);
+    (void)GlobalTables::GetGsymTable().AddToStringSymbolMap(*st);
+    stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(newStridx);
+    return true;
   }
   if (varTk == TK_gname) {
     stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(stridx);
@@ -1772,8 +1782,19 @@ bool MIRParser::ParseDeclaredSt(StIdx &stidx) {
 bool MIRParser::ParseDeclaredFunc(PUIdx &puidx) {
   GStrIdx stridx = GlobalTables::GetStrTable().GetStrIdxFromName(lexer.GetName());
   if (stridx == 0u) {
-    Error("symbol not declared ");
-    return false;
+    GStrIdx newStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    MIRSymbol *funcSt = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
+    funcSt->SetNameStrIdx(newStrIdx);
+    (void)GlobalTables::GetGsymTable().AddToStringSymbolMap(*funcSt);
+    funcSt->SetStorageClass(kScText);
+    funcSt->SetSKind(kStFunc);
+    funcSt->SetNeedForwDecl();
+    auto *fn = mod.GetMemPool()->New<MIRFunction>(&mod, funcSt->GetStIdx());
+    puidx = GlobalTables::GetFunctionTable().GetFuncTable().size();
+    fn->SetPuidx(puidx);
+    GlobalTables::GetFunctionTable().GetFuncTable().push_back(fn);
+    funcSt->SetFunction(fn);
+    return true;
   }
   StIdx stidx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(stridx);
   if (stidx.FullIdx() == 0) {
@@ -2664,7 +2685,8 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
       }
       lexer.NextToken();
     }
-    cexpr = mod.GetMemPool()->New<MIRAddrofConst>(anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
+    cexpr = mod.CurFunction()->GetDataMemPool()->New<MIRAddrofConst>(
+        anode->GetStIdx(), anode->GetFieldID(), *exprTy, ofst);
   } else if (expr->GetOpCode() == OP_addroffunc) {
     auto *aof = static_cast<AddroffuncNode*>(expr);
     MIRFunction *f = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(aof->GetPUIdx());
@@ -2673,11 +2695,14 @@ bool MIRParser::ParseConstAddrLeafExpr(MIRConstPtr &cexpr) {
     MIRPtrType ptrType(ptyIdx);
     ptyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
     MIRType *exprTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptyIdx);
-    cexpr = mod.GetMemPool()->New<MIRAddroffuncConst>(aof->GetPUIdx(), *exprTy);
+    cexpr = mod.CurFunction()->GetDataMemPool()->New<MIRAddroffuncConst>(aof->GetPUIdx(), *exprTy);
   } else if (expr->op == OP_addroflabel) {
     AddroflabelNode *aol = static_cast<AddroflabelNode *>(expr);
     MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
-    cexpr = mod.GetMemPool()->New<MIRLblConst>(aol->GetOffset(), mod.CurFunction()->GetPuidx(), *mirtype);
+    // func code mempool will be released after irmap, but MIRLblConst won't be passed to me ir.
+    // So MIRLblConst can NOT be allocated in func code mempool.
+    cexpr = mod.CurFunction()->GetDataMemPool()->New<MIRLblConst>(
+        aol->GetOffset(), mod.CurFunction()->GetPuidx(), *mirtype);
   } else if (expr->GetOpCode() == OP_conststr) {
     auto *cs = static_cast<ConststrNode*>(expr);
     UStrIdx stridx = cs->GetStrIdx();
