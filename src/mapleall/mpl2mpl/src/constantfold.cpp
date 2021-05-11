@@ -2207,7 +2207,8 @@ StmtNode *ConstantFold::SimplifyIf(IfStmtNode *node) {
   if (returnValue != nullptr) {
     node->SetOpnd(returnValue, 0);
     ConstvalNode *cst = safe_cast<ConstvalNode>(node->Opnd());
-    if (cst == nullptr) {
+    // do not delete c/c++ dead if-body here
+    if (cst == nullptr || (!mirModule->IsJavaModule())) {
       return node;
     }
     MIRIntConst *intConst = safe_cast<MIRIntConst>(cst->GetConstVal());
@@ -2234,7 +2235,8 @@ StmtNode *ConstantFold::SimplifyWhile(WhileStmtNode *node) {
   if (returnValue != nullptr) {
     node->SetOpnd(returnValue, 0);
     ConstvalNode *cst = safe_cast<ConstvalNode>(node->Opnd(0));
-    if (cst == nullptr) {
+    // do not delete c/c++ dead while-body here
+    if (cst == nullptr || (!mirModule->IsJavaModule())) {
       return node;
     }
     if (cst->GetConstVal()->IsZero()) {
