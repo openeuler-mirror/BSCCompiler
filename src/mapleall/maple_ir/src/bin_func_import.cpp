@@ -763,6 +763,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetThenPart(ImportBlockNode(func));
         if (hasElsePart) {
           s->SetElsePart(ImportBlockNode(func));
+          s->SetNumOpnds(kOperandNumTernary);
         }
         s->SetOpnd(ImportExpression(func), 0);
         stmt = s;
