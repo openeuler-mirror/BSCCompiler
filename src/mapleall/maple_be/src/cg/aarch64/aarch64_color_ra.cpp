@@ -941,9 +941,24 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
 }
 
 /* Create a common stack space for spilling with need_spill */
-MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx) {
+MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, SpillMemCheck check) {
   if (spillIdx >= spillMemOpnds.size()) {
     return nullptr;
+  }
+
+  if (operandSpilled[spillIdx]) {
+    // For this insn, spill slot already used, need to find next available slot.
+    uint32 i;
+    for (i = spillIdx + 1; i < kSpillMemOpndNum; ++i) {
+      if (operandSpilled[i] == false) {
+        break;
+      }
+    }
+    CHECK_FATAL(i < kSpillMemOpndNum, "no more available spill mem slot");
+    spillIdx = i;
+  }
+  if (check == kSpillMemPost) {
+    operandSpilled[spillIdx] = true;
   }
 
   if (spillMemOpnds[spillIdx] == nullptr) {
@@ -2459,7 +2474,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   if (!needSpill) {
     return;
   }
-  MemOperand *spillMem = CreateSpillMem(spillIdx);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
@@ -2493,7 +2508,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     return;
   }
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
@@ -2971,7 +2986,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(&insn)->GetMachineOpcode()];
   uint32 opndNum = insn.GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
-    Operand &opnd = insn.GetOperand(i);
+    Operand &opnd = insn.GetOperand(static_cast<int32>(i));
     ASSERT(md->GetOperand(i) != nullptr, "pointer is null in GraphColorRegAllocator::FinalizeRegisters");
 
     if (opnd.IsList()) {
@@ -3015,16 +3030,16 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   uint32 intUseCnt = 0;
   uint32 fpUseCnt = 0;
   uint32 opndNum = insn.GetOperandSize();
-  for (uint32 i = 0; i < opndNum; ++i) {
-    Operand *opnd = &insn.GetOperand(i);
-    if (!opnd) {
+  for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
+    Operand *opnd = &insn.GetOperand(static_cast<int32>(opndIdx));
+    if (opnd == nullptr) {
       continue;
     }
     if (opnd->IsList()) {
       // call parameters
     } else if (opnd->IsMemoryAccessOperand()) {
-      MemOperand *memopnd = static_cast<MemOperand *>(opnd);
-      AArch64RegOperand *base = static_cast<AArch64RegOperand *>(memopnd->GetBaseRegister());
+      MemOperand *memopnd = static_cast<MemOperand*>(opnd);
+      AArch64RegOperand *base = static_cast<AArch64RegOperand*>(memopnd->GetBaseRegister());
       if (base != nullptr && base->IsPhysicalRegister()) {
         regno_t regno = base->GetRegisterNumber();
         for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
@@ -3033,11 +3048,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
             break;
           }
         }
-//        if (regno == intRegs[0] || regno == intRegs[1] || regno == intRegs[2]) {
-//          intUseCnt++;
-//        }
       }
-      AArch64RegOperand *offset = static_cast<AArch64RegOperand *>(memopnd->GetIndexRegister());
+      AArch64RegOperand *offset = static_cast<AArch64RegOperand*>(memopnd->GetIndexRegister());
       if (offset != nullptr && offset->IsPhysicalRegister()) {
         regno_t regno = offset->GetRegisterNumber();
         for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
@@ -3046,13 +3058,10 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
             break;
           }
         }
-//        if (regno == intRegs[0] || regno == intRegs[1] || regno == intRegs[2]) {
-//          intUseCnt++;
-//        }
       }
     } else if (opnd->IsRegister()) {
-      RegOperand *ropnd = static_cast<RegOperand *>(opnd);
-      if (ropnd && ropnd->IsVirtualRegister() == false) {
+      RegOperand *ropnd = static_cast<RegOperand*>(opnd);
+      if (ropnd != nullptr && ropnd->IsVirtualRegister() == false) {
         regno_t regno = ropnd->GetRegisterNumber();
         if (regno >= V0) {
           for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
@@ -3061,9 +3070,6 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
               break;
             }
           }
-//          if (regno == fpregs[0] || regno == fpregs[1] || regno == fpregs[2]) {
-//            fpUseCnt++;
-//          }
         } else {
           for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
             if (regno == intRegs[i]) {
@@ -3071,9 +3077,6 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
               break;
             }
           }
-//          if (regno == intregs[0] || regno == intregs[1] || regno == intregs[2]) {
-//            intUseCnt++;
-//          }
         }
       }
     }
@@ -3082,19 +3085,13 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
     intSpillFillRegs[i] = intRegs[i] + intUseCnt;
     fpSpillFillRegs[i] = fpRegs[i] + fpUseCnt;
   }
-//  intSpillFillRegs[0] = intregs[0] + intUseCnt;
-//  intSpillFillRegs[1] = intregs[1] + intUseCnt;
-//  intSpillFillRegs[2] = intregs[2] + intUseCnt;
-//  fpSpillFillRegs[0] = fpregs[0] + fpUseCnt;
-//  fpSpillFillRegs[1] = fpregs[1] + fpUseCnt;
-//  fpSpillFillRegs[2] = fpregs[2] + fpUseCnt;
 }
 
 RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef) {
   regno_t vregno = opnd.GetRegisterNumber();
   LiveRange *lr = lrVec[vregno];
-  if (lr && lr->IsSpilled()) {
-    AArch64CGFunc *a64cgfunc = static_cast<AArch64CGFunc *>(cgFunc);
+  if (lr != nullptr && lr->IsSpilled()) {
+    AArch64CGFunc *a64cgfunc = static_cast<AArch64CGFunc*>(cgFunc);
     CG *cg = a64cgfunc->GetCG();
     uint32 bits = opnd.GetValidBitsNum();
     if (bits < k32BitSize) {
@@ -3113,8 +3110,8 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
     }
     CHECK_FATAL(spillCnt < kSpillMemOpndNum, "spill count exceeded");
     spreg = (rtype == kRegTyInt) ? intSpillFillRegs[spillCnt] : fpSpillFillRegs[spillCnt];
-    RegOperand *regopnd = &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
-
+    RegOperand *regopnd =
+        &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
     Insn *memInsn;
     if (isdef) {
       memInsn = &cg->BuildInstruction<AArch64Insn>(a64cgfunc->PickStInsn(bits, pty), *regopnd, *loadmem);
@@ -3145,35 +3142,35 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
         continue;
       }
       spillCnt = 0;
-      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn *>(insn)->GetMachineOpcode()];
+      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand *opnd = &insn->GetOperand(i);
-        if (!opnd) {
+        if (opnd == nullptr) {
           continue;
         }
         if (opnd->IsList()) {
           // call parameters
         } else if (opnd->IsMemoryAccessOperand()) {
           MemOperand *newmemopnd = nullptr;
-          MemOperand *memopnd = static_cast<MemOperand *>(opnd);
-          RegOperand *base = static_cast<RegOperand *>(memopnd->GetBaseRegister());
+          MemOperand *memopnd = static_cast<MemOperand*>(opnd);
+          RegOperand *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());
           if (base != nullptr && base->IsVirtualRegister()) {
             RegOperand *replace = CreateSpillFillCode(*base, *insn, spillCnt);
-            if (replace) {
+            if (replace != nullptr) {
               spillCnt++;
-              newmemopnd = static_cast<MemOperand *>(static_cast<MemOperand *>(opnd)->Clone(*cgFunc->GetMemoryPool()));
+              newmemopnd = static_cast<MemOperand*>(static_cast<MemOperand *>(opnd)->Clone(*cgFunc->GetMemoryPool()));
               newmemopnd->SetBaseRegister(*replace);
               insn->SetOperand(i, *newmemopnd);
             }
           }
-          RegOperand *offset = static_cast<RegOperand *>(memopnd->GetIndexRegister());
+          RegOperand *offset = static_cast<RegOperand*>(memopnd->GetIndexRegister());
           if (offset != nullptr && offset->IsVirtualRegister()) {
             RegOperand *replace = CreateSpillFillCode(*offset, *insn, spillCnt);
-            if (replace) {
+            if (replace != nullptr) {
               spillCnt++;
               if (newmemopnd == nullptr) {
-                newmemopnd = static_cast<MemOperand *>(static_cast<MemOperand *>(opnd)->Clone(*cgFunc->GetMemoryPool()));
+                newmemopnd = static_cast<MemOperand*>(static_cast<MemOperand*>(opnd)->Clone(*cgFunc->GetMemoryPool()));
               }
               newmemopnd->SetIndexRegister(*replace);
               insn->SetOperand(i, *newmemopnd);
@@ -3181,8 +3178,8 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
           }
         } else if (opnd->IsRegister()) {
           bool isdef = static_cast<AArch64OpndProp *>(md->operand[i])->IsRegDef();
-          RegOperand *replace = CreateSpillFillCode(*static_cast<RegOperand *>(opnd), *insn, spillCnt, isdef);
-          if (replace) {
+          RegOperand *replace = CreateSpillFillCode(*static_cast<RegOperand*>(opnd), *insn, spillCnt, isdef);
+          if (replace != nullptr) {
             if (isdef == false) {
               spillCnt++;
             }
@@ -3193,6 +3190,7 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
     }
   }
 }
+
 
 /* Iterate through all instructions and change the vreg to preg. */
 void GraphColorRegAllocator::FinalizeRegisters() {
@@ -3210,6 +3208,9 @@ void GraphColorRegAllocator::FinalizeRegisters() {
       }
       if (insn->GetId() == 0) {
         continue;
+      }
+      for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
+        operandSpilled[i] = false;
       }
 
       FinalizeRegisterInfo *fInfo = memPool->New<FinalizeRegisterInfo>(alloc);
@@ -3284,6 +3285,16 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   a64CGFunc->AddtoCalleeSaved(RLR);
   a64CGFunc->NoteFPLRAddedToCalleeSavedList();
 
+#if DEBUG
+  int32 cnt = 0;
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      ++cnt;
+    }
+  }
+  ASSERT(cnt <= cgFunc->GetTotalNumberOfInstructions(), "Incorrect insn count");
+#endif
+
   cgFunc->SetIsAfterRegAlloc();
   /* EBO propgation extent the live range and might need to be turned off. */
   ComputeBlockOrder();
@@ -3301,6 +3312,7 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   SplitAndColor();
 
 #ifdef USE_LRA
+  LocalRegisterAllocator(true);
   if (doLRA) {
     LocalRegisterAllocator(true);
   }

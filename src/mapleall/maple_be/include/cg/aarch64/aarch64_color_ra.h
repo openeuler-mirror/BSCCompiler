@@ -1099,7 +1099,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
     localRegVec.resize(cgFunc.NumBBs());
     bbRegInfo.resize(cgFunc.NumBBs());
     if (CGOptions::DoMultiPassColorRA()) {
-      int32 cnt = 0;
+      uint32 cnt = 0;
       FOR_ALL_BB(bb, &cgFunc) {
         FOR_BB_INSNS(insn, bb) {
           ++cnt;
@@ -1120,6 +1120,11 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   std::string PhaseName() const {
     return "regalloc";
   }
+
+  enum SpillMemCheck : uint8 {
+    kSpillMemPre,
+    kSpillMemPost,
+  };
 
  private:
   struct SetLiveRangeCmpFunc {
@@ -1183,7 +1188,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void ComputeLiveRangesUpdateIfInsnIsCall(const Insn &insn);
   void ComputeLiveRangesUpdateLiveUnitInsnRange(BB &bb, uint32 currPoint);
   void ComputeLiveRanges();
-  MemOperand *CreateSpillMem(uint32 spillIdx);
+  MemOperand *CreateSpillMem(uint32 spillIdx, SpillMemCheck check);
   bool CheckOverlap(uint64 val, uint32 &lastBitSet, uint32 &overlapNum, uint32 i) const;
   void CheckInterference(LiveRange &lr1, LiveRange &lr2) const;
   void BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec, std::vector<LiveRange*> &fpLrVec);
@@ -1230,10 +1235,10 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
   uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn);
+  void FinalizeRegisters();
   void GenerateSpillFillRegs(Insn &insn);
   RegOperand *CreateSpillFillCode(RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
   void SpillLiveRangeForSpills();
-  void FinalizeRegisters();
 
   MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
   void UpdateForbiddenForNeighbors(LiveRange &lr) const;
@@ -1314,6 +1319,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   std::array<MemOperand*, kSpillMemOpndNum> spillMemOpnds = { nullptr };
   regno_t intSpillFillRegs[kSpillMemOpndNum];
   regno_t fpSpillFillRegs[kSpillMemOpndNum];
+  bool operandSpilled[kSpillMemOpndNum];
   bool needExtraSpillReg = false;
 #ifdef USE_LRA
   bool doLRA = true;
