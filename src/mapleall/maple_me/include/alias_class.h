@@ -45,6 +45,10 @@ class AliasElem {
     return ost;
   }
 
+  OriginalSt *GetOst() {
+    return &ost;
+  }
+
   bool IsNotAllDefsSeen() const {
     return notAllDefsSeen;
   }
