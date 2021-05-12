@@ -131,6 +131,10 @@ setup:
 demo:
 	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1 1
 
+.PHONY: ctorture
+ctorture:
+	(cd third_party/ctorture; ./run.sh work.list)
+
 THREADS := 50
 ifneq ($(findstring test,$(MAKECMDGOALS)),)
 TESTTARGET := $(MAKECMDGOALS)
