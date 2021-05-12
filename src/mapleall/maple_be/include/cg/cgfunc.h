@@ -819,6 +819,10 @@ class CGFunc {
 
   virtual InsnVisitor *NewInsnModifier() = 0;
 
+  bool GenCfi() const {
+    return (mirModule.GetSrcLang() != kSrcLangC);
+  }
+
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
