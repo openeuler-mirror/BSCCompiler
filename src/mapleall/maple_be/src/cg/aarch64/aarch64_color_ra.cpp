@@ -941,9 +941,24 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
 }
 
 /* Create a common stack space for spilling with need_spill */
-MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx) {
+MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, SpillMemCheck check) {
   if (spillIdx >= spillMemOpnds.size()) {
     return nullptr;
+  }
+
+  if (operandSpilled[spillIdx]) {
+    // For this insn, spill slot already used, need to find next available slot.
+    uint32 i;
+    for (i = spillIdx + 1; i < kSpillMemOpndNum; ++i) {
+      if (operandSpilled[i] == false) {
+        break;
+      }
+    }
+    CHECK_FATAL(i < kSpillMemOpndNum, "no more available spill mem slot");
+    spillIdx = i;
+  }
+  if (check == kSpillMemPost) {
+    operandSpilled[spillIdx] = true;
   }
 
   if (spillMemOpnds[spillIdx] == nullptr) {
@@ -2459,7 +2474,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   if (!needSpill) {
     return;
   }
-  MemOperand *spillMem = CreateSpillMem(spillIdx);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
@@ -2493,7 +2508,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     return;
   }
 
-  MemOperand *spillMem = CreateSpillMem(spillIdx);
+  MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPost);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
@@ -3210,6 +3225,9 @@ void GraphColorRegAllocator::FinalizeRegisters() {
       }
       if (insn->GetId() == 0) {
         continue;
+      }
+      for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
+        operandSpilled[i] = false;
       }
 
       FinalizeRegisterInfo *fInfo = memPool->New<FinalizeRegisterInfo>(alloc);

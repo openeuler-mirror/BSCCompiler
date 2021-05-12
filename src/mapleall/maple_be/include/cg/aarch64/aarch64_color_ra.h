@@ -1121,6 +1121,11 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
     return "regalloc";
   }
 
+  enum SpillMemCheck : uint8 {
+    kSpillMemPre,
+    kSpillMemPost,
+  };
+
  private:
   struct SetLiveRangeCmpFunc {
     bool operator()(const LiveRange *lhs, const LiveRange *rhs) const {
@@ -1183,7 +1188,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void ComputeLiveRangesUpdateIfInsnIsCall(const Insn &insn);
   void ComputeLiveRangesUpdateLiveUnitInsnRange(BB &bb, uint32 currPoint);
   void ComputeLiveRanges();
-  MemOperand *CreateSpillMem(uint32 spillIdx);
+  MemOperand *CreateSpillMem(uint32 spillIdx, SpillMemCheck check);
   bool CheckOverlap(uint64 val, uint32 &lastBitSet, uint32 &overlapNum, uint32 i) const;
   void CheckInterference(LiveRange &lr1, LiveRange &lr2) const;
   void BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec, std::vector<LiveRange*> &fpLrVec);
@@ -1314,6 +1319,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   std::array<MemOperand*, kSpillMemOpndNum> spillMemOpnds = { nullptr };
   regno_t intSpillFillRegs[kSpillMemOpndNum];
   regno_t fpSpillFillRegs[kSpillMemOpndNum];
+  bool operandSpilled[kSpillMemOpndNum];
   bool needExtraSpillReg = false;
 #ifdef USE_LRA
   bool doLRA = true;
