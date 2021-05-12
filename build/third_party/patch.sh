@@ -18,8 +18,9 @@ THIRD_PARTY_PATH=$MAPLE_ROOT/third_party
 TOOLS_PATH=$MAPLE_ROOT/build/third_party
 AOSP_PATH=$THIRD_PARTY_PATH/aosp_10.0.0_r35
 AOSP_GN_PATH=$TOOLS_PATH/aosp_gn
-TEMP_PATH=$THIRD_PARTY_PATH/temp
+LLVM_PATH=$THIRD_PARTY_PATH/llvm-10.0.0.src
 MODIFIED_AOSP_PATH=$THIRD_PARTY_PATH/aosp_modified
+MODIFIED_LLVM_PATH=$THIRD_PARTY_PATH/llvm_modified
 
 function install_patch {
     if [ -d $MODIFIED_AOSP_PATH ];then
@@ -30,7 +31,9 @@ function install_patch {
     echo "Preparing the build environment..."
 
     #backup source code
+    cd $THIRD_PARTY_PATH
     cp -rH $AOSP_PATH $MODIFIED_AOSP_PATH
+    cp -rH $LLVM_PATH $MODIFIED_LLVM_PATH
 
     #patch
     cd $MODIFIED_AOSP_PATH
@@ -39,15 +42,18 @@ function install_patch {
     mkdir -p include/
     cp -r ${MAPLE_ROOT}/src/mplfe/dex_input/include/string_view_format.h include/
 
+    cd $MODIFIED_LLVM_PATH
+    patch -p0 < $TOOLS_PATH/llvm_001.patch
+
     #add third_party gn
-    cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn art/libdexfile/
-    cp -f $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn system/core/libziparchive/
-    cp -f $AOSP_GN_PATH/system/core/base/BUILD.gn system/core/base/
+    cp -f $AOSP_GN_PATH/art/libdexfile/BUILD.gn $MODIFIED_AOSP_PATH/art/libdexfile/
+    cp -f $AOSP_GN_PATH/system/core/libziparchive/BUILD.gn $MODIFIED_AOSP_PATH/system/core/libziparchive/
+    cp -f $AOSP_GN_PATH/system/core/base/BUILD.gn $MODIFIED_AOSP_PATH/system/core/base/
 }
 
 
 function uninstall_patch {
-    rm -rf $MODIFIED_AOSP_PATH
+    rm -rf $MODIFIED_AOSP_PATH $MODIFIED_LLVM_PATH
 }
 
 function main {
