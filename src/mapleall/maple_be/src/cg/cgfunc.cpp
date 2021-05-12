@@ -884,6 +884,9 @@ MIRSymbol *CGFunc::GetRetRefSymbol(BaseNode &expr) {
 }
 
 void CGFunc::GenerateCfiPrologEpilog() {
+  if (GenCfi() == false) {
+    return;
+  }
   Insn &ipoint = GetCG()->BuildInstruction<cfi::CfiInsn>(cfi::OP_CFI_startproc);
   /* prolog */
   if (firstBB->GetFirstInsn() != nullptr) {
