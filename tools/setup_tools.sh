@@ -168,6 +168,16 @@ if [ ! -f $MAPLE_ROOT/third_party/dwarf_h/include/Dwarf.h ]; then
   echo Downloaded dwarf header files.
 fi
 
+if [ ! -d $MAPLE_ROOT/third_party/ctorture ]; then
+  cd $TOOLS
+  rm -rf ctorture $MAPLE_ROOT/third_party/ctorture
+  git clone --depth 1 https://gitee.com/hu-_-wen/ctorture.git
+  mv ctorture $MAPLE_ROOT/third_party/
+  echo Downloaded ctorture.
+fi
+cd $MAPLE_ROOT/third_party/ctorture
+git pull
+
 mkdir -p ${TOOL_BIN_PATH}
 if [ "$OLD_OS" == "1" ]; then
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
@@ -193,3 +203,5 @@ else
   git pull origin master
   cd -
 fi
+
+
