@@ -57,7 +57,7 @@ class FuncPhase : public Phase {
     return prevPhaseName;
   }
 
-  void SetPreviousPhaseName(const std::string phaseName) {
+  void SetPreviousPhaseName(const std::string& phaseName) {
     prevPhaseName = phaseName;
   }
 
