@@ -43,7 +43,7 @@ function release_test {
     cd $MAPLE_ROOT
     make testall
 
-    make ctorture
+    make ctorture-ci
 }
 
 function main {
