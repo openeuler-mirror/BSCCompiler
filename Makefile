@@ -133,7 +133,7 @@ demo:
 
 .PHONY: ctorture
 ctorture:
-	(cd third_party/ctorture; ./run.sh work.list)
+	(cd third_party/ctorture; ./ci.sh)
 
 THREADS := 50
 ifneq ($(findstring test,$(MAKECMDGOALS)),)
