@@ -809,11 +809,6 @@ TyIdx BinaryMplImport::ImportTypeNonJava() {
       for (int64 i = 0; i < size; ++i) {
         type.GetParamAttrsList().push_back(ImportTypeAttrs());
       }
-      const auto it = GlobalTables::GetTypeTable().GetTypeHashTable().find(&type);
-      if (it != GlobalTables::GetTypeTable().GetTypeHashTable().end()) {
-        GlobalTables::GetTypeTable().PopBack();
-        return (*it)->GetTypeIndex();
-      }
       GlobalTables::GetTypeTable().CreateMirTypeNodeAt(type, tyIdxUsed, &mod, false, false);
       CHECK_FATAL(type.GetRetTyIdx() != TyIdx(0), "ImportTypeNonJava: retTyIdx cannot be 0");
       return tyIdxUsed;
