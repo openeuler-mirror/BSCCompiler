@@ -147,7 +147,7 @@ version=810ab06
 if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
   cd $TOOLS
   rm -rf open64_prebuilt
-  git clone --depth 1 https://gitee.com/open64ark/open64_prebuilt.git
+  git clone --depth 2 https://gitee.com/open64ark/open64_prebuilt.git
 fi
 if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   cd $TOOLS/open64_prebuilt/x86
