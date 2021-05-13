@@ -30,6 +30,7 @@ function release_test {
   cd $MAPLE_ROOT/third_party/ctorture
   git pull
 
+  cd $MAPLE_ROOT
   make clean
   make
   make irbuild
