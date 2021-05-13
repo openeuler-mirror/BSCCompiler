@@ -30,10 +30,20 @@ class AArch64GenProEpilog : public GenProEpilog {
   explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {}
   ~AArch64GenProEpilog() override = default;
 
+  bool TailCallOpt() override;
+  bool NeedProEpilog() override;
   void Run() override;
  private:
   void GenStackGuard(BB&);
   BB &GenStackGuardCheckInsn(BB&);
+  bool HasLoop();
+  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns);
+  void TailCallBBOpt(const BB &exitBB, std::set<Insn*> &callInsns);
+  void ForwardPropagateAndRename(Insn &mv, Insn &ld, const BB &terminateBB);
+  void ReplaceMachedOperand(Insn &orig, Insn &target, const RegOperand &match, bool replaceOrigSrc);
+  bool BackwardFindDependency(BB &ifbb, RegOperand &tgtOpnd, Insn *&ld, Insn *&mov,
+                              Insn *&depMov, std::list<Insn*> &list);
+  BB *IsolateFastPath(BB&);
   AArch64MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(const AArch64MemOperand &mo, uint32 bitLen,
                                                                        AArch64reg baseReg = AArch64reg::kRinvalid);
   void AppendInstructionPushPair(AArch64reg reg0, AArch64reg reg1, RegType rty, int offset);
