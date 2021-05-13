@@ -193,9 +193,26 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_f64:
     case PTY_i64:
     case PTY_u64:
+    case PTY_v2i32:
+    case PTY_v4i16:
+    case PTY_v8i8:
+    case PTY_v2u32:
+    case PTY_v4u16:
+    case PTY_v8u8:
+    case PTY_v2f32:
       return 8;
     case PTY_c128:
     case PTY_f128:
+    case PTY_v2i64:
+    case PTY_v4i32:
+    case PTY_v8i16:
+    case PTY_v16i8:
+    case PTY_v2u64:
+    case PTY_v4u32:
+    case PTY_v8u16:
+    case PTY_v16u8:
+    case PTY_v2f64:
+    case PTY_v4f32:
       return 16;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
@@ -240,9 +257,26 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
     case PTY_f64:
     case PTY_i64:
     case PTY_u64:
+    case PTY_v2i32:
+    case PTY_v4i16:
+    case PTY_v8i8:
+    case PTY_v2u32:
+    case PTY_v4u16:
+    case PTY_v8u8:
+    case PTY_v2f32:
       return 3;
     case PTY_c128:
     case PTY_f128:
+    case PTY_v2i64:
+    case PTY_v4i32:
+    case PTY_v8i16:
+    case PTY_v16i8:
+    case PTY_v2u64:
+    case PTY_v4u32:
+    case PTY_v8u16:
+    case PTY_v16u8:
+    case PTY_v2f64:
+    case PTY_v4f32:
       return 4;
 #ifdef DYNAMICLANG
     case PTY_dynf32:
