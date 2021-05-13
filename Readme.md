@@ -70,4 +70,4 @@ Open the front end, back end, and compilation optimization of compilers. Support
 - [LICENSE](license/LICENSE)
 
 ## Real-time Chat Channel
-- [Discard-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
+- [Discord-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
