@@ -133,11 +133,11 @@ demo:
 
 .PHONY: ctorture-ci
 ctorture-ci:
-	(cd third_party/ctorture; ./ci.sh)
+	(cd third_party/ctorture; git checkout .; git pull; ./ci.sh)
 
 .PHONY: ctorture
 ctorture:
-	(cd third_party/ctorture; ./run.sh work.list)
+	(cd third_party/ctorture; git checkout .; git pull; ./run.sh work.list)
 
 THREADS := 50
 ifneq ($(findstring test,$(MAKECMDGOALS)),)
