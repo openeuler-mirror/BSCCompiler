@@ -185,6 +185,7 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kReplaceCmpToCmnOpt] = optOwnMemPool->New<ReplaceCmpToCmnAArch64>(cgFunc);
   optimizations[kRemoveIncRefOpt] = optOwnMemPool->New<RemoveIncRefAArch64>(cgFunc);
   optimizations[kLongIntCompareWithZOpt] = optOwnMemPool->New<LongIntCompareWithZAArch64>(cgFunc);
+  optimizations[kComplexMemOperandOpt] = optOwnMemPool->New<ComplexMemOperandAArch64>(cgFunc);
   optimizations[kComplexMemOperandPreOptAdd] = optOwnMemPool->New<ComplexMemOperandPreAddAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLSL] = optOwnMemPool->New<ComplexMemOperandLSLAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLabel] = optOwnMemPool->New<ComplexMemOperandLabelAArch64>(cgFunc);
@@ -219,6 +220,10 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
     }
     case MOP_xcmpri: {
       (static_cast<LongIntCompareWithZAArch64*>(optimizations[kLongIntCompareWithZOpt]))->Run(bb, insn);
+      break;
+    }
+    case MOP_xadrpl12: {
+      (static_cast<ComplexMemOperandAArch64*>(optimizations[kComplexMemOperandOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xaddrrr: {
@@ -300,7 +305,6 @@ void RemoveIdenticalLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
   if ((mop1 == MOP_wstr && mop2 == MOP_wstr) || (mop1 == MOP_xstr && mop2 == MOP_xstr)) {
     if (IsMemOperandsIdentical(insn, *nextInsn)) {
       bb.RemoveInsn(insn);
-      insn = *nextInsn;
     }
   } else if ((mop1 == MOP_wstr && mop2 == MOP_wldr) || (mop1 == MOP_xstr && mop2 == MOP_xldr)) {
     if (IsMemOperandsIdentical(insn, *nextInsn)) {
@@ -459,7 +463,6 @@ void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
     }
     bb.RemoveInsn(insn);
     bb.RemoveInsn(*nextInsn);
-    insn = *nn;
   }  /* pattern found */
 }
 
@@ -877,11 +880,9 @@ void ContiLDRorSTRToSameMEMAArch64::Run(BB &bb, Insn &insn) {
     CG *cg = cgFunc.GetCG();
     bb.InsertInsnAfter(*prevInsn, cg->BuildInstruction<AArch64Insn>(newOp, reg1, reg2));
     bb.RemoveInsn(insn);
-    insn = *(prevInsn->GetNext());
   } else if (reg1.GetRegisterNumber() == reg2.GetRegisterNumber() &&
              base1->GetRegisterNumber() != reg2.GetRegisterNumber()) {
     bb.RemoveInsn(insn);
-    insn = *prevInsn;
   }
 }
 
@@ -1903,7 +1904,6 @@ void RemoveIncRefAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(insn);
   bb.RemoveInsn(*insnMov2);
   bb.RemoveInsn(*insnMov1);
-  bb.SetKind(BB::kBBFallthru);
 }
 
 bool LongIntCompareWithZAArch64::FindLondIntCmpWithZ(std::vector<Insn*> &optInsn, Insn &insn) {
