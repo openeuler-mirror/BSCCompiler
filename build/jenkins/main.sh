@@ -28,6 +28,8 @@ function release_test {
     echo Downloaded ctorture.
   fi
   cd $MAPLE_ROOT/third_party/ctorture
+  git reset --hard
+  git clean -fd
   git pull
 
   cd $MAPLE_ROOT
