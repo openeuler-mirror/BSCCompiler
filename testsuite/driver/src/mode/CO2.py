@@ -31,7 +31,7 @@ CO2 = {
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
             run=["mplcg"],
             option={
-                "mplcg": "-O2 --quiet --no-schedule"
+                "mplcg": "-O2 --quiet"
             },
             global_option="",
             infile="${APP}.mpl"
