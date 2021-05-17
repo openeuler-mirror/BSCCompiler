@@ -24,9 +24,6 @@
 #include "mempool_allocator.h"
 #endif  // MIR_FEATURE_FULL
 
-#define POINTER_SIZE 8
-#define POINTER_P2SIZE 3
-
 namespace maple {
 constexpr int kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 
@@ -114,6 +111,18 @@ inline bool IsPrimitiveValid(PrimitiveType primitiveType) {
 
 inline bool IsPrimitivePoint(PrimitiveType primitiveType) {
   return primitiveType.IsPointer();
+}
+
+inline bool IsPrimitiveVector(PrimitiveType primitiveType) {
+  return primitiveType.IsVector();
+}
+
+inline bool IsPrimitiveVectorFloat(PrimitiveType primitiveType) {
+  return primitiveType.IsVector() && primitiveType.IsFloat();
+}
+
+inline bool IsPrimitiveVectorInteger(PrimitiveType primitiveType) {
+  return primitiveType.IsVector() && primitiveType.IsInteger();
 }
 
 bool IsNoCvtNeeded(PrimType toType, PrimType fromType);
@@ -591,8 +600,8 @@ class MIRPtrType : public MIRType {
   bool IsPointedTypeVolatile(int fieldID) const;
 
   void Dump(int indent, bool dontUseName = false) const override;
-  size_t GetSize() const override { return POINTER_SIZE; }
-  uint32 GetAlign() const override { return POINTER_SIZE; }
+  size_t GetSize() const override;
+  uint32 GetAlign() const override;
   TyIdxFieldAttrPair GetPointedTyIdxFldAttrPairWithFieldID(FieldID fldId) const;
   TyIdx GetPointedTyIdxWithFieldID(FieldID fieldID) const;
   size_t GetHashIndex() const override {
