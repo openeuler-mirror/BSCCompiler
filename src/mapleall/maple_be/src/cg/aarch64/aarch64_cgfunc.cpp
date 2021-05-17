@@ -925,7 +925,9 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
     memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, dataSize);
   }
 
-  ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer) ||
+  // In bpl mode, a func symbol's type is represented as a MIRFuncType instead of a MIRPtrType (pointing to
+  // MIRFuncType), so we allow `kTypeFunction` to appear here
+  ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer) || (type->GetKind() == kTypeFunction) ||
           (type->GetKind() == kTypeStruct) || (type->GetKind() == kTypeArray)), "NYI dassign type");
   PrimType ptyp = type->GetPrimType();
   if (ptyp == PTY_agg) {
@@ -2825,7 +2827,7 @@ void AArch64CGFunc::SelectRem(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOp
    * and     wRespond, wRespond, #1
    * sub     wRespond, wRespond, w2
    */
-  if ((Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) && movImmInsn &&
+  if ((Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) && movImmInsn && isSigned &&
       ((movImmInsn->GetMachineOpcode() == MOP_xmovri32) || (movImmInsn->GetMachineOpcode() == MOP_xmovri64)) &&
        movImmInsn->GetOperand(0).Equals(opnd1)) {
     auto &imm = static_cast<AArch64ImmOperand&>(movImmInsn->GetOperand(kInsnSecondOpnd));
@@ -3492,10 +3494,17 @@ Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpn
  *  operand fits in MOVK if
  *     is64Bits && boffst == 0, 16, 32, 48 && bSize == 16, so boffset / 16 == 0, 1, 2, 3; (boffset / 16 ) & (~3) == 0
  *  or is32Bits && boffset == 0, 16 && bSize == 16, so boffset / 16 == 0, 1; (boffset / 16) & (~1) == 0
+ *  imm range of aarch64-movk [0 - 65536] imm16
  */
-inline bool IsMoveWideKeepable(uint32 bitOffset, uint32 bitSize, bool is64Bits) {
+inline bool IsMoveWideKeepable(int64 offsetVal, uint32 bitOffset, uint32 bitSize, bool is64Bits) {
   ASSERT(is64Bits || (bitOffset < k32BitSize), "");
-  return (bitSize == k16BitSize && ((bitOffset >> k16BitShift) & ~static_cast<uint32>(is64Bits ? 0x3 : 0x1)) == 0);
+  bool isOutOfRange = offsetVal < 0;
+  if (!isOutOfRange) {
+    isOutOfRange = (static_cast<unsigned long int>(offsetVal) >> k16BitSize) > 0;
+  }
+  return (!isOutOfRange) &&
+      bitSize == k16BitSize &&
+      ((bitOffset >> k16BitShift) & ~static_cast<uint32>(is64Bits ? 0x3 : 0x1)) == 0;
 }
 
 /* we use the fact that A ^ B ^ A == B, A ^ 0 = A */
@@ -3504,12 +3513,14 @@ Operand *AArch64CGFunc::SelectDepositBits(DepositbitsNode &node, Operand &opnd0,
   uint32 bitSize = node.GetBitsSize();
   PrimType regType = node.GetPrimType();
   bool is64Bits = GetPrimTypeBitSize(regType) == k64BitSize;
+
   /*
    * if operand 1 is immediate and fits in MOVK, use it
    * MOVK Wd, #imm{, LSL #shift} ; 32-bit general registers
    * MOVK Xd, #imm{, LSL #shift} ; 64-bit general registers
    */
-  if (opnd1.IsIntImmediate() && IsMoveWideKeepable(bitOffset, bitSize, is64Bits)) {
+  if (opnd1.IsIntImmediate() &&
+      IsMoveWideKeepable(static_cast<ImmOperand&>(opnd1).GetValue(), bitOffset, bitSize, is64Bits)) {
     RegOperand &resOpnd = CreateRegisterOperandOfType(regType);
     SelectCopy(resOpnd, regType, opnd0, regType);
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>((is64Bits ? MOP_xmovkri16 : MOP_wmovkri16),
@@ -3944,10 +3955,14 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
 
     if (fsize > tsize) {
       if (fsize == k64BitSize) {
-        MOperator mOp = IsSignedInteger(toType) ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,
-                                                                      CreateImmOperand(0, k8BitSize, false),
-                                                                      CreateImmOperand(tsize, k8BitSize, false)));
+        if (tsize == k32BitSize) {
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovrr, *resOpnd, *opnd0));
+        } else {
+          MOperator mOp = IsSignedInteger(toType) ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6;
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,
+                                                                        CreateImmOperand(0, k8BitSize, false),
+                                                                        CreateImmOperand(tsize, k8BitSize, false)));
+        }
       } else {
         MOperator mOp = IsSignedInteger(toType) ? MOP_wsbfxrri5i5 : MOP_wubfxrri5i5;
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,
