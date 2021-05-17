@@ -148,7 +148,7 @@ class MIRLexer {
 };
 
 inline bool IsPrimitiveType(TokenKind tk) {
-  return (tk >= TK_void) && (tk <= TK_agg);
+  return (tk >= TK_void) && (tk < TK_unknown);
 }
 
 inline bool IsVarName(TokenKind tk) {
@@ -164,7 +164,8 @@ inline bool IsConstValue(TokenKind tk) {
 }
 
 inline bool IsConstAddrExpr(TokenKind tk) {
-  return (tk == TK_addrof) || (tk == TK_addroffunc) || (tk == TK_addroflabel) || (tk == TK_conststr) || (tk == TK_conststr16);
+  return (tk == TK_addrof) || (tk == TK_addroffunc) || (tk == TK_addroflabel) ||
+         (tk == TK_conststr) || (tk == TK_conststr16);
 }
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_LEXER_H

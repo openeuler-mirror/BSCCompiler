@@ -143,7 +143,7 @@ if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   echo Installed qemu-aarch64
 fi
 
-version=810ab06
+version=c3b1120
 if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
   cd $TOOLS
   rm -rf open64_prebuilt
