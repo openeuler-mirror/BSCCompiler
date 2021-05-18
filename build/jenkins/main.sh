@@ -13,6 +13,7 @@ function debug_test {
   make
   make irbuild
   make mplfe
+  make clang2mpl
   make irbuild_test
   make c_test
 }
@@ -37,6 +38,7 @@ function release_test {
   make
   make irbuild
   make mplfe
+  make clang2mpl
   make libcore OPT=${opt}
 
   for dir in $sample_list
