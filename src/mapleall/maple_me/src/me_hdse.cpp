@@ -23,8 +23,9 @@
 
 namespace maple {
 void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  auto cfg = func.GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     BB *tryBB = *bIt;
     // get next valid bb
     auto endTryIt = bIt;
@@ -101,7 +102,7 @@ AnalysisResult *MeDoHDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
   MeHDSE hdse(*func, *postDom, *hMap, DEBUGFUNC(func));
   hdse.RunHDSE();
   MakeEmptyTrysUnreachable(*func);
-  if (func->GetTheCfg()->UnreachCodeAnalysis(true)) {
+  if (func->GetCfg()->UnreachCodeAnalysis(true)) {
     m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
   }
   if (DEBUGFUNC(func)) {

@@ -55,9 +55,18 @@ void MeABC::ABCCollectArrayExpr(MeStmt &meStmt, MeExpr &meExpr, bool isUpdate) {
 }
 
 bool MeABC::CollectABC() {
-  auto eIt = meFunc->valid_end();
-  for (auto bIt = meFunc->valid_begin(); bIt != eIt; ++bIt) {
+  auto cfg = meFunc->GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     for (auto &meStmt : (*bIt)->GetMeStmts()) {
+      if (meStmt.GetOp() == OP_callassigned) {
+        auto *callNode = static_cast<CallMeStmt*>(&meStmt);
+        MIRFunction *callFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
+        if (callFunc->GetBaseClassName().compare("Ljava_2Flang_2FSystem_3B") == 0 &&
+            callFunc->GetBaseFuncName().compare("arraycopy") == 0) {
+          arrayChecks[&meStmt] = nullptr;
+        }
+      }
       for (size_t i = 0; i < meStmt.NumMeStmtOpnds(); ++i) {
         ABCCollectArrayExpr(meStmt, *(meStmt.GetOpnd(i)));
       }
@@ -66,7 +75,7 @@ bool MeABC::CollectABC() {
   return !arrayChecks.empty();
 }
 
-bool MeABC::IsVirtualVar(const VarMeExpr &var, const SSATab &ssaTab) const {
+bool MeABC::IsVirtualVar(const VarMeExpr &var) const {
   const OriginalSt *ost = var.GetOst();
   return ost->GetIndirectLev() > 0;
 }
@@ -95,7 +104,7 @@ void MeABC::BuildPhiInGraph(MePhiNode &phi) {
     return;
   }
   VarMeExpr *lhsExpr = static_cast<VarMeExpr*>(phi.GetLHS());
-  if (lhsExpr != nullptr && IsVirtualVar(*lhsExpr, irMap->GetSSATab())) {
+  if (lhsExpr != nullptr && IsVirtualVar(*lhsExpr)) {
     return;
   }
   for (auto *phiRHS : phi.GetOpnds()) {
@@ -756,6 +765,9 @@ void MeABC::AddUseDef(MeExpr &meExpr) {
 void MeABC::CollectCareInsns() {
   for (auto pair : arrayChecks) {
     MeStmt *meStmt = pair.first;
+    if (IsCallAssigned(meStmt->GetOp())) {
+      arrayNewChecks[meStmt] = nullptr;
+    }
     for (size_t i = 0; i < meStmt->NumMeStmtOpnds(); ++i) {
       ABCCollectArrayExpr(*meStmt, *(meStmt->GetOpnd(i)), true);
     }
@@ -1048,15 +1060,20 @@ void MeABC::ExecuteABCO() {
     ssi->ConvertToSSI();
     CollectCareInsns();
     for (auto pair : arrayNewChecks) {
-      InitNewStartPoint(*(pair.first), *((static_cast<NaryMeExpr *>(pair.second))->GetOpnd(0)),
-                        *((static_cast<NaryMeExpr *>(pair.second))->GetOpnd(1)));
-      BuildInequalityGraph();
-      if (MeABC::isDebug) {
-        meFunc->GetTheCfg()->DumpToFile(meFunc->GetName());
-        inequalityGraph->DumpDotFile(*irMap, DumpType::kDumpUpperAndNone);
-        inequalityGraph->DumpDotFile(*irMap, DumpType::kDumpLowerAndNone);
+      if (pair.first->GetOp() == OP_callassigned) {
+        auto *callNode = static_cast<CallMeStmt*>(pair.first);
+        ProcessCallParameters(*callNode);
+      } else {
+        InitNewStartPoint(*(pair.first), *((static_cast<NaryMeExpr *>(pair.second))->GetOpnd(0)),
+                          *((static_cast<NaryMeExpr *>(pair.second))->GetOpnd(1)));
+        BuildInequalityGraph();
+        if (MeABC::isDebug) {
+          meFunc->GetCfg()->DumpToFile(meFunc->GetName());
+          inequalityGraph->DumpDotFile(DumpType::kDumpUpperAndNone);
+          inequalityGraph->DumpDotFile(DumpType::kDumpLowerAndNone);
+        }
+        FindRedundantABC(*(pair.first), *(static_cast<NaryMeExpr*>(pair.second)));
       }
-      FindRedundantABC(*(pair.first), *(static_cast<NaryMeExpr*>(pair.second)));
     }
     ssi->ConvertToSSA();
     DeleteABC();
@@ -1064,9 +1081,6 @@ void MeABC::ExecuteABCO() {
 }
 
 AnalysisResult *MeDoABCOpt::Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr*) {
-  if (func->GetSecondPass()) {
-    return nullptr;
-  }
   CHECK_FATAL(frm != nullptr, "frm is nullptr");
   auto *dom = static_cast<Dominance*>(frm->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");

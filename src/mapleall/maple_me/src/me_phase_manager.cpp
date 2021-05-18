@@ -87,7 +87,9 @@ void MeFuncPhaseManager::RunFuncPhase(MeFunction *func, MeFuncPhase *phase) {
   // 4. run: skip mplme phase except "emit" if no cfg in MeFunction
   AnalysisResult *analysisRes = nullptr;
   MePhaseID phaseID = phase->GetPhaseId();
-  if ((func->NumBBs() > 0 || (mirModule.IsInIPA() && phaseID == MeFuncPhase_IPASIDEEFFECT)) ||
+  if ((phaseID == MeFuncPhase_MECFG) ||
+      (func->GetCfg() && func->GetCfg()->NumBBs() > 0) ||
+      (mirModule.IsInIPA() && phaseID == MeFuncPhase_IPASIDEEFFECT) ||
       (phaseID == MeFuncPhase_EMIT) || (phaseID == MeFuncPhase_SSARENAME2PREG)) {
     analysisRes = phase->Run(func, &arFuncManager, modResMgr);
     phase->ClearMemPoolsExcept(analysisRes == nullptr ? nullptr : analysisRes->GetMempool());
@@ -145,6 +147,7 @@ void MeFuncPhaseManager::AddPhases(const std::unordered_set<std::string> &skipPh
   bool o2 = (MeOption::optLevel == 2);
   if (mePhaseType == kMePhaseMainopt) {
     // default phase sequence
+    addPhase("mecfgbuild");
     if (o2) {
       addPhase("loopcanon");
       addPhase("splitcriticaledge");
@@ -211,7 +214,7 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
   auto funcStackMP = std::make_unique<StackMemPool>(localMpCtrler, "");
   MemPool *versMP = new ThreadLocalMemPool(localMpCtrler, "first verst mempool");
   MeFunction &func = *(funcMP->New<MeFunction>(&mirModule, mirFunc, funcMP.get(), *funcStackMP, versMP, meInput));
-  func.PartialInit(false);
+  func.PartialInit();
 #if DEBUG
   globalMIRModule = &mirModule;
   globalFunc = &func;
@@ -229,7 +232,7 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
     mirFunc->SetMeFunc(&func);
   }
   std::string phaseName = "";
-  MeFuncPhase *changeCFGPhase = nullptr;
+//  MeFuncPhase *changeCFGPhase = nullptr;
   // each function level phase
   bool dumpFunc = FuncFilter(MeOption::dumpFunc, func.GetName());
   size_t phaseIndex = 0;
@@ -278,11 +281,6 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
       --it;
       --it;  // restore iterator to emit
     }
-    if (p->IsChangedCFG()) {
-      changeCFGPhase = p;
-      p->ClearChangeCFG();
-      break;
-    }
     if (timePhases) {
       runPhasetimer.Stop();
       phaseTimers[phaseIndex] += runPhasetimer.ElapsedMicroseconds();
@@ -300,87 +298,6 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
     GetAnalysisResultManager()->InvalidAllResults();
     invalidTimer.Stop();
     extraMeTimers["invalidResult"] += invalidTimer.ElapsedMicroseconds();
-  }
-  if (changeCFGPhase != nullptr) {
-    if (ipa) {
-      CHECK_FATAL(false, "phases in ipa will not chang cfg.");
-    }
-    if (timePhases) {
-      funcPrepareTimer.Start();
-    }
-    // do all the phases start over
-    auto *versMemPool = new ThreadLocalMemPool(localMpCtrler, "second verst mempool");
-    auto function = funcMP->New<MeFunction>(&mirModule, mirFunc, funcMP.get(), *funcStackMP, versMemPool, meInput);
-    function->PartialInit(true);
-    function->Prepare(rangeNum);
-    if (timePhases) {
-      funcPrepareTimer.Stop();
-      extraMeTimers["prepareFunc"] += funcPrepareTimer.ElapsedMicroseconds();
-      iteratorTimer.Start();
-    }
-    for (auto it = PhaseSequenceBegin(); it != PhaseSequenceEnd(); ++it) {
-      if (timePhases) {
-        runPhasetimer.Start();
-      }
-      PhaseID id = GetPhaseId(it);
-      auto *p = static_cast<MeFuncPhase*>(GetPhase(id));
-      if (p == changeCFGPhase) {
-        continue;
-      }
-      if (MeOption::skipFrom.compare(p->PhaseName()) == 0) {
-        // fast-forward to emit pass, which is last pass
-        while (++it != PhaseSequenceEnd()) { }
-        --it;  // restore iterator
-        id = GetPhaseId(it);
-        p = static_cast<MeFuncPhase*>(GetPhase(id));
-      }
-      p->SetPreviousPhaseName(phaseName); // prev phase name is for filename used in emission after phase
-      phaseName = p->PhaseName();         // new phase name
-      bool dumpPhase = MeOption::DumpPhase(phaseName);
-      if (MeOption::dumpBefore && dumpFunc && dumpPhase) {
-        LogInfo::MapleLogger() << ">>>>>Second time Dump before " << phaseName << " <<<<<\n";
-        if (phaseName != "emit") {
-          function->Dump(false);
-        } else {
-          function->DumpFunctionNoSSA();
-        }
-        LogInfo::MapleLogger() << ">>>>> Second time Dump before End <<<<<\n";
-      }
-      RunFuncPhase(function, p);
-      if ((MeOption::dumpAfter || dumpPhase) && dumpFunc) {
-        LogInfo::MapleLogger() << ">>>>>Second time Dump after " << phaseName << " <<<<<\n";
-        if (phaseName != "emit") {
-          function->Dump(false);
-        } else {
-          function->DumpFunctionNoSSA();
-        }
-        LogInfo::MapleLogger() << ">>>>> Second time Dump after End <<<<<\n\n";
-      }
-      if (MeOption::skipAfter.compare(phaseName) == 0) {
-        // fast-forward to emit pass, which is last pass
-        while (++it != PhaseSequenceEnd()) { }
-        --it;
-        --it;  // restore iterator to emit
-      }
-      if (timePhases) {
-        runPhasetimer.Stop();
-        phaseTimers[phaseIndex] += runPhasetimer.ElapsedMicroseconds();
-        runPhasesTime += runPhasetimer.ElapsedMicroseconds();
-      }
-    }
-    if (timePhases) {
-      iteratorTimer.Stop();
-      extraMeTimers["iterator"] += iteratorTimer.ElapsedMicroseconds() - runPhasesTime;
-      runPhasesTime = 0;
-      invalidTimer.Start();
-    }
-
-    GetAnalysisResultManager()->InvalidAllResults();
-
-    if (timePhases) {
-      invalidTimer.Stop();
-      extraMeTimers["invalidResult"] += invalidTimer.ElapsedMicroseconds();
-    }
   }
   if (!ipa) {
     if (timePhases) {

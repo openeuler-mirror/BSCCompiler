@@ -42,7 +42,7 @@ static void InsertAtBBEntry(BB &bb, MeStmt &newStmt) {
 UnaryMeStmt *PlacementRC::GenIncrefAtEntry(OriginalSt &ost) const {
   UnaryMeStmt *incRefStmt = irMap->New<UnaryMeStmt>(OP_incref);
   incRefStmt->SetMeStmtOpndValue(irMap->GetOrCreateZeroVersionVarMeExpr(ost));
-  BB *insertBB = func->GetFirstBB();
+  BB *insertBB = func->GetCfg()->GetFirstBB();
   incRefStmt->SetBB(insertBB);
   InsertAtBBEntry(*insertBB, *incRefStmt);
   return incRefStmt;
@@ -92,7 +92,8 @@ void PlacementRC::HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt) {
   }
 
   // Generate a copy to tempVar and regard this as the last use of workCand
-  DassignMeStmt *newDass = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*tempVar, *realOcc.GetVar(), realOcc.GetBB()));
+  DassignMeStmt *newDass =
+      static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*tempVar, *realOcc.GetVar(), realOcc.GetBB()));
   newDass->SetSrcPos(thwStmt.GetSrcPosition());
   newDass->EnableNeedDecref();
   tempVar->SetDefByStmt(*newDass);
@@ -120,7 +121,8 @@ void PlacementRC::HandleThrowOperand(SRealOcc &realOcc, ThrowMeStmt &thwStmt) {
 }
 
 void PlacementRC::AddCleanupArg() {
-  for (BB *bb : func->GetCommonExitBB()->GetPred()) {
+  auto cfg = func->GetCfg();
+  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (meStmts.empty() || meStmts.back().GetOp() != OP_return) {
       continue;
@@ -349,7 +351,8 @@ bool PlacementRC::GoStraightToThrow(const BB &bb) const {
 }
 
 SOcc *PlacementRC::FindLambdaReal(const SLambdaOcc &occ) const {
-  std::vector<bool> visitedBBs(func->NumBBs(), false);
+  auto cfg = func->GetCfg();
+  std::vector<bool> visitedBBs(cfg->NumBBs(), false);
   std::set<BBId> lambdaRealBBs;
   FindRealPredBB(occ.GetBB(), visitedBBs, lambdaRealBBs);
   SOcc *retOcc = nullptr;
@@ -362,7 +365,7 @@ SOcc *PlacementRC::FindLambdaReal(const SLambdaOcc &occ) const {
       if (retOcc == nullptr) {
         retOcc = realOcc;
       } else if (&retOcc->GetBB() != mirBB) {
-        std::vector<bool> bbVisited(func->NumBBs(), false);
+        std::vector<bool> bbVisited(cfg->NumBBs(), false);
         retOcc->GetBB().FindReachableBBs(bbVisited);
         if (bbVisited[mirBB->GetBBId()]) {
           retOcc = realOcc;
@@ -410,8 +413,9 @@ void PlacementRC::CodeMotion() {
   }
 
   // Do insertions at catch blocks according to catchBlocks2Insert
+  auto cfg = func->GetCfg();
   for (BBId bbId : catchBlocks2Insert) {
-    BB *bb = func->GetAllBBs().at(bbId);
+    BB *bb = cfg->GetBBFromID(bbId);
     CheckAndInsert(*bb, nullptr);
   }
 }
@@ -453,8 +457,8 @@ void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryI
   auto *resetDass = irMap->CreateAssignMeStmt(*candVar, *irMap->CreateIntConstMeExpr(0, PTY_ptr), realOcc.GetBB());
   resetDass->SetSrcPos(entryIncref->GetSrcPosition());
   candVar->SetDefByStmt(*resetDass);
-  func->GetFirstBB()->InsertMeStmtBefore(entryIncref, resetDass);
-  func->GetFirstBB()->RemoveMeStmt(entryIncref);
+  func->GetCfg()->GetFirstBB()->InsertMeStmtBefore(entryIncref, resetDass);
+  func->GetCfg()->GetFirstBB()->RemoveMeStmt(entryIncref);
 }
 
 void PlacementRC::UpdateCatchBlocks2Insert(const BB &lastUseBB) {
@@ -567,7 +571,7 @@ void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
   // Special case: delete the formal's entry incref
   if (realOcc.GetStmt() == nullptr) {
     if (!MeOption::gcOnly) {
-      CHECK_FATAL(lastUseBB == func->GetFirstBB(), "PlacementRC::CodeMotion: realOcc from entry incref has wrong bb");
+      CHECK_FATAL(lastUseBB == func->GetCfg()->GetFirstBB(), "PlacementRC::CodeMotion: realOcc from entry incref has wrong bb");
       DeleteEntryIncref(realOcc, entryIncref);
     }
     return;
@@ -596,7 +600,8 @@ void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
   if (realOcc.GetVar()->PointsToStringLiteral()) {
     MeExpr *zeroExpr = irMap->CreateIntConstMeExpr(0, realOcc.GetVar()->GetPrimType());
     VarMeExpr *newVar = irMap->CreateVarMeExprVersion(*realOcc.GetVar());
-    DassignMeStmt *newstmt = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*newVar, *zeroExpr, realOcc.GetBB()));
+    DassignMeStmt *newstmt =
+        static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*newVar, *zeroExpr, realOcc.GetBB()));
     realOcc.GetBB().ReplaceMeStmt(decrefStmt, newstmt);
     return;
   }
@@ -606,7 +611,8 @@ void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
 
 // ================ Step 0: Collect occurrences ================
 void PlacementRC::CreateEmptyCleanupIntrinsics() {
-  for (BB *bb : func->GetCommonExitBB()->GetPred()) {
+  auto cfg = func->GetCfg();
+  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (!meStmts.empty() && meStmts.back().GetOp() == OP_return) {
       IntrinsiccallMeStmt *intrn =
@@ -664,7 +670,7 @@ void PlacementRC::CreateRealOcc(const OStIdx &ostIdx, MeStmt *meStmt, VarMeExpr 
     wkCand->SetTheVar(var);
   }
   SRealOcc *newOcc = meStmt != nullptr ? spreMp->New<SRealOcc>(*meStmt, var)
-                                       : spreMp->New<SRealOcc>(*func->GetFirstBB(), var);
+                                       : spreMp->New<SRealOcc>(*func->GetCfg()->GetFirstBB(), var);
   if (causedByDef) {
     newOcc->SetRealFromDef(true);
   }
@@ -867,7 +873,7 @@ void PlacementRC::BuildWorkListBB(BB *bb) {
 
   // Recurse on child BBs in post-dominator tree
   for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
-    BuildWorkListBB(func->GetAllBBs().at(bbId));
+    BuildWorkListBB(func->GetCfg()->GetAllBBs().at(bbId));
   }
 }
 
@@ -879,9 +885,9 @@ AnalysisResult *MeDoPlacementRC::Run(MeFunction *func, MeFuncResultMgr *m, Modul
   if (whiteListFunc.find(funcName) != whiteListFunc.end() || func->GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
     return nullptr;
   }
-
+  auto cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
   // Workaround for RCWeakRef-annotated field access: leave it to analyzerc
-  for (BB *bb : func->GetAllBBs()) {
+  for (BB *bb : cfg->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
