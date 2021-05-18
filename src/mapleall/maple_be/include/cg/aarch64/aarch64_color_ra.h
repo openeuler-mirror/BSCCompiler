@@ -30,7 +30,6 @@ namespace maplebe {
 #undef REUSE_SPILLMEM
 #undef COLOR_SPLIT
 #undef MOVE_COALESCE
-
 /* for robust test */
 #undef CONSISTENT_MEMOPND
 #undef RANDOM_PRIORITY
