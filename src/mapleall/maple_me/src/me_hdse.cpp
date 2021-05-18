@@ -21,7 +21,71 @@
 #include "me_ssa.h"
 #include "hdse.h"
 
+// The hdse phase performs dead store elimination using the well-known algorithm
+// based on SSA.  The algorithm works as follows:
+// 0. Initially, assume all stmts and expressions are not needed.
+// 1. In a pass over the program, mark stmts that cannot be deleted as needed.
+//    These include return/eh/call statements and assignments to volatile fields
+//    and variables.  Expressions used by needed statements are put into a
+//    worklist.
+// 2. Process each node in the worklist. For any variable used in expression,
+//    mark the def stmt for the variable as needed and push expressions used
+//    by the def stmt to the worklist.
+// 3. When the worklist becomes empty, perform a pass over the program to delete
+//    statements that have not been marked as needed.
+//
+// The backward substitution optimization is also performed in this phase by
+// piggy-backing on Step 3.  In the pass over the program in Step 3, it counts
+// the number of uses for each variable version.  It also create a list of
+// backward substitution candidates, which are dassign statements of the form:
+//              x_i = y_j
+// where x is a local variable with no alias, and y_j is defined via the return
+// value of a call which is in the same BB.  Then,
+// 4. For each backward substitution candidate x_i = y_j, if the use count of y_j
+//    is 1, then replace the return value definition of y_j by x_i, and delete
+//    the statement x_i = y_j.
+// Before the hdse phase finishes, it performs 2 additional optimizations:
+// 5. When earlier deletion caused a try block to become empty, delete the empty
+//    try block while fixing up the CFG.
+// 6. Perform unreacble code analysis, delete the BBs found unreachable and fix
+//    up the CFG.
+
 namespace maple {
+
+void MeHDSE::BackwardSubstitution() {
+  for (DassignMeStmt *dass : backSubsCands) {
+    ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
+    if (verstUseCounts[rhsscalar->GetVstIdx()] != 1) {
+      continue;
+    }
+    ScalarMeExpr *lhsscalar = dass->GetLHS();
+    // check that lhsscalar has no use after rhsscalar's definition
+    CHECK_FATAL(rhsscalar->GetDefBy() == kDefByMustDef, "MeHDSE::BackwardSubstitution: rhs not defined by mustDef");
+    MustDefMeNode *mustDef = &rhsscalar->GetDefMustDef();
+    MeStmt *defStmt = mustDef->GetBase();
+    bool hasAppearance = false;
+    MeStmt *curstmt = dass->GetPrev();
+    while (curstmt != defStmt && !hasAppearance) {
+      for (int32 i = 0; i < curstmt->NumMeStmtOpnds(); i++) {
+        if (curstmt->GetOpnd(i)->SymAppears(lhsscalar->GetOst()->GetIndex())) {
+          hasAppearance = true;
+        }
+      }
+      curstmt = curstmt->GetPrev();
+    }
+    if (hasAppearance) {
+      continue;
+    }
+    // perform the backward substitution
+    if (hdseDebug) {
+      LogInfo::MapleLogger() << "------ hdse backward substitution deletes this stmt: ";
+      dass->Dump(&irMap);
+    }
+    mustDef->UpdateLHS(*lhsscalar);
+    dass->GetBB()->RemoveMeStmt(dass);
+  }
+}
+
 void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
   auto eIt = func.valid_end();
   for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
@@ -88,22 +152,21 @@ void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
   }
 }
 
-void MeHDSE::RunHDSE() {
-  hdseKeepRef = MeOption::dseKeepRef;
-  DoHDSE();
-}
-
 AnalysisResult *MeDoHDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
   auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_NULL_FATAL(postDom);
   auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   CHECK_NULL_FATAL(hMap);
+
   MeHDSE hdse(*func, *postDom, *hMap, DEBUGFUNC(func));
-  hdse.RunHDSE();
+  hdse.hdseKeepRef = MeOption::dseKeepRef;
+  hdse.DoHDSE();
+  hdse.BackwardSubstitution();
   MakeEmptyTrysUnreachable(*func);
-  if (func->GetTheCfg()->UnreachCodeAnalysis(true)) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-  }
+  func->GetTheCfg()->UnreachCodeAnalysis(/* update_phi = */true);
+  func->GetTheCfg()->WontExitAnalysis();
+  m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+  m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== HDSE =============" << '\n';
     func->Dump(false);

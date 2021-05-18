@@ -352,6 +352,10 @@ class BB {
     return pred;
   }
 
+  MapleVector<BB*> &GetPred() {
+    return pred;
+  }
+
   const BB *GetPred(size_t cnt) const {
     ASSERT(cnt < pred.size(), "out of range in BB::GetPred");
     return pred.at(cnt);
@@ -376,6 +380,10 @@ class BB {
   }
 
   const MapleVector<BB*> &GetSucc() const {
+    return succ;
+  }
+
+  MapleVector<BB*> &GetSucc() {
     return succ;
   }
 
@@ -455,9 +463,11 @@ class BB {
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
   void RemovePhiOpnd(int index);
+ public:
   void RemoveBBFromPred(const BB &bb, bool updatePhi);
   void RemoveBBFromSucc(const BB &bb);
 
+ private:
   BBId id;
   LabelIdx bbLabel = 0;       // the BB's label
   MapleVector<BB*> pred;  // predecessor list
