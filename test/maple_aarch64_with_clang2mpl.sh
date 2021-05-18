@@ -29,25 +29,19 @@ else
   verbose=$4
 fi
 
-WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_whirl2mpl
+WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_clang2mpl
 
 mkdir -p $WORKDIR
 cp $dir/$src.c $WORKDIR
 cd $WORKDIR
 
 echo ======================================================================== > cmd.log
-echo ============= Use clangfe/whirl2mpl as C Frontend ======================= >> cmd.log
+echo ==================== use clang2mpl as C Frontend ======================= >> cmd.log
 echo ======================================================================== >> cmd.log
 echo cd $WORKDIR >> cmd.log
 
-V=$(cd /usr/lib/gcc-cross/aarch64-linux-gnu/; ls | head -1)
-FLAGS="-cc1 -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ -isystem /usr/aarch64-linux-gnu/include -isystem /usr/lib/gcc-cross/aarch64-linux-gnu/$V/include"
-echo $MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/clangfe $FLAGS $src.c >> cmd.log
-$MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/clangfe $FLAGS $src.c > doit.log 2>&1
-
-echo $MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/whirl2mpl -a $src.B >> cmd.log
-$MAPLE_ROOT/tools/open64_prebuilt/x86/aarch64/bin/whirl2mpl -a $src.B >> doit.log 2>&1
-
+echo $MAPLE_EXECUTE_BIN/clang2mpl --ascii $src.c -- --target=aarch64-linux-elf >> cmd.log
+$MAPLE_EXECUTE_BIN/clang2mpl --ascii $src.c -- --target=aarch64-linux-elf >> doit.log 2>&1
 
 if [ $opt -eq 0 ]; then
   echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-quiet\" $src.mpl >> cmd.log
@@ -57,8 +51,8 @@ else
   $MAPLE_EXECUTE_BIN/maple --run=mplcg --option="-O2 -quiet" $src.mpl >> doit.log 2>&1
 fi
 
-echo /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s >> cmd.log
-/usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s
+echo $MAPLE_ROOT/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -o $src.out $src.s >> cmd.log
+$MAPLE_ROOT/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -o $src.out $src.s
 
 echo $MAPLE_ROOT/tools/bin/qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out >> cmd.log
 $MAPLE_ROOT/tools/bin/qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out > output.log
