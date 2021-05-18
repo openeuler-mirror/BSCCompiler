@@ -16,7 +16,7 @@
 
 namespace maple {
 void SubsumRC::SetCantSubsum() {
-  for (BB *bb : func->GetAllBBs()) {
+  for (BB *bb : cfg->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
@@ -201,7 +201,7 @@ void SubsumRC::BuildRealOccs(MeStmt &stmt, BB &bb) {
   }
   // recurse on child BBs in post-dominator tree
   for (BBId bbId : dom->GetPdomChildrenItem(bb.GetBBId())) {
-    BuildRealOccs(stmt, *func->GetBBFromID(bbId));
+    BuildRealOccs(stmt, *cfg->GetBBFromID(bbId));
   }
 }
 
@@ -264,7 +264,7 @@ void SubsumRC::BuildWorkListBB(BB *bb) {
         LogInfo::MapleLogger() << "Create realocc for stmt:";
         dass->Dump(irMap);
       }
-      BuildRealOccs(*dass, *(func->GetCommonExitBB()));
+      BuildRealOccs(*dass, *(cfg->GetCommonExitBB()));
     }
   }
   if (bb->GetAttributes(kBBAttrIsEntry)) {
@@ -272,13 +272,13 @@ void SubsumRC::BuildWorkListBB(BB *bb) {
   }
   // recurse on child BBs in post-dominator tree
   for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
-    BuildWorkListBB(func->GetBBFromID(bbId));
+    BuildWorkListBB(cfg->GetBBFromID(bbId));
   }
 }
 
 void SubsumRC::RunSSUPre() {
   SetCantSubsum();
-  BuildWorkListBB(func->GetCommonExitBB());
+  BuildWorkListBB(cfg->GetCommonExitBB());
   if (enabledDebug) {
     LogInfo::MapleLogger() << "------ worklist initial size " << candMap.size() << '\n';
   }

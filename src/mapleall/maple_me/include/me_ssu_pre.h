@@ -349,6 +349,7 @@ class MeSSUPre {
   MeSSUPre(MeFunction &f, Dominance &dom, MemPool &memPool, PreKind kind, bool enabledDebug)
       : preKind(kind),
         func(&f),
+        cfg(f.GetCfg()),
         ssaTab(f.GetMeSSATab()),
         irMap(f.GetIRMap()),
         mirModule(&f.GetMeSSATab()->GetModule()),
@@ -387,11 +388,12 @@ class MeSSUPre {
   // step 2 methods
   void Rename();
   // step 1 methods
-  void GetIterPdomFrontier(BB *bb, MapleSet<uint32> *pdfset) {
+  void GetIterPdomFrontier(const BB *bb, MapleSet<uint32> *pdfset) const {
     for (BBId bbid : dom->iterPdomFrontier[bb->GetBBId()]) {
-      pdfset->insert(dom->GetPdtDfnItem(bbid));
+      (void)pdfset->insert(dom->GetPdtDfnItem(bbid));
     }
   }
+
   void FormLambdas();
   void FormLambdaRes();
   void CreateSortedOccs();
@@ -406,6 +408,7 @@ class MeSSUPre {
   virtual void CreateEmptyCleanupIntrinsics() {}
 
   MeFunction *func;
+  MeCFG      *cfg;
   SSATab *ssaTab;
   MeIRMap *irMap;
   MIRModule *mirModule;

@@ -28,11 +28,11 @@ const std::set<std::string> propWhiteList {
 // accumulate the BBs that are in the iterated dominance frontiers of bb in
 // the set dfSet, visiting each BB only once
 namespace maple {
-
 void MeSSAEPre::BuildWorkList() {
+  auto cfg = func->GetCfg();
   const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
   for (auto &bbID : preOrderDt) {
-    BB *bb = func->GetAllBBs().at(bbID);
+    BB *bb = cfg->GetAllBBs().at(bbID);
     BuildWorkListBB(bb);
   }
 }
@@ -64,10 +64,11 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     ++puCount;
     return nullptr;
   }
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  ASSERT(dom != nullptr, "dominance phase has problem");
+  // make irmapbuild first because previous phase may invalid all analysis results
   auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irMap != nullptr, "irMap phase has problem");
+  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  ASSERT(dom != nullptr, "dominance phase has problem");
   KlassHierarchy *kh = nullptr;
   if (func->GetMIRModule().IsJavaModule()) {
     kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));

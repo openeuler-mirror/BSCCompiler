@@ -61,7 +61,7 @@ void RCLowering::PreRCLower() {
 
   MarkAllRefOpnds();
   CreateCleanupIntrinsics();
-  auto *bb = func.GetCommonEntryBB();
+  auto *bb = func.GetCfg()->GetCommonEntryBB();
   CHECK_FATAL(bb != nullptr, "null ptr check");
   UpdateRefVarVersions(*bb);
   UnmarkNotNeedDecRefOpnds();
@@ -80,7 +80,7 @@ void RCLowering::MarkLocalRefVar() {
 
 void RCLowering::MarkAllRefOpnds() {
   // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
-  for (auto bIt = func.valid_begin(), eIt = func.valid_end(); bIt != eIt; ++bIt) {
+  for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
     for (auto &stmt : (*bIt)->GetMeStmts()) {
       MeExpr *lhsRef = stmt.GetLHSRef(false);
       if (lhsRef == nullptr) {
@@ -118,7 +118,7 @@ void RCLowering::UpdateRefVarVersions(BB &bb) {
   ASSERT(bb.GetBBId() < dominance->GetDomChildrenSize(), "index out of range");
   const MapleSet<BBId> &domChildren = dominance->GetDomChildren(bb.GetBBId());
   for (const auto &id : domChildren) {
-    UpdateRefVarVersions(*func.GetAllBBs().at(id));
+    UpdateRefVarVersions(*cfg->GetAllBBs().at(id));
   }
 
   // restore the stacks to their size at entry to this function invocation
@@ -212,7 +212,7 @@ void RCLowering::UnmarkNotNeedDecRefOpnds() {
 }
 
 void RCLowering::CreateCleanupIntrinsics() {
-  for (BB *bb : func.GetCommonExitBB()->GetPred()) {
+  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     MeStmt *lastMeStmt = to_ptr(bb->GetMeStmts().rbegin());
     if (!CheckOp(lastMeStmt, OP_return)) {
       continue;
@@ -773,8 +773,8 @@ MIRIntrinsicID RCLowering::SelectWriteBarrier(const MeStmt &stmt) {
 
 void RCLowering::RCLower() {
   // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
-  for (auto bIt = func.valid_begin(), eIt = func.valid_end(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry() || bIt == func.common_exit()) {
+  for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
+    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
       continue;
     }
     EpreFixup(**bIt);
@@ -1124,7 +1124,7 @@ void RCLowering::HandleArguments() {
   // handle arguments, if the formal gets modified
   // insert incref at entry and decref before all returns
   MIRFunction *mirFunc = func.GetMirFunc();
-  BB *firstBB = func.GetFirstBB();
+  BB *firstBB = func.GetCfg()->GetFirstBB();
   MeStmt *firstMeStmt = to_ptr(firstBB->GetMeStmts().begin());
   for (size_t i = (mirFunc->IsStatic() ? 0 : 1); i < mirFunc->GetFormalCount(); ++i) {
     MIRSymbol *sym = mirFunc->GetFormal(i);
@@ -1155,7 +1155,7 @@ void RCLowering::PostRCLower() {
   HandleReturnStmt();
   // compact RC
   // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
-  for (auto bIt = func.valid_begin(), eIt = func.valid_end(); bIt != eIt; ++bIt) {
+  for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
     CompactRC(**bIt);
   }
 }
@@ -1173,7 +1173,7 @@ void RCLowering::CheckRefs() {
   if (checkRefFormal) {
     CheckFormals();
   }
-  for (BB *bb : func.GetAllBBs()) {
+  for (BB *bb : cfg->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
@@ -1208,7 +1208,7 @@ void RCLowering::ParseCheckFlag() {
 
 void RCLowering::CheckFormals() {
   MIRFunction *mirFunc = func.GetMirFunc();
-  BB *firstBB = func.GetFirstBB();
+  BB *firstBB = func.GetCfg()->GetFirstBB();
   if (firstBB->IsMeStmtEmpty()) {
     return;
   }
@@ -1653,10 +1653,11 @@ AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *funcResMg
     rcLowering.SetDominance(*dom);
   }
   MIRFunction *mirFunction = func->GetMirFunc();
+  MeCFG *cfg = func->GetCfg();
   if (whiteListFunc.find(mirFunction->GetName()) != whiteListFunc.end() ||
       mirFunction->GetAttr(FUNCATTR_rclocalunowned)) {
-    auto eIt = func->valid_end();
-    for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+    auto eIt = cfg->valid_end();
+    for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
       rcLowering.FastBBLower(*bb);
     }

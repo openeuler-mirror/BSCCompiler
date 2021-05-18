@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -32,13 +32,30 @@
 // newbb is always appended at the end of bb_vec_ and pred/succ will be updated.
 // The bblayout phase will determine the final layout order of the bbs.
 namespace maple {
-void MeDoSplitCEdge::UpdateNewBBInTry(BB &newBB, const BB &pred) const {
+// This function is used to find the eh edge when predBB is tryBB.
+void MeDoSplitCEdge::UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pred) const {
+  auto tryBB = &pred;
   newBB.SetAttributes(kBBAttrIsTry);
-  for (auto *candCatch : pred.GetSucc()) {
+  // The bb which is returnBB and only have return stmt would not have eh edge,
+  // so need find a try bb which have eh edge continue.
+  if (pred.IsReturnBB()) {
+    int i = 1;
+    tryBB = func.GetCfg()->GetBBFromID(newBB.GetBBId() - i);
+    while (tryBB == nullptr || tryBB->IsReturnBB()) {
+      ++i;
+      tryBB = func.GetCfg()->GetBBFromID(newBB.GetBBId() - i);
+    }
+    ASSERT_NOT_NULL(tryBB);
+    ASSERT(tryBB->GetAttributes(kBBAttrIsTry), "must be try");
+  }
+  bool setEHEdge = false;
+  for (auto *candCatch : tryBB->GetSucc()) {
     if (candCatch != nullptr && candCatch->GetAttributes(kBBAttrIsCatch)) {
+      setEHEdge = true;
       newBB.AddSucc(*candCatch);
     }
   }
+  ASSERT(setEHEdge, "must set eh edge");
 }
 
 void MeDoSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {
@@ -79,6 +96,21 @@ void MeDoSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &
   }
 }
 
+void MeDoSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
+  if (!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) {
+    newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);
+    isInsertAfterPred = true;
+    if (pred.GetAttributes(kBBAttrIsTryEnd)) {
+      newBB->SetAttributes(kBBAttrIsTryEnd);
+      pred.ClearAttributes(kBBAttrIsTryEnd);
+      func.GetCfg()->SetTryBBByOtherEndTryBB(newBB, &pred);
+    }
+  } else {
+    newBB = &func.GetCfg()->InsertNewBasicBlock(succ);
+    isInsertAfterPred = false;
+  }
+}
+
 void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const {
   if (DEBUGFUNC(&func)) {
     LogInfo::MapleLogger() << "******before break : critical edge : BB" << pred.GetBBId() << " -> BB" <<
@@ -89,16 +121,25 @@ void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) con
   ASSERT(!succ.GetAttributes(kBBAttrIsCatch), "BreakCriticalEdge: cannot break an EH edge");
   // create newBB and set pred/succ
   BB *newBB = nullptr;
+  MeCFG *cfg = func.GetCfg();
   // use replace instead of remove/add to keep position in pred/succ
+  bool isInsertAfterPred = false;
+  bool needUpdateTryAttr = true;
   size_t index = succ.GetPred().size();
-  if (&pred == func.GetCommonEntryBB()) {
-    newBB = &func.InsertNewBasicBlock(*func.GetFirstBB());
+  if (&pred == cfg->GetCommonEntryBB()) {
+    newBB = &cfg->InsertNewBasicBlock(*cfg->GetFirstBB());
     newBB->SetAttributes(kBBAttrIsEntry);
     succ.ClearAttributes(kBBAttrIsEntry);
     pred.RemoveEntry(succ);
     pred.AddEntry(*newBB);
+    needUpdateTryAttr = false;
   } else {
-    newBB = func.NewBasicBlock();
+    if (pred.GetAttributes(kBBAttrIsTry)) {
+      DealWithTryBB(func, pred, succ, newBB, isInsertAfterPred);
+    } else {
+      newBB = cfg->NewBasicBlock();
+      needUpdateTryAttr = false;
+    }
     while (index > 0) {
       if (succ.GetPred(index - 1) == &pred) {
         break;
@@ -114,8 +155,12 @@ void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) con
   newBB->SetKind(kBBFallthru);  // default kind
   newBB->SetAttributes(kBBAttrArtificial);
 
-  if (pred.GetAttributes(kBBAttrIsTry)) {
-    UpdateNewBBInTry(*newBB, pred);
+  if (needUpdateTryAttr && isInsertAfterPred && pred.GetAttributes(kBBAttrIsTry)) {
+    UpdateNewBBInTry(func, *newBB, pred);
+  }
+  if (needUpdateTryAttr && !isInsertAfterPred && succ.GetAttributes(kBBAttrIsTry) &&
+      (succ.GetStmtNodes().empty() || succ.GetStmtNodes().front().GetOpCode() != OP_try)) {
+    UpdateNewBBInTry(func, *newBB, succ);
   }
   // update statement offset if succ is goto target
   if (pred.GetKind() == kBBCondGoto) {
@@ -126,10 +171,14 @@ void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) con
 }
 
 AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+  MeCFG *cfg = func->GetCfg();
+  if (cfg == NULL) {
+    cfg = static_cast<MeCFG *>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+  }
   std::vector<std::pair<BB*, BB*>> criticalEdge;
-  auto eIt = func->valid_end();
-  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func->common_exit()) {
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == cfg->common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -150,16 +199,16 @@ AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, Module
     }
   }
   // separate treatment for commonEntryBB's succ BBs
-  for (BB *entryBB : func->GetCommonEntryBB()->GetSucc()) {
+  for (BB *entryBB : cfg->GetCommonEntryBB()->GetSucc()) {
     if (!entryBB->GetPred().empty()) {
-      criticalEdge.push_back(std::make_pair(func->GetCommonEntryBB(), entryBB));
+      criticalEdge.push_back(std::make_pair(cfg->GetCommonEntryBB(), entryBB));
     }
   }
   if (!criticalEdge.empty()) {
     if (DEBUGFUNC(func)) {
       LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
       func->DumpFunctionNoSSA();
-      func->GetTheCfg()->DumpToFile("cfgbeforebreak");
+      func->GetCfg()->DumpToFile("cfgbeforebreak");
     }
     for (auto it = criticalEdge.begin(); it != criticalEdge.end(); ++it) {
       BreakCriticalEdge(*func, *((*it).first), *((*it).second));
@@ -167,7 +216,7 @@ AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, Module
     if (DEBUGFUNC(func)) {
       LogInfo::MapleLogger() << "******************after break dump function******************\n";
       func->Dump(true);
-      func->GetTheCfg()->DumpToFile("cfgafterbreak");
+      func->GetCfg()->DumpToFile("cfgafterbreak");
     }
     m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
   }

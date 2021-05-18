@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -26,7 +26,7 @@ namespace maple {
 class MeHDSE : public HDSE {
  public:
   MeHDSE(MeFunction &f, Dominance &pDom, IRMap &map, bool enabledDebug)
-      : HDSE(f.GetMIRModule(), f.GetAllBBs(), *f.GetCommonEntryBB(), *f.GetCommonExitBB(),
+      : HDSE(f.GetMIRModule(), f.GetCfg()->GetAllBBs(), *f.GetCfg()->GetCommonEntryBB(), *f.GetCfg()->GetCommonExitBB(),
              pDom, map, enabledDebug, MeOption::decoupleStatic) {}
 
   virtual ~MeHDSE() = default;

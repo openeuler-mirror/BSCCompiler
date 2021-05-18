@@ -111,7 +111,7 @@ Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &predicti
 
 // Predict edge E with the given PROBABILITY.
 void MePrediction::PredictEdge(Edge &edge, Predictor predictor, int probability) {
-  if (&edge.src != func->GetCommonEntryBB() && edge.src.GetSucc().size() > 1) {
+  if (&edge.src != cfg->GetCommonEntryBB() && edge.src.GetSucc().size() > 1) {
     const BB &src = edge.src;
     auto *newEdgePred = tmpAlloc.GetMemPool()->New<EdgePrediction>(edge);
     EdgePrediction *bbPred = bbPredictions[src.GetBBId()];
@@ -136,7 +136,7 @@ void MePrediction::PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken
 // of this basic blocks as unlikely.
 void MePrediction::BBLevelPredictions() {
   RetMeStmt *retStmt = nullptr;
-  for (BB *bb : func->GetCommonExitBB()->GetPred()) {
+  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     MeStmt *lastMeStmt = to_ptr(bb->GetMeStmts().rbegin());
     if (lastMeStmt != nullptr && lastMeStmt->GetOp() == OP_return) {
       retStmt = static_cast<RetMeStmt*>(lastMeStmt);
@@ -179,10 +179,10 @@ void MePrediction::BBLevelPredictions() {
 
 // Make edges for all bbs in the cfg.
 void MePrediction::Init() {
-  bbPredictions.resize(func->GetAllBBs().size());
-  edges.resize(func->GetAllBBs().size());
-  bbVisited.resize(func->GetAllBBs().size());
-  for (auto *bb : func->GetAllBBs()) {
+  bbPredictions.resize(cfg->GetAllBBs().size());
+  edges.resize(cfg->GetAllBBs().size());
+  bbVisited.resize(cfg->GetAllBBs().size());
+  for (auto *bb : cfg->GetAllBBs()) {
     BBId idx = bb->GetBBId();
     bbVisited[idx] = true;
     bbPredictions[idx] = nullptr;
@@ -193,11 +193,11 @@ void MePrediction::Init() {
       edges[idx] = edge;
     }
   }
-  if (func->GetCommonEntryBB() != func->GetFirstBB()) {
-    bbVisited[func->GetCommonEntryBB()->GetBBId()] = true;
+  if (cfg->GetCommonEntryBB() != cfg->GetFirstBB()) {
+    bbVisited[cfg->GetCommonEntryBB()->GetBBId()] = true;
   }
-  if (func->GetCommonExitBB() != func->GetLastBB()) {
-    bbVisited[func->GetCommonExitBB()->GetBBId()] = true;
+  if (cfg->GetCommonExitBB() != cfg->GetLastBB()) {
+    bbVisited[cfg->GetCommonExitBB()->GetBBId()] = true;
   }
 }
 
@@ -236,7 +236,7 @@ void MePrediction::PredictLoops() {
     // Find loop exit bbs.
     MapleVector<Edge*> exits(tmpAlloc.Adapter());
     for (auto &bbID : loopBBs) {
-      BB *bb = func->GetAllBBs().at(bbID);
+      BB *bb = cfg->GetAllBBs().at(bbID);
       if (bb->GetSucc().size() < minBBNumRequired) {
         continue;
       }
@@ -342,7 +342,7 @@ void MePrediction::EstimateBBProb(const BB &bb) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredTry, kTaken);
     } else if (!dest->GetMeStmts().empty() && dest->GetMeStmts().back().GetOp() == OP_return) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredEarlyReturn, kNotTaken);
-    } else if (dest != func->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&
+    } else if (dest != cfg->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&
                !dom->PostDominate(*dest, bb)) {
       for (const MeStmt &stmt : dest->GetMeStmts()) {
         if (stmt.GetOp() == OP_call || stmt.GetOp() == OP_callassigned) {
@@ -600,23 +600,23 @@ void MePrediction::EstimateLoops() {
   }
   // Now propagate the frequencies through all the blocks.
   std::fill(bbVisited.begin(), bbVisited.end(), false);
-  if (func->GetCommonEntryBB() != func->GetFirstBB()) {
-    bbVisited[func->GetCommonEntryBB()->GetBBId()] = false;
+  if (cfg->GetCommonEntryBB() != cfg->GetFirstBB()) {
+    bbVisited[cfg->GetCommonEntryBB()->GetBBId()] = false;
   }
-  if (func->GetCommonExitBB() != func->GetLastBB()) {
-    bbVisited[func->GetCommonExitBB()->GetBBId()] = false;
+  if (cfg->GetCommonExitBB() != cfg->GetLastBB()) {
+    bbVisited[cfg->GetCommonExitBB()->GetBBId()] = false;
   }
-  func->GetCommonEntryBB()->SetFrequency(kFreqBase);
-  for (BB *bb : func->GetCommonEntryBB()->GetSucc()) {
+  cfg->GetCommonEntryBB()->SetFrequency(kFreqBase);
+  for (BB *bb : cfg->GetCommonEntryBB()->GetSucc()) {
     PropagateFreq(*bb, *bb);
   }
 }
 
 void MePrediction::EstimateBBFrequencies() {
-  BB *entry = func->GetCommonEntryBB();
+  BB *entry = cfg->GetCommonEntryBB();
   edges[entry->GetBBId()]->probability = kProbAlways;
   double backProb = 0.0;
-  for (size_t i = 0; i < func->GetAllBBs().size(); ++i) {
+  for (size_t i = 0; i < cfg->GetAllBBs().size(); ++i) {
     Edge *edge = edges[i];
     while (edge != nullptr) {
       if (edge->probability > 0) {
@@ -644,14 +644,14 @@ void MePrediction::EstimateProbability() {
     PredictLoops();
   }
 
-  MapleVector<BB*> &bbVec = func->GetAllBBs();
+  MapleVector<BB*> &bbVec = cfg->GetAllBBs();
   for (auto *bb : bbVec) {
     EstimateBBProb(*bb);
   }
   for (auto *bb : bbVec) {
     CombinePredForBB(*bb);
   }
-  for (size_t i = 0; i < func->GetAllBBs().size(); ++i) {
+  for (size_t i = 0; i < cfg->GetAllBBs().size(); ++i) {
     int32 all = 0;
     for (Edge *edge = edges[i]; edge != nullptr; edge = edge->next) {
       if (predictDebug) {

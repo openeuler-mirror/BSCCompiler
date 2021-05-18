@@ -179,7 +179,7 @@ class MeSSI {
   MeSSI(MeFunction &meFunction, Dominance &dom, MeIRMap &map, MemPool &pool,
         std::map<MeStmt*, NaryMeExpr*>* acs = nullptr,
         std::map<BB*, std::vector<MeStmt*>>* cBB = nullptr)
-      : meFunc(&meFunction),
+      : cfg(meFunction.GetCfg()),
         dom(&dom),
         irMap(&map),
         memPool(&pool),
@@ -235,7 +235,7 @@ class MeSSI {
     return irMap;
   }
 
-  MeFunction *meFunc;
+  MeCFG      *cfg;
   Dominance *dom;
   MeIRMap *irMap;
   MemPool *memPool;
