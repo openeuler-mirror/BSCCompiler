@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,7 +39,7 @@ class HDSE {
   void DoHDSE();
   void InvokeHDSEUpdateLive();
 
- protected:
+ public:
   bool hdseDebug;
   bool hdseKeepRef = false;
 
@@ -47,6 +47,8 @@ class HDSE {
   void DseInit();
   void MarkSpecialStmtRequired();
   void PropagateUseLive(MeExpr &meExpr);
+  void DetermineUseCounts(MeExpr *x);
+  void CheckBackSubsCandidacy(DassignMeStmt *dass);
   void RemoveNotRequiredStmtsInBB(BB &bb);
   template <class VarOrRegPhiNode>
   void MarkPhiRequired(VarOrRegPhiNode &mePhiNode);
@@ -95,6 +97,7 @@ class HDSE {
     }
   }
 
+ protected:
   MIRModule &mirModule;
   MapleVector<BB*> bbVec;
   BB &commonEntryBB;
@@ -114,6 +117,8 @@ class HDSE {
   // Or the meExpr is opnd of a same type meExpr
   static const uint8 kExprTypeNotNull = 2;
   bool decoupleStatic = false;
+  std::vector<uint32> verstUseCounts; // index is vstIdx
+  std::forward_list<DassignMeStmt *> backSubsCands; // backward substitution candidates
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_HDSE_H

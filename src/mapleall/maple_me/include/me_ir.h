@@ -2363,6 +2363,7 @@ class GotoMeStmt : public MeStmt {
  public:
   explicit GotoMeStmt(const StmtNode *stt) : MeStmt(stt), offset(static_cast<const GotoNode*>(stt)->GetOffset()) {}
   explicit GotoMeStmt(const GotoMeStmt &condGoto) : MeStmt(MeStmt(condGoto.GetOp())), offset(condGoto.GetOffset()) {}
+  explicit GotoMeStmt(uint32 o): MeStmt(OP_goto), offset(o) {}
 
   ~GotoMeStmt() = default;
 

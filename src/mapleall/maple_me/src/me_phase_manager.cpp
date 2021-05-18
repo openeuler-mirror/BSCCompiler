@@ -200,6 +200,10 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
     LogInfo::MapleLogger() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> Optimizing Function  < " << mirFunc->GetName()
                            << " id=" << mirFunc->GetPuidxOrigin() << " >---\n";
   }
+  if (mirFunc->HasSetjmp()) {
+    LogInfo::MapleLogger() << "Function  < " << mirFunc->GetName() << " not optimized because it has setjmp\n";
+    return;
+  }
   MPLTimer runPhasetimer;
   MPLTimer funcPrepareTimer;
   MPLTimer iteratorTimer;

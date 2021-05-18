@@ -21,30 +21,53 @@
 #include "mir_preg.h"
 #include "utils.h"
 
-// This phase do dead store elimination. This optimization is done on a per-SSA
-// version basis. As a result, an overall criterion is that the SSA version must
-// not have appeared as phi operand;
-// This optimization consider all stmt are not needed at first.
-// The work steps as follow:
-// 1. mark all stmt are not needed. init an empty worklist to put live node.
-// 2. mark some special stmts which has side effect as needed, such as
-//    return/eh/call and some assigned stmts who have volatile fileds and so on.
-//    Put all operands and mayUse nodes of the needed stmt into worklist.
-// 3. For the nodes in worklist mark the def stmt as needed just as step 2 and
-//    pop the node from the worklist.
-// 4. Repeat step 3 until the worklist is empty.
 namespace maple {
 using namespace utils;
 
+void HDSE::DetermineUseCounts(MeExpr *x) {
+  if (x->GetMeOp() == kMeOpVar) {
+    VarMeExpr *varmeexpr = static_cast<VarMeExpr *>(x);
+    verstUseCounts[varmeexpr->GetVstIdx()]++;
+    return;
+  }
+  for (int32 i = 0; i < x->GetNumOpnds(); i++) {
+    DetermineUseCounts(x->GetOpnd(i));
+  }
+}
+
+void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
+  if (!dass->GetChiList()->empty()) {
+    return;
+  }
+  if (dass->GetRHS()->GetMeOp() != kMeOpVar && dass->GetRHS()->GetMeOp() != kMeOpReg) {
+    return;
+  }
+  ScalarMeExpr *lhsscalar = static_cast<ScalarMeExpr *>(dass->GetLHS());
+  if (!lhsscalar->GetOst()->IsLocal()) {
+    return;
+  }
+  ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
+  if (rhsscalar->GetDefBy() != kDefByMustDef) {
+    return;
+  }
+  if (rhsscalar->DefByBB() != dass->GetBB()) {
+    return;
+  }
+  backSubsCands.push_front(dass);
+}
+
 void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
-  for (auto &meStmt : bb.GetMeStmts()) {
-    if (!meStmt.GetIsLive()) {
+  MeStmt *mestmt = &bb.GetMeStmts().front();
+  MeStmt *nextstmt = nullptr;
+  while (mestmt) {
+    nextstmt = mestmt->GetNext();
+    if (!mestmt->GetIsLive()) {
       if (hdseDebug) {
         mirModule.GetOut() << "========== HSSA DSE is deleting this stmt: ";
-        meStmt.Dump(&irMap);
+        mestmt->Dump(&irMap);
       }
-      if (meStmt.GetOp() != OP_dassign &&
-          (meStmt.IsCondBr() || meStmt.GetOp() == OP_switch || meStmt.GetOp() == OP_igoto)) {
+      if (mestmt->GetOp() != OP_dassign &&
+          (mestmt->IsCondBr() || mestmt->GetOp() == OP_switch || mestmt->GetOp() == OP_igoto)) {
         // update CFG
         while (bb.GetSucc().size() != 1) {
           BB *succ = bb.GetSucc().back();
@@ -53,20 +76,65 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
         bb.SetKind(kBBFallthru);
       }
       // A ivar contained in stmt
-      if (stmt2NotNullExpr.find(&meStmt) != stmt2NotNullExpr.end()) {
-        for (MeExpr *meExpr : stmt2NotNullExpr.at(&meStmt)) {
+      if (stmt2NotNullExpr.find(mestmt) != stmt2NotNullExpr.end()) {
+        for (MeExpr *meExpr : stmt2NotNullExpr.at(mestmt)) {
           if (NeedNotNullCheck(*meExpr, bb)) {
             UnaryMeStmt *nullCheck = irMap.New<UnaryMeStmt>(OP_assertnonnull);
             nullCheck->SetBB(&bb);
-            nullCheck->SetSrcPos(meStmt.GetSrcPosition());
+            nullCheck->SetSrcPos(mestmt->GetSrcPosition());
             nullCheck->SetMeStmtOpndValue(meExpr);
-            bb.InsertMeStmtBefore(&meStmt, nullCheck);
+            bb.InsertMeStmtBefore(mestmt, nullCheck);
             nullCheck->SetIsLive(true);
             notNullExpr2Stmt[meExpr].push_back(nullCheck);
           }
         }
       }
-      bb.RemoveMeStmt(&meStmt);
+      bb.RemoveMeStmt(mestmt);
+    } else {
+      if (mestmt->IsCondBr()) { // see if foldable to unconditional branch
+        CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt *>(mestmt);
+        if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
+          CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()), "MeHDSE::DseProcess: branch condition must be integer type");
+          if ((condbr->GetOp() == OP_brtrue && condbr->GetOpnd()->IsZero()) ||
+              (condbr->GetOp() == OP_brfalse && !condbr->GetOpnd()->IsZero())) {
+            // delete the conditional branch
+            BB *succbb = bb.GetSucc().back();
+            succbb->RemoveBBFromPred(bb, false);
+            bb.GetSucc().pop_back();
+            bb.SetKind(kBBFallthru);
+            bb.RemoveMeStmt(mestmt);
+          } else {
+            // change to unconditional branch
+            BB *succbb = bb.GetSucc().front();
+            succbb->RemoveBBFromPred(bb, false);
+            bb.GetSucc().erase(bb.GetSucc().begin());
+            bb.SetKind(kBBGoto);
+            GotoMeStmt *gotomestmt = irMap.New<GotoMeStmt>(condbr->GetOffset());
+            bb.ReplaceMeStmt(condbr, gotomestmt);
+          }
+        } else {
+          DetermineUseCounts(condbr->GetOpnd());
+        }
+      } else {
+        for (int32 i = 0; i < mestmt->NumMeStmtOpnds(); i++) {
+          DetermineUseCounts(mestmt->GetOpnd(i));
+        }
+        if (mestmt->GetOp() == OP_dassign) {
+          CheckBackSubsCandidacy(static_cast<DassignMeStmt *>(mestmt));
+        }
+      }
+    }
+    mestmt = nextstmt;
+  }
+  // update verstUseCOunts for uses in phi operands
+  for (std::pair<OStIdx, MePhiNode *> phipair : bb.GetMePhiList()) {
+    if (phipair.second->GetIsLive()) {
+      for (ScalarMeExpr *phiOpnd : phipair.second->GetOpnds()) {
+        VarMeExpr *varx = dynamic_cast<VarMeExpr *>(phiOpnd);
+        if (varx) {
+          verstUseCounts[varx->GetVstIdx()]++;
+        }
+      }
     }
   }
 }
@@ -540,6 +608,9 @@ void HDSE::DseInit() {
 
   // Init all MeExpr to be dead;
   exprLive.resize(irMap.GetExprID(), false);
+  // Init all use counts to be 0
+  verstUseCounts.resize(0);
+  verstUseCounts.resize(irMap.GetVerst2MeExprTable().size(), 0);
 
   for (auto *bb : bbVec) {
     if (bb == nullptr) {
