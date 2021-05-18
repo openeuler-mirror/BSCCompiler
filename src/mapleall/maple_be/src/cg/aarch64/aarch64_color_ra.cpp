@@ -947,10 +947,10 @@ MemOperand *GraphColorRegAllocator::CreateSpillMem(uint32 spillIdx, SpillMemChec
   }
 
   if (operandSpilled[spillIdx]) {
-    // For this insn, spill slot already used, need to find next available slot.
+    /* For this insn, spill slot already used, need to find next available slot. */
     uint32 i;
     for (i = spillIdx + 1; i < kSpillMemOpndNum; ++i) {
-      if (operandSpilled[i] == false) {
+      if (!operandSpilled[i]) {
         break;
       }
     }
@@ -3209,6 +3209,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
       if (insn->GetId() == 0) {
         continue;
       }
+
       for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
         operandSpilled[i] = false;
       }
@@ -3312,7 +3313,6 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   SplitAndColor();
 
 #ifdef USE_LRA
-  LocalRegisterAllocator(true);
   if (doLRA) {
     LocalRegisterAllocator(true);
   }
