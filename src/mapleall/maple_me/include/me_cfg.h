@@ -42,7 +42,10 @@ class MeCFG : public AnalysisResult {
         bbVec(mecfgAlloc.Adapter()),
         labelBBIdMap(mecfgAlloc.Adapter()),
         bbTryNodeMap(mecfgAlloc.Adapter()),
-        endTryBB2TryBB(mecfgAlloc.Adapter()) {}
+        endTryBB2TryBB(mecfgAlloc.Adapter()),
+        sccTopologicalVec(mecfgAlloc.Adapter()),
+        sccOfBB(mecfgAlloc.Adapter()),
+        backEdges(mecfgAlloc.Adapter()) {}
 
   ~MeCFG() = default;
 
@@ -266,6 +269,12 @@ class MeCFG : public AnalysisResult {
   MemPool * GetMempool() const { return mp; }
   void CreateBasicBlocks();
 
+  const MapleVector<SCCOfBBs*> &GetSccTopologicalVec() const {
+    return sccTopologicalVec;
+  }
+  void BBTopologicalSort(SCCOfBBs &scc);
+  void BuildSCC();
+
  private:
   void ReplaceSwitchContainsOneCaseBranchWithBrtrue(BB &bb, MapleVector<BB*> &exitBlocks);
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);
@@ -277,6 +286,11 @@ class MeCFG : public AnalysisResult {
   void FixTryBB(BB &startBB, BB &nextBB);
   void SetTryBlockInfo(const StmtNode *nextStmt, StmtNode *tryStmt, BB *lastTryBB, BB *curBB, BB *newBB);
 
+  void VerifySCC();
+  void SCCTopologicalSort(std::vector<SCCOfBBs*> &sccNodes);
+  void BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes, std::vector<uint32> &visitedOrder,
+                   std::vector<uint32> &lowestOrder, std::vector<bool> &inStack, std::stack<uint32> &visitStack);
+
   MemPool *mp;
   MapleAllocator mecfgAlloc;
   MeFunction &func;
@@ -287,6 +301,12 @@ class MeCFG : public AnalysisResult {
   MapleUnorderedMap<BB*, BB*> endTryBB2TryBB;      // maps endtry bb to its try bb
   bool hasDoWhile = false;
   uint32 nextBBId = 0;
+
+  // BB SCC
+  MapleVector<SCCOfBBs*> sccTopologicalVec;
+  uint32 numOfSCCs = 0;
+  MapleVector<SCCOfBBs*> sccOfBB;
+  MapleSet<std::pair<uint32, uint32>> backEdges;
 };
 
 class MeDoMeCfg : public MeFuncPhase {
