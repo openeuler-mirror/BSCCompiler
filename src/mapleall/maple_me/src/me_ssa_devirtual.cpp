@@ -26,6 +26,10 @@ AnalysisResult *MeDoSSADevirtual::Run(MeFunction *func, MeFuncResultMgr *frm, Mo
   auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   ASSERT(kh != nullptr, "KlassHierarchy has problem");
   bool skipReturnTypeOpt = false;
+  // If not in ipa and ignoreInferredRetType is enabled, ssadevirt will ignore inferred return type of any function
+  if (!func->GetMIRModule().IsInIPA() && MeOption::ignoreInferredRetType) {
+    skipReturnTypeOpt = true;
+  }
   MeSSADevirtual meSSADevirtual(*NewMemPool(), func->GetMIRModule(), *func, *irMap, *kh, *dom, skipReturnTypeOpt);
   if (Options::O2) {
     Clone *clone = static_cast<Clone*>(mrm->GetAnalysisResult(MoPhase_CLONE, &func->GetMIRModule()));
@@ -37,7 +41,7 @@ AnalysisResult *MeDoSSADevirtual::Run(MeFunction *func, MeFuncResultMgr *frm, Mo
   if (DEBUGFUNC(func)) {
     SSADevirtual::debug = true;
   }
-  meSSADevirtual.Perform(*func->GetCommonEntryBB());
+  meSSADevirtual.Perform(*func->GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC(func)) {
     SSADevirtual::debug = false;
     LogInfo::MapleLogger() << "\n============== After SSA Devirtualization  =============" << "\n";

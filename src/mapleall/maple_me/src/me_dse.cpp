@@ -22,9 +22,9 @@
 
 namespace maple {
 void MeDSE::VerifyPhi() const {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_exit()) {
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == cfg->common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -54,7 +54,7 @@ void MeDSE::RunDSE() {
   DoDSE();
 
   // remove unreached BB
-  func.GetTheCfg()->UnreachCodeAnalysis(true);
+  cfg->UnreachCodeAnalysis(true);
   VerifyPhi();
   if (enableDebug) {
     func.Dump(true);
@@ -79,7 +79,7 @@ AnalysisResult *MeDoDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultM
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << doFSAA.PhaseName() << " ] ==\n";
     }
-    doFSAA.Run(func, m, mrm);
+    (void)doFSAA.Run(func, m, mrm);
   }
 
   return nullptr;
