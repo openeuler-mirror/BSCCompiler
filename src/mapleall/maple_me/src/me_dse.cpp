@@ -22,9 +22,9 @@
 
 namespace maple {
 void MeDSE::VerifyPhi() const {
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_exit()) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == func.common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -54,7 +54,7 @@ void MeDSE::RunDSE() {
   DoDSE();
 
   // remove unreached BB
-  cfg->UnreachCodeAnalysis(true);
+  func.GetTheCfg()->UnreachCodeAnalysis(true);
   VerifyPhi();
   if (enableDebug) {
     func.Dump(true);

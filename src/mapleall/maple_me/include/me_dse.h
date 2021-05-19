@@ -20,25 +20,23 @@
 #include "me_option.h"
 #include "dominance.h"
 #include "me_function.h"
-#include "me_cfg.h"
 #include "dse.h"
+#include "me_cfg.h"
 
 namespace maple {
 class MeDSE : public DSE {
  public:
   MeDSE(MeFunction &func, Dominance *dom, bool enabledDebug)
-      : DSE(std::vector<BB*>(func.GetCfg()->GetAllBBs().begin(), func.GetCfg()->GetAllBBs().end()),
-            *func.GetCfg()->GetCommonEntryBB(), *func.GetCfg()->GetCommonExitBB(), *func.GetMeSSATab(),
+      : DSE(std::vector<BB*>(func.GetAllBBs().begin(), func.GetAllBBs().end()),
+            *func.GetCommonEntryBB(), *func.GetCommonExitBB(), *func.GetMeSSATab(),
             *dom, enabledDebug, MeOption::decoupleStatic),
-        func(func),
-        cfg(func.GetCfg()) {}
+        func(func) {}
   virtual ~MeDSE() = default;
 
   void RunDSE();
 
  private:
   MeFunction &func;
-  MeCFG *cfg;
   void VerifyPhi() const;
 };
 

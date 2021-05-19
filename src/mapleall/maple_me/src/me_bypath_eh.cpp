@@ -89,7 +89,7 @@ bool MeDoBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchC
     // Add fall through bb
     if (bb->GetKind() == kBBFallthru && !bb->GetAttributes(kBBAttrIsTryEnd)) {
       bool findBB = false;
-      for (BB *bbTmp : func.GetCfg()->GetAllBBs()) {
+      for (BB *bbTmp : func.GetAllBBs()) {
         if (findBB && bbTmp != nullptr) {
           if (bbTmp == catchBB || bbTmp->IsEmpty() || bbTmp->GetFirst().GetOpCode() == OP_try ||
               bbTmp->GetAttributes(kBBAttrIsCatch)) {
@@ -161,8 +161,8 @@ StmtNode *MeDoBypathEH::IsSyncExit(BB &syncBB, MeFunction &func, LabelIdx second
   BB *prevBB = &syncBB;
   while (true) {
     BB *bbTmp = nullptr;
-    for (size_t i = prevBB->GetBBId() + 1; i < func.GetCfg()->GetAllBBs().size(); ++i) {
-      bbTmp = func.GetCfg()->GetAllBBs()[i];
+    for (size_t i = prevBB->GetBBId() + 1; i < func.GetAllBBs().size(); ++i) {
+      bbTmp = func.GetAllBBs()[i];
       if (bbTmp != nullptr) {
         break;
       }
@@ -212,7 +212,7 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
   auto labelIdx = static_cast<LabelIdx>(-1);
   // Some new bb will be created, so use visited
   std::set<BB*> visited;
-  for (BB *bb : func.GetCfg()->GetAllBBs()) {
+  for (BB *bb : func.GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
@@ -232,7 +232,7 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
         labelIdx = tryNode->GetOffset(0);
       } else if (tryNode->GetOffsetsCount() == 2) { // Deal with sync
         BB *catchBB = nullptr;
-        for (BB *bbInner : func.GetCfg()->GetAllBBs()) {
+        for (BB *bbInner : func.GetAllBBs()) {
           if (bbInner == nullptr) {
             continue;
           }
@@ -263,7 +263,7 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
         continue;
       }
       // Find catch label, and create a new bb
-      for (BB *bbInner : func.GetCfg()->GetAllBBs()) {
+      for (BB *bbInner : func.GetAllBBs()) {
         if (bbInner == nullptr || bbInner->GetBBLabel() != labelIdx) {
           continue;
         }
@@ -300,12 +300,12 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
         auto it = func.GetMirFunc()->GetLabelTab()->GetStrIdxToLabelIdxMap().find(labelStrIdx);
         if (it == func.GetMirFunc()->GetLabelTab()->GetStrIdxToLabelIdxMap().end()) {
           LabelIdx labIdx = func.GetMirFunc()->GetLabelTab()->AddLabel(labelStrIdx);
-          newBB = func.GetCfg()->NewBasicBlock();
-          func.GetCfg()->SetLabelBBAt(labIdx, newBB);
+          newBB = func.NewBasicBlock();
+          func.SetLabelBBAt(labIdx, newBB);
           newBB->SetBBLabel(labIdx);
         } else {
           hasCreated = true;
-          for (BB *newBBIter : func.GetCfg()->GetAllBBs()) {
+          for (BB *newBBIter : func.GetAllBBs()) {
             if (newBBIter == nullptr) {
               continue;
             }
@@ -317,16 +317,16 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
         }
         if (DoBypathException(bb, newBB, catchClass, dassignNode->GetStIdx(), kh, func, syncExitStmt)) {
           if (!hasCreated) {
-            ASSERT(newBB == func.GetCfg()->GetLastBB(), "newBB should be the last one");
-            func.GetCfg()->GetAllBBs().pop_back();
-            newBB = &func.GetCfg()->SplitBB(*bbInner, *stmtInner.GetNext(), newBB);
+            ASSERT(newBB == func.GetLastBB(), "newBB should be the last one");
+            func.GetAllBBs().pop_back();
+            newBB = &func.SplitBB(*bbInner, *stmtInner.GetNext(), newBB);
           }
         } else {
           if (!hasCreated) {
-            func.GetCfg()->GetAllBBs().pop_back();
-            func.GetCfg()->DecNextBBId();
+            func.GetAllBBs().pop_back();
+            func.DecNextBBId();
             func.GetMirFunc()->GetLabelTab()->GetLabelTable().pop_back();
-            func.GetCfg()->EraseLabelBBAt(
+            func.EraseLabelBBAt(
                 func.GetMirFunc()->GetLabelTab()->GetStrIdxToLabelIdxMap().at(labelStrIdx));
             func.GetMirFunc()->GetLabelTab()->EraseStrIdxToLabelIdxElem(labelStrIdx);
           }
@@ -338,8 +338,7 @@ void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) c
   }
 }
 
-AnalysisResult *MeDoBypathEH::Run(MeFunction *func, MeFuncResultMgr* m, ModuleResultMgr *mrm) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+AnalysisResult *MeDoBypathEH::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr *mrm) {
   auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   CHECK_NULL_FATAL(kh);
   BypathException(*func, *kh);

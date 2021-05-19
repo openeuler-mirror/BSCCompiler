@@ -17,9 +17,8 @@
 // this phase converts all maydassign back to dassign
 namespace maple {
 void May2Dassign::DoIt() {
-  MeCFG *cfg = func.GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
       if (stmt.GetOp() != OP_maydassign) {
@@ -42,8 +41,7 @@ void May2Dassign::DoIt() {
   }
 }
 
-AnalysisResult *MeDoMay2Dassign::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+AnalysisResult *MeDoMay2Dassign::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
   May2Dassign may2Dassign(*func);
   may2Dassign.DoIt();
   return nullptr;

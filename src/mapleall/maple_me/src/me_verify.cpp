@@ -244,7 +244,7 @@ void VerifyGlobalTypeTable() {
 
 void MeVerify::VerifyPhiNode(const BB &bb, Dominance &dom) const {
   if (enableDebug) {
-    meFunc.GetCfg()->DumpToFile("meverify");
+    meFunc.GetTheCfg()->DumpToFile("meverify");
   }
   for (auto &it : bb.GetMePhiList()) {
     auto *phiNode = it.second;
@@ -330,7 +330,7 @@ void MeVerify::VerifyBBKind(const BB &bb) const {
 
 // Filter the special case which created in the function named RemoveEhEdgesInSyncRegion of mefunction.
 void MeVerify::DealWithSpecialCase(const BB &currBB, const BB &tryBB) const {
-  if (meFunc.GetCfg()->GetEndTryBB2TryBB().size() != 1) {
+  if (meFunc.GetEndTryBB2TryBB().size() != 1) {
     CHECK_FATAL(false, "must be try");
   }
   if (currBB.GetAttributes(kBBAttrIsTryEnd)) {
@@ -366,7 +366,7 @@ void MeVerify::VerifyAttrTryBB(BB &tryBB, int index) {
   int i = 0;
   for (auto offsetIt = tryStmt.GetOffsets().rbegin(), offsetEIt = tryStmt.GetOffsets().rend();
        offsetIt != offsetEIt; ++offsetIt) {
-    auto offsetBBId = meFunc.GetCfg()->GetLabelBBAt(*offsetIt)->GetBBId();
+    auto offsetBBId = meFunc.GetLabelBBAt(*offsetIt)->GetBBId();
     bool needExit = false;
     for (size_t j = index; j < meFunc.GetLaidOutBBs().size() && !needExit; ++j) {
       auto currBB = meFunc.GetLaidOutBBs().at(j);
@@ -481,7 +481,7 @@ bool MeVerify::IsOnlyHaveReturnOrThrowStmt(const BB &bb, Opcode op) const {
 }
 
 void MeVerify::VerifyCommonExitBB() const {
-  for (auto &pred : meFunc.GetCfg()->GetCommonExitBB()->GetPred()) {
+  for (auto &pred : meFunc.GetCommonExitBB()->GetPred()) {
     if (pred->GetKind() == kBBReturn) {
       continue;
     }
@@ -493,7 +493,7 @@ void MeVerify::VerifyCommonExitBB() const {
 }
 
 void MeVerify::VerifyReturnBB(const BB &bb) const {
-  for (auto &pred : meFunc.GetCfg()->GetCommonExitBB()->GetPred()) {
+  for (auto &pred : meFunc.GetCommonExitBB()->GetPred()) {
     if (pred == &bb) {
       return;
     }

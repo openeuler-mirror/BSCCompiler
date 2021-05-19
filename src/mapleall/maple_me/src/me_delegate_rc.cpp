@@ -685,9 +685,8 @@ void DelegateRC::RenameDelegatedRefVarUses(MeStmt &meStmt, MeExpr &meExpr) {
 }
 
 void DelegateRC::SetCantDelegateAndCountUses() {
-  MeCFG *cfg = func.GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto &bb = **bIt;
     SetCantDelegate(bb.GetMePhiList());
     for (auto &stmt : bb.GetMeStmts()) {
@@ -709,9 +708,8 @@ void DelegateRC::SetCantDelegateAndCountUses() {
 }
 
 void DelegateRC::DelegateStmtRC() {
-  MeCFG *cfg = func.GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto &bb = **bIt;
     for (auto &stmt : bb.GetMeStmts()) {
       bool withDecref = false;
@@ -726,9 +724,8 @@ void DelegateRC::DelegateStmtRC() {
 
 std::set<OStIdx> DelegateRC::RenameAndGetLiveLocalRefVar() {
   std::set<OStIdx> liveLocalrefvars;
-  MeCFG *cfg = func.GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto &bb = **bIt;
     for (auto &stmt : bb.GetMeStmts()) {
       if (IsVarDecRefStmt(stmt)) {
@@ -771,8 +768,7 @@ std::set<OStIdx> DelegateRC::RenameAndGetLiveLocalRefVar() {
 }
 
 void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars) {
-  MeCFG *cfg = func.GetCfg();
-  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
+  for (BB *bb : func.GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (meStmts.empty() || meStmts.back().GetOp() != OP_return) {
       continue;
@@ -803,8 +799,8 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
     intrin->EraseOpnds(intrin->GetOpnds().begin() + nextPos, intrin->GetOpnds().end());
   }
   if (func.GetHints() & kPlacementRCed) {  // delete decref if opnd not in livelocalrefvars
-    auto eIt = cfg->valid_end();
-    for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+    auto eIt = func.valid_end();
+    for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
       for (auto &stmt : bb->GetMeStmts()) {
         if (stmt.GetOp() != OP_decrefreset) {

@@ -1037,7 +1037,7 @@ void LoopScalarAnalysisResult::DumpTripCount(const CR &cr, int32 value, const Me
 TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint32 &tripCountResult,
                                                          CRNode *&conditionCRNode, CR *&itCR) {
   enableDebug = false;
-  BB *exitBB = func.GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitBB = func.GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   if (exitBB->GetKind() == kBBCondGoto && IsLegal(*(exitBB->GetLastMe()))) {
     auto *brMeStmt = static_cast<CondGotoMeStmt*>(exitBB->GetLastMe());
     BB *brTarget = exitBB->GetSucc(1);

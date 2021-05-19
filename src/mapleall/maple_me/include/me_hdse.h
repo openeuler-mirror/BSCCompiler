@@ -26,11 +26,11 @@ namespace maple {
 class MeHDSE : public HDSE {
  public:
   MeHDSE(MeFunction &f, Dominance &pDom, IRMap &map, bool enabledDebug)
-      : HDSE(f.GetMIRModule(), f.GetCfg()->GetAllBBs(), *f.GetCfg()->GetCommonEntryBB(), *f.GetCfg()->GetCommonExitBB(),
+      : HDSE(f.GetMIRModule(), f.GetAllBBs(), *f.GetCommonEntryBB(), *f.GetCommonExitBB(),
              pDom, map, enabledDebug, MeOption::decoupleStatic) {}
 
   virtual ~MeHDSE() = default;
-  void RunHDSE();
+  void BackwardSubstitution();
 };
 
 class MeDoHDSE : public MeFuncPhase {

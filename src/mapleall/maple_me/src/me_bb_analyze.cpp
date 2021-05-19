@@ -17,8 +17,8 @@
 namespace maple {
   void BBAnalyze::SetHotAndColdBBCountThreshold() {
     std::vector<uint32> times;
-    auto eIt = cfg->valid_end();
-    for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+    auto eIt = func.valid_end();
+    for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
       times.push_back((bb->GetFrequency()));
     }
@@ -32,12 +32,12 @@ namespace maple {
   }
 
   bool BBAnalyze::CheckBBHot(const BBId bbId) {
-    BB *bb = cfg->GetBBFromID(bbId);
+    BB *bb = func.GetBBFromID(bbId);
     return bb->GetFrequency() >= hotBBCountThreshold;
   }
 
   bool BBAnalyze::CheckBBCold(const BBId bbId) {
-    BB *bb = cfg->GetBBFromID(bbId);
+    BB *bb = func.GetBBFromID(bbId);
     return bb->GetFrequency() <= coldBBCountThreshold;
   }
 

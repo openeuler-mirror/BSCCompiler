@@ -19,25 +19,24 @@
 #include "ssa_tab.h"
 #include "me_function.h"
 #include "irmap.h"
-#include "me_cfg.h"
 
 namespace maple {
 class MeIRMap : public IRMap {
  public:
   static const uint32 kHmapHashLength = 5107;
   MeIRMap(MeFunction &f, MemPool &memPool)
-      : IRMap(*f.GetMeSSATab(), memPool, kHmapHashLength), func(f), cfg(f.GetCfg()) {
+      : IRMap(*f.GetMeSSATab(), memPool, kHmapHashLength), func(f) {
     SetDumpStmtNum(MeOption::stmtNum);
   }
 
   ~MeIRMap() = default;
 
   BB *GetBB(BBId id) override {
-    return cfg->GetBBFromID(id);
+    return func.GetBBFromID(id);
   }
 
   BB *GetBBForLabIdx(LabelIdx lidx, PUIdx) override {
-    return cfg->GetLabelBBAt(lidx);
+    return func.GetLabelBBAt(lidx);
   }
 
   void Dump() override;
@@ -48,7 +47,6 @@ class MeIRMap : public IRMap {
 
  private:
   MeFunction &func;
-  MeCFG *cfg;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_IRMAP_H

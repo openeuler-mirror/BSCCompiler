@@ -64,7 +64,6 @@ class MePrediction : public AnalysisResult {
         mePredAlloc(&memPool),
         tmpAlloc(&tmpPool),
         func(&mf),
-        cfg(mf.GetCfg()),
         dom(&dom),
         meLoop(&loops),
         hMap(&map),
@@ -100,7 +99,6 @@ class MePrediction : public AnalysisResult {
   MapleAllocator mePredAlloc;
   MapleAllocator tmpAlloc;
   MeFunction *func;
-  MeCFG      *cfg;
   Dominance *dom;
   IdentifyLoops *meLoop;
   MeIRMap *hMap;

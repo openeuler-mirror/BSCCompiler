@@ -15,28 +15,24 @@
 #include "me_dominance.h"
 #include <iostream>
 #include "me_option.h"
-#include "me_cfg.h"
+
 // This phase analyses the CFG of the given MeFunction, generates the dominator tree,
 // and the dominance frontiers of each basic block using Keith Cooper's algorithm.
 // For some backward data-flow problems, such as LiveOut,
 // the reverse CFG(The CFG with its edges reversed) is always useful,
 // so we also generates the above two structures on the reverse CFG.
 namespace maple {
-AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MeCFG *cfg = func->GetCfg();
-  if (!cfg) {
-    cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  }
+AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
   MemPool *memPool = NewMemPool();
-  auto *dom = memPool->New<Dominance>(*memPool, *NewMemPool(), cfg->GetAllBBs(),
-                                      *cfg->GetCommonEntryBB(), *cfg->GetCommonExitBB());
+  auto *dom = memPool->New<Dominance>(*memPool, *NewMemPool(), func->GetAllBBs(),
+                                      *func->GetCommonEntryBB(), *func->GetCommonExitBB());
   dom->GenPostOrderID();
   dom->ComputeDominance();
   dom->ComputeDomFrontiers();
   dom->ComputeDomChildren();
   dom->ComputeIterDomFrontiers();
   size_t num = 0;
-  dom->ComputeDtPreorder(*cfg->GetCommonEntryBB(), num);
+  dom->ComputeDtPreorder(*func->GetCommonEntryBB(), num);
   dom->GetDtPreOrder().resize(num);
   dom->ComputeDtDfn();
 
@@ -46,7 +42,7 @@ AnalysisResult *MeDoDominance::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
   dom->ComputePdomChildren();
   dom->ComputeIterPdomFrontiers();
   num = 0;
-  dom->ComputePdtPreorder(*cfg->GetCommonExitBB(), num);
+  dom->ComputePdtPreorder(*func->GetCommonExitBB(), num);
   dom->ResizePdtPreOrder(num);
   dom->ComputePdtDfn();
   if (DEBUGFUNC(func)) {

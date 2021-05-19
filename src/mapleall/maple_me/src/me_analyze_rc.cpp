@@ -143,8 +143,8 @@ bool AnalyzeRC::NeedIncref(const MeStmt &stmt) const {
 // identify assignments to ref pointers and insert decref before it and incref
 // after it
 void AnalyzeRC::IdentifyRCStmts() {
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto &bb = **bIt;
     for (auto &stmt : bb.GetMeStmts()) {
       MeExpr *lhsRef = stmt.GetLHSRef(skipLocalRefVars);
@@ -195,7 +195,7 @@ void AnalyzeRC::IdentifyRCStmts() {
 }
 
 void AnalyzeRC::CreateCleanupIntrinsics() {
-  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
+  for (BB *bb : func.GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (meStmts.empty() || meStmts.back().GetOp() != OP_return) {
       continue;
@@ -260,7 +260,7 @@ void AnalyzeRC::RenameRefPtrs(BB *bb) {
   ASSERT(bb->GetBBId() < dominance.GetDomChildrenSize(), "index out of range in AnalyzeRC::RenameRefPtrs");
   const MapleSet<BBId> &domChildren = dominance.GetDomChildren(bb->GetBBId());
   for (const auto &childBBId : domChildren) {
-    RenameRefPtrs(cfg->GetAllBBs().at(childBBId));
+    RenameRefPtrs(func.GetAllBBs().at(childBBId));
   }
   // restore the stacks to their size at entry to this function invocation
   for (const auto &mapItem : rcItemsMap) {
@@ -299,8 +299,8 @@ UnaryMeStmt *AnalyzeRC::CreateIncrefZeroVersion(OriginalSt &ost) {
 }
 
 void AnalyzeRC::OptimizeRC() {
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto itStmt = bb->GetMeStmts().begin(); itStmt != bb->GetMeStmts().end(); ++itStmt) {
       MeStmt *stmt = to_ptr(itStmt);
@@ -385,7 +385,7 @@ bool AnalyzeRC::NeedDecRef(const VarMeExpr &var) const {
 // that are zero version are not live, and can be deleted; if the number of
 // arguments left are > `kCleanupLocalRefVarsLimit`, delete the intrinsiccall.
 void AnalyzeRC::RemoveUnneededCleanups() {
-  for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
+  for (BB *bb : func.GetCommonExitBB()->GetPred()) {
     auto &meStmts = bb->GetMeStmts();
     if (meStmts.empty() || meStmts.back().GetOp() != OP_return) {
       continue;
@@ -428,7 +428,7 @@ void AnalyzeRC::Run() {
   if (!skipLocalRefVars) {
     CreateCleanupIntrinsics();
   }
-  RenameRefPtrs(cfg->GetCommonEntryBB());
+  RenameRefPtrs(func.GetCommonEntryBB());
   if (MeOption::optLevel > 0 && !skipLocalRefVars) {
     RemoveUnneededCleanups();
   }

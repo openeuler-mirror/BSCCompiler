@@ -103,9 +103,8 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
 }
 
 void MeLowerGlobals::Run() {
-  MeCFG *cfg = func.GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
       for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {

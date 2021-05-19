@@ -14,9 +14,9 @@
  */
 #ifndef MAPLE_ME_INCLUDE_CFGMST_H
 #define MAPLE_ME_INCLUDE_CFGMST_H
+
 #include "me_function.h"
 #include "bb.h"
-#include "me_cfg.h"
 
 namespace maple {
 template <class Edge>
@@ -155,12 +155,12 @@ void CFGMST<Edge>::SortEdges() {
 
 template <class Edge>
 void CFGMST<Edge>::BuildEdges() {
-  BB *entry = func->GetCfg()->GetCommonEntryBB();
+  BB *entry = func->GetCommonEntryBB();
   BB *exit = nullptr;
-  auto eIt = func->GetCfg()->valid_end();
-  for (auto bIt = func->GetCfg()->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func->valid_end();
+  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
-    if (bIt == func->GetCfg()->common_exit()) {
+    if (bIt == func->common_exit()) {
       exit = *bIt;
       continue;
     }
@@ -179,7 +179,7 @@ void CFGMST<Edge>::BuildEdges() {
     }
   }
 
-  for (BB *bb : func->GetCfg()->GetCommonExitBB()->GetPred()) {
+  for (BB *bb : func->GetCommonExitBB()->GetPred()) {
     AddEdge(bb, exit, fakeExitEdgeWeight, false, true);
   }
   /* insert fake edge to keep consistent */

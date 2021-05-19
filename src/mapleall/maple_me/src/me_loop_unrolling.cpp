@@ -240,7 +240,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
 }
 
 BB *LoopUnrolling::CopyBB(BB &bb, bool isInLoop) {
-  BB *newBB = cfg->NewBasicBlock();
+  BB *newBB = func->NewBasicBlock();
   if (isInLoop) {
     newBB->SetAttributes(kBBAttrIsInLoop);
   }
@@ -460,7 +460,7 @@ void LoopUnrolling::ResetFrequency(BB &bb) {
 
 // Update frequency of old exiting BB and latch BB.
 void LoopUnrolling::ResetFrequency() {
-  auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  auto exitBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
     auto latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
@@ -526,7 +526,7 @@ void LoopUnrolling::AddEdgeForExitBB(BB &exitBB, std::unordered_map<BB*, BB*> &o
 
 // Copy loop except exiting BB and latch BB.
 void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
-  auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  auto exitBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   CHECK_FATAL(exitBB->GetKind() == kBBCondGoto, "exiting bb must be kBBCondGoto");
   std::unordered_map<BB*, BB*> old2NewBB;
   BB *newHeadBB = CopyBB(*loop->head, true);
@@ -570,7 +570,7 @@ void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
 }
 
 void LoopUnrolling::RemoveCondGoto() {
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitingBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   CHECK_FATAL(exitingBB->GetSucc().size() == 2, "must has two succ bb");
   if (exitingBB->GetSucc(0) != loop->latch && exitingBB->GetSucc(1) != loop->latch) {
     CHECK_FATAL(false, "latch must be pred of exiting bb");
@@ -582,13 +582,13 @@ void LoopUnrolling::RemoveCondGoto() {
     exitingBB->SetEdgeFreq(exitingBB->GetSucc(0), exitingBB->GetFrequency());
   }
   loop->head->RemovePred(*loop->latch);
-  cfg->DeleteBasicBlock(*loop->latch);
+  func->DeleteBasicBlock(*loop->latch);
 }
 
 bool LoopUnrolling::LoopFullyUnroll(int64 tripCount) {
   uint32 costResult = 0;
   for (auto bbId : loop->loopBBs) {
-    BB *bb = cfg->GetBBFromID(bbId);
+    BB *bb = func->GetBBFromID(bbId);
     for (auto &meStmt : bb->GetMeStmts()) {
       uint32 cost = 0;
       ComputeCodeSize(meStmt, cost);
@@ -625,7 +625,7 @@ void LoopUnrolling::ResetFrequency(BB &newCondGotoBB, BB &exitingBB, const BB &e
 
 void LoopUnrolling::InsertCondGotoBB() {
   CHECK_NULL_FATAL(partialSuccHead);
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitingBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   BB *exitedBB = *(loop->inloopBB2exitBBs.begin()->second->begin());
   BB *newCondGotoBB = CopyBB(*exitingBB, true);
   auto headFreq = loop->head->GetFrequency();
@@ -677,8 +677,8 @@ bool LoopUnrolling::DetermineUnrollTimes(uint32 &index, bool isConst) {
   uint32 costResult = 0;
   uint32 unrollTime = unrollTimes[index];
   for (auto bbId : loop->loopBBs) {
-    BB *bb = cfg->GetBBFromID(bbId);
-    auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+    BB *bb = func->GetBBFromID(bbId);
+    auto exitBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
     if (bb == exitBB) {
       continue;
     }
@@ -707,7 +707,7 @@ bool LoopUnrolling::DetermineUnrollTimes(uint32 &index, bool isConst) {
 
 void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   CHECK_FATAL(oldPreHeader->GetKind() == kBBCondGoto, "must be kBBCondGoto");
-  auto *preheader = cfg->NewBasicBlock();
+  auto *preheader = func->NewBasicBlock();
   preheader->SetAttributes(kBBAttrArtificial);
   preheader->SetKind(kBBFallthru);
   auto preheaderFreq = 0;
@@ -789,7 +789,7 @@ bool LoopUnrolling::LoopPartialUnrollWithConst(uint32 tripCount) {
 
 void LoopUnrolling::CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting) {
   needUpdateInitLoopFreq = false;
-  auto exitBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  auto exitBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   CHECK_FATAL(exitBB->GetKind() == kBBCondGoto, "exiting bb must be kBBCondGoto");
   std::unordered_map<BB*, BB*> old2NewBB;
   BB *newHeadBB = CopyBB(*loop->head, true);
@@ -960,7 +960,7 @@ MeExpr *LoopUnrolling::CreateExprWithCRNode(CRNode &crNode) {
 
 void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &preCondGoto, uint32 unrollTime, uint32 i) {
   // create stmt : int i = 0.
-  BB *indVarAndTripCountDefBB = cfg->NewBasicBlock();
+  BB *indVarAndTripCountDefBB = func->NewBasicBlock();
   std::string indVarName = std::string("__LoopUnrolllIndvar__") + std::to_string(i);
   VarMeExpr *indVar = CreateIndVarOrTripCountWithName(indVarName);
   indVarAndTripCountDefBB->SetKind(kBBFallthru);
@@ -970,7 +970,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
   InsertCandsForSSAUpdate(indVar->GetOstIdx(), *indVarAndTripCountDefBB);
 
   // create stmt : tripCount = (n - start) / stride.
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitingBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   auto opnd0 = CreateExprWithCRNode(*cr.GetOpnd(0));
   auto opnd1 = CreateExprWithCRNode(*cr.GetOpnd(1));
   MeExpr *conditionExpr = CreateExprWithCRNode(varNode);
@@ -1020,13 +1020,13 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
 }
 
 void LoopUnrolling::CopyLoopForPartial(CR &cr, CRNode &varNode, uint32 j, uint32 unrollTime) {
-  BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
+  BB *exitingBB = func->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   BB *exitedBB = *loop->inloopBB2exitBBs.begin()->second->begin();
   BB *partialCondGoto = CopyBB(*exitingBB, false);
   replicatedLoopNum = unrollTime;
   CopyLoopForPartial(*partialCondGoto, *exitedBB, *exitingBB);
   // create preCondGoto bb
-  BB *preCondGoto = cfg->NewBasicBlock();
+  BB *preCondGoto = func->NewBasicBlock();
   if (profValid) {
     preCondGoto->SetFrequency(loop->preheader->GetFrequency());
   }
@@ -1073,8 +1073,8 @@ void LoopUnrolling::LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j) 
   }
   if (MeDoLoopUnrolling::enableDump) {
     irMap->Dump();
-    profValid ? cfg->DumpToFile("cfgIncludeFreqInfobeforeLoopPartialWithVarUnrolling", false, true) :
-                cfg->DumpToFile("cfgbeforeLoopPartialWithVarUnrolling");
+    profValid ? func->GetTheCfg()->DumpToFile("cfgIncludeFreqInfobeforeLoopPartialWithVarUnrolling", false, true) :
+                func->GetTheCfg()->DumpToFile("cfgbeforeLoopPartialWithVarUnrolling");
   }
   uint32 unrollTime = unrollTimes[index];
   if (MeDoLoopUnrolling::enableDebug) {
@@ -1096,8 +1096,8 @@ void LoopUnrolling::LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 j) 
   ssaUpdate.Run();
   if (MeDoLoopUnrolling::enableDump) {
     irMap->Dump();
-    profValid ? cfg->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithVarUnrolling", false, true) :
-                cfg->DumpToFile("cfgafterLoopPartialWithVarUnrolling");
+    profValid ? func->GetTheCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithVarUnrolling", false, true) :
+                func->GetTheCfg()->DumpToFile("cfgafterLoopPartialWithVarUnrolling");
   }
 }
 
@@ -1122,7 +1122,7 @@ bool MeDoLoopUnrolling::IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const {
       return false;
     }
   }
-  auto exitBB = func.GetCfg()->GetBBFromID(loop.inloopBB2exitBBs.begin()->first);
+  auto exitBB = func.GetBBFromID(loop.inloopBB2exitBBs.begin()->first);
   for (auto pred : exitBB->GetPred()) {
     if (!loop.Has(*pred)) {
       return false;
@@ -1132,9 +1132,8 @@ bool MeDoLoopUnrolling::IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const {
 }
 
 bool MeDoLoopUnrolling::PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) const {
-  MeCFG *cfg = func.GetCfg();
   for (auto bbID : loop.loopBBs) {
-    auto bb = cfg->GetBBFromID(bbID);
+    auto bb = func.GetBBFromID(bbID);
     if (bb == loop.head) {
       continue;
     }
@@ -1161,7 +1160,7 @@ bool MeDoLoopUnrolling::IsCanonicalAndOnlyOneExitLoop(MeFunction &func, LoopDesc
   CHECK_NULL_FATAL(loop.preheader);
   CHECK_NULL_FATAL(loop.latch);
   auto headBB = loop.head;
-  auto exitBB = func.GetCfg()->GetBBFromID(loop.inloopBB2exitBBs.begin()->first);
+  auto exitBB = func.GetBBFromID(loop.inloopBB2exitBBs.begin()->first);
   CHECK_FATAL(headBB->GetPred().size() == 2, "head must has two preds");
   if (!IsDoWhileLoop(func, loop)) {
     if (enableDebug) {
@@ -1194,8 +1193,8 @@ void MeDoLoopUnrolling::ExcuteLoopUnrollingWithConst(uint32 tripCount, MeFunctio
   }
   if (enableDump) {
     irMap.Dump();
-    func.IsIRProfValid() ? func.GetCfg()->DumpToFile("cfgIncludeFreqInfobeforLoopUnrolling", false, true) :
-                           func.GetCfg()->DumpToFile("cfgbeforLoopUnrolling");
+    func.IsIRProfValid() ? func.GetTheCfg()->DumpToFile("cfgIncludeFreqInfobeforLoopUnrolling", false, true) :
+                           func.GetTheCfg()->DumpToFile("cfgbeforLoopUnrolling");
   }
   // fully unroll
   if (loopUnrolling.LoopFullyUnroll(tripCount)) {
@@ -1204,8 +1203,8 @@ void MeDoLoopUnrolling::ExcuteLoopUnrollingWithConst(uint32 tripCount, MeFunctio
     }
     if (enableDump) {
       irMap.Dump();
-      func.IsIRProfValid() ? func.GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopFullyUnrolling", false, true) :
-                             func.GetCfg()->DumpToFile("cfgafterLoopFullyUnrolling");
+      func.IsIRProfValid() ? func.GetTheCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopFullyUnrolling", false, true) :
+                             func.GetTheCfg()->DumpToFile("cfgafterLoopFullyUnrolling");
     }
     return;
   }
@@ -1216,8 +1215,8 @@ void MeDoLoopUnrolling::ExcuteLoopUnrollingWithConst(uint32 tripCount, MeFunctio
     }
     if (enableDump) {
       irMap.Dump();
-      func.IsIRProfValid() ? func.GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithConst", false, true) :
-                             func.GetCfg()->DumpToFile("cfgafterLoopPartialWithConstUnrolling");
+      func.IsIRProfValid() ? func.GetTheCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopPartialWithConst", false, true) :
+                             func.GetTheCfg()->DumpToFile("cfgafterLoopPartialWithConstUnrolling");
     }
     return;
   }
@@ -1278,6 +1277,9 @@ AnalysisResult *MeDoLoopUnrolling::Run(MeFunction *func, MeFuncResultMgr *m, Mod
   }
   if (enableDebug) {
     LogInfo::MapleLogger() << "func is hot" << "\n";
+  }
+  if (func->GetSecondPass()) {
+    return nullptr;
   }
   CHECK_NULL_FATAL(m);
   auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));

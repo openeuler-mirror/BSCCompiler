@@ -15,7 +15,6 @@
 #include "sync_select.h"
 #include "safe_cast.h"
 #include "mpl_logging.h"
-#include "me_cfg.h"
 
 namespace {
 using namespace maple;
@@ -48,8 +47,7 @@ class SyncSelect {
   }
 
   void SetAllSyncKind(SyncKind kind) {
-    auto cfg = func.GetCfg();
-    for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
+    for (auto bIt = func.valid_begin(), eIt = func.valid_end(); bIt != eIt; ++bIt) {
       for (auto &stmt : (*bIt)->GetStmtNodes()) {
         if (stmt.GetOpCode() == OP_syncenter) {
           SetSyncKind(stmt, kind);

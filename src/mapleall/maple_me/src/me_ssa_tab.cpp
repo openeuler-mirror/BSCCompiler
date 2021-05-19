@@ -13,14 +13,12 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_ssa_tab.h"
-#include "me_cfg.h"
 #include <cstdlib>
 #include "mpl_timer.h"
 
 // allocate the data structure to store SSA information
 namespace maple {
-AnalysisResult *MeDoSSATab::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+AnalysisResult *MeDoSSATab::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
   MPLTimer timer;
   timer.Start();
   if (DEBUGFUNC(func)) {
@@ -34,7 +32,7 @@ AnalysisResult *MeDoSSATab::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
   globalSSATab = ssaTab;
 #endif
   // pass through the program statements
-  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
+  for (auto bIt = func->valid_begin(); bIt != func->valid_end(); ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetStmtNodes()) {
       ssaTab->CreateSSAStmt(stmt, bb);  // this adds the SSANodes for exprs
