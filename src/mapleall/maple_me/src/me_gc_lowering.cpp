@@ -51,9 +51,9 @@ void GCLowering::Prepare() {
 }
 
 void GCLowering::GCLower() {
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
+  auto eIt = func.valid_end();
+  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == func.common_entry() || bIt == func.common_exit()) {
       continue;
     }
     GCLower(**bIt);
@@ -200,12 +200,11 @@ void GCLowering::HandleWriteReferent(IassignMeStmt &stmt) {
 // LHS of type ref in assign
 // return value of type ref
 void GCLowering::CheckRefs() {
-  auto cfg = func.GetCfg();
   ParseCheckFlag();
   if (checkRefFormal) {
     CheckFormals();
   }
-  for (BB *bb : cfg->GetAllBBs()) {
+  for (BB *bb : func.GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
@@ -244,7 +243,7 @@ void GCLowering::CheckFormals() {
     return;
   }
 
-  BB *firstBB = func.GetCfg()->GetFirstBB();
+  BB *firstBB = func.GetFirstBB();
   for (size_t i = 0; i < mirFunc->GetFormalCount(); ++i) {
     MIRSymbol *formalSt = mirFunc->GetFormal(i);
     if (formalSt == nullptr || formalSt->GetType()->GetPrimType() != PTY_ref) {

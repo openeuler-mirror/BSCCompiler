@@ -27,10 +27,9 @@ void PregRenamer::RunSelf() {
   std::vector<bool> firstappeartable(pregtab->GetPregTable().size());
   uint32 renameCount = 0;
   UnionFind unionFind(*mp, regmeexprtable.size());
-  auto cfg = func->GetCfg();
   // iterate all the bbs' phi to setup the union
-  for (BB *bb : cfg->GetAllBBs()) {
-    if (bb == nullptr || bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == nullptr || bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB()) {
       continue;
     }
     MapleMap<OStIdx, MePhiNode *> &mePhiList =  bb->GetMePhiList();
@@ -128,7 +127,7 @@ AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *frm, Modu
     auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
     CHECK_FATAL(kh != nullptr, "kh phase has problem");
     MeVerify verify(*func);
-    for (auto &bb : func->GetCfg()->GetAllBBs()) {
+    for (auto &bb : func->GetAllBBs()) {
       if (bb == nullptr) {
         continue;
       }

@@ -38,7 +38,7 @@ void MeStorePre::CheckCreateCurTemp() {
 // each bb.  The return value is the curTemp version that contains the RHS value
 // at the entry to bb;
 RegMeExpr *MeStorePre::EnsureRHSInCurTemp(BB &bb) {
-  CHECK_FATAL(&bb != func->GetCfg()->GetCommonEntryBB(), "EnsureRHSInCurTemp: cannot find earlier definition");
+  CHECK_FATAL(&bb != func->GetCommonEntryBB(), "EnsureRHSInCurTemp: cannot find earlier definition");
   // see if processed before
   auto mapIt = bbCurTempMap.find(&bb);
   if (mapIt != bbCurTempMap.end()) {
@@ -212,7 +212,7 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
     workCandMap[ostIdx] = wkCand;
     // if it is local symbol, insert artificial use occ at common_exit_bb
     if (ost->IsLocal()) {
-      SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCfg()->GetCommonExitBB());
+      SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCommonExitBB());
       wkCand->GetRealOccs().push_back(artOcc);
     }
   }
@@ -242,7 +242,7 @@ void MeStorePre::CreateUseOcc(const OStIdx &ostIdx, BB &bb) {
     workCandMap[ostIdx] = wkCand;
     // if it is local symbol, insert artificial real occ at common_exit_bb
     if (ost->IsLocal()) {
-      SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCfg()->GetCommonExitBB());
+      SRealOcc *artOcc = spreMp->New<SRealOcc>(*func->GetCommonExitBB());
       wkCand->GetRealOccs().push_back(artOcc);
     }
   } else {
@@ -359,7 +359,7 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
   }
   // recurse on child BBs in post-dominator tree
   for (BBId bbId : dom->GetPdomChildrenItem(bb->GetBBId())) {
-    BuildWorkListBB(func->GetCfg()->GetAllBBs().at(bbId));
+    BuildWorkListBB(func->GetAllBBs().at(bbId));
   }
 }
 

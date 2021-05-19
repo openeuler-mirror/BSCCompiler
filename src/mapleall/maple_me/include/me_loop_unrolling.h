@@ -23,7 +23,6 @@
 #include "me_dominance.h"
 #include "me_loop_analysis.h"
 #include "profile.h"
-#include "me_cfg.h"
 
 namespace maple {
 constexpr uint32 kMaxCost = 100;
@@ -31,7 +30,7 @@ constexpr uint8 unrollTimes[3] = { 8, 4, 2 }; // unrollTimes
 class LoopUnrolling {
  public:
   LoopUnrolling(MeFunction &f, MeFuncResultMgr &m, LoopDesc &l, MeIRMap &map, MemPool &pool, Dominance *d)
-      : func(&f), cfg(f.GetCfg()), mgr(&m), loop(&l), irMap(&map), memPool(&pool), mpAllocator(&pool), dom(d),
+      : func(&f), mgr(&m), loop(&l), irMap(&map), memPool(&pool), mpAllocator(&pool), dom(d),
         cands((std::less<OStIdx>(), mpAllocator.Adapter())), lastNew2OldBB(mpAllocator.Adapter()),
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
@@ -86,7 +85,6 @@ class LoopUnrolling {
 
   bool canUnroll = true;
   MeFunction *func;
-  MeCFG      *cfg;
   MeFuncResultMgr *mgr;
   LoopDesc *loop;
   MeIRMap *irMap;

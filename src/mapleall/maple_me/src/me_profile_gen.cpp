@@ -87,7 +87,7 @@ void MeProfGen::SaveProfile() {
   if (func->GetName().find("main") != std::string::npos) {
     std::vector<MeExpr*> opnds;
     IntrinsiccallMeStmt *saveProfCall = hMap->CreateIntrinsicCallMeStmt(INTRN_MCCSaveProf, opnds);
-    for (BB *exitBB : func->GetCfg()->GetCommonExitBB()->GetPred()) {
+    for (BB *exitBB : func->GetCommonExitBB()->GetPred()) {
       exitBB->AddMeStmtFirst(saveProfCall);
     }
   }
@@ -129,10 +129,9 @@ void MeProfGen::InstrumentFunc() {
 // if function have infinite loop, can't instrument,because it may cause counter
 // overflow
 bool MeProfGen::CanInstrument() const {
-  MeCFG *cfg = func->GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
+  auto eIt = func->valid_end();
+  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == func->common_entry() || bIt == func->common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -145,7 +144,7 @@ bool MeProfGen::CanInstrument() const {
 
 AnalysisResult *MeDoProfGen::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
   MemPool *tempMp = NewMemPool();
-  if (!func->GetCfg()->empty()) {
+  if (!func->empty()) {
     MeProfGen::IncTotalFunc();
   }
   // function with try can't determine the instrument BB,because
@@ -164,7 +163,7 @@ AnalysisResult *MeDoProfGen::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
 
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "dump edge info in profile gen phase " << func->GetMirFunc()->GetName() << std::endl;
-    func->GetCfg()->DumpToFile("afterProfileGen", false);
+    func->GetTheCfg()->DumpToFile("afterProfileGen", false);
     profGen.DumpEdgeInfo();
   }
 

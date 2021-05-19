@@ -628,8 +628,7 @@ bool CheckCast::ProvedBySSI(const IntrinsiccallMeStmt &callNode) {
 }
 
 void CheckCast::DoCheckCastOpt() {
-  auto cfg = func->GetCfg();
-  for (BB *bb : cfg->GetAllBBs()) {
+  for (BB *bb : func->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }
@@ -673,8 +672,7 @@ void CheckCast::DoCheckCastOpt() {
 }
 
 void CheckCast::FindRedundantChecks() {
-  auto cfg = func->GetCfg();
-  for (BB *bb : cfg->GetAllBBs()) {
+  for (BB *bb : func->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }

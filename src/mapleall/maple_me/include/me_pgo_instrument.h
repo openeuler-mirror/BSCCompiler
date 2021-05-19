@@ -98,7 +98,7 @@ class PGOInstrument {
       BB *dest = edge->GetDestBB();
       /* instrument the srcbb if it has a single succ */
       if (src->GetSucc().size() <= 1) {
-        if (src == func->GetCfg()->GetCommonEntryBB()) {
+        if (src == func->GetCommonEntryBB()) {
           bbs.push_back(dest);
         } else {
           bbs.push_back(src);
@@ -106,7 +106,7 @@ class PGOInstrument {
       } else if (!edge->IsCritical()) {
         bbs.push_back(dest);
       } else {
-        func->GetCfg()->DumpToFile("profGenError", false);
+        func->GetTheCfg()->DumpToFile("profGenError", false);
         CHECK_FATAL(false, "impossible critial edge %d -> %d", src->UintID(), dest->UintID());
       }
     }
@@ -119,11 +119,11 @@ class PGOInstrument {
   uint64 ComputeFuncHash() {
     uint64 allEdgeSize = mst.GetAllEdgesSize();
     std::ostringstream ss;
-    auto eIt = func->GetCfg()->valid_end();
+    auto eIt = func->valid_end();
     // compute func CFG hash,used to verify function IR change
-    for (auto bIt = func->GetCfg()->valid_begin(); bIt != eIt; ++bIt) {
+    for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
-      if (bIt == func->GetCfg()->common_exit()) {
+      if (bIt == func->common_exit()) {
         continue;
       }
       for (auto *succBB : bb->GetSucc()) {
@@ -135,8 +135,8 @@ class PGOInstrument {
   }
 
   void ClearBBGroupInfo() {
-    auto eIt = func->GetCfg()->valid_end();
-    for (auto bIt = func->GetCfg()->valid_begin(); bIt != eIt; ++bIt) {
+    auto eIt = func->valid_end();
+    for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
       bb->ClearGroup();
     }

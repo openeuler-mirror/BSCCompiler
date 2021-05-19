@@ -96,8 +96,7 @@ void MeProfUse::ComputeBBFreq(BBUseInfo &bbInfo, bool &change) {
 void MeProfUse::ComputeEdgeFreq() {
   bool change = true;
   size_t pass = 0;
-  MeCFG *cfg = func->GetCfg();
-  auto eIt = cfg->valid_end();
+  auto eIt = func->valid_end();
   while (change) {
     change = false;
     pass++;
@@ -106,7 +105,7 @@ void MeProfUse::ComputeEdgeFreq() {
      * use the bb edge to infer the bb's count,when all bb's count is valid
      * then all edges count is valid
      */
-    for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+    for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
       auto *bb = *bIt;
       BBUseInfo *useInfo = GetBBUseInfo(*bb);
       if (useInfo == nullptr) {
@@ -237,13 +236,12 @@ bool MeProfUse::BuildEdgeCount() {
 }
 
 void MeProfUse::SetFuncEdgeInfo() {
-  MeCFG *cfg = func->GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = func->valid_end();
+  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     auto *bbInfo = GetBBUseInfo(*bb);
     bb->SetFrequency(bbInfo->GetCount());
-    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
+    if (bIt == func->common_entry() || bIt == func->common_exit()) {
       continue;
     }
     bb->InitEdgeFreq();
@@ -252,14 +250,14 @@ void MeProfUse::SetFuncEdgeInfo() {
       auto *destBB = e->GetDestBB();
       // common_exit's pred's BB doesn't have succ BB of common exit
       // so skip this edge
-      if (destBB == cfg->GetCommonExitBB()) {
+      if (destBB == func->GetCommonExitBB()) {
         continue;
       }
       bb->SetEdgeFreq(destBB, e->GetCount());
     }
   }
   func->SetProfValid();
-  func->SetFrequency(cfg->GetCommonEntryBB()->GetFrequency());
+  func->SetFrequency(func->GetCommonEntryBB()->GetFrequency());
   if (Options::genPGOReport) {
     func->GetMIRModule().GetProfile().SetFuncStatus(func->GetName(), true);
   }
@@ -271,10 +269,9 @@ void MeProfUse::DumpFuncCFGEdgeFreq() const {
     return;
   }
   LogInfo::MapleLogger() << "func freq " << func->GetFrequency() << "\n";
-  MeCFG *cfg = func->GetCfg();
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
+  auto eIt = func->valid_end();
+  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == func->common_entry() || bIt == func->common_exit()) {
       continue;
     }
     auto bb = *bIt;
@@ -294,15 +291,14 @@ bool MeProfUse::Run() {
   return true;
 }
 
-AnalysisResult *MeDoProfUse::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+AnalysisResult *MeDoProfUse::Run(MeFunction *func, MeFuncResultMgr *, ModuleResultMgr*) {
   MemPool *tempMp = NewMemPool();
   MeProfUse profUse(*func, *tempMp, DEBUGFUNC(func));
   profUse.Run();
   if (DEBUGFUNC(func) && profUse.IsSuccUseProf()) {
     LogInfo::MapleLogger() << "******************after profile use  dump function******************\n";
     profUse.DumpFuncCFGEdgeFreq();
-    func->GetCfg()->DumpToFile("afterProfileUse", false, true);
+    func->GetTheCfg()->DumpToFile("afterProfileUse", false, true);
   }
   return nullptr;
 }

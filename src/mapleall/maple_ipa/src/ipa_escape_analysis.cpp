@@ -13,7 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "ipa_escape_analysis.h"
-#include "me_cfg.h"
 #include <algorithm>
 
 namespace maple {
@@ -1159,7 +1158,7 @@ void IPAEscapeAnalysis::ConstructConnGraph() {
       analyzeAgain = false;
       cgChangedInSCC = false;
       for (BB *bb : scc->GetBBs()) {
-        if (bb == func->GetCfg()->GetCommonEntryBB() || bb == func->GetCfg()->GetCommonExitBB()) {
+        if (bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB()) {
           continue;
         }
         UpdateEscConnGraphWithPhi(*bb);
@@ -1237,9 +1236,8 @@ VarMeExpr *IPAEscapeAnalysis::GetOrCreateEARetTempVar() {
 }
 
 void IPAEscapeAnalysis::ProcessNoAndRetEscObj() {
-  MeCFG *cfg = func->GetCfg();
-  for (BB *bb : cfg->GetAllBBs()) {
-    if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB() || bb == nullptr ||
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB() || bb == nullptr ||
         bb->GetAttributes(kBBAttrIsInLoopForEA)) {
       continue;
     }
@@ -1270,7 +1268,7 @@ void IPAEscapeAnalysis::ProcessNoAndRetEscObj() {
   if (noAndRetEscOst.size() == 0) {
     return;
   }
-  BB *firstBB = cfg->GetFirstBB();
+  BB *firstBB = func->GetFirstBB();
   CHECK_FATAL(firstBB != nullptr, "Impossible");
   for (size_t i = 0; i < noAndRetEscOst.size(); ++i) {
     OriginalSt *ost = noAndRetEscOst[i];
@@ -1297,16 +1295,16 @@ void IPAEscapeAnalysis::ProcessRetStmt() {
   if (noAndRetEscObj.size() == 0) {
     return;
   }
-  MeCFG *cfg = func->GetCfg();
-  BB *firstBB = cfg->GetFirstBB();
+
+  BB *firstBB = func->GetFirstBB();
   OriginalSt *ost = CreateEARetTempOst();
   VarMeExpr *initVar = CreateEATempVarMeExpr(*ost);
   MeExpr *zeroExpr = irMap->CreateIntConstMeExpr(0, PTY_ref);
   DassignMeStmt *newStmt = static_cast<DassignMeStmt *>(irMap->CreateAssignMeStmt(*initVar, *zeroExpr, *firstBB));
   firstBB->AddMeStmtFirst(newStmt);
 
-  for (BB *bb : cfg->GetAllBBs()) {
-    if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB() || bb == nullptr) {
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB() || bb == nullptr) {
       continue;
     }
     for (MeStmt *stmt = to_ptr(bb->GetMeStmts().begin()); stmt != nullptr; stmt = stmt->GetNextMeStmt()) {
@@ -1333,9 +1331,8 @@ void IPAEscapeAnalysis::ProcessRetStmt() {
 }
 
 void IPAEscapeAnalysis::CountObjRCOperations() {
-  MeCFG *cfg = func->GetCfg();
-  for (BB *bb : cfg->GetAllBBs()) {
-    if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB() || bb == nullptr) {
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB() || bb == nullptr) {
       continue;
     }
     for (MeStmt *stmt = to_ptr(bb->GetMeStmts().begin()); stmt != nullptr; stmt = stmt->GetNextMeStmt()) {
@@ -1505,9 +1502,8 @@ void IPAEscapeAnalysis::CountObjRCOperations() {
 }
 
 void IPAEscapeAnalysis::DeleteRedundantRC() {
-  MeCFG *cfg = func->GetCfg();
-  for (BB *bb : cfg->GetAllBBs()) {
-    if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB() || bb == nullptr) {
+  for (BB *bb : func->GetAllBBs()) {
+    if (bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB() || bb == nullptr) {
       continue;
     }
     for (MeStmt *stmt = to_ptr(bb->GetMeStmts().begin()); stmt != nullptr; stmt = stmt->GetNextMeStmt()) {

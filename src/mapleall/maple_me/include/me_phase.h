@@ -58,6 +58,18 @@ class MeFuncPhase : public Phase {
 
   virtual std::string PhaseName() const = 0;
 
+  void SetChangeCFG() {
+    isCFGChanged = true;
+  }
+
+  bool IsChangedCFG() const {
+    return isCFGChanged;
+  }
+
+  void ClearChangeCFG() {
+    isCFGChanged = false;
+  }
+
   void ClearString() {
     prevPhaseName.clear();
     prevPhaseName.shrink_to_fit();
@@ -66,6 +78,7 @@ class MeFuncPhase : public Phase {
  private:
   MePhaseID phaseID;
   std::string prevPhaseName = ""; // used in filename for emit, init prev_phasename as nullptr
+  bool isCFGChanged = false;      // is this phase changed CFG
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_PHASE_H

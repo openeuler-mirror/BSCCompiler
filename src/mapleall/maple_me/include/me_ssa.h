@@ -17,7 +17,6 @@
 #include "mir_module.h"
 #include "mir_nodes.h"
 #include "me_function.h"
-#include "me_cfg.h"
 #include "me_phase.h"
 #include "ssa.h"
 #include "dominance.h"
@@ -26,7 +25,7 @@ namespace maple {
 class MeSSA : public SSA, public AnalysisResult {
  public:
   MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool)
-      : SSA(memPool, *stab, func.GetCfg()->GetAllBBs(), &dom),
+      : SSA(memPool, *stab, func.GetAllBBs(), &dom),
         AnalysisResult(&memPool),
         func(&func) {}
 

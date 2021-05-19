@@ -93,9 +93,8 @@ void MeSSA::VerifySSAOpnd(const BaseNode &node) const {
 
 void MeSSA::VerifySSA() const {
   size_t vtableSize = func->GetMeSSATab()->GetVersionStTable().GetVersionStVectorSize();
-  auto cfg = func->GetCfg();
   // to prevent valid_end from being called repeatedly, don't modify the definition of eIt
-  for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
+  for (auto bIt = func->valid_begin(), eIt = func->valid_end(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     Opcode opcode;
     for (auto &stmt : bb->GetStmtNodes()) {
@@ -118,16 +117,16 @@ AnalysisResult *MeDoSSA::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, Modu
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
   MemPool *ssaMp = NewMemPool();
   auto *ssa = ssaMp->New<MeSSA>(*func, func->GetMeSSATab(), *dom, *ssaMp);
-  auto cfg = func->GetCfg();
+
   ssa->InsertPhiNode();
 
-  ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), cfg->GetAllBBs().size(),
+  ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), func->GetAllBBs().size(),
                        func->GetMeSSATab()->GetVersionStTable());
 
   // recurse down dominator tree in pre-order traversal
-  MapleSet<BBId> *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
+  MapleSet<BBId> *children = &dom->domChildren[func->GetCommonEntryBB()->GetBBId()];
   for (BBId child : *children) {
-    ssa->RenameBB(*cfg->GetBBFromID(child));
+    ssa->RenameBB(*func->GetBBFromID(child));
   }
 
   ssa->VerifySSA();

@@ -34,7 +34,7 @@ class SubsumRC : public MeSSUPre {
   SubsumRC(MeFunction &f, Dominance &dom, MemPool &mp, bool enabledDebug)
       : MeSSUPre(f, dom, mp, kSubsumePre, enabledDebug),
         candMap(spreAllocator.Adapter()),
-        bbVisited(f.GetCfg()->GetAllBBs().size(), false, spreAllocator.Adapter()),
+        bbVisited(f.GetAllBBs().size(), false, spreAllocator.Adapter()),
         verstCantSubsum(f.GetIRMap()->GetVerst2MeExprTable().size(), false, spreAllocator.Adapter()) {}
 
   virtual ~SubsumRC() = default;

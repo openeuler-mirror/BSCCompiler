@@ -25,7 +25,6 @@ namespace maple {
 void MeSSAUpdate::InsertPhis() {
   MapleMap<OStIdx, MapleSet<BBId> *>::iterator it = updateCands.begin();
   MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());
-  auto cfg = func.GetCfg();
   for (; it != updateCands.end(); ++it) {
     dfSet.clear();
     for (const auto &bbId : *it->second) {
@@ -33,7 +32,7 @@ void MeSSAUpdate::InsertPhis() {
     }
     for (const auto &bbId : dfSet) {
       // insert a phi node
-      BB *bb = cfg->GetBBFromID(bbId);
+      BB *bb = func.GetBBFromID(bbId);
       ASSERT_NOT_NULL(bb);
       auto phiListIt = bb->GetMePhiList().find(it->first);
       if (phiListIt != bb->GetMePhiList().end()) {
@@ -225,7 +224,6 @@ void MeSSAUpdate::RenameBB(BB &bb) {
   // for recording stack height on entering this BB, to pop back to same height
   // when backing up the dominator tree
   std::map<OStIdx, uint32> origStackSize;
-  auto cfg = func.GetCfg();
   for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
     origStackSize[it->first] = it->second->size();
   }
@@ -235,7 +233,7 @@ void MeSSAUpdate::RenameBB(BB &bb) {
   // recurse down dominator tree in pre-order traversal
   const MapleSet<BBId> &children = dom.GetDomChildren(bb.GetBBId());
   for (const auto &child : children) {
-    RenameBB(*cfg->GetBBFromID(child));
+    RenameBB(*func.GetBBFromID(child));
   }
   // pop stacks back to where they were at entry to this BB
   for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
@@ -255,10 +253,9 @@ void MeSSAUpdate::Run() {
     renameStack->push(zeroVersVar);
   }
   // recurse down dominator tree in pre-order traversal
-  auto cfg = func.GetCfg();
-  const MapleSet<BBId> &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetBBId());
+  const MapleSet<BBId> &children = dom.GetDomChildren(func.GetCommonEntryBB()->GetBBId());
   for (const auto &child : children) {
-    RenameBB(*cfg->GetBBFromID(child));
+    RenameBB(*func.GetBBFromID(child));
   }
 }
 }  // namespace maple

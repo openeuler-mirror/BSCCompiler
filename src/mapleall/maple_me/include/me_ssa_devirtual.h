@@ -23,16 +23,16 @@ class MeSSADevirtual : public SSADevirtual {
  public:
   MeSSADevirtual(MemPool &memPool, MIRModule &mod, MeFunction &func, IRMap &irMap, KlassHierarchy &kh, Dominance &dom,
                  bool skipReturnTypeOpt)
-      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), skipReturnTypeOpt), func(&func) {}
+      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetAllBBs().size(), skipReturnTypeOpt), func(&func) {}
   MeSSADevirtual(MemPool &memPool, MIRModule &mod, MeFunction &func, IRMap &irMap, KlassHierarchy &kh, Dominance &dom,
                  Clone &clone, bool skipReturnTypeOpt)
-      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), clone, skipReturnTypeOpt), func(&func) {}
+      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetAllBBs().size(), clone, skipReturnTypeOpt), func(&func) {}
 
   ~MeSSADevirtual() = default;
 
  protected:
   BB *GetBB(BBId id) const override {
-    return func->GetCfg()->GetAllBBs().at(id);
+    return func->GetAllBBs().at(id);
   }
 
   MIRFunction *GetMIRFunction() const override {

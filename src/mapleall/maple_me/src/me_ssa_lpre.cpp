@@ -204,7 +204,7 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   (void)workCand->GetRealOccs().insert(occIt, occ);  // insert at beginning
   occ->SetIsLHS(true);
   occ->SetIsFormalAtEntry(true);
-  occ->SetBB(*func->GetCfg()->GetFirstBB());
+  occ->SetBB(*func->GetFirstBB());
 }
 
 void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
@@ -359,7 +359,7 @@ void MeSSALPre::BuildWorkList() {
   }
   const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
   for (size_t i = 0; i < numBBs; ++i) {
-    BB *bb = tmpFunc.GetCfg()->GetBBFromID(preOrderDt[i]);
+    BB *bb = tmpFunc.GetBBFromID(preOrderDt[i]);
     BuildWorkListBB(bb);
   }
 }

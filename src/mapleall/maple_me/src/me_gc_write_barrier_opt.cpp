@@ -26,15 +26,13 @@ AnalysisResult *MeDoGCWriteBarrierOpt::Run(MeFunction *func, MeFuncResultMgr *fu
   GCWriteBarrierOpt gcWriteBarrierOpt(*func, *dom, DEBUGFUNC(func));
   gcWriteBarrierOpt.Prepare();
   std::map<OStIdx, std::vector<MeStmt*>> writeBarrierMap;
-  BB *entryBB = func->GetCfg()->GetCommonEntryBB();
+  BB *entryBB = func->GetCommonEntryBB();
   gcWriteBarrierOpt.GCLower(*entryBB, writeBarrierMap);
   gcWriteBarrierOpt.Finish();
   return nullptr;
 }
 
 void GCWriteBarrierOpt::Prepare() {
-  callBBs.resize(func.GetCfg()->NumBBs());
-  visited.resize(func.GetCfg()->NumBBs()); 
   if (enabledDebug) {
     LogInfo::MapleLogger() << "\n============== Before GC WRITE BARRIER OPT =============" << '\n';
     func.Dump(false);
@@ -75,7 +73,7 @@ void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &
   visited[bb.GetBBId()] = true;
   const MapleSet<BBId> domChildren = dominance.GetDomChildren(bb.GetBBId());
   for (const auto &childBBId : domChildren) {
-    BB *child = func.GetCfg()->GetBBFromID(childBBId);
+    BB *child = func.GetAllBBs().at(childBBId);
     if (child == nullptr) {
       continue;
     }
@@ -158,7 +156,7 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   }
   const MapleSet<BBId> domChildren = dominance.GetDomChildren(startBB->GetBBId());
   const MapleSet<BBId> pdomChildren = dominance.GetPdomChildrenItem(endBB->GetBBId());
-  const MapleVector<BB*> bbVec = func.GetCfg()->GetAllBBs();
+  const MapleVector<BB*> bbVec = func.GetAllBBs();
   for (const auto &childBBId : domChildren) {
     if (pdomChildren.find(childBBId) == pdomChildren.end()) {
       continue;

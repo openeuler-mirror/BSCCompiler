@@ -49,7 +49,6 @@ class AnalyzeRC {
  public:
   AnalyzeRC(MeFunction &f, Dominance &dom, AliasClass &ac, MemPool *memPool)
       : func(f),
-        cfg(f.GetCfg()),
         irMap(*f.GetIRMap()),
         ssaTab(*f.GetMeSSATab()),
         dominance(dom),
@@ -82,7 +81,6 @@ class AnalyzeRC {
 
   friend class MeDoAnalyzeRC;
   MeFunction &func;
-  MeCFG *cfg;
   IRMap &irMap;
   SSATab &ssaTab;
   Dominance &dominance;

@@ -53,7 +53,7 @@ class MeSSAEPre : public SSAEPre {
   void BuildWorkList() override;
   bool IsThreadObjField(const IvarMeExpr &expr) const override;
   BB *GetBB(BBId id) const override {
-    return func->GetCfg()->GetBBFromID(id);
+    return func->GetBBFromID(id);
   }
 
   PUIdx GetPUIdx() const override {
@@ -61,7 +61,7 @@ class MeSSAEPre : public SSAEPre {
   }
 
   bool CfgHasDoWhile() const override {
-    return func->GetCfg()->GetHasDoWhile();
+    return func->GetTheCfg()->GetHasDoWhile();
   }
 
   bool EpreLocalRefVar() const override {
