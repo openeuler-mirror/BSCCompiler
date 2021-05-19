@@ -19,6 +19,7 @@
 #include "me_irmap.h"
 #include "me_phase.h"
 #include "mir_builder.h"
+#include "me_cfg.h"
 
 namespace maple {
 class RCLowering {
@@ -26,6 +27,7 @@ class RCLowering {
   RCLowering(MeFunction &f, KlassHierarchy &kh, bool enabledDebug)
       : func(f),
         mirModule(f.GetMIRModule()),
+        cfg(f.GetCfg()),
         irMap(*f.GetIRMap()),
         ssaTab(*f.GetMeSSATab()),
         klassHierarchy(kh),
@@ -119,6 +121,7 @@ class RCLowering {
   void CheckRefReturn(BB &bb);
   MeFunction &func;
   MIRModule &mirModule;
+  MeCFG *cfg;
   IRMap &irMap;
   SSATab &ssaTab;
   KlassHierarchy &klassHierarchy;

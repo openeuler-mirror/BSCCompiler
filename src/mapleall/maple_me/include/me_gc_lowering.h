@@ -18,6 +18,7 @@
 #include "me_irmap.h"
 #include "me_phase.h"
 #include "mir_builder.h"
+#include "me_cfg.h"
 
 namespace maple {
 class GCLowering {
@@ -25,6 +26,7 @@ class GCLowering {
   GCLowering(MeFunction &f, bool enabledDebug)
       : func(f),
         mirModule(f.GetMIRModule()),
+        cfg(f.GetCfg()),
         irMap(*f.GetIRMap()),
         ssaTab(*f.GetMeSSATab()),
         enabledDebug(enabledDebug) {}
@@ -52,6 +54,7 @@ class GCLowering {
 
   MeFunction &func;
   MIRModule &mirModule;
+  MeCFG *cfg;
   IRMap &irMap;
   SSATab &ssaTab;
   bool isReferent = false;

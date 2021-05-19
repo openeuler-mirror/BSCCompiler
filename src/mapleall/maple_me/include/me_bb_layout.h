@@ -25,21 +25,22 @@ class BBLayout{
       : func(f),
         layoutAlloc(&memPool),
         layoutBBs(layoutAlloc.Adapter()),
-        startTryBBVec(func.GetAllBBs().size(), false, layoutAlloc.Adapter()),
+        startTryBBVec(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         allEdges(layoutAlloc.Adapter()),
-        laidOut(func.GetAllBBs().size(), false, layoutAlloc.Adapter()),
+        laidOut(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         enabledDebug(enabledDebug),
-        profValid(func.IsIRProfValid()) {
-    laidOut[func.GetCommonEntryBB()->GetBBId()] = true;
-    laidOut[func.GetCommonExitBB()->GetBBId()] = true;
+        profValid(func.IsIRProfValid()),
+        cfg(f.GetCfg()) {
+    laidOut[func.GetCfg()->GetCommonEntryBB()->GetBBId()] = true;
+    laidOut[func.GetCfg()->GetCommonExitBB()->GetBBId()] = true;
   }
 
   ~BBLayout() = default;
   BB *NextBB() {
     // return the next BB following strictly program input order
     ++curBBId;
-    while (curBBId < func.GetAllBBs().size()) {
-      BB *nextBB = func.GetBBFromID(curBBId);
+    while (curBBId < func.GetCfg()->GetAllBBs().size()) {
+      BB *nextBB = func.GetCfg()->GetBBFromID(curBBId);
       if (nextBB != nullptr && !laidOut[nextBB->GetBBId()]) {
         return nextBB;
       }
@@ -121,6 +122,7 @@ class BBLayout{
   bool enabledDebug;
   bool profValid = false;
   size_t edgeIdx = 0;
+  MeCFG *cfg;
 };
 
 class MeDoBBLayout : public MeFuncPhase {

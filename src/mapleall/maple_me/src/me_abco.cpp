@@ -55,8 +55,9 @@ void MeABC::ABCCollectArrayExpr(MeStmt &meStmt, MeExpr &meExpr, bool isUpdate) {
 }
 
 bool MeABC::CollectABC() {
-  auto eIt = meFunc->valid_end();
-  for (auto bIt = meFunc->valid_begin(); bIt != eIt; ++bIt) {
+  auto cfg = meFunc->GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     for (auto &meStmt : (*bIt)->GetMeStmts()) {
       if (meStmt.GetOp() == OP_callassigned) {
         auto *callNode = static_cast<CallMeStmt*>(&meStmt);
@@ -1067,7 +1068,7 @@ void MeABC::ExecuteABCO() {
                           *((static_cast<NaryMeExpr *>(pair.second))->GetOpnd(1)));
         BuildInequalityGraph();
         if (MeABC::isDebug) {
-          meFunc->GetTheCfg()->DumpToFile(meFunc->GetName());
+          meFunc->GetCfg()->DumpToFile(meFunc->GetName());
           inequalityGraph->DumpDotFile(DumpType::kDumpUpperAndNone);
           inequalityGraph->DumpDotFile(DumpType::kDumpLowerAndNone);
         }
@@ -1080,9 +1081,6 @@ void MeABC::ExecuteABCO() {
 }
 
 AnalysisResult *MeDoABCOpt::Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr*) {
-  if (func->GetSecondPass()) {
-    return nullptr;
-  }
   CHECK_FATAL(frm != nullptr, "frm is nullptr");
   auto *dom = static_cast<Dominance*>(frm->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");

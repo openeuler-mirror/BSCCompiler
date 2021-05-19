@@ -76,7 +76,7 @@ class MeStmtPre : public SSAEPre {
   void RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt);
   void DoSSAFRE() override;
   BB *GetBB(BBId id) const override {
-    return func->GetBBFromID(id);
+    return func->GetCfg()->GetBBFromID(id);
   }
 
   PUIdx GetPUIdx() const override {

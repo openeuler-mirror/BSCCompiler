@@ -21,7 +21,7 @@ class PlacementRC : public MeSSUPre {
  public:
   PlacementRC(MeFunction &f, Dominance &dom, MemPool &memPool, bool enabledDebug)
       : MeSSUPre(f, dom, memPool, kDecrefPre, enabledDebug), placementRCTemp(nullptr),
-        bbHasReal(f.GetAllBBs().size(), false, spreAllocator.Adapter()) {}
+        bbHasReal(f.GetCfg()->GetAllBBs().size(), false, spreAllocator.Adapter()) {}
 
   virtual ~PlacementRC() = default;
 

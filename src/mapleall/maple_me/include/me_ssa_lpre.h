@@ -62,7 +62,7 @@ class MeSSALPre : public SSAPre {
   void BuildWorkListExpr(MeStmt&, int32, MeExpr&, bool, MeExpr*, bool isRootExpr) override;
   void BuildWorkList() override;
   BB *GetBB(BBId id) const override {
-    return func->GetBBFromID(id);
+    return func->GetCfg()->GetBBFromID(id);
   }
 
   PUIdx GetPUIdx() const override {

@@ -26,8 +26,8 @@ class GCWriteBarrierOpt {
         irMap(*f.GetIRMap()),
         ssaTab(*f.GetMeSSATab()),
         dominance(dom),
-        callBBs(f.GetAllBBs().size(), false),
-        visited(f.GetAllBBs().size(), false),
+        callBBs(0, false),
+        visited(0, false),
         enabledDebug(enabledDebug) {}
 
   ~GCWriteBarrierOpt() = default;

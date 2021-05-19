@@ -20,20 +20,13 @@
 namespace maple {
 class MeCfgOpt {
  public:
-  explicit MeCfgOpt(MeIRMap *irMap) : meIrMap(irMap), isCfgChanged(false) {}
+  explicit MeCfgOpt(MeIRMap *irMap) : meIrMap(irMap) {}
 
   ~MeCfgOpt() = default;
-  bool Run(MeFunction &func);
-  bool IsCfgChanged() const {
-    return isCfgChanged;
-  }
-
-  void SetCfgChanged() {
-    isCfgChanged = true;
-  }
+  bool Run(MeCFG &cfg);
 
  private:
-  bool PreCheck(const MeFunction &func) const;
+  bool PreCheck(const MeCFG &func) const;
   bool IsOk2Select(const MeExpr &expr0, const MeExpr &expr1) const;
   // collect expensive ops and if there is reference, return true
   static bool IsExpensiveOp(Opcode op);
@@ -59,7 +52,6 @@ class MeCfgOpt {
   MeStmt *GetTheOnlyMeStmtFromBB(BB &bb) const;
   MeStmt *GetTheOnlyMeStmtWithGotoFromBB(BB &bb) const;
   MeIRMap *meIrMap;
-  bool isCfgChanged;
 };
 
 class MeDoCfgOpt : public MeFuncPhase {

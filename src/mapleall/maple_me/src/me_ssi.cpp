@@ -159,7 +159,7 @@ void MeSSI::AddNullPointerInfoForVar() {
 }
 
 void MeSSI::InsertPiNodes() {
-  for (auto bIt = meFunc->valid_begin(), eIt = meFunc->valid_end(); bIt != eIt; ++bIt) {
+  for (auto bIt = cfg->valid_begin(), eIt = cfg->valid_end(); bIt != eIt; ++bIt) {
     BB *bb = *bIt;
     if (bb->GetKind() == kBBCondGoto) {
       uint8_t careOpt = AnalysisBranch(*(bb->GetLastMe()));
@@ -268,13 +268,13 @@ void MeSSI::InsertPhiNodes() {
     }
     BB *oldDefBB = rhs->DefByBB();
     if (oldDefBB == nullptr) {
-      oldDefBB = meFunc->GetCommonEntryBB();
+      oldDefBB = cfg->GetCommonEntryBB();
       CHECK_FATAL(rhs->IsZeroVersion(), "must be");
     }
     CHECK_NULL_FATAL(oldDefBB);
     MapleSet<BBId> &dfs = dom->GetDomFrontier(newDefBB->GetBBId());
     for (auto bbID : dfs) {
-      BB *dfBB = meFunc->GetBBFromID(bbID);
+      BB *dfBB = cfg->GetBBFromID(bbID);
       if (!dom->Dominate(*oldDefBB, *dfBB)) {
         MapleSet<BBId> &dfsTmp = dom->GetDomFrontier(oldDefBB->GetBBId());
         CHECK_FATAL(dfsTmp.find(bbID) != dfsTmp.end(), "must be");
@@ -330,7 +330,7 @@ void MeSSI::RenameStartPiArray(DefPoint &newDefPoint) {
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
   const MapleSet<BBId> &children = dom->GetDomChildren(newDefBB->GetBBId());
   for (const BBId &child : children) {
-    ReplaceBB(*(meFunc->GetBBFromID(child)), *newDefBB, newDefPoint);
+    ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
   }
 }
 
@@ -344,7 +344,7 @@ void MeSSI::RenameStartPhi(DefPoint &newDefPoint) {
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
   const MapleSet<BBId> &children = dom->GetDomChildren(newDefBB->GetBBId());
   for (const BBId &child : children) {
-    ReplaceBB(*(meFunc->GetBBFromID(child)), *newDefBB, newDefPoint);
+    ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
   }
 }
 
@@ -609,7 +609,7 @@ void MeSSI::ReplaceBB(BB &bb, BB &parentBB, DefPoint &newDefPoint) {
   ReplacePiPhiInSuccs(bb, *(newDefPoint.GetLHS()));
   const MapleSet<BBId> &children = dom->GetDomChildren(bb.GetBBId());
   for (const BBId &child : children) {
-    ReplaceBB(*(meFunc->GetBBFromID(child)), bb, newDefPoint);
+    ReplaceBB(*(cfg->GetBBFromID(child)), bb, newDefPoint);
   }
 }
 

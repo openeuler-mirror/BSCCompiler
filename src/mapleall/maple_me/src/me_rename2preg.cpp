@@ -312,8 +312,9 @@ void SSARename2Preg::Init() {
 }
 
 void SSARename2Preg::RunSelf() {
+  auto cfg = func->GetCfg();
   Init();
-  for (BB *mebb : func->GetAllBBs()) {
+  for (BB *mebb : cfg->GetAllBBs()) {
     if (mebb == nullptr) {
       continue;
     }
@@ -347,7 +348,7 @@ void SSARename2Preg::PromoteEmptyFunction() {
 }
 
 AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrMgr) {
-  if (func->GetAllBBs().empty()) {
+  if (func->IsEmpty()) {
     return nullptr;
   }
   (void)mrMgr;
@@ -355,7 +356,7 @@ AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, Mo
   ASSERT(irMap != nullptr, "");
 
   MemPool *renamemp = memPoolCtrler.NewMemPool(PhaseName().c_str(), true /* isLocalPool */);
-  if (func->GetAllBBs().size() == 0) {
+  if (func->GetCfg()->GetAllBBs().size() == 0) {
     // empty function, we only promote the parameter
     auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, func, nullptr, nullptr);
     emptyrenamer->PromoteEmptyFunction();

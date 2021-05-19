@@ -210,9 +210,9 @@ bool MeCfgOpt::HasFloatCmp(const MeExpr &meExpr) const {
   return false;
 }
 
-bool MeCfgOpt::PreCheck(const MeFunction &func) const {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+bool MeCfgOpt::PreCheck(const MeCFG &cfg) const {
+  auto eIt = cfg.valid_end();
+  for (auto bIt = cfg.valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     if (bb->GetAttributes(kBBAttrIsTry) && bb->GetBBLabel() != 0) {
       for (size_t i = 0; i < bb->GetPred().size(); ++i) {
@@ -235,12 +235,13 @@ bool MeCfgOpt::PreCheck(const MeFunction &func) const {
   return true;
 }
 
-bool MeCfgOpt::Run(MeFunction &func) {
-  if (!PreCheck(func)) {
+bool MeCfgOpt::Run(MeCFG &cfg) {
+  if (!PreCheck(cfg)) {
     return false;
   }
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  bool isCfgChanged = false;
+  auto eIt = cfg.valid_end();
+  for (auto bIt = cfg.valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     constexpr uint32 numOfSuccs = 2;
     if (bb->GetKind() == kBBCondGoto && bb->GetSucc().size() == numOfSuccs) {
@@ -322,16 +323,16 @@ bool MeCfgOpt::Run(MeFunction &func) {
       bb->AddSucc(*succBB);
       bb->SetKind(kBBFallthru);
       bb->GetSuccFreq().push_back(bb->GetFrequency());
-      func.DeleteBasicBlock(*bbLeft);
-      func.DeleteBasicBlock(*bbRight);
-      SetCfgChanged();
+      cfg.DeleteBasicBlock(*bbLeft);
+      cfg.DeleteBasicBlock(*bbRight);
+      isCfgChanged = true;
     }
   }
-  return IsCfgChanged();
+  return isCfgChanged;
 }
 
 void MeDoCfgOpt::EmitMapleIr(MeFunction &func, MeFuncResultMgr &m) {
-  if (func.NumBBs() > 0) {
+  if (func.GetCfg()->NumBBs() > 0) {
     (void)m.GetAnalysisResult(MeFuncPhase_BBLAYOUT, &func);
     CHECK_FATAL(func.HasLaidOut(), "Check bb layout phase.");
     auto layoutBBs = func.GetLaidOutBBs();
@@ -377,14 +378,16 @@ AnalysisResult *MeDoCfgOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
   auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irMap != nullptr, "irMap should not be nullptr");
   MeCfgOpt cfgOpt(irMap);
-  if (cfgOpt.Run(*func)) {
-    SetChangeCFG();
+  if (cfgOpt.Run(*func->GetCfg())) {
     EmitMapleIr(*func, *m);
+    m->InvalidAllResults();
+    func->SetMeSSATab(nullptr);
+    func->SetIRMap(nullptr);
     return nullptr;
   }
 
   // check all basic blocks searching for split case
-  for (BB *bb : func->GetAllBBs()) {
+  for (BB *bb : func->GetCfg()->GetAllBBs()) {
     if (bb == nullptr || !(bb->GetAttributes(kBBAttrIsTry))) {
       continue;
     }
@@ -411,8 +414,10 @@ AnalysisResult *MeDoCfgOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
         for (size_t i = 0; i < stmtNew->NumMeStmtOpnds(); ++i) {
           ASSERT(stmtNew->GetOpnd(i) != nullptr, "null ptr check");
           if (FindLocalRefVarUses(*irMap, *stmtNew->GetOpnd(i), *stmtNew, *theLHS)) {
-            SetChangeCFG();
             EmitMapleIr(*func, *m);
+            m->InvalidAllResults();
+            func->SetMeSSATab(nullptr);
+            func->SetIRMap(nullptr);
             return nullptr;
           }
         }

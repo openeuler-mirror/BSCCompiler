@@ -17,6 +17,7 @@
 #include "alias_class.h"
 #include "me_phase.h"
 #include "me_function.h"
+#include "me_cfg.h"
 
 namespace maple {
 class MeAliasClass : public AliasClass {
@@ -24,7 +25,7 @@ class MeAliasClass : public AliasClass {
   MeAliasClass(MemPool &memPool, MIRModule &mod, SSATab &ssaTab, MeFunction &func, bool lessAliasAtThrow,
                bool ignoreIPA, bool debug, bool setCalleeHasSideEffect, KlassHierarchy *kh)
       : AliasClass(memPool, mod, ssaTab, lessAliasAtThrow, ignoreIPA, setCalleeHasSideEffect, kh),
-        func(func), enabledDebug(debug) {}
+        func(func), cfg(func.GetCfg()), enabledDebug(debug) {}
 
   virtual ~MeAliasClass() = default;
 
@@ -32,10 +33,10 @@ class MeAliasClass : public AliasClass {
 
  private:
   BB *GetBB(BBId id) override {
-    if (func.GetAllBBs().size() < id) {
+    if (cfg->GetAllBBs().size() < id) {
       return nullptr;
     }
-    return func.GetBBFromID(id);
+    return cfg->GetBBFromID(id);
   }
 
   bool InConstructorLikeFunc() const override {
@@ -45,16 +46,18 @@ class MeAliasClass : public AliasClass {
   bool HasWriteToStaticFinal() const;
 
   MeFunction &func;
+  MeCFG *cfg;
   bool enabledDebug;
 };
 
 class MeDoAliasClass : public MeFuncPhase {
+  ModuleResultMgr *moduleResultMgr; // keep the moduleResultmgr for later use
  public:
   explicit MeDoAliasClass(MePhaseID id) : MeFuncPhase(id) {}
 
   virtual ~MeDoAliasClass() = default;
 
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) override;
+  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *mrm) override;
 
   std::string PhaseName() const override {
     return "aliasclass";

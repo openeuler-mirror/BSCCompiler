@@ -363,7 +363,7 @@ void MeSSUPre::CreateSortedOccs() {
   std::multiset<uint32> lambdaResDfns;
   for (uint32 dfn : lambdaDfns) {
     const BBId &bbId = dom->GetPdtPreOrderItem(dfn);
-    BB *bb = func->GetAllBBs().at(bbId);
+    BB *bb = cfg->GetAllBBs().at(bbId);
     for (BB *succ : bb->GetSucc()) {
       (void)lambdaResDfns.insert(dom->GetPdtDfnItem(succ->GetBBId()));
     }
@@ -386,11 +386,11 @@ void MeSSUPre::CreateSortedOccs() {
   SLambdaOcc *nextLambdaOcc = nullptr;
   if (lambdaDfnIt != lambdaDfns.end()) {
     nextLambdaOcc =
-        spreMp->New<SLambdaOcc>(*func->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
+        spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
   }
   SLambdaResOcc *nextLambdaResOcc = nullptr;
   if (lambdaResDfnIt != lambdaResDfns.end()) {
-    nextLambdaResOcc = spreMp->New<SLambdaResOcc>(*func->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
+    nextLambdaResOcc = spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
     auto it = bb2LambdaResMap.find(dom->GetPdtPreOrderItem(*lambdaResDfnIt));
     if (it == bb2LambdaResMap.end()) {
       std::forward_list<SLambdaResOcc*> newlist = { nextLambdaResOcc };
@@ -447,7 +447,7 @@ void MeSSUPre::CreateSortedOccs() {
           ++lambdaDfnIt;
           if (lambdaDfnIt != lambdaDfns.end()) {
             nextLambdaOcc =
-                spreMp->New<SLambdaOcc>(*func->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
+                spreMp->New<SLambdaOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaDfnIt)), spreAllocator);
           } else {
             nextLambdaOcc = nullptr;
           }
@@ -457,7 +457,7 @@ void MeSSUPre::CreateSortedOccs() {
           ++lambdaResDfnIt;
           if (lambdaResDfnIt != lambdaResDfns.end()) {
             nextLambdaResOcc =
-                spreMp->New<SLambdaResOcc>(*func->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
+                spreMp->New<SLambdaResOcc>(*cfg->GetAllBBs().at(dom->GetPdtPreOrderItem(*lambdaResDfnIt)));
             CHECK_NULL_FATAL(dom);
             auto it = bb2LambdaResMap.find(dom->GetPdtPreOrderItem(*lambdaResDfnIt));
             if (it == bb2LambdaResMap.end()) {
@@ -495,7 +495,7 @@ void MeSSUPre::CreateSortedOccs() {
 }
 
 void MeSSUPre::ApplySSUPre() {
-  BuildWorkListBB(func->GetCommonExitBB());
+  BuildWorkListBB(cfg->GetCommonExitBB());
   if (!MeOption::gcOnly && preKind != kSecondDecrefPre) {  // #0 build worklist
     CreateEmptyCleanupIntrinsics();
   }

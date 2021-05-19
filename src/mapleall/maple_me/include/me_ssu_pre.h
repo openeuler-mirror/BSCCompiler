@@ -349,6 +349,7 @@ class MeSSUPre {
   MeSSUPre(MeFunction &f, Dominance &dom, MemPool &memPool, PreKind kind, bool enabledDebug)
       : preKind(kind),
         func(&f),
+        cfg(f.GetCfg()),
         ssaTab(f.GetMeSSATab()),
         irMap(f.GetIRMap()),
         mirModule(&f.GetMeSSATab()->GetModule()),
@@ -407,6 +408,7 @@ class MeSSUPre {
   virtual void CreateEmptyCleanupIntrinsics() {}
 
   MeFunction *func;
+  MeCFG      *cfg;
   SSATab *ssaTab;
   MeIRMap *irMap;
   MIRModule *mirModule;
