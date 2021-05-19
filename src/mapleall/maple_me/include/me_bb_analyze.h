@@ -19,12 +19,13 @@
 #include "me_function.h"
 #include "me_phase.h"
 #include "me_option.h"
+#include "me_cfg.h"
 
 namespace maple {
 const uint32 kPrecision = 100;
 class BBAnalyze : public AnalysisResult {
  public:
-  BBAnalyze(MemPool &memPool, MeFunction &f) : AnalysisResult(&memPool), meBBAlloc(&memPool), func(f) {}
+  BBAnalyze(MemPool &memPool, MeFunction &f) : AnalysisResult(&memPool), meBBAlloc(&memPool), cfg(f.GetCfg()) {}
 
   virtual ~BBAnalyze() = default;
 
@@ -36,7 +37,7 @@ class BBAnalyze : public AnalysisResult {
 
  private:
   MapleAllocator meBBAlloc;
-  MeFunction &func;
+  MeCFG *cfg;
   uint32 hotBBCountThreshold = 0;
   uint32 coldBBCountThreshold = 0;
 };

@@ -81,7 +81,7 @@ void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
 
 // process each BB in preorder traversal of dominator tree
 void IdentifyLoops::ProcessBB(BB *bb) {
-  if (bb == nullptr || bb == func.GetCommonExitBB()) {
+  if (bb == nullptr || bb == cfg->GetCommonExitBB()) {
     return;
   }
   for (BB *pred : bb->GetPred()) {
@@ -110,7 +110,7 @@ void IdentifyLoops::ProcessBB(BB *bb) {
   // recursive call
   const MapleSet<BBId> &domChildren = dominance->GetDomChildren(bb->GetBBId());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
-    ProcessBB(func.GetAllBBs().at(*bbIt));
+    ProcessBB(cfg->GetAllBBs().at(*bbIt));
   }
 }
 
@@ -131,10 +131,10 @@ void IdentifyLoops::Dump() const {
 void IdentifyLoops::MarkBB() {
   for (LoopDesc *meLoop : meLoops) {
     for (BBId bbId : meLoop->loopBBs) {
-      if (func.GetAllBBs().at(bbId) == nullptr) {
+      if (cfg->GetAllBBs().at(bbId) == nullptr) {
         continue;
       }
-      func.GetAllBBs().at(bbId)->SetAttributes(kBBAttrIsInLoopForEA);
+      cfg->GetAllBBs().at(bbId)->SetAttributes(kBBAttrIsInLoopForEA);
     }
   }
 }
@@ -151,7 +151,7 @@ void IdentifyLoops::SetTryBB() {
       continue;
     }
     for (auto bbId : loop->loopBBs) {
-      BB *bb = func.GetBBFromID(bbId);
+      BB *bb = cfg->GetBBFromID(bbId);
       if (bb->GetAttributes(kBBAttrIsTry) || bb->GetAttributes(kBBAttrWontExit)) {
         loop->SetHasTryBB(true);
         break;
@@ -175,8 +175,8 @@ void IdentifyLoops::SetIGotoBB() {
 bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
   // If predsize of head is one, it means that one is entry bb.
   if (loop.head->GetPred().size() == 1) {
-    CHECK_FATAL(func.GetCommonEntryBB()->GetSucc(0) == loop.head, "succ of entry bb must be head");
-    loop.preheader = func.GetCommonEntryBB();
+    CHECK_FATAL(cfg->GetCommonEntryBB()->GetSucc(0) == loop.head, "succ of entry bb must be head");
+    loop.preheader = cfg->GetCommonEntryBB();
     CHECK_FATAL(!loop.head->GetPred(0)->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");
     loop.latch = loop.head->GetPred(0);
     return true;
@@ -225,7 +225,7 @@ AnalysisResult *MeDoMeLoop::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
   ASSERT(dom != nullptr, "dominance phase has problem");
   MemPool *meLoopMp = NewMemPool();
   IdentifyLoops *identLoops = meLoopMp->New<IdentifyLoops>(meLoopMp, *func, dom);
-  identLoops->ProcessBB(func->GetCommonEntryBB());
+  identLoops->ProcessBB(func->GetCfg()->GetCommonEntryBB());
   identLoops->SetTryBB();
   identLoops->SetIGotoBB();
   for (auto loop : identLoops->GetMeLoops()) {

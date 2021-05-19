@@ -24,7 +24,7 @@ namespace maple {
 // This phase performs alias analysis based on Steensgaard's algorithm and
 // represent the resulting alias relationships in the Maple IR representation
 bool MeAliasClass::HasWriteToStaticFinal() const {
-  for (auto bIt = func.valid_begin(); bIt != func.valid_end(); ++bIt) {
+  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
     for (const auto &stmt : (*bIt)->GetStmtNodes()) {
       if (stmt.GetOpCode() == OP_dassign) {
         const auto &dassignNode = static_cast<const DassignNode&>(stmt);
@@ -42,7 +42,7 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
 
 void MeAliasClass::DoAliasAnalysis() {
   // pass 1 through the program statements
-  for (auto bIt = func.valid_begin(); bIt != func.valid_end(); ++bIt) {
+  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
     for (auto &stmt : (*bIt)->GetStmtNodes()) {
       ApplyUnionForCopies(stmt);
     }
@@ -83,7 +83,7 @@ void MeAliasClass::DoAliasAnalysis() {
     LogInfo::MapleLogger() << "\n============ Alias Classification Pass 2 ============" << '\n';
   }
 
-  for (auto bIt = func.valid_begin(); bIt != func.valid_end(); ++bIt) {
+  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetStmtNodes()) {
       GenericInsertMayDefUse(stmt, bb->GetBBId());
@@ -91,14 +91,17 @@ void MeAliasClass::DoAliasAnalysis() {
   }
 }
 
-AnalysisResult *MeDoAliasClass::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
+AnalysisResult *MeDoAliasClass::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *mrm) {
+  // moduleResultMgr store moduleresultMgr and is used for FuncResultMgr::Run
+  moduleResultMgr = (mrm != nullptr) ? mrm : moduleResultMgr;
   MPLTimer timer;
   timer.Start();
   (void)funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func);
   MemPool *aliasClassMp = NewMemPool();
   KlassHierarchy *kh = nullptr;
   if (func->GetMIRModule().IsJavaModule()) {
-    kh = static_cast<KlassHierarchy*>(moduleResMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+    CHECK_FATAL(moduleResultMgr != nullptr, "alias class needs module result manager");
+    kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   }
   MeAliasClass *aliasClass = aliasClassMp->New<MeAliasClass>(
       *aliasClassMp, func->GetMIRModule(), *func->GetMeSSATab(), *func, MeOption::lessThrowAlias,

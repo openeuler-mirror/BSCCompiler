@@ -41,7 +41,7 @@ AnalysisResult *MeDoSSADevirtual::Run(MeFunction *func, MeFuncResultMgr *frm, Mo
   if (DEBUGFUNC(func)) {
     SSADevirtual::debug = true;
   }
-  meSSADevirtual.Perform(*func->GetCommonEntryBB());
+  meSSADevirtual.Perform(*func->GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC(func)) {
     SSADevirtual::debug = false;
     LogInfo::MapleLogger() << "\n============== After SSA Devirtualization  =============" << "\n";

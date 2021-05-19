@@ -145,21 +145,7 @@ enum MeFuncHint {
 };
 
 class MeFunction : public FuncEmit {
-  using BBPtrHolder = MapleVector<BB*>;
-
  public:
-  using value_type = BBPtrHolder::value_type;
-  using size_type = BBPtrHolder::size_type;
-  using difference_type = BBPtrHolder::difference_type;
-  using pointer = BBPtrHolder::pointer;
-  using const_pointer = BBPtrHolder::const_pointer;
-  using reference = BBPtrHolder::reference;
-  using const_reference = BBPtrHolder::const_reference;
-  using iterator = BBPtrHolder::iterator;
-  using const_iterator = BBPtrHolder::const_iterator;
-  using reverse_iterator = BBPtrHolder::reverse_iterator;
-  using const_reverse_iterator = BBPtrHolder::const_reverse_iterator;
-
   MeFunction(MIRModule *mod, MIRFunction *func, MemPool *memPool, StackMemPool &funcStackMP, MemPool *versMemPool,
              const std::string &fileName)
       : memPool(memPool),
@@ -169,118 +155,13 @@ class MeFunction : public FuncEmit {
         versAlloc(versMemPool),
         mirModule(*mod),
         mirFunc(func),
-        labelBBIdMap(alloc.Adapter()),
-        bbVec(alloc.Adapter()),
         laidOutBBVec(alloc.Adapter()),
-        bbTryNodeMap(alloc.Adapter()),
-        endTryBB2TryBB(alloc.Adapter()),
         sccTopologicalVec(alloc.Adapter()),
-        sccOfBB(GetAllBBs().size(), nullptr, alloc.Adapter()),
+        sccOfBB(alloc.Adapter()),
         backEdges(alloc.Adapter()),
         fileName(fileName, memPool) {}
 
   ~MeFunction() override = default;
-
-  iterator begin() {
-    return bbVec.begin();
-  }
-  const_iterator begin() const {
-    return bbVec.begin();
-  }
-  const_iterator cbegin() const {
-    return bbVec.cbegin();
-  }
-
-  iterator end() {
-    return bbVec.end();
-  }
-  const_iterator end() const {
-    return bbVec.end();
-  }
-  const_iterator cend() const {
-    return bbVec.cend();
-  }
-
-  reverse_iterator rbegin() {
-    return bbVec.rbegin();
-  }
-  const_reverse_iterator rbegin() const {
-    return bbVec.rbegin();
-  }
-  const_reverse_iterator crbegin() const {
-    return bbVec.crbegin();
-  }
-
-  reverse_iterator rend() {
-    return bbVec.rend();
-  }
-  const_reverse_iterator rend() const {
-    return bbVec.rend();
-  }
-  const_reverse_iterator crend() const {
-    return bbVec.crend();
-  }
-
-  reference front() {
-    return bbVec.front();
-  }
-
-  reference back() {
-    return bbVec.back();
-  }
-
-  const_reference front() const {
-    return bbVec.front();
-  }
-
-  const_reference back() const {
-    return bbVec.back();
-  }
-
-  bool empty() const {
-    return bbVec.empty();
-  }
-
-  size_t size() const {
-    return bbVec.size();
-  }
-
-  FilterIterator<const_iterator> valid_begin() const {
-    return build_filter_iterator(begin(), std::bind(FilterNullPtr<const_iterator>, std::placeholders::_1, end()));
-  }
-
-  FilterIterator<const_iterator> valid_end() const {
-    return build_filter_iterator(end());
-  }
-
-  FilterIterator<const_reverse_iterator> valid_rbegin() const {
-    return build_filter_iterator(rbegin(),
-                                 std::bind(FilterNullPtr<const_reverse_iterator>, std::placeholders::_1, rend()));
-  }
-
-  FilterIterator<const_reverse_iterator> valid_rend() const {
-    return build_filter_iterator(rend());
-  }
-
-  const_iterator common_entry() const {
-    return begin();
-  }
-
-  const_iterator context_begin() const {
-    return ++(++begin());
-  }
-
-  const_iterator context_end() const {
-    return end();
-  }
-
-  const_iterator common_exit() const {
-    return ++begin();
-  }
-
-  uint32 NumBBs() const {
-    return nextBBId;
-  }
 
   void DumpFunction() const;
   void DumpFunctionNoSSA() const;
@@ -296,51 +177,35 @@ class MeFunction : public FuncEmit {
     return meSSATab->GetVerSt(veridx);
   }
 
-  BB *NewBasicBlock();
-  BB &InsertNewBasicBlock(const BB &position, bool isInsertBefore = true);
-  void DeleteBasicBlock(const BB &bb);
-  BB *NextBB(const BB *bb);
-  BB *PrevBB(const BB *bb);
   /* get or create label for bb */
   LabelIdx GetOrCreateBBLabel(BB &bb);
-  /* clone stmtnodes from orig to newBB */
-  void CloneBasicBlock(BB &newBB, const BB &orig);
-  BB &SplitBB(BB &bb, StmtNode &splitPoint, BB *newBB = nullptr);
+
+  bool IsEmpty() const { return mirFunc->IsEmpty(); }
   bool HasException() const {
     return hasEH;
-  }
-
-  void SetSecondPass() {
-    secondPass = true;
-  }
-
-  bool IsSecondPass() const {
-    return secondPass;
   }
 
   MapleAllocator &GetAlloc() {
     return alloc;
   }
-
-  const MapleUnorderedMap<LabelIdx, BB*> &GetLabelBBIdMap() const {
-    return labelBBIdMap;
+  MapleAllocator &GetVersAlloc() {
+    return versAlloc;
   }
-  BB *GetLabelBBAt(LabelIdx idx) {
-    auto it = labelBBIdMap.find(idx);
-    if (it != labelBBIdMap.end()) {
-      return it->second;
+  MemPool *GetVersMp() {
+    // version mempool may be release if invalid
+    if (versMemPool == nullptr) {
+      versMemPool = new ThreadLocalMemPool(memPoolCtrler, "verst mempool");
+      versAlloc.SetMemPool(versMemPool);
     }
-    return nullptr;
-  }
-  void SetLabelBBAt(LabelIdx idx, BB *bb) {
-    labelBBIdMap[idx] = bb;
-  }
-  void EraseLabelBBAt(LabelIdx idx) {
-    labelBBIdMap.erase(idx);
+    return versMemPool;
   }
 
-  MapleVector<BB*> &GetAllBBs() {
-    return bbVec;
+  void ReleaseVersMemory() {
+    if (versMemPool != nullptr) {
+      delete versMemPool;
+      versMemPool = nullptr;
+      versAlloc.SetMemPool(nullptr);
+    }
   }
 
   const MapleVector<BB*> &GetLaidOutBBs() const {
@@ -362,16 +227,6 @@ class MeFunction : public FuncEmit {
     laidOutBBVec.clear();
   }
 
-  BB *GetBBFromID(BBId bbID) {
-    ASSERT(bbID < bbVec.size(), "array index out of range");
-    return bbVec.at(bbID);
-  }
-
-  void NullifyBBByID(BBId bbID) {
-    ASSERT(bbID < bbVec.size(), "array index out of range");
-    bbVec.at(bbID) = nullptr;
-  }
-
   SSATab *GetMeSSATab() {
     return meSSATab;
   }
@@ -381,22 +236,6 @@ class MeFunction : public FuncEmit {
 
   MIRFunction *GetMirFunc() {
     return mirFunc;
-  }
-
-  BB *GetCommonEntryBB() {
-    return *common_entry();
-  }
-
-  BB *GetCommonExitBB() {
-    return *common_exit();
-  }
-
-  BB *GetFirstBB() {
-    return *(++(++valid_begin()));
-  }
-
-  BB *GetLastBB() {
-    return *valid_rbegin();
   }
 
   MIRModule &GetMIRModule() const {
@@ -411,59 +250,12 @@ class MeFunction : public FuncEmit {
     irmap = currIRMap;
   }
 
-  void SetBBTryNodeMap(BB &bb, StmtNode &tryStmt) {
-    bbTryNodeMap[&bb] = &tryStmt;
-  }
-
-  const MapleUnorderedMap<BB*, StmtNode*> &GetBBTryNodeMap() const {
-    return bbTryNodeMap;
-  }
-
-  const MapleUnorderedMap<BB*, BB*> &GetEndTryBB2TryBB() const {
-    return endTryBB2TryBB;
-  }
-
-  const BB *GetTryBBFromEndTryBB(BB *endTryBB) const {
-    auto it = endTryBB2TryBB.find(endTryBB);
-    return it == endTryBB2TryBB.end() ? nullptr : it->second;
-  }
-
-  void SetTryBBByOtherEndTryBB(BB *endTryBB, BB *otherTryBB) {
-    endTryBB2TryBB[endTryBB] = endTryBB2TryBB[otherTryBB];
-  }
-
-  MeCFG *GetTheCfg() {
+  MeCFG *GetCfg() const {
     return theCFG;
   }
 
   void SetTheCfg(MeCFG *currTheCfg) {
     theCFG = currTheCfg;
-  }
-
-  bool GetSecondPass() const {
-    return secondPass;
-  }
-
-  MemPool *GetVersMp() {
-    return versMemPool;
-  }
-
-  void ReleaseVersMemory() {
-    if (versMemPool != nullptr) {
-      delete versMemPool;
-      versMemPool = nullptr;
-      versAlloc.SetMemPool(nullptr);
-    }
-  }
-
-  void SetNextBBId(uint32 currNextBBId) {
-    nextBBId = currNextBBId;
-  }
-  uint32 GetNextBBId() const {
-    return nextBBId;
-  }
-  void DecNextBBId() {
-    --nextBBId;
   }
 
   uint32 GetRegNum() const {
@@ -517,24 +309,21 @@ class MeFunction : public FuncEmit {
     frequency = f;
   }
 
-  void PartialInit(bool isSecondPass);
+  void PartialInit();
 
   const MapleVector<SCCOfBBs*> &GetSccTopologicalVec() const {
     return sccTopologicalVec;
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
+  MIRFunction *CurFunction() const {
+    return mirModule.CurFunction();
+  }
  private:
   void VerifySCC();
   void SCCTopologicalSort(std::vector<SCCOfBBs*> &sccNodes);
   void BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes, std::vector<uint32> &visitedOrder,
                    std::vector<uint32> &lowestOrder, std::vector<bool> &inStack, std::stack<uint32> &visitStack);
-  void CreateBasicBlocks();
-  void SetTryBlockInfo(const StmtNode *nextStmt, StmtNode *tryStmt, BB *lastTryBB, BB *curBB, BB *newBB);
-  MIRFunction *CurFunction() const {
-    return mirModule.CurFunction();
-  }
-  void SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB);
 
   MemPool *memPool;
   StackMemPool &stackMP;
@@ -543,16 +332,11 @@ class MeFunction : public FuncEmit {
   MapleAllocator versAlloc;
   MIRModule &mirModule;
   MIRFunction *mirFunc;
-  uint32 nextBBId = 0;
   /* mempool */
-  MapleUnorderedMap<LabelIdx, BB*> labelBBIdMap;
-  BBPtrHolder bbVec;
   MapleVector<BB*> laidOutBBVec;
   MeCFG *theCFG = nullptr;
   SSATab *meSSATab = nullptr;
   MeIRMap *irmap = nullptr;
-  MapleUnorderedMap<BB*, StmtNode*> bbTryNodeMap;  // maps isTry bb to its try stmt
-  MapleUnorderedMap<BB*, BB*> endTryBB2TryBB;      // maps endtry bb to its try bb
   // BB SCC
   MapleVector<SCCOfBBs*> sccTopologicalVec;
   uint32 numOfSCCs = 0;
@@ -563,7 +347,6 @@ class MeFunction : public FuncEmit {
   uint32 regNum = 0;    // count virtual registers
   uint32 hints = 0;
   bool hasEH = false;       /* current has try statement */
-  bool secondPass = false;  // second pass for the same function
   bool profValid = false;
   IRProfileDesc *profileDesc = nullptr;
   uint32 frequency = 0;

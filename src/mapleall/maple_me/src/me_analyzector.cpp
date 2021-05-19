@@ -25,8 +25,9 @@ void AnalyzeCtor::ProcessFunc() {
     return;
   }
   hasSideEffect = false;
+  auto cfg = func->GetCfg();
   if (curFunc->GetBody() != nullptr) {
-    for (BB *bb : func->GetAllBBs()) {
+    for (BB *bb : cfg->GetAllBBs()) {
       if (bb == nullptr)
         continue;
       for (auto &meStmt : bb->GetMeStmts()) {

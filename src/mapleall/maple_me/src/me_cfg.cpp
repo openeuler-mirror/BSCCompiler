@@ -19,6 +19,8 @@
 #include "ssa_mir_nodes.h"
 #include "me_irmap.h"
 #include "mir_builder.h"
+#include "me_critical_edge.h"
+#include "me_loop_canon.h"
 
 namespace {
 constexpr int kFuncNameLenLimit = 80;
@@ -106,7 +108,7 @@ void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVec
   bb.ReplaceStmt(&switchStmt, condGoto);
   bb.SetKind(kBBCondGoto);
 
-  auto *newBB = func.NewBasicBlock();
+  auto *newBB = NewBasicBlock();
   auto *maxCaseNode = mirBuilder->CreateIntConst(maxCaseVal, PTY_i32);
   auto *gtNode = mirBuilder->CreateExprCompare(OP_gt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
                                                GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, maxCaseNode);
@@ -114,7 +116,7 @@ void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVec
   newBB->GetStmtNodes().push_back(condGoto);
   newBB->SetKind(kBBCondGoto);
 
-  BB *defaultBB = func.GetLabelBBAt(defaultLabelIdx);
+  BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
   ASSERT(defaultBB != nullptr, "null ptr check");
   while (!bb.GetSucc().empty()) {
     bb.RemoveSucc(*bb.GetSucc(0));
@@ -122,14 +124,14 @@ void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVec
   bb.AddSucc(*newBB);
   bb.AddSucc(*defaultBB);
 
-  BB *caseBB = func.GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
+  BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
   ASSERT(caseBB != nullptr, "null ptr check");
   newBB->AddSucc(*caseBB);
   newBB->AddSucc(*defaultBB);
 
   if (bb.GetAttributes(kBBAttrIsTry)) {
     newBB->SetAttributes(kBBAttrIsTry);
-    func.SetBBTryNodeMap(*newBB, *func.GetBBTryNodeMap().at(&bb));
+    SetBBTryNodeMap(*newBB, *GetBBTryNodeMap().at(&bb));
     AddCatchHandlerForTryBB(bb, exitBlocks);
     AddCatchHandlerForTryBB(*newBB, exitBlocks);
   }
@@ -139,16 +141,16 @@ void MeCFG::AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks) {
   if (!bb.GetAttributes(kBBAttrIsTry)) {
     return;
   }
-  auto it = func.GetBBTryNodeMap().find(&bb);
-  CHECK_FATAL(it != func.GetBBTryNodeMap().end(), "try bb without try");
+  auto it = GetBBTryNodeMap().find(&bb);
+  CHECK_FATAL(it != GetBBTryNodeMap().end(), "try bb without try");
   StmtNode *currTry = it->second;
   const auto *tryNode = static_cast<const TryNode*>(currTry);
   bool hasFinallyHandler = false;
   // add exception handler bb
   for (size_t j = 0; j < tryNode->GetOffsetsCount(); ++j) {
     LabelIdx labelIdx = tryNode->GetOffset(j);
-    ASSERT(func.GetLabelBBIdMap().find(labelIdx) != func.GetLabelBBIdMap().end(), "runtime check error");
-    BB *meBB = func.GetLabelBBAt(labelIdx);
+    ASSERT(GetLabelBBIdMap().find(labelIdx) != GetLabelBBIdMap().end(), "runtime check error");
+    BB *meBB = GetLabelBBAt(labelIdx);
     CHECK_FATAL(meBB != nullptr, "null ptr check");
     ASSERT(meBB->GetAttributes(kBBAttrIsCatch), "runtime check error");
     if (meBB->GetAttributes(kBBAttrIsJSFinally) || meBB->GetAttributes(kBBAttrIsCatch)) {
@@ -177,12 +179,12 @@ void MeCFG::AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks) {
 }
 
 void MeCFG::BuildMirCFG() {
-  MapleVector<BB*> entryBlocks(func.GetAlloc().Adapter());
-  MapleVector<BB*> exitBlocks(func.GetAlloc().Adapter());
+  MapleVector<BB*> entryBlocks(GetAlloc().Adapter());
+  MapleVector<BB*> exitBlocks(GetAlloc().Adapter());
   std::vector<BB*> switchBBsWithOneCaseBranch;
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry() || bIt == func.common_exit()) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_entry() || bIt == common_exit()) {
       continue;
     }
     BB *bb = *bIt;
@@ -203,7 +205,7 @@ void MeCFG::BuildMirCFG() {
         ASSERT(lastStmt.GetOpCode() == OP_goto, "runtime check error");
         auto &gotoStmt = static_cast<GotoNode&>(lastStmt);
         LabelIdx lblIdx = gotoStmt.GetOffset();
-        BB *meBB = func.GetLabelBBAt(lblIdx);
+        BB *meBB = GetLabelBBAt(lblIdx);
         bb->AddSucc(*meBB);
         break;
       }
@@ -218,7 +220,7 @@ void MeCFG::BuildMirCFG() {
         // link goto
         auto &gotoStmt = static_cast<CondGotoNode&>(lastStmt);
         LabelIdx lblIdx = gotoStmt.GetOffset();
-        BB *meBB = func.GetLabelBBAt(lblIdx);
+        BB *meBB = GetLabelBBAt(lblIdx);
         if (*rightNextBB == meBB) {
           constexpr char tmpBool[] = "tmpBool";
           auto *mirBuilder = func.GetMIRModule().GetMIRBuilder();
@@ -240,12 +242,12 @@ void MeCFG::BuildMirCFG() {
         ASSERT(lastStmt.GetOpCode() == OP_switch, "runtime check error");
         auto &switchStmt = static_cast<SwitchNode&>(lastStmt);
         LabelIdx lblIdx = switchStmt.GetDefaultLabel();
-        BB *mirBB = func.GetLabelBBAt(lblIdx);
+        BB *mirBB = GetLabelBBAt(lblIdx);
         bb->AddSucc(*mirBB);
         std::set<LabelIdx> caseLabels;
         for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); ++j) {
           lblIdx = switchStmt.GetCasePair(j).second;
-          BB *meBB = func.GetLabelBBAt(lblIdx);
+          BB *meBB = GetLabelBBAt(lblIdx);
           (void)caseLabels.insert(lblIdx);
           // Avoid duplicate succs.
           auto it = std::find(bb->GetSucc().begin(), bb->GetSucc().end(), meBB);
@@ -263,7 +265,7 @@ void MeCFG::BuildMirCFG() {
       }
       case kBBIgoto: {
         for (LabelIdx lidx : func.GetMirFunc()->GetLabelTab()->GetAddrTakenLabels()) {
-          BB *mebb = func.GetLabelBBAt(lidx);
+          BB *mebb = GetLabelBBAt(lidx);
           bb->AddSucc(*mebb);
         }
         break;
@@ -291,11 +293,11 @@ void MeCFG::BuildMirCFG() {
   }
   // merge all blocks in entryBlocks
   for (BB *bb : entryBlocks) {
-    func.GetCommonEntryBB()->AddEntry(*bb);
+    GetCommonEntryBB()->AddEntry(*bb);
   }
   // merge all blocks in exitBlocks
   for (BB *bb : exitBlocks) {
-    func.GetCommonExitBB()->AddExit(*bb);
+    GetCommonExitBB()->AddExit(*bb);
   }
 }
 
@@ -417,9 +419,9 @@ bool MeCFG::HasNoOccBetween(StmtNode &from, const StmtNode &to, StIdx stIdx) con
 
 // Fix the initially created CFG
 void MeCFG::FixMirCFG() {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry() || bIt == func.common_exit()) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_entry() || bIt == common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -475,8 +477,8 @@ void MeCFG::FixMirCFG() {
   }
 
   // 2. Split bb to two bbs if there are use and def the same ref var in bb.
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry() || bIt == func.common_exit()) {
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_entry() || bIt == common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -511,12 +513,12 @@ void MeCFG::FixMirCFG() {
             HasNoOccBetween(*bb->GetStmtNodes().begin().d(), *nextStmt, sym->GetStIdx())) {
           continue;
         }
-        BB &newBB = func.SplitBB(*bb, splitPoint);
+        BB &newBB = SplitBB(*bb, splitPoint);
         // because SplitBB will insert a bb, we need update bIt & eIt
-        auto newBBIt = std::find(func.cbegin(), func.cend(), bb);
+        auto newBBIt = std::find(cbegin(), cend(), bb);
         bIt = build_filter_iterator(
-            newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, func.end()));
-        eIt = func.valid_end();
+            newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
+        eIt = valid_end();
         for (size_t si = 0; si < newBB.GetSucc().size(); ++si) {
           BB *sucBB = newBB.GetSucc(si);
           if (sucBB->GetAttributes(kBBAttrIsCatch)) {
@@ -554,12 +556,12 @@ void MeCFG::FixMirCFG() {
       splitPoint = splitPoint->GetPrev();
     }
     CHECK_FATAL(splitPoint != nullptr, "null ptr check");
-    BB &newBB = func.SplitBB(*bb, *splitPoint);
+    BB &newBB = SplitBB(*bb, *splitPoint);
     // because SplitBB will insert a bb, we need update bIt & eIt
-    auto newBBIt = std::find(func.cbegin(), func.cend(), bb);
+    auto newBBIt = std::find(cbegin(), cend(), bb);
     bIt = build_filter_iterator(
-        newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, func.end()));
-    eIt = func.valid_end();
+        newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
+    eIt = valid_end();
     // redirect all succs of new bb to bb
     for (size_t si = 0; si < newBB.GetSucc().size(); ++si) {
       BB *sucBB = newBB.GetSucc(si);
@@ -583,7 +585,7 @@ void MeCFG::ReplaceWithAssertnonnull() {
     return;
   }
   for (LabelIdx lblIdx : patternSet) {
-    BB *bb = func.GetLabelBBAt(lblIdx);
+    BB *bb = GetLabelBBAt(lblIdx);
     // if BB->pred_.size()==0, it won't enter this function
     for (size_t i = 0; i < bb->GetPred().size(); ++i) {
       BB *innerBB = bb->GetPred(i);
@@ -645,13 +647,13 @@ void MeCFG::FixTryBB(maple::BB &startBB, maple::BB &nextBB) {
 // analyse the CFG to find the BBs that are not reachable from function entries
 // and delete them
 bool MeCFG::UnreachCodeAnalysis(bool updatePhi) {
-  std::vector<bool> visitedBBs(func.NumBBs(), false);
-  func.GetCommonEntryBB()->FindReachableBBs(visitedBBs);
+  std::vector<bool> visitedBBs(NumBBs(), false);
+  GetCommonEntryBB()->FindReachableBBs(visitedBBs);
   // delete the unreached bb
   bool cfgChanged = false;
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_exit()) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -666,9 +668,9 @@ bool MeCFG::UnreachCodeAnalysis(bool updatePhi) {
     // if bb is StartTryBB, relationship between endtry and try should be maintained
     if (IsStartTryBB(*bb)) {
       bool needFixTryBB = false;
-      size_t size = func.GetAllBBs().size();
+      size_t size = GetAllBBs().size();
       for (size_t nextIdx = idx + 1; nextIdx < size; ++nextIdx) {
-        auto nextBB = func.GetBBFromID(BBId(nextIdx));
+        auto nextBB = GetBBFromID(BBId(nextIdx));
         if (nextBB == nullptr) {
           continue;
         }
@@ -692,20 +694,20 @@ bool MeCFG::UnreachCodeAnalysis(bool updatePhi) {
     }
     if (bb->GetAttributes(kBBAttrIsTryEnd)) {
       // unreachable bb has try end info
-      auto bbIt = std::find(func.rbegin(), func.rend(), bb);
+      auto bbIt = std::find(rbegin(), rend(), bb);
       auto prevIt = ++bbIt;
-      for (auto it = prevIt; it != func.rend(); ++it) {
+      for (auto it = prevIt; it != rend(); ++it) {
         if (*it != nullptr) {
           // move entrytry tag to previous bb with try
           if ((*it)->GetAttributes(kBBAttrIsTry) && !(*it)->GetAttributes(kBBAttrIsTryEnd)) {
             (*it)->SetAttributes(kBBAttrIsTryEnd);
-            func.SetTryBBByOtherEndTryBB(*it, bb);
+            SetTryBBByOtherEndTryBB(*it, bb);
           }
           break;
         }
       }
     }
-    func.DeleteBasicBlock(*bb);
+    DeleteBasicBlock(*bb);
     cfgChanged = true;
     // remove the bb from its succ's pred_ list
     while (bb->GetSucc().size() > 0) {
@@ -720,10 +722,10 @@ bool MeCFG::UnreachCodeAnalysis(bool updatePhi) {
       }
     }
     // remove the bb from common_exit_bb's pred list if it is there
-    auto &predsOfCommonExit = func.GetCommonExitBB()->GetPred();
+    auto &predsOfCommonExit = GetCommonExitBB()->GetPred();
     auto it = std::find(predsOfCommonExit.begin(), predsOfCommonExit.end(), bb);
     if (it != predsOfCommonExit.end()) {
-      func.GetCommonExitBB()->RemoveExit(*bb);
+      GetCommonExitBB()->RemoveExit(*bb);
     }
   }
   return cfgChanged;
@@ -792,14 +794,14 @@ void MeCFG::ConvertPhis2IdentityAssigns(BB &meBB) const {
 // are BBs inside infinite loops; mark their wontExit flag and create
 // artificial edges from them to common_exit_bb
 void MeCFG::WontExitAnalysis() {
-  if (func.NumBBs() == 0) {
+  if (NumBBs() == 0) {
     return;
   }
-  std::vector<bool> visitedBBs(func.NumBBs(), false);
-  func.GetCommonExitBB()->FindWillExitBBs(visitedBBs);
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry()) {
+  std::vector<bool> visitedBBs(NumBBs(), false);
+  GetCommonExitBB()->FindWillExitBBs(visitedBBs);
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_entry()) {
       continue;
     }
     auto *bb = *bIt;
@@ -813,16 +815,16 @@ void MeCFG::WontExitAnalysis() {
     }
     if (bb->GetKind() == kBBGoto) {
       // create artificial BB to transition to common_exit_bb
-      BB *newBB = func.NewBasicBlock();
+      BB *newBB = NewBasicBlock();
       // update bIt & eIt
-      auto newBBIt = std::find(func.cbegin(), func.cend(), bb);
+      auto newBBIt = std::find(cbegin(), cend(), bb);
       bIt = build_filter_iterator(
-          newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, func.end()));
-      eIt = func.valid_end();
+          newBBIt, std::bind(FilterNullPtr<MapleVector<BB*>::const_iterator>, std::placeholders::_1, end()));
+      eIt = valid_end();
       newBB->SetKindReturn();
       newBB->SetAttributes(kBBAttrArtificial);
       bb->AddSucc(*newBB);
-      func.GetCommonExitBB()->AddExit(*newBB);
+      GetCommonExitBB()->AddExit(*newBB);
     }
   }
 }
@@ -831,14 +833,14 @@ void MeCFG::WontExitAnalysis() {
 // Check bb-vec and bb-list are strictly consistent.
 void MeCFG::Verify() const {
   // Check every bb in bb-list.
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == func.common_entry() || bIt == func.common_exit()) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == common_entry() || bIt == common_exit()) {
       continue;
     }
     auto *bb = *bIt;
-    ASSERT(bb->GetBBId() < func.GetAllBBs().size(), "CFG Error!");
-    ASSERT(func.GetBBFromID(bb->GetBBId()) == bb, "CFG Error!");
+    ASSERT(bb->GetBBId() < bbVec.size(), "CFG Error!");
+    ASSERT(bbVec.at(bb->GetBBId()) == bb, "CFG Error!");
     if (bb->IsEmpty()) {
       continue;
     }
@@ -867,8 +869,8 @@ void MeCFG::Verify() const {
 
 // check that all the target labels in jump statements are defined
 void MeCFG::VerifyLabels() const {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     BB *mirBB = *bIt;
     auto &stmtNodes = mirBB->GetStmtNodes();
     if (stmtNodes.rbegin().base().d() == nullptr) {
@@ -879,22 +881,22 @@ void MeCFG::VerifyLabels() const {
         continue;
       }
       ASSERT(
-          func.GetLabelBBAt(static_cast<GotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+          GetLabelBBAt(static_cast<GotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
               static_cast<GotoNode&>(stmtNodes.back()).GetOffset(),
           "undefined label in goto");
     } else if (mirBB->GetKind() == kBBCondGoto) {
       ASSERT(
-          func.GetLabelBBAt(static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
+          GetLabelBBAt(static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset())->GetBBLabel() ==
               static_cast<CondGotoNode&>(stmtNodes.back()).GetOffset(),
           "undefined label in conditional branch");
     } else if (mirBB->GetKind() == kBBSwitch) {
       auto &switchStmt = static_cast<SwitchNode&>(stmtNodes.back());
       LabelIdx targetLabIdx = switchStmt.GetDefaultLabel();
-      BB *bb = func.GetLabelBBAt(targetLabIdx);
+      BB *bb = GetLabelBBAt(targetLabIdx);
       ASSERT(bb->GetBBLabel() == targetLabIdx, "undefined label in switch");
       for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); ++j) {
         targetLabIdx = switchStmt.GetCasePair(j).second;
-        bb = func.GetLabelBBAt(targetLabIdx);
+        bb = GetLabelBBAt(targetLabIdx);
         ASSERT(bb->GetBBLabel() == targetLabIdx, "undefined switch target label");
       }
     }
@@ -904,11 +906,11 @@ void MeCFG::VerifyLabels() const {
 void MeCFG::Dump() const {
   // BSF Dump the cfg
   LogInfo::MapleLogger() << "####### CFG Dump: ";
-  ASSERT(func.NumBBs() != 0, "size to be allocated is 0");
-  auto *visitedMap = static_cast<bool*>(calloc(func.NumBBs(), sizeof(bool)));
+  ASSERT(NumBBs() != 0, "size to be allocated is 0");
+  auto *visitedMap = static_cast<bool*>(calloc(NumBBs(), sizeof(bool)));
   if (visitedMap != nullptr) {
     std::queue<BB*> qu;
-    qu.push(func.GetFirstBB());
+    qu.push(GetFirstBB());
     while (!qu.empty()) {
       BB *bb = qu.front();
       qu.pop();
@@ -973,8 +975,8 @@ std::string MeCFG::ConstructFileNameToDump(const std::string &prefix) const {
 }
 
 void MeCFG::DumpToFileInStrs(std::ofstream &cfgFile) const {
-  const auto &eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  const auto &eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     if (bb->GetKind() == kBBCondGoto) {
       cfgFile << "BB" << bb->GetBBId() << "[shape=diamond,label= \" BB" << bb->GetBBId() << ":\n{ ";
@@ -1015,10 +1017,10 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
   cfgFile << "digraph {\n";
   cfgFile << " # /*" << func.GetName() << " (red line is exception handler)*/\n";
   // dump edge
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = valid_end();
+  for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
-    if (bIt == func.common_exit()) {
+    if (bIt == common_exit()) {
       // specical case for common_exit_bb
       for (auto it = bb->GetPred().begin(); it != bb->GetPred().end(); ++it) {
         dumpEdgeFreq ? cfgFile << "BB" << (*it)->GetBBId() << "_freq_" << (*it)->GetFrequency() << " -> " <<
@@ -1035,7 +1037,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
       dumpEdgeFreq ? cfgFile << "BB" << bb->GetBBId() << "_freq_" << bb->GetFrequency() << " -> " <<
           "BB" << (*it)->GetBBId() << "_freq_" << (*it)->GetFrequency() :
           cfgFile << "BB" << bb->GetBBId() << " -> " << "BB" << (*it)->GetBBId();
-      if (bb == func.GetCommonEntryBB()) {
+      if (bb == GetCommonEntryBB()) {
         cfgFile << "[style=dotted]";
         continue;
       }
@@ -1059,4 +1061,517 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
   cfgFile.flush();
   LogInfo::MapleLogger().rdbuf(coutBuf);
 }
+
+BB *MeCFG::NewBasicBlock() {
+  BB *newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+  bbVec.push_back(newBB);
+  return newBB;
+}
+
+// new a basic block and insert before position or after position
+BB &MeCFG::InsertNewBasicBlock(const BB &position, bool isInsertBefore) {
+  BB *newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+
+  auto bIt = std::find(begin(), end(), &position);
+  auto idx = position.GetBBId();
+  if (!isInsertBefore) {
+    ++bIt;
+    ++idx;
+  }
+  auto newIt = bbVec.insert(bIt, newBB);
+  auto eIt = end();
+  // update bb's idx
+  for (auto it = newIt; it != eIt; ++it) {
+    if ((*it) != nullptr) {
+      (*it)->SetBBId(BBId(idx));
+    }
+    ++idx;
+  }
+  return *newBB;
+}
+
+void MeCFG::DeleteBasicBlock(const BB &bb) {
+  ASSERT(bbVec[bb.GetBBId()] == &bb, "runtime check error");
+  /* update first_bb_ and last_bb if needed */
+  bbVec.at(bb.GetBBId()) = nullptr;
+}
+
+/* get next bb in bbVec */
+BB *MeCFG::NextBB(const BB *bb) {
+  auto bbIt = std::find(begin(), end(), bb);
+  CHECK_FATAL(bbIt != end(), "bb must be inside bb_vec");
+  for (auto it = ++bbIt; it != end(); ++it) {
+    if (*it != nullptr) {
+      return *it;
+    }
+  }
+  return nullptr;
+}
+
+/* get prev bb in bbVec */
+BB *MeCFG::PrevBB(const BB *bb) {
+  auto bbIt = std::find(rbegin(), rend(), bb);
+  CHECK_FATAL(bbIt != rend(), "bb must be inside bb_vec");
+  for (auto it = ++bbIt; it != rend(); ++it) {
+    if (*it != nullptr) {
+      return *it;
+    }
+  }
+  return nullptr;
+}
+
+/* clone stmtnode in orig bb to newBB */
+void MeCFG::CloneBasicBlock(BB &newBB, const BB &orig) {
+  if (orig.IsEmpty()) {
+    return;
+  }
+  for (const auto &stmt : orig.GetStmtNodes()) {
+    StmtNode *newStmt = stmt.CloneTree(func.GetMIRModule().GetCurFuncCodeMPAllocator());
+    newStmt->SetNext(nullptr);
+    newStmt->SetPrev(nullptr);
+    newBB.AddStmtNode(newStmt);
+    if (func.GetMeSSATab() != nullptr) {
+      func.GetMeSSATab()->CreateSSAStmt(*newStmt, &newBB);
+    }
+  }
+}
+
+void MeCFG::SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB) {
+  StmtNode *newBBStart = splitPoint.GetNext();
+  // Fix Stmt in BB.
+  if (newBBStart != nullptr) {
+    newBBStart->SetPrev(nullptr);
+    for (StmtNode *stmt = newBBStart; stmt != nullptr;) {
+      StmtNode *nextStmt = stmt->GetNext();
+      newBB.AddStmtNode(stmt);
+      if (func.GetMeSSATab() != nullptr) {
+        func.GetMeSSATab()->CreateSSAStmt(*stmt, &newBB);
+      }
+      stmt = nextStmt;
+    }
+  }
+  bb.SetLast(&splitPoint);
+  splitPoint.SetNext(nullptr);
+}
+
+/* Split BB at split_point */
+BB &MeCFG::SplitBB(BB &bb, StmtNode &splitPoint, BB *newBB) {
+  if (newBB == nullptr) {
+    newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+  }
+  SplitBBPhysically(bb, splitPoint, *newBB);
+  // Fix BB in CFG
+  newBB->SetKind(bb.GetKind());
+  bb.SetKind(kBBFallthru);
+  auto bIt = std::find(begin(), end(), &bb);
+  auto idx = bb.GetBBId();
+  auto newIt = bbVec.insert(++bIt, newBB);
+  auto eIt = end();
+  // update bb's idx
+  for (auto it = newIt; it != eIt; ++it) {
+    ++idx;
+    if ((*it) != nullptr) {
+      (*it)->SetBBId(BBId(idx));
+    }
+  }
+  // Special Case: commonExitBB is orig bb's succ
+  auto *commonExitBB = *common_exit();
+  if (bb.IsPredBB(*commonExitBB)) {
+    commonExitBB->RemoveExit(bb);
+    commonExitBB->AddExit(*newBB);
+  }
+  while (bb.GetSucc().size() > 0) {
+    BB *succ = bb.GetSucc(0);
+    succ->ReplacePred(&bb, newBB);
+  }
+  bb.AddSucc(*newBB);
+  // Setup flags
+  newBB->CopyFlagsAfterSplit(bb);
+  if (newBB->GetAttributes(kBBAttrIsTryEnd)) {
+    endTryBB2TryBB[newBB] = endTryBB2TryBB[&bb];
+    endTryBB2TryBB[&bb] = nullptr;
+    bb.ClearAttributes(kBBAttrIsTryEnd);
+  }
+  bb.ClearAttributes(kBBAttrIsExit);
+  return *newBB;
+}
+
+void MeCFG::SetTryBlockInfo(const StmtNode *nextStmt, StmtNode *tryStmt, BB *lastTryBB, BB *curBB, BB *newBB) {
+  if (nextStmt->GetOpCode() == OP_endtry) {
+    curBB->SetAttributes(kBBAttrIsTryEnd);
+    ASSERT(lastTryBB != nullptr, "null ptr check");
+    endTryBB2TryBB[curBB] = lastTryBB;
+  } else {
+    newBB->SetAttributes(kBBAttrIsTry);
+    bbTryNodeMap[newBB] = tryStmt;
+  }
+}
+
+void MeCFG::CreateBasicBlocks() {
+  if (func.CurFunction()->IsEmpty()) {
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "function is empty, cfg is nullptr\n";
+    }
+    return;
+  }
+  // create common_entry/exit bb first as bbVec[0] and bb_vec[1]
+  bool isJavaModule = func.GetMIRModule().IsJavaModule();
+  auto *commonEntryBB = NewBasicBlock();
+  commonEntryBB->SetAttributes(kBBAttrIsEntry);
+  auto *commonExitBB = NewBasicBlock();
+  commonExitBB->SetAttributes(kBBAttrIsExit);
+  auto *firstBB = NewBasicBlock();
+  firstBB->SetAttributes(kBBAttrIsEntry);
+  StmtNode *nextStmt = func.CurFunction()->GetBody()->GetFirst();
+  ASSERT(nextStmt != nullptr, "function has no statement");
+  BB *curBB = firstBB;
+  StmtNode *tryStmt = nullptr;  // record current try stmt for map<bb, try_stmt>
+  BB *lastTryBB = nullptr;      // bb containing try_stmt
+  do {
+    StmtNode *stmt = nextStmt;
+    nextStmt = stmt->GetNext();
+    switch (stmt->GetOpCode()) {
+      case OP_goto: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetLast(stmt);
+        curBB->SetKind(kBBGoto);
+        if (nextStmt != nullptr) {
+          BB *newBB = NewBasicBlock();
+          if (tryStmt != nullptr) {
+            SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+          }
+          curBB = newBB;
+        }
+        break;
+      }
+      case OP_igoto: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetLast(stmt);
+        curBB->SetKind(kBBIgoto);
+        if (nextStmt != nullptr) {
+          curBB = NewBasicBlock();
+        }
+        break;
+      }
+      case OP_dassign: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        if (static_cast<DassignNode*>(stmt)->GetRHS()->MayThrowException()) {
+          stmt->SetOpCode(OP_maydassign);
+          if (tryStmt != nullptr) {
+            // breaks new BB only inside try blocks
+            curBB->SetLast(stmt);
+            curBB->SetKind(kBBFallthru);
+            BB *newBB = NewBasicBlock();
+            SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+            curBB = newBB;
+            break;
+          }
+        }
+        if ((nextStmt == nullptr) && to_ptr(curBB->GetStmtNodes().rbegin()) == nullptr) {
+          curBB->SetLast(stmt);
+        }
+        break;
+      }
+      case OP_brfalse:
+      case OP_brtrue: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetLast(stmt);
+        curBB->SetKind(kBBCondGoto);
+        BB *newBB = NewBasicBlock();
+        if (tryStmt != nullptr) {
+          SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+        }
+        curBB = newBB;
+        break;
+      }
+      case OP_if:
+      case OP_doloop:
+      case OP_dowhile:
+      case OP_while: {
+        ASSERT(false, "not yet implemented");
+        break;
+      }
+      case OP_throw:
+        if (tryStmt != nullptr) {
+          // handle as goto
+          if (curBB->IsEmpty()) {
+            curBB->SetFirst(stmt);
+          }
+          curBB->SetLast(stmt);
+          curBB->SetKind(kBBGoto);
+          if (nextStmt != nullptr) {
+            BB *newBB = NewBasicBlock();
+            SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+            curBB = newBB;
+          }
+          break;
+        }
+      // fall thru to handle as return
+      [[clang::fallthrough]];
+      case OP_gosub:
+      case OP_retsub:
+      case OP_return: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetLast(stmt);
+        curBB->SetKindReturn();
+        if (nextStmt != nullptr) {
+          BB *newBB = NewBasicBlock();
+          if (tryStmt != nullptr) {
+            SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+          }
+          curBB = newBB;
+          if (stmt->GetOpCode() == OP_gosub) {
+            curBB->SetAttributes(kBBAttrIsEntry);
+          }
+        }
+        break;
+      }
+      case OP_endtry:
+        if (isJavaModule) {
+          if (tryStmt == nullptr) {
+            break;
+          }
+          /* skip OP_entry and generate it in emit phase */
+          ASSERT(lastTryBB != nullptr, "null ptr check");
+          tryStmt = nullptr;  // reset intryblocks
+          if (!curBB->IsEmpty()) {
+            StmtNode *lastStmt = stmt->GetPrev();
+            ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
+                   curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                   "something wrong building BB");
+            curBB->SetLast(lastStmt);
+            if (curBB->GetKind() == kBBUnknown) {
+              curBB->SetKind(kBBFallthru);
+            }
+            curBB->SetAttributes(kBBAttrIsTryEnd);
+            SetBBTryBBMap(curBB, lastTryBB);
+            curBB = NewBasicBlock();
+          } else if (curBB->GetBBLabel() != 0) {
+            // create the empty BB
+            curBB->SetKind(kBBFallthru);
+            curBB->SetAttributes(kBBAttrIsTryEnd);
+            SetBBTryBBMap(curBB, lastTryBB);
+            curBB = NewBasicBlock();
+          } else {
+          }  // endtry has already been processed in SetTryBlockInfo()
+          lastTryBB = nullptr;
+        } else {
+          if (curBB->IsEmpty()) {
+            curBB->SetFirst(stmt);
+          }
+          if ((nextStmt == nullptr) && (curBB->GetStmtNodes().rbegin().base().d() == nullptr)) {
+            curBB->SetLast(stmt);
+          }
+        }
+        break;
+      case OP_try: {
+        // start a new bb or with a label
+        if (!curBB->IsEmpty()) {
+          // prepare a new bb
+          StmtNode *lastStmt = stmt->GetPrev();
+          ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
+                 curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                 "something wrong building BB");
+          curBB->SetLast(lastStmt);
+          if (curBB->GetKind() == kBBUnknown) {
+            curBB->SetKind(kBBFallthru);
+          }
+          BB *newBB = NewBasicBlock();
+          // assume no nested try, so no need to call SetTryBlockInfo()
+          curBB = newBB;
+        }
+        curBB->SetFirst(stmt);
+        tryStmt = stmt;
+        lastTryBB = curBB;
+        curBB->SetAttributes(kBBAttrIsTry);
+        bbTryNodeMap[curBB] = tryStmt;
+        // prepare a new bb that contains only a OP_try. It is needed for
+        // dse to work correctly: assignments in a try block should not affect
+        // assignments before the try block as exceptions might occur.
+        curBB->SetLast(stmt);
+        curBB->SetKind(kBBFallthru);
+        BB *newBB = NewBasicBlock();
+        SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+        curBB = newBB;
+        break;
+      }
+      case OP_catch: {
+        // start a new bb or with a label
+        if (!curBB->IsEmpty()) {
+          // prepare a new bb
+          StmtNode *lastStmt = stmt->GetPrev();
+          ASSERT(curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
+                 curBB->GetStmtNodes().rbegin().base().d() == lastStmt,
+                 "something wrong building BB");
+          curBB->SetLast(lastStmt);
+          if (curBB->GetKind() == kBBUnknown) {
+            curBB->SetKind(kBBFallthru);
+          }
+          BB *newBB = NewBasicBlock();
+          if (tryStmt != nullptr) {
+            SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+          }
+          curBB = newBB;
+        }
+        curBB->SetFirst(stmt);
+        curBB->SetAttributes(kBBAttrIsCatch);
+        auto *catchNode = static_cast<CatchNode*>(stmt);
+        const MapleVector<TyIdx> &exceptionTyIdxVec = catchNode->GetExceptionTyIdxVec();
+
+        for (TyIdx exceptIdx : exceptionTyIdxVec) {
+          MIRType *eType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(exceptIdx);
+          ASSERT(eType != nullptr && (eType->GetPrimType() == PTY_ptr || eType->GetPrimType() == PTY_ref),
+                 "wrong exception type");
+          auto *exceptType = static_cast<MIRPtrType*>(eType);
+          MIRType *pointType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(exceptType->GetPointedTyIdx());
+          const std::string &eName = GlobalTables::GetStrTable().GetStringFromStrIdx(pointType->GetNameStrIdx());
+          if ((pointType->GetPrimType() == PTY_void) || (eName == "Ljava/lang/Throwable;") ||
+              (eName == "Ljava/lang/Exception;")) {
+            // "Ljava/lang/Exception;" is risk to set isJavaFinally because it
+            // only deal with "throw exception". if throw error,  it's wrong
+            curBB->SetAttributes(kBBAttrIsJavaFinally);  // this is a start of finally handler
+          }
+        }
+        break;
+      }
+      case OP_label: {
+        auto *labelNode = static_cast<LabelNode*>(stmt);
+        LabelIdx labelIdx = labelNode->GetLabelIdx();
+        if (!curBB->IsEmpty() || curBB->GetBBLabel() != 0) {
+          // prepare a new bb
+          StmtNode *lastStmt = stmt->GetPrev();
+          ASSERT((curBB->GetStmtNodes().rbegin().base().d() == nullptr ||
+                  curBB->GetStmtNodes().rbegin().base().d() == lastStmt),
+                 "something wrong building BB");
+          if (curBB->GetStmtNodes().rbegin().base().d() == nullptr && (lastStmt->GetOpCode() != OP_label)) {
+            if (isJavaModule && lastStmt->GetOpCode() == OP_endtry) {
+              if (curBB->GetStmtNodes().empty()) {
+                curBB->SetLast(nullptr);
+              } else {
+                // find a valid stmt which is not label or endtry
+                StmtNode *p = lastStmt->GetPrev();
+                ASSERT(p != nullptr, "null ptr check");
+                ASSERT(p->GetOpCode() != OP_label, "runtime check error");
+                ASSERT(p->GetOpCode() != OP_endtry, "runtime check error");
+                curBB->SetLast(p);
+              }
+            } else {
+              curBB->SetLast(lastStmt);
+            }
+          }
+          if (curBB->GetKind() == kBBUnknown) {
+            curBB->SetKind(kBBFallthru);
+          }
+          BB *newBB = NewBasicBlock();
+          if (tryStmt != nullptr) {
+            newBB->SetAttributes(kBBAttrIsTry);
+            //bbTryNodeMap[newBB] = tryStmt;
+            SetBBTryNodeMap(*newBB, *tryStmt);
+          }
+          curBB = newBB;
+        }
+        labelBBIdMap[labelIdx] = curBB;
+        curBB->SetBBLabel(labelIdx);
+        break;
+      }
+      case OP_jscatch: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetAttributes(kBBAttrIsEntry);
+        curBB->SetAttributes(kBBAttrIsJSCatch);
+        break;
+      }
+      case OP_finally: {
+        ASSERT(curBB->GetStmtNodes().empty(), "runtime check error");
+        curBB->SetFirst(stmt);
+        curBB->SetAttributes(kBBAttrIsEntry);
+        curBB->SetAttributes(kBBAttrIsJSFinally);
+        break;
+      }
+      case OP_switch: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        curBB->SetLast(stmt);
+        curBB->SetKind(kBBSwitch);
+        BB *newBB = NewBasicBlock();
+        if (tryStmt != nullptr) {
+          SetTryBlockInfo(nextStmt, tryStmt, lastTryBB, curBB, newBB);
+        }
+        curBB = newBB;
+        break;
+      }
+      default: {
+        if (curBB->IsEmpty()) {
+          curBB->SetFirst(stmt);
+        }
+        if ((nextStmt == nullptr) && (curBB->GetStmtNodes().rbegin().base().d() == nullptr)) {
+          curBB->SetLast(stmt);
+        }
+        break;
+      }
+    }
+  } while (nextStmt != nullptr);
+  ASSERT(tryStmt == nullptr, "unclosed try");    // tryandendtry should be one-one mapping
+  ASSERT(lastTryBB == nullptr, "unclosed tryBB");  // tryandendtry should be one-one mapping
+  auto *lastBB = curBB;
+  if (lastBB->IsEmpty()) {
+    // insert a return statement
+    lastBB->SetFirst(func.GetMIRModule().GetMIRBuilder()->CreateStmtReturn(nullptr));
+    lastBB->SetLast(lastBB->GetStmtNodes().begin().d());
+    lastBB->SetKindReturn();
+  } else if (lastBB->GetKind() == kBBUnknown) {
+    lastBB->SetKindReturn();
+    lastBB->SetAttributes(kBBAttrIsExit);
+  }
+}
+
+AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
+  MemPool *meCfgMp = NewMemPool();
+  MeCFG *theCFG = meCfgMp->New<MeCFG>(meCfgMp, *func);
+  func->SetTheCfg(theCFG);
+  theCFG->CreateBasicBlocks();
+  if (theCFG->NumBBs() == 0) {
+    /* there's no basicblock generated */
+    return theCFG;
+  }
+  theCFG->BuildMirCFG();
+  if (MeOption::optLevel > mapleOption::kLevelZero) {
+    theCFG->FixMirCFG();
+  }
+  theCFG->ReplaceWithAssertnonnull();
+  theCFG->VerifyLabels();
+  theCFG->UnreachCodeAnalysis();
+  theCFG->WontExitAnalysis();
+  theCFG->Verify();
+
+  // TODOFORTEST
+ // if (func->GetMIRModule().IsCModule()) {
+  if (mrm == nullptr) {
+    MeDoLoopCanon doLoopCanon(MeFuncPhase_LOOPCANON);
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << doLoopCanon.PhaseName() << " ] ==\n";
+    }
+    doLoopCanon.Run(func, m, NULL);
+
+    MeDoSplitCEdge doSplitCEdge(MeFuncPhase_SPLITCEDGE);
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << doSplitCEdge.PhaseName() << " ] ==\n";
+    }
+    doSplitCEdge.Run(func, m, NULL);
+  }
+  return theCFG;
+}
+
 }  // namespace maple

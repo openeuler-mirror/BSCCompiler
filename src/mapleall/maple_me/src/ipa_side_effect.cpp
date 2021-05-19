@@ -1031,6 +1031,7 @@ void IpaSideEffect::DoAnalysis() {
     std::set<VarMeExpr*> argExprs;
     std::set<VarMeExpr*> nextLevelGlobalExprs;
     std::set<VarMeExpr*> nextLevelArgExprs;
+    auto cfg = meFunc.GetCfg();
     for (size_t i = 0; i < meFunc.GetSccTopologicalVec().size(); ++i) {
       SCCOfBBs *scc = meFunc.GetSccTopologicalVec()[i];
       CHECK_FATAL(scc != nullptr, "scc must not be null");
@@ -1041,7 +1042,7 @@ void IpaSideEffect::DoAnalysis() {
       unsigned loopCount = scc->GetBBs().size() > 1 ? maxLoopCount : 1; // Loop count
       for (unsigned j = 0; j < loopCount; ++j) {
         for (BB *bb : scc->GetBBs()) {
-          if (bb == meFunc.GetCommonEntryBB() || bb == meFunc.GetCommonExitBB()) {
+          if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
             continue;
           }
           for (auto &meStmt : bb->GetMeStmts()) {

@@ -146,8 +146,8 @@ AnalysisResult *MeDoFSAA::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
   ASSERT(dom != nullptr, "dominance phase has problem");
 
   FSAA fsaa(func, dom);
-
-  for (BB *bb : func->GetAllBBs()) {
+  auto cfg = func->GetCfg();
+  for (BB *bb : cfg->GetAllBBs()) {
     if (bb != nullptr) {
       fsaa.ProcessBB(bb);
     }
@@ -156,11 +156,11 @@ AnalysisResult *MeDoFSAA::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
   if (fsaa.needUpdateSSA) {
     ssa->runRenameOnly = true;
 
-    ssa->InitRenameStack(ssaTab->GetOriginalStTable(), func->GetAllBBs().size(), ssaTab->GetVersionStTable());
+    ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(), ssaTab->GetVersionStTable());
     // recurse down dominator tree in pre-order traversal
-    MapleSet<BBId> *children = &dom->domChildren[func->GetCommonEntryBB()->GetBBId()];
+    MapleSet<BBId> *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
     for (BBId child : *children) {
-      ssa->RenameBB(*func->GetBBFromID(child));
+      ssa->RenameBB(*cfg->GetBBFromID(child));
     }
 
     ssa->VerifySSA();

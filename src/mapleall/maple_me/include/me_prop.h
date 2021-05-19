@@ -23,7 +23,7 @@ namespace maple {
 class MeProp : public Prop {
  public:
   MeProp(MeIRMap &irMap, Dominance &dom, MemPool &memPool, const PropConfig &config)
-      : Prop(irMap, dom, memPool, irMap.GetFunc().GetAllBBs().size(), config),
+      : Prop(irMap, dom, memPool, irMap.GetFunc().GetCfg()->GetAllBBs().size(), config),
         func(&irMap.GetFunc()) {}
 
   virtual ~MeProp() = default;
@@ -31,7 +31,7 @@ class MeProp : public Prop {
   MeFunction *func;
 
   BB *GetBB(BBId id) {
-    return func->GetAllBBs()[id];
+    return func->GetCfg()->GetAllBBs()[id];
   }
 };
 
