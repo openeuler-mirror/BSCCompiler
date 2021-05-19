@@ -156,9 +156,6 @@ class MeFunction : public FuncEmit {
         mirModule(*mod),
         mirFunc(func),
         laidOutBBVec(alloc.Adapter()),
-        sccTopologicalVec(alloc.Adapter()),
-        sccOfBB(alloc.Adapter()),
-        backEdges(alloc.Adapter()),
         fileName(fileName, memPool) {}
 
   ~MeFunction() override = default;
@@ -311,20 +308,10 @@ class MeFunction : public FuncEmit {
 
   void PartialInit();
 
-  const MapleVector<SCCOfBBs*> &GetSccTopologicalVec() const {
-    return sccTopologicalVec;
-  }
-  void BBTopologicalSort(SCCOfBBs &scc);
-  void BuildSCC();
   MIRFunction *CurFunction() const {
     return mirModule.CurFunction();
   }
  private:
-  void VerifySCC();
-  void SCCTopologicalSort(std::vector<SCCOfBBs*> &sccNodes);
-  void BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes, std::vector<uint32> &visitedOrder,
-                   std::vector<uint32> &lowestOrder, std::vector<bool> &inStack, std::stack<uint32> &visitStack);
-
   MemPool *memPool;
   StackMemPool &stackMP;
   MapleAllocator alloc;
@@ -337,11 +324,6 @@ class MeFunction : public FuncEmit {
   MeCFG *theCFG = nullptr;
   SSATab *meSSATab = nullptr;
   MeIRMap *irmap = nullptr;
-  // BB SCC
-  MapleVector<SCCOfBBs*> sccTopologicalVec;
-  uint32 numOfSCCs = 0;
-  MapleVector<SCCOfBBs*> sccOfBB;
-  MapleSet<std::pair<uint32, uint32>> backEdges;
   /* input */
   MapleString fileName;
   uint32 regNum = 0;    // count virtual registers
