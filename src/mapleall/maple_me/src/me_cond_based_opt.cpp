@@ -87,8 +87,9 @@ bool MeCondBased::NullValueFromTestCond(const VarMeExpr &varMeExpr, const BB &bb
   size_t bbSize = dominance->GetBBVecSize();
   std::vector<bool> visitedMap(bbSize, false);
   bool provenNull = false;
+  MeCFG *cfg = func->GetCfg();
   while (pdomFrt->size() == 1) {
-    BB &cdBB = *func->GetAllBBs().at(*(pdomFrt->begin()));
+    BB &cdBB = *cfg->GetAllBBs().at(*(pdomFrt->begin()));
     if (visitedMap[cdBB.GetBBId()]) {
       break;
     }
@@ -222,8 +223,9 @@ bool MeCondBased::IsNotNullValue(const VarMeExpr &varMeExpr, const UnaryMeStmt &
 }
 
 void CondBasedNPC::DoCondBasedNPC() const {
-  auto eIt = GetFunc()->valid_end();
-  for (auto bIt = GetFunc()->valid_begin(); bIt != eIt; ++bIt) {
+  MeCFG *cfg = GetFunc()->GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
       if (stmt.GetOp() != OP_assertnonnull) {
@@ -245,8 +247,9 @@ AnalysisResult *MeDoCondBasedRC::Run(MeFunction *func, MeFuncResultMgr *m, Modul
   auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   ASSERT(dom != nullptr, "dominance phase has problem");
   CondBasedRC condBasedRC(*func, *dom);
-  auto eIt = func->valid_end();
-  for (auto bIt = func->valid_begin(); bIt != eIt; ++bIt) {
+  MeCFG *cfg = func->GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
       if (stmt.GetOp() != OP_decref) {

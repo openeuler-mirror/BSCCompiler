@@ -747,8 +747,9 @@ void MeStmtPre::ConstructUseOccurMap() {
   }
   // do a pass over the program
   const MapleVector<BBId> &preOrderDt = dom->GetDtPreOrder();
+  auto cfg = func->GetCfg();
   for (size_t i = 0; i < preOrderDt.size(); ++i) {
-    BB *bb = func->GetAllBBs().at(preOrderDt[i]);
+    BB *bb = cfg->GetAllBBs().at(preOrderDt[i]);
     for (auto &stmt : bb->GetMeStmts()) {
       for (size_t j = 0; j < stmt.NumMeStmtOpnds(); ++j) {
         ConstructUseOccurMapExpr(static_cast<uint32>(i), *stmt.GetOpnd(j));
@@ -802,11 +803,11 @@ void MeStmtPre::VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &ch
 }
 
 // verify that there is no prior use of lhsVar before stmt in its BB
-static bool NoPriorUseInBB(const VarMeExpr *lhsVar, MeStmt *defStmt) {
+static bool NoPriorUseInBB(const OStIdx &ostIdx, MeStmt *defStmt) {
   for (MeStmt *stmt = defStmt->GetPrev(); stmt != nullptr; stmt = stmt->GetPrev()) {
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
       CHECK_FATAL(stmt->GetOpnd(i) != nullptr, "null ptr check");
-      if (stmt->GetOpnd(i)->SymAppears(lhsVar->GetOstIdx())) {
+      if (stmt->GetOpnd(i)->SymAppears(ostIdx)) {
         return false;
       }
     }
@@ -948,7 +949,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
           stmtWkCand->SetLHSIsFinal(true);
         } else if (!dassMeStmt.GetRHS()->SymAppears(varMeExpr->GetOstIdx()) && dassMeStmt.GetRHS()->Pure()) {
-          if (NoPriorUseInBB(dassMeStmt.GetVarLHS(), &stmt)) {
+          if (NoPriorUseInBB(dassMeStmt.GetVarLHS()->GetOstIdx(), &stmt)) {
             (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
           }
         } else if (dassMeStmt.GetLHS() != nullptr && dassMeStmt.GetLHS()->IsUseSameSymbol(*dassMeStmt.GetRHS())) {
@@ -1015,20 +1016,19 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
           break;
         }
-        VarMeExpr &varMeExpr = utils::ToRef(safe_cast<VarMeExpr>(callAss.GetMustDefList()->front().GetLHS()));
-        const OriginalSt *ost = ssaTab->GetOriginalStFromID(varMeExpr.GetOstIdx());
+        const OriginalSt *ost = callAss.GetMustDefList()->front().GetLHS()->GetOst();
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);
           stmtWkCand->SetLHSIsFinal(true);
         } else {
           bool allOperandFeasible = true;
           for (MeExpr *o : callAss.GetOpnds()) {
-            if (o->SymAppears(varMeExpr.GetOstIdx())) {
+            if (o->SymAppears(ost->GetIndex())) {
               allOperandFeasible = false;
               break;
             }
           }
-          if (allOperandFeasible && NoPriorUseInBB(&varMeExpr, &stmt)) {
+          if (allOperandFeasible && NoPriorUseInBB(ost->GetIndex(), &stmt)) {
             (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
           }
         }
@@ -1085,7 +1085,7 @@ void MeStmtPre::BuildWorkList() {
     varStack->push(static_cast<VarMeExpr*>(irMap->GetOrCreateZeroVersionVarMeExpr(*ost)));
     versionStackVec[ost->GetIndex()] = varStack;
   }
-  BuildWorkListBB(func->GetCommonEntryBB());
+  BuildWorkListBB(func->GetCfg()->GetCommonEntryBB());
 }
 
 void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt) {

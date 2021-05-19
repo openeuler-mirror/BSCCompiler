@@ -26,7 +26,7 @@ namespace maple {
 class MeHDSE : public HDSE {
  public:
   MeHDSE(MeFunction &f, Dominance &pDom, IRMap &map, bool enabledDebug)
-      : HDSE(f.GetMIRModule(), f.GetAllBBs(), *f.GetCommonEntryBB(), *f.GetCommonExitBB(),
+      : HDSE(f.GetMIRModule(), f.GetCfg()->GetAllBBs(), *f.GetCfg()->GetCommonEntryBB(), *f.GetCfg()->GetCommonExitBB(),
              pDom, map, enabledDebug, MeOption::decoupleStatic) {}
 
   virtual ~MeHDSE() = default;

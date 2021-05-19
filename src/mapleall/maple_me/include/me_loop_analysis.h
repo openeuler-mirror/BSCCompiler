@@ -19,6 +19,7 @@
 #include "me_phase.h"
 #include "dominance.h"
 #include <algorithm>
+#include "me_cfg.h"
 
 namespace maple {
 class IdentifyLoops;
@@ -111,9 +112,10 @@ class IdentifyLoops : public AnalysisResult {
         meLoopMemPool(memPool),
         meLoopAlloc(memPool),
         func(mf),
+        cfg(mf.GetCfg()),
         dominance(dm),
         meLoops(meLoopAlloc.Adapter()),
-        bbLoopParent(func.GetAllBBs().size(), nullptr, meLoopAlloc.Adapter()) {}
+        bbLoopParent(func.GetCfg()->GetAllBBs().size(), nullptr, meLoopAlloc.Adapter()) {}
 
   virtual ~IdentifyLoops() = default;
 
@@ -139,6 +141,7 @@ class IdentifyLoops : public AnalysisResult {
   MemPool *meLoopMemPool;
   MapleAllocator meLoopAlloc;
   MeFunction &func;
+  MeCFG *cfg;
   Dominance *dominance;
   MapleVector<LoopDesc*> meLoops;
   MapleVector<LoopDesc*> bbLoopParent;  // gives closest nesting loop for each bb

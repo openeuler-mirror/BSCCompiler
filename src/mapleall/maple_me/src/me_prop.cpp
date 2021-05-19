@@ -23,6 +23,13 @@
 // Copy propagation works by conducting a traversal over the program.  When it
 // encounters a variable reference, it uses its SSA representation to look up
 // its assigned value and try to do the substitution.
+namespace {
+const std::set<std::string> propWhiteList {
+#define PROPILOAD(funcname) #funcname,
+#include "propiloadlist.def"
+#undef PROPILOAD
+};
+}
 
 namespace maple {
 AnalysisResult *MeDoMeProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
@@ -32,9 +39,19 @@ AnalysisResult *MeDoMeProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
   auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   CHECK_NULL_FATAL(hMap);
   bool propIloadRef = MeOption::propIloadRef;
+  if (!propIloadRef) {
+    MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetMirFunc()->GetStIdx().Idx());
+    const std::string &funcName = fnSt->GetName();
+    propIloadRef = propWhiteList.find(funcName) != propWhiteList.end();
+    if (DEBUGFUNC(func)) {
+      if (propIloadRef) {
+        LogInfo::MapleLogger() << "propiloadref enabled because function is in white list";
+      }
+    }
+  }
   MeProp meProp(*hMap, *dom, *NewMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
       MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi });
-  meProp.TraversalBB(*func->GetCommonEntryBB());
+  meProp.TraversalBB(*func->GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
     func->Dump(false);

@@ -51,7 +51,6 @@
 //    up the CFG.
 
 namespace maple {
-
 void MeHDSE::BackwardSubstitution() {
   for (DassignMeStmt *dass : backSubsCands) {
     ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
@@ -66,7 +65,7 @@ void MeHDSE::BackwardSubstitution() {
     bool hasAppearance = false;
     MeStmt *curstmt = dass->GetPrev();
     while (curstmt != defStmt && !hasAppearance) {
-      for (int32 i = 0; i < curstmt->NumMeStmtOpnds(); i++) {
+      for (uint32 i = 0; i < curstmt->NumMeStmtOpnds(); ++i) {
         if (curstmt->GetOpnd(i)->SymAppears(lhsscalar->GetOst()->GetIndex())) {
           hasAppearance = true;
         }
@@ -87,8 +86,9 @@ void MeHDSE::BackwardSubstitution() {
 }
 
 void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  auto cfg = func.GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     BB *tryBB = *bIt;
     // get next valid bb
     auto endTryIt = bIt;
@@ -140,7 +140,7 @@ void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
             if (switchNode->GetDefaultLabel() == tryBB->GetBBLabel()) {
               switchNode->SetDefaultLabel(label);
             }
-            for (size_t m = 0; m < switchNode->GetSwitchTable().size(); m++) {
+            for (size_t m = 0; m < switchNode->GetSwitchTable().size(); ++m) {
               if (switchNode->GetSwitchTable()[m].second == tryBB->GetBBLabel()) {
                 switchNode->SetCaseLabel(m, label);
               }
@@ -163,8 +163,8 @@ AnalysisResult *MeDoHDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
   hdse.DoHDSE();
   hdse.BackwardSubstitution();
   MakeEmptyTrysUnreachable(*func);
-  func->GetTheCfg()->UnreachCodeAnalysis(/* update_phi = */true);
-  func->GetTheCfg()->WontExitAnalysis();
+  (void)func->GetCfg()->UnreachCodeAnalysis(/* update_phi = */ true);
+  func->GetCfg()->WontExitAnalysis();
   m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
   m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
   if (DEBUGFUNC(func)) {

@@ -93,7 +93,7 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
       MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
       TyIdx addrTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
       ASSERT_NOT_NULL(irMap);
-      MeExpr *iaddrofExpr = irMap->CreateIaddrofMeExpr(addrofExpr, addrTyIdx, *newAddrofExpr);
+      MeExpr *iaddrofExpr = irMap->CreateIaddrofMeExpr(addrofExpr.GetFieldID(), addrTyIdx, newAddrofExpr);
       (void)irMap->ReplaceMeExprStmt(stmt, addrofExpr, *iaddrofExpr);
       break;
     }
@@ -103,8 +103,9 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
 }
 
 void MeLowerGlobals::Run() {
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  MeCFG *cfg = func.GetCfg();
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     for (auto &stmt : bb->GetMeStmts()) {
       for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {

@@ -20,10 +20,11 @@ void MeIRMap::Dump() {
   // we dump IRMap, restore the mempool afterwards
   MIRFunction *mirFunction = func.GetMirFunc();
   MemPool *backup = mirFunction->GetCodeMempool();
-  mirFunction->SetMemPool(memPoolCtrler.NewMemPool("IR Dump"));
+  mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR Dump"));
+  auto cfg = func.GetCfg();
   LogInfo::MapleLogger() << "===================Me IR dump==================\n";
-  auto eIt = func.valid_end();
-  for (auto bIt = func.valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = cfg->valid_end();
+  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     bb->DumpHeader(&GetMIRModule());
     LogInfo::MapleLogger() << "frequency : " << bb->GetFrequency() << "\n";
@@ -40,7 +41,7 @@ void MeIRMap::Dump() {
       meStmt.Dump(this);
     }
   }
-  memPoolCtrler.DeleteMemPool(mirFunction->GetCodeMempool());
+  mirFunction->ReleaseCodeMemory();
   mirFunction->SetMemPool(backup);
 }
 }  // namespace maple

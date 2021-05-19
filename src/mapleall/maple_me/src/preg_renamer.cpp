@@ -17,6 +17,7 @@
 #include "me_irmap.h"
 #include "preg_renamer.h"
 #include "union_find.h"
+#include "me_verify.h"
 
 namespace maple {
 void PregRenamer::RunSelf() {
@@ -26,9 +27,10 @@ void PregRenamer::RunSelf() {
   std::vector<bool> firstappeartable(pregtab->GetPregTable().size());
   uint32 renameCount = 0;
   UnionFind unionFind(*mp, regmeexprtable.size());
+  auto cfg = func->GetCfg();
   // iterate all the bbs' phi to setup the union
-  for (BB *bb : func->GetAllBBs()) {
-    if (bb == nullptr || bb == func->GetCommonEntryBB() || bb == func->GetCommonExitBB()) {
+  for (BB *bb : cfg->GetAllBBs()) {
+    if (bb == nullptr || bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
       continue;
     }
     MapleMap<OStIdx, MePhiNode *> &mePhiList =  bb->GetMePhiList();
@@ -84,7 +86,7 @@ void PregRenamer::RunSelf() {
     }
     // get all the nodes in candidates the same register
     RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(regmeexprtable[it->first]);
-    PregIdx16 newpregidx = regMeexpr->GetRegIdx();
+    PregIdx newpregidx = regMeexpr->GetRegIdx();
     ASSERT(static_cast<uint32>(newpregidx) < firstappeartable.size(), "oversize ");
     if (!firstappeartable[newpregidx]) {
       // use the previous register
@@ -92,7 +94,8 @@ void PregRenamer::RunSelf() {
       continue;
     }
     newpregidx = pregtab->ClonePreg(*pregtab->PregFromPregIdx(regMeexpr->GetRegIdx()));
-    OriginalSt *newost = func->GetMeSSATab()->GetOriginalStTable().CreatePregOriginalSt(newpregidx, func->GetMirFunc()->GetPuidx());
+    OriginalSt *newost =
+        func->GetMeSSATab()->GetOriginalStTable().CreatePregOriginalSt(newpregidx, func->GetMirFunc()->GetPuidx());
     renameCount++;
     if (DEBUGFUNC(func)) {
       LogInfo::MapleLogger() << "%" << pregtab->PregFromPregIdx(regMeexpr->GetRegIdx())->GetPregNo();
@@ -106,17 +109,32 @@ void PregRenamer::RunSelf() {
   }
 }
 
-AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr *mrm) {
+  MeIRMap *irmap = static_cast<MeIRMap *>(frm->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   std::string renamePhaseName = PhaseName();
-  MemPool *renamemp = memPoolCtrler.NewMemPool(renamePhaseName);
+  MemPool *renamemp = memPoolCtrler.NewMemPool(renamePhaseName, true /* isLocalPool */);
   PregRenamer pregrenamer(renamemp, func, irmap);
   pregrenamer.RunSelf();
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "------------after pregrename:-------------------\n";
     func->Dump();
   }
-  memPoolCtrler.DeleteMemPool(renamemp);
+  delete renamemp;
+  if (MeOption::meVerify) {
+    frm->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+    CHECK_FATAL(mrm != nullptr, "Needs module result manager for ipa");
+    auto *dom = static_cast<Dominance*>(frm->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+    ASSERT(dom != nullptr, "dominance phase has problem");
+    auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+    CHECK_FATAL(kh != nullptr, "kh phase has problem");
+    MeVerify verify(*func);
+    for (auto &bb : func->GetCfg()->GetAllBBs()) {
+      if (bb == nullptr) {
+        continue;
+      }
+      verify.VerifyPhiNode(*bb, *dom);
+    }
+  }
   return nullptr;
 }
 }  // namespace maple
