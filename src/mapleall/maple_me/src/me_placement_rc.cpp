@@ -571,7 +571,8 @@ void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
   // Special case: delete the formal's entry incref
   if (realOcc.GetStmt() == nullptr) {
     if (!MeOption::gcOnly) {
-      CHECK_FATAL(lastUseBB == func->GetCfg()->GetFirstBB(), "PlacementRC::CodeMotion: realOcc from entry incref has wrong bb");
+      CHECK_FATAL(lastUseBB == func->GetCfg()->GetFirstBB(),
+                  "PlacementRC::CodeMotion: realOcc from entry incref has wrong bb");
       DeleteEntryIncref(realOcc, entryIncref);
     }
     return;

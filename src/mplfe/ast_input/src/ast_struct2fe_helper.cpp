@@ -143,39 +143,12 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
     return false;
   }
   mirSymbol->SetAttrs(astVar.GetGenericAttrs().ConvertToTypeAttrs());
-  PrimType primType = type->GetPrimType();
-  if (primType != PTY_ref && primType != PTY_agg && primType != PTY_ptr) {
-    MIRConst *cst = nullptr;
-    std::list<UniqueFEIRStmt> stmts;
-    ASTExpr *initExpr = astVar.GetInitExpr();
-    if (initExpr == nullptr) {
-      return true;
-    }
-    UniqueFEIRExpr expr = initExpr->Emit2FEExpr(stmts);
-    FEIRExprConst *constExpr = static_cast<FEIRExprConst*>(expr.get());
-    switch (primType) {
-      case PTY_i8:
-      case PTY_u8:
-      case PTY_i16:
-      case PTY_u16:
-      case PTY_i32:
-      case PTY_u32:
-      case PTY_i64:
-      case PTY_u64:
-        cst = allocator.GetMemPool()->New<MIRIntConst>(static_cast<int64>(constExpr->GetValue().u64), *type);
-        break;
-      case PTY_f32:
-        cst = allocator.GetMemPool()->New<MIRFloatConst>(constExpr->GetValue().f32, *type);
-        break;
-      case PTY_f64:
-        cst = allocator.GetMemPool()->New<MIRDoubleConst>(constExpr->GetValue().f64, *type);
-        break;
-      default:
-        CHECK_FATAL(false, "unsupported type.");
-        break;
-    }
-    mirSymbol->SetKonst(cst);
+  ASTExpr *initExpr = astVar.GetInitExpr();
+  if (initExpr == nullptr) {
+    return true;
   }
+  MIRConst *cst = initExpr->GenerateMIRConst();
+  mirSymbol->SetKonst(cst);
   return true;
 }
 
@@ -234,8 +207,9 @@ const std::string &ASTFunc2FEHelper::GetSrcFileName() const {
 
 void ASTFunc2FEHelper::SolveReturnAndArgTypesImpl(MapleAllocator &allocator) {
   const std::vector<MIRType*> &returnAndArgTypeNames = func.GetTypeDesc();
-  retMIRType = returnAndArgTypeNames[0];
-  argMIRTypes.insert(argMIRTypes.begin(), returnAndArgTypeNames.begin() + 1, returnAndArgTypeNames.end());
+  retMIRType = returnAndArgTypeNames[1];
+  // skip funcType and returnType
+  argMIRTypes.insert(argMIRTypes.begin(), returnAndArgTypeNames.begin() + 2, returnAndArgTypeNames.end());
 }
 
 std::string ASTFunc2FEHelper::GetMethodNameImpl(bool inMpl, bool full) const {

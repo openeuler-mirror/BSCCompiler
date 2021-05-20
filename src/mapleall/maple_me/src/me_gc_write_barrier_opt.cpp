@@ -34,7 +34,7 @@ AnalysisResult *MeDoGCWriteBarrierOpt::Run(MeFunction *func, MeFuncResultMgr *fu
 
 void GCWriteBarrierOpt::Prepare() {
   callBBs.resize(func.GetCfg()->NumBBs());
-  visited.resize(func.GetCfg()->NumBBs()); 
+  visited.resize(func.GetCfg()->NumBBs());
   if (enabledDebug) {
     LogInfo::MapleLogger() << "\n============== Before GC WRITE BARRIER OPT =============" << '\n';
     func.Dump(false);

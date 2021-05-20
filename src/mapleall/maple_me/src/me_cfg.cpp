@@ -1475,7 +1475,6 @@ void MeCFG::CreateBasicBlocks() {
           BB *newBB = NewBasicBlock();
           if (tryStmt != nullptr) {
             newBB->SetAttributes(kBBAttrIsTry);
-            //bbTryNodeMap[newBB] = tryStmt;
             SetBBTryNodeMap(*newBB, *tryStmt);
           }
           curBB = newBB;
@@ -1556,8 +1555,6 @@ AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResul
   theCFG->WontExitAnalysis();
   theCFG->Verify();
 
-  // TODOFORTEST
- // if (func->GetMIRModule().IsCModule()) {
   if (mrm == nullptr) {
     MeDoLoopCanon doLoopCanon(MeFuncPhase_LOOPCANON);
     if (!MeOption::quiet) {
@@ -1573,5 +1570,4 @@ AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResul
   }
   return theCFG;
 }
-
 }  // namespace maple

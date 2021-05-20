@@ -33,7 +33,7 @@ class MeCFG : public AnalysisResult {
   using reverse_iterator = BBPtrHolder::reverse_iterator;
   using const_reverse_iterator = BBPtrHolder::const_reverse_iterator;
 
-  explicit MeCFG(MemPool *memPool, MeFunction &f)
+  MeCFG(MemPool *memPool, MeFunction &f)
       : AnalysisResult(memPool),
         mp(memPool),
         mecfgAlloc(memPool),
@@ -263,7 +263,10 @@ class MeCFG : public AnalysisResult {
     endTryBB2TryBB[endTryBB] = endTryBB2TryBB[otherTryBB];
   }
 
-  MemPool * GetMempool() const { return mp; }
+  MemPool *GetMempool() const {
+    return mp;
+  }
+
   void CreateBasicBlocks();
 
  private:

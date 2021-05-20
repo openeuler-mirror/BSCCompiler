@@ -31,12 +31,12 @@ namespace maple {
     coldBBCountThreshold = times.at(coldIndex);
   }
 
-  bool BBAnalyze::CheckBBHot(const BBId bbId) {
+  bool BBAnalyze::CheckBBHot(const BBId bbId) const {
     BB *bb = cfg->GetBBFromID(bbId);
     return bb->GetFrequency() >= hotBBCountThreshold;
   }
 
-  bool BBAnalyze::CheckBBCold(const BBId bbId) {
+  bool BBAnalyze::CheckBBCold(const BBId bbId) const {
     BB *bb = cfg->GetBBFromID(bbId);
     return bb->GetFrequency() <= coldBBCountThreshold;
   }
