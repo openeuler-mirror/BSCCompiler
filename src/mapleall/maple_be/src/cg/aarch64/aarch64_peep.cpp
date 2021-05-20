@@ -2026,6 +2026,11 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
       return;
     }
 
+    /* load store pairs cannot have relocation */
+    if (nextInsn->IsLoadStorePair() && insn.GetOperand(kInsnThirdOpnd).IsStImmediate()) {
+      return;
+    }
+
     auto &stImmOpnd = static_cast<StImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     AArch64OfstOperand &offOpnd = aarch64CGFunc->GetOrCreateOfstOpnd(
         stImmOpnd.GetOffset() + memOpnd->GetOffsetImmediate()->GetOffsetValue(), k32BitSize);
@@ -2034,7 +2039,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
         aarch64CGFunc->GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeLo12Li, memOpnd->GetSize(),
                                           &newBaseOpnd, nullptr, &offOpnd, stImmOpnd.GetSymbol());
 
-    nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
+    nextInsn->SetMemOpnd(static_cast<MemOperand *>(&newMemOpnd));
     bb.RemoveInsn(insn);
     CHECK_FATAL(!CGOptions::IsLazyBinding() || cgFunc.GetCG()->IsLibcore(),
         "this pattern can't be found in this phase");
