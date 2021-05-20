@@ -55,7 +55,8 @@ ASTBinaryOperatorExpr *ASTParser::AllocBinaryOperatorExpr(MapleAllocator &alloca
   if (bo.isPtrMemOp()) {
     return ASTDeclsBuilder::ASTExprBuilder<ASTBOPtrMemExpr>(allocator);
   }
-  Opcode mirOpcode = ASTUtil::CvtBinaryOpcode(bo.getOpcode());
+  MIRType *lhTy = astFile->CvtType(bo.getLHS()->getType());
+  Opcode mirOpcode = ASTUtil::CvtBinaryOpcode(bo.getOpcode(), lhTy->GetPrimType());
   CHECK_FATAL(mirOpcode != OP_undef, "Opcode not support!");
   auto *expr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   expr->SetOpcode(mirOpcode);
@@ -1899,7 +1900,12 @@ bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
   for (auto &decl : recordDecles) {
     clang::RecordDecl *recDecl = llvm::cast<clang::RecordDecl>(decl->getCanonicalDecl());
     if (!recDecl->isCompleteDefinition()) {
-      continue;
+      clang::RecordDecl *recDeclDef = recDecl->getDefinition();
+      if (recDeclDef == nullptr) {
+        continue;
+      } else {
+        recDecl = recDeclDef;
+      }
     }
     ASTStruct *curStructOrUnion = static_cast<ASTStruct*>(ProcessDecl(allocator, *recDecl));
     if (curStructOrUnion == nullptr) {
@@ -1914,6 +1920,11 @@ bool ASTParser::RetrieveStructs(MapleAllocator &allocator) {
 bool ASTParser::RetrieveFuncs(MapleAllocator &allocator) {
   for (auto &func : funcDecles) {
     clang::FunctionDecl *funcDecl = llvm::cast<clang::FunctionDecl>(func);
+    if (funcDecl->isDefined()) {
+      funcDecl = funcDecl->getDefinition();
+    } else {
+      continue;
+    }
     ASTFunc *af = static_cast<ASTFunc*>(ProcessDecl(allocator, *funcDecl));
     if (af == nullptr) {
       return false;
