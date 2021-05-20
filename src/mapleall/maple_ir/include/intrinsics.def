@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan PSL v1.
  * You can use this software according to the terms and conditions of the Mulan PSL v1.
@@ -15,6 +15,10 @@
 // DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ARG0, ARG1, ARG2, ARG3, ARG4, ARG5)
 DEF_MIR_INTRINSIC(UNDEFINED,\
                   nullptr, kIntrnUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)
+DEF_MIR_INTRINSIC(DEX_ATOMIC_INC,\
+                  "__dex_ainc", kIntrnIsAtomic, kArgTyI32, kArgTyDynany, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)
+DEF_MIR_INTRINSIC(DEX_ATOMIC_DEC,\
+                  "__dex_adec", kIntrnIsAtomic, kArgTyI32, kArgTyDynany, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)
 DEF_MIR_INTRINSIC(MPL_ATOMIC_EXCHANGE_PTR,\
                   "__mpl_atomic_exchange_ptr", kIntrnIsAtomic, kArgTyPtr, kArgTyPtr, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)
 DEF_MIR_INTRINSIC(MPL_CLINIT_CHECK,\
@@ -43,6 +47,8 @@ DEF_MIR_INTRINSIC(MPL_READ_ARRAYCLASS_CACHE_ENTRY,\
                   "__mpl_const_arrayclass_cache", kIntrnUndef, kArgTyPtr, kArgTyU32, kArgTyDynany, kArgTyDynany, kArgTyUndef, kArgTyUndef, kArgTyUndef)
 
 // start of RC Intrinsics with one parameters
+DEF_MIR_INTRINSIC(MCCSetPermanent,\
+                  "MCC_SetObjectPermanent", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef)
 DEF_MIR_INTRINSIC(MCCIncRef,\
                   "MCC_IncRef_NaiveRCFast", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef)
 DEF_MIR_INTRINSIC(MCCDecRef,\
@@ -57,6 +63,8 @@ DEF_MIR_INTRINSIC(MCCSetObjectPermanent,\
                   "MCC_SetObjectPermanent", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef)
 
 // start of RC Intrinsics with two parameters
+DEF_MIR_INTRINSIC(MCCCheck,\
+                  "MCC_CheckRefCount", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef, kArgTyU32)
 DEF_MIR_INTRINSIC(MCCCheckArrayStore,\
                   "MCC_Reflect_Check_Arraystore", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef, kArgTyRef)
 DEF_MIR_INTRINSIC(MCCIncDecRef,\
@@ -127,6 +135,8 @@ DEF_MIR_INTRINSIC(MPL_CLEANUP_NORETESCOBJS,\
                   kArgTyRef, kArgTyRef, kArgTyRef, kArgTyRef)
 
 // start of GC Intrinsics
+DEF_MIR_INTRINSIC(MCCGCCheck,\
+                  "MCC_CheckObjAllocated", INTRNISRC | INTRNNOSIDEEFFECT, kArgTyVoid, kArgTyRef)
 
 // start of Profile Intrinsics
 DEF_MIR_INTRINSIC(MCCSaveProf,\
@@ -137,5 +147,8 @@ DEF_MIR_INTRINSIC(MCCSaveProf,\
 #include "intrinsic_c.def"
 #include "intrinsic_js.def"
 #include "intrinsic_js_eng.def"
+#include "dex2mpl/dexintrinsic.def"
+#include "intrinsic_dai.def"
+#include "intrinsic_vector.def"
 DEF_MIR_INTRINSIC(LAST,\
                   nullptr, kIntrnUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef, kArgTyUndef)
