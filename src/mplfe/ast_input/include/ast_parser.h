@@ -24,20 +24,23 @@ namespace maple {
 class ASTInput;
 class ASTParser {
  public:
-  ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn)
+  ASTParser(MapleAllocator &allocatorIn, uint32 fileIdxIn, const std::string &fileNameIn,
+            MapleList<ASTStruct*> &astStructsIn, MapleList<ASTFunc*> &astFuncsIn, MapleList<ASTVar*> &astVarsIn)
       : fileIdx(fileIdxIn), fileName(fileNameIn), globalVarDecles(allocatorIn.Adapter()),
         funcDecles(allocatorIn.Adapter()), recordDecles(allocatorIn.Adapter()),
-        globalEnumDecles(allocatorIn.Adapter()) {}
+        globalEnumDecles(allocatorIn.Adapter()), globalTypeDefDecles(allocatorIn.Adapter()),
+        astStructs(astStructsIn), astFuncs(astFuncsIn), astVars(astVarsIn) {}
   virtual ~ASTParser() = default;
   bool OpenFile();
   bool Verify();
   bool PreProcessAST();
 
-  bool RetrieveStructs(MapleAllocator &allocator, MapleList<ASTStruct*> &structs);
-  bool RetrieveFuncs(MapleAllocator &allocator, MapleList<ASTFunc*> &funcs);
-  bool RetrieveGlobalVars(MapleAllocator &allocator, MapleList<ASTVar*> &vars);
+  bool RetrieveStructs(MapleAllocator &allocator);
+  bool RetrieveFuncs(MapleAllocator &allocator);
+  bool RetrieveGlobalVars(MapleAllocator &allocator);
 
-  bool ProcessGlobalEnums(MapleAllocator &allocator, MapleList<ASTVar*> &vars);
+  bool ProcessGlobalEnums(MapleAllocator &allocator);
+  bool ProcessGlobalTypeDef(MapleAllocator &allocator);
 
   const std::string &GetSourceFileName() const;
   const uint32 GetFileIdx() const;
@@ -75,11 +78,15 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(NullStmt);
   ASTStmt *PROCESS_STMT(CStyleCastExpr);
   ASTStmt *PROCESS_STMT(DeclStmt);
+  ASTStmt *PROCESS_STMT(AtomicExpr);
+  ASTStmt *PROCESS_STMT(GCCAsmStmt);
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
   const clang::Expr *PeelParen(const clang::Expr &expr);
   ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr);
+  ASTValue *AllocASTValue(MapleAllocator &allocator) const;
+  ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo);
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
@@ -125,19 +132,25 @@ class ASTParser {
   ASTExpr *PROCESS_EXPR(DependentScopeDeclRefExpr);
   ASTExpr *PROCESS_EXPR(AtomicExpr);
 
-ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
+  ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
   ASTDecl *PROCESS_DECL(Field);
   ASTDecl *PROCESS_DECL(Function);
   ASTDecl *PROCESS_DECL(Record);
   ASTDecl *PROCESS_DECL(Var);
+  ASTDecl *PROCESS_DECL(ParmVar);
   ASTDecl *PROCESS_DECL(Enum);
+  ASTDecl *PROCESS_DECL(Typedef);
+  ASTDecl *PROCESS_DECL(EnumConstant);
 
  private:
+  ASTValue *TranslateRValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
+  ASTValue *TranslateLValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor);
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
   void SetSourceFileInfo(clang::Decl *decl);
   uint32 GetSizeFromQualType(const clang::QualType qualType);
+  ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
   uint32 fileIdx;
   const std::string fileName;
   std::unique_ptr<LibAstFile> astFile;
@@ -146,6 +159,12 @@ ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
   MapleList<clang::Decl*> funcDecles;
   MapleList<clang::Decl*> recordDecles;
   MapleList<clang::Decl*> globalEnumDecles;
+  MapleList<clang::Decl*> globalTypeDefDecles;
+
+  MapleList<ASTStruct*> &astStructs;
+  MapleList<ASTFunc*> &astFuncs;
+  MapleList<ASTVar*> &astVars;
+
   ASTInput *astIn = nullptr;
 
   uint32 srcFileNum = 2; // src files start from 2, 1 is mpl file

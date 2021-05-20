@@ -193,7 +193,8 @@ class AliasClass : public AnalysisResult {
   void SetPtrOpndsNextLevNADS(unsigned int start, unsigned int end, MapleVector<BaseNode*> &opnds,
                               bool hasNoPrivateDefEffect);
   void ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const OriginalSt *rhsost);
-  void ApplyUnionForDassignCopy(const AliasElem &lhsAe, const AliasElem *rhsAe, const BaseNode &rhs);
+  void ApplyUnionForDassignCopy(AliasElem &lhsAe, AliasElem *rhsAe, BaseNode &rhs);
+  bool SetNextLevNADSForPtrIntegerCopy(AliasElem &lhsAe, const AliasElem *rhsAe, BaseNode &rhs);
   void CreateMirroringAliasElems(const OriginalSt *ost1, OriginalSt *ost2);
   AliasElem *FindOrCreateDummyNADSAe();
   bool IsPointedTo(OriginalSt &oSt);

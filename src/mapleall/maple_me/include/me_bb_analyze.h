@@ -30,8 +30,8 @@ class BBAnalyze : public AnalysisResult {
   virtual ~BBAnalyze() = default;
 
   void SetHotAndColdBBCountThreshold();
-  bool CheckBBHot(const BBId bbId);
-  bool CheckBBCold(const BBId bbId);
+  bool CheckBBHot(const BBId bbId) const;
+  bool CheckBBCold(const BBId bbId) const;
   uint32 getHotBBCountThreshold() const;
   uint32 getColdBBCountThreshold() const;
 

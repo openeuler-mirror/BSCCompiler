@@ -236,7 +236,6 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
     mirFunc->SetMeFunc(&func);
   }
   std::string phaseName = "";
-//  MeFuncPhase *changeCFGPhase = nullptr;
   // each function level phase
   bool dumpFunc = FuncFilter(MeOption::dumpFunc, func.GetName());
   size_t phaseIndex = 0;

@@ -1154,7 +1154,7 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
   void InitTrans4AllVarsImpl() override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
   std::unique_ptr<FEIRExpr> expr;
-  int32 fieldID;
+  FieldID fieldID;
   std::string fieldName;
 };
 
