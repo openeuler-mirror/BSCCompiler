@@ -33,7 +33,8 @@ enum IntrinProperty {
   kIntrnNeverReturn,
   kIntrnIsAtomic,
   kIntrnIsRC,
-  kIntrnIsSpecial
+  kIntrnIsSpecial,
+  kIntrnIsVector
 };
 
 enum IntrinArgType {
@@ -107,6 +108,7 @@ constexpr uint32 INTRNNEVERRETURN = 1U << kIntrnNeverReturn;
 constexpr uint32 INTRNATOMIC = 1U << kIntrnIsAtomic;
 constexpr uint32 INTRNISRC = 1U << kIntrnIsRC;
 constexpr uint32 INTRNISSPECIAL = 1U << kIntrnIsSpecial;
+constexpr uint32 INTRNISVECTOR = 1U << kIntrnIsVector;
 class MIRType;    // circular dependency exists, no other choice
 class MIRModule;  // circular dependency exists, no other choice
 struct IntrinDesc {
@@ -164,6 +166,10 @@ struct IntrinDesc {
 
   bool HasNoSideEffect() const {
     return properties & INTRNNOSIDEEFFECT;
+  }
+
+  bool IsVectorOp() const {
+    return static_cast<bool>(properties & INTRNISVECTOR);
   }
 
   MIRType *GetReturnType() const;
