@@ -22,5 +22,5 @@ class Clang2mpl(ShellOperator):
         self.infile = infile
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/output/aarch64-clang-release/bin/clang2mpl --ascii " + self.infile + " -- --target=aarch64-linux-elf "
+        self.command = "${MAPLE_EXECUTE_BIN}/clang2mpl --ascii " + self.infile + " -- --target=aarch64-linux-elf "
         return super().get_final_command(variables)
