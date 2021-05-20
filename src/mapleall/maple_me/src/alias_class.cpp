@@ -394,10 +394,49 @@ void AliasClass::ApplyUnionForFieldsInAggCopy(const OriginalSt *lhsost, const Or
   }
 }
 
-void AliasClass::ApplyUnionForDassignCopy(const AliasElem &lhsAe, const AliasElem *rhsAe, const BaseNode &rhs) {
+// if epxr is cvt/retype, remove type convertion
+BaseNode &RemoveTypeConvertionIfExist(BaseNode &expr) {
+  if (expr.GetOpCode() == OP_cvt || expr.GetOpCode() == OP_retype) {
+    return RemoveTypeConvertionIfExist(*expr.Opnd(0));
+  }
+  return expr;
+}
+
+// at lhs = rhs, if lhs is not an address (e.g. i64) and rhs is an address(e.g. ptr), or vice versa,
+// then rhs's(or lhs's) next level may be defined by lhs(or rhs)
+// if a preceding case occurs, return true.
+bool AliasClass::SetNextLevNADSForPtrIntegerCopy(AliasElem &lhsAe, const AliasElem *rhsAe, BaseNode &rhs) {
+  // for lhs = rhs, if one is address and the other is not, there must be type convertion between them.
+  // And we know that CreateAliasElemsExpr(cvt expr) will return nullptr
+  if (rhsAe != nullptr) {
+    return false;
+  }
+  TyIdx lhsTyIdx = lhsAe.GetOriginalSt().GetTyIdx();
+  PrimType lhsPtyp = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx)->GetPrimType();
+  BaseNode &realRhs = RemoveTypeConvertionIfExist(rhs);
+  PrimType rhsPtyp = realRhs.GetPrimType();
+  if (lhsPtyp != rhsPtyp) {
+    if (IsPotentialAddress(lhsPtyp, &mirModule) && !IsPotentialAddress(rhsPtyp, &mirModule)) {
+      lhsAe.SetNextLevNotAllDefsSeen(true);
+      return true;
+    } else if (!IsPotentialAddress(lhsPtyp, &mirModule) && IsPotentialAddress(rhsPtyp, &mirModule)) {
+      AliasInfo realRhsAinfo = CreateAliasElemsExpr(realRhs);
+      if (realRhsAinfo.ae != nullptr) {
+        realRhsAinfo.ae->SetNextLevNotAllDefsSeen(true);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+void AliasClass::ApplyUnionForDassignCopy(AliasElem &lhsAe, AliasElem *rhsAe, BaseNode &rhs) {
+  // case like "integer <- (integer)ptr" or "ptr <- (ptr)integer", we should set ptr's nextLev not all def seen
+  if (SetNextLevNADSForPtrIntegerCopy(lhsAe, rhsAe, rhs)) {
+    return;
+  }
   if (rhsAe == nullptr || rhsAe->GetOriginalSt().GetIndirectLev() > 0 || rhsAe->IsNotAllDefsSeen()) {
-    AliasElem *aliasElem = FindAliasElem(lhsAe.GetOriginalSt());
-    aliasElem->SetNextLevNotAllDefsSeen(true);
+    lhsAe.SetNextLevNotAllDefsSeen(true);
     return;
   }
   if (mirModule.IsCModule()) {
@@ -472,7 +511,6 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       if (ost->GetFieldID() != 0) {
         (void)FindOrCreateAliasElemOfAddrofZeroFieldIDOSt(*ost);
       }
-
       AliasElem *lhsAe = FindOrCreateAliasElem(*ost);
       ASSERT_NOT_NULL(lhsAe);
       ApplyUnionForDassignCopy(*lhsAe, rhsAinfo.ae, *stmt.Opnd(0));

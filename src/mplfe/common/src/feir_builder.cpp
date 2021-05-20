@@ -96,8 +96,17 @@ UniqueFEIRExpr FEIRBuilder::CreateExprDRead(UniqueFEIRVar srcVar) {
   return expr;
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID, MIRType *fieldType) {
+  CHECK_FATAL(srcVar != nullptr && srcVar->GetType()->GetPrimType() == PTY_agg,
+              "var type must be struct type, %u", srcVar->GetType()->GetPrimType());
+  std::unique_ptr<FEIRExprDRead> expr = std::make_unique<FEIRExprDRead>(std::move(srcVar));
+  expr->SetFieldID(fieldID);
+  expr->SetFieldType(fieldType);
+  return expr;
+}
+
 UniqueFEIRExpr FEIRBuilder::CreateExprIRead(UniqueFEIRType returnType, UniqueFEIRType ptrType,
-                                            FieldID id, UniqueFEIRExpr expr) {
+                                            UniqueFEIRExpr expr, FieldID id /* optional parameters */) {
   UniqueFEIRExpr feirExpr = std::make_unique<FEIRExprIRead>(std::move(returnType), std::move(ptrType),
                                                             id, std::move(expr));
   return feirExpr;
@@ -208,6 +217,11 @@ UniqueFEIRExpr FEIRBuilder::CreateExprMathBinary(Opcode op, UniqueFEIRExpr expr0
   return std::make_unique<FEIRExprBinary>(op, std::move(expr0), std::move(expr1));
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprBinary(UniqueFEIRType exprType, Opcode op,
+                                             UniqueFEIRExpr expr0, UniqueFEIRExpr expr1) {
+  return std::make_unique<FEIRExprBinary>(std::move(exprType), op, std::move(expr0), std::move(expr1));
+}
+
 UniqueFEIRExpr FEIRBuilder::CreateExprBinary(Opcode op, UniqueFEIRExpr expr0, UniqueFEIRExpr expr1) {
   return std::make_unique<FEIRExprBinary>(op, std::move(expr0), std::move(expr1));
 }
@@ -236,6 +250,14 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCvtPrim(UniqueFEIRVar srcVar, PrimType dst
 
 UniqueFEIRExpr FEIRBuilder::CreateExprCvtPrim(UniqueFEIRExpr srcExpr, PrimType dstType) {
   UniqueFEIRExpr expr = std::make_unique<FEIRExprTypeCvt>(OP_cvt, std::move(srcExpr));
+  CHECK_NULL_FATAL(expr);
+  FEIRExprTypeCvt *ptrExpr = static_cast<FEIRExprTypeCvt*>(expr.get());
+  ptrExpr->GetType()->SetPrimType(dstType);
+  return expr;
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprCvtPrim(Opcode argOp, UniqueFEIRExpr srcExpr, PrimType dstType) {
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprTypeCvt>(argOp, std::move(srcExpr));
   CHECK_NULL_FATAL(expr);
   FEIRExprTypeCvt *ptrExpr = static_cast<FEIRExprTypeCvt*>(expr.get());
   ptrExpr->GetType()->SetPrimType(dstType);
@@ -286,18 +308,36 @@ UniqueFEIRExpr FEIRBuilder::CreateExprJavaArrayLength(UniqueFEIRExpr exprArray) 
   return expr;
 }
 
-UniqueFEIRExpr FEIRBuilder::CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, UniqueFEIRExpr argExprIndex,
+UniqueFEIRExpr FEIRBuilder::CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray,
+                                                     std::list<UniqueFEIRExpr> &argExprIndexs,
                                                      UniqueFEIRType argTypeNative) {
-  UniqueFEIRExpr expr = std::make_unique<FEIRExprArrayStoreForC>(std::move(argExprArray), std::move(argExprIndex),
-                                                                                          std::move(argTypeNative));
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprArrayStoreForC>(std::move(argExprArray), argExprIndexs,
+                                                                 std::move(argTypeNative));
+  CHECK_NULL_FATAL(expr);
+  return expr;
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray,
+                                                     std::list<UniqueFEIRExpr> &argExprIndexs,
+                                                     UniqueFEIRType argArrayTypeNative,
+                                                     UniqueFEIRExpr argExprStruct,
+                                                     UniqueFEIRType argStructTypeNative) {
+  UniqueFEIRExpr expr = std::make_unique<FEIRExprArrayStoreForC>(std::move(argExprArray), argExprIndexs,
+                                                                 std::move(argArrayTypeNative),
+                                                                 std::move(argExprStruct),
+                                                                 std::move(argStructTypeNative));
   CHECK_NULL_FATAL(expr);
   return expr;
 }
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtDAssign(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, bool hasException) {
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtDAssign>(std::move(dstVar), std::move(srcExpr));
-  FEIRStmtDAssign *ptrStmt = static_cast<FEIRStmtDAssign*>(stmt.get());
-  ptrStmt->SetHasException(hasException);
+  std::unique_ptr<FEIRStmtDAssign> stmt = std::make_unique<FEIRStmtDAssign>(std::move(dstVar), std::move(srcExpr));
+  stmt->SetHasException(hasException);
+  return stmt;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateStmtDAssignAggField(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, FieldID fieldID) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtDAssign>(std::move(dstVar), std::move(srcExpr), fieldID);
   return stmt;
 }
 
@@ -420,6 +460,15 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
                                                             UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
                                                              std::move(exprIndex), std::move(arrayType));
+  return stmt;
+}
+
+UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
+                                                            UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+                                                            UniqueFEIRType elemType) {
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
+                                                             std::move(exprIndex), std::move(arrayType),
+                                                             std::move(elemType));
   return stmt;
 }
 
