@@ -1129,6 +1129,54 @@ bool AArch64Insn::CheckRefField(size_t opndIndex, bool isEmit) const {
   return false;
 }
 
+uint8 AArch64Insn::GetLoadStoreSize() const {
+  if (IsLoadStorePair()) {
+    return k16ByteSize;
+  }
+  /* These are the loads and stores possible from PickLdStInsn() */
+  switch (mOp) {
+  case MOP_wldarb:
+  case MOP_wldrb:
+  case MOP_wldrsb:
+  case MOP_wstrb:
+  case MOP_wstlrb:
+    return k1ByteSize;
+  case MOP_wldrh:
+  case MOP_wldarh:
+  case MOP_wldrsh:
+  case MOP_wstrh:
+  case MOP_wstlrh:
+    return k2ByteSize;
+  case MOP_sldr:
+  case MOP_wldr:
+  case MOP_wldar:
+  case MOP_sstr:
+  case MOP_wstr:
+  case MOP_wstlr:
+    return k4ByteSize;
+  case MOP_dstr:
+  case MOP_xstr:
+  case MOP_xstlr:
+  case MOP_wstp:
+  case MOP_sstp:
+  case MOP_dldr:
+  case MOP_xldr:
+  case MOP_xldar:
+  case MOP_wldp:
+  case MOP_sldp:
+    return k8ByteSize;
+  case MOP_xldp:
+  case MOP_xldpsw:
+  case MOP_dldp:
+  case MOP_xstp:
+  case MOP_dstp:
+    return k16ByteSize;
+
+  default:
+    CHECK_FATAL(false, "Unsupported load/store op");
+  }
+}
+
 Operand *AArch64Insn::GetResult(uint32 id) const {
   ASSERT(id < GetResultNum(), "index out of range");
   const AArch64MD *md = &AArch64CG::kMd[mOp];
@@ -1205,6 +1253,18 @@ Operand *AArch64Insn::GetMemOpnd() const {
     }
   }
   return nullptr;
+}
+
+/* Set the first memory access operand. */
+void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
+  for (size_t i = 0; i < opnds.size(); ++i) {
+    Operand &opnd = GetOperand(i);
+    if (opnd.IsMemoryAccessOperand()) {
+      SetOperand(i, *memOpnd);
+      return;
+    }
+  }
+  return ;
 }
 
 bool AArch64Insn::IsVolatile() const {
@@ -1505,7 +1565,7 @@ uint32 AArch64Insn::GetJumpTargetIdxFromMOp(MOperator mOp) const {
   return kOperandPosition0;
 }
 
-MOperator AArch64Insn::FlipConditionOp(MOperator originalOp, int &targetIdx) {
+MOperator AArch64Insn::FlipConditionOp(MOperator originalOp, uint32 &targetIdx) {
   targetIdx = 1;
   switch (originalOp) {
     case AArch64MOP_t::MOP_beq:

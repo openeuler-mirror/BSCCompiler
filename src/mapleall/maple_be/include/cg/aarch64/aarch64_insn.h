@@ -72,6 +72,7 @@ class AArch64Insn : public Insn {
   Operand *GetResult(uint32 i) const override;
   Operand *GetOpnd(uint32 i) const override;
   Operand *GetMemOpnd() const override;
+  void SetMemOpnd(MemOperand *memOpnd) override;
   void SetOpnd(uint32 i, Operand &opnd) override;
   void SetResult(uint32 index, Operand &res) override;
   int32 CopyOperands() const override;
@@ -110,7 +111,7 @@ class AArch64Insn : public Insn {
   bool IsMove() const final;
   bool IsLoad() const final;
   bool IsLoadLabel() const final;
-  bool IsLoadStorePair() const;
+  bool IsLoadStorePair() const final;
   bool IsStore() const final;
   bool IsLoadPair() const final;
   bool IsStorePair() const final;
@@ -159,9 +160,11 @@ class AArch64Insn : public Insn {
 
   uint32 GetJumpTargetIdxFromMOp(MOperator mOp) const override;
 
-  MOperator FlipConditionOp(MOperator flippedOp, int &targetIdx) override;
+  MOperator FlipConditionOp(MOperator flippedOp, uint32 &targetIdx) override;
 
   bool CheckRefField(size_t opndIndex, bool isEmit) const;
+
+  uint8 GetLoadStoreSize() const;
 
  private:
   void CheckOpnd(Operand &opnd, OpndProp &mopd) const;
