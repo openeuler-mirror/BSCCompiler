@@ -26,7 +26,8 @@ class MeSSADevirtual : public SSADevirtual {
       : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), skipReturnTypeOpt), func(&func) {}
   MeSSADevirtual(MemPool &memPool, MIRModule &mod, MeFunction &func, IRMap &irMap, KlassHierarchy &kh, Dominance &dom,
                  Clone &clone, bool skipReturnTypeOpt)
-      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), clone, skipReturnTypeOpt), func(&func) {}
+      : SSADevirtual(memPool, mod, irMap, kh, dom, func.GetCfg()->GetAllBBs().size(), clone, skipReturnTypeOpt),
+        func(&func) {}
 
   ~MeSSADevirtual() = default;
 

@@ -1869,7 +1869,7 @@ void Emitter::EmitStringPointers() {
       continue;
     }
     uint32 strId = idx.GetIdx();
-    const char *str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx).c_str();
+    std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(idx);
     Emit("\t.align 3\n");
     Emit(".LSTR__").Emit(strId).Emit(":\n");
     std::string mplstr(str);
