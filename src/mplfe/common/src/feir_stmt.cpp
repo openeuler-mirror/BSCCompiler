@@ -3338,9 +3338,6 @@ BaseNode *FEIRExprCStyleCast::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     if (fromNode.EqualTo(toNode)) {
       return false;
     }
-    if (baseNode.GetOpCode() == OP_bnot && baseNode.Opnd(0)->GetOpCode() == OP_constval) {
-      return false;
-    }
     return true;
   };
   if (!isCvtNeeded(*srcType, *destType, *sub)) {
