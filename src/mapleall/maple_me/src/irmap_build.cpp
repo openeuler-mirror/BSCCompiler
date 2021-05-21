@@ -77,9 +77,20 @@ void IRMapBuild::BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes,
   for (auto &mayDefNode : mayDefNodes) {
     VersionSt *opndSt = mayDefNode.GetOpnd();
     VersionSt *resSt = mayDefNode.GetResult();
+
     auto *chiMeStmt = irMap->New<ChiMeNode>(&meStmt);
-    chiMeStmt->SetRHS(GetOrCreateVarFromVerSt(*opndSt));
-    VarMeExpr *lhs = GetOrCreateVarFromVerSt(*resSt);
+    if (opndSt->GetOst()->IsSymbolOst()) {
+      chiMeStmt->SetRHS(GetOrCreateVarFromVerSt(*opndSt));
+    } else {
+      chiMeStmt->SetRHS(GetOrCreateRegFromVerSt(*opndSt));
+    }
+
+    ScalarMeExpr *lhs = nullptr;
+    if (resSt->GetOst()->IsSymbolOst()) {
+      lhs = GetOrCreateVarFromVerSt(*resSt);
+    } else {
+      lhs = GetOrCreateRegFromVerSt(*resSt);
+    }
     lhs->SetDefBy(kDefByChi);
     lhs->SetDefChi(*chiMeStmt);
     chiMeStmt->SetLHS(lhs);
@@ -513,6 +524,16 @@ MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   VarMeExpr *varLHS = static_cast<VarMeExpr*>(BuildLHSVar(*ssaPart.GetSSAVar(), *meStmt));
   meStmt->SetLHS(varLHS);
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *meStmt->GetChiList());
+  // determine isIncDecStmt
+  if (meStmt->GetChiList()->empty()) {
+    MeExpr *rhs = meStmt->GetRHS();
+    if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+      OpMeExpr *oprhs = static_cast<OpMeExpr *>(rhs);
+      if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar && oprhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
+        meStmt->isIncDecStmt = varLHS->GetOst() == static_cast<VarMeExpr *>(oprhs->GetOpnd(0))->GetOst();
+      }
+    }
+  }
   if (propagater) {
     propagater->PropUpdateDef(*meStmt->GetLHS());
     propagater->PropUpdateChiListDef(*meStmt->GetChiList());
@@ -526,6 +547,14 @@ MeStmt *IRMapBuild::BuildAssignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   meStmt->SetRHS(BuildExpr(*regNode.Opnd(0), false, false));
   auto *regLHS = static_cast<RegMeExpr*>(BuildLHSReg(*ssaPart.GetSSAVar(), *meStmt, regNode));
   meStmt->SetLHS(regLHS);
+  // determine isIncDecStmt
+  MeExpr *rhs = meStmt->GetRHS();
+  if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+    OpMeExpr *oprhs = static_cast<OpMeExpr *>(rhs);
+    if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpReg && oprhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
+      meStmt->isIncDecStmt = regLHS->GetOst() == static_cast<RegMeExpr *>(oprhs->GetOpnd(0))->GetOst();
+    }
+  }
   if (propagater) {
     propagater->PropUpdateDef(*meStmt->GetLHS());
   }

@@ -60,8 +60,6 @@ class SSAPre {
     return workCand->GetRealOccs();
   }
 
-  virtual MeExpr *CopyMeExpr(const MeExpr &expr) const;
-  virtual MeStmt *CopyMeStmt(const MeStmt &meStmt) const;
   virtual IassignMeStmt *CopyIassignMeStmt(const IassignMeStmt &iaStmt) const;
   void IncTreeid() {
     // Incremented by 2 for each tree; purpose is to avoid processing a node the third time inside a tree
@@ -75,11 +73,12 @@ class SSAPre {
   virtual PUIdx GetPUIdx() const = 0;
   virtual void SetCurFunction(PUIdx) const {}
 
-  void GetIterDomFrontier(BB *bb, MapleSet<uint32> *dfset) {
+  void GetIterDomFrontier(const BB *bb, MapleSet<uint32> *dfset) const {
     for (BBId bbid : dom->iterDomFrontier[bb->GetBBId()]) {
-      dfset->insert(dom->GetDtDfnItem(bbid));
+      (void)dfset->insert(dom->GetDtDfnItem(bbid));
     }
   }
+
   void SetSpillAtCatch(bool status) {
     spillAtCatch = status;
   }
@@ -165,7 +164,7 @@ class SSAPre {
   virtual MeExpr *PhiOpndFromRes(MeRealOcc &realOcc, size_t i) const = 0;
   virtual void Rename2();
   // step 1 phi insertion methods
-  void SetVarPhis(const MeExpr &meExpr);
+  void SetVarPhis(MeExpr *meExpr);
   virtual void ComputeVarAndDfPhis() = 0;
   virtual void CreateSortedOccs();
   // phi insertion methods end
@@ -201,6 +200,14 @@ class SSAPre {
   virtual bool IsLoopHeadBB(BBId) const {
     return false;
   }
+  virtual VarMeExpr *ResolveAllInjuringDefs(VarMeExpr *varx) const { return varx; }
+  virtual RegMeExpr *ResolveAllInjuringDefs(RegMeExpr *regx) const { return regx; }
+  virtual MeExpr *ResolveAllInjuringDefs(MeExpr *x) const { return x; }
+  virtual void SubstituteOpnd(MeExpr *x, MeExpr *oldopnd, MeExpr *newopnd) {}
+  virtual void SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInjuringDefs) {}
+  virtual MeExpr *SRRepairInjuries(MeOccur *useocc,
+      std::set<MeStmt *> *needRepairInjuringDefs,
+      std::set<MeStmt *> *repairedInjuringDefs) { return nullptr; }
 
   IRMap *irMap;
   SSATab *ssaTab;
@@ -250,6 +257,8 @@ class SSAPre {
   bool spillAtCatch = false;
   bool placementRCEnabled = false;
   bool addedNewLocalRefVars = false;
+ public:
+  bool strengthReduction = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSAPRE_H

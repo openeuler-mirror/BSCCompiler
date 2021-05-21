@@ -425,7 +425,7 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
   switch (op) {
     case OP_dassign: {
       auto &dasgn = static_cast<const DassignMeStmt&>(meStmt);
-      VarMeExpr *varMeExpr = dasgn.GetVarLHS();
+      VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(dasgn.GetVarLHS());
       return (varMeExpr != nullptr && varMeExpr->IsVolatile()) || ExprNonDeletable(*dasgn.GetRHS()) ||
              (hdseKeepRef && dasgn.Propagated()) || dasgn.GetWasMayDassign() ||
              (decoupleStatic && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
@@ -521,7 +521,7 @@ void HDSE::MarkSingleUseLive(MeExpr &meExpr) {
     case kMeOpIvar: {
       auto *base = static_cast<IvarMeExpr&>(meExpr).GetBase();
       MarkSingleUseLive(*base);
-      VarMeExpr *mu = static_cast<IvarMeExpr&>(meExpr).GetMu();
+      ScalarMeExpr *mu = static_cast<IvarMeExpr&>(meExpr).GetMu();
       workList.push_front(mu);
       if (mu->GetDefBy() != kDefByNo) {
         MapleMap<OStIdx, ChiMeNode *> *chiList = GenericGetChiListFromVarMeExpr(*mu);

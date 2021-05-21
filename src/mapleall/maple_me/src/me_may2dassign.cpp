@@ -28,7 +28,7 @@ void May2Dassign::DoIt() {
       auto &mass = static_cast<MaydassignMeStmt&>(stmt);
       // chiList for Maydassign has only 1 element
       CHECK_FATAL(!mass.GetChiList()->empty(), "chiList is empty in DoIt");
-      VarMeExpr *theLhs = mass.GetChiList()->begin()->second->GetLHS();
+      VarMeExpr *theLhs = static_cast<VarMeExpr *>(mass.GetChiList()->begin()->second->GetLHS());
       ASSERT(mass.GetMayDassignSym() == theLhs->GetOst(),
              "MeDoMay2Dassign: cannot find maydassign lhs");
       auto *dass = static_cast<DassignMeStmt*>(irMap->CreateAssignMeStmt(*theLhs, *mass.GetRHS(), *bb));
