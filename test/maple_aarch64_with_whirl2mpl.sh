@@ -60,8 +60,8 @@ fi
 echo /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s >> cmd.log
 /usr/bin/aarch64-linux-gnu-gcc-$V -o $src.out $src.s
 
-echo qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out >> cmd.log
-qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out > output.log
+echo $MAPLE_ROOT/tools/bin/qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out >> cmd.log
+$MAPLE_ROOT/tools/bin/qemu-aarch64 -L /usr/aarch64-linux-gnu/ $src.out > output.log
 
 cat cmd.log >> allcmd.log
 
