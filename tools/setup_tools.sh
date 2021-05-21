@@ -167,6 +167,9 @@ if [ ! -d $TOOLS/clang2mpl ]; then
 fi
 # routinly updated to be compatible with maple
 cd $TOOLS/clang2mpl
+git clean -df
+git checkout .
+git checkout master
 git pull
 
 mkdir -p ${TOOL_BIN_PATH}
