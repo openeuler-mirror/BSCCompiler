@@ -93,7 +93,7 @@ void MeStmtPre::CodeMotion() {
                 (void)candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
               }
               // create a new LHS for the dassign in insertedOcc->GetMeStmt()
-              VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*dass->GetVarLHS());
+              VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*(static_cast<VarMeExpr *>(dass->GetVarLHS())));
               dass->UpdateLhs(newVarVersion);
             } else if (insertedOcc->GetOpcodeOfMeStmt() == OP_callassigned) {
               auto *call = static_cast<CallMeStmt*>(insertedOcc->GetMeStmt());
@@ -308,7 +308,7 @@ void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varV
   CollectVarForMeStmt(*realOcc.GetMeStmt(), realOcc.GetMeExpr(), varVec);
 }
 
-MeStmt *MeStmtPre::CopyMeStmt(const MeStmt &meStmt) const {
+static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
   switch (meStmt.GetOp()) {
     case OP_assertnonnull: {
       auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
@@ -342,7 +342,7 @@ MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc &realZ, size_t j, MeExpr *&lhsV
   MeOccur *defZ = realZ.GetDef();
   CHECK_FATAL(defZ != nullptr, "must be def by phiocc");
   CHECK_FATAL(defZ->GetOccType() == kOccPhiocc, "must be def by phiocc");
-  MeStmt *stmtQ = CopyMeStmt(utils::ToRef(realZ.GetMeStmt()));
+  MeStmt *stmtQ = CopyMeStmt(irMap, utils::ToRef(realZ.GetMeStmt()));
   lhsVar = realZ.GetMeExpr();
   BB *phiBB = defZ->GetBB();
   CHECK_FATAL(stmtQ != nullptr, "nullptr check");
@@ -500,13 +500,13 @@ void MeStmtPre::ComputeVarAndDfPhis() {
     switch (stmt->GetOp()) {
       case OP_assertnonnull: {
         auto *unaryStmt = static_cast<UnaryMeStmt*>(stmt);
-        SetVarPhis(*unaryStmt->GetOpnd());
+        SetVarPhis(unaryStmt->GetOpnd());
         break;
       }
       case OP_dassign: {
         auto *dassMeStmt = static_cast<DassignMeStmt*>(stmt);
-        SetVarPhis(*dassMeStmt->GetRHS());
-        SetVarPhis(*realOcc->GetMeExpr());
+        SetVarPhis(dassMeStmt->GetRHS());
+        SetVarPhis(realOcc->GetMeExpr());
         break;
       }
       case OP_intrinsiccall:
@@ -514,10 +514,10 @@ void MeStmtPre::ComputeVarAndDfPhis() {
       case OP_callassigned: {
         auto *nStmt = static_cast<NaryMeStmt*>(stmt);
         for (size_t i = 0; i < nStmt->NumMeStmtOpnds(); ++i) {
-          SetVarPhis(*nStmt->GetOpnd(i));
+          SetVarPhis(nStmt->GetOpnd(i));
         }
         if (realOcc->GetMeExpr() != nullptr) {
-          SetVarPhis(*realOcc->GetMeExpr());
+          SetVarPhis(realOcc->GetMeExpr());
         }
         break;
       }
@@ -541,7 +541,7 @@ void MeStmtPre::CreateSortedOccs() {
   auto *stmtWkCand = static_cast<PreStmtWorkCand*>(workCand);
   if ((stmtWkCand->GetTheMeStmt()->GetOp() == OP_dassign || stmtWkCand->GetTheMeStmt()->GetOp() == OP_callassigned) &&
        stmtWkCand->GetTheMeStmt()->GetVarLHS() != nullptr && !stmtWkCand->LHSIsFinal()) {
-    VarMeExpr *lhsVar = stmtWkCand->GetTheMeStmt()->GetVarLHS();
+    VarMeExpr *lhsVar = static_cast<VarMeExpr*>(stmtWkCand->GetTheMeStmt()->GetVarLHS());
     OStIdx ostIdx = lhsVar->GetOstIdx();
     MapleMap<OStIdx, MapleSet<uint32>*>::iterator uMapIt = useOccurMap.find(ostIdx);
     CHECK_FATAL(uMapIt != useOccurMap.end(), "MeStmtPre::CreateSortedOccs: missing entry in useOccurMap");
@@ -735,7 +735,7 @@ void MeStmtPre::ConstructUseOccurMap() {
     if (stmtWkCand->LHSIsFinal()) {
       continue;
     }
-    VarMeExpr *lhsVar = stmtWkCand->GetTheMeStmt()->GetVarLHS();
+    VarMeExpr *lhsVar = static_cast<VarMeExpr *>(stmtWkCand->GetTheMeStmt()->GetVarLHS());
     if (lhsVar == nullptr) {
       continue;
     }
@@ -943,7 +943,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           VersionStackChiListUpdate(*dassMeStmt.GetChiList());
           break;
         }
-        VarMeExpr *varMeExpr = dassMeStmt.GetVarLHS();
+        VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(dassMeStmt.GetVarLHS());
         const OriginalSt *ost = varMeExpr->GetOst();
         if (ost->IsFinal()) {
           PreStmtWorkCand *stmtWkCand = CreateStmtRealOcc(stmt, seqStmt);

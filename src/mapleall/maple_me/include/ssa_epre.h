@@ -26,16 +26,17 @@ class SSAEPre : public SSAPre {
   virtual ~SSAEPre() = default;
 
  private:
+  MeExpr *GetTruncExpr(const IvarMeExpr &theLHS, MeExpr &savedRHS);
   void GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar);
-  void GenerateSaveRealOcc(MeRealOcc &realOcc);
+  void GenerateSaveRealOcc(MeRealOcc &realOcc) override;
   bool ReserveCalFuncAddrForDecouple(MeExpr &meExpr) const;
-  void GenerateReloadRealOcc(MeRealOcc &realOcc);
-  MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const;
-  void ComputeVarAndDfPhis();
-  void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr&, bool isReBuild, MeExpr *tempVar, bool isRootExpr);
-  void BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isReBuild, MeExpr *tempVar);
-  void CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const;
-  void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const;
+  void GenerateReloadRealOcc(MeRealOcc &realOcc) override;
+  MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const override;
+  void ComputeVarAndDfPhis() override;
+  void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr&, bool isReBuild, MeExpr *tempVar, bool isRootExpr) override;
+  void BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isReBuild, MeExpr *tempVar) override;
+  void CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const override;
+  void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const override;
   bool LeafIsVolatile(const MeExpr *x) const {
     const VarMeExpr *v = safe_cast<VarMeExpr>(x);
     return v != nullptr && v->IsVolatile();
@@ -48,7 +49,30 @@ class SSAEPre : public SSAPre {
   virtual bool CfgHasDoWhile() const {
     return false;
   }
+  // here starts methods related to strength reduction
+  bool AllVarsSameVersion(const MeRealOcc &realocc1, const MeRealOcc &realocc2) const override;
+  VarMeExpr *ResolveAllInjuringDefs(VarMeExpr *varx) const override;
+  RegMeExpr *ResolveAllInjuringDefs(RegMeExpr *regx) const override;
+  MeExpr *ResolveAllInjuringDefs(MeExpr *x) const override {
+    if (!workCand->isSRCand) {
+      return x;
+    }
+    return (x->GetMeOp() == kMeOpVar) ?
+        static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<VarMeExpr *>(x))) :
+        static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<RegMeExpr *>(x)));
+  }
+  void SubstituteOpnd(MeExpr *x, MeExpr *oldopnd, MeExpr *newopnd) override;
+  bool OpndInDefOcc(MeExpr *opnd, MeOccur *defocc, uint32 i);
+  void SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInjuringDefs) override;
+  MeExpr *InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef);
+  MeExpr *SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
+      MeExpr *tempAtDef, std::set<MeStmt *> *needRepairInjuringDefs,
+      std::set<MeStmt *> *repairedInjuringDefs);
+  MeExpr *SRRepairInjuries(MeOccur *useocc,
+      std::set<MeStmt *> *needRepairInjuringDefs,
+      std::set<MeStmt *> *repairedInjuringDefs) override;
 
+ private:
   bool epreIncludeRef;
   bool enableLHSIvar;
 };
