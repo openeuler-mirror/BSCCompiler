@@ -738,7 +738,7 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
         AnalyzeExpr(*meStmt.GetOpnd(i), globalExprs, argExprs, nextLevelGlobalExprs, nextLevelArgExprs);
       }
       DassignMeStmt &dassignNode = static_cast<DassignMeStmt&>(meStmt);
-      VarMeExpr *lhsVar = dassignNode.GetVarLHS();
+      VarMeExpr *lhsVar = static_cast<VarMeExpr*>(dassignNode.GetVarLHS());
       const OriginalSt *ost = meFunc.GetMeSSATab()->GetSymbolOriginalStFromID(lhsVar->GetOstIdx());
       if (ost->GetMIRSymbol()->IsGlobal()) {
         SetHasDef();
@@ -760,10 +760,10 @@ bool IpaSideEffect::UpdateSideEffectWithStmt(MeStmt &meStmt,
         SetHasDef();
       }
       if (isGlobal) {
-        (void)globalExprs.insert(dassignNode.GetChiList()->begin()->second->GetLHS());
+        (void)globalExprs.insert(static_cast<VarMeExpr*>(dassignNode.GetChiList()->begin()->second->GetLHS()));
       }
       if (isArg) {
-        (void)argExprs.insert(dassignNode.GetChiList()->begin()->second->GetLHS());
+        (void)argExprs.insert(static_cast<VarMeExpr*>(dassignNode.GetChiList()->begin()->second->GetLHS()));
       }
       break;
     }

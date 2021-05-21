@@ -60,7 +60,6 @@ class MeStmtPre : public SSAEPre {
   bool AllVarsSameVersionStmtFre(MeRealOcc &topOcc, MeRealOcc &curOcc) const;
   void CollectVarForMeStmt(const MeStmt &meStmt, MeExpr *meExpr, std::vector<MeExpr*> &varVec) const;
   void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const override;
-  MeStmt *CopyMeStmt(const MeStmt &meStmt) const override;
   MeStmt *PhiOpndFromRes4Stmt(MeRealOcc &realZ, size_t j, MeExpr *&lhsVar) const;
   void Rename1StmtFre();
   void Rename2() override;

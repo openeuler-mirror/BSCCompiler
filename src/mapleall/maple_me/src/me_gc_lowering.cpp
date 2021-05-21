@@ -89,7 +89,7 @@ void GCLowering::HandleAssignMeStmt(MeStmt &stmt) {
 }
 
 void GCLowering::HandleVarAssignMeStmt(MeStmt &stmt) {
-  VarMeExpr *lhsVar = stmt.GetVarLHS();
+  VarMeExpr *lhsVar = static_cast<VarMeExpr *>(stmt.GetVarLHS());
   ASSERT_NOT_NULL(lhsVar);
   MIRSymbol *lSym = ssaTab.GetMIRSymbolFromID(lhsVar->GetOstIdx());
   if (lSym == nullptr || !lSym->IsGlobal()) {

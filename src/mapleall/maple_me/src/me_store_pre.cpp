@@ -218,7 +218,7 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
   }
   if (wkCand->GetTheVar() == nullptr) {
     if (meStmt.GetOp() == OP_dassign) {
-      wkCand->SetTheVar(*static_cast<DassignMeStmt*>(&meStmt)->GetVarLHS());
+      wkCand->SetTheVar(*static_cast<VarMeExpr*>(static_cast<DassignMeStmt*>(&meStmt)->GetVarLHS()));
     } else {
       ASSERT(kOpcodeInfo.IsCallAssigned(meStmt.GetOp()), "CreateRealOcc: callassign expected");
       MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -214,7 +214,7 @@ uint32 PreWorkCandHashTable::ComputeWorkCandHashIndex(const MeExpr &meExpr) {
       break;
     case kMeOpVar: {
       auto &varMeExpr = static_cast<const VarMeExpr&>(meExpr);
-      hashIdx = static_cast<uint32_t>(varMeExpr.GetOst()->GetIndex()) << kOffsetVarMeExprOstIdx;
+      hashIdx = static_cast<uint32_t>(varMeExpr.GetOstIdx()) << kOffsetVarMeExprOstIdx;
       break;
     }
     case kMeOpReg: {
@@ -323,8 +323,8 @@ uint32 PreWorkCandHashTable::ComputeStmtWorkCandHashIndex(const MeStmt &stmt) {
     case OP_dassign: {
       CHECK_NULL_FATAL(stmt.GetVarLHS());
       CHECK_NULL_FATAL(stmt.GetRHS());
-      VarMeExpr *varMeExpr = stmt.GetVarLHS();
-      hIdx += static_cast<uint32_t>(varMeExpr->GetOst()->GetIndex()) << kOffsetVarMeExprOstIdx;
+      ScalarMeExpr *varMeExpr = stmt.GetVarLHS();
+      hIdx += static_cast<uint32_t>(varMeExpr->GetOstIdx()) << kOffsetVarMeExprOstIdx;
       hIdx += ComputeWorkCandHashIndex(*stmt.GetRHS()) << 1;
       break;
     }
@@ -349,7 +349,7 @@ uint32 PreWorkCandHashTable::ComputeStmtWorkCandHashIndex(const MeStmt &stmt) {
       if (!callAss.GetMustDefList().empty()) {
         const MeExpr *lhs = callAss.GetMustDefList().front().GetLHS();
         auto *lhsVar = static_cast<const VarMeExpr*>(lhs);
-        hIdx += static_cast<uint32>(lhsVar->GetOst()->GetIndex()) << 1;
+        hIdx += static_cast<uint32>(lhsVar->GetOstIdx()) << 1;
       }
       break;
     }
