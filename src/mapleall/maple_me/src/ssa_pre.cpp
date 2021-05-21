@@ -48,46 +48,15 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
   if (workCand->GetPUIdx() != 0) {
     // allocate a new temp
     SetCurFunction(workCand->GetPUIdx());
-    RegMeExpr *regVar = nullptr;
-    if (meExpr.GetMeOp() == kMeOpVar) {
-      auto *varMeExpr = static_cast<const VarMeExpr*>(&meExpr);
-      const MIRSymbol *sym = varMeExpr->GetOst()->GetMIRSymbol();
-      MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
-      regVar = ty->GetPrimType() == PTY_ref ? irMap->CreateRegMeExpr(*ty)
-                                            : irMap->CreateRegMeExpr(ty->GetPrimType());
-    } else if (meExpr.GetMeOp() == kMeOpIvar) {
-      auto *ivarMeExpr = static_cast<const IvarMeExpr*>(&meExpr);
-      MIRType *ptrMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivarMeExpr->GetTyIdx());
-      CHECK_FATAL(ptrMIRType->GetKind() == kTypePointer, "must be point type for ivar");
-      auto *realMIRType = static_cast<MIRPtrType*>(ptrMIRType);
-      FieldID fieldId = ivarMeExpr->GetFieldID();
-      MIRType *ty = nullptr;
-      if (fieldId > 0) {
-        ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(realMIRType->GetPointedTyIdxWithFieldID(fieldId));
-      } else {
-        ty = realMIRType->GetPointedType();
-      }
-      CHECK_FATAL(GetRegPrimType(ty->GetPrimType()) == GetRegPrimType(meExpr.GetPrimType()) ||
-                  GetReg64PrimType(ty->GetPrimType()) == GetReg64PrimType(meExpr.GetPrimType()) ||
-                  (IsAddress(ty->GetPrimType()) && IsAddress(meExpr.GetPrimType())) ||
-                  (ty->GetPrimType() == PTY_ptr && meExpr.GetPrimType() == PTY_ref) ||
-                  (ty->GetPrimType() == PTY_ref && meExpr.GetPrimType() == PTY_ptr),
-                  "inconsistent type");
-      regVar = (ty->GetPrimType() == PTY_ref) ? (irMap->CreateRegMeExpr(*ty))
-                                              : (irMap->CreateRegMeExpr(ty->GetPrimType()));
-    } else {
-      regVar = meExpr.GetPrimType() != PTY_ref ? irMap->CreateRegMeExpr(meExpr.GetPrimType())
-                                                : irMap->CreateRegMeExpr(meExpr);
-    }
+    RegMeExpr *regVar = irMap->CreateRegMeExpr(meExpr);
     curTemp = regVar;
     if (preKind == kLoadPre) {
       irMap->SetLpreTmps(static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx(), *regVar);
     }
     return regVar;
   } else {
-    VarMeExpr *tempVar = irMap->CreateNewVar(NewTempStrIdx(), meExpr.GetPrimType(), true);
-    curTemp = tempVar;
-    return tempVar;
+    curTemp = irMap->CreateNewVar(NewTempStrIdx(), meExpr.GetPrimType(), true);
+    return curTemp;
   }
 }
 
@@ -171,7 +140,7 @@ void SSAPre::GenerateSavePhiOcc(MePhiOcc &phiOcc) {
 void SSAPre::UpdateInsertedPhiOccOpnd() {
   for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
     MePhiOcc *phiOcc = *it;
-    if (!phiOcc->IsWillBeAvail() || phiOcc->IsExtraneous()) {
+    if (!phiOcc->IsWillBeAvail() || phiOcc->IsRemoved()) {
       continue;
     }
     if (phiOcc->GetRegPhi()) {
@@ -226,10 +195,40 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
 }
 
 void SSAPre::CodeMotion() {
+  std::set<MeStmt *> needRepairInjuringDefs; // for marking injuring defs that have been repaired
+
+  if (workCand->isSRCand) {  // pre-pass needed by strength reduction
+    for (MeOccur *occ : allOccs) {
+      switch (occ->GetOccType()) {
+        case kOccReal: {
+          MeRealOcc *realocc = static_cast<MeRealOcc *>(occ);
+          if (realocc->IsReload()) {
+            SRSetNeedRepair(realocc, &needRepairInjuringDefs);
+          }
+          break;
+        }
+        case kOccPhiopnd: {
+          MePhiOpndOcc *phiopnd = static_cast<MePhiOpndOcc *>(occ);
+          if (phiopnd->GetDefPhiOcc()->IsRemoved() || !phiopnd->GetDefPhiOcc()->IsWillBeAvail()) {
+            break;
+          }
+          if (phiopnd->GetDef()->GetOccType() == kOccInserted) {
+            break;
+          }
+          SRSetNeedRepair(phiopnd, &needRepairInjuringDefs);
+          break;
+        }
+        default: ;
+      }
+    }
+  }
+
   curTemp = nullptr;
   curLocalRefVar = nullptr;
   temp2LocalRefVarMap.clear();
   reBuiltOccIndex = static_cast<int32>(workList.size());  // so we know the elements added due to rebuilding
+  std::set<MeStmt *> repairedInjuringDefs;   // for marking injuring defs that have been repaired
+
   for (MeOccur *occ : allOccs) {
     switch (occ->GetOccType()) {
       case kOccReal: {
@@ -238,13 +237,23 @@ void SSAPre::CodeMotion() {
           CHECK_FATAL(!(realOcc->IsReload()), "reload failed");
           GenerateSaveRealOcc(*realOcc);
         } else if (realOcc->IsReload()) {
-          GenerateReloadRealOcc(*realOcc);
+          if (!workCand->isSRCand) {
+            GenerateReloadRealOcc(*realOcc);
+          } else {
+            MeExpr *regorvar = SRRepairInjuries(realOcc, &needRepairInjuringDefs, &repairedInjuringDefs);
+            // replace realOcc->mestmt's occ with regorvar
+            bool isreplaced = irMap->ReplaceMeExprStmt(*realOcc->GetMeStmt(), *realOcc->GetMeExpr(), *regorvar);
+            // update worklist
+            if (isreplaced) {
+              BuildWorkListStmt(*realOcc->GetMeStmt(), realOcc->GetSequence(), true, regorvar);
+            }
+          }
         }
         break;
       }
       case kOccPhiopnd: {
         auto *phiOpnd = static_cast<MePhiOpndOcc*>(occ);
-        if (!phiOpnd->GetDefPhiOcc()->IsWillBeAvail()) {
+        if (phiOpnd->GetDefPhiOcc()->IsRemoved() || !phiOpnd->GetDefPhiOcc()->IsWillBeAvail()) {
           break;
         }
         MeOccur *defOcc = phiOpnd->GetDef();
@@ -252,13 +261,27 @@ void SSAPre::CodeMotion() {
           // generate a save of the result in to a new version of t
           if (!phiOpnd->IsPhiOpndReload()) {
             GenerateSaveInsertedOcc(*static_cast<MeInsertedOcc*>(defOcc));
+            phiOpnd->phiOpnd4Temp = static_cast<MeInsertedOcc *>(defOcc)->GetSavedExpr();
+          }
+        } else {
+          // set phiOpnd4Temp needed in the temp's phi
+          if (workCand->isSRCand) {
+            phiOpnd->phiOpnd4Temp = SRRepairInjuries(phiOpnd, &needRepairInjuringDefs, &repairedInjuringDefs);
+          } else {
+            if (defOcc->GetOccType() == kOccReal) {
+              phiOpnd->phiOpnd4Temp = static_cast<MeRealOcc *>(defOcc)->GetSavedExpr();
+            } else {
+              MePhiOcc *defphiocc = static_cast<MePhiOcc *>(defOcc);
+              MePhiNode *scalarPhi = (defphiocc->GetRegPhi() ? defphiocc->GetRegPhi() : defphiocc->GetVarPhi());
+              phiOpnd->phiOpnd4Temp = scalarPhi->GetLHS();
+            }
           }
         }
         break;
       }
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
-        if (phiOcc->IsExtraneous() || !phiOcc->IsWillBeAvail()) {
+        if (phiOcc->IsRemoved() || !phiOcc->IsWillBeAvail()) {
           break;
         };
         GenerateSavePhiOcc(*phiOcc);
@@ -450,7 +473,10 @@ void SSAPre::Finalize2() {
   for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
     MePhiOcc *phiOcc = *it;
     // initialize extraneouse for each MePhiOcc
-    phiOcc->SetIsExtraneous(phiOcc->IsWillBeAvail());
+    if (!workCand->isSRCand) {
+      phiOcc->SetIsExtraneous(phiOcc->IsWillBeAvail());
+    }
+
     // initialize each operand of phiOcc
     for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
       phiOpnd->SetIsProcessed(false);
@@ -462,41 +488,46 @@ void SSAPre::Finalize2() {
       SetSave(*realOcc->GetDef());
     }
   }
-  for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
-    MePhiOcc *phiOcc = *it;
-    if (phiOcc->IsRemoved() || !phiOcc->IsExtraneous()) {
-      continue;
-    }
-    if (!phiOcc->IsWillBeAvail()) {
-      phiOcc->SetIsRemoved(true);
-      continue;
-    }
-    for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-      MeOccur *defOcc = phiOpnd->GetDef();
-      switch (defOcc->GetOccType()) {
-        case kOccReal:
-        case kOccInserted:
-          SetReplacement(*phiOcc, *defOcc);
-          break;
-        case kOccPhiocc:
-          if (!static_cast<MePhiOcc*>(defOcc)->IsExtraneous()) {
+  if (!workCand->isSRCand) {
+    for (auto it = phiOccs.begin(); it != phiOccs.end(); ++it) {
+      MePhiOcc *phiOcc = *it;
+      if (phiOcc->IsRemoved() || !phiOcc->IsExtraneous()) {
+        continue;
+      }
+      if (!phiOcc->IsWillBeAvail()) {
+        phiOcc->SetIsRemoved(true);
+        continue;
+      }
+      for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
+        MeOccur *defOcc = phiOpnd->GetDef();
+        switch (defOcc->GetOccType()) {
+          case kOccReal:
             SetReplacement(*phiOcc, *defOcc);
-          }
-          break;
-        default:
-          CHECK_FATAL(false, "unexpected phiOpnd");
+            break;
+          case kOccInserted:
+            break;
+          case kOccPhiocc:
+            if (!static_cast<MePhiOcc*>(defOcc)->IsExtraneous()) {
+              SetReplacement(*phiOcc, *defOcc);
+            }
+            break;
+          default:
+            CHECK_FATAL(false, "unexpected phiOpnd");
+        }
       }
     }
   }
+
   if (GetSSAPreDebug()) {
     mirModule->GetOut() << "========after Finalize2====================\n";
     for (MeOccur *occ : allOccs) {
       if (occ->GetOccType() == kOccPhiocc) {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
-        if (phiOcc->IsExtraneous()) {
-          phiOcc->Dump(*irMap);
-          mirModule->GetOut() << "was removed in Finalize2\n";
+        phiOcc->Dump(*irMap);
+        if (phiOcc->IsRemoved()) {
+          mirModule->GetOut() << "was removed in Finalize2";
         }
+        mirModule->GetOut() << std::endl;
       } else if (occ->GetOccType() == kOccReal) {
         auto *realOcc = static_cast<MeRealOcc*>(occ);
         if (realOcc->IsReload()) {
@@ -855,8 +886,10 @@ MeExpr *SSAPre::GetReplaceMeExpr(const MeExpr &opnd, const BB &ePhiBB, size_t j)
     return nullptr;
   }
   MeExpr *retExpr = nullptr;
-  MePhiNode *defPhi = static_cast<const ScalarMeExpr*>(&opnd)->GetMePhiDef();
-  if (defPhi != nullptr) {
+
+  const ScalarMeExpr *expr = static_cast<const ScalarMeExpr*>(&opnd);
+  if (expr->IsDefByPhi()) {
+    MePhiNode *defPhi = expr->GetMePhiDef();
     if (ePhiBB.GetBBId() == defPhi->GetDefBB()->GetBBId()) {
       ASSERT(j < defPhi->GetOpnds().size(), "index out of range in SSAPre::GetReplaceMeExpr");
       ASSERT(defPhi->GetOpnds()[j]->GetMeOp() == opnd.GetMeOp(), "invalid defPhi");
@@ -915,9 +948,23 @@ void SSAPre::Rename2() {
         std::vector<MeExpr*> varVecY;
         bool alldom = true;
         CollectVarForMeExpr(*exprY, varVecY);
-        for (size_t ii = 0; ii < varVecY.size(); ++ii) {
-          if (!DefVarDominateOcc(varVecY[ii], *defX)) {
-            alldom = false;
+        if (exprY->GetMeOp() == kMeOpOp) {
+          OpMeExpr opmeexpr(*static_cast<OpMeExpr *>(exprY), -1);
+          for (uint32 ii = 0; ii < varVecY.size(); ii++) {
+            MeExpr *resolvedY = ResolveAllInjuringDefs(varVecY[ii]);
+            if (resolvedY != varVecY[ii]) {
+              SubstituteOpnd(&opmeexpr, varVecY[ii], resolvedY);
+            }
+            if (!DefVarDominateOcc(resolvedY, *defX)) {
+              alldom = false;
+            }
+          }
+          exprY = irMap->HashMeExpr(opmeexpr);
+        } else {
+          for (size_t ii = 0; ii < varVecY.size(); ++ii) {
+            if (!DefVarDominateOcc(varVecY[ii], *defX)) {
+              alldom = false;
+            }
           }
         }
         if (alldom) {
@@ -955,20 +1002,25 @@ void SSAPre::Rename2() {
 }
 
 // ================ Step 1: Phi Insertion =================
-void SSAPre::SetVarPhis(const MeExpr &meExpr) {
-  MeExprOp meOp = meExpr.GetMeOp();
+void SSAPre::SetVarPhis(MeExpr *meExpr) {
+  MeExprOp meOp = meExpr->GetMeOp();
   if (meOp != kMeOpVar && meOp != kMeOpReg) {
     return;
   }
-  MePhiNode *phiMeNode = static_cast<const ScalarMeExpr*>(&meExpr)->GetMePhiDef();
-  if (phiMeNode != nullptr) {
+
+  ScalarMeExpr *scalar = static_cast<ScalarMeExpr*>(meExpr);
+  if (workCand->isSRCand) {
+    scalar = ResolveAllInjuringDefs(scalar);
+  }
+  if (scalar->IsDefByPhi()) {
+    MePhiNode *phiMeNode = scalar->GetMePhiDef();
     BBId defBBId = phiMeNode->GetDefBB()->GetBBId();
     CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
     if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
       (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
       for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
         ScalarMeExpr *opnd = *opndIt;
-        SetVarPhis(*opnd);
+        SetVarPhis(opnd);
       }
     }
   }
@@ -1121,37 +1173,6 @@ IassignMeStmt *SSAPre::CopyIassignMeStmt(const IassignMeStmt &iaStmt) const {
   return meStmt;
 }
 
-MeStmt *SSAPre::CopyMeStmt(const MeStmt &meStmt) const {
-  CHECK_FATAL(meStmt.GetOp() == OP_assertlt || meStmt.GetOp() == OP_assertge, "invalid value of meStmt.GetOp()");
-  auto *oldStmt = static_cast<const AssertMeStmt*>(&meStmt);
-  AssertMeStmt *newStmt = irMap->New<AssertMeStmt>(*oldStmt);
-  return newStmt;
-}
-
-MeExpr *SSAPre::CopyMeExpr(const MeExpr &expr) const {
-  ASSERT_NOT_NULL(irMap);
-  MapleAllocator *irMapAlloc = &irMap->GetIRMapAlloc();
-  switch (expr.GetMeOp()) {
-    case kMeOpOp: {
-      auto &opExpr = static_cast<const OpMeExpr&>(expr);
-      OpMeExpr *newExpr = irMapAlloc->GetMemPool()->New<OpMeExpr>(opExpr, -1);
-      return newExpr;
-    }
-    case kMeOpNary: {
-      auto &naryMeExpr = static_cast<const NaryMeExpr&>(expr);
-      NaryMeExpr *newNaryMeExpr = irMapAlloc->GetMemPool()->New<NaryMeExpr>(irMapAlloc, -1, naryMeExpr);
-      return newNaryMeExpr;
-    }
-    case kMeOpIvar: {
-      auto &ivarMeExpr = static_cast<const IvarMeExpr&>(expr);
-      IvarMeExpr *newIvar = irMapAlloc->GetMemPool()->New<IvarMeExpr>(-1, ivarMeExpr);
-      return newIvar;
-    }
-    default:
-      CHECK_FATAL(false, "NYI");
-  }
-}
-
 // if the definition of varMeExpr dominate meocc then return true. otherwise return false;
 bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const {
   if (meExpr == nullptr) {
@@ -1160,104 +1181,53 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
   }
   CHECK_FATAL(meOcc.GetOccType() == kOccPhiocc, "invalid value of meOcc->GetOccType()");
   const BB *occBB = (static_cast<const MePhiOcc*>(&meOcc))->GetBB();
-  if (meExpr->GetMeOp() == kMeOpVar) {
-    auto *varMeExpr = static_cast<const VarMeExpr*>(meExpr);
-    switch (varMeExpr->GetDefBy()) {
-      case kDefByNo:
-        // zero version vst dominate everything
-        return ssaTab->IsInitVersion(varMeExpr->GetVstIdx(), varMeExpr->GetOstIdx());
-      case kDefByStmt: {
-        MeStmt *meStmt = varMeExpr->GetDefStmt();
-        CHECK_FATAL(meStmt != nullptr, "should have a def meStmt");
-        BB *defBB = meStmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        }
-        return dom->Dominate(*defBB, *occBB);
+  const ScalarMeExpr *scMeExpr = static_cast<const ScalarMeExpr*>(meExpr);
+  switch (scMeExpr->GetDefBy()) {
+    case kDefByNo:
+      return true;  // original version dominates everything
+    case kDefByStmt: {
+      MeStmt *meStmt = scMeExpr->GetDefStmt();
+      CHECK_FATAL(meStmt != nullptr, "should have a def meStmt");
+      BB *defBB = meStmt->GetBB();
+      if (occBB == defBB) {
+        return false;
       }
-      case kDefByPhi: {
-        const MePhiNode &phiMeNode = varMeExpr->GetDefPhi();
-        const BB *defBB = phiMeNode.GetDefBB();
-        if (defBB->GetBBId() == occBB->GetBBId()) {
-          return true;
-        }
-        return dom->Dominate(*defBB, *occBB);
-      }
-      case kDefByMustDef: {
-        const MeStmt *meStmt = varMeExpr->GetDefMustDef().GetBase();
-        if (meStmt == nullptr) {
-          return true;  // it's a original variable dominate everything
-        }
-        BB *defBB = meStmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        }
-        return dom->Dominate(*defBB, *occBB);
-      }
-      case kDefByChi: {
-        MeStmt *meStmt = varMeExpr->GetDefChi().GetBase();
-        if (meStmt == nullptr) {
-          return true;  // it's a original variable dominate everything
-        }
-        BB *defBB = meStmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        }
-        return dom->Dominate(*defBB, *occBB);
-      }
-      default:
-        CHECK_FATAL(false, "NYI");
+      return dom->Dominate(*defBB, *occBB);
     }
-  } else {
-    CHECK_FATAL(meExpr->GetMeOp() == kMeOpReg, "invalid value of meExpr->GetMeOp()");
-    auto *regMeExpr = static_cast<const RegMeExpr*>(meExpr);
-    switch (regMeExpr->GetDefBy()) {
-      case kDefByNo:
-        return true;  // original st dominates everything
-      case kDefByStmt: {
-        MeStmt *meStmt = regMeExpr->GetDefStmt();
-        CHECK_FATAL(meStmt != nullptr, "invalid value of meStmt");
-        BB *defBB = meStmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        }
-        return dom->Dominate(*defBB, *occBB);
+    case kDefByPhi: {
+      const MePhiNode &phiMeNode = scMeExpr->GetDefPhi();
+      const BB *defBB = phiMeNode.GetDefBB();
+      if (defBB->GetBBId() == occBB->GetBBId()) {
+        return true;
       }
-      case kDefByPhi: {
-        const MePhiNode &phiMeNode = regMeExpr->GetDefPhi();
-        const BB *defBB = phiMeNode.GetDefBB();
-        if (defBB->GetBBId() == occBB->GetBBId()) {
-          return true;
-        }
-        return dom->Dominate(*defBB, *occBB);
-      }
-      case kDefByMustDef: {
-        const MeStmt *meStmt = regMeExpr->GetDefMustDef().GetBase();
-        if (meStmt == nullptr) {
-          return true;  // it's a original variable dominate everything
-        }
-        BB *defBB = meStmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        }
-        return dom->Dominate(*defBB, *occBB);
-      }
-      case kDefByChi: {
-        MeStmt *mestmt = regMeExpr->GetDefChi().GetBase();
-        if (!mestmt) {
-          return true;  // it's a original variable dominate everything
-        }
-        BB *defBB = mestmt->GetBB();
-        if (occBB == defBB) {
-          return false;
-        } else {
-          return dom->Dominate(*defBB, *occBB);
-        }
-      }
-      default:
-        CHECK_FATAL(false, "NYI");
+      return dom->Dominate(*defBB, *occBB);
     }
+    case kDefByMustDef: {
+      const MeStmt *meStmt = scMeExpr->GetDefMustDef().GetBase();
+      if (meStmt == nullptr) {
+        return true;  // it's a original variable dominate everything
+      }
+      BB *defBB = meStmt->GetBB();
+      if (occBB == defBB) {
+        return false;
+      }
+      return dom->Dominate(*defBB, *occBB);
+    }
+    case kDefByChi: {
+      MeStmt *meStmt = scMeExpr->GetDefChi().GetBase();
+      if (meStmt == nullptr) {
+        return true;  // it's a original variable dominate everything
+      }
+      BB *defBB = meStmt->GetBB();
+      if (occBB == defBB) {
+        return false;
+      }
+      return dom->Dominate(*defBB, *occBB);
+    }
+    default:
+      CHECK_FATAL(false, "NYI");
   }
+  return false;
 }
 
 bool SSAPre::CheckIfAnyLocalOpnd(const MeExpr &meExpr) const {
@@ -1344,6 +1314,8 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fldPair.first);
     bool isFinal = fldPair.second.GetAttr(FLDATTR_final);
     wkCand->SetNeedLocalRefVar(ty->GetPrimType() == PTY_ref && !isFinal);
+  } else if (strengthReduction && meExpr.StrengthReducible()) {
+    wkCand->isSRCand = true;
   }
   workList.push_back(wkCand);
   wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
@@ -1436,12 +1408,21 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     }
     case OP_dassign: {
       auto *dassMeStmt = static_cast<DassignMeStmt*>(meStmt);
+      if (dassMeStmt->isIncDecStmt && preKind == kExprPre) {
+        break;
+      }
+      if (dassMeStmt->GetRHS()->GetMeOp() == dassMeStmt->GetLHS()->GetMeOp() && dassMeStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(dassMeStmt->GetRHS())->GetOst()) {
+        break; // identity assignment converted from phi
+      }
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt, tempVar, true);
       BuildWorkListLHSOcc(*meStmt, static_cast<int32>(seqStmt));
       break;
     }
     case OP_regassign: {
       auto *rassMeStmt = static_cast<AssignMeStmt*>(meStmt);
+      if (rassMeStmt->isIncDecStmt && preKind == kExprPre) {
+        break;
+      }
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *rassMeStmt->GetRHS(), isRebuilt, tempVar, true);
       break;
     }

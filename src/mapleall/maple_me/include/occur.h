@@ -272,7 +272,8 @@ class MePhiOpndOcc : public MeOccur {
         hasRealUse(false),
         isInsertedOcc(false),
         isPhiOpndReload(false),
-        defPhiOcc(nullptr) {
+        defPhiOcc(nullptr),
+        phiOpnd4Temp(nullptr) {
     currentExpr.meStmt = nullptr;
   }
 
@@ -357,6 +358,8 @@ class MePhiOpndOcc : public MeOccur {
     MeExpr *meExpr;  // the current expression at the end of the block containing this PhiOpnd
     MeStmt *meStmt;  // which will be inserted during finalize
   } currentExpr;
+ public:
+  MeExpr *phiOpnd4Temp; // must be a VarMeExpr/RegMeExpr, set in CodeMotion phase
 };
 
 class MePhiOcc : public MeOccur {
@@ -498,7 +501,8 @@ class PreWorkCand {
         puIdx(pIdx),
         hasLocalOpnd(false),
         redo2HandleCritEdges(false),
-        needLocalRefVar(false) {
+        needLocalRefVar(false),
+        isSRCand(false) {
     ASSERT(pIdx != 0, "PreWorkCand: initial puIdx cannot be 0");
   }
 
@@ -626,6 +630,8 @@ class PreWorkCand {
   // puIdx cannot be 0 if hasLocalOpnd is true
   bool redo2HandleCritEdges : 1;  // redo to make critical edges affect canbevail
   bool needLocalRefVar : 1;       // for the candidate, if necessary to introduce
+ public:
+  bool isSRCand : 1;                // is a strength reduction candidate
   // localrefvar in addition to the temp register to for saving the value
 };
 

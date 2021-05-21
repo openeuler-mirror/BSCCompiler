@@ -529,27 +529,21 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
       }
       break;
     }
+    case OP_dassign: 
+    case OP_regassign: {
+      AssignMeStmt *asmestmt = static_cast<AssignMeStmt *>(&meStmt);
+      asmestmt->SetRHS(&PropMeExpr(*asmestmt->GetRHS(), subProped, false));
+      if (subProped) {
+        asmestmt->isIncDecStmt = false;
+      }
+      PropUpdateDef(*asmestmt->GetLHS());
+      break;
+    }
     default:
       for (size_t i = 0; i != meStmt.NumMeStmtOpnds(); ++i) {
         MeExpr &expr = PropMeExpr(utils::ToRef(meStmt.GetOpnd(i)), subProped, kOpcodeInfo.IsCall(op));
         meStmt.SetOpnd(i, &expr);
       }
-      break;
-  }
-
-  // update lhs
-  switch (op) {
-    case OP_dassign: {
-      auto &varMeStmt = static_cast<DassignMeStmt&>(meStmt);
-      PropUpdateDef(static_cast<VarMeExpr&>(utils::ToRef(varMeStmt.GetLHS())));
-      break;
-    }
-    case OP_regassign: {
-      auto &regMeStmt = static_cast<AssignMeStmt&>(meStmt);
-      PropUpdateDef(static_cast<RegMeExpr&>(utils::ToRef(regMeStmt.GetLHS())));
-      break;
-    }
-    default:
       break;
   }
 

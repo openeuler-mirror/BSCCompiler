@@ -306,7 +306,7 @@ MeStmt *PlacementRC::GetDefStmt(BB &bb) {
   if (bb.GetAttributes(kBBAttrIsTry)) {
     for (auto &stmt : bb.GetMeStmts()) {
       if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign) {
-        VarMeExpr *lhs = stmt.GetVarLHS();
+        VarMeExpr *lhs = static_cast<VarMeExpr *>(stmt.GetVarLHS());
         CHECK_NULL_FATAL(lhs);
         if (lhs->GetOst() == workCand->GetTheVar()->GetOst()) {
           defStmt = &stmt;

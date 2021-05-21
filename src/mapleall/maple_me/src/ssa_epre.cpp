@@ -14,11 +14,36 @@
  */
 #include "ssa_epre.h"
 
-namespace {
-  constexpr maple::uint32 kMeOpOpNum = 3;
+namespace maple {
+MeExpr *SSAEPre::GetTruncExpr(const IvarMeExpr &theLHS, MeExpr &savedRHS) {
+  MIRType *lhsType = theLHS.GetType();
+  if (lhsType->GetKind() != kTypeBitField) {
+    return &savedRHS;
+  }
+  MIRBitFieldType *bitfieldTy = static_cast<MIRBitFieldType *>(lhsType);
+  if (GetPrimTypeBitSize(savedRHS.GetPrimType()) <= bitfieldTy->GetFieldSize()) {
+    return &savedRHS;
+  }
+  // insert OP_zext or OP_sext
+  Opcode extOp = IsSignedInteger(savedRHS.GetPrimType()) ? OP_sext : OP_zext;
+  PrimType newPrimType = PTY_u32;
+  if (bitfieldTy->GetFieldSize() <= GetPrimTypeBitSize(PTY_u32)) {
+    if (IsSignedInteger(lhsType->GetPrimType())) {
+      newPrimType = PTY_i32;
+    }
+  } else {
+    if (IsSignedInteger(lhsType->GetPrimType())) {
+      newPrimType = PTY_i64;
+    } else {
+      newPrimType = PTY_u64;
+    }
+  }
+  OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+  opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
+  opmeexpr.SetOpnd(0, &savedRHS);
+  return irMap->HashMeExpr(opmeexpr);
 }
 
-namespace maple {
 void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar) {
   CHECK_FATAL(realOcc.GetOpcodeOfMeStmt() == OP_iassign, "GenerateSaveLHSReal: only iassign expected");
   auto *iass = static_cast<IassignMeStmt*>(realOcc.GetMeStmt());
@@ -32,8 +57,27 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
   MeStmt *savedPrev = iass->GetPrev();
   MeStmt *savedNext = iass->GetNext();
   AssignMeStmt *rass = nullptr;
+  // update rhs if the iassign need extension
+  savedRHS = GetTruncExpr(*theLHS, *savedRHS);
   if (!workCand->NeedLocalRefVar() || GetPlacementRCOn()) {
     CHECK_FATAL(regOrVar.GetMeOp() == kMeOpReg, "GenerateSaveLHSRealocc: EPRE temp must b e preg here");
+    PrimType lhsPrimType = theLHS->GetType()->GetPrimType();
+    if (GetPrimTypeSize(savedRHS->GetPrimType()) > GetPrimTypeSize(lhsPrimType)) {
+      // insert integer truncation to the rhs
+      if (GetPrimTypeSize(lhsPrimType) >= 4) {
+        savedRHS = irMap->CreateMeExprTypeCvt(lhsPrimType, savedRHS->GetPrimType(), *savedRHS);
+      } else {
+        Opcode extOp = IsSignedInteger(lhsPrimType) ? OP_sext : OP_zext;
+        PrimType newPrimType = PTY_u32;
+        if (IsSignedInteger(lhsPrimType)) {
+          newPrimType = PTY_i32;
+        }
+        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+        opmeexpr.SetBitsSize(GetPrimTypeSize(lhsPrimType) * 8);
+        opmeexpr.SetOpnd(0, savedRHS);
+        savedRHS = irMap->HashMeExpr(opmeexpr);
+      }
+    }
     // change original iassign to regassign;
     // use placement new to modify in place, because other occ nodes are pointing
     // to this statement in order to get to the rhs expression;
@@ -58,6 +102,8 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
     dass->SetPrev(savedPrev);
     dass->SetNext(savedNext);
     localRefVar->SetDefByStmt(*dass);
+
+    // generate regOrVar = localRefVar
     rass = irMap->CreateAssignMeStmt(regOrVar, *localRefVar, *savedBB);
     regOrVar.SetDefByStmt(*rass);
     savedBB->InsertMeStmtAfter(dass, rass);
@@ -91,7 +137,7 @@ void SSAEPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
       (realOcc.GetMeStmt()->GetOpnd(0) == realOcc.GetMeExpr())) {
     isRHSOfDassign = true;
     // setting flag so delegaterc will skip
-    static_cast<DassignMeStmt*>(realOcc.GetMeStmt())->GetVarLHS()->SetNoDelegateRC(true);
+    static_cast<VarMeExpr*>(static_cast<DassignMeStmt*>(realOcc.GetMeStmt())->GetVarLHS())->SetNoDelegateRC(true);
   }
   if (!workCand->NeedLocalRefVar() || isRHSOfDassign || GetPlacementRCOn()) {
     newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
@@ -174,51 +220,71 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
   MeOccur *defZ = realZ.GetDef();
   CHECK_FATAL(defZ != nullptr, "must be def by phiocc");
   CHECK_FATAL(defZ->GetOccType() == kOccPhiocc, "must be def by phiocc");
-  MeExpr *exprQ = CopyMeExpr(utils::ToRef(realZ.GetMeExpr()));
   BB *ePhiBB = defZ->GetBB();
-  CHECK_FATAL(exprQ != nullptr, "nullptr check");
-  switch (exprQ->GetMeOp()) {
+  switch (realZ.GetMeExpr()->GetMeOp()) {
     case kMeOpOp: {
-      auto *opMeExpr = static_cast<OpMeExpr*>(exprQ);
-      for (size_t i = 0; i < kMeOpOpNum; ++i) {
-        MeExpr *opnd = opMeExpr->GetOpnd(i);
-        if (opnd == nullptr) {
-          break;
-        };
-        MeExpr *retOpnd = GetReplaceMeExpr(*opnd, *ePhiBB, j);
+      OpMeExpr opMeExpr(*static_cast<OpMeExpr*>(realZ.GetMeExpr()), -1);
+      for (size_t i = 0; i < opMeExpr.GetNumOpnds(); ++i) {
+        MeExpr *retOpnd = GetReplaceMeExpr(*opMeExpr.GetOpnd(i), *ePhiBB, j);
         if (retOpnd != nullptr) {
-          opMeExpr->SetOpnd(i, retOpnd);
+          opMeExpr.SetOpnd(i, retOpnd);
         }
       }
-      break;
+      return irMap->HashMeExpr(opMeExpr);
     }
     case kMeOpNary: {
-      auto *naryMeExpr = static_cast<NaryMeExpr*>(exprQ);
-      MapleVector<MeExpr*> &opnds = naryMeExpr->GetOpnds();
-      for (size_t i = 0; i < opnds.size(); i++) {
-        MeExpr *retOpnd = GetReplaceMeExpr(*opnds[i], *ePhiBB, j);
+      NaryMeExpr naryMeExpr(&irMap->GetIRMapAlloc(), -1, *static_cast<NaryMeExpr*>(realZ.GetMeExpr()));
+      for (size_t i = 0; i < naryMeExpr.GetNumOpnds(); i++) {
+        MeExpr *retOpnd = GetReplaceMeExpr(*naryMeExpr.GetOpnd(i), *ePhiBB, j);
         if (retOpnd != nullptr) {
-          opnds[i] = retOpnd;
+          naryMeExpr.SetOpnd(i, retOpnd);
         }
       }
-      break;
+      return irMap->HashMeExpr(naryMeExpr);
     }
     case kMeOpIvar: {
-      auto *ivarMeExpr = static_cast<IvarMeExpr*>(exprQ);
-      MeExpr *retOpnd = GetReplaceMeExpr(*ivarMeExpr->GetBase(), *ePhiBB, j);
+      IvarMeExpr ivarMeExpr(-1, *static_cast<IvarMeExpr*>(realZ.GetMeExpr()));
+      MeExpr *retOpnd = GetReplaceMeExpr(*ivarMeExpr.GetBase(), *ePhiBB, j);
       if (retOpnd != nullptr) {
-        ivarMeExpr->SetBase(retOpnd);
+        ivarMeExpr.SetBase(retOpnd);
       }
-      MeExpr *muOpnd = GetReplaceMeExpr(*ivarMeExpr->GetMu(), *ePhiBB, j);
+      MeExpr *muOpnd = GetReplaceMeExpr(*ivarMeExpr.GetMu(), *ePhiBB, j);
       if (muOpnd != nullptr) {
-        ivarMeExpr->SetMuVal(static_cast<VarMeExpr*>(muOpnd));
+        ivarMeExpr.SetMuVal(static_cast<VarMeExpr*>(muOpnd));
       }
-      break;
+      return irMap->HashMeExpr(ivarMeExpr);
     }
     default:
       ASSERT(false, "NYI");
   }
-  return irMap->HashMeExpr(*exprQ);
+  return nullptr;
+}
+
+bool SSAEPre::AllVarsSameVersion(const MeRealOcc &realocc1, const MeRealOcc &realocc2) const {
+  if (realocc1.GetMeExpr() == realocc2.GetMeExpr()) {
+    return true;
+  } else if (!workCand->isSRCand) {
+    return false;
+  }
+  // for each var operand in realocc2, check if it can resolve to the
+  // corresponding operand in realocc1 via ResolveOneInjuringDef()
+  for (int32 i = 0; i < realocc2.GetMeExpr()->GetNumOpnds(); i++) {
+    MeExpr *curopnd = realocc2.GetMeExpr()->GetOpnd(i);
+    if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
+      continue;
+    }
+    if (curopnd == realocc1.GetMeExpr()->GetOpnd(i)) {
+      continue;
+    }
+    MeExpr *resolvedOpnd = ResolveAllInjuringDefs(curopnd);
+    if (resolvedOpnd == curopnd || resolvedOpnd != realocc1.GetMeExpr()->GetOpnd(i)) {
+      return false;
+    }
+    else {
+      continue;
+    }
+  }
+  return true;
 }
 
 // Df phis are computed into the df_phis set; Var Phis in the var_phis set
@@ -232,35 +298,8 @@ void SSAEPre::ComputeVarAndDfPhis() {
     BB *defBB = realOcc->GetBB();
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
-    switch (meExpr->GetMeOp()) {
-      case kMeOpOp: {
-        auto *meExprOp = static_cast<OpMeExpr*>(meExpr);
-        for (uint32 i = 0; i < kMeOpOpNum; ++i) {
-          MeExpr *kidExpr = meExprOp->GetOpnd(i);
-          if (kidExpr != nullptr) {
-            SetVarPhis(*kidExpr);
-          }
-        }
-        break;
-      }
-      case kMeOpNary: {
-        auto *naryMeExpr = static_cast<NaryMeExpr*>(meExpr);
-        MapleVector<MeExpr*> &opnds = naryMeExpr->GetOpnds();
-        for (size_t i = 0; i < opnds.size(); i++) {
-          MeExpr *kidExpr = opnds[i];
-          if (kidExpr != nullptr) {
-            SetVarPhis(*kidExpr);
-          }
-        }
-        break;
-      }
-      case kMeOpIvar: {
-        auto *ivarMeExpr = static_cast<IvarMeExpr*>(meExpr);
-        SetVarPhis(*ivarMeExpr->GetBase());
-        break;
-      }
-      default:
-        CHECK_FATAL(false, "NYI");
+    for (int32 i = 0; i < meExpr->GetNumOpnds(); i++) {
+      SetVarPhis(meExpr->GetOpnd(i));
     }
   }
 }
@@ -278,54 +317,61 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
   switch (meOp) {
     case kMeOpOp: {
       auto *meOpExpr = static_cast<OpMeExpr*>(&meExpr);
-      bool isHypo = true;
+      bool isFirstOrder = true;
       bool hasTempVarAs1Opnd = false;
-      for (uint32 i = 0; i < kMeOpOpNum; i++) {
+      for (uint32 i = 0; i < meOpExpr->GetNumOpnds(); i++) {
         MeExpr *opnd = meOpExpr->GetOpnd(i);
-        if (opnd != nullptr) {
-          if (!opnd->IsLeaf()) {
-            BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false);
-            isHypo = false;
-          } else if (LeafIsVolatile(opnd)) {
-            isHypo = false;
-          } else if (tempVar != nullptr && opnd->IsUseSameSymbol(*tempVar)) {
-            hasTempVarAs1Opnd = true;
-          }
+        if (!opnd->IsLeaf()) {
+          BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false);
+          isFirstOrder = false;
+        } else if (LeafIsVolatile(opnd)) {
+          isFirstOrder = false;
+        } else if (tempVar != nullptr && opnd->IsUseSameSymbol(*tempVar)) {
+          hasTempVarAs1Opnd = true;
         }
       }
+      if (!isFirstOrder) {
+        break;
+      }
       if (meExpr.GetPrimType() == PTY_agg) {
-        isHypo = false;
+        break;
       }
-      if (isHypo && (!isRebuild || hasTempVarAs1Opnd) && !(isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp())) &&
-          meOpExpr->GetOp() != OP_gcmallocjarray && meOpExpr->GetOp() != OP_gcmalloc &&
-          (epreIncludeRef || meOpExpr->GetPrimType() != PTY_ref)) {
-        // create a HypotheTemp for this expr
-        // Exclude cmp operator
-        (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+      if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp())) {
+        break;
       }
+      if (!epreIncludeRef && meOpExpr->GetPrimType() == PTY_ref) {
+        break;
+      }
+      if (meOpExpr->GetOp() == OP_gcmallocjarray || meOpExpr->GetOp() == OP_gcmalloc) {
+        break;
+      }
+      if (isRebuild && !hasTempVarAs1Opnd) {
+        break;
+      }
+      (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
       break;
     }
     case kMeOpNary: {
       auto *naryMeExpr = static_cast<NaryMeExpr*>(&meExpr);
-      bool isHypo = true;
+      bool isFirstOrder = true;
       bool hasTempVarAs1Opnd = false;
       MapleVector<MeExpr*> &opnds = naryMeExpr->GetOpnds();
       for (auto it = opnds.begin(); it != opnds.end(); ++it) {
         MeExpr *opnd = *it;
         if (!opnd->IsLeaf()) {
           BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false);
-          isHypo = false;
+          isFirstOrder = false;
         } else if (LeafIsVolatile(opnd)) {
-          isHypo = false;
+          isFirstOrder = false;
         } else if (tempVar != nullptr && opnd->IsUseSameSymbol(*tempVar)) {
           hasTempVarAs1Opnd = true;
         }
       }
       if (meExpr.GetPrimType() == PTY_agg) {
-        isHypo = false;
+        isFirstOrder = false;
       }
       constexpr uint32 minTypeSizeRequired = 4;
-      if (isHypo && (!isRebuild || hasTempVarAs1Opnd) && naryMeExpr->GetPrimType() != PTY_u1 &&
+      if (isFirstOrder && (!isRebuild || hasTempVarAs1Opnd) && naryMeExpr->GetPrimType() != PTY_u1 &&
           (GetPrimTypeSize(naryMeExpr->GetPrimType()) >= minTypeSizeRequired ||
            IsPrimitivePoint(naryMeExpr->GetPrimType()) ||
            (naryMeExpr->GetOp() == OP_intrinsicop && IntrinDesc::intrinTable[naryMeExpr->GetIntrinsic()].IsPure())) &&
@@ -376,6 +422,8 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       } else if (ivarMeExpr->IsVolatile()) {
         break;
       } else if (IsThreadObjField(*ivarMeExpr)) {
+        break;
+      } else if (base->GetMeOp() == kMeOpConststr || base->GetMeOp() == kMeOpConststr16) {
         break;
       } else if (!epreIncludeRef && ivarMeExpr->GetPrimType() == PTY_ref) {
         break;
@@ -428,6 +476,9 @@ void SSAEPre::BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isRebu
   if (!base->IsLeaf()) {
     return;
   }
+  if (base->GetMeOp() == kMeOpConststr || base->GetMeOp() == kMeOpConststr16) {
+    return;
+  }
   if (!isRebuild || base->IsUseSameSymbol(*tempVar)) {
     (void)CreateRealOcc(meStmt, seqStmt, *ivarMeExpr, isRebuild, true);
   }
@@ -436,42 +487,14 @@ void SSAEPre::BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isRebu
 // collect meExpr's variables and put them into varVec
 // varVec can only store RegMeExpr and VarMeExpr
 void SSAEPre::CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const {
-  switch (meExpr.GetMeOp()) {
-    case kMeOpOp: {
-      for (uint32 i = 0; i < kMeOpOpNum; i++) {
-        auto *opMeExpr = static_cast<OpMeExpr*>(&meExpr);
-        MeExpr *opnd = opMeExpr->GetOpnd(i);
-        if (opnd != nullptr && (opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg)) {
-          varVec.push_back(opnd);
-        }
-      }
-      break;
+  for (int32 i = 0; i < meExpr.GetNumOpnds(); i++) {
+    MeExpr *opnd = meExpr.GetOpnd(i);
+    if (opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg) {
+      varVec.push_back(opnd);
     }
-    case kMeOpNary: {
-      auto *naryMeExpr = static_cast<NaryMeExpr*>(&meExpr);
-      const MapleVector<MeExpr*> &opnds = naryMeExpr->GetOpnds();
-      for (MeExpr *kidExpr : opnds) {
-        if (kidExpr->GetMeOp() == kMeOpVar || kidExpr->GetMeOp() == kMeOpReg) {
-          varVec.push_back(kidExpr);
-        }
-      }
-      break;
-    }
-    case kMeOpIvar: {
-      auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
-      CHECK_FATAL(ivarMeExpr->GetBase()->GetMeOp() == kMeOpVar || ivarMeExpr->GetBase()->GetMeOp() == kMeOpConst ||
-                  ivarMeExpr->GetBase()->GetMeOp() == kMeOpAddrof || ivarMeExpr->GetBase()->GetMeOp() == kMeOpReg,
-                  "ivarMeExpr not first order expr");
-      if (ivarMeExpr->GetBase()->GetMeOp() == kMeOpVar || ivarMeExpr->GetBase()->GetMeOp() == kMeOpReg) {
-        varVec.push_back(ivarMeExpr->GetBase());
-      }
-      // in case of lhs occurrence, mu can be nullptr, and can use nullptr as value
-      varVec.push_back(ivarMeExpr->GetMu());
-      break;
-    }
-    default:
-      ASSERT(false, "should not be here");
-      break;
+  }
+  if (meExpr.GetMeOp() == kMeOpIvar) {
+    varVec.push_back(static_cast<IvarMeExpr &>(meExpr).GetMu());
   }
 }
 

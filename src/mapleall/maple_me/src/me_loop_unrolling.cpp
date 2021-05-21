@@ -74,7 +74,7 @@ void LoopUnrolling::BuildMustDefList(const BB &bb, MeStmt &newStmt, const MapleV
 }
 
 void LoopUnrolling::CopyDassignStmt(const MeStmt &stmt, BB &bb) {
-  VarMeExpr *varLHS = static_cast<const DassignMeStmt*>(&stmt)->GetVarLHS();
+  VarMeExpr *varLHS = static_cast<VarMeExpr *>(static_cast<const DassignMeStmt*>(&stmt)->GetVarLHS());
   VarMeExpr *newVarLHS = irMap->CreateVarMeExprVersion(varLHS->GetOst());
   InsertCandsForSSAUpdate(newVarLHS->GetOstIdx(), bb);
   bb.AddMeStmtLast(irMap->CreateAssignMeStmt(*newVarLHS, *stmt.GetRHS(), bb));

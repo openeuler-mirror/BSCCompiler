@@ -681,7 +681,7 @@ void RCLowering::HandleAssignMeStmt(MeStmt &stmt, MeExpr *pendingDec) {
 }
 
 void RCLowering::HandlePerManent(MeStmt &stmt) {
-  VarMeExpr *lhs = stmt.GetVarLHS();
+  VarMeExpr *lhs = static_cast<VarMeExpr *>(stmt.GetVarLHS());
   if (lhs == nullptr) {
     return;
   }
@@ -1534,7 +1534,7 @@ void RCLowering::FastLowerRetReg(RetMeStmt &stmt) {
 }
 
 void RCLowering::FastLowerAssignToVar(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites) {
-  VarMeExpr *lhs = stmt.GetVarLHS();
+  ScalarMeExpr *lhs = stmt.GetVarLHS();
   ASSERT_NOT_NULL(lhs);
   if (stmt.NeedIncref() || stmt.NeedDecref()) {
     const MIRSymbol *lSym = lhs->GetOst()->GetMIRSymbol();
