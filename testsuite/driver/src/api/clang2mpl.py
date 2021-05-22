@@ -22,8 +22,7 @@ class Clang2mpl(ShellOperator):
         self.infile = infile
 
     def get_command(self, variables):
-        linaroDir = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
-        isystemFlags = "-isystem " + linaroDir + "/aarch64-linux-gnu/libc/usr/include -isystem " + linaroDir + "/lib/gcc/aarch64-linux-gnu/7.5.0/include"
+        isystemFlags = "-isystem ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/lib/clang/10.0.0/include --sysroot=${MAPLE_ROOT}/tools/sysroot-glibc-linaro-2.25"
         clangFlags = "--target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__ " + isystemFlags
         self.command = "${MAPLE_EXECUTE_BIN}/clang2mpl --ascii " + self.infile + " -- " + clangFlags
         return super().get_final_command(variables)
