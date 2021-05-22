@@ -91,6 +91,16 @@ if [ ! -f $TOOLS/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ]; then
   echo Downloaded gcc aarch64 compiler.
 fi
 
+if [ ! -d $TOOLS/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu ]; then
+  cd $TOOLS
+  echo Start wget sysroot-glibc-linaro-2.25 ...
+  wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz
+  echo unpacking sysroot ...
+  tar xf sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz
+  mv sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu sysroot-glibc-linaro-2.25
+  echo Downloaded aarch64 sysroot.
+fi
+
 if [ ! -f $MAPLE_ROOT/third_party/d8/lib/d8.jar ]; then
   cd $TOOLS
   echo Start clone d8 ...
@@ -163,7 +173,6 @@ fi
 # clang2mpl
 if [ ! -d $TOOLS/clang2mpl ]; then
   git clone --depth 1 https://gitee.com/openarkcompiler-incubator/clang2mpl.git
-  echo Installed qemu-aarch64
 fi
 # routinly updated to be compatible with maple
 cd $TOOLS/clang2mpl
@@ -178,7 +187,7 @@ if [ "$OLD_OS" == "1" ]; then
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
   ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+  ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 else
   ln -s -f /usr/bin/clang++ ${TOOL_BIN_PATH}/clang++
   ln -s -f /usr/bin/clang ${TOOL_BIN_PATH}/clang
