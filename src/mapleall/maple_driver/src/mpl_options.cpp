@@ -62,6 +62,7 @@ int MplOptions::Parse(int argc, char **argv) {
   // Set default as O0
   if (runMode == RunMode::kUnkownRun) {
     optimizationLevel = kO0;
+    runMode = RunMode::kAutoRun;
   }
   // Make sure in Auto mode
   if (runMode != RunMode::kCustomRun) {
@@ -152,6 +153,9 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kAllDebug:
         debugFlag = true;
         break;
+      case kWithDwarf:
+        withDwarf = true;
+        break;
       default:
         // I do not care
         break;
@@ -223,6 +227,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
       break;
     case InputFileType::kFileTypeMpl:
       break;
+    case InputFileType::kFileTypeMeMpl:
     case InputFileType::kFileTypeVtableImplMpl:
       isNeedMapleComb = false;
       break;
@@ -239,6 +244,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
   }
   if (isNeedMplcg) {
     selectedExes.push_back(kBinNameMplcg);
+    runningExes.push_back(kBinNameMplcg);
   }
   return ret;
 }
@@ -316,7 +322,11 @@ bool MplOptions::Init(const std::string &inputFile) {
     inputFileType = InputFileType::kFileTypeJar;
   } else if (extensionName == "mpl" || extensionName == "bpl") {
     if (firstInputFile.find("VtableImpl") == std::string::npos) {
-      inputFileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+      if (firstInputFile.find(".me.mpl") != std::string::npos) {
+        inputFileType = InputFileType::kFileTypeMeMpl;
+      } else {
+        inputFileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+      }
     } else {
       inputFileType = InputFileType::kFileTypeVtableImplMpl;
     }
@@ -341,46 +351,65 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0,
                                  sizeof(kMpl2MplDefaultOptionsO0) / sizeof(MplOption));
-      UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
+    } else {
+      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO0ForC,
+                                 sizeof(kMpl2MplDefaultOptionsO0ForC) / sizeof(MplOption));
     }
+
     if (ret != kErrorNoError) {
       return ret;
     }
   } else if (optimizationLevel == kO2) {
-    ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2, sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
-    if (ret != kErrorNoError) {
-      return ret;
-    }
     if (srcLang != kSrcLangC) {
+      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
+                                 sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
+      if (ret != kErrorNoError) {
+        return ret;
+      }
       ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2,
                                  sizeof(kMpl2MplDefaultOptionsO2) / sizeof(MplOption));
-      UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
+    } else {
+      ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2ForC,
+                                 sizeof(kMeDefaultOptionsO2ForC) / sizeof(MplOption));
+      if (ret != kErrorNoError) {
+        return ret;
+      }
+      ret = AppendDefaultOptions(kBinNameMpl2mpl, kMpl2MplDefaultOptionsO2ForC,
+                                 sizeof(kMpl2MplDefaultOptionsO2ForC) / sizeof(MplOption));
     }
     if (ret != kErrorNoError) {
       return ret;
     }
   }
   UpdatePhaseOption(meOptArgs, kBinNameMe);
+  UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
   return ret;
 }
 
-ErrorCode MplOptions::AppendMplcgOptions() {
+ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   ErrorCode ret = kErrorNoError;
   if (runMode == RunMode::kCustomRun) {
     return ret;
   }
   if (optimizationLevel == kO0) {
-    ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0,
-                               sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption));
-    if (ret != kErrorNoError) {
-      return ret;
+    if (srcLang != kSrcLangC) {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0,
+                                 sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption));
+    } else {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO0ForC,
+                                 sizeof(kMplcgDefaultOptionsO0ForC) / sizeof(MplOption));
     }
   } else if (optimizationLevel == kO2) {
-    ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
-                               sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
-    if (ret != kErrorNoError) {
-      return ret;
+    if (srcLang != kSrcLangC) {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2,
+                                 sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption));
+    } else {
+      ret = AppendDefaultOptions(kBinNameMplcg, kMplcgDefaultOptionsO2ForC,
+                                 sizeof(kMplcgDefaultOptionsO2ForC) / sizeof(MplOption));
     }
+  }
+  if (ret != kErrorNoError) {
+    return ret;
   }
   UpdatePhaseOption(mplcgOptArgs, kBinNameMplcg);
   return ret;
