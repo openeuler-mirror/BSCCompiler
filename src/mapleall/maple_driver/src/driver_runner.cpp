@@ -22,7 +22,8 @@
 #include "mir_parser.h"
 #include "file_utils.h"
 #include "debug_info.h"
-
+#include "mir_lower.h"
+#include "constantfold.h"
 #include "lower.h"
 #if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_cg.h"
@@ -89,8 +90,14 @@ ErrorCode DriverRunner::Run() {
   outputFile.append(GetPostfix());
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     std::string vtableImplFile = originBaseName;
-    vtableImplFile.append(".VtableImpl.mpl");
-    originBaseName.append(".VtableImpl");
+    std::string postFix = "";
+    if (theModule->GetSrcLang() == kSrcLangC) {
+      postFix = ".me";
+    } else {
+      postFix = ".VtableImpl";
+    }
+    vtableImplFile.append(postFix + ".mpl");
+    originBaseName.append(postFix);
     ProcessMpl2mplAndMePhases(outputFile, vtableImplFile);
   }
   ProcessCGPhase(outputFile, originBaseName);
@@ -184,7 +191,7 @@ ErrorCode DriverRunner::ParseInput() const {
       LogInfo::MapleLogger() << "Starting parse " << inputInline << '\n';
       bool parsed = parser.ParseInlineFuncBody(optFile);
       if (!parsed) {
-        parser.EmitError(outputFile);
+        parser.EmitError(actualInput);
       }
       optFile.close();
     }
@@ -197,12 +204,10 @@ ErrorCode DriverRunner::ParseInput() const {
 void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) const {
   CHECK_MODULE();
   theMIRModule = theModule;
-
-  if (hasDebugFlag) {
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
     std::cout << "set up debug info " << std::endl;
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
-
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     LogInfo::MapleLogger() << "Processing maplecomb" << '\n';
 
@@ -285,6 +290,10 @@ void DriverRunner::AddPhase(std::vector<std::string> &phases, const std::string 
 
 void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::string &originBaseName) {
   CHECK_MODULE();
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
+    std::cout << "set up debug info " << std::endl;
+    theMIRModule->GetDbgInfo()->BuildDebugInfo();
+  }
   if (cgOptions == nullptr) {
     return;
   }
@@ -439,8 +448,8 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
     lowerTime += timer.ElapsedMicroseconds();
 
     MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc->GetStIdx().Idx());
-    MemPool *funcMp = memPoolCtrler.NewMemPool(funcSt->GetName());
-    MapleAllocator funcScopeAllocator(funcMp);
+    auto funcMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, funcSt->GetName());
+    MapleAllocator funcScopeAllocator(funcMp.get());
 
     // Create CGFunc
     mirFunc->SetPuidxOrigin(++countFuncId);
@@ -459,8 +468,7 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
     cgfpm.ClearPhaseNameInfo();
 
     // Delete mempool.
-    memPoolCtrler.DeleteMemPool(funcMp);
-    memPoolCtrler.DeleteMemPool(mirFunc->GetCodeMempool());
+    mirFunc->ReleaseCodeMemory();
 
     ++rangeNum;
   }
