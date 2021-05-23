@@ -21,10 +21,10 @@
 example of Maple Compiler for C Language
 
 Besides maple compiler, included are processes using C front end tools:
-  1. whirl2mpl - Front end using Open64 Whirl IR.
-     source code is available at https://gitee.com/open64ark/open64ark
+  1. clang2mpl - Front end using clang AST
+     source code is available at https://gitee.com/openarkcompiler-incubator/clang2mpl
 
 #### 使用说明
   run the following scripts for details
 
-  ../maple_aarch64_with_whirl2mpl.sh . printHuawei 1 1
+  ../maple_aarch64_with_clang2mpl.sh . printHuawei 1 1
