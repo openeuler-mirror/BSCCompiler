@@ -765,11 +765,11 @@ const Descriptor kUsage[] = {
   { kStrengthReduction,
     kEnable,
     "",
-    "strengthReduction",
+    "strengthreduction",
     kBuildTypeExperimental,
     kArgCheckPolicyBool,
-    "  --strengthReduction      \tPerform flow sensitive alias analysis\n"
-    "  --no-strengthReduction   \tDisable flow sensitive alias analysis\n",
+    "  --strengthreduction      \tPerform flow sensitive alias analysis\n"
+    "  --no-strengthreduction   \tDisable flow sensitive alias analysis\n",
     "me",
     {} },
   { kCheckCastOpt,
