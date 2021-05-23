@@ -172,6 +172,7 @@ fi
 
 # clang2mpl
 if [ ! -d $TOOLS/clang2mpl ]; then
+  cd $TOOLS
   git clone --depth 1 https://gitee.com/openarkcompiler-incubator/clang2mpl.git
 fi
 # routinly updated to be compatible with maple
