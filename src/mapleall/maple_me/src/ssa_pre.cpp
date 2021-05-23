@@ -936,7 +936,8 @@ void SSAPre::Rename2() {
         CHECK_FATAL(varVecX.size() == varVecY.size(), "invalid size of varVecY");
         bool hasSameVersion = true;
         for (size_t ii = 0; ii < varVecX.size(); ii++) {
-          if (varVecX[ii] != varVecY[ii]) {
+          MeExpr *resolvedY = ResolveAllInjuringDefs(varVecY[ii]);
+          if (varVecX[ii] != resolvedY) {
             hasSameVersion = false;
           }
         }
@@ -1010,7 +1011,11 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
 
   ScalarMeExpr *scalar = static_cast<ScalarMeExpr*>(meExpr);
   if (workCand->isSRCand) {
-    scalar = ResolveAllInjuringDefs(scalar);
+    if (scalar->GetMeOp() == kMeOpVar) {
+      scalar = ResolveAllInjuringDefs(static_cast<VarMeExpr*>(scalar));
+    } else {
+      scalar = ResolveAllInjuringDefs(scalar);
+    }
   }
   if (scalar->IsDefByPhi()) {
     MePhiNode *phiMeNode = scalar->GetMePhiDef();
