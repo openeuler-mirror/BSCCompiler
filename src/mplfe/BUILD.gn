@@ -212,19 +212,19 @@ static_library("lib_mplfe_dex_input") {
 
   # for libdexfile
   include_dirs_dex = [
-    "${AOSP_ROOT}/system/core/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include",
   ]
   include_dirs_libdexfile = [
     #for libdexfile -start
-    "${AOSP_ROOT}/system/core/liblog/include",
-    "${AOSP_ROOT}/system/core/libutils/include",
-    "${AOSP_ROOT}/system/core/base/include",
-    "${AOSP_ROOT}/system/core/libziparchive/include",
-    "${AOSP_ROOT}/art/libartpalette/include",
-    "${AOSP_ROOT}/art/libartbase",
-    "${AOSP_ROOT}/art/libdexfile",
-    "${AOSP_ROOT}/include",
-    "${AOSP_ROOT}/libnativehelper/include_jni",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libutils/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartpalette/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartbase",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile",
+    "${THIRD_PARTY_ROOT}/aosp_modified/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/libnativehelper/include_jni",
     #for libdexfile -end
   ]
 
@@ -236,12 +236,12 @@ static_library("lib_mplfe_dex_input") {
     "${MPLFE_ROOT}/dex_input/src/dexfile_libdexfile.cpp",
   ]
   deps_libdexfile = [
-    "${AOSP_ROOT}/art/libdexfile:libdexfile",
-    "${AOSP_ROOT}/system/core/libziparchive:libziparchive",
-    "${AOSP_ROOT}/system/core/base:libbase",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile:libdexfile",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive:libziparchive",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base:libbase",
   ]
   lib_dex = [
-    "${AOSP_ROOT}/system/core/liblog/liblog.a",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a",
   ]
   deps = deps_libdexfile
   libs = lib_dex
@@ -298,6 +298,7 @@ static_library("lib_mplfe_ast_input") {
     "${MPLFE_ROOT}/ast_input/src/ast_function.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_input.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_parser.cpp",
+    "${MPLFE_ROOT}/ast_input/src/ast_parser_builting_func.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_struct2fe_helper.cpp",
     "${MPLFE_ROOT}/ast_input/lib/ast_type.cpp",
     "${MPLFE_ROOT}/ast_input/lib/ast_util.cpp",
