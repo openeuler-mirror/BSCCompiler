@@ -91,7 +91,7 @@ if [ ! -f $TOOLS/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ]; then
   echo Downloaded gcc aarch64 compiler.
 fi
 
-if [ ! -d $TOOLS/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu ]; then
+if [ ! -d $TOOLS/sysroot-glibc-linaro-2.25 ]; then
   cd $TOOLS
   echo Start wget sysroot-glibc-linaro-2.25 ...
   wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz
