@@ -143,21 +143,12 @@ void AArch64GenProEpilog::TailCallBBOpt(const BB &exitBB, std::set<Insn*> &callI
  *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
  */
 bool AArch64GenProEpilog::TailCallOpt() {
-  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  BB *exitBB = nullptr;
-  const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
-
-  size_t calleeSavedRegSize = 2;
-  CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
-
-  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() || HasLoop() ||
-      cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive) || IsFuncNeedFrame(cgFunc.GetName())) {
+  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
+  if (exitBBSize > 1) {
     return false;
   }
 
-  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
-  CHECK_FATAL(exitBBSize == 1, "Should not be exist multiple exits.");
-
+  BB *exitBB = nullptr;
   if (exitBBSize == 0) {
     if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
         cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
@@ -217,6 +208,35 @@ bool AArch64GenProEpilog::TailCallOpt() {
     }
   }
   return true;
+}
+
+bool AArch64GenProEpilog::NeedProEpilog() {
+  if (cgFunc.GetMirModule().GetSrcLang() != kSrcLangC) {
+    return true;
+  } else if (static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->GetSizeOfLocals() > 0 ||
+       cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) || cgFunc.HasVLAOrAlloca()) {
+    return true;
+  }
+  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
+  size_t calleeSavedRegSize = kTwoRegister;
+  CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
+  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() || HasLoop() ||
+      cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive)) {
+    return true;
+  }
+  if (cgFunc.GetCG()->DoPrologueEpilogue()) {
+    return !TailCallOpt();
+  } else {
+    FOR_ALL_BB(bb, &cgFunc) {
+      FOR_BB_INSNS_REV(insn, bb) {
+        if (insn->IsCall()) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
 }
 
 void AArch64GenProEpilog::GenStackGuard(BB &bb) {
@@ -1032,7 +1052,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
   if (cgFunc.GenCfi()) {
     BB *curBB = cgFunc.GetCurBB();
     ipoint = curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RFP, -cfiOffsetSecond, k64BitSize));
-    curBB->InsertInsnAfter(*ipoint, aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffsetSecond + kOffset8MemPos, k64BitSize));
+    curBB->InsertInsnAfter(*ipoint,
+                           aarchCGFunc.CreateCfiOffsetInsn(RLR, -cfiOffsetSecond + kOffset8MemPos, k64BitSize));
   }
 }
 
@@ -1740,7 +1761,7 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
 void AArch64GenProEpilog::Run() {
   CHECK_FATAL(cgFunc.GetFunction().GetBody()->GetFirst()->GetOpCode() == OP_label,
               "The first statement should be a label");
-  cgFunc.SetHasProEpilogue(true);
+  cgFunc.SetHasProEpilogue(NeedProEpilog());
   if (cgFunc.GetHasProEpilogue()) {
     GenStackGuard(*(cgFunc.GetFirstBB()));
   }
