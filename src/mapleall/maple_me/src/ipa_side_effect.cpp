@@ -1026,17 +1026,17 @@ void IpaSideEffect::DoAnalysis() {
   if (func->GetBody() == nullptr) { // External function from mplt, need to update effects
     UpdateExternalFuncSideEffects(*func);
   } else {
-    meFunc.BuildSCC();
+    auto cfg = meFunc.GetCfg();
+    cfg->BuildSCC();
     std::set<VarMeExpr*> globalExprs;
     std::set<VarMeExpr*> argExprs;
     std::set<VarMeExpr*> nextLevelGlobalExprs;
     std::set<VarMeExpr*> nextLevelArgExprs;
-    auto cfg = meFunc.GetCfg();
-    for (size_t i = 0; i < meFunc.GetSccTopologicalVec().size(); ++i) {
-      SCCOfBBs *scc = meFunc.GetSccTopologicalVec()[i];
+    for (size_t i = 0; i < cfg->GetSccTopologicalVec().size(); ++i) {
+      SCCOfBBs *scc = cfg->GetSccTopologicalVec()[i];
       CHECK_FATAL(scc != nullptr, "scc must not be null");
       if (scc->GetBBs().size() > 1) {
-        meFunc.BBTopologicalSort(*scc);
+        cfg->BBTopologicalSort(*scc);
       }
       const uint32 maxLoopCount = 2;
       unsigned loopCount = scc->GetBBs().size() > 1 ? maxLoopCount : 1; // Loop count

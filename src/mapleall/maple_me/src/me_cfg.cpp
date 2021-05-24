@@ -1536,6 +1536,160 @@ void MeCFG::CreateBasicBlocks() {
   }
 }
 
+void MeCFG::BBTopologicalSort(SCCOfBBs &scc) {
+  std::set<BB*> inQueue;
+  std::vector<BB*> bbs;
+  for (BB *bb : scc.GetBBs()) {
+    bbs.push_back(bb);
+  }
+  scc.Clear();
+  scc.AddBBNode(scc.GetEntry());
+  (void)inQueue.insert(scc.GetEntry());
+
+  for (size_t i = 0; i < scc.GetBBs().size(); ++i) {
+    BB *bb = scc.GetBBs()[i];
+    for (BB *succ : bb->GetSucc()) {
+      if (succ == nullptr) {
+        continue;
+      }
+      if (inQueue.find(succ) != inQueue.end() ||
+          std::find(bbs.begin(), bbs.end(), succ) == bbs.end()) {
+        continue;
+      }
+      bool predAllVisited = true;
+      for (BB *pred : succ->GetPred()) {
+        if (pred == nullptr) {
+          continue;
+        }
+        if (std::find(bbs.begin(), bbs.end(), pred) == bbs.end()) {
+          continue;
+        }
+        if (backEdges.find(std::pair<uint32, uint32>(pred->UintID(), succ->UintID())) != backEdges.end()) {
+          continue;
+        }
+        if (inQueue.find(pred) == inQueue.end()) {
+          predAllVisited = false;
+          break;
+        }
+      }
+      if (predAllVisited) {
+        scc.AddBBNode(succ);
+        (void)inQueue.insert(succ);
+      }
+    }
+  }
+}
+
+void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccNodes,
+                             std::vector<uint32> &visitedOrder, std::vector<uint32> &lowestOrder,
+                             std::vector<bool> &inStack, std::stack<uint32> &visitStack) {
+  uint32 id = bb.UintID();
+  visitedOrder[id] = visitIndex;
+  lowestOrder[id] = visitIndex;
+  ++visitIndex;
+  visitStack.push(id);
+  inStack[id] = true;
+
+  for (BB *succ : bb.GetSucc()){
+    if (succ == nullptr) {
+      continue;
+    }
+    uint32 succId = succ->UintID();
+    if (!visitedOrder[succId]) {
+      BuildSCCDFS(*succ, visitIndex, sccNodes, visitedOrder, lowestOrder, inStack, visitStack);
+      if (lowestOrder[succId] < lowestOrder[id]) {
+        lowestOrder[id] = lowestOrder[succId];
+      }
+    } else if (inStack[succId]) {
+      backEdges.insert(std::pair<uint32, uint32>(id, succId));
+      if (visitedOrder[succId] < lowestOrder[id]) {
+        lowestOrder[id] = visitedOrder[succId];
+      }
+    }
+  }
+
+  if (visitedOrder.at(id) == lowestOrder.at(id)) {
+    auto *sccNode = GetAlloc().GetMemPool()->New<SCCOfBBs>(numOfSCCs++, &bb, &GetAlloc());
+    uint32 stackTopId;
+    do {
+      stackTopId = visitStack.top();
+      visitStack.pop();
+      inStack[stackTopId] = false;
+      auto *topBB = static_cast<BB*>(GetAllBBs()[stackTopId]);
+      sccNode->AddBBNode(topBB);
+      sccOfBB[stackTopId] = sccNode;
+    } while (stackTopId != id);
+
+    sccNodes.push_back(sccNode);
+  }
+}
+
+void MeCFG::VerifySCC() {
+  for (BB *bb : GetAllBBs()) {
+    if (bb == nullptr || bb == GetCommonExitBB()) {
+      continue;
+    }
+    SCCOfBBs *scc = sccOfBB.at(bb->UintID());
+    CHECK_FATAL(scc != nullptr, "bb should belong to a scc");
+  }
+}
+
+void MeCFG::SCCTopologicalSort(std::vector<SCCOfBBs*> &sccNodes) {
+  std::set<SCCOfBBs*> inQueue;
+  for (SCCOfBBs *node : sccNodes) {
+    if (!node->HasPred()) {
+      sccTopologicalVec.push_back(node);
+      (void)inQueue.insert(node);
+    }
+  }
+
+  // Top-down iterates all nodes
+  for (size_t i = 0; i < sccTopologicalVec.size(); ++i) {
+    SCCOfBBs *sccBB = sccTopologicalVec[i];
+    for (SCCOfBBs *succ : sccBB->GetSucc()) {
+      if (inQueue.find(succ) == inQueue.end()) {
+        // successor has not been visited
+        bool predAllVisited = true;
+        // check whether all predecessors of the current successor have been visited
+        for (SCCOfBBs *pred : succ->GetPred()) {
+          if (inQueue.find(pred) == inQueue.end()) {
+            predAllVisited = false;
+            break;
+          }
+        }
+        if (predAllVisited) {
+          sccTopologicalVec.push_back(succ);
+          (void)inQueue.insert(succ);
+        }
+      }
+    }
+  }
+}
+
+void MeCFG::BuildSCC() {
+  uint32_t  n = GetAllBBs().size();
+  sccTopologicalVec.clear();
+  sccOfBB.clear();
+  sccOfBB.assign(n, nullptr);
+  std::vector<uint32> visitedOrder(n, 0);
+  std::vector<uint32> lowestOrder(n, 0);
+  std::vector<bool> inStack(n, false);
+  std::vector<SCCOfBBs*> sccNodes;
+  uint32 visitIndex = 1;
+  std::stack<uint32> visitStack;
+
+  // Starting from common entry bb for DFS
+  BuildSCCDFS(*GetCommonEntryBB(), visitIndex, sccNodes, visitedOrder, lowestOrder, inStack, visitStack);
+
+  for (SCCOfBBs *scc : sccNodes) {
+    scc->Verify(sccOfBB);
+    scc->SetUp(sccOfBB);
+  }
+
+  VerifySCC();
+  SCCTopologicalSort(sccNodes);
+}
+
 AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
   MemPool *meCfgMp = NewMemPool();
   MeCFG *theCFG = meCfgMp->New<MeCFG>(meCfgMp, *func);
