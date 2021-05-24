@@ -1145,13 +1145,14 @@ void IPAEscapeAnalysis::HandleParaAtFuncEntry() {
 
 void IPAEscapeAnalysis::ConstructConnGraph() {
   HandleParaAtFuncEntry();
-  func->BuildSCC();
-  const MapleVector<SCCOfBBs*> &sccTopologicalVec = func->GetSccTopologicalVec();
+  auto cfg = func->GetCfg();
+  cfg->BuildSCC();
+  const MapleVector<SCCOfBBs*> &sccTopologicalVec = cfg->GetSccTopologicalVec();
   for (size_t i = 0; i < sccTopologicalVec.size(); ++i) {
     SCCOfBBs *scc = sccTopologicalVec[i];
     CHECK_FATAL(scc != nullptr, "nullptr check");
     if (scc->GetBBs().size() > 1) {
-      func->BBTopologicalSort(*scc);
+      cfg->BBTopologicalSort(*scc);
     }
     cgChangedInSCC = true;
     bool analyzeAgain = true;
@@ -1159,7 +1160,7 @@ void IPAEscapeAnalysis::ConstructConnGraph() {
       analyzeAgain = false;
       cgChangedInSCC = false;
       for (BB *bb : scc->GetBBs()) {
-        if (bb == func->GetCfg()->GetCommonEntryBB() || bb == func->GetCfg()->GetCommonExitBB()) {
+        if (bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
           continue;
         }
         UpdateEscConnGraphWithPhi(*bb);
