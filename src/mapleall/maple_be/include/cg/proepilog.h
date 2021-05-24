@@ -39,8 +39,6 @@ class GenProEpilog {
     return true;
   }
 
-
-
   /* CFI related routines */
   int64 GetOffsetFromCFA() const {
     return offsetFromCfa;
