@@ -142,6 +142,7 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(Enum);
   ASTDecl *PROCESS_DECL(Typedef);
   ASTDecl *PROCESS_DECL(EnumConstant);
+  ASTDecl *PROCESS_DECL(Label);
 
  private:
   ASTValue *TranslateRValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
@@ -150,7 +151,21 @@ class ASTParser {
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
   void SetSourceFileInfo(clang::Decl *decl);
   uint32 GetSizeFromQualType(const clang::QualType qualType);
+  uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind);
+  uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
+  using ParseBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  static std::map<std::string, ParseBuiltinFunc> InitFuncPtrMap();
+  ASTExpr *ParseBuiltingClassifyType(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingCtz(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingClz(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingAlloca(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingConstantP(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingExpect(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingSignbit(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+  ASTExpr *ParseBuiltingIsinfSign(MapleAllocator &allocator, const clang::CallExpr &expr) const;
+
+  static std::map<std::string, ParseBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
   const std::string fileName;
   std::unique_ptr<LibAstFile> astFile;

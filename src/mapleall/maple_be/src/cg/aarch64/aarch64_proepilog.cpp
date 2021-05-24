@@ -214,7 +214,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   if (cgFunc.GetMirModule().GetSrcLang() != kSrcLangC) {
     return true;
   } else if (static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->GetSizeOfLocals() > 0 ||
-       cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) || cgFunc.HasVLAOrAlloca()) {
+             cgFunc.GetFunction().GetAttr(FUNCATTR_varargs) || cgFunc.HasVLAOrAlloca()) {
     return true;
   }
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
