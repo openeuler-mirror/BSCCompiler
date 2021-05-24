@@ -419,6 +419,11 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
   if (fieldSize < fieldValue.GetBitWidth()) {
     fieldValue.Trunc(fieldSize);
   }
+  /* Clear higher Bits for signed value  */
+  if (structEmitInfo.GetCombineBitFieldValue() != 0) {
+    structEmitInfo.SetCombineBitFieldValue((~(~0ULL << structEmitInfo.GetCombineBitFieldWidth())) &
+                                           structEmitInfo.GetCombineBitFieldValue());
+  }
   structEmitInfo.SetCombineBitFieldValue(
       (static_cast<uint64>(fieldValue.GetValue()) << structEmitInfo.GetCombineBitFieldWidth()) +
       structEmitInfo.GetCombineBitFieldValue());
