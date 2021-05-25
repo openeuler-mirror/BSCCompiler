@@ -145,8 +145,9 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
     }
     if (phiOcc->GetRegPhi()) {
       MePhiNode *phiReg = phiOcc->GetRegPhi();
-      for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-        auto *regOpnd = static_cast<RegMeExpr*>(phiOpnd->GetDef()->GetSavedExpr());
+      const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
+      for (uint32 i = 0; i < phiopnds.size(); i++) {
+        RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiopnds[i]->phiOpnd4Temp);
         if (regOpnd == nullptr) {
           // create a zero version
           CHECK_FATAL(curTemp != nullptr, "curTemp can't be null in SSAPre::UpdateInsertedPhiOccOpnd");
@@ -157,8 +158,9 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
       (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
       if (workCand->NeedLocalRefVar() && phiOcc->GetVarPhi() != nullptr) {
         MePhiNode *phiVar = phiOcc->GetVarPhi();
-        for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-          auto *regOpnd = static_cast<RegMeExpr*>(phiOpnd->GetDef()->GetSavedExpr());
+        const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
+        for (uint32 i = 0; i < phiopnds.size(); i++) {
+          RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiopnds[i]->phiOpnd4Temp);
           VarMeExpr *localRefVarOpnd = nullptr;
           if (regOpnd == nullptr) {
             // create a zero version
@@ -181,8 +183,9 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
       }
     } else {
       MePhiNode *phiVar = phiOcc->GetVarPhi();
-      for (MePhiOpndOcc *phiOpnd : phiOcc->GetPhiOpnds()) {
-        auto *varOpnd = static_cast<VarMeExpr*>(phiOpnd->GetDef()->GetSavedExpr());
+      const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
+      for (uint32 i = 0; i < phiopnds.size(); i++) {
+        VarMeExpr *varOpnd = static_cast<VarMeExpr *>(phiopnds[i]->phiOpnd4Temp);
         if (varOpnd == nullptr) {
           CHECK_FATAL(curTemp != nullptr, "curTemp can't be null in SSAPre::UpdateInsertedPhiOccOpnd");
           varOpnd = irMap->CreateVarMeExprVersion(static_cast<VarMeExpr&>(*curTemp));
@@ -271,8 +274,8 @@ void SSAPre::CodeMotion() {
             if (defOcc->GetOccType() == kOccReal) {
               phiOpnd->phiOpnd4Temp = static_cast<MeRealOcc *>(defOcc)->GetSavedExpr();
             } else {
-              MePhiOcc *defphiocc = static_cast<MePhiOcc *>(defOcc);
-              MePhiNode *scalarPhi = (defphiocc->GetRegPhi() ? defphiocc->GetRegPhi() : defphiocc->GetVarPhi());
+              MePhiOcc *defphiOcc = static_cast<MePhiOcc *>(defOcc);
+              MePhiNode *scalarPhi = (defphiOcc->GetRegPhi() ? defphiOcc->GetRegPhi() : defphiOcc->GetVarPhi());
               phiOpnd->phiOpnd4Temp = scalarPhi->GetLHS();
             }
           }
