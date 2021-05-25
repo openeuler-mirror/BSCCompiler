@@ -30,7 +30,7 @@ void HDSE::DetermineUseCounts(MeExpr *x) {
     verstUseCounts[varmeexpr->GetVstIdx()]++;
     return;
   }
-  for (int32 i = 0; i < x->GetNumOpnds(); i++) {
+  for (uint32 i = 0; i < x->GetNumOpnds(); ++i) {
     DetermineUseCounts(x->GetOpnd(i));
   }
 }
@@ -43,7 +43,12 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
     return;
   }
   ScalarMeExpr *lhsscalar = static_cast<ScalarMeExpr *>(dass->GetLHS());
-  if (!lhsscalar->GetOst()->IsLocal()) {
+  OriginalSt *ost = lhsscalar->GetOst();
+  if (!ost->IsLocal()) {
+    return;
+  }
+  MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
+  if (ty->GetPrimType() == PTY_agg && ty->GetSize() <= 16) {
     return;
   }
   ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
@@ -52,6 +57,14 @@ void HDSE::CheckBackSubsCandidacy(DassignMeStmt *dass) {
   }
   if (rhsscalar->DefByBB() != dass->GetBB()) {
     return;
+  }
+  // skip stmtpre candidate
+  auto defStmt = rhsscalar->GetDefMustDef().GetBase();
+  if (defStmt->GetOp() == OP_callassigned) {
+    MIRFunction &callee = static_cast<CallMeStmt*>(defStmt)->GetTargetFunction();
+    if (callee.IsPure() && callee.IsNoThrowException()) {
+      return;
+    }
   }
   backSubsCands.push_front(dass);
 }
@@ -94,7 +107,8 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
       if (mestmt->IsCondBr()) { // see if foldable to unconditional branch
         CondGotoMeStmt *condbr = static_cast<CondGotoMeStmt *>(mestmt);
         if (!mirModule.IsJavaModule() && condbr->GetOpnd()->GetMeOp() == kMeOpConst) {
-          CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()), "MeHDSE::DseProcess: branch condition must be integer type");
+          CHECK_FATAL(IsPrimitiveInteger(condbr->GetOpnd()->GetPrimType()),
+                      "MeHDSE::DseProcess: branch condition must be integer type");
           if ((condbr->GetOp() == OP_brtrue && condbr->GetOpnd()->IsZero()) ||
               (condbr->GetOp() == OP_brfalse && !condbr->GetOpnd()->IsZero())) {
             // delete the conditional branch
@@ -107,7 +121,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
             // change to unconditional branch
             BB *succbb = bb.GetSucc().front();
             succbb->RemoveBBFromPred(bb, false);
-            bb.GetSucc().erase(bb.GetSucc().begin());
+            (void)bb.GetSucc().erase(bb.GetSucc().begin());
             bb.SetKind(kBBGoto);
             GotoMeStmt *gotomestmt = irMap.New<GotoMeStmt>(condbr->GetOffset());
             bb.ReplaceMeStmt(condbr, gotomestmt);
@@ -116,7 +130,7 @@ void HDSE::RemoveNotRequiredStmtsInBB(BB &bb) {
           DetermineUseCounts(condbr->GetOpnd());
         }
       } else {
-        for (int32 i = 0; i < mestmt->NumMeStmtOpnds(); i++) {
+        for (uint32 i = 0; i < mestmt->NumMeStmtOpnds(); ++i) {
           DetermineUseCounts(mestmt->GetOpnd(i));
         }
         if (mestmt->GetOp() == OP_dassign) {
