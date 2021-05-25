@@ -14,7 +14,7 @@ Install a 64-bit Ubuntu (Ubuntu 16.04, 18.04 or 20.04 is required).
 
 
 ```
-sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless cmake
 sudo apt-get -y install git build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
 
 Ubuntu 16.04:
@@ -37,15 +37,15 @@ Note: the following steps are for reference only. All required tools are install
 
 ## Installing and Configuring Clang (for Compiling the OpenArkCompiler Code)
 
-Download **clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04**
-LLVM download address: http://releases.llvm.org/download.html#8.0.0
+Download **clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04**
+LLVM download address: http://releases.llvm.org/download.html#10.0.0
 
 Place the downloaded files in the `openarkcompiler/tools` directory, open the `openarkcompiler/build/config.gni` file, and set the three variables `GN_C_COMPILER`, `GN_CXX_COMPILER`, and `GN_AR_COMPILER` to the path where Clang is located. For example:
 
 ```
-GN_C_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang"
-GN_CXX_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/clang++"
-GN_AR_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/llvm-ar"
+GN_C_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang"
+GN_CXX_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++"
+GN_AR_COMPILER = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar"
 ```
 
 ${MAPLE_ROOT} is the root directory of the OpenArkCompiler source code.
