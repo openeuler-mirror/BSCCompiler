@@ -33,6 +33,7 @@
 #include "fe_struct_elem_info.h"
 #include "feir_var_type_scatter.h"
 #include "fe_options.h"
+#include "feir_type_helper.h"
 
 namespace maple {
 class FEIRBuilder;
@@ -485,7 +486,9 @@ class FEIRExprRegRead : public FEIRExpr {
 class FEIRExprAddrof : public FEIRExpr {
  public:
   explicit FEIRExprAddrof(const std::vector<uint32> &arrayIn)
-      : FEIRExpr(FEIRNodeKind::kExprAddrof), array(arrayIn) {}
+      : FEIRExpr(FEIRNodeKind::kExprAddrof,
+                 FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
+        array(arrayIn) {}
   ~FEIRExprAddrof() = default;
 
  protected:
@@ -500,16 +503,10 @@ class FEIRExprAddrof : public FEIRExpr {
 class FEIRExprAddrofVar : public FEIRExpr {
  public:
   explicit FEIRExprAddrofVar(std::unique_ptr<FEIRVar> argVarSrc)
-      : FEIRExpr(FEIRNodeKind::kExprAddrofVar), varSrc(std::move(argVarSrc)) {}
+      : FEIRExpr(FEIRNodeKind::kExprAddrofVar,
+                 FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
+        varSrc(std::move(argVarSrc)) {}
   ~FEIRExprAddrofVar() = default;
-
-  void SetFieldName(std::string argFieldName) {
-    fieldName = argFieldName;
-  }
-
-  void SetFieldType(MIRType *type) {
-    fieldType = type;
-  }
 
   void SetFieldID(FieldID id) {
     fieldID = id;
@@ -531,8 +528,6 @@ class FEIRExprAddrofVar : public FEIRExpr {
  private:
   std::unique_ptr<FEIRVar> varSrc;
   FieldID fieldID = 0;
-  std::string fieldName;
-  MIRType *fieldType = nullptr;
   MIRConst *cst = nullptr;
 };
 
@@ -541,7 +536,7 @@ class FEIRExprIAddrof : public FEIRExpr {
  public:
   FEIRExprIAddrof(UniqueFEIRType pointeeType, FieldID id, UniqueFEIRExpr expr)
       : FEIRExpr(FEIRNodeKind::kExprIAddrof,
-                 std::make_unique<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPtrType())),
+                 FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         ptrType(std::move(pointeeType)),
         fieldID(id),
         subExpr(std::move(expr)) {}
@@ -577,10 +572,13 @@ class FEIRExprIAddrof : public FEIRExpr {
   UniqueFEIRExpr subExpr;
 };
 
+// ---------- FEIRExprAddrofFunc ----------
 class FEIRExprAddrofFunc : public FEIRExpr {
  public:
   explicit FEIRExprAddrofFunc(const std::string &addr)
-      : FEIRExpr(FEIRNodeKind::kExprAddrofFunc), funcAddr(addr) {}
+      : FEIRExpr(FEIRNodeKind::kExprAddrofFunc,
+                 FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
+        funcAddr(addr) {}
   ~FEIRExprAddrofFunc() = default;
 
  protected:
@@ -747,7 +745,6 @@ class FEIRExprIRead : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  PrimType GetPrimTypeImpl() const override;
 
  private:
   UniqueFEIRType ptrType = nullptr;
@@ -1030,12 +1027,16 @@ class FEIRExprArrayStoreForC : public FEIRExpr {
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
   PrimType GetPrimTypeImpl() const override;
+  FEIRType *GetTypeImpl() const override;
+  const FEIRType &GetTypeRefImpl() const override;
 
  private:
   UniqueFEIRExpr exprArray;
   mutable std::list<UniqueFEIRExpr> exprIndexs;
+  UniqueFEIRType elemType = nullptr;
   UniqueFEIRType typeNative = nullptr;
   bool isAddrOf = false;
+  UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType());
 
   // for array in struct
   UniqueFEIRExpr exprStruct = nullptr;
@@ -1102,7 +1103,6 @@ class FEIRExprCStyleCast : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  PrimType GetPrimTypeImpl() const override;
 
  private:
   MIRType *srcType = nullptr;
@@ -2017,6 +2017,13 @@ class FEIRExprFieldLoadForC : public FEIRExpr {
 
   PrimType GetPrimTypeImpl() const override {
     return varField->GetType()->GetPrimType();
+  }
+
+  FEIRType *GetTypeImpl() const override {
+    return varField->GetType().get();
+  }
+  const FEIRType &GetTypeRefImpl() const override {
+    return *GetTypeImpl();
   }
 
  private:

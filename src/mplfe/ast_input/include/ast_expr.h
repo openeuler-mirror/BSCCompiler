@@ -33,6 +33,12 @@ struct ASTValue {
   MIRConst *Translate2MIRConst() const;
 };
 
+enum ParentFlag {
+  kNoParent,
+  kArrayParent,
+  kStructParent
+};
+
 class ASTExpr {
  public:
   explicit ASTExpr(ASTOp o) : op(o) {}
@@ -53,7 +59,7 @@ class ASTExpr {
   }
 
   ASTDecl *GetASTDecl() const {
-    return refedDecl;
+    return GetASTDeclImpl();
   }
 
   ASTOp GetASTOp() {
@@ -73,17 +79,38 @@ class ASTExpr {
     return GenerateMIRConstImpl();
   }
 
+  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
+    srcFileIdx = fileIdx;
+    srcFileLineNum = lineNum;
+  }
+
+  uint32 GetSrcFileIdx() const {
+    return srcFileIdx;
+  }
+
+  uint32 GetSrcFileLineNum() const {
+    return srcFileLineNum;
+  }
+
  protected:
   virtual ASTValue *GetConstantValueImpl() const {
     return value;
   }
   virtual MIRConst *GenerateMIRConstImpl() const;
   virtual UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const = 0;
+
+  virtual ASTDecl *GetASTDeclImpl() const {
+    return refedDecl;
+  }
+
   ASTOp op;
   MIRType *mirType = nullptr;
   ASTDecl *refedDecl = nullptr;
   bool isConstantFolded = false;
   ASTValue *value = nullptr;
+
+  uint32 srcFileIdx = 0;
+  uint32 srcFileLineNum = 0;
 };
 
 class ASTImplicitCastExpr : public ASTExpr {
@@ -149,6 +176,10 @@ class ASTImplicitCastExpr : public ASTExpr {
   ASTValue *GetConstantValueImpl() const override;
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+
+  ASTDecl *GetASTDeclImpl() const override {
+    return child->GetASTDecl();
+  }
 
  private:
   MIRConst *GenerateMIRDoubleConst() const;
@@ -410,7 +441,7 @@ class ASTOffsetOfExpr : public ASTExpr {
   ASTOffsetOfExpr() : ASTExpr(kASTOpOffsetOfExpr) {}
   ~ASTOffsetOfExpr() = default;
   void SetStructType(MIRType *stype);
-  void SetFieldName(std::string);
+  void SetFieldName(std::string fName);
 
   void SetOffset(size_t val) {
     offset = val;
@@ -438,16 +469,42 @@ class ASTInitListExpr : public ASTExpr {
     varName = argVarName;
   }
 
+  void SetParentFlag(ParentFlag argParentFlag) {
+    parentFlag = argParentFlag;
+  }
+
+  void SetIsUnionInitListExpr(bool flag) {
+    isUnionInitListExpr = flag;
+  }
+
+  bool IsUnionInitListExpr() const {
+    return isUnionInitListExpr;
+  }
+
+  void SetHasArrayFiller(bool flag) {
+    hasArrayFiller = flag;
+  }
+
+  bool HasArrayFiller() const {
+    return hasArrayFiller;
+  }
+
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  void Emit2FEExprForStruct4ArrayElemIsStruct(uint32 i, std::list<UniqueFEIRStmt> &stmts) const;
   void Emit2FEExprForArray(std::list<UniqueFEIRStmt> &stmts) const;
+  void Emit2FEExprForArrayForNest(UniqueFEIRType typeNative, UniqueFEIRExpr arrayExpr,
+                                  std::list<UniqueFEIRStmt> &stmts) const;
   void Emit2FEExprForStruct(std::list<UniqueFEIRStmt> &stmts) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
   std::vector<ASTExpr*> fillers;
   MIRType *initListType;
   std::string varName;
+  ParentFlag parentFlag = kNoParent;
+  bool isUnionInitListExpr = false;
+  bool hasArrayFiller = false;
 };
 
 class ASTBinaryConditionalOperator : public ASTExpr {
@@ -466,7 +523,7 @@ class ASTBinaryConditionalOperator : public ASTExpr {
 class ASTBinaryOperatorExpr : public ASTExpr {
  public:
   explicit ASTBinaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
-  ASTBinaryOperatorExpr() : ASTExpr(kASTOpBO) {}
+  ASTBinaryOperatorExpr() : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")) {}
 
   ~ASTBinaryOperatorExpr() override = default;
 
@@ -514,6 +571,10 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     rightImagExpr = expr;
   }
 
+  void SetCvtNeeded(bool needed) {
+    cvtNeeded = needed;
+  }
+
  protected:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
@@ -526,6 +587,8 @@ class ASTBinaryOperatorExpr : public ASTExpr {
   ASTExpr *leftImagExpr = nullptr;
   ASTExpr *rightRealExpr = nullptr;
   ASTExpr *rightImagExpr = nullptr;
+  bool cvtNeeded = false;
+  std::string varName;
 };
 
 class ASTImplicitValueInitExpr : public ASTExpr {
@@ -601,6 +664,16 @@ class ASTArraySubscriptExpr : public ASTExpr {
     return idxExprs;
   }
 
+  void SetBaseExprType(MIRType *ty) {
+    baseExprTypes.push_back(ty);
+  }
+
+  const std::vector<MIRType*> &GetBaseExprType() const {
+    return baseExprTypes;
+  }
+
+  int32 TranslateArraySubscript2Offset() const;
+
   void SetMemberExpr(ASTExpr &astExpr) {
     memberExpr = &astExpr;
   }
@@ -609,16 +682,26 @@ class ASTArraySubscriptExpr : public ASTExpr {
     return memberExpr;
   }
 
+  std::string GetBaseExprVarName() const {
+    return baseExprVarName;
+  }
+
+  void SetBaseExprVarName(std::string argBaseExprVarName) {
+    baseExprVarName = argBaseExprVarName;
+  }
+
   void SetAddrOfFlag(bool flag) {
     isAddrOf = flag;
   }
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  ASTExpr *baseExpr;
+  ASTExpr *baseExpr = nullptr;
   ASTExpr *memberExpr = nullptr;
+  std::vector<MIRType*> baseExprTypes;
   std::vector<ASTExpr*> idxExprs;
   bool isAddrOf = false;
+  std::string baseExprVarName;
 };
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
@@ -690,14 +773,17 @@ class ASTMemberExpr : public ASTExpr {
     return isArrow;
   }
 
+  ASTMemberExpr *findFinalMember(ASTMemberExpr *startExpr, std::list<std::string> &memberNames) const;
+
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  ASTMemberExpr *findFinalMember(ASTMemberExpr *startExpr, std::list<std::string> &memberNames) const;
-  ASTExpr *baseExpr;
+  void Emit2FEExprImplForArrayElemIsStruct(UniqueFEIRExpr baseFEExpr, std::string &tmpStructName,
+                                           std::list<UniqueFEIRStmt> &stmts) const;
+  ASTExpr *baseExpr = nullptr;
   std::string memberName;
-  MIRType *memberType;
-  MIRType *baseType;
-  bool isArrow;
+  MIRType *memberType = nullptr;
+  MIRType *baseType = nullptr;
+  bool isArrow = false;
 };
 
 class ASTDesignatedInitUpdateExpr : public ASTExpr {
@@ -740,16 +826,21 @@ class ASTDesignatedInitUpdateExpr : public ASTExpr {
 
 class ASTAssignExpr : public ASTBinaryOperatorExpr {
  public:
-  ASTAssignExpr() : ASTBinaryOperatorExpr(kASTOpAssign) {}
-  ASTAssignExpr(ASTOp o) : ASTBinaryOperatorExpr(o) {}
+  ASTAssignExpr() : ASTBinaryOperatorExpr(kASTOpAssign), isCompoundAssign(false) {}
   ~ASTAssignExpr() override = default;
+
+  void SetIsCompoundAssign(bool argIsCompoundAssign) {
+    isCompoundAssign = argIsCompoundAssign;
+  }
 
  protected:
   UniqueFEIRExpr ProcessAssign(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr leftExpr,
                                UniqueFEIRExpr rightExpr) const;
-
+  void ProcessAssign4ExprArrayStoreForC(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr leftFEExpr,
+                                        UniqueFEIRExpr rightFEExpr) const;
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  bool isCompoundAssign;
 };
 
 class ASTBOComma : public ASTBinaryOperatorExpr {
@@ -772,7 +863,7 @@ class ASTBOPtrMemExpr : public ASTBinaryOperatorExpr {
 
 class ASTCallExpr : public ASTExpr {
  public:
-  ASTCallExpr() : ASTExpr(kASTOpCall) {}
+  ASTCallExpr() : ASTExpr(kASTOpCall), varName(FEUtils::GetSequentialName("retVar_")) {}
   ~ASTCallExpr() = default;
   void SetCalleeExpr(ASTExpr *astExpr) {
     calleeExpr = astExpr;
@@ -806,6 +897,14 @@ class ASTCallExpr : public ASTExpr {
     return funcName;
   }
 
+  void SetFuncAttrs(const FuncAttrs &attrs) {
+    funcAttrs = attrs;
+  }
+
+  const FuncAttrs &GetFuncAttrs() const {
+    return funcAttrs;
+  }
+
   void SetIcall(bool icall) {
     isIcall = icall;
   }
@@ -828,7 +927,9 @@ class ASTCallExpr : public ASTExpr {
   ASTExpr *calleeExpr = nullptr;
   MIRType *retType = nullptr;
   std::string funcName;
+  FuncAttrs funcAttrs;
   bool isIcall = false;
+  std::string varName;
 };
 
 class ASTParenExpr : public ASTExpr {
@@ -951,20 +1052,6 @@ class ASTVAArgExpr : public ASTExpr {
                      std::list<UniqueFEIRStmt> &stmts) const;
 
   ASTExpr *child = nullptr;
-};
-
-class ASTCompoundAssignOperatorExpr : public ASTAssignExpr {
- public:
-  ASTCompoundAssignOperatorExpr() : ASTAssignExpr(kASTOpCompoundAssign) {}
-  ~ASTCompoundAssignOperatorExpr() override = default;
-
-  void SetOpForCompoundAssign(Opcode opcode){
-    opForCompoundAssign = opcode;
-  }
-
- protected:
-  Opcode opForCompoundAssign;
-  UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 };
 
 class ASTConstantExpr : public ASTExpr {

@@ -2196,7 +2196,7 @@ void FEIRExprConst::CheckRawValue2SetZero() {
 // ---------- FEIRExprSizeOfType ----------
 FEIRExprSizeOfType::FEIRExprSizeOfType(UniqueFEIRType ty)
     : FEIRExpr(FEIRNodeKind::kExprSizeOfType,
-               std::make_unique<FEIRTypeNative>(*GlobalTables::GetTypeTable().GetPrimType(PTY_u32))),
+               FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPrimType(PTY_u32))),
       feirType(std::move(ty)) {}
 
 std::unique_ptr<FEIRExpr> FEIRExprSizeOfType::CloneImpl() const {
@@ -2286,10 +2286,6 @@ std::unique_ptr<FEIRExpr> FEIRExprIRead::CloneImpl() const {
   return expr;
 }
 
-PrimType FEIRExprIRead::GetPrimTypeImpl() const {
-  return type->GetPrimType();
-}
-
 BaseNode *FEIRExprIRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
   MIRType *returnType = type->GenerateMIRTypeAuto();
   MIRType *pointerType = ptrType->GenerateMIRTypeAuto();
@@ -2353,8 +2349,6 @@ BaseNode *FEIRExprIAddrof::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 std::unique_ptr<FEIRExpr> FEIRExprAddrofVar::CloneImpl() const {
   std::unique_ptr<FEIRExprAddrofVar> expr = std::make_unique<FEIRExprAddrofVar>(varSrc->Clone());
   expr->SetFieldID(fieldID);
-  expr->SetFieldName(fieldName);
-  expr->SetFieldType(fieldType);
   return expr;
 }
 
@@ -2364,15 +2358,11 @@ BaseNode *FEIRExprAddrofVar::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
     varSymbol->SetKonst(cst);
   }
   MIRType *type = varSrc->GetType()->GenerateMIRTypeAuto();
-  AddrofNode *node = mirBuilder.CreateExprAddrof(fieldID, *varSymbol);
-  FieldID fieldID = this->fieldID;
-  if ((type->IsMIRStructType() || type->GetKind() == MIRTypeKind::kTypeUnion) &&
-      (!fieldName.empty() || (fieldID != 0))) {
-    if (fieldID == 0) {
-      fieldID = FEUtils::GetStructFieldID(static_cast<MIRStructType*>(type), fieldName);
-    }
-    node = mirBuilder.CreateExprAddrof(fieldID, *varSymbol);
+  if (fieldID != 0) {
+    CHECK_FATAL((type->IsMIRStructType() || type->GetKind() == MIRTypeKind::kTypeUnion),
+                "if fieldID is not 0, then the variable must be a structure");
   }
+  AddrofNode *node = mirBuilder.CreateExprAddrof(fieldID, *varSymbol);
   return node;
 }
 
@@ -2397,7 +2387,9 @@ BaseNode *FEIRExprAddrofFunc::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 // ---------- FEIRExprAddrofArray ----------
 FEIRExprAddrofArray::FEIRExprAddrofArray(UniqueFEIRType argTypeNativeArray, UniqueFEIRExpr argExprArray,
                                          std::string argArrayName, std::list<UniqueFEIRExpr> &argExprIndexs)
-    : FEIRExpr(FEIRNodeKind::kExprAddrofArray), typeNativeArray(std::move(argTypeNativeArray)),
+    : FEIRExpr(FEIRNodeKind::kExprAddrofArray,
+               FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
+      typeNativeArray(std::move(argTypeNativeArray)),
       exprArray(std::move(argExprArray)),
       arrayName(argArrayName) {
   SetIndexsExprs(argExprIndexs);
@@ -3335,6 +3327,10 @@ FEIRExprArrayStoreForC::FEIRExprArrayStoreForC(UniqueFEIRExpr argExprArray, std:
       typeNative(std::move(argTypeNative)),
       arrayName(argArrayName) {
   SetIndexsExprs(argExprIndexs);
+  CHECK_NULL_FATAL(typeNative);
+  MIRType *ptrMIRArrayType = typeNative->GenerateMIRTypeAuto();
+  MIRType *elemMIRType = static_cast<MIRArrayType*>(ptrMIRArrayType)->GetElemType();
+  elemType = FEIRTypeHelper::CreateTypeNative(*elemMIRType);
 }
 
 FEIRExprArrayStoreForC::FEIRExprArrayStoreForC(UniqueFEIRExpr argExprArray, std::list<UniqueFEIRExpr> &argExprIndexs,
@@ -3348,6 +3344,10 @@ FEIRExprArrayStoreForC::FEIRExprArrayStoreForC(UniqueFEIRExpr argExprArray, std:
       typeNativeStruct(std::move(argStructTypeNative)),
       arrayName(argArrayName) {
   SetIndexsExprs(argExprIndexs);
+  CHECK_NULL_FATAL(typeNative);
+  MIRType *ptrMIRArrayType = typeNative->GenerateMIRTypeAuto();
+  MIRType *elemMIRType = static_cast<MIRArrayType*>(ptrMIRArrayType)->GetElemType();
+  elemType = FEIRTypeHelper::CreateTypeNative(*elemMIRType);
 }
 
 // only ArraySubscriptExpr is right value, left not need
@@ -3368,15 +3368,19 @@ BaseNode *FEIRExprArrayStoreForC::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 #endif
   }
   BaseNode *nodeAddrof = nullptr;
-  MIRSymbol *mirSymbol = exprArray->GetVarUses().front()->GenerateMIRSymbol(mirBuilder);
-  auto mirtype = mirSymbol->GetType();
-  if (mirtype->GetKind() == kTypePointer) {
+  if (exprArray->GetKind() == kExprIAddrof) {
     nodeAddrof = exprArray->GenMIRNode(mirBuilder);
   } else {
-    if (mirSymbol->GetKonst() == nullptr && exprArray->GetKind() == kExprAddrofVar) {
-      mirSymbol->SetKonst(static_cast<FEIRExprAddrofVar*>(exprArray.get())->GetVarValue());
+    MIRSymbol *mirSymbol = exprArray->GetVarUses().front()->GenerateMIRSymbol(mirBuilder);
+    auto mirtype = mirSymbol->GetType();
+    if (mirtype->GetKind() == kTypePointer) {
+      nodeAddrof = exprArray->GenMIRNode(mirBuilder);
+    } else {
+      if (mirSymbol->GetKonst() == nullptr && exprArray->GetKind() == kExprAddrofVar) {
+        mirSymbol->SetKonst(static_cast<FEIRExprAddrofVar*>(exprArray.get())->GetVarValue());
+      }
+      nodeAddrof = mirBuilder.CreateExprAddrof(fieldID, *mirSymbol);
     }
-    nodeAddrof = mirBuilder.CreateExprAddrof(fieldID, *mirSymbol);
   }
   nds.push_back(nodeAddrof);
   for (auto &e : exprIndexs) {
@@ -3417,6 +3421,19 @@ PrimType FEIRExprArrayStoreForC::GetPrimTypeImpl() const {
   } else {
     return static_cast<MIRArrayType*>(ptrMIRArrayType)->GetElemType()->GetPrimType();
   }
+}
+
+FEIRType *FEIRExprArrayStoreForC::GetTypeImpl() const {
+  CHECK_NULL_FATAL(typeNative);
+  if (isAddrOf) {
+    return ptrType.get();
+  } else {
+    return elemType.get();
+  }
+}
+
+const FEIRType &FEIRExprArrayStoreForC::GetTypeRefImpl() const {
+  return *GetTypeImpl();
 }
 
 // ---------- FEIRExprArrayLoad ----------
@@ -3479,21 +3496,19 @@ FEIRExprCStyleCast::FEIRExprCStyleCast(MIRType *src,
                                        UniqueFEIRExpr sub,
                                        bool isArr2Pty)
     : FEIRExpr(FEIRNodeKind::kExprCStyleCast),
-      srcType(std::move(src)),
-      destType(std::move(dest)),
+      srcType(src),
+      destType(dest),
       subExpr(std::move(sub)),
-      isArray2Pointer(isArr2Pty) {}
+      isArray2Pointer(isArr2Pty) {
+  CHECK_NULL_FATAL(dest);
+  type = FEIRTypeHelper::CreateTypeNative(*dest);
+}
 
 std::unique_ptr<FEIRExpr> FEIRExprCStyleCast::CloneImpl() const {
   auto expr = std::make_unique<FEIRExprCStyleCast>(srcType, destType,
                                                    subExpr->Clone(), isArray2Pointer);
   expr->SetRefName(refName);
   return expr;
-}
-
-PrimType FEIRExprCStyleCast::GetPrimTypeImpl() const {
-  CHECK_NULL_FATAL(destType);
-  return destType->GetPrimType();
 }
 
 BaseNode *FEIRExprCStyleCast::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
