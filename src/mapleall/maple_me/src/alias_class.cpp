@@ -784,11 +784,17 @@ void AliasClass::ApplyUnionForPointedTos() {
         MapleVector<OriginalSt *> *nextLevelNodes1 = GetAliasAnalysisTable()->GetNextLevelNodes(ae1->GetOriginalSt());
         MapleVector<OriginalSt *>::iterator ost1it = nextLevelNodes1->begin();
         for (; ost1it != nextLevelNodes1->end(); ++ost1it) {
+          MIRType *mirType1 = GlobalTables::GetTypeTable().GetTypeFromTyIdx((*ost1it)->GetTyIdx());
+          bool ost1IsAgg = mirType1->GetPrimType() == PTY_agg;
+
           MapleVector<OriginalSt *> *nextLevelNodes2 = GetAliasAnalysisTable()->GetNextLevelNodes(ae2->GetOriginalSt());
           MapleVector<OriginalSt *>::iterator ost2it = nextLevelNodes2->begin();
           for (; ost2it != nextLevelNodes2->end(); ++ost2it) {
             bool hasFieldid0 = (*ost1it)->GetFieldID() == 0 || (*ost2it)->GetFieldID() == 0;
-            if (((*ost1it)->GetFieldID() != (*ost2it)->GetFieldID()) && !hasFieldid0) {
+            MIRType *mirType2 = GlobalTables::GetTypeTable().GetTypeFromTyIdx((*ost2it)->GetTyIdx());
+            bool ost2IsAgg = mirType2->GetPrimType() == PTY_agg;
+            bool hasAggType = ost1IsAgg || ost2IsAgg;
+            if (((*ost1it)->GetFieldID() != (*ost2it)->GetFieldID()) && !hasFieldid0 && !hasAggType) {
               continue;
             }
             if (((*ost1it)->IsFinal() || (*ost2it)->IsFinal())) {
