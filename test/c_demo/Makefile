@@ -15,4 +15,4 @@
 
 .PHONY: default
 default:
-	../maple_aarch64_with_whirl2mpl.sh . printHuawei 1 1
+	../maple_aarch64_with_clang2mpl.sh . printHuawei 1 1

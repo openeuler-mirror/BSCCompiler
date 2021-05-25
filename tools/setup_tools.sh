@@ -147,7 +147,7 @@ version=c3b1120
 if [ ! -f $TOOLS/open64_prebuilt/V_$version ]; then
   cd $TOOLS
   rm -rf open64_prebuilt
-  git clone --depth 2 https://gitee.com/open64ark/open64_prebuilt.git
+  git clone --depth 1 https://gitee.com/open64ark/open64_prebuilt.git
 fi
 if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   cd $TOOLS/open64_prebuilt/x86
@@ -159,6 +159,18 @@ if [ ! -f $TOOLS/open64_prebuilt/x86/riscv64/bin/clangfe ]; then
   touch $TOOLS/open64_prebuilt/V_$version
   echo Downloaded open64_prebuilt.
 fi
+
+# clang2mpl
+if [ ! -d $TOOLS/clang2mpl ]; then
+  git clone --depth 1 https://gitee.com/openarkcompiler-incubator/clang2mpl.git
+  echo Installed qemu-aarch64
+fi
+# routinly updated to be compatible with maple
+cd $TOOLS/clang2mpl
+git clean -df
+git checkout .
+git checkout master
+git pull
 
 mkdir -p ${TOOL_BIN_PATH}
 if [ "$OLD_OS" == "1" ]; then

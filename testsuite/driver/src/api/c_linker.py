@@ -23,5 +23,5 @@ class CLinker(ShellOperator):
         self.outfile = outfile
 
     def get_command(self, variables):
-        self.command = "/usr/bin/aarch64-linux-gnu-gcc -o " + self.outfile + " " + self.infile
+        self.command = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc -o " + self.outfile + " " + self.infile
         return super().get_final_command(variables)
