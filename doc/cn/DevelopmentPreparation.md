@@ -14,7 +14,7 @@
 
 
 ```
-sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless
+sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless cmake
 sudo apt-get -y install git build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
 
 Ubuntu 16.04:
@@ -37,16 +37,16 @@ make setup
 
 ## 安装Clang编译器并完成配置（用于编译方舟编译器代码，20.04已改为使用系统安装的Clang）
 
-下载**clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04** (具体版本请根据系统版本确定)
+下载**clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04** (具体版本请根据系统版本确定)
 
-LLVM下载地址：http://releases.llvm.org/download.html#8.0.0
+LLVM下载地址：http://releases.llvm.org/download.html#10.0.0
 
 解压并放置到`openarkcompiler/tools`目录
 
 * 修改`openarkcompiler/build/envsetup.sh`文件，将`CLANG_PATH`变量配置为clang编译器所在路径，例如：
 
 ```
-CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin"
+CLANG_PATH = "${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin"
 ```
 
 其中${MAPLE_ROOT}为openarkcompiler源码根目录。
