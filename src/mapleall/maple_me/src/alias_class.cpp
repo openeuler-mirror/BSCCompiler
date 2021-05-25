@@ -417,13 +417,26 @@ bool AliasClass::SetNextLevNADSForPtrIntegerCopy(AliasElem &lhsAe, const AliasEl
   PrimType rhsPtyp = realRhs.GetPrimType();
   if (lhsPtyp != rhsPtyp) {
     if (IsPotentialAddress(lhsPtyp, &mirModule) && !IsPotentialAddress(rhsPtyp, &mirModule)) {
+      // ptr <- (ptr)integer
       lhsAe.SetNextLevNotAllDefsSeen(true);
       return true;
     } else if (!IsPotentialAddress(lhsPtyp, &mirModule) && IsPotentialAddress(rhsPtyp, &mirModule)) {
+      // integer <- (integer)ptr
       AliasInfo realRhsAinfo = CreateAliasElemsExpr(realRhs);
       if (realRhsAinfo.ae != nullptr) {
         realRhsAinfo.ae->SetNextLevNotAllDefsSeen(true);
       }
+      return true;
+    } else if (IsPotentialAddress(lhsPtyp, &mirModule) &&
+               realRhs.GetOpCode() == OP_constval &&
+               static_cast<ConstvalNode&>(realRhs).GetConstVal()->IsZero()) {
+      // special case, pointer initial : ptr <- 0
+      // In some cases for some language like C, pointers may be initialized as null pointer at first,
+      // and assigned a new value in other program site. If we do not handle this case, all pointers
+      // with 0 intial value will be set nextLevNADS and their nextLev will be unionized after this step.
+      // The result is right, but the set of nextLevNADS will be very large, leading to a great amount of
+      // aliasing pointers and the imprecision of the alias analyse result.
+      // Hence we do nothing but return true here to skip setting pointer nextLevNADS.
       return true;
     }
   }
