@@ -274,8 +274,8 @@ void SSAPre::CodeMotion() {
             if (defOcc->GetOccType() == kOccReal) {
               phiOpnd->phiOpnd4Temp = static_cast<MeRealOcc *>(defOcc)->GetSavedExpr();
             } else {
-              MePhiOcc *defphiOcc = static_cast<MePhiOcc *>(defOcc);
-              MePhiNode *scalarPhi = (defphiOcc->GetRegPhi() ? defphiOcc->GetRegPhi() : defphiOcc->GetVarPhi());
+              MePhiOcc *defphiocc = static_cast<MePhiOcc *>(defOcc);
+              MePhiNode *scalarPhi = (defphiocc->GetRegPhi() ? defphiocc->GetRegPhi() : defphiocc->GetVarPhi());
               phiOpnd->phiOpnd4Temp = scalarPhi->GetLHS();
             }
           }
