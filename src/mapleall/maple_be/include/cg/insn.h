@@ -171,6 +171,10 @@ class Insn {
     return nullptr;
   }
 
+  virtual void SetMemOpnd(MemOperand *memOpnd) {
+    return;
+  }
+
   virtual Operand *GetResult(uint32 index) const{
     (void)index;
     return nullptr;
@@ -273,6 +277,10 @@ class Insn {
     return false;
   }
 
+  virtual bool IsLoadStorePair() const {
+    return false;
+  }
+
   virtual bool IsLoadAddress() const {
     return false;
   }
@@ -282,6 +290,10 @@ class Insn {
   }
 
   virtual bool NoAlias() const {
+    return false;
+  }
+
+  virtual bool NoOverlap() const {
     return false;
   }
 
@@ -477,10 +489,13 @@ class Insn {
   }
 
   virtual uint32 GetJumpTargetIdxFromMOp(MOperator mOp) const {
+    (void)mOp;
     return 0;
   }
 
-  virtual MOperator FlipConditionOp(MOperator flippedOp, int &targetIdx) {
+  virtual MOperator FlipConditionOp(MOperator flippedOp, uint32 &targetIdx) {
+    (void)flippedOp;
+    (void)targetIdx;
     return 0;
   }
 
