@@ -22,7 +22,8 @@
 #include "mir_parser.h"
 #include "file_utils.h"
 #include "debug_info.h"
-
+#include "mir_lower.h"
+#include "constantfold.h"
 #include "lower.h"
 #if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_cg.h"
@@ -37,6 +38,7 @@
 using namespace maplebe;
 
 #define JAVALANG (theModule->IsJavaModule())
+#define CLANG (theModule->IsCModule())
 
 #define CHECK_MODULE(errorCode...)                                              \
   do {                                                                          \
@@ -89,8 +91,14 @@ ErrorCode DriverRunner::Run() {
   outputFile.append(GetPostfix());
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     std::string vtableImplFile = originBaseName;
-    vtableImplFile.append(".VtableImpl.mpl");
-    originBaseName.append(".VtableImpl");
+    std::string postFix = "";
+    if (theModule->GetSrcLang() == kSrcLangC) {
+      postFix = ".me";
+    } else {
+      postFix = ".VtableImpl";
+    }
+    vtableImplFile.append(postFix + ".mpl");
+    originBaseName.append(postFix);
     ProcessMpl2mplAndMePhases(outputFile, vtableImplFile);
   }
   ProcessCGPhase(outputFile, originBaseName);
@@ -184,7 +192,7 @@ ErrorCode DriverRunner::ParseInput() const {
       LogInfo::MapleLogger() << "Starting parse " << inputInline << '\n';
       bool parsed = parser.ParseInlineFuncBody(optFile);
       if (!parsed) {
-        parser.EmitError(outputFile);
+        parser.EmitError(actualInput);
       }
       optFile.close();
     }
@@ -197,12 +205,10 @@ ErrorCode DriverRunner::ParseInput() const {
 void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) const {
   CHECK_MODULE();
   theMIRModule = theModule;
-
   if (hasDebugFlag) {
     std::cout << "set up debug info " << std::endl;
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
-
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
     LogInfo::MapleLogger() << "Processing maplecomb" << '\n';
 
@@ -322,8 +328,18 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
       cg->GetEmitter()->EmitFileInfo(actualInput);
     }
     // Run the cg optimizations phases
-    RunCGFunctions(*cg, cgfpm, extraPhasesTime, extraPhasesName);
-
+    if (theModule->HasPartO2List()) {
+      CHECK_FATAL(cgOptions->GetOptimizeLevel() == CGOptions::kLevel2, "partO2 need coroperate with O2");
+      CgFuncPhaseManager cgO0fpm(*optMp, *theModule);
+      cgO0fpm.RegisterFuncPhases();
+      cgO0fpm.SetCGPhase(kCgPhaseMainOpt);
+      cgOptions->EnableO0();
+      std::vector<std::string> phases;
+      cgO0fpm.AddPhases(phases);
+      RunCGFunctions(*cg, cgfpm, cgO0fpm, extraPhasesTime, extraPhasesName);
+    } else {
+      RunCGFunctions(*cg, cgfpm, cgfpm, extraPhasesTime, extraPhasesName);
+    }
     // Emit global info
     timeStart = std::chrono::system_clock::now();
     EmitGlobalInfo(*cg);
@@ -381,7 +397,8 @@ CG *DriverRunner::CreateCGAndBeCommon(const std::string &outputFile, const std::
 }
 
 
-void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector<long> &extraPhasesTime,
+void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgNormalfpm, CgFuncPhaseManager &cgO0fpm,
+                                  std::vector<long> &extraPhasesTime,
                                   std::vector<std::string> &extraPhasesName) const {
   MPLTimer timer;
   long lowerTime = 0;
@@ -399,7 +416,7 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
   timer.Stop();
   lowerTime += timer.ElapsedMicroseconds();
 
-  if (cg.AddStackGuard()) {
+  if (cg.AddStackGuard() || theModule->HasPartO2List()) {
     cg.AddStackGuardvar();
   }
 
@@ -411,7 +428,20 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
     if (mirFunc->GetBody() == nullptr) {
       continue;
     }
-
+    CgFuncPhaseManager *cgfpm = nullptr;
+    if (&cgNormalfpm == &cgO0fpm) {
+      cgfpm = &cgNormalfpm;
+    } else {
+      if (theModule->HasPartO2List() && theModule->IsInPartO2List(mirFunc->GetNameStrIdx())) {
+        cgfpm = &cgNormalfpm;
+        cgOptions->EnableO2();
+      } else {
+        cgfpm = &cgO0fpm;
+        cgOptions->EnableO0();
+      }
+      cg.UpdateCGOptions(*cgOptions);
+      Globals::GetInstance()->SetOptimLevel(cgOptions->GetOptimizeLevel());
+    }
     // LowerIR.
     theModule->SetCurFunction(mirFunc);
     timer.Start();
@@ -439,8 +469,8 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
     lowerTime += timer.ElapsedMicroseconds();
 
     MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(mirFunc->GetStIdx().Idx());
-    MemPool *funcMp = memPoolCtrler.NewMemPool(funcSt->GetName());
-    MapleAllocator funcScopeAllocator(funcMp);
+    auto funcMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, funcSt->GetName());
+    MapleAllocator funcScopeAllocator(funcMp.get());
 
     // Create CGFunc
     mirFunc->SetPuidxOrigin(++countFuncId);
@@ -448,19 +478,18 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector
     CHECK_FATAL(cgFunc != nullptr, "nullptr check");
     CG::SetCurCGFunc(*cgFunc);
 
-    cgfpm.Run(*cgFunc);
+    cgfpm->Run(*cgFunc);
 
     cg.GetEmitter()->EmitLocalVariable(*cgFunc);
 
     // Invalid all analysis result.
-    cgfpm.Emit(*cgFunc);
+    cgfpm->Emit(*cgFunc);
     cg.GetEmitter()->EmitHugeSoRoutines();
-    cgfpm.GetAnalysisResultManager()->InvalidIRbaseAnalysisResult(*cgFunc);
-    cgfpm.ClearPhaseNameInfo();
+    cgfpm->GetAnalysisResultManager()->InvalidIRbaseAnalysisResult(*cgFunc);
+    cgfpm->ClearPhaseNameInfo();
 
     // Delete mempool.
-    memPoolCtrler.DeleteMemPool(funcMp);
-    memPoolCtrler.DeleteMemPool(mirFunc->GetCodeMempool());
+    mirFunc->ReleaseCodeMemory();
 
     ++rangeNum;
   }

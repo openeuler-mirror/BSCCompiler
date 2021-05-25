@@ -82,6 +82,10 @@ ast2mpl:
 mplfe: install_patch
 	$(call build_gn, $(GN_OPTIONS), mplfe)
 
+.PHONY: clang2mpl
+clang2mpl: maple
+	(cd tools/clang2mpl; make setup; make; make install)
+
 .PHONY: mplfeUT
 mplfeUT:
 	$(call build_gn, $(GN_OPTIONS) COV_CHECK=1, mplfeUT)
@@ -103,7 +107,7 @@ java-core-def: install
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: install
-install: maple dex2mpl_install irbuild mplfe
+install: maple dex2mpl_install irbuild mplfe clang2mpl
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
@@ -111,7 +115,7 @@ install: maple dex2mpl_install irbuild mplfe
 	rsync -a -L $(MAPLE_BIN_DIR)/jbc2mpl $(INSTALL_DIR)/bin/;)
 
 .PHONY: all
-all: install mplfe libcore
+all: install libcore
 
 ifeq ($(OPS_ANDROID),0)
 .PHONY: dex2mpl_install
@@ -129,7 +133,7 @@ setup:
 
 .PHONY: demo
 demo:
-	test/maple_aarch64_with_whirl2mpl.sh test/c_demo printHuawei 1 1
+	test/maple_aarch64_with_clang2mpl.sh test/c_demo printHuawei 1 1
 
 .PHONY: ctorture-ci
 ctorture-ci:

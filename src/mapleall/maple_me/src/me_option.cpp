@@ -142,6 +142,7 @@ enum OptionIndex {
   kMeWarnLevel,
   kMeOptL1,
   kMeOptL2,
+  kMeOptL3,
   kRefUsedCheck,
   kMeRange,
   kEpreLimit,
@@ -233,6 +234,15 @@ const Descriptor kUsage[] = {
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                         \tDo some optimization.\n",
+    "me",
+    {} },
+  { kMeOptL3,
+    0,
+    "",
+    "O3",
+    kBuildTypeProduct,
+    kArgCheckPolicyOptional,
+    "  -O3                         \tDo aggressive optimizations.\n",
     "me",
     {} },
   { kRefUsedCheck,
@@ -1040,6 +1050,8 @@ void MeOption::DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOp
       case kMeOptL2:
         realLevel = kLevelTwo;
         break;
+      case kMeOptL3:
+        realLevel = kLevelThree;
       default:
         break;
     }
@@ -1049,6 +1061,13 @@ void MeOption::DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOp
   } else if (realLevel == kLevelTwo) {
     optLevel = kLevelTwo;
     // Turn the followings ON only at O2
+    optDirectCall = true;
+    placementRC = true;
+    subsumRC = true;
+    epreIncludeRef = true;
+  } else if (realLevel == kLevelThree) {
+    optLevel = kLevelThree;
+    // turn on as O2
     optDirectCall = true;
     placementRC = true;
     subsumRC = true;
@@ -1075,6 +1094,8 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kMeOptL2:
         // Already handled above in DecideMeRealLevel
+        break;
+      case kMeOptL3:
         break;
       case kRefUsedCheck:
         SplitPhases(opt.Args(), checkRefUsedInFuncs);

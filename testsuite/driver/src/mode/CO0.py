@@ -21,11 +21,8 @@ CO0 = {
         )
     ],
     "compile": [
-        Clangfe(
+        Clang2mpl(
             infile="${APP}.c"
-        ),
-        Whirl2mpl(
-            infile="${APP}.B"
         ),
         Maple(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
