@@ -739,7 +739,7 @@ ASTExpr *ASTParser::ProcessExprUnaryOperator(MapleAllocator &allocator, const cl
   if (clangOpCode == clang::UO_PostInc || clangOpCode == clang::UO_PostDec ||
       clangOpCode == clang::UO_PreInc || clangOpCode == clang::UO_PreDec) {
     const auto *declRefExpr = llvm::dyn_cast<clang::DeclRefExpr>(subExpr);
-    if (declRefExpr->getDecl()->getKind() == clang::Decl::Var) {
+    if (declRefExpr != nullptr && declRefExpr->getDecl()->getKind() == clang::Decl::Var) {
       const auto *varDecl = llvm::cast<clang::VarDecl>(declRefExpr->getDecl()->getCanonicalDecl());
       astUOExpr->SetGlobal(!varDecl->isLocalVarDeclOrParm());
     }
@@ -881,6 +881,9 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
       }
     }
   } else {
+    if (expr.hasArrayFiller()) {
+      astInitListExpr->SetHasArrayFiller(true);
+    }
     for (uint32 i = 0; i < n; ++i) {
       const clang::Expr *eExpr = le[i];
       ASTExpr *astExpr = ProcessExpr(allocator, eExpr);
@@ -964,6 +967,8 @@ ASTExpr *ASTParser::ProcessExprArraySubscriptExpr(MapleAllocator &allocator, con
   auto base = exprTmp->getBase();
   while (exprTmp != nullptr && exprTmp->getStmtClass() == clang::Stmt::ArraySubscriptExprClass) {
     base = exprTmp->getBase();
+    MIRType *baseExprType = astFile->CvtType(exprTmp->getType());
+    astArraySubscriptExpr->SetBaseExprType(baseExprType);
     ASTExpr *idxExpr = ProcessExpr(allocator, exprTmp->getIdx());
     astArraySubscriptExpr->SetIdxExpr(idxExpr);
     if (idxExpr == nullptr) {
