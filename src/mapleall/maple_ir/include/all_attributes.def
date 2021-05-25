@@ -80,3 +80,4 @@
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
 #endif
+  ATTR(oneelem_simd)
