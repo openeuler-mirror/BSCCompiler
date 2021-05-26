@@ -364,6 +364,8 @@ class AArch64CGFunc : public CGFunc {
     return(nPairs * (kIntregBytelen << 1));
   }
 
+  void DBGFixCallFrameLocationOffsets() override;
+
   void NoteFPLRAddedToCalleeSavedList() {
     fplrAddedToCalleeSaved = true;
   }
