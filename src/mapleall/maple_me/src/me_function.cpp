@@ -22,6 +22,7 @@
 #include "constantfold.h"
 #include "me_irmap.h"
 #include "me_phase.h"
+#include "lfo_mir_lower.h"
 
 namespace maple {
 #if DEBUG
@@ -129,13 +130,22 @@ void MeFunction::Prepare(unsigned long rangeNum) {
     LogInfo::MapleLogger() << "---Preparing Function  < " << CurFunction()->GetName() << " > [" << rangeNum
                            << "] ---\n";
   }
-  /* lower first */
-  MIRLower mirLowerer(mirModule, CurFunction());
-  mirLowerer.Init();
-  mirLowerer.SetLowerME();
-  mirLowerer.SetLowerExpandArray();
-  ASSERT(CurFunction() != nullptr, "nullptr check");
-  mirLowerer.LowerFunc(*CurFunction());
+
+  if (MeOption::optLevel >= 3) {
+    MemPool* lfomp = memPoolCtrler.NewMemPool("lfo", true);
+    SetLfoFunc(lfomp->New<LfoFunction>(lfomp, this));
+    SetLfoMempool(lfomp);
+    LFOMIRLower lfomirlowerer(mirModule, this);
+    lfomirlowerer.LowerFunc(*CurFunction());
+  } else {
+    /* lower first */
+    MIRLower mirLowerer(mirModule, CurFunction());
+    mirLowerer.Init();
+    mirLowerer.SetLowerME();
+    mirLowerer.SetLowerExpandArray();
+    ASSERT(CurFunction() != nullptr, "nullptr check");
+    mirLowerer.LowerFunc(*CurFunction());
+  }
 }
 
 void MeFunction::Verify() const {
