@@ -32,6 +32,28 @@
 #include "mempool_allocator.h"
 #include "muid_replacement.h"
 #include "namemangler.h"
+#include "debug_info.h"
+
+namespace maple {
+const char *GetDwTagName(unsigned n);
+const char *GetDwFormName(unsigned n);
+const char *GetDwAtName(unsigned n);
+}  /* namespace maple */
+
+#if TARGRISCV64
+#define CMNT "\t# "
+#else
+#define CMNT "\t// "
+#endif
+#define TEXT_BEGIN text0
+#define TEXT_END etext0
+#define DEBUG_INFO_0 debug_info0
+#define DEBUG_ABBREV_0 debug_abbrev0
+#define DEBUG_LINE_0 debug_line0
+#define DEBUG_STR_LABEL ASF
+#define DEBUG_MAPLE_THIS "_this"
+#define DWARF_VERSION 4
+#define SIZEOFPTR 8
 
 namespace maplebe {
 constexpr int32 kSizeOfDecoupleStaticStruct = 4;
@@ -127,6 +149,8 @@ class Emitter {
     }
     rangeIdx2PrefixStr.clear();
     hugeSoTargets.clear();
+    labdie2labidxTable.clear();
+    fileMap.clear();
   }
 
   MOperator GetCurrentMOP() const {
@@ -153,7 +177,7 @@ class Emitter {
                             uint64 fieldOffset);
   void EmitScalarConstant(MIRConst &mirConst, bool newLine = true, bool flag32 = false, bool isIndirect = false);
   void EmitStr(const std::string& mplStr, bool emitAscii = false, bool emitNewline = false);
-  void EmitStrConstant(const MIRStrConst &mirStrConst, bool isAscii = false, bool isIndirect = false);
+  void EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect = false);
   void EmitStr16Constant(const MIRStr16Const &mirStr16Const);
   void EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, uint32 itabConflictIndex,
                     const std::map<GStrIdx, MIRType*> &strIdx2Type, size_t idx);
@@ -184,7 +208,7 @@ class Emitter {
   void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec);
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
-  void EmitLocalVariable(CGFunc &cgFunc);
+  void EmitLocalVariable(const CGFunc &cgFunc);
   void EmitGlobalVariable();
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
   void EmitMuidTable(const std::vector<MIRSymbol*> &vec, const std::map<GStrIdx, MIRType*> &strIdx2Type,
@@ -212,14 +236,33 @@ class Emitter {
   void EmitLabelRef(LabelIdx labIdx);
   void EmitStmtLabel(LabelIdx labIdx);
   void EmitLabelPair(const LabelPair &pairLabel);
+  void EmitLabelForFunc(MIRFunction *func, LabelIdx labIdx);
 
   /* Emit signed/unsigned integer literals in decimal or hexadecimal */
   void EmitDecSigned(int64 num);
   void EmitDecUnsigned(uint64 num);
   void EmitHexUnsigned(uint64 num);
+
+  /* Dwarf debug info */
+  void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr, DBGAbbrevEntry *diae);
+  void SetupDBGInfo(DebugInfo *);
+  void ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie *)> &func);
+  void AddLabelDieToLabelIdxMapping(DBGDie *, LabelIdx);
+  LabelIdx GetLabelIdxForLabelDie(DBGDie *);
   void EmitDIHeader();
   void EmitDIFooter();
   void EmitDIHeaderFileInfo();
+  void EmitDIDebugInfoSection(DebugInfo *);
+  void EmitDIDebugAbbrevSection(DebugInfo *);
+  void EmitDIDebugARangesSection();
+  void EmitDIDebugRangesSection();
+  void EmitDIDebugLineSection();
+  void EmitDIDebugStrSection();
+  void EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di);
+  void EmitDIFormSpecification(unsigned int dwform);
+  void EmitDIFormSpecification(DBGDieAttr *attr) {
+    EmitDIFormSpecification(attr->GetDwForm());
+  }
 
 #if 1 /* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
@@ -231,6 +274,14 @@ class Emitter {
 
   uint64 GetFuncInsnCount() const {
     return funcInsnCount;
+  }
+
+  MapleMap<uint32_t, std::string> &GetFileMap() {
+    return fileMap;
+  }
+
+  void SetFileMapValue(uint32_t n, std::string &file) {
+    fileMap[n] = file;
   }
 
   CG *GetCG() const {
@@ -268,13 +319,21 @@ class Emitter {
   }
 #endif
 
+  void InsertLabdie2labidxTable(DBGDie *lbldie, LabelIdx lab) {
+    if (labdie2labidxTable.find(lbldie) == labdie2labidxTable.end()) {
+      labdie2labidxTable[lbldie] = lab;
+    }
+  }
+
  protected:
   Emitter(CG &cg, const std::string &fileName)
       : cg(&cg),
         rangeIdx2PrefixStr(cg.GetMIRModule()->GetMPAllocator().Adapter()),
         arraySize(0),
         isFlexibleArray(false),
-        hugeSoTargets(cg.GetMIRModule()->GetMPAllocator().Adapter()) {
+        hugeSoTargets(cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        labdie2labidxTable(std::less<DBGDie *>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        fileMap(std::less<uint32_t>(), cg.GetMIRModule()->GetMPAllocator().Adapter()) {
     outStream.open(fileName, std::ios::trunc);
     MIRModule &mirModule = *cg.GetMIRModule();
     memPool = mirModule.GetMemPool();
@@ -306,6 +365,8 @@ class Emitter {
   MapleSet<std::string> hugeSoTargets;
   uint32 hugeSoSeqence = 2;
 #endif
+  MapleMap<DBGDie *, LabelIdx> labdie2labidxTable;
+  MapleMap<uint32_t, std::string> fileMap;
 };
 }  /* namespace maplebe */
 
