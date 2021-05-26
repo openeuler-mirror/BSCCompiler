@@ -51,6 +51,10 @@ static bool CompareBackedge(const std::pair<BB*, BB*> &a, const std::pair<BB*, B
 
 bool MeDoLoopCanon::NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAllocator &localAlloc,
                                 MapleMap<Key, bool> &swapSuccs) const {
+  // loop is transformed
+  if (pred.GetAttributes(kBBAttrArtificial)) {
+    return false;
+  }
   bb.SetAttributes(kBBAttrIsInLoop);
   pred.SetAttributes(kBBAttrIsInLoop);
   // do not convert do-while loop
@@ -119,6 +123,7 @@ void MeDoLoopCanon::Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bo
   // new latchBB
   BB *latchBB = func.GetCfg()->NewBasicBlock();
   latchBB->SetAttributes(kBBAttrArtificial);
+  latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
   // update pred bb
   pred.ReplaceSucc(&bb, latchBB); // replace pred.succ with latchBB and set pred of latchBB
   // update pred stmt if needed
@@ -339,8 +344,15 @@ void MeDoLoopCanon::Merge(MeFunction &func) {
   MeCFG *cfg = func.GetCfg();
   for (auto iter = heads.begin(); iter != heads.end(); ++iter) {
     BB *head = cfg->GetBBFromID(iter->first);
+    // skip case : check latch bb is already added
+    if ((head->GetPred().size() == 2) &&
+        (head->GetPred(1)->GetAttributes(kBBAttrArtificial)) &&
+        (head->GetPred(1)->GetKind() == kBBFallthru)) {
+      continue;
+    }
     auto *latchBB = cfg->NewBasicBlock();
     latchBB->SetAttributes(kBBAttrArtificial);
+    latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
     latchBB->SetKind(kBBFallthru);
     for (BB *tail : iter->second) {
       tail->ReplaceSucc(head, latchBB);
@@ -350,6 +362,7 @@ void MeDoLoopCanon::Merge(MeFunction &func) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(func, *tail, *head, *latchBB);
     }
     head->AddPred(*latchBB);
+    cfgchanged = true;
   }
 }
 
@@ -384,6 +397,7 @@ void MeDoLoopCanon::AddPreheader(MeFunction &func) {
       UpdateTheOffsetOfStmtWhenTargetBBIsChange(func, *pred, *head, *preheader);
     }
     head->AddPred(*preheader);
+    cfgchanged = true; // set cfgchanged flag
   }
 }
 
@@ -436,6 +450,15 @@ void MeDoLoopCanon::InsertExitBB(MeFunction &func, LoopDesc &loop) {
   while (!inLoopBBs.empty()) {
     BB *curBB = inLoopBBs.front();
     inLoopBBs.pop();
+    if (curBB->GetKind() == kBBCondGoto) {
+      if (curBB->GetSucc().size() == 1) {
+        CHECK_FATAL(false, "return bb");
+        loop.InsertInloopBB2exitBBs(*curBB, *cfg->GetCommonExitBB());
+      }
+    } else if (!curBB->GetStmtNodes().empty() && curBB->GetLast().GetOpCode() == OP_return) {
+      CHECK_FATAL(false, "return bb");
+      loop.InsertInloopBB2exitBBs(*curBB, *cfg->GetCommonExitBB());
+    }
     for (BB *succ : curBB->GetSucc()) {
       if (traveledBBs.count(succ) != 0) {
         continue;
@@ -445,15 +468,6 @@ void MeDoLoopCanon::InsertExitBB(MeFunction &func, LoopDesc &loop) {
         traveledBBs.insert(succ);
       } else {
         loop.InsertInloopBB2exitBBs(*curBB, *succ);
-      }
-      if (curBB->GetKind() == kBBCondGoto) {
-        if (curBB->GetSucc().size() == 1) {
-          CHECK_FATAL(false, "return bb");
-          loop.InsertInloopBB2exitBBs(*curBB, *cfg->GetCommonExitBB());
-        }
-      } else if (!curBB->GetStmtNodes().empty() && curBB->GetLast().GetOpCode() == OP_return) {
-        CHECK_FATAL(false, "return bb");
-        loop.InsertInloopBB2exitBBs(*curBB, *cfg->GetCommonExitBB());
       }
     }
   }
@@ -523,11 +537,12 @@ void MeDoLoopCanon::ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr 
     func.GetCfg()->DumpToFile("cfgbeforLoopNormalization");
   }
   heads.clear();
+  cfgchanged = false;
   FindHeadBBs(func, dom, func.GetCfg()->GetCommonEntryBB());
   AddPreheader(func);
   Merge(func);
-  // cfg changes only if heads is not empty
-  if (!heads.empty()) {
+  // cfgchanged is true if preheader bb or latchbb is added
+  if (cfgchanged) {
     m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, &func);
     m->InvalidAnalysisResult(MeFuncPhase_MELOOP, &func);
   }
@@ -535,7 +550,7 @@ void MeDoLoopCanon::ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr 
   if (meLoop == nullptr) {
     return;
   }
-  bool cfgChange = false;
+  cfgchanged = false;
   for (auto loop : meLoop->GetMeLoops()) {
     if (loop->HasTryBB()) {
       continue;
@@ -545,12 +560,12 @@ void MeDoLoopCanon::ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr 
       CHECK_FATAL(loop->inloopBB2exitBBs.size() == 0, "must be zero");
       InsertExitBB(func, *loop);
       loop->SetIsCanonicalLoop(true);
-      cfgChange = true;
+      cfgchanged = true;
     }
     if (loop->inloopBB2exitBBs.size() == 1 && loop->inloopBB2exitBBs.begin()->second->size() == 1 &&
         IsDoWhileLoop(func, *loop)) {
       SplitCondGotBB(func, *loop);
-      cfgChange = true;
+      cfgchanged = true;
     }
   }
   if (DEBUGFUNC(&func)) {
@@ -558,7 +573,7 @@ void MeDoLoopCanon::ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr 
     func.Dump(true);
     func.GetCfg()->DumpToFile("cfgafterLoopNormalization");
   }
-  if (cfgChange) {
+  if (cfgchanged) {
     m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, &func);
     m->InvalidAnalysisResult(MeFuncPhase_MELOOP, &func);
   }
