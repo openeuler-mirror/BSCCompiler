@@ -73,7 +73,7 @@ class IntConstKey {
 class IntConstHash {
  public:
   std::size_t operator() (const IntConstKey &key) const {
-    return std::hash<int64>{}(key.val) ^ (std::hash<uint64>{}(key.tyIdx) << 1);
+    return std::hash<int64>{}(key.val) ^ (std::hash<uint64>{}((uint64)key.tyIdx) << 1);
   }
 };
 
