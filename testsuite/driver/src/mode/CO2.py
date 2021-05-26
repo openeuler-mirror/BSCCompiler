@@ -40,7 +40,7 @@ CO2 = {
     ],
     "run": [
         Shell(
-            "${TOOL_BIN_PATH}/qemu-aarch64 -L /usr/aarch64-linux-gnu/ ${APP}.out"
+            "${TOOL_BIN_PATH}/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/ ${APP}.out"
         )
     ]
 }
