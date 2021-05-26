@@ -43,9 +43,14 @@ Open the front end, back end, and compilation optimization of compilers. Support
 - make libcore
 - make testall
 
+C example:
+- make demo
+
 ## OpenArkCompiler Incubator
 - FutureWei Mapleall https://gitee.com/openarkcompiler-incubator/mapleall
 - Maple Engine https://gitee.com/openarkcompiler-incubator/maple_engine
+- Maple FrondEnd https://gitee.com/openarkcompiler-incubator/MapleFE
+- Maple clang2mpl https://gitee.com/openarkcompiler-incubator/clang2mpl
 
 ## Related Documents
 
