@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2020-2021] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -24,10 +24,7 @@
 #include "lexer.h"
 #include "Dwarf.h"
 
-using namespace maple;
-
 namespace maple {
-
 // for more color code: http://ascii-table.com/ansi-escape-sequences.php
 #define RESET "\x1B[0m"
 #define BOLD "\x1B[1m"
@@ -94,7 +91,7 @@ class DBGDieAttr;
 
 class DBGExpr {
  public:
-  DBGExpr(MIRModule *m) : dwOp(0), value(kDbgDefaultVal), opnds(m->GetMPAllocator().Adapter()) {}
+  explicit DBGExpr(MIRModule *m) : dwOp(0), value(kDbgDefaultVal), opnds(m->GetMPAllocator().Adapter()) {}
 
   DBGExpr(MIRModule *m, DwOp op) : dwOp(op), value(kDbgDefaultVal), opnds(m->GetMPAllocator().Adapter()) {}
 
@@ -141,7 +138,7 @@ class DBGExpr {
 
 class DBGExprLoc {
  public:
-  DBGExprLoc(MIRModule *m) : module(m), exprVec(m->GetMPAllocator().Adapter()), symLoc(nullptr) {
+  explicit DBGExprLoc(MIRModule *m) : module(m), exprVec(m->GetMPAllocator().Adapter()), symLoc(nullptr) {
     simpLoc = m->GetMemPool()->New<DBGExpr>(module);
   }
 
@@ -152,7 +149,7 @@ class DBGExprLoc {
   virtual ~DBGExprLoc() {}
 
   bool IsSimp() const {
-    return (exprVec.size() == 0 && simpLoc->GetVal() != (int)kDbgDefaultVal);
+    return (exprVec.size() == 0 && simpLoc->GetVal() != static_cast<int>(kDbgDefaultVal));
   }
 
   int GetFboffset() const {
@@ -187,8 +184,16 @@ class DBGExprLoc {
     simpLoc->AddOpnd(val);
   }
 
+  DBGExpr *GetSimpLoc() const {
+    return simpLoc;
+  }
+
   void *GetSymLoc() {
     return symLoc;
+  }
+
+  void SetSymLoc(void *loc) {
+    symLoc = loc;
   }
 
   void Dump();
@@ -203,7 +208,7 @@ class DBGExprLoc {
 class DBGDieAttr {
  public:
   uint32 SizeOf(DBGDieAttr *attr);
-  DBGDieAttr(DBGDieKind k) : dieKind(k), dwAttr(DW_AT_deleted), dwForm(DW_FORM_GNU_strp_alt) {
+  explicit DBGDieAttr(DBGDieKind k) : dieKind(k), dwAttr(DW_AT_deleted), dwForm(DW_FORM_GNU_strp_alt) {
     value.u = kDbgDefaultVal;
   }
 
@@ -326,7 +331,7 @@ class DBGDie {
   DBGDieAttr *AddAttr(DwAt attr, DwForm form, uint64 val);
   DBGDieAttr *AddSimpLocAttr(DwAt at, DwForm form, uint64 val);
   DBGDieAttr *AddGlobalLocAttr(DwAt at, DwForm form, uint64 val);
-  DBGDieAttr *AddFrmBaseAttr(DwAt at, DwForm form, uint64 val);
+  DBGDieAttr *AddFrmBaseAttr(DwAt at, DwForm form);
   DBGExprLoc *GetExprLoc();
   bool SetAttr(DwAt attr, uint64 val);
   bool SetAttr(DwAt attr, int64 val);
@@ -490,6 +495,10 @@ class DBGAbbrevEntry {
     withChildren = val;
   }
 
+  MapleVector<uint32> &GetAttrPairs() {
+    return attrPairs;
+  }
+
  private:
   DwTag tag;
   uint32 abbrevId;
@@ -530,28 +539,28 @@ class DBGAbbrevEntryVec {
 class DebugInfo {
  public:
   DebugInfo(MIRModule *m)
-    : module(m),
-      compUnit(nullptr),
-      dummyTypeDie(nullptr),
-      lexer(nullptr),
-      maxId(1),
-      builder(nullptr),
-      mplSrcIdx(0),
-      debugInfoLength(0),
-      compileMsg(nullptr),
-      parentDieStack(m->GetMPAllocator().Adapter()),
-      idDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      abbrevVec(m->GetMPAllocator().Adapter()),
-      tagAbbrevMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      tyIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      stridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      funcDefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      typeDefTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      pointedPointerMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
-      funcLstrIdxDieIdMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
-      funcLstrIdxLabIdxMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
-      strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
-    // valid entry starting from index 1 as abbrevid starting from 1 as well
+      : module(m),
+        compUnit(nullptr),
+        dummyTypeDie(nullptr),
+        lexer(nullptr),
+        maxId(1),
+        builder(nullptr),
+        mplSrcIdx(0),
+        debugInfoLength(0),
+        compileMsg(nullptr),
+        parentDieStack(m->GetMPAllocator().Adapter()),
+        idDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        abbrevVec(m->GetMPAllocator().Adapter()),
+        tagAbbrevMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        tyIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        stridxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        funcDefStrIdxDieIdMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        typeDefTyIdxMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        pointedPointerMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
+        funcLstrIdxDieIdMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        funcLstrIdxLabIdxMap(std::less<MIRFunction *>(), m->GetMPAllocator().Adapter()),
+        strps(std::less<uint32>(), m->GetMPAllocator().Adapter()) {
+    /* valid entry starting from index 1 as abbrevid starting from 1 as well */
     abbrevVec.push_back(nullptr);
     InitMsg();
   }
@@ -576,6 +585,10 @@ class DebugInfo {
 
   DBGDie *GetDie(uint32 id) {
     return idDieMap[id];
+  }
+
+  DBGDie *GetDummyTypeDie() {
+    return dummyTypeDie;
   }
 
   DBGDie *GetDie(const MIRFunction *func);
@@ -648,13 +661,29 @@ class DebugInfo {
     strps.insert(val);
   }
 
+  MapleSet<uint32> &GetStrps() {
+    return strps;
+  }
+
+  uint32 GetDebugInfoLength() const {
+    return debugInfoLength;
+  }
+
+  MapleVector<DBGAbbrevEntry *> &GetAbbrevVec() {
+    return abbrevVec;
+  }
+
+  DBGDie * GetCompUnit() const {
+    return compUnit;
+  }
+
   void SetTyidxDieIdMap(TyIdx tyIdx, const DBGDie *die) {
     tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
   }
 
   DBGDieAttr *CreateAttr(DwAt attr, DwForm form, uint64 val);
 
-  DBGDie *CreateVarDie(MIRSymbol *sym, uint32 lnum);
+  DBGDie *CreateVarDie(MIRSymbol *sym);
   DBGDie *CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymbol *sym);
   DBGDie *CreateFieldDie(maple::FieldPair pair, uint32 lnum);
   DBGDie *CreateBitfieldDie(MIRBitFieldType *type, GStrIdx idx);
@@ -667,7 +696,7 @@ class DebugInfo {
   DBGDie *GetOrCreateTypeAttrDie(MIRSymbol *sym);
   DBGDie *GetOrCreateConstTypeDie(TypeAttrs attr, DBGDie *typedie);
   DBGDie *GetOrCreateVolatileTypeDie(TypeAttrs attr, DBGDie *typedie);
-  DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func, uint32 lnum);
+  DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
   DBGDie *GetOrCreatePrimTypeDie(PrimType pty);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
@@ -707,7 +736,5 @@ class DebugInfo {
   MapleMap<MIRFunction *, std::map<uint32, LabelIdx>> funcLstrIdxLabIdxMap;
   MapleSet<uint32> strps;
 };
-
 } // namespace maple
-
 #endif // MAPLE_IR_INCLUDE_DBG_INFO_H

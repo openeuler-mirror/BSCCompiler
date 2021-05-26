@@ -64,23 +64,23 @@ class IntConstKey {
   friend class IntConstHash;
   friend class IntConstCmp;
  public:
-  IntConstKey(int64 v, uint64 id) : val(v), tyidxFieldID(id) {}
+  IntConstKey(int64 v, TyIdx tyIdx) : val(v), tyIdx(tyIdx) {}
  private:
   int64 val;
-  uint64 tyidxFieldID;
+  TyIdx tyIdx;
 };
 
 class IntConstHash {
  public:
   std::size_t operator() (const IntConstKey &key) const {
-    return std::hash<int64>{}(key.val) ^ (std::hash<uint64>{}(key.tyidxFieldID) << 1);
+    return std::hash<int64>{}(key.val) ^ (std::hash<uint64>{}(key.tyIdx) << 1);
   }
 };
 
 class IntConstCmp {
  public:
   bool operator() (const IntConstKey &lkey, const IntConstKey &rkey) const {
-    return lkey.val == rkey.val && lkey.tyidxFieldID == rkey.tyidxFieldID;
+    return lkey.val == rkey.val && lkey.tyIdx == rkey.tyIdx;
   }
 };
 
@@ -493,6 +493,11 @@ class StringTable {
     }
     ASSERT(strIdx < stringTable.size(), "array index out of range");
     return *stringTable[strIdx];
+  }
+
+  const T &GetStringFromStrIdx(uint32 idx) const {
+    ASSERT(idx < stringTable.size(), "array index out of range");
+    return *stringTable[idx];
   }
 
  private:
