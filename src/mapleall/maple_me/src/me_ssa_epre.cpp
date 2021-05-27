@@ -85,6 +85,9 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
   MeSSAEPre ssaPre(*func, *irMap, *dom, kh, *ssaPreMemPool, *NewMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
+  if (MeOption::strengthReduction) {
+    ssaPre.strengthReduction = true;
+  }
   if (func->GetHints() & kPlacementRCed) {
     ssaPre.SetPlacementRC(true);
   }

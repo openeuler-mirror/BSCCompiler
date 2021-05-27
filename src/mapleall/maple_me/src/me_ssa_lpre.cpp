@@ -47,7 +47,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     }
     CHECK_FATAL(i < func->GetMirFunc()->GetFormalCount(), "Cannot replace promoted formal");
   } else if (realOcc.GetOpcodeOfMeStmt() == OP_dassign || realOcc.GetOpcodeOfMeStmt() == OP_maydassign) {
-    VarMeExpr *theLHS = realOcc.GetMeStmt()->GetVarLHS();
+    VarMeExpr *theLHS = static_cast<VarMeExpr*>(realOcc.GetMeStmt()->GetVarLHS());
     MeExpr *savedRHS = realOcc.GetMeStmt()->GetRHS();
     CHECK_NULL_FATAL(theLHS);
     CHECK_NULL_FATAL(savedRHS);
@@ -172,7 +172,7 @@ void MeSSALPre::ComputeVarAndDfPhis() {
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
     if (meExpr->GetMeOp() == kMeOpVar) {
-      SetVarPhis(*meExpr);
+      SetVarPhis(meExpr);
     }
   }
 }
@@ -212,7 +212,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     return;
   }
   if (meStmt.GetOp() == OP_dassign || meStmt.GetOp() == OP_maydassign) {
-    VarMeExpr *lhs = meStmt.GetVarLHS();
+    VarMeExpr *lhs = static_cast<VarMeExpr*>(meStmt.GetVarLHS());
     CHECK_NULL_FATAL(lhs);
     const OriginalSt *ost = lhs->GetOst();
     if (mirModule->IsCModule()) {
