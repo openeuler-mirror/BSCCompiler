@@ -133,7 +133,9 @@ void MeFunction::Prepare(unsigned long rangeNum) {
   MIRLower mirLowerer(mirModule, CurFunction());
   mirLowerer.Init();
   mirLowerer.SetLowerME();
-  mirLowerer.SetLowerExpandArray();
+  if (mirModule.IsJavaModule()) {
+    mirLowerer.SetLowerExpandArray();
+  }
   ASSERT(CurFunction() != nullptr, "nullptr check");
   mirLowerer.LowerFunc(*CurFunction());
 }
