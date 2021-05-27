@@ -205,7 +205,7 @@ ErrorCode DriverRunner::ParseInput() const {
 void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) const {
   CHECK_MODULE();
   theMIRModule = theModule;
-  if (hasDebugFlag) {
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
     std::cout << "set up debug info " << std::endl;
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
@@ -291,6 +291,10 @@ void DriverRunner::AddPhase(std::vector<std::string> &phases, const std::string 
 
 void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::string &originBaseName) {
   CHECK_MODULE();
+  if (withDwarf && !theModule->IsWithDbgInfo()) {
+    std::cout << "set up debug info " << std::endl;
+    theMIRModule->GetDbgInfo()->BuildDebugInfo();
+  }
   if (cgOptions == nullptr) {
     return;
   }

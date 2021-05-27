@@ -26,6 +26,7 @@
 #include "file_utils.h"
 #include "option_parser.h"
 #include "mpl_logging.h"
+#include "mir_module.h"
 
 namespace maple {
 enum InputFileType {
@@ -36,6 +37,7 @@ enum InputFileType {
   kFileTypeVtableImplMpl,
   kFileTypeS,
   kFileTypeBpl,
+  kFileTypeMeMpl,
 };
 
 enum OptimizationLevel {
@@ -133,6 +135,14 @@ class MplOptions {
     return mpltFile;
   }
 
+  const std::string &GetPartO2List() const {
+    return partO2List;
+  }
+
+  const RunMode &GetRunMode() const {
+    return runMode;
+  }
+
   bool HasSetDefaultLevel() const {
     return setDefaultLevel;
   }
@@ -157,12 +167,20 @@ class MplOptions {
     return runningExes;
   }
 
+  const std::vector<std::string> &GetSelectedExes() const {
+    return selectedExes;
+  }
+
   const std::string &GetPrintCommandStr() const {
     return printCommandStr;
   }
 
   bool HasSetDebugFlag() const {
     return debugFlag;
+  }
+
+  bool WithDwarf() const {
+    return withDwarf;
   }
 
   bool HasSetTimePhases() const {
@@ -177,6 +195,12 @@ class MplOptions {
     return genVtableImpl;
   }
 
+  ErrorCode AppendCombOptions(MIRSrcLang srcLang);
+  ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
+  std::string GetInputFileNameForPrint() const;
+  void PrintCommand();
+  void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
+  void PrintDetailCommand(bool isBeforeParse);
  private:
   bool Init(const std::string &inputFile);
   ErrorCode HandleGeneralOptions();
@@ -187,8 +211,6 @@ class MplOptions {
   ErrorCode AddOption(const mapleOption::Option &option);
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
-  ErrorCode AppendDefaultCombOptions();
-  ErrorCode AppendDefaultCgOptions();
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void UpdateRunningExe(const std::string &args);
   std::unique_ptr<mapleOption::OptionParser> optionParser = nullptr;
@@ -200,6 +222,9 @@ class MplOptions {
   std::string outputName = "maple";
   std::string exeFolder = "";
   std::string mpltFile = "";
+  std::string meOptArgs = "";
+  std::string mpl2mplOptArgs = "";
+  std::string mplcgOptArgs = "";
   InputFileType inputFileType = InputFileType::kFileTypeNone;
   OptimizationLevel optimizationLevel = OptimizationLevel::kO0;
   RunMode runMode = RunMode::kUnkownRun;
@@ -209,12 +234,17 @@ class MplOptions {
   std::vector<std::string> splitsInputFiles = {};
   std::map<std::string, std::vector<MplOption>> extras = {};
   std::vector<std::string> runningExes = {};
-  std::string printCommandStr = "";
+  std::vector<std::string> selectedExes = {};
+  std::string printCommandStr;
+  std::ostringstream printExtraOptStr;
   bool debugFlag = false;
+  bool withDwarf = false;
   bool timePhases = false;
   bool genMeMpl = false;
   bool genVtableImpl = false;
+  bool hasPrinted = false;
   unsigned int helpLevel = mapleOption::kBuildTypeDefault;
+  std::string partO2List = "";
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H

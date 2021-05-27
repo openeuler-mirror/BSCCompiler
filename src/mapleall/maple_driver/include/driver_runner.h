@@ -34,13 +34,14 @@ class DriverRunner final {
  public:
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                std::string mpl2mplInput, const std::string &meInput, std::string actualInput,
-               MemPool *optMp, bool fileParsed = false, bool timePhases = false,
+               bool dwarf, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
       : theModule(theModule),
         exeNames(exeNames),
         mpl2mplInput(mpl2mplInput),
         meInput(meInput),
         actualInput(actualInput),
+        withDwarf(dwarf),
         optMp(optMp),
         fileParsed(fileParsed),
         timePhases(timePhases),
@@ -52,10 +53,11 @@ class DriverRunner final {
   }
 
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
-               std::string actualInput, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
+               std::string actualInput, bool dwarf, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
-      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, optMp, fileParsed, timePhases,
-                     genVtableImpl, genMeMpl) {
+      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf, optMp, fileParsed, timePhases,
+                     genVtableImpl, genMeMpl)
+  {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
   }
@@ -94,7 +96,9 @@ class DriverRunner final {
   std::string cgInput;
   BECommon *beCommon = nullptr;
   CG *CreateCGAndBeCommon(const std::string &outputFile, const std::string &oriBasename);
-  void RunCGFunctions(CG &cg, CgFuncPhaseManager &cgfpm, std::vector<long> &extraPhasesTime,
+  void RunCGFunctions(CG &cg, CgFuncPhaseManager &cgNormalfpm,
+                      CgFuncPhaseManager &cgO0fpm,
+                      std::vector<long> &extraPhasesTime,
                       std::vector<std::string> &extraPhasesName) const;
   void EmitGlobalInfo(CG &cg) const;
   void EmitDuplicatedAsmFunc(const CG &cg) const;
@@ -107,6 +111,7 @@ class DriverRunner final {
   MeOption *meOptions = nullptr;
   std::string meInput;
   std::string actualInput;
+  bool withDwarf = false;
   MemPool *optMp;
   bool fileParsed = false;
   bool timePhases = false;
@@ -116,7 +121,6 @@ class DriverRunner final {
   std::string baseName;
   std::string outputFile;
   InputFileType inputFileType;
-  bool hasDebugFlag = false;
 };
 }  // namespace maple
 
