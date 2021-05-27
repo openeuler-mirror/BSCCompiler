@@ -421,7 +421,7 @@ void DelegateRC::DelegateRCTemp(MeStmt &stmt) {
       if (!stmt.NeedIncref()) {
         break;
       }
-      VarMeExpr *lhsVar = stmt.GetVarLHS();
+      ScalarMeExpr *lhsVar = stmt.GetVarLHS();
       CHECK_FATAL(lhsVar != nullptr, "null lhs check");
       const OriginalSt *ost = lhsVar->GetOst();
       if (Options::lazyBinding != 0 || !ost->GetMIRSymbol()->IsGlobal()) {
@@ -538,7 +538,7 @@ bool DelegateRC::CanOmitRC4LHSVar(const MeStmt &stmt, bool &onlyWithDecref) cons
   switch (stmt.GetOp()) {
     case OP_dassign:
     case OP_maydassign: {
-      const VarMeExpr *theLhs = stmt.GetVarLHS();
+      const VarMeExpr *theLhs = static_cast<VarMeExpr *>(stmt.GetVarLHS());
       MeExpr *theRhs = stmt.GetRHS();
       CHECK_FATAL(theLhs != nullptr, "null ptr check");
       CHECK_FATAL(theRhs != nullptr, "null ptr check");
@@ -623,7 +623,7 @@ void DelegateRC::DelegateHandleNoRCStmt(MeStmt &stmt, bool addDecref) {
   VarMeExpr *theLhs = nullptr;
   MeExpr *rhsExpr = stmt.GetRHS();
   if (CheckOp(stmt, OP_dassign) || CheckOp(stmt, OP_maydassign)) {
-    theLhs = stmt.GetVarLHS();
+    theLhs = static_cast<VarMeExpr *>(stmt.GetVarLHS());
   } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp()) && addDecref) {
     theLhs = static_cast<VarMeExpr*>(stmt.GetAssignedLHS());
   } else {
@@ -744,7 +744,7 @@ std::set<OStIdx> DelegateRC::RenameAndGetLiveLocalRefVar() {
       }
       // for live_localrefvars
       if (CheckOp(stmt, OP_dassign) || CheckOp(stmt, OP_maydassign)) {
-        VarMeExpr *lhs = stmt.GetVarLHS();
+        ScalarMeExpr *lhs = stmt.GetVarLHS();
         CHECK_FATAL(lhs != nullptr, "null ptr check");
         const OriginalSt *ost = lhs->GetOst();
         if (ost->IsLocal() && !ost->IsFormal() && !ost->IsIgnoreRC() && lhs->GetPrimType() == PTY_ref) {

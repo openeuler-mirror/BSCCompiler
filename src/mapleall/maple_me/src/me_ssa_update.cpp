@@ -174,7 +174,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       }
     }
     // process the LHS
-    VarMeExpr *lhsVar = nullptr;
+    ScalarMeExpr *lhsVar = nullptr;
     if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign) {
       lhsVar = stmt.GetVarLHS();
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {

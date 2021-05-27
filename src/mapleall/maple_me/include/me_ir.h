@@ -163,8 +163,10 @@ class MeExpr {
   virtual uint32 GetHashIndex() const {
     return 0;
   }
+  virtual bool StrengthReducible() { return false; }
+  virtual int64 SRMultiplier() { return 1; }
 
- private:
+ protected:
   MeExpr *FindSymAppearance(OStIdx oidx);  // find the appearance of the symbol
   bool IsDexMerge() const;
 
@@ -864,6 +866,8 @@ class OpMeExpr : public MeExpr {
     }
     return nullptr;
   }
+  bool StrengthReducible() override;
+  int64 SRMultiplier() override;
 
  private:
   std::array<MeExpr*, kOperandNumTernary> opnds = { nullptr };  // kid
@@ -967,13 +971,13 @@ class IvarMeExpr : public MeExpr {
     volatileFromBaseSymbol = value;
   }
 
-  VarMeExpr *GetMu() {
+  ScalarMeExpr *GetMu() {
     return mu;
   }
-  const VarMeExpr *GetMu() const {
+  const ScalarMeExpr *GetMu() const {
     return mu;
   }
-  void SetMuVal(VarMeExpr *muVal) {
+  void SetMuVal(ScalarMeExpr *muVal) {
     mu = muVal;
   }
 
@@ -998,7 +1002,7 @@ class IvarMeExpr : public MeExpr {
   FieldID fieldID = 0;
   bool maybeNull = true;  // false if definitely not null
   bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
-  VarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
+  ScalarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
 };
 
 // for array, intrinsicop and intrinsicopwithtype
@@ -1217,11 +1221,11 @@ class MeStmt {
     return nullptr;
   }
 
-  virtual VarMeExpr *GetVarLHS() const {
+  virtual ScalarMeExpr *GetVarLHS() const {
     return nullptr;
   }
 
-  virtual VarMeExpr *GetVarLHS() {
+  virtual ScalarMeExpr *GetVarLHS() {
     return nullptr;
   }
 
@@ -1323,23 +1327,23 @@ class ChiMeNode {
     isLive = value;
   }
 
-  VarMeExpr *GetRHS() {
+  ScalarMeExpr *GetRHS() {
     return rhs;
   }
 
-  const VarMeExpr *GetRHS() const {
+  const ScalarMeExpr *GetRHS() const {
     return rhs;
   }
 
-  void SetRHS(VarMeExpr *value) {
+  void SetRHS(ScalarMeExpr *value) {
     rhs = value;
   }
 
-  VarMeExpr *GetLHS() const {
+  ScalarMeExpr *GetLHS() const {
     return lhs;
   }
 
-  void SetLHS(VarMeExpr *value) {
+  void SetLHS(ScalarMeExpr *value) {
     lhs = value;
   }
 
@@ -1354,8 +1358,8 @@ class ChiMeNode {
   }
 
  private:
-  VarMeExpr *rhs = nullptr;
-  VarMeExpr *lhs = nullptr;
+  ScalarMeExpr *rhs = nullptr;
+  ScalarMeExpr *lhs = nullptr;
   MeStmt *base;
   bool isLive = true;
 };
@@ -1563,6 +1567,8 @@ class AssignMeStmt : public MeStmt {
   ScalarMeExpr *lhs = nullptr;
   bool needIncref = false;  // to be determined by analyzerc phase
   bool needDecref = false;  // to be determined by analyzerc phase
+ public:
+  bool isIncDecStmt = false;// has the form of an increment or decrement stmt
 };
 
 class DassignMeStmt : public AssignMeStmt {
@@ -1607,11 +1613,11 @@ class DassignMeStmt : public AssignMeStmt {
 
   void Dump(const IRMap*) const;
 
-  VarMeExpr *GetVarLHS() const {
+  ScalarMeExpr *GetVarLHS() const {
     return static_cast<VarMeExpr *>(lhs);
   }
 
-  VarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() {
     return static_cast<VarMeExpr *>(lhs);
   }
 
@@ -1706,7 +1712,7 @@ class MaydassignMeStmt : public MeStmt {
   }
 
   void Dump(const IRMap*) const;
-  VarMeExpr *GetLHS() const {
+  ScalarMeExpr *GetLHS() const {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
@@ -1718,11 +1724,11 @@ class MaydassignMeStmt : public MeStmt {
     rhs = value;
   }
 
-  VarMeExpr *GetVarLHS() const {
+  ScalarMeExpr *GetVarLHS() const {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
-  VarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() {
     return chiList.find(mayDSSym->GetIndex())->second->GetLHS();
   }
 
@@ -2040,7 +2046,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return GetAssignedPartLHSRef(excludeLocalRefVar);
   }
 
-  VarMeExpr *GetVarLHS() {
+  ScalarMeExpr *GetVarLHS() {
     if (mustDefList.empty() || mustDefList.front().GetLHS()->GetMeOp() != kMeOpVar) {
       return nullptr;
     }
@@ -2656,7 +2662,7 @@ class AssertMeStmt : public MeStmt {
   }
 };
 
-MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(VarMeExpr &expr);
+MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(ScalarMeExpr &expr);
 void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList);
 void DumpChiList(const IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chiList);
 class DumpOptions {

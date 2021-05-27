@@ -96,6 +96,7 @@ bool MeOption::enableEA = false;
 bool MeOption::placementRC = false;
 bool MeOption::subsumRC = false;
 bool MeOption::performFSAA = true;
+bool MeOption::strengthReduction = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 #if MIR_JAVA
@@ -184,6 +185,7 @@ enum OptionIndex {
   kAssign2finalPre,
   kSubsumRC,
   kPerformFSAA,
+  kStrengthReduction,
   kRegReadAtReturn,
   kProPatphi,
   kNoProPatphi,
@@ -768,6 +770,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --performFSAA            \tPerform flow sensitive alias analysis\n"
     "  --no-performFSAA         \tDisable flow sensitive alias analysis\n",
+    "me",
+    {} },
+  { kStrengthReduction,
+    kEnable,
+    "",
+    "strengthreduction",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --strengthreduction      \tPerform flow sensitive alias analysis\n"
+    "  --no-strengthreduction   \tDisable flow sensitive alias analysis\n",
     "me",
     {} },
   { kCheckCastOpt,
@@ -1361,6 +1373,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kPerformFSAA:
         performFSAA = (opt.Type() == kEnable);
+        break;
+      case kStrengthReduction:
+        strengthReduction = (opt.Type() == kEnable);
         break;
       case kMeInlineHint:
         inlineFuncList = opt.Args();

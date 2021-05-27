@@ -71,6 +71,7 @@ src_libmplme = [
   "src/me_ssa_lpre.cpp",
   "src/me_ssu_pre.cpp",
   "src/ssa_epre.cpp",
+  "src/ssa_epre_for_sr.cpp",
   "src/ssa_pre.cpp",
   "src/occur.cpp",
   "src/me_inequality_graph.cpp",

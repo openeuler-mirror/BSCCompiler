@@ -592,7 +592,7 @@ void IPAEscapeAnalysis::UpdateEscConnGraphWithStmt(MeStmt &stmt) {
         break;
       }
       CHECK_FATAL(IsExprRefOrPtr(*dasgn->GetRHS()), "type mis-match");
-      EACGRefNode *lhsNode = GetOrCreateCGRefNodeForVar(*dasgn->GetVarLHS(), false);
+      EACGRefNode *lhsNode = GetOrCreateCGRefNodeForVar(*static_cast<VarMeExpr*>(dasgn->GetVarLHS()), false);
 
       std::vector<EACGBaseNode*> rhsNodes;
       GetCGNodeForMeExpr(rhsNodes, *dasgn->GetRHS(), stmt, true);
@@ -628,7 +628,7 @@ void IPAEscapeAnalysis::UpdateEscConnGraphWithStmt(MeStmt &stmt) {
       for (std::pair<OStIdx, ChiMeNode*> it : *mdass->GetChiList()) {
         ChiMeNode *chi = it.second;
         CHECK_FATAL(IsExprRefOrPtr(*chi->GetLHS()), "type mis-match");
-        EACGRefNode *lhsNode = GetOrCreateCGRefNodeForVar(*chi->GetLHS(), false);
+        EACGRefNode *lhsNode = GetOrCreateCGRefNodeForVar(*static_cast<VarMeExpr *>(chi->GetLHS()), false);
         std::vector<EACGBaseNode*> rhsNodes;
         GetCGNodeForMeExpr(rhsNodes, *mdass->GetRHS(), stmt, true);
         for (const auto &rhsNode : rhsNodes) {
