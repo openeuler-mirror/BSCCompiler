@@ -35,7 +35,7 @@ class SSATab : public AnalysisResult {
 
   ~SSATab() = default;
 
-  BaseNode *CreateSSAExpr(BaseNode &expr);
+  BaseNode *CreateSSAExpr(BaseNode *expr);
   void CreateSSAStmt(StmtNode &stmt, const BB *curbb);
   bool HasDefBB(OStIdx oidx) {
     return oidx < defBBs4Ost.size() && defBBs4Ost[oidx] && !defBBs4Ost[oidx]->empty();
