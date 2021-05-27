@@ -291,6 +291,7 @@ void DriverRunner::AddPhase(std::vector<std::string> &phases, const std::string 
 
 void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::string &originBaseName) {
   CHECK_MODULE();
+  theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {
     std::cout << "set up debug info " << std::endl;
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
@@ -331,6 +332,9 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
     if (!cgOptions->SuppressFileInfo()) {
       cg->GetEmitter()->EmitFileInfo(actualInput);
     }
+    if (withDwarf) {
+      cg->GetEmitter()->EmitDIHeader();
+    }
     // Run the cg optimizations phases
     if (theModule->HasPartO2List()) {
       CHECK_FATAL(cgOptions->GetOptimizeLevel() == CGOptions::kLevel2, "partO2 need coroperate with O2");
@@ -343,6 +347,9 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
       RunCGFunctions(*cg, cgfpm, cgO0fpm, extraPhasesTime, extraPhasesName);
     } else {
       RunCGFunctions(*cg, cgfpm, cgfpm, extraPhasesTime, extraPhasesName);
+    }
+    if (withDwarf) {
+       cg->GetEmitter()->EmitDIFooter();
     }
     // Emit global info
     timeStart = std::chrono::system_clock::now();
@@ -481,6 +488,9 @@ void DriverRunner::RunCGFunctions(CG &cg, CgFuncPhaseManager &cgNormalfpm, CgFun
     CGFunc *cgFunc = cg.CreateCGFunc(*theModule, *mirFunc, *beCommon, *funcMp, funcScopeAllocator, countFuncId);
     CHECK_FATAL(cgFunc != nullptr, "nullptr check");
     CG::SetCurCGFunc(*cgFunc);
+    if (withDwarf) {
+      cgFunc->SetDebugInfo(theModule->GetDbgInfo());
+    }
 
     cgfpm->Run(*cgFunc);
 
@@ -512,6 +522,16 @@ void DriverRunner::EmitGlobalInfo(CG &cg) const {
     cg.GenerateObjectMaps(*beCommon);
   }
   cg.GetEmitter()->EmitGlobalVariable();
+  if (withDwarf) {
+    cg.GetEmitter()->SetupDBGInfo(theModule->GetDbgInfo());
+    cg.GetEmitter()->EmitDIHeaderFileInfo();
+    cg.GetEmitter()->EmitDIDebugInfoSection(theModule->GetDbgInfo());
+    cg.GetEmitter()->EmitDIDebugAbbrevSection(theModule->GetDbgInfo());
+    cg.GetEmitter()->EmitDIDebugARangesSection();
+    cg.GetEmitter()->EmitDIDebugRangesSection();
+    cg.GetEmitter()->EmitDIDebugLineSection();
+    cg.GetEmitter()->EmitDIDebugStrSection();
+  }
   cg.GetEmitter()->CloseOutput();
 }
 
