@@ -114,9 +114,9 @@ class MIRLower {
   }
 
   static bool ShouldOptArrayMrt(const MIRFunction &func);
- protected:
-  MIRModule &mirModule;
+
  private:
+  MIRModule &mirModule;
   MIRFunction *mirFunc;
   MIRBuilder *mirBuilder = nullptr;
   uint32 lowerPhase = 0;

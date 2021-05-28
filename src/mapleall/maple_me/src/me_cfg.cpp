@@ -1478,15 +1478,6 @@ void MeCFG::CreateBasicBlocks() {
             SetBBTryNodeMap(*newBB, *tryStmt);
           }
           curBB = newBB;
-        } else if (func.GetLfoFunc() &&
-                    (func.GetLfoFunc()->label2WhileInfo.find(labelIdx) != func.GetLfoFunc()->label2WhileInfo.end())) {
-          curBB->SetKind(kBBFallthru);
-          BB *newBB = NewBasicBlock();
-          if (tryStmt != nullptr) {
-            newBB->SetAttributes(kBBAttrIsTry);
-            SetBBTryNodeMap(*newBB, *tryStmt);
-          }
-          curBB = newBB;
         }
         labelBBIdMap[labelIdx] = curBB;
         curBB->SetBBLabel(labelIdx);
