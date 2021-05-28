@@ -103,6 +103,7 @@ src_libcgaarch64 = [
   "src/cg/aarch64/aarch64_schedule.cpp",
   "src/cg/aarch64/aarch64_strldr.cpp",
   "src/cg/aarch64/aarch64_lsra.cpp",
+  "src/cg/aarch64/aarch64_ra_opt.cpp",
 ]
 
 src_libcgriscv64 = [
@@ -134,6 +135,7 @@ src_libcgriscv64 = [
   "src/cg/riscv64/riscv64_schedule.cpp",
   "src/cg/riscv64/riscv64_strldr.cpp",
   "src/cg/riscv64/riscv64_yieldpoint.cpp",
+  "src/cg/riscv64/riscv64_ra_opt.cpp",
 ]
 
 src_libcgark = [
@@ -168,6 +170,7 @@ src_libcg = [
   "src/cg/schedule.cpp",
   "src/cg/strldr.cpp",
   "src/cg/yieldpoint.cpp",
+  "src/cg/ra_opt.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]
