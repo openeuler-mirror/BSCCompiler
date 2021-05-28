@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -30,7 +30,7 @@ class MeDoLoopCanon : public MeFuncPhase {
   std::string PhaseName() const override {
     return "loopcanon";
   }
-
+  bool cfgchanged = false;
  private:
   using Key = std::pair<BB*, BB*>;
   std::map<BBId, std::vector<BB*>> heads;
@@ -45,6 +45,7 @@ class MeDoLoopCanon : public MeFuncPhase {
   void SplitCondGotBB(MeFunction &func, LoopDesc &loop);
   void ExecuteLoopCanon(MeFunction &func, MeFuncResultMgr &m, Dominance &dom);
   void ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr *m, Dominance &dom);
+  void UpdateTheOffsetOfStmtWhenTargetBBIsChange(MeFunction &func, BB &curBB, const BB &oldSuccBB, BB &newSuccBB) const;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MELOOPCANON_H
