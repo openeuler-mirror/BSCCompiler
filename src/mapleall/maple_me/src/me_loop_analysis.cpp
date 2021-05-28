@@ -46,6 +46,14 @@ void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
   while (!inLoopBBs.empty()) {
     BB *curBB = inLoopBBs.front();
     inLoopBBs.pop();
+    if (curBB->GetKind() == kBBCondGoto) {
+      if (curBB->GetSucc().size() == 1) {
+        // When the size of succs is one, one of succs may be commonExitBB. Need insert to loopBB2exitBBs.
+        CHECK_FATAL(false, "return bb");
+      }
+    } else if (!curBB->GetStmtNodes().empty() && curBB->GetLast().GetOpCode() == OP_return) {
+      CHECK_FATAL(false, "return bb");
+    }
     for (BB *succ : curBB->GetSucc()) {
       if (traveledBBs.count(succ) != 0) {
         continue;
@@ -55,14 +63,6 @@ void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
         traveledBBs.insert(succ);
       } else {
         loop.InsertInloopBB2exitBBs(*curBB, *succ);
-      }
-      if (curBB->GetKind() == kBBCondGoto) {
-        if (curBB->GetSucc().size() == 1) {
-          // When the size of succs is one, one of succs may be commonExitBB. Need insert to loopBB2exitBBs.
-          CHECK_FATAL(false, "return bb");
-        }
-      } else if (!curBB->GetStmtNodes().empty() && curBB->GetLast().GetOpCode() == OP_return) {
-        CHECK_FATAL(false, "return bb");
       }
     }
   }
