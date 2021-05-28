@@ -175,6 +175,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1) override;
   void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1) override;
+  Operand *SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0);
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0) override;

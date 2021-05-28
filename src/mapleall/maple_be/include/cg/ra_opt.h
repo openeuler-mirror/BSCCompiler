@@ -43,4 +43,3 @@ CGFUNCPHASE(CgDoRaOpt, "raopt")
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_RAOPT_H */
-

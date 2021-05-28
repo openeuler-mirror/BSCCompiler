@@ -198,12 +198,18 @@ bool BBLayout::BBContainsOnlyGoto(const BB &bb) const {
 // The other case is fromBB has one predecessor and one successor and
 // contains only goto stmt.
 bool BBLayout::BBCanBeMoved(const BB &fromBB, const BB &toAfterBB) const {
-  if (fromBB.GetPred().size() > 1) {
-    return false;
-  }
   if (laidOut[fromBB.GetBBId()]) {
     return false;
   }
+  if (fromBB.GetPred().size() > 1) {
+    // additional condition: if all preds have been laidout, fromBB can be freely moved
+    for (auto *pred : fromBB.GetPred()) {
+      if (!laidOut[pred->GetBBId()]) {
+        return false;
+      }
+    }
+  }
+
   if (fromBB.GetAttributes(kBBAttrArtificial) ||
       (!fromBB.GetAttributes(kBBAttrIsTry) && !toAfterBB.GetAttributes(kBBAttrIsTry))) {
     return fromBB.GetSucc().size() == 1;
@@ -378,13 +384,17 @@ BB *BBLayout::GetFallThruBBSkippingEmpty(BB &bb) {
       return fallthru;
     }
     if (func.GetIRMap() != nullptr) {
-      if (!fallthru->IsMeStmtEmpty()) {
+      if (!fallthru->IsMeStmtEmpty() && !BBContainsOnlyGoto(*fallthru)) {
         return fallthru;
       }
     } else {
       if (!fallthru->IsEmpty()) {
         return fallthru;
       }
+    }
+    // in case of duplicate succ
+    if (fallthru->GetSucc().front() == bb.GetSucc().back()) {
+      return fallthru;
     }
     laidOut[fallthru->GetBBId()] = true;
     BB *oldFallThru = fallthru;
