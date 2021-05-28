@@ -70,6 +70,7 @@
 #include "constantfold.h"
 #include "me_verify.h"
 #include "lfo_inject_iv.h"
+#include "lfo_pre_emit.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
