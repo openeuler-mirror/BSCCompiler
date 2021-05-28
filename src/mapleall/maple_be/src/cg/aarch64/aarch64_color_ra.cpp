@@ -18,7 +18,6 @@
 #include "aarch64_cg.h"
 #include "mir_lower.h"
 #include "securec.h"
-
 /*
  * Based on concepts from Chow and Hennessey.
  * Phases are as follows:
@@ -3295,7 +3294,6 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   }
   ASSERT(cnt <= cgFunc->GetTotalNumberOfInstructions(), "Incorrect insn count");
 #endif
-
   cgFunc->SetIsAfterRegAlloc();
   /* EBO propgation extent the live range and might need to be turned off. */
   ComputeBlockOrder();
