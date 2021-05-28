@@ -37,7 +37,7 @@ bool MeExpr::IsTheSameWorkcand(const MeExpr &expr) const {
   if (IsPrimitiveFloat(primType) != IsPrimitiveFloat(expr.GetPrimType())) {
     return false;
   }
-  if (GetPrimTypeSize(primType) != GetPrimTypeSize(expr.GetPrimType())) {
+  if (GetPrimTypeSize(GetRegPrimType(primType)) != GetPrimTypeSize(GetRegPrimType(expr.GetPrimType()))) {
     return false;
   }
   if (kOpcodeInfo.IsTypeCvt(op) || kOpcodeInfo.IsCompare(op)) {
@@ -568,14 +568,26 @@ MeExpr *OpMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
 }
 
 bool OpMeExpr::StrengthReducible() {
-  if (op != OP_mul || !IsPrimitiveInteger(primType)) {
+  if (!IsPrimitiveInteger(primType)) {
     return false;
   }
-  return GetOpnd(1)->GetOp() == OP_constval;
+  switch (op) {
+    case OP_cvt: {
+      return IsPrimitiveInteger(opndType) && GetPrimTypeSize(primType) >= GetPrimTypeSize(opndType);
+    }
+    case OP_mul:
+      return GetOpnd(1)->GetOp() == OP_constval;
+    case OP_add:
+      return true;
+    default: return false;
+  }
 }
 
 int64 OpMeExpr::SRMultiplier() {
   ASSERT(StrengthReducible(), "OpMeExpr::SRMultiplier: operation is not strength reducible");
+  if (op != OP_mul) {
+    return 1;
+  }
   MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
   ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
   return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
