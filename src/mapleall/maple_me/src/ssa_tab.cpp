@@ -18,6 +18,8 @@
 #include "ssa_mir_nodes.h"
 #include "opcode_info.h"
 #include "mir_function.h"
+#include "mir_lower.h"
+#include "me_option.h"
 
 // Allocate data structures to store SSA information. Only statement nodes and
 // tree nodes that incur defs and uses are relevant. Tree nodes are made larger
@@ -25,47 +27,54 @@
 // stored in class SSATab's StmtsSSAPart, which has an array of pointers indexed
 // by the stmtID field of each statement node.
 namespace maple {
-BaseNode *SSATab::CreateSSAExpr(BaseNode &expr) {
-  if (expr.GetOpCode() == OP_addrof || expr.GetOpCode() == OP_dread) {
-    if (expr.IsSSANode()) {
-      return mirModule.CurFunction()->GetCodeMemPool()->New<AddrofSSANode>(static_cast<AddrofSSANode&>(expr));
+BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
+  bool arrayLowered = false;
+  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() &&
+      MeOption::strengthReduction /* && in-main-me-phase */) {
+    MIRLower mirLower(mirModule, mirModule.CurFunction());
+    expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
+    arrayLowered = true;
+  }
+  if (expr->GetOpCode() == OP_addrof || expr->GetOpCode() == OP_dread) {
+    if (expr->IsSSANode()) {
+      return mirModule.CurFunction()->GetCodeMemPool()->New<AddrofSSANode>(*static_cast<AddrofSSANode*>(expr));
     }
-    auto &addrofNode = static_cast<AddrofNode&>(expr);
-    AddrofSSANode *ssaNode = mirModule.CurFunction()->GetCodeMemPool()->New<AddrofSSANode>(addrofNode);
+    AddrofNode *addrofNode = static_cast<AddrofNode*>(expr);
+    AddrofSSANode *ssaNode = mirModule.CurFunction()->GetCodeMemPool()->New<AddrofSSANode>(*addrofNode);
     MIRSymbol *st = mirModule.CurFunction()->GetLocalOrGlobalSymbol(ssaNode->GetStIdx());
     OriginalSt *ost = FindOrCreateSymbolOriginalSt(*st, mirModule.CurFunction()->GetPuidx(), ssaNode->GetFieldID());
     versionStTable.CreateZeroVersionSt(ost);
     ssaNode->SetSSAVar(*versionStTable.GetZeroVersionSt(ost));
     return ssaNode;
-  } else if (expr.GetOpCode() == OP_regread) {
-    auto &regReadNode = static_cast<RegreadNode&>(expr);
-    RegreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMemPool()->New<RegreadSSANode>(regReadNode);
+  } else if (expr->GetOpCode() == OP_regread) {
+    RegreadNode *regReadNode = static_cast<RegreadNode*>(expr);
+    RegreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMemPool()->New<RegreadSSANode>(*regReadNode);
     OriginalSt *ost =
         originalStTable.FindOrCreatePregOriginalSt(ssaNode->GetRegIdx(), mirModule.CurFunction()->GetPuidx());
     versionStTable.CreateZeroVersionSt(ost);
     ssaNode->SetSSAVar(*versionStTable.GetZeroVersionSt(ost));
     return ssaNode;
-  } else if (expr.GetOpCode() == OP_iread) {
-    auto &ireadNode = static_cast<IreadNode&>(expr);
-    IreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMempool()->New<IreadSSANode>(ireadNode);
-    BaseNode *newOpnd = CreateSSAExpr(*ireadNode.Opnd(0));
+  } else if (expr->GetOpCode() == OP_iread) {
+    IreadNode *ireadNode = static_cast<IreadNode*>(expr);
+    IreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMempool()->New<IreadSSANode>(*ireadNode);
+    BaseNode *newOpnd = CreateSSAExpr(ireadNode->Opnd(0));
     if (newOpnd != nullptr) {
       ssaNode->SetOpnd(newOpnd, 0);
     }
     return ssaNode;
   }
-  for (size_t i = 0; i < expr.NumOpnds(); ++i) {
-    BaseNode *newOpnd = CreateSSAExpr(*expr.Opnd(i));
+  for (size_t i = 0; i < expr->NumOpnds(); ++i) {
+    BaseNode *newOpnd = CreateSSAExpr(expr->Opnd(i));
     if (newOpnd != nullptr) {
-      expr.SetOpnd(newOpnd, i);
+      expr->SetOpnd(newOpnd, i);
     }
   }
-  return nullptr;
+  return arrayLowered ? expr : nullptr;
 }
 
 void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
   for (size_t i = 0; i < stmt.NumOpnds(); ++i) {
-    BaseNode *newOpnd = CreateSSAExpr(*stmt.Opnd(i));
+    BaseNode *newOpnd = CreateSSAExpr(stmt.Opnd(i));
     if (newOpnd != nullptr) {
       stmt.SetOpnd(newOpnd, i);
     }
