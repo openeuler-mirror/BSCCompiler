@@ -66,6 +66,8 @@ class MIRLower {
   BlockNode *LowerBlock(BlockNode&);
   void LowerBrCondition(BlockNode &block);
   void LowerFunc(MIRFunction &func);
+  BaseNode *LowerFarray(ArrayNode *array);
+  BaseNode *LowerCArray(ArrayNode *array);
   void ExpandArrayMrt(MIRFunction &func);
   IfStmtNode *ExpandArrayMrtIfBlock(IfStmtNode &node);
   WhileStmtNode *ExpandArrayMrtWhileBlock(WhileStmtNode &node);
@@ -114,9 +116,9 @@ class MIRLower {
   }
 
   static bool ShouldOptArrayMrt(const MIRFunction &func);
-
- private:
+ protected:
   MIRModule &mirModule;
+ private:
   MIRFunction *mirFunc;
   MIRBuilder *mirBuilder = nullptr;
   uint32 lowerPhase = 0;
