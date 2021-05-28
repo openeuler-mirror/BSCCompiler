@@ -92,6 +92,10 @@ export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
 export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
+if [ "$OLD_OS" = "1" ]; then
+  export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/lib:$LD_LIBRARY_PATH
+fi
+
 if [ ! -f $MAPLE_ROOT/tools/qemu/package/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "
   echo "!!! please run \"make setup\" to get proper qemu-aarch64"
