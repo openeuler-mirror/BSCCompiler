@@ -32,6 +32,7 @@ src_libmpl2mpl = [
   "src/reflection_analysis.cpp",
   "src/vtable_analysis.cpp",
   "src/java_intrn_lowering.cpp",
+  "src/simplify.cpp",
   "src/java_eh_lower.cpp",
   "src/native_stub_func.cpp",
   "src/vtable_impl.cpp",
