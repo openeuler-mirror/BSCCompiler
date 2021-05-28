@@ -1322,7 +1322,7 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fldPair.first);
     bool isFinal = fldPair.second.GetAttr(FLDATTR_final);
     wkCand->SetNeedLocalRefVar(ty->GetPrimType() == PTY_ref && !isFinal);
-  } else if (strengthReduction && meExpr.StrengthReducible()) {
+  } else if (strengthReduction && meExpr.StrengthReducible() && meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
     wkCand->isSRCand = true;
   }
   workList.push_back(wkCand);
