@@ -31,6 +31,9 @@ class MeHDSE : public HDSE {
 
   virtual ~MeHDSE() = default;
   void BackwardSubstitution();
+  std::string PhaseName() const {
+    return "hdse";
+  }
 };
 
 class MeDoHDSE : public MeFuncPhase {

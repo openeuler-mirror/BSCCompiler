@@ -16,6 +16,8 @@
 #include "me_dominance.h"
 #include "me_ssa_update.h"
 #include "me_placement_rc.h"
+#include "me_loop_analysis.h"
+#include "me_hdse.h"
 
 namespace {
 const std::set<std::string> propWhiteList {
@@ -74,6 +76,9 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
     CHECK_FATAL(kh != nullptr, "KlassHierarchy phase has problem");
   }
+  auto *identLoops = static_cast<IdentifyLoops*>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+  CHECK_NULL_FATAL(identLoops);
+
   bool eprePULimitSpecified = MeOption::eprePULimit != UINT32_MAX;
   uint32 epreLimitUsed =
       (eprePULimitSpecified && puCount != MeOption::eprePULimit) ? UINT32_MAX : MeOption::epreLimit;
@@ -108,6 +113,14 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     PlacementRC placeRC(*func, *dom, *ssaPreMemPool, DEBUGFUNC(func));
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();
+  }
+  if (MeOption::strengthReduction) { // for deleting redundant injury repairs
+    MeHDSE hdse(*func, *dom, *func->GetIRMap(), DEBUGFUNC(func));
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
+    }
+    hdse.hdseKeepRef = MeOption::dseKeepRef;
+    hdse.DoHDSE();
   }
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== EPRE =============" << "\n";
