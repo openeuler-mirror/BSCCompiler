@@ -71,8 +71,8 @@ src_libmplme = [
   "src/me_ssa_lpre.cpp",
   "src/me_ssu_pre.cpp",
   "src/ssa_epre.cpp",
-  "src/ssa_epre_for_sr.cpp",
   "src/ssa_pre.cpp",
+  "src/ssa_epre_for_sr.cpp",
   "src/occur.cpp",
   "src/me_inequality_graph.cpp",
   "src/me_abco.cpp",
@@ -90,6 +90,8 @@ src_libmplme = [
   "src/me_func_opt.cpp",
   "src/me_verify.cpp",
   "src/me_fsaa.cpp",
+  "src/lfo_mir_lower.cpp",
+  "src/lfo_inject_iv.cpp",
 ]
 
 src_libmplmewpo = [
