@@ -48,24 +48,7 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
   if (workCand->GetPUIdx() != 0) {
     // allocate a new temp
     SetCurFunction(workCand->GetPUIdx());
-    RegMeExpr *regVar = nullptr;
-    if (meExpr.GetMeOp() == kMeOpIvar) {
-      auto *ivarMeExpr = static_cast<const IvarMeExpr*>(&meExpr);
-      MIRType *ptrMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivarMeExpr->GetTyIdx());
-      CHECK_FATAL(ptrMIRType->GetKind() == kTypePointer, "must be point type for ivar");
-      auto *realMIRType = static_cast<MIRPtrType*>(ptrMIRType);
-      FieldID fieldId = ivarMeExpr->GetFieldID();
-      MIRType *ty = nullptr;
-      if (fieldId > 0) {
-        ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(realMIRType->GetPointedTyIdxWithFieldID(fieldId));
-      } else {
-        ty = realMIRType->GetPointedType();
-      }
-      regVar = (ty->GetPrimType() == PTY_ref) ? (irMap->CreateRegMeExpr(*ty))
-                                              : (irMap->CreateRegMeExpr(ivarMeExpr->GetPrimType()));
-    } else {
-      regVar = irMap->CreateRegMeExpr(meExpr);
-    }
+    RegMeExpr *regVar = irMap->CreateRegMeExpr(meExpr);
     curTemp = regVar;
     if (preKind == kLoadPre) {
       irMap->SetLpreTmps(static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx(), *regVar);
