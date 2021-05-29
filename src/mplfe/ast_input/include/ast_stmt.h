@@ -505,8 +505,6 @@ class ASTCallExprStmt : public ASTStmt {
   using FuncPtrBuiltinFunc = std::list<UniqueFEIRStmt> (ASTCallExprStmt::*)() const;
   static std::map<std::string, FuncPtrBuiltinFunc> InitFuncPtrMap();
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  std::list<UniqueFEIRStmt> Emit2FEStmtCall() const;
-  std::list<UniqueFEIRStmt> Emit2FEStmtICall() const;
   std::list<UniqueFEIRStmt> ProcessBuiltinVaStart() const;
   std::list<UniqueFEIRStmt> ProcessBuiltinVaEnd() const;
   std::list<UniqueFEIRStmt> ProcessBuiltinVaCopy() const;
