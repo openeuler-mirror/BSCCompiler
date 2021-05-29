@@ -555,6 +555,11 @@ class FEIRExprAddrofVar : public FEIRExpr {
       : FEIRExpr(FEIRNodeKind::kExprAddrofVar,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
         varSrc(std::move(argVarSrc)) {}
+
+  FEIRExprAddrofVar(std::unique_ptr<FEIRVar> argVarSrc, FieldID id)
+      : FEIRExpr(FEIRNodeKind::kExprAddrofVar,
+                 FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
+        varSrc(std::move(argVarSrc)), fieldID(id) {}
   ~FEIRExprAddrofVar() = default;
 
   void SetVarValue(MIRConst *val) {
@@ -1303,6 +1308,14 @@ class FEIRStmtAssign : public FEIRStmt {
     var->SetDef(HasDef());
   }
 
+  void AddExprArg(UniqueFEIRExpr exprArg) {
+    exprArgs.push_back(std::move(exprArg));
+  }
+
+  void AddExprArgReverse(UniqueFEIRExpr exprArg) {
+    exprArgs.push_front(std::move(exprArg));
+  }
+
   bool HasException() const {
     return hasException;
   }
@@ -1331,6 +1344,7 @@ class FEIRStmtAssign : public FEIRStmt {
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool hasException;
   std::unique_ptr<FEIRVar> var = nullptr;
+  std::list<UniqueFEIRExpr> exprArgs;
 };
 
 // ---------- FEIRStmtDAssign ----------
@@ -2155,13 +2169,6 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
  public:
   FEIRStmtCallAssign(FEStructMethodInfo &argMethodInfo, Opcode argMIROp, UniqueFEIRVar argVarRet, bool argIsStatic);
   ~FEIRStmtCallAssign() = default;
-  void AddExprArg(UniqueFEIRExpr exprArg) {
-    exprArgs.push_back(std::move(exprArg));
-  }
-
-  void AddExprArgReverse(UniqueFEIRExpr exprArg) {
-    exprArgs.push_front(std::move(exprArg));
-  }
 
   static std::map<Opcode, Opcode> InitMapOpAssignToOp();
   static std::map<Opcode, Opcode> InitMapOpToOpAssign();
@@ -2179,7 +2186,6 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
   FEStructMethodInfo &methodInfo;
   Opcode mirOp;
   bool isStatic;
-  std::list<UniqueFEIRExpr> exprArgs;
   static std::map<Opcode, Opcode> mapOpAssignToOp;
   static std::map<Opcode, Opcode> mapOpToOpAssign;
 };
@@ -2189,22 +2195,12 @@ class FEIRStmtICallAssign : public FEIRStmtAssign {
  public:
   FEIRStmtICallAssign();
   ~FEIRStmtICallAssign() = default;
-  void AddExprArg(UniqueFEIRExpr exprArg) {
-    exprArgs.push_back(std::move(exprArg));
-  }
-
-  void AddExprArgReverse(UniqueFEIRExpr exprArg) {
-    exprArgs.push_front(std::move(exprArg));
-  }
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
   std::string DumpDotStringImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) override;
-
- private:
-  std::list<UniqueFEIRExpr> exprArgs;
 };
 
 // ---------- FEIRStmtIntrinsicCallAssign ----------
