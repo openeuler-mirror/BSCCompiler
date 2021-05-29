@@ -77,22 +77,39 @@ DEFINE_MOP(MOP_dadd, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpalu,"fadd","0,
 /* MOP_sadd */
 DEFINE_MOP(MOP_sadd, {mopdReg32FD,mopdReg32FS,mopdReg32FS},0,kLtFpalu,"fadd","0,1,2",1)
 
-/* MOP_xsubrrr	AARCH64 Arithmetic: sub */
+/* AARCH64 Arithmetic: sub */
+/* MOP_xsubrrr */
 DEFINE_MOP(MOP_xsubrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"sub","0,1,2",1)
+/* MOP_xsubsrrr */
+DEFINE_MOP(MOP_xsubsrrr, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_xsubrrrs */
 DEFINE_MOP(MOP_xsubrrrs, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_xsubsrrrs */
+DEFINE_MOP(MOP_xsubsrrrs, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_xsubrri24 */
 DEFINE_MOP(MOP_xsubrri24, {mopdReg64ID,mopdReg64IS,mopdImm12,mopdLSL12},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_xsubsrri24 */
+DEFINE_MOP(MOP_xsubsrri24, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdImm12,mopdLSL12},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_xsubrri12 */
 DEFINE_MOP(MOP_xsubrri12, {mopdReg64ID,mopdReg64IS,mopdImm12},0,kLtAlu,"sub","0,1,2",1)
+/* MOP_xsubsrri12 */
+DEFINE_MOP(MOP_xsubsrri12, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdImm12},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_wsubrrr */
 DEFINE_MOP(MOP_wsubrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"sub","0,1,2",1)
+/* MOP_wsubsrrr */
+DEFINE_MOP(MOP_wsubsrrr, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_wsubrrrs */
 DEFINE_MOP(MOP_wsubrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_wsubsrrrs */
+DEFINE_MOP(MOP_wsubsrrrs, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_wsubrri24 */
 DEFINE_MOP(MOP_wsubrri24, {mopdReg32ID,mopdReg32IS,mopdImm12,mopdLSL12},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_wsubsrri24 */
+DEFINE_MOP(MOP_wsubsrri24, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdImm12,mopdLSL12},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_wsubrri12 */
 DEFINE_MOP(MOP_wsubrri12, {mopdReg32ID,mopdReg32IS,mopdImm12},0,kLtAlu,"sub","0,1,2",1)
+/* MOP_wsubsrri12 */
+DEFINE_MOP(MOP_wsubsrri12, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdImm12},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_dsub */
 DEFINE_MOP(MOP_dsub, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpalu,"fsub","0,1,2",1)
 /* MOP_ssub */
@@ -338,6 +355,8 @@ DEFINE_MOP(MOP_xdfmovri, {mopdReg64FD,mopdImm8},ISMOVE,kLtFconst,"fmov","0,1",1)
 /* MOP_xcsneg -- Conditional Select Negation */
 DEFINE_MOP(MOP_wcsnegrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
 DEFINE_MOP(MOP_xcsnegrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
+DEFINE_MOP(MOP_wcnegrrrc, {mopdReg32ID,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
+DEFINE_MOP(MOP_xcnegrrrc, {mopdReg64ID,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
 
 /* MOP_sabsrr */
 DEFINE_MOP(MOP_sabsrr, {mopdReg32FD,mopdReg32FS},0,kLtFpalu,"fabs","0,1",1)

@@ -22,7 +22,7 @@ namespace maple {
 class ASTDecl;
 class ASTStmt {
  public:
-  explicit ASTStmt(ASTStmtOp o) : op(o) {}
+  explicit ASTStmt(ASTStmtOp o = kASTStmtNone) : op(o) {}
   virtual ~ASTStmt() = default;
   void SetASTExpr(ASTExpr* astExpr);
 
@@ -30,10 +30,43 @@ class ASTStmt {
     return Emit2FEStmtImpl();
   }
 
+  ASTStmtOp GetASTStmtOp() const {
+    return op;
+  }
+
+  const std::vector<ASTExpr*> &GetExprs() const {
+    return exprs;
+  }
+
+  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
+    srcFileIdx = fileIdx;
+    srcFileLineNum = lineNum;
+  }
+
+  uint32 GetSrcFileIdx() const {
+    return srcFileIdx;
+  }
+
+  uint32 GetSrcFileLineNum() const {
+    return srcFileLineNum;
+  }
+
  protected:
   virtual std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const = 0;
   ASTStmtOp op;
   std::vector<ASTExpr*> exprs;
+
+  uint32 srcFileIdx = 0;
+  uint32 srcFileLineNum = 0;
+};
+
+class ASTStmtDummy : public ASTStmt {
+ public:
+  ASTStmtDummy() : ASTStmt(kASTStmtDummy) {}
+  ~ASTStmtDummy() = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 };
 
 class ASTCompoundStmt : public ASTStmt {
@@ -41,6 +74,7 @@ class ASTCompoundStmt : public ASTStmt {
   ASTCompoundStmt() : ASTStmt(kASTStmtCompound) {}
   ~ASTCompoundStmt() = default;
   void SetASTStmt(ASTStmt*);
+  void InsertASTStmtsAtFront(const std::list<ASTStmt*> &stmts);
   const std::list<ASTStmt*> &GetASTStmtList() const;
 
  private:
@@ -174,7 +208,7 @@ class ASTLabelStmt : public ASTStmt {
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   std::string labelName;
-  ASTStmt *subStmt;
+  ASTStmt *subStmt = nullptr;
 };
 
 class ASTContinueStmt : public ASTStmt {
@@ -220,6 +254,15 @@ class ASTGotoStmt : public ASTStmt {
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
   std::string labelName;
+};
+
+class ASTIndirectGotoStmt : public ASTStmt {
+ public:
+  ASTIndirectGotoStmt() : ASTStmt(kASTStmtIndirectGoto) {}
+  ~ASTIndirectGotoStmt() = default;
+
+ protected:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 };
 
 class ASTSwitchStmt : public ASTStmt {
@@ -434,8 +477,14 @@ class ASTStmtExprStmt : public ASTStmt {
   ASTStmtExprStmt() : ASTStmt(kASTStmtStmtExpr) {}
   ~ASTStmtExprStmt() override = default;
 
+  void SetBodyStmt(ASTStmt *stmt) {
+    cpdStmt = stmt;
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+
+  ASTStmt *cpdStmt = nullptr;
 };
 
 class ASTCStyleCastExprStmt : public ASTStmt {
@@ -449,11 +498,78 @@ class ASTCStyleCastExprStmt : public ASTStmt {
 
 class ASTCallExprStmt : public ASTStmt {
  public:
-  ASTCallExprStmt() : ASTStmt(kASTStmtCallExpr) {}
+  ASTCallExprStmt() : ASTStmt(kASTStmtCallExpr), varName(FEUtils::GetSequentialName("retVar_")) {}
   ~ASTCallExprStmt() override = default;
 
  private:
+  using FuncPtrBuiltinFunc = std::list<UniqueFEIRStmt> (ASTCallExprStmt::*)() const;
+  static std::map<std::string, FuncPtrBuiltinFunc> InitFuncPtrMap();
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+  std::list<UniqueFEIRStmt> Emit2FEStmtCall() const;
+  std::list<UniqueFEIRStmt> Emit2FEStmtICall() const;
+  std::list<UniqueFEIRStmt> ProcessBuiltinVaStart() const;
+  std::list<UniqueFEIRStmt> ProcessBuiltinVaEnd() const;
+  std::list<UniqueFEIRStmt> ProcessBuiltinVaCopy() const;
+  std::list<UniqueFEIRStmt> ProcessBuiltinPrefetch() const;
+
+  static std::map<std::string, FuncPtrBuiltinFunc> funcPtrMap;
+  std::string varName;
+};
+
+class ASTAtomicExprStmt : public ASTStmt {
+ public:
+  ASTAtomicExprStmt() : ASTStmt(kASTStmtAtomicExpr) {}
+  ~ASTAtomicExprStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
+class ASTGCCAsmStmt : public ASTStmt {
+ public:
+  ASTGCCAsmStmt() : ASTStmt(kASTStmtGCCAsmStmt) {}
+  ~ASTGCCAsmStmt() override = default;
+
+  void SetAsmStmts(const std::string &asmStr) {
+    asmStmts = asmStr;
+  }
+
+  void SetOutputsNum(uint32 num) {
+    numOfOutputs = num;
+  }
+
+  void SetInputsNum(uint32 num) {
+    numOfInputs = num;
+  }
+
+  void SetClobbersNum(uint32 num) {
+    numOfClobbers = num;
+  }
+
+  void InsertOutput(std::pair<std::string, std::string> &&output) {
+    outputs.emplace_back(output);
+  }
+
+  void InsertInput(std::pair<std::string, std::string> &&input) {
+    inputs.emplace_back(input);
+  }
+
+  void InsertClobber(std::string &&clobber) {
+    clobbers.emplace_back(clobber);
+  }
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+  // Retrieving and parsing asm info in following order:
+  // asm instructions, outputs [output name, constrain, expr], inputs [input name, constrain, expr], clobbers
+  std::string asmStmts;
+  uint32 numOfOutputs = 0;
+  std::vector<std::pair<std::string, std::string>> outputs;
+  uint32 numOfInputs = 0;
+  std::vector<std::pair<std::string, std::string>> inputs;
+  uint32 numOfClobbers = 0;
+  std::vector<std::string> clobbers;
+  // Not parsing asm label here, asm label info is enclosed in `Decl attr`
 };
 }  // namespace maple
 #endif // MPLFE_AST_INPUT_INCLUDE_AST_STMT_H

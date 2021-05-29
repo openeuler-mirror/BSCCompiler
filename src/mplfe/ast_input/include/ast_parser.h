@@ -72,6 +72,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(ContinueStmt);
   ASTStmt *PROCESS_STMT(CompoundStmt);
   ASTStmt *PROCESS_STMT(GotoStmt);
+  ASTStmt *PROCESS_STMT(IndirectGotoStmt);
   ASTStmt *PROCESS_STMT(SwitchStmt);
   ASTStmt *PROCESS_STMT(CaseStmt);
   ASTStmt *PROCESS_STMT(DefaultStmt);
@@ -84,13 +85,16 @@ class ASTParser {
 
   // ProcessExpr
   const clang::Expr *PeelParen(const clang::Expr &expr);
+  const clang::Expr *PeelParen2(const clang::Expr &expr);
   ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr);
   ASTValue *AllocASTValue(MapleAllocator &allocator) const;
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
+  ASTExpr *ProcessExprInType(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo);
 #define PROCESS_EXPR(CLASS) ProcessExpr##CLASS(MapleAllocator&, const clang::CLASS&)
   ASTExpr *PROCESS_EXPR(UnaryOperator);
+  ASTExpr *PROCESS_EXPR(AddrLabelExpr);
   ASTExpr *PROCESS_EXPR(NoInitExpr);
   ASTExpr *PROCESS_EXPR(PredefinedExpr);
   ASTExpr *PROCESS_EXPR(OpaqueValueExpr);
@@ -153,19 +157,21 @@ class ASTParser {
   uint32 GetSizeFromQualType(const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind);
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind);
+  ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
-  using ParseBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  static std::map<std::string, ParseBuiltinFunc> InitFuncPtrMap();
-  ASTExpr *ParseBuiltingClassifyType(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingCtz(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingClz(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingAlloca(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingConstantP(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingExpect(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingSignbit(MapleAllocator &allocator, const clang::CallExpr &expr) const;
-  ASTExpr *ParseBuiltingIsinfSign(MapleAllocator &allocator, const clang::CallExpr &expr) const;
 
-  static std::map<std::string, ParseBuiltinFunc> builtingFuncPtrMap;
+using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
+                                                   std::stringstream &ss) const;
+static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
+ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss) const;
+#define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr,\
+                                                     std::stringstream &ss) const
+  ASTExpr *PARSE_BUILTIIN_FUNC(ClassifyType);
+  ASTExpr *PARSE_BUILTIIN_FUNC(ConstantP);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Isinfsign);
+
+  static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
   const std::string fileName;
   std::unique_ptr<LibAstFile> astFile;

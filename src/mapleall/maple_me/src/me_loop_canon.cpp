@@ -273,7 +273,7 @@ void MeDoLoopCanon::ExecuteLoopCanon(MeFunction &func, MeFuncResultMgr &m, Domin
   }
 }
 
-// Only when backege or preheader is not try bb, update head map.
+// Only when backedge or preheader is not try bb, update head map.
 void MeDoLoopCanon::FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb) {
   if (bb == nullptr || bb == func.GetCfg()->GetCommonExitBB()) {
     return;
@@ -281,7 +281,7 @@ void MeDoLoopCanon::FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb) 
   bool hasTry = false;
   bool hasIgoto = false;
   for (BB *pred : bb->GetPred()) {
-    // backege or preheader is try bb
+    // backedge or preheader is try bb
     if (pred->GetAttributes(kBBAttrIsTry)) {
       hasTry = true;
     }
@@ -296,7 +296,7 @@ void MeDoLoopCanon::FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb) 
   }
   if ((!hasTry) && (!hasIgoto)) {
     for (BB *pred : bb->GetPred()) {
-      // add backege bb
+      // add backedge bb
       if (dom.Dominate(*bb, *pred)) {
         if (heads.find(bb->GetBBId()) != heads.end()) {
           heads[bb->GetBBId()].push_back(pred);
@@ -345,7 +345,10 @@ void MeDoLoopCanon::Merge(MeFunction &func) {
   for (auto iter = heads.begin(); iter != heads.end(); ++iter) {
     BB *head = cfg->GetBBFromID(iter->first);
     // skip case : check latch bb is already added
+    // one pred is preheader bb and the other is latch bb
     if ((head->GetPred().size() == 2) &&
+        (head->GetPred(0)->GetAttributes(kBBAttrArtificial)) &&
+        (head->GetPred(0)->GetKind() == kBBFallthru) &&
         (head->GetPred(1)->GetAttributes(kBBAttrArtificial)) &&
         (head->GetPred(1)->GetKind() == kBBFallthru)) {
       continue;

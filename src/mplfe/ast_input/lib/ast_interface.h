@@ -22,6 +22,7 @@
 #include "mpl_logging.h"
 
 namespace maple {
+using Pos = std::pair<uint32, uint32>;
 enum AccessKind {
   kPublic,
   kProtected,
@@ -31,12 +32,13 @@ enum AccessKind {
 
 class LibAstFile {
  public:
-  LibAstFile() = default;
+  explicit LibAstFile(MapleList<clang::Decl*> &recordDeclesIn) : recordDecles(recordDeclesIn) {}
   ~LibAstFile() = default;
 
   bool Open(const std::string &fileName,
             int excludeDeclFromPCH, int displayDiagnostics);
   const AstASTContext *GetAstContext();
+  AstASTContext *GetNonConstAstContext() const;
   AstUnitDecl *GetAstUnitDecl();
   std::string GetMangledName(const clang::NamedDecl &decl);
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
@@ -68,16 +70,26 @@ class LibAstFile {
   MIRType *CvtFunctionType(const clang::QualType srcType);
   MIRType *CvtRecordType(const clang::QualType srcType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
+  MIRType *CvtComplexType(const clang::QualType srcType);
 
   const clang::ASTContext *GetContext() {
     return astContext;
   }
 
+  Pos GetDeclPosInfo(const clang::Decl &decl) const;
+  Pos GetStmtLOC(const clang::Stmt &stmt) const;
+  Pos GetLOC(const clang::SourceLocation &srcLoc) const;
+  uint32 GetMaxAlign(const clang::Decl &decl) const;
+  uint32 RetrieveAggTypeAlign(const clang::Type *ty) const;
+
  private:
   using RecordDeclMap = std::map<TyIdx, const clang::RecordDecl*>;
   RecordDeclMap recordDeclMap;
+  std::set<const clang::RecordDecl*> recordDeclSet;
   std::map<uint32_t, std::string> unnamedSymbolMap;
   MIRModule *module;
+
+  MapleList<clang::Decl*> &recordDecles;
 
   clang::ASTContext *astContext = nullptr;
   clang::TranslationUnitDecl *astUnitDecl = nullptr;

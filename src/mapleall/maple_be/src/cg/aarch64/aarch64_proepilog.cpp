@@ -221,7 +221,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
   const MapleVector<AArch64reg> &regsToRestore = aarchCGFunc.GetCalleeSavedRegs();
   size_t calleeSavedRegSize = kTwoRegister;
   CHECK_FATAL(regsToRestore.size() >= calleeSavedRegSize, "Forgot FP and LR ?");
-  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() || HasLoop() ||
+  if (regsToRestore.size() > calleeSavedRegSize || aarchCGFunc.HasStackLoadStore() ||
       cgFunc.GetFunction().GetAttr(FUNCATTR_callersensitive)) {
     return true;
   }
