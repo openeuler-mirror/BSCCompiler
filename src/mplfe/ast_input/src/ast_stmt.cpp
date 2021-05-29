@@ -109,9 +109,11 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     std::list<UniqueFEIRExpr> exprs;
     std::list<UniqueFEIRStmt> incStmts;
     UniqueFEIRExpr incFEExpr = incExpr->Emit2FEExpr(incStmts);
-    exprs.emplace_back(std::move(incFEExpr));
-    auto incStmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
-    incStmts.emplace_back(std::move(incStmt));
+    if (incFEExpr != nullptr) {
+      exprs.emplace_back(std::move(incFEExpr));
+      auto incStmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
+      incStmts.emplace_back(std::move(incStmt));
+    }
     bodyFEStmts.splice(bodyFEStmts.cend(), incStmts);
   }
   if (condExpr != nullptr) {
@@ -303,67 +305,10 @@ std::map<std::string, ASTCallExprStmt::FuncPtrBuiltinFunc> ASTCallExprStmt::Init
   return ans;
 }
 
-std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtCall() const {
-  std::list<UniqueFEIRStmt> stmts;
-  ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  // callassigned &funcName
-  std::string funcName = callExpr->GetFuncName();
-  StructElemNameIdx *nameIdx = FEManager::GetManager().GetStructElemMempool()->New<StructElemNameIdx>(funcName);
-  FEStructMethodInfo *info = static_cast<FEStructMethodInfo*>(
-      FEManager::GetTypeManager().RegisterStructMethodInfo(*nameIdx, kSrcLangC, false));
-  MIRType *retType = callExpr->GetRetType();
-  Opcode op;
-  if (retType->GetPrimType() != PTY_void) {
-    op = OP_callassigned;
-  } else {
-    op = OP_call;
-  }
-  std::unique_ptr<FEIRStmtCallAssign> callStmt = std::make_unique<FEIRStmtCallAssign>(*info, op, nullptr, false);
-  callStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  // args
-  std::vector<ASTExpr*> argsExprs = callExpr->GetArgsExpr();
-  for (int32 i = argsExprs.size() - 1; i >= 0; --i) {
-    UniqueFEIRExpr expr = argsExprs[i]->Emit2FEExpr(stmts);
-    callStmt->AddExprArgReverse(std::move(expr));
-  }
-  // attrs
-  info->SetFuncAttrs(callExpr->GetFuncAttrs());
-  // return
-  FEIRTypeNative *retTypeInfo = FEManager::GetManager().GetModule().GetMemPool()->New<FEIRTypeNative>(*retType);
-  info->SetReturnType(retTypeInfo);
-  if (retType->GetPrimType() != PTY_void) {
-    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *retType, false, false);
-    callStmt->SetVar(std::move(var));
-  }
-  stmts.emplace_back(std::move(callStmt));
-  return stmts;
-}
-
-std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtICall() const {
-  std::list<UniqueFEIRStmt> stmts;
-  std::unique_ptr<FEIRStmtICallAssign> icallStmt = std::make_unique<FEIRStmtICallAssign>();
-  icallStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  ASTExpr *calleeExpr = callExpr->GetCalleeExpr();
-  CHECK_NULL_FATAL(calleeExpr);
-  // args
-  UniqueFEIRExpr expr = calleeExpr->Emit2FEExpr(stmts);
-  icallStmt->AddExprArgReverse(std::move(expr));
-  // return
-  MIRType *retType = callExpr->GetRetType();
-  if (retType->GetPrimType() != PTY_void) {
-    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *retType, false, false);
-    icallStmt->SetVar(std::move(var));
-  }
-  stmts.emplace_back(std::move(icallStmt));
-  return stmts;
-}
-
 std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
+  std::list<UniqueFEIRStmt> stmts;
   ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  if (callExpr->IsIcall()) {
-    return Emit2FEStmtICall();
-  } else {
+  if (!callExpr->IsIcall()) {
     if (callExpr->GetCalleeExpr() != nullptr && callExpr->GetCalleeExpr()->GetASTOp() == kASTOpCast &&
         static_cast<ASTImplicitCastExpr*>(callExpr->GetCalleeExpr())->IsBuilinFunc()) {
       auto ptrFunc = funcPtrMap.find(callExpr->GetFuncName());
@@ -371,8 +316,16 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
         return (this->*(ptrFunc->second))();
       }
     }
-    return Emit2FEStmtCall();
   }
+  std::unique_ptr<FEIRStmtAssign> callStmt = callExpr->GenCallStmt();
+  callStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  callExpr->AddArgsExpr(callStmt, stmts);
+  if (callExpr->IsNeedRetExpr()) {
+    UniqueFEIRVar var = FEIRBuilder::CreateVarNameForC(varName, *callExpr->GetRetType(), false, false);
+    callStmt->SetVar(std::move(var));
+  }
+  stmts.emplace_back(std::move(callStmt));
+  return stmts;
 }
 
 std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaStart() const {
@@ -455,11 +408,13 @@ std::list<UniqueFEIRStmt> ASTImplicitCastExprStmt::Emit2FEStmtImpl() const {
   CHECK_FATAL(exprs.size() == 1, "Only one sub expr supported!");
   std::list<UniqueFEIRStmt> stmts;
   UniqueFEIRExpr feirExpr = exprs.front()->Emit2FEExpr(stmts);
-  std::list<UniqueFEIRExpr> feirExprs;
-  feirExprs.emplace_back(std::move(feirExpr));
-  auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feirExprs));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
+  if (feirExpr != nullptr) {
+    std::list<UniqueFEIRExpr> feirExprs;
+    feirExprs.emplace_back(std::move(feirExpr));
+    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feirExprs));
+    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmts.emplace_back(std::move(stmt));
+  }
   return stmts;
 }
 
@@ -545,11 +500,13 @@ std::list<UniqueFEIRStmt> ASTBinaryOperatorStmt::Emit2FEStmtImpl() const {
   auto boExpr = static_cast<ASTBinaryOperatorExpr*>(exprs.front());
   if (boExpr->GetASTOp() == kASTOpBO) {
     UniqueFEIRExpr boFEExpr = boExpr->Emit2FEExpr(stmts);
-    std::list<UniqueFEIRExpr> exprs;
-    exprs.emplace_back(std::move(boFEExpr));
-    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-    stmts.emplace_back(std::move(stmt));
+    if (boFEExpr != nullptr) {
+      std::list<UniqueFEIRExpr> exprs;
+      exprs.emplace_back(std::move(boFEExpr));
+      auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
+      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+      stmts.emplace_back(std::move(stmt));
+    }
   } else {
     // has been processed by child expr emit, skip here
     UniqueFEIRExpr boFEExpr = boExpr->Emit2FEExpr(stmts);
