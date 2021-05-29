@@ -25,6 +25,8 @@ ADD_PHASE("javaintrnlowering", JAVALANG)
 ADD_PHASE("simplify", Options::O2)
 ADD_PHASE("inline", Options::O2 && Options::useInline)
 // mephase begin
+ADD_PHASE("mecfgbuild", CLANG && MeOption::optLevel >= 3)
+ADD_PHASE("injectiv", CLANG && MeOption::optLevel >= 3)
 ADD_PHASE("mecfgbuild", MeOption::optLevel >= 2 || JAVALANG)
 ADD_PHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)
 ADD_PHASE("loopcanon", MeOption::optLevel >= 2)
