@@ -595,7 +595,9 @@ class AArch64MemOperand : public MemOperand {
         idxOpt(kIntact),
         noExtend(false),
         isStackMem(false) {
-    ASSERT(dSize == (k8BitSize << shift), "incompatible data size and shift amount");
+    if (shift != 0 && dSize != (k8BitSize << shift)) {
+      ASSERT(false, "incompatible data size and shift amount");
+    }
     if (baseOpnd.GetRegisterNumber() == RSP || baseOpnd.GetRegisterNumber() == RFP) {
       isStackMem = true;
     }
@@ -739,6 +741,8 @@ class AArch64MemOperand : public MemOperand {
 
   bool NoAlias(AArch64MemOperand &rightOpnd) const;
 
+  bool NoOverlap(const AArch64MemOperand &rightOpnd) const;
+
   VaryType GetMemVaryType() override {
     Operand *ofstOpnd = GetOffsetOperand();
     if (ofstOpnd != nullptr) {
@@ -750,6 +754,10 @@ class AArch64MemOperand : public MemOperand {
 
   bool IsExtendedRegisterMode() const {
     return addrMode == kAddrModeBOrX;
+  }
+
+  void setExtend(ExtendInfo flag) {
+    extend = flag;
   }
 
   bool SignedExtend() const {

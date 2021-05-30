@@ -204,6 +204,9 @@ void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, u
           newMem = static_cast<MemOperand*>(opnd.Clone(*cgFunc.GetMemoryPool()));
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(*static_cast<RegOperand*>(&newOpnd));
+          if (static_cast<RegOperand&>(newOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
+            static_cast<AArch64MemOperand*>(newMem)->setExtend(AArch64MemOperand::kSignExtend);
+          }
           useInsn->SetOperand(i, *newMem);
           if (updateInfo) {
             cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
