@@ -7602,4 +7602,89 @@ MemOperand &AArch64CGFunc::LoadStructCopyBase(const MIRSymbol &symbol, int32 off
   /* Create the indirect load mem opnd from the base pointer. */
   return CreateMemOpnd(*vreg, offset, dataSize);
 }
+
+/* For long reach branch, insert a branch in between.
+ * convert
+ *     condbr target_label
+ *     fallthruBB
+ * to
+ *     condbr pad_label         bb
+ *     uncondbr bypass_label    brBB
+ * pad_label                   padBB
+ *     uncondbr target_label
+ * bypass_label                bypassBB
+ *     ...                     fallthruBB
+ */
+void AArch64CGFunc::InsertJumpPad(Insn *insn) {
+  BB *bb = insn->GetBB();
+  ASSERT(bb, "instruction has no bb");
+  ASSERT(bb->GetKind() == BB::kBBIf, "instruction is not in a if bb");
+
+  LabelIdx padLabel = CreateLabel();
+  BB *brBB = CreateNewBB();
+  BB *padBB = CreateNewBB();
+  SetLab2BBMap(padLabel, *padBB);
+  padBB->AddLabel(padLabel);
+
+  BB *targetBB;
+  BB *fallthruBB = bb->GetNext();
+  ASSERT(bb->NumSuccs() == 2, "if bb should have 2 successors");
+  if (bb->GetSuccs().front() == fallthruBB) {
+    targetBB = bb->GetSuccs().back();
+  } else {
+    targetBB = bb->GetSuccs().front();
+  }
+  /* Regardless targetBB as is or an non-empty  successor, it needs to be removed */
+  bb->RemoveSuccs(*targetBB);
+  targetBB->RemovePreds(*bb);
+  while (targetBB->GetKind() == BB::kBBFallthru && targetBB->NumInsn() == 0) {
+    targetBB = targetBB->GetNext();
+  }
+  bb->SetNext(brBB);
+  brBB->SetNext(padBB);
+  padBB->SetNext(fallthruBB);
+  brBB->SetPrev(bb);
+  padBB->SetPrev(brBB);
+  fallthruBB->SetPrev(padBB);
+  /* adjust bb branch preds succs for jump to padBB */
+  LabelOperand &padLabelOpnd = GetOrCreateLabelOperand(padLabel);
+  uint32 idx = insn->GetJumpTargetIdx();
+  insn->SetOperand(idx, padLabelOpnd);
+  bb->RemoveSuccs(*fallthruBB);
+  bb->PushBackSuccs(*brBB);   /* new fallthru */
+  bb->PushBackSuccs(*padBB);  /* new target */
+
+  targetBB->RemovePreds(*bb);
+  targetBB->PushBackPreds(*padBB);
+
+  LabelIdx bypassLabel = fallthruBB->GetLabIdx();
+  if (bypassLabel == 0) {
+    bypassLabel = CreateLabel();
+    SetLab2BBMap(bypassLabel, *fallthruBB);
+    fallthruBB->AddLabel(bypassLabel);
+  }
+  LabelOperand &bypassLabelOpnd = GetOrCreateLabelOperand(bypassLabel);
+  brBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_xuncond, bypassLabelOpnd));
+  brBB->SetKind(BB::kBBGoto);
+  brBB->PushBackPreds(*bb);
+  brBB->PushBackSuccs(*fallthruBB);
+
+  RegOperand &targetAddr = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+  LabelIdx targetLabel = targetBB->GetLabIdx();
+  if (targetLabel == 0) {
+    targetLabel = CreateLabel();
+    SetLab2BBMap(targetLabel, *targetBB);
+    targetBB->AddLabel(targetLabel);
+  }
+  ImmOperand &targetLabelOpnd = CreateImmOperand(targetLabel, k32BitSize, false);
+  padBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_adrp_label, targetAddr, targetLabelOpnd));
+  padBB->AppendInsn(cg->BuildInstruction<AArch64Insn>(MOP_xbr, targetAddr, targetLabelOpnd));
+  padBB->SetKind(BB::kBBIgoto);
+  padBB->PushBackPreds(*bb);
+  padBB->PushBackSuccs(*targetBB);
+
+  fallthruBB->RemovePreds(*bb);
+  fallthruBB->PushBackPreds(*brBB);
+}
+
 }  /* namespace maplebe */

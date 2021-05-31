@@ -490,6 +490,12 @@ class AArch64CGFunc : public CGFunc {
 
   RegType GetRegisterType(regno_t reg) const override;
 
+  uint32 MaxCondBranchDistance() override {
+    return AArch64Abi::kMaxInstrForCondBr;
+  }
+
+  void InsertJumpPad(Insn *insn) override;
+
  private:
   enum RelationOperator : uint8 {
     kAND,

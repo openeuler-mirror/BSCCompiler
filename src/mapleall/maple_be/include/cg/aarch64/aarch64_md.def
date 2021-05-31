@@ -572,7 +572,7 @@ DEFINE_MOP(MOP_xcmnrr, {mopdRegCCD, mopdReg64IS,mopdReg64IS},0,kLtAlu,"cmn","1,2
 
 /* AArch64 branches */
 /* MOP_xbr -- branch to register */
-DEFINE_MOP(MOP_xbr, {mopdReg64IS},ISUNCONDBRANCH,kLtBranch,"br","0",1)
+DEFINE_MOP(MOP_xbr, {mopdReg64IS,mopdLiteral},ISUNCONDBRANCH,kLtBranch,"br","0",1)
 /* MOP_Tbbuncond */
 DEFINE_MOP(MOP_xuncond, {mopdLabel},ISUNCONDBRANCH,kLtBranch,"b","0",1)
 
