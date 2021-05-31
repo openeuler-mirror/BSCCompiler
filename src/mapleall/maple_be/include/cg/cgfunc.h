@@ -354,6 +354,16 @@ class CGFunc {
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
   void GenerateCfiPrologEpilog();
 
+  void PatchLongBranch();
+
+  virtual uint32 MaxCondBranchDistance() {
+    return INT_MAX;
+  }
+
+  virtual void InsertJumpPad(Insn *) {
+    return;
+  }
+
   uint32 NumBBs() const {
     return bbCnt;
   }

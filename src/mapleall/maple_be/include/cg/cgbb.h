@@ -178,6 +178,7 @@ class BB {
       insn.SetPrev(nullptr);
       insn.SetBB(this);
     }
+    internalFlag1++;
   }
 
   void ReplaceInsn(Insn &insn, Insn &newInsn);
@@ -702,6 +703,7 @@ class BB {
   bool hasCfi = false;  /* bb contain cfi directive. */
   /*
    * Different meaning for each data flow analysis.
+   * For HandleFunction(), rough estimate of num of insn created.
    * For aarchregalloc.cpp, the bb is part of cleanup at end of function.
    * For aarchcolorra.cpp, the bb is part of cleanup at end of function.
    *                       also used for live range splitting.

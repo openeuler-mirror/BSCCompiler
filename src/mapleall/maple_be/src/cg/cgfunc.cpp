@@ -1160,6 +1160,9 @@ void CGFunc::HandleFunction() {
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();
   }
+  if (GetCG()->DoPatchLongBranch()) {
+    PatchLongBranch();
+  }
 }
 
 void CGFunc::DumpCFG() const {
@@ -1249,6 +1252,29 @@ void CGFunc::ClearLoopInfo() {
   FOR_ALL_BB(bb, this) {
     bb->ClearLoopPreds();
     bb->ClearLoopSuccs();
+  }
+}
+
+void CGFunc::PatchLongBranch() {
+  for (BB *bb = firstBB->GetNext(); bb; bb = bb->GetNext()) {
+    bb->SetInternalFlag1(bb->GetInternalFlag1() + bb->GetPrev()->GetInternalFlag1());
+  }
+  BB *next;
+  for (BB *bb = firstBB; bb; bb = next) {
+    next = bb->GetNext();
+    if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
+      continue;
+    }
+    Insn * insn = bb->GetLastInsn();
+    while (insn->IsImmaterialInsn()) {
+      insn = insn->GetPrev();
+    }
+    LabelIdx labidx = static_cast<LabelOperand&>(insn->GetOperand(insn->GetJumpTargetIdx())).GetLabelIndex();
+    BB *tbb = GetBBFromLab2BBMap(labidx);
+    if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
+      continue;
+    }
+    InsertJumpPad(insn);
   }
 }
 
