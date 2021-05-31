@@ -57,7 +57,7 @@ BaseNode &ConstMeExpr::EmitExpr(SSATab &ssaTab) {
   if (IsPrimitiveInteger(exprConst->GetPrimType())) {
     auto *intConst = safe_cast<MIRIntConst>(exprConst->GetConstVal());
     MIRIntConst *newIntConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(intConst->GetValueUnderType(),
-        intConst->GetType(), intConst->GetFieldId());
+        intConst->GetType());
     exprConst->SetConstVal(newIntConst);
   }
   return *exprConst;
@@ -572,12 +572,16 @@ StmtNode &AssertMeStmt::EmitStmt(SSATab &ssaTab) {
 }
 
 void BB::EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass) {
+  StmtNode *bbFirstStmt = nullptr;
+  StmtNode *bbLastStmt = nullptr;
   // emit head. label
   LabelIdx labidx = GetBBLabel();
   if (labidx != 0) {
     LabelNode *lbnode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<LabelNode>();
     lbnode->SetLabelIdx(labidx);
     curblk.AddStatement(lbnode);
+    bbFirstStmt = lbnode;
+    bbLastStmt = lbnode;
   }
   auto &meStmts = GetMeStmts();
   for (auto &meStmt : meStmts) {
@@ -588,16 +592,28 @@ void BB::EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass) {
         meStmt.SetOp(OP_icallassigned);
       }
     }
-    StmtNode &stmt = meStmt.EmitStmt(ssaTab);
-    curblk.AddStatement(&stmt);
+    StmtNode *stmt = &meStmt.EmitStmt(ssaTab);
+    curblk.AddStatement(stmt);
+    if (bbFirstStmt == nullptr) {
+      bbFirstStmt = stmt;
+    }
+    bbLastStmt = stmt;
+
     if (&meStmt == &(meStmts.back())) {
-      ssaTab.GetModule().CurFunction()->SetFreqMap(stmt.GetStmtID(), GetFrequency());
+      ssaTab.GetModule().CurFunction()->SetFreqMap(stmt->GetStmtID(), GetFrequency());
     }
   }
   if (GetAttributes(kBBAttrIsTryEnd)) {
     // generate op_endtry
     StmtNode *endtry = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<StmtNode>(OP_endtry);
     curblk.AddStatement(endtry);
+    if (bbFirstStmt == nullptr) {
+      bbFirstStmt = endtry;
+    }
+    bbLastStmt = endtry;
   }
+  stmtNodeList.set_first(bbFirstStmt);
+  stmtNodeList.set_last(bbLastStmt);
 }
+
 }  // namespace maple
