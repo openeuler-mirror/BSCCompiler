@@ -20,6 +20,7 @@
 #include "ver_symbol.h"
 #include "dominance.h"
 #include "me_function.h"
+#include "mir_builder.h"
 
 // This phase builds the SSA form of a function. Before this we have got the dominator tree
 // and each bb's dominance frontiers. Then the algorithm follows this outline:
@@ -111,15 +112,91 @@ void MeSSA::VerifySSA() const {
   }
 }
 
+void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
+  MIRBuilder *mirbuilder = func->GetMIRModule().GetMIRBuilder();
+  LfoFunction *lfoFunc = func->GetLfoFunc();
+  SSATab *ssatab = func->GetMeSSATab();
+
+  for (LoopDesc *aloop : identloops->GetMeLoops()) {
+    BB *headbb = aloop->head;
+    // check if the label has associated LfoWhileInfo
+    if (headbb->GetBBLabel() == 0) {
+      continue;
+    }
+    if (aloop->exitBB == nullptr) {
+      continue;
+    }
+    MapleMap<LabelIdx, LfoWhileInfo*>::iterator it = lfoFunc->label2WhileInfo.find(headbb->GetBBLabel());
+    if (it == lfoFunc->label2WhileInfo.end()) {
+      continue;
+    }
+    if (headbb->GetPred().size() != 2) {
+      continue;
+    }
+    // collect the symbols for inserting identity assignments
+    std::set<OriginalSt *> ostSet;
+    for (auto& mapEntry: (headbb->GetPhiList())) {
+      OriginalSt *ost = func->GetMeSSATab()->GetOriginalStFromID(mapEntry.first);
+      if (ost->IsIVCandidate()) {
+        ostSet.insert(ost);
+      }
+    }
+    if (ostSet.empty()) {
+      continue;
+    }
+    // for the exitBB, insert identify assignment for any var that has phi at
+    // headbb
+    for (OriginalSt *ost : ostSet) {
+      MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
+      if (ost->IsSymbolOst()) {
+        AddrofNode *dread = func->GetMirFunc()->GetCodeMempool()->New<AddrofNode>(OP_dread,
+                              mirtype->GetPrimType(), ost->GetMIRSymbol()->GetStIdx(), ost->GetFieldID());
+        AddrofSSANode *ssadread = func->GetMirFunc()->GetCodeMempool()->New<AddrofSSANode>(*dread);
+        ssadread->SetSSAVar(*ssatab->GetVersionStTable().GetZeroVersionSt(ost));
+
+        DassignNode *dass = mirbuilder->CreateStmtDassign(*ost->GetMIRSymbol(), ost->GetFieldID(), ssadread);
+        aloop->exitBB->PrependStmtNode(dass);
+
+        MayDefPartWithVersionSt *thessapart =
+            ssatab->GetStmtsSSAPart().GetSSAPartMp()->New<MayDefPartWithVersionSt>(&ssatab->GetStmtsSSAPart().GetSSAPartAlloc());
+        ssatab->GetStmtsSSAPart().SetSSAPartOf(*dass, thessapart);
+        thessapart->SetSSAVar(*ssatab->GetVersionStTable().GetZeroVersionSt(ost));
+      } else {
+        RegreadNode *regread = func->GetMirFunc()->GetCodeMempool()->New<RegreadNode>(ost->GetPregIdx());
+        MIRPreg *preg = func->GetMirFunc()->GetPregTab()->PregFromPregIdx(ost->GetPregIdx());
+        regread->SetPrimType(preg->GetPrimType());
+        RegreadSSANode *ssaregread = func->GetMirFunc()->GetCodeMempool()->New<RegreadSSANode>(*regread);
+        ssaregread->SetSSAVar(*ssatab->GetVersionStTable().GetZeroVersionSt(ost));
+
+        RegassignNode *rass = mirbuilder->CreateStmtRegassign(mirtype->GetPrimType(), ost->GetPregIdx(), ssaregread);
+        aloop->exitBB->PrependStmtNode(rass);
+
+        VersionSt *vst = ssatab->GetVersionStTable().GetZeroVersionSt(ost);
+        ssatab->GetStmtsSSAPart().SetSSAPartOf(*rass, vst);
+      }
+      ssatab->AddDefBB4Ost(ost->GetIndex(), aloop->exitBB->GetBBId());
+    }
+    if (eDebug) {
+      LogInfo::MapleLogger() << "****** Identity assignments inserted at loop exit BB " << aloop->exitBB->GetBBId() << std::endl;
+    }
+  }
+}
+
 AnalysisResult *MeDoSSA::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr*) {
   auto *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *ssaTab = static_cast<SSATab*>(funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func));
   CHECK_FATAL(ssaTab != nullptr, "ssaTab phase has problem");
   MemPool *ssaMp = NewMemPool();
-  auto *ssa = ssaMp->New<MeSSA>(*func, func->GetMeSSATab(), *dom, *ssaMp);
+  auto *ssa = ssaMp->New<MeSSA>(*func, func->GetMeSSATab(), *dom, *ssaMp, DEBUGFUNC(func));
   auto cfg = func->GetCfg();
   ssa->InsertPhiNode();
+
+  if (func->IsLfo()) {
+    IdentifyLoops *identloops = static_cast<IdentifyLoops *>(funcResMgr->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+    CHECK_FATAL(identloops != nullptr, "identloops has problem");
+    ssa->InsertIdentifyAssignments(identloops);
+  }
 
   ssa->InitRenameStack(func->GetMeSSATab()->GetOriginalStTable(), cfg->GetAllBBs().size(),
                        func->GetMeSSATab()->GetVersionStTable());

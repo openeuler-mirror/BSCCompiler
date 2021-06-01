@@ -27,13 +27,13 @@ namespace maple {
 class DSE {
  public:
   DSE(std::vector<BB*> &&bbVec, BB &commonEntryBB, BB &commonExitBB, SSATab &ssaTab,
-      Dominance &postDom, bool enableDebug = false, bool decouple = false)
+      Dominance &postDom, bool enableDebug = false, bool decouple = false, bool islfo = false)
       : enableDebug(enableDebug),
         bbVec(bbVec), commonEntryBB(commonEntryBB),
         commonExitBB(commonExitBB), ssaTab(ssaTab),
         postDom(postDom), bbRequired(bbVec.size(), false),
         exprRequired(ssaTab.GetVersionStTableSize(), false),
-        decoupleStatic(decouple) {}
+        decoupleStatic(decouple), isLfo(islfo) {}
 
   ~DSE() = default;
 
@@ -134,6 +134,7 @@ class DSE {
   // Or the node is opnd of a same type node
   static const uint8 kNodeTypeNotNull = 2;
   bool decoupleStatic = false;
+  bool isLfo = false;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_DSE_H
