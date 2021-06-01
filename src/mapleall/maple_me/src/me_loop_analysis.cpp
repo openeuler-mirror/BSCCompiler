@@ -203,6 +203,12 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
   }
   if (!loop.Has(*loop.head->GetPred(0))) {
     loop.preheader = loop.head->GetPred(0);
+    // loop canon phase may not be called when identloop is used
+    if ((loop.preheader->GetKind() != kBBFallthru) &&
+        (loop.preheader->GetKind() != kBBGoto) ) {
+      loop.SetIsCanonicalLoop(false);
+      return false;
+    }
     CHECK_FATAL(loop.preheader->GetKind() == kBBFallthru ||
                 loop.preheader->GetKind() == kBBGoto,
                 "must be kBBFallthru or kBBGoto");

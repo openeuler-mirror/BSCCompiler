@@ -320,6 +320,7 @@ class MeFunction : public FuncEmit {
   void SetLfoMempool(MemPool *mp) { lfoMp = mp; }
   MemPool *GetLfoMempool() { return lfoMp; }
   bool IsLfo() const { return isLfo; }
+  void SetLfo(bool islfo) { isLfo = islfo; }
  private:
   MemPool *memPool;
   StackMemPool &stackMP;

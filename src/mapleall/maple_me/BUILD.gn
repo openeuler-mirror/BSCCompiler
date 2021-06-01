@@ -92,6 +92,7 @@ src_libmplme = [
   "src/me_fsaa.cpp",
   "src/lfo_mir_lower.cpp",
   "src/lfo_inject_iv.cpp",
+  "src/lfo_pre_emit.cpp",
 ]
 
 src_libmplmewpo = [

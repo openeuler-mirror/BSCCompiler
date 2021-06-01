@@ -198,6 +198,10 @@ class OriginalSt {
     return puIdx;
   }
 
+  MIRType *GetType() const {
+    return GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+  }
+
  private:
   enum OSTType {
     kUnkonwnOst,
