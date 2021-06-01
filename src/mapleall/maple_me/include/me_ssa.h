@@ -21,26 +21,23 @@
 #include "me_phase.h"
 #include "ssa.h"
 #include "dominance.h"
-#include "me_loop_analysis.h"
 
 namespace maple {
 class MeSSA : public SSA, public AnalysisResult {
  public:
-  MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool, bool enabledDebug = false)
+  MeSSA(MeFunction &func, SSATab *stab, Dominance &dom, MemPool &memPool)
       : SSA(memPool, *stab, func.GetCfg()->GetAllBBs(), &dom),
         AnalysisResult(&memPool),
-        func(&func), eDebug(enabledDebug) {}
+        func(&func) {}
 
   ~MeSSA() = default;
 
   void VerifySSA() const;
   void InsertPhiNode();
-  void InsertIdentifyAssignments(IdentifyLoops *identloops);
 
  private:
   void VerifySSAOpnd(const BaseNode &node) const;
   MeFunction *func;
-  bool eDebug = false;
 };
 
 class MeDoSSA : public MeFuncPhase {

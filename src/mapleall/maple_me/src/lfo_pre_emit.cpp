@@ -494,6 +494,8 @@ void LfoPreEmitter::EmitBB(BB *bb, LfoBlockNode *curblk) {
 
 DoloopNode *LfoPreEmitter::EmitLfoDoloop(BB *mewhilebb, LfoBlockNode *curblk, LfoWhileInfo *whileInfo) {
   MeStmt *lastmestmt = mewhilebb->GetLastMe();
+  CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
+              "EmitLfoWhile: there are other statements at while header bb");
   LfoDoloopNode *lnoDoloopnode = codeMP->New<LfoDoloopNode>(curblk);
   lnoDoloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
@@ -511,15 +513,8 @@ DoloopNode *LfoPreEmitter::EmitLfoDoloop(BB *mewhilebb, LfoBlockNode *curblk, Lf
 
 WhileStmtNode *LfoPreEmitter::EmitLfoWhile(BB *meWhilebb, LfoBlockNode *curblk) {
   MeStmt *lastmestmt = meWhilebb->GetLastMe();
-  // if other iv is not fully replaced by primary iv
-  if (lastmestmt->GetPrev() != nullptr) {
-    MeStmt *mestmt = meWhilebb->GetFirstMe();
-    while (mestmt != lastmestmt) {
-      StmtNode *stmt = EmitLfoStmt(mestmt, curblk);
-      curblk->AddStatement(stmt);
-      mestmt = mestmt->GetNextMeStmt();
-    }
-  }
+  CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
+              "EmitLfoWhile: there are other statements at while header bb");
   LfoWhileStmtNode *lnoWhilestmt = codeMP->New<LfoWhileStmtNode>(curblk);
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
   lnoWhilestmt->SetOpnd(EmitLfoExpr(condGotostmt->GetOpnd(), lnoWhilestmt)->Cvt2BaseNode(), 0);
