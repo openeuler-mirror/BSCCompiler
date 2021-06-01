@@ -23,7 +23,6 @@
 #include "aarch64_operand.h"
 
 namespace maplebe {
-
 class X0OptInfo {
  public:
   X0OptInfo() : movSrc(nullptr), replaceReg(0), renameInsn(nullptr), renameOpnd(nullptr), renameReg(0) {}
@@ -82,19 +81,19 @@ class X0OptInfo {
 
 class RaX0Opt {
  public:
-  RaX0Opt(CGFunc* func) : cgFunc(func)  {}
+  explicit RaX0Opt(CGFunc* func) : cgFunc(func)  {}
 
-  bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg);
-  bool PropagateRenameReg(Insn *insn, X0OptInfo &optVal);
-  bool PropagateX0DetectX0(Insn *insn, X0OptInfo &optVal);
-  bool PropagateX0DetectRedefine(const AArch64MD *md, Insn *ninsn, const X0OptInfo &optVal, uint32 index);
+  bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const;
+  bool PropagateRenameReg(Insn *insn, const X0OptInfo &optVal);
+  bool PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal);
+  bool PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal, uint32 index);
   bool PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &optVal);
-  bool PropagateX0ForCurrBb(BB *bb, X0OptInfo &optVal);
-  void PropagateX0ForNextBb(BB *nextBb, X0OptInfo &optVal);
+  bool PropagateX0ForCurrBb(BB *bb, const X0OptInfo &optVal);
+  void PropagateX0ForNextBb(BB *nextBb, const X0OptInfo &optVal);
   void PropagateX0();
 
  private:
-   CGFunc *cgFunc;
+  CGFunc *cgFunc;
 };
 
 class AArch64RaOpt : public RaOpt {
@@ -105,7 +104,6 @@ class AArch64RaOpt : public RaOpt {
 
  private:
 };
+}  /* namespace maplebe */
 
-}  // namespace maplebe
-
-#endif  // MAPLEBE_INCLUDE_CG_AARCH64RAOPT_H
+#endif  /* MAPLEBE_INCLUDE_CG_AARCH64RAOPT_H */

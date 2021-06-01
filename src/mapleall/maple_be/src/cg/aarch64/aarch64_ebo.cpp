@@ -293,7 +293,7 @@ bool AArch64Ebo::DoConstProp(Insn &insn, uint32 idx, Operand &opnd) {
         CHECK_FATAL(src != nullptr, "pointer result is null");
         src->SetSize(targetSize);
       }
-      if (src->IsSingleInstructionMovable()) {
+      if (src->IsSingleInstructionMovable() && (insn.GetOperand(kInsnFirstOpnd).GetSize() == targetSize)) {
         if (EBO_DUMP) {
           LogInfo::MapleLogger() << " Do constprop:Prop constval " << src->GetValue() << "into insn:\n";
           insn.Dump();
@@ -774,7 +774,7 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
                 }
               } else {
                 immVal = imm0Val + imm1.GetValue() +
-                           static_cast<int64>(static_cast<uint64>(immOpnd2.GetValue()) << kMaxImmVal12Bits);
+                         static_cast<int64>(static_cast<uint64>(immOpnd2.GetValue()) << kMaxImmVal12Bits);
               }
               op1 = &base2;
             } else {
@@ -935,8 +935,10 @@ bool AArch64Ebo::ChangeLdrMop(Insn &insn, const Operand &opnd) const {
   ASSERT(opnd.IsRegister(), "expect opnd is a register in ChangeLdrMop");
 
   const RegOperand *regOpnd = static_cast<const RegOperand*>(&opnd);
-  ASSERT(static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterType() != regOpnd->GetRegisterType(),
-         "expected matched register type in AArch64Ebo::ChangeLdrMop");
+  if (static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterType() != regOpnd->GetRegisterType()) {
+    return false;
+  }
+
   if (static_cast<MemOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetIndexRegister()) {
     return false;
   }

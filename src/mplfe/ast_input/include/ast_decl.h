@@ -24,6 +24,16 @@
 
 namespace maple {
 using Pos = std::pair<uint32, uint32>;
+enum DeclKind {
+  kUnknownDecl = 0,
+  kASTDecl,
+  kASTField,
+  kASTFunc,
+  kASTStruct,
+  kASTVar,
+  kASTLocalEnumDecl,
+};
+
 class ASTDecl {
  public:
   ASTDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn)
@@ -52,12 +62,26 @@ class ASTDecl {
     return isParam;
   }
 
+  void SetAlign(uint32 n) {
+    if (n > align) {
+      align = n;
+    }
+  }
+
+  uint32 GetAlign() const {
+    return align;
+  }
+
   void GenerateInitStmt(std::list<UniqueFEIRStmt> &stmts) {
     return GenerateInitStmtImpl(stmts);
   }
 
   void SetDeclPos(Pos p) {
     pos = p;
+  }
+
+  DeclKind GetDeclKind() const {
+    return declKind;
   }
 
   MIRConst *Translate2MIRConst() const;
@@ -72,21 +96,30 @@ class ASTDecl {
   virtual void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {}
   bool isGlobalDecl;
   bool isParam = false;
+  uint32 align = 1; // in byte
   const std::string srcFileName;
   std::string name;
   std::vector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Pos pos = { 0, 0 };
+  DeclKind declKind = kASTDecl;
 };
 
 class ASTField : public ASTDecl {
  public:
   ASTField(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
-           const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn) {
+           const GenericAttrs &genAttrsIn, bool isAnonymous = false)
+      : ASTDecl(srcFile, nameIn, typeDescIn), isAnonymousField(isAnonymous) {
     genAttrs = genAttrsIn;
+    declKind = kASTField;
   }
   ~ASTField() = default;
+  bool IsAnonymousField() const {
+    return isAnonymousField;
+  }
+
+ private:
+  bool isAnonymousField = false;
 };
 
 class ASTFunc : public ASTDecl {
@@ -95,11 +128,13 @@ class ASTFunc : public ASTDecl {
           const GenericAttrs &genAttrsIn, const std::vector<std::string> &parmNamesIn)
       : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), parmNames(parmNamesIn) {
     genAttrs = genAttrsIn;
+    declKind = kASTFunc;
   }
   ~ASTFunc() {
     compound = nullptr;
   }
   void SetCompoundStmt(ASTStmt*);
+  void InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts);
   const ASTStmt *GetCompoundStmt() const;
   const std::vector<std::string> &GetParmNames() const {
     return parmNames;
@@ -119,6 +154,7 @@ class ASTStruct : public ASTDecl {
             const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn), isUnion(false) {
     genAttrs = genAttrsIn;
+    declKind = kASTStruct;
   }
   ~ASTStruct() = default;
 
@@ -152,6 +188,7 @@ class ASTVar : public ASTDecl {
          const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
+    declKind = kASTVar;
   }
   virtual ~ASTVar() = default;
 
@@ -168,6 +205,8 @@ class ASTVar : public ASTDecl {
  private:
   MIRConst *Translate2MIRConstImpl() const override;
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
+  void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar feirVar, UniqueFEIRExpr initFeirExpr,
+                                      std::list<UniqueFEIRStmt> &stmts);
   ASTExpr *initExpr = nullptr;
 };
 
@@ -178,6 +217,7 @@ class ASTLocalEnumDecl : public ASTDecl {
           const GenericAttrs &genAttrsIn)
       : ASTDecl(srcFile, nameIn, typeDescIn) {
     genAttrs = genAttrsIn;
+    declKind = kASTLocalEnumDecl;
   }
   ~ASTLocalEnumDecl() = default;
 
