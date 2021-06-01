@@ -29,7 +29,7 @@ class MeDSE : public DSE {
   MeDSE(MeFunction &func, Dominance *dom, bool enabledDebug)
       : DSE(std::vector<BB*>(func.GetCfg()->GetAllBBs().begin(), func.GetCfg()->GetAllBBs().end()),
             *func.GetCfg()->GetCommonEntryBB(), *func.GetCfg()->GetCommonExitBB(), *func.GetMeSSATab(),
-            *dom, enabledDebug, MeOption::decoupleStatic, func.IsLfo()),
+            *dom, enabledDebug, MeOption::decoupleStatic),
         func(func),
         cfg(func.GetCfg()) {}
   virtual ~MeDSE() = default;

@@ -71,7 +71,6 @@
 #include "me_verify.h"
 #include "lfo_inject_iv.h"
 #include "lfo_pre_emit.h"
-#include "lfo_iv_canon.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
@@ -314,6 +313,10 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
       invalidTimer.Stop();
       extraMeTimers["invalidResult"] += invalidTimer.ElapsedMicroseconds();
     }
+  }
+  // release lfo mempool
+  if (MeOption::optLevel >= 3) {
+    memPoolCtrler.DeleteMemPool(func.GetLfoMempool());
   }
   // release lfo mempool
   if (MeOption::optLevel >= 3) {

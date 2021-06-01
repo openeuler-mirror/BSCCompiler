@@ -96,13 +96,11 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
     case OP_dassign: {
       auto &node = static_cast<const DassignNode&>(stmt);
       const MIRSymbol &sym = ssaTab.GetStmtMIRSymbol(stmt);
-      bool isInjectIV = false;
-      if (isLfo) {
+      bool isInjectIV = (strncmp(sym.GetName().c_str(), "injected.iv", 11) == 0);
+      if (!isInjectIV) {
         // check identify assignments
-        if (strncmp(sym.GetName().c_str(), "injected.iv", 11) == 0) {
-          isInjectIV = true;
-        } else if (node.Opnd()->GetOpCode() == OP_dread) {
-          auto *dread = static_cast<AddrofSSANode *>(node.Opnd());
+        if (node.Opnd()->GetOpCode() == OP_dread) {
+          AddrofNode *dread = static_cast<AddrofNode *>(node.Opnd());
           if (node.GetStIdx() == dread->GetStIdx() && node.GetFieldID() == dread->GetFieldID()) {
             isInjectIV = true;
           }
@@ -112,13 +110,11 @@ bool DSE::HasNonDeletableExpr(const StmtNode &stmt) const {
               ExprNonDeletable(ToRef(node.GetRHS())) || isInjectIV);
     }
     case OP_regassign: {
-      if (isLfo) {
-        auto &rass = static_cast<const RegassignNode&>(stmt);
-        if (rass.Opnd()->GetOpCode() == OP_regread) {
-          RegreadNode *regread = static_cast<RegreadNode *>(rass.Opnd());
-          if (rass.GetRegIdx() == regread->GetRegIdx()) {
-            return true;
-          }
+      auto &rass = static_cast<const RegassignNode&>(stmt);
+      if (rass.Opnd()->GetOpCode() == OP_regread) {
+        RegreadNode *regread = static_cast<RegreadNode *>(rass.Opnd());
+        if (rass.GetRegIdx() == regread->GetRegIdx()) {
+          return true;
         }
       }
       return ExprNonDeletable(ToRef(stmt.Opnd(0)));
