@@ -198,6 +198,15 @@ class OriginalSt {
     return puIdx;
   }
 
+  bool IsIVCandidate() const {
+    if (indirectLev != 0 ||
+        (IsSymbolOst() && GetMIRSymbol()->GetName() == "__nads_dummysym__")) {
+      return false;
+    }
+    MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+    return IsPrimitiveInteger(mirtype->GetPrimType()) && (mirtype->GetKind() != kTypeBitField);
+  }
+
   MIRType *GetType() const {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   }

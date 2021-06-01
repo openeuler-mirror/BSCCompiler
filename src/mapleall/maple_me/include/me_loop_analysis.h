@@ -30,6 +30,7 @@ struct LoopDesc {
   BB *tail;
   BB *preheader;
   BB *latch;
+  BB *exitBB;
   MapleMap<BBId, MapleVector<BB*>*> inloopBB2exitBBs;
   MapleSet<BBId> loopBBs;
   LoopDesc *parent;  // points to its closest nesting loop
@@ -38,7 +39,7 @@ struct LoopDesc {
   bool hasIgotoBB = false; // backedge is construted by igoto
   bool isCanonicalLoop = false;
   LoopDesc(MapleAllocator &mapleAllocator, BB *headBB, BB *tailBB)
-      : alloc(&mapleAllocator), head(headBB), tail(tailBB), preheader(nullptr), latch(nullptr),
+      : alloc(&mapleAllocator), head(headBB), tail(tailBB), preheader(nullptr), latch(nullptr), exitBB(nullptr),
         inloopBB2exitBBs(alloc->Adapter()), loopBBs(alloc->Adapter()), parent(nullptr), nestDepth(0), hasTryBB(false),
         hasIgotoBB(false) {}
 
@@ -129,6 +130,7 @@ class IdentifyLoops : public AnalysisResult {
 
   LoopDesc *CreateLoopDesc(BB &hd, BB &tail);
   void SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc);
+  void SetExitBB(LoopDesc &loop);
   void InsertExitBB(LoopDesc &loop);
   void ProcessBB(BB *bb);
   void MarkBB();

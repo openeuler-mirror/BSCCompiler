@@ -38,6 +38,19 @@ void IdentifyLoops::SetLoopParent4BB(const BB &bb, LoopDesc &loopDesc) {
   bbLoopParent[bb.GetBBId()] = &loopDesc;
 }
 
+void IdentifyLoops::SetExitBB(LoopDesc& loop) {
+  BB *headBB = loop.head;
+  // the exit BB is the succeessor of headBB that does not belong to the loop
+  if (headBB->GetSucc().size() != 2) {
+    return;
+  }
+  if (loop.loopBBs.count(headBB->GetSucc()[0]->GetBBId()) != 1) {
+    loop.exitBB = headBB->GetSucc()[0];
+  } else {
+    loop.exitBB = headBB->GetSucc()[1];
+  }
+}
+
 void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
   std::set<BB*> traveledBBs;
   std::queue<BB*> inLoopBBs;
@@ -105,6 +118,7 @@ void IdentifyLoops::ProcessBB(BB *bb) {
       }
       (void)loop->loopBBs.insert(bb->GetBBId());
       SetLoopParent4BB(*bb, *loop);
+      SetExitBB(*loop);
     }
   }
   // recursive call
