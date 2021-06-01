@@ -21,7 +21,6 @@
 #include <string>
 
 namespace maple {
-
 AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
   Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_FATAL(dom, "dominance phase has problem");
@@ -48,7 +47,7 @@ AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     LfoWhileInfo *whileInfo = it->second;
     // find the entry BB as the predecessor of headbb that dominates headbb
     MapleVector<BB*>::iterator predit = headbb->GetPred().begin();
-    for ( ; predit != headbb->GetPred().end(); predit++) {
+    for (; predit != headbb->GetPred().end(); predit++) {
       if (dom->Dominate(**predit, *headbb))
         break;
     }
@@ -72,7 +71,8 @@ AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     DassignNode *dass = mirbuilder->CreateStmtDassign(st->GetStIdx(), 0, mirbuilder->CreateIntConst(0, PTY_i64));
     StmtNode *laststmt = entrybb->IsEmpty() ? NULL : &entrybb->GetLast();
     if (laststmt &&
-        (laststmt->op == OP_brfalse || laststmt->op == OP_brtrue || laststmt->op == OP_goto || laststmt->op == OP_igoto || laststmt->op == OP_switch)) {
+        (laststmt->op == OP_brfalse || laststmt->op == OP_brtrue || laststmt->op == OP_goto ||
+         laststmt->op == OP_igoto || laststmt->op == OP_switch)) {
       entrybb->InsertStmtBefore(laststmt, dass);
     } else {
       entrybb->AddStmtNode(dass);
@@ -81,12 +81,12 @@ AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     // insert IV increment at loop tail BB
     BB *tailbb = aloop->tail;
     AddrofNode *dread = mirbuilder->CreateExprDread(*GlobalTables::GetTypeTable().GetInt64(), *st);
-    BinaryNode *addnode = mirbuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetInt64(), dread, mirbuilder->CreateIntConst(1, PTY_i64));
+    BinaryNode *addnode = mirbuilder->CreateExprBinary(OP_add, *GlobalTables::GetTypeTable().GetInt64(),
+                                                       dread, mirbuilder->CreateIntConst(1, PTY_i64));
     dass = mirbuilder->CreateStmtDassign(*st, 0, addnode);
     laststmt = &tailbb->GetLast();
     tailbb->InsertStmtBefore(laststmt, dass);
   }
   return nullptr;
 }
-
 }  // namespace maple
