@@ -291,7 +291,13 @@ void BB::SetLastMe(MeStmt *stmt) {
   meStmtList.update_back(stmt);
 }
 
+MeStmt *BB::GetFirstMe() {
+  if (meStmtList.empty()) return nullptr;
+  return &meStmtList.front();
+}
+
 MeStmt *BB::GetLastMe() {
+  if (meStmtList.empty()) return nullptr;
   return &meStmtList.back();
 }
 
@@ -430,6 +436,7 @@ bool ControlFlowInInfiniteLoop(const BB &bb, Opcode opcode) {
   switch (opcode) {
     // goto always return true
     case OP_goto:
+    case OP_igoto:
       return true;
     case OP_brtrue:
     case OP_brfalse:

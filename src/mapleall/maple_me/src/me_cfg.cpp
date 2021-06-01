@@ -1261,7 +1261,7 @@ void MeCFG::CreateBasicBlocks() {
         if (curBB->IsEmpty()) {
           curBB->SetFirst(stmt);
         }
-        if (static_cast<DassignNode*>(stmt)->GetRHS()->MayThrowException()) {
+        if (isJavaModule && static_cast<DassignNode*>(stmt)->GetRHS()->MayThrowException()) {
           stmt->SetOpCode(OP_maydassign);
           if (tryStmt != nullptr) {
             // breaks new BB only inside try blocks
