@@ -22,6 +22,7 @@ ADD_PHASE("reflectionanalysis", JAVALANG)
 ADD_PHASE("GenNativeStubFunc", JAVALANG)
 ADD_PHASE("gencheckcast", JAVALANG)
 ADD_PHASE("javaintrnlowering", JAVALANG)
+ADD_PHASE("simplify", Options::O2)
 ADD_PHASE("inline", Options::O2 && Options::useInline)
 // mephase begin
 ADD_PHASE("mecfgbuild", CLANG &&  MeOption::optLevel >= 3)

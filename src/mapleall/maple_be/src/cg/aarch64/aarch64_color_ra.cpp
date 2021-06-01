@@ -662,6 +662,9 @@ void GraphColorRegAllocator::ClassifyOperand(std::unordered_set<regno_t> &pregs,
   }
   auto &regOpnd = static_cast<const RegOperand&>(opnd);
   regno_t regNO = regOpnd.GetRegisterNumber();
+  if (IsUnconcernedReg(regNO)) {
+    return;
+  }
   if (regOpnd.IsPhysicalRegister()) {
     (void)pregs.insert(regNO);
   } else {
@@ -3298,11 +3301,11 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   /* EBO propgation extent the live range and might need to be turned off. */
   ComputeBlockOrder();
 
+  InitCCReg();
+
   ComputeLiveRanges();
 
   InitFreeRegPool();
-
-  InitCCReg();
 
   BuildInterferenceGraph();
 
