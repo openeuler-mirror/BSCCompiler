@@ -150,11 +150,7 @@ class AArch64ImmOperand : public ImmOperand {
   }
 
   bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const override {
-    /* mask1 is a 64bits number that is all 1 shifts left size bits */
-    const uint64 mask1 = 0xffffffffffffffffUL << size;
-    /* mask2 is a 64 bits number that nlowerZeroBits are all 1, higher bits aro all 0 */
-    uint64 mask2 = (static_cast<uint64>(1) << static_cast<uint64>(nLowerZeroBits)) - 1UL;
-    return (mask2 & value) == 0UL && (mask1 & ((static_cast<uint64>(value)) >> nLowerZeroBits)) == 0UL;
+    return maplebe::IsBitSizeImmediate(static_cast<uint64>(value), size, nLowerZeroBits);
   }
 
   bool IsBitmaskImmediate() const {
@@ -595,7 +591,9 @@ class AArch64MemOperand : public MemOperand {
         idxOpt(kIntact),
         noExtend(false),
         isStackMem(false) {
-    ASSERT(dSize == (k8BitSize << shift), "incompatible data size and shift amount");
+    if (shift != 0 && dSize != (k8BitSize << shift)) {
+      ASSERT(false, "incompatible data size and shift amount");
+    }
     if (baseOpnd.GetRegisterNumber() == RSP || baseOpnd.GetRegisterNumber() == RFP) {
       isStackMem = true;
     }
@@ -739,6 +737,8 @@ class AArch64MemOperand : public MemOperand {
 
   bool NoAlias(AArch64MemOperand &rightOpnd) const;
 
+  bool NoOverlap(const AArch64MemOperand &rightOpnd) const;
+
   VaryType GetMemVaryType() override {
     Operand *ofstOpnd = GetOffsetOperand();
     if (ofstOpnd != nullptr) {
@@ -750,6 +750,10 @@ class AArch64MemOperand : public MemOperand {
 
   bool IsExtendedRegisterMode() const {
     return addrMode == kAddrModeBOrX;
+  }
+
+  void setExtend(ExtendInfo flag) {
+    extend = flag;
   }
 
   bool SignedExtend() const {
@@ -807,11 +811,6 @@ class AArch64MemOperand : public MemOperand {
 
   static constexpr int32 kLdpStp64SimmLowerBound = -512;  /* multiple of 8 */
   static constexpr int32 kLdpStp64SimmUpperBound = 504;
-
-  static constexpr int32 kMaxPimm8 = 4095;
-  static constexpr int32 kMaxPimm16 = 8190;
-  static constexpr int32 kMaxPimm32 = 16380;
-  static constexpr int32 kMaxPimm64 = 32760;
 
   static const int32 kMaxPimms[4];
 
