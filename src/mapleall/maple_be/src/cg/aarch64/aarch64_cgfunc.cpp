@@ -1747,6 +1747,11 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
       AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
           static_cast<AArch64RegOperand*>(&result), nullptr, &offset, nullptr);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
+
+      if (stImm.GetOffset() > 0) {
+        AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(stImm.GetOffset(), k32BitSize);
+        SelectAdd(result, result, ofstOpnd, PTY_u64);
+      }
     } else {
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, result, stImm));
     }
