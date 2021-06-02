@@ -189,7 +189,7 @@ class CGFunc {
   virtual Operand *SelectStrConst(MIRStrConst &strConst) = 0;
   virtual Operand *SelectStr16Const(MIRStr16Const &strConst) = 0;
   virtual void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand &SelectCGArrayElemAdd(BinaryNode &node) = 0;
   virtual Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
@@ -353,6 +353,16 @@ class CGFunc {
 
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
   void GenerateCfiPrologEpilog();
+
+  void PatchLongBranch();
+
+  virtual uint32 MaxCondBranchDistance() {
+    return INT_MAX;
+  }
+
+  virtual void InsertJumpPad(Insn *) {
+    return;
+  }
 
   uint32 NumBBs() const {
     return bbCnt;

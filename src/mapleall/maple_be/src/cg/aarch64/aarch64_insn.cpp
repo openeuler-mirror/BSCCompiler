@@ -1264,7 +1264,6 @@ void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
       return;
     }
   }
-  return ;
 }
 
 bool AArch64Insn::IsVolatile() const {
@@ -1521,6 +1520,7 @@ void AArch64Insn::CheckOpnd(Operand &opnd, OpndProp &prop) const {
  * Get the jump target label operand index from the given instruction.
  * Note: MOP_xbr is a jump instruction, but the target is unknown at compile time,
  * because a register instead of label. So we don't take it as a branching instruction.
+ * Howeer for special long range branch patch, the label is installed in this case.
  */
 uint32 AArch64Insn::GetJumpTargetIdx() const {
   return GetJumpTargetIdxFromMOp(mOp);
@@ -1531,6 +1531,10 @@ uint32 AArch64Insn::GetJumpTargetIdxFromMOp(MOperator mOp) const {
     /* unconditional jump */
     case MOP_xuncond: {
       return kOperandPosition0;
+    }
+    case MOP_xbr: {
+      CHECK_FATAL(opnds[1] != 0, "ERR");
+      return kOperandPosition1;
     }
     /* conditional jump */
     case MOP_bmi:

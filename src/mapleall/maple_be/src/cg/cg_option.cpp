@@ -91,7 +91,7 @@ CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::gcOnly = false;
 bool CGOptions::quiet = false;
-
+bool CGOptions::doPatchLongBranch = false;
 bool CGOptions::doPreSchedule = false;
 bool CGOptions::emitBlockMarker = true;
 bool CGOptions::inRange = false;
@@ -133,6 +133,7 @@ enum OptionIndex : uint64 {
   kGenPrimorList,
   kRaLinear,
   kRaColor,
+  kPatchBranch,
   kConstFoldOpt,
   kSuppressFinfo,
   kEhList,
@@ -627,6 +628,15 @@ const Descriptor kUsage[] = {
     kBuildTypeExperimental,
     kArgCheckPolicyNone,
     "  --with-ra-graph-color       \tDo coloring-based register allocation\n",
+    "mplcg",
+    {} },
+  { kPatchBranch,
+    0,
+    "",
+    "patch-long-branch",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNone,
+    "  --patch-long-branch         \tEnable patching long distance branch with jumping pad\n",
     "mplcg",
     {} },
   { kConstFoldOpt,
@@ -1177,6 +1187,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kSuppressFinfo:
         SetOption(kSuppressFileInfo);
+        break;
+      case kPatchBranch:
+        SetOption(kPatchLongBranch);
         break;
       case kConstFoldOpt:
         SetOption(kConstFold);
