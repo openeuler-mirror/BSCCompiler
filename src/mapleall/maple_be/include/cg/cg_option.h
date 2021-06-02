@@ -56,6 +56,7 @@ class CGOptions : public MapleDriverOptionBase {
     kUseStackGuard = 1ULL << 31,
     kSoeCheckInsert = 1ULL << 32,
     kAddFuncProfile = 1ULL << 33,
+    kPatchLongBranch = 1ULL << 34,
     /* undocumented */
     kDumpCFG = 1ULL << 61,
     kDumpCgir = 1ULL << 62,
@@ -246,6 +247,10 @@ class CGOptions : public MapleDriverOptionBase {
 
   bool InstrumentWithProfile() const {
     return (options & kAddFuncProfile) != 0;
+  }
+
+  bool DoPatchLongBranch() const {
+    return (options & kPatchLongBranch) != 0;
   }
 
   bool DoCheckSOE() const {
@@ -1017,6 +1022,14 @@ class CGOptions : public MapleDriverOptionBase {
     return gcOnly;
   }
 
+  const OptionFlag &GetOptionFlag() const {
+    return options;
+  }
+
+  void SetOptionFlag(const OptionFlag &flag) {
+    options = flag;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
 
@@ -1088,6 +1101,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool emitBlockMarker;
   static Range range;
   static bool inRange;
+  static bool doPatchLongBranch;
   static std::string profileData;
   static std::string profileFuncData;
   static std::string profileClassData;
