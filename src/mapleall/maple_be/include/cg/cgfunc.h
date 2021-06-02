@@ -27,6 +27,7 @@
 /* MapleIR headers. */
 #include "mir_parser.h"
 #include "mir_function.h"
+#include "debug_info.h"
 
 /* Maple MP header */
 #include "mempool_allocator.h"
@@ -401,6 +402,10 @@ class CGFunc {
   void SetDebugInfo(DebugInfo *dbgInfo) {
     debugInfo = dbgInfo;
   }
+
+  void AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc);
+
+  virtual void DBGFixCallFrameLocationOffsets(){};
 
   /* Get And Set private members */
   CG *GetCG() {
@@ -833,6 +838,10 @@ class CGFunc {
     return (mirModule.GetSrcLang() != kSrcLangC);
   }
 
+  MapleVector<DBGExprLoc *> &GetDbgCallFrameLocations() {
+    return dbgCallFrameLocations;
+  }
+
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
   uint32 firstNonPregVRegNO;
@@ -861,6 +870,7 @@ class CGFunc {
   bool hasTakenLabel = false;
   uint32 frequency = 0;
   DebugInfo *debugInfo = nullptr;  /* debugging info */
+  MapleVector<DBGExprLoc *> dbgCallFrameLocations;
   RegOperand *aggParamReg = nullptr;
   ReachingDefinition *reachingDef = nullptr;
 
@@ -954,6 +964,7 @@ class CGFunc {
 
 CGFUNCPHASE(CgDoLayoutSF, "layoutstackframe")
 CGFUNCPHASE(CgDoHandleFunc, "handlefunction")
+CGFUNCPHASE(CgFixCFLocOsft, "dbgfixcallframeoffsets")
 CGFUNCPHASE(CgDoGenCfi, "gencfi")
 CGFUNCPHASE(CgDoEmission, "emit")
 }  /* namespace maplebe */

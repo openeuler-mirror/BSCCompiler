@@ -21,6 +21,7 @@
 #include "loop.h"
 #include "mir_builder.h"
 #include "factory.h"
+#include "debug_info.h"
 
 namespace maplebe {
 using namespace maple;
@@ -700,6 +701,7 @@ CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon,
       reuseSpillLocMem(allocator.Adapter()),
       labelMap(std::less<LabelIdx>(), allocator.Adapter()),
       hasVLAOrAlloca(mirFunc.HasVlaOrAlloca()),
+      dbgCallFrameLocations(allocator.Adapter()),
       cg(&cg),
       mirModule(mod),
       memPool(&memPool),
@@ -1164,6 +1166,21 @@ void CGFunc::HandleFunction() {
   }
 }
 
+void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
+  ASSERT(debugInfo, "");
+  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
+  if (!sdie) {
+    return;
+  }
+  ASSERT(sdie, "");
+
+  DBGExprLoc *exprloc = sdie->GetExprLoc();
+  CHECK_FATAL(exprloc != nullptr, "exprloc is null in CGFunc::AddDIESymbolLocation");
+  exprloc->SetSymLoc(loc);
+
+  GetDbgCallFrameLocations().push_back(exprloc);
+}
+
 void CGFunc::DumpCFG() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   LogInfo::MapleLogger() << "\n****** CFG built by CG for " << funcSt->GetName() << " *******\n";
@@ -1283,6 +1300,13 @@ AnalysisResult *CgDoHandleFunc::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResul
   cgFunc->HandleFunction();
   if (!cgFunc->GetCG()->GetCGOptions().DoEmitCode() || cgFunc->GetCG()->GetCGOptions().DoDumpCFG()) {
     cgFunc->DumpCFG();
+  }
+  return nullptr;
+}
+
+AnalysisResult *CgFixCFLocOsft::Run(CGFunc *cgFunc, CgFuncResultMgr *m) {
+  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+    cgFunc->DBGFixCallFrameLocationOffsets();
   }
   return nullptr;
 }
