@@ -964,8 +964,8 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
     memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, dataSize);
   }
 
-  // In bpl mode, a func symbol's type is represented as a MIRFuncType instead of a MIRPtrType (pointing to
-  // MIRFuncType), so we allow `kTypeFunction` to appear here
+  /* In bpl mode, a func symbol's type is represented as a MIRFuncType instead of a MIRPtrType (pointing to
+     MIRFuncType), so we allow `kTypeFunction` to appear here */
   ASSERT(((type->GetKind() == kTypeScalar) || (type->GetKind() == kTypePointer) || (type->GetKind() == kTypeFunction) ||
           (type->GetKind() == kTypeStruct) || (type->GetKind() == kTypeArray)), "NYI dassign type");
   PrimType ptyp = type->GetPrimType();
@@ -2567,7 +2567,7 @@ Operand &AArch64CGFunc::SelectCGArrayElemAdd(BinaryNode &node) {
       regno_t vRegNo = NewVReg(kRegTyInt, GetPrimTypeSize(primType));
       Operand &result = CreateVirtualRegisterOperand(vRegNo);
 
-      // OP_constval
+      /* OP_constval */
       ConstvalNode *constvalNode = static_cast<ConstvalNode *>(opnd1);
       MIRConst *mirConst = constvalNode->GetConstVal();
       MIRIntConst *mirIntConst = static_cast<MIRIntConst *>(mirConst);
@@ -6809,6 +6809,16 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &sa) {
 void AArch64CGFunc::AppendCall(const MIRSymbol &funcSymbol) {
   AArch64ListOperand *srcOpnds = memPool->New<AArch64ListOperand>(*GetFuncScopeAllocator());
   AppendCall(funcSymbol, *srcOpnds);
+}
+
+void AArch64CGFunc::DBGFixCallFrameLocationOffsets() {
+  for (DBGExprLoc *el : GetDbgCallFrameLocations()) {
+    if (el->GetSimpLoc()->GetDwOp() == DW_OP_fbreg) {
+      SymbolAlloc *symloc = static_cast<SymbolAlloc *>(el->GetSymLoc());
+      int64_t offset = GetBaseOffset(*symloc) - GetDbgCallFrameOffset();
+      el->SetFboffset(offset);
+    }
+  }
 }
 
 void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType,

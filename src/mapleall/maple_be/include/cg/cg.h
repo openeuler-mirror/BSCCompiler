@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -346,6 +346,23 @@ class CG {
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);
 
+  static bool IsInFuncWrapLabels(MIRFunction *func) {
+    if (funcWrapLabels.find(func) != funcWrapLabels.end()) {
+      return true;
+    }
+    return false;
+  }
+
+  static void SetFuncWrapLabels(MIRFunction *func, std::pair<LabelIdx,LabelIdx> labels) {
+    if (!IsInFuncWrapLabels(func)) {
+      funcWrapLabels[func] = labels;
+    }
+  }
+
+  static std::map<MIRFunction *, std::pair<LabelIdx,LabelIdx>> &GetFuncWrapLabels() {
+    return funcWrapLabels;
+  }
+
  protected:
   MemPool *memPool;
   MapleAllocator allocator;
@@ -361,6 +378,7 @@ class CG {
   MIRSymbol *dbgTraceEnter;
   MIRSymbol *dbgTraceExit;
   MIRSymbol *dbgFuncProfile;
+  static std::map<MIRFunction *, std::pair<LabelIdx,LabelIdx>> funcWrapLabels;
 };  /* class CG */
 }  /* namespace maplebe */
 
