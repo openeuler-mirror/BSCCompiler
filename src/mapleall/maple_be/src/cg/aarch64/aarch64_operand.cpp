@@ -179,18 +179,19 @@ void StImmOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   }
   if (CGOptions::IsPIC() && (symbol->GetStorageClass() == kScGlobal || symbol->GetStorageClass() == kScExtern)) {
     emitter.Emit(":got:" + GetName());
-  } else if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
-    emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
   } else {
-    emitter.Emit(GetName());
-  }
-  if (offset != 0) {
-    emitter.Emit("+" + std::to_string(offset));
+    if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
+      emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
+    } else {
+      emitter.Emit(GetName());
+    }
+    if (offset != 0) {
+      emitter.Emit("+" + std::to_string(offset));
+    }
   }
 }
 
-const int32 AArch64MemOperand::kMaxPimms[4] = { AArch64MemOperand::kMaxPimm8, AArch64MemOperand::kMaxPimm16,
-                                                AArch64MemOperand::kMaxPimm32, AArch64MemOperand::kMaxPimm64 };
+const int32 AArch64MemOperand::kMaxPimms[4] = { kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64 };
 
 Operand *AArch64MemOperand::GetOffset() const {
   switch (addrMode) {
@@ -220,10 +221,12 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
     emitter.Emit("[");
     auto *baseReg = static_cast<AArch64RegOperand*>(GetBaseRegister());
     ASSERT(baseReg != nullptr, "expect an AArch64RegOperand here");
-    if (CGOptions::IsPIC() && (baseReg->GetSize() != k64BitSize)) {
+    uint32 baseSize = baseReg->GetSize();
+    if (CGOptions::IsPIC() && (baseSize != k64BitSize)) {
       baseReg->SetSize(k64BitSize);
     }
     baseReg->Emit(emitter, nullptr);
+    baseReg->SetSize(baseSize);
     AArch64OfstOperand *offset = GetOffsetImmediate();
     if (offset != nullptr) {
 #ifndef USE_32BIT_REF  /* can be load a ref here */
@@ -486,6 +489,23 @@ bool AArch64MemOperand::NoAlias(AArch64MemOperand &rightOpnd) const {
   }
 
   return false;
+}
+
+bool AArch64MemOperand::NoOverlap(const AArch64MemOperand &rightOpnd) const {
+  if (addrMode != kAddrModeBOi || rightOpnd.addrMode != kAddrModeBOi || idxOpt != kIntact ||
+      rightOpnd.idxOpt != kIntact) {
+    return false;
+  }
+  if (GetBaseRegister()->GetRegisterNumber() != RFP || rightOpnd.GetBaseRegister()->GetRegisterNumber() != RFP) {
+    return false;
+  }
+  int64 ofset1 = GetOffsetOperand()->GetValue();
+  int64 ofset2 = rightOpnd.GetOffsetOperand()->GetValue();
+  if (ofset1 < ofset2) {
+    return ((ofset1 + GetAccessSize()) <= ofset2);
+  } else {
+    return ((ofset2 + rightOpnd.GetAccessSize()) <= ofset1);
+  }
 }
 
 /* sort the register operand according to their number */
