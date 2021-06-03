@@ -71,3 +71,6 @@ OpenArkCompiler是来自华为方舟编译器的开源项目。
 ## 开发者交流频道
 - [Discord-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
 - 每天上午9:00~10:30不定时在语音频道“panel disscussion”交流社区议题。
+
+## 如何提交代码
+- [wiki](https://gitee.com/openarkcompiler/OpenArkCompiler/wikis/%E4%BB%A3%E7%A0%81%E6%8F%90%E4%BA%A4%E6%B5%81%E7%A8%8B?sort_id=2447213)
