@@ -70,3 +70,4 @@ OpenArkCompiler是来自华为方舟编译器的开源项目。
 
 ## 开发者交流频道
 - [Discord-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
+- 每天上午9:00~10:30不定时在语音频道“panel disscussion”交流社区议题。
