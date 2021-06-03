@@ -91,9 +91,8 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
-  AArch64MemOperand &GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset,
-                                              const RegOperand &addReg);
-  AArch64MemOperand &FixLargeMemOpnd(MemOperand &memOpnd, uint32 align, const RegOperand &addReg);
+  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
+  AArch64MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   void SelectAggDassign(DassignNode &stmt) override;
   void SelectIassign(IassignNode &stmt) override;
   void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) override;
@@ -228,6 +227,7 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
+  uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment);
 
   AArch64ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));
