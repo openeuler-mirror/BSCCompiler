@@ -1274,8 +1274,7 @@ static PrimType IsStructElementSame(MIRType *ty) {
   }
 }
 
-bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar)
-{
+bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar) {
   if (nextStmt && nextStmt->op == OP_dassign) {
     BaseNode *bnode = static_cast<DassignNode *>(nextStmt)->GetRHS();
     if (bnode->op == OP_dread) {
@@ -1300,16 +1299,13 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                 (*p2nrets)[0].second.SetFieldID(dnode_stmt->GetFieldID());
                 lvar = true;
               } else { /* struct <= 16 passed in regs lowered into
-                          call &foo ()
+                          call &foo
                           regassign u64 %1 (regread u64 %%retval0)
                           regassign ptr %2 (addrof ptr $s)
                           iassign <* u64> 0 (regread ptr %2, regread u64 %1) */
-                if (CGOptions::GetInstance().GetOptimizeLevel() == CGOptions::kLevel0) {
-                  return false;
-                }
                 MIRSymbol *symbol = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnode_stmt->GetStIdx());
                 MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-                int32 size = structType->GetSize();
+                uint32 size = structType->GetSize();
                 for (size_t i = 0; i < callnode->GetNopndSize(); ++i) {
                   BaseNode *newOpnd = LowerExpr(*callnode, *callnode->GetNopndAt(i), newBlk);
                   callnode->SetOpnd(newOpnd, i);
@@ -1318,7 +1314,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                   callnode->GetPUIdx(), callnode->GetNopnd());
                 newBlk.AddStatement(callStmt);
 
-                int32 origSize = size;
+                uint32 origSize = size;
                 PregIdx pIdxR, pIdx1R, pIdx2R;
                 /* save x0 */
                 RegreadNode *reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
@@ -1335,26 +1331,26 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                 }
 
                 /* save &s */
-                BaseNode *regAddr= mirBuilder->CreateExprAddrof(0, *symbol);
+                BaseNode *regAddr = mirBuilder->CreateExprAddrof(0, *symbol);
                 LowerTypePtr(*regAddr);
                 PregIdx pIdxL = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_a64);
                 aStmt = mirBuilder->CreateStmtRegassign(PTY_a64, pIdxL, regAddr);
                 newBlk.AddStatement(aStmt);
 
-                int32 curSize = 0;
+                uint32 curSize = 0;
                 PregIdx pIdxS;
                 while (size) {
                   pIdxR = pIdx1R;
                   if (curSize >= k8ByteSize) {
-                   pIdxR = pIdx2R;
+                    pIdxR = pIdx2R;
                   }
                   BaseNode *addr;
                   BaseNode *shift;
                   if (origSize != size) {
                     MIRType *addrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_a64);
                     addr = mirBuilder->CreateExprBinary(OP_add, *addrType,
-                      mirBuilder->CreateExprRegread(PTY_a64, pIdxL),
-                      mirBuilder->CreateIntConst(origSize - size, PTY_i32));
+                                                        mirBuilder->CreateExprRegread(PTY_a64, pIdxL),
+                                                        mirBuilder->CreateIntConst(origSize - size, PTY_i32));
                   } else {
                     addr = mirBuilder->CreateExprRegread(PTY_a64, pIdxL);
                   }
@@ -1369,8 +1365,8 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt32()),
                       0, addr, mirBuilder->CreateExprRegread(PTY_u32, pIdxR));
                     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                      mirBuilder->CreateExprRegread(PTY_u64, pIdxR), mirBuilder->CreateIntConst(32, PTY_i32));
+                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                                                         mirBuilder->CreateIntConst(k32BitSize, PTY_i32));
                     pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
                     StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
@@ -1382,8 +1378,8 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt16()),
                       0, addr, mirBuilder->CreateExprRegread(PTY_u16, pIdxR));
                     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                      mirBuilder->CreateExprRegread(PTY_u64, pIdxR), mirBuilder->CreateIntConst(16, PTY_i32));
+                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                                                         mirBuilder->CreateIntConst(k16BitSize, PTY_i32));
                     pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
                     StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
@@ -1395,8 +1391,8 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt8()),
                       0, addr, mirBuilder->CreateExprRegread(PTY_u8, pIdxR));
                     MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                      mirBuilder->CreateExprRegread(PTY_u64, pIdxR), mirBuilder->CreateIntConst(8, PTY_i32));
+                    shift = mirBuilder->CreateExprBinary(OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                                                         mirBuilder->CreateIntConst(k8BitSize, PTY_i32));
                     pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
                     StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
@@ -1629,7 +1625,8 @@ void CGLowerer::SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, Bl
   }
 }
 
-StmtNode *CGLowerer::LowerCall(CallNode &callNode, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retTy, bool uselvar) {
+StmtNode *CGLowerer::LowerCall(
+    CallNode &callNode, StmtNode *&nextStmt, BlockNode &newBlk, MIRType *retTy, bool uselvar) {
   /*
    * nextStmt in-out
    * call $foo(constval u32 128)
@@ -3321,6 +3318,27 @@ bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) con
 bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   switch (intrinsic) {
 #if TARGAARCH64
+  case INTRN_C_cos:
+  case INTRN_C_cosf:
+  case INTRN_C_cosh:
+  case INTRN_C_coshf:
+  case INTRN_C_acos:
+  case INTRN_C_acosf:
+  case INTRN_C_sin:
+  case INTRN_C_sinf:
+  case INTRN_C_sinh:
+  case INTRN_C_sinhf:
+  case INTRN_C_asin:
+  case INTRN_C_asinf:
+  case INTRN_C_atan:
+  case INTRN_C_atanf:
+  case INTRN_C_exp:
+  case INTRN_C_expf:
+  case INTRN_C_ffs:
+  case INTRN_C_log:
+  case INTRN_C_logf:
+  case INTRN_C_log10:
+  case INTRN_C_log10f:
   case INTRN_C_clz32:
   case INTRN_C_clz64:
   case INTRN_C_ctz32:
