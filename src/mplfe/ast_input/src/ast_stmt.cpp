@@ -310,7 +310,7 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
   ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
   if (!callExpr->IsIcall()) {
     if (callExpr->GetCalleeExpr() != nullptr && callExpr->GetCalleeExpr()->GetASTOp() == kASTOpCast &&
-        static_cast<ASTImplicitCastExpr*>(callExpr->GetCalleeExpr())->IsBuilinFunc()) {
+        static_cast<ASTCastExpr*>(callExpr->GetCalleeExpr())->IsBuilinFunc()) {
       auto ptrFunc = funcPtrMap.find(callExpr->GetFuncName());
       if (ptrFunc != funcPtrMap.end()) {
         return (this->*(ptrFunc->second))();
@@ -340,14 +340,10 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaStart() const {
   }
   // addrof va_list instead of dread va_list
   exprArgList->front()->SetAddrof(true);
-#ifndef USE_OPS
-    CHECK_FATAL(false, "implemention in ops branch");
-#else
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_va_start, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
-#endif
   return stmts;
 }
 
@@ -387,14 +383,10 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaCopy() const {
   // Add the size of the va_list structure as the size to memcpy.
   UniqueFEIRExpr sizeExpr = FEIRBuilder::CreateExprConstI32(vaListType->GenerateMIRTypeAuto()->GetSize());
   exprArgList->emplace_back(std::move(sizeExpr));
-#ifndef USE_OPS
-    CHECK_FATAL(false, "implemention in ops branch");
-#else
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_memcpy, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
-#endif
   return stmts;
 }
 
@@ -422,13 +414,7 @@ std::list<UniqueFEIRStmt> ASTImplicitCastExprStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTParenExprStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::list<UniqueFEIRExpr> feExprs;
-  auto feExpr = exprs.front()->Emit2FEExpr(stmts);
-  if (feExpr != nullptr) {
-    feExprs.emplace_back(std::move(feExpr));
-    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
-    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-    stmts.emplace_back(std::move(stmt));
-  }
+  exprs.front()->Emit2FEExpr(stmts);
   return stmts;
 }
 
