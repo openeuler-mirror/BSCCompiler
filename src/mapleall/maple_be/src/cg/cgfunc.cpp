@@ -323,6 +323,52 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       auto mirIntConst = static_cast<MIRIntConst*>(constNode->GetConstVal());
       return cgFunc.SelectLoadArrayClassCache(*st, mirIntConst->GetValue(), intrinsicopNode.GetPrimType());
     }
+    // double
+    case INTRN_C_sin:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sin");
+    case INTRN_C_sinh:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinh");
+    case INTRN_C_asin:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "asin");
+    case INTRN_C_cos:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cos");
+    case INTRN_C_cosh:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cosh");
+    case INTRN_C_acos:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "acos");
+    case INTRN_C_atan:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "atan");
+    case INTRN_C_exp:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "exp");
+    case INTRN_C_log:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log");
+    case INTRN_C_log10:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log10");
+    // float
+    case INTRN_C_sinf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinf");
+    case INTRN_C_sinhf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinhf");
+    case INTRN_C_asinf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "asinf");
+    case INTRN_C_cosf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cosf");
+    case INTRN_C_coshf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "coshf");
+    case INTRN_C_acosf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "acosf");
+    case INTRN_C_atanf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "atanf");
+    case INTRN_C_expf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "expf");
+    case INTRN_C_logf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "logf");
+    case INTRN_C_log10f:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log10f");
+    // int
+    case INTRN_C_ffs:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
+
     case INTRN_C_clz32:
     case INTRN_C_clz64:
       return cgFunc.SelectCclz(intrinsicopNode);
