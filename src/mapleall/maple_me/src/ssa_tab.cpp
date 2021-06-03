@@ -20,6 +20,7 @@
 #include "mir_function.h"
 #include "mir_lower.h"
 #include "me_option.h"
+#include "me_function.h"
 
 // Allocate data structures to store SSA information. Only statement nodes and
 // tree nodes that incur defs and uses are relevant. Tree nodes are made larger
@@ -29,8 +30,7 @@
 namespace maple {
 BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
   bool arrayLowered = false;
-  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() &&
-      MeOption::strengthReduction /* && in-main-me-phase */) {
+  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo() && MeOption::strengthReduction) {
     MIRLower mirLower(mirModule, mirModule.CurFunction());
     expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
     arrayLowered = true;

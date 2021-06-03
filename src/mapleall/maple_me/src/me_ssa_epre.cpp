@@ -90,7 +90,7 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
   MeSSAEPre ssaPre(*func, *irMap, *dom, kh, *ssaPreMemPool, *NewMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
-  if (MeOption::strengthReduction) {
+  if (MeOption::strengthReduction && !func->GetMIRModule().IsJavaModule()) {
     ssaPre.strengthReduction = true;
   }
   if (func->GetHints() & kPlacementRCed) {
@@ -114,7 +114,7 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();
   }
-  if (MeOption::strengthReduction) { // for deleting redundant injury repairs
+  if (ssaPre.strengthReduction) { // for deleting redundant injury repairs
     MeHDSE hdse(*func, *dom, *func->GetIRMap(), DEBUGFUNC(func));
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
