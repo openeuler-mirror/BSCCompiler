@@ -88,9 +88,8 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 }
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
-  (void)parent;
   return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                          *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+                          *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
 Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -324,6 +323,52 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       auto mirIntConst = static_cast<MIRIntConst*>(constNode->GetConstVal());
       return cgFunc.SelectLoadArrayClassCache(*st, mirIntConst->GetValue(), intrinsicopNode.GetPrimType());
     }
+    // double
+    case INTRN_C_sin:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sin");
+    case INTRN_C_sinh:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinh");
+    case INTRN_C_asin:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "asin");
+    case INTRN_C_cos:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cos");
+    case INTRN_C_cosh:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cosh");
+    case INTRN_C_acos:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "acos");
+    case INTRN_C_atan:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "atan");
+    case INTRN_C_exp:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "exp");
+    case INTRN_C_log:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log");
+    case INTRN_C_log10:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log10");
+    // float
+    case INTRN_C_sinf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinf");
+    case INTRN_C_sinhf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "sinhf");
+    case INTRN_C_asinf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "asinf");
+    case INTRN_C_cosf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "cosf");
+    case INTRN_C_coshf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "coshf");
+    case INTRN_C_acosf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "acosf");
+    case INTRN_C_atanf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "atanf");
+    case INTRN_C_expf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "expf");
+    case INTRN_C_logf:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "logf");
+    case INTRN_C_log10f:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "log10f");
+    // int
+    case INTRN_C_ffs:
+      return cgFunc.SelectIntrinsicOpWithOneParam(intrinsicopNode, "ffs");
+
     case INTRN_C_clz32:
     case INTRN_C_clz64:
       return cgFunc.SelectCclz(intrinsicopNode);
@@ -1162,6 +1207,24 @@ void CGFunc::HandleFunction() {
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();
   }
+  if (GetCG()->DoPatchLongBranch()) {
+    PatchLongBranch();
+  }
+}
+
+void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
+  ASSERT(debugInfo, "");
+  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
+  if (!sdie) {
+    return;
+  }
+  ASSERT(sdie, "");
+
+  DBGExprLoc *exprloc = sdie->GetExprLoc();
+  CHECK_FATAL(exprloc != nullptr, "exprloc is null in CGFunc::AddDIESymbolLocation");
+  exprloc->SetSymLoc(loc);
+
+  GetDbgCallFrameLocations().push_back(exprloc);
 }
 
 void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
@@ -1266,6 +1329,29 @@ void CGFunc::ClearLoopInfo() {
   FOR_ALL_BB(bb, this) {
     bb->ClearLoopPreds();
     bb->ClearLoopSuccs();
+  }
+}
+
+void CGFunc::PatchLongBranch() {
+  for (BB *bb = firstBB->GetNext(); bb; bb = bb->GetNext()) {
+    bb->SetInternalFlag1(bb->GetInternalFlag1() + bb->GetPrev()->GetInternalFlag1());
+  }
+  BB *next;
+  for (BB *bb = firstBB; bb; bb = next) {
+    next = bb->GetNext();
+    if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
+      continue;
+    }
+    Insn * insn = bb->GetLastInsn();
+    while (insn->IsImmaterialInsn()) {
+      insn = insn->GetPrev();
+    }
+    LabelIdx labidx = static_cast<LabelOperand&>(insn->GetOperand(insn->GetJumpTargetIdx())).GetLabelIndex();
+    BB *tbb = GetBBFromLab2BBMap(labidx);
+    if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
+      continue;
+    }
+    InsertJumpPad(insn);
   }
 }
 

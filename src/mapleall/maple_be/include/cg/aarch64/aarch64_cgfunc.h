@@ -108,6 +108,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCall(CallNode &callNode) override;
   void SelectIcall(IcallNode &icallNode, Operand &fptrOpnd) override;
   void SelectIntrinCall(IntrinsiccallNode &intrinsicCallNode) override;
+  Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) override;
   Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
@@ -134,7 +135,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectStr16Const(MIRStr16Const &str16Const) override;
 
   void SelectAdd(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectAdd(BinaryNode &node, Operand &o0, Operand &o1) override;
+  Operand *SelectAdd(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   Operand &SelectCGArrayElemAdd(BinaryNode &node) override;
   Operand *SelectShift(BinaryNode &node, Operand &o0, Operand &o1) override;
   Operand *SelectSub(BinaryNode &node, Operand &o0, Operand &o1) override;
@@ -172,9 +173,11 @@ class AArch64CGFunc : public CGFunc {
                                                  AArch64reg regNum, bool &isOutOfRange);
   void SelectAddAfterInsn(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType, bool isDest, Insn &insn);
   bool IsImmediateOffsetOutOfRange(AArch64MemOperand &memOpnd, uint32 bitLen);
+  bool IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx);
   Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1) override;
   void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) override;
   Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1) override;
+  Operand *SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Operand &newOpnd0);
   Operand *SelectAbs(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectBnot(UnaryNode &node, Operand &opnd0) override;
   Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0) override;
@@ -490,6 +493,12 @@ class AArch64CGFunc : public CGFunc {
   }
 
   RegType GetRegisterType(regno_t reg) const override;
+
+  uint32 MaxCondBranchDistance() override {
+    return AArch64Abi::kMaxInstrForCondBr;
+  }
+
+  void InsertJumpPad(Insn *insn) override;
 
  private:
   enum RelationOperator : uint8 {
