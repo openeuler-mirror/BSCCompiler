@@ -3783,6 +3783,25 @@ void AArch64CGFunc::SelectCvtInt2Float(Operand &resOpnd, Operand &origOpnd0, Pri
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, resOpnd, *srcOpnd));
 }
 
+Operand *AArch64CGFunc::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode, std::string name) {
+  BaseNode *argexpr = intrnNode.Opnd(0);
+  PrimType ptype = argexpr->GetPrimType();
+  Operand *opnd = HandleExpr(intrnNode, *argexpr);
+  if (opnd->IsMemoryAccessOperand()) {
+    RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
+    Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);
+    GetCurBB()->AppendInsn(insn);
+    opnd = &ldDest;
+  }
+  std::vector<Operand*> opndVec;
+  RegOperand *dst = &CreateRegisterOperandOfType(ptype);
+  opndVec.push_back(dst);  /* result */
+  opndVec.push_back(opnd); /* param 0 */
+  SelectLibCall(name, opndVec, ptype, ptype);
+
+  return dst;
+}
+
 Operand *AArch64CGFunc::SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0) {
   PrimType ftype = node.FromType();
   PrimType rtype = node.GetPrimType();
@@ -7520,10 +7539,10 @@ void AArch64CGFunc::SelectIntrinCall(IntrinsiccallNode &intrinsiccallNode) {
   }
 }
 
-Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnnode) {
-  BaseNode *argexpr = intrnnode.Opnd(0);
+Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnNode) {
+  BaseNode *argexpr = intrnNode.Opnd(0);
   PrimType ptype = argexpr->GetPrimType();
-  Operand *opnd = HandleExpr(intrnnode, *argexpr);
+  Operand *opnd = HandleExpr(intrnNode, *argexpr);
   MOperator mop;
   if (opnd->IsMemoryAccessOperand()) {
     RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
@@ -7541,10 +7560,10 @@ Operand *AArch64CGFunc::SelectCclz(IntrinsicopNode &intrnnode) {
   return &dst;
 }
 
-Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnnode) {
-  BaseNode *argexpr = intrnnode.Opnd(0);
+Operand *AArch64CGFunc::SelectCctz(IntrinsicopNode &intrnNode) {
+  BaseNode *argexpr = intrnNode.Opnd(0);
   PrimType ptype = argexpr->GetPrimType();
-  Operand *opnd = HandleExpr(intrnnode, *argexpr);
+  Operand *opnd = HandleExpr(intrnNode, *argexpr);
   if (opnd->IsMemoryAccessOperand()) {
     RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
     Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);

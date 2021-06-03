@@ -3318,6 +3318,27 @@ bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) con
 bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   switch (intrinsic) {
 #if TARGAARCH64
+  case INTRN_C_cos:
+  case INTRN_C_cosf:
+  case INTRN_C_cosh:
+  case INTRN_C_coshf:
+  case INTRN_C_acos:
+  case INTRN_C_acosf:
+  case INTRN_C_sin:
+  case INTRN_C_sinf:
+  case INTRN_C_sinh:
+  case INTRN_C_sinhf:
+  case INTRN_C_asin:
+  case INTRN_C_asinf:
+  case INTRN_C_atan:
+  case INTRN_C_atanf:
+  case INTRN_C_exp:
+  case INTRN_C_expf:
+  case INTRN_C_ffs:
+  case INTRN_C_log:
+  case INTRN_C_logf:
+  case INTRN_C_log10:
+  case INTRN_C_log10f:
   case INTRN_C_clz32:
   case INTRN_C_clz64:
   case INTRN_C_ctz32:
