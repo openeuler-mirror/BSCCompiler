@@ -225,7 +225,8 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
     case kMeOpOp: {
       OpMeExpr opMeExpr(*static_cast<OpMeExpr*>(realZ.GetMeExpr()), -1);
       for (size_t i = 0; i < opMeExpr.GetNumOpnds(); ++i) {
-        MeExpr *retOpnd = GetReplaceMeExpr(*opMeExpr.GetOpnd(i), *ePhiBB, j);
+        MeExpr *resolvedOpnd = ResolveAllInjuringDefs(opMeExpr.GetOpnd(i));
+        MeExpr *retOpnd = GetReplaceMeExpr(*resolvedOpnd, *ePhiBB, j);
         if (retOpnd != nullptr) {
           opMeExpr.SetOpnd(i, retOpnd);
         }
