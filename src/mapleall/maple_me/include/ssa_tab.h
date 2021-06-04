@@ -21,12 +21,16 @@
 #include "ssa_mir_nodes.h"
 
 namespace maple {
+
+class MeFunction;
+
 class SSATab : public AnalysisResult {
   // represent the SSA table
  public:
-  SSATab(MemPool *memPool, MemPool *versMp, MIRModule *mod)
+  SSATab(MemPool *memPool, MemPool *versMp, MIRModule *mod, MeFunction *f)
       : AnalysisResult(memPool),
         mirModule(*mod),
+        func(f),
         versAlloc(versMp),
         versionStTable(*versMp),
         originalStTable(*memPool, *mod),
@@ -67,6 +71,14 @@ class SSATab : public AnalysisResult {
 
   OriginalSt *FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld) {
     return originalStTable.FindOrCreateSymbolOriginalSt(mirSt, puIdx, fld);
+  }
+
+  OriginalSt *FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyIdx tyIdx, FieldID fld) {
+    return originalStTable.FindOrCreateExtraLevOriginalSt(ost, tyIdx, fld);
+  }
+
+  OriginalSt *FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost) {
+    return originalStTable.FindOrCreateAddrofSymbolOriginalSt(ost);
   }
 
   const OriginalSt *GetOriginalStFromID(OStIdx id) const {
@@ -175,6 +187,7 @@ class SSATab : public AnalysisResult {
   }
  private:
   MIRModule &mirModule;
+  MeFunction *func;
   MapleAllocator versAlloc;
   VersionStTable versionStTable;  // this uses special versMp because it will be freed earlier
   OriginalStTable originalStTable;

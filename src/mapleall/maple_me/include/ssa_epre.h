@@ -33,7 +33,8 @@ class SSAEPre : public SSAPre {
   void GenerateReloadRealOcc(MeRealOcc &realOcc) override;
   MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const override;
   void ComputeVarAndDfPhis() override;
-  void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr&, bool isReBuild, MeExpr *tempVar, bool isRootExpr) override;
+  void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr&, bool isReBuild,
+                         MeExpr *tempVar, bool isRootExpr) override;
   void BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isReBuild, MeExpr *tempVar) override;
   void CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const override;
   void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const override;
@@ -51,15 +52,12 @@ class SSAEPre : public SSAPre {
   }
   // here starts methods related to strength reduction
   bool AllVarsSameVersion(const MeRealOcc &realocc1, const MeRealOcc &realocc2) const override;
-  VarMeExpr *ResolveAllInjuringDefs(VarMeExpr *varx) const override;
-  RegMeExpr *ResolveAllInjuringDefs(RegMeExpr *regx) const override;
+  ScalarMeExpr *ResolveAllInjuringDefs(ScalarMeExpr *regx) const override;
   MeExpr *ResolveAllInjuringDefs(MeExpr *x) const override {
     if (!workCand->isSRCand) {
       return x;
     }
-    return (x->GetMeOp() == kMeOpVar) ?
-        static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<VarMeExpr *>(x))) :
-        static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<RegMeExpr *>(x)));
+    return static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<ScalarMeExpr *>(x)));
   }
   void SubstituteOpnd(MeExpr *x, MeExpr *oldopnd, MeExpr *newopnd) override;
   bool OpndInDefOcc(MeExpr *opnd, MeOccur *defocc, uint32 i);
@@ -72,7 +70,6 @@ class SSAEPre : public SSAPre {
       std::set<MeStmt *> *needRepairInjuringDefs,
       std::set<MeStmt *> *repairedInjuringDefs) override;
 
- private:
   bool epreIncludeRef;
   bool enableLHSIvar;
 };

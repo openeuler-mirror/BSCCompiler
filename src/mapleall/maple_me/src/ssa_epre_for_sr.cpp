@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -17,57 +17,27 @@
 
 namespace maple {
 
-static VarMeExpr* ResolveOneInjuringDef(VarMeExpr *varx) {
-  if (varx->GetDefBy() != kDefByStmt) {
-    return varx;
-  }
-  DassignMeStmt *dass = static_cast<DassignMeStmt *>(varx->GetDefStmt());
-  CHECK_FATAL(dass->GetOp() == OP_dassign, "ResolveInjuringDefs: defStmt is not a dassign");
-  CHECK_FATAL(dass->GetLHS() == varx, "ResolveInjuringDefs: defStmt has different lhs");
-  if (!dass->isIncDecStmt) {
-    return varx;
-  }
-  CHECK_FATAL(dass->GetRHS()->GetMeOp() == kMeOpOp, "ResolveOneInjuringDef: dassign marked isIncDecStmt has unexpected rhs form.");
-  OpMeExpr *oprhs = static_cast<OpMeExpr *>(dass->GetRHS());
-  CHECK_FATAL(oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar, "ResolveOneInjuringDef: dassign marked isIncDecStmt has unexpected form.");
-  VarMeExpr *rhsvar = static_cast<VarMeExpr *>(oprhs->GetOpnd(0));
-  CHECK_FATAL(rhsvar->GetOst() == varx->GetOst(), "ResolveOneInjuringDef: dassign marked isIncDecStmt has unexpected rhs var.");
-  return rhsvar;
-}
-
-VarMeExpr* SSAEPre::ResolveAllInjuringDefs(VarMeExpr *varx) const {
-  if (!workCand->isSRCand) {
-    return varx;
-  }
-  while (true) {
-    VarMeExpr *answer = ResolveOneInjuringDef(varx);
-    if (answer == varx) {
-      return answer;
-    } else {
-      varx = answer;
-    }
-  }
-}
-
-static RegMeExpr* ResolveOneInjuringDef(RegMeExpr *regx) {
+static ScalarMeExpr* ResolveOneInjuringDef(ScalarMeExpr *regx) {
   if (regx->GetDefBy() != kDefByStmt) {
     return regx;
   }
   AssignMeStmt *rass = static_cast<AssignMeStmt *>(regx->GetDefStmt());
-  CHECK_FATAL(rass->GetOp() == OP_regassign, "ResolveInjuringDefs: defStmt is not a regassign");
   CHECK_FATAL(rass->GetLHS() == regx, "ResolveInjuringDefs: defStmt has different lhs");
   if (!rass->isIncDecStmt) {
     return regx;
   }
-  CHECK_FATAL(rass->GetRHS()->GetMeOp() == kMeOpOp, "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected rhs form.");
+  CHECK_FATAL(rass->GetRHS()->GetMeOp() == kMeOpOp,
+              "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected rhs form.");
   OpMeExpr *oprhs = static_cast<OpMeExpr *>(rass->GetRHS());
-  CHECK_FATAL(oprhs->GetOpnd(0)->GetMeOp() == kMeOpReg, "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected form.");
+  CHECK_FATAL(oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar || oprhs->GetOpnd(0)->GetMeOp() == kMeOpReg,
+              "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected form.");
   RegMeExpr *rhsreg = static_cast<RegMeExpr *>(oprhs->GetOpnd(0));
-  CHECK_FATAL(rhsreg->GetOst() == regx->GetOst(), "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected rhs reg.");
+  CHECK_FATAL(rhsreg->GetOst() == regx->GetOst(),
+              "ResolveOneInjuringDef: regassign marked isIncDecStmt has unexpected rhs reg.");
   return rhsreg;
 }
 
-RegMeExpr* SSAEPre::ResolveAllInjuringDefs(RegMeExpr *regx) const {
+ScalarMeExpr* SSAEPre::ResolveAllInjuringDefs(ScalarMeExpr *regx) const {
   if (!workCand->isSRCand) {
     return regx;
   }
@@ -125,14 +95,8 @@ void SSAEPre::SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInj
       continue;
     }
     if (!OpndInDefOcc(curopnd, defocc, i)) {
-      if (curopnd->GetMeOp() == kMeOpVar) {
-        VarMeExpr *varx = static_cast<VarMeExpr *>(curopnd);
-        needRepairInjuringDefs->insert(varx->GetDefStmt());
-      } else {
-        RegMeExpr *regx = static_cast<RegMeExpr *>(curopnd);
-        needRepairInjuringDefs->insert(regx->GetDefStmt());
-      }
-      return; // restricted injury requirement to at most 1 operand
+      ScalarMeExpr *varx = static_cast<ScalarMeExpr *>(curopnd);
+      needRepairInjuringDefs->insert(varx->GetDefStmt());
     }
   }
 }
@@ -162,9 +126,11 @@ static int64 GetIncreAmtAndRhsReg(MeExpr *x, RegMeExpr *&rhsreg) {
 MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) {
   MeExpr *rhs = nullptr;
   if (increAmt >= 0) {
-    rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp, *irMap->CreateIntConstMeExpr(increAmt, temp->GetPrimType()));
+    rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp,
+                                    *irMap->CreateIntConstMeExpr(increAmt, temp->GetPrimType()));
   } else {
-    rhs = irMap->CreateMeExprBinary(OP_sub, temp->GetPrimType(), *temp, *irMap->CreateIntConstMeExpr(-increAmt, temp->GetPrimType()));
+    rhs = irMap->CreateMeExprBinary(OP_sub, temp->GetPrimType(), *temp,
+                                    *irMap->CreateIntConstMeExpr(-increAmt, temp->GetPrimType()));
   }
   BB *bb = injuringDef->GetBB();
   MeStmt *newstmt = nullptr;
@@ -188,7 +154,7 @@ static MeExpr *FindLaterRepairedTemp(MeExpr *temp, MeStmt *injuringDef) {
     AssignMeStmt *rass = static_cast<AssignMeStmt *>(injuringDef->GetNext());
     while (rass != nullptr) {
       CHECK_FATAL(rass->GetOp() == OP_regassign && rass->isIncDecStmt,
-             "FindLaterRepairedTemp: failed to find repair statement");
+                  "FindLaterRepairedTemp: failed to find repair statement");
       if (rass->GetLHS()->GetRegIdx() == static_cast<RegMeExpr *>(temp)->GetRegIdx()) {
         return rass->GetLHS();
       }
@@ -198,7 +164,7 @@ static MeExpr *FindLaterRepairedTemp(MeExpr *temp, MeStmt *injuringDef) {
     DassignMeStmt *dass = static_cast<DassignMeStmt *>(injuringDef->GetNext());
     while (dass != nullptr) {
       CHECK_FATAL(dass->GetOp() == OP_dassign && dass->isIncDecStmt,
-             "FindLaterRepairedTemp: failed to find repair statement");
+                  "FindLaterRepairedTemp: failed to find repair statement");
       if (dass->GetLHS()->GetOst() == static_cast<VarMeExpr *>(temp)->GetOst()) {
         return dass->GetLHS();
       }
@@ -210,14 +176,14 @@ static MeExpr *FindLaterRepairedTemp(MeExpr *temp, MeStmt *injuringDef) {
 }
 
 MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
-                               MeExpr *tempAtDef,
-                               std::set<MeStmt *> *needRepairInjuringDefs,
-                               std::set<MeStmt *> *repairedInjuringDefs) {
+                                      MeExpr *tempAtDef,
+                                      std::set<MeStmt *> *needRepairInjuringDefs,
+                                      std::set<MeStmt *> *repairedInjuringDefs) {
   MeExpr *repairedTemp = tempAtDef;
   if (curopnd->GetMeOp() == kMeOpVar) {
     VarMeExpr *varx = static_cast<VarMeExpr *>(curopnd);
     DassignMeStmt *dass = static_cast<DassignMeStmt *>(varx->GetDefStmt());
-    CHECK_FATAL(dass->isIncDecStmt, "SRRepairInjuries: not an inc/dec statement");
+    CHECK_FATAL(dass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
     MeStmt *latestInjuringDef = dass;
     if (repairedInjuringDefs->count(dass) == 0) {
       repairedInjuringDefs->insert(dass);
@@ -231,18 +197,20 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
         } else {
           varx = rhsvar;
           dass = static_cast<DassignMeStmt *>(varx->GetDefStmt());
-          CHECK_FATAL(dass->isIncDecStmt, "SRRepairInjuries: not an inc/dec statement");
+          CHECK_FATAL(dass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
           done = needRepairInjuringDefs->count(dass) == 1;
           if (done) {
             if (repairedInjuringDefs->count(dass) == 0) {
-              repairedTemp = SRRepairOpndInjuries(varx, defocc, i, tempAtDef, needRepairInjuringDefs, repairedInjuringDefs);
+              repairedTemp = SRRepairOpndInjuries(varx, defocc, i, tempAtDef, needRepairInjuringDefs,
+                                                  repairedInjuringDefs);
             }
             repairedTemp = FindLaterRepairedTemp(repairedTemp, dass);
           }
         }
       } while (!done);
       // generate the increment statement at latestInjuringDef
-      repairedTemp = InsertRepairStmt(repairedTemp, increAmt*workCand->GetTheMeExpr()->SRMultiplier(), latestInjuringDef);
+      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(),
+                                      latestInjuringDef);
     } else {
       // find the last repair increment statement
       repairedTemp = FindLaterRepairedTemp(repairedTemp, latestInjuringDef);
@@ -250,7 +218,7 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
   } else { // kMeOpReg
     RegMeExpr *regx = static_cast<RegMeExpr *>(curopnd);
     AssignMeStmt *rass = static_cast<AssignMeStmt *>(regx->GetDefStmt());
-    CHECK_FATAL(rass->isIncDecStmt, "SRRepairInjuries: not an inc/dec statement");
+    CHECK_FATAL(rass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
     MeStmt *latestInjuringDef = rass;
     if (repairedInjuringDefs->count(rass) == 0) {
       repairedInjuringDefs->insert(rass);
@@ -264,18 +232,20 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
         } else {
           regx = rhsreg;
           rass = static_cast<AssignMeStmt *>(regx->GetDefStmt());
-          CHECK_FATAL(rass->isIncDecStmt, "SRRepairInjuries: not an inc/dec statement");
+          CHECK_FATAL(rass->isIncDecStmt, "SRRepairOpndInjuries: not an inc/dec statement");
           done = needRepairInjuringDefs->count(rass) == 1;
           if (done) {
             if (repairedInjuringDefs->count(rass) == 0) {
-              repairedTemp = SRRepairOpndInjuries(regx, defocc, i, tempAtDef, needRepairInjuringDefs, repairedInjuringDefs);
+              repairedTemp = SRRepairOpndInjuries(regx, defocc, i, tempAtDef, needRepairInjuringDefs,
+                                                  repairedInjuringDefs);
             }
             repairedTemp = FindLaterRepairedTemp(repairedTemp, rass);
           }
         }
       } while (!done);
       // generate the increment statement at latestInjuringDef
-      repairedTemp = InsertRepairStmt(repairedTemp, increAmt*workCand->GetTheMeExpr()->SRMultiplier(), latestInjuringDef);
+      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(),
+                                      latestInjuringDef);
     } else {
       // find the last repair increment statement
       repairedTemp = FindLaterRepairedTemp(repairedTemp, latestInjuringDef);
@@ -285,8 +255,8 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
 }
 
 MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
-                               std::set<MeStmt *> *needRepairInjuringDefs,
-                               std::set<MeStmt *> *repairedInjuringDefs) {
+                                  std::set<MeStmt *> *needRepairInjuringDefs,
+                                  std::set<MeStmt *> *repairedInjuringDefs) {
   MeExpr *useexpr = nullptr;
   if (useocc->GetOccType() == kOccReal) {
     MeRealOcc *realocc = static_cast<MeRealOcc *>(useocc);
@@ -318,9 +288,8 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
       continue;
     }
     if (!OpndInDefOcc(curopnd, defocc, i)) {
-      repairedTemp = SRRepairOpndInjuries(curopnd, defocc, i, repairedTemp, needRepairInjuringDefs, repairedInjuringDefs);
-      // restricted to only 1 var or reg injured
-      break;
+      repairedTemp = SRRepairOpndInjuries(curopnd, defocc, i, repairedTemp, needRepairInjuringDefs,
+                                          repairedInjuringDefs);
     }
   } // for
   return repairedTemp;
