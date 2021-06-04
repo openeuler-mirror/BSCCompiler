@@ -604,6 +604,91 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
   return true;
 }
 
+bool AArch64Ebo::CombineMultiplyAdd(Insn *insn, Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd, bool is64bits,
+                                    bool isFp) {
+  /* don't use register if it was redefined. */
+  OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
+  OpndInfo *opndInfo2 = insnInfo->origOpnd[kInsnThirdOpnd];
+  if (((opndInfo1 != nullptr) && opndInfo1->redefined) || ((opndInfo2 != nullptr) && opndInfo2->redefined)) {
+    return false;
+  }
+  Operand &res = insn->GetOperand(kInsnFirstOpnd);
+  Operand &opnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
+  Operand &opnd2 = prevInsn->GetOperand(kInsnThirdOpnd);
+  MOperator mOp = isFp ? (is64bits ? MOP_dmadd : MOP_smadd) : (is64bits ? MOP_xmaddrrrr : MOP_wmaddrrrr);
+  insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1, opnd2, *addOpnd));
+  return true;
+}
+
+bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp) {
+  if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
+    return false;
+  }
+  Insn *insn1 = opndInfo->insn;
+  InsnInfo *insnInfo = opndInfo->insnInfo;
+  CHECK_NULL_FATAL(insnInfo);
+  Operand &addOpnd = insn->GetOperand(pos);
+  MOperator opc1 = insn1->GetMachineOpcode();
+  if ((isFp && ((opc1 == MOP_xvmuld) || (opc1 == MOP_xvmuls))) ||
+      (!isFp && ((opc1 == MOP_xmulrrr) || (opc1 == MOP_wmulrrr)))) {
+    return CombineMultiplyAdd(insn, insn1, insnInfo, &addOpnd, is64bits, isFp);
+  }
+  return false;
+}
+
+bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+  if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
+    return false;
+  }
+  Insn *insn1 = opndInfo->insn;
+  InsnInfo *insnInfo = opndInfo->insnInfo;
+  CHECK_NULL_FATAL(insnInfo);
+  Operand &subOpnd = insn->GetOperand(kInsnSecondOpnd);
+  MOperator opc1 = insn1->GetMachineOpcode();
+  if ((isFp && ((opc1 == MOP_xvmuld) || (opc1 == MOP_xvmuls))) ||
+      (!isFp && ((opc1 == MOP_xmulrrr) || (opc1 == MOP_wmulrrr)))) {
+    /* don't use register if it was redefined. */
+    OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
+    OpndInfo *opndInfo2 = insnInfo->origOpnd[kInsnThirdOpnd];
+    if (((opndInfo1 != nullptr) && opndInfo1->redefined) || ((opndInfo2 != nullptr) && opndInfo2->redefined)) {
+      return false;
+    }
+    Operand &res = insn->GetOperand(kInsnFirstOpnd);
+    Operand &opnd1 = insn1->GetOperand(kInsnSecondOpnd);
+    Operand &opnd2 = insn1->GetOperand(kInsnThirdOpnd);
+    MOperator mOp = isFp ? (is64bits ? MOP_dmsub : MOP_smsub) : (is64bits ? MOP_xmsubrrrr : MOP_wmsubrrrr);
+    insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1, opnd2, subOpnd));
+    return true;
+  }
+  return false;
+}
+
+bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+  if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
+    return false;
+  }
+  Insn *insn1 = opndInfo->insn;
+  InsnInfo *insnInfo = opndInfo->insnInfo;
+  CHECK_NULL_FATAL(insnInfo);
+  MOperator opc1 = insn1->GetMachineOpcode();
+  if ((isFp && ((opc1 == MOP_xvmuld) || (opc1 == MOP_xvmuls))) ||
+      (!isFp && ((opc1 == MOP_xmulrrr) || (opc1 == MOP_wmulrrr)))) {
+    /* don't use register if it was redefined. */
+    OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
+    OpndInfo *opndInfo2 = insnInfo->origOpnd[kInsnThirdOpnd];
+    if (((opndInfo1 != nullptr) && opndInfo1->redefined) || ((opndInfo2 != nullptr) && opndInfo2->redefined)) {
+      return false;
+    }
+    Operand &res = insn->GetOperand(kInsnFirstOpnd);
+    Operand &opnd1 = insn1->GetOperand(kInsnSecondOpnd);
+    Operand &opnd2 = insn1->GetOperand(kInsnThirdOpnd);
+    MOperator mOp = isFp ? (is64bits ? MOP_dnmul : MOP_snmul) : (is64bits ? MOP_xmnegrrr : MOP_wmnegrrr);
+    insn->GetBB()->ReplaceInsn(*insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1, opnd2));
+    return true;
+  }
+  return false;
+}
+
 /* Do some special pattern */
 bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) {
   MOperator opCode = insn.GetMachineOpcode();
@@ -636,8 +721,11 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
     /*
      *  lsl     x1, x1, #3
      *  add     x0, x0, x1
-     * ===> add x0, x0, x1, 3({MOP_xaddrrrs,
-     * {MOPD_Reg64ID,MOPD_Reg64IS,MOPD_Reg64IS,MOPD_BitShift64,MOPD_Undef},0,"add","0,1,2,3", 1, 3})
+     * ===> add x0, x0, x1, 3
+     *
+     *  mul     x1, x1, x2
+     *  add     x0, x0, x1     or   add   x0, x1, x0
+     * ===> madd x0, x1, x2, x0
      */
     case MOP_xaddrrr:
     case MOP_waddrrr: {
@@ -645,12 +733,12 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
         return false;
       }
       bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
-      Operand &op0 = insn.GetOperand(kInsnSecondOpnd);
       OpndInfo *opndInfo = origInfos.at(kInsnThirdOpnd);
       if ((opndInfo != nullptr) && (opndInfo->insn != nullptr)) {
         Insn *insn1 = opndInfo->insn;
         InsnInfo *insnInfo1 = opndInfo->insnInfo;
         CHECK_NULL_FATAL(insnInfo1);
+        Operand &op0 = insn.GetOperand(kInsnSecondOpnd);
         MOperator opc1 = insn1->GetMachineOpcode();
         if ((opc1 == MOP_xlslrri6) || (opc1 == MOP_wlslrri5)) {
           /* don't use register if it was redefined. */
@@ -669,7 +757,85 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           insn.GetBB()->ReplaceInsn(insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, op0,
                                                                                          opnd1, shiftOpnd));
           return true;
+        } else if ((opc1 == MOP_xmulrrr) || (opc1 == MOP_wmulrrr)) {
+          return CombineMultiplyAdd(&insn, insn1, insnInfo1, &op0, is64bits, false);
         }
+      }
+      opndInfo = origInfos.at(kInsnSecondOpnd);
+      return CheckCanDoMadd(&insn, opndInfo, kInsnThirdOpnd, is64bits, false);
+      break;
+    }
+    /*
+     *  fmul     d1, d1, d2
+     *  fadd     d0, d0, d1     or   add   d0, d1, d0
+     * ===> fmadd d0, d1, d2, d0
+     */
+    case MOP_dadd:
+    case MOP_sadd: {
+      bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
+      OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
+      if (CheckCanDoMadd(&insn, opndInfo, kInsnThirdOpnd, is64bits, true)) {
+        return true;
+      }
+      opndInfo = origInfos.at(kInsnThirdOpnd);
+      if (CheckCanDoMadd(&insn, opndInfo, kInsnSecondOpnd, is64bits, true)) {
+        return true;
+      }
+      break;
+    }
+    /*
+     *  mul     x1, x1, x2
+     *  sub     x0, x0, x1
+     * ===> msub x0, x1, x2, x0
+     */
+    case MOP_xsubrrr:
+    case MOP_wsubrrr: {
+      bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
+      OpndInfo *opndInfo = origInfos.at(kInsnThirdOpnd);
+      if (CombineMultiplySub(&insn, opndInfo, is64bits, false)) {
+        return true;
+      }
+      break;
+    }
+    /*
+     *  fmul     d1, d1, d2
+     *  fsub     d0, d0, d1
+     * ===> fmsub d0, d1, d2, d0
+     */
+    case MOP_dsub:
+    case MOP_ssub: {
+      bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
+      OpndInfo *opndInfo = origInfos.at(kInsnThirdOpnd);
+      if (CombineMultiplySub(&insn, opndInfo, is64bits, true)) {
+        return true;
+      }
+      break;
+    }
+    /*
+     *  mul     x1, x1, x2
+     *  neg     x0, x1
+     * ===> mneg x0, x1, x2
+     */
+    case MOP_xinegrr:
+    case MOP_winegrr: {
+      bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
+      OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
+      if (CombineMultiplyNeg(&insn, opndInfo, is64bits, false)) {
+        return true;
+      }
+      break;
+    }
+    /*
+     *  fmul     d1, d1, d2
+     *  fneg     d0, d1
+     * ===> fnmul d0, d1, d2
+     */
+    case MOP_wfnegrr:
+    case MOP_xfnegrr: {
+      bool is64bits = (insn.GetResult(0)->GetSize() == k64BitSize);
+      OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
+      if (CombineMultiplyNeg(&insn, opndInfo, is64bits, true)) {
+        return true;
       }
       break;
     }

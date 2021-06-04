@@ -292,10 +292,20 @@ DEFINE_MOP(MOP_wudivrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},CANTHROW,kLtDiv,"
 /* MOP_xudivrrr */
 DEFINE_MOP(MOP_xudivrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},CANTHROW,kLtDiv,"udiv","0,1,2",1)
 
+/* MOP_wmaddrrrr */
+DEFINE_MOP(MOP_wmaddrrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdReg32IS},0,kLtMul,"madd","0,1,2,3",1)
+/* MOP_xmaddrrrr */
+DEFINE_MOP(MOP_xmaddrrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdReg64IS},0,kLtMul,"madd","0,1,2,3",1)
+
 /* MOP_wmsubrrrr */
 DEFINE_MOP(MOP_wmsubrrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdReg32IS},0,kLtMul,"msub","0,1,2,3",1)
 /* MOP_xmsubrrrr */
 DEFINE_MOP(MOP_xmsubrrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdReg64IS},0,kLtMul,"msub","0,1,2,3",1)
+
+/* MOP_wmnegrrr */
+DEFINE_MOP(MOP_wmnegrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtMul,"mneg","0,1,2",1)
+/* MOP_xmnegrrr */
+DEFINE_MOP(MOP_xmnegrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtMul,"mneg","0,1,2",1)
 
 /* MPO_wubfxrri5i5 */
 DEFINE_MOP(MOP_wubfxrri5i5, {mopdReg32ID,mopdReg32IS,mopdImm5,mopdImm5},0,kLtAluShift,"ubfx","0,1,2,3",1)
@@ -372,6 +382,21 @@ DEFINE_MOP(MOP_xfnegrr, {mopdReg64FD,mopdReg64FS},0,kLtFpalu,"fneg","0,1",1)
 DEFINE_MOP(MOP_sdivrrr, {mopdReg32FD,mopdReg32FS,mopdReg32FS},CANTHROW,kLtAdvsimdDivS,"fdiv","0,1,2",1)
 /* MOP_ddivrrr */
 DEFINE_MOP(MOP_ddivrrr, {mopdReg64FD,mopdReg64FS,mopdReg64FS},CANTHROW,kLtAdvsimdDivD,"fdiv","0,1,2",1)
+
+/* MOP_smadd */
+DEFINE_MOP(MOP_smadd, {mopdReg32FD,mopdReg32FS,mopdReg32FS,mopdReg32FS},CANTHROW,kLtFpmul,"fmadd","0,1,2,3",1)
+/* MOP_dmadd */
+DEFINE_MOP(MOP_dmadd, {mopdReg64FD,mopdReg64FS,mopdReg64FS,mopdReg64FS},CANTHROW,kLtFpmul,"fmadd","0,1,2,3",1)
+
+/* MOP_smsub */
+DEFINE_MOP(MOP_smsub, {mopdReg32FD,mopdReg32FS,mopdReg32FS,mopdReg32FS},CANTHROW,kLtFpmul,"fmsub","0,1,2,3",1)
+/* MOP_dmsub */
+DEFINE_MOP(MOP_dmsub, {mopdReg64FD,mopdReg64FS,mopdReg64FS,mopdReg64FS},CANTHROW,kLtFpmul,"fmsub","0,1,2,3",1)
+
+/* MOP_snmul */
+DEFINE_MOP(MOP_snmul, {mopdReg32FD,mopdReg32FS,mopdReg32FS},CANTHROW,kLtFpmul,"fnmul","0,1,2",1)
+/* MOP_dnmul */
+DEFINE_MOP(MOP_dnmul, {mopdReg64FD,mopdReg64FS,mopdReg64FS},CANTHROW,kLtFpmul,"fnmul","0,1,2",1)
 
 /* MOP_hcselrrrc --- Floating-point Conditional Select */
 DEFINE_MOP(MOP_hcselrrrc, {mopdReg16FD,mopdReg16FS,mopdReg16FS,mopdCond},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
