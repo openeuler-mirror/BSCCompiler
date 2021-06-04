@@ -179,15 +179,13 @@ void StImmOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   }
   if (CGOptions::IsPIC() && (symbol->GetStorageClass() == kScGlobal || symbol->GetStorageClass() == kScExtern)) {
     emitter.Emit(":got:" + GetName());
+  } else if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
+    emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
   } else {
-    if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
-      emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
-    } else {
-      emitter.Emit(GetName());
-    }
-    if (offset != 0) {
-      emitter.Emit("+" + std::to_string(offset));
-    }
+    emitter.Emit(GetName());
+  }
+  if (offset != 0) {
+    emitter.Emit("+" + std::to_string(offset));
   }
 }
 
@@ -230,7 +228,20 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
     AArch64OfstOperand *offset = GetOffsetImmediate();
     if (offset != nullptr) {
 #ifndef USE_32BIT_REF  /* can be load a ref here */
-      ASSERT(!IsOffsetMisaligned(md->GetOperandSize()), "should not be OffsetMisaligned");
+      /*
+       * Cortex-A57 Software Optimization Guide:
+       * The ARMv8-A architecture allows many types of load and store accesses to be arbitrarily aligned.
+       * The Cortex- A57 processor handles most unaligned accesses without performance penalties.
+       */
+      //ASSERT(!IsOffsetMisaligned(md->GetOperandSize()), "should not be OffsetMisaligned");
+#if DEBUG
+      if (IsOffsetMisaligned(md->GetOperandSize())) {
+        INFO(kLncInfo, "The Memory operand's offset is misaligned:", "");
+        LogInfo::MapleLogger() << "===";
+        Dump();
+        LogInfo::MapleLogger() << "===\n";
+      }
+#endif
 #endif  /* USE_32BIT_REF */
       if (IsPostIndexed()) {
         ASSERT(!IsSIMMOffsetOutOfRange(offset->GetOffsetValue(), md->Is64Bit(), isLDSTpair),
@@ -255,7 +266,11 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
           emitter.Emit(",#:got_lo12:");
           emitter.Emit(offset->GetSymbolName());
         } else {
-          ASSERT(!IsPIMMOffsetOutOfRange(offset->GetOffsetValue(), size), "should not be PIMMOffsetOutOfRange");
+          uint32 dsize = size;
+          if (size > k8BitSize) {
+            dsize = RoundUp(size, k8BitSize);
+          }
+          ASSERT(!IsPIMMOffsetOutOfRange(offset->GetOffsetValue(), dsize), "should not be PIMMOffsetOutOfRange");
           if (!offset->IsZero()) {
             emitter.Emit(",");
             offset->Emit(emitter, nullptr);
