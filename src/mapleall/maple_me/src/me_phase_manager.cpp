@@ -71,6 +71,7 @@
 #include "me_verify.h"
 #include "lfo_inject_iv.h"
 #include "lfo_pre_emit.h"
+#include "lfo_iv_canon.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
