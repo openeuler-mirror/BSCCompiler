@@ -33,7 +33,6 @@ namespace maple {
 constexpr uint32 kHalfInsn = 1;
 constexpr uint32 kOneInsn = 2;
 constexpr uint32 kDoubleInsn = 4;
-constexpr uint32 kQuadrupleInsn = 8;
 constexpr uint32 kPentupleInsn = 10;
 
 static bool IsFinalMethod(const MIRFunction *mirFunc) {
@@ -199,6 +198,7 @@ uint32 MInline::RenameSymbols(MIRFunction &caller, const MIRFunction &callee, ui
     if (sym == nullptr) {
       continue;
     }
+    CHECK_FATAL(sym->GetStorageClass() != kScPstatic, "pstatic symbols should have been converted to fstatic ones");
     std::string syName(kUnderlineStr);
     // Use puIdx here instead of func name because our mangled func name can be
     // really long.
@@ -232,39 +232,53 @@ uint32 MInline::RenameSymbols(MIRFunction &caller, const MIRFunction &callee, ui
   return stIdxOff;
 }
 
-static StIdx UpdateIdx(const StIdx &stIdx, uint32 stIdxOff, const std::unordered_map<uint32, uint32> &staticOld2New) {
+static StIdx UpdateIdx(const StIdx &stIdx, uint32 stIdxOff, const std::vector<uint32> *oldStIdx2New) {
+  // If the callee has pstatic symbols, we will save all symbol mapping info in the oldStIdx2New.
+  // So if this oldStIdx2New is nullptr, we only use stIdxOff to update stIdx, otherwise we only use oldStIdx2New.
   StIdx newStIdx = stIdx;
-  auto it = staticOld2New.find(newStIdx.FullIdx());
-  if (it != staticOld2New.end()) {
-    newStIdx.SetFullIdx(it->second);
-  } else {
+  if (oldStIdx2New == nullptr) {
     newStIdx.SetIdx(newStIdx.Idx() + stIdxOff);
+  } else {
+    CHECK_FATAL(newStIdx.Idx() < oldStIdx2New->size(), "stIdx out of range");
+    newStIdx.SetFullIdx((*oldStIdx2New)[newStIdx.Idx()]);
   }
   return newStIdx;
 }
 
 void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
-                             const std::unordered_map<uint32, uint32> &staticOld2New) const {
+                             const std::vector<uint32> *oldStIdx2New) const {
   if (baseNode == nullptr) {
+    return;
+  }
+  // IfStmtNode's `numOpnds` and actual operands number are different, so we treat it as a special case
+  if (baseNode->GetOpCode() == OP_if) {
+    IfStmtNode *ifStmtNode = static_cast<IfStmtNode*>(baseNode);
+    ReplaceSymbols(baseNode->Opnd(0), stIdxOff, oldStIdx2New);
+    if (ifStmtNode->GetThenPart() != nullptr) {
+      ReplaceSymbols(ifStmtNode->GetThenPart(), stIdxOff, oldStIdx2New);
+    }
+    if (ifStmtNode->GetElsePart() != nullptr) {
+      ReplaceSymbols(ifStmtNode->GetElsePart(), stIdxOff, oldStIdx2New);
+    }
     return;
   }
   CallReturnVector *returnVector = baseNode->GetCallReturnVector();
   if (baseNode->GetOpCode() == OP_block) {
     BlockNode *blockNode = static_cast<BlockNode*>(baseNode);
     for (auto &stmt : blockNode->GetStmtNodes()) {
-      ReplaceSymbols(&stmt, stIdxOff, staticOld2New);
+      ReplaceSymbols(&stmt, stIdxOff, oldStIdx2New);
     }
   } else if (baseNode->GetOpCode() == OP_dassign) {
     DassignNode *dassNode = static_cast<DassignNode*>(baseNode);
     // Skip globals.
     if (dassNode->GetStIdx().Islocal()) {
-      dassNode->SetStIdx(UpdateIdx(dassNode->GetStIdx(), stIdxOff, staticOld2New));
+      dassNode->SetStIdx(UpdateIdx(dassNode->GetStIdx(), stIdxOff, oldStIdx2New));
     }
   } else if ((baseNode->GetOpCode() == OP_addrof || baseNode->GetOpCode() == OP_dread)) {
     AddrofNode *addrNode = static_cast<AddrofNode*>(baseNode);
     // Skip globals.
     if (addrNode->GetStIdx().Islocal()) {
-      addrNode->SetStIdx(UpdateIdx(addrNode->GetStIdx(), stIdxOff, staticOld2New));
+      addrNode->SetStIdx(UpdateIdx(addrNode->GetStIdx(), stIdxOff, oldStIdx2New));
     }
   } else if (returnVector != nullptr) {
     if (returnVector->size() > 1) {
@@ -272,27 +286,27 @@ void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
     }
     // Skip globals.
     if (returnVector->size() == 1 && !(*returnVector).at(0).second.IsReg() && (*returnVector).at(0).first.Islocal()) {
-      (*returnVector)[0].first = UpdateIdx((*returnVector).at(0).first, stIdxOff, staticOld2New);
+      (*returnVector)[0].first = UpdateIdx((*returnVector).at(0).first, stIdxOff, oldStIdx2New);
     }
   } else if (baseNode->GetOpCode() == OP_foreachelem) {
     ForeachelemNode *forEachNode = static_cast<ForeachelemNode*>(baseNode);
     // Skip globals.
     if (forEachNode->GetElemStIdx().Idx() != 0) {
-      forEachNode->SetElemStIdx(UpdateIdx(forEachNode->GetElemStIdx(), stIdxOff, staticOld2New));
+      forEachNode->SetElemStIdx(UpdateIdx(forEachNode->GetElemStIdx(), stIdxOff, oldStIdx2New));
     }
     if (forEachNode->GetArrayStIdx().Idx() != 0) {
-      forEachNode->SetArrayStIdx(UpdateIdx(forEachNode->GetArrayStIdx(), stIdxOff, staticOld2New));
+      forEachNode->SetArrayStIdx(UpdateIdx(forEachNode->GetArrayStIdx(), stIdxOff, oldStIdx2New));
     }
   } else if (baseNode->GetOpCode() == OP_doloop) {
     DoloopNode *doLoopNode = static_cast<DoloopNode*>(baseNode);
     // Skip globals.
     if (!doLoopNode->IsPreg() && doLoopNode->GetDoVarStIdx().Idx()) {
-      doLoopNode->SetDoVarStIdx(UpdateIdx(doLoopNode->GetDoVarStIdx(), stIdxOff, staticOld2New));
+      doLoopNode->SetDoVarStIdx(UpdateIdx(doLoopNode->GetDoVarStIdx(), stIdxOff, oldStIdx2New));
     }
   }
   // Search for nested dassign/dread/addrof node that may include a symbol index.
   for (size_t i = 0; i < baseNode->NumOpnds(); ++i) {
-    ReplaceSymbols(baseNode->Opnd(i), stIdxOff, staticOld2New);
+    ReplaceSymbols(baseNode->Opnd(i), stIdxOff, oldStIdx2New);
   }
 }
 
@@ -588,6 +602,61 @@ void MInline::RecordRealCaller(MIRFunction &caller, const MIRFunction &callee) {
   }
 }
 
+void MInline::ConvertPStaticToFStatic(MIRFunction &func) const {
+  bool hasPStatic = false;
+  for (int i = 0; i < func.GetSymbolTabSize(); ++i) {
+    MIRSymbol *sym = func.GetSymbolTabItem(i);
+    if (sym != nullptr && sym->GetStorageClass() == kScPstatic) {
+      hasPStatic = true;
+      break;
+    }
+  }
+  if (!hasPStatic) {
+    return;  // No pu-static symbols, just return
+  }
+  std::vector<MIRSymbol*> localSymbols;
+  std::vector<uint32> oldStIdx2New(func.GetSymbolTabSize(), 0);
+  int pstaticNum = 0;
+  for (int i = 0; i < func.GetSymbolTabSize(); ++i) {
+    MIRSymbol *sym = func.GetSymbolTabItem(i);
+    if (sym == nullptr) {
+      continue;
+    }
+    StIdx oldStIdx = sym->GetStIdx();
+    if (sym->GetStorageClass() == kScPstatic) {
+      ++pstaticNum;
+      // convert pu-static to file-static
+      // pstatic symbol name mangling example: "foo_bar" --> "__pstatic__125__foo_bar"
+      const auto &symNameOrig = sym->GetName();
+      std::string symNameMangling = "__pstatic__" + std::to_string(func.GetPuidx()) + kVerticalLineStr + symNameOrig;
+      GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(symNameMangling);
+      MIRSymbol *newSym = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
+      newSym->SetNameStrIdx(strIdx);
+      newSym->SetStorageClass(kScFstatic);
+      newSym->SetTyIdx(sym->GetTyIdx());
+      newSym->SetSKind(sym->GetSKind());
+      newSym->SetAttrs(sym->GetAttrs());
+      newSym->SetValue(sym->GetValue());
+      bool success = GlobalTables::GetGsymTable().AddToStringSymbolMap(*newSym);
+      CHECK_FATAL(success, "Found repeated global symbols!");
+      oldStIdx2New[i] = newSym->GetStIdx().FullIdx();
+    } else {
+      StIdx newStIdx(oldStIdx);
+      newStIdx.SetIdx(oldStIdx.Idx() - pstaticNum);
+      oldStIdx2New[i] = newStIdx.FullIdx();
+      sym->SetStIdx(newStIdx);
+      localSymbols.push_back(sym);
+    }
+  }
+  func.GetSymTab()->Clear();
+  func.GetSymTab()->PushNullSymbol();
+  for (MIRSymbol *sym : localSymbols) {
+    func.GetSymTab()->AddStOutside(sym);
+  }
+  // The stIdxOff will be ignored, 0 is just a placeholder
+  ReplaceSymbols(func.GetBody(), 0, &oldStIdx2New);
+}
+
 // Inline CALLEE into CALLER.
 bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNode &callStmt, MIRFunction &callee) {
   if (callee.IsEmpty()) {
@@ -604,6 +673,9 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
   } else {
     inlinedTimes = 0;
   }
+  // If the callee has local static variables, We convert local pu-static symbols to global file-static symbol to avoid
+  // multiple definition for these static symbols
+  ConvertPStaticToFStatic(callee);
   // Step 1: Clone CALLEE's body.
   auto getBody = [callee, this] (BlockNode* funcBody) {
     if (callee.IsFromMpltInline()) {
@@ -638,20 +710,21 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     newBody = getBody(callee.GetBody());
   }
   // Step 2: Rename symbols, labels, pregs
-  std::unordered_map<uint32, uint32> staticOld2New;
   uint32 stIdxOff = RenameSymbols(caller, callee, inlinedTimes);
   uint32 labIdxOff = RenameLabels(caller, callee, inlinedTimes);
   std::unordered_map<PregIdx, PregIdx> pregOld2New;
   uint32 regIdxOff = RenamePregs(caller, callee, pregOld2New);
   // Step 3: Replace symbols, labels, pregs
   CHECK_NULL_FATAL(newBody);
-  ReplaceSymbols(newBody, stIdxOff, staticOld2New);
+  // Callee has no pu-static symbols now, so we only use stIdxOff to update stIdx, set oldStIdx2New nullptr
+  ReplaceSymbols(newBody, stIdxOff, nullptr);
   ReplaceLabels(*newBody, labIdxOff);
   ReplacePregs(newBody, pregOld2New);
   // Step 4: Null check 'this' and assign actuals to formals.
   if (static_cast<uint32>(callStmt.NumOpnds()) != callee.GetFormalCount()) {
     LogInfo::MapleLogger() << "warning: # formal arguments != # actual arguments in the function " <<
-        callee.GetName() << "\n";
+        callee.GetName() << ". [formal count] " << callee.GetFormalCount() << ", " <<
+        "[argument count] " << callStmt.NumOpnds() << std::endl;
   }
   if (callee.GetFormalCount() > 0 && callee.GetFormal(0)->GetName() == kThisStr) {
     UnaryStmtNode *nullCheck = module.CurFuncCodeMemPool()->New<UnaryStmtNode>(OP_assertnonnull);
@@ -916,20 +989,29 @@ FuncCostResultType MInline::GetFuncCost(const MIRFunction &func, const BaseNode 
     case OP_intrinsicop:
     case OP_intrinsicopwithtype: {
       const IntrinsicopNode &node = static_cast<const IntrinsicopNode&>(baseNode);
-      MIRIntrinsicID id = node.GetIntrinsic();
-      if (id == INTRN_JAVA_CONST_CLASS || id == INTRN_JAVA_ARRAY_LENGTH) {
+      switch(node.GetIntrinsic()) {
+      case INTRN_JAVA_CONST_CLASS:
+      case INTRN_JAVA_ARRAY_LENGTH:
         cost += kOneInsn;
-      } else if (id == INTRN_JAVA_MERGE) {
+        break;
+      case INTRN_JAVA_MERGE:
         cost += kHalfInsn;
-      } else if (id == INTRN_JAVA_INSTANCE_OF) {
+        break;
+      case INTRN_JAVA_INSTANCE_OF:
         cost += kPentupleInsn;
-      } else if (id == INTRN_MPL_READ_OVTABLE_ENTRY) {
+        break;
+      case INTRN_MPL_READ_OVTABLE_ENTRY:
         cost += kDoubleInsn;
-      } else if (id == INTRN_C_ctz32 || id == INTRN_C_clz32 || id == INTRN_C_constant_p) {
+        break;
+      case INTRN_C_ctz32:
+      case INTRN_C_clz32:
+      case INTRN_C_constant_p:
         cost += kOneInsn;
-      } else {
-        CHECK_FATAL(false, "[IMPOSSIBLE] %s", func.GetName().c_str());
-        cost += kQuadrupleInsn;
+        break;
+      default:
+        // Other intrinsics generate a call
+        cost += kPentupleInsn;
+        break;
       }
       break;
     }
@@ -1012,7 +1094,7 @@ bool MInline::FuncInlinable(const MIRFunction &func) const {
     return false;
   }
   if (func.GetAttr(FUNCATTR_abstract) || func.GetAttr(FUNCATTR_const) || func.GetAttr(FUNCATTR_declared_synchronized) ||
-      func.GetAttr(FUNCATTR_synchronized) || func.GetAttr(FUNCATTR_weak) ||
+      func.GetAttr(FUNCATTR_synchronized) || func.GetAttr(FUNCATTR_weak) || func.GetAttr(FUNCATTR_varargs) ||
       ((func.GetAttr(FUNCATTR_critical_native) || func.GetAttr(FUNCATTR_fast_native) ||
         func.GetAttr(FUNCATTR_native)) &&
        (func.GetBody() == nullptr || func.GetBody()->GetFirst() == nullptr))) {
@@ -1052,11 +1134,13 @@ void MInline::InlineCalls(const CGNode &node) {
     return;
   }
   bool changed = false;
+  int currInlineDepth = 0;
   do {
     changed = false;
     currFuncBody = nullptr;
     InlineCallsBlock(*func, *(func->GetBody()), *(func->GetBody()), changed);
-  } while (changed);
+    ++currInlineDepth;
+  } while (changed && currInlineDepth < Options::inlineDepth);
 }
 
 void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseNode &baseNode, bool &changed) {
@@ -1097,7 +1181,7 @@ InlineResult MInline::AnalyzeCallsite(const MIRFunction &caller, MIRFunction &ca
     if (callerList->empty()) {
       return InlineResult(false, "LIST_NOINLINE_FUNC");
     }
-    if (callerList->find(calleeStrIdx) != callerList->end()) {
+    if (callerList->find(callerStrIdx) != callerList->end()) {
       return InlineResult(false, "LIST_NOINLINE_CALLSITE");
     }
   }
@@ -1124,6 +1208,18 @@ InlineResult MInline::AnalyzeCallsite(const MIRFunction &caller, MIRFunction &ca
   }
   if (!FuncInlinable(callee)) {
     return InlineResult(false, "ATTR");
+  }
+  // Incompatible type conversion from arguments to formals
+  size_t realArgNum = std::min(callStmt.NumOpnds(), callee.GetFormalCount());
+  for (size_t i = 0; i < realArgNum; ++i) {
+    PrimType formalPrimType = callee.GetFormal(i)->GetType()->GetPrimType();
+    PrimType realArgPrimType = callStmt.Opnd(i)->GetPrimType();
+    if (formalPrimType == PTY_agg ^ realArgPrimType == PTY_agg) {
+      return InlineResult(false, "INCOMPATIBLE_TYPE_CVT_FORM_ARG_TO_FORMAL");
+    }
+  }
+  if (!callee.GetLabelTab()->GetAddrTakenLabels().empty()) {
+    return InlineResult(false, "ADDR_TAKEN_LABELS");
   }
   // For inlineList function.
   if (inlineListCallee.find(calleeStrIdx) != inlineListCallee.end()) {
@@ -1204,7 +1300,6 @@ InlineResult MInline::AnalyzeCallee(const MIRFunction &caller, MIRFunction &call
     // This is self recursive inline
     calleeBody = currFuncBody;
   }
-
   if (funcToCostMap.find(&callee) != funcToCostMap.end()) {
     cost = funcToCostMap[&callee];
   } else {
@@ -1405,12 +1500,17 @@ AnalysisResult *DoInline::Run(MIRModule *module, ModuleResultMgr *mgr) {
   MemPool *memPool = memPoolCtrler.NewMemPool("inline mempool", false /* isLocalPool */);
   CallGraph *cg = static_cast<CallGraph*>(mgr->GetAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module));
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
-
+  // Reset inlining threshold for other srcLang, especially for srcLangJava. Because those methods related to
+  // reflection in Java cannot be inlined safely.
+  if (module->GetSrcLang() != kSrcLangC) {
+    Options::inlineSmallFunctionThreshold = 15;
+    Options::inlineHotFunctionThreshold = 30;
+  }
   MInline mInline(*module, memPool, cg);
   mInline.Inline();
   mInline.CleanupInline();
   mgr->InvalidAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module);
-  memPoolCtrler.DeleteMemPool(memPool);
+  delete memPool;
   if (module->firstInline) {
     module->firstInline = false;
   }
