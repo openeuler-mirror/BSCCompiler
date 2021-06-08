@@ -1226,21 +1226,6 @@ void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
   GetDbgCallFrameLocations().push_back(exprloc);
 }
 
-void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
-  ASSERT(debugInfo, "");
-  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
-  if (!sdie) {
-    return;
-  }
-  ASSERT(sdie, "");
-
-  DBGExprLoc *exprloc = sdie->GetExprLoc();
-  CHECK_FATAL(exprloc != nullptr, "exprloc is null in CGFunc::AddDIESymbolLocation");
-  exprloc->SetSymLoc(loc);
-
-  GetDbgCallFrameLocations().push_back(exprloc);
-}
-
 void CGFunc::DumpCFG() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   LogInfo::MapleLogger() << "\n****** CFG built by CG for " << funcSt->GetName() << " *******\n";
