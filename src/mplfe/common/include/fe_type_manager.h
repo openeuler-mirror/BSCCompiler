@@ -1,16 +1,16 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_COMMON_FE_TYPE_MANAGER_H
 #define MPLFE_INCLUDE_COMMON_FE_TYPE_MANAGER_H
@@ -23,6 +23,7 @@
 #include "mir_builder.h"
 #include "feir_type.h"
 #include "fe_struct_elem_info.h"
+#include "fe_utils.h"
 
 namespace maple {
 enum FETypeFlag : uint16 {
@@ -108,6 +109,9 @@ class FETypeManager {
     return CreateClassOrInterfaceType(nameIdx, isInterface, typeFlag);
   }
 
+  MIRStructType *GetOrCreateStructType(const std::string &name);
+  MIRStructType *CreateStructType(const std::string &name);
+  MIRType *GetOrCreateComplexStructType(const MIRType &elemType);
   MIRStructType *GetOrCreateClassOrInterfaceType(const GStrIdx &nameIdx, bool isInterface, FETypeFlag typeFlag,
                                                  bool &isCreate);
   MIRStructType *GetOrCreateClassOrInterfaceType(const std::string &name, bool isInterface, FETypeFlag typeFlag,
@@ -124,6 +128,7 @@ class FETypeManager {
     return GetOrCreateClassOrInterfacePtrType(nameIdx, isInterface, typeFlag, isCreate);
   }
 
+  uint32 GetTypeIDFromMplClassName(const std::string &mplClassName, int32 dexFileHashCode) const;
   MIRStructType *GetStructTypeFromName(const std::string &name);
   MIRStructType *GetStructTypeFromName(const GStrIdx &nameIdx);
   MIRType *GetOrCreateTypeFromName(const std::string &name, FETypeFlag typeFlag, bool usePtr);
@@ -134,8 +139,12 @@ class FETypeManager {
 
   // ---------- methods for StructElemInfo ----------
   // structIdx = 0: global field/function without owner structure
-  FEStructElemInfo *RegisterStructFieldInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang, bool isStatic);
-  FEStructElemInfo *RegisterStructMethodInfo(const GStrIdx &fullNameIdx, MIRSrcLang srcLang, bool isStatic);
+  FEStructElemInfo *RegisterStructFieldInfo(
+      const StructElemNameIdx &argStructElemNameIdx, MIRSrcLang argSrcLang, bool isStatic);
+  FEStructElemInfo *RegisterStructMethodInfo(
+      const StructElemNameIdx &argStructElemNameIdx, MIRSrcLang argSrcLang, bool isStatic);
+  FEStructElemInfo *RegisterStructMethodInfoC(
+      const std::string &name, MIRSrcLang argSrcLang, bool isStatic);
   FEStructElemInfo *GetStructElemInfo(const GStrIdx &fullNameIdx) const;
 
   // ---------- methods for MIRFunction ----------
@@ -162,12 +171,19 @@ class FETypeManager {
   MIRFunction *CreateFunction(const std::string &methodName, const std::string &returnTypeName,
                               const std::vector<std::string> &argTypeNames, bool isVarg, bool isStatic);
 
+  // FEIRType GetOrCreate
+  const FEIRType *GetOrCreateFEIRTypeByName(const std::string &typeName, const GStrIdx &typeNameIdx,
+                                            MIRSrcLang argSrcLang = kSrcLangJava);
+  const FEIRType *GetOrCreateFEIRTypeByName(const GStrIdx &typeNameIdx, MIRSrcLang argSrcLang = kSrcLangJava);
+  const FEIRType *GetFEIRTypeByName(const std::string &typeName) const;
+  const FEIRType *GetFEIRTypeByName(const GStrIdx &typeNameIdx) const;
+
   // MCC function
   void InitMCCFunctions();
   MIRFunction *GetMCCFunction(const std::string &funcName) const;
   MIRFunction *GetMCCFunction(const GStrIdx &funcNameIdx) const;
-  MIRFunction *GetMCCGetOrInsertLiteral() const {
-    return funcMCCGetOrInsertLiteral;
+  PUIdx GetPuIdxForMCCGetOrInsertLiteral() const {
+    return funcMCCGetOrInsertLiteral->GetPuidx();
   }
 
   // anti-proguard
@@ -188,16 +204,40 @@ class FETypeManager {
     uint32 dim = 0;
     return GetBaseTypeName(name, dim, inMpl);
   }
-
   static void SetComplete(MIRStructType &structType);
   static std::string TypeAttrsToString(const TypeAttrs &attrs);
+
+  bool IsImportedType(const GStrIdx &typeNameIdx) const {
+    return structNameTypeMap.find(typeNameIdx) != structNameTypeMap.end();
+  }
+
+  MIRStructType *GetImportedType(const GStrIdx &typeNameIdx) const {
+    auto it = structNameTypeMap.find(typeNameIdx);
+    if (it != structNameTypeMap.end()) {
+      return it->second.first;
+    }
+    return nullptr;
+  }
+
+  const std::unordered_map<GStrIdx, FEStructTypePair, GStrIdxHash> &GetStructNameTypeMap() const {
+    return structNameTypeMap;
+  }
+  void MarkExternStructType();
+  void SetMirImportedTypes(FETypeFlag flag);
+
+  void SetSrcLang(const MIRSrcLang &argSrcLang) {
+    srcLang = argSrcLang;
+  }
 
  private:
   void UpdateStructNameTypeMapFromTypeTable(const std::string &mpltName, FETypeFlag flag);
   void UpdateNameFuncMapFromTypeTable();
+  void UpdateDupTypes(const GStrIdx &nameIdx, bool isInterface,
+                      const std::unordered_map<GStrIdx, FEStructTypePair, GStrIdxHash>::iterator &importedTypeIt);
 
   // MCC function
   void InitFuncMCCGetOrInsertLiteral();
+  using mirFuncPair = std::pair<char, MIRFunction*>;
 
   MIRModule &module;
   MemPool *mp;
@@ -212,9 +252,11 @@ class FETypeManager {
   FETypeSameNamePolicy sameNamePolicy;
   MIRSrcLang srcLang;
 
+  // ---------- class name ---> type id map info ----------
+  using classNameTypeIDMapT = std::unordered_map<std::string, uint32>;
+  std::map<int32, classNameTypeIDMapT> classNameTypeIDMapAllDex; // dexFileHashCode className classTpyeID
   // ---------- struct elem info ----------
   std::map<GStrIdx, FEStructElemInfo*> mapStructElemInfo;
-  std::list<UniqueFEStructElemInfo> listStructElemInfo;
 
   // ---------- function list ----------
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameFuncMap;
@@ -222,12 +264,37 @@ class FETypeManager {
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> mpltNameFuncMap;
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> mpltNameStaticFuncMap;
 
+  // ---------- FEIRType list ----------
+  std::unordered_map<GStrIdx, const FEIRType*, GStrIdxHash> nameFEIRTypeMap;
+  std::list<UniqueFEIRType> nameFEIRTypeList;
+
   // ---------- MCC function list  ----------
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameMCCFuncMap;
   MIRFunction *funcMCCGetOrInsertLiteral;
 
+  MIRFunction *funcMCCStaticFieldGetBool = nullptr;
+  MIRFunction *funcMCCStaticFieldGetByte = nullptr;
+  MIRFunction *funcMCCStaticFieldGetShort = nullptr;
+  MIRFunction *funcMCCStaticFieldGetChar = nullptr;
+  MIRFunction *funcMCCStaticFieldGetInt = nullptr;
+  MIRFunction *funcMCCStaticFieldGetLong = nullptr;
+  MIRFunction *funcMCCStaticFieldGetFloat = nullptr;
+  MIRFunction *funcMCCStaticFieldGetDouble = nullptr;
+  MIRFunction *funcMCCStaticFieldGetObject = nullptr;
+
+  MIRFunction *funcMCCStaticFieldSetBool = nullptr;
+  MIRFunction *funcMCCStaticFieldSetByte = nullptr;
+  MIRFunction *funcMCCStaticFieldSetShort = nullptr;
+  MIRFunction *funcMCCStaticFieldSetChar = nullptr;
+  MIRFunction *funcMCCStaticFieldSetInt = nullptr;
+  MIRFunction *funcMCCStaticFieldSetLong = nullptr;
+  MIRFunction *funcMCCStaticFieldSetFloat = nullptr;
+  MIRFunction *funcMCCStaticFieldSetDouble = nullptr;
+  MIRFunction *funcMCCStaticFieldSetObject = nullptr;
+
   // ---------- antiproguard ----------
   std::set<GStrIdx> setAntiProguardFieldStructIdx;
+  mutable std::mutex feTypeManagerMtx;
 };
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_COMMON_FE_TYPE_MANAGER_H

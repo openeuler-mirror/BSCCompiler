@@ -50,16 +50,11 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinCtz(std::list<UniqueFEIRStmt> &stmts) con
   for (auto arg : args) {
     argOpnds.push_back(arg->Emit2FEExpr(stmts));
   }
-#ifndef USE_OPS
-  CHECK_FATAL(false, "implemention in ops branch");
-  return nullptr;
-#else
   if (mirType->GetSize() == 4) {
     // 32 bit
     return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feTy), INTRN_C_ctz32, argOpnds);
   }
   return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feTy), INTRN_C_ctz32, argOpnds);
-#endif
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinClz(std::list<UniqueFEIRStmt> &stmts) const {
@@ -68,16 +63,11 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinClz(std::list<UniqueFEIRStmt> &stmts) con
   for (auto arg : args) {
     argOpnds.push_back(arg->Emit2FEExpr(stmts));
   }
-#ifndef USE_OPS
-  CHECK_FATAL(false, "implemention in ops branch");
-  return nullptr;
-#else
   if (mirType->GetSize() == 4) {
     // 32 bit
     return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feTy), INTRN_C_clz32, argOpnds);
   }
   return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feTy), INTRN_C_clz64, argOpnds);
-#endif
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlloca(std::list<UniqueFEIRStmt> &stmts) const {
@@ -92,6 +82,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) 
   std::list<std::unique_ptr<FEIRExpr>> argExprsIn;
   argExprsIn.push_back(std::move(arg1Expr));
   auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(argExprsIn));
+  stmts.emplace_back(std::move(stmt));
   return args[0]->Emit2FEExpr(stmts);
 }
 
