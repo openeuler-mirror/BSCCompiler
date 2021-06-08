@@ -296,6 +296,34 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
   }
 }
 
+uint32 GetPrimTypeLanes(PrimType pty) {
+  switch (pty) {
+    case PTY_v2i32:
+    case PTY_v2u32:
+    case PTY_v2f32:
+    case PTY_v2i64:
+    case PTY_v2u64:
+    case PTY_v2f64:
+      return 2;
+    case PTY_v4i16:
+    case PTY_v4u16:
+    case PTY_v4i32:
+    case PTY_v4u32:
+    case PTY_v4f32:
+      return 4;
+    case PTY_v8i8:
+    case PTY_v8u8:
+    case PTY_v8i16:
+    case PTY_v8u16:
+      return 8;
+    case PTY_v16i8:
+    case PTY_v16u8:
+      return 16;
+    default:
+      return 0;
+  }
+}
+
 // return the signed version that has the same size
 PrimType GetSignedPrimType(PrimType pty) {
   switch (pty) {

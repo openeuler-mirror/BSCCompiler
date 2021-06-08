@@ -116,7 +116,6 @@ enum AArch64reg : uint32 {
 #include "aarch64_fp_simd_regs.def"
 #undef FP_SIMD_REG
 #undef FP_SIMD_REG_ALIAS
-  kNArmRegisters
 };
 
 namespace AArch64isa {
@@ -167,6 +166,7 @@ constexpr uint32 kLiteralLow12 = kMemLow12;
 constexpr uint32 kPreInc = 0x20;
 constexpr uint32 kPostInc = 0x40;
 constexpr uint32 kLoadLiteral = 0x80;
+constexpr uint32 kVector = 0x100;
 
 class RegProp {
  public:
@@ -243,10 +243,47 @@ class AArch64OpndProp : public OpndProp {
     return static_cast<uint32>(size);
   }
 
+  bool IsVectorOperand() const {
+    return regProp.GetDefUse() & kVector;
+  }
+
+  void SetContainImm() {
+    isContainImm = true;
+  }
+
+  bool IsContainImm() const {
+    return isContainImm;
+  }
+
+ protected:
+  bool isContainImm = false;
+
  private:
   Operand::OperandType opndType;
   RegProp regProp;
   uint8 size;
+};
+
+/*
+ * Operand which might include immediate value.
+ * function ptr returns whether a immediate is legal in specific target
+ */
+class AArch64ImmOpndProp : public AArch64OpndProp {
+ public:
+  AArch64ImmOpndProp(Operand::OperandType t, RegProp p, uint8 s, const std::function<bool(int64)> f)
+      : AArch64OpndProp(t, p, s),
+        validFunc(f) {
+    SetContainImm();
+  }
+  virtual ~AArch64ImmOpndProp() = default;
+
+  bool IsValidImmOpnd(int64 value) const {
+    CHECK_FATAL(validFunc, " Have not set valid function yet in AArch64ImmOpndProp");
+    return validFunc(value);
+  }
+
+ private:
+  std::function<bool(int64)> validFunc;
 };
 
 struct AArch64MD {
@@ -362,6 +399,10 @@ struct AArch64MD {
 
   bool IsPartDef() const {
     return properties & ISPARTDEF;
+  }
+
+  bool IsVectorOp() const {
+    return properties & ISVECTOR;
   }
 
   LatencyType GetLatencyType() const {
