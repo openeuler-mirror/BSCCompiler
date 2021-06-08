@@ -1213,6 +1213,20 @@ void CGFunc::HandleFunction() {
 }
 
 void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
+  ASSERT(debugInfo != nullptr, "debugInfo is null!");
+  DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
+  if (sdie == nullptr) {
+    return;
+  }
+
+  DBGExprLoc *exprloc = sdie->GetExprLoc();
+  CHECK_FATAL(exprloc != nullptr, "exprloc is null in CGFunc::AddDIESymbolLocation");
+  exprloc->SetSymLoc(loc);
+
+  GetDbgCallFrameLocations().push_back(exprloc);
+}
+
+void CGFunc::AddDIESymbolLocation(const MIRSymbol *sym, SymbolAlloc *loc) {
   ASSERT(debugInfo, "");
   DBGDie *sdie = debugInfo->GetLocalDie(&func, sym->GetNameStrIdx());
   if (!sdie) {
@@ -1268,10 +1282,15 @@ void CGFunc::DumpCGIR() const {
   FOR_ALL_BB_CONST(bb, this) {
     LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
     if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
-      LogInfo::MapleLogger() << "[labeled with " << bb->GetLabIdx() << "]";
+      LogInfo::MapleLogger() << "[labeled with " << bb->GetLabIdx();
+      LogInfo::MapleLogger() << " ==> @" << func.GetLabelName(bb->GetLabIdx()) << "]";
     }
 
     LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
+    if (bb->GetLoop()) {
+      LogInfo::MapleLogger() << "[Loop level " << bb->GetLoop()->GetLoopLevel();
+      LogInfo::MapleLogger() << ", head BB " <<  bb->GetLoop()->GetHeader()->GetId() << "]";
+    }
     if (bb->IsCleanup()) {
       LogInfo::MapleLogger() << "[is_cleanup] ";
     }
@@ -1318,11 +1337,11 @@ void CGFunc::ClearLoopInfo() {
 }
 
 void CGFunc::PatchLongBranch() {
-  for (BB *bb = firstBB->GetNext(); bb; bb = bb->GetNext()) {
+  for (BB *bb = firstBB->GetNext(); bb != nullptr; bb = bb->GetNext()) {
     bb->SetInternalFlag1(bb->GetInternalFlag1() + bb->GetPrev()->GetInternalFlag1());
   }
-  BB *next;
-  for (BB *bb = firstBB; bb; bb = next) {
+  BB *next = nullptr;
+  for (BB *bb = firstBB; bb != nullptr; bb = next) {
     next = bb->GetNext();
     if (bb->GetKind() != BB::kBBIf && bb->GetKind() != BB::kBBGoto) {
       continue;
@@ -1332,7 +1351,7 @@ void CGFunc::PatchLongBranch() {
       insn = insn->GetPrev();
     }
     LabelIdx labidx = static_cast<LabelOperand&>(insn->GetOperand(insn->GetJumpTargetIdx())).GetLabelIndex();
-    BB *tbb = GetBBFromLab2BBMap(labidx);
+    BB *tbb = GetBBFromLab2BBMap(static_cast<int32>(labidx));
     if ((tbb->GetInternalFlag1() - bb->GetInternalFlag1()) < MaxCondBranchDistance()) {
       continue;
     }
@@ -1351,6 +1370,7 @@ AnalysisResult *CgDoHandleFunc::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResul
 }
 
 AnalysisResult *CgFixCFLocOsft::Run(CGFunc *cgFunc, CgFuncResultMgr *m) {
+  (void)m;
   if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
     cgFunc->DBGFixCallFrameLocationOffsets();
   }
