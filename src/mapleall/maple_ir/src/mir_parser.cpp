@@ -971,6 +971,83 @@ bool MIRParser::ParseStmtIntrinsiccallwithtypeassigned(StmtNodePtr &stmt) {
   return ParseStmtIntrinsiccallwithtype(stmt, true);
 }
 
+bool MIRParser::ParseCallReturnPair(CallReturnPair &retpair) {
+  bool isst = (lexer.GetTokenKind() == TK_dassign);
+  if (isst) {
+    // parse %i
+    lexer.NextToken();
+    StIdx stidx;
+    // How to use islocal??
+    if (!ParseDeclaredSt(stidx)) {
+      return false;
+    }
+    if (lexer.GetTokenKind() == TK_lname) {
+      MIRSymbolTable *lSymTab = mod.CurFunction()->GetSymTab();
+      MIRSymbol *lSym = lSymTab->GetSymbolFromStIdx(stidx.Idx(), 0);
+      ASSERT(lSym != nullptr, "lsym MIRSymbol is null");
+      if (lSym->GetName().find("L_STR") == 0) {
+        MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lSym->GetTyIdx());
+        auto *ptrTy = static_cast<MIRPtrType*>(ty->CopyMIRTypeNode());
+        ASSERT(ptrTy != nullptr, "null ptr check");
+        ptrTy->SetPrimType(PTY_ptr);
+        TyIdx newTyidx = GlobalTables::GetTypeTable().GetOrCreateMIRType(ptrTy);
+        delete ptrTy;
+        lSym->SetTyIdx(newTyidx);
+      }
+    }
+    if (stidx.FullIdx() == 0) {
+      Error("expect a symbol parsing call return assignment but get");
+      return false;
+    }
+    uint16 fieldId = 0;
+    TokenKind nextToken = lexer.NextToken();
+    // parse field id
+    if (nextToken == TK_intconst) {
+      fieldId = lexer.GetTheIntVal();
+      lexer.NextToken();
+    }
+    RegFieldPair regFieldPair;
+    regFieldPair.SetFieldID(fieldId);
+    retpair = CallReturnPair(stidx, regFieldPair);
+  } else {
+    // parse type
+    lexer.NextToken();
+    TyIdx tyidx(0);
+    // RegreadNode regreadexpr;
+    bool ret = ParsePrimType(tyidx);
+    if (ret != true) {
+      Error("call ParsePrimType failed in ParseCallReturns");
+      return false;
+    }
+    if (tyidx == 0u) {
+      Error("expect primitive type but get ");
+      return false;
+    }
+    PrimType ptype = GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx);
+    PregIdx pregIdx;
+    if (lexer.GetTokenKind() == TK_specialreg) {
+      if (!ParseSpecialReg(pregIdx)) {
+        Error("expect specialreg parsing callassign CallReturnVector");
+        return false;
+      }
+    } else if (lexer.GetTokenKind() == TK_preg) {
+      if (!ParsePseudoReg(ptype, pregIdx)) {
+        Error("expect pseudoreg parsing callassign CallReturnVector");
+        return false;
+      }
+    } else {
+      Error("expect special or pseudo register but get ");
+      return false;
+    }
+    ASSERT(pregIdx > 0, "register number is zero");
+    ASSERT(pregIdx <= 0xffff, "register number is over 16 bits");
+    RegFieldPair regFieldPair;
+    regFieldPair.SetPregIdx(pregIdx);
+    retpair = CallReturnPair(StIdx(), regFieldPair);
+  }
+  return true;
+}
+
 bool MIRParser::ParseCallReturns(CallReturnVector &retsvec) {
   //             {
   //              dassign <var-name0> <field-id0>
@@ -988,88 +1065,148 @@ bool MIRParser::ParseCallReturns(CallReturnVector &retsvec) {
     return false;
   }
   TokenKind tk = lexer.NextToken();
+  CallReturnPair retpair;
   while (tk != TK_rbrace) {
     if (lexer.GetTokenKind() != TK_dassign && lexer.GetTokenKind() != TK_regassign) {
       Error("expect dassign/regassign but get ");
       return false;
     }
-    bool isst = (lexer.GetTokenKind() == TK_dassign);
-    if (isst) {
-      // parse %i
+    if (!ParseCallReturnPair(retpair)) {
+      Error("error parsing call returns. ");
+      return false;
+    }
+    retsvec.push_back(retpair);
+    tk = lexer.GetTokenKind();
+  }
+  return true;
+}
+
+bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
+  AsmNode *asmNode = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+  lexer.NextToken();
+  // parse qualifiers
+  while (lexer.GetTokenKind() == TK_volatile ||
+         lexer.GetTokenKind() == TK_inline ||
+         lexer.GetTokenKind() == TK_goto) {
+    AsmQualifierKind qual;
+    switch (lexer.GetTokenKind()) {
+      case TK_volatile: qual = kASMvolatile; break;
+      case TK_inline:   qual = kASMinline; break;
+      case TK_goto:
+      default:          qual = kASMgoto; break;
+    }
+    asmNode->SetQualifier(qual);
+    lexer.NextToken();
+  }
+  // parse open brace
+  if (lexer.GetTokenKind() != TK_lbrace) {
+    Error("Open brace not found parsing asm statement.");
+    return false;
+  }
+  lexer.NextToken();
+  // parse asm string
+  if (lexer.GetTokenKind() != TK_string) {
+    Error("asm string not found parsing asm statement.");
+    return false;
+  }
+  asmNode->asmString = lexer.GetName();
+  lexer.NextToken();
+  // parse first colon
+  if (lexer.GetTokenKind() != TK_colon) {
+    Error("first colon not found parsing asm statement.");
+    return false;
+  }
+  lexer.NextToken();
+  // parse outputs
+  UStrIdx uStrIdx;
+  CallReturnPair retpair;
+  while (lexer.GetTokenKind() == TK_string) {
+    // parse an output constraint string 
+    uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    lexer.NextToken();
+    if (!ParseCallReturnPair(retpair)) {
+      Error("error parsing call returns. ");
+      return false;
+    }
+    asmNode->outputConstraints.push_back(uStrIdx);
+    asmNode->asmOutputs.push_back(retpair);
+    if (lexer.GetTokenKind() == TK_coma) {
       lexer.NextToken();
-      StIdx stidx;
-      // How to use islocal??
-      if (!ParseDeclaredSt(stidx)) {
-        return false;
-      }
-      if (lexer.GetTokenKind() == TK_lname) {
-        MIRSymbolTable *lSymTab = mod.CurFunction()->GetSymTab();
-        MIRSymbol *lSym = lSymTab->GetSymbolFromStIdx(stidx.Idx(), 0);
-        ASSERT(lSym != nullptr, "lsym MIRSymbol is null");
-        if (lSym->GetName().find("L_STR") == 0) {
-          MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lSym->GetTyIdx());
-          auto *ptrTy = static_cast<MIRPtrType*>(ty->CopyMIRTypeNode());
-          ASSERT(ptrTy != nullptr, "null ptr check");
-          ptrTy->SetPrimType(PTY_ptr);
-          TyIdx newTyidx = GlobalTables::GetTypeTable().GetOrCreateMIRType(ptrTy);
-          delete ptrTy;
-          lSym->SetTyIdx(newTyidx);
-        }
-      }
-      if (stidx.FullIdx() == 0) {
-        Error("expect a symbol parsing ParseCallAssignedStmts. ");
-        return false;
-      }
-      uint16 fieldId = 0;
-      TokenKind nextToken = lexer.NextToken();
-      // parse field id
-      if (nextToken == TK_intconst) {
-        fieldId = lexer.GetTheIntVal();
-      } else {
-        Error("expect a fieldID parsing ParseCallAssignedStmts. ");
-      }
-      RegFieldPair regFieldPair;
-      regFieldPair.SetFieldID(fieldId);
-      retsvec.push_back(CallReturnPair(stidx, regFieldPair));
-      tk = lexer.NextToken();
-    } else {
-      // parse type
-      lexer.NextToken();
-      TyIdx tyidx(0);
-      // RegreadNode regreadexpr;
-      bool ret = ParsePrimType(tyidx);
-      if (ret != true) {
-        Error("call ParsePrimType failed in ParseCallReturns");
-        return false;
-      }
-      if (tyidx == 0u) {
-        Error("expect primitive type but get ");
-        return false;
-      }
-      PrimType ptype = GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx);
-      PregIdx pregIdx;
-      if (lexer.GetTokenKind() == TK_specialreg) {
-        if (!ParseSpecialReg(pregIdx)) {
-          Error("expect specialreg parsing callassign CallReturnVector");
-          return false;
-        }
-      } else if (lexer.GetTokenKind() == TK_preg) {
-        if (!ParsePseudoReg(ptype, pregIdx)) {
-          Error("expect pseudoreg parsing callassign CallReturnVector");
-          return false;
-        }
-      } else {
-        Error("expect special or pseudo register but get ");
-        return false;
-      }
-      ASSERT(pregIdx > 0, "register number is zero");
-      ASSERT(pregIdx <= 0xffff, "register number is over 16 bits");
-      RegFieldPair regFieldPair;
-      regFieldPair.SetPregIdx(pregIdx);
-      retsvec.push_back(CallReturnPair(StIdx(), regFieldPair));
-      tk = lexer.GetTokenKind();
     }
   }
+  // parse second colon
+  if (lexer.GetTokenKind() != TK_colon) {
+    Error("second colon not found parsing asm statement.");
+    return false;
+  }
+  lexer.NextToken();
+  // parse inputs
+  while (lexer.GetTokenKind() == TK_string) {
+    // parse an input constraint string 
+    uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    if (lexer.NextToken() != TK_lparen) {
+      Error("expect ( but get ");
+      return false;
+    }
+    lexer.NextToken();
+    BaseNode *expr = nullptr;
+    if (!ParseExpression(expr)) {
+      Error("ParseExpression failed");
+      return false;
+    }
+    if (lexer.GetTokenKind() != TK_rparen) {
+      Error("expect ) but get ");
+      return false;
+    }
+    asmNode->inputConstraints.push_back(uStrIdx);
+    asmNode->GetNopnd().push_back(expr);
+    if (lexer.NextToken() == TK_coma) {
+      lexer.NextToken();
+    }
+  }
+  asmNode->SetNumOpnds(asmNode->GetNopndSize());
+  // parse third colon
+  if (lexer.GetTokenKind() != TK_colon) {
+    Error("third colon not found parsing asm statement.");
+    return false;
+  }
+  lexer.NextToken();
+  // parse clobber list
+  while (lexer.GetTokenKind() == TK_string) {
+    // parse an input constraint string 
+    uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    asmNode->clobberList.push_back(uStrIdx);
+    if (lexer.NextToken() == TK_coma) {
+      lexer.NextToken();
+    }
+  }
+  // parse fourth colon
+  if (lexer.GetTokenKind() != TK_colon) {
+    Error("fourth colon not found parsing asm statement.");
+    return false;
+  }
+  lexer.NextToken();
+  // parse labels
+  while (lexer.GetTokenKind() == TK_label) {
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    LabelIdx labIdx = mod.CurFunction()->GetLabelTab()->GetLabelIdxFromStrIdx(strIdx);
+    if (labIdx == 0) {
+      labIdx = mod.CurFunction()->GetLabelTab()->CreateLabel();
+      mod.CurFunction()->GetLabelTab()->SetSymbolFromStIdx(labIdx, strIdx);
+      mod.CurFunction()->GetLabelTab()->AddToStringLabelMap(labIdx);
+    }
+    asmNode->gotoLabels.push_back(labIdx);
+    if (lexer.NextToken() == TK_coma) {
+      lexer.NextToken();
+    }
+  }
+  // parse closing brace
+  if (lexer.GetTokenKind() != TK_rbrace) {
+    Error("Closing brace not found parsing asm statement.");
+    return false;
+  }
+  stmt = asmNode;
+  lexer.NextToken();
   return true;
 }
 
@@ -2894,6 +3031,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_label] = &MIRParser::ParseStmtLabel;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLocStmt;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
+  funcPtrMap[TK_asm] = &MIRParser::ParseStmtAsm;
   return funcPtrMap;
 }
 

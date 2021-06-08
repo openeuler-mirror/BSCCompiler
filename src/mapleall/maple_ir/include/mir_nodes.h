@@ -3166,6 +3166,42 @@ class CommentNode : public StmtNode {
   MapleString comment;
 };
 
+enum AsmQualifierKind : unsigned {  // they are alreadgy Maple IR keywords
+ kASMvolatile,
+ kASMinline,
+ kASMgoto,
+};
+
+class AsmNode : public NaryStmtNode {
+ public:
+  explicit AsmNode(MapleAllocator *alloc) : NaryStmtNode(*alloc, OP_asm), 
+            asmString(alloc->GetMemPool()), inputConstraints(alloc->Adapter()), 
+            asmOutputs(alloc->Adapter()), outputConstraints(alloc->Adapter()), 
+            clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
+
+  AsmNode(AsmNode &node) = delete;
+  AsmNode &operator=(const AsmNode &node) = delete;
+  virtual ~AsmNode() = default;
+
+  void SetQualifier(AsmQualifierKind x) {
+    qualifiers |= (1U << static_cast<uint32>(x));
+  }
+
+  bool GetQualifier(AsmQualifierKind x) const {
+    return (qualifiers & (1U << static_cast<uint32>(x))) != 0;
+  }
+
+  void Dump(int32 indent) const override;
+
+  MapleString asmString;
+  MapleVector<UStrIdx> inputConstraints;  // length is numOpnds
+  CallReturnVector asmOutputs;
+  MapleVector<UStrIdx> outputConstraints; // length is returnValues.size()
+  MapleVector<UStrIdx> clobberList;
+  MapleVector<LabelIdx> gotoLabels;
+  uint32 qualifiers;
+};
+
 void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent);
 }  // namespace maple
 
