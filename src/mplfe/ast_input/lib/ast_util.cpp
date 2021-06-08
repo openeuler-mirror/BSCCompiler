@@ -48,6 +48,14 @@ bool ASTUtil::IsValidName(const std::string &name) {
   return true;
 }
 
+bool ASTUtil::IsSignedType(MIRType &type) {
+  PrimType primType = type.GetPrimType();
+  if (primType == PTY_i8 || primType == PTY_i16 || primType == PTY_i32 || primType == PTY_i64) {
+    return true;
+  }
+  return false;
+}
+
 void ASTUtil::AdjustName(std::string &name) {
   for (size_t i = 0; name[i] != '\0'; ++i) {
     char c = name[i];

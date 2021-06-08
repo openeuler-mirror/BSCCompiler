@@ -481,6 +481,10 @@ class ASTStmtExprStmt : public ASTStmt {
     cpdStmt = stmt;
   }
 
+  ASTStmt *GetBodyStmt() {
+    return cpdStmt;
+  }
+
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
 

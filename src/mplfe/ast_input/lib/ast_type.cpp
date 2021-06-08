@@ -215,13 +215,8 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType) {
       attrsVec.push_back(genAttrs.ConvertToTypeAttrs());
     }
   }
-#ifndef USE_OPS
-  MIRType *mirFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(FEManager::GetModule(),
-      retType->GetTypeIndex(), argsVec, attrsVec);
-#else
   MIRType *mirFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
       retType->GetTypeIndex(), argsVec, attrsVec);
-#endif
   return GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirFuncType);
 }
 

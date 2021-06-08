@@ -32,6 +32,7 @@ class ASTUtil {
   static void SetIndent(int n);
   static bool ValidInName(char c);
   static bool IsValidName(const std::string &name);
+  static bool IsSignedType(MIRType &type);
   static void AdjustName(std::string &name);
   static std::string GetAdjustVarName(const std::string &name, uint32_t &num);
   static std::string GetNameWithSuffix(const std::string &origName, const std::string &suffix);

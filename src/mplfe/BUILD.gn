@@ -20,8 +20,6 @@ if (COV_CHECK == 1) {
 cflags += [
   "-DMIR_FEATURE_FULL=1",
   "-DMPLFE_FULL_INFO_DUMP=1",
-  "-DUSE_OPS",
-  "-DENABLE_MPLFE_AST",
 ]
 
 include_directories = [

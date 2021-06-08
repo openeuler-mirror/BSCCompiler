@@ -26,11 +26,9 @@
 #include "feir_builder.h"
 #include "mplfe_ut_regx.h"
 #include "fe_utils_java.h"
-
 #define private public
 #include "dex_op.h"
 #undef private
-#endif
 
 namespace maple {
 class FEIRStmtTest : public FEIRTestBase {
