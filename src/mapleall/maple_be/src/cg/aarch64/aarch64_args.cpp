@@ -89,7 +89,14 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   argInfo.symSize = aarchCGFunc->GetBecommon().GetTypeSize(argInfo.mirTy->GetTypeIndex());
   argInfo.memPairSecondRegSize = 0;
   argInfo.doMemPairOpt = false;
-  if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
+  argInfo.createTwoStores  = false;
+  argInfo.isTwoRegParm = false;
+
+  if (GetPrimTypeLanes(argInfo.mirTy->GetPrimType()) > 0) {
+    /* vector type */
+    argInfo.stkSize = argInfo.symSize;
+  } else if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
+    argInfo.isTwoRegParm = true;
     if (numFpRegs[argIndex] > kOneRegister) {
       argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
     } else {
@@ -105,10 +112,11 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   } else if (argInfo.symSize > k16ByteSize) {
     /* For large struct passing, a pointer to the copy is used. */
     argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
-  } if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
+  } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
     /* For small aggregate parameter, set to minimum of 4 bytes. */
     argInfo.symSize = argInfo.stkSize = k4ByteSize;
   } else if (numFpRegs[argIndex] > kOneRegister) {
+    argInfo.isTwoRegParm = true;
     argInfo.symSize = argInfo.stkSize = fpSize[argIndex];
   } else {
     argInfo.stkSize = (argInfo.symSize < k4ByteSize) ? k4ByteSize : argInfo.symSize;
@@ -128,6 +136,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
      */
     argInfo.symSize = kSizeOfPtr;
     argInfo.doMemPairOpt = false;
+    argInfo.createTwoStores = true;
   }
   return argInfo;
 }
@@ -156,9 +165,15 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
                                                                         firstArgInfo.regType);
   MOperator mOp = firstArgInfo.regType == kRegTyInt ? ((firstArgInfo.stkSize > k4ByteSize) ? MOP_xstp : MOP_wstp)
                                                     : ((firstArgInfo.stkSize > k4ByteSize) ? MOP_dstp : MOP_sstp);
-  RegOperand &regOpnd2 = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(secondArgInfo.reg,
-                                                                         firstArgInfo.stkSize * kBitsPerByte,
-                                                                         firstArgInfo.regType);
+  RegOperand *regOpnd2 = &aarchCGFunc->GetOrCreatePhysicalRegisterOperand(secondArgInfo.reg,
+                                                                          firstArgInfo.stkSize * kBitsPerByte,
+                                                                          firstArgInfo.regType);
+  if (firstArgInfo.doMemPairOpt && firstArgInfo.isTwoRegParm) {
+    AArch64reg regFp2 = static_cast<AArch64reg>(firstArgInfo.reg + kOneRegister);
+    regOpnd2 = &aarchCGFunc->GetOrCreatePhysicalRegisterOperand(regFp2,
+                                                                firstArgInfo.stkSize * kBitsPerByte,
+                                                                firstArgInfo.regType);
+  }
 
   int32 limit = (secondArgInfo.stkSize > k4ByteSize) ? kStpLdpImm64UpperBound : kStpLdpImm32UpperBound;
   int32 stOffset = aarchCGFunc->GetBaseOffset(*firstArgInfo.symLoc);
@@ -187,7 +202,7 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
                                                                    firstArgInfo.stkSize * kBitsPerByte,
                                                                    *baseOpnd, nullptr, &offsetOpnd, firstArgInfo.sym);
   }
-  Insn &pushInsn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, regOpnd2, *memOpnd);
+  Insn &pushInsn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, regOpnd, *regOpnd2, *memOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
     std::string argName = firstArgInfo.sym->GetName() + " " + secondArgInfo.sym->GetName();
     pushInsn.SetComment(std::string("store param: ").append(argName));
@@ -254,7 +269,7 @@ void AArch64MoveRegArgs::GenerateStrInsn(ArgInfo &argInfo, AArch64reg reg2, uint
   }
   aarchCGFunc->GetCurBB()->AppendInsn(insn);
 
-  if (argInfo.doMemPairOpt) {
+  if (argInfo.createTwoStores || argInfo.doMemPairOpt) {
     /* second half of the struct passing by registers. */
     uint32 part2BitSize = argInfo.memPairSecondRegSize * kBitsPerByte;
     GenOneInsn(argInfo, *baseOpnd, part2BitSize, reg2, (stOffset + kSizeOfPtr));
@@ -302,9 +317,13 @@ void AArch64MoveRegArgs::MoveRegisterArgs() {
           static_cast<AArch64SymbolAlloc *>(aarchCGFunc->GetMemlayout()->GetSymAllocInfo(
               secondArgInfo.sym->GetStIndex()));
       /* Make sure they are in same segment if want to use stp */
-      if (IsInSameSegment(firstArgInfo, secondArgInfo)) {
+      if (((firstArgInfo.isTwoRegParm && secondArgInfo.isTwoRegParm) ||
+          (firstArgInfo.isTwoRegParm == false && secondArgInfo.isTwoRegParm == false)) &&
+          (firstArgInfo.doMemPairOpt || IsInSameSegment(firstArgInfo, secondArgInfo))) {
         GenerateStpInsn(firstArgInfo, secondArgInfo);
-        it = next;
+        if (firstArgInfo.doMemPairOpt == false) {
+          it = next;
+        }
         continue;
       }
     }

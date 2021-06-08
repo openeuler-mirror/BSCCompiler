@@ -2897,6 +2897,9 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
                  opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
     return mirModule.GetMIRBuilder()->CreateIntConst(val, PTY_i32);
   }
+  if (intrinDesc.IsVectorOp()) {
+    return &intrinNode;
+  }
   CHECK_FATAL(false, "unexpected intrinsic type in CGLowerer::LowerIntrinsicop");
   return &intrinNode;
 }

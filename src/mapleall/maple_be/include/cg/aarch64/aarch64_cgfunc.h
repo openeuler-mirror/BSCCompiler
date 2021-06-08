@@ -227,7 +227,17 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
-  uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment);
+  uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
+
+  RegOperand *SelectVectorFromScalar(IntrinsicopNode &intrnNode) override;
+  Operand *SelectVectorStore(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorMerge(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorGetHigh(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorGetLow(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorGetElement(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorPairwiseAdd(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorSetElement(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorReverse(IntrinsicopNode &intrnNode, uint32 size) override;
 
   AArch64ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));

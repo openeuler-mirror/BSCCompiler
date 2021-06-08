@@ -73,7 +73,7 @@ class CGFunc;
 /* keeps track of the allocation of a memory segment */
 class MemSegment {
  public:
-  explicit MemSegment(MemSegmentKind memSegKind) : kind(memSegKind), size(0) {}
+  explicit MemSegment(MemSegmentKind memSegKind) : kind(memSegKind), size(0), containVector(false) {}
 
   ~MemSegment() = default;
 
@@ -89,9 +89,18 @@ class MemSegment {
     return kind;
   }
 
+  void SetContainVector() {
+    containVector = true;
+  }
+
+  bool ContainVector() const {
+    return containVector;
+  }
+
  private:
   MemSegmentKind kind;
   int32 size;  /* size is negative if allocated offsets are negative */
+  bool containVector;
 };  /* class MemSegment */
 
 /* describes where a symbol is allocated */
