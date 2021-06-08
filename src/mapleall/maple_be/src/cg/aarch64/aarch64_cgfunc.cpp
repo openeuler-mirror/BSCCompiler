@@ -1121,23 +1121,23 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     for (uint32 i = 0; i < (lhsSize / copySize); i++) {
       uint32 rhsBaseOffset = i * copySize + rhsOffsetVal;
       uint32 lhsBaseOffset = i * copySize + lhsOffsetVal;
-      AArch64MemOperand::AArch64AddressingMode addrMode = rhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          rhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsBaseOffset, k32BitSize);
-      MemOperand *rhsMemOpnd;
-      rhsMemOpnd = &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
+      /* generate the load */
+      MemOperand *rhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, copySize);
       /* generate the load */
       RegOperand &result = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, copySize)));
-      bool doPair = (!rhsIsLo12 && !lhsIsLo12 && (copySize >= 4) && ((i + 1) < (lhsSize / copySize)) &&
-                     !AArch64MemOperand::IsSIMMOffsetOutOfRange(rhsBaseOffset, (copySize == 8), true) &&
-                     !AArch64MemOperand::IsSIMMOffsetOutOfRange(lhsBaseOffset, (copySize == 8), true));
+      MOperator mOpLDP = (copySize == k4BitSize) ? MOP_wldp : MOP_xldp;
+      bool doPair = (!rhsIsLo12 && !lhsIsLo12 && (copySize >= k4BitSize) && ((i + 1) < (lhsSize / copySize)) &&
+                     IsOperandImmValid(mOpLDP, rhsMemOpnd, kInsnThirdOpnd));
       RegOperand *result1 = nullptr;
       if (doPair) {
         result1 = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, copySize)));
-        MOperator mOp = (copySize == 4) ? MOP_wldp : MOP_xldp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *rhsMemOpnd));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpLDP, result, *result1, *rhsMemOpnd));
       } else {
         MOperator mOp = PickLdInsn(copySize * k8BitSize, PTY_u32);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *rhsMemOpnd));
@@ -1146,16 +1146,23 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsBaseOffset, k32BitSize);
       addrMode = lhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       sym = lhsIsLo12 ? lhsSymbol : nullptr;
-      MemOperand *lhsMemOpnd;
-      lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
+      MemOperand *lhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, copySize);
-      if (doPair) {
-        MOperator mOp = (copySize == 4) ? MOP_wstp : MOP_xstp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *lhsMemOpnd));
+      MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
+      if (doPair && IsOperandImmValid(mOpSTP, lhsMemOpnd, kInsnThirdOpnd)) {
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
         MOperator mOp = PickStInsn(copySize * k8BitSize, PTY_u32);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *lhsMemOpnd));
+        if (doPair) {
+          AArch64OfstOperand &lhsOfstOpnd1 = GetOrCreateOfstOpnd(lhsBaseOffset + copySize, k32BitSize);
+          MemOperand *lhsMemOpnd1 =
+            &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd1, sym);
+          lhsMemOpnd1 = FixLargeMemOpnd(*lhsMemOpnd1, copySize);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *result1, *lhsMemOpnd1));
+        }
       }
     }
     /* take care of extra content at the end less than the unit */
@@ -1169,8 +1176,8 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       }
       /* generate the load */
       MemOperand *rhsMemOpnd;
-      AArch64MemOperand::AArch64AddressingMode addrMode = rhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          rhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + rhsOffsetVal, k32BitSize);
       rhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
@@ -1221,20 +1228,19 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       /* generate the load */
       AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(rhsBaseOffset, k32BitSize);
       MemOperand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, copySize * k8BitSize,
-                                                  addrOpnd, nullptr, &ofstOpnd, nullptr);
+                                                   addrOpnd, nullptr, &ofstOpnd, nullptr);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, copySize);
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, copySize));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
-      bool doPair = (!lhsIsLo12 && copySize >=4) && ((i + 1) < (lhsSize / copySize)) &&
-                     !AArch64MemOperand::IsSIMMOffsetOutOfRange(rhsBaseOffset, (copySize == 8), true) &&
-                     !AArch64MemOperand::IsSIMMOffsetOutOfRange(lhsBaseOffset, (copySize == 8), true);
-      Insn *insn;
+      MOperator mOpLDP = (copySize == k4BitSize) ? MOP_wldp : MOP_xldp;
+      bool doPair = (!lhsIsLo12 && copySize >= k4BitSize) && ((i + 1) < (lhsSize / copySize)) &&
+                     IsOperandImmValid(mOpLDP, rhsMemOpnd, kInsnThirdOpnd);
+      Insn *insn = nullptr;
       RegOperand *result1 = nullptr;
       if (doPair) {
         regno_t vRegNO1 = NewVReg(kRegTyInt, std::max(4u, copySize));
         result1 = &CreateVirtualRegisterOperand(vRegNO1);
-        MOperator mOp = (copySize == 4) ? MOP_wldp : MOP_xldp;
-        insn = &GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *rhsMemOpnd);
+        insn = &GetCG()->BuildInstruction<AArch64Insn>(mOpLDP, result, *result1, *rhsMemOpnd);
       } else {
         MOperator mOp = PickLdInsn(copySize * k8BitSize, PTY_u32);
         insn = &GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *rhsMemOpnd);
@@ -1242,23 +1248,30 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       insn->MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(*insn);
       /* generate the store */
-      AArch64MemOperand::AArch64AddressingMode addrMode = lhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          lhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = lhsIsLo12 ? lhsSymbol : nullptr;
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsBaseOffset, k32BitSize);
-      MemOperand *lhsMemOpnd;
-      lhsMemOpnd = &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
+      MemOperand *lhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd, sym);
       lhsMemOpnd = FixLargeMemOpnd(*lhsMemOpnd, copySize);
-      if (doPair) {
-        MOperator mOp = (copySize == 4) ? MOP_wstp : MOP_xstp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *lhsMemOpnd));
+      MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
+      if (doPair && IsOperandImmValid(mOpSTP, lhsMemOpnd, kInsnThirdOpnd)) {
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
         MOperator mOp = PickStInsn(copySize * k8BitSize, PTY_u32);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *lhsMemOpnd));
+        if (doPair) {
+          AArch64OfstOperand &lhsOfstOpnd1 = GetOrCreateOfstOpnd(lhsBaseOffset + copySize, k32BitSize);
+          MemOperand *lhsMemOpnd1 =
+            &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, lhsBaseReg, nullptr, &lhsOfstOpnd1, sym);
+          lhsMemOpnd1 = FixLargeMemOpnd(*lhsMemOpnd1, copySize);
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *result1, *lhsMemOpnd1));
+        }
       }
     }
-    /* take care of extra content at the end less than the unit */
+    /* take care of extra content at the end less than the unit of alignUsed */
     uint64 lhsSizeCovered = (lhsSize / copySize) * copySize;
     uint32 newAlignUsed = copySize;
     while (lhsSizeCovered < lhsSize) {
@@ -1270,7 +1283,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       /* generate the load */
       AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(rhsOffset + lhsSizeCovered, k32BitSize);
       MemOperand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, newAlignUsed * k8BitSize,
-                                                  addrOpnd, nullptr, &ofstOpnd, nullptr);
+                                                   addrOpnd, nullptr, &ofstOpnd, nullptr);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, newAlignUsed);
       RegOperand &result = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, newAlignUsed)));
       MOperator mOp = PickLdInsn(newAlignUsed * k8BitSize, PTY_u32);
@@ -1278,8 +1291,8 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
       /* generate the store */
-      AArch64MemOperand::AArch64AddressingMode addrMode = lhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          lhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = lhsIsLo12 ? lhsSymbol : nullptr;
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + lhsOffsetVal, k32BitSize);
       MemOperand *lhsMemOpnd;
@@ -1564,23 +1577,23 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
     for (uint32 i = 0; i < (lhsSize / copySize); ++i) {
       uint32 rhsBaseOffset = rhsOffsetVal + i * copySize;
       uint32 lhsBaseOffset = lhsOffset + i * copySize;
-      AArch64MemOperand::AArch64AddressingMode addrMode = rhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          rhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsBaseOffset, k32BitSize);
-      MemOperand *rhsMemOpnd;
-      rhsMemOpnd = &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
+      MemOperand *rhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, copySize * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, copySize);
       /* generate the load */
       RegOperand &result = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, copySize)));
-      bool doPair = (!rhsIsLo12 && (copySize >= 4) && ((i + 1) < (lhsSize / copySize)) &&
-                     !AArch64MemOperand::IsSIMMOffsetOutOfRange(rhsBaseOffset, (copySize == 8), true));
+      MOperator mOpLDP = (copySize == k4BitSize) ? MOP_wldp : MOP_xldp;
+      bool isInRange = IsOperandImmValid(mOpLDP, rhsMemOpnd, kInsnThirdOpnd);
+      bool doPair = (!rhsIsLo12 && (copySize >= k4BitSize) && ((i + 1) < (lhsSize / copySize)) && isInRange);
       RegOperand *result1 = nullptr;
       if (doPair) {
         regno_t vRegNO1 = NewVReg(kRegTyInt, std::max(4u, copySize));
         result1 = &CreateVirtualRegisterOperand(vRegNO1);
-        MOperator mOp = (copySize == 4) ? MOP_wldp : MOP_xldp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *rhsMemOpnd));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpLDP, result, *result1, *rhsMemOpnd));
       } else {
         MOperator mOp = PickLdInsn(copySize * k8BitSize, PTY_u32);
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *rhsMemOpnd));
@@ -1590,8 +1603,8 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       Operand *lhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, copySize * k8BitSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &ofstOpnd, nullptr);
       if (doPair) {
-        MOperator mOp = (copySize == 4) ? MOP_wstp : MOP_xstp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *lhsMemOpnd));
+        MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
         MOperator mOp = PickStInsn(copySize * k8BitSize, PTY_u32);
@@ -1607,12 +1620,12 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       if ((lhsSizeCovered + newAlignUsed) > lhsSize) {
         continue;
       }
-      AArch64MemOperand::AArch64AddressingMode addrMode = rhsIsLo12 ?
-          AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
+      AArch64MemOperand::AArch64AddressingMode addrMode =
+          rhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(lhsSizeCovered + rhsOffsetVal, k32BitSize);
-      MemOperand *rhsMemOpnd;
-      rhsMemOpnd = &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
+      MemOperand *rhsMemOpnd =
+          &GetOrCreateMemOpnd(addrMode, newAlignUsed * k8BitSize, rhsBaseReg, nullptr, &rhsOfstOpnd, sym);
       rhsMemOpnd = FixLargeMemOpnd(*rhsMemOpnd, newAlignUsed);
       /* generate the load */
       Operand &result = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, newAlignUsed)));
@@ -1623,8 +1636,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       Operand &lhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, newAlignUsed * k8BitSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &ofstOpnd, static_cast<MIRSymbol*>(nullptr));
       mOp = PickStInsn(newAlignUsed * k8BitSize, PTY_u32);
-      GetCurBB()->AppendInsn(
-          GetCG()->BuildInstruction<AArch64Insn>(mOp, result, lhsMemOpnd));
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
     }
   } else {  /* rhs is iread */
@@ -1682,20 +1694,21 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
     for (uint32 i = 0; i < (lhsSize / copySize); i++) {
       /* generate the load */
       uint32 operandSize = copySize * k8BitSize;
+      MOperator mOpLDP = (copySize == k4BitSize) ? MOP_wldp : MOP_xldp;
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsOffset + i * copySize, k32BitSize);
       Operand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, operandSize,
           static_cast<AArch64RegOperand*>(rhsAddrOpnd), nullptr, &rhsOfstOpnd, nullptr);
-      if (IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(rhsMemOpnd), operandSize)) {
+      bool isInRange = IsOperandImmValid(mOpLDP, rhsMemOpnd, kInsnThirdOpnd);
+      if (!isInRange) {
         rhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(rhsMemOpnd), operandSize);
       }
       RegOperand &result = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, copySize)));
-      bool doPair = ((copySize >= 4) && ((i + 1) < (lhsSize / copySize)));
-      Insn *insn;
+      bool doPair = ((copySize >= k4BitSize) && ((i + 1) < (lhsSize / copySize)) && isInRange);
+      Insn *insn = nullptr;
       RegOperand *result1 = nullptr;
       if (doPair) {
         result1 = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, std::max(4u, copySize)));
-        MOperator mOp = (copySize == 4) ? MOP_wldp : MOP_xldp;
-        insn = &GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *rhsMemOpnd);
+        insn = &GetCG()->BuildInstruction<AArch64Insn>(mOpLDP, result, *result1, *rhsMemOpnd);
       } else {
         MOperator mOp = PickLdInsn(operandSize, PTY_u32);
         insn = &GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *rhsMemOpnd);
@@ -1703,15 +1716,16 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       insn->MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(*insn);
       /* generate the store */
+      MOperator mOpSTP = (copySize == k4BitSize) ? MOP_wstp : MOP_xstp;
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsOffset + i * copySize, k32BitSize);
       Operand *lhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, operandSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &lhsOfstOpnd, nullptr);
-      if (IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(lhsMemOpnd), operandSize)) {
+      isInRange = IsOperandImmValid(mOpSTP, lhsMemOpnd, kInsnThirdOpnd);
+      if (!isInRange) {
         lhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(lhsMemOpnd), operandSize);
       }
       if (doPair) {
-        MOperator mOp = (copySize == 4) ? MOP_wstp : MOP_xstp;
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, result, *result1, *lhsMemOpnd));
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpSTP, result, *result1, *lhsMemOpnd));
         i++;
       } else {
         MOperator mOp = PickStInsn(operandSize, PTY_u32);
@@ -1729,20 +1743,27 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       }
       /* generate the load */
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsOffset + lhsSizeCovered, k32BitSize);
-      Operand &rhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, newAlignUsed * k8BitSize,
+      uint64 memOpndSize = newAlignUsed * k8BitSize;
+      Operand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, memOpndSize,
           static_cast<AArch64RegOperand*>(rhsAddrOpnd), nullptr, &rhsOfstOpnd, nullptr);
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, newAlignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
-      Insn &insn =
-          GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(newAlignUsed * k8BitSize, PTY_u32), result, rhsMemOpnd);
+      MOperator mOpLD = PickLdInsn(newAlignUsed * k8BitSize, PTY_u32);
+      if (!IsOperandImmValid(mOpLD, rhsMemOpnd, kInsnSecondOpnd)) {
+        rhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(rhsMemOpnd), memOpndSize);
+      }
+      Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(mOpLD, result, *rhsMemOpnd);
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
       /* generate the store */
       AArch64OfstOperand &lhsOfstOpnd = GetOrCreateOfstOpnd(lhsOffset + lhsSizeCovered, k32BitSize);
-      Operand &lhsMemOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, newAlignUsed * k8BitSize,
+      Operand *lhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, memOpndSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &lhsOfstOpnd, nullptr);
-      GetCurBB()->AppendInsn(
-          GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(newAlignUsed * k8BitSize, PTY_u32), result, lhsMemOpnd));
+      MOperator mOpST = PickStInsn(memOpndSize, PTY_u32);
+      if (!IsOperandImmValid(mOpST, lhsMemOpnd, kInsnSecondOpnd)) {
+        lhsMemOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(lhsMemOpnd), memOpndSize);
+      }
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpST, result, *lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
     }
   }
@@ -6539,7 +6560,7 @@ LabelOperand &AArch64CGFunc::CreateFuncLabelOperand(const MIRSymbol &funcSymbol)
   return *memPool->New<FunctionLabelOperand>(funcName);
 }
 
-uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) {
+uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const {
   /* Generating a larger sized mem op than alignment if allowed by aggregate starting address */
   uint32 offsetAlign1 = (offset1 == 0) ? k8ByteSize : offset1;
   uint32 offsetAlign2 = (offset2 == 0) ? k8ByteSize : offset2;
