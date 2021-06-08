@@ -54,10 +54,11 @@ class MIRParser {
   bool IsStatement(TokenKind tk) const;
   PrimType GetPrimitiveType(TokenKind tk) const;
   MIRIntrinsicID GetIntrinsicID(TokenKind tk) const;
-  bool ParseScalarValue(MIRConstPtr&, MIRType&, uint32 fieldID);
+  bool ParseScalarValue(MIRConstPtr&, MIRType&);
   bool ParseConstAddrLeafExpr(MIRConstPtr&);
   bool ParseInitValue(MIRConstPtr&, TyIdx, bool allowEmpty = false);
   bool ParseDeclaredSt(StIdx&);
+  void CreateFuncMIRSymbol(PUIdx &puidx, GStrIdx strIdx);
   bool ParseDeclaredFunc(PUIdx&);
   bool ParseTypeAttrs(TypeAttrs&);
   bool ParseVarTypeAttrs(MIRSymbol &st);
@@ -75,15 +76,15 @@ class MIRParser {
   bool ParsePragmaElementForAnnotation(MIRPragmaElement &elem);
   bool ParsePragma(MIRStructType &type);
   bool ParseFields(MIRStructType &type);
-  bool ParseStructType(TyIdx &styIdx);
-  bool ParseClassType(TyIdx &tyIdx);
-  bool ParseInterfaceType(TyIdx &sTyIdx);
+  bool ParseStructType(TyIdx &styIdx, const GStrIdx &strIdx = GStrIdx(0));
+  bool ParseClassType(TyIdx &tyIdx, const GStrIdx &strIdx = GStrIdx(0));
+  bool ParseInterfaceType(TyIdx &sTyIdx, const GStrIdx &strIdx = GStrIdx(0));
   bool ParseDefinedTypename(TyIdx &tyIdx, MIRTypeKind kind = kTypeUnknown);
   bool ParseTypeParam(TyIdx &tyIdx);
   bool ParsePointType(TyIdx &tyIdx);
   bool ParseFuncType(TyIdx &tyIdx);
   bool ParseGenericInstantVector(MIRInstantVectorType &insVecType);
-  bool ParseDerivedType(TyIdx &tyIdx, MIRTypeKind kind = kTypeUnknown);
+  bool ParseDerivedType(TyIdx &tyIdx, MIRTypeKind kind = kTypeUnknown, const GStrIdx &strIdx = GStrIdx(0));
   bool ParseType(TyIdx &tyIdx);
   bool ParseStatement(StmtNodePtr &stmt);
   bool ParseSpecialReg(PregIdx &pregIdx);
@@ -126,6 +127,7 @@ class MIRParser {
   bool ParseStmtIntrinsiccallwithtype(StmtNodePtr&, bool isAssigned);
   bool ParseStmtIntrinsiccallwithtype(StmtNodePtr&);
   bool ParseStmtIntrinsiccallwithtypeassigned(StmtNodePtr&);
+  bool ParseCallReturnPair(CallReturnPair&);
   bool ParseCallReturns(CallReturnVector&);
   bool ParseBinaryStmt(StmtNodePtr&, Opcode op);
   bool ParseBinaryStmtAssertGE(StmtNodePtr&);
@@ -148,6 +150,7 @@ class MIRParser {
   bool ParseUnaryStmtAssertNonNull(StmtNodePtr&);
   bool ParseStmtMarker(StmtNodePtr&);
   bool ParseStmtGosub(StmtNodePtr&);
+  bool ParseStmtAsm(StmtNodePtr&);
 
   // Expression Parser
   bool ParseExpression(BaseNodePtr &expr);
@@ -193,6 +196,7 @@ class MIRParser {
   bool ParseFuncInfo(void);
   void PrepareParsingMIR();
   void PrepareParsingMplt();
+  bool ParseSrcLang(MIRSrcLang &srcLang);
   bool ParseMIR(uint32 fileIdx = 0, uint32 option = 0, bool isIpa = false, bool isComb = false);
   bool ParseMIR(std::ifstream&);  // the main entry point
   bool ParseInlineFuncBody(std::ifstream&);

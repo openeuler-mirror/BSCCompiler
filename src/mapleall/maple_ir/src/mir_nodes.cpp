@@ -761,7 +761,7 @@ void TryNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   LogInfo::MapleLogger() << " {";
   for (size_t i = 0; i < offsets.size(); ++i) {
-    int64 offset = offsets[i];
+    uint32 offset = offsets[i];
     LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
   }
   LogInfo::MapleLogger() << " }\n";
@@ -1176,6 +1176,157 @@ void CommentNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << "#" << comment << '\n';
 }
 
+static void EmitStr(const MapleString *mplStr) {
+  const char *str = mplStr->c_str();
+  size_t len = mplStr->length();
+  LogInfo::MapleLogger() << "\"";
+
+  // don't expand special character; convert all \s to \\s in string
+  for (int i = 0; i < len; i++) {
+    /* Referred to GNU AS: 3.6.1.1 Strings */
+    constexpr int kBufSize = 5;
+    constexpr int kFirstChar = 0;
+    constexpr int kSecondChar = 1;
+    constexpr int kThirdChar = 2;
+    constexpr int kLastChar = 4;
+    char buf[kBufSize];
+    if (isprint(*str)) {
+      buf[kFirstChar] = *str;
+      buf[kSecondChar] = 0;
+      if (*str == '\\' || *str == '\"') {
+        buf[kFirstChar] = '\\';
+        buf[kSecondChar] = *str;
+        buf[kThirdChar] = 0;
+      }
+      LogInfo::MapleLogger() << buf;
+    } else if (*str == '\b') {
+      LogInfo::MapleLogger() << "\\b";
+    } else if (*str == '\n') {
+      LogInfo::MapleLogger() << "\\n";
+    } else if (*str == '\r') {
+      LogInfo::MapleLogger() << "\\r";
+    } else if (*str == '\t') {
+      LogInfo::MapleLogger() << "\\t";
+    } else if (*str == '\0') {
+      buf[kFirstChar] = '\\';
+      buf[kSecondChar] = '0';
+      buf[kThirdChar] = 0;
+      LogInfo::MapleLogger() << buf;
+    } else {
+      /* all others, print as number */
+      int ret = snprintf_s(buf, sizeof(buf), 4, "\\%03o", (*str) & 0xFF);
+      if (ret < 0) {
+        FATAL(kLncFatal, "snprintf_s failed");
+      }
+      buf[kLastChar] = '\0';
+      LogInfo::MapleLogger() << buf;
+    }
+    str++;
+  }
+
+  LogInfo::MapleLogger() << "\"\n";
+}
+
+void AsmNode::Dump(int32 indent) const {
+  if (srcPosition.FileNum() != 0 && srcPosition.LineNum() != 0 && srcPosition.LineNum() != lastPrintedLineNum &&
+      theMIRModule->CurFunction()->WithLocInfo()) {
+    LogInfo::MapleLogger() << "LOC " << srcPosition.FileNum() << " " << srcPosition.LineNum() << '\n';
+    lastPrintedLineNum = srcPosition.LineNum();
+  }
+  PrintIndentation(indent);
+  LogInfo::MapleLogger() << kOpcodeInfo.GetName(op);
+  if (GetQualifier(kASMvolatile))
+    LogInfo::MapleLogger() << " volatile";
+  if (GetQualifier(kASMinline))
+    LogInfo::MapleLogger() << " inline";
+  if (GetQualifier(kASMgoto))
+    LogInfo::MapleLogger() << " goto";
+  LogInfo::MapleLogger() << " { ";
+  EmitStr(&asmString);
+  // print outputs
+  PrintIndentation(indent+1);
+  LogInfo::MapleLogger() << " :";
+  size_t numOutputs = asmOutputs.size();
+  std::string uStr;
+  const MIRFunction *mirFunc = theMIRModule->CurFunction();
+  if (numOutputs == 0) {
+    LogInfo::MapleLogger() << '\n';
+  } else {
+    for (size_t i = 0; i < numOutputs; i++) {
+      if (i != 0) {
+        PrintIndentation(indent+2);
+      }
+      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(outputConstraints[i]);
+      PrintString(uStr);
+      LogInfo::MapleLogger() << " ";
+      StIdx stIdx = asmOutputs[i].first;
+      RegFieldPair regFieldPair = asmOutputs[i].second;
+      if (!regFieldPair.IsReg()) {
+        FieldID fieldID = regFieldPair.GetFieldID();
+        LogInfo::MapleLogger() << "dassign";
+        const MIRSymbol *st = mirFunc->GetLocalOrGlobalSymbol(stIdx);
+        ASSERT(st != nullptr, "st is null");
+        LogInfo::MapleLogger() << (stIdx.Islocal() ? " %" : " $");
+        LogInfo::MapleLogger() << st->GetName() << " " << fieldID;
+      } else {
+        PregIdx16 regIdx = regFieldPair.GetPregIdx();
+        const MIRPreg *mirPreg = mirFunc->GetPregItem(static_cast<PregIdx>(regIdx));
+        ASSERT(mirPreg != nullptr, "mirPreg is null");
+        LogInfo::MapleLogger() << "regassign"
+                               << " " << GetPrimTypeName(mirPreg->GetPrimType());
+        LogInfo::MapleLogger() << " %" << mirPreg->GetPregNo();
+      }
+      if (i != numOutputs - 1) {
+        LogInfo::MapleLogger() << ',';
+      }
+      LogInfo::MapleLogger() << '\n';
+    }
+  }
+  // print input operands
+  PrintIndentation(indent+1);
+  LogInfo::MapleLogger() << " :";
+  if (numOpnds == 0) {
+    LogInfo::MapleLogger() << '\n';
+  } else {
+    for (size_t i = 0; i < numOpnds; i++) {
+      if (i != 0) {
+        PrintIndentation(indent+2);
+      }
+      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(inputConstraints[i]);
+      PrintString(uStr);
+      LogInfo::MapleLogger() << " (";
+      GetNopndAt(i)->Dump(indent+4);
+      LogInfo::MapleLogger() << ")";
+      if (i != numOpnds - 1) {
+        LogInfo::MapleLogger() << ',';
+      }
+      LogInfo::MapleLogger() << "\n";
+    }
+  }
+  // print clobber list 
+  PrintIndentation(indent+1);
+  LogInfo::MapleLogger() << " :";
+  for (size_t i = 0; i < clobberList.size(); i++) {
+    uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(clobberList[i]);
+    PrintString(uStr);
+    if (i != clobberList.size() - 1) {
+      LogInfo::MapleLogger() << ',';
+    }
+  }
+  LogInfo::MapleLogger() << '\n';
+  // print labels
+  PrintIndentation(indent+1);
+  LogInfo::MapleLogger() << " :";
+  for (size_t i = 0; i < gotoLabels.size(); i++) {
+    LabelIdx offset = gotoLabels[i];
+    LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName(offset);
+    if (i != gotoLabels.size() - 1) {
+      LogInfo::MapleLogger() << ',';
+    }
+  }
+  LogInfo::MapleLogger() << " }\n";
+}
+
 inline bool IntTypeVerify(PrimType pTyp) {
   return pTyp == PTY_i32 || pTyp == PTY_u32 || pTyp == PTY_i64 || pTyp == PTY_u64;
 }
@@ -1432,7 +1583,7 @@ bool UnaryNode::Verify() const {
   // When an opcode only specifies one type, check for compatibility
   // between the operands and the result-type.
   bool compVerf = true;
-  // op_alloca : return type is not compatible with operand, skip 
+  // op_alloca : return type is not compatible with operand, skip
   if (GetOpCode() != OP_alloca) {
     compVerf = CompatibleTypeVerify(*uOpnd, *this);
   }
