@@ -761,9 +761,6 @@ bool AArch64CGFunc::IsImmediateOffsetOutOfRange(AArch64MemOperand &memOpnd, uint
 
 bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx) {
   const AArch64MD *md = &AArch64CG::kMd[mOp];
-  if (md->IsLoadStorePair()) {
-    opndIdx++;
-  }
   auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[opndIdx]);
   if (!opndProp->IsContainImm()) {
     return true;
