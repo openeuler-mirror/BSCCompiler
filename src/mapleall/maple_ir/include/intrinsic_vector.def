@@ -440,6 +440,132 @@ DEF_MIR_INTRINSIC(vector_reverse_v2f32, "vector_reverse_v2f32",
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
                   kArgTyV2F32)
 
+// scalarTy vector_sum(vecTy src)
+//     Sum all of the elements in the vector into a scalar.
+DEF_MIR_INTRINSIC(vector_sum_v2i64, "vector_sum_v2i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV2I64)
+DEF_MIR_INTRINSIC(vector_sum_v4i32, "vector_sum_v4i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_sum_v8i16, "vector_sum_v8i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_sum_v16i8, "vector_sum_v16i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV16I8)
+DEF_MIR_INTRINSIC(vector_sum_v2u64, "vector_sum_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV2U64)
+DEF_MIR_INTRINSIC(vector_sum_v4u32, "vector_sum_v4u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_sum_v8u16, "vector_sum_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_sum_v16u8, "vector_sum_v16u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV16U8)
+DEF_MIR_INTRINSIC(vector_sum_v2f64, "vector_sum_v2f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF64,
+                  kArgTyV2F64)
+DEF_MIR_INTRINSIC(vector_sum_v4f32, "vector_sum_v4f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF32,
+                  kArgTyV4F32)
+DEF_MIR_INTRINSIC(vector_sum_v1i64, "vector_sum_v1i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI64,
+                  kArgTyV1I64)
+DEF_MIR_INTRINSIC(vector_sum_v2i32, "vector_sum_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI32,
+                  kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_sum_v4i16, "vector_sum_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI16,
+                  kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_sum_v8i8, "vector_sum_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyI8,
+                  kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_sum_v1u64, "vector_sum_v1u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU64,
+                  kArgTyV1U64)
+DEF_MIR_INTRINSIC(vector_sum_v2u32, "vector_sum_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU32,
+                  kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_sum_v4u16, "vector_sum_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU16,
+                  kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_sum_v8u8, "vector_sum_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyU8,
+                  kArgTyV8U8)
+DEF_MIR_INTRINSIC(vector_sum_v1f64, "vector_sum_v1f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF64,
+                  kArgTyV1F64)
+DEF_MIR_INTRINSIC(vector_sum_v2f32, "vector_sum_v2f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyF32,
+                  kArgTyV2F32)
+
+// vecTy table_lookup(vecTy tbl, vecTy idx)
+//     Performs a table vector lookup.
+DEF_MIR_INTRINSIC(vector_table_lookup_v2i64, "vector_table_lookup_v2i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64, kArgTyV2I64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v4i32, "vector_table_lookup_v4i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_table_lookup_v8i16, "vector_table_lookup_v8i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16, kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_table_lookup_v16i8, "vector_table_lookup_v16i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV16I8, kArgTyV16I8)
+DEF_MIR_INTRINSIC(vector_table_lookup_v2u64, "vector_table_lookup_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyV2U64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v4u32, "vector_table_lookup_v4u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_table_lookup_v8u16, "vector_table_lookup_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_table_lookup_v16u8, "vector_table_lookup_v16u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV16U8, kArgTyV16U8)
+DEF_MIR_INTRINSIC(vector_table_lookup_v2f64, "vector_table_lookup_v2f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F64,
+                  kArgTyV2F64, kArgTyV2F64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v4f32, "vector_table_lookup_v4f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4F32,
+                  kArgTyV4F32, kArgTyV4F32)
+DEF_MIR_INTRINSIC(vector_table_lookup_v1i64, "vector_table_lookup_v1i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV1I64, kArgTyV1I64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v2i32, "vector_table_lookup_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV2I32, kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_table_lookup_v4i16, "vector_table_lookup_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV4I16, kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_table_lookup_v8i8, "vector_table_lookup_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV8I8, kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_table_lookup_v1u64, "vector_table_lookup_v1u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1U64,
+                  kArgTyV1U64, kArgTyV1U64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v2u32, "vector_table_lookup_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U32,
+                  kArgTyV2U32, kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_table_lookup_v4u16, "vector_table_lookup_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U16,
+                  kArgTyV4U16, kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_table_lookup_v8u8, "vector_table_lookup_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
+                  kArgTyV8U8, kArgTyV8U8)
+DEF_MIR_INTRINSIC(vector_table_lookup_v1f64, "vector_table_lookup_v1f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1F64,
+                  kArgTyV1F64, kArgTyV1F64)
+DEF_MIR_INTRINSIC(vector_table_lookup_v2f32, "vector_table_lookup_v2f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
+                  kArgTyV2F32, kArgTyV2F32)
+
 // vecTy vector_load(scalarTy *ptr)
 //     Load the elements pointed to by ptr into a vector.
 DEF_MIR_INTRINSIC(vector_load_v2i64, "vector_load_v2i64",
@@ -545,3 +671,13 @@ DEF_MIR_INTRINSIC(vector_store_v1f64, "vector_store_v1f64", INTRNISVECTOR,
                   kArgTyVoid, kArgTyPtr, kArgTyV1F64)
 DEF_MIR_INTRINSIC(vector_store_v2f32, "vector_store_v2f32", INTRNISVECTOR,
                   kArgTyVoid, kArgTyPtr, kArgTyV2F32)
+
+// Temporary intrinsics that should be replaced by standard ops.
+DEF_MIR_INTRINSIC(vector_and_v8u16, "vector_and_v8u16", kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_and_v4i32, "vector_and_v4i32", kArgTyV4I32,
+                  kArgTyV4I32, kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_eq_v8u16, "vector_eq_v8u16", kArgTyV8U16, kArgTyV8U16,
+                  kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_shl_v8u16, "vector_shl_v8u16", kArgTyV8U16, kArgTyV8U16,
+                  kArgTyV8U16)
