@@ -146,9 +146,6 @@ bool MIRBuilder::TraverseToNamedFieldWithTypeAndMatchStyle(MIRStructType &struct
     unsigned int style = matchStyle & kMatchAnyField;
     if (fieldType->IsStructType()) {
       auto *subStructType = static_cast<MIRStructType*>(fieldType);
-      if (subStructType->GetKind() == kTypeUnion) {
-        continue;
-      }
       if (TraverseToNamedFieldWithTypeAndMatchStyle(*subStructType, nameIdx, typeIdx, fieldID, style)) {
         return true;
       }
@@ -588,7 +585,7 @@ AddrofNode *MIRBuilder::CreateExprDread(const MIRType &type, FieldID fieldID, co
   auto *node = GetCurrentFuncCodeMp()->New<AddrofNode>(OP_dread, kPtyInvalid, symbol.GetStIdx(), fieldID);
   CHECK(type.GetTypeIndex() < GlobalTables::GetTypeTable().GetTypeTable().size(),
         "index out of range in MIRBuilder::CreateExprDread");
-  node->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(type.GetTypeIndex()));
+  node->SetPrimType(GetRegPrimType(type.GetPrimType()));
   return node;
 }
 
@@ -621,11 +618,11 @@ AddrofNode *MIRBuilder::CreateExprDread(PregIdx pregID, PrimType pty) {
 IreadNode *MIRBuilder::CreateExprIread(const MIRType &returnType, const MIRType &ptrType, FieldID fieldID,
                                        BaseNode *addr) {
   TyIdx returnTypeIdx = returnType.GetTypeIndex();
-  ASSERT(returnTypeIdx < GlobalTables::GetTypeTable().GetTypeTable().size(),
+  CHECK(returnTypeIdx < GlobalTables::GetTypeTable().GetTypeTable().size(),
          "index out of range in MIRBuilder::CreateExprIread");
   ASSERT(fieldID != 0 || ptrType.GetPrimType() != PTY_agg,
          "Error: Fieldid should not be 0 when trying to iread a field from type ");
-  PrimType type = GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(returnTypeIdx);
+  PrimType type = GetRegPrimType(returnType.GetPrimType());
   return GetCurrentFuncCodeMp()->New<IreadNode>(OP_iread, type, ptrType.GetTypeIndex(), fieldID, addr);
 }
 
@@ -712,6 +709,16 @@ ArrayNode *MIRBuilder::CreateExprArray(const MIRType &arrayType, BaseNode *op1, 
   ArrayNode *arrayNode = CreateExprArray(arrayType, op1);
   arrayNode->GetNopnd().push_back(op2);
   arrayNode->SetNumOpnds(2);
+  return arrayNode;
+}
+
+ArrayNode *MIRBuilder::CreateExprArray(const MIRType &arrayType, std::vector<BaseNode *> ops) {
+  MIRType *addrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(arrayType);
+  ASSERT(addrType != nullptr, "addrType is null");
+  auto *arrayNode = GetCurrentFuncCodeMp()->New<ArrayNode>(*GetCurrentFuncCodeMpAllocator(),
+                                                           addrType->GetPrimType(), addrType->GetTypeIndex());
+  arrayNode->GetNopnd().insert(arrayNode->GetNopnd().begin(), ops.begin(), ops.end());
+  arrayNode->SetNumOpnds(ops.size());
   return arrayNode;
 }
 
