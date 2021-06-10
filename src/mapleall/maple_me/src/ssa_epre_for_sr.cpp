@@ -258,7 +258,7 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
                                   std::set<MeStmt *> *needRepairInjuringDefs,
                                   std::set<MeStmt *> *repairedInjuringDefs) {
   MeExpr *useexpr = nullptr;
-  if (useocc->GetOccType() == kOccReal) {
+  if (useocc->GetOccType() == kOccReal || useocc->GetOccType() == kOccCompare) {
     MeRealOcc *realocc = static_cast<MeRealOcc *>(useocc);
     useexpr = realocc->GetMeExpr();
   } else {
