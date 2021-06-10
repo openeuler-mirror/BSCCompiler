@@ -536,8 +536,11 @@ int32 ParmLocator::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, PLocInfo &p
              "reg0 should not be kRinvalid or nextGeneralRegNO should equal kNumIntParmRegs");
     }
   } else if (numRegs == kTwoRegister) {
-    ASSERT(classes[0] == kAArch64IntegerClass, "class 0 must be integer class");
-    ASSERT(classes[1] == kAArch64IntegerClass, "class 1 must be integer class");
+    /* Other aggregates with 8 < size <= 16 bytes can be allocated in reg pair */
+    ASSERT(classes[0] == kAArch64IntegerClass || classes[0] == kAArch64NoClass,
+           "classes[0] must be either integer class or no class");
+    ASSERT(classes[1] == kAArch64IntegerClass || classes[1] == kAArch64NoClass,
+           "classes[1] must be either integer class or no class");
     AllocateTwoGPRegisters(pLoc);
     /* Rule C.11 */
     if (pLoc.reg0 == kRinvalid) {
