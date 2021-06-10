@@ -97,6 +97,7 @@ bool MeOption::placementRC = false;
 bool MeOption::subsumRC = false;
 bool MeOption::performFSAA = true;
 bool MeOption::strengthReduction = false;
+bool MeOption::doLFTR = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 #if MIR_JAVA
@@ -186,6 +187,7 @@ enum OptionIndex {
   kSubsumRC,
   kPerformFSAA,
   kStrengthReduction,
+  kLFTR,
   kRegReadAtReturn,
   kProPatphi,
   kNoProPatphi,
@@ -778,8 +780,18 @@ const Descriptor kUsage[] = {
     "strengthreduction",
     kBuildTypeExperimental,
     kArgCheckPolicyBool,
-    "  --strengthreduction      \tPerform flow sensitive alias analysis\n"
-    "  --no-strengthreduction   \tDisable flow sensitive alias analysis\n",
+    "  --strengthreduction      \tPerform strength reduction\n"
+    "  --no-strengthreduction   \tDisable strength reduction\n",
+    "me",
+    {} },
+  { kLFTR,
+    kEnable,
+    "",
+    "lftr",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lftr                   \tPerform linear function test replacement\n"
+    "  --no-lftr                \tDisable linear function test replacement\n",
     "me",
     {} },
   { kCheckCastOpt,
@@ -1064,6 +1076,7 @@ void MeOption::DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOp
         break;
       case kMeOptL3:
         realLevel = kLevelThree;
+        break;
       default:
         break;
     }
@@ -1376,6 +1389,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kStrengthReduction:
         strengthReduction = (opt.Type() == kEnable);
+        break;
+      case kLFTR:
+        doLFTR = (opt.Type() == kEnable);
         break;
       case kMeInlineHint:
         inlineFuncList = opt.Args();

@@ -123,6 +123,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool subsumRC;
   static bool performFSAA;
   static bool strengthReduction;
+  static bool doLFTR;
   static std::string inlineFuncList;
   static bool meVerify;
 #if MIR_JAVA
