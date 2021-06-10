@@ -296,6 +296,9 @@ void SSAEPre::ComputeVarAndDfPhis() {
   CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
+    if (realOcc->GetOccType() == kOccCompare) {
+      continue;
+    }
     BB *defBB = realOcc->GetBB();
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
@@ -337,7 +340,8 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       if (meExpr.GetPrimType() == PTY_agg) {
         break;
       }
-      if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp())) {
+      if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp()) && doLFTR) {
+        CreateCompOcc(&meStmt, seqStmt, meOpExpr, isRebuild);
         break;
       }
       if (!epreIncludeRef && meOpExpr->GetPrimType() == PTY_ref) {

@@ -72,6 +72,9 @@ class SSAEPre : public SSAPre {
 
   bool epreIncludeRef;
   bool enableLHSIvar;
+  // here starts mtehods related to linear function test replacement
+  OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) override;
+  void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) override;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSAEPRE_H
