@@ -447,7 +447,7 @@ MIRConst *ConstantFold::FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resul
   switch (opcode) {
     case OP_add: {
       if (useResult64) {
-        result64 = intValueOfConst0 + intValueOfConst1;
+        result64 = static_cast<uint64>(intValueOfConst0) + static_cast<uint64>(intValueOfConst1);
       } else {
         result32 = static_cast<uint32>(intValueOfConst0) + static_cast<uint32>(intValueOfConst1);
       }
