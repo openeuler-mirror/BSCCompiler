@@ -32,6 +32,17 @@ class AArch64Ebo : public Ebo {
 
   ~AArch64Ebo() override = default;
 
+  enum ExtOpTable {
+    AND = 0,
+    SXTB,
+    SXTH,
+    SXTW,
+    ZXTB,
+    ZXTH,
+    ZXTW,
+    ExtTableSize
+  };
+
  protected:
   MapleVector<RegOperand*> callerSaveRegTable;
   AArch64CGFunc *a64CGFunc;
@@ -49,6 +60,7 @@ class AArch64Ebo : public Ebo {
   void DefineReturnUseRegister(Insn &insn) override;
   void DefineCallUseSpecialRegister(Insn &insn) override;
   void DefineClinitSpecialRegisters(InsnInfo &insnInfo) override;
+  bool CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64Bits);
   bool SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) override;
   bool IsMovToSIMDVmov(Insn &insn, const Insn &replaceInsn) const override;
   bool IsPseudoRet(Insn &insn) const override;
