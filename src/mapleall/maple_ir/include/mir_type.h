@@ -40,6 +40,7 @@ extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // ver
 extern uint32 GetPrimTypeSize(PrimType primType);                         // answer in bytes; 0 if unknown
 extern uint32 GetPrimTypeP2Size(PrimType primType);                       // answer in bytes in power-of-two.
 extern PrimType GetSignedPrimType(PrimType pty);                          // return signed version
+extern uint32 GetPrimTypeLanes(PrimType pty);                             // lane size if vector
 extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 
@@ -414,6 +415,48 @@ class GenericAttrs {
 #if MIR_FEATURE_FULL
 constexpr size_t kShiftNumOfTypeKind = 8;
 constexpr size_t kShiftNumOfNameStrIdx = 6;
+constexpr int32 kOffsetUnknown = INT_MAX;
+constexpr int32 kOffsetMax = (INT_MAX - 1);
+constexpr int32 kOffsetMin = INT_MIN;
+struct OffsetType {
+  explicit OffsetType(int32 offset) : val(offset) {}
+  ~OffsetType() = default;
+
+  void Set(int64 offsetVal) {
+    val = (offsetVal >= kOffsetMin && offsetVal <= kOffsetMax) ? static_cast<int32>(offsetVal)
+                                                               : kOffsetUnknown;
+  }
+
+  bool IsInvalid() const {
+    return val == kOffsetUnknown;
+  }
+
+  OffsetType operator+(int64 offset) const {
+    int64 sum = this->val + offset;
+    if (sum >= kOffsetMin && sum <= kOffsetMax) {
+      return OffsetType(static_cast<int32>(sum));
+    }
+    return OffsetType(kOffsetUnknown);
+  }
+
+  OffsetType operator+(OffsetType other) const {
+    return other + val;
+  }
+
+  bool operator<(OffsetType other) const {
+    return val < other.val;
+  }
+
+  bool operator==(OffsetType other) const {
+    return val == other.val;
+  }
+
+  static OffsetType InvalidOffset() {
+    return OffsetType(kOffsetUnknown);
+  }
+
+  int32 val = kOffsetUnknown;
+};
 
 class MIRStructType; // circular dependency exists, no other choice
 
@@ -704,6 +747,17 @@ class MIRArrayType : public MIRType {
     return hIdx % kTypeHashLength;
   }
 
+  int64 OffsetInByteFromArrayAddress(std::vector<int64> arrayIndex) {
+    ASSERT(dim == arrayIndex.size(), "number of array index incorrect");
+    int64 offset = 0;
+    uint32 numberOfElemInLowerDim = 1;
+    for (uint32 id = 1; id <= dim; ++id) {
+      offset += arrayIndex[dim - id] * numberOfElemInLowerDim;
+      numberOfElemInLowerDim *= sizeArray[dim - id];
+    }
+    return offset * static_cast<int64>(GetElemType()->GetSize());
+  }
+
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
   bool HasFields() const override;
@@ -759,6 +813,10 @@ class MIRFarrayType : public MIRType {
   bool HasFields() const override;
   size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
+
+  int64 OffsetInByteFromArrayAddress(int64 arrayIndex) {
+    return arrayIndex * static_cast<int64>(GetElemType()->GetSize());
+  }
 
  private:
   TyIdx elemTyIdx;

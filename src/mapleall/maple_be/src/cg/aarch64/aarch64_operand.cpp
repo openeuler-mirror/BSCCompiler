@@ -84,11 +84,28 @@ void AArch64RegOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
       break;
     }
     case kRegTyFloat: {
-      ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize || opndSize == k64BitSize),
-             "illegal register size");
-      /* FP reg cannot be reffield. 8~0, 16~1, 32~2, 64~3. 8 is 1000b, has 3 zero. */
-      uint32 regSet = __builtin_ctz(opndSize) - 3;
-      emitter.Emit(AArch64CG::intRegNames[regSet][regNO]);
+      ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize || opndSize == k64BitSize
+              || opndSize == k128BitSize), "illegal register size");
+      int32 laneSize = GetVecLaneSize();
+      if (static_cast<const AArch64OpndProp*>(opndProp)->IsVectorOperand() && laneSize != 0) {
+        std::string width;
+        if (opndSize == k128BitSize) {
+          width = laneSize == 16 ? "b" : (laneSize == 8 ? "h" : (laneSize == 4 ? "s" : "d"));
+        } else if (opndSize == k64BitSize) {
+          width = laneSize == 8 ? "b" : (laneSize == 4 ? "h" : "s");
+        }
+        int16 lanePos = GetVecLanePosition();
+        emitter.Emit(AArch64CG::vectorRegNames[regNO]);
+        if (lanePos == -1) {
+          emitter.Emit("." + std::to_string(laneSize) + width);
+        } else {
+          emitter.Emit("." + width + "[" + std::to_string(lanePos) + "]");
+        }
+      } else {
+        /* FP reg cannot be reffield. 8~0, 16~1, 32~2, 64~3. 8 is 1000b, has 3 zero. */
+        uint32 regSet = __builtin_ctz(opndSize) - 3;
+        emitter.Emit(AArch64CG::intRegNames[regSet][regNO]);
+      }
       break;
     }
     default:
@@ -213,7 +230,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
 #if DEBUG
   const AArch64MD *md = &AArch64CG::kMd[emitter.GetCurrentMOP()];
   bool isLDSTpair = md->IsLoadStorePair();
-  ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize, "unexpected opnd size");
+  ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize || md->GetOperandSize() == k128BitSize, "unexpected opnd size");
 #endif
   if (addressMode == AArch64MemOperand::kAddrModeBOi) {
     emitter.Emit("[");

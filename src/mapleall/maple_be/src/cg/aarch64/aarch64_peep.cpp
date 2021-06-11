@@ -75,7 +75,9 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     case MOP_wmovrr:
     case MOP_xmovrr:
     case MOP_xvmovs:
-    case MOP_xvmovd: {
+    case MOP_xvmovd:
+    case MOP_vmovuu:
+    case MOP_vmovvv: {
       (static_cast<RemoveMovingtoSameRegAArch64*>(optimizations[kRemoveMovingtoSameRegOpt]))->Run(bb, insn);
       break;
     }
@@ -1997,6 +1999,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
   if (thisMop != MOP_xadrpl12) {
     return;
   }
+
   MOperator nextMop = nextInsn->GetMachineOpcode();
   if (nextMop &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldp) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstp))) {
@@ -2034,12 +2037,22 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     auto &stImmOpnd = static_cast<StImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     AArch64OfstOperand &offOpnd = aarch64CGFunc->GetOrCreateOfstOpnd(
         stImmOpnd.GetOffset() + memOpnd->GetOffsetImmediate()->GetOffsetValue(), k32BitSize);
+    if (cgFunc.GetMirModule().IsCModule()) {
+      Insn *prevInsn = insn.GetPrev();
+      MOperator prevMop = prevInsn->GetMachineOpcode();
+      if (prevMop != MOP_xadrp) {
+        return;
+      } else {
+        auto &prevStImmOpnd = static_cast<StImmOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+        prevStImmOpnd.SetOffset(offOpnd.GetValue());
+      }
+    }
     auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     AArch64MemOperand &newMemOpnd =
         aarch64CGFunc->GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeLo12Li, memOpnd->GetSize(),
                                           &newBaseOpnd, nullptr, &offOpnd, stImmOpnd.GetSymbol());
 
-    nextInsn->SetMemOpnd(static_cast<MemOperand *>(&newMemOpnd));
+    nextInsn->SetMemOpnd(static_cast<MemOperand*>(&newMemOpnd));
     bb.RemoveInsn(insn);
     CHECK_FATAL(!CGOptions::IsLazyBinding() || cgFunc.GetCG()->IsLibcore(),
         "this pattern can't be found in this phase");

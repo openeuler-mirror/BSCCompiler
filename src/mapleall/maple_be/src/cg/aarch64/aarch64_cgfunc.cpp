@@ -37,7 +37,7 @@ CondOperand AArch64CGFunc::ccOperands[kCcLast] = {
 namespace {
 constexpr int32 kSignedDimension = 2;        /* signed and unsigned */
 constexpr int32 kIntByteSizeDimension = 4;   /* 1 byte, 2 byte, 4 bytes, 8 bytes */
-constexpr int32 kFloatByteSizeDimension = 2; /* 4 bytes, 8 bytes */
+constexpr int32 kFloatByteSizeDimension = 3; /* 4 bytes, 8 bytes, 16 bytes(vector) */
 constexpr int32 kShiftAmount12 = 12;         /* for instruction that can use shift, shift amount must be 0 or 12 */
 
 MOperator ldIs[kSignedDimension][kIntByteSizeDimension] = {
@@ -68,11 +68,11 @@ MOperator stIsRel[kSignedDimension][kIntByteSizeDimension] = {
   { MOP_wstlrb, MOP_wstlrh, MOP_wstlr, MOP_xstlr }
 };
 
-MOperator ldFs[kFloatByteSizeDimension] = { MOP_sldr, MOP_dldr };
-MOperator stFs[kFloatByteSizeDimension] = { MOP_sstr, MOP_dstr };
+MOperator ldFs[kFloatByteSizeDimension] = { MOP_sldr, MOP_dldr, MOP_qldr };
+MOperator stFs[kFloatByteSizeDimension] = { MOP_sstr, MOP_dstr, MOP_qstr };
 
-MOperator ldFsAcq[kFloatByteSizeDimension] = { MOP_undef, MOP_undef };
-MOperator stFsRel[kFloatByteSizeDimension] = { MOP_undef, MOP_undef };
+MOperator ldFsAcq[kFloatByteSizeDimension] = { MOP_undef, MOP_undef, MOP_undef };
+MOperator stFsRel[kFloatByteSizeDimension] = { MOP_undef, MOP_undef, MOP_undef };
 
 /* extended to unsigned ints */
 MOperator uextIs[kIntByteSizeDimension][kIntByteSizeDimension] = {
@@ -107,7 +107,7 @@ MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64is
   }
 
   /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
-  if (IsPrimitiveInteger(primType) || primType == PTY_agg) {
+  if ((IsPrimitiveInteger(primType) || primType == PTY_agg) && !IsPrimitiveVector(primType))  {
     MOperator(*table)[kIntByteSizeDimension];
     if (isLoad) {
       table = (memOrd == AArch64isa::kMoAcquire) ? ldIsAcq : ldIs;
@@ -134,9 +134,9 @@ MOperator PickLdStInsn(bool isLoad, uint32 bitSize, PrimType primType, AArch64is
       table = (memOrd == AArch64isa::kMoRelease) ? stFsRel : stFs;
     }
 
-    /* __builtin_ffs(x) returns: 32 -> 6, 64 -> 7 */
+    /* __builtin_ffs(x) returns: 32 -> 6, 64 -> 7, 128 -> 8 */
     uint32 size = static_cast<uint32>(__builtin_ffs(static_cast<int32>(bitSize))) - 6;
-    ASSERT(size <= 1, "size must be 0 or 1");
+    ASSERT(size <= 2, "size must be 0 to 2");
     return table[size];
   }
 }
@@ -214,12 +214,12 @@ MOperator AArch64CGFunc::PickMovInsn(RegOperand &lhs, RegOperand &rhs) {
 }
 
 MOperator AArch64CGFunc::PickMovInsn(uint32 bitLen, RegType regType) {
-  ASSERT((bitLen == k32BitSize) || (bitLen == k64BitSize), "size check");
+  ASSERT((bitLen == k32BitSize) || (bitLen == k64BitSize || bitLen == k128BitSize), "size check");
   ASSERT((regType == kRegTyInt) || (regType == kRegTyFloat), "type check");
   if (regType == kRegTyInt) {
     return (bitLen == k32BitSize) ? MOP_wmovrr : MOP_xmovrr;
   }
-  return (bitLen == k32BitSize) ? MOP_xvmovs : MOP_xvmovd;
+  return bitLen == k128BitSize ? MOP_vmovvv : ((bitLen == k32BitSize) ? MOP_xvmovs : MOP_xvmovd);
 }
 
 void AArch64CGFunc::SelectLoadAcquire(Operand &dest, PrimType dtype, Operand &src, PrimType stype,
@@ -470,7 +470,7 @@ void AArch64CGFunc::SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsiz
   PrimType regTy = PTY_void;
   RegOperand *loadReg = nullptr;
   MOperator mop = MOP_undef;
-  if (IsPrimitiveFloat(stype)) {
+  if (IsPrimitiveFloat(stype) || IsPrimitiveVector(stype)) {
     CHECK_FATAL(dsize == ssize, "dsize %u expect equals ssize %u", dtype, ssize);
     insn = &GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(ssize, stype), dest, src);
   } else {
@@ -710,6 +710,19 @@ void AArch64CGFunc::SelectCopy(Operand &dest, PrimType dtype, Operand &src, Prim
                                                                     dest, AArch64RegOperand::GetZeroRegister(dsize)));
       break;
     case Operand::kOpdRegister:
+      if (opnd0Type == Operand::kOpdRegister && GetPrimTypeLanes(stype) > 0) {
+        /* check vector reg to vector reg move */
+        CHECK_FATAL(GetPrimTypeLanes(dtype) > 0, "invalid vectreg to vectreg move");
+        VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+        vecSpecSrc->vecLaneMax = k16BitSize;
+        VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
+        vecSpecDest->vecLaneMax = k16BitSize;
+        Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(dsize <= k64BitSize ? MOP_vmovuu : MOP_vmovvv, dest, src);
+        static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+        static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+        GetCurBB()->AppendInsn(*insn);
+        break;
+      }
       SelectCopyRegOpnd(dest, dtype, opnd0Type, dsize, src, stype);
       break;
     default:
@@ -739,7 +752,7 @@ RegOperand &AArch64CGFunc::SelectCopy(Operand &src, PrimType stype, PrimType dty
  */
 bool AArch64CGFunc::IsImmediateOffsetOutOfRange(AArch64MemOperand &memOpnd, uint32 bitLen) {
   ASSERT(bitLen >= k8BitSize, "bitlen error");
-  ASSERT(bitLen <= k64BitSize, "bitlen error");
+  ASSERT(bitLen <= k128BitSize, "bitlen error");
 
   if (bitLen >= k8BitSize) {
     bitLen = RoundUp(bitLen, k8BitSize);
@@ -1401,6 +1414,9 @@ void AArch64CGFunc::SelectIassign(IassignNode &stmt) {
   PrimType destType = pointedType->GetPrimType();
   if (destType == PTY_agg) {
     destType = PTY_a64;
+  }
+  if (GetPrimTypeLanes(styp) != 0) {  /* a vector type */
+    destType = styp;
   }
   ASSERT(stmt.Opnd(0) != nullptr, "null ptr check");
   MemOperand &memOpnd = CreateMemOpnd(destType, stmt, *stmt.Opnd(0), offset);
@@ -4784,12 +4800,13 @@ Operand &AArch64CGFunc::GetTargetRetOperand(PrimType primType, int32 sReg) {
   uint32 bitSize = GetPrimTypeBitSize(primType) < k32BitSize ? k32BitSize : GetPrimTypeBitSize(primType);
   AArch64reg pReg;
   if (sReg < 0) {
-    return GetOrCreatePhysicalRegisterOperand(IsPrimitiveFloat(primType) ? S0 : R0, bitSize,
-                                              GetRegTyFromPrimTy(primType));
+    return GetOrCreatePhysicalRegisterOperand(
+      IsPrimitiveFloat(primType) || (GetPrimTypeLanes(primType) > 0) ? S0 : R0,
+      bitSize, GetRegTyFromPrimTy(primType));
   } else {
     switch (sReg) {
     case kSregRetval0:
-      pReg = IsPrimitiveFloat(primType) ? S0 : R0;
+      pReg = IsPrimitiveFloat(primType) || (GetPrimTypeLanes(primType) > 0) ? S0 : R0;
       break;
     case kSregRetval1:
       pReg = R1;
@@ -6512,7 +6529,7 @@ AArch64RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(AArch64reg 
     size = k32BitSize;
     aarch64PhyRegIdx = aarch64PhyRegIdx << 1;
   }  else {
-    size = k64BitSize;
+    size = size == k128BitSize ? k128BitSize : k64BitSize;
     aarch64PhyRegIdx = (aarch64PhyRegIdx << 1) + 1;
   }
   ASSERT(aarch64PhyRegIdx < k256BitSize, "phyRegOperandTable index out of range");
@@ -6978,6 +6995,9 @@ int32 AArch64CGFunc::GetBaseOffset(const SymbolAlloc &sa) {
     return offset;
   } else if (sgKind == kMsArgsRegPassed) {
     int32 baseOffset = memLayout->GetSizeOfLocals() + symAlloc->GetOffset() + memLayout->GetSizeOfRefLocals();
+    if (symAlloc->GetMemSegment()->ContainVector()) {
+      baseOffset = RoundUp(baseOffset, k16ByteSize);
+    }
     return baseOffset + sizeofFplr;
   } else if (sgKind == kMsRefLocals) {
     int32 baseOffset = symAlloc->GetOffset() + memLayout->GetSizeOfLocals();
@@ -7943,6 +7963,205 @@ void AArch64CGFunc::InsertJumpPad(Insn *insn) {
 
   fallthruBB->RemovePreds(*bb);
   fallthruBB->PushBackPreds(*brBB);
+}
+
+RegOperand *AArch64CGFunc::SelectVectorFromScalar(IntrinsicopNode &intrnNode) {
+  PrimType pType = intrnNode.GetPrimType();
+
+  RegOperand *res = &CreateRegisterOperandOfType(pType);
+  BaseNode *argExpr = intrnNode.Opnd(0);
+  Operand *opnd0 = HandleExpr(intrnNode, *argExpr);
+  VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpec->vecLaneMax = GetPrimTypeLanes(pType);
+
+  Operand *reg = opnd0;
+  if (opnd0->IsConstImmediate()) {
+    ImmOperand *immOpnd = static_cast<ImmOperand*>(opnd0);
+    ConstvalNode *constvalNode = static_cast<ConstvalNode*>(argExpr);
+    MIRConst *mirConst = constvalNode->GetConstVal();
+    int32 val = safe_cast<MIRIntConst>(mirConst)->GetValue();
+    if (val >= -128 && val <= 255) {
+      Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vmovvi, *res, *immOpnd);
+      static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec);
+      GetCurBB()->AppendInsn(*insn);
+      return res;
+    }
+    reg = &CreateRegisterOperandOfType(argExpr->GetPrimType());
+    SelectCopyImm(*reg, *immOpnd, argExpr->GetPrimType());
+  }
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vdupvr, *res, *reg);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+Operand *AArch64CGFunc::SelectVectorStore(IntrinsicopNode &intrnNode) {
+  BaseNode &argExpr = *intrnNode.Opnd(1);
+  Operand &srcOpnd = *HandleExpr(intrnNode, argExpr);
+
+  PrimType dType = argExpr.GetPrimType();
+  MemOperand &memOpnd = CreateMemOpnd(dType, intrnNode, *intrnNode.Opnd(0), 0);
+  SelectCopy(memOpnd, dType, srcOpnd, dType);
+  return &srcOpnd;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorGetHigh(IntrinsicopNode &intrnNode) {
+  BaseNode &argExpr = *intrnNode.Opnd(0);
+  PrimType srcType = argExpr.GetPrimType();
+  Operand &srcOpnd = *HandleExpr(intrnNode, argExpr);
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(srcType);
+  vecSpecSrc->vecLane = 1;
+
+  PrimType resType = intrnNode.GetPrimType();
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vduprv, *res, srcOpnd);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorGetLow(IntrinsicopNode &intrnNode) {
+  BaseNode &argExpr = *intrnNode.Opnd(0);
+  PrimType srcType = argExpr.GetPrimType();
+  Operand &srcOpnd = *HandleExpr(intrnNode, argExpr);
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(srcType);
+  vecSpecSrc->vecLane = 0;
+
+  PrimType resType = intrnNode.GetPrimType();
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vduprv, *res, srcOpnd);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorGetElement(IntrinsicopNode &intrnNode) {
+  PrimType resType = intrnNode.GetPrimType();  /* uint32_t result */
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+
+  BaseNode *argExpr = intrnNode.Opnd(0);       /* vector operand */
+  Operand *opndSrc = HandleExpr(intrnNode, *argExpr);
+  PrimType srcType = argExpr->GetPrimType();
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(srcType);
+
+  BaseNode *argLane = intrnNode.Opnd(1);      /* lane const operand */
+  Operand *opndLane = HandleExpr(intrnNode, *argLane);
+  if (opndLane->IsConstImmediate()) {
+    ConstvalNode *constvalNode = static_cast<ConstvalNode*>(argLane);
+    MIRConst *mirConst = constvalNode->GetConstVal();
+    vecSpecSrc->vecLane = safe_cast<MIRIntConst>(mirConst)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorGetElement does not have lane const");
+  }
+
+  MOperator mop = GetPrimTypeBitSize(srcType) <= k64BitSize ? MOP_vwmovru : MOP_vwmovrv;
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mop, *res, *opndSrc);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorPairwiseAdd(IntrinsicopNode &intrnNode) {
+  PrimType resType = intrnNode.GetPrimType();
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecDest->vecLaneMax = GetPrimTypeLanes(resType);
+
+  BaseNode *argExpr = intrnNode.Opnd(0);
+  Operand *opnd = HandleExpr(intrnNode, *argExpr);
+  PrimType srcType = argExpr->GetPrimType();
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(srcType);
+
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vpaddvv, *res, *opnd);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);     /* dest pushed first, popped first */
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorSetElement(IntrinsicopNode &intrnNode) {
+  BaseNode *arg0 = intrnNode.Opnd(0);                    /* uint32_t operand */
+  Operand *opnd0 = HandleExpr(intrnNode, *arg0);
+  ASSERT(GetPrimTypeBitSize(arg0->GetPrimType()) <= k32BitSize, "VectorSetElement: invalid opnd0");
+
+  BaseNode *arg1 = intrnNode.Opnd(1);                    /* vector operand == result */
+  Operand *opnd1 = HandleExpr(intrnNode, *arg1);
+  PrimType vType = arg1->GetPrimType();
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(vType);
+
+  BaseNode *arg2 = intrnNode.Opnd(2);                    /* lane const operand */
+  Operand *opnd2 = HandleExpr(intrnNode, *arg2);
+  if (opnd2->IsConstImmediate()) {
+    ConstvalNode *constvalNode = static_cast<ConstvalNode*>(arg2);
+    MIRConst *mirConst = constvalNode->GetConstVal();
+    vecSpecSrc->vecLane = safe_cast<MIRIntConst>(mirConst)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorSetElement does not have lane const");
+  }
+
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vinsvr, *opnd1, *opnd0);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return static_cast<RegOperand*>(opnd1);
+}
+
+RegOperand *AArch64CGFunc::SelectVectorMerge(IntrinsicopNode &intrnNode) {
+  PrimType resType = intrnNode.GetPrimType();            /* result operand */
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecDest->vecLaneMax = GetPrimTypeLanes(resType);
+
+  BaseNode *arg1 = intrnNode.Opnd(0);                    /* vector operand1 */
+  Operand *opnd1 = HandleExpr(intrnNode, *arg1);
+  PrimType o1Type = arg1->GetPrimType();
+  VectorRegSpec *vecSpecOpd1 = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecOpd1->vecLaneMax = GetPrimTypeLanes(o1Type);
+
+  BaseNode *arg2 = intrnNode.Opnd(1);                    /* vector operand2 */
+  Operand *opnd2 = HandleExpr(intrnNode, *arg1);
+  PrimType o2Type = arg2->GetPrimType();
+  VectorRegSpec *vecSpecOpd2 = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecOpd2->vecLaneMax = GetPrimTypeLanes(o2Type);
+
+  BaseNode *arg3 = intrnNode.Opnd(2);                    /* lane const operand */
+  Operand *opnd3 = HandleExpr(intrnNode, *arg3);
+  if (!opnd3->IsConstImmediate()) {
+    CHECK_FATAL(0, "VectorSetElement does not have lane const");
+  }
+
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vextvvv, *res, *opnd1, *opnd2, *opnd3);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd1);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd2);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorReverse(IntrinsicopNode &intrnNode, uint32 size) {
+  PrimType resType = intrnNode.GetPrimType();            /* result operand */
+  RegOperand *res = &CreateRegisterOperandOfType(resType);
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecDest->vecLaneMax = GetPrimTypeLanes(resType);
+
+  BaseNode &argExpr = *intrnNode.Opnd(0);
+  PrimType srcType = argExpr.GetPrimType();
+  Operand &srcOpnd = *HandleExpr(intrnNode, argExpr);
+  VectorRegSpec *vecSpecSrc = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecSrc->vecLaneMax = GetPrimTypeLanes(srcType);
+
+  MOperator mOp = size >= 64 ? MOP_vrev64vv : (size >= 32 ? MOP_vrev32vv : MOP_vrev16vv);
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, srcOpnd);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecSrc);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
 }
 
 }  /* namespace maplebe */
