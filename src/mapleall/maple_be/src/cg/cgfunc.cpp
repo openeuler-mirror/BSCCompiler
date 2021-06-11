@@ -375,6 +375,28 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
       return cgFunc.SelectCctz(intrinsicopNode);
+    case INTRN_vector_from_scalar_v4i32:
+    case INTRN_vector_from_scalar_v16u8:
+      return cgFunc.SelectVectorFromScalar(intrinsicopNode);
+    case INTRN_vector_merge_v16u8:
+      return cgFunc.SelectVectorMerge(intrinsicopNode);
+    case INTRN_vector_store_v4i32:
+    case INTRN_vector_store_v16u8:
+      return cgFunc.SelectVectorStore(intrinsicopNode);
+    case INTRN_vector_get_high_v2u64:
+      return cgFunc.SelectVectorGetHigh(intrinsicopNode);
+    case INTRN_vector_get_low_v2u64:
+      return cgFunc.SelectVectorGetLow(intrinsicopNode);
+    case INTRN_vector_get_element_v2u32:
+    case INTRN_vector_get_element_v4u32:
+      return cgFunc.SelectVectorGetElement(intrinsicopNode);
+    case INTRN_vector_pairwise_add_v8u16:
+    case INTRN_vector_pairwise_add_v4u32:
+      return cgFunc.SelectVectorPairwiseAdd(intrinsicopNode);
+    case INTRN_vector_set_element_v4u32:
+      return cgFunc.SelectVectorSetElement(intrinsicopNode);
+    case INTRN_vector_reverse_v16u8:
+      return cgFunc.SelectVectorReverse(intrinsicopNode, 32);
     default:
       ASSERT(false, "Should not reach here.");
       return nullptr;

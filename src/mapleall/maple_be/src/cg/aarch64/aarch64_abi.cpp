@@ -451,6 +451,13 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
     case PTY_f32:
     case PTY_f64:
     case PTY_c64:
+    case PTY_v2i32:
+    case PTY_v4i16:
+    case PTY_v8i8:
+    case PTY_v2u32:
+    case PTY_v4u16:
+    case PTY_v8u8:
+    case PTY_v2f32:
       /* Rule C.1 */
       ASSERT(GetPrimTypeSize(PTY_f64) == k8ByteSize, "unexpected type size");
       typeSize = k8ByteSize;
@@ -462,6 +469,16 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
      * - callees de-marshall one f128 value into the real and the imaginery part
      */
     case PTY_c128:
+    case PTY_v2i64:
+    case PTY_v4i32:
+    case PTY_v8i16:
+    case PTY_v16i8:
+    case PTY_v2u64:
+    case PTY_v4u32:
+    case PTY_v8u16:
+    case PTY_v16u8:
+    case PTY_v2f64:
+    case PTY_v4f32:
       /* SIMD-FP registers have 128-bits. */
       pLoc.reg0 = AllocateSIMDFPRegister();
       ASSERT(nextFloatRegNO <= AArch64Abi::kNumFloatParmRegs, "regNO should not be greater than kNumFloatParmRegs");
@@ -622,6 +639,13 @@ ReturnMechanism::ReturnMechanism(MIRType &retTy, const BECommon &be)
     case PTY_f32:
     case PTY_f64:
     case PTY_c64:
+    case PTY_v2i32:
+    case PTY_v4i16:
+    case PTY_v8i8:
+    case PTY_v2u32:
+    case PTY_v4u16:
+    case PTY_v8u8:
+    case PTY_v2f32:
 
     /*
      * for c128 complex numbers, we assume
@@ -629,6 +653,16 @@ ReturnMechanism::ReturnMechanism(MIRType &retTy, const BECommon &be)
      * - callees de-marshall one f128 value into the real and the imaginery part
      */
     case PTY_c128:
+    case PTY_v2i64:
+    case PTY_v4i32:
+    case PTY_v8i16:
+    case PTY_v16i8:
+    case PTY_v2u64:
+    case PTY_v4u32:
+    case PTY_v8u16:
+    case PTY_v16u8:
+    case PTY_v2f64:
+    case PTY_v4f32:
       regCount = 1;
       reg0 = AArch64Abi::floatReturnRegs[0];
       primTypeOfReg0 = pType;

@@ -58,10 +58,18 @@ std::array<std::array<const std::string, kAllRegNum>, kIntRegTypeNum> AArch64CG:
     "err", "x0",  "x1",  "x2",  "x3",  "x4",  "x5",  "x6",  "x7",  "x8",  "x9",  "x10", "x11", "x12", "x13", "x14",
     "x15", "x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23", "x24", "x25", "x26", "x27", "x28", "x29", "x30",
     "sp",  "xzr", /* x29 is fp */
-    "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",  "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",
-    "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",
+    "q0",  "q1",  "q2",  "q3",  "q4",  "q5",  "q6",  "q7",  "q8",  "q9",  "q10", "q11", "q12", "q13", "q14", "q15",
+    "q16", "q17", "q18", "q19", "q20", "q21", "q22", "q23", "q24", "q25", "q26", "q27", "q28", "q29", "q30", "q31",
     "errMaxRegNum", "rflag" }
 };
+
+std::array<const std::string, kAllRegNum> AArch64CG::vectorRegNames = {
+  "err",   "err0",  "err1",  "err2",  "err3",  "err4",  "err5",  "err6",  "err7",  "err8",  "err9",  "err10",
+  "err11", "err12", "err13", "err14", "err15", "err16", "err17", "err18", "err19", "err20", "err21", "err22",
+  "err23", "err24", "err25", "err26", "err27", "err28", "err29", "err30", "errsp", "errzr",   /* x29 is fp */
+  "v0",  "v1",  "v2",  "v3",  "v4",  "v5",  "v6",  "v7",  "v8",  "v9",  "v10", "v11", "v12", "v13", "v14", "v15",
+  "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23", "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",
+  "errMaxRegNum", "rflag" };
 
 bool AArch64CG::IsExclusiveFunc(MIRFunction &mirFunc) {
   const std::string &funcName = mirFunc.GetName();
