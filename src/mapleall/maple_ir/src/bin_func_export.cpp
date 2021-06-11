@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -13,28 +13,25 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-
 #include "mir_function.h"
 #include "opcode_info.h"
 #include "mir_pragma.h"
 #include "mir_builder.h"
 #include "bin_mplt.h"
-
 #include <sstream>
 #include <vector>
 
 using namespace std;
 namespace maple {
-
-void BinaryMplExport::OutputInfoVector(const MIRInfoVector &infovector, const MapleVector<bool> &infovector_isstring) {
-  WriteNum(infovector.size());
-  for (uint32 i = 0; i < infovector.size(); i++) {
-    OutputStr(infovector[i].first);
-    WriteNum(infovector_isstring[i]);
-    if (!infovector_isstring[i]) {
-      WriteNum(infovector[i].second);
+void BinaryMplExport::OutputInfoVector(const MIRInfoVector &infoVector, const MapleVector<bool> &infoVectorIsString) {
+  WriteNum(infoVector.size());
+  for (uint32 i = 0; i < infoVector.size(); i++) {
+    OutputStr(infoVector[i].first);
+    WriteNum(infoVectorIsString[i]);
+    if (!infoVectorIsString[i]) {
+      WriteNum(infoVector[i].second);
     } else {
-      OutputStr(GStrIdx(infovector[i].second));
+      OutputStr(GStrIdx(infoVector[i].second));
     }
   }
 }
@@ -133,10 +130,10 @@ void BinaryMplExport::OutputLabelTab(const MIRFunction *func) {
   WriteNum(~kBinLabelStart);
 }
 
-void BinaryMplExport::OutputLocalTypeNameTab(const MIRTypeNameTable *tnametab) {
+void BinaryMplExport::OutputLocalTypeNameTab(const MIRTypeNameTable *typeNameTab) {
   WriteNum(kBinTypenameStart);
-  WriteNum(tnametab->Size());
-  for (std::pair<GStrIdx, TyIdx> it : tnametab->GetGStrIdxToTyIdxMap()) {
+  WriteNum(typeNameTab->Size());
+  for (std::pair<GStrIdx, TyIdx> it : typeNameTab->GetGStrIdxToTyIdxMap()) {
     OutputStr(it.first);
     OutputTypeViaTypeName(it.second);
   }
@@ -329,7 +326,7 @@ void BinaryMplExport::OutputExpression(BaseNode *e) {
     default:
       break;
   }
-  for (int32 i = 0; i < e->NumOpnds(); i++) {
+  for (uint32 i = 0; i < e->NumOpnds(); ++i) {
     OutputExpression(e->Opnd(i));
   }
 }
@@ -587,13 +584,44 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         doneWithOpnds = true;
         break;
       }
+      case OP_asm: {
+        AsmNode *asmNode = static_cast<AsmNode *>(s);
+        WriteNum(asmNode->qualifiers);
+        string str(asmNode->asmString.c_str());
+        WriteAsciiStr(str);
+        // the outputs
+        size_t count = asmNode->asmOutputs.size();
+        WriteNum(count);
+        for (int32 i = 0; i < count; i++) {
+          OutputUsrStr(asmNode->outputConstraints[i]);
+        }
+        OutputReturnValues(&asmNode->asmOutputs);
+        // the clobber list
+        count = asmNode->clobberList.size();
+        WriteNum(count);
+        for (int32 i = 0; i < count; i++) {
+          OutputUsrStr(asmNode->clobberList[i]);
+        }
+        // the labels
+        count = asmNode->gotoLabels.size();
+        WriteNum(count);
+        for (int32 i = 0; i < count; i++) {
+          WriteNum(asmNode->gotoLabels[i]);
+        }
+        // the inputs
+        WriteNum(asmNode->NumOpnds());
+        for (int32 i = 0; i < asmNode->numOpnds; i++) {
+          OutputUsrStr(asmNode->inputConstraints[i]);
+        }
+        break;
+      }
       default:
         CHECK_FATAL(false, "Unhandled opcode %d", s->GetOpCode());
         break;
     }
     num++;
     if (!doneWithOpnds) {
-      for (int32 i = 0; i < s->NumOpnds(); i++) {
+      for (uint32 i = 0; i < s->NumOpnds(); ++i) {
         OutputExpression(s->Opnd(i));
       }
     }
@@ -653,5 +681,4 @@ void BinaryMplExport::WriteFunctionBodyField(uint64 contentIdx, std::unordered_s
   WriteNum(~kBinFunctionBodyStart);
   return;
 }
-
 }  // namespace maple

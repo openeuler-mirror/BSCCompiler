@@ -773,6 +773,45 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         stmt = ImportBlockNode(func);
         break;
       }
+      case OP_asm: {
+        AsmNode *s = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+        s->qualifiers = ReadNum();
+        string str;
+        ReadAsciiStr(str);
+        s->asmString = str;
+        // the outputs
+        size_t count = ReadNum();
+        UStrIdx strIdx;
+        for (int32 i = 0; i < count; i++) {
+          strIdx = ImportUsrStr();
+          s->outputConstraints.push_back(strIdx);
+        }
+        ImportReturnValues(func, &s->asmOutputs);
+        // the clobber list
+        count = ReadNum();
+        for (int32 i = 0; i < count; i++) {
+          strIdx = ImportUsrStr();
+          s->clobberList.push_back(strIdx);
+        }
+        // the labels
+        count = ReadNum();
+        for (int32 i = 0; i < count; i++) {
+          LabelIdx lidx = ReadNum();
+          s->gotoLabels.push_back(lidx);
+        }
+        // the inputs
+        numOpr = ReadNum();
+        s->SetNumOpnds(numOpr);
+        for (int32 i = 0; i < numOpr; i++) {
+          strIdx = ImportUsrStr();
+          s->inputConstraints.push_back(strIdx);
+        }
+        for (int32 i = 0; i < numOpr; i++) {
+          s->GetNopnd().push_back(ImportExpression(func));
+        }
+        stmt = s;
+        break;
+      }
       default:
         CHECK_FATAL(false, "Unhandled opcode tag %d", tag);
         break;
