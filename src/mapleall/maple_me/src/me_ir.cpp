@@ -306,11 +306,18 @@ bool OpMeExpr::IsCompareIdentical(const OpMeExpr &meExpr) const {
   return (meExpr.GetOpnd(1) == this->GetOpnd(0)) && (meExpr.GetOpnd(0) == this->GetOpnd(1));
 }
 
+static bool CompatibleIntegerTypes(PrimType pty1, PrimType pty2) {
+  if (IsPrimitiveInteger(pty1) && IsPrimitiveInteger(pty2)) {
+    return GetPrimTypeSize(pty1) == GetPrimTypeSize(pty2) && IsSignedInteger(pty1) == IsSignedInteger(pty2);
+  }
+  return false;
+}
+
 bool OpMeExpr::IsIdentical(const OpMeExpr &meExpr) const {
   if (meExpr.GetOp() != GetOp()) {
     return false;
   }
-  if (meExpr.GetPrimType() != GetPrimType() || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
+  if (!CompatibleIntegerTypes(meExpr.GetPrimType(), GetPrimType()) || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
       meExpr.bitsSize != bitsSize || meExpr.tyIdx != tyIdx || meExpr.fieldID != fieldID) {
     return false;
   }
@@ -575,8 +582,14 @@ bool OpMeExpr::StrengthReducible() {
     case OP_cvt: {
       return IsPrimitiveInteger(opndType) && GetPrimTypeSize(primType) >= GetPrimTypeSize(opndType);
     }
-    case OP_mul:
-      return GetOpnd(1)->GetOp() == OP_constval;
+    case OP_mul: {
+      if (GetOpnd(1)->GetOp() == OP_constval) {
+        ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(GetOpnd(1));
+        MIRIntConst *cnode = static_cast<MIRIntConst *>(cMeExpr->GetConstVal());
+        return cnode->GetValue() < 0x1000;
+      }
+      return false;
+    }
     case OP_add:
       return true;
     default: return false;
@@ -1127,7 +1140,7 @@ void ChiMeNode::Dump(const IRMap *irMap) const {
   LogInfo::MapleLogger() << "mx" << meRHS->GetExprID() << "}";
 }
 
-void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList) {
+void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, ScalarMeExpr*> &muList) {
   if (muList.empty()) {
     return;
   }

@@ -539,6 +539,15 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
   }
 }
 
+static bool IncDecAmountIsSmallInteger(MeExpr *x) {
+  if (x->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(x);
+  MIRIntConst *cnode = dynamic_cast<MIRIntConst *>(cMeExpr->GetConstVal());
+  return cnode && cnode->GetValue() < 0x1000;
+}
+
 MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   DassignMeStmt *meStmt = irMap->NewInPool<DassignMeStmt>(&stmt);
   DassignNode &dassiNode = static_cast<DassignNode&>(stmt);
@@ -549,10 +558,13 @@ MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   // determine isIncDecStmt
   if (meStmt->GetChiList()->empty()) {
     MeExpr *rhs = meStmt->GetRHS();
-    if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+    OriginalSt *ost = varLHS->GetOst();
+    if (ost->GetType()->GetSize() >= 4 &&
+        (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) && 
+        IsPrimitivePureScalar(rhs->GetPrimType())) {
       OpMeExpr *oprhs = static_cast<OpMeExpr *>(rhs);
-      if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar && oprhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
-        meStmt->isIncDecStmt = varLHS->GetOst() == static_cast<VarMeExpr *>(oprhs->GetOpnd(0))->GetOst();
+      if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar && IncDecAmountIsSmallInteger(oprhs->GetOpnd(1))) {
+        meStmt->isIncDecStmt = ost == static_cast<VarMeExpr *>(oprhs->GetOpnd(0))->GetOst();
       }
     }
   }
