@@ -156,7 +156,7 @@ MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) const {
   /* __builtin_ffs(x) returns: 0 -> 0, 1 -> 1, 2 -> 2, 4 -> 3, 8 -> 4 */
   if (IsPrimitiveInteger(stype) && IsPrimitiveInteger(dtype)) {
     MOperator(*table)[kIntByteSizeDimension];
-    table = IsUnsignedInteger(dtype) ? uextIs : extIs;
+    table = IsUnsignedInteger(stype) ? uextIs : extIs;
     /* __builtin_ffs(x) returns: 8 -> 4, 16 -> 5, 32 -> 6, 64 -> 7 */
     uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - k4BitSize;
     ASSERT(row <= 3, "wrong bitSize");
@@ -3727,6 +3727,20 @@ Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpn
     SelectBand(resOpnd, opnd0, CreateImmOperand((static_cast<uint64>(1) << bitSize) - 1, immWidth, false), dtype);
     return &resOpnd;
   }
+  if (bitOffset == 0) {
+    MOperator mOp = MOP_undef;
+    if (bitSize == k8BitSize) {
+      mOp = is64Bits ? (isSigned ? MOP_xsxtb64 : MOP_xuxtb32) : (isSigned ? MOP_xsxtb32 : MOP_xuxtb32);
+    } else if (bitSize == k16BitSize) {
+      mOp = is64Bits ? (isSigned ? MOP_xsxth64 : MOP_xuxth32) : (isSigned ? MOP_xsxth32 : MOP_xuxth32);
+    } else if (bitSize == k32BitSize) {
+      mOp = is64Bits ? (isSigned ? MOP_xsxtw64 : MOP_xuxtw64) : MOP_wmovrr;
+    }
+    if (mOp != MOP_undef) {
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, resOpnd, opnd0));
+      return &resOpnd;
+    }
+  }
   uint32 mopBfx =
       is64Bits ? (isSigned ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6) : (isSigned ? MOP_wsbfxrri5i5 : MOP_wubfxrri5i5);
   AArch64ImmOperand &immOpnd1 = CreateImmOperand(bitOffset, k8BitSize, false);
@@ -4221,6 +4235,12 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
       if (fsize == k64BitSize) {
         if (tsize == k32BitSize) {
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovrr, *resOpnd, *opnd0));
+        } else if (tsize == k8BitSize) {
+          MOperator mOp = IsSignedInteger(toType) ? MOP_xsxtb32 : MOP_xuxtb32;
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
+        } else if (tsize == k16BitSize) {
+          MOperator mOp = IsSignedInteger(toType) ? MOP_xsxth32 : MOP_xuxth32;
+          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
         } else {
           MOperator mOp = IsSignedInteger(toType) ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6;
           GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,

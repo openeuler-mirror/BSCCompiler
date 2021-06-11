@@ -26,6 +26,17 @@ const std::string kMccLoadRefS = "MCC_LoadRefStatic";
 const std::string kMccLoadRefVS = "MCC_LoadVolatileStaticField";
 const std::string kMccDummy = "MCC_Dummy";
 
+const uint32 kSizeOfSextMopTable = 5;
+const uint32 kSizeOfUextMopTable = 3;
+
+MOperator sextMopTable[kSizeOfSextMopTable] = {
+  MOP_xsxtb32, MOP_xsxtb64, MOP_xsxth32, MOP_xsxth64, MOP_xsxtw64
+};
+
+MOperator uextMopTable[kSizeOfUextMopTable] = {
+  MOP_xuxtb32, MOP_xuxth32, MOP_xuxtw64
+};
+
 const std::string GetReadBarrierName(const Insn &insn) {
   constexpr int32 totalBarrierNamesNum = 5;
   std::array<std::string, totalBarrierNamesNum> barrierNames = {
@@ -190,6 +201,7 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kComplexMemOperandOptLSL] = optOwnMemPool->New<ComplexMemOperandLSLAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptLabel] = optOwnMemPool->New<ComplexMemOperandLabelAArch64>(cgFunc);
   optimizations[kWriteFieldCallOpt] = optOwnMemPool->New<WriteFieldCallAArch64>(cgFunc);
+  optimizations[kDuplicateExtensionOpt] = optOwnMemPool->New<ElimDuplicateExtensionAArch64>(cgFunc);
 }
 
 void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
@@ -232,6 +244,17 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
     }
     case MOP_xaddrrrs: {
       (static_cast<ComplexMemOperandLSLAArch64*>(optimizations[kComplexMemOperandOptLSL]))->Run(bb, insn);
+      break;
+    }
+    case MOP_xsxtb32:
+    case MOP_xsxth32:
+    case MOP_xsxtb64:
+    case MOP_xsxth64:
+    case MOP_xsxtw64:
+    case MOP_xuxtb32:
+    case MOP_xuxth32:
+    case MOP_xuxtw64: {
+      (static_cast<ElimDuplicateExtensionAArch64*>(optimizations[kDuplicateExtensionOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xldli: {
@@ -1207,6 +1230,69 @@ void ZeroCmpBranchesAArch64::Run(BB &bb, Insn &insn) {
   bb.RemoveInsn(*prevInsn);
 }
 
+void ElimDuplicateExtensionAArch64::Run(BB &bb, Insn &insn) {
+  Insn *prevInsn = insn.GetPreviousMachineInsn();
+  if (prevInsn == nullptr) {
+    return;
+  }
+  uint32 index;
+  uint32 upper;
+  bool is32bits = false;
+  MOperator *table = nullptr;
+  MOperator thisMop = insn.GetMachineOpcode();
+  switch (thisMop) {
+  case MOP_xsxtb32:
+    is32bits = true;
+  case MOP_xsxtb64:
+    table = sextMopTable;
+    index = 0;
+    upper = kSizeOfSextMopTable;
+    break;
+  case MOP_xsxth32:
+    is32bits = true;
+  case MOP_xsxth64:
+    table = sextMopTable;
+    index = 2;
+    upper = kSizeOfSextMopTable;
+    break;
+  case MOP_xsxtw64:
+    table = sextMopTable;
+    index = 4;
+    upper = kSizeOfSextMopTable;
+    break;
+  case MOP_xuxtb32:
+    is32bits = true;
+    table = uextMopTable;
+    index = 0;
+    upper = kSizeOfUextMopTable;
+    break;
+  case MOP_xuxth32:
+    is32bits = true;
+    table = uextMopTable;
+    index = 1;
+    upper = kSizeOfUextMopTable;
+    break;
+  case MOP_xuxtw64:
+    table = uextMopTable;
+    index = 2;
+    upper = kSizeOfUextMopTable;
+    break;
+  default:
+    CHECK_FATAL(false, "Unexpected mop");
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  for (uint32 i = index; i < upper; ++i) {
+    if (prevMop == table[i]) {
+      regno_t dest = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+      regno_t src = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+      if (dest == src) {
+        insn.SetMOP(is32bits ? MOP_wmovrr : MOP_xmovrr);
+      }
+      break;
+    }
+  }
+}
+
 /*
  * if there is define point of checkInsn->GetOperand(opndIdx) between startInsn and  firstInsn
  * return define insn. else return nullptr
@@ -1997,6 +2083,7 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
   if (thisMop != MOP_xadrpl12) {
     return;
   }
+
   MOperator nextMop = nextInsn->GetMachineOpcode();
   if (nextMop &&
       ((nextMop >= MOP_wldrsb && nextMop <= MOP_dldp) || (nextMop >= MOP_wstrb && nextMop <= MOP_dstp))) {
@@ -2034,12 +2121,22 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     auto &stImmOpnd = static_cast<StImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
     AArch64OfstOperand &offOpnd = aarch64CGFunc->GetOrCreateOfstOpnd(
         stImmOpnd.GetOffset() + memOpnd->GetOffsetImmediate()->GetOffsetValue(), k32BitSize);
+    if (cgFunc.GetMirModule().IsCModule()) {
+      Insn *prevInsn = insn.GetPrev();
+      MOperator prevMop = prevInsn->GetMachineOpcode();
+      if (prevMop != MOP_xadrp) {
+        return;
+      } else {
+        auto &prevStImmOpnd = static_cast<StImmOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+        prevStImmOpnd.SetOffset(offOpnd.GetValue());
+      }
+    }
     auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
     AArch64MemOperand &newMemOpnd =
         aarch64CGFunc->GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeLo12Li, memOpnd->GetSize(),
                                           &newBaseOpnd, nullptr, &offOpnd, stImmOpnd.GetSymbol());
 
-    nextInsn->SetMemOpnd(static_cast<MemOperand *>(&newMemOpnd));
+    nextInsn->SetMemOpnd(static_cast<MemOperand*>(&newMemOpnd));
     bb.RemoveInsn(insn);
     CHECK_FATAL(!CGOptions::IsLazyBinding() || cgFunc.GetCG()->IsLibcore(),
         "this pattern can't be found in this phase");
