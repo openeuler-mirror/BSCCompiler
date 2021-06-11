@@ -295,6 +295,17 @@ void SSAPre::CodeMotion() {
         if (!compOcc->IsReload()) {
           break;
         }
+        if (compOcc->GetDef()->GetOccType() == kOccReal) {
+          MeRealOcc *defRealOcc = static_cast<MeRealOcc *>(compOcc->GetDef());
+          if (!defRealOcc->IsReload() && !defRealOcc->IsSave()) {
+            break;
+          }
+        } else {
+          MePhiOcc *phiOcc = static_cast<MePhiOcc*>(compOcc->GetDef());
+          if (phiOcc->IsRemoved() || !phiOcc->IsWillBeAvail() || !phiOcc->IsDownSafe()) {
+            break;
+          }
+        }
         MeExpr *regorvar = SRRepairInjuries(compOcc, &needRepairInjuringDefs, &repairedInjuringDefs);
         OpMeExpr *newCompare = FormLFTRCompare(compOcc, regorvar);
         // replace compOcc->mestmt's occ with newCompare
@@ -357,7 +368,17 @@ void SSAPre::Finalize1() {
           break;
         }
         MeOccur *availDef = availDefVec[classX];
-        CHECK_FATAL(availDef != nullptr, "compare occ with class ID has no available def");
+        if (availDef == nullptr) {
+          occ->SetClassID(0);
+          break;
+        }
+        if (availDef->GetOccType() == kOccReal) {
+          MeRealOcc *realOcc = static_cast<MeRealOcc*>(availDef);
+          if (!realOcc->IsReload() && !realOcc->IsSave()) {
+            occ->SetClassID(0);
+            break;
+          }
+        }
         CHECK_FATAL(availDef->IsDominate(*dom, *occ), "compare occ's available def not dominating it");
         MeRealOcc *compOcc = static_cast<MeRealOcc*>(occ);
         compOcc->SetIsReload(true);
@@ -869,8 +890,8 @@ void SSAPre::Rename1() {
         }
         // top of stack is a PHI occurrence
         ASSERT(topOccur->GetOccType() == kOccPhiocc, "invalid kOccPhiocc");
-        if (DefVarDominateOcc(compareOpnd, *topOccur) ||
-            (resolvedCompareOpnd && DefVarDominateOcc(resolvedCompareOpnd, *topOccur))) {
+        if (DefVarDominateOcc(compareOpnd, *topOccur) /*  ||
+            (resolvedCompareOpnd && DefVarDominateOcc(resolvedCompareOpnd, *topOccur))*/) {
           realOcc->SetClassID(topOccur->GetClassID());
           realOcc->SetDef(topOccur);
         }
@@ -959,25 +980,21 @@ void SSAPre::Rename1() {
   }
 }
 
-// if opnd is defined by phi, return the jth opnd of the phi;
+// if opnd has a phi definition at ePhiBB, return the jth opnd of the phi;
 // return nullptr otherwise
 MeExpr *SSAPre::GetReplaceMeExpr(const MeExpr &opnd, const BB &ePhiBB, size_t j) const {
   if (opnd.GetMeOp() != kMeOpVar && opnd.GetMeOp() != kMeOpReg) {
     return nullptr;
   }
-  MeExpr *retExpr = nullptr;
 
   const ScalarMeExpr *expr = static_cast<const ScalarMeExpr*>(&opnd);
-  if (expr->IsDefByPhi()) {
-    MePhiNode *defPhi = expr->GetMePhiDef();
-    if (ePhiBB.GetBBId() == defPhi->GetDefBB()->GetBBId()) {
-      ASSERT(j < defPhi->GetOpnds().size(), "index out of range in SSAPre::GetReplaceMeExpr");
-      ASSERT(defPhi->GetOpnds()[j]->GetMeOp() == opnd.GetMeOp(), "invalid defPhi");
-      retExpr = defPhi->GetOpnds()[j];
-    }
+  auto it = ePhiBB.GetMePhiList().find(expr->GetOst()->GetIndex());
+  if (it == ePhiBB.GetMePhiList().end()) {
+    return nullptr;
   }
-
-  if (retExpr != nullptr && retExpr->GetPrimType() == kPtyInvalid) {
+  MePhiNode *defPhi = it->second;
+  MeExpr *retExpr = defPhi->GetOpnds()[j];
+  if (retExpr->GetPrimType() == kPtyInvalid) {
     ASSERT_NOT_NULL(workCand);
     retExpr->SetPtyp(workCand->GetPrimType());
   }
@@ -1057,6 +1074,9 @@ void SSAPre::Rename2() {
             mirModule->GetOut() << "--- rename2 adds to rename2Set manufactured ";
             occY->Dump(*irMap);
             mirModule->GetOut() << '\n';
+            mirModule->GetOut() << "             with def at\n";
+            occY->GetDef()->Dump(*irMap);
+            mirModule->GetOut() << "\n";
           }
         } else {
           phiOpnd->SetDef(nullptr);

@@ -225,8 +225,7 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
     case kMeOpOp: {
       OpMeExpr opMeExpr(*static_cast<OpMeExpr*>(realZ.GetMeExpr()), -1);
       for (size_t i = 0; i < opMeExpr.GetNumOpnds(); ++i) {
-        MeExpr *resolvedOpnd = ResolveAllInjuringDefs(opMeExpr.GetOpnd(i));
-        MeExpr *retOpnd = GetReplaceMeExpr(*resolvedOpnd, *ePhiBB, j);
+        MeExpr *retOpnd = GetReplaceMeExpr(*opMeExpr.GetOpnd(i), *ePhiBB, j);
         if (retOpnd != nullptr) {
           opMeExpr.SetOpnd(i, retOpnd);
         }
@@ -340,8 +339,10 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       if (meExpr.GetPrimType() == PTY_agg) {
         break;
       }
-      if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp()) && doLFTR) {
-        CreateCompOcc(&meStmt, seqStmt, meOpExpr, isRebuild);
+      if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp())) {
+        if (doLFTR) {
+          CreateCompOcc(&meStmt, seqStmt, meOpExpr, isRebuild);
+        }
         break;
       }
       if (!epreIncludeRef && meOpExpr->GetPrimType() == PTY_ref) {

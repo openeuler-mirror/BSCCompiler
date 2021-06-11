@@ -254,6 +254,15 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
   return repairedTemp;
 }
 
+static bool IsScalarInWorkCandExpr(ScalarMeExpr *scalar, OpMeExpr *theMeExpr) {
+  ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(theMeExpr->GetOpnd(0));
+  if (iv && iv->GetOst() == scalar->GetOst()) {
+    return true;
+  }
+  iv = dynamic_cast<ScalarMeExpr *>(theMeExpr->GetOpnd(1));
+  return iv && iv->GetOst() == scalar->GetOst();
+}
+
 MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
                                   std::set<MeStmt *> *needRepairInjuringDefs,
                                   std::set<MeStmt *> *repairedInjuringDefs) {
@@ -286,6 +295,11 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
     MeExpr *curopnd = useexpr->GetOpnd(i);
     if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
       continue;
+    }
+    if (useocc->GetOccType() == kOccCompare) {
+      if (!IsScalarInWorkCandExpr(static_cast<ScalarMeExpr*>(curopnd), static_cast<OpMeExpr *>(workCand->GetTheMeExpr()))) {
+        continue;
+      }
     }
     if (!OpndInDefOcc(curopnd, defocc, i)) {
       repairedTemp = SRRepairOpndInjuries(curopnd, defocc, i, repairedTemp, needRepairInjuringDefs,
