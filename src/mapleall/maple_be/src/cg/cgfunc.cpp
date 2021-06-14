@@ -419,6 +419,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_shl_v8u16:
       return cgFunc.SelectVectorULeftShift(intrinsicopNode);
     case INTRN_vector_table_lookup_v8u16:
+    case INTRN_vector_table_lookup_v16u8:
       return cgFunc.SelectVectorTableLookup(intrinsicopNode);
     default:
       ASSERT(false, "Should not reach here.");
