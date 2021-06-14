@@ -732,6 +732,10 @@ void HandleAssertNull(StmtNode &stmt, CGFunc &cgFunc) {
   cgFunc.SelectAssertNull(cgAssertNode);
 }
 
+void HandleAsm(StmtNode &stmt, CGFunc &cgFunc) {
+  cgFunc.SelectAsm(static_cast<AsmNode&>(stmt));
+}
+
 using HandleStmtFactory = FunctionFactory<Opcode, void, StmtNode&, CGFunc&>;
 void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_label, HandleLabel);
@@ -758,6 +762,7 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_comment, HandleComment);
   RegisterFactoryFunction<HandleStmtFactory>(OP_catch, HandleCatchOp);
   RegisterFactoryFunction<HandleStmtFactory>(OP_assertnonnull, HandleAssertNull);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_asm, HandleAsm);
 }
 
 CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
