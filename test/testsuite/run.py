@@ -69,7 +69,7 @@ def construct_qemu_cmd(execute_cmd, execute_option):
     RUNTIME_SO = maple_out_path + "/ops/host-x86_64-" + execute_option["mrt_type"]
     APP_SO = os.getcwd()
     MPLSH = maple_out_path + "/ops/mplsh"
-    QEMU = os.environ.get("QEMU_PATH") + "/qemu-aarch64"
+    QEMU = maple_root + "/tools/bin/qemu-aarch64"
     execute_cmd["run_case"] = (
         "{QEMU} "
         "-L /usr/aarch64-linux-gnu -E LD_LIBRARY_PATH={LIBZ_SO}:{RUNTIME_SO}:{APP_SO} "

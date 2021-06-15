@@ -322,7 +322,7 @@ def main():
 
     components["java2d8"] = java2mpl("java2d8", ".java", ".dex", "")
     components["dex2mpl"] = java2mpl("dex2mpl", ".dex", ".mpl", "")
-    components["maple"] = SingleCompiler("maple", ".mpl", ".VtableImpl.s", "")
+    components["maple"] = SingleCompiler("maple", ".mpl", ".s", "")
     components["as"] = MultiCompiler("clang++", ".s", ".o", "")
     components["cc"] = MultiCompiler("clang", ".c", ".o", "")
     components["cxx"] = MultiCompiler("clang++", ".cpp", ".o", "")
