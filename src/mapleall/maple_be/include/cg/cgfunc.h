@@ -22,6 +22,7 @@
 #include "cgbb.h"
 #include "reg_alloc.h"
 #include "cfi.h"
+#include "dbg.h"
 #include "reaching.h"
 #include "cg_cfg.h"
 /* MapleIR headers. */
@@ -132,6 +133,7 @@ class CGFunc {
   virtual bool NeedCleanup() = 0;
   virtual void GenerateCleanupCodeForExtEpilog(BB &bb) = 0;
 
+  void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
   void GenerateInstruction();
   bool MemBarOpt(StmtNode &membar);
   void UpdateCallBBFrequency();
@@ -382,6 +384,10 @@ class CGFunc {
 
   virtual void InsertJumpPad(Insn *) {
     return;
+  }
+
+  Operand *CreateDbgImmOperand(int64 val) {
+    return memPool->New<mpldbg::ImmOperand>(val);
   }
 
   uint32 NumBBs() const {

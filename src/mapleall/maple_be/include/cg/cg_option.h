@@ -897,14 +897,6 @@ class CGOptions : public MapleDriverOptionBase {
     return nativeOpt;
   }
 
-  static void EnableWithDwarf() {
-    withDwarf = true;
-  }
-
-  static bool IsWithDwarf() {
-    return withDwarf;
-  }
-
   static void EnableLazyBinding() {
     lazyBinding = true;
   }
@@ -1083,7 +1075,6 @@ class CGOptions : public MapleDriverOptionBase {
   static bool printFunction;
   static std::string globalVarProfile;
   static bool nativeOpt;
-  static bool withDwarf;
   static bool lazyBinding;
   static bool hotFix;
   /* if true dump scheduling information */

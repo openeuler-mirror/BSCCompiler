@@ -60,6 +60,8 @@ Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {
     return memPool->Clone<AArch64Insn>(*static_cast<AArch64Insn*>(&originalInsn));
   } else if (originalInsn.IsCfiInsn()) {
     return memPool->Clone<cfi::CfiInsn>(*static_cast<cfi::CfiInsn*>(&originalInsn));
+  } else if (originalInsn.IsDbgInsn()) {
+    return memPool->Clone<mpldbg::DbgInsn>(*static_cast<mpldbg::DbgInsn*>(&originalInsn));
   }
   CHECK_FATAL(false, "Cannot clone");
   return nullptr;
