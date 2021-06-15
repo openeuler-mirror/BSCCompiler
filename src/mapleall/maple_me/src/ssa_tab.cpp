@@ -30,7 +30,7 @@
 namespace maple {
 BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
   bool arrayLowered = false;
-  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo() && MeOption::strengthReduction) {
+  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo()) {
     MIRLower mirLower(mirModule, mirModule.CurFunction());
     expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
     arrayLowered = true;
