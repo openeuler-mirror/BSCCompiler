@@ -210,6 +210,10 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
     LogInfo::MapleLogger() << "Function  < " << mirFunc->GetName() << " not optimized because it has setjmp\n";
     return;
   }
+  if (mirFunc->HasAsm()) {
+    LogInfo::MapleLogger() << "Function  < " << mirFunc->GetName() << " not optimized because it has inline asm\n";
+    return;
+  }
   MPLTimer runPhasetimer;
   MPLTimer funcPrepareTimer;
   MPLTimer iteratorTimer;

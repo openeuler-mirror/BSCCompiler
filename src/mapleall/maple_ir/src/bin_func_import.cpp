@@ -775,6 +775,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_asm: {
         AsmNode *s = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+        mod.CurFunction()->SetHasAsm();
         s->qualifiers = ReadNum();
         string str;
         ReadAsciiStr(str);

@@ -1083,6 +1083,7 @@ bool MIRParser::ParseCallReturns(CallReturnVector &retsvec) {
 
 bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   AsmNode *asmNode = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+  mod.CurFunction()->SetHasAsm();
   lexer.NextToken();
   // parse qualifiers
   while (lexer.GetTokenKind() == TK_volatile ||
