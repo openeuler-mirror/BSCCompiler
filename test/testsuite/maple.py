@@ -219,11 +219,10 @@ def do_prepare(components, info, maple_root):
     maple_out_path = os.environ.get("MAPLE_BUILD_OUTPUT")
     maple_out_lib_path = maple_out_path + "/ops"
     maple_out_bin_path = maple_out_path + "/bin/"
-    old_os = os.environ.get("OLD_OS")
-    if old_os == "1":
-      gnu_bin_path = maple_root + "/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/"
-    elif old_os == "0":
-      gnu_bin_path = "/usr/bin/"
+    gnu_bin_path = maple_root + "/tools/clang+llvm-8.0.0-x86_64-linux-gnu-ubuntu-16.04/bin/"
+    if "OLD_OS" in os.environ.keys():
+        if os.environ.get("OLD_OS") == "0":
+            gnu_bin_path = "/usr/bin/"
     as_options = "-g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c "
     cc_options = "-g3 -O2 -c -march=armv8-a -target aarch64-linux-gnu"
     cxx_options = "-g3 -O2 -c -fPIC -march=armv8-a -target aarch64-linux-gnu"
@@ -306,7 +305,7 @@ def main():
     components = collections.OrderedDict()
     components["java2d8"] = java2mpl("java2d8", ".java", ".dex", "")
     components["dex2mpl"] = java2mpl("dex2mpl", ".dex", ".mpl", "")
-    components["maple"] = SingleCompiler("maple", ".mpl", ".VtableImpl.s", "")
+    components["maple"] = SingleCompiler("maple", ".mpl", ".s", "")
     components["as"] = MultiCompiler("clang++", ".s", ".o", "")
     components["cc"] = MultiCompiler("clang", ".c", ".o", "")
     components["cxx"] = MultiCompiler("clang++", ".cpp", ".o", "")
