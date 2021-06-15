@@ -296,6 +296,9 @@ void ForwardPropPattern::Optimize(Insn &insn) {
           newMem = static_cast<MemOperand*>(opnd.Clone(*cgFunc.GetMemoryPool()));
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(static_cast<RegOperand&>(secondOpnd));
+          if (static_cast<RegOperand&>(secondOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
+            static_cast<AArch64MemOperand*>(newMem)->setExtend(AArch64MemOperand::kSignExtend);
+          }
           useInsn->SetOperand(i, *newMem);
           cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
         }
@@ -349,7 +352,7 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
 
   firstRegOpnd = &static_cast<RegOperand&>(firstOpnd);
   secondRegOpnd = &static_cast<RegOperand&>(secondOpnd);
-  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister()) {
+  if (firstRegOpnd->IsZeroRegister() || !firstRegOpnd->IsVirtualRegister() || !secondRegOpnd->IsVirtualRegister()) {
     return false;
   }
   firstRegNO = firstRegOpnd->GetRegisterNumber();
