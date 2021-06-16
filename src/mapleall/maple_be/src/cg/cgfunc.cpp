@@ -379,6 +379,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_from_scalar_v16u8:
       return cgFunc.SelectVectorFromScalar(intrinsicopNode);
     case INTRN_vector_merge_v16u8:
+    case INTRN_vector_merge_v8u16:
       return cgFunc.SelectVectorMerge(intrinsicopNode);
     case INTRN_vector_store_v4i32:
     case INTRN_vector_store_v16u8:
@@ -388,15 +389,38 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_get_low_v2u64:
       return cgFunc.SelectVectorGetLow(intrinsicopNode);
     case INTRN_vector_get_element_v2u32:
+    case INTRN_vector_get_element_v8u16:
     case INTRN_vector_get_element_v4u32:
       return cgFunc.SelectVectorGetElement(intrinsicopNode);
     case INTRN_vector_pairwise_add_v8u16:
     case INTRN_vector_pairwise_add_v4u32:
       return cgFunc.SelectVectorPairwiseAdd(intrinsicopNode);
+    case INTRN_vector_set_element_v8i16:
+    case INTRN_vector_set_element_v8u16:
     case INTRN_vector_set_element_v4u32:
       return cgFunc.SelectVectorSetElement(intrinsicopNode);
     case INTRN_vector_reverse_v16u8:
       return cgFunc.SelectVectorReverse(intrinsicopNode, 32);
+    case INTRN_vector_and_v4i32:
+    case INTRN_vector_and_v8u16:
+      return cgFunc.SelectVectorAnd(intrinsicopNode);
+    case INTRN_vector_sum_v8u16:
+      return cgFunc.SelectVectorSum(intrinsicopNode);
+    case INTRN_vector_eq_v8u16:
+      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_eq);
+#if 0    /* Not yet added in FE */
+    case INTRN_vector_ge_v8u16:
+      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_ge);
+    case INTRN_vector_gt_v8u16:
+      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_gt);
+    case INTRN_vector_lt_v8u16:
+      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_lt);
+#endif
+    case INTRN_vector_shl_v8u16:
+      return cgFunc.SelectVectorULeftShift(intrinsicopNode);
+    case INTRN_vector_table_lookup_v8u16:
+    case INTRN_vector_table_lookup_v16u8:
+      return cgFunc.SelectVectorTableLookup(intrinsicopNode);
     default:
       ASSERT(false, "Should not reach here.");
       return nullptr;

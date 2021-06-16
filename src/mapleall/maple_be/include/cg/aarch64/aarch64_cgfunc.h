@@ -238,6 +238,11 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorPairwiseAdd(IntrinsicopNode &intrnNode) override;
   RegOperand *SelectVectorSetElement(IntrinsicopNode &intrnNode) override;
   RegOperand *SelectVectorReverse(IntrinsicopNode &intrnNode, uint32 size) override;
+  RegOperand *SelectVectorAnd(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorSum(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorCompare(IntrinsicopNode &intrnNode, V_CND cc) override;
+  RegOperand *SelectVectorULeftShift(IntrinsicopNode &intrnNode) override;
+  RegOperand *SelectVectorTableLookup(IntrinsicopNode &intrnNode) override;
 
   AArch64ImmOperand &CreateImmOperand(PrimType ptyp, int64 val) override {
     return CreateImmOperand(val, GetPrimTypeBitSize(ptyp), IsSignedInteger(ptyp));

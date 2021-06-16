@@ -1056,6 +1056,7 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
   if (mOp != MOP_comment) {
     emitter.IncreaseJavaInsnCount();
   }
+  uint32 compositeOpnds = 0;
   for (int32 i = 0; i < commaNum; ++i) {
     if (seq[i] == -1) {
       continue;
@@ -1083,11 +1084,19 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
         AArch64Insn *insn = const_cast<AArch64Insn*>(this);
         AArch64VectorInsn *vInsn = static_cast<AArch64VectorInsn*>(insn);
         VectorRegSpec* vecSpec = vInsn->GetAndRemoveRegSpecFromList();
+        if (vecSpec->compositeOpnds != 0) {
+          compositeOpnds = vecSpec->compositeOpnds;
+          emitter.Emit("{");
+        }
         regOpnd->SetVecLanePosition(vecSpec->vecLane);
         regOpnd->SetVecLaneSize(vecSpec->vecLaneMax);
+
       }
     }
     opnds[seq[i]]->Emit(emitter, md->operand[seq[i]]);
+    if (compositeOpnds-- == 1) {
+      emitter.Emit("}");
+    }
     /* reset opnd0 ref-field flag, so following instruction has correct register */
     if (isRefField && (i == 0)) {
       static_cast<AArch64RegOperand*>(opnds[seq[0]])->SetRefField(false);
