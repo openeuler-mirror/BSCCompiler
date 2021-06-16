@@ -186,10 +186,11 @@ class AArch64Insn : public Insn {
 };
 
 struct VectorRegSpec {
-  VectorRegSpec() : vecLane(-1), vecLaneMax(0) {}
+  VectorRegSpec() : vecLane(-1), vecLaneMax(0), compositeOpnds(0) {}
 
-  int16 vecLane;     /* -1 for whole reg, 0 to 15 to specify individual lane */
-  uint16 vecLaneMax; /* Maximum number of lanes for this vregister */
+  int16 vecLane;         /* -1 for whole reg, 0 to 15 to specify individual lane */
+  uint16 vecLaneMax;     /* Maximum number of lanes for this vregister */
+  uint16 compositeOpnds; /* Number of enclosed operands within this composite operand */
 };
 
 class AArch64VectorInsn : public AArch64Insn {

@@ -84,6 +84,13 @@ class CGFunc {
     kShiftLright
   };
 
+  enum V_CND {
+    v_eq,
+    v_ge,
+    v_gt,
+    v_lt
+  };
+
   CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
          MapleAllocator &mallocator, uint32 funcId);
   virtual ~CGFunc();
@@ -270,6 +277,11 @@ class CGFunc {
   virtual RegOperand *SelectVectorPairwiseAdd(IntrinsicopNode &intrnNode) = 0;
   virtual RegOperand *SelectVectorSetElement(IntrinsicopNode &intrnNode) = 0;
   virtual RegOperand *SelectVectorReverse(IntrinsicopNode &intrnNode, uint32 size) = 0;
+  virtual RegOperand *SelectVectorAnd(IntrinsicopNode &intrnNode) = 0;
+  virtual RegOperand *SelectVectorSum(IntrinsicopNode &intrnNode) = 0;
+  virtual RegOperand *SelectVectorCompare(IntrinsicopNode &intrnNode, V_CND cc) = 0;
+  virtual RegOperand *SelectVectorULeftShift(IntrinsicopNode &intrnNode) = 0;
+  virtual RegOperand *SelectVectorTableLookup(IntrinsicopNode &intrnNode) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {
@@ -343,12 +355,23 @@ class CGFunc {
         return kRegTyInt;
       case PTY_f32:
       case PTY_f64:
+      case PTY_v2i32:
       case PTY_v2u32:
+      case PTY_v2i64:
+      case PTY_v2u64:
+      case PTY_v2f32:
+      case PTY_v2f64:
+      case PTY_v4i16:
+      case PTY_v4u16:
       case PTY_v4i32:
       case PTY_v4u32:
-      case PTY_v16u8:
-      case PTY_v2u64:
+      case PTY_v4f32:
+      case PTY_v8i8:
+      case PTY_v8u8:
+      case PTY_v8i16:
       case PTY_v8u16:
+      case PTY_v16i8:
+      case PTY_v16u8:
         return kRegTyFloat;
       default:
         ASSERT(false, "Unexpected pty");
