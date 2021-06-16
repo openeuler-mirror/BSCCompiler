@@ -91,6 +91,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
+  void SelectAsm(AsmNode &stmt) override;
   AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
   AArch64MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   void SelectAggDassign(DassignNode &stmt) override;

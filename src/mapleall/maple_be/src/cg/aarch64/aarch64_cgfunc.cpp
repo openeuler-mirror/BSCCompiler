@@ -1029,6 +1029,10 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
+void AArch64CGFunc::SelectAsm(AsmNode &node) {
+  return;
+}
+
 void AArch64CGFunc::SelectRegassign(RegassignNode &stmt, Operand &opnd0) {
   RegOperand *regOpnd = nullptr;
   PregIdx pregIdx = stmt.GetRegIdx();
