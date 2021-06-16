@@ -591,19 +591,32 @@ bool OpMeExpr::StrengthReducible() {
       return false;
     }
     case OP_add:
+    case OP_sub:
       return true;
     default: return false;
   }
 }
 
-int64 OpMeExpr::SRMultiplier() {
+int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
   ASSERT(StrengthReducible(), "OpMeExpr::SRMultiplier: operation is not strength reducible");
-  if (op != OP_mul) {
-    return 1;
+  switch (op) {
+    case OP_cvt:
+    case OP_add: return 1;
+    case OP_sub: {
+      ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(GetOpnd(1));
+      if (scalarOpnd1 && scalarOpnd1->GetOst() == ost) {
+        return -1;
+      }
+      return 1;
+    }
+    case OP_mul: {
+      MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
+      ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
+      return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+    }
+    default: CHECK_FATAL(false, "SRMultiplier: unexpected strength reduction opcode");
   }
-  MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
-  ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
-  return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+  return 0;
 }
 
 // first, make sure it's int const and return true if the int const great or eq 0
