@@ -209,7 +209,7 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
         }
       } while (!done);
       // generate the increment statement at latestInjuringDef
-      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(),
+      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(varx->GetOst()),
                                       latestInjuringDef);
     } else {
       // find the last repair increment statement
@@ -244,7 +244,7 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
         }
       } while (!done);
       // generate the increment statement at latestInjuringDef
-      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(),
+      repairedTemp = InsertRepairStmt(repairedTemp, increAmt * workCand->GetTheMeExpr()->SRMultiplier(regx->GetOst()),
                                       latestInjuringDef);
     } else {
       // find the last repair increment statement

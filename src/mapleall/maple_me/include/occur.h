@@ -503,7 +503,8 @@ class PreWorkCand {
         hasLocalOpnd(false),
         redo2HandleCritEdges(false),
         needLocalRefVar(false),
-        isSRCand(false) {
+        isSRCand(false),
+        onlyInvariantOpnds(false) {
     ASSERT(pIdx != 0, "PreWorkCand: initial puIdx cannot be 0");
   }
 
@@ -633,6 +634,7 @@ class PreWorkCand {
   bool needLocalRefVar : 1;       // for the candidate, if necessary to introduce
  public:
   bool isSRCand : 1;                // is a strength reduction candidate
+  bool onlyInvariantOpnds : 1;      // all operands have only 1 SSA version
   // localrefvar in addition to the temp register to for saving the value
 };
 

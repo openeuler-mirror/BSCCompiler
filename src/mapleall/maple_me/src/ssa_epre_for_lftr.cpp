@@ -57,13 +57,15 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   // handle the ops corresponding to OpMeExpr::StrengthReducible()
   OpMeExpr newSide(-1, x->GetOp(), x->GetPrimType(), x->GetNumOpnds());
   newSide.SetOpnd(i, compare->GetOpnd(1-j));
+  bool isRebuild = !newSide.GetOpnd(i)->IsLeaf();  // so hashedSide will always create new workcand
   switch (x->GetOp()) {
     case OP_cvt: {
       newSide.SetOpndType(x->GetOpndType());
       break;
     }
     case OP_mul:
-    case OP_add: {
+    case OP_add:
+    case OP_sub: {
       newSide.SetOpnd(1-i, x->GetOpnd(1-i));
       break;
     }
@@ -79,7 +81,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     hashedSide = simplifyExpr;
   } else {
     hashedSide = irMap->HashMeExpr(newSide);
-    BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, true, nullptr, true);
+    BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, isRebuild, nullptr, true);
   }
   OpMeExpr newcompare(-1, compare->GetOp(), compare->GetPrimType(), 2);
   newcompare.SetOpndType(static_cast<OpMeExpr*>(compare)->GetOpndType());
@@ -94,10 +96,24 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     // both sides of compare must be leaf
     return;
   }
+  if (!IsPrimitiveInteger(compare->GetPrimType())) {
+    return;
+  }
   ScalarMeExpr *compareLHS = dynamic_cast<ScalarMeExpr *>(compare->GetOpnd(0));
   ScalarMeExpr *compareRHS = dynamic_cast<ScalarMeExpr *>(compare->GetOpnd(1));
   if (compareLHS == nullptr && compareRHS == nullptr) {
     return;
+  }
+  // see if either side is a large integer
+  bool largeIntLimit = false;
+  ConstMeExpr *constopnd = dynamic_cast<ConstMeExpr *>(compare->GetOpnd(0));
+  if (constopnd == nullptr) {
+    constopnd = dynamic_cast<ConstMeExpr *>(compare->GetOpnd(1));
+  }
+  if (constopnd) {
+    MIRIntConst *intconst = dynamic_cast<MIRIntConst *>(constopnd->GetConstVal());
+    if (intconst && ((uint64) intconst->GetValue()) > 0x8000000)
+      largeIntLimit = true;
   }
   // search for worklist candidates set isSRCand such that one of its operands
   // is either compareLHS or compareRHS, and create MeRealOcc for each of them
@@ -105,8 +121,15 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     if (!wkCand->isSRCand) {
       continue;
     }
+    if (largeIntLimit && (wkCand->GetTheMeExpr()->GetOp() == OP_add || wkCand->GetTheMeExpr()->GetOp() == OP_sub)) {
+      continue;
+    }
+    if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(wkCand->GetTheMeExpr()->GetPrimType())) {
+      continue;
+    }
     MeExpr *x = wkCand->GetTheMeExpr();
-    bool isRelevant = false;
+    uint32 numRelevantOpnds = 0;
+    bool isRelevant = true;
     for (size_t i = 0; i < x->GetNumOpnds(); i++) {
       ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(x->GetOpnd(i));
       if (iv == nullptr) {
@@ -114,13 +137,15 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
       }
       if ((compareLHS && iv->GetOst() == compareLHS->GetOst()) ||
           (compareRHS && iv->GetOst() == compareRHS->GetOst())) {
-        isRelevant = true;
-      } else { // disqualify as compocc if x has a scalar which is not an iv
-        isRelevant = false;
-        break;
+        numRelevantOpnds++;
+      } else { // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions
+        if (iv->GetOst()->GetVersionsIndices().size() > 1) {
+          isRelevant = false;
+          break;
+        }
       }
     }
-    if (isRelevant) {
+    if (isRelevant && numRelevantOpnds == 1) {
       MeRealOcc *compOcc = ssaPreMemPool->New<MeRealOcc>(meStmt, seqStmt, compare);
       compOcc->SetOccType(kOccCompare);
       if (isRebuilt) {

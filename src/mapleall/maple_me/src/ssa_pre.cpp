@@ -856,22 +856,31 @@ void SSAPre::Rename1() {
           break;
         }
         MeRealOcc *realOcc = static_cast<MeRealOcc *>(occ);
-        // set scalarOpnd to be the operand that is scalar
-        ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(0));
-        uint32 scalarOpndNo = 0;
-        if (scalarOpnd == nullptr) {
-          scalarOpnd = static_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(1));
-          scalarOpndNo = 1;
-        }
+        ScalarMeExpr *scalarOpnd0 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(0));
+        ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(1));
+        ScalarMeExpr *compareOpnd0 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(0));
+        ScalarMeExpr *compareOpnd1 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(1));
+        // set compareOpnd to be the scalar operand that is common to 
+        // workCand->theMeExpr and realOcc->meExpr
         ScalarMeExpr *compareOpnd = nullptr;
-        MeExpr *opnd0 = realOcc->GetMeExpr()->GetOpnd(0);
-        MeExpr *opnd1 = realOcc->GetMeExpr()->GetOpnd(1);
-        if ((opnd0->GetMeOp() == kMeOpVar || opnd0->GetMeOp() == kMeOpReg) &&
-            (static_cast<ScalarMeExpr *>(opnd0)->GetOst() == scalarOpnd->GetOst())) {
-          compareOpnd = static_cast<ScalarMeExpr *>(opnd0);
-        } else if ((opnd1->GetMeOp() == kMeOpVar || opnd1->GetMeOp() == kMeOpReg) &&
-                   (static_cast<ScalarMeExpr *>(opnd1)->GetOst() == scalarOpnd->GetOst())) {
-          compareOpnd = static_cast<ScalarMeExpr *>(opnd1);
+        uint32 scalarOpndNo = 0;
+        if (scalarOpnd0) {
+          if (compareOpnd0 && scalarOpnd0->GetOst() == compareOpnd0->GetOst()) {
+            compareOpnd = compareOpnd0;
+            scalarOpndNo = 0;
+          } else if (compareOpnd1 && scalarOpnd0->GetOst() == compareOpnd1->GetOst()) {
+            compareOpnd = compareOpnd1;
+            scalarOpndNo = 0;
+          }
+        }
+        if (scalarOpnd1) {
+          if (compareOpnd0 && scalarOpnd1->GetOst() == compareOpnd0->GetOst()) {
+            compareOpnd = compareOpnd0;
+            scalarOpndNo = 1;
+          } else if (compareOpnd1 && scalarOpnd1->GetOst() == compareOpnd1->GetOst()) {
+            compareOpnd = compareOpnd1;
+            scalarOpndNo = 1;
+          }
         }
         CHECK_FATAL(compareOpnd != nullptr, "Rename1: compOcc does not correspond to realOcc");
         ScalarMeExpr *resolvedCompareOpnd = ResolveAllInjuringDefs(compareOpnd);
@@ -1415,7 +1424,20 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
   } else if (strengthReduction && meExpr.StrengthReducible() && meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
     wkCand->isSRCand = true;
   }
-  workList.push_front(wkCand);
+  // determine onlyInvariantOpnds flag
+  wkCand->onlyInvariantOpnds = true;
+  for (int i = 0; i < meExpr.GetNumOpnds(); i++) {
+    ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(meExpr.GetOpnd(i));
+    if (scalarOpnd != nullptr && scalarOpnd->GetOst()->GetVersionsIndices().size() > 1) {
+      wkCand->onlyInvariantOpnds = false;
+      break;
+    }
+  }
+  if (wkCand->onlyInvariantOpnds) {
+    workList.push_front(wkCand);
+  } else {
+    workList.push_back(wkCand);
+  }
   wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
   // add to bucket at workcandHashTable[hashIdx]
   wkCand->SetNext(*preWorkCandHashTable.GetWorkcandFromIndex(hashIdx));
@@ -1732,6 +1754,12 @@ void SSAPre::ApplySSAPRE() {
       mirModule->GetOut() << "||||||| SSAPRE candidate " << cnt << " at worklist index "
                           << workCand->GetIndex() << ": ";
       workCand->DumpCand(*irMap);
+      if (workCand->isSRCand) {
+        mirModule->GetOut() << " srCand";
+      }
+      if (workCand->onlyInvariantOpnds) {
+        mirModule->GetOut() << " onlyInvairantOpnds";
+      }
       mirModule->GetOut() << '\n';
     }
     allOccs.clear();
