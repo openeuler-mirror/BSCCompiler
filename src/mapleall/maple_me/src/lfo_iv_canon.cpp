@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -22,36 +22,56 @@
 //   S.-M. Liu, R. Lo and F. Chow, "Loop Induction Variable
 //   Canonicalization in Parallelizing Compiler", Intl. Conf. on Parallel
 //   Architectures and Compilation Techniques (PACT 96), Oct 1996.
-
-using namespace std;
-
 namespace maple {
+using namespace std;
+// check ost is defined as IV, TODO:: use MapleMap for ivvec for quick searching
+bool IVCanon::IsScalarIV(OriginalSt *ost, int32_t *stepVal) {
+  if (ivvec.size() > 0) {
+    for (int32_t i = 0; i < ivvec.size(); i++) {
+      if (ivvec[i]->ost == ost) {
+        if (stepVal) {
+          *stepVal = ivvec[i]->stepValue;
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 // Resolve value of x; return false if result is not of induction expression
 // form; goal is to resolve to an expression where the only non-constant is
-// philhs
-bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *philhs) {
+// philhs or dassign with a known IV
+bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
   switch (x->GetMeOp()) {
   case kMeOpConst: return IsPrimitiveInteger(x->GetPrimType());
   case kMeOpVar:
   case kMeOpReg:{
-    if (x == philhs) {
+    if (x == phiLHS) {
       return true;
     }
     ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
     if (scalar->GetDefBy() != kDefByStmt) {
       return false;
     }
-    AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-    return ResolveExprValue(defstmt->GetRHS(), philhs);
+    AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
+    if (defStmt->GetOp() == OP_dassign) {
+      // defstmt is  %post = i, i is identified as IV
+      // set %post is IV and use i's step value
+      scalar = static_cast<ScalarMeExpr *>(defStmt->GetRHS());
+      if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
+        return true;
+      }
+    }
+    return ResolveExprValue(defStmt->GetRHS(), phiLHS);
   }
   case kMeOpOp: {  // restricting to only + and - for now
     if (x->GetOp() != OP_add && x->GetOp() != OP_sub) {
       return false;
     }
-    OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
-    return ResolveExprValue(opexp->GetOpnd(0), philhs) &&
-           ResolveExprValue(opexp->GetOpnd(1), philhs);
+    OpMeExpr *opExpr = static_cast<OpMeExpr *>(x);
+    return ResolveExprValue(opExpr->GetOpnd(0), phiLHS) &&
+           ResolveExprValue(opExpr->GetOpnd(1), phiLHS);
   }
   default: ;
   }
@@ -60,41 +80,52 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *philhs) {
 
 // appearances accumulates the number of appearances of the induction variable;
 // it is negative if it is subtracted
-int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearances) {
+int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearances) {
   switch (x->GetMeOp()) {
-  case kMeOpConst: {
-    MIRConst *konst = static_cast<ConstMeExpr *>(x)->GetConstVal();
-    CHECK_FATAL(konst->GetKind() == kConstInt, "ComputeIncrAmt: must be integer constant");
-    MIRIntConst *intconst = static_cast<MIRIntConst *>(konst);
-    return intconst->GetValue();
-  }
-  case kMeOpVar:
-  case kMeOpReg:{
-    if (x == philhs) {
-      *appearances = 1;
-      return 0;
+    case kMeOpConst: {
+      MIRConst *konst = static_cast<ConstMeExpr *>(x)->GetConstVal();
+      CHECK_FATAL(konst->GetKind() == kConstInt, "ComputeIncrAmt: must be integer constant");
+      MIRIntConst *intConst = static_cast<MIRIntConst *>(konst);
+      return intConst->GetValue();
     }
-    ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-    CHECK_FATAL(scalar->GetDefBy() == kDefByStmt, "ComputeIncrAmt: cannot be here");
-    AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-    return ComputeIncrAmt(defstmt->GetRHS(), philhs, appearances);
-  }
-  case kMeOpOp: {
-    CHECK_FATAL(x->GetOp() == OP_add || x->GetOp() == OP_sub, "ComputeIncrAmt: cannot be here");
-    OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
-    int32 appear0 = 0;
-    int64 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), philhs, &appear0);
-    int32 appear1 = 0;
-    int64 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), philhs, &appear1);
-    if (x->GetOp() == OP_sub) {
-      *appearances = appear0 - appear1;
-      return incrAmt0 - incrAmt1;
-    } else {
-      *appearances = appear0 + appear1;
-      return incrAmt0 + incrAmt1;
+    case kMeOpVar:
+    case kMeOpReg:{
+      if (x == phiLHS) {
+        *appearances = 1;
+        return 0;
+      }
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      CHECK_FATAL(scalar->GetDefBy() == kDefByStmt, "ComputeIncrAmt: cannot be here");
+      AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
+      if (defstmt->GetOp() == OP_dassign) {
+        scalar = static_cast<ScalarMeExpr *>(defstmt->GetRHS());
+        if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
+          int32_t stepVal = 0;
+          if (IsScalarIV(scalar->GetOst(), &stepVal)) {
+            *appearances = 1;
+            return stepVal;
+          }
+        }
+      }
+      return ComputeIncrAmt(defstmt->GetRHS(), phiLHS, appearances);
     }
-  }
-  default: ;
+    case kMeOpOp: {
+      CHECK_FATAL(x->GetOp() == OP_add || x->GetOp() == OP_sub, "ComputeIncrAmt: cannot be here");
+      OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
+      int32 appear0 = 0;
+      int64 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), phiLHS, &appear0);
+      int32 appear1 = 0;
+      int64 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), phiLHS, &appear1);
+      if (x->GetOp() == OP_sub) {
+        *appearances = appear0 - appear1;
+        return incrAmt0 - incrAmt1;
+      } else {
+        *appearances = appear0 + appear1;
+        return incrAmt0 + incrAmt1;
+      }
+    }
+    default:
+      break;
   }
   CHECK_FATAL(false, "ComputeIncrAmt: should not be here");
   return 0;
@@ -104,12 +135,12 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearance
 void IVCanon::CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackversion, ScalarMeExpr *philhs) {
   IVDesc *ivdesc = mp->New<IVDesc>(initversion->GetOst());
   if (initversion->GetDefBy() == kDefByStmt) {
-    AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(initversion->GetDefStmt());
-    if (defstmt->GetRHS()->GetMeOp() == kMeOpConst ||
-        defstmt->GetRHS()->GetMeOp() == kMeOpAddrof ||
-        defstmt->GetRHS()->GetMeOp() == kMeOpConststr ||
-        defstmt->GetRHS()->GetMeOp() == kMeOpConststr16) {
-      ivdesc->initExpr = defstmt->GetRHS();
+    AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(initversion->GetDefStmt());
+    if (defStmt->GetRHS()->GetMeOp() == kMeOpConst ||
+        defStmt->GetRHS()->GetMeOp() == kMeOpAddrof ||
+        defStmt->GetRHS()->GetMeOp() == kMeOpConststr ||
+        defStmt->GetRHS()->GetMeOp() == kMeOpConststr16) {
+      ivdesc->initExpr = defStmt->GetRHS();
     } else {
       ivdesc->initExpr = initversion;
     }
@@ -165,40 +196,41 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
     return true;
   }
   switch (x->GetMeOp()) {
-  case kMeOpAddrof:
-  case kMeOpAddroffunc:
-  case kMeOpConst:
-  case kMeOpConststr:
-  case kMeOpConststr16:
-  case kMeOpSizeoftype:
-  case kMeOpFieldsDist: return true;
-  case kMeOpVar:
-  case kMeOpReg: {
-    ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-    BB *defBB = scalar->DefByBB();
-    return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
-  }
-  case kMeOpIvar: {
-    IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
-    BB *defBB = ivar->GetMu()->DefByBB();
-    return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
-  }
-  case kMeOpOp: {
-    OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
-    return IsLoopInvariant(opexp->GetOpnd(0)) &&
-           IsLoopInvariant(opexp->GetOpnd(1)) &&
-           IsLoopInvariant(opexp->GetOpnd(2));
-  }
-  case kMeOpNary: {
-    NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
-    for (uint32 i = 0; i < opexp->GetNumOpnds(); i++) {
-      if (!IsLoopInvariant(opexp->GetOpnd(i))) {
-        return false;
-      }
+    case kMeOpAddrof:
+    case kMeOpAddroffunc:
+    case kMeOpConst:
+    case kMeOpConststr:
+    case kMeOpConststr16:
+    case kMeOpSizeoftype:
+    case kMeOpFieldsDist: return true;
+    case kMeOpVar:
+    case kMeOpReg: {
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      BB *defBB = scalar->DefByBB();
+      return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
     }
-    return true;
-  }
-  default: ;
+    case kMeOpIvar: {
+      IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
+      BB *defBB = ivar->GetMu()->DefByBB();
+      return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
+    }
+    case kMeOpOp: {
+      OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
+      return IsLoopInvariant(opexp->GetOpnd(0)) &&
+            IsLoopInvariant(opexp->GetOpnd(1)) &&
+            IsLoopInvariant(opexp->GetOpnd(2));
+    }
+    case kMeOpNary: {
+      NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
+      for (uint32 i = 0; i < opexp->GetNumOpnds(); i++) {
+        if (!IsLoopInvariant(opexp->GetOpnd(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      break;
   }
   return false;
 }
@@ -213,10 +245,10 @@ void IVCanon::ComputeTripCount() {
   if (!kOpcodeInfo.IsCompare(condbr->GetOpnd()->GetOp())) {
     return;
   }
-  OpMeExpr *testexp = static_cast<OpMeExpr *>(condbr->GetOpnd());
+  OpMeExpr *testExpr = static_cast<OpMeExpr *>(condbr->GetOpnd());
   // make the side that consists of a single IV the left operand
   // check left operand
-  ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testexp->GetOpnd(0));
+  ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
   IVDesc *ivdesc = nullptr;
   if (iv) {
     for (uint32 i = 0; i < ivvec.size(); i++) {
@@ -227,7 +259,7 @@ void IVCanon::ComputeTripCount() {
     }
   }
   if (ivdesc == nullptr) { // check second operand
-    iv = dynamic_cast<ScalarMeExpr *>(testexp->GetOpnd(1));
+    iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(1));
     if (iv) {
       for (uint32 i = 0; i < ivvec.size(); i++) {
         if (iv->GetOst() == ivvec[i]->ost) {
@@ -237,26 +269,43 @@ void IVCanon::ComputeTripCount() {
       }
     }
     if (ivdesc) {  // swap the 2 sides
-      Opcode newop = testexp->GetOp();
-      switch (testexp->GetOp()) {
-      case OP_lt: newop = OP_gt; break;
-      case OP_le: newop = OP_ge; break;
-      case OP_gt: newop = OP_lt; break;
-      case OP_ge: newop = OP_le; break;
-      default: ;
+      Opcode newop = testExpr->GetOp();
+      switch (testExpr->GetOp()) {
+        case OP_lt:
+          newop = OP_gt;
+          break;
+        case OP_le:
+          newop = OP_ge;
+          break;
+        case OP_gt:
+          newop = OP_lt;
+          break;
+        case OP_ge:
+          newop = OP_le;
+          break;
+        default:
+          break;
       }
-      OpMeExpr opmeexpr(-1, newop, testexp->GetPrimType(), 2);
-      opmeexpr.SetOpnd(0, testexp->GetOpnd(1));
-      opmeexpr.SetOpnd(1, testexp->GetOpnd(0));
-      opmeexpr.SetOpndType(testexp->GetOpndType());
-      testexp = static_cast<OpMeExpr *>(irMap->HashMeExpr(opmeexpr));
-      condbr->SetOpnd(0, testexp);
+      OpMeExpr opMeExpr(-1, newop, testExpr->GetPrimType(), 2);
+      opMeExpr.SetOpnd(0, testExpr->GetOpnd(1));
+      opMeExpr.SetOpnd(1, testExpr->GetOpnd(0));
+      opMeExpr.SetOpndType(testExpr->GetOpndType());
+      testExpr = static_cast<OpMeExpr *>(irMap->HashMeExpr(opMeExpr));
+      condbr->SetOpnd(0, testExpr);
     }
   }
   if (ivdesc == nullptr || ivdesc->stepValue == 0) {
+    // if test symbol is name %post, try if it could be replaced by other IV
+    if (ivdesc == nullptr) {
+      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
+      if (iv && iv->GetOst() && iv->GetOst()->IsSymbolOst() &&
+          (strncmp(iv->GetOst()->GetMIRSymbol()->GetName().c_str(), "post.", 5) == 0)) {
+      //replaceTestExpr();
+      }
+    }
     return;  // no IV in the termination test
   }
-  if (!IsLoopInvariant(testexp->GetOpnd(1))) {
+  if (!IsLoopInvariant(testExpr->GetOpnd(1))) {
     return; // the right side is not loop-invariant
   }
 
@@ -272,16 +321,24 @@ void IVCanon::ComputeTripCount() {
   }
 
   // form the trip count expression
-  PrimType primTypeUsed = testexp->GetOpnd(0)->GetPrimType();
+  PrimType primTypeUsed = testExpr->GetOpnd(0)->GetPrimType();
   PrimType divPrimType = primTypeUsed;
   if (ivdesc->stepValue < 0) {
     divPrimType = GetSignedPrimType(divPrimType);
+    // simplify tricount if stepValue is -1 and bound is 0
+    if (ivdesc->stepValue == -1 && testExpr->GetOpnd(1)->IsZero()) {
+      tripCount = ivdesc->initExpr;
+      return;
+    }
   }
+  // add: t = bound + (stepValue +/-1)
   OpMeExpr add(-1, OP_add, primTypeUsed, 2);
-  add.SetOpnd(0, testexp->GetOpnd(1)); // IV bound
-  add.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue > 0 ? ivdesc->stepValue-1 : ivdesc->stepValue+1, primTypeUsed));
+  add.SetOpnd(0, testExpr->GetOpnd(1)); // IV bound
+  add.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue > 0 ? ivdesc->stepValue - 1
+                                                                   : ivdesc->stepValue + 1, primTypeUsed));
   MeExpr *subx = irMap->HashMeExpr(add);
   if (!ivdesc->initExpr->IsZero()) {
+    // sub: t = t - initExpr
     OpMeExpr subtract(-1, OP_sub, primTypeUsed, 2);
     subtract.SetOpnd(0, subx);
     subtract.SetOpnd(1, ivdesc->initExpr);
@@ -289,6 +346,7 @@ void IVCanon::ComputeTripCount() {
   }
   MeExpr *divx = subx;
   if (ivdesc->stepValue != 1) {
+    // div: t = t / stepValue
     OpMeExpr divide(-1, OP_div, divPrimType, 2);
     divide.SetOpnd(0, divx);
     divide.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue, divPrimType));
@@ -308,13 +366,13 @@ void IVCanon::CanonEntryValues() {
       initName.append(std::to_string(i));
       initName.append(".init");
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(initName);
-      ScalarMeExpr *scalarmeexpr = func->GetIRMap()->CreateNewVar(strIdx, ivdesc->primType, false);
+      ScalarMeExpr *scalarMeExpr = func->GetIRMap()->CreateNewVar(strIdx, ivdesc->primType, false);
 #else // create preg
       ScalarMeExpr *scalarmeexpr = func->irMap->CreateRegMeExpr(ivdesc->primType);
 #endif
-      AssignMeStmt *ass = func->GetIRMap()->CreateAssignMeStmt(*scalarmeexpr, *ivdesc->initExpr, *aloop->preheader);
+      AssignMeStmt *ass = func->GetIRMap()->CreateAssignMeStmt(*scalarMeExpr, *ivdesc->initExpr, *aloop->preheader);
       aloop->preheader->AddMeStmtLast(ass);
-      ivdesc->initExpr = scalarmeexpr;
+      ivdesc->initExpr = scalarMeExpr;
     }
   }
 }
@@ -399,17 +457,17 @@ void IVCanon::ReplaceSecondaryIVPhis() {
     MeExpr *mulx = iterCountUsed;
     if (ivdesc->stepValue != 1) {
       PrimType primTypeUsed = ivdesc->stepValue < 0 ? GetSignedPrimType(ivdesc->primType) : ivdesc->primType;
-      OpMeExpr mulmeexpr(-1, OP_mul, primTypeUsed, 2);
-      mulmeexpr.SetOpnd(0, mulx);
-      mulmeexpr.SetOpnd(1, func->GetIRMap()->CreateIntConstMeExpr(ivdesc->stepValue, primTypeUsed));
-      mulx = func->GetIRMap()->HashMeExpr(mulmeexpr);
+      OpMeExpr mulMeExpr(-1, OP_mul, primTypeUsed, 2);
+      mulMeExpr.SetOpnd(0, mulx);
+      mulMeExpr.SetOpnd(1, func->GetIRMap()->CreateIntConstMeExpr(ivdesc->stepValue, primTypeUsed));
+      mulx = func->GetIRMap()->HashMeExpr(mulMeExpr);
     }
-    OpMeExpr addmeexpr(-1, OP_add, ivdesc->primType, 2);
+    OpMeExpr addMeExpr(-1, OP_add, ivdesc->primType, 2);
     MeExpr *addx = mulx;
     if (!ivdesc->initExpr->IsZero()) {
-      addmeexpr.SetOpnd(0, ivdesc->initExpr);
-      addmeexpr.SetOpnd(1, mulx);
-      addx = func->GetIRMap()->HashMeExpr(addmeexpr);
+      addMeExpr.SetOpnd(0, ivdesc->initExpr);
+      addMeExpr.SetOpnd(1, mulx);
+      addx = func->GetIRMap()->HashMeExpr(addMeExpr);
     }
     AssignMeStmt *ass = func->GetIRMap()->CreateAssignMeStmt(*phi->GetLHS(), *addx, *headBB);
     headBB->PrependMeStmt(ass);
@@ -427,16 +485,16 @@ void IVCanon::ReplaceSecondaryIVPhis() {
 }
 
 void IVCanon::PerformIVCanon() {
-  BB *headbb = aloop->head;
+  BB *headBB = aloop->head;
   uint32 phiOpndIdxOfInit = 1;
   uint32 phiOpndIdxOfLoopBack = 0;
-  if (aloop->loopBBs.count(headbb->GetPred(0)->GetBBId()) == 0) {
+  if (aloop->loopBBs.count(headBB->GetPred(0)->GetBBId()) == 0) {
     phiOpndIdxOfInit = 0;
     phiOpndIdxOfLoopBack = 1;
   }
-  CHECK_FATAL(aloop->tail == headbb->GetPred(phiOpndIdxOfLoopBack), "PerformIVCanon: tail BB inaccurate");
+  CHECK_FATAL(aloop->tail == headBB->GetPred(phiOpndIdxOfLoopBack), "PerformIVCanon: tail BB inaccurate");
   // go thru the list of phis at the loop head to find all IVs
-  for (std::pair<OStIdx, MePhiNode*> mapEntry: headbb->GetMePhiList()) {
+  for (std::pair<OStIdx, MePhiNode*> mapEntry: headBB->GetMePhiList()) {
     OriginalSt *ost = ssatab->GetOriginalStFromID(mapEntry.first);
     if (!ost->IsIVCandidate()) {
       continue;
@@ -450,13 +508,14 @@ void IVCanon::PerformIVCanon() {
   }
   FindPrimaryIV();
   if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << "****** while loop at label " << "@" << func->GetMirFunc()->GetLabelName(headbb->GetBBLabel());
-    LogInfo::MapleLogger() << ", BB id:" << headbb->GetBBId()  << " has IVs:" << endl;
+    LogInfo::MapleLogger() << "****** while loop at label " << "@"
+                           << func->GetMirFunc()->GetLabelName(headBB->GetBBLabel());
+    LogInfo::MapleLogger() << ", BB id:" << headBB->GetBBId()  << " has IVs:" << endl;
     for (uint32 i = 0; i < ivvec.size(); i++) {
       IVDesc *ivdesc = ivvec[i];
       ivdesc->ost->Dump();
       LogInfo::MapleLogger() << "  step: " << ivdesc->stepValue << " initExpr: ";
-      ivdesc->initExpr->Dump(0);
+      ivdesc->initExpr->Dump(func->GetIRMap());
       if (i == idxPrimaryIV) {
         LogInfo::MapleLogger() << " [PRIMARY IV]";
       }
@@ -484,14 +543,14 @@ AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRe
   MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(irmap != nullptr, "hssamap has problem");
 
-  IdentifyLoops *identloops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
-  CHECK_FATAL(identloops != nullptr, "identloops has problem");
+  IdentifyLoops *identLoops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+  CHECK_FATAL(identLoops != nullptr, "identloops has problem");
 
   LfoFunction *lfoFunc = func->GetLfoFunc();
 
   // loop thru all the loops in reverse order so inner loops are processed first
-  for (int32 i = identloops->GetMeLoops().size()-1; i >= 0; i--) {
-    LoopDesc *aloop = identloops->GetMeLoops()[i];
+  for (int32 i = identLoops->GetMeLoops().size()-1; i >= 0; i--) {
+    LoopDesc *aloop = identLoops->GetMeLoops()[i];
     BB *headbb = aloop->head;
     // check if the label has associated LfoWhileInfo
     if (headbb->GetBBLabel() == 0) {
@@ -529,5 +588,4 @@ AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRe
 
   return nullptr;
 }
-
 }  // namespace maple
