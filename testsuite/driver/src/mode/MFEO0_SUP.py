@@ -14,15 +14,28 @@
 
 from api import *
 
-CO0 = {
+MFEO0_SUP = {
     "clean": [
         Shell(
-            "rm -rf *.mpl *.s *.out *.B *.log"
+            "rm -rf *.mpl *.s *.out *.mplt *.log *.ast"
         )
     ],
     "compile": [
-        Clang2mpl(
-            infile="${APP}.c"
+        C2ast(
+            clang="${MAPLE_ROOT}/tools/bin/clang",
+            include_path=[
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+                "../lib/include"
+            ],
+            option="--target=aarch64",
+            infile="${APP}.c",
+            outfile="${APP}.ast"
+        ),
+        Mplfe(
+            mplfe="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/mplfe",
+            infile="${APP}.ast",
+            outfile="${APP}.mpl"
         ),
         Maple(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
@@ -35,10 +48,11 @@ CO0 = {
         ),
         CLinker(
             infile="${APP}.s",
-            front_option="",
+            front_option="-O2 -static -L../lib/c -std=c89 -s",
             outfile="${APP}.out",
-            back_option="-lm"
+            back_option="-lst -lm"
         )
+
     ],
     "run": [
         QemuRun(
@@ -50,7 +64,7 @@ CO0 = {
         ),
         CheckFileEqual(
             file1="output.log",
-            file2="expected.txt"         
+            file2="expected.txt"
         )
     ]
 }

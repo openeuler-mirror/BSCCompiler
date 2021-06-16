@@ -14,15 +14,23 @@
 
 from api import *
 
-CO0 = {
+MFEO0 = {
     "clean": [
         Shell(
-            "rm -rf *.mpl *.s *.out *.B *.log"
+            "rm -rf *.mpl *.mplt *.ast *.s *.out *.log"
         )
     ],
     "compile": [
-        Clang2mpl(
-            infile="${APP}.c"
+        C2ast(
+            clang="${MAPLE_ROOT}/tools/bin/clang",
+            include_path=[],
+            infile="${APP}.c",
+            outfile="${APP}.ast"
+        ),
+        Mplfe(
+            mplfe="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/mplfe",
+            infile="${APP}.ast",
+            outfile="${APP}.mpl"
         ),
         Maple(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
@@ -43,14 +51,14 @@ CO0 = {
     "run": [
         QemuRun(
             qemu_libc=[
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc"
+                "/usr/aarch64-linux-gnu/"
             ],
             infile="${APP}.out",
             redirection="output.log"
         ),
         CheckFileEqual(
             file1="output.log",
-            file2="expected.txt"         
+            file2="expected.txt"
         )
     ]
 }
