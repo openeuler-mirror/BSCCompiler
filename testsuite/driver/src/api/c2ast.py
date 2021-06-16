@@ -14,16 +14,17 @@
 
 from api.shell_operator import ShellOperator
 
+class C2ast(ShellOperator):
 
-class CLinker(ShellOperator):
-   
-    def __init__(self, infile, front_option, outfile, back_option, return_value_list=None, redirection=None):
+    def __init__(self, clang, infile, include_path, outfile, option="", return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
+        self.clang = clang
         self.infile = infile
-        self.front_option = front_option
+        self.option = option
+        self.include_path = include_path
         self.outfile = outfile
-        self.back_option = back_option
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc " + self.front_option + " -o " + self.outfile + " " + self.infile + " " + self.back_option
+        include_path_str = " ".join(["-isystem " + path for path in self.include_path])
+        self.command = self.clang + " -emit-ast " + self.option + " " + include_path_str + " -o " + self.outfile + " " + self.infile
         return super().get_final_command(variables)
