@@ -70,6 +70,7 @@ function main {
   cd $MAPLE_ROOT/testsuite/driver/config
   cp testall.conf tmp.conf
   cp ci_testall.conf testall.conf
+  cd -
 
   debug_test
 
