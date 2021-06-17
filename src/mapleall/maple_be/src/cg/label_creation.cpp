@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,7 +39,7 @@ void LabelCreation::CreateStartEndLabel() {
   ASSERT(cgFunc->GetFunction().GetBody()->GetLast() == endLabel, "last stmt must be a endLabel");
   MIRFunction *func = &cgFunc->GetFunction();
   CG *cg = cgFunc->GetCG();
-  if (CGOptions::IsWithDwarf()) {
+  if (cg->GetCGOptions().WithDwarf()) {
     DebugInfo *di = cg->GetMIRModule()->GetDbgInfo();
     DBGDie *fdie = di->GetDie(func);
     fdie->SetAttr(DW_AT_low_pc, startLblIdx);
