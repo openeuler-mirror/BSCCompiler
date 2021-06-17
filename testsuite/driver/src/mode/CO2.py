@@ -35,12 +35,22 @@ CO2 = {
         ),
         CLinker(
             infile="${APP}.s",
-            outfile="${APP}.out"
+            front_option="",
+            outfile="${APP}.out",
+            back_option="-lm"
         )
     ],
     "run": [
-        Shell(
-            "${TOOL_BIN_PATH}/qemu-aarch64 -L ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/ ${APP}.out"
+        QemuRun(
+            qemu_libc=[
+                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc"                            
+            ],
+            infile="${APP}.out",
+            redirection="output.log"                                
+        ),
+        CheckFileEqual(
+            file1="output.log",
+            file2="expected.txt"                                         
         )
     ]
 }
