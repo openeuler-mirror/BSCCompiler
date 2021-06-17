@@ -15,15 +15,13 @@
 from api.shell_operator import ShellOperator
 
 
-class CLinker(ShellOperator):
-   
-    def __init__(self, infile, front_option, outfile, back_option, return_value_list=None, redirection=None):
+class QemuRun(ShellOperator):
+
+    def __init__(self, qemu_libc, infile, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
+        self.qemu_libc = qemu_libc
         self.infile = infile
-        self.front_option = front_option
-        self.outfile = outfile
-        self.back_option = back_option
 
     def get_command(self, variables):
-        self.command = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc " + self.front_option + " -o " + self.outfile + " " + self.infile + " " + self.back_option
+        self.command = "${TOOL_BIN_PATH}/qemu-aarch64 " + " ".join(["-L " + lib_path for lib_path in self.qemu_libc]) + " " + self.infile
         return super().get_final_command(variables)
