@@ -91,9 +91,9 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
 }
 
 void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool isRebuilt) {
-  if (compare->GetOpnd(0)->GetNumOpnds() > 0 ||
+  if (compare->GetOpnd(0)->GetNumOpnds() > 0 &&
       compare->GetOpnd(1)->GetNumOpnds() > 0) {
-    // both sides of compare must be leaf
+    // one side of compare must be leaf
     return;
   }
   if (!IsPrimitiveInteger(compare->GetPrimType())) {
