@@ -151,6 +151,7 @@ src_libcg = [
   "src/cg/cg_cfg.cpp",
   "src/cg/cg_option.cpp",
   "src/cg/cg_phasemanager.cpp",
+  "src/cg/dbg.cpp",
   "src/cg/ebo.cpp",
   "src/cg/eh_func.cpp",
   "src/cg/emit.cpp",
