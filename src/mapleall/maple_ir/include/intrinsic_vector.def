@@ -80,6 +80,50 @@ DEF_MIR_INTRINSIC(vector_from_scalar_v2f32, "vector_from_scalar_v2f32",
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
                   kArgTyF32)
 
+// vecTy2 vector_madd(vecTy2 accum, vecTy1 src1, vecTy1 src2)
+//      Multiply the elements of src1 and src2, then accumulate into accum.
+//      Elements of vecTy2 are twice as long as elements of vecTy1.
+DEF_MIR_INTRINSIC(vector_madd_v2i32, "vector_madd_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64, kArgTyV2I32, kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_madd_v4i16, "vector_madd_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyV4I16, kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_madd_v8i8, "vector_madd_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16, kArgTyV8I8, kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_madd_v2u32, "vector_madd_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyV2U32, kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_madd_v4u16, "vector_madd_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyV4U16, kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_madd_v8u8, "vector_madd_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8U8, kArgTyV8U8)
+
+// vecTy2 vector_mull(vecTy1 src1, vecTy1 src2)
+//      Multiply the elements of src1 and src2. Elements of vecTy2 are twice as
+//      long as elements of vecTy1.
+DEF_MIR_INTRINSIC(vector_mul_v2i32, "vector_mul_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I32, kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_mul_v4i16, "vector_mul_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I16, kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_mul_v8i8, "vector_mul_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I8, kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_mul_v2u32, "vector_mul_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U32, kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_mul_v4u16, "vector_mul_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U16, kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_mul_v8u8, "vector_mul_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U8, kArgTyV8U8)
+
 // vecTy vector_merge(vecTy src1, vecTy src2, int n)
 //     Create a vector by concatenating the high elements of src1, starting
 //     with the nth element, followed by the low elements of src2.
@@ -673,11 +717,27 @@ DEF_MIR_INTRINSIC(vector_store_v2f32, "vector_store_v2f32", INTRNISVECTOR,
                   kArgTyVoid, kArgTyPtr, kArgTyV2F32)
 
 // Temporary intrinsics that should be replaced by standard ops.
-DEF_MIR_INTRINSIC(vector_and_v8u16, "vector_and_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8U16)
-DEF_MIR_INTRINSIC(vector_and_v4i32, "vector_and_v4i32", INTRNISVECTOR,
-                  kArgTyV4I32, kArgTyV4I32, kArgTyV4I32)
-DEF_MIR_INTRINSIC(vector_eq_v8u16, "vector_eq_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8U16)
-DEF_MIR_INTRINSIC(vector_shl_v8u16, "vector_shl_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_and_v8u16, "vector_and_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_and_v4i32, "vector_and_v4i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32, kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_eq_v8u16, "vector_eq_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_shl_v8u16, "vector_shl_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U16, kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_shli_v2u64, "vector_shli_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_shri_v2u64, "vector_shri_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyI32)
+DEF_MIR_INTRINSIC(vector_xor_v4u32, "vector_xor_v4u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U32, kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_xor_v2u64, "vector_xor_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U64, kArgTyV2U64)
