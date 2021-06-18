@@ -754,6 +754,20 @@ MeExpr *AddroffuncMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) con
   return nullptr;
 }
 
+MeExpr *AddroflabelMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
+  (void)isConstructor;
+  auto *addroflabelExpr = static_cast<AddroflabelMeExpr*>(&expr);
+
+  while (addroflabelExpr != nullptr) {
+    if (addroflabelExpr->GetMeOp() == kMeOpAddroflabel && addroflabelExpr->labelIdx == labelIdx) {
+      return addroflabelExpr;
+    }
+    addroflabelExpr = static_cast<AddroflabelMeExpr*>(addroflabelExpr->GetNext());
+  }
+
+  return nullptr;
+}
+
 void MePhiNode::Dump(const IRMap *irMap) const {
   const OriginalSt *ost =  lhs->GetOst();
   bool isSym = ost->IsSymbolOst();
@@ -1127,7 +1141,7 @@ void ChiMeNode::Dump(const IRMap *irMap) const {
   LogInfo::MapleLogger() << "mx" << meRHS->GetExprID() << "}";
 }
 
-void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList) {
+void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, ScalarMeExpr*> &muList) {
   if (muList.empty()) {
     return;
   }
