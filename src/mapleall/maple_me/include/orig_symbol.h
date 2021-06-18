@@ -175,6 +175,14 @@ class OriginalSt {
     this->fieldID = fieldID;
   }
 
+  const OffsetType &GetOffset() const {
+    return offset;
+  }
+
+  void SetOffset(const OffsetType &offsetVal) {
+    offset = offsetVal;
+  }
+
   bool IsIgnoreRC() const {
     return ignoreRC;
   }
@@ -257,6 +265,7 @@ class OriginalSt {
         index(index),
         versionsIndices(alloc.Adapter()),
         fieldID(fieldID),
+        offset(kOffsetUnknown),
         isLocal(local),
         isFormal(isFormal),
         ignoreRC(ignoreRC),
@@ -270,6 +279,7 @@ class OriginalSt {
   size_t zeroVersionIndex = 0;            // same as versionsIndices[0]
   TyIdx tyIdx{ 0 };                        // type of this symbol at this level; 0 for unknown
   FieldID fieldID;                    // at each level of indirection
+  OffsetType offset;
   int8 indirectLev = 0;                   // level of indirection; -1 for address, 0 for itself
   bool isLocal;                       // get from defined stmt or use expr
   bool isFormal;  // it's from the formal parameters so the type must be kSymbolOst or kPregOst after rename2preg
@@ -286,10 +296,11 @@ class OriginalSt {
 
 class SymbolFieldPair {
  public:
-  SymbolFieldPair(const StIdx &stIdx, FieldID fld) : stIdx(stIdx), fldID(fld) {}
+  SymbolFieldPair(const StIdx &stIdx, FieldID fld, const OffsetType &offset = OffsetType(kOffsetUnknown))
+      : stIdx(stIdx), fldIDAndOffset((static_cast<int64>(offset.val) << 32) + fld) {}
   ~SymbolFieldPair() = default;
   bool operator==(const SymbolFieldPair& pairA) const {
-    return (pairA.stIdx == stIdx) && (pairA.fldID == fldID);
+    return (pairA.stIdx == stIdx) && (pairA.fldIDAndOffset == fldIDAndOffset);
   }
 
   const StIdx &GetStIdx() const {
@@ -297,12 +308,12 @@ class SymbolFieldPair {
   }
 
   FieldID GetFieldID() const {
-    return fldID;
+    return static_cast<FieldID>(fldIDAndOffset);
   }
 
  private:
   StIdx stIdx;
-  FieldID fldID;
+  int64 fldIDAndOffset;
 };
 
 struct HashSymbolFieldPair {
@@ -318,6 +329,10 @@ class OriginalStTable {
   ~OriginalStTable() = default;
 
   OriginalSt *FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld);
+  std::pair<OriginalSt*, bool> FindOrCreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld,
+      const TyIdx &tyIdx, const OffsetType &offset = OffsetType(kOffsetUnknown));
+  OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx puIdx, FieldID fld, const TyIdx &tyIdx,
+                                     const OffsetType &offset = OffsetType(kOffsetUnknown));
   OriginalSt *FindOrCreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
   OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx pidx, FieldID fld);
   OriginalSt *CreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
@@ -392,6 +407,7 @@ class OriginalStTable {
   // mir symbol to original table, this only exists for no-original variables.
  public:
   MapleUnorderedMap<SymbolFieldPair, OStIdx, HashSymbolFieldPair> mirSt2Ost;
+  MapleUnorderedMap<StIdx, OStIdx> addrofSt2Ost;
  private:
   MapleUnorderedMap<PregIdx, OStIdx> preg2Ost;
   // mir type to virtual variables in original table. this only exists for no-original variables.
