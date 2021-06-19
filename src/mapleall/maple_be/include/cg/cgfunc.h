@@ -202,6 +202,8 @@ class CGFunc {
   virtual Operand *SelectStr16Const(MIRStr16Const &strConst) = 0;
   virtual void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual void SelectMadd(Operand &resOpnd, Operand &opndM0, Operand &opndM1, Operand &opnd1, PrimType primType) = 0;
+  virtual Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1) = 0;
   virtual Operand &SelectCGArrayElemAdd(BinaryNode &node) = 0;
   virtual Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
@@ -271,20 +273,23 @@ class CGFunc {
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
   /* For Neon intrinsics */
-  virtual RegOperand *SelectVectorFromScalar(IntrinsicopNode &intrnNode) = 0;
-  virtual Operand *SelectVectorStore(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorMerge(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorGetHigh(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorGetLow(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorGetElement(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorPairwiseAdd(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorSetElement(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorReverse(IntrinsicopNode &intrnNode, uint32 size) = 0;
-  virtual RegOperand *SelectVectorAnd(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorSum(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorCompare(IntrinsicopNode &intrnNode, V_CND cc) = 0;
-  virtual RegOperand *SelectVectorULeftShift(IntrinsicopNode &intrnNode) = 0;
-  virtual RegOperand *SelectVectorTableLookup(IntrinsicopNode &intrnNode) = 0;
+  virtual RegOperand *SelectVectorFromScalar(PrimType pType, BaseNode *arg, Operand *opnd) = 0;
+  virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2, Operand *o3) = 0;
+  virtual RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src, PrimType sType) = 0;
+  virtual RegOperand *SelectVectorGetLow(PrimType rType, Operand *src, PrimType sType) = 0;
+  virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
+  virtual RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) = 0;
+  virtual RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) = 0;
+  virtual RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) = 0;
+  virtual RegOperand *SelectVectorAnd(PrimType rType, Operand *opnd1, Operand *opnd2) = 0;
+  virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
+  virtual RegOperand *SelectVectorCompare(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, V_CND cc) = 0;
+  virtual RegOperand *SelectVectorULShift(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) = 0;
+  virtual RegOperand *SelectVectorUShiftImm(PrimType rType, Operand *o1, PrimType oTyp1, Operand *imm, uint32 sVal, bool isLeft) = 0;
+  virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
+  virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3, PrimType oTyp3) = 0;
+  virtual RegOperand *SelectVectorXor(PrimType rType, Operand *o1, Operand *o2) = 0;
+  virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType pTyp2) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {

@@ -88,8 +88,23 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 }
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
-  return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                          *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
+  (void)parent;
+  if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
+      !IsPrimitiveFloat(expr.GetPrimType())) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+  } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
+             !IsPrimitiveFloat(expr.GetPrimType())) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(1), *expr.Opnd(1)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(1), *expr.Opnd(1)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+  } else {
+    return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
+                            *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
+  }
 }
 
 Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -299,6 +314,156 @@ Operand *HandleJarrayMalloc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFu
   return cgFunc.SelectJarrayMalloc(static_cast<JarrayMallocNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
 }
 
+/* Neon intrinsic handling */
+Operand *HandleVectorFromScalar(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  return cgFunc.SelectVectorFromScalar(intrnNode.GetPrimType(), intrnNode.Opnd(0),
+                                       cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0)));
+}
+
+Operand *HandleVectorMerge(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand1 */
+  PrimType o1Type = intrnNode.Opnd(0)->GetPrimType();
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand2 */
+  PrimType o2Type = intrnNode.Opnd(1)->GetPrimType();
+  Operand *opnd3 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(2));   /* index operand */
+  return cgFunc.SelectVectorMerge(intrnNode.GetPrimType(), opnd1, o1Type, opnd2, o2Type, opnd3);
+}
+
+Operand *HandleVectorGetHigh(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
+  return cgFunc.SelectVectorGetHigh(rType, opnd1, intrnNode.Opnd(0)->GetPrimType());
+}
+
+Operand *HandleVectorGetLow(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
+  return cgFunc.SelectVectorGetLow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType());
+}
+
+Operand *HandleVectorGetElement(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
+  PrimType o1Type = intrnNode.Opnd(0)->GetPrimType();
+  Operand *opndLane = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));
+  int32 laneNum = -1;
+  if (opndLane->IsConstImmediate()) {
+    MIRConst *mirConst = static_cast<ConstvalNode*>(intrnNode.Opnd(1))->GetConstVal();
+    laneNum = safe_cast<MIRIntConst>(mirConst)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorGetElement does not have lane const");
+  }
+  return cgFunc.SelectVectorGetElement(intrnNode.GetPrimType(), opnd1, o1Type, laneNum);
+}
+
+Operand *HandleVectorPairwiseAdd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  Operand *src = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));     /* vector src operand*/
+  PrimType sType = intrnNode.Opnd(0)->GetPrimType();
+  return cgFunc.SelectVectorPairwiseAdd(intrnNode.GetPrimType(), src, sType);
+}
+
+Operand *HandleVectorSetElement(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  BaseNode *arg0 = intrnNode.Opnd(0);                                  /* uint32_t operand */
+  Operand *opnd0 = cgFunc.HandleExpr(intrnNode, *arg0);
+  PrimType aType = arg0->GetPrimType();
+  //ASSERT(GetPrimTypeBitSize(aType) <= k32BitSize, "VectorSetElement: invalid opnd0");
+
+  BaseNode *arg1 = intrnNode.Opnd(1);                                  /* vector operand == result */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *arg1);
+  PrimType vType = arg1->GetPrimType();
+
+  BaseNode *arg2 = intrnNode.Opnd(2);                                  /* lane const operand */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *arg2);
+  int32 laneNum = -1;
+  if (opnd2->IsConstImmediate()) {
+    MIRConst *mirConst = static_cast<ConstvalNode*>(arg2)->GetConstVal();
+    laneNum = safe_cast<MIRIntConst>(mirConst)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorSetElement does not have lane const");
+  }
+  return cgFunc.SelectVectorSetElement(opnd0, aType, opnd1, vType, laneNum);
+}
+
+Operand *HandleVectorReverse(IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 size) {
+  BaseNode *argExpr = intrnNode.Opnd(0);                               /* src operand */
+  PrimType sType = argExpr->GetPrimType();
+  Operand *src = cgFunc.HandleExpr(intrnNode, *argExpr);
+  return cgFunc.SelectVectorReverse(intrnNode.GetPrimType(), src, sType, size);
+}
+
+Operand *HandleVectorAnd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  Operand *src1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));    /* vector operand1 */
+  Operand *src2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));    /* vector operand2 */
+  return cgFunc.SelectVectorAnd(intrnNode.GetPrimType(), src1, src2);
+}
+
+Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType resType = intrnNode.GetPrimType();                          /* uint32_t result */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
+  return cgFunc.SelectVectorSum(resType, opnd1, intrnNode.Opnd(0)->GetPrimType());
+}
+
+Operand *HandleVectorCompare(IntrinsicopNode &intrnNode, CGFunc &cgFunc, CGFunc::V_CND cc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  return cgFunc.SelectVectorCompare(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType(), cc);
+}
+
+Operand *HandleVectorTableLookup(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  return cgFunc.SelectVectorTableLookup(rType, opnd1, opnd2);
+}
+
+Operand *HandleVectorULShift(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  return cgFunc.SelectVectorULShift(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType());
+}
+
+Operand *HandleVectorUShiftImm(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLeft) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  BaseNode *arg2 = intrnNode.Opnd(1);                                  /* lane const operand */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *arg2);   /* shift imm operand */
+  int32 sConst;
+  if (opnd2->IsConstImmediate()) {
+    MIRConst *mirConst = static_cast<ConstvalNode*>(arg2)->GetConstVal();
+    sConst = safe_cast<MIRIntConst>(mirConst)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorUshiftImm has invalid shift const");
+  }
+  return cgFunc.SelectVectorUShiftImm(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, sConst, isLeft);
+}
+
+Operand *HandleVectorMadd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  Operand *opnd3 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(2));   /* vector operand 3 */
+  PrimType oTyp1 = intrnNode.Opnd(0)->GetPrimType();
+  PrimType oTyp2 = intrnNode.Opnd(1)->GetPrimType();
+  PrimType oTyp3 = intrnNode.Opnd(2)->GetPrimType();
+  return cgFunc.SelectVectorMadd(opnd1, oTyp1, opnd2, oTyp2, opnd3, oTyp3);
+}
+
+Operand *HandleVectorXor(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  return cgFunc.SelectVectorXor(rType, opnd1, opnd2);
+}
+
+Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  PrimType oTyp1 = intrnNode.Opnd(0)->GetPrimType();
+  PrimType oTyp2 = intrnNode.Opnd(1)->GetPrimType();
+  return cgFunc.SelectVectorMull(rType, opnd1, oTyp1, opnd2, oTyp2);
+}
+
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
@@ -375,52 +540,63 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C_ctz32:
     case INTRN_C_ctz64:
       return cgFunc.SelectCctz(intrinsicopNode);
+    case INTRN_vector_from_scalar_v2u32:
     case INTRN_vector_from_scalar_v4i32:
     case INTRN_vector_from_scalar_v16u8:
-      return cgFunc.SelectVectorFromScalar(intrinsicopNode);
+      return HandleVectorFromScalar(intrinsicopNode, cgFunc);
     case INTRN_vector_merge_v16u8:
     case INTRN_vector_merge_v8u16:
-      return cgFunc.SelectVectorMerge(intrinsicopNode);
-    case INTRN_vector_store_v4i32:
-    case INTRN_vector_store_v16u8:
-      return cgFunc.SelectVectorStore(intrinsicopNode);
+      return HandleVectorMerge(intrinsicopNode, cgFunc);
     case INTRN_vector_get_high_v2u64:
-      return cgFunc.SelectVectorGetHigh(intrinsicopNode);
+      return HandleVectorGetHigh(intrinsicopNode, cgFunc);
     case INTRN_vector_get_low_v2u64:
-      return cgFunc.SelectVectorGetLow(intrinsicopNode);
+      return HandleVectorGetLow(intrinsicopNode, cgFunc);
     case INTRN_vector_get_element_v2u32:
     case INTRN_vector_get_element_v8u16:
     case INTRN_vector_get_element_v4u32:
-      return cgFunc.SelectVectorGetElement(intrinsicopNode);
+      return HandleVectorGetElement(intrinsicopNode, cgFunc);
     case INTRN_vector_pairwise_add_v8u16:
     case INTRN_vector_pairwise_add_v4u32:
-      return cgFunc.SelectVectorPairwiseAdd(intrinsicopNode);
+      return HandleVectorPairwiseAdd(intrinsicopNode, cgFunc);
+    case INTRN_vector_set_element_v2u32:
     case INTRN_vector_set_element_v8i16:
     case INTRN_vector_set_element_v8u16:
     case INTRN_vector_set_element_v4u32:
-      return cgFunc.SelectVectorSetElement(intrinsicopNode);
+    case INTRN_vector_set_element_v2u64:
+      return HandleVectorSetElement(intrinsicopNode, cgFunc);
     case INTRN_vector_reverse_v16u8:
-      return cgFunc.SelectVectorReverse(intrinsicopNode, 32);
+      return HandleVectorReverse(intrinsicopNode, cgFunc, k32BitSize);
     case INTRN_vector_and_v4i32:
     case INTRN_vector_and_v8u16:
-      return cgFunc.SelectVectorAnd(intrinsicopNode);
+      return HandleVectorAnd(intrinsicopNode, cgFunc);
     case INTRN_vector_sum_v8u16:
-      return cgFunc.SelectVectorSum(intrinsicopNode);
+      return HandleVectorSum(intrinsicopNode, cgFunc);
     case INTRN_vector_eq_v8u16:
-      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_eq);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_eq);
 #if 0    /* Not yet added in FE */
     case INTRN_vector_ge_v8u16:
-      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_ge);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_ge);
     case INTRN_vector_gt_v8u16:
-      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_gt);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_gt);
     case INTRN_vector_lt_v8u16:
-      return cgFunc.SelectVectorCompare(intrinsicopNode, CGFunc::v_lt);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_lt);
 #endif
-    case INTRN_vector_shl_v8u16:
-      return cgFunc.SelectVectorULeftShift(intrinsicopNode);
     case INTRN_vector_table_lookup_v8u16:
     case INTRN_vector_table_lookup_v16u8:
-      return cgFunc.SelectVectorTableLookup(intrinsicopNode);
+      return HandleVectorTableLookup(intrinsicopNode, cgFunc);
+    case INTRN_vector_madd_v2u32:
+      return HandleVectorMadd(intrinsicopNode, cgFunc);
+    case INTRN_vector_shl_v8u16:
+      return HandleVectorULShift(intrinsicopNode, cgFunc);
+    case INTRN_vector_shli_v2u64:
+      return HandleVectorUShiftImm(intrinsicopNode, cgFunc, true);
+    case INTRN_vector_shri_v2u64:
+      return HandleVectorUShiftImm(intrinsicopNode, cgFunc, false);
+    case INTRN_vector_xor_v4u32:
+    case INTRN_vector_xor_v2u64:
+      return HandleVectorXor(intrinsicopNode, cgFunc);
+    case INTRN_vector_mul_v2u32:
+      return HandleVectorMull(intrinsicopNode, cgFunc);
     default:
       ASSERT(false, "Should not reach here.");
       return nullptr;
@@ -901,13 +1077,14 @@ bool CGFunc::CheckSkipMembarOp(StmtNode &stmt) {
 }
 
 void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc) {
-  // insert Insn for .loc before cg for the stmt
+  /* insert Insn for .loc before cg for the stmt */
   if (cg->GetCGOptions().WithLoc() && stmt->op != OP_label && stmt->op != OP_comment) {
-    // if original src file location info is availiable for this stmt,
-    // use it and skip mpl file location info for this stmt
+    /* if original src file location info is availiable for this stmt,
+     * use it and skip mpl file location info for this stmt
+     */
     unsigned newSrcLoc = cg->GetCGOptions().WithSrc() ? stmt->GetSrcPos().LineNum() : 0;
     if (newSrcLoc != 0 && newSrcLoc != lastSrcLoc) {
-      // .loc for original src file
+      /* .loc for original src file */
       unsigned fileid = stmt->GetSrcPos().FileNum();
       Operand *o0 = CreateDbgImmOperand(fileid);
       Operand *o1 = CreateDbgImmOperand(newSrcLoc);
@@ -915,7 +1092,7 @@ void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMpl
       curBB->AppendInsn(loc);
       lastSrcLoc = newSrcLoc;
     }
-    // .loc for mpl file
+    /* .loc for mpl file */
     unsigned newMplLoc = cg->GetCGOptions().WithMpl() ? stmt->GetSrcPos().MplLineNum() : 0;
     if (newMplLoc != 0 && newMplLoc != lastMplLoc) {
       unsigned fileid = 1;
