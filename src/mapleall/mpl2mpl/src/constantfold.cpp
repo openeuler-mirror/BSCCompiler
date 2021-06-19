@@ -14,7 +14,9 @@
  */
 #include "constantfold.h"
 #include <cmath>
+#include <cfloat>
 #include <climits>
+#include <type_traits>
 #include "mpl_logging.h"
 #include "mir_function.h"
 #include "mir_builder.h"
@@ -750,111 +752,96 @@ ConstvalNode *ConstantFold::FoldFPConstBinary(Opcode opcode, PrimType resultType
   return resultConst;
 }
 
-MIRIntConst *ConstantFold::FoldFPConstComparisonMIRConst(Opcode opcode, PrimType resultType, PrimType opndType,
-                                                         const MIRConst &const0, const MIRConst &const1) const {
-  const MIRDoubleConst *doubleConst0 = nullptr;
-  const MIRDoubleConst *doubleConst1 = nullptr;
-  const MIRFloatConst *floatConst0 = nullptr;
-  const MIRFloatConst *floatConst1 = nullptr;
-  bool useDouble = (opndType == PTY_f64);
-  if (useDouble) {
-    doubleConst0 = safe_cast<MIRDoubleConst>(&const0);
-    CHECK_FATAL(doubleConst0 != nullptr, "doubleConst0 is nullptr");
-    doubleConst1 = safe_cast<MIRDoubleConst>(&const1);
-    CHECK_FATAL(doubleConst1 != nullptr, "doubleConst1 is nullptr");
+
+bool ConstantFold::ConstValueEqual(int64 leftValue, int64 rightValue) const {
+  return (leftValue == rightValue);
+}
+
+bool ConstantFold::ConstValueEqual(float leftValue, float rightValue) const {
+  return fabs(leftValue - rightValue) <= FLT_MIN;
+}
+
+bool ConstantFold::ConstValueEqual(double leftValue, double rightValue) const {
+  return fabs(leftValue - rightValue) <= DBL_MIN;
+}
+
+template<typename T>
+bool ConstantFold::FullyEqual(T leftValue, T rightValue) const {
+  if (isinf(leftValue) && isinf(rightValue)) {
+    // (inf == inf), add the judgement here in case of the subtraction between float type inf
+    return true;
   } else {
-    floatConst0 = safe_cast<MIRFloatConst>(&const0);
-    CHECK_FATAL(floatConst0 != nullptr, "floatConst0 is nullptr");
-    floatConst1 = safe_cast<MIRFloatConst>(&const1);
-    CHECK_FATAL(floatConst1 != nullptr, "floatConst1 is nullptr");
+    return ConstValueEqual(leftValue, rightValue);
   }
-  MIRType &type = *GlobalTables::GetTypeTable().GetPrimType(resultType);
-  int64 constValue = 0;
-  switch (opcode) {
+}
+
+template<typename T>
+int64 ConstantFold::ComparisonResult(Opcode op, T *leftConst, T *rightConst) const {
+  typename T::value_type leftValue = leftConst->GetValue();
+  typename T::value_type rightValue = rightConst->GetValue();
+  int64 result = 0;;
+  switch (op) {
     case OP_eq: {
-      if (useDouble) {
-        constValue = fabs(doubleConst0->GetValue() - doubleConst1->GetValue()) <= 1e-15 ? 1 : 0;
-      } else {
-        constValue = fabs(floatConst0->GetValue() - floatConst1->GetValue()) <= 1e-6 ? 1 : 0;
-      }
+      result = FullyEqual(leftValue, rightValue);
       break;
     }
     case OP_ge: {
-      if (useDouble) {
-        constValue = (doubleConst0->GetValue() >= doubleConst1->GetValue()) ? 1 : 0;
-      } else {
-        constValue = (floatConst0->GetValue() >= floatConst1->GetValue()) ? 1 : 0;
-      }
+      result = (leftValue > rightValue) || FullyEqual(leftValue, rightValue);
       break;
     }
     case OP_gt: {
-      if (useDouble) {
-        constValue = (doubleConst0->GetValue() > doubleConst1->GetValue()) ? 1 : 0;
-      } else {
-        constValue = (floatConst0->GetValue() > floatConst1->GetValue()) ? 1 : 0;
-      }
+      result = (leftValue > rightValue);
       break;
     }
     case OP_le: {
-      if (useDouble) {
-        constValue = (doubleConst0->GetValue() <= doubleConst1->GetValue()) ? 1 : 0;
-      } else {
-        constValue = (floatConst0->GetValue() <= floatConst1->GetValue()) ? 1 : 0;
-      }
+      result = (leftValue < rightValue) || FullyEqual(leftValue, rightValue);
       break;
     }
     case OP_lt: {
-      if (useDouble) {
-        constValue = (doubleConst0->GetValue() < doubleConst1->GetValue()) ? 1 : 0;
-      } else {
-        constValue = (floatConst0->GetValue() < floatConst1->GetValue()) ? 1 : 0;
-      }
+      result = (leftValue < rightValue);
       break;
     }
     case OP_ne: {
-      if (useDouble) {
-        constValue = fabs(doubleConst0->GetValue() - doubleConst1->GetValue()) > 1e-15 ? 1 : 0;
-      } else {
-        constValue = fabs(floatConst0->GetValue() - floatConst1->GetValue()) > 1e-6 ? 1 : 0;
-      }
+      result = !FullyEqual(leftValue, rightValue);
       break;
     }
-    case OP_cmp:
     case OP_cmpl:
     case OP_cmpg: {
-      if (useDouble) {
-        CHECK_NULL_FATAL(doubleConst0);
-        CHECK_NULL_FATAL(doubleConst1);
-        if (doubleConst0->GetValue() > doubleConst1->GetValue() ||
-            (opcode == OP_cmpg && (std::isnan(doubleConst0->GetValue()) || std::isnan(doubleConst1->GetValue())))) {
-          constValue = 1;
-        } else if (fabs(doubleConst0->GetValue() - doubleConst1->GetValue()) <= 1e-15) {
-          constValue = 0;
-        } else if (doubleConst0->GetValue() < doubleConst1->GetValue() ||
-                   (opcode == OP_cmpl && (std::isnan(doubleConst0->GetValue()) ||
-                   std::isnan(doubleConst1->GetValue())))) {
-          constValue = -1;
-        }
+      if (std::isnan(leftValue) || std::isnan(rightValue)) {
+        result = (op == OP_cmpg) ? kGreater : kLess;
+        break;
+      }
+    }
+    [[clang::fallthrough]];
+    case OP_cmp: {
+      if (leftValue > rightValue) {
+        result = kGreater;
+      } else if (FullyEqual(leftValue, rightValue)) {
+        result = kEqual;
       } else {
-        if (floatConst0->GetValue() > floatConst1->GetValue() ||
-            (opcode == OP_cmpg && (std::isnan(floatConst0->GetValue()) || std::isnan(floatConst1->GetValue())))) {
-          constValue = 1;
-        } else if (fabs(floatConst0->GetValue() - floatConst1->GetValue()) > 1e-6) {
-          constValue = 0;
-        } else if (floatConst0->GetValue() < floatConst1->GetValue() ||
-                   (opcode == OP_cmpl && (std::isnan(floatConst0->GetValue()) ||
-                   std::isnan(floatConst1->GetValue())))) {
-          constValue = -1;
-        }
+        result = kLess;
       }
       break;
     }
     default:
-      ASSERT(false, "Unknown opcode for FoldFPConstComparison");
+      ASSERT(false, "Unknown opcode for Comparison");
       break;
   }
+  return result;
+}
+
+MIRIntConst *ConstantFold::FoldFPConstComparisonMIRConst(Opcode opcode, PrimType resultType, PrimType opndType,
+                                                         const MIRConst &leftConst, const MIRConst &rightConst) const {
+  int64 result = 0;
+  bool useDouble = (opndType == PTY_f64);
+  if (useDouble) {
+    result = ComparisonResult(opcode, safe_cast<MIRDoubleConst>(&leftConst), safe_cast<MIRDoubleConst>(&rightConst));
+  } else {
+    result = ComparisonResult(opcode, safe_cast<MIRFloatConst>(&leftConst), safe_cast<MIRFloatConst>(&rightConst));
+  }
+  MIRType &type = *GlobalTables::GetTypeTable().GetPrimType(resultType);
   MIRIntConst *resultConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(constValue, type);
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(result, type);
   return resultConst;
 }
 
@@ -1420,7 +1407,8 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
     }
   } else if (node->GetOpCode() == OP_cvt) {
     if ((IsPossible64BitAddress(node->FromType()) && IsPossible64BitAddress(node->GetPrimType())) ||
-        (IsPossible32BitAddress(node->FromType()) && IsPossible32BitAddress(node->GetPrimType()))) {
+        (IsPossible32BitAddress(node->FromType()) && IsPossible32BitAddress(node->GetPrimType())) ||
+         (IsPrimitivePureScalar(node->FromType()) && IsPrimitivePureScalar(node->GetPrimType()) && GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
       return p; // the cvt is redundant
     }
   }
@@ -1617,6 +1605,9 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = NewBinaryNode(node, op, primType, l, PairToExpr(rPrimTypes, rp));
       sum = 0;
     }
+    if (result->GetPrimType() != primType) {
+      result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, result->GetPrimType(), result);
+    }
   } else if (rConst != nullptr && isInt) {
     MIRIntConst *mcst = safe_cast<MIRIntConst>(rConst->GetConstVal());
     ASSERT_NOT_NULL(mcst);
@@ -1689,6 +1680,9 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
     } else {
       result = NewBinaryNode(node, op, primType, PairToExpr(lPrimTypes, lp), r);
       sum = 0;
+    }
+    if (result->GetPrimType() != primType) {
+      result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, result->GetPrimType(), result);
     }
   } else if (isInt && (op == OP_add || op == OP_sub)) {
     if (op == OP_add) {
@@ -2053,8 +2047,13 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
   CHECK_NULL_FATAL(node);
   BaseNode *returnValue = nullptr;
   returnValue = Fold(node->Opnd(0));
-  if (returnValue != nullptr) {
-    node->SetOpnd(returnValue, 0);
+  returnValue = (returnValue == nullptr) ? node : returnValue;
+  if (node->Opnd(0)->GetOpCode() == OP_select) {
+    return SimplifyCondGotoSelect(node);
+  } else {
+    if (returnValue != node) {
+      node->SetOpnd(returnValue, 0);
+    }
     ConstvalNode *cst = safe_cast<ConstvalNode>(node->Opnd(0));
     if (cst == nullptr) {
       return node;
@@ -2069,8 +2068,6 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
     } else {
       return nullptr;
     }
-  } else if (node->Opnd(0)->GetOpCode() == OP_select) {
-    return SimplifyCondGotoSelect(node);
   }
   return node;
 }
