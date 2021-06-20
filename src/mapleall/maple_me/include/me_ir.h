@@ -164,7 +164,7 @@ class MeExpr {
     return 0;
   }
   virtual bool StrengthReducible() { return false; }
-  virtual int64 SRMultiplier() { return 1; }
+  virtual int64 SRMultiplier(OriginalSt *ost) { return 1; }
 
  protected:
   MeExpr *FindSymAppearance(OStIdx oidx);  // find the appearance of the symbol
@@ -867,7 +867,7 @@ class OpMeExpr : public MeExpr {
     return nullptr;
   }
   bool StrengthReducible() override;
-  int64 SRMultiplier() override;
+  int64 SRMultiplier(OriginalSt *ost) override;
 
  private:
   std::array<MeExpr*, kOperandNumTernary> opnds = { nullptr };  // kid
@@ -881,15 +881,19 @@ class OpMeExpr : public MeExpr {
 
 class IvarMeExpr : public MeExpr {
  public:
+  IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid, Opcode op)
+      : MeExpr(exprid, kMeOpIvar, op, t, 1), tyIdx(tidx), fieldID(fid) {}
+
   IvarMeExpr(int32 exprid, PrimType t, TyIdx tidx, FieldID fid)
-      : MeExpr(exprid, kMeOpIvar, OP_iread, t, 1), tyIdx(tidx), fieldID(fid) {}
+      : IvarMeExpr(exprid, t, tidx, fid, OP_iread) {}
 
   IvarMeExpr(int32 exprid, const IvarMeExpr &ivarme)
-      : MeExpr(exprid, kMeOpIvar, OP_iread, ivarme.GetPrimType(), 1),
+      : MeExpr(exprid, kMeOpIvar, ivarme.op, ivarme.GetPrimType(), 1),
         defStmt(ivarme.defStmt),
         base(ivarme.base),
         tyIdx(ivarme.tyIdx),
         fieldID(ivarme.fieldID),
+        offset(ivarme.offset),
         volatileFromBaseSymbol(ivarme.volatileFromBaseSymbol) {
     mu = ivarme.mu;
   }
@@ -955,6 +959,14 @@ class IvarMeExpr : public MeExpr {
     fieldID = fieldIDVal;
   }
 
+  int32 GetOffset() const {
+    return offset;
+  }
+
+  void SetOffset(int32 val) {
+    offset = val;
+  }
+
   bool GetMaybeNull() const {
     return maybeNull;
   }
@@ -983,7 +995,8 @@ class IvarMeExpr : public MeExpr {
 
   uint32 GetHashIndex() const override {
     constexpr uint32 kIvarHashShift = 4;
-    return static_cast<uint32>(OP_iread) + fieldID + (static_cast<uint32>(base->GetExprID()) << kIvarHashShift);
+    return static_cast<uint32>(op) + fieldID + static_cast<uint32>(offset) +
+           (static_cast<uint32>(base->GetExprID()) << kIvarHashShift);
   }
 
   MIRType *GetType() const override {
@@ -1000,6 +1013,7 @@ class IvarMeExpr : public MeExpr {
   TyIdx tyIdx{ 0 };
   TyIdx inferredTyIdx{ 0 };  // may be a subclass of above tyIdx
   FieldID fieldID = 0;
+  int32 offset = 0;
   bool maybeNull = true;  // false if definitely not null
   bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
   ScalarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
@@ -1183,7 +1197,7 @@ class MeStmt {
     return nullptr;
   }
 
-  virtual MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  virtual MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return nullptr;
   }
 
@@ -1916,7 +1930,7 @@ class NaryMeStmt : public MeStmt {
 
   void DumpOpnds(const IRMap*) const;
   void Dump(const IRMap*) const;
-  virtual MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  virtual MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return nullptr;
   }
 
@@ -1942,7 +1956,7 @@ class MuChiMePart {
   virtual ~MuChiMePart() = default;
 
  protected:
-  MapleMap<OStIdx, VarMeExpr*> muList;
+  MapleMap<OStIdx, ScalarMeExpr*> muList;
   MapleMap<OStIdx, ChiMeNode*> chiList;
 };
 
@@ -2012,7 +2026,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   }
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
@@ -2119,7 +2133,7 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   virtual ~IcallMeStmt() = default;
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
@@ -2224,7 +2238,7 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
   virtual ~IntrinsiccallMeStmt() = default;
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
@@ -2320,12 +2334,12 @@ class RetMeStmt : public NaryMeStmt {
   ~RetMeStmt() = default;
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
  private:
-  MapleMap<OStIdx, VarMeExpr*> muList;
+  MapleMap<OStIdx, ScalarMeExpr*> muList;
 };
 
 // eval, free, decref, incref, decrefreset, assertnonnull, igoto
@@ -2475,7 +2489,9 @@ class CppCatchMeStmt : public MeStmt {
  public:
   TyIdx exceptionTyIdx;
 
-  CppCatchMeStmt(MapleAllocator *alloc, StmtNode *stt) : MeStmt(stt) {}
+  CppCatchMeStmt(MapleAllocator *alloc, StmtNode *stt) : MeStmt(stt) {
+    (void)alloc;
+  }
 
   ~CppCatchMeStmt() = default;
   StmtNode &EmitStmt(SSATab &ssaTab);
@@ -2537,16 +2553,16 @@ class WithMuMeStmt : public MeStmt {
 
   virtual ~WithMuMeStmt() = default;
 
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
-  const MapleMap<OStIdx, VarMeExpr*> *GetMuList() const {
+  const MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() const {
     return &muList;
   }
 
  private:
-  MapleMap<OStIdx, VarMeExpr*> muList;
+  MapleMap<OStIdx, ScalarMeExpr*> muList;
 };
 
 class GosubMeStmt : public WithMuMeStmt {
@@ -2603,7 +2619,7 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
   ~SyncMeStmt() = default;
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, VarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
     return &muList;
   }
 
@@ -2677,7 +2693,7 @@ class AssertMeStmt : public MeStmt {
 };
 
 MapleMap<OStIdx, ChiMeNode*> *GenericGetChiListFromVarMeExpr(ScalarMeExpr &expr);
-void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList);
+void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, ScalarMeExpr*> &muList);
 void DumpChiList(const IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chiList);
 class DumpOptions {
  public:

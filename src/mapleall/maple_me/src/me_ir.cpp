@@ -306,11 +306,18 @@ bool OpMeExpr::IsCompareIdentical(const OpMeExpr &meExpr) const {
   return (meExpr.GetOpnd(1) == this->GetOpnd(0)) && (meExpr.GetOpnd(0) == this->GetOpnd(1));
 }
 
+static bool CompatibleIntegerTypes(PrimType pty1, PrimType pty2) {
+  if (IsPrimitiveInteger(pty1) && IsPrimitiveInteger(pty2)) {
+    return GetPrimTypeSize(pty1) == GetPrimTypeSize(pty2) && IsSignedInteger(pty1) == IsSignedInteger(pty2);
+  }
+  return false;
+}
+
 bool OpMeExpr::IsIdentical(const OpMeExpr &meExpr) const {
   if (meExpr.GetOp() != GetOp()) {
     return false;
   }
-  if (meExpr.GetPrimType() != GetPrimType() || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
+  if (!CompatibleIntegerTypes(meExpr.GetPrimType(), GetPrimType()) || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
       meExpr.bitsSize != bitsSize || meExpr.tyIdx != tyIdx || meExpr.fieldID != fieldID) {
     return false;
   }
@@ -345,7 +352,7 @@ bool IvarMeExpr::IsUseSameSymbol(const MeExpr &expr) const {
   }
   auto &ivarMeExpr = static_cast<const IvarMeExpr&>(expr);
   CHECK_FATAL(base != nullptr, "base is null");
-  if (base->IsUseSameSymbol(*ivarMeExpr.base) && fieldID == ivarMeExpr.fieldID) {
+  if (base->IsUseSameSymbol(*ivarMeExpr.base) && fieldID == ivarMeExpr.fieldID && offset == ivarMeExpr.offset) {
     return true;
   }
   return false;
@@ -390,7 +397,8 @@ bool IvarMeExpr::IsRCWeak() const {
 // (argument expr), then update its mu: expr->mu = this->mu.
 bool IvarMeExpr::IsIdentical(IvarMeExpr &expr, bool inConstructor) const {
   CHECK_FATAL(expr.base != nullptr, "null ptr check");
-  if (base->GetExprID() != expr.base->GetExprID() || fieldID != expr.fieldID || tyIdx != expr.tyIdx) {
+  if (base->GetExprID() != expr.base->GetExprID() || fieldID != expr.fieldID ||
+      offset != expr.offset || tyIdx != expr.tyIdx) {
     return false;
   }
 
@@ -575,22 +583,41 @@ bool OpMeExpr::StrengthReducible() {
     case OP_cvt: {
       return IsPrimitiveInteger(opndType) && GetPrimTypeSize(primType) >= GetPrimTypeSize(opndType);
     }
-    case OP_mul:
-      return GetOpnd(1)->GetOp() == OP_constval;
+    case OP_mul: {
+      if (GetOpnd(1)->GetOp() == OP_constval) {
+        ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(GetOpnd(1));
+        MIRIntConst *cnode = static_cast<MIRIntConst *>(cMeExpr->GetConstVal());
+        return cnode->GetValue() < 0x1000;
+      }
+      return false;
+    }
     case OP_add:
+    case OP_sub:
       return true;
     default: return false;
   }
 }
 
-int64 OpMeExpr::SRMultiplier() {
+int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
   ASSERT(StrengthReducible(), "OpMeExpr::SRMultiplier: operation is not strength reducible");
-  if (op != OP_mul) {
-    return 1;
+  switch (op) {
+    case OP_cvt:
+    case OP_add: return 1;
+    case OP_sub: {
+      ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(GetOpnd(1));
+      if (scalarOpnd1 && scalarOpnd1->GetOst() == ost) {
+        return -1;
+      }
+      return 1;
+    }
+    case OP_mul: {
+      MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
+      ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
+      return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+    }
+    default: CHECK_FATAL(false, "SRMultiplier: unexpected strength reduction opcode");
   }
-  MIRConst *constVal = static_cast<ConstMeExpr *>(GetOpnd(1))->GetConstVal();
-  ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
-  return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
+  return 0;
 }
 
 // first, make sure it's int const and return true if the int const great or eq 0
@@ -914,6 +941,9 @@ void IvarMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "base = ";
   CHECK_FATAL(base != nullptr, "base is null");
   base->Dump(irMap, indent + 1);
+  if (op == OP_ireadoff) {
+    LogInfo::MapleLogger() << "  (offset)" << offset;
+  }
   LogInfo::MapleLogger() << '\n';
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "- MU: {";
@@ -1127,7 +1157,7 @@ void ChiMeNode::Dump(const IRMap *irMap) const {
   LogInfo::MapleLogger() << "mx" << meRHS->GetExprID() << "}";
 }
 
-void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, VarMeExpr*> &muList) {
+void DumpMuList(const IRMap *irMap, const MapleMap<OStIdx, ScalarMeExpr*> &muList) {
   if (muList.empty()) {
     return;
   }

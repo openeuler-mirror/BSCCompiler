@@ -57,6 +57,9 @@ class SSAEPre : public SSAPre {
     if (!workCand->isSRCand) {
       return x;
     }
+    if (x->GetMeOp() != kMeOpVar && x->GetMeOp() != kMeOpReg) {
+      return x;
+    }
     return static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<ScalarMeExpr *>(x)));
   }
   void SubstituteOpnd(MeExpr *x, MeExpr *oldopnd, MeExpr *newopnd) override;
@@ -72,6 +75,9 @@ class SSAEPre : public SSAPre {
 
   bool epreIncludeRef;
   bool enableLHSIvar;
+  // here starts mtehods related to linear function test replacement
+  OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) override;
+  void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) override;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SSAEPRE_H
