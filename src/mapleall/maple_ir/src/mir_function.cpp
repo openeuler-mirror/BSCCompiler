@@ -31,6 +31,7 @@ enum FuncProp : uint32_t {
                                    // can only be printed at the beginning of a block
   kFuncPropNeverReturn = 1U << 4,  // the function when called never returns
   kFuncPropHasSetjmp = 1U << 5,    // the function contains call to setjmp
+  kFuncPropHasAsm = 1U << 6,       // the function has use of inline asm
 };
 }  // namespace
 
@@ -198,6 +199,14 @@ bool MIRFunction::HasSetjmp() const {
   return flag & kFuncPropHasSetjmp;
 }
 
+void MIRFunction::SetHasAsm() {
+  flag |= kFuncPropHasAsm;
+}
+
+bool MIRFunction::HasAsm() const {
+  return flag & kFuncPropHasAsm;
+}
+
 void MIRFunction::SetAttrsFromSe(uint8 specialEffect) {
   // NoPrivateDefEffect
   if ((specialEffect & kDefEffect) == kDefEffect) {
@@ -297,7 +306,7 @@ void MIRFunction::Dump(bool withoutBody) {
   // class and interface decls.  these has nothing in formals
   // they do have paramtypelist_. this can not skip ones without args
   // but for them at least the func decls are valid
-  if ((module->IsJavaModule() && GetParamSize() != formalDefVec.size()) || 
+  if ((module->IsJavaModule() && GetParamSize() != formalDefVec.size()) ||
       GetAttr(FUNCATTR_optimized)) {
     return;
   }
@@ -628,14 +637,14 @@ void MIRFunction::NewBody() {
 #ifdef DEBUGME
 void MIRFunction::SetUpGDBEnv() {
   if (codeMemPool != nullptr) {
-    memPoolCtrler.DeleteMemPool(codeMemPool);
+    delete codeMemPool;
   }
-  codeMemPool = memPoolCtrler.NewMemPool("tmp debug");
+  codeMemPool = new ThreadLocalMemPool(memPoolCtrler, "tmp debug");
   codeMemPoolAllocator.SetMemPool(codeMemPool);
 }
 
 void MIRFunction::ResetGDBEnv() {
-  memPoolCtrler.DeleteMemPool(codeMemPool);
+  delete codeMemPool;
   codeMemPool = nullptr;
 }
 #endif
