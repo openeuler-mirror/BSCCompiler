@@ -49,6 +49,7 @@ bool MeOccur::IsDominate(Dominance &dom, MeOccur &occ) {
   switch (occTy) {
     case kOccReal: {
       switch (occ.GetOccType()) {
+        case kOccCompare:
         case kOccReal: {
           if (mirBB == occ.GetBB()) {
             auto *thisRealOcc = static_cast<MeRealOcc*>(this);
@@ -162,6 +163,10 @@ void MeRealOcc::Dump(const IRMap &irMap) const {
     } else {
       mod->GetOut() << " classID " << GetClassID();
     }
+  } else if (GetOccType() == kOccCompare) {
+    mod->GetOut() << "CompOcc ";
+    meExpr->Dump(&irMap);
+    mod->GetOut() << " at bb" << GetBB()->GetBBId() << " seq " << seq << " classID " << GetClassID();
   } else {
     mod->GetOut() << "MembarOcc ";
     mod->GetOut() << " at bb" << GetBB()->GetBBId() << " seq " << seq;

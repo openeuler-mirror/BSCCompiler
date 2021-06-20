@@ -225,8 +225,7 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
     case kMeOpOp: {
       OpMeExpr opMeExpr(*static_cast<OpMeExpr*>(realZ.GetMeExpr()), -1);
       for (size_t i = 0; i < opMeExpr.GetNumOpnds(); ++i) {
-        MeExpr *resolvedOpnd = ResolveAllInjuringDefs(opMeExpr.GetOpnd(i));
-        MeExpr *retOpnd = GetReplaceMeExpr(*resolvedOpnd, *ePhiBB, j);
+        MeExpr *retOpnd = GetReplaceMeExpr(*opMeExpr.GetOpnd(i), *ePhiBB, j);
         if (retOpnd != nullptr) {
           opMeExpr.SetOpnd(i, retOpnd);
         }
@@ -296,6 +295,9 @@ void SSAEPre::ComputeVarAndDfPhis() {
   CHECK_FATAL(!dom->IsBBVecEmpty(), "size to be allocated is 0");
   for (auto it = realOccList.begin(); it != realOccList.end(); ++it) {
     MeRealOcc *realOcc = *it;
+    if (realOcc->GetOccType() == kOccCompare) {
+      continue;
+    }
     BB *defBB = realOcc->GetBB();
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
@@ -338,6 +340,9 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
         break;
       }
       if (isRootExpr && kOpcodeInfo.IsCompare(meOpExpr->GetOp())) {
+        if (doLFTR) {
+          CreateCompOcc(&meStmt, seqStmt, meOpExpr, isRebuild);
+        }
         break;
       }
       if (!epreIncludeRef && meOpExpr->GetPrimType() == PTY_ref) {

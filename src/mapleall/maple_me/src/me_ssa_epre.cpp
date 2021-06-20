@@ -92,6 +92,9 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
   if (MeOption::strengthReduction && !func->GetMIRModule().IsJavaModule()) {
     ssaPre.strengthReduction = true;
+    if (MeOption::doLFTR) {
+      ssaPre.doLFTR = true;
+    }
   }
   if (func->GetHints() & kPlacementRCed) {
     ssaPre.SetPlacementRC(true);
@@ -115,16 +118,13 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     placeRC.ApplySSUPre();
   }
   if (ssaPre.strengthReduction) { // for deleting redundant injury repairs
-    MeHDSE hdse(*func, *dom, *func->GetIRMap(), DEBUGFUNC(func));
+    auto aliasClass = static_cast<AliasClass *>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+    MeHDSE hdse(*func, *dom, *func->GetIRMap(), aliasClass, DEBUGFUNC(func));
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
     }
     hdse.hdseKeepRef = MeOption::dseKeepRef;
     hdse.DoHDSE();
-  }
-  if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << "\n============== EPRE =============" << "\n";
-    func->Dump(false);
   }
   ++puCount;
   return nullptr;

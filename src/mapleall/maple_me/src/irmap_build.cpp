@@ -74,9 +74,9 @@ MeExpr *IRMapBuild::BuildLHSReg(const VersionSt &vst, AssignMeStmt &defMeStmt, c
 // build Me chilist from MayDefNode list
 void IRMapBuild::BuildChiList(MeStmt &meStmt, TypeOfMayDefList &mayDefNodes,
                               MapleMap<OStIdx, ChiMeNode*> &outList) {
-  for (auto &mayDefNode : mayDefNodes) {
-    VersionSt *opndSt = mayDefNode.GetOpnd();
-    VersionSt *resSt = mayDefNode.GetResult();
+  for (auto &mayDefNodeItem : mayDefNodes) {
+    VersionSt *opndSt = mayDefNodeItem.second.GetOpnd();
+    VersionSt *resSt = mayDefNodeItem.second.GetResult();
 
     auto *chiMeStmt = irMap->New<ChiMeNode>(&meStmt);
     if (opndSt->GetOst()->IsSymbolOst()) {
@@ -138,11 +138,16 @@ void IRMapBuild::BuildPhiMeNode(BB &bb) {
   }
 }
 
-void IRMapBuild::BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, VarMeExpr*> &muList) {
-  for (auto &mayUseNode : mayUseList) {
-    VersionSt *vst = mayUseNode.GetOpnd();
-    VarMeExpr *varMeExpr = GetOrCreateVarFromVerSt(*vst);
-    (void)muList.insert(std::make_pair(varMeExpr->GetOstIdx(), varMeExpr));
+void IRMapBuild::BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, ScalarMeExpr*> &muList) {
+  for (auto &mayUseNodeItem : mayUseList) {
+    VersionSt *vst = mayUseNodeItem.second.GetOpnd();
+    ScalarMeExpr *muExpr = nullptr;
+    if (vst->GetOst()->IsPregOst()) {
+      muExpr = GetOrCreateRegFromVerSt(*vst);
+    } else {
+      muExpr = GetOrCreateVarFromVerSt(*vst);
+    }
+    (void)muList.insert(std::make_pair(muExpr->GetOstIdx(), muExpr));
   }
 }
 
@@ -329,7 +334,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
     if (typesize < GetPrimTypeSize(addrOfNode.GetPrimType()) && typesize != 0) {
       // need to insert a convert
       if (typesize < 4) {
-        OpMeExpr opmeexpr(kInvalidExprID, IsSignedInteger(addrOfNode.GetPrimType()) ? OP_sext : OP_zext,
+        OpMeExpr opmeexpr(kInvalidExprID, IsSignedInteger(retmeexpr->GetPrimType()) ? OP_sext : OP_zext,
                           addrOfNode.GetPrimType(), 1);
         opmeexpr.SetBitsSize(static_cast<uint8>(typesize * 8));
         opmeexpr.SetOpnd(0, retmeexpr);
@@ -366,6 +371,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
         ivarMeExpr->SetVolatileFromBaseSymbol(true);
       }
     }
+    IRMap::SimplifyIvar(ivarMeExpr);
     IvarMeExpr *canIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(*ivarMeExpr));
     delete ivarMeExpr;
     ASSERT(static_cast<IvarMeExpr*>(canIvar)->GetMu() != nullptr, "BuildExpr: ivar node cannot have mu == nullptr");
@@ -384,7 +390,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
     if (typesize < GetPrimTypeSize(iReadSSANode.GetPrimType()) && typesize != 0) {
       // need to insert a convert
       if (typesize < 4) {
-        OpMeExpr opmeexpr(kInvalidExprID, IsSignedInteger(iReadSSANode.GetPrimType()) ? OP_sext : OP_zext,
+        OpMeExpr opmeexpr(kInvalidExprID, IsSignedInteger(retmeexpr->GetPrimType()) ? OP_sext : OP_zext,
                           iReadSSANode.GetPrimType(), 1);
         opmeexpr.SetBitsSize(static_cast<uint8>(typesize * 8));
         opmeexpr.SetOpnd(0, retmeexpr);
@@ -394,6 +400,23 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
       }
     }
     return retmeexpr;
+  }
+
+  if (op == OP_cvt) {
+    auto *simplifiedMeExpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr*>(meExpr));
+    if (simplifiedMeExpr != nullptr) {
+      return simplifiedMeExpr;
+    }
+  }
+
+  if (op == OP_mul) {
+    OpMeExpr *opMeExpr = static_cast<OpMeExpr *>(meExpr); 
+    if (opMeExpr->GetOpnd(0)->GetMeOp() == kMeOpConst) {
+      // canonicalize constant operand to be operand 1
+      MeExpr *savedOpnd = opMeExpr->GetOpnd(0);
+      opMeExpr->SetOpnd(0, opMeExpr->GetOpnd(1));
+      opMeExpr->SetOpnd(1, savedOpnd);
+    }
   }
 
   MeExpr *retMeExpr = irMap->HashMeExpr(*meExpr);
@@ -517,6 +540,15 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
   }
 }
 
+static bool IncDecAmountIsSmallInteger(MeExpr *x) {
+  if (x->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  ConstMeExpr *cMeExpr = static_cast<ConstMeExpr *>(x);
+  MIRIntConst *cnode = dynamic_cast<MIRIntConst *>(cMeExpr->GetConstVal());
+  return cnode && cnode->GetValue() < 0x1000;
+}
+
 MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   DassignMeStmt *meStmt = irMap->NewInPool<DassignMeStmt>(&stmt);
   DassignNode &dassiNode = static_cast<DassignNode&>(stmt);
@@ -527,10 +559,13 @@ MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   // determine isIncDecStmt
   if (meStmt->GetChiList()->empty()) {
     MeExpr *rhs = meStmt->GetRHS();
-    if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+    OriginalSt *ost = varLHS->GetOst();
+    if (ost->GetType()->GetSize() >= 4 &&
+        (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) && 
+        IsPrimitivePureScalar(rhs->GetPrimType())) {
       OpMeExpr *oprhs = static_cast<OpMeExpr *>(rhs);
-      if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar && oprhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
-        meStmt->isIncDecStmt = varLHS->GetOst() == static_cast<VarMeExpr *>(oprhs->GetOpnd(0))->GetOst();
+      if (oprhs->GetOpnd(0)->GetMeOp() == kMeOpVar && IncDecAmountIsSmallInteger(oprhs->GetOpnd(1))) {
+        meStmt->isIncDecStmt = ost == static_cast<VarMeExpr *>(oprhs->GetOpnd(0))->GetOst();
       }
     }
   }
@@ -566,11 +601,12 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   IassignMeStmt *meStmt = irMap->NewInPool<IassignMeStmt>(&stmt);
   meStmt->SetTyIdx(iasNode.GetTyIdx());
   meStmt->SetRHS(BuildExpr(*iasNode.GetRHS(), false, false));
-  meStmt->SetLHSVal(irMap->BuildLHSIvar(*BuildExpr(*iasNode.Opnd(0), false, false), *meStmt, iasNode.GetFieldID()));
+  meStmt->SetLHSVal(irMap->BuildLHSIvar(
+      *BuildExpr(*iasNode.Opnd(0), false, false), *meStmt, iasNode.GetFieldID()));
   if (mirModule.IsCModule()) {
     bool isVolt = false;
-    for (MayDefNode maydef : ssaPart.GetMayDefNodes()) {
-      const OriginalSt *ost = maydef.GetResult()->GetOst();
+    for (auto &maydefItem : ssaPart.GetMayDefNodes()) {
+      const OriginalSt *ost = maydefItem.second.GetResult()->GetOst();
       if (ost->IsVolatile()) {
         isVolt = true;
         break;

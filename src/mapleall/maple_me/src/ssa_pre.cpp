@@ -290,6 +290,29 @@ void SSAPre::CodeMotion() {
         GenerateSavePhiOcc(*phiOcc);
         break;
       }
+      case kOccCompare: {
+        MeRealOcc *compOcc = static_cast<MeRealOcc*>(occ);
+        if (!compOcc->IsReload()) {
+          break;
+        }
+        if (compOcc->GetDef()->GetOccType() == kOccReal) {
+          MeRealOcc *defRealOcc = static_cast<MeRealOcc *>(compOcc->GetDef());
+          if (!defRealOcc->IsReload() && !defRealOcc->IsSave()) {
+            break;
+          }
+        } else {
+          MePhiOcc *phiOcc = static_cast<MePhiOcc*>(compOcc->GetDef());
+          if (phiOcc->IsRemoved() || !phiOcc->IsWillBeAvail() || !phiOcc->IsDownSafe()) {
+            break;
+          }
+        }
+        MeExpr *regorvar = SRRepairInjuries(compOcc, &needRepairInjuringDefs, &repairedInjuringDefs);
+        OpMeExpr *newCompare = FormLFTRCompare(compOcc, regorvar);
+        // replace compOcc->mestmt's occ with newCompare
+        irMap->ReplaceMeExprStmt(*compOcc->GetMeStmt(), *compOcc->GetMeExpr(), *newCompare);
+        CreateCompOcc(compOcc->GetMeStmt(), compOcc->GetSequence(), newCompare, true);
+        break;
+      }
       case kOccExit:
         break;
       case kOccMembar:
@@ -318,7 +341,7 @@ void SSAPre::Finalize1() {
   std::vector<MeOccur*> availDefVec(classCount, nullptr);
   // traversal in preoder DT
   for (MeOccur *occ : allOccs) {
-    size_t classX = static_cast<size_t>(static_cast<uint32>(occ->GetClassID()));
+    int classX = occ->GetClassID();
     switch (occ->GetOccType()) {
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
@@ -338,6 +361,28 @@ void SSAPre::Finalize1() {
           ASSERT(!realOcc->IsSave(), "real occ with isSave cannot be set isReload");
           realOcc->SetDef(availDefVec[classX]);
         }
+        break;
+      }
+      case kOccCompare: {
+        if (classX == 0) {
+          break;
+        }
+        MeOccur *availDef = availDefVec[classX];
+        if (availDef == nullptr) {
+          occ->SetClassID(0);
+          break;
+        }
+        if (availDef->GetOccType() == kOccReal) {
+          MeRealOcc *realOcc = static_cast<MeRealOcc*>(availDef);
+          if (!realOcc->IsReload() && !realOcc->IsSave()) {
+            occ->SetClassID(0);
+            break;
+          }
+        }
+        CHECK_FATAL(availDef->IsDominate(*dom, *occ), "compare occ's available def not dominating it");
+        MeRealOcc *compOcc = static_cast<MeRealOcc*>(occ);
+        compOcc->SetIsReload(true);
+        compOcc->SetDef(availDefVec[classX]);
         break;
       }
       case kOccPhiopnd: {
@@ -773,6 +818,9 @@ void SSAPre::Rename1() {
           } else {
             for (auto varIt = varVec.begin(); varIt != varVec.end(); ++varIt) {
               MeExpr *varMeExpr = *varIt;
+              if (workCand->isSRCand) {
+                varMeExpr = ResolveAllInjuringDefs(varMeExpr);
+              }
               if (!DefVarDominateOcc(varMeExpr, *topOccur)) {
                 isAllDom = false;
               }
@@ -796,6 +844,65 @@ void SSAPre::Rename1() {
             occ->SetClassID(classCount++);
             occStack.push(occ);
           }
+        }
+        break;
+      }
+      case kOccCompare: {
+        if (occStack.empty()) {
+          break;
+        }
+        MeOccur *topOccur = occStack.top();
+        if (topOccur->GetOccType() == kOccUse || topOccur->GetOccType() == kOccMembar) {
+          break;
+        }
+        MeRealOcc *realOcc = static_cast<MeRealOcc *>(occ);
+        ScalarMeExpr *scalarOpnd0 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(0));
+        ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(workCand->GetTheMeExpr()->GetOpnd(1));
+        ScalarMeExpr *compareOpnd0 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(0));
+        ScalarMeExpr *compareOpnd1 = dynamic_cast<ScalarMeExpr *>(realOcc->GetMeExpr()->GetOpnd(1));
+        // set compareOpnd to be the scalar operand that is common to 
+        // workCand->theMeExpr and realOcc->meExpr
+        ScalarMeExpr *compareOpnd = nullptr;
+        uint32 scalarOpndNo = 0;
+        if (scalarOpnd0) {
+          if (compareOpnd0 && scalarOpnd0->GetOst() == compareOpnd0->GetOst()) {
+            compareOpnd = compareOpnd0;
+            scalarOpndNo = 0;
+          } else if (compareOpnd1 && scalarOpnd0->GetOst() == compareOpnd1->GetOst()) {
+            compareOpnd = compareOpnd1;
+            scalarOpndNo = 0;
+          }
+        }
+        if (scalarOpnd1) {
+          if (compareOpnd0 && scalarOpnd1->GetOst() == compareOpnd0->GetOst()) {
+            compareOpnd = compareOpnd0;
+            scalarOpndNo = 1;
+          } else if (compareOpnd1 && scalarOpnd1->GetOst() == compareOpnd1->GetOst()) {
+            compareOpnd = compareOpnd1;
+            scalarOpndNo = 1;
+          }
+        }
+        CHECK_FATAL(compareOpnd != nullptr, "Rename1: compOcc does not correspond to realOcc");
+        ScalarMeExpr *resolvedCompareOpnd = ResolveAllInjuringDefs(compareOpnd);
+        if (topOccur->GetOccType() == kOccReal) {
+          MeRealOcc *realTopOccur = static_cast<MeRealOcc *>(topOccur);
+          ScalarMeExpr *topOccurOpnd = static_cast<ScalarMeExpr *>(realTopOccur->GetMeExpr()->GetOpnd(scalarOpndNo));
+          if (compareOpnd == topOccurOpnd || resolvedCompareOpnd == topOccurOpnd) {
+            realOcc->SetClassID(realTopOccur->GetClassID());
+            if (realTopOccur->GetDef() != nullptr) {
+              realOcc->SetDef(realTopOccur->GetDef());
+            } else {
+              realOcc->SetDef(realTopOccur);
+            }
+          }
+          break;
+        }
+        // top of stack is a PHI occurrence
+        ASSERT(topOccur->GetOccType() == kOccPhiocc, "invalid kOccPhiocc");
+        if (DefVarDominateOcc(compareOpnd, *topOccur) /*  ||
+            (resolvedCompareOpnd && DefVarDominateOcc(resolvedCompareOpnd, *topOccur))*/) {
+          realOcc->SetClassID(topOccur->GetClassID());
+          realOcc->SetDef(topOccur);
         }
         break;
       }
@@ -882,25 +989,21 @@ void SSAPre::Rename1() {
   }
 }
 
-// if opnd is defined by phi, return the jth opnd of the phi;
+// if opnd has a phi definition at ePhiBB, return the jth opnd of the phi;
 // return nullptr otherwise
 MeExpr *SSAPre::GetReplaceMeExpr(const MeExpr &opnd, const BB &ePhiBB, size_t j) const {
   if (opnd.GetMeOp() != kMeOpVar && opnd.GetMeOp() != kMeOpReg) {
     return nullptr;
   }
-  MeExpr *retExpr = nullptr;
 
   const ScalarMeExpr *expr = static_cast<const ScalarMeExpr*>(&opnd);
-  if (expr->IsDefByPhi()) {
-    MePhiNode *defPhi = expr->GetMePhiDef();
-    if (ePhiBB.GetBBId() == defPhi->GetDefBB()->GetBBId()) {
-      ASSERT(j < defPhi->GetOpnds().size(), "index out of range in SSAPre::GetReplaceMeExpr");
-      ASSERT(defPhi->GetOpnds()[j]->GetMeOp() == opnd.GetMeOp(), "invalid defPhi");
-      retExpr = defPhi->GetOpnds()[j];
-    }
+  auto it = ePhiBB.GetMePhiList().find(expr->GetOst()->GetIndex());
+  if (it == ePhiBB.GetMePhiList().end()) {
+    return nullptr;
   }
-
-  if (retExpr != nullptr && retExpr->GetPrimType() == kPtyInvalid) {
+  MePhiNode *defPhi = it->second;
+  MeExpr *retExpr = defPhi->GetOpnds()[j];
+  if (retExpr->GetPrimType() == kPtyInvalid) {
     ASSERT_NOT_NULL(workCand);
     retExpr->SetPtyp(workCand->GetPrimType());
   }
@@ -940,7 +1043,7 @@ void SSAPre::Rename2() {
         bool hasSameVersion = true;
         for (size_t ii = 0; ii < varVecX.size(); ii++) {
           MeExpr *resolvedY = ResolveAllInjuringDefs(varVecY[ii]);
-          if (varVecX[ii] != resolvedY) {
+          if (varVecX[ii] != resolvedY && varVecX[ii] != varVecY[ii]) {
             hasSameVersion = false;
           }
         }
@@ -980,6 +1083,9 @@ void SSAPre::Rename2() {
             mirModule->GetOut() << "--- rename2 adds to rename2Set manufactured ";
             occY->Dump(*irMap);
             mirModule->GetOut() << '\n';
+            mirModule->GetOut() << "             with def at\n";
+            occY->GetDef()->Dump(*irMap);
+            mirModule->GetOut() << "\n";
           }
         } else {
           phiOpnd->SetDef(nullptr);
@@ -1104,6 +1210,7 @@ void SSAPre::CreateSortedOccs() {
       switch (pickedOcc->GetOccType()) {
         case kOccReal:
         case kOccMembar:
+        case kOccCompare:
           ++realOccIt;
           if (realOccIt != workCand->GetRealOccs().end()) {
             nextRealOcc = *realOccIt;
@@ -1293,7 +1400,6 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
   newOcc->SetIsLHS(isLHS);
   if (wkCand != nullptr) {
     if (isRebuilt) {
-      CHECK_FATAL(wkCand->GetIndex() >= reBuiltOccIndex, "new ssapre work candidate is found as old work candidate");
       // insert to realOccs in dt_preorder of the BBs and seq in each BB
       wkCand->AddRealOccSorted(*dom, *newOcc, GetPUIdx());
     } else {
@@ -1302,7 +1408,7 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
     return newOcc;
   }
   // workcand not yet created; create a new one and add to worklist
-  wkCand = ssaPreMemPool->New<PreWorkCand>(ssaPreAllocator, workList.size(), &meExpr, GetPUIdx());
+  wkCand = ssaPreMemPool->New<PreWorkCand>(ssaPreAllocator, &meExpr, GetPUIdx());
   wkCand->SetHasLocalOpnd(CheckIfAnyLocalOpnd(meExpr));
   if (EpreLocalRefVar() && wkCand->GetTheMeExpr()->GetMeOp() == kMeOpIvar) {
     // set wkCand->NeedLocalRefVar() flag
@@ -1318,7 +1424,20 @@ MeRealOcc *SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bo
   } else if (strengthReduction && meExpr.StrengthReducible() && meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
     wkCand->isSRCand = true;
   }
-  workList.push_front(wkCand);
+  // determine onlyInvariantOpnds flag
+  wkCand->onlyInvariantOpnds = true;
+  for (int i = 0; i < meExpr.GetNumOpnds(); i++) {
+    ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(meExpr.GetOpnd(i));
+    if (scalarOpnd != nullptr && scalarOpnd->GetOst()->GetVersionsIndices().size() > 1) {
+      wkCand->onlyInvariantOpnds = false;
+      break;
+    }
+  }
+  if (wkCand->onlyInvariantOpnds) {
+    workList.push_front(wkCand);
+  } else {
+    workList.push_back(wkCand);
+  }
   wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
   // add to bucket at workcandHashTable[hashIdx]
   wkCand->SetNext(*preWorkCandHashTable.GetWorkcandFromIndex(hashIdx));
@@ -1396,7 +1515,8 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *thrMeStmt->GetOpnd(), isRebuilt, tempVar, true);
       break;
     }
-    case OP_iassign: {
+    case OP_iassign:
+    case OP_iassignoff: {
       auto *ivarStmt = static_cast<IassignMeStmt*>(meStmt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *ivarStmt->GetRHS(), isRebuilt, tempVar, true);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt),
@@ -1613,6 +1733,7 @@ void SSAPre::ApplySSAPRE() {
       break;
     }
     workCand = workList.front();
+    workCand->SetIndex(static_cast<int32>(cnt));
     workList.pop_front();
     if (workCand->GetRealOccs().empty()) {
       continue;
@@ -1634,6 +1755,12 @@ void SSAPre::ApplySSAPRE() {
       mirModule->GetOut() << "||||||| SSAPRE candidate " << cnt << " at worklist index "
                           << workCand->GetIndex() << ": ";
       workCand->DumpCand(*irMap);
+      if (workCand->isSRCand) {
+        mirModule->GetOut() << " srCand";
+      }
+      if (workCand->onlyInvariantOpnds) {
+        mirModule->GetOut() << " onlyInvairantOpnds";
+      }
       mirModule->GetOut() << '\n';
     }
     allOccs.clear();
