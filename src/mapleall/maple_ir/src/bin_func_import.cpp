@@ -27,7 +27,7 @@ using namespace std;
 namespace maple {
 void BinaryMplImport::ImportInfoVector(MIRInfoVector &infoVector, MapleVector<bool> &infoVectorIsString) {
   int64 size = ReadNum();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     GStrIdx gStrIdx = ImportStr();
     bool isstring = ReadNum();
     infoVectorIsString.push_back(isstring);
@@ -98,7 +98,7 @@ void BinaryMplImport::ImportLocalSymTab(MIRFunction *func) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinSymStart, "kBinSymStart expected in ImportLocalSymTab()");
   int32 size = ReadInt();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     ImportLocalSymbol(func);
   }
   tag = ReadNum();
@@ -109,7 +109,7 @@ void BinaryMplImport::ImportPregTab(const MIRFunction *func) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinPregStart, "kBinPregStart expected in ImportPregTab()");
   int32 size = ReadInt();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     int64 tag = ReadNum();
     if (tag == 0) {
       func->GetPregTab()->GetPregTable().push_back(nullptr);
@@ -131,7 +131,7 @@ void BinaryMplImport::ImportLabelTab(MIRFunction *func) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinLabelStart, "kBinLabelStart expected in ImportLabelTab()");
   int32 size = ReadNum();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     GStrIdx gStrIdx = ImportStr();
     (void)func->GetLabelTab()->AddLabel(gStrIdx);
   }
@@ -143,7 +143,7 @@ void BinaryMplImport::ImportLocalTypeNameTable(MIRTypeNameTable *typeNameTab) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinTypenameStart, "kBinTypenameStart expected in ImportLocalTypeNameTable()");
   int32 size = ReadNum();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     GStrIdx strIdx = ImportStr();
     TyIdx tyIdx = ImportType();
     typeNameTab->SetGStrIdxToTyIdx(strIdx, tyIdx);
@@ -156,7 +156,7 @@ void BinaryMplImport::ImportFormalsStIdx(MIRFunction *func) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinFormalStart, "kBinFormalStart expected in ImportFormalsStIdx()");
   int32 size = ReadNum();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     uint32 indx = ReadNum();
     func->GetFormalDefVec()[i].formalSym = func->GetSymTab()->GetSymbolFromStIdx(indx);
   }
@@ -168,7 +168,7 @@ void BinaryMplImport::ImportAliasMap(MIRFunction *func) {
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinAliasMapStart, "kBinAliasMapStart expected in ImportAliasMap()");
   int32 size = ReadInt();
-  for (int32 i = 0; i < size; i++) {
+  for (int32 i = 0; i < size; ++i) {
     MIRAliasVars aliasvars;
     GStrIdx strIdx = ImportStr();
     aliasvars.memPoolStrIdx = ImportStr();
@@ -382,7 +382,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       ArrayNode *arrNode =
           mod.CurFuncCodeMemPool()->New<ArrayNode>(func->GetCodeMPAllocator(), typ, tidx, boundsCheck);
       uint32 n = ReadNum();
-      for (uint32 i = 0; i < n; i++) {
+      for (uint32 i = 0; i < n; ++i) {
         arrNode->GetNopnd().push_back(ImportExpression(func));
       }
       arrNode->SetNumOpnds(arrNode->GetNopnd().size());
@@ -392,7 +392,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       IntrinsicopNode *intrnNode = mod.CurFuncCodeMemPool()->New<IntrinsicopNode>(func->GetCodeMPAllocator(), op, typ);
       intrnNode->SetIntrinsic((MIRIntrinsicID)ReadNum());
       uint32 n = ReadNum();
-      for (uint32 i = 0; i < n; i++) {
+      for (uint32 i = 0; i < n; ++i) {
         intrnNode->GetNopnd().push_back(ImportExpression(func));
       }
       intrnNode->SetNumOpnds(intrnNode->GetNopnd().size());
@@ -404,7 +404,7 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       intrnNode->SetIntrinsic((MIRIntrinsicID)ReadNum());
       intrnNode->SetTyIdx(ImportType());
       uint32 n = ReadNum();
-      for (uint32 i = 0; i < n; i++) {
+      for (uint32 i = 0; i < n; ++i) {
         intrnNode->GetNopnd().push_back(ImportExpression(func));
       }
       intrnNode->SetNumOpnds(intrnNode->GetNopnd().size());
@@ -425,10 +425,10 @@ void BinaryMplImport::ImportReturnValues(MIRFunction *func, CallReturnVector *re
   int64 tag = ReadNum();
   CHECK_FATAL(tag == kBinReturnvals, "expecting return values");
   uint32 size = ReadNum();
-  for (uint32 i = 0; i < size; i++) {
+  for (uint32 i = 0; i < size; ++i) {
     uint32 idx = ReadNum();
     FieldID fid = ReadNum();
-    PregIdx16 ridx = ReadNum();
+    PregIdx ridx = ReadNum();
     retv->push_back(std::make_pair(StIdx(kScopeLocal, idx), RegFieldPair(fid, ridx)));
     if (idx == 0) {
       continue;
@@ -508,7 +508,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetPUIdx(ImportFuncViaSymName());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -526,7 +526,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -538,7 +538,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetTyIdx(ImportType());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -551,7 +551,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -562,7 +562,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetRetTyIdx(ImportType());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -574,7 +574,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -586,7 +586,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetIntrinsic((MIRIntrinsicID)ReadNum());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -599,7 +599,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         if (s->GetReturnVec().size() == 1 && s->GetReturnVec()[0].first.Idx() != 0) {
@@ -617,7 +617,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetTyIdx(ImportType());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -630,7 +630,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         if (s->GetReturnVec().size() == 1 && s->GetReturnVec()[0].first.Idx() != 0) {
@@ -648,7 +648,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         NaryStmtNode *s = func->GetCodeMemPool()->New<NaryStmtNode>(mod, op);
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -705,7 +705,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         SwitchNode *s = mod.CurFuncCodeMemPool()->New<SwitchNode>(mod);
         s->SetDefaultLabel(ReadNum());
         uint32 tagSize = ReadNum();
-        for (uint32 i = 0; i < tagSize; i++) {
+        for (uint32 i = 0; i < tagSize; ++i) {
           int64 casetag = ReadNum();
           LabelIdx lidx(ReadNum());
           CasePair cpair = std::make_pair(casetag, lidx);
@@ -735,7 +735,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_catch: {
         CatchNode *s = mod.CurFuncCodeMemPool()->New<CatchNode>(mod);
         uint32 numTys = ReadNum();
-        for (uint32 i = 0; i < numTys; i++) {
+        for (uint32 i = 0; i < numTys; ++i) {
           s->PushBack(ImportType());
         }
         stmt = s;
@@ -775,6 +775,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_asm: {
         AsmNode *s = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+        mod.CurFunction()->SetHasAsm();
         s->qualifiers = ReadNum();
         string str;
         ReadAsciiStr(str);
@@ -782,31 +783,31 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         // the outputs
         size_t count = ReadNum();
         UStrIdx strIdx;
-        for (int32 i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; ++i) {
           strIdx = ImportUsrStr();
           s->outputConstraints.push_back(strIdx);
         }
         ImportReturnValues(func, &s->asmOutputs);
         // the clobber list
         count = ReadNum();
-        for (int32 i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; ++i) {
           strIdx = ImportUsrStr();
           s->clobberList.push_back(strIdx);
         }
         // the labels
         count = ReadNum();
-        for (int32 i = 0; i < count; i++) {
+        for (size_t i = 0; i < count; ++i) {
           LabelIdx lidx = ReadNum();
           s->gotoLabels.push_back(lidx);
         }
         // the inputs
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           strIdx = ImportUsrStr();
           s->inputConstraints.push_back(strIdx);
         }
-        for (int32 i = 0; i < numOpr; i++) {
+        for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
         stmt = s;
@@ -828,7 +829,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
 void BinaryMplImport::ReadFunctionBodyField() {
   (void)ReadInt();  /// skip total size
   int32 size = ReadInt();
-  for (int64 i = 0; i < size; i++) {
+  for (int64 i = 0; i < size; ++i) {
     PUIdx puIdx = ImportFunction();
     MIRFunction *fn = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
     mod.SetCurFunction(fn);

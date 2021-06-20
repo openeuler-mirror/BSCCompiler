@@ -1083,6 +1083,7 @@ bool MIRParser::ParseCallReturns(CallReturnVector &retsvec) {
 
 bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   AsmNode *asmNode = mod.CurFuncCodeMemPool()->New<AsmNode>(&mod.GetCurFuncCodeMPAllocator());
+  mod.CurFunction()->SetHasAsm();
   lexer.NextToken();
   // parse qualifiers
   while (lexer.GetTokenKind() == TK_volatile ||
@@ -1090,10 +1091,19 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
          lexer.GetTokenKind() == TK_goto) {
     AsmQualifierKind qual;
     switch (lexer.GetTokenKind()) {
-      case TK_volatile: qual = kASMvolatile; break;
-      case TK_inline:   qual = kASMinline; break;
+      case TK_volatile: {
+        qual = kASMvolatile;
+        break;
+      }
+      case TK_inline: {
+        qual = kASMinline;
+        break;
+      }
       case TK_goto:
-      default:          qual = kASMgoto; break;
+      default: {
+        qual = kASMgoto;
+        break;
+      }
     }
     asmNode->SetQualifier(qual);
     lexer.NextToken();
@@ -1121,7 +1131,7 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   UStrIdx uStrIdx;
   CallReturnPair retpair;
   while (lexer.GetTokenKind() == TK_string) {
-    // parse an output constraint string 
+    // parse an output constraint string
     uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     lexer.NextToken();
     if (!ParseCallReturnPair(retpair)) {
@@ -1142,7 +1152,7 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   lexer.NextToken();
   // parse inputs
   while (lexer.GetTokenKind() == TK_string) {
-    // parse an input constraint string 
+    // parse an input constraint string
     uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     if (lexer.NextToken() != TK_lparen) {
       Error("expect ( but get ");
@@ -1173,7 +1183,7 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   lexer.NextToken();
   // parse clobber list
   while (lexer.GetTokenKind() == TK_string) {
-    // parse an input constraint string 
+    // parse an input constraint string
     uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     asmNode->clobberList.push_back(uStrIdx);
     if (lexer.NextToken() == TK_coma) {
