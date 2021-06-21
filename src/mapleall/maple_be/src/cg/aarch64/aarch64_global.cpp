@@ -226,6 +226,9 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
   }
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
   Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
+  if (firstOpnd.GetSize() != secondOpnd.GetSize()) {
+    return false;
+  }
   RegOperand &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
   RegOperand &secondRegOpnd = static_cast<RegOperand&>(secondOpnd);
   uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
@@ -349,10 +352,12 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
   if (RegOperand::IsSameReg(firstOpnd, secondOpnd)) {
     return false;
   }
-
+  if (firstOpnd.GetSize() != secondOpnd.GetSize()) {
+    return false;
+  }
   firstRegOpnd = &static_cast<RegOperand&>(firstOpnd);
   secondRegOpnd = &static_cast<RegOperand&>(secondOpnd);
-  if (firstRegOpnd->IsZeroRegister() || !firstRegOpnd->IsVirtualRegister() || !secondRegOpnd->IsVirtualRegister()) {
+  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister()) {
     return false;
   }
   firstRegNO = firstRegOpnd->GetRegisterNumber();
@@ -440,9 +445,12 @@ bool BackPropPattern::CheckCondition(Insn &insn) {
   if (!CheckAndGetOpnd(insn)) {
     return false;
   }
+#ifdef DestOpndHasUseInsnsNeeded
+  /* Unless there is a reason that dest can not live out the current BB */
   if (!DestOpndHasUseInsns(insn)) {
     return false;
   }
+#endif
   /* first register must not be live out to eh_succs */
   if (DestOpndLiveOutToEHSuccs(insn)) {
     return false;
@@ -724,7 +732,10 @@ uint32 RedundantUxtPattern::GetInsnValidBit(Insn &insn) {
 
 uint32 RedundantUxtPattern::GetMaximumValidBit(Insn &insn, uint8 index, InsnSet &visitedInsn) const {
   InsnSet defInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, index);
-  ASSERT(!defInsnSet.empty(), "operand must be defined before used");
+  if (defInsnSet.empty()) {
+    /* disable opt when there is no def point. */
+    return k64BitSize;
+  }
 
   uint32 validBit = 0;
   uint32 nMaxValidBit = 0;
