@@ -19,6 +19,28 @@ namespace maplebe {
 using namespace maple;
 #define EBO_DUMP CG_DEBUG_FUNC(cgFunc)
 
+uint8 extIndexTable[AArch64Ebo::ExtTableSize][2] = {
+ /* extInsnPairTable row index, valid columns */
+  {0, 1}, /* AND */
+  {1, 1}, /* SXTB */
+  {2, 3}, /* SXTH */
+  {3, 4}, /* SXTW */
+  {4, 2}, /* ZXTB */
+  {5, 2}, /* ZXTH */
+  {6, 3}, /* ZXTW */
+};
+
+MOperator extInsnPairTable[AArch64Ebo::ExtTableSize][4][2] = {
+  /* {origMop, newMop} */
+  {{MOP_wldrb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* AND */
+  {{MOP_wldrb, MOP_wldrsb}, {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* SXTB */
+  {{MOP_wldrh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}, {MOP_undef, MOP_undef}},   /* SXTH */
+  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrsh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}}, /* SXTW */
+  {{MOP_wldrb, MOP_wldrb},  {MOP_wldrsb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* ZXTB */
+  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* ZXTH */
+  {{MOP_wldr, MOP_wldr},    {MOP_wldrh, MOP_wldrh},   {MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef}}    /* ZXTW */
+};
+
 bool AArch64Ebo::IsFmov(const Insn &insn) const {
   return ((MOP_xvmovsr <= insn.GetMachineOpcode()) && (insn.GetMachineOpcode() <= MOP_xvmovrd));
 }
@@ -604,6 +626,42 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
   return true;
 }
 
+bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64bits) {
+  if (!beforeRegAlloc) {
+    return false;
+  }
+  OpndInfo *opndInfo = origInfos[kInsnSecondOpnd];
+  if (opndInfo == nullptr) {
+    return false;
+  }
+  Insn *prevInsn = opndInfo->insn;
+  if (prevInsn != nullptr) {
+    uint32 rowIndex = extIndexTable[idx][0];
+    uint32 numColumns = extIndexTable[idx][1];
+    MOperator prevMop = prevInsn->GetMachineOpcode();
+    for (uint32 i = 0; i < numColumns; ++i) {
+      if (prevMop == extInsnPairTable[rowIndex][i][0]) {
+        auto &res = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+        OpndInfo *prevOpndInfo = GetOpndInfo(res, -1);
+        if ((prevOpndInfo != nullptr) && prevOpndInfo->refCount > 1) {
+          return false;
+        }
+        prevInsn->SetMOP(extInsnPairTable[rowIndex][i][1]);
+        MOperator movOp = is64bits ? MOP_xmovrr : MOP_wmovrr;
+        if (insn->GetMachineOpcode() == MOP_wandrri12 || insn->GetMachineOpcode() == MOP_xandrri13) {
+          Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(movOp, insn->GetOperand(kInsnFirstOpnd),
+                                                                         insn->GetOperand(kInsnSecondOpnd));
+          insn->GetBB()->ReplaceInsn(*insn, newInsn);
+        } else {
+          insn->SetMOP(movOp);
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /* Do some special pattern */
 bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origInfos) {
   MOperator opCode = insn.GetMachineOpcode();
@@ -633,6 +691,49 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       }
       break;
     }
+    /*
+     * Extension elimination.  Look for load extension pair.  There are two cases.
+     * 1) extension size == load size -> change the load type or eliminate the extension
+     * 2) extension size >  load size -> possibly eliminating the extension
+     *
+     * Example of 1)
+     *  ldrb x1, []      or  ldrb x1, []      or   ldrsb x1, []      or   ldrsb x1, []
+     *  sxtb x1, x1          zxtb x1, x1           sxtb  x1, x1           zxtb  x1, x1
+     * ===> ldrsb x1, []     ===> ldrb x1, []      ===> ldrsb x1, []      ===> ldrb x1, []
+     *      mov   x1, x1          mov  x1, x1           mov   x1, x1           mov  x1, x1
+     *
+     * Example of 2)
+     *  ldrb x1, []      or  ldrb x1, []   or   ldrsb x1, []     or   ldrsb x1, []
+     *  sxth x1, x1          zxth x1, x1        sxth  x1, x1          zxth  x1, x1
+     * ===> ldrb x1, []     ===> ldrb x1, []   ===> ldrsb x1, []     ===> no change
+     *      mov x1, x1           mov  x1, x1        mov   x1, x1
+     */
+    case MOP_wandrri12:
+      if (static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue() == 0xff) {
+        return CombineExtensionAndLoad(&insn, origInfos, AND, false);
+      }
+      break;
+    case MOP_xandrri13:
+      if (static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue() == 0xff) {
+        return CombineExtensionAndLoad(&insn, origInfos, AND, true);
+      }
+      break;
+    case MOP_xsxtb32:
+      return CombineExtensionAndLoad(&insn, origInfos, SXTB, false);
+    case MOP_xsxtb64:
+      return CombineExtensionAndLoad(&insn, origInfos, SXTB, true);
+    case MOP_xsxth32:
+      return CombineExtensionAndLoad(&insn, origInfos, SXTH, false);
+    case MOP_xsxth64:
+      return CombineExtensionAndLoad(&insn, origInfos, SXTH, true);
+    case MOP_xsxtw64:
+      return CombineExtensionAndLoad(&insn, origInfos, SXTW, true);
+    case MOP_xuxtb32:
+      return CombineExtensionAndLoad(&insn, origInfos, ZXTB, false);
+    case MOP_xuxth32:
+      return CombineExtensionAndLoad(&insn, origInfos, ZXTH, false);
+    case MOP_xuxtw64:
+      return CombineExtensionAndLoad(&insn, origInfos, ZXTW, true);
     /*
      *  lsl     x1, x1, #3
      *  add     x0, x0, x1
