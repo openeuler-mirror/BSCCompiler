@@ -76,7 +76,12 @@ class AArch64Ebo : public Ebo {
   /* The number of elements in callerSaveRegTable must less then 45. */
   static constexpr int32 kMaxCallerSaveReg = 45;
   bool IsZeroRegister(const Operand &opnd) const;
+  MOperator ExtLoadSwitchBitSize(MOperator lowMop);
   bool CheckCondCode(const CondOperand &cond) const;
+  bool CombineMultiplyAdd(Insn *insn, Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd, bool is64bits, bool isFp);
+  bool CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp);
+  bool CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp);
+  bool CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp);
   bool SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &immOperand0, const AArch64ImmOperand &immOperand1,
                          uint32 opndSize);
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
