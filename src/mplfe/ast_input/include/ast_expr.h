@@ -31,6 +31,10 @@ struct ASTValue {
   } val = { 0 };
   PrimType pty = PTY_begin;
 
+  PrimType GetPrimType() const {
+    return pty;
+  }
+
   MIRConst *Translate2MIRConst() const;
 };
 
@@ -47,7 +51,7 @@ class ASTExpr {
   UniqueFEIRExpr Emit2FEExpr(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr ImplicitInitFieldValue(MIRType *type, std::list<UniqueFEIRStmt> &stmts) const;
 
-  virtual MIRType *GetType() {
+  virtual MIRType *GetType() const {
     return mirType;
   }
 
@@ -70,6 +74,10 @@ class ASTExpr {
   void SetConstantValue(ASTValue *val) {
     isConstantFolded = (val != nullptr);
     value = val;
+  }
+
+  bool IsConstantFolded() const {
+    return isConstantFolded;
   }
 
   ASTValue *GetConstantValue() const {
@@ -104,6 +112,8 @@ class ASTExpr {
     return refedDecl;
   }
 
+  virtual UniqueFEIRExpr CreateZeroExprCompare(UniqueFEIRExpr feExpr, Opcode op) const;
+
   ASTOp op;
   MIRType *mirType = nullptr;
   ASTDecl *refedDecl = nullptr;
@@ -125,10 +135,6 @@ class ASTCastExpr : public ASTExpr {
 
   ASTExpr *GetASTExpr() const {
     return child;
-  }
-
-  MIRType *GetType() override {
-    return child->GetType();
   }
 
   void SetSrcType(MIRType *type) {
@@ -183,6 +189,10 @@ class ASTCastExpr : public ASTExpr {
     isUnoinCast = flag;
   }
 
+  void SetBitCast(bool flag) {
+    isBitCast = flag;
+  }
+
  protected:
   ASTValue *GetConstantValueImpl() const override;
   MIRConst *GenerateMIRConstImpl() const override;
@@ -202,6 +212,7 @@ class ASTCastExpr : public ASTExpr {
   MIRType *src = nullptr;
   MIRType *dst = nullptr;
   bool isNeededCvt = false;
+  bool isBitCast = false;
   MIRType *complexType = nullptr;
   bool imageZero = false;
   bool isArrayToPointerDecay = false;
@@ -224,6 +235,11 @@ class ASTUnaryOperatorExpr : public ASTExpr {
   explicit ASTUnaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
   ~ASTUnaryOperatorExpr() = default;
   void SetUOExpr(ASTExpr*);
+
+  ASTExpr *GetUOExpr() const {
+    return expr;
+  }
+
   void SetSubType(MIRType *type);
 
   MIRType *GetMIRType() {
@@ -269,6 +285,9 @@ class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
  public:
   ASTUOMinusExpr() : ASTUnaryOperatorExpr(kASTOpMinus) {}
   ~ASTUOMinusExpr() = default;
+
+ protected:
+  MIRConst *GenerateMIRConstImpl() const override;
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -462,12 +481,30 @@ class ASTCompoundLiteralExpr : public ASTExpr {
   ASTCompoundLiteralExpr() : ASTExpr(kASTOpCompoundLiteralExp) {}
   ~ASTCompoundLiteralExpr() = default;
   void SetCompoundLiteralType(MIRType *clType);
+
+  MIRType *GetCompoundLiteralType() const {
+    return compoundLiteralType;
+  }
+
   void SetASTExpr(ASTExpr*);
+
+  ASTExpr* GetASTExpr() const {
+    return child;
+  }
+
+  void SetInitName(std::string argInitName) {
+    initName = argInitName;
+  }
+
+  std::string GetInitName() const {
+    return initName;
+  }
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   ASTExpr *child = nullptr;
   MIRType *compoundLiteralType;
+  std::string initName;
 };
 
 class ASTOffsetOfExpr : public ASTExpr {
@@ -558,8 +595,8 @@ class ASTInitListExpr : public ASTExpr {
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
-  void ProcessStringLiteralInitList(UniqueFEIRExpr addrOfCharArray, MIRArrayType *arrayType,
-                                    UniqueFEIRExpr addrofStringLiteral, std::list<UniqueFEIRStmt> &stmts) const;
+  void ProcessStringLiteralInitList(UniqueFEIRExpr addrOfCharArray, UniqueFEIRExpr addrOfStringLiteral,
+                                    uint32 stringLength, std::list<UniqueFEIRStmt> &stmts) const;
   MIRConst *GenerateMIRConstForArray() const;
   MIRConst *GenerateMIRConstForStruct() const;
   std::vector<ASTExpr*> initExprs;
@@ -640,13 +677,13 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     cvtNeeded = needed;
   }
 
-  MIRType *SelectBinaryOperatorType(UniqueFEIRExpr &left, UniqueFEIRExpr &right) const;
+  UniqueFEIRType SelectBinaryOperatorType(UniqueFEIRExpr &left, UniqueFEIRExpr &right) const;
 
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
-  Opcode opcode;
+  Opcode opcode = OP_undef;
   MIRType *retType = nullptr;
   MIRType *complexElementType = nullptr;
   ASTExpr *leftExpr = nullptr;
@@ -685,12 +722,16 @@ class ASTStringLiteral : public ASTExpr {
     type = srcType;
   }
 
-  MIRType *GetType() override {
+  MIRType *GetType() const override {
     return type;
   }
 
   void SetLength(size_t len) {
     length = len;
+  }
+
+  size_t GetLength() {
+    return length;
   }
 
   void SetCodeUnits(std::vector<uint32> &units) {
@@ -734,19 +775,11 @@ class ASTArraySubscriptExpr : public ASTExpr {
   }
 
   void SetIdxExpr(ASTExpr *astExpr) {
-    idxExprs.push_back(astExpr);
+    idxExpr = astExpr;
   }
 
-  std::vector<ASTExpr*> GetIdxExpr() const {
-    return idxExprs;
-  }
-
-  void SetBaseExprType(MIRType *ty) {
-    baseExprTypes.emplace_back(ty);
-  }
-
-  const std::vector<MIRType*> &GetBaseExprType() const {
-    return baseExprTypes;
+  ASTExpr *GetIdxExpr() const {
+    return idxExpr;
   }
 
   void SetArrayType(MIRType *ty) {
@@ -757,15 +790,26 @@ class ASTArraySubscriptExpr : public ASTExpr {
     return arrayType;
   }
 
-  int32 TranslateArraySubscript2Offset() const;
+  int32 CalculateOffset() const;
+
+  void SetIsVLA(bool flag) {
+    isVLA = flag;
+  }
+
+  void SetVLASizeExpr(ASTExpr *expr) {
+    vlaSizeExpr = expr;
+  }
 
  private:
+  ASTExpr *FindFinalBase() const;
+  MIRConst *GenerateMIRConstImpl() const override;
   bool CheckFirstDimIfZero() const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   ASTExpr *baseExpr = nullptr;
-  mutable MIRType *arrayType = nullptr;
-  std::vector<MIRType*> baseExprTypes;
-  mutable std::vector<ASTExpr*> idxExprs;
+  MIRType *arrayType = nullptr;
+  ASTExpr *idxExpr = nullptr;
+  bool isVLA = false;
+  ASTExpr *vlaSizeExpr = nullptr;
 };
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
@@ -837,15 +881,25 @@ class ASTMemberExpr : public ASTExpr {
     return isArrow;
   }
 
-  ASTMemberExpr *findFinalMember(ASTMemberExpr *startExpr, std::list<std::string> &memberNames) const;
+  void SetFiledOffsetBits(uint64 offset) {
+    fieldOffsetBits = offset;
+  }
+
+  uint64 GetFieldOffsetBits() const {
+    return fieldOffsetBits;
+  }
 
  private:
+  MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  const ASTMemberExpr *FindFinalMember(const ASTMemberExpr *startExpr, std::list<std::string> &memberNames) const;
+
   ASTExpr *baseExpr = nullptr;
   std::string memberName;
   MIRType *memberType = nullptr;
   MIRType *baseType = nullptr;
   bool isArrow = false;
+  uint64 fieldOffsetBits = 0;
 };
 
 class ASTDesignatedInitUpdateExpr : public ASTExpr {
@@ -988,23 +1042,69 @@ class ASTCallExpr : public ASTExpr {
   }
 
   std::string CvtBuiltInFuncName(std::string builtInName) const;
+  UniqueFEIRExpr ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
   void AddArgsExpr(std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr AddRetExpr(std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
 
  private:
   using FuncPtrBuiltinFunc = UniqueFEIRExpr (ASTCallExpr::*)(std::list<UniqueFEIRStmt> &stmts) const;
-  static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
+  static std::unordered_map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
+  UniqueFEIRExpr CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID) const;
+  UniqueFEIRExpr CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, Opcode op) const;
   UniqueFEIRExpr EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const;
 #define EMIT_BUILTIIN_FUNC(FUNC) EmitBuiltin##FUNC(std::list<UniqueFEIRStmt> &stmts) const
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Ctz);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Ctzl);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Clz);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Clzl);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Alloca);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Expect);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaStart);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaEnd);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(VaCopy);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Prefetch);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Unreachable);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Abs);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACos);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ACosf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ASin);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ASinf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ATan);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ATanf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Cos);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Cosf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Cosh);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Coshf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Sin);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Sinf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Sinh);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Sinhf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Exp);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Expf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Ffs);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Fmax);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Fmin);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Log);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Logf);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Log10);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Log10f);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isunordered);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isless);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Islessequal);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isgreater);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isgreaterequal);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Islessgreater);
+
+// vector builtinfunc
+#define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)         \
+UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
+#include "intrinsic_vector.def"
+#undef DEF_MIR_INTRINSIC
 
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
-  static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
+  static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   std::vector<ASTExpr*> args;
   ASTExpr *calleeExpr = nullptr;
   MIRType *retType = nullptr;
@@ -1023,8 +1123,18 @@ class ASTParenExpr : public ASTExpr {
     child = astExpr;
   }
 
+ protected:
+  MIRConst *GenerateMIRConstImpl() const override {
+    return child->GenerateMIRConst();
+  }
+
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+
+  ASTValue *GetConstantValueImpl() const override {
+    return child->GetConstantValue();
+  }
+
   ASTExpr *child = nullptr;
 };
 
@@ -1083,6 +1193,7 @@ class ASTFloatingLiteral : public ASTExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  MIRConst *GenerateMIRConstImpl() const override;
   double val;
   FloatKind kind;
 };
@@ -1147,6 +1258,9 @@ class ASTConstantExpr : public ASTExpr {
     child = astExpr;
   }
 
+ protected:
+  MIRConst *GenerateMIRConstImpl() const override;
+
  private:
   ASTExpr *child = nullptr;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -1197,6 +1311,7 @@ class ASTConditionalOperator : public ASTExpr {
   ASTExpr *condExpr = nullptr;
   ASTExpr *trueExpr = nullptr;
   ASTExpr *falseExpr = nullptr;
+  std::string varName = FEUtils::GetSequentialName("levVar_");
 };
 
 class ASTArrayInitLoopExpr : public ASTExpr {
@@ -1306,7 +1421,7 @@ class ASTAtomicExpr : public ASTExpr {
     atomicOp = op;
   }
 
-  MIRType *GetType() override {
+  MIRType *GetType() const override {
     return type;
   }
 

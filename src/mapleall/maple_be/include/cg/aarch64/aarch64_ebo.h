@@ -78,7 +78,8 @@ class AArch64Ebo : public Ebo {
   bool IsZeroRegister(const Operand &opnd) const;
   MOperator ExtLoadSwitchBitSize(MOperator lowMop);
   bool CheckCondCode(const CondOperand &cond) const;
-  bool CombineMultiplyAdd(Insn *insn, Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd, bool is64bits, bool isFp);
+  bool CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
+                          bool is64bits, bool isFp);
   bool CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool is64bits, bool isFp);
   bool CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp);
   bool CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp);
