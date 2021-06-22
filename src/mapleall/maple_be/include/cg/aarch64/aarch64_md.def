@@ -126,6 +126,12 @@ DEFINE_MOP(MOP_xvmuld, {mopdReg64FD,mopdReg64FS,mopdReg64FS},0,kLtFpmul,"fmul","
 /*MOP_xsmullrrr */
 DEFINE_MOP(MOP_xsmullrrr, {mopdReg64ID,mopdReg32IS,mopdReg32IS},0,kLtMul,"smull","0,1,2",1)
 
+/* AARCH64 Arithmetic: multiply first then add */
+/* MOP_xmaddrrrr */
+DEFINE_MOP(MOP_xmaddrrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdReg64IS},0,kLtMul,"madd","0,1,2,3",1)
+/* MOP_wmaddrrrr */
+DEFINE_MOP(MOP_wmaddrrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdReg32IS},0,kLtMul,"madd","0,1,2,3",1)
+
 /* AARCH64 leading zeros, reverse bits (for trailing zeros) */
 /* MOP_wclz */
 DEFINE_MOP(MOP_wclz, {mopdReg32ID,mopdReg32IS},0,kLtAlu,"clz","0,1", 1)
@@ -291,12 +297,6 @@ DEFINE_MOP(MOP_xsdivrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},CANTHROW,kLtDiv,"
 DEFINE_MOP(MOP_wudivrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},CANTHROW,kLtDiv,"udiv","0,1,2",1)
 /* MOP_xudivrrr */
 DEFINE_MOP(MOP_xudivrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},CANTHROW,kLtDiv,"udiv","0,1,2",1)
-
-/* AARCH64 Arithmetic: multiply first then add */
-/* MOP_wmaddrrrr */
-DEFINE_MOP(MOP_wmaddrrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdReg32IS},0,kLtMul,"madd","0,1,2,3",1)
-/* MOP_xmaddrrrr */
-DEFINE_MOP(MOP_xmaddrrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdReg64IS},0,kLtMul,"madd","0,1,2,3",1)
 
 /* MOP_wmsubrrrr */
 DEFINE_MOP(MOP_wmsubrrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdReg32IS},0,kLtMul,"msub","0,1,2,3",1)
