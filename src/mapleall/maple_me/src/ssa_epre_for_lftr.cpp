@@ -16,18 +16,18 @@
 #include "ssa_epre.h"
 
 namespace maple {
- 
+
 // one side of compare is an operand x in workCand->GetTheMeExpr() with current
 // occurrence occExpr; replace that side of the compare by regorvar; replace the
 // other side of compare by the expression formed by substituting x in occExpr
-// by that side of the compare; if the new compare side cannot be folded to a 
+// by that side of the compare; if the new compare side cannot be folded to a
 // leaf, enter into EPRE work list
 // EXAMPLE 1: INPUT: workCand is (i + 4), compare is (i < n)
 //            RETURN: regorvar < (n + 4)
-//            (n + 4) added to EPRE work list 
+//            (n + 4) added to EPRE work list
 // EXAMPLE 2: INPUT: workCand is (i * 3), compare is (n == i)
 //            RETURN: n * 3 == regorvar
-//            (n * 3) added to EPRE work list 
+//            (n * 3) added to EPRE work list
 // EXAMPLE 3: INPUT: workCand is (i + &A), compare is (i < 100)
 //            RETURN: regorvar < 100 + &A
 //            100 + &A is folded to an OP_addrof node
@@ -84,7 +84,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, isRebuild, nullptr, true);
   }
   OpMeExpr newcompare(-1, compare->GetOp(), compare->GetPrimType(), 2);
-  newcompare.SetOpndType(static_cast<OpMeExpr*>(compare)->GetOpndType());
+  newcompare.SetOpndType(regorvar->GetPrimType());
   newcompare.SetOpnd(j, regorvar);
   newcompare.SetOpnd(1-j, hashedSide);
   return static_cast<OpMeExpr *>(irMap->HashMeExpr(newcompare));
@@ -124,6 +124,7 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     if (largeIntLimit && (wkCand->GetTheMeExpr()->GetOp() == OP_add || wkCand->GetTheMeExpr()->GetOp() == OP_sub)) {
       continue;
     }
+
     if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(wkCand->GetTheMeExpr()->GetPrimType())) {
       continue;
     }
@@ -138,7 +139,8 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
       if ((compareLHS && iv->GetOst() == compareLHS->GetOst()) ||
           (compareRHS && iv->GetOst() == compareRHS->GetOst())) {
         numRelevantOpnds++;
-      } else { // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions
+      } else {
+        // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions
         if (iv->GetOst()->GetVersionsIndices().size() > 1) {
           isRelevant = false;
           break;
@@ -157,5 +159,4 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     }
   }
 }
-
-}  // namespace maple
+}
