@@ -913,7 +913,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
-    if ((resNum == 0) || IsGlobalNeeded(*insn) || insn->IsStore() || insn->IsDecoupleStaticOp()) {
+    if ((resNum == 0) || IsGlobalNeeded(*insn) || insn->IsStore() || insn->IsDecoupleStaticOp() || insn->IsPartDef()) {
       goto insn_is_needed;
     }
 
@@ -954,8 +954,8 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
           RegOperand *reg = static_cast<RegOperand*>(opInfo->opnd);
           Operand *res1 = insn->GetResult(0);
           ASSERT(res1 != nullptr, "null ptr check");
-          if (!reg->IsSPOrFP() && (prev->IsLoad() || IsAdd(*prev)) &&
-              (!LiveOutOfBB(*reg, bb) || opInfo->redefinedInBB)) {
+          if (!reg->IsSPOrFP() && (reg->GetRegisterNumber() != R0) && (reg->GetRegisterNumber() != V0) &&
+              (prev->IsLoad() || IsAdd(*prev)) && (!LiveOutOfBB(*reg, bb) || opInfo->redefinedInBB)) {
             /*
              * pattern 1:
              * ldr(154) (opnd0: vreg:R105 class: [I]) (opnd1: Mem:base: reg:R29 class: [I]offset:ofst:96)
@@ -993,7 +993,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
                 bool pattern3 = false;
                 bool pattern4 = false;
                 if (opInfo->refCount == 1) {
-                  if (IsOfSameClass(*reg, *res1)) {
+                  if (IsOfSameClass(*reg, *res1) && insn->IsMove()) {
                     pattern3 = true;
                     pattern1 = true;
                   } else if (prev->IsLoad() && ChangeLdrMop(*prev, *res1)) {
