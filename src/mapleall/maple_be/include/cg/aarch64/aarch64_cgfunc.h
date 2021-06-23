@@ -130,7 +130,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectIread(const BaseNode &parent, IreadNode &expr) override;
 
   Operand *SelectIntConst(MIRIntConst &intConst) override;
-  Operand *HandleFmovImm(PrimType stype, int64 val);
+  uint64 HandleFmovImm(PrimType stype, int64 val, Operand **result);
   Operand *SelectFloatConst(MIRFloatConst &floatConst) override;
   Operand *SelectDoubleConst(MIRDoubleConst &doubleConst) override;
   Operand *SelectStrConst(MIRStrConst &strConst) override;
@@ -235,7 +235,8 @@ class AArch64CGFunc : public CGFunc {
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
   RegOperand *SelectVectorFromScalar(PrimType pType, BaseNode *arg, Operand *opnd) override;
-  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2, Operand *o3) override;
+  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2,
+                                Operand *o3) override;
   RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorGetLow(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
@@ -244,12 +245,14 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
   RegOperand *SelectVectorAnd(PrimType rType, Operand *opnd1, Operand *opnd2) override;
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
-  RegOperand *SelectVectorCompare(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, V_CND cc) override;
+  RegOperand *SelectVectorCompare(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
+                                  V_CND cc) override;
   RegOperand *SelectVectorULShift(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
-  RegOperand *SelectVectorUShiftImm(PrimType rType, Operand *o1, PrimType oTyp1, Operand *imm, uint32 sVal, bool isLeft) override;
+  RegOperand *SelectVectorUShiftImm(PrimType rType, Operand *o1, PrimType oTyp1, Operand *imm, uint32 sVal,
+                                    bool isLeft) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
-PrimType oTyp3) override;
+                               PrimType oTyp3) override;
   RegOperand *SelectVectorXor(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType pTyp2) override;
 
@@ -706,6 +709,9 @@ PrimType oTyp3) override;
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int32 offset);
   std::string GenerateMemOpndVerbose(const Operand &src);
+  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
+  RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
+  RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
 };
 }  /* namespace maplebe */
 

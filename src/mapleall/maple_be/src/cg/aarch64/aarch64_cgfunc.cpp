@@ -1146,6 +1146,33 @@ AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym,
   return FixLargeMemOpnd(*memOpnd, align);
 }
 
+RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(bool isLo12, MIRSymbol &symbol, int64 offsetVal,
+                                                  RegOperand &BaseReg) {
+  RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+  if (isLo12) {
+    StImmOperand &stImm = CreateStImmOperand(symbol, 0, 0);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *tgtAddr, BaseReg, stImm));
+  } else {
+    ImmOperand &imm = CreateImmOperand(offsetVal, k64BitSize, false);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, BaseReg, imm));
+  }
+  return tgtAddr;
+}
+
+RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd) {
+  RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+  AArch64OfstOperand *ofstOpnd = &GetOrCreateOfstOpnd(offset, k32BitSize);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, exprOpnd, *ofstOpnd));
+  return tgtAddr;
+}
+
+RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(uint64 copySize) {
+  RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
+  AArch64ImmOperand *sizeOpnd = &CreateImmOperand(copySize, k64BitSize, false);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *vregMemcpySize, *sizeOpnd));
+  return vregMemcpySize;
+}
+
 void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
   MIRSymbol *lhsSymbol = GetFunction().GetLocalOrGlobalSymbol(stmt.GetStIdx());
   int32 lhsOffset = 0;
@@ -1197,30 +1224,11 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
 
-      RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      if (lhsIsLo12) {
-        StImmOperand &stImm = CreateStImmOperand(*lhsSymbol, 0, 0);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *tgtAddr, *lhsBaseReg, stImm));
-      } else {
-        ImmOperand &imm = CreateImmOperand(lhsOffsetVal, k64BitSize, false);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, *lhsBaseReg, imm));
-      }
-      opndVec.push_back(tgtAddr);  /* param 0 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsIsLo12, *lhsSymbol, lhsOffsetVal, *lhsBaseReg));  /* param 0 */
 
-      RegOperand *baseAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      if (rhsIsLo12) {
-        StImmOperand &stImm = CreateStImmOperand(*rhsSymbol, 0, 0);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *baseAddr, *rhsBaseReg, stImm));
-      } else {
-        ImmOperand &imm = CreateImmOperand(rhsOffsetVal, k64BitSize, false);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseAddr, *rhsBaseReg, imm));
-      }
-      opndVec.push_back(baseAddr);  /* param 1 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(rhsIsLo12, *rhsSymbol, rhsOffsetVal, *rhsBaseReg));  /* param 1 */
 
-      RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64ImmOperand *sizeOpnd = &CreateImmOperand(lhsSize, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *vregMemcpySize, *sizeOpnd));
-      opndVec.push_back(vregMemcpySize);  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -1335,25 +1343,11 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
 
-      RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      if (lhsIsLo12) {
-        StImmOperand &stImm = CreateStImmOperand(*lhsSymbol, 0, 0);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, *tgtAddr, *lhsBaseReg, stImm));
-      } else {
-        ImmOperand &imm = CreateImmOperand(lhsOffsetVal, k64BitSize, false);
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, *lhsBaseReg, imm));
-      }
-      opndVec.push_back(tgtAddr);  /* param 0 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsIsLo12, *lhsSymbol, lhsOffsetVal, *lhsBaseReg));  /* param 0 */
 
-      RegOperand *baseAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64OfstOperand *ofstOpnd = &GetOrCreateOfstOpnd(rhsOffset, k32BitSize);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseAddr, *addrOpnd, *ofstOpnd));
-      opndVec.push_back(baseAddr);  /* param 1 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(rhsOffset, *addrOpnd));  /* param 1 */
 
-      RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64ImmOperand *sizeOpnd = &CreateImmOperand(lhsSize, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *vregMemcpySize, *sizeOpnd));
-      opndVec.push_back(vregMemcpySize);  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -1719,20 +1713,11 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
 
-      RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      ImmOperand &imm = CreateImmOperand(lhsOffset, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, lhsAddrOpnd, imm));
-      opndVec.push_back(tgtAddr);  /* param 0 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<int64>(lhsOffset), lhsAddrOpnd));  /* param 0 */
 
-      RegOperand *baseAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64OfstOperand *ofstOpnd = &GetOrCreateOfstOpnd(rhsOffsetVal, k32BitSize);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseAddr, *rhsBaseReg, *ofstOpnd));
-      opndVec.push_back(baseAddr);  /* param 1 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(rhsOffsetVal, *rhsBaseReg));  /* param 1 */
 
-      RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64ImmOperand *sizeOpnd = &CreateImmOperand(lhsSize, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *vregMemcpySize, *sizeOpnd));
-      opndVec.push_back(vregMemcpySize);  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
@@ -1863,20 +1848,11 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       RegOperand *regResult = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
       opndVec.push_back(regResult);  /* result */
 
-      RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      ImmOperand &imm = CreateImmOperand(lhsOffset, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *tgtAddr, lhsAddrOpnd, imm));
-      opndVec.push_back(tgtAddr);  /* param 0 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<int64>(lhsOffset), lhsAddrOpnd));  /* param 0 */
 
-      RegOperand *baseAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64OfstOperand *ofstOpnd = &GetOrCreateOfstOpnd(rhsOffset, k32BitSize);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *baseAddr, *rhsAddrOpnd, *ofstOpnd));
-      opndVec.push_back(baseAddr);  /* param 1 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(static_cast<int64>(rhsOffset), *rhsAddrOpnd));  /* param 1 */
 
-      RegOperand *vregMemcpySize = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
-      AArch64ImmOperand *sizeOpnd = &CreateImmOperand(lhsSize, k64BitSize, false);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri32, *vregMemcpySize, *sizeOpnd));
-      opndVec.push_back(vregMemcpySize);  /* param 2 */
+      opndVec.push_back(PrepareMemcpyParamOpnd(lhsSize));  /* param 2 */
 
       SelectLibCall("memcpy", opndVec, PTY_a64, PTY_a64);
 
