@@ -21,3 +21,4 @@ tools/sysroot-glibc*
 build/logs*
 libjava-core
 output
+compile_commands.json
