@@ -27,6 +27,8 @@ else
   suffix="mpl"
 fi
 
+MAPLE_BIN=$MAPLE_ROOT/output/aarch64-clang-release/bin
+
 LINARO=$MAPLE_ROOT/tools/gcc-linaro-7.5.0
 ISYSTEM_FLAGS="-isystem $LINARO/aarch64-linux-gnu/libc/usr/include -isystem $LINARO/lib/gcc/aarch64-linux-gnu/7.5.0/include"
 CLANG_COMMON_FLAGS="-U __SIZEOF_INT128__ $ISYSTEM_FLAGS"
@@ -88,15 +90,17 @@ function mplfe() {
   fileName=$2
   # generate .B
   echo "Start Front End for $1 :"
-  $MAPLE_ROOT/output/tools/bin/clang $CLANG_FLAGS $option $src_file_path -o $fileName.ast || {
+  echo $MAPLE_ROOT/tools/bin/clang $CLANG_FLAGS $option $src_file_path -o $fileName.ast
+  $MAPLE_ROOT/tools/bin/clang $CLANG_FLAGS $option $src_file_path -o $fileName.ast || {
    echo "FAILED: "
-   echo -e $MAPLE_ROOT/output/tools/bin/clang $CLANG_FLAGS $option $src_file_path | tee -a clang_err.log;
+   echo -e $MAPLE_ROOT/tools/bin/clang $CLANG_FLAGS $option $src_file_path | tee -a clang_err.log;
    exit 1;
   }
   # generate .mpl
-  $MAPLE_ROOT/output/aarch64-clang-release/bin/mplfe $fileName.ast 1>/dev/null || {
+  echo $MAPLE_BIN/mplfe $fileName.ast
+  $MAPLE_BIN/mplfe $fileName.ast 1>/dev/null || {
    echo "FAILED: "
-   echo -e $MAPLE_ROOT/output/aarch64-clang-release/bin/mplfe $fileName.ast | tee -a mplfe_err.log;
+   echo -e $MAPLE_BIN/mplfe $fileName.ast | tee -a mplfe_err.log;
    exit 1;
   }
 }
@@ -148,22 +152,24 @@ function compile() {
   # generate .s
   echo "Start Middle End for $1 :"
   if [ "$use_O2" == "true" ];then
-    $MAPLE_ROOT/output/aarch64-clang-release/bin/maple --run=me:mpl2mpl:mplcg --option="$O2" "${fileName}.${suffix}" || {
+    echo $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option=\"$O2\" "${fileName}.${suffix}"
+    $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option="$O2" "${fileName}.${suffix}" || {
       echo "FAILED: "
       echo "" >> comb_err.log
       echo "error in compiling $1" >> comb_err.log;
-      echo -e $MAPLE_ROOT/output/aarch64-clang-release/bin/maple --run=me:mpl2mpl:mplcg --option=\"$O2\" "${fileName}.${suffix}" | tee -a comb_err.log;
+      echo -e $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option=\"$O2\" "${fileName}.${suffix}" | tee -a comb_err.log;
       echo >> comb_err.log
       echo -e "[whole compile cmd]: "$SELF_CMD >> comb_err.log
       echo "" >> comb_err.log
       exit 1;
     }
   else
-    $MAPLE_ROOT/output/aarch64-clang-release/bin/maple --run=me:mpl2mpl:mplcg --option="$O0" "${fileName}.${suffix}" || {
+    echo $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option=\"$O0\" "${fileName}.${suffix}"
+    $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option="$O0" "${fileName}.${suffix}" || {
       echo "FAILED: "
       echo "" >> comb_err.log
       echo "error in compiling $1" >> comb_err.log;
-      echo -e $MAPLE_ROOT/output/aarch64-clang-release/bin/maple --run=mplcg --option=\"$O0\" "${fileName}.${suffix}" | tee -a comb_err.log;
+      echo -e $MAPLE_BIN/maple --run=mplcg --option=\"$O0\" "${fileName}.${suffix}" | tee -a comb_err.log;
       echo "" >> comb_err.log
       echo -e "[whole compile cmd]: "$SELF_CMD >> comb_err.log
       echo "" >> comb_err.log
@@ -171,6 +177,7 @@ function compile() {
     }
   fi
   # generate bin
+  echo $LINARO/bin/aarch64-linux-gnu-gcc -std=c99 $out -c "${fileName}.s"
   $LINARO/bin/aarch64-linux-gnu-gcc -std=c99 $out -c "${fileName}.s" || {
     echo "FAILED: "
     echo "" >> asm_err.log
@@ -185,7 +192,9 @@ function compile() {
 }
 
 if [ "$link" == "true" ];then
+  echo -e $obj_list
   echo -e $obj_list > obj.list
+  echo -e $LINARO/bin/aarch64-linux-gnu-gcc ${std} $option \"$@\" $out
   echo -e $LINARO/bin/aarch64-linux-gnu-gcc ${std} $option "\$@" $out > link.cmd
   $LINARO/bin/aarch64-linux-gnu-gcc ${std} -no-pie $obj_list $option $out || {
     echo "FAILED: "
