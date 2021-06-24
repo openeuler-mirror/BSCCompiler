@@ -228,6 +228,14 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
         MeExpr *retOpnd = GetReplaceMeExpr(*opMeExpr.GetOpnd(i), *ePhiBB, j);
         if (retOpnd != nullptr) {
           opMeExpr.SetOpnd(i, retOpnd);
+        } else if (workCand->isSRCand) {
+          ScalarMeExpr *curScalar = dynamic_cast<ScalarMeExpr *>(opMeExpr.GetOpnd(i));
+          if (curScalar != nullptr) {
+            while (!DefVarDominateOcc(curScalar, *defZ)) {
+              curScalar = ResolveOneInjuringDef(curScalar);
+              opMeExpr.SetOpnd(i, curScalar);
+            }
+          }
         }
       }
       return irMap->HashMeExpr(opMeExpr);
