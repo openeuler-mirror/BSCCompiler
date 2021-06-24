@@ -52,6 +52,7 @@ class SSAEPre : public SSAPre {
   }
   // here starts methods related to strength reduction
   bool AllVarsSameVersion(const MeRealOcc &realocc1, const MeRealOcc &realocc2) const override;
+  ScalarMeExpr *ResolveOneInjuringDef(ScalarMeExpr *regx) const;
   ScalarMeExpr *ResolveAllInjuringDefs(ScalarMeExpr *regx) const override;
   MeExpr *ResolveAllInjuringDefs(MeExpr *x) const override {
     if (!workCand->isSRCand) {
@@ -75,7 +76,7 @@ class SSAEPre : public SSAPre {
 
   bool epreIncludeRef;
   bool enableLHSIvar;
-  // here starts mtehods related to linear function test replacement
+  // here starts methods related to linear function test replacement
   OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) override;
   void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) override;
 };
