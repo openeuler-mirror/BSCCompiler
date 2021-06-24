@@ -98,42 +98,69 @@ void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVec
   LabelIdx defaultLabelIdx = switchStmt.GetDefaultLabel();
   int32 minCaseVal = swithcTable.front().first;
   int32 maxCaseVal = swithcTable.back().first;
-  auto *baseNode = switchStmt.Opnd(0);
 
-  auto &mirBuilder = func.GetMIRModule().GetMIRBuilder();
-  auto *minCaseNode = mirBuilder->CreateIntConst(minCaseVal, PTY_i32);
-  auto *ltNode = mirBuilder->CreateExprCompare(OP_lt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
-                                               GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, minCaseNode);
-  auto *condGoto = mirBuilder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabelIdx);
-  bb.ReplaceStmt(&switchStmt, condGoto);
-  bb.SetKind(kBBCondGoto);
-
-  auto *newBB = NewBasicBlock();
-  auto *maxCaseNode = mirBuilder->CreateIntConst(maxCaseVal, PTY_i32);
-  auto *gtNode = mirBuilder->CreateExprCompare(OP_gt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
-                                               GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, maxCaseNode);
-  condGoto = mirBuilder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabelIdx);
-  newBB->GetStmtNodes().push_back(condGoto);
-  newBB->SetKind(kBBCondGoto);
-
-  BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
-  ASSERT(defaultBB != nullptr, "null ptr check");
-  while (!bb.GetSucc().empty()) {
-    bb.RemoveSucc(*bb.GetSucc(0));
+  // lfopreemit can't handle the optimized cfg for swith with one case with range value branch
+  if ((minCaseVal != maxCaseVal) && func.GetLfoFunc()) {
+    return;
   }
-  bb.AddSucc(*newBB);
-  bb.AddSucc(*defaultBB);
+  auto &mirBuilder = func.GetMIRModule().GetMIRBuilder();
+  auto *baseNode = switchStmt.Opnd(0);
+  auto *minCaseNode = mirBuilder->CreateIntConst(minCaseVal, PTY_i32);
+  auto *maxCaseNode = mirBuilder->CreateIntConst(maxCaseVal, PTY_i32);
+  if (minCaseVal == maxCaseVal) {
+    // brtrue != minCaseVal, @default_label
+    // caseBB
+    // @default_label
+    //    defaultBB;
+    auto *neNode = mirBuilder->CreateExprCompare(OP_ne, GetTypeFromTyIdx(TyIdx(PTY_u1)),
+                                                 GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, minCaseNode);
+    auto *condGoto = mirBuilder->CreateStmtCondGoto(neNode, OP_brtrue, defaultLabelIdx);
+    bb.ReplaceStmt(&switchStmt, condGoto);
+    bb.SetKind(kBBCondGoto);
+    // reset bb succ
+    bb.RemoveAllSucc();
+    BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
+    ASSERT(defaultBB != nullptr, "null ptr check");
+    BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
+    ASSERT(caseBB != nullptr, "null ptr check");
+    bb.AddSucc(*caseBB);  // add fallthru
+    bb.AddSucc(*defaultBB);  // add target
+    return;
+  } else {
+    // lfopreemit can't handle the optimized cfg for swith with one case branch
 
-  BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
-  ASSERT(caseBB != nullptr, "null ptr check");
-  newBB->AddSucc(*caseBB);
-  newBB->AddSucc(*defaultBB);
+    auto *ltNode = mirBuilder->CreateExprCompare(OP_lt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
+                                               GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, minCaseNode);
+    auto *condGoto = mirBuilder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabelIdx);
+    bb.ReplaceStmt(&switchStmt, condGoto);
+    bb.SetKind(kBBCondGoto);
 
-  if (bb.GetAttributes(kBBAttrIsTry)) {
-    newBB->SetAttributes(kBBAttrIsTry);
-    SetBBTryNodeMap(*newBB, *GetBBTryNodeMap().at(&bb));
-    AddCatchHandlerForTryBB(bb, exitBlocks);
-    AddCatchHandlerForTryBB(*newBB, exitBlocks);
+    auto *newBB = NewBasicBlock();
+    auto *gtNode = mirBuilder->CreateExprCompare(OP_gt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
+                                               GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, maxCaseNode);
+    condGoto = mirBuilder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabelIdx);
+    newBB->GetStmtNodes().push_back(condGoto);
+    newBB->SetKind(kBBCondGoto);
+
+    BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
+    ASSERT(defaultBB != nullptr, "null ptr check");
+    while (!bb.GetSucc().empty()) {
+      bb.RemoveSucc(*bb.GetSucc(0));
+    }
+    bb.AddSucc(*newBB);
+    bb.AddSucc(*defaultBB);
+
+    BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
+    ASSERT(caseBB != nullptr, "null ptr check");
+    newBB->AddSucc(*caseBB);
+    newBB->AddSucc(*defaultBB);
+
+    if (bb.GetAttributes(kBBAttrIsTry)) {
+      newBB->SetAttributes(kBBAttrIsTry);
+      SetBBTryNodeMap(*newBB, *GetBBTryNodeMap().at(&bb));
+      AddCatchHandlerForTryBB(bb, exitBlocks);
+      AddCatchHandlerForTryBB(*newBB, exitBlocks);
+    }
   }
 }
 
@@ -1472,6 +1499,15 @@ void MeCFG::CreateBasicBlocks() {
           if (curBB->GetKind() == kBBUnknown) {
             curBB->SetKind(kBBFallthru);
           }
+          BB *newBB = NewBasicBlock();
+          if (tryStmt != nullptr) {
+            newBB->SetAttributes(kBBAttrIsTry);
+            SetBBTryNodeMap(*newBB, *tryStmt);
+          }
+          curBB = newBB;
+        } else if (func.GetLfoFunc() &&
+                    (func.GetLfoFunc()->label2WhileInfo.find(labelIdx) != func.GetLfoFunc()->label2WhileInfo.end())) {
+          curBB->SetKind(kBBFallthru);
           BB *newBB = NewBasicBlock();
           if (tryStmt != nullptr) {
             newBB->SetAttributes(kBBAttrIsTry);
