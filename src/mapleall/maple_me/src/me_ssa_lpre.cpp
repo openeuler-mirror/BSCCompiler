@@ -260,16 +260,20 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
 
 void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
   // go thru all workcands and insert a membar occurrence for each of them
-  for (size_t i = 0; i < workList.size() && i <= preLimit; ++i) {
-    PreWorkCand *workCand = workList[i];
-    MeRealOcc *newOcc = ssaPreMemPool->New<MeRealOcc>(nullptr, 0, workCand->GetTheMeExpr());
+  uint32 cnt = 0;
+  for (PreWorkCand *wkCand : workList) {
+    ++cnt;
+    if (cnt > preLimit) {
+      break;
+    }
+    MeRealOcc *newOcc = ssaPreMemPool->New<MeRealOcc>(nullptr, 0, wkCand->GetTheMeExpr());
     newOcc->SetOccType(kOccMembar);
     newOcc->SetBB(bb);
-    workCand->AddRealOccAsLast(*newOcc, GetPUIdx());
+    wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
     if (preKind == kAddrPre) {
       continue;
     }
-    auto *varMeExpr = static_cast<VarMeExpr*>(workCand->GetTheMeExpr());
+    auto *varMeExpr = static_cast<VarMeExpr*>(wkCand->GetTheMeExpr());
     const OriginalSt *ost = varMeExpr->GetOst();
     if (ost->IsFormal()) {
       (void)assignedFormals.insert(ost->GetIndex());
@@ -306,10 +310,12 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (preKind != kAddrPre) {
         break;
       }
-      auto *addrOfMeExpr = static_cast<AddrofMeExpr*>(&meExpr);
-      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
-      if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap
-        break;
+      if (mirModule->IsJavaModule()) {
+        auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
+        const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
+        if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
+          break;
+        }
       }
       (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
