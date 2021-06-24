@@ -175,6 +175,7 @@ OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost)
     originalStVector.push_back(prevLevelOst);
     prevLevelOst->SetIndirectLev(-1);
     MIRPtrType pointType(ost->GetMIRSymbol()->GetTyIdx(), PTY_ptr);
+
     TyIdx newTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType);
     prevLevelOst->SetTyIdx(newTyIdx);
     prevLevelOst->SetFieldID(0);

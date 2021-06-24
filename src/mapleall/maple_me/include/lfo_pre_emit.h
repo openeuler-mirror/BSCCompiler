@@ -19,65 +19,34 @@
 #include "me_phase.h"
 
 namespace maple {
-class LfoPreEmitter : public AnalysisResult {
+class LfoPreEmitter {
  private:
   MeIRMap *meirmap;
   LfoFunction *lfoFunc;
   MIRFunction *mirFunc;
   MemPool *codeMP;
   MapleAllocator *codeMPAlloc;
-  MemPool *lfoMP;
-  MapleAllocator lfoMPAlloc;
-  MapleMap<BaseNode*, LfoPart*> lfoParts; // key is mirnode
   MeCFG *cfg;
 
  public:
-  LfoPreEmitter(MeIRMap *hmap, LfoFunction *f, MemPool *lfomp)
-      : AnalysisResult(lfomp), meirmap(hmap),
+  LfoPreEmitter(MeIRMap *hmap, LfoFunction *f)
+      : meirmap(hmap),
         lfoFunc(f),
         mirFunc(f->meFunc->GetMirFunc()),
         codeMP(f->meFunc->GetMirFunc()->GetCodeMempool()),
         codeMPAlloc(&f->meFunc->GetMirFunc()->GetCodeMemPoolAllocator()),
-        lfoMP(lfomp),
-        lfoMPAlloc(lfoMP),
-        lfoParts(lfoMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
 
  private:
-  BaseNode *EmitLfoExpr(MeExpr*, BaseNode *);
-  StmtNode* EmitLfoStmt(MeStmt *, BaseNode *);
-  void EmitBB(BB *, BlockNode *);
-  DoloopNode *EmitLfoDoloop(BB *, BlockNode *, LfoWhileInfo *);
-  WhileStmtNode *EmitLfoWhile(BB *, BlockNode *);
-  uint32 Raise2LfoWhile(uint32, BlockNode *);
-  uint32 Raise2LfoIf(uint32, BlockNode *);
+  LfoParentPart *EmitLfoExpr(MeExpr*, LfoParentPart *);
+  StmtNode* EmitLfoStmt(MeStmt *, LfoParentPart *);
+  void EmitBB(BB *, LfoBlockNode *);
+  DoloopNode *EmitLfoDoloop(BB *, LfoBlockNode *, LfoWhileInfo *);
+  WhileStmtNode *EmitLfoWhile(BB *, LfoBlockNode *);
+  uint32 Raise2LfoWhile(uint32, LfoBlockNode *);
+  uint32 Raise2LfoIf(uint32, LfoBlockNode *);
  public:
-  uint32 EmitLfoBB(uint32, BlockNode *);
-  void InitFuncBodyLfoPart(BaseNode *funcbody) {
-    LfoPart *rootlfo = lfoMP->New<LfoPart>(nullptr);
-    lfoParts[funcbody] = rootlfo;
-  }
-  void SetLfoPart(BaseNode* node, LfoPart* lfoInfo) {
-     lfoParts[node] = lfoInfo;
-  }
-  LfoPart* GetLfoPart(BaseNode *node) {
-    return lfoParts[node];
-  }
-  BaseNode *GetParent(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
-    if (lfopart != nullptr) {
-      return lfopart->parent;
-    }
-    return nullptr;
-  }
-  MeExpr *GetMexpr(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
-    return lfopart->meexpr;
-  }
-  MeStmt *GetMeStmt(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
-    return lfopart->mestmt;
-  }
+  uint32 EmitLfoBB(uint32, LfoBlockNode *);
 };
 
 /* emit ir to specified file */
