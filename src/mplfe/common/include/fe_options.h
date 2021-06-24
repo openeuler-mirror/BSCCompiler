@@ -395,6 +395,14 @@ class FEOptions {
     return isAOT;
   }
 
+  void SetUseSignedChar(bool flag) {
+    useSignedChar = flag;
+  }
+
+  bool IsUseSignedChar() const {
+    return useSignedChar;
+  }
+
  private:
   static FEOptions options;
   // input control options
@@ -443,6 +451,9 @@ class FEOptions {
   // bc compiler options
   bool isRC = false;
   bool isNoBarrier = false;
+
+  // ast compiler options
+  bool useSignedChar = false;
 
   // general stmt/bb/cfg debug options
   bool isDumpGenCFGGraph = false;

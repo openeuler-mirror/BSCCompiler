@@ -59,6 +59,8 @@ enum OptionIndex : uint32 {
   kDumpJBCErrorOnly,
   kDumpJBCFuncName,
   kEmitJBCLocalVarInfo,
+  // ast compiler options
+  kUseSignedChar,
   // general stmt/bb/cfg debug options
   kDumpGenCFGGraph,
   // multi-thread control options
@@ -179,6 +181,13 @@ const Descriptor kUsage[] = {
   { kNoBarrier, 0, "", "nobarrier",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  --nobarrier            : no barrier", "mplfe", {} },
+  // ast compiler options
+  { kUnknown, 0, "", "",
+    kBuildTypeAll, kArgCheckPolicyUnknown,
+    "========== ast Compile Options ==========", "mplfe", {} },
+  { kUseSignedChar, 0, "", "usesignedchar",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  --usesignedchar        : use signed char", "mplfe", {} },
   // java bytecode compile options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
@@ -361,6 +370,10 @@ bool MPLFEOptions::InitFactory() {
                                                 &MPLFEOptions::ProcessRC);
   RegisterFactoryFunction<OptionProcessFactory>(kNoBarrier,
                                                 &MPLFEOptions::ProcessNoBarrier);
+
+  // ast compiler options
+  RegisterFactoryFunction<OptionProcessFactory>(kUseSignedChar,
+                                                &MPLFEOptions::ProcessUseSignedChar);
   // On Demand Type Creation
   RegisterFactoryFunction<OptionProcessFactory>(kXBootClassPath,
                                                 &MPLFEOptions::ProcessXbootclasspath);
@@ -623,6 +636,12 @@ bool MPLFEOptions::ProcessRC(const Option &opt) {
 
 bool MPLFEOptions::ProcessNoBarrier(const Option &opt) {
   FEOptions::GetInstance().SetNoBarrier(true);
+  return true;
+}
+
+// ast compiler options
+bool MPLFEOptions::ProcessUseSignedChar(const Option &opt) {
+  FEOptions::GetInstance().SetUseSignedChar(true);
   return true;
 }
 

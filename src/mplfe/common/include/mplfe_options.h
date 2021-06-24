@@ -91,6 +91,9 @@ class MPLFEOptions : public maple::MapleDriverOptionBase {
   bool ProcessRC(const mapleOption::Option &opt);
   bool ProcessNoBarrier(const mapleOption::Option &opt);
 
+  // ast compiler options
+  bool ProcessUseSignedChar(const mapleOption::Option &opt);
+
   // general stmt/bb/cfg debug options
   bool ProcessDumpGeneralCFGGraph(const mapleOption::Option &opt);
 

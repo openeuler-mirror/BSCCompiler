@@ -475,21 +475,27 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
   Operand *op = nullptr;
   int32 idx0 = kInsnSecondOpnd;
   if (op0IsConstant) {
-    immOpnd = static_cast<AArch64ImmOperand*>(op0);
+    // cannot convert zero reg (r30) to a immOperand
+    immOpnd = op0->IsZeroRegister() ? &a64CGFunc->CreateImmOperand(0, op0->GetSize(), false)
+                                    : static_cast<AArch64ImmOperand*>(op0);
     op = op1;
     if (op->IsMemoryAccessOperand()) {
       op = &(insn.GetOperand(kInsnThirdOpnd));
     }
     idx0 = kInsnThirdOpnd;
   } else if (op1IsConstant) {
-    immOpnd = static_cast<AArch64ImmOperand*>(op1);
+    // cannot convert zero reg (r30) to a immOperand
+    immOpnd = op1->IsZeroRegister() ? &a64CGFunc->CreateImmOperand(0, op1->GetSize(), false)
+                                    : static_cast<AArch64ImmOperand*>(op1);
     op = op0;
     if (op->IsMemoryAccessOperand()) {
       op = &(insn.GetOperand(kInsnSecondOpnd));
     }
   } else if (bothConstant) {
-    AArch64ImmOperand *immOpnd0 = static_cast<AArch64ImmOperand*>(op0);
-    AArch64ImmOperand *immOpnd1 = static_cast<AArch64ImmOperand*>(op1);
+    AArch64ImmOperand *immOpnd0 = op0->IsZeroRegister() ? &a64CGFunc->CreateImmOperand(0, op0->GetSize(), false)
+                                                        : static_cast<AArch64ImmOperand*>(op0);
+    AArch64ImmOperand *immOpnd1 = op1->IsZeroRegister() ? &a64CGFunc->CreateImmOperand(0, op1->GetSize(), false)
+                                                        : static_cast<AArch64ImmOperand*>(op1);
     return SimplifyBothConst(*insn.GetBB(), insn, *immOpnd0, *immOpnd1, opndSize);
   }
   CHECK_FATAL(immOpnd != nullptr, "constant operand required!");

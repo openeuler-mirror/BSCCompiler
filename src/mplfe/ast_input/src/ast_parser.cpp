@@ -580,18 +580,90 @@ ASTValue *ASTParser::TranslateRValue2ASTValue(MapleAllocator &allocator, const c
   clang::Expr::EvalResult result;
   if (expr->EvaluateAsRValue(result, *(astFile->GetContext()))) {
     astValue = AllocASTValue(allocator);
+    if (result.Val.isLValue()) {
+      return astValue;
+    }
+    auto *constMirType = astFile->CvtType(expr->getType().getCanonicalType());
     if (result.Val.isInt()) {
-      astValue->val.i64 = static_cast<int64>(result.Val.getInt().getExtValue());
-      astValue->pty = PTY_i64;
-    } else if (result.Val.isFloat()) {
-      MIRType *exprMirType = astFile->CvtType(expr->getType());
-      if (exprMirType->GetPrimType() == PTY_f64) {
-        astValue->val.f64 = result.Val.getFloat().convertToDouble();
-        astValue->pty = PTY_f64;
-      } else {
-        astValue->val.f32 = result.Val.getFloat().convertToFloat();
-        astValue->pty = PTY_f32;
+      switch (constMirType->GetPrimType()) {
+        case PTY_i8:
+          astValue->val.i8 = static_cast<int8>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_i8;
+          break;
+        case PTY_i16:
+          astValue->val.i16 = static_cast<int16>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_i16;
+          break;
+        case PTY_i32:
+          if (expr->getStmtClass() == clang::Stmt::CharacterLiteralClass) {
+            if (FEOptions::GetInstance().IsUseSignedChar()) {
+              astValue->val.i8 = static_cast<int8>(llvm::cast<clang::CharacterLiteral>(expr)->getValue());
+              astValue->pty = PTY_i8;
+            } else {
+              astValue->val.u8 = static_cast<uint8>(llvm::cast<clang::CharacterLiteral>(expr)->getValue());
+              astValue->pty = PTY_u8;
+            }
+          } else {
+            astValue->val.i32 = static_cast<int32>(result.Val.getInt().getExtValue());
+            astValue->pty = PTY_i32;
+          }
+          break;
+        case PTY_i64:
+          astValue->val.i64 = static_cast<int64>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_i64;
+          break;
+        case PTY_u8:
+          astValue->val.u8 = static_cast<uint8>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_u8;
+          break;
+        case PTY_u16:
+          astValue->val.u16 = static_cast<uint16>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_u16;
+          break;
+        case PTY_u32:
+          astValue->val.u32 = static_cast<uint32>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_u32;
+          break;
+        case PTY_u64:
+          astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getExtValue());
+          astValue->pty = PTY_u64;
+          break;
+        case PTY_u1:
+          astValue->val.u8 = (result.Val.getInt().getExtValue() == 0 ? 0 : 1);
+          astValue->pty = PTY_u1;
+          break;
+        default: {
+          CHECK_FATAL(false, "Invalid");
+          break;
+        }
       }
+    } else if (result.Val.isFloat()) {
+      llvm::APFloat fValue = result.Val.getFloat();
+      llvm::APFloat::Semantics semantics = llvm::APFloatBase::SemanticsToEnum(fValue.getSemantics());
+      switch (semantics) {
+        case llvm::APFloat::S_IEEEsingle:
+          astValue->val.f32 = fValue.convertToFloat();
+          break;
+        case llvm::APFloat::S_IEEEdouble:
+          astValue->val.f64 = fValue.convertToDouble();
+          break;
+        case llvm::APFloat::S_IEEEquad:
+        case llvm::APFloat::S_PPCDoubleDouble:
+          bool LosesInfo;
+          if (constMirType->GetPrimType() == PTY_f64) {
+            fValue.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::roundingMode::rmNearestTiesToAway,
+                           &LosesInfo);
+            astValue->val.f64 = fValue.convertToDouble();
+          } else {
+            fValue.convert(llvm::APFloat::IEEEsingle(), llvm::APFloatBase::roundingMode::rmNearestTiesToAway,
+                           &LosesInfo);
+            astValue->val.f32 = fValue.convertToFloat();
+          }
+          break;
+        default:
+          CHECK_FATAL(false, "unsupported semantics");
+      }
+      astValue->pty = constMirType->GetPrimType();
     } else if (result.Val.isComplexInt() || result.Val.isComplexFloat()) {
       WARN(kLncWarn, "Unsupported complex value in MIR");
     } else if (result.Val.isVector() || result.Val.isMemberPointer() || result.Val.isAddrLabelDiff()) {
@@ -616,7 +688,7 @@ ASTValue *ASTParser::TranslateLValue2ASTValue(MapleAllocator &allocator, const c
       if (expr->getStmtClass() == clang::Stmt::MemberExprClass) {
         // meaningless, just for Initialization
         astValue->pty = PTY_i32;
-        astValue->val.i32 = 0;
+        astValue->val.i64 = 0;
         return astValue;
       }
       astValue->pty = PTY_a64;
