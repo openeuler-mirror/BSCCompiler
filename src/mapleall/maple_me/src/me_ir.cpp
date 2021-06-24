@@ -810,7 +810,7 @@ void MePhiNode::Dump(const IRMap *irMap) const {
     ost->Dump();
   } else {
     PregIdx regId = static_cast<RegMeExpr*>(lhs)->GetRegIdx();
-    LogInfo::MapleLogger() << "REGVAR: " << regId;
+    LogInfo::MapleLogger() << "REGINDX:" << regId;
     LogInfo::MapleLogger() << "(%"
                            << irMap->GetMIRModule().CurFunction()
                                                    ->GetPregTab()
