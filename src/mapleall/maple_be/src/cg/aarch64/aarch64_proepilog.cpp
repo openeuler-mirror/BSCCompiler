@@ -26,7 +26,6 @@ const std::set<std::string> kFrameWhiteListFunc {
 bool IsFuncNeedFrame(const std::string &funcName) {
   return kFrameWhiteListFunc.find(funcName) != kFrameWhiteListFunc.end();
 }
-constexpr uint32 k2BitSize = 2;
 constexpr int32 kSoeChckOffset = 8192;
 
 enum RegsPushPop : uint8 {
@@ -143,25 +142,6 @@ void AArch64GenProEpilog::TailCallBBOpt(const BB &exitBB, std::set<Insn*> &callI
  *  Return value: true if function do not need Prologue/Epilogue. false otherwise.
  */
 bool AArch64GenProEpilog::TailCallOpt() {
-  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
-  if (exitBBSize > 1) {
-    return false;
-  }
-
-  BB *exitBB = nullptr;
-  if (exitBBSize == 0) {
-    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
-        cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
-      exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
-    } else {
-      exitBB = cgFunc.GetLastBB()->GetPrev();
-    }
-  } else {
-    exitBB = cgFunc.GetExitBBsVec().front();
-  }
-
-  CHECK_FATAL(exitBB->GetFirstInsn() == nullptr, "exit bb should be empty.");
-
   /* Count how many call insns in the whole function. */
   uint32 nCount = 0;
   bool hasGetStackClass = false;
@@ -179,10 +159,33 @@ bool AArch64GenProEpilog::TailCallOpt() {
       }
     }
   }
-
   if ((nCount > 0 && cgFunc.GetFunction().GetAttr(FUNCATTR_interface)) || hasGetStackClass) {
     return false;
   }
+
+  if (nCount == 0) {
+    // no bl instr in any bb
+    return true;
+  }
+
+  size_t exitBBSize = cgFunc.GetExitBBsVec().size();
+  if (exitBBSize > 1) {
+    return false;
+  }
+
+  BB *exitBB = nullptr;
+  if (exitBBSize == 0) {
+    if (cgFunc.GetLastBB()->GetPrev()->GetFirstStmt() == cgFunc.GetCleanupLabel() &&
+        cgFunc.GetLastBB()->GetPrev()->GetPrev() != nullptr) {
+      exitBB = cgFunc.GetLastBB()->GetPrev()->GetPrev();
+    } else {
+      exitBB = cgFunc.GetLastBB()->GetPrev();
+    }
+  } else {
+    exitBB = cgFunc.GetExitBBsVec().front();
+  }
+
+  CHECK_FATAL(exitBB->GetFirstMachineInsn() == nullptr, "exit bb should be empty.");
 
   std::set<Insn*> callInsns;
   TailCallBBOpt(*exitBB, callInsns);
