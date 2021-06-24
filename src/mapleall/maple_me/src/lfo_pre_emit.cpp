@@ -14,26 +14,31 @@
  */
 
 #include "me_irmap.h"
-#include "lfo_mir_nodes.h"
 #include "lfo_function.h"
 #include "lfo_pre_emit.h"
 #include "mir_lower.h"
 #include "constantfold.h"
 
 namespace maple {
-LfoParentPart *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, LfoParentPart *parent) {
+BaseNode *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, BaseNode *parent) {
+  LfoPart *lfopart = lfoMP->New<LfoPart>(parent, meexpr);
   switch (meexpr->GetOp()) {
     case OP_constval: {
-      LfoConstvalNode *lcvlNode =
-        codeMP->New<LfoConstvalNode>(static_cast<ConstMeExpr *>(meexpr)->GetConstVal(), parent);
+      MIRConst *constval = static_cast<ConstMeExpr *>(meexpr)->GetConstVal();
+      ConstvalNode *lcvlNode = codeMP->New<ConstvalNode>(constval->GetType().GetPrimType(), constval);
+      lfoParts[lcvlNode] = lfopart;
       return lcvlNode;
     }
     case OP_dread: {
       VarMeExpr *varmeexpr = static_cast<VarMeExpr *>(meexpr);
       MIRSymbol *sym = varmeexpr->GetOst()->GetMIRSymbol();
-      LfoDreadNode *ldnode = codeMP->New<LfoDreadNode>(varmeexpr->GetPrimType(), sym->GetStIdx(),
-                                                       varmeexpr->GetOst()->GetFieldID(), parent, varmeexpr);
-      return ldnode;
+      if (sym->IsLocal()) {
+        sym->ResetIsDeleted();
+      }
+      AddrofNode *dreadnode = codeMP->New<AddrofNode>(OP_dread, varmeexpr->GetPrimType(), sym->GetStIdx(),
+                                                      varmeexpr->GetOst()->GetFieldID());
+      lfoParts[dreadnode] = lfopart;
+      return dreadnode;
     }
     case OP_eq:
     case OP_ne:
@@ -44,29 +49,30 @@ LfoParentPart *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, LfoParentPart *parent)
     case OP_cmpl:
     case OP_cmpg:
     case OP_lt: {
-      OpMeExpr *cmpNode = static_cast<OpMeExpr *>(meexpr);
-      LfoCompareNode *lnocmpNode =
-        codeMP->New<LfoCompareNode>(meexpr->GetOp(), cmpNode->GetPrimType(), cmpNode->GetOpndType(),
-                                     nullptr, nullptr, parent);
-      LfoParentPart *opnd0 = EmitLfoExpr(cmpNode->GetOpnd(0), lnocmpNode);
-      LfoParentPart *opnd1 = EmitLfoExpr(cmpNode->GetOpnd(1), lnocmpNode);
-      lnocmpNode->SetBOpnd(opnd0->Cvt2BaseNode(), 0);
-      lnocmpNode->SetBOpnd(opnd1->Cvt2BaseNode(), 1);
-      lnocmpNode->SetOpndType(cmpNode->GetOpndType());
-      return lnocmpNode;
+      OpMeExpr *cmpexpr = static_cast<OpMeExpr *>(meexpr);
+      CompareNode *cmpNode =
+          codeMP->New<CompareNode>(meexpr->GetOp(), cmpexpr->GetPrimType(), cmpexpr->GetOpndType(), nullptr, nullptr);
+      BaseNode *opnd0 = EmitLfoExpr(cmpexpr->GetOpnd(0), cmpNode);
+      BaseNode *opnd1 = EmitLfoExpr(cmpexpr->GetOpnd(1), cmpNode);
+      cmpNode->SetBOpnd(opnd0, 0);
+      cmpNode->SetBOpnd(opnd1, 1);
+      cmpNode->SetOpndType(cmpNode->GetOpndType());
+      lfoParts[cmpNode] = lfopart;
+      return cmpNode;
     }
     case OP_array: {
       NaryMeExpr *arrExpr = static_cast<NaryMeExpr *>(meexpr);
-      LfoArrayNode *lnoarrNode =
-        codeMP->New<LfoArrayNode>(codeMPAlloc, arrExpr->GetPrimType(), arrExpr->GetTyIdx(), parent);
-      lnoarrNode->SetTyIdx(arrExpr->GetTyIdx());
-      lnoarrNode->SetBoundsCheck(arrExpr->GetBoundCheck());
+      ArrayNode *arrNode =
+        codeMP->New<ArrayNode>(*codeMPAlloc, arrExpr->GetPrimType(), arrExpr->GetTyIdx());
+      arrNode->SetTyIdx(arrExpr->GetTyIdx());
+      arrNode->SetBoundsCheck(arrExpr->GetBoundCheck());
       for (uint32 i = 0; i < arrExpr->GetNumOpnds(); i++) {
-        LfoParentPart *opnd = EmitLfoExpr(arrExpr->GetOpnd(i), lnoarrNode);
-        lnoarrNode->GetNopnd().push_back(opnd->Cvt2BaseNode());
+        BaseNode *opnd = EmitLfoExpr(arrExpr->GetOpnd(i), arrNode);
+        arrNode->GetNopnd().push_back(opnd);
       }
-      lnoarrNode->SetNumOpnds(meexpr->GetNumOpnds());
-      return lnoarrNode;
+      arrNode->SetNumOpnds(meexpr->GetNumOpnds());
+      lfoParts[arrNode] = lfopart;
+      return arrNode;
     }
     case OP_ashr:
     case OP_band:
@@ -86,108 +92,139 @@ LfoParentPart *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, LfoParentPart *parent)
     case OP_sub:
     case OP_add: {
       OpMeExpr *opExpr = static_cast<OpMeExpr *>(meexpr);
-      LfoBinaryNode *lnobinNode =
-        codeMP->New<LfoBinaryNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent);
-      lnobinNode->SetBOpnd(EmitLfoExpr(opExpr->GetOpnd(0), lnobinNode)->Cvt2BaseNode(), 0);
-      lnobinNode->SetBOpnd(EmitLfoExpr(opExpr->GetOpnd(1), lnobinNode)->Cvt2BaseNode(), 1);
-      return lnobinNode;
+      BinaryNode *binNode = codeMP->New<BinaryNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      binNode->SetBOpnd(EmitLfoExpr(opExpr->GetOpnd(0), binNode), 0);
+      binNode->SetBOpnd(EmitLfoExpr(opExpr->GetOpnd(1), binNode), 1);
+      lfoParts[binNode] = lfopart;
+      return binNode;
     }
     case OP_iread: {
       IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meexpr);
-      LfoIreadNode *lnoirdNode = codeMP->New<LfoIreadNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent, ivarExpr);
-      lnoirdNode->SetOpnd(EmitLfoExpr(ivarExpr->GetBase(), lnoirdNode)->Cvt2BaseNode(), 0);
-      lnoirdNode->SetTyIdx(ivarExpr->GetTyIdx());
-      lnoirdNode->SetFieldID(ivarExpr->GetFieldID());
-      return lnoirdNode;
+      IreadNode *irdNode = codeMP->New<IreadNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      ASSERT(ivarExpr->GetOffset() == 0, "offset in iread should be 0");
+      irdNode->SetOpnd(EmitLfoExpr(ivarExpr->GetBase(), irdNode), 0);
+      irdNode->SetTyIdx(ivarExpr->GetTyIdx());
+      irdNode->SetFieldID(ivarExpr->GetFieldID());
+      lfoParts[irdNode] = lfopart;
+      return irdNode;
+    }
+    case OP_ireadoff: {
+      IvarMeExpr *ivarExpr = static_cast<IvarMeExpr *>(meexpr);
+      IreadNode *irdNode = codeMP->New<IreadNode>(OP_iread, meexpr->GetPrimType());
+      MeExpr *baseexpr = ivarExpr->GetBase();
+      if (ivarExpr->GetOffset() == 0) {
+        irdNode->SetOpnd(EmitLfoExpr(baseexpr, irdNode), 0);
+      } else {
+        MIRType *mirType = GlobalTables::GetTypeTable().GetInt32();
+        MIRIntConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(ivarExpr->GetOffset(), *mirType);
+        ConstvalNode *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+        BinaryNode *newAddrNode =
+            codeMP->New<BinaryNode>(OP_add, baseexpr->GetPrimType(), EmitLfoExpr(baseexpr, irdNode), constValNode);
+        irdNode->SetOpnd(newAddrNode, 0);
+      }
+      irdNode->SetTyIdx(ivarExpr->GetTyIdx());
+      irdNode->SetFieldID(ivarExpr->GetFieldID());
+      lfoParts[irdNode] = lfopart;
+      return irdNode;
     }
     case OP_addrof: {
       AddrofMeExpr *addrMeexpr = static_cast<AddrofMeExpr *> (meexpr);
       OriginalSt *ost = meirmap->GetSSATab().GetOriginalStFromID(addrMeexpr->GetOstIdx());
       MIRSymbol *sym = ost->GetMIRSymbol();
-      LfoAddrofNode *lnoaddrofNode =
-          codeMP->New<LfoAddrofNode>(addrMeexpr->GetPrimType(), sym->GetStIdx(), ost->GetFieldID(), parent);
-      return lnoaddrofNode;
+      AddrofNode *addrofNode =
+          codeMP->New<AddrofNode>(OP_addrof, addrMeexpr->GetPrimType(), sym->GetStIdx(), ost->GetFieldID());
+      lfoParts[addrofNode] = lfopart;
+      return addrofNode;
     }
     case OP_addroflabel: {
-      AddroflabelMeExpr *addroflabel = static_cast<AddroflabelMeExpr *>(meexpr);
-      LfoAddroflabelNode *lnoaddroflabel = codeMP->New<LfoAddroflabelNode>(addroflabel->labelIdx, parent);
-      // lnoaddroflabel->SetPrimType(PTY_ptr);
-      lnoaddroflabel->SetPrimType(meexpr->GetPrimType());
-      return lnoaddroflabel;
+      AddroflabelMeExpr *addroflabelexpr = static_cast<AddroflabelMeExpr *>(meexpr);
+      AddroflabelNode *addroflabel = codeMP->New<AddroflabelNode>(addroflabelexpr->labelIdx);
+      addroflabel->SetPrimType(meexpr->GetPrimType());
+      lfoParts[addroflabel] = lfopart;
+      return addroflabel;
     }
     case OP_addroffunc: {
       AddroffuncMeExpr *addrMeexpr = static_cast<AddroffuncMeExpr *>(meexpr);
-      LfoAddroffuncNode *addrfunNode =
-          codeMP->New<LfoAddroffuncNode>(addrMeexpr->GetPrimType(), addrMeexpr->GetPuIdx(), parent);
+      AddroffuncNode *addrfunNode = codeMP->New<AddroffuncNode>(addrMeexpr->GetPrimType(), addrMeexpr->GetPuIdx());
+      lfoParts[addrfunNode] = lfopart;
       return addrfunNode;
     }
     case OP_gcmalloc:
     case OP_gcpermalloc:
     case OP_stackmalloc: {
       GcmallocMeExpr *gcMeexpr = static_cast<GcmallocMeExpr *> (meexpr);
-      LfoGCMallocNode *gcMnode =
-          codeMP->New<LfoGCMallocNode>(meexpr->GetOp(), meexpr->GetPrimType(), gcMeexpr->GetTyIdx(), parent);
+      GCMallocNode *gcMnode =
+          codeMP->New<GCMallocNode>(meexpr->GetOp(), meexpr->GetPrimType(), gcMeexpr->GetTyIdx());
       gcMnode->SetTyIdx(gcMeexpr->GetTyIdx());
+      lfoParts[gcMnode] = lfopart;
       return gcMnode;
     }
     case OP_retype: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoRetypeNode *lnoRetNode = codeMP->New<LfoRetypeNode>(OP_retype, meexpr->GetPrimType(), parent);
-      lnoRetNode->SetFromType(opMeexpr->GetOpndType());
-      lnoRetNode->SetTyIdx(opMeexpr->GetTyIdx());
-      lnoRetNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), lnoRetNode)->Cvt2BaseNode(), 0);
-      return lnoRetNode;
+      RetypeNode *retypeNode = codeMP->New<RetypeNode>(meexpr->GetPrimType());
+      retypeNode->SetFromType(opMeexpr->GetOpndType());
+      retypeNode->SetTyIdx(opMeexpr->GetTyIdx());
+      retypeNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), retypeNode), 0);
+      lfoParts[retypeNode] = lfopart;
+      return retypeNode;
     }
     case OP_ceil:
     case OP_cvt:
     case OP_floor:
     case OP_trunc: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoTypeCvtNode *tycvtNode = codeMP->New<LfoTypeCvtNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent);
+      TypeCvtNode *tycvtNode = codeMP->New<TypeCvtNode>(meexpr->GetOp(), meexpr->GetPrimType());
       tycvtNode->SetFromType(opMeexpr->GetOpndType());
-      tycvtNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), tycvtNode)->Cvt2BaseNode(), 0);
+      tycvtNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), tycvtNode), 0);
+      lfoParts[tycvtNode] = lfopart;
       return tycvtNode;
     }
     case OP_sext:
     case OP_zext:
     case OP_extractbits: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoExtractbitsNode *extNode = codeMP->New<LfoExtractbitsNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent);
-      extNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), extNode)->Cvt2BaseNode(), 0);
+      ExtractbitsNode *extNode = codeMP->New<ExtractbitsNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      extNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), extNode), 0);
       extNode->SetBitsOffset(opMeexpr->GetBitsOffSet());
       extNode->SetBitsSize(opMeexpr->GetBitsSize());
+      lfoParts[extNode] = lfopart;
       return extNode;
     }
     case OP_regread: {
       RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(meexpr);
-      LfoRegreadNode *regNode = codeMP->New<LfoRegreadNode>(parent, regMeexpr);
+      RegreadNode *regNode = codeMP->New<RegreadNode>();
       regNode->SetPrimType(regMeexpr->GetPrimType());
       regNode->SetRegIdx(regMeexpr->GetRegIdx());
+      lfoParts[regNode] = lfopart;
       return regNode;
     }
     case OP_sizeoftype: {
       SizeoftypeMeExpr *sizeofMeexpr = static_cast<SizeoftypeMeExpr *>(meexpr);
-      LfoSizeoftypeNode *sizeofTynode =
-          codeMP->New<LfoSizeoftypeNode>(sizeofMeexpr->GetPrimType(), sizeofMeexpr->GetTyIdx(), parent);
+      SizeoftypeNode *sizeofTynode =
+          codeMP->New<SizeoftypeNode>(sizeofMeexpr->GetPrimType(), sizeofMeexpr->GetTyIdx());
+      lfoParts[sizeofTynode] = lfopart;
       return sizeofTynode;
     }
     case OP_fieldsdist: {
       FieldsDistMeExpr *fdMeexpr = static_cast<FieldsDistMeExpr *>(meexpr);
-      LfoFieldsDistNode *fieldsNode = codeMP->New<LfoFieldsDistNode>(
-        fdMeexpr->GetPrimType(), fdMeexpr->GetTyIdx(), fdMeexpr->GetFieldID1(),
-        fdMeexpr->GetFieldID2(), parent);
+      FieldsDistNode *fieldsNode =
+          codeMP->New<FieldsDistNode>(fdMeexpr->GetPrimType(), fdMeexpr->GetTyIdx(), fdMeexpr->GetFieldID1(),
+                                      fdMeexpr->GetFieldID2());
+      lfoParts[fieldsNode] = lfopart;
       return fieldsNode;
     }
     case OP_conststr: {
       ConststrMeExpr *constrMeexpr = static_cast<ConststrMeExpr *>(meexpr);
-      LfoConststrNode *constrNode =
-          codeMP->New<LfoConststrNode>(constrMeexpr->GetPrimType(), constrMeexpr->GetStrIdx(), parent);
+      ConststrNode *constrNode =
+          codeMP->New<ConststrNode>(constrMeexpr->GetPrimType(), constrMeexpr->GetStrIdx());
+      lfoParts[constrNode] = lfopart;
       return constrNode;
     }
     case OP_conststr16: {
       Conststr16MeExpr *constr16Meexpr = static_cast<Conststr16MeExpr *>(meexpr);
-      LfoConststr16Node *constr16Node =
-          codeMP->New<LfoConststr16Node>(constr16Meexpr->GetPrimType(), constr16Meexpr->GetStrIdx(), parent);
+      Conststr16Node *constr16Node =
+          codeMP->New<Conststr16Node>(constr16Meexpr->GetPrimType(), constr16Meexpr->GetStrIdx());
+      lfoParts[constr16Node] = lfopart;
       return constr16Node;
     }
     case OP_abs:
@@ -199,37 +236,41 @@ LfoParentPart *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, LfoParentPart *parent)
     case OP_alloca:
     case OP_malloc: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoUnaryNode *unNode = codeMP->New<LfoUnaryNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent);
-      unNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), unNode)->Cvt2BaseNode(), 0);
+      UnaryNode *unNode = codeMP->New<UnaryNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      unNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), unNode), 0);
+      lfoParts[unNode] = lfopart;
       return unNode;
     }
     case OP_iaddrof: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoIaddrofNode *unNode = codeMP->New<LfoIaddrofNode>(meexpr->GetOp(), meexpr->GetPrimType(), parent);
-      unNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), unNode)->Cvt2BaseNode(), 0);
-      unNode->SetTyIdx(opMeexpr->GetTyIdx());
-      unNode->SetFieldID(opMeexpr->GetFieldID());
-      return unNode;
+      IreadNode *ireadNode = codeMP->New<IreadNode>(meexpr->GetOp(), meexpr->GetPrimType());
+      ireadNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), ireadNode), 0);
+      ireadNode->SetTyIdx(opMeexpr->GetTyIdx());
+      ireadNode->SetFieldID(opMeexpr->GetFieldID());
+      lfoParts[ireadNode] = lfopart;
+      return ireadNode;
     }
     case OP_select: {
       OpMeExpr *opMeexpr = static_cast<OpMeExpr *>(meexpr);
-      LfoTernaryNode *tNode = codeMP->New<LfoTernaryNode>(OP_select, meexpr->GetPrimType(), parent);
-      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), tNode)->Cvt2BaseNode(), 0);
-      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(1), tNode)->Cvt2BaseNode(), 1);
-      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(2), tNode)->Cvt2BaseNode(), 2);
+      TernaryNode *tNode = codeMP->New<TernaryNode>(OP_select, meexpr->GetPrimType());
+      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(0), tNode), 0);
+      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(1), tNode), 1);
+      tNode->SetOpnd(EmitLfoExpr(opMeexpr->GetOpnd(2), tNode), 2);
+      lfoParts[tNode] = lfopart;
       return tNode;
     }
     case OP_intrinsicop:
     case OP_intrinsicopwithtype: {
       NaryMeExpr *nMeexpr = static_cast<NaryMeExpr *>(meexpr);
-      LfoIntrinsicopNode *intrnNode = codeMP->New<LfoIntrinsicopNode>(codeMPAlloc, meexpr->GetOp(),
-                                         meexpr->GetPrimType(), nMeexpr->GetTyIdx(), parent);
+      IntrinsicopNode *intrnNode =
+          codeMP->New<IntrinsicopNode>(*codeMPAlloc, meexpr->GetOp(), meexpr->GetPrimType(), nMeexpr->GetTyIdx());
       intrnNode->SetIntrinsic(nMeexpr->GetIntrinsic());
       for (uint32 i = 0; i < nMeexpr->GetNumOpnds(); i++) {
-        LfoParentPart *opnd = EmitLfoExpr(nMeexpr->GetOpnd(i), intrnNode);
-        intrnNode->GetNopnd().push_back(opnd->Cvt2BaseNode());
+        BaseNode *opnd = EmitLfoExpr(nMeexpr->GetOpnd(i), intrnNode);
+        intrnNode->GetNopnd().push_back(opnd);
       }
       intrnNode->SetNumOpnds(nMeexpr->GetNumOpnds());
+      lfoParts[intrnNode] = lfopart;
       return intrnNode;
     }
     default:
@@ -237,62 +278,80 @@ LfoParentPart *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, LfoParentPart *parent)
   }
 }
 
-StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
+StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, BaseNode *parent) {
+  LfoPart *lfopart = lfoMP->New<LfoPart>(parent, mestmt);
   switch (mestmt->GetOp()) {
     case OP_dassign: {
       DassignMeStmt *dsmestmt = static_cast<DassignMeStmt *>(mestmt);
-      LfoDassignNode *dass = codeMP->New<LfoDassignNode>(parent, dsmestmt);
+      DassignNode *dass = codeMP->New<DassignNode>();
       MIRSymbol *sym = dsmestmt->GetLHS()->GetOst()->GetMIRSymbol();
       dass->SetStIdx(sym->GetStIdx());
       dass->SetFieldID(static_cast<VarMeExpr *>(dsmestmt->GetLHS())->GetOst()->GetFieldID());
-      dass->SetOpnd(EmitLfoExpr(dsmestmt->GetRHS(), dass)->Cvt2BaseNode(), 0);
+      dass->SetOpnd(EmitLfoExpr(dsmestmt->GetRHS(), dass), 0);
       dass->SetSrcPos(dsmestmt->GetSrcPosition());
+      lfoParts[dass] = lfopart;
       return dass;
     }
     case OP_regassign: {
       AssignMeStmt *asMestmt = static_cast<AssignMeStmt *>(mestmt);
-      LfoRegassignNode *lrssnode = codeMP->New<LfoRegassignNode>(parent, asMestmt);
-      lrssnode->SetPrimType(asMestmt->GetLHS()->GetPrimType());
-      lrssnode->SetRegIdx(asMestmt->GetLHS()->GetRegIdx());
-      lrssnode->SetOpnd(EmitLfoExpr(asMestmt->GetRHS(), lrssnode)->Cvt2BaseNode(), 0);
-      lrssnode->SetSrcPos(asMestmt->GetSrcPosition());
-      return lrssnode;
+      RegassignNode *rssnode = codeMP->New<RegassignNode>();
+      rssnode->SetPrimType(asMestmt->GetLHS()->GetPrimType());
+      rssnode->SetRegIdx(asMestmt->GetLHS()->GetRegIdx());
+      rssnode->SetOpnd(EmitLfoExpr(asMestmt->GetRHS(), rssnode), 0);
+      rssnode->SetSrcPos(asMestmt->GetSrcPosition());
+      lfoParts[rssnode] = lfopart;
+      return rssnode;
     }
     case OP_iassign: {
       IassignMeStmt *iass = static_cast<IassignMeStmt *>(mestmt);
-      LfoIassignNode *lnoIassign =  codeMP->New<LfoIassignNode>(parent, iass);
-      lnoIassign->SetTyIdx(iass->GetTyIdx());
-      lnoIassign->SetFieldID(iass->GetLHSVal()->GetFieldID());
-      lnoIassign->addrExpr = EmitLfoExpr(iass->GetLHSVal()->GetBase(), lnoIassign)->Cvt2BaseNode();
-      lnoIassign->rhs = EmitLfoExpr(iass->GetRHS(), lnoIassign)->Cvt2BaseNode();
-      lnoIassign->SetSrcPos(iass->GetSrcPosition());
-      return lnoIassign;
+      IvarMeExpr *lhsVar = iass->GetLHSVal();
+      IassignNode *iassignNode = codeMP->New<IassignNode>();
+      iassignNode->SetTyIdx(iass->GetTyIdx());
+      iassignNode->SetFieldID(lhsVar->GetFieldID());
+      if (lhsVar->GetOffset() == 0) {
+        iassignNode->SetAddrExpr(EmitLfoExpr(lhsVar->GetBase(), iassignNode));
+      } else {
+        auto *mirType = GlobalTables::GetTypeTable().GetInt32();
+        auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+        auto *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+        auto *newAddrNode =
+            codeMP->New<BinaryNode>(OP_add, lhsVar->GetBase()->GetPrimType(),
+                                    EmitLfoExpr(lhsVar->GetBase(), iassignNode), constValNode);
+        iassignNode->SetAddrExpr(newAddrNode);
+      }
+      iassignNode->rhs = EmitLfoExpr(iass->GetRHS(), iassignNode);
+      iassignNode->SetSrcPos(iass->GetSrcPosition());
+      lfoParts[iassignNode] = lfopart;
+      return iassignNode;
     }
     case OP_return: {
       RetMeStmt *retMestmt = static_cast<RetMeStmt *>(mestmt);
-      LfoReturnStmtNode *lnoRet = codeMP->New<LfoReturnStmtNode>(codeMPAlloc, parent, retMestmt);
+      NaryStmtNode *retNode = codeMP->New<NaryStmtNode>(*codeMPAlloc, OP_return);
       for (uint32 i = 0; i < retMestmt->GetOpnds().size(); i++) {
-        lnoRet->GetNopnd().push_back(EmitLfoExpr(retMestmt->GetOpnd(i), lnoRet)->Cvt2BaseNode());
+        retNode->GetNopnd().push_back(EmitLfoExpr(retMestmt->GetOpnd(i), retNode));
       }
-      lnoRet->SetNumOpnds(retMestmt->GetOpnds().size());
-      lnoRet->SetSrcPos(retMestmt->GetSrcPosition());
-      return lnoRet;
+      retNode->SetNumOpnds(retMestmt->GetOpnds().size());
+      retNode->SetSrcPos(retMestmt->GetSrcPosition());
+      lfoParts[retNode] = lfopart;
+      return retNode;
     }
     case OP_goto: {
       GotoMeStmt *gotoStmt = static_cast<GotoMeStmt *>(mestmt);
       if (lfoFunc->LabelCreatedByLfo(gotoStmt->GetOffset())) {
         return nullptr;
       }
-      LfoGotoNode *gto = codeMP->New<LfoGotoNode>(OP_goto, parent);
+      GotoNode *gto = codeMP->New<GotoNode>(OP_goto);
       gto->SetOffset(gotoStmt->GetOffset());
       gto->SetSrcPos(gotoStmt->GetSrcPosition());
+      lfoParts[gto] = lfopart;
       return gto;
     }
     case OP_igoto: {
       UnaryMeStmt *igotoMeStmt = static_cast<UnaryMeStmt *>(mestmt);
-      LfoUnaryStmtNode *igto = codeMP->New<LfoUnaryStmtNode>(OP_igoto, parent);
-      igto->SetOpnd(EmitLfoExpr(igotoMeStmt->GetOpnd(), igto)->Cvt2BaseNode(), 0);
+      UnaryStmtNode *igto = codeMP->New<UnaryStmtNode>(OP_igoto);
+      igto->SetOpnd(EmitLfoExpr(igotoMeStmt->GetOpnd(), igto), 0);
       igto->SetSrcPos(igotoMeStmt->GetSrcPosition());
+      lfoParts[igto] = lfopart;
       return igto;
     }
     case OP_comment: {
@@ -300,6 +359,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
       CommentNode *cmtNode = codeMP->New<CommentNode>(*codeMPAlloc);
       cmtNode->SetComment(cmtmeNode->GetComment());
       cmtNode->SetSrcPos(cmtmeNode->GetSrcPosition());
+      lfoParts[cmtNode] = lfopart;
       return cmtNode;
     }
     case OP_call:
@@ -319,24 +379,25 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
     case OP_polymorphiccall:
     case OP_polymorphiccallassigned: {
       CallMeStmt *callMeStmt = static_cast<CallMeStmt *>(mestmt);
-      LfoCallNode *callnode = codeMP->New<LfoCallNode>(codeMPAlloc, mestmt->GetOp(), parent, callMeStmt);
+      CallNode *callnode = codeMP->New<CallNode>(*codeMPAlloc, mestmt->GetOp());
       callnode->SetPUIdx(callMeStmt->GetPUIdx());
       callnode->SetTyIdx(callMeStmt->GetTyIdx());
       callnode->SetNumOpnds(callMeStmt->GetOpnds().size());
       callnode->SetSrcPos(callMeStmt->GetSrcPosition());
       mestmt->EmitCallReturnVector(callnode->GetReturnVec());
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
-        callnode->GetNopnd().push_back(EmitLfoExpr(callMeStmt->GetOpnd(i), callnode)->Cvt2BaseNode());
+        callnode->GetNopnd().push_back(EmitLfoExpr(callMeStmt->GetOpnd(i), callnode));
       }
+      lfoParts[callnode] = lfopart;
       return callnode;
     }
     case OP_icall:
     case OP_icallassigned: {
       IcallMeStmt *icallMeStmt = static_cast<IcallMeStmt *> (mestmt);
-      LfoIcallNode *icallnode =
-          codeMP->New<LfoIcallNode>(codeMPAlloc, OP_icallassigned, icallMeStmt->GetRetTyIdx(), parent, icallMeStmt);
+      IcallNode *icallnode =
+          codeMP->New<IcallNode>(*codeMPAlloc, OP_icallassigned, icallMeStmt->GetRetTyIdx());
       for (uint32 i = 0; i < icallMeStmt->GetOpnds().size(); i++) {
-        icallnode->GetNopnd().push_back(EmitLfoExpr(icallMeStmt->GetOpnd(i), icallnode)->Cvt2BaseNode());
+        icallnode->GetNopnd().push_back(EmitLfoExpr(icallMeStmt->GetOpnd(i), icallnode));
       }
       icallnode->SetNumOpnds(icallMeStmt->GetOpnds().size());
       icallnode->SetSrcPos(mestmt->GetSrcPosition());
@@ -355,6 +416,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
           icallnode->SetRetTyIdx(TyIdx(preg->GetPrimType()));
         }
       }
+      lfoParts[icallnode] = lfopart;
       return icallnode;
     }
     case OP_intrinsiccall:
@@ -364,12 +426,12 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
     case OP_intrinsiccallwithtype:
     case OP_intrinsiccallwithtypeassigned: {
       IntrinsiccallMeStmt *callMeStmt = static_cast<IntrinsiccallMeStmt *> (mestmt);
-      LfoIntrinsiccallNode *callnode = codeMP->New<LfoIntrinsiccallNode>(codeMPAlloc,
-                mestmt->GetOp(), callMeStmt->GetIntrinsic(), parent, callMeStmt);
+      IntrinsiccallNode *callnode =
+          codeMP->New<IntrinsiccallNode>(*codeMPAlloc, mestmt->GetOp(), callMeStmt->GetIntrinsic());
       callnode->SetIntrinsic(callMeStmt->GetIntrinsic());
       callnode->SetTyIdx(callMeStmt->GetTyIdx());
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
-        callnode->GetNopnd().push_back(EmitLfoExpr(callMeStmt->GetOpnd(i), callnode)->Cvt2BaseNode());
+        callnode->GetNopnd().push_back(EmitLfoExpr(callMeStmt->GetOpnd(i), callnode));
       }
       callnode->SetNumOpnds(callnode->GetNopndSize());
       callnode->SetSrcPos(mestmt->GetSrcPosition());
@@ -385,6 +447,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
           }
         }
       }
+      lfoParts[callnode] = lfopart;
       return callnode;
     }
     case OP_jscatch:
@@ -395,23 +458,26 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
     case OP_membarrelease:
     case OP_membarstorestore:
     case OP_membarstoreload: {
-      LfoStmtNode *lnoStmtNode = codeMP->New<LfoStmtNode>(parent, mestmt->GetOp());
-      lnoStmtNode->SetSrcPos(mestmt->GetSrcPosition());
-      return lnoStmtNode;
+      StmtNode *stmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
+      stmtNode->SetSrcPos(mestmt->GetSrcPosition());
+      lfoParts[stmtNode] = lfopart;
+      return stmtNode;
     }
     case OP_retsub: {
-      LfoStmtNode * usesStmtNode = codeMP->New<LfoStmtNode>(parent, mestmt->GetOp());
+      StmtNode * usesStmtNode = codeMP->New<StmtNode>(mestmt->GetOp());
       usesStmtNode->SetSrcPos(mestmt->GetSrcPosition());
+      lfoParts[usesStmtNode] = lfopart;
       return usesStmtNode;
     }
     case OP_brfalse:
     case OP_brtrue: {
-      LfoCondGotoNode *lnoCondNode = codeMP->New<LfoCondGotoNode>(mestmt->GetOp(), parent);
+      CondGotoNode *CondNode = codeMP->New<CondGotoNode>(mestmt->GetOp());
       CondGotoMeStmt *condMeStmt = static_cast<CondGotoMeStmt *> (mestmt);
-      lnoCondNode->SetOffset(condMeStmt->GetOffset());
-      lnoCondNode->SetSrcPos(mestmt->GetSrcPosition());
-      lnoCondNode->SetOpnd(EmitLfoExpr(condMeStmt->GetOpnd(), lnoCondNode)->Cvt2BaseNode(), 0);
-      return lnoCondNode;
+      CondNode->SetOffset(condMeStmt->GetOffset());
+      CondNode->SetSrcPos(mestmt->GetSrcPosition());
+      CondNode->SetOpnd(EmitLfoExpr(condMeStmt->GetOpnd(), CondNode), 0);
+      lfoParts[CondNode] = lfopart;
+      return CondNode;
     }
     case OP_cpptry:
     case OP_try: {
@@ -423,6 +489,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
         jvTryNode->SetOffset(tryMeStmt->GetOffsets()[i], i);
       }
       jvTryNode->SetSrcPos(tryMeStmt->GetSrcPosition());
+      lfoParts[jvTryNode] = lfopart;
       return jvTryNode;
     }
     case OP_cppcatch: {
@@ -430,6 +497,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
       CppCatchMeStmt *catchMestmt = static_cast<CppCatchMeStmt *> (mestmt);
       cppCatchNode->exceptionTyIdx = catchMestmt->exceptionTyIdx;
       cppCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
+      lfoParts[cppCatchNode] = lfopart;
       return cppCatchNode;
     }
     case OP_catch: {
@@ -437,31 +505,35 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
       CatchMeStmt *catchMestmt = static_cast<CatchMeStmt *> (mestmt);
       jvCatchNode->SetExceptionTyIdxVec(catchMestmt->GetExceptionTyIdxVec());
       jvCatchNode->SetSrcPos(catchMestmt->GetSrcPosition());
+      lfoParts[jvCatchNode] = lfopart;
       return jvCatchNode;
     }
     case OP_throw: {
-      LfoUnaryStmtNode *throwStmt = codeMP->New<LfoUnaryStmtNode>(mestmt->GetOp(), parent);
+      UnaryStmtNode *throwStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
       ThrowMeStmt *throwMeStmt = static_cast<ThrowMeStmt *>(mestmt);
-      throwStmt->SetOpnd(EmitLfoExpr(throwMeStmt->GetOpnd(), throwStmt)->Cvt2BaseNode(), 0);
-      throwStmt->SetSrcPos(throwMeStmt->GetSrcPosition());
-      return throwStmt;
+      throwStmtNode->SetOpnd(EmitLfoExpr(throwMeStmt->GetOpnd(), throwStmtNode), 0);
+      throwStmtNode->SetSrcPos(throwMeStmt->GetSrcPosition());
+      lfoParts[throwStmtNode] = lfopart;
+      return throwStmtNode;
     }
     case OP_assertnonnull:
     case OP_eval:
     case OP_free: {
-      LfoUnaryStmtNode *unaryStmt = codeMP->New<LfoUnaryStmtNode>(mestmt->GetOp(), parent);
+      UnaryStmtNode *unaryStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
       UnaryMeStmt *uMeStmt = static_cast<UnaryMeStmt *>(mestmt);
-      unaryStmt->SetOpnd(EmitLfoExpr(uMeStmt->GetOpnd(), unaryStmt)->Cvt2BaseNode(), 0);
-      unaryStmt->SetSrcPos(uMeStmt->GetSrcPosition());
-      return unaryStmt;
+      unaryStmtNode->SetOpnd(EmitLfoExpr(uMeStmt->GetOpnd(), unaryStmtNode), 0);
+      unaryStmtNode->SetSrcPos(uMeStmt->GetSrcPosition());
+      lfoParts[unaryStmtNode] = lfopart;
+      return unaryStmtNode;
     }
     case OP_switch: {
-      LfoSwitchNode *switchNode = codeMP->New<LfoSwitchNode>(codeMPAlloc, parent);
+      SwitchNode *switchNode = codeMP->New<SwitchNode>(*codeMPAlloc);
       SwitchMeStmt *meSwitch = static_cast<SwitchMeStmt *>(mestmt);
-      switchNode->SetSwitchOpnd(EmitLfoExpr(meSwitch->GetOpnd(), switchNode)->Cvt2BaseNode());
+      switchNode->SetSwitchOpnd(EmitLfoExpr(meSwitch->GetOpnd(), switchNode));
       switchNode->SetDefaultLabel(meSwitch->GetDefaultLabel());
       switchNode->SetSwitchTable(meSwitch->GetSwitchTable());
       switchNode->SetSrcPos(meSwitch->GetSrcPosition());
+      lfoParts[switchNode] = lfopart;
       return switchNode;
     }
     default:
@@ -469,7 +541,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, LfoParentPart *parent) {
   }
 }
 
-void LfoPreEmitter::EmitBB(BB *bb, LfoBlockNode *curblk) {
+void LfoPreEmitter::EmitBB(BB *bb, BlockNode *curblk) {
   CHECK_FATAL(curblk != nullptr, "null ptr check");
   // emit head. label
   LabelIdx labidx = bb->GetBBLabel();
@@ -492,38 +564,49 @@ void LfoPreEmitter::EmitBB(BB *bb, LfoBlockNode *curblk) {
   }
 }
 
-DoloopNode *LfoPreEmitter::EmitLfoDoloop(BB *mewhilebb, LfoBlockNode *curblk, LfoWhileInfo *whileInfo) {
+DoloopNode *LfoPreEmitter::EmitLfoDoloop(BB *mewhilebb, BlockNode *curblk, LfoWhileInfo *whileInfo) {
   MeStmt *lastmestmt = mewhilebb->GetLastMe();
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
-              "EmitLfoWhile: there are other statements at while header bb");
-  LfoDoloopNode *lnoDoloopnode = codeMP->New<LfoDoloopNode>(curblk);
-  lnoDoloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
+              "EmitLfoDoLoop: there are other statements at while header bb");
+  DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
+  LfoPart *lfopart = lfoMP->New<LfoPart>(curblk);
+  lfoParts[Doloopnode] = lfopart;
+  Doloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
-  lnoDoloopnode->SetStartExpr(EmitLfoExpr(whileInfo->initExpr, lnoDoloopnode)->Cvt2BaseNode());
-  lnoDoloopnode->SetContExpr(EmitLfoExpr(condGotostmt->GetOpnd(), lnoDoloopnode)->Cvt2BaseNode());
-  lnoDoloopnode->SetDoBody(codeMP->New<LfoBlockNode>(lnoDoloopnode));
+  Doloopnode->SetStartExpr(EmitLfoExpr(whileInfo->initExpr, Doloopnode));
+  Doloopnode->SetContExpr(EmitLfoExpr(condGotostmt->GetOpnd(), Doloopnode));
+  BlockNode *dobodyNode = codeMP->New<BlockNode>();
+  Doloopnode->SetDoBody(dobodyNode);
+  LfoPart *dolooplfopart = lfoMP->New<LfoPart>(Doloopnode);
+  lfoParts[dobodyNode] = dolooplfopart;
   MIRIntConst *intConst =
       mirFunc->GetModule()->GetMemPool()->New<MIRIntConst>(whileInfo->stepValue, *whileInfo->ivOst->GetType());
-  LfoConstvalNode *lfoconstnode = codeMP->New<LfoConstvalNode>(intConst, lnoDoloopnode);
-  lnoDoloopnode->SetIncrExpr(lfoconstnode);
-  lnoDoloopnode->SetIsPreg(false);
-  curblk->AddStatement(lnoDoloopnode);
-  return lnoDoloopnode;
+  ConstvalNode *constnode = codeMP->New<ConstvalNode>(intConst->GetType().GetPrimType(), intConst);
+  lfoParts[constnode] = dolooplfopart;
+  Doloopnode->SetIncrExpr(constnode);
+  Doloopnode->SetIsPreg(false);
+  curblk->AddStatement(Doloopnode);
+  return Doloopnode;
 }
 
-WhileStmtNode *LfoPreEmitter::EmitLfoWhile(BB *meWhilebb, LfoBlockNode *curblk) {
+WhileStmtNode *LfoPreEmitter::EmitLfoWhile(BB *meWhilebb, BlockNode *curblk) {
   MeStmt *lastmestmt = meWhilebb->GetLastMe();
   CHECK_FATAL(lastmestmt->GetPrev() == nullptr || dynamic_cast<AssignMeStmt *>(lastmestmt->GetPrev()) == nullptr,
               "EmitLfoWhile: there are other statements at while header bb");
-  LfoWhileStmtNode *lnoWhilestmt = codeMP->New<LfoWhileStmtNode>(curblk);
+  WhileStmtNode *Whilestmt = codeMP->New<WhileStmtNode>(OP_while);
+  LfoPart *lfopart = lfoMP->New<LfoPart>(curblk);
+  lfoParts[Whilestmt] = lfopart;
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);
-  lnoWhilestmt->SetOpnd(EmitLfoExpr(condGotostmt->GetOpnd(), lnoWhilestmt)->Cvt2BaseNode(), 0);
-  lnoWhilestmt->SetBody(codeMP->New<LfoBlockNode>(lnoWhilestmt));
-  curblk->AddStatement(lnoWhilestmt);
-  return lnoWhilestmt;
+  Whilestmt->SetOpnd(EmitLfoExpr(condGotostmt->GetOpnd(), Whilestmt), 0);
+  BlockNode *whilebodyNode = codeMP->New<BlockNode>();
+  LfoPart *whilenodelfopart = lfoMP->New<LfoPart>(Whilestmt);
+  lfoParts[whilebodyNode] = whilenodelfopart;
+  Whilestmt->SetBody(whilebodyNode);
+  curblk->AddStatement(Whilestmt);
+  return Whilestmt;
 }
 
-uint32 LfoPreEmitter::Raise2LfoWhile(uint32 curj, LfoBlockNode *curblk) {
+uint32 LfoPreEmitter::Raise2LfoWhile(uint32 curj, BlockNode *curblk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
   BB *curbb = bbvec[curj];
   LabelIdx whilelabidx = curbb->GetBBLabel();
@@ -533,44 +616,46 @@ uint32 LfoPreEmitter::Raise2LfoWhile(uint32 curj, LfoBlockNode *curblk) {
   BB *suc0 = curbb->GetSucc(0);
   BB *suc1 = curbb->GetSucc(1);
   MeStmt *laststmt = curbb->GetLastMe();
-  CHECK_FATAL(laststmt->GetOp() == OP_brfalse, "Riase2LfoWhile: NYI");
+  CHECK_FATAL(laststmt->GetOp() == OP_brfalse, "Riase2While: NYI");
   CondGotoMeStmt *condgotomestmt = static_cast<CondGotoMeStmt *>(laststmt);
   BB *endlblbb = condgotomestmt->GetOffset() == suc1->GetBBLabel() ? suc1 : suc0;
-  LfoBlockNode *lfoDobody = nullptr;
+  BlockNode *Dobody = nullptr;
   if (whileInfo->canConvertDoloop) {  // emit doloop
     DoloopNode *doloopnode = EmitLfoDoloop(curbb, curblk, whileInfo);
     ++curj;
-    lfoDobody = static_cast<LfoBlockNode *>(doloopnode->GetDoBody());
+    Dobody = static_cast<BlockNode *>(doloopnode->GetDoBody());
   } else { // emit while loop
     WhileStmtNode *whileNode = EmitLfoWhile(curbb, curblk);
     ++curj;
-    lfoDobody = static_cast<LfoBlockNode *> (whileNode->GetBody());
+    Dobody = static_cast<BlockNode *> (whileNode->GetBody());
   }
   // emit loop body
   while (bbvec[curj]->GetBBId() != endlblbb->GetBBId()) {
-    curj = EmitLfoBB(curj, lfoDobody);
+    curj = EmitLfoBB(curj, Dobody);
     while (bbvec[curj] == nullptr) {
       curj++;
     }
   }
   if (whileInfo->canConvertDoloop) {  // delete the increment statement
-    StmtNode *bodylaststmt = lfoDobody->GetLast();
+    StmtNode *bodylaststmt = Dobody->GetLast();
     CHECK_FATAL(bodylaststmt->GetOpCode() == OP_dassign, "Raise2LfoWhile: cannot find increment stmt");
     DassignNode *dassnode = static_cast<DassignNode *>(bodylaststmt);
     CHECK_FATAL(dassnode->GetStIdx() == whileInfo->ivOst->GetMIRSymbol()->GetStIdx(),
                 "Raise2LfoWhile: cannot find IV increment");
-    lfoDobody->RemoveStmt(dassnode);
+    Dobody->RemoveStmt(dassnode);
   }
   return curj;
 }
 
-uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, LfoBlockNode *curblk) {
+uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, BlockNode *curblk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
   BB *curbb = bbvec[curj];
   // emit BB contents before the if statement
   LabelIdx labidx = curbb->GetBBLabel();
   if (labidx != 0 && !lfoFunc->LabelCreatedByLfo(labidx)) {
     LabelNode *lbnode = mirFunc->GetCodeMempool()->New<LabelNode>();
+    LfoPart *lfopart = lfoMP->New<LfoPart>(curblk);
+    lfoParts[lbnode] = lfopart;
     lbnode->SetLabelIdx(labidx);
     curblk->AddStatement(lbnode);
   }
@@ -586,15 +671,21 @@ uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, LfoBlockNode *curblk) {
   CondGotoMeStmt *condgoto = static_cast <CondGotoMeStmt *>(mestmt);
   LfoIfInfo *ifInfo = lfoFunc->label2IfInfo[condgoto->GetOffset()];
   CHECK_FATAL(ifInfo->endLabel != 0, "Raise2LfoIf: endLabel not found");
-  LfoIfStmtNode *lnoIfstmtNode = mirFunc->GetCodeMempool()->New<LfoIfStmtNode>(curblk);
-  LfoParentPart *condnode = EmitLfoExpr(condgoto->GetOpnd(), lnoIfstmtNode);
-  lnoIfstmtNode->SetOpnd(condnode->Cvt2BaseNode(), 0);
-  curblk->AddStatement(lnoIfstmtNode);
+  //IfStmtNode *lnoIfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>(curblk);
+  IfStmtNode *IfstmtNode = mirFunc->GetCodeMempool()->New<IfStmtNode>();
+  LfoPart *lfopart = lfoMP->New<LfoPart>(curblk);
+  lfoParts[IfstmtNode] = lfopart;
+  BaseNode *condnode = EmitLfoExpr(condgoto->GetOpnd(), IfstmtNode);
+  IfstmtNode->SetOpnd(condnode, 0);
+  curblk->AddStatement(IfstmtNode);
+  LfoPart *iflfopart = lfoMP->New<LfoPart>(IfstmtNode);
   if (ifInfo->elseLabel != 0) {  // both else and then are not empty;
-    LfoBlockNode *elseBlk = codeMP->New<LfoBlockNode>(lnoIfstmtNode);
-    LfoBlockNode *thenBlk = codeMP->New<LfoBlockNode>(lnoIfstmtNode);
-    lnoIfstmtNode->SetThenPart(thenBlk);
-    lnoIfstmtNode->SetElsePart(elseBlk);
+    BlockNode *elseBlk = codeMP->New<BlockNode>();
+    lfoParts[elseBlk] = iflfopart;
+    BlockNode *thenBlk = codeMP->New<BlockNode>();
+    lfoParts[thenBlk] = iflfopart;
+    IfstmtNode->SetThenPart(thenBlk);
+    IfstmtNode->SetElsePart(elseBlk);
     BB *elsemebb = cfg->GetLabelBBAt(ifInfo->elseLabel);
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
     CHECK_FATAL(elsemebb, "Raise2LfoIf: cannot find else BB");
@@ -611,14 +702,16 @@ uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, LfoBlockNode *curblk) {
     CHECK_FATAL(j < bbvec.size(), "");
     return j;
   } else {  // there is only then or else part in this if stmt
-    LfoBlockNode *branchBlock = codeMP->New<LfoBlockNode>(lnoIfstmtNode);
-    LfoBlockNode *emptyBlock = codeMP->New<LfoBlockNode>(lnoIfstmtNode);
+    BlockNode *branchBlock = codeMP->New<BlockNode>();
+    lfoParts[branchBlock] = iflfopart;
+    BlockNode *emptyBlock = codeMP->New<BlockNode>();
+    lfoParts[emptyBlock] = iflfopart;
     if (condgoto->GetOp() == OP_brtrue) {
-      lnoIfstmtNode->SetElsePart(branchBlock);
-      lnoIfstmtNode->SetThenPart(emptyBlock);
+      IfstmtNode->SetElsePart(branchBlock);
+      IfstmtNode->SetThenPart(emptyBlock);
     } else {
-      lnoIfstmtNode->SetThenPart(branchBlock);
-      lnoIfstmtNode->SetElsePart(emptyBlock);
+      IfstmtNode->SetThenPart(branchBlock);
+      IfstmtNode->SetElsePart(emptyBlock);
     }
     BB *endmebb = cfg->GetLabelBBAt(ifInfo->endLabel);
     uint32 j = curj + 1;
@@ -630,7 +723,7 @@ uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, LfoBlockNode *curblk) {
   }
 }
 
-uint32 LfoPreEmitter::EmitLfoBB(uint32 curj, LfoBlockNode *curblk) {
+uint32 LfoPreEmitter::EmitLfoBB(uint32 curj, BlockNode *curblk) {
   MapleVector<BB *> &bbvec = cfg->GetAllBBs();
   BB *mebb = bbvec[curj];
   if (!mebb || mebb == cfg->GetCommonEntryBB() || mebb == cfg->GetCommonEntryBB()) {
@@ -668,30 +761,23 @@ AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, Modu
   }
   MeIRMap *hmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   ASSERT(hmap != nullptr, "irmapbuild has problem");
+
   MIRFunction *mirfunction = func->GetMirFunc();
   if (mirfunction->GetCodeMempool() != nullptr) {
     memPoolCtrler.DeleteMemPool(mirfunction->GetCodeMempool());
   }
-  mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from lfopreemission::Emit()"));
-#if 0
-  mirfunction->body = mirfunction->codeMemPool->New<BlockNode>();
-  for (uint32 i = 0; i < func->theCFG->bbVec.size(); i++) {
-    BB *bb = func->theCFG->bbVec[i];
-    if (bb == nullptr) {
-      continue;
-    }
-    bb->EmitBB(func->meSSATab, func->mirFunc->body, func->mirFunc->freqMap, true);
-  }
-#else
-  LfoPreEmitter emitter(hmap, func->GetLfoFunc());
-  LfoBlockNode *curblk = mirfunction->GetCodeMempool()->New<LfoBlockNode>(nullptr);
+  mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from preemission::Emit()"));
+  MemPool *lfoMP = NewMemPool();
+  LfoPreEmitter *emitter = lfoMP->New<LfoPreEmitter>(hmap, func->GetLfoFunc(), lfoMP);
+  BlockNode *curblk = mirfunction->GetCodeMempool()->New<BlockNode>();
   mirfunction->SetBody(curblk);
+  emitter->InitFuncBodyLfoPart(curblk); // set lfopart for curblk
   uint32 i = 0;
   while (i < func->GetCfg()->GetAllBBs().size()) {
-    i = emitter.EmitLfoBB(i, curblk);
+    i = emitter->EmitLfoBB(i, curblk);
   }
-#endif
-
+  // invalid cfg information only in lfo phase
+  // m->InvalidAnalysisResult(MeFuncPhase_MECFG, func);
   m->InvalidAllResults();
   func->SetMeSSATab(nullptr);
   func->SetIRMap(nullptr);
@@ -712,6 +798,6 @@ AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, Modu
   mirlowerer.LowerFunc(*mirfunction);
 #endif
 
-  return nullptr;
+  return emitter;
 }
 }  // namespace maple
