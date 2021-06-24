@@ -310,15 +310,16 @@ static bool CompatibleIntegerTypes(PrimType pty1, PrimType pty2) {
   if (IsPrimitiveInteger(pty1) && IsPrimitiveInteger(pty2)) {
     return GetPrimTypeSize(pty1) == GetPrimTypeSize(pty2) && IsSignedInteger(pty1) == IsSignedInteger(pty2);
   }
-  return false;
+  return pty1 == pty2;
 }
 
 bool OpMeExpr::IsIdentical(const OpMeExpr &meExpr) const {
   if (meExpr.GetOp() != GetOp()) {
     return false;
   }
-  if (!CompatibleIntegerTypes(meExpr.GetPrimType(), GetPrimType()) || meExpr.opndType != opndType || meExpr.bitsOffset != bitsOffset ||
-      meExpr.bitsSize != bitsSize || meExpr.tyIdx != tyIdx || meExpr.fieldID != fieldID) {
+  if (!CompatibleIntegerTypes(meExpr.GetPrimType(), GetPrimType()) || meExpr.opndType != opndType ||
+      meExpr.bitsOffset != bitsOffset || meExpr.bitsSize != bitsSize || meExpr.tyIdx != tyIdx ||
+      meExpr.fieldID != fieldID) {
     return false;
   }
   if (IsAllOpndsIdentical(meExpr)) {
@@ -602,7 +603,8 @@ int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
   ASSERT(StrengthReducible(), "OpMeExpr::SRMultiplier: operation is not strength reducible");
   switch (op) {
     case OP_cvt:
-    case OP_add: return 1;
+    case OP_add:
+      return 1;
     case OP_sub: {
       ScalarMeExpr *scalarOpnd1 = dynamic_cast<ScalarMeExpr *>(GetOpnd(1));
       if (scalarOpnd1 && scalarOpnd1->GetOst() == ost) {
@@ -615,7 +617,8 @@ int64 OpMeExpr::SRMultiplier(OriginalSt *ost) {
       ASSERT(constVal->GetKind() == kConstInt, "OpMeExpr::SRMultiplier: multiplier not an integer constant");
       return static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
     }
-    default: CHECK_FATAL(false, "SRMultiplier: unexpected strength reduction opcode");
+    default:
+      CHECK_FATAL(false, "SRMultiplier: unexpected strength reduction opcode");
   }
   return 0;
 }
@@ -793,7 +796,7 @@ void MePhiNode::Dump(const IRMap *irMap) const {
     ost->Dump();
   } else {
     PregIdx regId = static_cast<RegMeExpr*>(lhs)->GetRegIdx();
-    LogInfo::MapleLogger() << "REGVAR: " << regId;
+    LogInfo::MapleLogger() << "REGINDX:" << regId;
     LogInfo::MapleLogger() << "(%"
                            << irMap->GetMIRModule().CurFunction()
                                                    ->GetPregTab()

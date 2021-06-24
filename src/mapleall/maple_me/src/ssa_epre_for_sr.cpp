@@ -17,7 +17,7 @@
 
 namespace maple {
 
-static ScalarMeExpr* ResolveOneInjuringDef(ScalarMeExpr *regx) {
+ScalarMeExpr* SSAEPre::ResolveOneInjuringDef(ScalarMeExpr *regx) const {
   if (regx->GetDefBy() != kDefByStmt) {
     return regx;
   }
@@ -105,7 +105,8 @@ static int64 GetIncreAmtAndRhsScalar(MeExpr *x, ScalarMeExpr *&rhsScalar) {
   OpMeExpr *opexpr = static_cast<OpMeExpr *>(x);
   rhsScalar = dynamic_cast<ScalarMeExpr *>(opexpr->GetOpnd(0));
   CHECK_FATAL(rhsScalar != nullptr, "GetIncreAmtAndRhsScalar: cannot find scalar operand");
-  CHECK_FATAL(opexpr->GetOpnd(1)->GetMeOp() == kMeOpConst, "GetIncreAmtAndRhsScalar: cannot find constant inc/dec amount");
+  CHECK_FATAL(opexpr->GetOpnd(1)->GetMeOp() == kMeOpConst,
+              "GetIncreAmtAndRhsScalar: cannot find constant inc/dec amount");
   MIRConst *constVal = static_cast<ConstMeExpr *>(opexpr->GetOpnd(1))->GetConstVal();
   CHECK_FATAL(constVal->GetKind() == kConstInt, "GetIncreAmtAndRhsScalar: unexpected constant type");
   int64 amt = static_cast<MIRIntConst *>(constVal)->GetValueUnderType();
@@ -199,7 +200,7 @@ static bool IsScalarInWorkCandExpr(ScalarMeExpr *scalar, OpMeExpr *theMeExpr) {
     return true;
   }
   iv = dynamic_cast<ScalarMeExpr *>(theMeExpr->GetOpnd(1));
-  return iv && iv->GetOst() == scalar->GetOst();
+  return iv != nullptr && iv->GetOst() == scalar->GetOst();
 }
 
 MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
@@ -236,7 +237,8 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
       continue;
     }
     if (useocc->GetOccType() == kOccCompare) {
-      if (!IsScalarInWorkCandExpr(static_cast<ScalarMeExpr*>(curopnd), static_cast<OpMeExpr *>(workCand->GetTheMeExpr()))) {
+      if (!IsScalarInWorkCandExpr(static_cast<ScalarMeExpr*>(curopnd),
+                                  static_cast<OpMeExpr*>(workCand->GetTheMeExpr()))) {
         continue;
       }
     }
