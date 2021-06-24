@@ -28,7 +28,8 @@ class LfoPreEmitter : public AnalysisResult {
   MapleAllocator *codeMPAlloc;
   MemPool *lfoMP;
   MapleAllocator lfoMPAlloc;
-  MapleMap<BaseNode*, LfoPart*> lfoParts; // key is mirnode
+  MapleMap<uint32_t, LfoPart*> lfoStmtParts; // map lfoinfo for StmtNode, key is stmtID
+  MapleMap<BaseNode*, LfoPart*> lfoExprParts; // map lfoinfor for exprNode, key is mirnode
   MeCFG *cfg;
 
  public:
@@ -40,7 +41,8 @@ class LfoPreEmitter : public AnalysisResult {
         codeMPAlloc(&f->meFunc->GetMirFunc()->GetCodeMemPoolAllocator()),
         lfoMP(lfomp),
         lfoMPAlloc(lfoMP),
-        lfoParts(lfoMPAlloc.Adapter()),
+        lfoStmtParts(lfoMPAlloc.Adapter()),
+        lfoExprParts(lfoMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
 
  private:
@@ -55,27 +57,40 @@ class LfoPreEmitter : public AnalysisResult {
   uint32 EmitLfoBB(uint32, BlockNode *);
   void InitFuncBodyLfoPart(BaseNode *funcbody) {
     LfoPart *rootlfo = lfoMP->New<LfoPart>(nullptr);
-    lfoParts[funcbody] = rootlfo;
+    lfoExprParts[funcbody] = rootlfo;
   }
-  void SetLfoPart(BaseNode* node, LfoPart* lfoInfo) {
-     lfoParts[node] = lfoInfo;
+  void SetLfoStmtPart(uint32_t stmtID, LfoPart* lfoInfo) {
+     lfoStmtParts[stmtID] = lfoInfo;
   }
-  LfoPart* GetLfoPart(BaseNode *node) {
-    return lfoParts[node];
+  void SetLfoExprPart(BaseNode *expr, LfoPart* lfoInfo) {
+     lfoExprParts[expr] = lfoInfo;
+  }
+  LfoPart* GetLfoExprPart(BaseNode *node) {
+    return lfoExprParts[node];
+  }
+  LfoPart* GetLfoStmtPart(uint32_t stmtID) {
+    return lfoStmtParts[stmtID];
   }
   BaseNode *GetParent(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
+    LfoPart *lfopart = lfoExprParts[node];
+    if (lfopart != nullptr) {
+      return lfopart->parent;
+    }
+    return nullptr;
+  }
+  BaseNode *GetParent(uint32_t stmtID) {
+    LfoPart *lfopart = lfoStmtParts[stmtID];
     if (lfopart != nullptr) {
       return lfopart->parent;
     }
     return nullptr;
   }
   MeExpr *GetMexpr(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
+    LfoPart *lfopart = lfoExprParts[node];
     return lfopart->meexpr;
   }
-  MeStmt *GetMeStmt(BaseNode *node) {
-    LfoPart *lfopart = lfoParts[node];
+  MeStmt *GetMeStmt(uint32_t stmtID) {
+    LfoPart *lfopart = lfoStmtParts[stmtID];
     return lfopart->mestmt;
   }
 };
