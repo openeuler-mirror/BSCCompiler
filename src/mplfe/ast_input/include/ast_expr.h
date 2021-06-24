@@ -23,6 +23,12 @@ class ASTDecl;
 class ASTStmt;
 struct ASTValue {
   union Value {
+    uint8 u8;
+    uint16 u16;
+    uint32 u32;
+    uint64 u64;
+    int8 i8;
+    int16 i16;
     int32 i32;
     float f32;
     int64 i64;
@@ -285,9 +291,6 @@ class ASTUOMinusExpr: public ASTUnaryOperatorExpr {
  public:
   ASTUOMinusExpr() : ASTUnaryOperatorExpr(kASTOpMinus) {}
   ~ASTUOMinusExpr() = default;
-
- protected:
-  MIRConst *GenerateMIRConstImpl() const override;
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
