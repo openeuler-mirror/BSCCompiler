@@ -6847,7 +6847,7 @@ uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alig
   /* Generating a larger sized mem op than alignment if allowed by aggregate starting address */
   uint32 offsetAlign1 = (offset1 == 0) ? k8ByteSize : offset1;
   uint32 offsetAlign2 = (offset2 == 0) ? k8ByteSize : offset2;
-  uint32 alignOffset = std::min((offsetAlign1 & 0x0f), (offsetAlign2 & 0x0f));
+  uint32 alignOffset = 1 << (std::min(__builtin_ffs(offsetAlign1), __builtin_ffs(offsetAlign2)) - 1);
   if (alignOffset == k8ByteSize || alignOffset == k4ByteSize || alignOffset == k2ByteSize) {
     return alignOffset;
   } else {
