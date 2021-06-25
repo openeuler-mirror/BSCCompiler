@@ -30,7 +30,7 @@
 namespace maple {
 BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
   bool arrayLowered = false;
-  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo() && MeOption::strengthReduction) {
+  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo()) {
     MIRLower mirLower(mirModule, mirModule.CurFunction());
     expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
     arrayLowered = true;
@@ -95,7 +95,7 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
       theSSAPart->SetSSAVar(*versionStTable.GetZeroVersionSt(ost));
       // if the rhs may throw exception, we insert MayDef of the lhs var
       if (stmt.GetOpCode() == OP_maydassign) {
-        theSSAPart->InsertMayDefNode(theSSAPart->GetSSAVar(), &dNode);
+        theSSAPart->InsertMayDefNode(MayDefNode(theSSAPart->GetSSAVar(), &dNode));
       }
       return;
     }
