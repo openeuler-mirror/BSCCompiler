@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mir_lower.h"
+#include "constantfold.h"
 
 #define DO_LT_0_CHECK 1
 
@@ -396,6 +397,8 @@ BaseNode *MIRLower::LowerFarray(ArrayNode *array) {
   rAdd->SetPrimType(array->GetPrimType());
   rAdd->SetOpnd(baseNode, 0);
   rAdd->SetOpnd(rMul, 1);
+  auto *newAdd = ConstantFold(mirModule).Fold(rAdd);
+  rAdd = (newAdd != nullptr ? newAdd : rAdd);
   return rAdd;
 }
 
@@ -501,6 +504,10 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
         BaseNode *mulSize = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(mulConst);
         mulSize->SetPrimType(array->GetPrimType());
         mpyNode->SetOpnd(mulSize, 0);
+        if (resNode->GetPrimType() != array->GetPrimType()) {
+          resNode = mirModule.CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, array->GetPrimType(),
+                                                                     GetSignedPrimType(resNode->GetPrimType()), resNode);
+        }
         mpyNode->SetOpnd(resNode, 1);
       }
       if (i == 0) {
@@ -510,6 +517,10 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
       BaseNode *newResNode = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_add);
       newResNode->SetPrimType(array->GetPrimType());
       newResNode->SetOpnd(mpyNode, 0);
+      if (prevNode->GetPrimType() != array->GetPrimType()) {
+        prevNode = mirModule.CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, array->GetPrimType(),
+                                                                    GetSignedPrimType(prevNode->GetPrimType()), prevNode);
+      }
       newResNode->SetOpnd(prevNode, 1);
       prevNode = newResNode;
     }
@@ -531,6 +542,10 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
   eSize->SetPrimType(array->GetPrimType());
   rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
   rMul->SetPrimType(array->GetPrimType());
+  if (resNode->GetPrimType() != array->GetPrimType()) {
+    resNode = mirModule.CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, array->GetPrimType(),
+                                                               GetSignedPrimType(resNode->GetPrimType()), resNode);
+  }
   rMul->SetOpnd(resNode, 0);
   rMul->SetOpnd(eSize, 1);
   BaseNode *baseNode = array->GetBase();
@@ -538,6 +553,8 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
   rAdd->SetPrimType(array->GetPrimType());
   rAdd->SetOpnd(baseNode, 0);
   rAdd->SetOpnd(rMul, 1);
+  auto *newAdd = ConstantFold(mirModule).Fold(rAdd);
+  rAdd = (newAdd != nullptr ? newAdd : rAdd);
   return rAdd;
 }
 
