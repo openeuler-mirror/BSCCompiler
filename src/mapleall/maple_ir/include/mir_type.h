@@ -69,7 +69,7 @@ inline bool IsPossible32BitAddress(PrimType tp) {
 }
 
 inline bool IsPrimitivePureScalar(PrimitiveType primitiveType) {
-  return primitiveType.IsInteger() && !primitiveType.IsAddress() && !primitiveType.IsDynamic();
+  return primitiveType.IsInteger() && !primitiveType.IsAddress() && !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
 inline bool IsUnsignedInteger(PrimitiveType primitiveType) {
@@ -81,7 +81,7 @@ inline bool IsSignedInteger(PrimitiveType primitiveType) {
 }
 
 inline bool IsPrimitiveInteger(PrimitiveType primitiveType) {
-  return primitiveType.IsInteger() && !primitiveType.IsDynamic();
+  return primitiveType.IsInteger() && !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
 inline bool IsPrimitiveDynType(PrimitiveType primitiveType) {
@@ -97,7 +97,7 @@ inline bool IsPrimitiveDynFloat(PrimitiveType primitiveType) {
 }
 
 inline bool IsPrimitiveFloat(PrimitiveType primitiveType) {
-  return primitiveType.IsFloat() && !primitiveType.IsDynamic();
+  return primitiveType.IsFloat() && !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
 inline bool IsPrimitiveScalar(PrimitiveType primitiveType) {
@@ -419,7 +419,12 @@ constexpr int32 kOffsetUnknown = INT_MAX;
 constexpr int32 kOffsetMax = (INT_MAX - 1);
 constexpr int32 kOffsetMin = INT_MIN;
 struct OffsetType {
-  explicit OffsetType(int32 offset) : val(offset) {}
+  explicit OffsetType(int64 offset) {
+    Set(offset);
+  }
+
+  OffsetType(const OffsetType &other) : val(other.val) {}
+
   ~OffsetType() = default;
 
   void Set(int64 offsetVal) {
@@ -431,16 +436,36 @@ struct OffsetType {
     return val == kOffsetUnknown;
   }
 
+  OffsetType operator=(const OffsetType &other) {
+    val = other.val;
+    return other;
+  }
+
   OffsetType operator+(int64 offset) const {
-    int64 sum = this->val + offset;
-    if (sum >= kOffsetMin && sum <= kOffsetMax) {
-      return OffsetType(static_cast<int32>(sum));
+    if (this->IsInvalid() || OffsetType(offset).IsInvalid()) {
+      return InvalidOffset();
     }
-    return OffsetType(kOffsetUnknown);
+    return OffsetType(val + offset);
   }
 
   OffsetType operator+(OffsetType other) const {
     return other + val;
+  }
+
+  void operator+=(int64 offset) {
+    if (this->IsInvalid() || OffsetType(offset).IsInvalid()) {
+      val = kOffsetUnknown;
+      return;
+    }
+    Set(offset + val);
+  }
+
+  void operator+=(OffsetType other) {
+    this->operator+=(other.val);
+  }
+
+  OffsetType operator-() const {
+    return OffsetType(-val);
   }
 
   bool operator<(OffsetType other) const {
@@ -449,6 +474,10 @@ struct OffsetType {
 
   bool operator==(OffsetType other) const {
     return val == other.val;
+  }
+
+  bool operator!=(OffsetType other) const {
+    return val != other.val;
   }
 
   static OffsetType InvalidOffset() {
@@ -593,6 +622,11 @@ class MIRType {
   virtual size_t NumberOfFieldIDs() const { return 0; }
   // return any struct type directly embedded in this type
   virtual MIRStructType *EmbeddedStructType() { return nullptr; }
+
+  virtual int64 GetBitOffsetFromBaseAddr(FieldID fieldID) {
+    (void)fieldID;
+    return 0;
+  }
 
  protected:
   MIRTypeKind typeKind;
@@ -747,22 +781,18 @@ class MIRArrayType : public MIRType {
     return hIdx % kTypeHashLength;
   }
 
-  int64 OffsetInByteFromArrayAddress(std::vector<int64> arrayIndex) {
-    ASSERT(dim == arrayIndex.size(), "number of array index incorrect");
-    int64 offset = 0;
-    uint32 numberOfElemInLowerDim = 1;
-    for (uint32 id = 1; id <= dim; ++id) {
-      offset += arrayIndex[dim - id] * numberOfElemInLowerDim;
-      numberOfElemInLowerDim *= sizeArray[dim - id];
-    }
-    return offset * static_cast<int64>(GetElemType()->GetSize());
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override {
+    (void)fieldID;
+    return kOffsetUnknown;
   }
+  int64 GetBitOffsetFromArrayAddress(const std::vector<int64> &indexArray);
 
   std::string GetMplTypeName() const override;
   std::string GetCompactMplTypeName() const override;
   bool HasFields() const override;
   size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
+  size_t ElemNumber();
 
  private:
   TyIdx eTyIdx{ 0 };
@@ -814,9 +844,12 @@ class MIRFarrayType : public MIRType {
   size_t NumberOfFieldIDs() const override;
   MIRStructType *EmbeddedStructType() override;
 
-  int64 OffsetInByteFromArrayAddress(int64 arrayIndex) {
-    return arrayIndex * static_cast<int64>(GetElemType()->GetSize());
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override {
+    (void)fieldID;
+    return kOffsetUnknown;
   }
+
+  int64 GetBitOffsetFromArrayAddress(int64 arrayIndex);
 
  private:
   TyIdx elemTyIdx;
@@ -1189,6 +1222,8 @@ class MIRStructType : public MIRType {
   std::string GetCompactMplTypeName() const override;
   FieldPair TraverseToField(FieldID fieldID) const ;
 
+  int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override;
+
  protected:
   FieldVector fields{};
   std::vector<TyIdx> fieldInferredTyIdx{};
@@ -1213,6 +1248,8 @@ class MIRStructType : public MIRType {
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
   bool HasVolatileFieldInFields(const FieldVector &fieldsOfStruct) const;
   bool HasTypeParamInFields(const FieldVector &fieldsOfStruct) const;
+  int64 GetBitOffsetFromUnionBaseAddr(FieldID fieldID);
+  int64 GetBitOffsetFromStructBaseAddr(FieldID fieldID);
 };
 
 // java array type, must not be nested inside another aggregate
