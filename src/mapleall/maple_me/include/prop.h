@@ -40,6 +40,7 @@ class Prop {
     bool propagateFinalIloadRef;
     bool propagateIloadRefNonParm;
     bool propagateAtPhi;
+    bool propagateWithInverse;
   };
 
   Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config);

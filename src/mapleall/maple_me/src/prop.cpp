@@ -188,6 +188,9 @@ int32 Prop::InvertibleOccurrences(ScalarMeExpr *scalar, MeExpr *x) {
 
 // return true if scalar can be expressed as a function of current version cur
 bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, ScalarMeExpr *cur) {
+  if (!config.propagateWithInverse) {
+    return false;
+  }
   if (cur == nullptr || cur->GetDefBy() != kDefByStmt) {
     return false;
   }
