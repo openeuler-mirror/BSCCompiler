@@ -390,10 +390,10 @@ Operand *HandleVectorReverse(IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 
   return cgFunc.SelectVectorReverse(intrnNode.GetPrimType(), src, sType, size);
 }
 
-Operand *HandleVectorAnd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+Operand *HandleVectorBitwiseOp(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   Operand *src1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));    /* vector operand1 */
   Operand *src2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));    /* vector operand2 */
-  return cgFunc.SelectVectorAnd(intrnNode.GetPrimType(), src1, src2);
+  return cgFunc.SelectVectorBitwiseOp(intrnNode.GetPrimType(), src1, intrnNode.Opnd(0)->GetPrimType(), src2, intrnNode.Opnd(1)->GetPrimType(), opc);
 }
 
 Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -402,11 +402,10 @@ Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorSum(resType, opnd1, intrnNode.Opnd(0)->GetPrimType());
 }
 
-Operand *HandleVectorCompare(IntrinsicopNode &intrnNode, CGFunc &cgFunc, CGFunc::V_CND cc) {
-  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+Operand *HandleVectorCompare(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
-  return cgFunc.SelectVectorCompare(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType(), cc);
+  return cgFunc.SelectVectorCompare(opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType(), opc);
 }
 
 Operand *HandleVectorTableLookup(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -416,14 +415,14 @@ Operand *HandleVectorTableLookup(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorTableLookup(rType, opnd1, opnd2);
 }
 
-Operand *HandleVectorULShift(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+Operand *HandleVectorShift(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
-  return cgFunc.SelectVectorULShift(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType());
+  return cgFunc.SelectVectorShift(rType, opnd1, opnd2, opc);
 }
 
-Operand *HandleVectorUShiftImm(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLeft) {
+Operand *HandleVectorShiftImm(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   BaseNode *arg2 = intrnNode.Opnd(1);                                  /* lane const operand */
@@ -435,7 +434,7 @@ Operand *HandleVectorUShiftImm(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool 
   } else {
     CHECK_FATAL(0, "VectorUshiftImm has invalid shift const");
   }
-  return cgFunc.SelectVectorUShiftImm(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, sConst, isLeft);
+  return cgFunc.SelectVectorShiftImm(rType, opnd1, opnd2, sConst, opc);
 }
 
 Operand *HandleVectorMadd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -446,13 +445,6 @@ Operand *HandleVectorMadd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType oTyp2 = intrnNode.Opnd(1)->GetPrimType();
   PrimType oTyp3 = intrnNode.Opnd(2)->GetPrimType();
   return cgFunc.SelectVectorMadd(opnd1, oTyp1, opnd2, oTyp2, opnd3, oTyp3);
-}
-
-Operand *HandleVectorXor(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
-  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
-  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
-  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
-  return cgFunc.SelectVectorXor(rType, opnd1, opnd2);
 }
 
 Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -558,28 +550,33 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_pairwise_add_v8u16:
     case INTRN_vector_pairwise_add_v4u32:
       return HandleVectorPairwiseAdd(intrinsicopNode, cgFunc);
-    case INTRN_vector_set_element_v2u32:
-    case INTRN_vector_set_element_v8i16:
-    case INTRN_vector_set_element_v8u16:
-    case INTRN_vector_set_element_v4u32:
-    case INTRN_vector_set_element_v2u64:
+    case INTRN_vector_set_element_v8u8: case INTRN_vector_set_element_v8i8:
+    case INTRN_vector_set_element_v16u8: case INTRN_vector_set_element_v16i8:
+    case INTRN_vector_set_element_v4u16: case INTRN_vector_set_element_v4i16:
+    case INTRN_vector_set_element_v8u16: case INTRN_vector_set_element_v8i16:
+    case INTRN_vector_set_element_v2u32: case INTRN_vector_set_element_v2i32:
+    case INTRN_vector_set_element_v4u32: case INTRN_vector_set_element_v4i32:
+    case INTRN_vector_set_element_v2u64: case INTRN_vector_set_element_v2i64:
       return HandleVectorSetElement(intrinsicopNode, cgFunc);
     case INTRN_vector_reverse_v16u8:
       return HandleVectorReverse(intrinsicopNode, cgFunc, k32BitSize);
     case INTRN_vector_and_v4i32:
     case INTRN_vector_and_v8u16:
-      return HandleVectorAnd(intrinsicopNode, cgFunc);
+      return HandleVectorBitwiseOp(intrinsicopNode, cgFunc, OP_band);
+    case INTRN_vector_xor_v4u32:
+    case INTRN_vector_xor_v2u64:
+      return HandleVectorBitwiseOp(intrinsicopNode, cgFunc, OP_bxor);
     case INTRN_vector_sum_v8u16:
       return HandleVectorSum(intrinsicopNode, cgFunc);
     case INTRN_vector_eq_v8u16:
-      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_eq);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, OP_eq);
 #if 0    /* Not yet added in FE */
     case INTRN_vector_ge_v8u16:
-      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_ge);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, OP_ge):
     case INTRN_vector_gt_v8u16:
-      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_gt);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, OP_gt);
     case INTRN_vector_lt_v8u16:
-      return HandleVectorCompare(intrinsicopNode, cgFunc, CGFunc::v_lt);
+      return HandleVectorCompare(intrinsicopNode, cgFunc, OP_lt);
 #endif
     case INTRN_vector_table_lookup_v8u16:
     case INTRN_vector_table_lookup_v16u8:
@@ -587,14 +584,11 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_madd_v2u32:
       return HandleVectorMadd(intrinsicopNode, cgFunc);
     case INTRN_vector_shl_v8u16:
-      return HandleVectorULShift(intrinsicopNode, cgFunc);
+      return HandleVectorShift(intrinsicopNode, cgFunc, OP_shl);
     case INTRN_vector_shli_v2u64:
-      return HandleVectorUShiftImm(intrinsicopNode, cgFunc, true);
+      return HandleVectorShiftImm(intrinsicopNode, cgFunc, OP_shl);
     case INTRN_vector_shri_v2u64:
-      return HandleVectorUShiftImm(intrinsicopNode, cgFunc, false);
-    case INTRN_vector_xor_v4u32:
-    case INTRN_vector_xor_v2u64:
-      return HandleVectorXor(intrinsicopNode, cgFunc);
+      return HandleVectorShiftImm(intrinsicopNode, cgFunc, OP_lshr);
     case INTRN_vector_mul_v2u32:
       return HandleVectorMull(intrinsicopNode, cgFunc);
     default:
