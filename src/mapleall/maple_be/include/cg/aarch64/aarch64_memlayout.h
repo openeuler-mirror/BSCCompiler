@@ -36,11 +36,20 @@ class AArch64SymbolAlloc : public SymbolAlloc {
     return reg0 != kRinvalid;
   }
 
+  void SetVector16() {
+    vector16 = true;
+  }
+
+  bool IsVector16() const {
+    return vector16;
+  }
+
  private:
   AArch64reg reg0 = kRinvalid;
   AArch64reg reg1 = kRinvalid;
   AArch64reg reg2 = kRinvalid;
   AArch64reg reg3 = kRinvalid;
+  bool vector16 = false;
 };
 
 /*

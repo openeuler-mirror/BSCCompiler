@@ -393,6 +393,18 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym)
   ASSERT(mirSym.GetStorageClass() == kScFormal, "should be args");
   MOperator mOp = aarchCGFunc->PickMovInsn(srcBitSize, regType);
 
+  if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
+    Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, dstRegOpnd, srcRegOpnd);
+    AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    VectorRegSpec *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
+    vecSpec1->vecLaneMax = srcBitSize >> 3;
+    VectorRegSpec *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
+    vecSpec2->vecLaneMax = srcBitSize >> 3;
+    static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec1);
+    static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec2);
+    aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
+    return;
+  }
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dstRegOpnd, srcRegOpnd);
   if (aarchCGFunc->GetCG()->GenerateVerboseCG()) {
     std::string key = "param: %%";
