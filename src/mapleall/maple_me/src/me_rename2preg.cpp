@@ -26,9 +26,6 @@
 namespace maple {
 
 RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
-  if (varmeexpr->GetOst()->GetFieldID() != 0) {
-    return nullptr;
-  }
   const OriginalSt *ost = varmeexpr->GetOst();
   if (ost->GetIndirectLev() != 0) {
     return nullptr;
@@ -56,22 +53,47 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     }
     return varreg;
   } else {
-    const OriginalSt *origOst = ost;
-    if (origOst->GetIndex() >= aliasclass->GetAliasElemCount()) {
+    if (ost->GetIndex() >= aliasclass->GetAliasElemCount()) {
       return nullptr;
     }
+    // var can be renamed to preg if ost of var:
+    // 1. not used by MU or defined by CHI;
+    // 2. aliased-ost of ost is not used anywhere (by MU or dread).
+    //    If defining of aliased-ost defines ost as well.
+    //    There must be a CHI defines ost, and this condition is included in the prev condition.
+    //    Therefore, condition 2 not includes defined-by-CHI.
+    if (ostDefedByChi[ost->GetIndex()] || ostUsedByMu[ost->GetIndex()]) {
+      return nullptr;
+    }
+
+    auto *aliasSet = GetAliasSet(ost);
+    if (aliasSet != nullptr) {
+      for (auto aeId : *aliasSet) {
+        auto aliasedOst = aliasclass->FindID2Elem(aeId)->GetOst();
+        if (aliasedOst == ost) {
+          continue;
+        }
+        // If an ost aliases with a formal, it is defined at entry by the formal.
+        // Cannot rename the ost to preg.
+        if (aliasedOst->IsFormal()) {
+          return nullptr;
+        }
+        bool aliasedOstUsed = ostUsedByMu[aliasedOst->GetIndex()] || ostUsedByDread[aliasedOst->GetIndex()];
+        if (aliasedOstUsed && AliasClass::MayAliasBasicAA(ost, aliasedOst)) {
+          return nullptr;
+        }
+      }
+    }
+
     if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
       return nullptr;
     }
-    if (origOst->IsAddressTaken()) {
+    if (ost->IsAddressTaken()) {
       return nullptr;
     }
-    AliasElem *aliaselem = GetAliasElem(origOst);
-    if (aliaselem && aliaselem->GetClassSet()) {
-      return nullptr;
-    }
+
     RegMeExpr *curtemp = nullptr;
-    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirst->GetTyIdx());
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
     if (ty->GetKind() != kTypeScalar && ty->GetKind() != kTypePointer) {
       return nullptr;
     }
@@ -288,7 +310,7 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
       // in this case, the paramter is not used by any statement, promote it
       MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirFunc->GetFormalDefVec()[i].formalTyIdx);
       if (mirType->GetPrimType() != PTY_agg) {
-        PregIdx16 regIdx = mirFunc->GetPregTab()->CreatePreg(
+        PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(
             mirType->GetPrimType(), mirType->GetPrimType() == PTY_ref ? mirType : nullptr);
         mirFunc->GetFormalDefVec()[i].formalSym =
             mirbuilder->CreatePregFormalSymbol(mirType->GetTypeIndex(), regIdx, *mirFunc);
@@ -305,6 +327,46 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
   }
 }
 
+void SSARename2Preg::CollectUsedOst(MeExpr *meExpr) {
+  if (meExpr->GetMeOp() == kMeOpIvar) {
+    auto *mu = static_cast<IvarMeExpr*>(meExpr)->GetMu();
+    ostUsedByMu[mu->GetOstIdx()] = true;
+  } else if (meExpr->GetMeOp() == kMeOpVar) {
+    auto ostIdx = static_cast<ScalarMeExpr*>(meExpr)->GetOstIdx();
+    ostUsedByDread[ostIdx] = true;
+  }
+  for (uint32 id = 0; id < meExpr->GetNumOpnds(); ++id) {
+    CollectUsedOst(meExpr->GetOpnd(id));
+  }
+}
+
+void SSARename2Preg::CollectDefUseInfoOfOst() {
+  for (BB *meBB : func->GetCfg()->GetAllBBs()) {
+    if (meBB == nullptr) {
+      continue;
+    }
+    for (MeStmt &stmt: meBB->GetMeStmts()) {
+      for (uint32 id = 0; id < stmt.NumMeStmtOpnds(); ++id) {
+        CollectUsedOst(stmt.GetOpnd(id));
+      }
+
+      auto *muList = stmt.GetMuList();
+      if (muList != nullptr) {
+        for (const auto &mu : *muList) {
+          ostUsedByMu[mu.first] = true;
+        }
+      }
+
+      auto *chiList = stmt.GetChiList();
+      if (chiList != nullptr) {
+        for (const auto &chi : *chiList) {
+          ostDefedByChi[chi.first] = true;
+        }
+      }
+    }
+  }
+}
+
 void SSARename2Preg::Init() {
   uint32 formalsize = func->GetMirFunc()->GetFormalDefVec().size();
   parm_used_vec.resize(formalsize);
@@ -314,6 +376,8 @@ void SSARename2Preg::Init() {
 void SSARename2Preg::RunSelf() {
   auto cfg = func->GetCfg();
   Init();
+  CollectDefUseInfoOfOst();
+
   for (BB *mebb : cfg->GetAllBBs()) {
     if (mebb == nullptr) {
       continue;
@@ -348,7 +412,7 @@ void SSARename2Preg::PromoteEmptyFunction() {
 }
 
 AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrMgr) {
-  if (func->IsEmpty()) {
+  if (func->GetCfg()->empty()) {
     return nullptr;
   }
   (void)mrMgr;

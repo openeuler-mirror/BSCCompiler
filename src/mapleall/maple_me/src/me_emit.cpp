@@ -53,8 +53,9 @@ AnalysisResult *MeDoEmit::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
       // emit from mir function body
       func->EmitBeforeHSSA((*(func->GetMirFunc())), func->GetLaidOutBBs());
     }
-    if (!DEBUGFUNC(func)) {
-      // constantfolding does not update BB's stmtNodeList, which breaks MirCFG::DumpToFile()
+    if (!DEBUGFUNC(func) && func->GetIRMap()) {
+      // constantfolding does not update BB's stmtNodeList, which breaks MirCFG::DumpToFile();
+      // constantfolding also cannot work on SSANode's
       ConstantFold cf(func->GetMIRModule());
       cf.Simplify(func->GetMirFunc()->GetBody());
     }
