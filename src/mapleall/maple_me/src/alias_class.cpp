@@ -337,11 +337,11 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       }
 
       auto *opnd = expr.Opnd(1);
-      if (!opnd->IsConstval()) {
+      if (!opnd->IsConstval() || !IsAddress(expr.GetPrimType())) {
         return AliasInfo(aliasInfo.ae, aliasInfo.fieldID, OffsetType::InvalidOffset());
       }
       auto mirConst = static_cast<ConstvalNode*>(opnd)->GetConstVal();
-      ASSERT(mirConst->GetKind() == kConstInt, "array index must be integer");
+      CHECK_FATAL(mirConst->GetKind() == kConstInt, "array index must be integer");
       int64 constVal = static_cast<MIRIntConst*>(mirConst)->GetValue();
       if (expr.GetOpCode() == OP_sub) {
         constVal = -constVal;
@@ -578,6 +578,9 @@ void AliasClass::SetPtrOpndNextLevNADS(const BaseNode &opnd, AliasElem *aliasEle
       !(hasNoPrivateDefEffect && aliasElem->GetOriginalSt().IsPrivate()) &&
       !(opnd.GetOpCode() == OP_addrof && IsReadOnlyOst(aliasElem->GetOriginalSt()))) {
     aliasElem->SetNextLevNotAllDefsSeen(true);
+  }
+  if (opnd.GetOpCode() == OP_cvt) {
+    SetPtrOpndNextLevNADS(*opnd.Opnd(0), aliasElem, hasNoPrivateDefEffect);
   }
 }
 
@@ -1804,7 +1807,11 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
   for (; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
     if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
-      continue;
+      if (expr->GetOpCode() != OP_cvt) {
+        continue;
+      } else if (!IsPotentialAddress(static_cast<TypeCvtNode*>(expr)->FromType(), &mirModule)) {
+        continue;
+      }
     }
 
     AliasInfo aInfo = CreateAliasElemsExpr(*expr);
