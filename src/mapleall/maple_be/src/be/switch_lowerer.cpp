@@ -182,11 +182,15 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   mirLowerer.Init();
   /* if low side starts with a dense item, handle it first */
   while ((start <= end) && (switchItems[start].second != 0)) {
-    if (!lowBlockNodeChecked && !IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType())) {
-      cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
-      localBlk->AddStatement(cGoto);
+    if (!lowBlockNodeChecked) {
       lowBlockNodeChecked = true;
+      if (!(IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType()) &&
+           (stmt->GetCasePair(switchItems[start].first).first == 0))) {
+        cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
+        localBlk->AddStatement(cGoto);
+      }
     }
+
     rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second);
     cmpNode = BuildCmpNode(OP_le, switchItems[start].second);
     ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
