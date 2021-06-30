@@ -37,6 +37,24 @@ std::list<UniqueFEIRStmt> ASTStmtDummy::Emit2FEStmtImpl() const {
   return stmts;
 }
 
+void ASTStmt::UseCompareAsCondFEExpr(UniqueFEIRExpr &condFEExpr) const {
+  if (condFEExpr->GetKind() == kExprBinary) {
+    if (static_cast<FEIRExprBinary*>(condFEExpr.get())->IsComparative()) {
+      return;
+    }
+  }
+  if (condFEExpr->GetKind() == kExprConst) {
+    if (static_cast<FEIRExprConst*>(condFEExpr.get())->GetValue().u64 != 0) {
+      condFEExpr = FEIRBuilder::CreateExprConstI32(1);
+    } else {
+      condFEExpr = FEIRBuilder::CreateExprConstI32(0);
+    }
+  } else {
+    UniqueFEIRExpr zeroExpr = FEIRBuilder::CreateExprConstAnyScalar(condFEExpr->GetPrimType(), 0);
+    condFEExpr = FEIRBuilder::CreateExprBinary(OP_ne, std::move(condFEExpr), std::move(zeroExpr));
+  }
+}
+
 // ---------- ASTCompoundStmt ----------
 void ASTCompoundStmt::SetASTStmt(ASTStmt *astStmt) {
   astStmts.emplace_back(astStmt);
@@ -79,6 +97,7 @@ std::list<UniqueFEIRStmt> ASTIfStmt::Emit2FEStmtImpl() const {
     elseStmts = elseStmt->Emit2FEStmt();
   }
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(stmts);
+  UseCompareAsCondFEExpr(condFEExpr);
   UniqueFEIRStmt ifStmt;
   ifStmt = FEIRBuilder::CreateStmtIf(std::move(condFEExpr), thenStmts, elseStmts);
   ifStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
@@ -90,7 +109,8 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::string loopBodyEndLabelName = FEUtils::GetSequentialName("dowhile_body_end_");
   std::string loopEndLabelName = FEUtils::GetSequentialName("dowhile_end_");
-  AstLoopUtil::Instance().PushLoop(std::make_pair(loopBodyEndLabelName, loopEndLabelName));
+  AstLoopUtil::Instance().PushContinue(loopBodyEndLabelName);
+  AstLoopUtil::Instance().PushBreak(loopEndLabelName);
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   if (initStmt != nullptr) {
@@ -98,7 +118,9 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     stmts.splice(stmts.cend(), feStmts);
   }
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
-  bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
+    bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  }
   UniqueFEIRExpr condFEExpr;
   if (condExpr != nullptr) {
     (void)condExpr->Emit2FEExpr(stmts);
@@ -121,11 +143,15 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     condFEExpr = condExpr->Emit2FEExpr(condStmts);
     bodyFEStmts.splice(bodyFEStmts.cend(), condStmts);
   }
+  UseCompareAsCondFEExpr(condFEExpr);
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_while, std::move(condFEExpr), std::move(bodyFEStmts));
   whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(whileStmt));
-  stmts.emplace_back(std::move(labelLoopEndStmt));
-  AstLoopUtil::Instance().PopCurrentLoop();
+  if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
+    stmts.emplace_back(std::move(labelLoopEndStmt));
+  }
+  AstLoopUtil::Instance().PopCurrentBreak();
+  AstLoopUtil::Instance().PopCurrentContinue();
   return stmts;
 }
 
@@ -133,7 +159,8 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::string loopBodyEndLabelName = FEUtils::GetSequentialName("dowhile_body_end_");
   std::string loopEndLabelName = FEUtils::GetSequentialName("dowhile_end_");
-  AstLoopUtil::Instance().PushLoop(std::make_pair(loopBodyEndLabelName, loopEndLabelName));
+  AstLoopUtil::Instance().PushBreak(loopEndLabelName);
+  AstLoopUtil::Instance().PushContinue(loopBodyEndLabelName);
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
@@ -141,14 +168,20 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> condPreStmts;
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(condStmts);
   (void)condExpr->Emit2FEExpr(condPreStmts);
-  bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
+    bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  }
   bodyFEStmts.splice(bodyFEStmts.end(), condPreStmts);
+  UseCompareAsCondFEExpr(condFEExpr);
   auto whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_while, std::move(condFEExpr), std::move(bodyFEStmts));
   whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.splice(stmts.end(), condStmts);
   stmts.emplace_back(std::move(whileStmt));
-  stmts.emplace_back(std::move(labelLoopEndStmt));
-  AstLoopUtil::Instance().PopCurrentLoop();
+  if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
+    stmts.emplace_back(std::move(labelLoopEndStmt));
+  }
+  AstLoopUtil::Instance().PopCurrentBreak();
+  AstLoopUtil::Instance().PopCurrentContinue();
   return stmts;
 }
 
@@ -156,31 +189,38 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::string loopBodyEndLabelName = FEUtils::GetSequentialName("dowhile_body_end_");
   std::string loopEndLabelName = FEUtils::GetSequentialName("dowhile_end_");
-  AstLoopUtil::Instance().PushLoop(std::make_pair(loopBodyEndLabelName, loopEndLabelName));
+  AstLoopUtil::Instance().PushBreak(loopEndLabelName);
+  AstLoopUtil::Instance().PushContinue(loopBodyEndLabelName);
   auto labelBodyEndStmt = std::make_unique<FEIRStmtLabel>(loopBodyEndLabelName);
   auto labelLoopEndStmt = std::make_unique<FEIRStmtLabel>(loopEndLabelName);
   std::list<UniqueFEIRStmt> bodyFEStmts;
   if (bodyStmt != nullptr) {
     bodyFEStmts = bodyStmt->Emit2FEStmt();
   }
-  bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
+    bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
+  }
   std::list<UniqueFEIRStmt> condStmts;
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(condStmts);
   bodyFEStmts.splice(bodyFEStmts.end(), condStmts);
+  UseCompareAsCondFEExpr(condFEExpr);
   UniqueFEIRStmt whileStmt = std::make_unique<FEIRStmtDoWhile>(OP_dowhile, std::move(condFEExpr),
                                                                std::move(bodyFEStmts));
   whileStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(whileStmt));
-  stmts.emplace_back(std::move(labelLoopEndStmt));
-  AstLoopUtil::Instance().PopCurrentLoop();
+  if (AstLoopUtil::Instance().IsCurrentBreakLabelUsed()) {
+    stmts.emplace_back(std::move(labelLoopEndStmt));
+  }
+  AstLoopUtil::Instance().PopCurrentBreak();
+  AstLoopUtil::Instance().PopCurrentContinue();
   return stmts;
 }
 
 std::list<UniqueFEIRStmt> ASTBreakStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto stmt = std::make_unique<FEIRStmtBreak>();
-  if (!AstLoopUtil::Instance().IsLoopLabelsEmpty()) {
-    stmt->SetLoopLabelName(AstLoopUtil::Instance().GetCurrentLoop().second);
+  if (!AstLoopUtil::Instance().IsBreakLabelsEmpty()) {
+    stmt->SetBreakLabelName(AstLoopUtil::Instance().GetCurrentBreak());
   }
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
@@ -200,7 +240,7 @@ std::list<UniqueFEIRStmt> ASTContinueStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto stmt = std::make_unique<FEIRStmtContinue>();
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmt->SetLabelName(AstLoopUtil::Instance().GetCurrentLoop().first);
+  stmt->SetLabelName(AstLoopUtil::Instance().GetCurrentContinue());
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
@@ -239,12 +279,21 @@ std::list<UniqueFEIRStmt> ASTIndirectGotoStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   UniqueFEIRExpr expr = condExpr->Emit2FEExpr(stmts);
-  auto switchStmt = std::make_unique<FEIRStmtSwitchForC>(std::move(expr), hasDefualt);
+  std::string exitName = AstSwitchUtil::Instance().CreateEndOrExitLabelName();
+  AstLoopUtil::Instance().PushBreak(exitName);
+  std::string tmpName = FEUtils::GetSequentialName("switch_cond");
+  UniqueFEIRVar tmpVar = FEIRBuilder::CreateVarNameForC(tmpName, *condType);
+  UniqueFEIRStmt condStmt = FEIRBuilder::CreateStmtDAssign(tmpVar->Clone(), std::move(expr));
+  stmts.emplace_back(std::move(condStmt));
+  auto dread = FEIRBuilder::CreateExprDRead(tmpVar->Clone());
+  auto switchStmt = std::make_unique<FEIRStmtSwitchForC>(std::move(dread), hasDefualt);
+  switchStmt->SetBreakLabelName(exitName);
   switchStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   for (auto &s : bodyStmt->Emit2FEStmt()) {
     switchStmt.get()->AddFeirStmt(std::move(s));
   }
   stmts.emplace_back(std::move(switchStmt));
+  AstLoopUtil::Instance().PopCurrentBreak();
   return stmts;
 }
 
@@ -293,28 +342,14 @@ std::list<UniqueFEIRStmt> ASTDeclStmt::Emit2FEStmtImpl() const {
 }
 
 // ---------- ASTCallExprStmt ----------
-std::map<std::string, ASTCallExprStmt::FuncPtrBuiltinFunc> ASTCallExprStmt::funcPtrMap =
-    ASTCallExprStmt::InitFuncPtrMap();
-
-std::map<std::string, ASTCallExprStmt::FuncPtrBuiltinFunc> ASTCallExprStmt::InitFuncPtrMap() {
-  std::map<std::string, FuncPtrBuiltinFunc> ans;
-  ans["__builtin_va_start"] = &ASTCallExprStmt::ProcessBuiltinVaStart;
-  ans["__builtin_va_end"] = &ASTCallExprStmt::ProcessBuiltinVaEnd;
-  ans["__builtin_va_copy"] = &ASTCallExprStmt::ProcessBuiltinVaCopy;
-  ans["__builtin_prefetch"] = &ASTCallExprStmt::ProcessBuiltinPrefetch;
-  return ans;
-}
-
 std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
   if (!callExpr->IsIcall()) {
-    if (callExpr->GetCalleeExpr() != nullptr && callExpr->GetCalleeExpr()->GetASTOp() == kASTOpCast &&
-        static_cast<ASTCastExpr*>(callExpr->GetCalleeExpr())->IsBuilinFunc()) {
-      auto ptrFunc = funcPtrMap.find(callExpr->GetFuncName());
-      if (ptrFunc != funcPtrMap.end()) {
-        return (this->*(ptrFunc->second))();
-      }
+    bool isFinish = false;
+    (void)callExpr->ProcessBuiltinFunc(stmts, isFinish);
+    if (isFinish) {
+      return stmts;
     }
   }
   std::unique_ptr<FEIRStmtAssign> callStmt = callExpr->GenCallStmt();
@@ -325,73 +360,6 @@ std::list<UniqueFEIRStmt> ASTCallExprStmt::Emit2FEStmtImpl() const {
     callStmt->SetVar(std::move(var));
   }
   stmts.emplace_back(std::move(callStmt));
-  return stmts;
-}
-
-std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaStart() const {
-  std::list<UniqueFEIRStmt> stmts;
-  ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  // args
-  std::vector<ASTExpr*> argsExprs = callExpr->GetArgsExpr();
-  auto exprArgList = std::make_unique<std::list<UniqueFEIRExpr>>();
-  for (int32 i = argsExprs.size() - 1; i >= 0; --i) {
-    UniqueFEIRExpr expr = argsExprs[i]->Emit2FEExpr(stmts);
-    exprArgList->push_front(std::move(expr));
-  }
-  // addrof va_list instead of dread va_list
-  exprArgList->front()->SetAddrof(true);
-  std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
-      INTRN_C_va_start, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
-  return stmts;
-}
-
-std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaEnd() const {
-  std::list<UniqueFEIRStmt> stmts;
-  ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  // args
-  std::vector<ASTExpr*> argsExprs = callExpr->GetArgsExpr();
-  ASSERT(argsExprs.size() == 1, "va_end expects 2 arguments");
-  std::list<UniqueFEIRExpr> exprArgList;
-  for (int32 i = argsExprs.size() - 1; i >= 0; --i) {
-    UniqueFEIRExpr expr = argsExprs[i]->Emit2FEExpr(stmts);
-    // addrof va_list instead of dread va_list
-    expr->SetAddrof(true);
-    exprArgList.push_front(std::move(expr));
-  }
-  auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
-  return stmts;
-}
-
-std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinVaCopy() const {
-  std::list<UniqueFEIRStmt> stmts;
-  ASTCallExpr *callExpr = static_cast<ASTCallExpr*>(exprs.front());
-  // args
-  std::vector<ASTExpr*> argsExprs = callExpr->GetArgsExpr();
-  auto exprArgList = std::make_unique<std::list<UniqueFEIRExpr>>();
-  UniqueFEIRType vaListType;
-  for (int32 i = argsExprs.size() - 1; i >= 0; --i) {
-    UniqueFEIRExpr expr = argsExprs[i]->Emit2FEExpr(stmts);
-    // addrof va_list instead of dread va_list
-    expr->SetAddrof(true);
-    vaListType = expr->GetType()->Clone();
-    exprArgList->push_front(std::move(expr));
-  }
-  // Add the size of the va_list structure as the size to memcpy.
-  UniqueFEIRExpr sizeExpr = FEIRBuilder::CreateExprConstI32(vaListType->GenerateMIRTypeAuto()->GetSize());
-  exprArgList->emplace_back(std::move(sizeExpr));
-  std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
-      INTRN_C_memcpy, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
-  return stmts;
-}
-
-std::list<UniqueFEIRStmt> ASTCallExprStmt::ProcessBuiltinPrefetch() const {
-  std::list<UniqueFEIRStmt> stmts;
   return stmts;
 }
 
@@ -414,14 +382,22 @@ std::list<UniqueFEIRStmt> ASTImplicitCastExprStmt::Emit2FEStmtImpl() const {
 std::list<UniqueFEIRStmt> ASTParenExprStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::list<UniqueFEIRExpr> feExprs;
+  AstShortCircuitUtil::Instance().PushParen("parenShortCircuitLabel");
   exprs.front()->Emit2FEExpr(stmts);
+  AstShortCircuitUtil::Instance().PopParen();
   return stmts;
 }
 
 // ---------- ASTIntegerLiteralStmt ----------
 std::list<UniqueFEIRStmt> ASTIntegerLiteralStmt::Emit2FEStmtImpl() const {
-  CHECK_FATAL(false, "NYI");
   std::list<UniqueFEIRStmt> stmts;
+  std::list<UniqueFEIRExpr> feExprs;
+  auto feExpr = exprs.front()->Emit2FEExpr(stmts);
+  if (feExpr != nullptr) {
+    feExprs.emplace_back(std::move(feExpr));
+    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
+    stmts.emplace_back(std::move(stmt));
+  }
   return stmts;
 }
 
@@ -447,8 +423,14 @@ std::list<UniqueFEIRStmt> ASTConditionalOperatorStmt::Emit2FEStmtImpl() const {
 
 // ---------- ASTCharacterLiteralStmt ----------
 std::list<UniqueFEIRStmt> ASTCharacterLiteralStmt::Emit2FEStmtImpl() const {
-  CHECK_FATAL(false, "NYI");
   std::list<UniqueFEIRStmt> stmts;
+  std::list<UniqueFEIRExpr> feExprs;
+  auto feExpr = exprs.front()->Emit2FEExpr(stmts);
+  if (feExpr != nullptr) {
+    feExprs.emplace_back(std::move(feExpr));
+    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
+    stmts.emplace_back(std::move(stmt));
+  }
   return stmts;
 }
 
@@ -485,6 +467,7 @@ std::list<UniqueFEIRStmt> ASTBinaryOperatorStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto boExpr = static_cast<ASTBinaryOperatorExpr*>(exprs.front());
   if (boExpr->GetASTOp() == kASTOpBO) {
+    AstShortCircuitUtil::Instance().PushBinaryOperator("binaryOperatorShortCircuitLabel");
     UniqueFEIRExpr boFEExpr = boExpr->Emit2FEExpr(stmts);
     if (boFEExpr != nullptr) {
       std::list<UniqueFEIRExpr> exprs;
@@ -493,6 +476,7 @@ std::list<UniqueFEIRStmt> ASTBinaryOperatorStmt::Emit2FEStmtImpl() const {
       stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       stmts.emplace_back(std::move(stmt));
     }
+    AstShortCircuitUtil::Instance().PopBinaryOperator();
   } else {
     // has been processed by child expr emit, skip here
     UniqueFEIRExpr boFEExpr = boExpr->Emit2FEExpr(stmts);
@@ -517,13 +501,33 @@ std::list<UniqueFEIRStmt> ASTGCCAsmStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::vector<UniqueFEIRExpr> outputsExprs;
   std::vector<UniqueFEIRExpr> inputsExprs;
-  for (uint32 i = 0; i < numOfOutputs; ++i) {
+  std::unique_ptr<FEIRStmtGCCAsm> stmt = std::make_unique<FEIRStmtGCCAsm>(asmStr, isGoto, isVolatile);
+  stmt->SetOutputs(outputs);
+  for (uint32 i = 0; i < outputs.size(); ++i) {
     outputsExprs.emplace_back(exprs[i]->Emit2FEExpr(stmts));
   }
-  for (uint32 i = 0; i < numOfInputs; ++i) {
-    inputsExprs.emplace_back(exprs[i + numOfOutputs]->Emit2FEExpr(stmts));
+  stmt->SetOutputsExpr(outputsExprs);
+  stmt->SetInputs(inputs);
+  for (uint32 i = 0; i < inputs.size(); ++i) {
+    inputsExprs.emplace_back(exprs[i + outputs.size()]->Emit2FEExpr(stmts));
   }
-  // Translate asm info to FEIR and MIR.
+  stmt->SetInputsExpr(inputsExprs);
+  stmt->SetClobbers(clobbers);
+  stmt->SetLabels(labels);
+  stmts.emplace_back(std::move(stmt));
+  return stmts;
+}
+
+std::list<UniqueFEIRStmt> ASTOffsetOfStmt::Emit2FEStmtImpl() const {
+  CHECK_FATAL(exprs.front() != nullptr, "child expr must not be nullptr!");
+  std::list<UniqueFEIRStmt> stmts;
+  std::list<UniqueFEIRExpr> feExprs;
+  auto feExpr = exprs.front()->Emit2FEExpr(stmts);
+  if (feExpr != nullptr) {
+    feExprs.emplace_back(std::move(feExpr));
+    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
+    stmts.emplace_back(std::move(stmt));
+  }
   return stmts;
 }
 } // namespace maple

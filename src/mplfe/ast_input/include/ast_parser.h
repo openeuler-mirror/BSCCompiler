@@ -149,13 +149,13 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(Typedef);
   ASTDecl *PROCESS_DECL(EnumConstant);
   ASTDecl *PROCESS_DECL(Label);
+  ASTDecl *PROCESS_DECL(StaticAssert);
 
  private:
   ASTValue *TranslateRValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTValue *TranslateLValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   void TraverseDecl(const clang::Decl *decl, std::function<void (clang::Decl*)> const &functor);
   ASTDecl *GetAstDeclOfDeclRefExpr(MapleAllocator &allocator, const clang::Expr &expr);
-  void SetSourceFileInfo(clang::Decl *decl);
   uint32 GetSizeFromQualType(const clang::QualType qualType);
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind);
@@ -166,21 +166,28 @@ class ASTParser {
 using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, const clang::CallExpr &expr,
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
+ASTExpr *ProcessBuiltinFuncByName(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss,
+                                  std::string name) const;
 ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss) const;
 #define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr,\
                                                      std::stringstream &ss) const
   ASTExpr *PARSE_BUILTIIN_FUNC(ClassifyType);
   ASTExpr *PARSE_BUILTIIN_FUNC(ConstantP);
-  ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
   ASTExpr *PARSE_BUILTIIN_FUNC(Isinfsign);
   ASTExpr *PARSE_BUILTIIN_FUNC(HugeVal);
+  ASTExpr *PARSE_BUILTIIN_FUNC(HugeValf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Inf);
   ASTExpr *PARSE_BUILTIIN_FUNC(Inff);
-  ASTExpr *PARSE_BUILTIIN_FUNC(Infl);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Nan);
   ASTExpr *PARSE_BUILTIIN_FUNC(Nanf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Signbit);
   ASTExpr *PARSE_BUILTIIN_FUNC(SignBitf);
   ASTExpr *PARSE_BUILTIIN_FUNC(SignBitl);
   ASTExpr *PARSE_BUILTIIN_FUNC(Trap);
   ASTExpr *PARSE_BUILTIIN_FUNC(IsUnordered);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Copysignf);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Copysign);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Copysignl);
 
   static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
@@ -198,8 +205,6 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   MapleList<ASTVar*> &astVars;
 
   ASTInput *astIn = nullptr;
-
-  uint32 srcFileNum = 2; // src files start from 2, 1 is mpl file
 };
 }  // namespace maple
 #endif // MPLFE_AST_INPUT_INCLUDE_AST_PARSER_H

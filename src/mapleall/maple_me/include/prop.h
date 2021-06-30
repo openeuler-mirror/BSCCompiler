@@ -87,7 +87,8 @@ class Prop {
   bool CanBeReplacedByConst(MIRSymbol &symbol) const;
   int32 InvertibleOccurrences(ScalarMeExpr *scalar, MeExpr *x);
   bool IsFunctionOfCurVersion(ScalarMeExpr *scalar, ScalarMeExpr *cur);
-  Propagatability Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse = false, ScalarMeExpr *propagatingScalar = nullptr);
+  Propagatability Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse = false,
+                               ScalarMeExpr *propagatingScalar = nullptr);
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);
   MeExpr *RehashUsingInverse(MeExpr *x);
   MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);

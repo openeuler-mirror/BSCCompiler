@@ -587,6 +587,14 @@ class ASTInitListExpr : public ASTExpr {
     return arrayFillerExpr;
   }
 
+  void SetHasVectorType(bool flag) {
+    hasVectorType = flag;
+  }
+
+  bool HasVectorType() const {
+    return hasVectorType;
+  }
+
  private:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -596,6 +604,9 @@ class ASTInitListExpr : public ASTExpr {
                             std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
+  void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
+                             ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
+  MIRIntrinsicID SetVectorSetLane(MIRType &type) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStringLiteralInitList(UniqueFEIRExpr addrOfCharArray, UniqueFEIRExpr addrOfStringLiteral,
@@ -610,6 +621,7 @@ class ASTInitListExpr : public ASTExpr {
   bool isUnionInitListExpr = false;
   bool hasArrayFiller = false;
   bool isTransparent = false;
+  bool hasVectorType = false;
 };
 
 class ASTBinaryConditionalOperator : public ASTExpr {
@@ -628,7 +640,9 @@ class ASTBinaryConditionalOperator : public ASTExpr {
 class ASTBinaryOperatorExpr : public ASTExpr {
  public:
   explicit ASTBinaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
-  ASTBinaryOperatorExpr() : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")) {}
+  ASTBinaryOperatorExpr()
+      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")),
+        labelID(FEUtils::GetSequentialName("shortCircuit_label_")) {}
 
   ~ASTBinaryOperatorExpr() override = default;
 
@@ -680,6 +694,10 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     cvtNeeded = needed;
   }
 
+  void SetLabelID(std::string id) {
+    labelID = id;
+  }
+
   UniqueFEIRType SelectBinaryOperatorType(UniqueFEIRExpr &left, UniqueFEIRExpr &right) const;
 
  protected:
@@ -697,6 +715,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
   ASTExpr *rightImagExpr = nullptr;
   bool cvtNeeded = false;
   std::string varName;
+  std::string labelID;
 };
 
 class ASTImplicitValueInitExpr : public ASTExpr {
@@ -1311,6 +1330,16 @@ class ASTConditionalOperator : public ASTExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+
+  MIRConst *GenerateMIRConstImpl() const override {
+    MIRConst *condConst = condExpr->GenerateMIRConst();
+    if (condConst->IsZero()) {
+      return falseExpr->GenerateMIRConst();
+    } else {
+      return trueExpr->GenerateMIRConst();
+    }
+  }
+
   ASTExpr *condExpr = nullptr;
   ASTExpr *trueExpr = nullptr;
   ASTExpr *falseExpr = nullptr;

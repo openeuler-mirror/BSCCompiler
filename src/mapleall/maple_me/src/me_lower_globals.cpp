@@ -140,6 +140,23 @@ void MeLowerGlobals::Run() {
         iass->SetBB(bb);
         iass->SetSrcPos(dass.GetSrcPosition());
         iass->SetIsLive(true);
+        auto zeroVersionVar = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
+        lhsIvar->SetMuVal(static_cast<ScalarMeExpr*>(zeroVersionVar));
+
+        auto chiNode = irMap->New<ChiMeNode>(iass);
+        chiNode->SetLHS(dass.GetVarLHS());
+        dass.GetVarLHS()->SetDefBy(kDefByChi);
+        dass.GetVarLHS()->SetDefChi(*chiNode);
+
+        chiNode->SetRHS(static_cast<ScalarMeExpr*>(zeroVersionVar));
+        iass->GetChiList()->insert(std::make_pair(ost->GetIndex(), chiNode));
+        auto chiList = dass.GetChiList();
+        iass->GetChiList()->insert(chiList->begin(), chiList->end());
+        for (auto &ostIdx2ChiNode : *iass->GetChiList()) {
+          auto *chi = ostIdx2ChiNode.second;
+          chi->SetBase(iass);
+        }
+
         bb->ReplaceMeStmt(&stmt, iass);
       } else if (stmt.GetOp() == OP_call || stmt.GetOp() == OP_callassigned) {
         // don't do this if current function is in libcore-all

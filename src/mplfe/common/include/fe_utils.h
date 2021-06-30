@@ -41,7 +41,8 @@ class FEUtils {
   static std::string GetSequentialName0(const std::string &prefix, uint32_t num);
   static std::string GetSequentialName(const std::string &prefix);
   static FieldID GetStructFieldID(MIRStructType *base, const std::string &fieldName);
-  static bool TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, FieldID &fieldID);
+  static bool TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, FieldID &fieldID,
+                                   bool isTopLevel = true);
   static MIRType *GetStructFieldType(MIRStructType *type, FieldID feildID);
   static MIRConst *CreateImplicitConst(MIRType *type);
 
@@ -329,14 +330,65 @@ class AstLoopUtil {
   }
 
   ~AstLoopUtil() = default;
-  void PushLoop(const std::pair<std::string, std::string> &labelPair);
-  std::pair<std::string, std::string> GetCurrentLoop();
-  void PopCurrentLoop();
-  bool IsLoopLabelsEmpty () const;
+  void PushBreak(std::string labelPair);
+  std::string GetCurrentBreak();
+  void PopCurrentBreak();
+  bool IsBreakLabelsEmpty() const;
+  void PushContinue(std::string label);
+  std::string GetCurrentContinue();
+  bool IsContinueLabelsEmpty() const;
+  void PopCurrentContinue();
+
+  bool IsCurrentBreakLabelUsed() {
+    return breakLabels.top().second;
+  }
+
+  bool IsCurrentContinueLabelUsed() {
+    return continueLabels.top().second;
+  }
 
  private:
   AstLoopUtil() = default;
-  std::stack<std::pair<std::string, std::string>> loopLabels = std::stack<std::pair<std::string, std::string>>();
+  std::stack<std::pair<std::string, bool>> breakLabels = std::stack<std::pair<std::string, bool>>();
+  std::stack<std::pair<std::string, bool>> continueLabels = std::stack<std::pair<std::string, bool>>();
+};
+
+class AstShortCircuitUtil {
+ public:
+  static AstShortCircuitUtil &Instance() {
+    static AstShortCircuitUtil local;
+    return local;
+  }
+  ~AstShortCircuitUtil() = default;
+
+  void PushParen(std::string label) {
+    ParenLabels.push(label);
+  }
+
+  void PopParen() {
+    ParenLabels.pop();
+  }
+
+  bool IsParenLabelsEmpty() const {
+    return ParenLabels.empty();
+  }
+
+  void PushBinaryOperator(std::string label) {
+    BinaryOperatorLabels.push(label);
+  }
+
+  void PopBinaryOperator() {
+    BinaryOperatorLabels.pop();
+  }
+
+  bool IsBinaryOperatorLabelsEmpty() const {
+    return BinaryOperatorLabels.empty();
+  }
+
+ private:
+  AstShortCircuitUtil() = default;
+  std::stack<std::string> ParenLabels = std::stack<std::string>();
+  std::stack<std::string> BinaryOperatorLabels = std::stack<std::string>();
 };
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_FE_UTILS_H

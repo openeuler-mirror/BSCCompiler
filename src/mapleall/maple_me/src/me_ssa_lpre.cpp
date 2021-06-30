@@ -52,11 +52,22 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     CHECK_NULL_FATAL(theLHS);
     CHECK_NULL_FATAL(savedRHS);
     CHECK_NULL_FATAL(realOcc.GetMeStmt()->GetChiList());
-    realOcc.GetMeStmt()->GetChiList()->clear();
+
     SrcPosition savedSrcPos = realOcc.GetMeStmt()->GetSrcPosition();
     BB *savedBB = realOcc.GetMeStmt()->GetBB();
     MeStmt *savedPrev = realOcc.GetMeStmt()->GetPrev();
     MeStmt *savedNext = realOcc.GetMeStmt()->GetNext();
+
+    // create new dassign for original lhs
+    MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *savedBB);
+    auto *oldChiList = realOcc.GetMeStmt()->GetChiList();
+    newDassign->GetChiList()->insert(oldChiList->begin(), oldChiList->end());
+    for (auto &ostIdx2ChiNode : *newDassign->GetChiList()) {
+      auto *chiNode = ostIdx2ChiNode.second;
+      chiNode->SetBase(newDassign);
+    }
+    oldChiList->clear();
+
     // judge if lhs has smaller size than rhs, if so, we need solve truncation.
     savedRHS = GetTruncExpr(*theLHS, *savedRHS);
 
@@ -71,10 +82,8 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     rass->SetBB(savedBB);
     rass->SetPrev(savedPrev);
     rass->SetNext(savedNext);
+    regOrVar->SetDefBy(kDefByStmt);
     regOrVar->SetDefByStmt(*rass);
-    // create new dassign for original lhs
-    MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *savedBB);
-    theLHS->SetDefByStmt(*newDassign);
     savedBB->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
   } else {
     CHECK_FATAL(kOpcodeInfo.IsCallAssigned(realOcc.GetOpcodeOfMeStmt()),
