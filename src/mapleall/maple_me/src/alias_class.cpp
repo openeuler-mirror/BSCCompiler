@@ -337,11 +337,11 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       }
 
       auto *opnd = expr.Opnd(1);
-      if (!opnd->IsConstval()) {
+      if (!opnd->IsConstval() || !IsAddress(expr.GetPrimType())) {
         return AliasInfo(aliasInfo.ae, aliasInfo.fieldID, OffsetType::InvalidOffset());
       }
       auto mirConst = static_cast<ConstvalNode*>(opnd)->GetConstVal();
-      ASSERT(mirConst->GetKind() == kConstInt, "array index must be integer");
+      CHECK_FATAL(mirConst->GetKind() == kConstInt, "array index must be integer");
       int64 constVal = static_cast<MIRIntConst*>(mirConst)->GetValue();
       if (expr.GetOpCode() == OP_sub) {
         constVal = -constVal;
@@ -1911,13 +1911,9 @@ void AliasClass::InsertMayDefUseClinitCheck(IntrinsiccallNode &stmt, BBId bbid) 
   for (OStIdx ostIdx : globalsMayAffectedByClinitCheck) {
     AliasElem *aliasElem = osym2Elem[ostIdx];
     OriginalSt &ostOfAE = aliasElem->GetOriginalSt();
-    std::string typeNameOfOst = ostOfAE.GetMIRSymbol()->GetName();
-    std::string typeNameOfStmt = GlobalTables::GetTypeTable().GetTypeFromTyIdx(stmt.GetTyIdx())->GetName();
-    if (typeNameOfOst.find(typeNameOfStmt) != std::string::npos) {
-      ssaPart->InsertMayDefNode(MayDefNode(
-          ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAE.GetZeroVersionIndex()), &stmt));
-      ssaTab.AddDefBB4Ost(ostOfAE.GetIndex(), bbid);
-    }
+    ssaPart->InsertMayDefNode(MayDefNode(
+        ssaTab.GetVersionStTable().GetVersionStVectorItem(ostOfAE.GetZeroVersionIndex()), &stmt));
+    ssaTab.AddDefBB4Ost(ostOfAE.GetIndex(), bbid);
   }
 }
 

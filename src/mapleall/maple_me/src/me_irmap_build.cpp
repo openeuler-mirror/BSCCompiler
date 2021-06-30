@@ -43,7 +43,7 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
   if (!func->GetMIRModule().IsJavaModule() && MeOption::propDuringBuild) {
     // create propgation
     propMp = memPoolCtrler.NewMemPool("meirbuild prop", true /* isLocalPool */);
-    MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false});
+    MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false, false});
     IRMapBuild irmapbuild(irMap, dom, &meprop);
     std::vector<bool> bbIrmapProcessed(cfg->NumBBs(), false);
     irmapbuild.BuildBB(*cfg->GetCommonEntryBB(), bbIrmapProcessed);

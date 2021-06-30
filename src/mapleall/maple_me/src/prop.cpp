@@ -147,42 +147,48 @@ bool Prop::IvarIsFinalField(const IvarMeExpr &ivarMeExpr) const {
 // otherwise, the return value is the number of occurrences of scalar.
 int32 Prop::InvertibleOccurrences(ScalarMeExpr *scalar, MeExpr *x) {
   switch (x->GetMeOp()) {
-  case kMeOpConst: return 0;
-  case kMeOpReg: {
-    RegMeExpr *regreadx = static_cast<RegMeExpr *>(x);
-    if (regreadx->GetRegIdx() < 0) {
-      return -1;
-    }
-  }
-    // fall thru
-  case kMeOpVar:
-    if (x == scalar) {
-      return 1;
-    }
-    if (Propagatable(x, nullptr, false, false, nullptr) == kPropYes) {
+    case kMeOpConst:
       return 0;
+    case kMeOpReg: {
+      RegMeExpr *regreadx = static_cast<RegMeExpr *>(x);
+      if (regreadx->GetRegIdx() < 0) {
+        return -1;
+      }
     }
-    return -1;
-  case kMeOpOp:
-    if (!IsPrimitiveInteger(x->GetPrimType())) {
+      // fall thru
+      [[clang::fallthrough]];
+    case kMeOpVar: {
+      if (x == scalar) {
+        return 1;
+      }
+      if (Propagatable(x, nullptr, false, false, nullptr) == kPropYes) {
+        return 0;
+      }
       return -1;
     }
-    if (x->GetOp() == OP_neg) {
-      return InvertibleOccurrences(scalar, x->GetOpnd(0));
-    }
-    if (x->GetOp() == OP_add || x->GetOp() == OP_sub) {
-      int32 invertibleOccs0 = InvertibleOccurrences(scalar, x->GetOpnd(0));
-      if (invertibleOccs0 == -1) {
+    case kMeOpOp: {
+      if (!IsPrimitiveInteger(x->GetPrimType())) {
         return -1;
       }
-      int32 invertibleOccs1 = InvertibleOccurrences(scalar, x->GetOpnd(1));
-      if (invertibleOccs1 == -1 || (invertibleOccs0 + invertibleOccs1 > 1)) {
-        return -1;
+      if (x->GetOp() == OP_neg) {
+        return InvertibleOccurrences(scalar, x->GetOpnd(0));
       }
-      return invertibleOccs0 + invertibleOccs1;
+      if (x->GetOp() == OP_add || x->GetOp() == OP_sub) {
+        int32 invertibleOccs0 = InvertibleOccurrences(scalar, x->GetOpnd(0));
+        if (invertibleOccs0 == -1) {
+          return -1;
+        }
+        int32 invertibleOccs1 = InvertibleOccurrences(scalar, x->GetOpnd(1));
+        if (invertibleOccs1 == -1 || (invertibleOccs0 + invertibleOccs1 > 1)) {
+          return -1;
+        }
+        return invertibleOccs0 + invertibleOccs1;
+      }
     }
-    // fall thru
-  default: return -1;
+      // fall thru
+      [[clang::fallthrough]];
+    default:
+      return -1;
   }
 }
 
@@ -204,7 +210,8 @@ bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, ScalarMeExpr *cur) {
 // previous version can be expressed in terms of its current version.
 // propagatingScalar is used only if checkInverse is true; it gives the
 // propagating scalar so we can avoid doing the checkInverse checking for it.
-Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse, ScalarMeExpr *propagatingScalar) {
+Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse,
+                                   ScalarMeExpr *propagatingScalar) {
   MeExprOp meOp = x->GetMeOp();
   switch (meOp) {
     case kMeOpAddrof:
@@ -242,7 +249,8 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
         return kPropYes;
       } else if (checkInverse && regRead->GetOst() != propagatingScalar->GetOst()) {
         MapleStack<MeExpr *> *pstack = vstLiveStackVec[regRead->GetOst()->GetIndex()];
-        return IsFunctionOfCurVersion(regRead, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse : kPropNo;
+        return IsFunctionOfCurVersion(regRead, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse :
+                                                                                             kPropNo;
       } else {
         return kPropNo;
       }
@@ -270,7 +278,8 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       } else if (checkInverse && varMeExpr->GetOst() != propagatingScalar->GetOst() &&
                  varMeExpr->GetType()->GetKind() != kTypeBitField) {
         MapleStack<MeExpr *> *pstack = vstLiveStackVec[varMeExpr->GetOst()->GetIndex()];
-        return IsFunctionOfCurVersion(varMeExpr, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse : kPropNo;
+        return IsFunctionOfCurVersion(varMeExpr, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse :
+                                                                                               kPropNo;
       } else {
         return kPropNo;
       }
@@ -314,7 +323,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
         return kPropNo;
       }
       MeExpr *opnd1 = meopexpr->GetOpnd(1);
-      if (!opnd1) {
+      if (opnd1 == nullptr) {
         return prop0;
       }
       Propagatability prop1 = Propagatable(opnd1, fromBB, false, checkInverse, propagatingScalar);
@@ -323,7 +332,7 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       }
       prop1 = std::min(prop0, prop1);
       MeExpr *opnd2 = meopexpr->GetOpnd(2);
-      if (!opnd2) {
+      if (opnd2 == nullptr) {
         return prop1;
       }
       Propagatability prop2 = Propagatable(opnd2, fromBB, false, checkInverse, propagatingScalar);
@@ -336,9 +345,10 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       }
       return kPropYes;
     }
-    default:
+    default: {
       CHECK_FATAL(false, "MeProp::Propagatable() NYI");
       return kPropNo;
+    }
   }
 }
 
@@ -349,59 +359,62 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
 MeExpr *Prop::FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp) {
   MeExpr *newx = nullptr;
   switch (x->GetMeOp()) {
-  case kMeOpVar:
-  case kMeOpReg:
-    if (x == v) {
-      return formingExp;
-    };
-    return x;
-  case kMeOpOp: {
-    OpMeExpr *opx = static_cast<OpMeExpr *>(x);
-    if (opx->GetOp() == OP_neg) {  // negate formingExp and recurse down
-      OpMeExpr negx(-1, OP_neg, opx->GetPrimType(), 1);
-      negx.SetOpnd(0, formingExp);
-      newx = irMap.HashMeExpr(negx);
-      return FormInverse(v, opx->GetOpnd(0), newx);
+    case kMeOpVar:
+    case kMeOpReg: {
+      if (x == v) {
+        return formingExp;
+      };
+      return x;
     }
-    if (opx->GetOp() == OP_add) {  // 2 patterns depending on which side contains v
-      OpMeExpr subx(-1, OP_sub, opx->GetPrimType(), 2);
-      subx.SetOpnd(0, formingExp);
-      if (InvertibleOccurrences(v, opx->GetOpnd(0)) == 0) {
-        // ( ..i2.. ) = y + ( ..i1.. ) becomes  ( ..i2.. ) - y = ( ..i1.. )
-        // form formingExp - opx->GetOpnd(0)
-        subx.SetOpnd(1, opx->GetOpnd(0));
-        newx = irMap.HashMeExpr(subx);
-        return FormInverse(v, opx->GetOpnd(1), newx);
-      } else {
-        // ( ..i2.. ) = ( ..i1.. ) + y  becomes  ( ..i2.. ) - y = ( ..i1.. )
-        // form formingExp - opx->GetOpnd(1)
-        subx.SetOpnd(1, opx->GetOpnd(1));
-        newx = irMap.HashMeExpr(subx);
+    case kMeOpOp: {
+      OpMeExpr *opx = static_cast<OpMeExpr *>(x);
+      if (opx->GetOp() == OP_neg) {  // negate formingExp and recurse down
+        OpMeExpr negx(-1, OP_neg, opx->GetPrimType(), 1);
+        negx.SetOpnd(0, formingExp);
+        newx = irMap.HashMeExpr(negx);
         return FormInverse(v, opx->GetOpnd(0), newx);
       }
-    }
-    if (opx->GetOp() == OP_sub) {
-      if (InvertibleOccurrences(v, opx->GetOpnd(0)) == 0) {
-        // ( ..i2.. ) = y - ( ..i1.. ) becomes y - ( ..i2.. ) = ( ..i1.. )
-        // form opx->GetOpnd(0) - formingExp
+      if (opx->GetOp() == OP_add) {  // 2 patterns depending on which side contains v
         OpMeExpr subx(-1, OP_sub, opx->GetPrimType(), 2);
-        subx.SetOpnd(0, opx->GetOpnd(0));
-        subx.SetOpnd(1, formingExp);
-        newx = irMap.HashMeExpr(subx);
-        return FormInverse(v, opx->GetOpnd(1), newx);
-      } else {
-        // ( ..i2.. ) = ( ..i1.. ) - y  becomes  ( ..i2.. ) + y = ( ..i1.. )
-        // form formingExp + opx->GetOpnd(1)
-        OpMeExpr addx(-1, OP_add, opx->GetPrimType(), 2);
-        addx.SetOpnd(0, formingExp);
-        addx.SetOpnd(1, opx->GetOpnd(1));
-        newx = irMap.HashMeExpr(addx);
-        return FormInverse(v, opx->GetOpnd(0), newx);
+        subx.SetOpnd(0, formingExp);
+        if (InvertibleOccurrences(v, opx->GetOpnd(0)) == 0) {
+          // ( ..i2.. ) = y + ( ..i1.. ) becomes  ( ..i2.. ) - y = ( ..i1.. )
+          // form formingExp - opx->GetOpnd(0)
+          subx.SetOpnd(1, opx->GetOpnd(0));
+          newx = irMap.HashMeExpr(subx);
+          return FormInverse(v, opx->GetOpnd(1), newx);
+        } else {
+          // ( ..i2.. ) = ( ..i1.. ) + y  becomes  ( ..i2.. ) - y = ( ..i1.. )
+          // form formingExp - opx->GetOpnd(1)
+          subx.SetOpnd(1, opx->GetOpnd(1));
+          newx = irMap.HashMeExpr(subx);
+          return FormInverse(v, opx->GetOpnd(0), newx);
+        }
       }
+      if (opx->GetOp() == OP_sub) {
+        if (InvertibleOccurrences(v, opx->GetOpnd(0)) == 0) {
+          // ( ..i2.. ) = y - ( ..i1.. ) becomes y - ( ..i2.. ) = ( ..i1.. )
+          // form opx->GetOpnd(0) - formingExp
+          OpMeExpr subx(-1, OP_sub, opx->GetPrimType(), 2);
+          subx.SetOpnd(0, opx->GetOpnd(0));
+          subx.SetOpnd(1, formingExp);
+          newx = irMap.HashMeExpr(subx);
+          return FormInverse(v, opx->GetOpnd(1), newx);
+        } else {
+          // ( ..i2.. ) = ( ..i1.. ) - y  becomes  ( ..i2.. ) + y = ( ..i1.. )
+          // form formingExp + opx->GetOpnd(1)
+          OpMeExpr addx(-1, OP_add, opx->GetPrimType(), 2);
+          addx.SetOpnd(0, formingExp);
+          addx.SetOpnd(1, opx->GetOpnd(1));
+          newx = irMap.HashMeExpr(addx);
+          return FormInverse(v, opx->GetOpnd(0), newx);
+        }
+      }
+      // fall-thru
     }
-    // fall-thru
-  }
-  default: CHECK_FATAL(false, "FormInverse: should not see these nodes");
+      [[clang::fallthrough]];
+    default:
+      CHECK_FATAL(false, "FormInverse: should not see these nodes");
   }
 }
 
@@ -411,94 +424,95 @@ MeExpr *Prop::FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp) {
 // return NULL; if there is change, rehash on the way back
 MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
   switch (x->GetMeOp()) {
-  case kMeOpVar:
-  case kMeOpReg: {
-    ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
-    MapleStack<MeExpr *> *pstack = vstLiveStackVec[scalar->GetOst()->GetIndex()];
-    if (pstack == nullptr || pstack->empty() || pstack->top() == scalar) {
+    case kMeOpVar:
+    case kMeOpReg: {
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      MapleStack<MeExpr *> *pstack = vstLiveStackVec[scalar->GetOst()->GetIndex()];
+      if (pstack == nullptr || pstack->empty() || pstack->top() == scalar) {
+        return nullptr;
+      }
+      ScalarMeExpr *curScalar = static_cast<ScalarMeExpr *>(pstack->top());
+      return FormInverse(scalar, curScalar->GetDefStmt()->GetRHS(), curScalar);
+    }
+    case kMeOpIvar: {
+      IvarMeExpr *ivarx = static_cast<IvarMeExpr *>(x);
+      MeExpr *result = RehashUsingInverse(ivarx->GetBase());
+      if (result != nullptr) {
+        IvarMeExpr newivarx(-1, ivarx->GetPrimType(), ivarx->GetTyIdx(), ivarx->GetFieldID());
+        newivarx.SetBase(result);
+        newivarx.SetMuVal(ivarx->GetMu());
+        return irMap.HashMeExpr(newivarx);
+      }
       return nullptr;
     }
-    ScalarMeExpr *curScalar = static_cast<ScalarMeExpr *>(pstack->top());
-    return FormInverse(scalar, curScalar->GetDefStmt()->GetRHS(), curScalar);
-  }
-  case kMeOpIvar: {
-    IvarMeExpr *ivarx = static_cast<IvarMeExpr *>(x);
-    MeExpr *result = RehashUsingInverse(ivarx->GetBase());
-    if (result != nullptr) {
-      IvarMeExpr newivarx(-1, ivarx->GetPrimType(), ivarx->GetTyIdx(), ivarx->GetFieldID());
-      newivarx.SetBase(result);
-      newivarx.SetMuVal(ivarx->GetMu());
-      return irMap.HashMeExpr(newivarx);
-    }
-    return nullptr;
-  }
-  case kMeOpOp: {
-    OpMeExpr *opx = static_cast<OpMeExpr *>(x);
-    MeExpr *res0 = RehashUsingInverse(opx->GetOpnd(0));
-    MeExpr *res1 = nullptr;
-    MeExpr *res2 = nullptr;
-    if (opx->GetNumOpnds() > 1) {
-      res1 = RehashUsingInverse(opx->GetOpnd(1));
-      if (opx->GetNumOpnds() > 2) {
-        res2 = RehashUsingInverse(opx->GetOpnd(2));
-      }
-    }
-    if (res0 == nullptr && res1 == nullptr && res2 == nullptr) {
-      return nullptr;
-    }
-    OpMeExpr newopx(-1, opx->GetOp(), opx->GetPrimType(), opx->GetNumOpnds());
-    newopx.SetOpndType(opx->GetOpndType());
-    newopx.SetBitsOffSet(opx->GetBitsOffSet());
-    newopx.SetBitsSize(opx->GetBitsSize());
-    newopx.SetTyIdx(opx->GetTyIdx());
-    newopx.SetFieldID(opx->GetFieldID());
-    if (res0) {
-      newopx.SetOpnd(0, res0);
-    } else {
-      newopx.SetOpnd(0, opx->GetOpnd(0));
-    }
-    if (opx->GetNumOpnds() > 1) {
-      if (res1) {
-        newopx.SetOpnd(1, res1);
-      } else {
-        newopx.SetOpnd(1, opx->GetOpnd(1));
-      }
-      if (opx->GetNumOpnds() > 2) {
-        if (res1) {
-          newopx.SetOpnd(2, res2);
-        } else {
-          newopx.SetOpnd(2, opx->GetOpnd(2));
+    case kMeOpOp: {
+      OpMeExpr *opx = static_cast<OpMeExpr *>(x);
+      MeExpr *res0 = RehashUsingInverse(opx->GetOpnd(0));
+      MeExpr *res1 = nullptr;
+      MeExpr *res2 = nullptr;
+      if (opx->GetNumOpnds() > 1) {
+        res1 = RehashUsingInverse(opx->GetOpnd(1));
+        if (opx->GetNumOpnds() > 2) {
+          res2 = RehashUsingInverse(opx->GetOpnd(2));
         }
       }
-    }
-    return irMap.HashMeExpr(newopx);
-  }
-  case kMeOpNary: {
-    NaryMeExpr *naryx = static_cast<NaryMeExpr *>(x);
-    std::vector<MeExpr *> results(naryx->GetNumOpnds(), nullptr);
-    bool needRehash = false;
-    uint32 i;
-    for (i = 0; i < naryx->GetNumOpnds(); i++) {
-      results[i] = RehashUsingInverse(naryx->GetOpnd(i));
-      if (results[i] != nullptr) {
-        needRehash = true;
+      if (res0 == nullptr && res1 == nullptr && res2 == nullptr) {
+        return nullptr;
       }
-    }
-    if (!needRehash) {
-      return nullptr;
-    }
-    NaryMeExpr newnaryx(&propMapAlloc, -1, naryx->GetOp(), naryx->GetPrimType(),
-            naryx->GetNumOpnds(), naryx->GetTyIdx(), naryx->GetIntrinsic(), naryx->GetBoundCheck());
-    for (i = 0; i < naryx->GetNumOpnds(); i++) {
-      if (results[i] != nullptr) {
-        newnaryx.SetOpnd(i, results[i]);
+      OpMeExpr newopx(-1, opx->GetOp(), opx->GetPrimType(), opx->GetNumOpnds());
+      newopx.SetOpndType(opx->GetOpndType());
+      newopx.SetBitsOffSet(opx->GetBitsOffSet());
+      newopx.SetBitsSize(opx->GetBitsSize());
+      newopx.SetTyIdx(opx->GetTyIdx());
+      newopx.SetFieldID(opx->GetFieldID());
+      if (res0 != nullptr) {
+        newopx.SetOpnd(0, res0);
       } else {
-        newnaryx.SetOpnd(i, naryx->GetOpnd(i));
+        newopx.SetOpnd(0, opx->GetOpnd(0));
       }
+      if (opx->GetNumOpnds() > 1) {
+        if (res1 != nullptr) {
+          newopx.SetOpnd(1, res1);
+        } else {
+          newopx.SetOpnd(1, opx->GetOpnd(1));
+        }
+        if (opx->GetNumOpnds() > 2) {
+          if (res1 != nullptr) {
+            newopx.SetOpnd(2, res2);
+          } else {
+            newopx.SetOpnd(2, opx->GetOpnd(2));
+          }
+        }
+      }
+      return irMap.HashMeExpr(newopx);
     }
-    return irMap.HashMeExpr(newnaryx);
-  }
-  default: return nullptr;
+    case kMeOpNary: {
+      NaryMeExpr *naryx = static_cast<NaryMeExpr *>(x);
+      std::vector<MeExpr *> results(naryx->GetNumOpnds(), nullptr);
+      bool needRehash = false;
+      uint32 i;
+      for (i = 0; i < naryx->GetNumOpnds(); i++) {
+        results[i] = RehashUsingInverse(naryx->GetOpnd(i));
+        if (results[i] != nullptr) {
+          needRehash = true;
+        }
+      }
+      if (!needRehash) {
+        return nullptr;
+      }
+      NaryMeExpr newnaryx(&propMapAlloc, -1, naryx->GetOp(), naryx->GetPrimType(),
+                          naryx->GetNumOpnds(), naryx->GetTyIdx(), naryx->GetIntrinsic(), naryx->GetBoundCheck());
+      for (i = 0; i < naryx->GetNumOpnds(); i++) {
+        if (results[i] != nullptr) {
+          newnaryx.SetOpnd(i, results[i]);
+        } else {
+          newnaryx.SetOpnd(i, naryx->GetOpnd(i));
+        }
+      }
+      return irMap.HashMeExpr(newnaryx);
+    }
+    default:
+      return nullptr;
   }
 }
 
@@ -653,9 +667,9 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm) {
   if (regMeExpr.GetDefBy() == kDefByStmt) {
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(regMeExpr.GetDefStmt());
     MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
-    if (rhs.GetDepth() <= kPropTreeLevel) {
+    if (rhs.GetDepth() > kPropTreeLevel) {
       return regMeExpr;
-     }
+    }
     Propagatability propagatable =  Propagatable(&rhs, defStmt->GetBB(), atParm, true, &regMeExpr);
     if (propagatable != kPropNo) {
       if (propagatable == kPropOnlyWithInverse) {

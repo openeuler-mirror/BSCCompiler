@@ -364,6 +364,9 @@ bool IvarMeExpr::IsVolatile() const {
     return true;
   }
   auto *type = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
+  if (type->IsPointedTypeVolatile(fieldID)) {
+    return true;
+  }
   MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(type->GetPointedTyIdx());
   if (fieldID == 0) {
     return pointedType->HasVolatileField();
@@ -593,8 +596,12 @@ bool OpMeExpr::StrengthReducible() {
       return false;
     }
     case OP_add:
-    case OP_sub:
+    case OP_sub: {
+      if (MeOption::srForAdd) {
+        return true;
+      }
       return false;
+    }
     default: return false;
   }
 }
