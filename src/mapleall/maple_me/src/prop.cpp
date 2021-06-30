@@ -833,14 +833,16 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
       break;
     }
     case OP_return: {
-      auto &retMeStmt = static_cast<RetMeStmt&>(meStmt);
-      const MapleVector<MeExpr*> &opnds = retMeStmt.GetOpnds();
-      for (size_t i = 0; i < opnds.size(); ++i) {
+      RetMeStmt *retmestmt = &static_cast<RetMeStmt&>(meStmt);
+      const MapleVector<MeExpr *> &opnds = retmestmt->GetOpnds();
+      // java return operand cannot be expression because cleanup intrinsic is
+      // inserted before the return statement
+      if (JAVALANG && opnds.size() == 1 && opnds[0]->GetMeOp() == kMeOpVar) {
+        break;
+      }
+      for (size_t i = 0; i < opnds.size(); i++) {
         MeExpr *opnd = opnds[i];
-        auto &propedExpr = PropMeExpr(utils::ToRef(opnd), subProped, false);
-        if (propedExpr.GetMeOp() == kMeOpVar) {
-          retMeStmt.SetOpnd(i, &propedExpr);
-        }
+        retmestmt->SetOpnd(i, &PropMeExpr(*opnd, subProped, false));
       }
       break;
     }
