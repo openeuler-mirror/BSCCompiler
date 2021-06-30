@@ -71,6 +71,7 @@ bool MeOption::rcLowering = true;
 bool MeOption::optDirectCall = false;
 bool MeOption::propAtPhi = true;
 bool MeOption::propDuringBuild = true;
+bool MeOption::propWithInverse = false;
 bool MeOption::dseKeepRef = false;
 bool MeOption::decoupleStatic = false;
 bool MeOption::dumpBefore = false;
@@ -97,6 +98,7 @@ bool MeOption::placementRC = false;
 bool MeOption::subsumRC = false;
 bool MeOption::performFSAA = true;
 bool MeOption::strengthReduction = true;
+bool MeOption::srForAdd = false;
 bool MeOption::doLFTR = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
@@ -187,11 +189,13 @@ enum OptionIndex {
   kSubsumRC,
   kPerformFSAA,
   kStrengthReduction,
+  kSRAdd,
   kLFTR,
   kRegReadAtReturn,
   kProPatphi,
   kNoProPatphi,
   kPropDuringBuild,
+  kPropWithInverse,
   kOptInterfaceCall,
   kNoOptInterfaceCall,
   kOptVirtualCall,
@@ -784,6 +788,16 @@ const Descriptor kUsage[] = {
     "  --no-strengthreduction   \tDisable strength reduction\n",
     "me",
     {} },
+  { kSRAdd,
+    kEnable,
+    "",
+    "srAdd",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --sradd                   \tPerform strength reduction for OP_add/sub\n"
+    "  --no-sradd                \tDisable strength reduction for OP_add/sub\n",
+    "me",
+    {} },
   { kLFTR,
     kEnable,
     "",
@@ -882,6 +896,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --propduringbuild           \tEnable copy propagation when building HSSA\n"
     "  --no-propduringbuild        \tDisable propduringbuild\n",
+    "me",
+    {} },
+  { kPropWithInverse,
+    kEnable,
+    "",
+    "propwithinverse",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --propwithinverse           \tEnable copy propagation across statements with inverse functions"
+    "  --no-propwithinverse        \tDisable copy propagation across statements with inverse functions\n",
     "me",
     {} },
   { kMeNativeOpt,
@@ -1354,6 +1378,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
       case kPropDuringBuild:
         propDuringBuild = (opt.Type() == kEnable);
         break;
+      case kPropWithInverse:
+        propWithInverse = (opt.Type() == kEnable);
+        break;
       case kMeNativeOpt:
         nativeOpt = (opt.Type() == kEnable);
         break;
@@ -1389,6 +1416,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kStrengthReduction:
         strengthReduction = (opt.Type() == kEnable);
+        break;
+      case kSRAdd:
+        srForAdd = (opt.Type() == kEnable);
         break;
       case kLFTR:
         doLFTR = (opt.Type() == kEnable);
