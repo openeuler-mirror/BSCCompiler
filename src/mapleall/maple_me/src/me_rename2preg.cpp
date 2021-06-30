@@ -88,6 +88,9 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
       return nullptr;
     }
+    if (ost->IsAddressTaken()) {
+      return nullptr;
+    }
 
     RegMeExpr *curtemp = nullptr;
     MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());

@@ -579,6 +579,9 @@ void AliasClass::SetPtrOpndNextLevNADS(const BaseNode &opnd, AliasElem *aliasEle
       !(opnd.GetOpCode() == OP_addrof && IsReadOnlyOst(aliasElem->GetOriginalSt()))) {
     aliasElem->SetNextLevNotAllDefsSeen(true);
   }
+  if (opnd.GetOpCode() == OP_cvt) {
+    SetPtrOpndNextLevNADS(*opnd.Opnd(0), aliasElem, hasNoPrivateDefEffect);
+  }
 }
 
 // Set aliasElem of the pointer-type opnds of a call as next_level_not_all_defines_seen
@@ -1804,7 +1807,11 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
   for (; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
     if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
-      continue;
+      if (expr->GetOpCode() != OP_cvt) {
+        continue;
+      } else if (!IsPotentialAddress(static_cast<TypeCvtNode*>(expr)->FromType(), &mirModule)) {
+        continue;
+      }
     }
 
     AliasInfo aInfo = CreateAliasElemsExpr(*expr);
