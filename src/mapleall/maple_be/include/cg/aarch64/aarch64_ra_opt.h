@@ -96,9 +96,56 @@ class RaX0Opt {
   CGFunc *cgFunc;
 };
 
+class VregRenameInfo {
+ public:
+  VregRenameInfo() = default;
+
+  ~VregRenameInfo() = default;
+
+  BB *firstBBLevelSeen = nullptr;
+  BB *lastBBLevelSeen = nullptr;
+  uint32 numDefs = 0;
+  uint32 numUses = 0;
+  uint32 numInnerDefs = 0;
+  uint32 numInnerUses = 0;
+  uint32 largestUnusedDistance = 0;
+  uint8 innerMostloopLevelSeen = 0;
+};
+
+class VregRename {
+ public:
+  explicit VregRename(CGFunc *func, MemPool *pool) :
+      cgFunc(func),
+      memPool(pool),
+      alloc(pool),
+      renameInfo(alloc.Adapter()) {
+    renameInfo.resize(cgFunc->GetMaxRegNum());
+    ccRegno = static_cast<RegOperand *>(&cgFunc->GetOrCreateRflag())->GetRegisterNumber();
+  };
+
+  void PrintRenameInfo(regno_t regno) const;
+  void PrintAllRenameInfo() const;
+
+  void RenameFindLoopVregs(const CGFuncLoops *loop);
+  void RenameFindVregsToRename(const CGFuncLoops *loop);
+  bool IsProfitableToRename(VregRenameInfo *info);
+  void RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop);
+  void RenameGetFuncVregInfo();
+  void UpdateVregInfo(regno_t reg, BB *bb, bool isInner, bool isDef);
+  void VregLongLiveRename();
+
+  CGFunc *cgFunc;
+  MemPool *memPool;
+  MapleAllocator alloc;
+  Bfs *bfs = nullptr;
+  MapleVector<VregRenameInfo*> renameInfo;
+  uint32 maxRegnoSeen = 0;
+  regno_t ccRegno;
+};
+
 class AArch64RaOpt : public RaOpt {
  public:
-  explicit AArch64RaOpt(CGFunc &func) : RaOpt(func) {}
+  explicit AArch64RaOpt(CGFunc &func, MemPool &pool) : RaOpt(func, pool) {}
   ~AArch64RaOpt() override = default;
   void Run() override;
 

@@ -500,6 +500,7 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   MapleSet<uint32> fpParamRegSet;     /*       parameter    */
   MapleVector<uint32> fpSpillRegSet;  /* float regs put aside for spills */
   MapleVector<uint32> calleeUseCnt;   /* Number of time callee reg is seen */
+  Bfs *bfs = nullptr;
   uint32 fpCallerMask = 0;            /* bit mask for all possible caller fp */
   uint32 fpCalleeMask = 0;            /*                           callee    */
   uint32 fpParamMask = 0;             /*      (physical-register)  parameter */

@@ -21,7 +21,7 @@
 namespace maplebe {
 class RaOpt {
  public:
-  explicit RaOpt(CGFunc &func) : cgFunc(&func) {}
+  explicit RaOpt(CGFunc &func, MemPool &pool) : cgFunc(&func), memPool(&pool) {}
 
   virtual ~RaOpt() = default;
 
@@ -34,12 +34,18 @@ class RaOpt {
   const CGFunc *GetCGFunc() const {
     return cgFunc;
   }
+  const MemPool *GetMemPool() const {
+    return memPool;
+  }
 
  protected:
   CGFunc *cgFunc;
+  MemPool *memPool;
 };
 
 CGFUNCPHASE(CgDoRaOpt, "raopt")
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgRaOpt, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_RAOPT_H */

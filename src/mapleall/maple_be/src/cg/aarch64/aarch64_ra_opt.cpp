@@ -13,7 +13,7 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-
+#include "loop.h"
 #include "aarch64_ra_opt.h"
 #include <iostream>
 
@@ -287,8 +287,249 @@ void RaX0Opt::PropagateX0() {
   }
 }
 
+void VregRename::PrintRenameInfo(regno_t regno) const {
+  VregRenameInfo *info = (regno <= maxRegnoSeen) ? renameInfo[regno] : nullptr;
+  if (info == nullptr || (info->numDefs == 0 && info->numUses == 0)) {
+    return;
+  }
+  LogInfo::MapleLogger() << "reg: " << regno;
+  if (info->firstBBLevelSeen) {
+    LogInfo::MapleLogger() << " fromLevel " << info->firstBBLevelSeen->GetInternalFlag2();
+  }
+  if (info->lastBBLevelSeen) {
+    LogInfo::MapleLogger() << " toLevel " << info->lastBBLevelSeen->GetInternalFlag2();
+  }
+  if (info->numDefs) {
+    LogInfo::MapleLogger() << " defs " << info->numDefs;
+  }
+  if (info->numUses) {
+    LogInfo::MapleLogger() << " uses " << info->numUses;
+  }
+  if (info->numDefs) {
+    LogInfo::MapleLogger() << " innerDefs " << info->numInnerDefs;
+  }
+  if (info->numUses) {
+    LogInfo::MapleLogger() << " innerUses " << info->numInnerUses;
+  }
+  LogInfo::MapleLogger() << "\n";
+}
+
+void VregRename::PrintAllRenameInfo() const {
+  for (uint32 regno = 0; regno < cgFunc->GetMaxRegNum(); ++regno) {
+    PrintRenameInfo(regno);
+  }
+}
+
+bool VregRename::IsProfitableToRename(VregRenameInfo *info) {
+  if ((info->numInnerDefs == 0) && (info->numUses != info->numInnerUses)) {
+    return true;
+  }
+  return false;
+}
+
+void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop) {
+  regno_t vreg = ropnd->GetRegisterNumber();
+  VregRenameInfo *info = (vreg <= maxRegnoSeen) ? renameInfo[vreg] : nullptr;
+  if ((info == nullptr) || loop->GetMultiEntries().size() || (IsProfitableToRename(info) == false)) {
+    return;
+  }
+
+  uint32 size = (ropnd->GetSize() == k64BitSize) ? k8ByteSize : k4ByteSize;
+  regno_t newRegno = cgFunc->NewVReg(ropnd->GetRegisterType(), size);
+  RegOperand *renameVreg = &cgFunc->CreateVirtualRegisterOperand(newRegno);
+
+  const BB *header = loop->GetHeader();
+  for (auto pred : header->GetPreds()) {
+    if (find(loop->GetBackedge().begin(), loop->GetBackedge().end(), pred) != loop->GetBackedge().end()) {
+      continue;
+    }
+    MOperator mOp = (ropnd->GetRegisterType() == kRegTyInt) ?
+                        ((size == 8) ? MOP_xmovrr : MOP_wmovrr) :
+                        ((size == 8) ? MOP_xvmovd : MOP_xvmovs);
+    Insn &newInsn = static_cast<AArch64CGFunc*>(cgFunc)->GetCG()->BuildInstruction<AArch64Insn>(mOp, *renameVreg, *ropnd);
+    Insn *last = pred->GetLastInsn();
+    if (last) {
+      if (last->IsBranch()) {
+        last->GetBB()->InsertInsnBefore(*last, newInsn);
+      } else {
+        last->GetBB()->InsertInsnAfter(*last, newInsn);
+      }
+    } else {
+      pred->AppendInsn(newInsn);
+    }
+  }
+
+  for (auto bb : loop->GetLoopMembers()) {
+    FOR_BB_INSNS(insn, bb) {
+      if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
+        continue;
+      }
+      for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
+        Operand *opnd = &insn->GetOperand(i);
+        if (opnd->IsList()) {
+          /* call parameters */
+       } else if (opnd->IsMemoryAccessOperand()) {
+          MemOperand *memopnd = static_cast<MemOperand*>(opnd);
+          RegOperand *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());
+          MemOperand *newMemOpnd = nullptr;
+          if (base != nullptr && base->IsVirtualRegister() && base->GetRegisterNumber() == vreg) {
+            newMemOpnd = static_cast<MemOperand*>(memopnd->Clone(*cgFunc->GetMemoryPool()));
+            newMemOpnd->SetBaseRegister(*renameVreg);
+            insn->SetOperand(i, *newMemOpnd);
+          }
+          RegOperand *offset = static_cast<RegOperand*>(memopnd->GetIndexRegister());
+          if (offset != nullptr && offset->IsVirtualRegister() && offset->GetRegisterNumber() == vreg) {
+            if (newMemOpnd == nullptr) {
+              newMemOpnd = static_cast<MemOperand*>(memopnd->Clone(*cgFunc->GetMemoryPool()));
+            }
+            newMemOpnd->SetIndexRegister(*renameVreg);
+            insn->SetOperand(i, *newMemOpnd);
+          }
+        } else if (opnd->IsRegister() && static_cast<RegOperand *>(opnd)->IsVirtualRegister() &&
+                   static_cast<RegOperand *>(opnd)->GetRegisterNumber() == vreg) {
+          insn->SetOperand(i, *renameVreg);
+        }
+
+      }
+    }
+  }
+}
+
+void VregRename::RenameFindLoopVregs(const CGFuncLoops *loop) {
+  for (auto *bb : loop->GetLoopMembers()) {
+    FOR_BB_INSNS(insn, bb) {
+      if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
+        continue;
+      }
+      for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
+        Operand *opnd = &insn->GetOperand(i);
+        if (opnd->IsList()) {
+          /* call parameters */
+        } else if (opnd->IsMemoryAccessOperand()) {
+          MemOperand *memopnd = static_cast<MemOperand*>(opnd);
+          RegOperand *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());
+          if (base != nullptr && base->IsVirtualRegister()) {
+            RenameProfitableVreg(base, loop);
+          }
+          RegOperand *offset = static_cast<RegOperand*>(memopnd->GetIndexRegister());
+          if (offset != nullptr && offset->IsVirtualRegister()) {
+            RenameProfitableVreg(offset, loop);
+          }
+        } else if (opnd->IsRegister() && static_cast<RegOperand *>(opnd)->IsVirtualRegister() &&
+                   static_cast<RegOperand *>(opnd)->GetRegisterNumber() != ccRegno) {
+          RenameProfitableVreg(static_cast<RegOperand *>(opnd), loop);
+        }
+      }
+    }
+  }
+}
+
+/* Only the bb level is important, not the bb itself.
+ * So if multiple bbs have the same level, only one bb represents the level
+ */
+void VregRename::UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef) {
+  VregRenameInfo *info = renameInfo[vreg];
+  if (info == nullptr) {
+    info = memPool->New<VregRenameInfo>();
+    renameInfo[vreg] = info;
+    if (vreg > maxRegnoSeen) {
+      maxRegnoSeen = vreg;
+    }
+  }
+  if (isDef) {
+    info->numDefs ++;
+    if (isInner) {
+      info->numInnerDefs ++;
+    }
+  } else {
+    info->numUses ++;
+    if (isInner) {
+      info->numInnerUses ++;
+    }
+  }
+  if (info->firstBBLevelSeen) {
+    if (info->firstBBLevelSeen->GetInternalFlag2() > bb->GetInternalFlag2()) {
+      info->firstBBLevelSeen = bb;
+    }
+  } else {
+    info->firstBBLevelSeen = bb;
+  }
+  if (info->lastBBLevelSeen) {
+    if (info->lastBBLevelSeen->GetInternalFlag2() < bb->GetInternalFlag2()) {
+      info->lastBBLevelSeen = bb;
+    }
+  } else {
+    info->lastBBLevelSeen = bb;
+  }
+}
+
+void VregRename::RenameGetFuncVregInfo() {
+  FOR_ALL_BB(bb, cgFunc) {
+    bool isInner = bb->GetLoop() ? bb->GetLoop()->GetInnerLoops().empty() : false;
+    FOR_BB_INSNS(insn, bb) {
+      if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction()) {
+        continue;
+      }
+      const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn&>(*insn).GetMachineOpcode()];
+      for (uint32 i = 0; i < insn->GetOperandSize(); ++i) {
+        Operand *opnd = &insn->GetOperand(i);
+        if (opnd->IsList()) {
+          /* call parameters */
+        } else if (opnd->IsMemoryAccessOperand()) {
+          MemOperand *memopnd = static_cast<MemOperand*>(opnd);
+          RegOperand *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());
+          if (base != nullptr && base->IsVirtualRegister()) {
+            regno_t vreg = base->GetRegisterNumber();
+            UpdateVregInfo(vreg, bb, isInner, false);
+          }
+          RegOperand *offset = static_cast<RegOperand*>(memopnd->GetIndexRegister());
+          if (offset != nullptr && offset->IsVirtualRegister()) {
+            regno_t vreg = offset->GetRegisterNumber();
+            UpdateVregInfo(vreg, bb, isInner, false);
+          }
+        } else if (opnd->IsRegister() && static_cast<RegOperand *>(opnd)->IsVirtualRegister() &&
+                   static_cast<RegOperand *>(opnd)->GetRegisterNumber() != ccRegno) {
+          bool isdef = static_cast<AArch64OpndProp *>(md->operand[i])->IsRegDef();
+          regno_t vreg = static_cast<RegOperand *>(opnd)->GetRegisterNumber();
+          UpdateVregInfo(vreg, bb, isInner, isdef);
+        }
+      }
+    }
+  }
+}
+
+void VregRename::RenameFindVregsToRename(const CGFuncLoops *loop) {
+ if (loop->GetInnerLoops().empty()) {
+    RenameFindLoopVregs(loop);
+    return;
+  }
+  for (auto inner : loop->GetInnerLoops()) {
+    RenameFindVregsToRename(inner);
+  }
+}
+
+
+void VregRename::VregLongLiveRename() {
+  if (cgFunc->GetLoops().size() == 0) {
+    return;
+  }
+  RenameGetFuncVregInfo();
+  for (const auto *lp : cgFunc->GetLoops()) {
+    RenameFindVregsToRename(lp);
+  }
+}
+
 void AArch64RaOpt::Run() {
   RaX0Opt x0Opt(cgFunc);
   x0Opt.PropagateX0();
+
+  if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC) {
+    /* loop detection considers EH bb.  That is not handled.  So C only for now. */
+    VregRename rename(cgFunc, memPool);
+    Bfs localBfs(*cgFunc, *memPool);
+    rename.bfs = &localBfs;
+    rename.bfs->ComputeBlockOrder();
+    rename.VregLongLiveRename();
+  }
 }
 }  /* namespace maplebe */

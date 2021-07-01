@@ -18,6 +18,7 @@
 #include "cg_phase.h"
 #include "cgbb.h"
 #include "insn.h"
+#include "maple_phase.h"
 
 namespace maplebe {
 class LoopHierarchy {
@@ -35,6 +36,7 @@ class LoopHierarchy {
         otherLoopEntries(loopMemPool.Adapter()),
         loopMembers(loopMemPool.Adapter()),
         backedge(loopMemPool.Adapter()),
+        exits(loopMemPool.Adapter()),
         innerLoops(loopMemPool.Adapter()) {}
 
   virtual ~LoopHierarchy() = default;
@@ -47,6 +49,9 @@ class LoopHierarchy {
   }
   const MapleSet<BB*, BBIdCmp> &GetBackedge() const {
     return backedge;
+  }
+  const MapleSet<BB*, BBIdCmp> &GetExits() const {
+    return exits;
   }
   const MapleSet<LoopHierarchy*, HeadIDCmp> &GetInnerLoops() const {
     return innerLoops;
@@ -69,6 +74,9 @@ class LoopHierarchy {
   }
   void InsertBackedge(BB &bb) {
     (void)backedge.insert(&bb);
+  }
+  void InsertExit(BB &bb) {
+    (void)exits.insert(&bb);
   }
   void InsertInnerLoops(LoopHierarchy &loop) {
     (void)innerLoops.insert(&loop);
@@ -98,6 +106,7 @@ class LoopHierarchy {
   MapleSet<BB*, BBIdCmp> otherLoopEntries;
   MapleSet<BB*, BBIdCmp> loopMembers;
   MapleSet<BB*, BBIdCmp> backedge;
+  MapleSet<BB*, BBIdCmp> exits;
   MapleSet<LoopHierarchy*, HeadIDCmp> innerLoops;
   LoopHierarchy *outerLoop = nullptr;
 };
@@ -153,22 +162,30 @@ class CGFuncLoops {
         multiEntries(loopMemPool.Adapter()),
         loopMembers(loopMemPool.Adapter()),
         backedge(loopMemPool.Adapter()),
+        exits(loopMemPool.Adapter()),
         innerLoops(loopMemPool.Adapter()) {}
 
   ~CGFuncLoops() = default;
 
-  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops, const MapleVector<BB*> &loopMembers) const;
+  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops,
+                                  const MapleVector<BB*> &loopMembers) const;
   void CheckLoops() const;
   void PrintLoops(const CGFuncLoops &loops) const;
 
   const BB *GetHeader() const {
     return header;
   }
+  const MapleVector<BB*> &GetMultiEntries() const {
+    return multiEntries;
+  }
   const MapleVector<BB*> &GetLoopMembers() const {
     return loopMembers;
   }
   const MapleVector<BB*> &GetBackedge() const {
     return backedge;
+  }
+  const MapleVector<BB*> &GetExits() const {
+    return exits;
   }
   const MapleVector<CGFuncLoops*> &GetInnerLoops() const {
     return innerLoops;
@@ -189,6 +206,9 @@ class CGFuncLoops {
   void AddBackedge(BB &bb) {
     backedge.emplace_back(&bb);
   }
+  void AddExit(BB &bb) {
+    exits.emplace_back(&bb);
+  }
   void AddInnerLoops(CGFuncLoops &loop) {
     innerLoops.emplace_back(&loop);
   }
@@ -208,6 +228,7 @@ class CGFuncLoops {
   MapleVector<BB*> multiEntries;
   MapleVector<BB*> loopMembers;
   MapleVector<BB*> backedge;
+  MapleVector<BB*> exits;
   MapleVector<CGFuncLoops*> innerLoops;
   CGFuncLoops *outerLoop = nullptr;
   uint32 loopLevel = 0;
@@ -222,6 +243,9 @@ struct CGFuncLoopCmp {
 };
 
 CGFUNCPHASE(CgDoLoopAnalysis, "loopanalysis")
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLoopAnalysis, maplebe::CGFunc);
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_LOOP_H */

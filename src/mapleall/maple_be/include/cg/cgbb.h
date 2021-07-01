@@ -68,6 +68,7 @@ namespace maplebe {
        (INSN) = (NEXT), (NEXT) = (INSN) ? PREV_INSN(INSN) : nullptr)
 
 class CGFuncLoops;
+class CGFunc;
 
 class BB {
  public:
@@ -345,6 +346,12 @@ class BB {
   bool IsLastInsn(const Insn *insn) const{
     return (lastInsn == insn);
   }
+  void InsertPred(MapleList<BB*>::iterator it, BB &bb) {
+    preds.insert(it, &bb);
+  }
+  void InsertSucc(MapleList<BB*>::iterator it, BB &bb) {
+    succs.insert(it, &bb);
+  }
   const MapleList<BB*> &GetPreds() const {
     return preds;
   }
@@ -453,6 +460,9 @@ class BB {
   const MapleSet<regno_t> &GetLiveInRegNO() const {
     return liveInRegNO;
   }
+  MapleSet<regno_t> &GetLiveInRegNO() {
+    return liveInRegNO;
+  }
   void InsertLiveInRegNO(regno_t arg) {
     (void)liveInRegNO.insert(arg);
   }
@@ -466,6 +476,9 @@ class BB {
     liveInRegNO.clear();
   }
   const MapleSet<regno_t> &GetLiveOutRegNO() const {
+    return liveOutRegNO;
+  }
+  MapleSet<regno_t> &GetLiveOutRegNO() {
     return liveOutRegNO;
   }
   void InsertLiveOutRegNO(regno_t arg) {
@@ -563,6 +576,9 @@ class BB {
   }
   const MapleVector<LabelIdx> &GetRangeGotoLabelVec() const {
     return rangeGotoLabelVec;
+  }
+  void SetRangeGotoLabel(uint32 index, LabelIdx labelIdx) {
+    rangeGotoLabelVec[index] = labelIdx;
   }
   void PushBackRangeGotoLabel(LabelIdx labelIdx) {
     rangeGotoLabelVec.emplace_back(labelIdx);
@@ -704,6 +720,8 @@ class BB {
   /*
    * Different meaning for each data flow analysis.
    * For HandleFunction(), rough estimate of num of insn created.
+   * For cgbb.cpp, track insn count during code selection.
+   * For cgbb.cpp, bb is traversed during BFS ordering.
    * For aarchregalloc.cpp, the bb is part of cleanup at end of function.
    * For aarchcolorra.cpp, the bb is part of cleanup at end of function.
    *                       also used for live range splitting.
@@ -713,6 +731,7 @@ class BB {
 
   /*
    * Different meaning for each data flow analysis.
+   * For cgbb.cpp, bb is levelized to be 1 more than largest predecessor.
    * For aarchcolorra.cpp, used for live range splitting pruning of bb.
    */
   long internalFlag2 = 0;
@@ -742,6 +761,29 @@ struct BBIdCmp {
     return (lhs->GetId() < rhs->GetId());
   }
 };
+
+class Bfs {
+ public:
+  Bfs(CGFunc &cgFunc, MemPool &memPool)
+      : cgfunc(&cgFunc),
+        memPool(&memPool),
+        alloc(&memPool),
+        visitedBBs(alloc.Adapter()),
+        sortedBBs(alloc.Adapter()) {}
+
+  bool AllPredBBVisited(BB &bb, long &level) const;
+  BB *MarkStraightLineBBInBFS(BB*);
+  BB *SearchForStraightLineBBs(BB&);
+  void BFS(BB &bb);
+  void ComputeBlockOrder();
+
+  CGFunc *cgfunc;
+  MemPool *memPool;
+  MapleAllocator alloc;
+  MapleVector<bool> visitedBBs;
+  MapleVector<BB*> sortedBBs;
+};
+
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_CGBB_H */

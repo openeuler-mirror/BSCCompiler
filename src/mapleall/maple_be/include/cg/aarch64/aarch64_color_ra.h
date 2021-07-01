@@ -1332,6 +1332,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleSet<uint32> fpSpillRegSet;    /*       spill          */
   MapleSet<regno_t> intCalleeUsed;
   MapleSet<regno_t> fpCalleeUsed;
+  Bfs *bfs = nullptr;
 
   uint32 bbBuckets = 0;   /* size of bit array for bb (each bucket == 64 bits) */
   uint32 regBuckets = 0;  /* size of bit array for reg (each bucket == 64 bits) */

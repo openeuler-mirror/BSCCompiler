@@ -137,7 +137,7 @@ void LSRALinearScanRegAllocator::PrintLiveRanges() const {
       graph[regNO - minVregNum][n] = 0;
     }
 
-    for (auto *bb : sortedBBs) {
+    for (auto *bb : bfs->sortedBBs) {
       FOR_BB_INSNS(insn, bb) {
         const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
         uint32 opndNum = insn->GetOperandSize();
@@ -656,14 +656,14 @@ void LSRALinearScanRegAllocator::BuildIntervalRangesForEachOperand(const Insn &i
 
 /* Support finding holes by searching for ranges where holes exist. */
 void LSRALinearScanRegAllocator::BuildIntervalRanges() {
-  uint32 bbIdx = sortedBBs.size();
+  uint32 bbIdx = bfs->sortedBBs.size();
   if (bbIdx == 0) {
     return;
   }
 
   do {
     --bbIdx;
-    BB *bb = sortedBBs[bbIdx];
+    BB *bb = bfs->sortedBBs[bbIdx];
     if (bb->GetFirstInsn() == nullptr || bb->GetLastInsn() == nullptr) {
       continue;
     }
@@ -893,7 +893,7 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
   lastIntParamLi.resize(AArch64Abi::kNumIntParmRegs);
   lastFpParamLi.resize(AArch64Abi::kNumFloatParmRegs);
   uint32 insnNum = 1;
-  for (BB *bb : sortedBBs) {
+  for (BB *bb : bfs->sortedBBs) {
     ComputeLiveIn(*bb, insnNum);
     FOR_BB_INSNS(insn, bb) {
       insn->SetId(insnNum);
@@ -1949,8 +1949,8 @@ void LSRALinearScanRegAllocator::FindLowestPrioInActive(LiveInterval *&targetLi,
 
 /* Calculate the weight of a live interval for pre-spill and flexible spill */
 void LSRALinearScanRegAllocator::LiveIntervalAnalysis() {
-  for (uint32 bbIdx = 0; bbIdx < sortedBBs.size(); ++bbIdx) {
-    BB *bb = sortedBBs[bbIdx];
+  for (uint32 bbIdx = 0; bbIdx < bfs->sortedBBs.size(); ++bbIdx) {
+    BB *bb = bfs->sortedBBs[bbIdx];
 
     /* 1. calculate live interfere */
     FOR_BB_INSNS(insn, bb) {
@@ -2221,7 +2221,7 @@ void LSRALinearScanRegAllocator::CheckSpillCallee() {
 /* Iterate through all instructions and change the vreg to preg. */
 void LSRALinearScanRegAllocator::FinalizeRegisters() {
   CheckSpillCallee();
-  for (BB *bb : sortedBBs) {
+  for (BB *bb : bfs->sortedBBs) {
     intBBDefMask = 0;
     fpBBDefMask = 0;
 
@@ -2342,7 +2342,7 @@ void LSRALinearScanRegAllocator::LinearScanRegAllocator() {
     }
   }
 
-  for (BB *bb : sortedBBs) {
+  for (BB *bb : bfs->sortedBBs) {
     if (LSRA_DUMP) {
       LogInfo::MapleLogger() << "======New BB=====" << bb->GetId() << " " << std::hex << bb << std::dec << "\n";
     }
@@ -2391,8 +2391,11 @@ bool LSRALinearScanRegAllocator::AllocateRegisters() {
   if (LSRA_DUMP) {
     LogInfo::MapleLogger() << "Entering LinearScanRegAllocator\n";
   }
+  cgFunc->SetIsAfterRegAlloc();
 
-  ComputeBlockOrder();
+  Bfs localBfs(*cgFunc, *memPool);
+  bfs = &localBfs;
+  bfs->ComputeBlockOrder();
 
   ComputeLiveInterval();
 

@@ -218,8 +218,8 @@ void GraphColorRegAllocator::PrintLocalRAInfo(const std::string &str) const {
 }
 
 void GraphColorRegAllocator::PrintBBAssignInfo() const {
-  for (size_t id = 0; id < sortedBBs.size(); ++id) {
-    uint32 bbID = sortedBBs[id]->GetId();
+  for (size_t id = 0; id < bfs->sortedBBs.size(); ++id) {
+    uint32 bbID = bfs->sortedBBs[id]->GetId();
     BBAssignInfo *bbInfo = bbRegInfo[bbID];
     if (bbInfo == nullptr) {
       continue;
@@ -289,7 +289,7 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
 }
 
 void GraphColorRegAllocator::PrintBBs() const {
-  for (auto *bb : sortedBBs) {
+  for (auto *bb : bfs->sortedBBs) {
     LogInfo::MapleLogger() << "\n< === > ";
     LogInfo::MapleLogger() << bb->GetId();
     LogInfo::MapleLogger() << " succs:";
@@ -926,12 +926,12 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
   bbVec.clear();
   bbVec.resize(cgFunc->NumBBs());
 
-  uint32 currPoint = cgFunc->GetTotalNumberOfInstructions() + sortedBBs.size();
+  uint32 currPoint = cgFunc->GetTotalNumberOfInstructions() + bfs->sortedBBs.size();
   /* distinguish use/def */
   CHECK_FATAL(currPoint < (INT_MAX >> 2), "integer overflow check");
   currPoint = currPoint << 2;
-  for (size_t bbIdx = sortedBBs.size(); bbIdx > 0; --bbIdx) {
-    BB *bb = sortedBBs[bbIdx - 1];
+  for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
+    BB *bb = bfs->sortedBBs[bbIdx - 1];
     bbVec[bb->GetId()] = bb;
     bb->SetLevel(bbIdx - 1);
 
@@ -2412,7 +2412,7 @@ void GraphColorRegAllocator::LocalRegisterAllocator(bool doAllocate) {
     }
   }
   LocalRegAllocator *localRa = memPool->New<LocalRegAllocator>(*cgFunc, alloc);
-  for (auto *bb : sortedBBs) {
+  for (auto *bb : bfs->sortedBBs) {
     uint32 bbID = bb->GetId();
 
     LocalRaInfo *lraInfo = localRegVec[bb->GetId()];
@@ -3398,8 +3398,8 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
 }
 
 void GraphColorRegAllocator::SpillLiveRangeForSpills() {
-  for (uint32_t bbIdx = 0; bbIdx < sortedBBs.size(); bbIdx++) {
-    BB *bb = sortedBBs[bbIdx];
+  for (uint32_t bbIdx = 0; bbIdx < bfs->sortedBBs.size(); bbIdx++) {
+    BB *bb = bfs->sortedBBs[bbIdx];
     FOR_BB_INSNS(insn, bb) {
       uint32 spillCnt;
       if (insn->IsImmaterialInsn() || !insn->IsMachineInstruction() || insn->GetId() == 0) {
@@ -3461,7 +3461,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
     SpillLiveRangeForSpills();
     return;
   }
-  for (auto *bb : sortedBBs) {
+  for (auto *bb : bfs->sortedBBs) {
     FOR_BB_INSNS(insn, bb) {
       if (insn->IsImmaterialInsn()) {
         continue;
@@ -3509,7 +3509,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
             ListOperand *outList = const_cast<ListOperand *>(static_cast<const ListOperand *>(defOpnd));
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
-                  a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+                a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : outList->GetOperands()) {
               phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, true);
@@ -3537,7 +3537,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
             ListOperand *inList = const_cast<ListOperand *>(static_cast<const ListOperand *>(useOpnd));
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
-                  a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+                a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : inList->GetOperands()) {
               if ((static_cast<const RegOperand *>(opnd))->GetRegisterNumber() < kAllRegNum) {
@@ -3596,7 +3596,9 @@ bool GraphColorRegAllocator::AllocateRegisters() {
 #endif
   cgFunc->SetIsAfterRegAlloc();
   /* EBO propgation extent the live range and might need to be turned off. */
-  ComputeBlockOrder();
+  Bfs localBfs(*cgFunc, *memPool);
+  bfs = &localBfs;
+  bfs->ComputeBlockOrder();
 
   InitCCReg();
 

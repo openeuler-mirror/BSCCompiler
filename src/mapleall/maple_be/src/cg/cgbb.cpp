@@ -13,12 +13,18 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "cgbb.h"
+#include "cgfunc.h"
 
 namespace maplebe {
+
+constexpr uint32 kCondBrNum = 2;
+constexpr uint32 kSwitchCaseNum = 5;
+
 const std::string BB::bbNames[BB::kBBLast] = {
   "BB_ft",
   "BB_if",
   "BB_goto",
+  "BB_igoto",
   "BB_ret",
   "BB_intrinsic",
   "BB_rangegoto",
@@ -238,5 +244,183 @@ bool BB::IsSoloGoto() const {
     return (insn->IsGoto());
   }
   return false;
+}
+
+bool Bfs::AllPredBBVisited(BB &bb, long &level) const {
+  bool isAllPredsVisited = true;
+  for (const auto *predBB : bb.GetPreds()) {
+    /* See if pred bb is a loop back edge */
+    bool isBackEdge = false;
+    for (const auto *loopBB : predBB->GetLoopSuccs()) {
+      if (loopBB == &bb) {
+        isBackEdge = true;
+        break;
+      }
+    }
+    if (!isBackEdge && !visitedBBs[predBB->GetId()]) {
+      isAllPredsVisited = false;
+      break;
+    }
+    level = std::max(level, predBB->GetInternalFlag2());
+  }
+  for (const auto *predEhBB : bb.GetEhPreds()) {
+    bool isBackEdge = false;
+    for (const auto *loopBB : predEhBB->GetLoopSuccs()) {
+      if (loopBB == &bb) {
+        isBackEdge = true;
+        break;
+      }
+    }
+    if (!isBackEdge && !visitedBBs[predEhBB->GetId()]) {
+      isAllPredsVisited = false;
+      break;
+    }
+    level = std::max(level, predEhBB->GetInternalFlag2());
+  }
+  return isAllPredsVisited;
+}
+
+/*
+ * During live interval construction, bb has only one predecessor and/or one
+ * successor are stright line bb.  It can be considered to be a single large bb
+ * for the purpose of finding live interval.  This is to prevent extending live
+ * interval of registers unnecessarily when interleaving bb from other paths.
+ */
+BB *Bfs::MarkStraightLineBBInBFS(BB *bb) {
+  while (true) {
+    if ((bb->GetSuccs().size() != 1) || !bb->GetEhSuccs().empty()) {
+      break;
+    }
+    BB *sbb = bb->GetSuccs().front();
+    if (visitedBBs[sbb->GetId()]) {
+      break;
+    }
+    if ((sbb->GetPreds().size() != 1) || !sbb->GetEhPreds().empty()) {
+      break;
+    }
+    sortedBBs.push_back(sbb);
+    visitedBBs[sbb->GetId()] = true;
+    sbb->SetInternalFlag2(bb->GetInternalFlag2() + 1);
+    bb = sbb;
+  }
+  return bb;
+}
+
+BB *Bfs::SearchForStraightLineBBs(BB &bb) {
+  if ((bb.GetSuccs().size() != kCondBrNum) || bb.GetEhSuccs().empty()) {
+    return &bb;
+  }
+  BB *sbb1 = bb.GetSuccs().front();
+  BB *sbb2 = bb.GetSuccs().back();
+  size_t predSz1 = sbb1->GetPreds().size();
+  size_t predSz2 = sbb2->GetPreds().size();
+  BB *candidateBB = nullptr;
+  if ((predSz1 == 1) && (predSz2 > kSwitchCaseNum)) {
+    candidateBB = sbb1;
+  } else if ((predSz2 == 1) && (predSz1 > kSwitchCaseNum)) {
+    candidateBB = sbb2;
+  } else {
+    return &bb;
+  }
+  ASSERT(candidateBB->GetId() < visitedBBs.size(), "index out of range in RA::SearchForStraightLineBBs");
+  if (visitedBBs[candidateBB->GetId()]) {
+    return &bb;
+  }
+  if (!candidateBB->GetEhPreds().empty()) {
+    return &bb;
+  }
+  if (candidateBB->GetSuccs().size() != 1) {
+    return &bb;
+  }
+
+  sortedBBs.push_back(candidateBB);
+  visitedBBs[candidateBB->GetId()] = true;
+  return MarkStraightLineBBInBFS(candidateBB);
+}
+
+void Bfs::BFS(BB &curBB) {
+  std::queue<BB*> workList;
+  workList.push(&curBB);
+  ASSERT(curBB.GetId() < cgfunc->NumBBs(), "RA::BFS visitedBBs overflow");
+  ASSERT(curBB.GetId() < visitedBBs.size(), "index out of range in RA::BFS");
+  visitedBBs[curBB.GetId()] = true;
+  do {
+    BB *bb = workList.front();
+    sortedBBs.push_back(bb);
+    ASSERT(bb->GetId() < cgfunc->NumBBs(), "RA::BFS visitedBBs overflow");
+    visitedBBs[bb->GetId()] = true;
+    workList.pop();
+    /* Look for straight line bb */
+    bb = MarkStraightLineBBInBFS(bb);
+    /* Look for an 'if' followed by some straight-line bb */
+    bb = SearchForStraightLineBBs(*bb);
+    for (auto *ibb : bb->GetSuccs()) {
+      /* See if there are unvisited predecessor */
+      if (visitedBBs[ibb->GetId()]) {
+        continue;
+      }
+      long prevLevel = 0;
+      if (AllPredBBVisited(*ibb, prevLevel)) {
+        ibb->SetInternalFlag2(prevLevel + 1);
+        workList.push(ibb);
+        ASSERT(ibb->GetId() < cgfunc->NumBBs(), "GCRA::BFS visitedBBs overflow");
+        visitedBBs[ibb->GetId()] = true;
+      }
+    }
+  } while (!workList.empty());
+}
+
+void Bfs::ComputeBlockOrder() {
+  visitedBBs.clear();
+  sortedBBs.clear();
+  visitedBBs.resize(cgfunc->NumBBs());
+  for (uint32 i = 0; i < cgfunc->NumBBs(); ++i) {
+    visitedBBs[i] = false;
+  }
+  BB *cleanupBB = nullptr;
+  FOR_ALL_BB(bb, cgfunc) {
+    bb->SetInternalFlag1(0);
+    bb->SetInternalFlag2(1);
+    if (bb->GetFirstStmt() == cgfunc->GetCleanupLabel()) {
+      cleanupBB = bb;
+    }
+  }
+  for (BB *bb = cleanupBB; bb != nullptr; bb = bb->GetNext()) {
+    bb->SetInternalFlag1(1);
+  }
+
+  bool changed;
+  size_t sortedCnt = 0;
+  bool done = false;
+  do {
+    changed = false;
+    FOR_ALL_BB(bb, cgfunc) {
+      if (bb->GetInternalFlag1() == 1) {
+        continue;
+      }
+      if (visitedBBs[bb->GetId()]) {
+        continue;
+      }
+      changed = true;
+      long prevLevel = 0;
+      if (AllPredBBVisited(*bb, prevLevel)) {
+        bb->SetInternalFlag2(prevLevel + 1);
+        BFS(*bb);
+      }
+    }
+    /* Make sure there is no infinite loop. */
+    if (sortedCnt == sortedBBs.size()) {
+      if (!done) {
+        done = true;
+      } else {
+        LogInfo::MapleLogger() << "Error: RA BFS loop " << sortedCnt << " in func " << cgfunc->GetName() << "\n";
+      }
+    }
+    sortedCnt = sortedBBs.size();
+  } while (changed);
+
+  for (BB *bb = cleanupBB; bb != nullptr; bb = bb->GetNext()) {
+    sortedBBs.push_back(bb);
+  }
 }
 }  /* namespace maplebe */
