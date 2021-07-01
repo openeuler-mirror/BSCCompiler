@@ -110,9 +110,7 @@ java-core-def: install
 install: maple dex2mpl_install irbuild mplfe clang2mpl
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
-	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
-	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
-	rsync -a -L $(MAPLE_BIN_DIR)/jbc2mpl $(INSTALL_DIR)/bin/;)
+	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin)
 
 .PHONY: all
 all: install libcore
