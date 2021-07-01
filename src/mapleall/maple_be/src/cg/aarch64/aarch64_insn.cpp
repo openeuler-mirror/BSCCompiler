@@ -1090,7 +1090,6 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
         }
         regOpnd->SetVecLanePosition(vecSpec->vecLane);
         regOpnd->SetVecLaneSize(vecSpec->vecLaneMax);
-
       }
     }
     opnds[seq[i]]->Emit(emitter, md->operand[seq[i]]);
@@ -1159,12 +1158,14 @@ uint8 AArch64Insn::GetLoadStoreSize() const {
   case MOP_wldarb:
   case MOP_wldrb:
   case MOP_wldrsb:
+  case MOP_xldrsb:
   case MOP_wstrb:
   case MOP_wstlrb:
     return k1ByteSize;
   case MOP_wldrh:
   case MOP_wldarh:
   case MOP_wldrsh:
+  case MOP_xldrsh:
   case MOP_wstrh:
   case MOP_wstlrh:
     return k2ByteSize;
@@ -1323,6 +1324,12 @@ bool AArch64Insn::HasLoop() const {
 
 bool AArch64Insn::IsSpecialIntrinsic() const {
   switch (mOp) {
+    case MOP_vdupur:
+    case MOP_vduprv:
+    case MOP_vwinsur:
+    case MOP_vxinsur:
+    case MOP_vwinsvr:
+    case MOP_vxinsvr:
     case MOP_get_and_addI:
     case MOP_get_and_addL:
     case MOP_compare_and_swapI:

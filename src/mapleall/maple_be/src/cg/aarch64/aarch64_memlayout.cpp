@@ -194,9 +194,6 @@ void AArch64MemLayout::LayoutFormalParams() {
     bool noStackPara = false;
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
-    if (GetPrimTypeLanes(ty->GetPrimType()) > 0) {
-      segArgsRegPassed.SetContainVector();
-    }
     parmLocator.LocateNextParm(*ty, ploc, i == 0);
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(ploc.reg0, ploc.reg1, ploc.reg2, ploc.reg3);
@@ -212,6 +209,9 @@ void AArch64MemLayout::LayoutFormalParams() {
         if (ty->GetPrimType() == PTY_agg &&  be.GetTypeSize(ptyIdx) > k4ByteSize) {
           /* struct param aligned on 8 byte boundary unless it is small enough */
           align = kSizeOfPtr;
+        }
+        if (IsPrimitiveVector(ty->GetPrimType()) && GetPrimTypeSize(ty->GetPrimType()) > k8ByteSize) {
+          symLoc->SetVector16();
         }
         segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), align));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
