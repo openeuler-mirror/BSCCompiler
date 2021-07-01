@@ -14,10 +14,13 @@
 #
 include $(MAPLE_BUILD_CORE)/maple_variables.mk
 
-test: $(APP_S)
-include $(MAPLE_BUILD_CORE)/mplcomb.mk
+test: APP_RUN
+include $(MAPLE_BUILD_CORE)/qemu_run.mk
+include $(MAPLE_BUILD_CORE)/link.mk	
+include $(MAPLE_BUILD_CORE)/mplcomb_dex.mk
 include $(MAPLE_BUILD_CORE)/genmplt.mk
-include $(MAPLE_BUILD_CORE)/java2jar.mk
+include $(MAPLE_BUILD_CORE)/dex2mpl.mk
+include $(MAPLE_BUILD_CORE)/java2dex.mk
 
 .PHONY: clean
 clean:
@@ -30,3 +33,7 @@ clean:
 	@rm -f *.primordials.txt
 	@rm -rf comb.log
 	@rm -rf *.muid
+	@rm -rf *.dex
+	@rm -rf *.def
+	@rm -rf *.so
+	@rm -rf *.o
