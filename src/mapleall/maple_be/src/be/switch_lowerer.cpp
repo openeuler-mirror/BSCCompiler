@@ -60,10 +60,11 @@ void SwitchLowerer::FindClusters(MapleVector<Cluster> &clusters) {
     for (int32 j = length - 1; j > i; --j) {
       float tmp1 = static_cast<float>(j - i);
       float tmp2 = static_cast<float>(stmt->GetCasePair(static_cast<size_t>(static_cast<uint>(j))).first) -
-          static_cast<float>(stmt->GetCasePair(static_cast<size_t>(static_cast<uint>(i))).first);
+                   static_cast<float>(stmt->GetCasePair(static_cast<size_t>(static_cast<uint>(i))).first);
+      float currDensity = tmp1 / tmp2;
       if (((j - i) >= kClusterSwitchCutoff) &&
-          (tmp2 < kMaxRangeGotoTableSize) &&
-          ((tmp1 / tmp2) >= kClusterSwitchDensity)) {
+          ((currDensity >= kClusterSwitchDensityHigh) ||
+           ((currDensity >= kClusterSwitchDensityLow) && (tmp2 < kMaxRangeGotoTableSize)))) {
         clusters.emplace_back(Cluster(i, j));
         i = j;
         break;
@@ -119,8 +120,9 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
     node->AddRangeGoto(curTag, stmt->GetCasePair(i).second);
     lastCaseTag = stmt->GetCasePair(i).first;
   }
-  ASSERT(static_cast<int32>(node->GetRangeGotoTable().size()) <= kMaxRangeGotoTableSize,
-         "rangegoto table exceeds allowed number of entries");
+  /* If the density is high enough, the range is allowed to be large */
+  // ASSERT(static_cast<int32>(node->GetRangeGotoTable().size()) <= kMaxRangeGotoTableSize,
+  //       "rangegoto table exceeds allowed number of entries");
   ASSERT(node->GetNumOpnds() == 1, "RangeGotoNode is a UnaryOpnd and numOpnds must be 1");
   return node;
 }
@@ -131,7 +133,8 @@ CompareNode *SwitchLowerer::BuildCmpNode(Opcode opCode, uint32 idx) {
   binaryExpr->SetOpndType(stmt->GetSwitchOpnd()->GetPrimType());
 
   MIRType &type = *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(stmt->GetSwitchOpnd()->GetPrimType()));
-  MIRConst *constVal = GlobalTables::GetIntConstTable().GetOrCreateIntConst(stmt->GetCasePair(idx).first, type, 0/*fieldID*/);
+  MIRConst *constVal =
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(stmt->GetCasePair(idx).first, type);
   ConstvalNode *exprConst = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>();
   exprConst->SetPrimType(stmt->GetSwitchOpnd()->GetPrimType());
   exprConst->SetConstVal(constVal);
@@ -180,10 +183,14 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   /* if low side starts with a dense item, handle it first */
   while ((start <= end) && (switchItems[start].second != 0)) {
     if (!lowBlockNodeChecked) {
-      cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
-      localBlk->AddStatement(cGoto);
       lowBlockNodeChecked = true;
+      if (!(IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType()) &&
+           (stmt->GetCasePair(switchItems[start].first).first == 0))) {
+        cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
+        localBlk->AddStatement(cGoto);
+      }
     }
+
     rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second);
     cmpNode = BuildCmpNode(OP_le, switchItems[start].second);
     ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
@@ -267,7 +274,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
    * and highestTag have same sign , otherwise diefferent sign.highestTag
    * add or subtract lowestTag divide 2 to get middle tag.
    */
-  int64 middleTag = ((((static_cast<uint64>(lowestTag)) ^ (static_cast<uint64>(lowestTag))) & (1ULL << 63)) == 0)
+  int64 middleTag = ((((static_cast<uint64>(lowestTag)) ^ (static_cast<uint64>(highestTag))) & (1ULL << 63)) == 0)
                       ? (highestTag - lowestTag) / 2 + lowestTag
                       : (highestTag + lowestTag) / 2;
   /* find the mid-point in switch_items between start and end */
