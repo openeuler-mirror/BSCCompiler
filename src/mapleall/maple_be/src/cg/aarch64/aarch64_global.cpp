@@ -205,7 +205,7 @@ void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, u
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(*static_cast<RegOperand*>(&newOpnd));
           if (static_cast<RegOperand&>(newOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
-            static_cast<AArch64MemOperand*>(newMem)->setExtend(AArch64MemOperand::kSignExtend);
+            static_cast<AArch64MemOperand*>(newMem)->UpdateExtend(AArch64MemOperand::kSignExtend);
           }
           useInsn->SetOperand(i, *newMem);
           if (updateInfo) {
@@ -226,6 +226,9 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
   }
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
   Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
+  if (firstOpnd.GetSize() != secondOpnd.GetSize()) {
+    return false;
+  }
   RegOperand &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
   RegOperand &secondRegOpnd = static_cast<RegOperand&>(secondOpnd);
   uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
@@ -297,7 +300,7 @@ void ForwardPropPattern::Optimize(Insn &insn) {
           CHECK_FATAL(newMem != nullptr, "null ptr check");
           newMem->SetIndexRegister(static_cast<RegOperand&>(secondOpnd));
           if (static_cast<RegOperand&>(secondOpnd).GetValidBitsNum() != index->GetValidBitsNum()) {
-            static_cast<AArch64MemOperand*>(newMem)->setExtend(AArch64MemOperand::kSignExtend);
+            static_cast<AArch64MemOperand*>(newMem)->UpdateExtend(AArch64MemOperand::kSignExtend);
           }
           useInsn->SetOperand(i, *newMem);
           cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
@@ -349,10 +352,12 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
   if (RegOperand::IsSameReg(firstOpnd, secondOpnd)) {
     return false;
   }
-
+  if (firstOpnd.GetSize() != secondOpnd.GetSize()) {
+    return false;
+  }
   firstRegOpnd = &static_cast<RegOperand&>(firstOpnd);
   secondRegOpnd = &static_cast<RegOperand&>(secondOpnd);
-  if (firstRegOpnd->IsZeroRegister() || !firstRegOpnd->IsVirtualRegister() || !secondRegOpnd->IsVirtualRegister()) {
+  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister()) {
     return false;
   }
   firstRegNO = firstRegOpnd->GetRegisterNumber();
@@ -440,9 +445,12 @@ bool BackPropPattern::CheckCondition(Insn &insn) {
   if (!CheckAndGetOpnd(insn)) {
     return false;
   }
+#ifdef DestOpndHasUseInsnsNeeded
+  /* Unless there is a reason that dest can not live out the current BB */
   if (!DestOpndHasUseInsns(insn)) {
     return false;
   }
+#endif
   /* first register must not be live out to eh_succs */
   if (DestOpndLiveOutToEHSuccs(insn)) {
     return false;
@@ -488,7 +496,32 @@ void BackPropPattern::Optimize(Insn &insn) {
       }
     }
   }
-  insn.GetBB()->RemoveInsn(insn);
+
+  /* There is special implication when backward propagation is allowed for physical register R0.
+   * This is a case that the calling func foo directly returns the result from the callee bar as follows:
+   *
+   * foo:
+   * bl                                               bl // bar()
+   * mov vreg, X0  //res = bar()        naive bkprop
+   * ....          //X0 is not redefined    ====>        ....  //X0 may be reused as RA sees "X0 has not been used" after bl
+   * mov X0, vreg                                              //In fact, X0 is implicitly used by foo. We need to tell RA that X0 is live
+   * ret                                              ret
+   *
+   * To make RA simple, we tell RA to not use X0 by keeping "mov X0, X0". That is
+   * foo:
+   * bl //bar()
+   * ....          // Perform backward prop X0 and force X0 cant be reused
+   * mov X0, X0    // This can be easily remved later in peephole phase
+   * ret
+   */
+  if (cgFunc.HasCall() &&
+      !(cgFunc.GetFunction().IsReturnVoid()) &&
+      (firstRegNO == R0) &&
+      (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0))  {
+    // Keep this instruction: mov R0, R0
+  } else {
+     insn.GetBB()->RemoveInsn(insn);
+  }
 }
 
 void BackPropPattern::Init() {
@@ -724,7 +757,10 @@ uint32 RedundantUxtPattern::GetInsnValidBit(Insn &insn) {
 
 uint32 RedundantUxtPattern::GetMaximumValidBit(Insn &insn, uint8 index, InsnSet &visitedInsn) const {
   InsnSet defInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, index);
-  ASSERT(!defInsnSet.empty(), "operand must be defined before used");
+  if (defInsnSet.empty()) {
+    /* disable opt when there is no def point. */
+    return k64BitSize;
+  }
 
   uint32 validBit = 0;
   uint32 nMaxValidBit = 0;

@@ -396,7 +396,8 @@ Operand *HandleVectorReverse(IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 
 Operand *HandleVectorBitwiseOp(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   Operand *src1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));    /* vector operand1 */
   Operand *src2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));    /* vector operand2 */
-  return cgFunc.SelectVectorBitwiseOp(intrnNode.GetPrimType(), src1, intrnNode.Opnd(0)->GetPrimType(), src2, intrnNode.Opnd(1)->GetPrimType(), opc);
+  return cgFunc.SelectVectorBitwiseOp(intrnNode.GetPrimType(), src1, intrnNode.Opnd(0)->GetPrimType(),
+                                      src2, intrnNode.Opnd(1)->GetPrimType(), opc);
 }
 
 Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -408,7 +409,8 @@ Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
 Operand *HandleVectorCompare(IntrinsicopNode &intrnNode, CGFunc &cgFunc, Opcode opc) {
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
-  return cgFunc.SelectVectorCompare(opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType(), opc);
+  return cgFunc.SelectVectorCompare(opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2,
+                                    intrnNode.Opnd(1)->GetPrimType(), opc);
 }
 
 Operand *HandleVectorTableLookup(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -1079,6 +1081,7 @@ void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMpl
     /* if original src file location info is availiable for this stmt,
      * use it and skip mpl file location info for this stmt
      */
+    bool hasLoc = false;
     unsigned newSrcLoc = cg->GetCGOptions().WithSrc() ? stmt->GetSrcPos().LineNum() : 0;
     if (newSrcLoc != 0 && newSrcLoc != lastSrcLoc) {
       /* .loc for original src file */
@@ -1088,10 +1091,11 @@ void CGFunc::GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMpl
       Insn &loc = cg->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       curBB->AppendInsn(loc);
       lastSrcLoc = newSrcLoc;
+      hasLoc = true;
     }
-    /* .loc for mpl file */
+    /* .loc for mpl file, skip if already has .loc from src for this stmt*/
     unsigned newMplLoc = cg->GetCGOptions().WithMpl() ? stmt->GetSrcPos().MplLineNum() : 0;
-    if (newMplLoc != 0 && newMplLoc != lastMplLoc) {
+    if (newMplLoc != 0 && newMplLoc != lastMplLoc && !hasLoc) {
       unsigned fileid = 1;
       Operand *o0 = CreateDbgImmOperand(fileid);
       Operand *o1 = CreateDbgImmOperand(newMplLoc);
