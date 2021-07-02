@@ -38,6 +38,7 @@ APP_S := $(foreach APP, $(TARGETS), $(APP).VtableImpl.s)
 APP_DEF := $(foreach APP, $(TARGETS), $(APP).VtableImpl.macros.def)
 APP_O := $(foreach APP, $(TARGETS), $(APP).VtableImpl.o)
 APP_SO := $(foreach APP, $(TARGETS), $(APP).so)
+APP_QEMU_SO := $(foreach APP, $(TARGETS), $(APP).VtableImpl.qemu.so)
 APP_VTABLEIMPL_MPL := $(foreach APP, $(TARGETS), $(APP).VtableImpl.mpl)
 
 MAPLE_OUT := $(MAPLE_BUILD_OUTPUT)
@@ -91,17 +92,18 @@ else
 endif
 
 ifeq ($(OPT),O2)
-    DEX2MPL_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
+    DEX2MPL_FLAGS :=
     MPLME_FLAGS := --O2 --quiet
     MPL2MPL_FLAGS := --O2 --quiet --regnativefunc --no-nativeopt --maplelinker
     MPLCG_FLAGS := --O2 --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
     MPLCG_SO_FLAGS := --fpic
 else ifeq ($(OPT),O0)
-    DEX2MPL_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
+    DEX2MPL_FLAGS :=
     MPLME_FLAGS := --quiet
     MPL2MPL_FLAGS := --quiet --regnativefunc --maplelinker
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
     MPLCG_SO_FLAGS := --fpic
 endif
+DEX2MPL_APP_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
 MPLCOMBO_FLAGS := --run=me:mpl2mpl:mplcg --option="$(MPLME_FLAGS):$(MPL2MPL_FLAGS):$(MPLCG_FLAGS) $(MPLCG_SO_FLAGS)"
 JAVA2DEX_FLAGS := -p ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar:${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar
