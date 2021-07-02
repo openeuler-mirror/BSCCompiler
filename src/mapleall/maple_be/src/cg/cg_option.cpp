@@ -65,7 +65,7 @@ bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;
 bool CGOptions::doGlobalOpt = false;
-bool CGOptions::doMultiPassColorRA = false;
+bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
 bool CGOptions::doSchedule = false;
@@ -1370,10 +1370,11 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
     }
   }
-  // override some options when loc, dwarf is generated
+  /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
     DisableSchedule();
     SetOption(kWithMpl);
+    SetOption(kWithSrc);
   }
   if (WithDwarf()) {
     DisableEBO();
@@ -1382,6 +1383,7 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
     DisableSchedule();
     SetOption(kDebugFriendly);
     SetOption(kWithMpl);
+    SetOption(kWithSrc);
     SetOption(kWithLoc);
     ClearOption(kSuppressFileInfo);
   }
