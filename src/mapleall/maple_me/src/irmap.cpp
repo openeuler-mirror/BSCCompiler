@@ -22,6 +22,7 @@ namespace maple {
 VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
   VarMeExpr *varMeExpr = New<VarMeExpr>(exprID++, ost, verst2MeExprTable.size(),
       GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx())->GetPrimType());
+  ost->PushbackVersionsIndices(verst2MeExprTable.size());
   verst2MeExprTable.push_back(varMeExpr);
   return varMeExpr;
 }
@@ -50,13 +51,11 @@ MeExpr *IRMap::CreateAddroffuncMeExpr(PUIdx puIdx) {
   return HashMeExpr(addroffuncMeExpr);
 }
 
-MeExpr *IRMap::CreateIaddrofMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base) {
-  ASSERT(expr.GetMeOp() == kMeOpIvar, "expecting IVarMeExpr");
-  auto &ivarExpr = static_cast<IvarMeExpr&>(expr);
+MeExpr *IRMap::CreateIaddrofMeExpr(FieldID fieldId, TyIdx tyIdx, MeExpr *base) {
   OpMeExpr opMeExpr(kInvalidExprID, OP_iaddrof, PTY_ptr, 1);
-  opMeExpr.SetFieldID(ivarExpr.GetFieldID());
+  opMeExpr.SetFieldID(fieldId);
   opMeExpr.SetTyIdx(tyIdx);
-  opMeExpr.SetOpnd(0, &base);
+  opMeExpr.SetOpnd(0, base);
   return HashMeExpr(opMeExpr);
 }
 
@@ -105,6 +104,7 @@ RegMeExpr *IRMap::CreateRegMeExprVersion(OriginalSt &pregOSt) {
   RegMeExpr *regReadExpr =
       New<RegMeExpr>(exprID++, &pregOSt, verst2MeExprTable.size(), kMeOpReg,
                      OP_regread, pregOSt.GetMIRPreg()->GetPrimType());
+  pregOSt.PushbackVersionsIndices(verst2MeExprTable.size());
   verst2MeExprTable.push_back(regReadExpr);
   return regReadExpr;
 }
@@ -122,10 +122,7 @@ RegMeExpr *IRMap::CreateRegMeExpr(MIRType &mirType) {
     return CreateRegMeExpr(mirType.GetPrimType());
   }
   if (mirType.GetPrimType() == PTY_ptr) {
-    MIRType *pointedType = static_cast<MIRPtrType &>(mirType).GetPointedType();
-    if (pointedType == nullptr || pointedType->GetKind() != kTypeFunction) {
-      return CreateRegMeExpr(mirType.GetPrimType());
-    }
+    return CreateRegMeExpr(mirType.GetPrimType());
   }
   MIRFunction *mirFunc = mirModule.CurFunction();
   PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(PTY_ref, &mirType);
@@ -198,10 +195,68 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx
   return meDef;
 }
 
+static std::pair<MeExpr*, OffsetType> SimplifyBaseAddressOfIvar(MeExpr *base) {
+  if (base->GetOp() == OP_add || base->GetOp() == OP_sub) {
+    auto offsetNode = base->GetOpnd(1);
+    if (offsetNode->GetOp() == OP_constval) {
+      // get offset value
+      auto *mirConst = static_cast<ConstMeExpr*>(offsetNode)->GetConstVal();
+      CHECK_FATAL(mirConst->GetKind() == kConstInt, "must be integer const");
+      auto offsetInByte = static_cast<MIRIntConst*>(mirConst)->GetValue();
+      OffsetType offset(kOffsetUnknown);
+      offset.Set(base->GetOp() == OP_add ? offsetInByte : -offsetInByte);
+      if (offset.IsInvalid()) {
+        return std::make_pair(base, offset);
+      }
+
+      const auto &baseNodeAndOffset = SimplifyBaseAddressOfIvar(base->GetOpnd(0));
+      auto newOffset = offset + baseNodeAndOffset.second;
+      if (newOffset.IsInvalid()) {
+        return std::make_pair(base->GetOpnd(0), offset);
+      }
+      return std::make_pair(baseNodeAndOffset.first, newOffset);
+    }
+  }
+  return std::make_pair(base, OffsetType::InvalidOffset());
+}
+
+void IRMap::SimplifyIvar(IvarMeExpr *ivar) {
+  const auto &newBaseAndOffset = SimplifyBaseAddressOfIvar(ivar->GetBase());
+  if (newBaseAndOffset.second.IsInvalid()) {
+    return;
+  }
+
+  auto newOffset = newBaseAndOffset.second + ivar->GetOffset();
+  if (newOffset.IsInvalid()) {
+    return;
+  }
+
+  ivar->SetBase(newBaseAndOffset.first);
+  if (newOffset.val != 0) {
+    ivar->SetOp(OP_ireadoff);
+  } else {
+    ivar->SetOp(OP_iread);
+  }
+  ivar->SetOffset(newOffset.val);
+}
+
 IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID) {
-  auto *meDef = New<IvarMeExpr>(exprID++, iassignMeStmt.GetRHS()->GetPrimType(), iassignMeStmt.GetTyIdx(), fieldID);
+  MIRType *ptrMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iassignMeStmt.GetTyIdx());
+  auto *realMIRType = static_cast<MIRPtrType*>(ptrMIRType);
+  MIRType *ty = nullptr;
+  if (fieldID > 0) {
+    ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(realMIRType->GetPointedTyIdxWithFieldID(fieldID));
+  } else {
+    ty = realMIRType->GetPointedType();
+  }
+  auto *meDef = New<IvarMeExpr>(exprID++, ty->GetPrimType(), iassignMeStmt.GetTyIdx(), fieldID);
+  if (iassignMeStmt.GetLHSVal() != nullptr && iassignMeStmt.GetLHSVal()->GetOffset() != 0) {
+    meDef->SetOp(OP_ireadoff);
+    meDef->SetOffset(iassignMeStmt.GetLHSVal()->GetOffset());
+  }
   meDef->SetBase(&baseAddr);
   meDef->SetDefStmt(&iassignMeStmt);
+  SimplifyIvar(meDef);
   PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
   return meDef;
 }
@@ -396,7 +451,9 @@ bool IRMap::ReplaceMeExprStmt(MeStmt &meStmt, const MeExpr &meExpr, MeExpr &repe
       }
       if (curOpndReplaced) {
         ASSERT_NOT_NULL(newBase);
-        ivarStmt.SetLHSVal(BuildLHSIvar(*newBase, ivarStmt, ivarStmt.GetLHSVal()->GetFieldID()));
+        auto *newLHS = BuildLHSIvar(*newBase, ivarStmt, ivarStmt.GetLHSVal()->GetFieldID());
+        newLHS->SetVolatileFromBaseSymbol(ivarStmt.GetLHSVal()->GetVolatileFromBaseSymbol());
+        ivarStmt.SetLHSVal(newLHS);
       }
     } else {
       curOpndReplaced = ReplaceMeExprStmtOpnd(i, meStmt, meExpr, repexpr);
@@ -452,8 +509,7 @@ MeExpr *IRMap::CreateConstMeExpr(PrimType pType, MIRConst &mirConst) {
 
 MeExpr *IRMap::CreateIntConstMeExpr(int64 value, PrimType pType) {
   auto *intConst =
-      GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType),
-                                                           0 /* fieldID */);
+      GlobalTables::GetIntConstTable().GetOrCreateIntConst(value, *GlobalTables::GetTypeTable().GetPrimType(pType));
   return CreateConstMeExpr(pType, *intConst);
 }
 
@@ -550,7 +606,7 @@ static bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
       if (IsPrimitiveInteger(typeC)) {
         return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) || GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC);
       } else if (IsPrimitiveFloat(typeC)) {
-        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA);
+        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) && IsSignedInteger(typeB) == IsSignedInteger(typeA);
       }
     } else if (IsPrimitiveFloat(typeB)) {
       if (IsPrimitiveFloat(typeC)) {
@@ -576,11 +632,27 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         ConstantFold cf(mirModule);
         MIRConst *tocvt =
           cf.FoldTypeCvtMIRConst(*static_cast<ConstMeExpr *>(opnd0)->GetConstVal(),
-                                 opnd0->GetPrimType(), cvtmeexpr->GetPrimType());
+                                 cvtmeexpr->GetOpndType(), cvtmeexpr->GetPrimType());
         if (tocvt) {
           return CreateConstMeExpr(cvtmeexpr->GetPrimType(), *tocvt);
         }
       }
+      // If typeA, typeB, and typeC{fieldId} are integer, and sizeof(typeA) == sizeof(typeB).
+      // Simplfy expr: cvt typeA typeB (iread typeB <* typeC> fieldId address)
+      // to: iread typeA <* typeC> fieldId address
+      if (opnd0->GetMeOp() == kMeOpIvar && cvtmeexpr->GetOpndType() == opnd0->GetPrimType() &&
+          IsPrimitiveInteger(opnd0->GetPrimType()) && IsPrimitiveInteger(cvtmeexpr->GetPrimType()) &&
+          GetPrimTypeSize(opnd0->GetPrimType()) == GetPrimTypeSize(cvtmeexpr->GetPrimType())) {
+        IvarMeExpr *ivar = static_cast<IvarMeExpr*>(opnd0);
+        auto resultPrimType = ivar->GetType()->GetPrimType();
+        if (IsPrimitiveInteger(resultPrimType)) {
+          IvarMeExpr newIvar(kInvalidExprID, *ivar);
+          newIvar.SetPtyp(cvtmeexpr->GetPrimType());
+          return HashMeExpr(newIvar);
+        }
+        return nullptr;
+      }
+
       if (opnd0->GetOp() == OP_cvt) {
         OpMeExpr *cvtopnd0 = static_cast<OpMeExpr *>(opnd0);
         // cvtopnd0 should have tha same type as cvtopnd0->GetOpnd(0) or cvtmeexpr,
@@ -589,15 +661,25 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         if (maple::GetPrimTypeSize(cvtopnd0->GetPrimType()) >=
             maple::GetPrimTypeSize(cvtopnd0->GetOpnd(0)->GetPrimType())) {
           if ((maple::IsPrimitiveInteger(cvtopnd0->GetPrimType()) &&
-               maple::IsPrimitiveInteger(cvtopnd0->GetOpnd(0)->GetPrimType())) ||
+               maple::IsPrimitiveInteger(cvtopnd0->GetOpnd(0)->GetPrimType()) &&
+               !maple::IsPrimitiveFloat(cvtmeexpr->GetPrimType())) ||
               (maple::IsPrimitiveFloat(cvtopnd0->GetPrimType()) &&
                maple::IsPrimitiveFloat(cvtopnd0->GetOpnd(0)->GetPrimType()))) {
-            return CreateMeExprTypeCvt(cvtmeexpr->GetPrimType(), cvtopnd0->GetOpndType(), *cvtopnd0->GetOpnd(0));
+            if (cvtmeexpr->GetPrimType() == cvtopnd0->GetOpndType()) {
+              return cvtopnd0->GetOpnd(0);
+            } else {
+              if (maple::IsUnsignedInteger(cvtopnd0->GetOpndType()) ||
+                  maple::GetPrimTypeSize(cvtopnd0->GetPrimType()) >= maple::GetPrimTypeSize(cvtmeexpr->GetPrimType())) {
+                return CreateMeExprTypeCvt(cvtmeexpr->GetPrimType(), cvtopnd0->GetOpndType(), *cvtopnd0->GetOpnd(0));
+              }
+              return nullptr;
+            }
           }
         }
         if (maple::GetPrimTypeSize(cvtopnd0->GetPrimType()) >= maple::GetPrimTypeSize(cvtmeexpr->GetPrimType())) {
           if ((maple::IsPrimitiveInteger(cvtopnd0->GetPrimType()) &&
-               maple::IsPrimitiveInteger(cvtmeexpr->GetPrimType())) ||
+               maple::IsPrimitiveInteger(cvtmeexpr->GetPrimType()) &&
+               !maple::IsPrimitiveFloat(cvtopnd0->GetOpnd(0)->GetPrimType())) ||
               (maple::IsPrimitiveFloat(cvtopnd0->GetPrimType()) &&
                maple::IsPrimitiveFloat(cvtmeexpr->GetPrimType()))) {
             return CreateMeExprTypeCvt(cvtmeexpr->GetPrimType(), cvtopnd0->GetOpndType(), *cvtopnd0->GetOpnd(0));
