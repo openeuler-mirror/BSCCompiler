@@ -17,6 +17,51 @@
 
 namespace maple {
 
+// Find the SSA version of scalar at stmt by search backward for its def.
+// When reaching the beginning of BB, continue with parent BB in the dominator
+// tree.  It is assumed that scalarOst has no alias, so chi lists are skipped.
+ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
+  if (scalar->GetOst()->NumSSAVersions() == 1) {
+    return scalar;
+  }
+  BB *bb = stmt->GetBB();
+  stmt = stmt->GetPrev();
+  ScalarMeExpr *lhs = nullptr;
+  do {
+    // go thru the statements in reverse order
+    while (stmt != nullptr) {
+      AssignMeStmt *asStmt = dynamic_cast<AssignMeStmt*>(stmt);
+      if (asStmt != nullptr) {
+        lhs = asStmt->GetLHS();
+        if (lhs->GetOst() == scalar->GetOst()) {
+          return lhs;
+        }
+      } else {
+        CallMeStmt *callStmt = dynamic_cast<CallMeStmt*>(stmt);
+        if (callStmt != nullptr) {
+          lhs = callStmt->GetAssignedLHS();
+          if (lhs != nullptr && lhs->GetOst() == scalar->GetOst()) {
+            return lhs;
+          }
+        } 
+      }
+      stmt = stmt->GetPrev();
+    }
+    // check if there is phi
+    MapleMap<OStIdx, MePhiNode*> &mePhiList = bb->GetMePhiList();
+    MapleMap<OStIdx, MePhiNode*>::iterator it = mePhiList.find(scalar->GetOst()->GetIndex());
+    if (it != mePhiList.end()) {
+      return it->second->GetLHS();
+    }
+    // set bb to its parent in dominator tree
+    bb = dom->GetDom(bb->GetBBId());
+    // make stmt point to last statement in bb 
+    stmt = to_ptr(bb->GetMeStmts().rbegin());
+  } while (true);
+  CHECK_FATAL(false, "FindScalarVersion: fail to find SSA version for scalar");
+  return nullptr;
+}
+
 // one side of compare is an operand x in workCand->GetTheMeExpr() with current
 // occurrence occExpr; replace that side of the compare by regorvar; replace the
 // other side of compare by the expression formed by substituting x in occExpr
@@ -31,6 +76,9 @@ namespace maple {
 // EXAMPLE 3: INPUT: workCand is (i + &A), compare is (i < 100)
 //            RETURN: regorvar < 100 + &A
 //            100 + &A is folded to an OP_addrof node
+// EXAMPLE 4: INPUT: workCand is (i + p), compare is (i < 100)
+//            RETURN: regorvar < 100 + p (need to find p's SSA version there)
+//            100 + p is added to EPRE work list
 OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   MeExpr *compare = compOcc->GetMeExpr();
   // determine the ith operand of workCand that is the jth operand of compare
@@ -57,16 +105,24 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   // handle the ops corresponding to OpMeExpr::StrengthReducible()
   OpMeExpr newSide(-1, x->GetOp(), x->GetPrimType(), x->GetNumOpnds());
   newSide.SetOpnd(i, compare->GetOpnd(1-j));
-  bool isRebuild = !newSide.GetOpnd(i)->IsLeaf();  // so hashedSide will always create new workcand
   switch (x->GetOp()) {
     case OP_cvt: {
       newSide.SetOpndType(x->GetOpndType());
       break;
     }
-    case OP_mul:
+    case OP_mul: {
+      newSide.SetOpnd(1-i, x->GetOpnd(1-i));
+      break;
+    }
     case OP_add:
     case OP_sub: {
-      newSide.SetOpnd(1-i, x->GetOpnd(1-i));
+      ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(x->GetOpnd(1-i));
+      if (scalarOpnd == nullptr) {
+        newSide.SetOpnd(1-i, x->GetOpnd(1-i));
+      } else {
+        scalarOpnd = FindScalarVersion(scalarOpnd, compOcc->GetMeStmt());
+        newSide.SetOpnd(1-i, scalarOpnd);
+      }
       break;
     }
     default: {
@@ -81,7 +137,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     hashedSide = simplifyExpr;
   } else {
     hashedSide = irMap->HashMeExpr(newSide);
-    BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, isRebuild, nullptr, true);
+    BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, false, nullptr, true, true);
   }
   OpMeExpr newcompare(-1, compare->GetOp(), compare->GetPrimType(), 2);
   newcompare.SetOpndType(regorvar->GetPrimType());
@@ -140,8 +196,8 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
           (compareRHS && iv->GetOst() == compareRHS->GetOst())) {
         numRelevantOpnds++;
       } else {
-        // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions
-        if (iv->GetOst()->GetVersionsIndices().size() > 1) {
+        // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions and is not preg
+        if (iv->GetOst()->NumSSAVersions() > 1 && !iv->GetOst()->IsPregOst()) {
           isRelevant = false;
           break;
         }
