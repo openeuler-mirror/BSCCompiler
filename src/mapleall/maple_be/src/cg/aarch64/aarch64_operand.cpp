@@ -84,15 +84,15 @@ void AArch64RegOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
       break;
     }
     case kRegTyFloat: {
-      ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize || opndSize == k64BitSize
-              || opndSize == k128BitSize), "illegal register size");
+      ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize ||
+              opndSize == k64BitSize || opndSize == k128BitSize), "illegal register size");
       int32 laneSize = GetVecLaneSize();
       if (static_cast<const AArch64OpndProp*>(opndProp)->IsVectorOperand() && laneSize != 0) {
         std::string width;
         if (opndSize == k128BitSize) {
-          width = laneSize == 16 ? "b" : (laneSize == 8 ? "h" : (laneSize == 4 ? "s" : "d"));
+          width = laneSize == k16ByteSize ? "b" : (laneSize == k8ByteSize ? "h" : (laneSize == k4ByteSize ? "s" : "d"));
         } else if (opndSize == k64BitSize) {
-          width = laneSize == 8 ? "b" : (laneSize == 4 ? "h" : "s");
+          width = laneSize == k8ByteSize ? "b" : (laneSize == k4ByteSize ? "h" : (laneSize == k2ByteSize ? "s" : "d"));
         }
         int16 lanePos = GetVecLanePosition();
         emitter.Emit(AArch64CG::vectorRegNames[regNO]);
@@ -206,8 +206,6 @@ void StImmOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   }
 }
 
-const int32 AArch64MemOperand::kMaxPimms[4] = { kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64 };
-
 Operand *AArch64MemOperand::GetOffset() const {
   switch (addrMode) {
     case kAddrModeBOi:
@@ -230,7 +228,8 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
 #if DEBUG
   const AArch64MD *md = &AArch64CG::kMd[emitter.GetCurrentMOP()];
   bool isLDSTpair = md->IsLoadStorePair();
-  ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize || md->GetOperandSize() == k128BitSize, "unexpected opnd size");
+  ASSERT(md->Is64Bit() || md->GetOperandSize() <= k32BitSize || md->GetOperandSize() == k128BitSize,
+         "unexpected opnd size");
 #endif
   if (addressMode == AArch64MemOperand::kAddrModeBOi) {
     emitter.Emit("[");
@@ -250,7 +249,6 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
        * The ARMv8-A architecture allows many types of load and store accesses to be arbitrarily aligned.
        * The Cortex- A57 processor handles most unaligned accesses without performance penalties.
        */
-      //ASSERT(!IsOffsetMisaligned(md->GetOperandSize()), "should not be OffsetMisaligned");
 #if DEBUG
       if (IsOffsetMisaligned(md->GetOperandSize())) {
         INFO(kLncInfo, "The Memory operand's offset is misaligned:", "");
