@@ -1,0 +1,2 @@
+${APP_SO}: %.so : %.VtableImpl.s $(CLANG_BIN)
+	${TOOL_BIN_PATH}/clang++ -g3 -O2 -x assembler-with-cpp -march=armv8-a -target aarch64-linux-gnu -c $(APP_S) && ${TOOL_BIN_PATH}/clang++ $(APP_O) -L${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2 -g3 -O2 -march=armv8-a -target aarch64-linux-gnu -fPIC -shared -o $(APP_SO) ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mrt_module_init.o -fuse-ld=lld -rdynamic -lcore-all -lcommon-bridge -Wl,-z,notext -Wl,-T${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/linker/maplelld.so.lds

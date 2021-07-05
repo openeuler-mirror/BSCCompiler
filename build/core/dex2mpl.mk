@@ -14,3 +14,4 @@
 #
 $(APP_MPL): %.mpl : %.dex $(DEX2MPL_BIN)
 	$(DEX2MPL_BIN) $(DEX2MPL_FLAGS) -j100 $<
+
