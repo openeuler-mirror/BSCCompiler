@@ -1,5 +1,5 @@
 #
-# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+# Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
 #
 # OpenArkCompiler is licensed under Mulan PSL v2.
 # You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,5 +12,5 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-$(APP_JAR): %.jar : %.java $(LIB_CORE_JAR)
-	$(JAVA2JAR) $(APP_JAR) $(LIB_CORE_JAR) "$(wildcard *.java)"
+$(APP_MPL): %.mpl : %.dex $(DEX2MPL_BIN)
+	$(DEX2MPL_BIN) $(DEX2MPL_APP_FLAGS) -j100 $<

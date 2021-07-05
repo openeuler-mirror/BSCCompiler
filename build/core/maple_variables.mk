@@ -28,6 +28,7 @@ GCC_LINARO_PATH := $(MAPLE_ROOT)/tools/gcc-linaro-7.5.0
 NDK_PATH := $(MAPLE_ROOT)/tools/android-ndk-r21
 
 TARGETS := $(APP)
+APP_JAVA := $(foreach APP, $(TARGETS), $(APP).java)
 APP_DEX := $(foreach APP, $(TARGETS), $(APP).dex)
 APP_CLASS := $(foreach APP, $(TARGETS), $(APP).class)
 APP_JAR := $(foreach APP, $(TARGETS), $(APP).jar)
@@ -36,6 +37,7 @@ APP_MPLT:=$(foreach APP, $(TARGETS), $(APP).mplt)
 APP_S := $(foreach APP, $(TARGETS), $(APP).VtableImpl.s)
 APP_DEF := $(foreach APP, $(TARGETS), $(APP).VtableImpl.macros.def)
 APP_O := $(foreach APP, $(TARGETS), $(APP).VtableImpl.o)
+APP_SO := $(foreach APP, $(TARGETS), $(APP).so)
 APP_QEMU_SO := $(foreach APP, $(TARGETS), $(APP).VtableImpl.qemu.so)
 APP_VTABLEIMPL_MPL := $(foreach APP, $(TARGETS), $(APP).VtableImpl.mpl)
 
@@ -46,6 +48,7 @@ MAPLE_BIN := $(MAPLE_OUT)/bin/maple
 MPLCG_BIN := $(MAPLE_OUT)/bin/mplcg
 JAVA2D8 := $(MAPLE_OUT)/bin/java2d8
 DEX2MPL_BIN := $(MAPLE_OUT)/bin/dex2mpl
+JAVA2DEX := ${MAPLE_ROOT}/build/java2dex
 
 D8 := $(MAPLE_ROOT)/build/d8
 ADD_OBJS := $(MAPLE_ROOT)/src/mrt/maplert/src/mrt_module_init.c__
@@ -101,4 +104,6 @@ else ifeq ($(OPT),O0)
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
     MPLCG_SO_FLAGS := --fpic
 endif
+DEX2MPL_APP_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
 MPLCOMBO_FLAGS := --run=me:mpl2mpl:mplcg --option="$(MPLME_FLAGS):$(MPL2MPL_FLAGS):$(MPLCG_FLAGS) $(MPLCG_SO_FLAGS)"
+JAVA2DEX_FLAGS := -p ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar:${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar
