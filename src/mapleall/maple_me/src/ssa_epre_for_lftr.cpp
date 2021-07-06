@@ -43,7 +43,7 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
           if (lhs != nullptr && lhs->GetOst() == scalar->GetOst()) {
             return lhs;
           }
-        } 
+        }
       }
       stmt = stmt->GetPrev();
     }
@@ -55,7 +55,7 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
     }
     // set bb to its parent in dominator tree
     bb = dom->GetDom(bb->GetBBId());
-    // make stmt point to last statement in bb 
+    // make stmt point to last statement in bb
     stmt = to_ptr(bb->GetMeStmts().rbegin());
   } while (true);
   CHECK_FATAL(false, "FindScalarVersion: fail to find SSA version for scalar");
@@ -111,17 +111,17 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
       break;
     }
     case OP_mul: {
-      newSide.SetOpnd(1-i, x->GetOpnd(1-i));
+      newSide.SetOpnd(1 - i, x->GetOpnd(1 - i));
       break;
     }
     case OP_add:
     case OP_sub: {
-      ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(x->GetOpnd(1-i));
+      ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(x->GetOpnd(1 - i));
       if (scalarOpnd == nullptr) {
-        newSide.SetOpnd(1-i, x->GetOpnd(1-i));
+        newSide.SetOpnd(1 - i, x->GetOpnd(1 - i));
       } else {
         scalarOpnd = FindScalarVersion(scalarOpnd, compOcc->GetMeStmt());
-        newSide.SetOpnd(1-i, scalarOpnd);
+        newSide.SetOpnd(1 - i, scalarOpnd);
       }
       break;
     }
@@ -196,7 +196,8 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
           (compareRHS && iv->GetOst() == compareRHS->GetOst())) {
         numRelevantOpnds++;
       } else {
-        // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions and is not preg
+        // disqualify as compocc if x has a scalar which is not used in the comparison and has multiple SSA versions
+        // and is not preg
         if (iv->GetOst()->NumSSAVersions() > 1 && !iv->GetOst()->IsPregOst()) {
           isRelevant = false;
           break;
