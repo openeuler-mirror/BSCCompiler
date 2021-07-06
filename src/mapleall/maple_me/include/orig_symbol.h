@@ -249,6 +249,13 @@ class OriginalSt {
     nextLevOsts.push_back(nextLevelOst);
   }
 
+  uint32 NumSSAVersions() {
+    if (zeroVersionIndex == 0 || !IsPregOst()) {
+      return versionsIndices.size();
+    }
+    return versionsIndices.size() - 1;  // preg's zero version not counted
+  }
+
  private:
   enum OSTType {
     kUnkonwnOst,

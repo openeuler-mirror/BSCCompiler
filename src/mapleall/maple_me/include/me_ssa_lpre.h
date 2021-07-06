@@ -59,7 +59,7 @@ class MeSSALPre : public SSAPre {
   void BuildEntryLHSOcc4Formals() const override;
   void BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) override;
   void CreateMembarOccAtCatch(BB &bb) override;
-  void BuildWorkListExpr(MeStmt&, int32, MeExpr&, bool, MeExpr*, bool isRootExpr) override;
+  void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuild, MeExpr *tmpVar, bool isRootExpr, bool insertSorted) override;
   void BuildWorkList() override;
   BB *GetBB(BBId id) const override {
     return func->GetCfg()->GetBBFromID(id);

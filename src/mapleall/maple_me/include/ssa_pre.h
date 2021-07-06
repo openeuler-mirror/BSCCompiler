@@ -140,7 +140,11 @@ class SSAPre {
   void GenerateSaveInsertedOcc(MeInsertedOcc &insertedOcc);
   void GenerateSavePhiOcc(MePhiOcc &phiOcc);
   void UpdateInsertedPhiOccOpnd();
-  virtual OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) { return nullptr; }
+  virtual OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
+    (void)compOcc;
+    (void)regorvar;
+    return nullptr;
+  }
   virtual void CodeMotion();
   // step 5 Finalize methods
   virtual void Finalize1();
@@ -177,7 +181,7 @@ class SSAPre {
   virtual void BuildWorkListIvarLHSOcc(MeStmt&, int32, bool, MeExpr*) {}
 
   virtual void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuilt, MeExpr *tempVar,
-                                 bool isRootExpr) = 0;
+                                 bool isRootExpr, bool insertSorted) = 0;
   virtual void BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeExpr *tempVar = nullptr);
   virtual void BuildWorkListBB(BB *bb);
   virtual void ConstructUseOccurMap() {}
@@ -188,10 +192,15 @@ class SSAPre {
     MeOccur *exitOcc = ssaPreMemPool->New<MeOccur>(kOccExit, 0, bb, nullptr);
     exitOccs.push_back(exitOcc);
   }
-  virtual void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) {}
+  virtual void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) {
+    (void)meStmt;
+    (void)seqStmt;
+    (void)comapre;
+    (void)isRebuilt;
+  }
 
   bool CheckIfAnyLocalOpnd(const MeExpr &meExpr) const;
-  MeRealOcc *CreateRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuilt, bool isLHS = false);
+  void CreateRealOcc(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool insertSorted, bool isLHS = false);
   virtual bool ScreenPhiBB(BBId bbId) const = 0;
   virtual bool EpreLocalRefVar() const {
     return false;

@@ -34,7 +34,7 @@ class SSAEPre : public SSAPre {
   MeExpr *PhiOpndFromRes(MeRealOcc &realZ, size_t j) const override;
   void ComputeVarAndDfPhis() override;
   void BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr&, bool isReBuild,
-                         MeExpr *tempVar, bool isRootExpr) override;
+                         MeExpr *tempVar, bool isRootExpr, bool insertSorted) override;
   void BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isReBuild, MeExpr *tempVar) override;
   void CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const override;
   void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const override;
@@ -77,6 +77,7 @@ class SSAEPre : public SSAPre {
   bool epreIncludeRef;
   bool enableLHSIvar;
   // here starts methods related to linear function test replacement
+  ScalarMeExpr *FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt);
   OpMeExpr *FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) override;
   void CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *comapre, bool isRebuilt) override;
 };
