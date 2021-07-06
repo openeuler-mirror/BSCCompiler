@@ -1514,13 +1514,15 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       break;
     case OP_throw: {
       auto *thrMeStmt = static_cast<ThrowMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *thrMeStmt->GetOpnd(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *thrMeStmt->GetOpnd(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_iassign:
     case OP_iassignoff: {
       auto *ivarStmt = static_cast<IassignMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *ivarStmt->GetRHS(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *ivarStmt->GetRHS(), isRebuilt,
+                        tempVar, true, isRebuilt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt),
                         *ivarStmt->GetLHSVal()->GetBase(), isRebuilt, tempVar, true, isRebuilt);
       BuildWorkListIvarLHSOcc(*meStmt, static_cast<int32>(seqStmt), isRebuilt, tempVar);
@@ -1529,12 +1531,14 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     case OP_brtrue:
     case OP_brfalse: {
       auto *condGotoStmt = static_cast<CondGotoMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *condGotoStmt->GetOpnd(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *condGotoStmt->GetOpnd(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_switch: {
       auto *switchStmt = static_cast<SwitchMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *switchStmt->GetOpnd(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *switchStmt->GetOpnd(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_dassign: {
@@ -1546,7 +1550,8 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
           dassMeStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(dassMeStmt->GetRHS())->GetOst()) {
         break; // identity assignment converted from phi
       }
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt,
+                        tempVar, true, isRebuilt);
       BuildWorkListLHSOcc(*meStmt, static_cast<int32>(seqStmt));
       break;
     }
@@ -1555,12 +1560,14 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       if (rassMeStmt->isIncDecStmt && preKind == kExprPre) {
         break;
       }
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *rassMeStmt->GetRHS(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *rassMeStmt->GetRHS(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_maydassign: {
       auto *dassMeStmt = static_cast<MaydassignMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt,
+                        tempVar, true, isRebuilt);
       BuildWorkListLHSOcc(*meStmt, static_cast<int32>(seqStmt));
       break;
     }
@@ -1570,7 +1577,8 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
         // affects LPRE only; will cause CI failure if this is allowed
         break;
       }
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *unaryStmt->GetOpnd(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *unaryStmt->GetOpnd(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_incref:
@@ -1580,7 +1588,8 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     case OP_assertnonnull:
     case OP_free: {
       auto *unaryStmt = static_cast<UnaryMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *unaryStmt->GetOpnd(), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *unaryStmt->GetOpnd(), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     case OP_syncenter:
@@ -1675,8 +1684,10 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     case OP_assertlt:
     case OP_assertge: {
       auto *assMeStmt = static_cast<AssertMeStmt*>(meStmt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(0), isRebuilt, tempVar, true, isRebuilt);
-      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(1), isRebuilt, tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(0), isRebuilt,
+                        tempVar, true, isRebuilt);
+      BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(1), isRebuilt,
+                        tempVar, true, isRebuilt);
       break;
     }
     default:

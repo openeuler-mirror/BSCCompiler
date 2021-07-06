@@ -292,7 +292,8 @@ void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
 
 // only handle the leaf of load, because all other expressions has been done by
 // previous SSAPre
-void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuild, MeExpr *tmpVar, bool isRootExpr, bool insertSorted) {
+void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool, MeExpr*,
+                                  bool, bool) {
   MeExprOp meOp = meExpr.GetMeOp();
   switch (meOp) {
     case kMeOpVar: {
