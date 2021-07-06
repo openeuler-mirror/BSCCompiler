@@ -969,7 +969,7 @@ void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent)
       LogInfo::MapleLogger() << st->GetName() << " " << fieldID << " }\n";
       return;
     } else {
-      PregIdx16 regIdx = regFieldPair.GetPregIdx();
+      PregIdx regIdx = regFieldPair.GetPregIdx();
       const MIRPreg *mirPreg = mirFunc->GetPregItem(static_cast<PregIdx>(regIdx));
       ASSERT(mirPreg != nullptr, "mirPreg is null");
       LogInfo::MapleLogger() << " { regassign";
@@ -991,7 +991,7 @@ void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent)
       LogInfo::MapleLogger() << (stIdx.Islocal() ? " %" : " $");
       LogInfo::MapleLogger() << st->GetName() << " " << fieldID << '\n';
     } else {
-      PregIdx16 regIdx = regFieldPair.GetPregIdx();
+      PregIdx regIdx = regFieldPair.GetPregIdx();
       const MIRPreg *mirPreg = mirFunc->GetPregItem(static_cast<PregIdx>(regIdx));
       ASSERT(mirPreg != nullptr, "mirPreg is null");
       LogInfo::MapleLogger() << "regassign"
@@ -1176,13 +1176,13 @@ void CommentNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << "#" << comment << '\n';
 }
 
-static void EmitStr(const MapleString *mplStr) {
-  const char *str = mplStr->c_str();
-  size_t len = mplStr->length();
+static void EmitStr(const MapleString &mplStr) {
+  const char *str = mplStr.c_str();
+  size_t len = mplStr.length();
   LogInfo::MapleLogger() << "\"";
 
   // don't expand special character; convert all \s to \\s in string
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; ++i) {
     /* Referred to GNU AS: 3.6.1.1 Strings */
     constexpr int kBufSize = 5;
     constexpr int kFirstChar = 0;
@@ -1214,7 +1214,7 @@ static void EmitStr(const MapleString *mplStr) {
       LogInfo::MapleLogger() << buf;
     } else {
       /* all others, print as number */
-      int ret = snprintf_s(buf, sizeof(buf), 4, "\\%03o", (*str) & 0xFF);
+      int ret = snprintf_s(buf, sizeof(buf), kBufSize - 1, "\\%03o", (*str) & 0xFF);
       if (ret < 0) {
         FATAL(kLncFatal, "snprintf_s failed");
       }
@@ -1225,6 +1225,70 @@ static void EmitStr(const MapleString *mplStr) {
   }
 
   LogInfo::MapleLogger() << "\"\n";
+}
+
+void AsmNode::DumpOutputs(int32 indent, std::string &uStr) const {
+  PrintIndentation(indent + 1);
+  LogInfo::MapleLogger() << " :";
+  size_t numOutputs = asmOutputs.size();
+
+  const MIRFunction *mirFunc = theMIRModule->CurFunction();
+  if (numOutputs == 0) {
+    LogInfo::MapleLogger() << '\n';
+  } else {
+    for (size_t i = 0; i < numOutputs; i++) {
+      if (i != 0) {
+        PrintIndentation(indent + 2); // Increase the indent by 2 bytes.
+      }
+      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(outputConstraints[i]);
+      PrintString(uStr);
+      LogInfo::MapleLogger() << " ";
+      StIdx stIdx = asmOutputs[i].first;
+      RegFieldPair regFieldPair = asmOutputs[i].second;
+      if (!regFieldPair.IsReg()) {
+        FieldID fieldID = regFieldPair.GetFieldID();
+        LogInfo::MapleLogger() << "dassign";
+        const MIRSymbol *st = mirFunc->GetLocalOrGlobalSymbol(stIdx);
+        ASSERT(st != nullptr, "st is null");
+        LogInfo::MapleLogger() << (stIdx.Islocal() ? " %" : " $");
+        LogInfo::MapleLogger() << st->GetName() << " " << fieldID;
+      } else {
+        PregIdx regIdx = regFieldPair.GetPregIdx();
+        const MIRPreg *mirPreg = mirFunc->GetPregItem(static_cast<PregIdx>(regIdx));
+        ASSERT(mirPreg != nullptr, "mirPreg is null");
+        LogInfo::MapleLogger() << "regassign"
+                               << " " << GetPrimTypeName(mirPreg->GetPrimType());
+        LogInfo::MapleLogger() << " %" << mirPreg->GetPregNo();
+      }
+      if (i != numOutputs - 1) {
+        LogInfo::MapleLogger() << ',';
+      }
+      LogInfo::MapleLogger() << '\n';
+    }
+  }
+}
+
+void AsmNode::DumpInputOperands(int32 indent, std::string &uStr) const {
+  PrintIndentation(indent + 1);
+  LogInfo::MapleLogger() << " :";
+  if (numOpnds == 0) {
+    LogInfo::MapleLogger() << '\n';
+  } else {
+    for (size_t i = 0; i < numOpnds; i++) {
+      if (i != 0) {
+        PrintIndentation(indent + 2); // Increase the indent by 2 bytes.
+      }
+      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(inputConstraints[i]);
+      PrintString(uStr);
+      LogInfo::MapleLogger() << " (";
+      GetNopndAt(i)->Dump(indent + 4); // Increase the indent by 4 bytes.
+      LogInfo::MapleLogger() << ")";
+      if (i != numOpnds - 1) {
+        LogInfo::MapleLogger() << ',';
+      }
+      LogInfo::MapleLogger() << "\n";
+    }
+  }
 }
 
 void AsmNode::Dump(int32 indent) const {
@@ -1242,69 +1306,14 @@ void AsmNode::Dump(int32 indent) const {
   if (GetQualifier(kASMgoto))
     LogInfo::MapleLogger() << " goto";
   LogInfo::MapleLogger() << " { ";
-  EmitStr(&asmString);
+  EmitStr(asmString);
   // print outputs
-  PrintIndentation(indent+1);
-  LogInfo::MapleLogger() << " :";
-  size_t numOutputs = asmOutputs.size();
   std::string uStr;
-  const MIRFunction *mirFunc = theMIRModule->CurFunction();
-  if (numOutputs == 0) {
-    LogInfo::MapleLogger() << '\n';
-  } else {
-    for (size_t i = 0; i < numOutputs; i++) {
-      if (i != 0) {
-        PrintIndentation(indent+2);
-      }
-      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(outputConstraints[i]);
-      PrintString(uStr);
-      LogInfo::MapleLogger() << " ";
-      StIdx stIdx = asmOutputs[i].first;
-      RegFieldPair regFieldPair = asmOutputs[i].second;
-      if (!regFieldPair.IsReg()) {
-        FieldID fieldID = regFieldPair.GetFieldID();
-        LogInfo::MapleLogger() << "dassign";
-        const MIRSymbol *st = mirFunc->GetLocalOrGlobalSymbol(stIdx);
-        ASSERT(st != nullptr, "st is null");
-        LogInfo::MapleLogger() << (stIdx.Islocal() ? " %" : " $");
-        LogInfo::MapleLogger() << st->GetName() << " " << fieldID;
-      } else {
-        PregIdx16 regIdx = regFieldPair.GetPregIdx();
-        const MIRPreg *mirPreg = mirFunc->GetPregItem(static_cast<PregIdx>(regIdx));
-        ASSERT(mirPreg != nullptr, "mirPreg is null");
-        LogInfo::MapleLogger() << "regassign"
-                               << " " << GetPrimTypeName(mirPreg->GetPrimType());
-        LogInfo::MapleLogger() << " %" << mirPreg->GetPregNo();
-      }
-      if (i != numOutputs - 1) {
-        LogInfo::MapleLogger() << ',';
-      }
-      LogInfo::MapleLogger() << '\n';
-    }
-  }
+  DumpOutputs(indent, uStr);
   // print input operands
-  PrintIndentation(indent+1);
-  LogInfo::MapleLogger() << " :";
-  if (numOpnds == 0) {
-    LogInfo::MapleLogger() << '\n';
-  } else {
-    for (size_t i = 0; i < numOpnds; i++) {
-      if (i != 0) {
-        PrintIndentation(indent+2);
-      }
-      uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(inputConstraints[i]);
-      PrintString(uStr);
-      LogInfo::MapleLogger() << " (";
-      GetNopndAt(i)->Dump(indent+4);
-      LogInfo::MapleLogger() << ")";
-      if (i != numOpnds - 1) {
-        LogInfo::MapleLogger() << ',';
-      }
-      LogInfo::MapleLogger() << "\n";
-    }
-  }
-  // print clobber list 
-  PrintIndentation(indent+1);
+  DumpInputOperands(indent, uStr);
+  // print clobber list
+  PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << " :";
   for (size_t i = 0; i < clobberList.size(); i++) {
     uStr = GlobalTables::GetUStrTable().GetStringFromStrIdx(clobberList[i]);
@@ -1315,7 +1324,7 @@ void AsmNode::Dump(int32 indent) const {
   }
   LogInfo::MapleLogger() << '\n';
   // print labels
-  PrintIndentation(indent+1);
+  PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << " :";
   for (size_t i = 0; i < gotoLabels.size(); i++) {
     LabelIdx offset = gotoLabels[i];
@@ -1932,7 +1941,11 @@ bool BinaryNode::Verify() const {
     this->Dump();
   }
   bool comp0Verf = CompatibleTypeVerify(*GetBOpnd(0), *this);
-  bool comp1Verf = CompatibleTypeVerify(*GetBOpnd(1), *this);
+  bool comp1Verf = true;
+  // Shift operations do not require same-type operands
+  if (GetOpCode() < OP_ashr || GetOpCode() > OP_shl) {
+    comp1Verf = CompatibleTypeVerify(*GetBOpnd(1), *this);
+  }
   bool signVerf = true;
   bool typeVerf = resTypeVerf && comp0Verf && comp1Verf;
   if (typeVerf) {
