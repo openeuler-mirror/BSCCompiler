@@ -316,11 +316,13 @@ void SSAEPre::ComputeVarAndDfPhis() {
 }
 
 // build worklist for each expression;
-// isRebuild means the expression is built from second time, in which case,
+// isRebuild means the expression is not built in step 0, in which case,
 // tempVar is not nullptr, and it matches only expressions with tempVar as one of
-// its operands; isRebuild is true only when called from the code motion phase
+// its operands; isRebuild is true only when called from the code motion phase.
+// insertSorted is for passing to CreateRealOcc.  Most of the time, isRebuild implies insertSorted,
+// except when invoked from LFTR.
 void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuild, MeExpr *tempVar,
-                                bool isRootExpr) {
+                                bool isRootExpr, bool insertSorted) {
   if (meExpr.GetTreeID() == (curTreeId + 1)) {
     return;  // already visited twice in the same tree
   }
@@ -333,7 +335,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       for (uint32 i = 0; i < meOpExpr->GetNumOpnds(); i++) {
         MeExpr *opnd = meOpExpr->GetOpnd(i);
         if (!opnd->IsLeaf()) {
-          BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false);
+          BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false, insertSorted);
           isFirstOrder = false;
         } else if (LeafIsVolatile(opnd)) {
           isFirstOrder = false;
@@ -362,7 +364,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       if (isRebuild && !hasTempVarAs1Opnd) {
         break;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+      (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
       break;
     }
     case kMeOpNary: {
@@ -373,7 +375,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       for (auto it = opnds.begin(); it != opnds.end(); ++it) {
         MeExpr *opnd = *it;
         if (!opnd->IsLeaf()) {
-          BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false);
+          BuildWorkListExpr(meStmt, seqStmt, *opnd, isRebuild, tempVar, false, insertSorted);
           isFirstOrder = false;
         } else if (LeafIsVolatile(opnd)) {
           isFirstOrder = false;
@@ -396,11 +398,11 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
           auto *ptrMIRType = static_cast<MIRPtrType*>(mirType);
           MIRJarrayType *arryType = safe_cast<MIRJarrayType>(ptrMIRType->GetPointedType());
           if (arryType == nullptr) {
-            (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+            (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
           } else {
             int dim = arryType->GetDim();  // to compute the dim field
             if (dim <= 1) {
-              (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+              (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
             } else {
               if (GetSSAPreDebug()) {
                 mirModule->GetOut() << "----- real occ suppressed for jarray with dim " << dim << '\n';
@@ -419,7 +421,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
             }
           }
           if (!intrinDesc->IsLoadMem()) {
-            (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+            (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
           }
         }
       }
@@ -432,7 +434,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
         break;
       }
       if (!base->IsLeaf()) {
-        BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), isRebuild, tempVar, false);
+        BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), isRebuild, tempVar, false, insertSorted);
       } else if (ivarMeExpr->IsVolatile()) {
         break;
       } else if (IsThreadObjField(*ivarMeExpr)) {
@@ -442,7 +444,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       } else if (!epreIncludeRef && ivarMeExpr->GetPrimType() == PTY_ref) {
         break;
       } else if (!isRebuild || base->IsUseSameSymbol(*tempVar)) {
-        (void)CreateRealOcc(meStmt, seqStmt, meExpr, isRebuild);
+        (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
       }
       break;
     }

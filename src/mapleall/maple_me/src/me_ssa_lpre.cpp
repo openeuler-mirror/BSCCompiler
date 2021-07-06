@@ -292,7 +292,7 @@ void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
 
 // only handle the leaf of load, because all other expressions has been done by
 // previous SSAPre
-void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool, MeExpr*, bool) {
+void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuild, MeExpr *tmpVar, bool isRootExpr, bool insertSorted) {
   MeExprOp meOp = meExpr.GetMeOp();
   switch (meOp) {
     case kMeOpVar: {
@@ -341,7 +341,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       for (size_t i = 0; i < kOperandNumTernary; ++i) {
         MeExpr *opnd = meOpExpr->GetOpnd(i);
         if (opnd != nullptr) {
-          BuildWorkListExpr(meStmt, seqStmt, *opnd, false, nullptr, false);
+          BuildWorkListExpr(meStmt, seqStmt, *opnd, false, nullptr, false, false);
         }
       }
       break;
@@ -351,13 +351,13 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       MapleVector<MeExpr*> &opnds = naryMeExpr->GetOpnds();
       for (auto it = opnds.begin(); it != opnds.end(); ++it) {
         MeExpr *opnd = *it;
-        BuildWorkListExpr(meStmt, seqStmt, *opnd, false, nullptr, false);
+        BuildWorkListExpr(meStmt, seqStmt, *opnd, false, nullptr, false, false);
       }
       break;
     }
     case kMeOpIvar: {
       auto *ivarMeExpr = static_cast<IvarMeExpr*>(&meExpr);
-      BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), false, nullptr, false);
+      BuildWorkListExpr(meStmt, seqStmt, *ivarMeExpr->GetBase(), false, nullptr, false, false);
       break;
     }
     case kMeOpAddroflabel:
