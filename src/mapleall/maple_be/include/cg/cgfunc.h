@@ -86,7 +86,7 @@ class CGFunc {
   };
 
   CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
-         MapleAllocator &mallocator, uint32 funcId);
+         StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId);
   virtual ~CGFunc();
 
   const std::string &GetName() const {
@@ -266,16 +266,17 @@ class CGFunc {
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
   /* For Neon intrinsics */
-  virtual RegOperand *SelectVectorFromScalar(PrimType pType, BaseNode *arg, Operand *opnd) = 0;
+  virtual RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) = 0;
   virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2,
                                         Operand *o3) = 0;
-  virtual RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src, PrimType sType) = 0;
-  virtual RegOperand *SelectVectorGetLow(PrimType rType, Operand *src, PrimType sType) = 0;
+  virtual RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) = 0;
+  virtual RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) = 0;
   virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
   virtual RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) = 0;
   virtual RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) = 0;
   virtual RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) = 0;
-  virtual RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) = 0;;
+  virtual RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oty1, Operand *o2,
+                                            PrimType oty2, Opcode opc) = 0;;
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1,  Operand *o2, PrimType oty2, Opcode opc) = 0;
@@ -285,7 +286,8 @@ class CGFunc {
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
                                        PrimType oTyp3) = 0;
   virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) = 0;
-  virtual RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Opcode opc) = 0;
+  virtual RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
+                                        PrimType oTyp2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorNot(PrimType rType, Operand *o1) = 0;
   virtual RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) = 0;
 
@@ -704,6 +706,10 @@ class CGFunc {
     return memPool;
   }
 
+  StackMemPool &GetStackMemPool() {
+    return stackMp;
+  }
+
   MapleAllocator *GetFuncScopeAllocator() {
     return funcScopeAllocator;
   }
@@ -930,6 +936,7 @@ class CGFunc {
   CG *cg;
   MIRModule &mirModule;
   MemPool *memPool;
+  StackMemPool &stackMp;
 
   PregIdx GetPseudoRegIdxFromVirtualRegNO(const regno_t vRegNO) const {
     ASSERT(IsVRegNOForPseudoRegister(vRegNO), "");
