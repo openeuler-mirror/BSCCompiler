@@ -1447,6 +1447,11 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
         (IsPossible32BitAddress(node->FromType()) && IsPossible32BitAddress(node->GetPrimType()))) {
       return p; // the cvt is redundant
     }
+  } else if (node->GetOpCode() == OP_cvt && p.second != 0 &&
+             IsUnsignedInteger(node->GetPrimType()) && IsSignedInteger(node->FromType()) &&
+             GetPrimTypeSize(node->GetPrimType()) > GetPrimTypeSize(node->FromType())) {
+    result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(), node->FromType(), p.first);
+    return std::make_pair(result, p.second);
   }
   if (result == nullptr) {
     BaseNode *e = PairToExpr(node->Opnd(0)->GetPrimType(), p);
@@ -1612,6 +1617,13 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // 1 * X --> X
       sum = rp.second;
       result = r;
+    } else if (op == OP_mul && rp.second != 0) {
+      // lConst * (X + konst) -> the pair [(lConst*X), (lConst*konst)]
+      sum = cst * rp.second;
+      if (GetPrimTypeSize(primType) > GetPrimTypeSize(rp.first->GetPrimType())) {
+        rp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, rp.first);
+      }
+      result = NewBinaryNode(node, OP_mul, primType, lConst, rp.first);
     } else if (op == OP_bior && cst == -1) {
       // (-1) | X -> -1
       sum = 0;
@@ -1666,6 +1678,13 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // case [X / 1 = X]
       sum = lp.second;
       result = l;
+    } else if (op == OP_mul && lp.second != 0) {
+      // (X + konst) * rConst -> the pair [(X*rConst), (konst*rConst)]
+      sum = lp.second * cst;
+      if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {
+        lp.first = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, primType, PTY_i32, lp.first);
+      }
+      result = NewBinaryNode(node, OP_mul, primType, lp.first, rConst);
     } else if (op == OP_band && cst == -1) {
       // X & (-1) -> X
       sum = lp.second;
