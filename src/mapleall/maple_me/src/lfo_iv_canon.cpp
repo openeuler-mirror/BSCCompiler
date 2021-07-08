@@ -24,24 +24,9 @@
 //   Architectures and Compilation Techniques (PACT 96), Oct 1996.
 namespace maple {
 using namespace std;
-// check ost is defined as IV, TODO:: use MapleMap for ivvec for quick searching
-bool IVCanon::IsScalarIV(OriginalSt *ost, int32_t *stepVal) {
-  if (ivvec.size() > 0) {
-    for (int32_t i = 0; i < ivvec.size(); i++) {
-      if (ivvec[i]->ost == ost) {
-        if (stepVal) {
-          *stepVal = ivvec[i]->stepValue;
-        }
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 // Resolve value of x; return false if result is not of induction expression
 // form; goal is to resolve to an expression where the only non-constant is
-// philhs or dassign with a known IV
+// philhs
 bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
   switch (x->GetMeOp()) {
   case kMeOpConst: return IsPrimitiveInteger(x->GetPrimType());
@@ -55,14 +40,6 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
       return false;
     }
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-    if (defStmt->GetOp() == OP_dassign) {
-      // defstmt is  %post = i, i is identified as IV
-      // set %post is IV and use i's step value
-      scalar = static_cast<ScalarMeExpr *>(defStmt->GetRHS());
-      if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
-        return true;
-      }
-    }
     return ResolveExprValue(defStmt->GetRHS(), phiLHS);
   }
   case kMeOpOp: {  // restricting to only + and - for now
@@ -97,16 +74,6 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       CHECK_FATAL(scalar->GetDefBy() == kDefByStmt, "ComputeIncrAmt: cannot be here");
       AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-      if (defstmt->GetOp() == OP_dassign) {
-        scalar = static_cast<ScalarMeExpr *>(defstmt->GetRHS());
-        if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
-          int32_t stepVal = 0;
-          if (IsScalarIV(scalar->GetOst(), &stepVal)) {
-            *appearances = 1;
-            return stepVal;
-          }
-        }
-      }
       return ComputeIncrAmt(defstmt->GetRHS(), phiLHS, appearances);
     }
     case kMeOpOp: {
@@ -180,7 +147,7 @@ void IVCanon::FindPrimaryIV() {
           if (laststmt == nullptr || laststmt->GetOp() != OP_dassign ||
               // variable is struct, skip use agg type variable as primary IV
               // because fieldID doesn't store in whileloopinfo
-              (((DassignMeStmt *)laststmt)->GetLHS()->GetOst()->GetFieldID() != 0)) {
+              (static_cast<DassignMeStmt *>(laststmt)->GetLHS()->GetOst()->GetFieldID() != 0)) {
             continue;
           }
           lastdass = static_cast<DassignMeStmt *>(laststmt);
@@ -238,7 +205,7 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
   return false;
 }
 
-static bool compareHasEqual(Opcode op) {
+static bool CompareHasEqual(Opcode op) {
   return (op == OP_le || op == OP_ge);
 }
 
@@ -302,14 +269,6 @@ void IVCanon::ComputeTripCount() {
     }
   }
   if (ivdesc == nullptr || ivdesc->stepValue == 0) {
-    // if test symbol is name %post, try if it could be replaced by other IV
-    if (ivdesc == nullptr) {
-      iv = dynamic_cast<ScalarMeExpr *>(testExpr->GetOpnd(0));
-      if (iv && iv->GetOst() && iv->GetOst()->IsSymbolOst() &&
-          (strncmp(iv->GetOst()->GetMIRSymbol()->GetName().c_str(), "post.", 5) == 0)) {
-      //replaceTestExpr();
-      }
-    }
     return;  // no IV in the termination test
   }
   if (!IsLoopInvariant(testExpr->GetOpnd(1))) {
@@ -332,21 +291,17 @@ void IVCanon::ComputeTripCount() {
   PrimType divPrimType = primTypeUsed;
   if (ivdesc->stepValue < 0) {
     divPrimType = GetSignedPrimType(divPrimType);
-    // simplify tricount if stepValue is -1 and bound is 0
-    if (ivdesc->stepValue == -1 && testExpr->GetOpnd(1)->IsZero() && !compareHasEqual(condbr->GetOpnd()->GetOp())) {
-      tripCount = ivdesc->initExpr;
-      return;
-    }
   }
   // add: t = bound + (stepValue +/-1)
   OpMeExpr add(-1, OP_add, primTypeUsed, 2);
   add.SetOpnd(0, testExpr->GetOpnd(1)); // IV bound
-  if (compareHasEqual(condbr->GetOpnd()->GetOp())) {
+  if (CompareHasEqual(condbr->GetOpnd()->GetOp())) {
     // if cond has equal operand, t = bound + stepValue
     add.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue, primTypeUsed));
   } else {
     add.SetOpnd(1, irMap->CreateIntConstMeExpr(ivdesc->stepValue > 0 ? ivdesc->stepValue - 1
-                                               : ivdesc->stepValue + 1, primTypeUsed));
+                                                                     : ivdesc->stepValue + 1,
+                                               primTypeUsed));
   }
   MeExpr *subx = irMap->HashMeExpr(add);
   if (!ivdesc->initExpr->IsZero()) {
@@ -369,7 +324,7 @@ void IVCanon::ComputeTripCount() {
   if (tripCount && (tripCount->GetOp() == maple::OP_constval)) {
     MIRConst *con =  static_cast<ConstMeExpr *>(tripCount)->GetConstVal();
     MIRIntConst *countval =  static_cast<MIRIntConst *>(con);
-    if ((int32_t)countval->GetValue() < 0) {
+    if (static_cast<int32>(countval->GetValue()) < 0) {
       MIRIntConst *zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, con->GetType());
       tripCount = irMap->CreateConstMeExpr(tripCount->GetPrimType(), *zeroConst);
     }
