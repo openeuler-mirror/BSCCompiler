@@ -1407,6 +1407,9 @@ void SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bool ins
     } else {
       wkCand->AddRealOccAsLast(*newOcc, GetPUIdx());
     }
+    if (strengthReduction && !wkCand->isSRCand && meExpr.StrengthReducible() && meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
+      wkCand->isSRCand = true;
+    }
     return;
   }
   // workcand not yet created; create a new one and add to worklist
