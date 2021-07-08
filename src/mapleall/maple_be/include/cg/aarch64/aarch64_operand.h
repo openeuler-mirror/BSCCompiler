@@ -105,7 +105,6 @@ class AArch64RegOperand : public RegOperand {
     return vecLaneSize;
   }
 
-
   bool operator==(const AArch64RegOperand &opnd) const;
 
   bool operator<(const AArch64RegOperand &opnd) const;
@@ -703,7 +702,18 @@ class AArch64MemOperand : public MemOperand {
     /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
     ASSERT(alignment >= kOffsetAlignmentOf8Bit, "error val:alignment");
     ASSERT(alignment <= kOffsetAlignmentOf64Bit, "error val:alignment");
-    return (kMaxPimms[alignment]);
+    return (kMaxPimm[alignment]);
+  }
+
+  static int32 GetMaxPairPIMM(uint32 dSize) {
+    ASSERT(dSize >= k32BitSize, "error val:dSize");
+    ASSERT(dSize <= k64BitSize, "error val:dSize");
+    ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
+    int32 alignment = GetImmediateOffsetAlignment(dSize);
+    /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
+    ASSERT(alignment >= kOffsetAlignmentOf32Bit, "error val:alignment");
+    ASSERT(alignment <= kOffsetAlignmentOf64Bit, "error val:alignment");
+    return (kMaxPairPimm[alignment - k2BitSize]);
   }
 
   bool IsOffsetMisaligned(uint32 dSize) const {
@@ -777,8 +787,8 @@ class AArch64MemOperand : public MemOperand {
     return addrMode == kAddrModeBOrX;
   }
 
-  void setExtend(ExtendInfo flag) {
-    extend = flag;
+  void UpdateExtend(ExtendInfo flag) {
+    extend = flag | (1 << ShiftAmount());
   }
 
   bool SignedExtend() const {
@@ -836,8 +846,6 @@ class AArch64MemOperand : public MemOperand {
 
   static constexpr int32 kLdpStp64SimmLowerBound = -512;  /* multiple of 8 */
   static constexpr int32 kLdpStp64SimmUpperBound = 504;
-
-  static const int32 kMaxPimms[4];
 
   AArch64AddressingMode addrMode;
 
@@ -1065,6 +1073,41 @@ class CommentOperand : public Operand {
 
  private:
   const MapleString comment;
+};
+
+using StringOperand = CommentOperand;
+
+class ListConstraintOperand : public Operand {
+ public:
+  explicit ListConstraintOperand(MapleAllocator &allocator)
+      : Operand(Operand::kOpdString, 0),
+        stringList(allocator.Adapter()) {};
+
+  ~ListConstraintOperand() override = default;
+
+  void Dump() const override {
+    for (auto *str : stringList) {
+      LogInfo::MapleLogger() << "(" << str->GetComment().c_str() << ")";
+    }
+  }
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<ListConstraintOperand>(*this);
+  }
+
+  bool Less(const Operand &right) const override {
+    /* For different type. */
+    if (opndKind != right.GetKind()) {
+      return opndKind < right.GetKind();
+    }
+
+    ASSERT(false, "We don't need to compare list operand.");
+    return false;
+  }
+
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
+
+  MapleList<StringOperand*> stringList;
 };
 }  /* namespace maplebe */
 namespace std {

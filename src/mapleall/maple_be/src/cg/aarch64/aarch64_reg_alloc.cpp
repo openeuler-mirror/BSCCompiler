@@ -559,6 +559,105 @@ void AArch64RegAllocator::SetupRegLiveness(BB *bb) {
   }
 }
 
+void AArch64RegAllocator::AllocHandleDestList(Insn *insn, Operand *opnd, uint32 idx) {
+  if (!opnd->IsList()) {
+    return;
+  }
+  auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *listOpnds = static_cast<AArch64ListOperand *>(opnd);
+  auto *listOpndsNew =
+      a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+  for (auto *dstOpnd : listOpnds->GetOperands()) {
+    if (allocatedSet.find(dstOpnd) != allocatedSet.end()) {
+      auto &regOpnd = static_cast<RegOperand&>(*dstOpnd);
+      SaveCalleeSavedReg(regOpnd);
+      listOpndsNew->PushOpnd(
+          a64CGFunc->GetOrCreatePhysicalRegisterOperand(
+              regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
+      continue;  /* already allocated */
+    }
+    RegOperand *regOpnd = static_cast<RegOperand *>(AllocDestOpnd(*dstOpnd, *insn));
+    auto physRegno = static_cast<AArch64reg>(regOpnd->GetRegisterNumber());
+    availRegSet[physRegno] = false;
+    (void)liveReg.insert(physRegno);
+    listOpndsNew->PushOpnd(
+        a64CGFunc->GetOrCreatePhysicalRegisterOperand(physRegno, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+  }
+  insn->SetOperand(idx, *listOpndsNew);
+  for (auto *dstOpnd : listOpndsNew->GetOperands()) {
+    ReleaseReg(*dstOpnd);
+  }
+}
+
+void AArch64RegAllocator::AllocHandleDest(Insn *insn, Operand *opnd, uint32 idx) {
+  if (allocatedSet.find(opnd) != allocatedSet.end()) {
+    /* free the live range of this register */
+    auto &regOpnd = static_cast<RegOperand&>(*opnd);
+    SaveCalleeSavedReg(regOpnd);
+    if (insn->IsAtomicStore() || insn->IsSpecialIntrinsic()) {
+      /* remember the physical machine register assigned */
+      regno_t regNO = regOpnd.GetRegisterNumber();
+      rememberRegs.push_back(static_cast<AArch64reg>(regOpnd.IsVirtualRegister() ? regMap[regNO] : regNO));
+    } else if (!insn->IsCondDef()) {
+      uint32 id = GetRegLivenessId(&regOpnd);
+      if (id && (id <= insn->GetId())) {
+        ReleaseReg(regOpnd);
+      }
+    }
+    auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    insn->SetOperand(idx, a64CGFunc->GetOrCreatePhysicalRegisterOperand(
+        regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
+    return;  /* already allocated */
+  }
+
+  if (opnd->IsRegister()) {
+    insn->SetOperand(static_cast<int32>(idx), *AllocDestOpnd(*opnd, *insn));
+    SaveCalleeSavedReg(static_cast<RegOperand&>(*opnd));
+  }
+}
+
+void AArch64RegAllocator::AllocHandleSrcList(Insn *insn, Operand *opnd, uint32 idx) {
+  if (!opnd->IsList()) {
+    return;
+  }
+  auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *listOpnds = static_cast<AArch64ListOperand *>(opnd);
+  auto *listOpndsNew = a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+  for (auto *srcOpnd : listOpnds->GetOperands()) {
+    if (allocatedSet.find(srcOpnd) != allocatedSet.end()) {
+      auto *regOpnd = static_cast<RegOperand *>(srcOpnd);
+      AArch64reg reg = regMap[regOpnd->GetRegisterNumber()];
+      availRegSet[reg] = false;
+      (void)liveReg.insert(reg);  /* this register is live now */
+      listOpndsNew->PushOpnd(
+          a64CGFunc->GetOrCreatePhysicalRegisterOperand(reg, regOpnd->GetSize(), regOpnd->GetRegisterType()));
+      continue;  /* already allocated */
+    }
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    RegOperand *regOpnd = static_cast<RegOperand *>(AllocSrcOpnd(*srcOpnd, md->operand[idx]));
+    CHECK_NULL_FATAL(regOpnd);
+    listOpndsNew->PushOpnd(*regOpnd);
+  }
+  insn->SetOperand(idx, *listOpndsNew);
+}
+
+void AArch64RegAllocator::AllocHandleSrc(Insn *insn, Operand *opnd, uint32 idx) {
+  if (allocatedSet.find(opnd) != allocatedSet.end() && opnd->IsRegister()) {
+    auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    auto *regOpnd = static_cast<RegOperand *>(opnd);
+    AArch64reg reg = regMap[regOpnd->GetRegisterNumber()];
+    availRegSet[reg] = false;
+    (void)liveReg.insert(reg);  /* this register is live now */
+    insn->SetOperand(idx, a64CGFunc->GetOrCreatePhysicalRegisterOperand(reg, regOpnd->GetSize(),
+                                                                      regOpnd->GetRegisterType()));
+  } else {
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    Operand *srcOpnd = AllocSrcOpnd(*opnd, md->operand[idx]);
+    CHECK_NULL_FATAL(srcOpnd);
+    insn->SetOperand(idx, *srcOpnd);
+  }
+}
+
 bool DefaultO0RegAllocator::AllocateRegisters() {
   InitAvailReg();
   PreAllocate();
@@ -586,7 +685,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
 
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
 
-      if (md->IsCall() && (insn->GetMachineOpcode() != MOP_clinit)) {
+      if (md->IsCall() && (insn->GetMachineOpcode() != MOP_clinit) && (insn->GetMachineOpcode() != MOP_asm)) {
         AllocHandleCallee(*insn, *md);
         continue;
       }
@@ -594,50 +693,27 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {  /* the dest registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef()) {
+        if (!static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef() && (!md->IsCall() || i != 1)) {
+          /* a call here means it is an inline asm */
           continue;
         }
-        if (allocatedSet.find(&opnd) != allocatedSet.end()) {
-          /* free the live range of this register */
-          auto &regOpnd = static_cast<RegOperand&>(opnd);
-          SaveCalleeSavedReg(regOpnd);
-          if (insn->IsAtomicStore() || insn->IsSpecialIntrinsic()) {
-            /* remember the physical machine register assigned */
-            regno_t regNO = regOpnd.GetRegisterNumber();
-            rememberRegs.push_back(static_cast<AArch64reg>(regOpnd.IsVirtualRegister() ? regMap[regNO] : regNO));
-          } else if (!insn->IsCondDef()) {
-            uint32 id = GetRegLivenessId(&regOpnd);
-            if (id && (id <= insn->GetId())) {
-              ReleaseReg(regOpnd);
-            }
-          }
-          insn->SetOperand(i, a64CGFunc->GetOrCreatePhysicalRegisterOperand(
-              regMap[regOpnd.GetRegisterNumber()], regOpnd.GetSize(), regOpnd.GetRegisterType()));
-          continue;  /* already allocated */
-        }
-
-        if (opnd.IsRegister()) {
-          insn->SetOperand(static_cast<int32>(i), *AllocDestOpnd(opnd, *insn));
-          SaveCalleeSavedReg(static_cast<RegOperand&>(opnd));
+        if (opnd.IsList()) {
+          AllocHandleDestList(insn, &opnd, i);
+        } else {
+          AllocHandleDest(insn, &opnd, i);
         }
       }
 
       for (uint32 i = 0; i < opndNum; ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!(static_cast<AArch64OpndProp*>(md->operand[i])->IsRegUse() || opnd.GetKind() == Operand::kOpdMem)) {
+        if (!(static_cast<AArch64OpndProp*>(md->operand[i])->IsRegUse() || opnd.GetKind() == Operand::kOpdMem) &&
+            (!insn->IsCall() || i != 2)) {
           continue;
         }
-        if (allocatedSet.find(&opnd) != allocatedSet.end() && opnd.IsRegister()) {
-          auto &regOpnd = static_cast<RegOperand&>(opnd);
-          AArch64reg reg = regMap[regOpnd.GetRegisterNumber()];
-          availRegSet[reg] = false;
-          (void)liveReg.insert(reg);  /* this register is live now */
-          insn->SetOperand(i, a64CGFunc->GetOrCreatePhysicalRegisterOperand(reg, regOpnd.GetSize(),
-                                                                            regOpnd.GetRegisterType()));
+        if (opnd.IsList()) {
+          AllocHandleSrcList(insn, &opnd, i);
         } else {
-          Operand *srcOpnd = AllocSrcOpnd(opnd, md->operand[i]);
-          CHECK_NULL_FATAL(srcOpnd);
-          insn->SetOperand(i, *srcOpnd);
+          AllocHandleSrc(insn, &opnd, i);
         }
       }
       /* hack. a better way to handle intrinsics? */
