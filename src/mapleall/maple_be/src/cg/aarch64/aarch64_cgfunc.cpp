@@ -1071,6 +1071,27 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
+static char *GetRegPrefixFromPrimType(PrimType pType, uint32 size) {
+  static char str[2];
+  if (IsPrimitiveVector(pType)) {
+   str[0] = 'v';
+  } else if (IsPrimitiveInteger(pType)) {
+    if (size == k32BitSize) {
+      str[0] = 'w';
+    } else {
+      str[0] = 'x';
+    }
+  } else {
+    if (size == k32BitSize) {
+      str[0] = 's';
+    } else {
+      str[0] = 'd';
+    }
+  }
+  str[1] = '\0';
+  return str;
+}
+
 void AArch64CGFunc::SelectAsm(AsmNode &node) {
   Operand *asmString = &CreateStringOperand(node.asmString);
   AArch64ListOperand *listInputOpnd = memPool->New<AArch64ListOperand>(*GetFuncScopeAllocator());
@@ -1078,6 +1099,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
   AArch64ListOperand *listClobber = memPool->New<AArch64ListOperand>(*GetFuncScopeAllocator());
   ListConstraintOperand *listInConstraint = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
   ListConstraintOperand *listOutConstraint = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
+  ListConstraintOperand *listInRegPrefix = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
+  ListConstraintOperand *listOutRegPrefix = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
   if (node.asmString.find('$') == std::string::npos) {
     /* no replacements */
     return;
@@ -1093,6 +1116,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       DreadNode &dread = static_cast<DreadNode&>(*node.Opnd(i));
       Operand *inOpnd = SelectDread(node, dread);
       listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
+      PrimType pType = dread.GetPrimType();
+      listInRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize()))));
       break;
     }
     default:
@@ -1106,6 +1131,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
   intrnOpnds.emplace_back(listClobber);
   intrnOpnds.emplace_back(listOutConstraint);
   intrnOpnds.emplace_back(listInConstraint);
+  intrnOpnds.emplace_back(listOutRegPrefix);
+  intrnOpnds.emplace_back(listInRegPrefix);
   Insn *asmInsn = &GetCG()->BuildInstruction<AArch64Insn>(MOP_asm, intrnOpnds);
   GetCurBB()->AppendInsn(*asmInsn);
 
@@ -1126,7 +1153,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       if (GetPrimTypeBitSize(destType) < k32BitSize) {
         destType = IsSignedInteger(destType) ? PTY_i32 : PTY_u32;
       }
-      RegType rtype = GetRegTyFromPrimTy(srcType);//IsPrimitiveInteger(srcType) ? kRegTyInt : kRegTyFloat;
+      RegType rtype = GetRegTyFromPrimTy(srcType);
       RegOperand *opnd0 = &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
       SelectCopy(*outOpnd, destType, *opnd0, srcType);
       if (pregIdx >= 0) {
@@ -1136,6 +1163,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(srcBitLength, stype), *outOpnd, *dest));
       }
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
+      listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize()))));
     } else {
       MIRSymbol *var;
       if (stIdx.IsGlobal()) {
@@ -1145,16 +1173,20 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       CHECK_FATAL(var != nullptr, "var should not be nullptr");
       PrimType pty = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
-      RegType rtype = GetRegTyFromPrimTy(pty);//IsPrimitiveInteger(pty) ? kRegTyInt : kRegTyFloat;
+      RegType rtype = GetRegTyFromPrimTy(pty);
       RegOperand *outOpnd = &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(pty)));
       SaveReturnValueInLocal(node.asmOutputs, i, PTY_a64, *outOpnd, node);
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
+      listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, outOpnd->GetSize()))));
     }
   }
   /* process listClobber */
   for (size_t i = 0; i < node.clobberList.size(); ++i) {
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(node.clobberList[i]);
     regno_t regno = str[1] - '0';
+    if (str[2] >= '0' && str[2] <= '9') {
+      regno = regno * 10 + (str[2] - '0');
+    }
     RegOperand *reg;
     switch (str[0]) {
     case 'w':
