@@ -112,6 +112,9 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrinopNode, std::string name) override;
   Operand *SelectCclz(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCctz(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCparity(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCclrsb(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 
@@ -235,23 +238,27 @@ class AArch64CGFunc : public CGFunc {
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
   RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
-  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2, Operand *o3) override;
+  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
+                                PrimType typ2, Operand *o3) override;
   RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
   RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) override;
   RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
-  RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2, PrimType oTyp2, Opcode opc) override;
+  RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2,
+                                    PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) override;
   RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
-  RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3, PrimType oTyp3) override;
+  RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
+                               Operand *o3, PrimType oTyp3) override;
   RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
-  RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Opcode opc) override;
+  RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
+                                PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorNot(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) override;
 
@@ -382,6 +389,14 @@ class AArch64CGFunc : public CGFunc {
 
   Operand &CreateCommentOperand(const MapleString &s) {
     return *memPool->New<CommentOperand>(s.c_str(), *memPool);
+  }
+
+  Operand &CreateStringOperand(const std::string &s) {
+    return *memPool->New<StringOperand>(s, *memPool);
+  }
+
+  Operand &CreateStringOperand(const MapleString &s) {
+    return *memPool->New<StringOperand>(s.c_str(), *memPool);
   }
 
   void AddtoCalleeSaved(AArch64reg reg) {
