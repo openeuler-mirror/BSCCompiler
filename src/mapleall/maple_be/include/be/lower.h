@@ -163,7 +163,8 @@ class CGLowerer {
   virtual BlockNode *LowerReturn(NaryStmtNode &retNode);
   void LowerEntry(MIRFunction &func);
 
-  StmtNode *LowerCall(CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retty = nullptr, bool uselvar = false);
+  StmtNode *LowerCall(
+      CallNode &call, StmtNode *&stmt, BlockNode &block, MIRType *retty = nullptr, bool uselvar = false);
   void SplitCallArg(CallNode &callNode, BaseNode *newOpnd, size_t i, BlockNode &newBlk);
 
   void CleanupBranches(MIRFunction &func) const;
@@ -174,6 +175,8 @@ class CGLowerer {
 
   StmtNode *LowerDassignBitfield(DassignNode &dassign, BlockNode &block);
   StmtNode *LowerIassignBitfield(IassignNode &iassign, BlockNode &block);
+
+  void LowerAsmStmt(AsmNode *asmNode, BlockNode *blk);
 
   bool ShouldOptarray() const {
     ASSERT(mirModule.CurFunction() != nullptr, "nullptr check");
