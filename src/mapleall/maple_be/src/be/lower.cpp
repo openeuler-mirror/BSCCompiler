@@ -1009,8 +1009,9 @@ static GStrIdx NewAsmTempStrIdx() {
 
 void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
   for (size_t i = 0; i < asmNode->NumOpnds(); i++) {
-    BaseNode *opnd = asmNode->Opnd(i);
+    BaseNode *opnd = LowerExpr(*asmNode, *asmNode->Opnd(i), *newBlk);
     if (opnd->NumOpnds() == 0) {
+      asmNode->SetOpnd(opnd, i);
       continue;
     }
     // introduce a temporary to store the expression tree operand
