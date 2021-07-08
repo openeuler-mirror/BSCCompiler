@@ -56,8 +56,7 @@ int32 GetPrimitiveTypeSize(const std::string &name) {
       return -1;
   }
 }
-
-DBGDieAttr *LFindAttribute(MapleVector<DBGDieAttr *> &vec, DwAt key) {
+DBGDieAttr *LFindAttribute(MapleVector<DBGDieAttr*> &vec, DwAt key) {
   for (DBGDieAttr *at : vec)
     if (at->GetDwAt() == key) {
       return at;
@@ -65,7 +64,7 @@ DBGDieAttr *LFindAttribute(MapleVector<DBGDieAttr *> &vec, DwAt key) {
   return nullptr;
 }
 
-DBGAbbrevEntry *LFindAbbrevEntry(MapleVector<DBGAbbrevEntry *> &abbvec, unsigned int key) {
+DBGAbbrevEntry *LFindAbbrevEntry(MapleVector<DBGAbbrevEntry*> &abbvec, unsigned int key) {
   for (DBGAbbrevEntry *daie : abbvec) {
     if (!daie) {
       continue;
@@ -79,14 +78,10 @@ DBGAbbrevEntry *LFindAbbrevEntry(MapleVector<DBGAbbrevEntry *> &abbvec, unsigned
 }
 
 bool LShouldEmit(unsigned int dwform) {
-  switch (dwform) {
-    case DW_FORM_flag_present:
-      return false;
-  }
-  return true;
+  return dwform != DW_FORM_flag_present;
 }
 
-DBGDie *LFindChildDieWithName(DBGDie *die, DwTag tag, GStrIdx key) {
+DBGDie *LFindChildDieWithName(DBGDie *die, DwTag tag, const GStrIdx key) {
   for (DBGDie *c : die->GetSubDieVec()) {
     if (c->GetTag() == tag) {
       for (DBGDieAttr *a : c->GetAttrVec()) {
@@ -112,9 +107,8 @@ DBGDieAttr *LFindDieAttr(DBGDie *die, DwAt attrname) {
   return nullptr;
 }
 
-static void LUpdateAttrValue(DBGDieAttr *attr, int64_t newval, DBGAbbrevEntry *diae) {
+static void LUpdateAttrValue(DBGDieAttr *attr, int64_t newval) {
   attr->SetI(int32_t(newval));
-  return;
 }
 }
 
@@ -141,8 +135,8 @@ void Emitter::EmitLabelPair(const LabelPair &pairLabel) {
   outStream << "\n";
 }
 
-void Emitter::EmitLabelForFunc(MIRFunction *func, LabelIdx labidx) {
-  const char *idx = static_cast<const char*>(strdup(std::to_string(func->GetPuidx()).c_str()));
+void Emitter::EmitLabelForFunc(const MIRFunction *func, LabelIdx labidx) {
+  const std::string idx = static_cast<const std::string>(strdup(std::to_string(func->GetPuidx()).c_str()));
   outStream << ".L." << idx << "__" << labidx;
 }
 
@@ -2771,8 +2765,7 @@ LabelIdx Emitter::GetLabelIdxForLabelDie(DBGDie *lbldie) {
   return it->second;
 }
 
-
-void Emitter::ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie *)> &func) {
+void Emitter::ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie*)> &func) {
   func(die);
   ASSERT(die, "");
   if (die->GetSubDieVec().size() > 0) {
@@ -2815,14 +2808,14 @@ void Emitter::EmitDIFormSpecification(unsigned int dwform) {
       break;
     default:
       CHECK_FATAL(maple::GetDwFormName(dwform) != nullptr,
-             "GetDwFormName() return null in Emitter::EmitDIFormSpecification");
+                  "GetDwFormName() return null in Emitter::EmitDIFormSpecification");
       LogInfo::MapleLogger() << "unhandled : " << maple::GetDwFormName(dwform) << std::endl;
       ASSERT(0, "NYI");
   }
 }
 
 void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di) {
-  MapleVector<DBGDieAttr *> &attrvec = die->GetAttrVec();
+  MapleVector<DBGDieAttr*> &attrvec = die->GetAttrVec();
 
   switch (attr->GetDwForm()) {
     case DW_FORM_string: {
@@ -2841,7 +2834,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         EmitHexUnsigned(attr->GetI());
       } else
 #endif
-        EmitHexUnsigned(uint8_t(attr->GetI()));
+      EmitHexUnsigned(uint8_t(attr->GetI()));
       break;
     case DW_FORM_data2:
 #if DEBUG
@@ -2849,7 +2842,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         EmitHexUnsigned(attr->GetI());
       } else
 #endif
-        EmitHexUnsigned(uint16_t(attr->GetI()));
+      EmitHexUnsigned(uint16_t(attr->GetI()));
       break;
     case DW_FORM_data4:
 #if DEBUG
@@ -2857,7 +2850,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
         EmitHexUnsigned(attr->GetI());
       } else
 #endif
-        EmitHexUnsigned(uint32_t(attr->GetI()));
+      EmitHexUnsigned(uint32_t(attr->GetI()));
       break;
     case DW_FORM_data8:
       if (attrName == DW_AT_high_pc) {
@@ -2876,8 +2869,8 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
 
           MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
           MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
-          MapleMap<MIRFunction*, std::pair<LabelIdx,LabelIdx> >::iterator it =
-            CG::GetFuncWrapLabels().find(mfunc);
+          MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator it =
+              CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
             EmitLabelForFunc(mfunc, (*it).second.second);  /* end label */
           } else {
@@ -2919,8 +2912,8 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           const std::string &str = GlobalTables::GetStrTable().GetStringFromStrIdx(name->GetId());
           MIRBuilder *mirbuilder = GetCG()->GetMIRModule()->GetMIRBuilder();
           MIRFunction *mfunc = mirbuilder->GetFunctionFromName(str);
-          MapleMap<MIRFunction*, std::pair<LabelIdx,LabelIdx> >::iterator
-          it = CG::GetFuncWrapLabels().find(mfunc);
+          MapleMap<MIRFunction*, std::pair<LabelIdx, LabelIdx> >::iterator
+              it = CG::GetFuncWrapLabels().find(mfunc);
           if (it != CG::GetFuncWrapLabels().end()) {
             EmitLabelForFunc(mfunc, (*it).second.first);  /* it is a <pair> */
           } else {
@@ -2952,20 +2945,20 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       break;
     case DW_FORM_ref4:
       if (attrName == DW_AT_type) {
-        DBGDie *die = di->GetDie(attr->GetU());
-        if (die->GetOffset()) {
-          EmitHexUnsigned(die->GetOffset());
+        DBGDie *die0 = di->GetDie(attr->GetU());
+        if (die0->GetOffset()) {
+          EmitHexUnsigned(die0->GetOffset());
         } else {
           /* unknown type, missing mplt */
           EmitHexUnsigned(di->GetDummyTypeDie()->GetOffset());
           Emit(CMNT "Warning: dummy type used");
         }
       } else if (attrName == DW_AT_specification || attrName == DW_AT_sibling) {
-        DBGDie *die = di->GetDie(attr->GetU());
-        ASSERT(die->GetOffset(), "");
-        EmitHexUnsigned(die->GetOffset());
+        DBGDie *die0 = di->GetDie(attr->GetU());
+        ASSERT(die0->GetOffset(), "");
+        EmitHexUnsigned(die0->GetOffset());
       } else if (attrName == DW_AT_object_pointer) {
-        GStrIdx thisIdx = GlobalTables::GetStrTable().GetStrIdxFromName(DEBUG_MAPLE_THIS);
+        GStrIdx thisIdx = GlobalTables::GetStrTable().GetStrIdxFromName(kDebugMapleThis);
         DBGDie *that = LFindChildDieWithName(die, DW_TAG_formal_parameter, thisIdx);
         /* need to find the this or self based on the source language
            what is the name for 'this' used in mapleir?
@@ -2989,7 +2982,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           EmitHexUnsigned(elp->GetOp());
           break;
         case DW_OP_addr:
-          EmitHexUnsigned(9);
+          EmitHexUnsigned(k9ByteSize);
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
           Emit("\n\t.8byte   ");
@@ -3009,7 +3002,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
     } break;
     default:
       CHECK_FATAL(maple::GetDwFormName(attr->GetDwForm()) != nullptr,
-             "GetDwFormName return null in Emitter::EmitDIAttrValue");
+                  "GetDwFormName return null in Emitter::EmitDIAttrValue");
       LogInfo::MapleLogger() << "unhandled : " << maple::GetDwFormName(attr->GetDwForm()) << std::endl;
       ASSERT(0, "NYI");
   }
@@ -3026,11 +3019,16 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
   EmitHexUnsigned(mirdi->GetDebugInfoLength());
   Emit(CMNT "section length\n");
   /* DWARF version. uhalf. */
-  Emit("\t.2byte\t0x" XSTR(DWARF_VERSION) "\n");  /* 4 for version 4. */
+  Emit("\t.2byte\t");
+  /* 4 for version 4. */
+  EmitHexUnsigned(kDwarfVersion);
+  Emit("\n");
   /* debug_abbrev_offset. 4byte for 32-bit, 8byte for 64-bit */
   Emit("\t.4byte\t.L" XSTR(DEBUG_ABBREV_0) "\n");
   /* address size. ubyte */
-  Emit("\t.byte\t0x" XSTR(SIZEOFPTR) "\n");
+  Emit("\t.byte\t");
+  EmitHexUnsigned(kSizeOfPTR);
+  Emit("\n");
   /*
    * 7.5.1.2 type unit header
    * currently empty...
@@ -3038,7 +3036,7 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
    * 7.5.2 Debugging Information Entry (DIE)
    */
   Emitter *emitter = this;
-  MapleVector<DBGAbbrevEntry *> &abbrevVec = mirdi->GetAbbrevVec();
+  MapleVector<DBGAbbrevEntry*> &abbrevVec = mirdi->GetAbbrevVec();
   ApplyInPrefixOrder(mirdi->GetCompUnit(), [&abbrevVec, &emitter, &mirdi](DBGDie *die) {
     if (!die) {
       /* emit the null entry and return */
@@ -3054,7 +3052,7 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
     if (verbose) {
       emitter->Emit(CMNT);
       CHECK_FATAL(maple::GetDwTagName(die->GetTag()) != nullptr,
-             "GetDwTagName(die->GetTag()) return null in Emitter::EmitDIDebugInfoSection");
+                  "GetDwTagName(die->GetTag()) return null in Emitter::EmitDIDebugInfoSection");
       emitter->Emit(maple::GetDwTagName(die->GetTag()));
       emitter->Emit(" Offset= ");
       emitter->EmitHexUnsigned(die->GetOffset());
@@ -3075,16 +3073,16 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
     std::string sfile, spath;
     if (diae->GetTag() == DW_TAG_compile_unit && sfile.empty()) {
       /* get full source path from fileMap[2] */
-      if (emitter->GetFileMap().size() > 2) {  /* have src file map */
-        std::string srcPath = emitter->GetFileMap()[2];
+      if (emitter->GetFileMap().size() > k2ByteSize) {  /* have src file map */
+        std::string srcPath = emitter->GetFileMap()[k2ByteSize];
         size_t t = srcPath.rfind("/");
         ASSERT(t != std::string::npos, "");
-        sfile = srcPath.substr(t+1);
+        sfile = srcPath.substr(t + 1);
         spath = srcPath.substr(0, t);
       }
     }
 
-    for (int i = 0; i < diae->GetAttrPairs().size(); i += 2) {
+    for (int i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       DBGDieAttr *attr = LFindAttribute(die->GetAttrVec(), DwAt(apl[i]));
       if (!LShouldEmit(unsigned(apl[i + 1]))) {
         continue;
@@ -3148,7 +3146,7 @@ void Emitter::EmitDIDebugAbbrevSection(DebugInfo *mirdi) {
     Emit("\t.uleb128 ");
     EmitHexUnsigned(diae->GetTag());
     CHECK_FATAL(maple::GetDwTagName(diae->GetTag()) != nullptr,
-           "GetDwTagName return null in Emitter::EmitDIDebugAbbrevSection");
+                "GetDwTagName return null in Emitter::EmitDIDebugAbbrevSection");
     if (verbose) {
       Emit(CMNT);
       Emit(maple::GetDwTagName(diae->GetTag()));
@@ -3164,12 +3162,12 @@ void Emitter::EmitDIDebugAbbrevSection(DebugInfo *mirdi) {
     }
     Emit("\n");
 
-    for (int i = 0; i < diae->GetAttrPairs().size(); i += 2) {
+    for (int i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       /* odd entry -- DW_AT_*, even entry -- DW_FORM_* */
       Emit("\t.uleb128 ");
       EmitHexUnsigned(apl[i]);
       CHECK_FATAL(maple::GetDwAtName(unsigned(apl[i])) != nullptr,
-             "GetDwAtName return null in Emitter::EmitDIDebugAbbrevSection");
+                  "GetDwAtName return null in Emitter::EmitDIDebugAbbrevSection");
       if (verbose) {
         Emit(CMNT);
         Emit(maple::GetDwAtName(unsigned(apl[i])));
@@ -3178,7 +3176,7 @@ void Emitter::EmitDIDebugAbbrevSection(DebugInfo *mirdi) {
       Emit("\t.uleb128 ");
       EmitHexUnsigned(apl[i + 1]);
       CHECK_FATAL(maple::GetDwFormName(unsigned(apl[i + 1])) != nullptr,
-             "GetDwFormName return null in Emitter::EmitDIDebugAbbrevSection");
+                  "GetDwFormName return null in Emitter::EmitDIDebugAbbrevSection");
       if (verbose) {
         Emit(CMNT);
         Emit(maple::GetDwFormName(unsigned(apl[i + 1])));
@@ -3216,37 +3214,39 @@ void Emitter::EmitDIDebugStrSection() {
   }
 }
 
-void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr, DBGAbbrevEntry *diae) {
+void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) {
   ASSERT(byteSizeAttr->GetDwForm() == DW_FORM_data1 || byteSizeAttr->GetDwForm() == DW_FORM_data2 ||
-              byteSizeAttr->GetDwForm() == DW_FORM_data4 || byteSizeAttr->GetDwForm() == DW_FORM_data8,
-            "Unknown FORM value for DW_AT_byte_size");
+         byteSizeAttr->GetDwForm() == DW_FORM_data4 || byteSizeAttr->GetDwForm() == DW_FORM_data8,
+         "Unknown FORM value for DW_AT_byte_size");
   if (byteSizeAttr->GetI() == static_cast<uint32>(kDbgDefaultVal)) {
     /* get class size */
     DBGDieAttr *nameAttr = LFindDieAttr(die, DW_AT_name);
     CHECK_FATAL(nameAttr != nullptr, "name_attr is nullptr in Emitter::FillInClassByteSize");
+    /* hope this is a global string index as it is a type name */
     TyIdx tyIdx =
-      GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(nameAttr->GetId()));  /* hope this is a global string index as it is a type name */
-    CHECK_FATAL(tyIdx.GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(), "index out of range in Emitter::FillInClassByteSize");
+        GlobalTables::GetTypeNameTable().GetTyIdxFromGStrIdx(GStrIdx(nameAttr->GetId()));
+    CHECK_FATAL(tyIdx.GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfTypeSizeTable(),
+                "index out of range in Emitter::FillInClassByteSize");
     int64_t byteSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(tyIdx.GetIdx());
-    LUpdateAttrValue(byteSizeAttr, byteSize, diae);
+    LUpdateAttrValue(byteSizeAttr, byteSize);
   }
 }
 
 void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
   Emitter *emitter = this;
-  MapleVector<DBGAbbrevEntry *> &abbrevVec = mirdi->GetAbbrevVec();
+  MapleVector<DBGAbbrevEntry*> &abbrevVec = mirdi->GetAbbrevVec();
   ApplyInPrefixOrder(mirdi->GetCompUnit(), [&abbrevVec, &emitter](DBGDie *die) {
     if (!die) {
       return;
     }
 
     CHECK_FATAL(maple::GetDwTagName(die->GetTag()) != nullptr,
-           "maple::GetDwTagName(die->GetTag()) is nullptr in Emitter::SetupDBGInfo");
+                "maple::GetDwTagName(die->GetTag()) is nullptr in Emitter::SetupDBGInfo");
     if (die->GetAbbrevId() == 0) {
       LogInfo::MapleLogger() << maple::GetDwTagName(die->GetTag()) << std::endl;
     }
     CHECK_FATAL(die->GetAbbrevId() < abbrevVec.size(), "index out of range in Emitter::SetupDBGInfo");
-    ASSERT(abbrevVec[die->GetAbbrevId()]->GetAbbrevId()== die->GetAbbrevId(), "");
+    ASSERT(abbrevVec[die->GetAbbrevId()]->GetAbbrevId() == die->GetAbbrevId(), "");
     DBGAbbrevEntry *diae = abbrevVec[die->GetAbbrevId()];
     switch (diae->GetTag()) {
       case DW_TAG_subprogram: {
@@ -3259,7 +3259,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
       case DW_TAG_interface_type: {
         DBGDieAttr *byteSizeAttr = LFindDieAttr(die, DW_AT_byte_size);
         if (byteSizeAttr) {
-          emitter->FillInClassByteSize(die, byteSizeAttr, diae);
+          emitter->FillInClassByteSize(die, byteSizeAttr);
         }
         /* get the name */
         DBGDieAttr *atName = LFindDieAttr(die, DW_AT_name);
@@ -3269,14 +3269,16 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         MIRType *mty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ctyIdx);
         MIRStructType *sty = static_cast<MIRStructType *>(mty);
         CHECK_FATAL(sty != nullptr, "pointer cast failed");
-        CHECK_FATAL(sty->GetTypeIndex().GetIdx() < Globals::GetInstance()->GetBECommon()->GetSizeOfStructFieldCountTable(), "");
+        CHECK_FATAL(sty->GetTypeIndex().GetIdx() <
+                    Globals::GetInstance()->GetBECommon()->GetSizeOfStructFieldCountTable(), "");
         int embeddedIDs = 0;
         MIRStructType *prevSubstruct = nullptr;
         for (int i = 0; i < sty->GetFields().size(); i++) {
           TyIdx fieldtyidx = sty->GetFieldsElemt(i).second.first;
           MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldtyidx);
           if (prevSubstruct) {
-            embeddedIDs += Globals::GetInstance()->GetBECommon()->GetStructFieldCount(prevSubstruct->GetTypeIndex().GetIdx());
+            embeddedIDs +=
+                Globals::GetInstance()->GetBECommon()->GetStructFieldCount(prevSubstruct->GetTypeIndex().GetIdx());
           }
           prevSubstruct = fieldty->EmbeddedStructType();
           FieldID fieldID = i + embeddedIDs + 1;
@@ -3288,7 +3290,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
           CHECK_FATAL(mloc != nullptr, "mloc is null in Emitter::SetupDBGInfo");
           DBGAbbrevEntry *childDiae = abbrevVec[cdie->GetAbbrevId()];
           CHECK_FATAL(childDiae != nullptr, "child_diae is null in Emitter::SetupDBGInfo");
-          LUpdateAttrValue(mloc, offset, childDiae);
+          LUpdateAttrValue(mloc, offset);
         }
       } break;
       default:
@@ -3307,7 +3309,7 @@ void Emitter::EmitHugeSoRoutines(bool lastRoutine) {
   }
   for (auto &target : hugeSoTargets) {
     (void)Emit("\t.section ." + std::string(namemangler::kMuidJavatextPrefixStr) + ",\"ax\"\n");
-    Emit("\t.align 2\n");
+    Emit("\t.align 3\n");
     std::string routineName = target + HugeSoPostFix();
     Emit("\t.type\t" + routineName + ", %function\n");
     Emit(routineName + ":\n");
@@ -3332,4 +3334,4 @@ void LabelOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
 void LabelOperand::Dump() const {
   LogInfo::MapleLogger() << "label:" << labelIndex;
 }
-} /* namespace maplebe */
+}  /* namespace maplebe */
