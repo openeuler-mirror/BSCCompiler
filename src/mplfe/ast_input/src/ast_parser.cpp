@@ -579,16 +579,20 @@ ASTStmt *ASTParser::ProcessStmtDeclStmt(MapleAllocator &allocator, const clang::
   return astStmt;
 }
 
-ASTValue *ASTParser::TranslateRValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const {
+ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const {
   ASTValue *astValue = nullptr;
   clang::Expr::EvalResult result;
+  if (expr->getStmtClass() == clang::Stmt::StringLiteralClass &&
+      expr->EvaluateAsLValue(result, *(astFile->GetContext()))) {
+    return TranslateLValue2ASTValue(allocator, result, expr);
+  }
   if (expr->EvaluateAsRValue(result, *(astFile->GetContext()))) {
-    astValue = AllocASTValue(allocator);
     if (result.Val.isLValue()) {
-      return astValue;
+      return TranslateLValue2ASTValue(allocator, result, expr);
     }
     auto *constMirType = astFile->CvtType(expr->getType().getCanonicalType());
     if (result.Val.isInt()) {
+      astValue = AllocASTValue(allocator);
       switch (constMirType->GetPrimType()) {
         case PTY_i8:
           astValue->val.i8 = static_cast<int8>(result.Val.getInt().getExtValue());
@@ -642,6 +646,7 @@ ASTValue *ASTParser::TranslateRValue2ASTValue(MapleAllocator &allocator, const c
         }
       }
     } else if (result.Val.isFloat()) {
+      astValue = AllocASTValue(allocator);
       llvm::APFloat fValue = result.Val.getFloat();
       llvm::APFloat::Semantics semantics = llvm::APFloatBase::SemanticsToEnum(fValue.getSemantics());
       switch (semantics) {
@@ -682,64 +687,67 @@ ASTValue *ASTParser::TranslateRValue2ASTValue(MapleAllocator &allocator, const c
   return astValue;
 }
 
-ASTValue *ASTParser::TranslateLValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const {
+ASTValue *ASTParser::TranslateLValue2ASTValue(
+    MapleAllocator &allocator, const clang::Expr::EvalResult &result, const clang::Expr *expr) const {
   ASTValue *astValue = nullptr;
-  clang::Expr::EvalResult result;
-  if (expr->EvaluateAsLValue(result, *(astFile->GetContext()))) {
-    astValue = AllocASTValue(allocator);
-    const clang::APValue::LValueBase &lvBase = result.Val.getLValueBase();
-    if (lvBase.is<const clang::Expr*>()) {
-      const clang::Expr *lvExpr = lvBase.get<const clang::Expr*>();
-      if (lvExpr == nullptr) {
-        return astValue;
-      }
-      if (expr->getStmtClass() == clang::Stmt::MemberExprClass) {
-        // meaningless, just for Initialization
-        astValue->pty = PTY_i32;
-        astValue->val.i64 = 0;
-        return astValue;
-      }
-      astValue->pty = PTY_a64;
-      switch (lvExpr->getStmtClass()) {
-        case clang::Stmt::StringLiteralClass: {
-          const clang::StringLiteral &strExpr = llvm::cast<const clang::StringLiteral>(*lvExpr);
-          std::string str = "";
-          if (strExpr.isWide()) {
-            for (uint32 i = 0; i < strExpr.getLength(); ++i) {
-              str += std::to_string(strExpr.getCodeUnit(i));
-            }
-          } else {
-            str = strExpr.getString().str();
-          }
-          UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(str);
-          astValue->val.strIdx = strIdx;
-          break;
-        }
-        case clang::Stmt::PredefinedExprClass: {
-          std::string str = llvm::cast<const clang::PredefinedExpr>(*lvExpr).getFunctionName()->getString().str();
-          UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(str);
-          astValue->val.strIdx = strIdx;
-          break;
-        }
-        default: {
-          CHECK_FATAL(false, "Unsupported expr :%s in LValue", lvExpr->getStmtClassName());
-        }
-      }
-    } else {
-      // `valueDecl` processed in corresponding expr
-      bool isValueDeclInLValueBase = lvBase.is<const clang::ValueDecl*>();
-      CHECK_FATAL(isValueDeclInLValueBase, "Unsupported lValue base");
+  const clang::APValue::LValueBase &lvBase = result.Val.getLValueBase();
+  if (lvBase.is<const clang::Expr*>()) {
+    const clang::Expr *lvExpr = lvBase.get<const clang::Expr*>();
+    if (lvExpr == nullptr) {
+      return astValue;
     }
+    if (expr->getStmtClass() == clang::Stmt::MemberExprClass) {
+      // meaningless, just for Initialization
+      astValue = AllocASTValue(allocator);
+      astValue->pty = PTY_i32;
+      astValue->val.i64 = 0;
+      return astValue;
+    }
+    switch (lvExpr->getStmtClass()) {
+      case clang::Stmt::StringLiteralClass: {
+        const clang::StringLiteral &strExpr = llvm::cast<const clang::StringLiteral>(*lvExpr);
+        std::string str = "";
+        if (strExpr.isWide()) {
+          for (uint32 i = 0; i < strExpr.getLength(); ++i) {
+            str += std::to_string(strExpr.getCodeUnit(i));
+          }
+        } else {
+          str = strExpr.getString().str();
+        }
+        astValue = AllocASTValue(allocator);
+        UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(str);
+        astValue->val.strIdx = strIdx;
+        astValue->pty = PTY_a64;
+        break;
+      }
+      case clang::Stmt::PredefinedExprClass: {
+        astValue = AllocASTValue(allocator);
+        std::string str = llvm::cast<const clang::PredefinedExpr>(*lvExpr).getFunctionName()->getString().str();
+        UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(str);
+        astValue->val.strIdx = strIdx;
+        astValue->pty = PTY_a64;
+        break;
+      }
+      case clang::Stmt::AddrLabelExprClass:
+      case clang::Stmt::CompoundLiteralExprClass: {
+        // Processing in corresponding expr, skipping
+        break;
+      }
+      default: {
+        CHECK_FATAL(false, "Unsupported expr :%s in LValue", lvExpr->getStmtClassName());
+      }
+    }
+  } else {
+    // `valueDecl` processed in corresponding expr
+    bool isValueDeclInLValueBase = lvBase.is<const clang::ValueDecl*>();
+    CHECK_FATAL(isValueDeclInLValueBase, "Unsupported lValue base");
   }
+
   return astValue;
 }
 
 ASTValue *ASTParser::TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const {
-  ASTValue *astValue = TranslateRValue2ASTValue(allocator, expr);
-  if (astValue == nullptr) {
-    astValue = TranslateLValue2ASTValue(allocator, expr);
-  }
-  return astValue;
+  return TranslateConstantValue2ASTValue(allocator, expr);
 }
 
 #define EXPR_CASE(CLASS)                                                                  \
@@ -1043,7 +1051,8 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
     CHECK_FATAL(astDecl != nullptr && astDecl->GetDeclKind() == kASTStruct, "Undefined record type");
     uint i = 0;
     for (const auto field : static_cast<ASTStruct*>(astDecl)->GetFields()) {
-      if (field->IsAnonymousField() && fieldDecl == nullptr) {
+      if (field->IsAnonymousField() && fieldDecl == nullptr &&
+          n != static_cast<ASTStruct*>(astDecl)->GetFields().size()) {
         astInitListExpr->SetInitExprs(nullptr);
       } else {
         if (i < n) {
