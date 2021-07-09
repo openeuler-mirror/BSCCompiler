@@ -33,7 +33,7 @@ LINARO=$MAPLE_ROOT/tools/gcc-linaro-7.5.0
 ISYSTEM_FLAGS="-isystem $LINARO/aarch64-linux-gnu/libc/usr/include -isystem $LINARO/lib/gcc/aarch64-linux-gnu/7.5.0/include"
 CLANG_COMMON_FLAGS="-U __SIZEOF_INT128__ $ISYSTEM_FLAGS"
 CLANGFE_FLAGS="-cc1 ${std} -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ $CLANG_COMMON_FLAGS -fgnu89-inline"
-CLANG2MPL_FLAGS="--target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__ $ISYSTEM_FLAGS"
+CLANG2MPL_FLAGS="--target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__"
 CLANG_FLAGS="--target=aarch64 $CLANG_COMMON_FLAGS -emit-ast"
 SELF_CMD="${0} ${@}"
 echo $SELF_CMD
@@ -45,6 +45,10 @@ while [ $# -ne 0 ]; do
             ;;
         -O0)
             use_O2=false
+            ;;
+        --c2m)
+            use_mplfe=false
+            use_clang2mpl=true
             ;;
         --list)
             shift
@@ -128,7 +132,8 @@ function clangTompl() {
   fileName=$2
   # generate .B
   echo "Start Front End for $1 :"
-  LD_LIBRARY_PATH=${MAPLE_ROOT}/../ouroboros/driver/script/lib clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option  || {
+  echo clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option
+  clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option  || {
    echo "FAILED: "
    echo -e "LD_LIBRARY_PATH=${MAPLE_ROOT}/../ouroboros/driver/script/lib /usr/bin/clang2mpl --ascii" $src_file_path "--" $CLANG_FLAGS $option  | tee -a clang2mpl_err.log;
    exit 1;
@@ -142,8 +147,7 @@ function compile() {
 
   if [ "$use_clang2mpl" == "true" ];then
     clangTompl $src_file_path $fileName
-  fi
-  if [ "$use_mplfe" == "true" ];then
+  elif [ "$use_mplfe" == "true" ];then
     mplfe $src_file_path $fileName
   else
     clangfe $src_file_path $fileName
