@@ -15,6 +15,7 @@
 #include "me_ssa_lpre.h"
 #include "mir_builder.h"
 #include "me_lower_globals.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
@@ -27,6 +28,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     MeStmt *newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
+    EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
     // replace realOcc->GetMeStmt()'s occ with regOrVar
     (void)irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);
   } else if (realOcc.IsFormalAtEntry()) {
@@ -84,6 +86,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     rass->SetNext(savedNext);
     regOrVar->SetDefBy(kDefByStmt);
     regOrVar->SetDefByStmt(*rass);
+    EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *savedBB);
     savedBB->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
   } else {
     CHECK_FATAL(kOpcodeInfo.IsCallAssigned(realOcc.GetOpcodeOfMeStmt()),
@@ -96,6 +99,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
       auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
       // change mustDef lhs to regOrVar
       mustDefMeNode->UpdateLHS(*regOrVar);
+      EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
       // create new dassign for original lhs
       MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
       theLHS->SetDefByStmt(*newDassign);
@@ -422,6 +426,13 @@ AnalysisResult *MeDoSSALPre::Run(MeFunction *irFunc, MeFuncResultMgr *funcMgr, M
     if (DEBUGFUNC(irFunc)) {
       LogInfo::MapleLogger() << "\n==============after LoadPre =============" << '\n';
       irFunc->Dump(false);
+    }
+
+    auto &candsForSSAUpdate = ssaLpre.GetCandsForSSAUpdate();
+    if (!candsForSSAUpdate.empty()) {
+      MemPool *memPool = NewMemPool();
+      MeSSAUpdate ssaUpdate(*irFunc, *irFunc->GetMeSSATab(), *dom, candsForSSAUpdate, *memPool);
+      ssaUpdate.Run();
     }
   }
   MeLowerGlobals lowerGlobals(*irFunc, irFunc->GetMeSSATab());

@@ -7162,7 +7162,11 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode 
       ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
       MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
       CHECK_FATAL(intOfst != nullptr, "just checking");
-      int32 scale = intOfst->GetValue();
+     /* discard large offset and negative offset */
+      if (intOfst->GetValue() > INT32_MAX || intOfst->GetValue() < 0) {
+        return nullptr;
+      }
+      uint32 scale = static_cast<uint32>(intOfst->GetValue());
       AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(scale, k32BitSize);
       uint32 dsize = GetPrimTypeBitSize(ptype);
       MemOperand *memOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, GetPrimTypeBitSize(ptype),
@@ -8216,8 +8220,166 @@ Operand *AArch64CGFunc::SelectCparity(IntrinsicopNode &intrnNode) {
 }
 
 Operand *AArch64CGFunc::SelectCclrsb(IntrinsicopNode &intrnNode) {
-  CHECK_FATAL(false, "%s NIY", intrnNode.GetIntrinDesc().name);
-  return nullptr;
+  BaseNode *argexpr = intrnNode.Opnd(0);
+  PrimType ptype = argexpr->GetPrimType();
+  Operand *opnd = HandleExpr(intrnNode, *argexpr);
+
+  RegOperand &ldDest = CreateRegisterOperandOfType(ptype);
+  if (opnd->IsMemoryAccessOperand()) {
+    Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype), ptype), ldDest, *opnd);
+    GetCurBB()->AppendInsn(insn);
+    opnd = &ldDest;
+  } else if (opnd->IsImmediate()) {
+    SelectCopyImm(ldDest, *static_cast<ImmOperand *>(opnd), ptype);
+    opnd = &ldDest;
+  }
+
+  bool is32Bit = (GetPrimTypeSize(ptype) == k4ByteSize);
+  RegOperand &res = CreateRegisterOperandOfType(ptype);
+  SelectMvn(res, *opnd, ptype);
+  SelectAArch64Cmp(*opnd, GetZeroOpnd(is32Bit ? k32BitSize : k64BitSize), true, is32Bit ? k32BitSize : k64BitSize);
+  SelectAArch64Select(*opnd, res, *opnd, GetCondOperand(CC_LT), true, is32Bit ? k32BitSize : k64BitSize);
+  MOperator clzmop = (is32Bit ? MOP_wclz : MOP_xclz);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(clzmop, *opnd, *opnd));
+  SelectSub(*opnd, *opnd, CreateImmOperand(1, is32Bit ? k32BitSize : k64BitSize, true), ptype);
+  return opnd;
+}
+
+Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
+  BaseNode *argexpr0 = intrnNode.Opnd(0);
+  PrimType ptype0 = argexpr0->GetPrimType();
+  Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
+
+  RegOperand &ldDest0 = CreateRegisterOperandOfType(ptype0);
+  if (opnd0->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype0), ptype0), ldDest0, *opnd0));
+    opnd0 = &ldDest0;
+  } else if (opnd0->IsImmediate()) {
+    SelectCopyImm(ldDest0, *static_cast<ImmOperand *>(opnd0), ptype0);
+    opnd0 = &ldDest0;
+  }
+
+  BaseNode *argexpr1 = intrnNode.Opnd(1);
+  PrimType ptype1 = argexpr1->GetPrimType();
+  Operand *opnd1 = HandleExpr(intrnNode, *argexpr1);
+
+  RegOperand &ldDest1 = CreateRegisterOperandOfType(ptype1);
+  if (opnd1->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype1), ptype1), ldDest1, *opnd1));
+    opnd1 = &ldDest1;
+  } else if (opnd1->IsImmediate()) {
+    SelectCopyImm(ldDest1, *static_cast<ImmOperand *>(opnd1), ptype1);
+    opnd1 = &ldDest1;
+  }
+  // mov w4, #1
+  RegOperand &reg0 = CreateRegisterOperandOfType(PTY_i32);
+  SelectCopyImm(reg0, CreateImmOperand(1, k32BitSize, true), PTY_i32);
+  // sxtw x4, w4
+  MOperator mOp = MOP_xsxtw64;
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, reg0, reg0));
+  // sub x3, x3, x4
+  SelectSub(*opnd1, *opnd1, reg0, ptype1);
+  // and x2, x2, x3
+  SelectBand(*opnd0, *opnd0, *opnd1, ptype1);
+  // mov w3, #0
+  // sxtw x3, w3
+  // cmp x2, x3
+  SelectAArch64Cmp(*opnd0, GetZeroOpnd(k64BitSize), true, k64BitSize);
+  // cset w2, EQ
+  SelectAArch64CSet(*opnd0, GetCondOperand(CC_EQ), false);
+  return opnd0;
+}
+
+Operand *AArch64CGFunc::SelectCalignup(IntrinsicopNode &intrnNode) {
+  BaseNode *argexpr0 = intrnNode.Opnd(0);
+  PrimType ptype0 = argexpr0->GetPrimType();
+  Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
+
+  RegOperand &ldDest0 = CreateRegisterOperandOfType(ptype0);
+  if (opnd0->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype0), ptype0), ldDest0, *opnd0));
+    opnd0 = &ldDest0;
+  } else if (opnd0->IsImmediate()) {
+    SelectCopyImm(ldDest0, *static_cast<ImmOperand *>(opnd0), ptype0);
+    opnd0 = &ldDest0;
+  }
+
+  BaseNode *argexpr1 = intrnNode.Opnd(1);
+  PrimType ptype1 = argexpr1->GetPrimType();
+  Operand *opnd1 = HandleExpr(intrnNode, *argexpr1);
+
+  RegOperand &ldDest1 = CreateRegisterOperandOfType(ptype1);
+  if (opnd1->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype1), ptype1), ldDest1, *opnd1));
+    opnd1 = &ldDest1;
+  } else if (opnd1->IsImmediate()) {
+    SelectCopyImm(ldDest1, *static_cast<ImmOperand *>(opnd1), ptype1);
+    opnd1 = &ldDest1;
+  }
+  // add x2, x2, x3
+  SelectAdd(*opnd0, *opnd0, *opnd1, ptype1);
+  // mov w4, #1
+  RegOperand &reg0 = CreateRegisterOperandOfType(PTY_i32);
+  SelectCopyImm(reg0, CreateImmOperand(1, k32BitSize, true), PTY_i32);
+  // sxtw x4, w4
+  MOperator mOp = MOP_xsxtw64;
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, reg0, reg0));
+  // sub x2, x2, x4
+  SelectSub(*opnd0, *opnd0, reg0, ptype1);
+  // sub x3, x3, x4
+  SelectSub(*opnd1, *opnd1, reg0, ptype1);
+  // mvn x3, x3
+  SelectMvn(*opnd1, *opnd1, ptype1);
+  // and x2, x2, x3
+  SelectBand(*opnd0, *opnd0, *opnd1, ptype1);
+  return opnd0;
+}
+
+Operand *AArch64CGFunc::SelectCaligndown(IntrinsicopNode &intrnNode) {
+  BaseNode *argexpr0 = intrnNode.Opnd(0);
+  PrimType ptype0 = argexpr0->GetPrimType();
+  Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
+
+  RegOperand &ldDest0 = CreateRegisterOperandOfType(ptype0);
+  if (opnd0->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype0), ptype0), ldDest0, *opnd0));
+    opnd0 = &ldDest0;
+  } else if (opnd0->IsImmediate()) {
+    SelectCopyImm(ldDest0, *static_cast<ImmOperand *>(opnd0), ptype0);
+    opnd0 = &ldDest0;
+  }
+
+  BaseNode *argexpr1 = intrnNode.Opnd(1);
+  PrimType ptype1 = argexpr1->GetPrimType();
+  Operand *opnd1 = HandleExpr(intrnNode, *argexpr1);
+
+  RegOperand &ldDest1 = CreateRegisterOperandOfType(ptype1);
+  if (opnd1->IsMemoryAccessOperand()) {
+    GetCurBB()->AppendInsn(
+        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype1), ptype1), ldDest1, *opnd1));
+    opnd1 = &ldDest1;
+  } else if (opnd1->IsImmediate()) {
+    SelectCopyImm(ldDest1, *static_cast<ImmOperand *>(opnd1), ptype1);
+    opnd1 = &ldDest1;
+  }
+  // mov w4, #1
+  RegOperand &reg0 = CreateRegisterOperandOfType(PTY_i32);
+  SelectCopyImm(reg0, CreateImmOperand(1, k32BitSize, true), PTY_i32);
+  // sxtw x4, w4
+  MOperator mOp = MOP_xsxtw64;
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, reg0, reg0));
+  // sub x3, x3, x4
+  SelectSub(*opnd1, *opnd1, reg0, ptype1);
+  // mvn x3, x3
+  SelectMvn(*opnd1, *opnd1, ptype1);
+  // and x2, x2, x3
+  SelectBand(*opnd0, *opnd0, *opnd1, ptype1);
+  return opnd0;
 }
 
 /*

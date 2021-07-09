@@ -35,6 +35,9 @@ void PregRenamer::RunSelf() {
     }
     MapleMap<OStIdx, MePhiNode *> &mePhiList =  bb->GetMePhiList();
     for (auto it = mePhiList.begin(); it != mePhiList.end(); ++it) {
+      if (!it->second->GetIsLive()) {
+        continue;
+      }
       OriginalSt *ost = func->GetMeSSATab()->GetOriginalStTable().GetOriginalStFromID(it->first);
       if (!ost->IsPregOst()) { // only handle reg phi
         continue;
