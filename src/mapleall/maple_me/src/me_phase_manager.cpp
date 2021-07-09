@@ -26,10 +26,12 @@
 #include "me_profile_use.h"
 #include "me_loop_canon.h"
 #include "me_analyzector.h"
+#include "me_value_range_prop.h"
 #include "me_abco.h"
 #include "me_dse.h"
 #include "me_hdse.h"
 #include "me_prop.h"
+#include "copy_prop.h"
 #include "me_rename2preg.h"
 #include "me_loop_unrolling.h"
 #include "me_cfg_opt.h"
@@ -230,10 +232,6 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
   globalMIRModule = &mirModule;
   globalFunc = &func;
 #endif
-  // call constant folding
-  maple::ConstantFold cf(mirModule);
-  (void)cf.Simplify(mirFunc->GetBody());
-
   func.Prepare(rangeNum);
   if (timePhases) {
     funcPrepareTimer.Stop();

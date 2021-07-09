@@ -61,9 +61,11 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     phi->SetIsLive(true);  // always make it live, for correctness
     if (phi->GetLHS() == nullptr) {
       // create a new VarMeExpr defined by this phi
-      VarMeExpr *newVar = irMap.CreateVarMeExprVersion(ssaTab.GetOriginalStFromID(it2->first));
-      phi->UpdateLHS(*newVar);
-      it1->second->push(newVar);  // push the stack
+      auto *ost = ssaTab.GetOriginalStFromID(it2->first);
+      ScalarMeExpr *newScalar =
+          (ost->IsSymbolOst()) ? irMap.CreateVarMeExprVersion(ost) : irMap.CreateRegMeExprVersion(*ost);
+      phi->UpdateLHS(*newScalar);
+      it1->second->push(newScalar);  // push the stack
     } else {
       it1->second->push(phi->GetLHS());  // push the stack
     }
@@ -93,9 +95,8 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
       MeExpr *newbase = RenameExpr(*ivarMeExpr.GetBase(), needRehash);
       if (needRehash) {
         changed = true;
-        IvarMeExpr newMeExpr(kInvalidExprID, ivarMeExpr.GetPrimType(), ivarMeExpr.GetTyIdx(), ivarMeExpr.GetFieldID());
+        IvarMeExpr newMeExpr(kInvalidExprID, ivarMeExpr);
         newMeExpr.SetBase(newbase);
-        newMeExpr.SetMuVal(ivarMeExpr.GetMu());
         return irMap.HashMeExpr(newMeExpr);
       }
       return &meExpr;
@@ -142,12 +143,12 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
 
 void MeSSAUpdate::RenameStmts(BB &bb) {
   for (auto &stmt : bb.GetMeStmts()) {
-    MapleMap<OStIdx, VarMeExpr*> *muList = stmt.GetMuList();
+    auto *muList = stmt.GetMuList();
     if (muList != nullptr) {
       for (auto &mu : *muList) {
         auto it = renameStacks.find(mu.first);
         if (it != renameStacks.end()) {
-          mu.second = static_cast<VarMeExpr*>(it->second->top());
+          mu.second = it->second->top();
         }
       }
     }
@@ -168,30 +169,30 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       for (auto &chi : *chiList) {
         auto it = renameStacks.find(chi.first);
         if (it != renameStacks.end() && chi.second != nullptr) {
-          chi.second->SetRHS(static_cast<VarMeExpr*>(it->second->top()));
+          chi.second->SetRHS(it->second->top());
           it->second->push(chi.second->GetLHS());
         }
       }
     }
     // process the LHS
-    ScalarMeExpr *lhsVar = nullptr;
-    if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign) {
-      lhsVar = stmt.GetVarLHS();
+    ScalarMeExpr *lhs = nullptr;
+    if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign || stmt.GetOp() == OP_regassign) {
+      lhs = stmt.GetLHS();
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
-      if (mustDefList->empty() || mustDefList->front().GetLHS()->GetMeOp() != kMeOpVar) {
+      if (mustDefList->empty()) {
         continue;
       }
-      lhsVar = static_cast<VarMeExpr*>(mustDefList->front().GetLHS());
+      lhs = mustDefList->front().GetLHS();
     } else {
       continue;
     }
-    CHECK_FATAL(lhsVar != nullptr, "stmt doesn't have lhs?");
-    auto it = renameStacks.find(lhsVar->GetOstIdx());
+    CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
+    auto it = renameStacks.find(lhs->GetOstIdx());
     if (it == renameStacks.end()) {
       continue;
     }
-    it->second->push(lhsVar);
+    it->second->push(lhs);
   }
 }
 
@@ -213,9 +214,9 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
       }
       MePhiNode *phi = it2->second;
       MapleStack<ScalarMeExpr*> *renameStack = it1->second;
-      ScalarMeExpr *curVar = renameStack->top();
-      if (phi->GetOpnd(index) != curVar) {
-        phi->SetOpnd(index, curVar);
+      ScalarMeExpr *curScalar = renameStack->top();
+      if (phi->GetOpnd(index) != curScalar) {
+        phi->SetOpnd(index, curScalar);
       }
     }
   }
@@ -249,10 +250,11 @@ void MeSSAUpdate::Run() {
   InsertPhis();
   // push zero-version varmeexpr nodes to rename stacks
   for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
-    OriginalSt *ost = ssaTab.GetSymbolOriginalStFromID(it->first);
-    VarMeExpr *zeroVersVar = irMap.GetOrCreateZeroVersionVarMeExpr(*ost);
+    OriginalSt *ost = ssaTab.GetOriginalStFromID(it->first);
+    ScalarMeExpr *zeroVersScalar =
+        (ost->IsSymbolOst()) ? irMap.GetOrCreateZeroVersionVarMeExpr(*ost) : irMap.CreateRegMeExprVersion(*ost);
     MapleStack<ScalarMeExpr*> *renameStack = it->second;
-    renameStack->push(zeroVersVar);
+    renameStack->push(zeroVersScalar);
   }
   // recurse down dominator tree in pre-order traversal
   auto cfg = func.GetCfg();

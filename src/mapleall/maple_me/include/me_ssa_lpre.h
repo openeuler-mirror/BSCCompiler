@@ -27,11 +27,25 @@ class MeSSALPre : public SSAPre {
         irMap(&hMap),
         func(&f),
         assignedFormals(ssaPreAllocator.Adapter()),
-        loopHeadBBs(ssaPreAllocator.Adapter()) {}
+        loopHeadBBs(ssaPreAllocator.Adapter()),
+        candsForSSAUpdate(ssaPreAllocator.Adapter()) {}
 
   virtual ~MeSSALPre() = default;
   void FindLoopHeadBBs(const IdentifyLoops &identLoops);
 
+  MapleMap<OStIdx, MapleSet<BBId>*> &GetCandsForSSAUpdate() {
+    return candsForSSAUpdate;
+  }
+
+  void EnterCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) override {
+    if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
+      MapleSet<BBId> *bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
+      (void)bbSet->insert(bb.GetBBId());
+      candsForSSAUpdate[ostIdx] = bbSet;
+    } else {
+      (void)candsForSSAUpdate[ostIdx]->insert(bb.GetBBId());
+    }
+  }
  private:
   void GenerateSaveRealOcc(MeRealOcc&) override;
   MeExpr *GetTruncExpr(const VarMeExpr &theLHS, MeExpr &savedRHS);
@@ -78,6 +92,7 @@ class MeSSALPre : public SSAPre {
   MeFunction *func;
   MapleSet<OStIdx> assignedFormals;  // set of formals that are assigned
   MapleSet<BBId> loopHeadBBs;
+  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
 };
 
 class MeDoSSALPre : public MeFuncPhase {

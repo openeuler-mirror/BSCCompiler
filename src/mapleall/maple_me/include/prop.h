@@ -74,12 +74,12 @@ class Prop {
 
   Dominance &dom;
 
- private:
+
   virtual BB *GetBB(BBId) {
     return nullptr;
   }
 
-  void TraversalMeStmt(MeStmt &meStmt);
+  virtual void TraversalMeStmt(MeStmt &meStmt);
   void CollectSubVarMeExpr(const MeExpr &expr, std::vector<const MeExpr*> &exprVec) const;
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
                            const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const;
@@ -91,7 +91,7 @@ class Prop {
                                ScalarMeExpr *propagatingScalar = nullptr);
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);
   MeExpr *RehashUsingInverse(MeExpr *x);
-  MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
+  virtual MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
 
   IRMap &irMap;
   SSATab &ssaTab;
