@@ -26,6 +26,7 @@ class BBLayout{
         layoutAlloc(&memPool),
         layoutBBs(layoutAlloc.Adapter()),
         startTryBBVec(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
+        bbVisited(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         allEdges(layoutAlloc.Adapter()),
         laidOut(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         enabledDebug(enabledDebug),
@@ -112,6 +113,7 @@ class BBLayout{
   MapleAllocator layoutAlloc;
   MapleVector<BB*> layoutBBs;  // gives the determined layout order
   MapleVector<bool> startTryBBVec;  // record the try BB to fix the try&endtry map
+  MapleVector<bool> bbVisited; // mark the bb as visited when accessed
   MapleVector<BBEdge*> allEdges;
   bool needDealWithTryBB = false;
   BBId curBBId { 0 };          // to index into func.bb_vec_ to return the next BB

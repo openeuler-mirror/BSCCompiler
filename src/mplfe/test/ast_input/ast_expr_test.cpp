@@ -398,7 +398,7 @@ TEST_F(AstExprTest, ConditionalOperator) {
   EXPECT_EQ(stmts.size(), 1);
   RedirectCout();
   feExpr->GenMIRNode(mirBuilder)->Dump();
-  std::string pattern = "dread i32 %levVar_10\n";
+  std::string pattern = "dread i32 %levVar_9\n";
   EXPECT_EQ(GetBufferString(), pattern);
   RestoreCout();
 }

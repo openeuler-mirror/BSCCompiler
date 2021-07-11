@@ -272,6 +272,9 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
 // condtioal branch statement and has the same condtion as bb's last statement, optimize the
 // branch target to the eventual target.
 void BBLayout::OptimizeBranchTarget(BB &bb) {
+  if (bbVisited[bb.GetBBId().GetIdx()]) {
+    return;
+  }
   if (func.GetIRMap() != nullptr) {
     auto &meStmts = bb.GetMeStmts();
     if (meStmts.empty()) {
@@ -300,6 +303,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
           BBContainsOnlyCondGoto(*brTargetBB) && HasSameBranchCond(bb, *brTargetBB))) {
       return;
     }
+    bbVisited[bb.GetBBId().GetIdx()] = true;
     OptimizeBranchTarget(*brTargetBB);
     // optimize stmt
     BB *newTargetBB =

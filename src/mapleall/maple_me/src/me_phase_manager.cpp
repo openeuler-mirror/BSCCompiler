@@ -74,6 +74,7 @@
 #include "lfo_inject_iv.h"
 #include "lfo_pre_emit.h"
 #include "lfo_iv_canon.h"
+#include "cfg_opt.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
