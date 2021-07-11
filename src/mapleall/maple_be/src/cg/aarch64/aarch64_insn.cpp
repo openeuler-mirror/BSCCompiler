@@ -1626,6 +1626,8 @@ MOperator AArch64Insn::FlipConditionOp(MOperator originalOp, uint32 &targetIdx) 
       return AArch64MOP_t::MOP_bge;
     case AArch64MOP_t::MOP_bne:
       return AArch64MOP_t::MOP_beq;
+    case AArch64MOP_t::MOP_bpl:
+      return AArch64MOP_t::MOP_bmi;
     case AArch64MOP_t::MOP_xcbnz:
       return AArch64MOP_t::MOP_xcbz;
     case AArch64MOP_t::MOP_wcbnz:

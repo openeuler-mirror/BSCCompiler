@@ -45,6 +45,7 @@ class FEUtils {
                                    bool isTopLevel = true);
   static MIRType *GetStructFieldType(MIRStructType *type, FieldID feildID);
   static MIRConst *CreateImplicitConst(MIRType *type);
+  static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
 
   static const std::string kBoolean;
   static const std::string kByte;
@@ -385,8 +386,16 @@ class AstShortCircuitUtil {
     return BinaryOperatorLabels.empty();
   }
 
+  void SetIsShortCircuit(bool shortCircuit) {
+    isShortCircuit = shortCircuit;
+  }
+
+  bool GetIsShortCircuit() const {
+    return isShortCircuit;
+  }
  private:
   AstShortCircuitUtil() = default;
+  bool isShortCircuit = false;
   std::stack<std::string> ParenLabels = std::stack<std::string>();
   std::stack<std::string> BinaryOperatorLabels = std::stack<std::string>();
 };

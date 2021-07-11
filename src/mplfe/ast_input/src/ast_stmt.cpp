@@ -96,6 +96,7 @@ std::list<UniqueFEIRStmt> ASTIfStmt::Emit2FEStmtImpl() const {
   if (elseStmt != nullptr) {
     elseStmts = elseStmt->Emit2FEStmt();
   }
+  condExpr->SetShortCircuitParent();
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(stmts);
   UseCompareAsCondFEExpr(condFEExpr);
   UniqueFEIRStmt ifStmt;
@@ -123,6 +124,7 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
   }
   UniqueFEIRExpr condFEExpr;
   if (condExpr != nullptr) {
+    condExpr->SetShortCircuitParent();
     (void)condExpr->Emit2FEExpr(stmts);
   } else {
     condFEExpr = std::make_unique<FEIRExprConst>(static_cast<int64>(1), PTY_i32);
@@ -131,10 +133,8 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     std::list<UniqueFEIRExpr> exprs;
     std::list<UniqueFEIRStmt> incStmts;
     UniqueFEIRExpr incFEExpr = incExpr->Emit2FEExpr(incStmts);
-    if (incFEExpr != nullptr) {
-      exprs.emplace_back(std::move(incFEExpr));
-      auto incStmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
-      incStmts.emplace_back(std::move(incStmt));
+    if (incFEExpr != nullptr && incStmts.size() == 2 && incStmts.front()->IsDummy()) {
+      incStmts.pop_front();
     }
     bodyFEStmts.splice(bodyFEStmts.cend(), incStmts);
   }
@@ -166,6 +166,7 @@ std::list<UniqueFEIRStmt> ASTWhileStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> bodyFEStmts = bodyStmt->Emit2FEStmt();
   std::list<UniqueFEIRStmt> condStmts;
   std::list<UniqueFEIRStmt> condPreStmts;
+  condExpr->SetShortCircuitParent();
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(condStmts);
   (void)condExpr->Emit2FEExpr(condPreStmts);
   if (AstLoopUtil::Instance().IsCurrentContinueLabelUsed()) {
@@ -201,6 +202,7 @@ std::list<UniqueFEIRStmt> ASTDoStmt::Emit2FEStmtImpl() const {
     bodyFEStmts.emplace_back(std::move(labelBodyEndStmt));
   }
   std::list<UniqueFEIRStmt> condStmts;
+  condExpr->SetShortCircuitParent();
   UniqueFEIRExpr condFEExpr = condExpr->Emit2FEExpr(condStmts);
   bodyFEStmts.splice(bodyFEStmts.end(), condStmts);
   UseCompareAsCondFEExpr(condFEExpr);
@@ -250,7 +252,11 @@ std::list<UniqueFEIRStmt> ASTUnaryOperatorStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::list<UniqueFEIRExpr> feExprs;
   auto feExpr = exprs.front()->Emit2FEExpr(stmts);
-  if (feExpr != nullptr){
+  if (feExpr != nullptr) {
+    if (stmts.size() == 2 && stmts.front()->IsDummy()) {
+      stmts.pop_front();
+      return stmts;
+    }
     feExprs.emplace_back(std::move(feExpr));
     auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
     stmts.emplace_back(std::move(stmt));

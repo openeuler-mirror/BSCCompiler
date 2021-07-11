@@ -360,8 +360,11 @@ MeExpr *IRMap::ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opnds
       }
     }
   }
-
-  return needRehash ? HashMeExpr(newExpr) : &origExpr;
+  if (needRehash) {
+    auto simplifiedExpr = SimplifyMeExpr(&newExpr);
+    return simplifiedExpr != &newExpr ? simplifiedExpr : HashMeExpr(newExpr);
+  }
+  return &origExpr;
 }
 
 // replace meExpr with repexpr. meExpr must be a kid of origexpr
@@ -604,7 +607,7 @@ static bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
   if (IsPrimitiveInteger(typeA)) {
     if (IsPrimitiveInteger(typeB)) {
       if (IsPrimitiveInteger(typeC)) {
-        return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) || GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC);
+        return (GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) || GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeC));
       } else if (IsPrimitiveFloat(typeC)) {
         return GetPrimTypeSize(typeB) >= GetPrimTypeSize(typeA) && IsSignedInteger(typeB) == IsSignedInteger(typeA);
       }
@@ -621,11 +624,335 @@ static bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
   return false;
 }
 
+// return nullptr if the result is unknow
+MeExpr *IRMap::SimplifyCompareSameExpr(OpMeExpr *opmeexpr) {
+  CHECK_FATAL(opmeexpr->GetOpnd(0) == opmeexpr->GetOpnd(1), "must be");
+  Opcode opop = opmeexpr->GetOp();
+  int64 val = 0;
+  switch (opop) {
+    case OP_eq:
+    case OP_le:
+    case OP_ge: {
+      val = 1;
+      break;
+    }
+    case OP_ne:
+    case OP_lt:
+    case OP_gt:
+    case OP_cmp: {
+      val = 0;
+      break;
+    }
+    case OP_cmpl:
+    case OP_cmpg: {
+      // cmpl/cmpg is special for cases that any of opnd is NaN
+      auto opndType = opmeexpr->GetOpndType();
+      if (IsPrimitiveFloat(opndType) || IsPrimitiveDynFloat(opndType)) {
+        if (opmeexpr->GetOpnd(0)->GetMeOp() == kMeOpConst) {
+          double dVal =
+              static_cast<MIRFloatConst*>(static_cast<ConstMeExpr *>(opmeexpr->GetOpnd(0))->GetConstVal())->GetValue();
+          if (isnan(dVal)) {
+            val = (opop == OP_cmpl) ? -1 : 1;
+          } else {
+            val = 0;
+          }
+          break;
+        }
+        // other case, return nullptr because it is not sure whether any of opnd is nan.
+        return nullptr;
+      }
+      val = 0;
+      break;
+    }
+    default:
+      CHECK_FATAL(false, "must be compare op!");
+  }
+  return CreateIntConstMeExpr(val, opmeexpr->GetPrimType());
+}
+
+// opA (opB (opndA, opndB), opndC)
+MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA,  Opcode opB,
+                                         MeExpr *opndA, MeExpr *opndB, MeExpr *opndC) {
+  if (primType != opndC->GetPrimType() && !IsNoCvtNeeded(primType, opndC->GetPrimType())) {
+    opndC = CreateMeExprTypeCvt(primType, opndC->GetPrimType(), *opndC);
+  }
+
+  if (opndA->GetMeOp() == kMeOpConst && opndB->GetMeOp() == kMeOpConst) {
+    auto *constOpnd0 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opndB));
+    if (constOpnd0 != nullptr) {
+      return CreateMeExprBinary(opA, primType, *constOpnd0, *opndC);
+    }
+  }
+
+  if (primType != opndA->GetPrimType() && !IsNoCvtNeeded(primType, opndA->GetPrimType())) {
+    opndA = CreateMeExprTypeCvt(primType, opndA->GetPrimType(), *opndA);
+  }
+  if (primType != opndB->GetPrimType() && !IsNoCvtNeeded(primType, opndB->GetPrimType())) {
+    opndB = CreateMeExprTypeCvt(primType, opndB->GetPrimType(), *opndB);
+  }
+
+  auto *opnd0 = CreateMeExprBinary(opB, primType, *opndA, *opndB);
+  return CreateMeExprBinary(opA, primType, *opnd0, *opndC);
+}
+
+// opA (opndA, opB (opndB, opndC))
+MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, MeExpr *opndA,
+                                         Opcode opB, MeExpr *opndB, MeExpr *opndC) {
+  if (primType != opndA->GetPrimType() && !IsNoCvtNeeded(primType, opndA->GetPrimType())) {
+    opndA = CreateMeExprTypeCvt(primType, opndA->GetPrimType(), *opndA);
+  }
+
+  if (opndB->GetMeOp() == kMeOpConst && opndC->GetMeOp() == kMeOpConst) {
+    auto *constOpnd1 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndB), static_cast<ConstMeExpr*>(opndC));
+    if (constOpnd1 != nullptr) {
+      return CreateMeExprBinary(opA, primType, *opndA, *constOpnd1);
+    }
+  }
+
+  if (primType != opndB->GetPrimType() && !IsNoCvtNeeded(primType, opndB->GetPrimType())) {
+    opndB = CreateMeExprTypeCvt(primType, opndB->GetPrimType(), *opndB);
+  }
+  if (primType != opndC->GetPrimType() && !IsNoCvtNeeded(primType, opndC->GetPrimType())) {
+    opndC = CreateMeExprTypeCvt(primType, opndC->GetPrimType(), *opndC);
+  }
+  auto *opnd1 = CreateMeExprBinary(opB, primType, *opndB, *opndC);
+  return CreateMeExprBinary(opA, primType, *opndA, *opnd1);
+}
+
+// opA (opB (opndA, opndB), opC (opndC, opndD))
+MeExpr *IRMap::CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode opB, MeExpr *opndA, MeExpr *opndB,
+                                         Opcode opC, MeExpr *opndC, MeExpr *opndD) {
+  MeExpr *newOpnd0 = nullptr;
+  if (opndA->GetMeOp() == kMeOpConst && opndB->GetMeOp() == kMeOpConst) {
+    newOpnd0 = FoldConstExpr(primType, opB, static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opndB));
+  }
+  if (newOpnd0 == nullptr) {
+    if (primType != opndA->GetPrimType() && !IsNoCvtNeeded(primType, opndA->GetPrimType())) {
+      opndA = CreateMeExprTypeCvt(primType, opndA->GetPrimType(), *opndA);
+    }
+    if (primType != opndB->GetPrimType() && !IsNoCvtNeeded(primType, opndB->GetPrimType())) {
+      opndB = CreateMeExprTypeCvt(primType, opndB->GetPrimType(), *opndB);
+    }
+    newOpnd0 = CreateMeExprBinary(opB, primType, *opndA, *opndB);
+  }
+
+  MeExpr *newOpnd1 = nullptr;
+  if (opndC->GetMeOp() == kMeOpConst && opndD->GetMeOp() == kMeOpConst) {
+    newOpnd1 = FoldConstExpr(primType, opC, static_cast<ConstMeExpr*>(opndC), static_cast<ConstMeExpr*>(opndD));
+  }
+  if (newOpnd1 == nullptr) {
+    if (primType != opndC->GetPrimType() && !IsNoCvtNeeded(primType, opndC->GetPrimType())) {
+      opndC = CreateMeExprTypeCvt(primType, opndC->GetPrimType(), *opndC);
+    }
+    if (primType != opndD->GetPrimType() && !IsNoCvtNeeded(primType, opndD->GetPrimType())) {
+      opndD = CreateMeExprTypeCvt(primType, opndD->GetPrimType(), *opndD);
+    }
+    newOpnd1 = CreateMeExprBinary(opC, primType, *opndC, *opndD);
+  }
+  return CreateMeExprBinary(opA, primType, *newOpnd0, *newOpnd1);
+}
+
+MeExpr *IRMap::FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB) {
+  if (!IsPrimitiveInteger(primType)) {
+    return nullptr;
+  }
+
+  maple::ConstantFold cf(mirModule);
+  auto *constA = static_cast<MIRIntConst*>(opndA->GetConstVal());
+  auto *constB = static_cast<MIRIntConst*>(opndB->GetConstVal());
+  if ((op == OP_div || op == OP_rem)) {
+    if (constB->GetValue() == 0 ||
+        (constB->GetValue() == -1 && ((primType == PTY_i32 && constA->GetValue() == INT32_MIN) ||
+                                      (primType == PTY_i64 && constA->GetValue() == INT64_MIN)))) {
+      return nullptr;
+    }
+  }
+  MIRConst *resconst = cf.FoldIntConstBinaryMIRConst(op, primType, constA, constB);
+  return CreateConstMeExpr(primType, *resconst);
+}
+
+MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
+  if (addExpr->GetOp() != OP_add) {
+    return nullptr;
+  }
+
+  auto *opnd0 = addExpr->GetOpnd(0);
+  auto *opnd1 = addExpr->GetOpnd(1);
+  if (opnd0->IsLeaf() && opnd1->IsLeaf()) {
+    if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+      return FoldConstExpr(addExpr->GetPrimType(), addExpr->GetOp(),
+                           static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
+    }
+    return nullptr;
+  }
+
+  if (!opnd0->IsLeaf() && !opnd1->IsLeaf()) {
+    return nullptr;
+  }
+
+  if (!opnd1->IsLeaf()) {
+    auto *tmp = opnd1;
+    opnd1 = opnd0;
+    opnd0 = tmp;
+  }
+
+  if (opnd1->IsLeaf()) {
+    if (opnd0->GetOp() == OP_cvt) {
+      opnd0 = opnd0->GetOpnd(0);
+    }
+
+    if (opnd0->GetOp() == OP_add) {
+      auto *opndA = opnd0->GetOpnd(0);
+      auto *opndB = opnd0->GetOpnd(1);
+      if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetMeOp() == kMeOpConst) {
+        // (constA + constB) + opnd1
+        if (opndB->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1, OP_add, opndA, opndB);
+        }
+        // (constA + a) + constB --> a + (constA + constB)
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndB, OP_add, opndA, opnd1);
+        }
+        // (const + a) + b --> (a + b) + const
+        return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add, opndB, opnd1, opndA);
+      }
+
+      if (opndB->GetMeOp() == kMeOpConst) {
+        // (a + constA) + constB --> a + (constA + constB)
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA, OP_add, opndB, opnd1);
+        }
+        // (a + const) + b --> (a + b) + const
+        return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add, opndA, opnd1, opndB);
+      }
+    }
+
+    if (opnd0->GetOp() == OP_sub) {
+      auto *opndA = opnd0->GetOpnd(0);
+      auto *opndB = opnd0->GetOpnd(1);
+      if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetMeOp() == kMeOpConst) {
+        // (constA - constB) + opnd1
+        if (opndB->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1, OP_sub, opndA, opndB);
+        }
+        // (constA - a) + constB --> (constA + constB) - a
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add, opndA, opnd1, opndB);
+        }
+        // (const - a) + b --> (b - a) + const
+        return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_sub, opnd1, opndB, opndA);
+      }
+
+      if (opndB->GetMeOp() == kMeOpConst) {
+        // (a - constA) + constB --> a + (constB - constA)
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA, OP_sub, opnd1, opndB);
+        }
+        // (a - const) + b --> (a + b) - const
+        return CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add, opndA, opnd1, opndB);
+      }
+    }
+  }
+  return nullptr;
+}
+
+MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
+  if (mulExpr->GetOp() != OP_mul) {
+    return nullptr;
+  }
+
+  auto *opnd0 = mulExpr->GetOpnd(0);
+  auto *opnd1 = mulExpr->GetOpnd(1);
+  if (opnd0->IsLeaf() && opnd1->IsLeaf()) {
+    if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+      return FoldConstExpr(mulExpr->GetPrimType(), mulExpr->GetOp(),
+                           static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
+    }
+    return nullptr;
+  }
+
+  if (!opnd0->IsLeaf() && !opnd1->IsLeaf()) {
+    return nullptr;
+  }
+
+  if (!opnd1->IsLeaf()) {
+    auto *tmp = opnd1;
+    opnd1 = opnd0;
+    opnd0 = tmp;
+  }
+
+  if (opnd1->IsLeaf()) {
+    if (opnd0->GetOp() == OP_cvt) {
+      opnd0 = opnd0->GetOpnd(0);
+    }
+
+    if (opnd0->GetOp() == OP_add) {
+      auto *opndA = opnd0->GetOpnd(0);
+      auto *opndB = opnd0->GetOpnd(1);
+      if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetMeOp() == kMeOpConst) {
+        // (constA + constB) * opnd1
+        if (opndB->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(mulExpr->GetPrimType(), OP_mul, opnd1, OP_add, opndA, opndB);
+        }
+        // (constA + a) * constB --> a * constB + (constA * constB)
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(
+              mulExpr->GetPrimType(), OP_add, OP_mul, opndB, opnd1, OP_mul, opndA, opnd1);
+        }
+        return nullptr;
+      }
+
+      // (a + constA) * constB --> a * constB + (constA * constB)
+      if (opndB->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+        return CreateCanonicalizedMeExpr(
+            mulExpr->GetPrimType(), OP_add, OP_mul, opndA, opnd1, OP_mul, opndB, opnd1);
+      }
+      return nullptr;
+    }
+
+    if (opnd0->GetOp() == OP_sub) {
+      auto *opndA = opnd0->GetOpnd(0);
+      auto *opndB = opnd0->GetOpnd(1);
+      if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetMeOp() == kMeOpConst) {
+        // (constA - constB) * opnd1
+        if (opndB->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(mulExpr->GetPrimType(), OP_mul, opnd1, OP_sub, opndA, opndB);
+        }
+        // (constA - a) * constB --> a * constB + (constA * constB)
+        if (opnd1->GetMeOp() == kMeOpConst) {
+          return CreateCanonicalizedMeExpr(
+              mulExpr->GetPrimType(), OP_sub, OP_mul, opndA, opnd1, OP_mul, opndB, opnd1);
+        }
+        return nullptr;
+      }
+
+      // (a - constA) * constB --> a * constB - (constA * constB)
+      if (opndB->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+        return CreateCanonicalizedMeExpr(
+            mulExpr->GetPrimType(), OP_sub, OP_mul, opndA, opnd1, OP_mul, opndB, opnd1);
+      }
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
+
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
   Opcode opop = opmeexpr->GetOp();
   switch (opop) {
     case OP_cvt: {
-      // return nullptr;
       OpMeExpr *cvtmeexpr = static_cast<OpMeExpr *>(opmeexpr);
       MeExpr *opnd0 = cvtmeexpr->GetOpnd(0);
       if (opnd0->GetMeOp() == kMeOpConst) {
@@ -652,12 +979,14 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         }
         return nullptr;
       }
-
       if (opnd0->GetOp() == OP_cvt) {
         OpMeExpr *cvtopnd0 = static_cast<OpMeExpr *>(opnd0);
         // cvtopnd0 should have tha same type as cvtopnd0->GetOpnd(0) or cvtmeexpr,
         // and the type size of cvtopnd0 should be ge(>=) one of them.
         // Otherwise, deleting the cvt of cvtopnd0 may result in information loss.
+        if (maple::IsSignedInteger(cvtmeexpr->GetOpndType()) != maple::IsSignedInteger(cvtopnd0->GetOpndType())) {
+          return nullptr;
+        }
         if (maple::GetPrimTypeSize(cvtopnd0->GetPrimType()) >=
             maple::GetPrimTypeSize(cvtopnd0->GetOpnd(0)->GetPrimType())) {
           if ((maple::IsPrimitiveInteger(cvtopnd0->GetPrimType()) &&
@@ -695,9 +1024,19 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       }
       return nullptr;
     }
-    case OP_add:
+    case OP_add: {
+      if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {
+        return nullptr;
+      }
+      return SimplifyAddExpr(opmeexpr);
+    }
+    case OP_mul: {
+      if (!IsPrimitiveInteger(opmeexpr->GetPrimType())) {
+        return nullptr;
+      }
+      return SimplifyMulExpr(opmeexpr);
+    }
     case OP_sub:
-    case OP_mul:
     case OP_div:
     case OP_rem:
     case OP_ashr:
@@ -752,6 +1091,13 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_cmpg: {
       MeExpr *opnd0 = opmeexpr->GetOpnd(0);
       MeExpr *opnd1 = opmeexpr->GetOpnd(1);
+      if (opnd0 == opnd1) {
+        // node compared with itself
+        auto *cmpExpr = SimplifyCompareSameExpr(opmeexpr);
+        if (cmpExpr != nullptr) {
+          return cmpExpr;
+        }
+      }
       bool isneeq = (opop == OP_ne || opop == OP_eq);
       if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
         maple::ConstantFold cf(mirModule);
