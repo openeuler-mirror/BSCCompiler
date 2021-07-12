@@ -73,6 +73,24 @@ class FEInputGlobalVarHelper {
   virtual bool ProcessDeclImpl(MapleAllocator &allocator) = 0;
 };
 
+class FEInputFileScopeAsmHelper {
+ public:
+  FEInputFileScopeAsmHelper(MapleAllocator &allocatorIn) : allocator(allocatorIn) {}
+  virtual ~FEInputFileScopeAsmHelper() = default;
+
+  bool ProcessDecl() {
+    return ProcessDecl(allocator);
+  }
+
+  bool ProcessDecl(MapleAllocator &allocator) {
+    return ProcessDeclImpl(allocator);
+  }
+
+ protected:
+  MapleAllocator &allocator;
+  virtual bool ProcessDeclImpl(MapleAllocator &allocator) = 0;
+};
+
 class FEInputFieldHelper {
  public:
   FEInputFieldHelper(MapleAllocator &allocator) {}

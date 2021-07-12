@@ -2044,7 +2044,7 @@ bool ASTParser::PreProcessAST() {
         globalEnumDecles.emplace_back(child);
         break;
       case clang::Decl::FileScopeAsm:
-        // need to add processing
+        globalFileScopeAsm.emplace_back(child);
         break;
       case clang::Decl::Empty:
       case clang::Decl::StaticAssert:
@@ -2084,6 +2084,7 @@ ASTDecl *ASTParser::ProcessDecl(MapleAllocator &allocator, const clang::Decl &de
     DECL_CASE(EnumConstant);
     DECL_CASE(Label);
     DECL_CASE(StaticAssert);
+    DECL_CASE(FileScopeAsm);
     default:
       CHECK_FATAL(false, "ASTDecl: %s NIY", decl.getDeclKindName());
       return nullptr;
@@ -2333,6 +2334,12 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   return parmVar;
 }
 
+ASTDecl *ASTParser::ProcessDeclFileScopeAsmDecl(MapleAllocator &allocator, const clang::FileScopeAsmDecl &asmDecl) {
+  ASTFileScopeAsm *astAsmDecl = allocator.GetMemPool()->New<ASTFileScopeAsm>(fileName);
+  astAsmDecl->SetAsmStr(asmDecl.getAsmString()->getString());
+  return astAsmDecl;
+}
+
 ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::EnumDecl &enumDecl) {
   ASTEnumDecl *localEnumDecl = static_cast<ASTEnumDecl*>(ASTDeclsBuilder::GetASTDecl(enumDecl.getID()));
   if (localEnumDecl != nullptr) {
@@ -2434,6 +2441,18 @@ bool ASTParser::RetrieveGlobalVars(MapleAllocator &allocator) {
       return false;
     }
     astVars.emplace_back(val);
+  }
+  return true;
+}
+
+bool ASTParser::RetrieveFileScopeAsms(MapleAllocator &allocator) {
+  for (auto &decl : globalFileScopeAsm) {
+    clang::FileScopeAsmDecl *fileScopeAsmDecl = llvm::cast<clang::FileScopeAsmDecl>(decl);
+    ASTFileScopeAsm *asmDecl = static_cast<ASTFileScopeAsm*>(ProcessDecl(allocator, *fileScopeAsmDecl));
+    if (asmDecl == nullptr) {
+      return false;
+    }
+    astFileScopeAsms.emplace_back(asmDecl);
   }
   return true;
 }
