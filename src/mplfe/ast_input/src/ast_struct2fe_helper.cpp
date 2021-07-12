@@ -143,13 +143,41 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (mirSymbol == nullptr) {
     return false;
   }
-  mirSymbol->SetAttrs(astVar.GetGenericAttrs().ConvertToTypeAttrs());
+  mirSymbol->GetSrcPosition().SetFileNum(astVar.GetSrcFileIdx());
+  mirSymbol->GetSrcPosition().SetLineNum(astVar.GetSrcFileLineNum());
+  auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
+  // do not allow extern var override global var
+  if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
+    ASTExpr *initExpr = astVar.GetInitExpr();
+    if (initExpr == nullptr) {
+      return true;
+    }
+    MIRConst *cst = initExpr->GenerateMIRConst();
+    mirSymbol->SetKonst(cst);
+    return true;
+  }
+  if (typeAttrs.GetAttr(ATTR_extern)) {
+    mirSymbol->SetStorageClass(MIRStorageClass::kScExtern);
+    typeAttrs.ResetAttr(AttrKind::ATTR_extern);
+  } else if (typeAttrs.GetAttr(ATTR_static)) {
+    mirSymbol->SetStorageClass(MIRStorageClass::kScFstatic);
+  } else {
+    mirSymbol->SetStorageClass(MIRStorageClass::kScGlobal);
+  }
+  typeAttrs.SetAlign(astVar.GetAlign());
+  mirSymbol->SetAttrs(typeAttrs);
   ASTExpr *initExpr = astVar.GetInitExpr();
   if (initExpr == nullptr) {
     return true;
   }
   MIRConst *cst = initExpr->GenerateMIRConst();
   mirSymbol->SetKonst(cst);
+  return true;
+}
+
+bool ASTFileScopeAsm2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  AsmNode *asmNode = allocator.GetMemPool()->New<AsmNode>(&allocator);
+  asmNode->asmString = astAsm.GetAsmStr();
   return true;
 }
 
@@ -180,6 +208,8 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   mirFunc = FEManager::GetTypeManager().CreateFunction(methodNameIdx, retMIRType->GetTypeIndex(),
                                                        argsTypeIdx, isVarg, isStatic);
+  mirFunc->GetSrcPosition().SetFileNum(func.GetSrcFileIdx());
+  mirFunc->GetSrcPosition().SetLineNum(func.GetSrcFileLineNum());
   std::vector<std::string> parmNames = func.GetParmNames();
   if (firstArgRet) {
     parmNames.insert(parmNames.begin(), "first_arg_return");

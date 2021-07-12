@@ -31,7 +31,9 @@ enum DeclKind {
   kASTFunc,
   kASTStruct,
   kASTVar,
-  kASTLocalEnumDecl,
+  kASTEnumConstant,
+  kASTEnumDecl,
+  kASTFileScopeAsm,
 };
 
 class ASTDecl {
@@ -80,13 +82,26 @@ class ASTDecl {
     pos = p;
   }
 
+  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
+    srcFileIdx = fileIdx;
+    srcFileLineNum = lineNum;
+  }
+
+  uint32 GetSrcFileIdx() const {
+    return srcFileIdx;
+  }
+
+  uint32 GetSrcFileLineNum() const {
+    return srcFileLineNum;
+  }
+
   DeclKind GetDeclKind() const {
     return declKind;
   }
 
   MIRConst *Translate2MIRConst() const;
 
-  std::string GenerateUniqueVarName();
+  std::string GenerateUniqueVarName() const;
 
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
@@ -102,6 +117,8 @@ class ASTDecl {
   std::vector<MIRType*> typeDesc;
   GenericAttrs genAttrs;
   Pos pos = { 0, 0 };
+  uint32 srcFileIdx = 0;
+  uint32 srcFileLineNum = 0;
   DeclKind declKind = kASTDecl;
 };
 
@@ -200,7 +217,8 @@ class ASTVar : public ASTDecl {
     return initExpr;
   }
 
-  std::unique_ptr<FEIRVar> Translate2FEIRVar();
+  std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
+  MIRSymbol *Translate2MIRSymbol() const;
 
  private:
   MIRConst *Translate2MIRConstImpl() const override;
@@ -210,24 +228,60 @@ class ASTVar : public ASTDecl {
   ASTExpr *initExpr = nullptr;
 };
 
-// only process local `EnumDecl` here
-class ASTLocalEnumDecl : public ASTDecl {
+class ASTFileScopeAsm : public ASTDecl {
  public:
-  ASTLocalEnumDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn) {
-    genAttrs = genAttrsIn;
-    declKind = kASTLocalEnumDecl;
+  ASTFileScopeAsm(const std::string &srcFile)
+      : ASTDecl(srcFile, "", std::vector<MIRType*>{}) {
+    declKind = kASTFileScopeAsm;
   }
-  ~ASTLocalEnumDecl() = default;
+  ~ASTFileScopeAsm() = default;
 
-  void PushConstantVar(ASTVar *var) {
-    vars.emplace_back(var);
+  void SetAsmStr(const std::string &str) {
+    asmStr = str;
+  }
+
+  const std::string &GetAsmStr() const {
+    return asmStr;
   }
 
  private:
-  void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
-  std::list<ASTVar*> vars;
+  std::string asmStr;
+};
+
+class ASTEnumConstant : public ASTDecl {
+ public:
+  ASTEnumConstant(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+         const GenericAttrs &genAttrsIn)
+      : ASTDecl(srcFile, nameIn, typeDescIn) {
+    genAttrs = genAttrsIn;
+    declKind = kASTEnumConstant;
+  }
+  ~ASTEnumConstant() = default;
+
+  void SetValue(int32 val);
+  int32 GetValue() const;
+ private:
+  MIRConst *Translate2MIRConstImpl() const override;
+  int32 value = 0;
+};
+
+// only process local `EnumDecl` here
+class ASTEnumDecl : public ASTDecl {
+ public:
+  ASTEnumDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
+          const GenericAttrs &genAttrsIn)
+      : ASTDecl(srcFile, nameIn, typeDescIn) {
+    genAttrs = genAttrsIn;
+    declKind = kASTEnumDecl;
+  }
+  ~ASTEnumDecl() = default;
+
+  void PushConstant(ASTEnumConstant *c) {
+    consts.emplace_back(c);
+  }
+
+ private:
+  std::list<ASTEnumConstant*> consts;
 };
 }  // namespace maple
 #endif // MPLFE_AST_INPUT_INCLUDE_AST_DECL_H
