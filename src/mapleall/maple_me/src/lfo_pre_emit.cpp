@@ -780,11 +780,13 @@ AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, Modu
   while (i < func->GetCfg()->GetAllBBs().size()) {
     i = emitter->EmitLfoBB(i, curblk);
   }
+#if 0
   // invalid cfg information only in lfo phase
   // m->InvalidAnalysisResult(MeFuncPhase_MECFG, func);
   m->InvalidAllResults();
   func->SetMeSSATab(nullptr);
   func->SetIRMap(nullptr);
+#endif
   func->SetLfo(false);
 
   ConstantFold cf(func->GetMIRModule());
@@ -795,7 +797,7 @@ AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, Modu
     mirfunction->Dump(false);
   }
 
-#if 1  // use this only if directly feeding to mainopt
+#if 0  // use this only if directly feeding to mainopt
   MIRLower mirlowerer(func->GetMIRModule(), mirfunction);
   mirlowerer.SetLowerME();
   mirlowerer.SetLowerExpandArray();
