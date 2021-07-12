@@ -51,6 +51,21 @@
 //    up the CFG.
 
 namespace maple {
+// mark initExpr in whileinfo live
+void MeHDSE::ProcessWhileInfos() {
+  LfoFunction *lfoFunc = func.GetLfoFunc();
+  if (lfoFunc == nullptr) {
+    return;
+  }
+  MapleMap<LabelIdx, LfoWhileInfo *>::iterator it = lfoFunc->label2WhileInfo.begin();
+  for (; it != lfoFunc->label2WhileInfo.end(); it++) {
+    if (it->second->initExpr != nullptr && 
+        (it->second->initExpr->GetMeOp() == maple::kMeOpVar || it->second->initExpr->GetMeOp() == maple::kMeOpReg)) {
+      workList.push_front(it->second->initExpr);
+    }
+  }
+}
+
 void MeHDSE::BackwardSubstitution() {
   for (DassignMeStmt *dass : backSubsCands) {
     ScalarMeExpr *rhsscalar = static_cast<ScalarMeExpr *>(dass->GetRHS());
@@ -155,10 +170,12 @@ void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
 AnalysisResult *MeDoHDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
   auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_NULL_FATAL(postDom);
+  auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+  CHECK_NULL_FATAL(aliasClass);
   auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   CHECK_NULL_FATAL(hMap);
 
-  MeHDSE hdse(*func, *postDom, *hMap, DEBUGFUNC(func));
+  MeHDSE hdse(*func, *postDom, *hMap, aliasClass, DEBUGFUNC(func));
   hdse.hdseKeepRef = MeOption::dseKeepRef;
   hdse.DoHDSE();
   hdse.BackwardSubstitution();

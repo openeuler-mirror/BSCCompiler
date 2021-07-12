@@ -96,6 +96,7 @@ src_libmplme = [
   "src/lfo_inject_iv.cpp",
   "src/lfo_pre_emit.cpp",
   "src/lfo_iv_canon.cpp",
+  "src/lfo_dep_test.cpp",
   "src/me_value_range_prop.cpp",
   "src/cfg_opt.cpp",
 ]
