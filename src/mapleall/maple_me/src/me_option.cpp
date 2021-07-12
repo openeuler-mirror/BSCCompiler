@@ -100,7 +100,7 @@ bool MeOption::subsumRC = false;
 bool MeOption::performFSAA = true;
 bool MeOption::strengthReduction = true;
 bool MeOption::srForAdd = false;
-bool MeOption::doLFTR = false;
+bool MeOption::doLFTR = true;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 #if MIR_JAVA
