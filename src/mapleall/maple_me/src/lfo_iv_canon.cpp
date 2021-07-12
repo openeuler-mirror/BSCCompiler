@@ -40,6 +40,14 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
       return false;
     }
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
+    if (defStmt->GetOp() == OP_dassign) {
+      // defstmt is  %post = i, i is identified as IV
+      // set %post is IV and use i's step value
+      scalar = dynamic_cast<ScalarMeExpr *>(defStmt->GetRHS());
+      if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
+        return true;
+      }
+    }
     return ResolveExprValue(defStmt->GetRHS(), phiLHS);
   }
   case kMeOpOp: {  // restricting to only + and - for now
@@ -74,6 +82,17 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       CHECK_FATAL(scalar->GetDefBy() == kDefByStmt, "ComputeIncrAmt: cannot be here");
       AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
+<<<<<<< fredchow_hdse3
+      if (defstmt->GetOp() == OP_dassign) {
+        scalar = dynamic_cast<ScalarMeExpr *>(defstmt->GetRHS());
+        if (scalar && scalar->GetOst() && IsScalarIV(scalar->GetOst())) {
+          int32_t stepVal = 0;
+          if (IsScalarIV(scalar->GetOst(), &stepVal)) {
+            *appearances = 1;
+            return stepVal;
+          }
+        }
+      }
       return ComputeIncrAmt(defstmt->GetRHS(), phiLHS, appearances);
     }
     case kMeOpOp: {
