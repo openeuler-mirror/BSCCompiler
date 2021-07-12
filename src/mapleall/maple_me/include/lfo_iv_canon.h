@@ -52,7 +52,6 @@ class IVCanon {
   int32 idxPrimaryIV = -1;      // the index in ivvec of the primary IV
   MeExpr *tripCount = nullptr;
 
-  bool IsScalarIV(OriginalSt *ost, int32_t *step = nullptr);
  public:
   IVCanon(MemPool *m, MeFunction *f, Dominance *dom, LoopDesc *ldesc, uint32 id, LfoWhileInfo *winfo)
       : mp(m), alloc(m), func(f), dominance(dom), ssatab(f->GetMeSSATab()),
