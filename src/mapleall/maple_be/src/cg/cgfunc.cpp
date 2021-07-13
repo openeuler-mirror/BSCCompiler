@@ -89,25 +89,24 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
-  Operand *resOpnd = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
-      !IsPrimitiveFloat(expr.GetPrimType())) {
-    resOpnd = cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
-                                *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+      !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(0)->Opnd(0)->GetOpCode() != OP_constval &&
+      expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
-             !IsPrimitiveFloat(expr.GetPrimType())) {
-    resOpnd = cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
-                                *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+             !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
+             expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+  } else {
+    return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
+                            *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
   }
-  if (resOpnd == nullptr) {
-    resOpnd = cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                               *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
-  }
-  return resOpnd;
 }
 
 Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -393,6 +392,19 @@ Operand *HandleVectorReverse(IntrinsicopNode &intrnNode, CGFunc &cgFunc, uint32 
   return cgFunc.SelectVectorReverse(intrnNode.GetPrimType(), src, sType, size);
 }
 
+Operand *HandleVectorShiftNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
+  PrimType rType = intrnNode.GetPrimType();                          /* vector result */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* shift const */
+  int32 sVal;
+  if (opnd2->IsConstImmediate()) {
+    sVal = static_cast<ImmOperand*>(opnd2)->GetValue();
+  } else {
+    CHECK_FATAL(0, "VectorShiftNarrow does not have shift const");
+  }
+  return cgFunc.SelectVectorShiftRNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, isLow);
+}
+
 Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType resType = intrnNode.GetPrimType();                          /* uint32_t result */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
@@ -423,6 +435,12 @@ Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType oTyp1 = intrnNode.Opnd(0)->GetPrimType();
   PrimType oTyp2 = intrnNode.Opnd(1)->GetPrimType();
   return cgFunc.SelectVectorMull(rType, opnd1, oTyp1, opnd2, oTyp2);
+}
+
+Operand *HandleVectorNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  return cgFunc.SelectVectorNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), isLow);
 }
 
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -510,6 +528,12 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C_clrsb32:
     case INTRN_C_clrsb64:
       return cgFunc.SelectCclrsb(intrinsicopNode);
+    case INTRN_C_isaligned:
+      return cgFunc.SelectCisaligned(intrinsicopNode);
+    case INTRN_C_alignup:
+      return cgFunc.SelectCalignup(intrinsicopNode);
+    case INTRN_C_aligndown:
+      return cgFunc.SelectCaligndown(intrinsicopNode);
 
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:
@@ -580,16 +604,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_pairwise_add_v4u32: case INTRN_vector_pairwise_add_v4i32:
       return HandleVectorPairwiseAdd(intrinsicopNode, cgFunc);
 
-    case INTRN_vector_reverse_v8u8: case INTRN_vector_reverse_v8i8:
-    case INTRN_vector_reverse_v4u16: case INTRN_vector_reverse_v4i16:
-    case INTRN_vector_reverse_v16u8: case INTRN_vector_reverse_v16i8:
-    case INTRN_vector_reverse_v8u16: case INTRN_vector_reverse_v8i16:
-      return HandleVectorReverse(intrinsicopNode, cgFunc, k32BitSize);
-
-    case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
-    case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:
-      return HandleVectorTableLookup(intrinsicopNode, cgFunc);
-
     case INTRN_vector_madd_v8u8: case INTRN_vector_madd_v8i8:
     case INTRN_vector_madd_v4u16: case INTRN_vector_madd_v4i16:
     case INTRN_vector_madd_v2u32: case INTRN_vector_madd_v2i32:
@@ -599,6 +613,26 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_mul_v4u16: case INTRN_vector_mul_v4i16:
     case INTRN_vector_mul_v2u32: case INTRN_vector_mul_v2i32:
       return HandleVectorMull(intrinsicopNode, cgFunc);
+
+    case INTRN_vector_narrow_low_v8u16: case INTRN_vector_narrow_low_v8i16:
+    case INTRN_vector_narrow_low_v4u32: case INTRN_vector_narrow_low_v4i32:
+    case INTRN_vector_narrow_low_v2u64: case INTRN_vector_narrow_low_v2i64:
+      return HandleVectorNarrow(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_reverse_v8u8: case INTRN_vector_reverse_v8i8:
+    case INTRN_vector_reverse_v4u16: case INTRN_vector_reverse_v4i16:
+    case INTRN_vector_reverse_v16u8: case INTRN_vector_reverse_v16i8:
+    case INTRN_vector_reverse_v8u16: case INTRN_vector_reverse_v8i16:
+      return HandleVectorReverse(intrinsicopNode, cgFunc, k32BitSize);
+
+    case INTRN_vector_shr_narrow_low_v8u16: case INTRN_vector_shr_narrow_low_v8i16:
+    case INTRN_vector_shr_narrow_low_v4u32: case INTRN_vector_shr_narrow_low_v4i32:
+    case INTRN_vector_shr_narrow_low_v2u64: case INTRN_vector_shr_narrow_low_v2i64:
+      return HandleVectorShiftNarrow(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
+    case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:
+      return HandleVectorTableLookup(intrinsicopNode, cgFunc);
 
     default:
       ASSERT(false, "Should not reach here.");
