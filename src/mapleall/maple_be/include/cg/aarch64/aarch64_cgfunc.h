@@ -94,7 +94,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &stmt) override;
-  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset);
+  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset, bool needLow12 = false);
   AArch64MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   AArch64MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
   void SelectAggDassign(DassignNode &stmt) override;
@@ -334,7 +334,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType,
                                   PrimType targetType);
 
-  MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef = false);
+  MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef = false, bool needLow12 = false);
 
   AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
                                         OfstOperand*, const MIRSymbol*);
