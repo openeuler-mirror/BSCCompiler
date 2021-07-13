@@ -210,8 +210,10 @@ void AArch64MemLayout::LayoutFormalParams() {
           /* struct param aligned on 8 byte boundary unless it is small enough */
           align = kSizeOfPtr;
         }
-        if (IsPrimitiveVector(ty->GetPrimType()) && GetPrimTypeSize(ty->GetPrimType()) > k8ByteSize) {
-          symLoc->SetVector16();
+        int32 tSize = 0;
+        if ((IsPrimitiveVector(ty->GetPrimType()) && GetPrimTypeSize(ty->GetPrimType()) > k8ByteSize) ||
+            AArch64Abi::IsVectorArrayType(ty, tSize) != PTY_void) {
+          align = k16ByteSize;
         }
         segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), align));
         symLoc->SetOffset(segArgsRegPassed.GetSize());
@@ -239,7 +241,7 @@ void AArch64MemLayout::LayoutFormalParams() {
   }
 }
 
-void AArch64MemLayout::LayoutLocalVariales(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
+void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, std::vector<MIRSymbol*> &returnDelays) {
   uint32 symTabSize = mirFunction->GetSymTab()->GetSymbolTableSize();
   for (uint32 i = 0; i < symTabSize; ++i) {
     MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(i);
@@ -271,6 +273,11 @@ void AArch64MemLayout::LayoutLocalVariales(std::vector<MIRSymbol*> &tempVar, std
       symLoc->SetMemSegment(segLocals);
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       uint32 align = be.GetTypeAlign(tyIdx);
+      int32 tSize = 0;
+      if ((IsPrimitiveVector(ty->GetPrimType()) && GetPrimTypeSize(ty->GetPrimType()) > k8ByteSize) ||
+          AArch64Abi::IsVectorArrayType(ty, tSize) != PTY_void) {
+        align = k16ByteSize;
+      }
       if (ty->GetPrimType() == PTY_agg && align < k8BitSize) {
         segLocals.SetSize(RoundUp(segLocals.GetSize(), k8BitSize));
       } else {
@@ -376,7 +383,7 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
   /* allocate the local variables in the stack */
   std::vector<MIRSymbol*> EATempVar;
   std::vector<MIRSymbol*> retDelays;
-  LayoutLocalVariales(EATempVar, retDelays);
+  LayoutLocalVariables(EATempVar, retDelays);
   LayoutEAVariales(EATempVar);
 
   /* handle ret_ref sym now */
@@ -406,6 +413,10 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
     MIRType *mirTy = GlobalTables::GetTypeTable().GetTypeTable()[pType];
     segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(mirTy->GetTypeIndex()));
     spillLocTable[i] = symLoc;
+  }
+
+  if (!cgFunc->GetMirModule().IsJavaModule()) {
+    return;
   }
 
   /*
