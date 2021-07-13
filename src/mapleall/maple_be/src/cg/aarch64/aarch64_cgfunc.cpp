@@ -1296,7 +1296,7 @@ AArch64MemOperand *AArch64CGFunc::FixLargeMemOpnd(MOperator mOp, MemOperand &mem
   return a64MemOpnd;
 }
 
-AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset) {
+AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset, bool needLow12) {
   MemOperand *memOpnd;
   if (sym.GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(sym.GetTyIdx()) > k16ByteSize) {
     /* formal of size of greater than 16 is copied by the caller and the pointer to it is passed. */
@@ -1308,7 +1308,7 @@ AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym,
     memOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, vreg, nullptr,
                                   &GetOrCreateOfstOpnd(offset, k32BitSize), nullptr);
   } else {
-    memOpnd = &GetOrCreateMemOpnd(sym, offset, align * kBitsPerByte);
+    memOpnd = &GetOrCreateMemOpnd(sym, offset, align * kBitsPerByte, false, needLow12);
   }
   return FixLargeMemOpnd(*memOpnd, align);
 }
@@ -1391,12 +1391,12 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     if (IsParamStructCopy(*rhsSymbol)) {
       rhsBaseMemOpnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset, copySize * k8BitSize);
     } else {
-      rhsBaseMemOpnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset, copySize * k8BitSize);
+      rhsBaseMemOpnd = &GetOrCreateMemOpnd(*rhsSymbol, rhsOffset, copySize * k8BitSize, false, true);
       rhsBaseMemOpnd = FixLargeMemOpnd(*rhsBaseMemOpnd, copySize);
     }
     RegOperand *rhsBaseReg = rhsBaseMemOpnd->GetBaseRegister();
     int64 rhsOffsetVal = rhsBaseMemOpnd->GetOffsetOperand()->GetValue();
-    AArch64MemOperand *lhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, copySize, lhsOffset);
+    AArch64MemOperand *lhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, copySize, lhsOffset, true);
     RegOperand *lhsBaseReg = lhsBaseMemOpnd->GetBaseRegister();
     int64 lhsOffsetVal = lhsBaseMemOpnd->GetOffsetOperand()->GetValue();
     bool rhsIsLo12 = (static_cast<AArch64MemOperand *>(rhsBaseMemOpnd)->GetAddrMode()
@@ -7121,7 +7121,7 @@ AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint32 offset, uint32 siz
   return *res;
 }
 
-MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef) {
+MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef, bool needLow12) {
   MIRStorageClass storageClass = symbol.GetStorageClass();
   if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
     AArch64SymbolAlloc *symLoc =
@@ -7201,14 +7201,22 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
       ASSERT(offset == 0, "offset should be 0 for constant literals");
       return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLiteral, size, symbol);
     } else {
-      StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-      AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
-      /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
-      Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, stAddrOpnd, stOpnd);
-      GetCurBB()->AppendInsn(insn);
-      /* ldr     x1, [x1, #:lo12:_PTR__cinf_Ljava_2Flang_2FSystem_3B] */
-      return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLo12Li, size, stAddrOpnd, nullptr,
+      if (needLow12) {
+        StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
+        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        SelectAddrof(stAddrOpnd, stOpnd);
+        return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
+                                                nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
+      } else {
+        StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
+        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
+        Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, stAddrOpnd, stOpnd);
+        GetCurBB()->AppendInsn(insn);
+        /* ldr     x1, [x1, #:lo12:_PTR__cinf_Ljava_2Flang_2FSystem_3B] */
+        return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLo12Li, size, stAddrOpnd, nullptr,
                                               &GetOrCreateOfstOpnd(offset, k32BitSize), &symbol);
+      }
     }
   } else {
     CHECK_FATAL(false, "NYI");
