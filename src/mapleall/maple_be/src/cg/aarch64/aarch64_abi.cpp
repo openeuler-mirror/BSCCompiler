@@ -115,6 +115,9 @@ uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &str
         break;
       }
       isF64 = true;
+    } else if (IsPrimitiveVector(pType)) {
+      isF64 = true;
+      break;
     } else {
       isF32 = isF64 = false;
       break;
@@ -307,6 +310,26 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd) {
   }
   return AArch64Abi::IsSpillReg(regNO);
 }
+
+PrimType IsVectorArrayType(MIRType *ty, int &arraySize) {
+  if (ty->GetKind() == kTypeStruct) {
+    MIRStructType *structTy = static_cast<MIRStructType *>(ty);
+    if (structTy->GetFields().size() == 1) {
+      auto fieldPair = structTy->GetFields()[0];
+      MIRType *fieldTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+      if (fieldTy->GetKind() == kTypeArray) {
+        MIRArrayType *arrayTy = static_cast<MIRArrayType *>(fieldTy);
+        MIRType *arrayElemTy = arrayTy->GetElemType();
+        arraySize = arrayTy->GetSizeArrayItem(0);
+        if (arrayTy->GetDim() == 1 && arraySize <= 4 &&
+            IsPrimitiveVector(arrayElemTy->GetPrimType())) {
+          return arrayElemTy->GetPrimType();
+        }
+      }
+    }
+  }
+  return PTY_void;
+}
 }  /* namespace AArch64Abi */
 
 void ParmLocator::InitPLocInfo(PLocInfo &pLoc) const {
@@ -493,7 +516,29 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
      */
     /* case PTY_agg */
     case PTY_agg: {
-      aggCopySize = ProcessPtyAggWhenLocateNextParm(mirType, pLoc, typeSize, typeAlign);
+      int size = 0;
+      PrimType pTy = AArch64Abi::IsVectorArrayType(&mirType, size);
+      if (pTy != PTY_void) {
+        switch (size) {
+          case 1: pLoc.reg0 = AllocateSIMDFPRegister();
+                  break;
+          case 2: pLoc.reg0 = AllocateSIMDFPRegister();
+                  pLoc.reg1 = AllocateSIMDFPRegister();
+                  break;
+          case 3: pLoc.reg0 = AllocateSIMDFPRegister();
+                  pLoc.reg1 = AllocateSIMDFPRegister();
+                  pLoc.reg2 = AllocateSIMDFPRegister();
+                  break;
+          case 4: pLoc.reg0 = AllocateSIMDFPRegister();
+                  pLoc.reg1 = AllocateSIMDFPRegister();
+                  pLoc.reg2 = AllocateSIMDFPRegister();
+                  pLoc.reg3 = AllocateSIMDFPRegister();
+                  break;
+          default: CHECK_FATAL(0, "Invalid vector array size");
+        }
+      } else {
+        aggCopySize = ProcessPtyAggWhenLocateNextParm(mirType, pLoc, typeSize, typeAlign);
+      }
       break;
     }
     default:
