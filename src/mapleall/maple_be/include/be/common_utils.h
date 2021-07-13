@@ -79,6 +79,16 @@ constexpr int32 kInsnSixthOpnd = 5;
 constexpr int32 kInsnSeventhOpnd = 6;
 constexpr int32 kInsnEighthOpnd = 7;
 
+/* inline asm operand designations */
+constexpr uint32 kAsmStringOpnd = 0;
+constexpr uint32 kAsmOutputListOpnd = 1;
+constexpr uint32 kAsmClobberListOpnd = 2;
+constexpr uint32 kAsmInputListOpnd = 3;
+constexpr uint32 kAsmOutputConstraintOpnd = 4;
+constexpr uint32 kAsmInputConstraintOpnd = 5;
+constexpr uint32 kAsmOutputRegPrefixOpnd = 6;
+constexpr uint32 kAsmInputRegPrefixOpnd = 7;
+
 /* Number of registers */
 constexpr uint32 kOneRegister = 1;
 constexpr uint32 kTwoRegister = 2;

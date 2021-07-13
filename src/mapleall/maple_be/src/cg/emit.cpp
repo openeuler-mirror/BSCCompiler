@@ -423,7 +423,12 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
     }
     case kAsmType: {
       Emit(asmInfo->GetType());
-      Emit(symName);
+      if (GetCG()->GetMIRModule()->IsCModule() && (symName == "sys_nerr" || symName == "sys_errlist")) {
+        /* eliminate warning from deprecated C name */
+        Emit("strerror");
+      } else {
+        Emit(symName);
+      }
       Emit(",");
       Emit(asmInfo->GetAtobt());
       Emit("\n");
