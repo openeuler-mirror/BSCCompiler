@@ -117,6 +117,9 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCparity(IntrinsicopNode &intrinopNode) override;
   Operand *SelectCclrsb(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCalignup(IntrinsicopNode &intrinopNode) override;
+  Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) override;
   void SelectMembar(StmtNode &membar) override;
   void SelectComment(CommentNode &comment) override;
 
@@ -391,6 +394,14 @@ class AArch64CGFunc : public CGFunc {
 
   Operand &CreateCommentOperand(const MapleString &s) {
     return *memPool->New<CommentOperand>(s.c_str(), *memPool);
+  }
+
+  Operand &CreateStringOperand(const std::string &s) {
+    return *memPool->New<StringOperand>(s, *memPool);
+  }
+
+  Operand &CreateStringOperand(const MapleString &s) {
+    return *memPool->New<StringOperand>(s.c_str(), *memPool);
   }
 
   void AddtoCalleeSaved(AArch64reg reg) {
@@ -695,7 +706,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyMemOpnd(Operand &dest, PrimType dtype, uint32 dsize, Operand &src, PrimType stype);
   void SelectCopyRegOpnd(Operand &dest, PrimType dtype, Operand::OperandType opndType, uint32 dsize, Operand &src,
                          PrimType stype);
-  bool GenerateCompareWithZeroInstruction(Opcode jmpOp, Opcode cmpOp, bool is64Bits,
+  bool GenerateCompareWithZeroInstruction(Opcode jmpOp, Opcode cmpOp, bool is64Bits, PrimType primType,
                                           LabelOperand &targetOpnd, Operand &opnd0);
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);

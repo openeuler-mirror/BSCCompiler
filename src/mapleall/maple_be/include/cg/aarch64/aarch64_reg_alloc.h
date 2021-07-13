@@ -24,6 +24,7 @@ class AArch64RegAllocator : public RegAllocator {
  public:
   AArch64RegAllocator(CGFunc &cgFunc, MemPool &memPool)
       : RegAllocator(cgFunc),
+        memPool(&memPool),
         alloc(&memPool),
         regMap(std::less<uint32>(), alloc.Adapter()),
         liveReg(std::less<uint8>(), alloc.Adapter()),
@@ -45,6 +46,10 @@ class AArch64RegAllocator : public RegAllocator {
   void ReleaseReg(AArch64reg reg);
   void ReleaseReg(RegOperand &regOpnd);
   void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end);
+  void AllocHandleDestList(Insn *insn, Operand *opnd, uint32 idx);
+  void AllocHandleDest(Insn *insn, Operand *opnd, uint32 idx);
+  void AllocHandleSrcList(Insn *insn, Operand *opnd, uint32 idx);
+  void AllocHandleSrc(Insn *insn, Operand *opnd, uint32 idx);
   void AllocHandleCallee(Insn &insn, const AArch64MD &md);
   bool IsYieldPointReg(AArch64reg regNO) const;
   bool IsSpecialReg(AArch64reg reg) const;
@@ -70,6 +75,7 @@ class AArch64RegAllocator : public RegAllocator {
   uint32 GetRegLivenessId(Operand *opnd);
   void SetupRegLiveness(BB *bb);
 
+  MemPool *memPool;
   MapleAllocator alloc;
   bool availRegSet[kAllRegNum];
   MapleMap<uint32, AArch64reg> regMap;  /* virtual-register-to-physical-register map */
