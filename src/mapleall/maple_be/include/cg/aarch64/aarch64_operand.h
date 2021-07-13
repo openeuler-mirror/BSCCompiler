@@ -953,8 +953,17 @@ class LogicalShiftLeftOperand : public Operand {
 
 class ExtendShiftOperand : public Operand {
  public:
+  /* if and only if at least one register is WSP, ARM Recommends use of the LSL operator name rathe than UXTW */
   enum ExtendOp : uint8 {
+    kUndef,
+    kUXTB,
+    kUXTH,
+    kUXTW, /* equal to lsl in 32bits */
+    kUXTX, /* equal to lsl in 64bits */
+    kSXTB,
+    kSXTH,
     kSXTW,
+    kSXTX,
   };
 
   ExtendShiftOperand(ExtendOp op, uint32 amt, int32 bitLen)
@@ -966,31 +975,11 @@ class ExtendShiftOperand : public Operand {
     return memPool.Clone<ExtendShiftOperand>(*this);
   }
 
-  void Emit(Emitter &emitter, const OpndProp *prop) const override {
-    (void)prop;
-    switch (extendOp) {
-      case kSXTW:
-        emitter.Emit("SXTW #").Emit(shiftAmount);
-        break;
-      default:
-        ASSERT(false, "should not be here");
-        break;
-    }
-  }
+  void Emit(Emitter &emitter, const OpndProp *prop) const override;
 
   bool Less(const Operand &right) const override;
 
-  void Dump() const override {
-    switch (extendOp) {
-      case kSXTW:
-        LogInfo::MapleLogger() << "SXTW: ";
-        break;
-      default:
-        ASSERT(false, "should not be here");
-        break;
-    }
-    LogInfo::MapleLogger() << shiftAmount;
-  }
+  void Dump() const override;
 
  private:
   ExtendOp extendOp;
