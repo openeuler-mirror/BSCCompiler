@@ -32,6 +32,7 @@ constexpr uint32 kBaseOffsetAlignment = 3;
 constexpr uint32 k1FConst = 31;
 constexpr uint32 k0BitSize = 0;
 constexpr uint32 k1BitSize = 1;
+constexpr uint32 k2BitSize = 2;
 constexpr uint32 k4BitSize = 4;
 constexpr uint32 k6BitSize = 6;
 constexpr uint32 k8BitSize = 8;
@@ -43,11 +44,17 @@ constexpr uint32 k56BitSize = 56;
 constexpr uint32 k64BitSize = 64;
 constexpr uint32 k128BitSize = 128;
 constexpr uint32 k256BitSize = 256;
+constexpr uint32 k512BitSize = 512;
+
+constexpr int32 kNegative256BitSize = -256;
+constexpr int32 kNegative512BitSize = -512;
 
 constexpr uint32 k1ByteSize = 1;
 constexpr uint32 k2ByteSize = 2;
+constexpr uint32 k3ByteSize = 3;
 constexpr uint32 k4ByteSize = 4;
 constexpr uint32 k8ByteSize = 8;
+constexpr uint32 k9ByteSize = 9;
 constexpr uint32 k12ByteSize = 12;
 constexpr uint32 k14ByteSize = 14;
 constexpr uint32 k15ByteSize = 15;
@@ -111,9 +118,24 @@ constexpr int32 kEARetTempNameSize = 10;
 constexpr uint32 kMaxImmVal8Bits = 8;
 constexpr uint32 kMaxImmVal12Bits = 12;
 constexpr uint32 kMaxImmVal13Bits = 13;
+constexpr uint32 kMaxImmVal16Bits = 16;
+
+constexpr int32 kMaxPimm8 = 4095;
+constexpr int32 kMaxPimm16 = 8190;
+constexpr int32 kMaxPimm32 = 16380;
+constexpr int32 kMaxPimm64 = 32760;
+
+constexpr int32 kMaxPimm[k4BitSize] = {kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64};
+constexpr int32 kMaxPairPimm[k2BitSize] = {k256BitSize, k512BitSize};
+
+constexpr int32 kMax12UnsignedImm = 4096;
+constexpr int32 kMax13UnsignedImm = 8192;
+constexpr int32 kMax16UnsignedImm = 65535;
 
 /* aarch64 assembly takes up to 24-bits */
 constexpr uint32 kMaxImmVal24Bits = 24;
+
+constexpr uint32 kDecimalMax = 10;
 
 constexpr double kMicroSecPerMilliSec = 1000.0;
 

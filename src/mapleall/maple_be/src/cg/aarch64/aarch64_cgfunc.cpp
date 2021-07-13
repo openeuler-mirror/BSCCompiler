@@ -1130,16 +1130,17 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
     listInConstraint->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(str)));
     /* process input operands */
     switch (node.Opnd(i)->op) {
-    case OP_dread: {
-      DreadNode &dread = static_cast<DreadNode&>(*node.Opnd(i));
-      Operand *inOpnd = SelectDread(node, dread);
-      listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
-      PrimType pType = dread.GetPrimType();
-      listInRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize()))));
-      break;
-    }
-    default:
-      CHECK_FATAL(0, "Inline asm input expression not handled");
+      case OP_dread: {
+        DreadNode &dread = static_cast<DreadNode&>(*node.Opnd(i));
+        Operand *inOpnd = SelectDread(node, dread);
+        listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
+        PrimType pType = dread.GetPrimType();
+        listInRegPrefix->stringList.push_back(
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize()))));
+        break;
+      }
+      default:
+        CHECK_FATAL(0, "Inline asm input expression not handled");
     }
   }
   std::vector<Operand*> intrnOpnds;
@@ -1178,10 +1179,12 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         MemOperand *dest = GetPseudoRegisterSpillMemoryOperand(pregIdx);
         PrimType stype = GetTypeFromPseudoRegIdx(pregIdx);
         uint32 srcBitLength = GetPrimTypeBitSize(mirPreg->GetPrimType());
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(srcBitLength, stype), *outOpnd, *dest));
+        GetCurBB()->AppendInsn(
+            GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(srcBitLength, stype), *outOpnd, *dest));
       }
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
-      listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize()))));
+      listOutRegPrefix->stringList.push_back(
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize()))));
     } else {
       MIRSymbol *var;
       if (stIdx.IsGlobal()) {
@@ -1195,7 +1198,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       RegOperand *outOpnd = &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(pty)));
       SaveReturnValueInLocal(node.asmOutputs, i, PTY_a64, *outOpnd, node);
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
-      listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, outOpnd->GetSize()))));
+      listOutRegPrefix->stringList.push_back(
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, outOpnd->GetSize()))));
     }
   }
   /* process listClobber */
@@ -1203,36 +1207,36 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(node.clobberList[i]);
     regno_t regno = str[1] - '0';
     if (str[2] >= '0' && str[2] <= '9') {
-      regno = regno * 10 + (str[2] - '0');
+      regno = regno * kDecimalMax + (str[2] - '0');
     }
     RegOperand *reg;
     switch (str[0]) {
-    case 'w':
-      reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + R0), k32BitSize, kRegTyInt);
-      listClobber->PushOpnd(*reg);
-      break;
-    case 'x':
-      reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + R0), k64BitSize, kRegTyInt);
-      listClobber->PushOpnd(*reg);
-      break;
-    case 's':
-      reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k32BitSize, kRegTyFloat);
-      listClobber->PushOpnd(*reg);
-      break;
-    case 'd':
-      reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k64BitSize, kRegTyFloat);
-      listClobber->PushOpnd(*reg);
-      break;
-    case 'v':
-      reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k64BitSize, kRegTyFloat);
-      listClobber->PushOpnd(*reg);
-      break;
-    case 'm': {
-      /* memory */
-      break;
-    }
-    default:
-      CHECK_FATAL(0, "Inline asm clobber list not handled");
+      case 'w':
+        reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + R0), k32BitSize, kRegTyInt);
+        listClobber->PushOpnd(*reg);
+        break;
+      case 'x':
+        reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + R0), k64BitSize, kRegTyInt);
+        listClobber->PushOpnd(*reg);
+        break;
+      case 's':
+        reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k32BitSize, kRegTyFloat);
+        listClobber->PushOpnd(*reg);
+        break;
+      case 'd':
+        reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k64BitSize, kRegTyFloat);
+        listClobber->PushOpnd(*reg);
+        break;
+      case 'v':
+        reg = &GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regno + V0), k64BitSize, kRegTyFloat);
+        listClobber->PushOpnd(*reg);
+        break;
+      case 'm': {
+        /* memory */
+        break;
+      }
+      default:
+        CHECK_FATAL(0, "Inline asm clobber list not handled");
     }
   }
   return;

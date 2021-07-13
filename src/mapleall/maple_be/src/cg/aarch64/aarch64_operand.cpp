@@ -556,6 +556,8 @@ void AArch64ListOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const 
 
 void ListConstraintOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   /* nothing emitted for inline asm constraints */
+  (void)emitter;
+  (void)opndProp;
 }
 
 bool CondOperand::Less(const Operand &right) const {

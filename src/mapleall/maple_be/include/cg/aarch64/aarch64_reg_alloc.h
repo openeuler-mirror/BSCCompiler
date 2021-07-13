@@ -46,10 +46,10 @@ class AArch64RegAllocator : public RegAllocator {
   void ReleaseReg(AArch64reg reg);
   void ReleaseReg(RegOperand &regOpnd);
   void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end);
-  void AllocHandleDestList(Insn *insn, Operand *opnd, uint32 idx);
-  void AllocHandleDest(Insn *insn, Operand *opnd, uint32 idx);
-  void AllocHandleSrcList(Insn *insn, Operand *opnd, uint32 idx);
-  void AllocHandleSrc(Insn *insn, Operand *opnd, uint32 idx);
+  void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
+  void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
+  void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
+  void AllocHandleSrc(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleCallee(Insn &insn, const AArch64MD &md);
   bool IsYieldPointReg(AArch64reg regNO) const;
   bool IsSpecialReg(AArch64reg reg) const;
