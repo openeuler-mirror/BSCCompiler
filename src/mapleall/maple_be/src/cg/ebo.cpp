@@ -187,6 +187,11 @@ bool Ebo::RegForwardCheck(Insn &insn, const Operand &opnd, const Operand *opndRe
         !insn.IsMove())) {
     return false;
   }
+  MOperator mOp = insn.GetMachineOpcode();
+  if (!(mOp == MOP_wmovrr || mOp == MOP_xmovrr) && (opnd.GetSize() != oldOpnd.GetSize() ||
+      opndReplace->GetSize() != oldOpnd.GetSize())) {
+      return false;
+  }
   if (!((insn.GetResultNum() == 0) ||
         (((insn.GetResult(0) != nullptr) && !RegistersIdentical(opnd, *(insn.GetResult(0)))) || !beforeRegAlloc))) {
     return false;
@@ -913,7 +918,8 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
-    if ((resNum == 0) || IsGlobalNeeded(*insn) || insn->IsStore() || insn->IsDecoupleStaticOp() || insn->IsPartDef()) {
+    if ((resNum == 0) || IsGlobalNeeded(*insn) || insn->IsStore() ||
+        insn->IsDecoupleStaticOp() || insn->IsPartDef()) {
       goto insn_is_needed;
     }
 

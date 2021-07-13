@@ -86,6 +86,7 @@ class AArch64Ebo : public Ebo {
   bool SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &immOperand0, const AArch64ImmOperand &immOperand1,
                          uint32 opndSize);
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
+  bool CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bool isFp);
 };
 }  /* namespace maplebe */
 
