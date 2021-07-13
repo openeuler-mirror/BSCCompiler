@@ -1282,7 +1282,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
       MIRType *dtype = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnode->GetStIdx())->GetType();
 #if TARGAARCH64
       PrimType ty = IsStructElementSame(dtype);
-      if (ty == PTY_f32 || ty == PTY_f64) {
+      if (ty == PTY_f32 || ty == PTY_f64 || IsPrimitiveVector(ty)) {
         return false;
       }
 #endif
@@ -3346,6 +3346,15 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   case INTRN_C_clz64:
   case INTRN_C_ctz32:
   case INTRN_C_ctz64:
+  case INTRN_C_popcount32:
+  case INTRN_C_popcount64:
+  case INTRN_C_parity32:
+  case INTRN_C_parity64:
+  case INTRN_C_clrsb32:
+  case INTRN_C_clrsb64:
+  case INTRN_C_isaligned:
+  case INTRN_C_alignup:
+  case INTRN_C_aligndown:
     return true;
 #endif
   default:

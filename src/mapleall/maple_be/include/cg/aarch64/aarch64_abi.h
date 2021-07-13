@@ -44,6 +44,7 @@ bool IsParamReg(AArch64reg reg);
 bool IsSpillReg(AArch64reg reg);
 bool IsExtraSpillReg(AArch64reg reg);
 bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd);
+PrimType IsVectorArrayType(MIRType *ty, int &arraySize);
 }  /* namespace AArch64Abi */
 
 /*
