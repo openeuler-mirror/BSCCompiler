@@ -1296,7 +1296,8 @@ AArch64MemOperand *AArch64CGFunc::FixLargeMemOpnd(MOperator mOp, MemOperand &mem
   return a64MemOpnd;
 }
 
-AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset, bool needLow12) {
+AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 align, int32 offset,
+                                                           bool needLow12) {
   MemOperand *memOpnd;
   if (sym.GetStorageClass() == kScFormal && GetBecommon().GetTypeSize(sym.GetTyIdx()) > k16ByteSize) {
     /* formal of size of greater than 16 is copied by the caller and the pointer to it is passed. */
@@ -7121,7 +7122,8 @@ AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint32 offset, uint32 siz
   return *res;
 }
 
-MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef, bool needLow12) {
+MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef,
+                                              bool needLow12) {
   MIRStorageClass storageClass = symbol.GetStorageClass();
   if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
     AArch64SymbolAlloc *symLoc =
@@ -7215,7 +7217,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
         GetCurBB()->AppendInsn(insn);
         /* ldr     x1, [x1, #:lo12:_PTR__cinf_Ljava_2Flang_2FSystem_3B] */
         return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLo12Li, size, stAddrOpnd, nullptr,
-                                              &GetOrCreateOfstOpnd(offset, k32BitSize), &symbol);
+                                                &GetOrCreateOfstOpnd(offset, k32BitSize), &symbol);
       }
     }
   } else {
