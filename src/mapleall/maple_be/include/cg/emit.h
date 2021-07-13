@@ -51,14 +51,14 @@ const char *GetDwAtName(unsigned n);
 #define DEBUG_ABBREV_0 debug_abbrev0
 #define DEBUG_LINE_0 debug_line0
 #define DEBUG_STR_LABEL ASF
-#define DEBUG_MAPLE_THIS "_this"
-#define DWARF_VERSION 4
-#define SIZEOFPTR 8
 
 namespace maplebe {
 constexpr int32 kSizeOfDecoupleStaticStruct = 4;
 constexpr uint32 kHugeSoInsnCountThreshold = 0x1f00000; /* 124M (4bytes per Insn), leave 4M rooms for 128M */
 constexpr char kHugeSoPostFix[] = "$$hugeso_";
+constexpr char kDebugMapleThis[] = "_this";
+constexpr uint32 kDwarfVersion = 4;
+constexpr uint32 kSizeOfPTR = 8;
 class StructEmitInfo {
  public:
   /* default ctor */
@@ -208,6 +208,7 @@ class Emitter {
   void MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec);
   void EmitArrayConstant(MIRConst &mirConst);
   void EmitStructConstant(MIRConst &mirConst);
+  void EmitVectorConstant(MIRConst &mirConst);
   void EmitLocalVariable(const CGFunc &cgFunc);
   void EmitGlobalVariable();
   void EmitGlobalRootList(const MIRSymbol &mirSymbol);
@@ -236,7 +237,7 @@ class Emitter {
   void EmitLabelRef(LabelIdx labIdx);
   void EmitStmtLabel(LabelIdx labIdx);
   void EmitLabelPair(const LabelPair &pairLabel);
-  void EmitLabelForFunc(MIRFunction *func, LabelIdx labIdx);
+  void EmitLabelForFunc(const MIRFunction *func, LabelIdx labIdx);
 
   /* Emit signed/unsigned integer literals in decimal or hexadecimal */
   void EmitDecSigned(int64 num);
@@ -244,23 +245,23 @@ class Emitter {
   void EmitHexUnsigned(uint64 num);
 
   /* Dwarf debug info */
-  void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr, DBGAbbrevEntry *diae);
-  void SetupDBGInfo(DebugInfo *);
-  void ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie *)> &func);
-  void AddLabelDieToLabelIdxMapping(DBGDie *, LabelIdx);
-  LabelIdx GetLabelIdxForLabelDie(DBGDie *);
+  void FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr);
+  void SetupDBGInfo(DebugInfo*);
+  void ApplyInPrefixOrder(DBGDie *die, const std::function<void(DBGDie*)> &func);
+  void AddLabelDieToLabelIdxMapping(DBGDie*, LabelIdx);
+  LabelIdx GetLabelIdxForLabelDie(DBGDie*);
   void EmitDIHeader();
   void EmitDIFooter();
   void EmitDIHeaderFileInfo();
-  void EmitDIDebugInfoSection(DebugInfo *);
-  void EmitDIDebugAbbrevSection(DebugInfo *);
+  void EmitDIDebugInfoSection(DebugInfo*);
+  void EmitDIDebugAbbrevSection(DebugInfo*);
   void EmitDIDebugARangesSection();
   void EmitDIDebugRangesSection();
   void EmitDIDebugLineSection();
   void EmitDIDebugStrSection();
   void EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTag tagName, DebugInfo *di);
   void EmitDIFormSpecification(unsigned int dwform);
-  void EmitDIFormSpecification(DBGDieAttr *attr) {
+  void EmitDIFormSpecification(const DBGDieAttr *attr) {
     EmitDIFormSpecification(attr->GetDwForm());
   }
 
@@ -280,7 +281,7 @@ class Emitter {
     return fileMap;
   }
 
-  void SetFileMapValue(uint32_t n, std::string &file) {
+  void SetFileMapValue(uint32_t n, const std::string &file) {
     fileMap[n] = file;
   }
 
@@ -332,7 +333,7 @@ class Emitter {
         arraySize(0),
         isFlexibleArray(false),
         hugeSoTargets(cg.GetMIRModule()->GetMPAllocator().Adapter()),
-        labdie2labidxTable(std::less<DBGDie *>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
+        labdie2labidxTable(std::less<DBGDie*>(), cg.GetMIRModule()->GetMPAllocator().Adapter()),
         fileMap(std::less<uint32_t>(), cg.GetMIRModule()->GetMPAllocator().Adapter()) {
     outStream.open(fileName, std::ios::trunc);
     MIRModule &mirModule = *cg.GetMIRModule();
@@ -365,7 +366,7 @@ class Emitter {
   MapleSet<std::string> hugeSoTargets;
   uint32 hugeSoSeqence = 2;
 #endif
-  MapleMap<DBGDie *, LabelIdx> labdie2labidxTable;
+  MapleMap<DBGDie*, LabelIdx> labdie2labidxTable;
   MapleMap<uint32_t, std::string> fileMap;
 };
 }  /* namespace maplebe */
