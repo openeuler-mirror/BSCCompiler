@@ -183,6 +183,7 @@ class AArch64Insn : public Insn {
   void EmitCompareAndSwapInt(Emitter &emitter) const;
   void EmitStringIndexOf(Emitter &emitter) const;
   void EmitCounter(const CG&, Emitter&) const;
+  void EmitInlineAsm(const CG&, Emitter&) const;
 };
 
 struct VectorRegSpec {
@@ -196,8 +197,8 @@ struct VectorRegSpec {
 class AArch64VectorInsn : public AArch64Insn {
  public:
   AArch64VectorInsn(MemPool &memPool, MOperator opc)
-    : AArch64Insn(memPool, opc),
-      regSpecList(localAlloc.Adapter()) {
+      : AArch64Insn(memPool, opc),
+        regSpecList(localAlloc.Adapter()) {
     regSpecList.clear();
   }
 
@@ -208,7 +209,6 @@ class AArch64VectorInsn : public AArch64Insn {
   }
 
   VectorRegSpec *GetAndRemoveRegSpecFromList() {
-    //ASSERT(regSpecList.size() > 0, "regSpecList empty");
     if (regSpecList.size() == 0) {
       VectorRegSpec *vecSpec = CG::GetCurCGFuncNoConst()->GetMemoryPool()->New<VectorRegSpec>();
       return vecSpec;
