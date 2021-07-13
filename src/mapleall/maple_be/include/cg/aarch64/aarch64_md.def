@@ -56,7 +56,6 @@ DEFINE_MOP(MOP_xadrpl12, {mopdReg64ID,mopdReg64IS,mopdLiteralL12},0,kLtAlu,"add"
 DEFINE_MOP(MOP_xaddrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"add","0,1,2",1)
 /* MOP_xaddrrrs */
 DEFINE_MOP(MOP_xaddrrrs, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"add","0,1,2,3",1)
-
 /* MOP_xxwaddrrre */
 DEFINE_MOP(MOP_xxwaddrrre, {mopdReg64ID,mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"add","0,1,2,3",1)
 /* MOP_xaddrri24 */
@@ -67,6 +66,8 @@ DEFINE_MOP(MOP_xaddrri12, {mopdReg64ID,mopdReg64IS,mopdImm12},0,kLtAlu,"add","0,
 DEFINE_MOP(MOP_waddrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"add","0,1,2",1)
 /* MOP_waddrrrs */
 DEFINE_MOP(MOP_waddrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"add","0,1,2,3",1)
+/* MOP_xxwaddrrre */
+DEFINE_MOP(MOP_wwwaddrrre, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"add","0,1,2,3",1)
 /* MOP_waddrri24 */
 DEFINE_MOP(MOP_waddrri24, {mopdReg32ID,mopdReg32IS,mopdImm12,mopdLSL12},0,kLtAluShift,"add","0,1,2,3",1)
 /* MOP_waddrri12 */
@@ -83,6 +84,8 @@ DEFINE_MOP(MOP_xsubrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"sub","0,
 DEFINE_MOP(MOP_xsubsrrr, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_xsubrrrs */
 DEFINE_MOP(MOP_xsubrrrs, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_xxwsubrrre */
+DEFINE_MOP(MOP_xxwsubrrre, {mopdReg64ID,mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
 /* MOP_xsubsrrrs */
 DEFINE_MOP(MOP_xsubsrrrs, {mopdRegCCD, mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdBitShift64},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_xsubrri24 */
@@ -99,6 +102,8 @@ DEFINE_MOP(MOP_wsubrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"sub","0,
 DEFINE_MOP(MOP_wsubsrrr, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"subs","1,2,3",1)
 /* MOP_wsubrrrs */
 DEFINE_MOP(MOP_wsubrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"sub","0,1,2,3",1)
+/* MOP_wwwsubrrre */
+DEFINE_MOP(MOP_wwwsubrrre, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAluShift,"sub","0,1,2,3",1)
 /* MOP_wsubsrrrs */
 DEFINE_MOP(MOP_wsubsrrrs, {mopdRegCCD,mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,kLtAluShift,"subs","1,2,3,4",1)
 /* MOP_wsubrri24 */
@@ -580,10 +585,14 @@ DEFINE_MOP(MOP_dcmpqrr, {mopdRegCCD, mopdReg64FS,mopdReg64FS},0,kLtFpalu,"fcmp",
 DEFINE_MOP(MOP_wcmpri, {mopdRegCCD, mopdReg32IS,mopdImm12},0,kLtAlu,"cmp","1,2",1)
 /* MOP_wcmprr -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_wcmprr, {mopdRegCCD, mopdReg32IS,mopdReg32IS},0,kLtAlu,"cmp","1,2",1)
+/* MOP_wcmprre -- register, shifted register, AArch64 cmp has no dest operand */
+DEFINE_MOP(MOP_wcmprre, {mopdRegCCD, mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAlu,"cmp","1,2,3",1)
 /* MOP_xcmpri -- AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_xcmpri, {mopdRegCCD, mopdReg64IS,mopdImm16},0,kLtAlu,"cmp","1,2",1)
 /* MOP_xcmprr -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_xcmprr, {mopdRegCCD, mopdReg64IS,mopdReg64IS},0,kLtAlu,"cmp","1,2",1)
+/* MOP_xcmprre -- register, shifted register, AArch64 cmp has no dest operand */
+DEFINE_MOP(MOP_xcmprre, {mopdRegCCD, mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAlu,"cmp","1,2,3",1)
 
 /* MOP_wccmpriic -- AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_wccmpriic, {mopdRegCCD, mopdReg32IS,mopdImm5,mopdImm4,mopdCond},0,kLtAlu,"ccmp","1,2,3,4",1)
@@ -598,10 +607,14 @@ DEFINE_MOP(MOP_xccmprric, {mopdRegCCD, mopdReg64IS,mopdReg64IS,mopdImm4,mopdCond
 DEFINE_MOP(MOP_wcmnri, {mopdRegCCD, mopdReg32IS,mopdImm12},0,kLtAlu,"cmn","1,2",1)
 /* MOP_wcmnrr -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_wcmnrr, {mopdRegCCD, mopdReg32IS,mopdReg32IS},0,kLtAlu,"cmn","1,2",1)
+/* MOP_wcmnrre -- register, shifted register, AArch64 cmp has no dest operand */
+DEFINE_MOP(MOP_wcmnrre, {mopdRegCCD, mopdReg32IS,mopdReg32IS,mopdExtendShift64},0,kLtAlu,"cmn","1,2,3",1)
 /* MOP_xcmnri -- AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_xcmnri, {mopdRegCCD, mopdReg64IS,mopdImm16},0,kLtAlu,"cmn","1,2",1)
 /* MOP_xcmnrr -- register, shifted register, AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_xcmnrr, {mopdRegCCD, mopdReg64IS,mopdReg64IS},0,kLtAlu,"cmn","1,2",1)
+/* MOP_xcmnrre -- register, shifted register, AArch64 cmp has no dest operand */
+DEFINE_MOP(MOP_xcmnrre, {mopdRegCCD, mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAlu,"cmn","1,2,3",1)
 
 /* AArch64 branches */
 /* MOP_xbr -- branch to register */

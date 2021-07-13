@@ -597,6 +597,85 @@ bool ExtendShiftOperand::Less(const Operand &right) const {
   return shiftAmount < rightOpnd->shiftAmount;
 }
 
+void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
+  (void)prop;
+  ASSERT(shiftAmount <= k4BitSize && shiftAmount >= 0,
+         "shift amount out of range in ExtendShiftOperand");
+  auto emitExtendShift = [&](std::string extendKind)->void {
+    emitter.Emit(extendKind);
+    if (shiftAmount != 0) {
+      emitter.Emit(" #").Emit(shiftAmount);
+    }
+  };
+  switch (extendOp) {
+    case kUXTB:
+      emitExtendShift("UXTB");
+      break;
+    case kUXTH:
+      emitExtendShift("UXTH");
+      break;
+    case kUXTW:
+      emitExtendShift("UXTW");
+      break;
+    case kUXTX:
+      emitExtendShift("UXTX");
+      break;
+    case kSXTB:
+      emitExtendShift("SXTB");
+      break;
+    case kSXTH:
+      emitExtendShift("SXTH");
+      break;
+    case kSXTW:
+      emitExtendShift("SXTW");
+      break;
+    case kSXTX:
+      emitExtendShift("SXTX");
+      break;
+    default:
+      ASSERT(false, "should not be here");
+      break;
+  }
+}
+
+void ExtendShiftOperand::Dump() const {
+  auto dumpExtendShift = [&](std::string extendKind)->void {
+    LogInfo::MapleLogger() << extendKind;
+    if (shiftAmount != 0) {
+      LogInfo::MapleLogger() << " : " << shiftAmount;
+    }
+  };
+  switch (extendOp) {
+    case kUXTB:
+      dumpExtendShift("UXTB");
+      break;
+    case kUXTH:
+      dumpExtendShift("UXTH");
+      break;
+    case kUXTW:
+      dumpExtendShift("UXTW");
+      break;
+    case kUXTX:
+      dumpExtendShift("UXTX");
+      break;
+    case kSXTB:
+      dumpExtendShift("SXTB");
+      break;
+    case kSXTH:
+      dumpExtendShift("SXTH");
+      break;
+    case kSXTW:
+      dumpExtendShift("SXTW");
+      break;
+    case kSXTX:
+      dumpExtendShift("SXTX");
+      break;
+    default:
+      ASSERT(false, "should not be here");
+      break;
+  }
+}
+
 bool BitShiftOperand::Less(const Operand &right) const {
   if (&right == this) {
     return false;
