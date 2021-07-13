@@ -1673,6 +1673,10 @@ ASTExpr *ASTParser::ProcessExprCastExpr(MapleAllocator &allocator, const clang::
     case clang::CK_BuiltinFnToFnPtr:
       astCastExpr->SetBuilinFunc(true);
       break;
+    case clang::CK_VectorSplat:
+      astCastExpr->SetVectorSplat(true);
+      CHECK_FATAL(expr.getType()->isVectorType(), "dst type must be vector type in VectorSplat");
+      break;
     case clang::CK_NullToPointer:
     case clang::CK_IntegralToPointer:
     case clang::CK_FloatingToIntegral:

@@ -200,6 +200,7 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstF64(double val) {
 // Note that loss of precision, byte value is only supported.
 UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 val) {
   switch (primType) {
+    case PTY_u1:
     case PTY_u8:
     case PTY_u16:
     case PTY_u32:
@@ -208,6 +209,8 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 va
     case PTY_i16:
     case PTY_i32:
     case PTY_i64:
+    case PTY_ptr:
+    case PTY_a64:
       return std::make_unique<FEIRExprConst>(val, primType);
     case PTY_f128:
       // Not Implemented
@@ -218,9 +221,47 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 va
     case PTY_f64:
       return CreateExprConstF64(static_cast<double>(val));
     default:
+      if (IsPrimitiveVector(primType)) {
+        return CreateExprVdupAnyVector(primType, val);
+      }
       CHECK_FATAL(false, "unsupported const prime type");
       return nullptr;
   }
+}
+
+UniqueFEIRExpr FEIRBuilder::CreateExprVdupAnyVector(PrimType primtype, int64 val) {
+MIRIntrinsicID intrinsic;
+  switch (primtype) {
+#define SET_VDUP(TY)                                                          \
+    case PTY_##TY:                                                            \
+      intrinsic = INTRN_vector_from_scalar_##TY;                              \
+      break;
+
+    SET_VDUP(v2i64)
+    SET_VDUP(v4i32)
+    SET_VDUP(v8i16)
+    SET_VDUP(v16i8)
+    SET_VDUP(v2u64)
+    SET_VDUP(v4u32)
+    SET_VDUP(v8u16)
+    SET_VDUP(v16u8)
+    SET_VDUP(v2f64)
+    SET_VDUP(v4f32)
+    SET_VDUP(v2i32)
+    SET_VDUP(v4i16)
+    SET_VDUP(v8i8)
+    SET_VDUP(v2u32)
+    SET_VDUP(v4u16)
+    SET_VDUP(v8u8)
+    SET_VDUP(v2f32)
+    default:
+      CHECK_FATAL(false, "Unhandled vector type in CreateExprVdupAnyVector");
+  }
+  UniqueFEIRType feType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPrimType(primtype));
+  UniqueFEIRExpr valExpr = CreateExprConstAnyScalar(FEUtils::GetVectorElementPrimType(primtype), val);
+  std::vector<std::unique_ptr<FEIRExpr>> argOpnds;
+  argOpnds.push_back(std::move(valExpr));
+  return std::make_unique<FEIRExprIntrinsicopForC>(std::move(feType), intrinsic, argOpnds);
 }
 
 UniqueFEIRExpr FEIRBuilder::CreateExprMathUnary(Opcode op, UniqueFEIRVar var0) {
@@ -621,6 +662,10 @@ UniqueFEIRStmt FEIRBuilder::AssginStmtField(UniqueFEIRExpr addrExpr, UniqueFEIRE
   } else if (addrExpr->GetKind() == kExprIRead) {
     auto ireadExpr = static_cast<FEIRExprIRead*>(addrExpr.get());
     stmt = CreateStmtIAssign(ireadExpr->GetClonedPtrType(), ireadExpr->GetClonedOpnd(),
+        std::move(srcExpr), baseID + fieldID);
+  } else if (addrExpr->GetKind() == kExprIAddrof) {
+    auto iaddrofExpr = static_cast<FEIRExprIAddrof*>(addrExpr.get());
+    stmt = CreateStmtIAssign(iaddrofExpr->GetClonedPtrType(), iaddrofExpr->GetClonedOpnd(),
         std::move(srcExpr), baseID + fieldID);
   } else {
     CHECK_FATAL(false, "unsupported expr in AssginStmtField");

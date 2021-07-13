@@ -209,6 +209,10 @@ class ASTCastExpr : public ASTExpr {
     isBitCast = flag;
   }
 
+  void SetVectorSplat(bool flag) {
+    isVectorSplat = flag;
+  }
+
  protected:
   MIRConst *GenerateMIRConstImpl() const override;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
@@ -223,6 +227,7 @@ class ASTCastExpr : public ASTExpr {
   MIRConst *GenerateMIRDoubleConst() const;
   MIRConst *GenerateMIRFloatConst() const;
   MIRConst *GenerateMIRIntConst() const;
+  UniqueFEIRExpr EmitExprVdupVector(PrimType primtype, UniqueFEIRExpr &subExpr) const;
   ASTExpr *child = nullptr;
   MIRType *src = nullptr;
   MIRType *dst = nullptr;
@@ -233,6 +238,7 @@ class ASTCastExpr : public ASTExpr {
   bool isArrayToPointerDecay = false;
   bool isBuilinFunc = false;
   bool isUnoinCast = false;
+  bool isVectorSplat = false;
 };
 
 class ASTDeclRefExpr : public ASTExpr {
