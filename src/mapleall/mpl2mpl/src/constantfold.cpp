@@ -1445,7 +1445,8 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
   } else if (node->GetOpCode() == OP_cvt && GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType())) {
     if ((IsPossible64BitAddress(node->FromType()) && IsPossible64BitAddress(node->GetPrimType())) ||
         (IsPossible32BitAddress(node->FromType()) && IsPossible32BitAddress(node->GetPrimType())) ||
-         (IsPrimitivePureScalar(node->FromType()) && IsPrimitivePureScalar(node->GetPrimType()) && GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
+         (IsPrimitivePureScalar(node->FromType()) && IsPrimitivePureScalar(node->GetPrimType()) &&
+          GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
       return p; // the cvt is redundant
     }
   } else if (node->GetOpCode() == OP_cvt && p.second != 0 &&
