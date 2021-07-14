@@ -193,6 +193,7 @@ ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysignf);
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysign);
   ASTExpr *PARSE_BUILTIIN_FUNC(Copysignl);
+  ASTExpr *PARSE_BUILTIIN_FUNC(Objectsize);
 
   static std::map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   uint32 fileIdx;
