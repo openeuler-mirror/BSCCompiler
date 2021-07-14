@@ -1000,6 +1000,30 @@ void CGLowerer::LowerIassign(IassignNode &iassign, BlockNode &newBlk) {
   newBlk.AddStatement(newStmt);
 }
 
+static GStrIdx NewAsmTempStrIdx() {
+  static uint32 strIdxCount = 0;  // to create unique temporary symbol names
+  std::string asmTempStr("asm_tempvar");
+  (void)asmTempStr.append(std::to_string(++strIdxCount));
+  return GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(asmTempStr);
+}
+
+void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
+  for (size_t i = 0; i < asmNode->NumOpnds(); i++) {
+    BaseNode *opnd = LowerExpr(*asmNode, *asmNode->Opnd(i), *newBlk);
+    if (opnd->NumOpnds() == 0) {
+      asmNode->SetOpnd(opnd, i);
+      continue;
+    }
+    // introduce a temporary to store the expression tree operand
+    MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)opnd->GetPrimType(), NewAsmTempStrIdx(),
+                        kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
+    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
+    newBlk->AddStatement(dass);
+    asmNode->SetOpnd(mirModule.GetMIRBuilder()->CreateExprDread(*st), i);
+  }
+  newBlk->AddStatement(asmNode);
+}
+
 DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   MIRSymbol *var;
   if (stIdx.IsGlobal()) {
@@ -1557,6 +1581,10 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
          */
         CHECK_FATAL(CGOptions::IsGCOnly(), "OP_decrefreset is expected only in gconly.");
         LowerResetStmt(*stmt, *newBlk);
+        break;
+      }
+      case OP_asm: {
+        LowerAsmStmt(static_cast<AsmNode *>(stmt), newBlk);
         break;
       }
       default:
@@ -3346,6 +3374,15 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   case INTRN_C_clz64:
   case INTRN_C_ctz32:
   case INTRN_C_ctz64:
+  case INTRN_C_popcount32:
+  case INTRN_C_popcount64:
+  case INTRN_C_parity32:
+  case INTRN_C_parity64:
+  case INTRN_C_clrsb32:
+  case INTRN_C_clrsb64:
+  case INTRN_C_isaligned:
+  case INTRN_C_alignup:
+  case INTRN_C_aligndown:
     return true;
 #endif
   default:
