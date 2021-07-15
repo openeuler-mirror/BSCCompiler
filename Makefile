@@ -87,9 +87,9 @@ ast2mpl:
 mplfe: install_patch
 	$(call build_gn, $(GN_OPTIONS), mplfe)
 
-#.PHONY: clang2mpl
-#clang2mpl: maple
-#	(cd tools/clang2mpl; make setup; make; make install)
+.PHONY: clang2mpl
+clang2mpl: maple
+	(cd tools/clang2mpl; make setup; make; make install)
 
 .PHONY: mplfeUT
 mplfeUT:
