@@ -21,6 +21,7 @@
 #include "mir_builder.h"
 #include "me_critical_edge.h"
 #include "me_loop_canon.h"
+#include "mir_lower.h"
 
 namespace {
 constexpr int kFuncNameLenLimit = 80;
@@ -1736,7 +1737,17 @@ void MeCFG::BuildSCC() {
   SCCTopologicalSort(sccNodes);
 }
 
-AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
+AnalysisResult *MeDoMeCfg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+  if (!func->IsLfo() && func->GetLfoFunc() != nullptr) {
+    m->InvalidAllResults();
+    func->SetMeSSATab(nullptr);
+    func->SetIRMap(nullptr);
+
+    MIRLower mirlowerer(func->GetMIRModule(), func->GetMirFunc());
+    mirlowerer.SetLowerME();
+    mirlowerer.SetLowerExpandArray();
+    mirlowerer.LowerFunc(*func->GetMirFunc());
+  }
   MemPool *meCfgMp = NewMemPool();
   MeCFG *theCFG = meCfgMp->New<MeCFG>(meCfgMp, *func);
   func->SetTheCfg(theCFG);
