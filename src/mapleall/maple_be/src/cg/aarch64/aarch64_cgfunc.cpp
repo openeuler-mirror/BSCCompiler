@@ -1194,8 +1194,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
             GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(srcBitLength, stype), *outOpnd, *dest));
       }
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
-      listOutRegPrefix->stringList.push_back(
-          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize(), str))));
+      listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(
+          &CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize(), str))));
     } else {
       MIRSymbol *var;
       if (stIdx.IsGlobal()) {
