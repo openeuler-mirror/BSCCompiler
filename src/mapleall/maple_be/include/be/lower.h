@@ -149,6 +149,8 @@ class CGLowerer {
 
   void LowerStmt(StmtNode &stmt, BlockNode &block);
 
+  void LowerSwitchOpnd(StmtNode &stmt, BlockNode &block);
+
   MIRSymbol *CreateNewRetVar(const MIRType &ty, const std::string &prefix);
 
   void RegisterExternalLibraryFunctions();

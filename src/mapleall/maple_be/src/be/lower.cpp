@@ -1446,6 +1446,19 @@ void CGLowerer::LowerStmt(StmtNode &stmt, BlockNode &newBlk) {
   }
 }
 
+void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
+  BaseNode *opnd = LowerExpr(stmt, *stmt.Opnd(0), newBlk);
+  if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2 && opnd->GetOpCode() != OP_regread) {
+    PrimType ptyp = stmt.Opnd(0)->GetPrimType();
+    PregIdx pIdx = GetCurrentFunc()->GetPregTab()->CreatePreg(ptyp);
+    RegassignNode *regAss = mirBuilder->CreateStmtRegassign(ptyp, pIdx, opnd);
+    newBlk.AddStatement(regAss);
+    stmt.SetOpnd(mirBuilder->CreateExprRegread(ptyp, pIdx), 0);
+  } else {
+    stmt.SetOpnd(LowerExpr(stmt, *stmt.Opnd(0), newBlk), 0);
+  }
+}
+
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
   BlockNode *newBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   BlockNode *tmpBlockNode = nullptr;
@@ -1464,7 +1477,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
 
     switch (stmt->GetOpCode()) {
       case OP_switch: {
-        LowerStmt(*stmt, *newBlk);
+        LowerSwitchOpnd(*stmt, *newBlk);
         auto switchMp = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "switchlowere");
         MapleAllocator switchAllocator(switchMp.get());
         SwitchLowerer switchLowerer(mirModule, static_cast<SwitchNode&>(*stmt), switchAllocator);
