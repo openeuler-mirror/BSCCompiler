@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,14 +12,13 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "me_function.h"
 #include "lfo_dep_test.h"
+#include "me_function.h"
 
 namespace maple {
-
 void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
   StmtNode *stmt = block->GetFirst();
-  while (stmt) {
+  while (stmt != nullptr) {
     switch (stmt->GetOpCode()) {
       case OP_doloop: {
         DoloopNode *doloop = static_cast<DoloopNode *>(stmt);
@@ -30,6 +29,9 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
         } else {
           outermostDoloopInfoVec.push_back(doloopInfo);
         }
+        LfoPart *lfopart = preEmit->GetLfoStmtPart(doloop->GetStmtID());
+        MeStmt *meStmt = lfopart->GetMeStmt();
+        doloopInfo->doloopBB = meStmt->GetBB();
         CreateDoloopInfo(doloop->GetDoBody(), doloopInfo);
         break;
       }
@@ -39,10 +41,12 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       }
       case OP_if: {
         IfStmtNode *ifstmtnode = static_cast<IfStmtNode *>(stmt);
-        if (ifstmtnode->GetThenPart())
+        if (ifstmtnode->GetThenPart()) {
           CreateDoloopInfo(ifstmtnode->GetThenPart(), parent);
-        if (ifstmtnode->GetElsePart())
+        }
+        if (ifstmtnode->GetElsePart()) {
           CreateDoloopInfo(ifstmtnode->GetElsePart(), parent);
+        }
         break;
       }
       case OP_dowhile:
@@ -57,8 +61,62 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
   }
 }
 
+// check if x is loop-invariant w.r.t. the doloop
+bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
+  if (x == nullptr) {
+    return true;
+  }
+  switch (x->GetMeOp()) {
+    case kMeOpAddrof:
+    case kMeOpAddroffunc:
+    case kMeOpConst:
+    case kMeOpConststr:
+    case kMeOpConststr16:
+    case kMeOpSizeoftype:
+    case kMeOpFieldsDist: return true;
+    case kMeOpVar:
+    case kMeOpReg: {
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      BB *defBB = scalar->DefByBB();
+      return defBB == nullptr || (defBB != doloopBB && depInfo->dom->Dominate(*defBB, *doloopBB));
+    }
+    case kMeOpIvar: {
+      IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
+      if (!IsLoopInvariant(ivar->GetBase())) {
+        return false;
+      }
+      BB *defBB = ivar->GetMu()->DefByBB();
+      return defBB == nullptr || (defBB != doloopBB && depInfo->dom->Dominate(*defBB, *doloopBB));
+    }
+    case kMeOpOp: {
+      OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
+      return IsLoopInvariant(opexp->GetOpnd(0)) &&
+             IsLoopInvariant(opexp->GetOpnd(1)) &&
+             IsLoopInvariant(opexp->GetOpnd(2));
+    }
+    case kMeOpNary: {
+      NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
+      for (uint32 i = 0; i < opexp->GetNumOpnds(); i++) {
+        if (!IsLoopInvariant(opexp->GetOpnd(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
 SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
-  SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>();
+  LfoPart *lfopart = depInfo->preEmit->GetLfoExprPart(subsX);
+  MeExpr *meExpr = lfopart->GetMeExpr();
+  SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>(meExpr);
+  if (IsLoopInvariant(meExpr)) {
+    subsDesc->loopInvariant = true;
+    return subsDesc;
+  }
   Opcode op = subsX->GetOpCode();
   BaseNode *mainTerm = nullptr;
   if (op != OP_add && op != OP_sub) {
@@ -77,8 +135,9 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
       return subsDesc;
     }
     subsDesc->additiveConst = static_cast<MIRIntConst *>(mirconst)->GetValue();
-    if (op == OP_sub)
+    if (op == OP_sub) {
       subsDesc->additiveConst = - subsDesc->additiveConst;
+    }
     mainTerm = opnd0;
   }
   // process mainTerm
@@ -104,6 +163,10 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
       return subsDesc;
     }
     subsDesc->coeff = static_cast<MIRIntConst *>(mirconst)->GetValue();
+    if (subsDesc->coeff < 0) {
+      subsDesc->tooMessy = true;
+      return subsDesc;
+    }
   } 
   // process varNode
   if (varNode->GetOpCode() == OP_dread) {
@@ -117,7 +180,7 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   return subsDesc;
 }
 
-void DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS) {
+ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS) {
 #if 0
   MIRType *atype =  arr->GetArrayType(GlobalTables::GetTypeTable());
   ASSERT(atype->GetKind() == kTypeArray, "type was wrong");
@@ -127,7 +190,24 @@ void DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS) {
 #else
   size_t dim = arr->NumOpnds() - 1;
 #endif
-  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr);
+  // determine arrayOst
+  LfoPart *lfopart = depInfo->preEmit->GetLfoExprPart(arr);
+  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(lfopart->GetMeExpr());
+  OriginalSt *arryOst = nullptr;
+  if (arrayMeExpr->GetOpnd(0)->GetMeOp() == kMeOpAddrof) {
+    AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(arrayMeExpr->GetOpnd(0));
+    arryOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(addrof->GetOstIdx());
+
+  } else {
+    ScalarMeExpr *scalar = dynamic_cast<ScalarMeExpr *>(arrayMeExpr->GetOpnd(0));
+    if (scalar) {
+      arryOst = scalar->GetOst();
+    } else {
+      hasPtrAccess = true;
+      return nullptr;
+    }
+  }
+  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOst);
   if (isRHS) {
     rhsArrays.push_back(arrDesc);
   } else {
@@ -137,11 +217,12 @@ void DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS) {
     SubscriptDesc *subs = BuildOneSubscriptDesc(arr->GetIndex(i));
     arrDesc->subscriptVec.push_back(subs);
   }
+  return arrDesc;
 }
 
 void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x) {
   if (x->GetOpCode() == OP_array) {
-    BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), true/*isRHS*/);
+    BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), true /* isRHS */);
   }
   for (size_t i = 0; i < x->NumOpnds(); i++) {
     CreateRHSArrayAccessDesc(x->Opnd(i));
@@ -178,11 +259,33 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
       case OP_iassign: {
         IassignNode *iass = static_cast<IassignNode *>(stmt);
         if (iass->addrExpr->GetOpCode() == OP_array) {
-          BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), false/*isRHS*/);
+          ArrayAccessDesc *adesc = BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), false/*isRHS*/);
+          if (adesc == nullptr) {
+            hasMayDef = true;
+          } else {
+            // check if the chi list has only the same array
+            LfoPart *lfopart = depInfo->preEmit->GetLfoStmtPart(iass->GetStmtID());
+            IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(lfopart->GetMeStmt());
+            MapleMap<OStIdx, ChiMeNode*> *chilist = iassMeStmt->GetChiList();
+            MapleMap<OStIdx, ChiMeNode*>::iterator chiit = chilist->begin();
+            for (; chiit != chilist->end(); chiit++) {
+              OriginalSt *chiOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiit->first);
+              if (!chiOst->IsSameSymOrPreg(adesc->arrayOst)) {
+                hasMayDef = true;
+                break;
+              }
+            }
+          }
         } else {
           hasPtrAccess = true;
         }
         CreateRHSArrayAccessDesc(iass->rhs);
+        break;
+      }
+      case OP_dassign:
+      case OP_regassign: {
+        hasScalarAssign = true;
+        CreateRHSArrayAccessDesc(stmt->Opnd(0));
         break;
       }
       case OP_call:
@@ -192,6 +295,7 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         hasCall = true;
         // fall thru
       }
+      [[clang::fallthrough]];
       default: {
         for (size_t i = 0; i < stmt->NumOpnds(); i++) {
           CreateRHSArrayAccessDesc(stmt->Opnd(i));
@@ -203,9 +307,105 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
   }
 }
 
-void LfoDepInfo::CreateArrayAccessDesc(MapleMap<DoloopNode *, DoloopInfo *> *doloopInfoMap) {
-  MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = doloopInfoMap->begin();
-  for (; mapit != doloopInfoMap->end(); mapit++) {
+void DoloopInfo::CreateDepTestLists() {
+  size_t i, j;
+  for (i = 0; i < lhsArrays.size(); i++) {
+    for (j = i+1; j < lhsArrays.size(); j++) {
+      if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(lhsArrays[j]->arrayOst)) {
+        outputDepTestList.push_back(DepTestPair(i, j));
+      }
+    }
+  }
+  for (i = 0; i < lhsArrays.size(); i++) {
+    for (j = 0; j < rhsArrays.size(); j++) {
+      if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(rhsArrays[j]->arrayOst)) {
+        flowDepTestList.push_back(DepTestPair(i, j));
+      }
+    }
+  }
+}
+
+static int64 Gcd(int64 a, int64 b) {
+  CHECK_FATAL(a > 0 && b >= 0, "Gcd: NYI");
+  if (b == 0)
+    return a;
+  return Gcd(b, a % b);
+}
+
+void DoloopInfo::TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS) {
+  size_t i, j;
+  for (i = 0; i < depTestList->size(); i++) {
+    DepTestPair *testPair = &(*depTestList)[i];
+    ArrayAccessDesc *arrDesc1 = lhsArrays[testPair->depTestPair.first];
+    ArrayAccessDesc *arrDesc2 = nullptr;
+    if (bothLHS) {
+      arrDesc2 = lhsArrays[testPair->depTestPair.second];
+    } else {
+      arrDesc2 = rhsArrays[testPair->depTestPair.second];
+    }
+    CHECK_FATAL(arrDesc1->subscriptVec.size() == arrDesc2->subscriptVec.size(),
+                "TestDependences: inconsistent array dimension");
+    for (j = 0; j < arrDesc1->subscriptVec.size(); j++) {
+      SubscriptDesc *subs1 = arrDesc1->subscriptVec[j];
+      SubscriptDesc *subs2 = arrDesc2->subscriptVec[j];
+      if (subs1->tooMessy || subs2->tooMessy) {
+        testPair->dependent = true;
+        testPair->unknownDist = true;
+        break;
+      }
+      if (subs1->loopInvariant || subs2->loopInvariant) {
+        if (subs1->subscriptX == subs2->subscriptX) {
+          continue;
+        } else {
+          testPair->dependent = true;
+          testPair->unknownDist = true;
+          break;
+        }
+      }
+      if (subs1->coeff == subs2->coeff) { // lamport test
+        if (((subs1->additiveConst - subs2->additiveConst) % subs1->coeff) != 0) {
+          continue;
+        }
+        testPair->dependent = true;
+        int64 dist = (subs1->additiveConst - subs2->additiveConst) / subs1->coeff;
+        if (dist != 0) {
+          testPair->depDist = dist;
+        }
+        continue;
+      }
+      // gcd test 
+      if ((subs1->additiveConst - subs2->additiveConst) % Gcd(subs1->coeff, subs2->coeff) == 0) {
+        testPair->dependent = true;
+        testPair->unknownDist = true;
+        break;
+      }
+    }
+  }
+}
+
+bool DoloopInfo::Parallelizable() {
+  if (hasPtrAccess || hasCall || hasScalarAssign || hasMayDef) {
+    return true;
+  }
+  for (size_t i = 0; i < outputDepTestList.size(); i++) {
+    DepTestPair *testPair = &outputDepTestList[i];
+    if (testPair->dependent && (testPair->unknownDist || testPair->depDist != 0)) {
+      return false;
+    } 
+  }
+  for (size_t i = 0; i < flowDepTestList.size(); i++) {
+    DepTestPair *testPair = &flowDepTestList[i];
+    if (testPair->dependent && (testPair->unknownDist || testPair->depDist != 0)) {
+      return false;
+    } 
+  }
+  return true;
+}
+
+void LfoDepInfo::PerformDepTest() {
+  size_t i;
+  MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = doloopInfoMap.begin();
+  for (; mapit != doloopInfoMap.end(); mapit++) {
     DoloopInfo *doloopInfo = mapit->second;
     if (!doloopInfo->children.empty()) {
       continue;  // only handling innermost doloops
@@ -219,14 +419,24 @@ void LfoDepInfo::CreateArrayAccessDesc(MapleMap<DoloopNode *, DoloopInfo *> *dol
       if (doloopInfo->hasCall) {
         LogInfo::MapleLogger() << " hasCall";
       }
+      if (doloopInfo->hasScalarAssign) {
+        LogInfo::MapleLogger() << " hasScalarAssign";
+      }
+      if (doloopInfo->hasMayDef) {
+        LogInfo::MapleLogger() << " hasMayDef";
+      }
       LogInfo::MapleLogger() << std::endl;
       doloopInfo->doloop->Dump(0);
       LogInfo::MapleLogger() << "LHS arrays:\n";
-      for (ArrayAccessDesc *arrAcc : doloopInfo->lhsArrays) {
-        arrAcc->theArray->Dump(0);
+      for (i = 0; i < doloopInfo->lhsArrays.size(); i++) {
+        ArrayAccessDesc *arrAcc = doloopInfo->lhsArrays[i];
+        LogInfo::MapleLogger() << "(L" << i << ") ";
+        arrAcc->arrayOst->Dump();
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
-          if (subs->tooMessy) {
+          if (subs->loopInvariant) {
+            LogInfo::MapleLogger() << " [loopinvariant]";
+          } else if (subs->tooMessy) {
             LogInfo::MapleLogger() << " [messy]";
           } else {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
@@ -238,12 +448,16 @@ void LfoDepInfo::CreateArrayAccessDesc(MapleMap<DoloopNode *, DoloopInfo *> *dol
         }
         LogInfo::MapleLogger() << std::endl;
       }
-      LogInfo::MapleLogger() << "RHS arrays: ";
-      for (ArrayAccessDesc *arrAcc : doloopInfo->rhsArrays) {
-        arrAcc->theArray->Dump(0);
+      LogInfo::MapleLogger() << "RHS arrays:\n";
+      for (i = 0; i < doloopInfo->rhsArrays.size(); i++) {
+        ArrayAccessDesc *arrAcc = doloopInfo->rhsArrays[i];
+        LogInfo::MapleLogger() << "(R" << i << ") ";
+        arrAcc->arrayOst->Dump();
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
-          if (subs->tooMessy) {
+          if (subs->loopInvariant) {
+            LogInfo::MapleLogger() << " [loopinvariant]";
+          } else if (subs->tooMessy) {
             LogInfo::MapleLogger() << " [messy]";
           } else {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
@@ -257,19 +471,58 @@ void LfoDepInfo::CreateArrayAccessDesc(MapleMap<DoloopNode *, DoloopInfo *> *dol
       }
       LogInfo::MapleLogger() << std::endl;
     }
+    doloopInfo->CreateDepTestLists();
+    doloopInfo->TestDependences(&doloopInfo->outputDepTestList, true);
+    doloopInfo->TestDependences(&doloopInfo->flowDepTestList, false);
+    if (DEBUGFUNC(lfoFunc->meFunc)) {
+      for (DepTestPair item : doloopInfo->outputDepTestList) {
+        LogInfo::MapleLogger() << "Dep between L" << item.depTestPair.first << " and L" << item.depTestPair.second;
+        if (!item.dependent) {
+          LogInfo::MapleLogger() << " independent";
+        } else {
+          LogInfo::MapleLogger() << " dependent";
+          if (item.unknownDist) {
+            LogInfo::MapleLogger() << " unknownDist";
+          } else {
+            LogInfo::MapleLogger() << " distance: " << item.depDist;
+          }
+        }
+        LogInfo::MapleLogger() << std::endl;
+      }
+      for (DepTestPair item : doloopInfo->flowDepTestList) {
+        LogInfo::MapleLogger() << "Dep between L" << item.depTestPair.first << " and R" << item.depTestPair.second;
+        if (!item.dependent) {
+          LogInfo::MapleLogger() << " independent";
+        } else {
+          LogInfo::MapleLogger() << " dependent";
+          if (item.unknownDist) {
+            LogInfo::MapleLogger() << " unknownDist";
+          } else {
+            LogInfo::MapleLogger() << " distance: " << item.depDist;
+          }
+        }
+        LogInfo::MapleLogger() << std::endl;
+      }
+      if (doloopInfo->Parallelizable()) {
+        LogInfo::MapleLogger() << "LOOP CAN BE VECTORIZED\n";
+      }
+    }
   }
 }
 
 AnalysisResult *DoLfoDepTest::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  ASSERT(dom != nullptr, "dominance phase has problem");
   LfoPreEmitter *preEmit = static_cast<LfoPreEmitter *>(m->GetAnalysisResult(MeFuncPhase_LFOPREEMIT, func));
+  ASSERT(preEmit != nullptr, "lfo preemit phase has problem");
   LfoFunction *lfoFunc = func->GetLfoFunc();
   MemPool *depTestMp = NewMemPool();
-  LfoDepInfo *depInfo = depTestMp->New<LfoDepInfo>(depTestMp, lfoFunc, preEmit);
+  LfoDepInfo *depInfo = depTestMp->New<LfoDepInfo>(depTestMp, lfoFunc, dom, preEmit);
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== LFO_DEP_TEST =============" << '\n';
   }
   depInfo->CreateDoloopInfo(func->GetMirFunc()->GetBody(), nullptr);
-  depInfo->CreateArrayAccessDesc(&depInfo->doloopInfoMap);
+  depInfo->PerformDepTest();
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "________________" << std::endl;
     lfoFunc->meFunc->GetMirFunc()->Dump();

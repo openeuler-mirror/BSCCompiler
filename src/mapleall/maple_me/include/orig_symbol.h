@@ -213,7 +213,15 @@ class OriginalSt {
       return false;
     }
     MIRType *mirtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
-    return IsPrimitiveInteger(mirtype->GetPrimType()) && (mirtype->GetKind() != kTypeBitField);
+    if (IsPrimitiveInteger(mirtype->GetPrimType()) && (mirtype->GetKind() != kTypeBitField)) {
+      // additional check using MIRSymbol's tyIdx
+      if (IsSymbolOst()) {
+        return IsPrimitiveInteger(GetMIRSymbol()->GetType()->GetPrimType());
+      }
+      return true;
+    } else {
+      return false;
+    }
   }
 
   MIRType *GetType() const {
