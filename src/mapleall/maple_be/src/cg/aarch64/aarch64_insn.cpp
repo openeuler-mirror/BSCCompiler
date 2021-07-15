@@ -604,13 +604,11 @@ void AArch64Insn::EmitCounter(const CG &cg, Emitter &emitter) const {
 }
 
 static void AsmStringOutputRegNum(bool isInt, uint32 regno, uint32 intBase, uint32 fpBase, char *str, size_t &idx) {
-  (void)intBase;
-  (void)fpBase;
   regno_t newRegno;
   if (isInt) {
-    newRegno = regno - R0;
+    newRegno = regno - intBase;
   } else {
-    newRegno = regno - V0;
+    newRegno = regno - fpBase;
   }
   if (newRegno > (kDecimalMax - 1)) {
     uint8 tenth = newRegno / kDecimalMax;
@@ -623,27 +621,18 @@ static void AsmStringOutputRegNum(bool isInt, uint32 regno, uint32 intBase, uint
 void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
   (void)cg;
   emitter.Emit("\t//Inline asm begin\n\t");
-  auto &list1 = static_cast<AArch64ListOperand&>(GetOperand(kInsnSecondOpnd));
+  auto &list1 = static_cast<AArch64ListOperand&>(GetOperand(kAsmOutputListOpnd));
   std::vector<RegOperand *> outOpnds;
   for (auto *regOpnd : list1.GetOperands()) {
     outOpnds.push_back(regOpnd);
   }
-  auto &list2 = static_cast<AArch64ListOperand&>(GetOperand(kInsnThirdOpnd));
+  auto &list2 = static_cast<AArch64ListOperand&>(GetOperand(kAsmInputListOpnd));
   std::vector<RegOperand *> inOpnds;
   for (auto *regOpnd : list2.GetOperands()) {
     inOpnds.push_back(regOpnd);
   }
-  auto &list6 = static_cast<ListConstraintOperand&>(GetOperand(kInsnSeventhOpnd));
-  std::vector<StringOperand *> outRegPrefix;
-  for (auto *prefix : list6.stringList) {
-    outRegPrefix.push_back(prefix);
-  }
-  auto &list7 = static_cast<ListConstraintOperand&>(GetOperand(kInsnEighthOpnd));
-  std::vector<StringOperand *> inRegPrefix;
-  for (auto *prefix : list7.stringList) {
-    inRegPrefix.push_back(prefix);
-  }
-  MapleString asmStr = static_cast<StringOperand&>(this->GetOperand(0)).GetComment();
+  auto &list7 = static_cast<ListConstraintOperand&>(GetOperand(kAsmInputRegPrefixOpnd));
+  MapleString asmStr = static_cast<StringOperand&>(this->GetOperand(kAsmStringOpnd)).GetComment();
   char str[asmStr.length() + 1];
   size_t sidx = 0;
   for (size_t i = 0; i < asmStr.length(); ++i) {
@@ -656,17 +645,33 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
             val = val * kDecimalMax + (asmStr[++i] - '0');
           }
           if (val < outOpnds.size()) {
-            const char *prefix = outRegPrefix[val]->GetComment().c_str();
-            str[sidx++] = prefix[0];
+            auto &list6 = static_cast<ListConstraintOperand&>(GetOperand(kAsmOutputRegPrefixOpnd));
+            const char *prefix = list6.stringList[val]->GetComment().c_str();
+            if (prefix[0] == 'w' || prefix[0] == 'x') {
+              str[sidx++] = 'x';
+            } else {
+              str[sidx++] = prefix[0];
+            }
             RegOperand *opnd = outOpnds[val];
             AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
           } else {
             val -= outOpnds.size();
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
-            const char *prefix = inRegPrefix[val]->GetComment().c_str();
-            str[sidx++] = prefix[0];
-            AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+            const char *prefix = list7.stringList[val]->GetComment().c_str();
+            if (prefix[0] == '[') {
+              str[sidx++] = prefix[0];
+              str[sidx++] = 'x';
+              AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+              str[sidx++] = ']';
+            } else {
+              if (prefix[0] == 'w' || prefix[0] == 'x') {
+                str[sidx++] = 'x';
+              } else {
+                str[sidx++] = prefix[0];
+              }
+              AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+            }
           }
         } else if (c == '{') {
           c = asmStr[++i];
@@ -676,6 +681,7 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
             val = val * kDecimalMax + (asmStr[++i] - '0');
           }
           regno_t regno;
+          bool isAddr = false;
           if (val < outOpnds.size()) {
             RegOperand *opnd = outOpnds[val];
             regno = opnd->GetRegisterNumber();
@@ -684,11 +690,14 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
             regno = opnd->GetRegisterNumber();
+            if (list7.stringList[val]->GetComment().c_str()[0] == '[') {
+              isAddr = true;
+            }
           }
           c = asmStr[++i];
           CHECK_FATAL(c == ':', "Parsing error in inline asm string during emit");
           c = asmStr[++i];
-          if (c == 'a') {
+          if (c == 'a' || isAddr) {
             str[sidx++] = '[';
             str[sidx++] = 'x';
             AsmStringOutputRegNum(true, regno, R0, V0, str, sidx);
