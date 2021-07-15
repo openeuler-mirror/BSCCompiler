@@ -1089,13 +1089,15 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
-static char *GetRegPrefixFromPrimType(PrimType pType, uint32 size) {
+static char *GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string constraint) {
   static char str[2];
   if (IsPrimitiveVector(pType)) {
    str[0] = 'v';
   } else if (IsPrimitiveInteger(pType)) {
     if (size == k32BitSize) {
       str[0] = 'w';
+    } else if (pType == PTY_a64 && constraint[0] == 'm') {
+      str[0] = '[';
     } else {
       str[0] = 'x';
     }
@@ -1136,9 +1138,18 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
         PrimType pType = dread.GetPrimType();
         listInRegPrefix->stringList.push_back(
-            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize()))));
+            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
         break;
       }
+    case OP_addrof: {
+      auto &addrofNode = static_cast<AddrofNode&>(*node.Opnd(i));
+      Operand *inOpnd = SelectAddrof(addrofNode);
+      listInputOpnd->PushOpnd(static_cast<RegOperand&>(*inOpnd));
+      PrimType pType = addrofNode.GetPrimType();
+      listInRegPrefix->stringList.push_back(
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
+       break;
+     }
       default:
         CHECK_FATAL(0, "Inline asm input expression not handled");
     }
@@ -1146,8 +1157,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
   std::vector<Operand*> intrnOpnds;
   intrnOpnds.emplace_back(asmString);
   intrnOpnds.emplace_back(listOutputOpnd);
-  intrnOpnds.emplace_back(listInputOpnd);
   intrnOpnds.emplace_back(listClobber);
+  intrnOpnds.emplace_back(listInputOpnd);
   intrnOpnds.emplace_back(listOutConstraint);
   intrnOpnds.emplace_back(listInConstraint);
   intrnOpnds.emplace_back(listOutRegPrefix);
@@ -1184,7 +1195,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
       listOutRegPrefix->stringList.push_back(
-          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize()))));
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize(), str))));
     } else {
       MIRSymbol *var;
       if (stIdx.IsGlobal()) {
@@ -1199,7 +1210,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       SaveReturnValueInLocal(node.asmOutputs, i, PTY_a64, *outOpnd, node);
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
       listOutRegPrefix->stringList.push_back(
-          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, outOpnd->GetSize()))));
+          static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, outOpnd->GetSize(), str))));
     }
   }
   /* process listClobber */

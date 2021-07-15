@@ -1096,7 +1096,7 @@ class ListConstraintOperand : public Operand {
 
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
 
-  MapleList<StringOperand*> stringList;
+  MapleVector<StringOperand*> stringList;
 };
 }  /* namespace maplebe */
 namespace std {

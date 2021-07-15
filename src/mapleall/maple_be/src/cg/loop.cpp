@@ -65,7 +65,8 @@ void LoopHierarchy::PrintLoops(const std::string &name) const {
   }
 }
 
-void CGFuncLoops::CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops, const MapleVector<BB*> &loopMembers) const {
+void CGFuncLoops::CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops,
+                                             const MapleVector<BB*> &loopMembers) const {
   for (auto iloop : innerLoops) {
     CHECK_FATAL(iloop->loopMembers.size() > 0, "Empty loop");
     for (auto bb: iloop->loopMembers) {
@@ -213,7 +214,7 @@ void LoopFinder::Insert(BB *bb, BB *header, std::set<BB *> &extraHeader) {
   }
 }
 
-void LoopFinder::DetectLoop( BB *header, BB *back) {
+void LoopFinder::DetectLoop(BB *header, BB *back) {
   std::set<BB *> moreHeaders;
   candidate.push_back(header);
   candidate.push_back(back);
@@ -552,7 +553,6 @@ AnalysisResult *CgDoLoopAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncRes
   loopFinder->FormLoopHierarchy();
 
 #if DEBUG
-  std::cout << "CHECK\n";
   for (const auto *lp : cgFunc->GetLoops()) {
     lp->CheckLoops();
   }
