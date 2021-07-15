@@ -14,18 +14,11 @@
 #
 OPT := O2
 DEBUG := 0
-LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core
+LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core/host-x86_64-$(OPT)
 LIB_CORE_JAR := $(LIB_CORE_PATH)/java-core.jar
 LIB_CORE_MPLT := $(LIB_CORE_PATH)/java-core.mplt
 
-ifndef OPS_ANDROID
-  OPS_ANDROID := 0
-endif
-
-ANDROID_GCC_PATH := $(MAPLE_ROOT)/tools/gcc
-ANDROID_CLANG_PATH := $(MAPLE_ROOT)/tools/clang-r353983c
 GCC_LINARO_PATH := $(MAPLE_ROOT)/tools/gcc-linaro-7.5.0
-NDK_PATH := $(MAPLE_ROOT)/tools/android-ndk-r21
 
 TARGETS := $(APP)
 APP_JAVA := $(foreach APP, $(TARGETS), $(APP).java)
@@ -58,38 +51,22 @@ INIT_CXX_O := $(LIB_CORE_PATH)/mrt_module_init.o
 LDS := $(MAPLE_ROOT)/src/mrt/maplert/linker/maplelld.so.lds
 DUPLICATE_DIR := $(MAPLE_ROOT)/src/mrt/codetricks/arch/arm64
 
-ifeq ($(OPS_ANDROID), 0)
-    QEMU_CLANG_CPP := $(TOOL_BIN_PATH)/clang++
-else
-    QEMU_CLANG_CPP := $(ANDROID_CLANG_PATH)/bin/clang++
-endif
+QEMU_CLANG_CPP := $(TOOL_BIN_PATH)/clang++
 
 QEMU_CLANG_FLAGS := -Wall -W -Werror -Wno-unused-command-line-argument -Wl,-z,now -fPIC -fstack-protector-strong \
     -fvisibility=hidden -std=c++14 -march=armv8-a
 
-ifeq ($(OPS_ANDROID), 0)
-    QEMU_CLANG_FLAGS += -nostdlibinc \
-      --gcc-toolchain=$(GCC_LINARO_PATH) \
-      --sysroot=$(GCC_LINARO_PATH)/aarch64-linux-gnu/libc \
-      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0 \
-      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu \
-      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/backward \
-      -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include \
-      -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed \
-      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include \
-      -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/libc/usr/include \
-      -target aarch64-linux-gnu
-else
-    QEMU_CLANG_FLAGS := -Wall -fstack-protector-strong -fPIC -Werror -Wno-unused-command-line-argument \
-      -fvisibility=hidden -std=c++14 -nostdlib -march=armv8-a -target aarch64-linux-android \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc/include \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc/kernel/uapi \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc/kernel/uapi/asm-arm64 \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc/kernel/android/scsi \
-      -isystem $(MAPLE_ROOT)/android/bionic/libc/kernel/android/uapi \
-      -isystem $(ANDROID_CLANG_PATH)/lib64/clang/9.0.3/include
-endif
+QEMU_CLANG_FLAGS += -nostdlibinc \
+  --gcc-toolchain=$(GCC_LINARO_PATH) \
+  --sysroot=$(GCC_LINARO_PATH)/aarch64-linux-gnu/libc \
+  -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0 \
+  -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu \
+  -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include/c++/7.5.0/backward \
+  -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include \
+  -isystem $(GCC_LINARO_PATH)/lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed \
+  -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/include \
+  -isystem $(GCC_LINARO_PATH)/aarch64-linux-gnu/libc/usr/include \
+  -target aarch64-linux-gnu
 
 ifeq ($(OPT),O2)
     DEX2MPL_FLAGS :=
@@ -102,6 +79,18 @@ else ifeq ($(OPT),O0)
     MPLME_FLAGS := --quiet
     MPL2MPL_FLAGS := --quiet --regnativefunc --maplelinker
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
+    MPLCG_SO_FLAGS := --fpic
+else ifeq ($(OPT),GC_O2)
+    DEX2MPL_FLAGS := -gconly
+    MPLME_FLAGS := --O2 --quiet --gconly
+    MPL2MPL_FLAGS := --O2 --quiet --regnativefunc --no-nativeopt --maplelinker
+    MPLCG_FLAGS := --O2 --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s --gconly
+    MPLCG_SO_FLAGS := --fpic
+else ifeq ($(OPT),GC_O0)
+    DEX2MPL_FLAGS := -gconly
+    MPLME_FLAGS := --quiet --gconly
+    MPL2MPL_FLAGS := --quiet --regnativefunc --maplelinker
+    MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s --gconly
     MPLCG_SO_FLAGS := --fpic
 endif
 DEX2MPL_APP_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list

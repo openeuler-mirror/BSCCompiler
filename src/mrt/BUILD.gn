@@ -12,17 +12,6 @@
 # FIT FOR A PARTICULAR PURPOSE.
 # See the Mulan PSL v2 for more details.
 #
-
-if (OPS_ANDROID == 1) {
-  defines = []
-  defines += [
-    "__ANDROID__",
-    "__ANDROID_USE_TLS__",
-    "OPS_ANDROID",
-    "USE_32BIT_REF",
-  ]
-}
-
 config("mrt_c_flags") {
   cflags_c = []
   if (GN_BUILD_TYPE == "RELEASE") {
@@ -46,6 +35,12 @@ config("mrt_c_flags") {
     ]
   }
 
+  if (GCONLY == 1) {
+    cflags += [ "-DGCONLY=1" ]
+  } else {
+    cflags += [ "-DGCONLY=0" ]
+  }
+
   cflags_c += [
     "-Wall",
     "-Werror",
@@ -60,26 +55,24 @@ config("mrt_c_flags") {
     "-Wshadow",
   ]
 
-  if (OPS_ANDROID == 0) {
-    cflags_c += [
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
-      "-target",
-      "aarch64-linux-gnu",
-    ]
-  }
+  cflags_c += [
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
+    "-target",
+    "aarch64-linux-gnu",
+  ]
 
   ldflags = cflags_c
   ldflags += [
@@ -87,10 +80,6 @@ config("mrt_c_flags") {
     "-Wl,-z,now",
     "-Wl,-z,noexecstack",
   ]
-
-  if (OPS_ANDROID == 1) {
-    ldflags += [ "-Wl,--export-dynamic", ]
-  }
 }
 
 config("mrt_cxx_flags") {
@@ -116,6 +105,12 @@ config("mrt_cxx_flags") {
     ]
   }
 
+  if (GCONLY == 1) {
+    cflags_cc += [ "-DGCONLY=1" ]
+  } else {
+    cflags_cc += [ "-DGCONLY=0" ]
+  }
+
   cflags_cc += [
     "-Wall",
     "-Werror",
@@ -131,50 +126,24 @@ config("mrt_cxx_flags") {
     "-Wformat=2",
   ]
 
-  if (OPS_ANDROID == 0) {
-    cflags_cc += [
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
-      "-isystem",
-      "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
-      "-target",
-      "aarch64-linux-gnu",
-    ]
-  } else {
-    cflags_cc += [
-      "-march=armv8-a",
-      "-target",
-      "aarch64-linux-android",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc/include",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc/kernel/uapi",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc/kernel/uapi/asm-arm64",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc/kernel/android/scsi",
-      "-isystem",
-      "${MAPLE_ROOT}/android/bionic/libc/kernel/android/uapi",
-      "-isystem",
-      "${ANDROID_CLANG_PATH}/lib64/clang/9.0.3/include",
-    ]
-    include_dirs = [
-      "${MAPLE_ROOT}/android/external/libcxx/include",
-      "${MAPLE_ROOT}/android/external/libcxxabi/include",
-    ]
-  }
+  cflags_cc += [
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/aarch64-linux-gnu",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include/c++/7.5.0/backward",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/include-fixed",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../lib/gcc/aarch64-linux-gnu/7.5.0/../../../../aarch64-linux-gnu/include",
+    "-isystem",
+    "${GCC_LINARO_PATH}/bin/../aarch64-linux-gnu/libc/usr/include",
+    "-target",
+    "aarch64-linux-gnu",
+  ]
 
   asmflags = cflags_cc
   ldflags = cflags_cc
@@ -183,9 +152,6 @@ config("mrt_cxx_flags") {
     "-Wl,-z,now",
     "-Wl,-z,noexecstack",
   ]
-  if (OPS_ANDROID == 1) {
-    ldflags += [ "-Wl,--export-dynamic", ]
-  }
 }
 
 group("maple-rt") {
