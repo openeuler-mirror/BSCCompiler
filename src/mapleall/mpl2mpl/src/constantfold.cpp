@@ -980,7 +980,7 @@ ConstvalNode *ConstantFold::FoldIntConstUnary(Opcode opcode, PrimType resultType
       if (useResult64) {
         result64 = -cst->GetValue();
       } else {
-        result32 = -static_cast<int32>(cst->GetValue());
+        result32 = static_cast<uint32>(-(cst->GetValue()));
       }
       break;
     }
