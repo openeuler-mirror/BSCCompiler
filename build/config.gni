@@ -21,22 +21,13 @@ LLVMLIBDIR = "${CLANG_PATH}/lib"
 CFE_SRC_DIR = "${MAPLE_ROOT}/../third-party/clang-10.0.0.src"
 CFE_SRC_PATH = "${MAPLE_ROOT}/third_party/clang-10.0.0.src"
 
-ANDROID_GCC_PATH = "${MAPLE_ROOT}/tools/gcc"
-ANDROID_CLANG_PATH = "${MAPLE_ROOT}/tools/clang-r353983c"
 GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
 NDK_PATH = "${MAPLE_ROOT}/tools/android-ndk-r21"
 
-if (OPS_ANDROID == 1) {
-  GN_C_COMPILER = "${ANDROID_CLANG_PATH}/bin/clang"
-  GN_CXX_COMPILER = "${ANDROID_CLANG_PATH}/bin/clang++"
-  GN_AR_COMPILER = "${ANDROID_CLANG_PATH}/bin/llvm-ar"
-  GN_RANLIB_COMPILER = "${NDK_PATH}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib"
-} else {
-  GN_C_COMPILER = "${TOOL_BIN_PATH}/clang"
-  GN_CXX_COMPILER = "${TOOL_BIN_PATH}/clang++"
-  GN_AR_COMPILER = "${TOOL_BIN_PATH}/llvm-ar"
-  GN_RANLIB_COMPILER = "${TOOL_BIN_PATH}/llvm-ranlib"
-}
+GN_C_COMPILER = "${TOOL_BIN_PATH}/clang"
+GN_CXX_COMPILER = "${TOOL_BIN_PATH}/clang++"
+GN_AR_COMPILER = "${TOOL_BIN_PATH}/llvm-ar"
+GN_RANLIB_COMPILER = "${TOOL_BIN_PATH}/llvm-ranlib"
 
 target_toolchain = "//build/toolchain:clang"
 set_default_toolchain(target_toolchain)

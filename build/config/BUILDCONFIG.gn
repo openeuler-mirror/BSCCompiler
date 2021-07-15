@@ -22,7 +22,7 @@ declare_args() {
   HOST_ARCH = 64
   MIR_JAVA = 1
   COV_CHECK = 0
-  OPS_ANDROID = 0
+  GCONLY = 0
   OPT = "O2"
   TARGET = ""
 }
@@ -59,7 +59,7 @@ MAPLE_MRT_ROOT = "${MAPLE_ROOT}/src/mrt"
 THIRD_PARTY_ROOT = "${MAPLE_ROOT}/third_party"
 
 # Put all built library files under lib
-GN_ARCHIVE_OUTPUT_DIRECTORY = "${MAPLE_BUILD_OUTPUT}/ar"
+GN_ARCHIVE_OUTPUT_DIRECTORY = "${MAPLE_BUILD_OUTPUT}/ar/host-x86_64-${OPT}"
 GN_LIBRARY_OUTPUT_DIRECTORY = "${MAPLE_BUILD_OUTPUT}/lib"
 
 # Put all built binary files under bin
@@ -142,15 +142,6 @@ if (HOST_ARCH == 64) {
 } else {
   cflags_c += [ "-m32" ]
   cflags_cc += [ "-m32" ]
-}
-
-if (OPS_ANDROID == 1) {
-  cflags_c += [
-    "-DUSE_32BIT_REF",
-  ]
-  cflags_cc += [
-    "-DUSE_32BIT_REF",
-  ]
 }
 
 if (DYNAMICLANG) {
