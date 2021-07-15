@@ -1175,6 +1175,7 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isgreater);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Isgreaterequal);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(Islessgreater);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(WarnMemsetZeroLen);
 
 // vector builtinfunc
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)         \

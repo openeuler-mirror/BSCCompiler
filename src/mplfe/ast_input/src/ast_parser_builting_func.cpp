@@ -414,6 +414,10 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinIslessgreater (std::list<UniqueFEIRStmt> 
   return res;
 }
 
+UniqueFEIRExpr ASTCallExpr::EmitBuiltinWarnMemsetZeroLen(std::list<UniqueFEIRStmt> &stmts) const {
+  return nullptr;
+}
+
 std::map<std::string, ASTParser::FuncPtrBuiltinFunc> ASTParser::InitBuiltinFuncPtrMap() {
   std::map<std::string, FuncPtrBuiltinFunc> ans;
 #define BUILTIN_FUNC_PARSE(funcName, FuncPtrBuiltinFunc) \
