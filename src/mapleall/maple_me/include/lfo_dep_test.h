@@ -18,43 +18,63 @@
 
 #include "lfo_function.h"
 #include "lfo_pre_emit.h"
+#include "orig_symbol.h"
 #include "me_phase.h"
+#include "me_ir.h"
+#include "dominance.h"
 
 namespace maple {
-
 class LfoDepInfo;
 
 class SubscriptDesc{
  public:
-  DreadNode *iv = nullptr; // the variable
-  int64 coeff = 1;         // coefficient of the variable
+  MeExpr *subscriptX;
+  DreadNode *iv = nullptr;      // the variable
+  int64 coeff = 1;              // coefficient of the variable
   int64 additiveConst = 0;
-  bool tooMessy = false;;  // too complicated to analyze
+  bool tooMessy = false;;       // too complicated to analyze
+  bool loopInvariant = false;   // loop invariant w.r.t. closest nesting loop
 
  public:
-  SubscriptDesc() {}
+  SubscriptDesc(MeExpr *x) : subscriptX(x) {}
 };
 
 class ArrayAccessDesc {
  public:
   ArrayNode *theArray;
+  OriginalSt *arrayOst = nullptr;
   MapleVector<SubscriptDesc *> subscriptVec;  // describe the subscript of each array dimension
 
  public:
-  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr) : theArray(arr), subscriptVec(alloc->Adapter()){}
+  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, OriginalSt *arryOst) : theArray(arr), arrayOst(arryOst), subscriptVec(alloc->Adapter()) {}
+};
+
+class DepTestPair {
+ public:
+  std::pair<size_t, size_t> depTestPair;        // based on indices in lhsArrays and rhsArrays
+  bool dependent = false;
+  bool unknownDist = false;                     // if dependent
+  int64 depDist = 0;                            // if unknownDist is false
+ public:
+  DepTestPair(size_t i, size_t j) : depTestPair(i, j) {}
 };
 
 class DoloopInfo {
  public:
-  MapleAllocator *alloc;  
+  MapleAllocator *alloc;
   LfoDepInfo *depInfo;
   DoloopNode *doloop;
   DoloopInfo *parent;
   MapleVector<DoloopInfo *> children;           // for the nested doloops in program order
   MapleVector<ArrayAccessDesc *> lhsArrays;     // each element represents an array assign
   MapleVector<ArrayAccessDesc *> rhsArrays;     // each element represents an array read
+  BB *doloopBB = nullptr;                       // the start BB for the doloop body
   bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasCall = false;                         // give up dep testing if true
+  bool hasScalarAssign = false;                 // give up dep testing if true
+  bool hasMayDef = false;                       // give up dep testing if true
+  MapleVector<DepTestPair> outputDepTestList;   // output dependence only
+  MapleVector<DepTestPair> flowDepTestList;     // include both true and anti dependences
 
  public:
   DoloopInfo(MapleAllocator *allc, LfoDepInfo *depinfo, DoloopNode *doloop, DoloopInfo *prnt) : 
@@ -64,38 +84,52 @@ class DoloopInfo {
                                                   parent(prnt),
                                                   children(alloc->Adapter()),
                                                   lhsArrays(alloc->Adapter()),
-                                                  rhsArrays(alloc->Adapter()) {}
+                                                  rhsArrays(alloc->Adapter()),
+                                                  outputDepTestList(alloc->Adapter()),
+                                                  flowDepTestList(alloc->Adapter()) {}
   ~DoloopInfo() = default;
+  bool IsLoopInvariant(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
-  void BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS);
+  ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS);
   void CreateRHSArrayAccessDesc(BaseNode *x);
   void CreateArrayAccessDesc(BlockNode *block);
+  void CreateDepTestLists();
+  void TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS);
+  bool Parallelizable();
 };
 
 class LfoDepInfo : public AnalysisResult {
  public:
-  MapleAllocator alloc;  
+  MapleAllocator alloc;
   LfoFunction *lfoFunc;
+  Dominance *dom;
   LfoPreEmitter *preEmit;
   MapleVector<DoloopInfo *> outermostDoloopInfoVec;  // outermost doloops' DoloopInfo in program order
   MapleMap<DoloopNode *, DoloopInfo *> doloopInfoMap;
 
  public:
-  LfoDepInfo(MemPool *mempool, LfoFunction *f, LfoPreEmitter *preemit) : AnalysisResult(mempool), alloc(mempool), lfoFunc(f), preEmit(preemit),
-                                                 outermostDoloopInfoVec(alloc.Adapter()),
-                                                 doloopInfoMap(alloc.Adapter()) {}
+  LfoDepInfo(MemPool *mempool, LfoFunction *f, Dominance *dm, LfoPreEmitter *preemit)
+      : AnalysisResult(mempool), 
+        alloc(mempool), 
+        lfoFunc(f), 
+        dom(dm), 
+        preEmit(preemit),
+        outermostDoloopInfoVec(alloc.Adapter()),
+        doloopInfoMap(alloc.Adapter()) {}
   ~LfoDepInfo() = default;
   void CreateDoloopInfo(BlockNode *block, DoloopInfo *parent);
-  void CreateArrayAccessDesc(MapleMap<DoloopNode *, DoloopInfo *> *doloopInfoVec);
+  void PerformDepTest();
   std::string PhaseName() const { return "deptest"; }
 };
 
 class DoLfoDepTest : public MeFuncPhase {
  public:
   explicit DoLfoDepTest(MePhaseID id) : MeFuncPhase(id) {}
-  ~DoLfoDepTest() {}
+  ~DoLfoDepTest() = default;
   AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResMgr) override;
-  std::string PhaseName() const override { return "deptest"; }
+  std::string PhaseName() const override {
+    return "deptest";
+  }
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LFO_DEP_TEST_H
