@@ -292,7 +292,7 @@ AnalysisResult *MeDoCopyProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRe
 
   CopyProp copyProp(func, *hMap, *dom, *NewMemPool(), func->GetCfg()->NumBBs(),
       Prop::PropConfig { MeOption::propBase, true, MeOption::propGlobalRef, MeOption::propFinaliLoadRef,
-       MeOption::propIloadRefNonParm, MeOption::propAtPhi, MeOption::propWithInverse || MeOption::optLevel >= 3 });
+       MeOption::propIloadRefNonParm, MeOption::propAtPhi, MeOption::propWithInverse || func->IsLfo() });
   copyProp.TraversalBB(*func->GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC(func)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
