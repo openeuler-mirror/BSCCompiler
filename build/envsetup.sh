@@ -46,14 +46,6 @@ export GCOV_PREFIX_STRIP=7
 lsb_release -d
 
 export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
-rm -rf ${MAPLE_ROOT}/testsuite/driver/config
-rm -rf ${MAPLE_ROOT}/testsuite/driver/src/api
-rm -rf ${MAPLE_ROOT}/testsuite/driver/src/mode
-cd ${MAPLE_ROOT}/testsuite/driver
-ln -s -f .config config
-cd ${MAPLE_ROOT}/testsuite/driver/src
-ln -s -f .api api
-ln -s -f .mode mode
 cd ${MAPLE_ROOT}
 
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
