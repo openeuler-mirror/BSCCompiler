@@ -2112,6 +2112,9 @@ void Emitter::EmitGlobalVariable() {
     if (mirSymbol == nullptr || mirSymbol->IsDeleted() || mirSymbol->GetStorageClass() == kScUnused) {
       continue;
     }
+    if (GetCG()->GetMIRModule()->IsCModule() && mirSymbol->GetStorageClass() == kScExtern) {
+      continue;
+    }
     if (mirSymbol->GetName().find(VTAB_PREFIX_STR) == 0) {
       vtabVec.emplace_back(mirSymbol);
       continue;
