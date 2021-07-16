@@ -28,7 +28,7 @@ fi
 curdir=$(pwd)
 export MAPLE_ROOT=${curdir}
 export SPEC=${MAPLE_ROOT}/testsuite/c_test/spec_test
-export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib
+#export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib
 export SPECPERLLIB=${SPEC}/bin/lib:${SPEC}/bin:${SPEC}/SPEC500-perlbench_r/data/all/input/lib:${SPEC}/SPEC500-perlbench_r/t/lib
 export CASE_ROOT=${curdir}/testsuite
 export OUT_ROOT=${curdir}/output
