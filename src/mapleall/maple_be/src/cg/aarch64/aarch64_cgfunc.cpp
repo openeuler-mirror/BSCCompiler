@@ -1251,6 +1251,10 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         /* memory */
         break;
       }
+      case 'c': {
+        /* cc */
+        break;
+      }
       default:
         CHECK_FATAL(0, "Inline asm clobber list not handled");
     }
