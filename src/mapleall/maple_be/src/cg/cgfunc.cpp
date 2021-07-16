@@ -89,25 +89,24 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
-  Operand *resOpnd = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
-      !IsPrimitiveFloat(expr.GetPrimType())) {
-    resOpnd = cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
-                                *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+      !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(0)->Opnd(0)->GetOpCode() != OP_constval &&
+      expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
-             !IsPrimitiveFloat(expr.GetPrimType())) {
-    resOpnd = cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
-                                *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
-                                *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+             !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
+             expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
+    return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
+                             *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+  } else {
+    return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
+                            *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
   }
-  if (resOpnd == nullptr) {
-    resOpnd = cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                               *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
-  }
-  return resOpnd;
 }
 
 Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -510,6 +509,12 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C_clrsb32:
     case INTRN_C_clrsb64:
       return cgFunc.SelectCclrsb(intrinsicopNode);
+    case INTRN_C_isaligned:
+      return cgFunc.SelectCisaligned(intrinsicopNode);
+    case INTRN_C_alignup:
+      return cgFunc.SelectCalignup(intrinsicopNode);
+    case INTRN_C_aligndown:
+      return cgFunc.SelectCaligndown(intrinsicopNode);
 
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:
@@ -971,6 +976,7 @@ void InitHandleStmtFactory() {
 CGFunc::CGFunc(MIRModule &mod, CG &cg, MIRFunction &mirFunc, BECommon &beCommon, MemPool &memPool,
                StackMemPool &stackMp, MapleAllocator &allocator, uint32 funcId)
     : vRegTable(allocator.Adapter()),
+      bbVec(allocator.Adapter()),
       vRegOperandTable(allocator.Adapter()),
       pRegSpillMemOperands(allocator.Adapter()),
       spillRegMemOperands(allocator.Adapter()),
@@ -1502,14 +1508,14 @@ void CGFunc::DumpCFG() const {
     if (!bb->GetPreds().empty()) {
       LogInfo::MapleLogger() << " pred [ ";
       for (auto *pred : bb->GetPreds()) {
-        LogInfo::MapleLogger() << std::hex << pred << std::dec << " ";
+        LogInfo::MapleLogger() << pred->GetId() << " ";
       }
       LogInfo::MapleLogger() << "]\n";
     }
     if (!bb->GetSuccs().empty()) {
       LogInfo::MapleLogger() << " succ [ ";
       for (auto *succ : bb->GetSuccs()) {
-        LogInfo::MapleLogger() << std::hex << succ << std::dec << " ";
+        LogInfo::MapleLogger() << succ->GetId() << " ";
       }
       LogInfo::MapleLogger() << "]\n";
     }

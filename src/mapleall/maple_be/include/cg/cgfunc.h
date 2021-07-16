@@ -180,6 +180,9 @@ class CGFunc {
   virtual Operand *SelectCpopcount(IntrinsicopNode &intrinopNode) = 0;
   virtual Operand *SelectCparity(IntrinsicopNode &intrinopNode) = 0;
   virtual Operand *SelectCclrsb(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectCalignup(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -741,6 +744,14 @@ class CGFunc {
     loops.emplace_back(&loop);
   }
 
+  MapleVector<BB*> &GetAllBBs() {
+    return bbVec;
+  }
+
+  BB *GetBBFromID(uint32 id) {
+    return bbVec[id];
+  }
+
 #if TARGARM32
   MapleVector<BB*> &GetSortedBBs() {
     return sortedBBs;
@@ -796,7 +807,9 @@ class CGFunc {
   }
 
   BB *CreateNewBB() {
-    return memPool->New<BB>(bbCnt++, *funcScopeAllocator);
+    BB *bb = memPool->New<BB>(bbCnt++, *funcScopeAllocator);
+    bbVec.emplace_back(bb);
+    return bb;
   }
 
   BB *CreateNewBB(bool unreachable, BB::BBKind kind, uint32 frequency) {
@@ -910,6 +923,7 @@ class CGFunc {
   uint32 maxRegCount;                     /* for the current virtual register number limit */
   size_t lSymSize;                        /* size of local symbol table imported */
   MapleVector<VirtualRegNode> vRegTable;  /* table of CG's virtual registers indexed by v_reg no */
+  MapleVector<BB*> bbVec;
   MapleUnorderedMap<regno_t, RegOperand*> vRegOperandTable;
   MapleUnorderedMap<PregIdx, MemOperand*> pRegSpillMemOperands;
   MapleUnorderedMap<regno_t, MemOperand*> spillRegMemOperands;

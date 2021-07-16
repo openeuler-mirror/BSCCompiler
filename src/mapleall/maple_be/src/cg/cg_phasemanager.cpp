@@ -29,7 +29,10 @@
 #elif TARGRISCV64
 #include "riscv64_fixshortbranch.h"
 #endif
-#include "live.h"
+#if TARGARM32
+#include "live_range.h"
+#endif
+#include "cg_dominance.h"
 #include "loop.h"
 #include "mpl_timer.h"
 #include "args.h"

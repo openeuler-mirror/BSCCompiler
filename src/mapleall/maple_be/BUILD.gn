@@ -171,6 +171,7 @@ src_libcg = [
   "src/cg/strldr.cpp",
   "src/cg/yieldpoint.cpp",
   "src/cg/ra_opt.cpp",
+  "src/cg/cg_dominance.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]

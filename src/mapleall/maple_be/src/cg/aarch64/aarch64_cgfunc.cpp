@@ -1536,7 +1536,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     alignUsed = std::min(lhsAlign, rhsAlign);
     ASSERT(alignUsed != 0, "expect non-zero");
     uint32 copySize = GetAggCopySize(rhsOffset, lhsOffset, alignUsed);
-    AArch64MemOperand *lhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, copySize, lhsOffset);
+    AArch64MemOperand *lhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*lhsSymbol, copySize, lhsOffset, true);
     RegOperand *lhsBaseReg = lhsBaseMemOpnd->GetBaseRegister();
     int64 lhsOffsetVal = lhsBaseMemOpnd->GetOffsetOperand()->GetValue();
     bool lhsIsLo12 = (static_cast<AArch64MemOperand *>(lhsBaseMemOpnd)->GetAddrMode()
@@ -1901,7 +1901,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
     if (IsParamStructCopy(*rhsSymbol)) {
       rhsBaseMemOpnd = &LoadStructCopyBase(*rhsSymbol, rhsOffset, copySize * k8BitSize);
     } else {
-      rhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*rhsSymbol, copySize, rhsOffset);
+      rhsBaseMemOpnd = GenLargeAggFormalMemOpnd(*rhsSymbol, copySize, rhsOffset, true);
     }
     RegOperand *rhsBaseReg = rhsBaseMemOpnd->GetBaseRegister();
     int64 rhsOffsetVal = rhsBaseMemOpnd->GetOffsetOperand()->GetValue();

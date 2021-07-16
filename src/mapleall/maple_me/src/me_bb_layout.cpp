@@ -579,6 +579,7 @@ void BBLayout::UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const {
 BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
   ASSERT(bb.GetKind() == kBBCondGoto, "CreateGotoBBAfterCondBB: unexpected BB kind");
   BB *newFallthru = cfg->NewBasicBlock();
+  bbVisited.push_back(false);
   newFallthru->SetAttributes(kBBAttrArtificial);
   AddLaidOut(false);
   newFallthru->SetKind(kBBGoto);
