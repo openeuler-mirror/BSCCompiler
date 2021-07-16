@@ -62,7 +62,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
       continue;
     }
     if (ploc.numFpPureRegs) {
-      uint32 index = static_cast<uint32>(indexList.size()) - 1;
+      uint32 index = i;  // static_cast<uint32>(indexList.size()) - 1;
       numFpRegs[index] = ploc.numFpPureRegs;
       fpSize[index] = ploc.fpSize;
       continue;
@@ -356,7 +356,6 @@ void AArch64MoveRegArgs::MoveLocalRefVarToRefLocals(MIRSymbol &mirSym) {
   aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
 }
 
-
 void AArch64MoveRegArgs::LoadStackArgsToVReg(MIRSymbol &mirSym) {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   PrimType stype = mirSym.GetType()->GetPrimType();
@@ -392,14 +391,13 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym)
   RegOperand &srcRegOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(ploc.reg0, srcBitSize, regType);
   ASSERT(mirSym.GetStorageClass() == kScFormal, "should be args");
   MOperator mOp = aarchCGFunc->PickMovInsn(srcBitSize, regType);
-
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
     Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, dstRegOpnd, srcRegOpnd);
     AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
     VectorRegSpec *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
-    vecSpec1->vecLaneMax = srcBitSize >> 3;
+    vecSpec1->vecLaneMax = srcBitSize >> k3ByteSize;
     VectorRegSpec *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
-    vecSpec2->vecLaneMax = srcBitSize >> 3;
+    vecSpec2->vecLaneMax = srcBitSize >> k3ByteSize;
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec1);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec2);
     aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
