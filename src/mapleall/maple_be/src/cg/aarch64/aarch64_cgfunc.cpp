@@ -1247,12 +1247,12 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         listClobber->PushOpnd(*reg);
         break;
       }
-      case 'm': {
-        /* memory */
-        break;
-      }
       case 'c': {
         /* cc */
+        break;
+      }
+      case 'm': {
+        /* memory */
         break;
       }
       default:
