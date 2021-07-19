@@ -67,7 +67,8 @@ install: libcore_so deplibs
 
 .PHONY: deplibs
 deplibs:
-	$(shell	rsync -a -L $(MAPLE_ROOT)/src/mrt/bin/mplsh $(MAPLE_OUT)/ops/;)
+	$(shell	rsync -a -L $(MAPLE_ROOT)/src/mrt/deplibs/*.so $(MAPLE_OUT)/ops/host-x86_64-$(OPT); \
+	rsync -a -L $(MAPLE_ROOT)/src/mrt/bin/mplsh $(MAPLE_OUT)/ops/;)
 
 .PHONY: libcore_so
 libcore_so: $(LIBCORE_SO_QEMU)
