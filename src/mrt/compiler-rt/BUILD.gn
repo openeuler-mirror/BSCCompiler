@@ -119,24 +119,7 @@ static_library("libmplcompiler-rt") {
     "-fasynchronous-unwind-tables",
     "-nostdlibinc",
   ]
-  if (OPS_ANDROID == 1) {
-    sources += [
-      "src/collie.cpp",
-    ]
-
-    include_dirs += [
-      "${ANDROID_ROOT}/system/core/libcutils/include/",
-      "${ANDROID_ROOT}/system/logging/liblog/include/",
-      "${MAPLE_ROOT}/android/bionic/libc/private",
-    ]
-
-    cflags_cc -= [
-      "-nostdlibinc",
-      "-pthread",
-    ]
-  } else {
-    sources += ["src/libs_fast.cpp",]
-  }
+  sources += ["src/libs_fast.cpp",]
   configs = [ "${MAPLE_MRT_ROOT}:mrt_cxx_flags" ]
 
   cflags_cc += [ "-DMAPLE_EH_UTEST=0" ]

@@ -27,6 +27,9 @@ fi
 
 curdir=$(pwd)
 export MAPLE_ROOT=${curdir}
+export SPEC=${MAPLE_ROOT}/testsuite/c_test/spec_test
+#export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib
+export SPECPERLLIB=${SPEC}/bin/lib:${SPEC}/bin:${SPEC}/SPEC500-perlbench_r/data/all/input/lib:${SPEC}/SPEC500-perlbench_r/t/lib
 export CASE_ROOT=${curdir}/testsuite
 export OUT_ROOT=${curdir}/output
 export ANDROID_ROOT=${curdir}/android
@@ -43,6 +46,8 @@ export GCOV_PREFIX_STRIP=7
 lsb_release -d
 
 export TOOL_BIN_PATH=${MAPLE_ROOT}/tools/bin
+cd ${MAPLE_ROOT}
+
 OS_VERSION=`lsb_release -r | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
 if [ "$OS_VERSION" = "16" ] || [ "$OS_VERSION" = "18" ]; then
   export OLD_OS=1
