@@ -243,31 +243,34 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
-  RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
-  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
-                                PrimType typ2, Operand *o3) override;
-  RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
-  RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
-  RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
-  RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
-  RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) override;
-  RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
-  RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2,
-                                    PrimType oTyp2, Opcode opc) override;
-  RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
-  RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
-  RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
-  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) override;
-  RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
-  RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
-  RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
-                               Operand *o3, PrimType oTyp3) override;
-  RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
   RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
                                 PrimType oTyp2, Opcode opc) override;
-  RegOperand *SelectVectorNot(PrimType rType, Operand *o1) override;
+  RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2,
+                                    PrimType oTyp2, Opcode opc) override;
+  RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
+  RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
+  RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
+  RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
+  RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
+  RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
+  RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
+                               Operand *o3, PrimType oTyp3) override;
+  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
+                                PrimType typ2, Operand *o3) override;
+  RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
+  RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) override;
+  RegOperand *SelectVectorNot(PrimType rType, Operand *o1) override;
+  RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
+  RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
+  RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) override;
+  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) override;
+  RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
+  RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oTyp, Operand *o2, bool isLow) override;
+  RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
+  RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
 
+  void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
   void PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2);
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
 
