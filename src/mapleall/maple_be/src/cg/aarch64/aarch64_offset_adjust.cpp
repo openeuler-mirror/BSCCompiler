@@ -58,6 +58,14 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
           insn.SetOperand(i, newMemOpnd);
         }
       }
+      if (ofstOpnd->GetVary() == kNotVary) {
+        bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
+        if (!condition) {
+          AArch64MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
+              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R17), false, &insn);
+          insn.SetOperand(i, newMemOpnd);
+        }
+      }
     } else if (opnd.IsIntImmediate()) {
       AdjustmentOffsetForImmOpnd(insn, i, aarchCGFunc);
     }
@@ -85,8 +93,6 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
     }
   }
   immOpnd.SetVary(kAdjustVary);
-  ASSERT(aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &immOpnd, index),
-      "Invalid imm operand appears before offset adjusted");
 }
 
 void AArch64FPLROffsetAdjustment::AdjustmentOffsetForFPLR() {

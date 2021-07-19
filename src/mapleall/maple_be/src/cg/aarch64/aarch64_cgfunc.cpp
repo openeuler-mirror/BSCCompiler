@@ -7655,6 +7655,7 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
                            immOpnd->GetSize(), immOpnd->IsSignedValue());
       mOpCode = is64Bits ? MOP_xaddrri24 : MOP_waddrri24;
       Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, opnd0, immOpnd2, addSubLslOperand);
+      ASSERT(IsOperandImmValid(mOpCode, &immOpnd2, kInsnThirdOpnd), "immOpnd2 appears invalid");
       if (isDest) {
         insn.GetBB()->InsertInsnAfter(insn, newInsn);
       } else {
@@ -7667,6 +7668,7 @@ void AArch64CGFunc::SelectAddAfterInsn(Operand &resOpnd, Operand &opnd0, Operand
     /* process lower 12 bits value */
     mOpCode = is64Bits ? MOP_xaddrri12 : MOP_waddrri12;
     Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, *newOpnd0, *immOpnd);
+    ASSERT(IsOperandImmValid(mOpCode, immOpnd, kInsnThirdOpnd), "immOpnd appears invalid");
     if (isDest) {
       insn.GetBB()->InsertInsnAfter(insn, newInsn);
     } else {
