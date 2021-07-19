@@ -93,6 +93,6 @@ else ifeq ($(OPT),GC_O0)
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s --gconly
     MPLCG_SO_FLAGS := --fpic
 endif
-DEX2MPL_APP_FLAGS := -mplt=${LIB_CORE_PATH}/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
+DEX2MPL_APP_FLAGS := -mplt=${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
 MPLCOMBO_FLAGS := --run=me:mpl2mpl:mplcg --option="$(MPLME_FLAGS):$(MPL2MPL_FLAGS):$(MPLCG_FLAGS) $(MPLCG_SO_FLAGS)"
 JAVA2DEX_FLAGS := -p ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar:${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar
