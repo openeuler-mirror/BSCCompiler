@@ -1306,7 +1306,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
       MIRType *dtype = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnode->GetStIdx())->GetType();
 #if TARGAARCH64
       PrimType ty = IsStructElementSame(dtype);
-      if (ty == PTY_f32 || ty == PTY_f64) {
+      if (ty == PTY_f32 || ty == PTY_f64 || IsPrimitiveVector(ty)) {
         return false;
       }
 #endif
