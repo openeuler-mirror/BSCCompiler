@@ -15,8 +15,8 @@
 # Makefile for OpenArkCompiler
 OPT := O2
 DEBUG := $(MAPLE_DEBUG)
-OPS_ANDROID := 0
 INSTALL_DIR := $(MAPLE_BUILD_OUTPUT)
+LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core/host-x86_64-$(OPT)
 MAPLE_BIN_DIR := $(MAPLE_ROOT)/src/mapleall/bin
 MRT_ROOT := $(MAPLE_ROOT)/src/mrt
 ANDROID_ROOT := $(MAPLE_ROOT)/android
@@ -29,6 +29,11 @@ HOST_ARCH := 64
 MIR_JAVA := 1
 GN := $(MAPLE_ROOT)/tools/gn/gn
 NINJA := $(shell ls $(MAPLE_ROOT)/tools/ninja*/ninja | tail -1)
+ifneq ($(findstring GC,$(OPT)),)
+  GCONLY := 1
+else
+  GCONLY := 0
+endif
 
 GN_OPTIONS := \
   GN_INSTALL_PREFIX="$(MAPLE_ROOT)" \
@@ -36,7 +41,7 @@ GN_OPTIONS := \
   HOST_ARCH=$(HOST_ARCH) \
   MIR_JAVA=$(MIR_JAVA) \
   OPT="$(OPT)" \
-  OPS_ANDROID=$(OPS_ANDROID) \
+  GCONLY=$(GCONLY) \
   TARGET="$(TARGET_PROCESSOR)" \
 
 .PHONY: default
@@ -90,40 +95,38 @@ clang2mpl: maple
 mplfeUT:
 	$(call build_gn, $(GN_OPTIONS) COV_CHECK=1, mplfeUT)
 
+.PHONY: libcore
+libcore: maple-rt
+	cd $(LIB_CORE_PATH); \
+	$(MAKE) install OPT=$(OPT) DEBUG=$(DEBUG)
+
 .PHONY: maple-rt
 maple-rt: java-core-def
 	$(call build_gn, $(GN_OPTIONS), maple-rt)
 
-.PHONY: libcore
-libcore: install maple-rt
-	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
-	$(MAKE) install OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
-
 .PHONY: java-core-def
 java-core-def: install
-	cp -rp $(MAPLE_ROOT)/libjava-core $(MAPLE_BUILD_OUTPUT)/; \
-	cd $(MAPLE_BUILD_OUTPUT)/libjava-core; \
+	mkdir -p $(LIB_CORE_PATH); \
+	cp -rp $(MAPLE_ROOT)/libjava-core/* $(LIB_CORE_PATH)/; \
+	cd $(LIB_CORE_PATH); \
 	ln -f -s $(MAPLE_ROOT)/build/core/libcore.mk ./makefile; \
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: install
-install: maple dex2mpl_install irbuild mplfe clang2mpl
+install: maple dex2mpl_install irbuild mplfe
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
-	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin)
+	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
+	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
+	cp -rf $(MAPLE_ROOT)/testsuite/tools $(INSTALL_DIR)/../; \
+	rsync -a -L $(MAPLE_ROOT)/src/mplfe/ast_input/lib/sys/ $(INSTALL_DIR)/lib/include/;)
 
 .PHONY: all
 all: install libcore
 
-ifeq ($(OPS_ANDROID),0)
 .PHONY: dex2mpl_install
 dex2mpl_install: directory
 	$(shell rsync -a -L $(MAPLE_BIN_DIR)/dex2mpl $(INSTALL_DIR)/bin/;)
-else
-.PHONY: dex2mpl_install
-dex2mpl_install: directory
-	$(shell rsync -a -L $(MAPLE_BIN_DIR)/dex2mpl_android $(INSTALL_DIR)/bin/dex2mpl;)
-endif
 
 .PHONY: setup
 setup:
@@ -161,7 +164,7 @@ cleanrsd:uninstall_patch
 .PHONY: clean
 clean: cleanrsd
 	@rm -rf $(MAPLE_BUILD_OUTPUT)/
-	@rm -rf $(MAPLE_BUILD_OUTPUT)
+	@rm -rf $(MAPLE_ROOT)/report.txt
 
 .PHONY: clobber
 clobber: cleanrsd

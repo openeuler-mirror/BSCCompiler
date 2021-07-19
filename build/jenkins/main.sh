@@ -39,14 +39,12 @@ function release_test {
   make irbuild
   make mplfe
   make clang2mpl
-  make libcore OPT=${opt}
+  make libcore OPT=O0
+  make libcore OPT=O2
 
   for dir in $sample_list
   do
     cd $MAPLE_ROOT/samples/$dir
-    make OPT=O0
-    make clean
-
     make OPT=O2
     make clean
   done
