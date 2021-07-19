@@ -30,6 +30,9 @@ using namespace maple;
 #define SCHD_DUMP CG_DEBUG_FUNC(cgFunc)
 
 AnalysisResult *CgDoStoreLoadOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResMgr) {
+  if (cgFunc->HasAsm()) {
+    return nullptr;
+  }
   if (SCHD_DUMP) {
     DotGenerator::GenerateDot("storeloadopt", *cgFunc, cgFunc->GetMirModule(), true);
   }

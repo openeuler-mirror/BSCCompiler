@@ -29,7 +29,7 @@ namespace maplebe {
 #define OPTIMIZE_FOR_PROLOG
 #undef REUSE_SPILLMEM
 #undef COLOR_SPLIT
-#undef MOVE_COALESCE
+#define MOVE_COALESCE
 
 /* for robust test */
 #undef CONSISTENT_MEMOPND
@@ -195,6 +195,12 @@ struct SortedBBCmpFunc {
   }
 };
 
+enum refType : uint8 {
+  kIsUse = 0x1,
+  kIsDef = 0x2,
+  kIsCall = 0x4,
+};
+
 /* LR is for each global vreg. */
 class LiveRange {
  public:
@@ -202,6 +208,7 @@ class LiveRange {
       : pregveto(allocator.Adapter()),
         forbidden(allocator.Adapter()),
         prefs(allocator.Adapter()),
+        refMap(std::less<uint32>(), allocator.Adapter()),
         luMap(allocator.Adapter()) {}
 
   ~LiveRange() = default;
@@ -451,6 +458,14 @@ class LiveRange {
     (void)prefs.insert(regNO);
   }
 
+  const MapleMap<uint32, std::map<uint32, uint32>> GetRefs() const {
+    return refMap;
+  }
+
+  void AddRef(uint32 bbId, uint32 pos, uint32 mark) {
+    (refMap[bbId])[pos] = (refMap[bbId])[pos] | mark;
+  }
+
   const MapleMap<uint32, LiveUnit*> &GetLuMap() const {
     return luMap;
   }
@@ -551,6 +566,14 @@ class LiveRange {
     spilled = spill;
   }
 
+  bool HasDefUse() const {
+    return hasDefUse;
+  }
+
+  void SetDefUse() {
+    hasDefUse = true;
+  }
+
   bool IsNonLocal() const {
     return isNonLocal;
   }
@@ -581,6 +604,7 @@ class LiveRange {
   uint64 *bbConflict = nullptr;       /* vreg interference from graph neighbors (bit) */
   uint64 *oldConflict = nullptr;
   MapleSet<regno_t> prefs;            /* pregs that prefer */
+  MapleMap<uint32, std::map<uint32, uint32>> refMap;
   MapleMap<uint32, LiveUnit*> luMap;  /* info for each bb */
   LiveRange *splitLr = nullptr;       /* The 1st part of the split */
 #ifdef OPTIMIZE_FOR_PROLOG
@@ -592,6 +616,7 @@ class LiveRange {
   regno_t spillReg = 0;               /* register operand for spill at current point */
   uint32 spillSize = 0;               /* 32 or 64 bit spill */
   bool spilled = false;               /* color assigned */
+  bool hasDefUse = false;               /* has regDS */
   bool isNonLocal = false;
 };
 
@@ -1079,6 +1104,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
         localRegVec(alloc.Adapter()),
         bbRegInfo(alloc.Adapter()),
         unconstrained(alloc.Adapter()),
+        unconstrainedPref(alloc.Adapter()),
         constrained(alloc.Adapter()),
         mustAssigned(alloc.Adapter()),
 #ifdef OPTIMIZE_FOR_PROLOG
@@ -1093,12 +1119,12 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
         fpSpillRegSet(alloc.Adapter()),
         intCalleeUsed(alloc.Adapter()),
         fpCalleeUsed(alloc.Adapter()) {
-    constexpr uint32 kNumInsnThreashold = 200000;
+    constexpr uint32 kNumInsnThreashold = 30000;
     numVregs = cgFunc.GetMaxVReg();
     lrVec.resize(numVregs);
     localRegVec.resize(cgFunc.NumBBs());
     bbRegInfo.resize(cgFunc.NumBBs());
-    if (CGOptions::DoMultiPassColorRA()) {
+    if (CGOptions::DoMultiPassColorRA() && cgFunc.GetMirModule().IsCModule()) {
       uint32 cnt = 0;
       FOR_ALL_BB(bb, &cgFunc) {
         FOR_BB_INSNS(insn, bb) {
@@ -1178,10 +1204,11 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
   bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint);
-  void UpdateCallInfo(uint32 bbId);
+  void UpdateCallInfo(uint32 bbId, uint32 currPoint);
   void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs, const Operand &opnd);
   void SetOpndConflict(const Insn &insn, bool onlyDef);
   void UpdateOpndConflict(const Insn &insn, bool multiDef);
+  void SetLrMustAssign(RegOperand *regOpnd);
   void SetupMustAssignedLiveRanges(const Insn &insn);
   void ComputeLiveRangesForEachDefOperand(Insn &insn, bool &multiDef);
   void ComputeLiveRangesForEachUseOperand(Insn &insn);
@@ -1231,6 +1258,13 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   bool SetRegForSpill(LiveRange &lr, Insn &insn, uint32 spillIdx, uint64 &usedRegMask, bool isDef);
   bool GetSpillReg(Insn &insn, LiveRange &lr, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   RegOperand *GetReplaceOpndForLRA(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
+  bool EncountPrevRef(BB &pred, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
+  bool FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
+  bool EncountNextRef(BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
+  bool FoundNextBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
+  bool HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
+  bool HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
+  bool NeedCallerSave(Insn &insn, LiveRange &lr, bool isDef);
   RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
@@ -1283,6 +1317,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleVector<LocalRaInfo*> localRegVec;  /* local reg info for each bb, no local reg if null */
   MapleVector<BBAssignInfo*> bbRegInfo;   /* register assignment info for each bb */
   MapleVector<LiveRange*> unconstrained;
+  MapleVector<LiveRange*> unconstrainedPref;
   MapleVector<LiveRange*> constrained;
   MapleVector<LiveRange*> mustAssigned;
 #ifdef OPTIMIZE_FOR_PROLOG
