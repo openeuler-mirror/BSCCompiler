@@ -52,7 +52,7 @@ MFEO0 = {
     "run": [
         QemuRun(
             qemu_libc=[
-                "/usr/aarch64-linux-gnu/"
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc"
             ],
             infile="${APP}.out",
             redirection="output.log"
