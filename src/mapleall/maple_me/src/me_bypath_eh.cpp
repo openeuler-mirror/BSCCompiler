@@ -20,8 +20,8 @@
 #include "me_function.h"
 
 namespace maple {
-bool MeDoBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchClass, const StIdx &stIdx,
-                                     const KlassHierarchy &kh, MeFunction &func, const StmtNode *syncExitStmt) const {
+bool MeBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchClass, const StIdx &stIdx,
+                                   const KlassHierarchy &kh, MeFunction &func, const StmtNode *syncExitStmt) const {
   std::vector<BB*> tryBBV;
   std::set<BB*> tryBBS;
   tryBBV.push_back(tryBB);
@@ -127,7 +127,7 @@ bool MeDoBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchC
   return transformed;
 }
 
-StmtNode *MeDoBypathEH::IsSyncExit(BB &syncBB, MeFunction &func, LabelIdx secondLabel) const {
+StmtNode *MeBypathEH::IsSyncExit(BB &syncBB, MeFunction &func, LabelIdx secondLabel) const {
   StmtNode *syncExitStmt = nullptr;
   StmtNode *stmt = syncBB.GetFirst().GetNext();
   for (; stmt != nullptr && stmt != syncBB.GetLast().GetNext(); stmt = stmt->GetNext()) {
@@ -206,7 +206,7 @@ StmtNode *MeDoBypathEH::IsSyncExit(BB &syncBB, MeFunction &func, LabelIdx second
   return syncExitStmt;
 }
 
-void MeDoBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) const {
+void MeBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) const {
   // Condition check:
   // 1. There is only one catch statement, and the catch can handle the thrown exception
   auto labelIdx = static_cast<LabelIdx>(-1);
@@ -342,7 +342,9 @@ AnalysisResult *MeDoBypathEH::Run(MeFunction *func, MeFuncResultMgr* m, ModuleRe
   (void)(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
   auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   CHECK_NULL_FATAL(kh);
-  BypathException(*func, *kh);
+  MemPool *meBypathEHMemPool = NewMemPool();
+  auto meBypathEH = meBypathEHMemPool->New<MeBypathEH>();
+  meBypathEH->BypathException(*func, *kh);
   return nullptr;
 }
 }  // namespace maple

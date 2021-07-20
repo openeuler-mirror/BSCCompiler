@@ -33,7 +33,7 @@
 // The bblayout phase will determine the final layout order of the bbs.
 namespace maple {
 // This function is used to find the eh edge when predBB is tryBB.
-void MeDoSplitCEdge::UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pred) const {
+void MeSplitCEdge::UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pred) const {
   auto tryBB = &pred;
   newBB.SetAttributes(kBBAttrIsTry);
   // The bb which is returnBB and only have return stmt would not have eh edge,
@@ -58,7 +58,7 @@ void MeDoSplitCEdge::UpdateNewBBInTry(MeFunction &func, BB &newBB, const BB &pre
   ASSERT(setEHEdge, "must set eh edge");
 }
 
-void MeDoSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {
+void MeSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {
   auto &gotoStmt = static_cast<CondGotoNode&>(pred.GetStmtNodes().back());
   BB *gotoBB = pred.GetSucc().at(1);
   LabelIdx oldLabelIdx = gotoStmt.GetOffset();
@@ -67,7 +67,7 @@ void MeDoSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &
     LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
     gotoStmt.SetOffset(label);
   }
-  if (DEBUGFUNC(&func)) {
+  if (isDebugFunc) {
     LogInfo::MapleLogger() << "******after break: dump updated condgoto_BB *****\n";
     pred.Dump(&func.GetMIRModule());
     newBB.Dump(&func.GetMIRModule());
@@ -75,7 +75,7 @@ void MeDoSplitCEdge::UpdateGotoLabel(BB &newBB, MeFunction &func, BB &pred, BB &
   }
 }
 
-void MeDoSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {
+void MeSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &succ) const {
   auto &switchStmt = static_cast<SwitchNode&>(pred.GetStmtNodes().back());
   LabelIdx oldLabelIdx = succ.GetBBLabel();
   LabelIdx label = func.GetOrCreateBBLabel(newBB);
@@ -88,7 +88,7 @@ void MeDoSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &
       switchStmt.UpdateCaseLabelAt(i, label);
     }
   }
-  if (DEBUGFUNC(&func)) {
+  if (isDebugFunc) {
     LogInfo::MapleLogger() << "******after break: dump updated switchBB *****\n";
     pred.Dump(&func.GetMIRModule());
     newBB.Dump(&func.GetMIRModule());
@@ -96,7 +96,7 @@ void MeDoSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &
   }
 }
 
-void MeDoSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
+void MeSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
   if (!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) {
     newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);
     isInsertAfterPred = true;
@@ -111,8 +111,8 @@ void MeDoSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&ne
   }
 }
 
-void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const {
-  if (DEBUGFUNC(&func)) {
+void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const {
+  if (isDebugFunc) {
     LogInfo::MapleLogger() << "******before break : critical edge : BB" << pred.GetBBId() << " -> BB" <<
         succ.GetBBId() << "\n";
     pred.Dump(&func.GetMIRModule());
@@ -170,15 +170,10 @@ void MeDoSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) con
   }
 }
 
-AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MeCFG *cfg = func->GetCfg();
-  if (cfg == NULL) {
-    cfg = static_cast<MeCFG *>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  }
-  std::vector<std::pair<BB*, BB*>> criticalEdge;
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
-    if (bIt == cfg->common_exit()) {
+void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) {
+  auto eIt = cfg.valid_end();
+  for (auto bIt = cfg.valid_begin(); bIt != eIt; ++bIt) {
+    if (bIt == cfg.common_exit()) {
       continue;
     }
     auto *bb = *bIt;
@@ -199,26 +194,38 @@ AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, Module
     }
   }
   // separate treatment for commonEntryBB's succ BBs
-  for (BB *entryBB : cfg->GetCommonEntryBB()->GetSucc()) {
+  for (BB *entryBB : cfg.GetCommonEntryBB()->GetSucc()) {
     if (!entryBB->GetPred().empty()) {
-      criticalEdge.push_back(std::make_pair(cfg->GetCommonEntryBB(), entryBB));
+      criticalEdge.push_back(std::make_pair(cfg.GetCommonEntryBB(), entryBB));
     }
   }
+}
+
+AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+  MeCFG *cfg = func->GetCfg();
+  if (cfg == nullptr) {
+    cfg = static_cast<MeCFG *>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+  }
+  std::vector<std::pair<BB*, BB*>> criticalEdge;
+  ScanEdgeInFunc(*cfg, criticalEdge);
   if (!criticalEdge.empty()) {
-    if (DEBUGFUNC(func)) {
+    bool enableDebug = DEBUGFUNC(func);
+    if (enableDebug) {
       LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
       func->DumpFunctionNoSSA();
       func->GetCfg()->DumpToFile("cfgbeforebreak");
     }
+    MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
     for (auto it = criticalEdge.begin(); it != criticalEdge.end(); ++it) {
-      BreakCriticalEdge(*func, *((*it).first), *((*it).second));
+      mscedge.BreakCriticalEdge(*func, *((*it).first), *((*it).second));
     }
-    if (DEBUGFUNC(func)) {
+    if (enableDebug) {
       LogInfo::MapleLogger() << "******************after break dump function******************\n";
       func->Dump(true);
       func->GetCfg()->DumpToFile("cfgafterbreak");
     }
     m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
   }
   return nullptr;
 }

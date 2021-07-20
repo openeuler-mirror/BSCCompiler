@@ -59,7 +59,7 @@ void MeHDSE::ProcessWhileInfos() {
   }
   MapleMap<LabelIdx, LfoWhileInfo *>::iterator it = lfoFunc->label2WhileInfo.begin();
   for (; it != lfoFunc->label2WhileInfo.end(); it++) {
-    if (it->second->initExpr != nullptr && 
+    if (it->second->initExpr != nullptr &&
         (it->second->initExpr->GetMeOp() == maple::kMeOpVar || it->second->initExpr->GetMeOp() == maple::kMeOpReg)) {
       workList.push_front(it->second->initExpr);
     }
@@ -100,7 +100,7 @@ void MeHDSE::BackwardSubstitution() {
   }
 }
 
-void MeDoHDSE::MakeEmptyTrysUnreachable(MeFunction &func) {
+void MakeEmptyTrysUnreachable(MeFunction &func) {
   auto cfg = func.GetCfg();
   auto eIt = cfg->valid_end();
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
