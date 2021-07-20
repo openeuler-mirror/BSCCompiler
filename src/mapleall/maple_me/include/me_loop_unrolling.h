@@ -30,16 +30,25 @@ constexpr uint32 kMaxCost = 100;
 constexpr uint8 unrollTimes[3] = { 8, 4, 2 }; // unrollTimes
 class LoopUnrolling {
  public:
-  LoopUnrolling(MeFunction &f, MeFuncResultMgr &m, LoopDesc &l, MeIRMap &map, MemPool &pool, Dominance *d)
-      : func(&f), cfg(f.GetCfg()), mgr(&m), loop(&l), irMap(&map), memPool(&pool), mpAllocator(&pool), dom(d),
-        cands((std::less<OStIdx>(), mpAllocator.Adapter())), lastNew2OldBB(mpAllocator.Adapter()),
+  enum ReturnKindOfFullyUnroll {
+    kCanFullyUnroll,
+    kCanNotSplitCondGoto,
+    kCanNotFullyUnroll,
+  };
+
+  LoopUnrolling(MeFunction &f, LoopDesc &l, MeIRMap &map, MemPool &pool, const MapleAllocator &alloc,
+                MapleMap<OStIdx, MapleSet<BBId>*> &candsTemp)
+      : func(&f), cfg(f.GetCfg()), loop(&l), irMap(&map), memPool(&pool), mpAllocator(alloc),
+        cands(candsTemp), lastNew2OldBB(mpAllocator.Adapter()),
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
-  bool LoopFullyUnroll(int64 tripCount);
+  ReturnKindOfFullyUnroll LoopFullyUnroll(int64 tripCount);
   bool LoopPartialUnrollWithConst(uint32 tripCount);
-  void LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
+  bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
+  bool LoopUnrollingWithConst(uint32 tripCount);
 
  private:
+  bool SplitCondGotoBB();
   VarMeExpr *CreateIndVarOrTripCountWithName(const std::string &name);
   void RemoveCondGoto();
   void BuildChiList(const BB &bb, MeStmt &newStmt, const MapleMap<OStIdx, ChiMeNode*> &oldChilist,
@@ -87,13 +96,11 @@ class LoopUnrolling {
   bool canUnroll = true;
   MeFunction *func;
   MeCFG      *cfg;
-  MeFuncResultMgr *mgr;
   LoopDesc *loop;
   MeIRMap *irMap;
   MemPool *memPool;
   MapleAllocator mpAllocator;
-  Dominance *dom;
-  MapleMap<OStIdx, MapleSet<BBId>*> cands;
+  MapleMap<OStIdx, MapleSet<BBId>*> &cands;
   MapleMap<BB*, BB*> lastNew2OldBB;
   BB *partialSuccHead = nullptr;
   uint64 replicatedLoopNum = 0;
@@ -106,10 +113,31 @@ class LoopUnrolling {
   bool isUnrollWithVar = false;
 };
 
-class MeDoLoopUnrolling : public MeFuncPhase {
+class LoopUnrollingExecutor {
  public:
+  explicit LoopUnrollingExecutor(MemPool &mp) : innerMp(&mp) {}
   static bool enableDebug;
   static bool enableDump;
+
+  void ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
+      MapleMap<OStIdx, MapleSet<BBId>*> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc);
+  bool IsCFGChange() const {
+    return isCFGChange;
+  }
+
+ private:
+  void SetNestedLoop(const IdentifyLoops &meloop, std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
+  void VerifyCondGotoBB(BB &exitBB) const;
+  bool IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const;
+  bool PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) const;
+  bool IsCanonicalAndOnlyOneExitLoop(MeFunction &func, LoopDesc &loop,
+                                     const std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
+  MemPool *innerMp;
+  bool isCFGChange = false;
+};
+
+class MeDoLoopUnrolling : public MeFuncPhase {
+ public:
   explicit MeDoLoopUnrolling(MePhaseID id) : MeFuncPhase(id) {}
   ~MeDoLoopUnrolling() = default;
 
@@ -117,17 +145,6 @@ class MeDoLoopUnrolling : public MeFuncPhase {
   std::string PhaseName() const override {
     return "loopunrolling";
   }
-
- private:
-  std::map<LoopDesc*, std::set<LoopDesc*>> parentLoop;
-  void SetNestedLoop(const IdentifyLoops &meloop);
-  void ExecuteLoopUnrolling(MeFunction &func, MeFuncResultMgr &m, MeIRMap &irMap);
-  void VerifyCondGotoBB(BB &exitBB) const;
-  bool IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const;
-  bool PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) const;
-  bool IsCanonicalAndOnlyOneExitLoop(MeFunction &func, LoopDesc &loop) const;
-  void ExcuteLoopUnrollingWithConst(uint32 tripCount, MeFunction &func, MeIRMap &irMap,
-                                    LoopUnrolling &loopUnrolling);
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LOOP_UNROLLING_H

@@ -20,6 +20,36 @@
 
 namespace maple {
 // convert loop to do-while format
+class MeLoopCanon {
+ public:
+  MeLoopCanon(bool enableDebugFunc, MemPool &givenMp) : isDebugFunc(enableDebugFunc), innerMp(&givenMp) {}
+  void ExecuteLoopCanon(MeFunction &func, Dominance &dom);
+  void NormalizationExitOfLoop(MeFunction &func, IdentifyLoops &meLoop);
+  void NormalizationHeadAndPreHeaderOfLoop(MeFunction &func, Dominance &dom);
+
+  bool IsCFGChange() const {
+    return isCFGChange;
+  }
+
+  void ResetIsCFGChange() {
+    isCFGChange = false;
+  }
+ private:
+  using Key = std::pair<BB*, BB*>;
+  void Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs);
+  bool NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAllocator &alloc, MapleMap<Key, bool> &swapSuccs) const;
+  void FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb, std::map<BBId, std::vector<BB*>> &heads) const;
+  void Merge(MeFunction &func, const std::map<BBId, std::vector<BB*>> &heads);
+  void AddPreheader(MeFunction &func, const std::map<BBId, std::vector<BB*>> &heads);
+  void InsertNewExitBB(MeFunction &func, LoopDesc &loop);
+  void InsertExitBB(MeFunction &func, LoopDesc &loop);
+  void UpdateTheOffsetOfStmtWhenTargetBBIsChange(MeFunction &func, BB &curBB, const BB &oldSuccBB, BB &newSuccBB) const;
+
+  bool isDebugFunc;
+  MemPool *innerMp;
+  bool isCFGChange = false;
+};
+
 class MeDoLoopCanon : public MeFuncPhase {
  public:
   explicit MeDoLoopCanon(MePhaseID id) : MeFuncPhase(id) {}
@@ -30,22 +60,6 @@ class MeDoLoopCanon : public MeFuncPhase {
   std::string PhaseName() const override {
     return "loopcanon";
   }
-  bool cfgchanged = false;
- private:
-  using Key = std::pair<BB*, BB*>;
-  std::map<BBId, std::vector<BB*>> heads;
-  void Convert(MeFunction &func, BB &bb, BB &pred, MapleMap<Key, bool> &swapSuccs);
-  bool NeedConvert(MeFunction *func, BB &bb, BB &pred, MapleAllocator &alloc, MapleMap<Key, bool> &swapSuccs) const;
-  void FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb);
-  bool IsDoWhileLoop(MeFunction &func, const LoopDesc &loop) const;
-  void Merge(MeFunction &func);
-  void AddPreheader(MeFunction &func);
-  void InsertNewExitBB(MeFunction &func, LoopDesc &loop);
-  void InsertExitBB(MeFunction &func, LoopDesc &loop);
-  void SplitCondGotBB(MeFunction &func, LoopDesc &loop);
-  void ExecuteLoopCanon(MeFunction &func, MeFuncResultMgr &m, Dominance &dom);
-  void ExecuteLoopNormalization(MeFunction &func,  MeFuncResultMgr *m, Dominance &dom);
-  void UpdateTheOffsetOfStmtWhenTargetBBIsChange(MeFunction &func, BB &curBB, const BB &oldSuccBB, BB &newSuccBB) const;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MELOOPCANON_H
