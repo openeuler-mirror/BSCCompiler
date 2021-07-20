@@ -168,8 +168,8 @@ function compile() {
       exit 1;
     }
   else
-    echo $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option=\"$O0\" "${fileName}.${suffix}"
-    $MAPLE_BIN/maple --run=me:mpl2mpl:mplcg --option="$O0" "${fileName}.${suffix}" || {
+    echo $MAPLE_BIN/maple --run=mplcg --option=\"$O0\" "${fileName}.${suffix}"
+    $MAPLE_BIN/maple --run=mplcg --option="$O0" "${fileName}.${suffix}" || {
       echo "FAILED: "
       echo "" >> comb_err.log
       echo "error in compiling $1" >> comb_err.log;
