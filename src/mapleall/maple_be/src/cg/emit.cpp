@@ -1537,8 +1537,8 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
   size_t uNum = arrayCt.GetConstVec().size();
   uint32 dim = arrayType.GetSizeArrayItem(0);
   TyIdx scalarIdx = arrayType.GetElemTyIdx();
+  MIRType *subTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(scalarIdx);
   if (uNum == 0 && dim) {
-    MIRType *subTy = GlobalTables::GetTypeTable().GetTypeFromTyIdx(scalarIdx);
     while (subTy->GetKind() == kTypeArray) {
       MIRArrayType *aSubTy = static_cast<MIRArrayType *>(subTy);
       if (aSubTy->GetSizeArrayItem(0) > 0) {
@@ -1550,7 +1550,9 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
   }
   for (size_t i = 0; i < uNum; ++i) {
     MIRConst *elemConst = arrayCt.GetConstVecItem(i);
-    if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
+    if (IsPrimitiveVector(subTy->GetPrimType())) {
+      EmitVectorConstant(*elemConst);
+    } else if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
       if (cg->GetMIRModule()->IsCModule()) {
         bool strLiteral = false;
         if (arrayType.GetDim() == 1) {
@@ -1590,6 +1592,28 @@ void Emitter::EmitArrayConstant(MIRConst &mirConst) {
     }
   }
   Emit("\n");
+}
+
+void Emitter::EmitVectorConstant(MIRConst &mirConst) {
+  MIRType &mirType = mirConst.GetType();
+  MIRAggConst &vecCt = static_cast<MIRAggConst&>(mirConst);
+  size_t uNum = vecCt.GetConstVec().size();
+  for (size_t i = 0; i < uNum; ++i) {
+    MIRConst *elemConst = vecCt.GetConstVecItem(i);
+    if (IsPrimitiveScalar(elemConst->GetType().GetPrimType())) {
+      bool strLiteral = false;
+      EmitScalarConstant(*elemConst, true, false, strLiteral == false);
+    } else {
+      ASSERT(false, "should not run here");
+    }
+  }
+  int lanes = GetPrimTypeLanes(mirType.GetPrimType());
+  if (lanes > uNum) {
+    MIRIntConst zConst(0, vecCt.GetConstVecItem(0)->GetType());
+    for (int32 i = uNum; i < lanes; i++) {
+      EmitScalarConstant(zConst, true, false, false);
+    }
+  }
 }
 
 void Emitter::EmitStructConstant(MIRConst &mirConst) {
@@ -1641,7 +1665,9 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
       EmitBitFieldConstant(*sEmitInfo, *elemConst, nextElemType, fieldOffset);
     } else {
       if (elemConst != nullptr) {
-        if (IsPrimitiveScalar(elemType->GetPrimType())) {
+        if (IsPrimitiveVector(elemType->GetPrimType())) {
+          EmitVectorConstant(*elemConst);
+        } else if (IsPrimitiveScalar(elemType->GetPrimType())) {
           EmitScalarConstant(*elemConst, true, false, true);
         } else if (elemType->GetKind() == kTypeArray) {
           if (elemType->GetSize() != 0) {
@@ -2302,7 +2328,9 @@ void Emitter::EmitGlobalVariable() {
       }
       EmitAsmLabel(*mirSymbol, kAsmSyname);
       MIRConst *mirConst = mirSymbol->GetKonst();
-      if (IsPrimitiveScalar(mirType->GetPrimType())) {
+      if (IsPrimitiveVector(mirType->GetPrimType())) {
+        EmitVectorConstant(*mirConst);
+      } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
         if (IsAddress(mirType->GetPrimType())) {
           uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
           CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
