@@ -1,40 +1,42 @@
 # Build and Run SPEC with Maple
 
-## Build and test SPEC with maplefe as the front end
-```shell
-git clone https://gitee.com/openarkcompiler/OpenArkCompiler.git oac   # optional
+1. Setup and build OAC
+
+```
+# Clone the repo
+git clone https://gitee.com/openarkcompiler/OpenArkCompiler.git oac
+# Or alternatively update the repo
 cd oac
-git pull                        # optional for updating Maple code
+git pull
+
+# Setup the environment
 source build/envsetup.sh arm release
 make setup
-make
-cd tools/run_spec/
-make setup                      # copy spec2017 to $HOME, and copy spec cfg file
-source envsetup.sh mplfe
-make test.602
 
-# the following are optional for running the train size or ref size
-make train.605                  
-make ref.605
+# Build OAC
+make
+# If using clang2mpl, build it
+make clang2mpl
 ```
 
-## Build and test SPEC with clang2mpl as the front end
-```shell
-git clone https://gitee.com/openarkcompiler/OpenArkCompiler.git oac   # optional
-cd oac
-git checkout spec-clang2mpl     # switch a temp branch
-git pull                        # optional for updating Maple code
-source build/envsetup.sh arm release
+2. Setup the environment for running SPEC
+
+```
+cd tools/run_spec
 make setup
-make
-make clang2mpl
-cd tools/run_spec/
-source envsetup.sh clang2mpl
-make setup                      # copy spec2017 to $HOME, and copy spec cfg file
+source envsetup.sh [ clang2mpl | mplfe ] # select frontend
+```
+
+3. Run a test
+
+```
 make test.602
 
-# the following are optional for running the train size or ref size
-make train.605                  
+# Build only
+make build.600
+
+# Run the train or ref sizes
+make train.605
 make ref.605
 ```
 
