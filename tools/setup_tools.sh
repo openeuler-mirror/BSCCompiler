@@ -181,6 +181,7 @@ ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
 ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${MAPLE_ROOT}/testsuite/tools/bin/qemu-aarch64
 ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${MAPLE_ROOT}/testsuite/tools/bin/aarch64-linux-gnu-gcc
+ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0 ${MAPLE_ROOT}/testsuite/tools/gcc-linaro-7.5.0
 ln -s -f ${MAPLE_ROOT}/build/java2dex ${MAPLE_ROOT}/testsuite/tools/bin/java2dex
 ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/testsuite/tools/lib
 
