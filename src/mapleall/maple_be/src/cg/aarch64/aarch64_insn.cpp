@@ -658,19 +658,27 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
             val -= outOpnds.size();
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
+            /* input is a immediate */
             const char *prefix = list7.stringList[val]->GetComment().c_str();
-            if (prefix[0] == '[') {
-              str[sidx++] = prefix[0];
-              str[sidx++] = 'x';
-              AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
-              str[sidx++] = ']';
-            } else {
-              if (prefix[0] == 'w' || prefix[0] == 'x') {
-                str[sidx++] = 'x';
-              } else {
-                str[sidx++] = prefix[0];
+            if (prefix[0] == 'i') {
+              str[sidx++] = '#';
+              for (int k = 1; k < list7.stringList[val]->GetComment().length(); ++k) {
+                str[sidx++] = prefix[k];
               }
-              AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+            } else {
+              if (prefix[0] == '[') {
+                str[sidx++] = prefix[0];
+                str[sidx++] = 'x';
+                AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+                str[sidx++] = ']';
+              } else {
+                if (prefix[0] == 'w' || prefix[0] == 'x') {
+                  str[sidx++] = 'x';
+                } else {
+                  str[sidx++] = prefix[0];
+                }
+                AsmStringOutputRegNum(opnd->IsOfIntClass(), opnd->GetRegisterNumber(), R0, V0, str, sidx);
+              }
             }
           }
         } else if (c == '{') {

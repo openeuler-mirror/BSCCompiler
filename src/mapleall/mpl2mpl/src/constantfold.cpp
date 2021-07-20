@@ -162,6 +162,8 @@ StmtNode *ConstantFold::Simplify(StmtNode *node) {
     case OP_icall:
     case OP_icallassigned:
       return SimplifyIcall(static_cast<IcallNode*>(node));
+    case OP_asm:
+      return SimplifyAsm(static_cast<AsmNode*>(node));
     default:
       return node;
   }
@@ -2267,6 +2269,20 @@ StmtNode *ConstantFold::SimplifyBlock(BlockNode *node) {
       s = nextStmt;
     }
   } while (s != nullptr);
+  return node;
+}
+
+StmtNode *ConstantFold::SimplifyAsm(AsmNode* node) {
+  CHECK_NULL_FATAL(node);
+  /* fold constval in input */
+  for (size_t i = 0; i < node->NumOpnds(); i++) {
+    const std::string &str = GlobalTables::GetUStrTable().GetStringFromStrIdx(node->inputConstraints[i]);
+    if (str == "i") {
+      std::pair<BaseNode*, int64> p = DispatchFold(node->Opnd(i));
+      node->SetOpnd(p.first, i);
+      continue;
+    }
+  }
   return node;
 }
 
