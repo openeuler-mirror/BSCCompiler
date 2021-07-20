@@ -321,7 +321,7 @@ PrimType IsVectorArrayType(MIRType *ty, int &arraySize) {
         MIRArrayType *arrayTy = static_cast<MIRArrayType *>(fieldTy);
         MIRType *arrayElemTy = arrayTy->GetElemType();
         arraySize = arrayTy->GetSizeArrayItem(0);
-        if (arrayTy->GetDim() == 1 && arraySize <= 4 &&
+        if (arrayTy->GetDim() == k1BitSize && arraySize <= k4BitSize &&
             IsPrimitiveVector(arrayElemTy->GetPrimType())) {
           return arrayElemTy->GetPrimType();
         }
@@ -516,29 +516,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
      */
     /* case PTY_agg */
     case PTY_agg: {
-      int size = 0;
-      PrimType pTy = AArch64Abi::IsVectorArrayType(&mirType, size);
-      if (pTy != PTY_void) {
-        switch (size) {
-          case 1: pLoc.reg0 = AllocateSIMDFPRegister();
-                  break;
-          case 2: pLoc.reg0 = AllocateSIMDFPRegister();
-                  pLoc.reg1 = AllocateSIMDFPRegister();
-                  break;
-          case 3: pLoc.reg0 = AllocateSIMDFPRegister();
-                  pLoc.reg1 = AllocateSIMDFPRegister();
-                  pLoc.reg2 = AllocateSIMDFPRegister();
-                  break;
-          case 4: pLoc.reg0 = AllocateSIMDFPRegister();
-                  pLoc.reg1 = AllocateSIMDFPRegister();
-                  pLoc.reg2 = AllocateSIMDFPRegister();
-                  pLoc.reg3 = AllocateSIMDFPRegister();
-                  break;
-          default: CHECK_FATAL(0, "Invalid vector array size");
-        }
-      } else {
-        aggCopySize = ProcessPtyAggWhenLocateNextParm(mirType, pLoc, typeSize, typeAlign);
-      }
+      aggCopySize = ProcessPtyAggWhenLocateNextParm(mirType, pLoc, typeSize, typeAlign);
       break;
     }
     default:
