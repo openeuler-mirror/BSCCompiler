@@ -1150,6 +1150,19 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
           static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
        break;
      }
+     case OP_constval: {
+       ASSERT(str == "i", "check input constraint");
+       AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(RZR, k64BitSize, kRegTyInt);
+       listInputOpnd->PushOpnd(static_cast<RegOperand&>(inOpnd));
+       auto &constNode = static_cast<ConstvalNode&>(*node.Opnd(i));
+       CHECK_FATAL(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
+       MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
+       CHECK_FATAL(mirIntConst != nullptr, "just checking");
+       int64 scale = mirIntConst->GetValue();
+       listInRegPrefix->stringList.push_back(
+           static_cast<StringOperand*>(&CreateStringOperand("i" + std::to_string(scale))));
+       break;
+     }
       default:
         CHECK_FATAL(0, "Inline asm input expression not handled");
     }
