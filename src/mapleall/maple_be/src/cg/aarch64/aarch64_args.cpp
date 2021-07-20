@@ -62,7 +62,7 @@ void AArch64MoveRegArgs::CollectRegisterArgs(std::map<uint32, AArch64reg> &argsL
       continue;
     }
     if (ploc.numFpPureRegs) {
-      uint32 index = i;  // static_cast<uint32>(indexList.size()) - 1;
+      uint32 index = i;
       numFpRegs[index] = ploc.numFpPureRegs;
       fpSize[index] = ploc.fpSize;
       continue;
