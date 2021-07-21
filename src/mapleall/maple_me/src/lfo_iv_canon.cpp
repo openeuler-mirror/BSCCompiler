@@ -177,18 +177,21 @@ bool IVCanon::IsLoopInvariant(MeExpr *x) {
     case kMeOpReg: {
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       BB *defBB = scalar->DefByBB();
-      return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
+      return defBB == nullptr || (defBB != aloop->head && dominance->Dominate(*defBB, *aloop->head));
     }
     case kMeOpIvar: {
       IvarMeExpr *ivar = static_cast<IvarMeExpr *>(x);
+      if (!IsLoopInvariant(ivar->GetBase())) {
+        return false;
+      }
       BB *defBB = ivar->GetMu()->DefByBB();
-      return defBB == nullptr || dominance->Dominate(*defBB, *aloop->head);
+      return defBB == nullptr || (defBB != aloop->head && dominance->Dominate(*defBB, *aloop->head));
     }
     case kMeOpOp: {
       OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
       return IsLoopInvariant(opexp->GetOpnd(0)) &&
-            IsLoopInvariant(opexp->GetOpnd(1)) &&
-            IsLoopInvariant(opexp->GetOpnd(2));
+             IsLoopInvariant(opexp->GetOpnd(1)) &&
+             IsLoopInvariant(opexp->GetOpnd(2));
     }
     case kMeOpNary: {
       NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
