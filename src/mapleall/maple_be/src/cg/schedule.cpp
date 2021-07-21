@@ -507,8 +507,12 @@ void Schedule::InitIDAndLoc() {
     }
   }
 }
+
 AnalysisResult* CgDoPreScheduling::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResMgr) {
   ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoPreScheduling");
+  if (cgFunc->HasAsm()) {
+    return nullptr;
+  }
   CHECK_NULL_FATAL(cgFuncResMgr);
   if (LIST_SCHED_DUMP) {
     LogInfo::MapleLogger() << "Before CgDoPreScheduling : " << cgFunc->GetName() << "\n";
@@ -537,6 +541,9 @@ AnalysisResult* CgDoPreScheduling::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncRe
 
 AnalysisResult* CgDoScheduling::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResMgr) {
   ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoScheduling");
+  if (cgFunc->HasAsm()) {
+    return nullptr;
+  }
   CHECK_NULL_FATAL(cgFuncResMgr);
   if (LIST_SCHED_DUMP) {
     LogInfo::MapleLogger() << "Before CgDoScheduling : " << cgFunc->GetName() << "\n";
