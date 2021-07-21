@@ -56,6 +56,7 @@ $(APP_DEF): $(APP_S)
 install: libcore_so deplibs
 	$(shell mkdir -p $(MAPLE_OUT)/ops/host-x86_64-$(OPT); \
 	mkdir -p $(MAPLE_OUT)/ops/third_party; \
+	rsync -a -L ${MAPLE_ROOT}/src/mrt/codetricks ${MAPLE_ROOT}/output/tools/; \
 	rsync -a -L $(MAPLE_OUT)/lib/$(OPT)/libcore-all.so $(MAPLE_OUT)/ops/host-x86_64-$(OPT); \
 	rsync -a -L $(LIB_CORE_PATH)/mrt_module_init.o $(MAPLE_OUT)/ops/; \
 	rsync -a -L $(LIB_CORE_PATH)/libcore-all.mplt $(MAPLE_OUT)/ops/; \
