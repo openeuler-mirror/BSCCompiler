@@ -31,7 +31,7 @@ O2 = {
         ),
         Dex2mpl(
             dex2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/dex2mpl",
-            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/libcore-all.mplt",
+            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/host-x86_64-O2/libcore-all.mplt",
             litprofile="${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list",
             infile="${APP}.dex"
         ),
@@ -53,7 +53,7 @@ O2 = {
     "run": [
         Mplsh(
             qemu="${TOOL_BIN_PATH}/qemu-aarch64",
-            qemu_libc="/usr/aarch64-linux-gnu",
+            qemu_libc="${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc",
             qemu_ld_lib=[
                 "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party",
                 "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2",
