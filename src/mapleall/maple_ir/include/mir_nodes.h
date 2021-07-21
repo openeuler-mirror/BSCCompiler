@@ -29,6 +29,8 @@
 
 namespace maple {
 extern MIRModule *theMIRModule;
+extern void EmitStr(const MapleString &mplStr);
+
 class MIRPregTable;  // circular dependency exists, no other choice
 class TypeTable;  // circular dependency exists, no other choice
 class VerifyResult;  // circular dependency exists, no other choice
@@ -37,7 +39,7 @@ struct RegFieldPair {
  public:
   RegFieldPair() = default;
 
-  RegFieldPair(FieldID fidx, PregIdx16 pidx) : fieldID(fidx), pregIdx(pidx) {}
+  RegFieldPair(FieldID fidx, PregIdx pidx) : fieldID(fidx), pregIdx(pidx) {}
 
   bool IsReg() const {
     return pregIdx > 0;
@@ -47,7 +49,7 @@ struct RegFieldPair {
     return fieldID;
   }
 
-  PregIdx16 GetPregIdx() const {
+  PregIdx GetPregIdx() const {
     return pregIdx;
   }
 
@@ -55,13 +57,13 @@ struct RegFieldPair {
     fieldID = fld;
   }
 
-  void SetPregIdx(PregIdx16 idx) {
+  void SetPregIdx(PregIdx idx) {
     pregIdx = idx;
   }
 
  private:
   FieldID fieldID = 0;
-  PregIdx16 pregIdx = 0;
+  PregIdx pregIdx = 0;
 };
 
 using CallReturnPair = std::pair<StIdx, RegFieldPair>;
@@ -3178,12 +3180,13 @@ enum AsmQualifierKind : unsigned {  // they are alreadgy Maple IR keywords
 
 class AsmNode : public NaryStmtNode {
  public:
-  explicit AsmNode(MapleAllocator *alloc) : NaryStmtNode(*alloc, OP_asm), 
-            asmString(alloc->GetMemPool()), inputConstraints(alloc->Adapter()), 
-            asmOutputs(alloc->Adapter()), outputConstraints(alloc->Adapter()), 
-            clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
+  explicit AsmNode(MapleAllocator *alloc)
+      : NaryStmtNode(*alloc, OP_asm),
+        asmString(alloc->GetMemPool()), inputConstraints(alloc->Adapter()),
+        asmOutputs(alloc->Adapter()), outputConstraints(alloc->Adapter()),
+        clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
 
-  AsmNode(AsmNode &node) = delete;
+  AsmNode(const AsmNode &node) = delete;
   AsmNode &operator=(const AsmNode &node) = delete;
   virtual ~AsmNode() = default;
 
@@ -3195,6 +3198,8 @@ class AsmNode : public NaryStmtNode {
     return (qualifiers & (1U << static_cast<uint32>(x))) != 0;
   }
 
+  void DumpOutputs(int32 indent, std::string &uStr) const;
+  void DumpInputOperands(int32 indent, std::string &uStr) const;
   void Dump(int32 indent) const override;
 
   MapleString asmString;

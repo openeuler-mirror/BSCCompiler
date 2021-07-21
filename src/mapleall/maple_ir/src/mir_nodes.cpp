@@ -1176,7 +1176,7 @@ void CommentNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << "#" << comment << '\n';
 }
 
-static void EmitStr(const MapleString &mplStr) {
+void EmitStr(const MapleString &mplStr) {
   const char *str = mplStr.c_str();
   size_t len = mplStr.length();
   LogInfo::MapleLogger() << "\"";

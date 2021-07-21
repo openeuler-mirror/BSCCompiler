@@ -30,8 +30,8 @@
 namespace maple {
 #if MIR_FEATURE_FULL  // to avoid compilation error when MIR_FEATURE_FULL=0
 MIRModule::MIRModule(const std::string &fn)
-    : memPool(memPoolCtrler.NewMemPool("maple_ir mempool")),
-      pragmaMemPool(memPoolCtrler.NewMemPool("pragma mempool")),
+    : memPool(new ThreadShareMemPool(memPoolCtrler, "maple_ir mempool")),
+      pragmaMemPool(memPoolCtrler.NewMemPool("pragma mempool", false /* isLcalPool */)),
       memPoolAllocator(memPool),
       pragmaMemPoolAllocator(pragmaMemPool),
       functionList(memPoolAllocator.Adapter()),
@@ -49,10 +49,12 @@ MIRModule::MIRModule(const std::string &fn)
       srcFileInfo(memPoolAllocator.Adapter()),
       importFiles(memPoolAllocator.Adapter()),
       importPaths(memPoolAllocator.Adapter()),
+      asmDecls(memPoolAllocator.Adapter()),
       classList(memPoolAllocator.Adapter()),
       optimizedFuncs(memPoolAllocator.Adapter()),
       puIdxFieldInitializedMap(std::less<PUIdx>(), memPoolAllocator.Adapter()),
-      inliningGlobals(memPoolAllocator.Adapter()) {
+      inliningGlobals(memPoolAllocator.Adapter()),
+      partO2FuncList(memPoolAllocator.Adapter()) {
   GlobalTables::GetGsymTable().SetModule(this);
   typeNameTab = memPool->New<MIRTypeNameTable>(memPoolAllocator);
   mirBuilder = memPool->New<MIRBuilder>(this);
@@ -61,7 +63,10 @@ MIRModule::MIRModule(const std::string &fn)
 }
 
 MIRModule::~MIRModule() {
-  memPoolCtrler.DeleteMemPool(memPool);
+  for (MIRFunction *mirFunc : functionList) {
+    mirFunc->ReleaseCodeMemory();
+  }
+  delete memPool;
   delete binMplt;
 }
 
@@ -159,6 +164,13 @@ void MIRModule::DumpGlobals(bool emitStructureType) const {
     for (size_t i = 0; i < size; ++i) {
       LogInfo::MapleLogger() << "importpath \"" << GlobalTables::GetStrTable().GetStringFromStrIdx(importPaths[i])
                              << "\"\n";
+    }
+  }
+  if (!asmDecls.empty()) {
+    size_t size = asmDecls.size();
+    for (size_t i = 0; i < size; ++i) {
+      LogInfo::MapleLogger() << "asmdecl ";
+      EmitStr(asmDecls[i]);
     }
   }
   if (entryFuncName.length()) {
@@ -639,9 +651,6 @@ void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
     std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
     LogInfo::MapleLogger().rdbuf(mplFile.rdbuf());  // change LogInfo::MapleLogger()'s buffer to that of file
     Dump(emitStructureType, dumpFuncSet);
-    if (withDbgInfo) {
-      dbgInfo->Dump(0);
-    }
     LogInfo::MapleLogger().rdbuf(backup);  // restore LogInfo::MapleLogger()'s buffer
     mplFile.close();
   } else {
@@ -649,6 +658,16 @@ void MIRModule::OutputAsciiMpl(const char *phaseName, const char *suffix,
     binaryMplt.GetBinExport().not2mplt = true;
     binaryMplt.Export(outfileName);
   }
+  std::ofstream mplFile;
+  mplFile.open(outfileName, std::ios::trunc);
+  std::streambuf *backup = LogInfo::MapleLogger().rdbuf();
+  LogInfo::MapleLogger().rdbuf(mplFile.rdbuf());  // change cout's buffer to that of file
+  Dump(emitStructureType);
+  if (withDbgInfo) {
+    dbgInfo->Dump(0);
+  }
+  LogInfo::MapleLogger().rdbuf(backup);  // restore cout's buffer
+  mplFile.close();
 }
 
 uint32 MIRModule::GetFileinfo(GStrIdx strIdx) const {
@@ -702,4 +721,27 @@ void MIRModule::ReleaseCurFuncMemPoolTmp() {
 void MIRModule::SetFuncInfoPrinted() const {
   CurFunction()->SetInfoPrinted();
 }
+
+void MIRModule::InitPartO2List(const std::string &list) {
+  if (list.empty()) {
+    return;
+  }
+  SetHasPartO2List(true);
+  std::ifstream infile(list);
+  if (!infile.is_open()) {
+    LogInfo::MapleLogger(kLlErr) << "Cannot open partO2 function list file " << list << '\n';
+    return;
+  }
+  std::string str;
+
+  while (getline(infile, str)) {
+    if (str.empty()) {
+      continue;
+    }
+    GStrIdx funcStrIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(str);
+    partO2FuncList.insert(funcStrIdx);
+  }
+  infile.close();
+}
+
 }  // namespace maple

@@ -435,6 +435,13 @@ class MIRSymbol {
     lastPrintedLineNum = val;
   }
 
+  bool HasPotentialAssignment() const {
+    return hasPotentialAssignment;
+  }
+
+  void SetHasPotentialAssignment() {
+    hasPotentialAssignment = true;
+  }
   // Please keep order of the fields, avoid paddings.
  private:
   TyIdx tyIdx{ 0 };
@@ -451,9 +458,14 @@ class MIRSymbol {
   bool isImportedDecl = false;
   bool isTmpUnused = false;  // when parse the mplt_inline file, mark all the new symbol as tmpunused
   bool appearsInCode = false;  // only used for kStFunc
+  bool hasPotentialAssignment = false; // for global static vars, init as false and will be set true
+                                       // if assigned by stmt or the address of itself is taken
   StIdx stIdx { 0, 0 };
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };
+ public:
+  UStrIdx sectionAttr { 0 }; // if not 0, the string for the name in C's section attribute
+ private:
   SymbolType value = { nullptr };
   SrcPosition srcPosition;      // where the symbol is defined
   // following cannot be assumed final even though they are declared final
@@ -530,6 +542,7 @@ class MIRSymbolTable {
 
   void Clear() {
     symbolTable.clear();
+    strIdxToStIdxMap.clear();
   }
 
   MIRSymbol *CloneLocalSymbol(const MIRSymbol &oldSym) const {
