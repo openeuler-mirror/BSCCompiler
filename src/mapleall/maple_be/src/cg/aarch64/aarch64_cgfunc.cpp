@@ -8920,21 +8920,20 @@ RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType
   return static_cast<RegOperand*>(vOpnd);
 }
 
-RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
-                                             PrimType typ2, Operand *o3) {
+RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 index) {
   RegOperand *res = &CreateRegisterOperandOfType(rTyp);
+  int32 size = GetPrimTypeSize(rTyp);                                      /* 8b or 16b */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecDest->vecLaneMax = GetPrimTypeLanes(rTyp);
+  vecSpecDest->vecLaneMax = size;
   VectorRegSpec *vecSpecOpd1 = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecOpd1->vecLaneMax = GetPrimTypeLanes(typ1);
+  vecSpecOpd1->vecLaneMax = size;
   VectorRegSpec *vecSpecOpd2 = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecOpd2->vecLaneMax = GetPrimTypeLanes(typ2);
+  vecSpecOpd2->vecLaneMax = size;
 
-  if (!o3->IsConstImmediate()) {
-    CHECK_FATAL(0, "VectorMerge does not have lane const");
-  }
+  ImmOperand *imm = &CreateImmOperand(index, k8BitSize, true);
 
-  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vextvvv, *res, *o1, *o2, *o3);
+  MOperator mOp = size > k8ByteSize ? MOP_vextvvvi: MOP_vextuuui;
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2, *imm);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd1);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd2);
