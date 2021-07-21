@@ -60,6 +60,9 @@ namespace maplebe {
 using namespace maple;
 
 AnalysisResult *CgDoGlobalOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
+  if (cgFunc->HasAsm()) {
+    return nullptr;
+  }
   ReachingDefinition *reachingDef = nullptr;
   LiveAnalysis *live = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {

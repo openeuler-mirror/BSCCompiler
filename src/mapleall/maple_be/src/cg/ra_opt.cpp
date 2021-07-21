@@ -24,6 +24,9 @@ namespace maplebe {
 using namespace maple;
 AnalysisResult *CgDoRaOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
+  if (cgFunc->HasAsm()) {
+    return nullptr;
+  }
   MemPool *memPool = NewMemPool();
   RaOpt *raOpt = nullptr;
   ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoRaOpt");
