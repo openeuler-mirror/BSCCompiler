@@ -544,14 +544,15 @@ void LoopFinder::FormLoopHierarchy() {
 AnalysisResult *CgDoLoopAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
   CHECK_FATAL(cgFunc != nullptr, "nullptr check");
-  if (LOOP_ANALYSIS_DUMP) {
-    DotGenerator::GenerateDot("buildloop", *cgFunc, cgFunc->GetMirModule());
-  }
   cgFunc->ClearLoopInfo();
   MemPool *loopMemPool = NewMemPool();
   LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(*cgFunc, *loopMemPool);
   loopFinder->FormLoopHierarchy();
 
+  if (LOOP_ANALYSIS_DUMP) {
+    /* do dot gen after detection so the loop backedge can be properly colored using the loop info */
+    DotGenerator::GenerateDot("buildloop", *cgFunc, cgFunc->GetMirModule(), true, cgFunc->GetName());
+  }
 #if DEBUG
   for (const auto *lp : cgFunc->GetLoops()) {
     lp->CheckLoops();
