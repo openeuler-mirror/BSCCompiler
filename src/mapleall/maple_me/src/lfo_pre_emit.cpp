@@ -574,6 +574,7 @@ DoloopNode *LfoPreEmitter::EmitLfoDoloop(BB *mewhilebb, BlockNode *curblk, LfoWh
               "EmitLfoDoLoop: there are other statements at while header bb");
   DoloopNode *Doloopnode = codeMP->New<DoloopNode>();
   LfoPart *lfopart = lfoMP->New<LfoPart>(curblk);
+  lfopart->mestmt = lastmestmt;
   lfoStmtParts[Doloopnode->GetStmtID()] = lfopart;
   Doloopnode->SetDoVarStIdx(whileInfo->ivOst->GetMIRSymbol()->GetStIdx());
   CondGotoMeStmt *condGotostmt = static_cast<CondGotoMeStmt *>(lastmestmt);

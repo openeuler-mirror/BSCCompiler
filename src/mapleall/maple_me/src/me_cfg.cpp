@@ -1287,10 +1287,21 @@ void MeCFG::CreateBasicBlocks() {
         break;
       }
       case OP_dassign: {
+        DassignNode *dass = static_cast<DassignNode*>(stmt);
+        if (!func.IsLfo() && func.GetLfoFunc() != nullptr) {
+          // delete identity assignments inserted by LFO
+          if (dass->GetRHS()->GetOpCode() == OP_dread) {
+            DreadNode *dread = static_cast<DreadNode*>(dass->GetRHS());
+            if (dass->GetStIdx() == dread->GetStIdx() && dass->GetFieldID() == dread->GetFieldID()) {
+              func.CurFunction()->GetBody()->RemoveStmt(stmt);
+              break;
+            }
+          }
+        }
         if (curBB->IsEmpty()) {
           curBB->SetFirst(stmt);
         }
-        if (isJavaModule && static_cast<DassignNode*>(stmt)->GetRHS()->MayThrowException()) {
+        if (isJavaModule && dass->GetRHS()->MayThrowException()) {
           stmt->SetOpCode(OP_maydassign);
           if (tryStmt != nullptr) {
             // breaks new BB only inside try blocks
