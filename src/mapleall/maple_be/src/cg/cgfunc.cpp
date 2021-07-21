@@ -324,11 +324,18 @@ Operand *HandleVectorFromScalar(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
 
 Operand *HandleVectorMerge(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand1 */
-  PrimType o1Type = intrnNode.Opnd(0)->GetPrimType();
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand2 */
-  PrimType o2Type = intrnNode.Opnd(1)->GetPrimType();
-  Operand *opnd3 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(2));   /* index operand */
-  return cgFunc.SelectVectorMerge(intrnNode.GetPrimType(), opnd1, o1Type, opnd2, o2Type, opnd3);
+  BaseNode *index = intrnNode.Opnd(2);                                 /* index operand */
+  int32 iNum = 0;
+  if (index->GetOpCode() == OP_constval) {
+    MIRConst *mirConst = static_cast<ConstvalNode*>(index)->GetConstVal();
+    iNum = safe_cast<MIRIntConst>(mirConst)->GetValue();
+    PrimType ty = intrnNode.Opnd(0)->GetPrimType();
+    iNum *= GetPrimTypeSize(ty) / GetPrimTypeLanes(ty);                /* 64x2: 0-1 -> 0-8 */
+  } else {                                                             /* 32x4: 0-3 -> 0-12 */
+    CHECK_FATAL(0, "VectorMerge does not have const index");
+  }
+  return cgFunc.SelectVectorMerge(intrnNode.GetPrimType(), opnd1, opnd2, iNum);
 }
 
 Operand *HandleVectorGetHigh(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {

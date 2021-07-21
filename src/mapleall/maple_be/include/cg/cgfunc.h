@@ -284,8 +284,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
                                        PrimType oTyp3) = 0;
-  virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2,
-                                        Operand *o3) = 0;
+  virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) = 0;
   virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) = 0;
   virtual RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) = 0;
