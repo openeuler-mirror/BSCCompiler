@@ -23,6 +23,7 @@
 #include "mir_pragma.h"
 #include "bin_mplt.h"
 #include "option.h"
+#include "clone.h"
 #include "string_utils.h"
 #include "debug_info.h"
 
@@ -162,7 +163,6 @@ void MIRParser::Error(const std::string &str) {
   message += ": ";
   message += lexer.GetTokenString();
   message += "\n";
-
   mod.GetDbgInfo()->SetErrPos(lexer.GetLineNum(), lexer.GetCurIdx());
 }
 
@@ -826,7 +826,19 @@ bool MIRParser::ParseStructType(TyIdx &styIdx, const GStrIdx &strIdx) {
       GlobalTables::GetTypeTable().SetTypeWithTyIdx(styIdx, *structType.CopyMIRTypeNode());
     }
   } else {
-    styIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&structType);
+    TyIdx prevTypeIdx = mod.GetTypeNameTab()->GetTyIdxFromGStrIdx(strIdx);
+    if (prevTypeIdx != 0) {
+      // if the MIRStructType has been created by name or incompletely, refresh the prev created type
+      MIRType *prevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(prevTypeIdx);
+      if (prevType->GetKind() == kTypeByName ||
+          (prevType->GetKind() == kTypeStructIncomplete && tkind == kTypeStruct)) {
+        structType.SetTypeIndex(prevTypeIdx);
+        GlobalTables::GetTypeTable().SetTypeWithTyIdx(prevTypeIdx, *structType.CopyMIRTypeNode());
+      }
+      styIdx = prevTypeIdx;
+    } else {
+      styIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&structType);
+    }
   }
   lexer.NextToken();
   return true;
@@ -1662,6 +1674,22 @@ bool MIRParser::ParseDeclareReg(MIRSymbol &symbol, const MIRFunction &func) {
   return true;
 }
 
+bool MIRParser::ParseDeclareVarInitValue(MIRSymbol &symbol) {
+  TokenKind tk = lexer.GetTokenKind();
+  // take a look if there are any initialized values
+  if (tk == TK_eqsign) {
+    // parse initialized values
+    MIRConst *mirConst = nullptr;
+    lexer.NextToken();
+    if (!ParseInitValue(mirConst, symbol.GetTyIdx(), mod.IsCModule())) {
+      Error("wrong initialization value at ");
+      return false;
+    }
+    symbol.SetKonst(mirConst);
+  }
+  return true;
+}
+
 bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
   TokenKind tk = lexer.GetTokenKind();
   // i.e, var %i i32
@@ -1706,6 +1734,26 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     return false;
   }
   symbol.SetTyIdx(tyIdx);
+  if (lexer.GetTokenKind() == TK_section) {  // parse section attribute
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_lparen) {
+      Error("expect ( for section attribute but get ");
+      return false;
+    }
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_string) {
+      Error("expect string literal for section attribute but get ");
+      return false;
+    }
+    UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    symbol.sectionAttr = literalStrIdx;
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_rparen) {
+      Error("expect ) for section attribute but get ");
+      return false;
+    }
+    lexer.NextToken();
+  }
   if (!ParseVarTypeAttrs(symbol)) {
     Error("bad type attribute in variable declaration at ");
     return false;
@@ -1728,26 +1776,6 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     if (isLocal) {
       mod.CurFunction()->SetAttr(FUNCATTR_generic);
     }
-  }
-  tk = lexer.GetTokenKind();
-  // take a look if there are any initialized values
-  if (tk == TK_eqsign) {
-    // parse initialized values
-    MIRConst *mirConst = nullptr;
-    lexer.NextToken();
-    bool allowEmpty = false;
-    // allow empty initialization for vtable, itable, vtableOffsetTable and fieldOffsetTable
-    if (symbolStrName.find(VTAB_PREFIX_STR) == 0 || symbolStrName.find(namemangler::kVtabOffsetTabStr) == 0 ||
-        symbolStrName.find(ITAB_PREFIX_STR) == 0 || symbolStrName.find(namemangler::kFieldOffsetTabStr) == 0 ||
-        symbolStrName.find(ITAB_CONFLICT_PREFIX_STR) == 0 ||
-        symbolStrName.find(namemangler::kDecoupleStaticKeyStr) == 0) {
-      allowEmpty = true;
-    }
-    if (!ParseInitValue(mirConst, tyIdx, allowEmpty)) {
-      Error("wrong initialization value at ");
-      return false;
-    }
-    symbol.SetKonst(mirConst);
   }
   return true;
 }
@@ -1876,6 +1904,14 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
   if (!ParseFuncAttrs(funcAttrs)) {
     Error("bad function attribute in function declaration at ");
     return false;
+  }
+  if (funcSymbol != nullptr && funcSymbol->GetSKind() == kStFunc &&
+      funcSymbol->IsNeedForwDecl() == true && !funcSymbol->GetFunction()->GetBody()) {
+    SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
+    // when parsing func in mplt_inline file, set it as tmpunused.
+    if (options & kParseInlineFuncBody) {
+      funcSymbol->SetIsTmpUnused(true);
+    }
   }
   if (funcSymbol != nullptr) {
     // there has been an earlier forward declaration, so check consistency
@@ -2006,7 +2042,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
   if (tokenKind != TK_lbrack) {  // scalar
     MIRConst *mirConst = nullptr;
     if (IsConstValue(tokenKind)) {
-      if (!ParseScalarValue(mirConst, type, 0 /* fieldID */)) {
+      if (!ParseScalarValue(mirConst, type)) {
         Error("ParseInitValue expect scalar value");
         return false;
       }
@@ -2028,7 +2064,6 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
       MIRType *elemType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(arrayType.GetElemTyIdx());
       MIRAggConst *newConst = mod.GetMemPool()->New<MIRAggConst>(mod, type);
       theConst = newConst;
-      MapleVector<MIRConst *> &constvec = newConst->GetConstVec();
       tokenKind = lexer.NextToken();
       if (tokenKind == TK_rbrack) {
         if (allowEmpty) {
@@ -2043,7 +2078,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         // parse single const or another dimension array
         MIRConst *subConst = nullptr;
         if (IsConstValue(tokenKind)) {
-          if (!ParseScalarValue(subConst, *elemType, 0 /* fieldID */)) {
+          if (!ParseScalarValue(subConst, *elemType)) {
             Error("ParseInitValue expect scalar value");
             return false;
           }
@@ -2071,7 +2106,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
               MIRArrayType subArrayType(elemType->GetTypeIndex(), sizeSubArray);
               elemTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&subArrayType);
             }
-            if (!ParseInitValue(subConst, elemTyIdx)) {
+            if (!ParseInitValue(subConst, elemTyIdx, allowEmpty)) {
               Error("initializaton value wrong when parsing sub array ");
               return false;
             }
@@ -2080,7 +2115,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           Error("expect const value or group of const values but get ");
           return false;
         }
-        constvec.push_back(subConst);
+        newConst->AddItem(subConst, 0);
         // parse comma or rbrack
         tokenKind = lexer.GetTokenKind();
         if (tokenKind == TK_coma) {
@@ -2097,7 +2132,6 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
       uint32 theFieldIdx;
       TyIdx fieldTyIdx;
       theConst = newConst;
-      MapleVector<MIRConst *> &constvec = newConst->GetConstVec();
       tokenKind = lexer.NextToken();
       if (tokenKind == TK_rbrack) {
         if (allowEmpty) {
@@ -2127,7 +2161,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
         tokenKind = lexer.NextToken();
         MIRConst *subConst = nullptr;
         if (IsConstValue(tokenKind)) {
-          if (!ParseScalarValue(subConst, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx), theFieldIdx)) {
+          if (!ParseScalarValue(subConst, *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx))) {
             Error("ParseInitValue expect scalar value");
             return false;
           }
@@ -2147,8 +2181,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           return false;
         }
         ASSERT(subConst != nullptr, "subConst is null in MIRParser::ParseInitValue");
-        subConst->SetFieldID(theFieldIdx);
-        constvec.push_back(subConst);
+        newConst->AddItem(subConst, theFieldIdx);
         tokenKind = lexer.GetTokenKind();
         // parse comma or rbrack
         if (tokenKind == TK_coma) {
@@ -2307,6 +2340,29 @@ bool MIRParser::ParseInlineFuncBody(std::ifstream &mplFile) {
   return status;
 }
 
+bool MIRParser::ParseSrcLang(MIRSrcLang &srcLang) {
+  PrepareParsingMIR();
+  bool atEof = false;
+  lexer.NextToken();
+  while (!atEof) {
+    paramTokenKind = lexer.GetTokenKind();
+    if (paramTokenKind == TK_eof) {
+      atEof = true;
+    } else if (paramTokenKind == TK_srclang) {
+      lexer.NextToken();
+      if (lexer.GetTokenKind() != TK_intconst) {
+        Error("expect integer after srclang but get ");
+        return false;
+      }
+      srcLang = static_cast<MIRSrcLang>(lexer.GetTheIntVal());
+      return true;
+    } else {
+      lexer.NextToken();
+    }
+  }
+  return false;
+}
+
 bool MIRParser::ParseMIR(uint32 fileIdx, uint32 option, bool isIPA, bool isComb) {
   if ((option & kParseOptFunc) == 0) {
     PrepareParsingMIR();
@@ -2396,6 +2452,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseMIRForElem> MIRParser::InitFuncPtrMap
   funcPtrMap[TK_srcfileinfo] = &MIRParser::ParseMIRForSrcFileInfo;
   funcPtrMap[TK_import] = &MIRParser::ParseMIRForImport;
   funcPtrMap[TK_importpath] = &MIRParser::ParseMIRForImportPath;
+  funcPtrMap[TK_asmdecl] = &MIRParser::ParseMIRForAsmdecl;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLoc;
   return funcPtrMap;
 }
@@ -2440,6 +2497,20 @@ bool MIRParser::ParseMIRForVar() {
       if (prevSt->GetStorageClass() == kScExtern) {
         prevSt->SetStorageClass(st.GetStorageClass());
       }
+      if (prevSt->sectionAttr == UStrIdx(0)) {
+        prevSt->sectionAttr = st.sectionAttr;
+      }
+    } else if (prevSt->GetSKind() == maple::kStVar && prevSt->GetStorageClass() ==  maple::kScInvalid) {
+      prevSt->SetStorageClass(kScGlobal);
+      prevSt->SetAttrs(st.GetAttrs());
+      prevSt->SetNameStrIdx(st.GetNameStrIdx());
+      prevSt->sectionAttr = st.sectionAttr;
+      prevSt->SetValue(st.GetValue());
+      prevSt->SetTyIdx(st.GetTyIdx());
+      SetSrcPos(prevSt->GetSrcPosition(), lexer.GetLineNum());
+    }
+    if (!ParseDeclareVarInitValue(*prevSt)) {
+      return false;
     }
   } else {  // seeing the first time
     maple::MIRBuilder mirBuilder(&mod);
@@ -2451,8 +2522,12 @@ bool MIRParser::ParseMIRForVar() {
     }
     newst->SetAttrs(st.GetAttrs());
     newst->SetNameStrIdx(st.GetNameStrIdx());
+    newst->sectionAttr = st.sectionAttr;
     newst->SetValue(st.GetValue());
     SetSrcPos(newst->GetSrcPosition(), lexer.GetLineNum());
+    if (!ParseDeclareVarInitValue(*newst)) {
+      return false;
+    }
   }
   return true;
 }
@@ -2754,6 +2829,17 @@ bool MIRParser::ParseMIRForImportPath() {
   return true;
 }
 
+bool MIRParser::ParseMIRForAsmdecl() {
+  lexer.NextToken();
+  if (lexer.GetTokenKind() != TK_string) {
+    Error("expect asm string after iasm but get ");
+    return false;
+  }
+  mod.GetAsmDecls().push_back(MapleString(lexer.GetName(), mod.GetMemPool()));
+  lexer.NextToken();
+  return true;
+}
+
 void MIRParser::PrepareParsingMIR() {
   dummyFunction = CreateDummyFunction();
   mod.SetCurFunction(dummyFunction);
@@ -2869,6 +2955,9 @@ bool MIRParser::ParsePrototypeRemaining(MIRFunction &func, std::vector<TyIdx> &v
         return false;
       }
       (void)func.GetSymTab()->AddToStringSymbolMap(*symbol);
+      if (!ParseDeclareVarInitValue(*symbol)) {
+        return false;
+      }
     }
     func.AddArgument(symbol);
     vecTyIdx.push_back(symbol->GetTyIdx());
