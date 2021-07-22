@@ -3540,8 +3540,12 @@ void GraphColorRegAllocator::FinalizeRegisters() {
                   a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : inList->GetOperands()) {
-              phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, false);
-              srcOpndsNew->PushOpnd(*phyOpnd);
+              if ((static_cast<const RegOperand *>(opnd))->GetRegisterNumber() < kAllRegNum) {
+                srcOpndsNew->PushOpnd(*opnd);
+              } else {
+                phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, false);
+                srcOpndsNew->PushOpnd(*phyOpnd);
+              }
             }
             insn->SetOperand(kAsmInputListOpnd, *srcOpndsNew);
             continue;
