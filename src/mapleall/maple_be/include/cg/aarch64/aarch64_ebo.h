@@ -56,6 +56,7 @@ class AArch64Ebo : public Ebo {
   bool SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &opnds,
                             const MapleVector<OpndInfo*> &opndInfo) override;
   void BuildCallerSaveRegisters() override;
+  void DefineAsmRegisters(InsnInfo &insnInfo) override;
   void DefineCallerSaveRegisters(InsnInfo &insnInfo) override;
   void DefineReturnUseRegister(Insn &insn) override;
   void DefineCallUseSpecialRegister(Insn &insn) override;
