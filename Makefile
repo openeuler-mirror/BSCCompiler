@@ -134,6 +134,7 @@ setup:
 
 .PHONY: demo
 demo:
+	test/maple_aarch64_with_mplfe.sh test/c_demo printHuawei 1 1
 	test/maple_aarch64_with_clang2mpl.sh test/c_demo printHuawei 1 1
 
 .PHONY: ctorture-ci
