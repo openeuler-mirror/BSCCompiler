@@ -1295,9 +1295,6 @@ void Ebo::Run() {
 /* dump ebo */
 AnalysisResult *CgDoEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoEbo");
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoEbo");
   LiveAnalysis *live = nullptr;
   if (EBO_DUMP) {
@@ -1324,9 +1321,6 @@ AnalysisResult *CgDoEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
 /* dump ebo1 */
 AnalysisResult *CgDoEbo1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoEbo1");
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoEbo1");
   LiveAnalysis *live = nullptr;
   if (EBO_DUMP) {
@@ -1353,9 +1347,6 @@ AnalysisResult *CgDoEbo1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) 
 /* dump postebo */
 AnalysisResult *CgDoPostEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoPostEbo");
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoPostEbo");
   LiveAnalysis *live = nullptr;
   if (EBO_DUMP) {

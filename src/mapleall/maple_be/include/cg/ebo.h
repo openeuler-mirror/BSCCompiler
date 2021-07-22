@@ -199,6 +199,7 @@ class Ebo {
   virtual int32 GetOffsetVal(const MemOperand &mem) const = 0;
   virtual bool OperandEqSpecial(const Operand &op1, const Operand &op2) const = 0;
   virtual void BuildCallerSaveRegisters() = 0;
+  virtual void DefineAsmRegisters(InsnInfo &insnInfo) = 0;
   virtual void DefineCallerSaveRegisters(InsnInfo &insnInfo) = 0;
   virtual void DefineReturnUseRegister(Insn &insn) = 0;
   virtual void DefineCallUseSpecialRegister(Insn &insn) = 0;
