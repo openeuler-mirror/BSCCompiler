@@ -15,7 +15,6 @@
 
 #ifndef MAPLE_ME_INCLUDE_LFO_PRE_EMIT_H
 #define MAPLE_ME_INCLUDE_LFO_PRE_EMIT_H
-#include "mir_nodes.h"
 #include "me_irmap.h"
 #include "me_phase.h"
 
@@ -29,7 +28,7 @@ class LfoPreEmitter : public AnalysisResult {
   MapleAllocator *codeMPAlloc;
   MemPool *lfoMP;
   MapleAllocator lfoMPAlloc;
-  MapleMap<uint32_t, LfoPart*>  lfoStmtParts; // map lfoinfo for StmtNode, key is stmtID
+  MapleMap<uint32_t, LfoPart*> lfoStmtParts; // map lfoinfo for StmtNode, key is stmtID
   MapleMap<BaseNode*, LfoPart*> lfoExprParts; // map lfoinfor for exprNode, key is mirnode
   MeCFG *cfg;
 
@@ -94,11 +93,6 @@ class LfoPreEmitter : public AnalysisResult {
     LfoPart *lfopart = lfoStmtParts[stmtID];
     return lfopart->mestmt;
   }
-  MIRFunction *GetMirFunction() { return mirFunc; }
-  MemPool *GetCodeMP()  { return codeMP; }
-  MapleAllocator* GetCodeMPAlloc() { return codeMPAlloc; }
-  MapleMap<uint32_t, LfoPart*> *GetLfoStmtMap() { return &lfoStmtParts; }
-  MapleMap<BaseNode*, LfoPart*> *GetLfoExprMap() { return &lfoExprParts; }
 };
 
 /* emit ir to specified file */
