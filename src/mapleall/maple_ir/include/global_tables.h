@@ -315,69 +315,6 @@ class TypeTable {
     ASSERT(PTY_unknown < typeTable.size(), "array index out of range");
     return typeTable.at(PTY_unknown);
   }
-  // vector type
-  MIRType *GetV4Int32() const {
-    ASSERT(PTY_v4i32 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v4i32);
-  }
-
-  MIRType *GetV2Int32() const {
-    ASSERT(PTY_v2i32 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v2i32);
-  }
-
-  MIRType *GetV4UInt32() const {
-    ASSERT(PTY_v4u32 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v4u32);
-  }
-  MIRType *GetV2UInt32() const {
-    ASSERT(PTY_v2u32 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v2u32);
-  }
-
-  MIRType *GetV4Int16() const {
-    ASSERT(PTY_v4i16 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v4i16);
-  }
-  MIRType *GetV8Int16() const {
-    ASSERT(PTY_v8i16 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v8i16);
-  }
-
-  MIRType *GetV4UInt16() const {
-    ASSERT(PTY_v4u16 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v4u16);
-  }
-  MIRType *GetV8UInt16() const {
-    ASSERT(PTY_v8u16 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v8u16);
-  }
-
-  MIRType *GetV8Int8() const {
-    ASSERT(PTY_v8i8 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v8i8);
-  }
-  MIRType *GetV16Int8() const {
-    ASSERT(PTY_v16i8 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v16i8);
-  }
-
-  MIRType *GetV8UInt8() const {
-    ASSERT(PTY_v8u8 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v8u8);
-  }
-  MIRType *GetV16UInt8() const {
-    ASSERT(PTY_v16u8 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v16u8);
-  }
-  MIRType *GetV2Int64() const {
-    ASSERT(PTY_v2i64 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v2i64);
-  }
-  MIRType *GetV2UInt64() const {
-    ASSERT(PTY_v2u64 < typeTable.size(), "array index out of range");
-    return typeTable.at(PTY_v2u64);
-  }
 
   // Get or Create derived types.
   MIRType *GetOrCreatePointerType(const TyIdx &pointedTyIdx, PrimType primType = PTY_ptr,

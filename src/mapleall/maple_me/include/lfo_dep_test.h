@@ -70,7 +70,7 @@ class DoloopInfo {
   MapleVector<ArrayAccessDesc *> rhsArrays;     // each element represents an array read
   BB *doloopBB = nullptr;                       // the start BB for the doloop body
   bool hasPtrAccess = false;                    // give up dep testing if true
-  bool hasOtherCtrlFlow = false;                // give up dep testing if true
+  bool hasCall = false;                         // give up dep testing if true
   bool hasScalarAssign = false;                 // give up dep testing if true
   bool hasMayDef = false;                       // give up dep testing if true
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
