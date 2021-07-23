@@ -973,10 +973,14 @@ MIRSymbol *BinaryMplImport::InSymbol(MIRFunction *func) {
     CHECK_FATAL(tag == kBinSymbol, "expecting kBinSymbol");
     int64 scope = ReadNum();
     GStrIdx stridx = ImportStr();
+    UStrIdx secAttr = ImportUsrStr();
     auto skind = static_cast<MIRSymKind>(ReadNum());
     auto sclass = static_cast<MIRStorageClass>(ReadNum());
     TyIdx tyTmp(0);
     MIRSymbol *sym = GetOrCreateSymbol(tyTmp, stridx, skind, sclass, func, scope);
+    if (secAttr != 0) {
+      sym->sectionAttr = secAttr;
+    }
     symTab.push_back(sym);
     sym->SetAttrs(ImportTypeAttrs());
     sym->SetIsTmp(ReadNum() != 0);
@@ -1166,6 +1170,14 @@ void BinaryMplImport::ReadHeaderField() {
       mod.SetBinMplt(binMplt);
     }
   }
+
+  size = ReadNum();
+  for (int32 i = 0; i < size; i++) {
+    std::string str;
+    ReadAsciiStr(str);
+    mod.GetAsmDecls().push_back(MapleString(str, mod.GetMemPool()));
+  }
+
   int32 tag = ReadNum();
   CHECK_FATAL(tag == ~kBinHeaderStart, "pattern mismatch in Read Import");
   return;
