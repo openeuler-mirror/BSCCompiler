@@ -62,8 +62,7 @@ void OutputConstLbl(const MIRConst &constVal, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindConstAddrofLabel);
   mplExport.OutputConstBase(constVal);
   const MIRLblConst &lblConst = static_cast<const MIRLblConst &>(constVal);
-  mplExport.WriteNum(lblConst.GetValue());  // LabelIdx
-  // not needed to output puIdx
+  mplExport.WriteNum(lblConst.GetValue());  // LabelIdx not needed to output puIdx
 }
 
 void OutputConstStr(const MIRConst &constVal, BinaryMplExport &mplExport) {
@@ -107,6 +106,7 @@ void OutputConstAgg(const MIRConst &constVal, BinaryMplExport &mplExport) {
   size_t size = aggConst.GetConstVec().size();
   mplExport.WriteNum(size);
   for (size_t i = 0; i < size; ++i) {
+    mplExport.WriteNum(aggConst.GetFieldIdItem(i));
     mplExport.OutputConst(aggConst.GetConstVecItem(i));
   }
 }
@@ -114,7 +114,7 @@ void OutputConstAgg(const MIRConst &constVal, BinaryMplExport &mplExport) {
 void OutputConstSt(MIRConst &constVal, BinaryMplExport &mplExport) {
   mplExport.WriteNum(kBinKindConstSt);
   mplExport.OutputConstBase(constVal);
-  MIRStConst &stConst = static_cast<MIRStConst&>(constVal);
+  auto &stConst = static_cast<MIRStConst&>(constVal);
   size_t size = stConst.GetStVec().size();
   mplExport.WriteNum(size);
   for (size_t i = 0; i < size; ++i) {
@@ -141,7 +141,7 @@ static bool InitOutputConstFactory() {
   return true;
 }
 
-void OutputTypeScalar(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeScalar(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   mplExport.WriteNum(kBinKindTypeScalar);
   mplExport.OutputTypeBase(ty);
 }
@@ -150,11 +150,11 @@ void OutputTypePointer(const MIRType &ty, BinaryMplExport &mplExport, bool canUs
   const auto &type = static_cast<const MIRPtrType&>(ty);
   mplExport.WriteNum(kBinKindTypePointer);
   mplExport.OutputTypeBase(type);
-  mplExport.OutputType(type.GetPointedTyIdx(), canUseTypename);
   mplExport.OutputTypeAttrs(type.GetTypeAttrs());
+  mplExport.OutputType(type.GetPointedTyIdx(), canUseTypename);
 }
 
-void OutputTypeByName(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeByName(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   mplExport.WriteNum(kBinKindTypeByName);
   mplExport.OutputTypeBase(ty);
 }
@@ -203,13 +203,13 @@ void OutputTypeFunction(const MIRType &ty, BinaryMplExport &mplExport, bool canU
   }
 }
 
-void OutputTypeParam(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeParam(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRTypeParam&>(ty);
   mplExport.WriteNum(kBinKindTypeParam);
   mplExport.OutputTypeBase(type);
 }
 
-void OutputTypeInstantVector(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeInstantVector(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRInstantVectorType&>(ty);
   mplExport.WriteNum(kBinKindTypeInstantVector);
   mplExport.OutputTypeBase(type);
@@ -225,7 +225,7 @@ void OutputTypeGenericInstant(const MIRType &ty, BinaryMplExport &mplExport, boo
   mplExport.OutputType(type.GetGenericTyIdx(), canUseTypename);
 }
 
-void OutputTypeBitField(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeBitField(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRBitFieldType&>(ty);
   mplExport.WriteNum(kBinKindTypeBitField);
   mplExport.OutputTypeBase(type);
@@ -233,7 +233,7 @@ void OutputTypeBitField(const MIRType &ty, BinaryMplExport &mplExport, bool canU
 }
 
 // for Struct/StructIncomplete/Union
-void OutputTypeStruct(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeStruct(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRStructType&>(ty);
   mplExport.WriteNum(kBinKindTypeStruct);
   mplExport.OutputTypeBase(type);
@@ -248,7 +248,7 @@ void OutputTypeStruct(const MIRType &ty, BinaryMplExport &mplExport, bool canUse
   }
 }
 
-void OutputTypeClass(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeClass(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRClassType&>(ty);
   mplExport.WriteNum(kBinKindTypeClass);
   mplExport.OutputTypeBase(type);
@@ -263,7 +263,7 @@ void OutputTypeClass(const MIRType &ty, BinaryMplExport &mplExport, bool canUseT
   }
 }
 
-void OutputTypeInterface(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeInterface(const MIRType &ty, BinaryMplExport &mplExport, bool) {
   const auto &type = static_cast<const MIRInterfaceType&>(ty);
   mplExport.WriteNum(kBinKindTypeInterface);
   mplExport.OutputTypeBase(type);
@@ -278,8 +278,9 @@ void OutputTypeInterface(const MIRType &ty, BinaryMplExport &mplExport, bool can
   }
 }
 
-void OutputTypeConstString(const MIRType &ty, BinaryMplExport &mplExport, bool canUseTypename) {
+void OutputTypeConstString(const MIRType &ty, BinaryMplExport&, bool) {
   ASSERT(false, "Type's kind not yet implemented: %d", ty.GetKind());
+  (void)ty;
 }
 
 static bool InitOutputTypeFactory() {
@@ -396,7 +397,6 @@ void BinaryMplExport::DumpBuf(const std::string &name) {
 void BinaryMplExport::OutputConstBase(const MIRConst &constVal) {
   WriteNum(constVal.GetKind());
   OutputTypeViaTypeName(constVal.GetType().GetTypeIndex());
-  WriteNum(constVal.GetFieldId());
 }
 
 void BinaryMplExport::OutputConst(MIRConst *constVal) {
@@ -498,7 +498,6 @@ void BinaryMplExport::OutputFieldPair(const FieldPair &fp) {
     if ((fieldVar != nullptr) && (fieldVar->GetKonst() != nullptr) &&
         (fieldVar->GetKonst()->GetKind() == kConstStr16Const)) {
       WriteNum(kBinInitConst);
-      fieldVar->GetKonst()->SetType(*fieldVar->GetType());
       OutputConst(fieldVar->GetKonst());
     } else {
       WriteNum(0);
@@ -574,15 +573,19 @@ void BinaryMplExport::OutputClassTypeData(const MIRClassType &type) {
   OutputType(type.GetParentTyIdx(), false);
   OutputImplementedInterfaces(type.GetInterfaceImplemented());
   OutputInfoIsString(type.GetInfoIsString());
-  OutputInfo(type.GetInfo(), type.GetInfoIsString());
-  OutputPragmaVec(type.GetPragmaVec());
+  if (!inIPA) {
+    OutputInfo(type.GetInfo(), type.GetInfoIsString());
+    OutputPragmaVec(type.GetPragmaVec());
+  }
 }
 
 void BinaryMplExport::OutputInterfaceTypeData(const MIRInterfaceType &type) {
   OutputImplementedInterfaces(type.GetParentsTyIdx());
   OutputInfoIsString(type.GetInfoIsString());
-  OutputInfo(type.GetInfo(), type.GetInfoIsString());
-  OutputPragmaVec(type.GetPragmaVec());
+  if (!inIPA) {
+    OutputInfo(type.GetInfo(), type.GetInfoIsString());
+    OutputPragmaVec(type.GetPragmaVec());
+  }
 }
 
 void BinaryMplExport::Init() {
@@ -596,6 +599,7 @@ void BinaryMplExport::Init() {
   uStrMark[UStrIdx(0)] = 0;
   symMark[nullptr] = 0;
   funcMark[nullptr] = 0;
+  eaNodeMark[nullptr] = 0;
   for (uint32 pti = static_cast<int32>(PTY_begin); pti < static_cast<uint32>(PTY_end); ++pti) {
     typMark[GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(pti))] = pti;
   }
@@ -616,6 +620,7 @@ void BinaryMplExport::OutputSymbol(MIRSymbol *sym) {
   WriteNum(kBinSymbol);
   WriteNum(sym->GetScopeIdx());
   OutputStr(sym->GetNameStrIdx());
+  OutputUsrStr(sym->sectionAttr);
   WriteNum(sym->GetSKind());
   WriteNum(sym->GetStorageClass());
   size_t mark = symMark.size();
@@ -675,7 +680,31 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
     OutputType(formalDef.formalTyIdx, false);
     WriteNum(formalDef.formalAttrs.GetAttrFlag());
   }
-
+  //  store Side Effect for each func
+  if (func2SEMap) {
+    uint32 isSee = func->IsIpaSeen() == true ? 1 : 0;
+    uint32 isPure = func->IsPure() == true ? 1 : 0;
+    uint32 noDefArg = func->IsNoDefArgEffect() == true ? 1 : 0;
+    uint32 noDef = func->IsNoDefEffect() == true ? 1 : 0;
+    uint32 noRetGlobal = func->IsNoRetGlobal() == true ? 1 : 0;
+    uint32 noThr = func->IsNoThrowException() == true ? 1 : 0;
+    uint32 noRetArg = func->IsNoRetArg() == true ? 1 : 0;
+    uint32 noPriDef = func->IsNoPrivateDefEffect() == true ? 1 : 0;
+    uint32 i = 0;
+    uint8 se = noThr << i++;
+    se |= noRetGlobal << i++;
+    se |= noDef << i++;
+    se |= noDefArg << i++;
+    se |= isPure << i++;
+    se |= isSee << i++;
+    se |= noRetArg << i++;
+    se |= noPriDef << i;
+    if ((*func2SEMap).find(func->GetNameStrIdx()) == (*func2SEMap).end()) {
+      (*func2SEMap)[func->GetNameStrIdx()] = se;
+    } else if ((*func2SEMap)[func->GetNameStrIdx()] != se) {
+      FATAL(kLncFatal, "It is a bug.");
+    }
+  }
   mod.SetCurFunction(savedFunc);
 }
 
@@ -704,7 +733,7 @@ void BinaryMplExport::WriteHeaderField(uint64 contentIdx) {
   Fixup(contentIdx, buf.size());
   WriteNum(kBinHeaderStart);
   size_t totalSizeIdx = buf.size();
-  ExpandFourBuffSize();  /// total size of this field to ~BIN_IMPORT_START
+  ExpandFourBuffSize();  // total size of this field to ~BIN_IMPORT_START
   WriteNum(mod.GetFlavor());
   WriteNum(mod.GetSrcLang());
   WriteNum(mod.GetID());
@@ -721,6 +750,12 @@ void BinaryMplExport::WriteHeaderField(uint64 contentIdx) {
   WriteNum(mod.GetImportFiles().size());
   for (GStrIdx strIdx : mod.GetImportFiles()) {
     OutputStr(strIdx);
+  }
+
+  WriteNum(mod.GetAsmDecls().size());
+  for (MapleString mapleStr : mod.GetAsmDecls()) {
+    std::string str(mapleStr.c_str());
+    WriteAsciiStr(str);
   }
 
   Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
@@ -762,31 +797,300 @@ void BinaryMplExport::WriteTypeField(uint64 contentIdx, bool useClassList) {
   WriteNum(~kBinTypeStart);
 }
 
+void BinaryMplExport::OutputCallInfo(CallInfo &callInfo) {
+  auto it = callInfoMark.find(callInfo.GetID());
+  if (it != callInfoMark.end()) {
+    WriteNum(-(it->second));
+    return;
+  }
+  WriteNum(kBinCallinfo);
+  size_t mark = callInfoMark.size();
+  callInfoMark[callInfo.GetID()] = mark;
+  WriteNum(callInfo.GetCallType());  // call type
+  WriteInt(callInfo.GetLoopDepth());
+  WriteInt(callInfo.GetID());
+  callInfo.AreAllArgsLocal() ? Write(1) : Write(0); // All args are local variables or not.
+  OutputSymbol(callInfo.GetFunc()->GetFuncSymbol());
+}
+
+void BinaryMplExport::WriteCgField(uint64 contentIdx, const CallGraph *cg) {
+  if (contentIdx != 0) {
+    Fixup(contentIdx, buf.size());
+  }
+  WriteNum(kBinCgStart);
+  size_t totalSizeIdx = buf.size();
+  ExpandFourBuffSize();  // total size of this field to ~BIN_CG_START
+  size_t outcgSizeIdx = buf.size();
+  ExpandFourBuffSize();  // size of OutCG
+  int32 size = 0;
+  if (cg != nullptr) {
+    for (auto entry : cg->GetNodesMap()) {
+      MIRSymbol *methodSym = entry.first->GetFuncSymbol();
+      WriteNum(kStartMethod);
+      OutputSymbol(methodSym);
+      size_t targetTyIdx = buf.size();
+      ExpandFourBuffSize();
+      int32 targSize = 0;
+      callInfoMark.clear();
+      callInfoMark[0xffffffff] = 0;
+      for (const auto &callSite : entry.second->GetCallee()) {
+        OutputCallInfo(*(callSite.first));
+        ++targSize;
+      }
+      Fixup(targetTyIdx, targSize);
+      WriteNum(~kStartMethod);
+      ++size;
+    }
+  }
+
+  ASSERT((buf.size() - totalSizeIdx) <= 0xffffffff, "Integer overflow.");
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(outcgSizeIdx, size);
+  WriteNum(~kBinCgStart);
+}
+
+void BinaryMplExport::WriteSeField() {
+  ASSERT(func2SEMap != nullptr, "Expecting a func2SE map");
+  WriteNum(kBinSeStart);
+  size_t totalSizeIdx = buf.size();
+  ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
+  size_t outseSizeIdx = buf.size();
+  ExpandFourBuffSize();  // size of OutSym
+  int32 size = 0;
+
+  for (const auto &func2SE : *func2SEMap) {
+    uint8 se = func2SE.second;
+    if (static_cast<int32>(se)) {
+      OutputStr(func2SE.first);
+      Write(se);
+      if ((se & kPureFunc) == kPureFunc) {
+        const std::string &funcStr = GlobalTables::GetStrTable().GetStringFromStrIdx(func2SE.first);
+        auto *funcSymbol =
+            GlobalTables::GetGsymTable().GetSymbolFromStrIdx(GlobalTables::GetStrTable().GetStrIdxFromName(funcStr));
+        MIRFunction *func = (funcSymbol != nullptr) ? GetMIRModule().GetMIRBuilder()->GetFunctionFromSymbol(*funcSymbol)
+                                                    : nullptr;
+        OutputType(func->GetReturnTyIdx(), false);
+      }
+      ++size;
+    }
+  }
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(outseSizeIdx, size);
+  WriteNum(~kBinSeStart);
+}
+
+void BinaryMplExport::OutEaCgBaseNode(EACGBaseNode &node, bool firstPart) {
+  if (firstPart) {
+    WriteNum(node.eaStatus);
+    WriteInt(node.id);
+  } else {
+    // in and out set in base node is not necessary to be outed
+    // start to out point-to set
+    size_t outP2SizeIdx = buf.size();
+    WriteInt(0);
+    uint32 size = 0;
+    for (EACGBaseNode *outNode : node.GetPointsToSet()) {
+      OutEaCgNode(*outNode);
+      ++size;
+    }
+    Fixup(outP2SizeIdx, size);
+    // start to out in set
+    outP2SizeIdx = buf.size();
+    WriteInt(0);
+    size = 0;
+    for (EACGBaseNode *outNode : node.GetInSet()) {
+      OutEaCgNode(*outNode);
+      ++size;
+    }
+    Fixup(outP2SizeIdx, size);
+    // start to out out set
+    outP2SizeIdx = buf.size();
+    WriteInt(0);
+    size = 0;
+    for (EACGBaseNode *outNode : node.GetOutSet()) {
+      OutEaCgNode(*outNode);
+      ++size;
+    }
+    Fixup(outP2SizeIdx, size);
+  }
+}
+
+void BinaryMplExport::OutEaCgObjNode(EACGObjectNode &obj) {
+  Write(uint8(obj.isPhantom));
+  size_t outFieldSizeIdx = buf.size();
+  WriteInt(0);
+  uint32 size = 0;
+  for (const auto &fieldNodePair : obj.fieldNodes) {
+    EACGBaseNode *fieldNode = fieldNodePair.second;
+    ASSERT(fieldNodePair.first == static_cast<EACGFieldNode*>(fieldNode)->GetFieldID(), "Must be.");
+    OutEaCgNode(*fieldNode);
+    ++size;
+  }
+  Fixup(outFieldSizeIdx, size);
+  // start to out point by
+  outFieldSizeIdx = buf.size();
+  WriteInt(0);
+  size = 0;
+  for (EACGBaseNode *node : obj.pointsBy) {
+    OutEaCgNode(*node);
+    ++size;
+  }
+  Fixup(outFieldSizeIdx, size);
+}
+
+void BinaryMplExport::OutEaCgRefNode(EACGRefNode &ref) {
+  Write(uint8(ref.isStaticField));
+}
+
+void BinaryMplExport::OutEaCgFieldNode(EACGFieldNode &field) {
+  WriteInt(field.GetFieldID());
+  int32 size = 0;
+  size_t outFieldSizeIdx = buf.size();
+  WriteInt(0);
+  for (EACGBaseNode *obj : field.belongsTo) {
+    OutEaCgNode(*obj);
+    ++size;
+  }
+  Fixup(outFieldSizeIdx, size);
+  Write(uint8(field.isPhantom));
+}
+
+void BinaryMplExport::OutEaCgActNode(EACGActualNode &act) {
+  Write(uint8(act.isPhantom));
+  Write(uint8(act.isReturn));
+  Write(act.argIdx);
+  WriteInt(act.callSiteInfo);
+}
+
+void BinaryMplExport::OutEaCgNode(EACGBaseNode &node) {
+  auto it = eaNodeMark.find(&node);
+  if (it != eaNodeMark.end()) {
+    WriteNum(-it->second);
+    return;
+  }
+  size_t mark = eaNodeMark.size();
+  eaNodeMark[&node] = mark;
+  WriteNum(kBinEaCgNode);
+  WriteNum(node.kind);
+  OutEaCgBaseNode(node, true);
+  if (node.IsActualNode()) {
+    WriteNum(kBinEaCgActNode);
+    OutEaCgActNode(static_cast<EACGActualNode&>(node));
+  } else if (node.IsFieldNode()) {
+    WriteNum(kBinEaCgFieldNode);
+    OutEaCgFieldNode(static_cast<EACGFieldNode&>(node));
+  } else if (node.IsObjectNode()) {
+    WriteNum(kBinEaCgObjNode);
+    OutEaCgObjNode(static_cast<EACGObjectNode&>(node));
+  } else if (node.IsReferenceNode()) {
+    WriteNum(kBinEaCgRefNode);
+    OutEaCgRefNode(static_cast<EACGRefNode&>(node));
+  } else {
+    ASSERT(false, "Must be.");
+  }
+  OutEaCgBaseNode(node, false);
+  WriteNum(~kBinEaCgNode);
+}
+
+void BinaryMplExport::WriteEaField(const CallGraph &cg) {
+  WriteNum(kBinEaStart);
+  uint64 totalSizeIdx = buf.size();
+  WriteInt(0);
+  uint64 outeaSizeIdx = buf.size();
+  WriteInt(0);
+  int32 size = 0;
+  for (auto cgNodePair : cg.GetNodesMap()) {
+    MIRFunction *func = cgNodePair.first;
+    if (func->GetEACG() == nullptr) {
+      continue;
+    }
+    EAConnectionGraph *eacg = func->GetEACG();
+    ASSERT(eacg != nullptr, "Must be.");
+    OutputStr(eacg->GetFuncNameStrIdx());
+    WriteInt(eacg->GetNodes().size());
+    OutEaCgNode(*eacg->GetGlobalObject());
+    uint64 outFunceaIdx = buf.size();
+    WriteInt(0);
+    size_t funceaSize = 0;
+    for (EACGBaseNode *node : eacg->GetFuncArgNodes()) {
+      OutEaCgNode(*node);
+      ++funceaSize;
+    }
+    Fixup(outFunceaIdx, funceaSize);
+    ++size;
+  }
+  Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
+  Fixup(outeaSizeIdx, size);
+  WriteNum(~kBinEaStart);
+}
+
+void BinaryMplExport::WriteEaCgField(EAConnectionGraph *eacg){
+  if (eacg == nullptr) {
+    WriteNum(~kBinEaCgStart);
+    return;
+  }
+  WriteNum(kBinEaCgStart);
+  size_t totalSizeIdx = buf.size();
+  WriteInt(0);
+  // out this function's arg list
+  OutputStr(eacg->GetFuncNameStrIdx());
+  WriteInt(eacg->GetNodes().size());
+  OutEaCgNode(*eacg->GetGlobalObject());
+  size_t outNodeSizeIdx = buf.size();
+  WriteInt(0);
+  size_t argNodeSize = 0;
+  for (EACGBaseNode *node : eacg->GetFuncArgNodes()) {
+    OutEaCgNode(*node);
+    ++argNodeSize;
+  }
+  Fixup(outNodeSizeIdx, argNodeSize);
+  // out this function's call site's arg list
+  outNodeSizeIdx = buf.size();
+  WriteInt(0);
+  size_t callSiteSize = 0;
+  for (auto nodePair : eacg->GetCallSite2Nodes()) {
+    uint32 id = nodePair.first;
+    MapleVector<EACGBaseNode*> *calleeArgNode = nodePair.second;
+    WriteInt(id);
+    size_t outCalleeArgSizeIdx = buf.size();
+    WriteInt(0);
+    size_t calleeArgSize = 0;
+    for (EACGBaseNode *node : *calleeArgNode) {
+      OutEaCgNode(*node);
+      ++calleeArgSize;
+    }
+    Fixup(outCalleeArgSizeIdx, calleeArgSize);
+    ++callSiteSize;
+  }
+  Fixup(outNodeSizeIdx, callSiteSize);
+
+  Fixup(totalSizeIdx, buf.size()-totalSizeIdx);
+  WriteNum(~kBinEaCgStart);
+}
+
 void BinaryMplExport::WriteSymField(uint64 contentIdx) {
   Fixup(contentIdx, buf.size());
-  // LogInfo::MapleLogger() << "Write SYM Field " << std::endl;
   WriteNum(kBinSymStart);
   uint64 totalSizeIdx = buf.size();
-  ExpandFourBuffSize();  /// total size of this field to ~BIN_SYM_START
+  ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
   uint64 outsymSizeIdx = buf.size();
-  ExpandFourBuffSize();  /// size of OutSym
+  ExpandFourBuffSize();  // size of OutSym
   int32 size = 0;
 
   if (not2mplt) {
-    for (auto sit = GetMIRModule().GetSymbolDefOrder().begin(); sit != GetMIRModule().GetSymbolDefOrder().end(); sit++) {
+    for (auto sit = GetMIRModule().GetSymbolDefOrder().begin();
+         sit != GetMIRModule().GetSymbolDefOrder().end(); ++sit) {
       MIRSymbol *s = GlobalTables::GetGsymTable().GetSymbolFromStidx(sit->Idx());
       // Verify: all wpofake variables should have been deleted from globaltable
       ASSERT(!(s->IsWpoFakeParm() || s->IsWpoFakeRet()) || s->IsDeleted(), "wpofake var not deleted");
       MIRStorageClass storageClass = s->GetStorageClass();
       MIRSymKind sKind = s->GetSKind();
 
-      if (s->IsDeleted() ||
-          storageClass == kScUnused ||
+      if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
           (storageClass == kScExtern && sKind == kStFunc)) {
         continue;
       }
-      // printf("EXPORT Writing symbol %s\n", s->GetName().c_str());
       OutputSymbol(s);
       size++;
     }
@@ -825,9 +1129,9 @@ void BinaryMplExport::WriteContentField4nonmplt(int fieldNum, uint64 *fieldStart
   CHECK_FATAL(fieldStartP != nullptr, "fieldStartP is null.");
   WriteNum(kBinContentStart);
   size_t totalSizeIdx = buf.size();
-  ExpandFourBuffSize();         /// total size of this field to ~BIN_SYM_START
+  ExpandFourBuffSize(); // total size of this field to ~BIN_SYM_START
 
-  WriteInt(fieldNum);  /// size of Content item
+  WriteInt(fieldNum);  // size of Content item
 
   WriteNum(kBinHeaderStart);
   fieldStartP[0] = buf.size();
@@ -849,9 +1153,9 @@ void BinaryMplExport::WriteContentField4nonJava(int fieldNum, uint64 *fieldStart
   CHECK_FATAL(fieldStartP != nullptr, "fieldStartP is null.");
   WriteNum(kBinContentStart);
   size_t totalSizeIdx = buf.size();
-  ExpandFourBuffSize();         /// total size of this field to ~BIN_SYM_START
+  ExpandFourBuffSize();  // total size of this field to ~BIN_SYM_START
 
-  WriteInt(fieldNum);  /// size of Content item
+  WriteInt(fieldNum);  // size of Content item
 
   WriteNum(kBinHeaderStart);
   fieldStartP[0] = buf.size();
@@ -884,9 +1188,10 @@ void BinaryMplExport::Export(const std::string &fname, std::unordered_set<std::s
     WriteContentField4mplt(3, fieldStartPoint);
     WriteStrField(fieldStartPoint[0]);
     WriteTypeField(fieldStartPoint[1]);
+    WriteCgField(fieldStartPoint[2], nullptr);
     importFileName = fname;
   } else {
-    WriteInt(kMpltMagicNumber+0x10);
+    WriteInt(kMpltMagicNumber + 0x10);
     if (mod.IsJavaModule()) {
       WriteContentField4nonmplt(3, fieldStartPoint);
       WriteHeaderField(fieldStartPoint[0]);
@@ -896,7 +1201,7 @@ void BinaryMplExport::Export(const std::string &fname, std::unordered_set<std::s
       WriteContentField4nonJava(5, fieldStartPoint);
       WriteHeaderField(fieldStartPoint[0]);
       WriteStrField(fieldStartPoint[1]);
-      WriteTypeField(fieldStartPoint[2], false/*useClassList*/);
+      WriteTypeField(fieldStartPoint[2], false /* useClassList */);
       WriteSymField(fieldStartPoint[3]);
       WriteFunctionBodyField(fieldStartPoint[4], dumpFuncSet);
     }
@@ -944,11 +1249,15 @@ void BinaryMplExport::OutputType(TyIdx tyIdx, bool canUseTypename) {
   CHECK_FATAL(ty != nullptr, "If gets nulltype, should have been returned!");
   auto it = typMark.find(ty);
   if (it != typMark.end()) {
-    WriteNum(-(it->second));
-    return;
+    if (ty->GetKind() != kTypeFunction) {
+      WriteNum(-(it->second));
+      return;
+    }
+    ++BinaryMplExport::typeMarkOffset;
+  } else {
+    size_t mark = typMark.size() + BinaryMplExport::typeMarkOffset;
+    typMark[ty] = mark;
   }
-  size_t mark = typMark.size();
-  typMark[ty] = mark;
 
   if (canUseTypename && !ty->IsNameIsLocal() && ty->GetNameStrIdx() != GStrIdx(0)) {
     WriteNum(kBinKindTypeViaTypename);
@@ -964,4 +1273,52 @@ void BinaryMplExport::OutputType(TyIdx tyIdx, bool canUseTypename) {
   }
 }
 
+void DoUpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
+  BinaryMplImport &binImport = binMplt.GetBinImport();
+  BinaryMplExport &binExport = binMplt.GetBinExport();
+  binImport.SetBufI(0);
+  if (binImport.IsBufEmpty() || binImport.ReadInt() != kMpltMagicNumber) {
+    INFO(kLncInfo, " This Module depends on nothing");
+    return;
+  }
+  int64 cgStart = binImport.GetContent(kBinCgStart);
+  ASSERT(cgStart != 0, "Should be updated in import processing.");
+  binImport.SetBufI(cgStart);
+  int64 checkReadNum = binImport.ReadNum();
+  ASSERT(checkReadNum == kBinCgStart, "Should be cg start point.");
+  int32 totalSize = binImport.ReadInt();
+  constexpr int32 headLen = 4;
+  binImport.SetBufI(binImport.GetBufI() + totalSize - headLen);
+  checkReadNum = binImport.ReadNum();
+  ASSERT(checkReadNum == ~kBinCgStart, "Should be end of cg.");
+  binExport.Init();
+  std::map<GStrIdx, uint8> tmp;
+  binExport.func2SEMap = &tmp;
+  binExport.inIPA = true;
+  binExport.WriteCgField(0, &cg);
+  binExport.Init();
+  binExport.WriteSeField();
+  binExport.eaNodeMark.clear();
+  binExport.eaNodeMark[nullptr] = 0;
+  binExport.gStrMark.clear();
+  binExport.gStrMark[GStrIdx(0)] = 0;
+  binExport.WriteEaField(cg);
+  binExport.WriteNum(kBinFinish);
+  std::string filename(binMplt.GetImportFileName());
+  binExport.AppendAt(filename, cgStart);
+}
+
+AnalysisResult *DoUpdateMplt::Run(MIRModule *module, ModuleResultMgr *moduleResultMgr) {
+  if (moduleResultMgr == nullptr) {
+    return nullptr;
+  }
+  auto *cg = static_cast<CallGraph*>(moduleResultMgr->GetAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module));
+  CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr.");
+  BinaryMplt *binMplt = module->GetBinMplt();
+  CHECK_FATAL(binMplt != nullptr, "Expecting a valid binMplt, found nullptr.");
+  UpdateCgField(*binMplt, *cg);
+  delete module->GetBinMplt();
+  module->SetBinMplt(nullptr);
+  return nullptr;
+}
 }  // namespace maple

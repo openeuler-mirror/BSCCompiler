@@ -93,6 +93,7 @@ class MIRParser {
   bool ParsePrototype(MIRFunction &fn, MIRSymbol &funcSt, TyIdx &funcTyIdx);
   bool ParseFunction(uint32 fileIdx = 0);
   bool ParseStorageClass(MIRSymbol &st) const;
+  bool ParseDeclareVarInitValue(MIRSymbol &symbol);
   bool ParseDeclareVar(MIRSymbol&);
   bool ParseDeclareReg(MIRSymbol&, const MIRFunction&);
   bool ParseDeclareFormal(FormalDef&);
@@ -234,6 +235,7 @@ class MIRParser {
   bool ParseMIRForSrcFileInfo();
   bool ParseMIRForImport();
   bool ParseMIRForImportPath();
+  bool ParseMIRForAsmdecl();
 
   // func for ParseExpr
   using FuncPtrParseExpr = bool (MIRParser::*)(BaseNodePtr &ptr);
