@@ -565,7 +565,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
       lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref &&
-      GetPrimTypeSize(lhsTy->GetPrimType()) < rhs->GetPrimType()) {
+      GetPrimTypeSize(lhsTy->GetPrimType()) < GetPrimTypeSize(rhs->GetPrimType())) {
     if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
       return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
     } else {
@@ -759,18 +759,39 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
         newMeExpr.SetDefStmt(nullptr);
         ivarMeExpr = static_cast<IvarMeExpr*>(irMap.HashMeExpr(newMeExpr));
       }
-      MeExpr &propIvarExpr = PropIvar(utils::ToRef(ivarMeExpr));
-      if (&propIvarExpr != ivarMeExpr) {
+      MeExpr *propIvarExpr = &PropIvar(utils::ToRef(ivarMeExpr));
+      if (propIvarExpr != ivarMeExpr) {
         isProped = true;
+        // Exmaple:
+        //   ivarMeExpr: iread u32 <* u8> ... (ivar primType is u8)
+        //   propIvarExpr: trunc i8 f64   ... (prop primType is i8)
+        // If the two types are not equal, we need add cvt
+        PrimType ivarPrimType = ivarMeExpr->GetType()->GetPrimType();
+        PrimType propPrimType = propIvarExpr->GetPrimType();
+        if (ivarPrimType != propPrimType) {
+          propIvarExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propIvarExpr);
+        }
       }
-      return propIvarExpr;
+      return *propIvarExpr;
     }
     case kMeOpOp: {
       auto &meOpExpr = static_cast<OpMeExpr&>(meExpr);
       OpMeExpr newMeExpr(-1, meOpExpr.GetOp(), meOpExpr.GetPrimType(), meOpExpr.GetNumOpnds());
 
       for (size_t i = 0; i < newMeExpr.GetNumOpnds(); ++i) {
-        newMeExpr.SetOpnd(i, &PropMeExpr(utils::ToRef(meOpExpr.GetOpnd(i)), subProped, false));
+        MeExpr *opnd = meOpExpr.GetOpnd(i);
+        MeExpr *meExprProped = &PropMeExpr(utils::ToRef(opnd), subProped, false);
+        // If type is not equal, use cvt
+        if (opnd->GetPrimType() != meExprProped->GetPrimType()) {
+          CHECK_FATAL(IsPrimitiveInteger(opnd->GetPrimType()), "should be integer");
+          meExprProped = irMap.CreateMeExprTypeCvt(opnd->GetPrimType(), meExprProped->GetPrimType(), *meExprProped);
+          // Try simplify new generated cvt
+          MeExpr *simplified = irMap.SimplifyMeExpr(meExprProped);
+          if (simplified != nullptr) {
+            meExprProped = simplified;
+          }
+        }
+        newMeExpr.SetOpnd(i, meExprProped);
       }
 
       if (subProped) {
@@ -896,7 +917,7 @@ void Prop::TraversalBB(BB &bb) {
   curBB = &bb;
 
   // record stack size for variable versions before processing rename. It is used for stack pop up.
-  MapleVector<size_t> curStackSizeVec(vstLiveStackVec.size(), propMapAlloc.Adapter());
+  std::vector<size_t> curStackSizeVec(vstLiveStackVec.size());
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
     curStackSizeVec[i] = vstLiveStackVec[i]->size();
   }

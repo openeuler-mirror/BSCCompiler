@@ -20,6 +20,19 @@
 #include "me_ir.h"
 
 namespace maple {
+// The order matters
+enum CastKind {
+  CAST_intTrunc = 0,
+  CAST_zext = 1,
+  CAST_sext = 2,
+  CAST_int2fp = 3,
+  CAST_fp2int = 4,
+  CAST_fpTrunc = 5,
+  CAST_fpExt = 6,
+  CAST_retype = 7,
+  CAST_unknown = 8
+};
+
 class IRMapBuild; // circular dependency exists, no other choice
 
 class IRMap : public AnalysisResult {
@@ -46,8 +59,9 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateAddrofMeExpr(MeExpr&);
   MeExpr *CreateAddroffuncMeExpr(PUIdx);
   MeExpr *CreateAddrofMeExprFromSymbol(MIRSymbol& sym, PUIdx  puIdx);
-  MeExpr *CreateIaddrofMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
+  MeExpr *CreateIaddrofMeExpr(FieldID fieldId, TyIdx tyIdx, MeExpr *base);
   MeExpr *CreateIvarMeExpr(MeExpr &expr, TyIdx tyIdx, MeExpr &base);
+  NaryMeExpr *CreateNaryMeExpr(const NaryMeExpr &nMeExpr);
 
   // for creating VarMeExpr
   VarMeExpr *CreateVarMeExprVersion(OriginalSt *ost);
@@ -69,6 +83,9 @@ class IRMap : public AnalysisResult {
   RegMeExpr *CreateRegMeExpr(const MeExpr &meexpr) {
     MIRType *mirType = meexpr.GetType();
     if (mirType == nullptr || mirType->GetPrimType() == PTY_agg) {
+      return CreateRegMeExpr(meexpr.GetPrimType());
+    }
+    if (meexpr.GetMeOp() == kMeOpIvar && mirType->GetPrimType() != PTY_ref) {
       return CreateRegMeExpr(meexpr.GetPrimType());
     }
     return CreateRegMeExpr(*mirType);
@@ -114,14 +131,30 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateMeExprCompare(Opcode, PrimType, PrimType, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprSelect(PrimType, MeExpr&, MeExpr&, MeExpr&);
   MeExpr *CreateMeExprTypeCvt(PrimType, PrimType, MeExpr&);
+  MeExpr *CreateMeExprExt(Opcode, PrimType, uint32, MeExpr&);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
-  IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, ScalarMeExpr *ret,
-                                                         TyIdx tyIdx = TyIdx());
+  IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
+                                                         ScalarMeExpr *ret, TyIdx tyIdx = TyIdx());
+  MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA,  Opcode opB,
+                                    MeExpr *opndA, MeExpr *opndB, MeExpr *opndC);
+  MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, MeExpr *opndA,
+                                    Opcode opB, MeExpr *opndB, MeExpr *opndC);
+  MeExpr *CreateCanonicalizedMeExpr(PrimType primType, Opcode opA, Opcode opB, MeExpr *opndA, MeExpr *opndB,
+                                    Opcode opC, MeExpr *opndC, MeExpr *opndD);
+  MeExpr *FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB);
+  MeExpr *SimplifyAddExpr(OpMeExpr *addExpr);
+  MeExpr *SimplifyMulExpr(OpMeExpr *mulExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
+  void SimplifyCastForAssign(MeStmt *assignStmt);
+  MeExpr *SimplifyCast(MeExpr *expr);
+  MeExpr *SimplifyCastSingle(MeExpr *castExpr);
+  MeExpr *SimplifyCastPair(MeExpr *firstCastExpr, MeExpr *secondCastExpr, bool isFirstCastImplicit);
+  MeExpr *CreateMeExprByCastKind(CastKind castKind, PrimType fromType, PrimType toType, MeExpr *opnd);
+  static void SimplifyIvar(IvarMeExpr *ivar);
 
   template <class T, typename... Arguments>
   T *NewInPool(Arguments&&... args) {
@@ -231,6 +264,7 @@ class IRMap : public AnalysisResult {
   void PutToBucket(uint32, MeExpr&);
   BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
+  MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_IRMAP_H
