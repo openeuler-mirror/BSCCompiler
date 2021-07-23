@@ -17,8 +17,6 @@ set -e
 
 [ -n "$MAPLE_ROOT" ] || { echo MAPLE_ROOT not set. Please source envsetup.sh.; exit 1; }
 
-[ -f "$MAPLE_EXECUTE_BIN/clang2mpl" ] || { echo; echo ">>>>>> clang2mpl not built. Please make clang2mpl"; echo; exit 1; }
-
 CURRDIR=`pwd`
 rel=`realpath --relative-to=$MAPLE_ROOT $CURRDIR`
 
@@ -31,19 +29,22 @@ else
   verbose=$4
 fi
 
-WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_clang2mpl
+WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_mplfe
 
 mkdir -p $WORKDIR
 cp $dir/$src.c $WORKDIR
 cd $WORKDIR
 
 echo ======================================================================== > cmd.log
-echo ==================== use clang2mpl as C Frontend ======================= >> cmd.log
+echo ====================== use mplfe as C Frontend ========================= >> cmd.log
 echo ======================================================================== >> cmd.log
 echo cd $WORKDIR >> cmd.log
 
-echo $MAPLE_EXECUTE_BIN/clang2mpl --ascii $src.c -- --target=aarch64-linux-elf >> cmd.log
-$MAPLE_EXECUTE_BIN/clang2mpl --ascii $src.c -- --target=aarch64-linux-elf >> doit.log 2>&1
+echo $MAPLE_ROOT/tools/bin/clang -emit-ast -o $src.ast $src.c >> cmd.log
+$MAPLE_ROOT/tools/bin/clang -emit-ast -o $src.ast $src.c >> doit.log 2>&1
+
+echo $MAPLE_EXECUTE_BIN/mplfe $src.ast -o $src.mpl >> cmd.log
+$MAPLE_EXECUTE_BIN/mplfe $src.ast -o $src.mpl >> doit.log 2>&1
 
 if [ $opt -eq 0 ]; then
   echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-quiet\" $src.mpl >> cmd.log
