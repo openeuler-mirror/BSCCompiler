@@ -554,6 +554,7 @@ MeStmt *IRMapBuild::BuildDassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   meStmt->SetRHS(BuildExpr(*dassiNode.GetRHS(), false, false));
   VarMeExpr *varLHS = static_cast<VarMeExpr*>(BuildLHSVar(*ssaPart.GetSSAVar(), *meStmt));
   meStmt->SetLHS(varLHS);
+  irMap->SimplifyCastForAssign(meStmt);
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *meStmt->GetChiList());
   // determine isIncDecStmt
   if (meStmt->GetChiList()->empty()) {
@@ -581,6 +582,7 @@ MeStmt *IRMapBuild::BuildAssignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   meStmt->SetRHS(BuildExpr(*regNode.Opnd(0), false, false));
   auto *regLHS = static_cast<RegMeExpr*>(BuildLHSReg(*ssaPart.GetSSAVar(), *meStmt, regNode));
   meStmt->UpdateLhs(regLHS);
+  irMap->SimplifyCastForAssign(meStmt);
   // determine isIncDecStmt
   MeExpr *rhs = meStmt->GetRHS();
   if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
@@ -602,6 +604,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   meStmt->SetRHS(BuildExpr(*iasNode.GetRHS(), false, false));
   meStmt->SetLHSVal(irMap->BuildLHSIvar(
       *BuildExpr(*iasNode.Opnd(0), false, false), *meStmt, iasNode.GetFieldID()));
+  irMap->SimplifyCastForAssign(meStmt);
   if (mirModule.IsCModule()) {
     bool isVolt = false;
     for (auto &maydefItem : ssaPart.GetMayDefNodes()) {

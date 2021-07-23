@@ -1357,6 +1357,13 @@ MIRConst *ConstantFold::FoldTypeCvtMIRConst(const MIRConst &cst, PrimType fromTy
     MIRConst *toConst = nullptr;
     uint32 fromSize = GetPrimTypeBitSize(fromType);
     uint32 toSize = GetPrimTypeBitSize(toType);
+    // GetPrimTypeBitSize(PTY_u1) will return 8, which is not expected here.
+    if (fromType == PTY_u1) {
+      fromSize = 1;
+    }
+    if (toType == PTY_u1) {
+      toSize = 1;
+    }
     if (toSize > fromSize) {
       Opcode op = OP_zext;
       if (IsSignedInteger(fromType)) {
