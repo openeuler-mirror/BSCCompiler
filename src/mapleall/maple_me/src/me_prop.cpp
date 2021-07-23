@@ -34,9 +34,9 @@ const std::set<std::string> propWhiteList {
 namespace maple {
 AnalysisResult *MeDoMeProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
   CHECK_NULL_FATAL(func);
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, true));
+  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
   CHECK_NULL_FATAL(dom);
-  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, true));
+  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, !MeOption::quiet));
   CHECK_NULL_FATAL(hMap);
   bool propIloadRef = MeOption::propIloadRef;
   if (!propIloadRef) {

@@ -210,6 +210,9 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   if (ost->HasAttr(ATTR_localrefvar)) {
     return;
   }
+  if (ost->HasAttr(ATTR_oneelem_simd)) {
+    return;
+  }
   // get the zero version VarMeExpr node
   VarMeExpr *zeroVersion = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
   MeRealOcc *occ = ssaPreMemPool->New<MeRealOcc>(nullptr, 0, zeroVersion);
