@@ -34,6 +34,7 @@
 #include "mempool_allocator.h"
 
 namespace maplebe {
+constexpr int32 kBBLimit = 10000;
 constexpr int32 kFreqBase = 10000;
 struct MemOpndCmp {
   bool operator()(const MemOperand *lhs, const MemOperand *rhs) const {
@@ -284,8 +285,7 @@ class CGFunc {
   virtual RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) = 0;
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
                                        PrimType oTyp3) = 0;
-  virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2, PrimType typ2,
-                                        Operand *o3) = 0;
+  virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) = 0;
   virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) = 0;
   virtual RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
   virtual RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) = 0;
@@ -727,12 +727,16 @@ class CGFunc {
     return funcScopeAllocator;
   }
 
-  const MapleVector<MIRSymbol*> GetEmitStVec() const {
+  const MapleMap<uint32, MIRSymbol*> GetEmitStVec() const {
     return emitStVec;
   }
 
-  void AddEmitSt(MIRSymbol &symbol) {
-    emitStVec.emplace_back(&symbol);
+  MIRSymbol* GetEmitSt(uint32 id) {
+    return emitStVec[id];
+  }
+
+  void AddEmitSt(uint32 id, MIRSymbol &symbol) {
+    emitStVec[id] = &symbol;
   }
 
   MapleVector<CGFuncLoops*> &GetLoops() {
@@ -1037,7 +1041,7 @@ class CGFunc {
   BECommon &beCommon;
   MemLayout *memLayout = nullptr;
   MapleAllocator *funcScopeAllocator;
-  MapleVector<MIRSymbol*> emitStVec;  /* symbol that needs to be emit as a local symbol. i.e, switch table */
+  MapleMap<uint32, MIRSymbol*> emitStVec;  /* symbol that needs to be emit as a local symbol. i.e, switch table */
 #if TARGARM32
   MapleVector<BB*> sortedBBs;
   MapleVector<LiveRange*> lrVec;

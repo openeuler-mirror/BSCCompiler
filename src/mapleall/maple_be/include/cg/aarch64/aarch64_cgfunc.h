@@ -255,8 +255,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorGetLow(PrimType rType, Operand *src) override;
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
                                Operand *o3, PrimType oTyp3) override;
-  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
-                                PrimType typ2, Operand *o3) override;
+  RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) override;
   RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
   RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
   RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) override;

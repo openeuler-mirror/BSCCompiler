@@ -661,7 +661,7 @@ void AArch64CGFunc::SelectCopyRegOpnd(Operand &dest, PrimType dtype, Operand::Op
   if (!GetMirModule().IsCModule()) {
     isInRange = IsImmediateValueInRange(strMop, immVal, is64Bits, isIntactIndexed, isPostIndexed, isPreIndexed);
   } else {
-    isInRange = !IsPrimitiveFloat(stype) && IsOperandImmValid(strMop, memOpnd, kInsnSecondOpnd);
+    isInRange = IsOperandImmValid(strMop, memOpnd, kInsnSecondOpnd);
   }
   bool isMopStr = IsStoreMop(strMop);
   if (isInRange || !isMopStr) {
@@ -3241,22 +3241,28 @@ void AArch64CGFunc::SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
      * SUB Xd|SP,  Xn|SP,  #imm{, shift} ; 64-bit general registers
      * imm : 0 ~ 4095, shift: none, LSL #0, or LSL #12
      * aarch64 assembly takes up to 24-bits, if the lower 12 bits is all 0
+     * large offset is treated as sub (higher 12 bits + 4096) + add
+     * it gives opportunities for combining add + ldr due to the characteristics of aarch64's load/store
      */
     MOperator mOpCode = MOP_undef;
+    bool isSplitSub = false;
     if (!(immOpnd->IsInBitSize(kMaxImmVal12Bits, 0) ||
           immOpnd->IsInBitSize(kMaxImmVal12Bits, kMaxImmVal12Bits))) {
+      isSplitSub = true;
+      int64 higher12BitVal = static_cast<int64>(static_cast<uint64>(immOpnd->GetValue()) >> kMaxImmVal12Bits);
       /* process higher 12 bits */
       ImmOperand &immOpnd2 =
-          CreateImmOperand(static_cast<int64>(static_cast<uint64>(immOpnd->GetValue()) >> kMaxImmVal12Bits),
-                           immOpnd->GetSize(), immOpnd->IsSignedValue());
+          CreateImmOperand(higher12BitVal + 1, immOpnd->GetSize(), immOpnd->IsSignedValue());
+
       mOpCode = is64Bits ? MOP_xsubrri24 : MOP_wsubrri24;
       Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, *opnd0Bak, immOpnd2, addSubLslOperand);
       GetCurBB()->AppendInsn(newInsn);
       immOpnd->ModuloByPow2(static_cast<int64>(kMaxImmVal12Bits));
+      immOpnd->SetValue(static_cast<int64>(kMax12UnsignedImm) - immOpnd->GetValue());
       opnd0Bak = &resOpnd;
     }
     /* process lower 12 bits */
-    mOpCode = is64Bits ? MOP_xsubrri12 : MOP_wsubrri12;
+    mOpCode = isSplitSub ? (is64Bits ? MOP_xaddrri12 : MOP_waddrri12) : (is64Bits ? MOP_xsubrri12 : MOP_wsubrri12);
     Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, *opnd0Bak, *immOpnd);
     GetCurBB()->AppendInsn(newInsn);
     return;
@@ -4946,7 +4952,7 @@ void AArch64CGFunc::SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &srcOp
   lblStr.append(funcSt->GetName()).append(std::to_string(labelIdxTmp++));
   SetLabelIdx(labelIdxTmp);
   lblSt->SetNameStrIdx(lblStr);
-  AddEmitSt(*lblSt);
+  AddEmitSt(GetCurBB()->GetId(), *lblSt);
 
   PrimType itype = rangeGotoNode.Opnd(0)->GetPrimType();
   Operand &opnd0 = LoadIntoRegister(srcOpnd, itype);
@@ -8920,21 +8926,20 @@ RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType
   return static_cast<RegOperand*>(vOpnd);
 }
 
-RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, PrimType typ1, Operand *o2,
-                                             PrimType typ2, Operand *o3) {
+RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 index) {
   RegOperand *res = &CreateRegisterOperandOfType(rTyp);
+  int32 size = GetPrimTypeSize(rTyp);                                      /* 8b or 16b */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecDest->vecLaneMax = GetPrimTypeLanes(rTyp);
+  vecSpecDest->vecLaneMax = size;
   VectorRegSpec *vecSpecOpd1 = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecOpd1->vecLaneMax = GetPrimTypeLanes(typ1);
+  vecSpecOpd1->vecLaneMax = size;
   VectorRegSpec *vecSpecOpd2 = GetMemoryPool()->New<VectorRegSpec>();
-  vecSpecOpd2->vecLaneMax = GetPrimTypeLanes(typ2);
+  vecSpecOpd2->vecLaneMax = size;
 
-  if (!o3->IsConstImmediate()) {
-    CHECK_FATAL(0, "VectorMerge does not have lane const");
-  }
+  ImmOperand *imm = &CreateImmOperand(index, k8BitSize, true);
 
-  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vextvvv, *res, *o1, *o2, *o3);
+  MOperator mOp = size > k8ByteSize ? MOP_vextvvvi: MOP_vextuuui;
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2, *imm);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd1);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd2);
