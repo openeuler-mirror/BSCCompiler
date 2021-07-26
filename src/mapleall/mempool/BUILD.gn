@@ -12,7 +12,6 @@ include_directories = [
 
 configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
 
-
 static_library("libmempool") {
   sources = src_libmempool
   include_dirs = include_directories
@@ -20,16 +19,14 @@ static_library("libmempool") {
 }
 
 executable("MemPool") {
-  sources = [
-    "src/MPTest.cpp",
-  ]
+  sources = [ "src/MPTest.cpp" ]
 
   include_dirs = include_directories
 
   deps = [
     ":libmempool",
-    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_driver:liboption_parser",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
 }

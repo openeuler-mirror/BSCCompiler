@@ -21,42 +21,41 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_driver/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/mpl2mpl/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat"
+  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat",
 ]
 
 deps_libcg = []
 
-deps_libmplbe = [
-  ":libcglowerer",
-]
+deps_libmplbe = [ ":libcglowerer" ]
 
-if(TARGET == "aarch64"){
+if (TARGET == "aarch64") {
   include_directories += [
     "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
     "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
   ]
-  deps_libcg += [ ":libcgaarch64", ]
+  deps_libcg += [ ":libcgaarch64" ]
 }
 
-if(TARGET == "riscv64"){
+if (TARGET == "riscv64") {
   include_directories += [
     "${MAPLEALL_ROOT}/maple_be/include/cg/riscv64",
     "${MAPLEALL_ROOT}/maple_be/include/be/riscv64",
   ]
-  deps_libcg += [ ":libcgriscv64", ]
+  deps_libcg += [ ":libcgriscv64" ]
 }
 
-if(TARGET == "ark"){
+if (TARGET == "ark") {
   include_directories += [
     "${MAPLEALL_ROOT}/maple_be/include/cg/ark",
     "${MAPLEALL_ROOT}/maple_be/include/be/ark",
   ]
-  deps_libcg += [ ":libcgark", ]
+  deps_libcg += [ ":libcgark" ]
 }
 
 src_libmplad = [ "src/ad/mad.cpp" ]
@@ -137,9 +136,7 @@ src_libcgriscv64 = [
   "src/cg/riscv64/riscv64_ra_opt.cpp",
 ]
 
-src_libcgark = [
-  "src/cg/ark/foo.cpp",
-]
+src_libcgark = [ "src/cg/ark/foo.cpp" ]
 
 src_libcg = [
   "src/cg/args.cpp",
@@ -230,9 +227,9 @@ executable("maplegen") {
     "${MAPLEALL_ROOT}/maple_be/mdgen/src/mdrecord.cpp",
   ]
   deps = [
-    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
-    "${MAPLEALL_ROOT}/mempool:libmempool",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
 
   include_dirs = [
