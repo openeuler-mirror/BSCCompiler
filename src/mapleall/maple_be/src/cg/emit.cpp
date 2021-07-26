@@ -2307,6 +2307,10 @@ void Emitter::EmitGlobalVariable() {
         /* remove leading "__" in sec name. */
         secName.erase(0, 2);
         Emit("\t.section\t." + secName + ",\"a\",%progbits\n");
+      } else if (mirSymbol->sectionAttr != UStrIdx(0)) {
+        Emit(asmInfo->GetSection());
+        Emit(GlobalTables::GetUStrTable().GetStringFromStrIdx(mirSymbol->sectionAttr));
+        Emit("\n");
       } else {
         (void)Emit("\t.section\t." + std::string(kMapleGlobalVariable) + ",\"aw\", %progbits\n");
       }
