@@ -92,18 +92,12 @@ static_library("libmaplert") {
 }
 
 copy("maplert_module_init_cpp") {
-  sources = [
-    "src/mrt_module_init.c__",
-  ]
-  outputs = [
-    "${root_out_dir}/mrt_module_init.cpp",
-  ]
+  sources = [ "src/mrt_module_init.c__" ]
+  outputs = [ "${root_out_dir}/mrt_module_init.cpp" ]
 }
 
 static_library("libmrt_module_init") {
   sources = get_target_outputs(":maplert_module_init_cpp")
   include_dirs = include_common
-  deps = [
-    ":maplert_module_init_cpp",
-  ]
+  deps = [ ":maplert_module_init_cpp" ]
 }

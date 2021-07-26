@@ -60,8 +60,8 @@ static_library("lib_mplfe_util") {
     "${MPLFE_ROOT}/common/src/fe_type_hierarchy.cpp",
     "${MPLFE_ROOT}/common/src/fe_type_manager.cpp",
     "${MPLFE_ROOT}/common/src/fe_utils.cpp",
-    "${MPLFE_ROOT}/common/src/fe_utils_java.cpp",
     "${MPLFE_ROOT}/common/src/fe_utils_ast.cpp",
+    "${MPLFE_ROOT}/common/src/fe_utils_java.cpp",
     "${MPLFE_ROOT}/common/src/feir_builder.cpp",
     "${MPLFE_ROOT}/common/src/feir_dfg.cpp",
     "${MPLFE_ROOT}/common/src/feir_stmt.cpp",
@@ -87,31 +87,27 @@ static_library("lib_mplfe_util") {
 }
 
 static_library("lib_mplfe_input") {
-  sources = [
-    "${MPLFE_ROOT}/common/src/fe_input_helper.cpp",
-  ]
+  sources = [ "${MPLFE_ROOT}/common/src/fe_input_helper.cpp" ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"
 }
 
 executable("mplfe") {
-  sources = [
-    "${MPLFE_ROOT}/common/src/mplfe.cpp",
-  ]
+  sources = [ "${MPLFE_ROOT}/common/src/mplfe.cpp" ]
   include_dirs = include_directories
   deps = [
     ":lib_mplfe_ast_input",
-    ":lib_mplfe_input",
-    ":lib_mplfe_jbc_input",
     ":lib_mplfe_bc_input",
     ":lib_mplfe_dex_input",
+    ":lib_mplfe_input",
+    ":lib_mplfe_jbc_input",
     ":lib_mplfe_util",
-    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
-    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
-    "${MAPLEALL_ROOT}/mempool:libmempool",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
   ldflags = [
     "-lz",
@@ -168,16 +164,16 @@ include_bc_input_directories = [
 
 static_library("lib_mplfe_bc_input") {
   sources = [
-    "${MPLFE_ROOT}/bc_input/src/bc_io.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_parser_base.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_class.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_function.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_class2fe_helper.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_util.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_instruction.cpp",
     "${MPLFE_ROOT}/bc_input/src/ark_annotation_map.cpp",
     "${MPLFE_ROOT}/bc_input/src/ark_annotation_processor.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_class.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_function.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_instruction.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_io.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_parser_base.cpp",
     "${MPLFE_ROOT}/bc_input/src/bc_pragma.cpp",
+    "${MPLFE_ROOT}/bc_input/src/bc_util.cpp",
     "${MPLFE_ROOT}/bc_input/src/rc_setter.cpp",
   ]
   include_dirs = include_bc_input_directories
@@ -197,21 +193,19 @@ include_dex_input_directories = [
 
 static_library("lib_mplfe_dex_input") {
   sources = [
+    "${MPLFE_ROOT}/dex_input/src/class_linker.cpp",
+    "${MPLFE_ROOT}/dex_input/src/class_loader_context.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_class.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_encode_value.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_file_util.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_op.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_strfac.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_pragma.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_encode_value.cpp",
-    "${MPLFE_ROOT}/dex_input/src/class_loader_context.cpp",
-    "${MPLFE_ROOT}/dex_input/src/class_linker.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dex_strfac.cpp",
   ]
 
   # for libdexfile
-  include_dirs_dex = [
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include",
-  ]
+  include_dirs_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include" ]
   include_dirs_libdexfile = [
     #for libdexfile -start
     "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/include",
@@ -223,14 +217,15 @@ static_library("lib_mplfe_dex_input") {
     "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile",
     "${THIRD_PARTY_ROOT}/aosp_modified/include",
     "${THIRD_PARTY_ROOT}/aosp_modified/libnativehelper/include_jni",
+
     #for libdexfile -end
   ]
 
   sources += [
     "${MPLFE_ROOT}/dex_input/src/dex_parser.cpp",
     "${MPLFE_ROOT}/dex_input/src/dex_reader.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dexfile_interface.cpp",
     "${MPLFE_ROOT}/dex_input/src/dexfile_factory.cpp",
+    "${MPLFE_ROOT}/dex_input/src/dexfile_interface.cpp",
     "${MPLFE_ROOT}/dex_input/src/dexfile_libdexfile.cpp",
   ]
   deps_libdexfile = [
@@ -238,15 +233,13 @@ static_library("lib_mplfe_dex_input") {
     "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive:libziparchive",
     "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base:libbase",
   ]
-  lib_dex = [
-    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a",
-  ]
+  lib_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a" ]
   deps = deps_libdexfile
   libs = lib_dex
-  include_dirs = include_dex_input_directories + include_dirs_libdexfile + include_dirs_dex
+  include_dirs =
+      include_dex_input_directories + include_dirs_libdexfile + include_dirs_dex
   output_dir = "${root_out_dir}/ar"
 }
-
 
 static_library("lib_ast_interface") {
   sources = [ "${MPLFE_ROOT}/ast_input/lib/ast_interface.cpp" ]
@@ -291,17 +284,17 @@ static_library("lib_ast_interface") {
 
 static_library("lib_mplfe_ast_input") {
   sources = [
+    "${MPLFE_ROOT}/ast_input/lib/ast_type.cpp",
+    "${MPLFE_ROOT}/ast_input/lib/ast_util.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_compiler_component.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_decl.cpp",
+    "${MPLFE_ROOT}/ast_input/src/ast_expr.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_function.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_input.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_parser.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_parser_builting_func.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_struct2fe_helper.cpp",
-    "${MPLFE_ROOT}/ast_input/lib/ast_type.cpp",
-    "${MPLFE_ROOT}/ast_input/lib/ast_util.cpp",
     "${MPLFE_ROOT}/ast_input/src/ast_stmt.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_expr.cpp",
+    "${MPLFE_ROOT}/ast_input/src/ast_struct2fe_helper.cpp",
   ]
   include_dirs = include_directories
   deps = [ ":lib_ast_interface" ]

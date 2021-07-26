@@ -35,17 +35,21 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/dwarf_h/include",
+  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat",
 ]
 
 executable("maple") {
   sources = [
+    "src/as_compiler.cpp",
     "src/compiler.cpp",
     "src/compiler_factory.cpp",
     "src/compiler_selector.cpp",
+    "src/dex2mpl_compiler.cpp",
     "src/driver_runner.cpp",
     "src/file_utils.cpp",
+    "src/ipa_compiler.cpp",
     "src/jbc2mpl_compiler.cpp",
+    "src/ld_compiler.cpp",
     "src/maple.cpp",
     "src/maple_comb_compiler.cpp",
     "src/mpl_options.cpp",
@@ -57,7 +61,6 @@ executable("maple") {
   deps = [
     ":libdriver_option",
     ":liboption_parser",
-    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
     "${MAPLEALL_ROOT}/maple_be:libcg",
     "${MAPLEALL_ROOT}/maple_be:libmplad",
     "${MAPLEALL_ROOT}/maple_be:libmplbe",
@@ -65,17 +68,17 @@ executable("maple") {
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
     "${MAPLEALL_ROOT}/maple_me:libmplme",
     "${MAPLEALL_ROOT}/maple_me:libmplmewpo",
-    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${MAPLEALL_ROOT}/maple_phase:libmplphase",
-    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/maple_phase:libmplphase",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
 }
 
 static_library("libdriver_option") {
-  sources = [
-    "src/driver_option_common.cpp",
-  ]
+  sources = [ "src/driver_option_common.cpp" ]
 
   include_dirs = [ "${MAPLEALL_ROOT}/maple_driver/include" ]
 
@@ -83,9 +86,7 @@ static_library("libdriver_option") {
 }
 
 static_library("liboption_parser") {
-  sources = [
-    "src/option_parser.cpp",
-  ]
+  sources = [ "src/option_parser.cpp" ]
 
   include_dirs = [
     "${MAPLEALL_ROOT}/maple_util/include",
