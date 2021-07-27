@@ -417,6 +417,20 @@ MeExpr *IRMap::SimplifyCastSingle(MeExpr *castExpr) {
       return HashMeExpr(*opnd);
     }
   }
+  if (opnd->GetOp() == OP_dread && (castInfo.kind == CAST_zext || castInfo.kind == CAST_sext)) {
+    auto *varExpr = static_cast<VarMeExpr*>(opnd);
+    if (varExpr->GetPrimType() == PTY_u1) {
+      // zext/sext + dread u1 %var ==>  dread u1 %var
+      return opnd;
+    }
+    if (varExpr->GetDefBy() == kDefByStmt) {
+      MeStmt *defStmt = varExpr->GetDefByMeStmt();
+      if (defStmt->GetOp() == OP_dassign && IsCompareMeExpr(*static_cast<DassignMeStmt*>(defStmt)->GetRHS())) {
+        // zext/sext + dread non-u1 %var (%var is defined by compare op)  ==>  dread non-u1 %var
+        return opnd;
+      }
+    }
+  }
   if (castInfo.dstType == opnd->GetPrimType() &&
       GetPrimTypeActualBitSize(castInfo.srcType) >= GetPrimTypeActualBitSize(opnd->GetPrimType())) {
     return opnd;
@@ -506,7 +520,13 @@ MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
     // Exmaple: cvt i32 i64 (add i32)  ==>  add i32
     return SimplifyCastSingle(expr);
   }
-  return SimplifyCastPair(opnd, expr, isFirstCastImplicit);
+  MeExpr *simplified1 = SimplifyCastPair(opnd, expr, isFirstCastImplicit);
+  MeExpr *simplified2 = nullptr;
+  if (simplified1 != nullptr && IsCastMeExprExplicit(*simplified1)) {
+    // Simplify cast further
+    simplified2 = SimplifyCastSingle(simplified1);
+  }
+  return (simplified2 != nullptr ? simplified2 : simplified1);
 }
 
 // Try remove redundant intTrunc for dassgin and iassign
