@@ -52,6 +52,14 @@ static uint32 GetPrimTypeActualBitSize(PrimType primType) {
   return GetPrimTypeSize(primType) << 3;
 }
 
+static bool IsCompareMeExpr(const MeExpr &expr) {
+  Opcode op = expr.GetOp();
+  if (op == OP_eq || op == OP_ne || op == OP_ge || op == OP_gt || op == OP_le || op == OP_lt) {
+    return true;
+  }
+  return false;
+}
+
 // This interface is conservative, which means that some op are explicit type cast but
 // the interface returns false.
 static bool IsCastMeExprExplicit(const MeExpr &expr) {
@@ -399,6 +407,16 @@ MeExpr *IRMap::SimplifyCastSingle(MeExpr *castExpr) {
   }
   CastInfo castInfo;
   ComputeCastInfoForExpr(*castExpr, castInfo);
+  // cast to integer + compare  ==>  compare
+  if (castInfo.kind != CAST_unknown && IsPrimitiveInteger(castInfo.dstType) && IsCompareMeExpr(*opnd)) {
+    // exclude the following castExpr:
+    //   sext xx 1 <expr>
+    bool excluded = (castExpr->GetOp() == OP_sext && static_cast<OpMeExpr*>(castExpr)->GetBitsSize() == 1);
+    if (!excluded) {
+      opnd->SetPtyp(castExpr->GetPrimType());
+      return HashMeExpr(*opnd);
+    }
+  }
   if (castInfo.dstType == opnd->GetPrimType() &&
       GetPrimTypeActualBitSize(castInfo.srcType) >= GetPrimTypeActualBitSize(opnd->GetPrimType())) {
     return opnd;
@@ -472,6 +490,14 @@ MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
   MeExpr *opnd = expr->GetOpnd(0);
   if (opnd == nullptr) {
     return nullptr;
+  }
+  // Convert `cvt u1 xx <expr>` to `ne u1 xx (<expr>, constval xx 0)`
+  if (expr->GetOp() == OP_cvt && expr->GetPrimType() == PTY_u1) {
+    auto *opExpr = static_cast<OpMeExpr*>(expr);
+    PrimType fromType = opExpr->GetOpndType();
+    if (fromType != PTY_u1) {  // No need to convert `cvt u1 u1 <expr>`
+      return CreateMeExprCompare(OP_ne, PTY_u1, fromType, *opnd, *CreateIntConstMeExpr(0, fromType));
+    }
   }
   // If the opnd is a iread/regread, it's OK because it may be a implicit zext or sext
   bool isFirstCastImplicit = IsCastMeExprImplicit(*opnd);

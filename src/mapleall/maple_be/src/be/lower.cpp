@@ -2211,6 +2211,8 @@ void CGLowerer::ProcessArrayExpr(BaseNode &expr, BlockNode &blkNode) {
 }
 
 BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkNode) {
+  bool isCvtU1Expr = (expr.GetOpCode() == OP_cvt && expr.GetPrimType() == PTY_u1 &&
+      static_cast<TypeCvtNode&>(expr).FromType() != PTY_u1);
   if (expr.GetPrimType() == PTY_u1) {
     expr.SetPrimType(PTY_u8);
   }
@@ -2238,6 +2240,19 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     for (size_t i = 0; i < expr.NumOpnds(); ++i) {
       expr.SetOpnd(LowerExpr(expr, *expr.Opnd(i), blkNode), i);
     }
+  }
+  // Convert `cvt u1 xx <expr>` to `ne u8 xx (<expr>, constval xx 0)`
+  // No need to convert `cvt u1 u1 <expr>`
+  if (isCvtU1Expr) {
+    auto &cvtExpr = static_cast<TypeCvtNode&>(expr);
+    PrimType fromType = cvtExpr.FromType();
+    auto *fromMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(fromType));
+    // We use u8 instead of u1 because codegen can't recognize u1
+    auto *toMIRType = GlobalTables::GetTypeTable().GetUInt8();
+    auto *zero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *fromMIRType);
+    auto *converted = mirBuilder->CreateExprCompare(OP_ne, *toMIRType, *fromMIRType, cvtExpr.Opnd(0),
+                                                    mirBuilder->CreateConstval(zero));
+    return converted;
   }
   switch (expr.GetOpCode()) {
     case OP_array: {
