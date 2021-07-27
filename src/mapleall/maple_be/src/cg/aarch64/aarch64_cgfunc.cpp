@@ -4878,26 +4878,54 @@ Operand *AArch64CGFunc::SelectTrunc(TypeCvtNode &node, Operand &opnd0) {
 }
 
 void AArch64CGFunc::SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &trueOpnd, Operand &falseOpnd,
-                                 PrimType dtype, PrimType ctype) {
+                                 PrimType dtype, PrimType ctype, bool isCompare, AArch64CC_t cc) {
   ASSERT(&resOpnd != &condOpnd, "resOpnd cannot be the same as condOpnd");
   Operand &newCondOpnd = LoadIntoRegister(condOpnd, ctype);
   Operand &newTrueOpnd = LoadIntoRegister(trueOpnd, dtype);
   Operand &newFalseOpnd = LoadIntoRegister(falseOpnd, dtype);
 
   bool isIntType = IsPrimitiveInteger(dtype);
-
-  SelectAArch64Cmp(newCondOpnd, CreateImmOperand(0, ctype, false), true, GetPrimTypeBitSize(ctype));
+  if (isCompare) {
+    SelectAArch64Cmp(newCondOpnd, CreateImmOperand(0, ctype, false), true, GetPrimTypeBitSize(ctype));
+    cc = CC_NE;
+  }
   ASSERT((IsPrimitiveInteger(dtype) || IsPrimitiveFloat(dtype)), "unknown type for select");
   Operand &newResOpnd = LoadIntoRegister(resOpnd, dtype);
   SelectAArch64Select(newResOpnd, newTrueOpnd, newFalseOpnd,
-                      GetCondOperand(CC_NE), isIntType, GetPrimTypeBitSize(dtype));
+                      GetCondOperand(cc), isIntType, GetPrimTypeBitSize(dtype));
 }
 
-Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2) {
+Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
+    bool isCompare) {
   PrimType dtype = node.GetPrimType();
   PrimType ctype = node.Opnd(0)->GetPrimType();
+
   RegOperand &resOpnd = CreateRegisterOperandOfType(dtype);
-  SelectSelect(resOpnd, opnd0, opnd1, opnd2, dtype, ctype);
+  AArch64CC_t cc = CC_NE;
+  Opcode opcode = node.Opnd(0)->GetOpCode();
+  bool isFloat = IsPrimitiveFloat(dtype);
+  bool unsignedIntegerComparison = !isFloat && !IsSignedInteger(dtype);
+  switch (opcode) {
+    case OP_eq:
+      cc = CC_EQ;
+          break;
+    case OP_ne:
+      cc = CC_NE;
+          break;
+    case OP_le:
+      cc = unsignedIntegerComparison ? CC_LS : CC_LE;
+          break;
+    case OP_ge:
+      cc = unsignedIntegerComparison ? CC_HS : CC_GE;
+          break;
+    case OP_gt:
+      cc = unsignedIntegerComparison ? CC_HI : CC_GT;
+          break;
+    default:
+      isCompare = true;
+      break;
+  }
+  SelectSelect(resOpnd, opnd0, opnd1, opnd2, dtype, ctype, isCompare, cc);
   return &resOpnd;
 }
 
@@ -8938,7 +8966,7 @@ RegOperand *AArch64CGFunc::SelectVectorMerge(PrimType rTyp, Operand *o1, Operand
 
   ImmOperand *imm = &CreateImmOperand(index, k8BitSize, true);
 
-  MOperator mOp = size > k8ByteSize ? MOP_vextvvvi: MOP_vextuuui;
+  MOperator mOp = (size > k8ByteSize) ? MOP_vextvvvi : MOP_vextuuui;
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2, *imm);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecOpd1);
