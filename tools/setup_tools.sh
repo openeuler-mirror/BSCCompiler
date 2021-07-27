@@ -146,10 +146,9 @@ if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
-  git clone --depth 1 https://gitee.com/hu-_-wen/qemu.git
-  cd qemu
-  mkdir -p package
-  dpkg-deb -R qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb package
+  wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+  mkdir -p qemu/package
+  dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu/package
   echo Installed qemu-aarch64
 fi
 
@@ -171,9 +170,6 @@ ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
 ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
-if [ -f /usr/bin/qemu-aarch64 ];then
-  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
-fi
 
 mkdir -p ${MAPLE_ROOT}/testsuite/tools
 mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
