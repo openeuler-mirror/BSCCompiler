@@ -142,13 +142,13 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
 fi
 
 # install qemu-user 2.5.0
-if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
+if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
   wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
-  mkdir -p qemu/package
-  dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu/package
+  mkdir -p qemu
+  dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   echo Installed qemu-aarch64
 fi
 
@@ -169,7 +169,7 @@ ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 
 mkdir -p ${MAPLE_ROOT}/testsuite/tools
 mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
