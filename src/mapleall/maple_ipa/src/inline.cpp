@@ -777,7 +777,13 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       PrimType realArgPrimType = currBaseNode->GetPrimType();
       // If realArg's type is different from formal's type, use cvt
       if (formalPrimType != realArgPrimType) {
-        currBaseNode = builder.CreateExprTypeCvt(OP_cvt, formalPrimType, realArgPrimType, *currBaseNode);
+        bool intTrunc = (IsPrimitiveInteger(formalPrimType) && IsPrimitiveInteger(realArgPrimType) &&
+            GetPrimTypeSize(realArgPrimType) > GetPrimTypeSize(formalPrimType));
+        // For dassign, if rhs-expr is a primitive integer type, the assigned variable may be smaller, resulting in a
+        // truncation. In this case, explicit cvt is not necessary
+        if (!intTrunc) {
+          currBaseNode = builder.CreateExprTypeCvt(OP_cvt, formalPrimType, realArgPrimType, *currBaseNode);
+        }
       }
       DassignNode *stmt = builder.CreateStmtDassign(*newFormal, 0, currBaseNode);
       newBody->InsertBefore(newBody->GetFirst(), stmt);
