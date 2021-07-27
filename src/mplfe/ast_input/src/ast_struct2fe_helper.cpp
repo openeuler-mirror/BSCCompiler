@@ -166,6 +166,9 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   }
   typeAttrs.SetAlign(astVar.GetAlign());
   mirSymbol->SetAttrs(typeAttrs);
+  if (!astVar.GetSectionAttr().empty()) {
+    mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetSectionAttr());
+  }
   ASTExpr *initExpr = astVar.GetInitExpr();
   if (initExpr == nullptr) {
     return true;
@@ -176,8 +179,8 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
 }
 
 bool ASTFileScopeAsm2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
-  AsmNode *asmNode = allocator.GetMemPool()->New<AsmNode>(&allocator);
-  asmNode->asmString = astAsm.GetAsmStr();
+  MapleString asmDecl(astAsm.GetAsmStr().c_str(), allocator.GetMemPool());
+  FEManager::GetModule().GetAsmDecls().emplace_back(asmDecl);
   return true;
 }
 

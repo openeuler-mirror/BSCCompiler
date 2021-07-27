@@ -16,6 +16,7 @@
 #include "mpl_logging.h"
 #include "ast_util.h"
 #include "fe_utils.h"
+#include "fe_manager.h"
 
 namespace maple {
 bool LibAstFile::Open(const std::string &fileName,
@@ -86,11 +87,38 @@ Pos LibAstFile::GetStmtLOC(const clang::Stmt &stmt) const {
   return GetLOC(stmt.getBeginLoc());
 }
 
+Pos LibAstFile::GetExprLOC(const clang::Expr &expr) const {
+  return GetLOC(expr.getExprLoc());
+}
+
 Pos LibAstFile::GetLOC(const clang::SourceLocation &srcLoc) const {
-  clang::FullSourceLoc fullLocation = astContext->getFullLoc(srcLoc);
-  const auto *fileEntry = fullLocation.getFileEntry();
-  return std::make_pair(static_cast<uint32>(fileEntry == nullptr ? 0 : fullLocation.getFileEntry()->getUID()),
-                        static_cast<uint32>(fullLocation.getSpellingLineNumber()));
+  if (srcLoc.isInvalid()) {
+    return std::make_pair(0, 0);
+  }
+  if (srcLoc.isFileID()) {
+    clang::PresumedLoc pLOC = astContext->getSourceManager().getPresumedLoc(srcLoc);
+    if (pLOC.isInvalid()) {
+      return std::make_pair(0, 0);
+    }
+    std::string fileName = pLOC.getFilename();
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fileName);
+    for (const auto &info : FEManager::GetModule().GetSrcFileInfo()) {
+      if (info.first == strIdx) {
+        return std::make_pair(info.second, static_cast<uint32>(pLOC.getLine()));
+      }
+    }
+    if (FEManager::GetModule().GetSrcFileInfo().empty()) {
+      // src files start from 2, 1 is mpl file
+      FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, 2));
+      return std::make_pair(2, static_cast<uint32>(pLOC.getLine()));
+    } else {
+      auto last = FEManager::GetModule().GetSrcFileInfo().rbegin();
+      FEManager::GetModule().PushbackFileInfo(MIRInfoPair(strIdx, last->second + 1));
+      return std::make_pair(last->second + 1, static_cast<uint32>(pLOC.getLine()));
+    }
+  }
+
+  return GetLOC(astContext->getSourceManager().getExpansionLoc(srcLoc));
 }
 
 uint32 LibAstFile::GetMaxAlign(const clang::Decl &decl) const {
@@ -215,6 +243,9 @@ void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   if (decl.isUsed()) {
     genAttrs.SetAttr(GENATTR_used);
   }
+  if (decl.hasAttr<clang::WeakAttr>()) {
+    genAttrs.SetAttr(GENATTR_weak);
+  }
 }
 
 void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
@@ -291,6 +322,15 @@ const std::string LibAstFile::GetOrCreateMappedUnnamedName(uint32_t id) {
   return unnamedSymbolMap[id];
 }
 
+const std::string LibAstFile::GetOrCreateCompoundLiteralExprInitName(uint32_t id) {
+  std::map<uint32_t, std::string>::iterator it = CompoundLiteralExprInitSymbolMap.find(id);
+  if (it == CompoundLiteralExprInitSymbolMap.end()) {
+    const std::string name = FEUtils::GetSequentialName("unNamedInit");
+    CompoundLiteralExprInitSymbolMap[id] = name;
+  }
+  return CompoundLiteralExprInitSymbolMap[id];
+}
+
 void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstream &ss) {
   clang::RecordDecl *recoDecl = recoType.getDecl();
   std::string str = recoType.desugar().getAsString();
@@ -319,12 +359,12 @@ void LibAstFile::EmitTypeName(const clang::RecordType &recoType, std::stringstre
       }
       nsStack.pop();
     }
-    const char *name = recoDecl->getName().data();
-    if (strcmp(name, "") == 0) {
+    auto nameStr = recoDecl->getName().str();
+    if (nameStr.empty()) {
       uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
-      name = GetOrCreateMappedUnnamedName(id).c_str();
+      nameStr = GetOrCreateMappedUnnamedName(id);
     }
-    ss << name;
+    ss << nameStr;
   } else {
     uint32_t id = recoType.getDecl()->getLocation().getRawEncoding();
     ss << GetOrCreateMappedUnnamedName(id);

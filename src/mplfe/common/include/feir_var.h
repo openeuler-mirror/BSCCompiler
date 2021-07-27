@@ -1,16 +1,16 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
- * OpenArkCompiler is licensed under the Mulan PSL v1.
- * You can use this software according to the terms and conditions of the Mulan PSL v1.
- * You may obtain a copy of Mulan PSL v1 at:
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
  *
- *     http://license.coscl.org.cn/MulanPSL
+ *     http://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
  * FIT FOR A PARTICULAR PURPOSE.
- * See the Mulan PSL v1 for more details.
+ * See the Mulan PSL v2 for more details.
  */
 #ifndef MPLFE_INCLUDE_FEIR_VAR_H
 #define MPLFE_INCLUDE_FEIR_VAR_H
@@ -44,6 +44,10 @@ class FEIRVarTrans {
     kind = argKind;
   }
 
+  FEIRVarTransKind GetTransKind() const {
+    return kind;
+  }
+
  private:
   FEIRVarTransKind kind;
   std::unique_ptr<FEIRVar> &var;
@@ -56,10 +60,9 @@ using UniqueFEIRVarTrans = std::unique_ptr<FEIRVarTrans>;
 
 enum FEIRVarKind : uint8 {
   kFEIRVarDefault = 0,
-  kFEIRVarSpecial,
   kFEIRVarReg,
+  kFEIRVarAccumulator,
   kFEIRVarName,
-  kFEIRVarNameSpec,
   kFEIRVarTypeScatter,
 };
 
@@ -107,11 +110,17 @@ class FEIRVar {
   }
 
   MIRSymbol *GenerateGlobalMIRSymbol(MIRBuilder &builder) const {
-    return GenerateGlobalMIRSymbolImpl(builder);
+    MIRSymbol *mirSym = GenerateGlobalMIRSymbolImpl(builder);
+    mirSym->GetSrcPosition().SetFileNum(srcFileIdx);
+    mirSym->GetSrcPosition().SetLineNum(srcFileLineNum);
+    return mirSym;
   }
 
   MIRSymbol *GenerateLocalMIRSymbol(MIRBuilder &builder) const {
-    return GenerateLocalMIRSymbolImpl(builder);
+    MIRSymbol *mirSym = GenerateLocalMIRSymbolImpl(builder);
+    mirSym->GetSrcPosition().SetFileNum(srcFileIdx);
+    mirSym->GetSrcPosition().SetLineNum(srcFileLineNum);
+    return mirSym;
   }
 
   MIRSymbol *GenerateMIRSymbol(MIRBuilder &builder) const {
@@ -138,6 +147,27 @@ class FEIRVar {
     return HashImpl();
   }
 
+  void SetAttrs(GenericAttrs &argGenericAttrs) {
+    genAttrs = argGenericAttrs;
+  }
+
+  void SetSectionAttr(const std::string &str) {
+    sectionAttr = str;
+  }
+
+  void SetSrcLOC(uint32 fileIdx, uint32 lineNum) {
+    srcFileIdx = fileIdx;
+    srcFileLineNum = lineNum;
+  }
+
+  uint32 GetSrcFileIdx() const {
+    return srcFileIdx;
+  }
+
+  uint32 GetSrcFileLineNum() const {
+    return srcFileLineNum;
+  }
+
  protected:
   virtual MIRSymbol *GenerateGlobalMIRSymbolImpl(MIRBuilder &builder) const;
   virtual MIRSymbol *GenerateLocalMIRSymbolImpl(MIRBuilder &builder) const;
@@ -153,8 +183,16 @@ class FEIRVar {
   bool isDef : 1;
   UniqueFEIRType type;
   UniqueFEIRVarTrans trans;
+  GenericAttrs genAttrs;
+  uint32 srcFileIdx = 0;
+  uint32 srcFileLineNum = 0;
+  std::string sectionAttr;
 };
 
 using UniqueFEIRVar = std::unique_ptr<FEIRVar>;
+// FEIRUseDefChain key is use, value is def set
+using FEIRUseDefChain = std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>>;
+// FEIRUseDefChain key is def, value is use set
+using FEIRDefUseChain = std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>>;
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_FEIR_VAR_H
