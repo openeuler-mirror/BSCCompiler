@@ -785,21 +785,3 @@ DEF_MIR_INTRINSIC(vector_store_v1f64, "vector_store_v1f64", INTRNISVECTOR,
                   kArgTyVoid, kArgTyPtr, kArgTyV1F64)
 DEF_MIR_INTRINSIC(vector_store_v2f32, "vector_store_v2f32", INTRNISVECTOR,
                   kArgTyVoid, kArgTyPtr, kArgTyV2F32)
-
-// Temporary intrinsics that should be replaced by standard ops.
-DEF_MIR_INTRINSIC(vector_and_v8u16, "vector_and_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8U16)
-DEF_MIR_INTRINSIC(vector_and_v4i32, "vector_and_v4i32", INTRNISVECTOR,
-                  kArgTyV4I32, kArgTyV4I32, kArgTyV4I32)
-DEF_MIR_INTRINSIC(vector_eq_v8u16, "vector_eq_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8U16)
-DEF_MIR_INTRINSIC(vector_shl_v8u16, "vector_shl_v8u16", INTRNISVECTOR,
-                  kArgTyV8U16, kArgTyV8U16, kArgTyV8I16)
-DEF_MIR_INTRINSIC(vector_shli_v2u64, "vector_shli_v2u64", INTRNISVECTOR,
-                  kArgTyV2U64, kArgTyV2U64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_shri_v2u64, "vector_shri_v2u64", INTRNISVECTOR,
-                  kArgTyV2U64, kArgTyV2U64, kArgTyI32)
-DEF_MIR_INTRINSIC(vector_xor_v4u32, "vector_xor_v4u32", INTRNISVECTOR,
-                  kArgTyV4U32, kArgTyV4U32, kArgTyV4U32)
-DEF_MIR_INTRINSIC(vector_xor_v2u64, "vector_xor_v2u64", INTRNISVECTOR,
-                  kArgTyV2U64, kArgTyV2U64, kArgTyV2U64)
