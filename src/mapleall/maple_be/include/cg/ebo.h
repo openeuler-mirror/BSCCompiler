@@ -18,6 +18,7 @@
 #include "cg_phase.h"
 #include "cgbb.h"
 #include "live.h"
+#include "loop.h"
 
 namespace maplebe {
 namespace {
@@ -199,6 +200,7 @@ class Ebo {
   virtual int32 GetOffsetVal(const MemOperand &mem) const = 0;
   virtual bool OperandEqSpecial(const Operand &op1, const Operand &op2) const = 0;
   virtual void BuildCallerSaveRegisters() = 0;
+  virtual void DefineAsmRegisters(InsnInfo &insnInfo) = 0;
   virtual void DefineCallerSaveRegisters(InsnInfo &insnInfo) = 0;
   virtual void DefineReturnUseRegister(Insn &insn) = 0;
   virtual void DefineCallUseSpecialRegister(Insn &insn) = 0;
@@ -240,6 +242,10 @@ class Ebo {
 CGFUNCPHASE_CANSKIP(CgDoEbo, "ebo")
 CGFUNCPHASE_CANSKIP(CgDoEbo1, "ebo1")
 CGFUNCPHASE_CANSKIP(CgDoPostEbo, "postebo")
+
+MAPLE_FUNC_PHASE_DECLARE(CgEbo0, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(CgEbo1, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(CgPostEbo, maplebe::CGFunc)
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_EBO_H */
