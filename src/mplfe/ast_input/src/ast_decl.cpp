@@ -18,6 +18,7 @@
 #include "ast_stmt.h"
 #include "feir_var_name.h"
 #include "feir_builder.h"
+#include "fe_manager.h"
 
 namespace maple {
 // ---------- ASTDecl ---------
@@ -37,7 +38,7 @@ MIRConst *ASTDecl::Translate2MIRConst() const {
   return Translate2MIRConstImpl();
 }
 
-std::string ASTDecl::GenerateUniqueVarName() {
+std::string ASTDecl::GenerateUniqueVarName() const {
   // add `_line_column` suffix for avoiding local var name conflict
   if (isGlobalDecl || isParam) {
     return name;
@@ -47,11 +48,14 @@ std::string ASTDecl::GenerateUniqueVarName() {
 }
 
 // ---------- ASTVar ----------
-std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() {
+std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
   CHECK_FATAL(typeDesc.size() == 1, "Invalid ASTVar");
   auto feirVar =
       std::make_unique<FEIRVarName>(GenerateUniqueVarName(), std::make_unique<FEIRTypeNative>(*(typeDesc[0])));
   feirVar->SetGlobal(isGlobalDecl);
+  feirVar->SetAttrs(const_cast<GenericAttrs&>(genAttrs));
+  feirVar->SetSrcLOC(srcFileIdx, srcFileLineNum);
+  feirVar->SetSectionAttr(sectionAttr);
   return feirVar;
 }
 
@@ -99,20 +103,20 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar 
 }
 
 void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
-  if (genAttrs.GetAttr(GenericAttrKind::GENATTR_static)) {
+  (void)Translate2MIRSymbol();
+  if (initExpr == nullptr) {
     return;
   }
-  ASTExpr *initASTExpr = GetInitExpr();
-  if (initASTExpr == nullptr) {
+  if (initExpr->IsConstantFolded() && genAttrs.GetAttr(GENATTR_static)) {
     return;
   }
-  UniqueFEIRVar feirVar = Translate2FEIRVar();
-  UniqueFEIRExpr initFeirExpr = initASTExpr->Emit2FEExpr(stmts);
+  UniqueFEIRExpr initFeirExpr = initExpr->Emit2FEExpr(stmts);
   if (initFeirExpr == nullptr) {
     return;
   }
-  if (initASTExpr->GetASTOp() == kASTStringLiteral) { // init for StringLiteral
-    return GenerateInitStmt4StringLiteral(initASTExpr, feirVar->Clone(), initFeirExpr->Clone(), stmts);
+  UniqueFEIRVar feirVar = Translate2FEIRVar();
+  if (initExpr->GetASTOp() == kASTStringLiteral) { // init for StringLiteral
+    return GenerateInitStmt4StringLiteral(initExpr, feirVar->Clone(), initFeirExpr->Clone(), stmts);
   }
 
   PrimType srcPrimType = initFeirExpr->GetPrimType();
@@ -123,14 +127,35 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   } else {
     stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(initFeirExpr));
   }
+  stmt->SetSrcFileInfo(initExpr->GetSrcFileIdx(), initExpr->GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
 }
 
-// ---------- ASTLocalEnumDecl ----------
-void ASTLocalEnumDecl::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
-  for (auto var : vars) {
-    var->GenerateInitStmt(stmts);
+MIRSymbol *ASTVar::Translate2MIRSymbol() const {
+  UniqueFEIRVar feirVar = Translate2FEIRVar();
+  MIRSymbol *mirSymbol = feirVar->GenerateMIRSymbol(FEManager::GetMIRBuilder());
+  if (initExpr != nullptr && initExpr->IsConstantFolded() && genAttrs.GetAttr(GENATTR_static)) {
+    MIRConst *cst = initExpr->GenerateMIRConst();
+    mirSymbol->SetKonst(cst);
   }
+  if (!sectionAttr.empty()) {
+    mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(sectionAttr);
+  }
+  return mirSymbol;
+}
+
+// ---------- ASTEnumConstant ----------
+void ASTEnumConstant::SetValue(int32 val) {
+  value = val;
+}
+
+int32 ASTEnumConstant::GetValue() const {
+  return value;
+}
+
+MIRConst *ASTEnumConstant::Translate2MIRConstImpl() const {
+  return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+      value, *GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
 }
 
 // ---------- ASTFunc ---------

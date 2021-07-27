@@ -2280,7 +2280,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   }
   astVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, varName, std::vector<MIRType*>{varType}, attrs, varDecl.getID());
-
+  clang::SectionAttr *sa = varDecl.getAttr<clang::SectionAttr>();
+  if (sa != nullptr && !sa->isImplicit()) {
+    astVar->SetSectionAttr(sa->getName().str());
+  }
   if (varDecl.hasInit()) {
     astVar->SetDeclPos(astFile->GetDeclPosInfo(varDecl));
     auto initExpr = varDecl.getInit();

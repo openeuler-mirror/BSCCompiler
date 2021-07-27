@@ -217,6 +217,14 @@ class ASTVar : public ASTDecl {
     return initExpr;
   }
 
+  void SetSectionAttr(const std::string &str) {
+    sectionAttr = str;
+  }
+
+  const std::string &GetSectionAttr() const {
+    return sectionAttr;
+  }
+
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
 
@@ -226,6 +234,7 @@ class ASTVar : public ASTDecl {
   void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar feirVar, UniqueFEIRExpr initFeirExpr,
                                       std::list<UniqueFEIRStmt> &stmts);
   ASTExpr *initExpr = nullptr;
+  std::string sectionAttr;
 };
 
 class ASTFileScopeAsm : public ASTDecl {
