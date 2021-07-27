@@ -24,9 +24,6 @@ namespace maplebe {
 using namespace maple;
 AnalysisResult *CgDoRaOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   MemPool *memPool = NewMemPool();
   RaOpt *raOpt = nullptr;
   ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoRaOpt");
@@ -41,4 +38,20 @@ AnalysisResult *CgDoRaOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr)
   }
   return nullptr;
 }
+
+bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *memPool = GetPhaseMemPool();
+  RaOpt *raOpt = nullptr;
+#if TARGAARCH64
+  raOpt = memPool->New<AArch64RaOpt>(f);
+#elif || TARGRISCV64
+  raOpt = memPool->New<Riscv64RaOpt>(f);
+#endif
+
+  if (raOpt) {
+    raOpt->Run();
+  }
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRaOpt, raopt)
 }  /* namespace maplebe */

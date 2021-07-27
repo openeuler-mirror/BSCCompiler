@@ -199,6 +199,19 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
         }
       } else if (opnd.IsList()) {
         auto &listOpnd = static_cast<ListOperand&>(opnd);
+        if (insn->GetMachineOpcode() == MOP_asm) {
+          if (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd) {
+            for (auto op : listOpnd.GetOperands()) {
+              if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+                return kResDefFirst;
+              }
+            }
+            continue;
+          } else if (i != kAsmInputListOpnd) {
+            continue;
+          }
+          /* fall thru for kAsmInputListOpnd */
+        }
         for (auto op : listOpnd.GetOperands()) {
           if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
             return kResUseFirst;
@@ -349,9 +362,6 @@ void PeepHoleOptimizer::PrePeepholeOpt1() {
 AnalysisResult *CgDoPrePeepHole::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
   ASSERT(cgFunc != nullptr, "nullptr check");
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "prePeepholeOpt");
   auto *peep = memPool->New<PeepHoleOptimizer>(cgFunc);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
@@ -361,9 +371,6 @@ AnalysisResult *CgDoPrePeepHole::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResu
 
 AnalysisResult *CgDoPrePeepHole1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   ASSERT(cgFunc != nullptr, "nullptr check");
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "prePeepholeOpt1");
   auto *peep = memPool->New<PeepHoleOptimizer>(cgFunc);
@@ -374,9 +381,6 @@ AnalysisResult *CgDoPrePeepHole1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncRes
 
 AnalysisResult *CgDoPeepHole0::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   ASSERT(cgFunc != nullptr, "nullptr check");
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "peephole0");
   auto *peep = memPool->New<PeepHoleOptimizer>(cgFunc);
@@ -388,13 +392,43 @@ AnalysisResult *CgDoPeepHole0::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResult
 AnalysisResult *CgDoPeepHole::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
   (void)cgFuncResultMgr;
   ASSERT(cgFunc != nullptr, "nullptr check");
-  if (cgFunc->HasAsm()) {
-    return nullptr;
-  }
   auto memPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PeepHoleOptimizer");
   auto *peep = memPool->New<PeepHoleOptimizer>(cgFunc);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
   peep->PeepholeOpt();
   return nullptr;
 }
+
+/* === new pm === */
+bool CgPrePeepHole0::PhaseRun(maplebe::CGFunc &f) {
+  auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
+  CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
+  peep->PrePeepholeOpt();
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPrePeepHole0, prepeephole)
+
+bool CgPrePeepHole1::PhaseRun(maplebe::CGFunc &f) {
+  auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
+  CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
+  peep->PrePeepholeOpt1();
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPrePeepHole1, prepeephole1)
+
+bool CgPeepHole0::PhaseRun(maplebe::CGFunc &f) {
+  auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
+  CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
+  peep->Peephole0();
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPeepHole0, peephole0)
+
+bool CgPeepHole1::PhaseRun(maplebe::CGFunc &f) {
+  auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
+  CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
+  peep->PeepholeOpt();
+  return false;
+}
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPeepHole1, peephole)
 }  /* namespace maplebe */

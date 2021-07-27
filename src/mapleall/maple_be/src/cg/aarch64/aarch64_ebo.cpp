@@ -200,9 +200,32 @@ void AArch64Ebo::BuildCallerSaveRegisters() {
       "number of elements in callerSaveRegTable must less then 45!");
 }
 
+void AArch64Ebo::DefineAsmRegisters(InsnInfo &insnInfo) {
+  Insn *insn = insnInfo.insn;
+  ASSERT(insn->GetMachineOpcode() == MOP_asm, "insn should be a call insn.");
+  ListOperand &outList = const_cast<ListOperand&>(static_cast<const ListOperand&>(insn->GetOperand(kAsmOutputListOpnd)));
+  for (auto opnd : outList.GetOperands()) {
+    OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
+    opndInfo->insnInfo = &insnInfo;
+  }
+  ListOperand &clobberList = const_cast<ListOperand&>(static_cast<const ListOperand&>(insn->GetOperand(kAsmClobberListOpnd)));
+  for (auto opnd : clobberList.GetOperands()) {
+    OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
+    opndInfo->insnInfo = &insnInfo;
+  }
+  ListOperand &inList = const_cast<ListOperand&>(static_cast<const ListOperand&>(insn->GetOperand(kAsmInputListOpnd)));
+  for (auto opnd : inList.GetOperands()) {
+    OperandInfoUse(*(insn->GetBB()), *opnd);
+  }
+}
+
 void AArch64Ebo::DefineCallerSaveRegisters(InsnInfo &insnInfo) {
   Insn *insn = insnInfo.insn;
   ASSERT(insn->IsCall(), "insn should be a call insn.");
+  if (insn->GetMachineOpcode() == MOP_asm) {
+    DefineAsmRegisters(insnInfo);
+    return;
+  }
   for (auto opnd : callerSaveRegTable) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
     opndInfo->insnInfo = &insnInfo;
@@ -231,6 +254,9 @@ void AArch64Ebo::DefineReturnUseRegister(Insn &insn) {
 }
 
 void AArch64Ebo::DefineCallUseSpecialRegister(Insn &insn) {
+  if (insn.GetMachineOpcode() == MOP_asm) {
+    return;
+  }
   /* Define FP, LR. */
   for (uint32 i = R29; i <= R30; i++) {
     RegOperand &phyOpnd =
@@ -878,7 +904,8 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       * ===> ubfx d0, d1, #6, #1
       */
       int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
-      if (immValue != 0 && (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
+      if (!beforeRegAlloc && immValue != 0 &&
+          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
         /* immValue is (1 << n - 1) */
         OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
         return CombineLsrAnd(insn, *opndInfo, false, false);
@@ -899,7 +926,8 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       * ===> ubfx d0, d1, #6, #1
       */
       int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
-      if (immValue != 0 && (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
+      if (!beforeRegAlloc && immValue != 0 &&
+          (static_cast<uint64>(immValue) & (static_cast<uint64>(immValue) + 1)) == 0) {
         /* immValue is (1 << n - 1) */
         OpndInfo *opndInfo = origInfos.at(kInsnSecondOpnd);
         return CombineLsrAnd(insn, *opndInfo, true, false);
