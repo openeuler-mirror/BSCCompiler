@@ -203,12 +203,14 @@ void AArch64Ebo::BuildCallerSaveRegisters() {
 void AArch64Ebo::DefineAsmRegisters(InsnInfo &insnInfo) {
   Insn *insn = insnInfo.insn;
   ASSERT(insn->GetMachineOpcode() == MOP_asm, "insn should be a call insn.");
-  ListOperand &outList = const_cast<ListOperand&>(static_cast<const ListOperand&>(insn->GetOperand(kAsmOutputListOpnd)));
+  ListOperand &outList = const_cast<ListOperand&>(
+      static_cast<const ListOperand&>(insn->GetOperand(kAsmOutputListOpnd)));
   for (auto opnd : outList.GetOperands()) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
     opndInfo->insnInfo = &insnInfo;
   }
-  ListOperand &clobberList = const_cast<ListOperand&>(static_cast<const ListOperand&>(insn->GetOperand(kAsmClobberListOpnd)));
+  ListOperand &clobberList = const_cast<ListOperand&>(
+      static_cast<const ListOperand&>(insn->GetOperand(kAsmClobberListOpnd)));
   for (auto opnd : clobberList.GetOperands()) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
     opndInfo->insnInfo = &insnInfo;
