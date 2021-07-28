@@ -4109,8 +4109,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
   } else {
     /* vector operands */
     if (opnd1.IsConstImmediate()) {
-      MIRConst *mirConst = static_cast<ConstvalNode*>(node.Opnd(1))->GetConstVal();
-      int32 sConst = safe_cast<MIRIntConst>(mirConst)->GetValue();
+      int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
       resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, sConst, opcode);
     } else {
       resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
