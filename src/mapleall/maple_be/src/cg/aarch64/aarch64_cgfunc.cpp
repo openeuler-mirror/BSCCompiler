@@ -7746,7 +7746,7 @@ MemOperand *AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange(
   if (vrNum >= vRegTable.size()) {
     CHECK_FATAL(false, "index out of range in AArch64CGFunc::AdjustMemOperandIfOffsetOutOfRange");
   }
-  uint32 dataSize = vRegTable[vrNum].GetSize() * kBitsPerByte;
+  uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
   auto *a64MemOpnd = static_cast<AArch64MemOperand*>(memOpnd);
   if (IsImmediateOffsetOutOfRange(*a64MemOpnd, dataSize)) {
     if (CheckIfSplitOffsetWithAdd(*a64MemOpnd, dataSize)) {
@@ -7804,7 +7804,7 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     if (vrNum >= vRegTable.size()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
-    uint32 dataSize = vRegTable[vrNum].GetSize() * kBitsPerByte;
+    uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
     auto it = reuseSpillLocMem.find(dataSize);
     if (it != reuseSpillLocMem.end()) {
       MemOperand *memOpnd = it->second->GetOne();

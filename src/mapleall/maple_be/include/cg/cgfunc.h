@@ -409,7 +409,7 @@ class CGFunc {
 
   uint32 GetVRegSize(regno_t vregNum) {
     CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
-    return vRegTable[vregNum].GetSize();
+    return GetOrCreateVirtualRegisterOperand(vregNum).GetSize() / kBitsPerByte;
   }
 
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);

@@ -268,6 +268,7 @@ class Emitter {
 #if 1 /* REQUIRE TO SEPERATE TARGAARCH64 TARGARM32 */
 /* Following code is under TARGAARCH64 condition */
   void EmitHugeSoRoutines(bool lastRoutine = false);
+  void EmitInlineAsmSection();
 
   uint64 GetJavaInsnCount() const {
     return javaInsnCount;
