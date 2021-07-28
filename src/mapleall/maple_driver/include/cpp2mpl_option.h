@@ -52,7 +52,7 @@ namespace maple {
 
             { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
               "",
-              "jbc2mpl",
+              "cpp2mpl",
               {} }
     };
 } // namespace maple
