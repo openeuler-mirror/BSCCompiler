@@ -28,7 +28,7 @@ enum DriverOptionIndex {
   kOptimization2,
   kWithIpa,
   kJbc2mplOpt,
-  kCpp2mplOpt,
+  kCpp2mplOpt, // Code_exp: will be used in mpl_options.cpp function HandleGeneralOptions
   kDex2mplOpt,
   kMplipaOpt,
   kVerify,

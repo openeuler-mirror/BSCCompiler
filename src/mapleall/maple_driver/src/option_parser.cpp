@@ -91,7 +91,7 @@ void OptionParser::RegisteUsages(const MapleDriverOptionBase &base) {
       InsertOption(usage.longOption, usage);
     }
     // Insert usage for extra options
-    // Code_exp: Inserting options with extras like jbc2mpl and dex2mpl
+    // Code_exp: inserting options with extras like jbc2mpl and dex2mpl
     InsertExtraUsage(usage);
     // Add --no-opt for boolean option
     if (usage.checkPolicy == kArgCheckPolicyBool) {
@@ -188,6 +188,7 @@ bool OptionParser::HandleKeyValue(const std::string &key, const std::string &val
     case kArgCheckPolicyOptional:
       break;
     case kArgCheckPolicyRequired:
+      // Code_exp:
       if (value.empty() && !isValueEmpty) {
         LogInfo::MapleLogger(kLlErr) << ("Option " + key + " requires an argument.") << '\n';
         return false;
@@ -276,7 +277,7 @@ bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
   if (pos != std::string::npos) {
     ASSERT(pos > 0, "option should not begin with symbol '='");
     isLastMatch = false;
-    // Code_exp: here we get option name, its string after = and whether it's empty or not
+    // Code_exp: here we get option name, its arg after = and whether it's empty or not
     std::string key = option.substr(0, pos);
     std::string value = option.substr(pos + 1);
     isValueEmpty = value.empty();
@@ -284,7 +285,7 @@ bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
   } else {
     auto item = usages.find(option);
     if (item != usages.end()) {
-      // Code_exp: if there is no = in string, but key is found in map check arg policy and act accordingly
+      // Code_exp if there is no = in string, but key is found in map check arg policy and act accordingly
       if (item->second.checkPolicy == kArgCheckPolicyRequired || item->second.checkPolicy == kArgCheckPolicyNumeric) {
         lastKey = option;
         isLastMatch = true;
@@ -308,7 +309,7 @@ ErrorCode OptionParser::HandleInputArgs(const std::vector<std::string> &inputArg
   std::string lastKey = "";
   bool ret = true;
   for (size_t i = 0; i < inputArgs.size(); ++i) {
-   // Code_exp: if arg is empty - skip it
+    // Code_exp: if arg is empty - skip it
     if (inputArgs[i] == "") {
       continue;
     }
@@ -328,9 +329,13 @@ ErrorCode OptionParser::HandleInputArgs(const std::vector<std::string> &inputArg
     } else if (index == kMatchLongOpt) {
       isMatchLongOpt = true;
     }
+    //Code_exp: here we remove option marker(- or --)
     std::string arg = inputArgs[i].substr(index);
     bool isOptMatched = (isMatchLongOpt || isMatchShortOpt);
+    // Code_exp: if option marker is matched and previous match is not option
     if (!isLastMatchOpt && isOptMatched) {
+      // Code_exp: arg - one option from argv, inputOption - vec of options where we will put them
+      // Code_exp: exeName = "all"
       ret = CheckOpt(arg, lastKey, isLastMatchOpt, inputOption, exeName);
     } else if (isLastMatchOpt && !isOptMatched) {
       isLastMatchOpt = false;
@@ -359,7 +364,7 @@ ErrorCode OptionParser::Parse(int argc, char **argv, const std::string exeName) 
     --argc;
     ++argv;  // skip program name argv[0] if present
   }
-  // Code_exp: if there are no args print how to use and return error
+  // Code_exp: if there are no more args print how to use and return initialization  error
   if (argc == 0 || *argv == nullptr) {
     PrintUsage(exeName);
     LogInfo::MapleLogger(kLlErr) << "No input files!" << '\n';

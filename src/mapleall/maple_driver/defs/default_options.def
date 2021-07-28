@@ -108,9 +108,9 @@ static MplOption kMeDefaultOptionsO2ForC[] = {
 static MplOption kMplcgDefaultOptionsO2ForC[] = {
 #include "default/O2_options_mplcg_c.def"
 };
-// O0 cpp2mpl options
-static MplOption kCpp2mplDefaultOptionsO0[] = {
-#include "default/00_options_cpp2mpl.def"
+// Code_exp: standard options for cpp2mpl
+static MplOption kCpp2MplDefaultOptionsForAst[] = {
+#include "default/O0_options_cpp2mpl.def"
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_DEFAULT_OPTIONS_H
