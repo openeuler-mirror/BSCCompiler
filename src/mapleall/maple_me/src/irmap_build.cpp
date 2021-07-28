@@ -343,6 +343,9 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
         bool isSigned = IsSignedInteger(addrOfNode.GetPrimType());
         retmeexpr = irMap->CreateMeExprTypeCvt(addrOfNode.GetPrimType(), isSigned ? PTY_i32 : PTY_u32, *retmeexpr);
       }
+      // Try to simplify new added cast expr
+      MeExpr *simplified = irMap->SimplifyMeExpr(retmeexpr);
+      retmeexpr = (simplified != nullptr ? simplified : retmeexpr);
     }
     return retmeexpr;
   }
