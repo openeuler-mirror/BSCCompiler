@@ -18,6 +18,7 @@
 
 namespace maplebe {
 #define LOOP_ANALYSIS_DUMP CG_DEBUG_FUNC(cgFunc)
+#define LOOP_ANALYSIS_DUMP_NEWPM CG_DEBUG_FUNC_NEWPM(f, PhaseName())
 
 static void PrintLoopInfo(const LoopHierarchy &loop) {
   LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
@@ -157,94 +158,37 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   }
 }
 
-bool LoopFinder::DetectLoopSub(BB *header, BB *back) {
-  if (recurseVisited[header->GetId()]) {
-    return false;
-  }
-  recurseVisited[header->GetId()] = true;
-  for (auto succ : header->GetSuccs()) {
-    if (succ == back) {
-      return true;
-    }
-  }
-  // not reachable yet, continue searching
-  for (auto succ : header->GetSuccs()) {
-    if (DetectLoopSub(succ, back)) {
-      return true;
-    }
-  }
-  for (auto ehSucc : header->GetEhSuccs()) {
-    if (ehSucc == back) {
-      return true;
-    }
-  }
-  for (auto ehSucc : header->GetEhSuccs()) {
-    if (DetectLoopSub(ehSucc, back)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void LoopFinder::Insert(BB *bb, BB *header, std::set<BB *> &extraHeader) {
-  if (find(candidate.begin(), candidate.end(), bb) == candidate.end()) {
-    recurseVisited.clear();
-    recurseVisited.resize(cgFunc->NumBBs());
-    if (DetectLoopSub(header, bb)) {
-      candidate.push_back(bb);
-      stack.push(bb);
-    } else {
-      // since loop member predecessor is not reachable from loop header,
-      // it is another entry to the loop.
-      // If a backedge is to some bb not the header, then it should be
-      // considered a different loop.
-      for (auto succ : bb->GetSuccs()) {
-        if (find(candidate.begin(), candidate.end(), succ) != candidate.end()) {
-          extraHeader.insert(succ);
-          break;
-        }
-      }
-      for (auto ehsucc : bb->GetEhSuccs()) {
-        if (find(candidate.begin(), candidate.end(), ehsucc) != candidate.end()) {
-          extraHeader.insert(ehsucc);
-          break;
-        }
-      }
-    }
-  }
-}
-
-void LoopFinder::DetectLoop(BB *header, BB *back) {
-  std::set<BB *> moreHeaders;
-  candidate.push_back(header);
-  candidate.push_back(back);
-  stack.push(back);
-  while (stack.empty() == false) {
-    BB *bb = stack.top();
-    stack.pop();
-    if (bb == header) {
-      if (find(candidate.begin(), candidate.end(), bb) == candidate.end()) {
-        candidate.push_back(bb);
-      }
-    } else {
-      for (auto ibb : bb->GetPreds()) {
-        Insert(ibb, header, moreHeaders);
-      }
-    }
-    if (bb != header) {
-      for (auto ibb : bb->GetEhPreds()) {
-        Insert(ibb, header, moreHeaders);
-      }
-    }
-  }
+void LoopFinder::formLoop(BB* headBB, BB* backBB) {
+  ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
   LoopHierarchy *simple_loop = memPool->New<LoopHierarchy>(*memPool);
-  for (auto ibb : candidate) {
-    simple_loop->InsertLoopMembers(*ibb);
+
+  if ( headBB != backBB) {
+    ASSERT(!dfsBBs.empty(), "dfsBBs is empty");
+    ASSERT(onPathBBs[headBB->GetId()], "headBB is not on execution path");
+    std::stack<BB*> tempStk;
+
+    tempStk.push(dfsBBs.top());
+    dfsBBs.pop();
+
+    while (tempStk.top() != headBB && !dfsBBs.empty()) {
+      tempStk.push(dfsBBs.top());
+      dfsBBs.pop();
+    }
+
+    while (!tempStk.empty()) {
+      BB *topBB = tempStk.top();
+      tempStk.pop();
+
+      if (onPathBBs[topBB->GetId()]) {
+        simple_loop->InsertLoopMembers(*topBB);
+      }
+      dfsBBs.push(topBB);
+    }
   }
-  candidate.clear();
-  simple_loop->SetHeader(*header);
-  simple_loop->InsertBackedge(*back);
-  simple_loop->otherLoopEntries.insert(moreHeaders.begin(), moreHeaders.end());
+  // Note: backBB is NOT on dfsBBs
+  simple_loop->InsertLoopMembers(*backBB);
+  simple_loop->SetHeader(*headBB);
+  simple_loop->InsertBackedge(*backBB);
 
   if (loops) {
     loops->SetPrev(simple_loop);
@@ -253,78 +197,76 @@ void LoopFinder::DetectLoop(BB *header, BB *back) {
   loops = simple_loop;
 }
 
-void LoopFinder::FindBackedge() {
-  while (!dfsBBs.empty()) {
-    bool childPushed = false;
-    BB *bb = dfsBBs.top();
-    dfsBBs.pop();
-    CHECK_FATAL(bb != nullptr, "bb is null in LoopFinder::FindBackedge");
-    visitedBBs[bb->GetId()] = true;
-    if (bb->GetLevel() == 0) {
-      bb->SetLevel(1);
-    }
-    std::stack<BB*> succs;
-    /* Mimic more of the recursive DFS by reversing the order of the succs. */
-    for (auto *succBB : bb->GetSuccs()) {
-      succs.push(succBB);
-    }
-    PushBackedge(*bb, succs, childPushed);
-    for (auto *ehSuccBB : bb->GetEhSuccs()) {
-      succs.push(ehSuccBB);
-    }
-    PushBackedge(*bb, succs, childPushed);
-    /* Remove duplicate bb that are visited from top of stack */
-    if (!dfsBBs.empty()) {
-      BB *nextBB = dfsBBs.top();
-      while (nextBB != nullptr) {
-        if (visitedBBs[nextBB->GetId()]) {
-          dfsBBs.pop();
-        } else {
-          break;
-        }
-        if (!dfsBBs.empty()) {
-          nextBB = dfsBBs.top();
-        } else {
-          break;
-        }
-      }
-    }
-    if (!childPushed && !dfsBBs.empty()) {
-      /* reached the bottom of visited chain, reset level to the next visit bb */
-      bb->SetLevel(0);
-      BB *nextBB = dfsBBs.top();
-      if (sortedBBs[nextBB->GetId()]) {
-        nextBB = sortedBBs[nextBB->GetId()];
-        /* All bb up to the top of stack bb's parent's child (its sibling) */
-        while (1) {
-          /* get parent bb */
-          BB *parentBB = sortedBBs[bb->GetId()];
-          if ((parentBB == nullptr) || (parentBB == nextBB)) {
-            break;
-          }
-          parentBB->SetLevel(0);
-          bb = parentBB;
-        }
+void LoopFinder::seekBackEdge(BB* bb, MapleList<BB*> succs) {
+  for (const auto succBB : succs) {
+    if (!visitedBBs[succBB->GetId()]) {
+      dfsBBs.push(succBB);
+    } else {
+      if (onPathBBs[succBB->GetId()]) {
+        formLoop(succBB, bb);
+        bb->PushBackLoopSuccs(*succBB);
+        succBB->PushBackLoopPreds(*bb);
       }
     }
   }
 }
 
-void LoopFinder::PushBackedge(BB &bb, std::stack<BB*> &succs, bool &childPushed) {
-  while (!succs.empty()) {
-    BB *succBB = succs.top();
-    ASSERT(succBB != nullptr, "unexpected null bb in LoopFinder::PushBackedge");
-    succs.pop();
-    if (!visitedBBs[succBB->GetId()]) {
-      childPushed = true;
-      succBB->SetLevel(bb.GetLevel() + 1);
-      sortedBBs[succBB->GetId()] = &bb;  /* tracking parent of traversed child */
-      dfsBBs.push(succBB);
-    } else if ((succBB->GetLevel() != 0) && (bb.GetLevel() >= succBB->GetLevel())) {
-      /* Backedge bb -> succBB */
-      DetectLoop(succBB, &bb);
-      bb.PushBackLoopSuccs(*succBB);
-      succBB->PushBackLoopPreds(bb);
+void LoopFinder::seekCycles() {
+  while (!dfsBBs.empty()) {
+    BB *bb = dfsBBs.top();
+    if (visitedBBs[bb->GetId()]) {
+      onPathBBs[bb->GetId()] = false;
+      dfsBBs.pop();
+      continue;
+    }
+
+    visitedBBs[bb->GetId()] = true;
+    onPathBBs[bb->GetId()] = true;
+    seekBackEdge(bb, bb->GetSuccs());
+    seekBackEdge(bb, bb->GetEhSuccs());
+  }
+}
+
+void LoopFinder::markExtraEntries() {
+  ASSERT(dfsBBs.empty(), "dfsBBs is NOT empty");
+  std::vector<bool> inLoop;
+  inLoop.resize(cgFunc->NumBBs());
+
+  for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
+    fill(visitedBBs.begin(), visitedBBs.end(), false);
+    fill(inLoop.begin(), inLoop.end(), false);
+    fill(visitedBBs.begin(), visitedBBs.end(), false);
+    for (auto *bb : loop->GetLoopMembers()) {
+      inLoop[bb->GetId()] = true;
+    }
+
+    FOR_ALL_BB(bb, cgFunc) {
+      if (!visitedBBs[bb->GetId()]) {
+        dfsBBs.push(bb);
+        while (!dfsBBs.empty()) {
+          BB *bb = dfsBBs.top();
+          if (visitedBBs[bb->GetId()]) {
+            onPathBBs[bb->GetId()] = false;
+            dfsBBs.pop();
+            continue;
+          } else {
+            visitedBBs[bb->GetId()] = true;
+            onPathBBs[bb->GetId()] = true;
+            for (const auto succBB : bb->GetSuccs()) {
+              // check if entering a loop. Entry to a loop is considered as its path does not go through the loop's head
+              if (inLoop[succBB->GetId()] &&
+                  succBB->GetId() != loop->GetHeader()->GetId() &&
+                  !onPathBBs[loop->GetHeader()->GetId()] &&
+                  loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
+                loop->otherLoopEntries.insert(succBB);
+              }
+              if (!visitedBBs[succBB->GetId()]) {
+                dfsBBs.push(succBB);
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -513,6 +455,9 @@ void LoopFinder::FormLoopHierarchy() {
   visitedBBs.resize(cgFunc->NumBBs(), false);
   sortedBBs.clear();
   sortedBBs.resize(cgFunc->NumBBs(), nullptr);
+  onPathBBs.clear();
+  onPathBBs.resize(cgFunc->NumBBs(), false);
+
   FOR_ALL_BB(bb, cgFunc) {
     bb->SetLevel(0);
   }
@@ -522,11 +467,13 @@ void LoopFinder::FormLoopHierarchy() {
     FOR_ALL_BB(bb, cgFunc) {
       if (!visitedBBs[bb->GetId()]) {
         dfsBBs.push(bb);
-        FindBackedge();
+        seekCycles();
         changed = true;
       }
     }
   } while (changed);
+
+  markExtraEntries();
   /*
    * FIX : Should merge the partial loops at the time of initial
    * construction.  And make the linked list as a sorted set,
@@ -561,4 +508,25 @@ AnalysisResult *CgDoLoopAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncRes
 
   return loopFinder;
 }
+
+bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
+//yefeng
+  //if (LOOP_ANALYSIS_DUMP_NEWPM) {
+  if (true) {
+    DotGenerator::GenerateDot("buildloop", f, f.GetMirModule());
+  }
+  f.ClearLoopInfo();
+  MemPool *loopMemPool = GetPhaseMemPool();
+  LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(f, *loopMemPool);
+  loopFinder->FormLoopHierarchy();
+
+#if DEBUG
+  for (const auto *lp : f.GetLoops()) {
+    lp->CheckLoops();
+  }
+#endif
+
+  return false;
+}
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
 }  /* namespace maplebe */
