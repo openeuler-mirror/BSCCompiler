@@ -19,21 +19,21 @@ config("mapleallcompilecfg") {
     "-fno-common",
   ]
 
-  if(TARGET == "aarch64"){
+  if (TARGET == "aarch64") {
     cflags_cc += [
       "-DTARGAARCH64",
       "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
     ]
   }
 
-  if(TARGET == "riscv64"){
+  if (TARGET == "riscv64") {
     cflags_cc += [
       "-DTARGRISCV64",
       "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
     ]
   }
 
-  if(TARGET == "ark"){
+  if (TARGET == "ark") {
     cflags_cc += [
       "-DTARGARK",
       "-DMAPLE_ROOT=\"${MAPLE_ROOT}\"",
@@ -61,19 +61,13 @@ config("mapleallcompilecfg") {
 }
 
 group("maple") {
-  deps = [
-    "${MAPLEALL_ROOT}/maple_driver:maple",
-  ]
+  deps = [ "${MAPLEALL_ROOT}/maple_driver:maple" ]
 }
 
 group("irbuild") {
-  deps = [
-    "${MAPLEALL_ROOT}/maple_ir:irbuild",
-  ]
+  deps = [ "${MAPLEALL_ROOT}/maple_ir:irbuild" ]
 }
 
 group("maplegen") {
-  deps = [
-    "${MAPLEALL_ROOT}/maple_be:maplegen",
-  ]
+  deps = [ "${MAPLEALL_ROOT}/maple_be:maplegen" ]
 }
