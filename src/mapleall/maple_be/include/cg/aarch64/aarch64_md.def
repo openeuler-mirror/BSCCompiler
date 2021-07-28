@@ -723,8 +723,10 @@ DEFINE_MOP(MOP_dmb_ish,   {}, HASACQUIRE|HASRELEASE|ISDMB,kLtBranch, "dmb\tish",
 /* Neon simd, r:nonvector reg, u:64b vector reg, v:128b vector reg */
 DEFINE_MOP(MOP_vmovui,  {mopdReg64VD,mopdImm8},ISMOVE|ISVECTOR,kLtFpalu,"movi","0,1",1)
 DEFINE_MOP(MOP_vmovvi,  {mopdReg128VD,mopdImm8},ISMOVE|ISVECTOR,kLtFpalu,"movi","0,1",1)
-DEFINE_MOP(MOP_vdupur,  {mopdReg64VD,mopdReg32IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
-DEFINE_MOP(MOP_vdupvr,  {mopdReg128VD,mopdReg32IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
+DEFINE_MOP(MOP_vwdupur, {mopdReg64VD,mopdReg32IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
+DEFINE_MOP(MOP_vwdupvr, {mopdReg128VD,mopdReg32IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
+DEFINE_MOP(MOP_vxdupur, {mopdReg64VD,mopdReg64IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
+DEFINE_MOP(MOP_vxdupvr, {mopdReg128VD,mopdReg64IS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
 DEFINE_MOP(MOP_vduprv,  {mopdReg64FD,mopdReg128VS},ISMOVE|ISVECTOR,kLtFpalu,"dup","0,1",1)
 DEFINE_MOP(MOP_vextuuui,{mopdReg64VD,mopdReg64VS,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"ext","0,1,2,3",1)
 DEFINE_MOP(MOP_vextvvvi,{mopdReg128VD,mopdReg128VS,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"ext","0,1,2,3",1)
