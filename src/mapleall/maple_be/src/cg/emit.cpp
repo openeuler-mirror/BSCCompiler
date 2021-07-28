@@ -2100,6 +2100,14 @@ void Emitter::EmitGlobalVariable() {
   std::vector<MIRSymbol*> typeNameStVec;
   std::map<GStrIdx, MIRType*> strIdx2Type;
 
+  if (cg->GetMIRModule()->GetAsmDecls().size() != 0) {
+    for (MapleString mapleStr : cg->GetMIRModule()->GetAsmDecls()) {
+      Emit("\t");
+      Emit(mapleStr.c_str());
+      Emit("\n");
+    }
+  }
+
   /* Create name2type map which will be used by reflection. */
   for (MIRType *type : GlobalTables::GetTypeTable().GetTypeTable()) {
     if (type == nullptr || (type->GetKind() != kTypeClass && type->GetKind() != kTypeInterface)) {
@@ -2543,6 +2551,7 @@ void Emitter::EmitGlobalVariable() {
   }
 #endif
 }
+
 void Emitter::EmitAddressString(const std::string &address) {
 #if TARGAARCH64 || TARGRISCV64
   Emit("\t.quad\t" + address);
