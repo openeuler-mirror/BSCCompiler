@@ -510,9 +510,7 @@ AnalysisResult *CgDoLoopAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncRes
 }
 
 bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
-//yefeng
-  //if (LOOP_ANALYSIS_DUMP_NEWPM) {
-  if (true) {
+  if (LOOP_ANALYSIS_DUMP_NEWPM) {
     DotGenerator::GenerateDot("buildloop", f, f.GetMirModule());
   }
   f.ClearLoopInfo();
