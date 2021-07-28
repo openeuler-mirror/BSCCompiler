@@ -23,15 +23,31 @@
 #include "option.h"
 #include "mir_module.h"
 #include "mir_parser.h"
+#include "driver_runner.h"
 #include "bin_mplt.h"
+#ifdef INTERGRATE_DRIVER
+#include "dex2mpl_options.h"
+#endif
 
 namespace maple {
 const std::string kBinNameNone = "";
 const std::string kBinNameJbc2mpl = "jbc2mpl";
+const std::string kBinNameCpp2mpl = "mplfe";
+const std::string kBinNameDex2mpl = "dex2mpl";
+const std::string kBinNameMplipa = "mplipa";
 const std::string kBinNameMe = "me";
 const std::string kBinNameMpl2mpl = "mpl2mpl";
 const std::string kBinNameMplcg = "mplcg";
 const std::string kBinNameMapleComb = "maplecomb";
+const std::string kBinNameAs = "as";
+const std::string kBinNameLd = "ld";
+const std::string kMachine = "aarch64-";
+const std::string kVendor = "unknown-";
+const std::string kOperatingSystem = "linux-gnu-";
+const std::string kGccFlag = "gcc";
+const std::string kGppFlag = "g++";
+const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
+const std::string kBinNameGpp = kMachine + kOperatingSystem + kGppFlag;
 
 class Compiler {
  public:
@@ -39,7 +55,7 @@ class Compiler {
 
   virtual ~Compiler() = default;
 
-  virtual ErrorCode Compile(const MplOptions &options, std::unique_ptr<MIRModule> &theModule);
+  virtual ErrorCode Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule);
 
   virtual void GetTmpFilesToDelete(const MplOptions&, std::vector<std::string>&) const {}
 
@@ -98,22 +114,56 @@ class Jbc2MplCompiler : public Compiler {
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
 };
 
+class Dex2MplCompiler : public Compiler {
+ public:
+  explicit Dex2MplCompiler(const std::string &name) : Compiler(name) {}
+
+  ~Dex2MplCompiler() = default;
+#ifdef INTERGRATE_DRIVER
+  ErrorCode Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) override;
+#endif
+
+  void PrintCommand(const MplOptions &options) const override;
+
+ private:
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
+  void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
+  std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
+#ifdef INTERGRATE_DRIVER
+  void PostDex2Mpl(std::unique_ptr<MIRModule> &theModule) const;
+  bool MakeDex2mplOptions(const MplOptions &options);
+#endif
+};
+
+class IpaCompiler : public Compiler {
+ public:
+  explicit IpaCompiler(const std::string &name) : Compiler(name) {}
+
+  ~IpaCompiler() = default;
+
+ private:
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
+  std::string GetInputFileName(const MplOptions &options) const override;
+};
+
 class MapleCombCompiler : public Compiler {
  public:
-  explicit MapleCombCompiler(const std::string &name) : Compiler(name), realRunningExe("") {}
+  explicit MapleCombCompiler(const std::string &name) : Compiler(name) {}
 
   ~MapleCombCompiler() = default;
 
-  ErrorCode Compile(const MplOptions &options, std::unique_ptr<MIRModule> &theModule) override;
+  ErrorCode Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) override;
   void PrintCommand(const MplOptions &options) const override;
   std::string GetInputFileName(const MplOptions &options) const override;
 
  private:
-  std::string realRunningExe;
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
-  bool MakeMeOptions(const MplOptions &options);
-  bool MakeMpl2MplOptions(const MplOptions &options);
+  ErrorCode MakeMeOptions(const MplOptions &options, DriverRunner &runner);
+  ErrorCode MakeMpl2MplOptions(const MplOptions &options, DriverRunner &runner);
+  std::string DecideOutExe(const MplOptions &options);
 };
 
 class MplcgCompiler : public Compiler {
@@ -121,13 +171,47 @@ class MplcgCompiler : public Compiler {
   explicit MplcgCompiler(const std::string &name) : Compiler(name) {}
 
   ~MplcgCompiler() = default;
-  ErrorCode Compile(const MplOptions &options, std::unique_ptr<MIRModule> &theModule) override;
-  void PrintCommand(const MplOptions &options) const override;
+  ErrorCode Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) override;
+  void PrintMplcgCommand(const MplOptions &options, const MIRModule &md) const;
+  void SetOutputFileName(const MplOptions &options, const MIRModule &md);
+  std::string GetInputFile(const MplOptions &options, const MIRModule *md) const;
  private:
-  std::string GetInputFileName(const MplOptions &options) const override;
   DefaultOption GetDefaultOptions(const MplOptions &options) const override;
-  bool MakeCGOptions(const MplOptions &options);
+  ErrorCode GetMplcgOptions(MplOptions &options, const MIRModule *theModule);
+  ErrorCode MakeCGOptions(const MplOptions &options);
   const std::string &GetBinName() const override;
+  std::string baseName;
+  std::string outputFile;
+};
+
+// Build .s to .o
+class AsCompiler : public Compiler {
+ public:
+  explicit AsCompiler(const std::string &name) : Compiler(name) {}
+
+  ~AsCompiler() = default;
+
+ private:
+  std::string GetBinPath(const MplOptions &options) const override;
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
+  std::string GetInputFileName(const MplOptions &options) const override;
+  void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
+  std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
+};
+
+// Build .o to .so
+class LdCompiler : public Compiler {
+ public:
+  explicit LdCompiler(const std::string &name) : Compiler(name) {}
+
+  ~LdCompiler() = default;
+
+ private:
+  std::string GetBinPath(const MplOptions &options) const override;
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
+  std::string GetInputFileName(const MplOptions &options) const override;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_H

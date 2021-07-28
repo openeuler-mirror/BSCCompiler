@@ -1,0 +1,116 @@
+/*
+ * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under the Mulan PSL v1.
+ * You can use this software according to the terms and conditions of the Mulan PSL v1.
+ * You may obtain a copy of Mulan PSL v1 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v1 for more details.
+ */
+#ifndef MAPLE_DRIVER_INCLUDE_DEFAULT_OPTIONS_H
+#define MAPLE_DRIVER_INCLUDE_DEFAULT_OPTIONS_H
+
+namespace maple {
+// O0 ME options
+static MplOption kMeDefaultOptionsO0[] = {
+#ifdef ANDROID
+#include "android/O0_options_me.def"
+#else
+#include "default/O0_options_me.def"
+#endif
+};
+// O2 ME options
+static MplOption kMeDefaultOptionsO2[] = {
+#ifdef ANDROID
+#include "android/O2_options_me.def"
+#else
+#include "default/O2_options_me.def"
+#endif
+};
+// O0 mpl2mpl options
+static MplOption kMpl2MplDefaultOptionsO0[] = {
+#ifdef ANDROID
+#include "android/O0_options_mpl2mpl.def"
+#else
+#include "default/O0_options_mpl2mpl.def"
+#endif
+};
+// O2 mpl2mpl options
+static MplOption kMpl2MplDefaultOptionsO2[] = {
+#ifdef ANDROID
+#include "android/O2_options_mpl2mpl.def"
+#else
+#include "default/O2_options_mpl2mpl.def"
+#endif
+};
+// O0 mplcg options
+static MplOption kMplcgDefaultOptionsO0[] = {
+#ifdef ANDROID
+#include "android/O0_options_mplcg.def"
+#else
+#include "default/O0_options_mplcg.def"
+#endif
+};
+// O2 mplcg options
+static MplOption kMplcgDefaultOptionsO2[] = {
+#ifdef ANDROID
+#include "android/O2_options_mplcg.def"
+#else
+#include "default/O2_options_mplcg.def"
+#endif
+};
+// O2 mplipa options
+static MplOption kMplipaDefaultOptionsO2[] = {
+#ifdef ANDROID
+#include "android/O2_options_mplipa.def"
+#else
+#include "default/O2_options_mplipa.def"
+#endif
+};
+// O0 dex2mpl options
+static MplOption kDex2mplDefaultOptionsO0[] = {
+#ifdef ANDROID
+#include "android/O0_options_dex2mpl.def"
+#else
+#include "default/O0_options_dex2mpl.def"
+#endif
+};
+// O2 dex2mpl options
+static MplOption kDex2mplDefaultOptionsO2[] = {
+#ifdef ANDROID
+#include "android/O2_options_dex2mpl.def"
+#else
+#include "default/O2_options_dex2mpl.def"
+#endif
+};
+// O0 mpl2mpl options for C language
+static MplOption kMpl2MplDefaultOptionsO0ForC[] = {
+#include "default/O0_options_mpl2mpl_c.def"
+};
+// O2 mpl2mpl options for C language
+static MplOption kMpl2MplDefaultOptionsO2ForC[] = {
+#include "default/O2_options_mpl2mpl_c.def"
+};
+// O0 mplcg options for C language
+static MplOption kMplcgDefaultOptionsO0ForC[] = {
+#include "default/O0_options_mplcg_c.def"
+};
+// O2 ME options for C language
+static MplOption kMeDefaultOptionsO2ForC[] = {
+#include "default/O2_options_me_c.def"
+};
+// O2 mplcg options for C language
+static MplOption kMplcgDefaultOptionsO2ForC[] = {
+#include "default/O2_options_mplcg_c.def"
+};
+// O0 cpp2mpl options
+static MplOption kCpp2mplDefaultOptionsO0[] = {
+#include "default/00_options_cpp2mpl.def"
+};
+}  // namespace maple
+#endif  // MAPLE_DRIVER_INCLUDE_DEFAULT_OPTIONS_H
