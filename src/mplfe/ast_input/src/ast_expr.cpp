@@ -1812,13 +1812,7 @@ UniqueFEIRExpr ASTAssignExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
 }
 
 UniqueFEIRExpr ASTBOComma::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
-  auto leftFEExpr = leftExpr->Emit2FEExpr(stmts);
-  if (leftFEExpr != nullptr) {
-    std::list<UniqueFEIRExpr> exprs;
-    exprs.emplace_back(std::move(leftFEExpr));
-    auto leftStmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(exprs));
-    stmts.emplace_back(std::move(leftStmt));
-  }
+  (void)leftExpr->Emit2FEExpr(stmts);
   return rightExpr->Emit2FEExpr(stmts);
 }
 
