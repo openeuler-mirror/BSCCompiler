@@ -227,14 +227,22 @@ void LoopFinder::seekCycles() {
   }
 }
 
-void LoopFinder::markExtraEntries() {
+void LoopFinder::markExtraEntryAndEncl() {
   ASSERT(dfsBBs.empty(), "dfsBBs is NOT empty");
   std::vector<bool> inLoop;
   inLoop.resize(cgFunc->NumBBs());
+  std::vector<BB *> loopEnclosure;
+  std::vector<BB *> pathFromHead;
+  bool enclosureFlag = false;
+  pathFromHead.resize(cgFunc->NumBBs());
+  loopEnclosure.resize(cgFunc->NumBBs());
 
   for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
     fill(visitedBBs.begin(), visitedBBs.end(), false);
     fill(inLoop.begin(), inLoop.end(), false);
+    fill(loopEnclosure.begin(), loopEnclosure.end(), nullptr);
+    fill(pathFromHead.begin(), pathFromHead.end(), nullptr);
+
     fill(visitedBBs.begin(), visitedBBs.end(), false);
     for (auto *bb : loop->GetLoopMembers()) {
       inLoop[bb->GetId()] = true;
@@ -247,11 +255,28 @@ void LoopFinder::markExtraEntries() {
           BB *bb = dfsBBs.top();
           if (visitedBBs[bb->GetId()]) {
             onPathBBs[bb->GetId()] = false;
+            pathFromHead[bb->GetId()] = nullptr;
+            if (bb->GetId() == loop->GetHeader()->GetId()) {
+              enclosureFlag = false;
+            }
+            if (onPathBBs[loop->GetHeader()->GetId()]) {
+              for (const auto succBB : bb->GetSuccs()) {
+                if (loopEnclosure[succBB->GetId()] != nullptr) {
+                  loopEnclosure[bb->GetId()] = bb;
+                }
+              }
+            }
             dfsBBs.pop();
             continue;
           } else {
             visitedBBs[bb->GetId()] = true;
             onPathBBs[bb->GetId()] = true;
+            if (bb->GetId() == loop->GetHeader()->GetId()) {
+              enclosureFlag = true;
+            }
+            if (enclosureFlag) {
+              pathFromHead[bb->GetId()] = bb;
+            }
             for (const auto succBB : bb->GetSuccs()) {
               // check if entering a loop. Entry to a loop is considered as its path does not go through the loop's head
               if (inLoop[succBB->GetId()] &&
@@ -260,11 +285,19 @@ void LoopFinder::markExtraEntries() {
                   loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
                 loop->otherLoopEntries.insert(succBB);
               }
+              if (inLoop[succBB->GetId()] && onPathBBs[loop->GetHeader()->GetId()]) {
+                loopEnclosure[succBB->GetId()] = succBB;
+              }
               if (!visitedBBs[succBB->GetId()]) {
                 dfsBBs.push(succBB);
               }
             }
           }
+        }
+      }
+      for(int id = 0; id < loopEnclosure.size(); id++) {
+        if (loopEnclosure[id] != nullptr && !inLoop[id]) {
+          loop->InsertLoopMembers(*loopEnclosure[id]);
         }
       }
     }
@@ -473,7 +506,7 @@ void LoopFinder::FormLoopHierarchy() {
     }
   } while (changed);
 
-  markExtraEntries();
+  markExtraEntryAndEncl();
   /*
    * FIX : Should merge the partial loops at the time of initial
    * construction.  And make the linked list as a sorted set,
