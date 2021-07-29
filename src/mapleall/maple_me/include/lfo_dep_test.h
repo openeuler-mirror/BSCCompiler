@@ -35,8 +35,7 @@ class SubscriptDesc{
   bool tooMessy = false;;       // too complicated to analyze
   bool loopInvariant = false;   // loop invariant w.r.t. closest nesting loop
 
- public:
-  SubscriptDesc(MeExpr *x) : subscriptX(x) {}
+  explicit SubscriptDesc(MeExpr *x) : subscriptX(x) {}
 };
 
 class ArrayAccessDesc {
@@ -45,8 +44,10 @@ class ArrayAccessDesc {
   OriginalSt *arrayOst = nullptr;
   MapleVector<SubscriptDesc *> subscriptVec;  // describe the subscript of each array dimension
 
- public:
-  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, OriginalSt *arryOst) : theArray(arr), arrayOst(arryOst), subscriptVec(alloc->Adapter()) {}
+  ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, OriginalSt *arryOst)
+      : theArray(arr),
+        arrayOst(arryOst),
+        subscriptVec(alloc->Adapter()) {}
 };
 
 class DepTestPair {
@@ -55,7 +56,7 @@ class DepTestPair {
   bool dependent = false;
   bool unknownDist = false;                     // if dependent
   int64 depDist = 0;                            // if unknownDist is false
- public:
+
   DepTestPair(size_t i, size_t j) : depTestPair(i, j) {}
 };
 
@@ -70,23 +71,22 @@ class DoloopInfo {
   MapleVector<ArrayAccessDesc *> rhsArrays;     // each element represents an array read
   BB *doloopBB = nullptr;                       // the start BB for the doloop body
   bool hasPtrAccess = false;                    // give up dep testing if true
-  bool hasCall = false;                         // give up dep testing if true
+  bool hasOtherCtrlFlow = false;                // give up dep testing if true
   bool hasScalarAssign = false;                 // give up dep testing if true
   bool hasMayDef = false;                       // give up dep testing if true
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
   MapleVector<DepTestPair> flowDepTestList;     // include both true and anti dependences
 
- public:
-  DoloopInfo(MapleAllocator *allc, LfoDepInfo *depinfo, DoloopNode *doloop, DoloopInfo *prnt) : 
-                                                  alloc(allc),
-                                                  depInfo(depinfo),
-                                                  doloop(doloop),
-                                                  parent(prnt),
-                                                  children(alloc->Adapter()),
-                                                  lhsArrays(alloc->Adapter()),
-                                                  rhsArrays(alloc->Adapter()),
-                                                  outputDepTestList(alloc->Adapter()),
-                                                  flowDepTestList(alloc->Adapter()) {}
+  DoloopInfo(MapleAllocator *allc, LfoDepInfo *depinfo, DoloopNode *doloop, DoloopInfo *prnt)
+      : alloc(allc),
+        depInfo(depinfo),
+        doloop(doloop),
+        parent(prnt),
+        children(alloc->Adapter()),
+        lhsArrays(alloc->Adapter()),
+        rhsArrays(alloc->Adapter()),
+        outputDepTestList(alloc->Adapter()),
+        flowDepTestList(alloc->Adapter()) {}
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
@@ -107,12 +107,11 @@ class LfoDepInfo : public AnalysisResult {
   MapleVector<DoloopInfo *> outermostDoloopInfoVec;  // outermost doloops' DoloopInfo in program order
   MapleMap<DoloopNode *, DoloopInfo *> doloopInfoMap;
 
- public:
   LfoDepInfo(MemPool *mempool, LfoFunction *f, Dominance *dm, LfoPreEmitter *preemit)
-      : AnalysisResult(mempool), 
-        alloc(mempool), 
-        lfoFunc(f), 
-        dom(dm), 
+      : AnalysisResult(mempool),
+        alloc(mempool),
+        lfoFunc(f),
+        dom(dm),
         preEmit(preemit),
         outermostDoloopInfoVec(alloc.Adapter()),
         doloopInfoMap(alloc.Adapter()) {}
