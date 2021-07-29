@@ -430,32 +430,4 @@ void PostDomAnalysis::Compute() {
   (void)ComputePdtPreorder(GetCommonExitBB(), num);
   ResizePdtPreOrder(num);
 }
-
-AnalysisResult *CgDoDomAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgFunc in CgDoDomAnalysis");
-  MemPool *domMemPool = NewMemPool();
-  DomAnalysis *domAnalysis = nullptr;
-  domAnalysis = domMemPool->New<DomAnalysis>(*cgFunc, *domMemPool, *domMemPool, cgFunc->GetAllBBs(),
-                                             *cgFunc->GetFirstBB(), *cgFunc->GetLastBB());
-  domAnalysis->Compute();
-  if (CG_DEBUG_FUNC(cgFunc)) {
-    domAnalysis->Dump();
-  }
-  return domAnalysis;
-}
-
-AnalysisResult *CgDoPostDomAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgFunc in CgDoPostDomAnalysis");
-  MemPool *domMemPool = NewMemPool();
-  PostDomAnalysis *pdomAnalysis = nullptr;
-  pdomAnalysis = domMemPool->New<PostDomAnalysis>(*cgFunc, *domMemPool, *domMemPool, cgFunc->GetAllBBs(),
-                                                  *cgFunc->GetFirstBB(), *cgFunc->GetLastBB());
-  pdomAnalysis->Compute();
-  if (CG_DEBUG_FUNC(cgFunc)) {
-    pdomAnalysis->Dump();
-  }
-  return pdomAnalysis;
-}
 }  /* namespace maplebe */

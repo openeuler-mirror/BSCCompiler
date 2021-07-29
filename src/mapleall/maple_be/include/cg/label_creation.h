@@ -12,14 +12,33 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef MAPLEBE_INCLUDE_CG_CG_PHASE_H
-#define MAPLEBE_INCLUDE_CG_CG_PHASE_H
+#ifndef MAPLEBE_INCLUDE_CG_LABEL_CREATION_H
+#define MAPLEBE_INCLUDE_CG_LABEL_CREATION_H
 
-#include "module_phase.h"
+#include "cgfunc.h"
+#include "cg_phase.h"
+#include "mir_builder.h"
 
 namespace maplebe {
-using namespace maple;
-class CGFunc;
+class LabelCreation {
+ public:
+  explicit LabelCreation(CGFunc &func) : cgFunc(&func) {}
+
+  ~LabelCreation() = default;
+
+  void Run();
+
+  std::string PhaseName() const {
+    return "createlabel";
+  }
+
+ private:
+  CGFunc *cgFunc;
+  void CreateStartEndLabel();
+};
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCreateLabel, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_CG_PHASE_H */
+#endif  /* MAPLEBE_INCLUDE_CG_LABEL_CREATION_H */

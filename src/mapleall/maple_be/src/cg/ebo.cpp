@@ -33,8 +33,8 @@
 namespace maplebe {
 using namespace maple;
 
-#define EBO_DUMP CG_DEBUG_FUNC(cgFunc)
-#define EBO_DUMP_NEWPM CG_DEBUG_FUNC_NEWPM(f, PhaseName())
+#define EBO_DUMP CG_DEBUG_FUNC(*cgFunc, PhaseName())
+#define EBO_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
 #define TRUE_OPND cgFunc->GetTrueOpnd()
 
 constexpr uint32 kEboOpndHashLength = 521;
@@ -1293,84 +1293,6 @@ void Ebo::Run() {
   }
 }
 
-/* dump ebo */
-AnalysisResult *CgDoEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoEbo");
-  CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoEbo");
-  LiveAnalysis *live = nullptr;
-  if (EBO_DUMP) {
-    DotGenerator::GenerateDot("ebo", *cgFunc, cgFunc->GetMirModule());
-  }
-  live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
-  MemPool *eboMp = NewMemPool();
-  Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
-#endif
-#if TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
-#endif
-  ebo->Run();
-  /* the live range info may changed, so invalid the info. */
-  if (live != nullptr) {
-    live->ClearInOutDataInfo();
-  }
-  cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseLIVE, cgFunc);
-  return nullptr;
-}
-
-/* dump ebo1 */
-AnalysisResult *CgDoEbo1::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoEbo1");
-  CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoEbo1");
-  LiveAnalysis *live = nullptr;
-  if (EBO_DUMP) {
-    DotGenerator::GenerateDot("ebo1", *cgFunc, cgFunc->GetMirModule());
-  }
-  live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
-  MemPool *eboMp = NewMemPool();
-  Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
-#endif
-#if TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(*cgFunc, *eboMp, live, true, PhaseName());
-#endif
-  ebo->Run();
-  /* the live range info may changed, so invalid the info. */
-  if (live != nullptr) {
-    live->ClearInOutDataInfo();
-  }
-  cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseLIVE, cgFunc);
-  return nullptr;
-}
-
-/* dump postebo */
-AnalysisResult *CgDoPostEbo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  CHECK_FATAL(cgFunc != nullptr, "expect a cgFunc in CgDoPostEbo");
-  CHECK_FATAL(cgFuncResultMgr != nullptr, "expect a cgFuncResultMgr in CgDoPostEbo");
-  LiveAnalysis *live = nullptr;
-  if (EBO_DUMP) {
-    DotGenerator::GenerateDot("postebo", *cgFunc, cgFunc->GetMirModule(), true);
-  }
-  live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
-  MemPool *eboMp = NewMemPool();
-  Ebo *ebo = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  ebo = eboMp->New<AArch64Ebo>(*cgFunc, *eboMp, live, false, PhaseName());
-#endif
-#if TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(*cgFunc, *eboMp, live, false, PhaseName());
-#endif
-  ebo->Run();
-  /* the live range info may changed, so invalid the info. */
-  if (live != nullptr) {
-    live->ClearInOutDataInfo();
-  }
-  cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseLIVE, cgFunc);
-  return nullptr;
-}
-
 /* === new pm === */
 bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
@@ -1386,6 +1308,10 @@ bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
   ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, "ebo0");
 #endif
   ebo->Run();
+  /* the live range info may changed, so invalid the info. */
+  if (live != nullptr) {
+    live->ClearInOutDataInfo();
+  }
   return true;
 }
 
@@ -1406,9 +1332,13 @@ bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
 #if TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, "ebo1");
+  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, true, PhaseName());
 #endif
   ebo->Run();
+  /* the live range info may changed, so invalid the info. */
+  if (live != nullptr) {
+    live->ClearInOutDataInfo();
+  }
   return true;
 }
 
@@ -1429,9 +1359,13 @@ bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
   ebo = eboMp->New<AArch64Ebo>(f, *eboMp, live, false, PhaseName());
 #endif
 #if TARGARM32
-  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, false, "postebo");
+  ebo = eboMp->New<Arm32Ebo>(f, *eboMp, live, false, PhaseName());
 #endif
   ebo->Run();
+  /* the live range info may changed, so invalid the info. */
+  if (live != nullptr) {
+    live->ClearInOutDataInfo();
+  }
   return true;
 }
 

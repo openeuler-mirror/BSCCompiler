@@ -39,10 +39,10 @@
  * optimization phase conveniently.
  */
 namespace maplebe {
-#define REACHING_DEFINITION_DUMP CG_DEBUG_FUNC(cgFunc)
 ReachingDefinition::ReachingDefinition(CGFunc &func, MemPool &memPool)
-    : AnalysisResult(&memPool), cgFunc(&func), rdAlloc(&memPool), pseudoInsns(rdAlloc.Adapter()),
-      kMaxBBNum(cgFunc->NumBBs() + 1), normalBBSet(rdAlloc.Adapter()), cleanUpBBSet(rdAlloc.Adapter()) {}
+    : AnalysisResult(&memPool), cgFunc(&func), rdAlloc(&memPool), stackMp(func.GetStackMemPool()),
+      pseudoInsns(rdAlloc.Adapter()), kMaxBBNum(cgFunc->NumBBs() + 1), normalBBSet(rdAlloc.Adapter()),
+      cleanUpBBSet(rdAlloc.Adapter()) {}
 
 /* check whether the opnd is stack register or not */
 bool ReachingDefinition::IsFrameReg(const Operand &opnd) const {
@@ -356,7 +356,8 @@ void ReachingDefinition::DFSFindUseForMemOpnd(const BB &startBB, uint32 offset, 
 bool ReachingDefinition::GenerateOut(const BB &bb) {
   bool outInfoChanged = false;
   if (mode & kRDRegAnalysis) {
-    DataInfo bbRegOutBak = *(regOut[bb.GetId()]);
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &bbRegOutBak = regOut[bb.GetId()]->Clone(alloc);
     *regOut[bb.GetId()] = *(regIn[bb.GetId()]);
     regOut[bb.GetId()]->OrBits(*regGen[bb.GetId()]);
     if (!regOut[bb.GetId()]->IsEqual(bbRegOutBak)) {
@@ -365,7 +366,8 @@ bool ReachingDefinition::GenerateOut(const BB &bb) {
   }
 
   if (mode & kRDMemAnalysis) {
-    DataInfo bbMemOutBak = *memOut[bb.GetId()];
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &bbMemOutBak = memOut[bb.GetId()]->Clone(alloc);
     *memOut[bb.GetId()] = *memIn[bb.GetId()];
     memOut[bb.GetId()]->OrBits(*memGen[bb.GetId()]);
     if (!memOut[bb.GetId()]->IsEqual(bbMemOutBak)) {
@@ -404,7 +406,8 @@ bool ReachingDefinition::GenerateOut(const BB &bb, const std::set<uint32> &infoI
 bool ReachingDefinition::GenerateIn(const BB &bb) {
   bool inInfoChanged = false;
   if (mode & kRDRegAnalysis) {
-    DataInfo bbRegInBak = *(regIn[bb.GetId()]);
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &bbRegInBak = regIn[bb.GetId()]->Clone(alloc);
     for (auto predBB : bb.GetPreds()) {
       regIn[bb.GetId()]->OrBits(*regOut[predBB->GetId()]);
     }
@@ -417,7 +420,8 @@ bool ReachingDefinition::GenerateIn(const BB &bb) {
     }
   }
   if (mode & kRDMemAnalysis) {
-    DataInfo memInBak = *(memIn[bb.GetId()]);
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &memInBak = memIn[bb.GetId()]->Clone(alloc);
     for (auto predBB : bb.GetPreds()) {
       memIn[bb.GetId()]->OrBits(*memOut[predBB->GetId()]);
     }
@@ -528,18 +532,18 @@ bool ReachingDefinition::GenerateInForFirstCleanUpBB(bool isReg, const std::set<
 void ReachingDefinition::InitRegAndMemInfo(const BB &bb) {
   if (mode & kRDRegAnalysis) {
     const uint32 kMaxRegCount = cgFunc->GetMaxVReg();
-    regGen[bb.GetId()] = new DataInfo(kMaxRegCount, *GetMempool());
-    regUse[bb.GetId()] = new DataInfo(kMaxRegCount, *GetMempool());
-    regIn[bb.GetId()] = new DataInfo(kMaxRegCount, *GetMempool());
-    regOut[bb.GetId()] = new DataInfo(kMaxRegCount, *GetMempool());
+    regGen[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
+    regUse[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
+    regIn[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
+    regOut[bb.GetId()] = new DataInfo(kMaxRegCount, rdAlloc);
   }
 
   if (mode & kRDMemAnalysis) {
     const int32 kStackSize = GetStackSize();
-    memGen[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), *GetMempool());
-    memUse[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), *GetMempool());
-    memIn[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), *GetMempool());
-    memOut[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), *GetMempool());
+    memGen[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
+    memUse[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
+    memIn[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
+    memOut[bb.GetId()] = new DataInfo((kStackSize / kMemZoomSize), rdAlloc);
   }
 }
 
@@ -661,12 +665,14 @@ void ReachingDefinition::UpdateInOut(BB &changedBB) {
 void ReachingDefinition::UpdateInOut(BB &changedBB, bool isReg) {
   std::set<uint32> changedInfoIndex;
   if (isReg) {
-    DataInfo genInfoBak = *(regGen[changedBB.GetId()]);
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &genInfoBak = regGen[changedBB.GetId()]->Clone(alloc);
     InitGenUse(changedBB, false);
     genInfoBak.EorBits(*regGen[changedBB.GetId()]);
     genInfoBak.GetNonZeroElemsIndex(changedInfoIndex);
   } else {
-    DataInfo genInfoBak = *(memGen[changedBB.GetId()]);
+    LocalMapleAllocator alloc(stackMp);
+    DataInfo &genInfoBak = memGen[changedBB.GetId()]->Clone(alloc);
     InitGenUse(changedBB, false);
     genInfoBak.EorBits(*memGen[changedBB.GetId()]);
     genInfoBak.GetNonZeroElemsIndex(changedInfoIndex);
@@ -1126,31 +1132,24 @@ void ReachingDefinition::Dump(uint32 flag) const {
   LogInfo::MapleLogger() << "------------------------------------------------------\n";
 }
 
-AnalysisResult *CgDoReachingDefinition::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoReachingDefinition");
-  CHECK_NULL_FATAL(cgFuncResultMgr);
-  MemPool *memPool = NewMemPool();
-  ReachingDefinition *reachingDef = nullptr;
+bool CgReachingDefinition::PhaseRun(maplebe::CGFunc &f) {
 #if TARGAARCH64 || TARGRISCV64
-  reachingDef = memPool->New<AArch64ReachingDefinition>(*cgFunc, *memPool);
+  reachingDef = GetPhaseAllocator()->New<AArch64ReachingDefinition>(f, *GetPhaseMemPool());
 #endif
 #if TARGARM32
-  reachingDef = memPool->New<Arm32ReachingDefinition>(*cgFunc, *memPool);
+  reachingDef = GetPhaseAllocator()->New<Arm32ReachingDefinition>(f, *GetPhaseMemPool());
 #endif
   reachingDef->SetAnalysisMode(kRDAllAnalysis);
   reachingDef->AnalysisStart();
-  return reachingDef;
+  return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgReachingDefinition, reachingdefinition)
 
-AnalysisResult *CgDoClearRDInfo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoClearRDInfo");
-  if (cgFunc->GetRDStatus()) {
-    cgFunc->GetRD()->ClearDefUseInfo();
-    CHECK_NULL_FATAL(cgFuncResultMgr);
-    cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseREACHDEF, cgFunc);
+bool CgClearRDInfo::PhaseRun(maplebe::CGFunc &f) {
+  if (f.GetRDStatus()) {
+    f.GetRD()->ClearDefUseInfo();
   }
-  return nullptr;
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgClearRDInfo, clearrdinfo)
 }  /* namespace maplebe */

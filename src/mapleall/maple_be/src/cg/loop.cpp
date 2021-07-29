@@ -17,7 +17,7 @@
 #include "optimize_common.h"
 
 namespace maplebe {
-#define LOOP_ANALYSIS_DUMP CG_DEBUG_FUNC(cgFunc)
+#define LOOP_ANALYSIS_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
 
 static void PrintLoopInfo(const LoopHierarchy &loop) {
   LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
@@ -541,24 +541,23 @@ void LoopFinder::FormLoopHierarchy() {
   UpdateCGFunc();
 }
 
-AnalysisResult *CgDoLoopAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  CHECK_FATAL(cgFunc != nullptr, "nullptr check");
-  cgFunc->ClearLoopInfo();
-  MemPool *loopMemPool = NewMemPool();
-  LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(*cgFunc, *loopMemPool);
+bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
+  f.ClearLoopInfo();
+  MemPool *loopMemPool = GetPhaseMemPool();
+  LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(f, *loopMemPool);
   loopFinder->FormLoopHierarchy();
 
-  if (LOOP_ANALYSIS_DUMP) {
+  if (LOOP_ANALYSIS_DUMP_NEWPM) {
     /* do dot gen after detection so the loop backedge can be properly colored using the loop info */
-    DotGenerator::GenerateDot("buildloop", *cgFunc, cgFunc->GetMirModule(), true, cgFunc->GetName());
+    DotGenerator::GenerateDot("buildloop", f, f.GetMirModule(), true, f.GetName());
   }
 #if DEBUG
-  for (const auto *lp : cgFunc->GetLoops()) {
+  for (const auto *lp : f.GetLoops()) {
     lp->CheckLoops();
   }
 #endif
 
-  return loopFinder;
+  return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
 }  /* namespace maplebe */

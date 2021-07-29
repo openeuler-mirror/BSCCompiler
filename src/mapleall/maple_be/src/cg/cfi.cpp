@@ -123,13 +123,9 @@ void LabelOperand::Dump() const {
 }  /* namespace cfi */
 
 namespace maplebe {
-AnalysisResult *CgDoGenCfi::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  if (cgFunc->GenCfi() == false) {
-    return nullptr;
-  }
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoGenCfi");
-  cgFunc->GenerateCfiPrologEpilog();
-  return nullptr;
+bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
+  f.GenerateCfiPrologEpilog();
+  return true;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 }  /* namespace maplebe */

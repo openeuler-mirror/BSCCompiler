@@ -54,7 +54,7 @@ constexpr uint32 kLoopWeight = 20;
 constexpr uint32 kAdjustWeight = 2;
 constexpr uint32 kInsnStep = 2;
 
-#define GCRA_DUMP CG_DEBUG_FUNC(cgFunc)
+#define GCRA_DUMP CG_DEBUG_FUNC(*cgFunc, PhaseName())
 
 void LiveUnit::PrintLiveUnit() const {
   LogInfo::MapleLogger() << "[" << begin << "," << end << "]"
@@ -3509,7 +3509,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
             ListOperand *outList = const_cast<ListOperand *>(static_cast<const ListOperand *>(defOpnd));
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
-                  a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+                a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : outList->GetOperands()) {
               phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, true);
@@ -3537,7 +3537,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
             ListOperand *inList = const_cast<ListOperand *>(static_cast<const ListOperand *>(useOpnd));
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
-                  a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
+                a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : inList->GetOperands()) {
               if ((static_cast<const RegOperand *>(opnd))->GetRegisterNumber() < kAllRegNum) {

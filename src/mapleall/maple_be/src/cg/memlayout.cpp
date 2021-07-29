@@ -73,15 +73,12 @@ uint32 MemLayout::FindLargestActualArea(int32 &aggCopySize) {
   return maxActualSize;
 }
 
-AnalysisResult *CgDoLayoutSF::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoLayoutSF");
+bool CgLayoutFrame::PhaseRun(maplebe::CGFunc &f) {
   if (CGOptions::IsPrintFunction()) {
-    LogInfo::MapleLogger() << cgFunc->GetName() << "\n";
+    LogInfo::MapleLogger() << f.GetName() << "\n";
   }
-
-  cgFunc->LayoutStackFrame();
-
-  return nullptr;
+  f.LayoutStackFrame();
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 }  /* namespace maplebe */

@@ -239,10 +239,6 @@ class Ebo {
   MapleVector<InsnInfo*> insnInfoTable;
 };
 
-CGFUNCPHASE_CANSKIP(CgDoEbo, "ebo")
-CGFUNCPHASE_CANSKIP(CgDoEbo1, "ebo1")
-CGFUNCPHASE_CANSKIP(CgDoPostEbo, "postebo")
-
 MAPLE_FUNC_PHASE_DECLARE(CgEbo0, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE(CgEbo1, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE(CgPostEbo, maplebe::CGFunc)

@@ -12,14 +12,35 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef MAPLEBE_INCLUDE_CG_CG_PHASE_H
-#define MAPLEBE_INCLUDE_CG_CG_PHASE_H
+#ifndef MAPLEBE_INCLUDE_CG_ARGS_H
+#define MAPLEBE_INCLUDE_CG_ARGS_H
 
-#include "module_phase.h"
+#include "cgfunc.h"
+#include "cg_phase.h"
 
 namespace maplebe {
-using namespace maple;
-class CGFunc;
+class MoveRegArgs {
+ public:
+  explicit MoveRegArgs(CGFunc &func) : cgFunc(&func) {}
+
+  virtual ~MoveRegArgs() = default;
+
+  virtual void Run() {}
+
+  std::string PhaseName() const {
+    return "moveargs";
+  }
+
+  const CGFunc *GetCGFunc() const {
+    return cgFunc;
+  }
+
+ protected:
+  CGFunc *cgFunc;
+};
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgMoveRegArgs, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_CG_PHASE_H */
+#endif  /* MAPLEBE_INCLUDE_CG_ARGS_H */

@@ -1658,16 +1658,6 @@ void CGFunc::PatchLongBranch() {
   }
 }
 
-AnalysisResult *CgDoHandleFunc::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "Expect a cgfunc in CgDoHandleFunc");
-  cgFunc->HandleFunction();
-  if (!cgFunc->GetCG()->GetCGOptions().DoEmitCode() || cgFunc->GetCG()->GetCGOptions().DoDumpCFG()) {
-    cgFunc->DumpCFG();
-  }
-  return nullptr;
-}
-
 bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   f.HandleFunction();
   if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
@@ -1677,14 +1667,6 @@ bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
 
-
-AnalysisResult *CgDoFixCFLocOsft::Run(CGFunc *cgFunc, CgFuncResultMgr *m) {
-  (void)m;
-  if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
-    cgFunc->DBGFixCallFrameLocationOffsets();
-  }
-  return nullptr;
-}
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetCG()->GetCGOptions().WithDwarf()) {

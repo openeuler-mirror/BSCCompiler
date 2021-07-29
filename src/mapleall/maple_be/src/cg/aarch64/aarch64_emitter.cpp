@@ -26,6 +26,7 @@ const std::unordered_set<std::string> kJniNativeFuncList = {
   "Landroid_2Fos_2FParcel_3B_7CnativeWriteInterfaceToken_7C_28JLjava_2Flang_2FString_3B_29V_native",
   "Landroid_2Fos_2FParcel_3B_7CnativeEnforceInterface_7C_28JLjava_2Flang_2FString_3B_29V_native"
 };
+constexpr uint32 kBinSearchInsnCount = 56;
 // map func name to <filename, insnCount> pair
 using Func2CodeInsnMap = std::unordered_map<std::string, std::pair<std::string, uint32>>;
 Func2CodeInsnMap func2CodeInsnMap {
@@ -129,9 +130,9 @@ void AArch64AsmEmitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {
   EHFunc *ehFunc = cgFunc.GetEHFunc();
   Emitter *emitter = currCG->GetEmitter();
   /* emit header */
-  emitter->Emit("\t.align 2\n");
+  emitter->Emit("\t.align 3\n");
   emitter->Emit("\t.section .gcc_except_table,\"a\",@progbits\n");
-  emitter->Emit("\t.align 2\n");
+  emitter->Emit("\t.align 3\n");
   /* emit LSDA header */
   LSDAHeader *lsdaHeader = ehFunc->GetLSDAHeader();
   emitter->EmitStmtLabel(lsdaHeader->GetLSDALabel()->GetLabelIdx());
@@ -250,7 +251,7 @@ void AArch64AsmEmitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {
     emitter->Emit("\t.byte ").Emit(lsdaAction->GetActionIndex()).Emit("\n");
     emitter->Emit("\t.byte ").Emit(lsdaAction->GetActionFilter()).Emit("\n");
   }
-  emitter->Emit("\t.align 2\n");
+  emitter->Emit("\t.align 3\n");
   for (int32 i = ehFunc->GetEHTyTableSize() - 1; i >= 0; i--) {
     MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ehFunc->GetEHTyTableMember(i));
     MIRTypeKind typeKind = mirType->GetKind();
@@ -329,7 +330,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   } else {
     (void)emitter.Emit("\t.text\n");
   }
-  (void)emitter.Emit("\t.align 2\n");
+  (void)emitter.Emit("\t.align 3\n");
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
   const std::string &funcName = std::string(cgFunc.GetShortFuncName().c_str());
 
@@ -368,6 +369,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     // nothing
   } else {
     bool isExternFunction = false;
+  /* should refer to function attribute */
+    isExternFunction = kJniNativeFuncList.find(funcStName) != kJniNativeFuncList.end();
     (void)emitter.Emit("\t.globl\t").Emit(funcSt->GetName()).Emit("\n");
     if (!currCG->GetMIRModule()->IsCModule() || !isExternFunction) {
       (void)emitter.Emit("\t.hidden\t").Emit(funcSt->GetName()).Emit("\n");
@@ -441,7 +444,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     MIRStorageClass storageClass = st->GetStorageClass();
     MIRSymKind symKind = st->GetSKind();
     if (storageClass == kScPstatic && symKind == kStConst) {
-      emitter.Emit("\t.align 2\n" + st->GetName() + ":\n");
+      emitter.Emit("\t.align 3\n" + st->GetName() + ":\n");
       if (st->GetKonst()->GetKind() == kConstStr16Const) {
         MIRStr16Const *str16Const = safe_cast<MIRStr16Const>(st->GetKonst());
         emitter.EmitStr16Constant(*str16Const);
@@ -483,8 +486,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     }
   }
 
-  for (auto *st : cgFunc.GetEmitStVec()) {
+  for (auto &it : cgFunc.GetEmitStVec()) {
     /* emit switch table only here */
+    MIRSymbol *st = it.second;
     ASSERT(st->IsReadOnly(), "NYI");
     emitter.Emit("\n");
     emitter.Emit("\t.align 3\n");
@@ -501,6 +505,23 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       (void)emitter.Emit(" - " + st->GetName() + "\n");
       emitter.IncreaseJavaInsnCount(kQuadInsnCount);
     }
+  }
+  /* insert manually optimized assembly language */
+  if (funcSt->GetName() == "Landroid_2Futil_2FContainerHelpers_3B_7C_3Cinit_3E_7C_28_29V") {
+    std::string optFile = "maple/mrt/codetricks/arch/arm64/ContainerHelpers_binarySearch.s";
+    struct stat buffer;
+    if (stat(optFile.c_str(), &buffer) == 0) {
+      std::ifstream binarySearchFileFD(optFile);
+      if (!binarySearchFileFD.is_open()) {
+        ERR(kLncErr, " %s open failed!", optFile.c_str());
+      } else {
+        std::string contend;
+        while (getline(binarySearchFileFD, contend)) {
+          emitter.Emit(contend + "\n");
+        }
+      }
+    }
+    emitter.IncreaseJavaInsnCount(kBinSearchInsnCount);
   }
 
   for (const auto &mpPair : cgFunc.GetLabelAndValueMap()) {
@@ -521,13 +542,15 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
 #endif /* ~EMIT_INSN_COUNT */
 }
 
-AnalysisResult *CgDoEmission::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "null ptr check");
-  Emitter *emitter = cgFunc->GetCG()->GetEmitter();
+/* new phase manager */
+bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
+  Emitter *emitter = f.GetCG()->GetEmitter();
   CHECK_NULL_FATAL(emitter);
-  AsmFuncEmitInfo funcEmitInfo(*cgFunc);
+  AsmFuncEmitInfo funcEmitInfo(f);
+  emitter->EmitLocalVariable(f);
   static_cast<AArch64AsmEmitter*>(emitter)->Run(funcEmitInfo);
-  return nullptr;
+  emitter->EmitHugeSoRoutines();
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, emit)
 }  /* namespace maplebe */

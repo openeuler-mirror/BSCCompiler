@@ -728,14 +728,16 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
   return true;
 }
 
-AnalysisResult *CgDoRegAlloc::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
+bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
   bool success = false;
   while (success == false) {
-    MemPool *phaseMp = NewMemPool();
+    MemPool *phaseMp = GetPhaseMemPool();
     LiveAnalysis *live = nullptr;
     /* It doesn't need live range information when -O1, because the register will not live out of bb. */
     if (Globals::GetInstance()->GetOptimLevel() >= 1) {
-      live = static_cast<LiveAnalysis*>(cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLIVE, cgFunc));
+      MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
+          &CgLiveAnalysis::id, f);
+      live = static_cast<CgLiveAnalysis*>(it)->GetResult();
       CHECK_FATAL(live != nullptr, "null ptr check");
       /* revert liveanalysis result container. */
       live->ResetLiveSet();
@@ -743,28 +745,31 @@ AnalysisResult *CgDoRegAlloc::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultM
 
     RegAllocator *regAllocator = nullptr;
     if (Globals::GetInstance()->GetOptimLevel() == 0) {
-      regAllocator = phaseMp->New<DefaultO0RegAllocator>(*cgFunc, *phaseMp);
+      regAllocator = phaseMp->New<DefaultO0RegAllocator>(f, *phaseMp);
     } else {
-      if (cgFunc->GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
-        regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(*cgFunc, *phaseMp);
-      } else if (cgFunc->GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
-        regAllocator = phaseMp->New<GraphColorRegAllocator>(*cgFunc, *phaseMp);
+      if (f.GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
+        regAllocator = phaseMp->New<LSRALinearScanRegAllocator>(f, *phaseMp);
+      } else if (f.GetCG()->GetCGOptions().DoColoringBasedRegisterAllocation()) {
+        regAllocator = phaseMp->New<GraphColorRegAllocator>(f, *phaseMp);
       } else {
-        maple::LogInfo::MapleLogger(kLlErr) << "Warning: We only support Linear Scan and GraphColor register allocation\n";
+        maple::LogInfo::MapleLogger(kLlErr) <<
+            "Warning: We only support Linear Scan and GraphColor register allocation\n";
       }
     }
 
     CHECK_FATAL(regAllocator != nullptr, "regAllocator is null in CgDoRegAlloc::Run");
-    cgFuncResultMgr->GetAnalysisResult(kCGFuncPhaseLOOP, cgFunc);
-    cgFunc->SetIsAfterRegAlloc();
+    (void)GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
+    f.SetIsAfterRegAlloc();
     success = regAllocator->AllocateRegisters();
     /* the live range info may changed, so invalid the info. */
     if (live != nullptr) {
       live->ClearInOutDataInfo();
     }
-    cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseLIVE, cgFunc);
-    cgFuncResultMgr->InvalidAnalysisResult(kCGFuncPhaseLOOP, cgFunc);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgLiveAnalysis::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgLoopAnalysis::id);
   }
-  return nullptr;
+  return false;
 }
+
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 }  /* namespace maplebe */

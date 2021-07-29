@@ -22,23 +22,6 @@
 
 namespace maplebe {
 using namespace maple;
-AnalysisResult *CgDoRaOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  MemPool *memPool = NewMemPool();
-  RaOpt *raOpt = nullptr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoRaOpt");
-#if TARGAARCH64
-  raOpt = memPool->New<AArch64RaOpt>(*cgFunc);
-#elif || TARGRISCV64
-  raOpt = memPool->New<Riscv64RaOpt>(*cgFunc);
-#endif
-
-  if (raOpt) {
-    raOpt->Run();
-  }
-  return nullptr;
-}
-
 bool CgRaOpt::PhaseRun(maplebe::CGFunc &f) {
   MemPool *memPool = GetPhaseMemPool();
   RaOpt *raOpt = nullptr;
