@@ -279,7 +279,7 @@ void LoopFinder::markExtraEntryAndEncl() {
             }
             for (const auto succBB : bb->GetSuccs()) {
               // check if entering a loop. Entry to a loop is considered as its path does not go through the loop's head
-              if (inLoop[succBB->GetId()] &&
+              if (loopEnclosure[succBB->GetId()] &&
                   succBB->GetId() != loop->GetHeader()->GetId() &&
                   !onPathBBs[loop->GetHeader()->GetId()] &&
                   loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
