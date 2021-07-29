@@ -523,8 +523,10 @@ void AArch64RaOpt::Run() {
   RaX0Opt x0Opt(cgFunc);
   x0Opt.PropagateX0();
 
-  if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC) {
+  if (cgFunc->GetMirModule().GetSrcLang() == kSrcLangC && CGOptions::DoVregRename()) {
     /* loop detection considers EH bb.  That is not handled.  So C only for now. */
+    LoopFinder *lf = memPool->New<LoopFinder>(*cgFunc, *memPool);
+    lf->FormLoopHierarchy();
     VregRename rename(cgFunc, memPool);
     Bfs localBfs(*cgFunc, *memPool);
     rename.bfs = &localBfs;
