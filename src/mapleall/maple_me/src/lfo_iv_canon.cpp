@@ -516,13 +516,13 @@ void IVCanon::PerformIVCanon() {
 }
 
 AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *) {
-  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
   ASSERT(dom != nullptr, "dominance phase has problem");
 
-  MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, !MeOption::quiet));
   ASSERT(irmap != nullptr, "hssamap has problem");
 
-  IdentifyLoops *identLoops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+  IdentifyLoops *identLoops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func, !MeOption::quiet));
   CHECK_FATAL(identLoops != nullptr, "identloops has problem");
 
   LfoFunction *lfoFunc = func->GetLfoFunc();
