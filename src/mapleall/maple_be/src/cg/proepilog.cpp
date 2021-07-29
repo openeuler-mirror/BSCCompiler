@@ -41,18 +41,16 @@ Insn *GenProEpilog::InsertCFIDefCfaOffset(int32 &cfiOffset, Insn &insertAfter) {
   return newIPoint;
 }
 
-AnalysisResult *CgDoGenProEpiLog::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgDoGenProEpiLog");
-  MemPool *memPool = NewMemPool();
+bool CgGenProEpiLog::PhaseRun(maplebe::CGFunc &f) {
   GenProEpilog *genPE = nullptr;
 #if TARGAARCH64 || TARGRISCV64
-  genPE = memPool->New<AArch64GenProEpilog>(*cgFunc);
+  genPE = GetPhaseAllocator()->New<AArch64GenProEpilog>(f);
 #endif
 #if TARGARM32
-  genPE = memPool->New<Arm32GenProEpilog>(*cgFunc);
+  genPE = GetPhaseAllocator()->New<Arm32GenProEpilog>(f);
 #endif
   genPE->Run();
-  return nullptr;
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
 }  /* namespace maplebe */

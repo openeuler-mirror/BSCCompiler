@@ -25,18 +25,17 @@
 
 namespace maplebe {
 using namespace maple;
-AnalysisResult *CgYieldPointInsertion::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgfunc in CgYieldPointInsertion");
-  MemPool *memPool = NewMemPool();
+
+bool CgYieldPointInsertion::PhaseRun(maplebe::CGFunc &f) {
   YieldPointInsertion *yieldPoint = nullptr;
 #if TARGAARCH64 || TARGRISCV64
-  yieldPoint = memPool->New<AArch64YieldPointInsertion>(*cgFunc);
+  yieldPoint = GetPhaseAllocator()->New<AArch64YieldPointInsertion>(f);
 #endif
 #if TARGARM32
-  yieldPoint = memPool->New<Arm32YieldPointInsertion>(*cgFunc);
+  yieldPoint = GetPhaseAllocator()->New<Arm32YieldPointInsertion>(f);
 #endif
   yieldPoint->Run();
-  return nullptr;
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 }  /* namespace maplebe */

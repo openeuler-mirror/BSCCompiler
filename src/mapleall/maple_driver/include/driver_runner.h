@@ -23,6 +23,7 @@
 #include "cg.h"
 #include "cg_option.h"
 #include "cg_phasemanager.h"
+#include "maple_phase_manager.h"
 namespace maple {
 using namespace maplebe;
 
@@ -55,9 +56,8 @@ class DriverRunner final {
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
                std::string actualInput, bool dwarf, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
-      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf, optMp, fileParsed, timePhases,
-                     genVtableImpl, genMeMpl)
-  {
+      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf, optMp,
+                     fileParsed, timePhases, genVtableImpl, genMeMpl) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
   }
@@ -65,6 +65,9 @@ class DriverRunner final {
   ~DriverRunner() = default;
 
   ErrorCode Run();
+#ifdef NEW_PM
+  void RunNewPM(const std::string &outputFile, const std::string &vtableImplFile);
+#endif
   void ProcessCGPhase(const std::string &outputFile, const std::string &oriBasenam);
   void SetCGInfo(CGOptions *cgOptions, const std::string &cgInput) {
     this->cgOptions = cgOptions;
@@ -91,19 +94,13 @@ class DriverRunner final {
   void AddPhases(InterleavedManager &mgr, const std::vector<std::string> &phases,
                  const PhaseManager &phaseManager) const;
   void AddPhase(std::vector<std::string> &phases, const std::string phase, const PhaseManager &phaseManager) const;
-  void ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) const;
+  void ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile);
   CGOptions *cgOptions = nullptr;
   std::string cgInput;
   BECommon *beCommon = nullptr;
-  CG *CreateCGAndBeCommon(const std::string &outputFile, const std::string &oriBasename);
-  void RunCGFunctions(CG &cg, CgFuncPhaseManager &cgNormalfpm,
-                      CgFuncPhaseManager &cgO0fpm,
-                      std::vector<long> &extraPhasesTime,
-                      std::vector<std::string> &extraPhasesName) const;
-  void EmitGlobalInfo(CG &cg) const;
+  void InitProfile() const;
   void EmitDuplicatedAsmFunc(const CG &cg) const;
-  void ProcessExtraTime(const std::vector<long> &extraPhasesTime, const std::vector<std::string> &extraPhasesName,
-                        CgFuncPhaseManager &cgfpm) const;
+  void EmitFastFuncs(const CG &cg) const;
   MIRModule *theModule;
   std::vector<std::string> exeNames = {};
   Options *mpl2mplOptions = nullptr;

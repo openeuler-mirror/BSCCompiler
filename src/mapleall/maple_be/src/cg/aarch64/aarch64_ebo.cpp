@@ -17,7 +17,7 @@
 #include "mpl_logging.h"
 namespace maplebe {
 using namespace maple;
-#define EBO_DUMP CG_DEBUG_FUNC(cgFunc)
+#define EBO_DUMP CG_DEBUG_FUNC(*cgFunc, PhaseName())
 
 uint8 extIndexTable[AArch64Ebo::ExtTableSize][2] = {
  /* extInsnPairTable row index, valid columns */

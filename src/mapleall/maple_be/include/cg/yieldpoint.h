@@ -12,14 +12,31 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef MAPLEBE_INCLUDE_CG_CG_PHASE_H
-#define MAPLEBE_INCLUDE_CG_CG_PHASE_H
+#ifndef MAPLEBE_INCLUDE_CG_YIELDPOINT_H
+#define MAPLEBE_INCLUDE_CG_YIELDPOINT_H
 
-#include "module_phase.h"
+#include "cgfunc.h"
+#include "cg_phase.h"
 
 namespace maplebe {
-using namespace maple;
-class CGFunc;
+class YieldPointInsertion {
+ public:
+  explicit YieldPointInsertion(CGFunc &func) : cgFunc(&func) {}
+
+  virtual ~YieldPointInsertion() = default;
+
+  virtual void Run() {}
+
+  std::string PhaseName() const {
+    return "yieldpoint";
+  }
+
+ protected:
+  CGFunc *cgFunc;
+};
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgYieldPointInsertion, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
-#endif  /* MAPLEBE_INCLUDE_CG_CG_PHASE_H */
+#endif  /* MAPLEBE_INCLUDE_CG_YIELDPOINT_H */

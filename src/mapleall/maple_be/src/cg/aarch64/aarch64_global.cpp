@@ -19,6 +19,7 @@
 
 namespace maplebe {
 using namespace maple;
+#define GLOBAL_DUMP CG_DEBUG_FUNC(cgFunc, PhaseName())
 
 void AArch64GlobalOpt::Run() {
   if (cgFunc.NumBBs() > kMaxBBNum || cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum) {
@@ -31,6 +32,7 @@ void AArch64GlobalOpt::Run() {
   optManager.Optimize<CmpCsetPattern>();
   optManager.Optimize<RedundantUxtPattern>();
   optManager.Optimize<LocalVarSaveInsnPattern>();
+  optManager.Optimize<ExtendShiftOptPattern>();
 }
 
 /* if used Operand in insn is defined by zero in all define insn, return true */
@@ -518,9 +520,10 @@ void BackPropPattern::Optimize(Insn &insn) {
       !(cgFunc.GetFunction().IsReturnVoid()) &&
       (firstRegNO == R0) &&
       (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0))  {
-    // Keep this instruction: mov R0, R0
+    /* Keep this instruction: mov R0, R0 */
+    return;
   } else {
-     insn.GetBB()->RemoveInsn(insn);
+    insn.GetBB()->RemoveInsn(insn);
   }
 }
 
@@ -1007,6 +1010,275 @@ void LocalVarSaveInsnPattern::Run() {
         continue;
       }
       Optimize(*firstInsn);
+    }
+  }
+}
+
+bool ExtendShiftOptPattern::CheckCurrMop(Insn &insn) {
+  MOperator op = insn.GetMachineOpcode();
+  switch (op) {
+    case MOP_xaddrrr:
+    case MOP_waddrrr:
+    case MOP_xsubrrr:
+    case MOP_wsubrrr:
+    case MOP_xeorrrr:
+    case MOP_weorrrr:
+    case MOP_xiorrrr:
+    case MOP_wiorrrr:
+    case MOP_wcmnrr:
+    case MOP_xcmnrr:
+    case MOP_wcmprr:
+    case MOP_xcmprr:
+      return true;
+    case MOP_winegrr:
+    case MOP_xinegrr:
+      replaceIdx = kInsnSecondOpnd;
+      return true;
+    default:
+      return false;
+  }
+}
+
+void ExtendShiftOptPattern::SelectReplaceOp(Insn &use) {
+  MOperator op = use.GetMachineOpcode();
+  bool isExten = (extendOp != ExtendShiftOperand::kUndef);
+  switch (op) {
+    case MOP_xaddrrr: replaceOp = isExten ? MOP_xxwaddrrre : MOP_xaddrrrs;
+      break;
+    case MOP_waddrrr: replaceOp = isExten ? MOP_wwwaddrrre : MOP_waddrrrs;
+      break;
+    case MOP_xsubrrr: replaceOp = isExten ? MOP_xxwsubrrre : MOP_xsubrrrs;
+      break;
+    case MOP_wsubrrr: replaceOp = isExten ? MOP_wwwsubrrre : MOP_wsubrrrs;
+      break;
+    case MOP_xeorrrr: replaceOp = isExten ? MOP_undef : MOP_xeorrrrs;
+      break;
+    case MOP_weorrrr: replaceOp = isExten ? MOP_undef : MOP_weorrrrs;
+      break;
+    case MOP_xinegrr: replaceOp = isExten ? MOP_undef : MOP_xinegrrs;
+      break;
+    case MOP_winegrr: replaceOp = isExten ? MOP_undef : MOP_winegrrs;
+      break;
+    case MOP_xiorrrr: replaceOp = isExten ? MOP_undef : MOP_xiorrrrs;
+      break;
+    case MOP_wiorrrr: replaceOp = isExten ? MOP_undef : MOP_wiorrrrs;
+      break;
+    case MOP_xcmnrr: replaceOp = isExten ? MOP_xwcmnrre : MOP_xcmnrrs;
+      break;
+    case MOP_wcmnrr: replaceOp = isExten ? MOP_wwcmnrre : MOP_wcmnrrs;
+      break;
+    case MOP_xcmprr: replaceOp = isExten ? MOP_xwcmprre : MOP_xcmprrs;
+      break;
+    case MOP_wcmprr: replaceOp = isExten ? MOP_wwcmprre : MOP_wcmprrs;
+      break;
+    default:
+      CHECK_FATAL(0, "check use op!");
+  }
+}
+
+void ExtendShiftOptPattern::SelectExtenOp(const Insn &def) {
+  MOperator op = def.GetMachineOpcode();
+  switch (op) {
+    case MOP_xsxtb32:
+    case MOP_xsxtb64: extendOp = ExtendShiftOperand::kSXTB;
+      break;
+    case MOP_xsxth32:
+    case MOP_xsxth64: extendOp = ExtendShiftOperand::kSXTH;
+      break;
+    case MOP_xsxtw64: extendOp = ExtendShiftOperand::kSXTW;
+      break;
+    case MOP_xuxtb32: extendOp = ExtendShiftOperand::kUXTB;
+      break;
+    case MOP_xuxth32: extendOp = ExtendShiftOperand::kUXTH;
+      break;
+    case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
+      break;
+    case MOP_wlslrri5:
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
+      break;
+    case MOP_xlsrrri6:
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+      break;
+    default: {
+      extendOp = ExtendShiftOperand::kUndef;
+      shiftOp = BitShiftOperand::kUndef;
+    }
+  }
+}
+
+/* first use must match SelectExtenOp */
+bool ExtendShiftOptPattern::CheckDefUseInfo(const Insn &use, const Insn &def) {
+  Operand &useOperand = use.GetOperand(replaceIdx);
+  Operand &defOperand = def.GetOperand(0);
+  Operand &defSrcOpnd = def.GetOperand(kInsnSecondOpnd);
+  if (useOperand.GetSize() != defOperand.GetSize()) {
+    return false;
+  }
+  AArch64RegOperand &regUse = static_cast<AArch64RegOperand&>(useOperand);
+  AArch64RegOperand &regDef = static_cast<AArch64RegOperand&>(defOperand);
+  /* case:
+   * lsl w0, w0, #5
+   * eor w0, w2, w0
+   * --->
+   * eor w0, w2, w0, lsl 5
+   */
+  if (defSrcOpnd.IsRegister()) {
+    AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
+    if (regDef.GetRegisterNumber() == regDefSrc.GetRegisterNumber()) {
+      return false;
+    }
+  }
+
+  return regUse.GetRegisterNumber() == regDef.GetRegisterNumber();
+}
+
+void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) {
+  if (amount > k4ByteSize) {
+    return;
+  }
+  AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  Operand &firstOpnd = use.GetOperand(kInsnFirstOpnd);
+  Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
+  /* thirdOpnd is extend or bitshift operand, depend on defInsn */
+  Operand *shiftOpnd = nullptr;
+  if (extendOp != ExtendShiftOperand::kUndef) {
+    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
+  } else if (shiftOp != BitShiftOperand::kUndef) {
+    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
+  } else {
+    CHECK_FATAL(0, "extendOp and shiftOp are undef!");
+  }
+
+  SelectReplaceOp(use);
+  if (replaceOp == MOP_undef) {
+    return;
+  }
+  /* replace neg insn */
+  Insn *replaceUseInsn = nullptr;
+  if (replaceIdx == kInsnSecondOpnd) {
+    secondOpnd = &def.GetOperand(kInsnSecondOpnd);
+    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
+  } else {
+    Operand &thirdOpnd = def.GetOperand(kInsnSecondOpnd);
+    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd,
+                                                                    thirdOpnd, *shiftOpnd);
+  }
+  use.GetBB()->ReplaceInsn(use, *replaceUseInsn);
+  if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
+    use.Dump();
+    LogInfo::MapleLogger() << "=======NewInsn :\n";
+    replaceUseInsn->Dump();
+  }
+}
+
+/*
+ * pattern1:
+ * UXTB/UXTW X0, W1              <---- def x0
+ * ....                          <---- (X0 not used)
+ * AND/SUB/EOR X0, X1, X0        <---- use x0
+ * ======>
+ * AND/SUB/EOR X0, X1, W1 UXTB/UXTW
+ *
+ * pattern2:
+ * UXTB/UXTW X1, W1
+ * LSL X0, X1, #2
+ * ....(X0 not used)
+ * AND/SUB/EOR X0, X1, X0
+ * ======>
+ * AND/SUB/EOR X0, X1, W1 UXTB/UXTW #2
+ *
+ * pattern3:
+ * LSL/LSR X0, X1, #8
+ * ....(X0 not used)
+ * AND/SUB/EOR X0, X1, X0
+ * ======>
+ * AND/SUB/EOR X0, X1, X1 LSL/LSR #8
+ */
+void ExtendShiftOptPattern::Optimize(Insn &insn) {
+  if (shiftOp == BitShiftOperand::kLSL) {
+    InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(*defInsn, kInsnSecondOpnd, false);
+    Insn *preDefInsn = *preDef.begin();
+    CHECK_FATAL((preDefInsn != nullptr), "defInsn is null!");
+    SelectExtenOp(*preDefInsn);
+    /* preDefInsn must be uxt/sxt */
+    if (extendOp != ExtendShiftOperand::kUndef) {
+      AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+      /* do pattern2 */
+      ReplaceUseInsn(insn, *preDefInsn, immOpnd.GetValue());
+      return;
+    }
+  }
+  /* reset shiftOp and extendOp */
+  SelectExtenOp(*defInsn);
+
+  if (extendOp != ExtendShiftOperand::kUndef) {
+    /* do pattern1 */
+    ReplaceUseInsn(insn, *defInsn, 0);
+  } else if (shiftOp != BitShiftOperand::kUndef) {
+    /* do pattern2 */
+    AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+    ReplaceUseInsn(insn, *defInsn, immOpnd.GetValue());
+  } else {
+    CHECK_FATAL(false, "extendOp and shiftOp is Both kUndef!");
+  }
+}
+
+bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
+  if (!CheckCurrMop(insn)) {
+    return false;
+  }
+  if (insn.GetOperandSize() > k3ByteSize) {
+    return false;
+  }
+  InsnSet regDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, replaceIdx, false);
+  if (regDefInsnSet.empty()) {
+    return false;
+  }
+  defInsn = *regDefInsnSet.begin();
+  CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
+
+  SelectExtenOp(*defInsn);
+  /* defInsn must be shift or extend */
+  if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
+    return false;
+  }
+  /* The optimization of cross-BB before RA prolongs the live range of vreg.
+   * As a result, the calleesave register is preferentially used when RA allocates registers.
+   * more calleesave register will increase stackmem size.
+   * str x23, [x29,#48]
+   * ...
+   * ldr x23, [x29,#48]
+   * will be added.
+   */
+  if (defInsn->GetBB() != insn.GetBB()) {
+    return false;
+  }
+  return CheckDefUseInfo(insn, *defInsn);
+}
+
+void ExtendShiftOptPattern::Init() {
+  replaceOp = MOP_undef;
+  extendOp = ExtendShiftOperand::kUndef;
+  shiftOp = BitShiftOperand::kUndef;
+  defInsn = nullptr;
+  replaceIdx = kInsnThirdOpnd;
+}
+
+void ExtendShiftOptPattern::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB_REV(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      Init();
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
     }
   }
 }

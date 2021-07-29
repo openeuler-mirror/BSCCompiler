@@ -33,7 +33,7 @@
 namespace maplebe {
 using namespace maple;
 
-#define CFGO_DUMP CG_DEBUG_FUNC(cgFunc)
+#define CFGO_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
 
 void CFGOptimizer::InitOptimizePatterns() {
   /* Initialize cfg optimization patterns */
@@ -347,8 +347,81 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
       }
     }
     return true;
+  } else if (curBB.GetKind() == BB::kBBRangeGoto) {
+    for (BB *sucBB : curBB.GetSuccs()) {
+      if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
+          cgFunc->GetTheCFG()->GetTargetSuc(*sucBB) != nullptr) {
+        Log(curBB.GetId());
+        if (checkOnly) {
+          return false;
+        }
+        UpdateSwitchSucc(curBB, *sucBB);
+        cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(*sucBB, *cgFunc);
+      }
+    }
+    return true;
   }
   return false;
+}
+
+void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
+  BB *gotoTarget = cgFunc->GetTheCFG()->GetTargetSuc(sucBB);
+  CHECK_FATAL(gotoTarget != nullptr, "gotoTarget is null in SequentialJumpPattern::UpdateSwitchSucc");
+  const MapleVector<LabelIdx> &labelVec = curBB.GetRangeGotoLabelVec();
+  uint32 index = 0;
+  LabelIdx targetLable = gotoTarget->GetLabIdx();
+  for (auto label: labelVec) {
+    if (label == sucBB.GetLabIdx()) {
+      curBB.SetRangeGotoLabel(index, targetLable);
+      break;
+    }
+    index++;
+  }
+  MIRSymbol *st = cgFunc->GetEmitSt(curBB.GetId());
+  MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
+  MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+  MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(targetLable, cgFunc->GetFunction().GetPuidx(), *etype);
+  for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+    CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+    MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+    if (sucBB.GetLabIdx() == lblConst->GetValue()) {
+      arrayConst->SetConstVecItem(i, *mirConst);
+      break;
+    }
+  }
+  /* connect curBB, gotoTarget */
+  for (auto it = gotoTarget->GetPredsBegin(); it != gotoTarget->GetPredsEnd(); ++it) {
+    if (*it == &sucBB) {
+      auto origIt = it;
+      gotoTarget->ErasePreds(it);
+      if (origIt != gotoTarget->GetPredsBegin()) {
+        origIt--;
+        gotoTarget->InsertPred(origIt, curBB);
+      } else {
+        gotoTarget->PushFrontPreds(curBB);
+      }
+      break;
+    }
+  }
+  for (auto it = curBB.GetSuccsBegin(); it != curBB.GetSuccsEnd(); ++it) {
+    if (*it == &sucBB) {
+      auto origIt = it;
+      curBB.EraseSuccs(it);
+      if (origIt != curBB.GetSuccsBegin()) {
+        origIt--;
+        curBB.InsertSucc(origIt, *gotoTarget);
+      } else {
+        curBB.PushFrontSuccs(*gotoTarget);
+      }
+      break;
+    }
+  }
+  /* cut curBB -> sucBB */
+  for (auto it = sucBB.GetPredsBegin(); it != sucBB.GetPredsEnd(); ++it) {
+    if (*it == &curBB) {
+      sucBB.ErasePreds(it);
+    }
+  }
 }
 
 /*
@@ -739,47 +812,36 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
   return false;
 }
 
-AnalysisResult *CgDoCfgo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  MemPool *cfgMemPool = NewMemPool();
-  CFGOptimizer *cfgOptimizer = cfgMemPool->New<CFGOptimizer>(*cgFunc, *cfgMemPool);
-  std::string funcClass = cgFunc->GetFunction().GetBaseClassName();
-  std::string funcName = cgFunc->GetFunction().GetBaseFuncName();
-  std::string name = funcClass + funcName;
-  const std::string phaseName = PhaseName();
-
-  if (CFGO_DUMP) {
-    DotGenerator::GenerateDot("before-cfgo", *cgFunc, cgFunc->GetMirModule());
+/* === new pm === */
+bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
+  CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
+  const std::string &funcClass = f.GetFunction().GetBaseClassName();
+  const std::string &funcName = f.GetFunction().GetBaseFuncName();
+  const std::string &name = funcClass + funcName;
+  if (CFGO_DUMP_NEWPM) {
+    DotGenerator::GenerateDot("before-cfgo", f, f.GetMirModule());
   }
-
   cfgOptimizer->Run(name);
-
-  if (CFGO_DUMP) {
-    DotGenerator::GenerateDot("after-cfgo", *cgFunc, cgFunc->GetMirModule());
+  if (CFGO_DUMP_NEWPM) {
+    DotGenerator::GenerateDot("after-cfgo", f, f.GetMirModule());
   }
-
-  return nullptr;
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgCfgo, cfgo)
 
-AnalysisResult *CgDoPostCfgo::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  MemPool *cfgMemPool = NewMemPool();
-  CFGOptimizer *cfgOptimizer = cfgMemPool->New<CFGOptimizer>(*cgFunc, *cfgMemPool);
-  std::string funcClass = cgFunc->GetFunction().GetBaseClassName();
-  std::string funcName = cgFunc->GetFunction().GetBaseFuncName();
-  std::string name = funcClass + funcName;
-  const std::string phaseName = PhaseName();
-
-  if (CFGO_DUMP) {
-    DotGenerator::GenerateDot("before-postcfgo", *cgFunc, cgFunc->GetMirModule());
+bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
+  CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
+  const std::string &funcClass = f.GetFunction().GetBaseClassName();
+  const std::string &funcName = f.GetFunction().GetBaseFuncName();
+  const std::string &name = funcClass + funcName;
+  if (CFGO_DUMP_NEWPM) {
+    DotGenerator::GenerateDot("before-postcfgo", f, f.GetMirModule());
   }
-
   cfgOptimizer->Run(name);
-
-  if (CFGO_DUMP) {
-    DotGenerator::GenerateDot("after-postcfgo", *cgFunc, cgFunc->GetMirModule());
+  if (CFGO_DUMP_NEWPM) {
+    DotGenerator::GenerateDot("after-postcfgo", f, f.GetMirModule());
   }
-
-  return nullptr;
+  return false;
 }
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPostCfgo, postcfgo)
 }  /* namespace maplebe */

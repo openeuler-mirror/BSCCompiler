@@ -1055,12 +1055,6 @@ class CGFunc {
   bool hasAsm = false;
 };  /* class CGFunc */
 
-CGFUNCPHASE(CgDoLayoutSF, "layoutstackframe")
-CGFUNCPHASE(CgDoHandleFunc, "handlefunction")
-CGFUNCPHASE(CgDoFixCFLocOsft, "dbgfixcallframeoffsets")
-CGFUNCPHASE(CgDoGenCfi, "gencfi")
-CGFUNCPHASE(CgDoEmission, "emit")
-
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgHandleFunction, maplebe::CGFunc)

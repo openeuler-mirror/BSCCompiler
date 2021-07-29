@@ -250,8 +250,6 @@ private:
   MapleVector<uint32> pdtDfnOut;                 // max position of all nodes in the sub tree of each BB in pdt_preorder
 };
 
-CGFUNCPHASE(CgDoDomAnalysis, "domanalysis")
-CGFUNCPHASE(CgDoPostDomAnalysis, "postdomanalysis")
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_DOM_H */

@@ -27,7 +27,7 @@ namespace maplebe {
  * = Linear Scan RA
  * ==================
  */
-#define LSRA_DUMP CG_DEBUG_FUNC(cgFunc)
+#define LSRA_DUMP CG_DEBUG_FUNC(*cgFunc, PhaseName())
 
 namespace {
 constexpr uint32 kSpilled = 1;

@@ -18,6 +18,7 @@
 #include "cg_phase.h"
 #include "cgbb.h"
 #include "insn.h"
+#include "maple_phase.h"
 
 namespace maplebe {
 class LoopHierarchy {
@@ -157,7 +158,8 @@ class CGFuncLoops {
 
   ~CGFuncLoops() = default;
 
-  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops, const MapleVector<BB*> &loopMembers) const;
+  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops,
+                                  const MapleVector<BB*> &loopMembers) const;
   void CheckLoops() const;
   void PrintLoops(const CGFuncLoops &loops) const;
 
@@ -221,7 +223,8 @@ struct CGFuncLoopCmp {
   }
 };
 
-CGFUNCPHASE(CgDoLoopAnalysis, "loopanalysis")
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLoopAnalysis, maplebe::CGFunc);
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_LOOP_H */

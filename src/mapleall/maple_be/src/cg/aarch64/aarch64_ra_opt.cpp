@@ -19,7 +19,6 @@
 
 namespace maplebe {
 using namespace std;
-/* #define RAOPT_DUMP CG_DEBUG_FUNC(cgFunc) */
 bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
   if (opnd != nullptr) {
     RegOperand *regopnd = static_cast<RegOperand*>(opnd);

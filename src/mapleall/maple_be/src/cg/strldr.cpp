@@ -26,38 +26,7 @@
 
 namespace maplebe {
 using namespace maple;
-
-#define SCHD_DUMP CG_DEBUG_FUNC(cgFunc)
-#define SCHD_DUMP_NEWPM CG_DEBUG_FUNC_NEWPM(f, PhaseName())
-
-AnalysisResult *CgDoStoreLoadOpt::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResMgr) {
-  if (SCHD_DUMP) {
-    DotGenerator::GenerateDot("storeloadopt", *cgFunc, cgFunc->GetMirModule(), true);
-  }
-  ReachingDefinition *reachingDef = nullptr;
-  if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
-    reachingDef = static_cast<ReachingDefinition*>(cgFuncResMgr->GetAnalysisResult(kCGFuncPhaseREACHDEF, cgFunc));
-  }
-  if (reachingDef == nullptr || !cgFunc->GetRDStatus()) {
-    cgFuncResMgr->InvalidAnalysisResult(kCGFuncPhaseREACHDEF, cgFunc);
-    return nullptr;
-  }
-  if (reachingDef->OnlyAnalysisReg()) {
-    return nullptr;
-  }
-  MemPool *storeMemPool = NewMemPool();
-  StoreLoadOpt *storeLoadOpt = nullptr;
-#if TARGAARCH64 || TARGRISCV64
-  storeLoadOpt = storeMemPool->New<AArch64StoreLoadOpt>(*cgFunc, *storeMemPool);
-#endif
-#if TARGARM32
-  storeLoadOpt = storeMemPool->New<Arm32StoreLoadOpt>(*cgFunc, *storeMemPool);
-#endif
-
-  storeLoadOpt->Run();
-  return nullptr;
-}
-
+#define SCHD_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
 bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
   if (SCHD_DUMP_NEWPM) {
     DotGenerator::GenerateDot("storeloadopt", f, f.GetMirModule(), true);
@@ -65,12 +34,17 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
   ReachingDefinition *reachingDef = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
     reachingDef = GET_ANALYSIS(CgReachingDefinition);
-    if (reachingDef->OnlyAnalysisReg()) {
-      return false;
-    }
   }
+  if (reachingDef == nullptr || !f.GetRDStatus()) {
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgReachingDefinition::id);
+    return false;
+  }
+  if (reachingDef->OnlyAnalysisReg()) {
+    return false;
+  }
+
   StoreLoadOpt *storeLoadOpt = nullptr;
-#if TARGAARCH64
+#if TARGAARCH64 || TARGRISCV64
   storeLoadOpt = GetPhaseMemPool()->New<AArch64StoreLoadOpt>(f, *GetPhaseMemPool());
 #endif
 #if TARGARM32
@@ -81,7 +55,7 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
 }
 void CgStoreLoadOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgReachingDefinition>();
-  aDep.AddPreserved<CgReachingDefinition>();
+  aDep.SetPreservedAll();
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgStoreLoadOpt, storeloadopt)
 }  /* namespace maplebe */

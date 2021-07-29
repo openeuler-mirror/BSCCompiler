@@ -35,7 +35,7 @@
  * 3. deal with cleanup BB.
  */
 namespace maplebe {
-#define LIVE_ANALYZE_DUMP CG_DEBUG_FUNC(cgFunc)
+#define LIVE_ANALYZE_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
 
 void LiveAnalysis::InitAndGetDefUse() {
   FOR_ALL_BB(bb, cgFunc) {
@@ -81,12 +81,13 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) {
 
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
 bool LiveAnalysis::GenerateLiveIn(BB &bb) {
-  const MapleVector<uint64>bbLiveInBak(bb.GetLiveIn()->GetInfo());
+  LocalMapleAllocator alloc(stackMp);
+  const MapleVector<uint64> bbLiveInBak(bb.GetLiveIn()->GetInfo(), alloc.Adapter());
   if (!bb.GetInsertUse()) {
     bb.SetLiveInInfo(*bb.GetUse());
     bb.SetInsertUse(true);
   }
-  DataInfo bbLiveOut = *(bb.GetLiveOut());
+  DataInfo &bbLiveOut = bb.GetLiveOut()->Clone(alloc);
   if (!bbLiveOut.NoneBit()) {
     bbLiveOut.Difference(*bb.GetDef());
     bb.LiveInOrBits(bbLiveOut);
@@ -94,7 +95,7 @@ bool LiveAnalysis::GenerateLiveIn(BB &bb) {
 
   if (!bb.GetEhSuccs().empty()) {
     /* If bb has eh successors, check if multi-gen exists. */
-    DataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), *memPool);
+    DataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), alloc);
     for (auto ehSucc : bb.GetEhSuccs()) {
       allInOfEhSuccs.OrBits(*ehSucc->GetLiveIn());
     }
@@ -132,12 +133,8 @@ void LiveAnalysis::BuildInOutforFunc() {
 /* only reset to liveout/in_regno in schedule and ra phase. */
 void LiveAnalysis::ResetLiveSet() {
   FOR_ALL_BB(bb, cgFunc) {
-    for (const auto &rNO : bb->GetLiveIn()->GetBitsOfInfo()) {
-      bb->InsertLiveInRegNO(rNO);
-    }
-    for (const auto &rNO : bb->GetLiveOut()->GetBitsOfInfo()) {
-      bb->InsertLiveOutRegNO(rNO);
-    }
+    bb->GetLiveIn()->GetBitsOfInfo(bb->GetLiveInRegNO());
+    bb->GetLiveOut()->GetBitsOfInfo(bb->GetLiveOutRegNO());
   }
 }
 
@@ -306,21 +303,19 @@ void LiveAnalysis::EnlargeSpaceForLiveAnalysis(BB &currBB) {
   }
 }
 
-AnalysisResult *CgDoLiveAnalysis::Run(CGFunc *cgFunc, CgFuncResultMgr *cgFuncResultMgr) {
-  (void)cgFuncResultMgr;
-  ASSERT(cgFunc != nullptr, "expect a cgFunc in CgDoLiveAnalysis");
-  MemPool *liveMemPool = NewMemPool();
-  LiveAnalysis *liveAnalysis = nullptr;
+bool CgLiveAnalysis::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *liveMemPool = GetPhaseMemPool();
 #if TARGAARCH64 || TARGRISCV64
-  liveAnalysis = liveMemPool->New<AArch64LiveAnalysis>(*cgFunc, *liveMemPool);
+  live = liveMemPool->New<AArch64LiveAnalysis>(f, *liveMemPool);
 #endif
 #if TARGARM32
-  liveAnalysis = liveMemPool->New<Arm32LiveAnalysis>(*cgFunc, *liveMemPool);
+  live = liveMemPool->New<Arm32LiveAnalysis>(f, *liveMemPool);
 #endif
-  liveAnalysis->AnalysisLive();
-  if (LIVE_ANALYZE_DUMP) {
-    liveAnalysis->Dump();
+  live->AnalysisLive();
+  if (LIVE_ANALYZE_DUMP_NEWPM) {
+    live->Dump();
   }
-  return liveAnalysis;
+  return false;
 }
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLiveAnalysis, liveanalysis)
 }  /* namespace maplebe */
