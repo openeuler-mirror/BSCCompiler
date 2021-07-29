@@ -114,7 +114,7 @@ class Jbc2MplCompiler : public Compiler {
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
 };
 
-/*class Cpp2MplCompiler : public Compiler {
+class Cpp2MplCompiler : public Compiler {
  public:
   explicit Cpp2MplCompiler(const std::string &name) : Compiler(name) {}
 
@@ -127,7 +127,7 @@ class Jbc2MplCompiler : public Compiler {
    DefaultOption GetDefaultOptions(const MplOptions &options) const override;
    void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
    std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
-};*/
+};
 
 class Dex2MplCompiler : public Compiler {
  public:

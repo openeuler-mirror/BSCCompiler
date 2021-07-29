@@ -18,7 +18,9 @@
 
 namespace maple {
 enum CppOptionIndex {
-  kInAst
+  kInAst,
+  kInCpp,
+  kCpp2mplHelp,
 };
 
 const mapleOption::Descriptor cppUsage[] = {
@@ -41,7 +43,7 @@ const mapleOption::Descriptor cppUsage[] = {
               "cpp2mpl",
               {} },
 
-            { kDex2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
+            { kCpp2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
               "   -h, --help          : print usage and exit.\n",
               "cpp2mpl",
               {} },
@@ -49,7 +51,8 @@ const mapleOption::Descriptor cppUsage[] = {
             { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
               "",
               "cpp2mpl",
-              {} };
+              {} }
+};
 } // namespace maple
 
 #endif //MAPLE_CPP2MPL_OPTION_H

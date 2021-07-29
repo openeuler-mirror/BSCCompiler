@@ -148,12 +148,6 @@ ErrorCode MplOptions::HandleGeneralOptions() {
           return ret;
         }
         break;
-      case kCpp2mplOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameCpp2mpl);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
-        break;
       case kMplipaOpt:
         ret = UpdatePhaseOption(opt.Args(), kBinNameMplipa);
         if (ret != kErrorNoError) {
@@ -635,4 +629,4 @@ void MplOptions::PrintDetailCommand(bool isBeforeParse) {
                            << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
   }
 }
-}  // namespace maple
+} // namespace maple

@@ -32,7 +32,6 @@ namespace maple {
 enum InputFileType {
   kFileTypeNone,
   kFileTypeClass,
-  kFileTypeAst,
   kFileTypeJar,
   kFileTypeAst, // Code_exp: ast file type
   kFileTypeDex,

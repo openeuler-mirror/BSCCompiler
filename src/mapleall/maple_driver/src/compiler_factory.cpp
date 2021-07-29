@@ -42,7 +42,7 @@ CompilerFactory::CompilerFactory() {
   ADD_COMPILER("mplcg", MplcgCompiler)
   ADD_COMPILER("as", AsCompiler)
   ADD_COMPILER("ld", LdCompiler)
-//  ADD_COMPILER("cpp2mpl", Cpp2MplCompiler)
+  ADD_COMPILER("cpp2mpl", Cpp2MplCompiler)
   compilerSelector = new CompilerSelectorImpl();
 }
 
