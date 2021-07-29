@@ -122,7 +122,7 @@ class LoopFinder : public AnalysisResult {
   void formLoop(BB* headBB, BB* backBB);
   void seekBackEdge(BB* bb, MapleList<BB*> succs);
   void seekCycles();
-  void markExtraEntries();
+  void markExtraEntryAndEncl();
   void MergeLoops();
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
