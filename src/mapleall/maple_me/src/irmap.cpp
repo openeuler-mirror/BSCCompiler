@@ -1374,6 +1374,12 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
 
   if (opnd1->IsLeaf()) {
     if (opnd0->GetOp() == OP_cvt) {
+      auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
+      // reassociation effects sign extension
+      if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
+          (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
+        return nullptr;
+      }
       opnd0 = opnd0->GetOpnd(0);
     }
 
@@ -1381,6 +1387,9 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
       auto *opndA = opnd0->GetOpnd(0);
       auto *opndB = opnd0->GetOpnd(1);
       if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetPrimType() != opnd0->GetPrimType() || opndB->GetPrimType() != opnd0->GetPrimType()) {
         return nullptr;
       }
       if (opndA->GetMeOp() == kMeOpConst) {
@@ -1465,6 +1474,12 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
 
   if (opnd1->IsLeaf()) {
     if (opnd0->GetOp() == OP_cvt) {
+      // reassociation effects sign extension
+      auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
+      if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
+          (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
+        return nullptr;
+      }
       opnd0 = opnd0->GetOpnd(0);
     }
 
@@ -1472,6 +1487,9 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
       auto *opndA = opnd0->GetOpnd(0);
       auto *opndB = opnd0->GetOpnd(1);
       if (!opndA->IsLeaf() || !opndB->IsLeaf()) {
+        return nullptr;
+      }
+      if (opndA->GetPrimType() != opnd0->GetPrimType() || opndB->GetPrimType() != opnd0->GetPrimType()) {
         return nullptr;
       }
       if (opndA->GetMeOp() == kMeOpConst) {
