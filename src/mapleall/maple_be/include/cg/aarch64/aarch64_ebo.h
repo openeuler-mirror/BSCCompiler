@@ -70,6 +70,7 @@ class AArch64Ebo : public Ebo {
   bool IsFmov(const Insn &insn) const override;
   bool IsClinitCheck(const Insn &insn) const override;
   bool IsLastAndBranch(BB &bb, Insn &insn) const override;
+  bool IsSameRedefine(BB &bb, Insn &insn, OpndInfo &opndInfo) const override;
   bool ResIsNotDefAndUse(Insn &insn) const override;
   bool LiveOutOfBB(const Operand &opnd, const BB &bb) const override;
 

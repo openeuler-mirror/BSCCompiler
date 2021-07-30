@@ -99,6 +99,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
     STMT_CASE(ImplicitCastExpr);
     STMT_CASE(ParenExpr);
     STMT_CASE(IntegerLiteral);
+    STMT_CASE(FloatingLiteral);
     STMT_CASE(VAArgExpr);
     STMT_CASE(ConditionalOperator);
     STMT_CASE(CharacterLiteral);
@@ -208,6 +209,18 @@ ASTStmt *ASTParser::ProcessStmtIntegerLiteral(MapleAllocator &allocator, const c
   }
   astIntegerLiteralStmt->SetASTExpr(astExpr);
   return astIntegerLiteralStmt;
+}
+
+ASTStmt *ASTParser::ProcessStmtFloatingLiteral(MapleAllocator &allocator,
+                                               const clang::FloatingLiteral &floatingLiteral) {
+  ASTFloatingLiteralStmt *astFloatingLiteralStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTFloatingLiteralStmt>(allocator);
+  CHECK_FATAL(astFloatingLiteralStmt != nullptr, "astFloatingLiteralStmt is nullptr");
+  ASTExpr *astExpr = ProcessExpr(allocator, &floatingLiteral);
+  if (astExpr == nullptr) {
+    return nullptr;
+  }
+  astFloatingLiteralStmt->SetASTExpr(astExpr);
+  return astFloatingLiteralStmt;
 }
 
 ASTStmt *ASTParser::ProcessStmtVAArgExpr(MapleAllocator &allocator, const clang::VAArgExpr &vAArgExpr) {

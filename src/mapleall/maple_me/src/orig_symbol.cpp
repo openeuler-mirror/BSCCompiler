@@ -165,7 +165,7 @@ OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost)
     return ost->GetPrevLevelOst();
   }
   OriginalSt *prevLevelOst = nullptr;
-  auto it = addrofSt2Ost.find(ost->GetMIRSymbol()->GetStIndex());
+  auto it = addrofSt2Ost.find(ost->GetMIRSymbol()->GetStIdx());
   if (it != addrofSt2Ost.end()) {
     prevLevelOst = originalStVector[it->second];
   } else {
@@ -179,7 +179,7 @@ OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost)
     TyIdx newTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointType);
     prevLevelOst->SetTyIdx(newTyIdx);
     prevLevelOst->SetFieldID(0);
-    addrofSt2Ost[ost->GetMIRSymbol()->GetStIndex()] = prevLevelOst->GetIndex();
+    addrofSt2Ost[ost->GetMIRSymbol()->GetStIdx()] = prevLevelOst->GetIndex();
   }
   ost->SetPrevLevelOst(prevLevelOst);
   prevLevelOst->AddNextLevelOst(ost);
@@ -188,13 +188,6 @@ OriginalSt *OriginalStTable::FindOrCreateAddrofSymbolOriginalSt(OriginalSt *ost)
 
 OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *ost, TyIdx tyIdx,
     FieldID fld, const OffsetType &offset, const KlassHierarchy *klassHierarchy) {
-  TyIdx ptyIdxOfOst = ost->GetTyIdx();
-  FieldID fldIDInOst = fld;
-  if (ptyIdxOfOst != tyIdx && klassHierarchy != nullptr) {
-    (void)klassHierarchy->UpdateFieldID(tyIdx, ptyIdxOfOst, fldIDInOst);
-  }
-
-  auto nextLevelOsts = ost->GetNextLevelOsts();
   MIRType *typeOfExtraLevOst = GlobalTables::GetTypeTable().GetVoid();
   OffsetType offsetOfNextLevOst(kOffsetUnknown);
   tyIdx = (tyIdx == 0u) ? ost->GetTyIdx() : tyIdx;
@@ -203,14 +196,29 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
     const MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
     if (mirType->GetKind() == kTypePointer) {
       const auto *ptType = static_cast<const MIRPtrType*>(mirType);
-      typeOfExtraLevOst = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptType->GetPointedTyIdxWithFieldID(fld));
-      if (fld <= ptType->NumberOfFieldIDs()) {
-        offsetOfNextLevOst = offset + ptType->GetPointedType()->GetBitOffsetFromBaseAddr(fld);
+      auto *pointedType = ptType->GetPointedType();
+      if (fld == 0) {
+        offsetOfNextLevOst = offset;
+        typeOfExtraLevOst = pointedType;
+      } else if (fld <= pointedType->NumberOfFieldIDs()) {
+        CHECK_FATAL(pointedType->IsStructType(), "must be struct type");
+        typeOfExtraLevOst = static_cast<MIRStructType*>(pointedType)->GetFieldType(fld);
+        offsetOfNextLevOst = offset + pointedType->GetBitOffsetFromBaseAddr(fld);
       }
     }
   }
 
-  OriginalSt *nextLevOst = FindExtraLevOriginalSt(nextLevelOsts, typeOfExtraLevOst, fldIDInOst, offsetOfNextLevOst);
+  TyIdx ptyIdxOfOst = ost->GetTyIdx();
+  FieldID fldIDInOst = fld;
+  if (ptyIdxOfOst != tyIdx) {
+    if (klassHierarchy != nullptr) {
+      (void)klassHierarchy->UpdateFieldID(tyIdx, ptyIdxOfOst, fldIDInOst);
+    } else {
+      fldIDInOst = 0;
+    }
+  }
+  OriginalSt *nextLevOst =
+      FindExtraLevOriginalSt(ost->GetNextLevelOsts(), typeOfExtraLevOst, fldIDInOst, offsetOfNextLevOst);
   if (nextLevOst != nullptr) {
     return nextLevOst;
   }
@@ -259,12 +267,10 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyI
 OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, MIRType *type,
                                                     FieldID fld, const OffsetType &offset) {
   for (OriginalSt *nextLevelOst : nextLevelOsts) {
-    if (nextLevelOst->GetFieldID() == fld) {
-      return nextLevelOst;
-    }
-    if (!offset.IsInvalid() && nextLevelOst->GetOffset() == offset &&
-        nextLevelOst->GetType()->GetSize() == type->GetSize()) {
-      return nextLevelOst;
+    if (nextLevelOst->GetOffset() == offset && nextLevelOst->GetType() == type) {
+      if (nextLevelOst->GetFieldID() == fld || fld == 0) {
+        return nextLevelOst;
+      }
     }
   }
   return nullptr;

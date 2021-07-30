@@ -59,6 +59,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(ImplicitCastExpr);
   ASTStmt *PROCESS_STMT(ParenExpr);
   ASTStmt *PROCESS_STMT(IntegerLiteral);
+  ASTStmt *PROCESS_STMT(FloatingLiteral);
   ASTStmt *PROCESS_STMT(VAArgExpr);
   ASTStmt *PROCESS_STMT(ConditionalOperator);
   ASTStmt *PROCESS_STMT(CharacterLiteral);

@@ -156,6 +156,7 @@ enum ASTStmtOp {
   kASTStmtImplicitCastExpr,
   kASTStmtParenExpr,
   kASTStmtIntegerLiteral,
+  kASTStmtFloatingLiteral,
   kASTStmtVAArgExpr,
   kASTStmtConditionalOperator,
   kASTStmtCharacterLiteral,
@@ -164,6 +165,7 @@ enum ASTStmtOp {
   kASTStmtCallExpr,
   kASTStmtAtomicExpr,
   kASTStmtGCCAsmStmt,
+  kASTOffsetOfStmt,
 };
 }  // namespace maple
 #endif  // MPLFE_AST_INPUT_INCLUDE_AST_OP_H

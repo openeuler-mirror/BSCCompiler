@@ -1048,6 +1048,11 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
             }
           }
         }
+
+        if (!beforeRegAlloc && opndInfo != nullptr && insn->GetOperand(kInsnSecondOpnd).IsImmediate() &&
+            IsSameRedefine(bb, *insn, *opndInfo)) {
+          goto can_be_removed;
+        }
       }
 #endif
       /* end special case optimize */

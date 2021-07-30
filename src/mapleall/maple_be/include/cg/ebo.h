@@ -211,6 +211,7 @@ class Ebo {
   virtual bool IsAdd(const Insn &insn) const = 0;
   virtual bool IsClinitCheck(const Insn &insn) const = 0;
   virtual bool IsLastAndBranch(BB &bb, Insn &insn) const = 0;
+  virtual bool IsSameRedefine(BB &bb, Insn &insn, OpndInfo &opndInfo) const = 0;
   virtual bool ResIsNotDefAndUse(Insn &insn) const = 0;
   virtual bool LiveOutOfBB(const Operand &opnd, const BB &bb) const = 0;
   OpndInfo *BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, int32 opndIndex);
