@@ -24,34 +24,34 @@ enum CppOptionIndex {
 };
 
 const mapleOption::Descriptor cppUsage[] = {
-            { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyUnknown,
-              "========================================\n"
-              " Usage: cpp2mpl [ options ]\n"
-              " options:\n",
-              "cpp2mpl",
-              {} },
+  { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyUnknown,
+    "========================================\n"
+    " Usage: cpp2mpl [ options ]\n"
+    " options:\n",
+    "cpp2mpl",
+    {} },
 
-            { kInAst, 0, "", "inast", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
-              "  -inast file1.ast,file2.ast\n"
-              "                         : input ast files",
-              "cpp2mpl",
-              {} },
+  { kInAst, 0, "", "inast", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
+    "  -in-ast file1.ast,file2.ast\n"
+    "                         : input ast files",
+    "cpp2mpl",
+    {} },
 
-            { kInCpp, 0, "", "incpp", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
-              "  -incpp file1.cpp,file2.cpp\n"
-              "                         : input cpp files",
-              "cpp2mpl",
-              {} },
+  { kInCpp, 0, "", "incpp", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
+    "  -in-cpp file1.cpp,file2.cpp\n"
+    "                         : input cpp files",
+    "cpp2mpl",
+    {} },
 
-            { kCpp2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
-              "   -h, --help          : print usage and exit.\n",
-              "cpp2mpl",
-              {} },
+  { kCpp2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
+    "   -h, --help          : print usage and exit.\n",
+    "cpp2mpl",
+    {} },
 
-            { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
-              "",
-              "cpp2mpl",
-              {} }
+  { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
+    "",
+    "cpp2mpl",
+    {} }
 };
 } // namespace maple
 

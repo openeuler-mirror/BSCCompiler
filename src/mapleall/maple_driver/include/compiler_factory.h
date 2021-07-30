@@ -38,7 +38,6 @@ class CompilerFactory {
   void Insert(const std::string &name, Compiler *value);
   ErrorCode DeleteTmpFiles(const MplOptions &mplOptions, const std::vector<std::string> &tempFiles,
                            const std::unordered_set<std::string> &finalOutputs) const;
-  // Code_exp: it is from compiler_selector.h: using SupportedCompilers = std::unordered_map<std::string, Compiler*>;
   SupportedCompilers supportedCompilers;
   CompilerSelector *compilerSelector;
   std::unique_ptr<MIRModule> theModule;

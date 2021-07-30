@@ -108,7 +108,7 @@ static MplOption kMeDefaultOptionsO2ForC[] = {
 static MplOption kMplcgDefaultOptionsO2ForC[] = {
 #include "default/O2_options_mplcg_c.def"
 };
-// Code_exp: standard options for cpp2mpl
+// 00 cpp2mpl options
 static MplOption kCpp2MplDefaultOptionsForAst[] = {
 #include "default/O0_options_cpp2mpl.def"
 };

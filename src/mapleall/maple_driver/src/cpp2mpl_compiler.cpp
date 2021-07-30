@@ -17,33 +17,33 @@
 #include "default_options.def"
 
 namespace maple {
-    const std::string &Cpp2MplCompiler::GetBinName() const {
-        return kBinNameCpp2mpl;
-    }
+const std::string &Cpp2MplCompiler::GetBinName() const {
+  return kBinNameCpp2mpl;
+}
 
-    DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) const {
-        DefaultOption defaultOptions = { nullptr, 0 };
-        defaultOptions.mplOptions = kCpp2MplDefaultOptionsForAst;
-        defaultOptions.length = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
+DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) const {
+  DefaultOption defaultOptions = { nullptr, 0 };
+  defaultOptions.mplOptions = kCpp2MplDefaultOptionsForAst;
+  defaultOptions.length = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
 
-        for (uint32_t i = 0; i < defaultOptions.length; ++i) {
-            defaultOptions.mplOptions[i].SetValue(
-                    FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
-                                                       defaultOptions.mplOptions[i].GetValue(),
-                                                       options.GetExeFolder()));
-        }
-        return defaultOptions;
+  for (uint32_t i = 0; i < defaultOptions.length; ++i) {
+    defaultOptions.mplOptions[i].SetValue(
+    FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
+                                       defaultOptions.mplOptions[i].GetValue(),
+                                       options.GetExeFolder()));
     }
+    return defaultOptions;
+}
 
-    void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
-        tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
-        tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
-    }
+void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
+  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
+}
 
-    std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
-        std::unordered_set<std::string> finalOutputs;
-        (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
-        (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
-        return finalOutputs;
-    }
+std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+  std::unordered_set<std::string> finalOutputs;
+  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
+  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
+  return finalOutputs;
+}
 }  // namespace maple

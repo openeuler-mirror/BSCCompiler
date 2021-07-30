@@ -45,14 +45,10 @@ const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version:
 
 const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "cpp2mpl",
     "dex2mpl", "mplipa",
-    "me", "mpl2mpl", "mplcg"}; // Code_exp: added cpp2mpl
+    "me", "mpl2mpl", "mplcg"};
 
 int MplOptions::Parse(int argc, char **argv) {
-  // Code_exp: MplOptions contains std::unique_ptr<OptionParser> optionParser which we initialize
   optionParser.reset(new OptionParser());
-  // Code_exp: DOC contains common usages and options(GetInstance triggers usageVec fill), we also fill
-  // Code_exp: vector<Descriptor> rawUsages, multimap<string, Descriptor> usages(with short and long opt. names),
-  // Code_exp: and add no- for boolean options like no-opt
   optionParser->RegisteUsages(DriverOptionCommon::GetInstance());
 #ifdef INTERGRATE_DRIVER
   optionParser->RegisteUsages(Dex2mplOptions::GetInstance());
@@ -61,13 +57,11 @@ int MplOptions::Parse(int argc, char **argv) {
 #endif
   optionParser->RegisteUsages(IpaOption::GetInstance());
   optionParser->RegisteUsages(jbcUsage);
-  optionParser->RegisteUsages(cppUsage); // Code_exp: need to create enum for cpp and array of Descriptors
+  optionParser->RegisteUsages(cppUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
-  // Code_exp: Finding folder of maple bin in argv (./ if in cur)
   exeFolder = FileUtils::GetFileFolder(*argv);
-  // Code_exp: Parsing fills Options vector of mpl_options with keys, args and descriptors
   int ret = optionParser->Parse(argc, argv);
   if (ret != kErrorNoError) {
     return ret;
@@ -381,9 +375,6 @@ bool MplOptions::Init(const std::string &inputFile) {
   }
   else if (extensionName == "jar") {
     inputFileType = InputFileType::kFileTypeJar;
-  }
-  else if (extensionName == "ast") {
-    inputFileType = InputFileType::kFileTypeAst;
   }
   else if (extensionName == "mpl" || extensionName == "bpl") {
     if (firstInputFile.find("VtableImpl") == std::string::npos) {

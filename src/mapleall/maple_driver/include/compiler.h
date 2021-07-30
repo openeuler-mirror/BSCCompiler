@@ -120,8 +120,6 @@ class Cpp2MplCompiler : public Compiler {
 
   ~Cpp2MplCompiler() = default;
 
-  //ErrorCode Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule);
-
   private:
    const std::string &GetBinName() const override;
    DefaultOption GetDefaultOptions(const MplOptions &options) const override;
