@@ -19,6 +19,8 @@
 #include "ssa_tab.h"
 #include "me_function.h"
 #include "mpl_timer.h"
+#include "demand_driven_alias_analysis.h"
+#include "me_dominance.h"
 
 namespace maple {
 // This phase performs alias analysis based on Steensgaard's algorithm and
@@ -40,6 +42,43 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
   return false;
 }
 
+void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
+  if (MeOption::noDDAA) {
+    return;
+  }
+  if (!mirModule.IsCModule()) {
+    return;
+  }
+
+  DemandDrivenAliasAnalysis ddAlias(&func, func.GetMeSSATab(), localMemPool, enabledDebug);
+  for (auto ae : Id2AliasElem()) {
+    if (ae->GetClassSet() != nullptr) {
+      auto *oldAliasSet = ae->GetClassSet();
+      MapleSet<unsigned int> *newAliasSet = nullptr;
+      for (auto otherId : *ae->GetClassSet()) {
+        auto aliasedAe = Id2AliasElem()[otherId];
+        if (aliasedAe == ae) {
+          continue;
+        }
+        bool alias = (ae->GetClassID() < aliasedAe->GetClassID())
+            ? ddAlias.MayAlias(&ae->GetOriginalSt(), &Id2AliasElem()[otherId]->GetOriginalSt())
+            : (aliasedAe->GetClassSet()->find(ae->GetClassID()) != aliasedAe->GetClassSet()->end());
+        if (!alias) {
+          if (newAliasSet == nullptr) {
+            newAliasSet =
+                GetMapleAllocator().GetMemPool()->New<MapleSet<unsigned int>>(GetMapleAllocator().Adapter());
+            newAliasSet->insert(oldAliasSet->begin(), oldAliasSet->end());
+          }
+          newAliasSet->erase(otherId);
+        }
+      }
+      if (newAliasSet != nullptr) {
+        ae->SetClassSet(newAliasSet);
+      }
+    }
+  }
+}
+
 void MeAliasClass::DoAliasAnalysis() {
   // pass 1 through the program statements
   for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
@@ -47,6 +86,7 @@ void MeAliasClass::DoAliasAnalysis() {
       ApplyUnionForCopies(stmt);
     }
   }
+  ApplyUnionForFieldsInCopiedAgg();
   UnionAddrofOstOfUnionFields();
   CreateAssignSets();
   if (enabledDebug) {
@@ -62,20 +102,17 @@ void MeAliasClass::DoAliasAnalysis() {
     } else {
       UnionForNotAllDefsSeenCLang();
     }
-    if (mirModule.IsCModule()) {
-      ApplyUnionForStorageOverlaps();
-    }
-  }
-  if (!mirModule.IsJavaModule()) {
-    UnionForAggAndFields();
   }
   // TBAA
   if (!MeOption::noTBAA && mirModule.IsJavaModule()) {
     ReconstructAliasGroups();
   }
-  UnionNextLevelOfAliasOst();
   CreateClassSets();
+  PerformDemandDrivenAliasAnalysis();
   if (enabledDebug) {
+    if (!MeOption::noDDAA) {
+      ReinitUnionFind();
+    }
     DumpClassSets();
   }
   // pass 2 through the program statements
@@ -103,8 +140,9 @@ AnalysisResult *MeDoAliasClass::Run(MeFunction *func, MeFuncResultMgr *funcResMg
     CHECK_FATAL(moduleResultMgr != nullptr, "alias class needs module result manager");
     kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
   }
+  MemPool *aliasClassLocalMp = NewMemPool();
   MeAliasClass *aliasClass = aliasClassMp->New<MeAliasClass>(
-      *aliasClassMp, func->GetMIRModule(), *func->GetMeSSATab(), *func, MeOption::lessThrowAlias,
+      *aliasClassMp, *aliasClassLocalMp, func->GetMIRModule(), *func->GetMeSSATab(), *func, MeOption::lessThrowAlias,
       MeOption::ignoreIPA, DEBUGFUNC(func), MeOption::setCalleeHasSideEffect, kh);
   aliasClass->DoAliasAnalysis();
   timer.Stop();
