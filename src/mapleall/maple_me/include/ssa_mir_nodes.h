@@ -62,6 +62,10 @@ class MayDefNode {
     LogInfo::MapleLogger() << ")\n";
   }
 
+  bool operator==(const MayDefNode &other) const {
+    return opnd == other.opnd && result == other.result && stmt == other.stmt;
+  }
+
   VersionSt *base = nullptr; // only provided if indirectLev is 1 and attached to iassign
  private:
   VersionSt *opnd;
@@ -87,6 +91,10 @@ class MayUseNode {
     LogInfo::MapleLogger() << " MAYU(";
     opnd->Dump();
     LogInfo::MapleLogger() << ")";
+  }
+
+  bool operator==(const MayUseNode &other) const {
+    return opnd == other.opnd;
   }
 
  private:
@@ -130,8 +138,8 @@ class MustDefNode {
   StmtNode *stmt = nullptr;
 };
 
-using TypeOfMayUseList = MapleVector<MayUseNode>;
-using TypeOfMayDefList = MapleVector<MayDefNode>;
+using TypeOfMayUseList = MapleMap<OStIdx, MayUseNode>;
+using TypeOfMayDefList = MapleMap<OStIdx, MayDefNode>;
 using TypeOfMustDefList = MapleVector<MustDefNode>;
 class AccessSSANodes {
  public:
@@ -175,13 +183,13 @@ class AccessSSANodes {
 
   virtual void DumpMayDefNodes(const MIRModule&) const {
     for (const auto &mayDefNode : GetMayDefNodes()) {
-      mayDefNode.Dump();
+      mayDefNode.second.Dump();
     }
   }
 
   virtual void DumpMayUseNodes(const MIRModule&) const {
     for (const auto &mapItem : GetMayUseNodes()) {
-      mapItem.Dump();
+      mapItem.second.Dump();
     }
   }
 
@@ -191,9 +199,16 @@ class AccessSSANodes {
     }
   }
 
-  virtual void InsertMayDefNode(VersionSt *vst, StmtNode *stmtNode) {
-    CHECK_FATAL(vst != nullptr, "null ptr check");
-    GetMayDefNodes().emplace_back(MayDefNode(vst, stmtNode));
+  inline void InsertMayDefNode(MayDefNode mayDefNode) {
+    auto &mayDefNodes = GetMayDefNodes();
+    OStIdx ostIdx = mayDefNode.GetOpnd()->GetOrigIdx();
+    (void)mayDefNodes.insert({ ostIdx, mayDefNode });
+  }
+
+  inline void InsertMayUseNode(MayUseNode mayUseNode) {
+    auto &mayUseNodes = GetMayUseNodes();
+    OStIdx ostIdx = mayUseNode.GetOpnd()->GetOrigIdx();
+    (void)mayUseNodes.insert( { ostIdx, mayUseNode });
   }
 
   virtual void InsertMustDefNode(VersionSt *sym, StmtNode *s) {
@@ -473,6 +488,8 @@ class SSANode : public BaseNode {
     return *(GetSSAVar()->GetOst()->GetMIRSymbol());
   }
 
+  virtual BaseNode *GetNoSSANode()= 0;
+
  protected:
   VersionSt *ssaVar = nullptr;
 };
@@ -499,6 +516,11 @@ class AddrofSSANode : public SSANode {
   FieldID GetFieldID() const {
     return addrofNode->GetFieldID();
   }
+
+  BaseNode *GetNoSSANode() override {
+    return addrofNode;
+  }
+
  private:
   AddrofNode *addrofNode;
 };
@@ -532,6 +554,11 @@ class IreadSSANode : public SSANode {
   void SetOpnd(BaseNode *node, size_t i = 0) override {
     ireadNode->SetOpnd(node, i);
   }
+
+  BaseNode *GetNoSSANode() override {
+    return ireadNode;
+  }
+
  private:
   IreadNode *ireadNode;
 };
@@ -553,6 +580,11 @@ class RegreadSSANode : public SSANode {
   PregIdx GetRegIdx() const {
     return regreadNode->GetRegIdx();
   }
+
+  BaseNode *GetNoSSANode() override {
+    return regreadNode;
+  }
+
  private:
   RegreadNode *regreadNode;
 };
