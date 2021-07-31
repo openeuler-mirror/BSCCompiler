@@ -33,7 +33,7 @@
 namespace maplebe {
 using namespace maple;
 
-#define CFGO_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define CFGO_DUMP_NEWPM CG_DEBUG_FUNC(f)
 
 void CFGOptimizer::InitOptimizePatterns() {
   /* Initialize cfg optimization patterns */

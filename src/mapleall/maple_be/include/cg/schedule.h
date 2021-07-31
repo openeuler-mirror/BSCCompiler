@@ -21,8 +21,8 @@
 #include "live.h"
 
 namespace maplebe {
-#define LIST_SCHED_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
-#define LIST_SCHED_DUMP_REF CG_DEBUG_FUNC(cgFunc, PhaseName())
+#define LIST_SCHED_DUMP_NEWPM CG_DEBUG_FUNC(f)
+#define LIST_SCHED_DUMP_REF CG_DEBUG_FUNC(cgFunc)
 
 class RegPressureSchedule {
  public:

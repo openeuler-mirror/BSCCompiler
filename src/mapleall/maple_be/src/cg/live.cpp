@@ -35,7 +35,7 @@
  * 3. deal with cleanup BB.
  */
 namespace maplebe {
-#define LIVE_ANALYZE_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define LIVE_ANALYZE_DUMP_NEWPM CG_DEBUG_FUNC(f)
 
 void LiveAnalysis::InitAndGetDefUse() {
   FOR_ALL_BB(bb, cgFunc) {

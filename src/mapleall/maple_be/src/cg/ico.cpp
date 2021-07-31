@@ -33,7 +33,7 @@
  * This phase implements if-conversion optimization,
  * which tries to convert conditional branches into cset/csel instructions
  */
-#define ICO_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define ICO_DUMP_NEWPM CG_DEBUG_FUNC(f)
 namespace maplebe {
 Insn *ICOPattern::FindLastCmpInsn(BB &bb) const {
   if (bb.GetKind() != BB::kBBIf) {

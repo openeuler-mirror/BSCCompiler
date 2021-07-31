@@ -26,7 +26,7 @@
 
 namespace maplebe {
 using namespace maple;
-#define SCHD_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define SCHD_DUMP_NEWPM CG_DEBUG_FUNC(f)
 bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
   if (SCHD_DUMP_NEWPM) {
     DotGenerator::GenerateDot("storeloadopt", f, f.GetMirModule(), true);

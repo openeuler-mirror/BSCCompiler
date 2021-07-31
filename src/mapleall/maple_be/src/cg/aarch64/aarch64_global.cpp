@@ -19,7 +19,7 @@
 
 namespace maplebe {
 using namespace maple;
-#define GLOBAL_DUMP CG_DEBUG_FUNC(cgFunc, PhaseName())
+#define GLOBAL_DUMP CG_DEBUG_FUNC(cgFunc)
 
 void AArch64GlobalOpt::Run() {
   if (cgFunc.NumBBs() > kMaxBBNum || cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum) {
