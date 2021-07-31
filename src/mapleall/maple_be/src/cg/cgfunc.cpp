@@ -118,7 +118,7 @@ BaseNode *IsConstantInVectorFromScalar(BaseNode *expr) {
   if (expr->op != OP_intrinsicop) {
     return nullptr;
   }
-  IntrinsicopNode *intrn = static_cast<IntrinsicopNode*>(expr);
+  IntrinsicopNode *intrn = static_cast<IntrinsicopNode *>(expr);
   switch (intrn->GetIntrinsic()) {
     case INTRN_vector_from_scalar_v8u8: case INTRN_vector_from_scalar_v8i8:
     case INTRN_vector_from_scalar_v4u16: case INTRN_vector_from_scalar_v4i16:
