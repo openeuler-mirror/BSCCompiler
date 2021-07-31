@@ -267,13 +267,15 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
 
 void Emitter::EmitInlineAsmSection() {
   MapleVector<MapleString> &asmSections = cg->GetMIRModule()->GetAsmDecls();
-  Emit("#APP\n");
-  for (auto &singleSection : asmSections) {
-    Emit("\t");
-    Emit(singleSection);
-    Emit("\n");
+  if (!asmSections.empty()) {
+    Emit("#APP\n");
+    for (auto &singleSection : asmSections) {
+      Emit("\t");
+      Emit(singleSection);
+      Emit("\n");
+    }
+    Emit("#NO_APP\n");
   }
-  Emit("#NO_APP\n");
 }
 void Emitter::EmitAsmLabel(AsmLabel label) {
   switch (label) {

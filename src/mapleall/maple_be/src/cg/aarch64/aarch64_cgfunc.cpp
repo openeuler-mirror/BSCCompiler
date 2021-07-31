@@ -1130,12 +1130,13 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
   ListConstraintOperand *listOutConstraint = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
   ListConstraintOperand *listInRegPrefix = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
   ListConstraintOperand *listOutRegPrefix = memPool->New<ListConstraintOperand>(*GetFuncScopeAllocator());
+  bool noReplacement = false;
   if (node.asmString.find('$') == std::string::npos) {
     /* no replacements */
-    return;
+    noReplacement = true;
   }
   /* input constraints should be processed before OP_asm instruction */
-  for (size_t i = 0; i < node.numOpnds; ++i) {
+  for (size_t i = 0; i < node.numOpnds && !noReplacement; ++i) {
     /* process input constraint */
     std::string str = GlobalTables::GetUStrTable().GetStringFromStrIdx(node.inputConstraints[i]);
     listInConstraint->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(str)));
@@ -1187,6 +1188,9 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
   intrnOpnds.emplace_back(listInRegPrefix);
   Insn *asmInsn = &GetCG()->BuildInstruction<AArch64Insn>(MOP_asm, intrnOpnds);
   GetCurBB()->AppendInsn(*asmInsn);
+  if (noReplacement) {
+    return;
+  }
 
   /* process listOutputOpnd */
   for (size_t i = 0; i < node.asmOutputs.size(); ++i) {
