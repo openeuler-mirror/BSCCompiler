@@ -93,7 +93,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
       GenerateMoveDeadInsn(resRegOpnd, srcRegOpnd, *ldrInsn, strInsn, memSeq);
     }
 
-    if (CG_DEBUG_FUNC(cgFunc, PhaseName())) {
+    if (CG_DEBUG_FUNC(cgFunc)) {
       LogInfo::MapleLogger() << "Do store-load optimization 1: str version";
       LogInfo::MapleLogger() << cgFunc.GetName() << '\n';
       LogInfo::MapleLogger() << "Store insn: ";

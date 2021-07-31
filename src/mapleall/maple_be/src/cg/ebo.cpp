@@ -33,8 +33,8 @@
 namespace maplebe {
 using namespace maple;
 
-#define EBO_DUMP CG_DEBUG_FUNC(*cgFunc, PhaseName())
-#define EBO_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define EBO_DUMP CG_DEBUG_FUNC(*cgFunc)
+#define EBO_DUMP_NEWPM CG_DEBUG_FUNC(f)
 #define TRUE_OPND cgFunc->GetTrueOpnd()
 
 constexpr uint32 kEboOpndHashLength = 521;

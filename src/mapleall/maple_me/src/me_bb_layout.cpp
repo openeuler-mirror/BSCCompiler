@@ -704,8 +704,13 @@ void BBLayout::LayoutWithoutProf() {
         ASSERT(bb->GetSucc(1)->GetBBId() == brTargetBB->GetBBId(), "must be the brTargetBB");
         bb->SetSucc(0, brTargetBB);
         bb->SetSucc(1, fallthru);
-        ASSERT(bb->GetSucc(1)->GetBBLabel() == static_cast<CondGotoMeStmt&>(bb->GetMeStmts().back()).GetOffset(),
-            "bbLayout: wrong branch target BB");
+        if (func.GetIRMap() != nullptr) {
+          ASSERT(bb->GetSucc(1)->GetBBLabel() == static_cast<CondGotoMeStmt&>(bb->GetMeStmts().back()).GetOffset(),
+                 "bbLayout: wrong branch target BB");
+        } else {
+          ASSERT(bb->GetSucc(1)->GetBBLabel() == static_cast<CondGotoNode&>(bb->GetStmtNodes().back()).GetOffset(),
+                 "bbLayout: wrong branch target BB");
+        }
         AddBB(*brTargetBB);
         SetAttrTryForTheCanBeMovedBB(*bb, *brTargetBB);
         ResolveUnconditionalFallThru(*brTargetBB, *nextBB);

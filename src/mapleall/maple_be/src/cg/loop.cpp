@@ -17,7 +17,7 @@
 #include "optimize_common.h"
 
 namespace maplebe {
-#define LOOP_ANALYSIS_DUMP_NEWPM CG_DEBUG_FUNC(f, PhaseName())
+#define LOOP_ANALYSIS_DUMP_NEWPM CG_DEBUG_FUNC(f)
 
 static void PrintLoopInfo(const LoopHierarchy &loop) {
   LogInfo::MapleLogger() << "header " << loop.GetHeader()->GetId();
