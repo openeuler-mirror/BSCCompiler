@@ -4109,8 +4109,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
   } else {
     /* vector operands */
     if (opnd1.IsConstImmediate()) {
-      MIRConst *mirConst = static_cast<ConstvalNode*>(node.Opnd(1))->GetConstVal();
-      int32 sConst = safe_cast<MIRIntConst>(mirConst)->GetValue();
+      int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
       resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, sConst, opcode);
     } else {
       resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
@@ -8855,9 +8854,9 @@ RegOperand *AArch64CGFunc::SelectVectorFromScalar(PrimType rType, Operand *src, 
 
   MOperator mOp;
   if (GetPrimTypeSize(sType) > k4ByteSize) {
-    mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vxdupvr: MOP_vxdupur;
+    mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vxdupvr : MOP_vxdupur;
   } else {
-    mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr: MOP_vwdupur;
+    mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr : MOP_vwdupur;
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *reg);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec);
@@ -9035,7 +9034,7 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
     if (GetPrimTypeSize(origTyp) > k4ByteSize) {
       mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vxdupvr : MOP_vxdupur;
     } else {
-      mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr : MOP_vwdupur;/* a scalar var */
+      mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vwdupvr : MOP_vwdupur; /* a scalar var */
     }
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *opd);

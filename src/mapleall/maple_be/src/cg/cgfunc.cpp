@@ -114,10 +114,41 @@ Operand *HandleCGArrayElemAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cg
   return &cgFunc.SelectCGArrayElemAdd(static_cast<BinaryNode&>(expr));
 }
 
+BaseNode *IsConstantInVectorFromScalar(BaseNode *expr) {
+  if (expr->op != OP_intrinsicop) {
+    return nullptr;
+  }
+  IntrinsicopNode *intrn = static_cast<IntrinsicopNode*>(expr);
+  switch (intrn->GetIntrinsic()) {
+    case INTRN_vector_from_scalar_v8u8: case INTRN_vector_from_scalar_v8i8:
+    case INTRN_vector_from_scalar_v4u16: case INTRN_vector_from_scalar_v4i16:
+    case INTRN_vector_from_scalar_v2u32: case INTRN_vector_from_scalar_v2i32:
+    case INTRN_vector_from_scalar_v1u64: case INTRN_vector_from_scalar_v1i64:
+    case INTRN_vector_from_scalar_v16u8: case INTRN_vector_from_scalar_v16i8:
+    case INTRN_vector_from_scalar_v8u16: case INTRN_vector_from_scalar_v8i16:
+    case INTRN_vector_from_scalar_v4u32: case INTRN_vector_from_scalar_v4i32:
+    case INTRN_vector_from_scalar_v2u64: case INTRN_vector_from_scalar_v2i64: {
+      if (intrn->Opnd(0) != nullptr && intrn->Opnd(0)->op == OP_constval) {
+        return intrn->Opnd(0);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return nullptr;
+}
+
 Operand *HandleShift(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
-  return cgFunc.SelectShift(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                            *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+  BaseNode *cExpr = IsConstantInVectorFromScalar(expr.Opnd(1));
+  if (cExpr == nullptr) {
+    return cgFunc.SelectShift(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
+                              *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+  } else {
+    return cgFunc.SelectShift(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
+                              *cgFunc.HandleExpr(*expr.Opnd(1), *cExpr));
+  }
 }
 
 Operand *HandleMpy(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
