@@ -78,6 +78,8 @@ void AArch64PeepHole::InitOpts() {
   optimizations[kInlineReadBarriersOpt] = optOwnMemPool->New<InlineReadBarriersAArch64>(cgFunc);
   optimizations[kReplaceDivToMultiOpt] = optOwnMemPool->New<ReplaceDivToMultiAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToCsetOpt] = optOwnMemPool->New<AndCmpBranchesToCsetAArch64>(cgFunc);
+  optimizations[kAndCmpBranchesToTstOpt] = optOwnMemPool->New<AndCmpBranchesToTstAArch64>(cgFunc);
+  optimizations[kAndCbzBranchesToTstOpt] = optOwnMemPool->New<AndCbzBranchesToTstAArch64>(cgFunc);
   optimizations[kZeroCmpBranchesOpt] = optOwnMemPool->New<ZeroCmpBranchesAArch64>(cgFunc);
 }
 
@@ -149,6 +151,14 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
       (static_cast<AndCmpBranchesToCsetAArch64*>(optimizations[kAndCmpBranchesToCsetOpt]))->Run(bb, insn);
       break;
     }
+    case MOP_xandrrr:
+    case MOP_wandrrr:
+    case MOP_wandrri12:
+    case MOP_xandrri13: {
+      (static_cast<AndCmpBranchesToTstAArch64*>(optimizations[kAndCmpBranchesToTstOpt]))->Run(bb, insn);
+      (static_cast<AndCbzBranchesToTstAArch64*>(optimizations[kAndCbzBranchesToTstOpt]))->Run(bb, insn);
+      break;
+    }
     default:
       break;
   }
@@ -211,6 +221,7 @@ void AArch64PrePeepHole::InitOpts() {
   optimizations[kComplexMemOperandOptLabel] = optOwnMemPool->New<ComplexMemOperandLabelAArch64>(cgFunc);
   optimizations[kWriteFieldCallOpt] = optOwnMemPool->New<WriteFieldCallAArch64>(cgFunc);
   optimizations[kDuplicateExtensionOpt] = optOwnMemPool->New<ElimDuplicateExtensionAArch64>(cgFunc);
+  optimizations[kEnhanceStrLdrAArch64Opt] = optOwnMemPool->New<EnhanceStrLdrAArch64>(cgFunc);
 }
 
 void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
@@ -268,6 +279,17 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
     }
     case MOP_xldli: {
       (static_cast<ComplexMemOperandLabelAArch64*>(optimizations[kComplexMemOperandOptLabel]))->Run(bb, insn);
+      break;
+    }
+    case MOP_xldr:
+    case MOP_xstr:
+    case MOP_wldr:
+    case MOP_wstr:
+    case MOP_dldr:
+    case MOP_dstr:
+    case MOP_sldr:
+    case MOP_sstr: {
+      (static_cast<EnhanceStrLdrAArch64*>(optimizations[kEnhanceStrLdrAArch64Opt]))->Run(bb, insn);
       break;
     }
     default:
@@ -389,10 +411,45 @@ void RemoveMovingtoSameRegAArch64::Run(BB &bb, Insn &insn) {
   ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "expects registers");
   auto &reg1 = static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &reg2 = static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-
-  if ((reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) && (reg1.GetSize() == reg2.GetSize())) {
+  /* remove mov x0,x0 when it cast i32 to i64 */
+  if ((reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) && (reg1.GetSize() >= reg2.GetSize())) {
     bb.RemoveInsn(insn);
   }
+}
+
+void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
+  Insn *prevInsn = insn.GetPrev();
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+
+  if (prevInsn == nullptr) {
+    return;
+  }
+  Operand &memOpnd = insn.GetOperand(kInsnSecondOpnd);
+  CHECK_FATAL(memOpnd.GetKind() == Operand::kOpdMem, "Unexpected operand in EnhanceStrLdrAArch64");
+  auto &a64MemOpnd = static_cast<AArch64MemOperand&>(memOpnd);
+  RegOperand *baseOpnd = a64MemOpnd.GetBaseRegister();
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (IsEnhanceAddImm(prevMop) && a64MemOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+      a64MemOpnd.GetOffsetImmediate()->GetValue() == 0) {
+    auto &addDestOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+    if (baseOpnd == &addDestOpnd && !IfOperandIsLiveAfterInsn(addDestOpnd, insn)) {
+      ASSERT(static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, kInsnSecondOpnd),
+          "Check Imm valid");
+      static_cast<AArch64MemOperand&>(memOpnd).SetBaseRegister(
+          static_cast<AArch64RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)));
+      auto &ofstOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+      AArch64OfstOperand &offOpnd = static_cast<AArch64CGFunc&>(cgFunc).GetOrCreateOfstOpnd(
+          ofstOpnd.GetValue(), k32BitSize);
+      static_cast<AArch64MemOperand&>(memOpnd).SetOffsetImmediate(offOpnd);
+      bb.RemoveInsn(*prevInsn);
+    }
+  }
+}
+
+bool EnhanceStrLdrAArch64::IsEnhanceAddImm(MOperator prevMop) {
+  return prevMop == MOP_xaddrri12 ||  prevMop == MOP_waddrri12;
 }
 
 /* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
@@ -1216,6 +1273,92 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
       bb.RemoveInsn(*prevPrevInsn);
     }
   }
+}
+
+void AndCmpBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
+  /* nextInsn must be "cmp" insn */
+  Insn *nextInsn = insn.GetNext();
+  if (nextInsn == nullptr ||
+      (nextInsn->GetMachineOpcode() != MOP_wcmpri && nextInsn->GetMachineOpcode() != MOP_xcmpri)) {
+    return;
+  }
+  /* nextNextInsn must be "beq" or "bne" insn */
+  Insn *nextNextInsn = nextInsn->GetNext();
+  if (nextNextInsn == nullptr ||
+      (nextNextInsn->GetMachineOpcode() != MOP_beq && nextNextInsn->GetMachineOpcode() != MOP_bne)) {
+    return;
+  }
+  auto &andRegOp = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  regno_t andRegNO1 = andRegOp.GetRegisterNumber();
+  auto &cmpRegOp2 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
+  regno_t cmpRegNO2 = cmpRegOp2.GetRegisterNumber();
+  if (andRegNO1 != cmpRegNO2) {
+    return;
+  }
+  /* If the reg will be used later, we shouldn't optimize the and insn here */
+  if (IfOperandIsLiveAfterInsn(andRegOp, *nextInsn)) {
+    return;
+  }
+  Operand &immOpnd = nextInsn->GetOperand(kInsnThirdOpnd);
+  ASSERT(immOpnd.IsIntImmediate(), "expects ImmOperand");
+  auto &defConst = static_cast<ImmOperand&>(immOpnd);
+  int64 defConstValue = defConst.GetValue();
+  if (defConstValue != 0) {
+    return;
+  }
+  /* build tst insn */
+  Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
+  auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  MOperator newOp = MOP_undef;
+  if (andOpnd3.IsRegister()) {
+    newOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstrr : MOP_xtstrr;
+  } else {
+    newOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
+  }
+  Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
+  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newOp, rflag, andRegOp2, andOpnd3);
+  bb.InsertInsnAfter(*nextInsn, newInsn);
+  bb.RemoveInsn(insn);
+  bb.RemoveInsn(*nextInsn);
+}
+
+void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
+  /* nextInsn must be "cbz" or "cbnz" insn */
+  Insn *nextInsn = insn.GetNext();
+  if (nextInsn == nullptr ||
+      (nextInsn->GetMachineOpcode() != MOP_wcbz && nextInsn->GetMachineOpcode() != MOP_xcbz)) {
+    return;
+  }
+  auto &andRegOp = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  regno_t andRegNO1 = andRegOp.GetRegisterNumber();
+  auto &cbzRegOp2 = static_cast<RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
+  regno_t cbzRegNO2 = cbzRegOp2.GetRegisterNumber();
+  if (andRegNO1 != cbzRegNO2) {
+    return;
+  }
+  /* If the reg will be used later, we shouldn't optimize the and insn here */
+  if (IfOperandIsLiveAfterInsn(andRegOp, *nextInsn)) {
+    return;
+  }
+  /* build tst insn */
+  Operand &andOpnd3 = insn.GetOperand(kInsnThirdOpnd);
+  auto &andRegOp2 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  MOperator newTstOp = MOP_undef;
+  if (andOpnd3.IsRegister()) {
+    newTstOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstrr : MOP_xtstrr;
+  } else {
+    newTstOp = (andRegOp2.GetSize() <= k32BitSize) ? MOP_wtstri32 : MOP_xtstri64;
+  }
+  Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
+  Insn &newInsnTst = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newTstOp, rflag, andRegOp2, andOpnd3);
+  /* build beq insn */
+  MOperator opCode = nextInsn->GetMachineOpcode();
+  bool reverse = (opCode == MOP_xcbz || opCode == MOP_wcbz);
+  auto &label = static_cast<LabelOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
+  MOperator jmpOperator = reverse ? MOP_beq : MOP_bne;
+  Insn &newInsnJmp = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(jmpOperator, rflag, label);
+  bb.ReplaceInsn(insn, newInsnTst);
+  bb.ReplaceInsn(*nextInsn, newInsnJmp);
 }
 
 void ZeroCmpBranchesAArch64::Run(BB &bb, Insn &insn) {
