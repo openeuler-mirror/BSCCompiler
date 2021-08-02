@@ -4898,6 +4898,15 @@ void AArch64CGFunc::SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &t
                       GetCondOperand(cc), isIntType, GetPrimTypeBitSize(dtype));
 }
 
+bool AArch64CGFunc::CanLtOptimized(BaseNode &node) {
+  Operand *opnd0 = HandleExpr(node, *node.Opnd(0));
+  Operand *opnd1 = HandleExpr(node, *node.Opnd(1));
+  if (opnd0->IsRegister() && opnd1->IsImmediate() && (static_cast<ImmOperand*>(opnd1)->GetValue() == 0)) {
+    return false;
+  }
+  return true;
+}
+
 Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
     bool isCompare) {
   PrimType dtype = node.GetPrimType();
@@ -4911,19 +4920,26 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand 
   switch (opcode) {
     case OP_eq:
       cc = CC_EQ;
-          break;
+      break;
     case OP_ne:
       cc = CC_NE;
-          break;
+      break;
     case OP_le:
       cc = unsignedIntegerComparison ? CC_LS : CC_LE;
-          break;
+      break;
     case OP_ge:
       cc = unsignedIntegerComparison ? CC_HS : CC_GE;
-          break;
+      break;
     case OP_gt:
       cc = unsignedIntegerComparison ? CC_HI : CC_GT;
-          break;
+      break;
+    case OP_lt:
+      if (CanLtOptimized(*(node.Opnd(0)))) {
+        cc = unsignedIntegerComparison ? CC_LO : CC_LT;
+      } else {
+        isCompare = true;
+      }
+      break;
     default:
       isCompare = true;
       break;
