@@ -234,15 +234,20 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfAdd(const BinaryNode *bin
       return PtrValueRecorder(ptrNode.pegNode, 0, OffsetType::InvalidOffset());
     }
 
-    OffsetType offset(kOffsetUnknown);
     auto *constVal = static_cast<ConstvalNode *>(binaryNode->Opnd(1))->GetConstVal();
     ASSERT(constVal->GetKind() == kConstInt, "pointer cannot add/sub a non-integer value");
-    constexpr int kBitNumInOneByte = 8;
-    int64 offsetValue = static_cast<MIRIntConst *>(constVal)->GetValue() * kBitNumInOneByte;
+    int64 offsetInByte = static_cast<MIRIntConst *>(constVal)->GetValue();
+    int64 offsetInBit = kOffsetUnknown;
+    if (offsetInByte < kOffsetMax && offsetInByte > kOffsetMin) {
+      constexpr int kBitNumInOneByte = 8;
+      offsetInBit = offsetInByte * kBitNumInOneByte;
+    }
+
+    OffsetType offset(kOffsetUnknown);
     if (binaryNode->GetOpCode() == OP_sub) {
-      offset = ptrNode.offset + (-offsetValue);
+      offset = ptrNode.offset + (-offsetInBit);
     } else if (binaryNode->GetOpCode() == OP_add) {
-      offset = ptrNode.offset + offsetValue;
+      offset = ptrNode.offset + offsetInBit;
     } else {
       CHECK_FATAL(false, "unsupported pointer arithmetic");
     }
