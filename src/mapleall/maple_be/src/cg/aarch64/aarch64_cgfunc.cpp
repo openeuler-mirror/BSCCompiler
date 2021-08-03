@@ -7823,7 +7823,12 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     if (vrNum >= vRegTable.size()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
+#ifdef TARGARM32
     uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
+#else
+    //dataSize is used only for mem operand which is AArch64
+    uint32 dataSize = k64BitSize;
+#endif
     auto it = reuseSpillLocMem.find(dataSize);
     if (it != reuseSpillLocMem.end()) {
       MemOperand *memOpnd = it->second->GetOne();
