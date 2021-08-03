@@ -4915,8 +4915,9 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand 
   RegOperand &resOpnd = CreateRegisterOperandOfType(dtype);
   AArch64CC_t cc = CC_NE;
   Opcode opcode = node.Opnd(0)->GetOpCode();
-  bool isFloat = IsPrimitiveFloat(dtype);
-  bool unsignedIntegerComparison = !isFloat && !IsSignedInteger(dtype);
+  PrimType cmpType = static_cast<CompareNode *>(node.Opnd(0))->GetOpndType();
+  bool isFloat = IsPrimitiveFloat(cmpType);
+  bool unsignedIntegerComparison = !isFloat && !IsSignedInteger(cmpType);
   switch (opcode) {
     case OP_eq:
       cc = CC_EQ;
