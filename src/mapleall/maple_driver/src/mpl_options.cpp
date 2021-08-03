@@ -31,6 +31,7 @@
 #endif
 #include "ipa_option.h"
 #include "jbc2mpl_option.h"
+#include "as_option.h"
 #include "cpp2mpl_option.h"
 #include "me_option.h"
 #include "option.h"
@@ -44,7 +45,7 @@ const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version:
                                         std::to_string(Version::kMinorCompilerVersion) + " 20190929";
 
 const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "cpp2mpl",
-    "dex2mpl", "mplipa",
+    "dex2mpl", "mplipa", "as",
     "me", "mpl2mpl", "mplcg"};
 
 int MplOptions::Parse(int argc, char **argv) {
@@ -58,6 +59,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(IpaOption::GetInstance());
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
+  optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
@@ -126,6 +128,12 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       }
       case kDex2mplOpt:
         ret = UpdatePhaseOption(opt.Args(), kBinNameDex2mpl);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
+      case kAsOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameAs);
         if (ret != kErrorNoError) {
           return ret;
         }
