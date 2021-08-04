@@ -158,12 +158,12 @@ class MeFunction : public FuncEmit {
         mirFunc(func),
         laidOutBBVec(alloc.Adapter()),
         fileName(fileName, memPool),
-        lfoFunc(nullptr), lfoMp(nullptr) {
+        lfoFunc(nullptr),
+        lfoMp(nullptr) {
           isLfo = (MeOption::optLevel == 3);
         }
 
   ~MeFunction() override = default;
-
   void DumpFunction() const;
   void DumpFunctionNoSSA() const;
   void DumpMayDUFunction() const;
@@ -346,6 +346,10 @@ class MeFunction : public FuncEmit {
   bool isLfo;
   LfoFunction *lfoFunc;
   MemPool *lfoMp; // used for lfo function
+ public:
+  uint32 dseRuns = 0;   // number of times dse phase has been run
+  uint32 hdseRuns = 0;  // number of times hdse phase has been run
+  uint32 hpropRuns = 0; // number of times hprop phase has been run
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FUNCTION_H
