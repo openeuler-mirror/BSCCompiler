@@ -63,14 +63,22 @@ void MeDSE::RunDSE() {
 
 AnalysisResult *MeDoDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
   CHECK_NULL_FATAL(func);
-  auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  CHECK_NULL_FATAL(postDom);
-  MeDSE dse(*func, postDom, DEBUGFUNC(func));
-  dse.RunDSE();
-  func->Verify();
-  // cfg change , invalid results in MeFuncResultMgr
-  if (dse.UpdatedCfg()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+  if (func->dseRuns >= MeOption::dseRunsLimit) {
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped\n";
+    }
+  } else {
+    func->dseRuns++;
+    auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+    CHECK_NULL_FATAL(postDom);
+    auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+    MeDSE dse(*func, postDom, aliasClass, DEBUGFUNC(func));
+    dse.RunDSE();
+    func->Verify();
+    // cfg change , invalid results in MeFuncResultMgr
+    if (dse.UpdatedCfg()) {
+      m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+    }
   }
 
   if (func->GetMIRModule().IsCModule() && MeOption::performFSAA) {

@@ -59,6 +59,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool setCalleeHasSideEffect;
   static bool noSteensgaard;
   static bool noTBAA;
+  static bool noDDAA;
   static uint8 aliasAnalysisLevel;
   static bool noDot;
   static bool stmtNum;
@@ -129,6 +130,9 @@ class MeOption : public MapleDriverOptionBase {
   static bool doLFTR;
   static std::string inlineFuncList;
   static bool meVerify;
+  static uint32 dseRunsLimit;
+  static uint32 hdseRunsLimit;
+  static uint32 hpropRunsLimit;
 #if MIR_JAVA
   static std::string acquireFuncName;
   static std::string releaseFuncName;
