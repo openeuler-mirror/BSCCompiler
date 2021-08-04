@@ -1115,7 +1115,6 @@ static char *GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string c
 void AArch64CGFunc::SelectAsm(AsmNode &node) {
   SetHasAsm();
   if (Globals::GetInstance()->GetOptimLevel() > 0) {
-    LogInfo::MapleLogger() << "Func (" << GetName() << ") not optimized due to inline asm\n";
     if (GetCG()->GetCGOptions().DoLinearScanRegisterAllocation()) {
       LogInfo::MapleLogger() << "Using coloring RA\n";
       const_cast<CGOptions &>(GetCG()->GetCGOptions()).SetOption(CGOptions::kDoColorRegAlloc);
@@ -1274,11 +1273,11 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         break;
       }
       case 'c': {
-        /* cc */
+        asmInsn->SetAsmDefCondCode();
         break;
       }
       case 'm': {
-        /* memory */
+        asmInsn->SetAsmModMem();
         break;
       }
       default:

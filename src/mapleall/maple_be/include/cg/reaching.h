@@ -103,6 +103,7 @@ class ReachingDefinition : public AnalysisResult {
  protected:
   virtual void InitStartGen() = 0;
   virtual void InitEhDefine(BB &bb) = 0;
+  virtual void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) = 0;
   virtual void GenAllCallerSavedRegs(BB &bb) = 0;
   virtual void AddRetPseudoInsn(BB &bb) = 0;
   virtual void AddRetPseudoInsns() = 0;
