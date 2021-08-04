@@ -7823,13 +7823,8 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     if (vrNum >= vRegTable.size()) {
       CHECK_FATAL(false, "index out of range in AArch64CGFunc::FreeSpillRegMem");
     }
-#ifdef TARGARM32
-    uint32 dataSize = GetOrCreateVirtualRegisterOperand(vrNum).GetSize();
-#else
-    //dataSize is used only for mem operand which is AArch64
-    uint32 dataSize = k64BitSize;
-#endif
-    auto it = reuseSpillLocMem.find(dataSize);
+    uint32 memBitSize = k64BitSize;
+    auto it = reuseSpillLocMem.find(memBitSize);
     if (it != reuseSpillLocMem.end()) {
       MemOperand *memOpnd = it->second->GetOne();
       if (memOpnd != nullptr) {
@@ -7841,7 +7836,7 @@ MemOperand *AArch64CGFunc::GetOrCreatSpillMem(regno_t vrNum) {
     RegOperand &baseOpnd = GetOrCreateStackBaseRegOperand();
     int32 offset = GetOrCreatSpillRegLocation(vrNum);
     AArch64OfstOperand *offsetOpnd = memPool->New<AArch64OfstOperand>(offset, k64BitSize);
-    MemOperand *memOpnd = memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, dataSize, baseOpnd,
+    MemOperand *memOpnd = memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, memBitSize, baseOpnd,
                                                           nullptr, offsetOpnd, nullptr);
     (void)spillRegMemOperands.insert(std::pair<regno_t, MemOperand*>(vrNum, memOpnd));
     return memOpnd;
