@@ -152,7 +152,7 @@ if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
     dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   else
     wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_4.2-3ubuntu6.17_amd64.deb
-    dpkg-deb -R qemu-user_4.2-3ubuntu6.17_amd64.deb
+    dpkg-deb -R qemu-user_4.2-3ubuntu6.17_amd64.deb qemu
   fi
   echo Installed qemu-aarch64
 fi
