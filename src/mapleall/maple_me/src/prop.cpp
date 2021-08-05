@@ -615,8 +615,15 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile()) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || st->GetAttr(ATTR_oneelem_simd)) {
     return varMeExpr;
+  }
+  if (varMeExpr.GetOst()->GetFieldID() != 0 && mirModule.IsCModule()) {
+    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx()));
+    FieldAttrs fattrs = structType->GetFieldAttrs(varMeExpr.GetOst()->GetFieldID());
+    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+      return varMeExpr;
+    }
   }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {

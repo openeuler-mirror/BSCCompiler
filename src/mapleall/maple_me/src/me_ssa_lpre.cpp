@@ -241,9 +241,17 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
     CHECK_NULL_FATAL(meStmt.GetRHS());
-    if (ost->IsVolatile()) {
+    if (ost->IsVolatile() || ost->GetMIRSymbol()->GetAttr(ATTR_oneelem_simd)) {
       return;
     }
+    if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+      MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetMIRSymbol()->GetTyIdx()));
+      FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+      if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+        return;
+      }
+    }
+
     if (lhs->GetPrimType() == PTY_agg) {
       return;
     }
@@ -313,6 +321,16 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();
+      if (sym->GetAttr(ATTR_oneelem_simd)) {
+        break;
+      }
+      if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+        MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx()));
+        FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+        if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+          break;
+        }
+      }
       if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;
