@@ -4863,6 +4863,9 @@ Operand *AArch64CGFunc::SelectCvt(const BaseNode &parent, TypeCvtNode &node, Ope
     SelectCvtFloat2Int(*resOpnd, opnd0, toType, fromType);
   } else if (IsPrimitiveInteger(fromType) && IsPrimitiveInteger(toType)) {
     SelectCvtInt2Int(&parent, resOpnd, &opnd0, fromType, toType);
+  } else if (IsPrimitiveVector(toType) || IsPrimitiveVector(fromType)) {
+    CHECK_FATAL(IsPrimitiveVector(toType) && IsPrimitiveVector(fromType), "Invalid vector cvt operands");
+    SelectVectorCvt(resOpnd, toType, &opnd0, fromType);
   } else {  /* both are float type */
     SelectCvtFloat2Float(*resOpnd, opnd0, fromType, toType);
   }
@@ -9143,6 +9146,31 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
     *o1 = static_cast<Operand*>(res);
     oty1 = rType;
   }
+}
+
+void AArch64CGFunc::SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType) {
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>();
+  vecSpecDest->vecLaneMax = GetPrimTypeLanes(rType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>();           /* vector operand 1 */
+  vecSpec1->vecLaneMax = GetPrimTypeLanes(oType);
+
+  MOperator mOp;
+  Insn *insn;
+  if (GetPrimTypeSize(rType) > GetPrimTypeSize(oType)) {
+    /* expand, similar to vmov_XX() intrinsics */
+    mOp = IsUnsignedInteger(rType) ? MOP_vushllvvi : MOP_vshllvvi;
+    ImmOperand *imm = &CreateImmOperand(0, k8BitSize, true);
+    insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *imm);
+  } else if (GetPrimTypeSize(rType) < GetPrimTypeSize(oType)) {
+    /* extract, similar to vqmovn_XX() intrinsics */
+    mOp = IsUnsignedInteger(rType) ? MOP_vuqxtnvv: MOP_vsqxtnvv;
+    insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1);
+  } else {
+    CHECK_FATAL(0, "Invalid cvt between 2 operands of the same size");
+  }
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  GetCurBB()->AppendInsn(*insn);
 }
 
 RegOperand *AArch64CGFunc::SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) {
