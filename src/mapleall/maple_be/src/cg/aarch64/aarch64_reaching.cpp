@@ -185,6 +185,12 @@ void AArch64ReachingDefinition::AddRetPseudoInsns() {
   }
 }
 
+void AArch64ReachingDefinition::GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) {
+  for (auto reg : static_cast<AArch64ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+    regGen[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
+  }
+}
+
 /* all caller saved register are modified by call insn */
 void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb) {
   for (uint32 i = R0; i <= V31; ++i) {
@@ -192,6 +198,16 @@ void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb) {
       regGen[bb.GetId()]->SetBit(i);
     }
   }
+}
+
+static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn*> &defInsnVec) {
+  for (auto reg : static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+    if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
+      defInsnVec.emplace_back(insn);
+      return true;
+    }
+  }
+  return false;
 }
 
 /*
@@ -217,6 +233,13 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO
     }
 
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      if (SetDefInsnVecForAsm(insn, kAsmOutputListOpnd, regNO, defInsnVec)) {
+        return defInsnVec;
+      }
+      SetDefInsnVecForAsm(insn, kAsmClobberListOpnd, regNO, defInsnVec);
+      return defInsnVec;
+    }
     if (insn->IsCall() && IsCallerSavedReg(regNO)) {
       defInsnVec.emplace_back(insn);
       return defInsnVec;
@@ -254,6 +277,16 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO
   return defInsnVec;
 }
 
+static bool IsRegInAsmList(Insn *insn, uint32 index, uint32 regNO, InsnSet &insnSet) {
+  for (auto reg : static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands()) {
+    if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
+      insnSet.insert(insn);
+      return true;
+    }
+  }
+  return false;
+}
+
 void AArch64ReachingDefinition::FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &defInsnSet) const {
   if (!regGen[bb.GetId()]->TestBit(regNO)) {
     return;
@@ -265,6 +298,13 @@ void AArch64ReachingDefinition::FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &de
     }
 
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      if (IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, defInsnSet)) {
+        continue;
+      }
+      IsRegInAsmList(insn, kAsmClobberListOpnd, regNO, defInsnSet);
+      continue;
+    }
     if (insn->IsCall() && IsCallerSavedReg(regNO)) {
       (void)defInsnSet.insert(insn);
       continue;
@@ -334,6 +374,13 @@ std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(uint32 offse
     }
 
     if (insn->IsCall()) {
+      if (insn->GetMachineOpcode() == MOP_asm) {
+        if (insn->IsAsmModMem()) {
+          defInsnVec.emplace_back(insn);
+          return defInsnVec;
+        }
+        continue;
+      }
       if (CallInsnClearDesignateStackRef(*insn, offset)) {
         defInsnVec.emplace_back(insn);
         return defInsnVec;
@@ -382,6 +429,12 @@ void AArch64ReachingDefinition::FindMemDefInBB(uint32 offset, BB &bb, InsnSet &d
     }
 
     if (insn->IsCall()) {
+      if (insn->GetMachineOpcode() == MOP_asm) {
+        if (insn->IsAsmModMem()) {
+          (void)defInsnSet.insert(insn);
+        }
+        continue;
+      }
       if (CallInsnClearDesignateStackRef(*insn, offset)) {
         (void)defInsnSet.insert(insn);
       }
@@ -564,6 +617,12 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
     if (!insn->IsMachineInstruction()) {
       continue;
     }
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      IsRegInAsmList(insn, kAsmInputListOpnd, regNO, regUseInsnSet);
+      if (IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, regUseInsnSet)) {
+        break;
+      }
+    }
     /* if insn is call and regNO is caller-saved register, then regNO will not be used later */
     if (insn->IsCall() && IsCallerSavedReg(regNO)) {
       findFinish = true;
@@ -651,6 +710,9 @@ bool AArch64ReachingDefinition::FindMemUseBetweenInsn(uint32 offset, Insn *start
     }
 
     if (insn->IsCall()) {
+      if (insn->GetMachineOpcode() == MOP_asm) {
+        return true;
+      }
       if (CallInsnClearDesignateStackRef(*insn, offset)) {
         return true;
       }
@@ -824,8 +886,14 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
       continue;
     }
     if (insn->IsCall()) {
-      GenAllCallerSavedRegs(bb);
-      InitMemInfoForClearStackCall(*insn);
+      if (insn->GetMachineOpcode() == MOP_asm) {
+        GenAllAsmDefRegs(bb, *insn, kAsmOutputListOpnd);
+        GenAllAsmDefRegs(bb, *insn, kAsmClobberListOpnd);
+        continue;
+      } else {
+        GenAllCallerSavedRegs(bb);
+        InitMemInfoForClearStackCall(*insn);
+      }
     }
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
     uint32 opndNum = insn->GetOperandSize();
@@ -872,6 +940,10 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     return;
   }
   if ((mode & kRDMemAnalysis) && IsFrameReg(*base)) {
+    if (index != nullptr) {
+      SetAnalysisMode(kRDRegAnalysis);
+      return;
+    }
     CHECK_FATAL(index == nullptr, "Existing [x29 + index] Memory Address");
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
     int32 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
