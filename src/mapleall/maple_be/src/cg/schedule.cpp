@@ -540,6 +540,9 @@ void CgPreScheduling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPreScheduling, prescheduling)
 
 bool CgScheduling::PhaseRun(maplebe::CGFunc &f) {
+  if (f.HasAsm()) {
+    return true;
+  }
   if (LIST_SCHED_DUMP_NEWPM) {
     LogInfo::MapleLogger() << "Before CgDoScheduling : " << f.GetName() << "\n";
     DotGenerator::GenerateDot("scheduling", f, f.GetMirModule(), true);

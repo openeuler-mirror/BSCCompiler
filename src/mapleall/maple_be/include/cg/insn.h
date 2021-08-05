@@ -407,6 +407,22 @@ class Insn {
     isFrameDef = b;
   }
 
+  bool IsAsmDefCondCode() const {
+    return asmDefCondCode;
+  }
+
+  void SetAsmDefCondCode() {
+    asmDefCondCode = true;
+  }
+
+  bool IsAsmModMem() const {
+    return asmModMem;
+  }
+
+  void SetAsmModMem() {
+    asmModMem = true;
+  }
+
   virtual uint32 GetUnitType() {
     return 0;
   }
@@ -643,16 +659,18 @@ class Insn {
   };
 
   uint32 id = 0;
-  bool isThrow = false;
-  bool doNotRemove = false;  /* caller reg cross call */
-  bool isCallReturnUnsigned = false;   /* for call insn only. false: signed, true: unsigned */
   RetType retType = kRegNull;    /* if this insn is call, it represent the return register type R0/V0 */
   uint32 retSize = 0;  /* Byte size of the return value if insn is a call. */
   /* record the stack cleared by MCC_ClearLocalStackRef or MCC_DecRefResetPair */
   int64 clearStackOffset[kMaxStackOffsetSize] = { -1, -1 };
   DepNode *depNode = nullptr; /* For dependence analysis, pointing to a dependence node. */
   MapleString comment;
+  bool isThrow = false;
+  bool doNotRemove = false;  /* caller reg cross call */
+  bool isCallReturnUnsigned = false;   /* for call insn only. false: signed, true: unsigned */
   bool isFrameDef = false;
+  bool asmDefCondCode = false;
+  bool asmModMem = false;
 };
 
 struct InsnIdCmp {
