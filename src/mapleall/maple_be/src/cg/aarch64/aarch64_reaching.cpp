@@ -222,7 +222,6 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO
   }
 
   ASSERT(startInsn->GetBB() == endInsn->GetBB(), "two insns must be in a same BB");
-  ASSERT(endInsn->GetId() >= startInsn->GetId(), "two insns must be in a same BB");
   if (!regGen[startInsn->GetBB()->GetId()]->TestBit(regNO)) {
     return defInsnVec;
   }
