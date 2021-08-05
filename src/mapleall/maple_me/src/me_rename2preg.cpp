@@ -34,6 +34,13 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
   if (mirst->GetAttr(ATTR_localrefvar) || mirst->GetAttr(ATTR_oneelem_simd)) {
     return nullptr;
   }
+  if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirst->GetTyIdx()));
+    FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+      return nullptr;
+    }
+  }
   if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {
     return nullptr;
   }
