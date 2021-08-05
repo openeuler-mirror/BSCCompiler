@@ -389,12 +389,23 @@ int32 ParmLocator::LocateRetVal(MIRType &retType, PLocInfo &pLoc) {
  * LocateNextParm should be called with each parameter in the parameter list
  * starting from the beginning, one call per parameter in sequence; it returns
  * the information on how each parameter is passed in pLoc
+ *
+ * *** CAUTION OF USE: ***
+ * If LocateNextParm is called for function formals, third argument isFirst is true.
+ * LocateNextParm is then checked against a function parameter list.  All other calls
+ * of LocateNextParm are against caller's argument list must not have isFirst set,
+ * or it will be checking the caller's enclosing function.
  */
-int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst) {
+int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst, MIRFunction *tFunc) {
   InitPLocInfo(pLoc);
 
+  bool is64x1vec = false;
+  if (tFunc != nullptr && tFunc->GetParamSize() > 0) {
+    is64x1vec = tFunc->GetNthParamAttr(paramNum).GetAttr(ATTR_oneelem_simd) != 0;
+  }
+
   if (isFirst) {
-    MIRFunction *func = const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
+    MIRFunction *func = tFunc != nullptr ? tFunc : const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
     if (beCommon.HasFuncReturnType(*func)) {
       uint32 size = beCommon.GetTypeSize(beCommon.GetFuncReturnType(*func));
       if (size == 0) {
@@ -463,7 +474,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
     case PTY_i64:
       /* Rule C.7 */
       typeSize = k8ByteSize;
-      pLoc.reg0 = AllocateGPRegister();
+      pLoc.reg0 = is64x1vec ? AllocateSIMDFPRegister() : AllocateGPRegister();
       ASSERT(nextGeneralRegNO <= AArch64Abi::kNumIntParmRegs, "RegNo should be pramRegNO");
       break;
     /*

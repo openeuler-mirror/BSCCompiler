@@ -919,7 +919,13 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
-    /* Check all the result can be removed. */
+    /* last insn of a 64x1 function is a float, 64x1 function may not be a float */
+    if (cgFunc->GetFunction().GetAttr(FUNCATTR_oneelem_simd) &&
+        insnInfo == lastInsnInfo) {
+      goto insn_is_needed;
+    }
+
+    /* Check all result that can be removed. */
     for (uint32 i = 0; i < resNum; ++i) {
       opndInfo = insnInfo->result[i];
       /* A couple of checks. */
