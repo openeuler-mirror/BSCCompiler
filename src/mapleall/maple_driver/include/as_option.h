@@ -17,7 +17,7 @@
 #include "option_descriptor.h"
 
 namespace maple {
-enum CppOptionIndex {
+enum AsOptionIndex {
   kInS,
   kAsHelp,
 };
@@ -48,5 +48,4 @@ const mapleOption::Descriptor asUsage[] = {
     {} }
 };
 } // namespace maple
-
-#endif //
+#endif // MAPLE_AS_OPTION_H

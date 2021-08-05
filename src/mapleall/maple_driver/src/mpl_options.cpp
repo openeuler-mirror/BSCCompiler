@@ -59,7 +59,8 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(IpaOption::GetInstance());
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
-  optionParser->RegisteUsages(asUsage);
+  // Not sure if this is even required
+  // optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());

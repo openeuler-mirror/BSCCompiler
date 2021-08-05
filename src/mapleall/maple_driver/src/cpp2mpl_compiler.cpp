@@ -14,9 +14,14 @@
  */
 #include <cstdlib>
 #include "compiler.h"
+#include "file_utils.h"
 #include "default_options.def"
 
 namespace maple {
+std::string Cpp2MplCompiler::GetBinPath(const MplOptions&) const{
+    return std::string(std::getenv(kMapleRoot)) + "/output/aarch64-clang-debug/bin/";
+}
+
 const std::string &Cpp2MplCompiler::GetBinName() const {
   return kBinNameCpp2mpl;
 }

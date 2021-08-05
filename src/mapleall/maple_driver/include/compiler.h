@@ -121,6 +121,7 @@ class Cpp2MplCompiler : public Compiler {
   ~Cpp2MplCompiler() = default;
 
   private:
+   std::string GetBinPath(const MplOptions &options) const override;
    const std::string &GetBinName() const override;
    DefaultOption GetDefaultOptions(const MplOptions &options) const override;
    void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
