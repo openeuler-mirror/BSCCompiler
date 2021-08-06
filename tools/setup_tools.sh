@@ -141,7 +141,15 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
   echo Downloaded libz.
 fi
 
-# install qemu-user 2.5.0
+# install a stable qemu-user based on different OS
+
+QEMU_VERSION=`$TOOLS/qemu/usr/bin/qemu-aarch64 -version | awk 'NR == 1' | awk '{print $3}' | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
+
+if [ "$QEMU_VERSION" = "3" ] || [ "$QEMU_VERSION" = "4" ]; then
+  echo "QEMU version is too new and QEMU will be reversed to a stable version."
+  rm -rf $TOOLS/qemu
+fi
+
 if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
@@ -151,8 +159,9 @@ if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
     wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
     dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   else
-    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_4.2-3ubuntu6.17_amd64.deb
-    dpkg-deb -R qemu-user_4.2-3ubuntu6.17_amd64.deb qemu
+    # we will use QEMU 2.11 for now, and will upgrade it to a new version after further investigations
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   fi
   echo Installed qemu-aarch64
 fi
