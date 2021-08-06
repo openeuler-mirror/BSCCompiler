@@ -110,21 +110,19 @@ class LoopFinder : public AnalysisResult {
         cgFunc(&func),
         memPool(&mem),
         loopMemPool(memPool),
-        stack(loopMemPool.Adapter()),
-        candidate(loopMemPool.Adapter()),
         visitedBBs(loopMemPool.Adapter()),
         sortedBBs(loopMemPool.Adapter()),
         dfsBBs(loopMemPool.Adapter()),
+        onPathBBs(loopMemPool.Adapter()),
         recurseVisited(loopMemPool.Adapter())
         {}
 
   ~LoopFinder() override = default;
 
-  void DetectLoop(BB *header, BB *back);
-  bool DetectLoopSub(BB *header, BB *back);
-  void Insert(BB *bb, BB *header, std::set<BB *> &extraHeader);
-  void FindBackedge();
-  void PushBackedge(BB &bb, std::stack<BB*> &succs, bool &childPushed);
+  void formLoop(BB* headBB, BB* backBB);
+  void seekBackEdge(BB* bb, MapleList<BB*> succs);
+  void seekCycles();
+  void markExtraEntryAndEncl();
   void MergeLoops();
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
@@ -138,11 +136,10 @@ class LoopFinder : public AnalysisResult {
   CGFunc *cgFunc;
   MemPool *memPool;
   MapleAllocator loopMemPool;
-  MapleStack<BB *> stack;
-  MapleList<BB*> candidate;  /* loop candidate */
   MapleVector<bool> visitedBBs;
   MapleVector<BB*> sortedBBs;
   MapleStack<BB*> dfsBBs;
+  MapleVector<bool> onPathBBs;
   MapleVector<bool> recurseVisited;
   LoopHierarchy *loops = nullptr;
 };
