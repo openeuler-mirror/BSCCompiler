@@ -31,7 +31,7 @@ O0 = {
         ),
         Dex2mpl(
             dex2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/dex2mpl",
-            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/host-x86_64-O0/libcore-all.mplt",
+            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/host-x86_64-O2/libcore-all.mplt",
             litprofile="${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list",
             infile="${APP}.dex"
         ),
