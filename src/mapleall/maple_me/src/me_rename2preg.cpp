@@ -134,7 +134,6 @@ void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdefli
   if (mustdeflist.empty()) {
     return;
   }
-  CHECK_FATAL(mustdeflist.size() == 1, "NYI");
   {
     MustDefMeNode &mustdefmenode = mustdeflist.front();
     MeExpr *melhs = mustdefmenode.GetLHS();
@@ -277,6 +276,7 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
       Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
       break;
     }
+    case OP_asm:
     case OP_callassigned:
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:

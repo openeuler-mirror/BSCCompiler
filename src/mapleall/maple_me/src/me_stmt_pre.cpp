@@ -900,6 +900,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_assertlt:
       case OP_assertge:
         break;
+      case OP_asm:
       case OP_call:
       case OP_virtualcall:
       case OP_virtualicall:

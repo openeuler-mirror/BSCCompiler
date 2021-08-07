@@ -3198,6 +3198,10 @@ class AsmNode : public NaryStmtNode {
     return (qualifiers & (1U << static_cast<uint32>(x))) != 0;
   }
 
+  CallReturnVector *GetCallReturnVector() override {
+    return &asmOutputs;
+  }
+
   void DumpOutputs(int32 indent, std::string &uStr) const;
   void DumpInputOperands(int32 indent, std::string &uStr) const;
   void Dump(int32 indent) const override;

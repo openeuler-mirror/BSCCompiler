@@ -503,6 +503,7 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
       VisitMeExpr(unaryStmt->GetOpnd());
       break;
     }
+    case OP_asm:
     case OP_call:
     case OP_virtualcall:
     case OP_virtualicall:

@@ -741,6 +741,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
       }
       break;
     }
+    case OP_asm:
     case OP_icall:
     case OP_icallassigned: {
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {

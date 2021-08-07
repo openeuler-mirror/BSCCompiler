@@ -113,6 +113,12 @@ void PregRenamer::RunSelf() {
 }
 
 AnalysisResult *MeDoPregRename::Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr *mrm) {
+  if (func->GetMirFunc()->HasAsm()) {
+    if (!MeOption::quiet) {
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped due to inline asm\n";
+    }
+    return nullptr;
+  }
   MeIRMap *irmap = static_cast<MeIRMap *>(frm->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
   std::string renamePhaseName = PhaseName();
   MemPool *renamemp = memPoolCtrler.NewMemPool(renamePhaseName, true /* isLocalPool */);
