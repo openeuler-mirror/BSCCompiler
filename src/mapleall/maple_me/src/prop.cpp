@@ -884,6 +884,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
       PropUpdateDef(*asmestmt->GetLHS());
       break;
     }
+    case OP_asm: break;
     default:
       for (size_t i = 0; i != meStmt.NumMeStmtOpnds(); ++i) {
         MeExpr &expr = PropMeExpr(utils::ToRef(meStmt.GetOpnd(i)), subProped, kOpcodeInfo.IsCall(op));

@@ -586,6 +586,7 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
       }
       return;
     }
+    case OP_asm:
     case OP_call:
     case OP_callassigned: {
       BuildPEGNodeInDirectCall(static_cast<const CallNode *>(stmt));

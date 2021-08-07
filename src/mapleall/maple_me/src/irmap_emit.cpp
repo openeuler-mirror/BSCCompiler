@@ -265,7 +265,17 @@ BaseNode &IvarMeExpr::EmitExpr(SSATab &ssaTab) {
   CHECK_NULL_FATAL(base);
   auto *ireadNode =
       ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<IreadNode>(OP_iread, PrimType(GetPrimType()));
-  ireadNode->SetOpnd(&base->EmitExpr(ssaTab), 0);
+  if (offset == 0) {
+    ireadNode->SetOpnd(&base->EmitExpr(ssaTab), 0);
+  } else {
+    auto *mirType = GlobalTables::GetTypeTable().GetInt32();
+    auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(offset, *mirType);
+    auto *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
+    auto *constValNode = codeMemPool->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+    auto *newAddrNode =
+        codeMemPool->New<BinaryNode>(OP_add, base->GetPrimType(), &(base->EmitExpr(ssaTab)), constValNode);
+    ireadNode->SetOpnd(newAddrNode, 0);
+  }
   ireadNode->SetFieldID(fieldID);
   ireadNode->SetTyIdx(tyIdx);
   ASSERT(ireadNode->GetPrimType() != kPtyInvalid, "");
@@ -337,7 +347,17 @@ StmtNode &IassignMeStmt::EmitStmt(SSATab &ssaTab) {
   auto *iassignNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<IassignNode>();
   iassignNode->SetTyIdx(tyIdx);
   iassignNode->SetFieldID(lhsVar->GetFieldID());
-  iassignNode->SetAddrExpr(&lhsVar->GetBase()->EmitExpr(ssaTab));
+  if (lhsVar->GetOffset() == 0) {
+    iassignNode->SetAddrExpr(&lhsVar->GetBase()->EmitExpr(ssaTab));
+  } else {
+    auto *mirType = GlobalTables::GetTypeTable().GetInt32();
+    auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+    auto *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
+    auto *constValNode = codeMemPool->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+    auto *newAddrNode = codeMemPool->New<BinaryNode>(
+        OP_add, lhsVar->GetBase()->GetPrimType(), &(lhsVar->GetBase()->EmitExpr(ssaTab)), constValNode);
+    iassignNode->SetAddrExpr(newAddrNode);
+  }
   iassignNode->SetRHS(&rhs->EmitExpr(ssaTab));
   iassignNode->SetSrcPos(GetSrcPosition());
   return *iassignNode;
@@ -469,6 +489,34 @@ StmtNode &IntrinsiccallMeStmt::EmitStmt(SSATab &ssaTab) {
     }
   }
   return *callNode;
+}
+
+StmtNode &AsmMeStmt::EmitStmt(SSATab &ssaTab) {
+  AsmNode *asmNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<AsmNode>(&ssaTab.GetModule().GetCurFuncCodeMPAllocator());
+  asmNode->GetNopnd().resize(NumMeStmtOpnds());
+  for (size_t i = 0; i < NumMeStmtOpnds(); ++i) {
+    asmNode->SetOpnd(&GetOpnd(i)->EmitExpr(ssaTab), i);
+  }
+  asmNode->SetNumOpnds(asmNode->GetNopndSize());
+  asmNode->SetSrcPos(GetSrcPosition());
+  EmitCallReturnVector(*asmNode->GetCallReturnVector());
+  for (size_t j = 0; j < asmNode->GetCallReturnVector()->size(); ++j) {
+    CallReturnPair retPair = (*asmNode->GetCallReturnVector())[j];
+    if (!retPair.second.IsReg()) {
+      StIdx stIdx = retPair.first;
+      if (stIdx.Islocal()) {
+        MIRSymbolTable *symbolTab = ssaTab.GetModule().CurFunction()->GetSymTab();
+        MIRSymbol *symbol = symbolTab->GetSymbolFromStIdx(stIdx.Idx());
+        symbol->ResetIsDeleted();
+      }
+    }
+  }
+  asmNode->asmString = asmString;
+  asmNode->inputConstraints = inputConstraints;
+  asmNode->outputConstraints = outputConstraints;
+  asmNode->clobberList = clobberList;
+  asmNode->gotoLabels = gotoLabels;
+  return *asmNode;
 }
 
 StmtNode &NaryMeStmt::EmitStmt(SSATab &ssaTab) {
@@ -615,5 +663,4 @@ void BB::EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass) {
   stmtNodeList.set_first(bbFirstStmt);
   stmtNodeList.set_last(bbLastStmt);
 }
-
 }  // namespace maple

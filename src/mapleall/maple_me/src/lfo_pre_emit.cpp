@@ -437,18 +437,25 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, BaseNode *parent) {
       callnode->SetSrcPos(mestmt->GetSrcPosition());
       if (kOpcodeInfo.IsCallAssigned(mestmt->GetOp())) {
         mestmt->EmitCallReturnVector(callnode->GetReturnVec());
-        for (uint32 j = 0; j < callnode->GetReturnVec().size(); j++) {
-          CallReturnPair retpair = callnode->GetReturnVec()[j];
-          if (!retpair.second.IsReg()) {
-            StIdx stIdx = retpair.first;
-            if (stIdx.Islocal()) {
-
-            }
-          }
-        }
       }
       lfoStmtParts[callnode->GetStmtID()] = lfopart;
       return callnode;
+    }
+    case OP_asm: {
+      AsmMeStmt *asmMeStmt = static_cast<AsmMeStmt *>(mestmt);
+      AsmNode *asmNode = codeMP->New<AsmNode>(codeMPAlloc);
+      for (size_t i = 0; i < asmMeStmt->NumMeStmtOpnds(); ++i) {
+        asmNode->GetNopnd().push_back(EmitLfoExpr(asmMeStmt->GetOpnd(i), asmNode));
+      }
+      asmNode->SetNumOpnds(asmNode->GetNopndSize());
+      asmNode->SetSrcPos(mestmt->GetSrcPosition());
+      mestmt->EmitCallReturnVector(*asmNode->GetCallReturnVector());
+      asmNode->asmString = asmMeStmt->asmString;
+      asmNode->inputConstraints = asmMeStmt->inputConstraints;
+      asmNode->outputConstraints = asmMeStmt->outputConstraints;
+      asmNode->clobberList = asmMeStmt->clobberList;
+      asmNode->gotoLabels = asmMeStmt->gotoLabels;
+      return asmNode;
     }
     case OP_jscatch:
     case OP_finally:
