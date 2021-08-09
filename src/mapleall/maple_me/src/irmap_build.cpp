@@ -738,6 +738,7 @@ MeStmt *IRMapBuild::BuildAsmMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   asmMeStmt->outputConstraints = asmNode->outputConstraints;
   asmMeStmt->clobberList = asmNode->clobberList;
   asmMeStmt->gotoLabels = asmNode->gotoLabels;
+  asmMeStmt->qualifiers = asmNode->qualifiers;
   if (propagater) {
     propagater->PropUpdateChiListDef(*asmMeStmt->GetChiList());
     propagater->PropUpdateMustDefList(asmMeStmt);

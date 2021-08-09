@@ -656,7 +656,7 @@ void HDSE::DseInit() {
         }
       }
       // mark mustDef nodes dead
-      if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
+      if (kOpcodeInfo.IsCallAssigned(stmt.GetOp()) && stmt.GetOp() != OP_asm) {
         MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
         for (MustDefMeNode &mustDef : *mustDefList) {
           mustDef.SetIsLive(false);

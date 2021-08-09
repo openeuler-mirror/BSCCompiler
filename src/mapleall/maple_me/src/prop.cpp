@@ -69,10 +69,10 @@ void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
 }
 
 void Prop::PropUpdateMustDefList(MeStmt *mestmt) {
-  MapleVector<MustDefMeNode> *mustdefList = mestmt->GetMustDefList();
-  if (!mustdefList->empty()) {
-    MeExpr *melhs = mustdefList->front().GetLHS();
-    PropUpdateDef(*static_cast<VarMeExpr *>(melhs));
+  MapleVector<MustDefMeNode> *mustDefList = mestmt->GetMustDefList();
+  for (auto &node : utils::ToRef(mustDefList)) {
+    MeExpr *melhs = node.GetLHS();
+    PropUpdateDef(*melhs);
   }
 }
 

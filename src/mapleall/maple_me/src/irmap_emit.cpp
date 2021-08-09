@@ -328,16 +328,16 @@ StmtNode &MaydassignMeStmt::EmitStmt(SSATab &ssaTab) {
 
 void MeStmt::EmitCallReturnVector(CallReturnVector &nRets) {
   MapleVector<MustDefMeNode> *mustDefs = GetMustDefList();
-  if (mustDefs == nullptr || mustDefs->empty()) {
-    return;
-  }
-  MeExpr *meExpr = mustDefs->front().GetLHS();
-  if (meExpr->GetMeOp() == kMeOpVar) {
-    OriginalSt *ost = static_cast<VarMeExpr*>(meExpr)->GetOst();
-    MIRSymbol *symbol = ost->GetMIRSymbol();
-    nRets.push_back(CallReturnPair(symbol->GetStIdx(), RegFieldPair(0, 0)));
-  } else if (meExpr->GetMeOp() == kMeOpReg) {
-    nRets.push_back(CallReturnPair(StIdx(), RegFieldPair(0, static_cast<RegMeExpr*>(meExpr)->GetRegIdx())));
+  CHECK_FATAL(mustDefs != nullptr, "EmitCallReturnVector: mustDefList cannot be null");
+  for (MustDefMeNode mustdef : *mustDefs) {
+    MeExpr *meExpr = mustdef.GetLHS();
+    if (meExpr->GetMeOp() == kMeOpVar) {
+      OriginalSt *ost = static_cast<VarMeExpr*>(meExpr)->GetOst();
+      MIRSymbol *symbol = ost->GetMIRSymbol();
+      nRets.push_back(CallReturnPair(symbol->GetStIdx(), RegFieldPair(0, 0)));
+    } else if (meExpr->GetMeOp() == kMeOpReg) {
+      nRets.push_back(CallReturnPair(StIdx(), RegFieldPair(0, static_cast<RegMeExpr*>(meExpr)->GetRegIdx())));
+    }
   }
 }
 
@@ -516,6 +516,7 @@ StmtNode &AsmMeStmt::EmitStmt(SSATab &ssaTab) {
   asmNode->outputConstraints = outputConstraints;
   asmNode->clobberList = clobberList;
   asmNode->gotoLabels = gotoLabels;
+  asmNode->qualifiers = qualifiers;
   return *asmNode;
 }
 

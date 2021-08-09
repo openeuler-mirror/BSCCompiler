@@ -173,7 +173,7 @@ void DSE::DumpStmt(const StmtNode &stmt, const std::string &msg) const {
 }
 
 void DSE::CheckRemoveCallAssignedReturn(StmtNode &stmt) {
-  if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
+  if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode()) && stmt.GetOpCode() != OP_asm) {
     MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtMustDefNodes(stmt);
     for (auto &node : mustDefs) {
       if (IsSymbolLived(ToRef(node.GetResult()))) {
