@@ -2343,12 +2343,13 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
       : NaryMeStmt(alloc, stt),
         MuChiMePart(alloc),
         AssignedPart(alloc),
-        asmString(static_cast<const AsmNode*>(stt)->asmString),
+        asmString(alloc->GetMemPool()),
         inputConstraints(alloc->Adapter()),
         outputConstraints(alloc->Adapter()),
         clobberList(alloc->Adapter()),
         gotoLabels(alloc->Adapter()),
         qualifiers(static_cast<const AsmNode*>(stt)->qualifiers) {
+          asmString = static_cast<const AsmNode*>(stt)->asmString;
           inputConstraints = static_cast<const AsmNode*>(stt)->inputConstraints;
           outputConstraints = static_cast<const AsmNode*>(stt)->outputConstraints;
           clobberList = static_cast<const AsmNode*>(stt)->clobberList;
