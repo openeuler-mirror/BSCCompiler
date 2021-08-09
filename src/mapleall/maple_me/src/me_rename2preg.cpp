@@ -131,11 +131,9 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
 }
 
 void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist) {
-  if (mustdeflist.empty()) {
-    return;
-  }
-  {
-    MustDefMeNode &mustdefmenode = mustdeflist.front();
+  MapleVector<MustDefMeNode>::iterator it = mustdeflist.begin();
+  for (; it != mustdeflist.end(); it++) {
+    MustDefMeNode &mustdefmenode = *it;
     MeExpr *melhs = mustdefmenode.GetLHS();
     if (melhs->GetMeOp() != kMeOpVar) {
       return;

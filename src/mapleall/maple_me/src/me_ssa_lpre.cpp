@@ -94,18 +94,21 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     MapleVector<MustDefMeNode> *mustDefList = realOcc.GetMeStmt()->GetMustDefList();
     CHECK_NULL_FATAL(mustDefList);
     CHECK_FATAL(!mustDefList->empty(), "empty mustdef in callassigned stmt");
-    MustDefMeNode *mustDefMeNode = &mustDefList->front();
-    if (regOrVar->GetMeOp() == kMeOpReg) {
-      auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
-      // change mustDef lhs to regOrVar
-      mustDefMeNode->UpdateLHS(*regOrVar);
-      EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
-      // create new dassign for original lhs
-      MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
-      theLHS->SetDefByStmt(*newDassign);
-      realOcc.GetMeStmt()->GetBB()->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
-    } else {
-      CHECK_FATAL(false, "GenerateSaveRealOcc: non-reg temp for callassigned LHS occurrence NYI");
+    MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+    for (; it != mustDefList->end(); it++) {
+      MustDefMeNode *mustDefMeNode = &(*it);
+      if (regOrVar->GetMeOp() == kMeOpReg) {
+        auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
+        // change mustDef lhs to regOrVar
+        mustDefMeNode->UpdateLHS(*regOrVar);
+        EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
+        // create new dassign for original lhs
+        MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
+        theLHS->SetDefByStmt(*newDassign);
+        realOcc.GetMeStmt()->GetBB()->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
+      } else {
+        CHECK_FATAL(false, "GenerateSaveRealOcc: non-reg temp for callassigned LHS occurrence NYI");
+      }
     }
   }
   realOcc.SetSavedExpr(*regOrVar);
@@ -258,27 +261,28 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     (void)CreateRealOcc(meStmt, seqStmt, *lhs, false, true);
   } else if (kOpcodeInfo.IsCallAssigned(meStmt.GetOp())) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
-    if (mustDefList->empty()) {
-      return;
+    MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+    for (; it != mustDefList->end(); it++) {
+      if ((*it).GetLHS()->GetMeOp() != kMeOpVar) {
+        continue;
+      }
+      auto *theLHS = static_cast<VarMeExpr*>((*it).GetLHS());
+      const OriginalSt *ost = theLHS->GetOst();
+      if (ost->IsFormal()) {
+        (void)assignedFormals.insert(ost->GetIndex());
+      }
+      if (theLHS->GetPrimType() == PTY_ref && !MeOption::rcLowering) {
+        continue;
+      }
+      if (ost->IsVolatile()) {
+        continue;
+      }
+      if (theLHS->GetPrimType() == PTY_agg) {
+        continue;
+      }
+      (void)CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
     }
-    if (mustDefList->front().GetLHS()->GetMeOp() != kMeOpVar) {
-      return;
-    }
-    auto *theLHS = static_cast<VarMeExpr*>(mustDefList->front().GetLHS());
-    const OriginalSt *ost = theLHS->GetOst();
-    if (ost->IsFormal()) {
-      (void)assignedFormals.insert(ost->GetIndex());
-    }
-    if (theLHS->GetPrimType() == PTY_ref && !MeOption::rcLowering) {
-      return;
-    }
-    if (ost->IsVolatile()) {
-      return;
-    }
-    if (theLHS->GetPrimType() == PTY_agg) {
-      return;
-    }
-    (void)CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
+    return;
   }
 }
 
