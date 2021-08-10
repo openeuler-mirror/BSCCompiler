@@ -748,7 +748,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
       }
       auto &call = static_cast<NaryStmtNode&>(stmt);
-      SetPtrOpndsNextLevNADS(1, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
+      SetPtrOpndsNextLevNADS(stmt.GetOpCode() == OP_asm ? 0 : 1, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
       SetAggOpndPtrFieldsNextLevNADS(call.GetNopnd());
       break;
     }
