@@ -345,12 +345,10 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (preKind != kAddrPre) {
         break;
       }
-      if (mirModule->IsJavaModule()) {
-        auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
-        const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
-        if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
-          break;
-        }
+      auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
+      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
+      if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
+        break;
       }
       (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;

@@ -70,8 +70,8 @@ class DoloopInfo {
   MapleVector<ArrayAccessDesc *> lhsArrays;     // each element represents an array assign
   MapleVector<ArrayAccessDesc *> rhsArrays;     // each element represents an array read
   BB *doloopBB = nullptr;                       // the start BB for the doloop body
-  bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasOtherCtrlFlow = false;                // give up dep testing if true
+  bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasScalarAssign = false;                 // give up dep testing if true
   bool hasMayDef = false;                       // give up dep testing if true
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
@@ -90,12 +90,13 @@ class DoloopInfo {
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
-  ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS);
-  void CreateRHSArrayAccessDesc(BaseNode *x);
+  ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent);
+  void CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent);
   void CreateArrayAccessDesc(BlockNode *block);
   void CreateDepTestLists();
   void TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS);
   bool Parallelizable();
+  ArrayAccessDesc* GetArrayAccessDesc(ArrayNode *node, bool isRHS);
 };
 
 class LfoDepInfo : public AnalysisResult {

@@ -380,6 +380,12 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
            intrn.GetNopndAt(0)->GetOpCode() == OP_dread)) {
         return CreateAliasElemsExpr(*intrn.GetNopndAt(0));
       }
+      IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrn.GetIntrinsic()];
+      if (intrinDesc->IsVectorOp()) {
+        SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(intrn.NumOpnds()), intrn.GetNopnd(),
+                               false);
+        return AliasInfo();
+      }
       // fall-through
     }
     [[clang::fallthrough]];

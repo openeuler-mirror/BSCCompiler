@@ -776,7 +776,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       PrimType formalPrimType = newFormal->GetType()->GetPrimType();
       PrimType realArgPrimType = currBaseNode->GetPrimType();
       // If realArg's type is different from formal's type, use cvt
-      if (formalPrimType != realArgPrimType) {
+      if (formalPrimType != realArgPrimType && MustBeAddress(formalPrimType) != MustBeAddress(realArgPrimType)) {
         bool intTrunc = (IsPrimitiveInteger(formalPrimType) && IsPrimitiveInteger(realArgPrimType) &&
             GetPrimTypeSize(realArgPrimType) > GetPrimTypeSize(formalPrimType));
         // For dassign, if rhs-expr is a primitive integer type, the assigned variable may be smaller, resulting in a

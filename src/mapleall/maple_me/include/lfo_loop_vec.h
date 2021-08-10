@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -34,25 +34,31 @@ public:
 
 class LoopVecInfo {
 public:
-  LoopVecInfo(MapleAllocator &alloc) : vecStmtIDs(alloc.Adapter()) {
+  explicit LoopVecInfo(MapleAllocator &alloc) : vecStmtIDs(alloc.Adapter()),
+                                                uniformNodes(alloc.Adapter()),
+                                                uniformVecNodes(alloc.Adapter()) {
    // smallestPrimType = PTY_i64;
-    largestPrimType = PTY_i8;
+    largestTypeSize = 8; // i8 bit size
+    currentRHSTypeSize = 0;
   }
-  void UpdatePrimType(PrimType ctype);
-
+  void UpdateWidestTypeSize(uint32_t );
+  void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
+  bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
   //PrimType smallestPrimType; // smallest size type in vectorizable stmtnodes
-  PrimType largestPrimType;  // largest size type in vectorizable stmtnodes
+  uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
+  uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
-  //MapleMap<stidx, uint32_t> scalarStmt; // dup scalar to vector stmt may insert before stmt
-  //MapleMap<stidx, uint32_t> uniformStmt; // loop invariable scalar
+  MapleSet<BaseNode *> uniformNodes; // loop invariable scalar set
+  MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
+  //MapleMap<stidx, StmtNode*> inductionStmt; // dup scalar to vector stmt may insert before stmt
 };
 
 // tranform plan for current loop
 class LoopTransPlan {
 public:
-  LoopTransPlan(MemPool *mp, MemPool *localmp, LoopVecInfo *info) : vBound(nullptr), eBound(nullptr),
-                                                 codeMP(mp), localMP(localmp), vecInfo(info) {
+  LoopTransPlan(MemPool *mp, MemPool *localmp, LoopVecInfo *info)
+      : vBound(nullptr), eBound(nullptr), codeMP(mp), localMP(localmp), vecInfo(info) {
     vecFactor = 1;
   }
   ~LoopTransPlan() = default;
@@ -67,15 +73,14 @@ public:
   LoopVecInfo *vecInfo; // collect loop information
 
   // function
-  void Generate(DoloopNode *, DoloopInfo*);
+  void Generate(DoloopNode *, DoloopInfo *);
   void GenerateBoundInfo(DoloopNode *, DoloopInfo *);
 };
 
 class LoopVectorization {
  public:
-  LoopVectorization(MemPool *localmp, LfoPreEmitter *lfoEmit, LfoDepInfo *depinfo, bool debug = false) :
-      localAlloc(localmp),
-      vecPlans(localAlloc.Adapter()) {
+  LoopVectorization(MemPool *localmp, LfoPreEmitter *lfoEmit, LfoDepInfo *depinfo, bool debug = false)
+      : localAlloc(localmp), vecPlans(localAlloc.Adapter()) {
     mirFunc = lfoEmit->GetMirFunction();
     lfoStmtParts = lfoEmit->GetLfoStmtMap();
     lfoExprParts = lfoEmit->GetLfoExprMap();
@@ -90,11 +95,11 @@ class LoopVectorization {
   void Perform();
   void TransformLoop();
   void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
-  void VectorizeNode(BaseNode *, uint8_t);
+  void VectorizeNode(BaseNode *, LoopTransPlan *);
   MIRType *GenVecType(PrimType, uint8_t);
-  StmtNode *GenIntrinNode(BaseNode *scalar, PrimType vecPrimType);
-  bool ExprVectorizable(DoloopInfo *doloopInfo, BaseNode *x);
-  bool Vectorizable(DoloopInfo *doloopInfo, BlockNode *block, LoopVecInfo *);
+  RegassignNode *GenDupScalarStmt(BaseNode *scalar, PrimType vecPrimType);
+  bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
+  bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BlockNode *block);
   void widenDoloop(DoloopNode *doloop, LoopTransPlan *);
   DoloopNode *PrepareDoloop(DoloopNode *, LoopTransPlan *);
   DoloopNode *GenEpilog(DoloopNode *);
@@ -102,14 +107,18 @@ class LoopVectorization {
   MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
 
+public:
+  static uint32_t vectorizedLoop;
  private:
   MIRFunction *mirFunc;
-  MapleMap<uint32_t, LfoPart*>  *lfoStmtParts; // point to lfoStmtParts of lfopreemit, map lfoinfo for StmtNode, key is stmtID
-  MapleMap<BaseNode*, LfoPart*> *lfoExprParts; // point to lfoexprparts of lfopreemit, map lfoinfo for exprNode, key is mirnode
-  LfoDepInfo  *depInfo;
-  MemPool     *codeMP;    // point to mirfunction codeMp
+  // point to lfoStmtParts of lfopreemit, map lfoinfo for StmtNode, key is stmtID
+  MapleMap<uint32_t, LfoPart *>  *lfoStmtParts;
+  // point to lfoexprparts of lfopreemit, map lfoinfo for exprNode, key is mirnode
+  MapleMap<BaseNode *, LfoPart *> *lfoExprParts;
+  LfoDepInfo *depInfo;
+  MemPool *codeMP;    // point to mirfunction codeMp
   MapleAllocator *codeMPAlloc;
-  MemPool     *localMP;   // local mempool
+  MemPool *localMP;   // local mempool
   MapleAllocator localAlloc;
   MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each vectoriable loopnode has its best vectorization plan
   bool enableDebug;
