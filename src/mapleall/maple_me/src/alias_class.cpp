@@ -2029,6 +2029,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
                           CallHasNoPrivateDefEffect(&stmt));
       return;
     }
+    case OP_asm:
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:
     case OP_superclasscallassigned:

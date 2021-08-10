@@ -2356,6 +2356,10 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
           gotoLabels = static_cast<const AsmNode*>(stt)->gotoLabels;
         }
   virtual ~AsmMeStmt() = default;
+  void Dump(const IRMap*) const;
+  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+    return &muList;
+  }
   MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
     return &chiList;
   }
