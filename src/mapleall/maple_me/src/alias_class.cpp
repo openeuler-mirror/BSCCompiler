@@ -361,7 +361,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       (void)CreateAliasElemsExpr(*expr.Opnd(0));
       AliasInfo ainfo = CreateAliasElemsExpr(*expr.Opnd(1));
       AliasInfo ainfo2 = CreateAliasElemsExpr(*expr.Opnd(2));
-      if (!OpCanFormAddress(expr.Opnd(1)->GetOpCode()) || !OpCanFormAddress(expr.Opnd(2)->GetOpCode())) {
+      if (!OpCanFormAddress(expr.Opnd(1)->GetOpCode()) && !OpCanFormAddress(expr.Opnd(2)->GetOpCode())) {
         break;
       }
       if (ainfo.ae == nullptr) {
@@ -379,6 +379,12 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
           (intrn.GetIntrinsic() == INTRN_JAVA_MERGE && intrn.NumOpnds() == 1 &&
            intrn.GetNopndAt(0)->GetOpCode() == OP_dread)) {
         return CreateAliasElemsExpr(*intrn.GetNopndAt(0));
+      }
+      IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrn.GetIntrinsic()];
+      if (intrinDesc->IsVectorOp()) {
+        SetPtrOpndsNextLevNADS(0, static_cast<unsigned int>(intrn.NumOpnds()), intrn.GetNopnd(),
+                               false);
+        return AliasInfo();
       }
       // fall-through
     }
@@ -748,7 +754,8 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
         CreateAliasElemsExpr(*stmt.Opnd(i));
       }
       auto &call = static_cast<NaryStmtNode&>(stmt);
-      SetPtrOpndsNextLevNADS(stmt.GetOpCode() == OP_asm ? 0 : 1, static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
+      SetPtrOpndsNextLevNADS((stmt.GetOpCode() == OP_asm) ? 0 : 1,
+          static_cast<unsigned int>(call.NumOpnds()), call.GetNopnd(), false);
       SetAggOpndPtrFieldsNextLevNADS(call.GetNopnd());
       break;
     }
@@ -1418,6 +1425,32 @@ void AliasClass::DumpClassSets() {
   }
 }
 
+// if ostA alias with virtual-var ostB, base pointer of ostB must negatively offset from address of ostA
+// if ostA is global, negative-offset access is not permitted
+bool AliasResultInNegtiveOffset(const OriginalSt *ostA, const OriginalSt *ostB) {
+  if (!(ostA->GetIndirectLev() == 0 && ostA->IsSymbolOst() && ostA->GetMIRSymbol()->IsGlobal())) {
+    return false;
+  }
+  if (ostB->GetIndirectLev() <= 0) {
+    return false;
+  }
+
+  OffsetType offsetA = ostA->GetOffset();
+  OffsetType offsetB = ostB->GetOffset();
+  auto typeA = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostA->GetTyIdx());
+  if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
+    constexpr int bitsPerByte = 8;
+    int32 bitSizeA = 0;
+    if (typeA->GetKind() == kTypeBitField) {
+      bitSizeA = static_cast<MIRBitFieldType*>(typeA)->GetFieldSize();
+    } else {
+      bitSizeA = static_cast<int32>(typeA->GetSize()) * bitsPerByte;
+    }
+    return (offsetA + bitSizeA) < offsetB;
+  }
+  return false;
+}
+
 bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB) {
   if (ostA == ostB) {
     return true;
@@ -1433,6 +1466,14 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   // address of var has no alias relation
   if (indirectLevA < 0 || indirectLevB < 0) {
     return false;
+  }
+
+  // for global variable, negative-offset access is not permitted
+  if (indirectLevA == 0 && ostA->IsSymbolOst() && ostA->GetMIRSymbol()->IsGlobal() && indirectLevB > 0) {
+    return !AliasResultInNegtiveOffset(ostA, ostB);
+  }
+  if (indirectLevB == 0 && ostB->IsSymbolOst() && ostB->GetMIRSymbol()->IsGlobal() && indirectLevA > 0) {
+    return !AliasResultInNegtiveOffset(ostB, ostA);
   }
 
   // flow-insensitive basicAA cannot analysis alias relation of virtual-var.

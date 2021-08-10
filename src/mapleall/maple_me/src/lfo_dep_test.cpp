@@ -129,8 +129,7 @@ bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
 }
 
 SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
-  LfoPart *lfopart = depInfo->preEmit->GetLfoExprPart(subsX);
-  MeExpr *meExpr = lfopart->GetMeExpr();
+  MeExpr *meExpr = depInfo->preEmit->GetMexpr(subsX);
   SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>(meExpr);
   if (IsLoopInvariant(meExpr)) {
     subsDesc->loopInvariant = true;
@@ -161,13 +160,13 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   }
   // process mainTerm
   BaseNode *varNode = nullptr;
-  if (op != OP_mul) {
+  if (mainTerm->GetOpCode() != OP_mul) {
     varNode = mainTerm;
   } else {
     BinaryNode *mulbinnode = static_cast<BinaryNode *>(mainTerm);
     BaseNode *mulopnd0 = mulbinnode->Opnd(0);
     BaseNode *mulopnd1 = mulbinnode->Opnd(1);
-    if (mulopnd0->GetOpCode() != OP_dread) {
+    if (mulopnd0->GetOpCode() != OP_dread && mulopnd0->GetOpCode() != OP_cvt) {
       subsDesc->tooMessy = true;
       return subsDesc;
     }
@@ -188,6 +187,9 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
     }
   }
   // process varNode
+  if (varNode->GetOpCode() == OP_cvt) {
+    varNode = varNode->Opnd(0);
+  }
   if (varNode->GetOpCode() == OP_dread) {
     DreadNode *dnode = static_cast<DreadNode *>(varNode);
     if (dnode->GetStIdx() == doloop->GetDoVarStIdx()) {
@@ -199,37 +201,45 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   return subsDesc;
 }
 
-ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS) {
-#if 0
+ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent) {
   MIRType *atype =  arr->GetArrayType(GlobalTables::GetTypeTable());
   ASSERT(atype->GetKind() == kTypeArray, "type was wrong");
   MIRArrayType *arryty = static_cast<MIRArrayType *>(atype);
   size_t dim = arryty->GetDim();
   CHECK_FATAL(dim == arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
-#else
-  size_t dim = arr->NumOpnds() - 1;
-#endif
-  // determine arrayOst
-  LfoPart *lfopart = depInfo->preEmit->GetLfoExprPart(arr);
-  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(lfopart->GetMeExpr());
-  OriginalSt *arryOst = nullptr;
-  if (arrayMeExpr->GetOpnd(0)->GetMeOp() == kMeOpAddrof) {
-    AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(arrayMeExpr->GetOpnd(0));
-    arryOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(addrof->GetOstIdx());
-  } else {
-    ScalarMeExpr *scalar = dynamic_cast<ScalarMeExpr *>(arrayMeExpr->GetOpnd(0));
-    if (scalar) {
-      arryOst = scalar->GetOst();
-    } else {
-      hasPtrAccess = true;
-      return nullptr;
-    }
+  // ensure array base is loop invariant
+  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
+  if (!IsLoopInvariant(arrayMeExpr->GetOpnd(0))) {
+    hasPtrAccess = true;
+    return nullptr;
   }
-  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOst);
-  if (isRHS) {
-    rhsArrays.push_back(arrDesc);
+  // determine arrayOst
+  IvarMeExpr *ivarMeExpr = nullptr;
+  OriginalSt *arryOst = nullptr;
+  if (parent->op == OP_iread) {
+    ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parent));
+    CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
+    arryOst = ivarMeExpr->GetMu()->GetOst();
+  } else if (parent->op == OP_iassign) {
+    IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(depInfo->preEmit->GetMeStmt(static_cast<IassignNode *>(parent)->GetStmtID()));
+    ivarMeExpr = iassMeStmt->GetLHSVal();
+    if (ivarMeExpr->GetMu()) {
+      arryOst = ivarMeExpr->GetMu()->GetOst();
+    } else {
+      MapleMap<OStIdx, ChiMeNode*> *chiList = iassMeStmt->GetChiList();
+      CHECK_FATAL(!chiList->empty(), "BuildOneArrayAccessDesc: no chi corresponding to iassign");
+      arryOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiList->begin()->first);
+    }
   } else {
+    hasPtrAccess = true;
+    return nullptr;
+  }
+
+  ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOst);
+  if (parent->op == OP_iassign) {
     lhsArrays.push_back(arrDesc);
+  } else {
+    rhsArrays.push_back(arrDesc);
   }
   for (size_t i = 0; i < dim; i++) {
     SubscriptDesc *subs = BuildOneSubscriptDesc(arr->GetIndex(i));
@@ -238,12 +248,20 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS)
   return arrDesc;
 }
 
-void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x) {
+void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent) {
   if (x->GetOpCode() == OP_array) {
-    BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), true /* isRHS */);
+    if (parent->GetOpCode() != OP_iread) { // skip arrays not underneath iread unless loop-invariant
+      if (IsLoopInvariant(depInfo->preEmit->GetMexpr(x))) {
+        return;
+      }
+      hasPtrAccess = true;
+    } else {
+      BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), parent);
+    }
+    return;
   }
   for (size_t i = 0; i < x->NumOpnds(); i++) {
-    CreateRHSArrayAccessDesc(x->Opnd(i));
+    CreateRHSArrayAccessDesc(x->Opnd(i), x);
   }
 }
 
@@ -260,7 +278,7 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         break;
       }
       case OP_if: {
-        CreateRHSArrayAccessDesc(stmt->Opnd(0));
+        CreateRHSArrayAccessDesc(stmt->Opnd(0), stmt);
         IfStmtNode *ifstmtnode = static_cast<IfStmtNode *>(stmt);
         if (ifstmtnode->GetThenPart())
           CreateArrayAccessDesc(ifstmtnode->GetThenPart());
@@ -270,17 +288,16 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
       }
       case OP_dowhile:
       case OP_while: {
-        CreateRHSArrayAccessDesc(stmt->Opnd(0));
+        CreateRHSArrayAccessDesc(stmt->Opnd(0), stmt);
         CreateArrayAccessDesc(static_cast<WhileStmtNode *>(stmt)->GetBody());
         break;
       }
       case OP_iassign: {
         IassignNode *iass = static_cast<IassignNode *>(stmt);
         if (iass->addrExpr->GetOpCode() == OP_array) {
-          ArrayAccessDesc *adesc = BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), false /* isRHS */);
-          if (adesc == nullptr) {
-            hasMayDef = true;
-          } else {
+          ArrayAccessDesc *adesc = BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), iass);
+          if (adesc != nullptr) {
+            CHECK_FATAL(adesc->arrayOst, "CreateArrayAccessDesc: arrayOst not valid");
             // check if the chi list has only the same array
             LfoPart *lfopart = depInfo->preEmit->GetLfoStmtPart(iass->GetStmtID());
             IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(lfopart->GetMeStmt());
@@ -297,18 +314,18 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         } else {
           hasPtrAccess = true;
         }
-        CreateRHSArrayAccessDesc(iass->rhs);
+        CreateRHSArrayAccessDesc(iass->rhs, iass);
         break;
       }
       case OP_dassign:
       case OP_regassign: {
         hasScalarAssign = true;
-        CreateRHSArrayAccessDesc(stmt->Opnd(0));
+        CreateRHSArrayAccessDesc(stmt->Opnd(0), stmt);
         break;
       }
       default: {
         for (size_t i = 0; i < stmt->NumOpnds(); i++) {
-          CreateRHSArrayAccessDesc(stmt->Opnd(i));
+          CreateRHSArrayAccessDesc(stmt->Opnd(i), stmt);
         }
         break;
       }
@@ -413,6 +430,16 @@ bool DoloopInfo::Parallelizable() {
   return true;
 }
 
+ArrayAccessDesc* DoloopInfo::GetArrayAccessDesc(ArrayNode *node, bool isRHS) {
+  MapleVector<ArrayAccessDesc *>* arrayDescptr = isRHS ? &rhsArrays : &lhsArrays;
+  for (auto it = arrayDescptr->begin(); it != arrayDescptr->end(); it++) {
+    if ((*it)->theArray == node) {
+      return (*it);
+    }
+  }
+  return nullptr;
+}
+
 void LfoDepInfo::PerformDepTest() {
   size_t i;
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = doloopInfoMap.begin();
@@ -420,6 +447,9 @@ void LfoDepInfo::PerformDepTest() {
     DoloopInfo *doloopInfo = mapit->second;
     if (!doloopInfo->children.empty()) {
       continue;  // only handling innermost doloops
+    }
+    if (doloopInfo->hasOtherCtrlFlow) {
+      continue;
     }
     doloopInfo->CreateArrayAccessDesc(doloopInfo->doloop->GetDoBody());
     if (DEBUGFUNC(lfoFunc->meFunc)) {
@@ -451,8 +481,7 @@ void LfoDepInfo::PerformDepTest() {
             LogInfo::MapleLogger() << " [messy]";
           } else {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
-            LfoPart *lfopart = preEmit->GetLfoExprPart(subs->iv);
-            ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(lfopart->GetMeExpr());
+            ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(preEmit->GetMexpr(subs->iv));
             scalar->GetOst()->Dump();
             LogInfo::MapleLogger() << "+" << subs->additiveConst << "]";
           }
@@ -472,8 +501,7 @@ void LfoDepInfo::PerformDepTest() {
             LogInfo::MapleLogger() << " [messy]";
           } else {
             LogInfo::MapleLogger() << " [" << subs->coeff << "*";
-            LfoPart *lfopart = preEmit->GetLfoExprPart(subs->iv);
-            ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(lfopart->GetMeExpr());
+            ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(preEmit->GetMexpr(subs->iv));
             scalar->GetOst()->Dump();
             LogInfo::MapleLogger() << "+" << subs->additiveConst << "]";
           }
@@ -521,23 +549,28 @@ void LfoDepInfo::PerformDepTest() {
   }
 }
 
-AnalysisResult *DoLfoDepTest::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+bool MELfoDepTest::PhaseRun(MeFunction &f) {
+  Dominance *dom = GET_ANALYSIS(MEDominance);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  LfoPreEmitter *preEmit = static_cast<LfoPreEmitter *>(m->GetAnalysisResult(MeFuncPhase_LFOPREEMIT, func));
+  LfoPreEmitter *preEmit = GET_ANALYSIS(MELfoPreEmission);
   ASSERT(preEmit != nullptr, "lfo preemit phase has problem");
-  LfoFunction *lfoFunc = func->GetLfoFunc();
-  MemPool *depTestMp = NewMemPool();
-  LfoDepInfo *depInfo = depTestMp->New<LfoDepInfo>(depTestMp, lfoFunc, dom, preEmit);
-  if (DEBUGFUNC(func)) {
+  LfoFunction *lfoFunc = f.GetLfoFunc();
+  MemPool *depTestMp = GetPhaseMemPool();
+  depInfo = depTestMp->New<LfoDepInfo>(depTestMp, lfoFunc, dom, preEmit);
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== LFO_DEP_TEST =============" << '\n';
   }
-  depInfo->CreateDoloopInfo(func->GetMirFunc()->GetBody(), nullptr);
+  depInfo->CreateDoloopInfo(f.GetMirFunc()->GetBody(), nullptr);
   depInfo->PerformDepTest();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "________________" << std::endl;
     lfoFunc->meFunc->GetMirFunc()->Dump();
   }
   return depInfo;
+}
+
+void MELfoDepTest::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELfoPreEmission>();
 }
 }  // namespace maple

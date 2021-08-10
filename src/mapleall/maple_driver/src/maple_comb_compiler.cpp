@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,6 +21,7 @@
 #include "inline.h"
 #include "me_phase_manager.h"
 #include "constantfold.h"
+#include "lfo_loop_vec.h"
 
 namespace maple {
 using namespace mapleOption;
@@ -42,12 +43,6 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &options) const
 
 void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
   std::string filePath;
-  if ((realRunningExe == kBinNameMe) && !mplOptions.HasSetGenMeMpl()) {
-    filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".me.mpl";
-  } else if (mplOptions.HasSetGenVtableImpl() == false) {
-    filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".VtableImpl.mpl";
-  }
-  tempFiles.push_back(filePath);
   filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".data.muid";
   tempFiles.push_back(filePath);
   filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".func.muid";
@@ -164,7 +159,6 @@ std::string MapleCombCompiler::DecideOutExe(const MplOptions &options) {
 }
 
 ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) {
-  MemPool *optMp = memPoolCtrler.NewMemPool("maplecomb mempool", false /* isLocalPool */);
   std::string fileName = GetInputFileName(options);
   bool fileParsed = true;
   if (theModule == nullptr) {
@@ -175,29 +169,25 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRMod
   LogInfo::MapleLogger() << "Starting maplecomb\n";
   theModule->InitPartO2List(options.GetPartO2List());
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), options.GetInputFileType(), fileName,
-                      fileName, fileName, options.WithDwarf(), optMp, fileParsed,
+                      fileName, fileName, options.WithDwarf(), fileParsed,
                       options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl());
   // Parse the input file
   ErrorCode ret = runner.ParseInput();
   if (ret != kErrorNoError) {
-    delete optMp;
     return ret;
   }
   // Add running phases and default options according to the srcLang (only for auto mode)
   ret = options.AppendCombOptions(theModule->GetSrcLang());
   if (ret != kErrorNoError) {
-    delete optMp;
     return ret;
   }
 
   ret = MakeMeOptions(options, runner);
   if (ret != kErrorNoError) {
-    delete optMp;
     return ret;
   }
   ret = MakeMpl2MplOptions(options, runner);
   if (ret != kErrorNoError) {
-    delete optMp;
     return ret;
   }
   runner.SetPrintOutExe(DecideOutExe(options));
@@ -205,7 +195,10 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRMod
     PrintCommand(options);
   }
   ErrorCode nErr = runner.Run();
-
+  // dump vectorized loop counter here
+  if (LoopVectorization::vectorizedLoop > 0) {
+    LogInfo::MapleLogger() << "\n " << LoopVectorization::vectorizedLoop << " loop vectorized\n";
+  }
   delete optMp;
   return nErr;
 }

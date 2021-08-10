@@ -16,6 +16,8 @@
 #include "mir_builder.h"
 #include "me_lower_globals.h"
 #include "me_ssa_update.h"
+#include "me_dominance.h"
+#include "me_irmap_build.h"
 
 namespace maple {
 void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
@@ -247,14 +249,6 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     if (ost->IsVolatile() || ost->GetMIRSymbol()->GetAttr(ATTR_oneelem_simd)) {
       return;
     }
-    if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
-      MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetMIRSymbol()->GetTyIdx()));
-      FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
-      if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
-        return;
-      }
-    }
-
     if (lhs->GetPrimType() == PTY_agg) {
       return;
     }
@@ -328,13 +322,6 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (sym->GetAttr(ATTR_oneelem_simd)) {
         break;
       }
-      if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
-        MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx()));
-        FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
-        if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
-          break;
-        }
-      }
       if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;
@@ -349,12 +336,10 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (preKind != kAddrPre) {
         break;
       }
-      if (mirModule->IsJavaModule()) {
-        auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
-        const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
-        if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
-          break;
-        }
+      auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
+      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
+      if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
+        break;
       }
       (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
@@ -417,67 +402,75 @@ void MeSSALPre::FindLoopHeadBBs(const IdentifyLoops &identLoops) {
   }
 }
 
-AnalysisResult *MeDoSSALPre::Run(MeFunction *irFunc, MeFuncResultMgr *funcMgr, ModuleResultMgr*) {
+bool MESSALPre::PhaseRun(maple::MeFunction &f) {
   static uint32 puCount = 0;  // count PU to support the lprePULimit option
   if (puCount > MeOption::lprePULimit) {
     ++puCount;
-    return nullptr;
+    return false;
   }
-  auto *dom = static_cast<Dominance*>(funcMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, irFunc));
+
+  auto *dom = GET_ANALYSIS(MEDominance);
   CHECK_NULL_FATAL(dom);
-  auto *irMap = static_cast<MeIRMap*>(funcMgr->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, irFunc));
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
   CHECK_NULL_FATAL(irMap);
-  auto *identLoops = static_cast<IdentifyLoops*>(funcMgr->GetAnalysisResult(MeFuncPhase_MELOOP, irFunc));
+  auto *identLoops = GET_ANALYSIS(MELoopAnalysis);
   CHECK_NULL_FATAL(identLoops);
   bool lprePULimitSpecified = MeOption::lprePULimit != UINT32_MAX;
   uint32 lpreLimitUsed =
       (lprePULimitSpecified && puCount != MeOption::lprePULimit) ? UINT32_MAX : MeOption::lpreLimit;
   {
-    MeSSALPre ssaLpre(*irFunc, *irMap, *dom, *NewMemPool(), *NewMemPool(), kLoadPre, lpreLimitUsed);
+    MeSSALPre ssaLpre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), kLoadPre, lpreLimitUsed);
     ssaLpre.SetRcLoweringOn(MeOption::rcLowering);
     ssaLpre.SetRegReadAtReturn(MeOption::regreadAtReturn);
     ssaLpre.SetSpillAtCatch(MeOption::spillAtCatch);
     if (lprePULimitSpecified && puCount == MeOption::lprePULimit && lpreLimitUsed != UINT32_MAX) {
       LogInfo::MapleLogger() << "applying LPRE limit " << lpreLimitUsed << " in function " <<
-          irFunc->GetMirFunc()->GetName() << '\n';
+          f.GetMirFunc()->GetName() << '\n';
     }
-    if (DEBUGFUNC(irFunc)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       ssaLpre.SetSSAPreDebug(true);
     }
-    if (MeOption::lpreSpeculate && !irFunc->HasException()) {
+    if (MeOption::lpreSpeculate && !f.HasException()) {
       ssaLpre.FindLoopHeadBBs(*identLoops);
     }
     ssaLpre.ApplySSAPRE();
-    if (DEBUGFUNC(irFunc)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "\n==============after LoadPre =============" << '\n';
-      irFunc->Dump(false);
+      f.Dump(false);
     }
 
     auto &candsForSSAUpdate = ssaLpre.GetCandsForSSAUpdate();
     if (!candsForSSAUpdate.empty()) {
-      MemPool *memPool = NewMemPool();
-      MeSSAUpdate ssaUpdate(*irFunc, *irFunc->GetMeSSATab(), *dom, candsForSSAUpdate, *memPool);
+      MemPool *memPool = ApplyTempMemPool();
+      MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate, *memPool);
       ssaUpdate.Run();
     }
   }
-  MeLowerGlobals lowerGlobals(*irFunc, irFunc->GetMeSSATab());
+  MeLowerGlobals lowerGlobals(f, f.GetMeSSATab());
   lowerGlobals.Run();
   {
-    MeSSALPre ssaLpre(*irFunc, *irMap, *dom, *NewMemPool(), *NewMemPool(), kAddrPre, lpreLimitUsed);
+    MeSSALPre ssaLpre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), kAddrPre, lpreLimitUsed);
     ssaLpre.SetSpillAtCatch(MeOption::spillAtCatch);
-    if (DEBUGFUNC(irFunc)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       ssaLpre.SetSSAPreDebug(true);
     }
-    if (MeOption::lpreSpeculate && !irFunc->HasException()) {
+    if (MeOption::lpreSpeculate && !f.HasException()) {
       ssaLpre.FindLoopHeadBBs(*identLoops);
     }
     ssaLpre.ApplySSAPRE();
-    if (DEBUGFUNC(irFunc)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "\n==============after AddrPre =============" << '\n';
-      irFunc->Dump(false);
+      f.Dump(false);
     }
   }
   ++puCount;
-  return nullptr;
+  return true;
+}
+
+void MESSALPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

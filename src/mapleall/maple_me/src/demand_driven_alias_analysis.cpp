@@ -236,7 +236,7 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfAdd(const BinaryNode *bin
 
     auto *constVal = static_cast<ConstvalNode *>(binaryNode->Opnd(1))->GetConstVal();
     ASSERT(constVal->GetKind() == kConstInt, "pointer cannot add/sub a non-integer value");
-    int64 offsetInByte = static_cast<MIRIntConst *>(constVal)->GetValue();
+    int64 offsetInByte = static_cast<uint64>(static_cast<MIRIntConst *>(constVal)->GetValue());
     int64 offsetInBit = kOffsetUnknown;
     if (offsetInByte < kOffsetMax && offsetInByte > kOffsetMin) {
       constexpr int kBitNumInOneByte = 8;
