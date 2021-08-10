@@ -19,18 +19,18 @@ help:
 
 setup:
 	cp -pr /maple/spec2017 $(HOME)
-	cp -f $(MAPLE_ROOT)/build/tools/spec/maplec.cfg $(HOME)/spec2017/config
+	cp -f $(MAPLE_ROOT)/build/tools/spec/*.cfg $(HOME)/spec2017/config
 
 build.%:
-	runcpu --config=maplec.cfg --action build $* --rebuild
+	runcpu --config=$(SPEC_CFG).cfg --action build $* --rebuild
 
 test.%:
-	runcpu --config=maplec.cfg -i test --action run $*
+	runcpu --config=$(SPEC_CFG).cfg -i test --action run $*
 
 train.%:
-	runcpu --config=maplec.cfg -i train --action run $*
+	runcpu --config=$(SPEC_CFG).cfg -i train --action run $*
 
 ref.%:
-	runcpu --config=maplec.cfg -i ref --action run $*
+	runcpu --config=$(SPEC_CFG).cfg -i ref --action run $*
 
 
