@@ -19,9 +19,9 @@
 #include "lfo_function.h"
 #include "lfo_pre_emit.h"
 #include "orig_symbol.h"
-#include "me_phase.h"
+#include "maple_phase.h"
 #include "me_ir.h"
-#include "dominance.h"
+#include "me_dominance.h"
 
 namespace maple {
 class LfoDepInfo;
@@ -70,8 +70,8 @@ class DoloopInfo {
   MapleVector<ArrayAccessDesc *> lhsArrays;     // each element represents an array assign
   MapleVector<ArrayAccessDesc *> rhsArrays;     // each element represents an array read
   BB *doloopBB = nullptr;                       // the start BB for the doloop body
-  bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasOtherCtrlFlow = false;                // give up dep testing if true
+  bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasScalarAssign = false;                 // give up dep testing if true
   bool hasMayDef = false;                       // give up dep testing if true
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
@@ -90,12 +90,13 @@ class DoloopInfo {
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
-  ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, bool isRHS);
-  void CreateRHSArrayAccessDesc(BaseNode *x);
+  ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent);
+  void CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent);
   void CreateArrayAccessDesc(BlockNode *block);
   void CreateDepTestLists();
   void TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS);
   bool Parallelizable();
+  ArrayAccessDesc* GetArrayAccessDesc(ArrayNode *node, bool isRHS);
 };
 
 class LfoDepInfo : public AnalysisResult {
@@ -121,14 +122,12 @@ class LfoDepInfo : public AnalysisResult {
   std::string PhaseName() const { return "deptest"; }
 };
 
-class DoLfoDepTest : public MeFuncPhase {
- public:
-  explicit DoLfoDepTest(MePhaseID id) : MeFuncPhase(id) {}
-  ~DoLfoDepTest() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResMgr) override;
-  std::string PhaseName() const override {
-    return "deptest";
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MELfoDepTest, MeFunction)
+  LfoDepInfo *GetResult() {
+    return depInfo;
   }
-};
+  LfoDepInfo *depInfo = nullptr;
+OVERRIDE_DEPENDENCE
+MAPLE_FUNC_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LFO_DEP_TEST_H
