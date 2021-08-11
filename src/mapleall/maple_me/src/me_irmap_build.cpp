@@ -25,11 +25,11 @@ namespace maple {
 AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
   (void)moduleResMgr;
   // get all required analysis result IRMap need, cfg, ssa may be invalid in previous phase
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSA, func));
-  Dominance *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_MECFG, func, !MeOption::quiet));
+  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func, !MeOption::quiet));
+  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func, !MeOption::quiet));
+  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSA, func, !MeOption::quiet));
+  Dominance *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   MemPool *irmapmp = NewMemPool();
 

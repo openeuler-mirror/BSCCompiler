@@ -371,6 +371,7 @@ bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
     case OP_intrinsiccallassigned:
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtypeassigned:
+    case OP_asm:
     case OP_syncenter:
     case OP_syncexit: {
       for (size_t i = 0; i < stmt.NumOpnds(); ++i) {

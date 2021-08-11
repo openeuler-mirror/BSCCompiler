@@ -31,8 +31,15 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     return nullptr;
   }
   const MIRSymbol *mirst = ost->GetMIRSymbol();
-  if (mirst->GetAttr(ATTR_localrefvar)) {
+  if (mirst->GetAttr(ATTR_localrefvar) || mirst->GetAttr(ATTR_oneelem_simd)) {
     return nullptr;
+  }
+  if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirst->GetTyIdx()));
+    FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+      return nullptr;
+    }
   }
   if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {
     return nullptr;
@@ -124,12 +131,9 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
 }
 
 void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist) {
-  if (mustdeflist.empty()) {
-    return;
-  }
-  CHECK_FATAL(mustdeflist.size() == 1, "NYI");
-  {
-    MustDefMeNode &mustdefmenode = mustdeflist.front();
+  MapleVector<MustDefMeNode>::iterator it = mustdeflist.begin();
+  for (; it != mustdeflist.end(); it++) {
+    MustDefMeNode &mustdefmenode = *it;
     MeExpr *melhs = mustdefmenode.GetLHS();
     if (melhs->GetMeOp() != kMeOpVar) {
       return;
@@ -270,6 +274,7 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
       Rename2PregLeafLHS(stmt, static_cast<VarMeExpr *>(stmt->GetVarLHS()));
       break;
     }
+    case OP_asm:
     case OP_callassigned:
     case OP_virtualcallassigned:
     case OP_virtualicallassigned:

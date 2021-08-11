@@ -178,21 +178,23 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
     ScalarMeExpr *lhs = nullptr;
     if (stmt.GetOp() == OP_dassign || stmt.GetOp() == OP_maydassign || stmt.GetOp() == OP_regassign) {
       lhs = stmt.GetLHS();
+      CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
+      auto it = renameStacks.find(lhs->GetOstIdx());
+      if (it != renameStacks.end()) {
+        it->second->push(lhs);
+      }
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
-      if (mustDefList->empty()) {
-        continue;
+      MapleVector<MustDefMeNode>::iterator mustdefit = mustDefList->begin();
+      for (; mustdefit != mustDefList->end(); mustdefit++) {
+        lhs = (*mustdefit).GetLHS();
+        CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
+        auto it = renameStacks.find(lhs->GetOstIdx());
+        if (it != renameStacks.end()) {
+          it->second->push(lhs);
+        }
       }
-      lhs = mustDefList->front().GetLHS();
-    } else {
-      continue;
     }
-    CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
-    auto it = renameStacks.find(lhs->GetOstIdx());
-    if (it == renameStacks.end()) {
-      continue;
-    }
-    it->second->push(lhs);
   }
 }
 

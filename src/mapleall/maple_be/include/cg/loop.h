@@ -18,6 +18,7 @@
 #include "cg_phase.h"
 #include "cgbb.h"
 #include "insn.h"
+#include "maple_phase.h"
 
 namespace maplebe {
 class LoopHierarchy {
@@ -109,21 +110,19 @@ class LoopFinder : public AnalysisResult {
         cgFunc(&func),
         memPool(&mem),
         loopMemPool(memPool),
-        stack(loopMemPool.Adapter()),
-        candidate(loopMemPool.Adapter()),
         visitedBBs(loopMemPool.Adapter()),
         sortedBBs(loopMemPool.Adapter()),
         dfsBBs(loopMemPool.Adapter()),
+        onPathBBs(loopMemPool.Adapter()),
         recurseVisited(loopMemPool.Adapter())
         {}
 
   ~LoopFinder() override = default;
 
-  void DetectLoop(BB *header, BB *back);
-  bool DetectLoopSub(BB *header, BB *back);
-  void Insert(BB *bb, BB *header, std::set<BB *> &extraHeader);
-  void FindBackedge();
-  void PushBackedge(BB &bb, std::stack<BB*> &succs, bool &childPushed);
+  void formLoop(BB* headBB, BB* backBB);
+  void seekBackEdge(BB* bb, MapleList<BB*> succs);
+  void seekCycles();
+  void markExtraEntryAndEncl();
   void MergeLoops();
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
@@ -137,11 +136,10 @@ class LoopFinder : public AnalysisResult {
   CGFunc *cgFunc;
   MemPool *memPool;
   MapleAllocator loopMemPool;
-  MapleStack<BB *> stack;
-  MapleList<BB*> candidate;  /* loop candidate */
   MapleVector<bool> visitedBBs;
   MapleVector<BB*> sortedBBs;
   MapleStack<BB*> dfsBBs;
+  MapleVector<bool> onPathBBs;
   MapleVector<bool> recurseVisited;
   LoopHierarchy *loops = nullptr;
 };
@@ -157,7 +155,8 @@ class CGFuncLoops {
 
   ~CGFuncLoops() = default;
 
-  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops, const MapleVector<BB*> &loopMembers) const;
+  void CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops,
+                                  const MapleVector<BB*> &loopMembers) const;
   void CheckLoops() const;
   void PrintLoops(const CGFuncLoops &loops) const;
 
@@ -221,7 +220,8 @@ struct CGFuncLoopCmp {
   }
 };
 
-CGFUNCPHASE(CgDoLoopAnalysis, "loopanalysis")
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLoopAnalysis, maplebe::CGFunc);
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_LOOP_H */

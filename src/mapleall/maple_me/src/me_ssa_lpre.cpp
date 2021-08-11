@@ -94,18 +94,21 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     MapleVector<MustDefMeNode> *mustDefList = realOcc.GetMeStmt()->GetMustDefList();
     CHECK_NULL_FATAL(mustDefList);
     CHECK_FATAL(!mustDefList->empty(), "empty mustdef in callassigned stmt");
-    MustDefMeNode *mustDefMeNode = &mustDefList->front();
-    if (regOrVar->GetMeOp() == kMeOpReg) {
-      auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
-      // change mustDef lhs to regOrVar
-      mustDefMeNode->UpdateLHS(*regOrVar);
-      EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
-      // create new dassign for original lhs
-      MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
-      theLHS->SetDefByStmt(*newDassign);
-      realOcc.GetMeStmt()->GetBB()->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
-    } else {
-      CHECK_FATAL(false, "GenerateSaveRealOcc: non-reg temp for callassigned LHS occurrence NYI");
+    MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+    for (; it != mustDefList->end(); it++) {
+      MustDefMeNode *mustDefMeNode = &(*it);
+      if (regOrVar->GetMeOp() == kMeOpReg) {
+        auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
+        // change mustDef lhs to regOrVar
+        mustDefMeNode->UpdateLHS(*regOrVar);
+        EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
+        // create new dassign for original lhs
+        MeStmt *newDassign = irMap->CreateAssignMeStmt(*theLHS, *regOrVar, *realOcc.GetMeStmt()->GetBB());
+        theLHS->SetDefByStmt(*newDassign);
+        realOcc.GetMeStmt()->GetBB()->InsertMeStmtAfter(realOcc.GetMeStmt(), newDassign);
+      } else {
+        CHECK_FATAL(false, "GenerateSaveRealOcc: non-reg temp for callassigned LHS occurrence NYI");
+      }
     }
   }
   realOcc.SetSavedExpr(*regOrVar);
@@ -210,6 +213,9 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   if (ost->HasAttr(ATTR_localrefvar)) {
     return;
   }
+  if (ost->HasAttr(ATTR_oneelem_simd)) {
+    return;
+  }
   // get the zero version VarMeExpr node
   VarMeExpr *zeroVersion = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
   MeRealOcc *occ = ssaPreMemPool->New<MeRealOcc>(nullptr, 0, zeroVersion);
@@ -238,36 +244,45 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
     CHECK_NULL_FATAL(meStmt.GetRHS());
-    if (ost->IsVolatile()) {
+    if (ost->IsVolatile() || ost->GetMIRSymbol()->GetAttr(ATTR_oneelem_simd)) {
       return;
     }
+    if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+      MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetMIRSymbol()->GetTyIdx()));
+      FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+      if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+        return;
+      }
+    }
+
     if (lhs->GetPrimType() == PTY_agg) {
       return;
     }
     (void)CreateRealOcc(meStmt, seqStmt, *lhs, false, true);
   } else if (kOpcodeInfo.IsCallAssigned(meStmt.GetOp())) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
-    if (mustDefList->empty()) {
-      return;
+    MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+    for (; it != mustDefList->end(); it++) {
+      if ((*it).GetLHS()->GetMeOp() != kMeOpVar) {
+        continue;
+      }
+      auto *theLHS = static_cast<VarMeExpr*>((*it).GetLHS());
+      const OriginalSt *ost = theLHS->GetOst();
+      if (ost->IsFormal()) {
+        (void)assignedFormals.insert(ost->GetIndex());
+      }
+      if (theLHS->GetPrimType() == PTY_ref && !MeOption::rcLowering) {
+        continue;
+      }
+      if (ost->IsVolatile()) {
+        continue;
+      }
+      if (theLHS->GetPrimType() == PTY_agg) {
+        continue;
+      }
+      (void)CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
     }
-    if (mustDefList->front().GetLHS()->GetMeOp() != kMeOpVar) {
-      return;
-    }
-    auto *theLHS = static_cast<VarMeExpr*>(mustDefList->front().GetLHS());
-    const OriginalSt *ost = theLHS->GetOst();
-    if (ost->IsFormal()) {
-      (void)assignedFormals.insert(ost->GetIndex());
-    }
-    if (theLHS->GetPrimType() == PTY_ref && !MeOption::rcLowering) {
-      return;
-    }
-    if (ost->IsVolatile()) {
-      return;
-    }
-    if (theLHS->GetPrimType() == PTY_agg) {
-      return;
-    }
-    (void)CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
+    return;
   }
 }
 
@@ -310,6 +325,16 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();
+      if (sym->GetAttr(ATTR_oneelem_simd)) {
+        break;
+      }
+      if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
+        MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx()));
+        FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
+        if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+          break;
+        }
+      }
       if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;

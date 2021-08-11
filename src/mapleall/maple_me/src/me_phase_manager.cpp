@@ -76,6 +76,7 @@
 #include "lfo_iv_canon.h"
 #include "cfg_opt.h"
 #include "lfo_dep_test.h"
+#include "lfo_loop_vec.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 
@@ -212,10 +213,6 @@ void MeFuncPhaseManager::Run(MIRFunction *mirFunc, uint64 rangeNum, const std::s
   }
   if (mirFunc->HasSetjmp()) {
     LogInfo::MapleLogger() << "Function  < " << mirFunc->GetName() << " not optimized because it has setjmp\n";
-    return;
-  }
-  if (mirFunc->HasAsm()) {
-    LogInfo::MapleLogger() << "Function  < " << mirFunc->GetName() << " not optimized because it has inline asm\n";
     return;
   }
   MPLTimer runPhasetimer;

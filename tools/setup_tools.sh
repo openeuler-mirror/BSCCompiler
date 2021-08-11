@@ -141,15 +141,28 @@ if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2
   echo Downloaded libz.
 fi
 
-# install qemu-user 2.5.0
-if [ ! -f $TOOLS/qemu/package/usr/bin/qemu-aarch64 ]; then
+# install a stable qemu-user based on different OS
+
+QEMU_VERSION=`$TOOLS/qemu/usr/bin/qemu-aarch64 -version | awk 'NR == 1' | awk '{print $3}' | sed -e "s/^[^0-9]*//" -e "s/\..*//"`
+
+if [ "$QEMU_VERSION" = "3" ] || [ "$QEMU_VERSION" = "4" ]; then
+  echo "QEMU version is too new and QEMU will be reversed to a stable version."
+  rm -rf $TOOLS/qemu
+fi
+
+if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
   cd $TOOLS
   echo Start wget qemu-user ...
   rm -rf qemu
-  git clone --depth 1 https://gitee.com/hu-_-wen/qemu.git
-  cd qemu
-  mkdir -p package
-  dpkg-deb -R qemu-user_2.5+dfsg-5ubuntu10.48_amd64.deb package
+  mkdir -p qemu
+  if [ "$OLD_OS" == "1" ];then
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
+  else
+    # we will use QEMU 2.11 for now, and will upgrade it to a new version after further investigations
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+    dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
+  fi
   echo Installed qemu-aarch64
 fi
 
@@ -170,10 +183,7 @@ ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
-ln -s -f ${MAPLE_ROOT}/tools/qemu/package/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
-if [ -f /usr/bin/qemu-aarch64 ];then
-  ln -s -f /usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
-fi
+ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 
 mkdir -p ${MAPLE_ROOT}/testsuite/tools
 mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin

@@ -8,4 +8,10 @@ source shrc
 cd -
 ulimit -s unlimited
 
+if [ $# -eq 1 ]; then
+  export SPEC_CFG=$1
+else
+  export SPEC_CFG=mplfe
+fi
+
 #echo 3 | sudo tee /proc/sys/vm/drop_caches

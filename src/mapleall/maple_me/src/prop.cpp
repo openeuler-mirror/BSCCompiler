@@ -69,10 +69,10 @@ void Prop::PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList) {
 }
 
 void Prop::PropUpdateMustDefList(MeStmt *mestmt) {
-  MapleVector<MustDefMeNode> *mustdefList = mestmt->GetMustDefList();
-  if (!mustdefList->empty()) {
-    MeExpr *melhs = mustdefList->front().GetLHS();
-    PropUpdateDef(*static_cast<VarMeExpr *>(melhs));
+  MapleVector<MustDefMeNode> *mustDefList = mestmt->GetMustDefList();
+  for (auto &node : utils::ToRef(mustDefList)) {
+    MeExpr *melhs = node.GetLHS();
+    PropUpdateDef(*melhs);
   }
 }
 
@@ -615,8 +615,15 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile()) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || st->GetAttr(ATTR_oneelem_simd)) {
     return varMeExpr;
+  }
+  if (varMeExpr.GetOst()->GetFieldID() != 0 && mirModule.IsCModule()) {
+    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx()));
+    FieldAttrs fattrs = structType->GetFieldAttrs(varMeExpr.GetOst()->GetFieldID());
+    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+      return varMeExpr;
+    }
   }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
@@ -877,6 +884,7 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
       PropUpdateDef(*asmestmt->GetLHS());
       break;
     }
+    case OP_asm: break;
     default:
       for (size_t i = 0; i != meStmt.NumMeStmtOpnds(); ++i) {
         MeExpr &expr = PropMeExpr(utils::ToRef(meStmt.GetOpnd(i)), subProped, kOpcodeInfo.IsCall(op));

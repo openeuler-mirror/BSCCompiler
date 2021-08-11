@@ -243,6 +243,7 @@ void CopyProp::TraversalMeStmt(MeStmt &meStmt) {
       PropUpdateDef(*assignStmt.GetLHS());
       break;
     }
+    case OP_asm: break;
     default:{
       for (size_t i = 0; i != meStmt.NumMeStmtOpnds(); ++i) {
         auto opnd = meStmt.GetOpnd(i);

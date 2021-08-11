@@ -1,259 +1,152 @@
-# OpenArkCompiler Phase Design
+### Hierarchy in maple phase
+At the Current stage, there are two phases classes provided for inheritance.
+Other level IR phase can be designed as a subclass of the MaplePhase class.
+They perform the optimizations or generate analysis results on the specific IR level.
 
-OpenArkCompiler comes with a series of optimization measures managed in phase mode. This document describes how to design, use, and define a phase by taking middle end as an example.
+##### The MapleModulePhase class
 
-## Phase
+If a phases is derived from MapleModulePhase, it indicates that this phase does transformation on the module.
+It can run lower level IR phases manager as well.
 
-Middle end involves ModulePhase and MeFuncPhase inherited from the Phase class. The Run method is the most important for the Phase class. Two overloads of the method depend on whether analysis is required.
+##### The MapleFunctionPhase class
 
-```cpp
-virtual AnalysisResult *Run(MeFunction *ir, MeFuncResultMgr *frm) {
-  return nullptr;
-}
-
-// By default mrm will not be used because most ME phases do not need 
-// IPA result. For those will use IPA result, this function will be overrode.
-virtual AnalysisResult *Run(MeFunction *ir, MeFuncResultMgr *frm, ModuleResultMgr *mrm) {
-  return Run(ir, frm);
-}
+```c++
+ template <class funcT>
+ class MapleFunctionPhase : public MaplePhase
 ```
 
-Therefore, when adding a new phase, at least one Run method must be implemented, and the PhaseName method must be overridden to return the phase name. The following uses rclowering as an example:
+In constrast to MapleFunctionPhase, it is template class due to different Function level IRs in Maple.
+Both CodeGen Function level IR and MidEnd Function level IR derives this class.
 
-```cpp
-class MeDoRCLowering : public MeFuncPhase {
- public:
-  MeDoRCLowering(MePhaseID id) : MeFuncPhase(id) {}
+### Memory management for maple phase
 
-  virtual ~MeDoRCLowering() = default;
-  AnalysisResult *Run(MeFunction*, MeFuncResultMgr*, ModuleResultMgr*) override;
-  const std::string PhaseName() const override {
-    return "rclowering";
-  }
-};
-```
-
-```cpp
-AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
-  KlassHierarchy *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule())); 
-  DASSERT(kh != nullptr, "KlassHierarchy has problem");
-  MeIRMap *hmap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAP, func));
-  DASSERT(hmap != nullptr, "hssamap has problem");
-  RCLowering rclowering(func, kh);
-  MIRFunction *mirfunction = func->GetMirFunc();
-  DASSERT(mirfunction->GetModule()->CurFunction() == mirfunction, "unexpected CurFunction");
-  string funcname = mirfunction->GetName();
-  if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << "Handling function " << funcname << std::endl;
-  }
-  ...
-```
-
-
-
-# PhaseManager
-
-PhaseManager creates, manages, and runs phases. PhaseManager is classified into ModulePhaseManager and MeFuncPhaseManager.
-PhaseManager registers all phases it supports so that users can add phases through the add phase interface.
-
-**1. Registering a phase**
-
-Take MeFuncPhaseManager as an example. It is registered through the RegisterFuncPhases method. The registered phase is managed through the registeredPhases map.
-
-```cpp
-void MeFuncPhaseManager::RegisterFuncPhases() {
-  // register all Funcphases defined in mephases.def
-#define FUNCTPHASE(id, mephase)                                                 \
-  do {                                                                          \
-    void *buf = GetMemAllocator()->GetMemPool()->Malloc(sizeof(mephase(id)));   \
-    ASSERT(buf != nullptr, "null ptr check");                                   \                
-    RegisterPhase(id, (new (buf) mephase(id)));                                 \                
-  } while (0);
-#define FUNCAPHASE(id, mephase)          
-  do {                                                                           \        
-    void *buf = GetMemAllocator()->GetMemPool()->Malloc(sizeof(mephase(id)));    \   
-    ASSERT(buf != nullptr, "null ptr check");                                    \    
-    RegisterPhase(id, (new (buf) mephase(id)));                                  \   
-    arFuncManager.AddAnalysisPhase(id,(static_cast<MeFuncPhase*>(GetPhase(id))));\  
-  } while (0);
-#include "mephases.def"
-#undef FUNCTPHASE
-#undef FUNCAPHASE
-}
-void RegisterPhase(PhaseId id, Phase *p) {
-  registeredPhases[id] = p;
+Maple phase management is able to manage memory so that each phase can keep the information required by other phases and discard useless information. Each phase manager provides an analysisDataManager (In multithreading, each threads provides an analysisDataMangers) which takes responsibility for storing analysis data. 
+To implement this functionality, the GetAnalysisDependence Method is required to be implemented be each phases.
+```c++
+ void <OPT_PHASENAME>::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<OPT_PHASENAME>();  // If a previous phase is requried to be executed
+  aDep.AddPreserved<OPT_PHASENAME>(); // preserve specific previous phase information
+  aDep.SetPreservedAll();             // preserve all previous phase information in analysisDataManager
 }
 ```
+#### Analysis phase
 
-Here, a macro is used for registration, which facilitates the management of phases to be registered. Only the corresponding .def file needs editing. The content of the mephases.def file is as follows. The first parameter is id, and the second parameter is the phase class name.
+GetPhasesMempool() in Analysis phase provides mempool from analysisDataManager.
+Any data that is put in analysis phase mempool is not deleted until it is declared to be discarded by other phases or the end of phase manager.
+If information generated during analysis phase need to be deleted after this analysis phase, it can be put in Temp mempool in MaplePhase.
 
-```cpp
-FUNCAPHASE(MeFuncPhase_SSATAB, MeDoSSATab)
-FUNCAPHASE(MeFuncPhase_ALIASCLASS, MeDoAliasClass)
-FUNCAPHASE(MeFuncPhase_SSA, MeDoSSA)
+#### Transfrom phase
+
+GetPhasesMempool() in Transform phase provides mempool which lives until this transformation finish.
+**If a transform phase does not implement the GetAnalysisDependence method, it defaults to not having any prerequisite phases, and invalidating all phases information in analysisDataManager.** Transfrom phase default to be assumed to invalid all ananlysis results.
+
+
+### Quick Start -- basic code
+
+An example for function level `transform` phase called 'MEHello' in me.
+- 1 add two files: me_hello_opt.h and me_hello_opt.cpp
+
+content in me_hello_opt.h
+```c++
+#ifndef MAPLE_ME_INCLUDE_ME_HELLO_OPT_H
+#define MAPLE_ME_INCLUDE_ME_HELLO_OPT_H
+#include "me_function.h"    // in order to use MeFunction
+#include "maple_phase.h"    // in order to use the macro
+namespace maple {
+
+// always use this macro when you work with a transform phase.
+MAPLE_FUNC_PHASE_DECLARE(MEHello, MeFunction)
+}  // namespace maple
+#endif  // MAPLE_ME_INCLUDE_ME_HELLO_OPT_H
+
 ```
+content in me_hello_opt.cpp
+```c++
+#include "me_hello_opt.h"
+// include the corresponding phasemanager in order to use information from other phase.
+#include "me_phase_manager.h"
 
-To support the rclowering phase mentioned above, add the following line:
+namespace maple {
 
-```
-FUNCTPHASE(MeFuncPhase_RCLOWERING, MeDoRCLowering)
-```
-
-**2. Adding a phase**
-
-The phase manager subclass provides interfaces for adding phases. After processing input, the interfaces call the AddPhase method of the PhaseManager base class.
-
-```cpp
-void MeFuncPhaseManager::AddPhasesNoDefault(std::vector<std::string> &phases) {
-  for (unsigned i = 0; i < phases.size(); i++) {
-    PhaseManager::AddPhase(phases[i].c_str());
-  }
-  DASSERT(phases.size() == GetphaseSeq()->size(), "invalid phase name");
+// you need always keep in mind that which analysis results are needed and which results will be destroyed.
+void MEHello::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>(); // it is guaranteed that MEDominance's result is available in this phase.
+  aDep.SetPreservedAll();          // it means that this phase will not destroy any analysis results.
 }
 
-void AddPhase(const std::string &pname) {
-  for (auto it = RegPhaseBegin(); it != RegPhaseEnd(); it++) {
-    if (GetPhaseName(it) == pname) {
-      phaseSequences.push_back(GetPhaseId(it));
-      phaseTimers.push_back(0);
-      return;
-    }
-  }
+// the return value of this function indicates that whether this phase
+// has modified the IR of this function, for now we do not use this value.
+bool MEHello::PhaseRun(maple::MeFunction &f) {
+  // you can use this macro to get the result which is configured as Required
+  // in GetAnalysisDependence; or an error will be reported.
+  auto *dom = GET_ANALYSIS(MEDominance);
+  // do something using dom info.
+  LogInfo::MapleLogger() << "hello opt on function: " << f.GetName() << '\n';
+  return false;
+}
+
+}  // namespace maple
+
+```
+- 2 tell the phase manager to welcome a new phase.
+    - 2.1 add the header file(me_hello_opt.h) to me_phase_manager.h
+    - 2.2 register the phase in me_phase_manager.cpp, like this:
+```c++
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEHdse, hdse)
+// the macro suffix CANSKIP indicates that this phase can be skipped.
+// first parameter tells the implement class and the second parameter is
+// the phase name, which could be used in option like: dump-phase(s),
+// skip-phases, skip-after; and it is used to configure the phase list that will run in phasemanager.
++MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEHello, hello)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELfoIVCanon, ivcanon)
+```
+
+- 3 add the new phase into run list.
+modify the phase.def file, like this:
+```c++
+...
+ADDMAPLEMEPHASE("dse", MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("hello", MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("analyzector", JAVALANG)
 ...
 ```
-
-The added phase is managed by MapleVector.
-
-## InterleavedManager and DriverRunner
-
-In addition, users can use the framework composed of InterleavedManager and DriverRunner to manage phases more effectively.
-
-**1. InterleavedManager**
-
-InterleavedManager creates, manages, and runs phase managers. By invoking the AddPhases interface, InterleavedManager creates a phase manager of the corresponding type and adds it to MapleVector. At the same time, the registration and adding of phases corresponding to the phase managers are triggered automatically.
-
-```cpp
-void InterleavedManager::AddPhases(vector<string> &phases, bool isModulePhase, bool timephases, bool genmpl) {
-  ModuleResultMgr *mrm = nullptr;
-  if (!phaseManagers.empty()) {
-    // ModuleResult such class hierarchy need to be carried on
-    ModulePhaseManager *mpm = dynamic_cast<ModulePhaseManager*>(phaseManagers[phaseManagers.size()-1]);
-    MeFuncPhaseManager *mepm = dynamic_cast<MeFuncPhaseManager*>(phaseManagers[phaseManagers.size()-1]);
-    if (mpm != nullptr) {
-      mrm = mpm->GetModResultMgr();
-    } else if (mepm != nullptr) {
-      mrm = mepm->GetModResultMgr();
-    }
-  }
-  if (isModulePhase) {
-    ModulePhaseManager *mpm = GetMempool()->New<ModulePhaseManager>(GetMempool(), &mirmodule, mrm);
-    mpm->RegisterModulePhases();
-    mpm->AddModulePhases(phases);
-    if (timephases) {
-      mpm->SetTimePhases(true);
-    }
-    phaseManagers.push_back(mpm);
-...
+- 4 add the cpp file into corresponding build.gn file.
+- 5 compile and test new phase.
+maple --run=me:mpl2mpl:mplcg --option="--O2 :--O2 --quiet:--O2 --quiet" test.mpl
+we can see that our new hello phase is performed after dse successfully.
 ```
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Optimizing Function  < VEC_invariant_p_base_space id=5471 >---
+---Preparing Function  < VEC_invariant_p_base_space > [1] ---
+---Run Phase [ mecfgbuild ]---
+---Run Phase [ cfgOpt ]---
+---Run Phase [ loopcanon ]---
+    ++ trigger phase [ dominance ]
+    ++ trigger phase [ identloops ]
+---Run Phase [ splitcriticaledge ]---
+---Run Phase [ ssatab ]---
+---Run Phase [ aliasclass ]---
+---Run Phase [ ssa ]---
+    ++ trigger phase [ dominance ]
+---Run Phase [ dse ]---
+    ++ trigger phase [ fsaa ]
+---Run Phase [ hello ]---
+hello opt on function: VEC_invariant_p_base_space
+---Run Phase [ hprop ]---
+    ++ trigger phase [ irmapbuild ]
+---Run Phase [ valueRangePropagation ]---
+    ++ trigger phase [ identloops ]
+---Run Phase [ hdse ]---
+---Run Phase [ epre ]---
+    ++ trigger phase [ dominance ]
+    ++ trigger phase [ identloops ]
+  == epre invokes [ hdse ] ==
+---Run Phase [ rename2preg ]---
+---Run Phase [ lpre ]---
+---Run Phase [ storepre ]---
+---Run Phase [ copyprop ]---
+---Run Phase [ hdse ]---
+---Run Phase [ pregrename ]---
+---Run Phase [ bblayout ]---
+---Run Phase [ meemit ]---
 
-The Run method of InterleavedManager runs all managed phase managers in turn.
-
-```cpp
-void InterleavedManager::Run() {
-  for (PhaseManager *const &pm : phaseManagers) {
-    if (dynamic_cast<MeFuncPhaseManager*>(pm)) {
-      MeFuncPhaseManager *fpm = static_cast<MeFuncPhaseManager*>(pm);
-      unsigned long rangeNum = 0;
-      MapleVector<MIRFunction*> *compList;
-      if (!mirmodule.GetCompilationList().empty()) {
-  ...
 ```
-
-**2. DriverRunner**
-
-DriverRunner contains all the processes from an .mpl file to an optimized final file. The ParseInput method is used to parse the .mpl file. The ProcessMpl2mplAndMePhases method is used to manage and run phases through InterleavedManager.
-
-DriverRunner also manages phases through a macro. All phases in the phases.def file are traversed and corresponding phase managers are created through the InitPhases interface.
-
-The content of the phases.def file is as follows:
-
-```cpp
-// Phase arguments are: name, condition. By default, all phases are required, so 
-// the condition value is 'true'.
-// You can use condition to control these phases and your custom phases. E.g. 
-// ADD_PHASE("custom_phase", option1 == value1 [more conditions...]).
-ADD_PHASE("classhierarchy", true)
-ADD_PHASE("vtableanalysis", true)
-ADD_PHASE("reflectionanalysis", true)
-ADD_PHASE("gencheckcast", true)
-ADD_PHASE("javaintrnlowering", true)
-// mephase begin
-ADD_PHASE("ssatab", true)
-ADD_PHASE("aliasclass", true)
-ADD_PHASE("ssa", true)
-ADD_PHASE("analyzerc", true)
-ADD_PHASE("rclowering", true)
-ADD_PHASE("emit", true)
-// mephase end
-ADD_PHASE("GenNativeStubFunc", true)
-ADD_PHASE("clinit", true)
-ADD_PHASE("VtableImpl", true)
-ADD_PHASE("javaehlower", true)
-ADD_PHASE("MUIDReplacement", true)
-```
-
-The first parameter is the phase name, and the second parameter is the condition. All existing phases are enabled by default. For user-defined phases, control conditions can be added.
-
-With the ProcessMpl2mplAndMePhases method, the phases.def file can be included and added to MapleVector through a macro.
-
-```cpp
-#include "../defs/phases.def"
-```
-
-```cpp
-#define ADD_PHASE(name, condition)  \
-  if ((condition)) {                \
-    phases.push_back(string(name)); \
-  }
-```
-
-
-The InitPhases interface decomposes the added phase into the phase manager set of InterleavedManager.
-
-```cpp
-void DriverRunner::InitPhases(InterleavedManager &mgr, vector<string> &phases) const {
-  if (phases.empty()) {
-    return;
-  }
-  const PhaseManager *curManager = nullptr;
-  vector<string> curPhases;
-
-  for (string phase : phases) {
-    auto temp = mgr.GetSupportPhaseManager(phase);
-    if (temp != nullptr) {
-      if (temp != curManager) {
-        AddPhases(mgr, curPhases, curManager);
-        curManager = temp;
-        curPhases.clear();
-      }
-      AddPhase(curPhases, phase, curManager);
-    }
-  }
-
-  AddPhases(mgr, curPhases, curManager);
-}
-```
-
-GetSupportPhaseManager is used to obtain the phase manager corresponding to the current phase.
-
-Summary:
-- The Phase class and its two main subclasses ModulePhase and MeFuncPhase can be extended to add and define phases.
-- The PhaseManager class and its two main subclasses ModulePhaseManager and MeFuncPhaseManager are used to manage the registration and addition of phases.
-- The InterleavedManager class is used to create, manage, and run phase managers.
-- The DriverRunner class contains all the processes from a .mpl file to an optimized final file.    The ParseInput method is used to parse the .mpl file. The ProcessMpl2mplAndMePhases method is used to manage and run phases through InterleavedManager.
-
-
-With the preceding framework, perform the following steps to apply a defined phase to the system.
-
-![](media/addphase.png)
-
