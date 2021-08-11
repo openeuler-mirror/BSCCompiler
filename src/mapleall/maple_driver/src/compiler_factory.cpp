@@ -35,6 +35,7 @@ CompilerFactory::CompilerFactory() {
   ADD_COMPILER("jbc2mpl", Jbc2MplCompiler)
   ADD_COMPILER("dex2mpl", Dex2MplCompiler)
   ADD_COMPILER("cpp2mpl", Cpp2MplCompiler)
+  ADD_COMPILER("clang", ClangCompiler)
   ADD_COMPILER("mplipa", IpaCompiler)
   ADD_COMPILER("me", MapleCombCompiler)
   ADD_COMPILER("mpl2mpl", MapleCombCompiler)

@@ -46,7 +46,7 @@ const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version:
 
 const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "cpp2mpl",
     "dex2mpl", "mplipa", "as",
-    "me", "mpl2mpl", "mplcg"};
+    "me", "mpl2mpl", "mplcg", "clang"};
 
 int MplOptions::Parse(int argc, char **argv) {
   optionParser.reset(new OptionParser());
@@ -272,6 +272,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
   bool isNeedMapleComb = true;
   bool isNeedMplcg = true;
   switch (inputFileType) {
+    case InputFileType::kFileTypeC:
+    case InputFileType::kFileTypeCpp:
+      UpdateRunningExe(kBinNameClang);
+      break;
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
       break;
@@ -378,6 +382,12 @@ bool MplOptions::Init(const std::string &inputFile) {
   }
   else if (extensionName == "dex") {
     inputFileType = InputFileType::kFileTypeDex;
+  }
+  else if (extensionName == "c") {
+    inputFileType = InputFileType::kFileTypeC;
+  }
+  else if (extensionName == "cpp") {
+      inputFileType = InputFileType::kFileTypeCpp;
   }
   else if (extensionName == "ast") {
       inputFileType = InputFileType::kFileTypeAst;

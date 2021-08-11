@@ -50,6 +50,7 @@ executable("maple") {
     "src/ipa_compiler.cpp",
     "src/jbc2mpl_compiler.cpp",
     "src/cpp2mpl_compiler.cpp",
+    "src/clang_compiler.cpp",
     "src/ld_compiler.cpp",
     "src/maple.cpp",
     "src/maple_comb_compiler.cpp",

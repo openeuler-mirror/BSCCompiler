@@ -20,12 +20,12 @@ std::string AsCompiler::GetBinPath(const MplOptions&) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  return "/usr/bin/";
+  return std::string(std::getenv(kMapleRoot)) + "/tools/gcc-linaro-7.5.0/bin/";
 #endif
 }
 
 const std::string &AsCompiler::GetBinName() const {
-  return kBinNameAs;
+  return kBinNameGcc;
 }
 
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions&) const {

@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include "compiler.h"
 #include "file_utils.h"
+#include "mpl_logging.h"
 #include "default_options.def"
 
 namespace maple {
@@ -24,6 +25,21 @@ std::string Cpp2MplCompiler::GetBinPath(const MplOptions&) const{
 
 const std::string &Cpp2MplCompiler::GetBinName() const {
   return kBinNameCpp2mpl;
+}
+
+std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options) const {
+  if (!options.GetRunningExes().empty()) {
+    if (options.GetRunningExes()[0] == kBinNameCpp2mpl) {
+      return options.GetInputFiles();
+    }
+  }
+  // Get base file name
+  auto idx = options.GetOutputName().find(".ast");
+  std::string outputName = options.GetOutputName();
+  if (idx != std::string::npos) {
+    outputName = options.GetOutputName().substr(0, idx);
+  }
+  return options.GetOutputFolder() + outputName + ".ast";
 }
 
 DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) const {

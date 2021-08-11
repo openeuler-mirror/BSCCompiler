@@ -34,6 +34,8 @@ enum InputFileType {
   kFileTypeClass,
   kFileTypeJar,
   kFileTypeAst,
+  kFileTypeCpp,
+  kFileTypeC,
   kFileTypeDex,
   kFileTypeMpl,
   kFileTypeVtableImplMpl,
