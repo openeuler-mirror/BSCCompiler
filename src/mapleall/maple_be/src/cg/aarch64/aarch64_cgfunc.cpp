@@ -1158,6 +1158,17 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       listInRegPrefix->stringList.push_back(
           static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd->GetSize(), str))));
        break;
+      }
+     case OP_regread: {
+       auto &regreadNode = static_cast<RegreadNode&>(*node.Opnd(i));
+       PregIdx pregIdx = regreadNode.GetRegIdx();
+       RegOperand &inOpnd = GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
+       listInputOpnd->PushOpnd(static_cast<RegOperand&>(inOpnd));
+       MIRPreg *preg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
+       PrimType pType = preg->GetPrimType();
+       listInRegPrefix->stringList.push_back(
+            static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pType, inOpnd.GetSize(), str))));
+       break;
      }
      case OP_constval: {
        ASSERT(str == "i", "check input constraint");
@@ -1210,14 +1221,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       RegType rtype = GetRegTyFromPrimTy(srcType);
       RegOperand *opnd0 = &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
-      SelectCopy(*outOpnd, destType, *opnd0, srcType);
-      if (pregIdx >= 0) {
-        MemOperand *dest = GetPseudoRegisterSpillMemoryOperand(pregIdx);
-        PrimType stype = GetTypeFromPseudoRegIdx(pregIdx);
-        uint32 srcBitLength = GetPrimTypeBitSize(mirPreg->GetPrimType());
-        GetCurBB()->AppendInsn(
-            GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(srcBitLength, stype), *outOpnd, *dest));
-      }
+      SelectCopy(*opnd0, destType, *outOpnd, srcType);
       listOutputOpnd->PushOpnd(static_cast<RegOperand&>(*outOpnd));
       listOutRegPrefix->stringList.push_back(static_cast<StringOperand*>(
           &CreateStringOperand(GetRegPrefixFromPrimType(srcType, outOpnd->GetSize(), str))));
