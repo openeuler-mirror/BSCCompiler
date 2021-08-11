@@ -68,6 +68,7 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       case OP_icallassigned:
       case OP_return:
       case OP_throw:
+      case OP_asm:
         if (parent) {
           parent->hasOtherCtrlFlow = true;
         }
@@ -305,7 +306,6 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         CreateRHSArrayAccessDesc(stmt->Opnd(0));
         break;
       }
-      [[clang::fallthrough]];
       default: {
         for (size_t i = 0; i < stmt->NumOpnds(); i++) {
           CreateRHSArrayAccessDesc(stmt->Opnd(i));

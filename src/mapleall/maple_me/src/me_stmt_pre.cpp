@@ -900,6 +900,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_assertlt:
       case OP_assertge:
         break;
+      case OP_asm:
       case OP_call:
       case OP_virtualcall:
       case OP_virtualicall:
@@ -1051,8 +1052,9 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
     if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       // update version stacks
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
-      if (!mustDefList->empty()) {
-        MeExpr *meLHS = mustDefList->front().GetLHS();
+      MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+      for (; it != mustDefList->end(); it++) {
+        MeExpr *meLHS = (*it).GetLHS();
         if (meLHS->GetMeOp() == kMeOpVar) {
           auto *lhsVar = static_cast<VarMeExpr*>(meLHS);
           MapleStack<ScalarMeExpr*> *pStack = versionStackVec.at(lhsVar->GetOstIdx());
