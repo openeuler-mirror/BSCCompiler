@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -39,7 +39,8 @@ inline constexpr bool IsCallAssigned(Opcode code) {
 }
 
 inline constexpr bool IsBranch(Opcode opcode) {
-  return (opcode == OP_goto || opcode == OP_brtrue || opcode == OP_brfalse || opcode == OP_switch || opcode == OP_igoto);
+  return (opcode == OP_goto || opcode == OP_brtrue || opcode == OP_brfalse || opcode == OP_switch ||
+          opcode == OP_igoto);
 }
 
 constexpr bool IsCommutative(Opcode opcode) {
@@ -98,6 +99,7 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_xintrinsiccallassigned:
     case OP_intrinsiccallwithtype:
     case OP_intrinsiccallwithtypeassigned:
+    case OP_asm:
     case OP_syncenter:
     case OP_syncexit:
     case OP_membaracquire:

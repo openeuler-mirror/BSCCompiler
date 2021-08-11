@@ -200,4 +200,4 @@
   // leaf node
   OPCODE(addroffpc, AddroffPCNode, 0, 0)
   OPCODE(igoto, UnaryStmtNode, OPCODEISSTMT, 0)
-  OPCODE(asm, AsmNode, OPCODEISSTMT, 0)
+  OPCODE(asm, AsmNode, OPCODEISSTMT | OPCODEHASSSAUSE | OPCODEHASSSADEF | OPCODEISCALLASSIGNED, 0)

@@ -724,6 +724,28 @@ MeStmt *IRMapBuild::BuildSyncMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
   return naryStmt;
 }
 
+MeStmt *IRMapBuild::BuildAsmMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) {
+  AsmNode *asmNode = &static_cast<AsmNode&>(stmt);
+  AsmMeStmt *asmMeStmt = irMap->NewInPool<AsmMeStmt>(asmNode);
+  for (size_t i = 0; i < asmNode->NumOpnds(); ++i) {
+    asmMeStmt->PushBackOpnd(BuildExpr(*asmNode->Opnd(i), true, true));
+  }
+  BuildMuList(ssaPart.GetMayUseNodes(), *(asmMeStmt->GetMuList()));
+  BuildMustDefList(*asmMeStmt, ssaPart.GetMustDefNodes(), *(asmMeStmt->GetMustDefList()));
+  BuildChiList(*asmMeStmt, ssaPart.GetMayDefNodes(), *(asmMeStmt->GetChiList()));
+  asmMeStmt->asmString = asmNode->asmString;
+  asmMeStmt->inputConstraints = asmNode->inputConstraints;
+  asmMeStmt->outputConstraints = asmNode->outputConstraints;
+  asmMeStmt->clobberList = asmNode->clobberList;
+  asmMeStmt->gotoLabels = asmNode->gotoLabels;
+  asmMeStmt->qualifiers = asmNode->qualifiers;
+  if (propagater) {
+    propagater->PropUpdateChiListDef(*asmMeStmt->GetChiList());
+    propagater->PropUpdateMustDefList(asmMeStmt);
+  }
+  return asmMeStmt;
+}
+
 MeStmt *IRMapBuild::BuildMeStmt(StmtNode &stmt) {
   AccessSSANodes *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
   if (ssaPart == nullptr) {
@@ -769,6 +791,7 @@ void IRMapBuild::InitMeStmtFactory() {
   RegisterFactoryFunction<MeStmtFactory>(OP_throw, &IRMapBuild::BuildThrowMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_syncenter, &IRMapBuild::BuildSyncMeStmt);
   RegisterFactoryFunction<MeStmtFactory>(OP_syncexit, &IRMapBuild::BuildSyncMeStmt);
+  RegisterFactoryFunction<MeStmtFactory>(OP_asm, &IRMapBuild::BuildAsmMeStmt);
 }
 
 // recursively invoke itself in a pre-order traversal of the dominator tree of

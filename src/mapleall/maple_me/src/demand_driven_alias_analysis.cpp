@@ -591,6 +591,7 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
       BuildPEGNodeInDirectCall(static_cast<const CallNode *>(stmt));
       break;
     }
+    case OP_asm:
     case OP_virtualcall:
     case OP_virtualicall:
     case OP_superclasscall:

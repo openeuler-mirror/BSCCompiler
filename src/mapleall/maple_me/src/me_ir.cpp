@@ -420,10 +420,19 @@ bool IvarMeExpr::IsIdentical(IvarMeExpr &expr, bool inConstructor) const {
 
   // check the two mu being identical
   if (mu != expr.mu) {
-    if (mu != nullptr && expr.mu != nullptr && mu->GetDefBy() == kDefByChi && expr.mu->GetDefBy() == kDefByChi) {
-      if (mu->GetDefChi().GetBase() != nullptr && mu->GetDefChi().GetBase() == expr.mu->GetDefChi().GetBase()) {
-        return true;
+    if (mu != nullptr && expr.mu != nullptr) {
+      if (mu->GetDefByMeStmt() == expr.mu->GetDefByMeStmt() && mu->GetDefByMeStmt() == nullptr) {
+        if (mu->GetDefBy() == kDefByPhi && expr.mu->GetDefBy() == kDefByPhi) {
+          return (mu->GetDefPhi().GetDefBB() == expr.mu->GetDefPhi().GetDefBB());
+        }
+
+        if (mu->GetDefBy() == kDefByNo && expr.mu->GetDefBy() == kDefByNo) {
+          return true;
+        }
+        return false;
       }
+
+      return mu->GetDefByMeStmt() == expr.mu->GetDefByMeStmt();
     }
 
     if (mu != nullptr && expr.mu == nullptr && expr.GetDefStmt() != nullptr) {
@@ -484,6 +493,32 @@ BB *ScalarMeExpr::DefByBB() const{
       ASSERT(def.defMustDef, "ScalarMeExpr::DefByBB: defMustDef cannot be nullptr");
       ASSERT(def.defMustDef->GetBase(), "ScalarMeExpr::DefByBB: defMustDef->base cannot be nullptr");
       return def.defMustDef->GetBase()->GetBB();
+    }
+    default:
+      ASSERT(false, "ScalarMeExpr define unknown");
+      return nullptr;
+  }
+}
+
+MeStmt *ScalarMeExpr::GetDefByMeStmt() const {
+  switch (defBy) {
+    case kDefByNo:
+      return nullptr;
+    case kDefByStmt:
+      ASSERT(def.defStmt, "ScalarMeExpr::DefByBB: defStmt cannot be nullptr");
+      return def.defStmt;
+    case kDefByPhi:
+      ASSERT(def.defPhi, "ScalarMeExpr::DefByBB: defPhi cannot be nullptr");
+      return nullptr;
+    case kDefByChi: {
+      ASSERT(def.defChi, "ScalarMeExpr::DefByBB: defChi cannot be nullptr");
+      ASSERT(def.defChi->GetBase(), "ScalarMeExpr::DefByBB: defChi->base cannot be nullptr");
+      return GetDefChi().GetBase();
+    }
+    case kDefByMustDef: {
+      ASSERT(def.defMustDef, "ScalarMeExpr::DefByBB: defMustDef cannot be nullptr");
+      ASSERT(def.defMustDef->GetBase(), "ScalarMeExpr::DefByBB: defMustDef->base cannot be nullptr");
+      return def.defMustDef->GetBase();
     }
     default:
       ASSERT(false, "ScalarMeExpr define unknown");
@@ -1267,6 +1302,7 @@ void NaryMeStmt::Dump(const IRMap *irMap) const {
 void AssignedPart::DumpAssignedPart(const IRMap *irMap) const {
   LogInfo::MapleLogger() << "    assignedpart: {";
   for (auto it = mustDefList.begin(); it != mustDefList.end(); ++it) {
+    LogInfo::MapleLogger() << " ";
     const MeExpr *lhsVar = (*it).GetLHS();
     lhsVar->Dump(irMap);
   }
@@ -1316,6 +1352,14 @@ void IntrinsiccallMeStmt::Dump(const IRMap *irMap) const {
     mirType->Dump(0);
   }
   LogInfo::MapleLogger() << GetIntrinsicName(intrinsic) << '\n';
+  DumpOpnds(irMap);
+  DumpMuList(irMap, muList);
+  DumpChiList(irMap, chiList);
+  DumpAssignedPart(irMap);
+}
+
+void AsmMeStmt::Dump(const IRMap *irMap) const {
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << '\"' << asmString << '\"' << std::endl;
   DumpOpnds(irMap);
   DumpMuList(irMap, muList);
   DumpChiList(irMap, chiList);
