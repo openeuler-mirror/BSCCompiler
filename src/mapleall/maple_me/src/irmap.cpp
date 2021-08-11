@@ -198,7 +198,7 @@ static void ComputeCastInfoForExpr(const MeExpr &expr, CastInfo &castInfo) {
       break;
     }
     case OP_retype: {
-      srcType = static_cast<const OpMeExpr&>(expr).GetOpndType();
+      srcType = expr.GetPrimType();
       castKind = CAST_retype;
       break;
     }
