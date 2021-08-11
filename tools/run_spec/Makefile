@@ -18,7 +18,11 @@ help:
 	@echo "================================================================"
 
 setup:
-	cp -pr /maple/spec2017 $(HOME)
+	@if [ -d $(HOME)/spec2017 ]; then\
+		echo "Already copied $(HOME)/spec2017.";\
+	else \
+		cp -pr /maple/spec2017 $(HOME);\
+	fi
 	cp -f $(MAPLE_ROOT)/build/tools/spec/*.cfg $(HOME)/spec2017/config
 
 build.%:
@@ -32,5 +36,3 @@ train.%:
 
 ref.%:
 	runcpu --config=$(SPEC_CFG).cfg -i ref --action run $*
-
-
