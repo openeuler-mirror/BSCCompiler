@@ -32,8 +32,6 @@
 namespace maple {
 const std::string kBinNameNone = "";
 const std::string kBinNameJbc2mpl = "jbc2mpl";
-const std::string kBinNameCpp2mpl = "mplfe";
-const std::string kBinNameClang = "clang";
 const std::string kBinNameDex2mpl = "dex2mpl";
 const std::string kBinNameMplipa = "mplipa";
 const std::string kBinNameMe = "me";
@@ -110,35 +108,6 @@ class Jbc2MplCompiler : public Compiler {
 
  private:
   const std::string &GetBinName() const override;
-  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
-  void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
-  std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;
-};
-
-class ClangCompiler : public Compiler {
- public:
-  explicit ClangCompiler(const std::string &name) : Compiler(name) {}
-
-  ~ClangCompiler() = default;
-
- private:
-  const std::string &GetBinName() const override;
-  std::string GetBinPath(const MplOptions &options) const override;
-  DefaultOption GetDefaultOptions(const MplOptions &options) const override;
-  void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
-  std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override ;
-};
-
-class Cpp2MplCompiler : public Compiler {
- public:
-  explicit Cpp2MplCompiler(const std::string &name) : Compiler(name) {}
-
-  ~Cpp2MplCompiler() = default;
-
-private:
-  std::string GetBinPath(const MplOptions &options) const override;
-  const std::string &GetBinName() const override;
-  std::string GetInputFileName(const MplOptions &options) const override;
   DefaultOption GetDefaultOptions(const MplOptions &options) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
   std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions) const override;

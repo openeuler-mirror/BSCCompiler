@@ -28,8 +28,6 @@ enum DriverOptionIndex {
   kOptimization2,
   kWithIpa,
   kJbc2mplOpt,
-  kCpp2mplOpt,
-  kAsOpt,
   kDex2mplOpt,
   kMplipaOpt,
   kVerify,
