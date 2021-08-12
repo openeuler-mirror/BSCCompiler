@@ -1,1 +1,2 @@
-{"-emit-ast", "", false}
+{"-emit-ast", "", false},
+{"-o", "", false},

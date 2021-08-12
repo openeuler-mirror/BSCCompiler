@@ -15,6 +15,7 @@
 #include <cstdlib>
 #include "compiler.h"
 #include "file_utils.h"
+#include "mpl_timer.h"
 #include "default_options.def"
 
 namespace maple {
@@ -31,6 +32,7 @@ const std::string &ClangCompiler::GetBinName() const {
 DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const {
   DefaultOption defaultOptions = { nullptr, 0 };
   defaultOptions.mplOptions = kClangDefaultOptions;
+  defaultOptions.mplOptions[1].SetValue( options.GetOutputFolder() + options.GetOutputName() + ".ast");
   defaultOptions.length = sizeof(kClangDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
