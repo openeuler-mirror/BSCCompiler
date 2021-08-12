@@ -1018,6 +1018,7 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
     MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)opnd->GetPrimType(), NewAsmTempStrIdx(),
         kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
     DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
+
     newBlk->AddStatement(dass);
     asmNode->SetOpnd(mirModule.GetMIRBuilder()->CreateExprDread(*st), i);
   }
@@ -1095,6 +1096,7 @@ StmtNode *CGLowerer::GenCallNode(const StmtNode &stmt, PUIdx &funcCalled, CallNo
   } else if (stmt.GetOpCode() == OP_interfacecallassigned) {
     newCall = mirModule.GetMIRBuilder()->CreateStmtInterfaceCall(origCall.GetPUIdx(), origCall.GetNopnd());
   }
+  newCall->SetSrcPos(stmt.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = origCall.GetPUIdx();
   CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_interfacecall),
@@ -1128,6 +1130,7 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
                                                                      origCall.GetTyIdx());
       }
     }
+    newCall->SetSrcPos(stmt.GetSrcPos());
     funcCalled = bFunc;
     CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_intrinsiccall),
                 "xintrinsic and intrinsiccallwithtype call is not expected");
@@ -1138,6 +1141,7 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
 StmtNode *CGLowerer::GenIcallNode(PUIdx &funcCalled, IcallNode &origCall) {
   StmtNode *newCall = nullptr;
   newCall = mirModule.GetMIRBuilder()->CreateStmtIcall(origCall.GetNopnd());
+  newCall->SetSrcPos(origCall.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = kFuncNotFound;
   return newCall;
@@ -1336,6 +1340,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                 }
                 CallNode *callStmt = mirModule.GetMIRBuilder()->CreateStmtCall(
                   callnode->GetPUIdx(), callnode->GetNopnd());
+                callStmt->SetSrcPos(callnode->GetSrcPos());
                 newBlk.AddStatement(callStmt);
 
                 uint32 origSize = size;

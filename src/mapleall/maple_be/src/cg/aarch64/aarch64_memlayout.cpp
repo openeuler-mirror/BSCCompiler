@@ -238,6 +238,9 @@ void AArch64MemLayout::LayoutFormalParams() {
         SetSymAllocInfo(stIndex, *symLoc1);
       }
     }
+    if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+      cgFunc->AddDIESymbolLocation(sym, symLoc);
+    }
   }
 }
 
@@ -285,6 +288,9 @@ void AArch64MemLayout::LayoutLocalVariables(std::vector<MIRSymbol*> &tempVar, st
       }
       symLoc->SetOffset(segLocals.GetSize());
       segLocals.SetSize(segLocals.GetSize() + be.GetTypeSize(tyIdx));
+    }
+    if (cgFunc->GetCG()->GetCGOptions().WithDwarf()) {
+      cgFunc->AddDIESymbolLocation(sym, symLoc);
     }
   }
 }

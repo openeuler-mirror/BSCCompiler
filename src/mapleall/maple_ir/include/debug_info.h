@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2020-2021] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -224,7 +224,7 @@ class DBGDieAttr {
 
   void Dump(int indent);
 
-  DBGDieKind GetKind() {
+  DBGDieKind GetKind() const {
     return dieKind;
   }
 
@@ -232,7 +232,7 @@ class DBGDieAttr {
     dieKind = kind;
   }
 
-  DwAt GetDwAt() {
+  DwAt GetDwAt() const {
     return dwAttr;
   }
 
@@ -240,7 +240,7 @@ class DBGDieAttr {
     dwAttr = at;
   }
 
-  DwForm GetDwForm() {
+  DwForm GetDwForm() const {
     return dwForm;
   }
 
@@ -248,7 +248,7 @@ class DBGDieAttr {
     dwForm = form;
   }
 
-  int32 GetI() {
+  int32 GetI() const {
     return value.i;
   }
 
@@ -256,7 +256,7 @@ class DBGDieAttr {
     value.i = val;
   }
 
-  uint32 GetId() {
+  uint32 GetId() const {
     return value.id;
   }
 
@@ -264,7 +264,7 @@ class DBGDieAttr {
     value.id = val;
   }
 
-  int64 GetJ() {
+  int64 GetJ() const {
     return value.j;
   }
 
@@ -272,7 +272,7 @@ class DBGDieAttr {
     value.j = val;
   }
 
-  uint64 GetU() {
+  uint64 GetU() const {
     return value.u;
   }
 
@@ -280,7 +280,7 @@ class DBGDieAttr {
     value.u = val;
   }
 
-  float GetF() {
+  float GetF() const {
     return value.f;
   }
 
@@ -288,7 +288,7 @@ class DBGDieAttr {
     value.f = val;
   }
 
-  double GetD() {
+  double GetD() const {
     return value.d;
   }
 
@@ -547,6 +547,7 @@ class DebugInfo {
         builder(nullptr),
         mplSrcIdx(0),
         debugInfoLength(0),
+        curFunction(nullptr),
         compileMsg(nullptr),
         parentDieStack(m->GetMPAllocator().Adapter()),
         idDieMap(std::less<uint32>(), m->GetMPAllocator().Adapter()),
@@ -673,11 +674,19 @@ class DebugInfo {
     return abbrevVec;
   }
 
-  DBGDie * GetCompUnit() const {
+  DBGDie *GetCompUnit() const {
     return compUnit;
   }
 
-  void SetTyidxDieIdMap(TyIdx tyIdx, const DBGDie *die) {
+  MIRFunction *GetCurFunction() {
+    return curFunction;
+  }
+
+  void SetCurFunction(MIRFunction *func) {
+    curFunction = func;
+  }
+
+  void SetTyidxDieIdMap(const TyIdx tyIdx, const DBGDie *die) {
     tyIdxDieIdMap[tyIdx.GetIdx()] = die->GetId();
   }
 
@@ -698,7 +707,7 @@ class DebugInfo {
   DBGDie *GetOrCreateVolatileTypeDie(TypeAttrs attr, DBGDie *typedie);
   DBGDie *GetOrCreateFuncDeclDie(MIRFunction *func);
   DBGDie *GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum);
-  DBGDie *GetOrCreatePrimTypeDie(PrimType pty);
+  DBGDie *GetOrCreatePrimTypeDie(MIRType *ty);
   DBGDie *GetOrCreateTypeDie(MIRType *type);
   DBGDie *GetOrCreatePointTypeDie(const MIRPtrType *type);
   DBGDie *GetOrCreateArrayTypeDie(const MIRArrayType *type);
@@ -717,6 +726,7 @@ class DebugInfo {
   DBGBuilder *builder;
   GStrIdx mplSrcIdx;
   uint32 debugInfoLength;
+  MIRFunction *curFunction;
 
   // for compilation messages
   DBGCompileMsgInfo *compileMsg;

@@ -12,12 +12,11 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the MulanPSL - 2.0 for more details.
  */
-
+#include "debug_info.h"
 #include "mir_builder.h"
 #include "printing.h"
 #include "maple_string.h"
 #include "namemangler.h"
-#include "debug_info.h"
 #include "global_tables.h"
 #include "mir_type.h"
 #include <cstring>
@@ -25,7 +24,6 @@
 #include "mpl_logging.h"
 
 namespace maple {
-
 extern const char *GetDwTagName(unsigned n);
 extern const char *GetDwFormName(unsigned n);
 extern const char *GetDwAtName(unsigned n);
@@ -34,20 +32,28 @@ extern const char *GetDwAteName(unsigned n);
 extern const char *GetDwCfaName(unsigned n);
 extern DwAte GetAteFromPTY(PrimType pty);
 
+constexpr uint32 kIndx2 = 2;
+constexpr uint32 k2BitSize = 2;
+constexpr uint32 k3BitSize = 3;
+constexpr uint32 k4BitSize = 4;
+constexpr uint32 k8BitSize = 8;
+constexpr uint32 k9BitSize = 9;
+constexpr uint32 kStructDBGSize = 8888;
+
 // DBGDie methods
 DBGDie::DBGDie(MIRModule *m, DwTag tag)
-  : module(m),
-    tag(tag),
-    id(m->GetDbgInfo()->GetMaxId()),
-    withChildren(false),
-    sibling(nullptr),
-    firstChild(nullptr),
-    abbrevId(0),
-    tyIdx(0),
-    offset(0),
-    size(0),
-    attrVec(m->GetMPAllocator().Adapter()),
-    subDieVec(m->GetMPAllocator().Adapter()) {
+    : module(m),
+      tag(tag),
+      id(m->GetDbgInfo()->GetMaxId()),
+      withChildren(false),
+      sibling(nullptr),
+      firstChild(nullptr),
+      abbrevId(0),
+      tyIdx(0),
+      offset(0),
+      size(0),
+      attrVec(m->GetMPAllocator().Adapter()),
+      subDieVec(m->GetMPAllocator().Adapter()) {
   if (module->GetDbgInfo()->GetParentDieSize()) {
     parent = module->GetDbgInfo()->GetParentDie();
   } else {
@@ -90,8 +96,8 @@ DBGDieAttr *DBGDie::AddGlobalLocAttr(DwAt at, DwForm form, uint64 val) {
   return attr;
 }
 
-DBGDieAttr *DBGDie::AddFrmBaseAttr(DwAt at, DwForm form, uint64 val) {
-  DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_call_frame_cfa);
+DBGDieAttr *DBGDie::AddFrmBaseAttr(DwAt at, DwForm form) {
+  DBGExprLoc *p = module->GetMemPool()->New<DBGExprLoc>(module, DW_OP_reg29);
   DBGDieAttr *attr = module->GetDbgInfo()->CreateAttr(at, form, reinterpret_cast<uint64>(p));
   AddAttr(attr);
   return attr;
@@ -316,7 +322,8 @@ void DebugInfo::BuildDebugInfo() {
         break;
       }
       default:
-        std::cout << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str() << "\n";
+        LogInfo::MapleLogger() << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str()
+            << "\n";
         break;
     }
   }
@@ -327,9 +334,10 @@ void DebugInfo::BuildDebugInfo() {
     if (!func) {
       continue;
     }
+    SetCurFunction(func);
     // function decl
     if (stridxDieIdMap.find(func->GetNameStrIdx().GetIdx()) == stridxDieIdMap.end()) {
-      DBGDie *fdie = GetOrCreateFuncDeclDie(func, 0);
+      DBGDie *fdie = GetOrCreateFuncDeclDie(func);
       if (!func->GetClassTyIdx().GetIdx() && func->GetBody()) {
         compUnit->AddSubVec(fdie);
       }
@@ -365,11 +373,11 @@ DBGDie *DebugInfo::GetLocalDie(MIRFunction *func, GStrIdx strIdx) {
 }
 
 void DebugInfo::SetLocalDie(GStrIdx strIdx, const DBGDie *die) {
-  (funcLstrIdxDieIdMap[module->CurFunction()])[strIdx.GetIdx()] = die->GetId();
+  (funcLstrIdxDieIdMap[GetCurFunction()])[strIdx.GetIdx()] = die->GetId();
 }
 
 DBGDie *DebugInfo::GetLocalDie(GStrIdx strIdx) {
-  uint32 id = (funcLstrIdxDieIdMap[module->CurFunction()])[strIdx.GetIdx()];
+  uint32 id = (funcLstrIdxDieIdMap[GetCurFunction()])[strIdx.GetIdx()];
   return idDieMap[id];
 }
 
@@ -383,11 +391,11 @@ LabelIdx DebugInfo::GetLabelIdx(MIRFunction *func, GStrIdx strIdx) {
 }
 
 void DebugInfo::SetLabelIdx(GStrIdx strIdx, LabelIdx labidx) {
-  (funcLstrIdxLabIdxMap[module->CurFunction()])[strIdx.GetIdx()] = labidx;
+  (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()] = labidx;
 }
 
 LabelIdx DebugInfo::GetLabelIdx(GStrIdx strIdx) {
-  LabelIdx labidx = (funcLstrIdxLabIdxMap[module->CurFunction()])[strIdx.GetIdx()];
+  LabelIdx labidx = (funcLstrIdxLabIdxMap[GetCurFunction()])[strIdx.GetIdx()];
   return labidx;
 }
 
@@ -410,7 +418,7 @@ DBGDie *DebugInfo::CreateFormalParaDie(MIRFunction *func, MIRType *type, MIRSymb
 }
 
 DBGDie *DebugInfo::GetOrCreateLabelDie(LabelIdx labid) {
-  MIRFunction *func = module->CurFunction();
+  MIRFunction *func = GetCurFunction();
   CHECK(labid < func->GetLabelTab()->GetLabelTableSize(), "index out of range in DebugInfo::GetOrCreateLabelDie");
   GStrIdx strid = func->GetLabelTab()->GetSymbolFromStIdx(labid);
   if ((funcLstrIdxDieIdMap[func]).size() &&
@@ -429,7 +437,7 @@ DBGDie *DebugInfo::GetOrCreateLabelDie(LabelIdx labid) {
   return die;
 }
 
-DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, uint32 lnum) {
+DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym) {
   // filter vtab
   if (sym->GetName().find(VTAB_PREFIX_STR) == 0) {
     return nullptr;
@@ -444,9 +452,8 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, uint32 lnum) {
   }
 
   bool isLocal = sym->IsLocal();
-
   if (isLocal) {
-    MIRFunction *func = module->CurFunction();
+    MIRFunction *func = GetCurFunction();
     if ((funcLstrIdxDieIdMap[func]).size() &&
         (funcLstrIdxDieIdMap[func]).find(sym->GetNameStrIdx().GetIdx()) != (funcLstrIdxDieIdMap[func]).end()) {
       return GetLocalDie(sym->GetNameStrIdx());
@@ -491,7 +498,7 @@ DBGDie *DebugInfo::CreateVarDie(MIRSymbol *sym, uint32 lnum) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func, uint32 lnum) {
+DBGDie *DebugInfo::GetOrCreateFuncDeclDie(MIRFunction *func) {
   uint32 funcnameidx = func->GetNameStrIdx().GetIdx();
   if (stridxDieIdMap.find(funcnameidx) != stridxDieIdMap.end()) {
     uint32 id = stridxDieIdMap[funcnameidx];
@@ -551,7 +558,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     return idDieMap[id];
   }
 
-  DBGDie *funcdecldie = GetOrCreateFuncDeclDie(func, lnum);
+  DBGDie *funcdecldie = GetOrCreateFuncDeclDie(func);
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subprogram);
   // update funcDefStrIdxDieIdMap and leave stridxDieIdMap for the func decl
   funcDefStrIdxDieIdMap[funcnameidx] = die->GetId();
@@ -560,7 +567,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
   die->AddAttr(DW_AT_decl_line, DW_FORM_data4, lnum);
   die->AddAttr(DW_AT_low_pc, DW_FORM_addr, kDbgDefaultVal);
   die->AddAttr(DW_AT_high_pc, DW_FORM_data8, kDbgDefaultVal);
-  die->AddFrmBaseAttr(DW_AT_frame_base, DW_FORM_exprloc, kDbgDefaultVal);
+  die->AddFrmBaseAttr(DW_AT_frame_base, DW_FORM_exprloc);
   if (!func->IsStatic() && !LIsCompilerGenerated(func)) {
     die->AddAttr(DW_AT_object_pointer, DW_FORM_ref4, kDbgDefaultVal);
   }
@@ -579,7 +586,7 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
     // local variables, start from 1
     for (uint32 i = 1; i < func->GetSymTab()->GetSymbolTableSize(); i++) {
       MIRSymbol *var = func->GetSymTab()->GetSymbolFromStIdx(i);
-      DBGDie *vdie = CreateVarDie(var, 0);
+      DBGDie *vdie = CreateVarDie(var);
       die->AddSubVec(vdie);
     }
   }
@@ -589,7 +596,8 @@ DBGDie *DebugInfo::GetOrCreateFuncDefDie(MIRFunction *func, uint32 lnum) {
   return die;
 }
 
-DBGDie *DebugInfo::GetOrCreatePrimTypeDie(PrimType pty) {
+DBGDie *DebugInfo::GetOrCreatePrimTypeDie(MIRType *ty) {
+  PrimType pty = ty->GetPrimType();
   uint32 tid = static_cast<uint32>(pty);
   if (tyIdxDieIdMap.find(tid) != tyIdxDieIdMap.end()) {
     uint32 id = tyIdxDieIdMap[tid];
@@ -599,8 +607,16 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(PrimType pty) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_base_type);
   die->SetTyIdx(static_cast<uint32>(pty));
 
+  if (ty->GetNameStrIdx().GetIdx() == 0) {
+    const char *name = GetPrimTypeName(ty->GetPrimType());
+    std::string pname = std::string(name);
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(pname);
+    ty->SetNameStrIdx(strIdx);
+  }
+
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(pty));
   die->AddAttr(DW_AT_encoding, DW_FORM_data4, GetAteFromPTY(pty));
+  die->AddAttr(DW_AT_name, DW_FORM_strp, ty->GetNameStrIdx().GetIdx());
 
   compUnit->AddSubVec(die);
   tyIdxDieIdMap[static_cast<uint32>(pty)] = die->GetId();
@@ -610,7 +626,7 @@ DBGDie *DebugInfo::GetOrCreatePrimTypeDie(PrimType pty) {
 DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *ftype) {
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subroutine_type);
 
-  die->AddAttr(DW_AT_prototyped, DW_FORM_data4, (int)(ftype->GetParamTypeList().size()>0));
+  die->AddAttr(DW_AT_prototyped, DW_FORM_data4, static_cast<int>(ftype->GetParamTypeList().size() > 0));
   MIRType *rtype = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ftype->GetRetTyIdx());
   (void)GetOrCreateTypeDie(rtype);
   die->AddAttr(DW_AT_type, DW_FORM_ref4, ftype->GetRetTyIdx().GetIdx());
@@ -630,7 +646,7 @@ DBGDie *DebugInfo::CreatePointedFuncTypeDie(MIRFuncType *ftype) {
 }
 
 DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
-  if (!type) {
+  if (type == nullptr) {
     return nullptr;
   }
 
@@ -647,8 +663,8 @@ DBGDie *DebugInfo::GetOrCreateTypeDie(MIRType *type) {
       return idDieMap[id];
     }
 
-  if (type && type->GetTypeIndex() == static_cast<uint32>(type->GetPrimType())) {
-    return GetOrCreatePrimTypeDie(type->GetPrimType());
+  if (type->GetTypeIndex() == static_cast<uint32>(type->GetPrimType())) {
+    return GetOrCreatePrimTypeDie(type);
   }
 
   DBGDie *die = nullptr;
@@ -699,10 +715,10 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
 
   MIRType *type = ptrtype->GetPointedType();
   // for <* void>
-  if (type &&
+  if ((type != nullptr) &&
       (type->GetPrimType() == PTY_void || type->GetKind() == kTypeFunction)) {
     DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_pointer_type);
-    die->AddAttr(DW_AT_byte_size, DW_FORM_data4, 8);
+    die->AddAttr(DW_AT_byte_size, DW_FORM_data4, k8BitSize);
     if (type->GetKind() == kTypeFunction) {
       DBGDie *pdie = GetOrCreateTypeDie(type);
       die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
@@ -727,8 +743,8 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
   }
 
   // update incomplete type from stridxDieIdMap to tyIdxDieIdMap
-  MIRStructType *stype = dynamic_cast<MIRStructType *>(type);
-  if (stype && stype->IsIncomplete()) {
+  MIRStructType *stype = static_cast<MIRStructType*>(type);
+  if ((stype != nullptr) && stype->IsIncomplete()) {
     uint32 sid = stype->GetNameStrIdx().GetIdx();
     if (stridxDieIdMap.find(sid) != stridxDieIdMap.end()) {
       uint32 dieid = stridxDieIdMap[sid];
@@ -739,7 +755,7 @@ DBGDie *DebugInfo::GetOrCreatePointTypeDie(const MIRPtrType *ptrtype) {
   }
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_pointer_type);
-  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, 8);
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, k8BitSize);
   // fill with type idx instead of typedie->id to avoid nullptr typedie of
   // forward reference of class types
   die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
@@ -761,7 +777,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   (void)GetOrCreateTypeDie(type);
 
   DBGDie *die = module->GetMemPool()->New<DBGDie>(module, DW_TAG_array_type);
-  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, 8);
+  die->AddAttr(DW_AT_byte_size, DW_FORM_data4, k8BitSize);
   // fill with type idx instead of typedie->id to avoid nullptr typedie of
   // forward reference of class types
   die->AddAttr(DW_AT_type, DW_FORM_ref4, type->GetTypeIndex().GetIdx());
@@ -772,8 +788,7 @@ DBGDie *DebugInfo::GetOrCreateArrayTypeDie(const MIRArrayType *arraytype) {
   // maple uses array of 1D array to represent 2D array
   // so only one DW_TAG_subrange_type entry is needed
   DBGDie *rangedie = module->GetMemPool()->New<DBGDie>(module, DW_TAG_subrange_type);
-  PrimType prmtype = PTY_u32;
-  (void)GetOrCreatePrimTypeDie(prmtype);
+  (void)GetOrCreatePrimTypeDie(GlobalTables::GetTypeTable().GetUInt32());
   rangedie->AddAttr(DW_AT_type, DW_FORM_ref4, PTY_u32);
   rangedie->AddAttr(DW_AT_upper_bound, DW_FORM_data4, arraytype->GetSizeArrayItem(0));
 
@@ -813,8 +828,8 @@ DBGDie *DebugInfo::CreateBitfieldDie(MIRBitFieldType *type, GStrIdx sidx) {
 
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType()));
   die->AddAttr(DW_AT_bit_size, DW_FORM_data4, type->GetFieldSize());
-  die->AddAttr(DW_AT_bit_offset, DW_FORM_data4, GetPrimTypeSize(type->GetPrimType())*8-type->GetFieldSize());
-
+  die->AddAttr(DW_AT_bit_offset, DW_FORM_data4,
+               GetPrimTypeSize(type->GetPrimType()) * k8BitSize - type->GetFieldSize());
   die->AddAttr(DW_AT_data_member_location, DW_FORM_data4, 0);
 
   return die;
@@ -855,7 +870,8 @@ DBGDie *DebugInfo::GetOrCreateStructTypeDie(const MIRType *type) {
         break;
       }
     default:
-      std::cout << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str() << "\n";
+      LogInfo::MapleLogger() << "named type " << GlobalTables::GetStrTable().GetStringFromStrIdx(strIdx).c_str()
+          << "\n";
       break;
   }
 
@@ -883,7 +899,7 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
 
   compUnit->AddSubVec(die);
 
-  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, 8888);
+  die->AddAttr(DW_AT_decl_line, DW_FORM_data4, kStructDBGSize);
   die->AddAttr(DW_AT_name, DW_FORM_strp, strIdx.GetIdx());
   die->AddAttr(DW_AT_byte_size, DW_FORM_data4, kDbgDefaultVal);
   die->AddAttr(DW_AT_decl_file, DW_FORM_data4, mplSrcIdx.GetIdx());
@@ -894,7 +910,7 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   for (int64 i = 0; i < structtype->GetFieldsSize(); i++) {
     MIRType *ety = structtype->GetElemType(i);
     FieldPair fp = structtype->GetFieldsElemt(i);
-    if (MIRBitFieldType *bfty = dynamic_cast<MIRBitFieldType*>(ety)) {
+    if (MIRBitFieldType *bfty = static_cast<MIRBitFieldType*>(ety)) {
       DBGDie *bfdie = CreateBitfieldDie(bfty, fp.first);
       die->AddSubVec(bfdie);
     } else {
@@ -913,10 +929,10 @@ DBGDie *DebugInfo::CreateStructTypeDie(GStrIdx strIdx, const MIRStructType *stru
   // member functions decl
   for (auto fp : structtype->GetMethods()) {
     MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(fp.first.Idx());
-    ASSERT(symbol && symbol->GetSKind() == kStFunc, "member function symbol not exist");
+    ASSERT((symbol != nullptr) && symbol->GetSKind() == kStFunc, "member function symbol not exist");
     MIRFunction *func = symbol->GetValue().mirFunc;
     ASSERT(func, "member function not exist");
-    DBGDie *fdie = GetOrCreateFuncDeclDie(func, 0);
+    DBGDie *fdie = GetOrCreateFuncDeclDie(func);
     die->AddSubVec(fdie);
   }
 
@@ -1037,7 +1053,7 @@ void DebugInfo::BuildAbbrev() {
   for (uint32 i = 1; i < maxId; i++) {
     DBGDie *die = idDieMap[i];
     if (die->GetAbbrevId() == 0) {
-      std::cout << "0 abbrevId i = " << i << " die->id = " << die->GetId() << std::endl;
+      LogInfo::MapleLogger() << "0 abbrevId i = " << i << " die->id = " << die->GetId() << std::endl;
     }
   }
 }
@@ -1076,8 +1092,8 @@ void DebugInfo::FillTypeAttrWithDieId() {
           if (dieid) {
             at->SetId(dieid);
           } else {
-            LogInfo::MapleLogger() << "dieid not found, typeKind = " << type->GetKind() << " primType = " << type->GetPrimType()
-                      << " nameStrIdx = " << type->GetNameStrIdx().GetIdx() << std::endl;
+            LogInfo::MapleLogger() << "dieid not found, typeKind = " << type->GetKind() << " primType = "
+                << type->GetPrimType() << " nameStrIdx = " << type->GetNameStrIdx().GetIdx() << std::endl;
           }
         } else {
           LogInfo::MapleLogger() << "type not found, tid = " << tid << std::endl;
@@ -1126,7 +1142,7 @@ uint32 DBGDieAttr::SizeOf(DBGDieAttr *attr) {
       // case DW_FORM_codeLinestrp:
       // case DW_FORM_strp_sup:
       // case DW_FORM_ref_sup:
-      return 4;  // DWARF32, 8 if DWARF64
+      return k4BitSize;  // DWARF32, 8 if DWARF64
 
     case DW_FORM_string: {
       GStrIdx stridx(attr->value.id);
@@ -1135,25 +1151,26 @@ uint32 DBGDieAttr::SizeOf(DBGDieAttr *attr) {
     }
     case DW_FORM_exprloc: {
       DBGExprLoc *ptr = attr->value.ptr;
-      CHECK_FATAL(ptr != (DBGExprLoc *)0xdeadbeef, "wrong ptr");
+      CHECK_FATAL(ptr != (DBGExprLoc*)(0xdeadbeef), "wrong ptr");
       switch (ptr->GetOp()) {
         case DW_OP_call_frame_cfa:
-          return 2;  // size 1 byte + DW_OP_call_frame_cfa 1 byte
+        case DW_OP_reg29:
+          return k2BitSize;  // size 1 byte + DW_OP_call_frame_cfa 1 byte
         case DW_OP_fbreg: {
           // DW_OP_fbreg 1 byte
           uint32 size = 1 + namemangler::GetSleb128Size(ptr->GetFboffset());
           return size + namemangler::GetUleb128Size(size);
         }
         case DW_OP_addr: {
-          return namemangler::GetUleb128Size(9) + 9;
+          return namemangler::GetUleb128Size(k9BitSize) + k9BitSize;
         }
         default:
-          return 4;
+          return k4BitSize;
       }
     }
     default:
       CHECK_FATAL(maple::GetDwFormName(form) != nullptr,
-             "GetDwFormName return null in DebugInfo::FillTypeAttrWithDieId");
+                  "GetDwFormName return null in DebugInfo::FillTypeAttrWithDieId");
       LogInfo::MapleLogger() << "unhandled SizeOf: " << maple::GetDwFormName(form) << std::endl;
       return 0;
   }
@@ -1202,9 +1219,10 @@ void DebugInfo::ComputeSizeAndOffset(DBGDie *die, uint32 &cuOffset) {
   }
 }
 
-///////////////////////////////
-// Dumps
-///////////////////////////////
+/* ///////////////
+ * Dumps
+ * ///////////////
+ */
 void DebugInfo::Dump(int indent) {
   LogInfo::MapleLogger() << "\n" << std::endl;
   LogInfo::MapleLogger() << "maple_debug_information {"
@@ -1295,11 +1313,12 @@ void DBGAbbrevEntry::Dump(int indent) {
   } else {
     LogInfo::MapleLogger() << " [no children] {" << std::endl;
   }
-  for (uint32 i = 0; i < attrPairs.size(); i += 2) {
+  for (uint32 i = 0; i < attrPairs.size(); i += k2BitSize) {
     PrintIndentation(indent + 1);
     CHECK_FATAL(GetDwAtName(attrPairs[i]) && GetDwFormName(attrPairs[i + 1]), "NULLPTR CHECK");
 
-    LogInfo::MapleLogger() << " " << GetDwAtName(attrPairs[i]) << " " << GetDwFormName(attrPairs[i + 1]) << " " << std::endl;
+    LogInfo::MapleLogger() << " " << GetDwAtName(attrPairs[i]) << " " << GetDwFormName(attrPairs[i + 1])
+        << " " << std::endl;
   }
   PrintIndentation(indent);
   LogInfo::MapleLogger() << "}" << std::endl;
@@ -1325,10 +1344,10 @@ void DBGCompileMsgInfo::ClearLine(uint32 n) {
 DBGCompileMsgInfo::DBGCompileMsgInfo() : startLine(0), errPos(0) {
   lineNum[0] = 0;
   lineNum[1] = 0;
-  lineNum[2] = 0;
+  lineNum[kIndx2] = 0;
   ClearLine(0);
   ClearLine(1);
-  ClearLine(2);
+  ClearLine(kIndx2);
   errLNum = 0;
   errCNum = 0;
 }
@@ -1339,12 +1358,11 @@ void DBGCompileMsgInfo::SetErrPos(uint32 lnum, uint32 cnum) {
 }
 
 void DBGCompileMsgInfo::UpdateMsg(uint32 lnum, const char *line) {
-  // LogInfo::MapleLogger() << "get #" << lnum << " "<< line << std::endl;
   size_t size = strlen(line);
   if (size > MAXLINELEN - 1) {
     size = MAXLINELEN - 1;
   }
-  startLine = (startLine + 2) % 3;
+  startLine = (startLine + k2BitSize) % k3BitSize;
   ClearLine(startLine);
   errno_t eNum = memcpy_s(codeLine[startLine], MAXLINELEN, line, size);
   if (eNum) {
@@ -1358,7 +1376,7 @@ void DBGCompileMsgInfo::EmitMsg() {
   char str[MAXLINELEN + 1];
 
   errPos = errCNum;
-  errPos = (errPos < 2) ? 2 : errPos;
+  errPos = (errPos < k2BitSize) ? k2BitSize : errPos;
   errPos = (errPos > MAXLINELEN) ? MAXLINELEN : errPos;
   for (uint32 i = 0; i < errPos - 1; i++) {
     str[i] = ' ';
@@ -1371,14 +1389,13 @@ void DBGCompileMsgInfo::EmitMsg() {
   fprintf(stderr, BOLD YEL "  Compilation Error Diagnosis  " RESET);
   fprintf(stderr, "==================\n");
   fprintf(stderr, "===================================================================\n");
-  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + 2) % 3],
-          reinterpret_cast<char *>(codeLine[(startLine + 2) % 3]));
-  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + 1) % 3],
-          reinterpret_cast<char *>(codeLine[(startLine + 1) % 3]));
-  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + 0) % 3],
-          reinterpret_cast<char *>(codeLine[(startLine + 0) % 3]));
+  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + k2BitSize) % k3BitSize],
+          reinterpret_cast<char *>(codeLine[(startLine + k2BitSize) % k3BitSize]));
+  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + 1) % k3BitSize],
+          reinterpret_cast<char *>(codeLine[(startLine + 1) % k3BitSize]));
+  fprintf(stderr, "line %4d %s\n", lineNum[(startLine + 0) % k3BitSize],
+          reinterpret_cast<char *>(codeLine[(startLine + 0) % k3BitSize]));
   fprintf(stderr, BOLD RED "          %s\n" RESET, str);
   fprintf(stderr, "===================================================================\n");
 }
-
 }  // namespace maple

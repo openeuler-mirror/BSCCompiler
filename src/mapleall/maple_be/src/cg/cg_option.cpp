@@ -1373,7 +1373,6 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
   /* override some options when loc, dwarf is generated */
   if (WithLoc()) {
     DisableSchedule();
-    SetOption(kWithMpl);
     SetOption(kWithSrc);
   }
   if (WithDwarf()) {
@@ -1382,7 +1381,6 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
     DisableICO();
     DisableSchedule();
     SetOption(kDebugFriendly);
-    SetOption(kWithMpl);
     SetOption(kWithSrc);
     SetOption(kWithLoc);
     ClearOption(kSuppressFileInfo);

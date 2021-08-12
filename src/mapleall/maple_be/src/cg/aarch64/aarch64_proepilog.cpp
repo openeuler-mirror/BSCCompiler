@@ -14,6 +14,7 @@
  */
 #include "aarch64_proepilog.h"
 #include "cg_option.h"
+#include "cgfunc.h"
 
 namespace maplebe {
 using namespace maple;
@@ -1314,6 +1315,37 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
   Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RFP, k64BitSize, kRegTyInt);
   if (!cgFunc.GetHasProEpilogue()) {
     return;
+  }
+
+  // insert .loc for function
+  if (currCG->GetCGOptions().WithLoc()) {
+    MIRFunction *func = &cgFunc.GetFunction();
+    MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
+    if (currCG->GetCGOptions().WithSrc()) {
+      uint32 tempmaxsize = currCG->GetMIRModule()->GetSrcFileInfo().size();
+      uint32 endfilenum = currCG->GetMIRModule()->GetSrcFileInfo()[tempmaxsize - 1].second;
+      if (fSym->GetSrcPosition().FileNum() != 0 && fSym->GetSrcPosition().FileNum() <= endfilenum) {
+        Operand *o0 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().FileNum());
+        int64_t lineNum = fSym->GetSrcPosition().LineNum();
+        if (lineNum == 0) {
+          if (cgFunc.GetFunction().GetAttr(FUNCATTR_native)) {
+            lineNum = 0xffffe;
+          } else {
+            lineNum = 0xffffd;
+          }
+        }
+        Operand *o1 = cgFunc.CreateDbgImmOperand(lineNum);
+        Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+        cgFunc.GetCurBB()->AppendInsn(loc);
+      }
+    } else {
+      Operand *o0 = cgFunc.CreateDbgImmOperand(1);
+      // line number might not be available.
+      //CG_ASSERT(func->srcPosition.MplLinenum(), "return check");
+      Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
+      Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
+      cgFunc.GetCurBB()->AppendInsn(loc);
+    }
   }
 
   const MapleVector<AArch64reg> &regsToSave = aarchCGFunc.GetCalleeSavedRegs();
