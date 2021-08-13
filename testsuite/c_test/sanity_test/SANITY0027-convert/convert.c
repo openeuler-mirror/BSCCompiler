@@ -16,7 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-signed char c = 0xff;
+char c = 0xff;
 unsigned char uc = 0xff;
 short s;
 int i;

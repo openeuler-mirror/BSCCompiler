@@ -6,16 +6,16 @@
 #define TEST03
 #define TEST04
 #define TEST05
-#define TEST06	// "m"
-#undef TEST07		// fail // goto label
+#define TEST06 // "m"
+#undef TEST07  // fail // goto label
 #define TEST08
-#define TEST09	// "m"
+#define TEST09 // "m"
 #define TEST10
-#undef TEST11		// fail // unsupported op
+#undef TEST11  // fail // unsupported op
 #define TEST12
 #define TEST13
-#undef TEST14	// works on arm server not qemu
-#undef TEST15	// fails mplfe
+#undef TEST14  // works on arm server not qemu
+#define TEST15
 #define TEST16
 #define TEST17
 #define TEST18
