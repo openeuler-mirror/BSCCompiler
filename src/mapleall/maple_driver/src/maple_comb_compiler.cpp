@@ -199,7 +199,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRMod
   if (LoopVectorization::vectorizedLoop > 0) {
     LogInfo::MapleLogger() << "\n " << LoopVectorization::vectorizedLoop << " loop vectorized\n";
   }
-  delete optMp;
+
   return nErr;
 }
 }  // namespace maple
