@@ -70,7 +70,7 @@ public class GetAllStackTraceIterating extends Thread {
     static private void waitForDump() {
         synchronized (obj) {
             try {
-                obj.wait(10);
+                obj.wait(200);
             } catch (InterruptedException e) {
                 System.out.println("wait is interrupted");
             }
