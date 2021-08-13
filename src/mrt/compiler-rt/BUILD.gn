@@ -119,7 +119,7 @@ static_library("libmplcompiler-rt") {
     "-fasynchronous-unwind-tables",
     "-nostdlibinc",
   ]
-  sources += ["src/libs_fast.cpp",]
+  sources += [ "src/libs_fast.cpp" ]
   configs = [ "${MAPLE_MRT_ROOT}:mrt_cxx_flags" ]
 
   cflags_cc += [ "-DMAPLE_EH_UTEST=0" ]
