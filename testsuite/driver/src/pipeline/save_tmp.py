@@ -12,16 +12,19 @@
 # See the Mulan PSL v2 for more details.
 #
 
-from api.shell_operator import ShellOperator
+import sys
+
+from case import case_pipeline
 
 
-class QemuRun(ShellOperator):
+class SaveTmp(object):
 
-    def __init__(self, qemu_libc, infile, return_value_list=None, redirection=None):
-        super().__init__(return_value_list, redirection)
-        self.qemu_libc = qemu_libc
-        self.infile = infile
+    def __init__(self, input):
+        self.input = input
 
-    def get_command(self, variables):
-        self.command = "${TOOL_BIN_PATH}/qemu-aarch64 " + " ".join(["-L " + lib_path for lib_path in self.qemu_libc]) + " " + self.infile
-        return super().get_final_command(variables)
+    def save_tmp_pipeline(self):
+        self.input["case_name"] = self.input["target"]
+        save_tmp = case_pipeline.save_tmp_run.SaveTmpRun(self.input)
+        save_tmp.execute()
+        sys.exit(0)
+

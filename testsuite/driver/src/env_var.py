@@ -20,8 +20,9 @@ class EnvVar(object):
     SDK_ROOT = None
     TEST_SUITE_ROOT = None
     SOURCE_CODE_ROOT = None
+    MAPLE_BUILD_TYPE = None
     #TODO:Delete
-    CONFIG_FILE_PATH = None
+    CONFIG_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
 
     def __init__(self, sdk_root, test_suite_root, source_code_root):
         if sdk_root is None:
@@ -48,4 +49,5 @@ class EnvVar(object):
                 sys.exit(1)
         else:
             EnvVar.SOURCE_CODE_ROOT = source_code_root
-        EnvVar.CONFIG_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config")
+        if "MAPLE_BUILD_TYPE" in os.environ.keys():
+            EnvVar.MAPLE_BUILD_TYPE = os.environ["MAPLE_BUILD_TYPE"]

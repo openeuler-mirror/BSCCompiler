@@ -12,15 +12,16 @@
 # See the Mulan PSL v2 for more details.
 #
 
-import os
+from case.component import Component
 
-mode_dict = {}
-my_dir = os.path.dirname(__file__)
-for py in os.listdir(my_dir):
-    if py == '__init__.py':
-        continue
 
-    if py.endswith('.py'):
-        name = py[:-3]
-        mode = __import__(__name__, globals(), locals(), ['%s' % name])
-        mode_dict[name] = getattr(getattr(mode, name), name)
+# To be done
+class PythonAPI(Component):
+    def __init__(self):
+        pass
+
+    def execute(self):
+        pass
+
+    def get_output(self):
+        return {}

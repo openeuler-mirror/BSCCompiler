@@ -12,15 +12,15 @@
 # See the Mulan PSL v2 for more details.
 #
 
-import os
+from abc import ABCMeta, abstractmethod
 
-mode_dict = {}
-my_dir = os.path.dirname(__file__)
-for py in os.listdir(my_dir):
-    if py == '__init__.py':
-        continue
 
-    if py.endswith('.py'):
-        name = py[:-3]
-        mode = __import__(__name__, globals(), locals(), ['%s' % name])
-        mode_dict[name] = getattr(getattr(mode, name), name)
+class Component(metaclass=ABCMeta):
+
+    @abstractmethod
+    def execute(self):
+        pass
+
+    @abstractmethod
+    def get_output(self):
+        pass

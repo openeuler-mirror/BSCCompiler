@@ -12,15 +12,7 @@
 # See the Mulan PSL v2 for more details.
 #
 
-import os
-
-mode_dict = {}
-my_dir = os.path.dirname(__file__)
-for py in os.listdir(my_dir):
-    if py == '__init__.py':
-        continue
-
-    if py.endswith('.py'):
-        name = py[:-3]
-        mode = __import__(__name__, globals(), locals(), ['%s' % name])
-        mode_dict[name] = getattr(getattr(mode, name), name)
+from case.case_pipeline import origin_run
+from case.case_pipeline import cicd_run
+from case.case_pipeline import clean_run
+from case.case_pipeline import save_tmp_run

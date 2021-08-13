@@ -14,21 +14,17 @@
 
 from api import *
 
-MFEO0_SUP = {
-    "clean": [
-        Shell(
-            "rm -rf *.mpl *.s *.out *.mplt *.log *.ast"
-        )
-    ],
+SUPO0 = {
     "compile": [
         C2ast(
-            clang="${MAPLE_ROOT}/tools/bin/clang",
+            clang="${OUT_ROOT}/tools/bin/clang",
             include_path=[
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
-                "../lib/include"
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/lib/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+                "../lib"
             ],
-            option="--target=aarch64",
+            option="--target=aarch64 -U __SIZEOF_INT128__",
             infile="${APP}.c",
             outfile="${APP}.ast"
         ),
@@ -48,19 +44,14 @@ MFEO0_SUP = {
         ),
         CLinker(
             infile="${APP}.s",
-            front_option="-O2 -static -L../lib/c -std=c89 -s",
+            front_option="-O2 -static -L../lib -std=c89 -s",
             outfile="${APP}.out",
             back_option="-lst -lm"
         )
-
     ],
     "run": [
-        QemuRun(
-            qemu_libc=[
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc"
-            ],
-            infile="${APP}.out",
-            redirection="output.log"
+        Shell(
+            "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
         ),
         CheckFileEqual(
             file1="output.log",

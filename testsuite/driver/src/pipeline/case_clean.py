@@ -12,15 +12,19 @@
 # See the Mulan PSL v2 for more details.
 #
 
-import os
+import sys
 
-mode_dict = {}
-my_dir = os.path.dirname(__file__)
-for py in os.listdir(my_dir):
-    if py == '__init__.py':
-        continue
+from case import case_pipeline
 
-    if py.endswith('.py'):
-        name = py[:-3]
-        mode = __import__(__name__, globals(), locals(), ['%s' % name])
-        mode_dict[name] = getattr(getattr(mode, name), name)
+
+class CaseClean(object):
+
+    def __init__(self, input):
+        self.input = input
+
+    def case_clean_pipeline(self):
+        self.input["case_name"] = self.input["target"]
+        case_clean = case_pipeline.clean_run.CleanRun(self.input)
+        case_clean.execute()
+        sys.exit(0)
+

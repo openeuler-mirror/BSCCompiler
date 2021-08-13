@@ -60,7 +60,8 @@ class ModeTable(object):
                     father_target = os.path.dirname(father_target)
                 self.mode_table[target] = self.mode_table[father_target] - self.mode_table_content["BAN_TEST_SUITE"][target]
 
-    def get_target_mode_set(self, target):
+    def get_case_mode_set(self, case):
+        target = case
         while target not in self.mode_table.keys() and len(target) != 0:
             target = os.path.dirname(target)
             if len(target) == 0:

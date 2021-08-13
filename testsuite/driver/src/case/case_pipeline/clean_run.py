@@ -12,15 +12,17 @@
 # See the Mulan PSL v2 for more details.
 #
 
-import os
+from case.case_executor.clean import Clean
 
-mode_dict = {}
-my_dir = os.path.dirname(__file__)
-for py in os.listdir(my_dir):
-    if py == '__init__.py':
-        continue
 
-    if py.endswith('.py'):
-        name = py[:-3]
-        mode = __import__(__name__, globals(), locals(), ['%s' % name])
-        mode_dict[name] = getattr(getattr(mode, name), name)
+class CleanRun():
+
+    def __init__(self, input: dict):
+        self.input = input
+
+    def execute(self):
+        clean = Clean(self.input)
+        clean.execute()
+
+    def get_output(self):
+        pass

@@ -15,13 +15,13 @@
 from api.shell_operator import ShellOperator
 
 
-class Clang2mpl(ShellOperator):
+class GenBin(ShellOperator):
 
-    def __init__(self, infile, return_value_list=None, redirection=None):
+    def __init__(self, infile, outfile, return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.infile = infile
+        self.outfile = outfile
 
     def get_command(self, variables):
-        clangFlags = "--target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__ "
-        self.command = "${MAPLE_EXECUTE_BIN}/clang2mpl --ascii " + self.infile + " -- " + clangFlags
+        self.command = "aarch64-linux-gnu-gcc -O2 -static -L../../lib/c -std=c89 -o " + self.outfile + " " + self.infile + " -lst -lm"
         return super().get_final_command(variables)

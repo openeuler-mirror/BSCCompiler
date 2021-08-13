@@ -17,8 +17,10 @@ import locale
 import subprocess
 import signal
 
+from case.component import Component
 
-class ShellExecutor(object):
+
+class Shell(Component):
 
     def __init__(self, command, workdir, timeout):
         self.command = command
@@ -28,7 +30,7 @@ class ShellExecutor(object):
         self.com_out = None
         self.com_err = None
 
-    def shell_execute(self):
+    def execute(self):
         process_command = subprocess.Popen(self.command, shell=True, cwd=self.workdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             self.com_out, self.com_err = process_command.communicate(timeout=self.timeout)
@@ -38,11 +40,14 @@ class ShellExecutor(object):
             self.return_code, self.com_out, self.com_err = 124, "", "timeout"
         else:
             self.return_code = process_command.returncode
-            self.com_out = self.com_out.decode(locale.getpreferredencoding(False), errors="strict").strip()
-            self.com_err = self.com_err.decode(locale.getpreferredencoding(False), errors="strict").strip()
+            self.com_out = self.com_out.decode(locale.getpreferredencoding(False), errors="ignore").strip()
+            self.com_err = self.com_err.decode(locale.getpreferredencoding(False), errors="ignore").strip()
         finally:
             process_command.kill()
             try:
                 os.killpg(process_command.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+
+    def get_output(self):
+        return self.com_out, self.com_err, self.return_code

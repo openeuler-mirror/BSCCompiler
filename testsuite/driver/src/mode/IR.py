@@ -15,11 +15,6 @@
 from api import *
 
 IR = {
-    "clean": [
-        Shell(
-            "rm -rf *.irb.mpl"
-        )
-    ],
     "compile": [
         Irbuild(
             irbuild="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/irbuild",
