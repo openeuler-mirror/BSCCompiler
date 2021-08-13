@@ -417,6 +417,16 @@ MeExpr *IRMap::SimplifyCastSingle(MeExpr *castExpr) {
       return HashMeExpr(*opnd);
     }
   }
+  // cast + const  ==>  const
+  if (castInfo.kind != CAST_unknown && castInfo.kind != CAST_retype && opnd->GetMeOp() == kMeOpConst) {
+    ConstantFold cf(mirModule);
+    MIRConst *cst =
+        cf.FoldTypeCvtMIRConst(*static_cast<ConstMeExpr *>(opnd)->GetConstVal(),
+                               castInfo.srcType, castInfo.dstType);
+    if (cst != nullptr) {
+      return CreateConstMeExpr(castInfo.dstType, *cst);
+    }
+  }
   if (opnd->GetOp() == OP_dread && (castInfo.kind == CAST_zext || castInfo.kind == CAST_sext)) {
     auto *varExpr = static_cast<VarMeExpr*>(opnd);
     if (varExpr->GetPrimType() == PTY_u1) {
@@ -557,12 +567,18 @@ void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) {
   CastInfo castInfo;
   do {
     ComputeCastInfoForExpr(*cur, castInfo);
-    // Only consider intTrunc
-    if (castInfo.kind != CAST_intTrunc) {
+    if (castInfo.kind == CAST_intTrunc) {
+      // Example: dassign u8 %a (cvt u8 u32 <expr>)  ==>  dassign u8 %a <expr>
+      cur = cur->GetOpnd(0);
+    } else if ((castInfo.kind == CAST_zext || castInfo.kind == CAST_sext) &&
+               IsCastMeExprExplicit(*cur) &&   // Exclude implicit cast such as iread etc.
+               GetPrimTypeActualBitSize(castInfo.srcType) == GetPrimTypeActualBitSize(expectedType)) {
+      // Example: dassign u8 %a (zext u32 8 <expr>)  ==>  dassign u8 %a <expr>
+      cur = cur->GetOpnd(0);
+    } else {
       break;
     }
-    cur = cur->GetOpnd(0);
-  } while (true);
+  } while (cur != nullptr);
   if (cur != rhsExpr) {
     if (stmtOp == OP_dassign) {
       auto *dassign = static_cast<DassignMeStmt*>(assignStmt);
@@ -757,7 +773,8 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx
   return meDef;
 }
 
-static std::pair<MeExpr*, OffsetType> SimplifyBaseAddressOfIvar(MeExpr *base) {
+MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar) {
+  auto *base = ivar;
   if (base->GetOp() == OP_add || base->GetOp() == OP_sub) {
     auto offsetNode = base->GetOpnd(1);
     if (offsetNode->GetOp() == OP_constval) {
@@ -765,41 +782,127 @@ static std::pair<MeExpr*, OffsetType> SimplifyBaseAddressOfIvar(MeExpr *base) {
       auto *mirConst = static_cast<ConstMeExpr*>(offsetNode)->GetConstVal();
       CHECK_FATAL(mirConst->GetKind() == kConstInt, "must be integer const");
       auto offsetInByte = static_cast<MIRIntConst*>(mirConst)->GetValue();
-      OffsetType offset(kOffsetUnknown);
-      offset.Set(base->GetOp() == OP_add ? offsetInByte : -offsetInByte);
+      OffsetType offset(ivar->GetOffset());
+      offset += (base->GetOp() == OP_add ? offsetInByte : -offsetInByte);
       if (offset.IsInvalid()) {
-        return std::make_pair(base, offset);
+        return nullptr;
       }
 
-      const auto &baseNodeAndOffset = SimplifyBaseAddressOfIvar(base->GetOpnd(0));
-      auto newOffset = offset + baseNodeAndOffset.second;
-      if (newOffset.IsInvalid()) {
-        return std::make_pair(base->GetOpnd(0), offset);
-      }
-      return std::make_pair(baseNodeAndOffset.first, newOffset);
+      Opcode op = (offset.val == 0) ? OP_iread : OP_ireadoff;
+      IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+      newIvar.SetBase(base->GetOpnd(0));
+      newIvar.SetOffset(offset.val);
+      return HashMeExpr(newIvar);
     }
   }
-  return std::make_pair(base, OffsetType::InvalidOffset());
+  return nullptr;
 }
 
-void IRMap::SimplifyIvar(IvarMeExpr *ivar) {
-  const auto &newBaseAndOffset = SimplifyBaseAddressOfIvar(ivar->GetBase());
-  if (newBaseAndOffset.second.IsInvalid()) {
-    return;
+MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
+  if (ivar->GetOffset() != 0) {
+    return nullptr;
   }
 
-  auto newOffset = newBaseAndOffset.second + ivar->GetOffset();
-  if (newOffset.IsInvalid()) {
-    return;
+  auto *base = ivar->GetBase();
+  if (base->GetOp() != OP_addrof) {
+    return nullptr;
   }
 
-  ivar->SetBase(newBaseAndOffset.first);
-  if (newOffset.val != 0) {
-    ivar->SetOp(OP_ireadoff);
-  } else {
-    ivar->SetOp(OP_iread);
+  auto *addrofExpr = static_cast<const AddrofMeExpr *>(base);
+  auto *ost = ssaTab.GetOriginalStFromID(addrofExpr->GetOstIdx());
+  if (ivar->GetType()->GetTypeIndex() != ost->GetTyIdx()) {
+    return nullptr;
   }
-  ivar->SetOffset(newOffset.val);
+
+  OffsetType offset(0);
+  if (addrofExpr->GetFieldID() > 1) {
+    auto *type = ost->GetMIRSymbol()->GetType();
+    offset += type->GetBitOffsetFromBaseAddr(addrofExpr->GetFieldID());
+  }
+  auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar->GetTyIdx());
+  CHECK_FATAL(type->IsMIRPtrType(), "must be pointer type");
+  if (ivar->GetFieldID() > 1) {
+    offset += static_cast<MIRPtrType *>(type)->GetBitOffsetFromBaseAddr(ivar->GetFieldID());
+  }
+
+  auto fieldTypeIdx = static_cast<MIRPtrType *>(type)->GetPointedTyIdxWithFieldID(ivar->GetFieldID());
+  auto *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
+  auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
+      ost->GetPrevLevelOst()->GetNextLevelOsts(), fieldType, 0, offset);
+  if (fieldOst == nullptr) {
+    return nullptr;
+  }
+  auto ostIdx = fieldOst->GetIndex();
+
+  auto mu = ivar->GetMu();
+  if (mu == nullptr) {
+    return nullptr;
+  }
+  if (mu->GetOstIdx() == ostIdx) {
+    return static_cast<VarMeExpr*>(mu);
+  }
+  MeStmt *meStmt = ivar->GetMu()->GetDefByMeStmt();
+  if (meStmt == nullptr) {
+    return nullptr;
+  }
+  auto lhs = meStmt->GetVarLHS();
+  if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
+    return static_cast<VarMeExpr *>(lhs);
+  }
+  auto *chiList = meStmt->GetChiList();
+  if (chiList->find(ostIdx) != chiList->end()) {
+    return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
+  }
+  return nullptr;
+}
+
+MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar) {
+  if (ivar->GetOffset() != 0) {
+    return nullptr;
+  }
+
+  auto *base = ivar->GetBase();
+  if (base->GetOp() != OP_iaddrof) {
+    return nullptr;
+  }
+
+  auto *iaddrofExpr = static_cast<const OpMeExpr *>(base);
+  auto baseAddr = iaddrofExpr->GetOpnd(0);
+  auto *ireadPtrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar->GetTyIdx());
+  CHECK_FATAL(ireadPtrType->IsMIRPtrType(), "must be pointer");
+  auto ireadTyIdx = static_cast<MIRPtrType *>(ireadPtrType)->GetPointedTyIdx();
+  auto iaddrofPtrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrofExpr->GetTyIdx());
+  CHECK_FATAL(iaddrofPtrType->IsMIRPtrType(), "must be pointer");
+  auto iaddrofTyIdx = static_cast<MIRPtrType *>(iaddrofPtrType)->GetPointedTyIdxWithFieldID(iaddrofExpr->GetFieldID());
+  if (ireadTyIdx != iaddrofTyIdx) {
+    return nullptr;
+  }
+
+  FieldID newFieldId = ivar->GetFieldID() + iaddrofExpr->GetFieldID();
+  IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
+  newIvar.SetBase(baseAddr);
+  newIvar.SetMuVal(ivar->GetMu());
+
+  auto *retExpr = HashMeExpr(newIvar);
+  return retExpr;
+}
+
+MeExpr *IRMap::SimplifyIvar(IvarMeExpr *ivar) {
+  auto *simplifiedIvar = SimplifyIvarWithConstOffset(ivar);
+  if (simplifiedIvar != nullptr) {
+    return simplifiedIvar;
+  }
+
+  simplifiedIvar = SimplifyIvarWithAddrofBase(ivar);
+  if (simplifiedIvar != nullptr) {
+    return simplifiedIvar;
+  }
+
+  simplifiedIvar = SimplifyIvarWithIaddrofBase(ivar);
+  if (simplifiedIvar != nullptr) {
+    return simplifiedIvar;
+  }
+  return nullptr;
 }
 
 IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, FieldID fieldID) {
