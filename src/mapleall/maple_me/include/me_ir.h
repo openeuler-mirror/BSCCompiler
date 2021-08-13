@@ -664,7 +664,7 @@ class AddrofMeExpr : public MeExpr {
     return ostIdx;
   }
 
-  FieldID GetFieldID() {
+  FieldID GetFieldID() const {
     return fieldID;
   }
 
@@ -1612,7 +1612,7 @@ class DassignMeStmt : public AssignMeStmt {
 
   ~DassignMeStmt() = default;
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 
@@ -1680,7 +1680,7 @@ class MaydassignMeStmt : public MeStmt {
     rhs = val;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 
@@ -1871,6 +1871,7 @@ class IassignMeStmt : public MeStmt {
 
   void SetLHSVal(IvarMeExpr *val) {
     lhsVar = val;
+    tyIdx = val->GetTyIdx();
   }
 
   StmtNode &EmitStmt(SSATab &ssaTab);
@@ -2041,7 +2042,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 
@@ -2148,7 +2149,7 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 
@@ -2253,7 +2254,7 @@ class IntrinsiccallMeStmt : public NaryMeStmt, public MuChiMePart, public Assign
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 
@@ -2348,19 +2349,37 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
         outputConstraints(alloc->Adapter()),
         clobberList(alloc->Adapter()),
         gotoLabels(alloc->Adapter()),
-        qualifiers(static_cast<const AsmNode*>(stt)->qualifiers) {
-          asmString = static_cast<const AsmNode*>(stt)->asmString;
-          inputConstraints = static_cast<const AsmNode*>(stt)->inputConstraints;
-          outputConstraints = static_cast<const AsmNode*>(stt)->outputConstraints;
-          clobberList = static_cast<const AsmNode*>(stt)->clobberList;
-          gotoLabels = static_cast<const AsmNode*>(stt)->gotoLabels;
+        qualifiers(static_cast<const AsmNode *>(stt)->qualifiers) {
+            asmString = static_cast<const AsmNode *>(stt)->asmString;
+            inputConstraints = static_cast<const AsmNode *>(stt)->inputConstraints;
+            outputConstraints = static_cast<const AsmNode *>(stt)->outputConstraints;
+            clobberList = static_cast<const AsmNode *>(stt)->clobberList;
+            gotoLabels = static_cast<const AsmNode *>(stt)->gotoLabels;
         }
+
+  AsmMeStmt(MapleAllocator *alloc, const AsmMeStmt *stt)
+      : NaryMeStmt(alloc, stt),
+        MuChiMePart(alloc),
+        AssignedPart(alloc),
+        asmString(alloc->GetMemPool()),
+        inputConstraints(alloc->Adapter()),
+        outputConstraints(alloc->Adapter()),
+        clobberList(alloc->Adapter()),
+        gotoLabels(alloc->Adapter()),
+        qualifiers(stt->qualifiers) {
+    asmString = stt->asmString;
+    inputConstraints = stt->inputConstraints;
+    outputConstraints = stt->outputConstraints;
+    clobberList = stt->clobberList;
+    gotoLabels = stt->gotoLabels;
+  }
+
   virtual ~AsmMeStmt() = default;
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() {
     return &muList;
   }
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
   MapleVector<MustDefMeNode> *GetMustDefList() {
@@ -2669,11 +2688,11 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
   ~SyncMeStmt() = default;
 
   void Dump(const IRMap*) const;
-  MapleMap<OStIdx, ScalarMeExpr*> *GetMuList() {
+  MapleMap<OStIdx, ScalarMeExpr *> *GetMuList() {
     return &muList;
   }
 
-  MapleMap<OStIdx, ChiMeNode*> *GetChiList() {
+  MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
   }
 };

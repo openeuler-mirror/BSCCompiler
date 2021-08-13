@@ -4607,18 +4607,18 @@ Operand *AArch64CGFunc::SelectIntrinsicOpWithOneParam(IntrinsicopNode &intrnNode
 
 /* According to  gcc.target/aarch64/ffs.c */
 Operand *AArch64CGFunc::SelectAArch64ffs(Operand &argOpnd, PrimType argType) {
-  LoadIntoRegister(argOpnd, argType);
+  RegOperand &destOpnd = LoadIntoRegister(argOpnd, argType);
   uint32 argSize = GetPrimTypeBitSize(argType);
   ASSERT((argSize == k64BitSize || argSize == k32BitSize), "Unexpect arg type");
   /* cmp */
   AArch64ImmOperand &zeroOpnd = CreateImmOperand(0, argSize, false);
   Operand &rflag = GetOrCreateRflag();
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      argSize == k64BitSize ? MOP_xcmpri : MOP_wcmpri, rflag, argOpnd, zeroOpnd));
+      argSize == k64BitSize ? MOP_xcmpri : MOP_wcmpri, rflag, destOpnd, zeroOpnd));
   /* rbit */
   RegOperand *tempResReg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, GetPrimTypeSize(argType)));
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
-      argSize == k64BitSize ? MOP_xrbit : MOP_wrbit, *tempResReg, argOpnd));
+      argSize == k64BitSize ? MOP_xrbit : MOP_wrbit, *tempResReg, destOpnd));
   /* clz */
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
       argSize == k64BitSize ? MOP_xclz : MOP_wclz, *tempResReg, *tempResReg));
@@ -8704,7 +8704,8 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(
     maple::IntrinsicopNode &intrinopNode, PrimType pty, bool CalculBefore, bool isAdd) {
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
   Operand *calculateEndOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
-  CHECK_FATAL(addrOpnd->IsRegister() && calculateEndOpnd->IsRegister(), "Only hanle register opnd");
+  addrOpnd = &LoadIntoRegister(*addrOpnd, intrinopNode.GetNopndAt(kInsnFirstOpnd)->GetPrimType());
+  calculateEndOpnd = &LoadIntoRegister(*calculateEndOpnd, intrinopNode.GetNopndAt(kInsnSecondOpnd)->GetPrimType());
 
   /* Create BB which includes atomic built_in function */
   LabelIdx atomicBBLabIdx = CreateLabel();
@@ -8801,49 +8802,37 @@ Operand *AArch64CGFunc::SelectAArch64align(IntrinsicopNode &intrnNode, bool isUp
   Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
   PrimType resultPtype = intrnNode.GetPrimType();
   CHECK_FATAL(resultPtype == ptype0, "Expect align same type");
-  RegOperand &ldDest0 = CreateRegisterOperandOfType(ptype0);
-  if (opnd0->IsMemoryAccessOperand()) {
-    GetCurBB()->AppendInsn(
-        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype0), ptype0), ldDest0, *opnd0));
-    opnd0 = &ldDest0;
-  } else if (opnd0->IsImmediate()) {
-    SelectCopyImm(ldDest0, *static_cast<ImmOperand *>(opnd0), ptype0);
-    opnd0 = &ldDest0;
-  }
+  RegOperand &ldDest0 = LoadIntoRegister(*opnd0, ptype0);
 
   BaseNode *argexpr1 = intrnNode.Opnd(1);
   PrimType ptype1 = argexpr1->GetPrimType();
   Operand *opnd1 = HandleExpr(intrnNode, *argexpr1);
-  RegOperand &ldDest1 = CreateRegisterOperandOfType(ptype1);
-  if (opnd1->IsMemoryAccessOperand()) {
-    GetCurBB()->AppendInsn(
-        GetCG()->BuildInstruction<AArch64Insn>(PickLdInsn(GetPrimTypeBitSize(ptype1), ptype1), ldDest1, *opnd1));
-    opnd1 = &ldDest1;
-  } else if (opnd1->IsImmediate()) {
-    SelectCopyImm(ldDest1, *static_cast<ImmOperand *>(opnd1), ptype1);
-    opnd1 = &ldDest1;
-  }
+  RegOperand &arg1 = LoadIntoRegister(*opnd1, ptype1);
+  ASSERT(IsPrimitiveInteger(ptype0) && IsPrimitiveInteger(ptype1), "align integer type only");
+  Operand *ldDest1 = &static_cast<Operand&>(CreateRegisterOperandOfType(ptype0));
+  SelectCvtInt2Int(nullptr, ldDest1, &arg1, ptype1, ptype0);
 
+  Operand *resultReg = &static_cast<Operand&>(CreateRegisterOperandOfType(ptype0));
+  Operand &immReg = CreateImmOperand(1, GetPrimTypeBitSize(ptype0), true);
   /* Do alignment  x0 -- value to be aligned   x1 -- alignment */
   if (isUp) {
-    SelectAdd(*opnd0, *opnd0, *opnd1, ptype0); /* add x0, x0, x1 */
+    /* add res, x0, x1 */
+    SelectAdd(*resultReg, ldDest0, *ldDest1, ptype0);
+    /* sub res, res, 1 */
+    SelectSub(*resultReg, *resultReg, immReg, resultPtype);
   }
-  Operand *reg0 = &static_cast<Operand&>(CreateRegisterOperandOfType(ptype0));
-  SelectCopyImm(*reg0, CreateImmOperand(1, GetPrimTypeBitSize(ptype0), true), ptype0); /* mov w4, #1 */
-  /* cvt type to dest type */
-  ASSERT(IsPrimitiveInteger(ptype0) && IsPrimitiveInteger(ptype1), "Do not do float align up at present");
-  SelectCvtInt2Int(nullptr, reg0, reg0, ptype1, ptype0); /* sxtw x4, w4 */
+  Operand *tempReg = &static_cast<Operand&>(CreateRegisterOperandOfType(ptype0));
+  /* sub temp, x1, 1 */
+  SelectSub(*tempReg, *ldDest1, immReg, resultPtype);
+  /* mvn temp, temp */
+  SelectMvn(*tempReg, *tempReg, resultPtype);
+  /* and res, res, temp */
   if (isUp) {
-    /* sub x0, x0, x4 */
-    SelectSub(*opnd0, *opnd0, *reg0, resultPtype);
+    SelectBand(*resultReg, *resultReg, *tempReg, resultPtype);
+  } else {
+    SelectBand(*resultReg, ldDest0, *tempReg, resultPtype);
   }
-  /* sub x1, x1, x4 */
-  SelectSub(*opnd1, *opnd1, *reg0, resultPtype);
-  /* mvn x1, x1 */
-  SelectMvn(*opnd1, *opnd1, resultPtype);
-  /* and x0, x0, x1 */
-  SelectBand(*opnd0, *opnd0, *opnd1, resultPtype);
-  return opnd0;
+  return resultReg;
 }
 
 /*

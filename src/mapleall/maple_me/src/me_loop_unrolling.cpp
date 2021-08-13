@@ -19,6 +19,7 @@
 #include "me_option.h"
 #include "mir_module.h"
 #include "mir_builder.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 bool LoopUnrollingExecutor::enableDebug = false;
@@ -31,9 +32,10 @@ constexpr uint32 kMaxIndex = 2;
 constexpr uint32 kLoopBodyNum = 1;
 constexpr uint32 kOperandNum = 2;
 
-void LoopUnrolling::InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) {
+void LoopUnrolling::InsertCandsForSSAUpdate(MemPool &memPool, MapleAllocator &mpAllocator,
+    MapleMap<OStIdx, MapleSet<BBId>*> &cands, OStIdx ostIdx, const BB &bb) {
   if (cands.find(ostIdx) == cands.end()) {
-    MapleSet<BBId> *bbSet = memPool->New<MapleSet<BBId>>(std::less<BBId>(), mpAllocator.Adapter());
+    MapleSet<BBId> *bbSet = memPool.New<MapleSet<BBId>>(std::less<BBId>(), mpAllocator.Adapter());
     bbSet->insert(bb.GetBBId());
     cands[ostIdx] = bbSet;
   } else {
@@ -41,14 +43,15 @@ void LoopUnrolling::InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) {
   }
 }
 
-void LoopUnrolling::BuildChiList(const BB &bb, MeStmt &newStmt, const MapleMap<OStIdx, ChiMeNode*> &oldChilist,
-                                 MapleMap<OStIdx, ChiMeNode*> &newChiList) {
+void LoopUnrolling::BuildChiList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+    MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
+    const MapleMap<OStIdx, ChiMeNode*> &oldChilist, MapleMap<OStIdx, ChiMeNode*> &newChiList) {
   CHECK_FATAL(newChiList.empty(), "must be empty");
   for (auto &chiNode : oldChilist) {
     CHECK_FATAL(chiNode.first == chiNode.second->GetLHS()->GetOstIdx(), "must be");
-    VarMeExpr *newMul = irMap->CreateVarMeExprVersion(chiNode.second->GetLHS()->GetOst());
-    InsertCandsForSSAUpdate(newMul->GetOstIdx(), bb);
-    ChiMeNode *newChiNode = irMap->New<ChiMeNode>(&newStmt);
+    VarMeExpr *newMul = irMap.CreateVarMeExprVersion(chiNode.second->GetLHS()->GetOst());
+    InsertCandsForSSAUpdate(memPool, mpAllocator, cands, newMul->GetOstIdx(), bb);
+    ChiMeNode *newChiNode = irMap.New<ChiMeNode>(&newStmt);
     newMul->SetDefChi(*newChiNode);
     newMul->SetDefBy(kDefByChi);
     newChiNode->SetLHS(newMul);
@@ -58,102 +61,181 @@ void LoopUnrolling::BuildChiList(const BB &bb, MeStmt &newStmt, const MapleMap<O
   }
 }
 
-void LoopUnrolling::BuildMustDefList(const BB &bb, MeStmt &newStmt, const MapleVector<MustDefMeNode> &oldMustDef,
+void LoopUnrolling::BuildMustDefList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                     MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                     const BB &bb, MeStmt &newStmt, const MapleVector<MustDefMeNode> &oldMustDef,
                                      MapleVector<MustDefMeNode> &newMustDef) {
   CHECK_FATAL(newMustDef.empty(), "must be empty");
   for (auto &mustDefNode : oldMustDef) {
     const VarMeExpr *varLHS = static_cast<const VarMeExpr*>(mustDefNode.GetLHS());
     CHECK_FATAL(varLHS->GetMeOp() == kMeOpReg || varLHS->GetMeOp() == kMeOpVar, "unexpected opcode");
-    VarMeExpr *newVarLHS = irMap->CreateVarMeExprVersion(varLHS->GetOst());
+    VarMeExpr *newVarLHS = irMap.CreateVarMeExprVersion(varLHS->GetOst());
     newVarLHS->SetDefBy(kDefByMustDef);
-    InsertCandsForSSAUpdate(newVarLHS->GetOstIdx(), bb);
-    auto *mustDef = irMap->New<MustDefMeNode>(newVarLHS, &newStmt);
+    InsertCandsForSSAUpdate(memPool, mpAllocator, cands, newVarLHS->GetOstIdx(), bb);
+    auto *mustDef = irMap.New<MustDefMeNode>(newVarLHS, &newStmt);
     newVarLHS->SetDefMustDef(*mustDef);
     newMustDef.push_back(*mustDef);
   }
 }
 
-void LoopUnrolling::CopyDassignStmt(const MeStmt &stmt, BB &bb) {
-  VarMeExpr *varLHS = static_cast<VarMeExpr *>(static_cast<const DassignMeStmt*>(&stmt)->GetVarLHS());
-  VarMeExpr *newVarLHS = irMap->CreateVarMeExprVersion(varLHS->GetOst());
-  InsertCandsForSSAUpdate(newVarLHS->GetOstIdx(), bb);
-  bb.AddMeStmtLast(irMap->CreateAssignMeStmt(*newVarLHS, *stmt.GetRHS(), bb));
+void LoopUnrolling::CopyDassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
+                                    MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                    MeIRMap &irMap, MeStmt &stmt, BB &bb) {
+  VarMeExpr *varLHS = static_cast<VarMeExpr*>(static_cast<const DassignMeStmt*>(&stmt)->GetVarLHS());
+  VarMeExpr *newVarLHS = irMap.CreateVarMeExprVersion(varLHS->GetOst());
+  InsertCandsForSSAUpdate(memPool, mpAllocator, cands, newVarLHS->GetOstIdx(), bb);
+  auto *newStmt = irMap.CreateAssignMeStmt(*newVarLHS, *stmt.GetRHS(), bb);
+  if (stmt.GetChiList() != nullptr) {
+    BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newStmt,
+                 *stmt.GetChiList(), *newStmt->GetChiList());
+  }
+  bb.AddMeStmtLast(newStmt);
 }
 
-void LoopUnrolling::CopyIassignStmt(MeStmt &stmt, BB &bb) {
+void LoopUnrolling::CopyRegassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
+                                      MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                      MeIRMap &irMap, MeStmt &stmt, BB &bb) {
+  ScalarMeExpr *regLHS = stmt.GetLHS();
+  RegMeExpr *newVarLHS = irMap.CreateRegMeExprVersion(*regLHS->GetOst());
+  InsertCandsForSSAUpdate(memPool, mpAllocator, cands, newVarLHS->GetOstIdx(), bb);
+  auto *newStmt = irMap.CreateAssignMeStmt(*newVarLHS, *stmt.GetRHS(), bb);
+  if (stmt.GetChiList() != nullptr) {
+    BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newStmt,
+                 *stmt.GetChiList(), *newStmt->GetChiList());
+  }
+  bb.AddMeStmtLast(newStmt);
+}
+
+void LoopUnrolling::CopyIassignStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                    MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb) {
   auto *iassStmt = static_cast<IassignMeStmt*>(&stmt);
-  IvarMeExpr *ivar = irMap->BuildLHSIvarFromIassMeStmt(*iassStmt);
-  IassignMeStmt *newIassStmt = irMap->NewInPool<IassignMeStmt>(
+  IvarMeExpr *ivar = irMap.BuildLHSIvarFromIassMeStmt(*iassStmt);
+  IassignMeStmt *newIassStmt = irMap.NewInPool<IassignMeStmt>(
       iassStmt->GetTyIdx(), *static_cast<IvarMeExpr*>(ivar), *iassStmt->GetRHS());
-  BuildChiList(bb, *newIassStmt, *iassStmt->GetChiList(), *newIassStmt->GetChiList());
+  BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newIassStmt,
+               *iassStmt->GetChiList(), *newIassStmt->GetChiList());
   bb.AddMeStmtLast(newIassStmt);
 }
 
-void LoopUnrolling::CopyIntrinsiccallStmt(MeStmt &stmt, BB &bb) {
+void LoopUnrolling::CopyIntrinsiccallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                          MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb) {
   auto *intrnStmt = static_cast<IntrinsiccallMeStmt*>(&stmt);
   IntrinsiccallMeStmt *newIntrnStmt =
-      irMap->NewInPool<IntrinsiccallMeStmt>(static_cast<const NaryMeStmt*>(intrnStmt), intrnStmt->GetIntrinsic(),
+      irMap.NewInPool<IntrinsiccallMeStmt>(static_cast<const NaryMeStmt*>(intrnStmt), intrnStmt->GetIntrinsic(),
                                             intrnStmt->GetTyIdx(), intrnStmt->GetReturnPrimType());
   for (auto &mu : *intrnStmt->GetMuList()) {
     CHECK_FATAL(newIntrnStmt->GetMuList()->find(mu.first) == newIntrnStmt->GetMuList()->end(), "must not exit");
     newIntrnStmt->GetMuList()->insert(std::make_pair(mu.first, mu.second));
   }
-  BuildChiList(bb, *newIntrnStmt, *intrnStmt->GetChiList(), *newIntrnStmt->GetChiList());
-  BuildMustDefList(bb, *newIntrnStmt, *intrnStmt->GetMustDefList(), *newIntrnStmt->GetMustDefList());
+  BuildChiList(irMap, memPool, mpAllocator, cands, bb,
+               *newIntrnStmt, *intrnStmt->GetChiList(), *newIntrnStmt->GetChiList());
+  BuildMustDefList(irMap, memPool, mpAllocator, cands, bb,
+                   *newIntrnStmt, *intrnStmt->GetMustDefList(), *newIntrnStmt->GetMustDefList());
   bb.AddMeStmtLast(newIntrnStmt);
 }
 
-void LoopUnrolling::CopyCallStmt(MeStmt &stmt, BB &bb) {
+void LoopUnrolling::CopyIcallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                  MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb) {
+  auto *icallStmt = static_cast<IcallMeStmt*>(&stmt);
+  if (icallStmt->GetAssignedLHS() != nullptr) {
+    CHECK_FATAL(icallStmt->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
+  }
+  IcallMeStmt *newIcallStmt = irMap.NewInPool<IcallMeStmt>(icallStmt);
+  BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newIcallStmt,
+               *icallStmt->GetChiList(), *newIcallStmt->GetChiList());
+  bb.AddMeStmtLast(newIcallStmt);
+}
+
+void LoopUnrolling::CopyCallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb) {
   auto *callStmt = static_cast<CallMeStmt*>(&stmt);
   if (callStmt->GetAssignedLHS() != nullptr) {
     CHECK_FATAL(callStmt->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
   }
   CallMeStmt *newCallStmt =
-      irMap->NewInPool<CallMeStmt>(static_cast<NaryMeStmt*>(callStmt), callStmt->GetPUIdx());
+      irMap.NewInPool<CallMeStmt>(static_cast<NaryMeStmt*>(callStmt), callStmt->GetPUIdx());
   for (auto &mu : *callStmt->GetMuList()) {
     CHECK_FATAL(newCallStmt->GetMuList()->find(mu.first) == newCallStmt->GetMuList()->end(), "must not exit");
     newCallStmt->GetMuList()->insert(std::make_pair(mu.first, mu.second));
   }
-  BuildChiList(bb, *newCallStmt, *callStmt->GetChiList(), *newCallStmt->GetChiList());
-  BuildMustDefList(bb, *newCallStmt, *callStmt->GetMustDefList(), *newCallStmt->GetMustDefList());
+  BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newCallStmt,
+               *callStmt->GetChiList(), *newCallStmt->GetChiList());
+  BuildMustDefList(irMap, memPool, mpAllocator, cands, bb, *newCallStmt,
+                   *callStmt->GetMustDefList(), *newCallStmt->GetMustDefList());
   bb.AddMeStmtLast(newCallStmt);
 }
 
-void LoopUnrolling::CopyAndInsertStmt(BB &bb, std::vector<MeStmt*> &meStmts) {
-  for (auto stmt : meStmts) {
-    switch (stmt->GetOp()) {
+void LoopUnrolling::CopyAsmStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb) {
+  auto *asmStmt = static_cast<AsmMeStmt*>(&stmt);
+  if (asmStmt->GetAssignedLHS() != nullptr) {
+    CHECK_FATAL(asmStmt->GetAssignedLHS()->GetMeOp() == kMeOpVar, "should be var");
+  }
+  AsmMeStmt *newCallStmt = irMap.NewInPool<AsmMeStmt>(asmStmt);
+  for (auto &mu : *asmStmt->GetMuList()) {
+    CHECK_FATAL(newCallStmt->GetMuList()->find(mu.first) == newCallStmt->GetMuList()->end(), "must not exit");
+    newCallStmt->GetMuList()->insert(std::make_pair(mu.first, mu.second));
+  }
+  BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newCallStmt,
+               *asmStmt->GetChiList(), *newCallStmt->GetChiList());
+  BuildMustDefList(irMap, memPool, mpAllocator, cands, bb, *newCallStmt,
+                   *asmStmt->GetMustDefList(), *newCallStmt->GetMustDefList());
+  bb.AddMeStmtLast(newCallStmt);
+}
+
+void LoopUnrolling::CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+    MapleMap<OStIdx, MapleSet<BBId>*> &cands, BB &bb, BB &oldBB, bool copyWithoutLastMe) {
+  for (auto &stmt : oldBB.GetMeStmts()) {
+    if (copyWithoutLastMe && &stmt == oldBB.GetLastMe()) {
+      break;
+    }
+    switch (stmt.GetOp()) {
       case OP_dassign: {
-        CopyDassignStmt(*stmt, bb);
+        CopyDassignStmt(memPool, mpAllocator, cands, irMap, stmt, bb);
+        break;
+      }
+      case OP_regassign: {
+        CopyRegassignStmt(memPool, mpAllocator, cands, irMap, stmt, bb);
         break;
       }
       case OP_iassign: {
-        CopyIassignStmt(*stmt, bb);
+        CopyIassignStmt(irMap, memPool, mpAllocator, cands, stmt, bb);
         break;
       }
       case OP_maydassign: {
-        auto *maydassStmt = static_cast<MaydassignMeStmt*>(stmt);
-        MaydassignMeStmt *newMaydassStmt = irMap->NewInPool<MaydassignMeStmt>(*maydassStmt);
-        BuildChiList(bb, *newMaydassStmt, *maydassStmt->GetChiList(), *newMaydassStmt->GetChiList());
+        auto &maydassStmt = static_cast<MaydassignMeStmt&>(stmt);
+        MaydassignMeStmt *newMaydassStmt = irMap.NewInPool<MaydassignMeStmt>(maydassStmt);
+        BuildChiList(irMap, memPool, mpAllocator, cands, bb, *newMaydassStmt,
+                     *maydassStmt.GetChiList(), *newMaydassStmt->GetChiList());
         bb.AddMeStmtLast(newMaydassStmt);
         break;
       }
       case OP_goto: {
-        auto *gotoStmt = static_cast<GotoMeStmt*>(stmt);
-        GotoMeStmt *newGotoStmt = irMap->New<GotoMeStmt>(*gotoStmt);
+        auto &gotoStmt = static_cast<GotoMeStmt&>(stmt);
+        GotoMeStmt *newGotoStmt = irMap.New<GotoMeStmt>(gotoStmt);
         bb.AddMeStmtLast(newGotoStmt);
         break;
       }
       case OP_brfalse:
       case OP_brtrue: {
-        auto *condGotoStmt = static_cast<CondGotoMeStmt*>(stmt);
-        CondGotoMeStmt *newCondGotoStmt = irMap->New<CondGotoMeStmt>(*condGotoStmt);
+        auto &condGotoStmt = static_cast<CondGotoMeStmt&>(stmt);
+        CondGotoMeStmt *newCondGotoStmt = irMap.New<CondGotoMeStmt>(condGotoStmt);
         bb.AddMeStmtLast(newCondGotoStmt);
         break;
       }
       case OP_intrinsiccall:
       case OP_intrinsiccallassigned:
       case OP_intrinsiccallwithtype: {
-        CopyIntrinsiccallStmt(*stmt, bb);
+        CopyIntrinsiccallStmt(irMap, memPool, mpAllocator, cands, stmt, bb);
+        break;
+      }
+      case OP_icall:
+      case OP_icallassigned: {
+        CopyIcallStmt(irMap, memPool, mpAllocator, cands, stmt, bb);
+        break;
+      }
+      case OP_asm:{
+        CopyAsmStmt(irMap, memPool, mpAllocator, cands, stmt, bb);
         break;
       }
       case OP_call:
@@ -161,12 +243,12 @@ void LoopUnrolling::CopyAndInsertStmt(BB &bb, std::vector<MeStmt*> &meStmts) {
       case OP_virtualcallassigned:
       case OP_virtualicallassigned:
       case OP_interfaceicallassigned: {
-        CopyCallStmt(*stmt, bb);
+        CopyCallStmt(irMap, memPool, mpAllocator, cands,  stmt, bb);
         break;
       }
       case OP_assertnonnull: {
-        auto *unaryStmt = static_cast<UnaryMeStmt*>(stmt);
-        UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(unaryStmt);
+        auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
+        UnaryMeStmt *newUnaryStmt = irMap.New<UnaryMeStmt>(unaryStmt);
         bb.AddMeStmtLast(newUnaryStmt);
         break;
       }
@@ -174,7 +256,12 @@ void LoopUnrolling::CopyAndInsertStmt(BB &bb, std::vector<MeStmt*> &meStmts) {
       case OP_membarrelease:
       case OP_membarstoreload:
       case OP_membarstorestore: {
-        auto *newStmt = irMap->New<MeStmt>(stmt->GetOp());
+        auto *newStmt = irMap.New<MeStmt>(stmt.GetOp());
+        bb.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_eval: {
+        auto *newStmt = irMap.New<UnaryMeStmt>(static_cast<UnaryMeStmt&>(stmt));
         bb.AddMeStmtLast(newStmt);
         break;
       }
@@ -182,7 +269,7 @@ void LoopUnrolling::CopyAndInsertStmt(BB &bb, std::vector<MeStmt*> &meStmts) {
         break;
       }
       default:
-        LogInfo::MapleLogger() << "consider this op :"<< stmt->GetOp() << "\n";
+        LogInfo::MapleLogger() << "consider this op :"<< stmt.GetOp() << "\n";
         CHECK_FATAL(false, "consider");
         break;
     }
@@ -246,11 +333,7 @@ BB *LoopUnrolling::CopyBB(BB &bb, bool isInLoop) {
     newBB->SetAttributes(kBBAttrIsInLoop);
   }
   newBB->SetKind(bb.GetKind());
-  std::vector<MeStmt*> meStmts;
-  for (auto &meStmt : bb.GetMeStmts()) {
-    meStmts.push_back(&meStmt);
-  }
-  CopyAndInsertStmt(*newBB, meStmts);
+  CopyAndInsertStmt(*irMap, *memPool, mpAllocator, cands, *newBB, bb);
   return newBB;
 }
 
@@ -887,7 +970,7 @@ void LoopUnrolling::UpdateCondGotoBB(BB &bb, VarMeExpr &indVar, MeExpr &tripCoun
     bb.RemoveMeStmt(&stmt);
   }
   VarMeExpr *newVarLHS = irMap->CreateVarMeExprVersion(indVar.GetOst());
-  InsertCandsForSSAUpdate(newVarLHS->GetOstIdx(), bb);
+  InsertCandsForSSAUpdate(*memPool, mpAllocator, cands, newVarLHS->GetOstIdx(), bb);
   MeExpr *constMeExprForOne = irMap->CreateIntConstMeExpr(1, PTY_i32);
   MeExpr *addMeExpr = irMap->CreateMeExprBinary(OP_add, PTY_i32, indVar, *constMeExprForOne);
   UpdateCondGotoStmt(bb, indVar, tripCount, unrollTimeExpr, offset);
@@ -1002,7 +1085,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
   MeExpr *constMeExprForZero = irMap->CreateIntConstMeExpr(0, PTY_i32);
   indVarAndTripCountDefBB->AddMeStmtLast(
       irMap->CreateAssignMeStmt(*indVar, *constMeExprForZero, *indVarAndTripCountDefBB));
-  InsertCandsForSSAUpdate(indVar->GetOstIdx(), *indVarAndTripCountDefBB);
+  InsertCandsForSSAUpdate(*memPool, mpAllocator, cands, indVar->GetOstIdx(), *indVarAndTripCountDefBB);
 
   // create stmt : tripCount = (n - start) / stride.
   BB *exitingBB = cfg->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
@@ -1016,7 +1099,7 @@ void LoopUnrolling::CreateIndVarAndCondGotoStmt(CR &cr, CRNode &varNode, BB &pre
   VarMeExpr *tripCountExpr = CreateIndVarOrTripCountWithName(tripConutName);
   indVarAndTripCountDefBB->AddMeStmtLast(
       irMap->CreateAssignMeStmt(*tripCountExpr, *divMeExpr, *indVarAndTripCountDefBB));
-  InsertCandsForSSAUpdate(tripCountExpr->GetOstIdx(), *indVarAndTripCountDefBB);
+  InsertCandsForSSAUpdate(*memPool, mpAllocator, cands, tripCountExpr->GetOstIdx(), *indVarAndTripCountDefBB);
   for (size_t idx = 0; idx < preCondGoto.GetPred().size(); ++idx) {
     auto *bb = preCondGoto.GetPred(idx);
     bb->ReplaceSucc(&preCondGoto, indVarAndTripCountDefBB);
@@ -1313,37 +1396,42 @@ bool ProfileCheck(maple::MeFunction &f) {
   return true;
 }
 
-AnalysisResult *MeDoLoopUnrolling::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  // Do loop unrolling only when the function is hot in profile.
-  if (!ProfileCheck(*func)) {
-    return nullptr;
-  }
+void MELoopUnrolling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
 
-  IdentifyLoops *meLoop = static_cast<IdentifyLoops*>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
-  if (meLoop == nullptr) {
-    return nullptr;
+bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
+  // Do loop unrolling only when the function is hot in profile.
+  if (!ProfileCheck(f)) {
+    return false;
   }
-  auto *loopunrollMemPool = NewMemPool();
+  IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis);
+  if (meLoop == nullptr) {
+    return false;
+  }
+  auto *loopunrollMemPool = GetPhaseMemPool();
   MapleAllocator loopUnrollingAlloc = MapleAllocator(loopunrollMemPool);
   MapleMap<OStIdx, MapleSet<BBId>*> cands((std::less<OStIdx>(), loopUnrollingAlloc.Adapter()));
-  CHECK_NULL_FATAL(m);
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
   CHECK_NULL_FATAL(irMap);
-  LoopUnrollingExecutor loopUnrollingExe = LoopUnrollingExecutor(*NewMemPool());
-  loopUnrollingExe.ExecuteLoopUnrolling(*func, *irMap, cands, *meLoop, loopUnrollingAlloc);
-  if (DEBUGFUNC(func)) {
-    func->GetCfg()->DumpToFile("beforeloopunrolling", false);
+  LoopUnrollingExecutor loopUnrollingExe = LoopUnrollingExecutor(*loopunrollMemPool);
+  loopUnrollingExe.ExecuteLoopUnrolling(f, *irMap, cands, *meLoop, loopUnrollingAlloc);
+  if (DEBUGFUNC_NEWPM(f)) {
+    f.GetCfg()->DumpToFile("beforeloopunrolling", false);
   }
   if (loopUnrollingExe.IsCFGChange()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-    auto dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, cands, *loopunrollMemPool);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEDominance::id);
+    auto dom = FORCE_GET(MEDominance);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *loopunrollMemPool);
     ssaUpdate.Run();
-    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MELoopAnalysis::id);
   }
-  if (DEBUGFUNC(func)) {
-    func->GetCfg()->DumpToFile("afterloopunrolling", false);
+  if (DEBUGFUNC_NEWPM(f)) {
+    f.GetCfg()->DumpToFile("afterloopunrolling", false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,8 +16,7 @@
 #define MAPLE_ME_INCLUDE_LOOP_UNROLLING_H
 #include "me_scalar_analysis.h"
 #include "me_function.h"
-#include "me_irmap.h"
-#include "me_phase.h"
+#include "me_irmap_build.h"
 #include "me_ir.h"
 #include "me_ssa_update.h"
 #include "me_dominance.h"
@@ -47,18 +46,37 @@ class LoopUnrolling {
   bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
   bool LoopUnrollingWithConst(uint32 tripCount);
 
+  static void CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                MapleMap<OStIdx, MapleSet<BBId>*> &cands, BB &bb, BB &oldBB,
+                                bool copyWithoutLastMe = false);
+  static void BuildChiList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                           MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
+                           const MapleMap<OStIdx, ChiMeNode*> &oldChilist, MapleMap<OStIdx, ChiMeNode*> &newChiList);
+  static void BuildMustDefList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                               MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
+                               const MapleVector<MustDefMeNode> &oldMustDef, MapleVector<MustDefMeNode> &newMustDef);
+  static void CopyDassignStmt(MemPool &memPool, MapleAllocator &mpAllocator, MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                              MeIRMap &irMap, MeStmt &stmt, BB &bb);
+  static void CopyRegassignStmt(MemPool &memPool, MapleAllocator &mpAllocator, MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                MeIRMap &irMap, MeStmt &stmt, BB &bb);
+  static void CopyIassignStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                              MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static void CopyIntrinsiccallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                    MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static void CopyIcallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                            MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static void CopyCallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                           MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static void CopyAsmStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                          MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static void InsertCandsForSSAUpdate(MemPool &memPool, MapleAllocator &mpAllocator,
+                                      MapleMap<OStIdx, MapleSet<BBId>*> &cands, OStIdx ostIdx, const BB &bb);
+
  private:
   bool SplitCondGotoBB();
   VarMeExpr *CreateIndVarOrTripCountWithName(const std::string &name);
   void RemoveCondGoto();
-  void BuildChiList(const BB &bb, MeStmt &newStmt, const MapleMap<OStIdx, ChiMeNode*> &oldChilist,
-                    MapleMap<OStIdx, ChiMeNode*> &newChiList);
-  void BuildMustDefList(const BB &bb, MeStmt &newStmt, const MapleVector<MustDefMeNode> &oldMustDef,
-                        MapleVector<MustDefMeNode> &newMustDef);
-  void CopyDassignStmt(const MeStmt &stmt, BB &bb);
-  void CopyIassignStmt(MeStmt &stmt, BB &bb);
-  void CopyIntrinsiccallStmt(MeStmt &stmt, BB &bb);
-  void CopyCallStmt(MeStmt &stmt, BB &bb);
+
   void SetLabelWithCondGotoOrGotoBB(BB &bb, std::unordered_map<BB*, BB*> &old2NewBB, const BB &exitBB,
                                     LabelIdx oldlabIdx);
   void ResetOldLabel2NewLabel(std::unordered_map<BB*, BB*> &old2NewBB, BB &bb,
@@ -84,8 +102,6 @@ class LoopUnrolling {
   BB *CopyBB(BB &bb, bool isInLoop);
   void CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting);
   void CopyAndInsertBB(bool isPartial);
-  void CopyAndInsertStmt(BB &bb, std::vector<MeStmt*> &meStmts);
-  void InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
   bool DetermineUnrollTimes(uint32 &index, bool isConst);
   void CreateLableAndInsertLabelBB(BB &newHeadBB, std::set<BB*> &labelBBs);
@@ -136,15 +152,6 @@ class LoopUnrollingExecutor {
   bool isCFGChange = false;
 };
 
-class MeDoLoopUnrolling : public MeFuncPhase {
- public:
-  explicit MeDoLoopUnrolling(MePhaseID id) : MeFuncPhase(id) {}
-  ~MeDoLoopUnrolling() = default;
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "loopunrolling";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MELoopUnrolling, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LOOP_UNROLLING_H
