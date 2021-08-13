@@ -228,10 +228,10 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
       return sot;
     }
     case OP_addrof:
-    case OP_dread: {
-      AddrofNode *drNode = mod.CurFuncCodeMemPool()->New<AddrofNode>(op);
-      drNode->SetPrimType(typ);
-      drNode->SetFieldID(ReadNum());
+    case OP_addrofoff:
+    case OP_dread:
+    case OP_dreadoff: {
+      int32 num = ReadNum();
       StIdx stIdx;
       stIdx.SetScope(ReadNum());
       if (stIdx.Islocal()) {
@@ -241,10 +241,24 @@ BaseNode *BinaryMplImport::ImportExpression(MIRFunction *func) {
         CHECK_FATAL(stag == kBinKindSymViaSymname, "kBinKindSymViaSymname expected");
         GStrIdx strIdx = ImportStr();
         MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
+        if (op == OP_addrof) {
+          sym->SetHasPotentialAssignment();
+        }
         stIdx.SetIdx(sym->GetStIdx().Idx());
       }
-      drNode->SetStIdx(stIdx);
-      return drNode;
+      if (op == OP_addrof || op == OP_dread) {
+        AddrofNode *drNode = mod.CurFuncCodeMemPool()->New<AddrofNode>(op);
+        drNode->SetPrimType(typ);
+        drNode->SetStIdx(stIdx);
+        drNode->SetFieldID(num);
+        return drNode;
+      } else {
+        DreadoffNode *dreadoff = mod.CurFuncCodeMemPool()->New<DreadoffNode>(op);
+        dreadoff->SetPrimType(typ);
+        dreadoff->stIdx = stIdx;
+        dreadoff->offset = num;
+        return dreadoff;
+      }
     }
     case OP_regread: {
       RegreadNode *regreadNode = mod.CurFuncCodeMemPool()->New<RegreadNode>();
@@ -461,9 +475,9 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
     op = (Opcode)ReadNum();
     StmtNode *stmt = nullptr;
     switch (op) {
-      case OP_dassign: {
-        DassignNode *s = func->GetCodeMemPool()->New<DassignNode>();
-        s->SetFieldID(ReadNum());
+      case OP_dassign:
+      case OP_dassignoff: {
+        int32 num = ReadNum();
         StIdx stIdx;
         stIdx.SetScope(ReadNum());
         if (stIdx.Islocal()) {
@@ -473,11 +487,22 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
           CHECK_FATAL(stag == kBinKindSymViaSymname, "kBinKindSymViaSymname expected");
           GStrIdx strIdx = ImportStr();
           MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(strIdx);
+          sym->SetHasPotentialAssignment();
           stIdx.SetIdx(sym->GetStIdx().Idx());
         }
-        s->SetStIdx(stIdx);
-        s->SetOpnd(ImportExpression(func), 0);
-        stmt = s;
+        if (op == OP_dassign) {
+          DassignNode *s = func->GetCodeMemPool()->New<DassignNode>();
+          s->SetStIdx(stIdx);
+          s->SetFieldID(num);
+          s->SetOpnd(ImportExpression(func), 0);
+          stmt = s;
+        } else {
+          DassignoffNode *s = func->GetCodeMemPool()->New<DassignoffNode>();
+          s->stIdx = stIdx;
+          s->offset = num;
+          s->SetOpnd(ImportExpression(func), 0);
+          stmt = s;
+        }
         break;
       }
       case OP_regassign: {

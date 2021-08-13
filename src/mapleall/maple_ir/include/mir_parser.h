@@ -101,6 +101,7 @@ class MIRParser {
 
   // Stmt Parser
   bool ParseStmtDassign(StmtNodePtr &stmt);
+  bool ParseStmtDassignoff(StmtNodePtr &stmt);
   bool ParseStmtRegassign(StmtNodePtr &stmt);
   bool ParseStmtIassign(StmtNodePtr &stmt);
   bool ParseStmtIassignoff(StmtNodePtr &stmt);
@@ -156,6 +157,7 @@ class MIRParser {
   // Expression Parser
   bool ParseExpression(BaseNodePtr &expr);
   bool ParseExprDread(BaseNodePtr &expr);
+  bool ParseExprDreadoff(BaseNodePtr &expr);
   bool ParseExprRegread(BaseNodePtr &expr);
   bool ParseExprBinary(BaseNodePtr &expr);
   bool ParseExprCompare(BaseNodePtr &expr);
@@ -171,6 +173,7 @@ class MIRParser {
   bool ParseExprIreadFPoff(BaseNodePtr &expr);
   bool ParseExprIaddrof(BaseNodePtr &expr);
   bool ParseExprAddrof(BaseNodePtr &expr);
+  bool ParseExprAddrofoff(BaseNodePtr &expr);
   bool ParseExprAddroffunc(BaseNodePtr &expr);
   bool ParseExprAddroflabel(BaseNodePtr &expr);
   bool ParseExprUnary(BaseNodePtr &expr);
