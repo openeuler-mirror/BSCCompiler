@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -161,7 +161,7 @@ void LoopFinder::formLoop(BB* headBB, BB* backBB) {
   ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
   LoopHierarchy *simple_loop = memPool->New<LoopHierarchy>(*memPool);
 
-  if ( headBB != backBB) {
+  if (headBB != backBB) {
     ASSERT(!dfsBBs.empty(), "dfsBBs is empty");
     ASSERT(onPathBBs[headBB->GetId()], "headBB is not on execution path");
     std::stack<BB*> tempStk;
@@ -231,17 +231,20 @@ void LoopFinder::markExtraEntryAndEncl() {
   std::vector<bool> inLoop;
   inLoop.resize(cgFunc->NumBBs());
   std::vector<BB *> loopEnclosure;
+  std::vector<BB *> pathFromHead;
+  bool enclosureFlag = false;
+  pathFromHead.resize(cgFunc->NumBBs());
   loopEnclosure.resize(cgFunc->NumBBs());
 
   for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
     fill(visitedBBs.begin(), visitedBBs.end(), false);
     fill(inLoop.begin(), inLoop.end(), false);
     fill(loopEnclosure.begin(), loopEnclosure.end(), nullptr);
-    fill(visitedBBs.begin(), visitedBBs.end(), false);
+    fill(pathFromHead.begin(), pathFromHead.end(), nullptr);
 
+    fill(visitedBBs.begin(), visitedBBs.end(), false);
     for (auto *bb : loop->GetLoopMembers()) {
       inLoop[bb->GetId()] = true;
-      loopEnclosure[bb->GetId()] = bb;
     }
 
     FOR_ALL_BB(bb, cgFunc) {
@@ -250,6 +253,11 @@ void LoopFinder::markExtraEntryAndEncl() {
         while (!dfsBBs.empty()) {
           BB *bb = dfsBBs.top();
           if (visitedBBs[bb->GetId()]) {
+            onPathBBs[bb->GetId()] = false;
+            pathFromHead[bb->GetId()] = nullptr;
+            if (bb->GetId() == loop->GetHeader()->GetId()) {
+              enclosureFlag = false;
+            }
             if (onPathBBs[loop->GetHeader()->GetId()]) {
               for (const auto succBB : bb->GetSuccs()) {
                 if (loopEnclosure[succBB->GetId()] != nullptr) {
@@ -257,25 +265,28 @@ void LoopFinder::markExtraEntryAndEncl() {
                 }
               }
             }
-            if (loopEnclosure[bb->GetId()] == nullptr) {
-              for (const auto succBB : bb->GetSuccs()) {
-                // check if entering a loop.
-                // Entry to a loop is considered as its path does not go through the loop's head
-                if (loopEnclosure[succBB->GetId()] != nullptr &&
-                    succBB->GetId() != loop->GetHeader()->GetId() &&
-                    //!onPathBBs[loop->GetHeader()->GetId()] &&
-                    loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
-                  loop->otherLoopEntries.insert(succBB);
-                }
-              }
-            }
-            onPathBBs[bb->GetId()] = false;
             dfsBBs.pop();
             continue;
           } else {
             visitedBBs[bb->GetId()] = true;
             onPathBBs[bb->GetId()] = true;
+            if (bb->GetId() == loop->GetHeader()->GetId()) {
+              enclosureFlag = true;
+            }
+            if (enclosureFlag) {
+              pathFromHead[bb->GetId()] = bb;
+            }
             for (const auto succBB : bb->GetSuccs()) {
+              // check if entering a loop. Entry to a loop is considered as its path does not go through the loop's head
+              if (inLoop[succBB->GetId()] &&
+                  succBB->GetId() != loop->GetHeader()->GetId() &&
+                  !onPathBBs[loop->GetHeader()->GetId()] &&
+                  loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
+                loop->otherLoopEntries.insert(succBB);
+              }
+              if (inLoop[succBB->GetId()] && onPathBBs[loop->GetHeader()->GetId()]) {
+                loopEnclosure[succBB->GetId()] = succBB;
+              }
               if (!visitedBBs[succBB->GetId()]) {
                 dfsBBs.push(succBB);
               }
@@ -283,10 +294,10 @@ void LoopFinder::markExtraEntryAndEncl() {
           }
         }
       }
-      for(int id = 0; id < loopEnclosure.size(); id++) {
-        if (loopEnclosure[id] != nullptr && !inLoop[id]) {
-          loop->InsertLoopMembers(*loopEnclosure[id]);
-        }
+    }
+    for (int id = 0; id < loopEnclosure.size(); id++) {
+      if (loopEnclosure[id] != nullptr && !inLoop[id]) {
+        loop->InsertLoopMembers(*loopEnclosure[id]);
       }
     }
   }
@@ -509,10 +520,40 @@ void LoopFinder::FormLoopHierarchy() {
   UpdateCGFunc();
 }
 
+void LoopFinder::SplitCriticalEdges() {
+  for (auto it = criticalEdges.begin(); it != criticalEdges.end(); ++it) {
+    cgFunc->GetTheCFG()->BreakCriticalEdge(*((*it).first), *((*it).second));
+  }
+}
+
+void LoopFinder::CollectCriticalEdges() {
+  constexpr int multiPredsNum = 2;
+  FOR_ALL_BB(bb, cgFunc) {
+    const MapleList<BB*> &preds = bb->GetPreds();
+    if (preds.size() < multiPredsNum) {
+      continue;
+    }
+    // current BB is a merge
+    for (BB *pred : preds) {
+      if (pred->GetKind() == BB::kBBGoto || pred->GetKind() == BB::kBBIgoto) {
+        continue;
+      }
+      if (pred->GetSuccs().size() > 1) {
+        // pred has more than one succ
+        criticalEdges.push_back(std::make_pair(pred, bb));
+      }
+    }
+  }
+}
+
 bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
   f.ClearLoopInfo();
   MemPool *loopMemPool = GetPhaseMemPool();
   LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(f, *loopMemPool);
+  if (f.GetMirModule().IsCModule() && f.NumBBs() < kBBLimit) {
+    loopFinder->CollectCriticalEdges();
+    loopFinder->SplitCriticalEdges();
+  }
   loopFinder->FormLoopHierarchy();
 
   if (LOOP_ANALYSIS_DUMP_NEWPM) {
@@ -524,8 +565,6 @@ bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
     lp->CheckLoops();
   }
 #endif
-
   return false;
 }
-MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
 }  /* namespace maplebe */
