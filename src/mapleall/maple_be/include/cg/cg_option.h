@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -383,12 +383,20 @@ class CGOptions : public MapleDriverOptionBase {
     return skipFrom.compare(phaseName) == 0;
   }
 
+  static const std::string GetSkipFromPhase() {
+    return skipFrom;
+  }
+
   static void SetSkipFrom(const std::string &phaseName) {
     skipFrom = phaseName;
   }
 
   static bool IsSkipAfterPhase(const std::string &phaseName) {
     return skipAfter.compare(phaseName) == 0;
+  }
+
+  static const std::string GetSkipAfterPhase() {
+    return skipAfter;
   }
 
   static void SetSkipAfter(const std::string &phaseName) {
@@ -654,6 +662,17 @@ class CGOptions : public MapleDriverOptionBase {
 
   static bool DoGlobalOpt() {
     return doGlobalOpt;
+  }
+  static void EnableVregRename() {
+    doVregRename = true;
+  }
+
+  static void DisableVregRename() {
+    doVregRename = false;
+  }
+
+  static bool DoVregRename() {
+    return doVregRename;
   }
 
   static void EnableMultiPassColorRA() {
@@ -1058,6 +1077,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doICO;
   static bool doStoreLoadOpt;
   static bool doGlobalOpt;
+  static bool doVregRename;
   static bool doMultiPassColorRA;
   static bool doPrePeephole;
   static bool doPeephole;

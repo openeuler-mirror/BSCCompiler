@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -65,6 +65,7 @@ bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;
 bool CGOptions::doGlobalOpt = false;
+bool CGOptions::doVregRename = true;
 bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
@@ -119,6 +120,7 @@ enum OptionIndex : uint64 {
   kPeep,
   kPreSchedule,
   kSchedule,
+  kVregRename,
   kMultiPassRA,
   kWriteRefFieldOpt,
   kDumpOlog,
@@ -405,6 +407,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --schedule                  \tPerform scheduling\n"
     "  --no-schedule\n",
+    "mplcg",
+    {} },
+  { kVregRename,
+    kEnable,
+    "",
+    "vreg-rename",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --vreg-rename                  \tPerform rename of long live range around loops in coloring RA\n"
+    "  --no-vreg-rename\n",
     "mplcg",
     {} },
   { kMultiPassRA,
@@ -1289,6 +1301,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kSchedule:
         (opt.Type() == kEnable) ? EnableSchedule() : DisableSchedule();
         break;
+      case kVregRename:
+        (opt.Type() == kEnable) ? EnableVregRename() : DisableVregRename();
+        break;
       case kMultiPassRA:
         (opt.Type() == kEnable) ? EnableMultiPassColorRA() : DisableMultiPassColorRA();
         break;
@@ -1517,6 +1532,6 @@ bool CGOptions::DumpPhase(const std::string &phase) {
 
 /* match sub std::string of function name */
 bool CGOptions::FuncFilter(const std::string &name) {
-  return ((dumpFunc.compare("*") == 0) || (name.find(dumpFunc.c_str()) != std::string::npos));
+  return dumpFunc == "*" || dumpFunc == name;
 }
 }  /* namespace maplebe */
