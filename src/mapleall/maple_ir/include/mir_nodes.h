@@ -1283,6 +1283,29 @@ class AddrofNode : public BaseNode {
 // DreadNode has the same member fields and member methods as AddrofNode
 using DreadNode = AddrofNode;
 
+class DreadoffNode : public BaseNode {
+ public:
+  explicit DreadoffNode(Opcode o) : BaseNode(o), stIdx() {}
+
+  DreadoffNode(Opcode o, PrimType typ) : BaseNode(o, typ, 0),  stIdx() {}
+
+  virtual ~DreadoffNode() = default;
+
+  void Dump(int32 indent) const override;
+
+  DreadoffNode *CloneTree(MapleAllocator &allocator) const override {
+    return allocator.GetMemPool()->New<DreadoffNode>(*this);
+  }
+
+  bool IsVolatile(const MIRModule &mod) const;
+ public:
+  StIdx stIdx;
+  int32 offset = 0;
+};
+
+// AddrofoffNode has the same member fields and member methods as DreadoffNode
+using AddrofoffNode = DreadoffNode;
+
 class RegreadNode : public BaseNode {
  public:
   RegreadNode() : BaseNode(OP_regread) {}
@@ -2052,6 +2075,42 @@ class DassignNode : public UnaryStmtNode {
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
+};
+
+class DassignoffNode : public UnaryStmtNode {
+ public:
+  DassignoffNode() : UnaryStmtNode(OP_dassignoff), stIdx() {}
+
+  explicit DassignoffNode(PrimType typ) : UnaryStmtNode(OP_dassignoff, typ), stIdx() {}
+
+  DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassign, typ, opnd), stIdx() {}
+
+  virtual ~DassignoffNode() = default;
+
+  void Dump(int32 indent) const override;
+
+  DassignoffNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<DassignoffNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+    node->SetOpnd(Opnd(0)->CloneTree(allocator), 0);
+    return node;
+  }
+
+  size_t NumOpnds() const override {
+    return 1;
+  }
+
+  BaseNode *GetRHS() const override {
+    return UnaryStmtNode::GetRHS();
+  }
+
+  void SetRHS(BaseNode *rhs) override {
+    UnaryStmtNode::SetOpnd(rhs, 0);
+  }
+
+ public:
+  StIdx stIdx;
+  int32 offset = 0;
 };
 
 class RegassignNode : public UnaryStmtNode {
@@ -3186,9 +3245,14 @@ class AsmNode : public NaryStmtNode {
         asmOutputs(alloc->Adapter()), outputConstraints(alloc->Adapter()),
         clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
 
-  AsmNode(const AsmNode &node) = delete;
-  AsmNode &operator=(const AsmNode &node) = delete;
+  AsmNode(MapleAllocator &allocator, const AsmNode &node)
+      : NaryStmtNode(allocator, OP_asm), asmString(node.asmString), inputConstraints(allocator.Adapter()),
+        asmOutputs(allocator.Adapter()), outputConstraints(allocator.Adapter()),
+        clobberList(allocator.Adapter()), gotoLabels(allocator.Adapter()), qualifiers(node.qualifiers) {}
+
   virtual ~AsmNode() = default;
+
+  AsmNode *CloneTree(MapleAllocator &allocator) const override;
 
   void SetQualifier(AsmQualifierKind x) {
     qualifiers |= (1U << static_cast<uint32>(x));
@@ -3216,6 +3280,7 @@ class AsmNode : public NaryStmtNode {
 };
 
 void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent);
+bool HasIreadExpr(const BaseNode *expr);
 }  // namespace maple
 
 #define LOAD_SAFE_CAST_FOR_MIR_NODE
