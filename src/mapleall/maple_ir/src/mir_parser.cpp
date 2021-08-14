@@ -39,6 +39,10 @@ bool MIRParser::ParseStmtDassign(StmtNodePtr &stmt) {
     Error("expect a symbol parsing ParseStmtDassign");
     return false;
   }
+  if (stidx.IsGlobal()) {
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stidx.Idx());
+    sym->SetHasPotentialAssignment();
+  }
   auto *assignStmt = mod.CurFuncCodeMemPool()->New<DassignNode>();
   assignStmt->SetStIdx(stidx);
   TokenKind nextToken = lexer.NextToken();
@@ -46,6 +50,47 @@ bool MIRParser::ParseStmtDassign(StmtNodePtr &stmt) {
   if (nextToken == TK_intconst) {  // may be a field id
     assignStmt->SetFieldID(lexer.GetTheIntVal());
     (void)lexer.NextToken();
+  }
+  // parse expression like (constval i32 0)
+  BaseNode *expr = nullptr;
+  if (!ParseExprOneOperand(expr)) {
+    return false;
+  }
+  assignStmt->SetRHS(expr);
+  stmt = assignStmt;
+  lexer.NextToken();
+  return true;
+}
+
+bool MIRParser::ParseStmtDassignoff(StmtNodePtr &stmt) {
+  if (lexer.GetTokenKind() != TK_dassignoff) {
+    Error("expect dassignoff but get ");
+    return false;
+  }
+  // parse %i
+  lexer.NextToken();
+  StIdx stidx;
+  if (!ParseDeclaredSt(stidx)) {
+    return false;
+  }
+  if (stidx.FullIdx() == 0) {
+    Error("expect a symbol parsing ParseStmtDassign");
+    return false;
+  }
+  if (stidx.IsGlobal()) {
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stidx.Idx());
+    sym->SetHasPotentialAssignment();
+  }
+  DassignoffNode *assignStmt = mod.CurFuncCodeMemPool()->New<DassignoffNode>();
+  assignStmt->stIdx = stidx;
+  TokenKind nextToken = lexer.NextToken();
+  // parse offset
+  if (nextToken == TK_intconst) {
+    assignStmt->offset = lexer.GetTheIntVal();
+    (void)lexer.NextToken();
+  } else {
+    Error("expect integer offset but get ");
+    return false;
   }
   // parse expression like (constval i32 0)
   BaseNode *expr = nullptr;
@@ -1624,6 +1669,9 @@ bool MIRParser::ParseStmtBlockForVar(TokenKind stmtTK) {
     Error("duplicate declare symbol parse function ");
     return false;
   }
+  if (!ParseDeclareVarInitValue(*st)) {
+    return false;
+  }
   return true;
 }
 
@@ -1997,6 +2045,41 @@ bool MIRParser::ParseExprDread(BaseNodePtr &expr) {
   }
   if (!dexpr->CheckNode(mod)) {
     Error("dread is not legal");
+    return false;
+  }
+  return true;
+}
+
+bool MIRParser::ParseExprDreadoff(BaseNodePtr &expr) {
+  if (lexer.GetTokenKind() != TK_dreadoff) {
+    Error("expect dreadoff but get ");
+    return false;
+  }
+  DreadoffNode *dexpr = mod.CurFuncCodeMemPool()->New<DreadoffNode>(OP_dreadoff);
+  expr = dexpr;
+  lexer.NextToken();
+  TyIdx tyidx(0);
+  bool parseRet = ParsePrimType(tyidx);
+  if (tyidx == 0u || !parseRet) {
+    Error("expect primitive type but get ");
+    return false;
+  }
+  expr->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx));
+  StIdx stidx;
+  if (!ParseDeclaredSt(stidx)) {
+    return false;
+  }
+  if (stidx.FullIdx() == 0) {
+    Error("expect a symbol ParseExprDread failed");
+    return false;
+  }
+  dexpr->stIdx = stidx;
+  TokenKind endtk = lexer.NextToken();
+  if (endtk == TK_intconst) {
+    dexpr->offset = lexer.GetTheIntVal();
+    lexer.NextToken();
+  } else {
+    Error("expect integer offset but get ");
     return false;
   }
   return true;
@@ -2376,6 +2459,10 @@ bool MIRParser::ParseExprAddrof(BaseNodePtr &expr) {
     Error("expect symbol ParseExprAddroffunc");
     return false;
   }
+  if (stidx.IsGlobal()) {
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stidx.Idx());
+    sym->SetHasPotentialAssignment();
+  }
   addrofNode->SetStIdx(stidx);
   TokenKind tk = lexer.NextToken();
   if (IsDelimitationTK(tk)) {
@@ -2385,6 +2472,45 @@ bool MIRParser::ParseExprAddrof(BaseNodePtr &expr) {
     lexer.NextToken();
   } else {
     addrofNode->SetFieldID(0);
+  }
+  return true;
+}
+
+bool MIRParser::ParseExprAddrofoff(BaseNodePtr &expr) {
+  // syntax: addrofoff <prim-type> <var-name> <offset>
+  AddrofoffNode *addrofoffNode = mod.CurFuncCodeMemPool()->New<AddrofoffNode>(OP_addrofoff);
+  expr = addrofoffNode;
+  if (lexer.GetTokenKind() != TK_addrofoff) {
+    Error("expect addrofoff but get ");
+    return false;
+  }
+  lexer.NextToken();
+  TyIdx tyidx(0);
+  if (!ParsePrimType(tyidx)) {
+    Error("expect primitive type but get ");
+    return false;
+  }
+  addrofoffNode->SetPrimType(GlobalTables::GetTypeTable().GetPrimTypeFromTyIdx(tyidx));
+  StIdx stidx;
+  if (!ParseDeclaredSt(stidx)) {
+    return false;
+  }
+  if (stidx.FullIdx() == 0) {
+    Error("expect symbol ParseExprAddroffunc");
+    return false;
+  }
+  if (stidx.IsGlobal()) {
+    MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(stidx.Idx());
+    sym->SetHasPotentialAssignment();
+  }
+  addrofoffNode->stIdx = stidx;
+  TokenKind tk = lexer.NextToken();
+  if (tk == TK_intconst) {
+    addrofoffNode->offset = lexer.GetTheIntVal();
+    lexer.NextToken();
+  } else {
+    Error("expect integer offset but get ");
+    return false;
   }
   return true;
 }
@@ -2893,6 +3019,7 @@ bool MIRParser::ParseExpression(BaseNodePtr &expr) {
 std::map<TokenKind, MIRParser::FuncPtrParseExpr> MIRParser::InitFuncPtrMapForParseExpr() {
   std::map<TokenKind, MIRParser::FuncPtrParseExpr> funcPtrMap;
   funcPtrMap[TK_addrof] = &MIRParser::ParseExprAddrof;
+  funcPtrMap[TK_addrofoff] = &MIRParser::ParseExprAddrofoff;
   funcPtrMap[TK_addroffunc] = &MIRParser::ParseExprAddroffunc;
   funcPtrMap[TK_addroflabel] = &MIRParser::ParseExprAddroflabel;
   funcPtrMap[TK_abs] = &MIRParser::ParseExprUnary;
@@ -2930,6 +3057,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseExpr> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_ireadoff] = &MIRParser::ParseExprIreadoff;
   funcPtrMap[TK_ireadfpoff] = &MIRParser::ParseExprIreadFPoff;
   funcPtrMap[TK_dread] = &MIRParser::ParseExprDread;
+  funcPtrMap[TK_dreadoff] = &MIRParser::ParseExprDreadoff;
   funcPtrMap[TK_regread] = &MIRParser::ParseExprRegread;
   funcPtrMap[TK_add] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_ashr] = &MIRParser::ParseExprBinary;
@@ -2965,6 +3093,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseExpr> MIRParser::InitFuncPtrMapForPar
 std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForParseStmt() {
   std::map<TokenKind, MIRParser::FuncPtrParseStmt> funcPtrMap;
   funcPtrMap[TK_dassign] = &MIRParser::ParseStmtDassign;
+  funcPtrMap[TK_dassignoff] = &MIRParser::ParseStmtDassignoff;
   funcPtrMap[TK_iassign] = &MIRParser::ParseStmtIassign;
   funcPtrMap[TK_iassignoff] = &MIRParser::ParseStmtIassignoff;
   funcPtrMap[TK_iassignfpoff] = &MIRParser::ParseStmtIassignFPoff;
