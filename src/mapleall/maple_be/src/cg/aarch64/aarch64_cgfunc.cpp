@@ -1076,6 +1076,24 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   }
 }
 
+void AArch64CGFunc::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
+  MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(stmt.stIdx);
+  int32 offset = stmt.offset;
+  int32 size = GetPrimTypeSize(stmt.GetPrimType());
+  MOperator mOp = (size == k2ByteSize) ? MOP_wstrh :
+                      ((size == k4ByteSize) ? MOP_wstr :
+                          ((size == k8ByteSize) ? MOP_xstr : MOP_undef));
+  CHECK_FATAL(mOp != MOP_undef, "illegal size for dassignoff");
+  MemOperand *memOpnd = &GetOrCreateMemOpnd(*symbol, offset, size);
+  AArch64MemOperand &archMemOperand = *static_cast<AArch64MemOperand*>(memOpnd);
+  if ((memOpnd->GetMemVaryType() == kNotVary) && IsImmediateOffsetOutOfRange(archMemOperand, size)) {
+    memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, size);
+  }
+  Operand &stOpnd = LoadIntoRegister(opnd0, true, size, false);
+  Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(mOp, stOpnd, *memOpnd);
+  GetCurBB()->AppendInsn(insn);
+}
+
 void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   Operand *opnd0 = HandleExpr(stmt, *stmt.Opnd(0));
   RegOperand &baseReg = LoadIntoRegister(*opnd0, PTY_a64);
@@ -1824,6 +1842,16 @@ void AArch64CGFunc::SelectIassign(IassignNode &stmt) {
     AArch64CGFunc::SelectStoreRelease(memOpnd, destType, srcOpnd, destType, memOrd, false);
   }
   GetCurBB()->GetLastInsn()->MarkAsAccessRefField(isRefField);
+}
+
+void AArch64CGFunc::SelectIassignoff(IassignoffNode &stmt) {
+  int32 offset = stmt.GetOffset();
+  PrimType destType = stmt.GetPrimType();
+
+  MemOperand &memOpnd = CreateMemOpnd(destType, stmt, *stmt.GetBOpnd(0), offset);
+  Operand *valOpnd = HandleExpr(stmt, *stmt.GetBOpnd(1));
+  Operand &srcOpnd = LoadIntoRegister(*valOpnd, true, GetPrimTypeBitSize(destType));
+  SelectCopy(memOpnd, destType, srcOpnd, destType);
 }
 
 void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
