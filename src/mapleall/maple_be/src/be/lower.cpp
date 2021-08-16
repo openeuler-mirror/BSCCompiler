@@ -1018,6 +1018,7 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
     MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)opnd->GetPrimType(), NewAsmTempStrIdx(),
         kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
     DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
+
     newBlk->AddStatement(dass);
     asmNode->SetOpnd(mirModule.GetMIRBuilder()->CreateExprDread(*st), i);
   }
@@ -1095,6 +1096,7 @@ StmtNode *CGLowerer::GenCallNode(const StmtNode &stmt, PUIdx &funcCalled, CallNo
   } else if (stmt.GetOpCode() == OP_interfacecallassigned) {
     newCall = mirModule.GetMIRBuilder()->CreateStmtInterfaceCall(origCall.GetPUIdx(), origCall.GetNopnd());
   }
+  newCall->SetSrcPos(stmt.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = origCall.GetPUIdx();
   CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_interfacecall),
@@ -1128,6 +1130,7 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
                                                                      origCall.GetTyIdx());
       }
     }
+    newCall->SetSrcPos(stmt.GetSrcPos());
     funcCalled = bFunc;
     CHECK_FATAL((newCall->GetOpCode() == OP_call || newCall->GetOpCode() == OP_intrinsiccall),
                 "xintrinsic and intrinsiccallwithtype call is not expected");
@@ -1138,6 +1141,7 @@ StmtNode *CGLowerer::GenIntrinsiccallNode(const StmtNode &stmt, PUIdx &funcCalle
 StmtNode *CGLowerer::GenIcallNode(PUIdx &funcCalled, IcallNode &origCall) {
   StmtNode *newCall = nullptr;
   newCall = mirModule.GetMIRBuilder()->CreateStmtIcall(origCall.GetNopnd());
+  newCall->SetSrcPos(origCall.GetSrcPos());
   CHECK_FATAL(newCall != nullptr, "nullptr is not expected");
   funcCalled = kFuncNotFound;
   return newCall;
@@ -1336,6 +1340,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                 }
                 CallNode *callStmt = mirModule.GetMIRBuilder()->CreateStmtCall(
                   callnode->GetPUIdx(), callnode->GetNopnd());
+                callStmt->SetSrcPos(callnode->GetSrcPos());
                 newBlk.AddStatement(callStmt);
 
                 uint32 origSize = size;
@@ -3411,6 +3416,26 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   case INTRN_C_isaligned:
   case INTRN_C_alignup:
   case INTRN_C_aligndown:
+  case INTRN_C___sync_add_and_fetch_2:
+  case INTRN_C___sync_add_and_fetch_4:
+  case INTRN_C___sync_add_and_fetch_8:
+  case INTRN_C___sync_sub_and_fetch_2:
+  case INTRN_C___sync_sub_and_fetch_4:
+  case INTRN_C___sync_sub_and_fetch_8:
+  case INTRN_C___sync_fetch_and_add_2:
+  case INTRN_C___sync_fetch_and_add_4:
+  case INTRN_C___sync_fetch_and_add_8:
+  case INTRN_C___sync_fetch_and_sub_2:
+  case INTRN_C___sync_fetch_and_sub_4:
+  case INTRN_C___sync_fetch_and_sub_8:
+  case INTRN_C___sync_bool_compare_and_swap_4:
+  case INTRN_C___sync_bool_compare_and_swap_8:
+  case INTRN_C___sync_val_compare_and_swap_4:
+  case INTRN_C___sync_val_compare_and_swap_8:
+  case INTRN_C___sync_lock_test_and_set_4:
+  case INTRN_C___sync_lock_test_and_set_8:
+  case INTRN_C___sync_lock_release_8:
+  case INTRN_C___sync_lock_release_4:
     return true;
 #endif
   default:
