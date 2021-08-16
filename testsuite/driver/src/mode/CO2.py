@@ -15,20 +15,31 @@
 from api import *
 
 CO2 = {
-    "clean": [
-        Shell(
-            "rm -rf *.mpl *.s *.out *.B"
-        )
-    ],
     "compile": [
-        Clang2mpl(
-            infile="${APP}.c"
+        C2ast(
+            clang="${OUT_ROOT}/tools/bin/clang",
+            include_path=[
+                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/lib/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include",
+                "${OUT_ROOT}/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include",
+                "../lib/include"
+            ],
+            option="--target=aarch64 -U __SIZEOF_INT128__",
+            infile="${APP}.c",
+            outfile="${APP}.ast"
+        ),
+        Mplfe(
+            mplfe="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/mplfe",
+            infile="${APP}.ast",
+            outfile="${APP}.mpl"
         ),
         Maple(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
-            run=["mplcg"],
+            run=["me", "mpl2mpl", "mplcg"],
             option={
-                "mplcg": "-O2 --quiet"
+                "me": "-O2 --quiet",
+                "mpl2mpl": "-O2",
+                "mplcg": "-O2 --fpic --quiet"
             },
             global_option="",
             infile="${APP}.mpl"
@@ -41,16 +52,12 @@ CO2 = {
         )
     ],
     "run": [
-        QemuRun(
-            qemu_libc=[
-                "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc"                            
-            ],
-            infile="${APP}.out",
-            redirection="output.log"                                
+        Shell(
+            "${OUT_ROOT}/tools/bin/qemu-aarch64 -L ${OUT_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc ${APP}.out > output.log 2>&1"
         ),
         CheckFileEqual(
             file1="output.log",
-            file2="expected.txt"                                         
-        )
+            file2="expected.txt"
+	)
     ]
 }

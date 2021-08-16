@@ -14,17 +14,19 @@
 
 from api.shell_operator import ShellOperator
 
+
 class C2ast(ShellOperator):
 
-    def __init__(self, clang, infile, include_path, outfile, option="", return_value_list=None, redirection=None):
+    def __init__(self, clang, infile, include_path, outfile, option="", return_value_list=None, redirection=None, extra_opt=""):
         super().__init__(return_value_list, redirection)
         self.clang = clang
         self.infile = infile
         self.option = option
         self.include_path = include_path
         self.outfile = outfile
+        self.extra_opt = extra_opt
 
     def get_command(self, variables):
         include_path_str = " ".join(["-isystem " + path for path in self.include_path])
-        self.command = self.clang + " -emit-ast " + self.option + " " + include_path_str + " -o " + self.outfile + " " + self.infile
+        self.command = self.clang + " -emit-ast " + self.option + " " + include_path_str + " -o " + self.outfile + " " + self.extra_opt + " " + self.infile
         return super().get_final_command(variables)

@@ -158,9 +158,9 @@ group("maple-rt") {
   deps = [
     "${MAPLE_MRT_ROOT}/compiler-rt:libmplcompiler-rt",
     "${MAPLE_MRT_ROOT}/dexinterface:libdexinterface",
-    "${THIRD_PARTY_ROOT}/bounds_checking_function:libhuawei_secure_c",
     "${MAPLE_MRT_ROOT}/interpreter:libzterp",
     "${MAPLE_MRT_ROOT}/libcore-static-binding-jni:libcore-static-binding-jni",
     "${MAPLE_MRT_ROOT}/maplert:libmaplert",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libhuawei_secure_c",
   ]
 }

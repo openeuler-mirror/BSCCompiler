@@ -147,7 +147,6 @@ def split_string_not_in_the_same_symbols(symbol, split_symbol, str):
         split_list.append(tmp)
     return split_list
 
-
 def split_string_by_comma_not_in_double_quotes(str):
     return split_string_not_in_the_same_symbols('"', ',', str)
 
@@ -188,3 +187,35 @@ def contain_symbol_outside_outermost_common_symbols(symbol, str):
     result4 = contain_symbol_outside_outermost_two_symbols(symbol, '[', ']', str)
     result5 = contain_symbol_outside_outermost_two_symbols(symbol, '{', '}', str)
     return result1 & result2 & result3 & result4
+
+
+def split_string_by_comma_not_in_bracket_and_quote(String):
+    in_bracket = 0
+    in_double_quote = 0
+    in_single_quote = 0
+    split_list = []
+    tmp = ""
+    old_char = ""
+    for ch in String:
+        if ch == '[' and in_bracket == 0:
+            in_bracket = 1
+        elif ch == ']' and in_bracket == 1:
+            in_bracket = 0
+        elif ch == '"' and in_double_quote == 0:
+            in_double_quote = 1
+        elif ch == '"' and in_double_quote == 1:
+            in_double_quote = 0
+        elif ch == "'" and in_single_quote == 0:
+            in_single_quote = 1
+        elif ch == "'" and in_single_quote == 1:
+            in_single_quote = 0
+        elif ch == ',' and old_char != '\\' and not (in_bracket or in_double_quote or in_single_quote):
+            split_list.append(tmp)
+            old_char = ch
+            tmp = ''
+            continue
+        tmp += ch
+        old_char = ch
+    if tmp != "":
+        split_list.append(tmp)
+    return split_list

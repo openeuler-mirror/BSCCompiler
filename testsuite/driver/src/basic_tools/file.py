@@ -113,3 +113,28 @@ def search_all_file(path, file_name, type):
                 all_target_path.append(item_path)
                 break
     return all_target_path
+
+def walk_all_files(path):
+    all_file_list = []
+    for fpathe, dirs, fs in os.walk(path):
+        all_file_list += [os.path.join(fpathe,f) for f in fs]
+    return all_file_list
+
+def rm_empty_folder(path):
+    if not os.path.isdir(path):
+        return
+    files = os.listdir(path)
+    for fullpath in [os.path.join(path, f) for f in files]:
+        rm_empty_folder(fullpath)
+    files = os.listdir(path)
+    if not len(files):
+        os.rmdir(path)
+
+def get_sub_files(path):
+    all_sub_files = []
+    for folder in os.listdir(path):
+        if not os.path.isdir(folder):
+            continue
+        for fpathe, dirs, fs in os.walk(folder):
+            all_sub_files += [os.path.join(fpathe,file) for file in fs]
+    return all_sub_files

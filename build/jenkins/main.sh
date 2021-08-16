@@ -14,8 +14,11 @@ function debug_test {
   make irbuild
   make mplfe
   make clang2mpl
-  make irbuild_test
-  make c_test
+  mkdir -p ${MAPLE_ROOT}/output/script
+  cp ${MAPLE_ROOT}/testsuite/driver/script/check.py ${MAPLE_ROOT}/output/script/
+  cp ${MAPLE_ROOT}/testsuite/driver/script/kernel.py ${MAPLE_ROOT}/output/script/
+  mm irbuild_test
+  mm c_test
 }
 
 function release_test {
@@ -39,8 +42,17 @@ function release_test {
   make irbuild
   make mplfe
   make clang2mpl
-  make libcore OPT=O0
-  make libcore OPT=O2
+
+  mode_list="O0 O2 GC_O0 GC_O2"
+  for mode in $mode_list
+  do
+    make libcore OPT=${mode}
+    cp -rf $MAPLE_BUILD_OUTPUT/lib/${mode}/libcore-all.so $MAPLE_BUILD_OUTPUT/ops/host-x86_64-${mode}/libcore-all.so
+  done
+
+  mkdir -p ${MAPLE_ROOT}/output/script
+  cp ${MAPLE_ROOT}/testsuite/driver/script/check.py ${MAPLE_ROOT}/output/script/
+  cp ${MAPLE_ROOT}/testsuite/driver/script/kernel.py ${MAPLE_ROOT}/output/script/
 
   for dir in $sample_list
   do
@@ -54,7 +66,7 @@ function release_test {
   fi
 
   cd $MAPLE_ROOT
-  make testall
+  mm testall
 
   make ctorture-ci
 }

@@ -14,7 +14,7 @@
 
 import os
 
-mode_dict = locals()
+mode_dict = {}
 my_dir = os.path.dirname(__file__)
 for py in os.listdir(my_dir):
     if py == '__init__.py':
