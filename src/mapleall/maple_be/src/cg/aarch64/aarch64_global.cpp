@@ -171,9 +171,26 @@ bool OptimizePattern::InsnDefOneOrZero(Insn &insn) {
   }
 }
 
+void ReplaceAsmListReg(Insn *insn, uint32 index, uint32 regNO, Operand *newOpnd) {
+  MapleList<RegOperand*> *list = &static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands();
+  int32 size = list->size();
+  for (int i = 0; i < size; ++i) {
+    RegOperand *opnd = static_cast<RegOperand *>(*(list->begin()));
+    list->pop_front();
+    if (opnd->GetRegisterNumber() == regNO) {
+      list->push_back(static_cast<RegOperand *>(newOpnd));
+    } else {
+      list->push_back(opnd);
+    }
+  }
+}
+
 void OptimizePattern::ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, uint32 regNO,
                                                     Operand &newOpnd, bool updateInfo) const {
   for (auto useInsn : useInsnSet) {
+    if (useInsn->GetMachineOpcode() == MOP_asm) {
+      ReplaceAsmListReg(useInsn, kAsmInputListOpnd, regNO, &newOpnd);
+    }
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(useInsn)->GetMachineOpcode()];
     uint32 opndNum = useInsn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
@@ -268,6 +285,11 @@ void ForwardPropPattern::Optimize(Insn &insn) {
   uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
 
   for (auto *useInsn : firstRegUseInsnSet) {
+    if (useInsn->GetMachineOpcode() == MOP_asm) {
+      ReplaceAsmListReg(useInsn, kAsmInputListOpnd, firstRegNO, &secondOpnd);
+      cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
+      continue;
+    }
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(useInsn)->GetMachineOpcode()];
     uint32 opndNum = useInsn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {
@@ -397,6 +419,9 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
     return false;
   }
   defInsnForSecondOpnd = defInsnVec.back();
+  if (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm) {
+    return false;
+  }
   /* part defined */
   if ((defInsnForSecondOpnd->GetMachineOpcode() == MOP_xmovkri16) ||
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16)) {
@@ -447,12 +472,10 @@ bool BackPropPattern::CheckCondition(Insn &insn) {
   if (!CheckAndGetOpnd(insn)) {
     return false;
   }
-#ifdef DestOpndHasUseInsnsNeeded
   /* Unless there is a reason that dest can not live out the current BB */
-  if (!DestOpndHasUseInsns(insn)) {
+  if (cgFunc.HasAsm() && !DestOpndHasUseInsns(insn)) {
     return false;
   }
-#endif
   /* first register must not be live out to eh_succs */
   if (DestOpndLiveOutToEHSuccs(insn)) {
     return false;
@@ -1198,17 +1221,15 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
 void ExtendShiftOptPattern::Optimize(Insn &insn) {
   if (shiftOp == BitShiftOperand::kLSL) {
     InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(*defInsn, kInsnSecondOpnd, false);
-    if (preDef.size() == 1) {
-      Insn *preDefInsn = *preDef.begin();
-      CHECK_FATAL((preDefInsn != nullptr), "defInsn is null!");
-      SelectExtenOp(*preDefInsn);
-      /* preDefInsn must be uxt/sxt */
-      if (extendOp != ExtendShiftOperand::kUndef) {
-        AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand &>(defInsn->GetOperand(kInsnThirdOpnd));
-        /* do pattern2 */
-        ReplaceUseInsn(insn, *preDefInsn, immOpnd.GetValue());
-        return;
-      }
+    Insn *preDefInsn = *preDef.begin();
+    CHECK_FATAL((preDefInsn != nullptr), "defInsn is null!");
+    SelectExtenOp(*preDefInsn);
+    /* preDefInsn must be uxt/sxt */
+    if (extendOp != ExtendShiftOperand::kUndef) {
+      AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+      /* do pattern2 */
+      ReplaceUseInsn(insn, *preDefInsn, immOpnd.GetValue());
+      return;
     }
   }
   /* reset shiftOp and extendOp */
@@ -1218,7 +1239,7 @@ void ExtendShiftOptPattern::Optimize(Insn &insn) {
     /* do pattern1 */
     ReplaceUseInsn(insn, *defInsn, 0);
   } else if (shiftOp != BitShiftOperand::kUndef) {
-    /* do pattern3 */
+    /* do pattern2 */
     AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
     ReplaceUseInsn(insn, *defInsn, immOpnd.GetValue());
   } else {

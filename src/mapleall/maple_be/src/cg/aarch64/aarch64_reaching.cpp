@@ -14,7 +14,6 @@
  */
 #include "aarch64_reaching.h"
 #include "aarch64_cg.h"
-#include "aarch64_operand.h"
 namespace maplebe {
 /* MCC_ClearLocalStackRef clear 1 stack slot, and MCC_DecRefResetPair clear 2 stack slot,
  * the stack positins cleared are recorded in callInsn->clearStackOffset
@@ -191,6 +190,12 @@ void AArch64ReachingDefinition::GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 inde
   }
 }
 
+void AArch64ReachingDefinition::GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) {
+  for (auto reg : static_cast<AArch64ListOperand&>(insn.GetOperand(index)).GetOperands()) {
+    regUse[bb.GetId()]->SetBit(static_cast<RegOperand *>(reg)->GetRegisterNumber());
+  }
+}
+
 /* all caller saved register are modified by call insn */
 void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb) {
   for (uint32 i = R0; i <= V31; ++i) {
@@ -200,7 +205,7 @@ void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb) {
   }
 }
 
-static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn*> &defInsnVec) {
+static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vector<Insn *> &defInsnVec) {
   for (auto reg : static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands()) {
     if (static_cast<RegOperand *>(reg)->GetRegisterNumber() == regNO) {
       defInsnVec.emplace_back(insn);
@@ -214,8 +219,8 @@ static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vec
  * find definition for register between startInsn and endInsn.
  * startInsn and endInsn must be in same BB and startInsn and endInsn are included
  */
-std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn,
-                                                                    Insn *endInsn) const {
+std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
+    uint32 regNO, Insn *startInsn, Insn *endInsn) const {
   std::vector<Insn*> defInsnVec;
   if (startInsn == nullptr || endInsn == nullptr) {
     return defInsnVec;
@@ -354,8 +359,8 @@ bool AArch64ReachingDefinition::CallInsnClearDesignateStackRef(const Insn &callI
  *      add x0, x29, #24
  *      bl MCC_ClearLocalStackRef
  */
-std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(uint32 offset, const Insn *startInsn,
-                                                                    Insn *endInsn) const {
+std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(
+    uint32 offset, const Insn *startInsn, Insn *endInsn) const {
   std::vector<Insn*> defInsnVec;
   if (startInsn == nullptr || endInsn == nullptr) {
     return defInsnVec;
@@ -490,7 +495,6 @@ void AArch64ReachingDefinition::DFSFindDefForRegOpnd(const BB &startBB, uint32 r
     if (regGen[predBB->GetId()]->TestBit(regNO)) {
       defInsnVec.clear();
       defInsnVec = FindRegDefBetweenInsn(regNO, predBB->GetFirstInsn(), predBB->GetLastInsn());
-      ASSERT(!defInsnVec.empty(), "opnd must be defined in this bb");
       defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
     } else if (regIn[predBB->GetId()]->TestBit(regNO)) {
       DFSFindDefForRegOpnd(*predBB, regNO, visitedBB, defInsnSet);
@@ -621,6 +625,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
       if (IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, regUseInsnSet)) {
         break;
       }
+      continue;
     }
     /* if insn is call and regNO is caller-saved register, then regNO will not be used later */
     if (insn->IsCall() && IsCallerSavedReg(regNO)) {
@@ -888,6 +893,7 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
       if (insn->GetMachineOpcode() == MOP_asm) {
         GenAllAsmDefRegs(bb, *insn, kAsmOutputListOpnd);
         GenAllAsmDefRegs(bb, *insn, kAsmClobberListOpnd);
+        GenAllAsmUseRegs(bb, *insn, kAsmInputListOpnd);
         continue;
       } else {
         GenAllCallerSavedRegs(bb);
