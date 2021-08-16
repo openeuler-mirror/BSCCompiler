@@ -221,20 +221,20 @@ DEFINE_MOP(MOP_vcvtudr, {mopdReg64FD,mopdReg32IS},ISCONVERSION,kLtR2fCvt,"ucvtf"
 DEFINE_MOP(MOP_xvcvtudr, {mopdReg64FD,mopdReg64IS},ISCONVERSION,kLtR2fCvt,"ucvtf","0,1",1)
 
 /* MOP_xcsel */
-DEFINE_MOP(MOP_wcselrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"csel","0,1,2,3",1)
-DEFINE_MOP(MOP_xcselrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"csel","0,1,2,3",1)
+DEFINE_MOP(MOP_wcselrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csel","0,1,2,3",1)
+DEFINE_MOP(MOP_xcselrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csel","0,1,2,3",1)
 
 /* MOP_xcset -- all conditions minus AL & NV */
-DEFINE_MOP(MOP_wcsetrc, {mopdReg32ID,mopdCond},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
-DEFINE_MOP(MOP_xcsetrc, {mopdReg64ID,mopdCond},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
+DEFINE_MOP(MOP_wcsetrc, {mopdReg32ID,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
+DEFINE_MOP(MOP_xcsetrc, {mopdReg64ID,mopdCond,mopdRegCCS},ISCONDSET | ISCONDDEF,kLtAlu,"cset","0,1",1)
 
 /* MOP_xcsinc */
-DEFINE_MOP(MOP_wcsincrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
-DEFINE_MOP(MOP_xcsincrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
+DEFINE_MOP(MOP_wcsincrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
+DEFINE_MOP(MOP_xcsincrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinc","0,1,2,3",1)
 
 /* MOP_xcsinv */
-DEFINE_MOP(MOP_wcsinvrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"csinv","0,1,2,3",1)
-DEFINE_MOP(MOP_xcsinvrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"csinv","0,1,2,3",1)
+DEFINE_MOP(MOP_wcsinvrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinv","0,1,2,3",1)
+DEFINE_MOP(MOP_xcsinvrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csinv","0,1,2,3",1)
 
 /* MOP_xandrrr */
 DEFINE_MOP(MOP_xandrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"and","0,1,2",1)
@@ -373,10 +373,10 @@ DEFINE_MOP(MOP_wsfmovri, {mopdReg32FD,mopdImm8},ISMOVE,kLtFconst,"fmov","0,1",1)
 DEFINE_MOP(MOP_xdfmovri, {mopdReg64FD,mopdImm8},ISMOVE,kLtFconst,"fmov","0,1",1)
 
 /* MOP_xcsneg -- Conditional Select Negation */
-DEFINE_MOP(MOP_wcsnegrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
-DEFINE_MOP(MOP_xcsnegrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
-DEFINE_MOP(MOP_wcnegrrrc, {mopdReg32ID,mopdReg32IS,mopdCond},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
-DEFINE_MOP(MOP_xcnegrrrc, {mopdReg64ID,mopdReg64IS,mopdCond},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
+DEFINE_MOP(MOP_wcsnegrrrc, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
+DEFINE_MOP(MOP_xcsnegrrrc, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"csneg","0,1,2,3",1)
+DEFINE_MOP(MOP_wcnegrrrc, {mopdReg32ID,mopdReg32IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
+DEFINE_MOP(MOP_xcnegrrrc, {mopdReg64ID,mopdReg64IS,mopdCond,mopdRegCCS},ISCONDDEF,kLtAlu,"cneg","0,1,2",1)
 
 /* MOP_sabsrr */
 DEFINE_MOP(MOP_sabsrr, {mopdReg32FD,mopdReg32FS},0,kLtFpalu,"fabs","0,1",1)
@@ -417,11 +417,11 @@ DEFINE_MOP(MOP_snmul, {mopdReg32FD,mopdReg32FS,mopdReg32FS},CANTHROW,kLtFpmul,"f
 DEFINE_MOP(MOP_dnmul, {mopdReg64FD,mopdReg64FS,mopdReg64FS},CANTHROW,kLtFpmul,"fnmul","0,1,2",1)
 
 /* MOP_hcselrrrc --- Floating-point Conditional Select */
-DEFINE_MOP(MOP_hcselrrrc, {mopdReg16FD,mopdReg16FS,mopdReg16FS,mopdCond},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
+DEFINE_MOP(MOP_hcselrrrc, {mopdReg16FD,mopdReg16FS,mopdReg16FS,mopdCond,mopdRegCCS},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
 /* MOP_scselrrrc */
-DEFINE_MOP(MOP_scselrrrc, {mopdReg32FD,mopdReg32FS,mopdReg32FS,mopdCond},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
+DEFINE_MOP(MOP_scselrrrc, {mopdReg32FD,mopdReg32FS,mopdReg32FS,mopdCond,mopdRegCCS},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
 /* MOP_dcselrrrc */
-DEFINE_MOP(MOP_dcselrrrc, {mopdReg64FD,mopdReg64FS,mopdReg64FS,mopdCond},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
+DEFINE_MOP(MOP_dcselrrrc, {mopdReg64FD,mopdReg64FS,mopdReg64FS,mopdCond,mopdRegCCS},ISCONDDEF,kLtFpalu,"fcsel","0,1,2,3",1)
 
 /* MOP_wldli -- load 32-bit literal */
 DEFINE_MOP(MOP_wldli, {mopdReg32ID,mopdLabel},ISLOAD|CANTHROW,kLtLoad1,"ldr","0,1",1)
@@ -454,6 +454,8 @@ DEFINE_MOP(MOP_wldrb, {mopdReg32ID,mopdMem8S},ISLOAD|CANTHROW,kLtLoad1,"ldrb","0
 DEFINE_MOP(MOP_wldrsh, {mopdReg32ID,mopdMem16S},ISLOAD|CANTHROW,kLtLoad1,"ldrsh","0,1",1)
 /* MOP_xldrsh  --- Load Register Signed Halfword */
 DEFINE_MOP(MOP_xldrsh, {mopdReg64ID,mopdMem16S},ISLOAD|CANTHROW,kLtLoad1,"ldrsh","0,1",1)
+/* MOP_xldrsw  --- Load Register Signed Word */
+DEFINE_MOP(MOP_xldrsw, {mopdReg64ID,mopdMem32S},ISLOAD|CANTHROW,kLtLoad1,"ldrsw","0,1",1)
 /* MOP_wldrh */
 DEFINE_MOP(MOP_wldrh, {mopdReg32ID, mopdMem16S},ISLOAD|CANTHROW,kLtLoad1,"ldrh","0,1",1)
 /* MOP_wldr */
@@ -611,13 +613,13 @@ DEFINE_MOP(MOP_xcmprrs, {mopdRegCCD, mopdReg64IS,mopdReg64IS,mopdBitShift64},0,k
 DEFINE_MOP(MOP_xwcmprre, {mopdRegCCD, mopdReg64IS,mopdReg32IS,mopdExtendShift64},0,kLtAlu,"cmp","1,2,3",1)
 
 /* MOP_wccmpriic -- AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_wccmpriic, {mopdRegCCD, mopdReg32IS,mopdImm5,mopdImm4,mopdCond},0,kLtAlu,"ccmp","1,2,3,4",1)
+DEFINE_MOP(MOP_wccmpriic, {mopdRegCCD, mopdReg32IS,mopdImm5,mopdImm4,mopdCond,mopdRegCCS},0,kLtAlu,"ccmp","1,2,3,4",1)
 /* MOP_wccmprric -- register, shifted register, AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_wccmprric, {mopdRegCCD, mopdReg32IS,mopdReg32IS,mopdImm4,mopdCond},0,kLtAlu,"ccmp","1,2,3,4",1)
+DEFINE_MOP(MOP_wccmprric, {mopdRegCCD, mopdReg32IS,mopdReg32IS,mopdImm4,mopdCond,mopdRegCCS},0,kLtAlu,"ccmp","1,2,3,4",1)
 /* MOP_xccmpriic -- AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_xccmpriic, {mopdRegCCD, mopdReg64IS,mopdImm5,mopdImm4,mopdCond},0,kLtAlu,"ccmp","1,2,3,4",1)
+DEFINE_MOP(MOP_xccmpriic, {mopdRegCCD, mopdReg64IS,mopdImm5,mopdImm4,mopdCond,mopdRegCCS},0,kLtAlu,"ccmp","1,2,3,4",1)
 /* MOP_xccmprric -- register, shifted register, AArch64 cmp has no dest operand */
-DEFINE_MOP(MOP_xccmprric, {mopdRegCCD, mopdReg64IS,mopdReg64IS,mopdImm4,mopdCond},0,kLtAlu,"ccmp","1,2,3,4",1)
+DEFINE_MOP(MOP_xccmprric, {mopdRegCCD, mopdReg64IS,mopdReg64IS,mopdImm4,mopdCond,mopdRegCCS},0,kLtAlu,"ccmp","1,2,3,4",1)
 
 /* MOP_wcmnri -- AArch64 cmp has no dest operand */
 DEFINE_MOP(MOP_wcmnri, {mopdRegCCD, mopdReg32IS,mopdImm12},0,kLtAlu,"cmn","1,2",1)
@@ -781,6 +783,11 @@ DEFINE_MOP(MOP_vushluui,{mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"sh
 DEFINE_MOP(MOP_vushlvvi,{mopdReg128VD,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"shl","0,1,2",1)
 DEFINE_MOP(MOP_vushruui,{mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"ushr","0,1,2",1)
 DEFINE_MOP(MOP_vushrvvi,{mopdReg128VD,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"ushr","0,1,2",1)
+
+DEFINE_MOP(MOP_vshllvvi,{mopdReg128VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"shll","0,1,2",1)
+DEFINE_MOP(MOP_vushllvvi,{mopdReg128VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"ushll","0,1,2",1)
+DEFINE_MOP(MOP_vsqxtnvv,{mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"sqxtn","0,1",1)
+DEFINE_MOP(MOP_vuqxtnvv,{mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"uqxtn","0,1",1)
 
 DEFINE_MOP(MOP_vshruui, {mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"sshr","0,1,2",1)
 DEFINE_MOP(MOP_vshrvvi, {mopdReg128VD,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"sshr","0,1,2",1)

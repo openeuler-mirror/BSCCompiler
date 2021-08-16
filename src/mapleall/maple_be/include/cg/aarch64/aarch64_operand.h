@@ -89,6 +89,14 @@ class AArch64RegOperand : public RegOperand {
     return memPool.Clone<AArch64RegOperand>(*this);
   }
 
+  void SetIF64Vec() {
+    if64Vec = true;
+  }
+
+  bool GetIF64Vec() {
+    return if64Vec;
+  }
+
   void SetVecLanePosition(int32 pos) {
     vecLane = pos;
   }
@@ -131,6 +139,7 @@ class AArch64RegOperand : public RegOperand {
   uint32 flag;
   int16 vecLane = -1;     /* -1 for whole reg, 0 to 15 to specify each lane one at a time */
   uint16 vecLaneSize = 0; /* Number of lanes */
+  bool if64Vec = false;   /* operand returning 64x1's int value in FP/Simd register */
 };
 
 /*
@@ -614,9 +623,6 @@ class AArch64MemOperand : public MemOperand {
         idxOpt(kIntact),
         noExtend(false),
         isStackMem(false) {
-    if (shift != 0 && dSize != (k8BitSize << shift)) {
-      ASSERT(false, "incompatible data size and shift amount");
-    }
     if (baseOpnd.GetRegisterNumber() == RSP || baseOpnd.GetRegisterNumber() == RFP) {
       isStackMem = true;
     }
@@ -801,7 +807,6 @@ class AArch64MemOperand : public MemOperand {
 
   int32 ShiftAmount() const {
     int32 scale = extend & 0xF;
-    ASSERT(IsExtendedRegisterMode(), "Just checking");
     /* 8 is 1 << 3, 4 is 1 << 2, 2 is 1 << 1, 1 is 1 << 0; */
     return (scale == 8) ? 3 : ((scale == 4) ? 2 : ((scale == 2) ? 1 : 0));
   }
@@ -989,6 +994,7 @@ class ExtendShiftOperand : public Operand {
 class BitShiftOperand : public Operand {
  public:
   enum ShiftOp : uint8 {
+    kUndef,
     kLSL, /* logical shift left */
     kLSR, /* logical shift right */
     kASR, /* arithmetic shift right */
@@ -1015,6 +1021,7 @@ class BitShiftOperand : public Operand {
   }
 
   void Dump() const override {
+    CHECK_FATAL((shiftOp != kUndef), "shift is undef!");
     LogInfo::MapleLogger() << ((shiftOp == kLSL) ? "LSL: " : ((shiftOp == kLSR) ? "LSR: " : "ASR: "));
     LogInfo::MapleLogger() << shiftAmount;
   }
@@ -1057,7 +1064,10 @@ class CommentOperand : public Operand {
   }
 
   void Dump() const override {
-    LogInfo::MapleLogger() << "# " << comment << std::endl;
+    LogInfo::MapleLogger() << "# ";
+    if (!comment.empty()) {
+      LogInfo::MapleLogger() << comment;
+    }
   }
 
  private:

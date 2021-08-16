@@ -1033,8 +1033,14 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
     var = GetCurrentFunc()->GetSymbolTabItem(stIdx.Idx());
   }
   CHECK_FATAL(var != nullptr, "var should not be nullptr");
+  PrimType pType;
+  if (var->GetAttr(ATTR_oneelem_simd)) {
+    pType = PTY_f64;
+  } else {
+    pType = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
+  }
   RegreadNode *regRead = mirModule.GetMIRBuilder()->CreateExprRegread(
-      GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType(), -kSregRetval0);
+      pType, -kSregRetval0);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
@@ -1184,10 +1190,25 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
         } else {
           PregIdx pregIdx = static_cast<PregIdx>(regFieldPair.GetPregIdx());
           MIRPreg *mirPreg = GetCurrentFunc()->GetPregTab()->PregFromPregIdx(pregIdx);
-          RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(mirPreg->GetPrimType(), -kSregRetval0);
-          RegassignNode *regAssign =
-              mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(), regFieldPair.GetPregIdx(),
-                                                             regNode);
+          bool is64x1vec = beCommon.CallIsOfAttr(FUNCATTR_oneelem_simd, &newCall);
+          PrimType pType = is64x1vec ? PTY_f64 : mirPreg->GetPrimType();
+          RegreadNode *regNode = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
+          RegassignNode *regAssign;
+          if (is64x1vec && IsPrimitiveInteger(mirPreg->GetPrimType())) {  // not f64
+            MIRType *to;
+            if (IsUnsignedInteger(mirPreg->GetPrimType())) {
+              to = GlobalTables::GetTypeTable().GetUInt64();
+            } else {
+              to = GlobalTables::GetTypeTable().GetInt64();
+            }
+            MIRType *from = GlobalTables::GetTypeTable().GetDouble();
+            BaseNode *rNode = mirModule.GetMIRBuilder()->CreateExprRetype(*to, *from, regNode);
+            regAssign = mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(),
+                        regFieldPair.GetPregIdx(), rNode);
+          } else {
+            regAssign = mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(),
+                        regFieldPair.GetPregIdx(), regNode);
+          }
           blk->AddStatement(regAssign);
           dStmt = regAssign;
         }

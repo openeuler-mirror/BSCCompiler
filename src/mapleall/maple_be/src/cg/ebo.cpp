@@ -919,7 +919,13 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
-    /* Check all the result can be removed. */
+    /* last insn of a 64x1 function is a float, 64x1 function may not be a float */
+    if (cgFunc->GetFunction().GetAttr(FUNCATTR_oneelem_simd) &&
+        insnInfo == lastInsnInfo) {
+      goto insn_is_needed;
+    }
+
+    /* Check all result that can be removed. */
     for (uint32 i = 0; i < resNum; ++i) {
       opndInfo = insnInfo->result[i];
       /* A couple of checks. */
@@ -1324,7 +1330,6 @@ void CgEbo0::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.AddPreserved<CgLoopAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgEbo0, ebo);
 
 bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
@@ -1351,7 +1356,6 @@ void CgEbo1::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.AddPreserved<CgLoopAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgEbo1, ebo1)
 
 bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
@@ -1378,5 +1382,4 @@ void CgPostEbo::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.AddPreserved<CgLoopAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgPostEbo, postebo)
 }  /* namespace maplebe */

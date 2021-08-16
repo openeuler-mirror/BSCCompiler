@@ -137,7 +137,7 @@ void AArch64MemLayout::LayoutVarargParams() {
         }
       }
       MIRType *ty = func->GetNthParamType(i);
-      parmlocator.LocateNextParm(*ty, ploc);
+      parmlocator.LocateNextParm(*ty, ploc, i == 0, func);
       if (ploc.reg0 != kRinvalid) {
         if (ploc.reg0 >= R0 && ploc.reg0 <= R7) {
           nIntRegs++;
@@ -194,7 +194,7 @@ void AArch64MemLayout::LayoutFormalParams() {
     bool noStackPara = false;
     MIRType *ty = mirFunction->GetNthParamType(i);
     uint32 ptyIdx = ty->GetTypeIndex();
-    parmLocator.LocateNextParm(*ty, ploc, i == 0);
+    parmLocator.LocateNextParm(*ty, ploc, i == 0, mirFunction);
     if (ploc.reg0 != kRinvalid) {  /* register */
       symLoc->SetRegisters(ploc.reg0, ploc.reg1, ploc.reg2, ploc.reg3);
       if (mirFunction->GetNthParamAttr(i).GetAttr(ATTR_localrefvar)) {

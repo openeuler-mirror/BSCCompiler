@@ -314,11 +314,23 @@ Operand *HandleTrunc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   return cgFunc.SelectTrunc(static_cast<TypeCvtNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
 }
 
+static bool HasCompare(BaseNode *expr) {
+  if (kOpcodeInfo.IsCompare(expr->GetOpCode())) {
+    return true;
+  }
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    if (HasCompare(expr->Opnd(i))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   /* 0,1,2 represent the first opnd and the second opnd and the third opnd of expr */
   bool isCompare = false;
-  if (kOpcodeInfo.IsCompare(expr.Opnd(1)->GetOpCode()) || kOpcodeInfo.IsCompare(expr.Opnd(2)->GetOpCode())) {
+  if (HasCompare(expr.Opnd(1)) || HasCompare(expr.Opnd(2))) {
     isCompare = true;
   }
   return cgFunc.SelectSelect(static_cast<TernaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
@@ -367,7 +379,11 @@ Operand *HandleVectorMerge(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
     MIRConst *mirConst = static_cast<ConstvalNode *>(index)->GetConstVal();
     iNum = safe_cast<MIRIntConst>(mirConst)->GetValue();
     PrimType ty = intrnNode.Opnd(0)->GetPrimType();
-    iNum *= GetPrimTypeSize(ty) / GetPrimTypeLanes(ty);                /* 64x2: 0-1 -> 0-8 */
+    if (!IsPrimitiveVector(ty)) {
+      iNum = 0;
+    } else {
+      iNum *= GetPrimTypeSize(ty) / GetPrimTypeLanes(ty);              /* 64x2: 0-1 -> 0-8 */
+    }
   } else {                                                             /* 32x4: 0-3 -> 0-12 */
     CHECK_FATAL(0, "VectorMerge does not have const index");
   }
@@ -577,7 +593,46 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
       return cgFunc.SelectCalignup(intrinsicopNode);
     case INTRN_C_aligndown:
       return cgFunc.SelectCaligndown(intrinsicopNode);
-
+    case INTRN_C___sync_add_and_fetch_2:
+      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i16);
+    case INTRN_C___sync_add_and_fetch_4:
+      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_add_and_fetch_8:
+      return cgFunc.SelectCSyncAddFetch(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_sub_and_fetch_2:
+      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i16);
+    case INTRN_C___sync_sub_and_fetch_4:
+      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_sub_and_fetch_8:
+      return cgFunc.SelectCSyncSubFetch(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_fetch_and_add_2:
+      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i16);
+    case INTRN_C___sync_fetch_and_add_4:
+      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_fetch_and_add_8:
+      return cgFunc.SelectCSyncFetchAdd(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_fetch_and_sub_2:
+      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i16);
+    case INTRN_C___sync_fetch_and_sub_4:
+      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_fetch_and_sub_8:
+      return cgFunc.SelectCSyncFetchSub(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_bool_compare_and_swap_4:
+      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_bool_compare_and_swap_8:
+      return cgFunc.SelectCSyncBoolCmpSwap(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_val_compare_and_swap_4:
+      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_val_compare_and_swap_8:
+      return cgFunc.SelectCSyncValCmpSwap(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_lock_test_and_set_4:
+      return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_lock_test_and_set_8:
+      return cgFunc.SelectCSyncLockTestSet(intrinsicopNode, PTY_i64);
+    case INTRN_C___sync_lock_release_4:
+      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i32);
+    case INTRN_C___sync_lock_release_8:
+      return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i64);
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:
     case INTRN_vector_sum_v2u32: case INTRN_vector_sum_v2i32:
@@ -1666,6 +1721,26 @@ void CGFunc::ClearLoopInfo() {
   }
 }
 
+void CGFunc::DumpCFGToDot(const std::string &fileNamePrefix) {
+  std::ofstream file(fileNamePrefix + GetName());
+  file << "digraph {" << std::endl;
+  for (auto *bb : GetAllBBs()) {
+    if (bb == nullptr) {
+      continue;
+    }
+    auto &succs = bb->GetSuccs();
+    if (succs.empty()) {
+      continue;
+    }
+    file << "  " << bb->GetId() << "->{";
+    for (auto *succ : succs) {
+      file << succ->GetId() << " ";
+    }
+    file << "};";
+  }
+  file << "}" << std::endl;
+}
+
 void CGFunc::PatchLongBranch() {
   for (BB *bb = firstBB->GetNext(); bb != nullptr; bb = bb->GetNext()) {
     bb->SetInternalFlag1(bb->GetInternalFlag1() + bb->GetPrev()->GetInternalFlag1());
@@ -1696,8 +1771,6 @@ bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
-
 
 bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   if (f.GetCG()->GetCGOptions().WithDwarf()) {
@@ -1705,5 +1778,4 @@ bool CgFixCFLocOsft::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)
 }  /* namespace maplebe */
