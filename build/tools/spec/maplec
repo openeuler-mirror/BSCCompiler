@@ -135,7 +135,7 @@ function clangTompl() {
   echo clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option
   clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option  || {
    echo "FAILED: "
-   echo -e "LD_LIBRARY_PATH=${MAPLE_ROOT}/../ouroboros/driver/script/lib /usr/bin/clang2mpl --ascii" $src_file_path "--" $CLANG_FLAGS $option  | tee -a clang2mpl_err.log;
+   echo -e "clang2mpl --ascii" $src_file_path "--" $CLANG2MPL_FLAGS $option  | tee -a clang2mpl_err.log;
    exit 1;
   }
 }
