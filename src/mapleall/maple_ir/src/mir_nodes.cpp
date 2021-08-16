@@ -678,6 +678,7 @@ void DassignNode::Dump(int32 indent) const {
 
 void DassignoffNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
+  LogInfo::MapleLogger() << " " << GetPrimTypeName(GetPrimType());
   const MIRSymbol *st = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
   LogInfo::MapleLogger() << (st->IsLocal() ? " %" : " $");
   LogInfo::MapleLogger() << st->GetName() << " " << offset;
