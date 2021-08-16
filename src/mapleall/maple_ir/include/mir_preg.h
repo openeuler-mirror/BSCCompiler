@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -21,7 +21,7 @@
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {
-extern void PrintIndentation(int32 );
+extern void PrintIndentation(int32);
 
 // these special registers are encoded by negating the enumeration
 enum SpecialReg : signed int {
@@ -64,6 +64,14 @@ class MIRPreg {
     primType = pty;
   }
 
+  Opcode GetOp() const {
+    return op;
+  }
+
+  void SetOp(Opcode o) {
+    this->op = o;
+  }
+
   int32 GetPregNo() const {
     return pregNo;
   }
@@ -83,13 +91,20 @@ class MIRPreg {
  private:
   PrimType primType = kPtyInvalid;
   bool needRC = false;
+  Opcode op = OP_undef;// OP_constval, OP_addrof or OP_dread if rematerializable
   int32 pregNo;  // the number in maple IR after the %
-  MIRType *mirType;
+  MIRType *mirType = nullptr;
+ public:
+  union RematInfo {
+    MIRConst *mirConst;
+    MIRSymbol *sym;
+  } rematInfo;
+  FieldID fieldID = 0;  // used only when op is OP_addrof or OP_dread
 };
 
 class MIRPregTable {
  public:
-  MIRPregTable(MIRModule *mod, MapleAllocator *allocator)
+  explicit MIRPregTable(MapleAllocator *allocator)
       : pregNoToPregIdxMap(allocator->Adapter()),
         pregTable(allocator->Adapter()),
         mAllocator(allocator) {
@@ -112,14 +127,14 @@ class MIRPregTable {
   PregIdx CreatePreg(PrimType primType, MIRType *mtype = nullptr) {
     ASSERT(!mtype || mtype->GetPrimType() == PTY_ref || mtype->GetPrimType() == PTY_ptr, "ref or ptr type");
     uint32 index = ++maxPregNo;
-    MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(index, primType, mtype);
-    return AddPreg(preg);
+    auto *preg = mAllocator->GetMemPool()->New<MIRPreg>(index, primType, mtype);
+    return AddPreg(*preg);
   }
 
-  PregIdx ClonePreg(MIRPreg *rfpreg) {
-    PregIdx idx = CreatePreg(rfpreg->GetPrimType(), rfpreg->GetMIRType());
+  PregIdx ClonePreg(const MIRPreg &rfpreg) {
+    PregIdx idx = CreatePreg(rfpreg.GetPrimType(), rfpreg.GetMIRType());
     MIRPreg *preg = pregTable[idx];
-    preg->SetNeedRC(rfpreg->NeedRC());
+    preg->SetNeedRC(rfpreg.NeedRC());
     return idx;
   }
 
@@ -157,12 +172,11 @@ class MIRPregTable {
     return pregTable.size();
   }
 
-  PregIdx AddPreg(MIRPreg *preg) {
-    CHECK_FATAL(preg != nullptr, "invalid nullptr in AddPreg");
+  PregIdx AddPreg(MIRPreg &preg) {
     PregIdx idx = static_cast<PregIdx>(pregTable.size());
-    pregTable.push_back(preg);
-    ASSERT(pregNoToPregIdxMap.find(preg->GetPregNo()) == pregNoToPregIdxMap.end(), "The same pregno is already taken");
-    pregNoToPregIdxMap[preg->GetPregNo()] = idx;
+    pregTable.push_back(&preg);
+    ASSERT(pregNoToPregIdxMap.find(preg.GetPregNo()) == pregNoToPregIdxMap.end(), "The same pregno is already taken");
+    pregNoToPregIdxMap[preg.GetPregNo()] = idx;
     return idx;
   }
 
@@ -173,7 +187,7 @@ class MIRPregTable {
         maxPregNo = pregNo;
       }
       MIRPreg *preg = mAllocator->GetMemPool()->New<MIRPreg>(pregNo, ptyp, ty);
-      return AddPreg(preg);
+      return AddPreg(*preg);
     }
     return idx;
   }
