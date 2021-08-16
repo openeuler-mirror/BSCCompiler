@@ -389,6 +389,7 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
           stIdx = dass->GetStIdx();
         } else {
           DassignoffNode *dassoff = static_cast<DassignoffNode *>(s);
+          WriteNum(dassoff->GetPrimType());
           WriteNum(dassoff->offset);
           stIdx = dassoff->stIdx;
         }
@@ -412,6 +413,12 @@ void BinaryMplExport::OutputBlockNode(BlockNode *block) {
         IassignNode *iass = static_cast<IassignNode *>(s);
         OutputTypeViaTypeName(iass->GetTyIdx());
         WriteNum(iass->GetFieldID());
+        break;
+      }
+      case OP_iassignoff: {
+        IassignoffNode *iassoff = static_cast<IassignoffNode *>(s);
+        WriteNum(iassoff->GetPrimType());
+        WriteNum(iassoff->GetOffset());
         break;
       }
       case OP_call:
