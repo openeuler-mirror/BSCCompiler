@@ -1107,27 +1107,28 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
-static char *GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string constraint) {
-  static char str[2];
+static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string constraint) {
+  std::string regPrefix = "";
+  /* memory access check */
+  if (constraint.find("m") != std::string::npos || constraint.find("Q") != std::string::npos) {
+    regPrefix += "[";
+  }
   if (IsPrimitiveVector(pType)) {
-   str[0] = 'v';
+    regPrefix += "v";
   } else if (IsPrimitiveInteger(pType)) {
     if (size == k32BitSize) {
-      str[0] = 'w';
-    } else if (pType == PTY_a64 && constraint[0] == 'm') {
-      str[0] = '[';
+      regPrefix += "w";
     } else {
-      str[0] = 'x';
+      regPrefix += "x";
     }
   } else {
     if (size == k32BitSize) {
-      str[0] = 's';
+      regPrefix += "s";
     } else {
-      str[0] = 'd';
+      regPrefix += "d";
     }
   }
-  str[1] = '\0';
-  return str;
+  return regPrefix;
 }
 
 void AArch64CGFunc::SelectAsm(AsmNode &node) {
@@ -1162,6 +1163,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       isOutputTempNode = true;
     }
     listInConstraint->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(str)));
+    std::string prefix = "";
 
     /* process input operands */
     switch (node.Opnd(i)->op) {
@@ -1189,15 +1191,28 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       }
       case OP_constval: {
         CHECK_FATAL(!isOutputTempNode, "Unexpect");
-        AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(RZR, k64BitSize, kRegTyInt);
-        listInputOpnd->PushOpnd(static_cast<RegOperand&>(inOpnd));
         auto &constNode = static_cast<ConstvalNode&>(*node.Opnd(i));
         CHECK_FATAL(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
         MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
         CHECK_FATAL(mirIntConst != nullptr, "just checking");
         int64 scale = mirIntConst->GetValue();
-        listInRegPrefix->stringList.push_back(
-            static_cast<StringOperand*>(&CreateStringOperand("i" + std::to_string(scale))));
+        if (str.find("r") != std::string::npos) {
+          bool isSigned = scale < 0;
+          AArch64ImmOperand &immOpnd = CreateImmOperand(scale, k64BitSize, isSigned);
+          /* set default type as a 64 bit reg */
+          PrimType pty = isSigned ? PTY_i64 : PTY_u64;
+          auto &tempReg = static_cast<Operand&>(CreateRegisterOperandOfType(pty));
+          SelectCopy(tempReg, pty, immOpnd, isSigned ? PTY_i64 : PTY_u64);
+          listInputOpnd->PushOpnd(static_cast<RegOperand&>(tempReg));
+          listInRegPrefix->stringList.push_back(
+              static_cast<StringOperand*>(&CreateStringOperand(GetRegPrefixFromPrimType(pty, tempReg.GetSize(), str))));
+        } else {
+          AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(RZR, k64BitSize, kRegTyInt);
+          listInputOpnd->PushOpnd(static_cast<RegOperand&>(inOpnd));
+
+          listInRegPrefix->stringList.push_back(
+              static_cast<StringOperand*>(&CreateStringOperand("i" + std::to_string(scale))));
+        }
         break;
       }
       case OP_regread: {

@@ -452,6 +452,11 @@ bool EnhanceStrLdrAArch64::IsEnhanceAddImm(MOperator prevMop) {
   return prevMop == MOP_xaddrri12 ||  prevMop == MOP_waddrri12;
 }
 
+bool IsSameRegisterOperation(RegOperand &desMovOpnd, RegOperand &uxtDestOpnd, RegOperand &uxtFromOpnd) {
+  return ((desMovOpnd.GetRegisterNumber() == uxtDestOpnd.GetRegisterNumber()) &&
+          (uxtDestOpnd.GetRegisterNumber() == uxtFromOpnd.GetRegisterNumber()));
+}
+
 /* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
 void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
@@ -656,7 +661,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
   if (thisMop == MOP_xuxtb32) {
     if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
       auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-      if (dstMovOpnd.GetRegisterNumber() != regOpnd1.GetRegisterNumber()) {
+      if (!IsSameRegisterOperation(dstMovOpnd, regOpnd1, regOpnd0)) {
         return;
       }
       Operand &opnd = prevInsn->GetOperand(kInsnSecondOpnd);
@@ -677,6 +682,10 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
     }
   } else if (thisMop == MOP_xuxth32) {
     if (prevInsn->GetMachineOpcode() == MOP_xmovri32 || prevInsn->GetMachineOpcode() == MOP_xmovri64) {
+      auto &dstMovOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+      if (!IsSameRegisterOperation(dstMovOpnd, regOpnd1, regOpnd0)) {
+        return;
+      }
       Operand &opnd = prevInsn->GetOperand(kInsnSecondOpnd);
       if (opnd.IsIntImmediate()) {
         auto &immOpnd = static_cast<ImmOperand&>(opnd);
@@ -1233,23 +1242,29 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
       (csetCond.GetCode() == CC_NE && cmpImmVal == 0)) {
     /* if flag_reg of "cmp" is live later, we can't remove cmp insn. */
     auto &flagReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-    if (FindRegLiveOut(flagReg, *prevInsn->GetBB())) {
+    if (IfOperandIsLiveAfterInsn(flagReg, insn)) {
       return;
     }
 
     auto &csetReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    auto &prevInsnSecondReg = prevInsn->GetOperand(kInsnSecondOpnd);
+    bool isRegDiff = !RegOperand::IsSameRegNO(csetReg, prevInsnSecondReg);
+    if (isRegDiff && IfOperandIsLiveAfterInsn(static_cast<RegOperand&>(prevInsnSecondReg), insn)) {
+      return;
+    }
     if (andImmVal == 1) {
-      if (!RegOperand::IsSameRegNO(csetReg, prevInsn->GetOperand(kInsnSecondOpnd)) ||
-          !RegOperand::IsSameRegNO(csetReg, prevPrevInsn->GetOperand(kInsnFirstOpnd))) {
+      if (!RegOperand::IsSameRegNO(prevInsnSecondReg, prevPrevInsn->GetOperand(kInsnFirstOpnd))) {
         return;
       }
       /* save the "and" insn only. */
       bb.RemoveInsn(insn);
       bb.RemoveInsn(*prevInsn);
+      if (isRegDiff) {
+        prevPrevInsn->Insn::SetOperand(kInsnFirstOpnd, csetReg);
+      }
     } else {
-      if (!RegOperand::IsSameReg(csetReg, prevInsn->GetOperand(kInsnSecondOpnd)) ||
-          !RegOperand::IsSameReg(csetReg, prevPrevInsn->GetOperand(kInsnFirstOpnd)) ||
-          !RegOperand::IsSameReg(csetReg, prevPrevInsn->GetOperand(kInsnSecondOpnd))) {
+      if (!RegOperand::IsSameReg(prevInsnSecondReg, prevPrevInsn->GetOperand(kInsnFirstOpnd)) ||
+          !RegOperand::IsSameReg(prevInsnSecondReg, prevPrevInsn->GetOperand(kInsnSecondOpnd))) {
         return;
       }
 
@@ -1261,12 +1276,16 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
 
       /* create ubfx insn */
       MOperator ubfxOp = (csetReg.GetSize() <= k32BitSize) ? MOP_wubfxrri5i5 : MOP_xubfxrri6i6;
-      auto &reg = static_cast<AArch64RegOperand&>(csetReg);
+      if (ubfxOp == MOP_wubfxrri5i5 && n >= k32BitSize) {
+        return;
+      }
+      auto &dstReg = static_cast<AArch64RegOperand&>(csetReg);
+      auto &srcReg = static_cast<AArch64RegOperand&>(prevInsnSecondReg);
       CG *cg = cgFunc.GetCG();
       auto *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
       ImmOperand &bitPos = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
       ImmOperand &bitSize = aarch64CGFunc->CreateImmOperand(1, k8BitSize, false);
-      Insn &ubfxInsn = cg->BuildInstruction<AArch64Insn>(ubfxOp, reg, reg, bitPos, bitSize);
+      Insn &ubfxInsn = cg->BuildInstruction<AArch64Insn>(ubfxOp, dstReg, srcReg, bitPos, bitSize);
       bb.InsertInsnBefore(*prevPrevInsn, ubfxInsn);
       bb.RemoveInsn(insn);
       bb.RemoveInsn(*prevInsn);
