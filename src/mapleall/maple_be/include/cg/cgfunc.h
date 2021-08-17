@@ -160,11 +160,13 @@ class CGFunc {
   virtual void HandleRetCleanup(NaryStmtNode &retNode) = 0;
   /* select stmt */
   virtual void SelectDassign(DassignNode &stmt, Operand &opnd0) = 0;
+  virtual void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) = 0;
   virtual void SelectRegassign(RegassignNode &stmt, Operand &opnd0) = 0;
   virtual void SelectAssertNull(UnaryStmtNode &stmt) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
   virtual void SelectAggDassign(DassignNode &stmt) = 0;
   virtual void SelectIassign(IassignNode &stmt) = 0;
+  virtual void SelectIassignoff(IassignoffNode &stmt) = 0;
   virtual void SelectAggIassign(IassignNode &stmt, Operand &lhsAddrOpnd) = 0;
   virtual void SelectReturn(Operand *opnd) = 0;
   virtual void SelectIgoto(Operand *opnd0) = 0;
@@ -184,6 +186,15 @@ class CGFunc {
   virtual Operand *SelectCisaligned(IntrinsicopNode &intrinopNode) = 0;
   virtual Operand *SelectCalignup(IntrinsicopNode &intrinopNode) = 0;
   virtual Operand *SelectCaligndown(IntrinsicopNode &intrinopNode) = 0;
+  virtual Operand *SelectCSyncAddFetch(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncFetchAdd(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncSubFetch(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncFetchSub(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncBoolCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;
@@ -335,6 +346,9 @@ class CGFunc {
   }
 
   regno_t NewVReg(RegType regType, uint32 size) {
+    if (CGOptions::UseGeneralRegOnly()) {
+      CHECK_FATAL(regType != kRegTyFloat, "cannot use float | SIMD register with --general-reg-only");
+    }
     /* when vRegCount reach to maxRegCount, maxRegCount limit adds 80 every time */
     /* and vRegTable increases 80 elements. */
     if (vRegCount >= maxRegCount) {
@@ -687,6 +701,8 @@ class CGFunc {
   BB *GetBBFromLab2BBMap(int32 index) {
     return lab2BBMap[index];
   }
+
+  void DumpCFGToDot(const std::string &fileNamePrefix);
 
   BECommon &GetBecommon() {
     return beCommon;
