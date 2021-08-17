@@ -40,13 +40,14 @@ const std::string kBinNameMe = "me";
 const std::string kBinNameMpl2mpl = "mpl2mpl";
 const std::string kBinNameMplcg = "mplcg";
 const std::string kBinNameMapleComb = "maplecomb";
-const std::string kBinNameAs = "as";
 const std::string kBinNameLd = "ld";
 const std::string kMachine = "aarch64-";
 const std::string kVendor = "unknown-";
 const std::string kOperatingSystem = "linux-gnu-";
 const std::string kGccFlag = "gcc";
 const std::string kGppFlag = "g++";
+const std::string kAsFlag = "as";
+const std::string kBinNameAs = kMachine + kOperatingSystem + kAsFlag;
 const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
 const std::string kBinNameGpp = kMachine + kOperatingSystem + kGppFlag;
 

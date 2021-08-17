@@ -44,7 +44,7 @@ using namespace maplebe;
 const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::kMajorMplVersion) + "." +
                                         std::to_string(Version::kMinorCompilerVersion) + " 20190929";
 
-const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "cpp2mpl",
+const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "c2mpl",
     "dex2mpl", "mplipa", "as",
     "me", "mpl2mpl", "mplcg", "clang"};
 
@@ -275,9 +275,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
       UpdateRunningExe(kBinNameClang);
+      UpdateRunningExe("c2mpl");
       break;
     case InputFileType::kFileTypeAst:
-      UpdateRunningExe(kBinNameCpp2mpl);
+      UpdateRunningExe("c2mpl");
       break;
     case InputFileType::kFileTypeJar:
       // fall-through

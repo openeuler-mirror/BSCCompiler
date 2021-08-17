@@ -19,38 +19,31 @@
 namespace maple {
 enum CppOptionIndex {
   kInAst,
-  kInCpp,
   kCpp2mplHelp,
 };
 
 const mapleOption::Descriptor cppUsage[] = {
   { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyUnknown,
     "========================================\n"
-    " Usage: cpp2mpl [ options ]\n"
+    " Usage: c2mpl [ options ]\n"
     " options:\n",
-    "cpp2mpl",
+    "c2mpl",
     {} },
 
   { kInAst, 0, "", "inast", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
-    "  -in-ast file1.ast,file2.ast\n"
+    "  -inast file1.ast,file2.ast\n"
     "                         : input ast files",
-    "cpp2mpl",
-    {} },
-
-  { kInCpp, 0, "", "incpp", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
-    "  -in-cpp file1.cpp,file2.cpp\n"
-    "                         : input cpp files",
-    "cpp2mpl",
+    "c2mpl",
     {} },
 
   { kCpp2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
     "   -h, --help          : print usage and exit.\n",
-    "cpp2mpl",
+    "c2mpl",
     {} },
 
   { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
     "",
-    "cpp2mpl",
+    "c2mpl",
     {} }
 };
 } // namespace maple

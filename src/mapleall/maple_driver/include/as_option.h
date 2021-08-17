@@ -18,7 +18,6 @@
 
 namespace maple {
 enum AsOptionIndex {
-  kInS,
   kAsHelp,
 };
 
@@ -27,12 +26,6 @@ const mapleOption::Descriptor asUsage[] = {
     "========================================\n"
          " Usage: as [ options ]\n"
          " options:\n",
-    "as",
-    {} },
-
-  { kInS, 0, "", "in-s", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
-    "  --in-s file1.s,file2.s\n"
-         "                         : input asm files",
     "as",
     {} },
 

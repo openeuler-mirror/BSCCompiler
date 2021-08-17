@@ -25,7 +25,7 @@ std::string AsCompiler::GetBinPath(const MplOptions&) const {
 }
 
 const std::string &AsCompiler::GetBinName() const {
-  return kBinNameGcc;
+  return kBinNameAs;
 }
 
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions&) const {
@@ -34,7 +34,7 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions&) const {
 }
 
 std::string AsCompiler::GetInputFileName(const MplOptions &options) const {
-  return options.GetOutputFolder() + options.GetOutputName() + ".VtableImpl.s";
+  return options.GetOutputFolder() + options.GetOutputName() + ".s";
 }
 
 void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
