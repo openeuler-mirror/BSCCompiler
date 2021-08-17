@@ -1040,7 +1040,7 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
   } else {
     memOpnd = &GetOrCreateMemOpnd(*symbol, offset, dataSize);
   }
-  AArch64MemOperand &archMemOperand = *static_cast<AArch64MemOperand*>(memOpnd);
+  AArch64MemOperand &archMemOperand = *static_cast<AArch64MemOperand *>(memOpnd);
   if ((memOpnd->GetMemVaryType() == kNotVary) && IsImmediateOffsetOutOfRange(archMemOperand, dataSize)) {
     memOpnd = &SplitOffsetWithAddInstruction(archMemOperand, dataSize);
   }
@@ -8965,6 +8965,27 @@ Operand *AArch64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, Pr
       (pty == PTY_u32) ? AArch64RegOperand::Get32bitZeroRegister() : AArch64RegOperand::Get64bitZeroRegister();
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, zero, *memOperand));
   return addrOpnd;
+}
+
+Operand *AArch64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
+  BaseNode *argexpr0 = intrinopNode.Opnd(0);
+  while (!argexpr0->IsLeaf()) {
+    argexpr0 = argexpr0->Opnd(0);
+  }
+  CHECK_FATAL(argexpr0->IsConstval(), "Invalid argument of __builtin_return_address");
+  auto &constNode = static_cast<ConstvalNode&>(*argexpr0);
+  ASSERT(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
+  MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
+  ASSERT(mirIntConst != nullptr, "nullptr checking");
+  int64 scale = mirIntConst->GetValue();
+  /*
+   * Do not support getting return address with a nonzero argument
+   * inline / tail call opt will destory this behavior
+   */
+  CHECK_FATAL(scale == 0, "Do not support recursion");
+  Operand *resReg = &static_cast<Operand&>(CreateRegisterOperandOfType(PTY_i64));
+  SelectCopy(*resReg, PTY_i64, GetOrCreatePhysicalRegisterOperand(RLR, k64BitSize, kRegTyInt), PTY_i64);
+  return resReg;
 }
 
 Operand *AArch64CGFunc::SelectCalignup(IntrinsicopNode &intrnNode) {

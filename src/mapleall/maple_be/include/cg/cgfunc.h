@@ -194,6 +194,7 @@ class CGFunc {
   virtual Operand *SelectCSyncValCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
   virtual Operand *SelectCSyncLockTestSet(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
   virtual Operand *SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, PrimType pty) = 0;
+  virtual Operand *SelectCReturnAddress(IntrinsicopNode &intrinopNode) = 0;
   virtual void SelectMembar(StmtNode &membar) = 0;
   virtual void SelectComment(CommentNode &comment) = 0;
   virtual void HandleCatch() = 0;

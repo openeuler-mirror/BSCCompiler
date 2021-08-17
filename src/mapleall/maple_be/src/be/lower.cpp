@@ -1039,8 +1039,7 @@ DassignNode *CGLowerer::SaveReturnValueInLocal(StIdx stIdx, uint16 fieldID) {
   } else {
     pType = GlobalTables::GetTypeTable().GetTypeTable().at(var->GetTyIdx())->GetPrimType();
   }
-  RegreadNode *regRead = mirModule.GetMIRBuilder()->CreateExprRegread(
-      pType, -kSregRetval0);
+  RegreadNode *regRead = mirModule.GetMIRBuilder()->CreateExprRegread(pType, -kSregRetval0);
   return mirModule.GetMIRBuilder()->CreateStmtDassign(*var, fieldID, regRead);
 }
 
@@ -1204,10 +1203,10 @@ BlockNode *CGLowerer::GenBlockNode(StmtNode &newCall, const CallReturnVector &p2
             MIRType *from = GlobalTables::GetTypeTable().GetDouble();
             BaseNode *rNode = mirModule.GetMIRBuilder()->CreateExprRetype(*to, *from, regNode);
             regAssign = mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(),
-                        regFieldPair.GetPregIdx(), rNode);
+                regFieldPair.GetPregIdx(), rNode);
           } else {
             regAssign = mirModule.GetMIRBuilder()->CreateStmtRegassign(mirPreg->GetPrimType(),
-                        regFieldPair.GetPregIdx(), regNode);
+                regFieldPair.GetPregIdx(), regNode);
           }
           blk->AddStatement(regAssign);
           dStmt = regAssign;
@@ -3457,6 +3456,7 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   case INTRN_C___sync_lock_test_and_set_8:
   case INTRN_C___sync_lock_release_8:
   case INTRN_C___sync_lock_release_4:
+  case INTRN_C__builtin_return_address:
     return true;
 #endif
   default:
