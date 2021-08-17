@@ -307,6 +307,10 @@ void MeSSALPre::CreateMembarOccAtCatch(BB &bb) {
 // previous SSAPre
 void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, bool isRebuild, MeExpr *tmpVar,
                                   bool isRootExpr, bool insertSorted) {
+  (void) isRebuild;
+  (void) tmpVar;
+  (void) isRootExpr;
+  (void) insertSorted;
   MeExprOp meOp = meExpr.GetMeOp();
   switch (meOp) {
     case kMeOpVar: {
@@ -360,6 +364,9 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       break;
     }
     case kMeOpConst: {
+      if (preKind != kAddrPre) {
+        break;
+      }
       if (!MeOption::lpre4LargeInt) {
         break;
       }

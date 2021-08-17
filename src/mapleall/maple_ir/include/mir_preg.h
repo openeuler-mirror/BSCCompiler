@@ -96,8 +96,8 @@ class MIRPreg {
   MIRType *mirType = nullptr;
  public:
   union RematInfo {
-    MIRConst *mirConst;
-    MIRSymbol *sym;
+    MIRConst *mirConst; // used only when op is OP_constval
+    MIRSymbol *sym;     // used only when op is OP_addrof or OP_dread
   } rematInfo;
   FieldID fieldID = 0;  // used only when op is OP_addrof or OP_dread
 };
