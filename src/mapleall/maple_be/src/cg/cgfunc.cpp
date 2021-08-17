@@ -985,6 +985,14 @@ void HandleDassign(StmtNode &stmt, CGFunc &cgFunc) {
   }
 }
 
+void HandleDassignoff(StmtNode &stmt, CGFunc &cgFunc) {
+  auto &dassignoffNode = static_cast<DassignoffNode&>(stmt);
+  BaseNode *rhs = dassignoffNode.GetRHS();
+  CHECK_FATAL(rhs->GetOpCode() == OP_constval, "dassignoffNode without constval");
+  Operand *opnd0 = cgFunc.HandleExpr(dassignoffNode, *rhs);
+  cgFunc.SelectDassignoff(dassignoffNode, *opnd0);
+}
+
 void HandleRegassign(StmtNode &stmt, CGFunc &cgFunc) {
   ASSERT(stmt.GetOpCode() == OP_regassign, "expect regAssign");
   auto &regAssignNode = static_cast<RegassignNode&>(stmt);
@@ -1013,6 +1021,12 @@ void HandleIassign(StmtNode &stmt, CGFunc &cgFunc) {
     }
     cgFunc.SelectAggIassign(iassignNode, *cgFunc.HandleExpr(stmt, *addrNode));
   }
+}
+
+void HandleIassignoff(StmtNode &stmt, CGFunc &cgFunc) {
+  ASSERT(stmt.GetOpCode() == OP_iassignoff, "expect iassignoff");
+  auto &iassignoffNode = static_cast<IassignoffNode&>(stmt);
+  cgFunc.SelectIassignoff(iassignoffNode);
 }
 
 void HandleEval(StmtNode &stmt, CGFunc &cgFunc) {
@@ -1086,8 +1100,10 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtype, HandleIntrinCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_intrinsiccallwithtypeassigned, HandleIntrinCall);
   RegisterFactoryFunction<HandleStmtFactory>(OP_dassign, HandleDassign);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_dassignoff, HandleDassignoff);
   RegisterFactoryFunction<HandleStmtFactory>(OP_regassign, HandleRegassign);
   RegisterFactoryFunction<HandleStmtFactory>(OP_iassign, HandleIassign);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_iassignoff, HandleIassignoff);
   RegisterFactoryFunction<HandleStmtFactory>(OP_eval, HandleEval);
   RegisterFactoryFunction<HandleStmtFactory>(OP_rangegoto, HandleRangeGoto);
   RegisterFactoryFunction<HandleStmtFactory>(OP_membarrelease, HandleMembar);
