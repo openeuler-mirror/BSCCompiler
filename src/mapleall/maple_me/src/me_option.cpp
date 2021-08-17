@@ -23,6 +23,7 @@ namespace maple {
 using namespace mapleOption;
 
 std::unordered_set<std::string> MeOption::dumpPhases = {};
+std::unordered_set<std::string> MeOption::skipPhases = {};
 bool MeOption::dumpAfter = false;
 std::string MeOption::dumpFunc = "*";
 unsigned long MeOption::range[kRangeArrayLen] = { 0, 0 };
@@ -68,6 +69,8 @@ bool MeOption::epreIncludeRef = false;
 bool MeOption::epreLocalRefVar = true;
 bool MeOption::epreLHSIvar = true;
 bool MeOption::lpreSpeculate = false;
+bool MeOption::lpre4Address = true;
+bool MeOption::lpre4LargeInt = true;
 bool MeOption::spillAtCatch = false;
 bool MeOption::rcLowering = true;
 bool MeOption::optDirectCall = false;
@@ -210,6 +213,10 @@ enum OptionIndex {
   kEnableEa,
   kLpreSpeculate,
   kNoLpreSpeculate,
+  kLpre4Address,
+  kNoLpre4Address,
+  kLpre4LargeInt,
+  kNoLpre4LargeInt,
   kSpillatCatch,
   kPlacementRC,
   kNoPlacementRC,
@@ -978,6 +985,26 @@ const Descriptor kUsage[] = {
     "  --no-lprespeculate          \tDisable speculative code motion in LPRE phase\n",
     "me",
     {} },
+  { kLpre4Address,
+    kEnable,
+    "",
+    "lpre4address",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lpre4address              \tEnable register promotion of addresses in LPRE phase\n"
+    "  --no-lpre4address           \tDisable register promotion of addresses in LPRE phase\n",
+    "me",
+    {} },
+  { kLpre4LargeInt,
+    kEnable,
+    "",
+    "lpre4largeint",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --lpre4largeint             \tEnable register promotion of large integers in LPRE phase\n"
+    "  --no-lpre4largeint          \tDisable register promotion of large integers in LPRE phase\n",
+    "me",
+    {} },
   { kSpillatCatch,
     kEnable,
     "",
@@ -1460,6 +1487,12 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
       case kLpreSpeculate:
         lpreSpeculate = (opt.Type() == kEnable);
         break;
+      case kLpre4Address:
+        lpre4Address = (opt.Type() == kEnable);
+        break;
+      case kLpre4LargeInt:
+        lpre4LargeInt = (opt.Type() == kEnable);
+        break;
       case kSpillatCatch:
         spillAtCatch = (opt.Type() == kEnable);
         break;
@@ -1604,5 +1637,12 @@ bool MeOption::DumpPhase(const std::string &phase) {
     return false;
   }
   return ((dumpPhases.find(phase) != dumpPhases.end()) || (dumpPhases.find("*") != dumpPhases.end()));
+}
+
+bool MeOption::DumpFunc(const std::string &func) {
+  if (func == "") {
+    return false;
+  }
+  return dumpFunc == "*" || dumpFunc == func;
 }
 } // namespace maple
