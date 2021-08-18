@@ -25,9 +25,9 @@ enum CppOptionIndex {
 const mapleOption::Descriptor cppUsage[] = {
   { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyUnknown,
     "========================================\n"
-    " Usage: c2mpl [ options ]\n"
+    " Usage: mplfe [ options ]\n"
     " options:\n",
-    "c2mpl",
+    "mplfe",
     {} },
 
   { kInAst, 0, "", "inast", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyRequired,
@@ -38,12 +38,12 @@ const mapleOption::Descriptor cppUsage[] = {
 
   { kCpp2mplHelp, 0, "h", "help", mapleOption::kBuildTypeExperimental, mapleOption::kArgCheckPolicyNone,
     "   -h, --help          : print usage and exit.\n",
-    "c2mpl",
+    "mplfe",
     {} },
 
   { kUnknown, 0, "", "", mapleOption::kBuildTypeAll, mapleOption::kArgCheckPolicyNone,
     "",
-    "c2mpl",
+    "mplfe",
     {} }
 };
 } // namespace maple
