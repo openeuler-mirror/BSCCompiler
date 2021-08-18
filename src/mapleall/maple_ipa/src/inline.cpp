@@ -776,7 +776,7 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       PrimType formalPrimType = newFormal->GetType()->GetPrimType();
       PrimType realArgPrimType = currBaseNode->GetPrimType();
       // If realArg's type is different from formal's type, use cvt
-      if (formalPrimType != realArgPrimType) {
+      if (formalPrimType != realArgPrimType && MustBeAddress(formalPrimType) != MustBeAddress(realArgPrimType)) {
         bool intTrunc = (IsPrimitiveInteger(formalPrimType) && IsPrimitiveInteger(realArgPrimType) &&
             GetPrimTypeSize(realArgPrimType) > GetPrimTypeSize(formalPrimType));
         // For dassign, if rhs-expr is a primitive integer type, the assigned variable may be smaller, resulting in a
@@ -1579,24 +1579,27 @@ void MInline::MarkUsedSymbols(const BaseNode *baseNode) const {
 }
 
 // Unified interface to run inline module phase.
-AnalysisResult *DoInline::Run(MIRModule *module, ModuleResultMgr *mgr) {
-  MemPool *memPool = memPoolCtrler.NewMemPool("inline mempool", false /* isLocalPool */);
-  CallGraph *cg = static_cast<CallGraph*>(mgr->GetAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module));
+bool M2MInline::PhaseRun(maple::MIRModule &m) {
+  MemPool *memPool = GetPhaseMemPool();
+  CallGraph *cg = GET_ANALYSIS(M2MCallGraph);
   CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr");
   // Reset inlining threshold for other srcLang, especially for srcLangJava. Because those methods related to
   // reflection in Java cannot be inlined safely.
-  if (module->GetSrcLang() != kSrcLangC) {
+  if (m.GetSrcLang() != kSrcLangC) {
     Options::inlineSmallFunctionThreshold = 15;
     Options::inlineHotFunctionThreshold = 30;
   }
-  MInline mInline(*module, memPool, cg);
+  MInline mInline(m, memPool, cg);
   mInline.Inline();
   mInline.CleanupInline();
-  mgr->InvalidAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module);
-  delete memPool;
-  if (module->firstInline) {
-    module->firstInline = false;
+  if (m.firstInline) {
+    m.firstInline = false;
   }
-  return nullptr;
+  return true;
+}
+
+void M2MInline::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MCallGraph>();
+  aDep.PreservedAllExcept<M2MCallGraph>();
 }
 }  // namespace maple
