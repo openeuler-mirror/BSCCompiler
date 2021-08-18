@@ -12,10 +12,10 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "alias_class.h"
+#include "me_alias_class.h"
 #include "me_rename2preg.h"
 #include "mir_builder.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "me_option.h"
 
 // This phase mainly renames the variables to pseudo register.
@@ -33,13 +33,6 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
   const MIRSymbol *mirst = ost->GetMIRSymbol();
   if (mirst->GetAttr(ATTR_localrefvar) || mirst->GetAttr(ATTR_oneelem_simd)) {
     return nullptr;
-  }
-  if (ost->GetFieldID() != 0 && mirModule->IsCModule()) {
-    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(mirst->GetTyIdx()));
-    FieldAttrs fattrs = structType->GetFieldAttrs(ost->GetFieldID());
-    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
-      return nullptr;
-    }
   }
   if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {
     return nullptr;
@@ -112,6 +105,11 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     pregOst->SetIsFormal(ost->IsFormal());
     sym2reg_map[ost->GetIndex()] = pregOst;
     (void)vstidx2reg_map.insert(std::make_pair(varmeexpr->GetExprID(), curtemp));
+    // set fields in MIRPreg to support rematerialization
+    MIRPreg *preg = pregOst->GetMIRPreg();
+    preg->SetOp(OP_dread);
+    preg->rematInfo.sym = ost->GetMIRSymbol();
+    preg->fieldID = ost->GetFieldID();
     if (ost->IsFormal()) {
       uint32 parmindex = func->GetMirFunc()->GetFormalIndex(mirst);
       CHECK_FATAL(parm_used_vec[parmindex], "parm_used_vec not set correctly");
@@ -417,34 +415,35 @@ void SSARename2Preg::PromoteEmptyFunction() {
   UpdateMirFunctionFormal();
 }
 
-AnalysisResult *MeDoSSARename2Preg::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrMgr) {
-  if (func->GetCfg()->empty()) {
-    return nullptr;
-  }
-  (void)mrMgr;
-  MeIRMap *irMap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  ASSERT(irMap != nullptr, "");
-
-  MemPool *renamemp = memPoolCtrler.NewMemPool(PhaseName().c_str(), true /* isLocalPool */);
-  if (func->GetCfg()->GetAllBBs().size() == 0) {
-    // empty function, we only promote the parameter
-    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, func, nullptr, nullptr);
-    emptyrenamer->PromoteEmptyFunction();
-    delete renamemp;
-    return nullptr;
-  }
-
-  AliasClass *aliasclass = static_cast<AliasClass *>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
-  ASSERT(aliasclass != nullptr, "");
-
-  auto *phase = renamemp->New<SSARename2Preg>(renamemp, func, irMap, aliasclass);
-  phase->RunSelf();
-  if (DEBUGFUNC(func)) {
-    irMap->Dump();
-  }
-  delete renamemp;
-
-  return nullptr;
+void MESSARename2Preg::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.SetPreservedAll();
 }
 
+bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
+  if (f.GetCfg()->empty()) {
+    return false;
+  }
+  MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild);
+  ASSERT(irMap != nullptr, "irMap is wrong.");
+
+  MemPool *renamemp = ApplyTempMemPool();
+  if (f.GetCfg()->GetAllBBs().size() == 0) {
+    // empty function, we only promote the parameter
+    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, &f, nullptr, nullptr);
+    emptyrenamer->PromoteEmptyFunction();
+    return true;
+  }
+
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass);
+  ASSERT(aliasClass != nullptr, "");
+
+  auto *phase = renamemp->New<SSARename2Preg>(renamemp, &f, f.GetIRMap(), aliasClass);
+  phase->RunSelf();
+  if (DEBUGFUNC_NEWPM(f)) {
+    irMap->Dump();
+  }
+  return true;
+}
 }  // namespace maple
