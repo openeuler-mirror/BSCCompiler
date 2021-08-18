@@ -22,6 +22,8 @@
 #include "file_utils.h"
 #include "constantfold.h"
 #include "lower.h"
+#include "me_phase_manager.h"
+#include "lfo_loop_vec.h"
 #if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_emitter.h"
 #elif TARGARM32
@@ -128,12 +130,7 @@ ErrorCode DriverRunner::ParseInput() const {
   ErrorCode ret = kErrorNoError;
   if (!fileParsed) {
     if (inputFileType != kFileTypeBpl) {
-      MPLTimer parseMirTimer;
-      parseMirTimer.Start();
       bool parsed = parser.ParseMIR(0, 0, false, true);
-      parseMirTimer.Stop();
-      InterleavedManager::interleavedTimer.emplace_back(
-          std::pair<std::string, time_t>("parseMpl", parseMirTimer.ElapsedMicroseconds()));
       if (!parsed) {
         ret = kErrorExit;
         parser.EmitError(actualInput);
@@ -142,12 +139,7 @@ ErrorCode DriverRunner::ParseInput() const {
       BinaryMplImport binMplt(*theModule);
       binMplt.SetImported(false);
       std::string modid = theModule->GetFileName();
-      MPLTimer importMirTimer;
-      importMirTimer.Start();
       bool imported = binMplt.Import(modid, true);
-      importMirTimer.Stop();
-      InterleavedManager::interleavedTimer.emplace_back(
-          std::pair<std::string, time_t>("parseMpl", importMirTimer.ElapsedMicroseconds()));
       if (!imported) {
         ret = kErrorExit;
         LogInfo::MapleLogger() << "Cannot open .bpl file: %s" << modid << '\n';
@@ -193,15 +185,26 @@ ErrorCode DriverRunner::ParseInput() const {
   return ret;
 }
 
-#ifdef NEW_PM
 void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vtableImplFile) {
+  LogInfo::MapleLogger() << "Processing maplecomb in new phasemanager" << '\n';
   auto PMMemPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PM module mempool");
   const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEBETopLevelManager::id);
   auto *topLevelPhaseManager = static_cast<MEBETopLevelManager*>(curPhase->GetConstructor()(PMMemPool.get()));
+  topLevelPhaseManager->SetRunMpl2Mpl(mpl2mplOptions != nullptr);
+  topLevelPhaseManager->SetRunMe(meOptions != nullptr);
+  topLevelPhaseManager->SetQuiet(Options::quiet);
+  if (timePhases) {
+    topLevelPhaseManager->InitTimeHandler();
+  }
+  MeFuncPM::genMeMpl = genMeMpl;
+  MeFuncPM::timePhases = timePhases;
   MPLTimer timer;
   timer.Start();
+  topLevelPhaseManager->DoPhasesPopulate(*theModule);
   topLevelPhaseManager->Run(*theModule);
-
+  if (timePhases) {
+    topLevelPhaseManager->DumpPhaseTime();
+  }
   // emit after module phase
   if (printOutExe == kMpl2mpl || printOutExe == kMplMe) {
     theModule->Emit(outputFile);
@@ -210,9 +213,12 @@ void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vt
   }
   PMMemPool.reset();
   timer.Stop();
-  LogInfo::MapleLogger() << " Mpl2mpl&mplme consumed " << timer.Elapsed() << "s" << '\n';
+  LogInfo::MapleLogger() << "maplecomb consumed " << timer.Elapsed() << "s" << '\n';
+  // dump vectorized loop counter here
+  {
+    LogInfo::MapleLogger() << "\n" << LoopVectorization::vectorizedLoop << " loop vectorized\n";
+  }
 }
-#endif
 
 void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) {
   CHECK_MODULE();
@@ -222,89 +228,11 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, cons
     theMIRModule->GetDbgInfo()->BuildDebugInfo();
   }
   if (mpl2mplOptions != nullptr || meOptions != nullptr) {
-#ifdef NEW_PM
-    if (MeOption::threads <= 1) {
-      // main entry of newpm for me&mpl2mpl
-      RunNewPM(outputFile, vtableImplFile);
-      return;
-    }
-#endif
-    LogInfo::MapleLogger() << "Processing maplecomb" << '\n';
-
-    InterleavedManager mgr(optMp, theModule, meInput, timePhases);
-    std::vector<std::string> phases;
-#include "phases.def"
-    InitPhases(mgr, phases);
-    MPLTimer timer;
-    timer.Start();
-    mgr.Run();
-    MPLTimer emitVtableMplTimer;
-    emitVtableMplTimer.Start();
-    // emit after module phase
-    if (printOutExe == kMpl2mpl || printOutExe == kMplMe) {
-      theModule->Emit(outputFile);
-    } else if (genVtableImpl || Options::emitVtableImpl) {
-      theModule->Emit(vtableImplFile);
-    }
-    emitVtableMplTimer.Stop();
-    mgr.SetEmitVtableImplTime(emitVtableMplTimer.ElapsedMicroseconds());
-    timer.Stop();
-    LogInfo::MapleLogger() << " maplecomb consumed " << timer.Elapsed() << "s" << '\n';
-  }
-}
-
-void DriverRunner::InitPhases(InterleavedManager &mgr, const std::vector<std::string> &phases) const {
-  if (phases.empty()) {
+    // multi-thread is not supported for now.
+    MeOption::threads = 1;
+    // main entry of newpm for me&mpl2mpl
+    RunNewPM(outputFile, vtableImplFile);
     return;
-  }
-
-  const PhaseManager *curManager = nullptr;
-  std::vector<std::string> curPhases;
-
-  for (const std::string &phase : phases) {
-    const PhaseManager *supportManager = mgr.GetSupportPhaseManager(phase);
-    if (supportManager != nullptr) {
-      if (curManager != nullptr && curManager != supportManager && !curPhases.empty()) {
-        AddPhases(mgr, curPhases, *curManager);
-        curPhases.clear();
-      }
-
-      if (curManager != supportManager) {
-        curManager = supportManager;
-      }
-      AddPhase(curPhases, phase, *supportManager);
-    }
-  }
-
-  if (curManager != nullptr && !curPhases.empty()) {
-    AddPhases(mgr, curPhases, *curManager);
-  }
-}
-
-void DriverRunner::AddPhases(InterleavedManager &mgr, const std::vector<std::string> &phases,
-                             const PhaseManager &phaseManager) const {
-  const auto &type = typeid(phaseManager);
-  if (type == typeid(ModulePhaseManager)) {
-    mgr.AddPhases(phases, true, timePhases);
-  } else if (type == typeid(MeFuncPhaseManager)) {
-    mgr.AddPhases(phases, false, timePhases, genMeMpl);
-  } else {
-    CHECK_FATAL(false, "Should not reach here, phases should be handled");
-  }
-}
-
-void DriverRunner::AddPhase(std::vector<std::string> &phases, const std::string phase,
-                            const PhaseManager &phaseManager) const {
-  if (typeid(phaseManager) == typeid(ModulePhaseManager)) {
-    if (mpl2mplOptions && Options::skipPhase.compare(phase) != 0) {
-      phases.push_back(phase);
-    }
-  } else if (typeid(phaseManager) == typeid(MeFuncPhaseManager)) {
-    if (meOptions && meOptions->GetSkipPhases().find(phase) == meOptions->GetSkipPhases().end()) {
-      phases.push_back(phase);
-    }
-  } else {
-    CHECK_FATAL(false, "Should not reach here, phase should be handled");
   }
 }
 
@@ -333,10 +261,17 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
 
   auto cgPhaseManager = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "cg function phasemanager");
   const MaplePhaseInfo *cgPMInfo = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&CgFuncPM::id);
-  auto *cgfuncNewPhaseManager = static_cast<CgFuncPM*>(cgPMInfo->GetConstructor()(cgPhaseManager.get()));
+  auto *cgfuncPhaseManager = static_cast<CgFuncPM*>(cgPMInfo->GetConstructor()(cgPhaseManager.get()));
+  cgfuncPhaseManager->SetQuiet(CGOptions::IsQuiet());
+  if (timePhases) {
+    cgfuncPhaseManager->InitTimeHandler();
+  }
   /* It is a specifc work around  (need refactor) */
-  cgfuncNewPhaseManager->SetCGOptions(cgOptions);
-  (void) cgfuncNewPhaseManager->PhaseRun(*theModule);
+  cgfuncPhaseManager->SetCGOptions(cgOptions);
+  (void) cgfuncPhaseManager->PhaseRun(*theModule);
+  if (timePhases) {
+    cgfuncPhaseManager->DumpPhaseTime();
+  }
   timer.Stop();
   LogInfo::MapleLogger() << "Mplcg consumed " << timer.ElapsedMilliseconds() << "ms" << '\n';
 }
