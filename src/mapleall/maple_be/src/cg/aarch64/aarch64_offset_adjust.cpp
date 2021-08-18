@@ -54,7 +54,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
           AArch64MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
-              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R17), false, &insn);
+              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn);
           insn.SetOperand(i, newMemOpnd);
         }
       }
@@ -62,7 +62,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         bool condition = aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, i);
         if (!condition) {
           AArch64MemOperand &newMemOpnd = aarchCGFunc.SplitOffsetWithAddInstruction(
-              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R17), false, &insn);
+              memOpnd, memOpnd.GetSize(), static_cast<AArch64reg>(R16), false, &insn);
           insn.SetOperand(i, newMemOpnd);
         }
       }

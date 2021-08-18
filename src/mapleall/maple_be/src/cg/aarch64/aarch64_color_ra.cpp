@@ -44,6 +44,7 @@
  */
 namespace maplebe {
 #define JAVALANG (cgFunc->GetMirModule().IsJavaModule())
+#define CLANG (cgFunc->GetMirModule().IsCModule())
 
 /*
  * for physical regOpnd phyOpnd,
@@ -259,25 +260,27 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
     auto lu = lr.FindInLuMap(bbID);
     ASSERT(lu != lr.EndOfLuMap(), "can not find live unit");
     BB *bb = bbVec[bbID];
-    ++bbNum;
-    uint32 useCnt = lu->second->GetDefNum() + lu->second->GetUseNum();
-    uint32 mult;
+    if (bb->GetFirstInsn() != nullptr && !bb->IsSoloGoto()) {
+      ++bbNum;
+      uint32 useCnt = lu->second->GetDefNum() + lu->second->GetUseNum();
+      uint32 mult;
 #ifdef USE_BB_FREQUENCY
-    mult = bb->GetFrequency();
+      mult = bb->GetFrequency();
 #else   /* USE_BB_FREQUENCY */
-    if (bb->GetLoop() != nullptr) {
-      uint32 loopFactor;
-      if (lr.GetNumCall() > 0) {
-        loopFactor = bb->GetLoop()->GetLoopLevel() * kAdjustWeight;
+      if (bb->GetLoop() != nullptr) {
+        uint32 loopFactor;
+        if (lr.GetNumCall() > 0) {
+          loopFactor = bb->GetLoop()->GetLoopLevel() * kAdjustWeight;
+        } else {
+          loopFactor = bb->GetLoop()->GetLoopLevel() / kAdjustWeight;
+        }
+        mult = static_cast<uint32>(pow(kLoopWeight, loopFactor));
       } else {
-        loopFactor = bb->GetLoop()->GetLoopLevel() / kAdjustWeight;
+        mult = 1;
       }
-      mult = static_cast<uint32>(pow(kLoopWeight, loopFactor));
-    } else {
-      mult = 1;
-    }
 #endif  /* USE_BB_FREQUENCY */
-    pri += useCnt * mult;
+      pri += useCnt * mult;
+    }
   };
   ForEachBBArrElem(lr.GetBBMember(), calculatePriorityFunc);
 
@@ -313,7 +316,11 @@ uint32 GraphColorRegAllocator::MaxFloatPhysRegNum() const {
 }
 
 bool GraphColorRegAllocator::IsReservedReg(AArch64reg regNO) const {
-  return (regNO == R16) || (regNO == R17);
+  if (!doMultiPass || cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return (regNO == R16) || (regNO == R17);
+  } else {
+    return (regNO == R16);
+  }
 }
 
 void GraphColorRegAllocator::InitFreeRegPool() {
@@ -2580,7 +2587,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   }
 
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = R17;
+    regno_t pregNO = R16;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), false, &insn);
   }
@@ -2619,7 +2626,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
 
   bool isOutOfRange = false;
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = R17;
+    regno_t pregNO = R16;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), true, &insn);
     isOutOfRange = true;
@@ -2668,21 +2675,21 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
          */
         baseRegNO = lr.GetSpillReg();
         if (baseRegNO > RLAST_INT_REG) {
-          baseRegNO = R17;
+          baseRegNO = R16;
         }
       } else {
-        /* dest will use R17 as baseRegister when offset out-of-range
+        /* dest will use R16 as baseRegister when offset out-of-range
          * mov x16, xs
          * add x17, x29, #max-offset  //out-of-range
          * str x16, [x17, #offset]    //spill
          */
-        baseRegNO = R17;
+        baseRegNO = R16;
       }
       ASSERT(baseRegNO != kRinvalid, "invalid base register number");
       memOpnd = GetSpillMem(lr.GetRegNO(), isDef, insn, static_cast<AArch64reg>(baseRegNO), isOutOfRange);
       /* dest's spill reg can only be R15 and R16 () */
       if (isOutOfRange && isDef) {
-        ASSERT(lr.GetSpillReg() != R17, "can not find valid memopnd's base register");
+        ASSERT(lr.GetSpillReg() != R16, "can not find valid memopnd's base register");
       }
 #ifdef REUSE_SPILLMEM
       if (isOutOfRange == 0) {
@@ -2700,7 +2707,8 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
  * When need_spill is true, need to spill the spill operand register first
  * then use it for the current spill, then reload it again.
  */
-Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd) {
+Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool isDef,
+                                           RegOperand &phyOpnd, bool forCall) {
   auto &regOpnd = static_cast<const RegOperand&>(opnd);
   uint32 regNO = regOpnd.GetRegisterNumber();
   uint32 pregNO = phyOpnd.GetRegisterNumber();
@@ -2725,14 +2733,16 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
   Insn *spillDefInsn = nullptr;
   if (isDef) {
     lr->SetSpillReg(pregNO);
-    MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, true);
+    MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? false : true);
     spillDefInsn = &cg->BuildInstruction<AArch64Insn>(a64CGFunc->PickStInsn(regSize, stype), phyOpnd, *memOpnd);
     std::string comment = " SPILL vreg: " + std::to_string(regNO);
     if (isForCallerSave) {
       comment += " for caller save in BB " + std::to_string(insn.GetBB()->GetId());
     }
     spillDefInsn->SetComment(comment);
-    if (isOutOfRange || (insn.GetNext() && insn.GetNext()->GetMachineOpcode() == MOP_clinit_tail)) {
+    if (forCall) {
+      insn.GetBB()->InsertInsnBefore(insn, *spillDefInsn);
+    } else if (isOutOfRange || (insn.GetNext() && insn.GetNext()->GetMachineOpcode() == MOP_clinit_tail)) {
       insn.GetBB()->InsertInsnAfter(*insn.GetNext(), *spillDefInsn);
     } else {
       insn.GetBB()->InsertInsnAfter(insn, *spillDefInsn);
@@ -2745,14 +2755,22 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
     return nullptr;
   }
   lr->SetSpillReg(pregNO);
-  MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, false);
+  MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? true : false);
   Insn &spillUseInsn = cg->BuildInstruction<AArch64Insn>(a64CGFunc->PickLdInsn(regSize, stype), phyOpnd, *memOpnd);
   std::string comment = " RELOAD vreg: " + std::to_string(regNO);
   if (isForCallerSave) {
     comment += " for caller save in BB " + std::to_string(insn.GetBB()->GetId());
   }
   spillUseInsn.SetComment(comment);
-  insn.GetBB()->InsertInsnBefore(insn, spillUseInsn);
+  if (forCall) {
+    if (isOutOfRange) {
+      insn.GetBB()->InsertInsnAfter(*insn.GetNext(), spillUseInsn);
+    } else {
+      insn.GetBB()->InsertInsnAfter(insn, spillUseInsn);
+    }
+  } else {
+    insn.GetBB()->InsertInsnBefore(insn, spillUseInsn);
+  }
   if (spillDefInsn != nullptr) {
     return spillDefInsn;
   }
@@ -3204,8 +3222,13 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpnd(Insn &insn, const Operand &op
 
   bool needCallerSave = false;
   if (lr->GetNumCall() && !isCalleeReg) {
-    needCallerSave = NeedCallerSave(insn, *lr, isDef);
+    if (isDef) {
+      needCallerSave = NeedCallerSave(insn, *lr, isDef);
+    } else {
+      needCallerSave = !lr->GetProcessed();
+    }
   }
+
   if (lr->IsSpilled() || (isSplitPart && (lr->GetSplitLr()->GetNumCall() != 0)) || needCallerSave ||
       (!isSplitPart && !(lr->IsSpilled()) && lr->GetLiveUnitFromLuMap(insn.GetBB()->GetId())->NeedReload())) {
     SpillOperandForSpillPre(insn, regOpnd, phyOpnd, spillIdx, needSpillLr);
@@ -3455,11 +3478,483 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
   }
 }
 
+static bool ReloadAtCallee(CgOccur *occ) {
+  auto *defOcc = occ->GetDef();
+  if (defOcc == nullptr || defOcc->GetOccType() != kOccStore) {
+    return false;
+  }
+  return static_cast<CgStoreOcc *>(defOcc)->Reload();
+}
+
+void CallerSavePre::CodeMotion() {
+  constexpr uint32 limitNum = UINT32_MAX;
+  uint32 cnt = 0;
+  for (auto *occ : allOccs) {
+    if (occ->GetOccType() == kOccUse) {
+      ++cnt;
+      beyondLimit |= (cnt > limitNum);
+      if (!beyondLimit && dump) {
+        LogInfo::MapleLogger() << "opt use occur: ";
+        occ->Dump();
+      }
+    }
+    if (occ->GetOccType() == kOccUse &&
+        (beyondLimit || (static_cast<CgUseOcc *>(occ)->Reload() && !ReloadAtCallee(occ)))) {
+      RegOperand &phyOpnd = static_cast<AArch64CGFunc*>(func)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(workLr->GetAssignedRegNO()), occ->GetOperand()->GetSize(),
+          static_cast<RegOperand*>(occ->GetOperand())->GetRegisterType());
+      (void)regAllocator->SpillOperand(*occ->GetInsn(), *occ->GetOperand(), false, phyOpnd);
+      continue;
+    }
+    if (occ->GetOccType() == kOccPhiopnd && static_cast<CgPhiOpndOcc *>(occ)->Reload() && !ReloadAtCallee(occ)) {
+      RegOperand &phyOpnd = static_cast<AArch64CGFunc*>(func)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(workLr->GetAssignedRegNO()), occ->GetOperand()->GetSize(),
+          static_cast<RegOperand*>(occ->GetOperand())->GetRegisterType());
+      Insn *insn = occ->GetBB()->GetLastInsn();
+      if (insn == nullptr) {
+        insn = &(static_cast<AArch64CGFunc*>(func)->CreateCommentInsn("reload caller save register"));
+        occ->GetBB()->AppendInsn(*insn);
+      }
+      auto defOcc = occ->GetDef();
+      bool forCall = (defOcc != nullptr && insn == defOcc->GetInsn());
+      (void)regAllocator->SpillOperand(*insn, *occ->GetOperand(), false, phyOpnd, forCall);
+      continue;
+    }
+    if (occ->GetOccType() == kOccStore && static_cast<CgStoreOcc *>(occ)->Reload()) {
+      RegOperand &phyOpnd = static_cast<AArch64CGFunc*>(func)->GetOrCreatePhysicalRegisterOperand(
+          static_cast<AArch64reg>(workLr->GetAssignedRegNO()), occ->GetOperand()->GetSize(),
+          static_cast<RegOperand*>(occ->GetOperand())->GetRegisterType());
+      (void)regAllocator->SpillOperand(*occ->GetInsn(), *occ->GetOperand(), false, phyOpnd, true);
+      continue;
+    }
+  }
+  if (dump) {
+    PreWorkCand *curCand = workCand;
+    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after codemotion==============\n";
+    workCand->GetTheOperand()->Dump();
+    for (CgOccur *occ : allOccs) {
+      occ->Dump();
+      LogInfo::MapleLogger() << '\n';
+    }
+    func->DumpCFGToDot("raCodeMotion-");
+  }
+}
+
+void CallerSavePre::UpdateLoadSite(CgOccur *occ) {
+  if (occ == nullptr) {
+    return;
+  }
+  auto *defOcc = occ->GetDef();
+  if (occ->GetOccType() == kOccUse) {
+    defOcc = static_cast<CgUseOcc *>(occ)->GetPrevVersionOccur();
+  }
+  if (defOcc == nullptr) {
+    return;
+  }
+  switch (defOcc->GetOccType()) {
+    case kOccDef:
+      break;
+    case kOccUse:
+      UpdateLoadSite(defOcc);
+      return;
+    case kOccStore: {
+      auto *storeOcc = static_cast<CgStoreOcc *>(defOcc);
+      if (storeOcc->Reload()) {
+        break;
+      }
+      switch (occ->GetOccType()) {
+        case kOccUse: {
+          static_cast<CgUseOcc *>(occ)->SetReload(true);
+          break;
+        }
+        case kOccPhiopnd: {
+          static_cast<CgPhiOpndOcc *>(occ)->SetReload(true);
+          break;
+        }
+        default: {
+          CHECK_FATAL(false, "must not be here");
+        }
+      }
+      return;
+    }
+    case kOccPhiocc: {
+      auto *phiOcc = static_cast<CgPhiOcc *>(defOcc);
+      if (phiOcc->IsFullyAvailable()) {
+        break;
+      }
+      if (!phiOcc->IsDownSafe() || phiOcc->IsNotAvailable()) {
+        switch (occ->GetOccType()) {
+          case kOccUse: {
+            static_cast<CgUseOcc *>(occ)->SetReload(true);
+            break;
+          }
+          case kOccPhiopnd: {
+            static_cast<CgPhiOpndOcc *>(occ)->SetReload(true);
+            break;
+          }
+          default: {
+            CHECK_FATAL(false, "must not be here");
+          }
+        }
+        return;
+      }
+
+      if (defOcc->Processed()) {
+        return;
+      }
+      defOcc->SetProcessed(true);
+      for (auto *opndOcc : phiOcc->GetPhiOpnds()) {
+        UpdateLoadSite(opndOcc);
+      }
+      return;
+    }
+    default: {
+      CHECK_FATAL(false, "NIY");
+      break;
+    }
+  }
+}
+
+void CallerSavePre::CalLoadSites() {
+  for (auto *occ : allOccs) {
+    if (occ->GetOccType() == kOccUse) {
+      UpdateLoadSite(occ);
+    }
+  }
+  std::vector<CgOccur *> availableDef(classCount, nullptr);
+  for (auto *occ : allOccs) {
+    switch (occ->GetOccType()) {
+      case kOccDef:
+        availableDef[occ->GetClassID()] = occ;
+        break;
+      case kOccStore: {
+        if (static_cast<CgStoreOcc *>(occ)->Reload()) {
+          availableDef[occ->GetClassID()] = occ;
+        } else {
+          availableDef[occ->GetClassID()] = nullptr;
+        }
+        break;
+      }
+      case kOccPhiocc: {
+        auto *phiOcc = static_cast<CgPhiOcc *>(occ);
+        if (!phiOcc->IsNotAvailable() && phiOcc->IsDownSafe()) {
+          availableDef[occ->GetClassID()] = occ;
+        } else {
+          availableDef[occ->GetClassID()] = nullptr;
+        }
+        break;
+      }
+      case kOccUse: {
+        auto *useOcc = static_cast<CgUseOcc *>(occ);
+        if (useOcc->Reload()) {
+          auto *availDef = availableDef[useOcc->GetClassID()];
+          if (availDef != nullptr && dom->Dominate(*availDef->GetBB(), *useOcc->GetBB())) {
+            useOcc->SetReload(false);
+          } else {
+            availableDef[useOcc->GetClassID()] = useOcc;
+          }
+        }
+        break;
+      }
+      case kOccPhiopnd: {
+        auto *phiOpnd = static_cast<CgPhiOpndOcc *>(occ);
+        if (phiOpnd->Reload()) {
+          auto *availDef = availableDef[phiOpnd->GetClassID()];
+          if (availDef != nullptr && dom->Dominate(*availDef->GetBB(), *phiOpnd->GetBB())) {
+            phiOpnd->SetReload(false);
+          } else {
+            availableDef[phiOpnd->GetClassID()] = phiOpnd;
+          }
+        }
+        break;
+      }
+      case kOccExit:
+        break;
+      default:
+        CHECK_FATAL(false, "not supported occur type");
+    }
+  }
+  if (dump) {
+    PreWorkCand *curCand = workCand;
+    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex()
+        << " after CalLoadSite===================\n";
+    workCand->GetTheOperand()->Dump();
+    LogInfo::MapleLogger() << '\n';
+    for (CgOccur *occ : allOccs) {
+      occ->Dump();
+      LogInfo::MapleLogger() << '\n';
+    }
+    LogInfo::MapleLogger() << "\n";
+  }
+}
+
+void CallerSavePre::ComputeAvail() {
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (auto *phiOcc : phiOccs) {
+      if (phiOcc->IsNotAvailable()) {
+        continue;
+      }
+      uint32 killedCnt = 0;
+      for (auto *opndOcc : phiOcc->GetPhiOpnds()) {
+        auto defOcc = opndOcc->GetDef();
+        if (defOcc == nullptr) {
+          continue;
+        }
+        // for not move load too far from use site, set not-fully-available-phi killing availibity of phiOpnd
+        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable())
+            || defOcc->GetOccType() == kOccStore) {
+          ++killedCnt;
+          opndOcc->SetHasRealUse(false);
+          // opnd at back-edge is killed, set phi not avail
+          if (dom->Dominate(*phiOcc->GetBB(), *opndOcc->GetBB())) {
+            killedCnt = phiOcc->GetPhiOpnds().size();
+            break;
+          }
+          if (opndOcc->GetBB()->IsSoloGoto() && opndOcc->GetBB()->GetLoop() != nullptr) {
+            killedCnt = phiOcc->GetPhiOpnds().size();
+            break;
+          }
+          continue;
+        }
+      }
+      if (killedCnt == phiOcc->GetPhiOpnds().size()) {
+        changed |= !phiOcc->IsNotAvailable();
+        phiOcc->SetAvailability(kNotAvailable);
+      } else if (killedCnt > 0) {
+        changed |= !phiOcc->IsPartialAvailable();
+        phiOcc->SetAvailability(kPartialAvailable);
+      } else {} // fully available is default state
+    }
+  }
+}
+
+void CallerSavePre::Rename1() {
+  std::stack<CgOccur*> occStack;
+  classCount = 1;
+  // iterate the occurrence according to its preorder dominator tree
+  for (CgOccur *occ : allOccs) {
+    while (!occStack.empty() && !occStack.top()->IsDominate(*dom, *occ)) {
+      occStack.pop();
+    }
+    switch (occ->GetOccType()) {
+      case kOccUse: {
+        if (occStack.empty()) {
+          // assign new class
+          occ->SetClassID(classCount++);
+          occStack.push(occ);
+          break;
+        }
+        CgOccur *topOccur = occStack.top();
+        if (topOccur->GetOccType() == kOccStore || topOccur->GetOccType() == kOccDef ||
+            topOccur->GetOccType() == kOccPhiocc) {
+          // assign new class
+          occ->SetClassID(topOccur->GetClassID());
+          occ->SetPrevVersionOccur(topOccur);
+          occStack.push(occ);
+          break;
+        } else if (topOccur->GetOccType() == kOccUse) {
+          occ->SetClassID(topOccur->GetClassID());
+          if (topOccur->GetDef() != nullptr) {
+            occ->SetDef(topOccur->GetDef());
+          } else {
+            occ->SetDef(topOccur);
+          }
+          break;
+        }
+        CHECK_FATAL(false, "unsupported occur type");
+        break;
+      }
+      case kOccPhiocc: {
+        // assign new class
+        occ->SetClassID(classCount++);
+        occStack.push(occ);
+        break;
+      }
+      case kOccPhiopnd: {
+        if (!occStack.empty()) {
+          CgOccur *topOccur = occStack.top();
+          auto *phiOpndOcc = static_cast<CgPhiOpndOcc*>(occ);
+          phiOpndOcc->SetDef(topOccur);
+          phiOpndOcc->SetClassID(topOccur->GetClassID());
+          if (topOccur->GetOccType() == kOccUse) {
+            phiOpndOcc->SetHasRealUse(true);
+          }
+        }
+        break;
+      }
+      case kOccDef: {
+        if (!occStack.empty()) {
+          CgOccur *topOccur = occStack.top();
+          if (topOccur->GetOccType() == kOccPhiocc) {
+            auto *phiTopOccur = static_cast<CgPhiOcc*>(topOccur);
+            phiTopOccur->SetIsDownSafe(false);
+          }
+        }
+
+        // assign new class
+        occ->SetClassID(classCount++);
+        occStack.push(occ);
+        break;
+      }
+      case kOccStore: {
+        if (!occStack.empty()) {
+          CgOccur *topOccur = occStack.top();
+          auto prevVersionOcc = topOccur->GetDef() ? topOccur->GetDef() : topOccur;
+          static_cast<CgStoreOcc *>(occ)->SetPrevVersionOccur(prevVersionOcc);
+          if (topOccur->GetOccType() == kOccPhiocc) {
+            auto *phiTopOccur = static_cast<CgPhiOcc*>(topOccur);
+            phiTopOccur->SetIsDownSafe(false);
+          }
+        }
+
+        // assign new class
+        occ->SetClassID(classCount++);
+        occStack.push(occ);
+        break;
+      }
+      case kOccExit: {
+        if (occStack.empty()) {
+          break;
+        }
+        CgOccur *topOccur = occStack.top();
+        if (topOccur->GetOccType() == kOccPhiocc) {
+          auto *phiTopOccur = static_cast<CgPhiOcc*>(topOccur);
+          phiTopOccur->SetIsDownSafe(false);
+        }
+        break;
+      }
+      default:
+        ASSERT(false, "should not be here");
+        break;
+    }
+  }
+  if (dump) {
+    PreWorkCand *curCand = workCand;
+    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after rename1============\n";
+    workCand->GetTheOperand()->Dump();
+    for (CgOccur *occ : allOccs) {
+      occ->Dump();
+      LogInfo::MapleLogger() << '\n';
+    }
+  }
+}
+
+void CallerSavePre::ComputeVarAndDfPhis() {
+  dfPhiDfns.clear();
+  PreWorkCand *workCand = GetWorkCand();
+  for (auto *realOcc : workCand->GetRealOccs()) {
+    BB *defBB = realOcc->GetBB();
+    GetIterDomFrontier(defBB, &dfPhiDfns);
+  }
+}
+
+void CallerSavePre::BuildWorkList() {
+  size_t numBBs = dom->GetDtPreOrderSize();
+  std::vector<LiveRange*> callSaveLrs;
+  for (auto lr: regAllocator->GetLrVec()) {
+    if (lr == nullptr || lr->IsSpilled()) {
+      continue;
+    }
+    bool isCalleeReg = AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(lr->GetAssignedRegNO()));
+    if (lr->GetSplitLr() == nullptr && lr->GetNumCall() && !isCalleeReg) {
+      callSaveLrs.emplace_back(lr);
+    }
+  }
+  const MapleVector<uint32> &preOrderDt = dom->GetDtPreOrder();
+  for (size_t i = 0; i < numBBs; ++i) {
+    BB *bb = func->GetBBFromID(preOrderDt[i]);
+    std::map<uint32, Insn*> insnMap;
+    FOR_BB_INSNS_SAFE(insn, bb, ninsn) {
+      insnMap.insert(std::make_pair(insn->GetId(), insn));
+    }
+    for (auto lr: callSaveLrs) {
+      LiveUnit *lu = lr->GetLiveUnitFromLuMap(bb->GetId());
+      RegOperand &opnd = func->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
+      if (lu != nullptr) {
+        MapleMap<uint32, std::map<uint32, uint32>> refs = lr->GetRefs();
+        for (auto it = refs[bb->GetId()].begin(); it != refs[bb->GetId()].end(); it++) {
+          if (it->second & kIsUse) {
+            (void)CreateRealOcc(*insnMap[it->first], opnd, kOccUse);
+          }
+          if (it->second & kIsDef) {
+            (void)CreateRealOcc(*insnMap[it->first], opnd, kOccDef);
+          }
+          if (it->second & kIsCall) {
+            (void)CreateRealOcc(*insnMap[it->first], opnd, kOccStore);
+          }
+        }
+      }
+    }
+    if (bb->GetKind() == BB::kBBReturn) {
+      CreateExitOcc(*bb);
+    }
+  }
+}
+
+void CallerSavePre::ApplySSAPRE() {
+  // #0 build worklist
+  BuildWorkList();
+  uint32 cnt = 0;
+  constexpr uint32 preLimit = UINT32_MAX;
+  while (!workList.empty()) {
+    ++cnt;
+    if (cnt > preLimit) {
+      beyondLimit = true;
+    }
+    workCand = workList.front();
+    workCand->SetIndex(static_cast<int32>(cnt));
+    workLr = regAllocator->GetLrVec()[static_cast<RegOperand *>(workCand->GetTheOperand())->GetRegisterNumber()];
+    ASSERT(workLr != nullptr, "exepected non null lr");
+    workList.pop_front();
+    if (workCand->GetRealOccs().empty()) {
+      continue;
+    }
+
+    allOccs.clear();
+    phiOccs.clear();
+    // #1 Insert PHI; results in allOccs and phiOccs
+    ComputeVarAndDfPhis();
+    CreateSortedOccs();
+    if (workCand->GetRealOccs().empty()) {
+      continue;
+    }
+    // #2 Rename
+    Rename1();
+    ComputeDS();
+    ComputeAvail();
+    CalLoadSites();
+    // #6 CodeMotion and recompute worklist based on newly occurrence
+    CodeMotion();
+    ASSERT(workLr->GetProcessed() == false, "exepected unprocessed");
+    workLr->SetProcessed();
+  }
+}
+
+void GraphColorRegAllocator::OptCallerSave() {
+  CallerSavePre callerSavePre(this, *cgFunc, domInfo, *memPool, *memPool, kLoadPre, UINT32_MAX);
+  callerSavePre.SetDump(GCRA_DUMP);
+  callerSavePre.ApplySSAPRE();
+}
+
 /* Iterate through all instructions and change the vreg to preg. */
 void GraphColorRegAllocator::FinalizeRegisters() {
   if (doMultiPass && hasSpill) {
+    if (GCRA_DUMP) {
+      LogInfo::MapleLogger() << "In this round, spill vregs : \n";
+      for (auto *lr: lrVec) {
+        if (lr != nullptr && lr->IsSpilled()) {
+          LogInfo::MapleLogger() << "R" << lr->GetRegNO() << " ";
+        }
+      }
+      LogInfo::MapleLogger() << "\n";
+    }
     SpillLiveRangeForSpills();
     return;
+  }
+  if (CLANG) {
+    OptCallerSave();
   }
   for (auto *bb : sortedBBs) {
     FOR_BB_INSNS(insn, bb) {
@@ -3512,7 +4007,11 @@ void GraphColorRegAllocator::FinalizeRegisters() {
                 a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
             RegOperand *phyOpnd;
             for (auto opnd : outList->GetOperands()) {
-              phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, true);
+              if (opnd->IsPhysicalRegister()) {
+                phyOpnd = opnd;
+              } else {
+                phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, true);
+              }
               srcOpndsNew->PushOpnd(*phyOpnd);
             }
             insn->SetOperand(kAsmOutputListOpnd, *srcOpndsNew);
@@ -3577,6 +4076,9 @@ bool GraphColorRegAllocator::AllocateRegisters() {
 #endif  /* RANDOM_PRIORITY */
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
+  if (GCRA_DUMP && doMultiPass) {
+    LogInfo::MapleLogger() << "round start: \n";
+  }
   /*
    * we store both FP/LR if using FP or if not using FP, but func has a call
    * Using FP, record it for saving
