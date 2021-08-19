@@ -25,6 +25,11 @@ declare_args() {
   GCONLY = 0
   OPT = "O2"
   TARGET = ""
+  MAJOR_VERSION = ""
+  MINOR_VERSION = ""
+  RELEASE_VERSION = ""
+  BUILD_VERSION = ""
+  GIT_REVISION = ""
 }
 
 # Define global args
