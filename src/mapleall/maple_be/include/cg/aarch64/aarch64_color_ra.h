@@ -19,6 +19,8 @@
 #include "aarch64_insn.h"
 #include "aarch64_abi.h"
 #include "loop.h"
+#include "cg_dominance.h"
+#include "cg_pre.h"
 
 namespace maplebe {
 #define RESERVED_REGS
@@ -104,6 +106,7 @@ inline bool IsBBsetOverlap(const uint64 *vec1, const uint64 *vec2, uint32 bbBuck
   return false;
 }
 
+/* For each bb, record info pertain to allocation */
 /*
  * This is per bb per LR.
  * LU info is particular to a bb in a LR.
@@ -574,6 +577,14 @@ class LiveRange {
     hasDefUse = true;
   }
 
+  bool GetProcessed() const {
+    return proccessed;
+  }
+
+  void SetProcessed() {
+    proccessed = true;
+  }
+
   bool IsNonLocal() const {
     return isNonLocal;
   }
@@ -617,6 +628,7 @@ class LiveRange {
   uint32 spillSize = 0;               /* 32 or 64 bit spill */
   bool spilled = false;               /* color assigned */
   bool hasDefUse = false;               /* has regDS */
+  bool proccessed = false;
   bool isNonLocal = false;
 };
 
@@ -1095,8 +1107,9 @@ class SplitBBInfo {
 
 class GraphColorRegAllocator : public AArch64RegAllocator {
  public:
-  GraphColorRegAllocator(CGFunc &cgFunc, MemPool &memPool)
+  GraphColorRegAllocator(CGFunc &cgFunc, MemPool &memPool, DomAnalysis &dom)
       : AArch64RegAllocator(cgFunc, memPool),
+        domInfo(dom),
         bbVec(alloc.Adapter()),
         vregLive(alloc.Adapter()),
         pregLive(alloc.Adapter()),
@@ -1151,7 +1164,14 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
     kSpillMemPre,
     kSpillMemPost,
   };
-
+ public:
+  LiveRange *GetLiveRange(regno_t regNO) {
+    return lrVec[regNO];
+  }
+  MapleVector<LiveRange*> &GetLrVec() {
+    return lrVec;
+  }
+  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd, bool forCall = false);
  private:
   struct SetLiveRangeCmpFunc {
     bool operator()(const LiveRange *lhs, const LiveRange *rhs) const {
@@ -1245,7 +1265,6 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd);
   MemOperand *GetConsistentReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
@@ -1269,6 +1288,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
   uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn);
+  void OptCallerSave();
   void FinalizeRegisters();
   void GenerateSpillFillRegs(Insn &insn);
   RegOperand *CreateSpillFillCode(RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
@@ -1310,6 +1330,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
 
   static constexpr uint16 kMaxUint16 = 0x7fff;
 
+  DomAnalysis &domInfo;
   MapleVector<BB*> bbVec;
   MapleUnorderedSet<regno_t> vregLive;
   MapleUnorderedSet<regno_t> pregLive;
@@ -1332,6 +1353,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleSet<uint32> fpSpillRegSet;    /*       spill          */
   MapleSet<regno_t> intCalleeUsed;
   MapleSet<regno_t> fpCalleeUsed;
+  Bfs *bfs = nullptr;
 
   uint32 bbBuckets = 0;   /* size of bit array for bb (each bucket == 64 bits) */
   uint32 regBuckets = 0;  /* size of bit array for reg (each bucket == 64 bits) */
@@ -1368,6 +1390,49 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
 #endif
   bool hasSpill = false;
   bool doMultiPass = false;
+};
+
+class CallerSavePre: public CGPre {
+public:
+  CallerSavePre(GraphColorRegAllocator * regAlloc, CGFunc &cgfunc, DomAnalysis &currDom,
+                MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
+      : CGPre(currDom, memPool, mp2, kind, limit),
+        func(&cgfunc),
+        regAllocator(regAlloc),
+        loopHeadBBs(ssaPreAllocator.Adapter()) {}
+
+  ~CallerSavePre() = default;
+
+  void ApplySSAPRE();
+  void SetDump(bool val) {
+    dump = val;
+  }
+private:
+  void CodeMotion() ;
+  void UpdateLoadSite(CgOccur *occ);
+  void CalLoadSites();
+  void ComputeAvail();
+  void Rename1();
+  void ComputeVarAndDfPhis() override;
+  void BuildWorkList() override;
+
+  BB *GetBB(uint32 id) const override {
+    return func->GetBBFromID(id);
+  }
+
+  PUIdx GetPUIdx() const override {
+    return func->GetFunction().GetPuidx();
+  }
+
+  bool IsLoopHeadBB(uint32 bbId) const {
+    return loopHeadBBs.find(bbId) != loopHeadBBs.end();
+  }
+  CGFunc *func;
+  bool dump = false;
+  LiveRange *workLr = nullptr;
+  GraphColorRegAllocator *regAllocator;
+  MapleSet<uint32> loopHeadBBs;
+  bool beyondLimit = false;
 };
 }  /* namespace maplebe */
 

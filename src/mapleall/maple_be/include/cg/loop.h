@@ -36,6 +36,7 @@ class LoopHierarchy {
         otherLoopEntries(loopMemPool.Adapter()),
         loopMembers(loopMemPool.Adapter()),
         backedge(loopMemPool.Adapter()),
+        exits(loopMemPool.Adapter()),
         innerLoops(loopMemPool.Adapter()) {}
 
   virtual ~LoopHierarchy() = default;
@@ -48,6 +49,9 @@ class LoopHierarchy {
   }
   const MapleSet<BB*, BBIdCmp> &GetBackedge() const {
     return backedge;
+  }
+  const MapleSet<BB*, BBIdCmp> &GetExits() const {
+    return exits;
   }
   const MapleSet<LoopHierarchy*, HeadIDCmp> &GetInnerLoops() const {
     return innerLoops;
@@ -70,6 +74,9 @@ class LoopHierarchy {
   }
   void InsertBackedge(BB &bb) {
     (void)backedge.insert(&bb);
+  }
+  void InsertExit(BB &bb) {
+    (void)exits.insert(&bb);
   }
   void InsertInnerLoops(LoopHierarchy &loop) {
     (void)innerLoops.insert(&loop);
@@ -99,6 +106,7 @@ class LoopHierarchy {
   MapleSet<BB*, BBIdCmp> otherLoopEntries;
   MapleSet<BB*, BBIdCmp> loopMembers;
   MapleSet<BB*, BBIdCmp> backedge;
+  MapleSet<BB*, BBIdCmp> exits;
   MapleSet<LoopHierarchy*, HeadIDCmp> innerLoops;
   LoopHierarchy *outerLoop = nullptr;
 };
@@ -114,7 +122,8 @@ class LoopFinder : public AnalysisResult {
         sortedBBs(loopMemPool.Adapter()),
         dfsBBs(loopMemPool.Adapter()),
         onPathBBs(loopMemPool.Adapter()),
-        recurseVisited(loopMemPool.Adapter())
+        recurseVisited(loopMemPool.Adapter()),
+        criticalEdges(loopMemPool.Adapter())
         {}
 
   ~LoopFinder() override = default;
@@ -131,6 +140,8 @@ class LoopFinder : public AnalysisResult {
   void DetectInnerLoop();
   void UpdateCGFunc();
   void FormLoopHierarchy();
+  void CollectCriticalEdges();
+  void SplitCriticalEdges();
 
  private:
   CGFunc *cgFunc;
@@ -141,6 +152,7 @@ class LoopFinder : public AnalysisResult {
   MapleStack<BB*> dfsBBs;
   MapleVector<bool> onPathBBs;
   MapleVector<bool> recurseVisited;
+  MapleVector<std::pair<BB*, BB*>> criticalEdges;
   LoopHierarchy *loops = nullptr;
 };
 
@@ -151,6 +163,7 @@ class CGFuncLoops {
         multiEntries(loopMemPool.Adapter()),
         loopMembers(loopMemPool.Adapter()),
         backedge(loopMemPool.Adapter()),
+        exits(loopMemPool.Adapter()),
         innerLoops(loopMemPool.Adapter()) {}
 
   ~CGFuncLoops() = default;
@@ -163,11 +176,17 @@ class CGFuncLoops {
   const BB *GetHeader() const {
     return header;
   }
+  const MapleVector<BB*> &GetMultiEntries() const {
+    return multiEntries;
+  }
   const MapleVector<BB*> &GetLoopMembers() const {
     return loopMembers;
   }
   const MapleVector<BB*> &GetBackedge() const {
     return backedge;
+  }
+  const MapleVector<BB*> &GetExits() const {
+    return exits;
   }
   const MapleVector<CGFuncLoops*> &GetInnerLoops() const {
     return innerLoops;
@@ -188,6 +207,9 @@ class CGFuncLoops {
   void AddBackedge(BB &bb) {
     backedge.emplace_back(&bb);
   }
+  void AddExit(BB &bb) {
+    exits.emplace_back(&bb);
+  }
   void AddInnerLoops(CGFuncLoops &loop) {
     innerLoops.emplace_back(&loop);
   }
@@ -207,6 +229,7 @@ class CGFuncLoops {
   MapleVector<BB*> multiEntries;
   MapleVector<BB*> loopMembers;
   MapleVector<BB*> backedge;
+  MapleVector<BB*> exits;
   MapleVector<CGFuncLoops*> innerLoops;
   CGFuncLoops *outerLoop = nullptr;
   uint32 loopLevel = 0;
