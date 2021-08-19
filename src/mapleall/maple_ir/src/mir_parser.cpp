@@ -67,6 +67,11 @@ bool MIRParser::ParseStmtDassignoff(StmtNodePtr &stmt) {
     Error("expect dassignoff but get ");
     return false;
   }
+  if (!IsPrimitiveType(lexer.NextToken())) {
+    Error("expect primitive type but get ");
+    return false;
+  }
+  PrimType primType = GetPrimitiveType(lexer.GetTokenKind());
   // parse %i
   lexer.NextToken();
   StIdx stidx;
@@ -82,6 +87,7 @@ bool MIRParser::ParseStmtDassignoff(StmtNodePtr &stmt) {
     sym->SetHasPotentialAssignment();
   }
   DassignoffNode *assignStmt = mod.CurFuncCodeMemPool()->New<DassignoffNode>();
+  assignStmt->SetPrimType(primType);
   assignStmt->stIdx = stidx;
   TokenKind nextToken = lexer.NextToken();
   // parse offset

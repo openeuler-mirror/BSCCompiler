@@ -477,6 +477,10 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
     switch (op) {
       case OP_dassign:
       case OP_dassignoff: {
+        PrimType primType = PTY_void;
+        if (op == OP_dassignoff) {
+          primType = (PrimType)ReadNum();
+        }
         int32 num = ReadNum();
         StIdx stIdx;
         stIdx.SetScope(ReadNum());
@@ -498,6 +502,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
           stmt = s;
         } else {
           DassignoffNode *s = func->GetCodeMemPool()->New<DassignoffNode>();
+          s->SetPrimType(primType);
           s->stIdx = stIdx;
           s->offset = num;
           s->SetOpnd(ImportExpression(func), 0);
@@ -519,6 +524,15 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         s->SetFieldID(ReadNum());
         s->SetAddrExpr(ImportExpression(func));
         s->SetRHS(ImportExpression(func));
+        stmt = s;
+        break;
+      }
+      case OP_iassignoff: {
+        IassignoffNode *s = func->GetCodeMemPool()->New<IassignoffNode>();
+        s->SetPrimType((PrimType)ReadNum());
+        s->SetOffset(ReadNum());
+        s->SetOpnd(ImportExpression(func), 0);
+        s->SetOpnd(ImportExpression(func), 1);
         stmt = s;
         break;
       }
