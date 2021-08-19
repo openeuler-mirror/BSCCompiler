@@ -392,7 +392,7 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
       if (propedMeExpr->GetMeOp() == kMeOpOp) {
         simplifiedMeexpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr *>(propedMeExpr));
       } else if (propedMeExpr->GetMeOp() == kMeOpIvar) {
-        simplifiedMeexpr = irMap->SimplifyIvar(static_cast<IvarMeExpr *>(propedMeExpr));
+        simplifiedMeexpr = irMap->SimplifyIvar(static_cast<IvarMeExpr *>(propedMeExpr), false);
       }
       retmeexpr = simplifiedMeexpr ? simplifiedMeexpr : propedMeExpr;
     } else {
@@ -652,6 +652,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
         lhs->SetDefByStmt(*meStmt);
         lhs->SetDefBy(kDefByStmt);
         if (propagater) {
+          propagater->PropUpdateDef(*meStmt->GetLHS());
           propagater->PropUpdateChiListDef(*meStmt->GetChiList());
         }
         return meStmt;
@@ -662,8 +663,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
   IassignMeStmt *meStmt = irMap->NewInPool<IassignMeStmt>(&stmt);
   meStmt->SetTyIdx(iasNode.GetTyIdx());
   meStmt->SetRHS(BuildExpr(*iasNode.GetRHS(), false, false));
-  meStmt->SetLHSVal(irMap->BuildLHSIvar(*baseAddr, *meStmt, iasNode.GetFieldID()));
-  irMap->SimplifyCastForAssign(meStmt);
+  auto *lhsIvar = irMap->BuildLHSIvar(*baseAddr, *meStmt, iasNode.GetFieldID());
   if (mirModule.IsCModule()) {
     bool isVolt = false;
     for (auto &maydefItem : ssaPart.GetMayDefNodes()) {
@@ -674,9 +674,16 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
       }
     }
     if (isVolt) {
-      meStmt->GetLHSVal()->SetVolatileFromBaseSymbol(true);
+      lhsIvar->SetVolatileFromBaseSymbol(true);
     }
   }
+  auto *simplifiedIvar = irMap->SimplifyIvar(lhsIvar, true);
+  if (simplifiedIvar != nullptr && simplifiedIvar->GetMeOp() == kMeOpIvar) {
+    lhsIvar = static_cast<IvarMeExpr *>(simplifiedIvar);
+  }
+  meStmt->SetLHSVal(lhsIvar);
+
+  irMap->SimplifyCastForAssign(meStmt);
   BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));
   if (propagater) {
     propagater->PropUpdateChiListDef(*meStmt->GetChiList());

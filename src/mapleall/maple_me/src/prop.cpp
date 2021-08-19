@@ -24,6 +24,12 @@ using namespace maple;
 const int kPropTreeLevel = 15;  // tree height threshold to increase to
 
 namespace maple {
+#ifdef USE_ARM32_MACRO
+static constexpr uint32 kMaxRegParamNum = 4;
+#else
+static constexpr uint32 kMaxRegParamNum = 8;
+#endif
+
 Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config)
     : dom(dom),
       irMap(irMap),
@@ -618,13 +624,6 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   if (st->IsInstrumented() || varMeExpr.IsVolatile() || st->GetAttr(ATTR_oneelem_simd)) {
     return varMeExpr;
   }
-  if (varMeExpr.GetOst()->GetFieldID() != 0 && mirModule.IsCModule()) {
-    MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(st->GetTyIdx()));
-    FieldAttrs fattrs = structType->GetFieldAttrs(varMeExpr.GetOst()->GetFieldID());
-    if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
-      return varMeExpr;
-    }
-  }
 
   if (varMeExpr.GetDefBy() == kDefByStmt) {
     DassignMeStmt *defStmt = static_cast<DassignMeStmt*>(varMeExpr.GetDefStmt());
@@ -759,6 +758,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
       if (ivarMeExpr->GetBase()->GetMeOp() != kMeOpVar || config.propagateBase) {
         base = &PropMeExpr(utils::ToRef(ivarMeExpr->GetBase()), baseProped, false);
       }
+
       if (baseProped) {
         isProped = true;
         IvarMeExpr newMeExpr(-1, *ivarMeExpr);
@@ -777,6 +777,20 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
         PrimType propPrimType = propIvarExpr->GetPrimType();
         if (ivarPrimType != propPrimType) {
           propIvarExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propIvarExpr);
+        }
+      }
+
+      if (propIvarExpr->GetMeOp() == kMeOpIvar) {
+        auto *equivalentVar = irMap.SimplifyIvar(ivarMeExpr, false);
+        if (equivalentVar != nullptr) {
+          MeExpr *propedExpr = &PropMeExpr(utils::ToRef(equivalentVar), subProped, false);
+          auto ivarPrimType = ivarMeExpr->GetPrimType();
+          auto propPrimType = propedExpr->GetPrimType();
+          if (ivarPrimType != propPrimType) {
+            propedExpr = irMap.CreateMeExprTypeCvt(ivarPrimType, propPrimType, *propIvarExpr);
+          }
+          isProped = true;
+          return *propedExpr;
         }
       }
       return *propIvarExpr;
@@ -837,6 +851,57 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
   }
 }
 
+// Check whether we should used propedRHS to replace mestmt's original RHS or not,
+// return false if we can replace it, and true otherwise.
+bool Prop::NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt, const MeExpr *propedRHS) const {
+  if (meStmt->GetOp() != OP_dassign) {
+    return false;
+  }
+  OriginalSt *lhsOst = meStmt->GetLHS()->GetOst();
+  // if a union's field is an agg field, and we copy it forward, it may cause storage overlapping
+  // e.g.
+  // union {
+  //   struct { i32 fill; <i16 x 16> array; } fld1;
+  //   struct { <i16 x 16> array; i32 fill; } fld2;
+  // }
+  // its storage layout is like :
+  //      0    4                                36
+  // fld1:|----|--------------------------------|
+  //      0                                32   36
+  // fld2:|--------------------------------|----|
+  // if we copy fld2.array to fld1.array directly, elements at the back of fld2.array
+  // will be modified before they are copied. If we copy fld2.array to a temporary memory
+  // and copy this memory to fld1.array, the storage overlapping will not occur.
+  // Hence, when we find that after propagation, the rhs and lhs is a agg field of an union,
+  // and lhs is behind rhs from the perspective of memory layout, we should not propagate to
+  // avoid that a tempory memory assign may be eliminated after propagation.
+  if (lhsOst->GetMIRSymbol()->GetType()->GetKind() == kTypeUnion && lhsOst->GetType()->GetPrimType() == PTY_agg) {
+    if ((meStmt->GetRHS() != nullptr && meStmt->GetRHS()->GetOp() == OP_dread) ||
+        (stmt != nullptr && stmt->GetRHS()->GetOpCode() == OP_dread)) {
+      return true;
+    }
+    OriginalSt *rhsOst = nullptr;
+    if (propedRHS->GetMeOp() == kMeOpIvar) {
+      const auto *ivar = static_cast<const IvarMeExpr*>(propedRHS);
+      const MeExpr *base = ivar->GetBase();
+      if (base->GetOp() == OP_addrof) {
+        OStIdx ostIdx = static_cast<const AddrofMeExpr*>(base)->GetOstIdx();
+        rhsOst = ssaTab.GetOriginalStFromID(ostIdx);
+      }
+    } else if (propedRHS->GetMeOp() == kMeOpVar) {
+      rhsOst = static_cast<const VarMeExpr*>(propedRHS)->GetOst();
+    }
+    if (rhsOst != nullptr && lhsOst->GetMIRSymbol() == rhsOst->GetMIRSymbol()) {
+      if (lhsOst->GetOffset().IsInvalid() ||
+          rhsOst->GetOffset().IsInvalid() ||
+          rhsOst->GetOffset() < lhsOst->GetOffset()) { // backward copy agg field
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void Prop::TraversalMeStmt(MeStmt &meStmt) {
   Opcode op = meStmt.GetOp();
 
@@ -853,6 +918,25 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
           subProped = false;
         } else {
           ivarStmt.GetLHSVal()->SetBase(propedExpr);
+          auto *simplifiedIvar = irMap.SimplifyIvar(ivarStmt.GetLHSVal(), true);
+          if (simplifiedIvar != nullptr) {
+            if (simplifiedIvar->GetMeOp() == kMeOpVar) {
+              auto *lhsVar = static_cast<ScalarMeExpr *>(simplifiedIvar);
+              auto newDassign =
+                  irMap.CreateAssignMeStmt(*lhsVar, *ivarStmt.GetRHS(), *ivarStmt.GetBB());
+              newDassign->GetChiList()->insert(ivarStmt.GetChiList()->begin(), ivarStmt.GetChiList()->end());
+              newDassign->GetChiList()->erase(lhsVar->GetOstIdx());
+              for (auto &ostIdx2Chi : *newDassign->GetChiList()) {
+                auto chi = ostIdx2Chi.second;
+                chi->SetBase(newDassign);
+              }
+              lhsVar->SetDefBy(kDefByStmt);
+              lhsVar->SetDefByStmt(*newDassign);
+              PropUpdateDef(*lhsVar);
+            } else if (simplifiedIvar->GetMeOp() == kMeOpIvar) {
+              ivarStmt.SetLHSVal(static_cast<IvarMeExpr *>(simplifiedIvar));
+            }
+          }
         }
       }
       if (subProped) {
@@ -877,7 +961,11 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
     case OP_dassign:
     case OP_regassign: {
       AssignMeStmt *asmestmt = static_cast<AssignMeStmt *>(&meStmt);
-      asmestmt->SetRHS(&PropMeExpr(*asmestmt->GetRHS(), subProped, false));
+      MeExpr &propedRHS = PropMeExpr(*asmestmt->GetRHS(), subProped, false);
+      if (NoPropUnionAggField(asmestmt, /* StmtNode */ nullptr, &propedRHS)) {
+        break;
+      }
+      asmestmt->SetRHS(&propedRHS);
       if (subProped) {
         asmestmt->isIncDecStmt = false;
       }
@@ -887,8 +975,16 @@ void Prop::TraversalMeStmt(MeStmt &meStmt) {
     case OP_asm: break;
     default:
       for (size_t i = 0; i != meStmt.NumMeStmtOpnds(); ++i) {
-        MeExpr &expr = PropMeExpr(utils::ToRef(meStmt.GetOpnd(i)), subProped, kOpcodeInfo.IsCall(op));
-        meStmt.SetOpnd(i, &expr);
+        MeExpr *expr = &PropMeExpr(utils::ToRef(meStmt.GetOpnd(i)), subProped, kOpcodeInfo.IsCall(op));
+        if (kOpcodeInfo.IsCallAssigned(op) && i >= kMaxRegParamNum) {
+          PrimType exprOrigType = meStmt.GetOpnd(i)->GetPrimType();
+          PrimType exprPropType = expr->GetPrimType();
+          if (GetPrimTypeSize(exprOrigType) != GetPrimTypeSize(exprPropType)) {
+            // When we pass parameters by stack, cvt is needed for call opnds if type size changes
+            expr = irMap.CreateMeExprTypeCvt(exprOrigType, exprPropType, *expr);
+          }
+        }
+        meStmt.SetOpnd(i, expr);
       }
       break;
   }

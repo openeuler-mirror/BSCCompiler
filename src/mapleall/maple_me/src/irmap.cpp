@@ -198,7 +198,20 @@ static void ComputeCastInfoForExpr(const MeExpr &expr, CastInfo &castInfo) {
       break;
     }
     case OP_retype: {
-      srcType = expr.GetPrimType();
+      const auto &retypeExpr = static_cast<const OpMeExpr&>(expr);
+      MeExpr *opnd = retypeExpr.GetOpnd(0);
+      if (opnd == nullptr) {
+        break;
+      }
+      // retype's opndType is invalid, we use opnd's primType
+      srcType = opnd->GetPrimType();
+      if (GetPrimTypeActualBitSize(dstType) != GetPrimTypeActualBitSize(srcType)) {
+        // Example: retype u8 <u8> (iread i32 <* i8> 0 ...)
+        // In the above example, dstType is u8, but we get srcType i32 from iread.
+        // We won't optimize such retype unless we can get real opnd type for all kinds of opnds.
+        // We will improve it if possible.
+        break;
+      }
       castKind = CAST_retype;
       break;
     }
@@ -250,7 +263,7 @@ static const uint8 castMatrix[kNumCastKinds][kNumCastKinds] = {
     {  0, 0, 0, 0,99,99,99, 3 },  // fp2int      +- firstCastKind
     { 99,99,99,99, 0, 0, 0, 4 },  // fpTrunc     |
     { 99,99,99,99, 2, 8, 2, 4 },  // fpExt       |
-    {  5, 7, 7, 5, 6, 6, 6, 1 },  // retype     -+
+    {  5, 7, 7,11, 6, 6, 6, 1 },  // retype     -+
 };
 
 // This function determines whether to eliminate a cast pair according to castMatrix
@@ -377,6 +390,18 @@ static int IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKind,
       // To improved: consider unsigned
       return -1;
     }
+    case 11: {
+      // first retype, then int2fp
+      if (IsPrimitiveInteger(srcType)) {
+        if (IsSignedInteger(srcType) != IsSignedInteger(midType1)) {
+          // If sign diffs, use toType of retype
+          // Example: cvt f64 i64 (retype i64 u64)  ==>  cvt f64 i64
+          srcType = midType1;
+        }
+        return secondCastKind;
+      }
+      return -1;
+    }
     case 99: {
       CHECK_FATAL(false, "invalid cast pair");
     }
@@ -386,16 +411,19 @@ static int IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKind,
   }
 }
 
-MeExpr *IRMap::CreateMeExprByCastKind(CastKind castKind, PrimType fromType, PrimType toType, MeExpr *opnd) {
+MeExpr *IRMap::CreateMeExprByCastKind(CastKind castKind, PrimType srcType, PrimType dstType, MeExpr *opnd,
+                                      TyIdx dstTyIdx) {
   if (castKind == CAST_zext) {
-    return CreateMeExprExt(OP_zext, toType, GetPrimTypeActualBitSize(fromType), *opnd);
+    return CreateMeExprExt(OP_zext, dstType, GetPrimTypeActualBitSize(srcType), *opnd);
   } else if (castKind == CAST_sext) {
-    return CreateMeExprExt(OP_sext, toType, GetPrimTypeActualBitSize(fromType), *opnd);
-  } else if (castKind == CAST_retype) {
-    // Maybe we can create more concrete expr
-    return CreateMeExprTypeCvt(toType, fromType, *opnd);
+    return CreateMeExprExt(OP_sext, dstType, GetPrimTypeActualBitSize(srcType), *opnd);
+  } else if (castKind == CAST_retype && srcType == opnd->GetPrimType()) {
+    // If srcType is different from opnd->primType, we should create cvt instead of retype.
+    // Because CGFunc::SelectRetype always use opnd->primType as srcType.
+    CHECK_FATAL(dstTyIdx != 0, "must specify valid tyIdx for retype");
+    return CreateMeExprRetype(dstType, dstTyIdx, *opnd);
   } else {
-    return CreateMeExprTypeCvt(toType, fromType, *opnd);
+    return CreateMeExprTypeCvt(dstType, srcType, *opnd);
   }
 }
 
@@ -486,6 +514,8 @@ MeExpr *IRMap::SimplifyCastPair(MeExpr *firstCastExpr, MeExpr *secondCastExpr, b
     }
   }
 
+  // Example: retype u32 <u32> (dread u32 %x)  ==>  dread u32 %x
+  // Example: retype ptr <* <$Foo>> (dread ptr %p)  ==>  dread ptr %p
   if (resultCastKind == CAST_retype && srcType == dstType) {
     return toCastExpr;
   }
@@ -503,7 +533,16 @@ MeExpr *IRMap::SimplifyCastPair(MeExpr *firstCastExpr, MeExpr *secondCastExpr, b
     LogInfo::MapleLogger() << std::endl;
   }
 
-  return CreateMeExprByCastKind(resultCastKind, srcType, dstType, toCastExpr);
+  TyIdx dstTyIdx(0);
+  if (resultCastKind == CAST_retype) {
+    // result retype is generated from `retype t1 t2 (retype t3 t4)`
+    if (secondCastExpr->GetOp() == OP_retype) {
+      dstTyIdx = static_cast<OpMeExpr*>(secondCastExpr)->GetTyIdx();
+    } else {
+      dstTyIdx = TyIdx(dstType);
+    }
+  }
+  return CreateMeExprByCastKind(resultCastKind, srcType, dstType, toCastExpr, dstTyIdx);
 }
 
 // Return a simplified expr if succeed, return nullptr if fail
@@ -773,8 +812,8 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx
   return meDef;
 }
 
-MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar) {
-  auto *base = ivar;
+MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
+  auto *base = ivar->GetBase();
   if (base->GetOp() == OP_add || base->GetOp() == OP_sub) {
     auto offsetNode = base->GetOpnd(1);
     if (offsetNode->GetOp() == OP_constval) {
@@ -789,10 +828,22 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar) {
       }
 
       Opcode op = (offset.val == 0) ? OP_iread : OP_ireadoff;
-      IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
-      newIvar.SetBase(base->GetOpnd(0));
-      newIvar.SetOffset(offset.val);
-      return HashMeExpr(newIvar);
+      if (lhsIvar) {
+        auto *meDef = New<IvarMeExpr>(exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+        meDef->SetBase(base->GetOpnd(0));
+        meDef->SetOffset(offset.val);
+        meDef->SetMuVal(ivar->GetMu());
+        meDef->SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
+        PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
+        return meDef;
+      } else {
+        IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
+        newIvar.SetBase(base->GetOpnd(0));
+        newIvar.SetOffset(offset.val);
+        newIvar.SetMuVal(ivar->GetMu());
+        newIvar.SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
+        return HashMeExpr(newIvar);
+      }
     }
   }
   return nullptr;
@@ -841,22 +892,32 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   if (mu->GetOstIdx() == ostIdx) {
     return static_cast<VarMeExpr*>(mu);
   }
+
   MeStmt *meStmt = ivar->GetMu()->GetDefByMeStmt();
-  if (meStmt == nullptr) {
-    return nullptr;
-  }
-  auto lhs = meStmt->GetVarLHS();
-  if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
-    return static_cast<VarMeExpr *>(lhs);
-  }
-  auto *chiList = meStmt->GetChiList();
-  if (chiList->find(ostIdx) != chiList->end()) {
-    return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
+  if (meStmt != nullptr) {
+    auto lhs = meStmt->GetVarLHS();
+    if (lhs != nullptr && lhs->GetOstIdx() == ostIdx) {
+      return static_cast<VarMeExpr *>(lhs);
+    }
+    auto *chiList = meStmt->GetChiList();
+    if (chiList->find(ostIdx) != chiList->end()) {
+      return static_cast<VarMeExpr *>(chiList->at(ostIdx)->GetLHS());
+    }
+  } else if (ivar->GetMu()->GetDefBy() == kDefByPhi) {
+    auto *defBBOfPhi = ivar->GetMu()->GetDefPhi().GetDefBB();
+    if (defBBOfPhi == nullptr) {
+      return nullptr;
+    }
+    const auto &phiList = defBBOfPhi->GetMePhiList();
+    auto it = phiList.find(ostIdx);
+    return (it != phiList.end()) ? it->second->GetLHS() : nullptr;
+  } else if (ivar->GetMu()->GetDefBy() == kDefByNo) {
+    return GetOrCreateZeroVersionVarMeExpr(*fieldOst);
   }
   return nullptr;
 }
 
-MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar) {
+MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar) {
   if (ivar->GetOffset() != 0) {
     return nullptr;
   }
@@ -879,16 +940,21 @@ MeExpr *IRMap::SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar) {
   }
 
   FieldID newFieldId = ivar->GetFieldID() + iaddrofExpr->GetFieldID();
-  IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
-  newIvar.SetBase(baseAddr);
-  newIvar.SetMuVal(ivar->GetMu());
 
-  auto *retExpr = HashMeExpr(newIvar);
-  return retExpr;
+  if (lhsIvar) {
+    return BuildLHSIvar(*baseAddr, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
+  } else {
+    IvarMeExpr newIvar(kInvalidExprID, ivar->GetPrimType(), iaddrofExpr->GetTyIdx(), newFieldId);
+    newIvar.SetBase(baseAddr);
+    newIvar.SetMuVal(ivar->GetMu());
+    newIvar.SetVolatileFromBaseSymbol(ivar->GetVolatileFromBaseSymbol());
+    auto *retExpr = HashMeExpr(newIvar);
+    return retExpr;
+  }
 }
 
-MeExpr *IRMap::SimplifyIvar(IvarMeExpr *ivar) {
-  auto *simplifiedIvar = SimplifyIvarWithConstOffset(ivar);
+MeExpr *IRMap::SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar) {
+  auto *simplifiedIvar = SimplifyIvarWithConstOffset(ivar, lhsIvar);
   if (simplifiedIvar != nullptr) {
     return simplifiedIvar;
   }
@@ -898,7 +964,7 @@ MeExpr *IRMap::SimplifyIvar(IvarMeExpr *ivar) {
     return simplifiedIvar;
   }
 
-  simplifiedIvar = SimplifyIvarWithIaddrofBase(ivar);
+  simplifiedIvar = SimplifyIvarWithIaddrofBase(ivar, lhsIvar);
   if (simplifiedIvar != nullptr) {
     return simplifiedIvar;
   }
@@ -921,7 +987,6 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, IassignMeStmt &iassignMeStmt, 
   }
   meDef->SetBase(&baseAddr);
   meDef->SetDefStmt(&iassignMeStmt);
-  SimplifyIvar(meDef);
   PutToBucket(meDef->GetHashIndex() % mapHashLength, *meDef);
   return meDef;
 }
@@ -1222,6 +1287,14 @@ MeExpr *IRMap::CreateMeExprTypeCvt(PrimType pType, PrimType opndptyp, MeExpr &op
   OpMeExpr opMeExpr(kInvalidExprID, OP_cvt, pType, kOperandNumUnary);
   opMeExpr.SetOpnd(0, &opnd0);
   opMeExpr.SetOpndType(opndptyp);
+  return HashMeExpr(opMeExpr);
+}
+
+MeExpr *IRMap::CreateMeExprRetype(PrimType pType, TyIdx tyIdx, MeExpr &opnd) {
+  OpMeExpr opMeExpr(kInvalidExprID, OP_retype, pType, kOperandNumUnary);
+  opMeExpr.SetOpnd(0, &opnd);
+  opMeExpr.SetTyIdx(tyIdx);
+  opMeExpr.SetOpndType(opnd.GetPrimType());
   return HashMeExpr(opMeExpr);
 }
 
