@@ -16,6 +16,7 @@
 #define MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_REACHING_H
 
 #include "reaching.h"
+#include "aarch64_operand.h"
 
 namespace maplebe {
 class AArch64ReachingDefinition : public ReachingDefinition {
@@ -36,6 +37,7 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   void InitEhDefine(BB &bb) final;
   void InitGenUse(BB &bb, bool firstTime = true) final;
   void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) final;
+  void GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) final;
   void GenAllCallerSavedRegs(BB &bb) final;
   void AddRetPseudoInsn(BB &bb) final;
   void AddRetPseudoInsns() final;

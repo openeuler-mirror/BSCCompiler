@@ -60,9 +60,6 @@ namespace maplebe {
 using namespace maple;
 
 bool CgGlobalOpt::PhaseRun(maplebe::CGFunc &f) {
-  if (f.HasAsm()) {
-    return true;
-  }
   ReachingDefinition *reachingDef = nullptr;
   LiveAnalysis *live = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
@@ -92,5 +89,4 @@ void CgGlobalOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgGlobalOpt, globalopt)
 }  /* namespace maplebe */
