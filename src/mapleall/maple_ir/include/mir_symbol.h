@@ -442,6 +442,15 @@ class MIRSymbol {
   void SetHasPotentialAssignment() {
     hasPotentialAssignment = true;
   }
+
+  void SetAsmAttr(const UStrIdx &idx) {
+    asmAttr = idx;
+  }
+
+  const UStrIdx &GetAsmAttr() const {
+    return asmAttr;
+  }
+
   // Please keep order of the fields, avoid paddings.
  private:
   TyIdx tyIdx{ 0 };
@@ -464,6 +473,7 @@ class MIRSymbol {
   TypeAttrs typeAttrs;
   GStrIdx nameStrIdx{ 0 };
  public:
+  UStrIdx asmAttr { 0 }; // if not 0, the string for the name in C's asm attribute
   UStrIdx sectionAttr { 0 }; // if not 0, the string for the name in C's section attribute
  private:
   SymbolType value = { nullptr };
@@ -570,6 +580,7 @@ class MIRLabelTable {
  public:
   explicit MIRLabelTable(MapleAllocator &allocator)
       : addrTakenLabels(allocator.Adapter()),
+        caseLabelSet(allocator.Adapter()),
         mAllocator(allocator),
         strIdxToLabIdxMap(std::less<GStrIdx>(), mAllocator.Adapter()),
         labelTable(mAllocator.Adapter()) {
@@ -645,7 +656,9 @@ class MIRLabelTable {
     strIdxToLabIdxMap.erase(idx);
   }
 
+ public:
   MapleUnorderedSet<LabelIdx> addrTakenLabels; // those appeared in addroflabel or MIRLblConst
+  MapleUnorderedSet<LabelIdx> caseLabelSet;    // labels marking starts of switch cases
 
  private:
   static constexpr uint32 kDummyLabel = 0;
