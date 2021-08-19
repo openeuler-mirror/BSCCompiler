@@ -58,6 +58,26 @@ config("mapleallcompilecfg") {
       "-pie",
     ]
   }
+
+  if (MAJOR_VERSION != "") {
+    cflags_cc += [ "-DMAJOR_VERSION=${MAJOR_VERSION}", ]
+  }
+
+  if (MINOR_VERSION != "") {
+    cflags_cc += [ "-DMINOR_VERSION=${MINOR_VERSION}", ]
+  }
+
+  if (RELEASE_VERSION != "") {
+    cflags_cc += [ "-DRELEASE_VERSION=\"${RELEASE_VERSION}\"", ]
+  }
+
+  if (BUILD_VERSION != "") {
+    cflags_cc += [ "-DBUILD_VERSION=${BUILD_VERSION}", ]
+  }
+
+  if (GIT_REVISION != "") {
+    cflags_cc += [ "-DGIT_REVISION=\"${GIT_REVISION}\"", ]
+  }
 }
 
 group("maple") {
