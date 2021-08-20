@@ -21,7 +21,6 @@
 #include "lfo_dep_test.h"
 
 namespace maple {
-
 class LoopBound {
 public:
   LoopBound() : lowNode(nullptr), upperNode(nullptr), incrNode(nullptr) {};
@@ -33,23 +32,25 @@ public:
 
 class LoopVecInfo {
 public:
-  explicit LoopVecInfo(MapleAllocator &alloc) : vecStmtIDs(alloc.Adapter()),
-                                                uniformNodes(alloc.Adapter()),
-                                                uniformVecNodes(alloc.Adapter()) {
-   // smallestPrimType = PTY_i64;
+  explicit LoopVecInfo(MapleAllocator &alloc)
+      : vecStmtIDs(alloc.Adapter()),
+        uniformNodes(alloc.Adapter()),
+        uniformVecNodes(alloc.Adapter()),
+        constvalTypes(alloc.Adapter()) {
     largestTypeSize = 8; // i8 bit size
     currentRHSTypeSize = 0;
   }
-  void UpdateWidestTypeSize(uint32_t );
+  void UpdateWidestTypeSize(uint32_t);
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
-  //PrimType smallestPrimType; // smallest size type in vectorizable stmtnodes
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
   MapleSet<BaseNode *> uniformNodes; // loop invariable scalar set
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
+  // constval node need to adjust with new PrimType
+  MapleMap<BaseNode *, PrimType>  constvalTypes;
   //MapleMap<stidx, StmtNode*> inductionStmt; // dup scalar to vector stmt may insert before stmt
 };
 
@@ -105,7 +106,8 @@ class LoopVectorization {
   MemPool *GetLocalMp() { return localMP; }
   MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
-
+  bool CanConvert(uint32_t , uint32_t);
+  bool CanAdjustRhsType(PrimType, ConstvalNode *);
 public:
   static uint32_t vectorizedLoop;
  private:
