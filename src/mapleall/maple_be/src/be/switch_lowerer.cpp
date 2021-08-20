@@ -185,12 +185,11 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (!lowBlockNodeChecked) {
       lowBlockNodeChecked = true;
       if (!(IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType()) &&
-           (stmt->GetCasePair(switchItems[start].first).first == 0))) {
+          (stmt->GetCasePair(switchItems[start].first).first == 0))) {
         cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
         localBlk->AddStatement(cGoto);
       }
     }
-
     rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second);
     cmpNode = BuildCmpNode(OP_le, switchItems[start].second);
     ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
@@ -285,10 +284,8 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   ASSERT(mid >= start, "switch lowering logic mid should greater than or equal start");
   ASSERT(mid <= end, "switch lowering logic mid should less than or equal end");
   /* generate test for binary search */
-  cmpNode = BuildCmpNode(OP_ge, switchItems[mid].first);
-  BaseNode *expNode = static_cast<BaseNode*>(
-      mirModule.GetMIRBuilder()->CreateExprUnary(OP_lnot, *GlobalTables::GetTypeTable().GetUInt1(), cmpNode));
-  ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(expNode));
+  cmpNode = BuildCmpNode(OP_lt, switchItems[mid].first);
+  ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
   bool leftHighBNdChecked = (stmt->GetCasePair(switchItems.at(mid - 1).first).first + 1 ==
                              stmt->GetCasePair(switchItems.at(mid).first).first) ||
                             (stmt->GetCasePair(switchItems.at(mid - 1).second).first + 1 ==
@@ -309,6 +306,13 @@ BlockNode *SwitchLowerer::LowerSwitch() {
     localBlk->AddStatement(gotoDft);
     return localBlk;
   }
+
+  // add case labels to label table's caseLabelSet
+  MIRLabelTable *labelTab = mirModule.CurFunction()->GetLabelTab();
+  for (CasePair casePair : stmt->GetSwitchTable()) {
+    labelTab->caseLabelSet.insert(casePair.second);
+  }
+
   MapleVector<Cluster> clusters(ownAllocator->Adapter());
   stmt->SortCasePair(CasePairKeyLessThan);
   FindClusters(clusters);
