@@ -49,13 +49,13 @@ if [ "$android_env" == "android" ]; then
     mv android-ndk-r21d android-ndk-r21
     echo Downloaded android ndk.
   fi
-
+  
   if [ ! -L $TOOLS/gcc ]; then
     cd $TOOLS
     ln -s ../android/prebuilts/gcc .
     echo Linked gcc.
   fi
-
+  
   if [ ! -L $TOOLS/clang-r353983c ]; then
     cd $TOOLS
     ln -s ../android/prebuilts/clang/host/linux-x86/clang-r353983c .
@@ -204,3 +204,8 @@ else
   git pull origin master
   cd -
 fi
+
+# prepare scripts for tests
+mkdir -p ${MAPLE_ROOT}/output/script
+cp ${MAPLE_ROOT}/testsuite/driver/script/check.py ${MAPLE_ROOT}/output/script/
+cp ${MAPLE_ROOT}/testsuite/driver/script/kernel.py ${MAPLE_ROOT}/output/script/
