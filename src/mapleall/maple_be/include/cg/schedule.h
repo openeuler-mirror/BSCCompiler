@@ -28,11 +28,13 @@ class RegPressureSchedule {
  public:
   RegPressureSchedule (CGFunc &func, MapleAllocator &alloc)
       : cgFunc(func), liveReg(alloc.Adapter()), scheduledNode(alloc.Adapter()),
-        readyList(alloc.Adapter()) {}
+        readyList(alloc.Adapter()), partialList(alloc.Adapter()),
+        partialSet(alloc.Adapter()), partialScheduledNode(alloc.Adapter()) {}
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
   void BuildPhyRegInfo(const std::vector<int32> &regNumVec);
+  void initPartialSplitters(const MapleVector<DepNode*> &nodes);
   void Init(const MapleVector<DepNode*> &nodes);
   void UpdateBBPressure(const DepNode &node);
   void CalculatePressure(DepNode &node, regno_t reg, bool def);
@@ -48,6 +50,7 @@ class RegPressureSchedule {
   static bool DepNodePriorityCmp(const DepNode *node1, const DepNode *node2);
   DepNode *ChooseNode();
   void DoScheduling(MapleVector<DepNode*> &nodes);
+  void HeuristicScheduling(MapleVector<DepNode*> &nodes);
 
  private:
   void DumpBBPressureInfo() const;
@@ -64,6 +67,13 @@ class RegPressureSchedule {
   /* save node that has been scheduled. */
   MapleVector<DepNode*> scheduledNode;
   MapleVector<DepNode*> readyList;
+  /* save partial nodes to be scheduled */
+  MapleVector<DepNode*> partialList;
+  MapleSet<DepNode*> partialSet;
+  /* save partial nodes which have been scheduled. */
+  MapleVector<DepNode*> partialScheduledNode;
+  /* save split points */
+  std::vector<int> splitterIndexes;
   /* save the amount of every type register. */
   int32 *physicalRegNum = nullptr;
   int32 maxPriority = 0;

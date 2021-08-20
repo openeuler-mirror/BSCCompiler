@@ -53,6 +53,26 @@ void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
   }
 }
 
+/* Initialize pre-scheduling split point in BB */
+void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &nodes) {
+  bool addFirstAndLastNodeIndex = false;
+  int SecondLastNodeIndexFromBack = 2;
+  int LastNodeIndexFromBack = 1;
+  int FirstNodeIndex = 0;
+  int minimumBBSize = 2;
+  /* Add split point for the last instruction in return BB */
+  if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize){
+    splitterIndexes.emplace_back(nodes.size() - SecondLastNodeIndexFromBack);
+    addFirstAndLastNodeIndex = true;
+  }
+  /* Add first and last node as split point if needed */
+  if (addFirstAndLastNodeIndex) {
+    splitterIndexes.emplace_back(nodes.size() - LastNodeIndexFromBack);
+    splitterIndexes.emplace_back(FirstNodeIndex);
+  }
+  std::sort(splitterIndexes.begin(), splitterIndexes.end(), std::less<int>{});
+}
+
 /* initialize register pressure information according to bb's live-in data.
  * initialize node's valid preds size.
  */
@@ -79,8 +99,17 @@ void RegPressureSchedule::Init(const MapleVector<DepNode*> &nodes) {
       }
       ++i;
     }
-
-    node->SetValidPredsSize(node->GetPreds().size());
+    /* Calculate pred size of the node */
+    int emptyPredsSize = 0;
+    node->SetValidPredsSize(emptyPredsSize);
+    for (auto pred : node->GetPreds()) {
+      DepNode &from = pred->GetFrom();
+      if (!partialSet.empty() && (partialSet.find(&from) == partialSet.end())) {
+        continue;
+      } else {
+        node->IncreaseValidPredsSize();
+      }
+    }
   }
 
   DepNode *firstNode = nodes.front();
@@ -346,8 +375,10 @@ void RegPressureSchedule::UpdateReadyList(const DepNode &node) {
 
   for (auto *succ : node.GetSuccs()) {
     DepNode &succNode = succ->GetTo();
+    if (!partialSet.empty() && (partialSet.find(&succNode) == partialSet.end())) {
+      continue;
+    }
     succNode.DescreaseValidPredsSize();
-
     if (((succ->GetDepType() == kDependenceTypeTrue) || CanSchedule(succNode)) && (succNode.GetState() == kNormal)) {
       readyList.emplace_back(&succNode);
       succNode.SetState(kReady);
@@ -428,13 +459,48 @@ void RegPressureSchedule::DumpBBPressureInfo() const {
   LogInfo::MapleLogger() << "\n";
 }
 
-
 void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
+  initPartialSplitters(nodes);
+  if (splitterIndexes.empty()) {
+    LogInfo::MapleLogger() << "No splitter, normal scheduling \n";
+    HeuristicScheduling(nodes);
+  } else {
+    /* Split the node list into multiple parts based on split point */
+    for (int i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
+      int lastTwoNodeIndex = 2;
+      int begin = splitterIndexes.at(i);
+      int end = splitterIndexes.at(i + 1);
+      for (int j = begin; j < end; j = j + 1) {
+        partialList.emplace_back(nodes.at(j));
+      }
+      if (i == splitterIndexes.size() - lastTwoNodeIndex){
+        partialList.emplace_back(nodes.at(end));
+      }
+      for (auto node : partialList) {
+        partialSet.insert(node);
+      }
+      HeuristicScheduling(partialList);
+      for (auto node : partialList) {
+        partialScheduledNode.emplace_back(node);
+      }
+      partialList.clear();
+      partialSet.clear();
+    }
+    nodes.clear();
+    /* Construct overall scheduling output */
+    for (auto node : partialScheduledNode) {
+      nodes.emplace_back(node);
+    }
+  }
+}
+
+void RegPressureSchedule::HeuristicScheduling(MapleVector<DepNode*> &nodes) {
 #ifdef PRESCHED_DEBUG
   LogInfo::MapleLogger() << "--------------- bb " << bb->GetId() <<" begin scheduling -------------" << "\n";
   DumpBBLiveInfo();
 #endif
-
+  readyList.clear();
+  scheduledNode.clear();
   /* initialize register pressure information and readylist. */
   Init(nodes);
   CalculateMaxDepth(nodes);
@@ -537,8 +603,6 @@ void CgPreScheduling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
 
-MAPLE_TRANSFORM_PHASE_REGISTER(CgPreScheduling, prescheduling)
-
 bool CgScheduling::PhaseRun(maplebe::CGFunc &f) {
   if (f.HasAsm()) {
     return true;
@@ -569,6 +633,4 @@ void CgScheduling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
-
-MAPLE_TRANSFORM_PHASE_REGISTER(CgScheduling, scheduling)
 }  /* namespace maplebe */

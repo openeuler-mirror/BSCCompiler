@@ -534,6 +534,7 @@ class ASTCompoundLiteralExpr : public ASTExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  MIRConst *GenerateMIRConstImpl() const override;
   ASTExpr *child = nullptr;
   MIRType *compoundLiteralType;
   std::string initName;
@@ -1105,7 +1106,7 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
   void AddArgsExpr(std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
-  UniqueFEIRExpr AddRetExpr(std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr AddRetExpr(std::unique_ptr<FEIRStmtAssign> &callStmt) const;
 
  private:
   using FuncPtrBuiltinFunc = UniqueFEIRExpr (ASTCallExpr::*)(std::list<UniqueFEIRStmt> &stmts) const;
@@ -1186,6 +1187,28 @@ class ASTCallExpr : public ASTExpr {
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(RotateRight16);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(RotateRight32);
   UniqueFEIRExpr EMIT_BUILTIIN_FUNC(RotateRight64);
+
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncAddAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncSubAndFetch2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndSub2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncFetchAndAdd2);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncBoolCompareAndSwap8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockTestAndSet4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncValCompareAndSwap4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease8);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(SyncLockRelease4);
+  UniqueFEIRExpr EMIT_BUILTIIN_FUNC(ReturnAddress);
 
 // vector builtinfunc
 #define DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE, ...)         \
