@@ -287,6 +287,10 @@ class ValueRangePropagation {
   }
 
   bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange) {
+    if (valueRange == nullptr) {
+      caches.at(bbID)[exprID] = nullptr;
+      return true;
+    }
     if (IsBiggerThanMaxInt64(*valueRange)) {
       return false;
     }
@@ -374,9 +378,9 @@ class ValueRangePropagation {
   void DealWithOPNeOrEq(BB &bb, ValueRange *leftRange, ValueRange &rightRange, const CondGotoMeStmt &brMeStmt);
   void InsertCandsForSSAUpdate(BB &bb, bool insertDefBBOfPhiOpnds2Cands = false);
   bool ConditionEdgeCanBeDeletedAfterOPNeOrEq(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
-                                              BB &trueBranch, PrimType opndType);
+                                              BB &trueBranch, PrimType opndType, BB *condGoto = nullptr);
   bool OnlyHaveCondGotoStmt(BB &bb) const;
-  bool RemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch, bool &noNewPhiInTargetBB);
+  bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch, BB &falseBranch, bool &noNewPhiInTargetBB);
   void RemoveUnreachableBB(BB &condGotoBB, BB &trueBranch);
   BB *CreateNewBasicBlockWithoutCondGotoStmt(BB &bb);
   void InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb);
@@ -388,10 +392,9 @@ class ValueRangePropagation {
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   void DealWithMeOp(const BB &bb, MeStmt &stmt);
   bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
-                                             BB &trueBranch, PrimType opndType);
+                                             BB &trueBranch, PrimType opndType, BB *condGoto = nullptr);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
   size_t FindBBInSuccs(const BB &bb, const BB &succBB) const;
-  bool IsEqual(Bound boundLeft, Bound boundRight);
   void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
@@ -399,7 +402,13 @@ class ValueRangePropagation {
   void DealWithAssertNonnull(const BB &bb, MeStmt &meStmt);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
+  void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(ValueRange &leftRange, ValueRange &rightRange, bool isLower);
+  bool DealWithSpecialCondGoto(OpMeExpr &opMeExpr, ValueRange &leftRange, ValueRange &rightRange,
+                               CondGotoMeStmt &brMeStmt);
+  void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
+  void AnalysisUnreachableBBOrEdge(BB &unreachableBB);
+  void MergeValueRangeOfPred(BB &bb, const MeExpr &opnd);
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -414,6 +423,8 @@ class ValueRangePropagation {
   std::set<BB*> unreachableBBs;
   std::unordered_map<int32, std::set<int32>> use2Defs;
   MapleMap<OStIdx, MapleSet<BBId>*> &cands;
+  std::unordered_map<BB*, BB*> loopHead2TrueBranch;
+  std::unordered_map<BB*, std::set<std::pair<BB*, MeExpr*>>> pred2NewSuccs;
   bool isCFGChange = false;
   bool needUpdateSSA = false;
   bool thePredEdgeIsRemoved = false;
