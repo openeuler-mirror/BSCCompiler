@@ -154,6 +154,7 @@ const mapleOption::Descriptor usages[] = {
     kBuildTypeProduct,
     kArgCheckPolicyNone,
     "--as-opt                      \tSet options for as\n",
+    "all",
     {} },
   { kDex2mplOpt,
     0,
