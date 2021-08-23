@@ -221,7 +221,7 @@ function asm_to_obj() {
 function init() {
   src_file_path=$(realpath $src_file_path)
   target_name=${src_file_path##*/}".err"
-  file_name=${src_file_path%%\.*}
+  file_name=${src_file_path%\.*}
 }
 
 function c_to_asm() {
