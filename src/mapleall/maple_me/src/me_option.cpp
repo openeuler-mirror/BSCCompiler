@@ -63,6 +63,7 @@ bool MeOption::noDelegateRC = false;
 bool MeOption::noCondBasedRC = false;
 bool MeOption::clinitPre = true;
 bool MeOption::dassignPre = true;
+bool MeOption::mergeStmts = true;
 bool MeOption::nullCheckPre = false;
 bool MeOption::assign2FinalPre = false;
 bool MeOption::epreIncludeRef = false;
@@ -223,6 +224,7 @@ enum OptionIndex {
   kLazyDecouple,
   kEaTransRef,
   kEaTransAlloc,
+  kMergeStmts,
   kMeInlineHint,
   kMeThreads,
   kMeIgnoreInferredRetType,
@@ -1036,6 +1038,16 @@ const Descriptor kUsage[] = {
     "  --no-lazydecouple           \tDo not optimized for lazy Decouple\n",
     "me",
     {} },
+  { kMergeStmts,
+    kEnable,
+    "",
+    "mergestmts",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --mergestmts                \tTurn on statment merging optimization\n"
+    "  --no-mergestmts             \tDisable mergestmts\n",
+    "me",
+    {} },
   { kMeInlineHint,
     0,
     "",
@@ -1459,6 +1471,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kDassignPre:
         dassignPre = (opt.Type() == kEnable);
+        break;
+      case kMergeStmts:
+        mergeStmts = (opt.Type() == kEnable);
         break;
       case kAssign2finalPre:
         assign2FinalPre = (opt.Type() == kEnable);
