@@ -73,12 +73,21 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar 
     auto uSrcExpr = initFeirExpr->Clone();
     argExprList->emplace_back(std::move(uDstExpr));
     argExprList->emplace_back(std::move(uSrcExpr));
-    argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(stringLiteralSize));
+    MIRType *mirArrayType = feirVar->GetType()->GenerateMIRTypeAuto();
+    UniqueFEIRExpr sizeExpr;
+    if (mirArrayType->GetKind() == kTypeArray &&
+      static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize() != 1) {
+      UniqueFEIRExpr leftExpr = FEIRBuilder::CreateExprConstI32(stringLiteralSize);
+      UniqueFEIRExpr rightExpr = FEIRBuilder::CreateExprConstI32(
+          static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize());
+      sizeExpr = FEIRBuilder::CreateExprBinary(OP_mul, std::move(leftExpr), std::move(rightExpr));
+    } else {
+      sizeExpr = FEIRBuilder::CreateExprConstI32(stringLiteralSize);
+    }
+    argExprList->emplace_back(sizeExpr->Clone());
     std::unique_ptr<FEIRStmtIntrinsicCallAssign> memcpyStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
         INTRN_C_memcpy, nullptr, nullptr, std::move(argExprList));
     stmts.emplace_back(std::move(memcpyStmt));
-
-    MIRType *mirArrayType = feirVar->GetType()->GenerateMIRTypeAuto();
     if (mirArrayType->GetKind() != kTypeArray) {
       return;
     }
@@ -89,8 +98,7 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar 
     uint32 needInitFurtherCnt = allElemCnt - stringLiteralSize;
     if (needInitFurtherCnt > 0) {
       std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
-      auto addExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(dstExpr),
-          FEIRBuilder::CreateExprConstI32(stringLiteralSize));
+      auto addExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(dstExpr), sizeExpr->Clone());
       argExprList->emplace_back(std::move(addExpr));
       argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(0));
       argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(needInitFurtherCnt));
@@ -103,11 +111,11 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar 
 }
 
 void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
-  (void)Translate2MIRSymbol();
+  MIRSymbol *sym = Translate2MIRSymbol();
   if (initExpr == nullptr) {
     return;
   }
-  if (initExpr->IsConstantFolded() && genAttrs.GetAttr(GENATTR_static)) {
+  if (genAttrs.GetAttr(GENATTR_static) && sym->GetKonst() != nullptr) {
     return;
   }
   UniqueFEIRExpr initFeirExpr = initExpr->Emit2FEExpr(stmts);
@@ -134,12 +142,19 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
 MIRSymbol *ASTVar::Translate2MIRSymbol() const {
   UniqueFEIRVar feirVar = Translate2FEIRVar();
   MIRSymbol *mirSymbol = feirVar->GenerateMIRSymbol(FEManager::GetMIRBuilder());
-  if (initExpr != nullptr && initExpr->IsConstantFolded() && genAttrs.GetAttr(GENATTR_static)) {
+  if (initExpr != nullptr && genAttrs.GetAttr(GENATTR_static)) {
     MIRConst *cst = initExpr->GenerateMIRConst();
-    mirSymbol->SetKonst(cst);
+    if (cst->GetKind() != kConstLblConst) {
+      mirSymbol->SetKonst(cst);
+    } else {
+      mirSymbol->SetKonst(nullptr);
+    }
   }
   if (!sectionAttr.empty()) {
     mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(sectionAttr);
+  }
+  if (!asmAttr.empty()) {
+    mirSymbol->SetAsmAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(asmAttr));
   }
   return mirSymbol;
 }
