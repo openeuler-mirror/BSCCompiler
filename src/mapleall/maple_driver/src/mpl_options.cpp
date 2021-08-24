@@ -24,8 +24,15 @@
 #include "version.h"
 #include "default_options.def"
 #include "driver_option_common.h"
+#ifdef INTERGRATE_DRIVER
+#include "dex2mpl_options.h"
+#else
+#include "maple_dex2mpl_option.h"
+#endif
 #include "ipa_option.h"
 #include "jbc2mpl_option.h"
+#include "as_option.h"
+#include "cpp2mpl_option.h"
 #include "me_option.h"
 #include "option.h"
 #include "cg_option.h"
@@ -34,17 +41,30 @@ namespace maple {
 using namespace mapleOption;
 using namespace maplebe;
 
-const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::kMajorMplVersion) + "." +
-                                        std::to_string(Version::kMinorCompilerVersion) + " 20190929";
+#ifdef ANDROID
+const std::string kMapleDriverVersion = "MapleDriver " + std::to_string(Version::GetMajorVersion()) + "." +
+                                        std::to_string(Version::GetMinorVersion()) + " 20190929";
+#else
+const std::string kMapleDriverVersion = "Maple Version : " + Version::GetVersionStr();
+#endif
 
-const std::vector<std::string> kMapleCompilers = { "jbc2mpl",
-    "dex2mpl", "mplipa",
-    "me", "mpl2mpl", "mplcg" };
+const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "mplfe",
+    "dex2mpl", "mplipa", "as",
+    "me", "mpl2mpl", "mplcg", "clang"};
 
 int MplOptions::Parse(int argc, char **argv) {
   optionParser.reset(new OptionParser());
   optionParser->RegisteUsages(DriverOptionCommon::GetInstance());
+#ifdef INTERGRATE_DRIVER
+  optionParser->RegisteUsages(Dex2mplOptions::GetInstance());
+#else
+  optionParser->RegisteUsages(dex2mplUsage);
+#endif
+  optionParser->RegisteUsages(IpaOption::GetInstance());
   optionParser->RegisteUsages(jbcUsage);
+  optionParser->RegisteUsages(cppUsage);
+  // Not sure if this is even required
+  // optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
@@ -111,6 +131,36 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
         return kErrorExitHelp;
       }
+      case kDex2mplOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameDex2mpl);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
+      case kAsOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameAs);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
+      case kCpp2mplOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameCpp2mpl);
+        if (ret != kErrorNoError) {
+            return ret;
+        }
+        break;
+      case kJbc2mplOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameJbc2mpl);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
+      case kMplipaOpt:
+        ret = UpdatePhaseOption(opt.Args(), kBinNameMplipa);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
       case kMeOpt:
         meOptArgs = opt.Args();
         printExtraOptStr << " --me-opt=" << "\"" << meOptArgs << "\"";
@@ -190,6 +240,9 @@ ErrorCode MplOptions::DecideRunType() {
           optimizationLevel = kO2;
         }
         break;
+      case kWithIpa:
+        isWithIpa = (opt.Type() == kEnable);
+        break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
           runModeConflict = true;
@@ -223,10 +276,21 @@ ErrorCode MplOptions::DecideRunningPhases() {
   bool isNeedMapleComb = true;
   bool isNeedMplcg = true;
   switch (inputFileType) {
+    case InputFileType::kFileTypeC:
+    case InputFileType::kFileTypeCpp:
+      UpdateRunningExe(kBinNameClang);
+      UpdateRunningExe(kBinNameCpp2mpl);
+      break;
+    case InputFileType::kFileTypeAst:
+      UpdateRunningExe(kBinNameCpp2mpl);
+      break;
     case InputFileType::kFileTypeJar:
       // fall-through
     case InputFileType::kFileTypeClass:
       UpdateRunningExe(kBinNameJbc2mpl);
+      break;
+    case InputFileType::kFileTypeDex:
+      UpdateRunningExe(kBinNameDex2mpl);
       break;
     case InputFileType::kFileTypeMpl:
       break;
@@ -321,9 +385,22 @@ bool MplOptions::Init(const std::string &inputFile) {
   if (extensionName == "class") {
     inputFileType = InputFileType::kFileTypeClass;
   }
+  else if (extensionName == "dex") {
+    inputFileType = InputFileType::kFileTypeDex;
+  }
+  else if (extensionName == "c") {
+    inputFileType = InputFileType::kFileTypeC;
+  }
+  else if (extensionName == "cpp") {
+      inputFileType = InputFileType::kFileTypeCpp;
+  }
+  else if (extensionName == "ast") {
+      inputFileType = InputFileType::kFileTypeAst;
+  }
   else if (extensionName == "jar") {
     inputFileType = InputFileType::kFileTypeJar;
-  } else if (extensionName == "mpl" || extensionName == "bpl") {
+  }
+  else if (extensionName == "mpl" || extensionName == "bpl") {
     if (firstInputFile.find("VtableImpl") == std::string::npos) {
       if (firstInputFile.find(".me.mpl") != std::string::npos) {
         inputFileType = InputFileType::kFileTypeMeMpl;
@@ -363,6 +440,9 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       return ret;
     }
   } else if (optimizationLevel == kO2) {
+    if (isWithIpa) {
+      UpdateRunningExe(kBinNameMplipa);
+    }
     if (srcLang != kSrcLangC) {
       ret = AppendDefaultOptions(kBinNameMe, kMeDefaultOptionsO2,
                                  sizeof(kMeDefaultOptionsO2) / sizeof(MplOption));
@@ -421,6 +501,8 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
 ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length) {
   auto &exeOption = exeOptions[exeName];
   for (size_t i = 0; i < length; ++i) {
+    mplOptions[i].SetValue(FileUtils::AppendMapleRootIfNeeded(mplOptions[i].GetNeedRootPath(), mplOptions[i].GetValue(),
+                                                              exeFolder));
     bool ret = optionParser->SetOption(mplOptions[i].GetKey(), mplOptions[i].GetValue(), exeName, exeOption);
     if (!ret) {
       return kErrorInvalidParameter;
@@ -562,4 +644,4 @@ void MplOptions::PrintDetailCommand(bool isBeforeParse) {
                            << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
   }
 }
-}  // namespace maple
+} // namespace maple

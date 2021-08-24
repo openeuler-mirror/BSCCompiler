@@ -33,6 +33,10 @@ enum InputFileType {
   kFileTypeNone,
   kFileTypeClass,
   kFileTypeJar,
+  kFileTypeAst,
+  kFileTypeCpp,
+  kFileTypeC,
+  kFileTypeDex,
   kFileTypeMpl,
   kFileTypeVtableImplMpl,
   kFileTypeS,
@@ -235,6 +239,7 @@ class MplOptions {
   std::map<std::string, std::vector<MplOption>> extras = {};
   std::vector<std::string> runningExes = {};
   std::vector<std::string> selectedExes = {};
+  bool isWithIpa = false;
   std::string printCommandStr;
   std::ostringstream printExtraOptStr;
   bool debugFlag = false;
