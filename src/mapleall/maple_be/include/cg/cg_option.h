@@ -1065,6 +1065,18 @@ class CGOptions : public MapleDriverOptionBase {
     options = flag;
   }
 
+  static void EnableFastMath() {
+    fastMath = true;
+  }
+
+  static void DisableFastMath() {
+    fastMath = false;
+  }
+
+  static bool IsFastMath() {
+    return fastMath;
+  }
+
  private:
   std::vector<std::string> phaseSequence;
 
@@ -1154,6 +1166,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool replaceASM;
   static bool generalRegOnly;
   static std::string literalProfile;
+  static bool fastMath;
 };
 }  /* namespace maplebe */
 

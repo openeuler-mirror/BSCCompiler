@@ -65,7 +65,7 @@ bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;
 bool CGOptions::doGlobalOpt = false;
-bool CGOptions::doVregRename = true;
+bool CGOptions::doVregRename = false;
 bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
@@ -101,6 +101,7 @@ bool CGOptions::doLocalRefSpill = false;
 bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
+bool CGOptions::fastMath = true;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -191,6 +192,7 @@ enum OptionIndex : uint64 {
   kEmitFileType,
   kLongCalls,
   kFunctionSections,
+  kFastMath,
 };
 
 const Descriptor kUsage[] = {
@@ -1040,6 +1042,16 @@ const Descriptor kUsage[] = {
     "  --no-function-sections\n",
     "mplcg",
     {} },
+  { kFastMath,
+    kEnable,
+    "",
+    "fast-math",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --fast-math                  \tPerform fast math\n"
+    "  --no-fast-math\n",
+    "mplcg",
+    {} },
 // End
   { kUnknown,
     0,
@@ -1410,6 +1422,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kGCOnly:
         (opt.Type() == kEnable) ? EnableGCOnly() : DisableGCOnly();
         break;
+      case kFastMath:
+        (opt.Type() == kEnable) ? EnableFastMath() : DisableFastMath();
+        break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
         break;
@@ -1528,6 +1543,7 @@ void CGOptions::EnableO2() {
   doGlobalOpt = true;
   doPreSchedule = false;
   doSchedule = true;
+  fastMath = true;
   SetOption(kConstFold);
   ClearOption(kUseStackGuard);
 #if TARGARM32

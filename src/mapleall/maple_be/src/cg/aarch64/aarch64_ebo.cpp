@@ -22,23 +22,30 @@ using namespace maple;
 uint8 extIndexTable[AArch64Ebo::ExtTableSize][2] = {
  /* extInsnPairTable row index, valid columns */
   {0, 1}, /* AND */
-  {1, 1}, /* SXTB */
-  {2, 3}, /* SXTH */
-  {3, 4}, /* SXTW */
+  {1, 2}, /* SXTB */
+  {2, 4}, /* SXTH */
+  {3, 5}, /* SXTW */
   {4, 2}, /* ZXTB */
-  {5, 2}, /* ZXTH */
+  {5, 3}, /* ZXTH */
   {6, 3}, /* ZXTW */
 };
 
-MOperator extInsnPairTable[AArch64Ebo::ExtTableSize][4][2] = {
+MOperator extInsnPairTable[AArch64Ebo::ExtTableSize][5][2] = {
   /* {origMop, newMop} */
-  {{MOP_wldrb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* AND */
-  {{MOP_wldrb, MOP_wldrsb}, {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* SXTB */
-  {{MOP_wldrh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}, {MOP_undef, MOP_undef}},   /* SXTH */
-  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrsh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}}, /* SXTW */
-  {{MOP_wldrb, MOP_wldrb},  {MOP_wldrsb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* ZXTB */
-  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* ZXTH */
-  {{MOP_wldr, MOP_wldr},    {MOP_wldrh, MOP_wldrh},   {MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef}}    /* ZXTW */
+  {{MOP_wldrb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},
+   {MOP_undef, MOP_undef}},   /* AND */
+  {{MOP_wldrb, MOP_wldrsb}, {MOP_wldr, MOP_wldrsb},   {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},
+   {MOP_undef, MOP_undef}},   /* SXTB */
+  {{MOP_wldrh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb}, {MOP_wldrsh, MOP_wldrsh},
+   {MOP_undef, MOP_undef}},   /* SXTH */
+  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrsh, MOP_wldrsh}, {MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrsb},
+   {MOP_wldr, MOP_xldrsw}}, /* SXTW */
+  {{MOP_wldrb, MOP_wldrb},  {MOP_wldrsb, MOP_wldrb},  {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},
+   {MOP_undef, MOP_undef}},   /* ZXTB */
+  {{MOP_wldrh, MOP_wldrh},  {MOP_wldrb, MOP_wldrb},   {MOP_wldr, MOP_wldrh},   {MOP_undef, MOP_undef},
+   {MOP_undef, MOP_undef}},   /* ZXTH */
+  {{MOP_wldr, MOP_wldr},    {MOP_wldrh, MOP_wldrh},   {MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef},
+   {MOP_undef, MOP_undef}}    /* ZXTW */
 };
 
 MOperator AArch64Ebo::ExtLoadSwitchBitSize(MOperator lowMop) {
@@ -474,11 +481,13 @@ bool AArch64Ebo::Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) {
         LogInfo::MapleLogger() << "change csel insn :\n";
         insn.Dump();
       }
+      AArch64CGFunc *aarFunc = static_cast<AArch64CGFunc *>(cgFunc);
       Operand *result = insn.GetResult(0);
       Operand &condOperand = insn.GetOperand(kInsnFourthOpnd);
+      Operand &rflag = aarFunc->GetOrCreateRflag();
       if (!reverse) {
         Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-            (opCode == MOP_xcselrrrc) ? MOP_xcsetrc : MOP_wcsetrc, *result, condOperand);
+            (opCode == MOP_xcselrrrc) ? MOP_xcsetrc : MOP_wcsetrc, *result, condOperand, rflag);
         insn.GetBB()->ReplaceInsn(insn, newInsn);
         if (EBO_DUMP) {
           LogInfo::MapleLogger() << "to cset insn ====>\n";
@@ -491,7 +500,7 @@ bool AArch64Ebo::Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) {
         }
         CondOperand &reverseCond = a64CGFunc->GetCondOperand(GetReverseCond(cond));
         Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-            (opCode == MOP_xcselrrrc) ? MOP_xcsetrc : MOP_wcsetrc, *result, reverseCond);
+            (opCode == MOP_xcselrrrc) ? MOP_xcsetrc : MOP_wcsetrc, *result, reverseCond, rflag);
         insn.GetBB()->ReplaceInsn(insn, newInsn);
         if (EBO_DUMP) {
           LogInfo::MapleLogger() << "to cset insn ====>\n";
@@ -695,6 +704,82 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
   return true;
 }
 
+bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
+  for (Insn *nextInsn = insn.GetNext(); nextInsn != nullptr; nextInsn = nextInsn->GetNext()) {
+    if (!nextInsn->IsMachineInstruction()) {
+      continue;
+    }
+    int32 lastOpndId = nextInsn->GetOperandSize() - 1;
+    for (int32 i = lastOpndId; i >= 0; --i) {
+      Operand &opnd = nextInsn->GetOperand(i);
+      if (opnd.IsMemoryAccessOperand()) {
+        auto &mem = static_cast<MemOperand&>(opnd);
+        Operand *base = mem.GetBaseRegister();
+        Operand *offset = mem.GetOffset();
+
+        if (base != nullptr && base->IsRegister()) {
+          auto *tmpRegOpnd = static_cast<RegOperand*>(base);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return true;
+          }
+        }
+        if (offset != nullptr && offset->IsRegister()) {
+          auto *tmpRegOpnd = static_cast<RegOperand*>(offset);
+          if (tmpRegOpnd->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
+            return true;
+          }
+        }
+      }
+
+      if (!opnd.IsRegister()) {
+        continue;
+      }
+      auto &tmpRegOpnd = static_cast<RegOperand&>(opnd);
+      if (tmpRegOpnd.GetRegisterNumber() != regOpnd.GetRegisterNumber()) {
+        continue;
+      }
+#if TARGAARCH64 || TARGRISCV64
+      const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+#endif
+#if TARGARM32
+      const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
+      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
+#endif
+      bool isUse = regProp->IsUse();
+      /* if noUse Redefined, no need to check live-out. */
+      return isUse;
+    }
+  }
+  return LiveOutOfBB(regOpnd, *insn.GetBB());
+}
+
+bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *insn, MOperator newMop,
+                                                  MOperator oldMop, RegOperand& opnd) {
+  if (newMop == oldMop) {
+    return true;
+  }
+  if (prevOpndInfo != nullptr && prevOpndInfo->refCount > 1) {
+    return false;
+  }
+  if (OperandLiveAfterInsn(opnd, *insn)) {
+    return false;
+  }
+  Insn *prevInsn = prevOpndInfo->insn;
+  AArch64MemOperand *memOpnd = static_cast<AArch64MemOperand*>(prevInsn->GetMemOpnd());
+  int32 shiftAmount = memOpnd->ShiftAmount();
+  if (shiftAmount == 0) {
+    return true;
+  }
+  const AArch64MD *md = &AArch64CG::kMd[newMop];
+  uint32 memSize = md->GetOperandSize() / k8BitSize;
+  uint32 validShiftAmount = memSize == 8 ? 3 : memSize == 4 ? 2 : memSize == 2 ? 1 : 0;
+  if (shiftAmount != validShiftAmount) {
+    return false;
+  }
+  return true;
+}
+
 bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64bits) {
   if (!beforeRegAlloc) {
     return false;
@@ -712,10 +797,11 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
       if (prevMop == extInsnPairTable[rowIndex][i][0]) {
         auto &res = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
         OpndInfo *prevOpndInfo = GetOpndInfo(res, -1);
-        if ((prevOpndInfo != nullptr) && prevOpndInfo->refCount > 1) {
+        MOperator newPreMop = extInsnPairTable[rowIndex][i][1];
+        if (!ValidPatternForCombineExtAndLoad(prevOpndInfo, insn, newPreMop, prevMop, res)) {
           return false;
         }
-        MOperator newPreMop = extInsnPairTable[rowIndex][i][1];
+
         if (is64bits && idx <= SXTW && idx >= SXTB) {
           newPreMop = ExtLoadSwitchBitSize(newPreMop);
           prevInsn->GetOperand(kInsnFirstOpnd).SetSize(k64BitSize);
@@ -738,6 +824,9 @@ bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*
 
 bool AArch64Ebo::CombineMultiplyAdd(Insn *insn, const Insn *prevInsn, InsnInfo *insnInfo, Operand *addOpnd,
                                     bool is64bits, bool isFp) {
+  if (!CGOptions::IsFastMath()) {
+    return false;
+  }
   /* don't use register if it was redefined. */
   OpndInfo *opndInfo1 = insnInfo->origOpnd[kInsnSecondOpnd];
   OpndInfo *opndInfo2 = insnInfo->origOpnd[kInsnThirdOpnd];
@@ -772,6 +861,9 @@ bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool 
 }
 
 bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+  if (!CGOptions::IsFastMath()) {
+    return false;
+  }
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }
@@ -802,6 +894,9 @@ bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bit
 }
 
 bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bits, bool isFp) {
+  if (!CGOptions::IsFastMath()) {
+    return false;
+  }
   if ((opndInfo == nullptr) || (opndInfo->insn == nullptr)) {
     return false;
   }
@@ -1296,8 +1391,9 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
                 /* after generate a new vreg, check if the size of DataInfo is big enough */
                 EnlargeSpaceForLA(*csetInsn);
                 CondOperand &cond2 = aarFunc->GetCondOperand(GetReverseCond(cond1));
+                Operand &rflag = aarFunc->GetOrCreateRflag();
                 Insn &newCset = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-                    result->GetSize() == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc, r, cond2);
+                    result->GetSize() == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc, r, cond2, rflag);
                 /* new_cset use the same cond as cset_insn. */
                 IncRef(*info0->insnInfo->origOpnd[kInsnSecondOpnd]);
                 csetInsn->GetBB()->InsertInsnAfter(*csetInsn, newCset);
