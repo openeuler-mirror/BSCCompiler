@@ -35,7 +35,7 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
     CHECK_FATAL(f.HasLaidOut(), "Check bb layout phase.");
     // each phase need to keep either irmap or mirfunction is valid
     if (f.GetIRMap()) {
-      if (MeOption::mergeStmts && f.GetMIRModule().IsCModule() ) {
+      if (MeOption::mergeStmts) {
         MergeStmts mergeStmts(f);
         mergeStmts.MergeMeStmts();
       }
