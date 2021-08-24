@@ -316,7 +316,11 @@ uint32 GraphColorRegAllocator::MaxFloatPhysRegNum() const {
 }
 
 bool GraphColorRegAllocator::IsReservedReg(AArch64reg regNO) const {
-  return (regNO == R16) || (regNO == R17);
+  if (!doMultiPass || cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return (regNO == R16) || (regNO == R17);
+  } else {
+    return (regNO == R16);
+  }
 }
 
 void GraphColorRegAllocator::InitFreeRegPool() {
@@ -2583,7 +2587,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
   }
 
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = R17;
+    regno_t pregNO = R16;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), false, &insn);
   }
@@ -2622,7 +2626,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
 
   bool isOutOfRange = false;
   if (a64CGFunc->IsImmediateOffsetOutOfRange(*static_cast<AArch64MemOperand*>(spillMem), k64)) {
-    regno_t pregNO = R17;
+    regno_t pregNO = R16;
     spillMem = &a64CGFunc->SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(spillMem), k64,
                                                          static_cast<AArch64reg>(pregNO), true, &insn);
     isOutOfRange = true;
@@ -2671,21 +2675,21 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
          */
         baseRegNO = lr.GetSpillReg();
         if (baseRegNO > RLAST_INT_REG) {
-          baseRegNO = R17;
+          baseRegNO = R16;
         }
       } else {
-        /* dest will use R17 as baseRegister when offset out-of-range
+        /* dest will use R16 as baseRegister when offset out-of-range
          * mov x16, xs
          * add x17, x29, #max-offset  //out-of-range
          * str x16, [x17, #offset]    //spill
          */
-        baseRegNO = R17;
+        baseRegNO = R16;
       }
       ASSERT(baseRegNO != kRinvalid, "invalid base register number");
       memOpnd = GetSpillMem(lr.GetRegNO(), isDef, insn, static_cast<AArch64reg>(baseRegNO), isOutOfRange);
       /* dest's spill reg can only be R15 and R16 () */
       if (isOutOfRange && isDef) {
-        ASSERT(lr.GetSpillReg() != R17, "can not find valid memopnd's base register");
+        ASSERT(lr.GetSpillReg() != R16, "can not find valid memopnd's base register");
       }
 #ifdef REUSE_SPILLMEM
       if (isOutOfRange == 0) {
