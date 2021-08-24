@@ -377,6 +377,27 @@ void BBLayout::AddBB(BB &bb) {
   if (enabledDebug) {
     LogInfo::MapleLogger() << '\n';
   }
+  // If the pred bb is goto bb and the target bb of goto bb is the current bb which is be added to layoutBBs, change the
+  // goto bb to fallthru bb.
+  if (layoutBBs.size() > 1) {
+    BB *predBB = layoutBBs.at(layoutBBs.size() - 2); // Get the pred of bb.
+    if (predBB->GetKind() != kBBGoto) {
+      return;
+    }
+    if (func.GetIRMap() != nullptr) {
+      if (predBB->GetLastMe()->GetOp() == OP_throw) {
+        return;
+      }
+    } else {
+      if (predBB->GetLast().GetOpCode() == OP_throw) {
+        return;
+      }
+    }
+    if (predBB->GetSucc().front() != &bb) {
+      return;
+    }
+    ChangeToFallthruFromGoto(*predBB);
+  }
 }
 
 BB *BBLayout::GetFallThruBBSkippingEmpty(BB &bb) {
@@ -733,17 +754,17 @@ void BBLayout::LayoutWithoutProf() {
       CHECK_FATAL(gotoTarget != nullptr, "null ptr check");
 
       if (gotoTarget != nextBB && BBCanBeMoved(*gotoTarget, *bb)) {
-        AddBB(*gotoTarget);
         SetAttrTryForTheCanBeMovedBB(*bb, *gotoTarget);
         ChangeToFallthruFromGoto(*bb);
+        AddBB(*gotoTarget);
         ResolveUnconditionalFallThru(*gotoTarget, *nextBB);
         OptimizeBranchTarget(*gotoTarget);
       } else if (gotoTarget->GetKind() == kBBCondGoto && gotoTarget->GetPred().size() == 1) {
         BB *targetNext = gotoTarget->GetSucc().front();
         if (targetNext != nextBB && BBCanBeMoved(*targetNext, *bb)) {
-          AddBB(*gotoTarget);
           SetAttrTryForTheCanBeMovedBB(*bb, *gotoTarget);
           ChangeToFallthruFromGoto(*bb);
+          AddBB(*gotoTarget);
           OptimizeBranchTarget(*gotoTarget);
           AddBB(*targetNext);
           SetAttrTryForTheCanBeMovedBB(*bb, *targetNext);
@@ -914,23 +935,25 @@ void BBLayout::RunLayout() {
   }
 }
 
-AnalysisResult *MeDoBBLayout::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr*) {
-  MeCFG *cfg = static_cast<MeCFG *>(funcResMgr->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  // mempool used in analysisresult
-  MemPool *layoutMp = NewMemPool();
-  auto *bbLayout = layoutMp->New<BBLayout>(*layoutMp, *func, DEBUGFUNC(func));
+void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.PreservedAllExcept<MEDominance>();
+}
+
+bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
+  MeCFG *cfg = GET_ANALYSIS(MEMeCfg);
+  auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f));
   // assume common_entry_bb is always bb 0
   ASSERT(cfg->front() == cfg->GetCommonEntryBB(), "assume bb[0] is the commont entry bb");
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     cfg->DumpToFile("beforeBBLayout", false);
   }
   bbLayout->RunLayout();
-  func->SetLaidOutBBs(bbLayout->GetBBs());
-  funcResMgr->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-  if (DEBUGFUNC(func)) {
+  f.SetLaidOutBBs(bbLayout->GetBBs());
+  if (DEBUGFUNC_NEWPM(f)) {
     bbLayout->DumpBBPhyOrder();
     cfg->DumpToFile("afterBBLayout", false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple
