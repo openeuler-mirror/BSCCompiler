@@ -1,0 +1,260 @@
+#!/bin/bash
+src_file_path=""
+target_name=""
+file_name=""
+option=""
+obj_list=""
+src_list=""
+pre_process=true
+compile=true
+assemble=true
+link=true
+out=""
+std="-std=gnu99"
+list_mode="false"
+
+# config fe compiler
+use_mplfe=true
+use_clang2mpl=false
+# config maple optimization level
+use_O2=true
+# config mpl or bpl
+use_bpl=false
+
+if [ "$use_bpl" == "true" ];then
+  WHIRL_OPT=""
+  suffix="bpl"
+else
+  WHIRL_OPT="-a"
+  suffix="mpl"
+fi
+
+# preifx directories
+OPENSOURCE_OUT=$MAPLE_ROOT/output
+MAPLE_BIN=$OPENSOURCE_OUT/aarch64-clang-release/bin
+TOOLS_ROOT=$MAPLE_ROOT/tools
+TOOLS_BIN=$TOOLS_ROOT/bin
+LINARO=$TOOLS_ROOT/gcc-linaro-7.5.0
+GCC=$LINARO/bin/aarch64-linux-gnu-gcc
+
+# compile flags
+ISYSTEM_FLAGS="-isystem $LINARO/aarch64-linux-gnu/libc/usr/include -isystem $LINARO/lib/gcc/aarch64-linux-gnu/7.5.0/include"
+
+# maple options
+O2="--O2 --quiet:--O2 --quiet:--O2 --quiet --verbose-asm --verbose-cg"
+O0="--O0 --quiet --verbose-asm --verbose-cg"
+
+# whole cmd of maplec.sh
+SELF_CMD="${0} ${@}"
+
+while [ $# -ne 0 ]; do
+  case "$1" in
+    -O2)
+        use_O2=true
+        ;;
+    -O0)
+        use_O2=false
+        ;;
+    -mplfe)
+        use_mplfe=true
+        use_clang2mpl=false
+        ;;
+    -clang2mpl)
+        use_mplfe=false
+        use_clang2mpl=true
+        ;;
+    --list)
+        shift
+        list_mode=true
+        src_list="$1"
+        ;;
+    -v)
+        exit 0
+        ;;
+    -b)
+        WHIRL_OPT=""
+        suffix="bpl"
+        ;;
+    -o)
+        shift
+        out="-o $1"
+        ;;
+    -I)
+        shift
+        option=$option"-I $1 "
+        ;;
+    -isystem)
+        shift
+        ISYSTEM_FLAGS="-isystem $1 "$ISYSTEM_FLAGS
+        ;;
+    -c)
+        link=false
+        ;;
+    -S)
+        assemble=false
+        link=false
+        ;;
+    -E)
+        compile=false
+        assemble=false
+        link=false
+        ;;
+    -include)
+        shift
+        option=$option"-include $1 "
+        ;;
+    -gcc)
+        shift
+        GCC=$1
+        ;;
+    -Werror)
+        ;;
+    -fno-pic)
+        O2=$O2" --no-fpic"
+        O0=$O0" --no-fpic"
+        ;;
+    -ffunction-sections)
+        O2=$O2" --function-sections"
+        O0=$O0" --function-sections"
+        ;;
+    -mgeneral-regs-only)
+        O2=$O2" --general-reg-only"
+        O0=$O0" --general-reg-only"
+        ;;
+    -f*)
+        ;;
+    -*)
+        option=$option"$1"" "
+        ;;
+    *.c)
+        src_file_path="$1"
+        ;;
+    *.mpl)
+        src_file_path="$1"
+        pre_process=false
+        ;;
+    *.s)
+        src_file_path="$1"
+        pre_process=false
+        compile=false
+        ;;
+    *.o)
+        obj_list=$obj_list"$1"" "
+        pre_process=false
+        compile=false
+        assemble=false
+        link=true
+        ;;
+  esac
+  shift
+done
+
+# flags for clang
+CLANG_COMMON_FLAGS="-U __SIZEOF_INT128__ $ISYSTEM_FLAGS"
+CLANGFE_FLAGS="-cc1 ${std} -emit-llvm -triple aarch64-linux-gnu -D__clang__ -D__BLOCKS__ $CLANG_COMMON_FLAGS -fgnu89-inline"
+CLANG2MPL_FLAGS="--target=aarch64-linux-elf -Wno-return-type -U__SIZEOF_INT128__"
+CLANG_FLAGS="--target=aarch64 $CLANG_COMMON_FLAGS -emit-ast"
+
+function color_print() {
+  # default -S 1050 -F 0.01
+  echo -e $1 #| lolcat -S 1050 -F 0.01
+}
+
+function excecute() {
+  outputFile=$target_name
+  echo "${@}" && echo ""
+  "${@}" 1>/dev/null 2>$outputFile || {
+    echo "" >> "$outputFile" && cat $outputFile
+    echo -e "FAILED:" "$@" | tee -a $outputFile
+    echo "" | tee -a "$outputFile"
+    echo -e "[whole compile cmd]: "$SELF_CMD >> "$outputFile"
+    echo "" >> "$outputFile" && echo "" >> "$outputFile"
+    exit 1;
+  }
+  echo ""
+}
+
+function mplfe() {
+  # generate .ast
+  color_print "Starting ast for $src_file_path:"
+  excecute $TOOLS_BIN/clang $CLANG_FLAGS $option $src_file_path -o $file_name.ast
+  # generate .mpl
+  color_print "Starting mplfe for $src_file_path:"
+  excecute $MAPLE_BIN/mplfe $file_name.ast
+}
+
+function clangfe() {
+  # generate .B
+  color_print "Starting clangfe for $src_file_path:"
+  excecute $OPEN64BIN/clangfe $CLANGFE_FLAGS $option $src_file_path
+  # generate .mpl
+  color_print "Starting whirl2mpl for $src_file_path:"
+  excecute $OPEN64BIN/whirl2mpl $WHIRL_OPT $file_name.B
+}
+
+function clang2mpl() {
+  # generate .mpl
+  color_print "Starting clang2mpl for $src_file_path:"
+  excecute $MAPLE_BIN/clang2mpl --ascii "$src_file_path" -- $CLANG2MPL_FLAGS $option
+}
+
+function c_to_mpl() {
+  [ "$use_clang2mpl" == "true" ] && clang2mpl && return
+  [ "$use_mplfe" == "true" ] && mplfe && return
+  clangfe
+}
+
+function maple_to_asm() {
+  color_print "Starting maplecomb for $src_file_path:"
+  run_exe=mplcg
+  maple_option=$O0
+  [ "$use_O2" == "true" ] && run_exe="me:mpl2mpl:mplcg" && maple_option=$O2
+  excecute $MAPLE_BIN/maple "--run=$run_exe" "--option=$maple_option" "${file_name}.${suffix}" --save-temps
+}
+
+function asm_to_obj() {
+  color_print "Starting asm for $src_file_path:"
+  excecute $GCC -std=c99 $option -c "${file_name}.s" $out
+  echo ""
+}
+
+function init() {
+  src_file_path=$(realpath $src_file_path)
+  target_name=${src_file_path##*/}".err"
+  file_name=${src_file_path%\.*}
+}
+
+function c_to_asm() {
+  init
+  # generate .mpl
+  c_to_mpl
+  # generate .s
+  maple_to_asm
+  # generate .o
+  asm_to_obj
+}
+
+function link() {
+  target_name=${out##* }".err"
+  echo -e $obj_list > obj.list
+  echo -e $GCC ${std} $option $obj_list $out > link.cmd
+  color_print "Starting Link ${out##* }:"
+  excecute $GCC ${std} $obj_list $option $out
+}
+
+function asm_list() {
+  cat $src_list | grep "\.c" | while read line
+  do
+    src_file_path=`echo ${line} | awk '{print $NF}'`
+    c_to_asm
+  done
+}
+
+init
+[ "$pre_process" == "true" ] && c_to_mpl
+[ "$compile" == "true" ] && maple_to_asm
+[ "$assemble" == "true" ] && asm_to_obj
+[ "$link" == "true" ] && link
+
+rm $target_name
+exit 0

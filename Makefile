@@ -20,6 +20,11 @@ LIB_CORE_PATH := $(MAPLE_BUILD_OUTPUT)/libjava-core/host-x86_64-$(OPT)
 MAPLE_BIN_DIR := $(MAPLE_ROOT)/src/mapleall/bin
 MRT_ROOT := $(MAPLE_ROOT)/src/mrt
 ANDROID_ROOT := $(MAPLE_ROOT)/android
+MAJOR_VERSION := $(MAPLE_MAJOR_VERSION)
+MINOR_VERSION := $(MAPLE_MINOR_VERSION)
+RELEASE_VERSION := $(MAPLE_RELEASE_VERSION)
+BUILD_VERSION := $(MAPLE_BUILD_VERSION)
+GIT_REVISION := $(shell  git log --pretty=format:"%H" -1)
 ifeq ($(DEBUG),0)
   BUILD_TYPE := RELEASE
 else
@@ -43,6 +48,11 @@ GN_OPTIONS := \
   OPT="$(OPT)" \
   GCONLY=$(GCONLY) \
   TARGET="$(TARGET_PROCESSOR)" \
+  MAJOR_VERSION="$(MAJOR_VERSION)" \
+  MINOR_VERSION="$(MINOR_VERSION)" \
+  RELEASE_VERSION="$(RELEASE_VERSION)" \
+  BUILD_VERSION="$(BUILD_VERSION)" \
+  GIT_REVISION="$(GIT_REVISION)"
 
 .PHONY: default
 default: install
@@ -155,7 +165,7 @@ REALTARGET := $(TESTTARGET)
 endif
 .PHONY: $(TESTTARGET)
 ${TESTTARGET}:
-	@python3 $(MAPLE_ROOT)/testsuite/driver/src/driver.py --target=$(REALTARGET) --run-path=$(MAPLE_ROOT)/output/$(MAPLE_BUILD_TYPE)/testsuite $(if $(MOD), --mod=$(MOD),) --j=$(THREADS) --retry --report=$(MAPLE_ROOT)/report.txt
+	@python3 $(MAPLE_ROOT)/testsuite/driver/src/driver.py --target=$(REALTARGET) --run-path=$(MAPLE_ROOT)/output/$(MAPLE_BUILD_TYPE)/testsuite $(if $(MOD), --mod=$(MOD),) --j=$(THREADS)
 endif
 
 .PHONY: cleanrsd
