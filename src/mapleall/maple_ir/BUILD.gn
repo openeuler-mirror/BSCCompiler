@@ -22,7 +22,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/maple_phase/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat",
+  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
 src_libmplir = [

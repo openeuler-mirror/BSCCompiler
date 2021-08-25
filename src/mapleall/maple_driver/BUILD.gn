@@ -35,7 +35,7 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat",
+  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
 ]
 
 executable("maple") {

@@ -125,6 +125,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
     STMT_CASE(AtomicExpr);
     STMT_CASE(GCCAsmStmt);
     STMT_CASE(OffsetOfExpr);
+    STMT_CASE(GenericSelectionExpr);
     default: {
       CHECK_FATAL(false, "ASTStmt: %s NIY", stmt.getStmtClassName());
       return nullptr;
@@ -133,6 +134,18 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
 }
 
 ASTStmt *ASTParser::ProcessStmtOffsetOfExpr(MapleAllocator &allocator, const clang::OffsetOfExpr &expr) {
+  auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTOffsetOfStmt>(allocator);
+  CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
+  ASTExpr *astExpr = ProcessExpr(allocator, &expr);
+  if (astExpr == nullptr) {
+    return nullptr;
+  }
+  astStmt->SetASTExpr(astExpr);
+  return astStmt;
+}
+
+ASTStmt *ASTParser::ProcessStmtGenericSelectionExpr(MapleAllocator &allocator,
+                                                    const clang::GenericSelectionExpr &expr) {
   auto *astStmt = ASTDeclsBuilder::ASTStmtBuilder<ASTOffsetOfStmt>(allocator);
   CHECK_FATAL(astStmt != nullptr, "astStmt is nullptr");
   ASTExpr *astExpr = ProcessExpr(allocator, &expr);
@@ -408,7 +421,9 @@ ASTStmt *ASTParser::ProcessStmtGCCAsmStmt(MapleAllocator &allocator, const clang
   astStmt->SetAsmStr(asmStmt.generateAsmString(*(astFile->GetAstContext())));
   // set output
   for (unsigned i = 0; i < asmStmt.getNumOutputs(); ++i) {
-    astStmt->InsertOutput(std::make_pair(asmStmt.getOutputName(i).str(), asmStmt.getOutputConstraint(i).str()));
+    bool isPlusConstraint = asmStmt.isOutputPlusConstraint(i);
+    astStmt->InsertOutput(std::make_tuple(asmStmt.getOutputName(i).str(),
+                                          asmStmt.getOutputConstraint(i).str(), isPlusConstraint));
     astStmt->SetASTExpr(ProcessExpr(allocator, asmStmt.getOutputExpr(i)));
   }
   // set input
@@ -674,11 +689,11 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
         case llvm::APFloat::S_x87DoubleExtended:
           bool LosesInfo;
           if (constMirType->GetPrimType() == PTY_f64) {
-            fValue.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::roundingMode::rmNearestTiesToAway,
+            fValue.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway,
                            &LosesInfo);
             astValue->val.f64 = fValue.convertToDouble();
           } else {
-            fValue.convert(llvm::APFloat::IEEEsingle(), llvm::APFloatBase::roundingMode::rmNearestTiesToAway,
+            fValue.convert(llvm::APFloat::IEEEsingle(), llvm::APFloatBase::rmNearestTiesToAway,
                            &LosesInfo);
             astValue->val.f32 = fValue.convertToFloat();
           }
@@ -692,7 +707,7 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
     } else if (result.Val.isVector()) {
       // vector type var must be init by initListExpr
       return nullptr;
-    } else if (result.Val.isMemberPointer() || result.Val.isAddrLabelDiff()) {
+    } else if (result.Val.isMemberPointer()) {
       CHECK_FATAL(false, "NIY");
     }
     // Others: Agg const processed in `InitListExpr`
@@ -720,10 +735,8 @@ ASTValue *ASTParser::TranslateLValue2ASTValue(
       case clang::Stmt::StringLiteralClass: {
         const clang::StringLiteral &strExpr = llvm::cast<const clang::StringLiteral>(*lvExpr);
         std::string str = "";
-        if (strExpr.isWide()) {
-          for (uint32 i = 0; i < strExpr.getLength(); ++i) {
-            str += std::to_string(strExpr.getCodeUnit(i));
-          }
+        if (strExpr.isWide() || strExpr.isUTF16() || strExpr.isUTF32()) {
+          str = strExpr.getBytes().str();
         } else {
           str = strExpr.getString().str();
         }
@@ -827,6 +840,7 @@ ASTExpr *ASTParser::ProcessExpr(MapleAllocator &allocator, const clang::Expr *ex
     EXPR_CASE(DependentScopeDeclRefExpr);
     EXPR_CASE(AtomicExpr);
     EXPR_CASE(ChooseExpr);
+    EXPR_CASE(GenericSelectionExpr);
     default:
       CHECK_FATAL(false, "ASTExpr %s NIY", expr->getStmtClassName());
       return nullptr;
@@ -1653,7 +1667,7 @@ ASTExpr *ASTParser::ProcessExprFloatingLiteral(MapleAllocator &allocator, const 
     astFloatingLiteral->SetVal(val);
   } else if (&fltSem == &llvm::APFloat::IEEEquad() || &fltSem == &llvm::APFloat::x87DoubleExtended()) {
     bool losesInfo;
-    apf.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::roundingMode::rmNearestTiesToAway, &losesInfo);
+    apf.convert(llvm::APFloat::IEEEdouble(), llvm::APFloatBase::rmNearestTiesToAway, &losesInfo);
     val = static_cast<double>(apf.convertToDouble());
     astFloatingLiteral->SetKind(F64);
     astFloatingLiteral->SetVal(val);
@@ -2039,6 +2053,10 @@ ASTExpr *ASTParser::ProcessExprChooseExpr(MapleAllocator &allocator, const clang
   return ProcessExpr(allocator, chs.getChosenSubExpr());
 }
 
+ASTExpr *ASTParser::ProcessExprGenericSelectionExpr(MapleAllocator &allocator, const clang::GenericSelectionExpr &gse) {
+  return ProcessExpr(allocator, gse.getResultExpr());
+}
+
 bool ASTParser::PreProcessAST() {
   TraverseDecl(astUnitDecl, [&](clang::Decl *child) {
     switch (child->getKind()) {
@@ -2194,7 +2212,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (retType == nullptr) {
     return nullptr;
   }
-  std::vector<std::string> parmNamesIn;
+  std::vector<ASTDecl*> paramDecls;
   typeDescIn.push_back(retType);
   unsigned int numParam = funcDecl.getNumParams();
   std::list<ASTStmt*> implicitStmts;
@@ -2207,7 +2225,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
       implicitStmts.emplace_back(stmt);
     }
     ASTDecl *parmVarDecl = ProcessDecl(allocator, *parmDecl);
-    parmNamesIn.emplace_back(parmVarDecl->GetName());
+    paramDecls.push_back(parmVarDecl);
     typeDescIn.push_back(parmVarDecl->GetTypeDesc().front());
   }
   GenericAttrs attrs;
@@ -2217,8 +2235,16 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
-      allocator, fileName, funcName, typeDescIn, attrs, parmNamesIn, funcDecl.getID());
+      allocator, fileName, funcName, typeDescIn, attrs, paramDecls, funcDecl.getID());
   CHECK_FATAL(astFunc != nullptr, "astFunc is nullptr");
+  clang::AliasAttr *aliasAttr = funcDecl.getAttr<clang::AliasAttr>();
+  if (aliasAttr != nullptr) {
+    astFunc->SetAliasAttr(aliasAttr->getAliasee().str());
+  }
+  clang::WeakRefAttr *weakrefAttr = funcDecl.getAttr<clang::WeakRefAttr>();
+  if (weakrefAttr != nullptr) {
+    astFunc->SetWeakrefAttr(std::pair<bool, std::string> { true, weakrefAttr->getAliasee().str() });
+  }
   if (funcDecl.hasBody()) {
     ASTStmt *astCompoundStmt = ProcessStmt(allocator, *llvm::cast<clang::CompoundStmt>(funcDecl.getBody()));
     if (astCompoundStmt != nullptr) {
@@ -2297,6 +2323,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   if (sa != nullptr && !sa->isImplicit()) {
     astVar->SetSectionAttr(sa->getName().str());
   }
+  clang::AsmLabelAttr *ala = varDecl.getAttr<clang::AsmLabelAttr>();
+  if (ala != nullptr) {
+    astVar->SetAsmAttr(ala->getLabel().str());
+  }
   if (varDecl.hasInit()) {
     astVar->SetDeclPos(astFile->GetDeclPosInfo(varDecl));
     auto initExpr = varDecl.getInit();
@@ -2356,7 +2386,7 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
 
 ASTDecl *ASTParser::ProcessDeclFileScopeAsmDecl(MapleAllocator &allocator, const clang::FileScopeAsmDecl &asmDecl) {
   ASTFileScopeAsm *astAsmDecl = allocator.GetMemPool()->New<ASTFileScopeAsm>(fileName);
-  astAsmDecl->SetAsmStr(asmDecl.getAsmString()->getString());
+  astAsmDecl->SetAsmStr(asmDecl.getAsmString()->getString().str());
   return astAsmDecl;
 }
 

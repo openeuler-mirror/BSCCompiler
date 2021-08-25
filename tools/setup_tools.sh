@@ -31,14 +31,14 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
-if [ ! -f $TOOLS/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
-  cd $TOOLS
-  echo Start wget llvm-10.0.0 ...
-  wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-  echo unpacking clang+llvm ...
-  tar xf clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-  echo Downloaded clang+llvm.
-fi
+#if [ ! -f $TOOLS/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
+#  cd $TOOLS
+#  echo Start wget llvm-10.0.0 ...
+#  wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+#  echo unpacking clang+llvm ...
+#  tar xf clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
+#  echo Downloaded clang+llvm.
+#fi
 
 if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
@@ -84,7 +84,7 @@ fi
 if [ ! -f $TOOLS/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ]; then
   cd $TOOLS
   echo Start wget gcc-linaro-7.5.0 ...
-  wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz
+  wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz --no-check-certificate
   echo unpacking gcc ...
   tar xf gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu.tar.xz
   mv gcc-linaro-7.5.0-2019.12-i686_aarch64-linux-gnu gcc-linaro-7.5.0
@@ -94,7 +94,7 @@ fi
 if [ ! -d $TOOLS/sysroot-glibc-linaro-2.25 ]; then
   cd $TOOLS
   echo Start wget sysroot-glibc-linaro-2.25 ...
-  wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz
+  wget https://releases.linaro.org/components/toolchain/binaries/latest-7/aarch64-linux-gnu/sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz --no-check-certificate
   echo unpacking sysroot ...
   tar xf sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu.tar.xz
   mv sysroot-glibc-linaro-2.25-2019.12-aarch64-linux-gnu sysroot-glibc-linaro-2.25
@@ -178,17 +178,29 @@ git checkout .
 git checkout master
 git pull
 
+if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
+  cd $MAPLE_ROOT/../
+  git clone --depth 1 https://gitee.com/openarkcompiler/ThirdParty.git
+  cd -
+else
+  cd $MAPLE_ROOT/../ThirdParty
+  git pull origin master
+  cd -
+fi
+
 mkdir -p ${TOOL_BIN_PATH}
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+ln -sf ${MAPLE_ROOT}/../ThirdParty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04 ${MAPLE_ROOT}/tools
+ln -sf ${MAPLE_ROOT}/../ThirdParty/llvm-12.0.0.src ${MAPLE_ROOT}/third_party/llvm-12.0.0.src
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
 ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 
 mkdir -p ${MAPLE_ROOT}/testsuite/tools
 mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${MAPLE_ROOT}/testsuite/tools/bin/clang++
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${MAPLE_ROOT}/testsuite/tools/bin/clang++
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
 ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${MAPLE_ROOT}/testsuite/tools/bin/qemu-aarch64
 ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${MAPLE_ROOT}/testsuite/tools/bin/aarch64-linux-gnu-gcc
 ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0 ${MAPLE_ROOT}/testsuite/tools/gcc-linaro-7.5.0
