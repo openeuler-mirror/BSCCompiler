@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_loop_analysis.h"
+#include "me_dominance.h"
 
 // This phase analyses the CFG and identify the loops. The implementation is
 // based on the idea that, given two basic block a and b, if b is a's pred and
@@ -49,9 +50,13 @@ void IdentifyLoops::SetExitBB(LoopDesc& loop) {
   } else {
     loop.exitBB = headBB->GetSucc()[1];
   }
+  // if it does not post-dominate headBB, do not set it
+  if (!dominance->PostDominate(*loop.exitBB, *headBB)) {
+    loop.exitBB = nullptr;
+  }
 }
 
-void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
+bool IdentifyLoops::InsertExitBB(LoopDesc &loop) {
   std::set<BB*> traveledBBs;
   std::queue<BB*> inLoopBBs;
   inLoopBBs.push(loop.head);
@@ -84,12 +89,12 @@ void IdentifyLoops::InsertExitBB(LoopDesc &loop) {
     for (auto it : *succBB) {
       for (auto pred : it->GetPred()) {
         if (!loop.Has(*pred)) {
-          loop.inloopBB2exitBBs.clear();
-          return;
+          return false;
         }
       }
     }
   }
+  return true;
 }
 
 // process each BB in preorder traversal of dominator tree
@@ -131,7 +136,10 @@ void IdentifyLoops::ProcessBB(BB *bb) {
 void IdentifyLoops::Dump() const {
   for (LoopDesc *meLoop : meLoops) {
     // loop
-    LogInfo::MapleLogger() << "nest depth: " << meLoop->nestDepth << " loop head BB: " << meLoop->head->GetBBId()
+    LogInfo::MapleLogger() << "nest depth: " << meLoop->nestDepth
+                           << " loop head BB: " << meLoop->head->GetBBId()
+                           << " HasTryBB: " << meLoop->HasTryBB()
+                           << " IsCanonicalLoop: " << meLoop->IsCanonicalLoop()
                            << " tail BB:" << meLoop->tail->GetBBId() << '\n';
     LogInfo::MapleLogger() << "loop body:";
     for (auto it = meLoop->loopBBs.begin(); it != meLoop->loopBBs.end(); ++it) {
@@ -235,32 +243,37 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
     CHECK_FATAL(!loop.latch->GetAttributes(kBBAttrIsTry), "must not be kBBAttrIsTry");
     CHECK_FATAL(!loop.Has(*loop.head->GetPred(1)), "must be latch preheader bb");
     loop.preheader = loop.head->GetPred(1);
-    CHECK_FATAL(loop.preheader->GetKind() == kBBFallthru, "must be kBBFallthru");
     return true;
   }
 }
 
-AnalysisResult *MeDoMeLoop::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  ASSERT(dom != nullptr, "dominance phase has problem");
-  MemPool *meLoopMp = NewMemPool();
-  IdentifyLoops *identLoops = meLoopMp->New<IdentifyLoops>(meLoopMp, *func, dom);
-  identLoops->ProcessBB(func->GetCfg()->GetCommonEntryBB());
+bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance);
+  ASSERT_NOT_NULL(dom);
+  identLoops = GetPhaseAllocator()->New<IdentifyLoops>(GetPhaseMemPool(), f, dom);
+  identLoops->ProcessBB(f.GetCfg()->GetCommonEntryBB());
   identLoops->SetTryBB();
   identLoops->SetIGotoBB();
   for (auto loop : identLoops->GetMeLoops()) {
+    if (!identLoops->InsertExitBB(*loop)) {
+      continue;
+    }
     if (loop->HasTryBB() || loop->HasIGotoBB()) {
       continue;
     }
     if (!identLoops->ProcessPreheaderAndLatch(*loop)) {
       continue;
     }
-    identLoops->InsertExitBB(*loop);
-    loop->SetIsCanonicalLoop(loop->inloopBB2exitBBs.size() == 0 ? false : true);
+    loop->SetIsCanonicalLoop(true);
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     identLoops->Dump();
   }
-  return identLoops;
+  return false;
+}
+
+void MELoopAnalysis::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple
