@@ -409,6 +409,7 @@ class ValueRangePropagation {
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void AnalysisUnreachableBBOrEdge(BB &unreachableBB);
   void MergeValueRangeOfPred(BB &bb, const MeExpr &opnd);
+  void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
 
   MeFunction &func;
   MeIRMap &irMap;

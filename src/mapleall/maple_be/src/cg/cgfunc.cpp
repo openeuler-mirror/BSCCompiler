@@ -91,14 +91,14 @@ Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
       !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(0)->Opnd(0)->GetOpCode() != OP_constval &&
-      expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval && CGOptions::IsFastMath()) {
+      expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
                              *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
              !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
-             expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval && CGOptions::IsFastMath()) {
+             expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
