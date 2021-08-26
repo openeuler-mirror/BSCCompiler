@@ -85,8 +85,9 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       // Concatenate constants
       FieldID fieldID = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second)->GetLHSVal()->GetFieldID();
       int32 fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
-
-      uint64 fieldVal = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second)->GetOpnd(1))->GetIntValue();
+      IassignMeStmt *lastIassignMeStmt = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second);
+      ConstMeExpr *rhsLastIassignMeStmt = static_cast<ConstMeExpr*>(lastIassignMeStmt->GetOpnd(1));
+      uint64 fieldVal = rhsLastIassignMeStmt->GetIntValue();
       uint64 combinedVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
       for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
         fieldID = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetFieldID();
@@ -136,9 +137,11 @@ void MergeStmts::MergeMeStmts() {
           TyIdx lhsTyIdx = iassignStmt->GetLHSVal()->GetTyIdx();
           MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
           MIRType *lhsMirType = lhsMirPtrType->GetPointedType();
+          ConstMeExpr *rhsIassignStmt = static_cast<ConstMeExpr*>(iassignStmt->GetOpnd(1));
           if (iassignStmt->GetLHSVal()->GetFieldID() == 0 ||
               !lhsMirType->IsMIRStructType() ||
-              iassignStmt->GetOpnd(1)->GetMeOp() != kMeOpConst) {
+              rhsIassignStmt->GetMeOp() != kMeOpConst ||
+              rhsIassignStmt->GetConstVal()->GetKind() != kConstInt) {
             candidateStmts.push(nullptr);
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push(&meStmt);
