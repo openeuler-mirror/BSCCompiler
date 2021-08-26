@@ -214,7 +214,8 @@ class CGFunc {
   virtual void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAdd(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectMadd(Operand &resOpnd, Operand &opndM0, Operand &opndM1, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1) = 0;
+  virtual Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1,
+                              const BaseNode &parent) = 0;
   virtual Operand &SelectCGArrayElemAdd(BinaryNode &node) = 0;
   virtual Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
@@ -224,7 +225,7 @@ class CGFunc {
   virtual Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual Operand *SelectSub(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectLand(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual Operand *SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, bool parentIsBr = false) = 0;
@@ -233,9 +234,9 @@ class CGFunc {
   virtual void SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
   virtual Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
-  virtual Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0) = 0;

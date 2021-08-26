@@ -161,15 +161,15 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectAdd(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   Operand &SelectCGArrayElemAdd(BinaryNode &node) override;
   void SelectMadd(Operand &resOpnd, Operand &oM0, Operand &oM1, Operand &o1, PrimType primeType) override;
-  Operand *SelectMadd(BinaryNode &node, Operand &oM0, Operand &oM1, Operand &o1) override;
+  Operand *SelectMadd(BinaryNode &node, Operand &oM0, Operand &oM1, Operand &o1, const BaseNode &parent) override;
   Operand *SelectShift(BinaryNode &node, Operand &o0, Operand &o1) override;
   Operand *SelectSub(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   void SelectSub(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBand(BinaryNode &node, Operand &o0, Operand &o1) override;
+  Operand *SelectBand(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   void SelectBand(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBior(BinaryNode &node, Operand &o0, Operand &o1) override;
+  Operand *SelectBior(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   void SelectBior(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
-  Operand *SelectBxor(BinaryNode &node, Operand &o0, Operand &o1) override;
+  Operand *SelectBxor(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   void SelectBxor(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
 
   void SelectBxorShift(Operand &resOpnd, Operand *o0, Operand *o1, Operand &o2, PrimType primType);
@@ -714,7 +714,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCvtFloat2Int(Operand &resOpnd, Operand &opnd0, PrimType itype, PrimType ftype);
   void SelectCvtInt2Float(Operand &resOpnd, Operand &opnd0, PrimType toType, PrimType fromType);
   Operand *SelectRelationOperator(RelationOperator operatorCode, const BinaryNode &node, Operand &opnd0,
-                                  Operand &opnd1);
+                                  Operand &opnd1, const BaseNode &parent);
   void SelectRelationOperator(RelationOperator operatorCode, Operand &resOpnd, Operand &opnd0, Operand &opnd1,
                               PrimType primType);
   MOperator SelectRelationMop(RelationOperator operatorType, RelationOperatorOpndPattern opndPattern,

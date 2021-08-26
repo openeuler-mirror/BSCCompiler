@@ -95,14 +95,14 @@ Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(0)),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
-                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
              !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
              expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(0)),
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(1)->Opnd(1)),
-                             *cgFunc.HandleExpr(expr, *expr.Opnd(0)));
+                             *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
   } else {
     return cgFunc.SelectAdd(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
@@ -201,19 +201,19 @@ Operand *HandleSub(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 Operand *HandleBand(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   return cgFunc.SelectBand(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
 Operand *HandleBior(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   return cgFunc.SelectBior(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
 Operand *HandleBxor(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   (void)parent;
   return cgFunc.SelectBxor(static_cast<BinaryNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
-                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)));
+                           *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
 
 Operand *HandleAbs(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {

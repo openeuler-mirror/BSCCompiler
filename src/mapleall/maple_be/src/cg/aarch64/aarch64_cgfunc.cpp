@@ -1163,8 +1163,6 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       isOutputTempNode = true;
     }
     listInConstraint->stringList.push_back(static_cast<StringOperand*>(&CreateStringOperand(str)));
-    std::string prefix = "";
-
     /* process input operands */
     switch (node.Opnd(i)->op) {
       case OP_dread: {
@@ -2387,7 +2385,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
     }
   } else {
     GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, result, stImm));
-    if (CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) || (symbol->GetStorageClass() == kScExtern))) {
+    if (CGOptions::IsPIC() && symbol->NeedPIC()) {
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       AArch64OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
       AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
@@ -2395,8 +2393,8 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
 
       if (stImm.GetOffset() > 0) {
-        AArch64OfstOperand &ofstOpnd = GetOrCreateOfstOpnd(stImm.GetOffset(), k32BitSize);
-        SelectAdd(result, result, ofstOpnd, PTY_u64);
+        AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
+        SelectAdd(result, result, immOpnd, PTY_u64);
       }
     } else {
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, result, stImm));
@@ -3245,15 +3243,15 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
   }
 }
 
-Operand *AArch64CGFunc::SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1) {
+Operand *AArch64CGFunc::SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1,
+                                   const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
   bool is64Bits = (dsize == k64BitSize);
   /* promoted type */
   PrimType primType = is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32);
-  RegOperand &resOpnd = CreateRegisterOperandOfType(primType);
-
+  RegOperand &resOpnd = GetOrCreateResOperand(parent, primType);
   SelectMadd(resOpnd, opndM0, opndM1, opnd1, primType);
   return &resOpnd;
 }
@@ -3482,7 +3480,7 @@ void AArch64CGFunc::SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
         AArch64ImmOperand &shiftNum1 = CreateImmOperand(__builtin_ffsll(headVal - 1) - 1, dsize, false);
         RegOperand &tmpOpnd = CreateRegisterOperandOfType(primType);
         SelectShift(tmpOpnd, *otherOp, shiftNum1, kShiftLeft, primType);
-        SelectAdd(resOpnd, tmpOpnd, *otherOp, primType);
+        SelectAdd(resOpnd, *otherOp, tmpOpnd, primType);
         AArch64ImmOperand &shiftNum2 = CreateImmOperand(zeroNum, dsize, false);
         SelectShift(resOpnd, resOpnd, shiftNum2, kShiftLeft, primType);
         if (imm->GetValue() < 0) {
@@ -3968,8 +3966,8 @@ void AArch64CGFunc::SelectAArch64CSINC(Operand &res, Operand &o0, Operand &o1, C
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpCode, res, o0, o1, cond, rflag));
 }
 
-Operand *AArch64CGFunc::SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1) {
-  return SelectRelationOperator(kAND, node, opnd0, opnd1);
+Operand *AArch64CGFunc::SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+  return SelectRelationOperator(kAND, node, opnd0, opnd1, parent);
 }
 
 void AArch64CGFunc::SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
@@ -3977,7 +3975,7 @@ void AArch64CGFunc::SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1,
 }
 
 Operand *AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, const BinaryNode &node, Operand &opnd0,
-                                               Operand &opnd1) {
+                                               Operand &opnd1, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
   bool isSigned = IsSignedInteger(dtype);
   uint32 dsize = GetPrimTypeBitSize(dtype);
@@ -3985,7 +3983,7 @@ Operand *AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, co
   RegOperand *resOpnd = nullptr;
   if (!IsPrimitiveVector(dtype)) {
     PrimType primType = is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32);  /* promoted type */
-    resOpnd = &CreateRegisterOperandOfType(primType);
+    resOpnd = &GetOrCreateResOperand(parent, primType);
     SelectRelationOperator(operatorCode, *resOpnd, opnd0, opnd1, primType);
   } else {
     /* vector operations */
@@ -4130,8 +4128,8 @@ void AArch64CGFunc::SelectRelationOperator(RelationOperator operatorCode, Operan
   }
 }
 
-Operand *AArch64CGFunc::SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1) {
-  return SelectRelationOperator(kIOR, node, opnd0, opnd1);
+Operand *AArch64CGFunc::SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+  return SelectRelationOperator(kIOR, node, opnd0, opnd1, parent);
 }
 
 void AArch64CGFunc::SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
@@ -4196,8 +4194,8 @@ void AArch64CGFunc::SelectFMinFMax(Operand &resOpnd, Operand &opnd0, Operand &op
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, opnd0, opnd1));
 }
 
-Operand *AArch64CGFunc::SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1) {
-  return SelectRelationOperator(kEOR, node, opnd0, opnd1);
+Operand *AArch64CGFunc::SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) {
+  return SelectRelationOperator(kEOR, node, opnd0, opnd1, parent);
 }
 
 void AArch64CGFunc::SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) {
@@ -4263,10 +4261,6 @@ void AArch64CGFunc::SelectShift(Operand &resOpnd, Operand &opnd0, Operand &opnd1
     }
     switch (direct) {
       case kShiftLeft:
-        if (kVal == 1) {
-          SelectAdd(resOpnd, *firstOpnd, *firstOpnd, primType);
-          return;
-        }
         mopShift = is64Bits ? MOP_xlslrri6 : MOP_wlslrri5;
         break;
       case kShiftAright:
@@ -8909,7 +8903,7 @@ Operand *AArch64CGFunc::SelectCSyncCmpSwap(IntrinsicopNode &intrinopNode, PrimTy
   atomicBB2->AppendInsn(
       GetCG()->BuildInstruction<AArch64Insn>(MOP_wcbnz, *resVal, GetOrCreateLabelOperand(*atomicBB)));
   BB *nextBB = CreateNewBB();
-  GetCurBB()->AppendBB(*nextBB);
+  atomicRetBB->AppendBB(*nextBB);
   SetCurBB(*nextBB);
   return fetchVal;
 }
