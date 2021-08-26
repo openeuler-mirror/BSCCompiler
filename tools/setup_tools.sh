@@ -173,10 +173,10 @@ if [ ! -d $TOOLS/clang2mpl ]; then
 fi
 # routinly updated to be compatible with maple
 cd $TOOLS/clang2mpl
-git clean -df
-git checkout .
-git checkout master
-git pull
+#git clean -df
+#git checkout .
+#git checkout master
+#git pull
 
 if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
   cd $MAPLE_ROOT/../
@@ -189,33 +189,26 @@ else
 fi
 
 mkdir -p ${TOOL_BIN_PATH}
-ln -sf ${MAPLE_ROOT}/../ThirdParty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04 ${MAPLE_ROOT}/tools
-ln -sf ${MAPLE_ROOT}/../ThirdParty/llvm-12.0.0.src ${MAPLE_ROOT}/third_party/llvm-12.0.0.src
+ln -s -f ${MAPLE_ROOT}/../ThirdParty/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04 ${MAPLE_ROOT}/tools
+ln -s -f ${MAPLE_ROOT}/../ThirdParty/llvm-12.0.0.src ${MAPLE_ROOT}/third_party/llvm-12.0.0.src
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${TOOL_BIN_PATH}/clang++
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
 ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
+ln -s -f ${MAPLE_ROOT}/build/java2dex ${TOOL_BIN_PATH}/java2dex
+ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/tools/lib
+ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${TOOL_BIN_PATH}/aarch64-linux-gnu-gcc
 
-mkdir -p ${MAPLE_ROOT}/testsuite/tools
-mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${MAPLE_ROOT}/testsuite/tools/bin/clang++
-ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
-ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${MAPLE_ROOT}/testsuite/tools/bin/qemu-aarch64
-ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${MAPLE_ROOT}/testsuite/tools/bin/aarch64-linux-gnu-gcc
-ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0 ${MAPLE_ROOT}/testsuite/tools/gcc-linaro-7.5.0
-ln -s -f ${MAPLE_ROOT}/build/java2dex ${MAPLE_ROOT}/testsuite/tools/bin/java2dex
-ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/testsuite/tools/lib
-
-if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
-  cd $MAPLE_ROOT/../
-  git clone --depth 1 https://gitee.com/openarkcompiler/ThirdParty.git
-  cd -
-else
-  cd $MAPLE_ROOT/../ThirdParty
-  git pull origin master
-  cd -
-fi
+#mkdir -p ${MAPLE_ROOT}/testsuite/tools
+#mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
+#ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${MAPLE_ROOT}/testsuite/tools/bin/clang++
+#ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
+#ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${MAPLE_ROOT}/testsuite/tools/bin/qemu-aarch64
+#ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${MAPLE_ROOT}/testsuite/tools/bin/aarch64-linux-gnu-gcc
+#ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0 ${MAPLE_ROOT}/testsuite/tools/gcc-linaro-7.5.0
+#ln -s -f ${MAPLE_ROOT}/build/java2dex ${MAPLE_ROOT}/testsuite/tools/bin/java2dex
+#ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/testsuite/tools/lib
 
 # prepare scripts for tests
 mkdir -p ${MAPLE_ROOT}/output/script
