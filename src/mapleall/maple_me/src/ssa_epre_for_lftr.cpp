@@ -80,7 +80,7 @@ ScalarMeExpr *SSAEPre::FindScalarVersion(ScalarMeExpr *scalar, MeStmt *stmt) {
 //            RETURN: regorvar < 100 + p (need to find p's SSA version there)
 //            100 + p is added to EPRE work list
 OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
-  MeExpr *compare = compOcc->GetMeExpr();
+  auto *compare = static_cast<OpMeExpr*>(compOcc->GetMeExpr());
   // determine the ith operand of workCand that is the jth operand of compare
   OpMeExpr *x = static_cast<OpMeExpr *>(workCand->GetTheMeExpr());
   size_t i;
@@ -139,8 +139,16 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     hashedSide = irMap->HashMeExpr(newSide);
     BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, false, nullptr, true, true);
   }
+  // when compare with constval, signed/unsigned integer has different behaviour
+  PrimType newCmpOpndType = regorvar->GetPrimType();
+  if (hashedSide->GetOp() == OP_constval &&
+      IsSignedInteger(regorvar->GetPrimType()) != IsSignedInteger(compare->GetOpndType()) &&
+      compare->GetOp() != OP_ne && compare->GetOp() != OP_eq) {
+    newCmpOpndType = IsSignedInteger(regorvar->GetPrimType()) ? GetUnsignedPrimType(regorvar->GetPrimType()) :
+                                                                GetSignedPrimType(regorvar->GetPrimType());
+  }
   OpMeExpr newcompare(-1, compare->GetOp(), compare->GetPrimType(), 2);
-  newcompare.SetOpndType(regorvar->GetPrimType());
+  newcompare.SetOpndType(newCmpOpndType);
   newcompare.SetOpnd(j, regorvar);
   newcompare.SetOpnd(1-j, hashedSide);
   return static_cast<OpMeExpr *>(irMap->HashMeExpr(newcompare));
@@ -181,7 +189,7 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
       continue;
     }
 
-    if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(wkCand->GetTheMeExpr()->GetPrimType())) {
+    if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(compare->GetOpndType())) {
       continue;
     }
     MeExpr *x = wkCand->GetTheMeExpr();
