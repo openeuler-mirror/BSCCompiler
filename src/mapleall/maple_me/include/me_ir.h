@@ -163,6 +163,7 @@ class MeExpr {
   virtual uint32 GetHashIndex() const {
     return 0;
   }
+  virtual bool HasAddressValue() { return false; }
   virtual bool StrengthReducible() { return false; }
   virtual int64 SRMultiplier(OriginalSt *ost) {
     (void)ost;
@@ -394,6 +395,8 @@ class VarMeExpr final : public ScalarMeExpr {
   MIRType *GetType() const override {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
   }
+
+  bool HasAddressValue() override { return GetType()->GetKind() == kTypePointer; }
 
  private:
   bool noDelegateRC = false;  // true if this cannot be optimized by delegaterc
@@ -677,6 +680,8 @@ class AddrofMeExpr : public MeExpr {
     return static_cast<uint32>(ostIdx) << addrofHashShift;
   }
 
+  bool HasAddressValue() override { return true; }
+
  private:
   OStIdx ostIdx;  // the index in MEOptimizer: OriginalStTable;
   FieldID fieldID;
@@ -877,6 +882,7 @@ class OpMeExpr : public MeExpr {
     }
     return nullptr;
   }
+  bool HasAddressValue() override { return op == OP_iaddrof || op == OP_array; }
   bool StrengthReducible() override;
   int64 SRMultiplier(OriginalSt *ost) override;
 
@@ -1017,6 +1023,8 @@ class IvarMeExpr : public MeExpr {
     }
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrtype->GetPointedTyIdxWithFieldID(fieldID));
   }
+
+  bool HasAddressValue() override { return GetType()->GetKind() == kTypePointer; }
 
  private:
   IassignMeStmt *defStmt = nullptr;

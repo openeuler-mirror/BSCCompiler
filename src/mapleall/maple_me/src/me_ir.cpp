@@ -633,7 +633,7 @@ bool OpMeExpr::StrengthReducible() {
     case OP_add:
     case OP_sub: {
       if (MeOption::srForAdd) {
-        return true;
+        return !GetOpnd(0)->HasAddressValue();
       }
       return false;
     }
@@ -965,6 +965,7 @@ void AddrofMeExpr::Dump(const IRMap *irMap, int32) const {
 
 void OpMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << "OP " << kOpcodeInfo.GetTableItemAt(GetOp()).name;
+  LogInfo::MapleLogger() << " " << GetPrimTypeName(primType) << " " << GetPrimTypeName(opndType);
   LogInfo::MapleLogger() << " mx" << GetExprID();
   LogInfo::MapleLogger() << '\n';
   ASSERT(opnds[0] != nullptr, "OpMeExpr::Dump: cannot have 0 operand");
@@ -1359,7 +1360,8 @@ void IntrinsiccallMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void AsmMeStmt::Dump(const IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " " << '\"' << asmString << '\"' << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name <<
+      " " << '\"' << asmString << '\"' << std::endl;
   DumpOpnds(irMap);
   DumpMuList(irMap, muList);
   DumpChiList(irMap, chiList);
