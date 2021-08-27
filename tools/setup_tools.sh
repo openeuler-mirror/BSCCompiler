@@ -31,15 +31,6 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
-#if [ ! -f $TOOLS/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ]; then
-#  cd $TOOLS
-#  echo Start wget llvm-10.0.0 ...
-#  wget https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.0/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-#  echo unpacking clang+llvm ...
-#  tar xf clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04.tar.xz
-#  echo Downloaded clang+llvm.
-#fi
-
 if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
     cd $TOOLS
@@ -173,10 +164,10 @@ if [ ! -d $TOOLS/clang2mpl ]; then
 fi
 # routinly updated to be compatible with maple
 cd $TOOLS/clang2mpl
-#git clean -df
-#git checkout .
-#git checkout master
-#git pull
+git clean -df
+git checkout .
+git checkout master
+git pull
 
 if [ ! -d $MAPLE_ROOT/../ThirdParty ]; then
   cd $MAPLE_ROOT/../
@@ -199,16 +190,6 @@ ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aar
 ln -s -f ${MAPLE_ROOT}/build/java2dex ${TOOL_BIN_PATH}/java2dex
 ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/tools/lib
 ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${TOOL_BIN_PATH}/aarch64-linux-gnu-gcc
-
-#mkdir -p ${MAPLE_ROOT}/testsuite/tools
-#mkdir -p ${MAPLE_ROOT}/testsuite/tools/bin
-#ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang++ ${MAPLE_ROOT}/testsuite/tools/bin/clang++
-#ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${MAPLE_ROOT}/testsuite/tools/bin/clang
-#ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${MAPLE_ROOT}/testsuite/tools/bin/qemu-aarch64
-#ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${MAPLE_ROOT}/testsuite/tools/bin/aarch64-linux-gnu-gcc
-#ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0 ${MAPLE_ROOT}/testsuite/tools/gcc-linaro-7.5.0
-#ln -s -f ${MAPLE_ROOT}/build/java2dex ${MAPLE_ROOT}/testsuite/tools/bin/java2dex
-#ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/testsuite/tools/lib
 
 # prepare scripts for tests
 mkdir -p ${MAPLE_ROOT}/output/script
