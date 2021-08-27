@@ -39,7 +39,7 @@ include_directories = [
   "${MPLFE_ROOT}/ast_input/include",
   "${MPLFE_ROOT}/ast_input/lib",
   "${LLVMINC}",
-  "${THIRD_PARTY_ROOT}/clang-10.0.0.src/tools",
+  "${THIRD_PARTY_ROOT}/llvm_modified/clang/tools",
 ]
 
 static_library("lib_mplfe_util") {
@@ -81,9 +81,30 @@ static_library("lib_mplfe_util") {
     "${MPLFE_ROOT}/common/src/mplfe_options.cpp",
     "${MPLFE_ROOT}/common/src/simple_xml.cpp",
     "${MPLFE_ROOT}/common/src/simple_zip.cpp",
+    "${MPLFE_ROOT}/common/src/generic_attrs.cpp",
   ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"
+
+  if (MAJOR_VERSION != "") {
+    cflags_cc += [ "-DMAJOR_VERSION=${MAJOR_VERSION}", ]
+  }
+
+  if (MINOR_VERSION != "") {
+    cflags_cc += [ "-DMINOR_VERSION=${MINOR_VERSION}", ]
+  }
+
+  if (RELEASE_VERSION != "") {
+    cflags_cc += [ "-DRELEASE_VERSION=\"${RELEASE_VERSION}\"", ]
+  }
+
+  if (BUILD_VERSION != "") {
+    cflags_cc += [ "-DBUILD_VERSION=${BUILD_VERSION}", ]
+  }
+
+  if (GIT_REVISION != "") {
+    cflags_cc += [ "-DGIT_REVISION=\"${GIT_REVISION}\"", ]
+  }
 }
 
 static_library("lib_mplfe_input") {

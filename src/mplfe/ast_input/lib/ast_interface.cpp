@@ -65,10 +65,10 @@ std::string LibAstFile::GetMangledName(const clang::NamedDecl &decl) {
     llvm::raw_string_ostream ostream(mangledName);
     if (llvm::isa<clang::CXXConstructorDecl>(&decl)) {
       const auto *ctor = static_cast<const clang::CXXConstructorDecl*>(&decl);
-      mangleContext->mangleCXXCtor(ctor, static_cast<clang::CXXCtorType>(0), ostream);
+      mangleContext->mangleCtorBlock(ctor, static_cast<clang::CXXCtorType>(0), nullptr, ostream);
     } else if (llvm::isa<clang::CXXDestructorDecl>(&decl)) {
       const auto *dtor = static_cast<const clang::CXXDestructorDecl*>(&decl);
-      mangleContext->mangleCXXDtor(dtor, static_cast<clang::CXXDtorType>(0), ostream);
+      mangleContext->mangleDtorBlock(dtor, static_cast<clang::CXXDtorType>(0), nullptr, ostream);
     } else {
       mangleContext->mangleName(&decl, ostream);
     }
@@ -245,6 +245,9 @@ void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
   }
   if (decl.hasAttr<clang::WeakAttr>()) {
     genAttrs.SetAttr(GENATTR_weak);
+  }
+  if (decl.hasAttr<clang::NonNullAttr>() && decl.getKind() != clang::Decl::Function) {
+    genAttrs.SetAttr(GENATTR_nonnull);
   }
 }
 

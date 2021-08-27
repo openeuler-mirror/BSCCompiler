@@ -26,7 +26,7 @@ include_libmplphase = [
   "${MAPLE_ROOT}/out/common/target",
   "${MAPLEALL_ROOT}/maple_be/include/ad/target",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${THIRD_PARTY_ROOT}/llvm_modified/include/llvm/BinaryFormat",
+  "${THIRD_PARTY_ROOT}/llvm_modified/llvm/include/llvm/BinaryFormat",
   "${MAPLEALL_ROOT}/maple_driver/include",
 ]
 
