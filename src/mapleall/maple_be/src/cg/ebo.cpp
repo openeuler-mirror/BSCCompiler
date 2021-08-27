@@ -1309,7 +1309,7 @@ bool CgEbo0::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("ebo0", f, f.GetMirModule());
   }
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis);
+  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
 #if TARGAARCH64 || TARGRISCV64
@@ -1335,7 +1335,7 @@ bool CgEbo1::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
     DotGenerator::GenerateDot(PhaseName(), f, f.GetMirModule(), true);
   }
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis);
+  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
 #if TARGAARCH64 || TARGRISCV64
@@ -1361,7 +1361,7 @@ bool CgPostEbo::PhaseRun(maplebe::CGFunc &f) {
   if (EBO_DUMP_NEWPM) {
     DotGenerator::GenerateDot(PhaseName(), f, f.GetMirModule());
   }
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis);
+  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   MemPool *eboMp = GetPhaseMemPool();
   Ebo *ebo = nullptr;
 #if TARGAARCH64 || TARGRISCV64

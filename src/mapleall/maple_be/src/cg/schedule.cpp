@@ -77,6 +77,14 @@ void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &node
  * initialize node's valid preds size.
  */
 void RegPressureSchedule::Init(const MapleVector<DepNode*> &nodes) {
+  readyList.clear();
+  scheduledNode.clear();
+  liveReg.clear();
+  liveInRegNO.clear();
+  liveOutRegNO.clear();
+  liveInRegNO = bb->GetLiveInRegNO();
+  liveOutRegNO = bb->GetLiveOutRegNO();
+
   FOR_ALL_REGCLASS(i) {
     curPressure[i] = 0;
     maxPressure[i] = 0;
@@ -94,7 +102,7 @@ void RegPressureSchedule::Init(const MapleVector<DepNode*> &nodes) {
       CalculatePressure(*node, defReg, true);
       RegType regType = GetRegisterType(defReg);
       /* if no use list, a register is only defined, not be used */
-      if (node->GetRegDefs(i) == nullptr) {
+      if (node->GetRegDefs(i) == nullptr && liveOutRegNO.find(defReg) == liveOutRegNO.end()) {
         node->IncDeadDefByIndex(regType);
       }
       ++i;
@@ -257,21 +265,39 @@ void RegPressureSchedule::UpdateLiveReg(const DepNode &node, regno_t reg, bool d
   if (def) {
     if (liveReg.find(reg) == liveReg.end()) {
       (void)liveReg.insert(reg);
+#ifdef PRESCHED_DEBUG
+      LogInfo::MapleLogger() << "Add new def R" << reg << " to live reg list \n";
+#endif
     }
     /* if no use list, a register is only defined, not be used */
-    size_t i = 0;
+    size_t i = 1;
     for (auto defReg : node.GetDefRegnos()) {
       if (defReg == reg) {
         break;
       }
       ++i;
     }
-    if (node.GetRegDefs(i) == nullptr) {
+    if (node.GetRegDefs(i) == nullptr && liveOutRegNO.find(reg) == liveOutRegNO.end()) {
+#ifdef PRESCHED_DEBUG
+      LogInfo::MapleLogger() << "Remove dead def " << reg << " from live reg list \n";
+#endif
       liveReg.erase(reg);
+    } else if (node.GetRegDefs(i) != nullptr){
+#ifdef PRESCHED_DEBUG
+      auto regList = node.GetRegDefs(i);
+      LogInfo::MapleLogger() << i << " Live def, dump use insn here \n";
+      while (regList != nullptr){
+        node.GetRegDefs(i)->insn->Dump();
+        regList = regList->next;
+      }
+#endif
     }
   } else {
     if (IsLastUse(node, reg)) {
-      if (liveReg.find(reg) != liveReg.end()) {
+      if (liveReg.find(reg) != liveReg.end() && liveOutRegNO.find(reg) == liveOutRegNO.end()) {
+#ifdef PRESCHED_DEBUG
+        LogInfo::MapleLogger() << "Remove last use R" << reg << " from live reg list\n";
+#endif
         liveReg.erase(reg);
       }
     }
@@ -283,6 +309,7 @@ void RegPressureSchedule::UpdateBBPressure(const DepNode &node) {
   size_t idx = 0;
   for (auto &reg : node.GetUseRegnos()) {
 #ifdef PRESCHED_DEBUG
+    LogInfo::MapleLogger() << "Use Reg : R" << reg << "\n";
     UpdateLiveReg(node, reg, false);
     if (liveReg.find(reg) == liveReg.end()) {
       ++idx;
@@ -319,7 +346,7 @@ void RegPressureSchedule::UpdateBBPressure(const DepNode &node) {
   const auto &pressures = node.GetPressure();
   const auto &deadDefNum = node.GetDeadDefNum();
 #ifdef PRESCHED_DEBUG
-  LogInfo::MapleLogger() << "node's pressure: ";
+  LogInfo::MapleLogger() << "\nnode's pressure: ";
   for (auto pressure : pressures) {
     LogInfo::MapleLogger() << pressure << " ";
   }
@@ -328,10 +355,10 @@ void RegPressureSchedule::UpdateBBPressure(const DepNode &node) {
 
   FOR_ALL_REGCLASS(i) {
     curPressure[i] += pressures[i];
+    curPressure[i] -= deadDefNum[i];
     if (curPressure[i] > maxPressure[i]) {
       maxPressure[i] = curPressure[i];
     }
-    curPressure[i] -= deadDefNum[i];
   }
 }
 
@@ -460,37 +487,51 @@ void RegPressureSchedule::DumpBBPressureInfo() const {
 }
 
 void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
+  /* Store the original series */
+  originalNodeSeries.clear();
+  for (auto node : nodes) {
+    originalNodeSeries.emplace_back(node);
+  }
   initPartialSplitters(nodes);
+  LogInfo::MapleLogger() << "Calculate Pressure Info for Schedule Input Series \n";
+  /* Mock all the nodes to kScheduled status for pressure calculation */
+  for (auto node : nodes){
+    node->SetState(kScheduled);
+  }
+  originalPressure = calculateRegisterPressure(nodes);
+  int pressureStandard = 27;
+  /* Original pressure is small enough, skip pre-scheduling */
+  if (originalPressure < pressureStandard) {
+    LogInfo::MapleLogger() << "Original pressure is small enough, skip pre-scheduling \n";
+    return;
+  }
+  /* Reset all the nodes to kNormal status */
+  for (auto node : nodes){
+    node->SetState(kNormal);
+  }
   if (splitterIndexes.empty()) {
     LogInfo::MapleLogger() << "No splitter, normal scheduling \n";
     HeuristicScheduling(nodes);
   } else {
     /* Split the node list into multiple parts based on split point */
-    for (int i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
-      int lastTwoNodeIndex = 2;
-      int begin = splitterIndexes.at(i);
-      int end = splitterIndexes.at(i + 1);
-      for (int j = begin; j < end; j = j + 1) {
-        partialList.emplace_back(nodes.at(j));
-      }
-      if (i == splitterIndexes.size() - lastTwoNodeIndex){
-        partialList.emplace_back(nodes.at(end));
-      }
-      for (auto node : partialList) {
-        partialSet.insert(node);
-      }
-      HeuristicScheduling(partialList);
-      for (auto node : partialList) {
-        partialScheduledNode.emplace_back(node);
-      }
-      partialList.clear();
-      partialSet.clear();
-    }
-    nodes.clear();
-    /* Construct overall scheduling output */
-    for (auto node : partialScheduledNode) {
-      nodes.emplace_back(node);
-    }
+    partialScheduling(nodes);
+  }
+  scheduledPressure = calculateRegisterPressure(nodes);
+  LogInfo::MapleLogger() << "Original Pressure : " << originalPressure << " \n";
+  LogInfo::MapleLogger() << "Scheduled Pressure : " << scheduledPressure << " \n";
+  if (originalPressure > scheduledPressure) {
+    LogInfo::MapleLogger() << "Pressure Reduced by : " << (originalPressure - scheduledPressure) << " \n";
+    return;
+  } else if (originalPressure == scheduledPressure){
+    LogInfo::MapleLogger() << "Pressure Not Changed \n";
+  } else {
+    LogInfo::MapleLogger() << "Pressure Increased by : " << (scheduledPressure - originalPressure) << " \n";
+  }
+  /* Restore the original series */
+  LogInfo::MapleLogger() << "Pressure Not Reduced, Restore Node Series \n";
+  nodes.clear();
+  for (auto node : originalNodeSeries) {
+    nodes.emplace_back(node);
   }
 }
 
@@ -499,8 +540,7 @@ void RegPressureSchedule::HeuristicScheduling(MapleVector<DepNode*> &nodes) {
   LogInfo::MapleLogger() << "--------------- bb " << bb->GetId() <<" begin scheduling -------------" << "\n";
   DumpBBLiveInfo();
 #endif
-  readyList.clear();
-  scheduledNode.clear();
+
   /* initialize register pressure information and readylist. */
   Init(nodes);
   CalculateMaxDepth(nodes);
@@ -551,6 +591,67 @@ void RegPressureSchedule::HeuristicScheduling(MapleVector<DepNode*> &nodes) {
     nodes.emplace_back(node);
   }
 }
+/*
+ * Calculate the register pressure for current BB based on an instruction series
+ */
+int RegPressureSchedule::calculateRegisterPressure(MapleVector<DepNode*> &nodes) {
+  /* Initialize the live, live in, live out register max pressure information */
+  liveReg.clear();
+  liveInRegNO = bb->GetLiveInRegNO();
+  liveOutRegNO = bb->GetLiveOutRegNO();
+  int maximumPressure = 0;
+  /* Update live register set according to the instruction series */
+  for (auto node : nodes){
+    for (auto &reg : node->GetUseRegnos()) {
+      UpdateLiveReg(*node, reg, false);
+    }
+    for (auto &defReg : node->GetDefRegnos()) {
+      UpdateLiveReg(*node, defReg, true);
+    }
+    int currentPressure = liveReg.size();
+    if (currentPressure > maximumPressure) {
+      maximumPressure = currentPressure;
+    }
+#ifdef PRESCHED_DEBUG
+    node->GetInsn()->Dump();
+    LogInfo::MapleLogger() << "Dump Live Reg : " << "\n";
+    for (auto reg : liveReg) {
+      LogInfo::MapleLogger() << "R" << reg << " ";
+    }
+    LogInfo::MapleLogger() << "\n";
+#endif
+  }
+    LogInfo::MapleLogger() << "Max Pressure : " << maximumPressure << "\n";
+    return maximumPressure;
+}
+
+void RegPressureSchedule::partialScheduling(MapleVector<DepNode*> &nodes) {
+  for (int i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
+    int lastTwoNodeIndex = 2;
+    int begin = splitterIndexes.at(i);
+    int end = splitterIndexes.at(i + 1);
+    for (int j = begin; j < end; j = j + 1) {
+      partialList.emplace_back(nodes.at(j));
+    }
+    if (i == splitterIndexes.size() - lastTwoNodeIndex){
+      partialList.emplace_back(nodes.at(end));
+    }
+    for (auto node : partialList) {
+      partialSet.insert(node);
+    }
+    HeuristicScheduling(partialList);
+    for (auto node : partialList) {
+      partialScheduledNode.emplace_back(node);
+    }
+    partialList.clear();
+    partialSet.clear();
+  }
+  nodes.clear();
+  /* Construct overall scheduling output */
+  for (auto node : partialScheduledNode) {
+    nodes.emplace_back(node);
+  }
+}
 
 /*
  * ------------- Schedule function ----------
@@ -580,7 +681,7 @@ bool CgPreScheduling::PhaseRun(maplebe::CGFunc &f) {
     LogInfo::MapleLogger() << "Before CgDoPreScheduling : " << f.GetName() << "\n";
     DotGenerator::GenerateDot("preschedule", f, f.GetMirModule(), true);
   }
-  auto *live = GET_ANALYSIS(CgLiveAnalysis);
+  auto *live = GET_ANALYSIS(CgLiveAnalysis, f);
   /* revert liveanalysis result container. */
   ASSERT(live != nullptr, "nullptr check");
   live->ResetLiveSet();
@@ -611,7 +712,7 @@ bool CgScheduling::PhaseRun(maplebe::CGFunc &f) {
     LogInfo::MapleLogger() << "Before CgDoScheduling : " << f.GetName() << "\n";
     DotGenerator::GenerateDot("scheduling", f, f.GetMirModule(), true);
   }
-  auto *live = GET_ANALYSIS(CgLiveAnalysis);
+  auto *live = GET_ANALYSIS(CgLiveAnalysis, f);
   /* revert liveanalysis result container. */
   ASSERT(live != nullptr, "nullptr check");
   live->ResetLiveSet();

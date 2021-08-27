@@ -15,11 +15,10 @@
 #include "ipa_side_effect.h"
 #include "me_function.h"
 #include "ver_symbol.h"
-#include "dominance.h"
 #include "me_ir.h"
-#include "me_phase.h"
 #include "me_irmap.h"
-#include "dominance.h"
+#include "me_phase_manager.h"
+#include "ipa_option.h"
 
 // IPA sideeffect analysis
 // Default value:
@@ -1116,20 +1115,24 @@ void IpaSideEffect::DoAnalysis() {
   }
 }
 
-AnalysisResult *DoIpaSideEffect::Run(MeFunction *func, MeFuncResultMgr *mfrm, ModuleResultMgr *mrm) {
-  if (func->GetMirFunc()->IsNative()) {
-    return nullptr;
+void MESideEffect::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+}
+
+bool MESideEffect::PhaseRun(MeFunction &f) {
+  if (f.GetMirFunc()->IsNative()) {
+    return false;
   }
   Dominance *dom = nullptr;
-  if (func->GetMirFunc()->GetBody() != nullptr) {
-    dom = static_cast<Dominance*>(mfrm->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  if (f.GetMirFunc()->GetBody() != nullptr) {
+    dom = GET_ANALYSIS(MEDominance, f);
   }
   CHECK_FATAL(dom != nullptr, "Dominance must be built.");
-  CallGraph *callGraph = static_cast<CallGraph*>(mrm->GetAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS,
-                                                                        &func->GetMIRModule()));
+  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM2, M2MCallGraph, MIRModule>(f.GetMIRModule());
+  CallGraph *callGraph = static_cast<M2MCallGraph*>(it)->GetResult();
   CHECK_FATAL(callGraph != nullptr, "Call graph must be built.");
-  IpaSideEffect ipaSideEffect(*func, NewMemPool(), *callGraph, *dom);
+  IpaSideEffect ipaSideEffect(f, ApplyTempMemPool(), *callGraph, *dom);
   ipaSideEffect.DoAnalysis();
-  return nullptr;
+  return true;
 }
 }  // namespace maple

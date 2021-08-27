@@ -13,6 +13,8 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_check_cast.h"
+#include "class_hierarchy_phase.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 MIRStructType *GetClassTypeFromName(const std::string &className);
@@ -703,14 +705,21 @@ void CheckCast::DeleteRedundants() {
   }
 }
 
-AnalysisResult *MeDoCheckCastOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResultMgr) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  auto *kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+void MECheckCastOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
+
+bool MECheckCastOpt::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                               MIRModule>(f.GetMIRModule());
+  auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   ASSERT_NOT_NULL(dom);
-  ASSERT_NOT_NULL(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  MemPool *checkcastMemPool = NewMemPool();
-  MeSSI meSSI(*func, *dom, *func->GetIRMap(), *checkcastMemPool);
-  CheckCast checkCast(*func, *kh, meSSI);
+
+  MeSSI meSSI(f, *dom, *f.GetIRMap(), *GetPhaseMemPool());
+  CheckCast checkCast(f, *kh, meSSI);
   meSSI.SetSSIType(kCheckCastOpt);
   meSSI.ConvertToSSI();
   checkCast.FindRedundantChecks();
@@ -719,6 +728,6 @@ AnalysisResult *MeDoCheckCastOpt::Run(MeFunction *func, MeFuncResultMgr *m, Modu
   if (MeOption::checkCastOpt) {
     checkCast.DoCheckCastOpt();
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

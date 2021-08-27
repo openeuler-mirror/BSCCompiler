@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,11 +14,6 @@
  */
 #include "me_dse.h"
 #include <iostream>
-#include "ssa_mir_nodes.h"
-#include "ver_symbol.h"
-#include "me_ssa.h"
-#include "me_cfg.h"
-#include "me_fsaa.h"
 
 namespace maple {
 void MeDSE::VerifyPhi() const {
@@ -61,35 +56,34 @@ void MeDSE::RunDSE() {
   }
 }
 
-AnalysisResult *MeDoDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
-  CHECK_NULL_FATAL(func);
-  if (func->dseRuns >= MeOption::dseRunsLimit) {
+bool MEDse::PhaseRun(maple::MeFunction &f) {
+  if (f.dseRuns >= MeOption::dseRunsLimit) {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped\n";
     }
   } else {
-    func->dseRuns++;
-    auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-    CHECK_NULL_FATAL(postDom);
-    auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
-    MeDSE dse(*func, postDom, aliasClass, DEBUGFUNC(func));
+    auto *dom = GET_ANALYSIS(MEDominance, f);
+    CHECK_NULL_FATAL(dom);
+    auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
+    CHECK_NULL_FATAL(aliasClass);
+    MeDSE dse(f, dom, aliasClass, DEBUGFUNC_NEWPM(f));
     dse.RunDSE();
-    func->Verify();
+    f.Verify();
     // cfg change , invalid results in MeFuncResultMgr
     if (dse.UpdatedCfg()) {
-      m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+      GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     }
   }
-
-  if (func->GetMIRModule().IsCModule() && MeOption::performFSAA) {
+  if (f.GetMIRModule().IsCModule() && MeOption::performFSAA) {
     /* invoke FSAA */
-    MeDoFSAA doFSAA(MeFuncPhase_FSAA);
-    if (!MeOption::quiet) {
-      LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << doFSAA.PhaseName() << " ] ==\n";
-    }
-    (void)doFSAA.Run(func, m, mrm);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MEFSAA::id, f);
   }
+  return false;
+}
 
-  return nullptr;
+void MEDse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

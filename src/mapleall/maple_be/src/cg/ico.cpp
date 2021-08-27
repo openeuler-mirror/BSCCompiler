@@ -92,7 +92,7 @@ bool ICOPattern::Optimize(BB &curBB) {
 }
 
 bool CgIco::PhaseRun(maplebe::CGFunc &f) {
-  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis);
+  LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   if (ICO_DUMP_NEWPM) {
     DotGenerator::GenerateDot("ico-before", f, f.GetMirModule());
   }
@@ -121,5 +121,4 @@ void CgIco::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgIco, ico)
 }  /* namespace maplebe */

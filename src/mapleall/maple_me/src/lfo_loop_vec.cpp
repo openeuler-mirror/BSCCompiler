@@ -391,8 +391,6 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       MIRType *vecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
       ASSERT(vecType != nullptr, "vector type should not be null");
       MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
-      ASSERT(ireadnode->GetPrimType() == vecType->GetPrimType(),
-          "iread node vector prim type is not equal to vectorized point to type");
       // update lhs type
       ireadnode->SetTyIdx(pvecType->GetTypeIndex());
       node->SetPrimType(vecType->GetPrimType());
@@ -682,9 +680,9 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
 // <short, int> or <int, short> pairs
 bool LoopVectorization::CanConvert(uint32_t lshtypeSize, uint32_t rhstypeSize) {
   if (lshtypeSize >= rhstypeSize) {
-    return ((lshtypeSize/rhstypeSize) <= 2);
+    return ((lshtypeSize / rhstypeSize) <= 2);
   }
-  return ((rhstypeSize/lshtypeSize) <= 2);
+  return ((rhstypeSize / lshtypeSize) <= 2);
 }
 
 bool LoopVectorization::CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs) {
@@ -745,7 +743,6 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         return Vectorizable(doloopInfo, vecInfo, static_cast<DoloopNode *>(stmt)->GetDoBody());
       case OP_iassign: {
         IassignNode *iassign = static_cast<IassignNode *>(stmt);
-        int32_t coeff = 1;
         // no vectorize lsh is complex or constant subscript
         if (iassign->addrExpr->GetOpCode() == OP_array) {
           ArrayNode *lhsArr = static_cast<ArrayNode *>(iassign->addrExpr);
@@ -754,12 +751,12 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           size_t dim = lhsArr->NumOpnds() - 1;
           // check innest loop dimension is complex
           // case like a[abs(i-1)] = 1; depth test will report it's parallelize
-          if (accessDesc->subscriptVec[dim-1]->tooMessy ||
-              accessDesc->subscriptVec[dim-1]->loopInvariant) {
+          // or a[4*i+1] =; address is not continous if coeff > 1
+          if (accessDesc->subscriptVec[dim - 1]->tooMessy ||
+              accessDesc->subscriptVec[dim - 1]->loopInvariant ||
+              accessDesc->subscriptVec[dim - 1]->coeff != 1) {
             return false;
           }
-          coeff = accessDesc->subscriptVec[dim - 1]->coeff;
-          coeff = coeff < 0 ? (-coeff) : coeff;
         }
         // check rsh
         bool canVec = ExprVectorizable(doloopInfo, vecInfo, iassign->GetRHS());
@@ -797,8 +794,8 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           }
           vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
           // update largest type size
-          uint32_t maxSize = vecInfo->currentRHSTypeSize > (coeff * lshtypesize) ?
-                           vecInfo->currentRHSTypeSize : (coeff * lshtypesize);
+          uint32_t maxSize = vecInfo->currentRHSTypeSize > lshtypesize ?
+              vecInfo->currentRHSTypeSize : lshtypesize;
           vecInfo->UpdateWidestTypeSize(maxSize);
         } else {
           // early return
@@ -844,41 +841,5 @@ void LoopVectorization::Perform() {
   // step 3: do transform
   // transform plan map to each doloop
   TransformLoop();
-}
-
-bool MELfoLoopVectorization::PhaseRun(MeFunction &f) {
-  // generate lfo IR
-  LfoPreEmitter *lfoemit = GET_ANALYSIS(MELfoPreEmission);
-  CHECK_NULL_FATAL(lfoemit);
-  // step 1: get dependence graph for each loop
-  auto *lfodepInfo = GET_ANALYSIS(MELfoDepTest);
-  CHECK_NULL_FATAL(lfodepInfo);
-
-  if (DEBUGFUNC_NEWPM(f)) {
-    LogInfo::MapleLogger() << "\n**** Before loop vectorization phase ****\n";
-    f.GetMirFunc()->Dump(false);
-  }
-
-  // run loop vectorization
-  LoopVectorization loopVec(GetPhaseMemPool(), lfoemit, lfodepInfo, DEBUGFUNC_NEWPM(f));
-  loopVec.Perform();
-
-  if (DEBUGFUNC_NEWPM(f)) {
-    LogInfo::MapleLogger() << "\n\n\n**** After loop vectorization phase ****\n";
-    f.GetMirFunc()->Dump(false);
-  }
-
-  // lower lfoIR for other mapleme phases
-  MIRLower mirlowerer(f.GetMIRModule(), f.GetMirFunc());
-  mirlowerer.SetLowerME();
-  mirlowerer.SetLowerExpandArray();
-  mirlowerer.LowerFunc(*(f.GetMirFunc()));
-
-  return false;
-}
-
-void MELfoLoopVectorization::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<MELfoPreEmission>();
-  aDep.AddRequired<MELfoDepTest>();
 }
 }  // namespace maple

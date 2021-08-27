@@ -16,8 +16,9 @@
 #include <iostream>
 #include "me_cfg.h"
 #include "me_option.h"
-#include "dominance.h"
+#include "me_dominance.h"
 #include "me_function.h"
+#include "me_loop_analysis.h"
 
 // This phase finds critical edges and split them into two, because their
 // presence would restrict the optimizations performed by SSAPRE-based phases.
@@ -201,32 +202,33 @@ void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) 
   }
 }
 
-AnalysisResult *MeDoSplitCEdge::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MeCFG *cfg = func->GetCfg();
-  if (cfg == nullptr) {
-    cfg = static_cast<MeCFG *>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  }
+void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.PreservedAllExcept<MEDominance>();
+  aDep.PreservedAllExcept<MELoopAnalysis>();
+}
+
+bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
+  MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
   std::vector<std::pair<BB*, BB*>> criticalEdge;
   ScanEdgeInFunc(*cfg, criticalEdge);
   if (!criticalEdge.empty()) {
-    bool enableDebug = DEBUGFUNC(func);
+    bool enableDebug = DEBUGFUNC_NEWPM(f);
     if (enableDebug) {
       LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
-      func->DumpFunctionNoSSA();
-      func->GetCfg()->DumpToFile("cfgbeforebreak");
+      f.DumpFunctionNoSSA();
+      f.GetCfg()->DumpToFile("cfgbeforebreak");
     }
     MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
     for (auto it = criticalEdge.begin(); it != criticalEdge.end(); ++it) {
-      mscedge.BreakCriticalEdge(*func, *((*it).first), *((*it).second));
+      mscedge.BreakCriticalEdge(f, *((*it).first), *((*it).second));
     }
     if (enableDebug) {
       LogInfo::MapleLogger() << "******************after break dump function******************\n";
-      func->Dump(true);
-      func->GetCfg()->DumpToFile("cfgafterbreak");
+      f.Dump(true);
+      f.GetCfg()->DumpToFile("cfgafterbreak");
     }
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
   }
-  return nullptr;
+  return false;
 }
 }  // namespace maple

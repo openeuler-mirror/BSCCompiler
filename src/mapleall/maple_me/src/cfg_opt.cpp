@@ -15,6 +15,7 @@
 #include "cfg_opt.h"
 #include "mir_builder.h"
 #include "string_utils.h"
+#include "me_dominance.h"
 
 namespace maple {
 bool CfgOpt::IsShortCircuitBB(LabelIdx labelIdx) {
@@ -88,6 +89,7 @@ void CfgOpt::PropagateBB(BB &bb, BB *trueBranchBB, BB *falseBranchBB) {
         }
         break;
       }
+      case kBBGoto:
       case kBBFallthru: {
         if (!IsShortCircuitBB(predBB->GetBBLabel())) {
           continue;
@@ -164,12 +166,16 @@ void CfgOpt::Run() {
   OptimizeShortCircuitBranch();
 }
 
-AnalysisResult *DoCfgOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  CfgOpt cfgOpt(*func, *func->GetCfg());
+bool MECFGOPT::PhaseRun(MeFunction &f) {
+  CfgOpt cfgOpt(f, *f.GetCfg());
   cfgOpt.Run();
   if (cfgOpt.IsCfgChanged()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
   }
-  return nullptr;
+  return false;
+}
+
+void MECFGOPT::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

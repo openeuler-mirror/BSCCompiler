@@ -63,11 +63,11 @@ bool CgGlobalOpt::PhaseRun(maplebe::CGFunc &f) {
   ReachingDefinition *reachingDef = nullptr;
   LiveAnalysis *live = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
-    reachingDef = GET_ANALYSIS(CgReachingDefinition);
-    live = GET_ANALYSIS(CgLiveAnalysis);
+    reachingDef = GET_ANALYSIS(CgReachingDefinition, f);
+    live = GET_ANALYSIS(CgLiveAnalysis, f);
   }
   if (reachingDef == nullptr || !f.GetRDStatus()) {
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgReachingDefinition::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
     return false;
   }
   reachingDef->SetAnalysisMode(kRDAllAnalysis);

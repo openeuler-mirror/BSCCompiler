@@ -1408,14 +1408,14 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
   if (!ProfileCheck(f)) {
     return false;
   }
-  IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis);
+  IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   if (meLoop == nullptr) {
     return false;
   }
   auto *loopunrollMemPool = GetPhaseMemPool();
   MapleAllocator loopUnrollingAlloc = MapleAllocator(loopunrollMemPool);
   MapleMap<OStIdx, MapleSet<BBId>*> cands((std::less<OStIdx>(), loopUnrollingAlloc.Adapter()));
-  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
   LoopUnrollingExecutor loopUnrollingExe = LoopUnrollingExecutor(*loopunrollMemPool);
   loopUnrollingExe.ExecuteLoopUnrolling(f, *irMap, cands, *meLoop, loopUnrollingAlloc);
@@ -1423,11 +1423,11 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
     f.GetCfg()->DumpToFile("beforeloopunrolling", false);
   }
   if (loopUnrollingExe.IsCFGChange()) {
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto dom = FORCE_GET(MEDominance);
     MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *loopunrollMemPool);
     ssaUpdate.Run();
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MELoopAnalysis::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }
   if (DEBUGFUNC_NEWPM(f)) {
     f.GetCfg()->DumpToFile("afterloopunrolling", false);

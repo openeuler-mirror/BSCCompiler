@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,11 +16,13 @@
 #include "me_option.h"
 #include "mpl_logging.h"
 #include "ssa_mir_nodes.h"
-#include "ssa_tab.h"
+#include "me_ssa_tab.h"
 #include "me_function.h"
 #include "mpl_timer.h"
 #include "demand_driven_alias_analysis.h"
 #include "me_dominance.h"
+#include "class_hierarchy_phase.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 // This phase performs alias analysis based on Steensgaard's algorithm and
@@ -128,28 +130,30 @@ void MeAliasClass::DoAliasAnalysis() {
   }
 }
 
-AnalysisResult *MeDoAliasClass::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *mrm) {
-  // moduleResultMgr store moduleresultMgr and is used for FuncResultMgr::Run
-  moduleResultMgr = (mrm != nullptr) ? mrm : moduleResultMgr;
+bool MEAliasClass::PhaseRun(maple::MeFunction &f) {
   MPLTimer timer;
   timer.Start();
-  (void)funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func);
-  MemPool *aliasClassMp = NewMemPool();
   KlassHierarchy *kh = nullptr;
-  if (func->GetMIRModule().IsJavaModule()) {
-    CHECK_FATAL(moduleResultMgr != nullptr, "alias class needs module result manager");
-    kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+  if (f.GetMIRModule().IsJavaModule()) {
+    MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                                 MIRModule>(f.GetMIRModule());
+    kh = static_cast<M2MKlassHierarchy *>(it)->GetResult();
   }
-  MemPool *aliasClassLocalMp = NewMemPool();
-  MeAliasClass *aliasClass = aliasClassMp->New<MeAliasClass>(
-      *aliasClassMp, *aliasClassLocalMp, func->GetMIRModule(), *func->GetMeSSATab(), *func, MeOption::lessThrowAlias,
-      MeOption::ignoreIPA, DEBUGFUNC(func), MeOption::setCalleeHasSideEffect, kh);
+  aliasClass = GetPhaseAllocator()->New<MeAliasClass>(*GetPhaseMemPool(), *ApplyTempMemPool(), f.GetMIRModule(),
+                                                      *f.GetMeSSATab(), f, MeOption::lessThrowAlias,
+                                                      MeOption::ignoreIPA, DEBUGFUNC_NEWPM(f),
+                                                      MeOption::setCalleeHasSideEffect, kh);
   aliasClass->DoAliasAnalysis();
   timer.Stop();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "ssaTab + aliasClass passes consume cumulatively " << timer.Elapsed() << "seconds "
                            << '\n';
   }
-  return aliasClass;
+  return true;
+}
+
+void MEAliasClass::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MESSATab>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

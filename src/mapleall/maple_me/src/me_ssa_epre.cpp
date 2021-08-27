@@ -15,6 +15,7 @@
 #include "me_ssa_epre.h"
 #include "me_dominance.h"
 #include "me_ssa_update.h"
+#include "me_phase_manager.h"
 #include "me_placement_rc.h"
 #include "me_loop_analysis.h"
 #include "me_hdse.h"
@@ -60,66 +61,70 @@ bool MeSSAEPre::IsThreadObjField(const IvarMeExpr &expr) const {
   return false;
 }
 
-AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) {
+bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
   static uint32 puCount = 0;  // count PU to support the eprePULimit option
   if (puCount > MeOption::eprePULimit) {
     ++puCount;
-    return nullptr;
+    return false;
   }
   // make irmapbuild first because previous phase may invalid all analysis results
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
+
   KlassHierarchy *kh = nullptr;
-  if (func->GetMIRModule().IsJavaModule()) {
-    kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+  if (f.GetMIRModule().IsJavaModule()) {
+    MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                                 MIRModule>(f.GetMIRModule());
+    kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
     CHECK_FATAL(kh != nullptr, "KlassHierarchy phase has problem");
   }
-  auto *identLoops = static_cast<IdentifyLoops*>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+
+  IdentifyLoops *identLoops = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_NULL_FATAL(identLoops);
 
   bool eprePULimitSpecified = MeOption::eprePULimit != UINT32_MAX;
   uint32 epreLimitUsed =
       (eprePULimitSpecified && puCount != MeOption::eprePULimit) ? UINT32_MAX : MeOption::epreLimit;
-  MemPool *ssaPreMemPool = NewMemPool();
+  MemPool *ssaPreMemPool = ApplyTempMemPool();
   bool epreIncludeRef = MeOption::epreIncludeRef;
-  if (!MeOption::gcOnly && propWhiteList.find(func->GetName()) != propWhiteList.end()) {
+  if (!MeOption::gcOnly && propWhiteList.find(f.GetName()) != propWhiteList.end()) {
     epreIncludeRef = false;
   }
-  MeSSAEPre ssaPre(*func, *irMap, *dom, kh, *ssaPreMemPool, *NewMemPool(), epreLimitUsed, epreIncludeRef,
+  MeSSAEPre ssaPre(f, *irMap, *dom, kh, *ssaPreMemPool, *ApplyTempMemPool(), epreLimitUsed, epreIncludeRef,
                    MeOption::epreLocalRefVar, MeOption::epreLHSIvar);
   ssaPre.SetSpillAtCatch(MeOption::spillAtCatch);
-  if (MeOption::strengthReduction && !func->GetMIRModule().IsJavaModule()) {
+  if (MeOption::strengthReduction && !f.GetMIRModule().IsJavaModule()) {
     ssaPre.strengthReduction = true;
     if (MeOption::doLFTR) {
       ssaPre.doLFTR = true;
     }
   }
-  if (func->GetHints() & kPlacementRCed) {
+  if (f.GetHints() & kPlacementRCed) {
     ssaPre.SetPlacementRC(true);
   }
   if (eprePULimitSpecified && puCount == MeOption::eprePULimit && epreLimitUsed != UINT32_MAX) {
     LogInfo::MapleLogger() << "applying EPRE limit " << epreLimitUsed << " in function " <<
-        func->GetMirFunc()->GetName() << "\n";
+        f.GetMirFunc()->GetName() << "\n";
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     ssaPre.SetSSAPreDebug(true);
   }
   ssaPre.ApplySSAPRE();
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
-    MemPool *tmp = NewMemPool();
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *tmp);
+    MemPool *tmp = ApplyTempMemPool();
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *tmp);
     ssaUpdate.Run();
   }
-  if ((func->GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {
-    PlacementRC placeRC(*func, *dom, *ssaPreMemPool, DEBUGFUNC(func));
+  if ((f.GetHints() & kPlacementRCed) && ssaPre.GetAddedNewLocalRefVars()) {
+    PlacementRC placeRC(f, *dom, *ssaPreMemPool, DEBUGFUNC_NEWPM(f));
     placeRC.preKind = MeSSUPre::kSecondDecrefPre;
     placeRC.ApplySSUPre();
   }
   if (ssaPre.strengthReduction) { // for deleting redundant injury repairs
-    auto aliasClass = static_cast<AliasClass *>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
-    MeHDSE hdse(*func, *dom, *func->GetIRMap(), aliasClass, DEBUGFUNC(func));
+    auto *aliasClass = FORCE_GET(MEAliasClass);
+    MeHDSE hdse(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " invokes [ " << hdse.PhaseName() << " ] ==\n";
     }
@@ -127,6 +132,13 @@ AnalysisResult *MeDoSSAEPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRes
     hdse.DoHDSE();
   }
   ++puCount;
-  return nullptr;
+  return true;
+}
+
+void MESSAEPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

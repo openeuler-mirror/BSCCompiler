@@ -248,7 +248,7 @@ bool IdentifyLoops::ProcessPreheaderAndLatch(LoopDesc &loop) {
 }
 
 bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance);
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT_NOT_NULL(dom);
   identLoops = GetPhaseAllocator()->New<IdentifyLoops>(GetPhaseMemPool(), f, dom);
   identLoops->ProcessBB(f.GetCfg()->GetCommonEntryBB());

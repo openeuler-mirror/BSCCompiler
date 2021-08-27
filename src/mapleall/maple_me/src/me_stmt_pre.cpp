@@ -1114,26 +1114,30 @@ void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt) {
   (void)bbSet->insert(bb->GetBBId());
 }
 
-AnalysisResult *MeDoStmtPre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MEStmtPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEStmtPre::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap phase has problem");
-  MeStmtPre ssaPre(*func, *irMap, *dom, *NewMemPool(), *NewMemPool(), MeOption::stmtprePULimit);
-  if (DEBUGFUNC(func)) {
+  MeStmtPre ssaPre(f, *irMap, *dom, *ApplyTempMemPool(), *ApplyTempMemPool(), MeOption::stmtprePULimit);
+  if (DEBUGFUNC_NEWPM(f)) {
     ssaPre.SetSSAPreDebug(true);
   }
   ssaPre.ApplySSAPRE();
   if (!ssaPre.GetCandsForSSAUpdate().empty()) {
-    MemPool *memPool = NewMemPool();
-    CHECK_FATAL(memPool != nullptr, "must be");
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *memPool);
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, ssaPre.GetCandsForSSAUpdate(), *ApplyTempMemPool());
     ssaUpdate.Run();
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== STMTPRE =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return false;
 }
 }  // namespace maple

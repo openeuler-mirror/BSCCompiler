@@ -26,7 +26,6 @@ namespace maplebe {
  *  NB. As an optimization we can use X8 as a scratch (temporary)
  *     register if the return value is not returned through memory.
  */
-
 Operand *AArch64RegAllocator::HandleRegOpnd(Operand &opnd) {
   ASSERT(opnd.IsRegister(), "Operand should be register operand");
   auto &regOpnd = static_cast<RegOperand&>(opnd);
@@ -601,9 +600,9 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     if (live != nullptr) {
       live->ClearInOutDataInfo();
     }
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgLiveAnalysis::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
   }
-  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgLoopAnalysis::id);
+  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   return false;
 }
 }  /* namespace maplebe */

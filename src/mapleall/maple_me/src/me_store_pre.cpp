@@ -185,7 +185,8 @@ void MeStorePre::CodeMotion() {
         }
         realOcc->GetBB().RemoveMeStmt(dass);
       } else {
-        CHECK_FATAL(kOpcodeInfo.IsCallAssigned(realOcc->GetStmt()->GetOp()) && realOcc->GetStmt()->GetOp() != OP_asm, "CodeMotion: callassign expected");
+        CHECK_FATAL(kOpcodeInfo.IsCallAssigned(realOcc->GetStmt()->GetOp()) && realOcc->GetStmt()->
+            GetOp() != OP_asm, "CodeMotion: callassign expected");
         MapleVector<MustDefMeNode> *mustDefList = realOcc->GetStmt()->GetMustDefList();
         CHECK_NULL_FATAL(mustDefList);
         mustDefList->clear();
@@ -224,7 +225,8 @@ void MeStorePre::CreateRealOcc(const OStIdx &ostIdx, MeStmt &meStmt) {
     if (meStmt.GetOp() == OP_dassign) {
       wkCand->SetTheVar(*static_cast<VarMeExpr*>(static_cast<DassignMeStmt*>(&meStmt)->GetVarLHS()));
     } else {
-      ASSERT(kOpcodeInfo.IsCallAssigned(meStmt.GetOp()) && meStmt.GetOp() != OP_asm, "CreateRealOcc: callassign expected");
+      ASSERT(kOpcodeInfo.IsCallAssigned(meStmt.GetOp()) && meStmt.GetOp() != OP_asm,
+          "CreateRealOcc: callassign expected");
       MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
       CHECK_FATAL(mustDefList != nullptr, "CreateRealOcc: mustDefList cannot be empty");
       CHECK_FATAL(!mustDefList->empty(), "CreateRealOcc: mustDefList cannot be empty");
@@ -367,30 +369,37 @@ void MeStorePre::BuildWorkListBB(BB *bb) {
   }
 }
 
-AnalysisResult *MeDoStorePre::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MEStorePre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEStorePre::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "aliasClass phase has problem");
-  auto *meIrMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  auto *meIrMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(meIrMap != nullptr, "irmap phase has problem");
   if (!meIrMap->GetMIRModule().IsCModule()) {
-    return nullptr;
+    return false;
   }
 
-  MeStorePre storePre(*func, *dom, *aliasClass, *NewMemPool(), DEBUGFUNC(func));
+  MeStorePre storePre(f, *dom, *aliasClass, *ApplyTempMemPool(), DEBUGFUNC_NEWPM(f));
   storePre.ApplySSUPre();
 
   auto &candsForSSAUpdate = storePre.CandsForSSAUpdate();
   if (!candsForSSAUpdate.empty()) {
-    MemPool *tmp = NewMemPool();
-    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, candsForSSAUpdate, *tmp);
+    MemPool *tmp = GetPhaseMemPool();
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, candsForSSAUpdate, *tmp);
     ssaUpdate.Run();
   }
 
-  if (DEBUGFUNC(func)) {
-    func->Dump(false);
+  if (DEBUGFUNC_NEWPM(f)) {
+    f.Dump(false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

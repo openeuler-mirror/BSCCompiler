@@ -239,13 +239,15 @@ void Clone::DoClone() {
   }
 }
 
-AnalysisResult *DoClone::Run(MIRModule *module, ModuleResultMgr *mgr) {
-  MemPool *memPool = memPoolCtrler.NewMemPool(PhaseName());
-  maple::MIRBuilder dexMirBuilder(module);
-  KlassHierarchy *kh = static_cast<KlassHierarchy*>(mgr->GetAnalysisResult(MoPhase_CHA, module));
-  Clone *clone = memPool->New<Clone>(module, memPool, dexMirBuilder, kh);
-  clone->DoClone();
-  mgr->AddResult(GetPhaseID(), *module, *clone);
-  return clone;
+void M2MClone::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MKlassHierarchy>();
+}
+
+bool M2MClone::PhaseRun(maple::MIRModule &m) {
+  maple::MIRBuilder dexMirBuilder(&m);
+  KlassHierarchy *kh = GET_ANALYSIS(M2MKlassHierarchy, m);
+  cl = GetPhaseAllocator()->New<Clone>(&m, GetPhaseMemPool(), dexMirBuilder, kh);
+  cl->DoClone();
+  return true;
 }
 }  // namespace maple

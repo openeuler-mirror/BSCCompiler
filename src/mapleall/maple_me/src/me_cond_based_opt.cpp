@@ -15,7 +15,7 @@
 #include "me_cond_based_rc.h"
 #include "me_cond_based_npc.h"
 #include "me_const.h"
-#include "dominance.h"
+#include "me_dominance.h"
 
 // We do two types of condition based optimization here:
 // 1. condition based null pointer check(NPC) elimination
@@ -243,11 +243,16 @@ void CondBasedNPC::DoCondBasedNPC() const {
   }
 }
 
-AnalysisResult *MeDoCondBasedRC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MECondBasedRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
+
+bool MECondBasedRC::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  CondBasedRC condBasedRC(*func, *dom);
-  MeCFG *cfg = func->GetCfg();
+  CondBasedRC condBasedRC(f, *dom);
+  MeCFG *cfg = f.GetCfg();
   auto eIt = cfg->valid_end();
   for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
@@ -277,14 +282,19 @@ AnalysisResult *MeDoCondBasedRC::Run(MeFunction *func, MeFuncResultMgr *m, Modul
       stmt = *refAssign;  // next iteration will process the stmt after refassign
     }
   }
-  return nullptr;
+  return true;
 }
 
-AnalysisResult *MeDoCondBasedNPC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MECondBasedNPC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
+
+bool MECondBasedNPC::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  CondBasedNPC condBasedNPC(*func, *dom);
+  CondBasedNPC condBasedNPC(f, *dom);
   condBasedNPC.DoCondBasedNPC();
-  return nullptr;
+  return false;
 }
 }  // namespace maple

@@ -32,38 +32,43 @@ const std::set<std::string> propWhiteList {
 }
 
 namespace maple {
-AnalysisResult *MeDoMeProp::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  CHECK_NULL_FATAL(func);
-  if (func->hpropRuns >= MeOption::hpropRunsLimit) {
+void MEMeProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEMeProp::PhaseRun(maple::MeFunction &f) {
+  if (f.hpropRuns >= MeOption::hpropRunsLimit) {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped\n";
     }
-    return nullptr;
+    return false;
   }
-  func->hpropRuns++;
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
+  f.hpropRuns++;
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   CHECK_NULL_FATAL(dom);
-  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, !MeOption::quiet));
+  auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
   bool propIloadRef = MeOption::propIloadRef;
   if (!propIloadRef) {
-    MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetMirFunc()->GetStIdx().Idx());
+    MIRSymbol *fnSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(f.GetMirFunc()->GetStIdx().Idx());
     const std::string &funcName = fnSt->GetName();
     propIloadRef = propWhiteList.find(funcName) != propWhiteList.end();
-    if (DEBUGFUNC(func)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       if (propIloadRef) {
         LogInfo::MapleLogger() << "propiloadref enabled because function is in white list";
       }
     }
   }
-  MeProp meProp(*hMap, *dom, *NewMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
+  MeProp meProp(*hMap, *dom, *GetPhaseMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
       MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi,
-      MeOption::propWithInverse || func->IsLfo() });
-  meProp.TraversalBB(*func->GetCfg()->GetCommonEntryBB());
-  if (DEBUGFUNC(func)) {
+      MeOption::propWithInverse || f.IsLfo() });
+  meProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

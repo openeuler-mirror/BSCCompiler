@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,6 +16,7 @@
 #include "vtable_analysis.h"
 #include "itab_util.h"
 #include "reflection_analysis.h"
+#include "maple_phase_manager.h"
 
 // This phase is mainly to lower interfacecall into icall
 namespace {
@@ -509,4 +510,14 @@ void VtableImpl::Finish() {
 }
 #endif  // ~USE_32BIT_REF
 #endif  // ~USE_ARM32_MACRO
+
+bool M2MVtableImpl::PhaseRun(maple::MIRModule &m) {
+  OPT_TEMPLATE_NEWPM(VtableImpl, m);
+  return true;
+}
+
+void M2MVtableImpl::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MKlassHierarchy>();
+  aDep.SetPreservedAll();
+}
 }  // namespace maple

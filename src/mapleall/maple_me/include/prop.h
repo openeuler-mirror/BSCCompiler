@@ -64,6 +64,8 @@ class Prop {
     curBB = bb;
   }
 
+  bool NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt /* for irmap */, const MeExpr *propedRHS) const;
+
  protected:
   virtual void UpdateCurFunction(BB&) const {
   }
@@ -74,11 +76,14 @@ class Prop {
 
   Dominance &dom;
 
+  virtual MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
 
   virtual BB *GetBB(BBId) {
     return nullptr;
   }
 
+  void PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB *fromBB);
+  void PropConditionBranchStmt(MeStmt *condBranchStmt);
   virtual void TraversalMeStmt(MeStmt &meStmt);
   void CollectSubVarMeExpr(const MeExpr &expr, std::vector<const MeExpr*> &exprVec) const;
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
@@ -91,7 +96,6 @@ class Prop {
                                ScalarMeExpr *propagatingScalar = nullptr);
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);
   MeExpr *RehashUsingInverse(MeExpr *x);
-  virtual MeExpr &PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm);
 
   IRMap &irMap;
   SSATab &ssaTab;

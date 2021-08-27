@@ -16,8 +16,6 @@
 #include <iostream>
 #include "ssa_mir_nodes.h"
 #include "ver_symbol.h"
-#include "dominance.h"
-#include "me_irmap.h"
 #include "me_ssa.h"
 #include "hdse.h"
 
@@ -167,34 +165,41 @@ void MakeEmptyTrysUnreachable(MeFunction &func) {
   }
 }
 
-AnalysisResult *MeDoHDSE::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  if (func->hdseRuns >= MeOption::hdseRunsLimit) {
+void MEHdse::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.PreservedAllExcept<MEDominance>();
+  aDep.PreservedAllExcept<MELoopAnalysis>();
+}
+
+bool MEHdse::PhaseRun(maple::MeFunction &f) {
+  if (f.hdseRuns >= MeOption::hdseRunsLimit) {
     if (!MeOption::quiet) {
       LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped\n";
     }
-    return nullptr;
+    return false;
   }
-  func->hdseRuns++;
-  auto *postDom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
-  CHECK_NULL_FATAL(postDom);
-  auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func, !MeOption::quiet));
+  f.hdseRuns++;
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  CHECK_NULL_FATAL(dom);
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   CHECK_NULL_FATAL(aliasClass);
-  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, !MeOption::quiet));
+  auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(hMap);
 
-  MeHDSE hdse(*func, *postDom, *hMap, aliasClass, DEBUGFUNC(func));
-  hdse.hdseKeepRef = MeOption::dseKeepRef;
-  hdse.DoHDSE();
-  hdse.BackwardSubstitution();
-  MakeEmptyTrysUnreachable(*func);
-  (void)func->GetCfg()->UnreachCodeAnalysis(/* update_phi = */ true);
-  func->GetCfg()->WontExitAnalysis();
-  m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-  m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
-  if (DEBUGFUNC(func)) {
+  MemPool *memPool = GetPhaseMemPool();
+  auto *hdse = memPool->New<MeHDSE>(f, *dom, *hMap, aliasClass, DEBUGFUNC_NEWPM(f));
+  hdse->hdseKeepRef = MeOption::dseKeepRef;
+  hdse->DoHDSE();
+  hdse->BackwardSubstitution();
+  MakeEmptyTrysUnreachable(f);
+  (void)f.GetCfg()->UnreachCodeAnalysis(/* update_phi = */ true);
+  f.GetCfg()->WontExitAnalysis();
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== HDSE =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return false;
 }
 }  // namespace maple

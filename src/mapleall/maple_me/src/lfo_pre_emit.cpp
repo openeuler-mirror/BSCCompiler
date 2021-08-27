@@ -766,41 +766,41 @@ uint32 LfoPreEmitter::EmitLfoBB(uint32 curj, BlockNode *curblk) {
   return ++curj;
 }
 
-AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *) {
-  if (func->GetCfg()->NumBBs() == 0) {
-    func->SetLfo(false);
-    return nullptr;
+bool MELfoPreEmission::PhaseRun(MeFunction &f) {
+  if (f.GetCfg()->NumBBs() == 0) {
+    f.SetLfo(false);
+    return false;
   }
-  MeIRMap *hmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  MeIRMap *hmap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(hmap != nullptr, "irmapbuild has problem");
 
-  MIRFunction *mirfunction = func->GetMirFunc();
+  MIRFunction *mirfunction = f.GetMirFunc();
   if (mirfunction->GetCodeMempool() != nullptr) {
     memPoolCtrler.DeleteMemPool(mirfunction->GetCodeMempool());
   }
   mirfunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from preemission::Emit()"));
-  MemPool *lfoMP = NewMemPool();
-  LfoPreEmitter *emitter = lfoMP->New<LfoPreEmitter>(hmap, func->GetLfoFunc(), lfoMP);
+  MemPool *lfoMP = GetPhaseMemPool();
+  emitter = lfoMP->New<LfoPreEmitter>(hmap, f.GetLfoFunc(), lfoMP);
   BlockNode *curblk = mirfunction->GetCodeMempool()->New<BlockNode>();
   mirfunction->SetBody(curblk);
   emitter->InitFuncBodyLfoPart(curblk); // set lfopart for curblk
   uint32 i = 0;
-  while (i < func->GetCfg()->GetAllBBs().size()) {
+  while (i < f.GetCfg()->GetAllBBs().size()) {
     i = emitter->EmitLfoBB(i, curblk);
   }
 #if 0
   // invalid cfg information only in lfo phase
-  // m->InvalidAnalysisResult(MeFuncPhase_MECFG, func);
-  m->InvalidAllResults();
+  // GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEMeCfg::id)
+  GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
   func->SetMeSSATab(nullptr);
   func->SetIRMap(nullptr);
 #endif
-  func->SetLfo(false);
+  f.SetLfo(false);
 
-  ConstantFold cf(func->GetMIRModule());
+  ConstantFold cf(f.GetMIRModule());
   cf.Simplify(mirfunction->GetBody());
 
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n**** After lfopreemit phase ****\n";
     mirfunction->Dump(false);
   }
@@ -813,5 +813,9 @@ AnalysisResult *DoLfoPreEmission::Run(MeFunction *func, MeFuncResultMgr *m, Modu
 #endif
 
   return emitter;
+}
+
+void MELfoPreEmission::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
 }
 }  // namespace maple

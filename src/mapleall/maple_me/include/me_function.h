@@ -168,10 +168,10 @@ class MeFunction : public FuncEmit {
   void DumpFunctionNoSSA() const;
   void DumpMayDUFunction() const;
   void Dump(bool DumpSimpIr = false) const;
-  virtual void Prepare(unsigned long rangeNum);
+  virtual void Prepare();
   void Verify() const;
   const std::string &GetName() const {
-    return mirModule.CurFunction()->GetName();
+    return mirFunc->GetName();
   }
 
   VersionSt *GetVerSt(size_t veridx) const {
@@ -310,6 +310,18 @@ class MeFunction : public FuncEmit {
     frequency = f;
   }
 
+  void SetHasWriteInputAsmNode() {
+    hasWriteInputAsmNode = true;
+  };
+
+  bool HasWriteInputAsmNode() {
+    return hasWriteInputAsmNode;
+  }
+
+  uint32 GetUniqueID() {
+    return mirFunc->GetPuidx();
+  }
+
   void PartialInit();
 
   MIRFunction *CurFunction() const {
@@ -339,6 +351,7 @@ class MeFunction : public FuncEmit {
   uint32 regNum = 0;    // count virtual registers
   uint32 hints = 0;
   bool hasEH = false;       /* current has try statement */
+  bool hasWriteInputAsmNode = false; /* set when ssa tab build */
   bool profValid = false;
   IRProfileDesc *profileDesc = nullptr;
   uint32 frequency = 0;

@@ -15,6 +15,7 @@
 #include "me_analyze_rc.h"
 #include "me_option.h"
 #include "me_dominance.h"
+#include "me_cond_based_rc.h"
 #include "me_delegate_rc.h"
 #include "me_subsum_rc.h"
 
@@ -435,36 +436,43 @@ void AnalyzeRC::Run() {
   OptimizeRC();
 }
 
-AnalysisResult *MeDoAnalyzeRC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MEAnalyzeRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEAnalyzeRC::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  auto *aliasClass = static_cast<AliasClass*>(m->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func));
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "aliasClass phase has problem");
-  ASSERT_NOT_NULL(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  if (DEBUGFUNC(func)) {
-    LogInfo::Info() << " Processing " << func->GetMirFunc()->GetName() << '\n';
+  ASSERT_NOT_NULL((GET_ANALYSIS(MEIRMapBuild, f)));
+  if (DEBUGFUNC_NEWPM(f)) {
+    LogInfo::Info() << " Processing " << f.GetMirFunc()->GetName() << '\n';
   }
   // add extra scope so destructor for analyzerc will be invoked earlier
-  AnalyzeRC analyzerc(*func, *dom, *aliasClass, NewMemPool());
+  AnalyzeRC analyzerc(f, *dom, *aliasClass, GetPhaseMemPool());
   analyzerc.Run();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::Info() << "\n============== After ANALYZE RC =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
   if (MeOption::subsumRC && MeOption::rcLowering && MeOption::optLevel > 0) {
-    (void)m->GetAnalysisResult(MeFuncPhase_SUBSUMRC, func);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MESubsumRC::id, f);
   }
   if (!MeOption::noDelegateRC && MeOption::rcLowering && MeOption::optLevel > 0) {
-    m->GetAnalysisResult(MeFuncPhase_DELEGATERC, func);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MEDelegateRC::id, f);
   }
-  if (!MeOption::noCondBasedRC && !(func->GetHints() & kPlacementRCed) &&
+  if (!MeOption::noCondBasedRC && !(f.GetHints() & kPlacementRCed) &&
       MeOption::rcLowering && MeOption::optLevel > 0) {
-    m->GetAnalysisResult(MeFuncPhase_CONDBASEDRC, func);
+    GetAnalysisInfoHook()->ForceRunTransFormPhase<meFuncOptTy, MeFunction>(&MECondBasedRC::id, f);
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::Info() << "\n============== After delegate RC and condbased RC =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

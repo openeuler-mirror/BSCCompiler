@@ -51,7 +51,6 @@ public:
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
   // constval node need to adjust with new PrimType
   MapleMap<BaseNode *, PrimType>  constvalTypes;
-  //MapleMap<stidx, StmtNode*> inductionStmt; // dup scalar to vector stmt may insert before stmt
 };
 
 // tranform plan for current loop
@@ -106,7 +105,7 @@ class LoopVectorization {
   MemPool *GetLocalMp() { return localMP; }
   MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
-  bool CanConvert(uint32_t , uint32_t);
+  bool CanConvert(uint32_t, uint32_t);
   bool CanAdjustRhsType(PrimType, ConstvalNode *);
 public:
   static uint32_t vectorizedLoop;
@@ -124,7 +123,5 @@ public:
   MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each vectoriable loopnode has its best vectorization plan
   bool enableDebug;
 };
-
-MAPLE_FUNC_PHASE_DECLARE(MELfoLoopVectorization, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LOOP_VEC_H
