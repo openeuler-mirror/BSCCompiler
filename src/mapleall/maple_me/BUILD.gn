@@ -92,6 +92,7 @@ src_libmplme = [
   "src/me_func_opt.cpp",
   "src/me_verify.cpp",
   "src/me_fsaa.cpp",
+  "src/me_merge_stmts.cpp",
   "src/lfo_mir_lower.cpp",
   "src/lfo_inject_iv.cpp",
   "src/lfo_pre_emit.cpp",
@@ -100,7 +101,6 @@ src_libmplme = [
   "src/lfo_loop_vec.cpp",
   "src/me_value_range_prop.cpp",
   "src/cfg_opt.cpp",
-  "src/me_merge_stmts.cpp",
 ]
 
 src_libmplmewpo = [
