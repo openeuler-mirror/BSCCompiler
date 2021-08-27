@@ -123,6 +123,5 @@ public:
   MapleMap<DoloopNode *, LoopTransPlan *> vecPlans; // each vectoriable loopnode has its best vectorization plan
   bool enableDebug;
 };
-
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LOOP_VEC_H

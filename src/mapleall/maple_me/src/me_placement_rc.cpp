@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_placement_rc.h"
+#include "me_irmap_build.h"
 
 namespace {
 const std::set<std::string> whiteListFunc {
@@ -878,15 +879,19 @@ void PlacementRC::BuildWorkListBB(BB *bb) {
   }
 }
 
-AnalysisResult *MeDoPlacementRC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  if (!MeOption::placementRC) {
-    return nullptr;
+void MEPlacementRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEPlacementRC::PhaseRun(maple::MeFunction &f) {
+  std::string funcName = f.GetName();
+  if (whiteListFunc.find(funcName) != whiteListFunc.end() || f.GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
+    return false;
   }
-  std::string funcName = func->GetName();
-  if (whiteListFunc.find(funcName) != whiteListFunc.end() || func->GetMirFunc()->GetAttr(FUNCATTR_rclocalunowned)) {
-    return nullptr;
-  }
-  auto cfg = static_cast<MeCFG*>(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
+  auto *cfg = GET_ANALYSIS(MEMeCfg, f);
   // Workaround for RCWeakRef-annotated field access: leave it to analyzerc
   for (BB *bb : cfg->GetAllBBs()) {
     if (bb == nullptr) {
@@ -904,24 +909,24 @@ AnalysisResult *MeDoPlacementRC::Run(MeFunction *func, MeFuncResultMgr *m, Modul
       if (rhs->GetMeOp() == kMeOpIvar) {
         IvarMeExpr *irhs = static_cast<IvarMeExpr*>(rhs);
         if (irhs->IsRCWeak() && !irhs->IsFinal()) {
-          return nullptr;
+          return false;
         }
       }
     }
   }
 
-  func->SetHints(func->GetHints() | kPlacementRCed);
+  f.SetHints(f.GetHints() | kPlacementRCed);
 
-  Dominance *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  Dominance *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT_NOT_NULL(dom);
-  MeIRMap *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
-  PlacementRC placementRC(*func, *dom, *NewMemPool(), DEBUGFUNC(func));
+  PlacementRC placementRC(f, *dom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   placementRC.ApplySSUPre();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After PLACEMENT RC =============" << '\n';
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

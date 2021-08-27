@@ -21,6 +21,8 @@
 #include "mir_function.h"
 #include "mir_builder.h"
 #include "global_tables.h"
+#include "me_option.h"
+#include "maple_phase_manager.h"
 
 namespace {
 constexpr maple::uint64 kJsTypeNumber = 4;
@@ -1130,7 +1132,14 @@ std::pair<BaseNode*, int64> ConstantFold::FoldUnary(UnaryNode *node) {
     sum = 0;
   } else {
     bool isInt = IsPrimitiveInteger(node->GetPrimType());
-    if (isInt && node->GetOpCode() == OP_neg) {
+    // The neg node will be recreated regardless of whether the folding is successful or not. And the neg node's
+    // primType will be set to opnd type. There will be problems in some cases. For example:
+    // before cf:
+    //   neg i32 (eq u1 f32 (dread f32 %f_4_2, constval f32 0f))
+    // after cf:
+    //   neg u1 (eq u1 f32 (dread f32 %f_4_2, constval f32 0f))  # wrong!
+    // As a workaround, we exclude u1 opnd type
+    if (isInt && node->GetOpCode() == OP_neg && p.first->GetPrimType() != PTY_u1) {
       result = NegateTree(p.first);
       if (result->GetOpCode() == OP_neg && result->GetPrimType() == node->GetPrimType() &&
           static_cast<UnaryNode*>(result)->Opnd(0) == node->Opnd(0)) {
@@ -1679,8 +1688,13 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = l;
       sum = lp.second + cst;
     } else if (op == OP_sub) {
-      result = l;
-      sum = lp.second - cst;
+      if (IsSignedInteger(primType) && MinValOfSignedInteger(primType) <= cst) {
+        result = node;
+        sum = 0;
+      } else {
+        result = l;
+        sum = lp.second - cst;
+      }
     } else if ((op == OP_mul || op == OP_band || op == OP_cand || op == OP_land) && cst == 0) {
       // X * 0 -> 0
       // X & 0 -> 0
@@ -1801,7 +1815,7 @@ BaseNode *ConstantFold::SimplifyDoubleCompare(CompareNode &compareNode) const {
       if (constNode->GetConstVal()->GetKind() == kConstInt && constNode->GetConstVal()->IsZero()) {
         BaseNode *opnd = l;
         do {
-          if (opnd->GetPrimType() == PTY_u1) {
+          if (opnd->GetPrimType() == PTY_u1 || (l->GetOpCode() == OP_ne || l->GetOpCode() == OP_eq)) {
             result = opnd;
             break;
           } else if (opnd->GetOpCode() == OP_cvt) {
@@ -1811,9 +1825,6 @@ BaseNode *ConstantFold::SimplifyDoubleCompare(CompareNode &compareNode) const {
             opnd = nullptr;
           }
         } while (opnd != nullptr);
-        if (opnd != nullptr && (l->GetOpCode() == OP_ne || l->GetOpCode() == OP_eq)) {
-          result = l;
-        }
       }
     } else if (node->GetOpCode() == OP_eq && r->GetOpCode() == OP_constval) {
       ConstvalNode *constNode = static_cast<ConstvalNode*>(r);
@@ -1988,15 +1999,33 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
       } else {
         result = PairToExpr(primTypes[2], p[2]);
       }
-    } else if (node->Opnd(0) && node->Opnd(0)->GetOpCode() == OP_dread && primTypes[0] == PTY_u1) {
+    } else if (node->Opnd(0)) {
       ConstvalNode *const1 = safe_cast<ConstvalNode>(p[1].first);
       ConstvalNode *const2 = safe_cast<ConstvalNode>(p[2].first);
       if (const1 != nullptr && const2 != nullptr) {
         MIRIntConst *intConst1 = safe_cast<MIRIntConst>(const1->GetConstVal());
         MIRIntConst *intConst2 = safe_cast<MIRIntConst>(const2->GetConstVal());
-        ASSERT_NOT_NULL(intConst1);
-        ASSERT_NOT_NULL(intConst2);
-        if (intConst1->GetValue() == 1 && intConst2->GetValue() == 0) {
+        double dconst1 = 0.0;
+        double dconst2 = 0.0;
+        // for fpconst
+        if (intConst1 == nullptr || intConst2 == nullptr) {
+          PrimType ptyp = const1->GetPrimType();
+          if (ptyp == PTY_f64) {
+            MIRDoubleConst *dConst1 = safe_cast<MIRDoubleConst>(const1->GetConstVal());
+            dconst1 = dConst1->GetValue();
+            MIRDoubleConst *dConst2 = safe_cast<MIRDoubleConst>(const2->GetConstVal());
+            dconst2 = dConst2->GetValue();
+          } else if (ptyp == PTY_f32) {
+            MIRFloatConst *fConst1 = safe_cast<MIRFloatConst>(const1->GetConstVal());
+            dconst1 = static_cast<double>(fConst1->GetFloatValue());
+            MIRFloatConst *fConst2 = safe_cast<MIRFloatConst>(const2->GetConstVal());
+            dconst2 = static_cast<double>(fConst2->GetFloatValue());
+          }
+        } else {
+          dconst1 = static_cast<double>(intConst1->GetValue());
+          dconst2 = static_cast<double>(intConst2->GetValue());
+        }
+        if (dconst1 == 1.0 && dconst2 == 0.0) {
           BaseNode *tmpNode = node->Opnd(0);
           if (node->GetPrimType() != PTY_u1) {
             tmpNode = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, PrimType(node->GetPrimType()),
@@ -2004,7 +2033,9 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
           }
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
           result = PairToExpr(node->GetPrimType(), pairTemp);
-        } else if (intConst1->GetValue() == 0 && intConst2->GetValue() == 1) {
+          return std::make_pair(result, 0);
+        }
+        if (dconst1 == 0.0 && dconst2 == 1.0) {
           BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, PTY_u1, node->Opnd(0));
           BaseNode *tmpNode = lnot;
           if (node->GetPrimType() != PTY_u1) {
@@ -2013,18 +2044,18 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
           }
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
           result = PairToExpr(node->GetPrimType(), pairTemp);
+          return std::make_pair(result, 0);
         }
       }
     }
-  } else {
-    BaseNode *e0 = PairToExpr(primTypes[0], p[0]);
-    BaseNode *e1 = PairToExpr(primTypes[1], p[1]);
-    BaseNode *e2 = PairToExpr(primTypes[2], p[2]); // count up to 3 for ternary node
-    if (e0 != node->Opnd(0) || e1 != node->Opnd(1) || e2 != node->Opnd(2)) {
-      result = mirModule->CurFuncCodeMemPool()->New<TernaryNode>(Opcode(node->GetOpCode()),
-                                                                 PrimType(node->GetPrimType()),
-                                                                 e0, e1, e2);
-    }
+  }
+  BaseNode *e0 = PairToExpr(primTypes[0], p[0]);
+  BaseNode *e1 = PairToExpr(primTypes[1], p[1]);
+  BaseNode *e2 = PairToExpr(primTypes[2], p[2]); // count up to 3 for ternary node
+  if (e0 != node->Opnd(0) || e1 != node->Opnd(1) || e2 != node->Opnd(2)) {
+    result = mirModule->CurFuncCodeMemPool()->New<TernaryNode>(Opcode(node->GetOpCode()),
+                                                                PrimType(node->GetPrimType()),
+                                                                e0, e1, e2);
   }
   return std::make_pair(result, 0);
 }
@@ -2398,5 +2429,18 @@ void ConstantFold::ProcessFunc(MIRFunction *func) {
   }
   mirModule->SetCurFunction(func);
   (void)Simplify(func->GetBody());
+}
+
+void M2MConstantFold::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MKlassHierarchy>();
+  aDep.SetPreservedAll();
+}
+
+bool M2MConstantFold::PhaseRun(maple::MIRModule &m) {
+  OPT_TEMPLATE_NEWPM(ConstantFold, m);
+  if (MeOption::meVerify) {
+    VerifyGlobalTypeTable();
+  }
+  return true;
 }
 }  // namespace maple

@@ -15,7 +15,8 @@
 #include "me_rc_lowering.h"
 #include <cstring>
 #include "me_option.h"
-#include "dominance.h"
+#include "me_dominance.h"
+#include "me_phase_manager.h"
 
 // RCLowering phase generate RC intrinsic for reference assignment
 // based on previous analyze results. RC intrinsic will later be lowered
@@ -1635,25 +1636,22 @@ void RCLowering::FastLowerCallAssignedStmt(MeStmt &stmt) {
   }
 }
 
-AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
-  auto *kh = static_cast<KlassHierarchy*>(moduleResMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+bool MERCLowering::PhaseRun(maple::MeFunction &f) {
+  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                               MIRModule>(f.GetMIRModule());
+  auto *kh = static_cast<M2MKlassHierarchy *>(it)->GetResult();
   ASSERT_NOT_NULL(kh);
-  if (func->GetIRMap() == nullptr) {
-    auto *hmap = static_cast<MeIRMap*>(funcResMgr->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-    CHECK_FATAL(hmap != nullptr, "hssamap has problem");
-    func->SetIRMap(hmap);
-  }
-  CHECK_FATAL(func->GetMeSSATab() != nullptr, "ssatab has problem");
-  RCLowering rcLowering(*func, *kh, DEBUGFUNC(func));
-
+  CHECK_FATAL(GET_ANALYSIS(MEIRMapBuild, f) != nullptr, "hssamap has problem");
+  CHECK_FATAL(f.GetMeSSATab() != nullptr, "ssatab has problem");
+  RCLowering rcLowering(f, *kh, DEBUGFUNC_NEWPM(f));
   rcLowering.Prepare();
   if (!rcLowering.GetIsAnalyzed()) {
-    auto *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+    auto *dom = GET_ANALYSIS(MEDominance, f);
     CHECK_FATAL(dom != nullptr, "dominance phase has problem");
     rcLowering.SetDominance(*dom);
   }
-  MIRFunction *mirFunction = func->GetMirFunc();
-  MeCFG *cfg = func->GetCfg();
+  MIRFunction *mirFunction = f.GetMirFunc();
+  MeCFG *cfg = f.GetCfg();
   if (whiteListFunc.find(mirFunction->GetName()) != whiteListFunc.end() ||
       mirFunction->GetAttr(FUNCATTR_rclocalunowned)) {
     auto eIt = cfg->valid_end();
@@ -1662,13 +1660,19 @@ AnalysisResult *MeDoRCLowering::Run(MeFunction *func, MeFuncResultMgr *funcResMg
       rcLowering.FastBBLower(*bb);
     }
     rcLowering.Finish();
-    return nullptr;
+    return true;
   }
   rcLowering.PreRCLower();
   rcLowering.RCLower();
   // handle all the extra RC work
   rcLowering.PostRCLower();
   rcLowering.Finish();
-  return nullptr;
+  return true;
+}
+
+void MERCLowering::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

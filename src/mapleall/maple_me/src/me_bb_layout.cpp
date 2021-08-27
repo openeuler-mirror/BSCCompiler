@@ -941,7 +941,7 @@ void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
-  MeCFG *cfg = GET_ANALYSIS(MEMeCfg);
+  MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
   auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f));
   // assume common_entry_bb is always bb 0
   ASSERT(cfg->front() == cfg->GetCommonEntryBB(), "assume bb[0] is the commont entry bb");

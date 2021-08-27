@@ -2260,11 +2260,11 @@ void MEValueRangePropagation::GetAnalysisDependence(maple::AnalysisDep &aDep) co
 }
 
 bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
-  auto *dom = GET_ANALYSIS(MEDominance);
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
-  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MELoopAnalysis::id);
+  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   auto *meLoop = FORCE_GET(MELoopAnalysis);
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << f.GetName() << "\n";
@@ -2280,13 +2280,13 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     if (ValueRangePropagation::isDebug) {
       f.GetCfg()->DumpToFile("valuerange-after");
     }
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto *dom = FORCE_GET(MEDominance);
     if (valueRangePropagation.NeedUpdateSSA()) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *valueRangeMemPool);
       ssaUpdate.Run();
     }
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MELoopAnalysis::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << "***************after value range prop***************" << "\n";

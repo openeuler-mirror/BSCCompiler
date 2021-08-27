@@ -15,6 +15,7 @@
 
 #include "me_irmap_build.h"
 #include "me_ssa.h"
+#include "me_ssa_tab.h"
 #include "me_prop.h"
 #include "me_alias_class.h"
 #include "me_dse.h"
@@ -22,27 +23,29 @@
 // This phase converts Maple IR to MeIR.
 
 namespace maple {
-AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) {
-  (void)moduleResMgr;
-  // get all required analysis result IRMap need, cfg, ssa may be invalid in previous phase
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_MECFG, func, !MeOption::quiet));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSATAB, func, !MeOption::quiet));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_ALIASCLASS, func, !MeOption::quiet));
-  (void)(funcResMgr->GetAnalysisResult(MeFuncPhase_SSA, func, !MeOption::quiet));
-  Dominance *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
-  CHECK_FATAL(dom != nullptr, "dominance phase has problem");
-  MemPool *irmapmp = NewMemPool();
+void MEIRMapBuild::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.AddRequired<MESSATab>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.AddRequired<MESSA>();
+  aDep.AddRequired<MEDominance>();
+  aDep.PreservedAllExcept<MESSA>();
+  aDep.PreservedAllExcept<MEDse>();
+}
 
-  MeIRMap *irMap = irmapmp->New<MeIRMap>(*func, *irmapmp);
-  func->SetIRMap(irMap);
+bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  ASSERT_NOT_NULL(dom);
+  irMap = GetPhaseAllocator()->New<MeIRMap>(f, *GetPhaseMemPool());
+  f.SetIRMap(irMap);
 #if DEBUG
   globalIRMap = irMap;
 #endif
   MemPool *propMp = nullptr;
-  MeCFG *cfg = func->GetCfg();
-  if (!func->GetMIRModule().IsJavaModule() && MeOption::propDuringBuild) {
+  MeCFG *cfg = f.GetCfg();
+  if (!f.GetMIRModule().IsJavaModule() && MeOption::propDuringBuild) {
     // create propgation
-    propMp = memPoolCtrler.NewMemPool("meirbuild prop", true /* isLocalPool */);
+    propMp = ApplyTempMemPool();
     MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false, false});
     IRMapBuild irmapbuild(irMap, dom, &meprop);
     std::vector<bool> bbIrmapProcessed(cfg->NumBBs(), false);
@@ -52,20 +55,20 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
     std::vector<bool> bbIrmapProcessed(cfg->NumBBs(), false);
     irmapbuild.BuildBB(*cfg->GetCommonEntryBB(), bbIrmapProcessed);
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     irMap->Dump();
   }
 
   // delete mempool for meirmap temporaries
   // now versmp use one mempool as analysis result, just clear the content here
   // delete input IR code for current function
-  MIRFunction *mirFunc = func->GetMirFunc();
+  MIRFunction *mirFunc = f.GetMirFunc();
   mirFunc->ReleaseCodeMemory();
 
   // delete versionst_table
   // nullify all references to the versionst_table contents
-  for (uint32 i = 0; i < func->GetMeSSATab()->GetVersionStTable().GetVersionStVectorSize(); i++) {
-    func->GetMeSSATab()->GetVersionStTable().SetVersionStVectorItem(i, nullptr);
+  for (uint32 i = 0; i < f.GetMeSSATab()->GetVersionStTable().GetVersionStVectorSize(); i++) {
+    f.GetMeSSATab()->GetVersionStTable().SetVersionStVectorItem(i, nullptr);
   }
   // clear BB's phiList which uses versionst; nullify first_stmt_, last_stmt_
   auto eIt = cfg->valid_end();
@@ -75,12 +78,7 @@ AnalysisResult *MeDoIRMapBuild::Run(MeFunction *func, MeFuncResultMgr *funcResMg
     bb->SetFirst(nullptr);
     bb->SetLast(nullptr);
   }
-  func->ReleaseVersMemory();
-  funcResMgr->InvalidAnalysisResult(MeFuncPhase_SSA, func);
-  funcResMgr->InvalidAnalysisResult(MeFuncPhase_DSE, func);
-  if (propMp) {
-    delete propMp;
-  }
-  return irMap;
+  f.ReleaseVersMemory();
+  return false;
 }
 }  // namespace maple

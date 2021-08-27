@@ -19,20 +19,6 @@
 // based on previous analyze results. GC intrinsic will later be lowered
 // in Code Generation
 namespace maple {
-AnalysisResult *MeDoGCLowering::Run(MeFunction *func, MeFuncResultMgr *funcMgr, ModuleResultMgr*) {
-  if (func->GetIRMap() == nullptr) {
-    auto *hMap = static_cast<MeIRMap*>(funcMgr->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-    CHECK_NULL_FATAL(hMap);
-    func->SetIRMap(hMap);
-  }
-
-  GCLowering gcLowering(*func, DEBUGFUNC(func));
-  gcLowering.Prepare();
-  gcLowering.GCLower();
-  gcLowering.Finish();
-  return nullptr;
-}
-
 void GCLowering::Prepare() {
   isReferent = func.GetMirFunc()->GetName() == "Ljava_2Flang_2Fref_2FReference_3B_7C_3Cinit_3E_7C_"
                                                "28Ljava_2Flang_2FObject_3BLjava_2Flang_2Fref_2FReferenceQueue_3B_29V";
@@ -289,5 +275,20 @@ void GCLowering::CheckRefReturn(BB &bb) {
   std::vector<MeExpr*> opnds = { ret };
   IntrinsiccallMeStmt *checkCall = irMap.CreateIntrinsicCallMeStmt(INTRN_MCCGCCheck, opnds);
   bb.InsertMeStmtBefore(lastMeStmt, checkCall);
+}
+
+void MEGCLowering::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEGCLowering::PhaseRun(maple::MeFunction &f) {
+  CHECK_NULL_FATAL((GET_ANALYSIS(MEIRMapBuild, f)));
+
+  GCLowering gcLowering(f, DEBUGFUNC_NEWPM(f));
+  gcLowering.Prepare();
+  gcLowering.GCLower();
+  gcLowering.Finish();
+  return true;
 }
 }  // namespace maple

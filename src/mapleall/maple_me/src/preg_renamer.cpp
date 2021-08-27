@@ -128,13 +128,13 @@ void MEPregRename::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MEPregRename::PhaseRun(maple::MeFunction &f) {
-  if (f.GetMirFunc()->HasAsm()) {
+  if (f.HasWriteInputAsmNode()) {
     if (!MeOption::quiet) {
-      LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped due to inline asm\n";
+      LogInfo::MapleLogger() << "  == " << PhaseName() << " skipped due to inline asm with wirting input operand\n";
     }
     return false;
   }
-  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   PregRenamer pregRenamer(GetPhaseMemPool(), &f, irMap);
   pregRenamer.RunSelf();
   if (DEBUGFUNC_NEWPM(f)) {
@@ -142,7 +142,7 @@ bool MEPregRename::PhaseRun(maple::MeFunction &f) {
     f.Dump(false);
   }
   if (MeOption::meVerify) {
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto *dom = FORCE_GET(MEDominance);
     ASSERT(dom != nullptr, "dominance phase has problem");
     MeVerify verify(f);

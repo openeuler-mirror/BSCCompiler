@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,6 +18,7 @@
 #include "me_option.h"
 #include "dominance.h"
 #include "me_function.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 bool MeBypathEH::DoBypathException(BB *tryBB, BB *catchBB, const Klass *catchClass, const StIdx &stIdx,
@@ -338,13 +339,18 @@ void MeBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) con
   }
 }
 
-AnalysisResult *MeDoBypathEH::Run(MeFunction *func, MeFuncResultMgr* m, ModuleResultMgr *mrm) {
-  (void)(m->GetAnalysisResult(MeFuncPhase_MECFG, func));
-  auto *kh = static_cast<KlassHierarchy*>(mrm->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+bool MEBypathEH::PhaseRun(maple::MeFunction &f) {
+  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                               MIRModule>(f.GetMIRModule());
+  auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   CHECK_NULL_FATAL(kh);
-  MemPool *meBypathEHMemPool = NewMemPool();
-  auto meBypathEH = meBypathEHMemPool->New<MeBypathEH>();
-  meBypathEH->BypathException(*func, *kh);
-  return nullptr;
+  auto *meBypathEH = GetPhaseAllocator()->New<MeBypathEH>();
+  meBypathEH->BypathException(f, *kh);
+  return true;
+}
+
+void MEBypathEH::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEMeCfg>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

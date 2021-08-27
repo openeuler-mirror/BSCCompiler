@@ -17,6 +17,8 @@
 #include <algorithm>
 #include "me_cfg.h"
 #include "me_option.h"
+#include "me_dominance.h"
+#include "me_phase_manager.h"
 
 namespace maple {
 // This phase changes the control flow graph to canonicalize loops so that the
@@ -401,6 +403,9 @@ void MeLoopCanon::AddPreheader(MeFunction &func, const std::map<BBId, std::vecto
     }
     head->AddPred(*preheader);
     isCFGChange = true;
+    if (preheader->GetPred().size() > 1) {
+      (void)func.GetOrCreateBBLabel(*preheader);
+    }
   }
 }
 
@@ -514,36 +519,42 @@ void MeLoopCanon::NormalizationExitOfLoop(MeFunction &func, IdentifyLoops &meLoo
   }
 }
 
-AnalysisResult *MeDoLoopCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+void MELoopCanaon::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
+
+bool MELoopCanaon::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dom is null in MeDoLoopCanon::Run");
-  MemPool *loopCanonMp = NewMemPool();
-  auto *meLoopCanon = loopCanonMp->New<MeLoopCanon>(DEBUGFUNC(func), *loopCanonMp);
+  MemPool *loopCanonMp = GetPhaseMemPool();
+  auto *meLoopCanon = loopCanonMp->New<MeLoopCanon>(DEBUGFUNC_NEWPM(f), *loopCanonMp);
   // 1. Converting loops to exhibit the do {} while (condition)
-  meLoopCanon->ExecuteLoopCanon(*func, *dom);
+  meLoopCanon->ExecuteLoopCanon(f, *dom);
   if (meLoopCanon->IsCFGChange()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }
   meLoopCanon->ResetIsCFGChange();
-  dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  dom = FORCE_GET(MEDominance);
+
   // 2. Add preheaderBB and normalization headBB for loop.
-  meLoopCanon->NormalizationHeadAndPreHeaderOfLoop(*func, *dom);
+  meLoopCanon->NormalizationHeadAndPreHeaderOfLoop(f, *dom);
   if (meLoopCanon->IsCFGChange()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }
   meLoopCanon->ResetIsCFGChange();
-  IdentifyLoops *meLoop = static_cast<IdentifyLoops*>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+  IdentifyLoops *meLoop = FORCE_GET(MELoopAnalysis);
   if (meLoop == nullptr) {
-    return nullptr;
+    return false;
   }
   // 3. Normalization exitBB for loop.
-  meLoopCanon->NormalizationExitOfLoop(*func, *meLoop);
+  meLoopCanon->NormalizationExitOfLoop(f, *meLoop);
   if (meLoopCanon->IsCFGChange()) {
-    m->InvalidAnalysisResult(MeFuncPhase_DOMINANCE, func);
-    m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

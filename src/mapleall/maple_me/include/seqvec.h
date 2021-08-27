@@ -20,17 +20,16 @@
 #include "lfo_pre_emit.h"
 
 namespace maple {
-
 class SeqVectorize {
   using StoreList = MapleVector<IassignNode *>;
   using StoreListMap = MapleMap<MeExpr *, StoreList *>;
 public:
   SeqVectorize(MemPool *localmp, LfoPreEmitter *lfoEmit, bool debug = false)
-     : localMP(localmp), localAlloc(localmp),
-       codeMP(lfoEmit->GetCodeMP()), codeMPAlloc(lfoEmit->GetCodeMPAlloc()),
-       mirFunc(lfoEmit->GetMirFunction()),
-       meIRMap(lfoEmit->GetMeIRMap()),
-       stores(localAlloc.Adapter()), enableDebug(debug) {
+      : localMP(localmp), localAlloc(localmp),
+        codeMP(lfoEmit->GetCodeMP()), codeMPAlloc(lfoEmit->GetCodeMPAlloc()),
+        mirFunc(lfoEmit->GetMirFunction()),
+        meIRMap(lfoEmit->GetMeIRMap()),
+        stores(localAlloc.Adapter()), enableDebug(debug) {
     lfoStmtParts = lfoEmit->GetLfoStmtMap();
     lfoExprParts = lfoEmit->GetLfoExprMap();
   }
@@ -66,6 +65,5 @@ public:
   StoreListMap stores;
   bool enableDebug = true;
 };
-
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_SEQVEC_H

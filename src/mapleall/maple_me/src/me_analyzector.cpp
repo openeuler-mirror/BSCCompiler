@@ -12,13 +12,11 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "dominance.h"
 #include "me_analyzector.h"
 #include "utils.h"
 
 // AnalyzeCtor analyzes which fields are assigned inside of each constructor
 namespace maple {
-
 void AnalyzeCtor::ProcessFunc() {
   MIRFunction *curFunc = func->GetMirFunc();
   if (!curFunc->IsConstructor() || curFunc->IsEmpty() || curFunc->GetParamSize() == 0) {
@@ -82,13 +80,21 @@ void AnalyzeCtor::ProcessStmt(MeStmt &stmt) {
   }
 }
 
-AnalysisResult *MeDoAnalyzeCtor::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResultMgr) {
-  Dominance *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  auto *kh = static_cast<KlassHierarchy*>(moduleResultMgr->GetAnalysisResult(MoPhase_CHA, &func->GetMIRModule()));
+bool MEAnalyzeCtor::PhaseRun(MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
+                                                               MIRModule>(f.GetMIRModule());
+  auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   ASSERT_NOT_NULL(dom);
-  ASSERT_NOT_NULL(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  AnalyzeCtor analyzeCtor(*func, *dom, *kh);
+  ASSERT_NOT_NULL((GET_ANALYSIS(MEIRMapBuild, f)));
+  AnalyzeCtor analyzeCtor(f, *dom, *kh);
   analyzeCtor.ProcessFunc();
-  return nullptr;
+  return false;
+}
+
+void MEAnalyzeCtor::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

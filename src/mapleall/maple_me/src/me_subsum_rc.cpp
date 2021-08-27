@@ -325,21 +325,26 @@ void SubsumRC::RunSSUPre() {
   }
 }
 
-AnalysisResult *MeDoSubsumRC::Run(MeFunction *func, MeFuncResultMgr *funcMgr, ModuleResultMgr*) {
-  if (!(func->GetHints() & kPlacementRCed)) {
-    return nullptr;
+void MESubsumRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.SetPreservedAll();
+}
+
+bool MESubsumRC::PhaseRun(maple::MeFunction &f) {
+  if (!(f.GetHints() & kPlacementRCed)) {
+    return false;
   }
   if (MeOption::subsumRC == false) {
-    return nullptr;
+    return false;
   }
-  auto *dom = static_cast<Dominance*>(funcMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  SubsumRC subsumRC(*func, *dom, *NewMemPool(), DEBUGFUNC(func));
+  SubsumRC subsumRC(f, *dom, *GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   subsumRC.RunSSUPre();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After SUBSUM RC =============\n";
-    func->Dump(false);
+    f.Dump(false);
   }
-  return nullptr;
+  return true;
 }
 }  // namespace maple

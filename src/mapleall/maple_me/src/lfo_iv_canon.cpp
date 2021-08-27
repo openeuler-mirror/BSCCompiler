@@ -17,6 +17,7 @@
 #include "lfo_iv_canon.h"
 #include "me_option.h"
 #include "lfo_function.h"
+#include "me_dominance.h"
 
 // This phase implements Step 4 of the paper:
 //   S.-M. Liu, R. Lo and F. Chow, "Loop Induction Variable
@@ -32,6 +33,9 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
   case kMeOpConst: return IsPrimitiveInteger(x->GetPrimType());
   case kMeOpVar:
   case kMeOpReg:{
+    if (x->IsVolatile()) {
+      return false;
+    }
     if (x == phiLHS) {
       return true;
     }
@@ -515,17 +519,17 @@ void IVCanon::PerformIVCanon() {
   ReplaceSecondaryIVPhis();
 }
 
-AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *) {
-  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func, !MeOption::quiet));
+bool MELfoIVCanon::PhaseRun(MeFunction &f) {
+  Dominance *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
 
-  MeIRMap *irmap = static_cast<MeIRMap *>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func, !MeOption::quiet));
+  MeIRMap *irmap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irmap != nullptr, "hssamap has problem");
 
-  IdentifyLoops *identLoops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func, !MeOption::quiet));
+  IdentifyLoops *identLoops = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_FATAL(identLoops != nullptr, "identloops has problem");
 
-  LfoFunction *lfoFunc = func->GetLfoFunc();
+  LfoFunction *lfoFunc = f.GetLfoFunc();
 
   // loop thru all the loops in reverse order so inner loops are processed first
   for (int32 i = identLoops->GetMeLoops().size()-1; i >= 0; i--) {
@@ -546,8 +550,8 @@ AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRe
     if (whileInfo->injectedIVSym == nullptr) {
       continue;
     }
-    MemPool *ivmp = NewMemPool();
-    IVCanon ivCanon(ivmp, func, dom, aloop, i, whileInfo);
+    MemPool *ivmp = GetPhaseMemPool();
+    IVCanon ivCanon(ivmp, &f, dom, aloop, i, whileInfo);
     ivCanon.PerformIVCanon();
     // transfer primary IV info to whileinfo
     if (ivCanon.idxPrimaryIV != -1) {
@@ -560,11 +564,18 @@ AnalysisResult *DoLfoIVCanon::Run(MeFunction *func, MeFuncResultMgr *m, ModuleRe
       whileInfo->canConvertDoloop = ivCanon.tripCount != nullptr;
     }
   }
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After IV Canonicalization  =============" << endl;
     irmap->Dump();
   }
 
-  return nullptr;
+  return true;
+}
+
+void MELfoIVCanon::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

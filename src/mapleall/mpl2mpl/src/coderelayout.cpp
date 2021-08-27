@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -220,8 +220,8 @@ MIRSymbol *CodeReLayout::GenStrSym(const std::string &str) {
   staticSym->SetStorageClass(kScFstatic);
   for (const char &c : newStr) {
     MIRConst *newConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        c, *GlobalTables::GetTypeTable().GetUInt8(), 0/*fieldID*/);
-    strTabAggConst->PushBack(newConst);
+        c, *GlobalTables::GetTypeTable().GetUInt8());
+    strTabAggConst->AddItem(newConst, 0);
   }
   staticSym->SetKonst(strTabAggConst);
   return staticSym;
@@ -273,12 +273,22 @@ void CodeReLayout::GenLayoutSym() {
     fieldConst =
         GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(addroffuncExpr->GetPUIdx(),
                                                              *GlobalTables::GetTypeTable().GetVoidPtr());
-    funcLayoutConst->PushBack(fieldConst);
+    funcLayoutConst->AddItem(fieldConst, 0);
     funcIdx += layoutCount[i];
   }
   std::string funcLayoutSymName = namemangler::kFunctionLayoutStr + GetMIRModule().GetFileNameAsPostfix();
   MIRSymbol *funcLayoutSym = builder->CreateGlobalDecl(funcLayoutSymName, arrayType);
   funcLayoutSym->SetKonst(funcLayoutConst);
   funcLayoutSym->SetStorageClass(kScFstatic);
+}
+
+void M2MCodeReLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MKlassHierarchy>();
+  aDep.SetPreservedAll();
+}
+
+bool M2MCodeReLayout::PhaseRun(maple::MIRModule &m) {
+  OPT_TEMPLATE_NEWPM(CodeReLayout, m);
+  return true;
 }
 }  // namespace maple

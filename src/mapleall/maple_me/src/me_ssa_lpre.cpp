@@ -455,11 +455,11 @@ bool MESSALPre::PhaseRun(maple::MeFunction &f) {
     return false;
   }
 
-  auto *dom = GET_ANALYSIS(MEDominance);
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   CHECK_NULL_FATAL(dom);
-  auto *irMap = GET_ANALYSIS(MEIRMapBuild);
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
-  auto *identLoops = GET_ANALYSIS(MELoopAnalysis);
+  auto *identLoops = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_NULL_FATAL(identLoops);
   bool lprePULimitSpecified = MeOption::lprePULimit != UINT32_MAX;
   uint32 lpreLimitUsed =

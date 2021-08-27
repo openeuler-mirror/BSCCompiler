@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -14,22 +14,22 @@
  */
 
 #include "lfo_inject_iv.h"
-#include "dominance.h"
+#include "me_dominance.h"
 #include "me_loop_analysis.h"
 #include "me_option.h"
 #include "mir_builder.h"
 #include <string>
 
 namespace maple {
-AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  Dominance *dom = static_cast<Dominance *>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+bool MELfoInjectIV::PhaseRun(MeFunction &f) {
+  Dominance *dom = GET_ANALYSIS(MEDominance, f);
   CHECK_FATAL(dom, "dominance phase has problem");
-  IdentifyLoops *identloops = static_cast<IdentifyLoops *>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
+  IdentifyLoops *identloops = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_FATAL(identloops != nullptr, "identloops has problem");
 
   uint32 ivCount = 0;
-  MIRBuilder *mirbuilder = func->GetMIRModule().GetMIRBuilder();
-  LfoFunction *lfoFunc = func->GetLfoFunc();
+  MIRBuilder *mirbuilder = f.GetMIRModule().GetMIRBuilder();
+  LfoFunction *lfoFunc = f.GetLfoFunc();
 
   for (LoopDesc *aloop : identloops->GetMeLoops()) {
     BB *headbb = aloop->head;
@@ -60,16 +60,16 @@ AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     std::string ivName("injected.iv");
     ivName.append(std::to_string(++ivCount));
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ivName);
-    MIRSymbol *st = mirbuilder->CreateSymbol((TyIdx)PTY_i64, strIdx, kStVar, kScAuto, func->GetMirFunc(), kScopeLocal);
+    MIRSymbol *st = mirbuilder->CreateSymbol((TyIdx)PTY_i64, strIdx, kStVar, kScAuto, f.GetMirFunc(), kScopeLocal);
     whileInfo->injectedIVSym = st;
-    if (DEBUGFUNC(func)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "****** Injected IV " << st->GetName() << " in while loop at label ";
-      LogInfo::MapleLogger() << "@" << func->GetMirFunc()->GetLabelName(headbb->GetBBLabel()) << std::endl;
+      LogInfo::MapleLogger() << "@" << f.GetMirFunc()->GetLabelName(headbb->GetBBLabel()) << std::endl;
     }
 
     // initialize IV to 0 at loop entry
     DassignNode *dass = mirbuilder->CreateStmtDassign(st->GetStIdx(), 0, mirbuilder->CreateIntConst(0, PTY_i64));
-    StmtNode *laststmt = entrybb->IsEmpty() ? NULL : &entrybb->GetLast();
+    StmtNode *laststmt = entrybb->IsEmpty() ? nullptr : &entrybb->GetLast();
     if (laststmt &&
         (laststmt->op == OP_brfalse || laststmt->op == OP_brtrue || laststmt->op == OP_goto ||
          laststmt->op == OP_igoto || laststmt->op == OP_switch)) {
@@ -87,6 +87,12 @@ AnalysisResult *DoLfoInjectIV::Run(MeFunction *func, MeFuncResultMgr *m, ModuleR
     laststmt = &tailbb->GetLast();
     tailbb->InsertStmtBefore(laststmt, dass);
   }
-  return nullptr;
+  return true;
+}
+
+void MELfoInjectIV::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MELoopAnalysis>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

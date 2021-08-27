@@ -15,7 +15,7 @@
 
 #include "me_cfg_opt.h"
 #include "me_bb_layout.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 
 // We find the following pattern in JAVA code:
 // if (empty) { a = 1; } else { a = 3; }
@@ -331,35 +331,39 @@ bool MeCfgOpt::Run(MeCFG &cfg) {
   return isCfgChanged;
 }
 
-void MeDoCfgOpt::EmitMapleIr(MeFunction &func, MeFuncResultMgr &m) {
+bool CheckAnalysisResult(MeFunction &func) {
   if (func.GetCfg()->NumBBs() > 0) {
-    (void)m.GetAnalysisResult(MeFuncPhase_BBLAYOUT, &func);
-    CHECK_FATAL(func.HasLaidOut(), "Check bb layout phase.");
-    auto layoutBBs = func.GetLaidOutBBs();
-    CHECK_NULL_FATAL(func.GetIRMap());
-    MIRFunction *mirFunction = func.GetMirFunc();
-
-    mirFunction->ReleaseCodeMemory();
-    mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
-    mirFunction->SetBody(mirFunction->GetCodeMemPool()->New<BlockNode>());
-
-    for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
-      MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
-      if (sym->GetSKind() == kStVar) {
-        sym->SetIsDeleted();
-      }
-    }
-    func.GetIRMap()->SetNeedAnotherPass(true);
-    for (BB *bb : layoutBBs) {
-      ASSERT(bb != nullptr, "bb should not be nullptr");
-      bb->EmitBB(*func.GetMeSSATab(), *func.GetMirFunc()->GetBody(), true);
-    }
-    func.ClearLayout();
+    return func.HasLaidOut();
   }
+  return false;
 }
 
-bool MeDoCfgOpt::FindLocalRefVarUses(const MeIRMap &irMap, const MeExpr &expr,
-                                     const MeStmt &meStmt, const VarMeExpr &var) const {
+void EmitMapleIr(MeFunction &func) {
+  CHECK_FATAL(func.HasLaidOut(), "Check bb layout phase.");
+  auto layoutBBs = func.GetLaidOutBBs();
+  CHECK_NULL_FATAL(func.GetIRMap());
+  MIRFunction *mirFunction = func.GetMirFunc();
+
+  mirFunction->ReleaseCodeMemory();
+  mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
+  mirFunction->SetBody(mirFunction->GetCodeMemPool()->New<BlockNode>());
+
+  for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
+    MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+    if (sym->GetSKind() == kStVar) {
+      sym->SetIsDeleted();
+    }
+  }
+  func.GetIRMap()->SetNeedAnotherPass(true);
+  for (BB *bb : layoutBBs) {
+    ASSERT(bb != nullptr, "bb should not be nullptr");
+    bb->EmitBB(*func.GetMeSSATab(), *func.GetMirFunc()->GetBody(), true);
+  }
+  func.ClearLayout();
+}
+
+bool FindLocalRefVarUses(const MeIRMap &irMap, const MeExpr &expr,
+                         const MeStmt &meStmt, const VarMeExpr &var) {
   if (expr.GetMeOp() == kMeOpVar) {
     const auto &varMeExpr = static_cast<const VarMeExpr&>(expr);
     if (varMeExpr.GetOstIdx() == var.GetOstIdx()) {
@@ -374,20 +378,9 @@ bool MeDoCfgOpt::FindLocalRefVarUses(const MeIRMap &irMap, const MeExpr &expr,
   return false;
 }
 
-AnalysisResult *MeDoCfgOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *irMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  ASSERT(irMap != nullptr, "irMap should not be nullptr");
-  MeCfgOpt cfgOpt(irMap);
-  if (cfgOpt.Run(*func->GetCfg())) {
-    EmitMapleIr(*func, *m);
-    m->InvalidAllResults();
-    func->SetMeSSATab(nullptr);
-    func->SetIRMap(nullptr);
-    return nullptr;
-  }
-
+bool MePostCfgOpt(MeFunction &func, MeIRMap &irMap) {
   // check all basic blocks searching for split case
-  for (BB *bb : func->GetCfg()->GetAllBBs()) {
+  for (BB *bb : func.GetCfg()->GetAllBBs()) {
     if (bb == nullptr || !(bb->GetAttributes(kBBAttrIsTry))) {
       continue;
     }
@@ -413,17 +406,41 @@ AnalysisResult *MeDoCfgOpt::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResu
         // look for use occurrence of localrefvars
         for (size_t i = 0; i < stmtNew->NumMeStmtOpnds(); ++i) {
           ASSERT(stmtNew->GetOpnd(i) != nullptr, "null ptr check");
-          if (FindLocalRefVarUses(*irMap, *stmtNew->GetOpnd(i), *stmtNew, *theLHS)) {
-            EmitMapleIr(*func, *m);
-            m->InvalidAllResults();
-            func->SetMeSSATab(nullptr);
-            func->SetIRMap(nullptr);
-            return nullptr;
+          if (FindLocalRefVarUses(irMap, *stmtNew->GetOpnd(i), *stmtNew, *theLHS)) {
+            return true;
           }
         }
       }
     }
   }
-  return nullptr;
+  return false;
+}
+
+void MECfgOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+}
+
+/* change CFG */
+bool MECfgOpt::PhaseRun(maple::MeFunction &f) {
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
+  ASSERT_NOT_NULL(irMap);
+  MeCfgOpt cfgOpt(irMap);
+  auto cfgoptFunc = [](MeFunction &func)->void{
+    if (CheckAnalysisResult(func)) {
+      EmitMapleIr(func);
+    }
+    func.SetMeSSATab(nullptr);
+    func.SetIRMap(nullptr);
+  };
+  if (cfgOpt.Run(*f.GetCfg())) {
+    cfgoptFunc(f);
+    return true;
+  }
+
+  if (MePostCfgOpt(f, *irMap)) {
+    cfgoptFunc(f);
+    return true;
+  }
+  return true;
 }
 }  // namespace maple

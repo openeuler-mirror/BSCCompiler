@@ -752,9 +752,9 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           // check innest loop dimension is complex
           // case like a[abs(i-1)] = 1; depth test will report it's parallelize
           // or a[4*i+1] =; address is not continous if coeff > 1
-          if (accessDesc->subscriptVec[dim-1]->tooMessy ||
-              accessDesc->subscriptVec[dim-1]->loopInvariant ||
-              accessDesc->subscriptVec[dim-1]->coeff != 1) {
+          if (accessDesc->subscriptVec[dim - 1]->tooMessy ||
+              accessDesc->subscriptVec[dim - 1]->loopInvariant ||
+              accessDesc->subscriptVec[dim - 1]->coeff != 1) {
             return false;
           }
         }
@@ -842,5 +842,4 @@ void LoopVectorization::Perform() {
   // transform plan map to each doloop
   TransformLoop();
 }
-
 }  // namespace maple

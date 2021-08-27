@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,6 +15,7 @@
 #include "vtable_analysis.h"
 #include "reflection_analysis.h"
 #include "itab_util.h"
+#include "maple_phase_manager.h"
 
 namespace {
 using namespace maple;
@@ -35,8 +36,8 @@ VtableAnalysis::VtableAnalysis(MIRModule &mod, KlassHierarchy *kh, bool dump) : 
   voidPtrType = GlobalTables::GetTypeTable().GetVoidPtr();
   // zeroConst and oneConst are shared amony itab entries. It is safe to share them because
   // they are never removed by anybody.
-  zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrType, 0/*fieldID*/);
-  oneConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(1, *voidPtrType, 0/*fieldID*/);
+  zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, *voidPtrType);
+  oneConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(1, *voidPtrType);
   for (Klass *klass : klassHierarchy->GetTopoSortedKlasses()) {
     ASSERT(klass != nullptr, "null ptr check!");
     GenVtableList(*klass);
@@ -188,7 +189,7 @@ void VtableAnalysis::GenVtableDefinition(const Klass &klass) {
                                                                    GetMIRModule().GetMemPool());
     auto *constNode = GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(addrofFuncNode->GetPUIdx(),
                                                                            *voidPtrType);
-    newConst->PushBack(constNode);
+    newConst->AddItem(constNode, 0);
   }
   // We also need to generate vtable and itable even if the class does not
   // have any virtual method, or does not implement any interface.  Such a
@@ -199,7 +200,7 @@ void VtableAnalysis::GenVtableDefinition(const Klass &klass) {
   // postpone this step to mplcg, where mplcg discovers all classes that does
   // not have any vtable or itable.
   if (newConst->GetConstVec().empty()) {
-    newConst->PushBack(zeroConst);
+    newConst->AddItem(zeroConst, 0);
   }
   GenTableSymbol(VTAB_PREFIX_STR, klass.GetKlassName(), *newConst);
 }
@@ -299,10 +300,10 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
   ASSERT_NOT_NULL(firstItabEmitArray);
   for (MIRFunction *func : firstItabVec) {
     if (func != nullptr) {
-      firstItabEmitArray->PushBack(
-        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType));
+      firstItabEmitArray->AddItem(
+        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType), 0);
     } else {
-      firstItabEmitArray->PushBack(zeroConst);
+      firstItabEmitArray->AddItem(zeroConst, 0);
     }
   }
   // initialize conflict solution array
@@ -310,20 +311,22 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
     auto *secondItabEmitArray = GetMIRModule().GetMemPool()->New<MIRAggConst>(GetMIRModule(), *voidPtrType);
     // remember count in secondItabVec
     count = ((secondConflictList.size() | (1ULL << (kShiftCountBit - 1))) << kShiftCountBit) + count;
-    secondItabEmitArray->PushBack(GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(count),
-                                                                                       *voidPtrType, 0/*fieldID*/));
-    secondItabEmitArray->PushBack(oneConst);  // padding
+    secondItabEmitArray->AddItem(
+        GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(count), *voidPtrType),
+        0);
+    secondItabEmitArray->AddItem(oneConst, 0);  // padding
     for (uint32 i = 0; i < kItabSecondHashSize; ++i) {
       if (!secondItab[i] && !secondConflictFlag[i]) {
         continue;
       } else {
-        secondItabEmitArray->PushBack(GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *voidPtrType, 0/*fieldID*/));
+        secondItabEmitArray->AddItem(
+            GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *voidPtrType), 0);
         if (secondItab[i]) {
-          secondItabEmitArray->PushBack(
-            GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType));
+          secondItabEmitArray->AddItem(
+            GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(secondItab[i]->GetPuidx(), *voidPtrType), 0);
         } else {
           // it measn it was conflict again in the second hash
-          secondItabEmitArray->PushBack(oneConst);
+          secondItabEmitArray->AddItem(oneConst, 0);
         }
       }
     }
@@ -331,16 +334,17 @@ void VtableAnalysis::GenItableDefinition(const Klass &klass) {
       ASSERT_NOT_NULL(func);
       const std::string &signatureName = DecodeBaseNameWithType(*func);
       uint32 nameIdx = ReflectionAnalysis::FindOrInsertRepeatString(signatureName);
-      secondItabEmitArray->PushBack(GlobalTables::GetIntConstTable().GetOrCreateIntConst(nameIdx, *voidPtrType, 0/*fieldID*/));
-      secondItabEmitArray->PushBack(
-        GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType));
+      secondItabEmitArray->AddItem(
+          GlobalTables::GetIntConstTable().GetOrCreateIntConst(nameIdx, *voidPtrType), 0);
+      secondItabEmitArray->AddItem(
+          GetMIRModule().GetMemPool()->New<MIRAddroffuncConst>(func->GetPuidx(), *voidPtrType), 0);
     }
     // Create the second-level itable, in which hashcode is looked up by binary searching
     GenTableSymbol(ITAB_CONFLICT_PREFIX_STR, klass.GetKlassName(), *secondItabEmitArray);
     // push the conflict symbol to the first-level itable
     StIdx symIdx = GlobalTables::GetGsymTable().GetStIdxFromStrIdx(
         GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(ITAB_CONFLICT_PREFIX_STR + klass.GetKlassName()));
-    firstItabEmitArray->PushBack(GetMIRModule().GetMemPool()->New<MIRAddrofConst>(symIdx, 0, *voidPtrType));
+    firstItabEmitArray->AddItem(GetMIRModule().GetMemPool()->New<MIRAddrofConst>(symIdx, 0, *voidPtrType), 0);
   }
   GenTableSymbol(ITAB_PREFIX_STR, klass.GetKlassName(), *firstItabEmitArray);
 }
@@ -378,6 +382,96 @@ void VtableAnalysis::AddNullPointExceptionCheck(MIRFunction &func, StmtNode &stm
   }
 }
 
+// Get puIdx of the method MethodHandles::lookup
+static PUIdx GetPUIdxOfMethodHandelsLookup() {
+  const GStrIdx &nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(
+      "Ljava_2Flang_2Finvoke_2FMethodHandles_3B_7Clookup_7C_28_29Ljava_2Flang_2Finvoke_2FMethodHandles_24Lookup_3B");
+  if (nameStrIdx == 0) {
+    return 0;
+  }
+  const auto *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
+  if (funcSt == nullptr || funcSt->GetFunction() == nullptr) {
+    return 0;
+  }
+  return funcSt->GetFunction()->GetPuidx();
+}
+
+static void IdentifyCallerSensitive(const StmtNode &stmt, MIRFunction &func) {
+  Opcode op = stmt.GetOpCode();
+  if (op != OP_callassigned) {
+    return;
+  }
+
+  static const PUIdx puIdx = GetPUIdxOfMethodHandelsLookup();
+  if (puIdx == static_cast<const CallNode&>(stmt).GetPUIdx()) {
+    func.SetAttr(FUNCATTR_callersensitive);
+  }
+}
+
+// Get puIdx of the method String::intern
+static PUIdx GetPUIdxOfMethodStringIntern() {
+  const GStrIdx &nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(
+      "Ljava_2Flang_2FString_3B_7Cintern_7C_28_29Ljava_2Flang_2FString_3B");
+  if (nameStrIdx == 0) {
+    return 0;
+  }
+  const auto *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
+  if (funcSt == nullptr || funcSt->GetFunction() == nullptr) {
+    return 0;
+  }
+  return funcSt->GetFunction()->GetPuidx();
+}
+
+static PUIdx GetPUIdxOfMethodStringCompareTo() {
+  const GStrIdx &nameStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(
+      "Ljava_2Flang_2FString_3B_7CcompareTo_7C_28Ljava_2Flang_2FString_3B_29I");
+  if (nameStrIdx == 0) {
+    return 0;
+  }
+  const auto *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(nameStrIdx);
+  if (funcSt == nullptr || funcSt->GetFunction() == nullptr) {
+    return 0;
+  }
+  return funcSt->GetFunction()->GetPuidx();
+}
+
+static bool ReplaceStringMethodWithNativeMethod(const StmtNode &stmt, MIRFunction &func) {
+  if (stmt.GetOpCode() != OP_virtualcallassigned) {
+    return false;
+  }
+
+  constexpr uint32 funcNumToReplace = 2;
+  const static std::array<std::string, funcNumToReplace> nativeFuncsToReplace = {
+      "Native_java_lang_String_intern__",
+      "Native_java_lang_String_compareTo__Ljava_lang_String_2"
+  };
+  const static std::array<PUIdx, funcNumToReplace> puIdxsToReplaceWith =
+      { GetPUIdxOfMethodStringIntern(), GetPUIdxOfMethodStringCompareTo() };
+
+  uint32 funcId = 0;
+  for (; funcId < funcNumToReplace; ++funcId) {
+    if (static_cast<const CallNode&>(stmt).GetPUIdx() == puIdxsToReplaceWith[funcId]) {
+      break;
+    }
+  }
+  if (funcId == funcNumToReplace) {
+    return false;
+  }
+
+  auto *calleeFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdxsToReplaceWith[funcId]);
+  PUIdx puIdxOfNativeFunc = theMIRModule->GetMIRBuilder()->GetOrCreateFunction(
+      nativeFuncsToReplace[funcId], calleeFunc->GetReturnTyIdx())->GetPuidx();
+  MIRSymbol *retSym = nullptr;
+  auto &retVec = static_cast<const CallNode&>(stmt).GetReturnVec();
+  if (!retVec.empty() && !retVec.front().second.IsReg()) {
+    retSym = theMIRModule->GetMIRBuilder()->GetSymbolFromEnclosingScope(retVec.front().first);
+  }
+  auto *newCallNode = theMIRModule->GetMIRBuilder()->CreateStmtCallAssigned(
+      puIdxOfNativeFunc, static_cast<const CallNode&>(stmt).GetNopnd(), retSym, OP_callassigned);
+  func.GetBody()->ReplaceStmt1WithStmt2(&stmt, newCallNode);
+  return true;
+}
+
 void VtableAnalysis::ProcessFunc(MIRFunction *func) {
   if (func->IsEmpty()) {
     return;
@@ -389,6 +483,10 @@ void VtableAnalysis::ProcessFunc(MIRFunction *func) {
     next = stmt->GetNext();
     switch (stmt->GetOpCode()) {
       case OP_virtualcallassigned: {
+        if (ReplaceStringMethodWithNativeMethod(*stmt, *func)) {
+          next = next->GetPrev();
+          break;
+        }
         ReplaceVirtualInvoke(*(static_cast<CallNode*>(stmt)));
         break;
       }
@@ -406,6 +504,7 @@ void VtableAnalysis::ProcessFunc(MIRFunction *func) {
       }
       case OP_call:
       case OP_callassigned: {
+        IdentifyCallerSensitive(*stmt, *func);
         AddNullPointExceptionCheck(*func, *stmt); // npe check
         break;
       }
@@ -711,5 +810,15 @@ void VtableAnalysis::ReplaceInterfaceInvoke(CallNode &stmt) {
   stmt.SetOpCode(OP_interfaceicallassigned);
   stmt.GetNopnd().insert(stmt.GetNopnd().begin(), resolveNode);
   stmt.SetNumOpnds(stmt.GetNumOpnds() + 1);
+}
+
+bool M2MVtableAnalysis::PhaseRun(maple::MIRModule &m) {
+  OPT_TEMPLATE_NEWPM(VtableAnalysis, m)
+  return true;
+}
+
+void M2MVtableAnalysis::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<M2MKlassHierarchy>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

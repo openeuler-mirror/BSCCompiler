@@ -28,8 +28,10 @@ class RegPressureSchedule {
  public:
   RegPressureSchedule (CGFunc &func, MapleAllocator &alloc)
       : cgFunc(func), liveReg(alloc.Adapter()), scheduledNode(alloc.Adapter()),
-        readyList(alloc.Adapter()), partialList(alloc.Adapter()),
-        partialSet(alloc.Adapter()), partialScheduledNode(alloc.Adapter()) {}
+        originalNodeSeries(alloc.Adapter()), readyList(alloc.Adapter()),
+        partialList(alloc.Adapter()), partialSet(alloc.Adapter()),
+        partialScheduledNode(alloc.Adapter()), liveInRegNO(alloc.Adapter()),
+        liveOutRegNO(alloc.Adapter()) {}
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
@@ -51,7 +53,8 @@ class RegPressureSchedule {
   DepNode *ChooseNode();
   void DoScheduling(MapleVector<DepNode*> &nodes);
   void HeuristicScheduling(MapleVector<DepNode*> &nodes);
-
+  int calculateRegisterPressure(MapleVector<DepNode*> &nodes);
+  void partialScheduling(MapleVector<DepNode*> &nodes);
  private:
   void DumpBBPressureInfo() const;
   void DumpBBLiveInfo() const;
@@ -66,6 +69,7 @@ class RegPressureSchedule {
   MapleUnorderedSet<regno_t> liveReg;
   /* save node that has been scheduled. */
   MapleVector<DepNode*> scheduledNode;
+  MapleVector<DepNode*> originalNodeSeries;
   MapleVector<DepNode*> readyList;
   /* save partial nodes to be scheduled */
   MapleVector<DepNode*> partialList;
@@ -74,9 +78,19 @@ class RegPressureSchedule {
   MapleVector<DepNode*> partialScheduledNode;
   /* save split points */
   std::vector<int> splitterIndexes;
+  /* save integer register pressure */
+  std::vector<int> integerRegisterPressureList;
   /* save the amount of every type register. */
   int32 *physicalRegNum = nullptr;
   int32 maxPriority = 0;
+  /* live in register set */
+  MapleSet<regno_t> liveInRegNO;
+  /* live out register set */
+  MapleSet<regno_t> liveOutRegNO;
+  /* register pressure without pre-scheduling */
+  int originalPressure = 0;
+  /* register pressure after pre-scheduling */
+  int scheduledPressure = 0;
 };
 
 enum SimulateType : uint8 {

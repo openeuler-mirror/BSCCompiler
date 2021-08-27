@@ -425,7 +425,7 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
   if (f.GetCfg()->empty()) {
     return false;
   }
-  MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild);
+  MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap is wrong.");
 
   MemPool *renamemp = ApplyTempMemPool();
@@ -436,7 +436,7 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
     return true;
   }
 
-  auto *aliasClass = GET_ANALYSIS(MEAliasClass);
+  auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "");
 
   auto *phase = renamemp->New<SSARename2Preg>(renamemp, &f, f.GetIRMap(), aliasClass);

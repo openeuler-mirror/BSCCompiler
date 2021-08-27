@@ -33,10 +33,10 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
   }
   ReachingDefinition *reachingDef = nullptr;
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2) {
-    reachingDef = GET_ANALYSIS(CgReachingDefinition);
+    reachingDef = GET_ANALYSIS(CgReachingDefinition, f);
   }
   if (reachingDef == nullptr || !f.GetRDStatus()) {
-    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&CgReachingDefinition::id);
+    GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
     return false;
   }
   if (reachingDef->OnlyAnalysisReg()) {
@@ -57,5 +57,4 @@ void CgStoreLoadOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgReachingDefinition>();
   aDep.SetPreservedAll();
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgStoreLoadOpt, storeloadopt)
 }  /* namespace maplebe */

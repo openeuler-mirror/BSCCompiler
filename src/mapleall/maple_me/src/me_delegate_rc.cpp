@@ -824,25 +824,35 @@ void DelegateRC::CleanUpDeadLocalRefVar(const std::set<OStIdx> &liveLocalrefvars
   }
 }
 
-AnalysisResult *MeDoDelegateRC::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+void MEDelegateRC::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEAliasClass>();
+  aDep.SetPreservedAll();
+}
+
+bool MEDelegateRC::PhaseRun(maple::MeFunction &f) {
   static uint32 puCount = 0;
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
+  auto *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
+
   {
+    auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
+    auto *hdse = GetPhaseAllocator()->New<MeHDSE>(f, *dom, *f.GetIRMap(), aliasClass, DEBUGFUNC_NEWPM(f));
     // invoke hdse to update isLive only
-    MeHDSE hdse(*func, *dom, *func->GetIRMap(), DEBUGFUNC(func));
-    hdse.InvokeHDSEUpdateLive();
+    hdse->InvokeHDSEUpdateLive();
   }
-  if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << " Processing " << func->GetMirFunc()->GetName() << '\n';
+
+  if (DEBUGFUNC_NEWPM(f)) {
+    LogInfo::MapleLogger() << " Processing " << f.GetMirFunc()->GetName() << '\n';
   }
-  DelegateRC delegaterc(*func, *dom, NewMemPool(), DEBUGFUNC(func));
+
+  DelegateRC delegaterc(f, *dom, GetPhaseMemPool(), DEBUGFUNC_NEWPM(f));
   if (puCount > MeOption::delRcPULimit) {
     ++puCount;
-    return nullptr;
+    return false;
   }
   if (puCount == MeOption::delRcPULimit) {
-    LogInfo::MapleLogger() << func->GetMirFunc()->GetName()
+    LogInfo::MapleLogger() << f.GetMirFunc()->GetName()
                            << " is last PU optimized by delegaterc under -delrcpulimit option" << '\n';
   }
   // first pass
@@ -855,11 +865,11 @@ AnalysisResult *MeDoDelegateRC::Run(MeFunction *func, MeFuncResultMgr *m, Module
   std::set<OStIdx> liveLocalRefVars = delegaterc.RenameAndGetLiveLocalRefVar();
   // postpass: go through the cleanup intrinsics to delete dead localrefvars
   delegaterc.CleanUpDeadLocalRefVar(liveLocalRefVars);
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After DELEGATE RC =============" << '\n';
-    func->GetIRMap()->Dump();
+    f.GetIRMap()->Dump();
   }
   ++puCount;
-  return nullptr;
+  return true;
 }
 }  // namespace maple

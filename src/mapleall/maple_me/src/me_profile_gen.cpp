@@ -17,7 +17,7 @@
 #include "me_cfg.h"
 #include "me_option.h"
 #include "me_function.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "mir_builder.h"
 
 /*
@@ -143,31 +143,34 @@ bool MeProfGen::CanInstrument() const {
   return true;
 }
 
-AnalysisResult *MeDoProfGen::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  MemPool *tempMp = NewMemPool();
-  if (!func->GetCfg()->empty()) {
+bool MEProfGen::PhaseRun(maple::MeFunction &f) {
+  if (!f.GetCfg()->empty()) {
     MeProfGen::IncTotalFunc();
   }
   // function with try can't determine the instrument BB,because
   // there have critial-edge which can't be split
-  if (func->HasException()) {
-    return nullptr;
+  if (f.HasException()) {
+    return false;
   }
 
-  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
+  auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_FATAL(hMap != nullptr, "hssamap is nullptr");
-  MeProfGen profGen(*func, *tempMp, *hMap, DEBUGFUNC(func));
+  MeProfGen profGen(f, *GetPhaseMemPool(), *hMap, DEBUGFUNC_NEWPM(f));
   if (!profGen.CanInstrument()) {
-    return nullptr;
+    return false;
   }
   profGen.InstrumentFunc();
 
-  if (DEBUGFUNC(func)) {
-    LogInfo::MapleLogger() << "dump edge info in profile gen phase " << func->GetMirFunc()->GetName() << std::endl;
-    func->GetCfg()->DumpToFile("afterProfileGen", false);
+  if (DEBUGFUNC_NEWPM(f)) {
+    LogInfo::MapleLogger() << "dump edge info in profile gen phase " << f.GetMirFunc()->GetName() << std::endl;
+    f.GetCfg()->DumpToFile("afterProfileGen", false);
     profGen.DumpEdgeInfo();
   }
+  return true;
+}
 
-  return nullptr;
+void MEProfGen::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

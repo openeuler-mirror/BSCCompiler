@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_abco.h"
+#include "me_loop_analysis.h"
 
 // This phase removes redundant array bounds checks.
 // ABCD: Eliminating Array Bounds Checks on Demand.
@@ -1080,19 +1081,23 @@ void MeABC::ExecuteABCO() {
   }
 }
 
-AnalysisResult *MeDoABCOpt::Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr*) {
-  CHECK_FATAL(frm != nullptr, "frm is nullptr");
-  auto *dom = static_cast<Dominance*>(frm->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  CHECK_FATAL(dom != nullptr, "dominance phase has problem");
-  auto *irMap = static_cast<MeIRMap*>(frm->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  CHECK_FATAL(irMap != nullptr, "irMap phase has problem");
-  MemPool *abcoMemPool = NewMemPool();
-  MeABC meABC(*func, *dom, *irMap, *abcoMemPool);
+void MEABCOpt::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
+}
+
+bool MEABCOpt::PhaseRun(maple::MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  ASSERT(dom != nullptr, "dominance phase has problem");
+  auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
+  ASSERT(irMap != nullptr, "irMap phase has problem");
+  MeABC meABC(f, *dom, *irMap, *GetPhaseMemPool());
   meABC.ExecuteABCO();
-  if (DEBUGFUNC(func)) {
+  if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After boundary check optimization  =============" << std::endl;
     irMap->Dump();
   }
-  return nullptr;
+  return false;
 }
 }

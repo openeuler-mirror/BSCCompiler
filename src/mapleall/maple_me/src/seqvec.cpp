@@ -120,7 +120,6 @@ bool SeqVectorize::HasVecType(PrimType sPrimType, uint8 lanes) {
   return true;
 }
 
-// TODO:: move to mirtype?
 MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) {
    MIRType *vecType = nullptr;
    CHECK_FATAL(IsPrimitiveInteger(sPrimType), "primtype should be integer");
@@ -192,6 +191,7 @@ MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) {
          ASSERT(0, "unsupported i64 vector lanes");
        }
      }
+     [[clang::fallthrough]];
      case PTY_u64:
      case PTY_a64: {
        if (lanes == 2) {
@@ -200,6 +200,7 @@ MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) {
          ASSERT(0, "unsupported a64/u64 vector lanes");
        }
      }
+     [[clang::fallthrough]];
      case PTY_ptr: {
        if (GetPrimTypeSize(sPrimType) == 4) {
          if (lanes == 4)  {
@@ -409,7 +410,7 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
     // check base opnds number are same
     if (base1NumOpnds != base2NumOpnds) return false;
     // check base low dimensions expr are same
-    for (int32_t i = 1; i < (int32_t)base1NumOpnds-1; i++) {
+    for (int32_t i = 1; i < (int32_t)base1NumOpnds - 1; i++) {
       if (base1->GetOpnd(i) != base2->GetOpnd(i)) {
         return false;
       }
@@ -455,7 +456,7 @@ bool SeqVectorize::CanSeqVec(IassignNode *s1, IassignNode *s2) {
   return true;
 }
 
-static int previousPowerOfTwo(unsigned int x) {
+static int PreviousPowerOfTwo(unsigned int x) {
   return 1 << ((sizeof(x)*8 - 1) - __builtin_clz(x));
 }
 
@@ -469,7 +470,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   int32_t start = 0;
   do {
     IassignNode *iassign = cands[start];
-    uint32_t candCountP2 = previousPowerOfTwo(len);
+    uint32_t candCountP2 = PreviousPowerOfTwo(len);
     uint32_t lanes = (candCountP2 <  maxLanes) ? candCountP2 : maxLanes;
     if (!HasVecType(ptType, lanes)) {
       break; // early quit if ptType and lanes has no vectype
@@ -507,7 +508,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     }
 
     // delete merged iassignode
-    for (int i = start+1; i < start+lanes; i++) {
+    for (int i = start + 1; i < start + lanes; i++) {
       blockParent->RemoveStmt(cands[i]);
     }
     len = len - lanes;
@@ -526,7 +527,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
-    for (int j = i+1; j < len; j++) {
+    for (int j = i + 1; j < len; j++) {
       IassignNode *store2 = (*storelist)[j];
       if (CanSeqVec(cands.back(), store2)) {
         cands.push_back(store2);
@@ -541,11 +542,11 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
   }
 
   if (!needReverse) return;
-  for (int i = len-1; i >= 0; i--) {
+  for (int i = len - 1; i >= 0; i--) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
-    for (int j = i-1; j >= 0; j--) {
+    for (int j = i - 1; j >= 0; j--) {
       IassignNode *store2 = (*storelist)[j];
       if (CanSeqVec(cands.back(), store2)) {
         cands.push_back(store2);
@@ -643,5 +644,4 @@ void SeqVectorize::VisitNode(StmtNode *stmt) {
 void SeqVectorize::Perform() {
   VisitNode(mirFunc->GetBody());
 }
-
 }  // namespace maple

@@ -23,15 +23,14 @@
 #include "seqvec.h"
 
 namespace maple {
-
 bool MEAutoVectorization::PhaseRun(MeFunction &f) {
   // generate lfo IR
-  LfoPreEmitter *lfoemit = GET_ANALYSIS(MELfoPreEmission);
+  LfoPreEmitter *lfoemit = GET_ANALYSIS(MELfoPreEmission, f);
   CHECK_NULL_FATAL(lfoemit);
 
   if (MeOption::loopVec) {
     // step 1: get dependence graph for each loop
-    auto *lfodepInfo = GET_ANALYSIS(MELfoDepTest);
+    auto *lfodepInfo = GET_ANALYSIS(MELfoDepTest, f);
     CHECK_NULL_FATAL(lfodepInfo);
 
     if (DEBUGFUNC_NEWPM(f)) {
