@@ -621,7 +621,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile() || st->GetAttr(ATTR_oneelem_simd)) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr()) {
     return varMeExpr;
   }
 
@@ -630,6 +630,10 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
     ASSERT(defStmt != nullptr, "dynamic cast result is nullptr");
     MeExpr *rhs = defStmt->GetRHS();
     if (rhs->GetDepth() > kPropTreeLevel) {
+      return varMeExpr;
+    }
+    if (rhs->GetOp() == OP_select) {
+      // select will generate many insn in cg, do not prop
       return varMeExpr;
     }
     Propagatability propagatable = Propagatable(rhs, defStmt->GetBB(), atParm, true, &varMeExpr);

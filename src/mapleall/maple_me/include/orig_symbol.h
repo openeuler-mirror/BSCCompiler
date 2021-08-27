@@ -66,6 +66,23 @@ class OriginalSt {
     return false;
   }
 
+  bool HasOneElemSimdAttr() const {
+    if (ostType == kSymbolOst) {
+      TypeAttrs typeAttr = symOrPreg.mirSt->GetAttrs();
+      if (typeAttr.GetAttr(ATTR_oneelem_simd)) {
+        return true;
+      }
+      if (fieldID != 0) {
+        MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(symOrPreg.mirSt->GetTyIdx()));
+        FieldAttrs fattrs = structType->GetFieldAttrs(fieldID);
+        if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   bool IsLocal() const {
     return isLocal;
   }
