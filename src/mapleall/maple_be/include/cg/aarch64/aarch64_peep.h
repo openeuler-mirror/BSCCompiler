@@ -62,6 +62,25 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 };
 
+/*
+ * add xt, xn, #imm               add  xt, xn, xm
+ * ldr xd, [xt]                   ldr xd, [xt]
+ * =====================>
+ * ldr xd, [xn, #imm]             ldr xd, [xn, xm]
+ *
+ * load/store can do extend shift as well
+ */
+class EnhanceStrLdrAArch64 : public PeepPattern {
+ public:
+  explicit EnhanceStrLdrAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~EnhanceStrLdrAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+  bool IsEnhanceAddImm(MOperator prevMop);
+  bool IsSameRegisterOperation(RegOperand &desMovOpnd, RegOperand &uxtDestOpnd, RegOperand &uxtFromOpnd);
+};
+
 /* Eliminate the sxt[b|h|w] w0, w0;, when w0 is satisify following:
  * i)  mov w0, #imm (#imm is not out of range)
  * ii) ldrs[b|h] w0, [MEM]
@@ -113,6 +132,27 @@ class CbnzToCbzAArch64 : public PeepPattern {
   explicit CbnzToCbzAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~CbnzToCbzAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
+};
+
+/* i.   cset    w0, EQ
+ *      cbnz    w0, .label    ===> beq .label
+ *
+ * ii.  cset    w0, EQ
+ *      cbz    w0, .label     ===> bne .label
+ *
+ * iii. cset    w0, NE
+ *      cbnz    w0, .label    ===> bne .label
+ *
+ * iiii.cset    w0, NE
+ *      cbz    w0, .label     ===> beq .label
+ * ... ...
+ */
+class CsetCbzToBeqOptAArch64 : public PeepPattern {
+ public:
+  explicit CsetCbzToBeqOptAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~CsetCbzToBeqOptAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  MOperator SelectMOperator(AArch64CC_t condCode, bool inverse) const;
 };
 
 /* When exist load after load or load after store, and [MEM] is
@@ -192,6 +232,35 @@ class ReplaceDivToMultiAArch64 : public PeepPattern {
 
 /*
  * Optimize the following patterns:
+ *  and  w0, w0, #imm  ====> tst  w0, #imm
+ *  cmp  w0, #0              beq/bne  .label
+ *  beq/bne  .label
+ *
+ *  and  x0, x0, #imm  ====> tst  x0, #imm
+ *  cmp  x0, #0              beq/bne  .label
+ *  beq/bne  .label
+ */
+class AndCmpBranchesToTstAArch64 : public PeepPattern {
+ public:
+  explicit AndCmpBranchesToTstAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~AndCmpBranchesToTstAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+};
+
+/*
+ * Optimize the following patterns:
+ *  and  w0, w0, #imm  ====> tst  w0, #imm
+ *  cbz/cbnz  .label         beq/bne  .label
+ */
+class AndCbzBranchesToTstAArch64 : public PeepPattern {
+ public:
+  explicit AndCbzBranchesToTstAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~AndCbzBranchesToTstAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+};
+
+/*
+ * Optimize the following patterns:
  *  and  w0, w0, #1  ====> and  w0, w0, #1
  *  cmp  w0, #1
  *  cset w0, EQ
@@ -209,6 +278,25 @@ class ReplaceDivToMultiAArch64 : public PeepPattern {
  *  cset w0, NE
  *  conditions:
  *  imm is pos power of 2
+ *
+ *  ---------------------------------------------------
+ *  and  w0, w0, #1  ====> and  wn, w0, #1
+ *  cmp  w0, #1
+ *  cset wn, EQ        # wn != w0 && w0 is not live after cset
+ *
+ *  and  w0, w0, #1  ====> and  wn, w0, #1
+ *  cmp  w0, #0
+ *  cset wn, NE        # wn != w0 && w0 is not live after cset
+ *  ---------------------------------------------------
+ *  and  w0, w0, #imm  ====> ubfx  wn, w0, pos, size
+ *  cmp  w0, #imm
+ *  cset wn, EQ        # wn != w0 && w0 is not live after cset
+ *
+ *  and  w0, w0, #imm  ====> ubfx  wn, w0, pos, size
+ *  cmp  w0, #0
+ *  cset wn, NE        # wn != w0 && w0 is not live after cset
+ *  conditions:
+ *  imm is pos power of 2 and w0 is not live after cset
  */
 class AndCmpBranchesToCsetAArch64 : public PeepPattern {
  public:
@@ -216,7 +304,6 @@ class AndCmpBranchesToCsetAArch64 : public PeepPattern {
   ~AndCmpBranchesToCsetAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 };
-
 /*
  * We optimize the following pattern in this function:
  * cmp w[0-9]*, wzr  ====> tbz w[0-9]*, #31, .label
@@ -482,7 +569,7 @@ class ComplexMemOperandLSLAArch64 : public PeepPattern {
  public:
   explicit ComplexMemOperandLSLAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~ComplexMemOperandLSLAArch64() override = default;
-  bool CheckShiftValid(const AArch64MemOperand &memOpnd, BitShiftOperand &lsl) const;
+  bool CheckShiftValid(const Insn &insn, BitShiftOperand &lsl) const;
   void Run(BB &bb, Insn &insn) override;
 };
 
@@ -643,11 +730,14 @@ class AArch64PeepHole : public PeepPatternMatch {
     kEliminateSpecifcUXTOpt,
     kFmovRegOpt,
     kCbnzToCbzOpt,
+    kCsetCbzToBeqOpt,
     kContiLDRorSTRToSameMEMOpt,
     kRemoveIncDecRefOpt,
     kInlineReadBarriersOpt,
     kReplaceDivToMultiOpt,
     kAndCmpBranchesToCsetOpt,
+    kAndCmpBranchesToTstOpt,
+    kAndCbzBranchesToTstOpt,
     kZeroCmpBranchesOpt,
     kPeepholeOptsNum
   };
@@ -691,6 +781,7 @@ class AArch64PrePeepHole : public PeepPatternMatch {
     kComplexMemOperandOptLabel,
     kWriteFieldCallOpt,
     kDuplicateExtensionOpt,
+    kEnhanceStrLdrAArch64Opt,
     kPeepholeOptsNum
   };
 };
