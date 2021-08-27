@@ -110,6 +110,8 @@ bool MeOption::meVerify = false;
 uint32 MeOption::dseRunsLimit = 2;    // dse phase run at most 2 times each PU
 uint32 MeOption::hdseRunsLimit = 3;   // hdse phase run at most 3 times each PU
 uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
+bool MeOption::loopVec = true;
+bool MeOption::seqVec = true;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -230,6 +232,8 @@ enum OptionIndex {
   kDseRunsLimit,
   kHdseRunsLimit,
   kHpropRunsLimit,
+  kLoopVec,
+  kSeqVec,
 };
 
 const Descriptor kUsage[] = {
@@ -1105,6 +1109,26 @@ const Descriptor kUsage[] = {
     "                              \t--hproprunslimit=NUM\n",
     "me",
     {} },
+  { kLoopVec,
+    kEnable,
+    "",
+    "loopvec",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --loopvec                   \tEnable auto loop vectorization\n"
+    "  --no-loopvec                \tDisable auto loop vectorization\n",
+    "me",
+    {} },
+  { kSeqVec,
+    kEnable,
+    "",
+    "seqvec",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --seqvec                   \tEnable auto sequencial vectorization\n"
+    "  --no-seqvec                \tDisable auto sequencial vectorization\n",
+    "me",
+    {} },
 #if MIR_JAVA
   { kMeAcquireFunc,
     0,
@@ -1546,6 +1570,12 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kHpropRunsLimit:
         hpropRunsLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kLoopVec:
+        loopVec = (opt.Type() == kEnable);
+        break;
+      case kSeqVec:
+        seqVec = (opt.Type() == kEnable);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:

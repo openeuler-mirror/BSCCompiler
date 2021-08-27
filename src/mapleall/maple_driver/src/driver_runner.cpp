@@ -24,6 +24,7 @@
 #include "lower.h"
 #include "me_phase_manager.h"
 #include "lfo_loop_vec.h"
+#include "seqvec.h"
 #if TARGAARCH64 || TARGRISCV64
 #include "aarch64/aarch64_emitter.h"
 #elif TARGARM32
@@ -217,6 +218,7 @@ void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vt
   // dump vectorized loop counter here
   {
     LogInfo::MapleLogger() << "\n" << LoopVectorization::vectorizedLoop << " loop vectorized\n";
+    LogInfo::MapleLogger() << "\n" << SeqVectorize::seqVecStores << " sequencestores vectorized\n";
   }
 }
 
