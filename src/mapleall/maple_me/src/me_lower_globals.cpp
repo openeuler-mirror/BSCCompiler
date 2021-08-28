@@ -140,14 +140,13 @@ void MeLowerGlobals::Run() {
         iass->SetBB(bb);
         iass->SetSrcPos(dass.GetSrcPosition());
         iass->SetIsLive(true);
-        auto zeroVersionVar = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
-        lhsIvar->SetMuVal(static_cast<ScalarMeExpr*>(zeroVersionVar));
 
         auto chiNode = irMap->New<ChiMeNode>(iass);
         chiNode->SetLHS(dass.GetVarLHS());
         dass.GetVarLHS()->SetDefBy(kDefByChi);
         dass.GetVarLHS()->SetDefChi(*chiNode);
 
+        auto zeroVersionVar = irMap->GetOrCreateZeroVersionVarMeExpr(*ost);
         chiNode->SetRHS(static_cast<ScalarMeExpr*>(zeroVersionVar));
         iass->GetChiList()->insert(std::make_pair(ost->GetIndex(), chiNode));
         auto chiList = dass.GetChiList();

@@ -119,7 +119,7 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
       if (regExpr.GetRegIdx() < 0) {
         return meExpr;
       }
-      MeExpr &propMeExpr = PropReg(regExpr, atParm);
+      MeExpr &propMeExpr = PropReg(regExpr, atParm, true);
       if (&propMeExpr != &regExpr) {
         isproped = true;
       }
@@ -134,16 +134,14 @@ MeExpr &CopyProp::PropMeExpr(MeExpr &meExpr, bool &isproped, bool atParm) {
         return meExpr;
       }
 
-      if ((base->GetMeOp() == kMeOpVar || base->GetMeOp() == kMeOpReg) &&
-          !PropagatableBaseOfIvar(ivarMeExpr, propedExpr)) {
-        return meExpr;
+      if (!(base->GetMeOp() == kMeOpVar || base->GetMeOp() == kMeOpReg) ||
+          PropagatableBaseOfIvar(ivarMeExpr, propedExpr)) {
+        isproped = true;
+        IvarMeExpr newMeExpr(-1, *ivarMeExpr);
+        newMeExpr.SetBase(propedExpr);
+        newMeExpr.SetDefStmt(nullptr);
+        ivarMeExpr = static_cast<IvarMeExpr*>(irMap.HashMeExpr(newMeExpr));
       }
-
-      isproped = true;
-      IvarMeExpr newMeExpr(-1, *ivarMeExpr);
-      newMeExpr.SetBase(propedExpr);
-      newMeExpr.SetDefStmt(nullptr);
-      ivarMeExpr = static_cast<IvarMeExpr*>(irMap.HashMeExpr(newMeExpr));
 
       auto &propedIvar = PropIvar(*ivarMeExpr);
       if (PropagatableByCopyProp(&propedIvar)) {
