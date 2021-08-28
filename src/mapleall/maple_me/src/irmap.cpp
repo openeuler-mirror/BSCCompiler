@@ -17,616 +17,17 @@
 #include "ssa.h"
 #include "mir_builder.h"
 #include "constantfold.h"
+#include "cast_opt.h"
 
 namespace maple {
-// For controlling cast elimination
-static constexpr bool simplifyCastExpr = true;
-static constexpr bool simplifyCastAssign = true;
-static constexpr bool printSimplifyCastLog = false;
-static constexpr auto kNumCastKinds = static_cast<uint32>(CAST_unknown);
-
-static const char *GetCastKindName(CastKind castKind) {
-  static const char* castKindNameArr[] = { "intTrunc", "zext", "sext", "int2fp", "fp2int",
-                                           "fpTrunc", "fpExt", "retype", "unknown" };
-  auto index = static_cast<uint32>(castKind);
-  CHECK_FATAL(index <= kNumCastKinds, "invalid castKind value");
-  return castKindNameArr[index];
-}
-
-struct CastInfo {
-  CastKind kind = CAST_unknown;
-  PrimType srcType = PTY_begin;
-  PrimType dstType = PTY_end;
-  void Dump() const {
-    LogInfo::MapleLogger() << GetCastKindName(kind) << " " <<
-        GetPrimTypeName(dstType) << " " << GetPrimTypeName(srcType);
-  }
-};
-
-static uint32 GetPrimTypeActualBitSize(PrimType primType) {
-  // GetPrimTypeSize(PTY_u1) will return 1, so we take it as a special case
-  if (primType == PTY_u1) {
-    return 1;
-  }
-  // 1 byte = 8 bits = 2^3 bits
-  return GetPrimTypeSize(primType) << 3;
-}
-
-static bool IsCompareMeExpr(const MeExpr &expr) {
-  Opcode op = expr.GetOp();
-  if (op == OP_eq || op == OP_ne || op == OP_ge || op == OP_gt || op == OP_le || op == OP_lt) {
-    return true;
-  }
-  return false;
-}
-
-// This interface is conservative, which means that some op are explicit type cast but
-// the interface returns false.
-static bool IsCastMeExprExplicit(const MeExpr &expr) {
-  Opcode op = expr.GetOp();
-  // Maybe we can add more explicit cast op later such as `trunc`, `extractbits` etc.
-  if (op == OP_cvt || op == OP_retype) {
-    return true;
-  }
-  if (op == OP_zext || op == OP_sext ) {
-    // Not all zext/sext is type cast
-    auto bitSize = static_cast<const OpMeExpr&>(expr).GetBitsSize();
-    if (bitSize == 1 || bitSize == 8 || bitSize == 16 || bitSize == 32 || bitSize == 64) {
-      return true;
-    }
-    return false; // This is not type cast but bit operation
-  }
-  return false;
-}
-
-// This interface is conservative, which means that some op are implicit type cast but
-// the interface returns false.
-static bool IsCastMeExprImplicit(const MeExpr &expr) {
-  Opcode op = expr.GetOp();
-  // MEIR varMeExpr has no implicit cast, so dread is not included
-  if (op == OP_regread) {
-    PrimType dstType = expr.GetPrimType();
-    if (!IsPrimitiveInteger(dstType)) {
-      return false;
-    }
-    const auto &scalarExpr = static_cast<const ScalarMeExpr&>(expr);
-    PrimType srcType = scalarExpr.GetOst()->GetType()->GetPrimType();
-    // Only consider regread with implicit integer extension
-    if (GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-      // To delete: never be here?
-      CHECK_FATAL(false, "never be here?");
-      return true;
-    }
-  } else if (op == OP_iread) {
-    PrimType dstType = expr.GetPrimType();
-    if (!IsPrimitiveInteger(dstType)) {
-      return false;
-    }
-    const auto &ivarExpr = static_cast<const IvarMeExpr&>(expr);
-    PrimType srcType = ivarExpr.GetType()->GetPrimType();
-    // Only consider iread with implicit integer extension
-    if (GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static CastKind GetCastKindByTwoType(PrimType fromType, PrimType toType) {
-  // This is a workaround, we don't optimize `cvt u1 xx <expr>` because it will be converted to
-  // `ne u1 xx (<expr>, constval xx 0)`. There is no `cvt u1 xx <expr>` in the future.
-  if (toType == PTY_u1 && fromType != PTY_u1) {
-    return CAST_unknown;
-  }
-  const uint32 fromTypeBitSize = GetPrimTypeActualBitSize(fromType);
-  const uint32 toTypeBitSize = GetPrimTypeActualBitSize(toType);
-  // Both integer, ptr/ref/a64/u64... are also integer
-  if (IsPrimitiveInteger(fromType) && IsPrimitiveInteger(toType)) {
-    if (toTypeBitSize == fromTypeBitSize) {
-      return CAST_retype;
-    } else if (toTypeBitSize < fromTypeBitSize) {
-      return CAST_intTrunc;
-    } else {
-      return IsSignedInteger(fromType) ? CAST_sext : CAST_zext;
-    }
-  }
-  // Both fp
-  if (IsPrimitiveFloat(fromType) && IsPrimitiveFloat(toType)) {
-    if (toTypeBitSize == fromTypeBitSize) {
-      return CAST_retype;
-    } else if (toTypeBitSize < fromTypeBitSize) {
-      return CAST_fpTrunc;
-    } else {
-      return CAST_fpExt;
-    }
-  }
-  // int2fp
-  if (IsPrimitiveInteger(fromType) && IsPrimitiveFloat(toType)) {
-    return CAST_int2fp;
-  }
-  // fp2int
-  if (IsPrimitiveFloat(fromType) && IsPrimitiveInteger(toType)) {
-    return CAST_fp2int;
-  }
-  return CAST_unknown;
-}
-
-static PrimType GetIntegerPrimTypeBySizeAndSign(size_t sizeBit, bool isSign) {
-  switch (sizeBit) {
-    case 1: {
-      CHECK_FATAL(!isSign, "no i1 type");
-      return PTY_u1;
-    }
-    case 8: {
-      return isSign ? PTY_i8 : PTY_u8;
-    }
-    case 16: {
-      return isSign ? PTY_i16 : PTY_u16;
-    }
-    case 32: {
-      return isSign ? PTY_i32 : PTY_u32;
-    }
-    case 64: {
-      return isSign ? PTY_i64 : PTY_u64;
-    }
-    default: {
-      LogInfo::MapleLogger() << sizeBit << ", isSign = " << isSign << std::endl;
-      CHECK_FATAL(false, "not supported");
-    }
-  }
-}
-
-// If the computed castInfo.castKind is CAST_unknown, the computed castInfo is invalid
-static void ComputeCastInfoForExpr(const MeExpr &expr, CastInfo &castInfo) {
-  Opcode op = expr.GetOp();
-  PrimType dstType = expr.GetPrimType();
-  PrimType srcType = PTY_begin;
-  CastKind castKind = CAST_unknown;
-  switch (op) {
-    case OP_zext:
-    case OP_sext: {
-      size_t sizeBit = static_cast<const OpMeExpr&>(expr).GetBitsSize();
-      // The code can be improved
-      // exclude: sext ixx 1 <expr> because there is no i1 type
-      if (sizeBit == 1 && op == OP_sext) {
-        break;
-      }
-      if (sizeBit == 1 || sizeBit == 8 || sizeBit == 16 || sizeBit == 32 || sizeBit == 64) {
-        srcType = GetIntegerPrimTypeBySizeAndSign(sizeBit, op == OP_sext);
-        castKind = (op == OP_sext ? CAST_sext : CAST_zext);
-      }
-      break;
-    }
-    case OP_retype: {
-      const auto &retypeExpr = static_cast<const OpMeExpr&>(expr);
-      MeExpr *opnd = retypeExpr.GetOpnd(0);
-      if (opnd == nullptr) {
-        break;
-      }
-      // retype's opndType is invalid, we use opnd's primType
-      srcType = opnd->GetPrimType();
-      if (GetPrimTypeActualBitSize(dstType) != GetPrimTypeActualBitSize(srcType)) {
-        // Example: retype u8 <u8> (iread i32 <* i8> 0 ...)
-        // In the above example, dstType is u8, but we get srcType i32 from iread.
-        // We won't optimize such retype unless we can get real opnd type for all kinds of opnds.
-        // We will improve it if possible.
-        break;
-      }
-      castKind = CAST_retype;
-      break;
-    }
-    case OP_cvt: {
-      srcType = static_cast<const OpMeExpr&>(expr).GetOpndType();
-      if (srcType == PTY_u1 && dstType != PTY_u1) {
-        srcType = PTY_u8;  // From the codegen view, `cvt xx u1` is always same as `cvt xx u8`
-      }
-      castKind = GetCastKindByTwoType(srcType, dstType);
-      break;
-    }
-    case OP_regread: {
-      const auto &scalarExpr = static_cast<const ScalarMeExpr&>(expr);
-      srcType = scalarExpr.GetOst()->GetType()->GetPrimType();
-      // Only consider dread/regread with implicit integer extension
-      if (IsPrimitiveInteger(srcType) && GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-        castKind = (IsSignedInteger(srcType) ? CAST_sext : CAST_zext);
-      }
-      break;
-    }
-    case OP_iread: {
-      const auto &ivarExpr = static_cast<const IvarMeExpr&>(expr);
-      srcType = ivarExpr.GetType()->GetPrimType();
-      // Only consider iread with implicit integer extension
-      if (IsPrimitiveInteger(srcType) && GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-        castKind = (IsSignedInteger(srcType) ? CAST_sext : CAST_zext);
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  castInfo.kind = castKind;
-  castInfo.srcType = srcType;
-  castInfo.dstType = dstType;
-}
-
-static const uint8 castMatrix[kNumCastKinds][kNumCastKinds] = {
-    // i        i  f  f     r  -+
-    // t        n  p  t  f  e   |
-    // r  z  s  t  2  r  p  t   +- secondCastKind
-    // u  e  e  2  i  u  e  y   |
-    // n  x  x  f  n  n  x  p   |
-    // c  t  t  p  t  c  t  e  -+
-    {  1, 0, 0, 0,99,99,99, 3 },  // intTrunc   -+
-    {  8, 9, 9,10,99,99,99, 3 },  // zext        |
-    {  8, 0, 9, 0,99,99,99, 3 },  // sext        |
-    { 99,99,99,99, 0, 0, 0, 4 },  // int2fp      |
-    {  0, 0, 0, 0,99,99,99, 3 },  // fp2int      +- firstCastKind
-    { 99,99,99,99, 0, 0, 0, 4 },  // fpTrunc     |
-    { 99,99,99,99, 2, 8, 2, 4 },  // fpExt       |
-    {  5, 7, 7,11, 6, 6, 6, 1 },  // retype     -+
-};
-
-// This function determines whether to eliminate a cast pair according to castMatrix
-// Input is a cast pair like this:
-//   secondCastKind dstType midType2 (firstCastKind midType1 srcType)
-// If the function returns a valid resultCastKind, the cast pair can be optimized to:
-//   resultCastKind dstType srcType
-// If the cast pair can NOT be eliminated, -1 will be returned.
-// ATTENTION: This function may modify srcType
-static int IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKind,
-                         PrimType dstType, PrimType midType2, PrimType midType1, PrimType &srcType) {
-  int castCase = castMatrix[firstCastKind][secondCastKind];
-  uint32 srcSize = GetPrimTypeActualBitSize(srcType);
-  uint32 midSize1 = GetPrimTypeActualBitSize(midType1);
-  uint32 midSize2 = GetPrimTypeActualBitSize(midType2);
-  uint32 dstSize = GetPrimTypeActualBitSize(dstType);
-
-  switch (castCase) {
-    case 0: {
-      // Not allowed
-      return -1;
-    }
-    case 1: {
-      // first intTrunc, then intTrunc
-      // Example: cvt u16 u32 (cvt u32 u64)  ==>  cvt u16 u64
-      // first retype, then retype
-      // Example: retype i64 u64 (retype u64 ptr)  ==>  retype i64 ptr
-      return firstCastKind;
-    }
-    case 2: {
-      // first fpExt, then fpExt
-      // Example: cvt f128 f64 (cvt f64 f32)  ==>  cvt f128 f32
-      // first fpExt, then fp2int
-      // Example: cvt i64 f64 (cvt f64 f32)  ==>  cvt i64 f32
-      return secondCastKind;
-    }
-    case 3: {
-      if (IsPrimitiveInteger(dstType)) {
-        return firstCastKind;
-      }
-      return -1;
-    }
-    case 4: {
-      if (IsPrimitiveFloat(dstType)) {
-        return firstCastKind;
-      }
-      return -1;
-    }
-    case 5: {
-      if (IsPrimitiveInteger(srcType)) {
-        return secondCastKind;
-      }
-      return -1;
-    }
-    case 6: {
-      if (IsPrimitiveFloat(srcType)) {
-        return secondCastKind;
-      }
-      return -1;
-    }
-    case 7: {
-      // first integer retype, then sext/zext
-      if (IsPrimitiveInteger(srcType) && dstSize >= midSize1) {
-        CHECK_FATAL(srcSize == midSize1, "must be");
-        if (midSize2 >= srcSize) {
-          return secondCastKind;
-        }
-        // Example: zext u64 8 (retype u32 i32)  ==>  zext u64 8
-        srcType = midType2;
-        return secondCastKind;
-      }
-      return -1;
-    }
-    case 8: {
-      if (srcSize == dstSize) {
-        return CAST_retype;
-      } else if (srcSize < dstSize) {
-        return firstCastKind;
-      } else {
-        return secondCastKind;
-      }
-    }
-    // For integer extension pair
-    case 9: {
-      // first zext, then sext
-      // Extreme example: sext i32 16 (zext u64 8)  ==> zext i32 8
-      if (firstCastKind != secondCastKind && midSize2 <= midSize1) {
-        if (midSize2 > srcSize) {
-          // The first extension works. After the first zext, the most significant bit must be 0, so the second sext
-          // is actually a zext.
-          // Example: sext i64 16 (zext u32 8)  ==> zext i64 8
-          return firstCastKind;
-        }
-        // midSize2 <= srcSize
-        // The first extension didn't work
-        // Example: sext i64 8 (zext u32 16)  ==> sext i64 8
-        // Example: sext i16 8 (zext u32 16)  ==> sext i16 8
-        srcType = midType2;
-        return secondCastKind;
-      }
-
-      // first zext, then zext
-      // first sext, then sext
-      // Example: sext i32 8 (sext i32 8)  ==>  sext i32 8
-      // Example: zext u16 1 (zext u32 8)  ==>  zext u16 1    it's ok
-      // midSize2 < srcSize:
-      // Example: zext u64 8 (zext u32 16)  ==> zext u64 8
-      // Example: sext i64 8 (sext i32 16)  ==> sext i64 8
-      // Example: zext i32 1 (zext u32 8)  ==> zext i32 1
-      // Wrong example (midSize2 > midSize1): zext u64 32 (zext u16 8)  =[x]=>  zext u64 8
-      if (firstCastKind == secondCastKind && midSize2 <= midSize1) {
-        if (midSize2 < srcSize) {
-          srcType = midType2;
-        }
-        return secondCastKind;
-      }
-      return -1;
-    }
-    case 10: {
-      // first zext, then int2fp
-      if (IsSignedInteger(midType2)) {
-        return secondCastKind;
-      }
-      // To improved: consider unsigned
-      return -1;
-    }
-    case 11: {
-      // first retype, then int2fp
-      if (IsPrimitiveInteger(srcType)) {
-        if (IsSignedInteger(srcType) != IsSignedInteger(midType1)) {
-          // If sign diffs, use toType of retype
-          // Example: cvt f64 i64 (retype i64 u64)  ==>  cvt f64 i64
-          srcType = midType1;
-        }
-        return secondCastKind;
-      }
-      return -1;
-    }
-    case 99: {
-      CHECK_FATAL(false, "invalid cast pair");
-    }
-    default: {
-      CHECK_FATAL(false, "can not be here, is castMatrix wrong?");
-    }
-  }
-}
-
-MeExpr *IRMap::CreateMeExprByCastKind(CastKind castKind, PrimType srcType, PrimType dstType, MeExpr *opnd,
-                                      TyIdx dstTyIdx) {
-  if (castKind == CAST_zext) {
-    return CreateMeExprExt(OP_zext, dstType, GetPrimTypeActualBitSize(srcType), *opnd);
-  } else if (castKind == CAST_sext) {
-    return CreateMeExprExt(OP_sext, dstType, GetPrimTypeActualBitSize(srcType), *opnd);
-  } else if (castKind == CAST_retype && srcType == opnd->GetPrimType()) {
-    // If srcType is different from opnd->primType, we should create cvt instead of retype.
-    // Because CGFunc::SelectRetype always use opnd->primType as srcType.
-    CHECK_FATAL(dstTyIdx != 0, "must specify valid tyIdx for retype");
-    return CreateMeExprRetype(dstType, dstTyIdx, *opnd);
-  } else {
-    return CreateMeExprTypeCvt(dstType, srcType, *opnd);
-  }
-}
-
-// The input castExpr must be a explicit cast expr
-MeExpr *IRMap::SimplifyCastSingle(MeExpr *castExpr) {
-  MeExpr *opnd = castExpr->GetOpnd(0);
-  if (opnd == nullptr) {
-    return nullptr;
-  }
-  CastInfo castInfo;
-  ComputeCastInfoForExpr(*castExpr, castInfo);
-  // cast to integer + compare  ==>  compare
-  if (castInfo.kind != CAST_unknown && IsPrimitiveInteger(castInfo.dstType) && IsCompareMeExpr(*opnd)) {
-    // exclude the following castExpr:
-    //   sext xx 1 <expr>
-    bool excluded = (castExpr->GetOp() == OP_sext && static_cast<OpMeExpr*>(castExpr)->GetBitsSize() == 1);
-    if (!excluded) {
-      opnd->SetPtyp(castExpr->GetPrimType());
-      return HashMeExpr(*opnd);
-    }
-  }
-  // cast + const  ==>  const
-  if (castInfo.kind != CAST_unknown && castInfo.kind != CAST_retype && opnd->GetMeOp() == kMeOpConst) {
-    ConstantFold cf(mirModule);
-    MIRConst *cst =
-        cf.FoldTypeCvtMIRConst(*static_cast<ConstMeExpr *>(opnd)->GetConstVal(),
-                               castInfo.srcType, castInfo.dstType);
-    if (cst != nullptr) {
-      return CreateConstMeExpr(castInfo.dstType, *cst);
-    }
-  }
-  if (opnd->GetOp() == OP_dread && (castInfo.kind == CAST_zext || castInfo.kind == CAST_sext)) {
-    auto *varExpr = static_cast<VarMeExpr*>(opnd);
-    if (varExpr->GetPrimType() == PTY_u1) {
-      // zext/sext + dread u1 %var ==>  dread u1 %var
-      return opnd;
-    }
-    if (varExpr->GetDefBy() == kDefByStmt) {
-      MeStmt *defStmt = varExpr->GetDefByMeStmt();
-      if (defStmt->GetOp() == OP_dassign && IsCompareMeExpr(*static_cast<DassignMeStmt*>(defStmt)->GetRHS())) {
-        // zext/sext + dread non-u1 %var (%var is defined by compare op)  ==>  dread non-u1 %var
-        return opnd;
-      }
-    }
-  }
-  if (castInfo.dstType == opnd->GetPrimType() &&
-      GetPrimTypeActualBitSize(castInfo.srcType) >= GetPrimTypeActualBitSize(opnd->GetPrimType())) {
-    return opnd;
-  }
-  return nullptr;
-}
-
-// The firstCastExpr may be a implicit cast expr
-// The secondCastExpr must be a explicit cast expr
-MeExpr *IRMap::SimplifyCastPair(MeExpr *firstCastExpr, MeExpr *secondCastExpr, bool isFirstCastImplicit) {
-  CastInfo firstCastInfo;
-  CastInfo secondCastInfo;
-  ComputeCastInfoForExpr(*firstCastExpr, firstCastInfo);
-  if (firstCastInfo.kind == CAST_unknown) {
-    // We can NOT eliminate the first cast, try to simplify the second cast individually
-    return SimplifyCastSingle(secondCastExpr);
-  }
-  ComputeCastInfoForExpr(*secondCastExpr, secondCastInfo);
-  if (secondCastInfo.kind == CAST_unknown) {
-    return nullptr;
-  }
-  PrimType srcType = firstCastInfo.srcType;
-  PrimType origSrcType = srcType;
-  PrimType midType1 = firstCastInfo.dstType;
-  PrimType midType2 = secondCastInfo.srcType;
-  PrimType dstType = secondCastInfo.dstType;
-  uint32 result = IsEliminableCastPair(firstCastInfo.kind, secondCastInfo.kind, dstType, midType2, midType1, srcType);
-  if (result == -1) {
-    return SimplifyCastSingle(secondCastExpr);
-  }
-  auto resultCastKind = CastKind(result);
-  MeExpr *toCastExpr = firstCastExpr->GetOpnd(0);
-
-  // To improved: do more powerful optimization for firstCastImplicit
-  if (isFirstCastImplicit) {
-    // Wrong example: zext u32 u8 (iread u32 <* u16>)  =[x]=>  iread u32 <* u16>
-    // srcType may be modified, we should use origSrcType
-    if (resultCastKind != CAST_unknown && dstType == midType1 &&
-        GetPrimTypeActualBitSize(midType2) >= GetPrimTypeActualBitSize(origSrcType)) {
-      return firstCastExpr;
-    } else {
-      return nullptr;
-    }
-  }
-
-  // Example: retype u32 <u32> (dread u32 %x)  ==>  dread u32 %x
-  // Example: retype ptr <* <$Foo>> (dread ptr %p)  ==>  dread ptr %p
-  if (resultCastKind == CAST_retype && srcType == dstType) {
-    return toCastExpr;
-  }
-
-  if (printSimplifyCastLog) {
-    CastInfo resInfo = { resultCastKind, srcType, dstType };
-    LogInfo::MapleLogger() << "[input ] ";
-    secondCastInfo.Dump();
-    LogInfo::MapleLogger() << " (";
-    firstCastInfo.Dump();
-    LogInfo::MapleLogger() << " [ caseId = " <<
-        (int)castMatrix[firstCastInfo.kind][secondCastInfo.kind] << " ]" <<  std::endl;
-    LogInfo::MapleLogger() << "[output] ";
-    resInfo.Dump();
-    LogInfo::MapleLogger() << std::endl;
-  }
-
-  TyIdx dstTyIdx(0);
-  if (resultCastKind == CAST_retype) {
-    // result retype is generated from `retype t1 t2 (retype t3 t4)`
-    if (secondCastExpr->GetOp() == OP_retype) {
-      dstTyIdx = static_cast<OpMeExpr*>(secondCastExpr)->GetTyIdx();
-    } else {
-      dstTyIdx = TyIdx(dstType);
-    }
-  }
-  return CreateMeExprByCastKind(resultCastKind, srcType, dstType, toCastExpr, dstTyIdx);
-}
-
 // Return a simplified expr if succeed, return nullptr if fail
 MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
-  if (!IsCastMeExprExplicit(*expr)) {
-    return nullptr;
-  }
-  MeExpr *opnd = expr->GetOpnd(0);
-  if (opnd == nullptr) {
-    return nullptr;
-  }
-  // Convert `cvt u1 xx <expr>` to `ne u1 xx (<expr>, constval xx 0)`
-  if (expr->GetOp() == OP_cvt && expr->GetPrimType() == PTY_u1) {
-    auto *opExpr = static_cast<OpMeExpr*>(expr);
-    PrimType fromType = opExpr->GetOpndType();
-    if (fromType != PTY_u1) {  // No need to convert `cvt u1 u1 <expr>`
-      return CreateMeExprCompare(OP_ne, PTY_u1, fromType, *opnd, *CreateIntConstMeExpr(0, fromType));
-    }
-  }
-  // If the opnd is a iread/regread, it's OK because it may be a implicit zext or sext
-  bool isFirstCastImplicit = IsCastMeExprImplicit(*opnd);
-  if (!IsCastMeExprExplicit(*opnd) && !isFirstCastImplicit) {
-    // only 1 cast
-    // Exmaple: cvt i32 i64 (add i32)  ==>  add i32
-    return SimplifyCastSingle(expr);
-  }
-  MeExpr *simplified1 = SimplifyCastPair(opnd, expr, isFirstCastImplicit);
-  MeExpr *simplified2 = nullptr;
-  if (simplified1 != nullptr && IsCastMeExprExplicit(*simplified1)) {
-    // Simplify cast further
-    simplified2 = SimplifyCastSingle(simplified1);
-  }
-  return (simplified2 != nullptr ? simplified2 : simplified1);
+  return MeCastOpt::SimplifyCast(*this, expr);
 }
 
 // Try remove redundant intTrunc for dassgin and iassign
 void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) {
-  if (!simplifyCastAssign) {
-    return;
-  }
-  Opcode stmtOp = assignStmt->GetOp();
-  PrimType expectedType = PTY_begin;
-  MeExpr *rhsExpr = nullptr;
-  if (stmtOp == OP_dassign) {
-    auto *dassign = static_cast<DassignMeStmt*>(assignStmt);
-    expectedType = dassign->GetLHS()->GetPrimType();
-    rhsExpr = dassign->GetRHS();
-  } else if (stmtOp == OP_iassign) {
-    auto *iassign = static_cast<IassignMeStmt*>(assignStmt);
-    expectedType = iassign->GetLHSVal()->GetType()->GetPrimType();
-    rhsExpr = iassign->GetRHS();
-  } else if (stmtOp == OP_regassign) {
-    auto *regassign = static_cast<AssignMeStmt*>(assignStmt);
-    expectedType = assignStmt->GetLHS()->GetPrimType();
-    rhsExpr = regassign->GetRHS();
-  }
-  if (rhsExpr == nullptr || !IsPrimitiveInteger(expectedType) || !IsCastMeExprExplicit(*rhsExpr)) {
-    return;
-  }
-  MeExpr *cur = rhsExpr;
-  CastInfo castInfo;
-  do {
-    ComputeCastInfoForExpr(*cur, castInfo);
-    if (castInfo.kind == CAST_intTrunc) {
-      // Example: dassign u8 %a (cvt u8 u32 <expr>)  ==>  dassign u8 %a <expr>
-      cur = cur->GetOpnd(0);
-    } else if ((castInfo.kind == CAST_zext || castInfo.kind == CAST_sext) &&
-               IsCastMeExprExplicit(*cur) &&   // Exclude implicit cast such as iread etc.
-               GetPrimTypeActualBitSize(castInfo.srcType) == GetPrimTypeActualBitSize(expectedType)) {
-      // Example: dassign u8 %a (zext u32 8 <expr>)  ==>  dassign u8 %a <expr>
-      cur = cur->GetOpnd(0);
-    } else {
-      break;
-    }
-  } while (cur != nullptr);
-  if (cur != rhsExpr) {
-    if (stmtOp == OP_dassign) {
-      auto *dassign = static_cast<DassignMeStmt*>(assignStmt);
-      dassign->SetRHS(cur);
-    } else if (stmtOp == OP_iassign) {
-      auto *iassign = static_cast<IassignMeStmt*>(assignStmt);
-      iassign->SetRHS(cur);
-    }
-  }
+  MeCastOpt::SimplifyCastForAssign(assignStmt);
 }
 
 VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
@@ -1649,16 +1050,6 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
   }
 
   if (opnd1->IsLeaf()) {
-    if (opnd0->GetOp() == OP_cvt) {
-      // reassociation effects sign extension
-      auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
-      if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
-          (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
-        return nullptr;
-      }
-      opnd0 = opnd0->GetOpnd(0);
-    }
-
     if (opnd0->GetOp() == OP_add) {
       auto *opndA = opnd0->GetOpnd(0);
       auto *opndB = opnd0->GetOpnd(1);
@@ -1719,13 +1110,71 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
   return nullptr;
 }
 
+bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
+  if (expr == nullptr) {
+    return false;
+  }
+  // return type of compare expr may be set as its opnd's type, but it is actually u1
+  if (IsCompareHasReverseOp(expr->GetOp()) || expr->GetPrimType() == PTY_u1) {
+    return true;
+  }
+  return false;
+  if (expr->GetMeOp() == kMeOpVar) {
+    const auto *varExpr = static_cast<const VarMeExpr*>(expr);
+    // find if itself is u1
+    if (varExpr->GetOst()->GetType()->GetPrimType() == PTY_u1) {
+      return true;
+    }
+    // find if its definition is u1
+    if (varExpr->GetDefBy() == kDefByStmt) {
+      const auto *defSmt = static_cast<const AssignMeStmt*>(varExpr->GetDefStmt());
+      return IfMeExprIsU1Type(defSmt->GetRHS());
+    }
+    return false;
+  }
+  if (expr->GetMeOp() == kMeOpIvar) {
+    const auto *ivarExpr = static_cast<const IvarMeExpr*>(expr);
+    // find if itself is u1
+    if (ivarExpr->GetType()->GetPrimType() == PTY_u1) {
+      return true;
+    }
+    // find if its definition is u1
+    IassignMeStmt *iassignMeStmt = ivarExpr->GetDefStmt();
+    if (iassignMeStmt == nullptr) {
+      return false;
+    }
+    return IfMeExprIsU1Type(iassignMeStmt->GetRHS());
+  }
+  if (expr->GetMeOp() == kMeOpReg) {
+    const auto *regExpr = static_cast<const RegMeExpr*>(expr);
+    // find if itself is u1
+    if (regExpr->GetPrimType() == PTY_u1) {
+        return true;
+    }
+    // find if its definition is u1
+    if (regExpr->GetDefBy() == kDefByStmt) {
+      const auto *defStmt = static_cast<AssignMeStmt*>(regExpr->GetDefStmt());
+      return IfMeExprIsU1Type(defStmt->GetRHS());
+    }
+    return false;
+  }
+  if (expr->GetMeOp() == kMeOpOp) {
+    // remove convert/extension by recursive call
+    if (kOpcodeInfo.IsTypeCvt(expr->GetOp())) {
+      return IfMeExprIsU1Type(expr->GetOpnd(0));
+    }
+    if (expr->GetOp() == OP_zext || expr->GetOp() == OP_sext || expr->GetOp() == OP_extractbits) {
+      return IfMeExprIsU1Type(expr->GetOpnd(0));
+    }
+  }
+  return false;
+}
+
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
   Opcode opop = opmeexpr->GetOp();
-  if (simplifyCastExpr && IsCastMeExprExplicit(*opmeexpr)) {
-    MeExpr *simpleCast = SimplifyCast(opmeexpr);
-    if (simpleCast != nullptr) {
-      return simpleCast;
-    }
+  MeExpr *simpleCast = SimplifyCast(opmeexpr);
+  if (simpleCast != nullptr) {
+    return simpleCast;
   }
   switch (opop) {
     case OP_cvt: {
@@ -1812,6 +1261,24 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
       }
       return SimplifyMulExpr(opmeexpr);
     }
+    case OP_lnot: {
+      MeExpr *opnd0 = opmeexpr->GetOpnd(0);
+      if (IsCompareHasReverseOp(opnd0->GetOp())) {
+        OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
+        reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
+        reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
+        reverseMeExpr.SetOpndType(opnd0->GetOpnd(0)->GetPrimType());
+        return HashMeExpr(reverseMeExpr);
+      } else if (opnd0->GetMeOp() == kMeOpConst) {
+        MIRConst *constopnd0 = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
+        if (constopnd0->GetKind() == kConstInt) {
+          MIRConst *newconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(constopnd0->IsZero(),
+              *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+          return CreateConstMeExpr(opmeexpr->GetPrimType(), *newconst);
+        }
+      }
+      return nullptr;
+    }
     case OP_sub:
     case OP_div:
     case OP_rem:
@@ -1889,19 +1356,42 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
           MIRConst *constopnd1 = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
           if (constopnd1->IsZero()) {
             // addrof will not be zero, so this comparison can be replaced with a constant
-            resconst = mirModule.GetMemPool()->New<MIRIntConst>(
-                (opop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst((opop == OP_ne),
+                *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
           }
         } else {
           MIRConst *constopnd0 = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
           if (constopnd0->IsZero()) {
             // addrof will not be zero, so this comparison can be replaced with a constant
-            resconst = mirModule.GetMemPool()->New<MIRIntConst>(
-                (opop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst((opop == OP_ne),
+                *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
           }
         }
         if (resconst) {
           return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
+        }
+      } else if (isneeq && ((opnd1->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd0)) ||
+                            (opnd0->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd1)))) {
+        // ne (u1 expr, 0) ==> cmpexpr
+        // ne (u1 expr, 1) ==> !cmpexpr
+        // eq (u1 expr, 0) ==> !cmpexpr
+        // eq (u1 expr, 1) ==> cmpexpr
+        if (opnd0->GetMeOp() == kMeOpConst) { // ne/eq (0/1, u1 expr) => ne/eq (u1 expr, 0/1)
+          auto *tmpOpnd = opnd1;
+          opnd1 = opnd0;
+          opnd0 = tmpOpnd;
+        }
+        MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
+        if ((opop == OP_ne && opnd1const->IsZero()) || (opop == OP_eq && opnd1const->IsOne())) {
+          return opnd0;
+        } else if ((opop == OP_ne && opnd1const->IsOne()) || (opop == OP_eq && opnd1const->IsZero())) {
+          if (IsCompareHasReverseOp(opnd0->GetOp())) {
+            OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
+            reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
+            reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
+            reverseMeExpr.SetOpndType(static_cast<OpMeExpr*>(opnd0)->GetOpndType());
+            return HashMeExpr(reverseMeExpr);
+          }
         }
       } else if (isneeq && opnd0->GetOp() == OP_select &&
                  (opnd1->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd1->GetPrimType()))) {
