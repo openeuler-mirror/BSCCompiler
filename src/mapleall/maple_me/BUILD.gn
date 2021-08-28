@@ -93,6 +93,7 @@ src_libmplme = [
   "src/me_verify.cpp",
   "src/cast_opt.cpp",
   "src/me_fsaa.cpp",
+  "src/me_merge_stmts.cpp",
   "src/lfo_mir_lower.cpp",
   "src/lfo_inject_iv.cpp",
   "src/lfo_pre_emit.cpp",
