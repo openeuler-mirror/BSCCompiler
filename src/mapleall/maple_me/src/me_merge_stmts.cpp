@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -92,14 +92,15 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
         fieldID = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetFieldID();
         fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
-        fieldVal = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue();
+        fieldVal = static_cast<ConstMeExpr*>(
+            static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue();
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
         combinedVal = combinedVal << fieldBitSize | fieldVal;
       }
       // Iassignoff is NOT part of MeStmt yet
       IassignMeStmt *firstIassignStmt = static_cast<IassignMeStmt*>(iassignCandidates[startCandidate].second);
-      PrimType newValType = (targetBitSize == 16) ? PTY_u16 : ((targetBitSize == 32) ? PTY_u32 : PTY_u64) ;
-      MeExpr *newVal =  func.GetIRMap()->CreateIntConstMeExpr(combinedVal, newValType);
+      PrimType newValType = (targetBitSize == 16) ? PTY_u16 : ((targetBitSize == 32) ? PTY_u32 : PTY_u64);
+      MeExpr *newVal = func.GetIRMap()->CreateIntConstMeExpr(combinedVal, newValType);
       firstIassignStmt->SetRHS(newVal);
       firstIassignStmt->SetEmitIassignoff(true);
       firstIassignStmt->SetOmitEmit(false);
@@ -146,8 +147,10 @@ void MergeStmts::MergeMeStmts() {
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_iassign &&
-                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() == iassignStmt->GetLHSVal()->GetBase() &&
-                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetOffset() == iassignStmt->GetLHSVal()->GetOffset()) {
+                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() ==
+                         iassignStmt->GetLHSVal()->GetBase() &&
+                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetOffset() ==
+                         iassignStmt->GetLHSVal()->GetOffset()) {
             candidateStmts.push(&meStmt);
           } else {
             candidateStmts.push(nullptr);
@@ -166,7 +169,8 @@ void MergeStmts::MergeMeStmts() {
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_dassign &&
-                     static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst() == dassignStmt->GetLHS()->GetOst()) {
+                     static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst() ==
+                         dassignStmt->GetLHS()->GetOst()) {
             candidateStmts.push(&meStmt);
           } else {
             candidateStmts.push(nullptr);
@@ -194,7 +198,8 @@ void MergeStmts::MergeMeStmts() {
           while (!candidateStmts.empty() && candidateStmts.front() != nullptr &&
                  candidateStmts.front()->GetOp() == OP_iassign) {
             TyIdx lhsTyIdx = static_cast<IassignMeStmt*>(candidateStmts.front())->GetLHSVal()->GetTyIdx();
-            MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
+            MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(
+                GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
             MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
             IvarMeExpr *iVar = static_cast<IassignMeStmt*>(candidateStmts.front())->GetLHSVal();
             int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVar->GetFieldID());
