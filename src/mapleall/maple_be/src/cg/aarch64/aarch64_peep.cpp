@@ -2435,16 +2435,17 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool ComplexMemOperandLSLAArch64::CheckShiftValid(const AArch64MemOperand &memOpnd, BitShiftOperand &lsl) const {
+bool ComplexMemOperandLSLAArch64::CheckShiftValid(const Insn &insn, BitShiftOperand &lsl) const {
   /* check if shift amount is valid */
   uint32 lslAmount = lsl.GetShiftAmount();
   constexpr uint8 twoShiftBits = 2;
   constexpr uint8 threeShiftBits = 3;
-  if ((memOpnd.GetSize() == k32BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != twoShiftBits)) ||
-      (memOpnd.GetSize() == k64BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != threeShiftBits))) {
+  uint8 memSize = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
+  if ((memSize == k32BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != twoShiftBits)) ||
+      (memSize == k64BitSize && (lsl.GetShiftAmount() != 0 && lslAmount != threeShiftBits))) {
     return false;
   }
-  if (memOpnd.GetSize() != (k8BitSize << lslAmount)) {
+  if (memSize != (k8BitSize << lslAmount)) {
     return false;
   }
   return true;
@@ -2500,7 +2501,7 @@ void ComplexMemOperandLSLAArch64::Run(BB &bb, Insn &insn) {
       return;
     }
     auto &lsl = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
-    if (!CheckShiftValid(*memOpnd, lsl)) {
+    if (!CheckShiftValid(*nextInsn, lsl)) {
       return;
     }
     auto &newBaseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
