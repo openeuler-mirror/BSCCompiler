@@ -31,7 +31,7 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     return nullptr;
   }
   const MIRSymbol *mirst = ost->GetMIRSymbol();
-  if (mirst->GetAttr(ATTR_localrefvar) || mirst->GetAttr(ATTR_oneelem_simd)) {
+  if (mirst->GetAttr(ATTR_localrefvar) || ost->HasOneElemSimdAttr()) {
     return nullptr;
   }
   if (ost->IsFormal() && varmeexpr->GetPrimType() == PTY_ref) {

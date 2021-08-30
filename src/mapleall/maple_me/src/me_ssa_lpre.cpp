@@ -215,7 +215,7 @@ void MeSSALPre::BuildEntryLHSOcc4Formals() const {
   if (ost->HasAttr(ATTR_localrefvar)) {
     return;
   }
-  if (ost->HasAttr(ATTR_oneelem_simd)) {
+  if (ost->HasOneElemSimdAttr()) {
     return;
   }
   // get the zero version VarMeExpr node
@@ -246,7 +246,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       (void)assignedFormals.insert(ost->GetIndex());
     }
     CHECK_NULL_FATAL(meStmt.GetRHS());
-    if (ost->IsVolatile() || ost->GetMIRSymbol()->GetAttr(ATTR_oneelem_simd)) {
+    if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
       return;
     }
     if (lhs->GetPrimType() == PTY_agg) {
@@ -319,13 +319,10 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       }
       auto *varMeExpr = static_cast<VarMeExpr*>(&meExpr);
       const OriginalSt *ost = varMeExpr->GetOst();
-      if (ost->IsVolatile()) {
+      if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();
-      if (sym->GetAttr(ATTR_oneelem_simd)) {
-        break;
-      }
       if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;
