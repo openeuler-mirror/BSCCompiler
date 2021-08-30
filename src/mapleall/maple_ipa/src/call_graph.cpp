@@ -1827,7 +1827,7 @@ bool M2MCallGraph::PhaseRun(maple::MIRModule &m) {
   cg->InitCallExternal();
   cg->SetDebugFlag(TRACE_MAPLE_PHASE);
   cg->BuildCallGraph();
-  if (!m.IsInIPA() && m.firstInline) {
+  if (m.IsJavaModule() && !m.IsInIPA() && m.firstInline) {
     // do retype
     maple::MIRBuilder dexMirbuilder(&m);
     Retype retype(&m, ApplyTempMemPool());

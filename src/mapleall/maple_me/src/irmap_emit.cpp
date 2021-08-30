@@ -329,7 +329,7 @@ StmtNode &MaydassignMeStmt::EmitStmt(SSATab &ssaTab) {
 void MeStmt::EmitCallReturnVector(CallReturnVector &nRets) {
   MapleVector<MustDefMeNode> *mustDefs = GetMustDefList();
   CHECK_FATAL(mustDefs != nullptr, "EmitCallReturnVector: mustDefList cannot be null");
-  for (MustDefMeNode mustdef : *mustDefs) {
+  for (MustDefMeNode &mustdef : *mustDefs) {
     MeExpr *meExpr = mustdef.GetLHS();
     if (meExpr->GetMeOp() == kMeOpVar) {
       OriginalSt *ost = static_cast<VarMeExpr*>(meExpr)->GetOst();
@@ -344,25 +344,52 @@ void MeStmt::EmitCallReturnVector(CallReturnVector &nRets) {
 StmtNode &IassignMeStmt::EmitStmt(SSATab &ssaTab) {
   CHECK_NULL_FATAL(lhsVar);
   CHECK_NULL_FATAL(rhs);
-  auto *iassignNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<IassignNode>();
-  iassignNode->SetTyIdx(tyIdx);
-  iassignNode->SetFieldID(lhsVar->GetFieldID());
-  if (lhsVar->GetOffset() == 0) {
-    iassignNode->SetAddrExpr(&lhsVar->GetBase()->EmitExpr(ssaTab));
-  } else {
-    auto *mirType = GlobalTables::GetTypeTable().GetInt32();
-    auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
-    auto *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
-    auto *constValNode = codeMemPool->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
-    auto *newAddrNode = codeMemPool->New<BinaryNode>(
-        OP_add, lhsVar->GetBase()->GetPrimType(), &(lhsVar->GetBase()->EmitExpr(ssaTab)), constValNode);
-    iassignNode->SetAddrExpr(newAddrNode);
-  }
-  iassignNode->SetRHS(&rhs->EmitExpr(ssaTab));
-  iassignNode->SetSrcPos(GetSrcPosition());
-  return *iassignNode;
-}
+  if (GetEmitIassignoff()) {
+    PrimType rhsType = GetOpnd(1)->GetPrimType();
+    TyIdx lhsTyIdx = GetLHSVal()->GetTyIdx();
+    MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
+    MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
+    IvarMeExpr *iVar = GetLHSVal();
+    int32 offset = lhsStructType->GetBitOffsetFromBaseAddr(iVar->GetFieldID()) / 8;
 
+    ASSERT(static_cast<ConstMeExpr *> (GetOpnd(1)), "IassignMeStmt does NOT have Const RHS");
+    BaseNode *addrNode = nullptr;
+    if (lhsVar->GetOffset() == 0) {
+      addrNode = &lhsVar->GetBase()->EmitExpr(ssaTab);
+    } else {
+      MIRType *mirType = GlobalTables::GetTypeTable().GetInt32();
+      MIRIntConst *mirOffsetConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+      MemPool *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
+      ConstvalNode *offsetNode = codeMemPool->New<ConstvalNode>(mirType->GetPrimType(), mirOffsetConst);
+      addrNode = codeMemPool->New<BinaryNode>(OP_add, lhsVar->GetBase()->GetPrimType(),
+                                                       &(lhsVar->GetBase()->EmitExpr(ssaTab)), offsetNode);
+    }
+    int64 val = static_cast<ConstMeExpr *>(GetOpnd(1))->GetIntValue();
+    ConstvalNode *rhsNode = ssaTab.GetModule().GetMIRBuilder()->CreateIntConst(val, rhsType);
+    MemPool *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
+    IassignoffNode *iassignoffNode = codeMemPool->New<IassignoffNode>(rhsType, offset, addrNode, rhsNode);
+    iassignoffNode->SetSrcPos(GetSrcPosition());
+    return *iassignoffNode;
+  } else {
+    auto *iassignNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<IassignNode>();
+    iassignNode->SetTyIdx(tyIdx);
+    iassignNode->SetFieldID(lhsVar->GetFieldID());
+    if (lhsVar->GetOffset() == 0) {
+      iassignNode->SetAddrExpr(&lhsVar->GetBase()->EmitExpr(ssaTab));
+    } else {
+      auto *mirType = GlobalTables::GetTypeTable().GetInt32();
+      auto *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(lhsVar->GetOffset(), *mirType);
+      auto *codeMemPool = ssaTab.GetModule().CurFunction()->GetCodeMempool();
+      auto *constValNode = codeMemPool->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+      auto *newAddrNode = codeMemPool->New<BinaryNode>(
+          OP_add, lhsVar->GetBase()->GetPrimType(), &(lhsVar->GetBase()->EmitExpr(ssaTab)), constValNode);
+      iassignNode->SetAddrExpr(newAddrNode);
+    }
+    iassignNode->SetRHS(&rhs->EmitExpr(ssaTab));
+    iassignNode->SetSrcPos(GetSrcPosition());
+    return *iassignNode;
+  }
+}
 const MIRFunction &CallMeStmt::GetTargetFunction() const {
   return *GlobalTables::GetFunctionTable().GetFunctionFromPuidx(puIdx);
 }
@@ -492,7 +519,8 @@ StmtNode &IntrinsiccallMeStmt::EmitStmt(SSATab &ssaTab) {
 }
 
 StmtNode &AsmMeStmt::EmitStmt(SSATab &ssaTab) {
-  AsmNode *asmNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<AsmNode>(&ssaTab.GetModule().GetCurFuncCodeMPAllocator());
+  AsmNode *asmNode = ssaTab.GetModule().CurFunction()->GetCodeMempool()->New<AsmNode>(
+      &ssaTab.GetModule().GetCurFuncCodeMPAllocator());
   asmNode->GetNopnd().resize(NumMeStmtOpnds());
   for (size_t i = 0; i < NumMeStmtOpnds(); ++i) {
     asmNode->SetOpnd(&GetOpnd(i)->EmitExpr(ssaTab), i);

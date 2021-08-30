@@ -621,7 +621,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile() || st->GetAttr(ATTR_oneelem_simd)) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr()) {
     return varMeExpr;
   }
 
@@ -673,7 +673,7 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   return varMeExpr;
 }
 
-MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm) {
+MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
   if (regMeExpr.GetDefBy() == kDefByStmt) {
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(regMeExpr.GetDefStmt());
     MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
@@ -687,6 +687,22 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm) {
       }
       return rhs;
     }
+  } else if (checkPhi && regMeExpr.GetDefBy() == kDefByPhi && config.propagateAtPhi) {
+    MePhiNode &defPhi = regMeExpr.GetDefPhi();
+    auto *phiOpndLast = defPhi.GetOpnds().back();
+    MeExpr *opndLastProp = &PropReg(utils::ToRef(phiOpndLast), atParm, false);
+    if (opndLastProp == &regMeExpr) {
+      return regMeExpr;
+    }
+    const auto &opndsVec = defPhi.GetOpnds();
+    for (auto it = opndsVec.rbegin() + 1; it != opndsVec.rend(); ++it) {
+      auto *phiOpnd = *it;
+      MeExpr &opndProp = PropReg(utils::ToRef(phiOpnd), atParm, false);
+      if (&opndProp != opndLastProp) {
+        return regMeExpr;
+      }
+    }
+    return *opndLastProp;
   }
   return regMeExpr;
 }
@@ -748,7 +764,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
       if (regExpr.GetRegIdx() < 0) {
         return meExpr;
       }
-      MeExpr &propMeExpr = PropReg(regExpr, atParm);
+      MeExpr &propMeExpr = PropReg(regExpr, atParm, true);
       if (&propMeExpr != &regExpr) {
         isProped = true;
       }

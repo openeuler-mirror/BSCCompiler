@@ -48,7 +48,7 @@ class Prop {
 
   MeExpr *CheckTruncation(MeExpr *lhs, MeExpr *rhs) const;
   MeExpr &PropVar(VarMeExpr &varmeExpr, bool atParm, bool checkPhi);
-  MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm);
+  MeExpr &PropReg(RegMeExpr &regmeExpr, bool atParm, bool checkPhi);
   MeExpr &PropIvar(IvarMeExpr &ivarMeExpr);
   void PropUpdateDef(MeExpr &meExpr);
   void PropUpdateChiListDef(const MapleMap<OStIdx, ChiMeNode*> &chiList);

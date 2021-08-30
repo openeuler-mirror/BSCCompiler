@@ -63,6 +63,7 @@ bool MeOption::noDelegateRC = false;
 bool MeOption::noCondBasedRC = false;
 bool MeOption::clinitPre = true;
 bool MeOption::dassignPre = true;
+bool MeOption::mergeStmts = true;
 bool MeOption::nullCheckPre = false;
 bool MeOption::assign2FinalPre = false;
 bool MeOption::epreIncludeRef = false;
@@ -110,6 +111,8 @@ bool MeOption::meVerify = false;
 uint32 MeOption::dseRunsLimit = 2;    // dse phase run at most 2 times each PU
 uint32 MeOption::hdseRunsLimit = 3;   // hdse phase run at most 3 times each PU
 uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
+bool MeOption::loopVec = true;
+bool MeOption::seqVec = true;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -223,6 +226,7 @@ enum OptionIndex {
   kLazyDecouple,
   kEaTransRef,
   kEaTransAlloc,
+  kMergeStmts,
   kMeInlineHint,
   kMeThreads,
   kMeIgnoreInferredRetType,
@@ -230,6 +234,8 @@ enum OptionIndex {
   kDseRunsLimit,
   kHdseRunsLimit,
   kHpropRunsLimit,
+  kLoopVec,
+  kSeqVec,
 };
 
 const Descriptor kUsage[] = {
@@ -1036,6 +1042,16 @@ const Descriptor kUsage[] = {
     "  --no-lazydecouple           \tDo not optimized for lazy Decouple\n",
     "me",
     {} },
+  { kMergeStmts,
+    kEnable,
+    "",
+    "mergestmts",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --mergestmts                \tTurn on statment merging optimization\n"
+    "  --no-mergestmts             \tDisable mergestmts\n",
+    "me",
+    {} },
   { kMeInlineHint,
     0,
     "",
@@ -1103,6 +1119,26 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyNumeric,
     "  --hproprunslimit=n          \tControl number of times hprop phase can be run\n"
     "                              \t--hproprunslimit=NUM\n",
+    "me",
+    {} },
+  { kLoopVec,
+    kEnable,
+    "",
+    "loopvec",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --loopvec                   \tEnable auto loop vectorization\n"
+    "  --no-loopvec                \tDisable auto loop vectorization\n",
+    "me",
+    {} },
+  { kSeqVec,
+    kEnable,
+    "",
+    "seqvec",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --seqvec                   \tEnable auto sequencial vectorization\n"
+    "  --no-seqvec                \tDisable auto sequencial vectorization\n",
     "me",
     {} },
 #if MIR_JAVA
@@ -1460,6 +1496,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
       case kDassignPre:
         dassignPre = (opt.Type() == kEnable);
         break;
+      case kMergeStmts:
+        mergeStmts = (opt.Type() == kEnable);
+        break;
       case kAssign2finalPre:
         assign2FinalPre = (opt.Type() == kEnable);
         break;
@@ -1546,6 +1585,12 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kHpropRunsLimit:
         hpropRunsLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kLoopVec:
+        loopVec = (opt.Type() == kEnable);
+        break;
+      case kSeqVec:
+        seqVec = (opt.Type() == kEnable);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:

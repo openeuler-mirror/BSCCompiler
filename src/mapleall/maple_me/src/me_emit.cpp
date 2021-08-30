@@ -19,22 +19,29 @@
 #include "me_irmap.h"
 #include "me_cfg.h"
 #include "constantfold.h"
+#include "me_merge_stmts.h"
 
 namespace maple {
+void MEEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEBBLayout>();
+  aDep.SetPreservedAll();
+}
+
 // emit IR to specified file
-AnalysisResult *MeDoEmit::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
+bool MEEmit::PhaseRun(maple::MeFunction &f) {
   static std::mutex mtx;
   ParallelGuard guard(mtx, ThreadEnv::IsMeParallel());
-  if (func->GetCfg()->NumBBs() > 0) {
-    if (!func->HasLaidOut()) {
-      (void)m->GetAnalysisResult(MeFuncPhase_BBLAYOUT, func);
-      CHECK_FATAL(func->HasLaidOut(), "Check bb layout phase.");
-    }
+  if (f.GetCfg()->NumBBs() > 0) {
+    CHECK_FATAL(f.HasLaidOut(), "Check bb layout phase.");
     // each phase need to keep either irmap or mirfunction is valid
-    if (func->GetIRMap()) {
+    if (f.GetIRMap()) {
+      if (MeOption::mergeStmts) {
+        MergeStmts mergeStmts(f);
+        mergeStmts.MergeMeStmts();
+      }
       // emit after hssa
-      auto layoutBBs = func->GetLaidOutBBs();
-      MIRFunction *mirFunction = func->GetMirFunc();
+      auto layoutBBs = f.GetLaidOutBBs();
+      MIRFunction *mirFunction = f.GetMirFunc();
       mirFunction->ReleaseCodeMemory();
       mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
       mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
@@ -47,26 +54,26 @@ AnalysisResult *MeDoEmit::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResult
       }
       for (BB *bb : layoutBBs) {
         ASSERT(bb != nullptr, "Check bblayout phase");
-        bb->EmitBB(*func->GetMeSSATab(), *mirFunction->GetBody(), false);
+        bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
       }
     } else {
       // emit from mir function body
-      func->EmitBeforeHSSA((*(func->GetMirFunc())), func->GetLaidOutBBs());
+      f.EmitBeforeHSSA((*(f.GetMirFunc())), f.GetLaidOutBBs());
     }
-    if (!DEBUGFUNC(func) && func->GetIRMap()) {
+    if (!DEBUGFUNC_NEWPM(f) && f.GetIRMap()) {
       // constantfolding does not update BB's stmtNodeList, which breaks MirCFG::DumpToFile();
       // constantfolding also cannot work on SSANode's
-      ConstantFold cf(func->GetMIRModule());
-      cf.Simplify(func->GetMirFunc()->GetBody());
+      ConstantFold cf(f.GetMIRModule());
+      cf.Simplify(f.GetMirFunc()->GetBody());
     }
-    if (DEBUGFUNC(func)) {
+    if (DEBUGFUNC_NEWPM(f)) {
       LogInfo::MapleLogger() << "\n==============after meemit =============" << '\n';
-      func->GetMirFunc()->Dump();
+      f.GetMirFunc()->Dump();
     }
-    if (DEBUGFUNC(func)) {
-      func->GetCfg()->DumpToFile("emit", true);
+    if (DEBUGFUNC_NEWPM(f)) {
+      f.GetCfg()->DumpToFile("meemit", true);
     }
   }
-  return nullptr;
+  return false;
 }
 }  // namespace maple

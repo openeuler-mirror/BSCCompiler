@@ -139,6 +139,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool assign2FinalPre;
   static bool clinitPre;
   static bool dassignPre;
+  static bool mergeStmts;
   static bool regreadAtReturn;
   static bool propBase;
   static bool propIloadRef;
@@ -166,6 +167,8 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 dseRunsLimit;
   static uint32 hdseRunsLimit;
   static uint32 hpropRunsLimit;
+  static bool loopVec;
+  static bool seqVec;
 #if MIR_JAVA
   static std::string acquireFuncName;
   static std::string releaseFuncName;
