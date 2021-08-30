@@ -20,7 +20,7 @@ The diagram below shows significant components of the Maple Driver architecture 
 
 ### Driver stages
 
-The driver functionality can be divded into "insert number" stages:
+The driver functionality can be divded into five stages:
 
 **1. Parsing options**
 
