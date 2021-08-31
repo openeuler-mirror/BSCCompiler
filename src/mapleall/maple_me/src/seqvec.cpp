@@ -498,10 +498,17 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
       MIRType &mirType = GetTypeFromTyIdx(ireadnode->GetTyIdx());
       CHECK_FATAL(mirType.GetKind() == kTypePointer, "iread must have pointer type");
       MIRPtrType *rhsptrType = static_cast<MIRPtrType*>(&mirType);
-      MIRType *rhsvecType = GenVecType(rhsptrType->GetPointedType()->GetPrimType(), lanes);
-      ASSERT(rhsvecType != nullptr, "vector type should not be null");
-      MIRType *rhspvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*rhsvecType, PTY_ptr);
-      ireadnode->SetTyIdx(rhspvecType->GetTypeIndex());
+      MIRType *rhsvecType = nullptr;
+      if (rhsptrType->GetPointedType()->GetPrimType() == PTY_agg) {
+        // iread variable from a struct, use iread type
+        rhsvecType = GenVecType(ireadnode->GetPrimType(), lanes);
+        ASSERT(rhsvecType != nullptr, "vector type should not be null");
+      } else {
+        rhsvecType = GenVecType(rhsptrType->GetPointedType()->GetPrimType(), lanes);
+        ASSERT(rhsvecType != nullptr, "vector type should not be null");
+        MIRType *rhspvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*rhsvecType, PTY_ptr);
+        ireadnode->SetTyIdx(rhspvecType->GetTypeIndex()); // update ptr type
+      }
       ireadnode->SetPrimType(rhsvecType->GetPrimType());
     } else {
       CHECK_FATAL(0, "NIY:: rhs opcode is not supported yet ");
