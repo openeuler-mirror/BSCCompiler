@@ -206,7 +206,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   ASSERT(atype->GetKind() == kTypeArray, "type was wrong");
   MIRArrayType *arryty = static_cast<MIRArrayType *>(atype);
   size_t dim = arryty->GetDim();
-  CHECK_FATAL(dim == arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
+  CHECK_FATAL(dim >= arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
   // ensure array base is loop invariant
   OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
   if (!IsLoopInvariant(arrayMeExpr->GetOpnd(0))) {
@@ -242,7 +242,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   } else {
     rhsArrays.push_back(arrDesc);
   }
-  for (size_t i = 0; i < dim; i++) {
+  for (size_t i = 0; i < arr->NumOpnds()-1; i++) {
     SubscriptDesc *subs = BuildOneSubscriptDesc(arr->GetIndex(i));
     arrDesc->subscriptVec.push_back(subs);
   }
@@ -372,8 +372,11 @@ void DoloopInfo::TestDependences(MapleVector<DepTestPair> *depTestList, bool bot
     } else {
       arrDesc2 = rhsArrays[testPair->depTestPair.second];
     }
-    CHECK_FATAL(arrDesc1->subscriptVec.size() == arrDesc2->subscriptVec.size(),
-                "TestDependences: inconsistent array dimension");
+    if (arrDesc1->subscriptVec.size() == arrDesc2->subscriptVec.size()) {
+      testPair->dependent = true;
+      testPair->unknownDist = true;
+      continue;
+    }
     for (j = 0; j < arrDesc1->subscriptVec.size(); j++) {
       SubscriptDesc *subs1 = arrDesc1->subscriptVec[j];
       SubscriptDesc *subs2 = arrDesc2->subscriptVec[j];
