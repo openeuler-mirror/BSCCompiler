@@ -89,9 +89,11 @@ AArch64OpndProp mopdIntImm64Literal = {Operand::kOpdImmediate, {kRegTyUndef, kAl
 AArch64OpndProp mopdFpzeroImm8Src = {Operand::kOpdFPZeroImmediate, {kRegTyUndef, kAllRegNum, kRegPropUse}, 8};
 
 /*
+ * 8bit         : 0
  * halfword     : 1
  * 32bit - word : 2
  * 64bit - word : 3
+ * 128bit- word : 4
  */
 bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
   if (value <= k256BitSize && value >= kNegative256BitSize) {
@@ -134,6 +136,10 @@ bool StrLdr64PairImmValid(int64 value) {
   return false;
 }
 
+bool StrLdr128ImmValid(int64 value) {
+ return StrLdrSignedOfstValid(value, k4ByteSize);
+}
+
 AArch64ImmOpndProp mopdMem8Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 8, StrLdr8ImmValid};
 AArch64ImmOpndProp mopdMem16Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 16, StrLdr16ImmValid};
 AArch64ImmOpndProp mopdMem32Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 32, StrLdr32ImmValid};
@@ -141,7 +147,7 @@ AArch64ImmOpndProp mopdMemPair32Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNu
 AArch64OpndProp mopdMem32SrcH = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse | kMemLow12}, 16};
 AArch64OpndProp mopdMem32SrcL = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse | kMemLow12}, 16};
 AArch64ImmOpndProp mopdMem64Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 64, StrLdr64ImmValid};
-AArch64OpndProp mopdMem128Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 128};
+AArch64ImmOpndProp mopdMem128Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 128, StrLdr128ImmValid};
 AArch64ImmOpndProp mopdMemPair64Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 64, StrLdr64PairImmValid};
 AArch64OpndProp mopdMem64SrcL = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse | kMemLow12}, 12};
 
@@ -149,7 +155,7 @@ AArch64ImmOpndProp mopdMem8Dest  = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, 
 AArch64ImmOpndProp mopdMem16Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef }, 16, StrLdr16ImmValid};
 AArch64ImmOpndProp mopdMem32Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef }, 32, StrLdr32ImmValid};
 AArch64ImmOpndProp mopdMem64Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef }, 64, StrLdr64ImmValid};
-AArch64OpndProp mopdMem128Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef}, 128};
+AArch64ImmOpndProp mopdMem128Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef}, 128, StrLdr128ImmValid};
 AArch64ImmOpndProp mopdMemPair32Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef }, 32, StrLdr32PairImmValid};
 AArch64ImmOpndProp mopdMemPair64Dest = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropDef }, 64, StrLdr64PairImmValid};
 
