@@ -39,8 +39,10 @@ Upon the completion of the previous stage Maple Driver triggers `CompilerFactory
 
 `CompilerFactory` calls `Compile` methods of selected Compilers, during which default and user-determined options are constructed and written in a string. The main problem is the translation of commands from one style to another, some driver components, like `MplcgCompiler` require their own methods to work correctly, while others, like `AsCompiler` work with just a handful of options and their main purpose is to determine the path of the executable to call and pass on their input and output arguments.
 
+However, `MaplecombCompiler` and `MplcgCompiler` require special pipeline, they do not call executables and pass on command-line to them, but interact the with input file using `MIRModule`, `MIRParser` and `DriverRunner` classes. `MIRModule` is a data structure, purpose of which is similar to `MplOptions`, two previously mentioned compilers store crucial data in it (name of the input file, source language, etc.); `MIRParser` as the name implies exists to parse Maple IR; `DriverRunner` is an orchestrator that works with two previous data structures and also stores options for phases it is responsible for and other data, required in compilation.
+
 **5. Execute**
 
-After that the command-line and full path to executable is redirected to the `Exe` method of the `SafeExe` class, where it is handled and executed via child process.
+After that the command-line and full path to executable is redirected to the `Exe` method of the `SafeExe` class, where it is handled and executed via child process. In case of `MaplecombCompiler` and `MplcgCompiler` the `Run` method of the `DriverRunner` is called and issues job to the Phase Manger.
 
 
