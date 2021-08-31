@@ -503,7 +503,9 @@ void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
 
-  if (reg1.GetSize() != memOpnd1.GetSize() || reg2.GetSize() != memOpnd2.GetSize()) {
+  uint32 memSize1 = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
+  uint32 memSize2 = static_cast<const AArch64Insn&>(*nextInsn).GetLoadStoreSize();
+  if (memSize1 != memSize2) {
     return;
   }
 
