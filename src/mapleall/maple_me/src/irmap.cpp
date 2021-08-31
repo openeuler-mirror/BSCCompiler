@@ -779,6 +779,9 @@ static bool IgnoreInnerTypeCvt(PrimType typeA, PrimType typeB, PrimType typeC) {
 
 // return nullptr if the result is unknow
 MeExpr *IRMap::SimplifyCompareSameExpr(OpMeExpr *opmeexpr) {
+  if (IsPrimitiveVector(opmeexpr->GetPrimType())) {
+    return nullptr;
+  }
   CHECK_FATAL(opmeexpr->GetOpnd(0) == opmeexpr->GetOpnd(1), "must be");
   Opcode opop = opmeexpr->GetOp();
   int64 val = 0;
@@ -925,6 +928,9 @@ MeExpr *IRMap::FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, C
 }
 
 MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
+  if (IsPrimitiveVector(addExpr->GetPrimType())) {
+    return nullptr;
+  }
   if (addExpr->GetOp() != OP_add) {
     return nullptr;
   }
@@ -1025,6 +1031,9 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
 }
 
 MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
+  if (IsPrimitiveVector(mulExpr->GetPrimType())) {
+    return nullptr;
+  }
   if (mulExpr->GetOp() != OP_mul) {
     return nullptr;
   }
@@ -1171,6 +1180,9 @@ bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
 }
 
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
+  if (IsPrimitiveVector(opmeexpr->GetPrimType())) {
+    return nullptr;
+  }
   Opcode opop = opmeexpr->GetOp();
   MeExpr *simpleCast = SimplifyCast(opmeexpr);
   if (simpleCast != nullptr) {
@@ -1463,6 +1475,9 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
 }
 
 MeExpr *IRMap::SimplifyMeExpr(MeExpr *x) {
+  if (IsPrimitiveVector(x->GetPrimType())) {
+    return x;
+  }
   switch (x->GetMeOp()) {
     case kMeOpAddrof:
     case kMeOpAddroffunc:

@@ -22,16 +22,19 @@
 #include "safe_ptr.h"
 #include "ssa_tab.h"
 #include "mir_module.h"
+#include "alias_class.h"
 
 namespace maple {
 class DSE {
  public:
-  DSE(std::vector<BB*> &&bbVec, BB &commonEntryBB, BB &commonExitBB, SSATab &ssaTab,
-      Dominance &postDom, bool enableDebug = false, bool decouple = false, bool islfo = false)
+  DSE(std::vector<BB*> &&bbVec, BB &commonEntryBB, BB &commonExitBB, SSATab &ssaTab, Dominance &postDom,
+      const AliasClass *aliasClass, bool enableDebug = false, bool decouple = false, bool islfo = false)
       : enableDebug(enableDebug),
         bbVec(bbVec), commonEntryBB(commonEntryBB),
         commonExitBB(commonExitBB), ssaTab(ssaTab),
-        postDom(postDom), bbRequired(bbVec.size(), false),
+        postDom(postDom),
+        aliasInfo(aliasClass),
+        bbRequired(bbVec.size(), false),
         exprRequired(ssaTab.GetVersionStTableSize(), false),
         decoupleStatic(decouple), isLfo(islfo) {}
 
@@ -100,7 +103,7 @@ class DSE {
     exprRequired[symbol.GetIndex()] = true;
   }
 
-  void AddToWorkList(const utils::SafePtr<const VersionSt> &symbol) {
+  void AddToWorkList(const VersionSt *symbol) {
     workList.push_front(symbol);
   }
 
@@ -120,9 +123,10 @@ class DSE {
   BB &commonExitBB;
   SSATab &ssaTab;
   Dominance &postDom;
+  const AliasClass *aliasInfo;
   std::vector<bool> bbRequired;
   std::vector<bool> exprRequired;
-  std::forward_list<utils::SafePtr<const VersionSt>> workList{};
+  std::forward_list<const VersionSt*> workList{};
   std::unordered_map<StmtNode*, std::vector<BaseNode*>> stmt2NotNullExpr;
   std::unordered_map<BaseNode*, std::vector<std::pair<StmtNode*, BB*>>> notNullExpr2Stmt;
   bool cfgUpdated = false;
