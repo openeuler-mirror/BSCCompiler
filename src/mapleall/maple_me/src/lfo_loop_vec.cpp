@@ -388,11 +388,18 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       MIRType &mirType = GetTypeFromTyIdx(ireadnode->GetTyIdx());
       CHECK_FATAL(mirType.GetKind() == kTypePointer, "iread must have pointer type");
       MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
-      MIRType *vecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
-      ASSERT(vecType != nullptr, "vector type should not be null");
-      MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
+      MIRType *vecType = nullptr;
       // update lhs type
-      ireadnode->SetTyIdx(pvecType->GetTypeIndex());
+      if (ptrType->GetPointedType()->GetPrimType() == PTY_agg) {
+        // iread variable from a struct, use iread type
+        vecType = GenVecType(ireadnode->GetPrimType(), tp->vecFactor);
+        ASSERT(vecType != nullptr, "vector type should not be null");
+      } else {
+        vecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
+        ASSERT(vecType != nullptr, "vector type should not be null");
+        MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
+        ireadnode->SetTyIdx(pvecType->GetTypeIndex());
+      }
       node->SetPrimType(vecType->GetPrimType());
       break;
     }
