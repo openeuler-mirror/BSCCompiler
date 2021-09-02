@@ -34,6 +34,7 @@ constexpr uint32 k0BitSize = 0;
 constexpr uint32 k1BitSize = 1;
 constexpr uint32 k2BitSize = 2;
 constexpr uint32 k4BitSize = 4;
+constexpr uint32 k5BitSize = 5;
 constexpr uint32 k6BitSize = 6;
 constexpr uint32 k8BitSize = 8;
 constexpr uint32 k16BitSize = 16;
@@ -136,8 +137,9 @@ constexpr int32 kMaxPimm8 = 4095;
 constexpr int32 kMaxPimm16 = 8190;
 constexpr int32 kMaxPimm32 = 16380;
 constexpr int32 kMaxPimm64 = 32760;
+constexpr int32 kMaxPimm128 = 65520;
 
-constexpr int32 kMaxPimm[k4BitSize] = {kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64};
+constexpr int32 kMaxPimm[k5BitSize] = {kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64, kMaxPimm128};
 constexpr int32 kMaxPairPimm[k2BitSize] = {k256BitSize, k512BitSize};
 
 constexpr int32 kMax12UnsignedImm = 4096;
