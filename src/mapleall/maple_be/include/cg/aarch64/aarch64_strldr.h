@@ -42,7 +42,7 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
     kPropShift
   };
  private:
-  bool CheckReplaceReg(Insn &defInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
+  bool CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
   bool CheckDefInsn(Insn &defInsn, Insn &currInsn);
   bool CheckNewAmount(Insn &insn, uint32 newAmount);
   bool CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);

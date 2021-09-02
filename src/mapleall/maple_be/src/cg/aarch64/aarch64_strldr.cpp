@@ -344,19 +344,31 @@ void AArch64StoreLoadOpt::MemPropInit() {
   removeDefInsn = false;
 }
 
-bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo) {
-  /* check replace reg def between defInsn and currInsn */
+bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet,
+                                          regno_t replaceRegNo) {
   if (replaceRegDefSet.size() != k1BitSize) {
     return false;
   }
-  Insn *relpaceRegDefInsn = *replaceRegDefSet.begin();
-  if (relpaceRegDefInsn->GetBB() != defInsn.GetBB()) {
-    return false;
+  Insn *replaceRegDefInsn = *replaceRegDefSet.begin();
+  if (defInsn.GetBB() == currInsn.GetBB()) {
+    /* check replace reg def between defInsn and currInsn */
+    Insn *tmpInsn = defInsn.GetNext();
+    while (tmpInsn != &currInsn) {
+      if (tmpInsn == replaceRegDefInsn) {
+        return false;
+      }
+      tmpInsn = tmpInsn->GetNext();
+    }
+  } else {
+    if (replaceRegDefInsn->GetBB() != defInsn.GetBB()) {
+      return false;
+    }
+    if (replaceRegDefInsn->GetId() > defInsn.GetId()) {
+      return false;
+    }
   }
-  if (relpaceRegDefInsn->GetId() > defInsn.GetId()) {
-    return false;
-  }
-  if (relpaceRegDefInsn == &defInsn) {
+
+  if (replaceRegDefInsn == &defInsn) {
     /* lsl x1, x1, #3    <-----should be removed after replace MemOperand of ldrInsn.
      * ldr x0, [x0,x1]   <-----should be single useInsn for x1
      */
@@ -365,7 +377,6 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, InsnSet &replaceRegDefS
       return false;
     }
     removeDefInsn = true;
-    return true;
   }
   return true;
 }
@@ -388,7 +399,7 @@ bool AArch64StoreLoadOpt::CheckDefInsn(Insn &defInsn, Insn &currInsn) {
       AArch64RegOperand &a64OpndTmp = static_cast<AArch64RegOperand&>(opnd);
       regno_t replaceRegNo = a64OpndTmp.GetRegisterNumber();
       InsnSet newRegDefSet = cgFunc.GetRD()->FindDefForRegOpnd(currInsn, replaceRegNo, true);
-      return CheckReplaceReg(defInsn, newRegDefSet, replaceRegNo);
+      return CheckReplaceReg(defInsn, currInsn, newRegDefSet, replaceRegNo);
     }
   }
   return true;
