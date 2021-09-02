@@ -185,8 +185,11 @@ bool AArch64GenProEpilog::TailCallOpt() {
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
   }
-
-  CHECK_FATAL(exitBB->GetFirstMachineInsn() == nullptr, "exit bb should be empty.");
+  FOR_BB_INSNS(insn, exitBB) {
+    if (insn->IsMachineInstruction() && !insn->IsPseudoInstruction()) {
+      CHECK_FATAL(false, "exit bb should be empty.");
+    }
+  }
 
   std::set<Insn*> callInsns;
   TailCallBBOpt(*exitBB, callInsns);
@@ -1269,17 +1272,19 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       cgFunc.GetCurBB()->AppendInsn(inst);
       offset += kSizeOfPtr;
     }
-    offset = memlayout->GetVRSaveAreaBaseLoc();
-    start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * k2BitSize));
-    ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
-    for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
-      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
-      RegOperand &reg =
-          aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
-      Insn &inst =
-          currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
-      cgFunc.GetCurBB()->AppendInsn(inst);
-      offset += (kSizeOfPtr * k2BitSize);
+    if (!CGOptions::UseGeneralRegOnly()) {
+      offset = memlayout->GetVRSaveAreaBaseLoc();
+      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * k2BitSize));
+      ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
+      for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
+        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
+        RegOperand &reg =
+            aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
+        Insn &inst =
+            currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+        cgFunc.GetCurBB()->AppendInsn(inst);
+        offset += (kSizeOfPtr * k2BitSize);
+      }
     }
   }
 }
@@ -1341,7 +1346,7 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     } else {
       Operand *o0 = cgFunc.CreateDbgImmOperand(1);
       // line number might not be available.
-      //CG_ASSERT(func->srcPosition.MplLinenum(), "return check");
+      // CG_ASSERT(func->srcPosition.MplLinenum(), "return check");
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
       Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       cgFunc.GetCurBB()->AppendInsn(loc);

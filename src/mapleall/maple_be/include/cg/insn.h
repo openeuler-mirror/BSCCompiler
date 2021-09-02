@@ -126,6 +126,10 @@ class Insn {
     return false;
   }
 
+  virtual bool IsReturnPseudoInstruction() const {
+    return false;
+  }
+
   virtual bool OpndIsDef(uint32) const {
     return false;
   }
