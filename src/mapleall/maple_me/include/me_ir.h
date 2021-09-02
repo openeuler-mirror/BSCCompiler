@@ -773,10 +773,18 @@ class OpMeExpr : public MeExpr {
   OpMeExpr(int32 exprID, Opcode o, PrimType t, size_t n)
       : MeExpr(exprID, kMeOpOp, o, t, n), tyIdx(TyIdx(0)) {}
 
+  // unary
+  OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0)
+      : MeExpr(exprID, kMeOpOp, o, t, 1), tyIdx(TyIdx(0)) {
+    opnds[0] = opnd0;
+  }
+
+  // binary
   OpMeExpr(int32 exprID, Opcode o, PrimType t, MeExpr *opnd0, MeExpr *opnd1)
       : MeExpr(exprID, kMeOpOp, o, t, 2), tyIdx(TyIdx(0)) {
     opnds[0] = opnd0;
     opnds[1] = opnd1;
+    hasAddressValue = opnd0->HasAddressValue() || opnd1->HasAddressValue();
   }
 
   OpMeExpr(const OpMeExpr &opMeExpr, int32 exprID)
@@ -787,7 +795,8 @@ class OpMeExpr : public MeExpr {
         bitsSize(opMeExpr.bitsSize),
         depth(opMeExpr.depth),
         tyIdx(opMeExpr.tyIdx),
-        fieldID(opMeExpr.fieldID) {}
+        fieldID(opMeExpr.fieldID),
+        hasAddressValue(opMeExpr.hasAddressValue) {}
 
   ~OpMeExpr() = default;
 
@@ -882,7 +891,20 @@ class OpMeExpr : public MeExpr {
     }
     return nullptr;
   }
-  bool HasAddressValue() override { return op == OP_iaddrof || op == OP_array; }
+  void SetHasAddressValue() { 
+    if (hasAddressValue) {
+      return;
+    }
+    if (op != OP_select) {
+      hasAddressValue = opnds[0]->HasAddressValue();
+      if (!hasAddressValue && numOpnds > 1) {
+        hasAddressValue = opnds[1]->HasAddressValue();
+      }
+    } else {
+      hasAddressValue = opnds[1]->HasAddressValue() || opnds[2]->HasAddressValue();
+    }
+  }
+  bool HasAddressValue() override { return hasAddressValue || op == OP_iaddrof; }
   bool StrengthReducible() override;
   int64 SRMultiplier(OriginalSt *ost) override;
 
@@ -894,6 +916,8 @@ class OpMeExpr : public MeExpr {
   uint8 depth = 0;
   TyIdx tyIdx;
   FieldID fieldID = 0;  // this is also used to store puIdx
+ public:
+  bool hasAddressValue = false;    // used only when op is ADD or SUB
 };
 
 class IvarMeExpr : public MeExpr {
@@ -1134,6 +1158,8 @@ class NaryMeExpr : public MeExpr {
     hashIdx += static_cast<uint32>(boundCheck);
     return hashIdx;
   }
+
+  bool HasAddressValue() override { return op == OP_array; }
 
  private:
   TyIdx tyIdx;

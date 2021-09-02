@@ -633,7 +633,7 @@ bool OpMeExpr::StrengthReducible() {
     case OP_add:
     case OP_sub: {
       if (MeOption::srForAdd) {
-        return true;
+        return !HasAddressValue();
       }
       return false;
     }

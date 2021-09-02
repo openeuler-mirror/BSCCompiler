@@ -56,7 +56,7 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
       irMap->SetLpreTmps(static_cast<const VarMeExpr*>(&meExpr)->GetOstIdx(), *regVar);
       // set fields in MIRPreg to support rematerialization
       MIRPreg *preg = regVar->GetOst()->GetMIRPreg();
-      VarMeExpr *varMeExpr = static_cast<VarMeExpr*>(workCand->GetTheMeExpr());
+      VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(workCand->GetTheMeExpr());
       CHECK_FATAL(varMeExpr->GetMeOp() == kMeOpVar, "CreateNewCurTemp: unexpected meOp");
       OriginalSt *ost = varMeExpr->GetOst();
       preg->SetOp(OP_dread);
@@ -66,13 +66,13 @@ ScalarMeExpr *SSAPre::CreateNewCurTemp(const MeExpr &meExpr) {
       // set fields in MIRPreg to support rematerialization
       MIRPreg *preg = regVar->GetOst()->GetMIRPreg();
       if (workCand->GetTheMeExpr()->GetMeOp() == kMeOpAddrof) {
-        AddrofMeExpr *addrof = static_cast<AddrofMeExpr*>(workCand->GetTheMeExpr());
+        AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(workCand->GetTheMeExpr());
         OriginalSt *ost = ssaTab->GetOriginalStFromID(addrof->GetOstIdx());
         preg->SetOp(OP_addrof);
         preg->rematInfo.sym = ost->GetMIRSymbol();
         preg->fieldID = addrof->GetFieldID();
       } else if (workCand->GetTheMeExpr()->GetMeOp() == kMeOpConst) {
-        ConstMeExpr *constMeExpr = static_cast<ConstMeExpr*>(workCand->GetTheMeExpr());
+        ConstMeExpr *constMeExpr = static_cast<ConstMeExpr *>(workCand->GetTheMeExpr());
         preg->SetOp(OP_constval);
         preg->rematInfo.mirConst = constMeExpr->GetConstVal();
       }
@@ -1087,6 +1087,7 @@ void SSAPre::Rename2() {
               alldom = false;
             }
           }
+          opmeexpr.SetHasAddressValue();
           exprY = irMap->HashMeExpr(opmeexpr);
         } else {
           for (size_t ii = 0; ii < varVecY.size(); ++ii) {
