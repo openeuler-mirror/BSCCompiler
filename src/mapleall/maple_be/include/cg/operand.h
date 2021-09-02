@@ -126,8 +126,16 @@ class Operand {
     return opndKind == kOpdCond;
   }
 
+  bool IsOpdShift() const {
+    return opndKind == kOpdShift;
+  }
+
   bool IsRegShift() const {
     return opndKind == kOpdRegShift;
+  }
+
+  bool IsOpdExtend() const {
+    return opndKind == kOpdExtend;
   }
 
   virtual bool IsLabelOpnd() const {
@@ -315,7 +323,7 @@ class RegOperand : public Operand {
 enum VaryType : uint8 {
   kNotVary = 0,
   kUnAdjustVary,
-  kAdjustVary
+  kAdjustVary,
 };
 
 class ImmOperand : public Operand {
@@ -555,6 +563,14 @@ class MemOperand : public Operand {
     return kNotVary;
   }
 
+  void SetAccessSize(uint8 size) {
+    accessSize = size;
+  }
+
+  uint8 GetAccessSize() const {
+    return accessSize;
+  }
+
   bool Less(const Operand &right) const override = 0;
 
   MemOperand(uint32 size, const MIRSymbol &mirSymbol)
@@ -591,6 +607,7 @@ class MemOperand : public Operand {
   Operand *scaleOpnd = nullptr;
   const MIRSymbol *symbol;  /* AddrMode_Literal */
   uint32 memoryOrder = 0;
+  uint8 accessSize = 0;  /* temp, must be set right before use everytime. */
 };
 
 class LabelOperand : public Operand {
@@ -673,6 +690,10 @@ class ListOperand : public Operand {
 
   void PopOpnd() {
     opndList.pop_back();
+  }
+
+  void PopFrontOpnd() {
+    opndList.pop_front();
   }
 
   void PushOpnd(RegOperand &opnd) {

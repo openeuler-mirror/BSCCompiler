@@ -5509,7 +5509,7 @@ bool AArch64CGFunc::HasStackLoadStore() {
             RegOperand *regOpnd = static_cast<RegOperand*>(base);
             RegType regType = regOpnd->GetRegisterType();
             uint32 regNO = regOpnd->GetRegisterNumber();
-            if (((regType != kRegTyCc) && ((regNO == R29) || (regNO == RSP))) || (regType == kRegTyVary)) {
+            if (((regType != kRegTyCc) && ((regNO == RFP) || (regNO == RSP))) || (regType == kRegTyVary)) {
               return true;
             }
           }

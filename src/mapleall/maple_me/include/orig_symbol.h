@@ -73,7 +73,8 @@ class OriginalSt {
         return true;
       }
       if (fieldID != 0) {
-        MIRStructType *structType = static_cast<MIRStructType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(symOrPreg.mirSt->GetTyIdx()));
+        MIRStructType *structType = static_cast<MIRStructType*>(
+            GlobalTables::GetTypeTable().GetTypeFromTyIdx(symOrPreg.mirSt->GetTyIdx()));
         FieldAttrs fattrs = structType->GetFieldAttrs(fieldID);
         if (fattrs.GetAttr(FLDATTR_oneelem_simd)) {
           return true;

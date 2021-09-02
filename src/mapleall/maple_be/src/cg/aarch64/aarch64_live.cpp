@@ -102,7 +102,7 @@ void AArch64LiveAnalysis::GetBBDefUse(BB &bb) {
 
 bool AArch64LiveAnalysis::CleanupBBIgnoreReg(uint32 reg) {
   uint32 regNO = reg + R0;
-  if (regNO < R8 || (R29 <= regNO && regNO <= RZR)) {
+  if (regNO < R8 || (RLR <= regNO && regNO <= RZR)) {
     return true;
   }
   return false;
@@ -139,15 +139,17 @@ void AArch64LiveAnalysis::ProcessAsmListOpnd(BB &bb, Operand &opnd, uint32 idx) 
   bool isDef = false;
   bool isUse = false;
   switch (idx) {
-  case kAsmOutputListOpnd:
-  case kAsmClobberListOpnd:
-    isDef = true;
-    break;
-  case kAsmInputListOpnd:
-    isUse = true;
-    break;
-  default:
-    return;
+    case kAsmOutputListOpnd:
+    case kAsmClobberListOpnd: {
+      isDef = true;
+      break;
+    }
+    case kAsmInputListOpnd: {
+      isUse = true;
+      break;
+    }
+    default:
+      return;
   }
   ListOperand &listOpnd = static_cast<ListOperand&>(opnd);
   for (auto op : listOpnd.GetOperands()) {

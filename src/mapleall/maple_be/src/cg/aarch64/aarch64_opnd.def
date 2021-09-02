@@ -137,7 +137,7 @@ bool StrLdr64PairImmValid(int64 value) {
 }
 
 bool StrLdr128ImmValid(int64 value) {
- return StrLdrSignedOfstValid(value, k4ByteSize);
+  return StrLdrSignedOfstValid(value, k4ByteSize);
 }
 
 AArch64ImmOpndProp mopdMem8Src = {Operand::kOpdMem, {kRegTyUndef, kAllRegNum, kRegPropUse}, 8, StrLdr8ImmValid};

@@ -312,7 +312,7 @@ void LSRALinearScanRegAllocator::DebugCheckActiveList() const {
 void LSRALinearScanRegAllocator::InitFreeRegPool() {
   for (regno_t regNO = kRinvalid; regNO < kMaxRegNum; ++regNO) {
     /* special handle for R9 due to MRT_CallSlowNativeExt */
-    if (!AArch64Abi::IsAvailableReg(static_cast<AArch64reg>(regNO)) || regNO == R9) {
+    if (!AArch64Abi::IsAvailableReg(static_cast<AArch64reg>(regNO)) || regNO == R9 || regNO == R29) {
       continue;
     }
     if (AArch64isa::IsGPRegister(static_cast<AArch64reg>(regNO))) {

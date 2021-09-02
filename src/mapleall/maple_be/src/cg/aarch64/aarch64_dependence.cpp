@@ -407,18 +407,20 @@ void AArch64DepAnalysis::BuildDepsUseMem(Insn &insn, MemOperand &memOpnd) {
   RegOperand *baseRegister = memOpnd.GetBaseRegister();
   AArch64MemOperand &aarchMemOpnd = static_cast<AArch64MemOperand&>(memOpnd);
   AArch64MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
-  if (((baseRegister != nullptr) && IsFrameReg(*baseRegister)) || aarchMemOpnd.IsStackMem()) {
-    /* Stack memory address */
-    for (auto defInsn : stackDefs) {
-      if (defInsn->IsCall() || NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *defInsn)) {
-        AddDependence(*defInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeTrue);
-        continue;
-      }
+
+  memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
+  /* Stack memory address */
+  for (auto defInsn : stackDefs) {
+    if (defInsn->IsCall() || NeedBuildDepsMem(aarchMemOpnd, nextMemOpnd, *defInsn)) {
+      AddDependence(*defInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeTrue);
+      continue;
     }
+  }
+  /* Heap memory */
+  AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeTrue);
+  if (((baseRegister != nullptr) && IsFrameReg(*baseRegister)) || aarchMemOpnd.IsStackMem()) {
     stackUses.emplace_back(&insn);
   } else {
-    /* Heap memory */
-    AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeTrue);
     heapUses.emplace_back(&insn);
   }
   if (memBarInsn != nullptr) {
@@ -432,6 +434,11 @@ bool AArch64DepAnalysis::NeedBuildDepsMem(const AArch64MemOperand &memOpnd, cons
   auto *memOpndOfmemInsn = static_cast<AArch64MemOperand*>(memInsn.GetMemOpnd());
   if (!memOpnd.NoAlias(*memOpndOfmemInsn) || ((nextMemOpnd != nullptr) && !nextMemOpnd->NoAlias(*memOpndOfmemInsn))) {
     return true;
+  }
+  if (cgFunc.GetMirModule().GetSrcLang() == kSrcLangC && memInsn.IsCall() == false) {
+    static_cast<MemOperand*>(memInsn.GetMemOpnd())->SetAccessSize(
+        static_cast<AArch64Insn&>(memInsn).GetLoadStoreSize());
+    return (memOpnd.NoOverlap(*memOpndOfmemInsn) == false);
   }
   AArch64MemOperand *nextMemOpndOfmemInsn = GetNextMemOperand(memInsn, *memOpndOfmemInsn);
   if (nextMemOpndOfmemInsn != nullptr) {
@@ -449,8 +456,9 @@ bool AArch64DepAnalysis::NeedBuildDepsMem(const AArch64MemOperand &memOpnd, cons
  * memOpnd     : insn's memOpnd
  * nextMemOpnd : some memory pair operator instruction (like ldp/stp) defines two memory.
  */
-void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, const AArch64MemOperand &memOpnd,
+void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd,
                                                   const AArch64MemOperand *nextMemOpnd) {
+  memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
   for (auto *useInsn : stackUses) {
     if (NeedBuildDepsMem(memOpnd, nextMemOpnd, *useInsn)) {
       AddDependence(*useInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeAnti);
@@ -464,8 +472,9 @@ void AArch64DepAnalysis::BuildAntiDepsDefStackMem(Insn &insn, const AArch64MemOp
  * memOpnd     : insn's memOpnd
  * nextMemOpnd : some memory pair operator instruction (like ldp/stp) defines two memory.
  */
-void AArch64DepAnalysis::BuildOutputDepsDefStackMem(Insn &insn, const AArch64MemOperand &memOpnd,
+void AArch64DepAnalysis::BuildOutputDepsDefStackMem(Insn &insn, AArch64MemOperand &memOpnd,
                                                     const AArch64MemOperand *nextMemOpnd) {
+  memOpnd.SetAccessSize(static_cast<AArch64Insn &>(insn).GetLoadStoreSize());
   for (auto defInsn : stackDefs) {
     if (defInsn->IsCall() || NeedBuildDepsMem(memOpnd, nextMemOpnd, *defInsn)) {
       AddDependence(*defInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeOutput);
@@ -479,26 +488,28 @@ void AArch64DepAnalysis::BuildDepsDefMem(Insn &insn, MemOperand &memOpnd) {
   AArch64MemOperand &aarchMemOpnd = static_cast<AArch64MemOperand&>(memOpnd);
   AArch64MemOperand *nextMemOpnd = GetNextMemOperand(insn, aarchMemOpnd);
 
-  if (((baseRegister != nullptr) && IsFrameReg(*baseRegister)) || aarchMemOpnd.IsStackMem()) {
-    /* Build anti dependences. */
-    BuildAntiDepsDefStackMem(insn, aarchMemOpnd, nextMemOpnd);
-    /* Build output depnedence. */
-    BuildOutputDepsDefStackMem(insn, aarchMemOpnd, nextMemOpnd);
-    if (lastCallInsn != nullptr) {
-      /* Build a dependence between stack passed arguments and call. */
-      ASSERT(baseRegister != nullptr, "baseRegister shouldn't be null here");
-      if (baseRegister->GetRegisterNumber() == RSP) {
-        AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
-      }
+  /* Build anti dependences. */
+  BuildAntiDepsDefStackMem(insn, aarchMemOpnd, nextMemOpnd);
+  /* Build output depnedence. */
+  BuildOutputDepsDefStackMem(insn, aarchMemOpnd, nextMemOpnd);
+  if (lastCallInsn != nullptr) {
+    /* Build a dependence between stack passed arguments and call. */
+    ASSERT(baseRegister != nullptr, "baseRegister shouldn't be null here");
+    if (baseRegister->GetRegisterNumber() == RSP) {
+      AddDependence(*lastCallInsn->GetDepNode(), *insn.GetDepNode(), kDependenceTypeControl);
     }
+  }
+
+  /* Heap memory
+   * Build anti dependences.
+   */
+  AddDependence4InsnInVectorByType(heapUses, insn, kDependenceTypeAnti);
+  /* Build output depnedence. */
+  AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeOutput);
+
+  if (((baseRegister != nullptr) && IsFrameReg(*baseRegister)) || aarchMemOpnd.IsStackMem()) {
     stackDefs.emplace_back(&insn);
   } else {
-    /* Heap memory
-     * Build anti dependences.
-     */
-    AddDependence4InsnInVectorByType(heapUses, insn, kDependenceTypeAnti);
-    /* Build output depnedence. */
-    AddDependence4InsnInVectorByType(heapDefs, insn, kDependenceTypeOutput);
     heapDefs.emplace_back(&insn);
   }
   if (memBarInsn != nullptr) {
@@ -553,7 +564,7 @@ void AArch64DepAnalysis::BuildCallerSavedDeps(Insn &insn) {
     for (uint32 i = R8; i <= R18; ++i) {
       BuildDepsDefReg(insn, i);
     }
-    for (uint32 i = R29; i <= RSP; ++i) {
+    for (uint32 i = RLR; i <= RSP; ++i) {
       BuildDepsUseReg(insn, i);
     }
     for (uint32 i = V16; i <= V31; ++i) {

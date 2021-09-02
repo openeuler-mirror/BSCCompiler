@@ -90,6 +90,7 @@ CGOptions::ABIType CGOptions::abiType = kABIHard;
 CGOptions::EmitFileType CGOptions::emitFileType = kAsm;
 bool CGOptions::genLongCalls = false;
 bool CGOptions::functionSections = false;
+bool CGOptions::useFramePointer = false;
 bool CGOptions::gcOnly = false;
 bool CGOptions::quiet = false;
 bool CGOptions::doPatchLongBranch = false;
@@ -192,6 +193,7 @@ enum OptionIndex : uint64 {
   kEmitFileType,
   kLongCalls,
   kFunctionSections,
+  kOmitFramePointer,
   kFastMath,
 };
 
@@ -1042,6 +1044,16 @@ const Descriptor kUsage[] = {
     "  --no-function-sections\n",
     "mplcg",
     {} },
+  { kOmitFramePointer,
+    kEnable,
+    "",
+    "omit-frame-pointer",
+    kBuildTypeProduct,
+    kArgCheckPolicyBool,
+    " --omit-frame-pointer          \t do not use frame pointer \n"
+    " --no-omit-frame-pointer\n",
+    "mplcg",
+    {} },
   { kFastMath,
     kEnable,
     "",
@@ -1418,6 +1430,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kFunctionSections:
         (opt.Type() == kEnable) ? EnableFunctionSections() : DisableFunctionSections();
+        break;
+      case kOmitFramePointer:
+        (opt.Type() == kEnable) ?  DisableFramePointer() : EnableFramePointer();
         break;
       case kGCOnly:
         (opt.Type() == kEnable) ? EnableGCOnly() : DisableGCOnly();

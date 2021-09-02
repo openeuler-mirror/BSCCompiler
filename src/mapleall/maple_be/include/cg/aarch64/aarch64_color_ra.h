@@ -1236,7 +1236,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void ComputeLiveRangesUpdateLiveUnitInsnRange(BB &bb, uint32 currPoint);
   void ComputeLiveRanges();
   MemOperand *CreateSpillMem(uint32 spillIdx, SpillMemCheck check);
-  bool CheckOverlap(uint64 val, uint32 &lastBitSet, uint32 &overlapNum, uint32 i) const;
+  bool CheckOverlap(uint64 val, uint32 i, LiveRange &lr1, LiveRange &lr2) const;
   void CheckInterference(LiveRange &lr1, LiveRange &lr2) const;
   void BuildInterferenceGraphSeparateIntFp(std::vector<LiveRange*> &intLrVec, std::vector<LiveRange*> &fpLrVec);
   void BuildInterferenceGraph();
@@ -1287,7 +1287,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
-  uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn);
+  uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn, bool &needProcess);
   void OptCallerSave();
   void FinalizeRegisters();
   void GenerateSpillFillRegs(Insn &insn);
@@ -1374,8 +1374,6 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
    */
   static constexpr size_t kSpillMemOpndNum = 4;
   std::array<MemOperand*, kSpillMemOpndNum> spillMemOpnds = { nullptr };
-  regno_t intSpillFillRegs[kSpillMemOpndNum];
-  regno_t fpSpillFillRegs[kSpillMemOpndNum];
   bool operandSpilled[kSpillMemOpndNum];
   bool needExtraSpillReg = false;
 #ifdef USE_LRA

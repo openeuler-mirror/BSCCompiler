@@ -1045,6 +1045,18 @@ class CGOptions : public MapleDriverOptionBase {
     return functionSections;
   }
 
+  static void EnableFramePointer() {
+    useFramePointer = true;
+  }
+
+  static void DisableFramePointer() {
+    useFramePointer = false;
+  }
+
+  static bool UseFramePointer() {
+    return useFramePointer;
+  }
+
   static void EnableGCOnly() {
     gcOnly = true;
   }
@@ -1144,6 +1156,7 @@ class CGOptions : public MapleDriverOptionBase {
   /* if true generate adrp/ldr/blr */
   static bool genLongCalls;
   static bool functionSections;
+  static bool useFramePointer;
   static bool gcOnly;
   static bool doPreSchedule;
   static bool emitBlockMarker;

@@ -42,6 +42,10 @@ class AArch64CGFunc : public CGFunc {
     uCatch.regNOCatch = 0;
     CGFunc::SetMemlayout(*memPool.New<AArch64MemLayout>(b, f, mallocator));
     CGFunc::GetMemlayout()->SetCurrFunction(*this);
+    if (f.GetAttr(FUNCATTR_varargs) || f.HasVlaOrAlloca()) {
+      SetHasVLAOrAlloca(true);
+    }
+    SetUseFP(CGOptions::UseFramePointer() || HasVLAOrAlloca() || !f.GetModule()->IsCModule());
   }
 
   ~AArch64CGFunc() override = default;

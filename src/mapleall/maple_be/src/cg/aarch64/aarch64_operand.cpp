@@ -39,7 +39,7 @@ bool AArch64RegOperand::IsSaveReg(MIRType &type, BECommon &beCommon) const {
 }
 
 bool AArch64RegOperand::IsSPOrFP() const {
-  return (IsPhysicalRegister() && (regNO == RSP || regNO == RFP));
+  return (IsPhysicalRegister() && (regNO == RSP || regNO == RFP || (regNO == R29 && CGOptions::UseFramePointer())));
 }
 
 bool AArch64RegOperand::operator==(const AArch64RegOperand &o) const {
@@ -156,11 +156,10 @@ void AArch64OfstOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const 
            .Emit((size == k64BitSize) ? GetValue() : static_cast<int64>(static_cast<int32>(GetValue())));
     return;
   }
-  if (CGOptions::IsPIC() &&
-      (symbol->GetStorageClass() == kScGlobal || symbol->GetStorageClass() == kScExtern)) {
+  if (CGOptions::IsPIC() && symbol->NeedPIC()) {
     emitter.Emit(":got:" + symbol->GetName());
   } else if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
-      emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
+    emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
   } else {
     emitter.Emit(symbol->GetName());
   }
@@ -191,12 +190,16 @@ bool StImmOperand::Less(const Operand &right) const{
 
 void StImmOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   CHECK_FATAL(opndProp != nullptr, "opndProp is nullptr in  StImmOperand::Emit");
-  if (static_cast<const AArch64OpndProp*>(opndProp)->IsLiteralLow12()) {
+  bool isLiteralLow12 = static_cast<const AArch64OpndProp*>(opndProp)->IsLiteralLow12();
+  if (CGOptions::IsPIC() && symbol->NeedPIC()) {
+    auto picPreFix = isLiteralLow12 ? "#:got_lo12:" : ":got:";
+    emitter.Emit(picPreFix + GetName());
+    return;
+  }
+  if (isLiteralLow12) {
     emitter.Emit("#:lo12:");
   }
-  if (CGOptions::IsPIC() && (symbol->GetStorageClass() == kScGlobal || symbol->GetStorageClass() == kScExtern)) {
-    emitter.Emit(":got:" + GetName());
-  } else if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
+  if (symbol->GetStorageClass() == kScPstatic && symbol->GetSKind() != kStConst && symbol->IsLocal()) {
     emitter.Emit(symbol->GetName() + std::to_string(emitter.GetCG()->GetMIRModule()->CurFunction()->GetPuidx()));
   } else {
     emitter.Emit(GetName());
@@ -276,8 +279,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
         emitter.Emit("]!");
       } else {
         if (CGOptions::IsPIC() && (offset->IsSymOffset() || offset->IsSymAndImmOffset()) &&
-            (offset->GetSymbol()->GetStorageClass() == kScGlobal ||
-             offset->GetSymbol()->GetStorageClass() == kScExtern)) {
+            offset->GetSymbol()->NeedPIC()){
           emitter.Emit(",#:got_lo12:");
           emitter.Emit(offset->GetSymbolName());
         } else {

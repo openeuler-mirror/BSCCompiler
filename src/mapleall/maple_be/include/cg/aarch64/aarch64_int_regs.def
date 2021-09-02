@@ -57,8 +57,9 @@ INT_REG(25, "W", "X", true, true, false, false, false)
 INT_REG(26, "W", "X", true, true, false, false, false)
 INT_REG(27, "W", "X", true, true, false, false, false)
 INT_REG(28, "W", "X", true, true, false, false, false)
-INT_REG(29, "W", "X", false, true, false, false, false)
+INT_REG(29, "W", "X", true, true, false, false, false)
 INT_REG(30, "W", "X", false, true, false, false, false)
+INT_REG(31, "W", "X", false, true, false, false, false)
 /*
  * Refer to ARM Compiler armasm User Guide version 6.6. $4.5 Predeclared core register names in AArch64 state
  * We should not use "W" prefix in 64-bit context, though!!
@@ -67,10 +68,10 @@ INT_REG(SP, "W", "" , false, false, false, false, false)
 INT_REG(ZR, "W", "X", false, false, false, false, false)
 
 /* Alias ID, ID, 32-bit prefix, 64-bit prefix */
-INT_REG_ALIAS(FP, 29, "", "" )
+INT_REG_ALIAS(FP, 31, "", "" )
 INT_REG_ALIAS(LR, 30, "", "" )
 
 /* R19 is reserved for yieldpoint */
 INT_REG_ALIAS(YP, 19, "", "" )
 
-INT_REG_ALIAS(LAST_INT_REG, 30, "", "" )
+INT_REG_ALIAS(LAST_INT_REG, 31, "", "" )

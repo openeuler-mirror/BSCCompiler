@@ -26,6 +26,9 @@
 #undef PRESCHED_DEBUG
 
 namespace maplebe {
+/* pressure standard value; pressure under this value will not lead to spill operation */
+static int g_pressureStandard = 27;
+
 /* ---- RegPressureSchedule function ---- */
 void RegPressureSchedule::InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes) {
   bb = &b;
@@ -499,9 +502,8 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
     node->SetState(kScheduled);
   }
   originalPressure = calculateRegisterPressure(nodes);
-  int pressureStandard = 27;
   /* Original pressure is small enough, skip pre-scheduling */
-  if (originalPressure < pressureStandard) {
+  if (originalPressure < g_pressureStandard) {
     LogInfo::MapleLogger() << "Original pressure is small enough, skip pre-scheduling \n";
     return;
   }

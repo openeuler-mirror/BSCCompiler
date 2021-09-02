@@ -176,6 +176,7 @@ void AArch64PeepHole0::InitOpts() {
   optimizations[kCmpCsetOpt] = optOwnMemPool->New<CmpCsetAArch64>(cgFunc);
   optimizations[kComplexMemOperandOptAdd] = optOwnMemPool->New<ComplexMemOperandAddAArch64>(cgFunc);
   optimizations[kDeleteMovAfterCbzOrCbnzOpt] = optOwnMemPool->New<DeleteMovAfterCbzOrCbnzAArch64>(cgFunc);
+  optimizations[kRemoveSxtBeforeStrOpt] = optOwnMemPool->New<RemoveSxtBeforeStrAArch64>(cgFunc);
 }
 
 void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
@@ -200,6 +201,11 @@ void AArch64PeepHole0::Run(BB &bb, Insn &insn) {
     case MOP_wcbnz:
     case MOP_xcbnz: {
       (static_cast<DeleteMovAfterCbzOrCbnzAArch64*>(optimizations[kDeleteMovAfterCbzOrCbnzOpt]))->Run(bb, insn);
+      break;
+    }
+    case MOP_wstrh:
+    case MOP_wstrb: {
+      (static_cast<RemoveSxtBeforeStrAArch64*>(optimizations[kRemoveSxtBeforeStrOpt]))->Run(bb, insn);
       break;
     }
     default:
@@ -709,7 +715,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
         prevInsn->GetMachineOpcode() == MOP_wldrb || prevInsn->GetMachineOpcode() == MOP_wldrsh ||
         prevInsn->GetMachineOpcode() == MOP_wldrh || prevInsn->GetMachineOpcode() == MOP_wldr) {
       auto &dstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-      if (dstOpnd.GetRegisterNumber() != regOpnd1.GetRegisterNumber()) {
+      if (!IsSameRegisterOperation(dstOpnd, regOpnd1, regOpnd0)) {
         return;
       }
       /* 32-bit ldr does zero-extension by default, so this conversion can be skipped */
@@ -3062,5 +3068,34 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
     bb.RemoveInsn(*prevInsn);
     bb.RemoveInsn(*prevPrevInsn);
   }
+}
+
+void RemoveSxtBeforeStrAArch64::Run(BB &bb , Insn &insn) {
+  MOperator mop = insn.GetMachineOpcode();
+  Insn *prevInsn = insn.GetPreviousMachineInsn();
+  if (prevInsn == nullptr) {
+    return;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (!(mop == MOP_wstrh && prevMop == MOP_xsxth32) && !(mop == MOP_wstrb && prevMop == MOP_xsxtb32)) {
+    return;
+  }
+  auto &prevOpnd0 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+  if (IfOperandIsLiveAfterInsn(prevOpnd0, insn)) {
+    return;
+  }
+  auto &prevOpnd1 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  regno_t prevRegNO0 = prevOpnd0.GetRegisterNumber();
+  regno_t prevRegNO1 = prevOpnd1.GetRegisterNumber();
+  regno_t regNO0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  if (prevRegNO0 != prevRegNO1) {
+    return;
+  }
+  if (prevRegNO0 == regNO0) {
+    bb.RemoveInsn(*prevInsn);
+    return;
+  }
+  insn.SetOperand(0, prevOpnd1);
+  bb.RemoveInsn(*prevInsn);
 }
 }  /* namespace maplebe */

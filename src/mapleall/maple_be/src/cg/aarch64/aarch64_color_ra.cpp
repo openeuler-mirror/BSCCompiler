@@ -367,6 +367,13 @@ void GraphColorRegAllocator::InitFreeRegPool() {
       if (IsYieldPointReg(static_cast<AArch64reg>(regNO))) {
         continue;
       }
+      if (regNO == R29) {
+        if (!cgFunc->UseFP()) {
+          (void)intCalleeRegSet.insert(regNO - R0);
+          ++intNum;
+        }
+        continue;
+      }
       if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(regNO))) {
         (void)intCalleeRegSet.insert(regNO - R0);
       } else {
@@ -393,8 +400,8 @@ void GraphColorRegAllocator::InitCCReg() {
 }
 
 bool GraphColorRegAllocator::IsUnconcernedReg(regno_t regNO) const {
-  /* RFP = 30, RLR = 31, RSP = 32, RZR = 33 */
-  if ((regNO >= RFP && regNO <= RZR) || regNO == ccReg) {
+  /* RFP = 32, RLR = 31, RSP = 33, RZR = 34 */
+  if ((regNO >= RLR && regNO <= RZR) || regNO == RFP || regNO == ccReg) {
     return true;
   }
 
@@ -1034,15 +1041,24 @@ bool GraphColorRegAllocator::IsLocalReg(LiveRange &lr) const {
   return !lr.GetSplitLr() && (lr.GetNumBBMembers() == 1) && !lr.IsNonLocal();
 }
 
-bool GraphColorRegAllocator::CheckOverlap(uint64 val, uint32 &lastBitSet, uint32 &overlapNum, uint32 i) const {
-  if (val == 0) {
-    return false;
-  }
+bool GraphColorRegAllocator::CheckOverlap(uint64 val, uint32 i, LiveRange &lr1, LiveRange &lr2) const {
+  regno_t lr1RegNO = lr1.GetRegNO();
+  regno_t lr2RegNO = lr2.GetRegNO();
   for (uint32 x = 0; x < kU64; ++x) {
     if ((val & (1ULL << x)) != 0) {
-      ++overlapNum;
-      lastBitSet = i * kU64 + x;
-      if (overlapNum > 1) {
+      uint32 lastBitSet = i * kU64 + x;
+      /*
+       * begin and end should be in the bb info (LU)
+       * Need to rethink this if.
+       * Under some circumstance, lr->begin can occur after lr->end.
+       */
+      auto lu1 = lr1.FindInLuMap(lastBitSet);
+      auto lu2 = lr2.FindInLuMap(lastBitSet);
+      if (lu1 != lr1.EndOfLuMap() && lu2 != lr2.EndOfLuMap() &&
+          !((lu1->second->GetBegin() < lu2->second->GetBegin() && lu1->second->GetEnd() < lu2->second->GetBegin()) ||
+            (lu2->second->GetBegin() < lu1->second->GetEnd() && lu2->second->GetEnd() < lu1->second->GetBegin()))) {
+        lr1.SetConflictBitArrElem(lr2RegNO);
+        lr2.SetConflictBitArrElem(lr1RegNO);
         return true;
       }
     }
@@ -1056,34 +1072,14 @@ void GraphColorRegAllocator::CheckInterference(LiveRange &lr1, LiveRange &lr2) c
     bitArr[i] = lr1.GetBBMember()[i] & lr2.GetBBMember()[i];
   }
 
-  uint32 lastBitSet = 0;
-  uint32 overlapNum = 0;
   for (uint32 i = 0; i < bbBuckets; ++i) {
     uint64 val = bitArr[i];
-    if (CheckOverlap(val, lastBitSet, overlapNum, i)) {
+    if (val == 0) {
+      continue;
+    }
+    if (CheckOverlap(val, i, lr1, lr2)) {
       break;
     }
-  }
-  regno_t lr1RegNO = lr1.GetRegNO();
-  regno_t lr2RegNO = lr2.GetRegNO();
-  if (overlapNum == 1) {
-    /*
-     * begin and end should be in the bb info (LU)
-     * Need to rethink this if.
-     * Under some circumstance, lr->begin can occur after lr->end.
-     */
-    auto lu1 = lr1.FindInLuMap(lastBitSet);
-    auto lu2 = lr2.FindInLuMap(lastBitSet);
-    if (lu1 != lr1.EndOfLuMap() && lu2 != lr2.EndOfLuMap() &&
-        !((lu1->second->GetBegin() < lu2->second->GetBegin() && lu1->second->GetEnd() < lu2->second->GetBegin()) ||
-          (lu2->second->GetBegin() < lu1->second->GetEnd() && lu2->second->GetEnd() < lu1->second->GetBegin()))) {
-      lr1.SetConflictBitArrElem(lr2RegNO);
-      lr2.SetConflictBitArrElem(lr1RegNO);
-    }
-  } else if (overlapNum != 0) {
-    /* interfere */
-    lr1.SetConflictBitArrElem(lr2RegNO);
-    lr2.SetConflictBitArrElem(lr1RegNO);
   }
 }
 
@@ -2195,7 +2191,7 @@ void GraphColorRegAllocator::HandleLocalRaDebug(regno_t regNO, const LocalRegAll
   LogInfo::MapleLogger() << "\tregUsed:";
   uint64 regUsed = localRa.GetPregUsed(isInt);
   regno_t base = isInt ? R0 : V0;
-  regno_t end = isInt ? (RFP - R0) : (V31 - V0);
+  regno_t end = isInt ? (RLR - R0) : (V31 - V0);
 
   for (uint32 i = 0; i <= end; ++i) {
     if ((regUsed & (1ULL << i)) != 0) {
@@ -2687,6 +2683,9 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
       }
       ASSERT(baseRegNO != kRinvalid, "invalid base register number");
       memOpnd = GetSpillMem(lr.GetRegNO(), isDef, insn, static_cast<AArch64reg>(baseRegNO), isOutOfRange);
+      if (!isOutOfRange) {
+        (static_cast<AArch64MemOperand*>(memOpnd))->SetIsSpillMem();
+      }
       /* dest's spill reg can only be R15 and R16 () */
       if (isOutOfRange && isDef) {
         ASSERT(lr.GetSpillReg() != R16, "can not find valid memopnd's base register");
@@ -3261,10 +3260,11 @@ void GraphColorRegAllocator::MarkUsedRegs(Operand &opnd, uint64 &usedRegMask) {
 }
 
 uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo,
-                                                          Insn &insn) {
+                                                          Insn &insn, bool &needProcess) {
   uint64 usedRegMask = 0;
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(&insn)->GetMachineOpcode()];
   uint32 opndNum = insn.GetOperandSize();
+  bool hasVirtual = false;
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = insn.GetOperand(static_cast<int32>(i));
     ASSERT(md->GetOperand(i) != nullptr, "pointer is null in GraphColorRegAllocator::FinalizeRegisters");
@@ -3273,6 +3273,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
       if (insn.GetMachineOpcode() != MOP_asm) {
         continue;
       }
+      hasVirtual = true;
       if (i == kAsmOutputListOpnd) {
         fInfo.SetDefOperand(opnd, i);
       }
@@ -3285,11 +3286,13 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
       if (base != nullptr) {
         fInfo.SetBaseOperand(opnd, i);
         MarkUsedRegs(*base, usedRegMask);
+        hasVirtual |= static_cast<RegOperand*>(base)->IsVirtualRegister();
       }
       Operand *offset = memOpnd.GetIndexRegister();
       if (offset != nullptr) {
         fInfo.SetOffsetOperand(opnd);
         MarkUsedRegs(*offset, usedRegMask);
+        hasVirtual |= static_cast<RegOperand*>(offset)->IsVirtualRegister();
       }
     } else {
       bool isDef = md->GetOperand(i)->IsRegDef();
@@ -3299,24 +3302,30 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
          * Need to exclude def also, since it will clobber the result when the
          * original value is reloaded.
          */
+        hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
         MarkUsedRegs(opnd, usedRegMask);
       } else {
         fInfo.SetUseOperand(opnd, i);
         if (opnd.IsRegister()) {
+          hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
           MarkUsedRegs(opnd, usedRegMask);
         }
       }
     }
   }  /* operand */
+  needProcess = hasVirtual;
   return usedRegMask;
 }
 
 void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   static regno_t intRegs[kSpillMemOpndNum] = { R10, R11, R12, R13 }; // R9 is used for large stack offset temp
   static regno_t fpRegs[kSpillMemOpndNum] = { V10, V11, V12, V13 };
-  uint32 intUseCnt = 0;
-  uint32 fpUseCnt = 0;
   uint32 opndNum = insn.GetOperandSize();
+  std::set<regno_t> defPregs;
+  std::set<regno_t> usePregs;
+  std::vector<LiveRange*> defLrs;
+  std::vector<LiveRange*> useLrs;
+  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(&insn)->GetMachineOpcode()];
   for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
     Operand *opnd = &insn.GetOperand(static_cast<int32>(opndIdx));
     if (opnd == nullptr) {
@@ -3327,50 +3336,96 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
     } else if (opnd->IsMemoryAccessOperand()) {
       MemOperand *memopnd = static_cast<MemOperand*>(opnd);
       AArch64RegOperand *base = static_cast<AArch64RegOperand*>(memopnd->GetBaseRegister());
-      if (base != nullptr && base->IsPhysicalRegister()) {
-        regno_t regno = base->GetRegisterNumber();
-        for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
-          if (regno == intRegs[i]) {
-            intUseCnt++;
-            break;
+      if (base != nullptr && !IsUnconcernedReg(*base)) {
+        if (base->IsPhysicalRegister()) {
+          usePregs.insert(base->GetRegisterNumber());
+        } else {
+          LiveRange *lr = lrVec[base->GetRegisterNumber()];
+          if (lr->IsSpilled()) {
+            useLrs.emplace_back(lr);
           }
         }
       }
       AArch64RegOperand *offset = static_cast<AArch64RegOperand*>(memopnd->GetIndexRegister());
-      if (offset != nullptr && offset->IsPhysicalRegister()) {
-        regno_t regno = offset->GetRegisterNumber();
-        for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
-          if (regno == intRegs[i]) {
-            intUseCnt++;
-            break;
+      if (offset != nullptr) {
+        if (offset->IsPhysicalRegister()) {
+          usePregs.insert(offset->GetRegisterNumber());
+        } else {
+          LiveRange *lr = lrVec[offset->GetRegisterNumber()];
+          if (lr->IsSpilled()) {
+            useLrs.emplace_back(lr);
           }
         }
       }
     } else if (opnd->IsRegister()) {
+      bool isDef = md->GetOperand(opndIdx)->IsRegDef();
+      bool isUse = md->GetOperand(opndIdx)->IsRegUse();
       RegOperand *ropnd = static_cast<RegOperand*>(opnd);
-      if (ropnd != nullptr && ropnd->IsVirtualRegister() == false) {
-        regno_t regno = ropnd->GetRegisterNumber();
-        if (regno >= V0) {
-          for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
-            if (regno == fpRegs[i]) {
-              fpUseCnt++;
-              break;
+      if (IsUnconcernedReg(*ropnd)) {
+        continue;
+      }
+      if (ropnd != nullptr) {
+        if (isUse) {
+          if (ropnd->IsPhysicalRegister()) {
+            usePregs.insert(ropnd->GetRegisterNumber());
+          } else {
+            LiveRange *lr = lrVec[ropnd->GetRegisterNumber()];
+            if (lr->IsSpilled()) {
+              useLrs.emplace_back(lr);
             }
           }
-        } else {
-          for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
-            if (regno == intRegs[i]) {
-              intUseCnt++;
-              break;
+        }
+        if (isDef){
+          if (ropnd->IsPhysicalRegister()) {
+            defPregs.insert(ropnd->GetRegisterNumber());
+          } else {
+            LiveRange *lr = lrVec[ropnd->GetRegisterNumber()];
+            if (lr->IsSpilled()) {
+              defLrs.emplace_back(lr);
             }
           }
         }
       }
     }
   }
-  for (uint32 i = 0; i < kSpillMemOpndNum; ++i) {
-    intSpillFillRegs[i] = intRegs[i] + intUseCnt;
-    fpSpillFillRegs[i] = fpRegs[i] + fpUseCnt;
+  auto comparator = [=](const LiveRange *lr1, const LiveRange *lr2) -> bool {
+      return lr1->GetID() > lr2->GetID();
+  };
+  std::sort(useLrs.begin(), useLrs.end(), comparator);
+  for (auto lr: useLrs) {
+    lr->SetID(insn.GetId());
+    if (lr->GetSpillReg() != 0 && usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
+      usePregs.insert(lr->GetSpillReg());
+      continue;
+    } else {
+      lr->SetSpillReg(0);
+    }
+    RegType rtype = lr->GetRegType();
+    for (uint i = 0; i < kSpillMemOpndNum; i++) {
+      regno_t preg = rtype == kRegTyInt ? intRegs[i] : fpRegs[i];
+      if (usePregs.find(preg) == usePregs.end()) {
+        lr->SetSpillReg(preg);
+        usePregs.insert(preg);
+        break;
+      }
+    }
+  }
+  ASSERT(defLrs.size() <= 1, "expected single def");
+  for (auto lr: defLrs) {
+    lr->SetID(insn.GetId());
+    if (lr->GetSpillReg() != 0) {
+      break;
+    }
+    RegType rtype = lr->GetRegType();
+    for (uint i = 0; i < kSpillMemOpndNum; i++) {
+      regno_t preg = rtype == kRegTyInt ? intRegs[i] : fpRegs[i];
+      if (defPregs.find(preg) == defPregs.end()) {
+        lr->SetSpillReg(preg);
+        defPregs.insert(preg);
+        break;
+      }
+    }
+    ASSERT(lr->GetSpillReg() != 0, "no reg");
   }
 }
 
@@ -3389,14 +3444,13 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
     loadmem = a64cgfunc->AdjustMemOperandIfOffsetOutOfRange(loadmem, vregno, isdef, insn, R9, isOutOfRange);
     PrimType pty = (lr->GetRegType() == kRegTyInt) ? ((bits > k32BitSize) ? PTY_i64 : PTY_i32)
                                               : ((bits > k32BitSize) ? PTY_f64 : PTY_f32);
+    if (!isOutOfRange) {
+      (static_cast<AArch64MemOperand*>(loadmem))->SetIsSpillMem();
+    }
     regno_t spreg = 0;
     RegType rtype = lr->GetRegType();
-    if (spillCnt == 0) {
-      // pregveto will take care of assignment, so pick a caller reg for temp
-      GenerateSpillFillRegs(insn);
-    }
     CHECK_FATAL(spillCnt < kSpillMemOpndNum, "spill count exceeded");
-    spreg = (rtype == kRegTyInt) ? intSpillFillRegs[spillCnt] : fpSpillFillRegs[spillCnt];
+    spreg = lr->GetSpillReg();
     RegOperand *regopnd =
         &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
     Insn *memInsn;
@@ -3431,6 +3485,7 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
       spillCnt = 0;
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
       uint32 opndNum = insn->GetOperandSize();
+      GenerateSpillFillRegs(*insn);
       for (uint32 i = 0; i < opndNum; ++i) {
         Operand *opnd = &insn->GetOperand(i);
         if (opnd == nullptr) {
@@ -3973,7 +4028,11 @@ void GraphColorRegAllocator::FinalizeRegisters() {
       }
 
       FinalizeRegisterInfo *fInfo = memPool->New<FinalizeRegisterInfo>(alloc);
-      uint64 usedRegMask = FinalizeRegisterPreprocess(*fInfo, *insn);
+      bool needProcces = true;
+      uint64 usedRegMask = FinalizeRegisterPreprocess(*fInfo, *insn, needProcces);
+      if (!needProcces) {
+        continue;
+      }
       uint32 defSpillIdx = 0;
       uint32 useSpillIdx = 0;
       MemOperand *memOpnd = nullptr;
@@ -4077,7 +4136,8 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
 
   if (GCRA_DUMP && doMultiPass) {
-    LogInfo::MapleLogger() << "round start: \n";
+    LogInfo::MapleLogger() << "\n round start: \n";
+    cgFunc->DumpCGIR();
   }
   /*
    * we store both FP/LR if using FP or if not using FP, but func has a call

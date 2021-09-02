@@ -256,7 +256,8 @@ void AArch64RegAllocator::InitAvailReg() {
   if (eNum) {
     CHECK_FATAL(false, "memset_s failed");
   }
-  availRegSet[R29] = false;  /* FP */
+  availRegSet[R29] = false;
+  availRegSet[RFP] = false;  /* FP */
   availRegSet[RLR] = false;
   availRegSet[RSP] = false;
   availRegSet[RZR] = false;

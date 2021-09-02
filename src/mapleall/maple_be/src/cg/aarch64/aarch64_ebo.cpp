@@ -289,12 +289,17 @@ void AArch64Ebo::DefineCallUseSpecialRegister(Insn &insn) {
   if (insn.GetMachineOpcode() == MOP_asm) {
     return;
   }
-  /* Define FP, LR. */
-  for (uint32 i = R29; i <= R30; i++) {
-    RegOperand &phyOpnd =
-        a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
-    OperandInfoUse(*insn.GetBB(), phyOpnd);
+  AArch64reg fpRegNO = RFP;
+  if (!beforeRegAlloc && cgFunc->UseFP()) {
+    fpRegNO = R29;
   }
+  /* Define FP, LR. */
+  RegOperand &phyOpndFP =
+      a64CGFunc->GetOrCreatePhysicalRegisterOperand(fpRegNO, k64BitSize, kRegTyInt);
+  OperandInfoUse(*insn.GetBB(), phyOpndFP);
+  RegOperand &phyOpndLR =
+      a64CGFunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(RLR), k64BitSize, kRegTyInt);
+  OperandInfoUse(*insn.GetBB(), phyOpndLR);
 
   /* Define SP */
   RegOperand &phyOpndSP =
@@ -1278,8 +1283,11 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
             auto &base2 = static_cast<RegOperand&>(insn2->GetOperand(kInsnSecondOpnd));
             auto &immOpnd2 = static_cast<AArch64ImmOperand&>(insn2->GetOperand(kInsnThirdOpnd));
             auto &res1 = static_cast<RegOperand&>(insn1->GetOperand(kInsnFirstOpnd));
+            OpndInfo *base2DefOpndInfo = GetOpndInfo(base2, -1);
+            bool isNotSkipCall = beforeRegAlloc ||
+                (base2DefOpndInfo->insn != nullptr && !base2DefOpndInfo->insn->IsCall());
             if (RegistersIdentical(res1, *op1) && RegistersIdentical(res1, res2) &&
-                (GetOpndInfo(base2, -1) != nullptr) && !GetOpndInfo(base2, -1)->redefined) {
+                (GetOpndInfo(base2, -1) != nullptr) && (!base2DefOpndInfo->redefined) && isNotSkipCall) {
               if (beforeRegAlloc) {
                 immVal = imm0Val + imm1.GetValue() +
                          static_cast<int64>(static_cast<uint64>(immOpnd2.GetValue()) << kMaxImmVal12Bits);

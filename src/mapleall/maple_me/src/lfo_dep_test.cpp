@@ -242,7 +242,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   } else {
     rhsArrays.push_back(arrDesc);
   }
-  for (size_t i = 0; i < arr->NumOpnds()-1; i++) {
+  for (size_t i = 0; i < arr->NumOpnds() - 1; i++) {
     SubscriptDesc *subs = BuildOneSubscriptDesc(arr->GetIndex(i));
     arrDesc->subscriptVec.push_back(subs);
   }

@@ -561,6 +561,8 @@ DEFINE_MOP(MOP_bvs, {mopdRegCCS,mopdLabel},ISCONDBRANCH,kLtBranch,"bvs","1",1)
 
 /* MOP_xret		AARCH64 Specific */
 DEFINE_MOP(MOP_xret, {},CANTHROW,kLtBranch,"ret","",1)
+/* MOP_clrex    AARCH64 Specific */
+DEFINE_MOP(MOP_clrex, {},CANTHROW,kLtBranch,"clrex","",1)
 
 /* AARCH64 Floating-Point COMPARES signaling versions */
 /* MOP_hcmperi -- AArch64 cmp has no dest operand */
@@ -686,9 +688,9 @@ DEFINE_MOP(MOP_wstp, {mopdReg32IS,mopdReg32IS,mopdMem32PD},ISSTORE|ISSTOREPAIR|C
 DEFINE_MOP(MOP_xstp, {mopdReg64IS,mopdReg64IS,mopdMem64PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtStore3plus,"stp","0,1,2",1)
 /* AArch64 does not define STPSW. It has no practical value. */
 /* MOP_sstp */
-DEFINE_MOP(MOP_sstp, {mopdReg32FS,mopdReg32FS,mopdMem32D},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
+DEFINE_MOP(MOP_sstp, {mopdReg32FS,mopdReg32FS,mopdMem32PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
 /* MOP_dstp */
-DEFINE_MOP(MOP_dstp, {mopdReg64FS,mopdReg64FS,mopdMem64D},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
+DEFINE_MOP(MOP_dstp, {mopdReg64FS,mopdReg64FS,mopdMem64PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
 
 /* AARCH64 Store with Release semantics */
 /* MOP_wstlrb -- Store-Release Register Byte */

@@ -78,7 +78,9 @@ class EnhanceStrLdrAArch64 : public PeepPattern {
 
  private:
   bool IsEnhanceAddImm(MOperator prevMop);
-  bool IsSameRegisterOperation(RegOperand &desMovOpnd, RegOperand &uxtDestOpnd, RegOperand &uxtFromOpnd);
+  bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
+                               const RegOperand &uxtDestOpnd,
+                               const RegOperand &uxtFromOpnd) const;
 };
 
 /* Eliminate the sxt[b|h|w] w0, w0;, when w0 is satisify following:
@@ -714,6 +716,21 @@ class AndCmpBranchesToTbzAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 };
 
+/*
+ * Optimize the following patterns:
+ * sxth  r4, r4         ====> strh r4, [r0, r3]
+ * strh  r4, [r0, r3]
+ *
+ * sxtb  r4, r4         ====> strb r4, [r0, r3]
+ * strb  r4, [r0, r3]
+ */
+class RemoveSxtBeforeStrAArch64 : public PeepPattern {
+ public:
+  explicit RemoveSxtBeforeStrAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~RemoveSxtBeforeStrAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+};
+
 class AArch64PeepHole : public PeepPatternMatch {
  public:
   AArch64PeepHole(CGFunc &oneCGFunc, MemPool *memPool) : PeepPatternMatch(oneCGFunc, memPool) {}
@@ -756,6 +773,7 @@ class AArch64PeepHole0 : public PeepPatternMatch {
     kCmpCsetOpt,
     kComplexMemOperandOptAdd,
     kDeleteMovAfterCbzOrCbnzOpt,
+    kRemoveSxtBeforeStrOpt,
     kPeepholeOptsNum
   };
 };

@@ -1059,6 +1059,16 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
   }
 
   if (opnd1->IsLeaf()) {
+    if (opnd0->GetOp() == OP_cvt) {
+      // reassociation effects sign extension
+      auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
+      if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
+          (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
+        return nullptr;
+      }
+      opnd0 = opnd0->GetOpnd(0);
+    }
+
     if (opnd0->GetOp() == OP_add) {
       auto *opndA = opnd0->GetOpnd(0);
       auto *opndB = opnd0->GetOpnd(1);

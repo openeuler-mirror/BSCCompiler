@@ -230,6 +230,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
   } else {
     nextLevOst = alloc.GetMemPool()->New<OriginalSt>(originalStVector.size(), ost->GetPregIdx(),
         ost->GetPuIdx(), alloc);
+    nextLevOst->SetFieldID(fldIDInOst);
   }
   originalStVector.push_back(nextLevOst);
   CHECK_FATAL(ost->GetIndirectLev() < INT8_MAX, "boundary check");

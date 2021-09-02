@@ -116,6 +116,10 @@ class CGFunc {
     return hasVLAOrAlloca;
   }
 
+  void SetHasVLAOrAlloca(bool val) {
+    hasVLAOrAlloca = val;
+  }
+
   void SetRD(ReachingDefinition *paramRd) {
     reachingDef = paramRd;
   }
@@ -948,6 +952,13 @@ class CGFunc {
   uint32 GetUniqueID() {
     return func.GetPuidx();
   }
+  void SetUseFP(bool canUseFP) {
+    useFP = canUseFP;
+  }
+
+  bool UseFP() {
+    return useFP;
+  }
 
  protected:
   uint32 firstMapleIrVRegNO = 200;        /* positioned after physical regs */
@@ -969,6 +980,7 @@ class CGFunc {
   int32 totalInsns = 0;
   int32 structCopySize;
   int32 maxParamStackSize;
+
   bool hasVLAOrAlloca;
   bool hasProEpilogue = false;
   bool isVolLoad = false;
@@ -1074,6 +1086,7 @@ class CGFunc {
   static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
   const MapleString shortFuncName;
   bool hasAsm = false;
+  bool useFP = true;
 };  /* class CGFunc */
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgLayoutFrame, maplebe::CGFunc)

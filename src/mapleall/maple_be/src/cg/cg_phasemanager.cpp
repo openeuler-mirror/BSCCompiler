@@ -76,15 +76,15 @@ void CgFuncPM::GenerateOutPutFile(MIRModule &m) {
   InitProfile(m);
 }
 
-bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM, unsigned long &rangeNum) {
+bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM) {
   bool changed = false;
-  MPLTimer iteratorTimer;
-  iteratorTimer.Start();
-  time_t loopBodyTime = 0;
   for (size_t i = 0; i < phasesSequence.size(); ++i) {
+    SolveSkipFrom(CGOptions::GetSkipFromPhase(), i);
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
-    MPLTimer timer;
-    timer.Start();
+    if (!IsQuiet()) {
+      LogInfo::MapleLogger() << "---Run " << (curPhase->IsAnalysis() ? "analysis" : "transform")
+                             << " Phase [ " << curPhase->PhaseName() << " ]---\n";
+    }
     if (curPhase->IsAnalysis()) {
       changed |= RunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
     } else  {
@@ -92,19 +92,9 @@ bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM, unsi
       changed |= RunTransformPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
       DumpFuncCGIR(cgFunc, curPhase->PhaseName(), false);
     }
-    timer.Stop();
-    if (curPhase->IsAnalysis()) {
-      analysisPhaseTempTime += timer.ElapsedMicroseconds();
-    } else {
-      AddPhaseTime(curPhase->GetPhaseID(), analysisPhaseTempTime + timer.ElapsedMicroseconds());
-      analysisPhaseTempTime = 0;
-    }
-    loopBodyTime += timer.ElapsedMicroseconds();
+    SolveSkipAfter(CGOptions::GetSkipAfterPhase(), i);
   }
-  rangeNum++;
-  iteratorTimer.Stop();
-  extraPhaseTime += iteratorTimer.ElapsedMicroseconds() - loopBodyTime;
-  return false;
+  return changed;
 }
 
 void CgFuncPM::PostOutPut(MIRModule &m) {
@@ -138,6 +128,10 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       if (mirFunc->GetBody() == nullptr) {
         continue;
       }
+      if (!IsQuiet()) {
+        LogInfo::MapleLogger() << ">>>>>>>>>>>>>>>>>>>>>>>>>>>>> Optimizing Function  < " << mirFunc->GetName()
+                               << " id=" << mirFunc->GetPuidxOrigin() << " >---\n";
+      }
       /* LowerIR. */
       m.SetCurFunction(mirFunc);
       if (cg->DoConstFold()) {
@@ -163,7 +157,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       if (CGOptions::UseRange() && rangeNum >= CGOptions::GetRangeBegin() && rangeNum <= CGOptions::GetRangeEnd()) {
         CGOptions::EnableInRange();
       }
-      changed = FuncLevelRun(*cgFunc, *serialADM, rangeNum);
+      changed = FuncLevelRun(*cgFunc, *serialADM);
 
       /* Delete mempool. */
       mirFunc->ReleaseCodeMemory();
@@ -180,37 +174,39 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 }
 
 void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
-  ADDMAPLEPHASE(CgLayoutFrame, true);
-  ADDMAPLEPHASE(CgCreateLabel, true);
-  ADDMAPLEPHASE(CgBuildEHFunc, true);
-  ADDMAPLEPHASE(CgHandleFunction, true);
-  ADDMAPLEPHASE(CgMoveRegArgs, true);
-  ADDMAPLEPHASE(CgEbo0, CGOptions::DoEBO());
-  ADDMAPLEPHASE(CgPrePeepHole0, CGOptions::DoPrePeephole())
-  ADDMAPLEPHASE(CgIco, CGOptions::DoICO())
-  ADDMAPLEPHASE(CgCfgo, !CLANG && CGOptions::DoCFGO());
+  ADDMAPLECGPHASE("layoutstackframe", true);
+  ADDMAPLECGPHASE("createstartendlabel", true);
+  ADDMAPLECGPHASE("buildehfunc", true);
+  ADDMAPLECGPHASE("handlefunction", true);
+  ADDMAPLECGPHASE("moveargs", true);
+  ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
+  ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
+  ADDMAPLECGPHASE("ico", CGOptions::DoICO())
+  ADDMAPLECGPHASE("cfgo", !CLANG && CGOptions::DoCFGO());
 #if TARGAARCH64
-  ADDMAPLEPHASE(CgStoreLoadOpt, JAVALANG && CGOptions::DoStoreLoadOpt())
-  ADDMAPLEPHASE(CgGlobalOpt, CGOptions::DoGlobalOpt())
-  ADDMAPLEPHASE(CgClearRDInfo, (JAVALANG && CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
+  ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt())
+  ADDMAPLECGPHASE("globalopt", CGOptions::DoGlobalOpt())
+  ADDMAPLECGPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
 #endif
-  ADDMAPLEPHASE(CgPrePeepHole1, CGOptions::DoPrePeephole())
-  ADDMAPLEPHASE(CgEbo1, CGOptions::DoEBO());
-  ADDMAPLEPHASE(CgPreScheduling, CGOptions::DoPreSchedule());
-  ADDMAPLEPHASE(CgRaOpt, CGOptions::DoPreLSRAOpt());
-  ADDMAPLEPHASE(CgRegAlloc, true);
-  ADDMAPLEPHASE(CgGenProEpiLog, true);
-  ADDMAPLEPHASE(CgFPLROffsetAdjustment, true);
-  ADDMAPLEPHASE(CgFixCFLocOsft, true);
-  ADDMAPLEPHASE(CgPeepHole0, CGOptions::DoPeephole())
-  ADDMAPLEPHASE(CgPostEbo, CGOptions::DoEBO());
-  ADDMAPLEPHASE(CgPostCfgo, CGOptions::DoCFGO());
-  ADDMAPLEPHASE(CgPeepHole1, CGOptions::DoPeephole())
-  ADDMAPLEPHASE(CgGenCfi, !CLANG);
-  ADDMAPLEPHASE(CgYieldPointInsertion, JAVALANG && CGOptions::IsInsertYieldPoint());
-  ADDMAPLEPHASE(CgScheduling, CGOptions::DoSchedule());
-  ADDMAPLEPHASE(CgFixShortBranch, true);
-  ADDMAPLEPHASE(CgEmission, true);
+  ADDMAPLECGPHASE("prepeephole1", CGOptions::DoPrePeephole())
+  ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
+  ADDMAPLECGPHASE("prescheduling", CGOptions::DoPreSchedule());
+  ADDMAPLECGPHASE("raopt", CGOptions::DoPreLSRAOpt());
+  ADDMAPLECGPHASE("regalloc", true);
+  ADDMAPLECGPHASE("storeloadopt", CLANG && CGOptions::DoStoreLoadOpt())
+  ADDMAPLECGPHASE("clearrdinfo", CLANG && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
+  ADDMAPLECGPHASE("generateproepilog", true);
+  ADDMAPLECGPHASE("offsetadjustforfplr", true);
+  ADDMAPLECGPHASE("dbgfixcallframeoffsets", true);
+  ADDMAPLECGPHASE("peephole0", CGOptions::DoPeephole())
+  ADDMAPLECGPHASE("postebo", CGOptions::DoEBO());
+  ADDMAPLECGPHASE("postcfgo", CGOptions::DoCFGO());
+  ADDMAPLECGPHASE("peephole", CGOptions::DoPeephole())
+  ADDMAPLECGPHASE("gencfi", !CLANG);
+  ADDMAPLECGPHASE("yieldpoint", JAVALANG && CGOptions::IsInsertYieldPoint());
+  ADDMAPLECGPHASE("scheduling", CGOptions::DoSchedule());
+  ADDMAPLECGPHASE("fixshortbranch", true);
+  ADDMAPLECGPHASE("cgemit", true);
 }
 
 void CgFuncPM::DumpFuncCGIR(CGFunc &f, const std::string phaseName, bool isBefore) {
@@ -286,6 +282,9 @@ void CgFuncPM::CreateCGAndBeCommon(MIRModule &m) {
   if (cg->NeedInsertInstrumentationFunction()) {
     CHECK_FATAL(cgOptions->IsInsertCall(), "handling of --insert-call is not correct");
     cg->SetInstrumentationFunction(cgOptions->GetInstrumentationFunction());
+  }
+  if (!m.IsCModule()) {
+    CGOptions::EnableFramePointer();
   }
 }
 
@@ -412,4 +411,38 @@ bool CgFuncPM::IsFramework(MIRModule &m) const {
   return false;
 }
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
+
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLiveAnalysis, liveanalysis)
+MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
+MAPLE_ANALYSIS_PHASE_REGISTER(CgReachingDefinition, reachingdefinition)
+
+MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgGlobalOpt, globalopt)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPreScheduling, prescheduling)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgScheduling, scheduling)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgGenProEpiLog, generateproepilog)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgMoveRegArgs, moveargs)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCfgo, cfgo)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostCfgo, postcfgo)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRaOpt, raopt)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgBuildEHFunc, buildehfunc)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole0, prepeephole)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole1, prepeephole1)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole0, peephole0)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole1, peephole)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgEbo0, ebo)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgEbo1, ebo1)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostEbo, postebo)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgClearRDInfo, clearrdinfo)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgIco, ico)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgStoreLoadOpt, storeloadopt)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgFPLROffsetAdjustment, offsetadjustforfplr)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 }  /* namespace maplebe */

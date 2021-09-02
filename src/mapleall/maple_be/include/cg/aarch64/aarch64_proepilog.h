@@ -27,7 +27,10 @@ using namespace maple;
 
 class AArch64GenProEpilog : public GenProEpilog {
  public:
-  explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {}
+  explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
+    useFP = func.UseFP();
+    stackBaseReg = useFP ? R29 : RSP;
+  }
   ~AArch64GenProEpilog() override = default;
 
   bool TailCallOpt() override;
@@ -71,6 +74,10 @@ class AArch64GenProEpilog : public GenProEpilog {
                                                           RegType rty, bool isAllocate);
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
+
+  bool useFP = true;
+  /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
+  AArch64reg stackBaseReg = RFP;
 };
 }  /* namespace maplebe */
 
