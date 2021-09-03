@@ -127,9 +127,9 @@ void CGFuncLoops::CheckLoops() const {
 void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   LogInfo::MapleLogger() << "loop_level(" << funcLoop.loopLevel << ") ";
   LogInfo::MapleLogger() << "header " << funcLoop.GetHeader()->GetId() << " ";
-  if (multiEntries.size()) {
+  if (funcLoop.multiEntries.size()) {
     LogInfo::MapleLogger() << "other-header ";
-    for (auto bb : multiEntries) {
+    for (auto bb : funcLoop.multiEntries) {
       LogInfo::MapleLogger() << bb->GetId() << " ";
     }
   }
