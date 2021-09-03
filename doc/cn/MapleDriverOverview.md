@@ -39,7 +39,7 @@ maple驱动程序旨在满足优秀编译器（如clang）的要求。换句话�
 
 `CompilerFactory`调用选定编译器的`Compile`方法，在此期间，默认和用户确定的选项被构造并写入字符串中。主要的问题是命令从一种风格转换到另一种风格，一些驱动程序组件，如`MplcgCompiler`需要自己的方法才能正确工作，而另一些组件，就像`AsCompiler`一样，只使用几个选项，它们的主要目的是确定可执行文件的路径，以调用和传递它们的输入和输出参数。
 
-但是，`MaplecombCompiler`和`MplcgCompiler`需要特殊的管道，它们不调用可执行文件并将命令行传递给它们，而是使用`MIRModule`与输入文件交互，'mirParser'和'DriverRunner'类。`MIRModule`是一种数据结构，其目的类似于`MplOptions`，前面提到的两个编译器在其中存储关键数据（输入文件的名称、源语言等）；顾名思义，`MIRParser`存在于解析maple IR; `DriverRunner`是一个协调器，它可以与以前的两个数据结构一起工作，还存储它负责的阶段的选项和编译中所需的其他数据。
+但是，`MaplecombCompiler`和`MplcgCompiler`需要特殊的管道，它们不调用可执行文件给它们传递命令行，而是使用`MIRModule`、`mirParser`和`DriverRunner`类与输入文件交互。`MIRModule`是一种数据结构，其功能类似于`MplOptions`，`MaplecombCompiler`和`MplcgCompiler`会在其中存储关键数据（输入文件的名称、源语言等）；`MIRParser`是为了解析maple IR; `DriverRunner`是一个协调器，它可以与以前的两个数据结构一起工作，同时还存储其负责的阶段的选项和编译中所需的其他数据。
 
 **5.执行**
 
