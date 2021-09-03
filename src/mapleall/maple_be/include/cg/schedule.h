@@ -30,8 +30,8 @@ class RegPressureSchedule {
       : cgFunc(func), liveReg(alloc.Adapter()), scheduledNode(alloc.Adapter()),
         originalNodeSeries(alloc.Adapter()), readyList(alloc.Adapter()),
         partialList(alloc.Adapter()), partialSet(alloc.Adapter()),
-        partialScheduledNode(alloc.Adapter()), liveInRegNO(alloc.Adapter()),
-        liveOutRegNO(alloc.Adapter()) {}
+        partialScheduledNode(alloc.Adapter()), optimisticScheduledNodes(alloc.Adapter()),
+        liveInRegNO(alloc.Adapter()), liveOutRegNO(alloc.Adapter()) {}
   virtual ~RegPressureSchedule() = default;
 
   void InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes);
@@ -46,6 +46,8 @@ class RegPressureSchedule {
   void UpdateLiveReg(const DepNode &node, regno_t reg, bool def);
   bool CanSchedule(const DepNode &node) const;
   void UpdateReadyList(const DepNode &node);
+  void BruteUpdateReadyList(const DepNode &node, std::vector<bool> &changedToReady);
+  void RestoreReadyList(DepNode &node, std::vector<bool> &changedToReady);
   void UpdatePriority(DepNode &node);
   void CalculateMaxDepth(const MapleVector<DepNode*> &nodes);
   void CalculateNear(const DepNode &node);
@@ -53,13 +55,20 @@ class RegPressureSchedule {
   DepNode *ChooseNode();
   void DoScheduling(MapleVector<DepNode*> &nodes);
   void HeuristicScheduling(MapleVector<DepNode*> &nodes);
-  int calculateRegisterPressure(MapleVector<DepNode*> &nodes);
-  void partialScheduling(MapleVector<DepNode*> &nodes);
+  int CalculateRegisterPressure(MapleVector<DepNode*> &nodes);
+  void PartialScheduling(MapleVector<DepNode*> &nodes);
+  void BruteForceScheduling();
+  void CalculatePredSize(DepNode &node);
+  void InitBruteForceScheduling(MapleVector<DepNode*> &nodes);
+  void EmitSchedulingSeries(MapleVector<DepNode*> &nodes);
  private:
   void DumpBBPressureInfo() const;
   void DumpBBLiveInfo() const;
   void DumpReadyList() const;
   void DumpSelectInfo(const DepNode &node) const;
+  static void DumpDependencyInfo(const MapleVector<DepNode*> &nodes);
+  void ReportScheduleError() const;
+  void ReportScheduleOutput() const;
   RegType GetRegisterType(regno_t reg) const;
 
   CGFunc &cgFunc;
@@ -76,6 +85,8 @@ class RegPressureSchedule {
   MapleSet<DepNode*> partialSet;
   /* save partial nodes which have been scheduled. */
   MapleVector<DepNode*> partialScheduledNode;
+  /* optimistic schedule series with minimum register pressure */
+  MapleVector<DepNode*> optimisticScheduledNodes;
   /* save split points */
   std::vector<int> splitterIndexes;
   /* save integer register pressure */
@@ -83,6 +94,7 @@ class RegPressureSchedule {
   /* save the amount of every type register. */
   int32 *physicalRegNum = nullptr;
   int32 maxPriority = 0;
+  int32 scheduleSeriesCount = 0;
   /* live in register set */
   MapleSet<regno_t> liveInRegNO;
   /* live out register set */
@@ -91,6 +103,8 @@ class RegPressureSchedule {
   int originalPressure = 0;
   /* register pressure after pre-scheduling */
   int scheduledPressure = 0;
+  /* minimum pressure ever met */
+  int minPressure = -1;
 };
 
 enum SimulateType : uint8 {

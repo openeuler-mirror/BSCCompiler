@@ -1230,7 +1230,11 @@ void GraphColorRegAllocator::Separate() {
     } else if (lr->IsMustAssigned()) {
       mustAssigned.emplace_back(lr);
     } else {
-      constrained.emplace_back(lr);
+      if (lr->GetPrefs().size() && lr->GetNumCall() == 0) {
+        unconstrainedPref.emplace_back(lr);
+      } else {
+        constrained.emplace_back(lr);
+      }
     }
   }
   if (GCRA_DUMP) {
@@ -2053,7 +2057,7 @@ void GraphColorRegAllocator::ColorForOptPrologEpilog() {
  *
  *  Color the unconstrained LRs.
  */
-void GraphColorRegAllocator::SplitAndColorForEachLr(MapleVector<LiveRange*> &targetLrVec, bool isConstrained) {
+void GraphColorRegAllocator::SplitAndColorForEachLr(MapleVector<LiveRange*> &targetLrVec) {
   while (!targetLrVec.empty()) {
     auto highestIt = GetHighPriorityLr(targetLrVec);
     LiveRange *lr = *highestIt;
@@ -2065,10 +2069,6 @@ void GraphColorRegAllocator::SplitAndColorForEachLr(MapleVector<LiveRange*> &tar
     }
     if (AssignColorToLr(*lr)) {
       continue;
-    }
-    if (!isConstrained) {
-      ASSERT(false, "unconstrained lr should be colorable");
-      LogInfo::MapleLogger() << "error: LR should be colorable " << lr->GetRegNO() << "\n";
     }
 #ifdef USE_SPLIT
     SplitLr(*lr);
@@ -2090,16 +2090,16 @@ void GraphColorRegAllocator::SplitAndColorForEachLr(MapleVector<LiveRange*> &tar
 
 void GraphColorRegAllocator::SplitAndColor() {
   /* handle mustAssigned */
-  SplitAndColorForEachLr(mustAssigned, true);
+  SplitAndColorForEachLr(mustAssigned);
+
+  /* assign color for unconstained */
+  SplitAndColorForEachLr(unconstrainedPref);
 
   /* handle constrained */
-  SplitAndColorForEachLr(constrained, true);
+  SplitAndColorForEachLr(constrained);
 
   /* assign color for unconstained */
-  SplitAndColorForEachLr(unconstrainedPref, false);
-
-  /* assign color for unconstained */
-  SplitAndColorForEachLr(unconstrained, false);
+  SplitAndColorForEachLr(unconstrained);
 
 #ifdef OPTIMIZE_FOR_PROLOG
   if (doOptProlog) {

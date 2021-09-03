@@ -28,6 +28,12 @@
 namespace maplebe {
 /* pressure standard value; pressure under this value will not lead to spill operation */
 static int g_pressureStandard = 27;
+/* optimistic scheduling option */
+static bool g_optimisticScheduling = false;
+/* brute maximum count limit option */
+static bool g_bruteMaximumLimit = true;
+/* brute maximum count */
+static int g_schedulingMaximumCount = 20000;
 
 /* ---- RegPressureSchedule function ---- */
 void RegPressureSchedule::InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes) {
@@ -111,16 +117,7 @@ void RegPressureSchedule::Init(const MapleVector<DepNode*> &nodes) {
       ++i;
     }
     /* Calculate pred size of the node */
-    int emptyPredsSize = 0;
-    node->SetValidPredsSize(emptyPredsSize);
-    for (auto pred : node->GetPreds()) {
-      DepNode &from = pred->GetFrom();
-      if (!partialSet.empty() && (partialSet.find(&from) == partialSet.end())) {
-        continue;
-      } else {
-        node->IncreaseValidPredsSize();
-      }
-    }
+    CalculatePredSize(*node);
   }
 
   DepNode *firstNode = nodes.front();
@@ -402,7 +399,7 @@ void RegPressureSchedule::UpdateReadyList(const DepNode &node) {
       break;
     }
   }
-
+  /* update dependency information of the successors and add nodes into readyList */
   for (auto *succ : node.GetSuccs()) {
     DepNode &succNode = succ->GetTo();
     if (!partialSet.empty() && (partialSet.find(&succNode) == partialSet.end())) {
@@ -415,7 +412,58 @@ void RegPressureSchedule::UpdateReadyList(const DepNode &node) {
     }
   }
 }
+/*
+ * Another version of UpdateReadyList for brute force ready list update
+ * The difference is to store the state change status for the successors for later restoring
+ */
+void RegPressureSchedule::BruteUpdateReadyList(const DepNode &node, std::vector<bool> &changedToReady) {
+  /* delete node from readylist */
+  for (auto it = readyList.begin(); it != readyList.end(); ++it) {
+    if (*it == &node) {
+      readyList.erase(it);
+      break;
+    }
+  }
+  /* update dependency information of the successors and add nodes into readyList */
+  for (auto *succ : node.GetSuccs()) {
+    DepNode &succNode = succ->GetTo();
+    if (!partialSet.empty() && (partialSet.find(&succNode) == partialSet.end())) {
+      continue;
+    }
+    succNode.DescreaseValidPredsSize();
+    if (((succ->GetDepType() == kDependenceTypeTrue) || CanSchedule(succNode)) && (succNode.GetState() == kNormal)) {
+      readyList.emplace_back(&succNode);
+      succNode.SetState(kReady);
+      changedToReady.emplace_back(true);
+    } else {
+      changedToReady.emplace_back(false);
+    }
+  }
+}
 
+/*
+ * Restore the ready list status when finishing one brute scheduling series generation
+ */
+void RegPressureSchedule::RestoreReadyList(DepNode &node, std::vector<bool> &changedToReady) {
+  int i = 0;
+  /* restore state information of the successors and delete them from readyList */
+  for (auto *succ : node.GetSuccs()) {
+    DepNode &succNode = succ->GetTo();
+    succNode.IncreaseValidPredsSize();
+    if (changedToReady.at(i)) {
+      succNode.SetState(kNormal);
+      for (auto it = readyList.begin(); it != readyList.end(); ++it) {
+        if (*it == &succNode) {
+          readyList.erase(it);
+          break;
+        }
+      }
+    }
+    ++i;
+  }
+  /* add the node back into the readyList */
+  readyList.emplace_back(&node);
+}
 /* choose a node to schedule */
 DepNode *RegPressureSchedule::ChooseNode() {
   DepNode *node = nullptr;
@@ -475,6 +523,48 @@ void RegPressureSchedule::DumpSelectInfo(const DepNode &node) const {
   LogInfo::MapleLogger() << "\n";
 }
 
+void RegPressureSchedule::DumpDependencyInfo(const MapleVector<DepNode*> &nodes) {
+  LogInfo::MapleLogger() << "Dump Dependency Begin \n";
+  for (auto node : nodes) {
+    LogInfo::MapleLogger() << "Insn \n";
+    node->GetInsn()->Dump();
+    LogInfo::MapleLogger() << "Successors \n";
+    /* update dependency information of the successors and add nodes into readyList */
+    for (auto *succ : node->GetSuccs()) {
+      DepNode &succNode = succ->GetTo();
+      succNode.GetInsn()->Dump();
+    }
+  }
+  LogInfo::MapleLogger() << "Dump Dependency End \n";
+}
+
+void RegPressureSchedule::ReportScheduleError() const {
+  LogInfo::MapleLogger() << "Error No Equal Length for Series" << "\n";
+  DumpDependencyInfo(originalNodeSeries);
+  for (auto node : scheduledNode) {
+    node->GetInsn()->Dump();
+  }
+  LogInfo::MapleLogger() << "Original One" << "\n";
+  for (auto node : originalNodeSeries) {
+    node->GetInsn()->Dump();
+  }
+  LogInfo::MapleLogger() << "Error No Equal Length for End" << "\n";
+}
+
+void RegPressureSchedule::ReportScheduleOutput() const {
+  LogInfo::MapleLogger() << "Original Pressure : " << originalPressure << " \n";
+  LogInfo::MapleLogger() << "Scheduled Pressure : " << scheduledPressure << " \n";
+  if (originalPressure > scheduledPressure) {
+    LogInfo::MapleLogger() << "Pressure Reduced by : " << (originalPressure - scheduledPressure) << " \n";
+    return;
+  } else if (originalPressure == scheduledPressure){
+    LogInfo::MapleLogger() << "Pressure Not Changed \n";
+  } else {
+    LogInfo::MapleLogger() << "Pressure Increased by : " << (scheduledPressure - originalPressure) << " \n";
+  }
+  LogInfo::MapleLogger() << "Pressure Not Reduced, Restore Node Series \n";
+}
+
 void RegPressureSchedule::DumpBBPressureInfo() const {
   LogInfo::MapleLogger() << "curPressure: ";
   FOR_ALL_REGCLASS(i) {
@@ -496,45 +586,34 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
     originalNodeSeries.emplace_back(node);
   }
   initPartialSplitters(nodes);
-  LogInfo::MapleLogger() << "Calculate Pressure Info for Schedule Input Series \n";
-  /* Mock all the nodes to kScheduled status for pressure calculation */
-  for (auto node : nodes){
-    node->SetState(kScheduled);
-  }
-  originalPressure = calculateRegisterPressure(nodes);
+  LogInfo::MapleLogger() << "\n Calculate Pressure Info for Schedule Input Series \n";
+  originalPressure = CalculateRegisterPressure(nodes);
+  LogInfo::MapleLogger() << "Original pressure : " << originalPressure << "\n";
   /* Original pressure is small enough, skip pre-scheduling */
   if (originalPressure < g_pressureStandard) {
     LogInfo::MapleLogger() << "Original pressure is small enough, skip pre-scheduling \n";
     return;
   }
-  /* Reset all the nodes to kNormal status */
-  for (auto node : nodes){
-    node->SetState(kNormal);
-  }
   if (splitterIndexes.empty()) {
     LogInfo::MapleLogger() << "No splitter, normal scheduling \n";
-    HeuristicScheduling(nodes);
+    if (!g_optimisticScheduling) {
+      HeuristicScheduling(nodes);
+    } else {
+      InitBruteForceScheduling(nodes);
+      BruteForceScheduling();
+      if (optimisticScheduledNodes.size() == nodes.size() && minPressure < originalPressure){
+        nodes.clear();
+        for (auto node : optimisticScheduledNodes) {
+          nodes.emplace_back(node);
+        }
+      }
+    }
   } else {
-    /* Split the node list into multiple parts based on split point */
-    partialScheduling(nodes);
+    /* Split the node list into multiple parts based on split point and conduct scheduling */
+    PartialScheduling(nodes);
   }
-  scheduledPressure = calculateRegisterPressure(nodes);
-  LogInfo::MapleLogger() << "Original Pressure : " << originalPressure << " \n";
-  LogInfo::MapleLogger() << "Scheduled Pressure : " << scheduledPressure << " \n";
-  if (originalPressure > scheduledPressure) {
-    LogInfo::MapleLogger() << "Pressure Reduced by : " << (originalPressure - scheduledPressure) << " \n";
-    return;
-  } else if (originalPressure == scheduledPressure){
-    LogInfo::MapleLogger() << "Pressure Not Changed \n";
-  } else {
-    LogInfo::MapleLogger() << "Pressure Increased by : " << (scheduledPressure - originalPressure) << " \n";
-  }
-  /* Restore the original series */
-  LogInfo::MapleLogger() << "Pressure Not Reduced, Restore Node Series \n";
-  nodes.clear();
-  for (auto node : originalNodeSeries) {
-    nodes.emplace_back(node);
-  }
+  scheduledPressure = CalculateRegisterPressure(nodes);
+  EmitSchedulingSeries(nodes);
 }
 
 void RegPressureSchedule::HeuristicScheduling(MapleVector<DepNode*> &nodes) {
@@ -596,12 +675,18 @@ void RegPressureSchedule::HeuristicScheduling(MapleVector<DepNode*> &nodes) {
 /*
  * Calculate the register pressure for current BB based on an instruction series
  */
-int RegPressureSchedule::calculateRegisterPressure(MapleVector<DepNode*> &nodes) {
+int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes) {
   /* Initialize the live, live in, live out register max pressure information */
   liveReg.clear();
   liveInRegNO = bb->GetLiveInRegNO();
   liveOutRegNO = bb->GetLiveOutRegNO();
+  std::vector<ScheduleState> restoreStateSeries;
   int maximumPressure = 0;
+  /* Mock all the nodes to kScheduled status for pressure calculation */
+  for (auto node : nodes) {
+    restoreStateSeries.emplace_back(node->GetState());
+    node->SetState(kScheduled);
+  }
   /* Update live register set according to the instruction series */
   for (auto node : nodes){
     for (auto &reg : node->GetUseRegnos()) {
@@ -623,11 +708,19 @@ int RegPressureSchedule::calculateRegisterPressure(MapleVector<DepNode*> &nodes)
     LogInfo::MapleLogger() << "\n";
 #endif
   }
-    LogInfo::MapleLogger() << "Max Pressure : " << maximumPressure << "\n";
-    return maximumPressure;
+  /* Restore the Schedule State */
+  int i = 0;
+  for (auto node : nodes){
+    node->SetState(restoreStateSeries.at(i));
+    ++i;
+  }
+  return maximumPressure;
 }
 
-void RegPressureSchedule::partialScheduling(MapleVector<DepNode*> &nodes) {
+/*
+ * Split the series into multiple parts and conduct pre-scheduling in every part
+ */
+void RegPressureSchedule::PartialScheduling(MapleVector<DepNode*> &nodes) {
   for (int i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
     int lastTwoNodeIndex = 2;
     int begin = splitterIndexes.at(i);
@@ -652,6 +745,103 @@ void RegPressureSchedule::partialScheduling(MapleVector<DepNode*> &nodes) {
   /* Construct overall scheduling output */
   for (auto node : partialScheduledNode) {
     nodes.emplace_back(node);
+  }
+}
+
+/*
+ * Brute-force scheduling algorithm
+ * It enumerates all the possible schedule series and pick a best one
+ */
+void RegPressureSchedule::BruteForceScheduling() {
+  /* stop brute force scheduling when exceeding the count limit */
+  if (g_bruteMaximumLimit && (scheduleSeriesCount > g_schedulingMaximumCount)) {
+    return;
+  }
+  int defaultPressureValue = -1;
+  /* ReadyList is empty, scheduling is over */
+  if (readyList.empty()) {
+    if (originalNodeSeries.size() != scheduledNode.size()) {
+#ifdef PRESCHED_DEBUG
+      ReportScheduleError();
+#endif
+      return;
+    }
+    ++scheduleSeriesCount;
+    int currentPressure = CalculateRegisterPressure(scheduledNode);
+    if (minPressure == defaultPressureValue || currentPressure < minPressure) {
+      minPressure = currentPressure;
+      /* update better scheduled series */
+      optimisticScheduledNodes.clear();
+      for (auto node : scheduledNode) {
+        optimisticScheduledNodes.emplace_back(node);
+      }
+      return;
+    }
+    return;
+  }
+  /* store the current status of the ready list */
+  std::vector<DepNode*> innerList;
+  for (auto tempNode : readyList) {
+    innerList.emplace_back(tempNode);
+  }
+  for (auto *node : innerList){
+    if (CanSchedule(*node)){
+      /* update readyList and node dependency info */
+      std::vector<bool> changedToReady;
+      BruteUpdateReadyList(*node, changedToReady);
+      scheduledNode.emplace_back(node);
+      node->SetState(kScheduled);
+      BruteForceScheduling();
+      node->SetState(kReady);
+      /* restore readyList and node dependency info */
+      RestoreReadyList(*node, changedToReady);
+      scheduledNode.pop_back();
+    }
+  }
+}
+
+/*
+ * Calculate the pred size based on the dependency information
+ */
+void RegPressureSchedule::CalculatePredSize(DepNode &node) {
+  int emptyPredsSize = 0;
+  node.SetValidPredsSize(emptyPredsSize);
+  for (auto pred : node.GetPreds()) {
+    DepNode &from = pred->GetFrom();
+    if (!partialSet.empty() && (partialSet.find(&from) == partialSet.end())) {
+      continue;
+    } else {
+      node.IncreaseValidPredsSize();
+    }
+  }
+}
+
+void RegPressureSchedule::InitBruteForceScheduling(MapleVector<DepNode*> &nodes) {
+  /* Calculate pred size of the node */
+  for (auto node : nodes) {
+    CalculatePredSize(*node);
+  }
+  readyList.clear();
+  optimisticScheduledNodes.clear();
+  scheduledNode.clear();
+  DepNode *firstNode = nodes.front();
+  firstNode->SetState(kReady);
+  readyList.emplace_back(firstNode);
+}
+
+/*
+ * Give out the pre-scheduling output based on new register pressure
+ */
+void RegPressureSchedule::EmitSchedulingSeries(MapleVector<DepNode*> &nodes) {
+#ifdef PRESCHED_DEBUG
+  ReportScheduleOutput();
+#endif
+  if (originalPressure <= scheduledPressure) {
+    /* Restore the original series */
+    nodes.clear();
+    for (auto node : originalNodeSeries) {
+      nodes.emplace_back(node);
+    }
   }
 }
 

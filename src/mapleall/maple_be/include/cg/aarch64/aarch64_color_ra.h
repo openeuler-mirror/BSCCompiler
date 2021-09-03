@@ -1243,7 +1243,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SetBBInfoGlobalAssigned(uint32 bbID, regno_t regNO);
   bool HaveAvailableColor(const LiveRange &lr, uint32 num) const;
   void Separate();
-  void SplitAndColorForEachLr(MapleVector<LiveRange*> &targetLrVec, bool isConstrained);
+  void SplitAndColorForEachLr(MapleVector<LiveRange*> &targetLrVec);
   void SplitAndColor();
   void ColorForOptPrologEpilog();
   bool IsLocalReg(regno_t regNO) const;
