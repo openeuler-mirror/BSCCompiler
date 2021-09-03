@@ -12,7 +12,6 @@
 
 Install a 64-bit Ubuntu (Ubuntu 16.04, 18.04 or 20.04 is required).
 
-
 ```
 sudo apt-get -y install clang llvm lld libelf-dev libssl-dev python qemu openjdk-8-jre-headless openjdk-8-jdk-headless cmake
 sudo apt-get -y install git build-essential zlib1g-dev libc6-dev-i386 g++-multilib gcc-multilib linux-libc-dev:i386
@@ -24,10 +23,11 @@ Ubuntu 18.04:
 sudo apt-get -y install gcc-7-aarch64-linux-gnu g++-7-aarch64-linux-gnu
 
 Ubuntu 20.04:
-sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu
+sudo apt-get -y install gcc-9-aarch64-linux-gnu g++-9-aarch64-linux-gnu libncurses5
 ```
 
 ## Auto Installation of Tools
+
 ```
 source build/envsetup.sh arm release
 make setup
@@ -70,4 +70,3 @@ Open the openarkcompiler/Makefile file, and set the two variables GN and NINJA t
 GN := ${MAPLE_ROOT}/tools/gn/gn
 NINJA := ${MAPLE_ROOT}/tools/ninja/ninja
 ```
-
