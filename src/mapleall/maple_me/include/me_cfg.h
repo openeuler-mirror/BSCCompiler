@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,7 +15,7 @@
 #ifndef MAPLE_ME_INCLUDE_ME_CFG_H
 #define MAPLE_ME_INCLUDE_ME_CFG_H
 #include "me_function.h"
-#include "me_phase.h"
+#include "maple_phase.h"
 
 namespace maple {
 class MeCFG : public AnalysisResult {
@@ -199,6 +199,14 @@ class MeCFG : public AnalysisResult {
     return nextBBId;
   }
 
+  uint32 ValidBBNum() const {
+    uint32 num = 0;
+    for (auto bbit = valid_begin(); bbit != valid_end(); ++bbit) {
+      ++num;
+    }
+    return num;
+  }
+
   const MapleUnorderedMap<LabelIdx, BB*> &GetLabelBBIdMap() const {
     return labelBBIdMap;
   }
@@ -236,6 +244,9 @@ class MeCFG : public AnalysisResult {
   }
 
   BB *GetFirstBB() const {
+    if (GetCommonEntryBB()->GetUniqueSucc()) {
+      return GetCommonEntryBB()->GetUniqueSucc();
+    }
     return *(++(++valid_begin()));
   }
 
@@ -259,6 +270,12 @@ class MeCFG : public AnalysisResult {
     auto it = endTryBB2TryBB.find(endTryBB);
     return it == endTryBB2TryBB.end() ? nullptr : it->second;
   }
+
+  BB *GetTryBBFromEndTryBB(BB *endTryBB) {
+    auto it = endTryBB2TryBB.find(endTryBB);
+    return it == endTryBB2TryBB.end() ? nullptr : it->second;
+  }
+
   void SetBBTryBBMap(BB *currBB, BB *tryBB) {
     endTryBB2TryBB[currBB] = tryBB;
   }
@@ -312,14 +329,11 @@ class MeCFG : public AnalysisResult {
   MapleSet<std::pair<uint32, uint32>> backEdges;
 };
 
-class MeDoMeCfg : public MeFuncPhase {
- public:
-  explicit MeDoMeCfg(MePhaseID id) : MeFuncPhase(id) {}
-  virtual ~MeDoMeCfg() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "mecfgbuild";
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(MEMeCfg, MeFunction)
+  MeCFG *GetResult() {
+    return theCFG;
   }
-};
+  MeCFG *theCFG = nullptr;
+MAPLE_MODULE_PHASE_DECLARE_END
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_CFG_H

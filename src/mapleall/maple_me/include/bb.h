@@ -99,6 +99,10 @@ class BB {
     return (attributes & attrKind) != 0;
   }
 
+  uint32 GetAttributes() const {
+    return attributes;
+  }
+
   void SetAttributes(uint32 attrKind) {
     attributes |= attrKind;
   }
@@ -233,7 +237,9 @@ class BB {
   }
   void DumpMeBB(const IRMap &irMap);
   void ReplacePred(const BB *old, BB *newPred);
+  void ReplaceSelfWithNewSuccInAllPreds(BB *newSucc, BB *commonEntry);
   void ReplaceSucc(const BB *old, BB *newSucc);
+  void ReplaceSelfWithNewPredInAllSuccs(BB *newPred, BB *commonExit);
   void AddStmtNode(StmtNode *stmt);
   void PrependStmtNode(StmtNode *stmt);
   void RemoveStmtNode(StmtNode *stmt);
@@ -242,15 +248,15 @@ class BB {
   void ReplaceStmt(StmtNode *stmt, StmtNode *newStmt);
 
   void RemovePred(BB &predBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((predBB.id != 0 && predBB.id != 1), "CommonEntry or CommonExit should not be here.");
     RemoveBBFromPred(predBB, updatePhi);
     predBB.RemoveBBFromSucc(*this);
   }
 
   void RemoveSucc(BB &succBB, bool updatePhi = true) {
-    ASSERT((id != 0 && id != 1), "CommonEntry or CommonEntry should not be here.");
-    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonEntry should not be here.");
+    ASSERT((id != 0 && id != 1), "CommonEntry or CommonExit should not be here.");
+    ASSERT((succBB.id != 0 && succBB.id != 1), "CommonEntry or CommonExit should not be here.");
     succBB.RemoveBBFromPred(*this, updatePhi);
     RemoveBBFromSucc(succBB);
   }
@@ -300,6 +306,7 @@ class BB {
   void InsertMeStmtAfter(const MeStmt *meStmt, MeStmt *inStmt);
   void InsertMeStmtLastBr(MeStmt *inStmt);
   void ReplaceMeStmt(const MeStmt *stmt, MeStmt *newStmt);
+  void RemoveLastMeStmt();
   void DumpMePhiList(const IRMap *irMap);
   void DumpMeVarPiList(const IRMap *irMap);
   void EmitBB(SSATab &ssaTab, BlockNode &curblk, bool needAnotherPass);
@@ -356,6 +363,21 @@ class BB {
     return pred;
   }
 
+  BB *GetUniquePred() const {
+    if (pred.empty()) {
+      return nullptr;
+    }
+    if (pred.size() == 1) {
+      return pred.front();
+    }
+    for (size_t i = 0; i < pred.size(); ++i) {
+      if (pred.at(i) != pred.at(0)) {
+        return nullptr;
+      }
+    }
+    return pred.front();
+  }
+
   const BB *GetPred(size_t cnt) const {
     ASSERT(cnt < pred.size(), "out of range in BB::GetPred");
     return pred.at(cnt);
@@ -385,6 +407,21 @@ class BB {
 
   MapleVector<BB*> &GetSucc() {
     return succ;
+  }
+
+  BB *GetUniqueSucc() {
+    if (succ.empty()) {
+      return nullptr;
+    }
+    if (succ.size() == 1) {
+      return succ.front();
+    }
+    for (size_t i = 0; i < succ.size(); ++i) {
+      if (succ.at(i) != succ.at(0)) {
+        return nullptr;
+      }
+    }
+    return succ.front();
   }
 
   const BB *GetSucc(size_t cnt) const {
@@ -418,6 +455,10 @@ class BB {
 
   const MapleMap<OStIdx, MePhiNode*> &GetMePhiList() const {
     return mePhiList;
+  }
+
+  void ClearMePhiList() {
+    mePhiList.clear();
   }
 
   uint64 GetEdgeFreq(const BB *bb) const {
@@ -461,7 +502,6 @@ class BB {
 
   void RemoveBBFromPred(const BB &bb, bool updatePhi);
   void RemoveBBFromSucc(const BB &bb);
-
  private:
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;

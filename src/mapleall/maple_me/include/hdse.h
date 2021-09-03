@@ -17,13 +17,14 @@
 #include "bb.h"
 #include "irmap.h"
 #include "dominance.h"
+#include "alias_class.h"
 
 namespace maple {
 class MeIRMap;
 class HDSE {
  public:
   HDSE(MIRModule &mod, const MapleVector<BB*> &bbVec, BB &commonEntryBB, BB &commonExitBB,
-       Dominance &pDom, IRMap &map, bool enabledDebug = false, bool decouple = false)
+       Dominance &pDom, IRMap &map, const AliasClass *aliasClass, bool enabledDebug = false, bool decouple = false)
       : hdseDebug(enabledDebug),
         mirModule(mod),
         bbVec(bbVec),
@@ -31,6 +32,7 @@ class HDSE {
         commonExitBB(commonExitBB),
         postDom(pDom),
         irMap(map),
+        aliasInfo(aliasClass),
         bbRequired(bbVec.size(), false),
         decoupleStatic(decouple) {}
 
@@ -39,7 +41,6 @@ class HDSE {
   void DoHDSE();
   void InvokeHDSEUpdateLive();
 
- public:
   bool hdseDebug;
   bool hdseKeepRef = false;
 
@@ -52,7 +53,7 @@ class HDSE {
   void RemoveNotRequiredStmtsInBB(BB &bb);
   template <class VarOrRegPhiNode>
   void MarkPhiRequired(VarOrRegPhiNode &mePhiNode);
-  void MarkMuListRequired(MapleMap<OStIdx, VarMeExpr*>&);
+  void MarkMuListRequired(MapleMap<OStIdx, ScalarMeExpr*>&);
   void MarkChiNodeRequired(ChiMeNode &chiNode);
   bool ExprHasSideEffect(const MeExpr &meExpr) const;
   bool ExprNonDeletable(const MeExpr &expr) const;
@@ -64,7 +65,7 @@ class HDSE {
   void MarkControlDependenceLive(BB &bb);
   void MarkLastBranchStmtInBBRequired(BB &bb);
   void MarkLastStmtInPDomBBRequired(const BB &bb);
-  void MarkLastUnconditionalGotoInPredBBRequired(const BB &bb);
+  void MarkLastBranchStmtInPredBBRequired(const BB &bb);
   void MarkVarDefByStmt(VarMeExpr &varMeExpr);
   void MarkRegDefByStmt(RegMeExpr &regMeExpr);
   void CollectNotNullExpr(MeStmt &stmt);
@@ -96,7 +97,10 @@ class HDSE {
       RemoveNotRequiredStmtsInBB(*bb);
     }
   }
-
+  virtual bool IsLfo() {
+    return false;
+  }
+  virtual void ProcessWhileInfos() {}
  protected:
   MIRModule &mirModule;
   MapleVector<BB*> bbVec;
@@ -104,6 +108,7 @@ class HDSE {
   BB &commonExitBB;
   Dominance &postDom;
   IRMap &irMap;
+  const AliasClass *aliasInfo;
   std::vector<bool> bbRequired;
   std::vector<bool> exprLive;
   std::forward_list<MeExpr*> workList;

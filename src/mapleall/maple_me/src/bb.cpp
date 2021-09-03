@@ -246,6 +246,23 @@ void BB::ReplacePred(const BB *old, BB *newPred) {
   }
 }
 
+// replace myself with a new succ in all my predecessors
+void BB::ReplaceSelfWithNewSuccInAllPreds(BB *newSucc, BB *commonEntry) {
+  ASSERT_NOT_NULL(newSucc);
+  if (GetAttributes(kBBAttrIsEntry)) {
+    ASSERT(IsInList(commonEntry->GetSucc()), "BB is not in commonEntry's successors, but it is set kBBAttrIsEntry");
+    commonEntry->RemoveEntry(*this);
+    commonEntry->AddEntry(*newSucc);
+  } else {
+    while (!GetPred().empty()) {
+      BB *firstPred = GetPred(0);
+      if (IsInList(firstPred->GetSucc())) {        // avoid replacing twice
+        firstPred->ReplaceSucc(this, newSucc); // firstPred will be removed from this->pred
+      }
+    }
+  }
+}
+
 // replace succ in current position with newsucc and add this as pred of newsucc
 // and remove itself from pred of old
 void BB::ReplaceSucc(const BB *old, BB *newSucc) {
@@ -257,6 +274,23 @@ void BB::ReplaceSucc(const BB *old, BB *newSucc) {
       newSucc->pred.push_back(this);
       succElement = newSucc;
       break;
+    }
+  }
+}
+
+// replace myself with a new pred in all my successors
+void BB::ReplaceSelfWithNewPredInAllSuccs(BB *newPred, BB *commonExit) {
+  ASSERT_NOT_NULL(newPred);
+  if (GetAttributes(kBBAttrIsExit)) {
+    ASSERT(IsInList(commonExit->GetPred()), "BB is not in commonExit's predecessors, but it is set kBBAttrIsExit");
+    commonExit->RemoveExit(*this);
+    commonExit->AddExit(*newPred);
+  } else {
+    while (!GetSucc().empty()) {
+      BB *firstSucc = GetSucc(0);
+      if (IsInList(firstSucc->GetPred())) {        // avoid replacing twice
+        firstSucc->ReplacePred(this, newPred); // firstSucc will be removed from this->succ
+      }
     }
   }
 }
@@ -299,6 +333,10 @@ MeStmt *BB::GetFirstMe() {
 MeStmt *BB::GetLastMe() {
   if (meStmtList.empty()) return nullptr;
   return &meStmtList.back();
+}
+
+void BB::RemoveLastMeStmt() {
+  meStmtList.pop_back();
 }
 
 void BB::RemoveMeStmt(const MeStmt *meStmt) {

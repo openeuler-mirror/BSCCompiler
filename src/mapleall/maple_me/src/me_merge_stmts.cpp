@@ -147,6 +147,7 @@ void MergeStmts::MergeMeStmts() {
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_iassign &&
+                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetTyIdx() == lhsTyIdx &&
                      static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() ==
                          iassignStmt->GetLHSVal()->GetBase() &&
                      static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetOffset() ==
