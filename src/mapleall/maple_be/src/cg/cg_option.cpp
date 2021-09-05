@@ -102,7 +102,7 @@ bool CGOptions::doLocalRefSpill = false;
 bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
-bool CGOptions::fastMath = true;
+bool CGOptions::fastMath = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -1558,7 +1558,6 @@ void CGOptions::EnableO2() {
   doGlobalOpt = true;
   doPreSchedule = false;
   doSchedule = true;
-  fastMath = true;
   SetOption(kConstFold);
   ClearOption(kUseStackGuard);
 #if TARGARM32
