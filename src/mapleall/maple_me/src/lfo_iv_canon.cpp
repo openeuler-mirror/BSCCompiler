@@ -328,12 +328,19 @@ void IVCanon::ComputeTripCount() {
   }
   tripCount = irMap->SimplifyMeExpr(dynamic_cast<OpMeExpr *>(divx));
   // check value of tripCount, if it's negative int32_t, reset to 0
-  if (tripCount && (tripCount->GetOp() == maple::OP_constval)) {
-    MIRConst *con =  static_cast<ConstMeExpr *>(tripCount)->GetConstVal();
-    MIRIntConst *countval =  static_cast<MIRIntConst *>(con);
-    if (static_cast<int32>(countval->GetValue()) < 0) {
-      MIRIntConst *zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, con->GetType());
-      tripCount = irMap->CreateConstMeExpr(tripCount->GetPrimType(), *zeroConst);
+  if (tripCount) {
+    if (tripCount->GetOp() == maple::OP_constval) {
+      MIRConst *con =  static_cast<ConstMeExpr *>(tripCount)->GetConstVal();
+      MIRIntConst *countval =  static_cast<MIRIntConst *>(con);
+      if (static_cast<int32>(countval->GetValue()) < 0) {
+        MIRIntConst *zeroConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, con->GetType());
+        tripCount = irMap->CreateConstMeExpr(tripCount->GetPrimType(), *zeroConst);
+      }
+    } else { // generate code to prevent negative trip count at run time
+      OpMeExpr maxExpr(-1, OP_max, divPrimType, 2);
+      maxExpr.SetOpnd(0, tripCount);
+      maxExpr.SetOpnd(1, irMap->CreateIntConstMeExpr(0, divPrimType));
+      tripCount = irMap->HashMeExpr(maxExpr);
     }
   }
 }
