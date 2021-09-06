@@ -996,14 +996,15 @@ void IvarMeExpr::Dump(const IRMap *irMap, int32 indent) const {
   LogInfo::MapleLogger() << " TYIDX:" << tyIdx;
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
   mirType->Dump(0);
-  LogInfo::MapleLogger() << " (field)" << fieldID << '\n';
+  LogInfo::MapleLogger() << " (field)" << fieldID;
+  if (op == OP_ireadoff) {
+    LogInfo::MapleLogger() << " (offset)" << offset;
+  }
+  LogInfo::MapleLogger() << std::endl;
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "base = ";
   CHECK_FATAL(base != nullptr, "base is null");
   base->Dump(irMap, indent + 1);
-  if (op == OP_ireadoff) {
-    LogInfo::MapleLogger() << "  (offset)" << offset;
-  }
   LogInfo::MapleLogger() << '\n';
   PrintIndentation(indent + 1);
   LogInfo::MapleLogger() << "- MU: {";
