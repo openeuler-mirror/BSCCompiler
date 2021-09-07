@@ -126,6 +126,8 @@ BaseNode &OpMeExpr::EmitExpr(SSATab &ssaTab) {
     case OP_div:
     case OP_land:
     case OP_lior:
+    case OP_cand:
+    case OP_cior:
     case OP_lshr:
     case OP_max:
     case OP_min:

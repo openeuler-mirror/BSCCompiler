@@ -318,7 +318,7 @@ void MIRLower::LowerBrCondition(BlockNode &block) {
           auto *newCondGoto = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(Opcode(stmt->GetOpCode()));
           newCondGoto->SetOpnd(cond->GetBOpnd(1), 0);
           newCondGoto->SetOffset(condGoto->GetOffset());
-          block.InsertAfter(newCondGoto, condGoto);
+          block.InsertAfter(condGoto, newCondGoto);
           nextStmt = stmt;  // so it will be re-processed if another cand/cior
         } else {            // short-circuit target is next statement
           LabelIdx lIdx;
