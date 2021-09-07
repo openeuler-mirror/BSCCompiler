@@ -402,7 +402,8 @@ bool IvarMeExpr::IsRCWeak() const {
 bool IvarMeExpr::IsIdentical(IvarMeExpr &expr, bool inConstructor) const {
   CHECK_FATAL(expr.base != nullptr, "null ptr check");
   if (base->GetExprID() != expr.base->GetExprID() || fieldID != expr.fieldID ||
-      offset != expr.offset || tyIdx != expr.tyIdx) {
+      offset != expr.offset || tyIdx != expr.tyIdx ||
+      (IsPrimitiveVector(primType) != IsPrimitiveVector(expr.GetPrimType()))) {
     return false;
   }
 
