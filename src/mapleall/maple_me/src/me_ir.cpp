@@ -402,7 +402,9 @@ bool IvarMeExpr::IsRCWeak() const {
 bool IvarMeExpr::IsIdentical(IvarMeExpr &expr, bool inConstructor) const {
   CHECK_FATAL(expr.base != nullptr, "null ptr check");
   if (base->GetExprID() != expr.base->GetExprID() || fieldID != expr.fieldID ||
-      offset != expr.offset || tyIdx != expr.tyIdx) {
+      offset != expr.offset || tyIdx != expr.tyIdx ||
+      // check primtype size because iread primtype may be different
+      GetPrimTypeSize(primType) != GetPrimTypeSize(expr.GetPrimType())) {
     return false;
   }
 
@@ -633,7 +635,7 @@ bool OpMeExpr::StrengthReducible() {
     case OP_add:
     case OP_sub: {
       if (MeOption::srForAdd) {
-        return true;
+        return !GetOpnd(0)->HasAddressValue();
       }
       return false;
     }
