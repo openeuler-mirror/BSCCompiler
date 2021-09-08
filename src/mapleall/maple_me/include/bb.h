@@ -237,9 +237,9 @@ class BB {
   }
   void DumpMeBB(const IRMap &irMap);
   void ReplacePred(const BB *old, BB *newPred);
-  void ReplaceSelfWithNewSuccInAllPreds(BB *newSucc, BB *commonEntry);
-  void ReplaceSucc(const BB *old, BB *newSucc);
-  void ReplaceSelfWithNewPredInAllSuccs(BB *newPred, BB *commonExit);
+  void MoveAllPredToSucc(BB *newSucc, BB *commonEntry);
+  void ReplaceSucc(const BB *old, BB *newSucc, bool updatePhi = false);
+  void MoveAllSuccToPred(BB *newPred, BB *commonExit);
   void AddStmtNode(StmtNode *stmt);
   void PrependStmtNode(StmtNode *stmt);
   void RemoveStmtNode(StmtNode *stmt);
@@ -502,10 +502,11 @@ class BB {
 
   void RemoveBBFromPred(const BB &bb, bool updatePhi);
   void RemoveBBFromSucc(const BB &bb);
+  int GetPredIndex(const BB &predBB);
+  void RemovePhiOpnd(int index);
  private:
   bool IsInList(const MapleVector<BB*> &bbList) const;
   int RemoveBBFromVector(MapleVector<BB*> &bbVec) const;
-  void RemovePhiOpnd(int index);
 
   BBId id;
   LabelIdx bbLabel = 0;       // the BB's label

@@ -32,6 +32,7 @@
 #endif
 #include "securec.h"
 #include "string_utils.h"
+#include "cast_opt.h"
 
 namespace maplebe {
 namespace arrayNameForLower {
@@ -241,22 +242,27 @@ BaseNode *CGLowerer::SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent
  * functionality or performance reason so we need to lower it to if-then-else.
  */
 bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
-    if (tNode.GetPrimType() == PTY_agg)
+    if (tNode.GetPrimType() == PTY_agg) {
       return true;
+    }
 
     /* Iread may have side effect which may cause correctness issue. */
-    if (tNode.Opnd(1)->op == OP_iread || tNode.Opnd(2)->op == OP_iread)
+   if (HasIreadExpr(tNode.Opnd(1)) || HasIreadExpr(tNode.Opnd(2))) {
       return true;
+    }
 
+    // it will be generated many insn for complex expr, leading to
+    // worse performance than punishment of branch prediction error
+    constexpr size_t maxDepth = 3;
+    if (MaxDepth(tNode.Opnd(1)) > maxDepth || MaxDepth(tNode.Opnd(1)) > maxDepth) {
+      return true;
+    }
     return false;
 }
 
 /* Lower agg select node back to if-then-else stmt. */
 BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
-  static uint32 val = 0;
-  std::string name("ComplexSelectTmp");
-  name.append(std::to_string(val++));
 
   MIRType *resultTy = 0;
   if (tNode.GetPrimType() == PTY_agg) {
@@ -279,16 +285,29 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
     resultTy =  GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)(tNode.GetPrimType()));
   }
 
-  MIRSymbol *resultSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
   CondGotoNode *brTargetStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
   brTargetStmt->SetOpnd(tNode.Opnd(0), 0);
   LabelIdx targetIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(targetIdx);
   brTargetStmt->SetOffset(targetIdx);
   blkNode.InsertAfter(blkNode.GetLast(), brTargetStmt);
-
-  DassignNode *dassignTrue = mirbuilder->CreateStmtDassign(const_cast<MIRSymbol&>(*resultSym), 0, tNode.Opnd(1));
-  blkNode.InsertAfter(blkNode.GetLast(), dassignTrue);
+  union {
+    MIRSymbol *resSym;
+    PregIdx resPreg;
+  } cplxSelRes; // complex select result
+  if (tNode.GetPrimType() == PTY_agg) {
+    static uint32 val = 0;
+    std::string name("ComplexSelectTmp");
+    name.append(std::to_string(val++));
+    cplxSelRes.resSym = mirbuilder->GetOrCreateLocalDecl(const_cast<std::string&>(name), *resultTy);
+    DassignNode *dassignTrue = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(1));
+    blkNode.InsertAfter(blkNode.GetLast(), dassignTrue);
+  } else {
+    cplxSelRes.resPreg = mirbuilder->GetCurrentFunction()->GetPregTab()->CreatePreg(tNode.GetPrimType());
+    RegassignNode *regassignTrue =
+        mirbuilder->CreateStmtRegassign(tNode.GetPrimType(), cplxSelRes.resPreg, tNode.Opnd(1));
+    blkNode.InsertAfter(blkNode.GetLast(), regassignTrue);
+  }
 
   GotoNode *gotoStmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
   LabelIdx EndIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
@@ -300,23 +319,30 @@ BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, Bl
   lableStmt->SetLabelIdx(targetIdx);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
-  DassignNode *dassignFalse =
-      mirbuilder->CreateStmtDassign(static_cast<MIRSymbol&>(*resultSym), 0, tNode.Opnd(2));
-  blkNode.InsertAfter(blkNode.GetLast(), dassignFalse);
+  if (tNode.GetPrimType() == PTY_agg) {
+    DassignNode *dassignFalse = mirbuilder->CreateStmtDassign(*cplxSelRes.resSym, 0, tNode.Opnd(2));
+    blkNode.InsertAfter(blkNode.GetLast(), dassignFalse);
+  } else {
+    RegassignNode *regassignFalse =
+        mirbuilder->CreateStmtRegassign(tNode.GetPrimType(), cplxSelRes.resPreg, tNode.Opnd(2));
+    blkNode.InsertAfter(blkNode.GetLast(), regassignFalse);
+  }
 
   lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(EndIdx);
   blkNode.InsertAfter(blkNode.GetLast(), lableStmt);
 
-  BaseNode *dreadNode = mirbuilder->CreateExprDread(*resultSym);
+  BaseNode *exprNode = (tNode.GetPrimType() == PTY_agg) ?
+      static_cast<BaseNode*>(mirbuilder->CreateExprDread(*cplxSelRes.resSym)) :
+      static_cast<BaseNode*>(mirbuilder->CreateExprRegread(tNode.GetPrimType(), cplxSelRes.resPreg));
   for (size_t i = 0; i < parent.NumOpnds(); i++) {
     if (parent.Opnd(i) == &tNode) {
-      parent.SetOpnd(dreadNode, i);
+      parent.SetOpnd(exprNode, i);
       break;
     }
   }
 
-  return dreadNode;
+  return exprNode;
 }
 
 BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
@@ -772,6 +798,15 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
   extrBitsNode->SetOpnd(ireadNode, 0);
 
   return extrBitsNode;
+}
+
+// input node must be cvt, retype, zext or sext
+BaseNode *CGLowerer::LowerCastExpr(BaseNode &expr) {
+  if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
+    BaseNode *simplified = MapleCastOpt::SimplifyCast(*mirBuilder, &expr);
+    return simplified != nullptr ? simplified : &expr;
+  }
+  return &expr;
 }
 
 void CGLowerer::LowerTypePtr(BaseNode &node) const {
@@ -2349,6 +2384,11 @@ BaseNode *CGLowerer::LowerExpr(BaseNode &parent, BaseNode &expr, BlockNode &blkN
     case OP_cior:
       expr.SetOpCode(OP_lior);
       return SplitBinaryNodeOpnd1(static_cast<BinaryNode&>(expr), blkNode);
+    case OP_cvt:
+    case OP_retype:
+    case OP_zext:
+    case OP_sext:
+      return LowerCastExpr(expr);
     default:
       return &expr;
   }
@@ -3457,6 +3497,7 @@ bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
   case INTRN_C___sync_lock_release_8:
   case INTRN_C___sync_lock_release_4:
   case INTRN_C__builtin_return_address:
+  case INTRN_C__builtin_extract_return_addr:
     return true;
 #endif
   default:

@@ -221,6 +221,10 @@ class ValueRange {
     return Bound(nullptr, GetMaxNumber(pType), pType);
   }
 
+  bool IsNotEqualZero() {
+    return rangeType == kNotEqual && range.bound.GetVar() == nullptr && range.bound.GetConstant() == 0;
+  }
+
   bool IsEqual(ValueRange *valueRangeRight);
 
  private:
@@ -303,7 +307,26 @@ class ValueRangePropagation {
     return true;
   }
 
-  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID) const {
+  ValueRange *FindValueRangeInCurrentBB(BBId bbID, int32 exprID) {
+    auto it = caches.at(bbID).find(exprID);
+    return it != caches.at(bbID).end() ? it->second.get() : nullptr;
+  }
+
+  ValueRange *FindValueRangeInCaches(BBId bbID, int32 exprID) {
+    auto *bb = func.GetCfg()->GetBBFromID(bbID);
+    if (bb->GetKind() != kBBFallthru && bb->GetKind() != kBBGoto) {
+      hasCondGotoFromDomToPredBB = true;
+    }
+    auto itOfTrueBranch2Pred = trueOrFalseBranch2NewPred.find(bb);
+    if (itOfTrueBranch2Pred != trueOrFalseBranch2NewPred.end() && !itOfTrueBranch2Pred->second.empty()) {
+      auto itOfBranch2Opnd = newMergeBB2Opnd.find(bb);
+      CHECK_FATAL(itOfBranch2Opnd != newMergeBB2Opnd.end(), "must find");
+      // need consider when the exprID is not equal to the one in trueOrFalseBranch2NewPred
+      if (itOfBranch2Opnd->second == exprID) {
+        newMergeBB = bb;
+        return nullptr;
+      }
+    }
     auto it = caches.at(bbID).find(exprID);
     if (it != caches.at(bbID).end()) {
       return it->second.get();
@@ -321,8 +344,46 @@ class ValueRangePropagation {
     }
   }
 
+  void Insert2NewMergeBB2Opnd(BB &bb, MeExpr &opnd) {
+    auto it = newMergeBB2Opnd.find(&bb);
+    if (it != newMergeBB2Opnd.end()) {
+      CHECK_FATAL(it->second == opnd.GetExprID(), "must be equal");
+    } else {
+      newMergeBB2Opnd.emplace(&bb, opnd.GetExprID());
+    }
+  }
+
+  bool IsConditionalOp(Opcode op) const {
+    return op == OP_le || op == OP_lt || op == OP_ge || op == OP_gt || op == OP_ne || op == OP_eq;
+  }
+
+  BB *GetNewCopyFallthruBB(BB &trueOrFalseBranch, BB &bb) {
+    auto it = trueOrFalseBranch2NewCopyFallthru.find(&trueOrFalseBranch);
+    if (it == trueOrFalseBranch2NewCopyFallthru.end()) {
+      return nullptr;
+    }
+    for (auto pair : it->second) {
+      if (pair.first == &bb) {
+        return pair.second;
+      }
+    }
+    return nullptr;
+  }
+
+  void Insert2TrueOrFalseBranch2NewCopyFallthru(BB &trueOrFalseBranch, BB &fallthruBB, BB &newFalthru) {
+    auto it = trueOrFalseBranch2NewCopyFallthru.find(&trueOrFalseBranch);
+    if (it == trueOrFalseBranch2NewCopyFallthru.end()) {
+      trueOrFalseBranch2NewCopyFallthru[&trueOrFalseBranch] =
+          std::vector<std::pair<BB*, BB*>>{ std::make_pair(&fallthruBB, &newFalthru) };
+    } else {
+      trueOrFalseBranch2NewCopyFallthru[&trueOrFalseBranch].push_back(std::make_pair(&fallthruBB, &newFalthru));
+    }
+  }
+
   void DealWithPhi(BB &bb, MePhiNode &mePhiNode);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
+  void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
+  void DealWithBrStmtWithOneOpnd(BB &bb, CondGotoMeStmt &stmt, MeExpr &opnd, Opcode op);
   bool OverflowOrUnderflow(PrimType primType, int64 lhs, int64 rhs);
   void DealWithAssign(const BB &bb, MeStmt &stmt);
   bool IsConstant(const BB &bb, MeExpr &expr, int64 &constant, bool canNotBeNotEqual = true);
@@ -350,7 +411,7 @@ class ValueRangePropagation {
                         const CondGotoMeStmt &brMeStmt);
   void DealWithOPGeOrGt(BB &bb, ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
                         const CondGotoMeStmt &brMeStmt);
-  void DealWithCondGoto(BB &bb, MeExpr &opMeExpr, ValueRange *leftRange, ValueRange &rightRange,
+  void DealWithCondGoto(BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt);
   bool CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res);
   std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType primType = PTY_begin);
@@ -363,7 +424,8 @@ class ValueRangePropagation {
   void CreateValueRangeForNeOrEq(
       MeExpr &opnd, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch);
   void DeleteUnreachableBBs();
-  bool BrStmtInRange(BB &bb, ValueRange &leftRange, ValueRange &rightRange, Opcode op) const;
+  bool BrStmtInRange(BB &bb, ValueRange &leftRange, ValueRange &rightRange, Opcode op,
+                     bool judgeNotInRange = false);
   void ChangeLoop2WontExit(LoopDesc &loop, BB &bb, BB &succBB, BB &unreachableBB);
   int64 GetRealValue(int64 value, PrimType primType) const;
   void UpdateTryAttribute(BB &bb);
@@ -374,23 +436,28 @@ class ValueRangePropagation {
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
   bool ConditionEdgeCanBeDeletedAfterOPNeOrEq(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
-      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType);
+      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, bool dealWithShortCircuit = false);
   void DealWithOPNeOrEq(BB &bb, ValueRange *leftRange, ValueRange &rightRange, const CondGotoMeStmt &brMeStmt);
   void InsertCandsForSSAUpdate(BB &bb, bool insertDefBBOfPhiOpnds2Cands = false);
+  void GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB);
   bool ConditionEdgeCanBeDeletedAfterOPNeOrEq(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
                                               BB &trueBranch, PrimType opndType, BB *condGoto = nullptr);
   bool OnlyHaveCondGotoStmt(BB &bb) const;
-  bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch, BB &falseBranch, bool &noNewPhiInTargetBB);
+  bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch, bool dealWithShortCircuit = false);
   void RemoveUnreachableBB(BB &condGotoBB, BB &trueBranch);
   BB *CreateNewBasicBlockWithoutCondGotoStmt(BB &bb);
   void InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb);
   void CopyMeStmts(BB &fromBB, BB &toBB, bool copyWithoutCondGotoStmt = false);
-  bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch);
+  bool ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB &trueBranch);
+  bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch, bool dealWithShortCircuit = false);
+  bool CopyFallthruBBAndRemoveUnreachableEdgeWhenDealWithShortCircuit(BB &pred, BB &bb, BB &trueBranch);
   size_t GetRealPredSize(const BB &bb) const;
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch);
   void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1, Opcode op);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   void DealWithMeOp(const BB &bb, MeStmt &stmt);
+  void IsTheOpndOfCondGotoStmtIsPhi(
+      BB &bb, MeExpr &opnd0, BB *&defBB, MapleVector<ScalarMeExpr*> &opnds, bool &thePhiIsInBB);
   bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
                                              BB &trueBranch, PrimType opndType, BB *condGoto = nullptr);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
@@ -399,7 +466,10 @@ class ValueRangePropagation {
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
-  void DealWithAssertNonnull(const BB &bb, MeStmt &meStmt);
+  void DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
+  void DealWithShortCricuit(MeExpr &opnd, ValueRange &rightRange, BB &falseBranch, BB &trueBranch, BB &newMerge,
+                            PrimType opndType, bool &opt, std::unordered_map<BB*, ValueRange*> &pred2ValueRange,
+      bool hasCondGotoFromDomToPredBB = false);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
@@ -410,6 +480,21 @@ class ValueRangePropagation {
   void AnalysisUnreachableBBOrEdge(BB &unreachableBB);
   void MergeValueRangeOfPred(BB &bb, const MeExpr &opnd);
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
+  void DealWithCallassigned(BB &bb, MeStmt &stmt);
+  void DeleteAssertNonNull();
+  bool MustBeFallthruOrGoto(const BB &defBB, const BB &bb);
+  std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange);
+  void PropValueRangeOfNewPredOfTrue2FalseBranch(
+      MeExpr &opnd, BB &condGoto, BB &bb, std::unique_ptr<ValueRange> valueRange);
+  void DeleteUnreachableBBs(BB &curBB, BB &falseBranch, BB &trueBranch);
+  void PropValueRangeFromCondGotoToTrueAndFalseBranch(
+      BB &curBB, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch, BB &trueBranch,
+      std::unordered_map<BB*, ValueRange*> &pred2ValueRange);
+  void PropValueRangeFromCondGotoToTrueAndFalseBranch(
+      MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch, BB &trueBranch);
+  bool CodeSizeIsOverflow(const BB &bb);
+  void ComputeCodeSize(MeExpr &meExpr, uint32 &cost);
+  void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -426,9 +511,19 @@ class ValueRangePropagation {
   MapleMap<OStIdx, MapleSet<BBId>*> &cands;
   std::unordered_map<BB*, BB*> loopHead2TrueBranch;
   std::unordered_map<BB*, std::set<std::pair<BB*, MeExpr*>>> pred2NewSuccs;
+  std::unordered_map<BB*, std::set<MeStmt*>> needDeletedAssertNonNull;
+  // Collection of newMergeBB.
+  std::unordered_map<BB*, std::vector<std::pair<BB*, ValueRange*>>> trueOrFalseBranch2NewPred;
+  std::unordered_map<BB*, uint32> newMergeBB2Opnd;
+  std::set<std::unique_ptr<ValueRange>> valueRanges;
+  std::unordered_map<BB*, std::vector<std::pair<BB*, BB*>>> trueOrFalseBranch2NewCopyFallthru;
+  // NewMergeBB must be true or false branch of condGoto bb and some preds of condGotoBB jump to this after opt.
+  BB *newMergeBB = nullptr;
+  bool hasCondGotoFromDomToPredBB = false;
   bool isCFGChange = false;
   bool needUpdateSSA = false;
   bool thePredEdgeIsRemoved = false;
+  uint32 codeSizeCost = 0;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)

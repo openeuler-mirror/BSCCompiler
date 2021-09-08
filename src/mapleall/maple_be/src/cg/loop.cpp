@@ -161,7 +161,7 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   }
 }
 
-// TODO: partial loop body found with formLoop is NOT really needed in down stream
+// partial loop body found with formLoop is NOT really needed in down stream
 //       It should be simplied later
 void LoopFinder::formLoop(BB* headBB, BB* backBB) {
   ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
@@ -269,7 +269,6 @@ void LoopFinder::markExtraEntryAndEncl() {
               break;
             }
           }
-          //loopEnclosure[bb->GetId()] = bb;
           dfsBBs.pop();
           continue;
         } else {
@@ -298,10 +297,10 @@ void LoopFinder::markExtraEntryAndEncl() {
               // check if entering a loop.
               if ((loopEnclosure[succBB->GetId()] != nullptr) &&
                   (loopEnclosure[bb->GetId()] == nullptr)) {
-                  newEntries[succBB->GetId()] = succBB;
-                  if (origEntries[succBB->GetId()] == nullptr) {
-                    foundNewEntry = true;
-                  }
+                newEntries[succBB->GetId()] = succBB;
+                if (origEntries[succBB->GetId()] == nullptr) {
+                  foundNewEntry = true;
+                }
               }
               if (!visitedBBs[succBB->GetId()]) {
                 dfsBBs.push(succBB);
@@ -337,7 +336,7 @@ void LoopFinder::markExtraEntryAndEncl() {
     CHECK_FATAL(newEntries.size() >= 1, "There must be at least one entry");
     for (const auto bb : newEntries) {
       if (bb != nullptr) {
-          loop->otherLoopEntries.insert(bb);
+        loop->otherLoopEntries.insert(bb);
       }
     }
 

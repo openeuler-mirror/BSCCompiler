@@ -734,7 +734,7 @@ void AArch64StoreLoadOpt::DoStoreLoadOpt() {
     return;
   }
   FOR_ALL_BB(bb, &a64CgFunc) {
-    FOR_BB_INSNS(insn, bb) {
+    FOR_BB_INSNS_SAFE(insn, bb, next) {
       MOperator mOp = insn->GetMachineOpcode();
       if (CanDoMemProp(insn)) {
         MemProp(*insn);
@@ -813,7 +813,7 @@ void AArch64StoreLoadOpt::ProcessStrPair(Insn &insn) {
   if ((base == nullptr) || !(cgFunc.GetRD()->IsFrameReg(*base))) {
     return;
   }
-  if (cgFunc.IsAfterRegAlloc() && !memOpnd.IsSpillMem()) {
+  if (cgFunc.IsAfterRegAlloc() && !insn.IsSpillInsn()) {
     return;
   }
   ASSERT(memOpnd.GetIndexRegister() == nullptr, "frame MemOperand must not be exist register index");
@@ -849,7 +849,7 @@ void AArch64StoreLoadOpt::ProcessStr(Insn &insn) {
   if ((base == nullptr) || !(cgFunc.GetRD()->IsFrameReg(*base))) {
     return;
   }
-  if (cgFunc.IsAfterRegAlloc() && !memOpnd.IsSpillMem()) {
+  if (cgFunc.IsAfterRegAlloc() && !insn.IsSpillInsn()) {
     return;
   }
   ASSERT(memOpnd.GetIndexRegister() == nullptr, "frame MemOperand must not be exist register index");
@@ -865,6 +865,12 @@ void AArch64StoreLoadOpt::ProcessStr(Insn &insn) {
     DoLoadZeroToMoveTransfer(insn, regIndex, memUseInsnSet);
   } else {
     DoLoadToMoveTransfer(insn, regIndex, 0, memUseInsnSet);
+  }
+  if (cgFunc.IsAfterRegAlloc() && insn.IsSpillInsn()) {
+    InsnSet newmemUseInsnSet = cgFunc.GetRD()->FindUseForMemOpnd(insn, memIndex);
+    if (newmemUseInsnSet.empty()) {
+      insn.GetBB()->RemoveInsn(insn);
+    }
   }
 }
 }  /* namespace maplebe */
