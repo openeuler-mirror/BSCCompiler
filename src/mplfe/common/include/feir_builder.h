@@ -41,12 +41,18 @@ class FEIRBuilder {
                                          bool withType = false);
   static UniqueFEIRVar CreateVarNameForC(const std::string &name, MIRType &mirType, bool isGlobal = false,
                                          bool withType = false);
+  static UniqueFEIRVar CreateVarNameForC(const std::string &name, UniqueFEIRType type,
+                                         bool isGlobal = false, bool withType = false);
   // Expr
+  static UniqueFEIRExpr CreateExprSizeOfType(UniqueFEIRType ty);
   static UniqueFEIRExpr CreateExprDRead(UniqueFEIRVar srcVar);
-  static UniqueFEIRExpr CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID, MIRType *fieldType);
-  static UniqueFEIRExpr CreateExprAddrof(const std::vector<uint32> &array);
+  static UniqueFEIRExpr CreateExprDReadAggField(UniqueFEIRVar srcVar, FieldID fieldID, UniqueFEIRType fieldType);
+  static UniqueFEIRExpr CreateExprAddrofLabel(const std::string &lbName, UniqueFEIRType exprTy);
   static UniqueFEIRExpr CreateExprAddrofVar(UniqueFEIRVar srcVar);
   static UniqueFEIRExpr CreateExprAddrofFunc(const std::string &addr);
+  static UniqueFEIRExpr CreateExprAddrofArray(UniqueFEIRType argTypeNativeArray,
+                                              UniqueFEIRExpr argExprArray, std::string argArrayName,
+                                              std::list<UniqueFEIRExpr> &argExprIndexs);
   static UniqueFEIRExpr CreateExprIRead(UniqueFEIRType returnType, UniqueFEIRType ptrType,
                                         UniqueFEIRExpr expr, FieldID id = 0);
   static UniqueFEIRExpr CreateExprTernary(Opcode op, UniqueFEIRType type, UniqueFEIRExpr cExpr,
@@ -56,11 +62,13 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprConstI8(int8 val);
   static UniqueFEIRExpr CreateExprConstI16(int16 val);
   static UniqueFEIRExpr CreateExprConstI32(int32 val);
+  static UniqueFEIRExpr CreateExprConstU32(uint32 val);
   static UniqueFEIRExpr CreateExprConstI64(int64 val);
   static UniqueFEIRExpr CreateExprConstU64(uint64 val);
   static UniqueFEIRExpr CreateExprConstF32(float val);
   static UniqueFEIRExpr CreateExprConstF64(double val);
-  static UniqueFEIRExpr CreateExprConstAnyScalar(PrimType primType, int8 val);
+  static UniqueFEIRExpr CreateExprConstAnyScalar(PrimType primType, int64 val);
+  static UniqueFEIRExpr CreateExprVdupAnyVector(PrimType primtype, int64 val);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRVar var0);
   static UniqueFEIRExpr CreateExprMathUnary(Opcode op, UniqueFEIRExpr expr);
   static UniqueFEIRExpr CreateExprMathBinary(Opcode op, UniqueFEIRVar var0, UniqueFEIRVar var1);
@@ -74,6 +82,7 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprZExt(UniqueFEIRExpr srcExpr, PrimType dstType);
   static UniqueFEIRExpr CreateExprCvtPrim(UniqueFEIRVar srcVar, PrimType dstType);
   static UniqueFEIRExpr CreateExprCvtPrim(UniqueFEIRExpr srcExpr, PrimType dstType);
+  static UniqueFEIRExpr CreateExprCvtPrim(UniqueFEIRExpr srcExpr, PrimType srcType, PrimType dstType);
   static UniqueFEIRExpr CreateExprCvtPrim(Opcode argOp, UniqueFEIRExpr srcExpr, PrimType dstType);
   static UniqueFEIRExpr CreateExprJavaNewInstance(UniqueFEIRType type);
   static UniqueFEIRExpr CreateExprJavaNewInstance(UniqueFEIRType type, uint32 argTypeID);
@@ -83,19 +92,15 @@ class FEIRBuilder {
   static UniqueFEIRExpr CreateExprJavaNewArray(UniqueFEIRType type, UniqueFEIRExpr exprSize, uint32 typeID,
                                                bool isRcPermanent);
   static UniqueFEIRExpr CreateExprJavaArrayLength(UniqueFEIRExpr exprArray);
-  static UniqueFEIRExpr CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, UniqueFEIRExpr argExprIndex,
-                                                 UniqueFEIRType argTypeNative);
-  static UniqueFEIRExpr CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, std::list<UniqueFEIRExpr> &argExprIndexs,
-                                                 UniqueFEIRType argTypeNative);
-  static UniqueFEIRExpr CreateExprArrayStoreForC(UniqueFEIRExpr argExprArray, std::list<UniqueFEIRExpr> &argExprIndexs,
-                                                 UniqueFEIRType argArrayTypeNative,
-                                                 UniqueFEIRExpr argExprStruct,
-                                                 UniqueFEIRType argStructTypeNative);
+
   // Stmt
   static UniqueFEIRStmt CreateStmtDAssign(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, bool hasException = false);
   static UniqueFEIRStmt CreateStmtDAssignAggField(UniqueFEIRVar dstVar, UniqueFEIRExpr srcExpr, FieldID fieldID);
+  static UniqueFEIRStmt CreateStmtIAssign(UniqueFEIRType dstType, UniqueFEIRExpr dstExpr,
+                                          UniqueFEIRExpr srcExpr, FieldID fieldID = 0);
   static UniqueFEIRStmt CreateStmtGoto(uint32 targetLabelIdx);
   static UniqueFEIRStmt CreateStmtGoto(const std::string &labelName);
+  static UniqueFEIRStmt CreateStmtIGoto(UniqueFEIRExpr targetExpr);
   static UniqueFEIRStmt CreateStmtCondGoto(uint32 targetLabelIdx, Opcode op, UniqueFEIRExpr expr);
   static UniqueFEIRStmt CreateStmtSwitch(UniqueFEIRExpr expr);
   static UniqueFEIRStmt CreateStmtIfWithoutElse(UniqueFEIRExpr cond, std::list<UniqueFEIRStmt> &thenStmts);
@@ -119,12 +124,20 @@ class FEIRBuilder {
                                                         UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType);
   static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                         UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
-                                                        UniqueFEIRType elemType);
+                                                        std::string argArrayName);
+  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
+                                                        std::list<UniqueFEIRExpr> exprIndexs,
+                                                        UniqueFEIRType arrayType, std::string argArrayName);
+  static UniqueFEIRStmt CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
+                                                        UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
+                                                        UniqueFEIRType elemType, std::string argArrayName);
   static std::list<UniqueFEIRStmt> CreateStmtArrayLoad(UniqueFEIRVar varElem, UniqueFEIRVar varArray,
                                                        UniqueFEIRVar varIndex);
   static UniqueFEIRStmt CreateStmtArrayLength(UniqueFEIRVar varLength, UniqueFEIRVar varArray);
   static UniqueFEIRStmt CreateStmtRetype(UniqueFEIRVar varDst, const UniqueFEIRVar &varSrc);
   static UniqueFEIRStmt CreateStmtComment(const std::string &comment);
+  static UniqueFEIRExpr ReadExprField(UniqueFEIRExpr expr, FieldID fieldID, UniqueFEIRType fieldType);
+  static UniqueFEIRStmt AssginStmtField(UniqueFEIRExpr addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID);
 };  // class FEIRBuilder
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_COMMON_FEIR_BUILDER_H

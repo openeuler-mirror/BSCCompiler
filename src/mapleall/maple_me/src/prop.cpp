@@ -984,9 +984,17 @@ void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB 
   }
 }
 
+static bool CheckFloatZero(MeExpr *expr) {
+  if (IsPrimitiveFloat(expr->GetPrimType()) &&
+      expr->GetMeOp() == kMeOpConst &&
+      static_cast<ConstMeExpr*>(expr)->IsZero()) {
+    return true;
+  }
+  return false;
+}
+
 void Prop::PropConditionBranchStmt(MeStmt *condBranchStmt) {
   CHECK_FATAL(kOpcodeInfo.IsCondBr(condBranchStmt->GetOp()), "must be brtrue/brfalse stmt");
-
   bool proped = false;
   MeExpr *expr = &PropMeExpr(utils::ToRef(condBranchStmt->GetOpnd(0)), proped, false);
   (void)proped;
@@ -1017,7 +1025,6 @@ void Prop::PropConditionBranchStmt(MeStmt *condBranchStmt) {
     auto *constExpr = static_cast<ConstMeExpr *>(irMap.CreateConstMeExpr(PTY_u1, *constFalse));
     PropEqualExpr(opnd, constExpr, falseBranch);
   }
-
   if (opnd->GetOp() != OP_eq && opnd->GetOp() != OP_ne) {
     return;
   }
@@ -1027,7 +1034,9 @@ void Prop::PropConditionBranchStmt(MeStmt *condBranchStmt) {
   if (subOpnd0->GetMeOp() == kMeOpConst && subOpnd1->GetMeOp() == kMeOpConst) {
     return;
   }
-
+  if (CheckFloatZero(subOpnd0) || CheckFloatZero(subOpnd1)) {
+    return;
+  }
   BB *propFromBB = (opnd->GetOp() == OP_eq) ? trueBranch : ((opnd->GetOp() == OP_ne) ? falseBranch : nullptr);
   if (propFromBB == nullptr || propFromBB->GetPred().size() != 1) {
     return;
