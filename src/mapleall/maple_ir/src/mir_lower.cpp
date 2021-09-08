@@ -355,7 +355,9 @@ void MIRLower::LowerFunc(MIRFunction &func) {
   ASSERT(origBody != nullptr, "nullptr check");
   BlockNode *newBody = LowerBlock(*origBody);
   ASSERT(newBody != nullptr, "nullptr check");
-  LowerBrCondition(*newBody);
+  if (!InLFO()) {
+    LowerBrCondition(*newBody);
+  }
   func.SetBody(newBody);
 }
 
