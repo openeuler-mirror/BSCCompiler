@@ -100,7 +100,7 @@ void CGFuncLoops::CheckLoops() const {
     if (find(header->GetPreds().begin(), header->GetPreds().end(), bEdge) == header->GetPreds().end()) {
       bool inOtherEntry = false;
       for (auto entry: multiEntries) {
-        if (find(entry->GetPreds().begin(), entry->GetPreds().end(), bEdge) == entry->GetPreds().end()) {
+        if (find(entry->GetPreds().begin(), entry->GetPreds().end(), bEdge) != entry->GetPreds().end()) {
           inOtherEntry = true;
           break;
         }
@@ -127,9 +127,9 @@ void CGFuncLoops::CheckLoops() const {
 void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   LogInfo::MapleLogger() << "loop_level(" << funcLoop.loopLevel << ") ";
   LogInfo::MapleLogger() << "header " << funcLoop.GetHeader()->GetId() << " ";
-  if (multiEntries.size()) {
+  if (funcLoop.multiEntries.size()) {
     LogInfo::MapleLogger() << "other-header ";
-    for (auto bb : multiEntries) {
+    for (auto bb : funcLoop.multiEntries) {
       LogInfo::MapleLogger() << bb->GetId() << " ";
     }
   }
@@ -161,6 +161,8 @@ void CGFuncLoops::PrintLoops(const CGFuncLoops &funcLoop) const {
   }
 }
 
+// TODO: partial loop body found with formLoop is NOT really needed in down stream
+//       It should be simplied later
 void LoopFinder::formLoop(BB* headBB, BB* backBB) {
   ASSERT(headBB != nullptr && backBB != nullptr, "headBB or backBB is nullptr");
   LoopHierarchy *simple_loop = memPool->New<LoopHierarchy>(*memPool);
@@ -232,64 +234,74 @@ void LoopFinder::seekCycles() {
 
 void LoopFinder::markExtraEntryAndEncl() {
   ASSERT(dfsBBs.empty(), "dfsBBs is NOT empty");
-  std::vector<bool> inLoop;
-  inLoop.resize(cgFunc->NumBBs());
   std::vector<BB *> loopEnclosure;
-  std::vector<BB *> pathFromHead;
-  bool enclosureFlag = false;
-  pathFromHead.resize(cgFunc->NumBBs());
   loopEnclosure.resize(cgFunc->NumBBs());
+  std::vector<bool> startProcess;
+  startProcess.resize(cgFunc->NumBBs());
+  std::vector<BB *> origEntries;
+  origEntries.resize(cgFunc->NumBBs());
+  std::vector<BB *> newEntries;
+  newEntries.resize(cgFunc->NumBBs());
 
   for (LoopHierarchy *loop = loops; loop != nullptr; loop = loop->GetNext()) {
     fill(visitedBBs.begin(), visitedBBs.end(), false);
-    fill(inLoop.begin(), inLoop.end(), false);
     fill(loopEnclosure.begin(), loopEnclosure.end(), nullptr);
-    fill(pathFromHead.begin(), pathFromHead.end(), nullptr);
+    fill(startProcess.begin(), startProcess.end(), false);
+    fill(origEntries.begin(), origEntries.end(), nullptr);
+    fill(newEntries.begin(), newEntries.end(), nullptr);
 
-    fill(visitedBBs.begin(), visitedBBs.end(), false);
     for (auto *bb : loop->GetLoopMembers()) {
-      inLoop[bb->GetId()] = true;
+      loopEnclosure[bb->GetId()] = bb;
     }
+    origEntries[loop->GetHeader()->GetId()] = loop->GetHeader();
 
-    FOR_ALL_BB(bb, cgFunc) {
-      if (!visitedBBs[bb->GetId()]) {
-        dfsBBs.push(bb);
-        while (!dfsBBs.empty()) {
-          BB *bb = dfsBBs.top();
-          if (visitedBBs[bb->GetId()]) {
-            onPathBBs[bb->GetId()] = false;
-            pathFromHead[bb->GetId()] = nullptr;
-            if (bb->GetId() == loop->GetHeader()->GetId()) {
-              enclosureFlag = false;
+    // Form loop closure
+    loopEnclosure[loop->GetHeader()->GetId()] = nullptr;
+    dfsBBs.push(loop->GetHeader());
+    while (true) {
+      while (!dfsBBs.empty()) {
+        BB *bb = dfsBBs.top();
+        visitedBBs[bb->GetId()] = true;
+        if (startProcess[bb->GetId()]) {
+          for (const auto succBB : bb->GetSuccs()) {
+            if (loopEnclosure[succBB->GetId()] != nullptr) {
+              loopEnclosure[bb->GetId()] = bb;
+              break;
             }
-            if (onPathBBs[loop->GetHeader()->GetId()]) {
-              for (const auto succBB : bb->GetSuccs()) {
-                if (loopEnclosure[succBB->GetId()] != nullptr) {
-                  loopEnclosure[bb->GetId()] = bb;
-                }
-              }
+          }
+          //loopEnclosure[bb->GetId()] = bb;
+          dfsBBs.pop();
+          continue;
+        } else {
+          startProcess[bb->GetId()] = true;
+          for (const auto succBB : bb->GetSuccs()) {
+            if (!visitedBBs[succBB->GetId()]) {
+              dfsBBs.push(succBB);
             }
-            dfsBBs.pop();
-            continue;
-          } else {
+          }
+        }
+      }
+      loopEnclosure[loop->GetHeader()->GetId()] = loop->GetHeader();
+
+      // Collect all entries
+      bool foundNewEntry = false;
+      fill(visitedBBs.begin(), visitedBBs.end(), false);
+      FOR_ALL_BB(bb, cgFunc) {
+        if (!visitedBBs[bb->GetId()]) {
+          dfsBBs.push(bb);
+          visitedBBs[bb->GetId()] = true;
+          while (!dfsBBs.empty()) {
+            BB *bb = dfsBBs.top();
             visitedBBs[bb->GetId()] = true;
-            onPathBBs[bb->GetId()] = true;
-            if (bb->GetId() == loop->GetHeader()->GetId()) {
-              enclosureFlag = true;
-            }
-            if (enclosureFlag) {
-              pathFromHead[bb->GetId()] = bb;
-            }
+            dfsBBs.pop();
             for (const auto succBB : bb->GetSuccs()) {
-              // check if entering a loop. Entry to a loop is considered as its path does not go through the loop's head
-              if (inLoop[succBB->GetId()] &&
-                  succBB->GetId() != loop->GetHeader()->GetId() &&
-                  !onPathBBs[loop->GetHeader()->GetId()] &&
-                  loop->otherLoopEntries.find(succBB) == loop->otherLoopEntries.end()) {
-                loop->otherLoopEntries.insert(succBB);
-              }
-              if (inLoop[succBB->GetId()] && onPathBBs[loop->GetHeader()->GetId()]) {
-                loopEnclosure[succBB->GetId()] = succBB;
+              // check if entering a loop.
+              if ((loopEnclosure[succBB->GetId()] != nullptr) &&
+                  (loopEnclosure[bb->GetId()] == nullptr)) {
+                  newEntries[succBB->GetId()] = succBB;
+                  if (origEntries[succBB->GetId()] == nullptr) {
+                    foundNewEntry = true;
+                  }
               }
               if (!visitedBBs[succBB->GetId()]) {
                 dfsBBs.push(succBB);
@@ -298,12 +310,70 @@ void LoopFinder::markExtraEntryAndEncl() {
           }
         }
       }
+      if (foundNewEntry) {
+        origEntries = newEntries;
+        for (const auto bb : newEntries) {
+          if (bb != nullptr) {
+            dfsBBs.push(bb);
+          }
+        }
+        fill(visitedBBs.begin(), visitedBBs.end(), false);
+        fill(startProcess.begin(), startProcess.end(), false);
+        fill(newEntries.begin(), newEntries.end(), nullptr);
+      } else {
+        break;
+      }
     }
+
+    // Setup loop body
     for (int id = 0; id < loopEnclosure.size(); id++) {
-      if (loopEnclosure[id] != nullptr && !inLoop[id]) {
+      if (loopEnclosure[id] != nullptr) {
         loop->InsertLoopMembers(*loopEnclosure[id]);
       }
     }
+
+    // Setup head and extra entries
+    // Note: With new entries added, the original head/backedge may become inner node/edge of new loop
+    CHECK_FATAL(newEntries.size() >= 1, "There must be at least one entry");
+    for (const auto bb : newEntries) {
+      if (bb != nullptr) {
+          loop->otherLoopEntries.insert(bb);
+      }
+    }
+
+    // Keep the original backedge if possible
+    bool keepBEdge = false;
+    BB *origBackBB = *(loop->GetBackedge().begin());
+    for (auto succBB : origBackBB->GetSuccs()) {
+      if (loop->otherLoopEntries.find(succBB) != loop->otherLoopEntries.end()) {
+        keepBEdge = true;
+      }
+    }
+    if (!keepBEdge) {
+      loop->GetBackedgeNonConst().erase(origBackBB);
+    }
+
+    // Make head/entries have their backedges
+    for (auto entryBB : loop->otherLoopEntries) {
+      bool foundBEdge = false;
+      for (auto predBB : entryBB->GetPreds()) {
+        if (loop->GetBackedgeNonConst().find(predBB) != loop->GetBackedgeNonConst().end()) {
+          foundBEdge = true;
+          break;
+        }
+      }
+      if (!foundBEdge) {
+        for (auto predBB : entryBB->GetPreds()) {
+          if (loop->GetLoopMembers().find(predBB) != loop->GetLoopMembers().end()) {
+            loop->GetBackedgeNonConst().insert(predBB);
+            break;
+          }
+        }
+      }
+    }
+
+    loop->SetHeader(*(*loop->otherLoopEntries.begin()));
+    loop->otherLoopEntries.erase(loop->GetHeader());
   }
 }
 
@@ -311,6 +381,33 @@ void LoopFinder::MergeLoops() {
   for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr; loopHierarchy1 = loopHierarchy1->GetNext()) {
     for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
          loopHierarchy2 = loopHierarchy2->GetNext()) {
+      // Different loop bodies imply different loops
+      bool sameLoop = true;
+      if (loopHierarchy1->GetLoopMembers().size() == loopHierarchy2->GetLoopMembers().size()) {
+        for (auto *bb : loopHierarchy2->GetLoopMembers()) {
+          if (find(loopHierarchy1->GetLoopMembers().begin(), loopHierarchy1->GetLoopMembers().end(), bb) ==
+              loopHierarchy1->GetLoopMembers().end()) {
+            sameLoop = false;
+            break;
+          }
+        }
+        if (sameLoop) {
+          for (auto *bb : loopHierarchy1->GetLoopMembers()) {
+            if (find(loopHierarchy2->GetLoopMembers().begin(), loopHierarchy2->GetLoopMembers().end(), bb) ==
+                loopHierarchy2->GetLoopMembers().end()) {
+              sameLoop = false;
+              break;
+            }
+          }
+        }
+        if (sameLoop) {
+          loopHierarchy2->GetPrev()->SetNext(loopHierarchy2->GetNext());
+          if (loopHierarchy2->GetNext() != nullptr) {
+            loopHierarchy2->GetNext()->SetPrev(loopHierarchy2->GetPrev());
+          }
+          continue;
+        }
+      }
       if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
         continue;
       }
