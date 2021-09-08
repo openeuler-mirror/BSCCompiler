@@ -41,13 +41,16 @@ class LoopHierarchy {
 
   virtual ~LoopHierarchy() = default;
 
-  const BB *GetHeader() const {
+  BB *GetHeader() const {
     return header;
   }
   const MapleSet<BB*, BBIdCmp> &GetLoopMembers() const {
     return loopMembers;
   }
   const MapleSet<BB*, BBIdCmp> &GetBackedge() const {
+    return backedge;
+  }
+  MapleSet<BB*, BBIdCmp> &GetBackedgeNonConst() {
     return backedge;
   }
   const MapleSet<BB*, BBIdCmp> &GetExits() const {
