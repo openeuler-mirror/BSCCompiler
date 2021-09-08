@@ -166,6 +166,14 @@ class FEIRStmt : public GeneralStmt {
     return (srcFileLineNum != 0 || srcFileIndex != 0);
   }
 
+  bool IsDummy() const {
+    return isDummy;
+  }
+
+  void SetDummy() {
+    isDummy = true;
+  }
+
  protected:
   std::string DumpDotStringImpl() const override;
   virtual void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) {}
@@ -215,6 +223,7 @@ class FEIRStmt : public GeneralStmt {
   uint32 srcFileIndex = 0;
   uint32 srcFileLineNum = 0;
   uint32 hexPC = UINT32_MAX;
+  bool isDummy = false;
 };
 
 using UniqueFEIRStmt = std::unique_ptr<FEIRStmt>;
@@ -293,8 +302,7 @@ class FEIRExpr {
   }
 
   void SetType(std::unique_ptr<FEIRType> argType) {
-    CHECK_NULL_FATAL(argType);
-    type = std::move(argType);
+    SetTypeImpl(std::move(argType));
   }
 
   FEIRNodeKind GetKind() const {
@@ -340,6 +348,11 @@ class FEIRExpr {
   virtual void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) {}
   virtual bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) {
     return true;
+  }
+
+  virtual void SetTypeImpl(std::unique_ptr<FEIRType> argType) {
+    ASSERT_NOT_NULL(argType);
+    type = std::move(argType);
   }
 
   virtual PrimType GetPrimTypeImpl() const {
@@ -476,6 +489,7 @@ class FEIRExprDRead : public FEIRExpr {
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
   std::vector<FEIRVar*> GetVarUsesImpl() const override;
   PrimType GetPrimTypeImpl() const override;
+  void SetTypeImpl(std::unique_ptr<FEIRType> argType) override;
   FEIRType *GetTypeImpl() const override;
   const FEIRType &GetTypeRefImpl() const override;
 
@@ -517,7 +531,9 @@ class FEIRExprAddrofConstArray : public FEIRExpr {
   explicit FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn)
       : FEIRExpr(FEIRNodeKind::kExprAddrof,
                  FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
-        array(arrayIn), type(typeIn) {}
+        type(typeIn) {
+    std::copy(arrayIn.begin(), arrayIn.end(), std::back_inserter(array));
+  }
   ~FEIRExprAddrofConstArray() = default;
 
   uint32 GetStringLiteralSize() const {
@@ -614,6 +630,7 @@ class FEIRExprIAddrof : public FEIRExpr {
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
+  std::vector<FEIRVar*> GetVarUsesImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
   FieldID GetFieldIDImpl() const override {
@@ -664,6 +681,7 @@ class FEIRExprAddrofArray : public FEIRExpr {
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
+  std::vector<FEIRVar*> GetVarUsesImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
  private:
@@ -710,6 +728,10 @@ class FEIRExprTypeCvt : public FEIRExprUnary {
   static std::map<Opcode, bool> InitMapOpNestableForTypeCvt();
   static Opcode ChooseOpcodeByFromVarAndToVar(const FEIRVar &fromVar, const FEIRVar &toVar);
 
+  void SetSrcPrimType(PrimType pty) {
+    srcPrimType = pty;
+  }
+
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -734,6 +756,7 @@ class FEIRExprTypeCvt : public FEIRExprUnary {
 
   static std::map<Opcode, bool> mapOpNestable;
   static std::map<Opcode, FuncPtrGenMIRNode> funcPtrMapForParseExpr;
+  PrimType srcPrimType = PTY_unknown;
 };  // FEIRExprTypeCvt
 
 // ---------- FEIRExprExtractBits ----------
@@ -794,6 +817,7 @@ class FEIRExprIRead : public FEIRExpr {
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
+  std::vector<FEIRVar*> GetVarUsesImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
   FieldID GetFieldIDImpl() const override {
@@ -947,7 +971,7 @@ class FEIRExprIntrinsicop : public FEIRExprNary {
 class FEIRExprIntrinsicopForC : public FEIRExprNary {
  public:
   FEIRExprIntrinsicopForC(std::unique_ptr<FEIRType> exprType, MIRIntrinsicID argIntrinsicID,
-                      const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
+                          const std::vector<std::unique_ptr<FEIRExpr>> &argOpnds);
   ~FEIRExprIntrinsicopForC() = default;
 
  protected:
@@ -1041,111 +1065,6 @@ class FEIRExprJavaArrayLength : public FEIRExpr {
   UniqueFEIRExpr exprArray;
 };
 
-// ---------- FEIRExprArrayStoreForC ----------
-class FEIRExprArrayStoreForC : public FEIRExpr {
- public:
-  FEIRExprArrayStoreForC(UniqueFEIRExpr argExprArray, std::list<UniqueFEIRExpr> &argExprIndexs,
-                         UniqueFEIRType argTypeNative, std::string argArrayName);
-  // for array in struct
-  FEIRExprArrayStoreForC(UniqueFEIRExpr argExprArray, std::list<UniqueFEIRExpr> &argExprIndexs,
-                         UniqueFEIRType argArrayTypeNative,
-                         UniqueFEIRExpr argExprStruct,
-                         UniqueFEIRType argStructTypeNative,
-                         std::string argArrayName);
-  ~FEIRExprArrayStoreForC() = default;
-
-  FEIRExpr &GetExprArray() const {
-    ASSERT(exprArray != nullptr, "exprArray is nullptr");
-    return *exprArray.get();
-  }
-
-  const UniqueFEIRExpr &GetUniqueExprArray() const {
-    return exprArray;
-  }
-
-  std::list<UniqueFEIRExpr> &GetExprIndexs() const {
-    ASSERT(!exprIndexs.empty(), "exprIndex is nullptr");
-    return exprIndexs;
-  }
-
-  void SetIndexsExprs(std::list<UniqueFEIRExpr> &exprs) {
-    exprIndexs.clear();
-    for (auto &e : exprs) {
-      auto ue = e->Clone();
-      exprIndexs.push_back(std::move(ue));
-    }
-  }
-
-  FEIRExpr &GetExprStruct() const {
-    ASSERT(exprStruct != nullptr, "exprStruct is nullptr");
-    return *exprStruct.get();
-  }
-
-  FEIRType &GetTypeArray() const {
-    ASSERT(typeNative != nullptr, "typeNative is nullptr");
-    return *typeNative.get();
-  }
-
-  const UniqueFEIRType &GetUniqueTypeArray() const {
-    return typeNative;
-  }
-
-  FEIRType &GetTypeSruct() const {
-    ASSERT(typeNativeStruct != nullptr, "typeNativeStruct is nullptr");
-    return *typeNativeStruct.get();
-  }
-
-  std::string GetArrayName() const {
-    return arrayName;
-  }
-
-  bool IsMember() const {
-    return typeNativeStruct != nullptr;
-  }
-
-  void SetAddrOfFlag(bool flag) {
-    isAddrOf = flag;
-  }
-
- protected:
-  std::unique_ptr<FEIRExpr> CloneImpl() const override;
-  BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  PrimType GetPrimTypeImpl() const override;
-  FEIRType *GetTypeImpl() const override;
-  const FEIRType &GetTypeRefImpl() const override;
-
-  FieldID GetFieldIDImpl() const override {
-    return fieldID;
-  }
-
-  void SetFieldIDImpl(FieldID argFeildID) override {
-    fieldID = argFeildID;
-  }
-
-  void SetFieldTypeImpl(std::unique_ptr<FEIRType> argFieldType) override {
-    fieldType = std::move(argFieldType);
-  }
-
-  std::vector<FEIRVar*> GetVarUsesImpl() const override {
-    return exprArray->GetVarUses();
-  }
-
- private:
-  UniqueFEIRExpr exprArray;
-  mutable std::list<UniqueFEIRExpr> exprIndexs;
-  UniqueFEIRType elemType = nullptr;
-  UniqueFEIRType typeNative;
-  bool isAddrOf = false;
-  FieldID fieldID = 0;
-  UniqueFEIRType fieldType = nullptr;
-  UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType());
-
-  // for array in struct
-  UniqueFEIRExpr exprStruct = nullptr;
-  UniqueFEIRType typeNativeStruct = nullptr;
-  std::string arrayName;
-};
-
 // ---------- FEIRExprArrayLoad ----------
 class FEIRExprArrayLoad : public FEIRExpr {
  public:
@@ -1204,6 +1123,7 @@ class FEIRExprCStyleCast : public FEIRExpr {
 
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
+  std::vector<FEIRVar*> GetVarUsesImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
  private:
@@ -1292,6 +1212,9 @@ class FEIRStmtNary : public FEIRStmt {
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
   Opcode op;
   std::list<std::unique_ptr<FEIRExpr>> argExprs;
+
+ private:
+  bool SkipNonnullChecking(MIRBuilder &mirBuilder, const UniqueFEIRExpr &opnd) const;
 };
 
 // ---------- FEIRStmtAssign ----------
@@ -1360,14 +1283,23 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
     expr = std::move(argExpr);
   }
 
+  void SetIsNonnullChecking(bool flag) {
+    isNonnullChecking = flag;
+  }
+
  protected:
   std::string DumpDotStringImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) override;
   void InitTrans4AllVarsImpl() override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSymbol &dstSym, std::list<StmtNode*> &ans) const;
+
   std::unique_ptr<FEIRExpr> expr;
   FieldID fieldID;
+  bool isNonnullChecking = false;  // EnhanceC nonnull checking
 };
 
 // ---------- FEIRStmtIAssign ----------
@@ -1381,12 +1313,21 @@ class FEIRStmtIAssign : public FEIRStmt {
         fieldID(id) {}
   ~FEIRStmtIAssign() = default;
 
+  void SetIsNonnullChecking(bool flag) {
+    isNonnullChecking = flag;
+  }
+
  protected:
   std::list<StmtNode *> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &baseType, std::list<StmtNode*> &ans) const;
+
   UniqueFEIRType addrType;
   UniqueFEIRExpr addrExpr;
   UniqueFEIRExpr baseExpr;
   FieldID fieldID;
+  bool isNonnullChecking = false;  // EnhanceC nonnull checking
 };
 
 // ---------- FEIRStmtJavaTypeCheck ----------
@@ -1507,6 +1448,10 @@ class FEIRStmtUseOnly : public FEIRStmt {
   FEIRStmtUseOnly(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr);
   ~FEIRStmtUseOnly() = default;
 
+  const std::unique_ptr<FEIRExpr> &GetExpr() const {
+    return expr;
+  }
+
  protected:
   bool IsFallThroughImpl() const override {
     if ((op == OP_return) || (op == OP_throw)) {
@@ -1531,6 +1476,9 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 };
 
 // ---------- FEIRStmtPesudoLabel ----------
@@ -1934,6 +1882,10 @@ class FEIRStmtSwitchForC : public FEIRStmt {
     hasDefault = argHasDefault;
   }
 
+  void SetBreakLabelName(std::string name) {
+    breakLabelName = std::move(name);
+  }
+
  protected:
   std::string DumpDotStringImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
@@ -1944,6 +1896,7 @@ class FEIRStmtSwitchForC : public FEIRStmt {
   UniqueFEIRExpr expr;
   bool hasDefault = true;
   std::list<UniqueFEIRStmt> subStmts;
+  std::string breakLabelName;
 };
 
 // ---------- FEIRStmtCaseForC ----------
@@ -1955,7 +1908,7 @@ class FEIRStmtCaseForC : public FEIRStmt {
   void AddFeirStmt(UniqueFEIRStmt stmt) {
     subStmts.emplace_back(std::move(stmt));
   }
-  const std::map<int32, FEIRStmtPesudoLabel*> &GetPesudoLabelMap() const {
+  const std::map<int64, std::unique_ptr<FEIRStmtPesudoLabel>> &GetPesudoLabelMap() const {
     return pesudoLabelMap;
   }
 
@@ -1965,7 +1918,8 @@ class FEIRStmtCaseForC : public FEIRStmt {
 
  private:
   int64 lCaseLabel;
-  std::map<int32, FEIRStmtPesudoLabel*> pesudoLabelMap = std::map<int32, FEIRStmtPesudoLabel*>();
+  std::map<int64, std::unique_ptr<FEIRStmtPesudoLabel>> pesudoLabelMap =
+      std::map<int64, std::unique_ptr<FEIRStmtPesudoLabel>>();
   std::list<UniqueFEIRStmt> subStmts;
 };
 
@@ -2040,22 +1994,6 @@ class FEIRStmtArrayStore : public FEIRStmt {
   std::string arrayName;
 };
 
-// ---------- FEIRStmtFieldStoreForC ----------
-class FEIRStmtFieldStoreForC : public FEIRStmt {
- public:
-  FEIRStmtFieldStoreForC(UniqueFEIRVar varObj, UniqueFEIRExpr argExprField, MIRStructType *argStructType,
-                         FieldID argFieldID);
-
- protected:
-  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const;
-
- private:
-  UniqueFEIRVar varObj = nullptr;
-  UniqueFEIRExpr exprField = nullptr;
-  MIRStructType *structType = nullptr;
-  FieldID fieldID = -1;
-};
-
 // ---------- FEIRStmtFieldStore ----------
 class FEIRStmtFieldStore : public FEIRStmt {
  public:
@@ -2118,52 +2056,6 @@ class FEIRStmtFieldLoad : public FEIRStmtAssign {
   int32 dexFileHashCode = -1;
 };
 
-// ---------- FEIRExprFieldLoadForC ----------
-class FEIRExprFieldLoadForC : public FEIRExpr {
- public:
-  FEIRExprFieldLoadForC(UniqueFEIRVar argVarObj, UniqueFEIRVar argVarField,
-                        MIRStructType *argStructType,
-                        FieldID argFieldID);
-  ~FEIRExprFieldLoadForC() = default;
-
-  MIRStructType *GetMIRStructType() const {
-    return structType;
-  }
-
-  FEIRVar &GetStructVar() const {
-    return *varObj.get();
-  }
-
-  FEIRVar &GetFieldVar() const {
-    return *varField.get();
-  }
-
-  FieldID GetFieldID() const {
-    return fieldID;
-  }
-
- protected:
-  BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
-  std::unique_ptr<FEIRExpr> CloneImpl() const override;
-
-  PrimType GetPrimTypeImpl() const override {
-    return varField->GetType()->GetPrimType();
-  }
-
-  FEIRType *GetTypeImpl() const override {
-    return varField->GetType().get();
-  }
-  const FEIRType &GetTypeRefImpl() const override {
-    return *GetTypeImpl();
-  }
-
- private:
-  UniqueFEIRVar varObj = nullptr;
-  UniqueFEIRVar varField = nullptr;
-  MIRStructType *structType = nullptr;
-  FieldID fieldID = -1;
-};
-
 // ---------- FEIRStmtCallAssign ----------
 class FEIRStmtCallAssign : public FEIRStmtAssign {
  public:
@@ -2182,6 +2074,9 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
 
  private:
   Opcode AdjustMIROp() const;
+  void InsertNonnullInRetVar(MIRSymbol &retVarSym) const;
+  void InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index,
+                                   MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 
   FEStructMethodInfo &methodInfo;
   Opcode mirOp;
@@ -2480,16 +2375,8 @@ class FEIRStmtBreak : public FEIRStmt {
   FEIRStmtBreak(): FEIRStmt(FEIRNodeKind::kStmtBreak) {}
   ~FEIRStmtBreak() = default;
 
-  void SetLoopLabelName(std::string name){
-    loopLabelName = std::move(name);
-  }
-
-  void SetSwitchLabelName(std::string name){
-    switchLabelName = std::move(name);
-  }
-
-  void SetIsFromSwitch(bool fromSwitch) {
-    isFromSwitch = fromSwitch;
+  void SetBreakLabelName(std::string name) {
+    breakLabelName = std::move(name);
   }
 
  protected:
@@ -2498,10 +2385,9 @@ class FEIRStmtBreak : public FEIRStmt {
   }
 
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
  private:
-  std::string loopLabelName;
-  std::string switchLabelName;
-  bool isFromSwitch = false;
+  std::string breakLabelName;
 };
 
 class FEIRStmtContinue : public FEIRStmt {
@@ -2525,7 +2411,7 @@ class FEIRStmtContinue : public FEIRStmt {
 
 class FEIRStmtLabel : public FEIRStmt {
  public:
-  explicit FEIRStmtLabel(const std::string &name): FEIRStmt(FEIRNodeKind::kStmtLabel), labelName(name) {}
+  explicit FEIRStmtLabel(const std::string &name) : FEIRStmt(FEIRNodeKind::kStmtLabel), labelName(name) {}
   ~FEIRStmtLabel() = default;
 
  protected:
@@ -2547,6 +2433,51 @@ class FEIRStmtAtomic : public FEIRStmt {
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
   UniqueFEIRExpr atomicExpr;
+};
+
+class FEIRStmtGCCAsm : public FEIRStmt {
+ public:
+  FEIRStmtGCCAsm(const std::string &str, bool isGotoArg, bool isVolatileArg)
+      : FEIRStmt(FEIRNodeKind::kStmtGCCAsm), asmStr(str), isGoto(isGotoArg), isVolatile(isVolatileArg) {}
+  ~FEIRStmtGCCAsm() = default;
+
+  void SetLabels(const std::vector<std::string> &labelsArg) {
+    labels = labelsArg;
+  }
+
+  void SetClobbers(const std::vector<std::string> &clobbersArg) {
+    clobbers = clobbersArg;
+  }
+
+  void SetInputs(const std::vector<std::pair<std::string, std::string>> &inputsArg) {
+    inputs = inputsArg;
+  }
+
+  void SetInputsExpr(std::vector<UniqueFEIRExpr> &expr) {
+    std::move(begin(expr), end(expr), std::inserter(inputsExprs, end(inputsExprs)));
+  }
+
+  void SetOutputs(const std::vector<std::tuple<std::string, std::string, bool>> &outputsArg) {
+    outputs = outputsArg;
+  }
+
+  void SetOutputsExpr(std::vector<UniqueFEIRExpr> &expr) {
+    std::move(begin(expr), end(expr), std::inserter(outputsExprs, end(outputsExprs)));
+  }
+
+ protected:
+  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  std::vector<std::tuple<std::string, std::string, bool>> outputs;
+  std::vector<UniqueFEIRExpr> outputsExprs;
+  std::vector<std::pair<std::string, std::string>> inputs;
+  std::vector<UniqueFEIRExpr> inputsExprs;
+  std::vector<std::string> clobbers;
+  std::vector<std::string> labels;
+  std::string asmStr;
+  bool isGoto = false;
+  bool isVolatile = false;
 };
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_COMMON_FEIR_STMT_H
