@@ -4225,6 +4225,13 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
       resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
     }
   }
+  if (dtype == PTY_i16) {
+    MOperator exOp = is64Bits ? MOP_xsxth64 : MOP_xsxth32;
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(exOp, *resOpnd, *resOpnd));
+  } else if (dtype == PTY_i8) {
+    MOperator exOp = is64Bits ? MOP_xsxtb64 : MOP_xsxtb32;
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(exOp, *resOpnd, *resOpnd));
+  }
   return resOpnd;
 }
 
@@ -8977,24 +8984,31 @@ Operand *AArch64CGFunc::SelectCSyncLockRelease(IntrinsicopNode &intrinopNode, Pr
 }
 
 Operand *AArch64CGFunc::SelectCReturnAddress(IntrinsicopNode &intrinopNode) {
-  BaseNode *argexpr0 = intrinopNode.Opnd(0);
-  while (!argexpr0->IsLeaf()) {
-    argexpr0 = argexpr0->Opnd(0);
+  if (intrinopNode.GetIntrinsic() == INTRN_C__builtin_extract_return_addr) {
+    ASSERT(intrinopNode.GetNumOpnds() == 1, "expect one parameter");
+    Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
+    return &LoadIntoRegister(*addrOpnd, PTY_a64);
+  } else if (intrinopNode.GetIntrinsic() == INTRN_C__builtin_return_address) {
+    BaseNode *argexpr0 = intrinopNode.Opnd(0);
+    while (!argexpr0->IsLeaf()) {
+      argexpr0 = argexpr0->Opnd(0);
+    }
+    CHECK_FATAL(argexpr0->IsConstval(), "Invalid argument of __builtin_return_address");
+    auto &constNode = static_cast<ConstvalNode&>(*argexpr0);
+    ASSERT(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
+    MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
+    ASSERT(mirIntConst != nullptr, "nullptr checking");
+    int64 scale = mirIntConst->GetValue();
+    /*
+     * Do not support getting return address with a nonzero argument
+     * inline / tail call opt will destory this behavior
+     */
+    CHECK_FATAL(scale == 0, "Do not support recursion");
+    Operand *resReg = &static_cast<Operand&>(CreateRegisterOperandOfType(PTY_i64));
+    SelectCopy(*resReg, PTY_i64, GetOrCreatePhysicalRegisterOperand(RLR, k64BitSize, kRegTyInt), PTY_i64);
+    return resReg;
   }
-  CHECK_FATAL(argexpr0->IsConstval(), "Invalid argument of __builtin_return_address");
-  auto &constNode = static_cast<ConstvalNode&>(*argexpr0);
-  ASSERT(constNode.GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst does not support float yet");
-  MIRIntConst *mirIntConst = safe_cast<MIRIntConst>(constNode.GetConstVal());
-  ASSERT(mirIntConst != nullptr, "nullptr checking");
-  int64 scale = mirIntConst->GetValue();
-  /*
-   * Do not support getting return address with a nonzero argument
-   * inline / tail call opt will destory this behavior
-   */
-  CHECK_FATAL(scale == 0, "Do not support recursion");
-  Operand *resReg = &static_cast<Operand&>(CreateRegisterOperandOfType(PTY_i64));
-  SelectCopy(*resReg, PTY_i64, GetOrCreatePhysicalRegisterOperand(RLR, k64BitSize, kRegTyInt), PTY_i64);
-  return resReg;
+  return nullptr;
 }
 
 Operand *AArch64CGFunc::SelectCalignup(IntrinsicopNode &intrnNode) {
@@ -9011,7 +9025,6 @@ Operand *AArch64CGFunc::SelectAArch64align(IntrinsicopNode &intrnNode, bool isUp
   PrimType ptype0 = argexpr0->GetPrimType();
   Operand *opnd0 = HandleExpr(intrnNode, *argexpr0);
   PrimType resultPtype = intrnNode.GetPrimType();
-  CHECK_FATAL(resultPtype == ptype0, "Expect align same type");
   RegOperand &ldDest0 = LoadIntoRegister(*opnd0, ptype0);
 
   BaseNode *argexpr1 = intrnNode.Opnd(1);
@@ -9029,18 +9042,21 @@ Operand *AArch64CGFunc::SelectAArch64align(IntrinsicopNode &intrnNode, bool isUp
     /* add res, x0, x1 */
     SelectAdd(*resultReg, ldDest0, *ldDest1, ptype0);
     /* sub res, res, 1 */
-    SelectSub(*resultReg, *resultReg, immReg, resultPtype);
+    SelectSub(*resultReg, *resultReg, immReg, ptype0);
   }
   Operand *tempReg = &static_cast<Operand&>(CreateRegisterOperandOfType(ptype0));
   /* sub temp, x1, 1 */
-  SelectSub(*tempReg, *ldDest1, immReg, resultPtype);
+  SelectSub(*tempReg, *ldDest1, immReg, ptype0);
   /* mvn temp, temp */
-  SelectMvn(*tempReg, *tempReg, resultPtype);
+  SelectMvn(*tempReg, *tempReg, ptype0);
   /* and res, res, temp */
   if (isUp) {
-    SelectBand(*resultReg, *resultReg, *tempReg, resultPtype);
+    SelectBand(*resultReg, *resultReg, *tempReg, ptype0);
   } else {
-    SelectBand(*resultReg, ldDest0, *tempReg, resultPtype);
+    SelectBand(*resultReg, ldDest0, *tempReg, ptype0);
+  }
+  if (resultPtype != ptype0) {
+    SelectCvtInt2Int(&intrnNode, resultReg, resultReg, ptype0, resultPtype);
   }
   return resultReg;
 }

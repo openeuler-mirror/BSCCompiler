@@ -17,6 +17,7 @@
 #include "mir_builder.h"
 #include "me_irmap_build.h"
 #include "me_option.h"
+#include "me_ssa_update.h"
 
 // This phase mainly renames the variables to pseudo register.
 // Only non-ref-type variables (including parameters) with no alias are
@@ -56,15 +57,21 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
     if (ost->GetIndex() >= aliasclass->GetAliasElemCount()) {
       return nullptr;
     }
+
+    if (ost->IsAddressTaken()) {
+      return nullptr;
+    }
+
+    if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
+      return nullptr;
+    }
+
     // var can be renamed to preg if ost of var:
     // 1. not used by MU or defined by CHI;
     // 2. aliased-ost of ost is not used anywhere (by MU or dread).
     //    If defining of aliased-ost defines ost as well.
     //    There must be a CHI defines ost, and this condition is included in the prev condition.
     //    Therefore, condition 2 not includes defined-by-CHI.
-    if (ostDefedByChi[ost->GetIndex()] || ostUsedByMu[ost->GetIndex()]) {
-      return nullptr;
-    }
 
     auto *aliasSet = GetAliasSet(ost);
     if (aliasSet != nullptr) {
@@ -78,18 +85,11 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
         if (aliasedOst->IsFormal()) {
           return nullptr;
         }
-        bool aliasedOstUsed = ostUsedByMu[aliasedOst->GetIndex()] || ostUsedByDread[aliasedOst->GetIndex()];
+        bool aliasedOstUsed = ostUsedByDread[aliasedOst->GetIndex()] || ostDefedByDassign[aliasedOst->GetIndex()];
         if (aliasedOstUsed && AliasClass::MayAliasBasicAA(ost, aliasedOst)) {
           return nullptr;
         }
       }
-    }
-
-    if (!mirst->IsLocal() || mirst->GetStorageClass() == kScPstatic || mirst->GetStorageClass() == kScFstatic) {
-      return nullptr;
-    }
-    if (ost->IsAddressTaken()) {
-      return nullptr;
     }
 
     RegMeExpr *curtemp = nullptr;
@@ -219,6 +219,13 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeex
     regssmestmt->CopyBase(*mestmt);
     mestmt->GetBB()->InsertMeStmtBefore(mestmt, regssmestmt);
     mestmt->GetBB()->RemoveMeStmt(mestmt);
+    if (ostDefedByChi[varmeexpr->GetOstIdx()]) {
+      auto *&bbSet = candsForSSAUpdate[varreg->GetOstIdx()];
+      if (bbSet == nullptr) {
+        bbSet = alloc.New<MapleSet<BBId>>(alloc.Adapter());
+      }
+      (void)bbSet->insert(mestmt->GetBB()->GetBBId());
+    }
   }
 }
 
@@ -289,7 +296,9 @@ void SSARename2Preg::Rename2PregStmt(MeStmt *stmt) {
         Rename2PregExpr(stmt, stmt->GetOpnd(i));
       }
       MapleVector<MustDefMeNode> *mustdeflist = stmt->GetMustDefList();
-      Rename2PregCallReturn(*mustdeflist);
+      if (mustdeflist != nullptr) {
+        Rename2PregCallReturn(*mustdeflist);
+      }
       break;
     }
     case OP_iassign: {
@@ -332,19 +341,38 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
 }
 
 void SSARename2Preg::CollectUsedOst(MeExpr *meExpr) {
-  if (meExpr->GetMeOp() == kMeOpIvar) {
-    auto *mu = static_cast<IvarMeExpr*>(meExpr)->GetMu();
-    ostUsedByMu[mu->GetOstIdx()] = true;
-  } else if (meExpr->GetMeOp() == kMeOpVar) {
+  if (meExpr->GetMeOp() == kMeOpVar) {
     auto ostIdx = static_cast<ScalarMeExpr*>(meExpr)->GetOstIdx();
     ostUsedByDread[ostIdx] = true;
+  } else if (meExpr->GetMeOp() == kMeOpAddrof) {
+    auto ostIdx = static_cast<AddrofMeExpr *>(meExpr)->GetOstIdx();
+    auto *ost = func->GetMeSSATab()->GetOriginalStFromID(ostIdx);
+    ost->SetAddressTaken(true);
+    auto *prevLevOst = ost->GetPrevLevelOst();
+    if (prevLevOst != nullptr) {
+      for (auto *siblingOst : prevLevOst->GetNextLevelOsts()) {
+        siblingOst->SetAddressTaken(true);
+      }
+    }
   }
+
   for (uint32 id = 0; id < meExpr->GetNumOpnds(); ++id) {
     CollectUsedOst(meExpr->GetOpnd(id));
   }
 }
 
 void SSARename2Preg::CollectDefUseInfoOfOst() {
+  // reset address taken attr of all symbol
+  for (auto *ost : func->GetMeSSATab()->GetOriginalStTable().GetOriginalStVector()) {
+    if (ost == nullptr) {
+      continue;
+    }
+    if (ost->GetIndirectLev() > 0) {
+      continue;
+    }
+    ost->SetAddressTaken(false);
+  }
+
   for (BB *meBB : func->GetCfg()->GetAllBBs()) {
     if (meBB == nullptr) {
       continue;
@@ -354,11 +382,9 @@ void SSARename2Preg::CollectDefUseInfoOfOst() {
         CollectUsedOst(stmt.GetOpnd(id));
       }
 
-      auto *muList = stmt.GetMuList();
-      if (muList != nullptr) {
-        for (const auto &mu : *muList) {
-          ostUsedByMu[mu.first] = true;
-        }
+      auto *lhsVar = stmt.GetVarLHS();
+      if (lhsVar != nullptr) {
+        ostDefedByDassign[lhsVar->GetOstIdx()] = true;
       }
 
       auto *chiList = stmt.GetChiList();
@@ -408,6 +434,11 @@ void SSARename2Preg::RunSelf() {
   }
 
   UpdateMirFunctionFormal();
+
+  if (!candsForSSAUpdate.empty()) {
+    MeSSAUpdate ssaUpdate(*func, *func->GetMeSSATab(), *dom, candsForSSAUpdate, *alloc.GetMemPool());
+    ssaUpdate.Run();
+  }
 }
 
 void SSARename2Preg::PromoteEmptyFunction() {
@@ -418,6 +449,7 @@ void SSARename2Preg::PromoteEmptyFunction() {
 void MESSARename2Preg::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEIRMapBuild>();
   aDep.AddRequired<MEAliasClass>();
+  aDep.AddRequired<MEDominance>();
   aDep.SetPreservedAll();
 }
 
@@ -427,11 +459,13 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
   }
   MeIRMap *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   ASSERT(irMap != nullptr, "irMap is wrong.");
+  Dominance *dom = GET_ANALYSIS(MEDominance, f);
+  ASSERT(dom != nullptr, "domTree is wrong");
 
   MemPool *renamemp = ApplyTempMemPool();
   if (f.GetCfg()->GetAllBBs().size() == 0) {
     // empty function, we only promote the parameter
-    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, &f, nullptr, nullptr);
+    auto *emptyrenamer = renamemp->New<SSARename2Preg>(renamemp, &f, nullptr, nullptr, nullptr);
     emptyrenamer->PromoteEmptyFunction();
     return true;
   }
@@ -439,7 +473,7 @@ bool MESSARename2Preg::PhaseRun(maple::MeFunction &f) {
   auto *aliasClass = GET_ANALYSIS(MEAliasClass, f);
   ASSERT(aliasClass != nullptr, "");
 
-  auto *phase = renamemp->New<SSARename2Preg>(renamemp, &f, f.GetIRMap(), aliasClass);
+  auto *phase = renamemp->New<SSARename2Preg>(renamemp, &f, f.GetIRMap(), dom, aliasClass);
   phase->RunSelf();
   if (DEBUGFUNC_NEWPM(f)) {
     irMap->Dump();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,33 +14,38 @@
  */
 #ifndef MAPLE_ME_INCLUDE_MERENAME2PREG_H
 #define MAPLE_ME_INCLUDE_MERENAME2PREG_H
-#include "me_phase.h"
 #include "me_function.h"
+#include "maple_phase.h"
 
 namespace maple {
 class SSARename2Preg {
  public:
-  SSARename2Preg(MemPool *mp, MeFunction *f, MeIRMap *hmap, AliasClass *alias)
+  SSARename2Preg(MemPool *mp, MeFunction *f, MeIRMap *hmap, Dominance *domTree, AliasClass *alias)
       : alloc(mp),
         func(f),
         meirmap(hmap),
+        dom(domTree),
         ssaTab(f->GetMeSSATab()),
         mirModule(&f->GetMIRModule()),
         aliasclass(alias),
         sym2reg_map(std::less<OStIdx>(), alloc.Adapter()),
         vstidx2reg_map(alloc.Adapter()),
         parm_used_vec(alloc.Adapter()),
-        reg_formal_vec(alloc.Adapter()) {}
+        reg_formal_vec(alloc.Adapter()),
+        ostDefedByChi(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
+        ostDefedByDassign(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
+        ostUsedByDread(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
+        candsForSSAUpdate(alloc.Adapter()) {}
 
   void RunSelf();
   void PromoteEmptyFunction();
 
  private:
-  AliasElem *GetAliasElem(const OriginalSt *ost) {
+  const MapleSet<unsigned int> *GetAliasSet(const OriginalSt *ost) {
     if (ost->GetIndex() >= aliasclass->GetAliasElemCount()) {
       return nullptr;
     }
-    return aliasclass->FindAliasElem(*ost);
+    return aliasclass->FindAliasElem(*ost)->GetClassSet();
   }
 
   void Rename2PregStmt(MeStmt *);
@@ -54,6 +59,8 @@ class SSARename2Preg {
   void UpdateMirFunctionFormal();
   void SetupParmUsed(const VarMeExpr *);
   void Init();
+  void CollectUsedOst(MeExpr *meExpr);
+  void CollectDefUseInfoOfOst();
   std::string PhaseName() const {
     return "rename2preg";
   }
@@ -61,6 +68,7 @@ class SSARename2Preg {
   MapleAllocator alloc;
   MeFunction *func;
   MeIRMap *meirmap;
+  Dominance *dom;
   SSATab *ssaTab;
   MIRModule *mirModule;
   AliasClass *aliasclass;
@@ -69,19 +77,14 @@ class SSARename2Preg {
   MapleVector<bool> parm_used_vec;                       // if parameter is not used, it's false, otherwise true
   // if the parameter got promoted, the nth of func->mirFunc->_formal is the nth of reg_formal_vec, otherwise nullptr;
   MapleVector<RegMeExpr *> reg_formal_vec;
+  MapleVector<bool> ostDefedByChi;
+  MapleVector<bool> ostDefedByDassign;
+  MapleVector<bool> ostUsedByDread;
+  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
  public:
   uint32 rename2pregCount = 0;
 };
 
-class MeDoSSARename2Preg : public MeFuncPhase {
- public:
-  explicit MeDoSSARename2Preg(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoSSARename2Preg() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcRst, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "rename2preg";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MESSARename2Preg, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MERENAME2PREG_H

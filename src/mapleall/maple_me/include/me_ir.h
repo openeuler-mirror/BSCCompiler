@@ -2192,6 +2192,13 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
+  ScalarMeExpr *GetVarLHS() {
+    if (mustDefList.empty() || mustDefList.front().GetLHS()->GetMeOp() != kMeOpVar) {
+      return nullptr;
+    }
+    return static_cast<VarMeExpr*>(mustDefList.front().GetLHS());
+  }
+
   MeExpr *GetLHSRef(bool excludeLocalRefVar) {
     return GetAssignedPartLHSRef(excludeLocalRefVar);
   }

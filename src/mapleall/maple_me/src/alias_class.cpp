@@ -302,7 +302,10 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       if (iread.GetFieldID() > 0) {
         typeOfField = static_cast<MIRStructType *>(typeOfField)->GetFieldType(iread.GetFieldID());
       }
-      bool typeHasBeenCasted = (typeOfField->GetSize() != GetPrimTypeSize(iread.GetPrimType()));
+      bool typeHasBeenCasted = false;
+      if (!IsPrimitiveScalar(typeOfField->GetPrimType()) || !IsPrimitiveScalar(iread.GetPrimType())) {
+        typeHasBeenCasted = (typeOfField->GetSize() != GetPrimTypeSize(iread.GetPrimType()));
+      }
       return AliasInfo(FindOrCreateExtraLevAliasElem(
           *iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted), 0, OffsetType(0));
     }
@@ -1526,11 +1529,6 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   // different zero-level-var not alias each other
   if (ostA->GetMIRSymbol() != ostB->GetMIRSymbol()) {
     return false;
-  }
-
-  // field of union alias with each other
-  if (ostA->GetMIRSymbol()->GetType()->GetKind() == kTypeUnion) {
-    return true;
   }
 
   // alias analysis based on offset, currently only valid for array-element.

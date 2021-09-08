@@ -30,7 +30,7 @@
 namespace maple {
 BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
   bool arrayLowered = false;
-  if (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo()) {
+  while (expr->GetOpCode() == OP_array && !mirModule.IsJavaModule() && !func->IsLfo()) {
     MIRLower mirLower(mirModule, mirModule.CurFunction());
     expr = mirLower.LowerCArray(static_cast<ArrayNode*>(expr));
     arrayLowered = true;
@@ -124,6 +124,11 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
       stmtsSSAPart.SetSSAPartOf(stmt, stmtsSSAPart.GetSSAPartMp()->New<MayDefPart>(&stmtsSSAPart.GetSSAPartAlloc()));
       return;
     default: {
+      if (stmt.GetOpCode() == OP_asm) {
+        if (static_cast<AsmNode&>(stmt).HasWriteInputs()) {
+          func->SetHasWriteInputAsmNode();
+        }
+      }
       if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
         MayDefMayUseMustDefPart *theSSAPart =
             stmtsSSAPart.GetSSAPartMp()->New<MayDefMayUseMustDefPart>(&stmtsSSAPart.GetSSAPartAlloc());
@@ -138,8 +143,7 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
           OriginalSt *ost = nullptr;
           if (!retPair.second.IsReg()) {
             StIdx stidx = retPair.first;
-            MIRSymbolTable *symTab = mirModule.CurFunction()->GetSymTab();
-            MIRSymbol *st = symTab->GetSymbolFromStIdx(stidx.Idx());
+            MIRSymbol *st = mirModule.CurFunction()->GetLocalOrGlobalSymbol(stidx);
             ost = FindOrCreateSymbolOriginalSt(*st, mirModule.CurFunction()->GetPuidx(), retPair.second.GetFieldID());
           } else {
             ost = originalStTable.FindOrCreatePregOriginalSt(retPair.second.GetPregIdx(),

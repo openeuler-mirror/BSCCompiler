@@ -634,6 +634,7 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C___sync_lock_release_8:
       return cgFunc.SelectCSyncLockRelease(intrinsicopNode, PTY_i64);
     case INTRN_C__builtin_return_address:
+    case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:

@@ -20,19 +20,6 @@
 #include "me_ir.h"
 
 namespace maple {
-// The order matters
-enum CastKind {
-  CAST_intTrunc = 0,
-  CAST_zext = 1,
-  CAST_sext = 2,
-  CAST_int2fp = 3,
-  CAST_fp2int = 4,
-  CAST_fpTrunc = 5,
-  CAST_fpExt = 6,
-  CAST_retype = 7,
-  CAST_unknown = 8
-};
-
 class IRMapBuild; // circular dependency exists, no other choice
 
 class IRMap : public AnalysisResult {
@@ -78,6 +65,8 @@ class IRMap : public AnalysisResult {
   RegMeExpr *CreateRegMeExprVersion(const RegMeExpr &regx) {
     return CreateRegMeExprVersion(*regx.GetOst());
   }
+
+  ScalarMeExpr *CreateRegOrVarMeExprVersion(OStIdx ostIdx);
   RegMeExpr *CreateRegMeExpr(PrimType);
   RegMeExpr *CreateRegMeExpr(MIRType&);
   RegMeExpr *CreateRegMeExpr(const MeExpr &meexpr) {
@@ -152,10 +141,6 @@ class IRMap : public AnalysisResult {
   MeExpr *SimplifyMeExpr(MeExpr *x);
   void SimplifyCastForAssign(MeStmt *assignStmt);
   MeExpr *SimplifyCast(MeExpr *expr);
-  MeExpr *SimplifyCastSingle(MeExpr *castExpr);
-  MeExpr *SimplifyCastPair(MeExpr *firstCastExpr, MeExpr *secondCastExpr, bool isFirstCastImplicit);
-  MeExpr *CreateMeExprByCastKind(CastKind castKind, PrimType srcType, PrimType dstType, MeExpr *opnd,
-                                 TyIdx dstTyIdx = TyIdx(0));
   MeExpr* SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvarWithAddrofBase(IvarMeExpr *ivar);
   MeExpr *SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar);
@@ -270,6 +255,7 @@ class IRMap : public AnalysisResult {
   BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
   MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
+  bool IfMeExprIsU1Type(const MeExpr *expr) const;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_IRMAP_H
