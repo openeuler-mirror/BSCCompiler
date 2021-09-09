@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -24,12 +24,14 @@ class LFOMIRLower : public MIRLower {
   LfoFunction *lfoFunc;
 
  public:
-  LFOMIRLower(MIRModule &mod, MeFunction *f) : MIRLower(mod, f->GetMirFunc()),
+  LFOMIRLower(MIRModule &mod, MeFunction *f)
+      : MIRLower(mod, f->GetMirFunc()),
         func(f),
         lfoFunc(f->GetLfoFunc()) {}
 
-  BlockNode *LowerWhileStmt(WhileStmtNode&);
-  BlockNode *LowerIfStmt(IfStmtNode &ifstmt, bool recursive = true);
+  BlockNode *LowerWhileStmt(WhileStmtNode&) override;
+  BlockNode *LowerIfStmt(IfStmtNode &ifstmt, bool recursive = true) override;
+  bool InLFO() const override { return true; }
 };
 }
 #endif  // MAPLE_ME_INCLUDE_LFO_MIR_LOWER_H
