@@ -116,6 +116,9 @@ class MIRLower {
   }
 
   static bool ShouldOptArrayMrt(const MIRFunction &func);
+
+  virtual bool InLFO() const { return false; }
+
  protected:
   MIRModule &mirModule;
  private:
