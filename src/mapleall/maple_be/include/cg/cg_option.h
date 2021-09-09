@@ -529,6 +529,14 @@ class CGOptions : public MapleDriverOptionBase {
     overlapNum = num;
   }
 
+  static uint8 GetRematLevel() {
+    return rematLevel;
+  }
+
+  static void SetRematLevel(uint8 level) {
+    rematLevel = level;
+  }
+
   static uint8 GetFastAllocMode() {
     return fastAllocMode;
   }
@@ -1171,6 +1179,7 @@ class CGOptions : public MapleDriverOptionBase {
   static uint64 lsraBBOptSize;
   static uint64 lsraInsnOptSize;
   static uint64 overlapNum;
+  static uint8 rematLevel;
   static uint8 fastAllocMode;
   static bool fastAlloc;
   static bool doPreLSRAOpt;
