@@ -4036,6 +4036,7 @@ std::list<StmtNode*> FEIRStmtGCCAsm::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
     FieldID fieldID = 0;
     MIRSymbol *sym = nullptr;
     UniqueFEIRVar asmOut;
+    UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(std::get<1>(outputs[i]));
     if (outputsExprs[i]->GetKind() == kExprDRead) {
       FEIRExprDRead *dread = static_cast<FEIRExprDRead*>(outputsExprs[i].get());
       fieldID = dread->GetFieldID();
@@ -4044,38 +4045,48 @@ std::list<StmtNode*> FEIRStmtGCCAsm::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
     } else if (outputsExprs[i]->GetKind() == kExprIRead) {
       FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(outputsExprs[i].get());
       fieldID = iread->GetFieldID();
-      asmOut = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("asm_out_"), iread->GetClonedRetType());
-      sym = asmOut->GenerateLocalMIRSymbol(mirBuilder);
-      UniqueFEIRExpr srcExpr = FEIRBuilder::CreateExprDRead(asmOut->Clone());
-      auto stmt = FEIRBuilder::CreateStmtIAssign(iread->GetClonedPtrType(), iread->GetClonedOpnd(),
-                                                 std::move(srcExpr), fieldID);
-      std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
-      stmts.splice(stmts.end(), node);
+      if (std::get<1>(outputs[i]) != "+Q") {
+        asmOut = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("asm_out_"), iread->GetClonedRetType());
+        sym = asmOut->GenerateLocalMIRSymbol(mirBuilder);
+        UniqueFEIRExpr srcExpr = FEIRBuilder::CreateExprDRead(asmOut->Clone());
+        auto stmt = FEIRBuilder::CreateStmtIAssign(iread->GetClonedPtrType(), iread->GetClonedOpnd(),
+                                                   std::move(srcExpr), fieldID);
+        std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
+        stmts.splice(stmts.end(), node);
 
-      // The field ID is set to zero when a temporary variable is created for iread and sym is not a struct or union.
-      if (!sym->GetType()->IsStructType()) {
-        fieldID = 0;
+        // The field ID is set to zero when a temporary variable is created for iread and sym is not a struct or union.
+        if (!sym->GetType()->IsStructType()) {
+          fieldID = 0;
+        }
+      } else {
+        BaseNode *node;
+        if (iread->GetFieldID() == 0) {
+          node = iread->GetClonedOpnd()->GenMIRNode(mirBuilder);
+        } else {
+          auto addrOfExpr = std::make_unique<FEIRExprIAddrof>(iread->GetClonedPtrType(), iread->GetFieldID(),
+                                                              iread->GetClonedOpnd());
+          node = addrOfExpr->GenMIRNode(mirBuilder);
+        }
+        asmNode->PushOpnd(node);
+        asmNode->inputConstraints.emplace_back(strIdx);
+        continue;
       }
     } else {
       CHECK_FATAL(false, "FEIRStmtGCCAsm NYI.");
     }
 
-    // If this is a read/write, copy the initial value into the temp before
+    CallReturnPair retPair(sym->GetStIdx(), RegFieldPair(fieldID, 0));
+    asmNode->asmOutputs.emplace_back(retPair);
+    asmNode->outputConstraints.emplace_back(strIdx);
+
+    // If this is a read/write, copy the initial value into the temp before and added to the input list
     if (std::get<2>(outputs[i])) {
       auto stmt = FEIRBuilder::CreateStmtDAssign(asmOut->Clone(), outputsExprs[i]->Clone());
       std::list<StmtNode*> node = stmt->GenMIRStmts(mirBuilder);
       initStmts.splice(initStmts.end(), node);
-    }
 
-    CallReturnPair retPair(sym->GetStIdx(), RegFieldPair(fieldID, 0));
-    asmNode->asmOutputs.emplace_back(retPair);
-    UStrIdx strIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(std::get<1>(outputs[i]));
-    asmNode->outputConstraints.emplace_back(strIdx);
-
-    // Outputs with '+' are also added to the input list
-    if (std::get<2>(outputs[i])) {
-      AddrofNode *node = mirBuilder.CreateExprDread(*sym);
-      asmNode->PushOpnd(static_cast<BaseNode*>(node));
+      AddrofNode *rNode = mirBuilder.CreateExprDread(*sym);
+      asmNode->PushOpnd(static_cast<BaseNode*>(rNode));
       asmNode->inputConstraints.emplace_back(strIdx);
     }
   }
