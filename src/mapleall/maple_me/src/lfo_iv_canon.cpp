@@ -294,7 +294,8 @@ void IVCanon::ComputeTripCount() {
   }
 
   // form the trip count expression
-  PrimType primTypeUsed = testExpr->GetOpnd(0)->GetPrimType();
+  PrimType primTypeUsed = (!ivdesc->initExpr->IsZero()) ?
+      GetSignedPrimType(testExpr->GetOpnd(0)->GetPrimType()) : testExpr->GetOpnd(0)->GetPrimType();
   PrimType divPrimType = primTypeUsed;
   if (ivdesc->stepValue < 0) {
     divPrimType = GetSignedPrimType(divPrimType);
