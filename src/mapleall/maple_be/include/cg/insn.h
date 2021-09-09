@@ -126,6 +126,10 @@ class Insn {
     return false;
   }
 
+  virtual bool IsReturnPseudoInstruction() const {
+    return false;
+  }
+
   virtual bool OpndIsDef(uint32) const {
     return false;
   }
@@ -579,6 +583,26 @@ class Insn {
     return doNotRemove;
   }
 
+  void SetIsSpill() {
+    this->isSpill = true;
+  }
+
+  bool GetIsSpill() const {
+    return isSpill;
+  }
+
+  void SetIsReload() {
+    this->isReload = true;
+  }
+
+  bool GetIsReload() const {
+    return isReload;
+  }
+
+  bool IsSpillInsn() {
+    return (isSpill || isReload);
+  }
+
   void SetIsCallReturnUnsigned(bool unSigned) {
     ASSERT(IsCall(), "Insn should be a call.");
     this->isCallReturnUnsigned = unSigned;
@@ -668,6 +692,8 @@ class Insn {
   bool isThrow = false;
   bool doNotRemove = false;  /* caller reg cross call */
   bool isCallReturnUnsigned = false;   /* for call insn only. false: signed, true: unsigned */
+  bool isSpill = false;   /* used as hint for optimization */
+  bool isReload = false;  /* used as hint for optimization */
   bool isFrameDef = false;
   bool asmDefCondCode = false;
   bool asmModMem = false;

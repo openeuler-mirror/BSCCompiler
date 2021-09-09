@@ -185,8 +185,11 @@ bool AArch64GenProEpilog::TailCallOpt() {
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
   }
-
-  CHECK_FATAL(exitBB->GetFirstMachineInsn() == nullptr, "exit bb should be empty.");
+  FOR_BB_INSNS(insn, exitBB) {
+    if (insn->IsMachineInstruction() && !insn->IsPseudoInstruction()) {
+      CHECK_FATAL(false, "exit bb should be empty.");
+    }
+  }
 
   std::set<Insn*> callInsns;
   TailCallBBOpt(*exitBB, callInsns);
@@ -383,282 +386,254 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   return *newBB;
 }
 
-/*
- * The following functions are for pattern matching for fast path
- * where function has early return of spedified pattern load/test/return
- */
-void AArch64GenProEpilog::ReplaceMachedOperand(Insn &orig, Insn &target, const RegOperand &matchedOpnd,
-                                               bool isFirstDst) {
-  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  for (uint32 i = 0; i < target.GetOpndNum(); ++i) {
-    Operand *src = target.GetOpnd(i);
-    CHECK_FATAL(src != nullptr, "src is null in ReplaceMachedOperand");
-    if (src->IsRegister()) {
-      RegOperand *reg = static_cast<RegOperand*>(src);
-      if (reg != &matchedOpnd) {
-        continue;
-      }
-      if (isFirstDst) {
-        Operand *origSrc = orig.GetOpnd(0);
-        RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
-        CHECK_FATAL(origPhys != nullptr, "pointer is null");
-        regno_t regNO = origPhys->GetRegisterNumber();
-        RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
-                                                                          matchedOpnd.GetSize(), kRegTyInt);
-        target.SetOpnd(i, phys);
-      } else {
-        /* Replace the operand with the src of inst */
-        RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
-                                                                          reg->GetSize(), kRegTyInt);
-        target.SetOpnd(i, phys);
-      }
-      return;
-    }
-    if (src->IsMemoryAccessOperand()) {
-      MemOperand *memOpnd = static_cast<MemOperand*>(src);
-      Operand *base = memOpnd->GetBaseRegister();
-      Operand *offset = memOpnd->GetIndexRegister();
-      if (base != nullptr && base->IsRegister()) {
-        RegOperand *reg = static_cast<RegOperand*>(base);
-        if (reg != &matchedOpnd) {
-          continue;
-        }
-        if (isFirstDst) {
-          Operand *origSrc = orig.GetOpnd(0);
-          RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
-          CHECK_FATAL(origPhys != nullptr, "orig_phys cast failed");
-          regno_t regNO = origPhys->GetRegisterNumber();
-          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
-                                                                            matchedOpnd.GetSize(), kRegTyInt);
-          memOpnd->SetBaseRegister(phys);
-        } else {
-          /* Replace the operand with the src of inst */
-          RegOperand &phys =
-              aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), base->GetSize(), kRegTyInt);
-          memOpnd->SetBaseRegister(phys);
-        }
-        return;
-      }
-      if (offset != nullptr && offset->IsRegister()) {
-        RegOperand *reg = static_cast<RegOperand*>(offset);
-        if (reg != &matchedOpnd) {
-          continue;
-        }
-        if (isFirstDst) {
-          Operand *origSrc = orig.GetOpnd(0);
-          RegOperand *origPhys = static_cast<RegOperand*>(origSrc);
-          CHECK_FATAL(origPhys != nullptr, "orig_phys is nullptr in ReplaceMachedOperand");
-          regno_t regNO = origPhys->GetRegisterNumber();
-          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(regNO),
-                                                                            matchedOpnd.GetSize(), kRegTyInt);
-          memOpnd->SetIndexRegister(phys);
-        } else {
-          /* Replace the operand with the src of inst */
-          RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
-                                                                            offset->GetSize(), kRegTyInt);
-          memOpnd->SetIndexRegister(phys);
-        }
-        return;
+bool AArch64GenProEpilog::InsertOpndRegs(Operand &op, std::set<regno_t> &vecRegs) {
+  Operand *opnd = &op;
+  CHECK_FATAL(opnd != nullptr, "opnd is nullptr in InsertRegs");
+  if (opnd->IsList()) {
+    MapleList<RegOperand *> pregList = static_cast<ListOperand *>(opnd)->GetOperands();
+    for (auto *preg : pregList) {
+      if (preg != nullptr) {
+        vecRegs.insert(preg->GetRegisterNumber());
       }
     }
   }
-  if (!isFirstDst) {
-    RegOperand &phys = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
-                                                                      matchedOpnd.GetSize(), kRegTyInt);
-    orig.SetResult(0, phys);
+  if (opnd->IsMemoryAccessOperand()) { /* the registers of kOpdMem are complex to be detected */
+    RegOperand *baseOpnd = static_cast<MemOperand *>(opnd)->GetBaseRegister();
+    if (baseOpnd != nullptr) {
+      vecRegs.insert(baseOpnd->GetRegisterNumber());
+    }
+    RegOperand *indexOpnd = static_cast<MemOperand *>(opnd)->GetIndexRegister();
+    if (indexOpnd != nullptr) {
+      vecRegs.insert(indexOpnd->GetRegisterNumber());
+    }
   }
+  if (opnd->IsRegister()) {
+    RegOperand *preg = static_cast<RegOperand *>(opnd);
+    if (preg != nullptr) {
+      vecRegs.insert(preg->GetRegisterNumber());
+    }
+  }
+  return true;
 }
 
-bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, RegOperand &targetOpnd, Insn *&load,
-                                                 Insn *&mov, Insn *&depMov, std::list<Insn*> &list) {
-  load = nullptr;
-  mov = nullptr;
-  depMov = nullptr;
-  BB *pred = &ifbb;
+bool AArch64GenProEpilog::InsertInsnRegs(Insn &insn, bool insertSource, std::set<regno_t> &vecSourceRegs,
+                                         bool insertTarget, std::set<regno_t> &vecTargetRegs){
+  Insn *curInsn = &insn;
+  for (uint32 o = 0; o < curInsn->GetOperandSize(); ++o) {
+    Operand &opnd = curInsn->GetOperand(o);
+    if (insertSource == 1 && curInsn->OpndIsUse(o)) {
+      InsertOpndRegs(opnd, vecSourceRegs);
+    }
+    if (insertTarget == 1 && curInsn->OpndIsDef(o)) {
+      InsertOpndRegs(opnd, vecTargetRegs);
+    }
+  }
+  return true;
+}
+
+bool AArch64GenProEpilog::FindRegs(Operand &op, std::set<regno_t> &vecRegs) {
+  Operand *opnd = &op;
+  if (opnd == nullptr || vecRegs.empty()) {
+    return false;
+  }
+  if (opnd->IsList()) {
+    MapleList<RegOperand*> pregList = static_cast<ListOperand *>(opnd)->GetOperands();
+    for (auto *preg : pregList) {
+      if (preg->GetRegisterNumber() == R29 ||
+          vecRegs.find(preg->GetRegisterNumber()) != vecRegs.end()) {
+        return true;  /* the opReg will overwrite or reread the vecRegs */
+      }
+    }
+  }
+  if (opnd->IsMemoryAccessOperand()) {  /* the registers of kOpdMem are complex to be detected */
+    RegOperand *baseOpnd = static_cast<MemOperand *>(opnd)->GetBaseRegister();
+    RegOperand *indexOpnd = static_cast<MemOperand *>(opnd)->GetIndexRegister();
+    if ((baseOpnd != nullptr && baseOpnd->GetRegisterNumber() == R29) ||
+        (indexOpnd != nullptr && indexOpnd->GetRegisterNumber() == R29)) {
+      return true;  /* Avoid modifying data on the stack */
+    }
+    if ((baseOpnd != nullptr && vecRegs.find(baseOpnd->GetRegisterNumber()) != vecRegs.end()) ||
+        (indexOpnd != nullptr && vecRegs.find(indexOpnd->GetRegisterNumber()) != vecRegs.end())) {
+      return true;
+    }
+  }
+  if (opnd->IsRegister()) {
+    RegOperand *regOpnd = static_cast<RegOperand *>(opnd);
+    if (regOpnd->GetRegisterNumber() == R29 ||
+        vecRegs.find(regOpnd->GetRegisterNumber()) != vecRegs.end()) {
+      return true;  /* dst is a target register, result_dst is a target register */
+    }
+  }
+  return false;
+}
+
+bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceRegs,
+                                                 std::list<Insn*> &existingInsns,
+                                                 std::list<Insn*> &moveInsns) {
   /*
-   * Pattern match,  (*) instruction are moved down below branch.
-   *   mov reg1, R0                         mov  reg1, R0                        *
-   *   ld  Rx  , [reg1, const]              ld   R16 , [R0, const]
-   *   mov reg2, Rx                   =>    mov  reg2, R16    <- this may exist  *
-   *                                        mov  Rx  , R16    <- replicate       *
-   *   cbr       Rx, label                  cbr        R16, label
-   *
-   *   R16 is used because it is used as spill register.
-   *   Need to modify if different register allcoation mechanism is used.
+   * Pattern match,(*) instruction are moved down below branch.
+   *   ********************
+   *   curInsn: <instruction> <target> <source>
+   *   <existingInsns> in predBB
+   *   <existingInsns> in ifBB
+   *   <existingInsns> in returnBB
+   *   *********************
+   *                        list: the insns can be moved into the coldBB
+   * (1) the instruction is neither a branch nor a call, except for the ifbb.GetLastInsn()
+   *     As long as a branch insn exists,
+   *     the fast path finding fails and the return value is false,
+   *     but the code sinking can be continued.
+   * (2) the predBB is not a ifBB,
+   *     As long as a ifBB in preds exists,
+   *     the code sinking fails,
+   *     but fast path finding can be continued.
+   * (3) the targetRegs of insns in existingInsns can neither be reread or overwrite
+   * (4) the sourceRegs of insns in existingInsns can not be overwrite
+   * (5) the sourceRegs of insns in returnBB can neither be reread or overwrite
+   * (6) the targetRegs and sourceRegs cannot be R29 R30, to protect the stack
+   * (7) modified the reg when:
+   *     --------------
+   *     curInsn: move R2,R1
+   *     <existingInsns>: <instruction>s <target>s <source>s
+   *                      <instruction>s <target>s <source-R2>s
+   *                      -> <instruction>s <target>s <source-R1>s
+   *     ------------
+   *     (a) all targets cannot be R1, all sources cannot be R1
+   *         all targets cannot be R2, all return sources cannot be R2
+   *     (b) the targetRegs and sourceRegs cannot be list or MemoryAccess
+   *     (c) no ifBB in preds, no branch insns
+   *     (d) the bits of source-R2 must be equal to the R2
+   *     (e) replace the R2 with R1
    */
+  BB *pred = &ifbb;
+  std::set<regno_t> vecTargetRegs; /* the targrtRegs of existingInsns */
+  std::set<regno_t> vecSourceRegs; /* the soureRegs of existingInsns */
+  bool ifPred = false; /* Indicates whether a ifBB in pred exists */
+  bool bl = false; /* Indicates whether a branch insn exists */
   do {
     FOR_BB_INSNS_REV(insn, pred) {
-      if (insn == ifbb.GetLastInsn()) {
+      /* code sinking fails, the insns must be retained in the ifBB */
+      if (ifPred || insn == ifbb.GetLastInsn() || insn->IsBranch() || insn->IsCall() ||
+          insn->IsStore() || insn->IsStorePair()) {
+        /* fast path finding fails */
+        if (insn != ifbb.GetLastInsn() && (insn->IsBranch() || insn->IsCall() ||
+            insn->IsStore() || insn->IsStorePair())) {
+          bl = true;
+        }
+        InsertInsnRegs(*insn, 1, vecSourceRegs, 1, vecTargetRegs);
+        existingInsns.push_back(insn);
         continue;
       }
+      /* code sinking */
       if (insn->IsImmaterialInsn()) {
+        moveInsns.push_back(insn);
         continue;
       }
+      /* code sinking */
       if (!insn->IsMachineInstruction()) {
+        moveInsns.push_back(insn);
         continue;
       }
-
-      bool found = false;  /* allowing for only one src to be register */
-      for (uint32 r = 0; r < insn->GetResultNum(); ++r) {
-        Operand *dst = insn->GetResult(r);
-        CHECK_FATAL(dst != nullptr, "pointer is null");
-        if (!dst->IsRegister()) {
-          continue;
+      bool allow = true;  /* whether allow this insn move into the codeBB */
+      for (uint32 o = 0; allow && o < insn->GetOperandSize(); ++o) {
+        Operand &opnd = insn->GetOperand(o);
+        if (insn->OpndIsDef(o)) {
+          allow = allow & !FindRegs(opnd, vecTargetRegs);
+          allow = allow & !FindRegs(opnd, vecSourceRegs);
+          allow = allow & !FindRegs(opnd, vecReturnSourceRegs);
         }
-        RegOperand *regOpnd = static_cast<RegOperand*>(dst);
-        if (regOpnd != &targetOpnd) {
-          continue;
+        if (insn->OpndIsUse(o)) {
+          allow = allow & !FindRegs(opnd, vecTargetRegs);
         }
-        if (load != nullptr) {
-          if (mov != nullptr) {
-            return false;
-          }
-          MOperator opCode = insn->GetMachineOpcode();
-          if (opCode != MOP_xmovrr) {
-            return false;
-          }
-          Operand *mvSrc = insn->GetOpnd(0);
-          RegOperand *mvRegSrc = static_cast<RegOperand*>(mvSrc);
-          CHECK_FATAL(mvRegSrc != nullptr, "mv_regsrc cast failed");
-          regno_t mvReg = mvRegSrc->GetRegisterNumber();
-          /* make it very specific for now */
-          if (mvReg != R0) {
-            return false;
-          }
-          Operand *mvDst = insn->GetResult(0);
-          RegOperand *mvRegDst = static_cast<RegOperand*>(mvDst);
-          CHECK_FATAL(mvRegDst != nullptr, "mv_regdst cast failed");
-          mvReg = mvRegDst->GetRegisterNumber();
-          if (mvReg != R20) {
-            return false;
-          }
-          mov = insn;
-        }
-        /* Found def, continue dep chain with src */
-        for (uint32 s = 0; s < insn->GetOpndNum(); ++s) {
-          Operand *src = insn->GetOpnd(s);
-          CHECK_FATAL(src != nullptr, "src is nullptr in BackwardFindDependency");
-          if (src->IsRegister()) {
-            if (found) {
-              return false;
-            }
-            RegOperand *preg = static_cast<RegOperand*>(src);
-            targetOpnd = *preg;
-            if (!preg->IsPhysicalRegister() || insn->GetMachineOpcode() != MOP_xmovrr) {
-              return false;
-            }
-            /*
-             * Skipping the start of the dependency chain because
-             * the the parameter reg will be propagated leaving
-             * the mov instruction alone to be relocated down
-             * to the cold path.
-             */
-            found = false;
-          } else if (src->IsMemoryAccessOperand()) {
-            MemOperand *memOpnd = static_cast<MemOperand*>(src);
-            Operand *base = memOpnd->GetBaseRegister();
-            Operand *offset = memOpnd->GetIndexRegister();
-            if (base != nullptr && base->IsRegister()) {
-              if (found) {
-                return false;
+      }
+      /* if a result_dst not allowed, this insn can be allowed on the condition of mov Rx,R0/R1,
+       * and tje existing insns cannot be blr */
+      if (!ifPred && !bl && !allow && (insn->GetMachineOpcode() == MOP_xmovrr ||
+          insn->GetMachineOpcode() == MOP_wmovrr)) {
+        Operand *resultOpnd = &(insn->GetOperand(0));
+        Operand *srcOpnd = &(insn->GetOperand(1));
+        if (!FindRegs(*resultOpnd, vecTargetRegs) && !FindRegs(*srcOpnd, vecTargetRegs) &&
+            !FindRegs(*srcOpnd, vecSourceRegs) && !FindRegs(*srcOpnd, vecReturnSourceRegs)) {
+          allow = true; /* allow on the conditional mov Rx,Rxx */
+          for (auto *exit : existingInsns) {
+            /* the registers of kOpdMem are complex to be detected */
+            for (uint32 o = 0; o < exit->GetOperandSize(); ++o) {
+              if (!exit->OpndIsUse(o)) {
+                continue;
               }
-              load = insn;
-              targetOpnd = *(static_cast<RegOperand*>(base));
-              found = true;
-              Operand *ldDst = insn->GetResult(0);
-              RegOperand *ldRdst = static_cast<RegOperand*>(ldDst);
-              CHECK_FATAL(ldRdst != nullptr, "ld_rdst is nullptr in BackwardFindDependency");
-              if (ldRdst->GetRegisterNumber() != R1) {
-                return false;  /* hard code for now. */
+              Operand *opd = &(exit->GetOperand(o));
+              if (opd->IsList() || opd->IsMemoryAccessOperand()) {
+                allow = false;
+                break;
               }
-              /* Make sure instruction depending on load is mov and cond br */
-              for (Insn *ni = insn->GetNext(); ni != nullptr; ni = ni->GetNext()) {
-                if (ni->GetMachineOpcode() == MOP_xmovrr || ni->GetMachineOpcode() == MOP_wmovrr) {
-                  Operand *dep = ni->GetOpnd(0);
-                  RegOperand *rdep = static_cast<RegOperand*>(dep);
-                  if (rdep == ldRdst) {
-                    if (depMov != nullptr) {
-                      return false;
-                    }
-                    depMov = ni;
-                  }
-                }
+              /* Distinguish between 32-bit regs and 64-bit regs */
+              if (opd->IsRegister() &&
+                  static_cast<RegOperand *>(opd)->GetRegisterNumber() ==
+                  static_cast<RegOperand *>(resultOpnd)->GetRegisterNumber() &&
+                  opd != resultOpnd) {
+                allow = false;
+                break;
               }
             }
-            if (offset != nullptr && offset->IsRegister()) {
-              return false;
+          }
+        }
+        /* replace the R2 with R1 */
+        if (allow) {
+          for (auto *exit : existingInsns) {
+            for (uint32 o = 0; o < exit->GetOperandSize(); ++o) {
+              if (!exit->OpndIsUse(o)) {
+                continue;
+              }
+              Operand *opd = &(exit->GetOperand(o));
+              if (opd->IsRegister() && (opd == resultOpnd)) {
+                exit->SetOperand(o, *srcOpnd);
+              }
             }
           }
         }
       }
-      if (!found) {
-        list.push_back(insn);
+      if (!allow) { /* all result_dsts are not target register */
+        /* code sinking fails */
+        InsertInsnRegs(*insn, 1, vecSourceRegs, 1, vecTargetRegs);
+        existingInsns.push_back(insn);
+      } else {
+        moveInsns.push_back(insn);
       }
     }
     if (pred->GetPreds().empty()) {
       break;
     }
-    pred = pred->GetPreds().front();
-  } while (pred != nullptr);
-
-  return true;
-}
-
-void AArch64GenProEpilog::ForwardPropagateAndRename(Insn &mov, Insn &load, const BB &terminateBB) {
-  /*
-   * This is specialized function to work with IsolateFastPath().
-   * The control flow and instruction pattern must be recognized.
-   */
-  Insn *insn = &mov;
-  bool isFirstDst = true;
-  /* process mov and load two instructions */
-  for (int32 i = 0; i < 2; ++i) {
-    /* Finish the bb the mov is in */
-    for (Insn *target = insn->GetNext(); target != nullptr; target = target->GetNext()) {
-      if (target->IsImmaterialInsn()) {
-        continue;
-      }
-      if (!target->IsMachineInstruction()) {
-        continue;
-      }
-      Operand *dst = insn->GetResult(0);
-      RegOperand *rdst = static_cast<RegOperand*>(dst);
-      CHECK_FATAL(rdst != nullptr, "rdst is nullptr in ForwardPropagateAndRename");
-      ReplaceMachedOperand(*insn, *target, *rdst, isFirstDst);
-    }
-    CHECK_FATAL(!insn->GetBB()->GetSuccs().empty(), "null succs check!");
-    BB *bb = insn->GetBB()->GetSuccs().front();
-    while (1) {
-      FOR_BB_INSNS(target, bb) {
-        if (!target->IsMachineInstruction()) {
-          continue;
+    if (!ifPred) {
+      for (auto *tmPred : pred->GetPreds()) {
+        pred = tmPred;
+        /* try to find the BB without branch */
+        if (tmPred->GetKind() == BB::kBBGoto || tmPred->GetKind() == BB::kBBFallthru) {
+          ifPred = false;
+          break;
+        } else {
+          ifPred = true;
         }
-        Operand *dst = insn->GetResult(0);
-        RegOperand *rdst = static_cast<RegOperand*>(dst);
-        CHECK_FATAL(rdst != nullptr, "rdst is nullptr in ForwardPropagateAndRename");
-        ReplaceMachedOperand(*insn, *target, *rdst, isFirstDst);
       }
-      if (bb == &terminateBB) {
-        break;
-      }
-      CHECK_FATAL(!bb->GetSuccs().empty(), "null succs check!");
-      bb = bb->GetSuccs().front();
     }
-    insn = &load;
-    isFirstDst = false;
+  } while (pred != nullptr);
+  for (std::set<regno_t>::iterator it = vecTargetRegs.begin(); it != vecTargetRegs.end(); it++) {
+    if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(*it))) { /* flag register */
+      return false;
+    }
   }
+  return !bl;
 }
 
 BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   /*
    * Detect "if (cond) return" fast path, and move extra instructions
    * to the slow path.
-   * Must match the following block structure.  BB1 can be a series of
+   * Must match the following block structure. BB1 can be a series of
    * single-pred/single-succ blocks.
    *     BB1 ops1 cmp-br to BB3        BB1 cmp-br to BB3
    *     BB2 ops2 br to retBB    ==>   BB2 ret
    *     BB3 slow path                 BB3 ops1 ops2
-   * BB3 will be used to generate prolog stuff.
+   * if the detect is successful, BB3 will be used to generate prolog stuff.
    */
   if (bb.GetPrev() != nullptr) {
     return nullptr;
@@ -666,26 +641,25 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
   BB *ifBB = nullptr;
   BB *returnBB = nullptr;
   BB *coldBB = nullptr;
-  auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   {
-    BB &curBB = bb;
+    BB *curBB = &bb;
     /* Look for straight line code */
     while (1) {
-      if (curBB.GetEhSuccs().empty()) {
+      if (!curBB->GetEhSuccs().empty()) {
         return nullptr;
       }
-      if (curBB.GetSuccs().size() == 1) {
-        if (curBB.HasCall()) {
+      if (curBB->GetSuccs().size() == 1) {
+        if (curBB->HasCall()) {
           return nullptr;
         }
-        BB *succ = curBB.GetSuccs().front();
+        BB *succ = curBB->GetSuccs().front();
         if (succ->GetPreds().size() != 1 || !succ->GetEhPreds().empty()) {
           return nullptr;
         }
-        curBB = *succ;
-      } else if (curBB.GetKind() == BB::kBBIf) {
-        ifBB = &curBB;
+        curBB = succ;
+      } else if (curBB->GetKind() == BB::kBBIf) {
+        ifBB = curBB;
         break;
       } else {
         return nullptr;
@@ -703,10 +677,20 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
     if (second->GetPreds().size() != 1 || !second->GetEhPreds().empty()) {
       return nullptr;
     }
-
     /* One target of the if bb jumps to a return bb */
-    CHECK_FATAL(!first->GetSuccs().empty(), "null succs check!");
-    if (first->GetKind() != BB::kBBGoto || first->GetSuccs().front()->GetKind() != BB::kBBReturn) {
+    if (first->GetKind() != BB::kBBGoto && first->GetKind() != BB::kBBFallthru) {
+      return nullptr;
+    }
+    if (first->GetSuccs().size() != 1) {
+      return nullptr;
+    }
+    if (first->GetSuccs().front()->GetKind() != BB::kBBReturn) {
+      return nullptr;
+    }
+    if (first->GetSuccs().front()->GetPreds().size() != 1) {
+      return nullptr;
+    }
+    if (first->GetSuccs().front()->NumInsn() > 2) { /* avoid a insn is used to debug */
       return nullptr;
     }
     if (second->GetSuccs().empty()) {
@@ -715,113 +699,67 @@ BB *AArch64GenProEpilog::IsolateFastPath(BB &bb) {
     returnBB = first;
     coldBB = second;
   }
+  /* Search backward looking for dependencies for the cond branch */
+  std::list<Insn*> existingInsns; /* the insns must be retained in the ifBB (and the return BB) */
+  std::list<Insn*> moveInsns; /* instructions to be moved to coldbb */
   /*
    * The control flow matches at this point.
-   * Make sure the hot bb contains atmost a
-   * 'mov x0, value' and 'b'.
+   * Make sure the SourceRegs of the insns in returnBB (vecReturnSourceReg) cannot be overwrite.
+   * the regs in insns have three forms: list, MemoryAccess, or Register.
    */
-  {
-    CHECK_FATAL(returnBB != nullptr, "null ptr check");
-    const int32 twoInsnInReturnBB = 2;
-    if (returnBB->NumInsn() > twoInsnInReturnBB) {
+  CHECK_FATAL(returnBB != nullptr, "null ptr check");
+  std::set<regno_t> vecReturnSourceRegs;
+  FOR_BB_INSNS_REV(insn, returnBB) {
+    if (insn->IsBranch() || insn->IsCall() || insn->IsStore() || insn->IsStorePair()) {
       return nullptr;
     }
-    Insn *first = returnBB->GetFirstInsn();
-    while (first->IsImmaterialInsn()) {
-      first = first->GetNext();
-    }
-    if (first == returnBB->GetLastInsn()) {
-      if (!first->IsBranch()) {
-        return nullptr;
-      }
-    } else {
-      MOperator opCode = first->GetMachineOpcode();
-      /* only allow mov constant */
-      if (opCode != MOP_xmovri64 && opCode != MOP_xmovri32) {
-        return nullptr;
-      }
-      Insn *last = returnBB->GetLastInsn();
-      if (!last->IsBranch()) {
-        return nullptr;
-      }
-    }
+    InsertInsnRegs(*insn, 1, vecReturnSourceRegs, 0, vecReturnSourceRegs);
+    existingInsns.push_back(insn);
   }
-
-  /*
-   * Resolve any register usage issues.
-   * 1) Any use of parameter registes must be renamed
-   * 2) Any usage of callee saved register that needs saving in prolog
-   *    must be able to move down into the cold path.
-   */
-
-  /* Find the branch's src register for backward propagation. */
-  Insn *condBr = ifBB->GetLastInsn();
-  auto &targetOpnd = static_cast<RegOperand&>(condBr->GetOperand(0));
-  if (targetOpnd.GetRegisterType() != kRegTyInt) {
-    return nullptr;
+  FOR_BB_INSNS_REV(insn, returnBB->GetSuccs().front()) {
+    if (insn->IsBranch() || insn->IsCall() || insn->IsStore() || insn->IsStorePair()) {
+      return nullptr;
+    }
+    InsertInsnRegs(*insn, 1, vecReturnSourceRegs, 0, vecReturnSourceRegs);
+    existingInsns.push_back(insn);
   }
-
-  /* Search backward looking for dependencies for the cond branch */
-  std::list<Insn*> insnList;  /* instructions to be moved to coldbb */
-  Insn *ld = nullptr;
-  Insn *mv = nullptr;
-  Insn *depMv = nullptr;
   /*
    * The mv is the 1st move using the parameter register leading to the branch
    * The ld is the load using the parameter register indirectly for the branch
    * The depMv is the move which preserves the result of the load but might
    *    destroy a parameter register which will be moved below the branch.
    */
-  if (!BackwardFindDependency(*ifBB, targetOpnd, ld, mv, depMv, insnList)) {
+  bool fast = BackwardFindDependency(*ifBB, vecReturnSourceRegs, existingInsns, moveInsns);
+  /* move extra instructions to the slow path */
+  if (!fast) {
     return nullptr;
   }
-  if (ld == nullptr || mv == nullptr) {
-    return nullptr;
-  }
-  /*
-   * depMv can be live out, so duplicate it
-   * and set dest to output of ld and src R16
-   */
-  if (depMv != nullptr) {
-    CHECK_FATAL(depMv->GetMachineOpcode(), "return check");
-    Insn &newMv = currCG->BuildInstruction<AArch64Insn>(
-        depMv->GetMachineOpcode(), ld->GetOperand(0),
-        aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16),
-                                                       depMv->GetOperand(1).GetSize(), kRegTyInt));
-    insnList.push_front(&newMv);
-    /* temporary put it some where */
-    CHECK_FATAL(coldBB != nullptr, "null ptr check");
-    static_cast<void>(coldBB->InsertInsnBegin(newMv));
-  } else {
-    uint32 regSize = ld->GetOperand(0).GetSize();
-    Insn &newMv = currCG->BuildInstruction<AArch64Insn>(
-        (regSize <= k32BitSize) ? MOP_xmovri32 : MOP_xmovri64, ld->GetOperand(0),
-        aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(R16), regSize, kRegTyInt));
-    insnList.push_front(&newMv);
-    /* temporary put it some where */
-    CHECK_FATAL(coldBB != nullptr, "null ptr check");
-    static_cast<void>(coldBB->InsertInsnBegin(newMv));
-  }
-
-  ForwardPropagateAndRename(*mv, *ld, *returnBB);
-
-  for (auto *in : insnList) {
+  for (auto in : moveInsns) {
     in->GetBB()->RemoveInsn(*in);
     CHECK_FATAL(coldBB != nullptr, "null ptr check");
     static_cast<void>(coldBB->InsertInsnBegin(*in));
   }
-
   /* All instructions are in the right place, replace branch to ret bb to just ret. */
-  CHECK_FATAL(returnBB != nullptr, "null ptr check");
-  returnBB->RemoveInsn(*returnBB->GetLastInsn());
+  /* Remove the lastInsn of gotoBB */
+  if (returnBB->GetKind() == BB::kBBGoto) {
+    returnBB->RemoveInsn(*returnBB->GetLastInsn());
+  }
+  BB *tgtBB = returnBB->GetSuccs().front();
+  CHECK_FATAL(tgtBB != nullptr, "null ptr check");
+  FOR_BB_INSNS(insn, tgtBB) {
+    returnBB->AppendInsn(*insn);  /* add the insns such as MOP_xret */
+  }
   returnBB->AppendInsn(currCG->BuildInstruction<AArch64Insn>(MOP_xret));
   /* bb is now a retbb and has no succ. */
   returnBB->SetKind(BB::kBBReturn);
-  BB *tgtBB = returnBB->GetSuccs().front();
   auto predIt = std::find(tgtBB->GetPredsBegin(), tgtBB->GetPredsEnd(), returnBB);
   tgtBB->ErasePreds(predIt);
+  tgtBB->ClearInsns();
   returnBB->ClearSuccs();
-
+  if (tgtBB->GetPrev() != nullptr && tgtBB->GetNext() != nullptr) {
+    tgtBB->GetPrev()->SetNext(tgtBB->GetNext());
+    tgtBB->GetNext()->SetPrev(tgtBB->GetPrev());
+  }
   return coldBB;
 }
 

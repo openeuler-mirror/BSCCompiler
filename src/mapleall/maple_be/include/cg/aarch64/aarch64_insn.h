@@ -58,7 +58,11 @@ class AArch64Insn : public Insn {
   }
 
   bool IsPseudoInstruction() const override {
-    return (mOp >= MOP_pseudo_param_def_x  && mOp <= MOP_pseudo_eh_def_x);
+    return (mOp >= MOP_pseudo_param_def_x && mOp <= MOP_pseudo_eh_def_x);
+  }
+
+  bool IsReturnPseudoInstruction() const override {
+    return (mOp == MOP_pseudo_ret_int || mOp == MOP_pseudo_ret_float);
   }
 
   bool OpndIsDef(uint32 id) const override;
