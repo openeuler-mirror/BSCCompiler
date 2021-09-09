@@ -7520,7 +7520,7 @@ AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint32 offset, uint32 siz
 }
 
 MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef,
-                                              bool needLow12) {
+                                              bool needLow12, AArch64RegOperand *regOp) {
   MIRStorageClass storageClass = symbol.GetStorageClass();
   if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
     AArch64SymbolAlloc *symLoc =
@@ -7590,7 +7590,10 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     }
   } else if ((storageClass == kScGlobal) || (storageClass == kScExtern)) {
     StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-    AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+    if (!regOp) {
+      regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+    }
+    AArch64RegOperand &stAddrOpnd = *regOp;
     SelectAddrof(stAddrOpnd, stOpnd);
     /* AArch64MemOperand::AddrMode_B_OI */
     return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
@@ -7602,13 +7605,19 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     } else {
       if (needLow12) {
         StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        if (!regOp) {
+          regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+        }
+        AArch64RegOperand &stAddrOpnd = *regOp;
         SelectAddrof(stAddrOpnd, stOpnd);
         return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
                                                 nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
       } else {
         StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        if (!regOp) {
+          regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+        }
+        AArch64RegOperand &stAddrOpnd = *regOp;
         /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
         Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, stAddrOpnd, stOpnd);
         GetCurBB()->AppendInsn(insn);
@@ -8181,6 +8190,12 @@ MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
   }
   (void)pRegSpillMemOperands.insert(std::pair<PregIdx, MemOperand*>(i, &memOpnd));
   return &memOpnd;
+}
+
+MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO) const {
+  if (!IsVRegNOForPseudoRegister(vRegNO)) return nullptr;
+  return GetFunction().GetPregTab()->PregFromPregIdx(
+    GetPseudoRegIdxFromVirtualRegNO(vRegNO));
 }
 
 /* Get the number of return register of current function. */

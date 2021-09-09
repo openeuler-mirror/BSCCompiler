@@ -54,6 +54,7 @@ bool CGOptions::fastAlloc = false;
 uint64 CGOptions::lsraBBOptSize = 150000;
 uint64 CGOptions::lsraInsnOptSize = 200000;
 uint64 CGOptions::overlapNum = 28;
+uint8 CGOptions::rematLevel = 0;
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -159,6 +160,7 @@ enum OptionIndex : uint64 {
   kLSRABB,
   kLSRAInsn,
   kLSRAOverlap,
+  kRaRemat,
   kCGO0,
   kCGO1,
   kCGO2,
@@ -739,6 +741,20 @@ const Descriptor kUsage[] = {
     kBuildTypeExperimental,
     kArgCheckPolicyRequired,
     "  --lsra-overlap=NUM          \toverlap NUM to decide pre spill in lsra\n",
+    "mplcg",
+    {} },
+  { kRaRemat,
+    0,
+    "",
+    "remat",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --remat                     \tEnable rematerialization during register allocation\n"
+    "                              \t     0: no rematerialization (default)\n"
+    "                              \t  >= 1: rematerialize constants\n"
+    "                              \t  >= 2: rematerialize addresses\n"
+    "                              \t  >= 3: rematerialize local dreads\n"
+    "                              \t  >= 4: rematerialize global dreads\n",
     "mplcg",
     {} },
   { kSuppressFinfo,
@@ -1385,6 +1401,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kLSRAOverlap:
         SetOverlapNum(std::stoul(opt.Args(), nullptr));
+        break;
+      case kRaRemat:
+        SetRematLevel(std::stoul(opt.Args(), nullptr));
         break;
       case kCGO0:
         // Already handled above in DecideMplcgRealLevel
