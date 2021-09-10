@@ -351,7 +351,16 @@ bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
     if (rhs1->GetMeOp() == maple::kMeOpIvar) {
       IvarMeExpr *rhs1Ivar = static_cast<IvarMeExpr *>(rhs1);
       IvarMeExpr *rhs2Ivar = static_cast<IvarMeExpr *>(rhs2);
-      if (IsIvarExprConsecutiveMem(rhs1Ivar, rhs2Ivar, rhs1Ivar->GetPrimType())) {
+      MIRType &mirType = GetTypeFromTyIdx(rhs1Ivar->GetTyIdx());
+      CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
+      MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
+      // skip vectorize if pointto type is agg, offset between
+      // arr[i] and arr[i+1] may be larger than vector width
+      if (!IsPrimitiveInteger(ptrType->GetPointedType()->GetPrimType())) {
+        return false;
+      }
+      PrimType diffType = ptrType->GetPointedType()->GetPrimType();
+      if (IsIvarExprConsecutiveMem(rhs1Ivar, rhs2Ivar, diffType)) {
         return true;
       }
     }
