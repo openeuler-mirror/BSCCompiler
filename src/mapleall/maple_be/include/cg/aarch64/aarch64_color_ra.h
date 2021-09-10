@@ -1288,6 +1288,12 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
   uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn, bool &needProcess);
+  void SplitVregAroundLoop(const CGFuncLoops &loop, const std::vector<LiveRange*> &lrs,
+                           BB &headerPred, BB &exitSucc, std::set<regno_t> &cands);
+  bool LoopNeedSplit(const CGFuncLoops &loop, std::set<regno_t> &cands);
+  bool LrGetBadReg(LiveRange &lr);
+  void AnalysisLoopPressureAndSplit(const CGFuncLoops &loop);
+  void AnalysisLoop(const CGFuncLoops &);
   void OptCallerSave();
   void FinalizeRegisters();
   void GenerateSpillFillRegs(Insn &insn);

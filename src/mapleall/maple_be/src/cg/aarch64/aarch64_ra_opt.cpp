@@ -343,9 +343,10 @@ void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop
       continue;
     }
     MOperator mOp = (ropnd->GetRegisterType() == kRegTyInt) ?
-                        ((size == 8) ? MOP_xmovrr : MOP_wmovrr) :
-                        ((size == 8) ? MOP_xvmovd : MOP_xvmovs);
-    Insn &newInsn = static_cast<AArch64CGFunc*>(cgFunc)->GetCG()->BuildInstruction<AArch64Insn>(mOp, *renameVreg, *ropnd);
+        ((size == k8BitSize) ? MOP_xmovrr : MOP_wmovrr) :
+        ((size == k8BitSize) ? MOP_xvmovd : MOP_xvmovs);
+    Insn &newInsn = static_cast<AArch64CGFunc*>(cgFunc)->GetCG()->BuildInstruction<AArch64Insn>(
+        mOp, *renameVreg, *ropnd);
     Insn *last = pred->GetLastInsn();
     if (last) {
       if (last->IsBranch()) {
@@ -388,7 +389,6 @@ void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop
                    static_cast<RegOperand *>(opnd)->GetRegisterNumber() == vreg) {
           insn->SetOperand(i, *renameVreg);
         }
-
       }
     }
   }
@@ -436,14 +436,14 @@ void VregRename::UpdateVregInfo(regno_t vreg, BB *bb, bool isInner, bool isDef) 
     }
   }
   if (isDef) {
-    info->numDefs ++;
+    info->numDefs++;
     if (isInner) {
-      info->numInnerDefs ++;
+      info->numInnerDefs++;
     }
   } else {
-    info->numUses ++;
+    info->numUses++;
     if (isInner) {
-      info->numInnerUses ++;
+      info->numInnerUses++;
     }
   }
   if (info->firstBBLevelSeen) {
@@ -531,6 +531,7 @@ void AArch64RaOpt::Run() {
     rename.bfs = &localBfs;
     rename.bfs->ComputeBlockOrder();
     rename.VregLongLiveRename();
+    cgFunc->ClearLoopInfo();
   }
 }
 }  /* namespace maplebe */
