@@ -1655,6 +1655,22 @@ class DassignMeStmt : public AssignMeStmt {
     return static_cast<VarMeExpr *>(lhs);
   }
 
+  bool GetOmitEmit() {
+    return omitEmit;
+  }
+
+  void SetOmitEmit(bool val) {
+    omitEmit = val;
+  }
+
+  bool GetEmitDassignoff() {
+    return emitDassignoff;
+  }
+
+  void SetEmitDassignoff(bool val) {
+    emitDassignoff = val;
+  }
+
   MeExpr *GetLHSRef(bool excludeLocalRefVar);
   StmtNode &EmitStmt(SSATab &ssaTab);
 
@@ -1662,6 +1678,8 @@ class DassignMeStmt : public AssignMeStmt {
   MapleMap<OStIdx, ChiMeNode*> chiList;
   bool propagated = false;     // the RHS has been propagated forward
   bool wasMayDassign = false;  // was converted back to dassign by may2dassign phase
+  bool emitDassignoff = false; // Emit Iassignoff instead
+  bool omitEmit = false;       // Skip this stmt instead
 };
 
 class MaydassignMeStmt : public MeStmt {

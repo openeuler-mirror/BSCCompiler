@@ -30,7 +30,7 @@ class MergeStmts {
   uint32 GetStructFieldSize(MIRStructType* structType, FieldID fieldID);
   uint32 GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID);
   void mergeIassigns(vOffsetStmt& iassignCandidates);
-  //void mergeDassigns(vOffsetStmt& dassignCandidates);
+  void mergeDassigns(vOffsetStmt& dassignCandidates);
 
  private:
   MeFunction &func;

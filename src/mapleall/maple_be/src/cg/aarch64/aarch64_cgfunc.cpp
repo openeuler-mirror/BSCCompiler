@@ -1079,10 +1079,10 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
 void AArch64CGFunc::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
   MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(stmt.stIdx);
   int32 offset = stmt.offset;
-  int32 size = GetPrimTypeSize(stmt.GetPrimType());
-  MOperator mOp = (size == k2ByteSize) ? MOP_wstrh :
-                      ((size == k4ByteSize) ? MOP_wstr :
-                          ((size == k8ByteSize) ? MOP_xstr : MOP_undef));
+  int32 size = GetPrimTypeSize(stmt.GetPrimType()) * k8ByteSize;
+  MOperator mOp = (size == k16BitSize) ? MOP_wstrh :
+                      ((size == k32BitSize) ? MOP_wstr :
+                          ((size == k64BitSize) ? MOP_xstr : MOP_undef));
   CHECK_FATAL(mOp != MOP_undef, "illegal size for dassignoff");
   MemOperand *memOpnd = &GetOrCreateMemOpnd(*symbol, offset, size);
   AArch64MemOperand &archMemOperand = *static_cast<AArch64MemOperand*>(memOpnd);
@@ -2522,7 +2522,8 @@ Operand &AArch64CGFunc::SelectAddrofLabel(AddroflabelNode &expr) {
   return dst;
 }
 
-Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
+Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
+                                    int extraOffset, PrimType finalBitFieldDestType) {
   int32 offset = 0;
   MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(expr.GetTyIdx());
   MIRPtrType *pointerType = static_cast<MIRPtrType*>(type);
@@ -2616,7 +2617,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
     }
   }
 
-  MemOperand *memOpnd = CreateMemOpndOrNull(destType, expr, *expr.Opnd(0), offset, memOrd);
+  MemOperand *memOpnd = CreateMemOpndOrNull(destType, expr, *expr.Opnd(0), offset + extraOffset, memOrd);
   if (aggParamReg != nullptr) {
     isAggParamInReg = false;
     return aggParamReg;
@@ -2632,7 +2633,12 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr) {
   }
 
   if (memOrd == AArch64isa::kMoNone) {
-    MOperator mOp = PickLdInsn(bitSize, destType);
+    MOperator mOp = 0;
+    if (finalBitFieldDestType == kPtyInvalid) {
+      mOp = PickLdInsn(bitSize, destType);
+    } else {
+      mOp = PickLdInsn(GetPrimTypeBitSize(finalBitFieldDestType), finalBitFieldDestType);
+    }
     Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(mOp, *result, *memOpnd);
     if (parent.GetOpCode() == OP_eval && result->IsRegister() &&
         static_cast<AArch64RegOperand*>(result)->IsZeroRegister()) {
@@ -4374,6 +4380,18 @@ Operand *AArch64CGFunc::SelectBnot(UnaryNode &node, Operand &opnd0) {
   return resOpnd;
 }
 
+Operand *AArch64CGFunc::SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) {
+  PrimType dtype = node.GetPrimType();
+  bool isSigned = IsSignedInteger(dtype);
+  uint8 bitOffset = node.GetBitsOffset();
+  uint8 bitSize = node.GetBitsSize();
+  bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
+  CHECK_FATAL(!is64Bits, "dest opnd should not be 64bit");
+  PrimType destType = GetIntegerPrimTypeBySizeAndSign(bitSize, isSigned);
+  Operand *result = SelectIread(parent, *static_cast<IreadNode*>(node.Opnd(0)), bitOffset / k8BitSize, destType);
+  return result;
+}
+
 Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) {
   PrimType dtype = node.GetPrimType();
   RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
@@ -4932,23 +4950,16 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
     opnd0 = &LoadIntoRegister(*opnd0, primType);
 
     if (fsize > tsize) {
-      if (fsize == k64BitSize) {
-        if (tsize == k32BitSize) {
-          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovrr, *resOpnd, *opnd0));
-        } else if (tsize == k8BitSize) {
-          MOperator mOp = IsSignedInteger(toType) ? MOP_xsxtb32 : MOP_xuxtb32;
-          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
-        } else if (tsize == k16BitSize) {
-          MOperator mOp = IsSignedInteger(toType) ? MOP_xsxth32 : MOP_xuxth32;
-          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
-        } else {
-          MOperator mOp = IsSignedInteger(toType) ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6;
-          GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,
-                                                                        CreateImmOperand(0, k8BitSize, false),
-                                                                        CreateImmOperand(tsize, k8BitSize, false)));
-        }
+      if (tsize == k32BitSize) {
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovrr, *resOpnd, *opnd0));
+      } else if (tsize == k8BitSize) {
+        MOperator mOp = IsSignedInteger(toType) ? MOP_xsxtb32 : MOP_xuxtb32;
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
+      } else if (tsize == k16BitSize) {
+        MOperator mOp = IsSignedInteger(toType) ? MOP_xsxth32 : MOP_xuxth32;
+        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
       } else {
-        MOperator mOp = IsSignedInteger(toType) ? MOP_wsbfxrri5i5 : MOP_wubfxrri5i5;
+        MOperator mOp = IsSignedInteger(toType) ? MOP_xsbfxrri6i6 : MOP_xubfxrri6i6;
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0,
                                                                       CreateImmOperand(0, k8BitSize, false),
                                                                       CreateImmOperand(tsize, k8BitSize, false)));
@@ -7749,7 +7760,17 @@ MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode 
 
 MemOperand &AArch64CGFunc::CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr,
                                                   int32 offset) {
-  Operand *addrOpnd = HandleExpr(parent, addrExpr);
+  Operand *addrOpnd = nullptr;
+  if (addrExpr.GetOpCode() == OP_add && addrExpr.Opnd(1)->GetOpCode() == OP_constval && offset != 0) {
+    addrOpnd = HandleExpr(addrExpr, *addrExpr.Opnd(0));
+    ConstvalNode *constOfstNode = static_cast<ConstvalNode*>(addrExpr.Opnd(1));
+    ASSERT(constOfstNode->GetConstVal()->GetKind() == kConstInt, "expect MIRIntConst");
+    MIRIntConst *intOfst = safe_cast<MIRIntConst>(constOfstNode->GetConstVal());
+    CHECK_FATAL(intOfst != nullptr, "just checking");
+    offset += intOfst->GetValue();
+  } else {
+    addrOpnd = HandleExpr(parent, addrExpr);
+  }
   addrOpnd = static_cast<RegOperand*>(&LoadIntoRegister(*addrOpnd, PTY_a64));
   if ((addrExpr.GetOpCode() == OP_CG_array_elem_add) && (offset == 0) && GetCurBB() && GetCurBB()->GetLastInsn() &&
       (GetCurBB()->GetLastInsn()->GetMachineOpcode() == MOP_xadrpl12)) {

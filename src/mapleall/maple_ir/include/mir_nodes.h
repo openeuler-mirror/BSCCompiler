@@ -499,6 +499,8 @@ class IreadNode : public UnaryNode {
 
   bool IsVolatile() const;
 
+  MIRType *GetType() const;
+
  protected:
   TyIdx tyIdx = TyIdx(0);
   FieldID fieldID = 0;
@@ -2083,8 +2085,12 @@ class DassignoffNode : public UnaryStmtNode {
 
   explicit DassignoffNode(PrimType typ) : UnaryStmtNode(OP_dassignoff, typ), stIdx() {}
 
-  DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassign, typ, opnd), stIdx() {}
+  DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassignoff, typ, opnd), stIdx() {}
 
+  DassignoffNode(StIdx lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode) : DassignoffNode(rhsType, rhsNode) {
+    stIdx = lhsStIdx;
+    offset = dOffset;
+  }
   virtual ~DassignoffNode() = default;
 
   void Dump(int32 indent) const override;
@@ -3266,6 +3272,14 @@ class AsmNode : public NaryStmtNode {
     return &asmOutputs;
   }
 
+  void SetHasWriteInputs() {
+    hasWriteInputs = true;
+  }
+
+  bool HasWriteInputs() {
+    return hasWriteInputs;
+  }
+
   void DumpOutputs(int32 indent, std::string &uStr) const;
   void DumpInputOperands(int32 indent, std::string &uStr) const;
   void Dump(int32 indent) const override;
@@ -3277,10 +3291,14 @@ class AsmNode : public NaryStmtNode {
   MapleVector<UStrIdx> clobberList;
   MapleVector<LabelIdx> gotoLabels;
   uint32 qualifiers;
+
+ private:
+  bool hasWriteInputs = false;
 };
 
 void DumpCallReturns(const MIRModule &mod, CallReturnVector nrets, int32 indent);
 bool HasIreadExpr(const BaseNode *expr);
+size_t MaxDepth(const BaseNode *expr);
 }  // namespace maple
 
 #define LOAD_SAFE_CAST_FOR_MIR_NODE
