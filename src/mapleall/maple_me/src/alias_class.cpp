@@ -302,10 +302,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       if (iread.GetFieldID() > 0) {
         typeOfField = static_cast<MIRStructType *>(typeOfField)->GetFieldType(iread.GetFieldID());
       }
-      bool typeHasBeenCasted = false;
-      if (!IsPrimitiveScalar(typeOfField->GetPrimType()) || !IsPrimitiveScalar(iread.GetPrimType())) {
-        typeHasBeenCasted = (typeOfField->GetSize() != GetPrimTypeSize(iread.GetPrimType()));
-      }
+      bool typeHasBeenCasted = IreadedMemInconsistentWithPointedType(iread.GetPrimType(), typeOfField->GetPrimType());
       return AliasInfo(FindOrCreateExtraLevAliasElem(
           *iread.Opnd(0), iread.GetTyIdx(), iread.GetFieldID(), typeHasBeenCasted), 0, OffsetType(0));
     }

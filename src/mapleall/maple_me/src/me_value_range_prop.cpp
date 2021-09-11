@@ -862,7 +862,7 @@ bool ValueRangePropagation::CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, i
     }
     break;
   }
-  return kCanNotCompute;
+  return false;
 }
 
 // Create new value range when the loop induction var is monotonic increase.
@@ -1790,7 +1790,7 @@ bool ValueRangePropagation::CodeSizeIsOverflow(const BB &bb) {
   //     / \                           \    / \
   // succ0 succ1                      succ0  succ1
 
-  while (currBB) {
+  while (currBB != nullptr) {
     for (auto &meStmt : currBB->GetMeStmts()) {
       if (meStmt.GetOp() == OP_goto || meStmt.GetOp() == OP_brfalse || meStmt.GetOp() == OP_brtrue) {
         continue;
@@ -1972,80 +1972,6 @@ bool ValueRangePropagation::RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb
   }
   if (trueBranch.GetPred().size() > 1) {
     (void)func.GetOrCreateBBLabel(trueBranch);
-  }
-  auto *loop = loops->GetBBLoopParent(bb.GetBBId());
-  auto *currPred = &pred;
-  if (loop != nullptr) {
-    if (&bb == loop->head && &pred == loop->preheader) {
-      // When the edge of preheader to head is deleted, need record the head and false branch. The cfg change like this:
-      //     preheader <------                   preheader    head <-----
-      //         |           |                       \        / |       |
-      //        head         |                        \      /  |       |
-      //        /  \         |                         \    /   |       |
-      //    true    false    |                          true  false     |
-      //      |       |      |     ------>                |     |       |
-      //       \     /       |                             \   /        |
-      //         exit        |                              exit        |
-      //         /  \        |                              /  \        |
-      //   exited    latch----                        exited    latch----
-      loopHead2TrueBranch[&bb] = &trueBranch;
-    } else if (loop->Has(bb) && (loop->Has(*currPred) || &pred == loop->preheader) && !loop->Has(trueBranch) &&
-               loop->head->GetPred().size() == 1 && loopHead2TrueBranch.find(loop->head) != loopHead2TrueBranch.end()) {
-      CHECK_FATAL(loop->head->GetPred(0) == loop->latch, "must be latch bb");
-      auto it = loopHead2TrueBranch.find(loop->head);
-      bool canDeleteExitBB = true;
-      if (loop->inloopBB2exitBBs.find(bb.GetBBId()) != loop->inloopBB2exitBBs.end()) {
-        size_t numOfDom = dom.Dominate(*it->second, pred) ? 1 : 0;
-        for (auto &pre : bb.GetPred()) {
-          if (unreachableBBs.find(pre) != unreachableBBs.end()) {
-            continue;
-          }
-          if (pre == currPred || pre == &pred) {
-            continue;
-          }
-          if (dom.Dominate(*it->second, *pre)) {
-            numOfDom++;
-          }
-        }
-        if (numOfDom != 1 || !dom.Dominate(*it->second, *currPred) || loop->inloopBB2exitBBs.size() != 1) {
-          canDeleteExitBB = false;
-        }
-      } else {
-        if (GetRealPredSize(bb) == 1) {
-          for (auto &pre : bb.GetPred()) {
-            if (unreachableBBs.find(pre) != unreachableBBs.end()) {
-              continue;
-            }
-            if (pre == loop->head) {
-              AnalysisUnreachableBBOrEdge(bb);
-              break;
-            }
-            canDeleteExitBB = false;
-          }
-        } else if (GetRealPredSize(bb) != 0) {
-          canDeleteExitBB = false;
-        }
-      }
-      // When the edge of inloop bb to exit bb is deleted, The cfg change like this:
-      //  preheader    head <-----                preheader
-      //      \        / |       |                    |
-      //       \      /  |       |                    |
-      //        \    /   |       |                    |
-      //         true  false     |                    |
-      //           |     |       |      ------>       |
-      //            \   /        |                    |
-      //             exit        |                    |
-      //             /  \        |                    |
-      //       exited    latch----                  exited
-      if (canDeleteExitBB) {
-        auto *needDeletedBranch = loop->head->GetSucc(0) ==
-            it->second ? loop->head->GetSucc(1) : loop->head->GetSucc(0);
-        AnalysisUnreachableBBOrEdge(*needDeletedBranch);
-        unreachableBBs.insert(loop->head);
-        unreachableBBs.insert(loop->latch);
-        unreachableBBs.insert(&bb);
-      }
-    }
   }
   InsertCandsForSSAUpdate(bb, thePredEdgeIsRemoved);
   needUpdateSSA = true;
@@ -2686,7 +2612,7 @@ bool ValueRangePropagation::DealWithSpecialCondGoto(
 // Deal with the special brstmt, which only has one opnd.
 void ValueRangePropagation::DealWithBrStmtWithOneOpnd(BB &bb, CondGotoMeStmt &stmt, MeExpr &opnd, Opcode op) {
   if (op != OP_eq && op != OP_ne) {
-    CHECK_FATAL(false, "must be eq or ne");
+    return;
   }
   ValueRange *leftRange = FindValueRangeInCaches(bb.GetBBId(), opnd.GetExprID());
   std::unique_ptr<ValueRange> rightRangePtr;

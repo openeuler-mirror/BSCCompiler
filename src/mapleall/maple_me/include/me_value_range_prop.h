@@ -345,11 +345,9 @@ class ValueRangePropagation {
   }
 
   void Insert2NewMergeBB2Opnd(BB &bb, MeExpr &opnd) {
-    auto it = newMergeBB2Opnd.find(&bb);
-    if (it != newMergeBB2Opnd.end()) {
-      CHECK_FATAL(it->second == opnd.GetExprID(), "must be equal");
-    } else {
-      newMergeBB2Opnd.emplace(&bb, opnd.GetExprID());
+    auto ret = newMergeBB2Opnd.emplace(&bb, opnd.GetExprID());
+    if (!ret.second) {
+      CHECK_FATAL(ret.first->second == opnd.GetExprID(), "must be equal");
     }
   }
 
@@ -362,7 +360,7 @@ class ValueRangePropagation {
     if (it == trueOrFalseBranch2NewCopyFallthru.end()) {
       return nullptr;
     }
-    for (auto pair : it->second) {
+    for (auto &pair : it->second) {
       if (pair.first == &bb) {
         return pair.second;
       }
