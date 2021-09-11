@@ -567,7 +567,8 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
     OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
     opmeexpr.SetBitsSize(bitfieldTy->GetFieldSize());
     opmeexpr.SetOpnd(0, rhs);
-    return irMap.HashMeExpr(opmeexpr);
+    auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
+    return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
       lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref &&
@@ -583,7 +584,8 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
       OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
       opmeexpr.SetBitsSize(GetPrimTypeSize(lhsTy->GetPrimType()) * 8);
       opmeexpr.SetOpnd(0, rhs);
-      return irMap.HashMeExpr(opmeexpr);
+      auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
+      return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
     }
   }
   // if lhs is function pointer and rhs is not, insert a retype
@@ -611,7 +613,8 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
         OpMeExpr opmeexpr(-1, OP_retype, lhsPtrType->GetPrimType(), 1);
         opmeexpr.SetTyIdx(lhsPtrType->GetTypeIndex());
         opmeexpr.SetOpnd(0, rhs);
-        return irMap.HashMeExpr(opmeexpr);
+        auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
+        return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
       }
     }
   }

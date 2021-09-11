@@ -772,6 +772,12 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
   }
   Insn *prevInsn = prevOpndInfo->insn;
   AArch64MemOperand *memOpnd = static_cast<AArch64MemOperand*>(prevInsn->GetMemOpnd());
+  ASSERT(!prevInsn->IsStorePair(), "do not do this opt for str pair");
+  ASSERT(!prevInsn->IsLoadPair(), "do not do this opt for ldr pair");
+  if (memOpnd->GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+      !a64CGFunc->IsOperandImmValid(newMop, prevInsn->GetMemOpnd(), kInsnSecondOpnd)) {
+    return false;
+  }
   int32 shiftAmount = memOpnd->ShiftAmount();
   if (shiftAmount == 0) {
     return true;
