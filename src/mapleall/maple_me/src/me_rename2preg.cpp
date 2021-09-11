@@ -91,16 +91,19 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
         }
       }
     }
-
-    RegMeExpr *curtemp = nullptr;
-    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
-    if (ty->GetKind() != kTypeScalar && ty->GetKind() != kTypePointer) {
-      return nullptr;
-    }
     if (rename2pregCount >= MeOption::rename2pregLimit) {
       return nullptr;
     }
-    curtemp = meirmap->CreateRegMeExpr(*ty);
+    RegMeExpr *curtemp = nullptr;
+    auto primType = varmeexpr->GetPrimType();
+    if (!IsPrimitiveScalar(primType)) {
+      return nullptr;
+    }
+    if (primType != PTY_ref) {
+      curtemp = meirmap->CreateRegMeExpr(primType);
+    } else {
+      curtemp = meirmap->CreateRegMeExpr(*varmeexpr->GetType());
+    }
     OriginalSt *pregOst = curtemp->GetOst();
     pregOst->SetIsFormal(ost->IsFormal());
     sym2reg_map[ost->GetIndex()] = pregOst;
@@ -183,8 +186,11 @@ void SSARename2Preg::Rename2PregPhi(MePhiNode *mevarphinode, MapleMap<OStIdx, Me
 
 void SSARename2Preg::Rename2PregLeafRHS(MeStmt *mestmt, const VarMeExpr *varmeexpr) {
   SetupParmUsed(varmeexpr);
-  RegMeExpr *varreg = RenameVar(varmeexpr);
+  MeExpr *varreg = RenameVar(varmeexpr);
   if (varreg != nullptr) {
+    if (varreg->GetPrimType() != varmeexpr->GetPrimType()) {
+      varreg = meirmap->CreateMeExprTypeCvt(varmeexpr->GetPrimType(), varreg->GetPrimType(), *varreg);
+    }
     (void)meirmap->ReplaceMeExprStmt(*mestmt, *varmeexpr, *varreg);
   }
 }
