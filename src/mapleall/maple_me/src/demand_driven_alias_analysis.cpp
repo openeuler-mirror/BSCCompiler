@@ -171,10 +171,8 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfIread(const IreadSSANode 
   if (iread->GetFieldID() > 0) {
     pointedType = static_cast<MIRStructType *>(pointedType)->GetFieldType(iread->GetFieldID());
   }
-  bool typeHasBeenCasted = false;
-  if (!IsPrimitiveScalar(pointedType->GetPrimType()) || !IsPrimitiveScalar(iread->GetPrimType())) {
-    typeHasBeenCasted = (pointedType->GetSize() != GetPrimTypeSize(iread->GetPrimType()));
-  }
+  bool typeHasBeenCasted =
+      AliasClass::IreadedMemInconsistentWithPointedType(iread->GetPrimType(), pointedType->GetPrimType());
   OffsetType offset = typeHasBeenCasted ? OffsetType::InvalidOffset() : ptrNode.offset;
   auto *ostOfBase = ptrNode.pegNode->ost;
   auto *mayUsedOst =

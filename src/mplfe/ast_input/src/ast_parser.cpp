@@ -645,7 +645,11 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           }
           break;
         case PTY_i64:
-          astValue->val.i64 = static_cast<int64>(result.Val.getInt().getExtValue());
+          if (result.Val.getInt().getBitWidth() > 64) {
+            astValue->val.i64 = static_cast<int64>(result.Val.getInt().getSExtValue());
+          } else {
+            astValue->val.i64 = static_cast<int64>(result.Val.getInt().getExtValue());
+          }
           astValue->pty = PTY_i64;
           break;
         case PTY_u8:
@@ -661,7 +665,11 @@ ASTValue *ASTParser::TranslateConstantValue2ASTValue(MapleAllocator &allocator, 
           astValue->pty = PTY_u32;
           break;
         case PTY_u64:
-          astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getExtValue());
+          if (result.Val.getInt().getBitWidth() > 64) {
+            astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getZExtValue());
+          } else {
+            astValue->val.u64 = static_cast<uint64>(result.Val.getInt().getExtValue());
+          }
           astValue->pty = PTY_u64;
           break;
         case PTY_u1:

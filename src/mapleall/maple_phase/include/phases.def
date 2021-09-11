@@ -25,7 +25,6 @@ ADDMODULEPHASE("ConstantFold", JAVALANG)
 #ifdef ME_PHASE
 // me phases belong to MeFuncPM phase.
 ADDMAPLEMEPHASE("mecfgbuild", CLANG && MeOption::optLevel >= 3)
-ADDMAPLEMEPHASE("cfgOpt", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("injectiv", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("ssatab", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("aliasclass", CLANG && MeOption::optLevel >= 3)
