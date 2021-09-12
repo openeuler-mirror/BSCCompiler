@@ -256,9 +256,19 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
   } else if (kOpcodeInfo.IsCallAssigned(meStmt.GetOp())) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
     MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
+    size_t i = 0; /* count for inline asm out put constraints */
+    bool isAsm = meStmt.GetOp() == OP_asm;
     for (; it != mustDefList->end(); it++) {
       if ((*it).GetLHS()->GetMeOp() != kMeOpVar) {
         continue;
+      }
+      if (isAsm) {
+        const std::string &str =
+            GlobalTables::GetUStrTable().GetStringFromStrIdx(static_cast<AsmMeStmt&>(meStmt).outputConstraints[i++]);
+        /* skip memory access in inline asm */
+        if (str.find("Q") != std::string::npos || str.find("m") != std::string::npos) {
+          continue;
+        }
       }
       auto *theLHS = static_cast<VarMeExpr*>((*it).GetLHS());
       const OriginalSt *ost = theLHS->GetOst();
@@ -340,10 +350,12 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (!MeOption::lpre4Address) {
         break;
       }
-      auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
-      const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
-      if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
-        break;
+      if (MeOption::rematLevel < mapleOption::kLevelTwo) {
+        auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
+        const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
+        if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc
+          break;
+        }
       }
       (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
