@@ -55,6 +55,9 @@ BaseNode *SSATab::CreateSSAExpr(BaseNode *expr) {
     ssaNode->SetSSAVar(*versionStTable.GetZeroVersionSt(ost));
     return ssaNode;
   } else if (expr->GetOpCode() == OP_iread) {
+    if (expr->IsSSANode()) {
+      return mirModule.CurFunction()->GetCodeMemPool()->New<IreadSSANode>(*static_cast<IreadSSANode*>(expr));
+    }
     IreadNode *ireadNode = static_cast<IreadNode*>(expr);
     IreadSSANode *ssaNode = mirModule.CurFunction()->GetCodeMempool()->New<IreadSSANode>(*ireadNode);
     BaseNode *newOpnd = CreateSSAExpr(ireadNode->Opnd(0));
@@ -97,6 +100,21 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
       if (stmt.GetOpCode() == OP_maydassign) {
         theSSAPart->InsertMayDefNode(MayDefNode(theSSAPart->GetSSAVar(), &dNode));
       }
+      // set ost->isPtrWithIncDec
+      if (ost->GetType()->IsMIRPtrType()) {
+        if (dNode.GetRHS()->GetOpCode() == OP_add || dNode.GetRHS()->GetOpCode() == OP_sub) {
+          BinaryNode *rhs = static_cast<BinaryNode *>(dNode.GetRHS());
+          if (rhs->Opnd(0)->GetOpCode() == OP_dread && rhs->Opnd(1)->GetOpCode() == OP_constval) {
+            AddrofSSANode *dread = static_cast<AddrofSSANode *>(rhs->Opnd(0));
+            MIRSymbol *st2 = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dread->GetStIdx());
+            CHECK_FATAL(st2 != nullptr, "null ptr check");
+            OriginalSt *ost2 = FindOrCreateSymbolOriginalSt(*st2, mirModule.CurFunction()->GetPuidx(), dread->GetFieldID());
+            if (ost == ost2) {
+              ost->isPtrWithIncDec = true;
+            }
+          }
+        }
+      }
       return;
     }
     case OP_regassign: {
@@ -107,6 +125,18 @@ void SSATab::CreateSSAStmt(StmtNode &stmt, const BB *curbb) {
       versionStTable.CreateZeroVersionSt(ost);
       VersionSt *vst = versionStTable.GetZeroVersionSt(ost);
       stmtsSSAPart.SetSSAPartOf(stmt, vst);
+      // set ost->isPtrWithIncDec
+      if (ost->GetType()->IsMIRPtrType()) {
+        if (regNode.GetRHS()->GetOpCode() == OP_add || regNode.GetRHS()->GetOpCode() == OP_sub) {
+          BinaryNode *rhs = static_cast<BinaryNode *>(regNode.GetRHS());
+          if (rhs->Opnd(0)->GetOpCode() == OP_regread && rhs->Opnd(1)->GetOpCode() == OP_constval) {
+            RegreadSSANode *regread = static_cast<RegreadSSANode *>(rhs->Opnd(0));
+            if (regNode.GetRegIdx() == regread->GetRegIdx()) {
+              ost->isPtrWithIncDec = true;
+            }
+          }
+        }
+      }
       return;
     }
     case OP_return:

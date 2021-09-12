@@ -755,7 +755,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
     case kMeOpVar: {
       auto &varExpr = static_cast<VarMeExpr&>(meExpr);
       MeExpr *propMeExpr = &meExpr;
-      MIRSymbol *symbol = irMap.GetSSATab().GetMIRSymbolFromID(varExpr.GetOstIdx());
+      MIRSymbol *symbol = varExpr.GetOst()->GetMIRSymbol();
       if (mirModule.IsCModule() && CanBeReplacedByConst(*symbol) && symbol->GetKonst() != nullptr) {
         propMeExpr = irMap.CreateConstMeExpr(varExpr.GetPrimType(), *symbol->GetKonst());
       } else {
@@ -828,7 +828,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
 
       for (size_t i = 0; i < newMeExpr.GetNumOpnds(); ++i) {
         MeExpr *opnd = meOpExpr.GetOpnd(i);
-        MeExpr *meExprProped = &PropMeExpr(utils::ToRef(opnd), subProped, false);
+        MeExpr *meExprProped = &PropMeExpr(*opnd, subProped, false);
         // If type is not equal, use cvt
         if (opnd->GetPrimType() != meExprProped->GetPrimType()) {
           CHECK_FATAL(IsPrimitiveInteger(opnd->GetPrimType()), "should be integer");

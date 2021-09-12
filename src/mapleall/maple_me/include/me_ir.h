@@ -1059,6 +1059,9 @@ class IvarMeExpr : public MeExpr {
   int32 offset = 0;
   bool maybeNull = true;  // false if definitely not null
   bool volatileFromBaseSymbol = false;  // volatile due to its base symbol being volatile
+ public:
+  bool simplifiedWithConstOffset = false;
+ private:
   ScalarMeExpr *mu = nullptr;   // use of mu, only one for IvarMeExpr
 };
 
