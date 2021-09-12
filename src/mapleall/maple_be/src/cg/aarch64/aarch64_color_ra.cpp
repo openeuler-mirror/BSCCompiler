@@ -414,10 +414,10 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
 
-  // if (cg->GetRematLevel() > 0 && lr.GetOp() == OP_constval) {
-  //   lr.SetPriority(1.0);
-  //   return;
-  // }
+  if (cg->GetRematLevel() >= rematConst && lr.IsRematerializable(rematConst)) {
+    lr.SetPriority(1.0);
+    return;
+  }
 
   auto calculatePriorityFunc = [&lr, &bbNum, &pri, this] (uint32 bbID) {
     auto lu = lr.FindInLuMap(bbID);
@@ -447,11 +447,14 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   };
   ForEachBBArrElem(lr.GetBBMember(), calculatePriorityFunc);
 
-  if (lr.GetOp() == OP_dread && lr.IsRematerializable(cg->GetRematLevel())) {
+  if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(rematAddr)) {
+    pri /= 3;
+  } else if (cg->GetRematLevel() >= rematDreadLocal &&
+             lr.IsRematerializable(rematDreadLocal)) {
+    pri /= 4;
+  } else if (cg->GetRematLevel() >= rematDreadGlobal &&
+             lr.IsRematerializable(rematDreadGlobal)) {
     pri /= 2;
-    // } else if (cg->GetRematLevel() > 1 && lr.GetOp() == OP_addrof) {
-    // pri /= 3;
-    // pri = 1;
   }
 
   if (bbNum != 0) {
