@@ -16,7 +16,6 @@
 #include "cgfunc.h"
 
 namespace maplebe {
-
 constexpr uint32 kCondBrNum = 2;
 constexpr uint32 kSwitchCaseNum = 5;
 
@@ -184,7 +183,7 @@ void BB::InsertAtBeginning(BB &bb) {
 int32 BB::NumInsn() const {
   int32 bbSize = 0;
   FOR_BB_INSNS_CONST(i, this) {
-    if (i->IsImmaterialInsn()) {
+    if (i->IsImmaterialInsn() || i->IsDbgInsn()) {
       continue;
     }
     ++bbSize;

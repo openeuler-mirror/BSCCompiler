@@ -233,6 +233,11 @@ bool ChainingPattern::Optimize(BB &curBB) {
   }
 
   if (curBB.GetKind() == BB::kBBGoto && !curBB.IsEmpty()) {
+    Insn* last = curBB.GetLastInsn();
+    if (last->GetMachineOpcode() == MOP_tail_call_opt_xbl || last->GetMachineOpcode() == MOP_tail_call_opt_xblr) {
+      return false;
+    }
+
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
     /*
      * BB2 can be merged into BB1, if
@@ -827,7 +832,6 @@ bool CgCfgo::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgCfgo, cfgo)
 
 bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
   CFGOptimizer *cfgOptimizer = GetPhaseAllocator()->New<CFGOptimizer>(f, *GetPhaseMemPool());
@@ -843,5 +847,4 @@ bool CgPostCfgo::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgPostCfgo, postcfgo)
 }  /* namespace maplebe */
