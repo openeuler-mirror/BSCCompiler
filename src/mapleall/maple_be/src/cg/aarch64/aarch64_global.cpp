@@ -26,6 +26,7 @@ void AArch64GlobalOpt::Run() {
     return;
   }
   OptimizeManager optManager(cgFunc);
+  optManager.Optimize<UxtwMovPattern>();
   optManager.Optimize<BackPropPattern>();
   optManager.Optimize<ForwardPropPattern>();
   optManager.Optimize<CselPattern>();
@@ -240,12 +241,13 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
   if (!insn.IsMachineInstruction()) {
     return false;
   }
-  if ((insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr)) {
+  if ((insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr) &&
+      (insn.GetMachineOpcode() != MOP_xmovrr_uxtw)) {
     return false;
   }
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
   Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
-  if (firstOpnd.GetSize() != secondOpnd.GetSize()) {
+  if (firstOpnd.GetSize() != secondOpnd.GetSize() && insn.GetMachineOpcode() != MOP_xmovrr_uxtw) {
     return false;
   }
   RegOperand &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
@@ -336,6 +338,26 @@ void ForwardPropPattern::Optimize(Insn &insn) {
   cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);
 }
 
+void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
+  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  RegOperand &newOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  newOpnd.SetRegisterNumber(secondOpnd.GetRegisterNumber());
+
+  uint32 firstRegNo = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, firstRegNo, true);
+  if (firstRegUseInsnSet.size() >= 1) {
+    for (auto defInsn : firstRegUseInsnSet) {
+      int optSize = defInsn->GetOperandSize();
+      for (int i = 0; i < optSize; i++) {
+        if (firstRegNo == static_cast<RegOperand&>(defInsn->GetOperand(i)).GetRegisterNumber()) {
+          defInsn->SetOperand(i, newOpnd);
+        }
+      }
+      cgFunc.GetRD()->InitGenUse(*defInsn->GetBB(), false);
+    }
+  }
+  insn.GetBB()->RemoveInsn(insn);
+}
 void ForwardPropPattern::Init() {
   firstRegUseInsnSet.clear();
 }
@@ -355,6 +377,13 @@ void ForwardPropPattern::Run() {
       FOR_BB_INSNS(insn, bb) {
         Init();
         if (!CheckCondition(*insn)) {
+          if (insn->GetMachineOpcode() == MOP_xmovrr_uxtw) {
+            insn->SetMOperator(MOP_xuxtw64);
+          }
+          continue;
+        }
+        if (insn->GetMachineOpcode() == MOP_xmovrr_uxtw) {
+          RemoveMopUxtwToMov(*insn);
           continue;
         }
         Optimize(*insn);
@@ -1306,5 +1335,67 @@ void ExtendShiftOptPattern::Run() {
       Optimize(*insn);
     }
   }
+}
+
+void UxtwMovPattern::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+/* Check for Implicit uxtw */
+bool UxtwMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
+  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
+  int optSize = insn.GetOperandSize();
+  for (int i = 0; i < optSize; i++) {
+    if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {
+      AArch64OpndProp *curOpndProp = md->GetOperand(i);
+      if (curOpndProp->IsDef() && curOpndProp->GetSize() == k32BitSize) {
+        return true;
+      }
+      break;
+    }
+  }
+  return false;
+}
+
+bool UxtwMovPattern::CheckCondition(Insn &insn) {
+  if (insn.GetMachineOpcode() == MOP_xuxtw64) {
+    if (insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize &&
+        insn.GetOperand(kInsnSecondOpnd).GetSize() == k32BitSize) {
+      ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "is not Register");
+      regno_t regno = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+      InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(insn, kInsnSecondOpnd, false);
+      if (preDef.size() >= 1) {
+        bool isHideUxtw = false;
+        for (auto defInsn : preDef) {
+          isHideUxtw = CheckHideUxtw(*defInsn, regno);
+          if (!isHideUxtw) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* No initialization required */
+void UxtwMovPattern::Init() {}
+
+void UxtwMovPattern::Optimize(Insn &insn) {
+  insn.SetMOperator(MOP_xmovrr_uxtw);
 }
 }  /* namespace maplebe */

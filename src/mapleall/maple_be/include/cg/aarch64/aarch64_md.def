@@ -27,6 +27,8 @@ DEFINE_MOP(MOP_wmovrr, {mopdReg32ID,mopdReg32IS},ISMOVE,kLtAlu,"mov","0,1",1)
 DEFINE_MOP(MOP_xmovri32, {mopdReg32ID,mopdImm32},ISMOVE,kLtAlu,"mov","0,1",1)
 /* MOP_xmovri64 */
 DEFINE_MOP(MOP_xmovri64, {mopdReg64ID,mopdImm64},ISMOVE,kLtAlu,"mov","0,1",1)
+/* MOP_xmovrr_uxtw */
+DEFINE_MOP(MOP_xmovrr_uxtw, {mopdReg64ID,mopdReg32IS},ISMOVE,kLtAlu,"mov","0,1",1)
 
 /* MOP_xvmovsr */
 DEFINE_MOP(MOP_xvmovsr, {mopdReg32FD,mopdReg32IS},ISMOVE,kLtR2f,"fmov","0,1",1)
