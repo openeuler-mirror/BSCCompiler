@@ -776,13 +776,20 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
       PrimType formalPrimType = newFormal->GetType()->GetPrimType();
       PrimType realArgPrimType = currBaseNode->GetPrimType();
       // If realArg's type is different from formal's type, use cvt
-      if (formalPrimType != realArgPrimType && MustBeAddress(formalPrimType) != MustBeAddress(realArgPrimType)) {
-        bool intTrunc = (IsPrimitiveInteger(formalPrimType) && IsPrimitiveInteger(realArgPrimType) &&
+      if (formalPrimType != realArgPrimType) {
+        bool fpTrunc = (IsPrimitiveFloat(formalPrimType) && IsPrimitiveFloat(realArgPrimType) &&
             GetPrimTypeSize(realArgPrimType) > GetPrimTypeSize(formalPrimType));
-        // For dassign, if rhs-expr is a primitive integer type, the assigned variable may be smaller, resulting in a
-        // truncation. In this case, explicit cvt is not necessary
-        if (!intTrunc) {
+        // fpTrunc always needs explicit cvt, for example: cvt f32 f64 (dread f32 xxx)
+        if (fpTrunc) {
           currBaseNode = builder.CreateExprTypeCvt(OP_cvt, formalPrimType, realArgPrimType, *currBaseNode);
+        } else if (MustBeAddress(formalPrimType) != MustBeAddress(realArgPrimType)) {
+          bool intTrunc = (IsPrimitiveInteger(formalPrimType) && IsPrimitiveInteger(realArgPrimType) &&
+              GetPrimTypeSize(realArgPrimType) > GetPrimTypeSize(formalPrimType));
+          // For dassign, if rhs-expr is a primitive integer type, the assigned variable may be smaller, resulting in a
+          // truncation. In this case, explicit cvt is not necessary
+          if (!intTrunc) {
+            currBaseNode = builder.CreateExprTypeCvt(OP_cvt, formalPrimType, realArgPrimType, *currBaseNode);
+          }
         }
       }
       DassignNode *stmt = builder.CreateStmtDassign(*newFormal, 0, currBaseNode);
