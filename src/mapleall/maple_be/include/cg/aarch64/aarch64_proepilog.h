@@ -30,6 +30,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
     useFP = func.UseFP();
     stackBaseReg = useFP ? R29 : RSP;
+    callSitesMap.clear();
   }
   ~AArch64GenProEpilog() override = default;
 
@@ -41,11 +42,13 @@ class AArch64GenProEpilog : public GenProEpilog {
   BB &GenStackGuardCheckInsn(BB&);
   bool HasLoop();
   bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns);
-  void TailCallBBOpt(const BB &exitBB, std::set<Insn*> &callInsns);
-  void ForwardPropagateAndRename(Insn &mv, Insn &ld, const BB &terminateBB);
-  void ReplaceMachedOperand(Insn &orig, Insn &target, const RegOperand &match, bool replaceOrigSrc);
-  bool BackwardFindDependency(BB &ifbb, RegOperand &tgtOpnd, Insn *&ld, Insn *&mov,
-                              Insn *&depMov, std::list<Insn*> &list);
+  void TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns);
+  bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs);
+  bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
+                      bool insertTarget, std::set<regno_t> &vecTargetRegs);
+  bool FindRegs(Operand &insn, std::set<regno_t> &vecRegs);
+  bool BackwardFindDependency(BB &ifbb, std::set<regno_t> &vecReturnSourceReg,
+                              std::list<Insn*> &existingInsns, std::list<Insn*> &moveInsns);
   BB *IsolateFastPath(BB&);
   AArch64MemOperand *SplitStpLdpOffsetForCalleeSavedWithAddInstruction(const AArch64MemOperand &mo, uint32 bitLen,
                                                                        AArch64reg baseReg = AArch64reg::kRinvalid);
@@ -68,13 +71,24 @@ class AArch64GenProEpilog : public GenProEpilog {
   void AppendJump(const MIRSymbol &func);
   void GenerateEpilog(BB&);
   void GenerateEpilogForCleanup(BB&);
+  void ConvertToTailCalls(std::set<Insn*> &callInsnsMap);
   Insn &CreateAndAppendInstructionForAllocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                        RegType rty);
   Insn &AppendInstructionForAllocateOrDeallocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                           RegType rty, bool isAllocate);
+  std::set<Insn*> &GetCallSitesMap() {
+    return callSitesMap;
+  }
+  void SetTailcallExitBB(BB *bb) {
+    tailcallExitBB = bb;
+  }
+  BB *GetTailcallExitBB() {
+    return tailcallExitBB;
+  }
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
-
+  std::set<Insn*> callSitesMap;
+  BB* tailcallExitBB = nullptr;
   bool useFP = true;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   AArch64reg stackBaseReg = RFP;

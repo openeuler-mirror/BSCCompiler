@@ -728,7 +728,6 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
         sidx++;
     }
   }
-  // stringToEmit += '\0';
   emitter.Emit(stringToEmit);
   emitter.Emit("\n\t//Inline asm end\n");
 }
@@ -1154,6 +1153,9 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
     }
     case MOP_string_indexof: {
       EmitStringIndexOf(emitter);
+      return;
+    }
+    case MOP_pseudo_none: {
       return;
     }
     default:
