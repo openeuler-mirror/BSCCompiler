@@ -3519,7 +3519,11 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
           }
         } else if (opnd->IsRegister()) {
           bool isdef = static_cast<AArch64OpndProp *>(md->operand[i])->IsRegDef();
+          bool isuse = static_cast<AArch64OpndProp *>(md->operand[i])->IsRegUse();
           RegOperand *replace = CreateSpillFillCode(*static_cast<RegOperand*>(opnd), *insn, spillCnt, isdef);
+          if (isuse && isdef) {
+            (void)CreateSpillFillCode(*static_cast<RegOperand*>(opnd), *insn, spillCnt, false);
+          }
           if (replace != nullptr) {
             if (isdef == false) {
               spillCnt++;
