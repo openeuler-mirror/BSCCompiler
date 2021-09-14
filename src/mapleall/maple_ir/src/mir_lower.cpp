@@ -297,50 +297,86 @@ BlockNode *MIRLower::LowerBlock(BlockNode &block) {
   return newBlock;
 }
 
-// for lowering OP_cand and OP_cior that are top level operators in the
-// condition operand of OP_brfalse and OP_brtrue
-void MIRLower::LowerBrCondition(BlockNode &block) {
-  if (block.GetFirst() == nullptr) {
-    return;
+// for lowering OP_cand and OP_cior embedded in the expression x which belongs
+// to curstmt
+BaseNode* MIRLower::LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockNode *blk) {
+  if (x->GetOpCode() == OP_cand || x->GetOpCode() == OP_cior) {
+    MIRBuilder *builder = mirModule.GetMIRBuilder();
+    BinaryNode *bnode = static_cast<BinaryNode *>(x);
+    bnode->SetOpnd(LowerEmbeddedCandCior(bnode->Opnd(0), curstmt, blk), 0);
+    PregIdx pregIdx = mirFunc->GetPregTab()->CreatePreg(PTY_u8);
+    RegassignNode *regass = builder->CreateStmtRegassign(PTY_u8, pregIdx, bnode->Opnd(0));
+    blk->InsertBefore(curstmt, regass);
+    LabelIdx labIdx = mirFunc->GetLabelTab()->CreateLabel();
+    (void)mirFunc->GetLabelTab()->AddToStringLabelMap(labIdx);
+    BaseNode *cond = builder->CreateExprRegread(PTY_u8, pregIdx);
+    CondGotoNode *cgoto = mirFunc->GetCodeMempool()->New<CondGotoNode>(x->GetOpCode() == OP_cior ? OP_brtrue : OP_brfalse);
+    cgoto->SetOpnd(cond, 0);
+    cgoto->SetOffset(labIdx);
+    blk->InsertBefore(curstmt, cgoto);
+
+    bnode->SetOpnd(LowerEmbeddedCandCior(bnode->Opnd(1), curstmt, blk), 1);
+    regass = builder->CreateStmtRegassign(PTY_u8, pregIdx, bnode->Opnd(1));
+    blk->InsertBefore(curstmt, regass);
+    LabelNode *lbl = mirFunc->GetCodeMempool()->New<LabelNode>();
+    lbl->SetLabelIdx(labIdx);
+    blk->InsertBefore(curstmt, lbl);
+    return builder->CreateExprRegread(PTY_u8, pregIdx);
+  } else {
+    for (size_t i = 0; i < x->GetNumOpnds(); i++) {
+      x->SetOpnd(LowerEmbeddedCandCior(x->Opnd(i), curstmt, blk), i);
+    }
+    return x;
   }
-  StmtNode *nextStmt = block.GetFirst();
-  do {
-    StmtNode *stmt = nextStmt;
-    nextStmt = stmt->GetNext();
-    if (stmt->IsCondBr()) {
-      auto *condGoto = static_cast<CondGotoNode*>(stmt);
-      if (condGoto->Opnd(0)->GetOpCode() == OP_cand || condGoto->Opnd(0)->GetOpCode() == OP_cior) {
-        auto *cond = static_cast<BinaryNode*>(condGoto->Opnd(0));
-        if ((stmt->GetOpCode() == OP_brfalse && cond->GetOpCode() == OP_cand) ||
-            (stmt->GetOpCode() == OP_brtrue && cond->GetOpCode() == OP_cior)) {
-          // short-circuit target label is same as original condGoto stmt
-          condGoto->SetOpnd(cond->GetBOpnd(0), 0);
-          auto *newCondGoto = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(Opcode(stmt->GetOpCode()));
-          newCondGoto->SetOpnd(cond->GetBOpnd(1), 0);
-          newCondGoto->SetOffset(condGoto->GetOffset());
-          block.InsertAfter(condGoto, newCondGoto);
-          nextStmt = stmt;  // so it will be re-processed if another cand/cior
-        } else {            // short-circuit target is next statement
-          LabelIdx lIdx;
-          LabelNode *labelStmt = nullptr;
-          if (nextStmt->GetOpCode() == OP_label) {
-            labelStmt = static_cast<LabelNode*>(nextStmt);
-            lIdx = labelStmt->GetLabelIdx();
-          } else {
-            lIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-            (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
-            labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
-            labelStmt->SetLabelIdx(lIdx);
-            block.InsertAfter(condGoto, labelStmt);
-          }
-          auto *newCondGoto = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(
-              stmt->GetOpCode() == OP_brfalse ? OP_brtrue : OP_brfalse);
-          newCondGoto->SetOpnd(cond->GetBOpnd(0), 0);
-          newCondGoto->SetOffset(lIdx);
-          block.InsertBefore(condGoto, newCondGoto);
-          condGoto->SetOpnd(cond->GetBOpnd(1), 0);
-          nextStmt = newCondGoto;  // so it will be re-processed if another cand/cior
+}
+
+// for lowering all appearances of OP_cand and OP_cior associated with condional
+// branches in the block
+void MIRLower::LowerCandCior(BlockNode &block) {
+if (block.GetFirst() == nullptr) {
+  return;
+}
+StmtNode *nextStmt = block.GetFirst();
+do {
+  StmtNode *stmt = nextStmt;
+  nextStmt = stmt->GetNext();
+  if (stmt->IsCondBr() &&
+      (stmt->Opnd(0)->GetOpCode() == OP_cand || stmt->Opnd(0)->GetOpCode() == OP_cior)) {
+    CondGotoNode *condGoto = static_cast<CondGotoNode*>(stmt);
+    BinaryNode *cond = static_cast<BinaryNode*>(condGoto->Opnd(0));
+    if ((stmt->GetOpCode() == OP_brfalse && cond->GetOpCode() == OP_cand) ||
+        (stmt->GetOpCode() == OP_brtrue && cond->GetOpCode() == OP_cior)) {
+      // short-circuit target label is same as original condGoto stmt
+        condGoto->SetOpnd(cond->GetBOpnd(0), 0);
+        auto *newCondGoto = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(Opcode(stmt->GetOpCode()));
+        newCondGoto->SetOpnd(cond->GetBOpnd(1), 0);
+        newCondGoto->SetOffset(condGoto->GetOffset());
+        block.InsertAfter(condGoto, newCondGoto);
+        nextStmt = stmt;  // so it will be re-processed if another cand/cior
+      } else {            // short-circuit target is next statement
+        LabelIdx lIdx;
+        LabelNode *labelStmt = nullptr;
+        if (nextStmt->GetOpCode() == OP_label) {
+          labelStmt = static_cast<LabelNode*>(nextStmt);
+          lIdx = labelStmt->GetLabelIdx();
+        } else {
+          lIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
+          (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
+          labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
+          labelStmt->SetLabelIdx(lIdx);
+          block.InsertAfter(condGoto, labelStmt);
         }
+        auto *newCondGoto = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(
+            stmt->GetOpCode() == OP_brfalse ? OP_brtrue : OP_brfalse);
+        newCondGoto->SetOpnd(cond->GetBOpnd(0), 0);
+        newCondGoto->SetOffset(lIdx);
+        block.InsertBefore(condGoto, newCondGoto);
+        condGoto->SetOpnd(cond->GetBOpnd(1), 0);
+        nextStmt = newCondGoto;  // so it will be re-processed if another cand/cior
+      }
+    } else {  // call LowerEmbeddedCandCior() for all the expression operands
+      for (size_t i = 0; i < stmt->GetNumOpnds(); i++) {
+        stmt->SetOpnd(LowerEmbeddedCandCior(stmt->Opnd(i), stmt, &block), i);
       }
     }
   } while (nextStmt != nullptr);
@@ -356,7 +392,7 @@ void MIRLower::LowerFunc(MIRFunction &func) {
   BlockNode *newBody = LowerBlock(*origBody);
   ASSERT(newBody != nullptr, "nullptr check");
   if (!InLFO()) {
-    LowerBrCondition(*newBody);
+    LowerCandCior(*newBody);
   }
   func.SetBody(newBody);
 }

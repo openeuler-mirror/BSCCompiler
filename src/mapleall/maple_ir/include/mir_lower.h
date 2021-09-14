@@ -55,6 +55,10 @@ class MIRLower {
     return mirFunc;
   }
 
+  void SetMirFunc(MIRFunction *f) {
+    mirFunc = f;
+  }
+
   void Init() {
     mirBuilder = mirModule.GetMemPool()->New<MIRBuilder>(&mirModule);
   }
@@ -64,7 +68,8 @@ class MIRLower {
   BlockNode *LowerDowhileStmt(WhileStmtNode&);
   BlockNode *LowerDoloopStmt(DoloopNode&);
   BlockNode *LowerBlock(BlockNode&);
-  void LowerBrCondition(BlockNode &block);
+  BaseNode *LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockNode *block);
+  void LowerCandCior(BlockNode &block);
   void LowerFunc(MIRFunction &func);
   BaseNode *LowerFarray(ArrayNode *array);
   BaseNode *LowerCArray(ArrayNode *array);
