@@ -307,6 +307,7 @@ void CgFuncPM::PrepareLower(MIRModule &m) {
 void CgFuncPM::DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc) {
   if (m.GetFlavor() <= kFeProduced) {
     mirLower->SetLowerCG();
+    mirLower->SetMirFunc(&mirFunc);
     mirLower->LowerFunc(mirFunc);
   }
   bool dumpAll = (CGOptions::GetDumpPhases().find("*") != CGOptions::GetDumpPhases().end());
