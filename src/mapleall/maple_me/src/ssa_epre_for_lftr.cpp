@@ -130,6 +130,7 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
       return nullptr;
     }
   }
+  newSide.SetHasAddressValue();
   // check if newSide can be folded
   MeExpr *simplifyExpr = irMap->SimplifyOpMeExpr(&newSide);
   MeExpr *hashedSide = nullptr;
@@ -189,7 +190,7 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
       continue;
     }
 
-    if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(wkCand->GetTheMeExpr()->GetPrimType())) {
+    if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(compare->GetOpndType())) {
       continue;
     }
     MeExpr *x = wkCand->GetTheMeExpr();

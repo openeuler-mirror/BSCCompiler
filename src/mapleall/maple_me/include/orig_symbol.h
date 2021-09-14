@@ -321,6 +321,9 @@ class OriginalSt {
   bool isPrivate = false;        // if the field has private attribute, only when fieldID != 0
   bool ignoreRC = false;         // base on MIRSymbol's IgnoreRC()
   bool epreLocalRefVar = false;  // is a localrefvar temp created by epre phase
+ public:
+  bool isPtrWithIncDec = false;  // is a pointer with self-increment/decrement
+ private:
   SymOrPreg symOrPreg;
   PUIdx puIdx;
   OriginalSt *prevLevOst = nullptr;
