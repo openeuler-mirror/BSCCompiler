@@ -76,8 +76,9 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
 MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
   bool needRehash = false;
   switch (meExpr.GetMeOp()) {
-    case kMeOpVar: {
-      auto &varExpr = static_cast<VarMeExpr&>(meExpr);
+    case kMeOpVar:
+    case kMeOpReg: {
+      auto &varExpr = static_cast<ScalarMeExpr&>(meExpr);
       auto it = renameStacks.find(varExpr.GetOstIdx());
       if (it == renameStacks.end()) {
         return &meExpr;
@@ -93,10 +94,15 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
     case kMeOpIvar: {
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(meExpr);
       MeExpr *newbase = RenameExpr(*ivarMeExpr.GetBase(), needRehash);
+      MeExpr *newMU = nullptr;
+      if (ivarMeExpr.GetMu() != nullptr) {
+        newMU = RenameExpr(*ivarMeExpr.GetMu(), needRehash);
+      }
       if (needRehash) {
         changed = true;
         IvarMeExpr newMeExpr(kInvalidExprID, ivarMeExpr);
         newMeExpr.SetBase(newbase);
+        newMeExpr.SetMuVal(static_cast<ScalarMeExpr*>(newMU));
         return irMap.HashMeExpr(newMeExpr);
       }
       return &meExpr;
@@ -118,6 +124,7 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
         newMeExpr.SetBitsSize(meOpExpr.GetBitsSize());
         newMeExpr.SetTyIdx(meOpExpr.GetTyIdx());
         newMeExpr.SetFieldID(meOpExpr.GetFieldID());
+        newMeExpr.SetHasAddressValue();
         return irMap.HashMeExpr(newMeExpr);
       }
       return &meExpr;

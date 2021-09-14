@@ -238,6 +238,7 @@ MeExpr *SSAEPre::PhiOpndFromRes(MeRealOcc &realZ, size_t j) const {
           }
         }
       }
+      opMeExpr.SetHasAddressValue();
       return irMap->HashMeExpr(opMeExpr);
     }
     case kMeOpNary: {
