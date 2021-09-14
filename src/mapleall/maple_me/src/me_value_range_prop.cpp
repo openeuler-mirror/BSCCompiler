@@ -486,12 +486,12 @@ int64 GetMaxNumber(PrimType primType) {
         return std::numeric_limits<uint32_t>::max();
       } else { // 64 bit
         CHECK_FATAL(GetPrimTypeSize(primType) == kEightByte, "must be 64 bit");
-        return std::numeric_limits<int64_t>::max();
+        return std::numeric_limits<uint64_t>::max();
       }
       break;
     case PTY_u64:
     case PTY_a64:
-      return std::numeric_limits<int64_t>::max();
+      return std::numeric_limits<uint64_t>::max();
       break;
     case PTY_u1:
       return 1;
@@ -1964,6 +1964,10 @@ bool ValueRangePropagation::RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << "=============delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
         trueBranch.GetBBId() << "=============" << "\n";
+  }
+  InsertCandsForSSAUpdate(pred, true);
+  for (auto &it : bb.GetMePhiList()) {
+    InsertCandsForSSAUpdate(it.first, pred);
   }
   if (pred2NewSuccs.find(&trueBranch) == pred2NewSuccs.end()) {
     pred2NewSuccs[&trueBranch] = std::set<std::pair<BB*, MeExpr*>>{ std::make_pair(&pred, &opnd) };
