@@ -4141,6 +4141,9 @@ void GraphColorRegAllocator::AnalysisLoop(const CGFuncLoops &loop) {
   const MapleSet<regno_t> &liveIn = header->GetLiveInRegNO();
   std::vector<LiveRange*> lrs;
   uint32 intCalleeNum = intCalleeRegSet.size();
+  if (loop.GetMultiEntries().size() != 0) {
+    return;
+  }
   for (auto regno: liveIn) {
     LiveRange *lr = lrVec[regno];
     if (lr != nullptr && lr->GetRegType() == kRegTyInt && lr->GetNumCall() != 0) {
@@ -4234,6 +4237,7 @@ void GraphColorRegAllocator::FinalizeRegisters() {
   }
   if (CLANG) {
     if (!cgFunc->GetLoops().empty()) {
+      cgFunc->GetTheCFG()->InitInsnVisitor(*cgFunc);
       for (const auto *lp : cgFunc->GetLoops()) {
         AnalysisLoopPressureAndSplit(*lp);
       }

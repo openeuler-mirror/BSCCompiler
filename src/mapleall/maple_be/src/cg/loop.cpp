@@ -640,40 +640,10 @@ void LoopFinder::FormLoopHierarchy() {
   UpdateCGFunc();
 }
 
-void LoopFinder::SplitCriticalEdges() {
-  for (auto it = criticalEdges.begin(); it != criticalEdges.end(); ++it) {
-    cgFunc->GetTheCFG()->BreakCriticalEdge(*((*it).first), *((*it).second));
-  }
-}
-
-void LoopFinder::CollectCriticalEdges() {
-  constexpr int multiPredsNum = 2;
-  FOR_ALL_BB(bb, cgFunc) {
-    const MapleList<BB*> &preds = bb->GetPreds();
-    if (preds.size() < multiPredsNum) {
-      continue;
-    }
-    // current BB is a merge
-    for (BB *pred : preds) {
-      if (pred->GetKind() == BB::kBBGoto || pred->GetKind() == BB::kBBIgoto) {
-        continue;
-      }
-      if (pred->GetSuccs().size() > 1) {
-        // pred has more than one succ
-        criticalEdges.push_back(std::make_pair(pred, bb));
-      }
-    }
-  }
-}
-
 bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
   f.ClearLoopInfo();
   MemPool *loopMemPool = GetPhaseMemPool();
   LoopFinder *loopFinder = loopMemPool->New<LoopFinder>(f, *loopMemPool);
-  if (f.GetMirModule().IsCModule() && f.NumBBs() < kBBLimit) {
-    loopFinder->CollectCriticalEdges();
-    loopFinder->SplitCriticalEdges();
-  }
   loopFinder->FormLoopHierarchy();
 
   if (LOOP_ANALYSIS_DUMP_NEWPM) {

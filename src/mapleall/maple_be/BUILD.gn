@@ -158,6 +158,7 @@ src_libcg = [
   "src/cg/peep.cpp",
   "src/cg/label_creation.cpp",
   "src/cg/loop.cpp",
+  "src/cg/cg_critical_edge.cpp",
   "src/cg/memlayout.cpp",
   "src/cg/offset_adjust.cpp",
   "src/cg/optimize_common.cpp",
