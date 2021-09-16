@@ -34,6 +34,7 @@
 #endif
 #include "cg_dominance.h"
 #include "loop.h"
+#include "cg_critical_edge.h"
 #include "mpl_timer.h"
 #include "args.h"
 #include "yieldpoint.h"
@@ -82,7 +83,7 @@ bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM) {
     SolveSkipFrom(CGOptions::GetSkipFromPhase(), i);
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Run " << (curPhase->IsAnalysis() ? "analysis" : "transform")
+      LogInfo::MapleLogger() << "---Run MplCG " << (curPhase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << curPhase->PhaseName() << " ]---\n";
     }
     if (curPhase->IsAnalysis()) {
@@ -192,6 +193,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
   ADDMAPLECGPHASE("prescheduling", CGOptions::DoPreSchedule());
   ADDMAPLECGPHASE("raopt", CGOptions::DoPreLSRAOpt());
+  ADDMAPLECGPHASE("cgsplitcriticaledge", CLANG);
   ADDMAPLECGPHASE("regalloc", true);
   ADDMAPLECGPHASE("storeloadopt", CLANG && CGOptions::DoStoreLoadOpt())
   ADDMAPLECGPHASE("clearrdinfo", CLANG && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
@@ -444,6 +446,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgStoreLoadOpt, storeloadopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFPLROffsetAdjustment, offsetadjustforfplr)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 }  /* namespace maplebe */
