@@ -3598,6 +3598,29 @@ void CallerSavePre::CodeMotion() {
   }
 }
 
+void CallerSavePre::UpdateAvailbility(CgPhiOcc *newFullyAvailPhiOcc) {
+  for (auto *phi : phiOccs) {
+    if (!phi->IsNotAvailable()) {
+      continue;
+    }
+    bool unavailabeAtCriticalEdge = false;
+    bool opndDefByFullyAvailPhi = false;
+    for (auto *opndOcc : phi->GetPhiOpnds()) {
+      if (opndOcc->GetDef() == newFullyAvailPhiOcc) {
+        opndDefByFullyAvailPhi = true;
+        continue;
+      }
+      if (opndOcc->GetBB()->IsSoloGoto()) {
+        unavailabeAtCriticalEdge = true;
+        break;
+      }
+    }
+    if (!unavailabeAtCriticalEdge && opndDefByFullyAvailPhi) {
+      phi->SetAvailability(kPartialAvailable);
+    }
+  }
+}
+
 void CallerSavePre::UpdateLoadSite(CgOccur *occ) {
   if (occ == nullptr) {
     return;
@@ -3661,6 +3684,8 @@ void CallerSavePre::UpdateLoadSite(CgOccur *occ) {
         return;
       }
       defOcc->SetProcessed(true);
+      phiOcc->SetAvailability(kFullyAvailable);
+      UpdateAvailbility(phiOcc);
       for (auto *opndOcc : phiOcc->GetPhiOpnds()) {
         UpdateLoadSite(opndOcc);
       }
@@ -3751,39 +3776,53 @@ void CallerSavePre::ComputeAvail() {
   while (changed) {
     changed = false;
     for (auto *phiOcc : phiOccs) {
-      if (phiOcc->IsNotAvailable()) {
-        continue;
-      }
-      uint32 killedCnt = 0;
+      AvailState availState = kNotAvailable;
+      uint32 availCnt = 0;
       for (auto *opndOcc : phiOcc->GetPhiOpnds()) {
         auto defOcc = opndOcc->GetDef();
         if (defOcc == nullptr) {
           continue;
         }
         // for not move load too far from use site, set not-fully-available-phi killing availibity of phiOpnd
-        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable())
+        if ((defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->CanBeAvail())
             || defOcc->GetOccType() == kOccStore) {
-          ++killedCnt;
-          opndOcc->SetHasRealUse(false);
+          if (opndOcc->GetBB()->IsSoloGoto()) {
+            availState = kNotAvailable;
+            break;
+          }
           // opnd at back-edge is killed, set phi not avail
           if (dom->Dominate(*phiOcc->GetBB(), *opndOcc->GetBB())) {
-            killedCnt = phiOcc->GetPhiOpnds().size();
+            availState = kNotAvailable;
             break;
           }
-          if (opndOcc->GetBB()->IsSoloGoto() && opndOcc->GetBB()->GetLoop() != nullptr) {
-            killedCnt = phiOcc->GetPhiOpnds().size();
-            break;
+        }
+        if (defOcc->GetOccType() == kOccPhiocc && !static_cast<CgPhiOcc *>(defOcc)->IsNotAvailable()) {
+          availState = kPartialAvailable;
+          if (static_cast<CgPhiOcc *>(defOcc)->IsFullyAvailable()) {
+            ++availCnt;
           }
-          continue;
+        }
+        if (defOcc->GetOccType() == kOccDef || defOcc->GetOccType() == kOccUse) {
+          availState = kPartialAvailable;
+          ++availCnt;
         }
       }
-      if (killedCnt == phiOcc->GetPhiOpnds().size()) {
-        changed |= !phiOcc->IsNotAvailable();
-        phiOcc->SetAvailability(kNotAvailable);
-      } else if (killedCnt > 0) {
-        changed |= !phiOcc->IsPartialAvailable();
-        phiOcc->SetAvailability(kPartialAvailable);
-      } else {} // fully available is default state
+      if (availCnt < phiOcc->GetPhiOpnds().size()) {
+        changed |= (availState != phiOcc->GetAvailState());
+        phiOcc->SetAvailability(availState);
+      } else { // every phiOpnd is available
+        changed |= !phiOcc->IsFullyAvailable();
+        phiOcc->SetAvailability(kFullyAvailable);
+      }
+    }
+  }
+  if (dump) {
+    PreWorkCand *curCand = workCand;
+    LogInfo::MapleLogger() << "========ssapre candidate " << curCand->GetIndex() << " after ComputeAvail============\n";
+    workCand->GetTheOperand()->Dump();
+    for (CgOccur *occ : allOccs) {
+      occ->Dump();
+      LogInfo::MapleLogger() << '\n';
     }
   }
 }
