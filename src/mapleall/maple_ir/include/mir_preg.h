@@ -91,15 +91,16 @@ class MIRPreg {
  private:
   PrimType primType = kPtyInvalid;
   bool needRC = false;
-  Opcode op = OP_undef;// OP_constval, OP_addrof or OP_dread if rematerializable
+  Opcode op = OP_undef; // OP_constval, OP_addrof or OP_dread if rematerializable
   int32 pregNo;  // the number in maple IR after the %
   MIRType *mirType = nullptr;
  public:
   union RematInfo {
-    MIRConst *mirConst; // used only when op is OP_constval
-    MIRSymbol *sym;     // used only when op is OP_addrof or OP_dread
+    const MIRConst *mirConst; // used only when op is OP_constval
+    const MIRSymbol *sym;     // used only when op is OP_addrof or OP_dread
   } rematInfo;
   FieldID fieldID = 0;  // used only when op is OP_addrof or OP_dread
+  bool addrUpper = false;  // used only when op is OP_addrof to indicate upper bits of address
 };
 
 class MIRPregTable {
