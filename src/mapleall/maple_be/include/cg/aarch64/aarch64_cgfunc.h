@@ -143,8 +143,8 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) override;
   RegOperand *SelectRegread(RegreadNode &expr) override;
 
-  void SelectAddrof(Operand &result, StImmOperand &stImm);
-  void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd);
+  void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
+  void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, FieldID field = 0);
   Operand *SelectCSyncCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;

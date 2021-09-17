@@ -81,18 +81,18 @@ bool LiveRange::IsRematerializable(uint8 rematLevel) const {
   case OP_undef:
     return false;
   case OP_constval: {
-    MIRConst *mirConst = rematInfo.mirConst;
+    const MIRConst *mirConst = rematInfo.mirConst;
     if (mirConst->GetKind() != kConstInt) {
       return false;
     }
-    MIRIntConst *intConst = static_cast<MIRIntConst *>(rematInfo.mirConst);
+    const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
     return intConst->GetValue() >= 0 && intConst->GetValue() <= 255;
   }
   case OP_addrof: {
     if (rematLevel < rematAddr) {
       return false;
     }
-    MIRSymbol *symbol = rematInfo.sym;
+    const MIRSymbol *symbol = rematInfo.sym;
     if (symbol->IsDeleted()) {
       return false;
     }
@@ -102,7 +102,7 @@ bool LiveRange::IsRematerializable(uint8 rematLevel) const {
     if (rematLevel < rematDreadLocal) {
       return false;
     }
-    MIRSymbol *symbol = rematInfo.sym;
+    const MIRSymbol *symbol = rematInfo.sym;
     if (symbol->IsDeleted()) {
       return false;
     }
@@ -125,7 +125,8 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
     break;
     switch (rematInfo.mirConst->GetKind()) {
     case kConstInt: {
-      MIRIntConst *intConst = static_cast<MIRIntConst *>(rematInfo.mirConst);
+      MIRIntConst *intConst = const_cast<MIRIntConst *>(
+        static_cast<const MIRIntConst *>(rematInfo.mirConst));
 
       Operand *immOp = cgFunc->SelectIntConst(*intConst);
       insns.push_back(&cg->BuildInstruction<AArch64Insn>(MOP_xmovri64, regOp, *immOp));
@@ -136,7 +137,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
     }
     break;
   case OP_dread: {
-    MIRSymbol *symbol = rematInfo.sym;
+    const MIRSymbol *symbol = rematInfo.sym;
     PrimType symType = symbol->GetType()->GetPrimType();
     if (!spillMem) {
       int32 offset = 0;
@@ -159,7 +160,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
   }
   break;
   case OP_addrof: {
-    MIRSymbol *symbol = rematInfo.sym;
+    const MIRSymbol *symbol = rematInfo.sym;
     int32 offset = 0;
     if (fieldID != 0) {
       MIRStructType *structType =
@@ -211,7 +212,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
           insns.push_back(&cg->BuildInstruction<AArch64Insn>(
               MOP_xaddrri12, regOp, regOp, ofstOpnd));
         }
-      } else {
+      } else if (!addrUpper) {
         insns.push_back(&cg->BuildInstruction<AArch64Insn>(
             MOP_xadrpl12, regOp, regOp, stImm));
       }
@@ -690,7 +691,6 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
 
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   MIRPreg *preg = a64CGFunc->GetPseudoRegFromVirtualRegNO(regNO);
-
   if (preg) {
     switch (preg->GetOp()) {
     case OP_constval:
@@ -699,7 +699,7 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
     case OP_addrof:
     case OP_dread:
       lr->SetRematerializable(preg->GetOp(), preg->rematInfo.sym,
-                              preg->fieldID);
+                              preg->fieldID, preg->addrUpper);
       break;
     case OP_undef:
       break;
@@ -2766,11 +2766,6 @@ void GraphColorRegAllocator::SpillOperandForSpillPre(Insn &insn, const Operand &
 
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
-  // if (cg->DoRemat() && lr->IsRematerializable() && lr->GetNumDefs() == 0) {
-  //   LogInfo::MapleLogger() << "Remat: skip spill for " << regNO << " " << lr->GetNumDefs() << " " << lr->GetNumUses() << " " << lr->HasDefUse() << "\n";
-  //   // For rematerializable value, we do not need to spill if the value was not written.
-  //   return;
-  // }
 
   MemOperand *spillMem = CreateSpillMem(spillIdx, kSpillMemPre);
   ASSERT(spillMem != nullptr, "spillMem nullptr check");
@@ -2887,7 +2882,7 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
     memOpnd = lr.GetSpillMem();
   } else if (lr.IsRematerializable(cg->GetRematLevel()) && lr.GetOp() == OP_dread) {
     auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    MIRSymbol *symbol = lr.GetRematSymbol();
+    const MIRSymbol *symbol = lr.GetRematSymbol();
     PrimType symType = symbol->GetType()->GetPrimType();
     int32 offset = 0;
     FieldID fieldID = lr.GetRematFieldID();
@@ -2976,24 +2971,27 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
   CG *cg = a64CGFunc->GetCG();
 
   Insn *spillDefInsn = nullptr;
-  if (isDef && !lr->IsRematerializable(cg->GetRematLevel() > rematAddr ? rematAddr : cg->GetRematLevel())) {
-    lr->SetSpillReg(pregNO);
-    MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? false : true);
-    spillDefInsn = &cg->BuildInstruction<AArch64Insn>(a64CGFunc->PickStInsn(regSize, stype), phyOpnd, *memOpnd);
-    spillDefInsn->SetIsSpill();
-    std::string comment = " SPILL vreg: " + std::to_string(regNO) + " op:" +
-                          kOpcodeInfo.GetName(lr->GetOp());
-    if (isForCallerSave) {
-      comment += " for caller save in BB " + std::to_string(insn.GetBB()->GetId());
+  if (isDef) {
+    if (!lr->IsRematerializable(cg->GetRematLevel() > rematAddr ? rematAddr : cg->GetRematLevel())) {
+      lr->SetSpillReg(pregNO);
+      MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? false : true);
+      spillDefInsn = &cg->BuildInstruction<AArch64Insn>(a64CGFunc->PickStInsn(regSize, stype), phyOpnd, *memOpnd);
+      spillDefInsn->SetIsSpill();
+      std::string comment = " SPILL vreg: " + std::to_string(regNO) + " op:" +
+                            kOpcodeInfo.GetName(lr->GetOp());
+      if (isForCallerSave) {
+        comment += " for caller save in BB " + std::to_string(insn.GetBB()->GetId());
+      }
+      spillDefInsn->SetComment(comment);
+      if (forCall) {
+        insn.GetBB()->InsertInsnBefore(insn, *spillDefInsn);
+      } else if (isOutOfRange || (insn.GetNext() && insn.GetNext()->GetMachineOpcode() == MOP_clinit_tail)) {
+        insn.GetBB()->InsertInsnAfter(*insn.GetNext(), *spillDefInsn);
+      } else {
+        insn.GetBB()->InsertInsnAfter(insn, *spillDefInsn);
+      }
     }
-    spillDefInsn->SetComment(comment);
-    if (forCall) {
-      insn.GetBB()->InsertInsnBefore(insn, *spillDefInsn);
-    } else if (isOutOfRange || (insn.GetNext() && insn.GetNext()->GetMachineOpcode() == MOP_clinit_tail)) {
-      insn.GetBB()->InsertInsnAfter(*insn.GetNext(), *spillDefInsn);
-    } else {
-      insn.GetBB()->InsertInsnAfter(insn, *spillDefInsn);
-    }
+
     if ((insn.GetMachineOpcode() != MOP_xmovkri16) && (insn.GetMachineOpcode() != MOP_wmovkri16)) {
       return spillDefInsn;
     }
@@ -3734,7 +3732,7 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
         // For dreads, we still need to spill, but for others we do not.
         if (lr->GetOp() != OP_dread) return nullptr;
       } else {
-        std::vector<Insn *> rematInsns = lr->Rematerialize(a64cgfunc, *regopnd);
+        std::vector<Insn *> rematInsns = lr->Rematerialize(a64cgfunc, *static_cast<AArch64RegOperand*>(regopnd));
         for (auto &&remat : rematInsns) {
           std::string comment = " REMATERIALIZE color vreg: " +
                                 std::to_string(vregno);
@@ -4326,7 +4324,7 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
     if (hasRef == false) {
       splitCount++;
       RegOperand *ropnd = &cgFunc->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
-      RegOperand &phyOpnd = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
+      AArch64RegOperand &phyOpnd = static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreatePhysicalRegisterOperand(
           static_cast<AArch64reg>(lr->GetAssignedRegNO()), ropnd->GetSize(),
           (lr->GetRegType()));
 

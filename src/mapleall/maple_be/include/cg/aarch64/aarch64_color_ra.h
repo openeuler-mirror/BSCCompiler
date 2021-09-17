@@ -605,7 +605,7 @@ class LiveRange {
     return op;
   }
 
-  MIRSymbol *GetRematSymbol() {
+  const MIRSymbol *GetRematSymbol() {
     ASSERT(op == OP_dread || op == OP_addrof, "Remat symbol is invalid");
     return rematInfo.sym;
   }
@@ -615,15 +615,16 @@ FieldID GetRematFieldID() {
     return fieldID;
   }
 
-  void SetRematerializable(MIRConst *c) {
+  void SetRematerializable(const MIRConst *c) {
     op = OP_constval;
     rematInfo.mirConst = c;
   }
 
-  void SetRematerializable(Opcode op, MIRSymbol *sym, FieldID fieldID) {
+  void SetRematerializable(Opcode op, const MIRSymbol *sym, FieldID fieldID, bool addrUpper) {
     this->op = op;
     rematInfo.sym = sym;
     this->fieldID = fieldID;
+    this->addrUpper = addrUpper;
   }
 
   void CopyRematerialization(LiveRange &lr) {
@@ -674,10 +675,11 @@ FieldID GetRematFieldID() {
   bool isNonLocal = false;
   Opcode op = OP_undef;               /* OP_constval, OP_addrof or OP_dread if rematerializable */
   union RematInfo {
-    MIRConst *mirConst;
-    MIRSymbol *sym;
+    const MIRConst *mirConst;
+    const MIRSymbol *sym;
   } rematInfo;                        /* info for rematerializing value */
   FieldID fieldID = 0;                /* used only when op is OP_addrof or OP_dread */
+  bool addrUpper = false;             /* indicates the upper bits of an addrof */
 };
 
 /* One per bb, to communicate local usage to global RA */
