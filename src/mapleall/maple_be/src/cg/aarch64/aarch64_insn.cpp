@@ -728,7 +728,6 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
         sidx++;
     }
   }
-  // stringToEmit += '\0';
   emitter.Emit(stringToEmit);
   emitter.Emit("\n\t//Inline asm end\n");
 }
@@ -1830,6 +1829,13 @@ void AArch64Insn::Dump() const {
     LogInfo::MapleLogger() << " (opnd" << i << ": ";
     opnd.Dump();
     LogInfo::MapleLogger() << ")";
+  }
+
+  if (IsVectorOp()) {
+    const AArch64VectorInsn *vInsn = static_cast<const AArch64VectorInsn*>(this);
+    if (vInsn->GetNumOfRegSpec() != 0) {
+      LogInfo::MapleLogger() << " (vecSpec: " << vInsn->GetNumOfRegSpec() << ")";
+    }
   }
   LogInfo::MapleLogger() << "\n";
 }

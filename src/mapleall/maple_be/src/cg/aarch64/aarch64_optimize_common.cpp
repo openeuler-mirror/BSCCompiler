@@ -57,7 +57,13 @@ void AArch64InsnVisitor::ModifyJumpTarget(BB &newTarget, BB &bb) {
 Insn *AArch64InsnVisitor::CloneInsn(Insn &originalInsn) {
   MemPool *memPool = const_cast<MemPool*>(CG::GetCurCGFunc()->GetMemoryPool());
   if (originalInsn.IsTargetInsn()) {
-    return memPool->Clone<AArch64Insn>(*static_cast<AArch64Insn*>(&originalInsn));
+    if (!originalInsn.IsVectorOp()) {
+      return memPool->Clone<AArch64Insn>(*static_cast<AArch64Insn*>(&originalInsn));
+    } else {
+      AArch64VectorInsn *insn = memPool->Clone<AArch64VectorInsn>(*static_cast<AArch64VectorInsn*>(&originalInsn));
+      insn->SetRegSpecList(static_cast<AArch64VectorInsn&>(originalInsn).GetRegSpecList());
+      return insn;
+    }
   } else if (originalInsn.IsCfiInsn()) {
     return memPool->Clone<cfi::CfiInsn>(*static_cast<cfi::CfiInsn*>(&originalInsn));
   } else if (originalInsn.IsDbgInsn()) {
