@@ -24,6 +24,7 @@ cflags += [
 
 include_directories = [
   "${MPLFE_ROOT}/common/include",
+  "${MPLFE_ROOT}/optimize/include",
   "${MPLFE_ROOT}/jbc_input/include",
   "${MPLFE_ROOT}/bc_input/include",
   "${MPLFE_ROOT}/dex_input/include",
@@ -82,6 +83,7 @@ static_library("lib_mplfe_util") {
     "${MPLFE_ROOT}/common/src/simple_xml.cpp",
     "${MPLFE_ROOT}/common/src/simple_zip.cpp",
     "${MPLFE_ROOT}/common/src/generic_attrs.cpp",
+    "${MPLFE_ROOT}/common/src/enhance_c_checker.cpp",
   ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"
@@ -107,6 +109,15 @@ static_library("lib_mplfe_util") {
   }
 }
 
+static_library("lib_mplfe_optimize") {
+  sources = [
+    "${MPLFE_ROOT}/optimize/src/ror.cpp",
+    "${MPLFE_ROOT}/optimize/src/conditional_operator.cpp",
+  ]
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
 static_library("lib_mplfe_input") {
   sources = [ "${MPLFE_ROOT}/common/src/fe_input_helper.cpp" ]
   include_dirs = include_directories
@@ -123,6 +134,7 @@ executable("mplfe") {
     ":lib_mplfe_input",
     ":lib_mplfe_jbc_input",
     ":lib_mplfe_util",
+    ":lib_mplfe_optimize",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
     "${MAPLEALL_ROOT}/maple_util:libmplutil",
