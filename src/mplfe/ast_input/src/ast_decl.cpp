@@ -19,6 +19,7 @@
 #include "feir_var_name.h"
 #include "feir_builder.h"
 #include "fe_manager.h"
+#include "conditional_operator.h"
 
 namespace maple {
 // ---------- ASTDecl ---------
@@ -125,6 +126,10 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   UniqueFEIRVar feirVar = Translate2FEIRVar();
   if (initExpr->GetASTOp() == kASTStringLiteral) { // init for StringLiteral
     return GenerateInitStmt4StringLiteral(initExpr, feirVar->Clone(), initFeirExpr->Clone(), stmts);
+  }
+
+  if (ConditionalOptimize::DeleteRedundantTmpVar(initFeirExpr, stmts, feirVar, feirVar->GetType()->GetPrimType())) {
+    return;
   }
 
   PrimType srcPrimType = initFeirExpr->GetPrimType();

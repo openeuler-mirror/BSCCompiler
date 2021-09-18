@@ -21,6 +21,7 @@
 #include "fe_utils_ast.h"
 #include "fe_manager.h"
 #include "ast_util.h"
+#include "conditional_operator.h"
 
 namespace maple {
 // ---------- ASTStmt ----------
@@ -76,16 +77,21 @@ std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   return stmts;
 }
 
+// ---------- ASTReturnStmt ----------
 std::list<UniqueFEIRStmt> ASTReturnStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto astExpr = exprs.front();
   UniqueFEIRExpr feExpr = (astExpr != nullptr) ? astExpr->Emit2FEExpr(stmts) : nullptr;
+  if (astExpr != nullptr && ConditionalOptimize::DeleteRedundantTmpVar(feExpr, stmts)) {
+    return stmts;
+  }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturn>(std::move(feExpr));
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
   return stmts;
 }
 
+// ---------- ASTIfStmt ----------
 std::list<UniqueFEIRStmt> ASTIfStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   std::list<UniqueFEIRStmt> thenStmts;
@@ -546,6 +552,19 @@ std::list<UniqueFEIRStmt> ASTGCCAsmStmt::Emit2FEStmtImpl() const {
 }
 
 std::list<UniqueFEIRStmt> ASTOffsetOfStmt::Emit2FEStmtImpl() const {
+  CHECK_FATAL(exprs.front() != nullptr, "child expr must not be nullptr!");
+  std::list<UniqueFEIRStmt> stmts;
+  std::list<UniqueFEIRExpr> feExprs;
+  auto feExpr = exprs.front()->Emit2FEExpr(stmts);
+  if (feExpr != nullptr) {
+    feExprs.emplace_back(std::move(feExpr));
+    auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(feExprs));
+    stmts.emplace_back(std::move(stmt));
+  }
+  return stmts;
+}
+
+std::list<UniqueFEIRStmt> ASTGenericSelectionExprStmt::Emit2FEStmtImpl() const {
   CHECK_FATAL(exprs.front() != nullptr, "child expr must not be nullptr!");
   std::list<UniqueFEIRStmt> stmts;
   std::list<UniqueFEIRExpr> feExprs;
