@@ -1415,7 +1415,6 @@ private:
   void CodeMotion() ;
   void UpdateLoadSite(CgOccur *occ);
   void CalLoadSites();
-  void UpdateAvailbility(CgPhiOcc *newFullyAvailPhiOcc);
   void ComputeAvail();
   void Rename1();
   void ComputeVarAndDfPhis() override;
