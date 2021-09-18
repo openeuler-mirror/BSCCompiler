@@ -275,10 +275,6 @@ class CgPhiOcc : public CgOccur {
     return prevVersion;
   }
 
-  AvailState GetAvailState() const {
-    return availState;
-  }
-
   void SetPrevVersionOccur(CgOccur *val) override {
     prevVersion = val;
   }
@@ -297,10 +293,6 @@ class CgPhiOcc : public CgOccur {
 
   void SetAvailability(AvailState val) {
     availState = val;
-  }
-
-  bool CanBeAvail() {
-    return (availState == kFullyAvailable) || (availState == kPartialAvailable && isDownSafe);
   }
 
   void Dump() const override {
