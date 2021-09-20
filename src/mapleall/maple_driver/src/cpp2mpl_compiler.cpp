@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -20,7 +20,7 @@
 
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions&) const{
-    return std::string(std::getenv(kMapleRoot)) + "/output/aarch64-clang-debug/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/output/aarch64-clang-debug/bin/";
 }
 
 const std::string &Cpp2MplCompiler::GetBinName() const {
@@ -49,9 +49,9 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) cons
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
-    FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
-                                       defaultOptions.mplOptions[i].GetValue(),
-                                       options.GetExeFolder()));
+        FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
+                                           defaultOptions.mplOptions[i].GetValue(),
+                                           options.GetExeFolder()));
     }
     return defaultOptions;
 }
