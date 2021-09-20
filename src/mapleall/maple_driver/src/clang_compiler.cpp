@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,10 +19,8 @@
 #include "default_options.def"
 
 namespace maple {
-
-
 std::string ClangCompiler::GetBinPath(const MplOptions&) const{
-  return std::string(std::getenv(kMapleRoot)) + "/tools/clang+llvm-10.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/output/tools/bin/";
 }
 
 const std::string &ClangCompiler::GetBinName() const {
@@ -32,14 +30,14 @@ const std::string &ClangCompiler::GetBinName() const {
 DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const {
   DefaultOption defaultOptions = { nullptr, 0 };
   defaultOptions.mplOptions = kClangDefaultOptions;
-  defaultOptions.mplOptions[1].SetValue( options.GetOutputFolder() + options.GetOutputName() + ".ast");
+  defaultOptions.mplOptions[1].SetValue(options.GetOutputFolder() + options.GetOutputName() + ".ast");
   defaultOptions.length = sizeof(kClangDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
-            FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
-                                               defaultOptions.mplOptions[i].GetValue(),
-                                               options.GetExeFolder()));
+        FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
+                                           defaultOptions.mplOptions[i].GetValue(),
+                                           options.GetExeFolder()));
   }
   return defaultOptions;
 }
@@ -53,5 +51,4 @@ std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions 
   (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".ast");
   return finalOutputs;
 }
-
 }
