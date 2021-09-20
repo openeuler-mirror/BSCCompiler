@@ -728,7 +728,6 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
         sidx++;
     }
   }
-  // stringToEmit += '\0';
   emitter.Emit(stringToEmit);
   emitter.Emit("\n\t//Inline asm end\n");
 }
@@ -1626,6 +1625,9 @@ bool AArch64Insn::IsYieldPoint() const {
  */
 int32 AArch64Insn::CopyOperands() const {
   if (mOp >= MOP_xmovrr  && mOp <= MOP_xvmovrv) {
+    return 1;
+  }
+  if (mOp == MOP_vmovuu || mOp == MOP_vmovvv) {
     return 1;
   }
   if ((mOp >= MOP_xaddrrr && mOp <= MOP_ssub) || (mOp >= MOP_xlslrri6 && mOp <= MOP_wlsrrrr)) {
