@@ -201,6 +201,10 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
       if (iv == nullptr) {
         continue;
       }
+      if (x->GetOp() == OP_sub && i == 1) {  // disqualify if subtracting a var
+        isRelevant = false;
+        break;
+      }
       if ((compareLHS && iv->GetOst() == compareLHS->GetOst()) ||
           (compareRHS && iv->GetOst() == compareRHS->GetOst())) {
         numRelevantOpnds++;
