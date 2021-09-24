@@ -32,6 +32,9 @@ bool AArch64FixShortBranch::DistanceCheck(const BB &bb, LabelIdx targLabIdx, uin
     while (tInsn == nullptr || !tInsn->IsMachineInstruction()) {
       if (tInsn == nullptr) {
         tBB = tBB->GetNext();
+        if (tBB == nullptr) { /* tailcallopt may make the target block empty */
+          return true;
+        }
         tInsn = tBB->GetFirstInsn();
       } else {
         tInsn = tInsn->GetNext();
@@ -130,6 +133,5 @@ bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {
   fixShortBranch->FixShortBranches();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
 }  /* namespace maplebe */
 
