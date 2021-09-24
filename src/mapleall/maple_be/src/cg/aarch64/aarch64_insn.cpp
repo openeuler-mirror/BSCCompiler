@@ -1833,6 +1833,13 @@ void AArch64Insn::Dump() const {
     opnd.Dump();
     LogInfo::MapleLogger() << ")";
   }
+
+  if (IsVectorOp()) {
+    const AArch64VectorInsn *vInsn = static_cast<const AArch64VectorInsn*>(this);
+    if (vInsn->GetNumOfRegSpec() != 0) {
+      LogInfo::MapleLogger() << " (vecSpec: " << vInsn->GetNumOfRegSpec() << ")";
+    }
+  }
   LogInfo::MapleLogger() << "\n";
 }
 
