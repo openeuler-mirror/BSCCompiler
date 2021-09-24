@@ -40,7 +40,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
     return;
   }
 
-  sort(iassignCandidates.begin(), iassignCandidates.end());
+  std::sort(iassignCandidates.begin(), iassignCandidates.end());
 
   int32 numOfCandidates = iassignCandidates.size();
   int32 startCandidate = 0;
@@ -337,6 +337,7 @@ void MergeStmts::MergeMeStmts() {
       switch (op) {
         case OP_iassign: {
           vOffsetStmt iassignCandidates;
+          std::map<FieldID, MeStmt*> uniqueCheck;
           while (!candidateStmts.empty() && candidateStmts.front() != nullptr &&
                  candidateStmts.front()->GetOp() == OP_iassign) {
             IassignMeStmt *iassignStmt = static_cast<IassignMeStmt*>(candidateStmts.front());
@@ -344,17 +345,26 @@ void MergeStmts::MergeMeStmts() {
 
             if (iVarIassignStmt->GetFieldID() == 0) {
               int32 bitOffsetIVar = iVarIassignStmt->GetOffset() * 8;
-              iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
+              // No dup offset found so far for FieldID() == 0
+              uniqueCheck[bitOffsetIVar] = iassignStmt;
+              //iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
             } else {
               TyIdx lhsTyIdx = iVarIassignStmt->GetTyIdx();
               MIRPtrType *lhsMirPtrType =
                 static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
               MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
               int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVarIassignStmt->GetFieldID());
-              iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
+              if (uniqueCheck[fieldBitOffset] != NULL) {
+                bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
+              }
+              uniqueCheck[fieldBitOffset] = candidateStmts.front();
+              //iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
             }
             candidateStmts.pop();
           }
+          for (std::pair<int32, MeStmt*> pair : uniqueCheck) {
+            iassignCandidates.push_back(pair);
+          };
           mergeIassigns(iassignCandidates);
           break;
         }
