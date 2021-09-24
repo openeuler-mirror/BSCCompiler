@@ -222,6 +222,21 @@ class AArch64VectorInsn : public AArch64Insn {
     return ret;
   }
 
+  int GetNumOfRegSpec() const {
+    if (IsVectorOp() && !regSpecList.empty()) {
+      return regSpecList.size();
+    }
+    return 0;
+  }
+
+  MapleVector<VectorRegSpec*> &GetRegSpecList() {
+    return regSpecList;
+  }
+
+  void SetRegSpecList(MapleVector<VectorRegSpec*> &vec) {
+    regSpecList = vec;
+  }
+
   void PushRegSpecEntry(VectorRegSpec *v) {
     regSpecList.emplace(regSpecList.begin(), v); /* add at front  */
   }
