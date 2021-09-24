@@ -126,6 +126,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
         }
         /* flow through */
       }
+      [[clang::fallthrough]];
       case MOP_xbl: {
         callInsns.insert(insn);
         return false;
@@ -242,8 +243,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
   return true;
 }
 
-static
-bool IsAddOrSubOp(MOperator mOp) {
+static bool IsAddOrSubOp(MOperator mOp) {
   switch (mOp) {
     case MOP_xaddrrr:
     case MOP_xaddrrrs:
@@ -262,8 +262,7 @@ bool IsAddOrSubOp(MOperator mOp) {
 
 /* tailcallopt cannot be used if stack address of this function is taken and passed,
    not checking the passing for now, just taken */
-static
-bool IsStackAddrTaken(CGFunc &cgFunc) {
+static bool IsStackAddrTaken(CGFunc &cgFunc) {
   FOR_ALL_BB(bb, &cgFunc) {
     FOR_BB_INSNS_REV(insn, bb) {
       if (IsAddOrSubOp(insn->GetMachineOpcode())) {
