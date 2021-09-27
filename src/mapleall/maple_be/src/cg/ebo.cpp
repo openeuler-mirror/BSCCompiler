@@ -1109,6 +1109,10 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       if (!opndInfo->redefinedInBB && LiveOutOfBB(*opnd, *opndInfo->bb)) {
         goto insn_is_needed;
       }
+
+      if (opndInfo->redefinedInBB && opndInfo->redefinedInsn != nullptr && opndInfo->redefinedInsn->IsPartDef()) {
+        goto insn_is_needed;
+      }
     }
     if (!normal || insnInfo->mustNotBeRemoved || insn->GetDoNotRemove()) {
       goto insn_is_needed;

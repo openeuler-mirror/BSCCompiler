@@ -51,6 +51,7 @@ struct OpndInfo {
   InsnInfo *insnInfo = nullptr;
   bool redefinedInBB = false;  /* A following definition exisit in bb. */
   bool redefined = false;  /* A following definition exisit. */
+  Insn *redefinedInsn = nullptr; /* Next defined insn if redefinedInBB is true */
 #if TARGARM32
   bool mayReDef = false;
 #endif
