@@ -20,7 +20,7 @@ std::string AsCompiler::GetBinPath(const MplOptions&) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/gcc-linaro-7.5.0/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/output/tools/bin/";
 #endif
 }
 
