@@ -2518,6 +2518,9 @@ MemOperand *GraphColorRegAllocator::GetCommonReuseMem(const uint64 *conflict, co
 
 /* See if any of the non-conflict LR is spilled and use its memOpnd. */
 MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegType regType) {
+  if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return nullptr;
+  }
   if (IsLocalReg(vregNO)) {
     return nullptr;
   }
@@ -2536,8 +2539,11 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegT
 
   std::set<MemOperand*> usedMemOpnd;
   auto updateMemOpnd = [&usedMemOpnd, this](regno_t regNO) {
+    if (regNO >= lrVec.size()) {
+      return;
+    }
     LiveRange *lrInner = lrVec[regNO];
-    if (lrInner->GetSpillMem() != nullptr) {
+    if (lrInner && lrInner->GetSpillMem() != nullptr) {
       (void)usedMemOpnd.insert(lrInner->GetSpillMem());
     }
   };
