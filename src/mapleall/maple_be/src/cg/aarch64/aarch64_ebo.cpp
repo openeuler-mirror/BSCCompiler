@@ -185,6 +185,7 @@ OpndInfo *AArch64Ebo::OperandInfoDef(BB &currentBB, Insn &currentInsn, Operand &
     opndInfoPrev->redefined = true;
     if (opndInfoPrev->bb == &currentBB) {
       opndInfoPrev->redefinedInBB = true;
+      opndInfoPrev->redefinedInsn = &currentInsn;
     }
     UpdateOpndInfo(localOpnd, *opndInfoPrev, opndInfo, hashVal);
   } else {
@@ -746,10 +747,6 @@ bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
       auto *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
-#endif
-#if TARGARM32
-      const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
 #endif
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
