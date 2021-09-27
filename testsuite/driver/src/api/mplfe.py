@@ -17,12 +17,13 @@ from api.shell_operator import ShellOperator
 
 class Mplfe(ShellOperator):
 
-    def __init__(self, mplfe, infile, outfile, return_value_list=None, redirection=None):
+    def __init__(self, mplfe, infile, outfile, option="", return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.mplfe = mplfe
         self.infile = infile
         self.outfile = outfile
+        self.option = option
 
     def get_command(self, variables):
-        self.command = self.mplfe + " " + self.infile + " -o " + self.outfile
+        self.command = self.mplfe + " " + self.option + " " + self.infile + " -o " + self.outfile
         return super().get_final_command(variables)
