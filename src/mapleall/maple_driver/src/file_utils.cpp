@@ -46,7 +46,7 @@ const std::string kFileSeperatorStr = kFileSeperatorLinuxStyleStr;
 std::string FileUtils::SafeGetenv(const char *envVar) {
   const char *tmpEnvPtr = std::getenv(envVar);
   CHECK_FATAL((tmpEnvPtr != nullptr), "Failed! Unable to find environment variable %s \n", envVar);
-  
+
   std::string tmpStr(tmpEnvPtr);
   return tmpStr;
 }
