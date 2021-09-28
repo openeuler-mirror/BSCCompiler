@@ -16,117 +16,28 @@
 #include "me_phase_manager.h"
 
 namespace maple {
-static bool debug = false;
-const char *funcName = nullptr;
 #define LOG_BBID(BB) ((BB)->GetBBId().GetIdx())
 #define DEBUG_LOG() if (debug)            \
 LogInfo::MapleLogger() << "[SimplifyCFG] "
 
 namespace {
-// After currBB's succ is changed, we can update currBB's target
-static void UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func) {
-  // update statement offset if succ is goto target
-  if (currBB.IsGoto()) {
-    ASSERT(currBB.GetSucc(0) == &newTarget, "[FUNC: %s]Goto's target BB is not newTarget", func.GetName().c_str());
-    auto *gotoBr = static_cast<GotoMeStmt*>(currBB.GetLastMe());
-    if (gotoBr->GetOffset() != newTarget.GetBBLabel()) {
-      LabelIdx label = func.GetOrCreateBBLabel(newTarget);
-      gotoBr->SetOffset(label);
-    }
-  } else if (currBB.GetKind() == kBBCondGoto) {
-    auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
-    BB *gotoBB = currBB.GetSucc().at(1);
-    ASSERT(gotoBB == &newTarget || currBB.GetSucc(0) == &newTarget,
-           "[FUNC: %s]newTarget is not one of CondGoto's succ BB", func.GetName().c_str());
-    LabelIdx oldLabelIdx = condBr->GetOffset();
-    if (oldLabelIdx != gotoBB->GetBBLabel() && oldLabelIdx == oldTarget.GetBBLabel()) {
-      // original gotoBB is replaced by newBB
-      LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
-      condBr->SetOffset(label);
-    }
-  } else if (currBB.GetKind() == kBBSwitch) {
-    auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
-    LabelIdx oldLabelIdx = oldTarget.GetBBLabel();
-    LabelIdx label = func.GetOrCreateBBLabel(newTarget);
-    if (switchStmt->GetDefaultLabel() == oldLabelIdx) {
-      switchStmt->SetDefaultLabel(label);
-    }
-    for (size_t i = 0; i < switchStmt->GetSwitchTable().size(); ++i) {
-      LabelIdx labelIdx = switchStmt->GetSwitchTable().at(i).second;
-      if (labelIdx == oldLabelIdx) {
-        switchStmt->SetCaseLabel(switchStmt->GetSwitchTable().at(i).first, label);
-      }
-    }
-  }
-}
+static bool debug = false;
+const char *funcName = nullptr;
 
-// BreakCritecalEdge here is for me_func
-// the implementation is like the same function in class MeSplitCEdge except for exception handling
-// because SimplifyCFG is used for CLANG for the time being.
-static void BreakCriticalEdge(MeCFG &cfg, BB &pred, BB &succ) {
-  BB *newBB = nullptr;
-  size_t index = succ.GetPred().size();
-  if (&pred == cfg.GetCommonEntryBB()) {
-    newBB = &cfg.InsertNewBasicBlock(*cfg.GetFirstBB());
-    newBB->SetAttributes(kBBAttrIsEntry);
-    succ.ClearAttributes(kBBAttrIsEntry);
-    pred.RemoveEntry(succ);
-    pred.AddEntry(*newBB);
-  } else {
-    newBB = cfg.NewBasicBlock();
-    while (index > 0) {
-      if (succ.GetPred(index - 1) == &pred) {
-        break;
-      }
-      index--;
-    }
-    pred.ReplaceSucc(&succ, newBB, false); // num of succ's pred is not changed
-  }
-  // pred has been remove for pred vector of succ
-  // means size reduced, so index reduced
-  index--;
-  succ.AddPred(*newBB, index);
-  newBB->SetKind(kBBFallthru);  // default kind
-  newBB->SetAttributes(kBBAttrArtificial);
-  DEBUG_LOG() << "Insert Empty BB in critical Edge[BB" << LOG_BBID(&pred)
-              << "->BB" << LOG_BBID(newBB) << "(added)->BB" << LOG_BBID(&succ) << "]\n";
-  // update statement offset if succ is goto target
-  UpdateBranchTarget(pred, succ, *newBB, const_cast<MeFunction&>(cfg.GetFunc()));
-}
-
-// return true if there is critical edge, return false otherwise
-// Split critical edge aroud currBB, i.e. its predecessors and successors
-static bool SplitCriticalEdgeForBB(MeCFG &cfg, BB &currBB) {
-  bool split = false;
-  if (currBB.GetSucc().size() > 1) {
-    for (auto *succ : currBB.GetSucc()) {
-      if (succ->GetPred().size() > 1) {
-        // critical edge is found : currBB->succ
-        BreakCriticalEdge(cfg, currBB, *succ);
-        split = true;
-      }
-    }
-  }
-  if (currBB.GetPred().size() > 1) {
-    for (auto *pred : currBB.GetPred()) {
-      if (pred->GetSucc().size() > 1) {
-        // critical edge is found : currBB->succ
-        BreakCriticalEdge(cfg, *pred, currBB);
-        split = true;
-      }
-    }
-  }
-  return split;
-}
-
-static bool IsCriticalEdgeBB(const BB &bb) {
-  if (bb.GetPred().size() != 1 || bb.GetSucc().size() != 1) {
+// contains only one valid goto stmt
+inline bool HasOnlyGotoStmt(BB &bb) {
+  if (bb.IsMeStmtEmpty() || !bb.IsGoto()) {
     return false;
   }
-  if (bb.GetKind() != kBBGoto && bb.GetKind() != kBBFallthru) {
-    return false;
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip commont stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
   }
-  return (bb.GetPred(0)->GetSucc().size() > 1) && (bb.GetSucc(0)->GetPred().size() > 1);
+  if (stmt->GetOp() == OP_goto) {
+    return true;
+  }
+  return false;
 }
 } // anonymous namespace
 
@@ -186,11 +97,6 @@ class SimplifyCFG {
   // 1.condition is a constant
   // 2.all branches of condition branch is the same BB
   bool ChangeCondBr2UnCond();
-  // eliminate PHI
-  // 1.PHI has only one opnd
-  // 2.PHI is duplicate(all opnds is the same as another one in the same BB)
-  // return true if cfg is changed
-  bool EliminatePHI();
   // disconnect predBB and currBB if predBB must cause error(e.g. null ptr deref)
   // If a expr is always cause error in predBB, predBB will never reach currBB
   bool DisconnectErrorIntroducingPredBB();
@@ -211,23 +117,22 @@ class SimplifyCFG {
   // for MergeDistinctBBPair
   BB *MergeDistinctBBPair(BB *pred, BB *succ);
   // merge two bb, if merged, return combinedBB, Otherwise return nullptr
-  BB *CombineTwoBB(BB *pred, BB *succ);
+  BB *MergeSuccIntoPred(BB *pred, BB *succ);
+  bool CondBranchToSelect();
+  bool IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr);
+  void CombineCond2SelPattern(BB *condBB, BB *ftBB, BB *gtBB, BB *jointBB);
   // for SimplifyUncondBB
   bool MergeGotoBBToPred(BB *gotoBB, BB *pred);
+  // for ChangeCondBr2UnCond
+  bool SimplifyCondBBToGotoBB(BB &bb);
 
   // Check before every simplification to avoid error induced by other optimization on currBB
   // please use macro CHECK_CURR_BB instead
   bool CheckCurrBB();
-  // Insert ost of philist in bb to cand
-  void UpdateCand(BB *bb);
-  // eliminate phi for specified BB
-  bool EliminatePHIForBB(BB *bb);
+  // Insert ost of philist in bb to cand, and set ost start from newBB(newBB will be bb itself if not specified)
+  void UpdateSSACandForBBPhiList(BB *bb, BB *newBB = nullptr);
+  void UpdateSSACandForOst(OStIdx ostIdx, BB *bb);
 
-  // Remove Pred and add succ's philist to cand
-  void RemovePred(BB *succ, BB *pred, bool predNumChanged); // if predNumChanged, we should updatePhi
-  // Remove succ and add succ's philist to cand
-  void RemoveSucc(BB *pred, BB *succ, bool predNumChanged); // if predNumChanged, we should updatePhi
-  // Delete BB and add its philist to cand
   void DeleteBB(BB *bb);
 
   void SetBBRunAgain() {
@@ -267,45 +172,33 @@ bool SimplifyCFG::CheckCurrBB() {
   return true;
 }
 
-void SimplifyCFG::UpdateCand(BB *bb) {
+void SimplifyCFG::UpdateSSACandForOst(OStIdx ostIdx, BB *bb) {
+  if (cands->find(ostIdx) == cands->end()) {
+    MapleSet<BBId> *bbSet = MP->New<MapleSet<BBId>>(std::less<BBId>(), MA->Adapter());
+    bbSet->insert(bb->GetBBId());
+    (*cands)[ostIdx] = bbSet;
+  } else {
+    (*cands)[ostIdx]->insert(bb->GetBBId());
+  }
+}
+
+void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, BB *newBB) {
   if (bb == nullptr || bb->GetMePhiList().empty()) {
     return;
   }
+  if (newBB == nullptr) { // if not specified, is bb itself
+    newBB = bb;
+  }
   for (auto phi : bb->GetMePhiList()) {
     OStIdx ostIdx = phi.first;
-    if (cands->find(ostIdx) == cands->end()) {
-      MapleSet<BBId> *bbSet = MP->New<MapleSet<BBId>>(std::less<BBId>(), MA->Adapter());
-      bbSet->insert(bb->GetBBId());
-      (*cands)[ostIdx] = bbSet;
-    } else {
-      (*cands)[ostIdx]->insert(bb->GetBBId());
-    }
+    UpdateSSACandForOst(ostIdx, newBB);
   }
-}
-
-void SimplifyCFG::RemovePred(BB *succ, BB *pred, bool predNumChanged) {
-  // if pred num is not changed, its phiOpnd num will be the same as before.
-  // and we should not updatephi to remove phiOpnd
-  ASSERT(succ->IsSuccBB(*pred), "[FUNC: %s]succ is not pred's successor");
-  ASSERT(pred->IsPredBB(*succ), "[FUNC: %s]pred is not succ's predecessor");
-  succ->RemovePred(*pred, predNumChanged);
-  UpdateCand(succ);
-}
-
-void SimplifyCFG::RemoveSucc(BB *pred, BB *succ, bool predNumChanged) {
-  // if pred num is not changed, its phiOpnd num will be the same as before.
-  // and we should not updatephi to remove phiOpnd
-  ASSERT(succ->IsSuccBB(*pred), "[FUNC: %s]succ is not pred's successor");
-  ASSERT(pred->IsPredBB(*succ), "[FUNC: %s]pred is not succ's predecessor");
-  pred->RemoveSucc(*succ, predNumChanged);
-  UpdateCand(succ); // we update cand for succ, because its pred is changed
 }
 
 void SimplifyCFG::DeleteBB(BB *bb) {
   if (bb == nullptr) {
     return;
   }
-  UpdateCand(bb);
   cfg->DeleteBasicBlock(*bb);
 }
 
@@ -325,38 +218,49 @@ bool SimplifyCFG::EliminateDeadBB() {
   return false;
 }
 
+bool SimplifyCFG::SimplifyCondBBToGotoBB(BB &bb) {
+  if (bb.GetKind() != kBBCondGoto) {
+    return false;
+  }
+  if (bb.GetSucc(0) == bb.GetSucc(1)) {
+    DEBUG_LOG() << "Conditional BB" << LOG_BBID(&bb) << " to unconditional BB\n";
+    LabelIdx label = f.GetOrCreateBBLabel(*bb.GetSucc(0));
+    auto *gotoStmt = irmap->New<GotoMeStmt>(label);
+    gotoStmt->SetSrcPos(bb.GetLastMe()->GetSrcPosition());
+    gotoStmt->SetBB(&bb);
+    bb.RemoveLastMeStmt();
+    bb.AddMeStmtLast(gotoStmt);
+    bb.SetKind(kBBGoto);
+    return true;
+  }
+  return false;
+}
 // chang condition branch to unconditon branch if possible
 // 1.condition is a constant
 // 2.all branches of condition branch is the same BB
 bool SimplifyCFG::ChangeCondBr2UnCond() {
   CHECK_CURR_BB();
-  return false;
-}
-
-// eliminate PHI for specified BB
-// 1.PHI has only one opnd
-// 2.PHI is duplicate(all opnds is the same as another one in the same BB)
-// return true if cfg is changed
-bool SimplifyCFG::EliminatePHIForBB(BB *bb) {
-  if (bb->GetMePhiList().empty()) {
+  if (currBB->GetKind() != kBBCondGoto) {
     return false;
   }
-  // 1.PHI has only one opnd
-  if (bb->GetUniquePred() != nullptr) {
-    UpdateCand(bb);
-    bb->ClearMePhiList();
-    DEBUG_LOG() << "Eliminate MEPHI list in BB" << LOG_BBID(bb) << "\n";
-    return false; // cfg not changed
+  // this step is to check if other opt does not maintain the BBKind and its stmt
+  if (currBB->IsMeStmtEmpty() || !kOpcodeInfo.IsCondBr(currBB->GetLastMe()->GetOp())) {
+    return false;
   }
-  return false;
-}
-
-// eliminate PHI
-// 1.PHI has only one opnd
-// 2.PHI is duplicate(all opnds is the same as another one in the same BB)
-// return true if cfg is changed
-bool SimplifyCFG::EliminatePHI() {
-  CHECK_CURR_BB();
+  // case 2
+  if (currBB->GetSucc(0) == currBB->GetSucc(1)) {
+    if (SimplifyCondBBToGotoBB(*currBB)) {
+      SetBBRunAgain();
+      return true;
+    }
+  }
+  MeExpr *condExpr = currBB->GetLastMe()->GetOpnd(0);
+  // case 1
+  if (condExpr->GetMeOp() == kMeOpConst) {
+    // work to be done later
+    return false;
+  }
+  // case 1 : work to be done - condExpr is not a const, but all its opnd is const but has not been constfolded
   return false;
 }
 
@@ -368,16 +272,20 @@ bool SimplifyCFG::DisconnectErrorIntroducingPredBB() {
 }
 
 // merge two bb, if merged, return combinedBB, Otherwise return nullptr
-BB *SimplifyCFG::CombineTwoBB(BB *pred, BB *succ) {
+BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
   ASSERT(pred != cfg->GetCommonEntryBB(), "[FUNC: %s]Not allowed to merge BB to commonEntry", funcName);
   ASSERT(succ != cfg->GetCommonExitBB(), "[FUNC: %s]Not allowed to merge commonExit to pred", funcName);
   ASSERT(pred->GetUniqueSucc() == succ, "[FUNC: %s]Only allow pattern one pred and one succ", funcName);
   ASSERT(succ->GetUniquePred() == pred, "[FUNC: %s]Only allow pattern one pred and one succ", funcName);
-  if (pred->GetKind() != kBBFallthru) {
+  if (pred->GetKind() == kBBGoto) {
     // remove last mestmt
-    ASSERT(pred->IsGoto(), "[FUNC: %s]Only goto and fallthru BB is allowed", funcName);
+    ASSERT(pred->GetLastMe()->GetOp() == OP_goto, "[FUNC: %s]GotoBB has no goto stmt as its terminator", funcName);
     pred->RemoveLastMeStmt();
     pred->SetKind(kBBFallthru);
+  }
+  if (pred->GetKind() != kBBFallthru) {
+    // Only goto and fallthru BB is allowed
+    return nullptr;
   }
   // merge succ to pred no matter whether pred is empty or not
   for (MeStmt *stmt = succ->GetFirstMe(); stmt != nullptr;) {
@@ -387,11 +295,12 @@ BB *SimplifyCFG::CombineTwoBB(BB *pred, BB *succ) {
     stmt = next;
   }
   succ->MoveAllSuccToPred(pred, cfg->GetCommonExitBB());
-  RemoveSucc(pred, succ, true);
+  pred->RemoveSucc(*succ, true);
   pred->SetAttributes(succ->GetAttributes());
   pred->SetKind(succ->GetKind());
   DEBUG_LOG() << "Merge successor BB" << LOG_BBID(succ) << " to predecessor BB"
               << LOG_BBID(pred) << ", and delete successor BB" << LOG_BBID(succ) << "\n";
+  UpdateSSACandForBBPhiList(succ, pred);
   DeleteBB(succ);
   return pred;
 }
@@ -407,7 +316,7 @@ BB *SimplifyCFG::MergeDistinctBBPair(BB *pred, BB *succ) {
     return nullptr;
   }
   // start merging currBB to predBB
-  return CombineTwoBB(pred, succ);
+  return MergeSuccIntoPred(pred, succ);
 }
 
 // currBB has only one pred, and pred has only one succ
@@ -438,6 +347,246 @@ bool SimplifyCFG::SinkCommonCode() {
   return false;
 }
 
+static bool IsSafeForCond2Sel(MeExpr *expr) {
+  if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
+    return false;
+  }
+  if (expr->GetOp() == OP_div || expr->GetOp() == OP_rem) {
+    MeExpr *opnd1 = expr->GetOpnd(1);
+    if (opnd1->GetMeOp() == kMeOpConst && !opnd1->IsZero()) {
+      return true;
+    }
+    // we are not sure whether opnd1 may be zero
+    return false;
+  }
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    if (!IsSafeForCond2Sel(expr->GetOpnd(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool IsSimpleImm(uint64 imm) {
+  return ((imm & (static_cast<uint64>(0xffff) << 48u)) == imm) ||
+         ((imm & (static_cast<uint64>(0xffff) << 32u)) == imm) ||
+         ((imm & (static_cast<uint64>(0xffff) << 16u)) == imm) ||
+         ((imm & (static_cast<uint64>(0xffff))) == imm) ||
+         (((~imm) & (static_cast<uint64>(0xffff) << 48u)) == ~imm) ||
+         (((~imm) & (static_cast<uint64>(0xffff) << 32u)) == ~imm) ||
+         (((~imm) & (static_cast<uint64>(0xffff) << 16u)) == ~imm) ||
+         (((~imm) & (static_cast<uint64>(0xffff))) == ~imm);
+}
+
+// this function can only check for expr itself, not iteratively check for opnds
+// if non-simple imm exist, return it, otherwise return 0
+static int64 GetNonSimpleImm(MeExpr *expr) {
+  if (expr->GetMeOp() == kMeOpConst && IsPrimitiveInteger(expr->GetPrimType())) {
+    int64 imm = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(expr)->GetConstVal())->GetValue();
+    if (!IsSimpleImm(imm)) {
+      return imm;
+    }
+  }
+  return 0; // 0 is a simple imm
+}
+
+bool SimplifyCFG::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, MeExpr *falseExpr) {
+  if (trueExpr == falseExpr) {
+    return true;
+  }
+  ASSERT(IsSafeForCond2Sel(trueExpr), "[FUNC: %s]Please check for safety first", funcName) ;
+  ASSERT(IsSafeForCond2Sel(falseExpr), "[FUNC: %s]Please check for safety first", funcName) ;
+  // try to simplify
+  MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
+  MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
+  if (simplifiedSel != selExpr) {
+    return true; // can be simplified
+  }
+  // big integer
+  if (GetNonSimpleImm(trueExpr) != 0 || GetNonSimpleImm(falseExpr) != 0) {
+    return false;
+  }
+
+  // We can check for every opnd of opndExpr, and calculate their cost according to cg's insn
+  // but optimization in mplbe may change the insn and the result is not correct after that.
+  // Therefore, to make this easier, only reg and const are allowed here
+  MeExprOp trueOp = trueExpr->GetMeOp();
+  MeExprOp falseOp = falseExpr->GetMeOp();
+  if ((trueOp != kMeOpConst && trueOp != kMeOpReg) || (falseOp != kMeOpConst && falseOp != kMeOpReg)) {
+    return false;
+  }
+  // some special case
+  // lt (sign num, 0) ==> testbit sign bit
+  // ge (sign num, 0) ==> testbit sign bit
+  if (condExpr->GetOp() == OP_lt || condExpr->GetOp() == OP_ge) {
+    if (IsSignedInteger(condExpr->GetOpnd(0)->GetPrimType()) && condExpr->GetOpnd(1)->IsZero()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Check if ftBB has only one or zero regassign stmt, set ftStmt if a regassign stmt exist
+// return IsPatternMatch (i.e. bb has only zero/one regassign)
+// if regassign exists, set ass as it, otherwise set ass as nullptr
+static bool GetIndividualRegassign(BB *bb, AssignMeStmt *&ass) {
+  MeStmt *stmt = bb->GetFirstMe();
+  // Skip comment stmt at the beginning of bb
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  if (stmt == nullptr) { // empty bb or has only comment stmt
+    ass = nullptr;
+    return true;
+  }
+  if (stmt->GetOp() == OP_regassign) {
+    ass = static_cast<AssignMeStmt*>(stmt);
+    // Skip comment stmt under this regassign
+    stmt = stmt->GetNextMeStmt();
+    while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+      stmt = stmt->GetNextMeStmt();
+    }
+    if (stmt == nullptr || stmt->GetOp() == OP_goto) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void SimplifyCFG::CombineCond2SelPattern(BB *condBB, BB *ftBB, BB *gtBB, BB *jointBB) {
+  DEBUG_LOG() << "Condition To Fallthru : BB" << LOG_BBID(condBB) << "(cond->fallthru)->[BB" << LOG_BBID(ftBB)
+              << "(removed), BB" << LOG_BBID(gtBB) << "(removed)]->BB" << LOG_BBID(jointBB) << "(joint)\n";
+  if (condBB->GetLastMe()->IsCondBr()) {
+    condBB->RemoveLastMeStmt();
+  }
+  condBB->SetKind(kBBFallthru);
+  jointBB->RemovePred(*gtBB, true);
+  jointBB->ReplacePred(ftBB, condBB);
+  condBB->RemoveSucc(*ftBB, false); // we will delete ftBB, so no need to updatephi
+  condBB->RemoveSucc(*gtBB, false);
+  if (ftBB->IsGoto()) {
+    // move LastMeStmt of ftBB(i.e. a goto stmt) to condBB
+    MeStmt *ftLast = ftBB->GetLastMe();
+    ftBB->RemoveLastMeStmt();
+    condBB->AddMeStmtLast(ftLast);
+    condBB->SetKind(kBBGoto);
+  }
+  DeleteBB(ftBB);
+  DeleteBB(gtBB);
+  if (jointBB->GetPred().size() == 1) {
+    MergeDistinctBBPair(condBB, jointBB);
+    UpdateSSACandForBBPhiList(jointBB, condBB);
+  }
+}
+/*
+ *  condBB
+ *  /   \
+ * ftBB gtBB
+ *  \   /
+ *  jointBB
+ */
+bool SimplifyCFG::CondBranchToSelect() {
+  CHECK_CURR_BB();
+  BB *ftBB = currBB->GetSucc(0); // fallthruBB
+  BB *gtBB = currBB->GetSucc(1); // gotoBB
+  // check for pattern
+  // ftBB and gtBB has only one pred(condBB)
+  if (ftBB->GetPred().size() != 1 || gtBB->GetPred().size() != 1) {
+    return false;
+  }
+  if ((ftBB->GetKind() != kBBFallthru && ftBB->GetKind() != kBBGoto) ||
+      (gtBB->GetKind() != kBBFallthru && gtBB->GetKind() != kBBGoto)) {
+    return false;
+  }
+  if (ftBB->GetSucc(0) != gtBB->GetSucc(0)) {
+    return false;
+  }
+  BB *jointBB = ftBB->GetSucc(0); // common succ
+  // jointBB has only two preds (ftBB and gtBB)
+  if (jointBB->GetPred().size() != 2) {
+    return false;
+  }
+  // Check if ftBB has only one or zero regassign stmt, set ftStmt if a regassign stmt exist
+  AssignMeStmt *ftStmt = nullptr;
+  if (!GetIndividualRegassign(ftBB, ftStmt)) {
+    return false;
+  }
+  AssignMeStmt *gtStmt = nullptr;
+  if (!GetIndividualRegassign(gtBB, gtStmt)) {
+    return false;
+  }
+  // ftBB and gtBB is an empty BB, we can remove them
+  if (ftStmt == nullptr && gtStmt == nullptr) {
+    CombineCond2SelPattern(currBB, ftBB, gtBB, jointBB);
+    return true;
+  }
+
+  // Here we found a pattern, collect select opnds and result reg
+  RegMeExpr *ftReg = nullptr;
+  MeExpr *ftRHS = nullptr;
+  if (ftStmt != nullptr) {
+    ftReg = static_cast<RegMeExpr*>(ftStmt->GetLHS());
+    ftRHS = ftStmt->GetRHS();
+  }
+  RegMeExpr *gtReg = nullptr;
+  MeExpr *gtRHS = nullptr;
+  if (gtStmt != nullptr) {
+    gtReg = static_cast<RegMeExpr*>(gtStmt->GetLHS());
+    gtRHS = gtStmt->GetRHS();
+  }
+  // fix it if one of ftRHS/gtRHS is nullptr
+  //    a <- mx1
+  //      cond
+  //     |    \
+  //     |    a <- mx2
+  //     |    /
+  //     a <- phi(mx1, mx2)
+  // we turn it to
+  // a <- cond ? mx1 : mx2
+  // so we should find oldVersion(mx1) from phi in jointBB
+  if (ftRHS == nullptr) {
+    int predIdx = jointBB->GetPredIndex(*ftBB);
+    ASSERT(predIdx != -1, "[FUNC: %s]ftBB is not a pred of jointBB", funcName);
+    ftRHS = jointBB->GetMePhiList()[gtReg->GetOstIdx()]->GetOpnd(predIdx);
+    ftReg = gtReg;
+  } else if (gtRHS == nullptr) {
+    int predIdx = jointBB->GetPredIndex(*gtBB);
+    ASSERT(predIdx != -1, "[FUNC: %s]gtBB is not a pred of jointBB", funcName);
+    gtRHS = jointBB->GetMePhiList()[ftReg->GetOstIdx()]->GetOpnd(predIdx);
+    gtReg = ftReg;
+  }
+  // pattern not found
+  if (gtReg->GetRegIdx() != ftReg->GetRegIdx()) {
+    return false;
+  }
+  if (ftRHS != gtRHS) { // if ftRHS is the same as gtRHS, they can be simplified, and no need to check safety
+    // black list
+    if (!IsSafeForCond2Sel(ftRHS) || !IsSafeForCond2Sel(gtRHS)) {
+      return false;
+    }
+  }
+  MeStmt *condStmt = currBB->GetLastMe();
+  MeExpr *trueExpr = (condStmt->GetOp() == OP_brtrue) ? gtRHS : ftRHS;
+  MeExpr *falseExpr = (trueExpr == gtRHS) ? ftRHS : gtRHS;
+  // use phinode lhs as result
+  ScalarMeExpr *resReg = jointBB->GetMePhiList()[ftReg->GetOstIdx()]->GetLHS();
+
+  MeExpr *condExpr = condStmt->GetOpnd(0);
+  if (!IsProfitableForCond2Sel(condExpr, trueExpr, falseExpr)) {
+    return false;
+  }
+  DEBUG_LOG() << "Condition To Select : BB" << LOG_BBID(currBB) << "(cond)->[BB" << LOG_BBID(ftBB) << "(ft), BB"
+              << LOG_BBID(gtBB) << "(gt)]->BB" << LOG_BBID(jointBB) << "(joint)\n";
+  MeExpr *selExpr = irmap->CreateMeExprSelect(resReg->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
+  MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
+  AssignMeStmt *regAss = irmap->CreateAssignMeStmt(*resReg, *simplifiedSel, *currBB);
+  jointBB->GetMePhiList().erase(resReg->GetOstIdx());
+  regAss->SetSrcPos(currBB->GetLastMe()->GetSrcPosition());
+  // here we do not remove condStmt, because it will be delete in CombineCond2SelPattern
+  currBB->InsertMeStmtBefore(condStmt, regAss);
+  CombineCond2SelPattern(currBB, ftBB, gtBB, jointBB);
+  return true;
+}
 // CurrBB is Condition BB, we will look upward its predBB(s) to see if we can simplify
 // 1. currBB is X == constVal, and predBB has checked for the same expr, the result is known for currBB's condition,
 //    so we can make currBB to be an uncondBB.
@@ -445,6 +594,7 @@ bool SimplifyCFG::SinkCommonCode() {
 //    we can merge currBB to predBB if currBB is simple enough(has only one stmt).
 // 3. currBB has only one stmt(conditional branch stmt), and the condition's value is calculated by all its predBB
 //    we can hoist currBB's stmt to predBBs if it is profitable
+// 4. condition branch to select
 bool SimplifyCFG::SimplifyCondBB() {
   CHECK_CURR_BB();
   MeStmt *stmt = currBB->GetLastMe();
@@ -455,25 +605,35 @@ bool SimplifyCFG::SimplifyCondBB() {
     ResetBBRunAgain();
     return true;
   }
+  // 4. condition branch to select
+  if (CondBranchToSelect()) {
+    SetBBRunAgain();
+    return true;
+  }
   return false;
 }
 
+// succ must have only one goto statement
+// pred must be three of below:
+// 1. fallthrough BB
+// 2. have a goto stmt
+// 3. conditional branch, and succ must be pred's goto target in this case
 bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
   if (pred == nullptr || succ == nullptr) {
     return false;
   }
   // If we merge succ to pred, a new BB will be create to split the same critical edge
-  if (IsCriticalEdgeBB(*pred)) {
+  if (MeSplitCEdge::IsCriticalEdgeBB(*pred)) {
     return false;
   }
   if (succ == pred) {
     return false;
   }
-  if (succ->GetAttributes(kBBAttrIsEntry) || !succ->IsGoto() || succ->IsMeStmtEmpty()) {
+  if (succ->GetAttributes(kBBAttrIsEntry) || succ->IsMeStmtEmpty()) {
     return false;
   }
   // BB has only one stmt(i.e. unconditional goto stmt)
-  if (succ->GetLastMe() != succ->GetFirstMe()) {
+  if (!HasOnlyGotoStmt(*succ)) {
     return false;
   }
   BB *newTarget = succ->GetSucc(0); // succ must have only one succ, because it is uncondBB
@@ -492,65 +652,107 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
     DEBUG_LOG() << "Insert Uncond stmt to fallthru BB" << LOG_BBID(currBB) << ", and goto BB" << LOG_BBID(newTarget)
                 << "\n";
   }
-  pred->ReplaceSucc(succ, newTarget); // phi opnd is not removed from currBB's philist, we will remove it later
+  bool needUpdatePhi = false;
+  if (pred->IsPredBB(*newTarget)) {
+    pred->RemoveSucc(*succ, false); // one of pred's succ has been newTarget, avoid duplicate succ here
+  } else {
+    pred->ReplaceSucc(succ, newTarget); // phi opnd is not removed from currBB's philist, we will remove it later
+    needUpdatePhi = true;
+  }
 
   DEBUG_LOG() << "Merge Uncond BB" << LOG_BBID(succ) << " to its pred BB" << LOG_BBID(pred)
               << ": BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";
-  UpdateBranchTarget(*pred, *succ, *newTarget, f);
-  // update phi
-  auto &newPhiList = newTarget->GetMePhiList();
-  auto &gotoPhilist = succ->GetMePhiList();
-  if (newPhiList.empty()) { // newTarget has only one pred(i.e. succ) before
-    // we copy succ's philist to newTarget, but not with all phiOpnd
-    for (auto &phiNode : gotoPhilist) {
-      auto *phiMeNode = irmap->NewInPool<MePhiNode>();
-      phiMeNode->SetDefBB(newTarget);
-      newPhiList.emplace(phiNode.first, phiMeNode);
-      phiMeNode->GetOpnds().push_back(phiNode.second->GetLHS()); // succ is the first pred of newTarget
-      // new pred to newTarget
-      phiMeNode->GetOpnds().push_back(phiNode.second->GetOpnd(predIdx));
-      OStIdx ostIdx = phiNode.first;
-      // create a new version for new phi
-      phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
-    }
-  } else { // newTarget has other pred besides succ
-    for (auto &phi : newPhiList) {
-      OStIdx ostIdx = phi.first;
-      auto it = gotoPhilist.find(ostIdx);
-      if (it != gotoPhilist.end()) {
+  cfg->UpdateBranchTarget(*pred, *succ, *newTarget, f);
+  if (needUpdatePhi) {
+    // update phi
+    auto &newPhiList = newTarget->GetMePhiList();
+    auto &gotoPhilist = succ->GetMePhiList();
+    if (newPhiList.empty()) { // newTarget has only one pred(i.e. succ) before
+      // we copy succ's philist to newTarget, but not with all phiOpnd
+      for (auto &phiNode : gotoPhilist) {
+        auto *phiMeNode = irmap->NewInPool<MePhiNode>();
+        phiMeNode->SetDefBB(newTarget);
+        newPhiList.emplace(phiNode.first, phiMeNode);
+        phiMeNode->GetOpnds().push_back(phiNode.second->GetLHS()); // succ is the first pred of newTarget
         // new pred to newTarget
-        phi.second->GetOpnds().push_back(it->second->GetOpnd(predIdx));
-      } else {
-        int index = newTarget->GetPredIndex(*succ);
-        ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's pred", f.GetName().c_str());
-        // new pred's phi opnd is the same as succ.
-        phi.second->GetOpnds().push_back(phi.second->GetOpnd(index));
+        phiMeNode->GetOpnds().push_back(phiNode.second->GetOpnd(predIdx));
+        OStIdx ostIdx = phiNode.first;
+        // create a new version for new phi
+        ScalarMeExpr *phiLHS = irmap->CreateRegOrVarMeExprVersion(ostIdx);
+        phiLHS->SetDefPhi(*phiMeNode);
+        phiLHS->SetDefBy(kDefByPhi);
+        phiMeNode->SetLHS(phiLHS);
+      }
+      UpdateSSACandForBBPhiList(newTarget);
+    } else { // newTarget has other pred besides succ
+      for (auto &phi : newPhiList) {
+        OStIdx ostIdx = phi.first;
+        auto it = gotoPhilist.find(ostIdx);
+        if (it != gotoPhilist.end()) {
+          // new pred to newTarget
+          phi.second->GetOpnds().push_back(it->second->GetOpnd(predIdx));
+        } else {
+          int index = newTarget->GetPredIndex(*succ);
+          ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's pred", f.GetName().c_str());
+          // new pred's phi opnd is the same as succ.
+          phi.second->GetOpnds().push_back(phi.second->GetOpnd(index));
+        }
+      }
+      // search philist in curr for phinode that is not in succ yet
+      // note : the case will occur when succ dominates newTarget
+      for (auto &phi : gotoPhilist) {
+        OStIdx ostIdx = phi.first;
+        auto it = newPhiList.find(ostIdx);
+        if (it != newPhiList.end()) {
+          // phinode is in succ, last step has updated it
+          continue;
+        } else {
+          auto *phiMeNode = irmap->NewInPool<MePhiNode>();
+          phiMeNode->SetDefBB(newTarget);
+          newPhiList.emplace(ostIdx, phiMeNode);
+          auto &phiOpnds = phiMeNode->GetOpnds();
+          // insert opnd into New phiNode : all phiOpnds (except last one) are phiNode lhs in curr
+          phiOpnds.insert(phiOpnds.end(), newTarget->GetPred().size() - 1, phi.second->GetLHS());
+          // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
+          phiMeNode->GetOpnds().push_back(phi.second->GetOpnd(predIdx));
+          // create a new version for new phinode
+          ScalarMeExpr *phiLHS = irmap->CreateRegOrVarMeExprVersion(ostIdx);
+          phiLHS->SetDefPhi(*phiMeNode);
+          phiLHS->SetDefBy(kDefByPhi);
+          phiMeNode->SetLHS(phiLHS);
+          UpdateSSACandForOst(ostIdx, newTarget);
+        }
       }
     }
   }
   // remove redundant phiOpnd of succ's philist
   succ->RemovePhiOpnd(predIdx);
-  UpdateCand(newTarget);
   // remove succ if succ has no pred
   if (succ->GetPred().empty()) {
-    RemovePred(newTarget, succ, true);
+    newTarget->RemovePred(*succ, true);
     DEBUG_LOG() << "Delete Uncond BB" << LOG_BBID(succ) << " after merged to all its preds\n";
+    UpdateSSACandForBBPhiList(succ, newTarget);
     DeleteBB(succ);
   }
-  // split critical edges for newTarget
-  (void)SplitCriticalEdgeForBB(*cfg, *newTarget);
   return true;
 }
 
 // if unconditional BB has only one uncondBr stmt, we try to merge it to its pred
 // this is different from MergeDistinctBBPair, it is not required that current uncondBB has only one pred
+//   pred1  pred2  pred3
+//        \   |   /
+//         \  |  /
+//           succ
+//            |     other pred
+//            |    /
+//         newTarget
 bool SimplifyCFG::SimplifyUncondBB() {
   CHECK_CURR_BB();
-  if (currBB->GetAttributes(kBBAttrIsEntry) || !currBB->IsGoto() || currBB->IsMeStmtEmpty()) {
+  if (currBB->GetAttributes(kBBAttrIsEntry) || currBB->IsMeStmtEmpty()) {
     return false;
   }
   // BB has only one stmt(i.e. unconditional goto stmt)
-  if (currBB->GetLastMe() != currBB->GetFirstMe()) {
+  if (!HasOnlyGotoStmt(*currBB)) {
     return false;
   }
   // jump to itself
@@ -565,7 +767,8 @@ bool SimplifyCFG::SimplifyUncondBB() {
       ++i;
       continue;
     }
-    if (pred->IsGoto() || (pred->GetLastMe()->IsCondBr() && currBB == pred->GetSucc(1))) {
+    if (pred->IsGoto() || pred->GetKind() == kBBSwitch ||
+        (pred->GetLastMe()->IsCondBr() && currBB == pred->GetSucc(1))) {
       // pred is moved to newTarget
       bool merged = MergeGotoBBToPred(currBB, pred);
       if (merged) {
@@ -582,23 +785,23 @@ bool SimplifyCFG::SimplifyUncondBB() {
 
 bool SimplifyCFG::SimplifyFallthruBB() {
   CHECK_CURR_BB();
-  if (IsCriticalEdgeBB(*currBB)) {
+  if (MeSplitCEdge::IsCriticalEdgeBB(*currBB)) {
     return false;
   }
   BB *succ = currBB->GetSucc(0);
   if (succ == nullptr || succ == currBB) {
     return false;
   }
-  if (succ->GetAttributes(kBBAttrIsEntry) || !succ->IsGoto() || succ->IsMeStmtEmpty()) {
+  if (succ->GetAttributes(kBBAttrIsEntry) || succ->IsMeStmtEmpty()) {
+    return false;
+  }
+  // BB has only one stmt(i.e. unconditional goto stmt)
+  if (!HasOnlyGotoStmt(*succ)) {
     return false;
   }
   // BB has only one pred/succ, skip, because MergeDistinctBBPair will deal with this case
   // note: gotoBB may have two succ, the second succ is inserted by cfg wont exit analysis
   if (succ->GetPred().size() == 1 || succ->GetSucc().size() == 1) {
-    return false;
-  }
-  // BB has only one stmt(i.e. unconditional goto stmt)
-  if (succ->GetLastMe() != succ->GetFirstMe()) {
     return false;
   }
   return MergeGotoBBToPred(succ, currBB);
@@ -611,7 +814,42 @@ bool SimplifyCFG::SimplifyReturnBB() {
 
 bool SimplifyCFG::SimplifySwitchBB() {
   CHECK_CURR_BB();
-  return false;
+  auto *swStmt = static_cast<SwitchMeStmt*>(currBB->GetLastMe());
+  if (swStmt->GetOpnd()->GetMeOp() != kMeOpConst) {
+    return false;
+  }
+  auto *swConstExpr = static_cast<ConstMeExpr *>(swStmt->GetOpnd());
+  MIRConst *swConstVal = swConstExpr->GetConstVal();
+  ASSERT(swConstVal->GetKind() == kConstInt, "[FUNC: %s]switch is only legal for integer val", funcName);
+  int64 val = static_cast<MIRIntConst*>(swConstVal)->GetValue();
+  BB *survivor = currBB->GetSucc(0); // init as default BB
+  for (size_t i = 0; i < swStmt->GetSwitchTable().size(); ++i) {
+    int64 caseVal = swStmt->GetSwitchTable().at(i).first;
+    if (caseVal == val) {
+      LabelIdx label = swStmt->GetSwitchTable().at(i).second;
+      survivor = cfg->GetLabelBBAt(label);
+    }
+  }
+  // remove all succ expect for survivor
+  for (size_t i = 0; i < currBB->GetSucc().size();) {
+    BB *succ = currBB->GetSucc(i);
+    if (succ != survivor) {
+      succ->RemovePred(*currBB, true);
+      continue;
+    }
+    ++i;
+  }
+  DEBUG_LOG() << "Constant switchBB to Uncond BB : BB" << LOG_BBID(currBB) << "->BB" << LOG_BBID(survivor) << "\n";
+  // replace switch stmt with a goto stmt
+  LabelIdx label = f.GetOrCreateBBLabel(*survivor);
+  auto *gotoStmt = irmap->New<GotoMeStmt>(label);
+  gotoStmt->SetSrcPos(swStmt->GetSrcPosition());
+  gotoStmt->SetBB(currBB);
+  currBB->RemoveLastMeStmt();
+  currBB->AddMeStmtLast(gotoStmt);
+  currBB->SetKind(kBBGoto);
+  SetBBRunAgain();
+  return true;
 }
 
 bool SimplifyCFG::FoldBranchToCommonDest() {
@@ -631,12 +869,6 @@ bool SimplifyCFG::RunOnceOnBB() {
   // 1.condition is a constant
   // 2.all branches of condition branch is the same BB
   everChanged |= ChangeCondBr2UnCond();
-
-  // eliminate PHI
-  // 1.PHI has only one opnd
-  // 2.PHI is duplicate(all opnds is the same as another one in the same BB)
-  // return true if cfg is changed
-  everChanged |= EliminatePHI();
 
   // disconnect predBB and currBB if predBB must cause error(e.g. null ptr deref)
   // If a expr is always cause error in predBB, predBB will never reach currBB
@@ -770,7 +1002,7 @@ static bool SkipSimplifyCFG(maple::MeFunction &f) {
 void MESimplifyCFG::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MEIRMapBuild>();
-  aDep.SetPreservedAll();
+  aDep.PreservedAllExcept<MELoopAnalysis>();
 }
 
 bool MESimplifyCFG::PhaseRun(maple::MeFunction &f) {
@@ -802,6 +1034,8 @@ bool MESimplifyCFG::PhaseRun(maple::MeFunction &f) {
       f.GetCfg()->DumpToFile("After_SimplifyCFG");
       f.Dump(false);
     }
+    // split critical edges
+    MeSplitCEdge(debug).SplitCriticalEdgeForMeFunc(f);
     FORCE_INVALID(MEDominance, f);
     dom = FORCE_GET(MEDominance);
     if (!cands.empty()) {

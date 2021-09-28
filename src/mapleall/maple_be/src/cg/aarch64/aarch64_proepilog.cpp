@@ -94,6 +94,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
   if (bb.NumInsn() == 1 &&
       (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
+       bb.GetLastInsn()->GetMachineOpcode() != MOP_xbl &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xuncond)) {
     return false;
   }

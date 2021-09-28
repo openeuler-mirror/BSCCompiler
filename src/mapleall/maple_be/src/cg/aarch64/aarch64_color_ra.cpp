@@ -3325,6 +3325,26 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   std::set<regno_t> usePregs;
   std::vector<LiveRange*> defLrs;
   std::vector<LiveRange*> useLrs;
+  if (insn.GetMachineOpcode() == MOP_xmovrr || insn.GetMachineOpcode() == MOP_wmovrr) {
+    RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(1));
+    RegOperand &opnd0 = static_cast<RegOperand&>(insn.GetOperand(0));
+    if (opnd1.GetRegisterNumber() < R20 && opnd0.GetRegisterNumber() >= kAllRegNum) {
+      LiveRange *lr = lrVec[opnd0.GetRegisterNumber()];
+      if (lr->IsSpilled()) {
+        lr->SetSpillReg(opnd1.GetRegisterNumber());
+        ASSERT(lr->GetSpillReg() != 0, "no spill reg in GenerateSpillFillRegs");
+        return;
+      }
+    }
+    if (opnd0.GetRegisterNumber() < R20 && opnd1.GetRegisterNumber() >= kAllRegNum) {
+      LiveRange *lr = lrVec[opnd1.GetRegisterNumber()];
+      if (lr->IsSpilled()) {
+        lr->SetSpillReg(opnd0.GetRegisterNumber());
+        ASSERT(lr->GetSpillReg() != 0, "no spill reg in GenerateSpillFillRegs");
+        return;
+      }
+    }
+  }
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(&insn)->GetMachineOpcode()];
   for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
     Operand *opnd = &insn.GetOperand(static_cast<int32>(opndIdx));
@@ -3394,7 +3414,7 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   std::sort(useLrs.begin(), useLrs.end(), comparator);
   for (auto lr: useLrs) {
     lr->SetID(insn.GetId());
-    if (lr->GetSpillReg() != 0 && usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
+    if (lr->GetSpillReg() != 0 && lr->GetSpillReg() >= R10 && usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
       usePregs.insert(lr->GetSpillReg());
       continue;
     } else {
@@ -3448,6 +3468,7 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
     RegType rtype = lr->GetRegType();
     CHECK_FATAL(spillCnt < kSpillMemOpndNum, "spill count exceeded");
     spreg = lr->GetSpillReg();
+    ASSERT(lr->GetSpillReg() != 0, "no reg in CreateSpillFillCode");
     RegOperand *regopnd =
         &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
     Insn *memInsn;
@@ -4245,12 +4266,21 @@ void GraphColorRegAllocator::FinalizeRegisters() {
     OptCallerSave();
   }
   for (auto *bb : bfs->sortedBBs) {
-    FOR_BB_INSNS(insn, bb) {
+    FOR_BB_INSNS_SAFE(insn, bb, nextInsn) {
       if (insn->IsImmaterialInsn()) {
         continue;
       }
       if (!insn->IsMachineInstruction()) {
         continue;
+      }
+      if (insn->GetMachineOpcode() == MOP_wmovrr || insn->GetMachineOpcode() == MOP_xmovrr) {
+        auto &reg1 = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
+        auto &reg2 = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnSecondOpnd));
+        /* remove mov x0,x0 when it cast i32 to i64 */
+        if ((reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) && (reg1.GetSize() >= reg2.GetSize())) {
+          bb->RemoveInsn(*insn);
+          continue;
+        }
       }
       if (insn->GetId() == 0) {
         continue;
@@ -4346,6 +4376,14 @@ void GraphColorRegAllocator::FinalizeRegisters() {
         RegOperand *phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, false);
         if (phyOpnd != nullptr) {
           insn->SetOperand(fInfo->GetUseIdxElem(i), *phyOpnd);
+        }
+      }
+      if (insn->GetMachineOpcode() == MOP_wmovrr || insn->GetMachineOpcode() == MOP_xmovrr) {
+        auto &reg1 = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
+        auto &reg2 = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnSecondOpnd));
+        /* remove mov x0,x0 when it cast i32 to i64 */
+        if ((reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) && (reg1.GetSize() >= reg2.GetSize())) {
+          bb->RemoveInsn(*insn);
         }
       }
     }  /* insn */
