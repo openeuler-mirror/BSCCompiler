@@ -774,6 +774,7 @@ class AArch64PeepHole0 : public PeepPatternMatch {
     kComplexMemOperandOptAdd,
     kDeleteMovAfterCbzOrCbnzOpt,
     kRemoveSxtBeforeStrOpt,
+    kRemoveMovingtoSameRegOpt,
     kPeepholeOptsNum
   };
 };
