@@ -313,6 +313,13 @@ void SSAEPre::ComputeVarAndDfPhis() {
     for (int32 i = 0; i < meExpr->GetNumOpnds(); i++) {
       SetVarPhis(meExpr->GetOpnd(i));
     }
+    // for ivar, compute mu's phi too
+    if (meExpr->GetMeOp() == kMeOpIvar) {
+      auto *mu = static_cast<IvarMeExpr*>(meExpr)->GetMu();
+      if (mu != nullptr) {
+        SetVarPhis(mu);
+      }
+    }
   }
 }
 
