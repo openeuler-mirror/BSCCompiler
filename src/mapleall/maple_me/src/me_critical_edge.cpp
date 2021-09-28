@@ -98,7 +98,8 @@ void MeSplitCEdge::UpdateCaseLabel(BB &newBB, MeFunction &func, BB &pred, BB &su
 }
 
 void MeSplitCEdge::DealWithTryBB(MeFunction &func, BB &pred, BB &succ, BB *&newBB, bool &isInsertAfterPred) const {
-  if (!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) {
+  if ((!succ.GetStmtNodes().empty() && succ.GetStmtNodes().front().GetOpCode() == OP_try) ||
+      (!succ.IsMeStmtEmpty() && succ.GetFirstMe()->GetOp() == OP_try)) {
     newBB = &func.GetCfg()->InsertNewBasicBlock(pred, false);
     isInsertAfterPred = true;
     if (pred.GetAttributes(kBBAttrIsTryEnd)) {
@@ -163,12 +164,50 @@ void MeSplitCEdge::BreakCriticalEdge(MeFunction &func, BB &pred, BB &succ) const
       (succ.GetStmtNodes().empty() || succ.GetStmtNodes().front().GetOpCode() != OP_try)) {
     UpdateNewBBInTry(func, *newBB, succ);
   }
-  // update statement offset if succ is goto target
-  if (pred.GetKind() == kBBCondGoto) {
-    UpdateGotoLabel(*newBB, func, pred, succ);
-  } else if (pred.GetKind() == kBBSwitch) {
-    UpdateCaseLabel(*newBB, func, pred, succ);
+  if (func.GetIRMap() != nullptr) {
+    // update statement offset if succ is goto target
+    cfg->UpdateBranchTarget(pred, succ, *newBB, func);
+  } else {
+    // update statement offset if succ is goto target
+    if (pred.GetKind() == kBBCondGoto) {
+      UpdateGotoLabel(*newBB, func, pred, succ);
+    } else if (pred.GetKind() == kBBSwitch) {
+      UpdateCaseLabel(*newBB, func, pred, succ);
+    }
   }
+}
+
+// Is a critical edge is cut by bb
+bool MeSplitCEdge::IsCriticalEdgeBB(const BB &bb) {
+  if (bb.GetPred().size() != 1 || bb.GetSucc().size() != 1) {
+    return false;
+  }
+  return (bb.GetPred(0)->GetSucc().size() > 1) && (bb.GetSucc(0)->GetPred().size() > 1);
+}
+
+// return true if there is critical edge, return false otherwise
+// Split critical edge around bb, i.e. its predecessors and successors
+bool MeSplitCEdge::SplitCriticalEdgeForBB(MeFunction &func, BB &bb) const {
+  bool split = false;
+  if (bb.GetSucc().size() > 1) {
+    for (auto *succ : bb.GetSucc()) {
+      if (succ->GetPred().size() > 1) {
+        // critical edge is found : bb->succ
+        BreakCriticalEdge(func, bb, *succ);
+        split = true;
+      }
+    }
+  }
+  if (bb.GetPred().size() > 1) {
+    for (auto *pred : bb.GetPred()) {
+      if (pred->GetSucc().size() > 1) {
+        // critical edge is found : bb->succ
+        BreakCriticalEdge(func, *pred, bb);
+        split = true;
+      }
+    }
+  }
+  return split;
 }
 
 void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) {
@@ -202,6 +241,26 @@ void ScanEdgeInFunc(MeCFG &cfg, std::vector<std::pair<BB*, BB*>> &criticalEdge) 
   }
 }
 
+void MeSplitCEdge::SplitCriticalEdgeForMeFunc(MeFunction &func) const {
+  std::vector<std::pair<BB*, BB*>> criticalEdge;
+  ScanEdgeInFunc(*func.GetCfg(), criticalEdge);
+  if (!criticalEdge.empty()) {
+    if (isDebugFunc) {
+      LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
+      func.DumpFunctionNoSSA();
+      func.GetCfg()->DumpToFile("cfgbeforebreak");
+    }
+    for (auto it = criticalEdge.begin(); it != criticalEdge.end(); ++it) {
+      BreakCriticalEdge(func, *(it->first), *(it->second));
+    }
+    if (isDebugFunc) {
+      LogInfo::MapleLogger() << "******************after break dump function******************\n";
+      func.Dump(true);
+      func.GetCfg()->DumpToFile("cfgafterbreak");
+    }
+  }
+}
+
 void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
   aDep.PreservedAllExcept<MEDominance>();
@@ -209,26 +268,10 @@ void MESplitCEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MESplitCEdge::PhaseRun(maple::MeFunction &f) {
-  MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
   std::vector<std::pair<BB*, BB*>> criticalEdge;
-  ScanEdgeInFunc(*cfg, criticalEdge);
-  if (!criticalEdge.empty()) {
-    bool enableDebug = DEBUGFUNC_NEWPM(f);
-    if (enableDebug) {
-      LogInfo::MapleLogger() << "*******************before break dump function*****************\n";
-      f.DumpFunctionNoSSA();
-      f.GetCfg()->DumpToFile("cfgbeforebreak");
-    }
-    MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
-    for (auto it = criticalEdge.begin(); it != criticalEdge.end(); ++it) {
-      mscedge.BreakCriticalEdge(f, *((*it).first), *((*it).second));
-    }
-    if (enableDebug) {
-      LogInfo::MapleLogger() << "******************after break dump function******************\n";
-      f.Dump(true);
-      f.GetCfg()->DumpToFile("cfgafterbreak");
-    }
-  }
+  bool enableDebug = DEBUGFUNC_NEWPM(f);
+  MeSplitCEdge mscedge = MeSplitCEdge(enableDebug);
+  mscedge.SplitCriticalEdgeForMeFunc(f);
   return false;
 }
 }  // namespace maple

@@ -136,7 +136,6 @@ std::list<UniqueFEIRStmt> ASTForStmt::Emit2FEStmtImpl() const {
     condFEExpr = std::make_unique<FEIRExprConst>(static_cast<int64>(1), PTY_i32);
   }
   if (incExpr != nullptr) {
-    std::list<UniqueFEIRExpr> exprs;
     std::list<UniqueFEIRStmt> incStmts;
     UniqueFEIRExpr incFEExpr = incExpr->Emit2FEExpr(incStmts);
     if (incFEExpr != nullptr && incStmts.size() == 2 && incStmts.front()->IsDummy()) {
@@ -393,7 +392,6 @@ std::list<UniqueFEIRStmt> ASTImplicitCastExprStmt::Emit2FEStmtImpl() const {
 // ---------- ASTParenExprStmt ----------
 std::list<UniqueFEIRStmt> ASTParenExprStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
-  std::list<UniqueFEIRExpr> feExprs;
   AstShortCircuitUtil::Instance().PushParen("parenShortCircuitLabel");
   exprs.front()->Emit2FEExpr(stmts);
   AstShortCircuitUtil::Instance().PopParen();

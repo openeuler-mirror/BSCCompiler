@@ -19,6 +19,7 @@
 #include "insn.h"
 #include "cgbb.h"
 #include "datainfo.h"
+#include "maple_phase.h"
 
 namespace maplebe {
 class DominanceBase : public AnalysisResult {
@@ -43,7 +44,7 @@ class DominanceBase : public AnalysisResult {
     return commonExitBB;
   }
 
-protected:
+ protected:
   bool CommonEntryBBIsPred(const BB &bb) const;
   MapleAllocator domAllocator;  // stores the analysis results
   MapleAllocator tmpAllocator;  // can be freed after dominator computation
@@ -160,7 +161,7 @@ class DomAnalysis : public DominanceBase {
 };
 
 class PostDomAnalysis : public DominanceBase {
-public:
+ public:
   PostDomAnalysis(CGFunc &func, MemPool &memPool, MemPool &tmpPool,  MapleVector<BB *> &bbVec, BB &commonEntryBB,
                   BB &commonExitBB)
       : DominanceBase(func, memPool, tmpPool, bbVec, commonEntryBB, commonExitBB),
@@ -236,7 +237,7 @@ public:
     pdoms[id] = bb;
   }
 
-private:
+ private:
   void PdomPostOrderWalk(const BB &bb, int32 &pid, MapleVector<bool> &visitedMap);
   BB *PdomIntersect(BB &bb1, const BB &bb2);
 
@@ -250,6 +251,12 @@ private:
   MapleVector<uint32> pdtDfnOut;                 // max position of all nodes in the sub tree of each BB in pdt_preorder
 };
 
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgDomAnalysis, maplebe::CGFunc);
+  DomAnalysis *GetResult() {
+    return domAnalysis;
+  }
+  DomAnalysis *domAnalysis = nullptr;
+MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_DOM_H */

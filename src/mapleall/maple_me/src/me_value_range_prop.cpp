@@ -53,7 +53,7 @@ void ValueRangePropagation::Execute() {
           DealWithCondGoto(*bb, stmt);
           break;
         }
-        case OP_assertnonnull: {
+        CASE_ASSERTNONNULL {
           DealWithAssertNonnull(*bb, stmt);
           break;
         }
@@ -685,6 +685,7 @@ int64 ValueRangePropagation::GetRealValue(int64 value, PrimType primType) const 
       return static_cast<int32>(value);
       break;
     case PTY_i64:
+    case PTY_i128:
       return static_cast<int64>(value);
       break;
     case PTY_u8:
@@ -708,6 +709,7 @@ int64 ValueRangePropagation::GetRealValue(int64 value, PrimType primType) const 
       break;
     case PTY_u64:
     case PTY_a64:
+    case PTY_u128:
       return static_cast<uint64>(value);
       break;
     case PTY_u1:
@@ -1409,8 +1411,8 @@ void ValueRangePropagation::DealWithOPLeOrLt(
                         CombineTwoValueRange(*leftRange, *newRightRange));
     newRightRange = std::make_unique<ValueRange>(
         newRightLower, ValueRange::MaxBound(newRightUpper.GetPrimType()), kLowerAndUpper);
-   (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
-                       CombineTwoValueRange(*leftRange, *newRightRange));
+    (void)Insert2Caches(falseBranch->GetBBId(), opnd0->GetExprID(),
+        CombineTwoValueRange(*leftRange, *newRightRange));
   }
 }
 
@@ -1953,13 +1955,13 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
 bool ValueRangePropagation::RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch,
     bool dealWithShortCircuit) {
   if (bb.GetKind() == kBBFallthru || bb.GetKind() == kBBGoto) {
-     if (!CopyFallthruBBAndRemoveUnreachableEdge(pred, bb, trueBranch, dealWithShortCircuit)) {
-       return false;
-     }
+    if (!CopyFallthruBBAndRemoveUnreachableEdge(pred, bb, trueBranch, dealWithShortCircuit)) {
+      return false;
+    }
   } else {
-     if (!RemoveTheEdgeOfPredBB(pred, bb, trueBranch)) {
-       return false;
-     }
+    if (!RemoveTheEdgeOfPredBB(pred, bb, trueBranch)) {
+      return false;
+    }
   }
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << "=============delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<

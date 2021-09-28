@@ -21,6 +21,7 @@
 #include "ast_stmt.h"
 #include "feir_var.h"
 #include "fe_function.h"
+#include "generic_attrs.h"
 
 namespace maple {
 using Pos = std::pair<uint32, uint32>;
@@ -74,11 +75,15 @@ class ASTDecl {
     return align;
   }
 
+  void SetAttr(GenericAttrKind attrKind) {
+    genAttrs.SetAttr(attrKind);
+  }
+
   void GenerateInitStmt(std::list<UniqueFEIRStmt> &stmts) {
     return GenerateInitStmtImpl(stmts);
   }
 
-  void SetDeclPos(Pos p) {
+  void SetDeclPos(const Pos &p) {
     pos = p;
   }
 
@@ -103,6 +108,14 @@ class ASTDecl {
 
   std::string GenerateUniqueVarName() const;
 
+  bool IsBoundaryAttr() const {
+    return isBoundaryAttr;
+  }
+
+  void SetIsBoundaryAttr(bool flag) {
+    isBoundaryAttr = flag;
+  }
+
  protected:
   virtual MIRConst *Translate2MIRConstImpl() const {
     CHECK_FATAL(false, "Maybe implemented for other ASTDecls");
@@ -120,6 +133,7 @@ class ASTDecl {
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
   DeclKind declKind = kASTDecl;
+  bool isBoundaryAttr = false;
 };
 
 class ASTField : public ASTDecl {
@@ -142,8 +156,8 @@ class ASTField : public ASTDecl {
 class ASTFunc : public ASTDecl {
  public:
   ASTFunc(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn,
-          const GenericAttrs &genAttrsIn, const std::vector<std::string> &parmNamesIn)
-      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), parmNames(parmNamesIn) {
+          const GenericAttrs &genAttrsIn, const std::vector<ASTDecl*> &paramDeclsIn)
+      : ASTDecl(srcFile, nameIn, typeDescIn), compound(nullptr), paramDecls(paramDeclsIn) {
     genAttrs = genAttrsIn;
     declKind = kASTFunc;
   }
@@ -153,16 +167,34 @@ class ASTFunc : public ASTDecl {
   void SetCompoundStmt(ASTStmt*);
   void InsertStmtsIntoCompoundStmtAtFront(const std::list<ASTStmt*> &stmts);
   const ASTStmt *GetCompoundStmt() const;
-  const std::vector<std::string> &GetParmNames() const {
-    return parmNames;
+  const std::vector<ASTDecl*> &GetParamDecls() const {
+    return paramDecls;
   }
   std::vector<std::unique_ptr<FEIRVar>> GenArgVarList() const;
   std::list<UniqueFEIRStmt> EmitASTStmtToFEIR() const;
 
+  void SetAliasAttr(const std::string &attr) {
+    aliasAttr = attr;
+  }
+
+  const std::string &GetAliasAttr() const {
+    return aliasAttr;
+  }
+
+  void SetWeakrefAttr(const std::pair<bool, std::string> &attr) {
+    weakrefAttr = attr;
+  }
+
+  const std::pair<bool, std::string> &GetWeakrefAttr() const {
+    return weakrefAttr;
+  }
+
  private:
   // typeDesc format: [funcType, retType, arg0, arg1 ... argN]
-  ASTStmt *compound;  // func body
-  std::vector<std::string> parmNames;
+  ASTStmt *compound = nullptr;  // func body
+  std::vector<ASTDecl*> paramDecls;
+  std::string aliasAttr;
+  std::pair<bool, std::string> weakrefAttr;
 };
 
 class ASTStruct : public ASTDecl {
@@ -194,7 +226,7 @@ class ASTStruct : public ASTDecl {
   }
 
  private:
-  bool isUnion;
+  bool isUnion = false;
   std::list<ASTField*> fields;
   std::list<ASTFunc*> methods;
 };
@@ -225,16 +257,25 @@ class ASTVar : public ASTDecl {
     return sectionAttr;
   }
 
+  void SetAsmAttr(const std::string &str) {
+    asmAttr = str;
+  }
+
+  const std::string &GetAsmAttr() const {
+    return asmAttr;
+  }
+
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
   MIRSymbol *Translate2MIRSymbol() const;
 
  private:
   MIRConst *Translate2MIRConstImpl() const override;
   void GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) override;
-  void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar feirVar, UniqueFEIRExpr initFeirExpr,
-                                      std::list<UniqueFEIRStmt> &stmts);
+  void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
+                                      const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts);
   ASTExpr *initExpr = nullptr;
   std::string sectionAttr;
+  std::string asmAttr;
 };
 
 class ASTFileScopeAsm : public ASTDecl {
@@ -269,6 +310,7 @@ class ASTEnumConstant : public ASTDecl {
 
   void SetValue(int32 val);
   int32 GetValue() const;
+
  private:
   MIRConst *Translate2MIRConstImpl() const override;
   int32 value = 0;

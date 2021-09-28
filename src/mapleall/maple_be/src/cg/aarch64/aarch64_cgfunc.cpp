@@ -1201,7 +1201,7 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         if (isOutputTempNode) {
           rPlusOpnd.emplace_back(std::make_pair(inOpnd, pType));
         }
-         break;
+        break;
       }
       case OP_constval: {
         CHECK_FATAL(!isOutputTempNode, "Unexpect");

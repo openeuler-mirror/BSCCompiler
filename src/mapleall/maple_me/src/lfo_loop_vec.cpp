@@ -146,115 +146,115 @@ void LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
 }
 
 MIRType* LoopVectorization::GenVecType(PrimType sPrimType, uint8 lanes) {
-   MIRType *vecType = nullptr;
-   CHECK_FATAL(IsPrimitiveInteger(sPrimType), "primtype should be integer");
-   switch (sPrimType) {
-     case PTY_i32: {
-       if (lanes == 4) {
-         vecType = GlobalTables::GetTypeTable().GetV4Int32();
-       } else if (lanes == 2) {
-         vecType = GlobalTables::GetTypeTable().GetV2Int32();
-       } else {
-         ASSERT(0, "unsupported int32 vectory lanes");
-       }
-       break;
-     }
-     case PTY_u32: {
-       if (lanes == 4) {
-         vecType = GlobalTables::GetTypeTable().GetV4UInt32();
-       } else if (lanes == 2) {
-         vecType = GlobalTables::GetTypeTable().GetV2UInt32();
-       } else {
-         ASSERT(0, "unsupported uint32 vectory lanes");
-       }
-       break;
-     }
-     case PTY_i16: {
-       if (lanes == 4) {
-         vecType = GlobalTables::GetTypeTable().GetV4Int16();
-       } else if (lanes == 8) {
-         vecType = GlobalTables::GetTypeTable().GetV8Int16();
-       } else {
-         ASSERT(0, "unsupported int16 vector lanes");
-       }
-       break;
-     }
-     case PTY_u16: {
-       if (lanes == 4) {
-         vecType = GlobalTables::GetTypeTable().GetV4UInt16();
-       } else if (lanes == 8) {
-         vecType = GlobalTables::GetTypeTable().GetV8UInt16();
-       } else {
-         ASSERT(0, "unsupported uint16 vector lanes");
-       }
-       break;
-     }
-     case PTY_i8: {
-       if (lanes == 16) {
-         vecType = GlobalTables::GetTypeTable().GetV16Int8();
-       } else if (lanes == 8) {
-         vecType = GlobalTables::GetTypeTable().GetV8Int8();
-       } else {
-         ASSERT(0, "unsupported int8 vector lanes");
-       }
-       break;
-     }
-     case PTY_u8: {
-       if (lanes == 16) {
-         vecType = GlobalTables::GetTypeTable().GetV16UInt8();
-       } else if (lanes == 8) {
-         vecType = GlobalTables::GetTypeTable().GetV8UInt8();
-       } else {
-         ASSERT(0, "unsupported uint8 vector lanes");
-       }
-       break;
-     }
-     case PTY_i64: {
-       if (lanes == 2) {
-         vecType = GlobalTables::GetTypeTable().GetV2Int64();
-       } else {
-         ASSERT(0, "unsupported int64 vector lanes");
-       }
-       break;
-     }
-     case PTY_u64: {
-       if (lanes == 2) {
-         vecType = GlobalTables::GetTypeTable().GetV2UInt64();
-       } else {
-         ASSERT(0, "unsupported uint64 vector lanes");
-       }
-       break;
-     }
-     case PTY_a64: {
-       if (lanes == 2) {
-         vecType = GlobalTables::GetTypeTable().GetV2UInt64();
-       } else {
-         ASSERT(0, "unsupported a64 vector lanes");
-       }
-     }
-     [[clang::fallthrough]];
-     case PTY_ptr: {
-       if (GetPrimTypeSize(sPrimType) == 4) {
-         if (lanes == 4)  {
-           vecType = GlobalTables::GetTypeTable().GetV4UInt32();
-         } else if (lanes == 2) {
-           vecType = GlobalTables::GetTypeTable().GetV2UInt32();
-         } else {
-           ASSERT(0, "unsupported ptr vector lanes");
-         }
-       } else if (GetPrimTypeSize(sPrimType) == 8) {
-         if (lanes == 2) {
-           vecType = GlobalTables::GetTypeTable().GetV2UInt64();
-         } else {
-           ASSERT(0, "unsupported ptr vector lanes");
-         }
-       }
-       break;
-     }
-     default:
-       ASSERT(0, "NIY");
-   }
-   return vecType;
+  MIRType *vecType = nullptr;
+  CHECK_FATAL(IsPrimitiveInteger(sPrimType), "primtype should be integer");
+  switch (sPrimType) {
+    case PTY_i32: {
+      if (lanes == 4) {
+        vecType = GlobalTables::GetTypeTable().GetV4Int32();
+      } else if (lanes == 2) {
+        vecType = GlobalTables::GetTypeTable().GetV2Int32();
+      } else {
+        ASSERT(0, "unsupported int32 vectory lanes");
+      }
+      break;
+    }
+    case PTY_u32: {
+      if (lanes == 4) {
+        vecType = GlobalTables::GetTypeTable().GetV4UInt32();
+      } else if (lanes == 2) {
+        vecType = GlobalTables::GetTypeTable().GetV2UInt32();
+      } else {
+        ASSERT(0, "unsupported uint32 vectory lanes");
+      }
+      break;
+    }
+    case PTY_i16: {
+      if (lanes == 4) {
+        vecType = GlobalTables::GetTypeTable().GetV4Int16();
+      } else if (lanes == 8) {
+        vecType = GlobalTables::GetTypeTable().GetV8Int16();
+      } else {
+        ASSERT(0, "unsupported int16 vector lanes");
+      }
+      break;
+    }
+    case PTY_u16: {
+      if (lanes == 4) {
+        vecType = GlobalTables::GetTypeTable().GetV4UInt16();
+      } else if (lanes == 8) {
+        vecType = GlobalTables::GetTypeTable().GetV8UInt16();
+      } else {
+        ASSERT(0, "unsupported uint16 vector lanes");
+      }
+      break;
+    }
+    case PTY_i8: {
+      if (lanes == 16) {
+        vecType = GlobalTables::GetTypeTable().GetV16Int8();
+      } else if (lanes == 8) {
+        vecType = GlobalTables::GetTypeTable().GetV8Int8();
+      } else {
+        ASSERT(0, "unsupported int8 vector lanes");
+      }
+      break;
+    }
+    case PTY_u8: {
+      if (lanes == 16) {
+        vecType = GlobalTables::GetTypeTable().GetV16UInt8();
+      } else if (lanes == 8) {
+        vecType = GlobalTables::GetTypeTable().GetV8UInt8();
+      } else {
+        ASSERT(0, "unsupported uint8 vector lanes");
+      }
+      break;
+    }
+    case PTY_i64: {
+      if (lanes == 2) {
+        vecType = GlobalTables::GetTypeTable().GetV2Int64();
+      } else {
+        ASSERT(0, "unsupported int64 vector lanes");
+      }
+      break;
+    }
+    case PTY_u64: {
+      if (lanes == 2) {
+        vecType = GlobalTables::GetTypeTable().GetV2UInt64();
+      } else {
+        ASSERT(0, "unsupported uint64 vector lanes");
+      }
+      break;
+    }
+    case PTY_a64: {
+      if (lanes == 2) {
+        vecType = GlobalTables::GetTypeTable().GetV2UInt64();
+      } else {
+        ASSERT(0, "unsupported a64 vector lanes");
+      }
+    }
+    [[clang::fallthrough]];
+    case PTY_ptr: {
+      if (GetPrimTypeSize(sPrimType) == 4) {
+        if (lanes == 4)  {
+          vecType = GlobalTables::GetTypeTable().GetV4UInt32();
+        } else if (lanes == 2) {
+          vecType = GlobalTables::GetTypeTable().GetV2UInt32();
+        } else {
+          ASSERT(0, "unsupported ptr vector lanes");
+        }
+      } else if (GetPrimTypeSize(sPrimType) == 8) {
+        if (lanes == 2) {
+          vecType = GlobalTables::GetTypeTable().GetV2UInt64();
+        } else {
+          ASSERT(0, "unsupported ptr vector lanes");
+        }
+      }
+      break;
+    }
+    default:
+      ASSERT(0, "NIY");
+  }
+  return vecType;
 }
 
 // generate instrinsic node to copy scalar to vector type

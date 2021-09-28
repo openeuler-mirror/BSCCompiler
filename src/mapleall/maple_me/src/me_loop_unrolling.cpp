@@ -246,7 +246,7 @@ void LoopUnrolling::CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAll
         CopyCallStmt(irMap, memPool, mpAllocator, cands,  stmt, bb);
         break;
       }
-      case OP_assertnonnull: {
+      CASE_ASSERTNONNULL {
         auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
         UnaryMeStmt *newUnaryStmt = irMap.New<UnaryMeStmt>(unaryStmt);
         bb.AddMeStmtLast(newUnaryStmt);
@@ -299,7 +299,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
       break;
     }
     case OP_iassign:
-    case OP_assertnonnull:
+    CASE_ASSERTNONNULL
     case OP_membaracquire: {
       cost += kThreeInsn;
       break;
@@ -423,14 +423,14 @@ void LoopUnrolling::ResetFrequency(const BB &curBB, const BB &succ, const BB &ex
     }
     if ((&curBB == loop->latch && &succ == loop->head) || (&curBB == &exitBB && &succ == loop->latch)) {
       curCopyBB.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum == 0 ? 0 :
-                                 loop->head->GetFrequency() % replicatedLoopNum - 1);
+          loop->head->GetFrequency() % replicatedLoopNum - 1);
     } else {
       curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) % replicatedLoopNum);
     }
   } else {
     profValid && resetFreqForAfterInsertGoto ?
         curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ) - 1 == 0 ? curBB.GetEdgeFreq(&succ) :
-                                                                       curBB.GetEdgeFreq(&succ) - 1) :
+            curBB.GetEdgeFreq(&succ) - 1) :
         curCopyBB.PushBackSuccFreq(curBB.GetEdgeFreq(&succ));
   }
 }
@@ -583,7 +583,7 @@ void LoopUnrolling::AddEdgeForExitBBLastNew2OldBBEmpty(BB &exitBB, std::unordere
     if (profValid) {
       resetFreqForAfterInsertGoto ?
           (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx)) :
-                                           old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
+              old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
           old2NewBB[bb]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
     }
     ResetOldLabel2NewLabel(old2NewBB, *bb, exitBB, newHeadBB);
@@ -600,8 +600,8 @@ void LoopUnrolling::AddEdgeForExitBB(BB &exitBB, std::unordered_map<BB*, BB*> &o
     if (profValid) {
       (resetFreqForAfterInsertGoto && firstResetForAfterInsertGoto) ?
           (bb->GetEdgeFreq(idx) - 1 == 0 ? old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx)) :
-                                           old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
-          old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
+              old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx) - 1)) :
+              old2NewBB[lastNew2OldBB[bb]]->PushBackSuccFreq(bb->GetEdgeFreq(idx));
       firstResetForAfterInsertGoto = false;
     }
     ResetOldLabel2NewLabel2(old2NewBB, *bb, exitBB, newHeadBB);
@@ -620,8 +620,8 @@ void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
   }
   profValid && resetFreqForAfterInsertGoto ?
       (loop->head->GetFrequency() - 1 == 0 ? newHeadBB->SetFrequency(loop->head->GetFrequency()) :
-                                             newHeadBB->SetFrequency(loop->head->GetFrequency() - 1)) :
-      newHeadBB->SetFrequency(loop->head->GetFrequency());
+          newHeadBB->SetFrequency(loop->head->GetFrequency() - 1)) :
+          newHeadBB->SetFrequency(loop->head->GetFrequency());
   old2NewBB.insert({ loop->head, newHeadBB });
   std::set<BB*> labelBBs;
   profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, false) :

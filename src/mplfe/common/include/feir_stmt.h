@@ -48,7 +48,8 @@ enum FEIRNodeKind : uint8 {
 std::string GetFEIRNodeKindDescription(FEIRNodeKind kindArg);
 constexpr uint32 kOpHashShift = 24;
 constexpr uint32 kTypeHashShift = 8;
-constexpr uint32 kTypeFieldIDShift = 16;
+constexpr uint32 kOtherShift = 16;
+constexpr uint32 kRandomNum = 0x9e3779b9;
 
 // ---------- FEIRNode ----------
 class FEIRNode {
@@ -452,6 +453,7 @@ class FEIRExprConst : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+  uint32 HashImpl() const override;
 
  private:
   void CheckRawValue2SetZero();
@@ -467,6 +469,10 @@ class FEIRExprSizeOfType : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+
+  uint32 HashImpl() const override {
+    return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) + feirType->Hash();
+  }
 
  private:
   UniqueFEIRType feirType;
@@ -539,7 +545,7 @@ class FEIRExprDRead : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (fieldID << kTypeFieldIDShift) + varSrc->Hash();
+           (fieldID << kOtherShift) + varSrc->Hash();
   }
 
  private:
@@ -581,6 +587,22 @@ class FEIRExprAddrofConstArray : public FEIRExpr {
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
+  uint32 HashImpl() const override {
+    uint32 hash = (static_cast<uint32>(kind) << kOpHashShift);
+    for (uint32 elem : array) {
+      hash += static_cast<uint32>(std::hash<uint32>{}(elem));
+    }
+    std::size_t seed = array.size();
+    for (uint32 elem : array) {
+      seed ^= elem + kRandomNum + (seed << 6) + (seed >> 2);
+    }
+    hash += seed;
+    if (type != nullptr) {
+      hash += static_cast<uint32>(type->GetHashIndex());
+    }
+    return hash;
+  }
+
  private:
   std::vector<uint32> array;
   MIRType *type;
@@ -596,6 +618,11 @@ class FEIRExprAddrOfLabel : public FEIRExpr {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+
+  uint32 HashImpl() const override {
+    return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
+            static_cast<uint32>(std::hash<std::string>{}(labelName));
+  }
 
  private:
   std::string labelName;
@@ -638,7 +665,7 @@ class FEIRExprAddrofVar : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (fieldID << kTypeFieldIDShift) + varSrc->Hash();
+           (fieldID << kOtherShift) + varSrc->Hash();
   }
 
  private:
@@ -685,7 +712,7 @@ class FEIRExprIAddrof : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (fieldID << kTypeFieldIDShift) + ptrType->Hash();
+           (fieldID << kOtherShift) + ptrType->Hash() + subExpr->Hash();
   }
 
  private:
@@ -731,6 +758,18 @@ class FEIRExprAddrofArray : public FEIRExpr {
     }
   }
 
+  const UniqueFEIRType &GetTypeArray() const {
+    return typeNativeArray;
+  }
+
+  const std::list<UniqueFEIRExpr> &GetExprIndexs() const {
+    return exprIndexs;
+  }
+
+  const UniqueFEIRExpr &GetExprArray() const {
+    return exprArray;
+  }
+
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   std::vector<FEIRVar*> GetVarUsesImpl() const override;
@@ -738,11 +777,20 @@ class FEIRExprAddrofArray : public FEIRExpr {
 
   uint32 HashImpl() const override {
     uint32 hash = (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-                    typeNativeArray->Hash() + exprArray->Hash();
-    for (auto &idx : exprIndexs) {
-      hash += idx->Hash();
+                  (static_cast<uint32>(std::hash<std::string>{}(arrayName)) << kOtherShift);
+    if (typeNativeArray != nullptr) {
+      hash += typeNativeArray->Hash();
     }
-    return hash;
+    if (exprArray != nullptr) {
+      hash += exprArray->Hash();
+    }
+    std::size_t seed = exprIndexs.size();
+    for (auto &idx : exprIndexs) {
+      if (idx != nullptr) {
+        seed ^= idx->Hash() + kRandomNum + (seed << 6) + (seed >> 2);
+      }
+    }
+    return hash + seed;
   }
 
  private:
@@ -770,7 +818,8 @@ class FEIRExprUnary : public FEIRExpr {
   std::vector<FEIRVar*> GetVarUsesImpl() const override;
 
   uint32 HashImpl() const override {
-    return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) + opnd->Hash();
+    return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
+           (static_cast<uint32>(op) << kOtherShift) + opnd->Hash();
   }
 
   Opcode op;
@@ -800,6 +849,10 @@ class FEIRExprTypeCvt : public FEIRExprUnary {
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+
+  uint32 HashImpl() const override {
+    return FEIRExprUnary::HashImpl() + static_cast<uint32>(srcPrimType);
+  }
 
  private:
   using FuncPtrGenMIRNode = BaseNode* (FEIRExprTypeCvt::*)(MIRBuilder &mirBuilder) const;
@@ -836,6 +889,10 @@ class FEIRExprExtractBits : public FEIRExprUnary {
 
   void SetBitSize(uint8 size) {
     bitSize = size;
+  }
+
+  uint32 HashImpl() const override {
+    return FEIRExprUnary::HashImpl() + (static_cast<uint32>(bitOffset) << 16) + static_cast<uint32>(bitSize);
   }
 
  protected:
@@ -897,7 +954,7 @@ class FEIRExprIRead : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (fieldID << kTypeFieldIDShift) + ptrType ->Hash() + subExpr->Hash();
+           (fieldID << kOtherShift) + ptrType ->Hash() + subExpr->Hash();
   }
 
  private:
@@ -934,7 +991,7 @@ class FEIRExprBinary : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           opnd0 ->Hash() + opnd1->Hash();
+           (static_cast<uint32>(op) << kOtherShift) + (opnd0 ->Hash() << 8) + opnd1->Hash();
   }
 
  private:
@@ -976,7 +1033,7 @@ class FEIRExprTernary : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           opnd0 ->Hash() + opnd1->Hash() + opnd1->Hash();
+           (static_cast<uint32>(op) << kOtherShift) + (opnd0 ->Hash() << 8) + (opnd1 ->Hash() << 16) + opnd1->Hash();
   }
 
  private:
@@ -1003,10 +1060,13 @@ class FEIRExprNary : public FEIRExpr {
   std::vector<FEIRVar*> GetVarUsesImpl() const override;
 
   uint32 HashImpl() const override {
-    uint32 hash = (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift);
+    uint32 hash = (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
+                  (static_cast<uint32>(op) << kOtherShift);
+    std::size_t seed = opnds.size();
     for (auto &opnd : opnds) {
-      hash += opnd->Hash();
+      seed ^= opnd->Hash() + kRandomNum + (seed << 6) + (seed >> 2);
     }
+    hash += seed;
     return hash;
   }
 
@@ -1054,6 +1114,14 @@ class FEIRExprIntrinsicop : public FEIRExprNary {
   bool IsNestableImpl() const override;
   bool IsAddrofImpl() const override;
 
+  uint32 HashImpl() const override {
+    uint32 hash = FEIRExprNary::HashImpl() + (static_cast<uint32>(intrinsicID) << 16) + typeID;
+    if (paramType != nullptr) {
+      hash += paramType->Hash();
+    }
+    return hash;
+  }
+
  private:
   MIRIntrinsicID intrinsicID;
   std::unique_ptr<FEIRType> paramType;
@@ -1069,6 +1137,10 @@ class FEIRExprIntrinsicopForC : public FEIRExprNary {
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+
+  uint32 HashImpl() const override {
+    return FEIRExprNary::HashImpl() + static_cast<uint32>(intrinsicID);
+  }
 
  private:
   MIRIntrinsicID intrinsicID;
@@ -1299,6 +1371,14 @@ class FEIRStmtNary : public FEIRStmt {
  public:
   FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn);
   ~FEIRStmtNary() = default;
+
+  Opcode GetOP() const {
+    return op;
+  }
+
+  const std::list<std::unique_ptr<FEIRExpr>> &GetArgExprs() const {
+    return argExprs;
+  }
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1703,8 +1783,8 @@ class FEIRStmtGotoForC : public FEIRStmt {
  public:
   explicit FEIRStmtGotoForC(const std::string &labelName);
   virtual ~FEIRStmtGotoForC() = default;
-  void SetLabelName(std::string name) {
-    labelName = std::move(name);
+  void SetLabelName(const std::string &name) {
+    labelName = name;
   }
 
   std::string GetLabelName() const {
@@ -1751,8 +1831,8 @@ class FEIRStmtCondGotoForC : public FEIRStmt {
   explicit FEIRStmtCondGotoForC(UniqueFEIRExpr argExpr, Opcode op, const std::string &name)
       : FEIRStmt(FEIRNodeKind::kStmtCondGoto), expr(std::move(argExpr)), opCode(op), labelName(std::move(name)) {}
   virtual ~FEIRStmtCondGotoForC() = default;
-  void SetLabelName(std::string name) {
-    labelName = std::move(name);
+  void SetLabelName(const std::string &name) {
+    labelName = name;
   }
 
   std::string GetLabelName() const {
@@ -2174,6 +2254,7 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
   void InsertNonnullInRetVar(MIRSymbol &retVarSym) const;
   void InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index,
                                    MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+  void InsertBoundaryVarInRetVar(MIRBuilder &mirBuilder, const UniqueFEIRVar &retVar) const;
 
   FEStructMethodInfo &methodInfo;
   Opcode mirOp;

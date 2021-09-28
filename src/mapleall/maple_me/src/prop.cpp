@@ -255,8 +255,8 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
         return kPropYes;
       } else if (checkInverse && regRead->GetOst() != propagatingScalar->GetOst()) {
         MapleStack<MeExpr *> *pstack = vstLiveStackVec[regRead->GetOst()->GetIndex()];
-        return IsFunctionOfCurVersion(regRead, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse :
-                                                                                             kPropNo;
+        return IsFunctionOfCurVersion(regRead, static_cast<ScalarMeExpr *>(pstack->top())) ?
+            kPropOnlyWithInverse : kPropNo;
       } else {
         return kPropNo;
       }
@@ -284,8 +284,8 @@ Propagatability Prop::Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool chec
       } else if (checkInverse && varMeExpr->GetOst() != propagatingScalar->GetOst() &&
                  varMeExpr->GetType()->GetKind() != kTypeBitField) {
         MapleStack<MeExpr *> *pstack = vstLiveStackVec[varMeExpr->GetOst()->GetIndex()];
-        return IsFunctionOfCurVersion(varMeExpr, static_cast<ScalarMeExpr *>(pstack->top())) ? kPropOnlyWithInverse :
-                                                                                               kPropNo;
+        return IsFunctionOfCurVersion(varMeExpr, static_cast<ScalarMeExpr *>(pstack->top())) ?
+            kPropOnlyWithInverse : kPropNo;
       } else {
         return kPropNo;
       }

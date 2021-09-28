@@ -279,7 +279,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
         emitter.Emit("]!");
       } else {
         if (CGOptions::IsPIC() && (offset->IsSymOffset() || offset->IsSymAndImmOffset()) &&
-            offset->GetSymbol()->NeedPIC()){
+            offset->GetSymbol()->NeedPIC()) {
           emitter.Emit(",#:got_lo12:");
           emitter.Emit(offset->GetSymbolName());
         } else {

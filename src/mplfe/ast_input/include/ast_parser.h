@@ -85,6 +85,7 @@ class ASTParser {
   ASTStmt *PROCESS_STMT(AtomicExpr);
   ASTStmt *PROCESS_STMT(GCCAsmStmt);
   ASTStmt *PROCESS_STMT(OffsetOfExpr);
+  ASTStmt *PROCESS_STMT(GenericSelectionExpr);
   bool HasDefault(const clang::Stmt &stmt);
 
   // ProcessExpr
@@ -141,6 +142,7 @@ class ASTParser {
   ASTExpr *PROCESS_EXPR(DependentScopeDeclRefExpr);
   ASTExpr *PROCESS_EXPR(AtomicExpr);
   ASTExpr *PROCESS_EXPR(ChooseExpr);
+  ASTExpr *PROCESS_EXPR(GenericSelectionExpr);
 
   ASTDecl *ProcessDecl(MapleAllocator &allocator, const clang::Decl &decl);
 #define PROCESS_DECL(CLASS) ProcessDecl##CLASS##Decl(MapleAllocator &allocator, const clang::CLASS##Decl&)
@@ -157,6 +159,17 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(StaticAssert);
 
  private:
+  void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, GenericAttrs &attrs,
+                               std::vector<ASTDecl*> &paramDecls);
+  void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, GenericAttrs &attrs,
+                                std::vector<ASTDecl*> &paramDecls, std::list<ASTStmt*> &stmts);
+  void ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                 std::vector<ASTDecl*> &paramDecls, std::list<ASTStmt*> &stmts);
+  void ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, unsigned int idx,
+                              std::vector<ASTDecl*> &paramDecls, ASTExpr *lenExpr, std::list<ASTStmt*> &stmts);
+  void InsertBoundaryVar(MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
+                         std::list<ASTStmt*> &stmts, uint64 size);
+  void ProcessBoundaryRetAttr(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTCallExpr &astCallExpr);
   ASTValue *TranslateConstantValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTValue *TranslateLValue2ASTValue(MapleAllocator &allocator,
       const clang::Expr::EvalResult &result, const clang::Expr *expr) const;
@@ -173,7 +186,7 @@ using FuncPtrBuiltinFunc = ASTExpr *(ASTParser::*)(MapleAllocator &allocator, co
                                                    std::stringstream &ss) const;
 static std::map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
 ASTExpr *ProcessBuiltinFuncByName(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss,
-                                  std::string name) const;
+                                  const std::string &name) const;
 ASTExpr *ParseBuiltinFunc(MapleAllocator &allocator, const clang::CallExpr &expr, std::stringstream &ss) const;
 #define PARSE_BUILTIIN_FUNC(FUNC) ParseBuiltin##FUNC(MapleAllocator &allocator, const clang::CallExpr &expr,\
                                                      std::stringstream &ss) const
