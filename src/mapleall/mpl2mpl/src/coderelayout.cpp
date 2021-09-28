@@ -188,10 +188,10 @@ void CodeReLayout::Finish() {
   }
   std::stable_sort(GetMIRModule().GetFunctionList().begin(), GetMIRModule().GetFunctionList().end(),
                    [](const MIRFunction *a, const MIRFunction *b) {
-                     ASSERT_NOT_NULL(a);
-                     ASSERT_NOT_NULL(b);
-                     return a->GetLayoutType() < b->GetLayoutType();
-                   });
+    ASSERT_NOT_NULL(a);
+    ASSERT_NOT_NULL(b);
+    return a->GetLayoutType() < b->GetLayoutType();
+  });
   uint32 last = 0;
   for (uint32 i = 0; i <= static_cast<uint32>(LayoutType::kLayoutRunHot); i++) {
     if (trace) {
@@ -200,10 +200,10 @@ void CodeReLayout::Finish() {
     std::stable_sort(GetMIRModule().GetFunctionList().begin() + last,
                      GetMIRModule().GetFunctionList().begin() + last + layoutCount[i],
                      [](const MIRFunction *a, const MIRFunction *b) {
-                       ASSERT_NOT_NULL(a);
-                       ASSERT_NOT_NULL(b);
-                       return a->GetCallTimes() < b->GetCallTimes();
-                     });
+      ASSERT_NOT_NULL(a);
+      ASSERT_NOT_NULL(b);
+      return a->GetCallTimes() < b->GetCallTimes();
+    });
     last += layoutCount[i];
   }
   // Create layoutInfo

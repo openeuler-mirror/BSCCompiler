@@ -70,7 +70,7 @@ void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &node
   int FirstNodeIndex = 0;
   int minimumBBSize = 2;
   /* Add split point for the last instruction in return BB */
-  if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize){
+  if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize) {
     splitterIndexes.emplace_back(nodes.size() - SecondLastNodeIndexFromBack);
     addFirstAndLastNodeIndex = true;
   }
@@ -282,11 +282,11 @@ void RegPressureSchedule::UpdateLiveReg(const DepNode &node, regno_t reg, bool d
       LogInfo::MapleLogger() << "Remove dead def " << reg << " from live reg list \n";
 #endif
       liveReg.erase(reg);
-    } else if (node.GetRegDefs(i) != nullptr){
+    } else if (node.GetRegDefs(i) != nullptr) {
 #ifdef PRESCHED_DEBUG
       auto regList = node.GetRegDefs(i);
       LogInfo::MapleLogger() << i << " Live def, dump use insn here \n";
-      while (regList != nullptr){
+      while (regList != nullptr) {
         node.GetRegDefs(i)->insn->Dump();
         regList = regList->next;
       }
@@ -557,7 +557,7 @@ void RegPressureSchedule::ReportScheduleOutput() const {
   if (originalPressure > scheduledPressure) {
     LogInfo::MapleLogger() << "Pressure Reduced by : " << (originalPressure - scheduledPressure) << " \n";
     return;
-  } else if (originalPressure == scheduledPressure){
+  } else if (originalPressure == scheduledPressure) {
     LogInfo::MapleLogger() << "Pressure Not Changed \n";
   } else {
     LogInfo::MapleLogger() << "Pressure Increased by : " << (scheduledPressure - originalPressure) << " \n";
@@ -601,7 +601,7 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
     } else {
       InitBruteForceScheduling(nodes);
       BruteForceScheduling();
-      if (optimisticScheduledNodes.size() == nodes.size() && minPressure < originalPressure){
+      if (optimisticScheduledNodes.size() == nodes.size() && minPressure < originalPressure) {
         nodes.clear();
         for (auto node : optimisticScheduledNodes) {
           nodes.emplace_back(node);
@@ -728,7 +728,7 @@ void RegPressureSchedule::PartialScheduling(MapleVector<DepNode*> &nodes) {
     for (int j = begin; j < end; j = j + 1) {
       partialList.emplace_back(nodes.at(j));
     }
-    if (i == splitterIndexes.size() - lastTwoNodeIndex){
+    if (i == splitterIndexes.size() - lastTwoNodeIndex) {
       partialList.emplace_back(nodes.at(end));
     }
     for (auto node : partialList) {
@@ -785,7 +785,7 @@ void RegPressureSchedule::BruteForceScheduling() {
     innerList.emplace_back(tempNode);
   }
   for (auto *node : innerList){
-    if (CanSchedule(*node)){
+    if (CanSchedule(*node)) {
       /* update readyList and node dependency info */
       std::vector<bool> changedToReady;
       BruteUpdateReadyList(*node, changedToReady);

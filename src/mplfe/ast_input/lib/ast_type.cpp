@@ -52,7 +52,7 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
-      return PTY_u64;
+      return PTY_u128;
     case clang::BuiltinType::Char_S:
     case clang::BuiltinType::SChar:
       return PTY_i8;
@@ -65,14 +65,15 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
       return PTY_i32;
     case clang::BuiltinType::Long:
     case clang::BuiltinType::LongLong:
-    case clang::BuiltinType::Int128:    // pty = PTY_i128, NOTYETHANDLED
       return PTY_i64;
+    case clang::BuiltinType::Int128:    // pty = PTY_i128, NOTYETHANDLED
+      return PTY_i128;
     case clang::BuiltinType::Half:      // pty = PTY_f16, NOTYETHANDLED
     case clang::BuiltinType::Float:
       return PTY_f32;
     case clang::BuiltinType::Double:
-      return PTY_f64;
     case clang::BuiltinType::LongDouble:
+      return PTY_f64;
     case clang::BuiltinType::Float128:
       return PTY_f64;
     case clang::BuiltinType::NullPtr: // default 64-bit, need to update
@@ -101,8 +102,6 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (mirPointeeType == nullptr) {
       return nullptr;
     }
-    MIRPtrType *prtType = static_cast<MIRPtrType*>(
-        GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
     TypeAttrs attrs;
     // Get alignment from the pointee type
     uint32 alignmentBits = astContext->getTypeAlignIfKnown(srcPteType);
@@ -114,7 +113,15 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (isOneElementVector(srcPteType)) {
       attrs.SetAttr(ATTR_oneelem_simd);
     }
-    prtType->SetTypeAttrs(attrs);
+    MIRPtrType *prtType;
+    if (attrs == TypeAttrs()) {
+      prtType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
+    } else {
+      std::vector<TypeAttrs> attrsVec;
+      attrsVec.push_back(attrs);
+      prtType = static_cast<MIRPtrType*>(
+          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrsVec));
+    }
     return prtType;
   }
 
@@ -437,7 +444,7 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   return destType;
 }
 
-bool LibAstFile::isOneElementVector(clang::QualType qualType) {
+bool LibAstFile::isOneElementVector(const clang::QualType &qualType) {
   return isOneElementVector(*qualType.getTypePtr());
 }
 

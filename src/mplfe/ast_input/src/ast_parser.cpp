@@ -1142,13 +1142,13 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
     if (success) {
       auto astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
       astExpr->SetVal(result.Val.getInt().getExtValue());
-      astExpr->SetType(PTY_u64);
+      astExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
       return astExpr;
     }
   }
   uint64_t offset = 0;
   std::vector<ASTExpr*> vlaOffsetExprs;
-  for (int i = 0; i < expr.getNumComponents(); i++) {
+  for (size_t i = 0; i < expr.getNumComponents(); i++) {
     auto comp = expr.getComponent(i);
     if (comp.getKind() == clang::OffsetOfNode::Kind::Field) {
       uint filedIdx = comp.getField()->getFieldIndex();
@@ -1166,7 +1166,7 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
       } else {
         auto astSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
         astSizeExpr->SetVal(elementSize);
-        astSizeExpr->SetType(PTY_u64);
+        astSizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
         auto astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
         astExpr->SetOpcode(OP_mul);
         astExpr->SetLeftExpr(leftExpr);
@@ -1187,7 +1187,7 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
     astExpr->SetLeftExpr(vlaOffsetExprs[0]);
     astExpr->SetRightExpr(vlaOffsetExprs[1]);
     if (vlaOffsetExprs.size() >= 3) {
-      for (int i = 2; i < vlaOffsetExprs.size(); i++) {
+      for (size_t i = 2; i < vlaOffsetExprs.size(); i++) {
         auto astSubExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
         astSubExpr->SetRetType(GlobalTables::GetTypeTable().GetPrimType(PTY_u64));
         astSubExpr->SetLeftExpr(astExpr);
@@ -1199,7 +1199,7 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
   }
   auto astSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   astSizeExpr->SetVal(offset);
-  astSizeExpr->SetType(PTY_u64);
+  astSizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
   auto astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
   astExpr->SetOpcode(OP_add);
   astExpr->SetLeftExpr(astSizeExpr);
@@ -1292,7 +1292,7 @@ ASTExpr *ASTParser::GetTypeSizeFromQualType(MapleAllocator &allocator, const cla
   } else {
     ASTIntegerLiteral *sizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
     sizeExpr->SetVal(astFile->GetContext()->getTypeSizeInChars(desugaredType).getQuantity());
-    sizeExpr->SetType(PTY_i32);
+    sizeExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
     return sizeExpr;
   }
 }
@@ -1346,7 +1346,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
       }
       auto astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
       astExpr->SetVal(size);
-      astExpr->SetType(PTY_i32);
+      astExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
       rhs = astExpr;
     } else {
       CHECK_FATAL(false, "NIY");
@@ -1360,7 +1360,7 @@ ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, con
   }
   uint32 size = GetSizeFromQualType(qualType);
   auto integerExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  integerExpr->SetType(PTY_u64);
+  integerExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
   integerExpr->SetVal(size);
   return integerExpr;
 }
@@ -1378,7 +1378,7 @@ ASTExpr *ASTParser::ProcessExprUnaryExprOrTypeTraitExpr(MapleAllocator &allocato
       }
       uint32 size = GetSizeFromQualType(qualType);
       auto integerExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-      integerExpr->SetType(PTY_u64);
+      integerExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
       integerExpr->SetVal(size);
       return integerExpr;
     }
@@ -1392,7 +1392,7 @@ ASTExpr *ASTParser::ProcessExprUnaryExprOrTypeTraitExpr(MapleAllocator &allocato
         align = GetAlignOfExpr(*expr.getArgumentExpr(), expr.getKind());
       }
       auto integerExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-      integerExpr->SetType(PTY_u64);
+      integerExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
       integerExpr->SetVal(align);
       return integerExpr;
     }
@@ -1503,7 +1503,7 @@ ASTExpr *ASTParser::ProcessExprTypeTraitExpr(MapleAllocator &allocator, const cl
   } else {
     astIntegerLiteral->SetVal(0);
   }
-  astIntegerLiteral->SetType(astFile->CvtType(expr.getType())->GetPrimType());
+  astIntegerLiteral->SetType(astFile->CvtType(expr.getType()));
   return astIntegerLiteral;
 }
 
@@ -1719,7 +1719,7 @@ ASTExpr *ASTParser::ProcessExprIntegerLiteral(MapleAllocator &allocator, const c
            GlobalTables::GetTypeTable().GetInt32() : GlobalTables::GetTypeTable().GetUInt32();
   }
   astIntegerLiteral->SetVal(val);
-  astIntegerLiteral->SetType(type->GetPrimType());
+  astIntegerLiteral->SetType(type);
   return astIntegerLiteral;
 }
 
@@ -1840,7 +1840,7 @@ ASTExpr *ASTParser::ProcessExprDeclRefExpr(MapleAllocator &allocator, const clan
     const llvm::APSInt value = enumConst->getInitVal();
     ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
     astIntegerLiteral->SetVal(value.getExtValue());
-    astIntegerLiteral->SetType(astFile->CvtType(expr.getType())->GetPrimType());
+    astIntegerLiteral->SetType(astFile->CvtType(expr.getType()));
     return astIntegerLiteral;
   }
   switch (expr.getStmtClass()) {
@@ -1931,7 +1931,7 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
        (lhsType->isIntegerType() && rhsType->isPointerType())) &&
       !boType->isVoidPointerType() && GetSizeFromQualType(boType->getPointeeType()) != 1) {
     auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    ptrSizeExpr->SetType(PTY_i32);
+    ptrSizeExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
     auto boMirType = astFile->CvtType(boType);
     auto typeSize = GetSizeFromQualType(boType->getPointeeType());
     MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
@@ -1964,7 +1964,7 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
       lhsType->isPointerType() && !rhsType->isVoidPointerType() &&
       GetSizeFromQualType(rhsType->getPointeeType()) != 1) {
     auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    ptrSizeExpr->SetType(astBinOpExpr->GetRetType()->GetPrimType());
+    ptrSizeExpr->SetType(astBinOpExpr->GetRetType());
     ptrSizeExpr->SetVal(GetSizeFromQualType(rhsType->getPointeeType()));
     auto retASTExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
     retASTExpr->SetLeftExpr(astBinOpExpr);
@@ -2024,7 +2024,7 @@ ASTExpr *ASTParser::ProcessExprArrayInitIndexExpr(MapleAllocator &allocator,
   ASTArrayInitIndexExpr *astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTArrayInitIndexExpr>(allocator);
   CHECK_FATAL(astExpr != nullptr, "astCastExpr is nullptr");
   astExpr->SetPrimType(astFile->CvtType(arrInitIndexExpr.getType()));
-  astExpr->SetValue("0");
+  astExpr->SetValueStr("0");
   return astExpr;
 }
 
@@ -2486,7 +2486,7 @@ void ASTParser::InsertBoundaryVar(MapleAllocator &allocator, ASTDecl *ptrDecl, A
   upperRefExpr->SetASTDecl(ptrDecl);
   if (size) {
     auto sizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    sizeExpr->SetType(PTY_i32);
+    sizeExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
     sizeExpr->SetVal(size);
     auto rhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
     rhs->SetLeftExpr(lenExpr);

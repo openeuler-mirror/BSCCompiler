@@ -324,7 +324,7 @@ std::string ASTUtil::AdjustFuncName(std::string funcName) {
   return funcName;
 }
 
-bool ASTUtil::InsertFuncSet(GStrIdx idx) {
+bool ASTUtil::InsertFuncSet(const GStrIdx &idx) {
   static std::set<GStrIdx> funcIdxSet;
   return funcIdxSet.insert(idx).second;
 }

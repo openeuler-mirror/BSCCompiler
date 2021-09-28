@@ -64,8 +64,8 @@ MIRConst *ASTVar::Translate2MIRConstImpl() const {
   return initExpr->GenerateMIRConst();
 }
 
-void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, UniqueFEIRVar feirVar, UniqueFEIRExpr initFeirExpr,
-                                            std::list<UniqueFEIRStmt> &stmts) {
+void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
+                                            const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts) {
   if (!static_cast<ASTStringLiteral*>(initASTExpr)->IsArrayToPointerDecay()) {
     std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
     UniqueFEIRExpr dstExpr = FEIRBuilder::CreateExprAddrofVar(feirVar->Clone());
@@ -125,7 +125,7 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   }
   UniqueFEIRVar feirVar = Translate2FEIRVar();
   if (initExpr->GetASTOp() == kASTStringLiteral) { // init for StringLiteral
-    return GenerateInitStmt4StringLiteral(initExpr, feirVar->Clone(), initFeirExpr->Clone(), stmts);
+    return GenerateInitStmt4StringLiteral(initExpr, feirVar, initFeirExpr, stmts);
   }
 
   if (ConditionalOptimize::DeleteRedundantTmpVar(initFeirExpr, stmts, feirVar, feirVar->GetType()->GetPrimType())) {

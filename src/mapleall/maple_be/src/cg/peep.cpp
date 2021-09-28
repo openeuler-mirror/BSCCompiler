@@ -264,7 +264,7 @@ bool PeepPattern::IsMemOperandOptPattern(const Insn &insn, Insn &nextInsn) {
 #if TARGARM32
   Arm32MemOperand *memOpnd = static_cast<Arm32MemOperand*>(nextInsn.GetMemOpnd());
   ASSERT(memOpnd != nullptr, "null ptr check");
-  if (static_cast<const Arm32Insn*>(&insn)->GetCondExe() != static_cast<Arm32Insn*>(&nextInsn)->GetCondExe()){
+  if (static_cast<const Arm32Insn*>(&insn)->GetCondExe() != static_cast<Arm32Insn*>(&nextInsn)->GetCondExe()) {
     return false;
   }
   /* Only for AddrMode_B_OI addressing mode. */

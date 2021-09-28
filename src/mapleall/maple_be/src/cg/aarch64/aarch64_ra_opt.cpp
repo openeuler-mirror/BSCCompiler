@@ -109,7 +109,6 @@ bool RaX0Opt::PropagateX0Optimize(const BB *bb, const Insn *insn, X0OptInfo &opt
       continue;
     }
 
-    /* BB definition differences among C and other modules */
     if (ninsn->IsCall()) {
       break;
     }
@@ -368,7 +367,7 @@ void VregRename::RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop
         Operand *opnd = &insn->GetOperand(i);
         if (opnd->IsList()) {
           /* call parameters */
-       } else if (opnd->IsMemoryAccessOperand()) {
+        } else if (opnd->IsMemoryAccessOperand()) {
           MemOperand *memopnd = static_cast<MemOperand*>(opnd);
           RegOperand *base = static_cast<RegOperand*>(memopnd->GetBaseRegister());
           MemOperand *newMemOpnd = nullptr;
@@ -498,7 +497,7 @@ void VregRename::RenameGetFuncVregInfo() {
 }
 
 void VregRename::RenameFindVregsToRename(const CGFuncLoops *loop) {
- if (loop->GetInnerLoops().empty()) {
+  if (loop->GetInnerLoops().empty()) {
     RenameFindLoopVregs(loop);
     return;
   }

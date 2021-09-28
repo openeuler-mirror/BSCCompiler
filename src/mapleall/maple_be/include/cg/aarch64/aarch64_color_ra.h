@@ -1397,7 +1397,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
 };
 
 class CallerSavePre: public CGPre {
-public:
+ public:
   CallerSavePre(GraphColorRegAllocator * regAlloc, CGFunc &cgfunc, DomAnalysis &currDom,
                 MemPool &memPool, MemPool &mp2, PreKind kind, uint32 limit)
       : CGPre(currDom, memPool, mp2, kind, limit),
@@ -1411,7 +1411,7 @@ public:
   void SetDump(bool val) {
     dump = val;
   }
-private:
+ private:
   void CodeMotion() ;
   void UpdateLoadSite(CgOccur *occ);
   void CalLoadSites();

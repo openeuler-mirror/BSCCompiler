@@ -3395,7 +3395,7 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
             }
           }
         }
-        if (isDef){
+        if (isDef) {
           if (ropnd->IsPhysicalRegister()) {
             defPregs.insert(ropnd->GetRegisterNumber());
           } else {

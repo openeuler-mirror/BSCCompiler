@@ -53,7 +53,7 @@ bool MeFuncPM::SkipFuncForMe(MIRModule &m, const MIRFunction &func, uint64 range
   if (m.HasPartO2List() && !m.IsInPartO2List(func.GetNameStrIdx())) {
     return true;
   }
-  if (func.IsEmpty() || (MeOption::useRange && (range < MeOption::range[0] || range > MeOption::range[1]))){
+  if (func.IsEmpty() || (MeOption::useRange && (range < MeOption::range[0] || range > MeOption::range[1]))) {
     return true;
   }
   if (func.HasSetjmp()) {
@@ -117,7 +117,7 @@ bool MeFuncPM::FuncLevelRun(MeFunction &meFunc, AnalysisDataManager &serialADM) 
     SolveSkipFrom(MeOption::GetSkipFromPhase(), i);
     const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(phasesSequence[i]);
     if (!IsQuiet()) {
-      LogInfo::MapleLogger() << "---Run " << (curPhase->IsAnalysis() ? "analysis" : "transform")
+      LogInfo::MapleLogger() << "---Run Me " << (curPhase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << curPhase->PhaseName() << " ]---\n";
     }
     DumpMEIR(meFunc, curPhase->PhaseName(), true);
@@ -179,6 +179,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELoopUnrolling, loopunrolling)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEHdse, hdse)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MELfoIVCanon, ivcanon)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEValueRangePropagation, valueRangePropagation)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESafetyWarning, safetyWarning)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEBypathEH, bypatheh)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEProfUse, profileUse)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEGCLowering, gclowering)
@@ -192,6 +193,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEFSAA, fsaa)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESplitCEdge, splitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECheckCastOpt, checkcastopt)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSAEPre, epre)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESimplifyCFG, simplifyCFG)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEProfGen, profileGen)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEPlacementRC, placementrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEDse, dse)

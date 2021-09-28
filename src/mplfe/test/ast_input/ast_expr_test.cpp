@@ -34,6 +34,7 @@ class AstExprTest : public FEIRTestBase {
   }
 
   static void TearDownTestCase() {
+    FEManager::GetManager().GetModule().SetSrcLang(kSrcLangUnknown);
     delete mp;
     mp = nullptr;
   }
@@ -52,7 +53,7 @@ TEST_F(AstExprTest, IntegerLiteral) {
   RedirectCout();
   std::list<UniqueFEIRStmt> stmts;
   ASTIntegerLiteral *astExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  astExpr->SetType(PTY_i64);
+  astExpr->SetType(GlobalTables::GetTypeTable().GetInt64());
   astExpr->SetVal(256);
   UniqueFEIRExpr feExpr = astExpr->Emit2FEExpr(stmts);
   ASSERT_EQ(feExpr->GetKind(), kExprConst);
@@ -71,7 +72,7 @@ TEST_F(AstExprTest, ImaginaryLiteral) {
   // create child expr
   std::unique_ptr<ASTIntegerLiteral> childExpr = std::make_unique<ASTIntegerLiteral>();
   childExpr->SetVal(2);
-  childExpr->SetType(PTY_i32);
+  childExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   astExpr->SetASTExpr(childExpr.get());
 
   std::list<UniqueFEIRStmt> stmts;
@@ -151,7 +152,7 @@ TEST_F(AstExprTest, ASTUnaryOperatorExpr_1) {
   feExpr = astUOLNotExpr->Emit2FEExpr(stmts);
   exprConst = feExpr->GenMIRNode(mirBuilder);
   exprConst->Dump();
-  EXPECT_EQ(GetBufferString(), "eq i32 i32 (dread i32 %aVar_0_0, constval i32 0)\n");
+  EXPECT_EQ(GetBufferString(), "eq u1 i32 (dread i32 %aVar_0_0, constval i32 0)\n");
   RestoreCout();
 }
 
@@ -294,7 +295,7 @@ TEST_F(AstExprTest, ASTParenExpr) {
   ASTParenExpr *astParenExpr = ASTDeclsBuilder::ASTExprBuilder<ASTParenExpr>(allocator);
   ASTIntegerLiteral *astIntExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   astIntExpr->SetVal(2);
-  astIntExpr->SetType(PTY_i32);
+  astIntExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   astParenExpr->SetASTExpr(static_cast<ASTExpr*>(astIntExpr));
   UniqueFEIRExpr feExpr = astParenExpr->Emit2FEExpr(stmts);
   BaseNode *exprConst = feExpr->GenMIRNode(mirBuilder);
@@ -382,11 +383,11 @@ TEST_F(AstExprTest, ConditionalOperator) {
   astBinaryOperatorExpr->SetRetType(GlobalTables::GetTypeTable().GetInt32());
   // create true expr
   ASTIntegerLiteral *trueAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  trueAstExpr->SetType(PTY_i32);
+  trueAstExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   trueAstExpr->SetVal(1);
   // create false expr
   ASTIntegerLiteral *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  falseAstExpr->SetType(PTY_i32);
+  falseAstExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   falseAstExpr->SetVal(2);
   // create ConditionalOperator expr
   ASTConditionalOperator *conditionalOperatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTConditionalOperator>(allocator);
@@ -421,7 +422,7 @@ TEST_F(AstExprTest, ConditionalOperator_NestedExpr) {
   astBinaryOperatorExpr->SetRetType(GlobalTables::GetTypeTable().GetInt32());
    // create true expr
   ASTIntegerLiteral *trueAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  trueAstExpr->SetType(PTY_i32);
+  trueAstExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   trueAstExpr->SetVal(1);
   // create false expr
   ASTUOPostIncExpr *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTUOPostIncExpr>(allocator);
@@ -457,7 +458,7 @@ TEST_F(AstExprTest, ConditionalOperator_Noncomparative) {
   astRefExpr->SetASTDecl(astDecl);
    // create true expr
   ASTIntegerLiteral *trueAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  trueAstExpr->SetType(PTY_f64);
+  trueAstExpr->SetType(GlobalTables::GetTypeTable().GetDouble());
   trueAstExpr->SetVal(0);
   // create false expr
   ASTUOPostIncExpr *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTUOPostIncExpr>(allocator);
@@ -479,7 +480,7 @@ TEST_F(AstExprTest, ConditionalOperator_Noncomparative) {
   EXPECT_EQ(mirStmts.front()->GetOpCode(), OP_if);
   mirStmts.front()->Dump();
   std::string pattern =
-      std::string("if \\(ne i32 f64 \\(dread f64 %aVar_0_0, constval f64 0\\)\\)") + MPLFEUTRegx::Any();
+      std::string("if \\(ne u1 f64 \\(dread f64 %aVar_0_0, constval f64 0\\)\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(GetBufferString(), pattern), true);
   ClearBufferString();
   feExpr->GenMIRNode(mirBuilder)->Dump();
@@ -506,7 +507,7 @@ TEST_F(AstExprTest, BinaryConditionalOperator) {
   astBinaryOperatorExpr->SetRetType(GlobalTables::GetTypeTable().GetInt32());
  // create false expr
   ASTIntegerLiteral *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  falseAstExpr->SetType(PTY_i32);
+  falseAstExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   falseAstExpr->SetVal(1);
   // create ConditionalOperator expr
   ASTBinaryConditionalOperator *operatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryConditionalOperator>(allocator);
@@ -521,7 +522,7 @@ TEST_F(AstExprTest, BinaryConditionalOperator) {
   mirStmts.front()->Dump();
   // save conditional var for true expr
   std::string pattern =
-      "dassign %condVal_[0-9][0-9] 0 \\(lt i32 i32 \\(dread i32 %aVar_0_0, dread i32 %bVar_0_0\\)\\)\n\n";
+      "dassign %condVal_[0-9][0-9] 0 \\(lt u1 i32 \\(dread i32 %aVar_0_0, dread i32 %bVar_0_0\\)\\)\n\n";
   EXPECT_EQ(MPLFEUTRegx::Match(GetBufferString(), pattern), true);
   ClearBufferString();
   feExpr->GenMIRNode(mirBuilder)->Dump();
@@ -540,7 +541,7 @@ TEST_F(AstExprTest, BinaryConditionalOperator_Noncomparative) {
   astRefExpr->SetASTDecl(astDecl);
   // create false expr
   ASTIntegerLiteral *falseAstExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  falseAstExpr->SetType(PTY_i32);
+  falseAstExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
   falseAstExpr->SetVal(1);
   // create ConditionalOperator expr
   ASTBinaryConditionalOperator *operatorExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryConditionalOperator>(allocator);
@@ -552,7 +553,7 @@ TEST_F(AstExprTest, BinaryConditionalOperator_Noncomparative) {
   RedirectCout();
   feExpr->GenMIRNode(mirBuilder)->Dump();
   std::string pattern = "select i32 (\n"\
-                        "  ne i32 i32 (dread i32 %aVar_0_0, constval i32 0),\n"\
+                        "  ne u1 i32 (dread i32 %aVar_0_0, constval i32 0),\n"\
                         "  dread i32 %aVar_0_0,\n"\
                         "  constval i32 1)\n";
   EXPECT_EQ(GetBufferString(), pattern);
@@ -604,7 +605,7 @@ TEST_F(AstExprTest, ASTArraySubscriptExpr) {
   // Index
   ASTIntegerLiteral *astIntIndexExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
   astIntIndexExpr->SetVal(2);
-  astIntIndexExpr->SetType(PTY_i32);
+  astIntIndexExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
 
   // Elem
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
@@ -670,16 +671,15 @@ TEST_F(AstExprTest, InitListExpr_Array) {
   std::list<StmtNode*> mirList1 = stmts.front()->GenMIRStmts(mirBuilder);
   mirList1.front()->Dump();
   auto dumpStr1 = GetBufferString();
-  EXPECT_EQ(dumpStr1, "intrinsiccall C_memset (addrof ptr %arr, constval u32 0, sizeoftype u32 <[4] f64>)\n\n");
+  EXPECT_EQ(dumpStr1, "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (addrof ptr %arr, constval i32 0), \n" \
+                      "  constval f64 2.5)\n\n");
 
   stmts.pop_front();
   std::list<StmtNode*> mirList2 = stmts.front()->GenMIRStmts(mirBuilder);
   mirList2.front()->Dump();
   auto dumpStr2 = GetBufferString();
-  std::string pattern2 = std::string("iassign \\<\\* f64\\> 0 \\(\n") +
-      std::string("  array 1 ptr \\<\\* \\<\\[4\\] f64\\>\\> \\(addrof ptr %arr, constval i32 0\\), \n") +
-      std::string("  constval f64 2.5\\)\n\n");
-  EXPECT_EQ(MPLFEUTRegx::Match(dumpStr2, pattern2), true);
+  EXPECT_EQ(dumpStr2, "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (addrof ptr %arr, constval i32 1), \n" \
+                      "  constval f64 3.5)\n\n");
 
   // mul dim array
   uint32 arraySize[2] = {4, 10};
@@ -699,33 +699,44 @@ TEST_F(AstExprTest, InitListExpr_Array) {
 
   stmts.clear();
   (void)astMulDimInitListExpr->Emit2FEExpr(stmts);
-  ASSERT_EQ(stmts.size(), 3);
+  ASSERT_EQ(stmts.size(), 4);
   std::list<StmtNode*> mirMulDimList3 = stmts.front()->GenMIRStmts(mirBuilder);
   mirMulDimList3.front()->Dump();
   auto dumpStr3 = GetBufferString();
-
-  EXPECT_EQ(dumpStr3,
-            "intrinsiccall C_memset (addrof ptr %mulDimArr, constval u32 0, sizeoftype u32 <[4][10] f64>)\n\n");
+  std::string pattern3 = "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (\n" \
+                         "    array 1 ptr <* <[4][10] f64>> (addrof ptr %mulDimArr, constval i32 0),\n" \
+                         "    constval i32 0), \n" \
+                         "  constval f64 2.5)\n\n";
+  EXPECT_EQ(dumpStr3, pattern3);
 
   stmts.pop_front();
   std::list<StmtNode*> mirMulDimList4 = stmts.front()->GenMIRStmts(mirBuilder);
   mirMulDimList4.front()->Dump();
   auto dumpStr4 = GetBufferString();
-  std::string pattern4 = "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (\n"\
-                         "    array 1 ptr <* <[4][10] f64>> (addrof ptr %mulDimArr, constval i32 0),\n"\
-                         "    constval i32 0), \n"\
-                         "  constval f64 2.5)\n\n";
+  std::string pattern4 = "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (\n" \
+                         "    array 1 ptr <* <[4][10] f64>> (addrof ptr %mulDimArr, constval i32 0),\n" \
+                         "    constval i32 1), \n" \
+                         "  constval f64 3.5)\n\n";
   EXPECT_EQ(dumpStr4, pattern4);
 
   stmts.pop_front();
   std::list<StmtNode*> mirMulDimList5 = stmts.front()->GenMIRStmts(mirBuilder);
   mirMulDimList5.front()->Dump();
   auto dumpStr5 = GetBufferString();
-  std::string pattern5 = "iassign <* f64> 0 (\n  array 1 ptr <* <[4] f64>> (\n"\
-                         "    array 1 ptr <* <[4][10] f64>> (addrof ptr %mulDimArr, constval i32 0),\n"\
-                         "    constval i32 1), \n"\
-                         "  constval f64 3.5)\n\n";
+  std::string pattern5 = "intrinsiccall C_memset (\n  add ptr (\n    array 1 ptr <* <[4][10] f64>> " \
+                         "(addrof ptr %mulDimArr, constval i32 0),\n    mul i32 (constval i32 2, constval i32 8))" \
+                         ",\n  constval i32 0,\n  mul i32 (constval i32 2, constval i32 8))\n\n";
   EXPECT_EQ(dumpStr5, pattern5);
+
+
+  stmts.pop_front();
+  std::list<StmtNode*> mirMulDimList6 = stmts.front()->GenMIRStmts(mirBuilder);
+  mirMulDimList6.front()->Dump();
+  auto dumpStr6 = GetBufferString();
+  std::string pattern6 = "intrinsiccall C_memset (\n  add ptr (\n    addrof ptr %mulDimArr,\n    " \
+                         "mul i32 (constval i32 1, constval i32 80)),\n  constval i32 0,\n  " \
+                         "mul i32 (constval i32 3, constval i32 80))\n\n";
+  EXPECT_EQ(dumpStr6, pattern6);
   RestoreCout();
 }
 }  // namespace maple

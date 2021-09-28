@@ -249,7 +249,7 @@ class ASTGotoStmt : public ASTStmt {
     return labelName;
   }
 
-  void SetLabelName(std::string name) {
+  void SetLabelName(const std::string &name) {
     labelName = name;
   }
 
@@ -547,7 +547,7 @@ class ASTGCCAsmStmt : public ASTStmt {
     asmStr = str;
   }
 
-  void InsertOutput(std::pair<std::string, std::string> &&output) {
+  void InsertOutput(std::tuple<std::string, std::string, bool> &&output) {
     outputs.emplace_back(output);
   }
 
@@ -573,10 +573,8 @@ class ASTGCCAsmStmt : public ASTStmt {
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
-  // Retrieving and parsing asm info in following order:
-  // asm instructions, outputs [output name, constrain, expr], inputs [input name, constrain, expr], clobbers
   std::string asmStr;
-  std::vector<std::pair<std::string, std::string>> outputs;
+  std::vector<std::tuple<std::string, std::string, bool>> outputs;
   std::vector<std::pair<std::string, std::string>> inputs;
   std::vector<std::string> clobbers;
   std::vector<std::string> labels;
@@ -588,6 +586,15 @@ class ASTOffsetOfStmt : public ASTStmt {
  public:
   ASTOffsetOfStmt() : ASTStmt(kASTOffsetOfStmt) {}
   ~ASTOffsetOfStmt() override = default;
+
+ private:
+  std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+};
+
+class ASTGenericSelectionExprStmt : public ASTStmt {
+ public:
+  ASTGenericSelectionExprStmt() : ASTStmt(kASTGenericSelectionExprStmt) {}
+  ~ASTGenericSelectionExprStmt() override = default;
 
  private:
   std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;

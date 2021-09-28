@@ -23,7 +23,7 @@ namespace maple {
 class SeqVectorize {
   using StoreList = MapleVector<IassignNode *>;
   using StoreListMap = MapleMap<MeExpr *, StoreList *>;
-public:
+ public:
   SeqVectorize(MemPool *localmp, LfoPreEmitter *lfoEmit, bool debug = false)
       : localMP(localmp), localAlloc(localmp),
         codeMP(lfoEmit->GetCodeMP()), codeMPAlloc(lfoEmit->GetCodeMPAlloc()),
@@ -49,7 +49,7 @@ public:
   bool CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs);
   void MergeIassigns(MapleVector<IassignNode *> &cands);
   bool IsIvarExprConsecutiveMem(IvarMeExpr *, IvarMeExpr *, PrimType);
-public:
+ public:
   static uint32_t seqVecStores;
   // iassignnode in same level block
   MemPool *localMP;

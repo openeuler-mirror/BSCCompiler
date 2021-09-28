@@ -22,7 +22,7 @@
 
 namespace maple {
 class LoopBound {
-public:
+ public:
   LoopBound() : lowNode(nullptr), upperNode(nullptr), incrNode(nullptr) {};
   LoopBound(BaseNode *nlow, BaseNode *nup, BaseNode *nincr) : lowNode(nlow), upperNode(nup), incrNode(nincr) {}
   BaseNode *lowNode;   // low bound node
@@ -31,7 +31,7 @@ public:
 };
 
 class LoopVecInfo {
-public:
+ public:
   explicit LoopVecInfo(MapleAllocator &alloc)
       : vecStmtIDs(alloc.Adapter()),
         uniformNodes(alloc.Adapter()),
@@ -55,7 +55,7 @@ public:
 
 // tranform plan for current loop
 class LoopTransPlan {
-public:
+ public:
   LoopTransPlan(MemPool *mp, MemPool *localmp, LoopVecInfo *info)
       : vBound(nullptr), eBound(nullptr), codeMP(mp), localMP(localmp), vecInfo(info) {
     vecFactor = 1;
@@ -107,7 +107,7 @@ class LoopVectorization {
   std::string PhaseName() const { return "lfoloopvec"; }
   bool CanConvert(uint32_t, uint32_t);
   bool CanAdjustRhsType(PrimType, ConstvalNode *);
-public:
+ public:
   static uint32_t vectorizedLoop;
  private:
   MIRFunction *mirFunc;

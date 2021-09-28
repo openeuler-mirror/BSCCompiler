@@ -16,10 +16,10 @@
 #define MPLFE_AST_FILE_INCLUDE_AST_INTERFACE_H
 #include <string>
 #include "ast_alias.h"
-
 #include "mir_type.h"
 #include "mir_nodes.h"
 #include "mpl_logging.h"
+#include "generic_attrs.h"
 
 namespace maple {
 using Pos = std::pair<uint32, uint32>;
@@ -42,18 +42,20 @@ class LibAstFile {
   AstUnitDecl *GetAstUnitDecl();
   std::string GetMangledName(const clang::NamedDecl &decl);
   const std::string GetOrCreateMappedUnnamedName(uint32_t id);
+  const std::string GetOrCreateCompoundLiteralExprInitName(uint32_t id);
 
   void EmitTypeName(const clang::QualType qualType, std::stringstream &ss);
   void EmitTypeName(const clang::RecordType &qualType, std::stringstream &ss);
   void EmitQualifierName(const clang::QualType qualType, std::stringstream &ss);
 
   void CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
-                                                    std::vector<uint32_t> &operands);
+                                                    TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 
-  void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &qualType, MIRType *&elemType, uint8_t &dim);
+  void CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualType &qualType, MIRType *&elemType,
+                                                  TypeAttrs &elemAttr, uint8_t &dim);
 
   void CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(const clang::QualType qualType, MIRType *&elemType,
-                                                           std::vector<uint32_t> &operands);
+                                                           TypeAttrs &elemAttr, std::vector<uint32_t> &operands);
 
   void GetCVRAttrs(uint32_t qualifiers, GenericAttrs &genAttrs);
   void GetSClassAttrs(const clang::StorageClass storageClass, GenericAttrs &genAttrs) const;
@@ -71,6 +73,9 @@ class LibAstFile {
   MIRType *CvtRecordType(const clang::QualType srcType);
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType);
+  MIRType *CvtVectorType(const clang::QualType srcType);
+  static bool isOneElementVector(const clang::QualType &qualType);
+  static bool isOneElementVector(const clang::Type &type);
 
   const clang::ASTContext *GetContext() {
     return astContext;
@@ -78,6 +83,7 @@ class LibAstFile {
 
   Pos GetDeclPosInfo(const clang::Decl &decl) const;
   Pos GetStmtLOC(const clang::Stmt &stmt) const;
+  Pos GetExprLOC(const clang::Expr &expr) const;
   Pos GetLOC(const clang::SourceLocation &srcLoc) const;
   uint32 GetMaxAlign(const clang::Decl &decl) const;
   uint32 RetrieveAggTypeAlign(const clang::Type *ty) const;
@@ -87,6 +93,7 @@ class LibAstFile {
   RecordDeclMap recordDeclMap;
   std::set<const clang::RecordDecl*> recordDeclSet;
   std::map<uint32_t, std::string> unnamedSymbolMap;
+  std::map<uint32_t, std::string> CompoundLiteralExprInitSymbolMap;
   MIRModule *module;
 
   MapleList<clang::Decl*> &recordDecles;
