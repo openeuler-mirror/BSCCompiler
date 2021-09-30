@@ -2424,8 +2424,8 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       AArch64OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
       AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
-          static_cast<AArch64RegOperand*>(&result), nullptr, &offset, nullptr);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, tmpreg, memOpnd));
+          static_cast<AArch64RegOperand*>(&tmpreg), nullptr, &offset, nullptr);
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
 
       if (stImm.GetOffset() > 0) {
         AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
