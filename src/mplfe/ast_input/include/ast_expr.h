@@ -279,7 +279,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
     pointeeLen = len;
   }
 
-  int64 GetPointeeLen() {
+  int64 GetPointeeLen() const {
     return pointeeLen;
   }
 
@@ -287,7 +287,7 @@ class ASTUnaryOperatorExpr : public ASTExpr {
     isGlobal = isGlobalArg;
   }
 
-  bool IsGlobal() {
+  bool IsGlobal() const {
     return isGlobal;
   }
 
@@ -1016,7 +1016,7 @@ class ASTAssignExpr : public ASTBinaryOperatorExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  void GetActualRightExpr(UniqueFEIRExpr &right, UniqueFEIRExpr &left) const;
+  void GetActualRightExpr(UniqueFEIRExpr &right, const UniqueFEIRExpr &left) const;
   bool IsInsertNonnullChecking(const UniqueFEIRExpr &rExpr) const;
   bool isCompoundAssign = false;
 };
@@ -1100,7 +1100,8 @@ class ASTCallExpr : public ASTExpr {
   }
 
   bool IsFirstArgRet() const {
-    return retType->GetPrimType() == PTY_agg && retType->GetSize() > 16; // Condition needs to be extended synchronously.
+    // If the return value exceeds 16 bytes, it is passed as the first parameter.
+    return retType->GetPrimType() == PTY_agg && retType->GetSize() > 16;
   }
 
   void AddBoundaryStmts(std::list<ASTStmt*> &stmts) {
@@ -1110,13 +1111,14 @@ class ASTCallExpr : public ASTExpr {
   std::string CvtBuiltInFuncName(std::string builtInName) const;
   UniqueFEIRExpr ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
-  void AddArgsExpr(std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
-  UniqueFEIRExpr AddRetExpr(std::unique_ptr<FEIRStmtAssign> &callStmt) const;
+  void AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const;
 
  private:
   using FuncPtrBuiltinFunc = UniqueFEIRExpr (ASTCallExpr::*)(std::list<UniqueFEIRStmt> &stmts) const;
   static std::unordered_map<std::string, FuncPtrBuiltinFunc> InitBuiltinFuncPtrMap();
-  UniqueFEIRExpr CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID) const;
+  UniqueFEIRExpr CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts, MIRIntrinsicID argIntrinsicID,
+                                       bool genTempVar = true) const;
   UniqueFEIRExpr CreateBinaryExpr(std::list<UniqueFEIRStmt> &stmts, Opcode op) const;
   UniqueFEIRExpr EmitBuiltinFunc(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr EmitBuiltinVectorZip(std::list<UniqueFEIRStmt> &stmts, bool &isFinish) const;
@@ -1326,7 +1328,7 @@ class ASTFloatingLiteral : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   MIRConst *GenerateMIRConstImpl() const override;
   double val = 0;
-  FloatKind kind;
+  FloatKind kind = F32;
 };
 
 class ASTCharacterLiteral : public ASTExpr {
@@ -1374,7 +1376,7 @@ class ASTVAArgExpr : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   VaArgInfo ProcessValistArgInfo(MIRType &type) const;
-  MIRType *IsHFAType(MIRStructType &type) const;
+  MIRType *IsHFAType(const MIRStructType &type) const;
   void CvtHFA2Struct(const MIRStructType &type, MIRType &fieldType, const UniqueFEIRVar &vaArgVar,
                      std::list<UniqueFEIRStmt> &stmts) const;
 

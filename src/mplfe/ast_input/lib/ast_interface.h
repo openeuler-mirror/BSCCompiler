@@ -37,7 +37,7 @@ class LibAstFile {
 
   bool Open(const std::string &fileName,
             int excludeDeclFromPCH, int displayDiagnostics);
-  const AstASTContext *GetAstContext();
+  const AstASTContext *GetAstContext() const;
   AstASTContext *GetNonConstAstContext() const;
   AstUnitDecl *GetAstUnitDecl();
   std::string GetMangledName(const clang::NamedDecl &decl);
@@ -74,10 +74,10 @@ class LibAstFile {
   MIRType *CvtFieldType(const clang::NamedDecl &decl);
   MIRType *CvtComplexType(const clang::QualType srcType);
   MIRType *CvtVectorType(const clang::QualType srcType);
-  static bool isOneElementVector(const clang::QualType &qualType);
-  static bool isOneElementVector(const clang::Type &type);
+  static bool IsOneElementVector(const clang::QualType &qualType);
+  static bool IsOneElementVector(const clang::Type &type);
 
-  const clang::ASTContext *GetContext() {
+  const clang::ASTContext *GetContext() const {
     return astContext;
   }
 
@@ -94,7 +94,7 @@ class LibAstFile {
   std::set<const clang::RecordDecl*> recordDeclSet;
   std::map<uint32_t, std::string> unnamedSymbolMap;
   std::map<uint32_t, std::string> CompoundLiteralExprInitSymbolMap;
-  MIRModule *module;
+  MIRModule *module = nullptr;
 
   MapleList<clang::Decl*> &recordDecles;
 

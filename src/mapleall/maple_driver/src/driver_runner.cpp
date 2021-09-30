@@ -186,7 +186,7 @@ ErrorCode DriverRunner::ParseInput() const {
   return ret;
 }
 
-void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vtableImplFile) {
+void DriverRunner::RunNewPM(const std::string &output, const std::string &vtableImplFile) {
   LogInfo::MapleLogger() << "Processing maplecomb in new phasemanager" << '\n';
   auto PMMemPool = std::make_unique<ThreadLocalMemPool>(memPoolCtrler, "PM module mempool");
   const MaplePhaseInfo *curPhase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEBETopLevelManager::id);
@@ -208,7 +208,7 @@ void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vt
   }
   // emit after module phase
   if (printOutExe == kMpl2mpl || printOutExe == kMplMe) {
-    theModule->Emit(outputFile);
+    theModule->Emit(output);
   } else if (genVtableImpl || Options::emitVtableImpl) {
     theModule->Emit(vtableImplFile);
   }
@@ -222,7 +222,7 @@ void DriverRunner::RunNewPM(const std::string &outputFile, const std::string &vt
   }
 }
 
-void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile) {
+void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &output, const std::string &vtableImplFile) {
   CHECK_MODULE();
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {
@@ -233,12 +233,12 @@ void DriverRunner::ProcessMpl2mplAndMePhases(const std::string &outputFile, cons
     // multi-thread is not supported for now.
     MeOption::threads = 1;
     // main entry of newpm for me&mpl2mpl
-    RunNewPM(outputFile, vtableImplFile);
+    RunNewPM(output, vtableImplFile);
     return;
   }
 }
 
-void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::string &originBaseName) {
+void DriverRunner::ProcessCGPhase(const std::string &output, const std::string &originBaseName) {
   CHECK_MODULE();
   theMIRModule = theModule;
   if (withDwarf && !theModule->IsWithDbgInfo()) {
@@ -252,7 +252,7 @@ void DriverRunner::ProcessCGPhase(const std::string &outputFile, const std::stri
   MPLTimer timer;
   timer.Start();
   theModule->SetBaseName(originBaseName);
-  theModule->SetOutputFileName(outputFile);
+  theModule->SetOutputFileName(output);
   cgOptions->SetDefaultOptions(*theModule);
   if (timePhases) {
     CGOptions::EnableTimePhases();
@@ -282,9 +282,9 @@ void DriverRunner::InitProfile() const {
   if (!cgOptions->IsProfileDataEmpty()) {
     uint32 dexNameIdx = theModule->GetFileinfo(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName("INFO_filename"));
     const std::string &dexName = GlobalTables::GetStrTable().GetStringFromStrIdx(GStrIdx(dexNameIdx));
-    bool deCompressSucc = theModule->GetProfile().DeCompress(cgOptions->GetProfileData(), dexName);
+    bool deCompressSucc = theModule->GetProfile().DeCompress(CGOptions::GetProfileData(), dexName);
     if (!deCompressSucc) {
-      LogInfo::MapleLogger() << "WARN: DeCompress() " << cgOptions->GetProfileData() << "failed in mplcg()\n";
+      LogInfo::MapleLogger() << "WARN: DeCompress() " << CGOptions::GetProfileData() << "failed in mplcg()\n";
     }
   }
 }

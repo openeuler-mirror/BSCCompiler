@@ -18,7 +18,7 @@
 #include <vector>
 #include <string>
 #include "me_option.h"
-#include "interleaved_manager.h"
+#include "module_phase_manager.h"
 #include "error_code.h"
 #include "cg.h"
 #include "cg_option.h"
@@ -34,8 +34,8 @@ extern const std::string mplME;
 class DriverRunner final {
  public:
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
-               std::string mpl2mplInput, const std::string &meInput, std::string actualInput,
-               bool dwarf, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
+               const std::string &mpl2mplInput, const std::string &meInput, const std::string &actualInput,
+               bool dwarf, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
       : theModule(theModule),
         exeNames(exeNames),
@@ -43,7 +43,6 @@ class DriverRunner final {
         meInput(meInput),
         actualInput(actualInput),
         withDwarf(dwarf),
-        optMp(optMp),
         fileParsed(fileParsed),
         timePhases(timePhases),
         genVtableImpl(genVtableImpl),
@@ -54,9 +53,9 @@ class DriverRunner final {
   }
 
   DriverRunner(MIRModule *theModule, const std::vector<std::string> &exeNames, InputFileType inpFileType,
-               std::string actualInput, bool dwarf, MemPool *optMp, bool fileParsed = false, bool timePhases = false,
+               const std::string &actualInput, bool dwarf, bool fileParsed = false, bool timePhases = false,
                bool genVtableImpl = false, bool genMeMpl = false)
-      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf, optMp,
+      : DriverRunner(theModule, exeNames, inpFileType, "", "", actualInput, dwarf,
                      fileParsed, timePhases, genVtableImpl, genMeMpl) {
     auto lastDot = actualInput.find_last_of(".");
     baseName = (lastDot == std::string::npos) ? actualInput : actualInput.substr(0, lastDot);
@@ -65,9 +64,7 @@ class DriverRunner final {
   ~DriverRunner() = default;
 
   ErrorCode Run();
-#ifdef NEW_PM
   void RunNewPM(const std::string &outputFile, const std::string &vtableImplFile);
-#endif
   void ProcessCGPhase(const std::string &outputFile, const std::string &oriBasenam);
   void SetCGInfo(CGOptions *cgOptions, const std::string &cgInput) {
     this->cgOptions = cgOptions;
@@ -88,19 +85,11 @@ class DriverRunner final {
   }
 
  private:
-  bool IsFramework() const;
   std::string GetPostfix();
-  void InitPhases(InterleavedManager &mgr, const std::vector<std::string> &phases) const;
-  void AddPhases(InterleavedManager &mgr, const std::vector<std::string> &phases,
-                 const PhaseManager &phaseManager) const;
-  void AddPhase(std::vector<std::string> &phases, const std::string phase, const PhaseManager &phaseManager) const;
   void ProcessMpl2mplAndMePhases(const std::string &outputFile, const std::string &vtableImplFile);
   CGOptions *cgOptions = nullptr;
   std::string cgInput;
-  BECommon *beCommon = nullptr;
   void InitProfile() const;
-  void EmitDuplicatedAsmFunc(const CG &cg) const;
-  void EmitFastFuncs(const CG &cg) const;
   MIRModule *theModule;
   std::vector<std::string> exeNames = {};
   Options *mpl2mplOptions = nullptr;
@@ -109,7 +98,6 @@ class DriverRunner final {
   std::string meInput;
   std::string actualInput;
   bool withDwarf = false;
-  MemPool *optMp;
   bool fileParsed = false;
   bool timePhases = false;
   bool genVtableImpl = false;

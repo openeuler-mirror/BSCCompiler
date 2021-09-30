@@ -14,7 +14,6 @@
  */
 #include "fe_input_helper.h"
 #include "fe_options.h"
-#include "fe_macros.h"
 #include "fe_manager.h"
 
 namespace maple {

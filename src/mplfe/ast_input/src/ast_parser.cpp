@@ -35,7 +35,7 @@ bool ASTParser::OpenFile() {
   return true;
 }
 
-bool ASTParser::Verify() {
+bool ASTParser::Verify() const {
   return true;
 }
 
@@ -1119,7 +1119,7 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
     if (aggType->isVectorType()) {
       astInitListExpr->SetHasVectorType(true);
       // for one elem vector type
-      if (LibAstFile::isOneElementVector(aggType)) {
+      if (LibAstFile::IsOneElementVector(aggType)) {
         astInitListExpr->SetTransparent(true);
       }
     }
@@ -1931,7 +1931,7 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
        (lhsType->isIntegerType() && rhsType->isPointerType())) &&
       !boType->isVoidPointerType() && GetSizeFromQualType(boType->getPointeeType()) != 1) {
     auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    ptrSizeExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
+    ptrSizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
     auto boMirType = astFile->CvtType(boType);
     auto typeSize = GetSizeFromQualType(boType->getPointeeType());
     MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
@@ -1945,14 +1945,16 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
       rhs->SetLeftExpr(astRExpr);
       rhs->SetRightExpr(ptrSizeExpr);
       rhs->SetOpcode(OP_mul);
-      rhs->SetRetType(GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
+      rhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
+      rhs->SetCvtNeeded(true);
       astRExpr = rhs;
     } else if (rhsType->isPointerType()) {
       auto lhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
       lhs->SetLeftExpr(astLExpr);
       lhs->SetRightExpr(ptrSizeExpr);
       lhs->SetOpcode(OP_mul);
-      lhs->SetRetType(GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
+      lhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
+      lhs->SetCvtNeeded(true);
       astLExpr = lhs;
     }
     astBinOpExpr->SetCvtNeeded(true);
@@ -2310,7 +2312,7 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   ProcessBoundaryFuncAttrs(allocator, funcDecl, attrs, paramDecls, boundaryStmts);
   ProcessBoundaryParamAttrs(allocator, funcDecl, paramDecls, boundaryStmts);
   // one element vector type in rettype
-  if (LibAstFile::isOneElementVector(qualType)) {
+  if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
@@ -2440,7 +2442,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::F
     ASTStringLiteral *strExpr = static_cast<ASTStringLiteral*>(lenExpr);
     std::string lenName(strExpr->GetCodeUnits().begin(), strExpr->GetCodeUnits().end());
     bool isFound = false;
-    for(ASTDecl *lenDecl : paramDecls) {
+    for (ASTDecl *lenDecl : paramDecls) {
       if (lenDecl->GetName() != lenName) {
         continue;
       }
@@ -2486,13 +2488,14 @@ void ASTParser::InsertBoundaryVar(MapleAllocator &allocator, ASTDecl *ptrDecl, A
   upperRefExpr->SetASTDecl(ptrDecl);
   if (size) {
     auto sizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    sizeExpr->SetType(GlobalTables::GetTypeTable().GetInt32());
+    sizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
     sizeExpr->SetVal(size);
     auto rhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
     rhs->SetLeftExpr(lenExpr);
     rhs->SetRightExpr(sizeExpr);
     rhs->SetOpcode(OP_mul);
-    rhs->SetRetType(GlobalTables::GetTypeTable().GetPrimType(PTY_i32));
+    rhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
+    rhs->SetCvtNeeded(true);
     lenExpr = rhs;
   }
   ASTBinaryOperatorExpr *upperBinExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
@@ -2539,7 +2542,7 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   GenericAttrs attrs;
   astFile->CollectAttrs(decl, attrs, kNone);
   // one elem vector type
-  if (LibAstFile::isOneElementVector(qualType)) {
+  if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
   auto fieldDecl = ASTDeclsBuilder::ASTFieldBuilder(
@@ -2569,7 +2572,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   GenericAttrs attrs;
   astFile->CollectAttrs(varDecl, attrs, kNone);
   // one elem vector type
-  if (LibAstFile::isOneElementVector(qualType)) {
+  if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
   astVar = ASTDeclsBuilder::ASTVarBuilder(
@@ -2630,7 +2633,7 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   }
   GenericAttrs attrs;
   astFile->CollectAttrs(parmVarDecl, attrs, kNone);
-  if (LibAstFile::isOneElementVector(parmQualType)) {
+  if (LibAstFile::IsOneElementVector(parmQualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
   parmVar = ASTDeclsBuilder::ASTVarBuilder(
@@ -2651,8 +2654,8 @@ ASTDecl *ASTParser::ProcessDeclEnumDecl(MapleAllocator &allocator, const clang::
     return localEnumDecl;
   }
   GenericAttrs attrs;
-  astFile->CollectAttrs(*clang::dyn_cast<const clang:: NamedDecl>(&enumDecl), attrs, kNone);
-  const std::string &enumName = clang::dyn_cast<const clang:: NamedDecl>(&enumDecl)->getNameAsString();
+  astFile->CollectAttrs(*clang::dyn_cast<const clang::NamedDecl>(&enumDecl), attrs, kNone);
+  const std::string &enumName = clang::dyn_cast<const clang::NamedDecl>(&enumDecl)->getNameAsString();
   localEnumDecl = ASTDeclsBuilder::ASTLocalEnumDeclBuilder(allocator, fileName, enumName,
       std::vector<MIRType*>{}, attrs, enumDecl.getID());
   TraverseDecl(&enumDecl, [&](clang::Decl *child) {

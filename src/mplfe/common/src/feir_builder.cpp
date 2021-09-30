@@ -21,9 +21,6 @@
 #include "feir_type_helper.h"
 
 namespace maple {
-extern const char *GetPrimTypeName(PrimType primType);
-extern uint32 GetPrimTypeSize(PrimType primType);
-
 UniqueFEIRType FEIRBuilder::CreateType(PrimType basePty, const GStrIdx &baseNameIdx, uint32 dim) {
   UniqueFEIRType type = std::make_unique<FEIRTypeDefault>(basePty, baseNameIdx, dim);
   CHECK_NULL_FATAL(type);
@@ -339,6 +336,21 @@ UniqueFEIRExpr FEIRBuilder::CreateExprCvtPrim(Opcode argOp, UniqueFEIRExpr srcEx
   return expr;
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprCastPrim(UniqueFEIRExpr srcExpr, PrimType dstType) {
+  // avoid using OP_cvt for integer types less than 32 bits
+  if (FEUtils::IsInteger(srcExpr->GetPrimType()) && FEUtils::IsInteger(dstType) && GetPrimTypeBitSize(dstType) < 32) {
+    UniqueFEIRExpr retExpr;
+    if (FEUtils::IsUnsignedInteger(dstType)) {
+      retExpr = CreateExprZExt(std::move(srcExpr), dstType);
+    } else {
+      retExpr = CreateExprSExt(std::move(srcExpr), dstType);
+    }
+    return retExpr;
+  }
+
+  return CreateExprCvtPrim(std::move(srcExpr), std::move(dstType));
+}
+
 UniqueFEIRExpr FEIRBuilder::CreateExprJavaNewInstance(UniqueFEIRType type) {
   UniqueFEIRExpr expr = std::make_unique<FEIRExprJavaNewInstance>(std::move(type));
   CHECK_NULL_FATAL(expr);
@@ -531,7 +543,7 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                             UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
-                                                            std::string argArrayName) {
+                                                            const std::string &argArrayName) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
                                                              std::move(exprIndex), std::move(arrayType),
                                                              argArrayName);
@@ -540,7 +552,7 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                             std::list<UniqueFEIRExpr> exprIndexs,
-                                                            UniqueFEIRType arrayType, std::string argArrayName) {
+                                                            UniqueFEIRType arrayType, const std::string &argArrayName) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
                                                              exprIndexs, std::move(arrayType),
                                                              argArrayName);
@@ -549,7 +561,7 @@ UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprE
 
 UniqueFEIRStmt FEIRBuilder::CreateStmtArrayStoreOneStmtForC(UniqueFEIRExpr exprElem, UniqueFEIRExpr exprArray,
                                                             UniqueFEIRExpr exprIndex, UniqueFEIRType arrayType,
-                                                            UniqueFEIRType elemType, std::string argArrayName) {
+                                                            UniqueFEIRType elemType, const std::string &argArrayName) {
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtArrayStore>(std::move(exprElem), std::move(exprArray),
                                                              std::move(exprIndex), std::move(arrayType),
                                                              std::move(elemType), argArrayName);
