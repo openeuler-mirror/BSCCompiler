@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -146,7 +146,7 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kCpp2mplOpt:
         ret = UpdatePhaseOption(opt.Args(), kBinNameCpp2mpl);
         if (ret != kErrorNoError) {
-            return ret;
+          return ret;
         }
         break;
       case kJbc2mplOpt:
@@ -258,7 +258,7 @@ ErrorCode MplOptions::DecideRunType() {
         break;
       }
       case kHelpLevel:
-        helpLevel = std::stoul(opt.Args());
+        helpLevel = static_cast<unsigned int>(std::stoul(opt.Args()));
         break;
       default:
         break;
@@ -392,10 +392,10 @@ bool MplOptions::Init(const std::string &inputFile) {
     inputFileType = InputFileType::kFileTypeC;
   }
   else if (extensionName == "cpp") {
-      inputFileType = InputFileType::kFileTypeCpp;
+    inputFileType = InputFileType::kFileTypeCpp;
   }
   else if (extensionName == "ast") {
-      inputFileType = InputFileType::kFileTypeAst;
+    inputFileType = InputFileType::kFileTypeAst;
   }
   else if (extensionName == "jar") {
     inputFileType = InputFileType::kFileTypeJar;
@@ -464,8 +464,11 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       return ret;
     }
   }
-  UpdatePhaseOption(meOptArgs, kBinNameMe);
-  UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
+  ret = UpdatePhaseOption(meOptArgs, kBinNameMe);
+  if (ret != kErrorNoError) {
+    return ret;
+  }
+  ret = UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
   return ret;
 }
 
@@ -494,7 +497,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   if (ret != kErrorNoError) {
     return ret;
   }
-  UpdatePhaseOption(mplcgOptArgs, kBinNameMplcg);
+  ret = UpdatePhaseOption(mplcgOptArgs, kBinNameMplcg);
   return ret;
 }
 

@@ -86,8 +86,7 @@ uint8 FEUtils::GetWidth(PrimType primType) {
 }
 
 bool FEUtils::IsInteger(PrimType primType) {
-  return (primType == PTY_u1) ||
-         (primType == PTY_i8) || (primType == PTY_u8) ||
+  return (primType == PTY_i8) || (primType == PTY_u8) ||
          (primType == PTY_i16) || (primType == PTY_u16) ||
          (primType == PTY_i32) || (primType == PTY_u32) ||
          (primType == PTY_i64) || (primType == PTY_u64);
@@ -98,8 +97,7 @@ bool FEUtils::IsSignedInteger(PrimType primType) {
 }
 
 bool FEUtils::IsUnsignedInteger(PrimType primType) {
-  return (primType == PTY_u1) || (primType == PTY_u8) || (primType == PTY_u16) || (primType == PTY_u32) ||
-         (primType == PTY_u64);
+  return (primType == PTY_u8) || (primType == PTY_u16) || (primType == PTY_u32) || (primType == PTY_u64);
 }
 
 PrimType FEUtils::MergePrimType(PrimType primType1, PrimType primType2) {
@@ -108,14 +106,14 @@ PrimType FEUtils::MergePrimType(PrimType primType1, PrimType primType2) {
   }
   // merge signed integer
   CHECK_FATAL(LogicXOR(IsSignedInteger(primType1), IsSignedInteger(primType2)) == false,
-                       "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
+              "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsSignedInteger(primType1)) {
     return GetPrimTypeSize(primType1) >= GetPrimTypeSize(primType2) ? primType1 : primType2;
   }
 
   // merge unsigned integer
   CHECK_FATAL(LogicXOR(IsUnsignedInteger(primType1), IsUnsignedInteger(primType2)) == false,
-                       "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
+              "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsUnsignedInteger(primType1)) {
     if (GetPrimTypeSize(primType1) == GetPrimTypeSize(primType2) && GetPrimTypeSize(primType1) == 1) {
       return PTY_u8;
@@ -126,7 +124,7 @@ PrimType FEUtils::MergePrimType(PrimType primType1, PrimType primType2) {
 
   // merge float
   CHECK_FATAL(LogicXOR(IsPrimitiveFloat(primType1), IsPrimitiveFloat(primType2)) == false,
-                       "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
+              "can not merge type %s and %s", GetPrimTypeName(primType1), GetPrimTypeName(primType2));
   if (IsPrimitiveFloat(primType1)) {
     return GetPrimTypeSize(primType1) >= GetPrimTypeSize(primType2) ? primType1 : primType2;
   }
@@ -195,18 +193,23 @@ std::string FEUtils::GetSequentialName(const std::string &prefix) {
   return name;
 }
 
-bool FEUtils::TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, FieldID &fieldID) {
+bool FEUtils::TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
+                                   bool isTopLevel) {
   for (uint32 fieldIdx = 0; fieldIdx < structType.GetFieldsSize(); ++fieldIdx) {
     ++fieldID;
     TyIdx fieldTyIdx = structType.GetFieldsElemt(fieldIdx).second.first;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     ASSERT(fieldType != nullptr, "fieldType is null");
-    if (structType.GetFieldsElemt(fieldIdx).first == nameIdx) {
+    if (isTopLevel && structType.GetFieldsElemt(fieldIdx).first == nameIdx) {
       return true;
     }
-    if (fieldType->IsStructType()) {
+    // The fields of an embedded structure array are assigned fieldIDs
+    if (fieldType->GetKind() == kTypeArray) {
+      fieldType = fieldType->EmbeddedStructType();
+    }
+    if (fieldType != nullptr && fieldType->IsStructType()) {
       auto *subStructType = static_cast<MIRStructType *>(fieldType);
-      if (TraverseToNamedField(*subStructType, nameIdx, fieldID)) {
+      if (TraverseToNamedField(*subStructType, nameIdx, fieldID, false)) {
         return true;
       }
     }
@@ -229,7 +232,7 @@ FieldID FEUtils::GetStructFieldID(MIRStructType *base, const std::string &fieldN
   return fieldID;
 }
 
-MIRType *FEUtils::GetStructFieldType(MIRStructType *type, FieldID fieldID) {
+MIRType *FEUtils::GetStructFieldType(const MIRStructType *type, FieldID fieldID) {
   FieldID tmpID = fieldID;
   FieldPair fieldPair = type->TraverseToFieldRef(tmpID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
@@ -238,6 +241,10 @@ MIRType *FEUtils::GetStructFieldType(MIRStructType *type, FieldID fieldID) {
 
 MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
   switch (type->GetPrimType()) {
+    case PTY_u1: {
+      return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+          0, *GlobalTables::GetTypeTable().GetPrimType(PTY_u1));
+    }
     case PTY_u8: {
       return GlobalTables::GetIntConstTable().GetOrCreateIntConst(
           0, *GlobalTables::GetTypeTable().GetPrimType(PTY_u8));
@@ -306,7 +313,7 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
         } else {
           elementConst = CreateImplicitConst(arrayType->GetElemType());
         }
-        for (int i = 0; i < arrayType->GetSizeArrayItem(0); ++i) {
+        for (uint32 i = 0; i < arrayType->GetSizeArrayItem(0); ++i) {
           aggConst->AddItem(elementConst, 0);
         }
       }
@@ -316,6 +323,47 @@ MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
       CHECK_FATAL(false, "Unsupported Primitive type: %d", type->GetPrimType());
     }
   }
+}
+
+PrimType FEUtils::GetVectorElementPrimType(PrimType vectorPrimType) {
+  switch (vectorPrimType) {
+    case PTY_v2i64:
+      return PTY_i64;
+    case PTY_v4i32:
+    case PTY_v2i32:
+      return PTY_i32;
+    case PTY_v8i16:
+    case PTY_v4i16:
+      return PTY_i16;
+    case PTY_v16i8:
+    case PTY_v8i8:
+      return PTY_i8;
+    case PTY_v2u64:
+      return PTY_u64;
+    case PTY_v4u32:
+    case PTY_v2u32:
+      return PTY_u32;
+    case PTY_v8u16:
+    case PTY_v4u16:
+      return PTY_u16;
+    case PTY_v16u8:
+    case PTY_v8u8:
+      return PTY_u8;
+    case PTY_v2f64:
+      return PTY_f64;
+    case PTY_v4f32:
+    case PTY_v2f32:
+      return PTY_f32;
+    default:
+      return PTY_unknown;
+  }
+}
+
+bool FEUtils::EndsWith(const std::string &value, const std::string &ending) {
+  if (ending.size() > value.size()) {
+    return false;
+  }
+  return std::equal(ending.rbegin(), ending.rend(), value.rbegin());
 }
 
 // ---------- FELinkListNode ----------
@@ -409,19 +457,37 @@ const std::string &AstSwitchUtil::GetTopOfBreakLabels() const {
   return nestedBreakLabels.top();
 }
 
-void AstLoopUtil::PushLoop(const std::pair<std::string, std::string> &labelPair) {
-  loopLabels.push(labelPair);
+void AstLoopUtil::PushBreak(std::string label) {
+  breakLabels.push(std::make_pair(label, false));
 }
 
-std::pair<std::string, std::string> AstLoopUtil::GetCurrentLoop(){
-  return loopLabels.top();
+std::string AstLoopUtil::GetCurrentBreak() {
+  breakLabels.top().second = true;
+  return breakLabels.top().first;
 }
 
-bool AstLoopUtil::IsLoopLabelsEmpty() const {
-  return loopLabels.empty();
+bool AstLoopUtil::IsBreakLabelsEmpty() const {
+  return breakLabels.empty();
 }
 
-void AstLoopUtil::PopCurrentLoop(){
-  loopLabels.pop();
+void AstLoopUtil::PopCurrentBreak() {
+  breakLabels.pop();
+}
+
+void AstLoopUtil::PushContinue(std::string label) {
+  continueLabels.push(std::make_pair(label, false));
+}
+
+std::string AstLoopUtil::GetCurrentContinue() {
+  continueLabels.top().second = true;
+  return continueLabels.top().first;
+}
+
+bool AstLoopUtil::IsContinueLabelsEmpty() const {
+  return continueLabels.empty();
+}
+
+void AstLoopUtil::PopCurrentContinue() {
+  continueLabels.pop();
 }
 }  // namespace maple

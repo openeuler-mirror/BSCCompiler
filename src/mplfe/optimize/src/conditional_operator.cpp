@@ -16,7 +16,7 @@
 #include "feir_builder.h"
 
 namespace maple {
-bool ConditionalOptimize::IsCompletedConditional(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) {
+bool ConditionalOptimize::IsCompletedConditional(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) {
   if (FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return false;
   }
@@ -38,7 +38,7 @@ bool ConditionalOptimize::IsCompletedConditional(UniqueFEIRExpr &expr, std::list
 }
 
 bool ConditionalOptimize::DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts,
-                                                UniqueFEIRVar &var, PrimType dstPty, FieldID fieldID) {
+                                                const UniqueFEIRVar &var, PrimType dstPty, FieldID fieldID) {
   if (!IsCompletedConditional(expr, stmts)) {
     return false;
   }
@@ -47,7 +47,6 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     UniqueFEIRExpr srcExpr = dassignStmt->GetExpr()->Clone();
     PrimType srcPty = srcExpr->GetPrimType();
-
     if (srcPty != dstPty && srcPty != PTY_agg && srcPty != PTY_void) {
       if (srcPty == PTY_f32 || srcPty == PTY_f64) {
         if (dstPty == PTY_u8 || dstPty == PTY_u16) {

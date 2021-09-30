@@ -14,7 +14,6 @@
  */
 #include "ast_expr.h"
 #include "ast_decl.h"
-#include "ast_macros.h"
 #include "ast_decl_builder.h"
 #include "ast_interface.h"
 #include "ast_util.h"
@@ -46,7 +45,7 @@ std::unordered_map<std::string, ASTCallExpr::FuncPtrBuiltinFunc> ASTCallExpr::In
 }
 
 UniqueFEIRExpr ASTCallExpr::CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stmts,
-                                                  MIRIntrinsicID argIntrinsicID) const {
+                                                  MIRIntrinsicID argIntrinsicID, bool genTempVar) const {
   auto feTy = std::make_unique<FEIRTypeNative>(*mirType);
   std::vector<std::unique_ptr<FEIRExpr>> argOpnds;
   for (auto arg : args) {
@@ -61,6 +60,9 @@ UniqueFEIRExpr ASTCallExpr::CreateIntrinsicopForC(std::list<UniqueFEIRStmt> &stm
     stmts.emplace_back(std::move(evalStmt));
     return nullptr;
   } else {
+    if (!genTempVar) {
+      return feExpr;
+    }
     std::string tmpName = FEUtils::GetSequentialName("intrinsicop_var_");
     UniqueFEIRVar tmpVar = FEIRBuilder::CreateVarNameForC(tmpName, *mirType);
     UniqueFEIRStmt dAssign = std::make_unique<FEIRStmtDAssign>(tmpVar->Clone(), std::move(feExpr), 0);
@@ -416,13 +418,7 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinAlloca(std::list<UniqueFEIRStmt> &stmts) 
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinExpect(std::list<UniqueFEIRStmt> &stmts) const {
   ASSERT(args.size() == 2, "__builtin_expect requires two arguments");
-  auto arg1Expr = args[1]->Emit2FEExpr(stmts);
-  std::list<std::unique_ptr<FEIRExpr>> argExprsIn;
-  argExprsIn.push_back(std::move(arg1Expr));
-  auto stmt = std::make_unique<FEIRStmtNary>(OP_eval, std::move(argExprsIn));
-  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
-  stmts.emplace_back(std::move(stmt));
-  return args[0]->Emit2FEExpr(stmts);
+  return CreateIntrinsicopForC(stmts, INTRN_C___builtin_expect, false);
 }
 
 UniqueFEIRExpr ASTCallExpr::EmitBuiltinUnreachable(std::list<UniqueFEIRStmt> &stmts) const {
@@ -717,7 +713,7 @@ ASTExpr *ASTParser::ParseBuiltinInf(MapleAllocator &allocator, const clang::Call
 }
 
 ASTExpr *ASTParser::ParseBuiltinInff(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                    std::stringstream &ss) const {
+                                     std::stringstream &ss) const {
   ASTFloatingLiteral *astFloatingLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTFloatingLiteral>(allocator);
   astFloatingLiteral->SetKind(F32);
   astFloatingLiteral->SetVal(std::numeric_limits<float>::infinity());
@@ -761,7 +757,7 @@ ASTExpr *ASTParser::ParseBuiltinCopysignf(MapleAllocator &allocator, const clang
 }
 
 ASTExpr *ASTParser::ParseBuiltinCopysign(MapleAllocator &allocator, const clang::CallExpr &expr,
-                                          std::stringstream &ss) const {
+                                         std::stringstream &ss) const {
   return ProcessBuiltinFuncByName(allocator, expr, ss, "copysign");
 }
 

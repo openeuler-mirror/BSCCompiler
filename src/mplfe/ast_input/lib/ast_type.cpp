@@ -66,9 +66,9 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::Long:
     case clang::BuiltinType::LongLong:
       return PTY_i64;
-    case clang::BuiltinType::Int128:    // pty = PTY_i128, NOTYETHANDLED
+    case clang::BuiltinType::Int128:
       return PTY_i128;
-    case clang::BuiltinType::Half:      // pty = PTY_f16, NOTYETHANDLED
+    case clang::BuiltinType::Half:    // PTY_f16, NOTYETHANDLED
     case clang::BuiltinType::Float:
       return PTY_f32;
     case clang::BuiltinType::Double:
@@ -110,7 +110,7 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
         attrs.SetAlign(alignmentBits / 8);
       }
     }
-    if (isOneElementVector(srcPteType)) {
+    if (IsOneElementVector(srcPteType)) {
       attrs.SetAttr(ATTR_oneelem_simd);
     }
     MIRPtrType *prtType;
@@ -246,7 +246,7 @@ MIRType *LibAstFile::CvtFunctionType(const clang::QualType srcType) {
       // ASTCompiler::GetSClassAttrs(SC_Auto, genAttrs); -- no-op
       // ASTCompiler::GetAccessAttrs(genAttrs); -- no-op for params
       GetCVRAttrs(protoQualType.getCVRQualifiers(), genAttrs);
-      if (isOneElementVector(protoQualType)) {
+      if (IsOneElementVector(protoQualType)) {
         genAttrs.SetAttr(GENATTR_oneelem_simd);
       }
       attrsVec.push_back(genAttrs.ConvertToTypeAttrs());
@@ -281,7 +281,7 @@ void LibAstFile::CollectBaseEltTypeAndSizesFromConstArrayDecl(const clang::QualT
         elemAttr.SetAlign(alignmentBits / 8);
       }
     }
-    if (isOneElementVector(currQualType)) {
+    if (IsOneElementVector(currQualType)) {
       elemAttr.SetAttr(ATTR_oneelem_simd);
     }
   }
@@ -304,7 +304,7 @@ void LibAstFile::CollectBaseEltTypeAndDimFromVariaArrayDecl(const clang::QualTyp
         elemAttr.SetAlign(alignmentBits / 8);
       }
     }
-    if (isOneElementVector(currQualType)) {
+    if (IsOneElementVector(currQualType)) {
       elemAttr.SetAttr(ATTR_oneelem_simd);
     }
   }
@@ -329,7 +329,7 @@ void LibAstFile::CollectBaseEltTypeAndDimFromDependentSizedArrayDecl(
         elemAttr.SetAlign(alignmentBits / 8);
       }
     }
-    if (isOneElementVector(currQualType)) {
+    if (IsOneElementVector(currQualType)) {
       elemAttr.SetAttr(ATTR_oneelem_simd);
     }
   }
@@ -423,7 +423,7 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
       if (numElems == 1) {
         destType = GlobalTables::GetTypeTable().GetPrimType(PTY_f64);
       } else if (numElems == 2) {
-        destType =GlobalTables::GetTypeTable().GetPrimType(PTY_v2f64);
+        destType = GlobalTables::GetTypeTable().GetPrimType(PTY_v2f64);
       } else {
         CHECK_FATAL(false, "Unsupported vector type");
       }
@@ -444,11 +444,11 @@ MIRType *LibAstFile::CvtVectorType(const clang::QualType srcType) {
   return destType;
 }
 
-bool LibAstFile::isOneElementVector(const clang::QualType &qualType) {
-  return isOneElementVector(*qualType.getTypePtr());
+bool LibAstFile::IsOneElementVector(const clang::QualType &qualType) {
+  return IsOneElementVector(*qualType.getTypePtr());
 }
 
-bool LibAstFile::isOneElementVector(const clang::Type &type) {
+bool LibAstFile::IsOneElementVector(const clang::Type &type) {
   const clang::VectorType *vectorType = llvm::dyn_cast<clang::VectorType>(type.getUnqualifiedDesugaredType());
   if (vectorType != nullptr && vectorType->getNumElements() == 1) {
     return true;

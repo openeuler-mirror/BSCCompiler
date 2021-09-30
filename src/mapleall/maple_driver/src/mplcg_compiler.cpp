@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -157,7 +157,6 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
   }
   CGOptions &cgOption = CGOptions::GetInstance();
   std::string fileName = GetInputFile(options, theModule.get());
-  MemPool *optMp = memPoolCtrler.NewMemPool("maplecg mempool", false /* isLcalPool */);
   bool fileRead = true;
   if (theModule == nullptr) {
     MPLTimer timer;
@@ -172,14 +171,13 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
       theParser.reset(new MIRParser(*theModule));
       bool parsed = theParser->ParseMIR(0, cgOption.GetParserOption());
       if (parsed) {
-        if (!cgOption.IsQuiet() && theParser->GetWarning().size()) {
+        if (!CGOptions::IsQuiet() && theParser->GetWarning().size()) {
           theParser->EmitWarning(fileName);
         }
       } else {
         if (theParser != nullptr) {
           theParser->EmitError(fileName);
         }
-        delete optMp;
         return kErrorCompileFail;
       }
     } else {
@@ -188,7 +186,6 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
       std::string modid = theModule->GetFileName();
       bool imported = binMplt.Import(modid, true);
       if (!imported) {
-        delete optMp;
         return kErrorCompileFail;
       }
     }
@@ -199,14 +196,13 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
   theModule->SetInputFileName(fileName);
   LogInfo::MapleLogger() << "Starting mplcg\n";
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), options.GetInputFileType(), fileName,
-                      options.WithDwarf(), optMp, fileRead, options.HasSetTimePhases());
+                      options.WithDwarf(), fileRead, options.HasSetTimePhases());
   if (options.HasSetDebugFlag()) {
     PrintMplcgCommand(options, *theModule);
   }
   runner.SetPrintOutExe(kBinNameMplcg);
   runner.SetCGInfo(&cgOption, fileName);
   runner.ProcessCGPhase(outputFile, baseName);
-  delete optMp;
   return kErrorNoError;
 }
 }  // namespace maple
