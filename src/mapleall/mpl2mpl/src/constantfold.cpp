@@ -122,7 +122,7 @@ StmtNode *ConstantFold::Simplify(StmtNode *node) {
     case OP_incref:
     case OP_decrefreset:
     case OP_regassign:
-    case OP_assertnonnull:
+    CASE_ASSERTNONNULL
     case OP_igoto:
       return SimplifyUnary(static_cast<UnaryStmtNode*>(node));
     case OP_assertge:
@@ -1621,7 +1621,12 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
     if (op == OP_add) {
       sum = cst + rp.second;
       result = r;
-    } else if (op == OP_sub) {
+    } else if (op == OP_sub && r->GetPrimType() != PTY_u1) {
+      // We exclude u1 type for fixing the following wrong example:
+      // before cf:
+      //   sub i32 (constval i32 17, eq u1 i32 (dread i32 %i, constval i32 16)))
+      // after cf:
+      //   add i32 (cvt i32 u1 (neg u1 (eq u1 i32 (dread i32 %i, constval i32 16))), constval i32 17))
       sum = cst - rp.second;
       result = NegateTree(r);
     } else if ((op == OP_mul || op == OP_div || op == OP_rem || op == OP_ashr || op == OP_lshr || op == OP_shl ||
@@ -1692,7 +1697,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       if (IsSignedInteger(primType) && MinValOfSignedInteger(primType) <= cst) {
         result = node;
         sum = 0;
-      } else 
+      } else
 #endif
       {
         result = l;
@@ -2002,7 +2007,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
       } else {
         result = PairToExpr(primTypes[2], p[2]);
       }
-    } else if (node->Opnd(0)) {
+    } else {
       ConstvalNode *const1 = safe_cast<ConstvalNode>(p[1].first);
       ConstvalNode *const2 = safe_cast<ConstvalNode>(p[2].first);
       if (const1 != nullptr && const2 != nullptr) {
@@ -2028,27 +2033,21 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
           dconst1 = static_cast<double>(intConst1->GetValue());
           dconst2 = static_cast<double>(intConst2->GetValue());
         }
+        PrimType foldedPrimType = primTypes[1];
+        if (!IsPrimitiveInteger(foldedPrimType)) {
+          foldedPrimType = primTypes[2];
+        }
         if (dconst1 == 1.0 && dconst2 == 0.0) {
           BaseNode *tmpNode = node->Opnd(0);
-          if (node->GetPrimType() != PTY_u1) {
-            ConstvalNode *zerokonst = mirModule->GetMIRBuilder()->CreateIntConst(0, node->Opnd(0)->GetPrimType());
-            tmpNode = mirModule->CurFuncCodeMemPool()->New<CompareNode>(OP_ne, node->GetPrimType(),
-                                                                        node->Opnd(0)->GetPrimType(),
-                                                                        node->Opnd(0), zerokonst);
-          }
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
-          result = PairToExpr(node->GetPrimType(), pairTemp);
+          result = PairToExpr(foldedPrimType, pairTemp);
           return std::make_pair(result, 0);
         }
         if (dconst1 == 0.0 && dconst2 == 1.0) {
-          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, PTY_u1, node->Opnd(0));
+          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, foldedPrimType, node->Opnd(0));
           BaseNode *tmpNode = lnot;
-          if (node->GetPrimType() != PTY_u1) {
-            tmpNode = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, PrimType(node->GetPrimType()),
-                                                                        PTY_u1, lnot);
-          }
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
-          result = PairToExpr(node->GetPrimType(), pairTemp);
+          result = PairToExpr(foldedPrimType, pairTemp);
           return std::make_pair(result, 0);
         }
       }
