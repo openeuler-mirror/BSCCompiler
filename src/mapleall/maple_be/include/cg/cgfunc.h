@@ -206,13 +206,14 @@ class CGFunc {
   /* select expr */
   virtual Operand *SelectDread(const BaseNode &parent, AddrofNode &expr) = 0;
   virtual RegOperand *SelectRegread(RegreadNode &expr) = 0;
-  virtual Operand *SelectAddrof(AddrofNode &expr) = 0;
-  virtual Operand &SelectAddrofFunc(AddroffuncNode &expr) = 0;
-  virtual Operand &SelectAddrofLabel(AddroflabelNode &expr) = 0;
-  virtual Operand *SelectIread(const BaseNode &parent, IreadNode &expr) = 0;
+  virtual Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) = 0;
+  virtual Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) = 0;
+  virtual Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) = 0;
+  virtual Operand *SelectIread(const BaseNode &parent, IreadNode &expr,
+                               int extraOffset = 0, PrimType finalBitFieldDestType = kPtyInvalid) = 0;
   virtual Operand *SelectIntConst(MIRIntConst &intConst) = 0;
-  virtual Operand *SelectFloatConst(MIRFloatConst &floatConst) = 0;
-  virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst) = 0;
+  virtual Operand *SelectFloatConst(MIRFloatConst &floatConst, const BaseNode &parent) = 0;
+  virtual Operand *SelectDoubleConst(MIRDoubleConst &doubleConst, const BaseNode &parent) = 0;
   virtual Operand *SelectStrConst(MIRStrConst &strConst) = 0;
   virtual Operand *SelectStr16Const(MIRStr16Const &strConst) = 0;
   virtual void SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
@@ -220,44 +221,47 @@ class CGFunc {
   virtual void SelectMadd(Operand &resOpnd, Operand &opndM0, Operand &opndM1, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectMadd(BinaryNode &node, Operand &opndM0, Operand &opndM1, Operand &opnd1,
                               const BaseNode &parent) = 0;
-  virtual Operand &SelectCGArrayElemAdd(BinaryNode &node) = 0;
-  virtual Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectRor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand &SelectCGArrayElemAdd(BinaryNode &node, const BaseNode &parent) = 0;
+  virtual Operand *SelectShift(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectMpy(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectMpy(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
-  virtual Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectRem(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectDiv(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectDiv(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectSub(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectSub(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectBand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBand(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectLand(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
-  virtual Operand *SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, bool parentIsBr = false) = 0;
+  virtual Operand *SelectLand(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand *SelectLor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent,
+                             bool parentIsBr = false) = 0;
   virtual void SelectMin(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectMin(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectMax(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
-  virtual Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1) = 0;
+  virtual Operand *SelectMax(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual Operand *SelectBior(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBior(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectBxor(BinaryNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
   virtual void SelectBxor(Operand &resOpnd, Operand &opnd0, Operand &opnd1, PrimType primType) = 0;
   virtual Operand *SelectAbs(UnaryNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0) = 0;
+  virtual Operand *SelectBnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectExtractbits(ExtractbitsNode &node, Operand &opnd0, const BaseNode &parent) = 0;
-  virtual Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1) = 0;
-  virtual Operand *SelectLnot(UnaryNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectNeg(UnaryNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectRecip(UnaryNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectSqrt(UnaryNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectCeil(TypeCvtNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectFloor(TypeCvtNode &node, Operand &opnd0) = 0;
+  virtual Operand *SelectDepositBits(DepositbitsNode &node, Operand &opnd0, Operand &opnd1, const BaseNode &parent) = 0;
+  virtual Operand *SelectRegularBitFieldLoad(ExtractbitsNode &node, const BaseNode &parent) = 0;
+  virtual Operand *SelectLnot(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectNeg(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectRecip(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectSqrt(UnaryNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectCeil(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
+  virtual Operand *SelectFloor(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectRetype(TypeCvtNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectRound(TypeCvtNode &node, Operand &opnd0) = 0;
+  virtual Operand *SelectRound(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) = 0;
-  virtual Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0) = 0;
+  virtual Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
-      bool isCompare = false) = 0;
+                                const BaseNode &parent, bool hasCompare = false) = 0;
   virtual Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) = 0;
   virtual RegOperand &SelectCopy(Operand &src, PrimType srcType, PrimType dstType) = 0;
   virtual Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) = 0;
@@ -364,6 +368,12 @@ class CGFunc {
     if (size < k4ByteSize) {
       size = k4ByteSize;
     }
+#if TARGAARCH64
+    /* cannot handle 128 size register */
+    if (regType == kRegTyInt && size > k8ByteSize) {
+      size = k8ByteSize;
+    }
+#endif
     ASSERT(size == k4ByteSize || size == k8ByteSize || size == k16ByteSize, "check size");
 #endif
     new (&vRegTable[vRegCount]) VirtualRegNode(regType, size);
@@ -388,6 +398,8 @@ class CGFunc {
       case PTY_a32:
       case PTY_a64:
       case PTY_ptr:
+      case PTY_i128:
+      case PTY_u128:
       case PTY_agg:
         return kRegTyInt;
       case PTY_f32:
@@ -707,6 +719,10 @@ class CGFunc {
     return lab2BBMap[index];
   }
 
+  MapleUnorderedMap<LabelIdx, BB*> &GetLab2BBMap() {
+    return lab2BBMap;
+  }
+
   void DumpCFGToDot(const std::string &fileNamePrefix);
 
   BECommon &GetBecommon() {
@@ -858,8 +874,12 @@ class CGFunc {
 
   void UpdateFrequency(StmtNode &stmt) {
     bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
-    if (withFreqInfo && (func.GetFreqMap().find(stmt.GetStmtID()) != func.GetFreqMap().end())) {
-      frequency = func.GetFreqMap().at(stmt.GetStmtID());
+    if (!withFreqInfo) {
+      return;
+    }
+    auto it = func.GetFreqMap().find(stmt.GetStmtID());
+    if (it != func.GetFreqMap().end()) {
+      frequency = it->second;
     }
   }
 
@@ -977,6 +997,7 @@ class CGFunc {
 #if DEBUG
   MapleMap<PregIdx, StIdx> *pregsToVarsMap = nullptr;
 #endif
+  MapleMap<regno_t, PregIdx> vregsToPregsMap;
   int32 totalInsns = 0;
   int32 structCopySize;
   int32 maxParamStackSize;
@@ -1001,14 +1022,24 @@ class CGFunc {
   StackMemPool &stackMp;
 
   PregIdx GetPseudoRegIdxFromVirtualRegNO(const regno_t vRegNO) const {
-    ASSERT(IsVRegNOForPseudoRegister(vRegNO), "");
-    return PregIdx(vRegNO - firstMapleIrVRegNO);
+    if (IsVRegNOForPseudoRegister(vRegNO)) {
+      return PregIdx(vRegNO - firstMapleIrVRegNO);
+    }
+    return VRegNOToPRegIdx(vRegNO);
   }
 
   bool IsVRegNOForPseudoRegister(regno_t vRegNum) const {
     /* 0 is not allowed for preg index */
     uint32 n = static_cast<uint32>(vRegNum);
     return (firstMapleIrVRegNO < n && n < firstNonPregVRegNO);
+  }
+
+  PregIdx VRegNOToPRegIdx(regno_t vRegNum) const {
+    auto it = vregsToPregsMap.find(vRegNum);
+    if (it == vregsToPregsMap.end()) {
+      return PregIdx(-1);
+    }
+    return it->second;
   }
 
   VirtualRegNode &GetVirtualRegNodeFromPseudoRegIdx(PregIdx idx) {

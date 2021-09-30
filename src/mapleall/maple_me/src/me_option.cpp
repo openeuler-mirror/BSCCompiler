@@ -113,6 +113,7 @@ uint32 MeOption::hdseRunsLimit = 3;   // hdse phase run at most 3 times each PU
 uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
+uint8 MeOption::rematLevel = 0;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -236,6 +237,7 @@ enum OptionIndex {
   kHpropRunsLimit,
   kLoopVec,
   kSeqVec,
+  kRematLevel,
 };
 
 const Descriptor kUsage[] = {
@@ -1199,6 +1201,20 @@ const Descriptor kUsage[] = {
     "  --warning=level             \t--warning=level\n",
     "me",
     {} },
+  { kRematLevel,
+    0,
+    "",
+    "remat",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --remat                     \tEnable rematerialization during register allocation\n"
+    "                              \t     0: no rematerialization (default)\n"
+    "                              \t  >= 1: rematerialize constants\n"
+    "                              \t  >= 2: rematerialize addresses\n"
+    "                              \t  >= 3: rematerialize local dreads\n"
+    "                              \t  >= 4: rematerialize global dreads\n",
+    "me",
+    {} },
 #endif
   { kUnknown,
     0,
@@ -1591,6 +1607,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kSeqVec:
         seqVec = (opt.Type() == kEnable);
+        break;
+      case kRematLevel:
+        rematLevel = std::stoul(opt.Args(), nullptr);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:

@@ -41,6 +41,14 @@ constexpr uint32 k32 = sizeof(int) * CHAR_BIT;
 constexpr uint32 k64 = sizeof(int64) * CHAR_BIT;
 constexpr uint32 kU64 = sizeof(uint64) * CHAR_BIT;
 
+enum RematLevel {
+  rematOff = 0,
+  rematConst = 1,
+  rematAddr = 2,
+  rematDreadLocal = 3,
+  rematDreadGlobal = 4
+};
+
 template <typename T, typename Comparator = std::less<T>>
 inline bool FindNotIn(const std::set<T, Comparator> &set, const T &item) {
   return set.find(item) == set.end();
@@ -593,6 +601,41 @@ class LiveRange {
     this->isNonLocal = isNonLocal;
   }
 
+  Opcode GetOp() const {
+    return op;
+  }
+
+  const MIRSymbol *GetRematSymbol() {
+    ASSERT(op == OP_dread || op == OP_addrof, "Remat symbol is invalid");
+    return rematInfo.sym;
+  }
+
+FieldID GetRematFieldID() {
+    ASSERT(op == OP_dread || op == OP_addrof, "Remat field ID is invalid");
+    return fieldID;
+  }
+
+  void SetRematerializable(const MIRConst *c) {
+    op = OP_constval;
+    rematInfo.mirConst = c;
+  }
+
+  void SetRematerializable(Opcode op, const MIRSymbol *sym, FieldID fieldID, bool addrUpper) {
+    this->op = op;
+    rematInfo.sym = sym;
+    this->fieldID = fieldID;
+    this->addrUpper = addrUpper;
+  }
+
+  void CopyRematerialization(LiveRange &lr) {
+    op = lr.op;
+    rematInfo = lr.rematInfo;
+    fieldID = lr.fieldID;
+  }
+
+  bool IsRematerializable(uint8 rematLevel) const;
+  std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, AArch64RegOperand &regOp);
+
  private:
   regno_t regNO = 0;
   uint32 id = 0;                      /* for priority tie breaker */
@@ -630,6 +673,13 @@ class LiveRange {
   bool hasDefUse = false;               /* has regDS */
   bool proccessed = false;
   bool isNonLocal = false;
+  Opcode op = OP_undef;               /* OP_constval, OP_addrof or OP_dread if rematerializable */
+  union RematInfo {
+    const MIRConst *mirConst;
+    const MIRSymbol *sym;
+  } rematInfo;                        /* info for rematerializing value */
+  FieldID fieldID = 0;                /* used only when op is OP_addrof or OP_dread */
+  bool addrUpper = false;             /* indicates the upper bits of an addrof */
 };
 
 /* One per bb, to communicate local usage to global RA */
@@ -1171,7 +1221,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleVector<LiveRange*> &GetLrVec() {
     return lrVec;
   }
-  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, RegOperand &phyOpnd, bool forCall = false);
+  Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, AArch64RegOperand &phyOpnd, bool forCall = false);
  private:
   struct SetLiveRangeCmpFunc {
     bool operator()(const LiveRange *lhs, const LiveRange *rhs) const {
@@ -1264,7 +1314,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void LocalRegisterAllocator(bool allocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
+  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, AArch64RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
