@@ -2359,7 +2359,7 @@ RegOperand *AArch64CGFunc::SelectRegread(RegreadNode &expr) {
   return &reg;
 }
 
-void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
+void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field) {
   const MIRSymbol *symbol = stImm.GetSymbol();
   if ((symbol->GetStorageClass() == kScAuto) || (symbol->GetStorageClass() == kScFormal)) {
     if (!GetCG()->IsQuiet()) {
@@ -2403,25 +2403,41 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm) {
       insn->SetComment(comm);
     }
   } else {
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, result, stImm));
+    // Create a new vreg/preg for the upper bits of the address
+    PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
+    MIRPreg *tmpPreg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
+    regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(PTY_a64));
+    RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
+
+    // Register this vreg mapping
+    vregsToPregsMap[vRegNO] = pregIdx;
+
+    // Store rematerialization info in the preg
+    tmpPreg->SetOp(OP_addrof);
+    tmpPreg->rematInfo.sym = symbol;
+    tmpPreg->fieldID = field;
+    tmpPreg->addrUpper = true;
+
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, tmpreg, stImm));
+
     if (CGOptions::IsPIC() && symbol->NeedPIC()) {
       /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
       AArch64OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
       AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
           static_cast<AArch64RegOperand*>(&result), nullptr, &offset, nullptr);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, tmpreg, memOpnd));
 
       if (stImm.GetOffset() > 0) {
         AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
-        SelectAdd(result, result, immOpnd, PTY_u64);
+        SelectAdd(result, tmpreg, immOpnd, PTY_u64);
       }
     } else {
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, result, stImm));
+      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, tmpreg, stImm));
     }
   }
 }
 
-void AArch64CGFunc::SelectAddrof(Operand &result, AArch64MemOperand &memOpnd) {
+void AArch64CGFunc::SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, FieldID field) {
   const MIRSymbol *symbol = memOpnd.GetSymbol();
   if (symbol->GetStorageClass() == kScAuto) {
     auto *offsetOpnd = static_cast<AArch64OfstOperand*>(memOpnd.GetOffsetImmediate());
@@ -2429,8 +2445,23 @@ void AArch64CGFunc::SelectAddrof(Operand &result, AArch64MemOperand &memOpnd) {
     ASSERT(memOpnd.GetBaseRegister() != nullptr, "nullptr check");
     SelectAdd(result, *memOpnd.GetBaseRegister(), immOpnd, PTY_u32);
   } else {
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, result, memOpnd));
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, result, memOpnd));
+    // Create a new vreg/preg for the upper bits of the address
+    PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
+    MIRPreg *tmpPreg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
+    regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(PTY_a64));
+    RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
+
+    // Register this vreg mapping
+    vregsToPregsMap[vRegNO] = pregIdx;
+
+    // Store rematerialization info in the preg
+    tmpPreg->SetOp(OP_addrof);
+    tmpPreg->rematInfo.sym = symbol;
+    tmpPreg->fieldID = field;
+    tmpPreg->addrUpper = true;
+
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, tmpreg, memOpnd));
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, tmpreg, memOpnd));
   }
 }
 
@@ -2493,7 +2524,7 @@ Operand *AArch64CGFunc::SelectAddrof(AddrofNode &expr, const BaseNode &parent) {
     return &result;
   }
 
-  SelectAddrof(result, CreateStImmOperand(*symbol, offset, 0));
+  SelectAddrof(result, CreateStImmOperand(*symbol, offset, 0), expr.GetFieldID());
   return &result;
 }
 
@@ -7520,7 +7551,7 @@ AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint32 offset, uint32 siz
 }
 
 MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef,
-                                              bool needLow12) {
+                                              bool needLow12, AArch64RegOperand *regOp) {
   MIRStorageClass storageClass = symbol.GetStorageClass();
   if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
     AArch64SymbolAlloc *symLoc =
@@ -7590,7 +7621,10 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     }
   } else if ((storageClass == kScGlobal) || (storageClass == kScExtern)) {
     StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-    AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+    if (!regOp) {
+      regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+    }
+    AArch64RegOperand &stAddrOpnd = *regOp;
     SelectAddrof(stAddrOpnd, stOpnd);
     /* AArch64MemOperand::AddrMode_B_OI */
     return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
@@ -7602,13 +7636,19 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 off
     } else {
       if (needLow12) {
         StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        if (!regOp) {
+          regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+        }
+        AArch64RegOperand &stAddrOpnd = *regOp;
         SelectAddrof(stAddrOpnd, stOpnd);
         return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
                                                 nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
       } else {
         StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
-        AArch64RegOperand &stAddrOpnd = static_cast<AArch64RegOperand&>(CreateRegisterOperandOfType(PTY_u64));
+        if (!regOp) {
+          regOp = static_cast<AArch64RegOperand *>(&CreateRegisterOperandOfType(PTY_u64));
+        }
+        AArch64RegOperand &stAddrOpnd = *regOp;
         /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
         Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, stAddrOpnd, stOpnd);
         GetCurBB()->AppendInsn(insn);
@@ -8181,6 +8221,12 @@ MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
   }
   (void)pRegSpillMemOperands.insert(std::pair<PregIdx, MemOperand*>(i, &memOpnd));
   return &memOpnd;
+}
+
+MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO) const {
+  PregIdx pri = GetPseudoRegIdxFromVirtualRegNO(vRegNO);
+  if (pri == -1) return nullptr;
+  return GetFunction().GetPregTab()->PregFromPregIdx(pri);
 }
 
 /* Get the number of return register of current function. */
