@@ -4993,9 +4993,7 @@ void AArch64CGFunc::SelectCvtInt2Int(const BaseNode *parent, Operand *&resOpnd, 
     opnd0 = &LoadIntoRegister(*opnd0, primType);
 
     if (fsize > tsize) {
-      if (tsize == k32BitSize) {
-        GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_wmovrr, *resOpnd, *opnd0));
-      } else if (tsize == k8BitSize) {
+      if (tsize == k8BitSize) {
         MOperator mOp = IsSignedInteger(toType) ? MOP_xsxtb32 : MOP_xuxtb32;
         GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, *resOpnd, *opnd0));
       } else if (tsize == k16BitSize) {
