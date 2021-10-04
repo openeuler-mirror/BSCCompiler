@@ -140,10 +140,9 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     hashedSide = irMap->HashMeExpr(newSide);
     BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, false, nullptr, true, true);
   }
-  // when compare with constval, signed/unsigned integer has different behaviour
+  // try to preserve the opndtype signedness of the original comparison
   PrimType newCmpOpndType = regorvar->GetPrimType();
-  if (hashedSide->GetOp() == OP_constval &&
-      IsSignedInteger(regorvar->GetPrimType()) != IsSignedInteger(compare->GetOpndType()) &&
+  if (IsSignedInteger(regorvar->GetPrimType()) != IsSignedInteger(compare->GetOpndType()) &&
       compare->GetOp() != OP_ne && compare->GetOp() != OP_eq) {
     newCmpOpndType = IsSignedInteger(regorvar->GetPrimType()) ? GetUnsignedPrimType(regorvar->GetPrimType()) :
                                                                 GetSignedPrimType(regorvar->GetPrimType());
