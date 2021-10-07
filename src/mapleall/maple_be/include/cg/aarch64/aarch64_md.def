@@ -490,6 +490,8 @@ DEFINE_MOP(MOP_xldpsw, {mopdReg64ID,mopdReg64ID,mopdMem32PS},ISLOAD|ISLOADPAIR|C
 DEFINE_MOP(MOP_sldp, {mopdReg32FD,mopdReg32FD,mopdMem32PS},ISLOAD|ISLOADPAIR|CANTHROW,kLtFLoad64,"ldp","0,1,2",1)
 /* MOP_dldp */
 DEFINE_MOP(MOP_dldp, {mopdReg64FD,mopdReg64FD,mopdMem64PS},ISLOAD|ISLOADPAIR|CANTHROW,kLtFLoadMany,"ldp","0,1,2",1)
+/* MOP_qldp */
+DEFINE_MOP(MOP_qldp, {mopdReg128VD,mopdReg128VD,mopdMem128PS},ISLOAD|ISLOADPAIR|CANTHROW,kLtFLoadMany,"ldp","0,1,2",1)
 
 /* AARCH64 Load with Acquire semantics */
 /* MOP_wldarb */
@@ -697,6 +699,8 @@ DEFINE_MOP(MOP_xstp, {mopdReg64IS,mopdReg64IS,mopdMem64PD},ISSTORE|ISSTOREPAIR|C
 DEFINE_MOP(MOP_sstp, {mopdReg32FS,mopdReg32FS,mopdMem32PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
 /* MOP_dstp */
 DEFINE_MOP(MOP_dstp, {mopdReg64FS,mopdReg64FS,mopdMem64PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
+/* MOP_qstp */
+DEFINE_MOP(MOP_qstp, {mopdReg128VS,mopdReg128VS,mopdMem128PD},ISSTORE|ISSTOREPAIR|CANTHROW,kLtAdvsimdMulQ,"stp","0,1,2",1)
 
 /* AARCH64 Store with Release semantics */
 /* MOP_wstlrb -- Store-Release Register Byte */
