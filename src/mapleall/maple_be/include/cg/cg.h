@@ -221,6 +221,10 @@ class CG {
     return cgOption.DoPrologueEpilogue();
   }
 
+  bool DoTailCall() const {
+    return cgOption.DoTailCall();
+  }
+
   bool DoCheckSOE() const {
     return cgOption.DoCheckSOE();
   }

@@ -57,6 +57,7 @@ class CGOptions : public MapleDriverOptionBase {
     kSoeCheckInsert = 1ULL << 32,
     kAddFuncProfile = 1ULL << 33,
     kPatchLongBranch = 1ULL << 34,
+    kTailCallOpt = 1ULL << 35,
     /* undocumented */
     kDumpCFG = 1ULL << 61,
     kDumpCgir = 1ULL << 62,
@@ -251,6 +252,10 @@ class CGOptions : public MapleDriverOptionBase {
 
   bool DoPatchLongBranch() const {
     return (options & kPatchLongBranch) != 0;
+  }
+
+  bool DoTailCall() const {
+    return (options & kTailCallOpt) != 0;
   }
 
   bool DoCheckSOE() const {

@@ -197,6 +197,7 @@ enum OptionIndex : uint64 {
   kFunctionSections,
   kOmitFramePointer,
   kFastMath,
+  kTailCall,
 };
 
 const Descriptor kUsage[] = {
@@ -1080,6 +1081,17 @@ const Descriptor kUsage[] = {
     "  --no-fast-math\n",
     "mplcg",
     {} },
+  { kTailCall,
+    kEnable,
+    "",
+    "tailcall",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --tailcall                   \tDo tail call optimization\n"
+    "  --no-tailcall\n",
+    "mplcg",
+    {} },
+
 // End
   { kUnknown,
     0,
@@ -1393,6 +1405,10 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         (opt.Type() == kEnable) ? SetOption(CGOptions::kProEpilogueOpt)
                                 : ClearOption(CGOptions::kProEpilogueOpt);
         break;
+      case kTailCall:
+        (opt.Type() == kEnable) ? SetOption(CGOptions::kTailCallOpt)
+                                : ClearOption(CGOptions::kTailCallOpt);
+        break;
       case kLSRABB:
         SetLSRABBOptSize(std::stoul(opt.Args(), nullptr));
         break;
@@ -1555,6 +1571,7 @@ void CGOptions::EnableO0() {
   SetOption(kUseStackGuard);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
+  ClearOption(kTailCallOpt);
 }
 
 void CGOptions::EnableO1() {
@@ -1563,6 +1580,7 @@ void CGOptions::EnableO1() {
   doCalleeToSpill = true;
   SetOption(kConstFold);
   SetOption(kProEpilogueOpt);
+  SetOption(kTailCallOpt);
   ClearOption(kUseStackGuard);
 }
 
@@ -1585,12 +1603,14 @@ void CGOptions::EnableO2() {
   doCalleeToSpill = false;
   doWriteRefFieldOpt = false;
   ClearOption(kProEpilogueOpt);
+  ClearOption(kTailCallOpt);
 #else
   doPreLSRAOpt = true;
   doLocalRefSpill = true;
   doCalleeToSpill = true;
   doWriteRefFieldOpt = true;
   SetOption(kProEpilogueOpt);
+  SetOption(kTailCallOpt);
 #endif
 }
 
