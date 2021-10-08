@@ -891,7 +891,7 @@ class OpMeExpr : public MeExpr {
     }
     return nullptr;
   }
-  void SetHasAddressValue() { 
+  void SetHasAddressValue() {
     if (hasAddressValue) {
       return;
     }
@@ -1684,6 +1684,22 @@ class DassignMeStmt : public AssignMeStmt {
     return static_cast<VarMeExpr *>(lhs);
   }
 
+  bool GetOmitEmit() {
+    return omitEmit;
+  }
+
+  void SetOmitEmit(bool val) {
+    omitEmit = val;
+  }
+
+  bool GetEmitDassignoff() {
+    return emitDassignoff;
+  }
+
+  void SetEmitDassignoff(bool val) {
+    emitDassignoff = val;
+  }
+
   MeExpr *GetLHSRef(bool excludeLocalRefVar);
   StmtNode &EmitStmt(SSATab &ssaTab);
 
@@ -1691,6 +1707,8 @@ class DassignMeStmt : public AssignMeStmt {
   MapleMap<OStIdx, ChiMeNode*> chiList;
   bool propagated = false;     // the RHS has been propagated forward
   bool wasMayDassign = false;  // was converted back to dassign by may2dassign phase
+  bool emitDassignoff = false; // Emit Iassignoff instead
+  bool omitEmit = false;       // Skip this stmt instead
 };
 
 class MaydassignMeStmt : public MeStmt {
@@ -2538,10 +2556,12 @@ class GotoMeStmt : public MeStmt {
 class CondGotoMeStmt : public UnaryMeStmt {
  public:
   explicit CondGotoMeStmt(const StmtNode *stt)
-      : UnaryMeStmt(stt), offset(static_cast<const CondGotoNode*>(stt)->GetOffset()) {}
+      : UnaryMeStmt(stt), offset(static_cast<const CondGotoNode*>(stt)->GetOffset()),
+        branchProb(static_cast<const CondGotoNode*>(stt)->GetBranchProb()) {}
 
   explicit CondGotoMeStmt(const CondGotoMeStmt &condGoto)
-      : UnaryMeStmt(static_cast<const UnaryMeStmt*>(&condGoto)), offset(condGoto.GetOffset()) {}
+      : UnaryMeStmt(static_cast<const UnaryMeStmt*>(&condGoto)), offset(condGoto.GetOffset()),
+        branchProb(condGoto.branchProb) {}
 
   CondGotoMeStmt(const UnaryMeStmt &unaryMeStmt, uint32 o)
       : UnaryMeStmt(&unaryMeStmt), offset(o) {}
@@ -2556,11 +2576,36 @@ class CondGotoMeStmt : public UnaryMeStmt {
     offset = currOffset;
   }
 
+  bool IsBranchProbValid() const {
+    return branchProb > 0 && branchProb < CondGotoNode::probAll;
+  }
+
+  int32 GetBranchProb() const {
+    return branchProb;
+  }
+
+  void SetBranchProb(int32 prob) {
+    branchProb = prob;
+  }
+
+  void ReverseBranchProb() {
+    if (IsBranchProbValid()) {
+      branchProb = CondGotoNode::probAll - branchProb;
+    }
+  }
+
+  void InvalidateBranchProb() {
+    if (IsBranchProbValid()) {
+      branchProb = -1;
+    }
+  }
+
   void Dump(const IRMap*) const;
   StmtNode &EmitStmt(SSATab &ssaTab);
 
  private:
   uint32 offset;  // the label
+  int32 branchProb = -1;  // branch probability, a negative number indicates that the probability is invalid
 };
 
 class JsTryMeStmt : public MeStmt {
@@ -2674,6 +2719,7 @@ class CommentMeStmt : public MeStmt {
 
   StmtNode &EmitStmt(SSATab &ssaTab);
   MapleString& GetComment() { return comment; }
+  const MapleString& GetComment() const { return comment; }
  private:
   MapleString comment;
 };

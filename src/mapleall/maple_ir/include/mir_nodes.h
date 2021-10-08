@@ -2085,8 +2085,12 @@ class DassignoffNode : public UnaryStmtNode {
 
   explicit DassignoffNode(PrimType typ) : UnaryStmtNode(OP_dassignoff, typ), stIdx() {}
 
-  DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassign, typ, opnd), stIdx() {}
+  DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassignoff, typ, opnd), stIdx() {}
 
+  DassignoffNode(StIdx lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode) : DassignoffNode(rhsType, rhsNode) {
+    stIdx = lhsStIdx;
+    offset = dOffset;
+  }
   virtual ~DassignoffNode() = default;
 
   void Dump(int32 indent) const override;
@@ -2156,6 +2160,7 @@ class RegassignNode : public UnaryStmtNode {
 // brtrue and brfalse
 class CondGotoNode : public UnaryStmtNode {
  public:
+  static const int32 probAll;
   explicit CondGotoNode(Opcode o) : CondGotoNode(o, 0, nullptr) {}
 
   CondGotoNode(Opcode o, uint32 offset, BaseNode *opnd) : UnaryStmtNode(o, kPtyInvalid, opnd), offset(offset) {
@@ -2175,6 +2180,30 @@ class CondGotoNode : public UnaryStmtNode {
     offset = offsetValue;
   }
 
+  bool IsBranchProbValid() const {
+    return branchProb > 0 && branchProb < probAll;
+  }
+
+  int32 GetBranchProb() const {
+    return branchProb;
+  }
+
+  void SetBranchProb(int32 prob) {
+    branchProb = prob;
+  }
+
+  void ReverseBranchProb() {
+    if (IsBranchProbValid()) {
+      branchProb = probAll - branchProb;
+    }
+  }
+
+  void InvalidateBranchProb() {
+    if (IsBranchProbValid()) {
+      branchProb = -1;
+    }
+  }
+
   CondGotoNode *CloneTree(MapleAllocator &allocator) const override {
     auto *node = allocator.GetMemPool()->New<CondGotoNode>(*this);
     node->SetStmtID(stmtIDNext++);
@@ -2184,6 +2213,7 @@ class CondGotoNode : public UnaryStmtNode {
 
  private:
   uint32 offset;
+  int32 branchProb = -1;  // branch probability, a negative number indicates that the probability is invalid
 };
 
 using SmallCasePair = std::pair<uint16, uint16>;
