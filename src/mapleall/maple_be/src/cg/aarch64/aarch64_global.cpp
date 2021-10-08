@@ -21,10 +21,24 @@ namespace maplebe {
 using namespace maple;
 #define GLOBAL_DUMP CG_DEBUG_FUNC(cgFunc)
 
+constexpr uint32 kExMOpTypeSize = 9;
+constexpr uint32 kLsMOpTypeSize = 15;
+
+MOperator exMOpTable[kExMOpTypeSize] = {
+    MOP_undef, MOP_xxwaddrrre, MOP_wwwaddrrre, MOP_xxwsubrrre, MOP_wwwsubrrre,
+    MOP_xwcmnrre, MOP_wwcmnrre, MOP_xwcmprre, MOP_wwcmprre
+};
+MOperator lsMOpTable[kLsMOpTypeSize] = {
+    MOP_undef, MOP_xaddrrrs, MOP_waddrrrs, MOP_xsubrrrs, MOP_wsubrrrs,
+    MOP_xcmnrrs, MOP_wcmnrrs, MOP_xcmprrs, MOP_wcmprrs, MOP_xeorrrrs,
+    MOP_weorrrrs, MOP_xinegrrs, MOP_winegrrs, MOP_xiorrrrs, MOP_wiorrrrs
+};
+
 void AArch64GlobalOpt::Run() {
   if (cgFunc.NumBBs() > kMaxBBNum || cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum) {
     return;
   }
+
   OptimizeManager optManager(cgFunc);
   optManager.Optimize<UxtwMovPattern>();
   optManager.Optimize<BackPropPattern>();
@@ -45,7 +59,9 @@ bool OptimizePattern::OpndDefByZero(Insn &insn, int32 useIdx) const {
   }
 
   InsnSet defInsns = cgFunc.GetRD()->FindDefForRegOpnd(insn, useIdx);
-  ASSERT(!defInsns.empty(), "operand must be defined before used");
+  if (defInsns.empty()) {
+    return false;
+  }
   for (auto &defInsn : defInsns) {
     if (!InsnDefZero(*defInsn)) {
       return false;
@@ -62,7 +78,9 @@ bool OptimizePattern::OpndDefByOne(Insn &insn, int32 useIdx) const {
     return false;
   }
   InsnSet defInsns = cgFunc.GetRD()->FindDefForRegOpnd(insn, useIdx);
-  ASSERT(!defInsns.empty(), "operand must be defined before used");
+  if (defInsns.empty()) {
+    return false;
+  }
   for (auto &defInsn : defInsns) {
     if (!InsnDefOne(*defInsn)) {
       return false;
@@ -448,14 +466,13 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
     return false;
   }
   defInsnForSecondOpnd = defInsnVec.back();
-  if (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm) {
-    return false;
-  }
   /* part defined */
   if ((defInsnForSecondOpnd->GetMachineOpcode() == MOP_xmovkri16) ||
-      (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16)) {
+      (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16) ||
+      (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
+
   bool findFinish = cgFunc.GetRD()->FindRegUseBetweenInsn(secondRegNO, defInsnForSecondOpnd->GetNext(),
                                                           bb.GetLastInsn(), srcOpndUseInsnSet);
   if (!findFinish && bb.GetLiveOut()->TestBit(secondRegNO)) {
@@ -464,33 +481,111 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   return true;
 }
 
+bool BackPropPattern::CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn) {
+  /* secondOpnd is defined in other BB */
+  InsnSet defInsnVec = cgFunc.GetRD()->FindDefForRegOpnd(insn, secondRegNO, true);
+  if (defInsnVec.size() != 1) {
+    return false;
+  }
+  defInsnForSecondOpnd = *(defInsnVec.begin());
+
+  /* ensure that there is no fisrt RegNO def/use between insn and defInsnForSecondOpnd */
+  std::vector<Insn*> defInsnVecFirst;
+  if (insn.GetBB() != defInsnForSecondOpnd->GetBB()) {
+    defInsnVecFirst = cgFunc.GetRD()->FindRegDefBetweenInsnGlobal(firstRegNO, defInsnForSecondOpnd, &insn);
+  } else {
+    defInsnVecFirst = cgFunc.GetRD()->FindRegDefBetweenInsn(firstRegNO, defInsnForSecondOpnd, insn.GetPrev());
+  }
+  if (!defInsnVecFirst.empty()) {
+    return false;
+  }
+  /* part defined */
+  if ((defInsnForSecondOpnd->GetMachineOpcode() == MOP_xmovkri16) ||
+      (defInsnForSecondOpnd->GetMachineOpcode() == MOP_wmovkri16) ||
+      (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
+    return false;
+  }
+  srcOpndUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(*defInsnForSecondOpnd, secondRegNO, true);
+  /*
+   * useInsn is not expected to have multiple definition
+   * replaced opnd is not expected to have definition already
+   */
+  return CheckReplacedUseInsn(insn);
+}
+
 bool BackPropPattern::CheckPredefineInsn(Insn &insn) {
   if (insn.GetPrev() == defInsnForSecondOpnd) {
     return true;
   }
-  std::vector<Insn*> preDefInsnForFirstOpndVec;
-  BB &bb = *insn.GetBB();
-  if (cgFunc.GetRD()->CheckRegGen(bb, firstRegNO)) {
-    preDefInsnForFirstOpndVec =
-        cgFunc.GetRD()->FindRegDefBetweenInsn(firstRegNO, defInsnForSecondOpnd->GetNext(), insn.GetPrev());
-  }
-  if (!preDefInsnForFirstOpndVec.empty()) {
-    return false;
-  }
+  std::vector<Insn *> preDefInsnForFirstOpndVec;
   /* there is no predefine insn in current bb */
-  InsnSet useInsnSetForFirstOpnd;
-  cgFunc.GetRD()->FindRegUseBetweenInsn(firstRegNO, defInsnForSecondOpnd->GetNext(), insn.GetPrev(),
-                                        useInsnSetForFirstOpnd);
-  if (!useInsnSetForFirstOpnd.empty()) {
+  if (!cgFunc.GetRD()->RegIsUsedOrDefBetweenInsn(firstRegNO, *defInsnForSecondOpnd, insn)) {
     return false;
+  }
+  return true;
+}
+
+bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
+  for (auto *useInsn : srcOpndUseInsnSet) {
+    if (defInsnForSecondOpnd != useInsn->GetPrev() &&
+        cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(
+            firstRegNO, defInsnForSecondOpnd->GetNext(), useInsn->GetPrev(), insn.GetBB())) {
+      return false;
+    }
+    /* insn has been checked def */
+    if (useInsn == &insn) {
+      continue;
+    }
+    auto checkOneDefOnly = [](InsnSet &defSet, Insn &oneDef, bool checkHasDef = false)->bool {
+      if (defSet.size() > 1) {
+        return false;
+      } else if (defSet.size() == 1) {
+        if (&oneDef != *(defSet.begin())) {
+          return false;
+        }
+      } else {
+        if (checkHasDef) {
+          CHECK_FATAL(false, "find def insn failed");
+        }
+      }
+      return true;
+    };
+    /* ensure that the use insns to be replaced is defined by defInsnForSecondOpnd only */
+    InsnSet defInsnVecOfSrcOpnd = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, secondRegNO, true);
+    if (!checkOneDefOnly(defInsnVecOfSrcOpnd, *defInsnForSecondOpnd, true)) {
+      return false;
+    }
+
+    InsnSet defInsnVecOfFirstReg = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, firstRegNO, true);
+    if (!checkOneDefOnly(defInsnVecOfFirstReg, insn)) {
+      return false;
+    }
   }
   return true;
 }
 
 bool BackPropPattern::CheckRedefineInsn(Insn &insn) {
   for (auto useInsn : srcOpndUseInsnSet) {
-    if ((useInsn->GetId() > insn.GetId()) && (insn.GetNext() != useInsn) &&
-        !cgFunc.GetRD()->FindRegDefBetweenInsn(firstRegNO, insn.GetNext(), useInsn->GetPrev()).empty()) {
+    Insn *startInsn = &insn;
+    Insn *endInsn = useInsn;
+    if (endInsn == startInsn) {
+      if (cgFunc.GetRD()->RegIsUsedIncaller(firstRegNO, insn, *useInsn)) {
+        return false;
+      } else {
+        continue;
+      }
+    }
+
+    if (useInsn->GetBB() == insn.GetBB()) {
+      if (useInsn->GetId() < insn.GetId()) {
+        startInsn = useInsn;
+        endInsn = &insn;
+      }
+    }
+    if (!cgFunc.GetRD()->RegIsLiveBetweenInsn(firstRegNO, *startInsn, *endInsn, true, true)) {
+      return false;
+    }
+    if (!cgFunc.GetRD()->RegIsLiveBetweenInsn(secondRegNO, *startInsn, *endInsn, true)) {
       return false;
     }
   }
@@ -509,23 +604,27 @@ bool BackPropPattern::CheckCondition(Insn &insn) {
   if (DestOpndLiveOutToEHSuccs(insn)) {
     return false;
   }
-  if (!CheckSrcOpndDefAndUseInsns(insn)) {
-    return false;
-  }
-  /* check predefine insn */
-  if (!CheckPredefineInsn(insn)) {
-    return false;
-  }
-  /* check redefine insn */
-  if (!CheckRedefineInsn(insn)) {
-    return false;
+  if (globalProp) {
+    if (!CheckSrcOpndDefAndUseInsnsGlobal(insn)) {
+      return false;
+    }
+  } else {
+    if (!CheckSrcOpndDefAndUseInsns(insn)) {
+      return false;
+    }
+    if (!CheckPredefineInsn(insn)) {
+      return false;
+    }
+    if (!CheckRedefineInsn(insn)) {
+      return false;
+    }
   }
   return true;
 }
 
 void BackPropPattern::Optimize(Insn &insn) {
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
-  ReplaceAllUsedOpndWithNewOpnd(srcOpndUseInsnSet, secondRegNO, firstOpnd, false);
+  ReplaceAllUsedOpndWithNewOpnd(srcOpndUseInsnSet, secondRegNO, firstOpnd, true);
   /* replace define insn */
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defInsnForSecondOpnd)->GetMachineOpcode()];
   uint32 opndNum = defInsnForSecondOpnd->GetOperandSize();
@@ -538,6 +637,7 @@ void BackPropPattern::Optimize(Insn &insn) {
 
     if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == secondRegNO)) {
       defInsnForSecondOpnd->SetOperand(i, firstOpnd);
+      cgFunc.GetRD()->UpdateInOut(*defInsnForSecondOpnd->GetBB());
     } else if (opnd.IsMemoryAccessOperand()) {
       AArch64MemOperand &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       RegOperand *base = memOpnd.GetBaseRegister();
@@ -547,10 +647,10 @@ void BackPropPattern::Optimize(Insn &insn) {
         CHECK_FATAL(newMem != nullptr, "null ptr check");
         newMem->SetBaseRegister(static_cast<RegOperand&>(firstOpnd));
         defInsnForSecondOpnd->SetOperand(i, *newMem);
+        cgFunc.GetRD()->UpdateInOut(*defInsnForSecondOpnd->GetBB());
       }
     }
   }
-
   /* There is special implication when backward propagation is allowed for physical register R0.
    * This is a case that the calling func foo directly returns the result from the callee bar as follows:
    *
@@ -573,9 +673,11 @@ void BackPropPattern::Optimize(Insn &insn) {
       (firstRegNO == R0) &&
       (static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0))  {
     /* Keep this instruction: mov R0, R0 */
+    cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);
     return;
   } else {
     insn.GetBB()->RemoveInsn(insn);
+    cgFunc.GetRD()->UpdateInOut(*insn.GetBB(), true);
   }
 }
 
@@ -609,7 +711,6 @@ void BackPropPattern::Run() {
         (void)modifiedBB.insert(bb);
         Optimize(*insn);
       }
-      cgFunc.GetRD()->UpdateInOut(*bb);
     }
     secondTime = true;
   } while (!modifiedBB.empty());
@@ -1066,69 +1167,145 @@ void LocalVarSaveInsnPattern::Run() {
   }
 }
 
-bool ExtendShiftOptPattern::CheckCurrMop(Insn &insn) {
-  MOperator op = insn.GetMachineOpcode();
+void ExtendShiftOptPattern::SetExMOpType(Insn &use) {
+  MOperator op = use.GetMachineOpcode();
   switch (op) {
     case MOP_xaddrrr:
+    case MOP_xxwaddrrre:
+    case MOP_xaddrrrs: {
+      exMOpType = kExAdd;
+      break;
+    }
     case MOP_waddrrr:
+    case MOP_wwwaddrrre:
+    case MOP_waddrrrs: {
+      exMOpType = kEwAdd;
+      break;
+    }
     case MOP_xsubrrr:
+    case MOP_xxwsubrrre:
+    case MOP_xsubrrrs: {
+      exMOpType = kExSub;
+      break;
+    }
     case MOP_wsubrrr:
-    case MOP_xeorrrr:
-    case MOP_weorrrr:
-    case MOP_xiorrrr:
-    case MOP_wiorrrr:
-    case MOP_wcmnrr:
+    case MOP_wwwsubrrre:
+    case MOP_wsubrrrs: {
+      exMOpType = kEwSub;
+      break;
+    }
     case MOP_xcmnrr:
-    case MOP_wcmprr:
+    case MOP_xwcmnrre:
+    case MOP_xcmnrrs: {
+      exMOpType = kExCmn;
+      break;
+    }
+    case MOP_wcmnrr:
+    case MOP_wwcmnrre:
+    case MOP_wcmnrrs: {
+      exMOpType = kEwCmn;
+      break;
+    }
     case MOP_xcmprr:
-      return true;
-    case MOP_winegrr:
-    case MOP_xinegrr:
-      replaceIdx = kInsnSecondOpnd;
-      return true;
-    default:
-      return false;
+    case MOP_xwcmprre:
+    case MOP_xcmprrs: {
+      exMOpType = kExCmp;
+      break;
+    }
+    case MOP_wcmprr:
+    case MOP_wwcmprre:
+    case MOP_wcmprrs: {
+      exMOpType = kEwCmp;
+      break;
+    }
+    default: {
+      exMOpType = kExUndef;
+    }
   }
 }
 
-void ExtendShiftOptPattern::SelectReplaceOp(Insn &use) {
+void ExtendShiftOptPattern::SetLsMOpType(Insn &use) {
   MOperator op = use.GetMachineOpcode();
-  bool isExten = (extendOp != ExtendShiftOperand::kUndef);
   switch (op) {
-    case MOP_xaddrrr: replaceOp = isExten ? MOP_xxwaddrrre : MOP_xaddrrrs;
+    case MOP_xaddrrr:
+    case MOP_xaddrrrs: {
+      lsMOpType = kLxAdd;
       break;
-    case MOP_waddrrr: replaceOp = isExten ? MOP_wwwaddrrre : MOP_waddrrrs;
+    }
+    case MOP_waddrrr:
+    case MOP_waddrrrs: {
+      lsMOpType = kLwAdd;
       break;
-    case MOP_xsubrrr: replaceOp = isExten ? MOP_xxwsubrrre : MOP_xsubrrrs;
+    }
+    case MOP_xsubrrr:
+    case MOP_xsubrrrs: {
+      lsMOpType = kLxSub;
       break;
-    case MOP_wsubrrr: replaceOp = isExten ? MOP_wwwsubrrre : MOP_wsubrrrs;
+    }
+    case MOP_wsubrrr:
+    case MOP_wsubrrrs: {
+      lsMOpType = kLwSub;
       break;
-    case MOP_xeorrrr: replaceOp = isExten ? MOP_undef : MOP_xeorrrrs;
+    }
+    case MOP_xcmnrr:
+    case MOP_xcmnrrs: {
+      lsMOpType = kLxCmn;
       break;
-    case MOP_weorrrr: replaceOp = isExten ? MOP_undef : MOP_weorrrrs;
+    }
+    case MOP_wcmnrr:
+    case MOP_wcmnrrs: {
+      lsMOpType = kLwCmn;
       break;
-    case MOP_xinegrr: replaceOp = isExten ? MOP_undef : MOP_xinegrrs;
+    }
+    case MOP_xcmprr:
+    case MOP_xcmprrs: {
+      lsMOpType = kLxCmp;
       break;
-    case MOP_winegrr: replaceOp = isExten ? MOP_undef : MOP_winegrrs;
+    }
+    case MOP_wcmprr:
+    case MOP_wcmprrs: {
+      lsMOpType = kLwCmp;
       break;
-    case MOP_xiorrrr: replaceOp = isExten ? MOP_undef : MOP_xiorrrrs;
+    }
+    case MOP_xeorrrr:
+    case MOP_xeorrrrs: {
+      lsMOpType = kLxEor;
       break;
-    case MOP_wiorrrr: replaceOp = isExten ? MOP_undef : MOP_wiorrrrs;
+    }
+    case MOP_weorrrr:
+    case MOP_weorrrrs: {
+      lsMOpType = kLwEor;
       break;
-    case MOP_xcmnrr: replaceOp = isExten ? MOP_xwcmnrre : MOP_xcmnrrs;
+    }
+    case MOP_xinegrr:
+    case MOP_xinegrrs: {
+      lsMOpType = kLxNeg;
+      replaceIdx = kInsnSecondOpnd;
       break;
-    case MOP_wcmnrr: replaceOp = isExten ? MOP_wwcmnrre : MOP_wcmnrrs;
+    }
+    case MOP_winegrr:
+    case MOP_winegrrs: {
+      lsMOpType = kLwNeg;
+      replaceIdx = kInsnSecondOpnd;
       break;
-    case MOP_xcmprr: replaceOp = isExten ? MOP_xwcmprre : MOP_xcmprrs;
+    }
+    case MOP_xiorrrr:
+    case MOP_xiorrrrs: {
+      lsMOpType = kLxIor;
       break;
-    case MOP_wcmprr: replaceOp = isExten ? MOP_wwcmprre : MOP_wcmprrs;
+    }
+    case MOP_wiorrrr:
+    case MOP_wiorrrrs: {
+      lsMOpType = kLwIor;
       break;
-    default:
-      CHECK_FATAL(0, "check use op!");
+    }
+    default: {
+      lsMOpType = kLsUndef;
+    }
   }
 }
 
-void ExtendShiftOptPattern::SelectExtenOp(const Insn &def) {
+void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
   MOperator op = def.GetMachineOpcode();
   switch (op) {
     case MOP_xsxtb32:
@@ -1158,56 +1335,118 @@ void ExtendShiftOptPattern::SelectExtenOp(const Insn &def) {
   }
 }
 
-/* first use must match SelectExtenOp */
-bool ExtendShiftOptPattern::CheckDefUseInfo(const Insn &use, const Insn &def) {
-  Operand &useOperand = use.GetOperand(replaceIdx);
-  Operand &defOperand = def.GetOperand(0);
+/* first use must match SelectExtendOrShift */
+bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
   Operand &defSrcOpnd = def.GetOperand(kInsnSecondOpnd);
-  if (useOperand.GetSize() != defOperand.GetSize()) {
+  CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
+  AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
+  if (regDefSrc.IsPhysicalRegister()) {
     return false;
   }
-  AArch64RegOperand &regUse = static_cast<AArch64RegOperand&>(useOperand);
-  AArch64RegOperand &regDef = static_cast<AArch64RegOperand&>(defOperand);
+  regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
+  /* check regDefSrc */
+  InsnSet defSrcSet = cgFunc.GetRD()->FindDefForRegOpnd(use, defSrcRegNo, true);
+  /* The first defSrcInsn must be closest to useInsn */
+  if (defSrcSet.empty()) {
+    return false;
+  }
+  Insn *defSrcInsn = *defSrcSet.begin();
+  if (def.GetBB() == use.GetBB()) {
+    /* check replace reg def between defInsn and currInsn */
+    Insn *tmpInsn = def.GetNext();
+    while (tmpInsn != &use) {
+      if (tmpInsn == defSrcInsn) {
+        return false;
+      }
+      tmpInsn = tmpInsn->GetNext();
+    }
+  } else { /* def use not in same BB */
+    if (defSrcInsn->GetBB() != def.GetBB()) {
+      return false;
+    }
+    if (defSrcInsn->GetId() > def.GetId()) {
+      return false;
+    }
+  }
   /* case:
    * lsl w0, w0, #5
    * eor w0, w2, w0
    * --->
    * eor w0, w2, w0, lsl 5
    */
-  if (defSrcOpnd.IsRegister()) {
-    AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
-    if (regDef.GetRegisterNumber() == regDefSrc.GetRegisterNumber()) {
+  if (defSrcInsn == &def) {
+    InsnSet replaceRegUseSet = cgFunc.GetRD()->FindUseForRegOpnd(def, defSrcRegNo, true);
+    if (replaceRegUseSet.size() != k1BitSize) {
+      return false;
+    }
+    removeDefInsn = true;
+  }
+  return true;
+}
+
+bool ExtendShiftOptPattern::CheckExtendOp(Operand &lastOpnd) {
+  replaceOp = exMOpTable[exMOpType];
+  if (shiftOp == BitShiftOperand::kLSR) { /* defInsn is LSR */
+    return false;
+  }
+  /* currInsn with extend */
+  if (lastOpnd.IsOpdExtend()) {
+    ExtendShiftOperand &lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    /* def and use is not same ext */
+    if ((extendOp != ExtendShiftOperand::kUndef) && (extendOp != lastExtendOpnd.GetExtendOp())) {
+      return false;
+    }
+    extendOp = lastExtendOpnd.GetExtendOp();
+  }
+  return true;
+}
+
+bool ExtendShiftOptPattern::CheckShiftOp(Operand &lastOpnd) {
+  replaceOp = lsMOpTable[lsMOpType];
+  /* currInsn with shift */
+  if (lastOpnd.IsOpdShift()) {
+    BitShiftOperand &lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    /* def and use is not same shift */
+    if (shiftOp != lastShiftOpnd.GetShiftOp()) {
       return false;
     }
   }
-
-  return regUse.GetRegisterNumber() == regDef.GetRegisterNumber();
+  return true;
 }
 
+/* new Insn extenType:
+ * =====================
+ * |         | ex | ls | (defMop)
+ * | noexten | ex | ls |
+ * | exten   | ex | ex |
+ * | shift   | ex | ls |
+ * (useMop)
+ * =====================
+ */
 void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) {
-  if (amount > k4ByteSize) {
-    return;
-  }
   AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
-  Operand &firstOpnd = use.GetOperand(kInsnFirstOpnd);
-  Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
-  /* thirdOpnd is extend or bitshift operand, depend on defInsn */
+  uint32 lastIdx = use.GetOperandSize() - k1BitSize;
+  Operand &lastOpnd = use.GetOperand(lastIdx);
   Operand *shiftOpnd = nullptr;
-  if (extendOp != ExtendShiftOperand::kUndef) {
+  bool isExten = (extendOp != ExtendShiftOperand::kUndef) || lastOpnd.IsOpdExtend();
+  if (isExten) {
+    if (!CheckExtendOp(lastOpnd)) {
+      return;
+    }
     shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
-  } else if (shiftOp != BitShiftOperand::kUndef) {
-    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
   } else {
-    CHECK_FATAL(0, "extendOp and shiftOp are undef!");
+    if (!CheckShiftOp(lastOpnd)) {
+      return;
+    }
+    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
   }
-
-  SelectReplaceOp(use);
   if (replaceOp == MOP_undef) {
     return;
   }
-  /* replace neg insn */
   Insn *replaceUseInsn = nullptr;
-  if (replaceIdx == kInsnSecondOpnd) {
+  Operand &firstOpnd = use.GetOperand(kInsnFirstOpnd);
+  Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
+  if (replaceIdx == kInsnSecondOpnd) { /* replace neg insn */
     secondOpnd = &def.GetOperand(kInsnSecondOpnd);
     replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
   } else {
@@ -1222,6 +1461,17 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
     LogInfo::MapleLogger() << "=======NewInsn :\n";
     replaceUseInsn->Dump();
   }
+  if (removeDefInsn) {
+    if (GLOBAL_DUMP) {
+      LogInfo::MapleLogger() << "=======RemoveDefInsn :\n";
+      defInsn->Dump();
+    }
+    defInsn->GetBB()->RemoveInsn(*defInsn);
+  }
+  cgFunc.GetRD()->InitGenUse(*defInsn->GetBB(), false);
+  cgFunc.GetRD()->UpdateInOut(*use.GetBB(), true);
+  newInsn = replaceUseInsn;
+  optSuccess = true;
 }
 
 /*
@@ -1233,14 +1483,6 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
  * AND/SUB/EOR X0, X1, W1 UXTB/UXTW
  *
  * pattern2:
- * UXTB/UXTW X1, W1
- * LSL X0, X1, #2
- * ....(X0 not used)
- * AND/SUB/EOR X0, X1, X0
- * ======>
- * AND/SUB/EOR X0, X1, W1 UXTB/UXTW #2
- *
- * pattern3:
  * LSL/LSR X0, X1, #8
  * ....(X0 not used)
  * AND/SUB/EOR X0, X1, X0
@@ -1248,64 +1490,63 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
  * AND/SUB/EOR X0, X1, X1 LSL/LSR #8
  */
 void ExtendShiftOptPattern::Optimize(Insn &insn) {
-  if (shiftOp == BitShiftOperand::kLSL) {
-    InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(*defInsn, kInsnSecondOpnd, false);
-    if (preDef.size() == 1) {
-      Insn *preDefInsn = *preDef.begin();
-      CHECK_FATAL((preDefInsn != nullptr), "defInsn is null!");
-      SelectExtenOp(*preDefInsn);
-      /* preDefInsn must be uxt/sxt */
-      if (extendOp != ExtendShiftOperand::kUndef) {
-        AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand &>(defInsn->GetOperand(kInsnThirdOpnd));
-        /* do pattern2 */
-        ReplaceUseInsn(insn, *preDefInsn, immOpnd.GetValue());
-        return;
-      }
-    }
+  uint32 amount = 0;
+  uint32 offset = 0;
+  uint32 lastIdx = insn.GetOperandSize() - k1BitSize;
+  Operand &lastOpnd = insn.GetOperand(lastIdx);
+  if (lastOpnd.IsOpdShift()) {
+    BitShiftOperand &lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    amount = lastShiftOpnd.GetShiftAmount();
+  } else if (lastOpnd.IsOpdExtend()) {
+    ExtendShiftOperand &lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    amount = lastExtendOpnd.GetShiftAmount();
   }
-  /* reset shiftOp and extendOp */
-  SelectExtenOp(*defInsn);
-
-  if (extendOp != ExtendShiftOperand::kUndef) {
-    /* do pattern1 */
-    ReplaceUseInsn(insn, *defInsn, 0);
-  } else if (shiftOp != BitShiftOperand::kUndef) {
-    /* do pattern3 */
+  if (shiftOp != BitShiftOperand::kUndef) {
     AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-    ReplaceUseInsn(insn, *defInsn, immOpnd.GetValue());
-  } else {
-    CHECK_FATAL(false, "extendOp and shiftOp is Both kUndef!");
+    offset = immOpnd.GetValue();
+  }
+  amount += offset;
+  if (amount > k4ByteSize) {
+    return;
+  }
+  ReplaceUseInsn(insn, *defInsn, amount);
+}
+
+void ExtendShiftOptPattern::DoExtendShiftOpt(Insn &insn) {
+  Init();
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  Optimize(insn);
+  if (optSuccess) {
+    DoExtendShiftOpt(*newInsn);
   }
 }
 
+/* check and set:
+ * exMOpType, lsMOpType, extendOp, shiftOp, defInsn
+ */
 bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
-  if (!CheckCurrMop(insn)) {
+  SetLsMOpType(insn);
+  SetExMOpType(insn);
+  if ((exMOpType == kExUndef) && (lsMOpType == kLsUndef)) {
     return false;
   }
-  if (insn.GetOperandSize() > k3ByteSize) {
+  AArch64RegOperand &regOperand = static_cast<AArch64RegOperand&>(insn.GetOperand(replaceIdx));
+  if (regOperand.IsPhysicalRegister()) {
     return false;
   }
-  InsnSet regDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, replaceIdx, false);
-  if (regDefInsnSet.empty()) {
+  regno_t regNo = regOperand.GetRegisterNumber();
+  InsnSet regDefInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, regNo, true);
+  if (regDefInsnSet.size() != k1BitSize) {
     return false;
   }
   defInsn = *regDefInsnSet.begin();
   CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
 
-  SelectExtenOp(*defInsn);
+  SelectExtendOrShift(*defInsn);
   /* defInsn must be shift or extend */
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
-    return false;
-  }
-  /* The optimization of cross-BB before RA prolongs the live range of vreg.
-   * As a result, the calleesave register is preferentially used when RA allocates registers.
-   * more calleesave register will increase stackmem size.
-   * str x23, [x29,#48]
-   * ...
-   * ldr x23, [x29,#48]
-   * will be added.
-   */
-  if (defInsn->GetBB() != insn.GetBB()) {
     return false;
   }
   return CheckDefUseInfo(insn, *defInsn);
@@ -1317,6 +1558,11 @@ void ExtendShiftOptPattern::Init() {
   shiftOp = BitShiftOperand::kUndef;
   defInsn = nullptr;
   replaceIdx = kInsnThirdOpnd;
+  newInsn = nullptr;
+  optSuccess = false;
+  removeDefInsn = false;
+  exMOpType = kExUndef;
+  lsMOpType = kLsUndef;
 }
 
 void ExtendShiftOptPattern::Run() {
@@ -1328,11 +1574,7 @@ void ExtendShiftOptPattern::Run() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
-      Init();
-      if (!CheckCondition(*insn)) {
-        continue;
-      }
-      Optimize(*insn);
+      DoExtendShiftOpt(*insn);
     }
   }
 }
