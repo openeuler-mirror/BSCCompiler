@@ -168,6 +168,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       continue;
     }
 
+<<<<<<< HEAD
     OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(
         dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
     int32 lhsFieldBitOffsetStart = lhsOrigStStart->GetOffset().val;
@@ -175,6 +176,13 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
     TyIdx lhsTyIdxStart = lhsMIRStStart->GetTyIdx();
     MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(
         GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
+=======
+    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
+    int32 lhsFieldBitOffsetStart = lhsOrigStStart->GetOffset().val;
+    MIRSymbol *lhsMIRStStart = lhsOrigStStart->GetMIRSymbol();
+    TyIdx lhsTyIdxStart = lhsMIRStStart->GetTyIdx();
+    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
+>>>>>>> 53c74408b5923c5a71466706a36fb489ab9bb0a6
 
     // Find qualified candidates as many as possible
     bool found = false;
@@ -184,8 +192,12 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
     for (int32 end = endCandidate; end > startCandidate; end--) {
       OriginalSt *lhsOrigStEnd = static_cast<DassignMeStmt*>(dassignCandidates[end].second)->GetVarLHS()->GetOst();
       FieldID lhsFieldIDEnd = lhsOrigStEnd->GetFieldID();
+<<<<<<< HEAD
       targetBitSize = dassignCandidates[end].first + GetStructFieldBitSize(
           lhsStructTypeStart, lhsFieldIDEnd) - lhsFieldBitOffsetStart;
+=======
+      targetBitSize = dassignCandidates[end].first + GetStructFieldBitSize(lhsStructTypeStart, lhsFieldIDEnd) - lhsFieldBitOffsetStart;
+>>>>>>> 53c74408b5923c5a71466706a36fb489ab9bb0a6
       if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
         int32 coveredBitSize = 0;
         for (int32 i = startCandidate; i <= end; i++) {
@@ -206,6 +218,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       OriginalSt *lhsOrigStEndIdx = static_cast<DassignMeStmt*>(dassignCandidates[endIdx].second)->GetLHS()->GetOst();
       FieldID fieldIDEndIdx = lhsOrigStEndIdx->GetFieldID();
       int32 fieldBitSizeEndIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDEndIdx);
+<<<<<<< HEAD
       uint64 fieldValEndIdx = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(
           dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
       uint64 combinedVal = (fieldValEndIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
@@ -218,6 +231,16 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
             dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
         fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
             dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
+=======
+      uint64 fieldValEndIdx = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
+      uint64 combinedVal = (fieldValEndIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
+      for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
+        OriginalSt *lhsOrigStStmtIdx = static_cast<DassignMeStmt*>(dassignCandidates[stmtIdx].second)->GetVarLHS()->GetOst();
+        FieldID fieldIDStmtIdx = lhsOrigStStmtIdx->GetFieldID();
+        int32 fieldBitSizeStmtIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDStmtIdx);
+        uint64 fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
+        fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
+>>>>>>> 53c74408b5923c5a71466706a36fb489ab9bb0a6
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
         combinedVal = combinedVal << fieldBitSizeStmtIdx | fieldValStmtIdx;
       }
@@ -352,7 +375,11 @@ void MergeStmts::MergeMeStmts() {
 
             if (iVarIassignStmt->GetFieldID() == 0) {
               int32 bitOffsetIVar = iVarIassignStmt->GetOffset() * 8;
+<<<<<<< HEAD
               // Is it possible to have dup bitOffsetIVar for FieldID() == 0?
+=======
+              // No dup offset found so far for FieldID() == 0
+>>>>>>> 53c74408b5923c5a71466706a36fb489ab9bb0a6
               uniqueCheck[bitOffsetIVar] = iassignStmt;
               //iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
             } else {
