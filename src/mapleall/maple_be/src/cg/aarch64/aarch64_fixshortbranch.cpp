@@ -50,6 +50,9 @@ void AArch64FixShortBranch::SetInsnId(){
   uint32 i = 0;
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_ALL_BB(bb, aarch64CGFunc) {
+    if (aarch64CGFunc->GetMirModule().IsCModule() && bb->IsBBNeedAlign()) {
+      i += kAlignPseudoSize;
+    }
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
         continue;
@@ -75,56 +78,60 @@ void AArch64FixShortBranch::SetInsnId(){
  */
 void AArch64FixShortBranch::FixShortBranches() {
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  SetInsnId();
-  FOR_ALL_BB(bb, aarch64CGFunc) {
-    /* Do a backward scan searching for short branches */
-    FOR_BB_INSNS_REV(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
+  bool change = false;
+  do {
+    change = false;
+    SetInsnId();
+    FOR_ALL_BB(bb, aarch64CGFunc) {
+      /* Do a backward scan searching for short branches */
+      FOR_BB_INSNS_REV(insn, bb) {
+        if (!insn->IsMachineInstruction()) {
+          continue;
+        }
+        MOperator thisMop = insn->GetMachineOpcode();
+        if (thisMop != MOP_wtbz && thisMop != MOP_wtbnz && thisMop != MOP_xtbz && thisMop != MOP_xtbnz) {
+          continue;
+        }
+        LabelOperand &label = static_cast<LabelOperand&>(insn->GetOperand(kInsnThirdOpnd));
+        /*  should not be commented out after bug fix */
+        if (DistanceCheck(*bb, label.GetLabelIndex(), insn->GetId())) {
+          continue;
+        }
+        auto &reg = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
+        ImmOperand &bitSize = aarch64CGFunc->CreateImmOperand(1, k8BitSize, false);
+        auto &bitPos = static_cast<ImmOperand&>(insn->GetOperand(kInsnSecondOpnd));
+        MOperator ubfxOp = MOP_undef;
+        MOperator cbOp = MOP_undef;
+        switch (thisMop) {
+          case MOP_wtbz:
+            ubfxOp = MOP_wubfxrri5i5;
+            cbOp = MOP_wcbz;
+            break;
+          case MOP_wtbnz:
+            ubfxOp = MOP_wubfxrri5i5;
+            cbOp = MOP_wcbnz;
+            break;
+          case MOP_xtbz:
+            ubfxOp = MOP_xubfxrri6i6;
+            cbOp = MOP_xcbz;
+            break;
+          case MOP_xtbnz:
+            ubfxOp = MOP_xubfxrri6i6;
+            cbOp = MOP_xcbnz;
+            break;
+          default:
+            break;
+        }
+        AArch64RegOperand &tmp = aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(
+            R16, (ubfxOp == MOP_wubfxrri5i5) ? k32BitSize : k64BitSize, kRegTyInt);
+        (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(cbOp, tmp, label));
+        (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(ubfxOp, tmp, reg, bitPos, bitSize));
+        bb->RemoveInsn(*insn);
+        change = true;
+        break;
       }
-      MOperator thisMop = insn->GetMachineOpcode();
-      if (thisMop != MOP_wtbz && thisMop != MOP_wtbnz && thisMop != MOP_xtbz && thisMop != MOP_xtbnz) {
-        continue;
-      }
-      LabelOperand &label = static_cast<LabelOperand&>(insn->GetOperand(kInsnThirdOpnd));
-      /*  should not be commented out after bug fix */
-      if (DistanceCheck(*bb, label.GetLabelIndex(), insn->GetId())) {
-        continue;
-      }
-      auto &reg = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
-      ImmOperand &bitSize = aarch64CGFunc->CreateImmOperand(1, k8BitSize, false);
-      auto &bitPos = static_cast<ImmOperand&>(insn->GetOperand(kInsnSecondOpnd));
-      MOperator ubfxOp = MOP_undef;
-      MOperator cbOp = MOP_undef;
-      switch (thisMop) {
-        case MOP_wtbz:
-          ubfxOp = MOP_wubfxrri5i5;
-          cbOp = MOP_wcbz;
-          break;
-        case MOP_wtbnz:
-          ubfxOp = MOP_wubfxrri5i5;
-          cbOp = MOP_wcbnz;
-          break;
-        case MOP_xtbz:
-          ubfxOp = MOP_xubfxrri6i6;
-          cbOp = MOP_xcbz;
-          break;
-        case MOP_xtbnz:
-          ubfxOp = MOP_xubfxrri6i6;
-          cbOp = MOP_xcbnz;
-          break;
-        default:
-          break;
-      }
-      AArch64RegOperand &tmp =
-          aarch64CGFunc->GetOrCreatePhysicalRegisterOperand(R16, (ubfxOp == MOP_wubfxrri5i5) ? k32BitSize : k64BitSize,
-                                                            kRegTyInt);
-      (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(cbOp, tmp, label));
-      (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(ubfxOp, tmp, reg, bitPos, bitSize));
-      bb->RemoveInsn(*insn);
-      break;
     }
-  }
+  } while (change);
 }
 
 bool CgFixShortBranch::PhaseRun(maplebe::CGFunc &f) {

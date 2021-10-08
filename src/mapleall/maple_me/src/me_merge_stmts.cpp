@@ -139,11 +139,13 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       continue;
     }
 
-    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
+    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(
+        dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
     int32 lhsFieldBitOffsetStart = lhsOrigStStart->GetOffset().val;
     MIRSymbol *lhsMIRStStart = lhsOrigStStart->GetMIRSymbol();
     TyIdx lhsTyIdxStart = lhsMIRStStart->GetTyIdx();
-    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
+    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
 
     // Find qualified candidates as many as possible
     bool found = false;
@@ -153,7 +155,8 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
     for (int32 end = endCandidate; end > startCandidate; end--) {
       OriginalSt *lhsOrigStEnd = static_cast<DassignMeStmt*>(dassignCandidates[end].second)->GetVarLHS()->GetOst();
       FieldID lhsFieldIDEnd = lhsOrigStEnd->GetFieldID();
-      targetBitSize = dassignCandidates[end].first + GetStructFieldBitSize(lhsStructTypeStart, lhsFieldIDEnd) - lhsFieldBitOffsetStart;
+      targetBitSize = dassignCandidates[end].first + GetStructFieldBitSize(
+          lhsStructTypeStart, lhsFieldIDEnd) - lhsFieldBitOffsetStart;
       if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
         int32 coveredBitSize = 0;
         for (int32 i = startCandidate; i <= end; i++) {
@@ -174,16 +177,20 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       OriginalSt *lhsOrigStEndIdx = static_cast<DassignMeStmt*>(dassignCandidates[endIdx].second)->GetLHS()->GetOst();
       FieldID fieldIDEndIdx = lhsOrigStEndIdx->GetFieldID();
       int32 fieldBitSizeEndIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDEndIdx);
-      uint64 fieldValEndIdx = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
+      uint64 fieldValEndIdx = static_cast<ConstMeExpr*>(static_cast<IassignMeStmt*>(
+          dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
       uint64 combinedVal = (fieldValEndIdx << (64 - fieldBitSizeEndIdx)) >> (64 - fieldBitSizeEndIdx);
       for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
-        OriginalSt *lhsOrigStStmtIdx = static_cast<DassignMeStmt*>(dassignCandidates[stmtIdx].second)->GetVarLHS()->GetOst();
+        OriginalSt *lhsOrigStStmtIdx = static_cast<DassignMeStmt*>(
+            dassignCandidates[stmtIdx].second)->GetVarLHS()->GetOst();
         FieldID fieldIDStmtIdx = lhsOrigStStmtIdx->GetFieldID();
         int32 fieldBitSizeStmtIdx = GetStructFieldBitSize(lhsStructTypeStart, fieldIDStmtIdx);
-        uint64 fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
-        fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
+        uint64 fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
+            dassignCandidates[endIdx].second)->GetRHS())->GetIntValue();
+        fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
+            dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
-        combinedVal = combinedVal << fieldBitSizeStmtIdx | fieldValStmtIdx;
+        combinedVal = (combinedVal << fieldBitSizeStmtIdx) | fieldValStmtIdx;
       }
       // Dassignoff is NOT part of MeStmt yet
       DassignMeStmt *firstDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second);
@@ -198,7 +205,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         DassignMeStmt *removedDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[canIdx].second);
         removedDassignStmt->SetEmitDassignoff(false);
         removedDassignStmt->SetOmitEmit(true);
-        // TODO: Cancel emit instead of removal here
+        // Cancel emit instead of removal here
         bb->RemoveMeStmt(removedDassignStmt);
       }
       startCandidate = endIdx + 1;
@@ -275,7 +282,7 @@ void MergeStmts::MergeMeStmts() {
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push_back(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_dassign &&
-                     static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
+              static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
             candidateStmts.push_back(&meStmt);
           } else {
             candidateStmts.push_back(nullptr);
