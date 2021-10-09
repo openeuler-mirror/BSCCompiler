@@ -15,13 +15,15 @@
 #ifndef MAPLE_ME_INCLUDE_ME_BB_LAYOUT_H
 #define MAPLE_ME_INCLUDE_ME_BB_LAYOUT_H
 #include "me_function.h"
-#include "me_phase.h"
 #include "me_pgo_instrument.h"
+#include "maple_phase_manager.h"
+#include "me_dominance.h"
+#include "me_loop_analysis.h"
 
 namespace maple {
 class BBLayout{
  public:
-  BBLayout(MemPool &memPool, MeFunction &f, bool enabledDebug)
+  BBLayout(MemPool &memPool, MeFunction &f, bool enabledDebug, MaplePhase *phase)
       : func(f),
         layoutAlloc(&memPool),
         layoutBBs(layoutAlloc.Adapter()),
@@ -31,7 +33,8 @@ class BBLayout{
         laidOut(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         enabledDebug(enabledDebug),
         profValid(func.IsIRProfValid()),
-        cfg(f.GetCfg()) {
+        cfg(f.GetCfg()),
+        phase(phase) {
     laidOut[func.GetCfg()->GetCommonEntryBB()->GetBBId()] = true;
     laidOut[func.GetCfg()->GetCommonExitBB()->GetBBId()] = true;
   }
@@ -50,6 +53,8 @@ class BBLayout{
     return nullptr;
   }
 
+  bool BBIsEmpty(BB *bb);
+  void OptimizeCaseTargets(BB *switchBB, CaseVector *swTable);
   void OptimizeBranchTarget(BB &bb);
   bool BBEmptyAndFallthru(const BB &bb);
   bool BBContainsOnlyGoto(const BB &bb) const;
@@ -125,17 +130,9 @@ class BBLayout{
   bool profValid = false;
   size_t edgeIdx = 0;
   MeCFG *cfg;
+  MaplePhase *phase;
 };
 
-class MeDoBBLayout : public MeFuncPhase {
- public:
-  explicit MeDoBBLayout(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoBBLayout() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr *moduleResMgr) override;
-  std::string PhaseName() const override {
-    return "bblayout";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEBBLayout, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_BB_LAYOUT_H

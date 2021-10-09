@@ -17,6 +17,7 @@
 #include "bb.h"
 #include "me_irmap.h"
 #include "me_option.h"
+#include "me_predict.h"
 
 // This BB layout strategy strictly obeys source ordering when inside try blocks.
 // This Optimization will reorder the bb layout. it start from the first bb of func.
@@ -40,6 +41,8 @@
 //    (3) For goto curBB see if goto target can be placed as next.
 // 5. do step 3 for nextBB until all bbs are laid out
 namespace maple {
+static constexpr uint32 kMaxNumBBToPredict = 7500;
+
 static void CreateGoto(BB &bb, MeFunction &func, BB &fallthru) {
   LabelIdx label = func.GetOrCreateBBLabel(fallthru);
   if (func.GetIRMap() != nullptr) {
@@ -265,11 +268,54 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
   return true;
 }
 
+bool BBLayout::BBIsEmpty(BB *bb) {
+  if (func.GetIRMap() != nullptr) {
+    return bb->IsMeStmtEmpty();
+  }
+  return bb->IsEmpty();
+}
+
+void BBLayout::OptimizeCaseTargets(BB *switchBB, CaseVector *swTable) {
+  CaseVector::iterator caseIt = swTable->begin();
+  for (; caseIt != swTable->end(); caseIt++) {
+    LabelIdx lidx = caseIt->second;
+    BB *brTargetBB = func.GetCfg()->GetLabelBBAt(lidx);
+    if (brTargetBB->GetSucc().size() != 0) {
+      OptimizeBranchTarget(*brTargetBB);
+    }
+    if (brTargetBB->GetSucc().size() != 1) {
+      continue;
+    }
+    if (!(BBContainsOnlyGoto(*brTargetBB) || BBIsEmpty(brTargetBB))) {
+      continue;
+    }
+    BB *newTargetBB = brTargetBB->GetSucc().front();
+    if (newTargetBB == brTargetBB) {
+      continue;
+    }
+    LabelIdx newTargetLabel = func.GetOrCreateBBLabel(*newTargetBB);
+    caseIt->second = newTargetLabel;
+    if (!newTargetBB->IsSuccBB(*switchBB)) {
+      switchBB->AddSucc(*newTargetBB);
+    }
+#if 0  // not updating CFG because there can be multiple cases with same target
+    switchBB->ReplaceSucc(brTargetBB, newTargetBB);
+    if (brTargetBB->GetPred().empty()) {
+      laidOut[brTargetBB->GetBBId()] = true;
+      RemoveUnreachable(*brTargetBB);
+      if (needDealWithTryBB) {
+        DealWithStartTryBB();
+      }
+    }
+#endif
+  }
+}
+
 // (1) bb's last statement is a conditional or unconditional branch; if the branch
 // target is a BB with only a single goto statement, optimize the branch target
 // to the eventual target
 // (2) bb's last statement is a conditonal branch, if the branch target is a BB with a single
-// condtioal branch statement and has the same condtion as bb's last statement, optimize the
+// conditional branch statement and has the same condition as bb's last statement, optimize the
 // branch target to the eventual target.
 void BBLayout::OptimizeBranchTarget(BB &bb) {
   if (bbVisited[bb.GetBBId().GetIdx()]) {
@@ -676,6 +722,7 @@ void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
 }
 
 void BBLayout::LayoutWithoutProf() {
+  MePrediction::RebuildFreq(func, *phase);
   BB *bb = cfg->GetFirstBB();
   while (bb != nullptr) {
     AddBB(*bb);
@@ -746,6 +793,14 @@ void BBLayout::LayoutWithoutProf() {
           BB *newFallthru = CreateGotoBBAfterCondBB(*bb, *fallthru);
           OptimizeBranchTarget(*newFallthru);
         }
+      }
+    } else if (bb->GetKind() == kBBSwitch) {
+      if (func.GetIRMap() != nullptr) {
+        SwitchMeStmt *swStmt = &static_cast<SwitchMeStmt&>(bb->GetMeStmts().back());
+        OptimizeCaseTargets(bb, &swStmt->GetSwitchTable());
+      } else {
+        SwitchNode *swStmt = &static_cast<SwitchNode&>(bb->GetStmtNodes().back());
+        OptimizeCaseTargets(bb, &swStmt->GetSwitchTable());
       }
     }
     if (bb->GetKind() == kBBGoto) {
@@ -908,6 +963,11 @@ BB *BBLayout::NextBBProf(BB &bb) {
 
 void BBLayout::LayoutWithProf() {
   OptimiseCFG();
+  // We rebuild freq after OptimiseCFG
+  MePrediction::RebuildFreq(func, *phase);
+  if (enabledDebug) {
+    cfg->DumpToFile("cfgopt", false, true);
+  }
   BuildEdges();
   BB *bb = cfg->GetFirstBB();
   while (bb != nullptr) {
@@ -928,7 +988,8 @@ void BBLayout::LayoutWithProf() {
 }
 
 void BBLayout::RunLayout() {
-  if (profValid) {
+  // If the func is too large, won't run prediction
+  if (MeOption::layoutWithPredict && func.GetMIRModule().IsCModule() && cfg->GetAllBBs().size() <= kMaxNumBBToPredict) {
     LayoutWithProf();
   } else {
     LayoutWithoutProf();
@@ -942,7 +1003,7 @@ void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
   MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
-  auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f));
+  auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f), this);
   // assume common_entry_bb is always bb 0
   ASSERT(cfg->front() == cfg->GetCommonEntryBB(), "assume bb[0] is the commont entry bb");
   if (DEBUGFUNC_NEWPM(f)) {

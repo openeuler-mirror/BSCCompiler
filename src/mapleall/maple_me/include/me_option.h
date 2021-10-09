@@ -170,6 +170,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool loopVec;
   static bool seqVec;
   static uint8 rematLevel;
+  static bool layoutWithPredict;
 #if MIR_JAVA
   static std::string acquireFuncName;
   static std::string releaseFuncName;
