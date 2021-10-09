@@ -2087,12 +2087,8 @@ class DassignoffNode : public UnaryStmtNode {
 
   DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassignoff, typ, opnd), stIdx() {}
 
-<<<<<<< HEAD
   DassignoffNode(StIdx lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode)
       : DassignoffNode(rhsType, rhsNode) {
-=======
-  DassignoffNode(StIdx lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode) : DassignoffNode(rhsType, rhsNode) {
->>>>>>> 53c74408b5923c5a71466706a36fb489ab9bb0a6
     stIdx = lhsStIdx;
     offset = dOffset;
   }
