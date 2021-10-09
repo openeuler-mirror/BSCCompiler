@@ -2697,7 +2697,7 @@ class SwitchMeStmt : public UnaryMeStmt {
     switchTable[caseIdx].second = label;
   }
 
-  const CaseVector &GetSwitchTable() {
+  CaseVector &GetSwitchTable() {
     return switchTable;
   }
 
