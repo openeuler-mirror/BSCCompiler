@@ -349,7 +349,10 @@ void MergeStmts::MergeMeStmts() {
 
             if (iVarIassignStmt->GetFieldID() == 0) {
               int32 bitOffsetIVar = iVarIassignStmt->GetOffset() * 8;
-              // Is it possible to have dup bitOffsetIVar for FieldID() == 0?
+              // It is possible to have dup bitOffsetIVar for FieldID() == 0
+              if (uniqueCheck[bitOffsetIVar] != NULL) {
+                bb->RemoveMeStmt(uniqueCheck[bitOffsetIVar]);
+              }
               uniqueCheck[bitOffsetIVar] = iassignStmt;
               //iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
             } else {
