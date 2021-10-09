@@ -228,7 +228,9 @@ UniqueFEIRExpr ASTCallExpr::EmitBuiltinVaCopy(std::list<UniqueFEIRStmt> &stmts) 
     exprArgList->emplace_back(std::move(expr));
   }
   // Add the size of the va_list structure as the size to memcpy.
-  UniqueFEIRExpr sizeExpr = FEIRBuilder::CreateExprConstI32(vaListType->GenerateMIRTypeAuto()->GetSize());
+  size_t elemSizes = vaListType->GenerateMIRTypeAuto()->GetSize();
+  CHECK_FATAL(elemSizes <= INT_MAX, "Too large elem size");
+  UniqueFEIRExpr sizeExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(elemSizes));
   exprArgList->emplace_back(std::move(sizeExpr));
   std::unique_ptr<FEIRStmtIntrinsicCallAssign> stmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
       INTRN_C_memcpy, nullptr /* type */, nullptr /* retVar */, std::move(exprArgList));

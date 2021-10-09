@@ -65,6 +65,10 @@ std::map<MIRSrcLang, std::tuple<bool, PrimType>> FEIRType::InitLangConfig() {
 }
 
 MIRType *FEIRType::GenerateMIRTypeAuto(MIRSrcLang argSrcLang) const {
+  return GenerateMIRTypeAutoImpl(argSrcLang);
+}
+
+MIRType *FEIRType::GenerateMIRTypeAutoImpl(MIRSrcLang argSrcLang) const {
   MPLFE_PARALLEL_FORBIDDEN();
   auto it = langConfig.find(argSrcLang);
   if (it == langConfig.end()) {
@@ -147,8 +151,9 @@ bool FEIRTypeDefault::IsEqualToImpl(const std::unique_ptr<FEIRType> &argType) co
   return IsEqualToImpl(*(argType.get()));
 }
 
-size_t FEIRTypeDefault::HashImpl() const {
-  return std::hash<uint32>{}(typeNameIdx);
+uint32 FEIRTypeDefault::HashImpl() const {
+  return static_cast<uint32>(
+      std::hash<uint32>{}(primType) + std::hash<uint32>{}(typeNameIdx) + std::hash<uint32>{}(dim));
 }
 
 bool FEIRTypeDefault::IsScalarImpl() const {
@@ -380,8 +385,8 @@ bool FEIRTypeByName::IsEqualToImpl(const FEIRType &argType) const {
   }
 }
 
-size_t FEIRTypeByName::HashImpl() const {
-  return std::hash<std::string>{}(typeName);
+uint32 FEIRTypeByName::HashImpl() const {
+  return static_cast<uint32>(std::hash<std::string>{}(typeName));
 }
 
 bool FEIRTypeByName::IsScalarImpl() const {
@@ -411,7 +416,7 @@ bool FEIRTypePointer::IsEqualToImpl(const FEIRType &argType) const {
   return baseType->IsEqualTo(argTypePointer.baseType);
 }
 
-size_t FEIRTypePointer::HashImpl() const {
+uint32 FEIRTypePointer::HashImpl() const {
   ASSERT(baseType != nullptr, "base type is nullptr");
   return baseType->Hash();
 }
@@ -436,5 +441,78 @@ PrimType FEIRTypePointer::GetPrimTypeImpl() const {
 
 void FEIRTypePointer::SetPrimTypeImpl(PrimType pt) {
   CHECK_FATAL(false, "PrimType %d should not run here", pt);
+}
+
+// ---------- FEIRTypeNative ----------
+FEIRTypeNative::FEIRTypeNative(MIRType &argMIRtype)
+    : FEIRType(kFEIRTypeNative),
+      mirType(argMIRtype) {
+  kind = kFEIRTypeNative;
+  // Right now, FEIRTypeNative is only used for c-language.
+  srcLang = kSrcLangC;
+}
+
+PrimType FEIRTypeNative::GetPrimTypeImpl() const {
+  return mirType.GetPrimType();
+}
+
+void FEIRTypeNative::SetPrimTypeImpl(PrimType pt) {
+  mirType.SetPrimType(pt);
+}
+
+void FEIRTypeNative::CopyFromImpl(const FEIRType &type) {
+  CHECK_FATAL(type.GetKind() == kFEIRTypeNative, "invalid opration");
+  mirType = *(type.GenerateMIRTypeAuto());
+}
+
+MIRType *FEIRTypeNative::GenerateMIRTypeAutoImpl() const {
+  return &mirType;
+}
+
+std::unique_ptr<FEIRType> FEIRTypeNative::CloneImpl() const {
+  std::unique_ptr<FEIRType> newType = std::make_unique<FEIRTypeNative>(mirType);
+  return newType;
+}
+
+MIRType *FEIRTypeNative::GenerateMIRTypeImpl(bool usePtr, PrimType ptyPtr) const {
+  return &mirType;
+}
+
+bool FEIRTypeNative::IsEqualToImpl(const FEIRType &argType) const {
+  if (argType.GetKind() != kFEIRTypeNative) {
+    return false;
+  }
+  const FEIRTypeNative &argTypeNative = static_cast<const FEIRTypeNative&>(argType);
+  return &argTypeNative.mirType == &mirType;
+}
+
+uint32 FEIRTypeNative::HashImpl() const {
+  return static_cast<uint32>(mirType.GetHashIndex());
+}
+
+std::string FEIRTypeNative::GetTypeNameImpl() const {
+  return mirType.GetName();
+}
+
+bool FEIRTypeNative::IsScalarImpl() const {
+  return mirType.IsScalarType();
+}
+
+bool FEIRTypeNative::IsRefImpl() const {
+  return mirType.GetPrimType() == PTY_ref;
+}
+
+bool FEIRTypeNative::IsArrayImpl() const {
+  return mirType.GetKind() == kTypeArray;
+}
+
+TypeDim FEIRTypeNative::ArrayIncrDimImpl(TypeDim delta) {
+  CHECK_FATAL(false, "Should not get here");
+  return delta;
+}
+
+TypeDim FEIRTypeNative::ArrayDecrDimImpl(TypeDim delta) {
+  CHECK_FATAL(false, "Should not get here");
+  return delta;
 }
 }  // namespace maple

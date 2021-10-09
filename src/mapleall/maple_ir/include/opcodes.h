@@ -15,6 +15,7 @@
 #ifndef MAPLE_IR_INCLUDE_OPCODES_H
 #define MAPLE_IR_INCLUDE_OPCODES_H
 #include "types_def.h"
+#include "mpl_logging.h"
 
 namespace maple {
 enum Opcode : uint8 {
@@ -24,6 +25,12 @@ enum Opcode : uint8 {
 #undef OPCODE
   OP_last,
 };
+
+#define CASE_ASSERTNONNULL     \
+  case OP_assertnonnull:       \
+  case OP_assignassertnonnull: \
+  case OP_callassertnonnull:   \
+  case OP_returnassertnonnull:
 
 inline constexpr bool IsDAssign(Opcode code) {
   return (code == OP_dassign || code == OP_maydassign);
@@ -106,8 +113,9 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_membarrelease:
     case OP_membarstoreload:
     case OP_membarstorestore:
-    case OP_assertnonnull:
-    case OP_eval:
+    CASE_ASSERTNONNULL
+    case OP_assertge:
+    case OP_assertlt:
     case OP_free:
     case OP_incref:
     case OP_decref:
@@ -116,6 +124,35 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     }
     default:
       return false;
+  }
+}
+
+// the result of these op is actually u1(may be set as other type, but its return value can only be zero or one)
+// different from kOpcodeInfo.IsCompare(op) : cmp/cmpg/cmpl have no reverse op, and may return -1/0/1
+constexpr bool IsCompareHasReverseOp(Opcode op) {
+  if (op == OP_eq || op == OP_ne || op == OP_ge || op == OP_gt || op == OP_le || op == OP_lt) {
+    return true;
+  }
+  return false;
+}
+
+constexpr Opcode GetReverseCmpOp(Opcode op) {
+  switch (op) {
+    case OP_eq:
+      return OP_ne;
+    case OP_ne:
+      return OP_eq;
+    case OP_ge:
+      return OP_lt;
+    case OP_gt:
+      return OP_le;
+    case OP_le:
+      return OP_gt;
+    case OP_lt:
+      return OP_ge;
+    default:
+      CHECK_FATAL(false, "opcode has no reverse op");
+      return op;
   }
 }
 }  // namespace maple

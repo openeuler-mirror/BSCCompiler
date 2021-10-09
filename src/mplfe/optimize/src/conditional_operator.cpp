@@ -37,7 +37,7 @@ bool ConditionalOptimize::IsCompletedConditional(const UniqueFEIRExpr &expr, std
   return true;
 }
 
-bool ConditionalOptimize::DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts,
+bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts,
                                                 const UniqueFEIRVar &var, PrimType dstPty, FieldID fieldID) {
   if (!IsCompletedConditional(expr, stmts)) {
     return false;
@@ -70,7 +70,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<
   return true;
 }
 
-bool ConditionalOptimize::DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) {
+bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) {
   if (!IsCompletedConditional(expr, stmts)) {
     return false;
   }

@@ -79,8 +79,9 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
     if (mirArrayType->GetKind() == kTypeArray &&
       static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize() != 1) {
       UniqueFEIRExpr leftExpr = FEIRBuilder::CreateExprConstI32(stringLiteralSize);
-      UniqueFEIRExpr rightExpr = FEIRBuilder::CreateExprConstI32(
-          static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize());
+      size_t elemSizes = static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize();
+      CHECK_FATAL(elemSizes <= INT_MAX, "Too large elem size");
+      UniqueFEIRExpr rightExpr = FEIRBuilder::CreateExprConstI32(static_cast<int32>(elemSizes));
       sizeExpr = FEIRBuilder::CreateExprBinary(OP_mul, std::move(leftExpr), std::move(rightExpr));
     } else {
       sizeExpr = FEIRBuilder::CreateExprConstI32(stringLiteralSize);
@@ -96,9 +97,9 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
     auto elemSize = static_cast<MIRArrayType*>(mirArrayType)->GetElemType()->GetSize();
     CHECK_FATAL(elemSize != 0, "elemSize should not 0");
     auto allElemCnt = allSize / elemSize;
-    uint32 needInitFurtherCnt = allElemCnt - stringLiteralSize;
+    uint32 needInitFurtherCnt = static_cast<uint32>(allElemCnt - stringLiteralSize);
     if (needInitFurtherCnt > 0) {
-      std::unique_ptr<std::list<UniqueFEIRExpr>> argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
+      argExprList = std::make_unique<std::list<UniqueFEIRExpr>>();
       auto addExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(dstExpr), sizeExpr->Clone());
       argExprList->emplace_back(std::move(addExpr));
       argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(0));
@@ -135,8 +136,8 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   PrimType srcPrimType = initFeirExpr->GetPrimType();
   UniqueFEIRStmt stmt;
   if (srcPrimType != feirVar->GetType()->GetPrimType() && srcPrimType != PTY_agg && srcPrimType != PTY_void) {
-    UniqueFEIRExpr cvtExpr = FEIRBuilder::CreateExprCvtPrim(std::move(initFeirExpr), feirVar->GetType()->GetPrimType());
-    stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(cvtExpr));
+    auto castExpr = FEIRBuilder::CreateExprCastPrim(std::move(initFeirExpr), feirVar->GetType()->GetPrimType());
+    stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(castExpr));
   } else {
     stmt = FEIRBuilder::CreateStmtDAssign(std::move(feirVar), std::move(initFeirExpr));
   }

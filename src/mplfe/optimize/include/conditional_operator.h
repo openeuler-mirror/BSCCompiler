@@ -22,10 +22,10 @@ namespace maple {
 // redundant temporary variables of conditional statements are processed separately.
 class ConditionalOptimize {
  public:
-  static bool DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts, UniqueFEIRVar &var,
-                                    PrimType dstPty, FieldID fieldID = 0);
-  static bool DeleteRedundantTmpVar(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts);
-  static bool IsCompletedConditional(UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts);
+  static bool DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts,
+                                    const UniqueFEIRVar &var, PrimType dstPty, FieldID fieldID = 0);
+  static bool DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts);
+  static bool IsCompletedConditional(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts);
 };
 } // namespace maple
 #endif // CONDITIONAL_OPERATOR_H

@@ -46,12 +46,34 @@ bool AArch64FixShortBranch::DistanceCheck(const BB &bb, LabelIdx targLabIdx, uin
   CHECK_FATAL(false, "CFG error");
 }
 
+uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) {
+  if (addr == 0) {
+    return addr;
+  }
+  uint32 alignPower = bb.GetAlignPower();
+  /*
+   * The algorithm can avoid the problem that alignment causes conditional branch out of range in two stages.
+   * 1. asm:  .mpl -> .s
+   *          The pseudo-instruction [.p2align 5] is 12B.
+   *          kAlignPseudoSize = 12 / 4 = 3
+   * 2. link: .s -> .o
+   *          The pseudo-instruction will be expanded to nop.
+   *      eg. .p2align 5
+   *          alignPower = 5, alignValue = 2^5 = 32
+   *          range = (32 - ((addr - 1) * 4) % 32) / 4
+   *
+   * =======> max[range, kAlignPseudoSize]
+   */
+  uint32 range = ((2 << alignPower) - (((addr - 1) * kInsnSize) & ((2 << alignPower) - 1))) / kInsnSize;
+  return range > kAlignPseudoSize ? range : kAlignPseudoSize;
+}
+
 void AArch64FixShortBranch::SetInsnId(){
   uint32 i = 0;
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_ALL_BB(bb, aarch64CGFunc) {
-    if (aarch64CGFunc->GetMirModule().IsCModule() && bb->IsBBNeedAlign()) {
-      i += kAlignPseudoSize;
+    if (aarch64CGFunc->GetMirModule().IsCModule() && bb != nullptr && bb->IsBBNeedAlign()) {
+      i = i + CalculateAlignRange(*bb, i);
     }
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {

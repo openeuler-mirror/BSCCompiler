@@ -66,8 +66,8 @@ bool FEIRVarReg::EqualsToImpl(const std::unique_ptr<FEIRVar> &var) const {
   return ptrVarReg->regNum == regNum;
 }
 
-size_t FEIRVarReg::HashImpl() const {
-  return std::hash<uint32>{}(regNum);
+uint32 FEIRVarReg::HashImpl() const {
+  return static_cast<uint32>(std::hash<uint32>{}(regNum));
 }
 
 // ========== FEIRVarAccumulator ==========
