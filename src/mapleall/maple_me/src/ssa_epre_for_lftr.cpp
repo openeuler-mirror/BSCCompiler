@@ -140,10 +140,9 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
     hashedSide = irMap->HashMeExpr(newSide);
     BuildWorkListExpr(*compOcc->GetMeStmt(), compOcc->GetSequence(), *hashedSide, false, nullptr, true, true);
   }
-  // when compare with constval, signed/unsigned integer has different behaviour
+  // try to preserve the opndtype signedness of the original comparison
   PrimType newCmpOpndType = regorvar->GetPrimType();
-  if (hashedSide->GetOp() == OP_constval &&
-      IsSignedInteger(regorvar->GetPrimType()) != IsSignedInteger(compare->GetOpndType()) &&
+  if (IsSignedInteger(regorvar->GetPrimType()) != IsSignedInteger(compare->GetOpndType()) &&
       compare->GetOp() != OP_ne && compare->GetOp() != OP_eq) {
     newCmpOpndType = IsSignedInteger(regorvar->GetPrimType()) ? GetUnsignedPrimType(regorvar->GetPrimType()) :
                                                                 GetSignedPrimType(regorvar->GetPrimType());
@@ -153,6 +152,14 @@ OpMeExpr *SSAEPre::FormLFTRCompare(MeRealOcc *compOcc, MeExpr *regorvar) {
   newcompare.SetOpnd(j, regorvar);
   newcompare.SetOpnd(1-j, hashedSide);
   return static_cast<OpMeExpr *>(irMap->HashMeExpr(newcompare));
+}
+
+static bool IsLargeInteger(ConstMeExpr *constOpnd) {
+  MIRIntConst *intconst = dynamic_cast<MIRIntConst *>(constOpnd->GetConstVal());
+  if (intconst == nullptr) {
+    return false;
+  }
+  return ((uint64) intconst->GetValue()) > 0x8000000;
 }
 
 void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool isRebuilt) {
@@ -176,9 +183,7 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     constopnd = dynamic_cast<ConstMeExpr *>(compare->GetOpnd(1));
   }
   if (constopnd) {
-    MIRIntConst *intconst = dynamic_cast<MIRIntConst *>(constopnd->GetConstVal());
-    if (intconst && ((uint64) intconst->GetValue()) > 0x8000000)
-      largeIntLimit = true;
+    largeIntLimit = IsLargeInteger(constopnd);
   }
   // search for worklist candidates set isSRCand such that one of its operands
   // is either compareLHS or compareRHS, and create MeRealOcc for each of them
@@ -186,8 +191,18 @@ void SSAEPre::CreateCompOcc(MeStmt *meStmt, int seqStmt, OpMeExpr *compare, bool
     if (!wkCand->isSRCand) {
       continue;
     }
-    if (largeIntLimit && (wkCand->GetTheMeExpr()->GetOp() == OP_add || wkCand->GetTheMeExpr()->GetOp() == OP_sub)) {
-      continue;
+    if (wkCand->GetTheMeExpr()->GetOp() == OP_add || wkCand->GetTheMeExpr()->GetOp() == OP_sub) {
+      if (largeIntLimit) {
+        continue;
+      }
+      // skip if it has a larger integer operand
+      ConstMeExpr *candConstOpnd = dynamic_cast<ConstMeExpr *>(wkCand->GetTheMeExpr()->GetOpnd(0));
+      if (candConstOpnd == nullptr) {
+        candConstOpnd = dynamic_cast<ConstMeExpr *>(wkCand->GetTheMeExpr()->GetOpnd(1));
+      }
+      if (candConstOpnd && IsLargeInteger(candConstOpnd)) {
+        continue;
+      }
     }
 
     if (wkCand->GetTheMeExpr()->GetOp() == OP_sub && IsUnsignedInteger(compare->GetOpndType())) {
