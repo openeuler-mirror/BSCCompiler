@@ -18,6 +18,9 @@
 #define DO_LT_0_CHECK 1
 
 namespace maple {
+static constexpr int32 kProbAll = 10000;
+static constexpr int32 kProbLikely = 9000;
+static constexpr int32 kProbUnlikely = kProbAll - kProbLikely;
 
 static constexpr uint64 RoundUpConst(uint64 offset, uint32 align) {
   return (-align) & (offset + align - 1);
@@ -28,6 +31,104 @@ static inline uint64 RoundUp(uint64 offset, uint32 align) {
     return offset;
   }
   return RoundUpConst(offset, align);
+}
+
+// Remove intrinsicop __builtin_expect and record likely info to brStmt
+// Target condExpr example:
+//  ne u1 i64 (
+//    intrinsicop i64 C___builtin_expect (
+//     cvt i64 i32 (dread i32 %levVar_9354), cvt i64 i32 (constval i32 0)),
+//    constval i64 0)
+void LowerCondGotoStmtWithBuiltinExpect(CondGotoNode &brStmt) {
+  BaseNode *condExpr = brStmt.Opnd(0);
+  // Poke ne for dread shortCircuit
+  // Example:
+  //  dassign %shortCircuit 0 (ne u1 i64 (
+  //    intrinsicop i64 C___builtin_expect (
+  //      cvt i64 i32 (dread i32 %levVar_32349),
+  //      cvt i64 i32 (constval i32 0)),
+  //    constval i64 0))
+  //  dassign %shortCircuit 0 (ne u1 u32 (dread u32 %shortCircuit, constval u1 0))
+  if (condExpr->GetOpCode() == OP_ne && condExpr->Opnd(0)->GetOpCode() == OP_dread &&
+      condExpr->Opnd(1)->GetOpCode() == OP_constval) {
+    auto *constVal = static_cast<ConstvalNode*>(condExpr->Opnd(1))->GetConstVal();
+    if (constVal->GetKind() == kConstInt && static_cast<MIRIntConst*>(constVal)->GetValue() == 0) {
+      condExpr = condExpr->Opnd(0);
+    }
+  }
+  if (condExpr->GetOpCode() == OP_dread) {
+    // Example:
+    //    dassign %shortCircuit 0 (ne u1 i64 (
+    //      intrinsicop i64 C___builtin_expect (
+    //        cvt i64 i32 (dread i32 %levVar_9488),
+    //        cvt i64 i32 (constval i32 1)),
+    //      constval i64 0))
+    //    brfalse @shortCircuit_label_13351 (dread u32 %shortCircuit)
+    StIdx stIdx = static_cast<DreadNode*>(condExpr)->GetStIdx();
+    FieldID fieldId = static_cast<DreadNode*>(condExpr)->GetFieldID();
+    if (fieldId != 0) {
+      return;
+    }
+    if (brStmt.GetPrev() == nullptr || brStmt.GetPrev()->GetOpCode() != OP_dassign) {
+      return;  // prev stmt may be a label, we skip it too
+    }
+    auto *dassign = static_cast<DassignNode*>(brStmt.GetPrev());
+    if (stIdx != dassign->GetStIdx() || dassign->GetFieldID() != 0) {
+      return;
+    }
+    condExpr = dassign->GetRHS();
+  }
+  if (condExpr->GetOpCode() == OP_ne) {
+    // opnd1 must be int const 0
+    BaseNode *opnd1 = condExpr->Opnd(1);
+    if (opnd1->GetOpCode() != OP_constval) {
+      return;
+    }
+    auto *constVal = static_cast<ConstvalNode*>(opnd1)->GetConstVal();
+    if (constVal->GetKind() != kConstInt || static_cast<MIRIntConst*>(constVal)->GetValue() != 0) {
+      return;
+    }
+    // opnd0 must be intrinsicop C___builtin_expect
+    BaseNode *opnd0 = condExpr->Opnd(0);
+    if (opnd0->GetOpCode() != OP_intrinsicop ||
+        static_cast<IntrinsicopNode*>(opnd0)->GetIntrinsic() != INTRN_C___builtin_expect) {
+      return;
+    }
+    // We trust constant fold
+    auto *expectedConstExpr = opnd0->Opnd(1);
+    if (expectedConstExpr->GetOpCode() == OP_cvt) {
+      expectedConstExpr = expectedConstExpr->Opnd(0);
+    }
+    if (expectedConstExpr->GetOpCode() != OP_constval) {
+      return;
+    }
+    auto *expectedConstNode = static_cast<ConstvalNode*>(expectedConstExpr)->GetConstVal();
+    CHECK_FATAL(expectedConstNode->GetKind() == kConstInt, "must be");
+    auto expectedVal = static_cast<MIRIntConst*>(expectedConstNode)->GetValue();
+    if (expectedVal != 0 && expectedVal != 1) {
+      return;
+    }
+    bool likelyTrue = (expectedVal == 1);  // The condition is likely to be true
+    bool likelyBranch = (brStmt.GetOpCode() == OP_brtrue ? likelyTrue : !likelyTrue);  // High probability jump
+    if (likelyBranch) {
+      brStmt.SetBranchProb(kProbLikely);
+    } else {
+      brStmt.SetBranchProb(kProbUnlikely);
+    }
+    // Remove __builtin_expect
+    condExpr->SetOpnd(opnd0->Opnd(0), 0);
+  }
+}
+
+void MIRLower::LowerBuiltinExpect(BlockNode &block) {
+  auto *stmt = block.GetFirst();
+  auto *last = block.GetLast();
+  while (stmt != last) {
+    if (stmt->GetOpCode() == OP_brtrue || stmt->GetOpCode() == OP_brfalse) {
+      LowerCondGotoStmtWithBuiltinExpect(*static_cast<CondGotoNode*>(stmt));
+    }
+    stmt = stmt->GetNext();
+  }
 }
 
 LabelIdx MIRLower::CreateCondGotoStmt(Opcode op, BlockNode &blk, const IfStmtNode &ifStmt) {
@@ -222,7 +323,7 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
     auto *readDovar =
         mirModule.CurFuncCodeMemPool()->New<DreadNode>(OP_dread, doVarPType, doloop.GetDoVarStIdx(), 0);
     auto *add =
-        mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_add, doVarPType, doloop.GetIncrExpr(), readDovar);
+        mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_add, doVarPType, readDovar, doloop.GetIncrExpr());
     auto *endDassign = mirModule.CurFuncCodeMemPool()->New<DassignNode>();
     endDassign->SetStIdx(doloop.GetDoVarStIdx());
     endDassign->SetRHS(add);
@@ -310,7 +411,8 @@ BaseNode* MIRLower::LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockN
     LabelIdx labIdx = mirFunc->GetLabelTab()->CreateLabel();
     (void)mirFunc->GetLabelTab()->AddToStringLabelMap(labIdx);
     BaseNode *cond = builder->CreateExprRegread(PTY_u8, pregIdx);
-    CondGotoNode *cgoto = mirFunc->GetCodeMempool()->New<CondGotoNode>(x->GetOpCode() == OP_cior ? OP_brtrue : OP_brfalse);
+    CondGotoNode *cgoto = mirFunc->GetCodeMempool()->New<CondGotoNode>(
+        x->GetOpCode() == OP_cior ? OP_brtrue : OP_brfalse);
     cgoto->SetOpnd(cond, 0);
     cgoto->SetOffset(labIdx);
     blk->InsertBefore(curstmt, cgoto);
@@ -391,6 +493,7 @@ void MIRLower::LowerFunc(MIRFunction &func) {
   ASSERT(origBody != nullptr, "nullptr check");
   BlockNode *newBody = LowerBlock(*origBody);
   ASSERT(newBody != nullptr, "nullptr check");
+  LowerBuiltinExpect(*newBody);
   if (!InLFO()) {
     LowerCandCior(*newBody);
   }
