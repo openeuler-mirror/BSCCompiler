@@ -671,7 +671,7 @@ ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang
 
 ASTExpr *ASTParser::ParseBuiltinSignbit(MapleAllocator &allocator, const clang::CallExpr &expr,
                                         std::stringstream &ss) const {
-   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
+  return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbit");
 }
 
 ASTExpr *ASTParser::ParseBuiltinIsinfsign(MapleAllocator &allocator, const clang::CallExpr &expr,
@@ -740,7 +740,7 @@ ASTExpr *ASTParser::ParseBuiltinNanf(MapleAllocator &allocator, const clang::Cal
 
 ASTExpr *ASTParser::ParseBuiltinSignBitf(MapleAllocator &allocator, const clang::CallExpr &expr,
                                          std::stringstream &ss) const {
-   return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitf");
+  return ProcessBuiltinFuncByName(allocator, expr, ss, "__signbitf");
 }
 
 ASTExpr *ASTParser::ParseBuiltinSignBitl(MapleAllocator &allocator, const clang::CallExpr &expr,

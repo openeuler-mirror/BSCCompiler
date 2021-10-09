@@ -26,6 +26,7 @@
 #include "feir_builder.h"
 #include "mplfe_ut_regx.h"
 #include "fe_utils_java.h"
+#include "ror.h"
 #define private public
 #undef private
 
@@ -176,7 +177,7 @@ TEST_F(FEIRStmtTest, FEIRExprExtractBits_sext) {
   RedirectCout();
   baseNode->Dump();
   std::string dumpStr = GetBufferString();
-  std::string pattern = std::string("sext i8 8 \\(dread i32 %Reg0_I\\)") + MPLFEUTRegx::Any();
+  std::string pattern = std::string("sext i32 8 \\(dread i32 %Reg0_I\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
   RestoreCout();
 }
@@ -191,7 +192,7 @@ TEST_F(FEIRStmtTest, FEIRExprExtractBits_zext) {
   RedirectCout();
   baseNode->Dump();
   std::string dumpStr = GetBufferString();
-  std::string pattern = std::string("zext u16 16 \\(dread i32 %Reg0_I\\)") + MPLFEUTRegx::Any();
+  std::string pattern = std::string("zext u32 16 \\(dread i32 %Reg0_I\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
   RestoreCout();
 }
@@ -419,6 +420,153 @@ TEST_F(FEIRStmtTest, FEIRStmtJavaFillArrayData) {
                         MPLFEUTRegx::RefIndex(MPLFEUTRegx::kAnyNumber) +
                         std::string(", addrof ptr \\$const_array_0, constval i32 16\\)") +
                         MPLFEUTRegx::Any();
+  EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
+  RestoreCout();
+}
+
+TEST_F(FEIRStmtTest, FEIRExpr_hash) {
+  // FEIRExprDRead
+  std::unique_ptr<FEIRVar> varReg0 = FEIRBuilder::CreateVarReg(0, PTY_i32);
+  std::unique_ptr<FEIRVar> varReg1 = FEIRBuilder::CreateVarReg(1, PTY_i8);
+  UniqueFEIRExpr exprDRead0 = std::make_unique<FEIRExprDRead>(std::move(varReg0));
+  UniqueFEIRExpr exprDRead1 = std::make_unique<FEIRExprDRead>(std::move(varReg1));
+  UniqueFEIRExpr exprDRead2 = exprDRead0->Clone();
+  EXPECT_EQ(exprDRead0->Hash() == exprDRead1->Hash(), false);
+  EXPECT_EQ(exprDRead0->Hash() == exprDRead2->Hash(), true);
+  // FEIRExprIRead
+  UniqueFEIRVar Var0 = FEIRBuilder::CreateVarNameForC("a", *GlobalTables::GetTypeTable().GetInt32());
+  UniqueFEIRVar Var1 = FEIRBuilder::CreateVarNameForC("b", *GlobalTables::GetTypeTable().GetInt32());
+  UniqueFEIRVar Var2 = Var0->Clone();
+  UniqueFEIRExpr exprDRead10 = std::make_unique<FEIRExprDRead>(Var0->Clone());
+  UniqueFEIRExpr exprDRead11 = std::make_unique<FEIRExprDRead>(Var1->Clone());
+  UniqueFEIRExpr exprDRead12 = exprDRead10->Clone();
+  EXPECT_EQ(exprDRead10->Hash() == exprDRead11->Hash(), false);
+  EXPECT_EQ(exprDRead10->Hash() == exprDRead12->Hash(), true);
+  UniqueFEIRType retType = FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetInt32());
+  MIRType *ptr = GlobalTables::GetTypeTable().GetOrCreatePointerType(*GlobalTables::GetTypeTable().GetInt32());
+  UniqueFEIRType ptrType = FEIRTypeHelper::CreateTypeNative(*ptr);
+  UniqueFEIRExpr exprIread0 = FEIRBuilder::CreateExprIRead(retType->Clone(), ptrType->Clone(), exprDRead10->Clone());
+  UniqueFEIRExpr exprIread1 = FEIRBuilder::CreateExprIRead(retType->Clone(), ptrType->Clone(), exprDRead11->Clone());
+  UniqueFEIRExpr exprIread2 = FEIRBuilder::CreateExprIRead(retType->Clone(), ptrType->Clone(), exprDRead12->Clone());
+  UniqueFEIRExpr exprIread3 = exprIread0->Clone();
+  EXPECT_EQ(exprIread0->Hash() == exprIread1->Hash(), false);
+  EXPECT_EQ(exprIread0->Hash() == exprIread2->Hash(), true);
+  EXPECT_EQ(exprIread0->Hash() == exprIread3->Hash(), true);
+  // FEIRExprConst
+  UniqueFEIRExpr exprConst0 = std::make_unique<FEIRExprConst>(int64{ 0x100 }, PTY_i64);
+  UniqueFEIRExpr exprConst1 = std::make_unique<FEIRExprConst>(int64{ 0x100 }, PTY_u64);
+  UniqueFEIRExpr exprConst2 = std::make_unique<FEIRExprConst>(int64{ 0x101 }, PTY_u64);
+  UniqueFEIRExpr exprConst3 =  exprConst2->Clone();
+  EXPECT_EQ(exprConst0->Hash() == exprConst1->Hash(), false);
+  EXPECT_EQ(exprConst1->Hash() == exprConst2->Hash(), false);
+  EXPECT_EQ(exprConst2->Hash() == exprConst3->Hash(), true);
+  // FEIRExprUnary
+  UniqueFEIRVar varReg = FEIRBuilder::CreateVarReg(0, PTY_i32);
+  UniqueFEIRExpr exprDRead = std::make_unique<FEIRExprDRead>(std::move(varReg));
+  UniqueFEIRExpr exprUnary0 = std::make_unique<FEIRExprUnary>(OP_neg, exprDRead->Clone());
+  UniqueFEIRExpr exprUnary1 = std::make_unique<FEIRExprUnary>(OP_bnot, exprDRead->Clone());
+  UniqueFEIRExpr exprUnary2 = exprUnary1->Clone();
+  EXPECT_EQ(exprUnary0->Hash() == exprUnary1->Hash(), false);
+  EXPECT_EQ(exprUnary1->Hash() == exprUnary2->Hash(), true);
+  // FEIRExprTypeCvt
+  std::unique_ptr<FEIRExprTypeCvt> exprCvt0 = std::make_unique<FEIRExprTypeCvt>(OP_round, exprDRead->Clone());
+  exprCvt0->GetType()->SetPrimType(PTY_f32);
+  UniqueFEIRExpr exprCvt1 = exprCvt0->Clone();
+  exprCvt1->GetType()->SetPrimType(PTY_u32);
+  UniqueFEIRExpr exprCvt2 = exprCvt0->Clone();
+  EXPECT_EQ(exprCvt0->Hash() == exprCvt1->Hash(), false);
+  EXPECT_EQ(exprCvt0->Hash() == exprCvt2->Hash(), true);
+  // FEIRExprExtractBits
+  UniqueFEIRExpr exprExtractBits0 =
+      std::make_unique<FEIRExprExtractBits>(OP_extractbits, PTY_i32, 8, 16, exprDRead->Clone());
+  UniqueFEIRExpr exprExtractBits1 =
+      std::make_unique<FEIRExprExtractBits>(OP_extractbits, PTY_u32, 8, 16, exprDRead->Clone());
+  UniqueFEIRExpr exprExtractBits2 =
+      std::make_unique<FEIRExprExtractBits>(OP_extractbits, PTY_u32, 16, 8, exprDRead->Clone());
+  UniqueFEIRExpr exprExtractBits3 = exprExtractBits0->Clone();
+  EXPECT_EQ(exprExtractBits0->Hash() == exprConst1->Hash(), false);
+  EXPECT_EQ(exprExtractBits0->Hash() == exprExtractBits2->Hash(), false);
+  EXPECT_EQ(exprExtractBits0->Hash() == exprExtractBits3->Hash(), true);
+  // FEIRExprBinary
+  UniqueFEIRExpr exprBin0 = std::make_unique<FEIRExprBinary>(OP_add, exprDRead10->Clone(), exprDRead11->Clone());
+  UniqueFEIRExpr exprBin1 = std::make_unique<FEIRExprBinary>(OP_sub, exprDRead10->Clone(), exprDRead11->Clone());
+  UniqueFEIRExpr exprBin2 = std::make_unique<FEIRExprBinary>(OP_add, exprDRead11->Clone(), exprDRead10->Clone());
+  UniqueFEIRExpr exprBin3 = exprBin0->Clone();
+  EXPECT_EQ(exprBin0->Hash() == exprBin1->Hash(), false);
+  EXPECT_EQ(exprBin0->Hash() == exprBin2->Hash(), false);
+  EXPECT_EQ(exprBin0->Hash() == exprBin3->Hash(), true);
+  UniqueFEIRExpr exprTernary0 =
+      std::make_unique<FEIRExprTernary>(OP_select, exprDRead0->Clone(), exprDRead1->Clone(), exprDRead2->Clone());
+  UniqueFEIRExpr exprTernary1 =
+      std::make_unique<FEIRExprTernary>(OP_select, exprDRead0->Clone(), exprDRead2->Clone(), exprDRead1->Clone());
+  UniqueFEIRExpr exprTernary2 = exprTernary0->Clone();
+  EXPECT_EQ(exprTernary0->Hash() == exprTernary1->Hash(), false);
+  EXPECT_EQ(exprTernary0->Hash() == exprTernary2->Hash(), true);
+  // FEIRExprAddrofVar
+  UniqueFEIRExpr exprAddrOfVar0 = FEIRBuilder::CreateExprAddrofVar(Var0->Clone());
+  UniqueFEIRExpr exprAddrOfVar1 = FEIRBuilder::CreateExprAddrofVar(Var1->Clone());
+  UniqueFEIRExpr exprAddrOfVar2 = exprAddrOfVar0->Clone();
+  EXPECT_EQ(exprAddrOfVar0->Hash() == exprAddrOfVar1->Hash(), false);
+  EXPECT_EQ(exprAddrOfVar0->Hash() == exprAddrOfVar2->Hash(), true);
+  // FEIRExprIAddrof
+  UniqueFEIRExpr exprAddrIAddrof0 = std::make_unique<FEIRExprIAddrof>(
+      FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetAddr64()), 1, exprDRead10->Clone());
+  UniqueFEIRExpr exprAddrIAddrof1 = std::make_unique<FEIRExprIAddrof>(
+      FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetAddr64()), 2, exprDRead10->Clone());
+  UniqueFEIRExpr exprAddrIAddrof2 = std::make_unique<FEIRExprIAddrof>(
+      FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetAddr64()), 1, exprDRead11->Clone());
+  UniqueFEIRExpr exprAddrIAddrof3 = exprAddrIAddrof0->Clone();
+  EXPECT_EQ(exprAddrIAddrof0->Hash() == exprAddrIAddrof1->Hash(), false);
+  EXPECT_EQ(exprAddrIAddrof0->Hash() == exprAddrIAddrof2->Hash(), false);
+  EXPECT_EQ(exprAddrIAddrof0->Hash() == exprAddrIAddrof3->Hash(), true);
+  // FEIRExprAddrofFunc
+  UniqueFEIRExpr exprFunc0 = FEIRBuilder::CreateExprAddrofFunc("func1");
+  UniqueFEIRExpr exprFunc1 = FEIRBuilder::CreateExprAddrofFunc("func2");
+  UniqueFEIRExpr exprFunc2 = exprFunc0->Clone();
+  EXPECT_EQ(exprFunc0->Hash() == exprFunc1->Hash(), false);
+  EXPECT_EQ(exprFunc0->Hash() == exprFunc2->Hash(), true);
+  // FEIRExprAddrofArray
+  uint32_t sizeArray[2] = {3, 3};
+  MIRType *arrType = GlobalTables::GetTypeTable().GetOrCreateArrayType(
+      *GlobalTables::GetTypeTable().GetAddr64(), 2, sizeArray);
+  UniqueFEIRType arrayFEType = FEIRTypeHelper::CreateTypeNative(*arrType);
+  std::list<UniqueFEIRExpr> exprs0;
+  exprs0.emplace_back( FEIRBuilder::CreateExprConstU32(1));
+  exprs0.emplace_back( FEIRBuilder::CreateExprConstU32(2));
+  std::list<UniqueFEIRExpr> exprs1;
+  exprs1.emplace_back( FEIRBuilder::CreateExprConstU32(2));
+  exprs1.emplace_back( FEIRBuilder::CreateExprConstU32(1));
+  auto exprAddrOfArr0 = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), exprAddrOfVar0->Clone(), "", exprs0);
+  auto exprAddrOfArr1 = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), exprAddrOfVar1->Clone(), "", exprs0);
+  auto exprAddrOfArr2 = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), exprAddrOfVar1->Clone(), "", exprs1);
+  auto exprAddrOfArr3 = exprAddrOfArr0->Clone();
+  EXPECT_EQ(exprAddrOfArr0->Hash() == exprAddrOfArr1->Hash(), false);
+  EXPECT_EQ(exprAddrOfArr0->Hash() == exprAddrOfArr2->Hash(), false);
+  EXPECT_EQ(exprAddrOfArr0->Hash() == exprAddrOfArr3->Hash(), true);
+}
+
+TEST_F(FEIRStmtTest, FEIRStmtRor) {
+  RedirectCout();
+  MIRType *type = GlobalTables::GetTypeTable().GetUInt64();
+  UniqueFEIRVar baseVar = FEIRBuilder::CreateVarNameForC("a", *type, false, false);
+  UniqueFEIRExpr baseExpr = FEIRBuilder::CreateExprDRead(std::move(baseVar));
+  UniqueFEIRVar baseShiftVar = FEIRBuilder::CreateVarNameForC("b", *type, false, false);
+  UniqueFEIRExpr baseShiftExpr = FEIRBuilder::CreateExprDRead(std::move(baseShiftVar));
+  UniqueFEIRExpr constExpr1 = FEIRBuilder::CreateExprConstI32(64);
+  UniqueFEIRExpr constExpr2 = FEIRBuilder::CreateExprConstI32(63);
+  UniqueFEIRExpr andExpr = FEIRBuilder::CreateExprBinary(OP_band, baseShiftExpr->Clone(), constExpr2->Clone());
+  UniqueFEIRExpr leftExpr = FEIRBuilder::CreateExprBinary(OP_lshr, baseExpr->Clone(), andExpr->Clone());
+  UniqueFEIRExpr subExpr = FEIRBuilder::CreateExprBinary(OP_sub, constExpr1->Clone(), andExpr->Clone());
+  UniqueFEIRExpr rightExpr = FEIRBuilder::CreateExprBinary(OP_shl, baseExpr->Clone(), subExpr->Clone());
+  UniqueFEIRExpr orExpr = FEIRBuilder::CreateExprBinary(OP_bior, leftExpr->Clone(), rightExpr->Clone());
+  // ror optimize
+  auto orExprPtr = static_cast<FEIRExprBinary*>(orExpr.get());
+  Ror ror(orExprPtr->GetOp(), orExprPtr->GetOpnd0(), orExprPtr->GetOpnd1());
+  UniqueFEIRExpr target = ror.Emit2FEExpr();
+  BaseNode *node = target->GenMIRNode(mirBuilder);
+  node->Dump();
+  std::string dumpStr = GetBufferString();
+  std::string pattern = std::string("ror u64 \\(dread u64 %a, dread u64 %b\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
   RestoreCout();
 }

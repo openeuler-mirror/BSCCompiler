@@ -866,7 +866,7 @@ TEST_F(DexOpTest, DexOpunaryOp) {
   dexOp2->SetVB(1);
   dexOp2->EmitToFEIRStmts().front()->GenMIRStmts(mirBuilder).front()->Dump();
   dumpStr = GetBufferString();
-  pattern = std::string("dassign %Reg0_B 0 \\(sext i8 8 \\(dread i32 %Reg1_I\\)\\)") + MPLFEUTRegx::Any();
+  pattern = std::string("dassign %Reg0_B 0 \\(sext i32 8 \\(dread i32 %Reg1_I\\)\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
   // OP_zext
   std::unique_ptr<DexOpUnaryOpUT> dexOp3 = std::make_unique<DexOpUnaryOpUT>(allocator, 0, bc::kDexOpIntToChar);
@@ -874,7 +874,7 @@ TEST_F(DexOpTest, DexOpunaryOp) {
   dexOp3->SetVB(1);
   dexOp3->EmitToFEIRStmts().front()->GenMIRStmts(mirBuilder).front()->Dump();
   dumpStr = GetBufferString();
-  pattern = std::string("dassign %Reg0_C 0 \\(zext u16 16 \\(dread i32 %Reg1_I\\)\\)") + MPLFEUTRegx::Any();
+  pattern = std::string("dassign %Reg0_C 0 \\(zext u32 16 \\(dread i32 %Reg1_I\\)\\)") + MPLFEUTRegx::Any();
   EXPECT_EQ(MPLFEUTRegx::Match(dumpStr, pattern), true);
   // OP_neg
   std::unique_ptr<DexOpUnaryOpUT> dexOp4 = std::make_unique<DexOpUnaryOpUT>(allocator, 0, bc::kDexOpNegInt);

@@ -20,9 +20,16 @@
  *
  *===-----------------------------------------------------------------------===
  */
+
 #ifndef __ARM_NEON_H
 #define __ARM_NEON_H
+
 #include <stdint.h>
+
+typedef float float32_t;
+#ifdef __aarch64__
+typedef double float64_t;
+#endif
 
 typedef __attribute__((neon_vector_type(8))) int8_t int8x8_t;
 typedef __attribute__((neon_vector_type(16))) int8_t int8x16_t;
@@ -40,11 +47,11 @@ typedef __attribute__((neon_vector_type(2))) uint32_t uint32x2_t;
 typedef __attribute__((neon_vector_type(4))) uint32_t uint32x4_t;
 typedef __attribute__((neon_vector_type(1))) uint64_t uint64x1_t;
 typedef __attribute__((neon_vector_type(2))) uint64_t uint64x2_t;
-typedef __attribute__((neon_vector_type(2))) float float32x2_t;
-typedef __attribute__((neon_vector_type(4))) float float32x4_t;
+typedef __attribute__((neon_vector_type(2))) float32_t float32x2_t;
+typedef __attribute__((neon_vector_type(4))) float32_t float32x4_t;
 #ifdef __aarch64__
-typedef __attribute__((neon_vector_type(1))) double float64x1_t;
-typedef __attribute__((neon_vector_type(2))) double float64x2_t;
+typedef __attribute__((neon_vector_type(1))) float64_t float64x1_t;
+typedef __attribute__((neon_vector_type(2))) float64_t float64x2_t;
 #endif
 
 typedef struct int8x8x2_t {
@@ -86,8 +93,8 @@ uint64x2_t __builtin_mpl_vector_from_scalar_v2u64(uint64_t);
 uint32x4_t __builtin_mpl_vector_from_scalar_v4u32(uint32_t);
 uint16x8_t __builtin_mpl_vector_from_scalar_v8u16(uint16_t);
 uint8x16_t __builtin_mpl_vector_from_scalar_v16u8(uint8_t);
-float64x2_t __builtin_mpl_vector_from_scalar_v2f64(double);
-float32x4_t __builtin_mpl_vector_from_scalar_v4f32(float);
+float64x2_t __builtin_mpl_vector_from_scalar_v2f64(float64_t);
+float32x4_t __builtin_mpl_vector_from_scalar_v4f32(float32_t);
 int64x1_t __builtin_mpl_vector_from_scalar_v1i64(int64_t);
 int32x2_t __builtin_mpl_vector_from_scalar_v2i32(int32_t);
 int16x4_t __builtin_mpl_vector_from_scalar_v4i16(int16_t);
@@ -96,8 +103,8 @@ uint64x1_t __builtin_mpl_vector_from_scalar_v1u64(uint64_t);
 uint32x2_t __builtin_mpl_vector_from_scalar_v2u32(uint32_t);
 uint16x4_t __builtin_mpl_vector_from_scalar_v4u16(uint16_t);
 uint8x8_t __builtin_mpl_vector_from_scalar_v8u8(uint8_t);
-float64x1_t __builtin_mpl_vector_from_scalar_v1f64(double);
-float32x2_t __builtin_mpl_vector_from_scalar_v2f32(float);
+float64x1_t __builtin_mpl_vector_from_scalar_v1f64(float64_t);
+float32x2_t __builtin_mpl_vector_from_scalar_v2f32(float32_t);
 
 // vecTy2 vector_madd(vecTy2 accum, vecTy1 src1, vecTy1 src2)
 //      Multiply the elements of src1 and src2, then accumulate into accum.
@@ -179,8 +186,8 @@ uint64_t __builtin_mpl_vector_get_element_v2u64(uint64x2_t, int32_t);
 uint32_t __builtin_mpl_vector_get_element_v4u32(uint32x4_t, int32_t);
 uint16_t __builtin_mpl_vector_get_element_v8u16(uint16x8_t, int32_t);
 uint8_t __builtin_mpl_vector_get_element_v16u8(uint8x16_t, int32_t);
-double __builtin_mpl_vector_get_element_v2f64(float64x2_t, int32_t);
-float __builtin_mpl_vector_get_element_v4f32(float32x4_t, int32_t);
+float64_t __builtin_mpl_vector_get_element_v2f64(float64x2_t, int32_t);
+float32_t __builtin_mpl_vector_get_element_v4f32(float32x4_t, int32_t);
 int64_t __builtin_mpl_vector_get_element_v1i64(int64x1_t, int32_t);
 int32_t __builtin_mpl_vector_get_element_v2i32(int32x2_t, int32_t);
 int16_t __builtin_mpl_vector_get_element_v4i16(int16x4_t, int32_t);
@@ -189,8 +196,8 @@ uint64_t __builtin_mpl_vector_get_element_v1u64(uint64x1_t, int32_t);
 uint32_t __builtin_mpl_vector_get_element_v2u32(uint32x2_t, int32_t);
 uint16_t __builtin_mpl_vector_get_element_v4u16(uint16x4_t, int32_t);
 uint8_t __builtin_mpl_vector_get_element_v8u8(uint8x8_t, int32_t);
-double __builtin_mpl_vector_get_element_v1f64(float64x1_t, int32_t);
-float __builtin_mpl_vector_get_element_v2f32(float32x2_t, int32_t);
+float64_t __builtin_mpl_vector_get_element_v1f64(float64x1_t, int32_t);
+float32_t __builtin_mpl_vector_get_element_v2f32(float32x2_t, int32_t);
 
 // vecTy vector_set_element(ScalarTy value, VecTy vec, int n)
 //     Set the nth element of the source vector to value.
@@ -205,9 +212,9 @@ uint32x4_t __builtin_mpl_vector_set_element_v4u32(uint32_t, uint32x4_t,
 uint16x8_t __builtin_mpl_vector_set_element_v8u16(uint16_t, uint16x8_t,
                                                   int32_t);
 uint8x16_t __builtin_mpl_vector_set_element_v16u8(uint8_t, uint8x16_t, int32_t);
-float64x2_t __builtin_mpl_vector_set_element_v2f64(double, float64x2_t,
+float64x2_t __builtin_mpl_vector_set_element_v2f64(float64_t, float64x2_t,
                                                    int32_t);
-float32x4_t __builtin_mpl_vector_set_element_v4f32(float, float32x4_t,
+float32x4_t __builtin_mpl_vector_set_element_v4f32(float32_t, float32x4_t,
                                                    int32_t);
 int64x1_t __builtin_mpl_vector_set_element_v1i64(int64_t, int64x1_t, int32_t);
 int32x2_t __builtin_mpl_vector_set_element_v2i32(int32_t, int32x2_t, int32_t);
@@ -220,9 +227,9 @@ uint32x2_t __builtin_mpl_vector_set_element_v2u32(uint32_t, uint32x2_t,
 uint16x4_t __builtin_mpl_vector_set_element_v4u16(uint16_t, uint16x4_t,
                                                   int32_t);
 uint8x8_t __builtin_mpl_vector_set_element_v8u8(uint8_t, uint8x8_t, int32_t);
-float64x1_t __builtin_mpl_vector_set_element_v1f64(double, float64x1_t,
+float64x1_t __builtin_mpl_vector_set_element_v1f64(float64_t, float64x1_t,
                                                    int32_t);
-float32x2_t __builtin_mpl_vector_set_element_v2f32(float, float32x2_t,
+float32x2_t __builtin_mpl_vector_set_element_v2f32(float32_t, float32x2_t,
                                                    int32_t);
 
 // vecTy2 vector_narrow_low(vecTy1 src)
@@ -334,15 +341,15 @@ uint64_t __builtin_mpl_vector_sum_v2u64(uint64x2_t);
 uint32_t __builtin_mpl_vector_sum_v4u32(uint32x4_t);
 uint16_t __builtin_mpl_vector_sum_v8u16(uint16x8_t);
 uint8_t __builtin_mpl_vector_sum_v16u8(uint8x16_t);
-double __builtin_mpl_vector_sum_v2f64(float64x2_t);
-float __builtin_mpl_vector_sum_v4f32(float32x4_t);
+float64_t __builtin_mpl_vector_sum_v2f64(float64x2_t);
+float32_t __builtin_mpl_vector_sum_v4f32(float32x4_t);
 int32_t __builtin_mpl_vector_sum_v2i32(int32x2_t);
 int16_t __builtin_mpl_vector_sum_v4i16(int16x4_t);
 int8_t __builtin_mpl_vector_sum_v8i8(int8x8_t);
 uint32_t __builtin_mpl_vector_sum_v2u32(uint32x2_t);
 uint16_t __builtin_mpl_vector_sum_v4u16(uint16x4_t);
 uint8_t __builtin_mpl_vector_sum_v8u8(uint8x8_t);
-float __builtin_mpl_vector_sum_v2f32(float32x2_t);
+float32_t __builtin_mpl_vector_sum_v2f32(float32x2_t);
 
 // vecTy table_lookup(vecTy tbl, vecTy idx)
 //     Performs a table vector lookup.
@@ -388,8 +395,8 @@ uint64x2_t __builtin_mpl_vector_load_v2u64(uint64_t *);
 uint32x4_t __builtin_mpl_vector_load_v4u32(uint32_t *);
 uint16x8_t __builtin_mpl_vector_load_v8u16(uint16_t *);
 uint8x16_t __builtin_mpl_vector_load_v16u8(uint8_t *);
-float64x2_t __builtin_mpl_vector_load_v2f64(double *);
-float32x4_t __builtin_mpl_vector_load_v4f32(float *);
+float64x2_t __builtin_mpl_vector_load_v2f64(float64_t *);
+float32x4_t __builtin_mpl_vector_load_v4f32(float32_t *);
 int64x1_t __builtin_mpl_vector_load_v1i64(int64_t *);
 int32x2_t __builtin_mpl_vector_load_v2i32(int32_t *);
 int16x4_t __builtin_mpl_vector_load_v4i16(int16_t *);
@@ -398,8 +405,8 @@ uint64x1_t __builtin_mpl_vector_load_v1u64(uint64_t *);
 uint32x2_t __builtin_mpl_vector_load_v2u32(uint32_t *);
 uint16x4_t __builtin_mpl_vector_load_v4u16(uint16_t *);
 uint8x8_t __builtin_mpl_vector_load_v8u8(uint8_t *);
-float64x1_t __builtin_mpl_vector_load_v1f64(double *);
-float32x2_t __builtin_mpl_vector_load_v2f32(float *);
+float64x1_t __builtin_mpl_vector_load_v1f64(float64_t *);
+float32x2_t __builtin_mpl_vector_load_v2f32(float32_t *);
 
 // void vector_store(scalarTy *ptr, vecTy src)
 //     Store the elements from src into the memory pointed to by ptr.
@@ -411,8 +418,8 @@ void __builtin_mpl_vector_store_v2u64(uint64_t *, uint64x2_t);
 void __builtin_mpl_vector_store_v4u32(uint32_t *, uint32x4_t);
 void __builtin_mpl_vector_store_v8u16(uint16_t *, uint16x8_t);
 void __builtin_mpl_vector_store_v16u8(uint8_t *, uint8x16_t);
-void __builtin_mpl_vector_store_v2f64(double *, float64x2_t);
-void __builtin_mpl_vector_store_v4f32(float *, float32x4_t);
+void __builtin_mpl_vector_store_v2f64(float64_t *, float64x2_t);
+void __builtin_mpl_vector_store_v4f32(float32_t *, float32x4_t);
 void __builtin_mpl_vector_store_v1i64(int64_t *, int64x1_t);
 void __builtin_mpl_vector_store_v2i32(int32_t *, int32x2_t);
 void __builtin_mpl_vector_store_v4i16(int16_t *, int16x4_t);
@@ -421,8 +428,8 @@ void __builtin_mpl_vector_store_v1u64(uint64_t *, uint64x1_t);
 void __builtin_mpl_vector_store_v2u32(uint32_t *, uint32x2_t);
 void __builtin_mpl_vector_store_v4u16(uint16_t *, uint16x4_t);
 void __builtin_mpl_vector_store_v8u8(uint8_t *, uint8x8_t);
-void __builtin_mpl_vector_store_v1f64(double *, float64x1_t);
-void __builtin_mpl_vector_store_v2f32(float *, float32x2_t);
+void __builtin_mpl_vector_store_v1f64(float64_t *, float64x1_t);
+void __builtin_mpl_vector_store_v2f32(float32_t *, float32x2_t);
 
 // *************************
 // Supported Neon Intrinsics
