@@ -642,7 +642,7 @@ class ASTInitListExpr : public ASTExpr {
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
-                                    uint32 stringLength, std::list<UniqueFEIRStmt> &stmts) const;
+                                    size_t stringLength, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessImplicitInit(const UniqueFEIRExpr &addrExpr, uint32 initSize, uint32 total, uint32 elemSize,
                            std::list<UniqueFEIRStmt> &stmts) const;
   MIRConst *GenerateMIRConstForArray() const;
@@ -844,7 +844,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
     return arrayType;
   }
 
-  int32 CalculateOffset() const;
+  size_t CalculateOffset() const;
 
   void SetIsVLA(bool flag) {
     isVLA = flag;
@@ -859,7 +859,8 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRConst *GenerateMIRConstImpl() const override;
   bool CheckFirstDimIfZero() const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  void InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr, UniqueFEIRExpr baseExpr) const;
+  void InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr,
+                              UniqueFEIRExpr baseAddrFEExpr) const;
 
   ASTExpr *baseExpr = nullptr;
   MIRType *arrayType = nullptr;

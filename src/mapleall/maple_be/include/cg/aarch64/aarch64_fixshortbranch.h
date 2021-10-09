@@ -33,6 +33,7 @@ class AArch64FixShortBranch {
   CGFunc *cgFunc;
   CG *cg;
   bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId);
+  uint32 CalculateAlignRange(BB &bb, uint32 addr);
   void SetInsnId();
 };  /* class AArch64ShortBranch */
 

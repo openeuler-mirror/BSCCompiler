@@ -1148,14 +1148,14 @@ ASTExpr *ASTParser::ProcessExprOffsetOfExpr(MapleAllocator &allocator, const cla
   }
   uint64_t offset = 0;
   std::vector<ASTExpr*> vlaOffsetExprs;
-  for (size_t i = 0; i < expr.getNumComponents(); i++) {
+  for (unsigned i = 0; i < expr.getNumComponents(); i++) {
     auto comp = expr.getComponent(i);
     if (comp.getKind() == clang::OffsetOfNode::Kind::Field) {
       uint filedIdx = comp.getField()->getFieldIndex();
       offset += astFile->GetContext()->getASTRecordLayout(comp.getField()->getParent()).getFieldOffset(filedIdx)
           >> kBitToByteShift;
     } else if (comp.getKind() == clang::OffsetOfNode::Kind::Array) {
-      int idx = comp.getArrayExprIndex();
+      uint32 idx = comp.getArrayExprIndex();
       auto idxExpr = expr.getIndexExpr(idx);
       auto leftExpr = ProcessExpr(allocator, idxExpr);
       auto arrayType = expr.getComponent(i - 1).getField()->getType();
@@ -2550,7 +2550,7 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   clang::CharUnits alignment = astFile->GetContext()->getDeclAlign(&decl);
   clang::CharUnits unadjust = astFile->GetContext()->toCharUnitsFromBits(
       astFile->GetContext()->getTypeUnadjustedAlign(qualType));
-  int64 maxAlign = std::max(alignment.getQuantity(), unadjust.getQuantity());
+  uint32 maxAlign = std::max(alignment.getQuantity(), unadjust.getQuantity());
   fieldDecl->SetAlign(maxAlign);
   return fieldDecl;
 }

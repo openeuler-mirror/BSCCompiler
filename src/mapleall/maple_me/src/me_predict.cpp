@@ -18,12 +18,16 @@
 #include <unordered_set>
 #include <algorithm>
 #include "me_ir.h"
+#include "me_irmap_build.h"
 #include "me_irmap.h"
+#include "me_dominance.h"
 
 namespace {
 using namespace maple;
 // The base value for branch probability notes and edge probabilities.
 constexpr int kProbBase = 10000;
+constexpr int kProbLikely = 9000;
+constexpr int kProbUnlikely = kProbBase - kProbLikely;
 // The base value for BB frequency.
 constexpr int kFreqBase = 10000;
 constexpr uint32 kScaleDownFactor = 2;
@@ -35,6 +39,7 @@ constexpr int kProbAlways = kProbBase;
 constexpr uint32 kProbUninitialized = 0;
 constexpr int kHitRateOffset = 50;
 constexpr int kHitRateDivisor = 100;
+constexpr uint32 kMaxNumBBToPredict = 15000;
 }  // anonymous namespace
 
 namespace maple {
@@ -160,13 +165,12 @@ void MePrediction::BBLevelPredictions() {
   const size_t defPhiOpndSize = defPhi.GetOpnds().size();
   CHECK_FATAL(defPhiOpndSize > 0, "container check");
   Prediction direction;
-  Predictor pred = ReturnPrediction(defPhi.GetOpnd(0), direction);
   // Avoid the degenerate case where all return values form the function
   // belongs to same category (ie they are all positive constants)
   // so we can hardly say something about them.
   size_t phiNumArgs = defPhi.GetOpnds().size();
   for (size_t i = 0; i < phiNumArgs; ++i) {
-    pred = ReturnPrediction(defPhi.GetOpnd(i), direction);
+    Predictor pred = ReturnPrediction(defPhi.GetOpnd(i), direction);
     if (pred != kPredNoPrediction) {
       BB *dest = defPhi.GetDefBB();
       BB *src = dest->GetPred(i);
@@ -183,6 +187,9 @@ void MePrediction::Init() {
   edges.resize(cfg->GetAllBBs().size());
   bbVisited.resize(cfg->GetAllBBs().size());
   for (auto *bb : cfg->GetAllBBs()) {
+    if (bb == nullptr) {
+      continue;
+    }
     BBId idx = bb->GetBBId();
     bbVisited[idx] = true;
     bbPredictions[idx] = nullptr;
@@ -215,29 +222,21 @@ bool MePrediction::PredictedByLoopHeuristic(const BB &bb) const {
 
 // Sort loops first so that hanle innermost loop first in EstimateLoops.
 void MePrediction::SortLoops() {
-  size_t size = meLoop->GetMeLoops().size();
-  for (size_t i = 0; i < size; ++i) {
-    for (size_t j = 1; j < size - i; ++j) {
-      LoopDesc *loopPred = meLoop->GetMeLoops()[j - 1];
-      LoopDesc *loop = meLoop->GetMeLoops()[j];
-      if (loopPred->nestDepth < loop->nestDepth) {
-        LoopDesc *temp = loopPred;
-        meLoop->SetMeLoop(j - 1, *loop);
-        meLoop->SetMeLoop(j, *temp);
-      }
-    }
-  }
+  std::stable_sort(meLoop->GetMeLoops().begin(), meLoop->GetMeLoops().end(),
+                   [](const LoopDesc *loop1, const LoopDesc *loop2) {
+    return loop1->nestDepth > loop2->nestDepth;
+  });
 }
 
 void MePrediction::PredictLoops() {
   constexpr uint32 minBBNumRequired = 2;
   for (auto *loop : meLoop->GetMeLoops()) {
     MapleSet<BBId> &loopBBs = loop->loopBBs;
-    // Find loop exit bbs.
+    // Find loop exiting edge. An exiting edge is an edge from inside the loop to a node outside of the loop
     MapleVector<Edge*> exits(tmpAlloc.Adapter());
     for (auto &bbID : loopBBs) {
       BB *bb = cfg->GetAllBBs().at(bbID);
-      if (bb->GetSucc().size() < minBBNumRequired) {
+      if (bb == nullptr || bb->GetSucc().size() < minBBNumRequired) {
         continue;
       }
       for (auto *it : bb->GetSucc()) {
@@ -291,6 +290,16 @@ void MePrediction::PredictByOpcode(const BB *bb) {
   } else {
     thenEdge = (e0->dest.GetBBLabel() == condStmt.GetOffset()) ? e1 : e0;
   }
+
+  // prediction for builtin_expect
+  if (condStmt.GetBranchProb() == kProbLikely) {
+    PredEdgeDef(*thenEdge, kPredBuiltinExpect, kNotTaken);
+    return;
+  }
+  if (condStmt.GetBranchProb() == kProbUnlikely) {
+    PredEdgeDef(*thenEdge, kPredBuiltinExpect, kTaken);
+  }
+
   PrimType pty = op0->GetPrimType();
   // Try "pointer heuristic." A comparison ptr == 0 is predicted as false.
   // Similarly, a comparison ptr1 == ptr2 is predicted as false.
@@ -474,7 +483,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
   int combinedProbability = kProbBase / static_cast<int>(kScaleDownFactor);
   int denominator = 0;
   if (preds != nullptr) {
-    // use DS Theory.
+    // use Dempster-Shafer Theory.
     for (EdgePrediction *pred = preds; pred != nullptr; pred = pred->epNext) {
       int probability = pred->epProbability;
       if (&pred->epEdge != first) {
@@ -521,6 +530,7 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
   if (&bb == &head) {
     head.SetFrequency(kFreqBase);
   } else {
+    // Check whether all pred bb have been estimated
     for (size_t i = 0; i < bb.GetPred().size(); ++i) {
       BB *pred = bb.GetPred(i);
       if (!bbVisited[pred->GetBBId()] && pred != &bb && !IsBackEdge(*FindEdge(*pred, bb))) {
@@ -574,7 +584,7 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
     }
     edge->frequency = edge->probability * bb.GetFrequency() / kProbBase;
     total += edge->frequency;
-    if (&edge->dest == &head) {
+    if (&edge->dest == &head) {  // is the edge a back edge
       backEdgeProb[edge] = static_cast<double>(edge->probability) * bb.GetFrequency() / (kProbBase * kFreqBase);
     }
   }
@@ -635,9 +645,17 @@ void MePrediction::EstimateBBFrequencies() {
 }
 
 // Main function
-void MePrediction::EstimateProbability() {
+// When isRebuild == true, we will skip predictions that rely on ssa information,
+// because the correctness of ssa cannot be guaranteed. For example BBLayout::OptimiseCFG did not maintain correct ssa
+void MePrediction::EstimateProbability(bool isRebuild) {
+  if (cfg->GetAllBBs().size() > kMaxNumBBToPredict) {
+    // The func is too large, won't run prediction
+    return;
+  }
   Init();
-  BBLevelPredictions();
+  if (!isRebuild) {
+    BBLevelPredictions();
+  }
   if (!meLoop->GetMeLoops().empty()) {
     // innermost loop in the first place for EstimateFrequencies.
     SortLoops();
@@ -646,10 +664,14 @@ void MePrediction::EstimateProbability() {
 
   MapleVector<BB*> &bbVec = cfg->GetAllBBs();
   for (auto *bb : bbVec) {
-    EstimateBBProb(*bb);
+    if (bb != nullptr) {
+      EstimateBBProb(*bb);
+    }
   }
   for (auto *bb : bbVec) {
-    CombinePredForBB(*bb);
+    if (bb != nullptr) {
+      CombinePredForBB(*bb);
+    }
   }
   for (size_t i = 0; i < cfg->GetAllBBs().size(); ++i) {
     int32 all = 0;
@@ -666,31 +688,122 @@ void MePrediction::EstimateProbability() {
     }
   }
   EstimateBBFrequencies();
+  SavePredictResultIntoCfg();
 }
 
 void MePrediction::SetPredictDebug(bool val) {
   predictDebug = val;
 }
 
+void MePrediction::SavePredictResultIntoCfg() {
+  // Init bb succFreq if needed
+  for (auto *bb : cfg->GetAllBBs()) {
+    if (bb == nullptr) {
+      continue;
+    }
+    if (bb->GetSuccFreq().size() != bb->GetSucc().size()) {
+      bb->InitEdgeFreq();
+    }
+  }
+  // Save edge freq into cfg
+  for (auto *edge : edges) {
+    while (edge != nullptr) {
+      BB &srcBB = edge->src;
+      BB &destBB = edge->dest;
+      srcBB.SetEdgeFreq(&destBB, edge->frequency);
+      // Set branchProb for condgoto stmt
+      if (srcBB.GetKind() == kBBCondGoto && &destBB == srcBB.GetSucc(1)) {
+        auto *lastMeStmt = srcBB.GetLastMe();
+        if (lastMeStmt != nullptr) {
+          Opcode op = lastMeStmt->GetOp();
+          CHECK_FATAL(op == OP_brtrue || op == OP_brfalse, "must be");
+          static_cast<CondGotoMeStmt*>(lastMeStmt)->SetBranchProb(edge->probability);
+        }
+      }
+      edge = edge->next;
+    }
+  }
+  func->SetProfValid(true);
+}
+
+bool MePrediction::VerifyFreq(MeFunction &func) {
+  const auto &bbVec = func.GetCfg()->GetAllBBs();
+  for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
+    auto *bb = bbVec[i];
+    if (bb == nullptr || bb->GetAttributes(kBBAttrIsEntry) || bb->GetAttributes(kBBAttrIsExit)) {
+      continue;
+    }
+    uint32 succSumFreq = 0;
+    for (auto succFreq : bb->GetSuccFreq()) {
+      succSumFreq += succFreq;
+    }
+    if (succSumFreq != bb->GetFrequency()) {
+      LogInfo::MapleLogger() << "BB" << bb->GetBBId() << " freq: " <<
+          bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
+      LogInfo::MapleLogger() << func.GetName() << std::endl;
+      CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
+    }
+  }
+  return true;
+}
+
+void MePrediction::RebuildFreq(MeFunction &func, MaplePhase &phase) {
+  func.SetProfValid(false);
+  auto *hook = phase.GetAnalysisInfoHook();
+  hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MEDominance::id);
+  hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id);
+  auto *dom = static_cast<MEDominance*>(
+      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func))->GetResult();
+  auto *meLoop = static_cast<MELoopAnalysis*>(
+      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))->GetResult();
+  StackMemPool stackMp(memPoolCtrler, "");
+  MePrediction predict(stackMp, stackMp, func, *dom, *meLoop, *func.GetIRMap());
+  if (MeOption::dumpFunc == func.GetName()) {
+    predict.SetPredictDebug(true);
+  }
+  predict.EstimateProbability(true);
+}
+
+void Edge::Dump(bool dumpNext) const {
+  LogInfo::MapleLogger() << src.GetBBId() << " ==> " << dest.GetBBId() << std::endl;
+  if (dumpNext && next != nullptr) {
+    next->Dump(dumpNext);
+  }
+}
+
+void MEPredict::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<MEDominance>();
+  aDep.AddRequired<MEIRMapBuild>();
+  aDep.AddRequired<MELoopAnalysis>();
+}
+
 // Estimate the execution frequecy for all bbs.
-AnalysisResult *MeDoPredict::Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr*) {
-  auto *hMap = static_cast<MeIRMap*>(m->GetAnalysisResult(MeFuncPhase_IRMAPBUILD, func));
-  CHECK_FATAL(hMap != nullptr, "hssamap is nullptr");
-  auto *dom = static_cast<Dominance*>(m->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
-  CHECK_FATAL(dom != nullptr, "dominance phase has problem");
-  m->InvalidAnalysisResult(MeFuncPhase_MELOOP, func);
-  auto *meLoop = static_cast<IdentifyLoops*>(m->GetAnalysisResult(MeFuncPhase_MELOOP, func));
-  CHECK_FATAL(meLoop != nullptr, "meloop has problem");
-  MemPool *mePredMp = NewMemPool();
-  MePrediction *mePredict = mePredMp->New<MePrediction>(*mePredMp, *NewMemPool(), *func, *dom, *meLoop, *hMap);
-  if (DEBUGFUNC(func)) {
+bool MEPredict::PhaseRun(maple::MeFunction &f) {
+  auto *hMap = GET_ANALYSIS(MEIRMapBuild, f);
+  CHECK_NULL_FATAL(hMap);
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  CHECK_NULL_FATAL(dom);
+  auto *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
+  CHECK_NULL_FATAL(meLoop);
+
+  MemPool *mePredMp = GetPhaseMemPool();
+  auto *mePredict = mePredMp->New<MePrediction>(*mePredMp, *ApplyTempMemPool(), f, *dom, *meLoop, *hMap);
+  if (DEBUGFUNC_NEWPM(f)) {
     mePredict->SetPredictDebug(true);
   }
   mePredict->EstimateProbability();
-  if (DEBUGFUNC(func)) {
+
+  if (DEBUGFUNC_NEWPM(f)) {
+    f.GetCfg()->DumpToFile("freq", false, true);
     LogInfo::MapleLogger() << "\n============== Prediction =============" << '\n';
-    func->Dump(false);
+    for (auto *bb : f.GetCfg()->GetAllBBs()) {
+      if (bb == nullptr) {
+        continue;
+      }
+      LogInfo::MapleLogger() << "bb " << bb->GetBBId() << ", freq: " << bb->GetFrequency() << std::endl;
+    }
   }
-  return mePredict;
+  MePrediction::VerifyFreq(f);
+  return false;
 }
 }  // namespace maple

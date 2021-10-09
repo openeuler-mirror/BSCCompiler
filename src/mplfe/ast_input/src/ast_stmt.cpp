@@ -294,8 +294,8 @@ std::list<UniqueFEIRStmt> ASTSwitchStmt::Emit2FEStmtImpl() const {
   AstLoopUtil::Instance().PushBreak(exitName);
   std::string tmpName = FEUtils::GetSequentialName("switch_cond");
   UniqueFEIRVar tmpVar = FEIRBuilder::CreateVarNameForC(tmpName, *condType);
-  UniqueFEIRStmt condStmt = FEIRBuilder::CreateStmtDAssign(tmpVar->Clone(), std::move(expr));
-  stmts.emplace_back(std::move(condStmt));
+  UniqueFEIRStmt condFEStmt = FEIRBuilder::CreateStmtDAssign(tmpVar->Clone(), std::move(expr));
+  stmts.emplace_back(std::move(condFEStmt));
   auto dread = FEIRBuilder::CreateExprDRead(tmpVar->Clone());
   auto switchStmt = std::make_unique<FEIRStmtSwitchForC>(std::move(dread), hasDefualt);
   switchStmt->SetBreakLabelName(exitName);

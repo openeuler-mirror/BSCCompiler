@@ -22,6 +22,8 @@ namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
 constexpr int64 kNegativeImmLowerLimit = -4096;
 constexpr int32 kIntRegTypeNum = 5;
+constexpr uint32 kAlignPseudoSize = 3;
+constexpr uint32 kInsnSize = 4;
 
 /* Supporting classes for GCTIB merging */
 class GCTIBKey {
@@ -119,8 +121,8 @@ class AArch64CG : public CG {
   ~AArch64CG() override = default;
 
   CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction &mirFunc, BECommon &bec, MemPool &memPool,
-                       MapleAllocator &mallocator, uint32 funcId) override {
-    return memPool.New<AArch64CGFunc>(mod, *this, mirFunc, bec, memPool, mallocator, funcId);
+                       StackMemPool &stackMp, MapleAllocator &mallocator, uint32 funcId) override {
+    return memPool.New<AArch64CGFunc>(mod, *this, mirFunc, bec, memPool, stackMp, mallocator, funcId);
   }
 
   const std::unordered_map<std::string, std::vector<std::string>> &GetCyclePatternMap() const {

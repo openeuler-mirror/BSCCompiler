@@ -130,22 +130,26 @@ void LoopScalarAnalysisResult::Dump(const CRNode &crNode) {
     case kCRVarNode: {
       CHECK_FATAL(crNode.GetExpr() != nullptr, "crNode must has expr");
       const MeExpr *meExpr = crNode.GetExpr();
-      const VarMeExpr *varMeExpr = nullptr;
       std::string name;
-      if (meExpr->GetMeOp() == kMeOpVar) {
-        varMeExpr = static_cast<const VarMeExpr*>(meExpr);
+      OStIdx oStIdx;
+      if (meExpr->GetMeOp() == kMeOpAddrof) {
+        oStIdx = static_cast<const AddrofMeExpr*>(meExpr)->GetOstIdx();
+      } else if (meExpr->GetMeOp() == kMeOpVar) {
+        oStIdx = static_cast<const VarMeExpr*>(meExpr)->GetOstIdx();
       } else if (meExpr->GetMeOp() == kMeOpIvar) {
         const auto *ivarMeExpr = static_cast<const IvarMeExpr*>(meExpr);
         const MeExpr *base = ivarMeExpr->GetBase();
         if (base->GetMeOp() == kMeOpVar) {
-          varMeExpr = static_cast<const VarMeExpr*>(base);
+          oStIdx = static_cast<const VarMeExpr*>(base)->GetOstIdx();
         } else {
           name = "ivar" + std::to_string(ivarMeExpr->GetExprID());
           LogInfo::MapleLogger() << name;
           return;
         }
+      } else {
+        CHECK_FATAL(false, "need support");
       }
-      MIRSymbol *sym = irMap->GetSSATab().GetMIRSymbolFromID(varMeExpr->GetOstIdx());
+      MIRSymbol *sym = irMap->GetSSATab().GetMIRSymbolFromID(oStIdx);
       name = sym->GetName() + "_mx" + std::to_string(meExpr->GetExprID());
       LogInfo::MapleLogger() << name;
       return;
@@ -268,11 +272,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
     }
     return GetOrCreateCRVarNode(expr);
   }
-  if (expr.GetMeOp() == kMeOpIvar) {
-    return GetOrCreateCRVarNode(expr);
-  }
-  CHECK_FATAL(false, "only support kMeOpConst, kMeOpVar, kMeOpIvar");
-  return nullptr;
+  return GetOrCreateCRVarNode(expr);
 }
 
 CRNode* LoopScalarAnalysisResult::GetOrCreateCRAddNode(MeExpr *expr, std::vector<CRNode*> &crAddNodes) {
@@ -332,7 +332,7 @@ CRNode *LoopScalarAnalysisResult::GetCRAddNode(MeExpr *expr, std::vector<CRNode*
   if (crAddOpnds.size() == 1) {
     return crAddOpnds[0];
   }
-  std::sort(crAddOpnds.begin(), crAddOpnds.end(), CompareCRNode());
+  std::sort(crAddOpnds.begin(), crAddOpnds.end(), CompareCRNodeWithCRType());
   // merge constCRNode
   // 1 + 2 + 3 + X -> 6 + X
   size_t index = 0;
@@ -422,7 +422,7 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
   if (crMulOpnds.size() == 1) {
     return crMulOpnds[0];
   }
-  std::sort(crMulOpnds.begin(), crMulOpnds.end(), CompareCRNode());
+  std::sort(crMulOpnds.begin(), crMulOpnds.end(), CompareCRNodeWithCRType());
   // merge constCRNode
   // 1 * 2 * 3 * X -> 6 * X
   size_t index = 0;
@@ -667,6 +667,9 @@ bool LoopScalarAnalysisResult::HasUnknownCRNode(CRNode &crNode, CRNode *&result)
 // b and d is loopInvarirant
 CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(MePhiNode &phiNode,
                                                        VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr) {
+  if (loop == nullptr) {
+    return nullptr;
+  }
   if (backEdgeExpr.GetDefBy() != kDefByStmt) {
     return nullptr;
   }
@@ -731,6 +734,9 @@ CRNode *LoopScalarAnalysisResult::CreateSimpleCRForPhi(MePhiNode &phiNode,
 }
 
 CRNode *LoopScalarAnalysisResult::CreateCRForPhi(MePhiNode &phiNode) {
+  if (loop == nullptr) {
+    return nullptr;
+  }
   auto *opnd1 = static_cast<VarMeExpr*>(phiNode.GetOpnd(0));
   auto *opnd2 = static_cast<VarMeExpr*>(phiNode.GetOpnd(1));
   VarMeExpr *startExpr = nullptr;
@@ -801,6 +807,33 @@ CRNode *LoopScalarAnalysisResult::CreateCRForPhi(MePhiNode &phiNode) {
   }
 }
 
+CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr) {
+  OpMeExpr &opMeExpr = static_cast<OpMeExpr&>(currOpMeExpr);
+  switch (opMeExpr.GetOp()) {
+    case OP_add:
+    case OP_sub:
+    case OP_mul:
+    case OP_div: {
+      CHECK_FATAL(opMeExpr.GetNumOpnds() == kNumOpnds, "must be");
+      MeExpr *opnd1 = opMeExpr.GetOpnd(0);
+      MeExpr *opnd2 = opMeExpr.GetOpnd(1);
+      CRNode *lhsCR = GetOrCreateCRNode(*opnd1);
+      CRNode *rhsCR = GetOrCreateCRNode(*opnd2);
+      if (lhsCR == nullptr || rhsCR == nullptr) {
+        return nullptr;
+      }
+      return ComputeCRNodeWithOperator(expr, *lhsCR, *rhsCR, opMeExpr.GetOp());
+    }
+    case OP_cvt:
+    case OP_iaddrof: {
+      return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
+    }
+    default:
+      InsertExpr2CR(expr, nullptr);
+      return nullptr;
+  }
+}
+
 CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
   if (IsAnalysised(expr)) {
     return expr2CR[&expr];
@@ -812,7 +845,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
     }
     case kMeOpVar: {
       VarMeExpr *varExpr = static_cast<VarMeExpr*>(&expr);
-      if (varExpr->DefByBB() != nullptr && !loop->Has(*varExpr->DefByBB())) {
+      if (varExpr->DefByBB() != nullptr && loop != nullptr && !loop->Has(*varExpr->DefByBB())) {
         return GetOrCreateLoopInvariantCR(expr);
       }
       switch (varExpr->GetDefBy()) {
@@ -820,32 +853,13 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
           MeExpr *rhs = varExpr->GetDefStmt()->GetRHS();
           switch (rhs->GetMeOp()) {
             case kMeOpConst: {
-              return GetOrCreateLoopInvariantCR(expr);
+              return GetOrCreateLoopInvariantCR(*rhs);
             }
             case kMeOpVar: {
               return GetOrCreateCRNode(*rhs);
             }
             case kMeOpOp: {
-              OpMeExpr *opMeExpr = static_cast<OpMeExpr*>(rhs);
-              switch (opMeExpr->GetOp()) {
-                case OP_add:
-                case OP_sub:
-                case OP_mul:
-                case OP_div: {
-                  CHECK_FATAL(opMeExpr->GetNumOpnds() == kNumOpnds, "must be");
-                  MeExpr *opnd1 = opMeExpr->GetOpnd(0);
-                  MeExpr *opnd2 = opMeExpr->GetOpnd(1);
-                  CRNode *lhsCR = GetOrCreateCRNode(*opnd1);
-                  CRNode *rhsCR = GetOrCreateCRNode(*opnd2);
-                  if (lhsCR == nullptr || rhsCR == nullptr) {
-                    return nullptr;
-                  }
-                  return ComputeCRNodeWithOperator(expr, *lhsCR, *rhsCR, opMeExpr->GetOp());
-                }
-                default:
-                  InsertExpr2CR(expr, nullptr);
-                  return nullptr;
-              }
+              return DealWithMeOpOp(*rhs, expr);
             }
             default:
               InsertExpr2CR(expr, nullptr);
@@ -853,6 +867,9 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
           }
         }
         case kDefByPhi: {
+          if (!computeTripCountForLoopUnroll) {
+            return GetOrCreateLoopInvariantCR(expr);
+          }
           MePhiNode *phiNode = &(varExpr->GetDefPhi());
           if (phiNode->GetOpnds().size() == kNumOpnds) {
             return CreateCRForPhi(*phiNode);
@@ -863,7 +880,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
         }
         case kDefByChi: {
           ChiMeNode *chiNode = &(varExpr->GetDefChi());
-          if (!loop->Has(*chiNode->GetBase()->GetBB())) {
+          if (loop != nullptr && !loop->Has(*chiNode->GetBase()->GetBB())) {
             return GetOrCreateLoopInvariantCR(expr);
           } else {
             InsertExpr2CR(expr, nullptr);
@@ -878,15 +895,13 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
           return nullptr;
       }
     }
-    case kMeOpIvar: {
-      if (static_cast<IvarMeExpr*>(&expr)->GetDefStmt() != nullptr &&
-          static_cast<IvarMeExpr*>(&expr)->GetDefStmt()->GetBB() != nullptr &&
-          !loop->Has(*static_cast<IvarMeExpr*>(&expr)->GetDefStmt()->GetBB())) {
-        return GetOrCreateLoopInvariantCR(expr);
-      } else {
-        InsertExpr2CR(expr, nullptr);
-        return nullptr;
-      }
+    case kMeOpOp: {
+      return DealWithMeOpOp(expr, expr);
+      break;
+    }
+    case kMeOpIvar:
+    case kMeOpAddrof: {
+      return GetOrCreateLoopInvariantCR(expr);
     }
     default:
       InsertExpr2CR(expr, nullptr);
@@ -902,7 +917,9 @@ bool IsLegal(MeStmt &meStmt) {
     return false;
   }
   auto *opMeExpr = static_cast<OpMeExpr*>(meCmp);
-  CHECK_FATAL(opMeExpr->GetNumOpnds() == kNumOpnds, "must be");
+  if (opMeExpr->GetNumOpnds() != kNumOpnds) {
+    return false;
+  }
   if (opMeExpr->GetOp() != OP_ge && opMeExpr->GetOp() != OP_le &&
       opMeExpr->GetOp() != OP_lt && opMeExpr->GetOp() != OP_gt &&
       opMeExpr->GetOp() != OP_eq) {
@@ -1021,6 +1038,58 @@ uint32 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(const OpMeExp
   }
 }
 
+void LoopScalarAnalysisResult::SortOperatorCRNode(std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr) {
+  for (auto &opnd : crNodeOperands) {
+    (void)SortCROperand(*opnd, addrExpr);
+  }
+}
+
+void LoopScalarAnalysisResult::PutTheAddrExprAtTheFirstOfVector(
+    std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr) {
+  if (crNodeOperands.size() >= 1 && crNodeOperands[0]->GetExpr() == &addrExpr) {
+    return;
+  }
+  bool find = false;
+  CRNode *crNode = nullptr;
+  for (auto it = crNodeOperands.begin(); it != crNodeOperands.end();) {
+    if ((*it)->GetCRType() != kCRVarNode) {
+      ++it;
+      continue;
+    }
+    if ((*it)->GetExpr() == &addrExpr) {
+      find = true;
+      crNode = *it;
+      it = crNodeOperands.erase(it);
+      break;
+    }
+    ++it;
+  }
+  if (find) {
+    crNodeOperands.insert(crNodeOperands.begin(), crNode);
+  }
+}
+
+CRNode &LoopScalarAnalysisResult::SortCROperand(CRNode &crNode, MeExpr &addrExpr) {
+  switch (crNode.GetCRType()) {
+    case kCRAddNode: {
+      auto &crNodeOperands = static_cast<CRAddNode&>(crNode).GetOpnds();
+      std::sort(crNodeOperands.begin(), crNodeOperands.end(), CompareCRNodeWithReverseOrderOfCRType());
+      SortOperatorCRNode(crNodeOperands, addrExpr);
+      PutTheAddrExprAtTheFirstOfVector(crNodeOperands, addrExpr);
+      break;
+    }
+    case kCRMulNode: {
+      auto &crNodeOperands = static_cast<CRAddNode&>(crNode).GetOpnds();
+      std::sort(crNodeOperands.begin(), crNodeOperands.end(), CompareCRNodeWithReverseOrderOfCRType());
+      SortOperatorCRNode(crNodeOperands, addrExpr);
+      break;
+    }
+    default:
+      break;
+  }
+  return crNode;
+}
+
 void LoopScalarAnalysisResult::DumpTripCount(const CR &cr, int32 value, const MeExpr *expr) {
   LogInfo::MapleLogger() << "==========Dump CR=========\n";
   Dump(cr);
@@ -1036,6 +1105,9 @@ void LoopScalarAnalysisResult::DumpTripCount(const CR &cr, int32 value, const Me
 
 TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint32 &tripCountResult,
                                                          CRNode *&conditionCRNode, CR *&itCR) {
+  if (loop == nullptr) {
+    return kCouldNotComputeCR;
+  }
   enableDebug = false;
   BB *exitBB = func.GetCfg()->GetBBFromID(loop->inloopBB2exitBBs.begin()->first);
   if (exitBB->GetKind() == kBBCondGoto && IsLegal(*(exitBB->GetLastMe()))) {

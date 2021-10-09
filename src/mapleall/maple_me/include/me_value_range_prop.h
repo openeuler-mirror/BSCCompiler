@@ -20,6 +20,7 @@
 #include "me_cfg.h"
 #include "me_dominance.h"
 #include "me_loop_analysis.h"
+#include "me_scalar_analysis.h"
 namespace maple {
 int64 GetMinNumber(PrimType primType);
 int64 GetMaxNumber(PrimType primType);
@@ -213,6 +214,13 @@ class ValueRange {
             range.pair.upper.GetVar() == nullptr);
   }
 
+  bool IsBiggerThanZero() {
+    return (IsConstantLowerAndUpper() && GetLower().GetConstant() >= 0 && GetUpper().GetConstant() >= 0 &&
+        GetLower().GetConstant() <= GetUpper().GetConstant()) ||
+        (rangeType == kSpecialUpperForLoop && GetLower().GetConstant() >= 0 && GetLower().GetVar() == 0) ||
+        (rangeType == kOnlyHasLowerBound && GetLower().GetConstant() >= 0 && GetLower().GetVar() == 0);
+  }
+
   static Bound MinBound(PrimType pType) {
     return Bound(nullptr, GetMinNumber(pType), pType);
   }
@@ -241,13 +249,14 @@ class ValueRangePropagation {
   static bool isDebug;
 
   ValueRangePropagation(MeFunction &meFunc, MeIRMap &argIRMap, Dominance &argDom,
-                        IdentifyLoops *argLoops, MemPool &pool, MapleMap<OStIdx, MapleSet<BBId>*> &candsTem)
+                        IdentifyLoops *argLoops, MemPool &pool, MapleMap<OStIdx, MapleSet<BBId>*> &candsTem,
+                        LoopScalarAnalysisResult &currSA)
       : func(meFunc), irMap(argIRMap), dom(argDom), memPool(pool), mpAllocator(&pool), loops(argLoops),
-        caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedArrayChecks(meFunc.GetCfg()->GetAllBBs().size()),
-        cands(candsTem) {}
+        caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
+        analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()), cands(candsTem), sa(currSA) {}
   ~ValueRangePropagation() = default;
 
-  void DumpCahces();
+  void DumpCaches();
   void Execute();
 
   bool IsCFGChange() const {
@@ -335,7 +344,8 @@ class ValueRangePropagation {
     return (domBB == nullptr || domBB->GetBBId() == 0) ? nullptr : FindValueRangeInCaches(domBB->GetBBId(), exprID);
   }
 
-  void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index) {
+  void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {
+    auto &analysisedArrayChecks = (op == OP_assertge) ? analysisedLowerBoundChecks : analysisedUpperBoundChecks;
     if (analysisedArrayChecks.at(bbID).empty() ||
         analysisedArrayChecks.at(bbID).find(&array) == analysisedArrayChecks.at(bbID).end()) {
       analysisedArrayChecks.at(bbID)[&array] = std::set<MeExpr*>{ &index };
@@ -378,6 +388,15 @@ class ValueRangePropagation {
     }
   }
 
+  void Insert2NeedDeleteBoundaryCheck(BB &bb, MeStmt &meStmt) {
+    auto it = needDeletedBoundaryCheck.find(&bb);
+    if (it == needDeletedBoundaryCheck.end()) {
+      needDeletedBoundaryCheck[&bb] = std::set<MeStmt*>{ &meStmt };
+    } else {
+      it->second.insert(&meStmt);
+    }
+  }
+
   void DealWithPhi(BB &bb, MePhiNode &mePhiNode);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
@@ -389,7 +408,9 @@ class ValueRangePropagation {
       LoopDesc &loop, BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, ScalarMeExpr &lhsOfPhi);
   bool AddOrSubWithConstant(PrimType primType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
-  void DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, OpMeExpr &opMeExpr);
+  std::unique_ptr<ValueRange> AddOrSubWithValueRange(
+      Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
+  std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, OpMeExpr &opMeExpr);
   bool CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int &constant);
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
@@ -398,7 +419,7 @@ class ValueRangePropagation {
   void DealWithArrayLength(const BB &bb, MeExpr &lhs, MeExpr &rhs);
   void DealWithArrayCheck(BB &bb, MeStmt &meStmt, MeExpr &meExpr);
   void DealWithArrayCheck();
-  bool IfAnalysisedBefore(BB &bb, MeStmt &stmt, NaryMeExpr &nMeExpr);
+  bool IfAnalysisedBefore(BB &bb, MeStmt &stmt);
   std::unique_ptr<ValueRange> MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode);
   void ReplaceBoundForSpecialLoopRangeValue(LoopDesc &loop, ValueRange &valueRangeOfIndex, bool upperIsSpecial);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicIncreaseVar(
@@ -465,6 +486,24 @@ class ValueRangePropagation {
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   void DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
+  void DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
+  std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
+  std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
+      std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
+      int64 constant);
+  std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
+      std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
+      ValueRange &constantValueRange);
+  std::unique_ptr<ValueRange> GetTheValueRangeOfIndex(
+      BB &bb, MeStmt &meStmt, CRAddNode &crAddNode, uint32 &byteSize, MeExpr *lengthExpr,
+      ValueRange *valueRangeOfLengthPtr);
+  bool DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
+  bool CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+                             int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize);
+  bool GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
+                                     MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
+                                     std::unique_ptr<ValueRange> &valueRangeOfLength, uint32 &byteSize);
+  bool DealWithAssertlt(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
   void DealWithShortCricuit(MeExpr &opnd, ValueRange &rightRange, BB &falseBranch, BB &trueBranch, BB &newMerge,
                             PrimType opndType, bool &opt, std::unordered_map<BB*, ValueRange*> &pred2ValueRange,
       bool hasCondGotoFromDomToPredBB = false);
@@ -480,6 +519,7 @@ class ValueRangePropagation {
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
   void DealWithCallassigned(BB &bb, MeStmt &stmt);
   void DeleteAssertNonNull();
+  void DeleteBoundaryCheck();
   bool MustBeFallthruOrGoto(const BB &defBB, const BB &bb);
   std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange);
   void PropValueRangeOfNewPredOfTrue2FalseBranch(
@@ -493,6 +533,9 @@ class ValueRangePropagation {
   bool CodeSizeIsOverflow(const BB &bb);
   void ComputeCodeSize(MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
+  void DealWithSwitch(MeStmt &stmt);
+  std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
+  std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound);
 
   MeFunction &func;
   MeIRMap &irMap;
@@ -502,14 +545,17 @@ class ValueRangePropagation {
   IdentifyLoops *loops;
   std::vector<std::map<int32, std::unique_ptr<ValueRange>>> caches;
   std::set<MeExpr*> lengthSet;
-  std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedArrayChecks;
+  std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedLowerBoundChecks;
+  std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedUpperBoundChecks;
   std::map<MeExpr*, MeExpr*> length2Def;
   std::set<BB*> unreachableBBs;
   std::unordered_map<int32, std::set<int32>> use2Defs;
   MapleMap<OStIdx, MapleSet<BBId>*> &cands;
+  LoopScalarAnalysisResult &sa;
   std::unordered_map<BB*, BB*> loopHead2TrueBranch;
   std::unordered_map<BB*, std::set<std::pair<BB*, MeExpr*>>> pred2NewSuccs;
   std::unordered_map<BB*, std::set<MeStmt*>> needDeletedAssertNonNull;
+  std::unordered_map<BB*, std::set<MeStmt*>> needDeletedBoundaryCheck;
   // Collection of newMergeBB.
   std::unordered_map<BB*, std::vector<std::pair<BB*, ValueRange*>>> trueOrFalseBranch2NewPred;
   std::unordered_map<BB*, uint32> newMergeBB2Opnd;

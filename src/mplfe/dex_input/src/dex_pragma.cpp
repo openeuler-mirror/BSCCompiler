@@ -397,7 +397,7 @@ void DexBCMethodAnnotations::SetupFuncAttrs() {
   }
 }
 
-void DexBCMethodAnnotations::SetupFuncAttrWithPragma(MIRFunction &mirFunc, MIRPragma &pragma) {
+void DexBCMethodAnnotations::SetupFuncAttrWithPragma(MIRFunction &mirFunc, const MIRPragma &pragma) {
   FuncAttrKind attr;
   bool isAttrSet = true;
   if (ArkAnnotation::GetInstance().IsFastNative(pragma.GetTyIdx())) {
