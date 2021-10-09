@@ -288,7 +288,7 @@ bool AArch64GenProEpilog::NeedProEpilog() {
     return true;
   }
   bool funcHasCalls = false;
-  if (cgFunc.GetCG()->DoPrologueEpilogue() && !IsStackAddrTaken(cgFunc)) {
+  if (cgFunc.GetCG()->DoTailCall() && !IsStackAddrTaken(cgFunc)) {
     funcHasCalls = !TailCallOpt(); // return value == "no call instr/only or 1 tailcall"
   } else {
     FOR_ALL_BB(bb, &cgFunc) {
@@ -1915,7 +1915,7 @@ void AArch64GenProEpilog::Run() {
     GenStackGuard(*(cgFunc.GetFirstBB()));
   }
   BB *proLog = nullptr;
-  if (Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel2) {
+  if (cgFunc.GetCG()->DoPrologueEpilogue() && Globals::GetInstance()->GetOptimLevel() == CGOptions::kLevel2) {
     /* There are some O2 dependent assumptions made */
     proLog = IsolateFastPath(*(cgFunc.GetFirstBB()));
   }
