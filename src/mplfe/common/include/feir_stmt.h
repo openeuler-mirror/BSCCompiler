@@ -958,7 +958,7 @@ class FEIRExprIRead : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (static_cast<uint32>(fieldID) << kOtherShift) + ptrType ->Hash() + subExpr->Hash();
+           (static_cast<uint32>(fieldID) << kOtherShift) + ptrType->Hash() + subExpr->Hash();
   }
 
  private:
@@ -995,7 +995,7 @@ class FEIRExprBinary : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (static_cast<uint32>(op) << kOtherShift) + (opnd0 ->Hash() << 8) + opnd1->Hash();
+           (static_cast<uint32>(op) << kOtherShift) + (opnd0->Hash() << 8) + opnd1->Hash();
   }
 
  private:
@@ -1037,7 +1037,7 @@ class FEIRExprTernary : public FEIRExpr {
 
   uint32 HashImpl() const override {
     return (static_cast<uint32>(kind) << kOpHashShift) + (type->Hash() << kTypeHashShift) +
-           (static_cast<uint32>(op) << kOtherShift) + (opnd0 ->Hash() << 8) + (opnd1 ->Hash() << 16) + opnd1->Hash();
+           (static_cast<uint32>(op) << kOtherShift) + (opnd0->Hash() << 8) + (opnd1->Hash() << 16) + opnd1->Hash();
   }
 
  private:

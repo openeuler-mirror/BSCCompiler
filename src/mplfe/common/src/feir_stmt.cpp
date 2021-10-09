@@ -2829,7 +2829,13 @@ BaseNode *FEIRExprExtractBits::GenMIRNodeForExt(MIRBuilder &mirBuilder) const {
   CHECK_FATAL(FEUtils::IsInteger(primTypeDst), "dst type of sext/zext must integer");
   uint8 widthDst = FEUtils::GetWidth(primTypeDst);
   BaseNode *nodeOpnd = opnd->GenMIRNode(mirBuilder);
-  MIRType *mirTypeDst = GlobalTables::GetTypeTable().GetPrimType(nodeOpnd->GetPrimType());
+  PrimType extPty;
+  if (op == OP_zext) {
+    extPty = GetUnsignedPrimType(GetRegPrimType(nodeOpnd->GetPrimType()));
+  } else {
+    extPty = GetSignedPrimType(GetRegPrimType(nodeOpnd->GetPrimType()));
+  }
+  MIRType *mirTypeDst = GlobalTables::GetTypeTable().GetPrimType(extPty);
   BaseNode *expr = mirBuilder.CreateExprExtractbits(op, *mirTypeDst, 0, widthDst, nodeOpnd);
   return expr;
 }
