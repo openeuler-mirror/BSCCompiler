@@ -95,6 +95,10 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
       (static_cast<RemoveMovingtoSameRegAArch64*>(optimizations[kRemoveMovingtoSameRegOpt]))->Run(bb, insn);
       break;
     }
+    case MOP_wstrb:
+    case MOP_wldrb:
+    case MOP_wstrh:
+    case MOP_wldrh:
     case MOP_xldr:
     case MOP_xstr:
     case MOP_wldr:
@@ -102,7 +106,9 @@ void AArch64PeepHole::Run(BB &bb, Insn &insn) {
     case MOP_dldr:
     case MOP_dstr:
     case MOP_sldr:
-    case MOP_sstr: {
+    case MOP_sstr:
+    case MOP_qldr:
+    case MOP_qstr: {
       (static_cast<CombineContiLoadAndStoreAArch64*>(optimizations[kCombineContiLoadAndStoreOpt]))->Run(bb, insn);
       (static_cast<ContiLDRorSTRToSameMEMAArch64*>(optimizations[kContiLDRorSTRToSameMEMOpt]))->Run(bb, insn);
       (static_cast<RemoveIdenticalLoadAndStoreAArch64*>(optimizations[kRemoveIdenticalLoadAndStoreOpt]))->Run(bb, insn);
@@ -475,116 +481,271 @@ bool EnhanceStrLdrAArch64::IsEnhanceAddImm(MOperator prevMop) {
   return prevMop == MOP_xaddrri12 ||  prevMop == MOP_waddrri12;
 }
 
-bool IsSameRegisterOperation(RegOperand &desMovOpnd, RegOperand &uxtDestOpnd, RegOperand &uxtFromOpnd) {
+bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
+                             const RegOperand &uxtDestOpnd,
+                             const RegOperand &uxtFromOpnd) {
   return ((desMovOpnd.GetRegisterNumber() == uxtDestOpnd.GetRegisterNumber()) &&
           (uxtDestOpnd.GetRegisterNumber() == uxtFromOpnd.GetRegisterNumber()));
+}
+
+bool CombineContiLoadAndStoreAArch64::IsRegDefUseInInsn(Insn &insn, regno_t regNO) {
+  uint32 opndNum = insn.GetOperandSize();
+  for(uint32 i = 0; i < opndNum; ++i) {
+    Operand &opnd = insn.GetOperand(i);
+    if (opnd.IsList()) {
+      auto &listOpnd = static_cast<ListOperand&>(opnd);
+      for (auto listElem : listOpnd.GetOperands()) {
+        RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+        ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
+        if (regNO == regOpnd->GetRegisterNumber()) {
+          return true;
+        }
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      RegOperand *base = memOpnd.GetBaseRegister();
+      RegOperand *index = memOpnd.GetIndexRegister();
+      if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
+          (index != nullptr && index->GetRegisterNumber() == regNO)) {
+        return true;
+      }
+    } else if (opnd.IsConditionCode()) {
+      Operand &rflagOpnd = cgFunc.GetOrCreateRflag();
+      RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
+      if (rflagReg.GetRegisterNumber() == regNO) {
+        return true;
+      }
+    } else if (opnd.IsRegister()) {
+      if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore,
+                                                               int32 baseOfst) {
+  uint32 opndNum = insn.GetOperandSize();
+  bool sameMemAccess = false; /* both store or load */
+  if (insn.IsStore() == isStore) {
+    sameMemAccess = true;
+  }
+  for(uint32 i = 0; i < opndNum; ++i) {
+    Operand &opnd = insn.GetOperand(i);
+    if (opnd.IsList()) {
+      auto &listOpnd = static_cast<ListOperand&>(opnd);
+      for (auto listElem : listOpnd.GetOperands()) {
+        RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+        ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
+        if (regNO == regOpnd->GetRegisterNumber()) {
+          return true;
+        }
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      RegOperand *base = memOpnd.GetBaseRegister();
+      /* need check offset as well */
+      regno_t stackBaseRegNO = cgFunc.UseFP() ? R29 : RSP;
+      if (!sameMemAccess && base != nullptr) {
+        regno_t curBaseRegNO = base->GetRegisterNumber();
+        if (!(curBaseRegNO == regNO && memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+            memOpnd.GetOffsetImmediate() != nullptr &&
+            (memOpnd.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - k8BitSize) ||
+            memOpnd.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + k8BitSize)))) {
+          return true;
+        }
+      }
+
+      /* do not trust the following situation :
+       * str x1, [x9]
+       * str x6, [x2]
+       * str x3, [x9, #8]
+       */
+      if (isStore && regNO != stackBaseRegNO && base != nullptr &&
+          base->GetRegisterNumber() != stackBaseRegNO &&
+          base->GetRegisterNumber() != regNO) {
+        return true;
+      }
+
+    } else if (opnd.IsConditionCode()) {
+      Operand &rflagOpnd = cgFunc.GetOrCreateRflag();
+      RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
+      if (rflagReg.GetRegisterNumber() == regNO) {
+        return true;
+      }
+    } else if (opnd.IsRegister()) {
+      if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, regno_t destRegNO,
+                                                                   regno_t memBaseRegNO, int32 baseOfst) {
+  std::vector<Insn*> prevContiInsns;
+  bool isStr = insn.IsStore();
+  for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
+    if (!curInsn->IsMachineInstruction()) {
+      continue;
+    }
+    if (curInsn->IsRegDefined(memBaseRegNO)) {
+      return prevContiInsns;
+    }
+    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst)) {
+      return prevContiInsns;
+    }
+    /* return continuous STD/LDR insn */
+    if (((isStr && curInsn->IsStore()) || (!isStr && curInsn->IsLoad())) && !curInsn->IsLoadStorePair()) {
+      auto *memOpnd = static_cast<AArch64MemOperand*>(curInsn->GetMemOpnd());
+      /* do not combine ldr r0, label */
+      if (memOpnd != nullptr) {
+        auto *BaseRegOpnd = static_cast<AArch64RegOperand*>(memOpnd->GetBaseRegister());
+        ASSERT(BaseRegOpnd == nullptr || !BaseRegOpnd->IsVirtualRegister(),
+            "physical register has not been allocated?");
+        if (memOpnd->GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+            BaseRegOpnd->GetRegisterNumber() == memBaseRegNO) {
+          prevContiInsns.emplace_back(curInsn);
+        }
+      }
+    }
+    /* check insn that changes the data flow */
+    regno_t stackBaseRegNO = cgFunc.UseFP() ? R29 : RSP;
+    if (curInsn->IsCall() && (IsCallerSavedReg(destRegNO) || memBaseRegNO != stackBaseRegNO)) {
+      return prevContiInsns;
+    }
+    if (curInsn->GetMachineOpcode() == MOP_asm) {
+      return prevContiInsns;
+    }
+    if (IsRegDefUseInInsn(*curInsn, destRegNO)) {
+      return prevContiInsns;
+    }
+  }
+  return prevContiInsns;
 }
 
 /* Combining 2 STRs into 1 stp or 2 LDRs into 1 ldp */
 void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
-  Insn *nextInsn = insn.GetNext();
-  if (nextInsn == nullptr || nextInsn->GetMachineOpcode() != thisMop) {
+  ASSERT(insn.GetOperand(kInsnFirstOpnd).IsRegister(), "unexpect operand");
+  auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto *memOpnd = static_cast<AArch64MemOperand*>(insn.GetMemOpnd());
+  ASSERT(memOpnd != nullptr, "get mem operand failed");
+  if (memOpnd->GetAddrMode() != AArch64MemOperand::kAddrModeBOi) {
     return;
   }
-  ASSERT(insn.GetOperand(kInsnSecondOpnd).IsMemoryAccessOperand(), "expects mem operands");
-  ASSERT(nextInsn->GetOperand(kInsnSecondOpnd).IsMemoryAccessOperand(), "expects mem operands");
-  auto &memOpnd1 = static_cast<AArch64MemOperand&>(insn.GetOperand(kInsnSecondOpnd));
-
-  AArch64MemOperand::AArch64AddressingMode addrMode1 = memOpnd1.GetAddrMode();
-  if (addrMode1 != AArch64MemOperand::kAddrModeBOi || (!memOpnd1.IsIntactIndexed())) {
+  if (!doAggressiveCombine) {
     return;
   }
-
-  auto *base1 = static_cast<AArch64RegOperand*>(memOpnd1.GetBaseRegister());
-  ASSERT(base1 == nullptr || !base1->IsVirtualRegister(), "physical register has not been allocated?");
-  AArch64OfstOperand *offset1 = memOpnd1.GetOffsetImmediate();
-
-  auto &memOpnd2 = static_cast<AArch64MemOperand&>(nextInsn->GetOperand(kInsnSecondOpnd));
-
-  AArch64MemOperand::AArch64AddressingMode addrMode2 = memOpnd2.GetAddrMode();
-  if (addrMode2 != AArch64MemOperand::kAddrModeBOi || (!memOpnd2.IsIntactIndexed())) {
-    return;
-  }
-
-  auto *base2 = static_cast<AArch64RegOperand*>(memOpnd2.GetBaseRegister());
-  ASSERT(base2 == nullptr || !base2->IsVirtualRegister(), "physical register has not been allocated?");
-  AArch64OfstOperand *offset2 = memOpnd2.GetOffsetImmediate();
-
-  if (base1 == nullptr || base2 == nullptr || offset1 == nullptr || offset2 == nullptr) {
-    return;
-  }
-
-  /*
-   * In ARM Architecture Reference Manual ARMv8, for ARMv8-A architecture profile
-   * LDP on page K1-6125 delcare that ldp can't use same reg
-   */
-  auto &reg1 = static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  auto &reg2 = static_cast<AArch64RegOperand&>(nextInsn->GetOperand(kInsnFirstOpnd));
-  if ((thisMop == MOP_xldr || thisMop == MOP_sldr || thisMop == MOP_dldr || thisMop == MOP_wldr) &&
-    reg1.GetRegisterNumber() == reg2.GetRegisterNumber()) {
-    return;
-  }
-
-  uint32 memSize1 = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
-  uint32 memSize2 = static_cast<const AArch64Insn&>(*nextInsn).GetLoadStoreSize();
-  if (memSize1 != memSize2) {
-    return;
-  }
-
-  uint32 size = reg1.GetSize() >> kLog2BitsPerByte;
-  int offsetVal1 = offset1->GetOffsetValue();
-  int offsetVal2 = offset2->GetOffsetValue();
-  // There is no register restriction for str
-  bool isStore = (thisMop == MOP_xstr || thisMop == MOP_wstr || thisMop == MOP_dstr || thisMop == MOP_sstr);
-  if ((isStore || base1->GetRegisterNumber() == RFP || base1->GetRegisterNumber() == RSP) &&
-      base1->GetRegisterNumber() == base2->GetRegisterNumber() &&
-      reg1.GetRegisterType() == reg2.GetRegisterType() && reg1.GetSize() == reg2.GetSize() &&
-      abs(offsetVal1 - offsetVal2) == static_cast<int>(size)) {
-    /* pair instr for 8/4 byte registers must have multiple of 8/4 for imm */
-    if ((static_cast<uint32>(offsetVal1) % size) != 0) {
-      return;
+  auto *baseRegOpnd = static_cast<AArch64RegOperand*>(memOpnd->GetBaseRegister());
+  AArch64OfstOperand *offsetOpnd = memOpnd->GetOffsetImmediate();
+  CHECK_FATAL(offsetOpnd != nullptr, "offset opnd lost");
+  ASSERT(baseRegOpnd == nullptr || !baseRegOpnd->IsVirtualRegister(), "physical register has not been allocated?");
+  std::vector<Insn*> prevContiInsnVec = FindPrevStrLdr(
+      insn, destOpnd.GetRegisterNumber(), baseRegOpnd->GetRegisterNumber(), offsetOpnd->GetOffsetValue());
+  for (auto prevContiInsn : prevContiInsnVec) {
+    ASSERT(prevContiInsn != nullptr, "get previous consecutive instructions failed");
+    auto *prevMemOpnd = static_cast<AArch64MemOperand*>(prevContiInsn->GetMemOpnd());
+    if (memOpnd->GetIndexOpt() != prevMemOpnd->GetIndexOpt()) {
+      continue;
     }
-    /* For stp/ldp, the imm should be within -512 and 504. */
-    if (size == kIntregBytelen) {
-      if (offsetVal1 <= kStpLdpImm64LowerBound || offsetVal1 >= kStpLdpImm64UpperBound) {
-        return;
+    AArch64OfstOperand *prevOffsetOpnd = prevMemOpnd->GetOffsetImmediate();
+    CHECK_FATAL(offsetOpnd != nullptr && prevOffsetOpnd != nullptr, "both conti str/ldr have no offset");
+
+    auto &prevDestOpnd = static_cast<AArch64RegOperand&>(prevContiInsn->GetOperand(kInsnFirstOpnd));
+    uint32 memSize = static_cast<const AArch64Insn&>(insn).GetLoadStoreSize();
+    uint32 prevMemSize = static_cast<const AArch64Insn&>(*prevContiInsn).GetLoadStoreSize();
+    if (memSize != prevMemSize || prevDestOpnd.GetRegisterType() != destOpnd.GetRegisterType() ||
+        thisMop != prevContiInsn->GetMachineOpcode()) {
+      continue;
+    }
+    int offsetVal = offsetOpnd->GetOffsetValue();
+    int prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
+    int diffVal = std::abs(offsetVal - prevOffsetVal);
+    /* do combination str/ldr -> stp/ldp */
+    if ((insn.IsStore() || destOpnd.GetRegisterNumber() != prevDestOpnd.GetRegisterNumber()) ||
+        (destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR)) {
+      if ((memSize == k8ByteSize && diffVal == k8BitSize) ||
+          (memSize == k4ByteSize && diffVal == k4BitSize) ||
+          (memSize == k16ByteSize && diffVal == k16BitSize)) {
+        CG *cg = cgFunc.GetCG();
+        MOperator mopPair = GetMopPair(thisMop);
+        if (offsetVal < prevOffsetVal) {
+          if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(mopPair, memOpnd, kInsnThirdOpnd)) {
+            bb.InsertInsnAfter(*prevContiInsn,
+                cg->BuildInstruction<AArch64Insn>(mopPair, destOpnd, prevDestOpnd, *memOpnd));
+            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+            return;
+          }
+        } else {
+          if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(mopPair, prevMemOpnd, kInsnThirdOpnd)) {
+            bb.InsertInsnAfter(*prevContiInsn,
+                cg->BuildInstruction<AArch64Insn>(mopPair, prevDestOpnd, destOpnd, *prevMemOpnd));
+            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+            return;
+          }
+        }
       }
     }
-    if (size == (kIntregBytelen >> 1)) {
-      if (offsetVal1 <= kStpLdpImm32LowerBound || offsetVal1 >= kStpLdpImm32UpperBound) {
-        return;
+    /* do combination strb/ldrb -> strh/ldrh -> str/ldr */
+    if (destOpnd.GetRegisterNumber() == prevDestOpnd.GetRegisterNumber() &&
+        destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR) {
+      if ((memSize == k1ByteSize && diffVal == k1BitSize) ||  (memSize == k2ByteSize && diffVal == k2ByteSize)) {
+        CG *cg = cgFunc.GetCG();
+        MOperator mopPair = GetMopHigherByte(thisMop);
+        if (offsetVal < prevOffsetVal) {
+          if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(mopPair, memOpnd, kInsnSecondOpnd)) {
+            bb.InsertInsnAfter(*prevContiInsn, cg->BuildInstruction<AArch64Insn>(mopPair, destOpnd, *memOpnd));
+            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+            return;
+          }
+        } else {
+          if (static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(mopPair, prevMemOpnd, kInsnSecondOpnd)) {
+            bb.InsertInsnAfter(*prevContiInsn, cg->BuildInstruction<AArch64Insn>(mopPair, prevDestOpnd, *prevMemOpnd));
+            RemoveInsnAndKeepComment(bb, insn, *prevContiInsn);
+            return;
+          }
+        }
       }
     }
+  }
+}
 
-    MOperator mopPair = GetMopPair(thisMop);
-    CG *cg = cgFunc.GetCG();
-    if (offsetVal1 < offsetVal2) {
-      bb.InsertInsnAfter(*nextInsn, cg->BuildInstruction<AArch64Insn>(mopPair, reg1, reg2, memOpnd1));
-    } else {
-      bb.InsertInsnAfter(*nextInsn, cg->BuildInstruction<AArch64Insn>(mopPair, reg2, reg1, memOpnd2));
-    }
+MOperator CombineContiLoadAndStoreAArch64::GetMopHigherByte(MOperator mop) {
+  switch (mop) {
+    case MOP_wldrb:
+      return MOP_wldrh;
+    case MOP_wstrb:
+      return MOP_wstrh;
+    case MOP_wldrh:
+      return MOP_wldr;
+    case MOP_wstrh:
+      return MOP_wstr;
+    default:
+      ASSERT(false, "should not run here");
+      return MOP_undef;
+  }
+}
 
-    /* keep the comment */
-    Insn *nn = nextInsn->GetNext();
-    std::string newComment = "";
-    MapleString comment = insn.GetComment();
-    if (comment.c_str() != nullptr && strlen(comment.c_str()) > 0) {
-      newComment += comment.c_str();
-    }
-    comment = nextInsn->GetComment();
-    if (newComment.c_str() != nullptr && strlen(newComment.c_str()) > 0) {
-      newComment += "  ";
-    }
-    if (comment.c_str() != nullptr && strlen(comment.c_str()) > 0) {
-      newComment += comment.c_str();
-    }
-    if (newComment.c_str() != nullptr && strlen(newComment.c_str()) > 0) {
-      nn->SetComment(newComment);
-    }
-    bb.RemoveInsn(insn);
-    bb.RemoveInsn(*nextInsn);
-  }  /* pattern found */
+void CombineContiLoadAndStoreAArch64::RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) {
+  /* keep the comment */
+  Insn *nn = prevInsn.GetNext();
+  std::string newComment = "";
+  MapleString comment = insn.GetComment();
+  if (comment.c_str() != nullptr && strlen(comment.c_str()) > 0) {
+    newComment += comment.c_str();
+  }
+  comment = prevInsn.GetComment();
+  if (comment.c_str() != nullptr && strlen(comment.c_str()) > 0) {
+    newComment = newComment + "  " + comment.c_str();
+  }
+  if (newComment.c_str() != nullptr && strlen(newComment.c_str()) > 0) {
+    nn->SetComment(newComment);
+  }
+  bb.RemoveInsn(insn);
+  bb.RemoveInsn(prevInsn);
 }
 
 void EliminateSpecifcSXTAArch64::Run(BB &bb, Insn &insn) {
