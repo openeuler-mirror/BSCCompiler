@@ -24,6 +24,7 @@ constexpr size_t kNumOperands = 2;
 constexpr size_t kFourByte = 4;
 constexpr size_t kEightByte = 8;
 constexpr size_t kCodeSizeLimit = 2000;
+constexpr std::uint64_t kInvaliedBound = 0xdeadbeef;
 void ValueRangePropagation::Execute() {
   // In reverse post order traversal, a bb is accessed before any of its successor bbs. So the range of def points would
   // be calculated before and need not calculate the range of use points repeatedly.
@@ -515,11 +516,31 @@ bool ValueRangePropagation::IfAnalysisedBefore(BB &bb, MeStmt &stmt) {
   return false;
 }
 
+bool ValueRangePropagation::DeleteBoundaryCheckWhenBoundIsInvalied(BB &bb, MeStmt &meStmt, MeExpr &boundOpnd) {
+  if (boundOpnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(boundOpnd).GetIntValue() == kInvaliedBound) {
+    Insert2NeedDeleteBoundaryCheck(bb, meStmt);
+    Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
+    return true;
+  } else {
+    auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), boundOpnd.GetExprID());
+    if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
+        valueRange->IsConstant() && valueRange->GetLower().GetConstant() == kInvaliedBound) {
+      Insert2NeedDeleteBoundaryCheck(bb, meStmt);
+      Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
+      return true;
+    }
+  }
+  return false;
+}
+
 void ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   CHECK_FATAL(meStmt.NumMeStmtOpnds() == kNumOperands, "must have two opnds");
   auto &naryMeStmt = static_cast<NaryMeStmt&>(meStmt);
-  auto *indexOpnd = naryMeStmt.GetOpnd(0);
   auto *boundOpnd = naryMeStmt.GetOpnd(1);
+  if (DeleteBoundaryCheckWhenBoundIsInvalied(bb, meStmt, *boundOpnd)) {
+    return;
+  }
+  auto *indexOpnd = naryMeStmt.GetOpnd(0);
   CRNode *indexCR = sa.GetOrCreateCRNode(*indexOpnd);
   CRNode *boundCR = sa.GetOrCreateCRNode(*boundOpnd);
   if (indexCR == nullptr || boundCR == nullptr) {
