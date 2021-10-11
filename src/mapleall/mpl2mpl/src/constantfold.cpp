@@ -2049,7 +2049,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
           return std::make_pair(result, 0);
         }
         if (dconst1 == 0.0 && dconst2 == 1.0) {
-          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, foldedPrimType, node->Opnd(0));
+          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, node->Opnd(0)->GetPrimType(), node->Opnd(0));
           BaseNode *tmpNode = lnot;
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
           if (IsPrimitiveInteger(foldedPrimType)) {
