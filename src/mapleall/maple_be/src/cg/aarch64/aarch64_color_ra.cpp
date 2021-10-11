@@ -3724,7 +3724,7 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
     RegType rtype = lr->GetRegType();
     spreg = lr->GetSpillReg();
     ASSERT(lr->GetSpillReg() != 0, "no reg in CreateSpillFillCode");
-    RegOperand *regopnd =
+    AArch64RegOperand *regopnd =
         &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
 
     if (lr->IsRematerializable(cg->GetRematLevel())) {
@@ -4331,12 +4331,12 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
       Insn *headerCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop begin"));
       headerPred.AppendInsn(*headerCom);
       Insn *last = headerPred.GetLastInsn();
-      SpillOperand(*last, *ropnd, true, phyOpnd);
+      SpillOperand(*last, *ropnd, true, static_cast<AArch64RegOperand&>(phyOpnd));
 
       Insn *exitCom = &(static_cast<AArch64CGFunc*>(cgFunc)->CreateCommentInsn("split around loop end"));
       exitSucc.InsertInsnBegin(*exitCom);
       Insn *first = exitSucc.GetFirstInsn();
-      SpillOperand(*first, *ropnd, false, phyOpnd);
+      SpillOperand(*first, *ropnd, false, static_cast<AArch64RegOperand&>(phyOpnd));
 
       LiveRange *replacedLr = lrVec[*it];
       replacedLr->SetAssignedRegNO(lr->GetAssignedRegNO());

@@ -66,7 +66,7 @@ class AArch64CGFunc : public CGFunc {
     return beginOffset;
   }
 
-  MOperator PickMovInsn(PrimType primType);
+  MOperator PickMovBetweenRegs(PrimType destType, PrimType srcType);
   MOperator PickMovInsn(RegOperand &lhs, RegOperand &rhs);
 
   regno_t NewVRflag() override {
@@ -86,7 +86,6 @@ class AArch64CGFunc : public CGFunc {
   void IntrinsifyGetAndSetInt(AArch64ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyCompareAndSwapInt(AArch64ListOperand &srcOpnds, PrimType pty);
   void IntrinsifyStringIndexOf(AArch64ListOperand &srcOpnds, const MIRSymbol &funcSym);
-  MOperator PickMovInsn(uint32 bitLen, RegType regType);
   void GenSaveMethodInfoCode(BB &bb) override;
   void DetermineReturnTypeofCall() override;
   void HandleRCCall(bool begin, const MIRSymbol *retRef = nullptr) override;
@@ -244,6 +243,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectLoadArrayClassCache(MIRSymbol &st, int64 offset, PrimType primType) override;
   RegOperand &SelectCopy(Operand &src, PrimType stype, PrimType dtype) override;
   void SelectCopy(Operand &dest, PrimType dtype, Operand &src, PrimType stype);
+  void SelectCopyImm(Operand &dest, PrimType dType, ImmOperand &src, PrimType sType);
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
@@ -272,6 +272,7 @@ class AArch64CGFunc : public CGFunc {
                                     PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
+  RegOperand *SelectVectorCopy(Operand *opnd, PrimType sType);
   RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
