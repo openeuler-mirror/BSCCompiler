@@ -485,6 +485,7 @@ class ValueRangePropagation {
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
+  bool DeleteBoundaryCheckWhenBoundIsInvalied(BB &bb, MeStmt &meStmt, MeExpr &boundOpnd);
   void DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
   void DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
