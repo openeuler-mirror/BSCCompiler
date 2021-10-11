@@ -2040,14 +2040,24 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
         if (dconst1 == 1.0 && dconst2 == 0.0) {
           BaseNode *tmpNode = node->Opnd(0);
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
-          result = PairToExpr(foldedPrimType, pairTemp);
+          if (IsPrimitiveInteger(foldedPrimType)) {
+            result = PairToExpr(foldedPrimType, pairTemp);
+          } else {
+            result = PairToExpr(tmpNode->GetPrimType(), pairTemp);
+            result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, foldedPrimType, tmpNode->GetPrimType(), result);
+          }
           return std::make_pair(result, 0);
         }
         if (dconst1 == 0.0 && dconst2 == 1.0) {
           BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(OP_lnot, foldedPrimType, node->Opnd(0));
           BaseNode *tmpNode = lnot;
           std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
-          result = PairToExpr(foldedPrimType, pairTemp);
+          if (IsPrimitiveInteger(foldedPrimType)) {
+            result = PairToExpr(foldedPrimType, pairTemp);
+          } else {
+            result = PairToExpr(tmpNode->GetPrimType(), pairTemp);
+            result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, foldedPrimType, tmpNode->GetPrimType(), result);
+          }
           return std::make_pair(result, 0);
         }
       }
