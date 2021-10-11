@@ -610,7 +610,7 @@ class LiveRange {
     return rematInfo.sym;
   }
 
-FieldID GetRematFieldID() {
+  FieldID GetRematFieldID() {
     ASSERT(op == OP_dread || op == OP_addrof, "Remat field ID is invalid");
     return fieldID;
   }
@@ -1314,7 +1314,8 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void LocalRegisterAllocator(bool allocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
-  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd, AArch64RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
+  void SpillOperandForSpillPost(Insn &insn, const Operand &opnd,
+      AArch64RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
   MemOperand *GetConsistentReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
                                     RegType regType);
   MemOperand *GetCommonReuseMem(const uint64 *conflict, const std::set<MemOperand*> &usedMemOpnd, uint32 size,
