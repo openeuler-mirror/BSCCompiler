@@ -525,7 +525,7 @@ bool CombineContiLoadAndStoreAArch64::IsRegDefUseInInsn(Insn &insn, regno_t regN
 }
 
 bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore,
-                                                               int32 baseOfst) {
+                                                               int32 baseOfst, regno_t destRegNO) {
   uint32 opndNum = insn.GetOperandSize();
   bool sameMemAccess = false; /* both store or load */
   if (insn.IsStore() == isStore) {
@@ -549,25 +549,40 @@ bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno
       regno_t stackBaseRegNO = cgFunc.UseFP() ? R29 : RSP;
       if (!sameMemAccess && base != nullptr) {
         regno_t curBaseRegNO = base->GetRegisterNumber();
+        uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
         if (!(curBaseRegNO == regNO && memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
             memOpnd.GetOffsetImmediate() != nullptr &&
-            (memOpnd.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - k8BitSize) ||
-            memOpnd.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + k8BitSize)))) {
+            (memOpnd.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||
+            memOpnd.GetOffsetImmediate()->GetOffsetValue() >= (baseOfst + memBarrierRange)))) {
           return true;
         }
       }
-
       /* do not trust the following situation :
        * str x1, [x9]
        * str x6, [x2]
        * str x3, [x9, #8]
        */
       if (isStore && regNO != stackBaseRegNO && base != nullptr &&
-          base->GetRegisterNumber() != stackBaseRegNO &&
-          base->GetRegisterNumber() != regNO) {
+          base->GetRegisterNumber() != stackBaseRegNO && base->GetRegisterNumber() != regNO) {
         return true;
       }
-
+      if (isStore && base != nullptr && base->GetRegisterNumber() == regNO && destRegNO != RZR &&
+          static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != RZR) {
+        if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi && memOpnd.GetOffsetImmediate() != nullptr) {
+          int32 curOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+          if (memOpnd.GetSize() == k64BitSize) {
+            uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
+            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
+              return true;
+            }
+          } else if (memOpnd.GetSize() == k32BitSize) {
+            uint32 memBarrierRange = insn.IsLoadStorePair() ? k8BitSize : k4BitSize;
+            if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
+              return true;
+            }
+          }
+        }
+      }
     } else if (opnd.IsConditionCode()) {
       Operand &rflagOpnd = cgFunc.GetOrCreateRflag();
       RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
@@ -594,7 +609,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     if (curInsn->IsRegDefined(memBaseRegNO)) {
       return prevContiInsns;
     }
-    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst)) {
+    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst, destRegNO)) {
       return prevContiInsns;
     }
     /* return continuous STD/LDR insn */
@@ -613,7 +628,13 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     }
     /* check insn that changes the data flow */
     regno_t stackBaseRegNO = cgFunc.UseFP() ? R29 : RSP;
-    if (curInsn->IsCall() && (IsCallerSavedReg(destRegNO) || memBaseRegNO != stackBaseRegNO)) {
+    /* ldr x8, [x21, #8]
+     * call foo()
+     * ldr x9, [x21, #16]
+     * although x21 is a calleeSave register, there is no guarantee data in memory [x21] is not changed
+     */
+    if ((curInsn->IsCall() && !AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO))) ||
+        memBaseRegNO != stackBaseRegNO) {
       return prevContiInsns;
     }
     if (curInsn->GetMachineOpcode() == MOP_asm) {

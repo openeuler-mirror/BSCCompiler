@@ -57,9 +57,25 @@ class RemoveMovingtoSameRegAArch64 : public PeepPattern {
  */
 class CombineContiLoadAndStoreAArch64 : public PeepPattern {
  public:
-  explicit CombineContiLoadAndStoreAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  explicit CombineContiLoadAndStoreAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {
+    doAggressiveCombine = cgFunc.GetMirModule().IsCModule();
+  }
   ~CombineContiLoadAndStoreAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
+ private:
+  std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int32 baseOfst);
+  bool IsRegDefUseInInsn(Insn &insn, regno_t regNO);
+  /*
+   * avoid the following situation:
+   * str x2, [x19, #8]
+   * mov x0, x19
+   * bl foo (change memory)
+   * str x21, [x19, #16]
+   */
+  bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst, regno_t destRegNO);
+  void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
+  MOperator GetMopHigherByte(MOperator mop);
+  bool doAggressiveCombine = false;
 };
 
 /*
@@ -78,9 +94,6 @@ class EnhanceStrLdrAArch64 : public PeepPattern {
 
  private:
   bool IsEnhanceAddImm(MOperator prevMop);
-  bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
-                               const RegOperand &uxtDestOpnd,
-                               const RegOperand &uxtFromOpnd) const;
 };
 
 /* Eliminate the sxt[b|h|w] w0, w0;, when w0 is satisify following:
