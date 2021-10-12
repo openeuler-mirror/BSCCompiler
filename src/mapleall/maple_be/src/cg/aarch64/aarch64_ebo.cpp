@@ -1093,6 +1093,10 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
         MOperator opc1 = insn1->GetMachineOpcode();
         if ((opc1 == MOP_xlslrri6) || (opc1 == MOP_wlslrri5)) {
           /* don't use register if it was redefined. */
+          if (cgFunc->GetMirModule().IsCModule()) {
+            /* global opt will do this pattern when is CMoudle */
+            return false;
+          }
           OpndInfo *opndInfo1 = insnInfo1->origOpnd[kInsnSecondOpnd];
           if ((opndInfo1 != nullptr) && opndInfo1->redefined) {
             return false;
@@ -1212,6 +1216,10 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
        * str x3, [x2]
        * -> str x3, [x1, imm]
        */
+      if (cgFunc->GetMirModule().IsCModule()) {
+        /* strldr opt will do this pattern when is CMoudle */
+        return false;
+      }
       CHECK_NULL_FATAL(insn.GetResult(0));
       OpndInfo *opndInfo = origInfos[kInsnSecondOpnd];
       if (insn.IsLoad() && opndInfo == nullptr) {

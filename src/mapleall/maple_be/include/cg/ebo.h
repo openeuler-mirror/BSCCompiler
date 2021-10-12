@@ -239,6 +239,7 @@ class Ebo {
   MapleUnorderedMap<uint32, OpndInfo*> vRegInfo;
   MapleVector<OpndInfo*> exprInfoTable;
   MapleVector<InsnInfo*> insnInfoTable;
+  bool optSuccess = false;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgEbo0, maplebe::CGFunc)

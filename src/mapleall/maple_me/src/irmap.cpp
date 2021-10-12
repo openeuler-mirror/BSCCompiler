@@ -25,9 +25,35 @@ MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
   return MeCastOpt::SimplifyCast(*this, expr);
 }
 
-// Try remove redundant intTrunc for dassgin and iassign
+// Try to remove redundant intTrunc for dassgin and iassign
 void IRMap::SimplifyCastForAssign(MeStmt *assignStmt) {
   MeCastOpt::SimplifyCastForAssign(assignStmt);
+}
+
+void IRMap::SimplifyAssign(AssignMeStmt *assignStmt) {
+  if (assignStmt == nullptr) {
+    return;
+  }
+  if (assignStmt->GetOp() == OP_regassign) {
+    // try to remove redundant iaddrof
+    while (assignStmt->GetRHS()->GetOp() == OP_iaddrof) {
+      auto *iaddrof = static_cast<OpMeExpr*>(assignStmt->GetRHS());
+      FieldID fld = iaddrof->GetFieldID();
+      MIRType *type = iaddrof->GetType();
+      CHECK_FATAL(type->IsMIRPtrType(), "IaddrofExpr's type must be pointer type!");
+      MIRType *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
+      int64 offset = pointedType->GetBitOffsetFromBaseAddr(fld);
+      if (offset == 0) {
+        // although iaddrof expr's type may be not the same as base(iaddrof is fieldType, base is agg's type),
+        // we could use base directly because regassign can reserve only primtype in a reg.
+        MeExpr *base = iaddrof->GetOpnd(0);
+        assignStmt->SetRHS(base);
+      } else {
+        break;
+      }
+    }
+  }
+  SimplifyCastForAssign(assignStmt);
 }
 
 VarMeExpr *IRMap::CreateVarMeExprVersion(OriginalSt *ost) {
@@ -223,7 +249,7 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx
 }
 
 static MeExpr *GetTerminalBase(MeExpr *baseExpr) {
-  if (baseExpr->GetMeOp() == kMeOpOp && 
+  if (baseExpr->GetMeOp() == kMeOpOp &&
       IsPrimitiveInteger(baseExpr->GetPrimType()) &&
       (baseExpr->GetOp() == OP_add || baseExpr->GetOp() == OP_sub || baseExpr->GetOp() == OP_cvt)) {
       return GetTerminalBase(static_cast<OpMeExpr *>(baseExpr)->GetOpnd(0));
@@ -775,6 +801,15 @@ UnaryMeStmt *IRMap::CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const Src
   return unaryMeStmt;
 }
 
+GotoMeStmt *IRMap::CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src) {
+  GotoMeStmt *gotoMeStmt = New<GotoMeStmt>(offset);
+  gotoMeStmt->SetBB(bb);
+  if (src != nullptr) {
+    gotoMeStmt->SetSrcPos(*src);
+  }
+  return gotoMeStmt;
+}
+
 IntrinsiccallMeStmt *IRMap::CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds, TyIdx tyIdx) {
   auto *meStmt =
       NewInPool<IntrinsiccallMeStmt>(tyIdx == 0u ? OP_intrinsiccall : OP_intrinsiccallwithtype, idx, tyIdx);
@@ -1034,7 +1069,8 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
       if (opndA->GetMeOp() == kMeOpConst) {
         // (constA + constB) + opnd1
         if (opndB->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1, OP_add, opndA, opndB));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1,
+                                                                          OP_add, opndA, opndB));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
@@ -1042,14 +1078,16 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
         }
         // (constA + a) + constB --> a + (constA + constB)
         if (opnd1->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndB, OP_add, opndA, opnd1));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndB,
+                                                                          OP_add, opndA, opnd1));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
           return retOpMeExpr;
         }
         // (const + a) + b --> (a + b) + const
-        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add, opndB, opnd1, opndA));
+        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add,
+                                                                        opndB, opnd1, opndA));
         if (addExpr->hasAddressValue) {
           retOpMeExpr->hasAddressValue = true;
           if (retOpMeExpr->GetOpnd(0)->GetMeOp() == kMeOpOp) {
@@ -1062,14 +1100,16 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
       if (opndB->GetMeOp() == kMeOpConst) {
         // (a + constA) + constB --> a + (constA + constB)
         if (opnd1->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA, OP_add, opndB, opnd1));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA,
+                                                                          OP_add, opndB, opnd1));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
           return retOpMeExpr;
         }
         // (a + const) + b --> (a + b) + const
-        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add, opndA, opnd1, opndB));
+        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_add,
+                                                                        opndA, opnd1, opndB));
         if (addExpr->hasAddressValue) {
           retOpMeExpr->hasAddressValue = true;
           if (retOpMeExpr->GetOpnd(0)->GetMeOp() == kMeOpOp) {
@@ -1089,7 +1129,8 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
       if (opndA->GetMeOp() == kMeOpConst) {
         // (constA - constB) + opnd1
         if (opndB->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1, OP_sub, opndA, opndB));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opnd1,
+                                                                          OP_sub, opndA, opndB));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
@@ -1097,14 +1138,16 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
         }
         // (constA - a) + constB --> (constA + constB) - a
         if (opnd1->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add, opndA, opnd1, opndB));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add,
+                                                                          opndA, opnd1, opndB));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
           return retOpMeExpr;
         }
         // (const - a) + b --> (b - a) + const
-        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_sub, opnd1, opndB, opndA));
+        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, OP_sub,
+                                                                        opnd1, opndB, opndA));
         if (addExpr->hasAddressValue) {
           retOpMeExpr->hasAddressValue = true;
           if (retOpMeExpr->GetOpnd(0)->GetMeOp() == kMeOpOp) {
@@ -1114,17 +1157,19 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
         return retOpMeExpr;
       }
 
-      if (opndB->GetMeOp() == kMeOpConst) {
+      if (opndB->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opndB)->GetIntValue() != INT_MIN) {
         // (a - constA) + constB --> a + (constB - constA)
         if (opnd1->GetMeOp() == kMeOpConst) {
-          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA, OP_sub, opnd1, opndB));
+          retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_add, opndA,
+                                                                          OP_sub, opnd1, opndB));
           if (addExpr->hasAddressValue) {
             retOpMeExpr->hasAddressValue = true;
           }
           return retOpMeExpr;
         }
         // (a - const) + b --> (a + b) - const
-        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add, opndA, opnd1, opndB));
+        retOpMeExpr = static_cast<OpMeExpr *>(CreateCanonicalizedMeExpr(addExpr->GetPrimType(), OP_sub, OP_add,
+                                                                        opndA, opnd1, opndB));
         if (addExpr->hasAddressValue) {
           retOpMeExpr->hasAddressValue = true;
           if (retOpMeExpr->GetOpnd(0)->GetMeOp() == kMeOpOp) {
@@ -1136,6 +1181,14 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
     }
   }
   return nullptr;
+}
+
+static inline bool SignExtendsOpnd(PrimType toType, PrimType fromType) {
+  if ((IsPrimitiveInteger(toType) && IsSignedInteger(fromType)) &&
+      (GetPrimTypeSize(fromType) < GetPrimTypeSize(toType))) {
+    return true;
+  }
+  return false;
 }
 
 MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
@@ -1170,11 +1223,13 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
     if (opnd0->GetOp() == OP_cvt) {
       // reassociation effects sign extension
       auto *cvtExpr = static_cast<OpMeExpr *>(opnd0);
-      if ((IsSignedInteger(cvtExpr->GetOpndType()) != IsSignedInteger(opnd0->GetOpnd(0)->GetPrimType())) &&
-          (GetPrimTypeSize(cvtExpr->GetOpndType()) < GetPrimTypeSize(cvtExpr->GetPrimType()))) {
+      if (SignExtendsOpnd(cvtExpr->GetPrimType(), cvtExpr->GetOpndType())) {
         return nullptr;
       }
       opnd0 = opnd0->GetOpnd(0);
+    }
+    if (SignExtendsOpnd(mulExpr->GetPrimType(), opnd0->GetPrimType())) {
+      return nullptr;
     }
 
     if (opnd0->GetOp() == OP_add) {
@@ -1232,6 +1287,31 @@ MeExpr *IRMap::SimplifyMulExpr(OpMeExpr *mulExpr) {
             mulExpr->GetPrimType(), OP_sub, OP_mul, opndA, opnd1, OP_mul, opndB, opnd1);
       }
       return nullptr;
+    }
+
+    // (a * constA) * constB --> a * (constA * constB)
+    if (opnd0->GetOp() == OP_mul && opnd1->GetMeOp() == kMeOpConst) {
+      auto *simplified = SimplifyMulExpr(static_cast<OpMeExpr*>(opnd0));
+      opnd0 = simplified == nullptr ? opnd0 : simplified;
+      if (opnd0->GetOp() != OP_mul) {
+        return nullptr;
+      }
+      auto *opndA = opnd0->GetOpnd(0);
+      auto *opndB = opnd0->GetOpnd(1);
+      if (opndA->GetMeOp() != kMeOpConst && opndB->GetMeOp() != kMeOpConst) {
+        return nullptr;
+      }
+      if (opndA->GetMeOp() != kMeOpConst) {
+        // use opndA for const
+        auto *tmp = opndA;
+        opndA = opndB;
+        opndB = tmp;
+      }
+      if (opndA->GetPrimType() == opnd1->GetPrimType()) {
+        auto *newConst = FoldConstExpr(opndA->GetPrimType(), OP_mul,
+                                       static_cast<ConstMeExpr*>(opndA), static_cast<ConstMeExpr*>(opnd1));
+        return CreateMeExprBinary(OP_mul, mulExpr->GetPrimType(), *opndB, *newConst);
+      }
     }
   }
   return nullptr;
@@ -1295,6 +1375,224 @@ bool IRMap::IfMeExprIsU1Type(const MeExpr *expr) const {
     }
   }
   return false;
+}
+
+MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
+  Opcode cmpop = cmpExpr->GetOp();
+  if (!kOpcodeInfo.IsCompare(cmpop)) {
+    return nullptr;
+  }
+  MeExpr *opnd0 = cmpExpr->GetOpnd(0);
+  MeExpr *opnd1 = cmpExpr->GetOpnd(1);
+  if (opnd0 == opnd1) {
+    // node compared with itself
+    auto *res = SimplifyCompareSameExpr(cmpExpr);
+    if (res != nullptr) {
+      return res;
+    }
+  }
+  // fold constval cmp
+  if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
+    maple::ConstantFold cf(mirModule);
+    MIRConst *opnd0const = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
+    MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
+    MIRConst *resconst = cf.FoldConstComparisonMIRConst(cmpExpr->GetOp(), cmpExpr->GetPrimType(),
+                                                        cmpExpr->GetOpndType(), *opnd0const, *opnd1const);
+    return CreateConstMeExpr(cmpExpr->GetPrimType(), *resconst);
+  }
+
+  // case of:
+  // cmp (select(op1, op2), op3) ==> select(cmp (op1, op3), cmp (op2, op3)) ==> select(new_op1, new_op2)
+  // if new_op0 and new_op1 are both leaf
+  if (opnd0->GetOp() == OP_select || opnd1->GetOp() == OP_select) {
+    auto *selectExpr = opnd0->GetOp() == OP_select ? static_cast<OpMeExpr*>(opnd0) : static_cast<OpMeExpr*>(opnd1);
+    auto *opnd3 = selectExpr == opnd0 ? opnd1 : opnd0;
+    auto *selectOpnd1 = selectExpr->GetOpnd(1);
+    auto *selectOpnd2 = selectExpr->GetOpnd(2);
+    OpMeExpr newOpnd1(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd1, opnd3);
+    newOpnd1.SetOpndType(cmpExpr->GetOpndType());
+    auto *simplifiedOpnd1 = SimplifyCmpExpr(&newOpnd1);
+    if (!simplifiedOpnd1->IsLeaf()) {
+      return nullptr;
+    }
+    OpMeExpr newOpnd2(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd2, opnd3);
+    newOpnd2.SetOpndType(cmpExpr->GetOpndType());
+    auto *simplifiedOpnd2 = SimplifyCmpExpr(&newOpnd2);
+    if (!simplifiedOpnd2->IsLeaf()) {
+      return nullptr;
+    }
+    OpMeExpr newSelect(kInvalidExprID, OP_select, PTY_u1, 3 /* select need 3 opnds */);
+    newSelect.SetOpnd(0, selectExpr->GetOpnd(0));
+    newSelect.SetOpnd(1, simplifiedOpnd1);
+    newSelect.SetOpnd(2, simplifiedOpnd2);
+    newSelect.SetHasAddressValue();
+    return HashMeExpr(newSelect);
+  }
+
+  switch (cmpop) {
+    case OP_ne:
+    case OP_eq: {
+      // case of:
+      // eq/ne (addrof, 0) ==> 0/1
+      if ((opnd0->GetMeOp() == kMeOpAddrof && opnd1->GetMeOp() == kMeOpConst) ||
+          (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpAddrof)) {
+        MIRConst *resconst = nullptr;
+        if (opnd0->GetMeOp() == kMeOpAddrof) {
+          MIRConst *constopnd1 = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
+          if (constopnd1->IsZero()) {
+            // addrof will not be zero, so this comparison can be replaced with a constant
+            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+                (cmpop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+          }
+        } else {
+          MIRConst *constopnd0 = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
+          if (constopnd0->IsZero()) {
+            // addrof will not be zero, so this comparison can be replaced with a constant
+            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+                (cmpop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+          }
+        }
+        if (resconst != nullptr) {
+          return CreateConstMeExpr(cmpExpr->GetPrimType(), *resconst);
+        }
+      }
+
+      // case of:
+      // eq/ne (iaddrof, 0) ==> 0/1, when the offet is not 0
+      if ((opnd0->GetOp() == OP_iaddrof && opnd1->GetMeOp() == kMeOpConst) ||
+          (opnd0->GetMeOp() == kMeOpConst && opnd1->GetOp() == OP_iaddrof)) {
+        auto *constVal = static_cast<ConstMeExpr *>((opnd0->GetMeOp() == kMeOpConst) ? opnd0 : opnd1)->GetConstVal();
+        if (!constVal->IsZero()) {
+          return nullptr;
+        }
+        auto *iaddrExpr = static_cast<OpMeExpr *>((opnd0->GetOp() == OP_iaddrof) ? opnd0 : opnd1);
+        auto fieldId = iaddrExpr->GetFieldID();
+        auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrExpr->GetTyIdx());
+        CHECK_FATAL(mirType->IsMIRPtrType(), "must be pointer type");
+        auto offset = static_cast<MIRPtrType *>(mirType)->GetPointedType()->GetBitOffsetFromBaseAddr(fieldId);
+        if (offset > 0) {
+          MIRConst *resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+              (cmpop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
+          return CreateConstMeExpr(cmpExpr->GetPrimType(), *resconst);
+        }
+        return nullptr;
+      }
+
+      // case of:
+      // ne (u1 expr, 0) ==> cmpexpr
+      // ne (u1 expr, 1) ==> !cmpexpr
+      // eq (u1 expr, 0) ==> !cmpexpr
+      // eq (u1 expr, 1) ==> cmpexpr
+      if ((opnd1->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd0)) ||
+          (opnd0->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd1))) {
+        if (opnd0->GetMeOp() == kMeOpConst) { // ne/eq (0/1, u1 expr) => ne/eq (u1 expr, 0/1)
+          auto *tmpOpnd = opnd1;
+          opnd1 = opnd0;
+          opnd0 = tmpOpnd;
+        }
+        MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
+        if ((cmpop == OP_ne && opnd1const->IsZero()) || (cmpop == OP_eq && opnd1const->IsOne())) {
+          return opnd0;
+        } else if ((cmpop == OP_ne && opnd1const->IsOne()) || (cmpop == OP_eq && opnd1const->IsZero())) {
+          if (IsCompareHasReverseOp(opnd0->GetOp())) {
+            OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
+            reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
+            reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
+            reverseMeExpr.SetOpndType(static_cast<OpMeExpr*>(opnd0)->GetOpndType());
+            auto *simplified = SimplifyCmpExpr(&reverseMeExpr);
+            return simplified == nullptr ? HashMeExpr(reverseMeExpr) : simplified;
+          }
+        }
+      }
+
+      // case of:
+      // eq/ne (cmp(op0, op1), 0) ==> eq/ne (op0, op1)
+      if (opnd0->GetOp() == OP_cmp && opnd1->GetMeOp() == kMeOpConst) {
+        auto *constVal = static_cast<ConstMeExpr*>(opnd1)->GetConstVal();
+        if (constVal->GetKind() == kConstInt && constVal->IsZero()) {
+          auto *subOpnd0 = opnd0->GetOpnd(0);
+          auto *subOpnd1 = opnd0->GetOpnd(1);
+          return CreateMeExprCompare(cmpop, PTY_u1, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
+        }
+      }
+
+      // case of:
+      // ne (bxor (op0, op1), 0) ==> ne (op0, op1)
+      // ne (sub (op0, op1), 0) ==> ne (op0, op1)
+      if (cmpop == OP_ne && IsPrimitiveInteger(cmpExpr->GetOpndType()) &&
+          (opnd0->GetOp() == OP_bxor || opnd1->GetOp() == OP_bxor ||
+           opnd0->GetOp() == OP_sub || opnd1->GetOp() == OP_sub)) {
+        if (opnd1->GetOp() == OP_bxor || opnd1->GetOp() == OP_sub) {
+          auto *tmp = opnd1;
+          opnd1 = opnd0;
+          opnd0 = tmp;
+        }
+        if (opnd1->GetMeOp() != kMeOpConst || !static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
+          return nullptr;
+        }
+        auto *newcmp =
+            CreateMeExprCompare(OP_ne, PTY_u1, opnd0->GetPrimType(), *opnd0->GetOpnd(0), *opnd0->GetOpnd(1));
+        auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
+        return simplified == nullptr ? newcmp : simplified;
+      }
+      break;
+    }
+    case OP_lt:
+    case OP_ge: {
+      // case of:
+      // ge/lt unsigned (op0, 0) ==> 1/0
+      // ge/lt unsigned (0, op1) ==> eq/ne unsigned (op1, 0)
+      // ge/lt unsigned (op0, 1) ==> ne/eq unsigned (op0, 0)
+      if (IsUnsignedInteger(cmpExpr->GetOpndType())) {
+        if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
+          return CreateIntConstMeExpr(cmpop == OP_ge ? 1 : 0, PTY_u1);
+        }
+        // we prefer ne/eq in following optimizations
+        if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsZero()) {
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
+                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+          auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
+          return simplified == nullptr ? newcmp : simplified;
+        }
+        if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsOne()) {
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_ge ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
+                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+          auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
+          return simplified == nullptr ? newcmp : simplified;
+        }
+      }
+      break;
+    }
+    case OP_le:
+    case OP_gt: {
+      // case of:
+      // gt/le unsigned (0, op1) ==> 0/1
+      // gt/le unsigned (op0, 0) ==> ne/eq unsigned (op0, 0)
+      // gt/le unsigned (1, op1) ==> eq/ne unsigned (op1, 0)
+      if (IsUnsignedInteger(cmpExpr->GetOpndType())) {
+        if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsZero()) {
+          return CreateIntConstMeExpr(cmpop == OP_gt ? 0 : 1, PTY_u1);
+        }
+        // we prefer ne/eq in following optimizations
+        if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->GetConstVal()->IsZero()) {
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_ne : OP_eq, PTY_u1, cmpExpr->GetOpndType(),
+                                             *opnd0, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+          auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
+          return simplified == nullptr ? newcmp : simplified;
+        }
+        if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->GetConstVal()->IsOne()) {
+          auto *newcmp = CreateMeExprCompare(cmpop == OP_gt ? OP_eq : OP_ne, PTY_u1, cmpExpr->GetOpndType(),
+                                             *opnd1, *CreateIntConstMeExpr(0, cmpExpr->GetPrimType()));
+          auto *simplified = SimplifyCmpExpr(static_cast<OpMeExpr*>(newcmp));
+          return simplified == nullptr ? newcmp : simplified;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return nullptr;
 }
 
 MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
@@ -1461,151 +1759,8 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_gt:
     case OP_cmp:
     case OP_cmpl:
-    case OP_cmpg: {
-      MeExpr *opnd0 = opmeexpr->GetOpnd(0);
-      MeExpr *opnd1 = opmeexpr->GetOpnd(1);
-      if (opnd0 == opnd1) {
-        // node compared with itself
-        auto *cmpExpr = SimplifyCompareSameExpr(opmeexpr);
-        if (cmpExpr != nullptr) {
-          return cmpExpr;
-        }
-      }
-      bool isneeq = (opop == OP_ne || opop == OP_eq);
-      if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
-        maple::ConstantFold cf(mirModule);
-        MIRConst *opnd0const = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
-        MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
-        MIRConst *resconst = cf.FoldConstComparisonMIRConst(opmeexpr->GetOp(), opmeexpr->GetPrimType(),
-                                                            opmeexpr->GetOpndType(), *opnd0const, *opnd1const);
-        return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
-      } else if (isneeq && ((opnd0->GetMeOp() == kMeOpAddrof && opnd1->GetMeOp() == kMeOpConst) ||
-                            (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpAddrof))) {
-        MIRConst *resconst = nullptr;
-        if (opnd0->GetMeOp() == kMeOpAddrof) {
-          MIRConst *constopnd1 = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
-          if (constopnd1->IsZero()) {
-            // addrof will not be zero, so this comparison can be replaced with a constant
-            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst((opop == OP_ne),
-                *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
-          }
-        } else {
-          MIRConst *constopnd0 = static_cast<ConstMeExpr *>(opnd0)->GetConstVal();
-          if (constopnd0->IsZero()) {
-            // addrof will not be zero, so this comparison can be replaced with a constant
-            resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst((opop == OP_ne),
-                *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
-          }
-        }
-        if (resconst) {
-          return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
-        }
-      } else if (isneeq && ((opnd0->GetOp() == OP_iaddrof && opnd1->GetMeOp() == kMeOpConst) ||
-                            (opnd0->GetMeOp() == kMeOpConst && opnd1->GetOp() == OP_iaddrof))) {
-        auto *constVal = static_cast<ConstMeExpr *>((opnd0->GetMeOp() == kMeOpConst) ? opnd0 : opnd1)->GetConstVal();
-        if (!constVal->IsZero()) {
-          return nullptr;
-        }
-
-        auto *iaddrExpr = static_cast<OpMeExpr *>((opnd0->GetOp() == OP_iaddrof) ? opnd0 : opnd1);
-        auto fieldId = iaddrExpr->GetFieldID();
-        auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrExpr->GetTyIdx());
-        CHECK_FATAL(mirType->IsMIRPtrType(), "must be pointer type");
-        auto offset = static_cast<MIRPtrType *>(mirType)->GetPointedType()->GetBitOffsetFromBaseAddr(fieldId);
-        if (offset > 0) {
-          MIRConst *resconst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              (opop == OP_ne), *GlobalTables::GetTypeTable().GetTypeTable()[PTY_u1]);
-          return CreateConstMeExpr(opmeexpr->GetPrimType(), *resconst);
-        }
-        return nullptr;
-      } else if (isneeq && ((opnd1->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd0)) ||
-                            (opnd0->GetMeOp() == kMeOpConst && IfMeExprIsU1Type(opnd1)))) {
-        // ne (u1 expr, 0) ==> cmpexpr
-        // ne (u1 expr, 1) ==> !cmpexpr
-        // eq (u1 expr, 0) ==> !cmpexpr
-        // eq (u1 expr, 1) ==> cmpexpr
-        if (opnd0->GetMeOp() == kMeOpConst) { // ne/eq (0/1, u1 expr) => ne/eq (u1 expr, 0/1)
-          auto *tmpOpnd = opnd1;
-          opnd1 = opnd0;
-          opnd0 = tmpOpnd;
-        }
-        MIRConst *opnd1const = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
-        if ((opop == OP_ne && opnd1const->IsZero()) || (opop == OP_eq && opnd1const->IsOne())) {
-          return opnd0;
-        } else if ((opop == OP_ne && opnd1const->IsOne()) || (opop == OP_eq && opnd1const->IsZero())) {
-          if (IsCompareHasReverseOp(opnd0->GetOp())) {
-            OpMeExpr reverseMeExpr(kInvalidExprID, GetReverseCmpOp(opnd0->GetOp()), PTY_u1, opnd0->GetNumOpnds());
-            reverseMeExpr.SetOpnd(0, opnd0->GetOpnd(0));
-            reverseMeExpr.SetOpnd(1, opnd0->GetOpnd(1));
-            reverseMeExpr.SetOpndType(static_cast<OpMeExpr*>(opnd0)->GetOpndType());
-            return HashMeExpr(reverseMeExpr);
-          }
-        }
-      } else if (isneeq && opnd0->GetOp() == OP_select &&
-                 (opnd1->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd1->GetPrimType()))) {
-        OpMeExpr *opmeopnd0 = static_cast<OpMeExpr *>(opnd0);
-        if (opmeopnd0->GetOp() == OP_select) {
-          MeExpr *opnd01 = opmeopnd0->GetOpnd(1);
-          MeExpr *opnd02 = opmeopnd0->GetOpnd(2);
-          if (opnd01->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd01->GetPrimType()) &&
-              opnd02->GetMeOp() == kMeOpConst && IsPrimitivePureScalar(opnd02->GetPrimType())) {
-            MIRConst *constopnd1 = static_cast<ConstMeExpr *>(opnd1)->GetConstVal();
-            MIRConst *constopnd01 = static_cast<ConstMeExpr *>(opnd01)->GetConstVal();
-            MIRConst *constopnd02 = static_cast<ConstMeExpr *>(opnd02)->GetConstVal();
-            bool needswapopnd = false;
-            bool canbereplaced = false;
-            bool isne = opmeexpr->GetOp() == OP_ne;
-            if (isne && constopnd1->IsZero() && constopnd01->IsOne() && constopnd02->IsZero()) {
-              canbereplaced = true;
-            } else if (isne && constopnd1->IsZero() && constopnd01->IsZero() && constopnd02->IsOne()) {
-              canbereplaced = true;
-            } else if (isne && constopnd1->IsOne() && constopnd01->IsOne() && constopnd02->IsZero()) {
-              needswapopnd = true;
-              canbereplaced = true;
-            } else if (isne && constopnd1->IsOne() && constopnd01->IsZero() && constopnd02->IsOne()) {
-              needswapopnd = true;
-              canbereplaced = true;
-            } else if (!isne && constopnd1->IsZero() && constopnd01->IsOne() && constopnd02->IsZero()) {
-              needswapopnd = true;
-              canbereplaced = true;
-            } else if (!isne && constopnd1->IsZero() && constopnd01->IsZero() && constopnd02->IsOne()) {
-              needswapopnd = true;
-              canbereplaced = true;
-            } else if (!isne && constopnd1->IsOne() && constopnd01->IsOne() && constopnd02->IsZero()) {
-              canbereplaced = true;
-            } else if (!isne && constopnd1->IsOne() && constopnd01->IsZero() && constopnd02->IsOne()) {
-              canbereplaced = true;
-            }
-            if (canbereplaced) {
-              constexpr uint8 numOfOpnds = 3;
-              OpMeExpr newopmeexpr(kInvalidExprID, OP_select, PTY_u1, numOfOpnds);
-              newopmeexpr.SetOpnd(0, opmeopnd0->GetOpnd(0));
-              ConstMeExpr xnewopnd01(kInvalidExprID, constopnd01, PTY_u1);
-              MeExpr *newopnd01 = HashMeExpr(xnewopnd01);
-              ConstMeExpr xnewopnd02(kInvalidExprID, constopnd02, PTY_u1);
-              MeExpr *newopnd02 = HashMeExpr(xnewopnd02);
-              if (needswapopnd) {
-                newopmeexpr.SetOpnd(1, newopnd02);
-                newopmeexpr.SetOpnd(2, newopnd01);
-              } else {
-                newopmeexpr.SetOpnd(1, newopnd01);
-                newopmeexpr.SetOpnd(2, newopnd02);
-              }
-              newopmeexpr.SetHasAddressValue();
-              return HashMeExpr(newopmeexpr);
-            }
-          }
-        }
-      } else if (isneeq && opnd0->GetOp() == OP_cmp && opnd1->GetMeOp() == kMeOpConst) {
-        auto *constVal = static_cast<ConstMeExpr*>(opnd1)->GetConstVal();
-        if (constVal->GetKind() == kConstInt && constVal->IsZero()) {
-          auto *subOpnd0 = opnd0->GetOpnd(0);
-          auto *subOpnd1 = opnd0->GetOpnd(1);
-          return CreateMeExprCompare(opop, PTY_u1, subOpnd0->GetPrimType(), *subOpnd0, *subOpnd1);
-        }
-      }
-      return nullptr;
-    }
+    case OP_cmpg:
+      return SimplifyCmpExpr(opmeexpr);
     default:
       return nullptr;
   }
@@ -1645,6 +1800,10 @@ MeExpr *IRMap::SimplifyMeExpr(MeExpr *x) {
       NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
       for (uint32 i = 0; i < opexp->GetNumOpnds(); i++) {
         opexp->SetOpnd(i, SimplifyMeExpr(opexp->GetOpnd(i)));
+      }
+      // mir lowerer has done its best, we remove the remaining builtin_expect
+      if (opexp->GetOp() == OP_intrinsicop && opexp->GetIntrinsic() == INTRN_C___builtin_expect) {
+        return opexp->GetOpnd(0);
       }
       // TODO do the simplification of this op
       return opexp;
