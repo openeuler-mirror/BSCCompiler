@@ -168,6 +168,10 @@ public:
     return inputInfo->GetInputFile();
   }
 
+  const std::vector<std::shared_ptr<Action>> &GetInputActions() const {
+    return inputActions;
+  }
+
 private:
   std::shared_ptr<InputInfo> inputInfo;
 
@@ -355,6 +359,8 @@ class MplOptions {
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void UpdateRunningExe(const std::string &args);
+  void DumpActionTree(const Action &action, int idents) const;
+  void DumpActionTree() const;
   std::unique_ptr<mapleOption::OptionParser> optionParser = nullptr;
   std::map<std::string, std::vector<mapleOption::Option>> options = {};
   std::map<std::string, std::vector<mapleOption::Option>> exeOptions = {};
@@ -388,6 +394,7 @@ class MplOptions {
   bool genVtableImpl = false;
   bool hasPrinted = false;
   bool generalRegOnly = false;
+  bool isDriverPhasesDumpCmd = false;
   unsigned int helpLevel = mapleOption::kBuildTypeDefault;
   std::string partO2List = "";
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
