@@ -1146,6 +1146,7 @@ can_be_removed:
         opndInfo->same->redefinedInBB = false;
       }
     }
+    optSuccess = true;
     continue;
 insn_is_needed:
     if (!bb.GetEhSuccs().empty()) {
@@ -1296,6 +1297,7 @@ void Ebo::EboInit() {
   if (!beforeRegAlloc) {
     BuildCallerSaveRegisters();
   }
+  optSuccess = false;
 }
 
 /* perform EB optimizations right after instruction selection. */
@@ -1305,6 +1307,9 @@ void Ebo::Run() {
     EboProcess();
   } else {
     EboProcessSingleBB(); /* Perform SingleBB Optimization when -O1. */
+  }
+  if (optSuccess && cgFunc->GetMirModule().IsCModule()) {
+    Run();
   }
 }
 

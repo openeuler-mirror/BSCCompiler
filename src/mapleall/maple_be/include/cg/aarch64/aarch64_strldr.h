@@ -47,6 +47,7 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   bool CheckNewAmount(Insn &insn, uint32 newAmount);
   bool CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
   AArch64MemOperand *SelectReplaceMem(Insn &defInsn, RegOperand &base, Operand *offset);
+  AArch64MemOperand *SelectReplaceExt(Insn &defInsn, RegOperand &base, bool isSigned);
   bool CanDoMemProp(Insn *insn);
   void MemPropInit();
   void SelectPropMode(AArch64MemOperand &currMemOpnd);

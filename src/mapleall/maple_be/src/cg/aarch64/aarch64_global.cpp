@@ -35,18 +35,17 @@ MOperator lsMOpTable[kLsMOpTypeSize] = {
 };
 
 void AArch64GlobalOpt::Run() {
-  if (cgFunc.NumBBs() > kMaxBBNum || cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum) {
-    return;
-  }
-
   OptimizeManager optManager(cgFunc);
-  optManager.Optimize<UxtwMovPattern>();
-  optManager.Optimize<BackPropPattern>();
-  optManager.Optimize<ForwardPropPattern>();
-  optManager.Optimize<CselPattern>();
-  optManager.Optimize<CmpCsetPattern>();
-  optManager.Optimize<RedundantUxtPattern>();
-  optManager.Optimize<LocalVarSaveInsnPattern>();
+  bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
+  if (!hasSpillBarrier) {
+    optManager.Optimize<UxtwMovPattern>();
+    optManager.Optimize<BackPropPattern>();
+    optManager.Optimize<ForwardPropPattern>();
+    optManager.Optimize<CselPattern>();
+    optManager.Optimize<CmpCsetPattern>();
+    optManager.Optimize<RedundantUxtPattern>();
+    optManager.Optimize<LocalVarSaveInsnPattern>();
+  }
   optManager.Optimize<ExtendShiftOptPattern>();
 }
 
@@ -428,7 +427,7 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
   }
   firstRegOpnd = &static_cast<RegOperand&>(firstOpnd);
   secondRegOpnd = &static_cast<RegOperand&>(secondOpnd);
-  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister()) {
+  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister() || !firstRegOpnd->IsVirtualRegister()) {
     return false;
   }
   firstRegNO = firstRegOpnd->GetRegisterNumber();
@@ -1361,12 +1360,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
       tmpInsn = tmpInsn->GetNext();
     }
   } else { /* def use not in same BB */
-    if (defSrcInsn->GetBB() != def.GetBB()) {
-      return false;
-    }
-    if (defSrcInsn->GetId() > def.GetId()) {
-      return false;
-    }
+    return false;
   }
   /* case:
    * lsl w0, w0, #5
@@ -1430,12 +1424,12 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   Operand *shiftOpnd = nullptr;
   bool isExten = (extendOp != ExtendShiftOperand::kUndef) || lastOpnd.IsOpdExtend();
   if (isExten) {
-    if (!CheckExtendOp(lastOpnd)) {
+    if (!CheckExtendOp(lastOpnd) || (amount > k4BitSize)) {
       return;
     }
     shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
   } else {
-    if (!CheckShiftOp(lastOpnd)) {
+    if (!CheckShiftOp(lastOpnd) || (amount >= k32BitSize)) {
       return;
     }
     shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
@@ -1471,7 +1465,11 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   cgFunc.GetRD()->InitGenUse(*defInsn->GetBB(), false);
   cgFunc.GetRD()->UpdateInOut(*use.GetBB(), true);
   newInsn = replaceUseInsn;
-  optSuccess = true;
+  if (isExten) {
+    optSuccess = false;
+  } else {
+    optSuccess = true;
+  }
 }
 
 /*
@@ -1506,9 +1504,7 @@ void ExtendShiftOptPattern::Optimize(Insn &insn) {
     offset = immOpnd.GetValue();
   }
   amount += offset;
-  if (amount > k4ByteSize) {
-    return;
-  }
+
   ReplaceUseInsn(insn, *defInsn, amount);
 }
 
