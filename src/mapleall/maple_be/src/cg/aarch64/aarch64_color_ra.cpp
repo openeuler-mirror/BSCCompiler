@@ -417,7 +417,6 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   uint32 bbNum = 0;
   uint32 numDefs = 0;
   uint32 numUses = 0;
-
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
 
@@ -473,7 +472,7 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   }
   if (lr.GetPriority() > 0 && numDefs <= kPriorityDefThreashold && numUses <= kPriorityUseThreashold &&
       cgFunc->NumBBs() > kPriorityBBThreashold &&
-      (float(lr.GetNumBBMembers()) / cgFunc->NumBBs()) > kPriorityRatioThreashold) {
+      (static_cast<float>(lr.GetNumBBMembers()) / cgFunc->NumBBs()) > kPriorityRatioThreashold) {
     /* for large functions, delay allocating long LR with few defs and uses */
     lr.SetPriority(0.0);
   }
