@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mpl_options.h"
+#include <memory>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -215,6 +216,30 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kPartO2:
         partO2List = opt.Args();
         break;
+      case kNpeNoCheck:
+        npeCheckMode = SafetyCheckMode::kNoCheck;
+        break;
+      case kNpeStaticCheck:
+        npeCheckMode = SafetyCheckMode::kStaticCheck;
+        break;
+      case kNpeDynamicCheck:
+        npeCheckMode = SafetyCheckMode::kDynamicCheck;
+        break;
+      case kNpeDynamicCheckSilent:
+        npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+        break;
+      case kBoundaryNoCheck:
+        boundaryCheckMode = SafetyCheckMode::kNoCheck;
+        break;
+      case kBoundaryStaticCheck:
+        boundaryCheckMode = SafetyCheckMode::kStaticCheck;
+        break;
+      case kBoundaryDynamicCheck:
+        boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
+        break;
+      case kBoundaryDynamicCheckSilent:
+        boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+        break;
       default:
         // I do not care
         break;
@@ -293,8 +318,11 @@ ErrorCode MplOptions::DecideRunType() {
   return ret;
 }
 
-ErrorCode MplOptions::DecideRunningPhases() {
-  ErrorCode ret = kErrorNoError;
+std::shared_ptr<Action> MplOptions::DecideRunningPhasesByType(const std::string &inputFile) {
+  auto inputInfo = std::make_shared<InputInfo>(inputFile);
+  InputFileType inputFileType = inputInfo->GetInputFileType();
+  std::shared_ptr<Action> currentAction = std::make_shared<Action>("Input", inputInfo);
+
   bool isNeedMapleComb = true;
   bool isNeedMplcg = true;
   bool isNeedAs = true;
@@ -302,19 +330,21 @@ ErrorCode MplOptions::DecideRunningPhases() {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
       UpdateRunningExe(kBinNameClang);
-      UpdateRunningExe(kBinNameCpp2mpl);
-      break;
+      currentAction = std::make_shared<Action>(kBinNameClang, inputInfo, currentAction);
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
+      currentAction = std::make_shared<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
       break;
     case InputFileType::kFileTypeJar:
       // fall-through
     case InputFileType::kFileTypeClass:
       UpdateRunningExe(kBinNameJbc2mpl);
+      currentAction = std::make_shared<Action>(kBinNameJbc2mpl, inputInfo, currentAction);
       isNeedAs = false;
       break;
     case InputFileType::kFileTypeDex:
       UpdateRunningExe(kBinNameDex2mpl);
+      currentAction = std::make_shared<Action>(kBinNameDex2mpl, inputInfo, currentAction);
       isNeedAs = false;
       break;
     case InputFileType::kFileTypeMpl:
@@ -333,18 +363,56 @@ ErrorCode MplOptions::DecideRunningPhases() {
   }
   if (isNeedMapleComb) {
     selectedExes.push_back(kBinNameMapleComb);
+    currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
   }
   if (isNeedMplcg) {
     selectedExes.push_back(kBinNameMplcg);
     runningExes.push_back(kBinNameMplcg);
+    currentAction = std::make_shared<Action>(kBinNameMplcg, inputInfo, currentAction);
   }
 
-  // This condition is used for testing purposes: -c option will five you full compilation
+  // This condition is used for testing purposes: -c option will generate ELF file
   if (HasSetGenObj()) {
     // Required to use flags, since user will need them for specific scenarios
     UpdateRunningExe(kAsFlag);
+    currentAction = std::make_shared<Action>(kAsFlag, inputInfo, currentAction);
+
     UpdateRunningExe(kLdFlag);
+    /* "Linking step" Action can have several inputActions.
+     * Each inputAction links to previous Actions to create the action tree.
+     * For linking step, inputActions are all assembly actions.
+     * Linking step Action is created outside this function because
+     * we must create all assembly actions (for all input files) before.
+     */
   }
+
+  return currentAction;
+}
+
+ErrorCode MplOptions::DecideRunningPhases() {
+  ErrorCode ret = kErrorNoError;
+  std::vector<std::shared_ptr<Action>> linkActions;
+  std::shared_ptr<Action> lastAction;
+
+  for (auto &inputFile : splitsInputFiles) {
+    lastAction = DecideRunningPhasesByType(inputFile);
+    CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
+
+    /* TODO: Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
+     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files. */
+    if (lastAction->GetTool() == kAsFlag /*&& !HasSetGenObj()*/) {
+      /* For linking step, inputActions are all assembly actions. */
+      linkActions.push_back(lastAction);
+    } else {
+      rootActions.push_back(lastAction);
+    }
+  }
+
+  if (!linkActions.empty()) {
+    auto currentAction = std::make_shared<Action>(kLdFlag, linkActions);
+    rootActions.push_back(currentAction);
+  }
+
   return ret;
 }
 
