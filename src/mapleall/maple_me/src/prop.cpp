@@ -575,21 +575,26 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
     return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
   }
   if (IsPrimitiveInteger(lhsTy->GetPrimType()) &&
-      lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref &&
-      GetPrimTypeSize(lhsTy->GetPrimType()) < GetPrimTypeSize(rhs->GetPrimType())) {
-    if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
-      return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
-    } else {
-      Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
-      PrimType newPrimType = PTY_u32;
-      if (IsSignedInteger(lhsTy->GetPrimType())) {
-        newPrimType = PTY_i32;
+      lhsTy->GetPrimType() != PTY_ptr && lhsTy->GetPrimType() != PTY_ref) {
+    if (GetPrimTypeSize(lhsTy->GetPrimType()) < GetPrimTypeSize(rhs->GetPrimType())) {
+      if (GetPrimTypeSize(lhsTy->GetPrimType()) >= 4) {
+        return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
+      } else {
+        Opcode extOp = IsSignedInteger(lhsTy->GetPrimType()) ? OP_sext : OP_zext;
+        PrimType newPrimType = PTY_u32;
+        if (IsSignedInteger(lhsTy->GetPrimType())) {
+          newPrimType = PTY_i32;
+        }
+        OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
+        opmeexpr.SetBitsSize(GetPrimTypeSize(lhsTy->GetPrimType()) * 8);
+        opmeexpr.SetOpnd(0, rhs);
+        auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
+        return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
       }
-      OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-      opmeexpr.SetBitsSize(GetPrimTypeSize(lhsTy->GetPrimType()) * 8);
-      opmeexpr.SetOpnd(0, rhs);
-      auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
-      return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
+    } else if (GetPrimTypeSize(lhsTy->GetPrimType()) == GetPrimTypeSize(rhs->GetPrimType()) &&
+               IsSignedInteger(lhsTy->GetPrimType()) != IsSignedInteger(rhs->GetPrimType())) {
+      // need to add a cvt
+      return irMap.CreateMeExprTypeCvt(lhsTy->GetPrimType(), rhs->GetPrimType(), *rhs);
     }
   }
   // if lhs is function pointer and rhs is not, insert a retype
