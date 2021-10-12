@@ -2532,7 +2532,7 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegT
      * For split LR, the vreg liveness is optimized, but for spill location
      * the stack location needs to be maintained for the entire LR.
      */
-    conflict = lr->GetOldConflict();
+    return nullptr;
   } else {
     conflict = lr->GetBBConflict();
   }
