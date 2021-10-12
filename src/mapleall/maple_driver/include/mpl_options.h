@@ -58,6 +58,127 @@ enum RunMode {
   kUnkownRun
 };
 
+enum SafetyCheckMode {
+  kNoCheck,
+  kStaticCheck,
+  kDynamicCheck,
+  kDynamicCheckSilent
+};
+
+class InputInfo {
+public:
+  InputInfo(const std::string &inputFile)
+    : inputFile(inputFile) {
+
+    inputFileType = GetInputFileType(inputFile);
+
+    inputName = FileUtils::GetFileName(inputFile, true);
+    inputFolder = FileUtils::GetFileFolder(inputFile);
+    outputFolder = inputFolder;
+    outputName = FileUtils::GetFileName(inputFile, false);
+    fullOutput = outputFolder + outputName;
+  }
+
+  static InputFileType GetInputFileType(const std::string &inputFile) {
+    InputFileType fileType = InputFileType::kFileTypeNone;
+    std::string extensionName = FileUtils::GetFileExtension(inputFile);
+
+    if (extensionName == "class") {
+      fileType = InputFileType::kFileTypeClass;
+    }
+    else if (extensionName == "dex") {
+      fileType = InputFileType::kFileTypeDex;
+    }
+    else if (extensionName == "c") {
+      fileType = InputFileType::kFileTypeC;
+    }
+    else if (extensionName == "cpp") {
+      fileType = InputFileType::kFileTypeCpp;
+    }
+    else if (extensionName == "ast") {
+      fileType = InputFileType::kFileTypeAst;
+    }
+    else if (extensionName == "jar") {
+      fileType = InputFileType::kFileTypeJar;
+    }
+    else if (extensionName == "mpl" || extensionName == "bpl") {
+      if (inputFile.find("VtableImpl") == std::string::npos) {
+        if (inputFile.find(".me.mpl") != std::string::npos) {
+          fileType = InputFileType::kFileTypeMeMpl;
+        } else {
+          fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+        }
+      } else {
+        fileType = InputFileType::kFileTypeVtableImplMpl;
+      }
+    } else if (extensionName == "s") {
+      fileType = InputFileType::kFileTypeS;
+    }
+
+    return fileType;
+  }
+
+  InputFileType GetInputFileType() const {
+    return inputFileType;
+  }
+
+  const std::string &GetInputFile() const {
+    return inputFile;
+  }
+
+private:
+  std::string inputFile = "";
+  InputFileType inputFileType = InputFileType::kFileTypeNone;
+
+  std::string inputName = "";
+  std::string inputFolder = "";
+  std::string outputName = "";
+  std::string outputFolder = "";
+  std::string fullOutput = "";
+};
+
+class Action {
+public:
+  Action(const std::string &tool, std::shared_ptr<InputInfo> inputInfo)
+    : inputInfo(inputInfo), tool(tool) {}
+
+  Action(const std::string &tool, std::shared_ptr<InputInfo> inputInfo,
+         std::shared_ptr<Action> in_action)
+    : inputInfo(inputInfo), tool(tool)  {
+    inputActions.push_back(in_action);
+  }
+
+  Action(const std::string &tool, const std::vector<std::shared_ptr<Action>> &inActions)
+    : tool(tool)  {
+
+    for (auto &inAction : inActions) {
+      inputActions.push_back(inAction);
+      linkInputFiles.push_back(inAction->GetInputFile());
+    }
+
+    /* FIXME: fix hardcode a.out */
+    inputInfo = std::make_shared<InputInfo>("./a.out");
+  }
+
+  const std::string &GetTool() const {
+    return tool;
+  }
+
+  const std::string &GetInputFile() const {
+    return inputInfo->GetInputFile();
+  }
+
+private:
+  std::shared_ptr<InputInfo> inputInfo;
+
+  std::string tool = "";
+  std::string exeFolder = "";
+  std::vector<std::string> linkInputFiles;
+
+  /* This vector contains a links to previous actions in Action tree */
+  std::vector<std::shared_ptr<Action>> inputActions;
+};
+
 class MplOption {
  public:
   MplOption(const std::string &key, const std::string &value, bool needRootPath = false)
@@ -207,6 +328,14 @@ class MplOptions {
     return generalRegOnly;
   }
 
+  SafetyCheckMode GetNpeCheckMode() const {
+    return npeCheckMode;
+  }
+
+  SafetyCheckMode GetBoundaryCheckMode() const {
+   return boundaryCheckMode;
+  }
+
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint() const;
@@ -218,6 +347,7 @@ class MplOptions {
   ErrorCode HandleGeneralOptions();
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
+  std::shared_ptr<Action> DecideRunningPhasesByType(const std::string &inputFile);
   ErrorCode CheckInputFileValidity();
   ErrorCode CheckFileExits();
   ErrorCode AddOption(const mapleOption::Option &option);
@@ -260,6 +390,10 @@ class MplOptions {
   bool generalRegOnly = false;
   unsigned int helpLevel = mapleOption::kBuildTypeDefault;
   std::string partO2List = "";
+  SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
+  SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
+
+  std::vector<std::shared_ptr<Action>> rootActions;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H
