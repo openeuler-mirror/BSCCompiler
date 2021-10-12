@@ -111,6 +111,12 @@ int MplOptions::Parse(int argc, char **argv) {
   }
   // Check whether the file was readable
   ret = CheckFileExits();
+
+  if (isDriverPhasesDumpCmd) {
+    DumpActionTree();
+    return kErrorExitHelp;
+  }
+
   return ret;
 }
 
@@ -209,6 +215,9 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         break;
       case kAllDebug:
         debugFlag = true;
+        break;
+      case kMaplePrintPhases:
+        isDriverPhasesDumpCmd = true;
         break;
       case kWithDwarf:
         withDwarf = true;
@@ -414,6 +423,32 @@ ErrorCode MplOptions::DecideRunningPhases() {
   }
 
   return ret;
+}
+
+void MplOptions::DumpActionTree() const {
+  for (auto &rNode : rootActions) {
+    DumpActionTree(*rNode, 0);
+  }
+}
+
+void MplOptions::DumpActionTree(const Action &action, int indents) const {
+  for (const std::shared_ptr<Action> &a : action.GetInputActions()) {
+    DumpActionTree(*a, indents+1);
+  }
+
+  if (indents != 0) {
+    LogInfo::MapleLogger() << "|";
+    /* print indents */
+    for (int i = 0; i < indents; ++i) {
+      LogInfo::MapleLogger() << "-";
+    }
+  }
+
+  if (action.GetTool() == "Input") {
+    LogInfo::MapleLogger() << action.GetTool() << " " << action.GetInputFile() << '\n';
+  } else {
+    LogInfo::MapleLogger() << action.GetTool() << '\n';
+  }
 }
 
 ErrorCode MplOptions::CheckInputFileValidity() {
