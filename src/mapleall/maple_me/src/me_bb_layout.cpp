@@ -17,6 +17,7 @@
 #include "bb.h"
 #include "me_irmap.h"
 #include "me_option.h"
+#include "me_predict.h"
 
 // This BB layout strategy strictly obeys source ordering when inside try blocks.
 // This Optimization will reorder the bb layout. it start from the first bb of func.
@@ -40,6 +41,8 @@
 //    (3) For goto curBB see if goto target can be placed as next.
 // 5. do step 3 for nextBB until all bbs are laid out
 namespace maple {
+static constexpr uint32 kMaxNumBBToPredict = 7500;
+
 static void CreateGoto(BB &bb, MeFunction &func, BB &fallthru) {
   LabelIdx label = func.GetOrCreateBBLabel(fallthru);
   if (func.GetIRMap() != nullptr) {
@@ -269,7 +272,7 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
 // target is a BB with only a single goto statement, optimize the branch target
 // to the eventual target
 // (2) bb's last statement is a conditonal branch, if the branch target is a BB with a single
-// condtioal branch statement and has the same condtion as bb's last statement, optimize the
+// conditional branch statement and has the same condition as bb's last statement, optimize the
 // branch target to the eventual target.
 void BBLayout::OptimizeBranchTarget(BB &bb) {
   if (bbVisited[bb.GetBBId().GetIdx()]) {
@@ -295,6 +298,7 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
   do {
     ASSERT(!bb.GetSucc().empty(), "container check");
     BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc().back() : bb.GetSucc().front();
+    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc().back() != bb.GetSucc().front()), "target is same as fallthru");
     if (brTargetBB->GetAttributes(kBBAttrWontExit)) {
       return;
     }
@@ -438,6 +442,16 @@ BB *BBLayout::GetFallThruBBSkippingEmpty(BB &bb) {
 // is its fallthru nextBB.
 void BBLayout::ChangeToFallthruFromGoto(BB &bb) {
   ASSERT(bb.GetKind() == kBBGoto, "ChangeToFallthruFromGoto: unexpected BB kind");
+  if (func.GetIRMap() != nullptr) {
+    bb.RemoveMeStmt(to_ptr(bb.GetMeStmts().rbegin()));
+  } else {
+    bb.RemoveLastStmt();
+  }
+  bb.SetKind(kBBFallthru);
+}
+
+void BBLayout::ChangeToFallthruFromCondGoto(BB &bb) {
+  ASSERT(bb.GetKind() == kBBCondGoto, "ChangeToFallthruFromCondGoto: unexpected BB kind");
   if (func.GetIRMap() != nullptr) {
     bb.RemoveMeStmt(to_ptr(bb.GetMeStmts().rbegin()));
   } else {
@@ -640,6 +654,23 @@ BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
   return newFallthru;
 }
 
+void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
+  if (needDealWithTryBB) { return; }
+  auto *fallthru = bb.GetSucc().front();
+  if (fallthru && fallthru->GetBBLabel() == 0 &&
+      (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
+    if (fallthru->GetSucc().front() == bb.GetSucc().back()) {
+      bb.ReplaceSucc(fallthru, bb.GetSucc().back());
+      ASSERT(fallthru->GetPred().empty(), "fallthru should not has other pred");
+      ChangeToFallthruFromCondGoto(bb);
+      bb.GetSucc().pop_back(); // resize succ to 1
+      laidOut[fallthru->GetBBId()] = true;
+      RemoveUnreachable(*fallthru);
+    }
+  }
+  return;
+}
+
 void BBLayout::DumpBBPhyOrder() const {
   LogInfo::MapleLogger() << func.GetName() << " final BB order " <<  '\n';
   for (auto bb : layoutBBs) {
@@ -660,8 +691,19 @@ void BBLayout::OptimiseCFG() {
     auto *bb = *bIt;
     if (bb->GetKind() == kBBCondGoto || bb->GetKind() == kBBGoto) {
       OptimizeBranchTarget(*bb);
+      // check fallthru is empty without label, delete fallthru and
+      // make fallthrSucc as the only succ of bb
+      //      bb
+      //      /      \
+      //   fallthru  |
+      //      \      /
+      //      fallthruSucc
+      if (bb->GetKind() == kBBCondGoto) {
+        OptimizeEmptyFallThruBB(*bb);
+      }
     }
   }
+  cfg->UnreachCodeAnalysis(true);
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
@@ -676,6 +718,7 @@ void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
 }
 
 void BBLayout::LayoutWithoutProf() {
+  MePrediction::RebuildFreq(func, *phase);
   BB *bb = cfg->GetFirstBB();
   while (bb != nullptr) {
     AddBB(*bb);
@@ -790,15 +833,14 @@ void BBLayout::AddBBProf(BB &bb) {
     BB *targetBB = curBB->GetSucc().front();
     if (curBB->GetKind() == kBBFallthru && (&bb != targetBB)) {
       CreateGoto(*curBB, func, *targetBB);
-    }
-    if (curBB->GetKind() == kBBGoto && (&bb == targetBB)) {
+    } else if (curBB->GetKind() == kBBGoto && (&bb == targetBB)) {
       // delete the goto stmt
       ChangeToFallthruFromGoto(*curBB);
     }
-  }
-  if (curBB->GetKind() == kBBCondGoto) {
+  } else if (curBB->GetKind() == kBBCondGoto) {
     BB *fallthru = curBB->GetSucc(0);
     BB *targetBB = curBB->GetSucc(1);
+    CHECK_FATAL(targetBB != fallthru, "condbb targetBB is same as fallthru");
     if (targetBB == &bb) {
       LabelIdx fallthruLabel = func.GetOrCreateBBLabel(*fallthru);
       if (func.GetIRMap() != nullptr) {
@@ -908,6 +950,11 @@ BB *BBLayout::NextBBProf(BB &bb) {
 
 void BBLayout::LayoutWithProf() {
   OptimiseCFG();
+  // We rebuild freq after OptimiseCFG
+  MePrediction::RebuildFreq(func, *phase);
+  if (enabledDebug) {
+    cfg->DumpToFile("cfgopt", false, true);
+  }
   BuildEdges();
   BB *bb = cfg->GetFirstBB();
   while (bb != nullptr) {
@@ -928,7 +975,8 @@ void BBLayout::LayoutWithProf() {
 }
 
 void BBLayout::RunLayout() {
-  if (profValid) {
+  // If the func is too large, won't run prediction
+  if (func.GetMIRModule().IsCModule() && cfg->GetAllBBs().size() <= kMaxNumBBToPredict) {
     LayoutWithProf();
   } else {
     LayoutWithoutProf();
@@ -942,7 +990,7 @@ void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
   MeCFG *cfg = GET_ANALYSIS(MEMeCfg, f);
-  auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f));
+  auto *bbLayout = GetPhaseAllocator()->New<BBLayout>(*GetPhaseMemPool(), f, DEBUGFUNC_NEWPM(f), this);
   // assume common_entry_bb is always bb 0
   ASSERT(cfg->front() == cfg->GetCommonEntryBB(), "assume bb[0] is the commont entry bb");
   if (DEBUGFUNC_NEWPM(f)) {
