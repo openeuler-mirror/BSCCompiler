@@ -209,9 +209,8 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
                                        static_cast<AArch64RegOperand *>(&regOp),
                                        nullptr, &offsetOp, nullptr);
         insn = &cg->BuildInstruction<AArch64Insn>(MOP_xldr, regOp, memOpnd);
-
+        insns.push_back(insn);
         if (offset > 0) {
-          insns.push_back(insn);
           AArch64OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(offset, k32BitSize);
           insns.push_back(&cg->BuildInstruction<AArch64Insn>(
               MOP_xaddrri12, regOp, regOp, ofstOpnd));
@@ -706,18 +705,18 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
   MIRPreg *preg = a64CGFunc->GetPseudoRegFromVirtualRegNO(regNO);
   if (preg) {
     switch (preg->GetOp()) {
-    case OP_constval:
-      lr->SetRematerializable(preg->rematInfo.mirConst);
-      break;
-    case OP_addrof:
-    case OP_dread:
-      lr->SetRematerializable(preg->GetOp(), preg->rematInfo.sym,
-                              preg->fieldID, preg->addrUpper);
-      break;
-    case OP_undef:
-      break;
-    default:
-      ASSERT(false, "Unexpected op in Preg");
+      case OP_constval:
+        lr->SetRematerializable(preg->rematInfo.mirConst);
+        break;
+      case OP_addrof:
+      case OP_dread:
+        lr->SetRematerializable(preg->GetOp(), preg->rematInfo.sym,
+                                preg->fieldID, preg->addrUpper);
+        break;
+      case OP_undef:
+        break;
+      default:
+        ASSERT(false, "Unexpected op in Preg");
     }
   }
 
@@ -2724,6 +2723,9 @@ MemOperand *GraphColorRegAllocator::GetCommonReuseMem(const uint64 *conflict, co
 
 /* See if any of the non-conflict LR is spilled and use its memOpnd. */
 MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegType regType) {
+  if (cgFunc->GetMirModule().GetSrcLang() != kSrcLangC) {
+    return nullptr;
+  }
   if (IsLocalReg(vregNO)) {
     return nullptr;
   }
@@ -2735,15 +2737,18 @@ MemOperand *GraphColorRegAllocator::GetReuseMem(uint32 vregNO, uint32 size, RegT
      * For split LR, the vreg liveness is optimized, but for spill location
      * the stack location needs to be maintained for the entire LR.
      */
-    conflict = lr->GetOldConflict();
+    return nullptr;
   } else {
     conflict = lr->GetBBConflict();
   }
 
   std::set<MemOperand*> usedMemOpnd;
   auto updateMemOpnd = [&usedMemOpnd, this](regno_t regNO) {
+    if (regNO >= lrVec.size()) {
+      return;
+    }
     LiveRange *lrInner = lrVec[regNO];
-    if (lrInner->GetSpillMem() != nullptr) {
+    if (lrInner && lrInner->GetSpillMem() != nullptr) {
       (void)usedMemOpnd.insert(lrInner->GetSpillMem());
     }
   };
@@ -2824,8 +2829,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
   if (lr->IsRematerializable(cg->GetRematLevel())) {
     std::string comment = " REMATERIALIZE for spill vreg: " +
                           std::to_string(regNO);
-    if (isLastInsn)
-    {
+    if (isLastInsn) {
       for (auto tgtBB : insn.GetBB()->GetSuccs()) {
         std::vector<Insn *> rematInsns = lr->Rematerialize(a64CGFunc, phyOpnd);
         for (auto &&remat : rematInsns) {
@@ -2833,9 +2837,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
           tgtBB->InsertInsnBegin(*remat);
         }
       }
-    }
-    else
-    {
+    } else {
       std::vector<Insn *> rematInsns = lr->Rematerialize(a64CGFunc, phyOpnd);
       for (auto &&remat : rematInsns) {
         remat->SetComment(comment);
