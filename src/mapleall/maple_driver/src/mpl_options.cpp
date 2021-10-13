@@ -104,6 +104,18 @@ int MplOptions::Parse(int argc, char **argv) {
     }
   }
 
+  /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
+   * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
+   * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
+   * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
+   */
+  else { // kCustomRun
+    ret = DecideRunningPhases(runningExes);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+  }
+
   // Handle other options
   ret = HandleGeneralOptions();
   if (ret != kErrorNoError) {
@@ -419,6 +431,34 @@ ErrorCode MplOptions::DecideRunningPhases() {
 
   if (!linkActions.empty()) {
     auto currentAction = std::make_shared<Action>(kLdFlag, linkActions);
+    rootActions.push_back(currentAction);
+  }
+
+  return ret;
+}
+
+ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExes) {
+  ErrorCode ret = kErrorNoError;
+  std::vector<std::shared_ptr<Action>> linkActions;
+  std::shared_ptr<Action> lastAction;
+  bool isCombCompiler = false;
+
+  for (auto &inputFile : splitsInputFiles) {
+
+    auto inputInfo = std::make_shared<InputInfo>(inputFile);
+    std::shared_ptr<Action> currentAction = std::make_shared<Action>("Input", inputInfo);
+
+    for (const auto &exe : runExes) {
+      if (exe == kBinNameMe) {
+        isCombCompiler = true;
+        currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
+        continue;
+      } else if (exe == kBinNameMpl2mpl && isCombCompiler == true) {
+        continue;
+      }
+      currentAction = std::make_shared<Action>(exe, inputInfo, currentAction);
+    }
+
     rootActions.push_back(currentAction);
   }
 

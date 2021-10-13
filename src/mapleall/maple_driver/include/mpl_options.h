@@ -367,6 +367,7 @@ class MplOptions {
   ErrorCode HandleGeneralOptions();
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
+  ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
   std::shared_ptr<Action> DecideRunningPhasesByType(const std::string &inputFile);
   ErrorCode CheckInputFileValidity();
   ErrorCode CheckFileExits();
