@@ -16,13 +16,6 @@
 #include "me_irmap.h"
 
 namespace maple {
-uint32 MergeStmts::GetStructFieldSize(MIRStructType* structType, FieldID fieldID) {
-  TyIdx fieldTypeIdx = structType->GetFieldTyIdx(fieldID);
-  MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
-  int32 fieldSize = fieldType->GetSize();
-  return fieldSize;
-}
-
 uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID) {
   TyIdx fieldTypeIdx = structType->GetFieldTyIdx(fieldID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
@@ -33,6 +26,12 @@ uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fiel
     fieldBitSize = fieldType->GetSize() * 8;
   }
   return fieldBitSize;
+}
+
+uint32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
+  MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
+  MIRType *PointedMirType = ptrMirType->GetPointedType();
+  return PointedMirType->GetSize() * 8;
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
@@ -49,7 +48,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
   ASSERT(iassignCandidates[startCandidate].second->GetOp() == OP_iassign, "Candidate MeStmt must be Iassign");
 
   while (startCandidate < endCandidate) {
-    auto lhsTyIdx = static_cast<IassignMeStmt*>(iassignCandidates[startCandidate].second)->GetLHSVal()->GetTyIdx();
+    TyIdx lhsTyIdx = static_cast<IassignMeStmt*>(iassignCandidates[startCandidate].second)->GetLHSVal()->GetTyIdx();
     MIRPtrType *mirPtrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
     MIRStructType *lhsStructType = static_cast<MIRStructType *>(mirPtrType->GetPointedType());
 
@@ -66,17 +65,36 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
     int32 targetBitSize;
     for (int32 end = endCandidate; end > startCandidate; end--) {
       FieldID endFieldID =  static_cast<IassignMeStmt*>(iassignCandidates[end].second)->GetLHSVal()->GetFieldID();
-      targetBitSize = iassignCandidates[end].first + GetStructFieldBitSize(lhsStructType, endFieldID) - startBitOffset;
-      if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
-        int32 coveredBitSize = 0;
-        for (int32 i = startCandidate; i <= end; i++) {
-          auto fieldID = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetFieldID();
-          coveredBitSize += GetStructFieldBitSize(lhsStructType, fieldID);
+      if (endFieldID == 0) {
+        TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[end].second)->GetLHSVal()->GetTyIdx();
+        int32 lhsPointedTypeBitSize = GetPointedTypeBitSize(lhsPtrTypeIdx);
+        targetBitSize = iassignCandidates[end].first + lhsPointedTypeBitSize - startBitOffset;
+        if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
+          int32 coveredBitSize = 0;
+          for (int32 i = startCandidate; i <= end; i++) {
+            TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetTyIdx();
+            coveredBitSize += GetPointedTypeBitSize(lhsPtrTypeIdx);
+          }
+          if (coveredBitSize == targetBitSize) {
+            found = true;
+            endIdx = end;
+            break;
+          }
         }
-        if (coveredBitSize == targetBitSize) {
-          found = true;
-          endIdx = end;
-          break;
+
+      } else {
+        targetBitSize = iassignCandidates[end].first + GetStructFieldBitSize(lhsStructType, endFieldID) - startBitOffset;
+        if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
+          int32 coveredBitSize = 0;
+          for (int32 i = startCandidate; i <= end; i++) {
+            FieldID fieldID = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetFieldID();
+            coveredBitSize += GetStructFieldBitSize(lhsStructType, fieldID);
+          }
+          if (coveredBitSize == targetBitSize) {
+            found = true;
+            endIdx = end;
+            break;
+          }
         }
       }
     }
@@ -84,14 +102,25 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
     if (found) {
       // Concatenate constants
       FieldID fieldID = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second)->GetLHSVal()->GetFieldID();
-      int32 fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
+      int32 fieldBitSize;
+      if (fieldID == 0) {
+        TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second)->GetLHSVal()->GetTyIdx();
+        fieldBitSize = GetPointedTypeBitSize(lhsPtrTypeIdx);
+      } else {
+        fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
+      }
       IassignMeStmt *lastIassignMeStmt = static_cast<IassignMeStmt*>(iassignCandidates[endIdx].second);
       ConstMeExpr *rhsLastIassignMeStmt = static_cast<ConstMeExpr*>(lastIassignMeStmt->GetOpnd(1));
       uint64 fieldVal = rhsLastIassignMeStmt->GetIntValue();
       uint64 combinedVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
       for (int32 stmtIdx = endIdx - 1; stmtIdx >= startCandidate; stmtIdx--) {
         fieldID = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetFieldID();
-        fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
+        if (fieldID == 0) {
+          TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetLHSVal()->GetTyIdx();
+          fieldBitSize = GetPointedTypeBitSize(lhsPtrTypeIdx);
+        } else {
+          fieldBitSize = GetStructFieldBitSize(lhsStructType, fieldID);
+        }
         fieldVal = static_cast<ConstMeExpr*>(
             static_cast<IassignMeStmt*>(iassignCandidates[stmtIdx].second)->GetOpnd(1))->GetIntValue();
         fieldVal = (fieldVal << (64 - fieldBitSize)) >> (64 - fieldBitSize);
@@ -138,14 +167,11 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       startCandidate++;
       continue;
     }
-
-    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(
-        dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
+    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
     int32 lhsFieldBitOffsetStart = lhsOrigStStart->GetOffset().val;
     MIRSymbol *lhsMIRStStart = lhsOrigStStart->GetMIRSymbol();
     TyIdx lhsTyIdxStart = lhsMIRStStart->GetTyIdx();
-    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(
-        GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
+    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
 
     // Find qualified candidates as many as possible
     bool found = false;
@@ -190,7 +216,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
             dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
-        combinedVal = (combinedVal << fieldBitSizeStmtIdx) | fieldValStmtIdx;
+        combinedVal = combinedVal << fieldBitSizeStmtIdx | fieldValStmtIdx;
       }
       // Dassignoff is NOT part of MeStmt yet
       DassignMeStmt *firstDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second);
@@ -205,7 +231,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         DassignMeStmt *removedDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[canIdx].second);
         removedDassignStmt->SetEmitDassignoff(false);
         removedDassignStmt->SetOmitEmit(true);
-        // Cancel emit instead of removal here
+        // TODO: Cancel emit instead of removal here
         bb->RemoveMeStmt(removedDassignStmt);
       }
       startCandidate = endIdx + 1;
@@ -221,8 +247,8 @@ void MergeStmts::MergeMeStmts() {
 
   for (BB *bb : layoutBBs) {
     ASSERT(bb != nullptr, "Check bblayout phase");
-    std::list<MeStmt*> candidateStmts;
-    std::map<FieldID, MeStmt*> uniqCheck;
+    std::queue<MeStmt*> candidateStmts;
+
     // Identify consecutive (I/D)assign stmts
     // Candiates of (I/D)assignment are grouped together and saparated by nullptr
     auto &meStmts = bb->GetMeStmts();
@@ -235,35 +261,43 @@ void MergeStmts::MergeMeStmts() {
           MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
           MIRType *lhsMirType = lhsMirPtrType->GetPointedType();
           ConstMeExpr *rhsIassignStmt = static_cast<ConstMeExpr*>(iassignStmt->GetOpnd(1));
-          FieldID id = iassignStmt->GetLHSVal()->GetFieldID();
-          if (id == 0 ||
-              !lhsMirType->IsMIRStructType() ||
-              rhsIassignStmt->GetMeOp() != kMeOpConst ||
+          if (rhsIassignStmt->GetMeOp() != kMeOpConst ||
               rhsIassignStmt->GetConstVal()->GetKind() != kConstInt) {
-            candidateStmts.push_back(nullptr);
-            uniqCheck.clear();
-          } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
-            candidateStmts.push_back(&meStmt);
-            uniqCheck.clear();
-            uniqCheck[id] = iassignStmt;
-          } else if (candidateStmts.back()->GetOp() == OP_iassign &&
-                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetTyIdx() == lhsTyIdx &&
-                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() ==
-                         iassignStmt->GetLHSVal()->GetBase() &&
-                     static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetOffset() ==
-                         iassignStmt->GetLHSVal()->GetOffset()) {
-            MeStmt *oldIass = uniqCheck[id];
-            if (oldIass != nullptr) {
-              candidateStmts.remove(oldIass); // remove from candidates
-              bb->RemoveMeStmt(oldIass);      // delete from bb
+            candidateStmts.push(nullptr);
+            break;
+          }
+
+          if (iassignStmt->GetLHSVal()->GetFieldID() == 0) {
+            // Grouping based on lhs base addresses
+            if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
+              candidateStmts.push(&meStmt);
+            } else if (candidateStmts.back()->GetOp() == OP_iassign &&
+                       static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetFieldID() == 0 &&
+                       static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() ==
+                       iassignStmt->GetLHSVal()->GetBase()) {
+              candidateStmts.push(&meStmt);
+            } else {
+              candidateStmts.push(nullptr);
+              candidateStmts.push(&meStmt);
             }
-            candidateStmts.push_back(&meStmt);
-            uniqCheck[id] = iassignStmt;
+
           } else {
-            candidateStmts.push_back(nullptr);
-            candidateStmts.push_back(&meStmt);
-            uniqCheck.clear();
-            uniqCheck[id] = iassignStmt;
+            // Grouping based on struct fields
+            if (!lhsMirType->IsMIRStructType()) {
+              candidateStmts.push(nullptr);
+            } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
+              candidateStmts.push(&meStmt);
+            } else if (candidateStmts.back()->GetOp() == OP_iassign &&
+                       static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetTyIdx() == lhsTyIdx &&
+                       static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetBase() ==
+                           iassignStmt->GetLHSVal()->GetBase() &&
+                       static_cast<IassignMeStmt*>(candidateStmts.back())->GetLHSVal()->GetOffset() ==
+                           iassignStmt->GetLHSVal()->GetOffset()) {
+              candidateStmts.push(&meStmt);
+            } else {
+              candidateStmts.push(nullptr);
+              candidateStmts.push(&meStmt);
+            }
           }
           break;
         }
@@ -278,21 +312,20 @@ void MergeStmts::MergeMeStmts() {
               !lhsMirType->IsMIRStructType() ||
               rhsDassignStmt->GetMeOp() != kMeOpConst ||
               rhsDassignStmt->GetConstVal()->GetKind() != kConstInt) {
-            candidateStmts.push_back(nullptr);
+            candidateStmts.push(nullptr);
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
-            candidateStmts.push_back(&meStmt);
+            candidateStmts.push(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_dassign &&
-              static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
-            candidateStmts.push_back(&meStmt);
+                     static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
+            candidateStmts.push(&meStmt);
           } else {
-            candidateStmts.push_back(nullptr);
-            candidateStmts.push_back(&meStmt);
+            candidateStmts.push(nullptr);
+            candidateStmts.push(&meStmt);
           }
           break;
         }
         default: {
-          candidateStmts.push_back(nullptr);
-          uniqCheck.clear();
+          candidateStmts.push(nullptr);
           break;
         }
       }
@@ -301,24 +334,44 @@ void MergeStmts::MergeMeStmts() {
     // Merge possible candidate (I/D)assign stmts
     while (!candidateStmts.empty()) {
       if (candidateStmts.front() == nullptr) {
-        candidateStmts.pop_front();
+        candidateStmts.pop();
         continue;
       }
       Opcode op = candidateStmts.front()->GetOp();
       switch (op) {
         case OP_iassign: {
           vOffsetStmt iassignCandidates;
+          std::map<FieldID, MeStmt*> uniqueCheck;
           while (!candidateStmts.empty() && candidateStmts.front() != nullptr &&
                  candidateStmts.front()->GetOp() == OP_iassign) {
-            TyIdx lhsTyIdx = static_cast<IassignMeStmt*>(candidateStmts.front())->GetLHSVal()->GetTyIdx();
-            MIRPtrType *lhsMirPtrType = static_cast<MIRPtrType*>(
-                GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
-            MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
-            IvarMeExpr *iVar = static_cast<IassignMeStmt*>(candidateStmts.front())->GetLHSVal();
-            int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVar->GetFieldID());
-            iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
-            candidateStmts.pop_front();
+            IassignMeStmt *iassignStmt = static_cast<IassignMeStmt*>(candidateStmts.front());
+            IvarMeExpr *iVarIassignStmt = iassignStmt->GetLHSVal();
+
+            if (iVarIassignStmt->GetFieldID() == 0) {
+              int32 bitOffsetIVar = iVarIassignStmt->GetOffset() * 8;
+              // It is possible to have dup bitOffsetIVar for FieldID() == 0
+              if (uniqueCheck[bitOffsetIVar] != NULL) {
+                bb->RemoveMeStmt(uniqueCheck[bitOffsetIVar]);
+              }
+              uniqueCheck[bitOffsetIVar] = iassignStmt;
+              //iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
+            } else {
+              TyIdx lhsTyIdx = iVarIassignStmt->GetTyIdx();
+              MIRPtrType *lhsMirPtrType =
+                static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
+              MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
+              int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVarIassignStmt->GetFieldID());
+              if (uniqueCheck[fieldBitOffset] != NULL) {
+                bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
+              }
+              uniqueCheck[fieldBitOffset] = candidateStmts.front();
+              //iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
+            }
+            candidateStmts.pop();
           }
+          for (std::pair<int32, MeStmt*> pair : uniqueCheck) {
+            iassignCandidates.push_back(pair);
+          };
           mergeIassigns(iassignCandidates);
           break;
         }
@@ -329,7 +382,7 @@ void MergeStmts::MergeMeStmts() {
             OriginalSt *lhsOrigSt = static_cast<DassignMeStmt*>(candidateStmts.front())->GetLHS()->GetOst();
             int32 fieldBitOffset = lhsOrigSt->GetOffset().val;
             dassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
-            candidateStmts.pop_front();
+            candidateStmts.pop();
           }
           mergeDassigns(dassignCandidates);
           break;
