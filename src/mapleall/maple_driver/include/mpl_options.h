@@ -65,6 +65,8 @@ enum SafetyCheckMode {
   kDynamicCheckSilent
 };
 
+class Compiler;
+
 class InputInfo {
 public:
   InputInfo(const std::string &inputFile)
@@ -172,12 +174,22 @@ public:
     return inputActions;
   }
 
+  Compiler *GetCompiler() const {
+    return compilerTool;
+  }
+
+  void SetCompiler(Compiler *compiler) {
+    compilerTool = compiler;
+  }
+
 private:
   std::shared_ptr<InputInfo> inputInfo;
 
   std::string tool = "";
   std::string exeFolder = "";
   std::vector<std::string> linkInputFiles;
+
+  Compiler *compilerTool;
 
   /* This vector contains a links to previous actions in Action tree */
   std::vector<std::shared_ptr<Action>> inputActions;
@@ -338,6 +350,10 @@ class MplOptions {
 
   SafetyCheckMode GetBoundaryCheckMode() const {
    return boundaryCheckMode;
+  }
+
+  const std::vector<std::shared_ptr<Action>> &GetActions() const {
+    return rootActions;
   }
 
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);

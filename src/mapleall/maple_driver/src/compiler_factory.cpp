@@ -91,21 +91,29 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
         "Failed! Compilation has been completed in previous time and multi-instance compilation is not supported\n";
     return kErrorCompileFail;
   }
-  std::vector<Compiler*> compilers;
+
+  /* Actions owner is MplOption, so while MplOption is alive we can use raw pointers here */
+  std::vector<Action *> actions;
   if (compilerSelector == nullptr) {
     LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
     return kErrorCompileFail;
   }
-  ErrorCode ret = compilerSelector->Select(supportedCompilers, mplOptions, compilers);
+  ErrorCode ret = compilerSelector->Select(supportedCompilers, mplOptions, actions);
   if (ret != kErrorNoError) {
     return ret;
   }
 
-  for (auto *compiler : compilers) {
-    if (compiler == nullptr) {
+  for (auto *action : actions) {
+    if (action == nullptr) {
       LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
       return kErrorCompileFail;
     }
+
+    Compiler *compiler = action->GetCompiler();
+    if (compiler == nullptr) {
+      return kErrorToolNotFound;
+    }
+
     ret = compiler->Compile(mplOptions, this->theModule);
     if (ret != kErrorNoError) {
       return ret;
@@ -119,10 +127,13 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
 
   if (!mplOptions.HasSetSaveTmps() || !mplOptions.GetSaveFiles().empty()) {
     std::vector<std::string> tmpFiles;
-    for (auto *compiler : compilers) {
-      compiler->GetTmpFilesToDelete(mplOptions, tmpFiles);
+
+    for (auto *action : actions) {
+      action->GetCompiler()->GetTmpFilesToDelete(mplOptions, tmpFiles);
     }
-    ret = DeleteTmpFiles(mplOptions, tmpFiles, compilers.back()->GetFinalOutputs(mplOptions));
+
+    ret = DeleteTmpFiles(mplOptions, tmpFiles,
+                         actions.back()->GetCompiler()->GetFinalOutputs(mplOptions));
   }
   return ret;
 }
