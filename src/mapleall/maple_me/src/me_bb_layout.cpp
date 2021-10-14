@@ -298,7 +298,8 @@ void BBLayout::OptimizeBranchTarget(BB &bb) {
   do {
     ASSERT(!bb.GetSucc().empty(), "container check");
     BB *brTargetBB = bb.GetKind() == kBBCondGoto ? bb.GetSucc().back() : bb.GetSucc().front();
-    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc().back() != bb.GetSucc().front()), "target is same as fallthru");
+    CHECK_FATAL((bb.GetKind() != kBBCondGoto || bb.GetSucc().back() != bb.GetSucc().front()),
+                "target is same as fallthru");
     if (brTargetBB->GetAttributes(kBBAttrWontExit)) {
       return;
     }
@@ -703,7 +704,7 @@ void BBLayout::OptimiseCFG() {
       }
     }
   }
-  cfg->UnreachCodeAnalysis(true);
+  cfg->UnreachCodeAnalysis(false);
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {

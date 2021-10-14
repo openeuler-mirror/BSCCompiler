@@ -32,7 +32,6 @@ constexpr uint32 kMaxIndex = 2;
 constexpr uint32 kLoopBodyNum = 1;
 constexpr uint32 kOperandNum = 2;
 
-
 bool ProfileCheck(maple::MeFunction &f) {
   auto &profile = f.GetMIRModule().GetProfile();
   if (!profile.IsValid()) {
@@ -339,7 +338,8 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
     }
     case OP_brfalse:
     case OP_brtrue:
-    case OP_maydassign: {
+    case OP_maydassign:
+    CASE_OP_ASSERT_BOUNDARY {
       cost += kTwoInsn;
       break;
     }
@@ -367,7 +367,6 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
         LogInfo::MapleLogger() << "consider this op :"<< meStmt.GetOp() << "\n";
       }
       canUnroll = false;
-      ASSERT(false, "not support");
       break;
   }
 }

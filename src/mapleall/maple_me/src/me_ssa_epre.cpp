@@ -75,8 +75,7 @@ bool MESSAEPre::PhaseRun(maple::MeFunction &f) {
 
   KlassHierarchy *kh = nullptr;
   if (f.GetMIRModule().IsJavaModule()) {
-    MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
-                                                                 MIRModule>(f.GetMIRModule());
+    MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MKlassHierarchy, MIRModule>(f.GetMIRModule());
     kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
     CHECK_FATAL(kh != nullptr, "KlassHierarchy phase has problem");
   }

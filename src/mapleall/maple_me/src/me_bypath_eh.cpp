@@ -340,8 +340,7 @@ void MeBypathEH::BypathException(MeFunction &func, const KlassHierarchy &kh) con
 }
 
 bool MEBypathEH::PhaseRun(maple::MeFunction &f) {
-  MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
-                                                               MIRModule>(f.GetMIRModule());
+  MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MKlassHierarchy, MIRModule>(f.GetMIRModule());
   auto *kh = static_cast<M2MKlassHierarchy*>(it)->GetResult();
   CHECK_NULL_FATAL(kh);
   auto *meBypathEH = GetPhaseAllocator()->New<MeBypathEH>();

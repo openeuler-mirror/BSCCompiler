@@ -135,8 +135,7 @@ bool MEAliasClass::PhaseRun(maple::MeFunction &f) {
   timer.Start();
   KlassHierarchy *kh = nullptr;
   if (f.GetMIRModule().IsJavaModule()) {
-    MaplePhase *it = GetAnalysisInfoHook()->GetOverIRAnalyisData<MeFuncPM, M2MKlassHierarchy,
-                                                                 MIRModule>(f.GetMIRModule());
+    MaplePhase *it = GetAnalysisInfoHook()->GetTopLevelAnalyisData<M2MKlassHierarchy, MIRModule>(f.GetMIRModule());
     kh = static_cast<M2MKlassHierarchy *>(it)->GetResult();
   }
   aliasClass = GetPhaseAllocator()->New<MeAliasClass>(*GetPhaseMemPool(), *ApplyTempMemPool(), f.GetMIRModule(),

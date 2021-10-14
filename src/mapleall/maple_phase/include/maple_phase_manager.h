@@ -204,6 +204,23 @@ class AnalysisInfoHook {
     return it->GetAnalysisInfoHook()->FindAnalysisData(u.GetUniqueID(), it, &AIMPHASE::id);
   }
 
+  /* Find analysis Data which is at highest IR level */
+  template <typename AIMPHASE, typename IRUnit>
+  MaplePhase *GetTopLevelAnalyisData(IRUnit &u) {
+    MaplePhase *curPhase = nullptr;
+    MaplePhase *upperPhase = dynamic_cast<MaplePhase*>(bindingPM);
+    ASSERT(upperPhase != nullptr, "find Over IR info failed");
+    AnalysisInfoHook *curHook = this;
+    AnalysisInfoHook *upperHook = upperPhase->GetAnalysisInfoHook();
+    while (upperHook != nullptr) {
+      curPhase = upperPhase;
+      curHook = upperHook;
+      upperPhase = dynamic_cast<MaplePhase*>(upperHook->bindingPM);
+      upperHook = upperPhase->GetAnalysisInfoHook();
+    }
+    return curHook->FindAnalysisData(u.GetUniqueID(), curPhase, &AIMPHASE::id);
+  }
+
   MemPool *GetOverIRMempool() {
     return bindingPM->GetManagerMemPool();
   }
