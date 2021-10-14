@@ -1412,13 +1412,13 @@ MeExpr *IRMap::SimplifyCmpExpr(OpMeExpr *cmpExpr) {
     OpMeExpr newOpnd1(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd1, opnd3);
     newOpnd1.SetOpndType(cmpExpr->GetOpndType());
     auto *simplifiedOpnd1 = SimplifyCmpExpr(&newOpnd1);
-    if (!simplifiedOpnd1->IsLeaf()) {
+    if (simplifiedOpnd1 == nullptr || !simplifiedOpnd1->IsLeaf()) {
       return nullptr;
     }
     OpMeExpr newOpnd2(kInvalidExprID, cmpop, cmpExpr->GetPrimType(), selectOpnd2, opnd3);
     newOpnd2.SetOpndType(cmpExpr->GetOpndType());
     auto *simplifiedOpnd2 = SimplifyCmpExpr(&newOpnd2);
-    if (!simplifiedOpnd2->IsLeaf()) {
+    if (simplifiedOpnd2 == nullptr || !simplifiedOpnd2->IsLeaf()) {
       return nullptr;
     }
     OpMeExpr newSelect(kInvalidExprID, OP_select, PTY_u1, 3 /* select need 3 opnds */);
