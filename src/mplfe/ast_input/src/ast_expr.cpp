@@ -299,7 +299,8 @@ UniqueFEIRExpr ASTCallExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     retExpr = AddRetExpr(callStmt);
   }
   stmts.emplace_back(std::move(callStmt));
-  InsertBoudaryVarInRet(stmts);
+  InsertBoundaryCheckingInArgs(stmts);
+  InsertBoundaryVarInRet(stmts);
   return retExpr;
 }
 
@@ -747,8 +748,8 @@ UniqueFEIRExpr ASTUOAddrOfExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
 MIRConst *ASTUOAddrOfLabelExpr::GenerateMIRConstImpl() const {
   return FEManager::GetMIRBuilder().GetCurrentFuncCodeMp()->New<MIRLblConst>(
       FEManager::GetMIRBuilder().GetOrCreateMIRLabel(labelName),
-      FEManager::GetMIRBuilder().GetCurrentFunction()->GetPuidx(),
-      *GlobalTables::GetTypeTable().GetVoidPtr());
+      FEManager::GetMIRBuilder().GetCurrentFunction()->GetPuidx(),  // GetCurrentFunction need to be optimized
+      *GlobalTables::GetTypeTable().GetVoidPtr());                  // when parallel features
 }
 
 UniqueFEIRExpr ASTUOAddrOfLabelExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
@@ -1486,18 +1487,44 @@ bool ASTArraySubscriptExpr::CheckFirstDimIfZero() const {
 UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   auto baseAddrFEExpr = baseExpr->Emit2FEExpr(stmts);
   auto retFEType = std::make_unique<FEIRTypeNative>(*mirType);
-  auto arrayFEType = std::make_unique<FEIRTypeNative>(*arrayType);
+  MIRType *arrayTypeOpt = arrayType;
+  bool isArrayTypeOpt = false;
+  if (arrayTypeOpt->GetKind() == kTypePointer && !isVLA) {
+    MIRPtrType *ptrTy = static_cast<MIRPtrType*>(arrayTypeOpt);
+    MIRType *pointedTy = ptrTy->GetPointedType();
+    if (pointedTy->GetKind() == kTypeArray) {
+      MIRArrayType *pointedArrTy = static_cast<MIRArrayType*>(pointedTy);
+      std::vector<uint32> sizeArray{1};
+      for (uint32 i = 0; i < pointedArrTy->GetDim(); ++i) {
+        sizeArray.push_back(pointedArrTy->GetSizeArrayItem(i));
+      }
+      MIRArrayType newArrTy(pointedArrTy->GetElemTyIdx(), sizeArray);
+      arrayTypeOpt = static_cast<MIRArrayType*>(GlobalTables::GetTypeTable().GetOrCreateMIRTypeNode(newArrTy));
+    } else {
+      arrayTypeOpt = GlobalTables::GetTypeTable().GetOrCreateArrayType(*pointedTy, 1);
+    }
+    isArrayTypeOpt = true;
+  }
+  UniqueFEIRType arrayFEType = std::make_unique<FEIRTypeNative>(*arrayTypeOpt);
   auto mirPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirType);
   auto fePtrType = std::make_unique<FEIRTypeNative>(*mirPtrType);
   UniqueFEIRExpr addrOfArray;
-  if (arrayType->GetKind() == MIRTypeKind::kTypeArray && !isVLA) {
+  if (arrayTypeOpt->GetKind() == MIRTypeKind::kTypeArray && !isVLA) {
     if(CheckFirstDimIfZero()) {
       // return multi-dim array addr directly if its first dim size was 0.
       return baseAddrFEExpr;
     }
     std::list<UniqueFEIRExpr> feIdxExprs;
+    if (baseAddrFEExpr->GetKind() == kExprAddrofArray && !isArrayTypeOpt) {
+      auto baseArrayExpr = static_cast<FEIRExprAddrofArray*>(baseAddrFEExpr.get());
+      for (auto &e : baseArrayExpr->GetExprIndexs()) {
+        feIdxExprs.emplace_back(e->Clone());
+      }
+      arrayFEType = baseArrayExpr->GetTypeArray()->Clone();
+      baseAddrFEExpr = baseArrayExpr->GetExprArray()->Clone();
+    }
     auto feIdxExpr = idxExpr->Emit2FEExpr(stmts);
-    feIdxExprs.push_front(std::move(feIdxExpr));
+    feIdxExprs.emplace_back(std::move(feIdxExpr));
     addrOfArray = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), baseAddrFEExpr->Clone(), "", feIdxExprs);
   } else {
     std::vector<UniqueFEIRExpr> offsetExprs;
@@ -1928,7 +1955,7 @@ void ASTAssignExpr::GetActualRightExpr(UniqueFEIRExpr &right, const UniqueFEIREx
         dstType = PTY_i32;
       }
     }
-    right = FEIRBuilder::CreateExprCvtPrim(std::move(right), dstType);
+    right = FEIRBuilder::CreateExprCastPrim(std::move(right), dstType);
   }
 }
 
@@ -2173,7 +2200,7 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   UniqueFEIRVar vaArgVar = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("va_arg_"), *ptrType);
   UniqueFEIRExpr dreadVaArgTop = FEIRBuilder::ReadExprField(
       readVaList->Clone(), info.isGPReg ? 2 : 3, uint64FEIRType->Clone());
-  UniqueFEIRExpr cvtOffset = FEIRBuilder::CreateExprCvtPrim(dreadOffsetVar->Clone(), PTY_u64);
+  UniqueFEIRExpr cvtOffset = FEIRBuilder::CreateExprCastPrim(dreadOffsetVar->Clone(), PTY_u64);
   UniqueFEIRExpr addTopAndOffs = FEIRBuilder::CreateExprBinary(OP_add, std::move(dreadVaArgTop), std::move(cvtOffset));
   UniqueFEIRStmt dassignVaArgFromReg = FEIRBuilder::CreateStmtDAssign(vaArgVar->Clone(), std::move(addTopAndOffs));
   stmts.emplace_back(std::move(dassignVaArgFromReg));
