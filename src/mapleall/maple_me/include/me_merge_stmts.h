@@ -16,7 +16,9 @@
 #define MAPLE_ME_INCLUDE_ME_MERGE_STMTS_H
 #include "me_function.h"
 
-// Merge smaller stores into larger one
+// 1. Merge smaller stores into larger one
+// 2. Simdize intrinsic
+
 namespace maple {
 class MergeStmts {
  public:
@@ -31,6 +33,10 @@ class MergeStmts {
   void mergeIassigns(vOffsetStmt& iassignCandidates);
   void mergeDassigns(vOffsetStmt& dassignCandidates);
   uint32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
+  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2, MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeExpr& regVal, MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+  void simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
+  void simdMemset(IntrinsiccallMeStmt* memcpyCallStmt);
  private:
   MeFunction &func;
 };
