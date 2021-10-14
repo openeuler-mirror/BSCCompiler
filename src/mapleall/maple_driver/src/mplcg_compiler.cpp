@@ -23,7 +23,7 @@ namespace maple {
 using namespace maplebe;
 using namespace mapleOption;
 
-DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options) const {
+DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
   DefaultOption defaultOptions = { nullptr, 0 };
   if (options.GetOptimizationLevel() == kO0 && options.HasSetDefaultLevel()) {
     defaultOptions.mplOptions = kMplcgDefaultOptionsO0;
@@ -45,34 +45,36 @@ const std::string &MplcgCompiler::GetBinName() const {
   return kBinNameMplcg;
 }
 
-std::string MplcgCompiler::GetInputFile(const MplOptions &options, const MIRModule *md) const {
+std::string MplcgCompiler::GetInputFile(const MplOptions &options, const Action &action,
+                                        const MIRModule *md) const {
   if (!options.GetRunningExes().empty()) {
     if (options.GetRunningExes()[0] == kBinNameMplcg) {
-      return options.GetInputFiles();
+      return action.GetInputFile();
     }
   }
   // Get base file name
-  auto idx = options.GetOutputName().find(".VtableImpl");
-  std::string outputName = options.GetOutputName();
+  auto idx = action.GetOutputName().find(".VtableImpl");
+  std::string outputName = action.GetOutputName();
   if (idx != std::string::npos) {
-    outputName = options.GetOutputName().substr(0, idx);
+    outputName = action.GetOutputName().substr(0, idx);
   }
   if (md->GetSrcLang() == kSrcLangC) {
-    return options.GetOutputFolder() + outputName + ".me.mpl";
+    return action.GetOutputFolder() + outputName + ".me.mpl";
   }
-  return options.GetOutputFolder() + outputName + ".VtableImpl.mpl";
+  return action.GetOutputFolder() + outputName + ".VtableImpl.mpl";
 }
 
-void MplcgCompiler::SetOutputFileName(const MplOptions &options, const MIRModule &md) {
+void MplcgCompiler::SetOutputFileName(const MplOptions &options, const Action &action, const MIRModule &md) {
   if (md.GetSrcLang() == kSrcLangC) {
-    baseName = options.GetOutputFolder() + options.GetOutputName();
+    baseName = action.GetFullOutputName();
   } else {
-    baseName = options.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, &md), false);
+    baseName = action.GetOutputFolder() + FileUtils::GetFileName(GetInputFile(options, action, &md), false);
   }
   outputFile = baseName + ".s";
 }
 
-void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const MIRModule &md) const {
+void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &action,
+                                      const MIRModule &md) const {
   std::string runStr = "--run=";
   std::string optionStr = "--option=\"";
   std::string connectSym = "";
@@ -89,7 +91,7 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const MIRModule
   }
   optionStr += "\"";
   LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr
-                         << " --infile " << GetInputFile(options, &md) << '\n';
+                         << " --infile " << GetInputFile(options, action, &md) << '\n';
 }
 
 ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
@@ -121,11 +123,12 @@ ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
   return kErrorNoError;
 }
 
-ErrorCode MplcgCompiler::GetMplcgOptions(MplOptions &options, const MIRModule *theModule) {
+ErrorCode MplcgCompiler::GetMplcgOptions(MplOptions &options, const Action &action,
+                                         const MIRModule *theModule) {
   ErrorCode ret;
   if (options.GetRunMode() == kAutoRun) {
     if (theModule == nullptr) {
-      std::string fileName = GetInputFile(options, theModule);
+      std::string fileName = GetInputFile(options, action, theModule);
       MIRModule module(fileName);
       std::unique_ptr<MIRParser> theParser;
       theParser.reset(new MIRParser(module));
@@ -150,13 +153,14 @@ ErrorCode MplcgCompiler::GetMplcgOptions(MplOptions &options, const MIRModule *t
   return ret;
 }
 
-ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) {
-  ErrorCode ret = GetMplcgOptions(options, theModule.get());
+ErrorCode MplcgCompiler::Compile(MplOptions &options, const Action &action,
+                                 std::unique_ptr<MIRModule> &theModule) {
+  ErrorCode ret = GetMplcgOptions(options, action, theModule.get());
   if (ret != kErrorNoError) {
     return kErrorCompileFail;
   }
   CGOptions &cgOption = CGOptions::GetInstance();
-  std::string fileName = GetInputFile(options, theModule.get());
+  std::string fileName = GetInputFile(options, action, theModule.get());
   bool fileRead = true;
   if (theModule == nullptr) {
     MPLTimer timer;
@@ -166,7 +170,7 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
     theModule->SetWithMe(
         std::find(options.GetRunningExes().begin(), options.GetRunningExes().end(),
                   kBinNameMe) != options.GetRunningExes().end());
-    if (options.GetInputFileType() != kFileTypeBpl) {
+    if (action.GetInputFileType() != kFileTypeBpl) {
       std::unique_ptr<MIRParser> theParser;
       theParser.reset(new MIRParser(*theModule));
       bool parsed = theParser->ParseMIR(0, cgOption.GetParserOption());
@@ -192,13 +196,13 @@ ErrorCode MplcgCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule>
     timer.Stop();
     LogInfo::MapleLogger() << "Mplcg Parser consumed " << timer.ElapsedMilliseconds() << "ms\n";
   }
-  SetOutputFileName(options, *theModule);
+  SetOutputFileName(options, action, *theModule);
   theModule->SetInputFileName(fileName);
   LogInfo::MapleLogger() << "Starting mplcg\n";
-  DriverRunner runner(theModule.get(), options.GetSelectedExes(), options.GetInputFileType(), fileName,
+  DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       options.WithDwarf(), fileRead, options.HasSetTimePhases());
   if (options.HasSetDebugFlag()) {
-    PrintMplcgCommand(options, *theModule);
+    PrintMplcgCommand(options, action, *theModule);
   }
   runner.SetPrintOutExe(kBinNameMplcg);
   runner.SetCGInfo(&cgOption, fileName);

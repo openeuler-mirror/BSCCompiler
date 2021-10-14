@@ -21,7 +21,7 @@ std::string AsCompiler::GetBinPath(const MplOptions&) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/tools/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 #endif
 }
 
@@ -29,33 +29,34 @@ const std::string &AsCompiler::GetBinName() const {
   return kBinNameAs;
 }
 
-DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options) const {
-
+DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   DefaultOption defaultOptions = { nullptr, 0 };
   defaultOptions.mplOptions = kAsDefaultOptions;
-  defaultOptions.mplOptions[0].SetValue(options.GetOutputFolder() + options.GetOutputName() + ".o");
+  defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
   defaultOptions.length = sizeof(kAsDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
-            FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
-                                               defaultOptions.mplOptions[i].GetValue(),
-                                               options.GetExeFolder()));
+        FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),
+                                           defaultOptions.mplOptions[i].GetValue(),
+                                           options.GetExeFolder()));
   }
   return defaultOptions;
 }
 
-std::string AsCompiler::GetInputFileName(const MplOptions &options) const {
-  return options.GetOutputFolder() + options.GetOutputName() + ".s";
+std::string AsCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+  return action.GetFullOutputName() + ".s";
 }
 
-void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
+void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+                                     std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".s");
 }
 
-std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &,
+                                                            const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".o");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".o");
   return finalOutputs;
 }
 }  // namespace maple

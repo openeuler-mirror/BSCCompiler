@@ -20,17 +20,17 @@
 
 namespace maple {
 std::string ClangCompiler::GetBinPath(const MplOptions&) const{
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/tools/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 }
 
 const std::string &ClangCompiler::GetBinName() const {
   return kBinNameClang;
 }
 
-DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const {
+DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   DefaultOption defaultOptions = { nullptr, 0 };
   defaultOptions.mplOptions = kClangDefaultOptions;
-  defaultOptions.mplOptions[1].SetValue(options.GetOutputFolder() + options.GetOutputName() + ".ast");
+  defaultOptions.mplOptions[1].SetValue(action.GetFullOutputName() + ".ast");
   defaultOptions.length = sizeof(kClangDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
@@ -42,13 +42,15 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const 
   return defaultOptions;
 }
 
-void ClangCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".ast");
+void ClangCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+                                        std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(action.GetFullOutputName() + ".ast");
 }
 
-std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &,
+                                                               const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".ast");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".ast");
   return finalOutputs;
 }
 }

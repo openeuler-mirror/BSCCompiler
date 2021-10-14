@@ -128,6 +128,18 @@ public:
     return inputFile;
   }
 
+  const std::string &GetOutputFolder() const {
+    return outputFolder;
+  }
+
+  const std::string &GetOutputName() const {
+    return outputName;
+  }
+
+  const std::string &GetFullOutputName() const {
+    return fullOutput;
+  }
+
 private:
   std::string inputFile = "";
   InputFileType inputFileType = InputFileType::kFileTypeNone;
@@ -168,6 +180,26 @@ public:
 
   const std::string &GetInputFile() const {
     return inputInfo->GetInputFile();
+  }
+
+  const std::string &GetOutputFolder() const {
+    return inputInfo->GetOutputFolder();
+  }
+
+  const std::string &GetOutputName() const {
+    return inputInfo->GetOutputName();
+  }
+
+  const std::string &GetFullOutputName() const {
+    return inputInfo->GetFullOutputName();
+  }
+
+  InputFileType GetInputFileType() const {
+    return inputInfo->GetInputFileType();
+  }
+
+  const std::vector<std::string> &GetLinkFiles() const {
+    return linkInputFiles;
   }
 
   const std::vector<std::shared_ptr<Action>> &GetInputActions() const {
