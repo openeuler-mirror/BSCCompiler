@@ -114,7 +114,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
       return kErrorToolNotFound;
     }
 
-    ret = compiler->Compile(mplOptions, this->theModule);
+    ret = compiler->Compile(mplOptions, *action, this->theModule);
     if (ret != kErrorNoError) {
       return ret;
     }
@@ -129,11 +129,12 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
     std::vector<std::string> tmpFiles;
 
     for (auto *action : actions) {
-      action->GetCompiler()->GetTmpFilesToDelete(mplOptions, tmpFiles);
+      action->GetCompiler()->GetTmpFilesToDelete(mplOptions, *action, tmpFiles);
     }
 
+    Action *lastAction = actions.back();
     ret = DeleteTmpFiles(mplOptions, tmpFiles,
-                         actions.back()->GetCompiler()->GetFinalOutputs(mplOptions));
+                         lastAction->GetCompiler()->GetFinalOutputs(mplOptions, *lastAction));
   }
   return ret;
 }
