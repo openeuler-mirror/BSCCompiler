@@ -114,7 +114,7 @@ uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
 uint8 MeOption::rematLevel = 0;
-bool MeOption::layoutWithPredict = false;  // optimize output layout using branch prediction
+bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
