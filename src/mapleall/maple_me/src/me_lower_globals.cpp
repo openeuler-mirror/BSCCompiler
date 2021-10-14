@@ -66,9 +66,14 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
       }
       auto *addrofExpr = static_cast<AddrofMeExpr*>(irMap->CreateAddrofMeExpr(varExpr));
       MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
-      if (ost->IsVolatile()) {
+      if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
         TypeAttrs attrs;
-        attrs.SetAttr(ATTR_volatile);
+        if (ost->IsVolatile()) {
+          attrs.SetAttr(ATTR_volatile);
+        }
+        if (ost->HasOneElemSimdAttr()) {
+          attrs.SetAttr(ATTR_oneelem_simd);
+        }
         ptrType.SetTypeAttrs(attrs);
       }
       TyIdx addrTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
@@ -127,9 +132,14 @@ void MeLowerGlobals::Run() {
         AddrofMeExpr *addrof = static_cast<AddrofMeExpr *>(irMap->HashMeExpr(addrofmeexpr));
 
         MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
-        if (ost->IsVolatile()) {
+        if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
           TypeAttrs attrs;
-          attrs.SetAttr(ATTR_volatile);
+          if (ost->IsVolatile()) {
+            attrs.SetAttr(ATTR_volatile);
+          }
+          if (ost->HasOneElemSimdAttr()) {
+            attrs.SetAttr(ATTR_oneelem_simd);
+          }
           ptrType.SetTypeAttrs(attrs);
         }
         TyIdx addrTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&ptrType);
