@@ -26,11 +26,21 @@ enum Opcode : uint8 {
   OP_last,
 };
 
-#define CASE_ASSERTNONNULL     \
+#define CASE_OP_ASSERT_NONNULL     \
   case OP_assertnonnull:       \
   case OP_assignassertnonnull: \
   case OP_callassertnonnull:   \
   case OP_returnassertnonnull:
+
+#define CASE_OP_ASSERT_BOUNDARY    \
+  case OP_assertge:            \
+  case OP_assignassertge:      \
+  case OP_callassertge:        \
+  case OP_returnassertge:      \
+  case OP_assertlt:            \
+  case OP_assignassertlt:      \
+  case OP_callassertlt:        \
+  case OP_returnassertlt:
 
 inline constexpr bool IsDAssign(Opcode code) {
   return (code == OP_dassign || code == OP_maydassign);
@@ -113,7 +123,7 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_membarrelease:
     case OP_membarstoreload:
     case OP_membarstorestore:
-    CASE_ASSERTNONNULL
+    CASE_OP_ASSERT_NONNULL
     case OP_assertge:
     case OP_assertlt:
     case OP_free:
@@ -153,6 +163,39 @@ constexpr Opcode GetReverseCmpOp(Opcode op) {
     default:
       CHECK_FATAL(false, "opcode has no reverse op");
       return op;
+  }
+}
+
+constexpr bool IsSupportedOpForCopyInPhasesLoopUnrollAndVRP(Opcode op) {
+  switch (op) {
+    case OP_igoto:
+    case OP_switch:
+    case OP_comment:
+    case OP_goto:
+    case OP_dassign:
+    case OP_regassign:
+    case OP_membarrelease:
+    case OP_brfalse:
+    case OP_brtrue:
+    case OP_maydassign:
+    case OP_iassign:
+    CASE_OP_ASSERT_NONNULL
+    CASE_OP_ASSERT_BOUNDARY
+    case OP_membaracquire:
+    case OP_call:
+    case OP_callassigned:
+    case OP_virtualcallassigned:
+    case OP_virtualicallassigned:
+    case OP_interfaceicallassigned:
+    case OP_intrinsiccall:
+    case OP_intrinsiccallassigned:
+    case OP_intrinsiccallwithtype:
+    case OP_membarstorestore:
+    case OP_membarstoreload: {
+      return true;
+    }
+    default:
+      return false;
   }
 }
 }  // namespace maple

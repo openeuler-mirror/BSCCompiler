@@ -56,6 +56,20 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
         ASSERT(bb != nullptr, "Check bblayout phase");
         bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
       }
+      bool dumpFreq = MeOption::dumpFunc == f.GetName();
+      if (dumpFreq && f.GetMirFunc()->HasFreqMap()) {
+        auto &freqMap = f.GetMirFunc()->GetFreqMap();
+        LogInfo::MapleLogger() << "Dump freqMap:" << std::endl;
+        for (BB *bb : layoutBBs) {
+          if (!bb->GetStmtNodes().empty()) {
+            auto &lastStmt = bb->GetStmtNodes().back();
+            auto it = freqMap.find(lastStmt.GetStmtID());
+            if (it != freqMap.end()) {
+              LogInfo::MapleLogger() << "BB" << bb->GetBBId() << ", freq: " << it->second << std::endl;
+            }
+          }
+        }
+      }
     } else {
       // emit from mir function body
       f.EmitBeforeHSSA((*(f.GetMirFunc())), f.GetLaidOutBBs());
@@ -72,6 +86,42 @@ bool MEEmit::PhaseRun(maple::MeFunction &f) {
     }
     if (DEBUGFUNC_NEWPM(f)) {
       f.GetCfg()->DumpToFile("meemit", true);
+    }
+  }
+  return false;
+}
+
+void EmitForIPA::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.SetPreservedAll();
+}
+
+// emit IR to specified file
+bool EmitForIPA::PhaseRun(maple::MeFunction &f) {
+  static std::mutex mtx;
+  ParallelGuard guard(mtx, ThreadEnv::IsMeParallel());
+  if (f.GetCfg()->NumBBs() > 0) {
+    if (f.GetIRMap()) {
+      // emit after hssa
+      MIRFunction *mirFunction = f.GetMirFunc();
+      mirFunction->ReleaseCodeMemory();
+      mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR from IRMap::Emit()"));
+      mirFunction->SetBody(mirFunction->GetCodeMempool()->New<BlockNode>());
+      // initialize is_deleted field to true; will reset when emitting Maple IR
+      for (size_t k = 1; k < mirFunction->GetSymTab()->GetSymbolTableSize(); ++k) {
+        MIRSymbol *sym = mirFunction->GetSymTab()->GetSymbolFromStIdx(k);
+        if (sym->GetSKind() == kStVar) {
+          sym->SetIsDeleted();
+        }
+      }
+      for (BB *bb : f.GetCfg()->GetAllBBs()) {
+        if (bb == nullptr) {
+          continue;
+        }
+        bb->EmitBB(*f.GetMeSSATab(), *mirFunction->GetBody(), false);
+      }
+    } else {
+      // emit from mir function body
+      f.EmitBeforeHSSA((*(f.GetMirFunc())), f.GetLaidOutBBs());
     }
   }
   return false;
