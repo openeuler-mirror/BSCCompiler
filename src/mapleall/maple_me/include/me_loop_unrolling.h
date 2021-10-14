@@ -42,9 +42,9 @@ class LoopUnrolling {
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
   ReturnKindOfFullyUnroll LoopFullyUnroll(int64 tripCount);
-  bool LoopPartialUnrollWithConst(uint32 tripCount);
+  bool LoopPartialUnrollWithConst(uint64 tripCount);
   bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
-  bool LoopUnrollingWithConst(uint32 tripCount);
+  bool LoopUnrollingWithConst(uint64 tripCount, bool onlyFully = false);
 
   static void CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands, BB &bb, BB &oldBB,
