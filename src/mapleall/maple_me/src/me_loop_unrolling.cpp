@@ -32,6 +32,24 @@ constexpr uint32 kMaxIndex = 2;
 constexpr uint32 kLoopBodyNum = 1;
 constexpr uint32 kOperandNum = 2;
 
+
+bool ProfileCheck(maple::MeFunction &f) {
+  auto &profile = f.GetMIRModule().GetProfile();
+  if (!profile.IsValid()) {
+    if (LoopUnrollingExecutor::enableDebug) {
+      LogInfo::MapleLogger() << "DeCompress failed in loopUnrolling" << "\n";
+    }
+    return false;
+  }
+  if (!profile.CheckFuncHot(f.GetName())) {
+    if (LoopUnrollingExecutor::enableDebug) {
+      LogInfo::MapleLogger() << "func is not hot" << "\n";
+    }
+    return false;
+  }
+  return true;
+}
+
 void LoopUnrolling::InsertCandsForSSAUpdate(MemPool &memPool, MapleAllocator &mpAllocator,
     MapleMap<OStIdx, MapleSet<BBId>*> &cands, OStIdx ostIdx, const BB &bb) {
   if (cands.find(ostIdx) == cands.end()) {
@@ -246,10 +264,18 @@ void LoopUnrolling::CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAll
         CopyCallStmt(irMap, memPool, mpAllocator, cands,  stmt, bb);
         break;
       }
-      CASE_ASSERTNONNULL {
+      case OP_assertnonnull:
+      case OP_assignassertnonnull:
+      case OP_returnassertnonnull: {
         auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
         UnaryMeStmt *newUnaryStmt = irMap.New<UnaryMeStmt>(unaryStmt);
         bb.AddMeStmtLast(newUnaryStmt);
+        break;
+      }
+      case OP_callassertnonnull: {
+        auto &callAssertStmt = static_cast<CallAssertNonnullMeStmt&>(stmt);
+        auto *newCallAssertStmt = irMap.New<CallAssertNonnullMeStmt>(callAssertStmt);
+        bb.AddMeStmtLast(newCallAssertStmt);
         break;
       }
       case OP_membaracquire:
@@ -266,6 +292,24 @@ void LoopUnrolling::CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAll
         break;
       }
       case OP_comment: {
+        break;
+      }
+      case OP_assertlt:
+      case OP_assignassertlt:
+      case OP_returnassertlt:
+      case OP_assertge:
+      case OP_assignassertge:
+      case OP_returnassertge: {
+        auto &oldStmt = static_cast<NaryMeStmt&>(stmt);
+        auto *newStmt = irMap.New<NaryMeStmt>(oldStmt);
+        bb.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_callassertlt:
+      case OP_callassertge: {
+        auto &oldStmt = static_cast<CallAssertBoundaryMeStmt&>(stmt);
+        auto *newStmt = irMap.New<CallAssertBoundaryMeStmt>(oldStmt);
+        bb.AddMeStmtLast(newStmt);
         break;
       }
       default:
@@ -288,6 +332,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
     }
     case OP_goto:
     case OP_dassign:
+    case OP_regassign:
     case OP_membarrelease: {
       cost += kOneInsn;
       break;
@@ -299,7 +344,7 @@ void LoopUnrolling::ComputeCodeSize(const MeStmt &meStmt, uint32 &cost) {
       break;
     }
     case OP_iassign:
-    CASE_ASSERTNONNULL
+    CASE_OP_ASSERT_NONNULL
     case OP_membaracquire: {
       cost += kThreeInsn;
       break;
@@ -708,6 +753,10 @@ bool LoopUnrolling::SplitCondGotoBB() {
 }
 
 LoopUnrolling::ReturnKindOfFullyUnroll LoopUnrolling::LoopFullyUnroll(int64 tripCount) {
+  if (tripCount > kMaxCost) {
+    // quickly return if iteration is large enough
+    return kCanNotFullyUnroll;
+  }
   uint32 costResult = 0;
   for (auto bbId : loop->loopBBs) {
     BB *bb = cfg->GetBBFromID(bbId);
@@ -857,7 +906,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   }
 }
 
-bool LoopUnrolling::LoopPartialUnrollWithConst(uint32 tripCount) {
+bool LoopUnrolling::LoopPartialUnrollWithConst(uint64 tripCount) {
   uint32 index = 0;
   if (!DetermineUnrollTimes(index, true)) {
     if (LoopUnrollingExecutor::enableDebug) {
@@ -1236,7 +1285,11 @@ void LoopUnrollingExecutor::SetNestedLoop(const IdentifyLoops &meLoop,
 }
 
 bool LoopUnrollingExecutor::IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const {
-  for (auto succ : loop.head->GetSucc()) {
+  if (loop.inloopBB2exitBBs.find(loop.head->GetBBId()) != loop.inloopBB2exitBBs.end()) {
+    // if head and exit are the same bb, this must be a do-while loop
+    return true;
+  }
+  for (auto *succ : loop.head->GetSucc()) {
     if (!loop.Has(*succ)) {
       return false;
     }
@@ -1270,7 +1323,7 @@ bool LoopUnrollingExecutor::PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) 
 bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(MeFunction &func, LoopDesc &loop,
     const std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const {
   // Only handle one nested loop.
-  if (parentLoop.find(&loop) != parentLoop.end()) {
+  if (parentLoop.find(&loop) != parentLoop.end() && ProfileCheck(func)) {
     return false;
   }
   // Must be canonical loop and has one exit bb.
@@ -1299,10 +1352,10 @@ bool LoopUnrollingExecutor::IsCanonicalAndOnlyOneExitLoop(MeFunction &func, Loop
   return true;
 }
 
-bool LoopUnrolling::LoopUnrollingWithConst(uint32 tripCount) {
-  if (tripCount == 0) {
+bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
+  if (tripCount == kInvalidTripCount) {
     if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "tripCount is zero" << "\n";
+      LogInfo::MapleLogger() << "tripCount is invalid" << "\n";
     }
     return false;
   }
@@ -1331,6 +1384,9 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint32 tripCount) {
     }
     return true;
   }
+  if (onlyFully) {
+    return false;
+  }
   // partial unroll with const
   if (LoopPartialUnrollWithConst(tripCount)) {
     if (LoopUnrollingExecutor::enableDebug) {
@@ -1354,15 +1410,40 @@ void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMa
     LogInfo::MapleLogger() << func.GetName() << "\n";
   }
   std::unordered_map<LoopDesc*, std::set<LoopDesc*>> parentLoop;
+  // Do loop unrolling only when the function is hot in profile,
+  // or we only apply fully unrolling on those small loops.
+  if (!ProfileCheck(func)) {
+    if (func.GetMIRModule().IsJavaModule()) {
+      // not apply on java
+      return;
+    }
+    for (auto loop : meLoop.GetMeLoops()) {
+      if (!IsCanonicalAndOnlyOneExitLoop(func, *loop, parentLoop)) {
+        continue;
+      }
+      LoopScalarAnalysisResult sa(irMap, loop);
+      LoopUnrolling loopUnrolling(func, *loop, irMap, *innerMp, alloc, cands);
+      uint64 tripCount = 0;
+      CRNode *conditionCRNode = nullptr;
+      CR *itCR = nullptr;
+      TripCountType type = sa.ComputeTripCount(func, tripCount, conditionCRNode, itCR);
+      if (type == kConstCR) {
+        if (loopUnrolling.LoopUnrollingWithConst(tripCount, true)) {
+          isCFGChange = true;
+        }
+      }
+    }
+    return;
+  }
   SetNestedLoop(meLoop, parentLoop);
   uint32 i = 0;
   for (auto loop : meLoop.GetMeLoops()) {
     if (!IsCanonicalAndOnlyOneExitLoop(func, *loop, parentLoop)) {
       continue;
     }
-    LoopScalarAnalysisResult sa(irMap, *loop);
+    LoopScalarAnalysisResult sa(irMap, loop);
     LoopUnrolling loopUnrolling(func, *loop, irMap, *innerMp, alloc, cands);
-    uint32 tripCount = 0;
+    uint64 tripCount = 0;
     CRNode *conditionCRNode = nullptr;
     CR *itCR = nullptr;
     TripCountType type = sa.ComputeTripCount(func, tripCount, conditionCRNode, itCR);
@@ -1379,23 +1460,6 @@ void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMa
   }
 }
 
-bool ProfileCheck(maple::MeFunction &f) {
-  auto &profile = f.GetMIRModule().GetProfile();
-  if (!profile.IsValid()) {
-    if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "DeCompress failed in loopUnrolling" << "\n";
-    }
-    return false;
-  }
-  if (!profile.CheckFuncHot(f.GetName())) {
-    if (LoopUnrollingExecutor::enableDebug) {
-      LogInfo::MapleLogger() << "func is not hot" << "\n";
-    }
-    return false;
-  }
-  return true;
-}
-
 void MELoopUnrolling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MELoopAnalysis>();
   aDep.AddRequired<MEIRMapBuild>();
@@ -1404,10 +1468,6 @@ void MELoopUnrolling::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
-  // Do loop unrolling only when the function is hot in profile.
-  if (!ProfileCheck(f)) {
-    return false;
-  }
   IdentifyLoops *meLoop = GET_ANALYSIS(MELoopAnalysis, f);
   if (meLoop == nullptr) {
     return false;
