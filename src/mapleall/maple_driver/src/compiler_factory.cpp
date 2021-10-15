@@ -40,6 +40,7 @@ CompilerFactory::CompilerFactory() {
   ADD_COMPILER("me", MapleCombCompiler)
   ADD_COMPILER("mpl2mpl", MapleCombCompiler)
   ADD_COMPILER("maplecomb", MapleCombCompiler)
+  ADD_COMPILER("maplecombwrp", MapleCombCompilerWrp)
   ADD_COMPILER("mplcg", MplcgCompiler)
   ADD_COMPILER("as", AsCompiler)
   ADD_COMPILER("ld", LdCompiler)
