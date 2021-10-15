@@ -229,6 +229,7 @@ private:
 
 class MplOption {
  public:
+  MplOption(){needRootPath = false;}
   MplOption(const std::string &key, const std::string &value, bool needRootPath = false)
       : key(key),
         value(value),
@@ -248,6 +249,10 @@ class MplOption {
 
   void SetValue(std::string val) {
     value = val;
+  }
+
+  void SetKey(std::string k) {
+    key = k;
   }
 
   bool GetNeedRootPath() const {
@@ -400,7 +405,11 @@ class MplOptions {
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
   ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
-  std::shared_ptr<Action> DecideRunningPhasesByType(const std::string &inputFile);
+  std::shared_ptr<Action> DecideRunningPhasesByType(const std::string &inputFile, bool isMultipleFiles);
+  ErrorCode MFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
+                                std::shared_ptr<InputInfo> inputInfo, bool &wasWrpCombCompilerCreated);
+  ErrorCode SFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
+                                std::shared_ptr<InputInfo> inputInfo, bool &isCombCompiler);
   ErrorCode CheckInputFileValidity();
   ErrorCode CheckFileExits();
   ErrorCode AddOption(const mapleOption::Option &option);

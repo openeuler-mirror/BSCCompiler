@@ -339,7 +339,8 @@ ErrorCode MplOptions::DecideRunType() {
   return ret;
 }
 
-std::shared_ptr<Action> MplOptions::DecideRunningPhasesByType(const std::string &inputFile) {
+std::shared_ptr<Action> MplOptions::DecideRunningPhasesByType(const std::string &inputFile,
+                                                              bool isMultipleFiles) {
   auto inputInfo = std::make_shared<InputInfo>(inputFile);
   InputFileType inputFileType = inputInfo->GetInputFileType();
   std::shared_ptr<Action> currentAction = std::make_shared<Action>("Input", inputInfo);
@@ -376,6 +377,7 @@ std::shared_ptr<Action> MplOptions::DecideRunningPhasesByType(const std::string 
       break;
     case InputFileType::kFileTypeS:
       isNeedMplcg = false;
+      isNeedMapleComb = false;
       break;
     case InputFileType::kFileTypeNone:
       break;
@@ -383,10 +385,15 @@ std::shared_ptr<Action> MplOptions::DecideRunningPhasesByType(const std::string 
       break;
   }
   if (isNeedMapleComb) {
-    selectedExes.push_back(kBinNameMapleComb);
-    currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
+    if (isMultipleFiles) {
+      selectedExes.push_back(kBinNameMapleCombWrp);
+      currentAction = std::make_shared<Action>(kBinNameMapleCombWrp, inputInfo, currentAction);
+    } else {
+      selectedExes.push_back(kBinNameMapleComb);
+      currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
+    }
   }
-  if (isNeedMplcg) {
+  if (isNeedMplcg && !isMultipleFiles) {
     selectedExes.push_back(kBinNameMplcg);
     runningExes.push_back(kBinNameMplcg);
     currentAction = std::make_shared<Action>(kBinNameMplcg, inputInfo, currentAction);
@@ -415,8 +422,10 @@ ErrorCode MplOptions::DecideRunningPhases() {
   std::vector<std::shared_ptr<Action>> linkActions;
   std::shared_ptr<Action> lastAction;
 
+  bool isMultipleFiles = (splitsInputFiles.size() > 1);
+
   for (auto &inputFile : splitsInputFiles) {
-    lastAction = DecideRunningPhasesByType(inputFile);
+    lastAction = DecideRunningPhasesByType(inputFile, isMultipleFiles);
     CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
 
     /* TODO: Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
@@ -437,26 +446,70 @@ ErrorCode MplOptions::DecideRunningPhases() {
   return ret;
 }
 
+ErrorCode MplOptions::MFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
+                                       std::shared_ptr<InputInfo> inputInfo, bool &wasWrpCombCompilerCreated) {
+  ErrorCode ret = kErrorNoError;
+
+  if (exe == kBinNameMe || exe == kBinNameMpl2mpl || exe == kBinNameMplcg) {
+    if (wasWrpCombCompilerCreated == false) {
+      currentAction = std::make_shared<Action>(kBinNameMapleCombWrp, inputInfo, currentAction);
+      wasWrpCombCompilerCreated = true;
+    } else {
+      return ret;
+    }
+  }
+
+  else {
+    currentAction = std::make_shared<Action>(exe, inputInfo, currentAction);
+  }
+
+  return ret;
+}
+
+ErrorCode MplOptions::SFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
+                                          std::shared_ptr<InputInfo> inputInfo, bool &isCombCompiler) {
+  ErrorCode ret = kErrorNoError;
+
+  if (exe == kBinNameMe || exe == kBinNameMpl2mpl) {
+    if (isCombCompiler == false) {
+      currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
+      isCombCompiler = true;
+    } else {
+      return ret;
+    }
+  }
+
+  else {
+    currentAction = std::make_shared<Action>(exe, inputInfo, currentAction);
+  }
+
+  return ret;
+}
+
 ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExes) {
   ErrorCode ret = kErrorNoError;
-  std::vector<std::shared_ptr<Action>> linkActions;
-  std::shared_ptr<Action> lastAction;
-  bool isCombCompiler = false;
+
+  bool isMultipleFiles = (splitsInputFiles.size() > 1);
 
   for (auto &inputFile : splitsInputFiles) {
+    bool isCombCompiler = false;
+    bool wasWrpCombCompilerCreated = false;
 
     auto inputInfo = std::make_shared<InputInfo>(inputFile);
     std::shared_ptr<Action> currentAction = std::make_shared<Action>("Input", inputInfo);
 
     for (const auto &exe : runExes) {
-      if (exe == kBinNameMe) {
-        isCombCompiler = true;
-        currentAction = std::make_shared<Action>(kBinNameMapleComb, inputInfo, currentAction);
-        continue;
-      } else if (exe == kBinNameMpl2mpl && isCombCompiler == true) {
-        continue;
+      if (isMultipleFiles == true) {
+        ret = MFCreateActionByExe(exe, currentAction, inputInfo, wasWrpCombCompilerCreated);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+      } else {
+        ret = SFCreateActionByExe(exe, currentAction, inputInfo, isCombCompiler);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
       }
-      currentAction = std::make_shared<Action>(exe, inputInfo, currentAction);
     }
 
     rootActions.push_back(currentAction);

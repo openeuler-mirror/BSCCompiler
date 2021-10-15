@@ -40,6 +40,7 @@ const std::string kBinNameMe = "me";
 const std::string kBinNameMpl2mpl = "mpl2mpl";
 const std::string kBinNameMplcg = "mplcg";
 const std::string kBinNameMapleComb = "maplecomb";
+const std::string kBinNameMapleCombWrp = "maplecombwrp";
 const std::string kMachine = "aarch64-";
 const std::string kVendor = "unknown-";
 const std::string kOperatingSystem = "linux-gnu-";
@@ -226,6 +227,19 @@ class MplcgCompiler : public Compiler {
   const std::string &GetBinName() const override;
   std::string baseName;
   std::string outputFile;
+};
+
+class MapleCombCompilerWrp : public Compiler {
+ public:
+  explicit MapleCombCompilerWrp(const std::string &name) : Compiler(name) {}
+  ~MapleCombCompilerWrp() = default;
+
+  std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
+
+ private:
+  std::string GetBinPath(const MplOptions &options) const override;
+  const std::string &GetBinName() const override;
+  DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
 };
 
 // Build .s to .o
