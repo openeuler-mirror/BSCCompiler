@@ -268,6 +268,49 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
   return true;
 }
 
+bool BBLayout::BBIsEmpty(BB *bb) {
+  if (func.GetIRMap() != nullptr) {
+    return bb->IsMeStmtEmpty();
+  }
+  return bb->IsEmpty();
+}
+
+void BBLayout::OptimizeCaseTargets(BB *switchBB, CaseVector *swTable) {
+  CaseVector::iterator caseIt = swTable->begin();
+  for (; caseIt != swTable->end(); caseIt++) {
+    LabelIdx lidx = caseIt->second;
+    BB *brTargetBB = func.GetCfg()->GetLabelBBAt(lidx);
+    if (brTargetBB->GetSucc().size() != 0) {
+      OptimizeBranchTarget(*brTargetBB);
+    }
+    if (brTargetBB->GetSucc().size() != 1) {
+      continue;
+    }
+    if (!(BBContainsOnlyGoto(*brTargetBB) || BBIsEmpty(brTargetBB))) {
+      continue;
+    }
+    BB *newTargetBB = brTargetBB->GetSucc().front();
+    if (newTargetBB == brTargetBB) {
+      continue;
+    }
+    LabelIdx newTargetLabel = func.GetOrCreateBBLabel(*newTargetBB);
+    caseIt->second = newTargetLabel;
+    if (!newTargetBB->IsSuccBB(*switchBB)) {
+      switchBB->AddSucc(*newTargetBB);
+    }
+#if 0  // not updating CFG because there can be multiple cases with same target
+    switchBB->ReplaceSucc(brTargetBB, newTargetBB);
+    if (brTargetBB->GetPred().empty()) {
+      laidOut[brTargetBB->GetBBId()] = true;
+      RemoveUnreachable(*brTargetBB);
+      if (needDealWithTryBB) {
+        DealWithStartTryBB();
+      }
+    }
+#endif
+  }
+}
+
 // (1) bb's last statement is a conditional or unconditional branch; if the branch
 // target is a BB with only a single goto statement, optimize the branch target
 // to the eventual target
@@ -791,6 +834,14 @@ void BBLayout::LayoutWithoutProf() {
           OptimizeBranchTarget(*newFallthru);
         }
       }
+    } else if (bb->GetKind() == kBBSwitch) {
+      if (func.GetIRMap() != nullptr) {
+        SwitchMeStmt *swStmt = &static_cast<SwitchMeStmt&>(bb->GetMeStmts().back());
+        OptimizeCaseTargets(bb, &swStmt->GetSwitchTable());
+      } else {
+        SwitchNode *swStmt = &static_cast<SwitchNode&>(bb->GetStmtNodes().back());
+        OptimizeCaseTargets(bb, &swStmt->GetSwitchTable());
+      }
     }
     if (bb->GetKind() == kBBGoto) {
       // see if goto target can be placed here
@@ -977,7 +1028,7 @@ void BBLayout::LayoutWithProf() {
 
 void BBLayout::RunLayout() {
   // If the func is too large, won't run prediction
-  if (func.GetMIRModule().IsCModule() && cfg->GetAllBBs().size() <= kMaxNumBBToPredict) {
+  if (MeOption::layoutWithPredict && func.GetMIRModule().IsCModule() && cfg->GetAllBBs().size() <= kMaxNumBBToPredict) {
     LayoutWithProf();
   } else {
     LayoutWithoutProf();

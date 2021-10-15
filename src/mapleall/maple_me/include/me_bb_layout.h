@@ -53,6 +53,8 @@ class BBLayout{
     return nullptr;
   }
 
+  bool BBIsEmpty(BB *bb);
+  void OptimizeCaseTargets(BB *switchBB, CaseVector *swTable);
   void OptimizeBranchTarget(BB &bb);
   bool BBEmptyAndFallthru(const BB &bb);
   bool BBContainsOnlyGoto(const BB &bb) const;

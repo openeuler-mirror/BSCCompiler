@@ -114,6 +114,7 @@ uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
 uint8 MeOption::rematLevel = 0;
+bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -238,6 +239,7 @@ enum OptionIndex {
   kLoopVec,
   kSeqVec,
   kRematLevel,
+  kLayoutWithPredict,
 };
 
 const Descriptor kUsage[] = {
@@ -1143,6 +1145,16 @@ const Descriptor kUsage[] = {
     "  --no-seqvec                \tDisable auto sequencial vectorization\n",
     "me",
     {} },
+  { kLayoutWithPredict,
+    kEnable,
+    "",
+    "layoutwithpredict",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --layoutwithpredict        \tEnable optimizing output layout using branch prediction\n"
+    "  --no-layoutwithpredict     \tDisable optimizing output layout using branch prediction\n",
+    "me",
+    {} },
 #if MIR_JAVA
   { kMeAcquireFunc,
     0,
@@ -1610,6 +1622,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kRematLevel:
         rematLevel = std::stoul(opt.Args(), nullptr);
+        break;
+      case kLayoutWithPredict:
+        layoutWithPredict = (opt.Type() == kEnable);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:

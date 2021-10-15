@@ -470,6 +470,8 @@ class MePhiNode {
   }
 
   void SetLHS(ScalarMeExpr *value) {
+    value->SetDefBy(kDefByPhi);
+    value->SetDefPhi(*this);
     lhs = value;
   }
 
@@ -1205,7 +1207,7 @@ class MeStmt {
   virtual void SetOpnd(size_t, MeExpr*) {}
 
   bool IsAssertBce() const {
-    return op == OP_assertlt || op == OP_assertge;
+    return op >= OP_assertge && op <= OP_returnassertlt;
   }
 
   bool IsReturn() const {
@@ -2531,6 +2533,47 @@ class UnaryMeStmt : public MeStmt {
   MeExpr *opnd = nullptr;
 };
 
+class SafetyCallCheckMeStmt {
+ public:
+  SafetyCallCheckMeStmt(std::string funcName, size_t paramIndex)
+      : funcName(std::move(funcName)), paramIndex(paramIndex) {}
+  explicit SafetyCallCheckMeStmt(const SafetyCallCheckMeStmt& stmt)
+      : funcName(stmt.GetFuncName()), paramIndex(stmt.GetParamIndex()) {}
+
+  virtual ~SafetyCallCheckMeStmt() = default;
+
+  std::string GetFuncName() const {
+    return funcName;
+  }
+
+  size_t GetParamIndex() const {
+    return paramIndex;
+  }
+ private:
+  std::string funcName;
+  size_t paramIndex;
+};
+
+class CallAssertNonnullMeStmt : public UnaryMeStmt, public SafetyCallCheckMeStmt {
+ public:
+  explicit CallAssertNonnullMeStmt(const CallAssertNonnullStmtNode *stt)
+      : UnaryMeStmt(stt), SafetyCallCheckMeStmt(stt->GetFuncName(), stt->GetParamIndex()) {}
+  explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
+      : UnaryMeStmt(static_cast<const UnaryMeStmt*>(&stt)),
+        SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+  ~CallAssertNonnullMeStmt() = default;
+};
+
+class CallAssertBoundaryMeStmt : public NaryMeStmt, public SafetyCallCheckMeStmt {
+ public:
+  CallAssertBoundaryMeStmt(MapleAllocator *alloc, const CallAssertBoundaryStmtNode *stt)
+      : NaryMeStmt(alloc, stt), SafetyCallCheckMeStmt(stt->GetFuncName(), stt->GetParamIndex()) {}
+  CallAssertBoundaryMeStmt(MapleAllocator *alloc, const CallAssertBoundaryMeStmt &stt)
+      : NaryMeStmt(alloc, static_cast<const NaryMeStmt*>(&stt)),
+        SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+  ~CallAssertBoundaryMeStmt() = default;
+};
+
 class GotoMeStmt : public MeStmt {
  public:
   explicit GotoMeStmt(const StmtNode *stt) : MeStmt(stt), offset(static_cast<const GotoNode*>(stt)->GetOffset()) {}
@@ -2697,7 +2740,7 @@ class SwitchMeStmt : public UnaryMeStmt {
     switchTable[caseIdx].second = label;
   }
 
-  const CaseVector &GetSwitchTable() {
+  CaseVector &GetSwitchTable() {
     return switchTable;
   }
 
