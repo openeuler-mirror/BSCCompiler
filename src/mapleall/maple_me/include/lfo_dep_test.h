@@ -89,6 +89,7 @@ class DoloopInfo {
         flowDepTestList(alloc->Adapter()) {}
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
+  bool OnlyInvariantScalars(MeExpr *x);
   SubscriptDesc *BuildOneSubscriptDesc(BaseNode *subsX);
   ArrayAccessDesc *BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent);
   void CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent);
@@ -96,6 +97,7 @@ class DoloopInfo {
   void CreateDepTestLists();
   void TestDependences(MapleVector<DepTestPair> *depTestList, bool bothLHS);
   bool Parallelizable();
+  bool CheckReductionLoop();
   ArrayAccessDesc* GetArrayAccessDesc(ArrayNode *node, bool isRHS);
 };
 
