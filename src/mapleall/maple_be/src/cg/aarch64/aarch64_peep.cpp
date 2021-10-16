@@ -633,8 +633,8 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
      * ldr x9, [x21, #16]
      * although x21 is a calleeSave register, there is no guarantee data in memory [x21] is not changed
      */
-    if ((curInsn->IsCall() && !AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO))) ||
-        memBaseRegNO != stackBaseRegNO) {
+    if (curInsn->IsCall() && (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO)) ||
+        memBaseRegNO != stackBaseRegNO)) {
       return prevContiInsns;
     }
     if (curInsn->GetMachineOpcode() == MOP_asm) {
@@ -2584,6 +2584,11 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     }
 
     auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+
+    /* Avoid linking issues when object is not 16byte aligned */
+    if (memOpnd->GetSize() == k128BitSize) {
+      return;
+    }
 
     /* Check if dest operand of insn is idential with base register of nextInsn. */
     if (memOpnd->GetBaseRegister() != &regOpnd) {
