@@ -128,6 +128,55 @@ bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
   return false;
 }
 
+// check if all the scalars contained in x are loop-invariant unless it is IV
+bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
+  if (x == nullptr) {
+    return true;
+  }
+  switch (x->GetMeOp()) {
+    case kMeOpAddrof:
+    case kMeOpAddroffunc:
+    case kMeOpConst:
+    case kMeOpConststr:
+    case kMeOpConststr16:
+    case kMeOpSizeoftype:
+    case kMeOpFieldsDist: return true;
+    case kMeOpVar: {
+      VarMeExpr *varx = static_cast<VarMeExpr *>(x);
+      if (varx->GetOst()->GetMIRSymbol()->GetStIdx() == doloop->GetDoVarStIdx()) {
+        return true;  // it is the IV
+      }
+      // fall thru
+    }
+    case kMeOpReg: {
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+      BB *defBB = scalar->DefByBB();
+      return defBB == nullptr || (defBB != doloopBB && depInfo->dom->Dominate(*defBB, *doloopBB));
+    }
+    case kMeOpIvar: {
+      return OnlyInvariantScalars(x->GetOpnd(0));
+    }
+    case kMeOpOp: {
+      OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
+      return OnlyInvariantScalars(opexp->GetOpnd(0)) &&
+             OnlyInvariantScalars(opexp->GetOpnd(1)) &&
+             OnlyInvariantScalars(opexp->GetOpnd(2));
+    }
+    case kMeOpNary: {
+      NaryMeExpr *opexp = static_cast<NaryMeExpr *>(x);
+      for (uint32 i = 0; i < opexp->GetNumOpnds(); i++) {
+        if (!OnlyInvariantScalars(opexp->GetOpnd(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
 SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   MeExpr *meExpr = depInfo->preEmit->GetMexpr(subsX);
   SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>(meExpr);
@@ -213,7 +262,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
     hasPtrAccess = true;
     return nullptr;
   }
-  // determine arrayOst
+  // determine arryOst
   IvarMeExpr *ivarMeExpr = nullptr;
   OriginalSt *arryOst = nullptr;
   if (parent->op == OP_iread) {
@@ -434,6 +483,64 @@ bool DoloopInfo::Parallelizable() {
   return true;
 }
 
+static bool IsDreadOf(BaseNode *x, StIdx stIdx, FieldID fieldID) {
+  if (x->op != OP_dread) {
+    return false;
+  }
+  DreadNode *dread = static_cast<DreadNode *>(x);
+  return dread->GetStIdx() == stIdx && dread->GetFieldID() == fieldID;
+}
+
+bool DoloopInfo::CheckReductionLoop() {
+  if (hasPtrAccess || hasOtherCtrlFlow || !hasScalarAssign || hasMayDef) {
+    return false;
+  }
+  if (!lhsArrays.empty()) {
+    return false;
+  }
+  // make sure all rhsArrays are either loopInvariant or not messy
+  for (int i = 0; i < rhsArrays.size(); i++) {
+    ArrayAccessDesc *arrAcc = rhsArrays[i];
+    for (int j = 0; j < arrAcc->subscriptVec.size(); j++) {
+      SubscriptDesc *subs = arrAcc->subscriptVec[j];
+      if (!subs->loopInvariant && subs->tooMessy) {
+        return false;
+      }
+    }
+  }
+  // go thru all statements in loop body to check reduction form in scalar assignments
+  StmtNode *stmt = doloop->GetDoBody()->GetFirst();
+  while (stmt) {
+    if (stmt->op != OP_dassign) {
+      return false;
+    }
+    DassignNode *dass = static_cast<DassignNode *>(stmt);
+    BaseNode *rhs = dass->GetRHS();
+    if (rhs->GetOpCode() != OP_add && rhs->GetOpCode() != OP_sub) {
+      return false;
+    }
+    StIdx stIdx = dass->GetStIdx();
+    FieldID fieldID = dass->GetFieldID();
+    BinaryNode *binrhs = static_cast<BinaryNode *>(rhs);
+    BaseNode *otherOpnd = nullptr;
+    if (IsDreadOf(binrhs->GetBOpnd(0), stIdx, fieldID)) {
+      otherOpnd = binrhs->GetBOpnd(1);
+    } else if (binrhs->GetOpCode() == OP_add && IsDreadOf(binrhs->GetBOpnd(1), stIdx, fieldID)) {
+      otherOpnd = binrhs->GetBOpnd(0);
+      // swap the 2 sides
+      binrhs->SetBOpnd(binrhs->GetBOpnd(1), 0);
+      binrhs->SetBOpnd(otherOpnd, 1);
+    } else {
+      return false;
+    }
+    if (!OnlyInvariantScalars(depInfo->preEmit->GetMexpr(otherOpnd))) {
+      return false;
+    }
+    stmt = stmt->GetNext();
+  }
+  return true;
+}
+
 ArrayAccessDesc* DoloopInfo::GetArrayAccessDesc(ArrayNode *node, bool isRHS) {
   MapleVector<ArrayAccessDesc *>* arrayDescptr = isRHS ? &rhsArrays : &lhsArrays;
   for (auto it = arrayDescptr->begin(); it != arrayDescptr->end(); it++) {
@@ -548,6 +655,9 @@ void LfoDepInfo::PerformDepTest() {
       }
       if (doloopInfo->Parallelizable()) {
         LogInfo::MapleLogger() << "LOOP CAN BE VECTORIZED\n";
+      }
+      if (doloopInfo->CheckReductionLoop()) {
+        LogInfo::MapleLogger() << "LOOP IS REDUCTION LOOP\n";
       }
     }
   }
