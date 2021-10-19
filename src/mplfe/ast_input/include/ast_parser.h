@@ -34,7 +34,7 @@ class ASTParser {
         astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
   virtual ~ASTParser() = default;
   bool OpenFile();
-  bool Verify();
+  bool Verify() const;
   bool PreProcessAST();
 
   bool RetrieveStructs(MapleAllocator &allocator);
@@ -94,6 +94,7 @@ class ASTParser {
   ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr);
   ASTValue *AllocASTValue(MapleAllocator &allocator) const;
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
+  ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);
   ASTExpr *ProcessExprInType(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTBinaryOperatorExpr *AllocBinaryOperatorExpr(MapleAllocator &allocator, const clang::BinaryOperator &bo);
@@ -159,17 +160,11 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(StaticAssert);
 
  private:
-  void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, GenericAttrs &attrs,
-                               std::vector<ASTDecl*> &paramDecls);
-  void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, GenericAttrs &attrs,
-                                std::vector<ASTDecl*> &paramDecls, std::list<ASTStmt*> &stmts);
-  void ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
-                                 std::vector<ASTDecl*> &paramDecls, std::list<ASTStmt*> &stmts);
+  void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, unsigned int idx,
-                              std::vector<ASTDecl*> &paramDecls, ASTExpr *lenExpr, std::list<ASTStmt*> &stmts);
-  void InsertBoundaryVar(MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
-                         std::list<ASTStmt*> &stmts, uint64 size);
-  void ProcessBoundaryRetAttr(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTCallExpr &astCallExpr);
+                              ASTFunc &astFunc, ASTExpr *lenExpr, bool isSize);
   ASTValue *TranslateConstantValue2ASTValue(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTValue *TranslateLValue2ASTValue(MapleAllocator &allocator,
       const clang::Expr::EvalResult &result, const clang::Expr *expr) const;

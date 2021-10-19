@@ -20,6 +20,7 @@
 
 namespace maple {
 class ASTDecl;
+class ASTFunc;
 class ASTStmt;
 struct ASTValue {
   union Value {
@@ -127,8 +128,6 @@ class ASTExpr {
   virtual ASTDecl *GetASTDeclImpl() const {
     return refedDecl;
   }
-
-  virtual UniqueFEIRExpr CreateZeroExprCompare(UniqueFEIRExpr feExpr, Opcode opcode) const;
 
   ASTOp op;
   MIRType *mirType = nullptr;
@@ -859,6 +858,8 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRConst *GenerateMIRConstImpl() const override;
   bool CheckFirstDimIfZero() const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
+  void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
+                             const UniqueFEIRExpr &addrOfArray) const;
   void InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr,
                               UniqueFEIRExpr baseAddrFEExpr) const;
 
@@ -1105,8 +1106,8 @@ class ASTCallExpr : public ASTExpr {
     return retType->GetPrimType() == PTY_agg && retType->GetSize() > 16;
   }
 
-  void AddBoundaryStmts(std::list<ASTStmt*> &stmts) {
-    boundaryStmts.insert(boundaryStmts.end(), stmts.begin(), stmts.end());
+  void SetFuncDecl(ASTFunc *decl) {
+    funcDecl = decl;
   }
 
   std::string CvtBuiltInFuncName(std::string builtInName) const;
@@ -1114,6 +1115,9 @@ class ASTCallExpr : public ASTExpr {
   std::unique_ptr<FEIRStmtAssign> GenCallStmt() const;
   void AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const;
+  void InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts) const;
+  void InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const;
+  void InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) const;
 
  private:
   using FuncPtrBuiltinFunc = UniqueFEIRExpr (ASTCallExpr::*)(std::list<UniqueFEIRStmt> &stmts) const;
@@ -1226,7 +1230,6 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
 #undef DEF_MIR_INTRINSIC
 
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  void InsertBoudaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const;
 
   static std::unordered_map<std::string, FuncPtrBuiltinFunc> builtingFuncPtrMap;
   std::vector<ASTExpr*> args;
@@ -1236,7 +1239,7 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
   FuncAttrs funcAttrs;
   bool isIcall = false;
   std::string varName;
-  std::list<ASTStmt*> boundaryStmts;
+  ASTFunc *funcDecl = nullptr;
 };
 
 class ASTParenExpr : public ASTExpr {
@@ -1282,11 +1285,11 @@ class ASTIntegerLiteral : public ASTExpr {
   ASTIntegerLiteral() : ASTExpr(kASTIntegerLiteral) {}
   ~ASTIntegerLiteral() = default;
 
-  uint64 GetVal() const {
+  int64 GetVal() const {
     return val;
   }
 
-  void SetVal(uint64 valIn) {
+  void SetVal(int64 valIn) {
     val = valIn;
   }
 
@@ -1296,7 +1299,7 @@ class ASTIntegerLiteral : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
 
-  uint64 val = 0;
+  int64 val = 0;
 };
 
 enum FloatKind {
