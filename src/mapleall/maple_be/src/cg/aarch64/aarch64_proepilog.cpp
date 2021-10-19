@@ -1294,9 +1294,9 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
       for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
         Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
         RegOperand &reg =
-            aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
+            aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
         Insn &inst =
-            currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
+            currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_f64), reg, stackloc);
         cgFunc.GetCurBB()->AppendInsn(inst);
         offset += (kSizeOfPtr * k2BitSize);
       }
