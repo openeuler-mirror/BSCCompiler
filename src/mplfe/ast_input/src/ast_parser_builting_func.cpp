@@ -121,6 +121,14 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
     auto arg1Expr = args[0]->Emit2FEExpr(stmts);
     auto arg2Expr = args[1]->Emit2FEExpr(stmts);
+    return FEIRBuilder::CreateExprBinary(std::move(type), OP_ashr, std::move(arg1Expr), std::move(arg2Expr));
+  }
+  prefix = "__builtin_mpl_vector_shru";
+  if (funcName.compare(0, prefix.size(), prefix) == 0) {
+    isFinish = true;
+    UniqueFEIRType type = FEIRTypeHelper::CreateTypeNative(*args[0]->GetType());
+    auto arg1Expr = args[0]->Emit2FEExpr(stmts);
+    auto arg2Expr = args[1]->Emit2FEExpr(stmts);
     return FEIRBuilder::CreateExprBinary(std::move(type), OP_lshr, std::move(arg1Expr), std::move(arg2Expr));
   }
   // process a single builtinFunc
@@ -649,7 +657,7 @@ ASTExpr *ASTParser::ParseBuiltinClassifyType(MapleAllocator &allocator, const cl
   CHECK_FATAL(success, "Failed to evaluate __builtin_classify_type");
   llvm::APSInt apVal = res.Val.getInt();
   ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  astIntegerLiteral->SetVal(static_cast<uint64>(apVal.getExtValue()));
+  astIntegerLiteral->SetVal(apVal.getExtValue());
   astIntegerLiteral->SetType(GlobalTables::GetTypeTable().GetInt32());
   return astIntegerLiteral;
 }
@@ -657,7 +665,7 @@ ASTExpr *ASTParser::ParseBuiltinClassifyType(MapleAllocator &allocator, const cl
 ASTExpr *ASTParser::ParseBuiltinConstantP(MapleAllocator &allocator, const clang::CallExpr &expr,
                                           std::stringstream &ss) const {
   (void)ss;
-  uint64 constP = expr.getArg(0)->isConstantInitializer(*astFile->GetNonConstAstContext(), false) ? 1 : 0;
+  int64 constP = expr.getArg(0)->isConstantInitializer(*astFile->GetNonConstAstContext(), false) ? 1 : 0;
   // Pointers are not considered constant
   if (expr.getArg(0)->getType()->isPointerType() &&
       !llvm::isa<clang::StringLiteral>(expr.getArg(0)->IgnoreParenCasts())) {
@@ -780,7 +788,7 @@ ASTExpr *ASTParser::ParseBuiltinObjectsize(MapleAllocator &allocator, const clan
     objSize = objSizeType & 2 ? 0 : -1;
   }
   ASTIntegerLiteral *astIntegerLiteral = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-  astIntegerLiteral->SetVal(static_cast<uint64>(objSize));
+  astIntegerLiteral->SetVal(static_cast<int64>(objSize));
   astIntegerLiteral->SetType(astFile->CvtType(expr.getType()));
   return astIntegerLiteral;
 }
