@@ -40,13 +40,14 @@ const std::string kBinNameMe = "me";
 const std::string kBinNameMpl2mpl = "mpl2mpl";
 const std::string kBinNameMplcg = "mplcg";
 const std::string kBinNameMapleComb = "maplecomb";
-const std::string kBinNameLd = "ld";
 const std::string kMachine = "aarch64-";
 const std::string kVendor = "unknown-";
 const std::string kOperatingSystem = "linux-gnu-";
+const std::string kLdFlag = "ld";
 const std::string kGccFlag = "gcc";
 const std::string kGppFlag = "g++";
 const std::string kAsFlag = "as";
+const std::string kBinNameLd = kMachine + kOperatingSystem + kLdFlag;
 const std::string kBinNameAs = kMachine + kOperatingSystem + kAsFlag;
 const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
 const std::string kBinNameGpp = kMachine + kOperatingSystem + kGppFlag;
@@ -136,7 +137,7 @@ class Cpp2MplCompiler : public Compiler {
 
   ~Cpp2MplCompiler() = default;
 
-private:
+ private:
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
   std::string GetInputFileName(const MplOptions &options) const override;
@@ -243,6 +244,7 @@ class LdCompiler : public Compiler {
   const std::string &GetBinName() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options) const override;
   std::string GetInputFileName(const MplOptions &options) const override;
+  void GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const override;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_H

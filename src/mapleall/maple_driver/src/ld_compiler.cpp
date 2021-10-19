@@ -17,7 +17,7 @@
 #include "default_options.def"
 
 namespace maple {
-std::string AsCompiler::GetBinPath(const MplOptions&) const {
+std::string LdCompiler::GetBinPath(const MplOptions&) const {
 #ifdef ANDROID
   return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
 #else
@@ -25,16 +25,16 @@ std::string AsCompiler::GetBinPath(const MplOptions&) const {
 #endif
 }
 
-const std::string &AsCompiler::GetBinName() const {
-  return kBinNameAs;
+// TODO: Required to use ld instead of gcc; ld will be implemented later
+const std::string &LdCompiler::GetBinName() const {
+  return kBinNameGcc;
 }
 
-DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options) const {
-
+DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options) const {
   DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kAsDefaultOptions;
-  defaultOptions.mplOptions[0].SetValue(options.GetOutputFolder() + options.GetOutputName() + ".o");
-  defaultOptions.length = sizeof(kAsDefaultOptions) / sizeof(MplOption);
+  defaultOptions.mplOptions = kLdDefaultOptions;
+  defaultOptions.mplOptions[0].SetValue(options.GetOutputFolder() + options.GetOutputName());
+  defaultOptions.length = sizeof(kLdDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
@@ -45,17 +45,11 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options) const {
   return defaultOptions;
 }
 
-std::string AsCompiler::GetInputFileName(const MplOptions &options) const {
-  return options.GetOutputFolder() + options.GetOutputName() + ".s";
+std::string LdCompiler::GetInputFileName(const MplOptions &options) const {
+  return options.GetOutputFolder() + options.GetOutputName() + ".o";
 }
 
-void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".s");
-}
-
-std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
-  auto finalOutputs = std::unordered_set<std::string>();
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".o");
-  return finalOutputs;
+void LdCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".o");
 }
 }  // namespace maple

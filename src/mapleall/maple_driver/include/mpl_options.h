@@ -195,6 +195,10 @@ class MplOptions {
     return genMeMpl;
   }
 
+  bool HasSetGenObj() const {
+    return genObj;
+  }
+
   bool HasSetGenVtableImpl() const {
     return genVtableImpl;
   }
@@ -245,6 +249,7 @@ class MplOptions {
   bool debugFlag = false;
   bool withDwarf = false;
   bool timePhases = false;
+  bool genObj = false;
   bool genMeMpl = false;
   bool genVtableImpl = false;
   bool hasPrinted = false;

@@ -17,7 +17,7 @@
 namespace {
 using namespace maple;
 using namespace mapleOption;
-const mapleOption::Descriptor usages[] = {
+const mapleOption::Descriptor kUsages[] = {
   // index, type, shortOption, longOption, enableBuildType, checkPolicy, help, exeName, extra bins
   { kUnknown,
     0,
@@ -156,6 +156,15 @@ const mapleOption::Descriptor usages[] = {
     "--as-opt                      \tSet options for as\n",
     "all",
     {} },
+  { kLdOpt,
+    0,
+    "",
+    "ld-opt",
+    kBuildTypeProduct,
+    kArgCheckPolicyNone,
+    "--ld-opt                      \tSet options for ld\n",
+    "all",
+    {} },
   { kDex2mplOpt,
     0,
     "",
@@ -290,6 +299,15 @@ const mapleOption::Descriptor usages[] = {
     "  --genmempl                  \tGenerate me.mpl file\n",
     "all",
     {} },
+  { kGenObj,
+    kEnable,
+    "c",
+    "",
+    kBuildTypeProduct,
+    kArgCheckPolicyNone,
+    "  -c               \tExclude ld from automatic toolchain and generate .o file instead of ELF\n",
+    "all",
+          {}  },
   { kGenVtableImpl,
     0,
     "",
@@ -359,6 +377,6 @@ DriverOptionCommon &DriverOptionCommon::GetInstance() {
 }
 
 DriverOptionCommon::DriverOptionCommon() {
-  CreateUsages(usages);
+  CreateUsages(kUsages);
 }
 }  // namespace maple

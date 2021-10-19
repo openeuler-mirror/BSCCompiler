@@ -32,6 +32,7 @@
 #include "ipa_option.h"
 #include "jbc2mpl_option.h"
 #include "as_option.h"
+#include "ld_option.h"
 #include "cpp2mpl_option.h"
 #include "me_option.h"
 #include "option.h"
@@ -49,7 +50,7 @@ const std::string kMapleDriverVersion = "Maple Version : " + Version::GetVersion
 #endif
 
 const std::vector<std::string> kMapleCompilers = { "jbc2mpl", "mplfe",
-    "dex2mpl", "mplipa", "as",
+    "dex2mpl", "mplipa", "as", "ld",
     "me", "mpl2mpl", "mplcg", "clang"};
 
 int MplOptions::Parse(int argc, char **argv) {
@@ -63,6 +64,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(IpaOption::GetInstance());
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
+  optionParser->RegisteUsages(ldUsage);
   // Not sure if this is even required
   // optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
@@ -173,6 +175,12 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         mplcgOptArgs = opt.Args();
         printExtraOptStr << " --mplcg-opt=" << "\"" << mplcgOptArgs << "\"";
         break;
+      case kLdOpt:
+        ret = UpdatePhaseOption(opt.Args(), kLdFlag);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+        break;
       case kTimePhases:
         timePhases = true;
         printCommandStr += " -time-phases";
@@ -243,6 +251,10 @@ ErrorCode MplOptions::DecideRunType() {
       case kWithIpa:
         isWithIpa = (opt.Type() == kEnable);
         break;
+      case kGenObj:
+        genObj = true;
+        printCommandStr += " -c";
+        break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
           runModeConflict = true;
@@ -275,6 +287,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
   ErrorCode ret = kErrorNoError;
   bool isNeedMapleComb = true;
   bool isNeedMplcg = true;
+  bool isNeedAs = true;
   switch (inputFileType) {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
@@ -288,9 +301,11 @@ ErrorCode MplOptions::DecideRunningPhases() {
       // fall-through
     case InputFileType::kFileTypeClass:
       UpdateRunningExe(kBinNameJbc2mpl);
+      isNeedAs = false;
       break;
     case InputFileType::kFileTypeDex:
       UpdateRunningExe(kBinNameDex2mpl);
+      isNeedAs = false;
       break;
     case InputFileType::kFileTypeMpl:
       break;
@@ -312,6 +327,13 @@ ErrorCode MplOptions::DecideRunningPhases() {
   if (isNeedMplcg) {
     selectedExes.push_back(kBinNameMplcg);
     runningExes.push_back(kBinNameMplcg);
+  }
+
+  // This condition is used for testing purposes: -c option will five you full compilation
+  if (HasSetGenObj()) {
+    // Required to use flags, since user will need them for specific scenarios
+    UpdateRunningExe(kAsFlag);
+    UpdateRunningExe(kLdFlag);
   }
   return ret;
 }

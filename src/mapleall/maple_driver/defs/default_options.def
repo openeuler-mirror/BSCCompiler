@@ -116,5 +116,13 @@ static MplOption kCpp2MplDefaultOptionsForAst[] = {
 static MplOption kClangDefaultOptions[] = {
 #include "default/O0_options_clang.def"
 };
+//O0 as options
+static MplOption kAsDefaultOptions[] = {
+#include "default/O0_options_as.def"
+};
+//O0 ld options
+static MplOption kLdDefaultOptions[] = {
+#include "default/O0_options_ld.def"
+};
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_DEFAULT_OPTIONS_H

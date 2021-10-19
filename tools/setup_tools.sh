@@ -190,6 +190,8 @@ ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aar
 ln -s -f ${MAPLE_ROOT}/build/java2dex ${TOOL_BIN_PATH}/java2dex
 ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/tools/lib
 ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-gcc ${TOOL_BIN_PATH}/aarch64-linux-gnu-gcc
+ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-as ${TOOL_BIN_PATH}/aarch64-linux-gnu-as
+ln -s -f ${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/bin/aarch64-linux-gnu-ld ${TOOL_BIN_PATH}/aarch64-linux-gnu-ld
 
 # prepare scripts for tests
 mkdir -p ${MAPLE_ROOT}/output/script
