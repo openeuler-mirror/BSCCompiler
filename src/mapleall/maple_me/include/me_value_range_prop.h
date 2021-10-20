@@ -253,7 +253,9 @@ class ValueRangePropagation {
                         LoopScalarAnalysisResult &currSA)
       : func(meFunc), irMap(argIRMap), dom(argDom), memPool(pool), mpAllocator(&pool), loops(argLoops),
         caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
-        analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()), cands(candsTem), sa(currSA) {}
+        analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
+        analysisedAssignBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
+        cands(candsTem), sa(currSA) {}
   ~ValueRangePropagation() = default;
 
   void DumpCaches();
@@ -299,6 +301,10 @@ class ValueRangePropagation {
     return false;
   }
 
+  std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(const MeExpr &meExpr) {
+    return std::make_unique<ValueRange>(Bound(nullptr, 0, meExpr.GetPrimType()), kNotEqual);
+  }
+
   bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange) {
     if (valueRange == nullptr) {
       caches.at(bbID)[exprID] = nullptr;
@@ -331,7 +337,8 @@ class ValueRangePropagation {
   }
 
   void Insert2AnalysisedArrayChecks(BBId bbID, MeExpr &array, MeExpr &index, Opcode op) {
-    auto &analysisedArrayChecks = (op == OP_assertge) ? analysisedLowerBoundChecks : analysisedUpperBoundChecks;
+    auto &analysisedArrayChecks = kOpcodeInfo.IsAssertLowerBoundary(op) ? analysisedLowerBoundChecks :
+        kOpcodeInfo.IsAssertLeBoundary(op) ? analysisedAssignBoundChecks : analysisedUpperBoundChecks;
     if (analysisedArrayChecks.at(bbID).empty() ||
         analysisedArrayChecks.at(bbID).find(&array) == analysisedArrayChecks.at(bbID).end()) {
       analysisedArrayChecks.at(bbID)[&array] = std::set<MeExpr*>{ &index };
@@ -374,13 +381,11 @@ class ValueRangePropagation {
     }
   }
 
-  void Insert2NeedDeleteBoundaryCheck(BB &bb, MeStmt &meStmt) {
-    auto it = needDeletedBoundaryCheck.find(&bb);
-    if (it == needDeletedBoundaryCheck.end()) {
-      needDeletedBoundaryCheck[&bb] = std::set<MeStmt*>{ &meStmt };
-    } else {
-      it->second.insert(&meStmt);
-    }
+  void ResizeWhenCreateNewBB() {
+    caches.resize(caches.size() + 1);
+    analysisedLowerBoundChecks.resize(analysisedLowerBoundChecks.size() + 1);
+    analysisedUpperBoundChecks.resize(analysisedUpperBoundChecks.size() + 1);
+    analysisedAssignBoundChecks.resize(analysisedAssignBoundChecks.size() + 1);
   }
 
   void DealWithPhi(BB &bb, MePhiNode &mePhiNode);
@@ -422,6 +427,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType primType = PTY_begin);
   bool LowerInRange(const BB &bb, Bound lowerTemp, Bound lower, bool lowerIsZero);
   bool UpperInRange(const BB &bb, Bound upperTemp, Bound upper, bool upperIsArrayLength);
+  void InsertOstOfPhi2CandsForSSAUpdate(const BB &bb, const BB &trueBranch);
   void InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb);
   void AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB);
   void DealWithOPNeOrEq(Opcode op, BB &bb, ValueRange *leftRange, ValueRange &rightRange,
@@ -473,8 +479,8 @@ class ValueRangePropagation {
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   bool DeleteBoundaryCheckWhenBoundIsInvalied(BB &bb, MeStmt &meStmt, MeExpr &boundOpnd);
-  void DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
-  void DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
+  bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
+  bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
   std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
       std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
@@ -487,11 +493,11 @@ class ValueRangePropagation {
       ValueRange *valueRangeOfLengthPtr);
   bool DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
   bool CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
-                             int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize);
+                             int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op);
   bool GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
                                      MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
                                      std::unique_ptr<ValueRange> &valueRangeOfLength, uint32 &byteSize);
-  bool DealWithAssertlt(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
+  bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithShortCricuit(MeExpr &opnd, ValueRange &rightRange, BB &falseBranch, BB &trueBranch, BB &newMerge,
                             PrimType opndType, bool &opt, std::unordered_map<BB*, ValueRange*> &pred2ValueRange,
       bool hasCondGotoFromDomToPredBB = false);
@@ -502,7 +508,7 @@ class ValueRangePropagation {
   bool DealWithSpecialCondGoto(OpMeExpr &opMeExpr, ValueRange &leftRange, ValueRange &rightRange,
                                CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
-  void AnalysisUnreachableBBOrEdge(BB &unreachableBB);
+  void Insert2UnreachableBBs(BB &unreachableBB);
   void MergeValueRangeOfPred(BB &bb, const MeExpr &opnd);
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
   void DealWithCallassigned(BB &bb, MeStmt &stmt);
@@ -535,6 +541,7 @@ class ValueRangePropagation {
   std::set<MeExpr*> lengthSet;
   std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedLowerBoundChecks;
   std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedUpperBoundChecks;
+  std::vector<std::map<MeExpr*, std::set<MeExpr*>>> analysisedAssignBoundChecks;
   std::map<MeExpr*, MeExpr*> length2Def;
   std::set<BB*> unreachableBBs;
   std::unordered_map<int32, std::set<int32>> use2Defs;
@@ -542,8 +549,6 @@ class ValueRangePropagation {
   LoopScalarAnalysisResult &sa;
   std::unordered_map<BB*, BB*> loopHead2TrueBranch;
   std::unordered_map<BB*, std::set<std::pair<BB*, MeExpr*>>> pred2NewSuccs;
-  std::unordered_map<BB*, std::set<MeStmt*>> needDeletedAssertNonNull;
-  std::unordered_map<BB*, std::set<MeStmt*>> needDeletedBoundaryCheck;
   // Collection of newMergeBB.
   std::unordered_map<BB*, std::vector<std::pair<BB*, ValueRange*>>> trueOrFalseBranch2NewPred;
   std::unordered_map<BB*, uint32> newMergeBB2Opnd;

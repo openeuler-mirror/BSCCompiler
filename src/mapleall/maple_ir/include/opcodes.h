@@ -35,12 +35,10 @@ enum Opcode : uint8 {
 #define CASE_OP_ASSERT_BOUNDARY    \
   case OP_assertge:            \
   case OP_assignassertge:      \
-  case OP_callassertge:        \
-  case OP_returnassertge:      \
   case OP_assertlt:            \
   case OP_assignassertlt:      \
-  case OP_callassertlt:        \
-  case OP_returnassertlt:
+  case OP_callassertle:        \
+  case OP_returnassertle:
 
 inline constexpr bool IsDAssign(Opcode code) {
   return (code == OP_dassign || code == OP_maydassign);
@@ -124,8 +122,7 @@ constexpr bool IsStmtMustRequire(Opcode opcode) {
     case OP_membarstoreload:
     case OP_membarstorestore:
     CASE_OP_ASSERT_NONNULL
-    case OP_assertge:
-    case OP_assertlt:
+    CASE_OP_ASSERT_BOUNDARY
     case OP_free:
     case OP_incref:
     case OP_decref:

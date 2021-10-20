@@ -886,6 +886,9 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
             return nullptr;
           }
         }
+        case kDefByMustDef: {
+          return GetOrCreateLoopInvariantCR(expr);
+        }
         case kDefByNo: {
           return GetOrCreateLoopInvariantCR(expr);
         }

@@ -32,7 +32,10 @@ enum OpcodeProp {
   kOpcodePropIsCallAssigned,  // The instruction is among the call instructions with implicit assignments of the
   // returned values
   kOpcodePropNotPure,         // The operation does not return same result with idential operands
-  kOpcodePropMayThrowException
+  kOpcodePropMayThrowException,
+  kOpcodePropIsAssertNonnull,       // The operation check nonnnull
+  kOpcodePropIsAssertUpperBoundary, // The operation check upper boundary
+  kOpcodePropIsAssertLowerBoundary, // The operation check lower boundary
 };
 
 constexpr unsigned long OPCODEISSTMT = 1ULL << kOpcodePropIsStmt;
@@ -46,6 +49,9 @@ constexpr unsigned long OPCODEISCALL = 1ULL << kOpcodePropIsCall;
 constexpr unsigned long OPCODEISCALLASSIGNED = 1ULL << kOpcodePropIsCallAssigned;
 constexpr unsigned long OPCODENOTPURE = 1ULL << kOpcodePropNotPure;
 constexpr unsigned long OPCODEMAYTHROWEXCEPTION = 1ULL << kOpcodePropMayThrowException;
+constexpr unsigned long OPCODEASSERTNONNULL = 1ULL << kOpcodePropIsAssertNonnull;
+constexpr unsigned long OPCODEASSERTUPPERBOUNDARY = 1ULL << kOpcodePropIsAssertUpperBoundary;
+constexpr unsigned long OPCODEASSERTLOWERBOUNDARY = 1ULL << kOpcodePropIsAssertLowerBoundary;
 
 struct OpcodeDesc {
   uint8 instrucSize;  // size of instruction in bytes
@@ -144,6 +150,42 @@ class OpcodeTable {
     ASSERT(o < OP_last, "invalid opcode");
     return o == OP_dassign || o == OP_regassign;
   }
+
+  bool IsAssertNonnull(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return table[o].flag & OPCODEASSERTNONNULL;
+  }
+
+  bool IsCallAssertNonnull(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return o == OP_callassertnonnull;
+  }
+
+  bool IsAssertBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return table[o].flag & (OPCODEASSERTUPPERBOUNDARY | OPCODEASSERTLOWERBOUNDARY);
+  }
+
+  bool IsAssertUpperBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return table[o].flag & OPCODEASSERTUPPERBOUNDARY;
+  }
+
+  bool IsAssertLowerBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return table[o].flag & OPCODEASSERTLOWERBOUNDARY;
+  }
+
+  bool IsCallAssertBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return o == OP_callassertle;
+  }
+
+  bool IsAssertLeBoundary(Opcode o) const {
+    ASSERT(o < OP_last, "invalid opcode");
+    return (o == OP_callassertle || o == OP_returnassertle);
+  }
+
  private:
   OpcodeDesc table[OP_last];
 };
