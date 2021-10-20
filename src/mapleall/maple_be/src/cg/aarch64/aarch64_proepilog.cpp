@@ -1358,8 +1358,6 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
       }
     } else {
       Operand *o0 = cgFunc.CreateDbgImmOperand(1);
-      // line number might not be available.
-      // CG_ASSERT(func->srcPosition.MplLinenum(), "return check");
       Operand *o1 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().MplLineNum());
       Insn &loc = currCG->BuildInstruction<mpldbg::DbgInsn>(mpldbg::OP_DBG_loc, *o0, *o1);
       cgFunc.GetCurBB()->AppendInsn(loc);
@@ -1947,6 +1945,7 @@ void AArch64GenProEpilog::Run() {
 
   std::set<Insn*> &callInsnsMap = GetCallSitesMap();
   if (cgFunc.GetMirModule().IsCModule() && !callInsnsMap.empty()) {
+    cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
     ConvertToTailCalls(callInsnsMap);
   }
 }

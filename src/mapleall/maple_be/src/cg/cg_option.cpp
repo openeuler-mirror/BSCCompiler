@@ -54,7 +54,7 @@ bool CGOptions::fastAlloc = false;
 uint64 CGOptions::lsraBBOptSize = 150000;
 uint64 CGOptions::lsraInsnOptSize = 200000;
 uint64 CGOptions::overlapNum = 28;
-uint8 CGOptions::rematLevel = 0;
+uint8 CGOptions::rematLevel = 2;
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -674,10 +674,10 @@ const Descriptor kUsage[] = {
   { kConstFoldOpt,
     0,
     "",
-    "const-fold",
+    "no-const-fold",
     kBuildTypeExperimental,
     kArgCheckPolicyNone,
-    "  --const-fold                \tEnable constant folding\n",
+    "  --no-const-fold                \tDisable constant folding\n",
     "mplcg",
     {} },
   { kEhList,
@@ -1278,7 +1278,7 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         SetOption(kPatchLongBranch);
         break;
       case kConstFoldOpt:
-        SetOption(kConstFold);
+        ClearOption(kConstFold);
         break;
       case kCGDumpcfg:
         SetOption(kDumpCFG);
