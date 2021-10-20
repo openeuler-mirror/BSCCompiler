@@ -40,7 +40,7 @@ class CGOptions : public MapleDriverOptionBase {
     kGenPic = 1ULL << 4,
     kGenPie = 1ULL << 5,
     kVerboseAsm = 1ULL << 6,
-    kInsertCall = 1ULL << 7,
+    kGenInsertCall = 1ULL << 7,
     kAddDebugTrace = 1ULL << 8,
     kGenYieldPoint = 1ULL << 9,
     kGenLocalRc = 1ULL << 10,
@@ -239,7 +239,7 @@ class CGOptions : public MapleDriverOptionBase {
   }
 
   bool NeedInsertInstrumentationFunction() const {
-    return (options & kInsertCall) != 0;
+    return (options & kGenInsertCall) != 0;
   }
 
   bool InstrumentWithDebugTraceCall() const {
