@@ -396,12 +396,12 @@ bool RemoveIdenticalLoadAndStoreAArch64::IsMemOperandsIdentical(const Insn &insn
     return false;
   }
   /* Match only [base + offset] */
-  auto &memOpnd1 = static_cast<MemOperand&>(insn1.GetOperand(kInsnSecondOpnd));
-  if (static_cast<AArch64MemOperand&>(memOpnd1).GetAddrMode() != AArch64MemOperand::kAddrModeBOi) {
+  auto &memOpnd1 = static_cast<AArch64MemOperand&>(insn1.GetOperand(kInsnSecondOpnd));
+  if (memOpnd1.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
     return false;
   }
-  auto &memOpnd2 = static_cast<MemOperand&>(insn2.GetOperand(kInsnSecondOpnd));
-  if (static_cast<AArch64MemOperand&>(memOpnd2).GetAddrMode() != AArch64MemOperand::kAddrModeBOi) {
+  auto &memOpnd2 = static_cast<AArch64MemOperand&>(insn2.GetOperand(kInsnSecondOpnd));
+  if (memOpnd2.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !memOpnd1.IsIntactIndexed()) {
     return false;
   }
   Operand *base1 = memOpnd1.GetBaseRegister();
@@ -421,11 +421,7 @@ bool RemoveIdenticalLoadAndStoreAArch64::IsMemOperandsIdentical(const Insn &insn
     return false;
   }
 
-  if (static_cast<AArch64MemOperand&>(memOpnd1).GetOffsetImmediate()->GetOffsetValue() !=
-      static_cast<AArch64MemOperand&>(memOpnd2).GetOffsetImmediate()->GetOffsetValue()) {
-    return false;
-  }
-  return true;
+  return memOpnd1.GetOffsetImmediate()->GetOffsetValue() == memOpnd2.GetOffsetImmediate()->GetOffsetValue();
 }
 
 void RemoveMovingtoSameRegAArch64::Run(BB &bb, Insn &insn) {
@@ -633,8 +629,8 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
      * ldr x9, [x21, #16]
      * although x21 is a calleeSave register, there is no guarantee data in memory [x21] is not changed
      */
-    if ((curInsn->IsCall() && !AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO))) ||
-        memBaseRegNO != stackBaseRegNO) {
+    if (curInsn->IsCall() && (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(destRegNO)) ||
+        memBaseRegNO != stackBaseRegNO)) {
       return prevContiInsns;
     }
     if (curInsn->GetMachineOpcode() == MOP_asm) {
@@ -2584,6 +2580,11 @@ void ComplexMemOperandAArch64::Run(BB &bb, Insn &insn) {
     }
 
     auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+
+    /* Avoid linking issues when object is not 16byte aligned */
+    if (memOpnd->GetSize() == k128BitSize) {
+      return;
+    }
 
     /* Check if dest operand of insn is idential with base register of nextInsn. */
     if (memOpnd->GetBaseRegister() != &regOpnd) {

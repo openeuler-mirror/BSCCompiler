@@ -81,9 +81,9 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
             break;
           }
         }
-
       } else {
-        targetBitSize = iassignCandidates[end].first + GetStructFieldBitSize(lhsStructType, endFieldID) - startBitOffset;
+        targetBitSize = iassignCandidates[end].first + GetStructFieldBitSize(lhsStructType, endFieldID) -
+            startBitOffset;
         if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
           int32 coveredBitSize = 0;
           for (int32 i = startCandidate; i <= end; i++) {
@@ -167,11 +167,13 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       startCandidate++;
       continue;
     }
-    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
+    OriginalSt *lhsOrigStStart = static_cast<DassignMeStmt*>(
+        dassignCandidates[startCandidate].second)->GetLHS()->GetOst();
     int32 lhsFieldBitOffsetStart = lhsOrigStStart->GetOffset().val;
     MIRSymbol *lhsMIRStStart = lhsOrigStStart->GetMIRSymbol();
     TyIdx lhsTyIdxStart = lhsMIRStStart->GetTyIdx();
-    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
+    MIRStructType *lhsStructTypeStart = static_cast<MIRStructType *>(
+        GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdxStart));
 
     // Find qualified candidates as many as possible
     bool found = false;
@@ -216,7 +218,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         fieldValStmtIdx = static_cast<ConstMeExpr*>(static_cast<DassignMeStmt*>(
             dassignCandidates[stmtIdx].second)->GetRHS())->GetIntValue();
         fieldValStmtIdx = (fieldValStmtIdx << (64 - fieldBitSizeStmtIdx)) >> (64 - fieldBitSizeStmtIdx);
-        combinedVal = combinedVal << fieldBitSizeStmtIdx | fieldValStmtIdx;
+        combinedVal = (combinedVal << fieldBitSizeStmtIdx) | fieldValStmtIdx;
       }
       // Dassignoff is NOT part of MeStmt yet
       DassignMeStmt *firstDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second);
@@ -231,7 +233,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
         DassignMeStmt *removedDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[canIdx].second);
         removedDassignStmt->SetEmitDassignoff(false);
         removedDassignStmt->SetOmitEmit(true);
-        // TODO: Cancel emit instead of removal here
+        // Cancel emit instead of removal here
         bb->RemoveMeStmt(removedDassignStmt);
       }
       startCandidate = endIdx + 1;
@@ -241,7 +243,179 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
   }
 }
 
+IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
+                                          MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
+  MeIRMap *irMap = func.GetIRMap();
+  iVar1.SetOffset(offset);
+  IvarMeExpr *dstIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(iVar1));
+  iVar2.SetOffset(offset);
+  IvarMeExpr *srcIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(iVar2));
+  IassignMeStmt *xIassignStmt = irMap->CreateIassignMeStmt(ptrTypeIdx, *dstIvar, *srcIvar, stmtChi);
+  return xIassignStmt;
+}
+
+IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeExpr& valMeExpr,
+                                          MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
+  MeIRMap *irMap = func.GetIRMap();
+  iVar.SetOffset(offset);
+  IvarMeExpr *dstIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(iVar));
+  IassignMeStmt *xIassignStmt = irMap->CreateIassignMeStmt(ptrTypeIdx, *dstIvar, valMeExpr, stmtChi);
+  return xIassignStmt;
+}
+
+const uint32 simdThreshold = 128;
+void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
+  ASSERT(memcpyCallStmt->GetIntrinsic() == INTRN_C_memcpy, "The stmt is NOT intrinsic memcpy");
+
+  ConstMeExpr *lengthExpr = static_cast<ConstMeExpr*>(memcpyCallStmt->GetOpnd(2));
+  if (!lengthExpr || lengthExpr->GetMeOp() != kMeOpConst ||
+      lengthExpr->GetConstVal()->GetKind() != kConstInt) {
+    return;
+  }
+  int32 copyLength = lengthExpr->GetIntValue();
+  if (copyLength <= 0 || copyLength > simdThreshold || copyLength % 8 != 0) {
+    return;
+  }
+
+  int32 numOf16Byte = copyLength / 16;
+  int32 numOf8Byte = (copyLength % 16) / 8;
+  int32 offset8Byte = copyLength - (copyLength % 16);
+  /* Leave following cases for future
+  int32 numOf4Byte = (copyLength % 8) / 4;
+  int32 offset4Byte = copyLength - (copyLength % 8);
+  int32 numOf2Byte = (copyLength % 4) / 2;
+  int32 offset2Byte = copyLength - (copyLength % 4);
+  int32 numOf1Byte = (copyLength % 2);
+  int32 offset1Byte = copyLength - (copyLength % 2);
+  */
+  MeExpr *dstMeExpr = memcpyCallStmt->GetOpnd(0);
+  MeExpr *srcMeExpr = memcpyCallStmt->GetOpnd(1);
+  MapleMap<OStIdx, ChiMeNode *>  *memcpyCallStmtChi = memcpyCallStmt->GetChiList();
+  MIRType *v16uint8MirType = GlobalTables::GetTypeTable().GetV16UInt8();
+  MIRType *v16uint8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v16uint8MirType, PTY_ptr);
+
+  IvarMeExpr tmpIvar1(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
+  if (dstMeExpr->GetOp() != OP_regread) {
+    RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *dstMeExpr, *memcpyCallStmt->GetBB());
+    memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
+    dstMeExpr = addrRegMeExpr;
+  }
+  tmpIvar1.SetBase(dstMeExpr);
+  IvarMeExpr tmpIvar2(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
+  if (srcMeExpr->GetOp() != OP_regread) {
+    RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *srcMeExpr, *memcpyCallStmt->GetBB());
+    memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
+    srcMeExpr = addrRegMeExpr;
+  }
+  tmpIvar2.SetBase(srcMeExpr);
+
+  for (int32 i = 0; i < numOf16Byte; i++) {
+    IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar1, tmpIvar2, *memcpyCallStmtChi,
+                                                 v16uint8PtrType->GetTypeIndex());
+    memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
+  }
+
+  if (numOf8Byte != 0) {
+    MIRType *v8uint8MirType = GlobalTables::GetTypeTable().GetV8UInt8();
+    MIRType *v8uint8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v8uint8MirType, PTY_ptr);
+    IvarMeExpr tmpIvar3(kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
+    tmpIvar3.SetBase(dstMeExpr);
+    IvarMeExpr tmpIvar4(kInvalidExprID, PTY_v8u8, v8uint8PtrType->GetTypeIndex(), 0);
+    tmpIvar4.SetBase(srcMeExpr);
+    IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar3, tmpIvar4, *memcpyCallStmtChi,
+                                                 v8uint8PtrType->GetTypeIndex());
+    memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
+  }
+
+  // Remove memcpy stmt
+  if (numOf8Byte != 0 || numOf16Byte != 0) {
+    BB * bb = memcpyCallStmt->GetBB();
+    bb->RemoveMeStmt(memcpyCallStmt);
+  }
+}
+
+void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
+  ASSERT(memsetCallStmt->GetIntrinsic() == INTRN_C_memset, "The stmt is NOT intrinsic memset");
+
+  ConstMeExpr *numExpr = static_cast<ConstMeExpr*>(memsetCallStmt->GetOpnd(2));
+  if (!numExpr || numExpr->GetMeOp() != kMeOpConst ||
+      numExpr->GetConstVal()->GetKind() != kConstInt) {
+    return;
+  }
+  int32 setLength = numExpr->GetIntValue();
+  if (setLength <= 0 || setLength > simdThreshold || setLength % 8 != 0) {
+    return;
+  }
+
+  int32 numOf16Byte = setLength / 16;
+  int32 numOf8Byte = (setLength % 16) / 8;
+  int32 offset8Byte = setLength - (setLength % 16);
+  /* Leave following cases for future
+  int32 numOf4Byte = (copyLength % 8) / 4;
+  int32 offset4Byte = copyLength - (copyLength % 8);
+  int32 numOf2Byte = (copyLength % 4) / 2;
+  int32 offset2Byte = copyLength - (copyLength % 4);
+  int32 numOf1Byte = (copyLength % 2);
+  int32 offset1Byte = copyLength - (copyLength % 2);
+  */
+  MeExpr *dstMeExpr = memsetCallStmt->GetOpnd(0);
+  MeExpr *fillValMeExpr = memsetCallStmt->GetOpnd(1);
+  MapleMap<OStIdx, ChiMeNode *>  *memsetCallStmtChi = memsetCallStmt->GetChiList();
+  MIRType *v16u8MirType = GlobalTables::GetTypeTable().GetV16UInt8();
+  MIRType *v16u8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v16u8MirType, PTY_ptr);
+
+  IvarMeExpr tmpIvar(kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
+  if (dstMeExpr->GetOp() != OP_regread) {
+    RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *dstMeExpr, *memsetCallStmt->GetBB());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, addrRegAssignMeStmt);
+    dstMeExpr = addrRegMeExpr;
+  }
+  tmpIvar.SetBase(dstMeExpr);
+
+  RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v16u8);
+  NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop, PTY_v16u8,
+                                         1, TyIdx(0), INTRN_vector_from_scalar_v16u8, false);
+  dupValMeExpr->PushOpnd(fillValMeExpr);
+  MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
+  memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
+
+  for (int32 i = 0; i < numOf16Byte; i++) {
+    IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
+                                                 v16u8PtrType->GetTypeIndex());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+  }
+
+  if (numOf8Byte != 0) {
+    MIRType *v8u8MirType = GlobalTables::GetTypeTable().GetV8UInt8();
+    MIRType *v8u8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v8u8MirType, PTY_ptr);
+    IvarMeExpr tmpIvar(kInvalidExprID, PTY_v8u8, v8u8PtrType->GetTypeIndex(), 0);
+    tmpIvar.SetBase(dstMeExpr);
+
+    // Consider Reuse of dstMeExpr ?
+    // RegMeExpr *dupRegMeExpr = static_cast<RegMeExpr *>(func.GetIRMap()->CreateMeExprTypeCvt(PTY_v8u8, PTY_v16u8, *dstMeExpr));
+    RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v8u8);
+    NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop, PTY_v8u8,
+                                              1, TyIdx(0), INTRN_vector_from_scalar_v8u8, false);
+    dupValMeExpr->PushOpnd(fillValMeExpr);
+    MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
+    IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
+                                                 v8u8PtrType->GetTypeIndex());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+  }
+
+  // Remove memset stmt
+  if (numOf8Byte != 0 || numOf16Byte != 0) {
+    BB * bb = memsetCallStmt->GetBB();
+    bb->RemoveMeStmt(memsetCallStmt);
+  }
+}
+
 // Merge assigns on consecutive struct fields into one assignoff
+// Or Simdize memset/memcpy
 void MergeStmts::MergeMeStmts() {
   auto layoutBBs = func.GetLaidOutBBs();
 
@@ -251,8 +425,8 @@ void MergeStmts::MergeMeStmts() {
 
     // Identify consecutive (I/D)assign stmts
     // Candiates of (I/D)assignment are grouped together and saparated by nullptr
-    auto &meStmts = bb->GetMeStmts();
-    for (auto &meStmt : meStmts) {
+    MeStmts &meStmts = bb->GetMeStmts();
+    for (MeStmt &meStmt : meStmts) {
       Opcode op = meStmt.GetOp();
       switch (op) {
         case OP_iassign: {
@@ -280,7 +454,6 @@ void MergeStmts::MergeMeStmts() {
               candidateStmts.push(nullptr);
               candidateStmts.push(&meStmt);
             }
-
           } else {
             // Grouping based on struct fields
             if (!lhsMirType->IsMIRStructType()) {
@@ -316,11 +489,24 @@ void MergeStmts::MergeMeStmts() {
           } else if (candidateStmts.empty() || candidateStmts.back() == nullptr) {
             candidateStmts.push(&meStmt);
           } else if (candidateStmts.back()->GetOp() == OP_dassign &&
-                     static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
+              static_cast<DassignMeStmt*>(candidateStmts.back())->GetLHS()->GetOst()->GetMIRSymbol() == lhsMirSt) {
             candidateStmts.push(&meStmt);
           } else {
             candidateStmts.push(nullptr);
             candidateStmts.push(&meStmt);
+          }
+          break;
+        }
+        // Simdize intrinsic. SIMD should really be handled in CG
+        case OP_intrinsiccall: {
+          IntrinsiccallMeStmt *intrinsicCallStmt = static_cast<IntrinsiccallMeStmt*>(&meStmt);
+          MIRIntrinsicID intrinsicCallID = intrinsicCallStmt->GetIntrinsic();
+          if (intrinsicCallID == INTRN_C_memcpy) {
+            simdMemcpy(intrinsicCallStmt);
+          } else if (intrinsicCallID == INTRN_C_memset) {
+            simdMemset(intrinsicCallStmt);
+          } else {
+            // More to come
           }
           break;
         }
@@ -354,7 +540,6 @@ void MergeStmts::MergeMeStmts() {
                 bb->RemoveMeStmt(uniqueCheck[bitOffsetIVar]);
               }
               uniqueCheck[bitOffsetIVar] = iassignStmt;
-              //iassignCandidates.push_back(std::make_pair(bitOffsetIVar, iassignStmt));
             } else {
               TyIdx lhsTyIdx = iVarIassignStmt->GetTyIdx();
               MIRPtrType *lhsMirPtrType =
@@ -365,13 +550,13 @@ void MergeStmts::MergeMeStmts() {
                 bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
               }
               uniqueCheck[fieldBitOffset] = candidateStmts.front();
-              //iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
+              // iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
             }
             candidateStmts.pop();
           }
           for (std::pair<int32, MeStmt*> pair : uniqueCheck) {
             iassignCandidates.push_back(pair);
-          };
+          }
           mergeIassigns(iassignCandidates);
           break;
         }

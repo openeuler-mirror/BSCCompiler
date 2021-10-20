@@ -677,6 +677,11 @@ bool AArch64StoreLoadOpt::CanDoMemProp(Insn *insn) {
     if (insn->IsAtomic()) {
       return false;
     }
+    // It is not desired to propagate on 128bit reg with immediate offset
+    // which may cause linker to issue misalignment error
+    if (insn->IsAtomic() || insn->GetOperand(0).GetSize() == k128BitSize) {
+      return false;
+    }
     AArch64MemOperand *currMemOpnd = static_cast<AArch64MemOperand*>(insn->GetMemOpnd());
     return currMemOpnd != nullptr;
   }
@@ -735,6 +740,7 @@ void AArch64StoreLoadOpt::DoStoreLoadOpt() {
       MOperator mOp = insn->GetMachineOpcode();
       if (CanDoMemProp(insn)) {
         MemProp(*insn);
+        StrLdrIndexModeOpt(*insn);
       }
       if (a64CgFunc.GetMirModule().IsCModule() && cgFunc.GetRD()->OnlyAnalysisReg()) {
         continue;
@@ -804,6 +810,116 @@ void AArch64StoreLoadOpt::MemProp(Insn &insn) {
   }
 }
 
+/*
+ * Assume stack(FP) will not be varied out of pro/epi log
+ * PreIndex:
+ *   add/sub x1, x1 #immVal1
+ *   ...(no def/use of x1)
+ *   ldr/str x0, [x1]
+ *   ======>
+ *   ldr/str x0, [x1, #immVal1]!
+ *
+ * PostIndex:
+ *   ldr/str x0, [x1]
+ *   ...(no def/use of x1)
+ *   add/sub x1, x1, #immVal1
+ *   ======>
+ *   ldr/str x0, [x1],  #immVal1
+ */
+void AArch64StoreLoadOpt::StrLdrIndexModeOpt(Insn &currInsn) {
+  auto *curMemopnd = static_cast<AArch64MemOperand*>(currInsn.GetMemOpnd());
+  ASSERT(curMemopnd != nullptr, " get memopnd failed");
+  /* one instruction cannot define one register twice */
+  if (!CanDoIndexOpt(*curMemopnd) ||
+      static_cast<AArch64Insn&>(currInsn).IsRegDefined(curMemopnd->GetBaseRegister()->GetRegisterNumber())) {
+    return;
+  }
+  AArch64MemOperand *newMemopnd = SelectIndexOptMode(currInsn, *curMemopnd);
+  if (newMemopnd != nullptr) {
+    currInsn.SetMemOpnd(newMemopnd);
+  }
+}
+
+bool AArch64StoreLoadOpt::CanDoIndexOpt(AArch64MemOperand &MemOpnd) {
+  if (MemOpnd.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !MemOpnd.IsIntactIndexed()) {
+    return false;
+  }
+  ASSERT(MemOpnd.GetOffsetImmediate() != nullptr, " kAddrModeBOi memopnd have no offset imm");
+  if (!MemOpnd.GetOffsetImmediate()->IsImmOffset()) {
+    return false;
+  }
+  if (MemOpnd.GetBaseRegister()->IsSPOrFP()) {
+    return false;
+  }
+  AArch64OfstOperand *a64Ofst = MemOpnd.GetOffsetImmediate();
+  if (a64Ofst == nullptr) {
+    return false;
+  }
+  return a64Ofst->GetValue() == 0;
+}
+
+int64 AArch64StoreLoadOpt::GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno_t baseRegNO, uint32 memOpndSize) {
+  bool subMode = defInsn.GetMachineOpcode() == MOP_wsubrri12 || defInsn.GetMachineOpcode() == MOP_xsubrri12;
+  bool addMode = defInsn.GetMachineOpcode() == MOP_waddrri12 || defInsn.GetMachineOpcode() == MOP_xaddrri12;
+  if (addMode || subMode) {
+    ASSERT(static_cast<RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() == baseRegNO,
+           "check def opnd");
+    auto &srcOpnd = static_cast<RegOperand&>(defInsn.GetOperand(kInsnSecondOpnd));
+    if (srcOpnd.GetRegisterNumber() == baseRegNO && defInsn.GetBB() == insn.GetBB()) {
+      int64 offsetVal = static_cast<AArch64ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd)).GetValue();
+      if (!AArch64MemOperand::IsSIMMOffsetOutOfRange(offsetVal, memOpndSize == k64BitSize, insn.IsLoadStorePair())) {
+        return subMode ? -offsetVal : offsetVal;
+      }
+    }
+  }
+  return kMaxPimm8; /* simm max value cannot excced pimm max value */
+};
+
+
+AArch64MemOperand *AArch64StoreLoadOpt::SelectIndexOptMode(Insn &insn, AArch64MemOperand &curMemOpnd) {
+  AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
+  ASSERT((a64RD != nullptr), "check a64RD!");
+  regno_t baseRegisterNO = curMemOpnd.GetBaseRegister()->GetRegisterNumber();
+  auto &a64cgFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  /* pre index */
+  InsnSet regDefSet = a64RD->FindDefForRegOpnd(insn, baseRegisterNO, true);
+  if (regDefSet.size() == k1BitSize) {
+    Insn *defInsn = *regDefSet.begin();
+    int64 defOffset = GetOffsetForNewIndex(*defInsn, insn, baseRegisterNO, curMemOpnd.GetSize());
+    if (defOffset < kMaxPimm8) {
+      InsnSet tempCheck;
+      (void)a64RD->FindRegUseBetweenInsn(baseRegisterNO, defInsn->GetNext(), insn.GetPrev(), tempCheck);
+      if (tempCheck.empty()) {
+        auto &newMem = static_cast<AArch64MemOperand&>(
+            a64cgFunc.CreateMemOpnd(*curMemOpnd.GetBaseRegister(), defOffset, curMemOpnd.GetSize()));
+        ASSERT(newMem.GetOffsetImmediate() != nullptr, "need offset for memopnd in this case");
+        newMem.SetIndexOpt(AArch64MemOperand::kPreIndex);
+        insn.GetBB()->RemoveInsn(*defInsn);
+        return &newMem;
+      }
+    }
+  }
+  /* post index */
+  std::vector<Insn*> refDefVec = a64RD->FindRegDefBetweenInsn(baseRegisterNO, &insn, insn.GetBB()->GetLastInsn(), true);
+  if (!refDefVec.empty()) {
+    Insn *defInsn = refDefVec.back();
+    int64 defOffset = GetOffsetForNewIndex(*defInsn, insn, baseRegisterNO, curMemOpnd.GetSize());
+    if (defOffset < kMaxPimm8) {
+      InsnSet tempCheck;
+      (void)a64RD->FindRegUseBetweenInsn(baseRegisterNO, insn.GetNext(), defInsn->GetPrev(), tempCheck);
+      if (tempCheck.empty()) {
+        auto &newMem = static_cast<AArch64MemOperand&>(a64cgFunc.CreateMemOpnd(
+            *curMemOpnd.GetBaseRegister(), defOffset, curMemOpnd.GetSize()));
+        ASSERT(newMem.GetOffsetImmediate() != nullptr, "need offset for memopnd in this case");
+        newMem.SetIndexOpt(AArch64MemOperand::kPostIndex);
+        insn.GetBB()->RemoveInsn(*defInsn);
+        return &newMem;
+      }
+    }
+  }
+  return nullptr;
+}
+
 void AArch64StoreLoadOpt::ProcessStrPair(Insn &insn) {
   const short memIndex = 2;
   short regIndex = 0;
@@ -849,6 +965,7 @@ void AArch64StoreLoadOpt::ProcessStr(Insn &insn) {
   if ((base == nullptr) || !(cgFunc.GetRD()->IsFrameReg(*base))) {
     return;
   }
+
   if (cgFunc.IsAfterRegAlloc() && !insn.IsSpillInsn()) {
     return;
   }
