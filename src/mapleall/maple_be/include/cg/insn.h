@@ -478,6 +478,12 @@ class Insn {
     return ((flags & kOpAccessRefField) != 0);
   }
 
+  virtual bool IsRegDefined(regno_t regNO) const {
+    (void)regNO;
+    ASSERT(false, "implement in subclass");
+    return false;
+  }
+
   virtual bool IsDefinition() const = 0;
 
   virtual bool IsDestRegAlsoSrcReg() const {
@@ -496,7 +502,7 @@ class Insn {
 
   Insn *GetNextMachineInsn() const {
     for (Insn *returnInsn = next; returnInsn != nullptr; returnInsn = returnInsn->next) {
-      ASSERT(returnInsn->bb == bb, "insn and it's next insn must have same bb");
+      CHECK_FATAL(returnInsn->bb == bb, "insn and it's next insn must have same bb");
       if (returnInsn->IsMachineInstruction()) {
         return returnInsn;
       }

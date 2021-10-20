@@ -113,10 +113,19 @@ class AArch64RegOperand : public RegOperand {
     return vecLaneSize;
   }
 
+  void SetVecElementSize(uint32 size) {
+    vecElementSize = size;
+  }
+
+  uint32 GetVecElementSize() const {
+    return vecElementSize;
+  }
+
   bool operator==(const AArch64RegOperand &opnd) const;
 
   bool operator<(const AArch64RegOperand &opnd) const;
 
+  void EmitVectorOpnd(Emitter &emitter) const;
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
   void Dump() const override {
     std::array<const std::string, kRegTyLast> prims = { "U", "R", "V", "C", "X", "Vra" };
@@ -139,6 +148,7 @@ class AArch64RegOperand : public RegOperand {
   uint32 flag;
   int16 vecLane = -1;     /* -1 for whole reg, 0 to 15 to specify each lane one at a time */
   uint16 vecLaneSize = 0; /* Number of lanes */
+  uint64 vecElementSize = 0;  /* size of vector element in each lane */
   bool if64Vec = false;   /* operand returning 64x1's int value in FP/Simd register */
 };
 
@@ -256,7 +266,7 @@ class AArch64OfstOperand : public OfstOperand {
       : OfstOperand(kOpdOffset, 0, size, true),
         offsetType(kSymbolOffset), symbol(&mirSymbol), relocs(relocs) {}
   /* only for Immediate offset */
-  AArch64OfstOperand(int32 val, uint32 size, VaryType isVar = kNotVary)
+  AArch64OfstOperand(int64 val, uint32 size, VaryType isVar = kNotVary)
       : OfstOperand(kOpdOffset, static_cast<int64>(val), size, true, isVar),
         offsetType(kImmediateOffset), symbol(nullptr), relocs(0) {}
   /* for symbol and Immediate offset */
@@ -298,7 +308,7 @@ class AArch64OfstOperand : public OfstOperand {
     return symbol->GetName();
   }
 
-  int32 GetOffsetValue() const {
+  int64 GetOffsetValue() const {
     return GetValue();
   }
 
@@ -504,7 +514,7 @@ class AArch64CGFunc;
  *
  * a) The post-indexed by register offset mode can be used with the SIMD Load/Store
  * structure instructions described in Load/Store Vector on page C3-154. Otherwise
- * the post-indexed by register offset mode is not avacilable.
+ * the post-indexed by register offset mode is not available.
  */
 class AArch64MemOperand : public MemOperand {
  public:
@@ -736,12 +746,12 @@ class AArch64MemOperand : public MemOperand {
 
   static bool IsSIMMOffsetOutOfRange(int32 offset, bool is64bit, bool isLDSTPair) {
     if (!isLDSTPair) {
-      return (offset < kLdStSimmLowerBound || offset > kLdStSimmUpperBound);
+      return (offset < kMinSimm32 || offset > kMaxSimm32);
     }
     if (is64bit) {
-      return (offset < kLdpStp64SimmLowerBound || offset > kLdpStp64SimmUpperBound);
+      return (offset < kMinSimm64 || offset > kMaxSimm64Pair);
     }
-    return (offset < kLdpStp32SimmLowerBound || offset > kLdpStp32SimmUpperBound);
+    return (offset < kMinSimm32 || offset > kMaxSimm32Pair);
   }
 
   static bool IsPIMMOffsetOutOfRange(int32 offset, uint32 dSize) {
@@ -815,6 +825,14 @@ class AArch64MemOperand : public MemOperand {
     return !noExtend && ((extend & 0x3F) != 0);
   }
 
+  IndexingOption GetIndexOpt() const {
+    return idxOpt;
+  }
+
+  void SetIndexOpt(IndexingOption newidxOpt) {
+    idxOpt = newidxOpt;
+  }
+
   bool IsIntactIndexed() const {
     return idxOpt == kIntact;
   }
@@ -843,13 +861,8 @@ class AArch64MemOperand : public MemOperand {
   bool Equals(AArch64MemOperand &opnd) const;
 
  private:
-  static constexpr int32 kLdStSimmLowerBound = -256;
-  static constexpr int32 kLdStSimmUpperBound = 255;
-
-  static constexpr int32 kLdpStp32SimmLowerBound = -256;  /* multiple of 4 */
   static constexpr int32 kLdpStp32SimmUpperBound = 252;
 
-  static constexpr int32 kLdpStp64SimmLowerBound = -512;  /* multiple of 8 */
   static constexpr int32 kLdpStp64SimmUpperBound = 504;
 
   AArch64AddressingMode addrMode;
@@ -980,6 +993,14 @@ class ExtendShiftOperand : public Operand {
     return memPool.Clone<ExtendShiftOperand>(*this);
   }
 
+  uint32 GetShiftAmount() {
+    return shiftAmount;
+  }
+
+  ExtendOp GetExtendOp() {
+    return extendOp;
+  }
+
   void Emit(Emitter &emitter, const OpndProp *prop) const override;
 
   bool Less(const Operand &right) const override;
@@ -1018,6 +1039,10 @@ class BitShiftOperand : public Operand {
 
   uint32 GetShiftAmount() {
     return shiftAmount;
+  }
+
+  ShiftOp GetShiftOp() {
+    return shiftOp;
   }
 
   void Dump() const override {

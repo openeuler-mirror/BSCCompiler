@@ -98,7 +98,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &stmt) override;
-  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int32 offset,
+  AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int64 offset,
                                               bool needLow12 = false);
   AArch64MemOperand *FixLargeMemOpnd(MemOperand &memOpnd, uint32 align);
   AArch64MemOperand *FixLargeMemOpnd(MOperator mOp, MemOperand &memOpnd, uint32 dSize, uint32 opndIdx);
@@ -333,9 +333,9 @@ class AArch64CGFunc : public CGFunc {
     return *ImmFPZeroOperand::allocate(size);
   }
 
-  AArch64OfstOperand &GetOrCreateOfstOpnd(uint32 offset, uint32 size);
+  AArch64OfstOperand &GetOrCreateOfstOpnd(uint64 offset, uint32 size);
 
-  AArch64OfstOperand &CreateOfstOpnd(uint32 offset, uint32 size) {
+  AArch64OfstOperand &CreateOfstOpnd(uint64 offset, uint32 size) {
     return *memPool->New<AArch64OfstOperand>(offset, size);
   }
 
@@ -362,7 +362,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType,
                                   PrimType targetType);
 
-  MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int32 offset, uint32 size, bool forLocalRef = false,
+  MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 offset, uint32 size, bool forLocalRef = false,
                                  bool needLow12 = false, AArch64RegOperand *regOp = nullptr);
 
   AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32, RegOperand*, RegOperand*,
@@ -371,19 +371,19 @@ class AArch64CGFunc : public CGFunc {
   AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
                                         RegOperand *index, int32 shift, bool isSigned = false);
 
-  MemOperand &CreateMemOpnd(AArch64reg reg, int32 offset, uint32 size) {
+  MemOperand &CreateMemOpnd(AArch64reg reg, int64 offset, uint32 size) {
     AArch64RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
     return CreateMemOpnd(baseOpnd, offset, size);
   }
 
-  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int32 offset, uint32 size);
+  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size);
 
-  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int32 offset, uint32 size, const MIRSymbol &sym);
+  MemOperand &CreateMemOpnd(RegOperand &baseOpnd, int64 offset, uint32 size, const MIRSymbol &sym);
 
-  MemOperand &CreateMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int32 offset = 0,
+  MemOperand &CreateMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0,
                             AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
 
-  MemOperand *CreateMemOpndOrNull(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int32 offset = 0,
+  MemOperand *CreateMemOpndOrNull(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset = 0,
                                   AArch64isa::MemoryOrdering memOrd = AArch64isa::kMoNone);
 
   CondOperand &GetCondOperand(AArch64CC_t op) {
@@ -545,11 +545,11 @@ class AArch64CGFunc : public CGFunc {
   AArch64MemOperand &SplitOffsetWithAddInstruction(const AArch64MemOperand &memOpnd, uint32 bitLen,
                                                    uint32 baseRegNum = AArch64reg::kRinvalid, bool isDest = false,
                                                    Insn *insn = nullptr, bool forPair = false);
-  AArch64MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int32 offset);
+  AArch64MemOperand &CreateReplacementMemOperand(uint32 bitLen, RegOperand &baseReg, int64 offset);
 
   bool HasStackLoadStore();
 
-  MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int32 offset, int datasize);
+  MemOperand &LoadStructCopyBase(const MIRSymbol &symbol, int64 offset, int datasize);
 
   int32 GetSplitBaseOffset() const {
     return splitStpldpBaseOffset;
@@ -781,9 +781,9 @@ class AArch64CGFunc : public CGFunc {
   void GenerateIntrnInsnForStrIndexOf(BB &bb, RegOperand &srcString, RegOperand &patternString,
                                       RegOperand &srcCountOpnd, RegOperand &patternLengthOpnd,
                                       PrimType countPty, LabelIdx jumpLabIdx);
-  MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode &addrExpr, int32 offset,
+  MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode &addrExpr, int64 offset,
                                           AArch64isa::MemoryOrdering memOrd);
-  MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int32 offset);
+  MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
   std::string GenerateMemOpndVerbose(const Operand &src);
   RegOperand *PrepareMemcpyParamOpnd(bool isLo12, MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
