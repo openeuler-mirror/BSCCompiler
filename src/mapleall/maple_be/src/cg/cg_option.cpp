@@ -54,7 +54,7 @@ bool CGOptions::fastAlloc = false;
 uint64 CGOptions::lsraBBOptSize = 150000;
 uint64 CGOptions::lsraInsnOptSize = 200000;
 uint64 CGOptions::overlapNum = 28;
-uint8 CGOptions::rematLevel = 0;
+uint8 CGOptions::rematLevel = 2;
 #if TARGAARCH64 || TARGRISCV64
 bool CGOptions::useBarriersForVolatile = false;
 #else
@@ -1213,6 +1213,7 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         SetFastFuncsAsmFile(opt.Args());
         break;
       case kInsertCall:
+        SetOption(kGenInsertCall);
         SetInstrumentationFunction(opt.Args());
         SetInsertCall(true);
         break;
