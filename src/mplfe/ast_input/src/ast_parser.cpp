@@ -1376,6 +1376,32 @@ uint32_t ASTParser::GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTy
   return static_cast<uint32_t>(alignInCharUnits.getQuantity());
 }
 
+void ASTParser::GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *&expr, uint32 typeSize) {
+  MIRType *retType;
+  if (IsSignedInteger(expr->GetType()->GetPrimType())) {
+    retType = GlobalTables::GetTypeTable().GetInt64();
+  } else {
+    retType = GlobalTables::GetTypeTable().GetPtr();
+  }
+  if (expr->GetASTOp() == kASTIntegerLiteral) {
+    auto intExpr = static_cast<ASTIntegerLiteral*>(expr);
+    intExpr->SetVal(intExpr->GetVal() * typeSize);
+    intExpr->SetType(retType);
+    expr = intExpr;
+    return;
+  }
+  auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
+  ptrSizeExpr->SetVal(typeSize);
+  ptrSizeExpr->SetType(retType);
+  auto shiftExpr = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
+  shiftExpr->SetLeftExpr(expr);
+  shiftExpr->SetRightExpr(ptrSizeExpr);
+  shiftExpr->SetOpcode(OP_mul);
+  shiftExpr->SetRetType(retType);
+  shiftExpr->SetCvtNeeded(true);
+  expr = shiftExpr;
+}
+
 ASTExpr *ASTParser::BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType) {
   if (llvm::isa<clang::ArrayType>(qualType)) {
     ASTExpr *lhs = BuildExprToComputeSizeFromVLA(allocator, llvm::cast<clang::ArrayType>(qualType)->getElementType());
@@ -1921,8 +1947,6 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
       ((lhsType->isPointerType() && rhsType->isIntegerType()) ||
        (lhsType->isIntegerType() && rhsType->isPointerType())) &&
       !boType->isVoidPointerType() && GetSizeFromQualType(boType->getPointeeType()) != 1) {
-    auto ptrSizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    ptrSizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
     auto boMirType = astFile->CvtType(boType);
     auto typeSize = GetSizeFromQualType(boType->getPointeeType());
     MIRType *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
@@ -1930,25 +1954,12 @@ ASTExpr *ASTParser::ProcessExprBinaryOperator(MapleAllocator &allocator, const c
     if (pointedType->GetPrimType() == PTY_f64) {
       typeSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
     }
-    ptrSizeExpr->SetVal(typeSize);
     if (lhsType->isPointerType()) {
-      auto rhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-      rhs->SetLeftExpr(astRExpr);
-      rhs->SetRightExpr(ptrSizeExpr);
-      rhs->SetOpcode(OP_mul);
-      rhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
-      rhs->SetCvtNeeded(true);
-      astRExpr = rhs;
+      GetAddrShiftExpr(allocator, astRExpr, typeSize);
     } else if (rhsType->isPointerType()) {
-      auto lhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-      lhs->SetLeftExpr(astLExpr);
-      lhs->SetRightExpr(ptrSizeExpr);
-      lhs->SetOpcode(OP_mul);
-      lhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
-      lhs->SetCvtNeeded(true);
-      astLExpr = lhs;
+      GetAddrShiftExpr(allocator, astLExpr, typeSize);
     }
-    astBinOpExpr->SetCvtNeeded(true);
+    astBinOpExpr->SetCvtNeeded(false); // the type cannot be cvt.
   }
   astBinOpExpr->SetLeftExpr(astLExpr);
   astBinOpExpr->SetRightExpr(astRExpr);
@@ -2452,6 +2463,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::F
       }
       ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
       lenRefExpr->SetASTDecl(lenDecl);
+      lenRefExpr->SetType(lenDecl->GetTypeDesc().front());
       lenExpr = lenRefExpr;
       break;
     }
@@ -2467,6 +2479,8 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::F
         astFile->GetMangledName(funcDecl).c_str());
     return;
   }
+  // Currently, isSize is always true, and cvt is not required for lenExpr related invoking,
+  // GetAddrShiftExpr completed conversion
   if (isSize) {
     // The type size can only be obtained from ClangDecl instead of ASTDecl,
     // because the field of mir struct type has not yet been initialized at this time
@@ -2475,16 +2489,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, const clang::F
     if (pointedType->GetPrimType() == PTY_f64) {
       lenSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
     }
-    auto sizeExpr = ASTDeclsBuilder::ASTExprBuilder<ASTIntegerLiteral>(allocator);
-    sizeExpr->SetType(GlobalTables::GetTypeTable().GetUInt64());
-    sizeExpr->SetVal(lenSize);
-    auto rhs = ASTDeclsBuilder::ASTExprBuilder<ASTBinaryOperatorExpr>(allocator);
-    rhs->SetLeftExpr(lenExpr);
-    rhs->SetRightExpr(sizeExpr);
-    rhs->SetOpcode(OP_mul);
-    rhs->SetRetType(GlobalTables::GetTypeTable().GetUInt64());
-    rhs->SetCvtNeeded(true);
-    lenExpr = rhs;
+    GetAddrShiftExpr(allocator, lenExpr, lenSize);
   }
   ptrDecl->SetBoundaryLenExpr(lenExpr);
 }

@@ -33,8 +33,10 @@ class MergeStmts {
   void mergeIassigns(vOffsetStmt& iassignCandidates);
   void mergeDassigns(vOffsetStmt& dassignCandidates);
   uint32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
-  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2, MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
-  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeExpr& regVal, MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
+                                MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+  IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeExpr& regVal,
+                                MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   void simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
   void simdMemset(IntrinsiccallMeStmt* memcpyCallStmt);
  private:

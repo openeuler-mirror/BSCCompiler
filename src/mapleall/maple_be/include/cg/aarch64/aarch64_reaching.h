@@ -23,14 +23,21 @@ class AArch64ReachingDefinition : public ReachingDefinition {
  public:
   AArch64ReachingDefinition(CGFunc &func, MemPool &memPool) : ReachingDefinition(func, memPool) {}
   ~AArch64ReachingDefinition() override = default;
-  std::vector<Insn*> FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const final;
+  std::vector<Insn*> FindRegDefBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn,
+                                           bool findAll = false) const final;
+  std::vector<Insn*> FindRegDefBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn) const final;
   std::vector<Insn*> FindMemDefBetweenInsn(uint32 offset, const Insn *startInsn, Insn *endInsn) const final;
   bool FindRegUseBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn, InsnSet &useInsnSet) const final;
+  bool FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn, BB* movBB) const final;
   bool FindMemUseBetweenInsn(uint32 offset, Insn *startInsn, const Insn *endInsn,
                              InsnSet &useInsnSet) const final;
+  bool HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn);
+  bool DFSFindRegDefBetweenBB(const BB &startBB, const BB &endBB, uint32 regNO,
+                              std::vector<VisitStatus> &visitedBB) const;
   InsnSet FindDefForRegOpnd(Insn &insn, uint32 indexOrRegNO, bool isRegNO = false) const final;
   InsnSet FindDefForMemOpnd(Insn &insn, uint32 indexOrOffset, bool isOffset = false) const final;
   InsnSet FindUseForMemOpnd(Insn &insn, uint8 index, bool secondMem = false) const final;
+  bool FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const;
 
  protected:
   void InitStartGen() final;
@@ -58,6 +65,9 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   void InitMemInfoForClearStackCall(Insn &callInsn);
   inline bool CallInsnClearDesignateStackRef(const Insn &callInsn, int64 offset) const;
   int64 GetEachMemSizeOfPair(MOperator opCode) const;
+  bool DFSFindRegInfoBetweenBB(const BB startBB, const BB &endBB, uint32 regNO, std::vector<VisitStatus> &visitedBB,
+                               std::list<bool> &pathStatus, DumpType infoType) const;
+  bool DFSFindRegDomianBetweenBB(const BB startBB, uint32 regNO, std::vector<VisitStatus> &visitedBB) const;
 };
 }  /* namespace maplebe */
 

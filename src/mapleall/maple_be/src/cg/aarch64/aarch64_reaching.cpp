@@ -214,13 +214,70 @@ static bool SetDefInsnVecForAsm(Insn *insn, uint32 index, uint32 regNO, std::vec
   }
   return false;
 }
+/*
+ * find definition for register between startInsn and endInsn.
+ * startInsn and endInsn is not in same BB
+ * make sure that in path between startBB and endBB there is no redefine.
+ */
+std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsnGlobal(
+    uint32 regNO, Insn *startInsn, Insn *endInsn) const {
+  ASSERT(startInsn->GetBB() != endInsn->GetBB(), "call FindRegDefBetweenInsn please");
+  std::vector<Insn *> defInsnVec;
+  if (startInsn == nullptr || endInsn == nullptr) {
+    return defInsnVec;
+  }
+  /* check startBB */
+  BB *startBB = startInsn->GetBB();
+  std::vector<Insn *> startBBdefInsnVec = FindRegDefBetweenInsn(regNO, startInsn->GetNext(), startBB->GetLastInsn());
+  if (startBBdefInsnVec.size() == 1) {
+    defInsnVec.emplace_back(*startBBdefInsnVec.begin());
+  }
+  if (startBBdefInsnVec.size() > 1 ||
+      (startBBdefInsnVec.empty() && regOut[startBB->GetId()]->TestBit(regNO))) {
+    defInsnVec.emplace_back(startInsn);
+    defInsnVec.emplace_back(endInsn);
+    return defInsnVec;
+  }
+  if (IsCallerSavedReg(regNO) && startInsn->GetNext() != nullptr &&
+      cgFunc->GetRD()->HasCallBetweenInsnInSameBB(*startInsn->GetNext(), *startBB->GetLastInsn())) {
+    defInsnVec.emplace_back(startInsn);
+    defInsnVec.emplace_back(endInsn);
+    return defInsnVec;
+  }
+  /* check endBB */
+  BB *endBB = endInsn->GetBB();
+  std::vector<Insn *> endBBdefInsnVec = FindRegDefBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn->GetPrev());
+  if (endBBdefInsnVec.size() == 1) {
+    defInsnVec.emplace_back(*endBBdefInsnVec.begin());
+  }
+  if (endBBdefInsnVec.size() > 1 || (endBBdefInsnVec.empty() && regIn[endBB->GetId()]->TestBit(regNO))) {
+    defInsnVec.emplace_back(startInsn);
+    defInsnVec.emplace_back(endInsn);
+    return defInsnVec;
+  }
+  if (IsCallerSavedReg(regNO) && endInsn->GetPrev() != nullptr &&
+      cgFunc->GetRD()->HasCallBetweenInsnInSameBB(*endBB->GetFirstInsn(), *endInsn->GetPrev())) {
+    defInsnVec.emplace_back(startInsn);
+    defInsnVec.emplace_back(endInsn);
+    return defInsnVec;
+  }
+  InsnSet defInsnSet;
+  std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);
+  visitedBB[endBB->GetId()] = kNormalVisited;
+  visitedBB[startBB->GetId()]  = kNormalVisited;
+  std::list<bool> pathStatus;
+  if (DFSFindRegInfoBetweenBB(*startBB, *endBB, regNO, visitedBB, pathStatus, kDumpRegIn)) {
+    defInsnVec.emplace_back(endInsn);
+  }
+  return defInsnVec;
+}
 
 /*
  * find definition for register between startInsn and endInsn.
  * startInsn and endInsn must be in same BB and startInsn and endInsn are included
  */
 std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
-    uint32 regNO, Insn *startInsn, Insn *endInsn) const {
+    uint32 regNO, Insn *startInsn, Insn *endInsn, bool findAll) const {
   std::vector<Insn*> defInsnVec;
   if (startInsn == nullptr || endInsn == nullptr) {
     return defInsnVec;
@@ -236,44 +293,25 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
       continue;
     }
 
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
     if (insn->GetMachineOpcode() == MOP_asm) {
-      if (SetDefInsnVecForAsm(insn, kAsmOutputListOpnd, regNO, defInsnVec)) {
-        return defInsnVec;
+      if (SetDefInsnVecForAsm(insn, kAsmOutputListOpnd, regNO, defInsnVec) ||
+          SetDefInsnVecForAsm(insn, kAsmClobberListOpnd, regNO, defInsnVec)) {
+        if (findAll) {
+          defInsnVec.emplace_back(insn);
+        } else {
+          return defInsnVec;
+        }
       }
-      SetDefInsnVecForAsm(insn, kAsmClobberListOpnd, regNO, defInsnVec);
-      return defInsnVec;
     }
     if (insn->IsCall() && IsCallerSavedReg(regNO)) {
       defInsnVec.emplace_back(insn);
-      return defInsnVec;
-    }
-    uint32 opndNum = insn->GetOperandSize();
-    for (uint32 i = 0; i < opndNum; ++i) {
-      Operand &opnd = insn->GetOperand(i);
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
-      bool isDef = regProp->IsDef();
-      if (!isDef && !opnd.IsMemoryAccessOperand()) {
-        continue;
+      if (!findAll) {
+        return defInsnVec;
       }
-
-      if (opnd.IsList()) {
-        CHECK_FATAL(false, "Internal error, list operand should not be defined.");
-      } else if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
-        RegOperand *base = memOpnd.GetBaseRegister();
-
-        if (base != nullptr) {
-          if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
-              (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
-              base->GetRegisterNumber() == regNO) {
-            defInsnVec.emplace_back(insn);
-            return defInsnVec;
-          }
-        }
-      } else if ((opnd.IsConditionCode() || opnd.IsRegister()) &&
-                 (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
-        defInsnVec.emplace_back(insn);
+    }
+    if (insn->IsRegDefined(regNO)) {
+      defInsnVec.emplace_back(insn);
+      if (!findAll) {
         return defInsnVec;
       }
     }
@@ -301,7 +339,6 @@ void AArch64ReachingDefinition::FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &de
       continue;
     }
 
-    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
     if (insn->GetMachineOpcode() == MOP_asm) {
       if (IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, defInsnSet)) {
         continue;
@@ -313,33 +350,8 @@ void AArch64ReachingDefinition::FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &de
       (void)defInsnSet.insert(insn);
       continue;
     }
-
-    uint32 opndNum = insn->GetOperandSize();
-    for (uint32 i = 0; i < opndNum; ++i) {
-      Operand &opnd = insn->GetOperand(i);
-      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->GetOperand(i));
-      bool isDef = regProp->IsDef();
-      if (!isDef && !opnd.IsMemoryAccessOperand()) {
-        continue;
-      }
-
-      if (opnd.IsList()) {
-        ASSERT(false, "Internal error, list operand should not be defined.");
-      } else if (opnd.IsMemoryAccessOperand()) {
-        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
-        RegOperand *base = memOpnd.GetBaseRegister();
-
-        if (base != nullptr) {
-          if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
-              (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
-              base->GetRegisterNumber() == regNO) {
-            (void)defInsnSet.insert(insn);
-          }
-        }
-      } else if ((opnd.IsConditionCode() || opnd.IsRegister()) &&
-                 (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
-        (void)defInsnSet.insert(insn);
-      }
+    if (insn->IsRegDefined(regNO)) {
+      (void)defInsnSet.insert(insn);
     }
   }
 }
@@ -406,6 +418,10 @@ std::vector<Insn*> AArch64ReachingDefinition::FindMemDefBetweenInsn(
         RegOperand *index = memOpnd.GetIndexRegister();
 
         if (base == nullptr || !IsFrameReg(*base) || index != nullptr) {
+          break;
+        }
+
+        if (!insn->IsSpillInsn() && cgFunc->IsAfterRegAlloc()) {
           break;
         }
 
@@ -602,6 +618,204 @@ InsnSet AArch64ReachingDefinition::FindDefForRegOpnd(Insn &insn, uint32 indexOrR
   return defInsnSet;
 }
 
+bool AArch64ReachingDefinition::FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *startInsn, Insn *endInsn,
+                                                            BB* movBB) const {
+  if (startInsn == nullptr || endInsn == nullptr) {
+    return false;
+  }
+  if (startInsn->GetBB() == endInsn->GetBB()) {
+    return FindRegUsingBetweenInsn(regNO, startInsn->GetNext(), endInsn->GetPrev());
+  } else {
+    /* check Start BB */
+    BB* startBB = startInsn->GetBB();
+    if (FindRegUsingBetweenInsn(regNO, startInsn->GetNext(), startBB->GetLastInsn())) {
+      return true;
+    }
+    /* check End BB */
+    BB *endBB = endInsn->GetBB();
+    if (FindRegUsingBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn->GetPrev())) {
+      return true;
+    }
+    /* Global : startBB cannot dominate BB which it doesn't dominate before */
+    if (startBB == movBB) {
+      return false; /* it will not change dominate */
+    }
+    std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);
+    visitedBB[movBB->GetId()] = kNormalVisited;
+    visitedBB[startBB->GetId()]  = kNormalVisited;
+    if (DFSFindRegDomianBetweenBB(*startBB, regNO, visitedBB)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool AArch64ReachingDefinition::HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &startInsn, Insn &endInsn) {
+  CHECK_FATAL((startInsn.GetBB() != endInsn.GetBB()), "Is same BB!");
+  /* check Start BB */
+  BB* startBB = startInsn.GetBB();
+  if (!FindRegDefBetweenInsn(regNO, startInsn.GetNext(), startBB->GetLastInsn()).empty()) {
+    return true;
+  }
+  /* check End BB */
+  BB *endBB = endInsn.GetBB();
+  if (!FindRegDefBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn.GetPrev()).empty()) {
+    return true;
+  }
+  /* check bb Between start and end */
+  std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);
+  visitedBB[startBB->GetId()] = kNormalVisited;
+  visitedBB[endBB->GetId()] = kNormalVisited;
+  return DFSFindRegDefBetweenBB(*startBB, *endBB, regNO, visitedBB);
+}
+
+bool AArch64ReachingDefinition::DFSFindRegDefBetweenBB(const BB &startBB, const BB &endBB, uint32 regNO,
+                                                       std::vector<VisitStatus> &visitedBB) const {
+  if (&startBB == &endBB) {
+    return false;
+  }
+  for (auto succBB : startBB.GetSuccs()) {
+    if (visitedBB[succBB->GetId()] != kNotVisited) {
+      continue;
+    }
+    visitedBB[succBB->GetId()] = kNormalVisited;
+    if (regGen[succBB->GetId()]->TestBit(regNO)) {
+      return true;
+    }
+    if (DFSFindRegDefBetweenBB(*succBB, endBB, regNO, visitedBB)) {
+      return true;
+    }
+  }
+  CHECK_FATAL(startBB.GetEhSuccs().empty(), "C Module have no eh");
+  return false;
+}
+
+bool AArch64ReachingDefinition::DFSFindRegDomianBetweenBB(const BB startBB, uint32 regNO,
+                                                          std::vector<VisitStatus> &visitedBB) const {
+  for (auto succBB : startBB.GetSuccs()) {
+    if (visitedBB[succBB->GetId()] != kNotVisited) {
+      continue;
+    }
+    visitedBB[succBB->GetId()] = kNormalVisited;
+    if (regIn[succBB->GetId()]->TestBit(regNO)) {
+      return true;
+    } else if (regGen[succBB->GetId()]->TestBit(regNO)) {
+      continue;
+    }
+    if (DFSFindRegDomianBetweenBB(*succBB, regNO, visitedBB)) {
+      return true;
+    }
+  }
+  CHECK_FATAL(startBB.GetEhSuccs().empty(), "C Module have no eh");
+  return false;
+}
+
+bool AArch64ReachingDefinition::DFSFindRegInfoBetweenBB(const BB startBB, const BB &endBB, uint32 regNO,
+                                                        std::vector<VisitStatus> &visitedBB,
+                                                        std::list<bool> &pathStatus, DumpType infoType) const {
+  for (auto succBB : startBB.GetSuccs()) {
+    if (succBB == &endBB) {
+      for (auto status : pathStatus) {
+        if (!status) {
+          return true;
+        }
+      }
+      continue;
+    }
+    if (visitedBB[succBB->GetId()] != kNotVisited) {
+      continue;
+    }
+    visitedBB[succBB->GetId()] = kNormalVisited;
+    /* path is no clean check regInfo */
+    bool isPathClean = true;
+    switch (infoType) {
+      case kDumpRegUse: {
+        isPathClean = !regUse[succBB->GetId()]->TestBit(regNO);
+        break;
+      }
+      case kDumpRegGen: {
+        isPathClean = !regGen[succBB->GetId()]->TestBit(regNO);
+        break;
+      }
+      case kDumpRegIn: {
+        isPathClean =  !(regIn[succBB->GetId()]->TestBit(regNO) || regGen[succBB->GetId()]->TestBit(regNO));
+        break;
+      }
+      default:
+        CHECK_FATAL(false, "NIY");
+    }
+    pathStatus.emplace_back(isPathClean);
+    if (DFSFindRegInfoBetweenBB(*succBB, endBB, regNO, visitedBB, pathStatus, infoType)) {
+      return true;
+    }
+    pathStatus.pop_back();
+  }
+  CHECK_FATAL(startBB.GetEhSuccs().empty(), "C Module have no eh");
+  return false;
+}
+
+bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const {
+  if (startInsn == nullptr || endInsn == nullptr) {
+    return false;
+  }
+
+  ASSERT(startInsn->GetBB() == endInsn->GetBB(), "two insns must be in a same BB");
+  ASSERT(endInsn->GetId() >= startInsn->GetId(), "two insns must be in a same BB");
+  for (Insn *insn = startInsn; insn != nullptr && insn != endInsn->GetNext(); insn = insn->GetNext()) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      InsnSet Temp;
+      if (IsRegInAsmList(insn, kAsmInputListOpnd, regNO, Temp) ||
+          IsRegInAsmList(insn, kAsmOutputListOpnd, regNO, Temp)) {
+        return true;
+      }
+      continue;
+    }
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
+    uint32 opndNum = insn->GetOperandSize();
+    for (uint32 i = 0; i < opndNum; ++i) {
+      Operand &opnd = insn->GetOperand(i);
+      if (opnd.IsList()) {
+        auto &listOpnd = static_cast<ListOperand&>(opnd);
+        for (auto listElem : listOpnd.GetOperands()) {
+          RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+          ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
+          if (regNO == regOpnd->GetRegisterNumber()) {
+            return true;
+          }
+        }
+        continue;
+      }
+
+      AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      if (!regProp->IsUse() && !opnd.IsMemoryAccessOperand()) {
+        continue;
+      }
+
+      if (opnd.IsMemoryAccessOperand()) {
+        auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+        RegOperand *base = memOpnd.GetBaseRegister();
+        RegOperand *index = memOpnd.GetIndexRegister();
+        if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
+            (index != nullptr && index->GetRegisterNumber() == regNO)) {
+          return true;
+        }
+      } else if (opnd.IsConditionCode()) {
+        Operand &rflagOpnd = cgFunc->GetOrCreateRflag();
+        RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
+        if (rflagReg.GetRegisterNumber() == regNO) {
+          return true;
+        }
+      } else if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 /*
  * find insn using register between startInsn and endInsn.
  * startInsn and endInsn must be in same BB and startInsn and endInsn are included
@@ -614,8 +828,6 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
   }
 
   ASSERT(startInsn->GetBB() == endInsn->GetBB(), "two insns must be in a same BB");
-  ASSERT(endInsn->GetId() >= startInsn->GetId(), "two insns must be in a same BB");
-
   for (Insn *insn = startInsn; insn != nullptr && insn != endInsn->GetNext(); insn = insn->GetNext()) {
     if (!insn->IsMachineInstruction()) {
       continue;
@@ -683,6 +895,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
           (void)regUseInsnSet.insert(insn);
         }
       } else if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
+        ASSERT(!regProp->IsDef(), "def use both reg");
         (void)regUseInsnSet.insert(insn);
       }
     }

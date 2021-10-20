@@ -65,8 +65,6 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
   optionParser->RegisteUsages(ldUsage);
-  // Not sure if this is even required
-  // optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
@@ -222,6 +220,18 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         break;
     }
     ret = AddOption(opt);
+  }
+
+  // A workaround to pass --general-reg-only from the cg options to global options
+  auto it = exeOptions.find("mplcg");
+  if (it != exeOptions.end()) {
+    std::string regOnlyOpt("general-reg-only");
+    for (const auto &opt : it->second) {
+      if (opt.OptionKey() == regOnlyOpt) {
+        generalRegOnly = true;
+        break;
+      }
+    }
   }
 
   return ret;

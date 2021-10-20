@@ -113,6 +113,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
     LogInfo::MapleLogger() << "Meet error me options\n";
     return kErrorCompileFail;
   }
+  meOption.generalRegOnly = options.HasSetGeneralRegOnly();
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;

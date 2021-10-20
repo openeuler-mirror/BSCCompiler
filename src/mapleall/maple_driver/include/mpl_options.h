@@ -203,6 +203,10 @@ class MplOptions {
     return genVtableImpl;
   }
 
+  bool HasSetGeneralRegOnly() const {
+    return generalRegOnly;
+  }
+
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint() const;
@@ -253,6 +257,7 @@ class MplOptions {
   bool genMeMpl = false;
   bool genVtableImpl = false;
   bool hasPrinted = false;
+  bool generalRegOnly = false;
   unsigned int helpLevel = mapleOption::kBuildTypeDefault;
   std::string partO2List = "";
 };

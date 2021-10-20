@@ -64,6 +64,7 @@ bool MeOption::noCondBasedRC = false;
 bool MeOption::clinitPre = true;
 bool MeOption::dassignPre = true;
 bool MeOption::mergeStmts = true;
+bool MeOption::generalRegOnly = false;
 bool MeOption::nullCheckPre = false;
 bool MeOption::assign2FinalPre = false;
 bool MeOption::epreIncludeRef = false;
@@ -113,7 +114,7 @@ uint32 MeOption::hdseRunsLimit = 3;   // hdse phase run at most 3 times each PU
 uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
-uint8 MeOption::rematLevel = 0;
+uint8 MeOption::rematLevel = 2;
 bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
@@ -229,6 +230,7 @@ enum OptionIndex {
   kEaTransRef,
   kEaTransAlloc,
   kMergeStmts,
+  kMeGeneralRegOnly,
   kMeInlineHint,
   kMeThreads,
   kMeIgnoreInferredRetType,
@@ -1056,6 +1058,16 @@ const Descriptor kUsage[] = {
     "  --no-mergestmts             \tDisable mergestmts\n",
     "me",
     {} },
+  { kMeGeneralRegOnly,
+      0,
+      "",
+      "general-reg-only",
+      kBuildTypeExperimental,
+      kArgCheckPolicyBool,
+      "  --general-reg-only        \tME will avoid generate fp type when enable general-reg-only\n"
+      "  --no-general-reg-only     \tDisable general-reg-only\n",
+      "me",
+      {} },
   { kMeInlineHint,
     0,
     "",
@@ -1526,6 +1538,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kMergeStmts:
         mergeStmts = (opt.Type() == kEnable);
+        break;
+      case kMeGeneralRegOnly:
+        generalRegOnly = (opt.Type() == kEnable);
         break;
       case kAssign2finalPre:
         assign2FinalPre = (opt.Type() == kEnable);

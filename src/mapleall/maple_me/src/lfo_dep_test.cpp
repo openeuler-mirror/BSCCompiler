@@ -140,13 +140,15 @@ bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
     case kMeOpConststr:
     case kMeOpConststr16:
     case kMeOpSizeoftype:
-    case kMeOpFieldsDist: return true;
+    case kMeOpFieldsDist:
+      return true;
     case kMeOpVar: {
       VarMeExpr *varx = static_cast<VarMeExpr *>(x);
       if (varx->GetOst()->GetMIRSymbol()->GetStIdx() == doloop->GetDoVarStIdx()) {
         return true;  // it is the IV
       }
       // fall thru
+      [[clang::fallthrough]];
     }
     case kMeOpReg: {
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
