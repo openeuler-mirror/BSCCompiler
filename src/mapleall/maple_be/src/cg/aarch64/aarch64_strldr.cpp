@@ -358,10 +358,8 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet
       tmpInsn = tmpInsn->GetNext();
     }
   } else {
-    if (replaceRegDefInsn->GetBB() != defInsn.GetBB()) {
-      return false;
-    }
-    if (replaceRegDefInsn->GetId() > defInsn.GetId()) {
+    AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
+    if (a64RD->HasRegDefBetweenInsnGlobal(replaceRegNo, defInsn, currInsn)) {
       return false;
     }
   }

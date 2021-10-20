@@ -14,6 +14,7 @@
  */
 #include "me_merge_stmts.h"
 #include "me_irmap.h"
+#include "mpl_options.h"
 
 namespace maple {
 uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID) {
@@ -297,7 +298,8 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   IvarMeExpr tmpIvar1(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
   if (dstMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
-    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *dstMeExpr, *memcpyCallStmt->GetBB());
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+        *addrRegMeExpr, *dstMeExpr, *memcpyCallStmt->GetBB());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
     dstMeExpr = addrRegMeExpr;
   }
@@ -305,7 +307,8 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   IvarMeExpr tmpIvar2(kInvalidExprID, PTY_v16u8, v16uint8PtrType->GetTypeIndex(), 0);
   if (srcMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
-    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *srcMeExpr, *memcpyCallStmt->GetBB());
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+        *addrRegMeExpr, *srcMeExpr, *memcpyCallStmt->GetBB());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
     srcMeExpr = addrRegMeExpr;
   }
@@ -369,17 +372,20 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   IvarMeExpr tmpIvar(kInvalidExprID, PTY_v16u8, v16u8PtrType->GetTypeIndex(), 0);
   if (dstMeExpr->GetOp() != OP_regread) {
     RegMeExpr *addrRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_a64);
-    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*addrRegMeExpr, *dstMeExpr, *memsetCallStmt->GetBB());
+    MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+        *addrRegMeExpr, *dstMeExpr, *memsetCallStmt->GetBB());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, addrRegAssignMeStmt);
     dstMeExpr = addrRegMeExpr;
   }
   tmpIvar.SetBase(dstMeExpr);
 
   RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v16u8);
-  NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop, PTY_v16u8,
+  NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID,
+                                            OP_intrinsicop, PTY_v16u8,
                                          1, TyIdx(0), INTRN_vector_from_scalar_v16u8, false);
   dupValMeExpr->PushOpnd(fillValMeExpr);
-  MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
+  MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+      *dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
   memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
 
   for (int32 i = 0; i < numOf16Byte; i++) {
@@ -395,12 +401,15 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
     tmpIvar.SetBase(dstMeExpr);
 
     // Consider Reuse of dstMeExpr ?
-    // RegMeExpr *dupRegMeExpr = static_cast<RegMeExpr *>(func.GetIRMap()->CreateMeExprTypeCvt(PTY_v8u8, PTY_v16u8, *dstMeExpr));
+    // RegMeExpr *dupRegMeExpr = static_cast<RegMeExpr *>(
+    //     func.GetIRMap()->CreateMeExprTypeCvt(PTY_v8u8, PTY_v16u8, *dstMeExpr));
     RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v8u8);
-    NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID, OP_intrinsicop, PTY_v8u8,
+    NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID,
+                                              OP_intrinsicop, PTY_v8u8,
                                               1, TyIdx(0), INTRN_vector_from_scalar_v8u8, false);
     dupValMeExpr->PushOpnd(fillValMeExpr);
-    MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(*dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
+    MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+        *dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
     IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
                                                  v8u8PtrType->GetTypeIndex());
@@ -499,6 +508,9 @@ void MergeStmts::MergeMeStmts() {
         }
         // Simdize intrinsic. SIMD should really be handled in CG
         case OP_intrinsiccall: {
+          if (MeOption::generalRegOnly) {
+            break;  // avoid generate float point type if --genral-reg-only is enabled
+          }
           IntrinsiccallMeStmt *intrinsicCallStmt = static_cast<IntrinsiccallMeStmt*>(&meStmt);
           MIRIntrinsicID intrinsicCallID = intrinsicCallStmt->GetIntrinsic();
           if (intrinsicCallID == INTRN_C_memcpy) {

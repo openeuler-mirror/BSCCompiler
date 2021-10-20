@@ -140,6 +140,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool clinitPre;
   static bool dassignPre;
   static bool mergeStmts;
+  static bool generalRegOnly;
   static bool regreadAtReturn;
   static bool propBase;
   static bool propIloadRef;

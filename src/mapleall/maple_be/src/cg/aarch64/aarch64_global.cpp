@@ -526,13 +526,12 @@ bool BackPropPattern::CheckPredefineInsn(Insn &insn) {
 
 bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
   for (auto *useInsn : srcOpndUseInsnSet) {
-    if (defInsnForSecondOpnd != useInsn->GetPrev() &&
-        cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(
-            firstRegNO, defInsnForSecondOpnd->GetNext(), useInsn->GetPrev(), insn.GetBB())) {
-      return false;
-    }
     /* insn has been checked def */
     if (useInsn == &insn) {
+      if (defInsnForSecondOpnd != useInsn->GetPrev() &&
+          cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(firstRegNO, defInsnForSecondOpnd, useInsn, insn.GetBB())) {
+        return false;
+      }
       continue;
     }
     auto checkOneDefOnly = [](InsnSet &defSet, Insn &oneDef, bool checkHasDef = false)->bool {
@@ -557,6 +556,11 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
 
     InsnSet defInsnVecOfFirstReg = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, firstRegNO, true);
     if (!checkOneDefOnly(defInsnVecOfFirstReg, insn)) {
+      return false;
+    }
+
+    if (defInsnForSecondOpnd != useInsn->GetPrev() &&
+        cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(firstRegNO, defInsnForSecondOpnd, useInsn, insn.GetBB())) {
       return false;
     }
   }
@@ -1360,7 +1364,12 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
       tmpInsn = tmpInsn->GetNext();
     }
   } else { /* def use not in same BB */
-    return false;
+    if (defSrcInsn->GetBB() != def.GetBB()) {
+      return false;
+    }
+    if (defSrcInsn->GetId() > def.GetId()) {
+      return false;
+    }
   }
   /* case:
    * lsl w0, w0, #5
