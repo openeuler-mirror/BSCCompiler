@@ -342,17 +342,14 @@ void AArch64StoreLoadOpt::MemPropInit() {
 
 bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet,
                                           regno_t replaceRegNo) {
-  if (replaceRegDefSet.size() > k1BitSize) {
-    return false;
-  } else if (replaceRegDefSet.empty()) {
+  if (replaceRegDefSet.empty()) {
     return true;
   }
-  Insn *replaceRegDefInsn = *replaceRegDefSet.begin();
   if (defInsn.GetBB() == currInsn.GetBB()) {
     /* check replace reg def between defInsn and currInsn */
     Insn *tmpInsn = defInsn.GetNext();
     while (tmpInsn != &currInsn) {
-      if (tmpInsn == replaceRegDefInsn) {
+      if (replaceRegDefSet.find(tmpInsn) != replaceRegDefSet.end()) {
         return false;
       }
       tmpInsn = tmpInsn->GetNext();
@@ -364,7 +361,7 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet
     }
   }
 
-  if (replaceRegDefInsn == &defInsn) {
+  if (replaceRegDefSet.size() == 1 && *replaceRegDefSet.begin() == &defInsn) {
     /* lsl x1, x1, #3    <-----should be removed after replace MemOperand of ldrInsn.
      * ldr x0, [x0,x1]   <-----should be single useInsn for x1
      */
@@ -381,15 +378,10 @@ bool AArch64StoreLoadOpt::CheckDefInsn(Insn &defInsn, Insn &currInsn) {
   if (defInsn.GetOperandSize() < k2ByteSize) {
     return false;
   }
-  Operand &opnd0 = defInsn.GetOperand(kInsnFirstOpnd);
   for (uint32 i = kInsnSecondOpnd; i < defInsn.GetOperandSize(); i++) {
     Operand &opnd = defInsn.GetOperand(i);
-    if (opnd0.IsRegister() && opnd.IsRegister()) {
-      AArch64RegOperand &a64Opnd0 = static_cast<AArch64RegOperand&>(opnd0);
-      AArch64RegOperand &a64OpndTmp = static_cast<AArch64RegOperand&>(opnd);
-      if (a64Opnd0.IsPhysicalRegister() || a64OpndTmp.IsPhysicalRegister()) {
-        return false;
-      }
+    if (defInsn.IsMove() && opnd.IsRegister() && !static_cast<AArch64RegOperand&>(opnd).IsSPOrFP()) {
+      return false;
     }
     if (opnd.IsRegister()) {
       AArch64RegOperand &a64OpndTmp = static_cast<AArch64RegOperand&>(opnd);
