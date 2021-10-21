@@ -9535,15 +9535,23 @@ RegOperand *AArch64CGFunc::SelectVectorReverse(PrimType rType, Operand *src, Pri
 
 RegOperand *AArch64CGFunc::SelectVectorSum(PrimType rType, Operand *o1, PrimType oType) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* uint32_t result */
-  uint32 oSize = GetPrimTypeSize(oType);                                    /* vector operand */
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(oType);
   RegOperand *iOpnd = &CreateRegisterOperandOfType(oType);                  /* float intermediate result */
-  MOperator mOp = oSize <= k8BitSize ? MOP_vbaddvrv : (oSize <= k16BitSize ? MOP_vhaddvrv : MOP_vsaddvrv);
+  uint32 eSize = GetVecEleSize(oType);                                      /* vector opd in bits */
+  bool is16ByteVec = GetPrimTypeSize(oType) >= k16ByteSize;
+  MOperator mOp;
+  if (is16ByteVec) {
+    mOp = eSize <= k8BitSize ? MOP_vbaddvrv : (eSize <= k16BitSize ? MOP_vhaddvrv :
+          (eSize <= k32BitSize ? MOP_vsaddvrv : MOP_vdaddvrv));
+  } else {
+    mOp = eSize <= k8BitSize ? MOP_vbaddvru : (eSize <= k16BitSize ? MOP_vhaddvru : MOP_vsaddvru);
+  }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *iOpnd, *o1);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
   GetCurBB()->AppendInsn(*insn);
 
-  Insn *insn2 = &GetCG()->BuildInstruction<AArch64VectorInsn>(MOP_vwmovrv, *res, *iOpnd);
+  Insn *insn2 = &GetCG()->BuildInstruction<AArch64VectorInsn>(
+       eSize > k32BitSize ? MOP_vxmovrv : MOP_vwmovrv, *res, *iOpnd);
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oType);
   vecSpec2->vecLane = 0;
   static_cast<AArch64VectorInsn*>(insn2)->PushRegSpecEntry(vecSpec2);
