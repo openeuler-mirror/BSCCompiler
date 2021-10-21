@@ -2914,7 +2914,7 @@ MOperator AArch64CGFunc::PickJmpInsn(Opcode brOp, Opcode cmpOp, bool isFloat, bo
       return (brOp == OP_brtrue) ? (isSigned ? MOP_ble : MOP_bls)
                                  : (isFloat ? MOP_bhi : (isSigned ? MOP_bgt : MOP_bhi));
     case OP_gt:
-      return (brOp == OP_brtrue) ? (isFloat ? MOP_bhi : (isSigned ? MOP_bgt : MOP_bhi))
+      return (brOp == OP_brtrue) ? (isFloat ? MOP_bgt : (isSigned ? MOP_bgt : MOP_bhi))
                                  : (isSigned ? MOP_ble : MOP_bls);
     case OP_ge:
       return (brOp == OP_brtrue) ? (isFloat ? MOP_bpl : (isSigned ? MOP_bge : MOP_bhs))
