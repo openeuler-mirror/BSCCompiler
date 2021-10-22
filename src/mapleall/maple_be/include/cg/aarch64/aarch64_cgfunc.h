@@ -266,6 +266,7 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
+  RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
                                 PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2,

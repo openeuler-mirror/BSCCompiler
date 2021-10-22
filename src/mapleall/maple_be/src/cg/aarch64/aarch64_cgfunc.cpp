@@ -4378,7 +4378,9 @@ Operand *AArch64CGFunc::SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Oper
 
 Operand *AArch64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
   PrimType dtyp = node.GetPrimType();
-  if (IsPrimitiveFloat(dtyp)) {
+  if (IsPrimitiveVector(dtyp)) {
+    return SelectVectorAbs(dtyp, &opnd0);
+  } else if (IsPrimitiveFloat(dtyp)) {
     CHECK_FATAL(GetPrimTypeBitSize(dtyp) >= k32BitSize, "We don't support hanf-word FP operands yet");
     bool is64Bits = (GetPrimTypeBitSize(dtyp) == k64BitSize);
     Operand &newOpnd0 = LoadIntoRegister(opnd0, dtyp);
@@ -9359,6 +9361,19 @@ RegOperand *AArch64CGFunc::SelectVectorCopy(Operand *src, PrimType sType) {
   RegOperand *res = &CreateRegisterOperandOfType(PTY_f64);
   SelectCopy(*res, PTY_f64, *src, sType);
   static_cast<AArch64RegOperand *>(res)->SetIF64Vec();
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
+  RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 1 */
+
+  MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vabsvv : MOP_vabsuu;
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  GetCurBB()->AppendInsn(*insn);
   return res;
 }
 
