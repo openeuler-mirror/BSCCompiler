@@ -2030,26 +2030,28 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTernary(TernaryNode *node) {
           foldedPrimType = primTypes[2];
         }
         if (dconst1 == 1.0 && dconst2 == 0.0) {
+          BaseNode *tmpNode = node->Opnd(0);
+          std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
           if (IsPrimitiveInteger(foldedPrimType)) {
-            result = PairToExpr(foldedPrimType, p[0]);
+            result = PairToExpr(foldedPrimType, pairTemp);
           } else {
-            result = PairToExpr(primTypes[0], p[0]);
+            result = PairToExpr(tmpNode->GetPrimType(), pairTemp);
             result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(
-                OP_cvt, foldedPrimType, primTypes[0], result);
+                OP_cvt, foldedPrimType, tmpNode->GetPrimType(), result);
           }
           return std::make_pair(result, 0);
         }
         if (dconst1 == 0.0 && dconst2 == 1.0) {
-          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<CompareNode>(
-              OP_eq, primTypes[0], primTypes[0], PairToExpr(primTypes[0], p[0]),
-              mirModule->GetMIRBuilder()->CreateIntConst(0, primTypes[0]));
-          std::pair<BaseNode*, int64> pairTemp = DispatchFold(lnot);
+          BaseNode *lnot = mirModule->CurFuncCodeMemPool()->New<UnaryNode>(
+              OP_lnot, node->Opnd(0)->GetPrimType(), node->Opnd(0));
+          BaseNode *tmpNode = lnot;
+          std::pair<BaseNode*, int64> pairTemp = DispatchFold(tmpNode);
           if (IsPrimitiveInteger(foldedPrimType)) {
             result = PairToExpr(foldedPrimType, pairTemp);
           } else {
-            result = PairToExpr(primTypes[0], pairTemp);
+            result = PairToExpr(tmpNode->GetPrimType(), pairTemp);
             result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(
-                OP_cvt, foldedPrimType, primTypes[0], result);
+                OP_cvt, foldedPrimType, tmpNode->GetPrimType(), result);
           }
           return std::make_pair(result, 0);
         }
@@ -2172,7 +2174,7 @@ StmtNode *ConstantFold::SimplifyCondGoto(CondGotoNode *node) {
   BaseNode *returnValue = nullptr;
   returnValue = Fold(node->Opnd(0));
   returnValue = (returnValue == nullptr) ? node : returnValue;
-  if (returnValue == node && node->Opnd(0)->GetOpCode() == OP_select) {
+  if (node->Opnd(0)->GetOpCode() == OP_select) {
     return SimplifyCondGotoSelect(node);
   } else {
     if (returnValue != node) {
