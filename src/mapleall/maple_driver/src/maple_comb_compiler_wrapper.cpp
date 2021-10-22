@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "compiler.h"
+#include <vector>
 
 namespace maple {
 using namespace mapleOption;
@@ -28,17 +29,62 @@ std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &) const {
   return FileUtils::SafeGetenv(kMapleRoot) + "/output/aarch64-clang-debug/bin/";
 }
 
-DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &,
+DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptions,
                                                       const Action &) const {
-  // -run=maplecomb:me:mpl2mpl --option=":--quiet:--quiet"
+  DefaultOption defaultOptions = { nullptr, 0 };
 
-  DefaultOption defaultOptions = { new MplOption[2], 2 };
+  auto options = mplOptions.GetOptions();
+  std::vector<Option *> tmpOptions;
 
-  //DefaultOption defaultOptions = { new MplOption("--run=maplecomb:me:mpl2mpl:mplcg", ""), 0 };
-  defaultOptions.mplOptions[0].SetKey("--run=me:mpl2mpl:mplcg");
-  defaultOptions.mplOptions[0].SetValue("");
-  defaultOptions.mplOptions[1].SetKey("--option=-quiet:-quiet:-quiet");
-  defaultOptions.mplOptions[1].SetValue("");
+  int optForWrapperCnt = 0;
+  for (Option &opt : options) {
+    auto desc = opt.GetDescriptor();
+    if (desc.exeName == "all" ||
+        desc.exeName == "mpl2mpl" ||
+        desc.exeName == "mplcg" ||
+        desc.exeName == "me") {
+      ++optForWrapperCnt;
+      tmpOptions.push_back(&opt);
+    }
+  }
+
+  defaultOptions.mplOptions = new MplOption[optForWrapperCnt];
+  defaultOptions.length = optForWrapperCnt;
+
+  for (int i = 0; i < optForWrapperCnt; ++i) {
+
+    /* TODO: Does not check -c in this place, after finish of -c flag logic implementation.
+     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files.
+     * We do not forward this -c flag into MapleCombCompilerWrp to Run only me,mpl2mpl,mplcg phases */
+    if (tmpOptions[i]->OptionKey() == "c") {
+      defaultOptions.length--;
+      optForWrapperCnt--;
+      continue;
+    }
+
+    std::string strOpt;
+    if (tmpOptions[i]->GetPrefixType() == shortOptPrefix) {
+      strOpt = "-";
+    } else if (tmpOptions[i]->GetPrefixType() == longOptPrefix) {
+      strOpt = "--";
+    }
+
+    if (!tmpOptions[i]->OptionKey().empty()) {
+      strOpt += tmpOptions[i]->OptionKey();
+    }
+
+    if (!tmpOptions[i]->Args().empty()) {
+      if (tmpOptions[i]->CheckEqualPrefix() == true) {
+        strOpt += "=";
+      } else {
+        strOpt += " ";
+      }
+      strOpt += tmpOptions[i]->Args();
+    }
+
+    defaultOptions.mplOptions[i].SetKey(strOpt);
+  }
+
   return defaultOptions;
 }
 
