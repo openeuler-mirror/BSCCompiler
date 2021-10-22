@@ -393,6 +393,10 @@ class MplOptions {
     return rootActions;
   }
 
+  const std::vector<mapleOption::Option> &GetOptions() const {
+    return optionParser->GetOptions();
+  }
+
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint() const;
