@@ -409,7 +409,6 @@ Operand *HandleVectorSetElement(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   BaseNode *arg0 = intrnNode.Opnd(0);                                  /* uint32_t operand */
   Operand *opnd0 = cgFunc.HandleExpr(intrnNode, *arg0);
   PrimType aType = arg0->GetPrimType();
-  //ASSERT(GetPrimTypeBitSize(aType) <= k32BitSize, "VectorSetElement: invalid opnd0");
 
   BaseNode *arg1 = intrnNode.Opnd(1);                                  /* vector operand == result */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *arg1);
@@ -486,7 +485,7 @@ Operand *HandleVectorNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isL
 }
 
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
-  (void)parent;
+//  (void)parent;
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
   switch (intrinsicopNode.GetIntrinsic()) {
     case INTRN_MPL_READ_OVTABLE_ENTRY_LAZY: {
@@ -619,6 +618,13 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_C__builtin_return_address:
     case INTRN_C__builtin_extract_return_addr:
       return cgFunc.SelectCReturnAddress(intrinsicopNode);
+
+    case INTRN_vector_abs_v8i8: case INTRN_vector_abs_v4i16:
+    case INTRN_vector_abs_v2i32: case INTRN_vector_abs_v1i64:
+    case INTRN_vector_abs_v16i8: case INTRN_vector_abs_v8i16:
+    case INTRN_vector_abs_v4i32: case INTRN_vector_abs_v2i64:
+      return HandleAbs(parent, intrinsicopNode, cgFunc);
+
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:
     case INTRN_vector_sum_v2u32: case INTRN_vector_sum_v2i32:

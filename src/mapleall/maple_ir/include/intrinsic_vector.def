@@ -16,6 +16,45 @@
 // DEF_MIR_INTRINSIC(STR, NAME, INTRN_CLASS, RETURN_TYPE,
 //                   ARG0, ARG1, ARG2, ARG3, ARG4, ARG5)
 
+// vecTy vector_abs(vecTy src)
+//     Create a vector by getting the absolute value of the elements in src.
+DEF_MIR_INTRINSIC(vector_abs_v8i8, "vector_abs_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I8,
+                  kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_abs_v4i16, "vector_abs_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I16,
+                  kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_abs_v2i32, "vector_abs_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
+                  kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_abs_v1i64, "vector_abs_v1i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1I64,
+                  kArgTyV1I64)
+DEF_MIR_INTRINSIC(vector_abs_v2f32, "vector_abs_v2f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
+                  kArgTyV2F32)
+DEF_MIR_INTRINSIC(vector_abs_v1f64, "vector_abs_v1f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV1F64,
+                  kArgTyV1F64)
+DEF_MIR_INTRINSIC(vector_abs_v16i8, "vector_abs_v16i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV16I8)
+DEF_MIR_INTRINSIC(vector_abs_v8i16, "vector_abs_v8i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_abs_v4i32, "vector_abs_v4i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_abs_v2i64, "vector_abs_v2i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I64)
+DEF_MIR_INTRINSIC(vector_abs_v4f32, "vector_abs_v4f32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4F32,
+                  kArgTyV4F32)
+DEF_MIR_INTRINSIC(vector_abs_v2f64, "vector_abs_v2f64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F64,
+                  kArgTyV2F64)
+
 // vecTy vector_from_scalar(scalarTy value)
 //     Create a vector by repeating the scalar value for each element in the
 //     vector.
