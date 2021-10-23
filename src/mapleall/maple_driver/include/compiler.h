@@ -240,6 +240,10 @@ class MapleCombCompilerWrp : public Compiler {
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
+  void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+                           std::vector<std::string> &tempFiles) const override;
+  std::unordered_set<std::string> GetFinalOutputs(const MplOptions &mplOptions,
+                                                  const Action &action) const override;
 };
 
 // Build .s to .o
@@ -272,8 +276,6 @@ class LdCompiler : public Compiler {
   const std::string &GetBinName() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
-  void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
-                           std::vector<std::string> &tempFiles) const override;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_COMPILER_H

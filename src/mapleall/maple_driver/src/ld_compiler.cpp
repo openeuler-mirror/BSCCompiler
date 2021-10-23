@@ -53,12 +53,4 @@ std::string LdCompiler::GetInputFileName(const MplOptions &, const Action &actio
     return files;
 }
 
-void LdCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
-                                     std::vector<std::string> &tempFiles) const {
-  std::string tmpFile;
-    for (const auto &file : action.GetLinkFiles()) {
-      tmpFile = FileUtils::GetFileName(file, false) + ".o";
-      tempFiles.push_back(tmpFile);
-    }
-}
 }  // namespace maple

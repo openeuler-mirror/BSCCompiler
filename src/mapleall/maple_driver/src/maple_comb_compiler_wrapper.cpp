@@ -60,4 +60,16 @@ std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, co
   return fullOutput + ".mpl";
 }
 
+void MapleCombCompilerWrp::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+                                               std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(action.GetFullOutputName() + ".s");
+}
+
+std::unordered_set<std::string> MapleCombCompilerWrp::GetFinalOutputs(const MplOptions &,
+                                                                      const Action &action) const {
+  std::unordered_set<std::string> finalOutputs;
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".s");
+  return finalOutputs;
+}
+
 }  // namespace maple
