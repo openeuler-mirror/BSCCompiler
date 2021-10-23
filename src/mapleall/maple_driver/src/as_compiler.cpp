@@ -50,7 +50,7 @@ std::string AsCompiler::GetInputFileName(const MplOptions &, const Action &actio
 
 void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
                                      std::vector<std::string> &tempFiles) const {
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".s");
+  tempFiles.push_back(action.GetFullOutputName() + ".o");
 }
 
 std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &,

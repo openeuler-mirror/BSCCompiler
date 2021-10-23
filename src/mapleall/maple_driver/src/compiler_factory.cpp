@@ -67,8 +67,8 @@ void CompilerFactory::Insert(const std::string &name, Compiler *value) {
   (void)supportedCompilers.insert(make_pair(name, value));
 }
 
-ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions, const std::vector<std::string> &tempFiles,
-                                          const std::unordered_set<std::string> &finalOutputs) const {
+ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
+                                          const std::vector<std::string> &tempFiles) const {
   int ret = 0;
   for (const std::string &tmpFile : tempFiles) {
     bool isSave = false;
@@ -78,9 +78,26 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions, const st
         break;
       }
     }
-    if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos &&  // not input
-        (finalOutputs.find(tmpFile) == finalOutputs.end())) {                   // not output
-      ret = FileUtils::Remove(tmpFile);
+    if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos /* not input */) {
+
+      bool isNeedRemove = true;
+      /* If we compile several files we can have several last Actions,
+       * so we need to NOT remove output files for each last Action.
+       */
+      for (auto lastAction : mplOptions.GetActions()) {
+        auto finalOutputs = lastAction->GetCompiler()->GetFinalOutputs(mplOptions, *lastAction);
+        /* do not remove output files */
+        if (finalOutputs.find(tmpFile) != finalOutputs.end()) {
+          isNeedRemove = false;
+        }
+      }
+
+      if (isNeedRemove == true) {
+        ret = FileUtils::Remove(tmpFile);
+        if (ret != 0) {
+          LogInfo::MapleLogger() << tmpFile << " File Not Found in DeleteTmpFiles\n";
+        }
+      }
     }
   }
   return ret == 0 ? kErrorNoError : kErrorFileNotFound;
@@ -133,9 +150,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
       action->GetCompiler()->GetTmpFilesToDelete(mplOptions, *action, tmpFiles);
     }
 
-    Action *lastAction = actions.back();
-    ret = DeleteTmpFiles(mplOptions, tmpFiles,
-                         lastAction->GetCompiler()->GetFinalOutputs(mplOptions, *lastAction));
+    ret = DeleteTmpFiles(mplOptions, tmpFiles);
   }
   return ret;
 }
