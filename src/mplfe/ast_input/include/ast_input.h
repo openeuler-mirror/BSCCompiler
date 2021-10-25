@@ -36,7 +36,10 @@ class ASTInput {
   }
 
   void AddASTStruct(ASTStruct *astStruct) {
-    astStructs.emplace_back(astStruct);
+    auto itor = std::find(astStructs.begin(), astStructs.end(), astStruct);
+    if (itor == astStructs.end()) {
+      astStructs.emplace_back(astStruct);
+    }
   }
 
   const MapleList<ASTFunc*> &GetASTFuncs() const {

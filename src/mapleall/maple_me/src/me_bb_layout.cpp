@@ -298,16 +298,6 @@ void BBLayout::OptimizeCaseTargets(BB *switchBB, CaseVector *swTable) {
     if (!newTargetBB->IsSuccBB(*switchBB)) {
       switchBB->AddSucc(*newTargetBB);
     }
-#if 0  // not updating CFG because there can be multiple cases with same target
-    switchBB->ReplaceSucc(brTargetBB, newTargetBB);
-    if (brTargetBB->GetPred().empty()) {
-      laidOut[brTargetBB->GetBBId()] = true;
-      RemoveUnreachable(*brTargetBB);
-      if (needDealWithTryBB) {
-        DealWithStartTryBB();
-      }
-    }
-#endif
   }
 }
 
@@ -707,12 +697,11 @@ void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
       bb.ReplaceSucc(fallthru, bb.GetSucc().back());
       ASSERT(fallthru->GetPred().empty(), "fallthru should not has other pred");
       ChangeToFallthruFromCondGoto(bb);
-      bb.GetSucc().pop_back(); // resize succ to 1
+      bb.GetSucc().resize(1); // resize succ to 1
       laidOut[fallthru->GetBBId()] = true;
       RemoveUnreachable(*fallthru);
     }
   }
-  return;
 }
 
 void BBLayout::DumpBBPhyOrder() const {

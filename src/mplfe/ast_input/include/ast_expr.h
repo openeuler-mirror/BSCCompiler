@@ -586,12 +586,12 @@ class ASTInitListExpr : public ASTExpr {
     parentFlag = argParentFlag;
   }
 
-  void SetIsUnionInitListExpr(bool flag) {
-    isUnionInitListExpr = flag;
+  void SetUnionInitFieldIdx(uint32 idx) {
+    unionInitFieldIdx = idx;
   }
 
-  bool IsUnionInitListExpr() const {
-    return isUnionInitListExpr;
+  uint32 GetUnionInitFieldIdx() const {
+    return unionInitFieldIdx;
   }
 
   void SetHasArrayFiller(bool flag) {
@@ -651,7 +651,7 @@ class ASTInitListExpr : public ASTExpr {
   MIRType *initListType = nullptr;
   std::string varName;
   ParentFlag parentFlag = kNoParent;
-  bool isUnionInitListExpr = false;
+  uint32 unionInitFieldIdx = UINT32_MAX;
   bool hasArrayFiller = false;
   bool isTransparent = false;
   bool hasVectorType = false;

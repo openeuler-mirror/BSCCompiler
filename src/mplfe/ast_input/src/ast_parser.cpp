@@ -1130,7 +1130,9 @@ ASTExpr *ASTParser::ProcessExprInitListExpr(MapleAllocator &allocator, const cla
   clang::QualType aggType = expr.getType().getCanonicalType();
   astInitListExpr->SetInitListType(initListType);
   const clang::FieldDecl *fieldDecl = expr.getInitializedFieldInUnion();
-  astInitListExpr->SetIsUnionInitListExpr(fieldDecl != nullptr);
+  if (fieldDecl != nullptr) {
+    astInitListExpr->SetUnionInitFieldIdx(fieldDecl->getFieldIndex());
+  }
   uint32 n = expr.getNumInits();
   clang::Expr * const *le = expr.getInits();
   if (aggType->isRecordType()) {

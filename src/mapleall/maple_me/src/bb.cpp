@@ -172,7 +172,7 @@ void BB::RemoveBBFromPred(const BB &bb, bool updatePhi) {
 
 void BB::RemoveBBFromSucc(const BB &bb) {
   int ret = bb.RemoveBBFromVector(succ);
-  if (ret != -1 && frequency != 0) {
+  if (ret != -1 && frequency != 0 && !succFreq.empty()) {
     succFreq.erase(succFreq.cbegin() + ret);
   }
 }
@@ -254,8 +254,12 @@ void BB::ReplacePred(const BB *old, BB *newPred) {
   for (auto &predElement : pred) {
     if (predElement == old) {
       predElement->RemoveBBFromSucc(*this);
-      newPred->succ.push_back(this);
-      predElement = newPred;
+      if (IsInList(newPred->succ)){
+        RemoveBBFromPred(*predElement, true);
+      } else {
+        newPred->succ.push_back(this);
+        predElement = newPred;
+      }
       break;
     }
   }
@@ -268,6 +272,7 @@ void BB::MoveAllPredToSucc(BB *newSucc, BB *commonEntry) {
     ASSERT(IsSuccBB(*commonEntry), "BB is not in commonEntry's successors, but it is set kBBAttrIsEntry");
     commonEntry->RemoveEntry(*this);
     commonEntry->AddEntry(*newSucc);
+    newSucc->SetAttributes(kBBAttrIsEntry);
   } else {
     while (!GetPred().empty()) {
       BB *firstPred = GetPred(0);
@@ -286,8 +291,12 @@ void BB::ReplaceSucc(const BB *old, BB *newSucc, bool updatePhi) {
   for (auto &succElement : succ) {
     if (succElement == old) {
       succElement->RemoveBBFromPred(*this, updatePhi);
-      newSucc->pred.push_back(this);
-      succElement = newSucc;
+      if (IsInList(newSucc->pred)) {
+        RemoveBBFromSucc(*succElement);
+      } else {
+        newSucc->pred.push_back(this);
+        succElement = newSucc;
+      }
       break;
     }
   }
@@ -300,6 +309,7 @@ void BB::MoveAllSuccToPred(BB *newPred, BB *commonExit) {
     ASSERT(IsPredBB(*commonExit), "BB is not in commonExit's predecessors, but it is set kBBAttrIsExit");
     commonExit->RemoveExit(*this);
     commonExit->AddExit(*newPred);
+    newPred->SetAttributes(kBBAttrIsExit);
   } else {
     while (!GetSucc().empty()) {
       BB *firstSucc = GetSucc(0);

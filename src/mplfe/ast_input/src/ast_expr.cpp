@@ -148,18 +148,6 @@ MIRConst *ASTExpr::GenerateMIRConstImpl() const {
   return value->Translate2MIRConst();
 }
 
-UniqueFEIRExpr ASTExpr::CreateZeroExprCompare(UniqueFEIRExpr feExpr, Opcode opcode) const {
-  if (feExpr->GetKind() == kExprBinary) {
-    if (static_cast<FEIRExprBinary*>(feExpr.get())->IsComparative()) {
-      return feExpr->Clone();
-    }
-  }
-  UniqueFEIRExpr zeroConstExpr = (feExpr->GetPrimType() == PTY_ptr) ?
-      FEIRBuilder::CreateExprConstPtrNull() :
-      FEIRBuilder::CreateExprConstAnyScalar(feExpr->GetPrimType(), 0);
-  return FEIRBuilder::CreateExprMathBinary(opcode, feExpr->Clone(), std::move(zeroConstExpr));
-}
-
 // ---------- ASTDeclRefExpr ---------
 MIRConst *ASTDeclRefExpr::GenerateMIRConstImpl() const {
   MIRType *mirType = refedDecl->GetTypeDesc().front();
@@ -243,8 +231,20 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
   }
   if (isIcall) {
     UniqueFEIRExpr expr = calleeExpr->Emit2FEExpr(stmts);
+    InsertNonnullCheckingForIcall(expr, stmts);
     callStmt->AddExprArgReverse(std::move(expr));
   }
+  InsertBoundaryCheckingInArgs(stmts);
+}
+
+void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr->GetPrimType() != PTY_ptr ||
+      !(expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead)) {
+    return;
+  }
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, expr->Clone());
+  stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+  stmts.emplace_back(std::move(stmt));
 }
 
 UniqueFEIRExpr ASTCallExpr::AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const {
@@ -299,7 +299,6 @@ UniqueFEIRExpr ASTCallExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     retExpr = AddRetExpr(callStmt);
   }
   stmts.emplace_back(std::move(callStmt));
-  InsertBoundaryCheckingInArgs(stmts);
   InsertBoundaryVarInRet(stmts);
   return retExpr;
 }
@@ -520,18 +519,18 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
   if (isVectorSplat) {
     return EmitExprVdupVector(dst->GetPrimType(), subExpr);
   }
-  if (complexType == nullptr) {
-    if (IsNeededCvt(subExpr)) {
-      if (IsPrimitiveFloat(subExpr->GetPrimType()) && IsPrimitiveInteger(dst->GetPrimType())) {
-        return FEIRBuilder::CreateExprCvtPrim(OP_trunc, std::move(subExpr), dst->GetPrimType());
-      }
-      return FEIRBuilder::CreateExprCastPrim(std::move(subExpr), dst->GetPrimType());
-    }
-  } else {
+  if (complexType != nullptr) {
     UniqueFEIRType srcType = std::make_unique<FEIRTypeNative>(*src);
     return Emit2FEExprForComplex(subExpr, srcType, stmts);
   }
-  return subExpr;
+  if (!IsNeededCvt(subExpr)) {
+    return subExpr;
+  }
+  if (IsPrimitiveFloat(subExpr->GetPrimType()) && IsPrimitiveInteger(dst->GetPrimType()) &&
+      dst->GetPrimType() != PTY_u1) {
+    return FEIRBuilder::CreateExprCvtPrim(OP_trunc, std::move(subExpr), dst->GetPrimType());
+  }
+  return FEIRBuilder::CreateExprCastPrim(std::move(subExpr), dst->GetPrimType());
 }
 
 UniqueFEIRExpr ASTCastExpr::EmitExprVdupVector(PrimType primtype, UniqueFEIRExpr &subExpr) const {
@@ -627,9 +626,7 @@ UniqueFEIRExpr ASTUOLNotExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
   childExpr->SetShortCircuitParent();
   UniqueFEIRExpr childFEIRExpr = childExpr->Emit2FEExpr(stmts);
   AstShortCircuitUtil::Instance().SetIsShortCircuit(childExpr->GetShortCircuit());
-  UniqueFEIRExpr zeroConstExpr = childFEIRExpr->GetPrimType() == PTY_ptr ? FEIRBuilder::CreateExprConstPtrNull() :
-      FEIRBuilder::CreateExprConstAnyScalar(childFEIRExpr->GetPrimType(), 0);
-  auto equalZero = FEIRBuilder::CreateExprMathBinary(OP_eq, std::move(childFEIRExpr), std::move(zeroConstExpr));
+  auto equalZero = FEIRBuilder::CreateExprZeroCompare(OP_eq, std::move(childFEIRExpr));
   if (!GetShortCircuitParent() && childExpr->GetShortCircuit()) {
     auto tempVarType = GlobalTables::GetTypeTable().GetInt32();
     UniqueFEIRVar tempVar = FEIRBuilder::CreateVarNameForC(tempVarName, *tempVarType);
@@ -779,6 +776,7 @@ void ASTUODerefExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uni
   }
   if (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, std::move(baseExpr));
+    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -865,10 +863,7 @@ UniqueFEIRExpr ASTBinaryConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEI
   // the conditional expr will be use for trueExpr before it will be converted to comparative expr
   if (!(condFEIRExpr->GetKind() == kExprBinary && static_cast<FEIRExprBinary*>(condFEIRExpr.get())->IsComparative())) {
     trueFEIRExpr = condFEIRExpr->Clone();
-    UniqueFEIRExpr zeroConstExpr = (condFEIRExpr->GetPrimType() == PTY_ptr) ?
-        FEIRBuilder::CreateExprConstPtrNull() :
-        FEIRBuilder::CreateExprConstAnyScalar(condFEIRExpr->GetPrimType(), 0);
-    condFEIRExpr = FEIRBuilder::CreateExprMathBinary(OP_ne, std::move(condFEIRExpr), std::move(zeroConstExpr));
+    condFEIRExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEIRExpr));
   } else {
     // if a conditional expr already is comparative (only return u1 val 0 or 1), e.g., b = (a < 0) ?: c
     // the conditional expr will be assigned var used for comparative expr and true expr meanwhile
@@ -1212,7 +1207,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     }
 
     FieldID curFieldID = 0;
-    FEUtils::TraverseToNamedField(*curStructMirType, curStructMirType->GetElemStrIdx(i), curFieldID);
+    uint32 fieldIdx = (curStructMirType->GetKind() == kTypeUnion) ? initList->GetUnionInitFieldIdx() : i;
+    FEUtils::TraverseToNamedField(*curStructMirType, curStructMirType->GetElemStrIdx(fieldIdx), curFieldID);
     uint32 fieldID = baseFieldID + curFieldID;
     MIRType *fieldMirType = curStructMirType->GetFieldType(curFieldID);
     unionInitSize = static_cast<uint32>(fieldMirType->GetSize());
@@ -1484,6 +1480,21 @@ bool ASTArraySubscriptExpr::CheckFirstDimIfZero() const {
   return false;
 }
 
+void ASTArraySubscriptExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
+                                                  const UniqueFEIRExpr &baseAddrExpr) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() ||
+      idxExpr->GetKind() != kExprConst ||
+      (baseAddrExpr->GetKind() != kExprDRead && baseAddrExpr->GetKind() != kExprIRead)) {
+    return;
+  }
+  FEIRExprConst *cst = static_cast<FEIRExprConst*>(idxExpr.get());
+  if (cst->GetValue().u64 == 0) {  // insert nonnull checking when ptr[0]
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, baseAddrExpr->Clone());
+    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+    stmts.emplace_back(std::move(stmt));
+  }
+}
+
 UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   auto baseAddrFEExpr = baseExpr->Emit2FEExpr(stmts);
   auto retFEType = std::make_unique<FEIRTypeNative>(*mirType);
@@ -1524,6 +1535,9 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
       baseAddrFEExpr = baseArrayExpr->GetExprArray()->Clone();
     }
     auto feIdxExpr = idxExpr->Emit2FEExpr(stmts);
+    if (isArrayTypeOpt) {
+      InsertNonnullChecking(stmts, feIdxExpr, baseAddrFEExpr);
+    }
     feIdxExprs.emplace_back(std::move(feIdxExpr));
     addrOfArray = FEIRBuilder::CreateExprAddrofArray(arrayFEType->Clone(), baseAddrFEExpr->Clone(), "", feIdxExprs);
   } else {
@@ -1617,6 +1631,7 @@ void ASTMemberExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uniq
   }
   if (baseFEExpr->GetKind() == kExprDRead || baseFEExpr->GetKind() == kExprIRead) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, std::move(baseFEExpr));
+    stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
 }
@@ -1883,7 +1898,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   std::string labelName = FEUtils::GetSequentialName("shortCircuit_label_");
 
   auto leftFEExpr = leftExpr->Emit2FEExpr(stmts);
-  auto leftCond = CreateZeroExprCompare(std::move(leftFEExpr), OP_ne);
+  auto leftCond = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(leftFEExpr));
   auto leftStmt = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), leftCond->Clone(), 0);
   stmts.emplace_back(std::move(leftStmt));
 
@@ -1892,7 +1907,7 @@ UniqueFEIRExpr ASTBinaryOperatorExpr::Emit2FEExprLogicOperate(std::list<UniqueFE
   stmts.emplace_back(std::move(condGoToExpr));
 
   auto rightFEExpr = rightExpr->Emit2FEExpr(stmts);
-  auto rightCond = CreateZeroExprCompare(std::move(rightFEExpr), OP_ne);
+  auto rightCond = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(rightFEExpr));
   auto rightStmt = std::make_unique<FEIRStmtDAssign>(shortCircuit->Clone(), rightCond->Clone(), 0);
   stmts.emplace_back(std::move(rightStmt));
 
@@ -2090,10 +2105,7 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   UniqueFEIRExpr condFEIRExpr = condExpr->Emit2FEExpr(stmts);
   // a noncomparative conditional expr need to be converted a comparative conditional expr
   if (!(condFEIRExpr->GetKind() == kExprBinary && static_cast<FEIRExprBinary*>(condFEIRExpr.get())->IsComparative())) {
-    UniqueFEIRExpr zeroConstExpr = (condFEIRExpr->GetPrimType() == PTY_ptr) ?
-        FEIRBuilder::CreateExprConstPtrNull() :
-        FEIRBuilder::CreateExprConstAnyScalar(condFEIRExpr->GetPrimType(), 0);
-    condFEIRExpr = FEIRBuilder::CreateExprMathBinary(OP_ne, std::move(condFEIRExpr), std::move(zeroConstExpr));
+    condFEIRExpr = FEIRBuilder::CreateExprZeroCompare(OP_ne, std::move(condFEIRExpr));
   }
   std::list<UniqueFEIRStmt> trueStmts;
   UniqueFEIRExpr trueFEIRExpr = trueExpr->Emit2FEExpr(trueStmts);
