@@ -1349,7 +1349,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void FinalizeRegisters();
   void GenerateSpillFillRegs(Insn &insn);
   RegOperand *CreateSpillFillCode(RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
-  void SpillLiveRangeForSpills();
+  bool SpillLiveRangeForSpills();
 
   MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
   void UpdateForbiddenForNeighbors(LiveRange &lr) const;

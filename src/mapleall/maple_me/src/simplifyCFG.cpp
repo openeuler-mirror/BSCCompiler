@@ -39,6 +39,56 @@ inline bool HasOnlyGotoStmt(BB &bb) {
   }
   return false;
 }
+
+inline bool IsEmptyBB(BB &bb) {
+  if (bb.IsMeStmtEmpty()) {
+    return true;
+  }
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip commont stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  return stmt == nullptr;
+}
+
+// pred-connecting-succ
+// connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
+bool IsConnectingBB(BB &bb) {
+  return (bb.GetPred().size() == 1 && bb.GetSucc().size() == 1) &&
+         (IsEmptyBB(bb) || HasOnlyGotoStmt(bb));
+}
+
+// RealSucc is a non-connecting BB which is not empty (or has just a single gotoStmt).
+// If we want to find the non-empty succ of currBB, we start from the succ (i.e. the argument)
+// skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
+BB *FindFirstRealSucc(BB *succ) {
+  while (succ != nullptr && IsConnectingBB(*succ)) {
+    succ = succ->GetSucc(0);
+  }
+  return succ;
+}
+
+// delete all empty bb used to connect its pred and succ, like: pred -- empty -- empty -- succ
+// the result after this will be : pred -- succ
+// if no empty exist, return;
+// we will stop at stopBB(stopBB will not be deleted), if stopBB is nullptr, means no constraint
+void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg) {
+  if (emptyBB == stopBB && emptyBB != nullptr && predBB->IsPredBB(*stopBB)) {
+    return;
+  }
+  // we can only eliminate those emptyBBs that have only one pred and succ
+  while (emptyBB != nullptr && emptyBB != stopBB && IsConnectingBB(*emptyBB)) {
+    BB *succ = emptyBB->GetSucc(0);
+    BB *pred = emptyBB->GetPred(0);
+    DEBUG_LOG() << "Delete empty connecting : BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(emptyBB)
+                << "(deleted)->BB" << LOG_BBID(succ) << "\n";
+    succ->ReplacePred(emptyBB, pred);
+    emptyBB->RemoveAllPred();
+    cfg.DeleteBasicBlock(*emptyBB);
+    emptyBB = succ;
+  }
+}
 } // anonymous namespace
 
 static bool RemoveUnreachableBB(maple::MeFunction &f) {
@@ -123,8 +173,13 @@ class SimplifyCFG {
   void CombineCond2SelPattern(BB *condBB, BB *ftBB, BB *gtBB, BB *jointBB);
   // for SimplifyUncondBB
   bool MergeGotoBBToPred(BB *gotoBB, BB *pred);
+  // after moving pred from curr to curr's successor (i.e. succ), update the phiList of curr and succ
+  // a phiOpnd will be removed from curr's philist, and a phiOpnd will be inserted to succ's philist
+  // note: when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
+  // otherwise we cannot get phiOpnd in this step
+  void UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr, BB *succ);
   // for ChangeCondBr2UnCond
-  bool SimplifyCondBBToGotoBB(BB &bb);
+  bool SimplifyBranchBBToUncondBB(BB &bb);
 
   // Check before every simplification to avoid error induced by other optimization on currBB
   // please use macro CHECK_CURR_BB instead
@@ -218,23 +273,49 @@ bool SimplifyCFG::EliminateDeadBB() {
   return false;
 }
 
-bool SimplifyCFG::SimplifyCondBBToGotoBB(BB &bb) {
-  if (bb.GetKind() != kBBCondGoto) {
+// all branches of bb are the same if skipping all empty connecting BB
+// turn it into an unconditional BB (if destBB has other pred, bb->gotoBB, otherwise, bb->fallthruBB)
+//      bb                             bb
+//   /  |  \                            |
+//  A   B   C  (ABC are empty)  ==>     |
+//   \  |  /                            |
+//    destBB                          destBB
+bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
+  if (bb.GetKind() != kBBCondGoto && bb.GetKind() != kBBSwitch) {
     return false;
   }
-  if (bb.GetSucc(0) == bb.GetSucc(1)) {
-    DEBUG_LOG() << "Conditional BB" << LOG_BBID(&bb) << " to unconditional BB\n";
-    LabelIdx label = f.GetOrCreateBBLabel(*bb.GetSucc(0));
-    auto *gotoStmt = irmap->New<GotoMeStmt>(label);
-    gotoStmt->SetSrcPos(bb.GetLastMe()->GetSrcPosition());
-    gotoStmt->SetBB(&bb);
+  // check if all successors of bb branch to the same destination (ignoring all empty bb between bb and destination)
+  BB *destBB = FindFirstRealSucc(bb.GetSucc(0));
+  for (size_t i = 1; i < bb.GetSucc().size(); ++i) {
+    if (FindFirstRealSucc(bb.GetSucc(i)) != destBB) {
+      return false;
+    }
+  }
+
+  DEBUG_LOG() << "SimplifyBranchBBToUncondBB : " << (bb.GetKind() == kBBCondGoto ? "Conditional " : "Switch ")
+              << "BB" << LOG_BBID(&bb) << " to unconditional BB\n";
+  // delete all empty bb between bb and destBB
+  // note : bb and destBB will be connected after empty BB is deleted
+  for (int i = bb.GetSucc().size() - 1; i >= 0; --i) {
+    EliminateEmptyConnectingBB(&bb, bb.GetSucc(i), destBB, *cfg);
+  }
+  while (bb.GetSucc().size() != 1) { // bb is an unconditional bb now, and its successor num should be 1
+    ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
+    bb.RemoveSucc(*bb.GetSucc().back());
+  }
+  if (destBB->GetPred().size() > 1) {
+    LabelIdx label = f.GetOrCreateBBLabel(*destBB);
+    auto *gotoStmt = irmap->CreateGotoMeStmt(label, &bb, &bb.GetLastMe()->GetSrcPosition());
     bb.RemoveLastMeStmt();
     bb.AddMeStmtLast(gotoStmt);
     bb.SetKind(kBBGoto);
-    return true;
+  } else {
+    bb.RemoveLastMeStmt();
+    bb.SetKind(kBBFallthru);
   }
-  return false;
+  return true;
 }
+
 // chang condition branch to unconditon branch if possible
 // 1.condition is a constant
 // 2.all branches of condition branch is the same BB
@@ -249,7 +330,7 @@ bool SimplifyCFG::ChangeCondBr2UnCond() {
   }
   // case 2
   if (currBB->GetSucc(0) == currBB->GetSucc(1)) {
-    if (SimplifyCondBBToGotoBB(*currBB)) {
+    if (SimplifyBranchBBToUncondBB(*currBB)) {
       SetBBRunAgain();
       return true;
     }
@@ -613,6 +694,89 @@ bool SimplifyCFG::SimplifyCondBB() {
   return false;
 }
 
+// after moving pred from curr to curr's successor (i.e. succ), update the phiList of curr and succ
+// a phiOpnd will be removed from curr's philist, and another phiOpnd will be inserted to succ's philist
+//
+//    ...  pred           ...     pred
+//      \  /  \            \       / \
+//      curr  ...   ==>   curr    /  ...
+//      /  \   ...         /  \  / ...
+//     /    \  /          /    \/ /
+//   ...    succ         ...  succ
+//
+// parameter predIdxForCurr is the index of pred in the predVector of curr
+// note:
+// 1.when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
+// otherwise we cannot get phiOpnd in this step
+// 2.predIdxForCurr should be get before disconnecting pred and curr
+void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr, BB *succ) {
+  auto &succPhiList = succ->GetMePhiList();
+  auto &currPhilist = curr->GetMePhiList();
+  if (succPhiList.empty()) {
+    // succ has only one pred(i.e. curr) before
+    // we copy curr's philist to succ, but not with all phiOpnd
+    for (auto &phiNode : currPhilist) {
+      auto *phiMeNode = irmap->NewInPool<MePhiNode>();
+      phiMeNode->SetDefBB(succ);
+      succPhiList.emplace(phiNode.first, phiMeNode);
+      auto &phiOpnds = phiMeNode->GetOpnds();
+      phiOpnds.resize(2); // succ has 2 pred now : curr and pred
+      int currPredIdx = succ->GetPredIndex(*curr);
+      int predPredIdx = succ->GetPredIndex(*pred);
+      // curr is already pred of succ, so we add its phiLHS as succ's phiOpnd
+      phiMeNode->SetOpnd(currPredIdx, phiNode.second->GetLHS());
+      // pred is a new pred for succ, we copy its corresponding phiopnd in curr to succ
+      phiMeNode->SetOpnd(predPredIdx, phiNode.second->GetOpnd(predIdxForCurr));
+      OStIdx ostIdx = phiNode.first;
+      // create a new version for new phi
+      phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
+    }
+    UpdateSSACandForBBPhiList(succ); // new philist has been created in succ
+  } else {
+    // succ has other pred besides curr
+    for (auto &phi : succPhiList) {
+      OStIdx ostIdx = phi.first;
+      auto it = currPhilist.find(ostIdx);
+      int predPredIdx = succ->GetPredIndex(*pred);
+      auto &phiOpnds = phi.second->GetOpnds();
+      if (it != currPhilist.end()) {
+        // curr has phiNode for this ost, we copy pred's corresponding phiOpnd in curr to succ
+        phiOpnds.insert(phiOpnds.begin() + predPredIdx, it->second->GetOpnd(predIdxForCurr));
+      } else {
+        // curr has no phiNode for this ost, pred's phiOpnd in succ will be the same as curr's phiOpnd in succ
+        int index = succ->GetPredIndex(*curr);
+        ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's pred", f.GetName().c_str());
+        // pred's phi opnd is the same as curr.
+        phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(index));
+      }
+    }
+    // search philist in curr for phinode that is not in succ yet
+    for (auto &phi : currPhilist) {
+      OStIdx ostIdx = phi.first;
+      auto resPair = succPhiList.emplace(ostIdx, nullptr);
+      if (!resPair.second) {
+        // phinode is in succ, last step has updated it
+        continue;
+      } else {
+        auto *phiMeNode = irmap->NewInPool<MePhiNode>();
+        phiMeNode->SetDefBB(succ);
+        resPair.first->second = phiMeNode; // replace nullptr inserted before
+        auto &phiOpnds = phiMeNode->GetOpnds();
+        // insert opnd into New phiNode : all phiOpnds (except for pred) are phiNode lhs in curr
+        phiOpnds.insert(phiOpnds.end(), succ->GetPred().size() - 1, phi.second->GetLHS());
+        // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
+        int predPredIdx = succ->GetPredIndex(*pred);
+        phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(predIdxForCurr));
+        // create a new version for new phinode
+        phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
+        UpdateSSACandForOst(ostIdx, succ);
+      }
+    }
+  }
+  // remove pred's corresponding phiOpnd from curr's philist
+  curr->RemovePhiOpnd(predIdxForCurr);
+}
+
 // succ must have only one goto statement
 // pred must be three of below:
 // 1. fallthrough BB
@@ -637,24 +801,27 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
     return false;
   }
   BB *newTarget = succ->GetSucc(0); // succ must have only one succ, because it is uncondBB
+  if (newTarget == succ) {
+    // succ goto itself, no need to update goto target to newTarget
+    return false;
+  }
   // newTarget has only one pred, skip, because MergeDistinctBBPair will deal with this case
   if (newTarget->GetPred().size() == 1) {
     return false;
   }
-  int predIdx = succ->GetPredIndex(*pred);
   // pred is moved to newTarget
   if (pred->GetKind() == kBBFallthru) {
-    GotoMeStmt *gotoMeStmt = irmap->New<GotoMeStmt>(newTarget->GetBBLabel());
-    gotoMeStmt->SetSrcPos(succ->GetLastMe()->GetSrcPosition());
-    gotoMeStmt->SetBB(pred);
+    GotoMeStmt *gotoMeStmt = irmap->CreateGotoMeStmt(newTarget->GetBBLabel(), pred,
+                                                     &succ->GetLastMe()->GetSrcPosition());
     pred->AddMeStmtLast(gotoMeStmt);
     pred->SetKind(kBBGoto);
     DEBUG_LOG() << "Insert Uncond stmt to fallthru BB" << LOG_BBID(currBB) << ", and goto BB" << LOG_BBID(newTarget)
                 << "\n";
   }
+  int predIdx = succ->GetPredIndex(*pred);
   bool needUpdatePhi = false;
   if (pred->IsPredBB(*newTarget)) {
-    pred->RemoveSucc(*succ, false); // one of pred's succ has been newTarget, avoid duplicate succ here
+    pred->RemoveSucc(*succ, true); // one of pred's succ has been newTarget, avoid duplicate succ here
   } else {
     pred->ReplaceSucc(succ, newTarget); // phi opnd is not removed from currBB's philist, we will remove it later
     needUpdatePhi = true;
@@ -664,69 +831,9 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
               << ": BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(succ) << "(merged)->BB" << LOG_BBID(newTarget) << "\n";
   cfg->UpdateBranchTarget(*pred, *succ, *newTarget, f);
   if (needUpdatePhi) {
-    // update phi
-    auto &newPhiList = newTarget->GetMePhiList();
-    auto &gotoPhilist = succ->GetMePhiList();
-    if (newPhiList.empty()) { // newTarget has only one pred(i.e. succ) before
-      // we copy succ's philist to newTarget, but not with all phiOpnd
-      for (auto &phiNode : gotoPhilist) {
-        auto *phiMeNode = irmap->NewInPool<MePhiNode>();
-        phiMeNode->SetDefBB(newTarget);
-        newPhiList.emplace(phiNode.first, phiMeNode);
-        phiMeNode->GetOpnds().push_back(phiNode.second->GetLHS()); // succ is the first pred of newTarget
-        // new pred to newTarget
-        phiMeNode->GetOpnds().push_back(phiNode.second->GetOpnd(predIdx));
-        OStIdx ostIdx = phiNode.first;
-        // create a new version for new phi
-        ScalarMeExpr *phiLHS = irmap->CreateRegOrVarMeExprVersion(ostIdx);
-        phiLHS->SetDefPhi(*phiMeNode);
-        phiLHS->SetDefBy(kDefByPhi);
-        phiMeNode->SetLHS(phiLHS);
-      }
-      UpdateSSACandForBBPhiList(newTarget);
-    } else { // newTarget has other pred besides succ
-      for (auto &phi : newPhiList) {
-        OStIdx ostIdx = phi.first;
-        auto it = gotoPhilist.find(ostIdx);
-        if (it != gotoPhilist.end()) {
-          // new pred to newTarget
-          phi.second->GetOpnds().push_back(it->second->GetOpnd(predIdx));
-        } else {
-          int index = newTarget->GetPredIndex(*succ);
-          ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's pred", f.GetName().c_str());
-          // new pred's phi opnd is the same as succ.
-          phi.second->GetOpnds().push_back(phi.second->GetOpnd(index));
-        }
-      }
-      // search philist in curr for phinode that is not in succ yet
-      // note : the case will occur when succ dominates newTarget
-      for (auto &phi : gotoPhilist) {
-        OStIdx ostIdx = phi.first;
-        auto it = newPhiList.find(ostIdx);
-        if (it != newPhiList.end()) {
-          // phinode is in succ, last step has updated it
-          continue;
-        } else {
-          auto *phiMeNode = irmap->NewInPool<MePhiNode>();
-          phiMeNode->SetDefBB(newTarget);
-          newPhiList.emplace(ostIdx, phiMeNode);
-          auto &phiOpnds = phiMeNode->GetOpnds();
-          // insert opnd into New phiNode : all phiOpnds (except last one) are phiNode lhs in curr
-          phiOpnds.insert(phiOpnds.end(), newTarget->GetPred().size() - 1, phi.second->GetLHS());
-          // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
-          phiMeNode->GetOpnds().push_back(phi.second->GetOpnd(predIdx));
-          // create a new version for new phinode
-          ScalarMeExpr *phiLHS = irmap->CreateRegOrVarMeExprVersion(ostIdx);
-          phiLHS->SetDefPhi(*phiMeNode);
-          phiLHS->SetDefBy(kDefByPhi);
-          phiMeNode->SetLHS(phiLHS);
-          UpdateSSACandForOst(ostIdx, newTarget);
-        }
-      }
-    }
+    // remove phiOpnd in succ, and add phiOpnd to newTarget
+    UpdatePhiForMovingPred(predIdx, pred, succ, newTarget);
   }
-  // remove redundant phiOpnd of succ's philist
-  succ->RemovePhiOpnd(predIdx);
   // remove succ if succ has no pred
   if (succ->GetPred().empty()) {
     newTarget->RemovePred(*succ, true);
@@ -734,6 +841,8 @@ bool SimplifyCFG::MergeGotoBBToPred(BB *succ, BB *pred) {
     UpdateSSACandForBBPhiList(succ, newTarget);
     DeleteBB(succ);
   }
+  // if all branch destination of pred (condBB or switchBB) are the same, we should turn pred into uncond
+  (void) SimplifyBranchBBToUncondBB(*pred);
   return true;
 }
 
