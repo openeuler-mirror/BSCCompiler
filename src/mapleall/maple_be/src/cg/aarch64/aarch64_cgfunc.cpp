@@ -6448,7 +6448,8 @@ AArch64RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol
     memOpnd = &GetOrCreateMemOpnd(sym, (kSizeOfPtr * parmNum + offset), memSize);
   }
   MOperator selectedMop = PickLdInsn(dataSizeBits, primType);
-  if (!IsOperandImmValid(selectedMop, memOpnd, kInsnSecondOpnd)) {
+  if ((static_cast<AArch64MemOperand *>(memOpnd)->GetAddrMode() == AArch64MemOperand::kAddrModeBOi) &&
+      !IsOperandImmValid(selectedMop, memOpnd, kInsnSecondOpnd)) {
     memOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSizeBits);
   }
   GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(selectedMop, *parmOpnd, *memOpnd));
