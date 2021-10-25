@@ -14,6 +14,7 @@
  */
 #include "compiler.h"
 #include "default_options.def"
+#include <memory>
 #ifdef INTERGRATE_DRIVER
 #include "dex2mpl_runner.h"
 #include "mir_function.h"
@@ -25,14 +26,26 @@ const std::string &Dex2MplCompiler::GetBinName() const {
 }
 
 DefaultOption Dex2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
+  uint32_t len = 0;
+  MplOption *kDex2mplDefaultOptions = nullptr;
+
   if (options.GetOptimizationLevel() == kO0 && options.HasSetDefaultLevel()) {
-    defaultOptions.mplOptions = kDex2mplDefaultOptionsO0;
-    defaultOptions.length = sizeof(kDex2mplDefaultOptionsO0) / sizeof(MplOption);
+    len = sizeof(kDex2mplDefaultOptionsO0) / sizeof(MplOption);
+    kDex2mplDefaultOptions = kDex2mplDefaultOptionsO0;
   } else if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
-    defaultOptions.mplOptions = kDex2mplDefaultOptionsO2;
-    defaultOptions.length = sizeof(kDex2mplDefaultOptionsO2) / sizeof(MplOption);
+    len = sizeof(kDex2mplDefaultOptionsO2) / sizeof(MplOption);
+    kDex2mplDefaultOptions = kDex2mplDefaultOptionsO2;
   }
+
+  if (kDex2mplDefaultOptions == nullptr) {
+    return DefaultOption();
+  }
+
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kDex2mplDefaultOptions[i];
+  }
+
   for (unsigned int i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
         FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),

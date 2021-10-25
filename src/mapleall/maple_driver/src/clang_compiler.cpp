@@ -12,7 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include "compiler.h"
 #include "file_utils.h"
 #include "mpl_timer.h"
@@ -28,10 +30,15 @@ const std::string &ClangCompiler::GetBinName() const {
 }
 
 DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kClangDefaultOptions;
+  uint32_t len = sizeof(kClangDefaultOptions) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kClangDefaultOptions[i];
+  }
+
+  CHECK_FATAL((len > 1), "Option is hardcoded in O0_options_clang.def file \n");
   defaultOptions.mplOptions[1].SetValue(action.GetFullOutputName() + ".ast");
-  defaultOptions.length = sizeof(kClangDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(

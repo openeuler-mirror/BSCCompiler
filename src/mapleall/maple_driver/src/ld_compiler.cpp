@@ -30,10 +30,14 @@ const std::string &LdCompiler::GetBinName() const {
   return kBinNameGcc;
 }
 
-DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kLdDefaultOptions;
-  defaultOptions.length = sizeof(kLdDefaultOptions) / sizeof(MplOption);
+DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+
+  uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kLdDefaultOptions[i];
+  }
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(

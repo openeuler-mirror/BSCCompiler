@@ -30,10 +30,15 @@ const std::string &AsCompiler::GetBinName() const {
 }
 
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kAsDefaultOptions;
+  uint32_t len = sizeof(kAsDefaultOptions) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kAsDefaultOptions[i];
+  }
+
+  CHECK_FATAL((len > 0), "Option is hardcoded in O0_options_as.def file \n");
   defaultOptions.mplOptions[0].SetValue(action.GetFullOutputName() + ".o");
-  defaultOptions.length = sizeof(kAsDefaultOptions) / sizeof(MplOption);
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
