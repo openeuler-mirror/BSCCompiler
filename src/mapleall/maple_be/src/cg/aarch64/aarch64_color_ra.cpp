@@ -199,7 +199,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
     } else {
       Insn *insn = &cg->BuildInstruction<AArch64Insn>(MOP_xadrp, regOp, stImm);
       insns.push_back(insn);
-      if (CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
+      if (!addrUpper && CGOptions::IsPIC() && ((symbol->GetStorageClass() == kScGlobal) ||
                                  (symbol->GetStorageClass() == kScExtern))) {
         /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
         AArch64OfstOperand &offsetOp = cgFunc->CreateOfstOpnd(*symbol, offset,
@@ -3844,7 +3844,8 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
   return nullptr;
 }
 
-void GraphColorRegAllocator::SpillLiveRangeForSpills() {
+bool GraphColorRegAllocator::SpillLiveRangeForSpills() {
+  bool done = false;
   for (uint32_t bbIdx = 0; bbIdx < bfs->sortedBBs.size(); bbIdx++) {
     BB *bb = bfs->sortedBBs[bbIdx];
     FOR_BB_INSNS(insn, bb) {
@@ -3877,6 +3878,7 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
               newmemopnd = static_cast<MemOperand*>(static_cast<MemOperand *>(opnd)->Clone(*cgFunc->GetMemoryPool()));
               newmemopnd->SetBaseRegister(*replace);
               insn->SetOperand(i, *newmemopnd);
+              done = true;
             }
           }
           RegOperand *offset = static_cast<RegOperand*>(memopnd->GetIndexRegister());
@@ -3889,6 +3891,7 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
               }
               newmemopnd->SetIndexRegister(*replace);
               insn->SetOperand(i, *newmemopnd);
+              done = true;
             }
           }
         } else if (opnd->IsRegister()) {
@@ -3903,11 +3906,13 @@ void GraphColorRegAllocator::SpillLiveRangeForSpills() {
               spillCnt++;
             }
             insn->SetOperand(i, *replace);
+            done = true;
           }
         }
       }
     }
   }
+  return done;
 }
 
 static bool ReloadAtCallee(CgOccur *occ) {
@@ -4606,8 +4611,10 @@ void GraphColorRegAllocator::FinalizeRegisters() {
       }
       LogInfo::MapleLogger() << "\n";
     }
-    SpillLiveRangeForSpills();
-    return;
+    bool done = SpillLiveRangeForSpills();
+    if (done) {
+      return;
+    }
   }
   if (CLANG) {
     if (!cgFunc->GetLoops().empty()) {

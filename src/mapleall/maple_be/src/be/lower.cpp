@@ -999,6 +999,23 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   addNode->SetBOpnd(iassign.Opnd(0), 0);
   addNode->SetBOpnd(constNode, 1);
 
+  uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
+  int32 bitOffset = byteBitOffsets.second;
+  if (((bitOffset == k8BitSize || bitOffset == k16BitSize || bitOffset == 0) &&
+       (bitSize == k8BitSize || bitSize == k16BitSize)) ||
+      (bitOffset == k24BitSize && bitSize == k8BitSize)) {
+    constNode->SetConstVal(
+        GlobalTables::GetIntConstTable().GetOrCreateIntConst(byteBitOffsets.first + (bitOffset / k8BitSize), mirType));
+    IassignNode *iassignStmt = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
+    MIRType pointedType(kTypeScalar, GetIntegerPrimTypeBySizeAndSign(bitSize, IsSignedInteger(fType->GetPrimType())));
+    TyIdx pointedTyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&pointedType);
+    const MIRType *pointToType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pointedTyIdx);
+    MIRType *pointType = beCommon.BeGetOrCreatePointerType(*pointToType);
+    iassignStmt->SetTyIdx(pointType->GetTypeIndex());
+    iassignStmt->SetOpnd(addNode->CloneTree(mirModule.GetCurFuncCodeMPAllocator()), 0);
+    iassignStmt->SetRHS(iassign.GetRHS());
+    return iassignStmt;
+  }
   IreadNode *ireadNode = mirModule.CurFuncCodeMemPool()->New<IreadNode>(OP_iread);
   ireadNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   ireadNode->SetOpnd(addNode, 0);
@@ -1562,6 +1579,49 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
   }
 }
 
+void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk) {
+  MIRFunction *curFunc = mirModule.CurFunction();
+  BaseNode *op0 = LowerExpr(stmt, *stmt.Opnd(0), block);
+  BaseNode *op1 = LowerExpr(stmt, *stmt.Opnd(1), block);
+  MIRSymbol *errMsg;
+  LabelIdx labIdx = GetLabelIdx(*curFunc);
+  LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
+  Opcode op = OP_ge;
+  if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOpCode())) {
+    op = (stmt.GetOpCode() == OP_callassertle || stmt.GetOpCode() == OP_returnassertle) ? OP_le : OP_lt;
+  }
+  BaseNode *cond = mirBuilder->CreateExprCompare(op, *GlobalTables::GetTypeTable().GetUInt1(),
+                                                 *GlobalTables::GetTypeTable().GetPrimType(op0->GetPrimType()),
+                                                 op0, op1);
+  CondGotoNode *brTrueNode = mirBuilder->CreateStmtCondGoto(cond, OP_brtrue, labIdx);
+
+  MIRFunction *printf = mirBuilder->GetOrCreateFunction("printf", TyIdx(PTY_i32));
+  MapleVector<BaseNode*> argsPrintf(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
+  if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
+    errMsg = mirBuilder->CreateConstStringSymbol("c_enhanced_errmsg_lower_out",
+                                                 "error:lower bound is out of range!\n");
+  } else {
+    errMsg = mirBuilder->CreateConstStringSymbol("c_enhanced_errmsg_upper_out",
+                                                 "error:upper bound is out of range!\n");
+  }
+  uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
+  if (newTypeTableSize != oldTypeTableSize) {
+    beCommon.AddNewTypeAfterBecommon(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(oldTypeTableSize));
+  }
+  argsPrintf.push_back(mirBuilder->CreateAddrof(*errMsg, PTY_a64));
+  StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
+
+  MIRFunction *func = mirBuilder->GetOrCreateFunction("abort", TyIdx(PTY_void));
+  MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  StmtNode *call = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
+
+  newBlk.AddStatement(brTrueNode);
+  newBlk.AddStatement(callPrintf);
+  newBlk.AddStatement(call);
+  newBlk.AddStatement(labelBC);
+}
+
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
   BlockNode *newBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   BlockNode *tmpBlockNode = nullptr;
@@ -1602,6 +1662,10 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       }
       case OP_regassign: {
         LowerRegassign(static_cast<RegassignNode&>(*stmt), *newBlk);
+        break;
+      }
+      CASE_OP_ASSERT_BOUNDARY {
+        LowerAssertBoundary(*stmt, block, *newBlk);
         break;
       }
       case OP_iassign: {
@@ -3060,6 +3124,9 @@ BaseNode *CGLowerer::LowerIntrinsicop(const BaseNode &parent, IntrinsicopNode &i
     int64 val = (opnd->op == OP_constval || opnd->op == OP_sizeoftype ||
                  opnd->op == OP_conststr || opnd->op == OP_conststr16) ? 1 : 0;
     return mirModule.GetMIRBuilder()->CreateIntConst(val, PTY_i32);
+  }
+  if (intrnID == INTRN_C___builtin_expect) {
+    return intrinNode.Opnd(0);
   }
   if (intrinDesc.IsVectorOp()) {
     return &intrinNode;
