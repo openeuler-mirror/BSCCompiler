@@ -1945,6 +1945,7 @@ void AArch64GenProEpilog::Run() {
 
   std::set<Insn*> &callInsnsMap = GetCallSitesMap();
   if (cgFunc.GetMirModule().IsCModule() && !callInsnsMap.empty()) {
+    cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
     ConvertToTailCalls(callInsnsMap);
   }
 }

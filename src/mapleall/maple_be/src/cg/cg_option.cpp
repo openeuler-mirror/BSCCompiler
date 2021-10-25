@@ -674,10 +674,10 @@ const Descriptor kUsage[] = {
   { kConstFoldOpt,
     0,
     "",
-    "const-fold",
+    "no-const-fold",
     kBuildTypeExperimental,
     kArgCheckPolicyNone,
-    "  --const-fold                \tEnable constant folding\n",
+    "  --no-const-fold                \tDisable constant folding\n",
     "mplcg",
     {} },
   { kEhList,
@@ -1279,7 +1279,7 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         SetOption(kPatchLongBranch);
         break;
       case kConstFoldOpt:
-        SetOption(kConstFold);
+        ClearOption(kConstFold);
         break;
       case kCGDumpcfg:
         SetOption(kDumpCFG);
