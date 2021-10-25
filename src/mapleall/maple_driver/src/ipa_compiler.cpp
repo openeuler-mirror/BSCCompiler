@@ -21,11 +21,23 @@ const std::string &IpaCompiler::GetBinName() const {
 }
 
 DefaultOption IpaCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
+  uint32_t len = 0;
+  MplOption *kMplipaDefaultOptions = nullptr;
+
   if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
-    defaultOptions.mplOptions = kMplipaDefaultOptionsO2;
-    defaultOptions.length = sizeof(kMplipaDefaultOptionsO2) / sizeof(MplOption);
+    len = sizeof(kMplipaDefaultOptionsO2) / sizeof(MplOption);
+    kMplipaDefaultOptions = kMplipaDefaultOptionsO2;
   }
+
+  if (kMplipaDefaultOptions == nullptr) {
+    return DefaultOption();
+  }
+
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kMplipaDefaultOptions[i];
+  }
+
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
         FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),

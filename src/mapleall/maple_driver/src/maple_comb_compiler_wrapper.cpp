@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "compiler.h"
+#include "types_def.h"
 #include <vector>
 
 namespace maple {
@@ -31,12 +32,10 @@ std::string MapleCombCompilerWrp::GetBinPath(const MplOptions &) const {
 
 DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptions,
                                                       const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-
   auto options = mplOptions.GetOptions();
   std::vector<Option *> tmpOptions;
 
-  int optForWrapperCnt = 0;
+  uint32 optForWrapperCnt = 0;
   for (Option &opt : options) {
     auto desc = opt.GetDescriptor();
     if (desc.exeName == "all" ||
@@ -48,8 +47,8 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
     }
   }
 
-  defaultOptions.mplOptions = new MplOption[optForWrapperCnt];
-  defaultOptions.length = optForWrapperCnt;
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(optForWrapperCnt),
+                                   optForWrapperCnt };
 
   for (int i = 0; i < optForWrapperCnt; ++i) {
 

@@ -268,8 +268,8 @@ class MplOption {
 };
 
 struct DefaultOption {
-  MplOption *mplOptions;
-  uint32_t length;
+  std::unique_ptr<MplOption[]> mplOptions;
+  uint32_t length = 0;
 };
 
 class MplOptions {

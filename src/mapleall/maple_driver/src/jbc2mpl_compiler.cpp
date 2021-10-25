@@ -22,8 +22,7 @@ const std::string &Jbc2MplCompiler::GetBinName() const {
 }
 
 DefaultOption Jbc2MplCompiler::GetDefaultOptions(const MplOptions&, const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  return defaultOptions;
+  return DefaultOption();
 }
 
 void Jbc2MplCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,

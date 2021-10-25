@@ -24,14 +24,26 @@ using namespace maplebe;
 using namespace mapleOption;
 
 DefaultOption MplcgCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
+  uint32_t len = 0;
+  MplOption *kMplcgDefaultOptions = nullptr;
+
   if (options.GetOptimizationLevel() == kO0 && options.HasSetDefaultLevel()) {
-    defaultOptions.mplOptions = kMplcgDefaultOptionsO0;
-    defaultOptions.length = sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption);
+    len = sizeof(kMplcgDefaultOptionsO0) / sizeof(MplOption);
+    kMplcgDefaultOptions = kMplcgDefaultOptionsO0;
   } else if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
-    defaultOptions.mplOptions = kMplcgDefaultOptionsO2;
-    defaultOptions.length = sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption);
+    len = sizeof(kMplcgDefaultOptionsO2) / sizeof(MplOption);
+    kMplcgDefaultOptions = kMplcgDefaultOptionsO2;
   }
+
+  if (kMplcgDefaultOptions == nullptr) {
+    return DefaultOption();
+  }
+
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kMplcgDefaultOptions[i];
+  }
+
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
         FileUtils::AppendMapleRootIfNeeded(defaultOptions.mplOptions[i].GetNeedRootPath(),

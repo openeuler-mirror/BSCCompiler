@@ -43,9 +43,12 @@ std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const A
 }
 
 DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kCpp2MplDefaultOptionsForAst;
-  defaultOptions.length = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
+  uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kCpp2MplDefaultOptionsForAst[i];
+  }
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
