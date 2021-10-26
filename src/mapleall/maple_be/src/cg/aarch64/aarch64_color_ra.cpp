@@ -1194,9 +1194,10 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
     FOR_BB_INSNS_REV_SAFE(insn, bb, ninsn) {
 #ifdef MOVE_COALESCE
       if ((insn->GetMachineOpcode() == MOP_xmovrr || insn->GetMachineOpcode() == MOP_wmovrr) &&
-          (AArch64isa::IsPhysicalRegister(static_cast<RegOperand&>(insn->GetOperand(0)).GetRegisterNumber()) == false) &&
+          (AArch64isa::IsPhysicalRegister(static_cast<RegOperand&>(
+              insn->GetOperand(0)).GetRegisterNumber()) == false) &&
           (static_cast<RegOperand&>(insn->GetOperand(0)).GetRegisterNumber() ==
-            static_cast<RegOperand&>(insn->GetOperand(1)).GetRegisterNumber())) {
+              static_cast<RegOperand&>(insn->GetOperand(1)).GetRegisterNumber())) {
         bb->RemoveInsn(*insn);
         continue;
       }
