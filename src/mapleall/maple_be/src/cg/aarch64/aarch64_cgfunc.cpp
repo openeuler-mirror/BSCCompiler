@@ -4384,7 +4384,9 @@ Operand *AArch64CGFunc::SelectAbsSub(Insn &lastInsn, const UnaryNode &node, Oper
 
 Operand *AArch64CGFunc::SelectAbs(UnaryNode &node, Operand &opnd0) {
   PrimType dtyp = node.GetPrimType();
-  if (IsPrimitiveFloat(dtyp)) {
+  if (IsPrimitiveVector(dtyp)) {
+    return SelectVectorAbs(dtyp, &opnd0);
+  } else if (IsPrimitiveFloat(dtyp)) {
     CHECK_FATAL(GetPrimTypeBitSize(dtyp) >= k32BitSize, "We don't support hanf-word FP operands yet");
     bool is64Bits = (GetPrimTypeBitSize(dtyp) == k64BitSize);
     Operand &newOpnd0 = LoadIntoRegister(opnd0, dtyp);
@@ -9368,6 +9370,19 @@ RegOperand *AArch64CGFunc::SelectOneElementVectorCopy(Operand *src, PrimType sTy
   return res;
 }
 
+RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
+  RegOperand *res = &CreateRegisterOperandOfType(rType);                    /* result operand */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);     /* vector operand 1 */
+
+  MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vabsvv : MOP_vabsuu;
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
 RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);                 /* result operand */
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
@@ -9575,7 +9590,7 @@ RegOperand *AArch64CGFunc::SelectVectorSum(PrimType rType, Operand *o1, PrimType
   GetCurBB()->AppendInsn(*insn);
 
   Insn *insn2 = &GetCG()->BuildInstruction<AArch64VectorInsn>(
-       eSize > k32BitSize ? MOP_vxmovrv : MOP_vwmovrv, *res, *iOpnd);
+      eSize > k32BitSize ? MOP_vxmovrv : MOP_vwmovrv, *res, *iOpnd);
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oType);
   vecSpec2->vecLane = 0;
   static_cast<AArch64VectorInsn*>(insn2)->PushRegSpecEntry(vecSpec2);

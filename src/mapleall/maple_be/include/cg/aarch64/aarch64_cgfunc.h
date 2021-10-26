@@ -266,13 +266,16 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
+  RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
                                 PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorBitwiseOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *opnd2,
                                     PrimType oTyp2, Opcode opc) override;
   RegOperand *SelectVectorCompare(Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorCompareZero(Operand *o1, PrimType oty1, Operand *o2, Opcode opc) override;
-  RegOperand *SelectVectorCopy(Operand *opnd, PrimType sType);
+  RegOperand *SelectOneElementVectorCopy(Operand *opnd, PrimType sType);
+  RegOperand *SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType);
+  RegOperand *SelectVectorRegMov(PrimType rType, Operand *src, PrimType sType);
   RegOperand *SelectVectorFromScalar(PrimType pType, Operand *opnd, PrimType sType) override;
   RegOperand *SelectVectorGetElement(PrimType rType, Operand *src, PrimType sType, int32 lane) override;
   RegOperand *SelectVectorGetHigh(PrimType rType, Operand *src) override;
