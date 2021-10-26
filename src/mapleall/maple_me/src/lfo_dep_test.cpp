@@ -538,6 +538,7 @@ bool DoloopInfo::CheckReductionLoop() {
     if (!OnlyInvariantScalars(depInfo->preEmit->GetMexpr(otherOpnd))) {
       return false;
     }
+    redVars.insert(stIdx);
     stmt = stmt->GetNext();
   }
   return true;

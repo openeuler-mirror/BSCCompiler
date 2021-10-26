@@ -36,6 +36,7 @@ class SubscriptDesc{
   bool loopInvariant = false;   // loop invariant w.r.t. closest nesting loop
 
   explicit SubscriptDesc(MeExpr *x) : subscriptX(x) {}
+  virtual ~SubscriptDesc() = default;
 };
 
 class ArrayAccessDesc {
@@ -48,6 +49,7 @@ class ArrayAccessDesc {
       : theArray(arr),
         arrayOst(arryOst),
         subscriptVec(alloc->Adapter()) {}
+  virtual ~ArrayAccessDesc() = default;
 };
 
 class DepTestPair {
@@ -58,6 +60,7 @@ class DepTestPair {
   int64 depDist = 0;                            // if unknownDist is false
 
   DepTestPair(size_t i, size_t j) : depTestPair(i, j) {}
+  virtual ~DepTestPair() = default;
 };
 
 class DoloopInfo {
@@ -76,6 +79,7 @@ class DoloopInfo {
   bool hasMayDef = false;                       // give up dep testing if true
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
   MapleVector<DepTestPair> flowDepTestList;     // include both true and anti dependences
+  MapleSet<StIdx>          redVars;             // reduction variables
 
   DoloopInfo(MapleAllocator *allc, LfoDepInfo *depinfo, DoloopNode *doloop, DoloopInfo *prnt)
       : alloc(allc),
@@ -86,7 +90,8 @@ class DoloopInfo {
         lhsArrays(alloc->Adapter()),
         rhsArrays(alloc->Adapter()),
         outputDepTestList(alloc->Adapter()),
-        flowDepTestList(alloc->Adapter()) {}
+        flowDepTestList(alloc->Adapter()),
+        redVars(alloc->Adapter()) {}
   ~DoloopInfo() = default;
   bool IsLoopInvariant(MeExpr *x);
   bool OnlyInvariantScalars(MeExpr *x);
@@ -99,6 +104,7 @@ class DoloopInfo {
   bool Parallelizable();
   bool CheckReductionLoop();
   ArrayAccessDesc* GetArrayAccessDesc(ArrayNode *node, bool isRHS);
+  bool IsReductionVar(StIdx stidx) { return (redVars.count(stidx) > 0); }
 };
 
 class LfoDepInfo : public AnalysisResult {
