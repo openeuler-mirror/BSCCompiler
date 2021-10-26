@@ -845,25 +845,38 @@ bool IsNeededPrimType(PrimType prim) {
 int64 GetMinNumber(PrimType primType) {
   switch (primType) {
     case PTY_i8:
+    case PTY_v8i8:
+    case PTY_v16i8:
       return std::numeric_limits<int8_t>::min();
       break;
     case PTY_i16:
+    case PTY_v4i16:
+    case PTY_v8i16:
       return std::numeric_limits<int16_t>::min();
       break;
     case PTY_i32:
+    case PTY_v2i32:
+    case PTY_v4i32:
       return std::numeric_limits<int32_t>::min();
       break;
     case PTY_i64:
+    case PTY_v2i64:
       return std::numeric_limits<int64_t>::min();
       break;
     case PTY_u8:
+    case PTY_v8u8:
+    case PTY_v16u8:
       return std::numeric_limits<uint8_t>::min();
       break;
     case PTY_u16:
+    case PTY_v4u16:
+    case PTY_v8u16:
       return std::numeric_limits<uint16_t>::min();
       break;
     case PTY_u32:
     case PTY_a32:
+    case PTY_v4u32:
+    case PTY_v2u32:
       return std::numeric_limits<uint32_t>::min();
       break;
     case PTY_ref:
@@ -877,6 +890,7 @@ int64 GetMinNumber(PrimType primType) {
       break;
     case PTY_u64:
     case PTY_a64:
+    case PTY_v2u64:
       return std::numeric_limits<uint64_t>::min();
       break;
     case PTY_u1:
@@ -891,25 +905,38 @@ int64 GetMinNumber(PrimType primType) {
 int64 GetMaxNumber(PrimType primType) {
   switch (primType) {
     case PTY_i8:
+    case PTY_v8i8:
+    case PTY_v16i8:
       return std::numeric_limits<int8_t>::max();
       break;
     case PTY_i16:
+    case PTY_v4i16:
+    case PTY_v8i16:
       return std::numeric_limits<int16_t>::max();
       break;
     case PTY_i32:
+    case PTY_v2i32:
+    case PTY_v4i32:
       return std::numeric_limits<int32_t>::max();
       break;
     case PTY_i64:
+    case PTY_v2i64:
       return std::numeric_limits<int64_t>::max();
       break;
     case PTY_u8:
+    case PTY_v8u8:
+    case PTY_v16u8:
       return std::numeric_limits<uint8_t>::max();
       break;
     case PTY_u16:
+    case PTY_v4u16:
+    case PTY_v8u16:
       return std::numeric_limits<uint16_t>::max();
       break;
     case PTY_u32:
     case PTY_a32:
+    case PTY_v4u32:
+    case PTY_v2u32:
       return std::numeric_limits<uint32_t>::max();
       break;
     case PTY_ref:
@@ -923,6 +950,7 @@ int64 GetMaxNumber(PrimType primType) {
       break;
     case PTY_u64:
     case PTY_a64:
+    case PTY_v2u64:
       return std::numeric_limits<uint64_t>::max();
       break;
     case PTY_u1:

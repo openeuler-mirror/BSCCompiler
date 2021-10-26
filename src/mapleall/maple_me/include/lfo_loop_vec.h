@@ -25,6 +25,7 @@ class LoopBound {
  public:
   LoopBound() : lowNode(nullptr), upperNode(nullptr), incrNode(nullptr) {};
   LoopBound(BaseNode *nlow, BaseNode *nup, BaseNode *nincr) : lowNode(nlow), upperNode(nup), incrNode(nincr) {}
+  virtual ~LoopBound() = default;
   BaseNode *lowNode;   // low bound node
   BaseNode *upperNode; // uppder bound node
   BaseNode *incrNode;  // incr node
@@ -36,10 +37,13 @@ class LoopVecInfo {
       : vecStmtIDs(alloc.Adapter()),
         uniformNodes(alloc.Adapter()),
         uniformVecNodes(alloc.Adapter()),
-        constvalTypes(alloc.Adapter()) {
+        constvalTypes(alloc.Adapter()),
+        reductionVars(alloc.Adapter()),
+        redVecNodes(alloc.Adapter()) {
     largestTypeSize = 8; // i8 bit size
     currentRHSTypeSize = 0;
   }
+  virtual ~LoopVecInfo() = default;
   void UpdateWidestTypeSize(uint32_t);
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
@@ -51,6 +55,8 @@ class LoopVecInfo {
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
   // constval node need to adjust with new PrimType
   MapleMap<BaseNode *, PrimType>  constvalTypes;
+  MapleSet<StIdx> reductionVars; // reduction variables used in rhs->opnd(0)
+  MapleMap<StIdx, BaseNode *> redVecNodes; // new generate vector node
 };
 
 // tranform plan for current loop
@@ -96,7 +102,7 @@ class LoopVectorization {
   void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
   void VectorizeNode(BaseNode *, LoopTransPlan *);
   MIRType *GenVecType(PrimType, uint8_t);
-  RegassignNode *GenDupScalarStmt(BaseNode *scalar, PrimType vecPrimType);
+  IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
   bool Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BlockNode *block);
   void widenDoloop(DoloopNode *doloop, LoopTransPlan *);
@@ -107,6 +113,9 @@ class LoopVectorization {
   std::string PhaseName() const { return "lfoloopvec"; }
   bool CanConvert(uint32_t, uint32_t);
   bool CanAdjustRhsType(PrimType, ConstvalNode *);
+  bool IsReductionOp(Opcode op);
+  IntrinsicopNode *GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType);
+
  public:
   static uint32_t vectorizedLoop;
  private:

@@ -96,7 +96,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
     } else if (upNode->GetOpCode() == OP_dread || upNode->GetOpCode() == OP_regread) {
       // step 1: generate vectorized loop bound
       // upNode of vBound is (uppnode - initnode) / newIncr * newIncr + initnode
-      BinaryNode *divnode;
+      BinaryNode *divnode = nullptr;
       BaseNode *addnode = upNode;
       if (condOpHasEqual) {
         addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
@@ -118,7 +118,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
   } else if (initNode->GetOpCode() == OP_dread || initNode->GetOpCode() == OP_regread) {
     // initnode is not constant
     // set bound of vectorized loop
-    BinaryNode *subnode;
+    BinaryNode *subnode = nullptr;
     if (condOpHasEqual) {
       BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
       subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
@@ -257,8 +257,101 @@ MIRType* LoopVectorization::GenVecType(PrimType sPrimType, uint8 lanes) {
   return vecType;
 }
 
+// generate instrinsic node to sum all elements of a vector type
+IntrinsicopNode *LoopVectorization::GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType) {
+  MIRIntrinsicID intrnID = INTRN_vector_sum_v4i32;
+  MIRType *retType = nullptr;
+  switch (vecPrimType) {
+    case PTY_v4i32: {
+      intrnID = INTRN_vector_sum_v4i32;
+      retType = GlobalTables::GetTypeTable().GetInt32();
+      break;
+    }
+    case PTY_v2i32: {
+      intrnID = INTRN_vector_sum_v2i32;
+      retType = GlobalTables::GetTypeTable().GetInt32();
+      break;
+    }
+    case PTY_v4u32: {
+      intrnID = INTRN_vector_sum_v4u32;
+      retType = GlobalTables::GetTypeTable().GetUInt32();
+      break;
+    }
+    case PTY_v2u32: {
+      intrnID = INTRN_vector_sum_v2u32;
+      retType = GlobalTables::GetTypeTable().GetUInt32();
+      break;
+    }
+    case PTY_v2i64: {
+      intrnID = INTRN_vector_sum_v2i64;
+      retType = GlobalTables::GetTypeTable().GetInt64();
+      break;
+    }
+    case PTY_v2u64: {
+      intrnID = INTRN_vector_sum_v2u64;
+      retType = GlobalTables::GetTypeTable().GetUInt64();
+      break;
+    }
+    case PTY_v8i16: {
+      intrnID = INTRN_vector_sum_v8i16;
+      retType = GlobalTables::GetTypeTable().GetInt16();
+      break;
+    }
+    case PTY_v8u16: {
+      intrnID = INTRN_vector_sum_v8u16;
+      retType = GlobalTables::GetTypeTable().GetUInt16();
+      break;
+    }
+    case PTY_v4i16: {
+      intrnID = INTRN_vector_sum_v4i16;
+      retType = GlobalTables::GetTypeTable().GetInt16();
+      break;
+    }
+    case PTY_v4u16: {
+      intrnID = INTRN_vector_sum_v4u16;
+      retType = GlobalTables::GetTypeTable().GetUInt16();
+      break;
+    }
+    case PTY_v16i8: {
+      intrnID = INTRN_vector_sum_v16i8;
+      retType = GlobalTables::GetTypeTable().GetInt8();
+      break;
+    }
+    case PTY_v16u8: {
+      intrnID = INTRN_vector_sum_v16u8;
+      retType = GlobalTables::GetTypeTable().GetUInt8();
+      break;
+    }
+    case PTY_v8i8: {
+      intrnID = INTRN_vector_sum_v8i8;
+      retType = GlobalTables::GetTypeTable().GetInt8();
+      break;
+    }
+    case PTY_v8u8: {
+      intrnID = INTRN_vector_sum_v8u8;
+      retType = GlobalTables::GetTypeTable().GetUInt8();
+      break;
+    }
+    default:
+      ASSERT(0, "NIY");
+  }
+  // generate instrinsic op
+  IntrinsicopNode *rhs = codeMP->New<IntrinsicopNode>(*codeMPAlloc, OP_intrinsicop, retType->GetPrimType());
+  rhs->SetIntrinsic(intrnID);
+  rhs->SetNumOpnds(1);
+  rhs->GetNopnd().push_back(vecTemp);
+  rhs->SetTyIdx(retType->GetTypeIndex());
+  return rhs;
+}
+
+// check opcode is reduction, +/-/*///min/max
+bool LoopVectorization::IsReductionOp(Opcode op) {
+  if (op == OP_add || op == OP_sub) return true;
+  return false;
+}
+
 // generate instrinsic node to copy scalar to vector type
-RegassignNode *LoopVectorization::GenDupScalarStmt(BaseNode *scalar, PrimType vecPrimType) {
+IntrinsicopNode *LoopVectorization::GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType) {
   MIRIntrinsicID intrnID = INTRN_vector_from_scalar_v4i32;
   MIRType *vecType = nullptr;
   switch (vecPrimType) {
@@ -342,9 +435,7 @@ RegassignNode *LoopVectorization::GenDupScalarStmt(BaseNode *scalar, PrimType ve
   rhs->SetNumOpnds(1);
   rhs->GetNopnd().push_back(scalar);
   rhs->SetTyIdx(vecType->GetTypeIndex());
-  PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(vecPrimType);
-  RegassignNode *stmtNode = codeMP->New<RegassignNode>(vecPrimType, regIdx, rhs);
-  return stmtNode;
+  return rhs;
 }
 
 // iterate tree node to wide scalar type to vector type
@@ -404,9 +495,33 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       break;
     }
     // scalar related: widen type directly or unroll instructions
-    case OP_dassign:
-      ASSERT(0, "NIY");
+    case OP_dassign: {
+      // now only support reduction scalar
+      // sum = sum +/- vectorizable_expr
+      // =>
+      //  vec t1 = dup_scalar(sum);
+      //  doloop {
+      //    t1 = t1 + vectorized_node;
+      //  }
+      //  sum = sum +/- intrinsic_op vec_sum(t1)
+      // sum = intrinsic_op vec_sum(vectorized_node);
+      DassignNode *dassign = static_cast<DassignNode *>(node);
+      StIdx lhsStIdx = dassign->GetStIdx();
+      MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(lhsStIdx);
+      MIRType &lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx());
+      MIRType *vecType = GenVecType(lhsType.GetPrimType(), tp->vecFactor);
+      ASSERT(vecType != nullptr, "vector type should not be null");
+      BaseNode *vecNode = dassign->GetRHS()->Opnd(1);
+      VectorizeNode(vecNode, tp);
+      BaseNode *redNewVar = tp->vecInfo->redVecNodes[lhsStIdx];
+      ASSERT((redNewVar != nullptr && redNewVar->GetOpCode() == OP_dread), "nullptr check");
+      StIdx vecStIdx = (static_cast<AddrofNode *>(redNewVar))->GetStIdx();
+      dassign->SetStIdx(vecStIdx);
+      dassign->SetPrimType(vecType->GetPrimType());
+      dassign->GetRHS()->SetOpnd(redNewVar, 0);
+      dassign->GetRHS()->SetPrimType(vecType->GetPrimType());
       break;
+    }
     // vector type support in opcode  +, -, *, &, |, <<, >>, compares, ~, !
     case OP_add:
     case OP_sub:
@@ -483,7 +598,6 @@ void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
 
 void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // LogInfo::MapleLogger() << "\n**** dump doloopnode ****\n";
-  // doloop->Dump(0);
   // step 1: handle loop low/upper/stride
   widenDoloop(doloop, tp);
 
@@ -504,14 +618,48 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
           ptype = tp->vecInfo->constvalTypes[node];
         }
         MIRType *vecType = GenVecType(ptype, tp->vecFactor);
-        RegassignNode *dupScalarStmt = GenDupScalarStmt(node, vecType->GetPrimType());
+        IntrinsicopNode *dupscalar = GenDupScalarExpr(node, vecType->GetPrimType());
+        PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(vecType->GetPrimType());
+        RegassignNode *dupScalarStmt = codeMP->New<RegassignNode>(vecType->GetPrimType(), regIdx, dupscalar);
         pblock->InsertBefore(doloop, dupScalarStmt);
-        RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), dupScalarStmt->GetRegIdx());
+        RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), regIdx);
         tp->vecInfo->uniformVecNodes[node] = regreadNode;
       }
     }
   }
-
+  // step 2.2 reduction variable
+  if (!tp->vecInfo->reductionVars.empty()) {
+    LfoPart* lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
+    BaseNode *parent = lfopart->GetParent();
+    ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
+    BlockNode *pblock = static_cast<BlockNode *>(parent);
+    auto it = tp->vecInfo->reductionVars.begin();
+    int count = 0;
+    for (; it != tp->vecInfo->reductionVars.end(); it++) {
+      StIdx stIdx = *it;
+      MIRSymbol *redSym = mirFunc->GetLocalOrGlobalSymbol(stIdx);
+      PrimType ptype = GetTypeFromTyIdx(redSym->GetTyIdx()).GetPrimType();
+      MIRType *vecType = GenVecType(ptype, tp->vecFactor);
+      // before loop: vec = dup_scalar(reduction)
+      AddrofNode *redScalarNode = codeMP->New<AddrofNode>(OP_dread, ptype, stIdx, 0);
+      IntrinsicopNode *dupscalar = GenDupScalarExpr(redScalarNode, vecType->GetPrimType());
+      // new stidx
+      std::string redName("red");
+      redName.append(std::to_string(doloop->GetStmtID()));
+      redName.append("_");
+      redName.append(std::to_string(count++));
+      GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(redName);
+      MIRSymbol *st = mirFunc->GetModule()->GetMIRBuilder()->CreateSymbol(vecType->GetTypeIndex(), strIdx, kStVar, kScAuto, mirFunc, kScopeLocal);
+      DassignNode *redInitStmt = codeMP->New<DassignNode>(ptype, dupscalar, st->GetStIdx(), 0);
+      pblock->InsertBefore(doloop, redInitStmt);
+      AddrofNode *dreadNode = codeMP->New<AddrofNode>(OP_dread, vecType->GetPrimType(), st->GetStIdx(), 0);
+      tp->vecInfo->redVecNodes[stIdx] = dreadNode;
+      // after loop:  reduction = vec_sum(vec)
+      IntrinsicopNode *intrnNode = GenSumVecStmt(dreadNode, vecType->GetPrimType());
+      DassignNode *redDassign = codeMP->New<DassignNode>(ptype, intrnNode, stIdx, 0);
+      pblock->InsertAfter(doloop, redDassign);
+    }
+  }
   // step 3: widen vectorizable stmt in doloop
   BlockNode *loopbody = doloop->GetDoBody();
   for (auto &stmt : loopbody->GetStmtNodes()) {
@@ -810,6 +958,29 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         }
         break;
       }
+      case OP_dassign: {
+        DassignNode *dassign = static_cast<DassignNode *>(stmt);
+        StIdx lhsStIdx = dassign->GetStIdx();
+        MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(lhsStIdx);
+        MIRType &lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx());
+        BaseNode *rhs = dassign->GetRHS();
+        if (IsReductionOp(rhs->GetOpCode()) && doloopInfo->IsReductionVar(lhsStIdx)) {
+          BaseNode *opnd0 = rhs->Opnd(0);
+          BaseNode *opnd1 = rhs->Opnd(1);
+          CHECK_FATAL((opnd0->GetOpCode() == OP_dread) && ((static_cast<AddrofNode *>(opnd0))->GetStIdx() == lhsStIdx),
+                      "opnd0 is reduction variable");
+          if (ExprVectorizable(doloopInfo, vecInfo, opnd1)) {
+            vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
+            vecInfo->UpdateWidestTypeSize(GetPrimTypeSize(lhsType.GetPrimType()) *8);
+            vecInfo->reductionVars.insert((static_cast<AddrofNode *>(opnd0))->GetStIdx());
+          } else {
+            return false; // only handle reduction scalar
+          }
+        } else {
+          return false;
+        }
+        break;
+      }
       default: return false;
     }
     stmt = stmt->GetNext();
@@ -821,7 +992,8 @@ void LoopVectorization::Perform() {
   // step 2: collect information, legality check and generate transform plan
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = depInfo->doloopInfoMap.begin();
   for (; mapit != depInfo->doloopInfoMap.end(); mapit++) {
-    if (!mapit->second->children.empty() || !mapit->second->Parallelizable()) {
+    if (!mapit->second->children.empty() ||
+        ((!mapit->second->Parallelizable()) && (!mapit->second->CheckReductionLoop()))) {
       continue;
     }
     LoopVecInfo *vecInfo = localMP->New<LoopVecInfo>(localAlloc);
