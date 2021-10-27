@@ -41,7 +41,7 @@ BECommon::BECommon(MIRModule &mod)
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeTable()[i];
       ComputeTypeSizesAligns(*ty);
       LowerTypeAttribute(*ty);
-  }
+    }
 
   if (mirModule.IsJavaModule()) {
     for (uint32 i = 0; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
@@ -73,7 +73,7 @@ static uint32 TryAllocInPaddingSlots(std::list<uint32> paddingSlots[],
 
   uint32 fieldOffset = 0;
   /* here is a greedy search */
-  for (size_t freeSlot = (fieldSize >> 1); freeSlot < paddingSlotsLength; ++freeSlot) {
+  for (size_t freeSlot = static_cast<size_t>(fieldSize >> 1); freeSlot < paddingSlotsLength; ++freeSlot) {
     if (!paddingSlots[freeSlot].empty()) {
       uint32 paddingOffset = paddingSlots[freeSlot].front();
       if (IsAlignedTo(paddingOffset, fieldAlign)) {
@@ -748,6 +748,8 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
 }
 
 bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
+  (void) attr;
+  (void) narynode;
   return false;
 
   /* For now, all 64x1_t types object are not propagated to become pregs by mplme, so the following
@@ -755,18 +757,18 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
 #if TO_BE_RESURRECTED
   bool attrFunc = false;
   if (narynode->GetOpCode() == OP_call) {
-    CallNode *callNode = static_cast<CallNode*>(narynode);
+    CallNode *callNode = static_cast<CallNode *>(narynode);
     MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callNode->GetPUIdx());
-    attrFunc = mirModule.GetSrcLang() == kSrcLangC && func->GetAttr(attr) ? true : false;
+    attrFunc = (mirModule.GetSrcLang() == kSrcLangC && func->GetAttr(attr)) ? true : false;
   } else if (narynode->GetOpCode() == OP_icall) {
-    IcallNode *icallNode = static_cast<IcallNode*>(narynode);
+    IcallNode *icallNode = static_cast<IcallNode *>(narynode);
     BaseNode *fNode = icallNode->Opnd(0);
     MIRFuncType *fType = nullptr;
     MIRPtrType *pType = nullptr;
     if (fNode->GetOpCode() == OP_dread) {
-      DreadNode *dNode = static_cast<DreadNode*>(fNode);
+      DreadNode *dNode = static_cast<DreadNode *>(fNode);
       MIRSymbol *symbol = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dNode->GetStIdx());
-      pType = static_cast<MIRPtrType*>(symbol->GetType());
+      pType = static_cast<MIRPtrType *>(symbol->GetType());
       MIRType *ty = pType;
       if (dNode->GetFieldID() != 0) {
         ASSERT(ty->GetKind() == kTypeStruct || ty->GetKind() == kTypeClass, "");
@@ -776,13 +778,13 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
         } else {
           thepair = static_cast<MIRClassType *>(ty)->TraverseToField(dNode->GetFieldID());
         }
-        pType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first));
+        pType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(thepair.second.first));
       }
-      fType = static_cast<MIRFuncType*>(pType->GetPointedType());
-      //attrFunc = fType->isVarArgs;
+      fType = static_cast<MIRFuncType *>(pType->GetPointedType());
     } else if (fNode->GetOpCode() == OP_iread) {
       IreadNode *iNode = static_cast<IreadNode *>(fNode);
-      MIRPtrType *pointerty = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(iNode->GetTyIdx()));
+      MIRPtrType *pointerty = static_cast<MIRPtrType *>(GlobalTables::
+          GetTypeTable().GetTypeFromTyIdx(iNode->GetTyIdx()));
       MIRType *pointedType = pointerty->GetPointedType();
       if (iNode->GetFieldID() != 0) {
         pointedType = static_cast<MIRStructType *>(pointedType)->GetFieldType(iNode->GetFieldID());
@@ -792,12 +794,11 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
       } else if (pointedType->GetKind() == kTypePointer) {
         return false;     /* assert? */
       }
-      //attrFunc = fType->isVarArgs;
     } else if (fNode->GetOpCode() == OP_select) {
       TernaryNode *sNode = static_cast<TernaryNode *>(fNode);
       BaseNode *expr = sNode->Opnd(1);
       // both function ptrs under select should have the same signature, chk op1 only
-      AddroffuncNode *afNode = static_cast<AddroffuncNode*>(expr);
+      AddroffuncNode *afNode = static_cast<AddroffuncNode *>(expr);
       MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(afNode->GetPUIdx());
       attrFunc = mirModule.GetSrcLang() == kSrcLangC && func->GetAttr(attr);
     } else if (fNode->GetOpCode() == OP_regread) {
@@ -808,18 +809,15 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
       if (type == nullptr) {
         return false;
       }
-      MIRPtrType *pType = static_cast<MIRPtrType*>(type);
+      MIRPtrType *pType = static_cast<MIRPtrType *>(type);
       type = pType->GetPointedType();
       if (type == nullptr) {
         return false;
       }
-      //MIRFuncType *fType = static_cast<MIRFuncType*>(type);
-      //attrFunc = fType->isVarArgs;
     } else if (fNode->GetOpCode() == OP_retype) {
       RetypeNode *rNode = static_cast<RetypeNode *>(fNode);
-      pType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(rNode->GetTyIdx()));
-      fType = static_cast<MIRFuncType*>(pType->GetPointedType());
-      //attrFunc = fType->isVarArgs;
+      pType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(rNode->GetTyIdx()));
+      fType = static_cast<MIRFuncType *>(pType->GetPointedType());
     } else {
       return false;     /* assert? */
     }
@@ -827,5 +825,4 @@ bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
   return attrFunc;
 #endif
 }
-
 }  /* namespace maplebe */

@@ -24,34 +24,6 @@ namespace {
 static bool debug = false;
 const char *funcName = nullptr;
 
-// contains only one valid goto stmt
-inline bool HasOnlyGotoStmt(BB &bb) {
-  if (bb.IsMeStmtEmpty() || !bb.IsGoto()) {
-    return false;
-  }
-  MeStmt *stmt = bb.GetFirstMe();
-  // Skip commont stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  if (stmt->GetOp() == OP_goto) {
-    return true;
-  }
-  return false;
-}
-
-inline bool IsEmptyBB(BB &bb) {
-  if (bb.IsMeStmtEmpty()) {
-    return true;
-  }
-  MeStmt *stmt = bb.GetFirstMe();
-  // Skip commont stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  return stmt == nullptr;
-}
-
 // pred-connecting-succ
 // connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
 bool IsConnectingBB(BB &bb) {
@@ -866,6 +838,12 @@ bool SimplifyCFG::SimplifyUncondBB() {
   }
   // jump to itself
   if (currBB->GetSucc(0) == currBB) {
+    return false;
+  }
+  // wont exit BB and has an edge to commonExit, if we merge it to pred and delete it, the egde will be cut off
+  if (currBB->GetSucc().size() == 2) { // 2 succ : first is gotoTarget, second is edge to commonExit
+    ASSERT(currBB->GetAttributes(kBBAttrWontExit), "[FUNC: %s]GotoBB%d is not wontexitBB, but has two succ", funcName,
+           LOG_BBID(currBB));
     return false;
   }
   bool changed = false;

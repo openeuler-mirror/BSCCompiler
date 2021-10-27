@@ -21,6 +21,7 @@
 #include "me_irmap_build.h"
 #include "me_irmap.h"
 #include "me_dominance.h"
+#include "simplifyCFG.h"
 
 namespace {
 using namespace maple;
@@ -343,17 +344,45 @@ void MePrediction::PredictByOpcode(const BB *bb) {
   }
 }
 
-void MePrediction::EstimateBBProb(const BB &bb) {
+// skip the following meaningless BB:
+// case 1:
+// ============BB id:3 fallthru []==========
+// preds: 2
+// succs: 4
+// =========================================
+//
+// case 2:
+// ============BB id:4 goto []==============
+// preds: 3
+// succs: 5
+//    ||MEIR|| goto
+// =========================================
+static const BB *GetSignificativeSucc(BB &bb, size_t i) {
+  BB *curr = bb.GetSucc(i);
+  while (curr->GetSucc().size() == 1) {
+    BB *next = curr->GetSucc(0);
+    if ((next->GetKind() == kBBFallthru && IsEmptyBB(*next)) ||  // case 1
+        HasOnlyGotoStmt(*next)) {                                // case 2
+      curr = next;
+      continue;
+    }
+    break;
+  }
+  return curr;
+}
+
+void MePrediction::EstimateBBProb(BB &bb) {
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     const BB *dest = bb.GetSucc(i);
+    const BB *sigSucc = GetSignificativeSucc(bb, i);
     // try fallthrou if taken.
     if (!bb.GetMeStmts().empty() && bb.GetMeStmts().back().GetOp() == OP_try && i == 0) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredTry, kTaken);
-    } else if (!dest->GetMeStmts().empty() && dest->GetMeStmts().back().GetOp() == OP_return) {
+    } else if (!sigSucc->GetMeStmts().empty() && sigSucc->GetMeStmts().back().GetOp() == OP_return) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredEarlyReturn, kNotTaken);
     } else if (dest != cfg->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&
                !dom->PostDominate(*dest, bb)) {
-      for (const MeStmt &stmt : dest->GetMeStmts()) {
+      for (const MeStmt &stmt : sigSucc->GetMeStmts()) {
         if (stmt.GetOp() == OP_call || stmt.GetOp() == OP_callassigned) {
           auto &callMeStmt = static_cast<const CallMeStmt&>(stmt);
           const MIRFunction &callee = callMeStmt.GetTargetFunction();
@@ -551,7 +580,7 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
     double cyclicProb = 0;
     for (BB *pred : bb.GetPred()) {
       Edge *edge = FindEdge(*pred, bb);
-      if (IsBackEdge(*edge) && &edge->dest == &head) {
+      if (IsBackEdge(*edge) && &edge->dest == &bb) {
         cyclicProb += backEdgeProb[edge];
       } else {
         freq += edge->frequency;
@@ -560,6 +589,7 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
     if (cyclicProb > (1 - std::numeric_limits<double>::epsilon())) {
       cyclicProb = 1 - std::numeric_limits<double>::epsilon();
     }
+    // Floating-point numbers have precision problems, consider using integers to represent backEdgeProb?
     bb.SetFrequency(static_cast<uint32>(freq / (1 - cyclicProb)));
   }
   // 2. calculate frequencies of bb's out edges
@@ -582,12 +612,13 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
         bestEdge = edge;
       }
     }
-    edge->frequency = edge->probability * bb.GetFrequency() / kProbBase;
+    edge->frequency = bb.GetFrequency() * edge->probability / kProbBase;
     total += edge->frequency;
     if (&edge->dest == &head) {  // is the edge a back edge
       backEdgeProb[edge] = static_cast<double>(edge->probability) * bb.GetFrequency() / (kProbBase * kFreqBase);
     }
   }
+  // To ensure that the sum of out edge frequency is equal to bb frequency
   if (bestEdge != nullptr && total != bb.GetFrequency()) {
     bestEdge->frequency += bb.GetFrequency() - total;
   }
@@ -602,7 +633,8 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
 void MePrediction::EstimateLoops() {
   for (auto *loop : meLoop->GetMeLoops()) {
     MapleSet<BBId> &loopBBs = loop->loopBBs;
-    backEdges.push_back(FindEdge(*loop->tail, *loop->head));
+    auto *backEdge = FindEdge(*loop->tail, *loop->head);
+    backEdges.push_back(backEdge);
     for (auto &bbId : loopBBs) {
       bbVisited[bbId] = false;
     }
@@ -724,6 +756,10 @@ void MePrediction::SavePredictResultIntoCfg() {
     }
   }
   func->SetProfValid(true);
+  if (predictDebug) {
+    cfg->DumpToFile("rebuild", false, true);
+  }
+  VerifyFreq(*func);
 }
 
 bool MePrediction::VerifyFreq(MeFunction &func) {
@@ -733,12 +769,13 @@ bool MePrediction::VerifyFreq(MeFunction &func) {
     if (bb == nullptr || bb->GetAttributes(kBBAttrIsEntry) || bb->GetAttributes(kBBAttrIsExit)) {
       continue;
     }
+    // bb freq == sum(out edge freq)
     uint32 succSumFreq = 0;
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
     if (succSumFreq != bb->GetFrequency()) {
-      LogInfo::MapleLogger() << "BB" << bb->GetBBId() << " freq: " <<
+      LogInfo::MapleLogger() << "[VerifyFreq failure] BB" << bb->GetBBId() << " freq: " <<
           bb->GetFrequency() << ", all succ edge freq sum: " << succSumFreq << std::endl;
       LogInfo::MapleLogger() << func.GetName() << std::endl;
       CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
@@ -765,7 +802,8 @@ void MePrediction::RebuildFreq(MeFunction &func, MaplePhase &phase) {
 }
 
 void Edge::Dump(bool dumpNext) const {
-  LogInfo::MapleLogger() << src.GetBBId() << " ==> " << dest.GetBBId() << std::endl;
+  LogInfo::MapleLogger() << src.GetBBId() << " ==> " << dest.GetBBId() << " (prob: " << probability <<
+      ", freq: " << frequency << ")" << std::endl;
   if (dumpNext && next != nullptr) {
     next->Dump(dumpNext);
   }

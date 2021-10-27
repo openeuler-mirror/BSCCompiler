@@ -163,6 +163,7 @@ class CgUseOcc : public CgOccur {
 class CgStoreOcc : public CgOccur {
  public:
   CgStoreOcc(BB *bb, Insn *insn, Operand *opnd) : CgOccur(kOccStore, bb, insn, opnd) {}
+  ~CgStoreOcc() = default;
 
   bool Reload() const {
     return needReload;
@@ -193,6 +194,7 @@ class CgStoreOcc : public CgOccur {
 class CgDefOcc : public CgOccur {
  public:
   CgDefOcc(BB *bb, Insn *insn, Operand *opnd) : CgOccur(kOccDef, bb, insn, opnd) {}
+  ~CgDefOcc() = default;
 
   bool Loaded() const {
     return needStore;
