@@ -289,14 +289,6 @@ class MplOptions {
     return inputFiles;
   }
 
-  const std::string &GetOutputFolder() const {
-    return outputFolder;
-  }
-
-  const std::string &GetOutputName() const {
-    return outputName;
-  }
-
   const std::string &GetExeFolder() const {
     return exeFolder;
   }
@@ -429,9 +421,6 @@ class MplOptions {
   std::map<std::string, std::vector<mapleOption::Option>> options = {};
   std::map<std::string, std::vector<mapleOption::Option>> exeOptions = {};
   std::string inputFiles = "";
-  std::string inputFolder = "";
-  std::string outputFolder = "";
-  std::string outputName = "maple";
   std::string exeFolder = "";
   std::string mpltFile = "";
   std::string meOptArgs = "";
