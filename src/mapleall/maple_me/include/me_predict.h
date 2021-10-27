@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,7 +16,6 @@
 #define MAPLE_ME_INCLUDE_MEPREDICT_H
 #include "me_function.h"
 #include "bb.h"
-#include "me_phase.h"
 #include "dominance.h"
 #include "me_loop_analysis.h"
 
@@ -37,12 +36,13 @@ enum Prediction { kNotTaken, kTaken };
 
 // Indicate the edge from src to dest.
 struct Edge {
-  const BB &src;
-  const BB &dest;
+  BB &src;
+  BB &dest;
   Edge *next = nullptr;  // the edge with the same src
   uint32 probability = 0;
   uint32 frequency = 0;
-  Edge(const BB &bb1, const BB &bb2) : src(bb1), dest(bb2) {}
+  Edge(BB &bb1, BB &bb2) : src(bb1), dest(bb2) {}
+  void Dump(bool dumpNext = false) const;
 };
 
 // Represents predictions on edge.
@@ -58,6 +58,8 @@ struct EdgePrediction {
 class MePrediction : public AnalysisResult {
  public:
   static const PredictorInfo predictorInfo[kEndPrediction + 1];
+  static bool VerifyFreq(MeFunction &func);
+  static void RebuildFreq(MeFunction &func, MaplePhase &phase);
   MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, IdentifyLoops &loops,
                MeIRMap &map)
       : AnalysisResult(&memPool),
@@ -87,14 +89,15 @@ class MePrediction : public AnalysisResult {
   void SortLoops();
   void PredictLoops();
   void PredictByOpcode(const BB *bb);
-  void EstimateBBProb(const BB &bb);
+  void EstimateBBProb(BB &bb);
   void ClearBBPredictions(const BB &bb);
   void CombinePredForBB(const BB &bb);
   void PropagateFreq(BB &head, BB &bb);
   void EstimateLoops();
   void EstimateBBFrequencies();
-  void EstimateProbability();
+  void EstimateProbability(bool isRebuild = false);
   void SetPredictDebug(bool val);
+  void SavePredictResultIntoCfg();
 
  protected:
   MapleAllocator mePredAlloc;
@@ -104,7 +107,7 @@ class MePrediction : public AnalysisResult {
   Dominance *dom;
   IdentifyLoops *meLoop;
   MeIRMap *hMap;
-  MapleVector<EdgePrediction*> bbPredictions;
+  MapleVector<EdgePrediction*> bbPredictions;  // indexed by edge src bb id
   MapleVector<Edge*> edges;
   MapleMap<Edge*, double> backEdgeProb;  // used in EstimateBBFrequency
   MapleVector<bool> bbVisited;
@@ -112,15 +115,6 @@ class MePrediction : public AnalysisResult {
   bool predictDebug;
 };
 
-class MeDoPredict : public MeFuncPhase {
- public:
-  explicit MeDoPredict(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoPredict() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "mepredict";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEPredict, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MEPREDICT_H

@@ -26,6 +26,7 @@ namespace maplebe {
 class X0OptInfo {
  public:
   X0OptInfo() : movSrc(nullptr), replaceReg(0), renameInsn(nullptr), renameOpnd(nullptr), renameReg(0) {}
+  ~X0OptInfo() = default;
 
   inline RegOperand *GetMovSrc() const {
     return movSrc;
@@ -82,6 +83,7 @@ class X0OptInfo {
 class RaX0Opt {
  public:
   explicit RaX0Opt(CGFunc* func) : cgFunc(func)  {}
+  ~RaX0Opt() = default;
 
   bool PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const;
   bool PropagateRenameReg(Insn *insn, const X0OptInfo &optVal);
@@ -114,14 +116,14 @@ class VregRenameInfo {
 
 class VregRename {
  public:
-  explicit VregRename(CGFunc *func, MemPool *pool) :
-      cgFunc(func),
-      memPool(pool),
-      alloc(pool),
-      renameInfo(alloc.Adapter()) {
+  VregRename(CGFunc *func, MemPool *pool) : cgFunc(func),
+                                            memPool(pool),
+                                            alloc(pool),
+                                            renameInfo(alloc.Adapter()) {
     renameInfo.resize(cgFunc->GetMaxRegNum());
     ccRegno = static_cast<RegOperand *>(&cgFunc->GetOrCreateRflag())->GetRegisterNumber();
   };
+  ~VregRename() = default;
 
   void PrintRenameInfo(regno_t regno) const;
   void PrintAllRenameInfo() const;
@@ -145,7 +147,7 @@ class VregRename {
 
 class AArch64RaOpt : public RaOpt {
  public:
-  explicit AArch64RaOpt(CGFunc &func, MemPool &pool) : RaOpt(func, pool) {}
+  AArch64RaOpt(CGFunc &func, MemPool &pool) : RaOpt(func, pool) {}
   ~AArch64RaOpt() override = default;
   void Run() override;
 

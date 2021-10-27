@@ -164,6 +164,8 @@ class BB {
   void InsertInsnBegin(Insn &insn) {
     if (lastInsn == nullptr) {
       firstInsn = lastInsn = &insn;
+      insn.SetNext(nullptr);
+      insn.SetPrev(nullptr);
       insn.SetBB(this);
     } else {
       InsertInsnBefore(*firstInsn, insn);
@@ -682,6 +684,18 @@ class BB {
   void UseClearDataInfo() {
     use->ClearDataInfo();
   }
+  void SetNeedAlign(bool flag) {
+    needAlign = flag;
+  }
+  bool IsBBNeedAlign() {
+    return needAlign;
+  }
+  void SetAlignPower(uint32 power) {
+    alignPower = power;
+  }
+  uint32 GetAlignPower() {
+    return alignPower;
+  }
 
  private:
   static const std::string bbNames[kBBLast];
@@ -761,6 +775,9 @@ class BB {
   DataInfo *liveOut = nullptr;
   DataInfo *def = nullptr;
   DataInfo *use = nullptr;
+
+  bool needAlign = false;
+  uint32 alignPower = 0;
 };  /* class BB */
 
 struct BBIdCmp {
@@ -779,6 +796,7 @@ class Bfs {
         alloc(&memPool),
         visitedBBs(alloc.Adapter()),
         sortedBBs(alloc.Adapter()) {}
+  ~Bfs() = default;
 
   bool AllPredBBVisited(BB &bb, long &level) const;
   BB *MarkStraightLineBBInBFS(BB*);
@@ -792,7 +810,6 @@ class Bfs {
   MapleVector<bool> visitedBBs;
   MapleVector<BB*> sortedBBs;
 };
-
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_CGBB_H */
