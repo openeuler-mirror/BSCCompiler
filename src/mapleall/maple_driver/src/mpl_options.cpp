@@ -644,10 +644,6 @@ bool MplOptions::Init(const std::string &inputFile) {
     inputInfos.push_back(std::make_unique<InputInfo>(inFile));
   }
 
-  std::string firstInputFile = splitsInputFiles[0];
-  inputFolder = FileUtils::GetFileFolder(firstInputFile);
-  outputFolder = inputFolder;
-  outputName = FileUtils::GetFileName(firstInputFile, false);
   return true;
 }
 
