@@ -285,12 +285,12 @@ bool UseGlobalVar(const BaseNode *expr) {
 }
 
 StmtNode *Simplify::SimplifyToSelect(MIRFunction *func, IfStmtNode *ifNode, BlockNode *block) {
-  // if (condition) {
-  //   res = trueRes
-  // }
-  // else {
-  //   res = falseRes
-  // }
+  // Example: if (condition) {
+  //   Example: res = trueRes
+  // Example: }
+  // Example: else {
+  //   Example: res = falseRes
+  // Example: }
   // =================
   // res = select condition ? trueRes : falseRes
   if (ifNode->GetPrev() != nullptr && ifNode->GetPrev()->GetOpCode() == OP_label) {
@@ -427,8 +427,8 @@ static uint64 JoinBytes(int byte, uint32 num) {
     return 0;
   }
   uint64 result = 0;
-  for (int i = 0; i < num; ++i) {
-    result += (realByte << i * 8);
+  for (uint32 i = 0; i < num; ++i) {
+    result += (realByte << (i * 8));
   }
   return result;
 }
@@ -613,8 +613,8 @@ BaseNode *MemEntry::BuildAsRhsExpr(MIRFunction &func) const {
 
 // Lower memset(MemEntry, byte, size) into a series of assign stmts and replace callStmt in the block
 // with these assign stmts
-bool MemEntry::Memset(int64 byte, int64 size, MIRFunction &func,
-                      CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const {
+bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
+                            CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const {
   MemOpKind memOpKind = MEM_OP_memset;
   MemEntryKind memKind = GetKind();
   // we don't check size equality in the low level expand
@@ -774,8 +774,8 @@ bool MemEntry::Memset(int64 byte, int64 size, MIRFunction &func,
   return true;
 }
 
-bool MemEntry::Memcpy(MemEntry &srcMem, int64 copySize, MIRFunction &func,
-                      CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const {
+bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
+                            CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const {
   MemOpKind memOpKind = MEM_OP_memcpy;
   MemEntryKind memKind = GetKind();
   if (!isLowLevel) {  // check type consistency and memKind only for high level expand
@@ -857,9 +857,9 @@ bool MemEntry::Memcpy(MemEntry &srcMem, int64 copySize, MIRFunction &func,
     // split struct agg copy
     if (memKind == kMemEntryStruct) {
       if (newAssign->GetOpCode() == OP_dassign) {
-        SplitDassignAggCopy(static_cast<DassignNode*>(newAssign), &block, &func);
+        (void)SplitDassignAggCopy(static_cast<DassignNode*>(newAssign), &block, &func);
       } else if (newAssign->GetOpCode() == OP_iassign) {
-        SplitIassignAggCopy(static_cast<IassignNode*>(newAssign), &block, &func);
+        (void)SplitIassignAggCopy(static_cast<IassignNode*>(newAssign), &block, &func);
       } else {
         CHECK_FATAL(false, "impossible");
       }
@@ -1034,7 +1034,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
     MayPrintLog(debug, false, memOpKind, "dstMemEntry is invalid");
     return false;
   }
-  bool ret = dstMemEntry.Memset(val, size, *func, callStmt, block, isLowLevel, debug);
+  bool ret = dstMemEntry.ExpandMemset(val, size, *func, callStmt, block, isLowLevel, debug);
   if (ret) {
     MayPrintLog(debug, true, memOpKind, "well done");
   }
@@ -1093,7 +1093,7 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
       return false;  // copy size should equal to dst memory size, we maybe allow smaller copy size later
     }
   }
-  bool ret = dstMemEntry.Memcpy(srcMemEntry, copySize, *func, callStmt, block, isLowLevel, debug);
+  bool ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, callStmt, block, isLowLevel, debug);
   if (ret) {
     MayPrintLog(debug, true, memOpKind, "well done");
   }
