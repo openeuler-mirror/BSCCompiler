@@ -6456,7 +6456,8 @@ AArch64RegOperand *AArch64CGFunc::SelectParmListDreadAccessField(const MIRSymbol
     memOpnd = &GetOrCreateMemOpnd(sym, (kSizeOfPtr * parmNum + offset), memSize);
   }
   MOperator selectedMop = PickLdInsn(dataSizeBits, primType);
-  if (!IsOperandImmValid(selectedMop, memOpnd, kInsnSecondOpnd)) {
+  if ((static_cast<AArch64MemOperand *>(memOpnd)->GetAddrMode() == AArch64MemOperand::kAddrModeBOi) &&
+      !IsOperandImmValid(selectedMop, memOpnd, kInsnSecondOpnd)) {
     memOpnd = &SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(memOpnd), dataSizeBits);
   }
   GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(selectedMop, *parmOpnd, *memOpnd));
@@ -7539,6 +7540,67 @@ AArch64OfstOperand &AArch64CGFunc::GetOrCreateOfstOpnd(uint64 offset, uint32 siz
   AArch64OfstOperand *res = memPool->New<AArch64OfstOperand>(offset, size);
   hashOfstOpndTable[aarch64OfstRegIdx] = res;
   return *res;
+}
+
+void AArch64CGFunc::SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, std::vector<Insn *>& rematInsns) {
+  const MIRSymbol *symbol = stImm.GetSymbol();
+  ASSERT ((symbol->GetStorageClass() != kScAuto) || (symbol->GetStorageClass() != kScFormal), "");
+  Operand *srcOpnd = &result;
+  rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, result, stImm));
+  if (CGOptions::IsPIC() && symbol->NeedPIC()) {
+    /* ldr     x0, [x0, #:got_lo12:Ljava_2Flang_2FSystem_3B_7Cout] */
+    AArch64OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
+    AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
+                                                    static_cast<AArch64RegOperand*>(srcOpnd), nullptr,
+                                                    &offset, nullptr);
+    rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
+
+    if (stImm.GetOffset() > 0) {
+      AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
+      rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, result, result, immOpnd));
+      return;
+    }
+  } else {
+    rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrpl12, result, *srcOpnd, stImm));
+  }
+}
+
+MemOperand &AArch64CGFunc::GetOrCreateMemOpndAfterRa(const MIRSymbol &symbol, int32 offset, uint32 size,
+                                                     bool needLow12, AArch64RegOperand *regOp,
+                                                     std::vector<Insn *>& rematInsns) {
+  MIRStorageClass storageClass = symbol.GetStorageClass();
+  if ((storageClass == kScGlobal) || (storageClass == kScExtern)) {
+    StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
+    AArch64RegOperand &stAddrOpnd = *regOp;
+    SelectAddrofAfterRa(stAddrOpnd, stOpnd, rematInsns);
+    /* AArch64MemOperand::AddrMode_B_OI */
+    return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
+                                            nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
+  } else if ((storageClass == kScPstatic) || (storageClass == kScFstatic)) {
+    if (symbol.GetSKind() == kStConst) {
+      ASSERT(offset == 0, "offset should be 0 for constant literals");
+      return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLiteral, size, symbol);
+    } else {
+      if (needLow12) {
+        StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
+        AArch64RegOperand &stAddrOpnd = *regOp;
+        SelectAddrofAfterRa(stAddrOpnd, stOpnd, rematInsns);
+        return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, size, stAddrOpnd,
+                                                nullptr, &GetOrCreateOfstOpnd(0, k32BitSize), &symbol);
+      } else {
+        StImmOperand &stOpnd = CreateStImmOperand(symbol, offset, 0);
+        AArch64RegOperand &stAddrOpnd = *regOp;
+        /* adrp    x1, _PTR__cinf_Ljava_2Flang_2FSystem_3B */
+        Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(MOP_xadrp, stAddrOpnd, stOpnd);
+        rematInsns.emplace_back(&insn);
+        /* ldr     x1, [x1, #:lo12:_PTR__cinf_Ljava_2Flang_2FSystem_3B] */
+        return *memPool->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeLo12Li, size, stAddrOpnd, nullptr,
+                                                &GetOrCreateOfstOpnd(offset, k32BitSize), &symbol);
+      }
+    }
+  } else {
+    CHECK_FATAL(false, "NYI");
+  }
 }
 
 MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 offset, uint32 size, bool forLocalRef,
