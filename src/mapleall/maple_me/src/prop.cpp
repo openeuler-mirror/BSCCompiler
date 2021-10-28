@@ -38,7 +38,8 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       propMapAlloc(&memPool),
       vstLiveStackVec(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
-      config(config) {
+      config(config),
+      candsForSSAUpdate(propMapAlloc.Adapter()) {
   const MapleVector<OriginalSt *> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
@@ -741,6 +742,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt->GetBB());
     defStmt->SetRHS(tmpReg);
     defStmt->GetBB()->InsertMeStmtBefore(defStmt, regassign);
+    RecordSSAUpdateCandidate(tmpReg->GetOstIdx(), defStmt->GetBB()->GetBBId());
     return *tmpReg;
   }
   return ivarMeExpr;
@@ -893,10 +895,10 @@ bool Prop::NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt, const
   OriginalSt *lhsOst = meStmt->GetLHS()->GetOst();
   // if a union's field is an agg field, and we copy it forward, it may cause storage overlapping
   // e.g.
-  // union {
-  //   struct { i32 fill; <i16 x 16> array; } fld1;
-  //   struct { <i16 x 16> array; i32 fill; } fld2;
-  // }
+  // Example: union {
+  // Example:   struct { i32 fill; <i16 x 16> array; } fld1;
+  // Example:   struct { <i16 x 16> array; i32 fill; } fld2;
+  // Example: }
   // its storage layout is like :
   //      0    4                                36
   // fld1:|----|--------------------------------|
@@ -959,27 +961,6 @@ static bool ContainVolatile(const MeExpr *exprA) {
   }
 }
 
-static void UpdateIncDecAttr(MeStmt *meStmt) {
-  if (!kOpcodeInfo.AssignActualVar(meStmt->GetOp())) {
-    return;
-  }
-  auto *assign = static_cast<AssignMeStmt *>(meStmt);
-  if (assign->GetOpnd(0)->GetMeOp() != kMeOpOp) {
-    assign->isIncDecStmt = false;
-    return;
-  }
-  auto *rhs = static_cast<OpMeExpr *>(assign->GetOpnd(0));
-  if (rhs->GetOp() != OP_add && rhs->GetOp() != OP_sub) {
-    assign->isIncDecStmt = false;
-    return;
-  }
-  if (rhs->GetOpnd(0)->GetMeOp() == kMeOpReg && rhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
-    assign->isIncDecStmt = assign->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(rhs->GetOpnd(0))->GetOst();
-  } else {
-    assign->isIncDecStmt = false;
-  }
-}
-
 void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB *fromBB) {
   if (fromBB == nullptr) {
     return;
@@ -988,7 +969,7 @@ void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB 
   for (auto &meStmt : fromBB->GetMeStmts()) {
     bool replaced = irMap.ReplaceMeExprStmt(meStmt, *replacedExpr, *constExpr);
     if (replaced) {
-      UpdateIncDecAttr(&meStmt);
+      irMap.UpdateIncDecAttr(meStmt);
     }
   }
 

@@ -102,7 +102,7 @@ void FSAA::ProcessBB(BB *bb) {
       // delete any maydefnode in the list that is defined before defBB
       TypeOfMayDefList *mayDefNodes = &ssaTab->GetStmtsSSAPart().GetMayDefNodesOf(*itStmt);
 
-      bool hasErase;
+      bool hasErase = false;
       do {
         hasErase = false;
         TypeOfMayDefList::iterator it = mayDefNodes->begin();
@@ -156,7 +156,7 @@ bool MEFSAA::PhaseRun(MeFunction &f) {
 
     ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(), ssaTab->GetVersionStTable());
     // recurse down dominator tree in pre-order traversal
-    MapleSet<BBId> *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
+    auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
     for (BBId child : *children) {
       ssa->RenameBB(*cfg->GetBBFromID(child));
     }

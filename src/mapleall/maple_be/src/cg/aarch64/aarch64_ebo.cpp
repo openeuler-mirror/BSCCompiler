@@ -855,7 +855,9 @@ bool AArch64Ebo::CheckCanDoMadd(Insn *insn, OpndInfo *opndInfo, int32 pos, bool 
   }
   Insn *insn1 = opndInfo->insn;
   InsnInfo *insnInfo = opndInfo->insnInfo;
-  CHECK_NULL_FATAL(insnInfo);
+  if (insnInfo == nullptr) {
+    return false;
+  }
   Operand &addOpnd = insn->GetOperand(pos);
   MOperator opc1 = insn1->GetMachineOpcode();
   if ((isFp && ((opc1 == MOP_xvmuld) || (opc1 == MOP_xvmuls))) ||
@@ -874,7 +876,9 @@ bool AArch64Ebo::CombineMultiplySub(Insn *insn, OpndInfo *opndInfo, bool is64bit
   }
   Insn *insn1 = opndInfo->insn;
   InsnInfo *insnInfo = opndInfo->insnInfo;
-  CHECK_NULL_FATAL(insnInfo);
+  if (insnInfo == nullptr) {
+    return false;
+  }
   Operand &subOpnd = insn->GetOperand(kInsnSecondOpnd);
   MOperator opc1 = insn1->GetMachineOpcode();
   if ((isFp && ((opc1 == MOP_xvmuld) || (opc1 == MOP_xvmuls))) ||
@@ -1088,7 +1092,9 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
       if ((opndInfo != nullptr) && (opndInfo->insn != nullptr)) {
         Insn *insn1 = opndInfo->insn;
         InsnInfo *insnInfo1 = opndInfo->insnInfo;
-        CHECK_NULL_FATAL(insnInfo1);
+        if (insnInfo1 == nullptr) {
+          return false;
+        }
         Operand &op0 = insn.GetOperand(kInsnSecondOpnd);
         MOperator opc1 = insn1->GetMachineOpcode();
         if ((opc1 == MOP_xlslrri6) || (opc1 == MOP_wlslrri5)) {

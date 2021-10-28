@@ -77,7 +77,7 @@ void SSA::RenameDefs(StmtNode &stmt, BB &defBB) {
   if (kOpcodeInfo.HasSSADef(opcode) && opcode != OP_regassign) {
     TypeOfMayDefList &mayDefList = theSSAPart->GetMayDefNodes();
     for (auto it = mayDefList.begin(); it != mayDefList.end(); ++it) {
-      MayDefNode &mayDef = *it;
+      MayDefNode &mayDef = it->second;
       VersionSt *vSym = mayDef.GetResult();
       CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameMayDefs");
       mayDef.SetOpnd(vstStacks[vSym->GetOrigIdx()]->top());
@@ -109,7 +109,7 @@ void SSA::RenameMayUses(BaseNode &node) {
   TypeOfMayUseList &mayUseList = ssaTab->GetStmtsSSAPart().GetMayUseNodesOf(static_cast<StmtNode&>(node));
   auto it = mayUseList.begin();
   for (; it != mayUseList.end(); ++it) {
-    MayUseNode &mayUse = *it;
+    MayUseNode &mayUse = it->second;
     VersionSt *vSym = mayUse.GetOpnd();
     CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameMayUses");
     mayUse.SetOpnd(vstStacks.at(vSym->GetOrigIdx())->top());
@@ -182,7 +182,7 @@ void SSA::RenameBB(BB &bb) {
   RenamePhiUseInSucc(bb);
   // Rename child in Dominator Tree.
   ASSERT(bb.GetBBId() < dom->GetDomChildrenSize(), "index out of range in MeSSA::RenameBB");
-  const MapleSet<BBId> &children = dom->GetDomChildren(bb.GetBBId());
+  const auto &children = dom->GetDomChildren(bb.GetBBId());
   for (const BBId &child : children) {
     RenameBB(*bbVec[child]);
   }

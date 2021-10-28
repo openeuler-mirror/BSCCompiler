@@ -208,7 +208,7 @@ bool MESSA::PhaseRun(maple::MeFunction &f) {
   ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(),
                        ssaTab->GetVersionStTable());
   // recurse down dominator tree in pre-order traversal
-  MapleSet<BBId> *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
+  auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
   for (BBId child : *children) {
     ssa->RenameBB(*cfg->GetBBFromID(child));
   }

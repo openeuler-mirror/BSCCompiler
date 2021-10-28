@@ -387,7 +387,9 @@ bool AArch64StoreLoadOpt::CheckDefInsn(Insn &defInsn, Insn &currInsn) {
       AArch64RegOperand &a64OpndTmp = static_cast<AArch64RegOperand&>(opnd);
       regno_t replaceRegNo = a64OpndTmp.GetRegisterNumber();
       InsnSet newRegDefSet = cgFunc.GetRD()->FindDefForRegOpnd(currInsn, replaceRegNo, true);
-      return CheckReplaceReg(defInsn, currInsn, newRegDefSet, replaceRegNo);
+      if (!CheckReplaceReg(defInsn, currInsn, newRegDefSet, replaceRegNo)) {
+        return false;
+      }
     }
   }
   return true;
@@ -660,6 +662,9 @@ bool AArch64StoreLoadOpt::CanDoMemProp(Insn *insn) {
     return false;
   }
   if (!insn->IsMachineInstruction()) {
+    return false;
+  }
+  if (insn->GetMachineOpcode() == MOP_qstr) {
     return false;
   }
 

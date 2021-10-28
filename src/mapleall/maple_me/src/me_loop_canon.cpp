@@ -310,7 +310,7 @@ void MeLoopCanon::FindHeadBBs(MeFunction &func, Dominance &dom, const BB *bb,
       }
     }
   }
-  const MapleSet<BBId> &domChildren = dom.GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dom.GetDomChildren(bb->GetBBId());
   for (auto bbit = domChildren.begin(); bbit != domChildren.end(); ++bbit) {
     FindHeadBBs(func, dom, func.GetCfg()->GetAllBBs().at(*bbit), heads);
   }
@@ -358,7 +358,10 @@ void MeLoopCanon::Merge(MeFunction &func, const std::map<BBId, std::vector<BB*>>
     auto *latchBB = cfg->NewBasicBlock();
     latchBB->SetAttributes(kBBAttrArtificial);
     latchBB->SetAttributes(kBBAttrIsInLoop); // latchBB is inloop
-    latchBB->SetKind(kBBFallthru);
+    latchBB->SetKind(kBBGoto);
+    auto *newGotoStmt = func.GetMirFunc()->GetCodeMemPool()->New<GotoNode>(OP_goto);
+    newGotoStmt->SetOffset(func.GetOrCreateBBLabel(*head));
+    latchBB->AddStmtNode(newGotoStmt);
     for (BB *tail : iter->second) {
       tail->ReplaceSucc(head, latchBB);
       if (tail->GetStmtNodes().empty()) {
@@ -382,6 +385,16 @@ void MeLoopCanon::AddPreheader(MeFunction &func, const std::map<BBId, std::vecto
       if (std::find(iter->second.begin(), iter->second.end(), pred) == iter->second.end()) {
         preds.push_back(pred);
       }
+    }
+    // if the head is entry bb, we also need to add a preheader to replace it as new entry
+    if (head->GetAttributes(kBBAttrIsEntry)) {
+      auto *newEntry = func.GetCfg()->NewBasicBlock();
+      func.GetCfg()->GetCommonEntryBB()->RemoveEntry(*head);
+      func.GetCfg()->GetCommonEntryBB()->AddEntry(*newEntry);
+      newEntry->SetKind(kBBFallthru);
+      newEntry->SetAttributes(kBBAttrIsEntry);
+      head->ClearAttributes(kBBAttrIsEntry);
+      head->AddPred(*newEntry);
     }
     // If the num of backages is zero or one and bb kind is kBBFallthru, Preheader is already canonical.
     if (preds.empty()) {

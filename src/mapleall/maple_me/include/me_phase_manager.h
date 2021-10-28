@@ -68,6 +68,7 @@
 #include "me_rc_lowering.h"
 #include "gen_check_cast.h"
 #include "me_fsaa.h"
+#include "simplifyCFG.h"
 #if MIR_JAVA
 #include "sync_select.h"
 #endif  // MIR_JAVA
@@ -81,6 +82,8 @@
 #include "cfg_opt.h"
 #include "lfo_dep_test.h"
 #include "me_autovec.h"
+#include "me_safety_warning.h"
+#include "me_sink.h"
 
 namespace maple {
 using meFuncOptTy = MapleFunctionPhase<MeFunction>;

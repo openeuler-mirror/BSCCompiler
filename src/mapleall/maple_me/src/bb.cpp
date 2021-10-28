@@ -177,7 +177,7 @@ void BB::RemoveBBFromSucc(const BB &bb) {
   }
 }
 
-int BB::GetPredIndex(const BB &predBB) {
+int BB::GetPredIndex(const BB &predBB) const {
   int i = 0;
   while (i < pred.size()) {
     if (pred[i] == &predBB) {

@@ -117,7 +117,7 @@ void RCLowering::UpdateRefVarVersions(BB &bb) {
 
   // recursive call in preorder traversal of dominator tree
   ASSERT(bb.GetBBId() < dominance->GetDomChildrenSize(), "index out of range");
-  const MapleSet<BBId> &domChildren = dominance->GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance->GetDomChildren(bb.GetBBId());
   for (const auto &id : domChildren) {
     UpdateRefVarVersions(*cfg->GetAllBBs().at(id));
   }

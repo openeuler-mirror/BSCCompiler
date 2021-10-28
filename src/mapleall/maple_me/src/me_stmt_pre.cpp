@@ -277,7 +277,7 @@ bool MeStmtPre::AllVarsSameVersion(const MeRealOcc &realOcc1, const MeRealOcc &r
 // varvec can only store RegMeExpr and VarMeExpr
 void MeStmtPre::CollectVarForMeStmt(const MeStmt &meStmt, MeExpr *meExpr, std::vector<MeExpr*> &varVec) const {
   switch (meStmt.GetOp()) {
-    case OP_assertnonnull: {
+    CASE_OP_ASSERT_NONNULL {
       auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
       if (unaryStmt->GetOpnd()->GetMeOp() == kMeOpVar || unaryStmt->GetOpnd()->GetMeOp() == kMeOpReg) {
         varVec.push_back(unaryStmt->GetOpnd());
@@ -320,10 +320,17 @@ void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varV
 
 static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
   switch (meStmt.GetOp()) {
-    case OP_assertnonnull: {
+    case OP_assertnonnull:
+    case OP_assignassertnonnull:
+    case OP_returnassertnonnull: {
       auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
       UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(unaryStmt);
       return newUnaryStmt;
+    }
+    case OP_callassertnonnull: {
+      auto *callAssertStmt = static_cast<const CallAssertNonnullMeStmt*>(&meStmt);
+      auto *newCallAssertStmt = irMap->New<CallAssertNonnullMeStmt>(*callAssertStmt);
+      return newCallAssertStmt;
     }
     case OP_dassign: {
       auto *dass = static_cast<const DassignMeStmt*>(&meStmt);
@@ -357,7 +364,7 @@ MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc &realZ, size_t j, MeExpr *&lhsV
   BB *phiBB = defZ->GetBB();
   CHECK_FATAL(stmtQ != nullptr, "nullptr check");
   switch (stmtQ->GetOp()) {
-    case OP_assertnonnull: {
+    CASE_OP_ASSERT_NONNULL {
       auto *unaryStmtQ = static_cast<UnaryMeStmt*>(stmtQ);
       MeExpr *retOpnd = GetReplaceMeExpr(*unaryStmtQ->GetOpnd(), *phiBB, j);
       if (retOpnd != nullptr) {
@@ -508,7 +515,7 @@ void MeStmtPre::ComputeVarAndDfPhis() {
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeStmt *stmt = realOcc->GetMeStmt();
     switch (stmt->GetOp()) {
-      case OP_assertnonnull: {
+      CASE_OP_ASSERT_NONNULL {
         auto *unaryStmt = static_cast<UnaryMeStmt*>(stmt);
         SetVarPhis(unaryStmt->GetOpnd());
         break;
@@ -897,8 +904,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_free:
       case OP_syncenter:
       case OP_syncexit:
-      case OP_assertlt:
-      case OP_assertge:
+      CASE_OP_ASSERT_BOUNDARY
         break;
       case OP_asm:
       case OP_call:
@@ -934,7 +940,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         VersionStackChiListUpdate(*intrinStmt.GetChiList());
         break;
       }
-      case OP_assertnonnull: {
+      CASE_OP_ASSERT_NONNULL {
         auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
         if (!unaryStmt.GetOpnd()->IsLeaf()) {
           break;
@@ -1067,7 +1073,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
     CreateExitOcc(*bb);
   }
   // recurse on child BBs in dominator tree
-  const MapleSet<BBId> &domChildren = dom->GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dom->GetDomChildren(bb->GetBBId());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     BBId childBBId = *bbIt;
     BuildWorkListBB(GetBB(childBBId));

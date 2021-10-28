@@ -488,6 +488,7 @@ void IRMapBuild::InitMeExprBuildFactory() {
   RegisterFactoryFunction<MeExprBuildFactory>(OP_ashr, &IRMapBuild::BuildOpMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_lshr, &IRMapBuild::BuildOpMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_shl, &IRMapBuild::BuildOpMeExpr);
+  RegisterFactoryFunction<MeExprBuildFactory>(OP_ror, &IRMapBuild::BuildOpMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_max, &IRMapBuild::BuildOpMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_min, &IRMapBuild::BuildOpMeExpr);
   RegisterFactoryFunction<MeExprBuildFactory>(OP_band, &IRMapBuild::BuildOpMeExpr);
@@ -540,6 +541,8 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
       return tryMeStmt;
     }
     case OP_assertnonnull:
+    case OP_assignassertnonnull:
+    case OP_returnassertnonnull:
     case OP_eval:
     case OP_igoto:
     case OP_free:
@@ -549,6 +552,29 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
                                                                    : irMap->New<UnaryMeStmt>(&stmt));
       unMeStmt->SetOpnd(0, BuildExpr(*unaryStmt.Opnd(0), false, false));
       return unMeStmt;
+    }
+    case OP_assertge:
+    case OP_assertlt:
+    case OP_returnassertle:
+    case OP_assignassertle: {
+      auto &naryStmt = static_cast<NaryStmtNode&>(stmt);
+      auto *naryMeStmt = static_cast<NaryMeStmt*>(irMap->NewInPool<NaryMeStmt>(&stmt));
+      naryMeStmt->PushBackOpnd(BuildExpr(*naryStmt.Opnd(0), false, false));
+      naryMeStmt->PushBackOpnd(BuildExpr(*naryStmt.Opnd(1), false, false));
+      return naryMeStmt;
+    }
+    case OP_callassertle: {
+      auto &checkStmt = static_cast<CallAssertBoundaryStmtNode&>(stmt);
+      auto *naryMeStmt = static_cast<NaryMeStmt*>(irMap->NewInPool<CallAssertBoundaryMeStmt>(&checkStmt));
+      naryMeStmt->PushBackOpnd(BuildExpr(*checkStmt.Opnd(0), false, false));
+      naryMeStmt->PushBackOpnd(BuildExpr(*checkStmt.Opnd(1), false, false));
+      return naryMeStmt;
+    }
+    case OP_callassertnonnull: {
+      auto &checkStmt = static_cast<CallAssertNonnullStmtNode&>(stmt);
+      auto *checkMeStmt = irMap->New<CallAssertNonnullMeStmt>(&checkStmt);
+      checkMeStmt->SetOpnd(0, BuildExpr(*checkStmt.Opnd(0), false, false));
+      return checkMeStmt;
     }
     default:
       CHECK_FATAL(false, "NYI");
@@ -907,7 +933,7 @@ void IRMapBuild::BuildBB(BB &bb, std::vector<bool> &bbIRMapProcessed) {
   }
   // travesal bb's dominated tree
   ASSERT(bbID < dominance.GetDomChildrenSize(), " index out of range in IRMapBuild::BuildBB");
-  const MapleSet<BBId> &domChildren = dominance.GetDomChildren(bbID);
+  const auto &domChildren = dominance.GetDomChildren(bbID);
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     BBId childBBId = *bbIt;
     BuildBB(*irMap->GetBB(childBBId), bbIRMapProcessed);

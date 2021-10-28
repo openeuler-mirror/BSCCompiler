@@ -341,8 +341,10 @@ inline bool CallStmtOpndEscape(const StmtNode *stmt) {
   return true;
 }
 
-inline static bool IsAddress(const TyIdx &tyIdx) {
-  return IsAddress(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetPrimType());
+inline static bool MaybeAddress(const TyIdx &tyIdx) {
+  auto primType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx)->GetPrimType();
+  return IsAddress(primType) || (IsPrimitiveInteger(primType) &&
+                                 GetPrimTypeSize(primType) >= GetPrimTypeSize(PTY_ptr));
 }
 
 void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *rhsNode, OffsetType offset) {
@@ -353,14 +355,14 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
     return;
   }
   if (lhsNode == nullptr) {
-    bool rhsIsAddress = IsAddress(rhsNode->ost->GetTyIdx());
+    bool rhsIsAddress = MaybeAddress(rhsNode->ost->GetTyIdx());
     if (rhsIsAddress) {
       rhsNode->attr[kAliasAttrEscaped] = true;
     }
     return;
   }
 
-  bool lhsIsAddress = IsAddress(lhsNode->ost->GetTyIdx());
+  bool lhsIsAddress = MaybeAddress(lhsNode->ost->GetTyIdx());
   if (rhsNode == nullptr) {
     if (!lhsIsAddress) {
       return;
@@ -372,7 +374,7 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
     return;
   }
 
-  bool rhsIsAddress = IsAddress(rhsNode->ost->GetTyIdx());
+  bool rhsIsAddress = MaybeAddress(rhsNode->ost->GetTyIdx());
   if (lhsIsAddress) {
     if (lhsNode->ost->IsFormal()) {
       lhsNode->SetMultiDefined();
@@ -1045,8 +1047,9 @@ bool DemandDrivenAliasAnalysis::MayAlias(OriginalSt *ostA, OriginalSt *ostB) {
   if (enableDebug) {
     LogInfo::MapleLogger() << "Demand Driven Alias Aanlysis: ";
     to->ost->Dump();
-    LogInfo::MapleLogger() << " and ";
+    LogInfo::MapleLogger() << " ostIdx(" << to->ost->GetIndex() << ") and ";
     src->ost->Dump();
+    LogInfo::MapleLogger() << " ostIdx(" << src->ost->GetIndex() << ")";
     if (!aliasAccordingDDAA) {
       LogInfo::MapleLogger() << " not ";
     }

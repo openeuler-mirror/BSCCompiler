@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -124,7 +124,7 @@ void Dominance::ComputeDomFrontiers() {
 }
 
 void Dominance::ComputeDomChildren() {
-  for (const BB *bb : bbVec) {
+  for (const BB *bb : reversePostOrder) {
     if (bb == nullptr) {
       continue;
     }
@@ -135,19 +135,20 @@ void Dominance::ComputeDomChildren() {
     if (parent == bb) {
       continue;
     }
-    domChildren[parent->GetBBId()].insert(bb->GetBBId());
+    domChildren[parent->GetBBId()].push_back(bb->GetBBId());
   }
 }
 
 // bbidMarker indicates that the iterDomFrontier results for bbid < bbidMarker
 // have been computed
-void Dominance::GetIterDomFrontier(BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap) {
+void Dominance::GetIterDomFrontier(const BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker,
+                                   std::vector<bool> &visitedMap) {
   if (visitedMap[bb->GetBBId()]) {
     return;
   }
   visitedMap[bb->GetBBId()] = true;
   for (BBId frontierbbid : domFrontier[bb->GetBBId()]) {
-    dfset->insert(frontierbbid);
+    (void)dfset->insert(frontierbbid);
     if (frontierbbid < bbidMarker) {  // union with its computed result
       dfset->insert(iterDomFrontier[frontierbbid].begin(), iterDomFrontier[frontierbbid].end());
     } else {  // recursive call
@@ -323,13 +324,14 @@ void Dominance::ComputePdomChildren() {
 
 // bbidMarker indicates that the iterPdomFrontier results for bbid < bbidMarker
 // have been computed
-void Dominance::GetIterPdomFrontier(BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker, std::vector<bool> &visitedMap) {
+void Dominance::GetIterPdomFrontier(const BB *bb, MapleSet<BBId> *dfset, BBId bbidMarker,
+                                    std::vector<bool> &visitedMap) {
   if (visitedMap[bb->GetBBId()]) {
     return;
   }
   visitedMap[bb->GetBBId()] = true;
   for (BBId frontierbbid : pdomFrontier[bb->GetBBId()]) {
-    dfset->insert(frontierbbid);
+    (void)dfset->insert(frontierbbid);
     if (frontierbbid < bbidMarker) {  // union with its computed result
       dfset->insert(iterPdomFrontier[frontierbbid].begin(), iterPdomFrontier[frontierbbid].end());
     } else {  // recursive call

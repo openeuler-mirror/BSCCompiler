@@ -184,6 +184,7 @@ void MeStorePre::CodeMotion() {
           realOcc->GetBB().InsertMeStmtBefore(dass, evalStmt);
         }
         realOcc->GetBB().RemoveMeStmt(dass);
+        dass->SetIsLive(false);
       } else {
         CHECK_FATAL(kOpcodeInfo.IsCallAssigned(realOcc->GetStmt()->GetOp()) && realOcc->GetStmt()->
             GetOp() != OP_asm, "CodeMotion: callassign expected");

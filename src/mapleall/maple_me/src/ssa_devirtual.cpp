@@ -495,7 +495,7 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
       VisitMeExpr(thrMeStmt->GetOpnd());
       break;
     }
-    case OP_assertnonnull:
+    CASE_OP_ASSERT_NONNULL
     case OP_eval:
     case OP_igoto:
     case OP_free: {
@@ -578,9 +578,8 @@ void SSADevirtual::TraversalMeStmt(MeStmt &meStmt) {
       ReturnTyIdxInferring(*retMeStmt);
       break;
     }
-    case OP_assertlt:
-    case OP_assertge: {
-      auto *assMeStmt = static_cast<AssertMeStmt*>(&meStmt);
+    CASE_OP_ASSERT_BOUNDARY {
+      auto *assMeStmt = static_cast<NaryMeStmt*>(&meStmt);
       VisitMeExpr(assMeStmt->GetOpnd(0));
       VisitMeExpr(assMeStmt->GetOpnd(1));
       break;
@@ -665,7 +664,7 @@ void SSADevirtual::Perform(BB &entryBB) {
     BB *bb = bbList.front();
     bbList.pop();
     TraversalBB(bb);
-    const MapleSet<BBId> &domChildren = dom->GetDomChildren(bb->GetBBId());
+    const auto &domChildren = dom->GetDomChildren(bb->GetBBId());
     for (const BBId &bbId : domChildren) {
       bbList.push(GetBB(bbId));
     }

@@ -460,13 +460,19 @@ void Ebo::RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) {
 }
 
 OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, int32 opndIndex) {
-  MemOperand *memOpnd = static_cast<MemOperand*>(&opnd);
+  auto *memOpnd = static_cast<AArch64MemOperand*>(&opnd);
   Operand *base = memOpnd->GetBaseRegister();
   Operand *offset = memOpnd->GetOffset();
   OpndInfo *baseInfo = nullptr;
   OpndInfo *offsetInfo = nullptr;
   if (base != nullptr) {
-    baseInfo = OperandInfoUse(bb, *base);
+    if (!memOpnd->IsIntactIndexed()) {
+      baseInfo = OperandInfoUse(bb, *base);
+      baseInfo = OperandInfoDef(bb, insn, *base);
+      return baseInfo;
+    } else {
+      baseInfo = OperandInfoUse(bb, *base);
+    }
     /* forward prop for base register. */
     if ((baseInfo != nullptr) && base->IsRegister()) {
       RegOperand *baseReg = static_cast<RegOperand*>(base);
@@ -474,7 +480,7 @@ OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, int32 opndInd
       OpndInfo *replaceInfo = baseInfo->replacementInfo;
       if ((replaceInfo != nullptr) && (replaceOpnd != nullptr) && !baseReg->IsSPOrFP() &&
           (!beforeRegAlloc || (!IsPhysicalReg(*replaceOpnd) && !IsPhysicalReg(*base))) &&
-          IsOfSameClass(*base, *replaceOpnd) &&
+          IsOfSameClass(*base, *replaceOpnd) && memOpnd->IsIntactIndexed() &&
           (base->GetSize() <= replaceOpnd->GetSize()) &&
           /* In case that replace opnd was redefined. */
           !replaceInfo->redefined) {
