@@ -95,7 +95,9 @@ bool OptimizePattern::OpndDefByOneOrZero(Insn &insn, int32 useIdx) const {
   }
 
   InsnSet defInsnSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, useIdx);
-  ASSERT(!defInsnSet.empty(), "Operand must be defined before used");
+  if (defInsnSet.empty()) {
+    return false;
+  }
 
   for (auto &defInsn : defInsnSet) {
     if (!InsnDefOneOrZero(*defInsn)) {
