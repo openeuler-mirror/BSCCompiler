@@ -15,6 +15,7 @@
 #include "me_prop.h"
 #include "me_option.h"
 #include "me_dominance.h"
+#include "me_ssa_update.h"
 
 // This phase perform copy propagation optimization based on SSA representation.
 // The propagation will not apply to ivar's of ref type unless the option
@@ -68,6 +69,12 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
     f.Dump(false);
+  }
+
+  if (!meProp.CandsForSSAUpdate().empty()) {
+    MemPool *tmp = ApplyTempMemPool();
+    MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, meProp.CandsForSSAUpdate(), *tmp);
+    ssaUpdate.Run();
   }
   return true;
 }

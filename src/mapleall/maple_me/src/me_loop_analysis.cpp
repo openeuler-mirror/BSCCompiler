@@ -127,7 +127,7 @@ void IdentifyLoops::ProcessBB(BB *bb) {
     }
   }
   // recursive call
-  const MapleSet<BBId> &domChildren = dominance->GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dominance->GetDomChildren(bb->GetBBId());
   for (auto bbIt = domChildren.begin(); bbIt != domChildren.end(); ++bbIt) {
     ProcessBB(cfg->GetAllBBs().at(*bbIt));
   }
@@ -152,12 +152,16 @@ void IdentifyLoops::Dump() const {
 
 void IdentifyLoops::MarkBB() {
   for (LoopDesc *meLoop : meLoops) {
-    for (BBId bbId : meLoop->loopBBs) {
-      if (cfg->GetAllBBs().at(bbId) == nullptr) {
-        continue;
-      }
-      cfg->GetAllBBs().at(bbId)->SetAttributes(kBBAttrIsInLoopForEA);
+    MarkLoopBBAttr(*meLoop, kBBAttrIsInLoopForEA);
+  }
+}
+
+void IdentifyLoops::MarkLoopBBAttr(LoopDesc &loop, BBAttr attr) {
+  for (BBId bbId : loop.loopBBs) {
+    if (cfg->GetAllBBs().at(bbId) == nullptr) {
+      continue;
     }
+    cfg->GetAllBBs().at(bbId)->SetAttributes(attr);
   }
 }
 
@@ -254,7 +258,7 @@ bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
   identLoops->ProcessBB(f.GetCfg()->GetCommonEntryBB());
   identLoops->SetTryBB();
   identLoops->SetIGotoBB();
-  for (auto loop : identLoops->GetMeLoops()) {
+  for (auto *loop : identLoops->GetMeLoops()) {
     if (!identLoops->InsertExitBB(*loop)) {
       continue;
     }
@@ -264,6 +268,7 @@ bool MELoopAnalysis::PhaseRun(maple::MeFunction &f) {
     if (!identLoops->ProcessPreheaderAndLatch(*loop)) {
       continue;
     }
+    identLoops->MarkLoopBBAttr(*loop);
     loop->SetIsCanonicalLoop(true);
   }
   if (DEBUGFUNC_NEWPM(f)) {

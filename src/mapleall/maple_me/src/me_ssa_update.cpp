@@ -18,7 +18,7 @@
 // for each variable, the mapped bb set gives the bbs that have newly isnerted
 // dassign's to the variable.
 // If some assignments have been deleted, the current implementation does not
-// delete useless phi's, and these useless phi's may end up hving identical
+// delete useless phi's, and these useless phi's may end up having identical
 // phi operands.
 
 namespace maple {
@@ -243,7 +243,7 @@ void MeSSAUpdate::RenameBB(BB &bb) {
   RenameStmts(bb);
   RenamePhiOpndsInSucc(bb);
   // recurse down dominator tree in pre-order traversal
-  const MapleSet<BBId> &children = dom.GetDomChildren(bb.GetBBId());
+  const auto &children = dom.GetDomChildren(bb.GetBBId());
   for (const auto &child : children) {
     RenameBB(*cfg->GetBBFromID(child));
   }
@@ -267,7 +267,7 @@ void MeSSAUpdate::Run() {
   }
   // recurse down dominator tree in pre-order traversal
   auto cfg = func.GetCfg();
-  const MapleSet<BBId> &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetBBId());
+  const auto &children = dom.GetDomChildren(cfg->GetCommonEntryBB()->GetBBId());
   for (const auto &child : children) {
     RenameBB(*cfg->GetBBFromID(child));
   }

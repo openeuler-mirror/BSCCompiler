@@ -121,6 +121,10 @@ class MeExpr {
     return numOpnds == 0;
   }
 
+  bool IsScalar() const {
+    return meOp == kMeOpVar || meOp == kMeOpReg;
+  }
+
   bool IsGcmalloc() const {
     return op == OP_gcmalloc || op == OP_gcmallocjarray || op == OP_gcpermalloc || op == OP_gcpermallocjarray;
   }
@@ -230,6 +234,18 @@ class ScalarMeExpr : public MeExpr {
 
   bool IsDefByPhi() const {
     return defBy == kDefByPhi;
+  }
+
+  bool IsDefByChi() const {
+    return defBy == kDefByChi;
+  }
+
+  bool IsDefByStmt() const {
+    return defBy == kDefByStmt;
+  }
+
+  bool IsDefByMustDef() const {
+    return defBy == kDefByMustDef;
   }
 
   BB *DefByBB() const;
@@ -439,6 +455,10 @@ class MePhiNode {
   void SetOpnd(size_t idx, ScalarMeExpr *opnd) {
     CHECK_FATAL(idx < opnds.size(), "out of range in MePhiNode::SetOpnd");
     opnds[idx] = opnd;
+  }
+
+  const MapleVector<ScalarMeExpr*> &GetOpnds() const {
+    return opnds;
   }
 
   MapleVector<ScalarMeExpr*> &GetOpnds() {
@@ -1206,10 +1226,6 @@ class MeStmt {
 
   virtual void SetOpnd(size_t, MeExpr*) {}
 
-  bool IsAssertBce() const {
-    return op >= OP_assertge && op <= OP_returnassertlt;
-  }
-
   bool IsReturn() const {
     return op == OP_gosub || op == OP_retsub || op == OP_throw || op == OP_return;
   }
@@ -1277,7 +1293,6 @@ class MeStmt {
   virtual void DisableNeedIncref() {}
 
   virtual ScalarMeExpr *GetLHS() const {
-    CHECK_FATAL(false, "MeStmt::GetLHS() should not be called");
     return nullptr;
   }
 
@@ -2241,6 +2256,10 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
   }
 
+  ScalarMeExpr *GetAssignedLHS() {
+    return mustDefList.empty() ? nullptr : mustDefList.front().GetLHS();
+  }
+
   ScalarMeExpr *GetVarLHS() {
     if (mustDefList.empty() || mustDefList.front().GetLHS()->GetMeOp() != kMeOpVar) {
       return nullptr;
@@ -2558,10 +2577,13 @@ class CallAssertNonnullMeStmt : public UnaryMeStmt, public SafetyCallCheckMeStmt
  public:
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullStmtNode *stt)
       : UnaryMeStmt(stt), SafetyCallCheckMeStmt(stt->GetFuncName(), stt->GetParamIndex()) {}
+  CallAssertNonnullMeStmt(Opcode o, std::string &funcName, size_t paramIndex)
+      : UnaryMeStmt(o), SafetyCallCheckMeStmt(funcName, paramIndex) {}
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
       : UnaryMeStmt(static_cast<const UnaryMeStmt*>(&stt)),
         SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
   ~CallAssertNonnullMeStmt() = default;
+  StmtNode &EmitStmt(SSATab &ssaTab);
 };
 
 class CallAssertBoundaryMeStmt : public NaryMeStmt, public SafetyCallCheckMeStmt {
@@ -2572,6 +2594,7 @@ class CallAssertBoundaryMeStmt : public NaryMeStmt, public SafetyCallCheckMeStmt
       : NaryMeStmt(alloc, static_cast<const NaryMeStmt*>(&stt)),
         SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
   ~CallAssertBoundaryMeStmt() = default;
+  StmtNode &EmitStmt(SSATab &ssaTab);
 };
 
 class GotoMeStmt : public MeStmt {
@@ -2846,70 +2869,6 @@ class SyncMeStmt : public NaryMeStmt, public MuChiMePart {
 
   MapleMap<OStIdx, ChiMeNode *> *GetChiList() {
     return &chiList;
-  }
-};
-
-// assert ge or lt for boundary check
-class AssertMeStmt : public MeStmt {
- public:
-  explicit AssertMeStmt(const StmtNode *stt) : MeStmt(stt) {
-    Opcode op = stt->GetOpCode();
-    CHECK(op == OP_assertge || op == OP_assertlt, "runtime check error");
-  }
-
-  explicit AssertMeStmt(Opcode op1) : MeStmt(op1) {
-    Opcode op = op1;
-    CHECK(op == OP_assertge || op == OP_assertlt, "runtime check error");
-  }
-
-  size_t NumMeStmtOpnds() const override {
-    return kOperandNumBinary;
-  }
-
-  AssertMeStmt(const AssertMeStmt &assMeStmt) : MeStmt(assMeStmt.GetOp()) {
-    SetOp(assMeStmt.GetOp());
-    opnds[0] = assMeStmt.opnds[0];
-    opnds[1] = assMeStmt.opnds[1];
-  }
-
-  AssertMeStmt(MeExpr *arrExpr, MeExpr *idxExpr, bool ilt) : MeStmt(ilt ? OP_assertlt : OP_assertge) {
-    opnds[0] = arrExpr;
-    opnds[1] = idxExpr;
-  }
-
-  ~AssertMeStmt() = default;
-
-  MeExpr *GetIndexExpr() const {
-    return opnds[1];
-  }
-
-  MeExpr *GetArrayExpr() const {
-    return opnds[0];
-  }
-
-  void SetOpnd(size_t i, MeExpr *opnd) override {
-    CHECK_FATAL(i < kOperandNumBinary, "AssertMeStmt has two opnds");
-    opnds[i] = opnd;
-  }
-
-  MeExpr *GetOpnd(size_t i) const override {
-    CHECK_FATAL(i < kOperandNumBinary, "AssertMeStmt has two opnds");
-    return opnds[i];
-  }
-
-  void Dump(const IRMap*) const override;
-  StmtNode &EmitStmt(SSATab &ssaTab) override;
-
- private:
-  MeExpr *opnds[kOperandNumBinary];
-  AssertMeStmt &operator=(const AssertMeStmt &assMeStmt) {
-    if (&assMeStmt == this) {
-      return *this;
-    }
-    SetOp(assMeStmt.GetOp());
-    opnds[0] = assMeStmt.opnds[0];
-    opnds[1] = assMeStmt.opnds[1];
-    return *this;
   }
 };
 

@@ -112,6 +112,8 @@ bool MeOption::meVerify = false;
 uint32 MeOption::dseRunsLimit = 2;    // dse phase run at most 2 times each PU
 uint32 MeOption::hdseRunsLimit = 3;   // hdse phase run at most 3 times each PU
 uint32 MeOption::hpropRunsLimit = 2;  // hprop phase run at most 2 times each PU
+uint32 MeOption::sinkLimit = UINT32_MAX;
+uint32 MeOption::sinkPULimit = UINT32_MAX;
 bool MeOption::loopVec = true;
 bool MeOption::seqVec = true;
 uint8 MeOption::rematLevel = 2;
@@ -238,6 +240,8 @@ enum OptionIndex {
   kDseRunsLimit,
   kHdseRunsLimit,
   kHpropRunsLimit,
+  kSinkLimit,
+  kSinkPULimit,
   kLoopVec,
   kSeqVec,
   kRematLevel,
@@ -1137,6 +1141,26 @@ const Descriptor kUsage[] = {
     "                              \t--hproprunslimit=NUM\n",
     "me",
     {} },
+  { kSinkLimit,
+    0,
+    "",
+    "sinklimit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNumeric,
+    "  --sinklimit=n          \tControl number of stmts sink-phase can sink\n"
+    "                              \t--sinklimit=NUM\n",
+    "me",
+    {} },
+  { kSinkPULimit,
+    0,
+    "",
+    "sinkPUlimit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyNumeric,
+    "  --sinkPUlimit=n          \tControl number of function sink-phase can be run\n"
+    "                              \t--sinkPUlimit=NUM\n",
+    "me",
+    {} },
   { kLoopVec,
     kEnable,
     "",
@@ -1628,6 +1652,12 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kHpropRunsLimit:
         hpropRunsLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kSinkLimit:
+        sinkLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kSinkPULimit:
+        sinkPULimit = std::stoul(opt.Args(), nullptr);
         break;
       case kLoopVec:
         loopVec = (opt.Type() == kEnable);

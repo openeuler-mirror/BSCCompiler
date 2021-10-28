@@ -66,6 +66,10 @@ class Prop {
 
   bool NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt /* for irmap */, const MeExpr *propedRHS) const;
 
+  MapleMap<OStIdx, MapleSet<BBId>*> &CandsForSSAUpdate() {
+    return candsForSSAUpdate;
+  }
+
  protected:
   virtual void UpdateCurFunction(BB&) const {
   }
@@ -97,6 +101,14 @@ class Prop {
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);
   MeExpr *RehashUsingInverse(MeExpr *x);
 
+  void RecordSSAUpdateCandidate(const OStIdx &ostIdx, const BBId &bbId) {
+    auto &bbSet = candsForSSAUpdate[ostIdx];
+    if (bbSet == nullptr) {
+      bbSet = propMapAlloc.New<MapleSet<BBId>>(propMapAlloc.Adapter());
+    }
+    bbSet->insert(bbId);
+  }
+
   IRMap &irMap;
   SSATab &ssaTab;
   MIRModule &mirModule;
@@ -105,6 +117,7 @@ class Prop {
   MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;
+  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_PROP_H

@@ -27,6 +27,7 @@ include_directories = [
 src_libmplme = [
   "src/dse.cpp",
   "src/hdse.cpp",
+  "src/me_sink.cpp",
   "src/prop.cpp",
   "src/me_alias_class.cpp",
   "src/me_critical_edge.cpp",
@@ -102,8 +103,10 @@ src_libmplme = [
   "src/lfo_loop_vec.cpp",
   "src/me_value_range_prop.cpp",
   "src/cfg_opt.cpp",
+  "src/simplifyCFG.cpp",
   "src/seqvec.cpp",
-  "src/me_autovec.cpp"
+  "src/me_autovec.cpp",
+  "src/me_safety_warning.cpp"
 ]
 
 src_libmplmewpo = [

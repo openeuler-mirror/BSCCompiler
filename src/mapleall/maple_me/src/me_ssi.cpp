@@ -328,7 +328,7 @@ void MeSSI::RenameStartPiArray(DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
-  const MapleSet<BBId> &children = dom->GetDomChildren(newDefBB->GetBBId());
+  const auto &children = dom->GetDomChildren(newDefBB->GetBBId());
   for (const BBId &child : children) {
     ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
   }
@@ -342,7 +342,7 @@ void MeSSI::RenameStartPhi(DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(*newDefBB, *(newDefPoint.GetLHS()));
-  const MapleSet<BBId> &children = dom->GetDomChildren(newDefBB->GetBBId());
+  const auto &children = dom->GetDomChildren(newDefBB->GetBBId());
   for (const BBId &child : children) {
     ReplaceBB(*(cfg->GetBBFromID(child)), *newDefBB, newDefPoint);
   }
@@ -607,7 +607,7 @@ void MeSSI::ReplaceBB(BB &bb, BB &parentBB, DefPoint &newDefPoint) {
     }
   }
   ReplacePiPhiInSuccs(bb, *(newDefPoint.GetLHS()));
-  const MapleSet<BBId> &children = dom->GetDomChildren(bb.GetBBId());
+  const auto &children = dom->GetDomChildren(bb.GetBBId());
   for (const BBId &child : children) {
     ReplaceBB(*(cfg->GetBBFromID(child)), bb, newDefPoint);
   }

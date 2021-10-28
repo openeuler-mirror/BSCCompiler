@@ -19,6 +19,7 @@
 // based on previous analyze results. GC intrinsic will later be lowered
 // in Code Generation
 namespace maple {
+#ifdef NOT_USED
 AnalysisResult *MeDoGCWriteBarrierOpt::Run(MeFunction *func, MeFuncResultMgr *funcResMgr, ModuleResultMgr*) {
   Dominance *dom = static_cast<Dominance*>(funcResMgr->GetAnalysisResult(MeFuncPhase_DOMINANCE, func));
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
@@ -31,6 +32,7 @@ AnalysisResult *MeDoGCWriteBarrierOpt::Run(MeFunction *func, MeFuncResultMgr *fu
   gcWriteBarrierOpt.Finish();
   return nullptr;
 }
+#endif
 
 void GCWriteBarrierOpt::Prepare() {
   callBBs.resize(func.GetCfg()->NumBBs());
@@ -73,7 +75,7 @@ void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &
     }
   }
   visited[bb.GetBBId()] = true;
-  const MapleSet<BBId> domChildren = dominance.GetDomChildren(bb.GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(bb.GetBBId());
   for (const auto &childBBId : domChildren) {
     BB *child = func.GetCfg()->GetBBFromID(childBBId);
     if (child == nullptr) {
@@ -156,7 +158,7 @@ bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
   if (HasCallAfterStmt(start) || HasCallBeforeStmt(end) || IsBackEdgeDest(*endBB)) {
     return true;
   }
-  const MapleSet<BBId> domChildren = dominance.GetDomChildren(startBB->GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(startBB->GetBBId());
   const MapleSet<BBId> pdomChildren = dominance.GetPdomChildrenItem(endBB->GetBBId());
   const MapleVector<BB*> bbVec = func.GetCfg()->GetAllBBs();
   for (const auto &childBBId : domChildren) {

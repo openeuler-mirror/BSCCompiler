@@ -1298,7 +1298,7 @@ void NaryMeStmt::DumpOpnds(const IRMap *irMap) const {
 }
 
 void NaryMeStmt::Dump(const IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " \n";
   DumpOpnds(irMap);
 }
 
@@ -1362,8 +1362,12 @@ void IntrinsiccallMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void AsmMeStmt::Dump(const IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name <<
-      " " << '\"' << asmString << '\"' << std::endl;
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " \"";
+  if (!asmString.empty()) {
+    LogInfo::MapleLogger() << asmString.c_str();
+  }
+  LogInfo::MapleLogger() << " \"\n";
+
   DumpOpnds(irMap);
   DumpMuList(irMap, muList);
   DumpChiList(irMap, chiList);
@@ -1377,7 +1381,12 @@ void RetMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void CondGotoMeStmt::Dump(const IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
+  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name;
+  if (IsBranchProbValid()) {
+    double branchPercent = branchProb * 100.0 / CondGotoNode::probAll;
+    LogInfo::MapleLogger() << " [fallthru: " << (100.0 - branchPercent) << "%, branch: " << branchPercent << "%]";
+  }
+  LogInfo::MapleLogger() << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "cond: ";
   auto mirFunc = static_cast<const MeIRMap*>(irMap)->GetFunc().GetMirFunc();
@@ -1470,18 +1479,6 @@ bool MeStmt::IsTheSameWorkcand(const MeStmt &mestmt) const {
   return true;
 }
 
-void AssertMeStmt::Dump(const IRMap *irMap) const {
-  LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
-  PrintIndentation(kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << "opnd[0] = ";
-  opnds[0]->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << '\n';
-  PrintIndentation(kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << "opnd[1] = ";
-  opnds[1]->Dump(irMap, kDefaultPrintIndentNum);
-  LogInfo::MapleLogger() << '\n';
-}
-
 bool VarMeExpr::IsVolatile() const {
   const OriginalSt *ost = GetOst();
   if (!ost->IsSymbolOst()) {
@@ -1491,9 +1488,19 @@ bool VarMeExpr::IsVolatile() const {
   if (sym->IsVolatile()) {
     return true;
   }
-  MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
   if (ost->GetFieldID() == 0) {
-    return (type->HasVolatileField());
+    return (ost->GetType()->HasVolatileField());
+  }
+  MIRType *type = nullptr;
+  if (ost->GetIndirectLev() == 0) {
+    type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(sym->GetTyIdx());
+  } else if (ost->GetIndirectLev() > 0) {
+    auto *prevLevOst = ost->GetPrevLevelOst();
+    auto *ptrType = prevLevOst->GetType();
+    CHECK_FATAL(ptrType->IsMIRPtrType(), "must be pointer type");
+    type = static_cast<MIRPtrType *>(ptrType)->GetPointedType();
+  } else {
+    return false;
   }
   auto *structType = static_cast<MIRStructType*>(type);
   return structType->IsFieldVolatile(ost->GetFieldID());

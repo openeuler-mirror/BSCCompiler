@@ -205,6 +205,12 @@ void MeLowerGlobals::Run() {
             icallStmt->DisableNeedIncref();
           }
           icallStmt->GetMustDefList()->assign(callStmt.GetMustDefList()->begin(), callStmt.GetMustDefList()->end());
+          auto *mustDefList = icallStmt->GetMustDefList();
+          if (mustDefList != nullptr) {
+            for (auto &mustDef : *mustDefList) {
+              mustDef.SetBase(icallStmt);
+            }
+          }
         }
         bb->ReplaceMeStmt(&stmt, icallStmt);
       }

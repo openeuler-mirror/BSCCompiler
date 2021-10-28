@@ -259,7 +259,7 @@ void AnalyzeRC::RenameRefPtrs(BB *bb) {
   TraverseStmt(*bb);
   // recursive call in preorder traversal of dominator tree
   ASSERT(bb->GetBBId() < dominance.GetDomChildrenSize(), "index out of range in AnalyzeRC::RenameRefPtrs");
-  const MapleSet<BBId> &domChildren = dominance.GetDomChildren(bb->GetBBId());
+  const auto &domChildren = dominance.GetDomChildren(bb->GetBBId());
   for (const auto &childBBId : domChildren) {
     RenameRefPtrs(cfg->GetAllBBs().at(childBBId));
   }
