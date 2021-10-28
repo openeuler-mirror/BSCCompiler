@@ -50,7 +50,240 @@ bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIREx
     return true;
   }
 }
+// ---------------------------
+// process boundary attr
+// ---------------------------
+void ASTParser::ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                         ASTFunc &astFunc) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  for (const auto *returnsCountAttr : funcDecl.specific_attrs<clang::ReturnsCountAttr>()) {
+    clang::Expr *expr = returnsCountAttr->getLenExpr();
+    ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+    if (lenExpr == nullptr) {
+      continue;
+    }
+    ProcessBoundaryLenExprInFunc(allocator, funcDecl, static_cast<unsigned int>(-1), astFunc, lenExpr, true);
+  }
+  for (const auto *countAttr : funcDecl.specific_attrs<clang::CountAttr>()) {
+    clang::Expr *expr = countAttr->getLenExpr();
+    ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+    if (lenExpr == nullptr) {
+      continue;
+    }
+    if (!countAttr->index_size()) {
+      // Lack of attribute index parameters means that only one pointer parameter is
+      // implicitly marked as boundary var in func.
+      for (unsigned int i = 0; i < astFunc.GetParamDecls().size(); ++i) {
+        if (astFunc.GetParamDecls()[i]->GetTypeDesc().front()->IsMIRPtrType()) {
+          ProcessBoundaryLenExprInFunc(allocator, funcDecl, i, astFunc, lenExpr, true);
+        }
+      }
+      break;
+    }
+    for (const clang::ParamIdx &paramIdx : countAttr->index()) {
+      // The clang ensures that the attribute only applies to pointer parameter
+      unsigned int idx = paramIdx.getASTIndex();
+      if (idx >= astFunc.GetParamDecls().size()) {
+        continue;
+      }
+      ProcessBoundaryLenExprInFunc(allocator, funcDecl, idx, astFunc, lenExpr, true);
+    }
+  }
+}
 
+void ASTParser::ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                          ASTFunc &astFunc) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  for (unsigned int i = 0; i < funcDecl.getNumParams(); ++i) {
+    const clang::ParmVarDecl *parmDecl = funcDecl.getParamDecl(i);
+    if (parmDecl->getKind() == clang::Decl::Function) {
+      continue;
+    }
+    for (const auto *countAttr : parmDecl->specific_attrs<clang::CountAttr>()) {
+      clang::Expr *expr = countAttr->getLenExpr();
+      ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+      if (lenExpr == nullptr) {
+        continue;
+      }
+      ProcessBoundaryLenExprInFunc(allocator, funcDecl, i, astFunc, lenExpr, true);
+    }
+  }
+}
+
+void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::VarDecl &varDecl, ASTVar &astVar) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  for (const auto *countAttr : varDecl.specific_attrs<clang::CountAttr>()) {
+    clang::Expr *expr = countAttr->getLenExpr();
+    ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+    if (lenExpr == nullptr) {
+      continue;
+    }
+    ProcessBoundaryLenExprInVar(allocator, astVar, varDecl.getType(), lenExpr, true);
+  }
+}
+
+void ASTParser::ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTStruct &structDecl,
+                                          const clang::RecordDecl &recDecl) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  const auto *declContext = llvm::dyn_cast<clang::DeclContext>(&recDecl);
+  if (declContext == nullptr) {
+    return;
+  }
+  for (auto *loadDecl : declContext->decls()) {
+    if (loadDecl == nullptr) {
+      continue;
+    }
+    auto *fieldDecl = llvm::dyn_cast<clang::FieldDecl>(loadDecl);
+    if (fieldDecl == nullptr) {
+      continue;
+    }
+    ASTDecl *astField = ASTDeclsBuilder::GetASTDecl(fieldDecl->getID());
+    if (astField == nullptr) {
+      continue;
+    }
+    for (const auto *countAttr : fieldDecl->specific_attrs<clang::CountAttr>()) {
+      clang::Expr *expr = countAttr->getLenExpr();
+      ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+      if (lenExpr == nullptr) {
+        continue;
+      }
+      ProcessBoundaryLenExprInField(allocator, *astField, structDecl, fieldDecl->getType(), lenExpr, true);
+    }
+  }
+}
+
+// ---------------------------
+// process boundary length expr in attr
+// ---------------------------
+void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::QualType &qualType,
+                                       const std::function<ASTExpr* ()> &getLenExprFromStringLiteral,
+                                       ASTExpr *lenExpr, bool isSize) {
+  if (!qualType->isPointerType()) {
+    ERR(kLncErr, "%s:%d EnhanceC error: The variable modified by the boundary attribute should be a pointer type",
+        FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(), lenExpr->GetSrcFileLineNum());
+    return;
+  }
+  // Check lenExpr kind from: length stringLiteral or constant value/var expression
+  if (lenExpr->GetASTOp() == kASTStringLiteral) {
+    // boundary length stringLiteral -> real length decl expr
+    lenExpr = getLenExprFromStringLiteral();
+    if (lenExpr == nullptr) {
+      return;
+    }
+  } else if (lenExpr->GetType() == nullptr || !FEUtils::IsInteger(lenExpr->GetType()->GetPrimType())) {
+    ERR(kLncErr, "%s:%d EnhanceC error: The boundary length expr is not an integer type",
+        FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(), lenExpr->GetSrcFileLineNum());
+    return;
+  }
+  if (isSize) {
+    // The type size can only be obtained from ClangDecl instead of ASTDecl,
+    // because the field of mir struct type has not yet been initialized at this time
+    uint64 lenSize = GetSizeFromQualType(qualType->getPointeeType());
+    MIRType *pointedType = static_cast<MIRPtrType*>(ptrDecl.GetTypeDesc().front())->GetPointedType();
+    if (pointedType->GetPrimType() == PTY_f64) {
+      lenSize = 8; // 8 is f64 byte num, because now f128 also cvt to f64
+    }
+    lenExpr = GetAddrShiftExpr(allocator, lenExpr, lenSize);
+  }
+  ptrDecl.SetBoundaryLenExpr(lenExpr);
+}
+
+void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                             unsigned int idx, ASTFunc &astFunc, ASTExpr *lenExpr, bool isSize) {
+  ASTDecl *ptrDecl = nullptr;
+  clang::QualType qualType;
+  if (idx == static_cast<unsigned int>(-1)) {  // return boundary attr
+    ptrDecl = &astFunc;
+    qualType = funcDecl.getReturnType();
+  } else if (idx < astFunc.GetParamDecls().size()) {
+    ptrDecl = astFunc.GetParamDecls()[idx];
+    qualType = funcDecl.getParamDecl(idx)->getType();
+  } else {
+    ERR(kLncErr, "%s:%d EnhanceC error: The parameter annotated boundary attr [idx:%d] is not found"
+        "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
+        lenExpr->GetSrcFileLineNum(), idx, astFunc.GetName().c_str());
+    return;
+  }
+  // parameter stringLiteral -> real parameter decl
+  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+    ASTStringLiteral *strExpr = static_cast<ASTStringLiteral*>(lenExpr);
+    std::string lenName(strExpr->GetCodeUnits().begin(), strExpr->GetCodeUnits().end());
+    for (ASTDecl *lenDecl : astFunc.GetParamDecls()) {
+      if (lenDecl->GetName() != lenName) {
+        continue;
+      }
+      MIRType *lenType = lenDecl->GetTypeDesc().front();
+      if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
+        ERR(kLncErr, "%s:%d EnhanceC error: The parameter [%s] specified as boundary length var is not an integer type "
+            "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
+            lenExpr->GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
+        return nullptr;
+      }
+      ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
+      lenRefExpr->SetASTDecl(lenDecl);
+      lenRefExpr->SetType(lenDecl->GetTypeDesc().front());
+      return lenRefExpr;
+    }
+    ERR(kLncErr, "%s:%d EnhanceC error: The parameter [%s] specified as boundary length var is not found "
+        "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
+        lenExpr->GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
+    return nullptr;
+  };
+  ProcessBoundaryLenExpr(allocator, *ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
+}
+
+void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl,
+                                            const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
+  // The StringLiteral is not allowed to use as boundary length of var
+  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+    ERR(kLncErr, "%s:%d EnhanceC error: The StringLiteral is not allowed to use as boundary length of var",
+        FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(), lenExpr->GetSrcFileLineNum());
+    return nullptr;
+  };
+  ProcessBoundaryLenExpr(allocator, ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
+}
+
+void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl &ptrDecl, const ASTStruct &structDecl,
+                                              const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
+  // boundary length stringLiteral in field -> real field decl
+  auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
+    ASTStringLiteral *strExpr = static_cast<ASTStringLiteral*>(lenExpr);
+    std::string lenName(strExpr->GetCodeUnits().begin(), strExpr->GetCodeUnits().end());
+    for (ASTField *fieldDecl: structDecl.GetFields()) {
+      if (lenName != fieldDecl->GetName()) {
+        continue;
+      }
+      MIRType *lenType = fieldDecl->GetTypeDesc().front();
+      if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
+        ERR(kLncErr, "%s:%d EnhanceC error: The field [%s] specified as boundary length var is not an integer type "
+            "in the struct [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
+            lenExpr->GetSrcFileLineNum(), lenName.c_str(), structDecl.GetName().c_str());
+        return nullptr;
+      }
+      ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
+      lenRefExpr->SetASTDecl(fieldDecl);
+      lenRefExpr->SetType(fieldDecl->GetTypeDesc().front());
+      return lenRefExpr;
+    }
+    ERR(kLncErr, "%s:%d EnhanceC error: The StringLiteral [%s] as boundary length var is not found "
+        "in the struct [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
+        lenExpr->GetSrcFileLineNum(), lenName.c_str(), structDecl.GetName().c_str());
+    return nullptr;
+  };
+  ProcessBoundaryLenExpr(allocator, ptrDecl, qualType, getLenExprFromStringLiteral, lenExpr, isSize);
+}
+
+// ---------------------------
+// process boundary var
+// ---------------------------
 UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr) {
   if (expr == nullptr) {
     return nullptr;
@@ -70,14 +303,13 @@ UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &
       return baseExpr;
     }
   }
-  if (expr->GetKind() == kExprAddrofArray) {
+  if (expr->GetKind() == kExprUnary) {
+    FEIRExprUnary *cvtExpr = static_cast<FEIRExprUnary*>(expr.get());
+    UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(cvtExpr->GetOpnd());
+  } else if (expr->GetKind() == kExprAddrofArray) {
     FEIRExprAddrofArray *arrExpr = static_cast<FEIRExprAddrofArray*>(expr.get());
     baseExpr = FindBaseExprInPointerOperation(arrExpr->GetExprArray());
-    if (baseExpr != nullptr) {
-      return baseExpr;
-    }
-  }
-  if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
+  } else if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
       (expr->GetKind() == kExprIRead && expr->GetPrimType() == PTY_ptr && expr->GetFieldID() != 0) ||
       GetArrayTypeFromExpr(expr) != nullptr) {
     baseExpr = expr->Clone();
@@ -119,7 +351,7 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
 }
 
 void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &dstExpr, const UniqueFEIRExpr &srcExpr,
-                                   std::list<StmtNode*> &ans) {
+                                   const UniqueFEIRExpr &lRealLenExpr, std::list<StmtNode*> &ans) {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
       srcExpr->GetPrimType() != PTY_ptr || dstExpr->GetPrimType() != PTY_ptr) {
     return;
@@ -131,12 +363,16 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
     return;
   }
   MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
-  // Check if the r-value has a boundary var or an array
+  // Check if the r-value has a boundary var or an array or a global var/field with boundary attr
   UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(srcExpr);
   if (baseExpr == nullptr) {
     return;
   }
   MIRType *arrType = ENCChecker::GetArrayTypeFromExpr(baseExpr);
+  bool isSizedArray = (arrType != nullptr && arrType->GetSize() > 0);
+  if (arrType == nullptr && (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead)) {
+    ENCChecker::InitBoundaryGlobalOrFieldVar(mirBuilder, baseExpr->Clone());
+  }
   // Check if the l-value has a boundary var
   std::pair<StIdx, StIdx> lBoundaryVarStIdx = std::make_pair(StIdx(0), StIdx(0));
   auto lIt = curFunction->GetBoundaryMap().find(dstExpr->Hash());
@@ -150,14 +386,14 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   } else {
     if (lBoundaryVarStIdx.first != StIdx(0) && arrType == nullptr) {
       // Insert a empty r-value boundary var
-      // when there is a l-value boundary var and r-value without a boundary var or with an array
+      // when there is a l-value boundary var and r-value without a boundary var or an array
       rBoundaryVarStIdx = ENCChecker::InsertBoundaryVar(mirBuilder, baseExpr);
     }
   }
   // insert L-value bounary and assign boundary var
-  // when r-value with a boundary var or with an array
+  // when r-value with a boundary var or with a sized array
   if (lBoundaryVarStIdx.first == StIdx(0) &&
-      (rBoundaryVarStIdx.first != StIdx(0) || arrType != nullptr)) {
+      (rBoundaryVarStIdx.first != StIdx(0) || isSizedArray)) {
     lBoundaryVarStIdx = ENCChecker::InsertBoundaryVar(mirBuilder, dstExpr);
   }
   if (lBoundaryVarStIdx.first != StIdx(0)) {
@@ -165,47 +401,39 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
     CHECK_NULL_FATAL(lLowerSym);
     MIRSymbol *lUpperSym = curFunction->GetLocalOrGlobalSymbol(lBoundaryVarStIdx.second);
     CHECK_NULL_FATAL(lUpperSym);
+    StmtNode *lowerStmt = nullptr;
+    StmtNode *upperStmt = nullptr;
     if (rBoundaryVarStIdx.first != StIdx(0)) {
       MIRSymbol *rLowerSym = curFunction->GetLocalOrGlobalSymbol(rBoundaryVarStIdx.first);
       CHECK_NULL_FATAL(rLowerSym);
-      StmtNode *lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, mirBuilder.CreateExprDread(*rLowerSym));
-      ans.emplace_back(lowerStmt);
+      lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, mirBuilder.CreateExprDread(*rLowerSym));
 
       MIRSymbol *rUpperSym = curFunction->GetLocalOrGlobalSymbol(rBoundaryVarStIdx.second);
       CHECK_NULL_FATAL(rUpperSym);
-      StmtNode *upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, mirBuilder.CreateExprDread(*rUpperSym));
-      ans.emplace_back(upperStmt);
-    } else if (arrType != nullptr) {
-      StmtNode *lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
-      ans.emplace_back(lowerStmt);
+      upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, mirBuilder.CreateExprDread(*rUpperSym));
+    } else if (arrType != nullptr && arrType->GetSize() != 0) {
+      lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
       UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(
           OP_add, baseExpr->Clone(), std::make_unique<FEIRExprConst>(arrType->GetSize(), PTY_ptr));
-      StmtNode *upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
-      ans.emplace_back(upperStmt);
+      upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
     }
+    if (lowerStmt == nullptr || upperStmt == nullptr) {
+      return;
+    }
+    if (lRealLenExpr != nullptr) {  // use l-vaule own boundary(use r-value base) when l-value has a boundary attr
+      BaseNode *binExpr = mirBuilder.CreateExprBinary(
+          OP_add, *lLowerSym->GetType(), mirBuilder.CreateExprDread(*lLowerSym), lRealLenExpr->GenMIRNode(mirBuilder));
+      upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr);
+    }
+    ans.emplace_back(lowerStmt);
+    ans.emplace_back(upperStmt);
   }
 }
 
 std::pair<StIdx, StIdx> ENCChecker::InsertBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr) {
   std::pair<StIdx, StIdx> boundaryVarStIdx = std::make_pair(StIdx(0), StIdx(0));
-  std::string boundaryName;
-  if (expr != nullptr && expr->GetKind() == kExprDRead) {
-    FEIRExprDRead *dread = static_cast<FEIRExprDRead*>(expr.get());
-    // Naming format for var boundary: _boundary.[varname]_[fieldID].[exprHash].lower/upper
-    boundaryName = "_boundary." + dread->GetVar()->GetNameRaw() + "." + std::to_string(expr->GetFieldID()) + "." +
-                   std::to_string(expr->Hash());
-  } else if (expr != nullptr && expr->GetKind() == kExprIRead) {
-    FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(expr.get());
-    MIRType *pointerType = iread->GetClonedPtrType()->GenerateMIRTypeAuto();
-    CHECK_FATAL(pointerType->IsMIRPtrType(), "Must be ptr type!");
-    MIRType *structType = static_cast<MIRPtrType*>(pointerType)->GetPointedType();
-    std::string structName = GlobalTables::GetStrTable().GetStringFromStrIdx(structType->GetNameStrIdx());
-    FieldID fieldID = iread->GetFieldID();
-    FieldPair rFieldPair = static_cast<MIRStructType*>(structType)->TraverseToFieldRef(fieldID);
-    std::string fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(rFieldPair.first);
-    // Naming format for field var boundary: _boundary.[sturctname]_[fieldname].[exprHash].lower/upper
-    boundaryName = "_boundary." + structName + "_" + fieldName + "." + std::to_string(iread->Hash());
-  } else {
+  std::string boundaryName = GetBoundaryName(expr);
+  if (boundaryName.empty()) {
     return boundaryVarStIdx;
   }
   MIRType *boundaryType = expr->GetType()->GenerateMIRTypeAuto();
@@ -219,6 +447,31 @@ std::pair<StIdx, StIdx> ENCChecker::InsertBoundaryVar(MIRBuilder &mirBuilder, co
   MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
   curFunction->SetBoundaryMap(expr->Hash(), boundaryVarStIdx);
   return boundaryVarStIdx;
+}
+
+std::string ENCChecker::GetBoundaryName(const UniqueFEIRExpr &expr) {
+  std::string boundaryName;
+  if (expr == nullptr) {
+    return boundaryName;
+  }
+  if (expr->GetKind() == kExprDRead) {
+    const FEIRExprDRead *dread = static_cast<FEIRExprDRead*>(expr.get());
+    // Naming format for var boundary: _boundary.[varname]_[fieldID].[exprHash].lower/upper
+    boundaryName = "_boundary." + dread->GetVar()->GetNameRaw() + "." + std::to_string(expr->GetFieldID()) + "." +
+                   std::to_string(expr->Hash());
+  } else if (expr->GetKind() == kExprIRead) {
+    const FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(expr.get());
+    MIRType *pointerType = iread->GetClonedPtrType()->GenerateMIRTypeAuto();
+    CHECK_FATAL(pointerType->IsMIRPtrType(), "Must be ptr type!");
+    MIRType *structType = static_cast<MIRPtrType*>(pointerType)->GetPointedType();
+    std::string structName = GlobalTables::GetStrTable().GetStringFromStrIdx(structType->GetNameStrIdx());
+    FieldID fieldID = iread->GetFieldID();
+    FieldPair rFieldPair = static_cast<MIRStructType*>(structType)->TraverseToFieldRef(fieldID);
+    std::string fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(rFieldPair.first);
+    // Naming format for field var boundary: _boundary.[sturctname]_[fieldname].[exprHash].lower/upper
+    boundaryName = "_boundary." + structName + "_" + fieldName + "." + std::to_string(iread->Hash());
+  }
+  return boundaryName;
 }
 
 void ENCChecker::AssignUndefVal(MIRBuilder &mirBuilder, const MIRSymbol &sym) {
@@ -261,6 +514,32 @@ void ENCChecker::InitBoundaryVarFromASTDecl(MapleAllocator &allocator, ASTDecl *
   stmts.emplace_back(upperStmt);
 }
 
+void ENCChecker::InitBoundaryVar(MIRFunction &curFunction, const ASTDecl &ptrDecl,
+                                 UniqueFEIRExpr lenExpr, std::list<UniqueFEIRStmt> &stmts) {
+  std::string ptrName = ptrDecl.GenerateUniqueVarName();
+  MIRType *ptrType = ptrDecl.GetTypeDesc().front();
+  UniqueFEIRExpr ptrExpr = FEIRBuilder::CreateExprDRead(FEIRBuilder::CreateVarNameForC(ptrName, *ptrType));
+  // insert lower boundary stmt
+  std::string lowerVarName = "_boundary." + ptrName + ".lower";
+  UniqueFEIRVar lowerVar = FEIRBuilder::CreateVarNameForC(lowerVarName, *ptrType);
+  UniqueFEIRStmt lowerStmt = FEIRBuilder::CreateStmtDAssign(std::move(lowerVar), ptrExpr->Clone());
+  // insert upper boundary stmt
+  UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(OP_add, ptrExpr->Clone(), std::move(lenExpr));
+  std::string upperVarName = "_boundary." + ptrName + ".upper";
+  UniqueFEIRVar upperVar = FEIRBuilder::CreateVarNameForC(upperVarName, *ptrType);
+  UniqueFEIRStmt upperStmt = FEIRBuilder::CreateStmtDAssign(std::move(upperVar), std::move(binExpr));
+  if (ptrDecl.GetSrcFileLineNum() != 0) {
+    lowerStmt->SetSrcFileInfo(ptrDecl.GetSrcFileIdx(), ptrDecl.GetSrcFileLineNum());
+    upperStmt->SetSrcFileInfo(ptrDecl.GetSrcFileIdx(), ptrDecl.GetSrcFileLineNum());
+  }
+  stmts.emplace_back(std::move(lowerStmt));
+  stmts.emplace_back(std::move(upperStmt));
+  // update BoundaryMap
+  MIRSymbol *lowerSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(lowerVarName, *ptrType, curFunction);
+  MIRSymbol *upperSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(upperVarName, *ptrType, curFunction);
+  curFunction.SetBoundaryMap(ptrExpr->Hash(), std::make_pair(lowerSym->GetStIdx(), upperSym->GetStIdx()));
+}
+
 void ENCChecker::InitBoundaryVar(MIRFunction &curFunction, const std::string &ptrName, MIRType &ptrType,
                                  UniqueFEIRExpr lenExpr, std::list<UniqueFEIRStmt> &stmts) {
   UniqueFEIRExpr ptrExpr = FEIRBuilder::CreateExprDRead(FEIRBuilder::CreateVarNameForC(ptrName, ptrType));
@@ -279,6 +558,86 @@ void ENCChecker::InitBoundaryVar(MIRFunction &curFunction, const std::string &pt
   MIRSymbol *lowerSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(lowerVarName, ptrType, curFunction);
   MIRSymbol *upperSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(upperVarName, ptrType, curFunction);
   curFunction.SetBoundaryMap(ptrExpr->Hash(), std::make_pair(lowerSym->GetStIdx(), upperSym->GetStIdx()));
+}
+
+void ENCChecker::InitBoundaryVar(MIRFunction &curFunction, const UniqueFEIRExpr &ptrExpr,
+                                 UniqueFEIRExpr lenExpr, std::list<UniqueFEIRStmt> &stmts) {
+  std::string ptrName = GetBoundaryName(ptrExpr);
+  if (ptrName.empty()) {
+    return;
+  }
+  MIRType *ptrType = ptrExpr->GetType()->GenerateMIRTypeAuto();
+  // insert lower boundary stmt
+  std::string lowerVarName = ptrName + ".lower";
+  UniqueFEIRVar lowerVar = FEIRBuilder::CreateVarNameForC(lowerVarName, *ptrType);
+  UniqueFEIRStmt lowerStmt = FEIRBuilder::CreateStmtDAssign(std::move(lowerVar), ptrExpr->Clone());
+  stmts.emplace_back(std::move(lowerStmt));
+  // insert upper boundary stmt
+  UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(OP_add, ptrExpr->Clone(), std::move(lenExpr));
+  std::string upperVarName = ptrName + ".upper";
+  UniqueFEIRVar upperVar = FEIRBuilder::CreateVarNameForC(upperVarName, *ptrType);
+  UniqueFEIRStmt upperStmt = FEIRBuilder::CreateStmtDAssign(std::move(upperVar), std::move(binExpr));
+  stmts.emplace_back(std::move(upperStmt));
+  // update BoundaryMap
+  MIRSymbol *lowerSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(lowerVarName, *ptrType, curFunction);
+  MIRSymbol *upperSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(upperVarName, *ptrType, curFunction);
+  curFunction.SetBoundaryMap(ptrExpr->Hash(), std::make_pair(lowerSym->GetStIdx(), upperSym->GetStIdx()));
+}
+
+void ENCChecker::InitBoundaryGlobalOrFieldVar(MIRBuilder &mirBuilder, UniqueFEIRExpr expr) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
+  if (curFunction->GetBoundaryMap().find(expr->Hash()) != curFunction->GetBoundaryMap().end()) {
+    return;  // Skip if the boundary exists
+  }
+  UniqueFEIRExpr lenExpr = nullptr;
+  if (expr->GetKind() == kExprDRead && expr->GetFieldID() == 0) {
+    FEIRVar *var = expr->GetVarUses().front();
+    MIRSymbol *symbol = var->GenerateMIRSymbol(mirBuilder);
+    if (!symbol->IsGlobal()) {
+      return;
+    }
+    // Get the boundary attr(i.e. boundary length expr cache)
+    lenExpr = GetBoundaryLenExprCache(*curFunction->GetFuncSymbol(), *symbol);
+  } else if ((expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) && expr->GetFieldID() != 0) {
+    MIRStructType *structType = nullptr;
+    if (expr->GetKind() == kExprDRead) {
+      structType = static_cast<MIRStructType*>(expr->GetVarUses().front()->GetType()->GenerateMIRTypeAuto());
+    } else {
+      FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(expr.get());
+      MIRType *baseType = static_cast<MIRPtrType*>(iread->GetClonedPtrType()->GenerateMIRTypeAuto())->GetPointedType();
+      structType = static_cast<MIRStructType*>(baseType);
+    }
+    FieldID tmpID = expr->GetFieldID();
+    MIRStructType *lastestStruct = nullptr;
+    FieldPair fieldPair = FEUtils::GetLastestStructTypeAndField(*structType, lastestStruct, tmpID);
+    // Get the boundary attr(i.e. boundary length expr cache) of field
+    lenExpr = GetBoundaryLenExprCache(*lastestStruct, fieldPair);
+    if (lenExpr == nullptr) {
+      return;
+    }
+    UniqueFEIRExpr realExpr = ENCChecker::GetRealBoundaryLenExprInField(
+        lenExpr->Clone(), *structType, expr);  // lenExpr needs to be cloned
+    if (realExpr != nullptr) {
+      lenExpr = std::move(realExpr);
+    }
+  } else {
+    CHECK_FATAL(false, "invalid op");
+  }
+  if (lenExpr == nullptr) {
+    return;
+  }
+  std::list<UniqueFEIRStmt> stmts;
+  InitBoundaryVar(*curFunction, expr, std::move(lenExpr), stmts);
+  for (const auto &stmt : stmts) {
+    std::list<StmtNode*> stmtNodes = stmt->GenMIRStmts(mirBuilder);
+    for (auto stmtNode : stmtNodes) {
+      MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
+      curFunction->GetBody()->InsertFirst(stmtNode);
+    }
+  }
 }
 
 bool ENCChecker::IsConstantIndex(const UniqueFEIRExpr &expr) {
@@ -317,20 +676,20 @@ void ENCChecker::PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, co
   }
 }
 
-UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExpr(const UniqueFEIRExpr &lenExpr, const ASTFunc &astFunc,
-                                                  const ASTCallExpr &astCallExpr) {
+UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFunc(const UniqueFEIRExpr &lenExpr, const ASTFunc &astFunc,
+                                                        const ASTCallExpr &astCallExpr) {
   if (lenExpr == nullptr) {
     return nullptr;
   }
   if (lenExpr->GetKind() == kExprBinary) {
     FEIRExprBinary *mulExpr = static_cast<FEIRExprBinary*>(lenExpr.get());
-    UniqueFEIRExpr leftExpr = GetRealBoundaryLenExpr(mulExpr->GetOpnd0(), astFunc, astCallExpr);
+    UniqueFEIRExpr leftExpr = GetRealBoundaryLenExprInFunc(mulExpr->GetOpnd0(), astFunc, astCallExpr);
     if (leftExpr != nullptr) {
       mulExpr->SetOpnd0(std::move(leftExpr));
     } else {
       return nullptr;
     }
-    UniqueFEIRExpr rightExpr = GetRealBoundaryLenExpr(mulExpr->GetOpnd1(), astFunc, astCallExpr);
+    UniqueFEIRExpr rightExpr = GetRealBoundaryLenExprInFunc(mulExpr->GetOpnd1(), astFunc, astCallExpr);
     if (rightExpr != nullptr) {
       mulExpr->SetOpnd1(std::move(rightExpr));
     } else {
@@ -339,7 +698,7 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExpr(const UniqueFEIRExpr &lenExpr,
   }
   if (lenExpr->GetKind() == kExprUnary) {
     FEIRExprUnary *cvtExpr = static_cast<FEIRExprUnary*>(lenExpr.get());
-    UniqueFEIRExpr subExpr = GetRealBoundaryLenExpr(cvtExpr->GetOpnd(), astFunc, astCallExpr);
+    UniqueFEIRExpr subExpr = GetRealBoundaryLenExprInFunc(cvtExpr->GetOpnd(), astFunc, astCallExpr);
     if (subExpr != nullptr) {
       cvtExpr->SetOpnd(std::move(subExpr));
     } else {
@@ -362,9 +721,62 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExpr(const UniqueFEIRExpr &lenExpr,
   return lenExpr->Clone();
 }
 
-/*
- * process boundary in ast func
- */
+UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInField(const UniqueFEIRExpr &lenExpr, MIRStructType &baseType,
+                                                         const UniqueFEIRExpr &dstExpr) {
+  if (lenExpr == nullptr) {
+    return nullptr;
+  }
+  if (lenExpr->GetKind() == kExprBinary) {
+    FEIRExprBinary *mulExpr = static_cast<FEIRExprBinary*>(lenExpr.get());
+    UniqueFEIRExpr leftExpr = GetRealBoundaryLenExprInField(mulExpr->GetOpnd0(), baseType, dstExpr);
+    if (leftExpr != nullptr) {
+      mulExpr->SetOpnd0(std::move(leftExpr));
+    } else {
+      return nullptr;
+    }
+    UniqueFEIRExpr rightExpr = GetRealBoundaryLenExprInField(mulExpr->GetOpnd1(), baseType, dstExpr);
+    if (rightExpr != nullptr) {
+      mulExpr->SetOpnd1(std::move(rightExpr));
+    } else {
+      return nullptr;
+    }
+  }
+  if (lenExpr->GetKind() == kExprUnary) {
+    FEIRExprUnary *cvtExpr = static_cast<FEIRExprUnary*>(lenExpr.get());
+    UniqueFEIRExpr subExpr = GetRealBoundaryLenExprInField(cvtExpr->GetOpnd(), baseType, dstExpr);
+    if (subExpr != nullptr) {
+      cvtExpr->SetOpnd(std::move(subExpr));
+    } else {
+      return nullptr;
+    }
+  }
+  // boundary length expr -> actual dread/iread length field expr
+  if (lenExpr->GetKind() == kExprDRead) {
+    std::string lenName = lenExpr->GetVarUses().front()->GetNameRaw();
+    uint32 fieldID = 0;
+    bool flag = FEManager::GetMIRBuilder().TraverseToNamedField(
+        baseType, GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(lenName), fieldID);
+    if (!flag) {
+      return nullptr;
+    }
+    MIRType *reType = FEUtils::GetStructFieldType(&baseType, fieldID);
+    UniqueFEIRType reFEType = FEIRTypeHelper::CreateTypeNative(*reType);
+    if (dstExpr->GetKind() == kExprDRead) {
+      return FEIRBuilder::CreateExprDReadAggField(dstExpr->GetVarUses().front()->Clone(), fieldID, std::move(reFEType));
+    } else if (dstExpr->GetKind() == kExprIRead) {
+      FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(dstExpr.get());
+      return FEIRBuilder::CreateExprIRead(
+          std::move(reFEType), iread->GetClonedPtrType(), iread->GetClonedOpnd(), fieldID);
+    } else {
+      return nullptr;
+    }
+  }
+  return lenExpr->Clone();
+}
+
+// ---------------------------
+// process boundary var and checking for ast func arg and return
+// ---------------------------
 std::list<UniqueFEIRStmt> ASTFunc::InitArgsBoundaryVar(MIRFunction &mirFunc) const {
   std::list<UniqueFEIRStmt> stmts;
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || compound == nullptr) {
@@ -376,8 +788,7 @@ std::list<UniqueFEIRStmt> ASTFunc::InitArgsBoundaryVar(MIRFunction &mirFunc) con
       continue;
     }
     UniqueFEIRExpr lenFEExpr = lenExpr->Emit2FEExpr(stmts);
-    ENCChecker::InitBoundaryVar(
-        mirFunc, paramDecl->GetName(), *paramDecl->GetTypeDesc().front(), std::move(lenFEExpr), stmts);
+    ENCChecker::InitBoundaryVar(mirFunc, *paramDecl, std::move(lenFEExpr), stmts);
   }
   return stmts;
 }
@@ -396,7 +807,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   }
   std::list<UniqueFEIRExpr> exprs;
   UniqueFEIRExpr lenExpr = boundaryLenExpr->Emit2FEExpr(nullStmts);
-  lenExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(retExpr), std::move(lenExpr));
+  lenExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), std::move(lenExpr));
   exprs.emplace_back(std::move(lenExpr));
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtNary>(OP_returnassertle, std::move(exprs));
@@ -404,38 +815,169 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   stmts.insert(--stmts.end(), std::move(stmt));
 }
 
-/*
- * process boundary in stmt of ast func
- */
-void FEIRStmtDAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
+                                              const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || srcExpr->GetPrimType() != PTY_ptr ||
+      srcExpr->GetKind() != kExprBinary) {  // pointer computed assignment
     return;
   }
-  UniqueFEIRExpr dstExpr;
+  UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(srcExpr);
+  if (baseExpr == nullptr) {
+    return;
+  }
+  // insert l-value lower boundary chencking
+  std::list<UniqueFEIRExpr> lowerExprs;
+  lowerExprs.emplace_back(srcExpr->Clone());
+  lowerExprs.emplace_back(baseExpr->Clone());
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assertge, std::move(lowerExprs));
+  lowerStmt->SetSrcFileInfo(fileIdx, fileLine);
+  std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
+  ans.splice(ans.end(), lowerStmts);
+  // insert l-value upper boundary chencking
+  std::list<UniqueFEIRExpr> upperExprs;
+  upperExprs.emplace_back(srcExpr->Clone());
+  upperExprs.emplace_back(baseExpr->Clone());
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assertlt, std::move(upperExprs));
+  upperStmt->SetSrcFileInfo(fileIdx, fileLine);
+  std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
+  ans.splice(ans.end(), upperStmts);
+}
+
+UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, UniqueFEIRExpr dstExpr,
+                                                    const UniqueFEIRExpr &srcExpr) {
+  UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(srcExpr);
+  if (baseExpr == nullptr) {
+    return nullptr;
+  }
+  UniqueFEIRExpr boundaryExpr = FEIRBuilder::CreateExprBinary(  // use r-value base
+      OP_add, baseExpr->Clone(), std::move(lenExpr));
+  std::list<UniqueFEIRExpr> exprs;
+  exprs.emplace_back(std::move(boundaryExpr));
+  exprs.emplace_back(std::move(baseExpr));
+  return std::make_unique<FEIRStmtNary>(OP_assignassertle, std::move(exprs));
+}
+
+void ENCChecker::SaveBoundaryLenExprCache(const std::pair<StIdx, StIdx> &key, ASTExpr *astLenExpr) {
+  if (astLenExpr == nullptr) {
+    return;
+  }
+  std::list<UniqueFEIRStmt> nullStmts;
+  UniqueFEIRExpr lenExpr = astLenExpr->Emit2FEExpr(nullStmts);
+  FEManager::GetTypeManager().InsertVarBoundaryLenExprMap(key, std::move(lenExpr));  // save var lenExpr cache
+}
+
+void ENCChecker::SaveBoundaryLenExprCache(const std::pair<TyIdx, FieldPair> &key, ASTExpr *astLenExpr) {
+  if (astLenExpr == nullptr) {
+    return;
+  }
+  std::list<UniqueFEIRStmt> nullStmts;
+  UniqueFEIRExpr lenExpr = astLenExpr->Emit2FEExpr(nullStmts);
+  FEManager::GetTypeManager().InsertFieldBoundaryLenExprMap(key, std::move(lenExpr));  // save field lenExpr cache
+}
+
+void ENCChecker::SaveBoundaryLenExprCache(const std::pair<StIdx, StIdx> &key, const UniqueFEIRExpr &expr) {
+  if (expr == nullptr) {
+    return;
+  }
+  FEManager::GetTypeManager().InsertVarBoundaryLenExprMap(key, expr->Clone());
+}
+
+
+UniqueFEIRExpr ENCChecker::GetBoundaryLenExprCache(const MIRSymbol &funcSym, const MIRSymbol &varSym) {
+  if (varSym.IsGlobal()) {
+    return FEManager::GetTypeManager().GetVarBoundaryLenExprFromMap(std::make_pair(StIdx(0), varSym.GetStIdx()));
+  } else {
+    return FEManager::GetTypeManager().GetVarBoundaryLenExprFromMap(
+        std::make_pair(funcSym.GetStIdx(), varSym.GetStIdx()));
+  }
+}
+
+UniqueFEIRExpr ENCChecker::GetBoundaryLenExprCache(const MIRStructType &type, const FieldPair &fieldPair) {
+  return FEManager::GetTypeManager().GetFieldBoundaryLenExprFromMap(std::make_pair(type.GetTypeIndex(), fieldPair));
+}
+
+// ---------------------------
+// process boundary var and checking in stmt of ast func
+// ---------------------------
+void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || expr->GetPrimType() != PTY_ptr) {
+    return;
+  }
+  const std::string prefix = "_boundary.";
+  if (var->GetNameRaw().compare(0, prefix.size(), prefix) == 0) {
+    return;
+  }
+  // insert assign boundary checking for computed r-value
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
+
+  UniqueFEIRExpr dstExpr = nullptr;
+  UniqueFEIRExpr lenExpr = nullptr;
   if (fieldID == 0) {
     dstExpr = FEIRBuilder::CreateExprDRead(var->Clone());
+    MIRSymbol *dstSym = var->GenerateMIRSymbol(mirBuilder);
+    MIRSymbol *funcSym = mirBuilder.GetCurrentFunctionNotNull()->GetFuncSymbol();
+    // Get the boundary attr(i.e. boundary length expr cache) of var
+    lenExpr = ENCChecker::GetBoundaryLenExprCache(*funcSym, *dstSym);
   } else {
     FieldID tmpID = fieldID;
-    FieldPair fieldPair = static_cast<MIRStructType*>(var->GetType()->GenerateMIRTypeAuto())->TraverseToFieldRef(tmpID);
+    MIRStructType *structType = static_cast<MIRStructType*>(var->GetType()->GenerateMIRTypeAuto());
+    MIRStructType *lastestStruct = nullptr;
+    FieldPair fieldPair = FEUtils::GetLastestStructTypeAndField(*structType, lastestStruct, tmpID);
     UniqueFEIRType fieldType = FEIRTypeHelper::CreateTypeNative(
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first));
     dstExpr = FEIRBuilder::CreateExprDReadAggField(var->Clone(), fieldID, std::move(fieldType));
+    // Get the boundary attr(i.e. boundary length expr cache) of field
+    lenExpr = ENCChecker::GetBoundaryLenExprCache(*lastestStruct, fieldPair);
+    if (lenExpr != nullptr) {
+      UniqueFEIRExpr realLenExpr = ENCChecker::GetRealBoundaryLenExprInField(
+          lenExpr->Clone(), *structType, dstExpr); // lenExpr needs to be cloned
+      if (realLenExpr != nullptr) {
+        lenExpr = std::move(realLenExpr);
+      }
+    }
   }
-  ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, ans);
+  if (lenExpr != nullptr) {
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), dstExpr->Clone(), expr);
+    if (stmt != nullptr) {
+      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+      std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
+      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+    }
+  }
+  ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, lenExpr, ans);
 }
 
 void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || fieldID == 0) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || fieldID == 0 || baseExpr->GetPrimType() != PTY_ptr) {
     return;
   }
+  // insert assign boundary checking for computed r-value
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, baseExpr, srcFileIndex, srcFileLineNum);
+
   MIRType *baseType = static_cast<MIRPtrType*>(addrType->GenerateMIRTypeAuto())->GetPointedType();
   FieldID tmpID = fieldID;
-  FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
+  MIRStructType *lastestStruct = nullptr;
+  FieldPair fieldPair = FEUtils::GetLastestStructTypeAndField(
+      *static_cast<MIRStructType*>(baseType), lastestStruct, tmpID);
   MIRType *dstType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
   UniqueFEIRExpr dstExpr = FEIRBuilder::CreateExprIRead(
       FEIRTypeHelper::CreateTypeNative(*dstType), addrType->Clone(), addrExpr->Clone(), fieldID);
-  ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, ans);
-  InsertBoundaryChecking(mirBuilder, ans, dstType);
+  // Get the boundary attr (i.e. boundary length expr cache) of field
+  UniqueFEIRExpr lenExpr = ENCChecker::GetBoundaryLenExprCache(*lastestStruct, fieldPair);
+  if (lenExpr != nullptr) {
+    UniqueFEIRExpr realLenExpr = ENCChecker::GetRealBoundaryLenExprInField(
+        lenExpr->Clone(), *static_cast<MIRStructType*>(baseType), dstExpr);  // lenExpr needs to be cloned
+    if (realLenExpr != nullptr) {
+      lenExpr = std::move(realLenExpr);
+    }
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), dstExpr->Clone(), baseExpr);
+    if (stmt != nullptr) {
+      stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
+      std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
+      ans.insert(ans.end(), stmtnodes.begin(), stmtnodes.end());
+    }
+  }
+  ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);
 }
 
 MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuilder) const {
@@ -447,8 +989,11 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
   MIRType *arrType = ENCChecker::GetArrayTypeFromExpr(argExprs.back());
   MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
   if (arrType != nullptr) {  // var must be array type by the previous checking
+    if (arrType->GetSize() == 0) {  // unsized array
+      return args;
+    }
     // Convert to the following node for array:
-    // assertge/assertlt lnode: index; assertle lnode: (attributed upper boundary) index + len expr
+    // assertge/assertlt lnode: addrofarray + index; assertle lnode: (attributed upper boundary) addrofarray + len expr
     // assertge rnode: addrof array; assertlt/assertle rnode: addrof array + sizeof expr
     if (kOpcodeInfo.IsAssertUpperBoundary(op)) {
       rightExpr = FEIRBuilder::CreateExprBinary(
@@ -458,13 +1003,22 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
     rightNode = rightExpr->GenMIRNode(mirBuilder);
   } else {
     // Convert to the following node for expr with boundary var:
-    // assertge/assertlt lnode: index; assertle lnode: (attributed upper boundary) index + len expr
+    // assertge/assertlt lnode: addrof base + index; assertle lnode: (attributed upper boundary) addrof base + len expr
     // assertge rnode: lower boundary; assertlt/assertle rnode: upper boundary
-    auto it = curFunction->GetBoundaryMap().find(argExprs.back()->Hash());
+    ENCChecker::InitBoundaryGlobalOrFieldVar(mirBuilder, rightExpr->Clone());
+    auto it = curFunction->GetBoundaryMap().find(rightExpr->Hash());
     if (it == curFunction->GetBoundaryMap().end()) {
-      if (op == OP_returnassertle || op == OP_callassertle) {
-        WARN(kLncWarn, "%s:%d EnhanceC waring: boundaryless pointer passed to callee that requires a boundary pointer"
+      if (op == OP_callassertle) {
+        WARN(kLncWarn, "%s:%d EnhanceC waring: boundaryless pointer passed to callee that requires a boundary pointer "
              "argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+      }
+      if (op == OP_returnassertle) {
+        WARN(kLncWarn, "%s:%d EnhanceC waring: returned pointer's boundary and the functions requirement are "
+             "mismatched", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+      }
+      if (op == OP_assignassertle) {
+        WARN(kLncWarn, "%s:%d EnhanceC waring: l-value requires a boundary pointer",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
       }
       return args;
     }
@@ -490,6 +1044,11 @@ void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
     }
     while (baseAddrFEExpr != nullptr && baseAddrFEExpr->GetKind() == kExprAddrofArray) {
       baseAddrFEExpr = static_cast<FEIRExprAddrofArray*>(baseAddrFEExpr.get())->GetExprArray()->Clone();
+    }
+  } else {
+    baseAddrFEExpr = ENCChecker::FindBaseExprInPointerOperation(baseAddrFEExpr);
+    if (baseAddrFEExpr == nullptr) {
+      return;
     }
   }
   // peel nested boundary checking in a multi-dimensional array
@@ -537,61 +1096,9 @@ void ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, Un
   stmts.emplace_back(std::move(upperStmt));
 }
 
-void FEIRStmtDAssign::InsertBoundaryChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
-      var->GetType()->GetPrimType() != PTY_ptr || expr->GetPrimType() != PTY_ptr ||
-      expr->GetKind() != kExprBinary) {  // pointer computed assignment
-    return;
-  }
-  UniqueFEIRExpr idxExpr = FEIRBuilder::CreateExprDRead(var->Clone());
-  // insert l-value lower boundary chencking
-  std::list<UniqueFEIRExpr> lowerExprs;
-  lowerExprs.emplace_back(idxExpr->Clone());
-  lowerExprs.emplace_back(idxExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assignassertge, std::move(lowerExprs));
-  lowerStmt->SetSrcFileInfo(srcFileIndex, srcFileLineNum);
-  std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
-  ans.splice(ans.end(), lowerStmts);
-  // insert l-value upper boundary chencking
-  std::list<UniqueFEIRExpr> upperExprs;
-  upperExprs.emplace_back(idxExpr->Clone());
-  upperExprs.emplace_back(idxExpr->Clone());
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assignassertlt, std::move(upperExprs));
-  upperStmt->SetSrcFileInfo(srcFileIndex, srcFileLineNum);
-  std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
-  ans.splice(ans.end(), upperStmts);
-}
-
-void FEIRStmtIAssign::InsertBoundaryChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                             MIRType *dstType) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
-      !dstType->IsMIRPtrType() || baseExpr->GetPrimType() != PTY_ptr ||
-      baseExpr->GetKind() != kExprBinary) {  // pointer computed assignment
-    return;
-  }
-  UniqueFEIRExpr idxExpr = FEIRBuilder::CreateExprIRead(
-      FEIRTypeHelper::CreateTypeNative(*dstType), addrType->Clone(), addrExpr->Clone(), fieldID);
-  // insert l-value lower boundary chencking
-  std::list<UniqueFEIRExpr> lowerExprs;
-  lowerExprs.emplace_back(idxExpr->Clone());
-  lowerExprs.emplace_back(idxExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assignassertge, std::move(lowerExprs));
-  lowerStmt->SetSrcFileInfo(srcFileIndex, srcFileLineNum);
-  std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
-  ans.splice(ans.end(), lowerStmts);
-  // insert l-value upper boundary chencking
-  std::list<UniqueFEIRExpr> upperExprs;
-  upperExprs.emplace_back(idxExpr->Clone());
-  upperExprs.emplace_back(idxExpr->Clone());
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assignassertlt, std::move(upperExprs));
-  upperStmt->SetSrcFileInfo(srcFileIndex, srcFileLineNum);
-  std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
-  ans.splice(ans.end(), upperStmts);
-}
-
-/*
- * caller boundary inserting and checking
- */
+// ---------------------------
+// caller boundary inserting and checking
+// ---------------------------
 void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || funcDecl == nullptr) {
     return;
@@ -603,7 +1110,7 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
     if (paramDecl->GetBoundaryLenExpr() == nullptr) {
       continue;
     }
-    UniqueFEIRExpr realLenExpr = ENCChecker::GetRealBoundaryLenExpr(
+    UniqueFEIRExpr realLenExpr = ENCChecker::GetRealBoundaryLenExprInFunc(
         paramDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);
     if (realLenExpr == nullptr) {
       continue;
@@ -614,7 +1121,7 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
       continue;
     }
     std::list<UniqueFEIRExpr> exprs;
-    realLenExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(argExpr), std::move(realLenExpr));
+    realLenExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), std::move(realLenExpr));
     exprs.emplace_back(std::move(realLenExpr));
     exprs.emplace_back(std::move(baseExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertBoundary>(OP_callassertle, std::move(exprs),
@@ -625,12 +1132,18 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
 }
 
 void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !IsNeedRetExpr() ||
-      funcDecl == nullptr || funcDecl->GetBoundaryLenExpr() == nullptr) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !IsNeedRetExpr()) {
     return;
   }
-  UniqueFEIRExpr realLenExpr = ENCChecker::GetRealBoundaryLenExpr(
-      funcDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);
+  std::list<UniqueFEIRStmt> nullStmts;
+  UniqueFEIRExpr realLenExpr = nullptr;
+  if (funcName == "malloc" && args.size() == 1) {
+    realLenExpr = args[0]->Emit2FEExpr(nullStmts);
+  }
+  if (funcDecl != nullptr && funcDecl->GetBoundaryLenExpr() != nullptr) {
+    realLenExpr = ENCChecker::GetRealBoundaryLenExprInFunc(
+        funcDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);
+  }
   if (realLenExpr == nullptr) {
     return;
   }
