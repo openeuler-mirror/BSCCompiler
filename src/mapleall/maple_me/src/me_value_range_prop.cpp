@@ -25,6 +25,7 @@ constexpr size_t kFourByte = 4;
 constexpr size_t kEightByte = 8;
 constexpr size_t kCodeSizeLimit = 2000;
 constexpr std::uint64_t kInvaliedBound = 0xdeadbeef;
+
 void ValueRangePropagation::Execute() {
   // In reverse post order traversal, a bb is accessed before any of its successor bbs. So the range of def points would
   // be calculated before and need not calculate the range of use points repeatedly.
@@ -37,6 +38,7 @@ void ValueRangePropagation::Execute() {
     }
     for (auto it = bb->GetMeStmts().begin(); it != bb->GetMeStmts().end();) {
       bool deleteStmt = false;
+      ReplaceOpndWithConstMeExpr(*bb, *it);
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
       }
@@ -45,8 +47,7 @@ void ValueRangePropagation::Execute() {
         case OP_maydassign:
         case OP_regassign: {
           if (it->GetLHS() != nullptr && it->GetLHS()->IsVolatile()) {
-            ++it;
-            continue;
+            break;
           }
           DealWithAssign(*bb, *it);
           break;
@@ -365,7 +366,7 @@ bool ValueRangePropagation::GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt
   return true;
 }
 
-bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+bool ValueRangePropagation::CompareIndexWithUpper(MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
     int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op) {
   // Opt array boundary check when the array length is a constant.
   if (valueRangeOfLengthPtr.IsConstant()) {
@@ -399,14 +400,7 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
       if (crNode == nullptr) {
         return false;
       }
-      MeExpr *addrExpr = nullptr;
-      if (meStmt.GetOpnd(1)->GetOpnd(0)->GetNumOpnds() == 0) {
-        addrExpr = meStmt.GetOpnd(1)->GetOpnd(0);
-      } else {
-        CHECK_FATAL(meStmt.GetOpnd(1)->GetOpnd(0)->GetNumOpnds() >= 1, "must have one operand at least");
-        addrExpr = meStmt.GetOpnd(1)->GetOpnd(0)->GetOpnd(0);
-      }
-      sa.SortCROperand(*crNode, *addrExpr);
+      sa.SortCROperand(*crNode, baseAddress);
       return crNode->GetCRType() == kCRAddNode &&
              static_cast<CRAddNode*>(crNode)->GetOpndsSize() == kNumOperands &&
              static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != nullptr &&
@@ -464,12 +458,13 @@ bool ValueRangePropagation::DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode 
     // If the base address of index and upper bound are not equal, return false.
     return false;
   }
+  auto *baseAddress = crADDNodeOfBound->GetOpnd(0)->GetExpr();
   std::unique_ptr<ValueRange> valueRangeOfIndex = GetTheValueRangeOfIndex(
       bb, meStmt, *crAddNodeOfIndex, byteSize, lengthExpr, valueRangeOfLengthPtr);
   if (valueRangeOfIndex == nullptr) {
     return false;
   }
-  return CompareIndexWithUpper(meStmt, *valueRangeOfIndex, lengthValue, *valueRangeOfLengthPtr,
+  return CompareIndexWithUpper(*baseAddress, *valueRangeOfIndex, lengthValue, *valueRangeOfLengthPtr,
                                byteSize, op);
 }
 
@@ -566,6 +561,21 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {
   auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), opnd->GetExprID());
 
   if (valueRange == nullptr) {
+    // If the cfg is changed and dom is not update, need find the valuerange in pred bbs
+    // when pred bbs are goto or fallthru. The cfg changed like this :
+    // pred0   pred1             pred0  pred1
+    //     \   /                   |      |
+    //     condgoto     ---->      |      |
+    //     /  \                    |      |
+    //    bb   succ                bb     succ
+    if (bb.GetPred().size() == 1) {
+      auto *pred = bb.GetPred(0);
+      while (IsGotoOrFallthruBB(*pred) && pred->GetPred().size() == 1 && IsGotoOrFallthruBB(*pred->GetPred(0))) {
+        pred = pred->GetPred(0);
+      }
+      auto *valueRange = FindValueRangeInCaches(pred->GetBBId(), opnd->GetExprID());
+      return (valueRange != nullptr && valueRange->IsNotEqualZero()) ? true : false;
+    }
     Insert2Caches(bb.GetBBId(), opnd->GetExprID(),
                   std::make_unique<ValueRange>(Bound(nullptr, 0, opnd->GetPrimType()), kNotEqual));
     return false;
@@ -575,6 +585,44 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {
     Insert2Caches(bb.GetBBId(), opnd->GetExprID(), std::move(newValueRange));
   }
   return valueRange->IsNotEqualZero() ? true : false;
+}
+
+// When the valuerange of expr is constant, replace it with constMeExpr.
+void ValueRangePropagation::ReplaceOpndWithConstMeExpr(BB &bb, MeStmt &stmt) {
+  std::map<MeExpr*, std::pair<int64, PrimType>> expr2ConstantValue;
+  for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
+    CollectMeExpr(bb, stmt, *stmt.GetOpnd(i), expr2ConstantValue);
+  }
+  if (expr2ConstantValue.empty()) {
+    return;
+  }
+  for (auto it = expr2ConstantValue.begin(); it != expr2ConstantValue.end(); ++it) {
+    auto *newConstExpr = irMap.CreateIntConstMeExpr(it->second.first, it->second.second);
+    (void)irMap.ReplaceMeExprStmt(stmt, *it->first, *newConstExpr);
+  }
+  irMap.UpdateIncDecAttr(stmt);
+}
+
+// When the valuerange of expr is constant, collect it and do replace later.
+void ValueRangePropagation::CollectMeExpr(
+    const BB &bb, MeStmt &stmt, MeExpr &meExpr, std::map<MeExpr*, std::pair<int64, PrimType>> &expr2ConstantValue) {
+  if (meExpr.GetMeOp() == kMeOpConst) {
+    return;
+  }
+  auto *valueRangeOfOperand = FindValueRangeInCaches(bb.GetBBId(), meExpr.GetExprID());
+  if (valueRangeOfOperand != nullptr && valueRangeOfOperand->IsConstant() &&
+      valueRangeOfOperand->GetRangeType() != kNotEqual && stmt.GetOp() != OP_asm) {
+    auto rangeType = valueRangeOfOperand->GetRangeType();
+    int64 value = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetConstant() :
+         valueRangeOfOperand->GetLower().GetConstant();
+    PrimType pType = (rangeType == kEqual) ? valueRangeOfOperand->GetBound().GetPrimType() :
+        valueRangeOfOperand->GetLower().GetPrimType();
+    expr2ConstantValue[&meExpr] = std::make_pair(value, pType);
+    return;
+  }
+  for (int32 i = 0; i < meExpr.GetNumOpnds(); ++i) {
+    CollectMeExpr(bb, stmt, *(meExpr.GetOpnd(i)), expr2ConstantValue);
+  }
 }
 
 void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr) {
@@ -756,8 +804,8 @@ void ValueRangePropagation::UpdateTryAttribute(BB &bb) {
 }
 
 void ValueRangePropagation::InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb) {
-  if (meStmt.GetVarLHS() != nullptr) {
-    InsertCandsForSSAUpdate(meStmt.GetVarLHS()->GetOstIdx(), bb);
+  if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
+    InsertCandsForSSAUpdate(meStmt.GetLHS()->GetOstIdx(), bb);
   }
   if (meStmt.GetChiList() != nullptr) {
     for (auto &chi : *meStmt.GetChiList()) {
@@ -2176,6 +2224,7 @@ bool ValueRangePropagation::CopyFallthruBBAndRemoveUnreachableEdgeWhenDealWithSh
   if (exitCopyFallthru != nullptr) {
     size_t index = FindBBInSuccs(pred, bb);
     pred.RemoveSucc(bb);
+    InsertCandsForSSAUpdate(pred);
     InsertOstOfPhi2CandsForSSAUpdate(bb, *exitCopyFallthru);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
     pred.AddSucc(*exitCopyFallthru, index);
@@ -2209,6 +2258,7 @@ bool ValueRangePropagation::CopyFallthruBBAndRemoveUnreachableEdgeWhenDealWithSh
       CopyMeStmts(*currBB, *mergeAllFallthruBBs);
       CHECK_NULL_FATAL(currPred);
       currPred->RemoveSucc(*currBB);
+      InsertCandsForSSAUpdate(*currPred);
       InsertOstOfPhi2CandsForSSAUpdate(*currBB, *mergeAllFallthruBBs);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(*currBB);
       currPred->AddSucc(*mergeAllFallthruBBs);
@@ -2301,6 +2351,7 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB 
   if (exitCopyFallthru != nullptr) {
     size_t index = FindBBInSuccs(pred, bb);
     pred.RemoveSucc(bb);
+    InsertCandsForSSAUpdate(pred);
     InsertOstOfPhi2CandsForSSAUpdate(bb, *exitCopyFallthru);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
     pred.AddSucc(*exitCopyFallthru, index);
@@ -2329,6 +2380,7 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB 
   CopyMeStmts(*currBB, *mergeAllFallthruBBs);
   size_t index = FindBBInSuccs(pred, bb);
   pred.RemoveSucc(bb);
+  InsertCandsForSSAUpdate(pred);
   // When the currBB is not equal to bb, the cfg changed like case 2 in func InsertOstOfPhi2CandsForSSAUpdate.
   if (currBB != &bb) {
     InsertOstOfPhi2CandsForSSAUpdate(*currBB, trueBranch);
@@ -2398,6 +2450,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
     if (OnlyHaveCondGotoStmt(bb)) {
       size_t index = FindBBInSuccs(pred, bb);
       pred.RemoveSucc(bb);
+      InsertCandsForSSAUpdate(pred);
       InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
       pred.AddSucc(trueBranch, index);
@@ -2407,6 +2460,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
       if (exitCopyFallthru != nullptr) {
         size_t index = FindBBInSuccs(pred, bb);
         pred.RemoveSucc(bb);
+        InsertCandsForSSAUpdate(pred);
         InsertOstOfPhi2CandsForSSAUpdate(bb, *exitCopyFallthru);
         DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
         pred.AddSucc(*exitCopyFallthru, index);
@@ -2422,6 +2476,7 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
       }
       size_t index = FindBBInSuccs(pred, bb);
       pred.RemoveSucc(bb);
+      InsertCandsForSSAUpdate(pred);
       InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
       InsertOstOfPhi2CandsForSSAUpdate(bb, *newBB);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
@@ -2450,8 +2505,8 @@ bool ValueRangePropagation::RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb
     }
   }
   if (ValueRangePropagation::isDebug) {
-    LogInfo::MapleLogger() << "=============delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
-        trueBranch.GetBBId() << "=============" << "\n";
+    LogInfo::MapleLogger() << "delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
+        trueBranch.GetBBId() << "\n";
   }
   /* create at least one gotoBB in the new loop to facilitate WontExitAnalysis */
   if (pred.GetBBId() == trueBranch.GetBBId()) {
@@ -2482,8 +2537,8 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeletedAfterOPNeOrEq(MeExpr &opnd,
     return false;
   }
   if (ValueRangePropagation::isDebug) {
-    LogInfo::MapleLogger() << "=============try to delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
-        trueBranch.GetBBId() << "=============" << "\n";
+    LogInfo::MapleLogger() << "try to delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
+        trueBranch.GetBBId() << "\n";
   }
   /* Find the first bb with more than one pred */
   auto *tmpPred = &pred;
@@ -2493,7 +2548,7 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeletedAfterOPNeOrEq(MeExpr &opnd,
     tmpBB = tmpBB->GetSucc(0);
   }
   if (leftRange->GetRangeType() == kLowerAndUpper && leftRange->IsConstantLowerAndUpper() &&
-      rightRange.GetRangeType() == kEqual) {
+      rightRange.GetRangeType() == kEqual && rightRange.IsConstantLowerAndUpper()) {
     if (leftRange->IsConstant()) {
       // If the range of leftOpnd equal to the range of rightOpnd, remove the falseBranch.
       return (leftRange->GetLower().GetConstant() == rightRange.GetBound().GetConstant()) ?
@@ -3042,15 +3097,16 @@ MeExpr *ValueRangePropagation::GetDefOfBase(const IvarMeExpr &ivar) const {
   return var->GetDefStmt()->GetLHS();
 }
 
-void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1, Opcode op) {
+void ValueRangePropagation::DealWithCondGotoWhenRightRangeIsNotExist(
+    BB &bb, MeExpr &opnd0, MeExpr &opnd1, Opcode opOfBrStmt, Opcode conditionalOp) {
   PrimType prim = opnd1.GetPrimType();
   if (!IsNeededPrimType(prim)) {
     return;
   }
   BB *trueBranch = nullptr;
   BB *falseBranch = nullptr;
-  GetTrueAndFalseBranch(op, bb, trueBranch, falseBranch);
-  switch (op) {
+  GetTrueAndFalseBranch(opOfBrStmt, bb, trueBranch, falseBranch);
+  switch (conditionalOp) {
     case OP_ne: {
       Insert2Caches(trueBranch->GetBBId(), opnd0.GetExprID(),
                     std::make_unique<ValueRange>(Bound(&opnd1, prim), kNotEqual));
@@ -3193,7 +3249,7 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
     return;
   }
   if (rightRange == nullptr) {
-    DealWithCondGotoWhenRightRangeIsNotExist(bb, *opnd0, *opnd1, opMeExpr->GetOp());
+    DealWithCondGotoWhenRightRangeIsNotExist(bb, *opnd0, *opnd1, brMeStmt.GetOp(), opMeExpr->GetOp());
     return;
   }
   if (!GetValueRangeOfCondGotoOpnd(bb, *opMeExpr, *opnd0, leftRange, leftRangePtr)) {

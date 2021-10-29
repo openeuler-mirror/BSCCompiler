@@ -127,10 +127,6 @@ class ValueRange {
     range.pair.lower = lower;
   }
 
-  Bound GetLower() const {
-    return range.pair.lower;
-  }
-
   void SetUpper(Upper upper) {
     range.pair.upper = upper;
   }
@@ -388,6 +384,10 @@ class ValueRangePropagation {
     analysisedAssignBoundChecks.resize(analysisedAssignBoundChecks.size() + 1);
   }
 
+  bool IsGotoOrFallthruBB(const BB &bb) const {
+    return bb.GetKind() == kBBGoto || bb.GetKind() == kBBFallthru;
+  }
+
   void DealWithPhi(BB &bb, MePhiNode &mePhiNode);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
@@ -465,7 +465,8 @@ class ValueRangePropagation {
   bool CopyFallthruBBAndRemoveUnreachableEdgeWhenDealWithShortCircuit(BB &pred, BB &bb, BB &trueBranch);
   size_t GetRealPredSize(const BB &bb) const;
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch);
-  void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1, Opcode op);
+  void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1,
+                                                Opcode opOfBrStmt, Opcode conditionalOp);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   void DealWithMeOp(const BB &bb, MeStmt &stmt);
   void ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
@@ -475,6 +476,9 @@ class ValueRangePropagation {
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
   size_t FindBBInSuccs(const BB &bb, const BB &succBB) const;
   void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
+  void CollectMeExpr(const BB &bb, MeStmt &stmt, MeExpr &meExpr,
+                     std::map<MeExpr*, std::pair<int64, PrimType>> &expr2ConstantValue);
+  void ReplaceOpndWithConstMeExpr(BB &bb, MeStmt &stmt);
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
@@ -492,7 +496,7 @@ class ValueRangePropagation {
       BB &bb, MeStmt &meStmt, CRAddNode &crAddNode, uint32 &byteSize, MeExpr *lengthExpr,
       ValueRange *valueRangeOfLengthPtr);
   bool DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
-  bool CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+  bool CompareIndexWithUpper(MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
                              int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op);
   bool GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
                                      MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
