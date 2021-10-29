@@ -24,6 +24,25 @@ namespace {
 static bool debug = false;
 const char *funcName = nullptr;
 
+// return {trueBB, falseBB}
+std::pair<BB *, BB *> GetTrueFalseBrPair(BB *bb) {
+  if (bb == nullptr) {
+    return { nullptr, nullptr };
+  }
+  if (bb->GetKind() == kBBCondGoto) {
+    auto *condBr = static_cast<CondGotoMeStmt*>(bb->GetLastMe());
+    if (condBr->GetOp() == OP_brtrue) {
+      return { bb->GetSucc(1), bb->GetSucc(0) };
+    } else {
+      ASSERT(condBr->GetOp() == OP_brfalse, "only support brtrue/brfalse");
+      return { bb->GetSucc(0), bb->GetSucc(1) };
+    }
+  } else if (bb->GetKind() == kBBGoto) {
+    return { bb->GetSucc(0), nullptr };
+  }
+  return { nullptr, nullptr };
+}
+
 // pred-connecting-succ
 // connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
 bool IsConnectingBB(BB &bb) {
@@ -60,6 +79,17 @@ void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg)
     cfg.DeleteBasicBlock(*emptyBB);
     emptyBB = succ;
   }
+}
+
+bool HasFallthruPred(const BB &bb) {
+  for (BB *pred : bb.GetPred()) {
+    if (pred->GetKind() == kBBFallthru) {
+      return true;
+    } else if (pred->GetKind() == kBBCondGoto && pred->GetSucc(0) == &bb) {
+      return true;
+    }
+  }
+  return false;
 }
 } // anonymous namespace
 
@@ -136,6 +166,8 @@ class SimplifyCFG {
 
   // for sub-pattern in SimplifyCondBB
   bool FoldBranchToCommonDest();
+  bool SkipRedundantCond();
+  bool SkipRedundantCond(BB &pred, BB &succ);
   // for MergeDistinctBBPair
   BB *MergeDistinctBBPair(BB *pred, BB *succ);
   // merge two bb, if merged, return combinedBB, Otherwise return nullptr
@@ -640,20 +672,323 @@ bool SimplifyCFG::CondBranchToSelect() {
   CombineCond2SelPattern(currBB, ftBB, gtBB, jointBB);
   return true;
 }
+
+// This interface is use to check for every bits of two floating point num, not just their value.
+// example:
+// The result of IsFloatingPointNumBitsSame<double >(16.1 * 100 + 0.9 * 100, 17.0 * 100) is false,
+// althought their value is the same.
+// A = 16.1 * 100 + 0.9 * 100 => bits : 0x409A 9000 0000 0001
+// and
+// B = 17.0 * 100             => bits : 0x409A 9000 0000 0000
+template <class T, class = typename std::enable_if<std::is_floating_point<T>::value>::type>
+bool IsFloatingPointNumBitsSame(T val1, T val2) {
+  if (std::is_same<T, float>::value) {
+    return *reinterpret_cast<uint32*>(&val1) == *reinterpret_cast<uint32*>(&val2);
+  } else if (std::is_same<T, double>::value) {
+    return *reinterpret_cast<uint64*>(&val1) == *reinterpret_cast<uint64*>(&val2);
+  }
+  return false;
+}
+
+bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
+  if (expr1 == expr2) {
+    return true;
+  }
+  PrimType ptyp1 = expr1->GetPrimType();
+  PrimType ptyp2 = expr2->GetPrimType();
+  if (expr1->GetOp() != expr2->GetOp() || ptyp1 != ptyp2) {
+    return false;
+  }
+  MeExprOp op1 = expr1->GetMeOp();
+  switch (op1) {
+    case kMeOpConst: {
+      MIRConst *const1 = static_cast<ConstMeExpr*>(expr1)->GetConstVal();
+      MIRConst *const2 = static_cast<ConstMeExpr*>(expr2)->GetConstVal();
+      if (const1->GetKind() == kConstInt) {
+        return static_cast<MIRIntConst*>(const1)->GetValue() == static_cast<MIRIntConst*>(const2)->GetValue();
+      } else if (const1->GetKind() == kConstFloatConst) {
+        return IsFloatingPointNumBitsSame<float>(static_cast<MIRFloatConst *>(const1)->GetValue(),
+                                                 static_cast<MIRFloatConst *>(const2)->GetValue());
+      } else if (const1->GetKind() == kConstDoubleConst) {
+        return IsFloatingPointNumBitsSame<double>(static_cast<MIRDoubleConst *>(const1)->GetValue(),
+                                                  static_cast<MIRDoubleConst *>(const2)->GetValue());
+      }
+      return false;
+    }
+    case kMeOpReg:
+    case kMeOpVar: {
+      return static_cast<ScalarMeExpr*>(expr1)->GetOstIdx() == static_cast<ScalarMeExpr*>(expr2)->GetOstIdx();
+    }
+    case kMeOpAddrof: {
+      return static_cast<AddrofMeExpr*>(expr1)->GetOstIdx() == static_cast<AddrofMeExpr*>(expr2)->GetOstIdx();
+    }
+    case kMeOpOp: {
+      if (expr1->GetNumOpnds() != expr2->GetNumOpnds()) {
+        return false;
+      }
+      for (size_t i = 0; i < expr1->GetNumOpnds(); ++i) {
+        if (!IsExprSameLexicalally(expr1->GetOpnd(i), expr2->GetOpnd(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default: {
+      return false;
+    }
+  }
+}
+
+// cond1 and cond2 has same result
+// note: same result means both is zero or both is not zero
+bool IsSameCondResult(MeExpr *cond1, MeExpr *cond2) {
+  if (cond1 == cond2) {
+    return true;
+  }
+  Opcode op1 = cond1->GetOp();
+  Opcode op2 = cond2->GetOp();
+  if (kOpcodeInfo.IsCompare(op1) && kOpcodeInfo.IsCompare(op2)) {
+    MeExpr *opnd10 = cond1->GetOpnd(0);
+    MeExpr *opnd11 = cond1->GetOpnd(1);
+    MeExpr *opnd20 = cond2->GetOpnd(0);
+    MeExpr *opnd21 = cond2->GetOpnd(1);
+    if (op1 == op2) {
+      if (IsExprSameLexicalally(opnd10, opnd20) && IsExprSameLexicalally(opnd11, opnd21)) {
+        return true;
+      }
+      if (op1 == OP_eq || op1 == OP_ne || op1 == OP_cmp || op1 == OP_cmpg || op1 == OP_cmpl) {
+        // for cmp/cmpg/cmpl, only if the opnds are equal, the result is zero, otherwise the result is not zero(-1/+1)
+        return (IsExprSameLexicalally(opnd10, opnd21) && IsExprSameLexicalally(opnd11, opnd20));
+      }
+    } else if (IsCompareHasReverseOp(op1) && GetReverseCmpOp(op1) == op2) {
+      if (op1 == OP_eq || op1 == OP_ne) {
+        // eq/ne is commutative
+        return false;
+      }
+      return (IsExprSameLexicalally(opnd10, opnd21) &&
+              IsExprSameLexicalally(opnd11, opnd20));
+    }
+  }
+  return false;
+}
+
+bool IsInvertCondResult(MeExpr *cond1, MeExpr *cond2) {
+  if (cond1 == cond2) {
+    return false;
+  }
+  Opcode op1 = cond1->GetOp();
+  Opcode op2 = cond2->GetOp();
+  if (IsCompareHasReverseOp(op1) && GetReverseCmpOp(op1) == op2) {
+    MeExpr *opnd10 = cond1->GetOpnd(0);
+    MeExpr *opnd11 = cond1->GetOpnd(1);
+    MeExpr *opnd20 = cond2->GetOpnd(0);
+    MeExpr *opnd21 = cond2->GetOpnd(1);
+    if (IsExprSameLexicalally(opnd10, opnd20) && IsExprSameLexicalally(opnd11, opnd21)) {
+      return true;
+    }
+    if (op1 == OP_eq || op1 == OP_ne) {
+      // eq/ne is commutative
+      return (IsExprSameLexicalally(opnd10, opnd21) &&
+              IsExprSameLexicalally(opnd11, opnd20));
+    }
+  }
+  return false;
+}
+
+static bool IsAllOpndsNotDefByCurrBBStmt(const MeExpr &expr, const BB &currBB) {
+  switch (expr.GetMeOp()) {
+    case kMeOpConst:
+    case kMeOpConststr:
+    case kMeOpConststr16:
+    case kMeOpAddrof:
+    case kMeOpAddroflabel:
+    case kMeOpAddroffunc:
+    case kMeOpSizeoftype:
+      return true;
+    case kMeOpVar:
+    case kMeOpReg: {
+      MeStmt *stmt = static_cast<const ScalarMeExpr &>(expr).GetDefByMeStmt();
+      if (stmt == nullptr) {
+        return true;
+      }
+      return stmt->GetBB() != &currBB;
+    }
+    case kMeOpIvar: {
+      auto &ivar = static_cast<const IvarMeExpr &>(expr);
+      if (!IsAllOpndsNotDefByCurrBBStmt(*ivar.GetBase(), currBB) ||
+          !IsAllOpndsNotDefByCurrBBStmt(*ivar.GetMu(), currBB)) {
+        return false;
+      }
+      return true;
+    }
+    case kMeOpNary:
+    case kMeOpOp: {
+      for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
+        if (!IsAllOpndsNotDefByCurrBBStmt(*expr.GetOpnd(i), currBB)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
+  // never reach here
+  CHECK_FATAL(false, "[FUNC: %s] Should never reach here!", funcName);
+  return false;
+}
+
+// opnds is defined by stmt not in currBB or defined by phiNode(no matter whether in currBB)
+static bool IsAllOpndsNotDefByCurrBBStmt(const MeStmt &stmt) {
+  BB *currBB = stmt.GetBB();
+  for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
+    if (!IsAllOpndsNotDefByCurrBBStmt(*stmt.GetOpnd(i), *currBB)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+//    ...  pred
+//      \  /  \
+//      succ  ...
+//      /  \
+//    ftBB  gtBB
+//
+// If succ's cond can be inferred from pred's cond, pred can skip succ and branches to one of succ's successors directly
+// Here we deal with two cases:
+// 1. pred's cond is the same as succ's
+// 2. pred's cond is opposite to succ's
+bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
+  if (pred.GetKind() != kBBCondGoto || succ.GetKind() != kBBCondGoto) {
+    return false;
+  }
+  auto *predBr = static_cast<CondGotoMeStmt*>(pred.GetLastMe());
+  auto *succBr = static_cast<CondGotoMeStmt*>(succ.GetLastMe());
+  if (!IsAllOpndsNotDefByCurrBBStmt(*succBr)) {
+    return false;
+  }
+  MeExpr *predCond = predBr->GetOpnd(0);
+  MeExpr *succCond = succBr->GetOpnd(0);
+  auto ptfSucc = GetTrueFalseBrPair(&pred); // pred true and false
+  auto stfSucc = GetTrueFalseBrPair(&succ); // succ true and false
+  // if succ's cond can be inferred from pred's cond, pred can skip succ and branches to newTarget directly
+  BB *newTarget = nullptr;
+  // condition's result of pred and succ are the same or opposite
+  if (IsSameCondResult(predCond, succCond)) {
+    // if pred's true branch is succ, we can infer that succ's must be true, so newTarget is succ's true branch.
+    newTarget = (ptfSucc.first == &succ) ? stfSucc.first : stfSucc.second;
+  } else if (IsInvertCondResult(predCond, succCond)) {
+    // if pred's true branch is succ, we can infer that succ's must be false, so newTarget is succ's false branch.
+    newTarget = (ptfSucc.first == &succ) ? stfSucc.second : stfSucc.first;
+  }
+  if (newTarget == nullptr || newTarget == &succ) {
+    return  false;
+  }
+  DEBUG_LOG() << "Condition in BB" << LOG_BBID(&succ) << " is redundant, since it has been checked in BB"
+              << LOG_BBID(&pred) << "\n";
+  // succ has only one pred, turn succ to an uncondBB(fallthru or gotoBB)
+  //         pred
+  //         /  \
+  //      succ  ...
+  //      /  \
+  //    ftBB  gtBB
+  if (succ.GetPred().size() == 1) { // succ has only one pred
+    // if newTarget is succ's gotoBB, and it has fallthru pred, we should use a goto stmt to succ's last
+    // to replace condGoto stmt. Otherwise, newTarget will have two fallthru pred
+    if (newTarget == succ.GetSucc(1) && HasFallthruPred(*newTarget)) {
+      auto *gotoStmt =
+          irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*newTarget), &succ, &succ.GetLastMe()->GetSrcPosition());
+      succ.ReplaceMeStmt(succ.GetLastMe(), gotoStmt);
+      succ.SetKind(kBBGoto);
+      DEBUG_LOG() << "SkipRedundantCond : Replace condBr in BB" << LOG_BBID(&succ) << " with an uncond goto\n";
+    } else {
+      succ.RemoveLastMeStmt();
+      succ.SetKind(kBBFallthru);
+      DEBUG_LOG() << "SkipRedundantCond : Remove condBr in BB" << LOG_BBID(&succ) << ", turn it to fallthruBB\n";
+    }
+    BB *rmBB = (succ.GetSucc(0) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
+    succ.RemoveSucc(*rmBB, true);
+    DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
+    return true;
+  } else {
+    // succ has more than one pred, clone all stmts in succ (except last stmt) to a new BB
+    BB *newBB = cfg->NewBasicBlock();
+    DEBUG_LOG() << "Create a new BB" << LOG_BBID(newBB) << ", and copy stmts from BB" << LOG_BBID(&succ) << "\n";
+    // this step will create new def version and collect it to ssa updater
+    LoopUnrolling::CopyAndInsertStmt(*irmap, *MP, *MA, *cands, *newBB, succ, true);
+    // we should update use version in newBB as phiopnds in succ
+    // BB succ:
+    //  ...    pred(v2 is def here or its pred)              ...               pred(v2 is def here or its pred)
+    //    \      /                                            \                  /
+    //      succ                                 ==>         succ             newBB
+    //   v3 = phi(..., v2)                               v3 = phi(...)       newBB should use v2 instead of v3
+    //
+    // here we collect ost in philist of succ, and make it defBB as pred, then ssa updater will update it in newBB
+    UpdateSSACandForBBPhiList(&succ, &pred);
+    newBB->SetAttributes(succ.GetAttributes());
+    if (HasFallthruPred(*newTarget)) {
+      // insert a gotostmt to avoid duplicate fallthru pred
+      auto *gotoStmt =
+          irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*newTarget), newBB, &succ.GetLastMe()->GetSrcPosition());
+      newBB->AddMeStmtLast(gotoStmt);
+      newBB->SetKind(kBBGoto);
+    } else {
+      newBB->SetKind(kBBFallthru);
+    }
+    pred.ReplaceSucc(&succ, newBB, true);
+    DEBUG_LOG() << "Replace succ BB" << LOG_BBID(&succ) << " with BB" << LOG_BBID(newBB) << ": BB" << LOG_BBID(&pred)
+                << "->BB" << LOG_BBID(&succ) << " => BB" << LOG_BBID(&pred) << "->BB" << LOG_BBID(newBB) << "\n";
+    if (pred.GetSucc(1) == newBB) {
+      cfg->UpdateBranchTarget(pred, succ, *newBB, f);
+    }
+    newTarget->AddPred(*newBB);
+    // if philist is not empty, add a item to phiopnds;
+    // otherwise, ssaupdater will insert phinode in newTarget
+    if (!newTarget->GetMePhiList().empty()) {
+      int succPredIdx = newTarget->GetPredIndex(succ);
+      for (auto &phi : newTarget->GetMePhiList()) {
+        // here we just set new phiOpnd the same as succ
+        phi.second->GetOpnds().push_back(phi.second->GetOpnd(succPredIdx));
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+bool SimplifyCFG::SkipRedundantCond() {
+  CHECK_CURR_BB();
+  if (currBB->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  bool changed = false;
+  // Check for currBB and its successors
+  for (size_t i = 0; i < currBB->GetSucc().size(); ++i) {
+    BB *succ = currBB->GetSucc(i);
+    changed |= SkipRedundantCond(*currBB, *succ);
+  }
+  return changed;
+}
+
 // CurrBB is Condition BB, we will look upward its predBB(s) to see if we can simplify
 // 1. currBB is X == constVal, and predBB has checked for the same expr, the result is known for currBB's condition,
 //    so we can make currBB to be an uncondBB.
-// 2. predBB is CondBB, one of predBB's succBB is currBB, and another is one of currBB's successors(commonBB)
-//    we can merge currBB to predBB if currBB is simple enough(has only one stmt).
-// 3. currBB has only one stmt(conditional branch stmt), and the condition's value is calculated by all its predBB
+// 2. currBB has only one stmt(conditional branch stmt), and the condition's value is calculated by all its predBB
 //    we can hoist currBB's stmt to predBBs if it is profitable
+// 3. predBB is CondBB, one of predBB's succBB is currBB, and another is one of currBB's successors(commonBB)
+//    we can merge currBB to predBB if currBB is simple enough(has only one stmt).
 // 4. condition branch to select
 bool SimplifyCFG::SimplifyCondBB() {
   CHECK_CURR_BB();
   MeStmt *stmt = currBB->GetLastMe();
   CHECK_FATAL(stmt != nullptr, "[FUNC: %s] CondBB has no stmt", f.GetName().c_str());
   CHECK_FATAL(kOpcodeInfo.IsCondBr(stmt->GetOp()), "[FUNC: %s] Opcode is error!", f.GetName().c_str());
-  // 2.fold two continuous condBB to one condBB, use or/and to combine two condition
+  // 2. result of currBB's cond can be inferred from predBB's cond, change predBB's br target
+  if (SkipRedundantCond()) {
+    SetBBRunAgain();
+  }
+  // 3.fold two continuous condBB to one condBB, use or/and to combine two condition
   if (FoldBranchToCommonDest()) {
     ResetBBRunAgain();
     return true;
