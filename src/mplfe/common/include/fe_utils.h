@@ -38,14 +38,17 @@ class FEUtils {
   static uint8 GetDim(const std::string &typeName);
   static std::string GetBaseTypeName(const std::string &typeName);
   static PrimType GetPrimType(const GStrIdx &typeNameIdx);
+  static uint32 GetSequentialNumber();
   static std::string GetSequentialName0(const std::string &prefix, uint32_t num);
   static std::string GetSequentialName(const std::string &prefix);
   static FieldID GetStructFieldID(MIRStructType *base, const std::string &fieldName);
-  static bool TraverseToNamedField(MIRStructType &structType, GStrIdx nameIdx, FieldID &fieldID,
+  static bool TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
                                    bool isTopLevel = true);
-  static MIRType *GetStructFieldType(MIRStructType *type, FieldID feildID);
+  static MIRType *GetStructFieldType(const MIRStructType *type, FieldID feildID);
+  static FieldPair GetLastestStructTypeAndField(MIRStructType &type, MIRStructType *&lastestType, FieldID &fieldID);
   static MIRConst *CreateImplicitConst(MIRType *type);
   static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
+  static bool EndsWith(const std::string &value, const std::string &ending);
 
   static const std::string kBoolean;
   static const std::string kByte;
@@ -317,6 +320,7 @@ class AstSwitchUtil {
 
  private:
   AstSwitchUtil() = default;
+  ~AstSwitchUtil() = default;
   std::map<std::string, bool> labelUsed = std::map<std::string, bool>();
   std::stack<std::string> nestedBreakLabels = std::stack<std::string>(); // loop and switch blocks
   std::stack<LabelIdx> nestedContinueLabels = std::stack<LabelIdx>(); // loop blocks only
@@ -362,7 +366,7 @@ class AstShortCircuitUtil {
   }
   ~AstShortCircuitUtil() = default;
 
-  void PushParen(std::string label) {
+  void PushParen(const std::string &label) {
     ParenLabels.push(label);
   }
 
@@ -374,7 +378,7 @@ class AstShortCircuitUtil {
     return ParenLabels.empty();
   }
 
-  void PushBinaryOperator(std::string label) {
+  void PushBinaryOperator(const std::string &label) {
     BinaryOperatorLabels.push(label);
   }
 

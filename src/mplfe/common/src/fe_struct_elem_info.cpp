@@ -222,6 +222,8 @@ FEStructMethodInfo::FEStructMethodInfo(MapleAllocator &allocatorIn, const Struct
       isJavaPolymorphicCall(false),
       isJavaDynamicCall(false),
       methodNameIdx(argStructElemNameIdx.full),
+      retType(nullptr),
+      ownerType(nullptr),
       mirFunc(nullptr),
       argTypes(allocator.Adapter()) {
   isMethod = true;
