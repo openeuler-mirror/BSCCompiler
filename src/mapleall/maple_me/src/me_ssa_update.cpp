@@ -23,7 +23,7 @@
 
 namespace maple {
 void MeSSAUpdate::InsertPhis() {
-  MapleMap<OStIdx, MapleSet<BBId> *>::iterator it = updateCands.begin();
+  auto it = updateCands.begin();
   MapleSet<BBId> dfSet(ssaUpdateAlloc.Adapter());
   auto cfg = func.GetCfg();
   for (; it != updateCands.end(); ++it) {
@@ -43,6 +43,10 @@ void MeSSAUpdate::InsertPhis() {
       auto *phiMeNode = irMap.NewInPool<MePhiNode>();
       phiMeNode->SetDefBB(bb);
       phiMeNode->GetOpnds().resize(bb->GetPred().size());
+      auto *ost = ssaTab.GetOriginalStFromID(it->first);
+      ScalarMeExpr *newScalar =
+          (ost->IsSymbolOst()) ? irMap.CreateVarMeExprVersion(ost) : irMap.CreateRegMeExprVersion(*ost);
+      phiMeNode->UpdateLHS(*newScalar);
       (void)bb->GetMePhiList().insert(std::make_pair(it->first, phiMeNode));
     }
     // initialize its rename stack
@@ -51,6 +55,9 @@ void MeSSAUpdate::InsertPhis() {
 }
 
 void MeSSAUpdate::RenamePhi(const BB &bb) {
+  if (bb.GetMePhiList().empty()) {
+    return;
+  }
   for (auto it1 = renameStacks.begin(); it1 != renameStacks.end(); ++it1) {
     auto it2 = bb.GetMePhiList().find(it1->first);
     if (it2 == bb.GetMePhiList().end()) {
@@ -59,16 +66,7 @@ void MeSSAUpdate::RenamePhi(const BB &bb) {
     // if there is existing phi result node
     MePhiNode *phi = it2->second;
     phi->SetIsLive(true);  // always make it live, for correctness
-    if (phi->GetLHS() == nullptr) {
-      // create a new VarMeExpr defined by this phi
-      auto *ost = ssaTab.GetOriginalStFromID(it2->first);
-      ScalarMeExpr *newScalar =
-          (ost->IsSymbolOst()) ? irMap.CreateVarMeExprVersion(ost) : irMap.CreateRegMeExprVersion(*ost);
-      phi->UpdateLHS(*newScalar);
-      it1->second->push(newScalar);  // push the stack
-    } else {
-      it1->second->push(phi->GetLHS());  // push the stack
-    }
+    it1->second->push(phi->GetLHS());  // push the stack
   }
 }
 
@@ -192,7 +190,7 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
       }
     } else if (kOpcodeInfo.IsCallAssigned(stmt.GetOp())) {
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
-      MapleVector<MustDefMeNode>::iterator mustdefit = mustDefList->begin();
+      auto mustdefit = mustDefList->begin();
       for (; mustdefit != mustDefList->end(); mustdefit++) {
         lhs = (*mustdefit).GetLHS();
         CHECK_FATAL(lhs != nullptr, "stmt doesn't have lhs?");
@@ -207,15 +205,11 @@ void MeSSAUpdate::RenameStmts(BB &bb) {
 
 void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
   for (BB *succ : bb.GetSucc()) {
-    // find index of bb in succ_bb->pred_[]
-    size_t index = 0;
-    while (index < succ->GetPred().size()) {
-      if (succ->GetPred(index) == &bb) {
-        break;
-      }
-      ++index;
+    if (succ->GetMePhiList().empty()) {
+      continue;
     }
-    CHECK_FATAL(index < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
+    auto predIdx = succ->GetPredIndex(bb);
+    CHECK_FATAL(predIdx < succ->GetPred().size(), "RenamePhiOpndsinSucc: cannot find corresponding pred");
     for (auto it1 = renameStacks.begin(); it1 != renameStacks.end(); ++it1) {
       auto it2 = succ->GetMePhiList().find(it1->first);
       if (it2 == succ->GetMePhiList().end()) {
@@ -224,8 +218,8 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
       MePhiNode *phi = it2->second;
       MapleStack<ScalarMeExpr*> *renameStack = it1->second;
       ScalarMeExpr *curScalar = renameStack->top();
-      if (phi->GetOpnd(index) != curScalar) {
-        phi->SetOpnd(index, curScalar);
+      if (phi->GetOpnd(predIdx) != curScalar) {
+        phi->SetOpnd(predIdx, curScalar);
       }
     }
   }
@@ -234,11 +228,14 @@ void MeSSAUpdate::RenamePhiOpndsInSucc(const BB &bb) {
 void MeSSAUpdate::RenameBB(BB &bb) {
   // for recording stack height on entering this BB, to pop back to same height
   // when backing up the dominator tree
-  std::map<OStIdx, uint32> origStackSize;
+  std::vector<std::pair<uint32, OStIdx >> origStackSize(renameStacks.size());
   auto cfg = func.GetCfg();
-  for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
-    origStackSize[it->first] = it->second->size();
+  uint32 stackId = 0;
+  for (const auto &ost2stack : renameStacks) {
+    origStackSize[stackId] = std::make_pair(ost2stack.second->size(), ost2stack.first);
+    ++stackId;
   }
+
   RenamePhi(bb);
   RenameStmts(bb);
   RenamePhiOpndsInSucc(bb);
@@ -248,10 +245,14 @@ void MeSSAUpdate::RenameBB(BB &bb) {
     RenameBB(*cfg->GetBBFromID(child));
   }
   // pop stacks back to where they were at entry to this BB
-  for (auto it = renameStacks.begin(); it != renameStacks.end(); ++it) {
-    while (it->second->size() > origStackSize[it->first]) {
-      it->second->pop();
+  stackId = 0;
+  for (const auto &ost2stack : renameStacks) {
+    ASSERT(ost2stack.first == origStackSize[stackId].second,
+           "OStIdx must be equal, element of renameStacks should not be changed");
+    while (ost2stack.second->size() > origStackSize[stackId].first) {
+      ost2stack.second->pop();
     }
+    ++stackId;
   }
 }
 
