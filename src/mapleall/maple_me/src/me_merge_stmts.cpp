@@ -255,7 +255,7 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMe
   return xIassignStmt;
 }
 
-IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeExpr& valMeExpr,
+IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr& valMeExpr,
                                           MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar.SetOffset(offset);
@@ -264,7 +264,19 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, RegMeEx
   return xIassignStmt;
 }
 
+void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
+                             IntrinsiccallMeStmt* memsetCallStmt, MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
+
+    MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
+    IvarMeExpr iVarBase(kInvalidExprID, uXTgtMirType->GetPrimType(), uXTgtPtrType->GetTypeIndex(), 0);
+    iVarBase.SetBase(dstMeExpr);
+    IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
+                                                 uXTgtPtrType->GetTypeIndex());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+}
+
 const uint32 simdThreshold = 128;
+
 void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   ASSERT(memcpyCallStmt->GetIntrinsic() == INTRN_C_memcpy, "The stmt is NOT intrinsic memcpy");
 
@@ -348,21 +360,19 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
     return;
   }
   int32 setLength = numExpr->GetIntValue();
-  if (setLength <= 0 || setLength > simdThreshold || setLength % 8 != 0) {
+  // It seems unlikely that setLength is just a few bytes long
+  if (setLength <= 0 || setLength > simdThreshold) {
     return;
   }
-
   int32 numOf16Byte = setLength / 16;
   int32 numOf8Byte = (setLength % 16) / 8;
   int32 offset8Byte = setLength - (setLength % 16);
-  /* Leave following cases for future
-  int32 numOf4Byte = (copyLength % 8) / 4;
-  int32 offset4Byte = copyLength - (copyLength % 8);
-  int32 numOf2Byte = (copyLength % 4) / 2;
-  int32 offset2Byte = copyLength - (copyLength % 4);
-  int32 numOf1Byte = (copyLength % 2);
-  int32 offset1Byte = copyLength - (copyLength % 2);
-  */
+  int32 numOf4Byte = (setLength % 8) / 4;
+  int32 offset4Byte = setLength - (setLength % 8);
+  int32 numOf2Byte = (setLength % 4) / 2;
+  int32 offset2Byte = setLength - (setLength % 4);
+  int32 numOf1Byte = (setLength % 2);
+  int32 offset1Byte = setLength - (setLength % 2);
   MeExpr *dstMeExpr = memsetCallStmt->GetOpnd(0);
   MeExpr *fillValMeExpr = memsetCallStmt->GetOpnd(1);
   MapleMap<OStIdx, ChiMeNode *>  *memsetCallStmtChi = memsetCallStmt->GetChiList();
@@ -394,30 +404,38 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
   }
 
-  if (numOf8Byte != 0) {
-    MIRType *v8u8MirType = GlobalTables::GetTypeTable().GetV8UInt8();
-    MIRType *v8u8PtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*v8u8MirType, PTY_ptr);
-    IvarMeExpr tmpIvar(kInvalidExprID, PTY_v8u8, v8u8PtrType->GetTypeIndex(), 0);
-    tmpIvar.SetBase(dstMeExpr);
+  bool hasRemainder = numOf1Byte != 0 || numOf2Byte != 0 ||
+                      numOf4Byte != 0 || numOf8Byte != 0;
+  if (hasRemainder) {
+    RegMeExpr *u64RegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_u64);
+    OpMeExpr *u64BitsMeOpExpr =
+        static_cast<OpMeExpr *>(func.GetIRMap()->CreateMeExprUnary(OP_extractbits, PTY_u64, *dupRegMeExpr));
+    u64BitsMeOpExpr->SetOpndType(PTY_u64);
+    u64BitsMeOpExpr->SetBitsOffSet(0);
+    u64BitsMeOpExpr->SetBitsSize(64);
+    MeStmt *u64RegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
+        *u64RegMeExpr, *u64BitsMeOpExpr, *memsetCallStmt->GetBB());
+    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, u64RegAssignMeStmt);
 
-    // Consider Reuse of dstMeExpr ?
-    // RegMeExpr *dupRegMeExpr = static_cast<RegMeExpr *>(
-    //     func.GetIRMap()->CreateMeExprTypeCvt(PTY_v8u8, PTY_v16u8, *dstMeExpr));
-    RegMeExpr *dupRegMeExpr = func.GetIRMap()->CreateRegMeExpr(PTY_v8u8);
-    NaryMeExpr *dupValMeExpr = new NaryMeExpr(&func.GetIRMap()->GetIRMapAlloc(), kInvalidExprID,
-                                              OP_intrinsicop, PTY_v8u8,
-                                              1, TyIdx(0), INTRN_vector_from_scalar_v8u8, false);
-    dupValMeExpr->PushOpnd(fillValMeExpr);
-    MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
-        *dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
-    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
-    IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
-                                                 v8u8PtrType->GetTypeIndex());
-    memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+    if (numOf8Byte != 0) {
+      MIRType *u64MirType = GlobalTables::GetTypeTable().GetUInt64();
+      genShortSet(dstMeExpr, offset8Byte, u64MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+    }
+    if (numOf4Byte != 0) {
+      MIRType *u32MirType = GlobalTables::GetTypeTable().GetUInt32();
+      genShortSet(dstMeExpr, offset4Byte, u32MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+    }
+    if (numOf2Byte != 0) {
+      MIRType *u16MirType = GlobalTables::GetTypeTable().GetUInt16();
+      genShortSet(dstMeExpr, offset2Byte, u16MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+    }
+    if (numOf1Byte != 0) {
+      MIRType *u8MirType = GlobalTables::GetTypeTable().GetUInt8();
+      genShortSet(dstMeExpr, offset1Byte, u8MirType, u64RegMeExpr, memsetCallStmt, *memsetCallStmtChi);
+    }
   }
-
   // Remove memset stmt
-  if (numOf8Byte != 0 || numOf16Byte != 0) {
+  if (hasRemainder || numOf16Byte != 0) {
     BB * bb = memsetCallStmt->GetBB();
     bb->RemoveMeStmt(memsetCallStmt);
   }
