@@ -1570,7 +1570,11 @@ uint32_t LibDexFile::GetTypeDescriptorIndex(uint32_t index) const {
 }
 
 const char *LibDexFile::GetStringByIndex(uint32_t index) const {
-  return dexFile->StringDataByIdx(art::dex::StringIndex(index));
+  const char *str = dexFile->StringDataByIdx(art::dex::StringIndex(index));
+  if (str == nullptr) {
+    LOG(FATAL) << "Invalid or truncated dex file";
+  }
+  return str;
 }
 
 const char *LibDexFile::GetStringByTypeIndex(uint32_t index) const {
