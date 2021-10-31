@@ -772,7 +772,6 @@ DEFINE_MOP(MOP_vbaddvrv,{mopdReg8FD,mopdReg128VS},ISVECTOR,kLtFpalu,"addv","0,1"
 DEFINE_MOP(MOP_vhaddvrv,{mopdReg16FD,mopdReg128VS},ISVECTOR,kLtFpalu,"addv","0,1",1)
 DEFINE_MOP(MOP_vsaddvrv,{mopdReg32FD,mopdReg128VS},ISVECTOR,kLtFpalu,"addv","0,1",1)
 DEFINE_MOP(MOP_vdaddvrv,{mopdReg64FD,mopdReg128VS},ISVECTOR,kLtFpalu,"addp","0,1",1)
-DEFINE_MOP(MOP_vxtnuv,  {mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"xtn","0,1",1)
 
 DEFINE_MOP(MOP_vzcmequu,{mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"cmeq","0,1,2",1)
 DEFINE_MOP(MOP_vzcmgtuu,{mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"cmgt","0,1,2",1)
@@ -807,8 +806,12 @@ DEFINE_MOP(MOP_vushrvvi,{mopdReg128VD,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"
 
 DEFINE_MOP(MOP_vshllvvi,{mopdReg128VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"shll","0,1,2",1)
 DEFINE_MOP(MOP_vushllvvi,{mopdReg128VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"ushll","0,1,2",1)
-DEFINE_MOP(MOP_vsqxtnvv,{mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"sqxtn","0,1",1)
-DEFINE_MOP(MOP_vuqxtnvv,{mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"uqxtn","0,1",1)
+DEFINE_MOP(MOP_vxtnuv,  {mopdReg64VD,mopdReg128VS},ISVECTOR,kLtFpalu,"xtn","0,1",1)
+DEFINE_MOP(MOP_vsxtlvu, {mopdReg128VD,mopdReg64VS},ISVECTOR,kLtFpalu,"sxtl","0,1",1)
+DEFINE_MOP(MOP_vuxtlvu, {mopdReg128VD,mopdReg64VS},ISVECTOR,kLtFpalu,"uxtl","0,1",1)
+DEFINE_MOP(MOP_vxtn2uv, {mopdReg64VDS,mopdReg128VS},ISPARTDEF|ISVECTOR,kLtFpalu,"xtn2","0,1",1)
+DEFINE_MOP(MOP_vsxtl2vv,{mopdReg128VD,mopdReg128VS},ISVECTOR,kLtFpalu,"sxtl2","0,1",1)
+DEFINE_MOP(MOP_vuxtl2vv,{mopdReg128VD,mopdReg128VS},ISVECTOR,kLtFpalu,"uxtl2","0,1",1)
 
 DEFINE_MOP(MOP_vshruui, {mopdReg64VD,mopdReg64VS,mopdImm8},ISVECTOR,kLtFpalu,"sshr","0,1,2",1)
 DEFINE_MOP(MOP_vshrvvi, {mopdReg128VD,mopdReg128VS,mopdImm8},ISVECTOR,kLtFpalu,"sshr","0,1,2",1)
