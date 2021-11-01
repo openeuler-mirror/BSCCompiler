@@ -30,7 +30,7 @@ class AArch64GenProEpilog : public GenProEpilog {
   explicit AArch64GenProEpilog(CGFunc &func) : GenProEpilog(func) {
     useFP = func.UseFP();
     stackBaseReg = useFP ? R29 : RSP;
-    callSitesMap.clear();
+    exitBB2CallSitesMap.clear();
   }
   ~AArch64GenProEpilog() override = default;
 
@@ -41,8 +41,8 @@ class AArch64GenProEpilog : public GenProEpilog {
   void GenStackGuard(BB&);
   BB &GenStackGuardCheckInsn(BB&);
   bool HasLoop();
-  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns);
-  void TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns);
+  bool OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, BB &exitBB);
+  void TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns, BB &exitBB);
   bool InsertOpndRegs(Operand &opnd, std::set<regno_t> &vecRegs);
   bool InsertInsnRegs(Insn &insn, bool insetSource, std::set<regno_t> &vecSourceRegs,
                       bool insertTarget, std::set<regno_t> &vecTargetRegs);
@@ -76,19 +76,19 @@ class AArch64GenProEpilog : public GenProEpilog {
                                                        RegType rty);
   Insn &AppendInstructionForAllocateOrDeallocateCallFrame(int64 argsToStkPassSize, AArch64reg reg0, AArch64reg reg1,
                                                           RegType rty, bool isAllocate);
-  std::set<Insn*> &GetCallSitesMap() {
-    return callSitesMap;
+  std::map<BB*, std::set<Insn*>> &GetExitBB2CallSitesMap() {
+    return exitBB2CallSitesMap;
   }
-  void SetTailcallExitBB(BB *bb) {
-    tailcallExitBB = bb;
+  void SetCurTailcallExitBB(BB *bb) {
+    curTailcallExitBB = bb;
   }
-  BB *GetTailcallExitBB() {
-    return tailcallExitBB;
+  BB *GetCurTailcallExitBB() {
+    return curTailcallExitBB;
   }
   static constexpr const int32 kOffset8MemPos = 8;
   static constexpr const int32 kOffset16MemPos = 16;
-  std::set<Insn*> callSitesMap;
-  BB* tailcallExitBB = nullptr;
+  std::map<BB*, std::set<Insn*>> exitBB2CallSitesMap;
+  BB* curTailcallExitBB = nullptr;
   bool useFP = true;
   /* frame pointer(x29) is available as a general-purpose register if useFP is set as false */
   AArch64reg stackBaseReg = RFP;

@@ -90,7 +90,7 @@ bool AArch64GenProEpilog::HasLoop() {
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
+bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, BB &exitBB) {
   if (bb.NumInsn() == 1 &&
       (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
@@ -99,7 +99,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
     return false;
   }
   FOR_BB_INSNS_REV_SAFE(insn, &bb, prev_insn) {
-    if (!insn->IsMachineInstruction()) {
+    if (!insn->IsMachineInstruction() || insn->IsPseudoInstruction()) {
       continue;
     }
     MOperator insnMop = insn->GetMachineOpcode();
@@ -134,7 +134,7 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
       }
       case MOP_xuncond: {
         LabelOperand &bLab = static_cast<LabelOperand&>(insn->GetOperand(0));
-        if (cgFunc.GetExitBB(0)->GetLabIdx() == bLab.GetLabelIndex()) {
+        if (exitBB.GetLabIdx() == bLab.GetLabelIndex()) {
           break;
         }
         return false;
@@ -148,16 +148,11 @@ bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns) {
 }
 
 /* Recursively invoke this function for all predecessors of exitBB */
-void AArch64GenProEpilog::TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns) {
+void AArch64GenProEpilog::TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns, BB &exitBB) {
   /* callsite also in the return block as in "if () return; else foo();"
      call in the exit block */
-  if (!bb.IsEmpty()) {
-    if (bb.GetLastInsn()->GetMachineOpcode() == MOP_xbl || bb.GetLastInsn()->GetMachineOpcode() == MOP_xblr) {
-      if (OptimizeTailBB(bb, callInsns)) {
-        TailCallBBOpt(bb, callInsns);
-      }
-      return;
-    }
+  if (!bb.IsEmpty() && !OptimizeTailBB(bb, callInsns, exitBB)) {
+    return;
   }
 
   for (auto tmpBB : bb.GetPreds()) {
@@ -166,8 +161,8 @@ void AArch64GenProEpilog::TailCallBBOpt(BB &bb, std::set<Insn*> &callInsns) {
       continue;
     }
 
-    if (OptimizeTailBB(*tmpBB, callInsns)) {
-      TailCallBBOpt(*tmpBB, callInsns);
+    if (OptimizeTailBB(*tmpBB, callInsns, exitBB)) {
+      TailCallBBOpt(*tmpBB, callInsns, exitBB);
     }
   }
 }
@@ -206,9 +201,6 @@ bool AArch64GenProEpilog::TailCallOpt() {
 
   size_t exitBBSize = cgFunc.GetExitBBsVec().size();
   /* For now to reduce complexity */
-  if (exitBBSize > 1) {
-    return false;
-  }
 
   BB *exitBB = nullptr;
   if (exitBBSize == 0) {
@@ -221,24 +213,25 @@ bool AArch64GenProEpilog::TailCallOpt() {
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
   }
-  SetTailcallExitBB(exitBB);
-
-  FOR_BB_INSNS(insn, exitBB) {
-    if (insn->IsMachineInstruction() && !insn->IsPseudoInstruction()) {
-      CHECK_FATAL(false, "exit bb should be empty.");
+  int i = 1;
+  int optCount = 0;
+  do {
+    std::set<Insn*> callInsns;
+    TailCallBBOpt(*exitBB, callInsns, *exitBB);
+    if (callInsns.size() != 0) {
+      optCount += callInsns.size();
+      exitBB2CallSitesMap[exitBB] = callInsns;
     }
-  }
-
-  std::set<Insn*> &callInsns = GetCallSitesMap();
-  callInsns.clear();
-  if (exitBBSize == 1) {
-    TailCallBBOpt(*exitBB, callInsns);
-  } else {
-    CHECK_FATAL(0, "No tailopt for multiple exit blocks");
-  }
+    if (i < exitBBSize) {
+      exitBB = cgFunc.GetExitBBsVec()[i];
+      ++i;
+    } else {
+      break;
+    }
+  } while(1);
 
   /* regular calls exist in function */
-  if (nCount != callInsns.size()) {
+  if (nCount != optCount) {
     return false;
   }
   return true;
@@ -1824,7 +1817,7 @@ void AArch64GenProEpilog::GenerateEpilogForCleanup(BB &bb) {
 
 
 void AArch64GenProEpilog::ConvertToTailCalls(std::set<Insn*> &callInsnsMap) {
-  BB *exitBB = GetTailcallExitBB();
+  BB *exitBB = GetCurTailcallExitBB();
 
   /* ExitBB is filled only by now. If exitBB has restore of SP indicating extra stack space has
      been allocated, such as a function call with more than 8 args, argument with large aggr etc */
@@ -1877,6 +1870,9 @@ void AArch64GenProEpilog::ConvertToTailCalls(std::set<Insn*> &callInsnsMap) {
       if (lastInsn->GetMachineOpcode() == MOP_xret) {
         Insn *newInsn = cgFunc.GetTheCFG()->CloneInsn(*callInsn);
         toBB->ReplaceInsn(*lastInsn, *newInsn);
+        for (Insn *insn = callInsn->GetNextMachineInsn(); insn != newInsn; insn = insn->GetNextMachineInsn()) {
+          insn->SetDoNotRemove(true);
+        }
         toBB->RemoveInsn(*callInsn);
         return;
       }
@@ -1943,10 +1939,14 @@ void AArch64GenProEpilog::Run() {
     GenerateEpilogForCleanup(*(cgFunc.GetCleanupBB()));
   }
 
-  std::set<Insn*> &callInsnsMap = GetCallSitesMap();
-  if (cgFunc.GetMirModule().IsCModule() && !callInsnsMap.empty()) {
+  if (cgFunc.GetMirModule().IsCModule() && !exitBB2CallSitesMap.empty()) {
     cgFunc.GetTheCFG()->InitInsnVisitor(cgFunc);
-    ConvertToTailCalls(callInsnsMap);
+    for (auto pair : exitBB2CallSitesMap) {
+      BB *curExitBB = pair.first;
+      std::set<Insn*>& callInsnsMap = pair.second;
+      SetCurTailcallExitBB(curExitBB);
+      ConvertToTailCalls(callInsnsMap);
+    }
   }
 }
 }  /* namespace maplebe */

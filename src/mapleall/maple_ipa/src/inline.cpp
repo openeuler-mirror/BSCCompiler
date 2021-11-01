@@ -35,8 +35,12 @@ constexpr uint32 kOneInsn = 2;
 constexpr uint32 kDoubleInsn = 4;
 constexpr uint32 kPentupleInsn = 10;
 constexpr uint32 kBigFuncNumStmts = 1000;
+static constexpr uint32 kRelaxThresholdForInlineHint = 3;
+static constexpr uint32 kRelaxThresholdForCalledOnce = 5;
+static constexpr uint32 kInlineSmallFunctionThresholdForJava = 15;
+static constexpr uint32 kInlineHotFunctionThresholdForJava = 30;
 
-static int GetNumStmtsOfFunc(const MIRFunction &func) {
+static uint32 GetNumStmtsOfFunc(const MIRFunction &func) {
   if (func.GetBody() == nullptr) {
     return 0;
   }
@@ -203,9 +207,9 @@ void MInline::ApplyInlineListInfo(const std::string &list, MapleMap<GStrIdx, Map
 
 // Common rename function
 uint32 MInline::RenameSymbols(MIRFunction &caller, const MIRFunction &callee, uint32 inlinedTimes) const {
-  size_t symTabSize = callee.GetSymbolTabSize();
-  size_t stIdxOff = caller.GetSymTab()->GetSymbolTableSize() - 1;
-  for (size_t i = 0; i < symTabSize; ++i) {
+  uint32 symTabSize = static_cast<uint32>(callee.GetSymbolTabSize());
+  uint32 stIdxOff = static_cast<uint32>(caller.GetSymTab()->GetSymbolTableSize()) - 1;
+  for (uint32 i = 0; i < symTabSize; ++i) {
     const MIRSymbol *sym = callee.GetSymbolTabItem(i);
     if (sym == nullptr) {
       continue;
@@ -324,7 +328,7 @@ void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
 
 uint32 MInline::RenameLabels(MIRFunction &caller, const MIRFunction &callee, uint32 inlinedTimes) const {
   size_t labelTabSize = callee.GetLabelTab()->GetLabelTableSize();
-  size_t labIdxOff = caller.GetLabelTab()->GetLabelTableSize() - 1;
+  uint32 labIdxOff = static_cast<uint32>(caller.GetLabelTab()->GetLabelTableSize()) - 1;
   // label table start at 1.
   for (size_t i = 1; i < labelTabSize; ++i) {
     std::string labelName = callee.GetLabelTabItem(static_cast<LabelIdx>(i));
@@ -374,7 +378,7 @@ void MInline::ReplaceLabels(BaseNode &baseNode, uint32 labIdxOff) const {
   } else if (baseNode.GetOpCode() == OP_switch) {
     SwitchNode *switchNode = static_cast<SwitchNode*>(&baseNode);
     switchNode->SetDefaultLabel(switchNode->GetDefaultLabel() + labIdxOff);
-    for (size_t i = 0; i < switchNode->GetSwitchTable().size(); ++i) {
+    for (uint32_t i = 0; i < switchNode->GetSwitchTable().size(); ++i) {
       LabelIdx idx = switchNode->GetSwitchTable()[i].second + labIdxOff;
       switchNode->UpdateCaseLabelAt(i, idx);
     }
@@ -396,7 +400,7 @@ uint32 MInline::RenamePregs(const MIRFunction &caller, const MIRFunction &callee
                             std::unordered_map<PregIdx, PregIdx> &pregOld2new) const {
   const MapleVector<MIRPreg*> &tab = callee.GetPregTab()->GetPregTable();
   size_t tableSize = tab.size();
-  size_t regIdxOff = caller.GetPregTab()->Size() - 1;
+  uint32 regIdxOff = static_cast<uint32>(caller.GetPregTab()->Size()) - 1;
   for (size_t i = 1; i < tableSize; ++i) {
     MIRPreg *mirPreg = tab[i];
     PregIdx idx = 0;
@@ -616,8 +620,8 @@ void MInline::RecordRealCaller(MIRFunction &caller, const MIRFunction &callee) {
 
 void MInline::ConvertPStaticToFStatic(MIRFunction &func) const {
   bool hasPStatic = false;
-  for (int i = 0; i < func.GetSymbolTabSize(); ++i) {
-    MIRSymbol *sym = func.GetSymbolTabItem(i);
+  for (size_t i = 0; i < func.GetSymbolTabSize(); ++i) {
+    MIRSymbol *sym = func.GetSymbolTabItem(static_cast<uint32>(i));
     if (sym != nullptr && sym->GetStorageClass() == kScPstatic) {
       hasPStatic = true;
       break;
@@ -628,9 +632,9 @@ void MInline::ConvertPStaticToFStatic(MIRFunction &func) const {
   }
   std::vector<MIRSymbol*> localSymbols;
   std::vector<uint32> oldStIdx2New(func.GetSymbolTabSize(), 0);
-  int pstaticNum = 0;
-  for (int i = 0; i < func.GetSymbolTabSize(); ++i) {
-    MIRSymbol *sym = func.GetSymbolTabItem(i);
+  uint32 pstaticNum = 0;
+  for (size_t i = 0; i < func.GetSymbolTabSize(); ++i) {
+    MIRSymbol *sym = func.GetSymbolTabItem(static_cast<uint32>(i));
     if (sym == nullptr) {
       continue;
     }
@@ -681,7 +685,7 @@ void MInline::ConvertPStaticToFStatic(MIRFunction &func) const {
   func.GetSymTab()->Clear();
   func.GetSymTab()->PushNullSymbol();
   for (MIRSymbol *sym : localSymbols) {
-    func.GetSymTab()->AddStOutside(sym);
+    (void)func.GetSymTab()->AddStOutside(sym);
   }
   // The stIdxOff will be ignored, 0 is just a placeholder
   ReplaceSymbols(func.GetBody(), 0, &oldStIdx2New);
@@ -767,9 +771,9 @@ bool MInline::PerformInline(MIRFunction &caller, BlockNode &enclosingBlk, CallNo
     BaseNode *currBaseNode = callStmt.Opnd(i);
     MIRSymbol *formal = callee.GetFormal(i);
     if (formal->IsPreg()) {
-      PregIdx idx = callee.GetPregTab()->GetPregIdxFromPregno(formal->GetPreg()->GetPregNo());
+      PregIdx idx = callee.GetPregTab()->GetPregIdxFromPregno(static_cast<uint32>(formal->GetPreg()->GetPregNo()));
       RegassignNode *regAssign = builder.CreateStmtRegassign(
-          formal->GetPreg()->GetPrimType(), static_cast<uint32>(idx) + regIdxOff, currBaseNode);
+          formal->GetPreg()->GetPrimType(), idx + static_cast<int32>(regIdxOff), currBaseNode);
       newBody->InsertBefore(newBody->GetFirst(), regAssign);
     } else {
       MIRSymbol *newFormal = caller.GetSymTab()->GetSymbolFromStIdx(formal->GetStIndex() + stIdxOff);
@@ -1060,6 +1064,8 @@ FuncCostResultType MInline::GetFuncCost(const MIRFunction &func, const BaseNode 
         case INTRN_C_constant_p:
           cost += kOneInsn;
           break;
+        case INTRN_C___builtin_expect:
+          break;  // builtin_expect has no cost
         default:
           // Other intrinsics generate a call
           cost += kPentupleInsn;
@@ -1194,40 +1200,83 @@ void MInline::InlineCalls(const CGNode &node) {
     return;
   }
   bool changed = false;
-  int currInlineDepth = 0;
+  uint32 currInlineDepth = 0;
   do {
     changed = false;
     currFuncBody = nullptr;
-    InlineCallsBlock(*func, *(func->GetBody()), *(func->GetBody()), changed);
+    InlineCallsBlock(*func, *(func->GetBody()), *(func->GetBody()), changed, *(func->GetBody()));
     ++currInlineDepth;
   } while (changed && currInlineDepth < Options::inlineDepth);
 }
-
-void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseNode &baseNode, bool &changed) {
+bool MInline::CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt) {
+  NaryStmtNode &returnNode = static_cast<NaryStmtNode&>(stmtNode);
+  if (!kOpcodeInfo.IsCallAssigned(callStmt.GetOpCode()) && returnNode.NumOpnds() == 0) {
+    return true;
+  }
+  if (returnNode.NumOpnds() != 1 || returnNode.NumOpnds() != callStmt.GetCallReturnVector()->size()) {
+    return false;
+  } else {
+    if (returnNode.Opnd(0)->GetOpCode() != OP_dread) {
+      return false;
+    }
+    AddrofNode *retNode = static_cast<AddrofNode*>(returnNode.Opnd(0));
+    RegFieldPair &tmp = callStmt.GetCallReturnVector()->at(0).second;
+    if (retNode->GetFieldID() != 0 || tmp.IsReg() || tmp.GetFieldID() != 0) {
+      return false;
+    }
+    if (static_cast<AddrofNode*>(retNode)->GetStIdx() == callStmt.GetCallReturnVector()->at(0).first) {
+      return true;
+    }
+  }
+  return false;
+}
+bool MInline::SuitableForTailCallOpt(BaseNode &enclosingBlk, StmtNode &stmtNode, CallNode &callStmt) {
+  // if call stmt have arguments, it may be better to be inlined
+  if (!module.IsCModule() || callStmt.GetNumOpnds() != 0) {
+    return false;
+  }
+  if (stmtNode.GetRealNext() != nullptr && stmtNode.GetRealNext()->GetOpCode() == OP_return) {
+    return CalleeReturnValueCheck(static_cast<StmtNode&>(*stmtNode.GetRealNext()), callStmt);
+  }
+  if (enclosingBlk.GetOpCode() == OP_if) {
+    IfStmtNode &ifStmt = static_cast<IfStmtNode&>(enclosingBlk);
+    if (ifStmt.GetRealNext() != nullptr && ifStmt.GetRealNext()->GetOpCode() == OP_return &&
+        stmtNode.GetRealNext() == nullptr) {
+      return CalleeReturnValueCheck(static_cast<StmtNode&>(*ifStmt.GetRealNext()), callStmt);
+    }
+  }
+  return false;
+}
+void MInline::InlineCallsBlock(MIRFunction &func, BlockNode &enclosingBlk, BaseNode &baseNode, bool &changed,
+                               BaseNode &prevStmt) {
   if (baseNode.GetOpCode() == OP_block) {
     BlockNode &blk = static_cast<BlockNode&>(baseNode);
     for (auto &stmt : blk.GetStmtNodes()) {
-      InlineCallsBlock(func, blk, stmt, changed);
+      InlineCallsBlock(func, blk, stmt, changed, prevStmt);
     }
   } else if (baseNode.GetOpCode() == OP_callassigned || baseNode.GetOpCode() == OP_call ||
              baseNode.GetOpCode() == OP_virtualcallassigned || baseNode.GetOpCode() == OP_superclasscallassigned ||
              baseNode.GetOpCode() == OP_interfacecallassigned) {
+    CallNode &callStmt = static_cast<CallNode&>(baseNode);
+    if (SuitableForTailCallOpt(prevStmt, static_cast<StmtNode&>(baseNode), callStmt)) {
+      return;
+    }
     InlineCallsBlockInternal(func, enclosingBlk, baseNode, changed);
   } else if (baseNode.GetOpCode() == OP_doloop) {
     BlockNode *blk = static_cast<DoloopNode&>(baseNode).GetDoBody();
-    InlineCallsBlock(func, enclosingBlk, *blk, changed);
+    InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
   } else if (baseNode.GetOpCode() == OP_foreachelem) {
     BlockNode *blk = static_cast<ForeachelemNode&>(baseNode).GetLoopBody();
-    InlineCallsBlock(func, enclosingBlk, *blk, changed);
+    InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
   } else if (baseNode.GetOpCode() == OP_dowhile || baseNode.GetOpCode() == OP_while) {
     BlockNode *blk = static_cast<WhileStmtNode&>(baseNode).GetBody();
-    InlineCallsBlock(func, enclosingBlk, *blk, changed);
+    InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
   } else if (baseNode.GetOpCode() == OP_if) {
     BlockNode *blk = static_cast<IfStmtNode&>(baseNode).GetThenPart();
-    InlineCallsBlock(func, enclosingBlk, *blk, changed);
+    InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
     blk = static_cast<IfStmtNode&>(baseNode).GetElsePart();
     if (blk != nullptr) {
-      InlineCallsBlock(func, enclosingBlk, *blk, changed);
+      InlineCallsBlock(func, enclosingBlk, *blk, changed, baseNode);
     }
   }
 }
@@ -1282,7 +1331,7 @@ InlineResult MInline::AnalyzeCallsite(const MIRFunction &caller, MIRFunction &ca
   for (size_t i = 0; i < realArgNum; ++i) {
     PrimType formalPrimType = callee.GetFormal(i)->GetType()->GetPrimType();
     PrimType realArgPrimType = callStmt.Opnd(i)->GetPrimType();
-    if (formalPrimType == PTY_agg ^ realArgPrimType == PTY_agg) {
+    if ((formalPrimType == PTY_agg) ^ (realArgPrimType == PTY_agg)) {
       return InlineResult(false, "INCOMPATIBLE_TYPE_CVT_FORM_ARG_TO_FORMAL");
     }
   }
@@ -1364,13 +1413,13 @@ InlineResult MInline::AnalyzeCallee(const MIRFunction &caller, MIRFunction &call
   }
   // More tolerant of functions with inline attr
   if (callee.GetAttr(FUNCATTR_inline)) {
-    threshold <<= 3;
+    threshold <<= kRelaxThresholdForInlineHint;
   }
   // We don't always inline called_once callee to avoid super big caller
   if (module.GetSrcLang() == kSrcLangC &&
       callee.GetAttr(FUNCATTR_called_once) &&
       callee.GetAttr(FUNCATTR_static)) {
-    threshold <<= 5;
+    threshold <<= kRelaxThresholdForCalledOnce;
   }
   uint32 cost = 0;
   BlockNode *calleeBody = callee.GetBody();
@@ -1496,7 +1545,7 @@ void MInline::CleanupInline() {
   }
   // after marking all the used symbols, set the other symbols as unused.
   for (size_t i = 1; i < GlobalTables::GetGsymTable().GetSymbolTableSize(); ++i) {
-    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(i);
+    MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(static_cast<uint32>(i));
     if (symbol != nullptr && symbol->IsTmpUnused()) {
       symbol->SetStorageClass(kScUnused);
       if (dumpDetail) {
@@ -1593,8 +1642,8 @@ bool M2MInline::PhaseRun(maple::MIRModule &m) {
   // Reset inlining threshold for other srcLang, especially for srcLangJava. Because those methods related to
   // reflection in Java cannot be inlined safely.
   if (m.GetSrcLang() != kSrcLangC) {
-    Options::inlineSmallFunctionThreshold = 15;
-    Options::inlineHotFunctionThreshold = 30;
+    Options::inlineSmallFunctionThreshold = kInlineSmallFunctionThresholdForJava;
+    Options::inlineHotFunctionThreshold = kInlineHotFunctionThresholdForJava;
   }
   MInline mInline(m, memPool, cg);
   mInline.Inline();
