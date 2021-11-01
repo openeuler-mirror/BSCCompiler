@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H
 #define MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H
+#include <iterator>
 #include <map>
 #include <set>
 #include <stdio.h>
@@ -153,25 +154,24 @@ private:
 
 class Action {
 public:
-  Action(const std::string &tool, std::shared_ptr<InputInfo> inputInfo)
+  Action(const std::string &tool, const InputInfo *const inputInfo)
     : inputInfo(inputInfo), tool(tool) {}
 
-  Action(const std::string &tool, std::shared_ptr<InputInfo> inputInfo,
-         std::shared_ptr<Action> in_action)
+  Action(const std::string &tool, const InputInfo *const inputInfo,
+         std::unique_ptr<Action> &inAction)
     : inputInfo(inputInfo), tool(tool)  {
-    inputActions.push_back(in_action);
+    inputActions.push_back(std::move(inAction));
   }
 
-  Action(const std::string &tool, const std::vector<std::shared_ptr<Action>> &inActions)
-    : tool(tool)  {
+  Action(const std::string &tool, std::vector<std::unique_ptr<Action>> &inActions,
+         const InputInfo *const inputInfo)
+    : inputInfo(inputInfo), tool(tool)  {
 
     for (auto &inAction : inActions) {
-      inputActions.push_back(inAction);
       linkInputFiles.push_back(inAction->GetInputFile());
     }
 
-    /* FIXME: fix hardcode a.out */
-    inputInfo = std::make_shared<InputInfo>("./a.out");
+    std::move(begin(inActions), end(inActions), std::back_inserter(inputActions));
   }
 
   const std::string &GetTool() const {
@@ -202,7 +202,7 @@ public:
     return linkInputFiles;
   }
 
-  const std::vector<std::shared_ptr<Action>> &GetInputActions() const {
+  const std::vector<std::unique_ptr<Action>> &GetInputActions() const {
     return inputActions;
   }
 
@@ -215,7 +215,7 @@ public:
   }
 
 private:
-  std::shared_ptr<InputInfo> inputInfo;
+  const InputInfo *inputInfo;
 
   std::string tool = "";
   std::string exeFolder = "";
@@ -224,7 +224,7 @@ private:
   Compiler *compilerTool;
 
   /* This vector contains a links to previous actions in Action tree */
-  std::vector<std::shared_ptr<Action>> inputActions;
+  std::vector<std::unique_ptr<Action>> inputActions;
 };
 
 class MplOption {
@@ -389,7 +389,7 @@ class MplOptions {
    return boundaryCheckMode;
   }
 
-  const std::vector<std::shared_ptr<Action>> &GetActions() const {
+  const std::vector<std::unique_ptr<Action>> &GetActions() const {
     return rootActions;
   }
 
@@ -409,14 +409,15 @@ class MplOptions {
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
   ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
-  std::shared_ptr<Action> DecideRunningPhasesByType(const std::string &inputFile, bool isMultipleFiles);
-  ErrorCode MFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
-                                std::shared_ptr<InputInfo> inputInfo, bool &wasWrpCombCompilerCreated);
-  ErrorCode SFCreateActionByExe(const std::string &exe, std::shared_ptr<Action> &currentAction,
-                                std::shared_ptr<InputInfo> inputInfo, bool &isCombCompiler);
+  std::unique_ptr<Action> DecideRunningPhasesByType(const InputInfo *const inputInfo, bool isMultipleFiles);
+  ErrorCode MFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated);
+  ErrorCode SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                const InputInfo *const inputInfo, bool &isCombCompiler);
   ErrorCode CheckInputFileValidity();
   ErrorCode CheckFileExits();
   ErrorCode AddOption(const mapleOption::Option &option);
+  InputInfo *AllocateInputInfo(const std::string &inputFile);
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
@@ -462,7 +463,8 @@ class MplOptions {
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
   SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
 
-  std::vector<std::shared_ptr<Action>> rootActions;
+  std::vector<std::unique_ptr<InputInfo>> inputInfos;
+  std::vector<std::unique_ptr<Action>> rootActions;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H

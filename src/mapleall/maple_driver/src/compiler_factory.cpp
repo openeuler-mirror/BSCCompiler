@@ -84,7 +84,7 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
       /* If we compile several files we can have several last Actions,
        * so we need to NOT remove output files for each last Action.
        */
-      for (auto lastAction : mplOptions.GetActions()) {
+      for (auto &lastAction : mplOptions.GetActions()) {
         auto finalOutputs = lastAction->GetCompiler()->GetFinalOutputs(mplOptions, *lastAction);
         /* do not remove output files */
         if (finalOutputs.find(tmpFile) != finalOutputs.end()) {
