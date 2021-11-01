@@ -21,9 +21,9 @@
 #include "mempool.h"
 #include "mempool_allocator.h"
 #include "call_graph.h"
-#include "module_phase.h"
 #include "string_utils.h"
 #include "me_option.h"
+#include "maple_phase_manager.h"
 
 namespace maple {
 constexpr char kSpaceTabStr[] = " \t";
@@ -110,7 +110,7 @@ class MInline {
   void InitRCWhiteList();
   void ApplyInlineListInfo(const std::string &list, MapleMap<GStrIdx, MapleSet<GStrIdx>*> &listCallee);
   uint32 RenameSymbols(MIRFunction&, const MIRFunction&, uint32) const;
-  void ReplaceSymbols(BaseNode*, uint32, const std::unordered_map<uint32, uint32>&) const;
+  void ReplaceSymbols(BaseNode*, uint32, const std::vector<uint32>*) const;
   uint32 RenameLabels(MIRFunction&, const MIRFunction&, uint32) const;
   void ReplaceLabels(BaseNode&, uint32) const;
   uint32 RenamePregs(const MIRFunction&, const MIRFunction&, std::unordered_map<PregIdx, PregIdx>&) const;
@@ -126,9 +126,12 @@ class MInline {
     return false;
   }
 
+  void ConvertPStaticToFStatic(MIRFunction &func) const;
   bool CheckCalleeAndInline(MIRFunction*, BlockNode *enclosingBlk, CallNode*, MIRFunction*);
+  bool SuitableForTailCallOpt(BaseNode &enclosingBlk, StmtNode &stmtNode, CallNode &callStmt);
+  bool CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt);
   void InlineCalls(const CGNode&);
-  void InlineCallsBlock(MIRFunction&, BlockNode&, BaseNode&, bool&);
+  void InlineCallsBlock(MIRFunction&, BlockNode&, BaseNode&, bool&, BaseNode&);
   void InlineCallsBlockInternal(MIRFunction&, BlockNode&, BaseNode&, bool&);
   GotoNode *UpdateReturnStmts(const MIRFunction&, BlockNode&, LabelIdx, const CallReturnVector&, int&) const;
   void CollectMustInlineFuncs();
@@ -154,19 +157,9 @@ class MInline {
   bool inlineWithProfile = false;
   std::string inlineFuncList;
   std::string noInlineFuncList;
-  uint32 maxInlineLevel = 4; //for recursive function, allow inline 4 levels at most.
+  uint32 maxInlineLevel = 4; // for recursive function, allow inline 4 levels at most.
 };
 
-class DoInline : public ModulePhase {
- public:
-  explicit DoInline(ModulePhaseID id) : ModulePhase(id) {}
-
-  AnalysisResult *Run(MIRModule *module, ModuleResultMgr *mgr) override;
-  std::string PhaseName() const override {
-    return "inline";
-  }
-
-  ~DoInline() = default;
-};
+MAPLE_MODULE_PHASE_DECLARE(M2MInline)
 }  // namespace maple
 #endif  // MAPLE_IPA_INCLUDE_INLINE_H
