@@ -46,7 +46,7 @@ ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompil
                                        std::vector<Action *> &selectedActions) const {
   /* Traverse Action tree recursively and select compilers in
    * "from leaf(clang) to root(ld)" order */
-  for (const std::shared_ptr<Action> &a : action.GetInputActions()) {
+  for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
     Select(supportedCompilers, mplOptions, *a, selectedActions);
   }
 
@@ -66,7 +66,7 @@ ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompil
 
   ErrorCode ret = kErrorNoError;
 
-  for (const std::shared_ptr<Action> &action : mplOptions.GetActions()) {
+  for (const std::unique_ptr<Action> &action : mplOptions.GetActions()) {
     ret = Select(supportedCompilers, mplOptions, *action, selectedActions);
   }
 
