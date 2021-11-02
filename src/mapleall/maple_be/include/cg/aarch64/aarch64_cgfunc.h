@@ -284,7 +284,8 @@ class AArch64CGFunc : public CGFunc {
                                Operand *o3, PrimType oTyp3) override;
   RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) override;
   RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) override;
-  RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
+  RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp) override;
+  RegOperand *SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) override;
   RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorNot(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
@@ -295,6 +296,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oTyp, Operand *o2, bool isLow) override;
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
+  RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
 
   void SelectVectorCvt(Operand *res, PrimType rType, Operand *o1, PrimType oType);
   void SelectVectorZip(PrimType rType, Operand *o1, Operand *o2);
@@ -364,6 +366,9 @@ class AArch64CGFunc : public CGFunc {
 
   RegOperand &GenStructParamIndex(RegOperand &base, const BaseNode &indexExpr, int shift, PrimType baseType,
                                   PrimType targetType);
+  void SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, std::vector<Insn *>& rematInsns);
+  MemOperand &GetOrCreateMemOpndAfterRa(const MIRSymbol &symbol, int32 offset, uint32 size,
+      bool needLow12, AArch64RegOperand *regOp, std::vector<Insn *>& rematInsns);
 
   MemOperand &GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 offset, uint32 size, bool forLocalRef = false,
                                  bool needLow12 = false, AArch64RegOperand *regOp = nullptr);

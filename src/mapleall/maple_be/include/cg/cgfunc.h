@@ -309,7 +309,8 @@ class CGFunc {
                                        PrimType oTyp3) = 0;
   virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) = 0;
   virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2) = 0;
-  virtual RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
+  virtual RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp) = 0;
+  virtual RegOperand *SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) = 0;
   virtual RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) = 0;
   virtual RegOperand *SelectVectorNot(PrimType rType, Operand *o1) = 0;
   virtual RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) = 0;
@@ -321,6 +322,7 @@ class CGFunc {
                                                Operand *o2, bool isLow) = 0;
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
+  virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
 
   /* For ebo issue. */
   virtual Operand *GetTrueOpnd() {
