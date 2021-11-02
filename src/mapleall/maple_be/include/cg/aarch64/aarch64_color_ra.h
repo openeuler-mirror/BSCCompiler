@@ -524,12 +524,20 @@ class LiveRange {
     ++numDefs;
   }
 
+  void SetNumDefs(uint32 val) {
+    numDefs = val;
+  }
+
   uint32 GetNumUses() const {
     return numUses;
   }
 
   void IncNumUses() {
     ++numUses;
+  }
+
+  void SetNumUses(uint32 val) {
+    numUses = val;
   }
 
   uint32 GetFrequency() const {
@@ -601,6 +609,14 @@ class LiveRange {
     this->isNonLocal = isNonLocal;
   }
 
+  void SetRematLevel(uint32 val) {
+    this->rematLevel = val;
+  }
+
+  uint32 GetRematLevel() {
+    return this->rematLevel;
+  }
+
   Opcode GetOp() const {
     return op;
   }
@@ -633,7 +649,7 @@ class LiveRange {
     fieldID = lr.fieldID;
   }
 
-  bool IsRematerializable(uint8 rematLevel) const;
+  bool IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) const;
   std::vector<Insn *> Rematerialize(AArch64CGFunc *cgFunc, AArch64RegOperand &regOp);
 
  private:
@@ -673,6 +689,7 @@ class LiveRange {
   bool hasDefUse = false;               /* has regDS */
   bool proccessed = false;
   bool isNonLocal = false;
+  uint32 rematLevel = 0;
   Opcode op = OP_undef;               /* OP_constval, OP_addrof or OP_dread if rematerializable */
   union RematInfo {
     const MIRConst *mirConst;
