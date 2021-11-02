@@ -55,7 +55,7 @@ class LoopVecInfo {
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
   // constval node need to adjust with new PrimType
   MapleMap<BaseNode *, PrimType>  constvalTypes;
-  MapleSet<StIdx> reductionVars; // reduction variables used in rhs->opnd(0)
+  MapleSet<std::pair<StIdx, Opcode>> reductionVars; // reduction variables used in rhs->opnd(0)
   MapleMap<StIdx, BaseNode *> redVecNodes; // new generate vector node
 };
 

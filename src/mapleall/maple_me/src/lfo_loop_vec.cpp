@@ -96,7 +96,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
     } else if (upNode->GetOpCode() == OP_dread || upNode->GetOpCode() == OP_regread) {
       // step 1: generate vectorized loop bound
       // upNode of vBound is (uppnode - initnode) / newIncr * newIncr + initnode
-      BinaryNode *divnode = nullptr;
+      BinaryNode *divnode;
       BaseNode *addnode = upNode;
       if (condOpHasEqual) {
         addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
@@ -118,7 +118,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
   } else if (initNode->GetOpCode() == OP_dread || initNode->GetOpCode() == OP_regread) {
     // initnode is not constant
     // set bound of vectorized loop
-    BinaryNode *subnode = nullptr;
+    BinaryNode *subnode;
     if (condOpHasEqual) {
       BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
       subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
@@ -499,12 +499,12 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       // now only support reduction scalar
       // sum = sum +/- vectorizable_expr
       // =>
-      //  vec t1 = dup_scalar(sum);
-      //  doloop {
-      //    t1 = t1 + vectorized_node;
-      //  }
+      // Example: vec t1 = dup_scalar(sum);
+      // Example: doloop {
+      // Example:   t1 = t1 + vectorized_node;
+      // Example: }
       //  sum = sum +/- intrinsic_op vec_sum(t1)
-      // sum = intrinsic_op vec_sum(vectorized_node);
+      // Example:sum = intrinsic_op vec_sum(vectorized_node);
       DassignNode *dassign = static_cast<DassignNode *>(node);
       StIdx lhsStIdx = dassign->GetStIdx();
       MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(lhsStIdx);
@@ -512,7 +512,14 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       MIRType *vecType = GenVecType(lhsType.GetPrimType(), tp->vecFactor);
       ASSERT(vecType != nullptr, "vector type should not be null");
       BaseNode *vecNode = dassign->GetRHS()->Opnd(1);
-      VectorizeNode(vecNode, tp);
+      // skip vecNode is uniform
+      if (tp->vecInfo->uniformNodes.find(vecNode) == tp->vecInfo->uniformNodes.end()) {
+        VectorizeNode(vecNode, tp);
+        if (vecType->GetPrimType() != vecNode->GetPrimType()) {
+          BaseNode *newVecNode = codeMP->New<TypeCvtNode>(OP_cvt, vecType->GetPrimType(), vecNode->GetPrimType(), vecNode);
+          dassign->GetRHS()->SetOpnd(newVecNode, 1);
+        }
+      }
       BaseNode *redNewVar = tp->vecInfo->redVecNodes[lhsStIdx];
       ASSERT((redNewVar != nullptr && redNewVar->GetOpCode() == OP_dread), "nullptr check");
       StIdx vecStIdx = (static_cast<AddrofNode *>(redNewVar))->GetStIdx();
@@ -554,6 +561,7 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       break;
     }
     // unary op
+    case OP_abs:
     case OP_neg:
     case OP_bnot:
     case OP_lnot: {
@@ -635,14 +643,16 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
     BlockNode *pblock = static_cast<BlockNode *>(parent);
     auto it = tp->vecInfo->reductionVars.begin();
     int count = 0;
+    MIRType &typeInt = *GlobalTables::GetTypeTable().GetPrimType(PTY_i32);
+    MIRIntConst *constZero = GlobalTables::GetIntConstTable().GetOrCreateIntConst(0, typeInt);
+    ConstvalNode *zeroNode = codeMP->New<ConstvalNode>(PTY_i32, constZero);
     for (; it != tp->vecInfo->reductionVars.end(); it++) {
-      StIdx stIdx = *it;
+      StIdx stIdx = it->first;
       MIRSymbol *redSym = mirFunc->GetLocalOrGlobalSymbol(stIdx);
       PrimType ptype = GetTypeFromTyIdx(redSym->GetTyIdx()).GetPrimType();
       MIRType *vecType = GenVecType(ptype, tp->vecFactor);
-      // before loop: vec = dup_scalar(reduction)
-      AddrofNode *redScalarNode = codeMP->New<AddrofNode>(OP_dread, ptype, stIdx, 0);
-      IntrinsicopNode *dupscalar = GenDupScalarExpr(redScalarNode, vecType->GetPrimType());
+      // before loop: vec = dup_scalar(0)
+      IntrinsicopNode *dupscalar = GenDupScalarExpr(zeroNode, vecType->GetPrimType());
       // new stidx
       std::string redName("red");
       redName.append(std::to_string(doloop->GetStmtID()));
@@ -654,9 +664,12 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
       pblock->InsertBefore(doloop, redInitStmt);
       AddrofNode *dreadNode = codeMP->New<AddrofNode>(OP_dread, vecType->GetPrimType(), st->GetStIdx(), 0);
       tp->vecInfo->redVecNodes[stIdx] = dreadNode;
-      // after loop:  reduction = vec_sum(vec)
+      // after loop:  reduction +/-= vec_sum(vec)
+      AddrofNode *redScalarNode = codeMP->New<AddrofNode>(OP_dread, ptype, stIdx, 0);
       IntrinsicopNode *intrnNode = GenSumVecStmt(dreadNode, vecType->GetPrimType());
-      DassignNode *redDassign = codeMP->New<DassignNode>(ptype, intrnNode, stIdx, 0);
+      // reduction op is +/- now, use OP_add to sum all elements
+      BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, ptype, redScalarNode, intrnNode);
+      DassignNode *redDassign = codeMP->New<DassignNode>(ptype, binaryNode, stIdx, 0);
       pblock->InsertAfter(doloop, redDassign);
     }
   }
@@ -788,7 +801,8 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     // supported unary ops
     case OP_bnot:
     case OP_lnot:
-    case OP_neg: {
+    case OP_neg:
+    case OP_abs: {
       MeExpr *r0MeExpr = (*lfoExprParts)[x->Opnd(0)]->GetMeExpr();
       bool r0Uniform = doloopInfo->IsLoopInvariant(r0MeExpr);
       if (r0Uniform) {
@@ -964,15 +978,20 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         MIRSymbol *lhsSym = mirFunc->GetLocalOrGlobalSymbol(lhsStIdx);
         MIRType &lhsType = GetTypeFromTyIdx(lhsSym->GetTyIdx());
         BaseNode *rhs = dassign->GetRHS();
+        uint32_t lshtypesize = GetPrimTypeSize(lhsType.GetPrimType()) * 8;
         if (IsReductionOp(rhs->GetOpCode()) && doloopInfo->IsReductionVar(lhsStIdx)) {
           BaseNode *opnd0 = rhs->Opnd(0);
           BaseNode *opnd1 = rhs->Opnd(1);
           CHECK_FATAL((opnd0->GetOpCode() == OP_dread) && ((static_cast<AddrofNode *>(opnd0))->GetStIdx() == lhsStIdx),
                       "opnd0 is reduction variable");
           if (ExprVectorizable(doloopInfo, vecInfo, opnd1)) {
+            // there's iread in rhs
+            if ((vecInfo->currentRHSTypeSize != 0) && (lshtypesize != vecInfo->currentRHSTypeSize)) {
+              return false;
+            }
             vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
-            vecInfo->UpdateWidestTypeSize(GetPrimTypeSize(lhsType.GetPrimType()) *8);
-            vecInfo->reductionVars.insert((static_cast<AddrofNode *>(opnd0))->GetStIdx());
+            vecInfo->UpdateWidestTypeSize(lshtypesize);
+            vecInfo->reductionVars.insert(std::make_pair((static_cast<AddrofNode *>(opnd0))->GetStIdx(), rhs->GetOpCode()));
           } else {
             return false; // only handle reduction scalar
           }
