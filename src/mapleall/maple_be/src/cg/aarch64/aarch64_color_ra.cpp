@@ -78,7 +78,7 @@ void LiveUnit::PrintLiveUnit() const {
   }
 }
 
-bool LiveRange::IsRematerializable(uint8 rematLevel) const {
+bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) const {
   if (rematLevel == rematOff)
     return false;
 
@@ -91,7 +91,7 @@ bool LiveRange::IsRematerializable(uint8 rematLevel) const {
       return false;
     }
     const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
-    return intConst->GetValue() >= 0 && intConst->GetValue() <= 255;
+    return intConst->GetValue() >= -kMax16UnsignedImm && intConst->GetValue() <= kMax16UnsignedImm;
   }
   case OP_addrof: {
     if (rematLevel < rematAddr) {
@@ -111,6 +111,27 @@ bool LiveRange::IsRematerializable(uint8 rematLevel) const {
     if (symbol->IsDeleted()) {
       return false;
     }
+    MIRStorageClass storageClass = symbol->GetStorageClass();
+    if ((storageClass == kScAuto) || (storageClass == kScFormal)) {
+      /* cost too much to remat. */
+      return false;
+    }
+    PrimType symType = symbol->GetType()->GetPrimType();
+    int32 offset = 0;
+    if (fieldID != 0) {
+      MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
+      ASSERT(structType != nullptr,
+             "Rematerialize: non-zero fieldID for non-structure");
+      symType = structType->GetFieldType(fieldID)->GetPrimType();
+      offset = cgFunc.GetBecommon().GetFieldOffset(*structType, fieldID).first;
+    }
+    /* check stImm.GetOffset() is in addri12 */
+    StImmOperand &stOpnd = cgFunc.CreateStImmOperand(*symbol, offset, 0);
+    uint32 dataSize = GetPrimTypeBitSize(symType);
+    AArch64ImmOperand &immOpnd = cgFunc.CreateImmOperand(stOpnd.GetOffset(), dataSize, false);
+    if (!immOpnd.IsInBitSize(kMaxImmVal12Bits, 0)) {
+      return false;
+    }
     if (rematLevel < rematDreadGlobal && !symbol->IsLocal()) {
       return false;
     }
@@ -127,7 +148,6 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
   CG *cg = cgFunc->GetCG();
   switch (op) {
   case OP_constval:
-    break;
     switch (rematInfo.mirConst->GetKind()) {
     case kConstInt: {
       MIRIntConst *intConst = const_cast<MIRIntConst *>(
@@ -144,24 +164,23 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
   case OP_dread: {
     const MIRSymbol *symbol = rematInfo.sym;
     PrimType symType = symbol->GetType()->GetPrimType();
-    if (!spillMem) {
-      int32 offset = 0;
-      if (fieldID != 0) {
-        MIRStructType *structType =
-            static_cast<MIRStructType *>(symbol->GetType());
-        ASSERT(structType != nullptr,
-               "Rematerialize: non-zero fieldID for non-structure");
-        symType = structType->GetFieldType(fieldID)->GetPrimType();
-        offset =
-            cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
-      }
-
-      uint32 dataSize = GetPrimTypeBitSize(symType);
-      spillMem = &cgFunc->GetOrCreateMemOpnd(*symbol, offset, dataSize, false, false, &regOp);
+    AArch64RegOperand *regOp64 = &cgFunc->GetOrCreatePhysicalRegisterOperand(
+        static_cast<AArch64reg>(regOp.GetRegisterNumber()), k64BitSize, regOp.GetRegisterType());
+    int32 offset = 0;
+    if (fieldID != 0) {
+      MIRStructType *structType =
+          static_cast<MIRStructType *>(symbol->GetType());
+      ASSERT(structType != nullptr,
+             "Rematerialize: non-zero fieldID for non-structure");
+      symType = structType->GetFieldType(fieldID)->GetPrimType();
+      offset =
+          cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
     }
 
-    MOperator mOp = cgFunc->PickLdInsn(spillMem->GetSize(), symType);
-    insns.push_back(&cg->BuildInstruction<AArch64Insn>(mOp, regOp, *spillMem));
+    uint32 dataSize = GetPrimTypeBitSize(symType);
+    MemOperand *spillMemOp = &cgFunc->GetOrCreateMemOpndAfterRa(*symbol, offset, dataSize, false, regOp64, insns);
+    MOperator mOp = cgFunc->PickLdInsn(spillMemOp->GetSize(), symType);
+    insns.push_back(&cg->BuildInstruction<AArch64Insn>(mOp, regOp, *spillMemOp));
   }
   break;
   case OP_addrof: {
@@ -420,16 +439,17 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   CG *cg = a64CGFunc->GetCG();
 
-  if (cg->GetRematLevel() >= rematConst && lr.IsRematerializable(rematConst)) {
-    lr.SetPriority(1.0);
-    return;
-  }
-  bool canRemat = false;
-  if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(rematAddr)) {
-    canRemat = true;
+  if (cg->GetRematLevel() >= rematConst && lr.IsRematerializable(*a64CGFunc, rematConst)) {
+    lr.SetRematLevel(rematConst);
+  } else if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(*a64CGFunc, rematAddr)) {
+    lr.SetRematLevel(rematAddr);
+  } else if (cg->GetRematLevel() >= rematDreadLocal && lr.IsRematerializable(*a64CGFunc, rematDreadLocal)) {
+    lr.SetRematLevel(rematDreadLocal);
+  } else if (cg->GetRematLevel() >= rematDreadGlobal && lr.IsRematerializable(*a64CGFunc, rematDreadGlobal)) {
+    lr.SetRematLevel(rematDreadGlobal);
   }
 
-  auto calculatePriorityFunc = [&lr, &bbNum, &numDefs, &numUses, &pri, &canRemat, this] (uint32 bbID) {
+  auto calculatePriorityFunc = [&lr, &bbNum, &numDefs, &numUses, &pri, this] (uint32 bbID) {
     auto lu = lr.FindInLuMap(bbID);
     ASSERT(lu != lr.EndOfLuMap(), "can not find live unit");
     BB *bb = bbVec[bbID];
@@ -444,7 +464,7 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
 #else   /* USE_BB_FREQUENCY */
       if (bb->GetLoop() != nullptr) {
         uint32 loopFactor;
-        if (lr.GetNumCall() > 0 && !canRemat) {
+        if (lr.GetNumCall() > 0 && lr.GetRematLevel() == rematOff) {
           loopFactor = bb->GetLoop()->GetLoopLevel() * kAdjustWeight;
         } else {
           loopFactor = bb->GetLoop()->GetLoopLevel() / kAdjustWeight;
@@ -459,27 +479,21 @@ void GraphColorRegAllocator::CalculatePriority(LiveRange &lr) const {
   };
   ForEachBBArrElem(lr.GetBBMember(), calculatePriorityFunc);
 
-  if (cg->GetRematLevel() >= rematAddr && lr.IsRematerializable(rematAddr)) {
+  if (lr.GetRematLevel() == rematAddr || lr.GetRematLevel() == rematConst) {
     if (numDefs <= 1 && numUses <= 1) {
       pri = -0xFFFF;
-    } else if (pri < pri / kRematWeight) {
-      pri *= kRematWeight;
     } else {
       pri /= kRematWeight;
     }
-  } else if (cg->GetRematLevel() >= rematDreadLocal &&
-             lr.IsRematerializable(rematDreadLocal)) {
+  } else if (lr.GetRematLevel() == rematDreadLocal) {
     pri /= 4;
-  } else if (cg->GetRematLevel() >= rematDreadGlobal &&
-             lr.IsRematerializable(rematDreadGlobal)) {
+  } else if (lr.GetRematLevel() == rematDreadGlobal) {
     pri /= 2;
   }
 
-  if (bbNum != 0) {
-    lr.SetPriority(pri - bbNum);
-  } else {
-    lr.SetPriority(0.0);
-  }
+  lr.SetPriority(pri);
+  lr.SetNumDefs(numDefs);
+  lr.SetNumUses(numUses);
   if (lr.GetPriority() > 0 && numDefs <= kPriorityDefThreashold && numUses <= kPriorityUseThreashold &&
       cgFunc->NumBBs() > kPriorityBBThreashold &&
       (static_cast<float>(lr.GetNumBBMembers()) / cgFunc->NumBBs()) > kPriorityRatioThreashold) {
@@ -1462,7 +1476,9 @@ void GraphColorRegAllocator::Separate() {
       continue;
     }
 #endif  /* OPTIMIZE_FOR_PROLOG */
-    if (HaveAvailableColor(*lr, lr->GetNumBBConflicts() + lr->GetPregvetoSize() + lr->GetForbiddenSize())) {
+    if (lr->GetRematLevel() != rematOff) {
+      unconstrained.emplace_back(lr);
+    } else if (HaveAvailableColor(*lr, lr->GetNumBBConflicts() + lr->GetPregvetoSize() + lr->GetForbiddenSize())) {
       if (lr->GetPrefs().size()) {
         unconstrainedPref.emplace_back(lr);
       } else {
@@ -1597,10 +1613,12 @@ regno_t GraphColorRegAllocator::FindColorForLr(const LiveRange &lr) const {
 
   regno_t reg;
 #ifdef MOVE_COALESCE
-  for (const auto &it : lr.GetPrefs()) {
-    reg = it + base;
-    if ((FindIn(*currRegSet, reg) || FindIn(*nextRegSet, reg)) && !lr.GetForbidden(reg) && !lr.GetPregveto(reg)) {
-      return reg;
+  if (lr.GetNumCall() == 0 || (lr.GetNumDefs() + lr.GetNumUses() <= 2)) {
+    for (const auto &it : lr.GetPrefs()) {
+      reg = it + base;
+      if ((FindIn(*currRegSet, reg) || FindIn(*nextRegSet, reg)) && !lr.GetForbidden(reg) && !lr.GetPregveto(reg)) {
+        return reg;
+      }
     }
   }
 #endif  /*  MOVE_COALESCE */
@@ -2865,7 +2883,7 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     isLastInsn = true;
   }
 
-  if (lr->IsRematerializable(cg->GetRematLevel())) {
+  if (lr->GetRematLevel() != rematOff) {
     std::string comment = " REMATERIALIZE for spill vreg: " +
                           std::to_string(regNO);
     if (isLastInsn) {
@@ -2936,28 +2954,9 @@ MemOperand *GraphColorRegAllocator::GetSpillOrReuseMem(LiveRange &lr, uint32 reg
                                                        bool isDef) {
   (void)regSize;
   MemOperand *memOpnd = nullptr;
-  CG *cg = cgFunc->GetCG();
   if (lr.GetSpillMem() != nullptr) {
     /* the saved memOpnd cannot be out-of-range */
     memOpnd = lr.GetSpillMem();
-  } else if (lr.IsRematerializable(cg->GetRematLevel()) && lr.GetOp() == OP_dread) {
-    auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    const MIRSymbol *symbol = lr.GetRematSymbol();
-    PrimType symType = symbol->GetType()->GetPrimType();
-    int32 offset = 0;
-    FieldID fieldID = lr.GetRematFieldID();
-    if (fieldID != 0) {
-      MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-      ASSERT(structType != nullptr,
-             "Rematerialize: non-zero fieldID for non-structure");
-      symType = structType->GetFieldType(fieldID)->GetPrimType();
-      offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
-    }
-
-    uint32 dataSize = GetPrimTypeBitSize(symType);
-    memOpnd = &a64CGFunc->GetOrCreateMemOpnd(*symbol, offset, dataSize);
-    lr.SetSpillMem(*memOpnd);
-    lr.SetSpillSize((regSize <= k32) ? k32 : k64);
   } else {
 #ifdef REUSE_SPILLMEM
     memOpnd = GetReuseMem(lr.GetRegNO(), regSize, lr.GetRegType());
@@ -3032,7 +3031,7 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
 
   Insn *spillDefInsn = nullptr;
   if (isDef) {
-    if (!lr->IsRematerializable(cg->GetRematLevel() > rematAddr ? rematAddr : cg->GetRematLevel())) {
+    if (lr->GetRematLevel() == rematOff) {
       lr->SetSpillReg(pregNO);
       Insn *nextInsn = insn.GetNextMachineInsn();
       MemOperand *memOpnd = GetSpillOrReuseMem(*lr, regSize, isOutOfRange, insn, forCall ? false : true);
@@ -3071,7 +3070,7 @@ Insn *GraphColorRegAllocator::SpillOperand(Insn &insn, const Operand &opnd, bool
 
   std::vector<Insn *> spillUseInsns;
   std::string comment;
-  if (lr->IsRematerializable(cg->GetRematLevel())) {
+  if (lr->GetRematLevel() != rematOff) {
     spillUseInsns = lr->Rematerialize(a64CGFunc, phyOpnd);
     comment = " REMATERIALIZE vreg: " + std::to_string(regNO);
   } else {
@@ -3551,7 +3550,7 @@ RegOperand *GraphColorRegAllocator::GetReplaceOpnd(Insn &insn, const Operand &op
   bool needCallerSave = false;
   if (lr->GetNumCall() && !isCalleeReg) {
     if (isDef) {
-      needCallerSave = NeedCallerSave(insn, *lr, isDef);
+      needCallerSave = NeedCallerSave(insn, *lr, isDef) && lr->GetRematLevel() == rematOff;
     } else {
       needCallerSave = !lr->GetProcessed();
     }
@@ -3805,10 +3804,9 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
     AArch64RegOperand *regopnd =
         &a64cgfunc->GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(spreg), opnd.GetSize(), rtype);
 
-    if (lr->IsRematerializable(cg->GetRematLevel())) {
+    if (lr->GetRematLevel() != rematOff) {
       if (isdef) {
-        // For dreads, we still need to spill, but for others we do not.
-        if (lr->GetOp() != OP_dread) return nullptr;
+        return nullptr;
       } else {
         std::vector<Insn *> rematInsns = lr->Rematerialize(a64cgfunc, *static_cast<AArch64RegOperand*>(regopnd));
         for (auto &&remat : rematInsns) {
