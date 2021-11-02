@@ -419,8 +419,52 @@ DEF_MIR_INTRINSIC(vector_set_element_v2f32, "vector_set_element_v2f32",
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2F32,
                   kArgTyF32, kArgTyV2F32, kArgTyI32)
 
+// vecTy2 vector_widen_low(vecTy1 src)
+//     Widen each element of the 64-bit argument to double size of the
+//     original width to a 128-bit destination vector.
+DEF_MIR_INTRINSIC(vector_widen_low_v2i32, "vector_widen_low_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV2I32)
+DEF_MIR_INTRINSIC(vector_widen_low_v4i16, "vector_widen_low_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV4I16)
+DEF_MIR_INTRINSIC(vector_widen_low_v8i8, "vector_widen_low_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV8I8)
+DEF_MIR_INTRINSIC(vector_widen_low_v2u32, "vector_widen_low_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV2U32)
+DEF_MIR_INTRINSIC(vector_widen_low_v4u16, "vector_widen_low_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV4U16)
+DEF_MIR_INTRINSIC(vector_widen_low_v8u8, "vector_widen_low_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV8U8)
+
+// vecTy2 vector_widen_high(vecTy1 src)
+//     Widen each upper element of the 128-bit source vector to double size of
+//     the original width into a 128-bit destination vector.
+DEF_MIR_INTRINSIC(vector_widen_high_v2i32, "vector_widen_high_v2i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I64,
+                  kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_widen_high_v4i16, "vector_widen_high_v4i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_widen_high_v8i8, "vector_widen_high_v8i8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV16I8)
+DEF_MIR_INTRINSIC(vector_widen_high_v2u32, "vector_widen_high_v2u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2U64,
+                  kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_widen_high_v4u16, "vector_widen_high_v4u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV8U16)
+DEF_MIR_INTRINSIC(vector_widen_high_v8u8, "vector_widen_high_v8u8",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV16U8)
+
 // vecTy2 vector_narrow_low(vecTy1 src)
-//     Narrow each element of the source vector to half of the original width,
+//     Narrow each element of the 128-bit source vector to half of the original width,
 //     then write it to the lower half of the destination vector.
 DEF_MIR_INTRINSIC(vector_narrow_low_v2i64, "vector_narrow_low_v2i64",
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV2I32,
@@ -440,6 +484,28 @@ DEF_MIR_INTRINSIC(vector_narrow_low_v4u32, "vector_narrow_low_v4u32",
 DEF_MIR_INTRINSIC(vector_narrow_low_v8u16, "vector_narrow_low_v8u16",
                   INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U8,
                   kArgTyV8U16)
+
+// vecTy2 vector_narrow_high(vecTy1 src)
+//     Narrow each element of the upper source vector to half of the original width,
+//     concatenate with the first 64-bit arg into a 128-bit destination vector.
+DEF_MIR_INTRINSIC(vector_narrow_high_v2i64, "vector_narrow_high_v2i64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4I32,
+                  kArgTyV2I32, kArgTyV2I64)
+DEF_MIR_INTRINSIC(vector_narrow_high_v4i32, "vector_narrow_high_v4i32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8I16,
+                  kArgTyV4I16, kArgTyV4I32)
+DEF_MIR_INTRINSIC(vector_narrow_high_v8i16, "vector_narrow_high_v8i16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16I8,
+                  kArgTyV8I8, kArgTyV8I16)
+DEF_MIR_INTRINSIC(vector_narrow_high_v2u64, "vector_narrow_high_v2u64",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV4U32,
+                  kArgTyV2U32, kArgTyV2U64)
+DEF_MIR_INTRINSIC(vector_narrow_high_v4u32, "vector_narrow_high_v4u32",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV8U16,
+                  kArgTyV4U16, kArgTyV4U32)
+DEF_MIR_INTRINSIC(vector_narrow_high_v8u16, "vector_narrow_high_v8u16",
+                  INTRNISVECTOR | INTRNISPURE | INTRNNOSIDEEFFECT, kArgTyV16U8,
+                  kArgTyV8U8, kArgTyV8U16)
 
 // vecTy2 vector_pairwise_add(vecTy1 src)
 //     Add pairs of elements from the source vector and put the result into the

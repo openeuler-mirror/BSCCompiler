@@ -480,8 +480,19 @@ Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
 
 Operand *HandleVectorNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
-  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
-  return cgFunc.SelectVectorNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), isLow);
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector opnd 1 */
+  if (isLow) {
+    return cgFunc.SelectVectorNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType());
+  } else {
+    Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1)); /* vector opnd 2 */
+    return cgFunc.SelectVectorNarrow2(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType());
+  }
+}
+
+Operand *HandleVectorWiden(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
+  PrimType rType = intrnNode.GetPrimType();                            /* result operand */
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector opnd 1 */
+  return cgFunc.SelectVectorWiden(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), isLow);
 }
 
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -709,6 +720,11 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_narrow_low_v2u64: case INTRN_vector_narrow_low_v2i64:
       return HandleVectorNarrow(intrinsicopNode, cgFunc, true);
 
+    case INTRN_vector_narrow_high_v8u16: case INTRN_vector_narrow_high_v8i16:
+    case INTRN_vector_narrow_high_v4u32: case INTRN_vector_narrow_high_v4i32:
+    case INTRN_vector_narrow_high_v2u64: case INTRN_vector_narrow_high_v2i64:
+      return HandleVectorNarrow(intrinsicopNode, cgFunc, false);
+
     case INTRN_vector_reverse_v8u8: case INTRN_vector_reverse_v8i8:
     case INTRN_vector_reverse_v4u16: case INTRN_vector_reverse_v4i16:
     case INTRN_vector_reverse_v16u8: case INTRN_vector_reverse_v16i8:
@@ -723,6 +739,16 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
     case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:
       return HandleVectorTableLookup(intrinsicopNode, cgFunc);
+
+    case INTRN_vector_widen_low_v8u8: case INTRN_vector_widen_low_v8i8:
+    case INTRN_vector_widen_low_v4u16: case INTRN_vector_widen_low_v4i16:
+    case INTRN_vector_widen_low_v2u32: case INTRN_vector_widen_low_v2i32:
+      return HandleVectorWiden(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_widen_high_v8u8: case INTRN_vector_widen_high_v8i8:
+    case INTRN_vector_widen_high_v4u16: case INTRN_vector_widen_high_v4i16:
+    case INTRN_vector_widen_high_v2u32: case INTRN_vector_widen_high_v2i32:
+      return HandleVectorWiden(intrinsicopNode, cgFunc, false);
 
     default:
       ASSERT(false, "Should not reach here.");
