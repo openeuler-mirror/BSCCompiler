@@ -1588,7 +1588,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
   Opcode op = OP_ge;
   if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOpCode())) {
-    op = (stmt.GetOpCode() == OP_callassertle || stmt.GetOpCode() == OP_returnassertle) ? OP_le : OP_lt;
+    op = (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) ? OP_le : OP_lt;
   }
   BaseNode *cond = mirBuilder->CreateExprCompare(op, *GlobalTables::GetTypeTable().GetUInt1(),
                                                  *GlobalTables::GetTypeTable().GetPrimType(op0->GetPrimType()),
@@ -1596,6 +1596,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   CondGotoNode *brTrueNode = mirBuilder->CreateStmtCondGoto(cond, OP_brtrue, labIdx);
 
   MIRFunction *printf = mirBuilder->GetOrCreateFunction("printf", TyIdx(PTY_i32));
+  beCommon.UpdateTypeTable(*printf->GetMIRFuncType());
   MapleVector<BaseNode*> argsPrintf(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (kOpcodeInfo.IsAssertLowerBoundary(stmt.GetOpCode())) {
@@ -1613,6 +1614,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
 
   MIRFunction *func = mirBuilder->GetOrCreateFunction("abort", TyIdx(PTY_void));
+  beCommon.UpdateTypeTable(*func->GetMIRFuncType());
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   StmtNode *call = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
 
