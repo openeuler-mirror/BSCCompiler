@@ -423,7 +423,7 @@ void DoloopInfo::TestDependences(MapleVector<DepTestPair> *depTestList, bool bot
     } else {
       arrDesc2 = rhsArrays[testPair->depTestPair.second];
     }
-    if (arrDesc1->subscriptVec.size() == arrDesc2->subscriptVec.size()) {
+    if (arrDesc1->subscriptVec.size() != arrDesc2->subscriptVec.size()) {
       testPair->dependent = true;
       testPair->unknownDist = true;
       continue;
