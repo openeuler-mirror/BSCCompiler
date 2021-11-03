@@ -294,6 +294,7 @@ class CGFunc {
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
   /* For Neon intrinsics */
+  virtual RegOperand *SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) = 0;
   virtual RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) = 0;
   virtual RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
                                         PrimType oTyp2, Opcode opc) = 0;

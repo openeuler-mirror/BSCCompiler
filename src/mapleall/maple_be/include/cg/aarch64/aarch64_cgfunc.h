@@ -266,6 +266,7 @@ class AArch64CGFunc : public CGFunc {
   LabelOperand &CreateFuncLabelOperand(const MIRSymbol &func);
   uint32 GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alignment) const;
 
+  RegOperand *SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) override;
   RegOperand *SelectVectorAbs(PrimType rType, Operand *o1) override;
   RegOperand *SelectVectorBinOp(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2,
                                 PrimType oTyp2, Opcode opc) override;
@@ -442,6 +443,9 @@ class AArch64CGFunc : public CGFunc {
   }
 
   void AddtoCalleeSaved(AArch64reg reg) {
+    if (!UseFP() && reg == R29) {
+      reg = RFP;
+    }
     if (find(calleeSavedRegs.begin(), calleeSavedRegs.end(), reg) != calleeSavedRegs.end()) {
       return;
     }

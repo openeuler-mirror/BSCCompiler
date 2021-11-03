@@ -348,6 +348,12 @@ Operand *HandleJarrayMalloc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFu
 }
 
 /* Neon intrinsic handling */
+Operand *HandleVectorAddWiden(BaseNode &expr, CGFunc &cgFunc, bool isLow) {
+  Operand *o1 = cgFunc.HandleExpr(expr, *expr.Opnd(0));
+  Operand *o2 = cgFunc.HandleExpr(expr, *expr.Opnd(1));
+  return cgFunc.SelectVectorAddWiden(o1, expr.Opnd(0)->GetPrimType(), o2, expr.Opnd(1)->GetPrimType(), isLow);
+}
+
 Operand *HandleVectorFromScalar(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorFromScalar(intrnNode.GetPrimType(), cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0)),
                                        intrnNode.Opnd(0)->GetPrimType());
@@ -635,6 +641,16 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_abs_v16i8: case INTRN_vector_abs_v8i16:
     case INTRN_vector_abs_v4i32: case INTRN_vector_abs_v2i64:
       return HandleAbs(parent, intrinsicopNode, cgFunc);
+
+    case INTRN_vector_addw_low_v8i8: case INTRN_vector_addw_low_v8u8:
+    case INTRN_vector_addw_low_v4i16: case INTRN_vector_addw_low_v4u16:
+    case INTRN_vector_addw_low_v2i32: case INTRN_vector_addw_low_v2u32:
+      return HandleVectorAddWiden(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_addw_high_v8i8: case INTRN_vector_addw_high_v8u8:
+    case INTRN_vector_addw_high_v4i16: case INTRN_vector_addw_high_v4u16:
+    case INTRN_vector_addw_high_v2i32: case INTRN_vector_addw_high_v2u32:
+      return HandleVectorAddWiden(intrinsicopNode, cgFunc, false);
 
     case INTRN_vector_sum_v8u8: case INTRN_vector_sum_v8i8:
     case INTRN_vector_sum_v4u16: case INTRN_vector_sum_v4i16:
