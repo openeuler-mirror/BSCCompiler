@@ -485,7 +485,8 @@ Operand *HandleVectorNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isL
     return cgFunc.SelectVectorNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType());
   } else {
     Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1)); /* vector opnd 2 */
-    return cgFunc.SelectVectorNarrow2(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, intrnNode.Opnd(1)->GetPrimType());
+    return cgFunc.SelectVectorNarrow2(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2,
+                                      intrnNode.Opnd(1)->GetPrimType());
   }
 }
 
@@ -496,7 +497,6 @@ Operand *HandleVectorWiden(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLo
 }
 
 Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
-//  (void)parent;
   auto &intrinsicopNode = static_cast<IntrinsicopNode&>(expr);
   switch (intrinsicopNode.GetIntrinsic()) {
     case INTRN_MPL_READ_OVTABLE_ENTRY_LAZY: {
