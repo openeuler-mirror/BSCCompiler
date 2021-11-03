@@ -13,6 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "mpl_options.h"
+#include <memory>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -103,6 +104,18 @@ int MplOptions::Parse(int argc, char **argv) {
     }
   }
 
+  /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
+   * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
+   * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
+   * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
+   */
+  else { // kCustomRun
+    ret = DecideRunningPhases(runningExes);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+  }
+
   // Handle other options
   ret = HandleGeneralOptions();
   if (ret != kErrorNoError) {
@@ -110,6 +123,12 @@ int MplOptions::Parse(int argc, char **argv) {
   }
   // Check whether the file was readable
   ret = CheckFileExits();
+
+  if (isDriverPhasesDumpCmd) {
+    DumpActionTree();
+    return kErrorExitHelp;
+  }
+
   return ret;
 }
 
@@ -209,11 +228,38 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kAllDebug:
         debugFlag = true;
         break;
+      case kMaplePrintPhases:
+        isDriverPhasesDumpCmd = true;
+        break;
       case kWithDwarf:
         withDwarf = true;
         break;
       case kPartO2:
         partO2List = opt.Args();
+        break;
+      case kNpeNoCheck:
+        npeCheckMode = SafetyCheckMode::kNoCheck;
+        break;
+      case kNpeStaticCheck:
+        npeCheckMode = SafetyCheckMode::kStaticCheck;
+        break;
+      case kNpeDynamicCheck:
+        npeCheckMode = SafetyCheckMode::kDynamicCheck;
+        break;
+      case kNpeDynamicCheckSilent:
+        npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
+        break;
+      case kBoundaryNoCheck:
+        boundaryCheckMode = SafetyCheckMode::kNoCheck;
+        break;
+      case kBoundaryStaticCheck:
+        boundaryCheckMode = SafetyCheckMode::kStaticCheck;
+        break;
+      case kBoundaryDynamicCheck:
+        boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
+        break;
+      case kBoundaryDynamicCheckSilent:
+        boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
         break;
       default:
         // I do not care
@@ -293,8 +339,12 @@ ErrorCode MplOptions::DecideRunType() {
   return ret;
 }
 
-ErrorCode MplOptions::DecideRunningPhases() {
-  ErrorCode ret = kErrorNoError;
+std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *const inputInfo,
+                                                              bool isMultipleFiles) {
+  InputFileType inputFileType = inputInfo->GetInputFileType();
+  std::unique_ptr<Action> currentAction = std::make_unique<Action>("Input", inputInfo);
+  std::unique_ptr<Action> newAction;
+
   bool isNeedMapleComb = true;
   bool isNeedMplcg = true;
   bool isNeedAs = true;
@@ -302,19 +352,25 @@ ErrorCode MplOptions::DecideRunningPhases() {
     case InputFileType::kFileTypeC:
     case InputFileType::kFileTypeCpp:
       UpdateRunningExe(kBinNameClang);
-      UpdateRunningExe(kBinNameCpp2mpl);
-      break;
+      newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
+      currentAction = std::move(newAction);
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
+      newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
+      currentAction = std::move(newAction);
       break;
     case InputFileType::kFileTypeJar:
       // fall-through
     case InputFileType::kFileTypeClass:
       UpdateRunningExe(kBinNameJbc2mpl);
+      newAction = std::make_unique<Action>(kBinNameJbc2mpl, inputInfo, currentAction);
+      currentAction = std::move(newAction);
       isNeedAs = false;
       break;
     case InputFileType::kFileTypeDex:
       UpdateRunningExe(kBinNameDex2mpl);
+      newAction = std::make_unique<Action>(kBinNameDex2mpl, inputInfo, currentAction);
+      currentAction = std::move(newAction);
       isNeedAs = false;
       break;
     case InputFileType::kFileTypeMpl:
@@ -325,6 +381,7 @@ ErrorCode MplOptions::DecideRunningPhases() {
       break;
     case InputFileType::kFileTypeS:
       isNeedMplcg = false;
+      isNeedMapleComb = false;
       break;
     case InputFileType::kFileTypeNone:
       break;
@@ -332,20 +389,179 @@ ErrorCode MplOptions::DecideRunningPhases() {
       break;
   }
   if (isNeedMapleComb) {
-    selectedExes.push_back(kBinNameMapleComb);
+    if (isMultipleFiles) {
+      selectedExes.push_back(kBinNameMapleCombWrp);
+      newAction = std::make_unique<Action>(kBinNameMapleCombWrp, inputInfo, currentAction);
+      currentAction = std::move(newAction);
+    } else {
+      selectedExes.push_back(kBinNameMapleComb);
+      newAction = std::make_unique<Action>(kBinNameMapleComb, inputInfo, currentAction);
+      currentAction = std::move(newAction);
+    }
   }
-  if (isNeedMplcg) {
+  if (isNeedMplcg && !isMultipleFiles) {
     selectedExes.push_back(kBinNameMplcg);
     runningExes.push_back(kBinNameMplcg);
+    newAction = std::make_unique<Action>(kBinNameMplcg, inputInfo, currentAction);
+    currentAction = std::move(newAction);
   }
 
-  // This condition is used for testing purposes: -c option will five you full compilation
+  // This condition is used for testing purposes: -c option will generate ELF file
   if (HasSetGenObj()) {
     // Required to use flags, since user will need them for specific scenarios
     UpdateRunningExe(kAsFlag);
+    newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
+    currentAction = std::move(newAction);
+
     UpdateRunningExe(kLdFlag);
+    /* "Linking step" Action can have several inputActions.
+     * Each inputAction links to previous Actions to create the action tree.
+     * For linking step, inputActions are all assembly actions.
+     * Linking step Action is created outside this function because
+     * we must create all assembly actions (for all input files) before.
+     */
   }
+
+  return currentAction;
+}
+
+ErrorCode MplOptions::DecideRunningPhases() {
+  ErrorCode ret = kErrorNoError;
+  std::vector<std::unique_ptr<Action>> linkActions;
+  std::unique_ptr<Action> lastAction;
+
+  bool isMultipleFiles = (inputInfos.size() > 1);
+
+  for (auto &inputInfo : inputInfos) {
+    CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
+
+    lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
+    CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
+
+    /* TODO: Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
+     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files. */
+    if (lastAction->GetTool() == kAsFlag /*&& !HasSetGenObj()*/) {
+      /* For linking step, inputActions are all assembly actions. */
+      linkActions.push_back(std::move(lastAction));
+    } else {
+      rootActions.push_back(std::move(lastAction));
+    }
+  }
+
+  if (!linkActions.empty()) {
+    /* "a.out" is the default output file name - fix if it's needed  */
+    auto currentAction = std::make_unique<Action>(kLdFlag, linkActions, AllocateInputInfo("a.out"));
+    rootActions.push_back(std::move(currentAction));
+  }
+
   return ret;
+}
+
+ErrorCode MplOptions::MFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                          const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated) {
+  ErrorCode ret = kErrorNoError;
+
+  if (exe == kBinNameMe || exe == kBinNameMpl2mpl || exe == kBinNameMplcg) {
+    if (wasWrpCombCompilerCreated == false) {
+      auto newAction = std::make_unique<Action>(kBinNameMapleCombWrp, inputInfo, currentAction);
+      currentAction = std::move(newAction);
+      wasWrpCombCompilerCreated = true;
+    } else {
+      return ret;
+    }
+  }
+
+  else {
+    auto newAction = std::make_unique<Action>(exe, inputInfo, currentAction);
+    currentAction = std::move(newAction);
+  }
+
+  return ret;
+}
+
+ErrorCode MplOptions::SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                          const InputInfo *const inputInfo, bool &isCombCompiler) {
+  ErrorCode ret = kErrorNoError;
+
+  if (exe == kBinNameMe || exe == kBinNameMpl2mpl) {
+    if (isCombCompiler == false) {
+      auto newAction = std::make_unique<Action>(kBinNameMapleComb, inputInfo, currentAction);
+      currentAction = std::move(newAction);
+      isCombCompiler = true;
+    } else {
+      return ret;
+    }
+  }
+
+  else {
+    auto newAction = std::make_unique<Action>(exe, inputInfo, currentAction);
+    currentAction = std::move(newAction);
+  }
+
+  return ret;
+}
+
+ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExes) {
+  ErrorCode ret = kErrorNoError;
+
+  bool isMultipleFiles = (inputInfos.size() > 1);
+
+  for (auto &inputInfo : inputInfos) {
+    CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
+    /* MplOption is owner of all InputInfos. MplOption is alive during compilation,
+     * so we can use raw pointer inside an Action.
+     */
+    const InputInfo *const rawInputInfo = inputInfo.get();
+
+    bool isCombCompiler = false;
+    bool wasWrpCombCompilerCreated = false;
+
+    auto currentAction = std::make_unique<Action>("Input", inputInfo.get());
+
+    for (const auto &exe : runExes) {
+      if (isMultipleFiles == true) {
+        ret = MFCreateActionByExe(exe, currentAction, rawInputInfo, wasWrpCombCompilerCreated);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+      } else {
+        ret = SFCreateActionByExe(exe, currentAction, rawInputInfo, isCombCompiler);
+        if (ret != kErrorNoError) {
+          return ret;
+        }
+      }
+    }
+
+    rootActions.push_back(std::move(currentAction));
+  }
+
+  return ret;
+}
+
+void MplOptions::DumpActionTree() const {
+  for (auto &rNode : rootActions) {
+    DumpActionTree(*rNode, 0);
+  }
+}
+
+void MplOptions::DumpActionTree(const Action &action, int indents) const {
+  for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
+    DumpActionTree(*a, indents+1);
+  }
+
+  if (indents != 0) {
+    LogInfo::MapleLogger() << "|";
+    /* print indents */
+    for (int i = 0; i < indents; ++i) {
+      LogInfo::MapleLogger() << "-";
+    }
+  }
+
+  if (action.GetTool() == "Input") {
+    LogInfo::MapleLogger() << action.GetTool() << " " << action.GetInputFile() << '\n';
+  } else {
+    LogInfo::MapleLogger() << action.GetTool() << '\n';
+  }
 }
 
 ErrorCode MplOptions::CheckInputFileValidity() {
@@ -403,12 +619,28 @@ ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
   return kErrorNoError;
 }
 
+InputInfo *MplOptions::AllocateInputInfo(const std::string &inputFile) {
+  auto inputInfo = std::make_unique<InputInfo>(inputFile);
+  InputInfo *ret = inputInfo.get();
+
+  inputInfos.push_back(std::move(inputInfo));
+
+  /* inputInfo continue to exist in inputInfos vector of unique_ptr so we can return raw pointer */
+  return ret;
+}
+
 bool MplOptions::Init(const std::string &inputFile) {
   if (StringUtils::Trim(inputFile).empty()) {
     return false;
   }
   inputFiles = inputFile;
   StringUtils::Split(inputFile, splitsInputFiles, ',');
+
+  /* inputInfo describes each input file for driver */
+  for (auto &inFile : splitsInputFiles) {
+    inputInfos.push_back(std::make_unique<InputInfo>(inFile));
+  }
+
   std::string firstInputFile = splitsInputFiles[0];
   inputFolder = FileUtils::GetFileFolder(firstInputFile);
   outputFolder = inputFolder;

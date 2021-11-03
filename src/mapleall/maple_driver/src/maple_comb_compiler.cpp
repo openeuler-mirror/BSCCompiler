@@ -25,26 +25,27 @@
 namespace maple {
 using namespace mapleOption;
 
-std::string MapleCombCompiler::GetInputFileName(const MplOptions &options) const {
+std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
   if (!options.GetRunningExes().empty()) {
     if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
-      return options.GetInputFiles();
+      return action.GetInputFile();
     }
   }
-  if (options.GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
-    return options.GetOutputFolder() + options.GetOutputName() + ".VtableImpl.mpl";
+  if (action.GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
+    return action.GetFullOutputName() + ".VtableImpl.mpl";
   }
-  if (options.GetInputFileType() == InputFileType::kFileTypeBpl) {
-    return options.GetOutputFolder() + options.GetOutputName() + ".bpl";
+  if (action.GetInputFileType() == InputFileType::kFileTypeBpl) {
+    return action.GetFullOutputName() + ".bpl";
   }
-  return options.GetOutputFolder() + options.GetOutputName() + ".mpl";
+  return action.GetFullOutputName() + ".mpl";
 }
 
-void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
+void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+                                            std::vector<std::string> &tempFiles) const {
   std::string filePath;
-  filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".data.muid";
+  filePath = action.GetFullOutputName() + ".data.muid";
   tempFiles.push_back(filePath);
-  filePath = mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".func.muid";
+  filePath = action.GetFullOutputName() + ".func.muid";
   tempFiles.push_back(filePath);
   for (auto iter = tempFiles.begin(); iter != tempFiles.end();) {
     std::ifstream infile;
@@ -58,13 +59,14 @@ void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::v
   }
 }
 
-std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &,
+                                                                   const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".VtableImpl.mpl");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".VtableImpl.mpl");
   return finalOutputs;
 }
 
-void MapleCombCompiler::PrintCommand(const MplOptions &options) const {
+void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &action) const {
   std::string runStr = "--run=";
   std::ostringstream optionStr;
   optionStr << "--option=\"";
@@ -94,7 +96,7 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options) const {
   }
   optionStr << "\"";
   LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr.str() << " "
-                         << GetInputFileName(options) << options.GetPrintCommandStr() << '\n';
+                         << GetInputFileName(options, action) << options.GetPrintCommandStr() << '\n';
 }
 
 ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) {
@@ -114,6 +116,8 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
     return kErrorCompileFail;
   }
   meOption.generalRegOnly = options.HasSetGeneralRegOnly();
+  meOption.npeCheckMode = options.GetNpeCheckMode();
+  meOption.boundaryCheckMode = options.GetBoundaryCheckMode();
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;
@@ -158,8 +162,9 @@ std::string MapleCombCompiler::DecideOutExe(const MplOptions &options) {
   return selectExes[selectExes.size() - 1];
 }
 
-ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRModule> &theModule) {
-  std::string fileName = GetInputFileName(options);
+ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
+                                     std::unique_ptr<MIRModule> &theModule) {
+  std::string fileName = GetInputFileName(options, action);
   bool fileParsed = true;
   if (theModule == nullptr) {
     theModule = std::make_unique<MIRModule>(fileName);
@@ -168,7 +173,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRMod
   options.PrintCommand();
   LogInfo::MapleLogger() << "Starting maplecomb\n";
   theModule->InitPartO2List(options.GetPartO2List());
-  DriverRunner runner(theModule.get(), options.GetSelectedExes(), options.GetInputFileType(), fileName,
+  DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
                       fileName, fileName, options.WithDwarf(), fileParsed,
                       options.HasSetTimePhases(), options.HasSetGenVtableImpl(), options.HasSetGenMeMpl());
   // Parse the input file
@@ -192,7 +197,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, std::unique_ptr<MIRMod
   }
   runner.SetPrintOutExe(DecideOutExe(options));
   if (options.HasSetDebugFlag()) {
-    PrintCommand(options);
+    PrintCommand(options, action);
   }
   ErrorCode nErr = runner.Run();
   return nErr;

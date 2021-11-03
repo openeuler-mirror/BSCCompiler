@@ -12,7 +12,9 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
+#include <cstdint>
 #include <cstdlib>
+#include <memory>
 #include "compiler.h"
 #include "file_utils.h"
 #include "mpl_timer.h"
@@ -20,18 +22,23 @@
 
 namespace maple {
 std::string ClangCompiler::GetBinPath(const MplOptions&) const{
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/tools/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
 }
 
 const std::string &ClangCompiler::GetBinName() const {
   return kBinNameClang;
 }
 
-DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kClangDefaultOptions;
-  defaultOptions.mplOptions[1].SetValue(options.GetOutputFolder() + options.GetOutputName() + ".ast");
-  defaultOptions.length = sizeof(kClangDefaultOptions) / sizeof(MplOption);
+DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+  uint32_t len = sizeof(kClangDefaultOptions) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kClangDefaultOptions[i];
+  }
+
+  CHECK_FATAL((len > 1), "Option is hardcoded in O0_options_clang.def file \n");
+  defaultOptions.mplOptions[1].SetValue(action.GetFullOutputName() + ".ast");
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
@@ -42,13 +49,15 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options) const 
   return defaultOptions;
 }
 
-void ClangCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".ast");
+void ClangCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+                                        std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(action.GetFullOutputName() + ".ast");
 }
 
-std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &,
+                                                               const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".ast");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".ast");
   return finalOutputs;
 }
 }

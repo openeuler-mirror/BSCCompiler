@@ -13,30 +13,29 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "compiler.h"
-#include "file_utils.h"
 #include "default_options.def"
 
 namespace maple {
-std::string LdCompiler::GetBinPath(const MplOptions&) const {
-#ifdef ANDROID
-  return "prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/";
-#else
-  return FileUtils::SafeGetenv(kMapleRoot) + "/tools/bin/";
-#endif
+const std::string &IpaCompiler::GetBinName() const {
+  return kBinNameMplipa;
 }
 
-// TODO: Required to use ld instead of gcc; ld will be implemented later
-const std::string &LdCompiler::GetBinName() const {
-  return kBinNameGcc;
-}
+DefaultOption IpaCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+  uint32_t len = 0;
+  MplOption *kMplipaDefaultOptions = nullptr;
 
-DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+  if (options.GetOptimizationLevel() == kO2 && options.HasSetDefaultLevel()) {
+    len = sizeof(kMplipaDefaultOptionsO2) / sizeof(MplOption);
+    kMplipaDefaultOptions = kMplipaDefaultOptionsO2;
+  }
 
-  uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
+  if (kMplipaDefaultOptions == nullptr) {
+    return DefaultOption();
+  }
+
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
-
   for (uint32_t i = 0; i < len; ++i) {
-    defaultOptions.mplOptions[i] = kLdDefaultOptions[i];
+    defaultOptions.mplOptions[i] = kMplipaDefaultOptions[i];
   }
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
@@ -48,13 +47,7 @@ DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string LdCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
-    std::string files;
-    for (const auto &file : action.GetLinkFiles()) {
-      files += FileUtils::GetFileName(file, false) + ".o";
-      files += " ";
-    }
-    return files;
+std::string IpaCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+  return action.GetFullOutputName() + ".mpl";
 }
-
 }  // namespace maple
