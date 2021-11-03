@@ -53,6 +53,7 @@ executable("maple") {
     "src/clang_compiler.cpp",
     "src/ld_compiler.cpp",
     "src/maple.cpp",
+    "src/maple_comb_compiler_wrapper.cpp",
     "src/maple_comb_compiler.cpp",
     "src/mpl_options.cpp",
     "src/mplcg_compiler.cpp",

@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H
 #define MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H
+#include <iterator>
 #include <map>
 #include <set>
 #include <stdio.h>
@@ -58,8 +59,177 @@ enum RunMode {
   kUnkownRun
 };
 
+enum SafetyCheckMode {
+  kNoCheck,
+  kStaticCheck,
+  kDynamicCheck,
+  kDynamicCheckSilent
+};
+
+class Compiler;
+
+class InputInfo {
+public:
+  InputInfo(const std::string &inputFile)
+    : inputFile(inputFile) {
+
+    inputFileType = GetInputFileType(inputFile);
+
+    inputName = FileUtils::GetFileName(inputFile, true);
+    inputFolder = FileUtils::GetFileFolder(inputFile);
+    outputFolder = inputFolder;
+    outputName = FileUtils::GetFileName(inputFile, false);
+    fullOutput = outputFolder + outputName;
+  }
+
+  static InputFileType GetInputFileType(const std::string &inputFile) {
+    InputFileType fileType = InputFileType::kFileTypeNone;
+    std::string extensionName = FileUtils::GetFileExtension(inputFile);
+
+    if (extensionName == "class") {
+      fileType = InputFileType::kFileTypeClass;
+    }
+    else if (extensionName == "dex") {
+      fileType = InputFileType::kFileTypeDex;
+    }
+    else if (extensionName == "c") {
+      fileType = InputFileType::kFileTypeC;
+    }
+    else if (extensionName == "cpp") {
+      fileType = InputFileType::kFileTypeCpp;
+    }
+    else if (extensionName == "ast") {
+      fileType = InputFileType::kFileTypeAst;
+    }
+    else if (extensionName == "jar") {
+      fileType = InputFileType::kFileTypeJar;
+    }
+    else if (extensionName == "mpl" || extensionName == "bpl") {
+      if (inputFile.find("VtableImpl") == std::string::npos) {
+        if (inputFile.find(".me.mpl") != std::string::npos) {
+          fileType = InputFileType::kFileTypeMeMpl;
+        } else {
+          fileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
+        }
+      } else {
+        fileType = InputFileType::kFileTypeVtableImplMpl;
+      }
+    } else if (extensionName == "s") {
+      fileType = InputFileType::kFileTypeS;
+    }
+
+    return fileType;
+  }
+
+  InputFileType GetInputFileType() const {
+    return inputFileType;
+  }
+
+  const std::string &GetInputFile() const {
+    return inputFile;
+  }
+
+  const std::string &GetOutputFolder() const {
+    return outputFolder;
+  }
+
+  const std::string &GetOutputName() const {
+    return outputName;
+  }
+
+  const std::string &GetFullOutputName() const {
+    return fullOutput;
+  }
+
+private:
+  std::string inputFile = "";
+  InputFileType inputFileType = InputFileType::kFileTypeNone;
+
+  std::string inputName = "";
+  std::string inputFolder = "";
+  std::string outputName = "";
+  std::string outputFolder = "";
+  std::string fullOutput = "";
+};
+
+class Action {
+public:
+  Action(const std::string &tool, const InputInfo *const inputInfo)
+    : inputInfo(inputInfo), tool(tool) {}
+
+  Action(const std::string &tool, const InputInfo *const inputInfo,
+         std::unique_ptr<Action> &inAction)
+    : inputInfo(inputInfo), tool(tool)  {
+    inputActions.push_back(std::move(inAction));
+  }
+
+  Action(const std::string &tool, std::vector<std::unique_ptr<Action>> &inActions,
+         const InputInfo *const inputInfo)
+    : inputInfo(inputInfo), tool(tool)  {
+
+    for (auto &inAction : inActions) {
+      linkInputFiles.push_back(inAction->GetInputFile());
+    }
+
+    std::move(begin(inActions), end(inActions), std::back_inserter(inputActions));
+  }
+
+  const std::string &GetTool() const {
+    return tool;
+  }
+
+  const std::string &GetInputFile() const {
+    return inputInfo->GetInputFile();
+  }
+
+  const std::string &GetOutputFolder() const {
+    return inputInfo->GetOutputFolder();
+  }
+
+  const std::string &GetOutputName() const {
+    return inputInfo->GetOutputName();
+  }
+
+  const std::string &GetFullOutputName() const {
+    return inputInfo->GetFullOutputName();
+  }
+
+  InputFileType GetInputFileType() const {
+    return inputInfo->GetInputFileType();
+  }
+
+  const std::vector<std::string> &GetLinkFiles() const {
+    return linkInputFiles;
+  }
+
+  const std::vector<std::unique_ptr<Action>> &GetInputActions() const {
+    return inputActions;
+  }
+
+  Compiler *GetCompiler() const {
+    return compilerTool;
+  }
+
+  void SetCompiler(Compiler *compiler) {
+    compilerTool = compiler;
+  }
+
+private:
+  const InputInfo *inputInfo;
+
+  std::string tool = "";
+  std::string exeFolder = "";
+  std::vector<std::string> linkInputFiles;
+
+  Compiler *compilerTool;
+
+  /* This vector contains a links to previous actions in Action tree */
+  std::vector<std::unique_ptr<Action>> inputActions;
+};
+
 class MplOption {
  public:
+  MplOption(){needRootPath = false;}
   MplOption(const std::string &key, const std::string &value, bool needRootPath = false)
       : key(key),
         value(value),
@@ -81,6 +251,10 @@ class MplOption {
     value = val;
   }
 
+  void SetKey(std::string k) {
+    key = k;
+  }
+
   bool GetNeedRootPath() const {
     return needRootPath;
   }
@@ -94,8 +268,8 @@ class MplOption {
 };
 
 struct DefaultOption {
-  MplOption *mplOptions;
-  uint32_t length;
+  std::unique_ptr<MplOption[]> mplOptions;
+  uint32_t length = 0;
 };
 
 class MplOptions {
@@ -207,6 +381,22 @@ class MplOptions {
     return generalRegOnly;
   }
 
+  SafetyCheckMode GetNpeCheckMode() const {
+    return npeCheckMode;
+  }
+
+  SafetyCheckMode GetBoundaryCheckMode() const {
+   return boundaryCheckMode;
+  }
+
+  const std::vector<std::unique_ptr<Action>> &GetActions() const {
+    return rootActions;
+  }
+
+  const std::vector<mapleOption::Option> &GetOptions() const {
+    return optionParser->GetOptions();
+  }
+
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
   std::string GetInputFileNameForPrint() const;
@@ -218,13 +408,22 @@ class MplOptions {
   ErrorCode HandleGeneralOptions();
   ErrorCode DecideRunType();
   ErrorCode DecideRunningPhases();
+  ErrorCode DecideRunningPhases(const std::vector<std::string> &runExes);
+  std::unique_ptr<Action> DecideRunningPhasesByType(const InputInfo *const inputInfo, bool isMultipleFiles);
+  ErrorCode MFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                const InputInfo *const inputInfo, bool &wasWrpCombCompilerCreated);
+  ErrorCode SFCreateActionByExe(const std::string &exe, std::unique_ptr<Action> &currentAction,
+                                const InputInfo *const inputInfo, bool &isCombCompiler);
   ErrorCode CheckInputFileValidity();
   ErrorCode CheckFileExits();
   ErrorCode AddOption(const mapleOption::Option &option);
+  InputInfo *AllocateInputInfo(const std::string &inputFile);
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
   void UpdateRunningExe(const std::string &args);
+  void DumpActionTree(const Action &action, int idents) const;
+  void DumpActionTree() const;
   std::unique_ptr<mapleOption::OptionParser> optionParser = nullptr;
   std::map<std::string, std::vector<mapleOption::Option>> options = {};
   std::map<std::string, std::vector<mapleOption::Option>> exeOptions = {};
@@ -258,8 +457,14 @@ class MplOptions {
   bool genVtableImpl = false;
   bool hasPrinted = false;
   bool generalRegOnly = false;
+  bool isDriverPhasesDumpCmd = false;
   unsigned int helpLevel = mapleOption::kBuildTypeDefault;
   std::string partO2List = "";
+  SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
+  SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
+
+  std::vector<std::unique_ptr<InputInfo>> inputInfos;
+  std::vector<std::unique_ptr<Action>> rootActions;
 };
 }  // namespace maple
 #endif  // MAPLE_DRIVER_INCLUDE_MPL_OPTIONS_H

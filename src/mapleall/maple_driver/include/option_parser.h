@@ -56,19 +56,30 @@ class OptionParser {
   void PrintUsage(const std::string &helpType, const uint32_t helpLevel = kBuildTypeDefault) const;
 
  private:
+
+  struct UsageWrp {
+    UsageWrp(const Descriptor &desc, const OptionPrefixType &type) :
+      desc(desc),
+      type(type) {};
+    Descriptor desc;
+    OptionPrefixType type;
+  };
+
   bool HandleKeyValue(const std::string &key, const std::string &value,
                       std::vector<mapleOption::Option> &inputOption, const std::string &exeName,
-                      bool isAllOption = true);
+                      bool isAllOption = true, bool isEqualPrefix = false);
   bool CheckOpt(const std::string option, std::string &lastKey, bool &isLastMatch,
                 std::vector<mapleOption::Option> &inputOption, const std::string &exeName);
-  void InsertOption(const std::string &opt, const Descriptor &usage) {
+  void InsertOption(const std::string &opt, const Descriptor &usage,
+                    OptionPrefixType optPrefix) {
     if (usage.IsEnabledForCurrentBuild()) {
-      (void)usages.insert(make_pair(opt, usage));
+      (void)usages.insert(make_pair(opt, UsageWrp(usage, optPrefix)));
     }
   }
+
   bool CheckSpecialOption(const std::string &option, std::string &key, std::string &value);
   std::vector<Descriptor> rawUsages;
-  std::multimap<std::string, Descriptor> usages;
+  std::multimap<std::string, UsageWrp> usages;
   std::vector<Option> options;
   std::vector<std::string> nonOptionsArgs;
   bool isValueEmpty = false;

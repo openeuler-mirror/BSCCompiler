@@ -40,6 +40,7 @@ CompilerFactory::CompilerFactory() {
   ADD_COMPILER("me", MapleCombCompiler)
   ADD_COMPILER("mpl2mpl", MapleCombCompiler)
   ADD_COMPILER("maplecomb", MapleCombCompiler)
+  ADD_COMPILER("maplecombwrp", MapleCombCompilerWrp)
   ADD_COMPILER("mplcg", MplcgCompiler)
   ADD_COMPILER("as", AsCompiler)
   ADD_COMPILER("ld", LdCompiler)
@@ -66,8 +67,8 @@ void CompilerFactory::Insert(const std::string &name, Compiler *value) {
   (void)supportedCompilers.insert(make_pair(name, value));
 }
 
-ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions, const std::vector<std::string> &tempFiles,
-                                          const std::unordered_set<std::string> &finalOutputs) const {
+ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
+                                          const std::vector<std::string> &tempFiles) const {
   int ret = 0;
   for (const std::string &tmpFile : tempFiles) {
     bool isSave = false;
@@ -77,9 +78,26 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions, const st
         break;
       }
     }
-    if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos &&  // not input
-        (finalOutputs.find(tmpFile) == finalOutputs.end())) {                   // not output
-      ret = FileUtils::Remove(tmpFile);
+    if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos /* not input */) {
+
+      bool isNeedRemove = true;
+      /* If we compile several files we can have several last Actions,
+       * so we need to NOT remove output files for each last Action.
+       */
+      for (auto &lastAction : mplOptions.GetActions()) {
+        auto finalOutputs = lastAction->GetCompiler()->GetFinalOutputs(mplOptions, *lastAction);
+        /* do not remove output files */
+        if (finalOutputs.find(tmpFile) != finalOutputs.end()) {
+          isNeedRemove = false;
+        }
+      }
+
+      if (isNeedRemove == true) {
+        ret = FileUtils::Remove(tmpFile);
+        if (ret != 0) {
+          LogInfo::MapleLogger() << tmpFile << " File Not Found in DeleteTmpFiles\n";
+        }
+      }
     }
   }
   return ret == 0 ? kErrorNoError : kErrorFileNotFound;
@@ -91,22 +109,30 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
         "Failed! Compilation has been completed in previous time and multi-instance compilation is not supported\n";
     return kErrorCompileFail;
   }
-  std::vector<Compiler*> compilers;
+
+  /* Actions owner is MplOption, so while MplOption is alive we can use raw pointers here */
+  std::vector<Action *> actions;
   if (compilerSelector == nullptr) {
     LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
     return kErrorCompileFail;
   }
-  ErrorCode ret = compilerSelector->Select(supportedCompilers, mplOptions, compilers);
+  ErrorCode ret = compilerSelector->Select(supportedCompilers, mplOptions, actions);
   if (ret != kErrorNoError) {
     return ret;
   }
 
-  for (auto *compiler : compilers) {
-    if (compiler == nullptr) {
+  for (auto *action : actions) {
+    if (action == nullptr) {
       LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
       return kErrorCompileFail;
     }
-    ret = compiler->Compile(mplOptions, this->theModule);
+
+    Compiler *compiler = action->GetCompiler();
+    if (compiler == nullptr) {
+      return kErrorToolNotFound;
+    }
+
+    ret = compiler->Compile(mplOptions, *action, this->theModule);
     if (ret != kErrorNoError) {
       return ret;
     }
@@ -119,10 +145,12 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
 
   if (!mplOptions.HasSetSaveTmps() || !mplOptions.GetSaveFiles().empty()) {
     std::vector<std::string> tmpFiles;
-    for (auto *compiler : compilers) {
-      compiler->GetTmpFilesToDelete(mplOptions, tmpFiles);
+
+    for (auto *action : actions) {
+      action->GetCompiler()->GetTmpFilesToDelete(mplOptions, *action, tmpFiles);
     }
-    ret = DeleteTmpFiles(mplOptions, tmpFiles, compilers.back()->GetFinalOutputs(mplOptions));
+
+    ret = DeleteTmpFiles(mplOptions, tmpFiles);
   }
   return ret;
 }

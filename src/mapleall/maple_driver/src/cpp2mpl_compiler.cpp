@@ -27,25 +27,28 @@ const std::string &Cpp2MplCompiler::GetBinName() const {
   return kBinNameCpp2mpl;
 }
 
-std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options) const {
+std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
   if (!options.GetRunningExes().empty()) {
     if (options.GetRunningExes()[0] == kBinNameCpp2mpl) {
-      return options.GetInputFiles();
+      return action.GetInputFile();
     }
   }
   // Get base file name
-  auto idx = options.GetOutputName().find(".ast");
-  std::string outputName = options.GetOutputName();
+  auto idx = action.GetOutputName().find(".ast");
+  std::string outputName = action.GetOutputName();
   if (idx != std::string::npos) {
-    outputName = options.GetOutputName().substr(0, idx);
+    outputName = action.GetOutputName().substr(0, idx);
   }
-  return options.GetOutputFolder() + outputName + ".ast";
+  return action.GetOutputFolder() + outputName + ".ast";
 }
 
-DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) const {
-  DefaultOption defaultOptions = { nullptr, 0 };
-  defaultOptions.mplOptions = kCpp2MplDefaultOptionsForAst;
-  defaultOptions.length = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
+DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+  uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+
+  for (uint32_t i = 0; i < len; ++i) {
+    defaultOptions.mplOptions[i] = kCpp2MplDefaultOptionsForAst[i];
+  }
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
@@ -56,15 +59,17 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options) cons
     return defaultOptions;
 }
 
-void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, std::vector<std::string> &tempFiles) const {
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
-  tempFiles.push_back(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
+void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+                                          std::vector<std::string> &tempFiles) const {
+  tempFiles.push_back(action.GetFullOutputName() + ".mpl");
+  tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &mplOptions) const {
+std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &,
+                                                                 const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mpl");
-  (void)finalOutputs.insert(mplOptions.GetOutputFolder() + mplOptions.GetOutputName() + ".mplt");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");
+  (void)finalOutputs.insert(action.GetFullOutputName() + ".mplt");
   return finalOutputs;
 }
 }  // namespace maple
