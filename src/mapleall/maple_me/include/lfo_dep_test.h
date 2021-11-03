@@ -42,7 +42,7 @@ class SubscriptDesc{
 class ArrayAccessDesc {
  public:
   ArrayNode *theArray;
-  OriginalSt *arrayOst = nullptr;
+  OriginalSt *arrayOst = nullptr;       // if null, array base is an invariant expression
   MapleVector<SubscriptDesc *> subscriptVec;  // describe the subscript of each array dimension
 
   ArrayAccessDesc(MapleAllocator *alloc, ArrayNode *arr, OriginalSt *arryOst)

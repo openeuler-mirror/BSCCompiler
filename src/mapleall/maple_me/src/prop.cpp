@@ -837,7 +837,7 @@ MeExpr &Prop::PropMeExpr(MeExpr &meExpr, bool &isProped, bool atParm) {
         MeExpr *opnd = meOpExpr.GetOpnd(i);
         MeExpr *meExprProped = &PropMeExpr(*opnd, subProped, false);
         // If type is not equal, use cvt
-        if (opnd->GetPrimType() != meExprProped->GetPrimType()) {
+        if (!IsNoCvtNeeded(opnd->GetPrimType(), meExprProped->GetPrimType())) {
           CHECK_FATAL(IsPrimitiveInteger(opnd->GetPrimType()), "should be integer");
           meExprProped = irMap.CreateMeExprTypeCvt(opnd->GetPrimType(), meExprProped->GetPrimType(), *meExprProped);
           // Try simplify new generated cvt

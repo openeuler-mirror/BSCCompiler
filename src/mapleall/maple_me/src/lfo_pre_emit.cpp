@@ -20,6 +20,59 @@
 #include "constantfold.h"
 
 namespace maple {
+
+// convert x to use OP_array if possible; return nullptr if unsuccessful;
+// ptrTyIdx is the high level pointer type of x
+ArrayNode *LfoPreEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
+  if (x->GetOpCode() != OP_add) {
+    return nullptr;
+  }
+  MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTyIdx);
+  if (mirType->GetKind() != kTypePointer) {
+    return nullptr;
+  }
+  BaseNode *opnd0 = x->Opnd(0);
+  if (!GetMexpr(opnd0)->HasAddressValue()) {
+    return nullptr;
+  }
+  BaseNode *opnd1 = x->Opnd(1);
+  MIRType *elemType = static_cast<MIRPtrType *>(mirType)->GetPointedType();
+  size_t elemSize = elemType->GetSize();
+  BaseNode *indexOpnd = opnd1;
+  if (elemSize > 1) {
+    if (opnd1->GetOpCode() != OP_mul) {
+      return nullptr;
+    }
+    BaseNode *mulopnd1 = opnd1->Opnd(1);
+    if (mulopnd1->GetOpCode() != OP_constval) {
+      return nullptr;
+    }
+    MIRConst *constVal = static_cast<ConstvalNode *>(mulopnd1)->GetConstVal();
+    if (constVal->GetKind() != kConstInt) {
+      return nullptr;
+    }
+    if (static_cast<MIRIntConst *>(constVal)->GetValue() != elemSize) {
+      return nullptr;
+    }
+    indexOpnd = opnd1->Opnd(0);
+  }
+  if (indexOpnd->GetOpCode() == OP_cvt) {
+    if (IsPrimitiveInteger(static_cast<TypeCvtNode *>(indexOpnd)->FromType())) {
+      indexOpnd = indexOpnd->Opnd(0);
+    }
+  }
+  // form the pointer to array type
+  MIRArrayType *arryType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, 0);
+  MIRType *ptArryType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*arryType);
+  ArrayNode *arryNode = codeMP->New<ArrayNode>(*codeMPAlloc, x->GetPrimType(), ptArryType->GetTypeIndex());
+  arryNode->SetBoundsCheck(false);
+  arryNode->GetNopnd().push_back(opnd0);
+  arryNode->GetNopnd().push_back(indexOpnd);
+  arryNode->SetNumOpnds(2);
+  lfoExprParts[arryNode] = lfoExprParts[x];
+  return arryNode;
+}
+
 BaseNode *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, BaseNode *parent) {
   LfoPart *lfopart = lfoMP->New<LfoPart>(parent, meexpr);
   switch (meexpr->GetOp()) {
@@ -64,7 +117,6 @@ BaseNode *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, BaseNode *parent) {
       NaryMeExpr *arrExpr = static_cast<NaryMeExpr *>(meexpr);
       ArrayNode *arrNode =
         codeMP->New<ArrayNode>(*codeMPAlloc, arrExpr->GetPrimType(), arrExpr->GetTyIdx());
-      arrNode->SetTyIdx(arrExpr->GetTyIdx());
       arrNode->SetBoundsCheck(arrExpr->GetBoundCheck());
       for (uint32 i = 0; i < arrExpr->GetNumOpnds(); i++) {
         BaseNode *opnd = EmitLfoExpr(arrExpr->GetOpnd(i), arrNode);
@@ -106,6 +158,12 @@ BaseNode *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, BaseNode *parent) {
       irdNode->SetTyIdx(ivarExpr->GetTyIdx());
       irdNode->SetFieldID(ivarExpr->GetFieldID());
       lfoExprParts[irdNode] = lfopart;
+      if (irdNode->Opnd(0)->GetOpCode() != OP_array) {
+        ArrayNode *arryNode = ConvertToArray(irdNode->Opnd(0), irdNode->GetTyIdx());
+        if (arryNode != nullptr) {
+          irdNode->SetOpnd(arryNode, 0);
+        }
+      }
       return irdNode;
     }
     case OP_ireadoff: {
@@ -118,8 +176,11 @@ BaseNode *LfoPreEmitter::EmitLfoExpr(MeExpr *meexpr, BaseNode *parent) {
         MIRType *mirType = GlobalTables::GetTypeTable().GetInt32();
         MIRIntConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(ivarExpr->GetOffset(), *mirType);
         ConstvalNode *constValNode = codeMP->New<ConstvalNode>(mirType->GetPrimType(), mirConst);
+        LfoPart *lfopart2 = lfoMP->New<LfoPart>(irdNode, baseexpr);
+        lfoExprParts[constValNode] = lfopart2;
         BinaryNode *newAddrNode =
             codeMP->New<BinaryNode>(OP_add, baseexpr->GetPrimType(), EmitLfoExpr(baseexpr, irdNode), constValNode);
+        lfoExprParts[newAddrNode] = lfopart2;
         irdNode->SetOpnd(newAddrNode, 0);
       }
       irdNode->SetTyIdx(ivarExpr->GetTyIdx());
@@ -318,6 +379,12 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, BaseNode *parent) {
             codeMP->New<BinaryNode>(OP_add, lhsVar->GetBase()->GetPrimType(),
                                     EmitLfoExpr(lhsVar->GetBase(), iassignNode), constValNode);
         iassignNode->SetAddrExpr(newAddrNode);
+      }
+      if (iassignNode->Opnd(0)->GetOpCode() != OP_array) {
+        ArrayNode *arryNode = ConvertToArray(iassignNode->Opnd(0), iassignNode->GetTyIdx());
+        if (arryNode != nullptr) {
+          iassignNode->SetAddrExpr(arryNode);
+        }
       }
       iassignNode->rhs = EmitLfoExpr(iass->GetRHS(), iassignNode);
       iassignNode->SetSrcPos(iass->GetSrcPosition());
@@ -523,7 +590,7 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, BaseNode *parent) {
       lfoStmtParts[throwStmtNode->GetStmtID()] = lfopart;
       return throwStmtNode;
     }
-    case OP_assertnonnull:
+    CASE_OP_ASSERT_NONNULL
     case OP_eval:
     case OP_free: {
       UnaryStmtNode *unaryStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
@@ -788,13 +855,7 @@ bool MELfoPreEmission::PhaseRun(MeFunction &f) {
   while (i < f.GetCfg()->GetAllBBs().size()) {
     i = emitter->EmitLfoBB(i, curblk);
   }
-#if 0
-  // invalid cfg information only in lfo phase
-  // GetAnalysisInfoHook()->ForceEraseAnalysisPhase(&MEMeCfg::id)
-  GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
-  func->SetMeSSATab(nullptr);
-  func->SetIRMap(nullptr);
-#endif
+
   f.SetLfo(false);
 
   ConstantFold cf(f.GetMIRModule());
@@ -804,13 +865,6 @@ bool MELfoPreEmission::PhaseRun(MeFunction &f) {
     LogInfo::MapleLogger() << "\n**** After lfopreemit phase ****\n";
     mirfunction->Dump(false);
   }
-
-#if 0  // use this only if directly feeding to mainopt
-  MIRLower mirlowerer(func->GetMIRModule(), mirfunction);
-  mirlowerer.SetLowerME();
-  mirlowerer.SetLowerExpandArray();
-  mirlowerer.LowerFunc(*mirfunction);
-#endif
 
   return emitter;
 }
