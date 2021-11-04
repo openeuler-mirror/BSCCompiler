@@ -64,7 +64,6 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
  private:
   std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int32 baseOfst);
-  bool IsRegDefUseInInsn(Insn &insn, regno_t regNO);
   /*
    * avoid the following situation:
    * str x2, [x19, #8]
@@ -318,6 +317,9 @@ class AndCmpBranchesToCsetAArch64 : public PeepPattern {
   explicit AndCmpBranchesToCsetAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~AndCmpBranchesToCsetAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
+
+ private:
+  Insn *FindPreviousCmp(Insn &insn);
 };
 /*
  * We optimize the following pattern in this function:

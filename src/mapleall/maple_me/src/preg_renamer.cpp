@@ -61,6 +61,10 @@ void PregRenamer::RunSelf() {
     if (regmeexpr->GetRegIdx() < 0) {
       continue;  // special register
     }
+    if (PrimitiveType(regmeexpr->GetPrimType()).IsVector()) {
+      // can be removed after mplbe support this
+      continue;
+    }
     uint32 rootVstidx = unionFind.Root(i);
 
     auto mpit = root2childrenMap.find(rootVstidx);

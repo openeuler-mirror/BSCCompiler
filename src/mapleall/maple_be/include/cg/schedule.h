@@ -41,7 +41,7 @@ class RegPressureSchedule {
   void UpdateBBPressure(const DepNode &node);
   void CalculatePressure(DepNode &node, regno_t reg, bool def);
   void SortReadyList();
-  bool IsLastUse(const DepNode &node, regno_t reg) const;
+  static bool IsLastUse(const DepNode &node, regno_t reg) ;
   void ReCalculateDepNodePressure(DepNode &node);
   void UpdateLiveReg(const DepNode &node, regno_t reg, bool def);
   bool CanSchedule(const DepNode &node) const;
@@ -121,8 +121,11 @@ class Schedule {
         memPool(memPool),
         alloc(&memPool),
         live(liveAnalysis),
+        considerRegPressure(false),
         nodes(alloc.Adapter()),
-        readyList(alloc.Adapter()) {}
+        readyList(alloc.Adapter()),
+        liveInRegNo(alloc.Adapter()),
+        liveOutRegNo(alloc.Adapter()) {}
 
   virtual ~Schedule() = default;
   virtual void MemoryAccessPairOpt() = 0;
@@ -151,6 +154,12 @@ class Schedule {
   virtual uint32 GetNextSepIndex() const = 0;
   virtual void CountUnitKind(const DepNode &depNode, uint32 array[], const uint32 arraySize) const = 0;
   virtual bool CanCombine(const Insn &insn) const = 0;
+  void SetConsiderRegPressure() {
+    considerRegPressure = true;
+  }
+  bool GetConsiderRegPressure() const {
+    return considerRegPressure;
+  }
   void InitIDAndLoc();
   void RestoreFirstLoc();
   std::string PhaseName() const {
@@ -166,8 +175,11 @@ class Schedule {
   MAD *mad = nullptr;
   uint32 lastSeparatorIndex = 0;
   uint32 nodeSize = 0;
+  bool considerRegPressure  = false;
   MapleVector<DepNode*> nodes;      /* Dependence graph */
   MapleVector<DepNode*> readyList;  /* Ready list. */
+  MapleSet<regno_t> liveInRegNo;
+  MapleSet<regno_t> liveOutRegNo;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgPreScheduling, maplebe::CGFunc)

@@ -221,7 +221,7 @@ void RegPressureSchedule::CalculateNear(const DepNode &node) {
 }
 
 /* return true if it is last time using the regNO. */
-bool RegPressureSchedule::IsLastUse(const DepNode &node, regno_t regNO) const {
+bool RegPressureSchedule::IsLastUse(const DepNode &node, regno_t regNO) {
   size_t i = 0;
   for (auto reg : node.GetUseRegnos()) {
     if (reg == regNO) {
@@ -586,12 +586,18 @@ void RegPressureSchedule::DoScheduling(MapleVector<DepNode*> &nodes) {
     originalNodeSeries.emplace_back(node);
   }
   initPartialSplitters(nodes);
+#if PRESCHED_DEBUG
   LogInfo::MapleLogger() << "\n Calculate Pressure Info for Schedule Input Series \n";
+#endif
   originalPressure = CalculateRegisterPressure(nodes);
+#if PRESCHED_DEBUG
   LogInfo::MapleLogger() << "Original pressure : " << originalPressure << "\n";
+#endif
   /* Original pressure is small enough, skip pre-scheduling */
   if (originalPressure < g_pressureStandard) {
+#if PRESCHED_DEBUG
     LogInfo::MapleLogger() << "Original pressure is small enough, skip pre-scheduling \n";
+#endif
     return;
   }
   if (splitterIndexes.empty()) {
@@ -869,6 +875,9 @@ void Schedule::InitIDAndLoc() {
 
 /* === new pm === */
 bool CgPreScheduling::PhaseRun(maplebe::CGFunc &f) {
+  if (f.HasAsm()) {
+    return true;
+  }
   if (LIST_SCHED_DUMP_NEWPM) {
     LogInfo::MapleLogger() << "Before CgDoPreScheduling : " << f.GetName() << "\n";
     DotGenerator::GenerateDot("preschedule", f, f.GetMirModule(), true);

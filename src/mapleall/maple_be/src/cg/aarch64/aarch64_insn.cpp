@@ -1077,6 +1077,38 @@ void AArch64Insn::EmitCheckThrowPendingException(const CG& cg, Emitter &emitter)
   emitter.Emit("\n");
 }
 
+void AArch64Insn::PrepareVectorOperand(AArch64RegOperand *regOpnd, uint32 &compositeOpnds) const {
+  AArch64Insn *insn = const_cast<AArch64Insn*>(this);
+  VectorRegSpec* vecSpec = static_cast<AArch64VectorInsn*>(insn)->GetAndRemoveRegSpecFromList();
+  compositeOpnds = vecSpec->compositeOpnds ? vecSpec->compositeOpnds : compositeOpnds;
+  regOpnd->SetVecLanePosition(vecSpec->vecLane);
+  switch (mOp) {
+    case MOP_vanduuu:
+    case MOP_vxoruuu:
+    case MOP_voruuu:
+    case MOP_vnotuu:
+    case MOP_vextuuui: {
+      regOpnd->SetVecLaneSize(k8ByteSize);
+      regOpnd->SetVecElementSize(k8BitSize);
+      break;
+    }
+    case MOP_vandvvv:
+    case MOP_vxorvvv:
+    case MOP_vorvvv:
+    case MOP_vnotvv:
+    case MOP_vextvvvi: {
+      regOpnd->SetVecLaneSize(k16ByteSize);
+      regOpnd->SetVecElementSize(k8BitSize);
+      break;
+    }
+    default: {
+      regOpnd->SetVecLaneSize(vecSpec->vecLaneMax);
+      regOpnd->SetVecElementSize(vecSpec->vecElementSize);
+      break;
+    }
+  }
+}
+
 void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
   emitter.SetCurrentMOP(mOp);
   const AArch64MD *md = &AArch64CG::kMd[mOp];
@@ -1216,21 +1248,20 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
     if (regOpnd != nullptr && static_cast<const AArch64OpndProp*>(md->operand[seq[i]])->IsVectorOperand()) {
       regOpnd->SetVecLanePosition(-1);
       regOpnd->SetVecLaneSize(0);
+      regOpnd->SetVecElementSize(0);
       if (IsVectorOp()) {
-        AArch64Insn *insn = const_cast<AArch64Insn*>(this);
-        AArch64VectorInsn *vInsn = static_cast<AArch64VectorInsn*>(insn);
-        VectorRegSpec* vecSpec = vInsn->GetAndRemoveRegSpecFromList();
-        if (vecSpec->compositeOpnds != 0) {
-          compositeOpnds = vecSpec->compositeOpnds;
+        PrepareVectorOperand(regOpnd, compositeOpnds);
+        if (compositeOpnds != 0) {
           emitter.Emit("{");
         }
-        regOpnd->SetVecLanePosition(vecSpec->vecLane);
-        regOpnd->SetVecLaneSize(vecSpec->vecLaneMax);
       }
     }
     opnds[seq[i]]->Emit(emitter, md->operand[seq[i]]);
-    if (compositeOpnds-- == 1) {
+    if (compositeOpnds == 1) {
       emitter.Emit("}");
+    }
+    if (compositeOpnds > 0) {
+      --compositeOpnds;
     }
     /* reset opnd0 ref-field flag, so following instruction has correct register */
     if (isRefField && (i == 0)) {
@@ -1434,6 +1465,70 @@ void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
       return;
     }
   }
+}
+
+bool AArch64Insn::IsRegDefUse(regno_t regNO) const {
+  uint32 opndNum = GetOperandSize();
+  for (uint32 i = 0; i < opndNum; ++i) {
+    Operand &opnd = GetOperand(i);
+    if (opnd.IsList()) {
+      auto &listOpnd = static_cast<ListOperand&>(opnd);
+      for (auto listElem : listOpnd.GetOperands()) {
+        RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
+        ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
+        if (regNO == regOpnd->GetRegisterNumber()) {
+          return true;
+        }
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      RegOperand *base = memOpnd.GetBaseRegister();
+      RegOperand *index = memOpnd.GetIndexRegister();
+      if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
+          (index != nullptr && index->GetRegisterNumber() == regNO)) {
+        return true;
+      }
+    } else if (opnd.IsConditionCode()) {
+      if (regNO == kRFLAG) {
+        return true;
+      }
+    } else if (opnd.IsRegister()) {
+      if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool AArch64Insn::IsRegDefined(regno_t regNO) const {
+  uint32 opndNum = opnds.size();
+  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  for (uint32 i = 0; i < opndNum; ++i) {
+    Operand &opnd = GetOperand(i);
+    AArch64OpndProp *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+    bool isDef = regProp->IsDef();
+    if (!isDef && !opnd.IsMemoryAccessOperand()) {
+      continue;
+    }
+    if (opnd.IsList()) {
+      CHECK_FATAL(false, "Internal error, list operand should not be defined.");
+    } else if (opnd.IsMemoryAccessOperand()) {
+      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      RegOperand *base = memOpnd.GetBaseRegister();
+      if (base != nullptr) {
+        if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+            (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
+            base->GetRegisterNumber() == regNO) {
+          return true;
+        }
+      }
+    } else if ((opnd.IsConditionCode() || opnd.IsRegister()) &&
+               (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 bool AArch64Insn::IsVolatile() const {

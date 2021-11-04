@@ -484,42 +484,6 @@ bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
           (uxtDestOpnd.GetRegisterNumber() == uxtFromOpnd.GetRegisterNumber()));
 }
 
-bool CombineContiLoadAndStoreAArch64::IsRegDefUseInInsn(Insn &insn, regno_t regNO) {
-  uint32 opndNum = insn.GetOperandSize();
-  for(uint32 i = 0; i < opndNum; ++i) {
-    Operand &opnd = insn.GetOperand(i);
-    if (opnd.IsList()) {
-      auto &listOpnd = static_cast<ListOperand&>(opnd);
-      for (auto listElem : listOpnd.GetOperands()) {
-        RegOperand *regOpnd = static_cast<RegOperand*>(listElem);
-        ASSERT(regOpnd != nullptr, "parameter operand must be RegOperand");
-        if (regNO == regOpnd->GetRegisterNumber()) {
-          return true;
-        }
-      }
-    } else if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
-      RegOperand *base = memOpnd.GetBaseRegister();
-      RegOperand *index = memOpnd.GetIndexRegister();
-      if ((base != nullptr && base->GetRegisterNumber() == regNO) ||
-          (index != nullptr && index->GetRegisterNumber() == regNO)) {
-        return true;
-      }
-    } else if (opnd.IsConditionCode()) {
-      Operand &rflagOpnd = cgFunc.GetOrCreateRflag();
-      RegOperand &rflagReg = static_cast<RegOperand&>(rflagOpnd);
-      if (rflagReg.GetRegisterNumber() == regNO) {
-        return true;
-      }
-    } else if (opnd.IsRegister()) {
-      if (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore,
                                                                int32 baseOfst, regno_t destRegNO) {
   uint32 opndNum = insn.GetOperandSize();
@@ -636,7 +600,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     if (curInsn->GetMachineOpcode() == MOP_asm) {
       return prevContiInsns;
     }
-    if (IsRegDefUseInInsn(*curInsn, destRegNO)) {
+    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefUse(destRegNO)) {
       return prevContiInsns;
     }
   }
@@ -1439,11 +1403,26 @@ void ReplaceDivToMultiAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
+Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) {
+  regno_t defRegNO = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
+    if (!curInsn->IsMachineInstruction()) {
+      continue;
+    }
+    if (curInsn->GetMachineOpcode() == MOP_wcmpri || curInsn->GetMachineOpcode() == MOP_xcmpri) {
+      return curInsn;
+    }
+    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefUse(defRegNO)) {
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
+
 void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
    /* prevInsn must be "cmp" insn */
-  Insn *prevInsn = insn.GetPreviousMachineInsn();
-  if (prevInsn == nullptr ||
-      (prevInsn->GetMachineOpcode() != MOP_wcmpri && prevInsn->GetMachineOpcode() != MOP_xcmpri)) {
+  Insn *prevInsn = FindPreviousCmp(insn);
+  if (prevInsn == nullptr) {
     return;
   }
   /* prevPrevInsn must be "and" insn */

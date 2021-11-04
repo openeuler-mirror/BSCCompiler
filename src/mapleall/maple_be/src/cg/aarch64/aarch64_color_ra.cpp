@@ -3647,7 +3647,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
 
 void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   static regno_t intRegs[kSpillMemOpndNum] = { R10, R11, R12, R13 }; // R9 is used for large stack offset temp
-  static regno_t fpRegs[kSpillMemOpndNum] = { V10, V11, V12, V13 };
+  static regno_t fpRegs[kSpillMemOpndNum] = { V16, V17, V18, V19 };
   uint32 opndNum = insn.GetOperandSize();
   std::set<regno_t> defPregs;
   std::set<regno_t> usePregs;
