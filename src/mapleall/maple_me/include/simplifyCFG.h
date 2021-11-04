@@ -23,7 +23,7 @@ inline bool HasOnlyGotoStmt(BB &bb) {
   if (bb.IsMeStmtEmpty() || !bb.IsGoto()) {
     return false;
   }
-  MeStmt *stmt = bb.GetFirstMe();
+  const MeStmt *stmt = bb.GetFirstMe();
   // Skip commont stmt
   while (stmt != nullptr && stmt->GetOp() == OP_comment) {
     stmt = stmt->GetNextMeStmt();
@@ -38,7 +38,7 @@ inline bool IsEmptyBB(BB &bb) {
   if (bb.IsMeStmtEmpty()) {
     return true;
   }
-  MeStmt *stmt = bb.GetFirstMe();
+  const MeStmt *stmt = bb.GetFirstMe();
   // Skip commont stmt
   while (stmt != nullptr && stmt->GetOp() == OP_comment) {
     stmt = stmt->GetNextMeStmt();

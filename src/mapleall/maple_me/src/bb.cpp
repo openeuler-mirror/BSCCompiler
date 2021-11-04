@@ -192,6 +192,17 @@ int BB::GetPredIndex(const BB &predBB) const {
   return i;
 }
 
+int BB::GetSuccIndex(const BB &succBB) const {
+  int i = 0;
+  while (i < succ.size()) {
+    if (succ[i] == &succBB) {
+      break;
+    }
+    ++i;
+  }
+  return (i == succ.size()) ? -1 : i;
+}
+
 // add stmtnode to bb and update first_stmt_ and last_stmt_
 void BB::AddStmtNode(StmtNode *stmt) {
   CHECK_FATAL(stmt != nullptr, "null ptr check");
