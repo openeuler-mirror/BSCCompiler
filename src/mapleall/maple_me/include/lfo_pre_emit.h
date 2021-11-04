@@ -44,8 +44,10 @@ class LfoPreEmitter : public AnalysisResult {
         lfoStmtParts(lfoMPAlloc.Adapter()),
         lfoExprParts(lfoMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
+  virtual ~LfoPreEmitter() = default;
 
  private:
+  ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
   BaseNode *EmitLfoExpr(MeExpr*, BaseNode *);
   StmtNode* EmitLfoStmt(MeStmt *, BaseNode *);
   void EmitBB(BB *, BlockNode *);

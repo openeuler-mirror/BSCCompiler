@@ -267,7 +267,8 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   // determine arryOst
   IvarMeExpr *ivarMeExpr = nullptr;
   OriginalSt *arryOst = nullptr;
-  if (parent->op == OP_iread) {
+  if (arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
+  } else if (parent->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parent));
     CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
     arryOst = ivarMeExpr->GetMu()->GetOst();
@@ -349,6 +350,7 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         if (iass->addrExpr->GetOpCode() == OP_array) {
           ArrayAccessDesc *adesc = BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), iass);
           if (adesc != nullptr) {
+#if 0
             CHECK_FATAL(adesc->arrayOst, "CreateArrayAccessDesc: arrayOst not valid");
             // check if the chi list has only the same array
             LfoPart *lfopart = depInfo->preEmit->GetLfoStmtPart(iass->GetStmtID());
@@ -362,6 +364,7 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
                 break;
               }
             }
+#endif
           }
         } else {
           hasPtrAccess = true;
@@ -390,15 +393,31 @@ void DoloopInfo::CreateDepTestLists() {
   size_t i, j;
   for (i = 0; i < lhsArrays.size(); i++) {
     for (j = i + 1; j < lhsArrays.size(); j++) {
-      if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(lhsArrays[j]->arrayOst)) {
-        outputDepTestList.push_back(DepTestPair(i, j));
+      if (lhsArrays[i]->arrayOst != nullptr && lhsArrays[j]->arrayOst != nullptr) {
+        if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(lhsArrays[j]->arrayOst)) {
+          outputDepTestList.push_back(DepTestPair(i, j));
+        }
+      } else if (lhsArrays[i]->arrayOst == nullptr && lhsArrays[j]->arrayOst == nullptr) {
+        BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
+        BaseNode *arry1 = lhsArrays[j]->theArray->Opnd(0);
+        if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
+          outputDepTestList.push_back(DepTestPair(i, j));
+        }
       }
     }
   }
   for (i = 0; i < lhsArrays.size(); i++) {
     for (j = 0; j < rhsArrays.size(); j++) {
-      if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(rhsArrays[j]->arrayOst)) {
-        flowDepTestList.push_back(DepTestPair(i, j));
+      if (lhsArrays[i]->arrayOst != nullptr && rhsArrays[j]->arrayOst != nullptr) {
+        if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(rhsArrays[j]->arrayOst)) {
+          flowDepTestList.push_back(DepTestPair(i, j));
+        }
+      } else if (lhsArrays[i]->arrayOst == nullptr && rhsArrays[j]->arrayOst == nullptr) {
+        BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
+        BaseNode *arry1 = rhsArrays[j]->theArray->Opnd(0);
+        if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
+          flowDepTestList.push_back(DepTestPair(i, j));
+        }
       }
     }
   }
@@ -586,7 +605,11 @@ void LfoDepInfo::PerformDepTest() {
       for (i = 0; i < doloopInfo->lhsArrays.size(); i++) {
         ArrayAccessDesc *arrAcc = doloopInfo->lhsArrays[i];
         LogInfo::MapleLogger() << "(L" << i << ") ";
-        arrAcc->arrayOst->Dump();
+        if (arrAcc->arrayOst == nullptr) {
+          arrAcc->theArray->Opnd(0)->Dump(0);
+        } else {
+          arrAcc->arrayOst->Dump();
+        }
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
           if (subs->loopInvariant) {
@@ -606,7 +629,11 @@ void LfoDepInfo::PerformDepTest() {
       for (i = 0; i < doloopInfo->rhsArrays.size(); i++) {
         ArrayAccessDesc *arrAcc = doloopInfo->rhsArrays[i];
         LogInfo::MapleLogger() << "(R" << i << ") ";
-        arrAcc->arrayOst->Dump();
+        if (arrAcc->arrayOst == nullptr) {
+          arrAcc->theArray->Opnd(0)->Dump(0);
+        } else {
+          arrAcc->arrayOst->Dump();
+        }
         LogInfo::MapleLogger() << " subscripts:";
         for (SubscriptDesc *subs : arrAcc->subscriptVec) {
           if (subs->loopInvariant) {
