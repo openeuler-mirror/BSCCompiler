@@ -174,6 +174,10 @@ class MeExpr {
     return 1;
   }
 
+  virtual bool IsOpMeExpr() const {
+    return false;
+  }
+
  protected:
   MeExpr *FindSymAppearance(OStIdx oidx);  // find the appearance of the symbol
   bool IsDexMerge() const;
@@ -412,7 +416,7 @@ class VarMeExpr final : public ScalarMeExpr {
     return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
   }
 
-  bool HasAddressValue() override { return GetType()->GetKind() == kTypePointer; }
+  bool HasAddressValue() override { return MustBeAddress(GetPrimType()) || GetType()->GetKind() == kTypePointer; }
 
  private:
   bool noDelegateRC = false;  // true if this cannot be optimized by delegaterc
@@ -930,6 +934,10 @@ class OpMeExpr : public MeExpr {
   bool StrengthReducible() override;
   int64 SRMultiplier(OriginalSt *ost) override;
 
+  bool IsOpMeExpr() const override {
+    return true;
+  }
+
  private:
   std::array<MeExpr*, kOperandNumTernary> opnds = { nullptr };  // kid
   PrimType opndType = kPtyInvalid;  // from type
@@ -1200,6 +1208,7 @@ class MeStmt {
     ASSERT(sst != nullptr, "StmtNode nullptr check");
     op = sst->GetOpCode();
     srcPos = sst->GetSrcPos();
+    originalId = sst->GetOriginalID();
   }
 
   explicit MeStmt(Opcode op1) : op(op1) {}
@@ -1271,6 +1280,7 @@ class MeStmt {
     bb = meStmt.bb;
     srcPos = meStmt.srcPos;
     isLive = meStmt.isLive;
+    originalId = meStmt.originalId;
   }
 
   bool IsTheSameWorkcand(const MeStmt&) const;
@@ -1384,7 +1394,12 @@ class MeStmt {
     op = currOp;
   }
 
+  uint32 GetOriginalId() {
+    return originalId;
+  }
+
  private:
+  uint32 originalId = 0xdeadbeef;
   Opcode op;
   bool isLive = true;
   BB *bb = nullptr;
@@ -2554,22 +2569,27 @@ class UnaryMeStmt : public MeStmt {
 
 class SafetyCallCheckMeStmt {
  public:
-  SafetyCallCheckMeStmt(std::string funcName, size_t paramIndex)
-      : funcName(std::move(funcName)), paramIndex(paramIndex) {}
+  SafetyCallCheckMeStmt(const std::string& funcName, size_t paramIndex)
+      : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)),
+        paramIndex(paramIndex) {}
   explicit SafetyCallCheckMeStmt(const SafetyCallCheckMeStmt& stmt)
-      : funcName(stmt.GetFuncName()), paramIndex(stmt.GetParamIndex()) {}
+      : funcNameIdx(stmt.GetFuncNameIdx()), paramIndex(stmt.GetParamIndex()) {}
 
   virtual ~SafetyCallCheckMeStmt() = default;
 
-  std::string GetFuncName() const {
-    return funcName;
+  const std::string& GetFuncName() const {
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
+  }
+
+  GStrIdx GetFuncNameIdx() const {
+    return funcNameIdx;
   }
 
   size_t GetParamIndex() const {
     return paramIndex;
   }
  private:
-  std::string funcName;
+  GStrIdx funcNameIdx;
   size_t paramIndex;
 };
 
@@ -2580,8 +2600,7 @@ class CallAssertNonnullMeStmt : public UnaryMeStmt, public SafetyCallCheckMeStmt
   CallAssertNonnullMeStmt(Opcode o, std::string &funcName, size_t paramIndex)
       : UnaryMeStmt(o), SafetyCallCheckMeStmt(funcName, paramIndex) {}
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
-      : UnaryMeStmt(static_cast<const UnaryMeStmt*>(&stt)),
-        SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+      : UnaryMeStmt(&stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
   ~CallAssertNonnullMeStmt() = default;
   StmtNode &EmitStmt(SSATab &ssaTab);
 };
