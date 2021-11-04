@@ -9445,6 +9445,26 @@ RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
   return res;
 }
 
+RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow) {
+  RegOperand *res = &CreateRegisterOperandOfType(otyp1);                     /* restype is same as o1 */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(otyp1);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp1);      /* vector operand 1 */
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(otyp2);      /* vector operand 2 */
+
+  MOperator mOp;
+  if (isLow) {
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddwvvu : MOP_vuaddwvvu;
+  } else {
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddw2vvv : MOP_vuaddw2vvv;
+  }
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
 RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, PrimType sType) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);                 /* result operand */
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
@@ -10021,7 +10041,7 @@ RegOperand *AArch64CGFunc::SelectVectorBitwiseOp(PrimType rType, Operand *o1, Pr
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
+  static_cast<AArch64VectorInsn *>(insn)->PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(*insn);
   return res;
 }
@@ -10040,7 +10060,7 @@ RegOperand *AArch64CGFunc::SelectVectorNarrow(PrimType rType, Operand *o1, PrimT
 
 RegOperand *AArch64CGFunc::SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) {
   (void)oty1;             /* 1st opnd was loaded already, type no longer needed */
-  RegOperand *res = static_cast<RegOperand*>(o1);   /* o1 is also the result */
+  RegOperand *res = static_cast<RegOperand *>(o1);   /* o1 is also the result */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(oty2);      /* vector opnd2 */
 
