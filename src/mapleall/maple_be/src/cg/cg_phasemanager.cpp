@@ -42,6 +42,7 @@
 #include "offset_adjust.h"
 #include "proepilog.h"
 #include "ra_opt.h"
+#include "alignment.h"
 
 #if TARGAARCH64
 #include "aarch64/aarch64_cg.h"
@@ -159,7 +160,6 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
         CGOptions::EnableInRange();
       }
       changed = FuncLevelRun(*cgFunc, *serialADM);
-
       /* Delete mempool. */
       mirFunc->ReleaseCodeMemory();
       ++rangeNum;
@@ -191,7 +191,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
 #endif
   ADDMAPLECGPHASE("prepeephole1", CGOptions::DoPrePeephole())
   ADDMAPLECGPHASE("ebo1", CGOptions::DoEBO());
-  ADDMAPLECGPHASE("prescheduling", CGOptions::DoPreSchedule());
+  ADDMAPLECGPHASE("prescheduling", !JAVALANG && CGOptions::DoPreSchedule());
   ADDMAPLECGPHASE("raopt", CGOptions::DoPreLSRAOpt());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CLANG);
   ADDMAPLECGPHASE("regalloc", true);
@@ -207,6 +207,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("gencfi", !CLANG);
   ADDMAPLECGPHASE("yieldpoint", JAVALANG && CGOptions::IsInsertYieldPoint());
   ADDMAPLECGPHASE("scheduling", CGOptions::DoSchedule());
+  ADDMAPLECGPHASE("alignanalysis", CLANG);
   ADDMAPLECGPHASE("fixshortbranch", true);
   ADDMAPLECGPHASE("cgemit", true);
 }
@@ -445,6 +446,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgStoreLoadOpt, storeloadopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFPLROffsetAdjustment, offsetadjustforfplr)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, cgemit)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)

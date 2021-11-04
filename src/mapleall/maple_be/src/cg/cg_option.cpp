@@ -1595,7 +1595,7 @@ void CGOptions::EnableO2() {
   doPeephole = true;
   doStoreLoadOpt = true;
   doGlobalOpt = true;
-  doPreSchedule = false;
+  doPreSchedule = true;
   doSchedule = true;
   SetOption(kConstFold);
   ClearOption(kUseStackGuard);

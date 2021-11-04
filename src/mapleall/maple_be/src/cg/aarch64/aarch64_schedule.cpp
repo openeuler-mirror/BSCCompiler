@@ -36,6 +36,11 @@ constexpr uint32 kClinitTailAdvanceCycle = 4;
 }
 
 uint32 AArch64Schedule::maxUnitIndex = 0;
+int AArch64Schedule::intRegPressureThreshold = 27;
+int AArch64Schedule::fpRegPressureThreshold = 29;
+int AArch64Schedule::intCalleeSaveThresholdBase = 10;
+int AArch64Schedule::intCalleeSaveThresholdEnhance = 11;
+int AArch64Schedule::fpCalleeSaveThreshold = 8;
 /* Init schedule's data struction. */
 void AArch64Schedule::Init() {
   readyList.clear();
@@ -205,7 +210,7 @@ void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*>
         }
 
         if (LIST_SCHED_DUMP_REF) {
-          LogInfo::MapleLogger() << "Combine inse: " << "\n";
+          LogInfo::MapleLogger() << "Combine insn: " << "\n";
           memList[0]->GetInsn()->Dump();
           (*it)->GetInsn()->Dump();
         }
@@ -385,7 +390,6 @@ bool DepNode::CanBeScheduled() const {
       }
     }
   }
-
   return true;
 }
 
@@ -569,20 +573,33 @@ void AArch64Schedule::DumpDebugInfo(const ScheduleProcessInfo &scheduleInfo) {
  *   3. update unscheduled node set, when targetNode is last kNodeTypeSeparator;
  *   4. update AdvanceCycle.
  */
-void AArch64Schedule::SelectNode(ScheduleProcessInfo &scheduleInfo) {
+void AArch64Schedule::SelectNode(AArch64ScheduleProcessInfo &scheduleInfo) {
   auto &availableReadyList = scheduleInfo.GetAvailableReadyList();
   auto it = availableReadyList.begin();
   DepNode *targetNode = *it;
   if (availableReadyList.size() > 1) {
     CalculateMaxUnitKindCount(scheduleInfo);
+    if (GetConsiderRegPressure()) {
+      UpdateReleaseRegInfo(scheduleInfo);
+    }
     ++it;
     for (; it != availableReadyList.end(); ++it) {
-      if (CompareDepNode(**it, *targetNode)) {
+      if (CompareDepNode(**it, *targetNode, scheduleInfo)) {
         targetNode = *it;
       }
     }
   }
+  /* The priority of free-reg node is higher than pipeline */
+  while (!targetNode->CanBeScheduled()) {
+    scheduleInfo.IncCurrCycle();
+    mad->AdvanceCycle();
+  }
+  if (GetConsiderRegPressure() && !scheduleInfo.IsFirstSeparator()) {
+    UpdateLiveRegSet(scheduleInfo, *targetNode);
+  }
+  /* push target node into scheduled nodes and turn it into kScheduled state */
   scheduleInfo.PushElemIntoScheduledNodes(targetNode);
+
   EraseNodeFromReadyList(*targetNode);
 
   if (CGOptions::IsDebugSched()) {
@@ -606,7 +623,11 @@ void AArch64Schedule::SelectNode(ScheduleProcessInfo &scheduleInfo) {
     }
   }
 
-  switch (targetNode->GetInsn()->GetLatencyType()) {
+  UpdateAdvanceCycle(scheduleInfo, *targetNode);
+}
+
+void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, DepNode &targetNode) {
+  switch (targetNode.GetInsn()->GetLatencyType()) {
     case kLtClinit:
       scheduleInfo.SetAdvanceCycle(kClinitAdvanceCycle);
       break;
@@ -621,7 +642,11 @@ void AArch64Schedule::SelectNode(ScheduleProcessInfo &scheduleInfo) {
   }
 
   if ((scheduleInfo.GetAdvanceCycle() == 0) && mad->IsFullIssued()) {
-    scheduleInfo.SetAdvanceCycle(1);
+    if (targetNode.GetEStart() > scheduleInfo.GetCurrCycle()) {
+      scheduleInfo.SetAdvanceCycle(1 + targetNode.GetEStart() - scheduleInfo.GetCurrCycle());
+    } else {
+      scheduleInfo.SetAdvanceCycle(1);
+    }
   }
 }
 
@@ -629,7 +654,7 @@ void AArch64Schedule::SelectNode(ScheduleProcessInfo &scheduleInfo) {
  * Advance mad's cycle until info's advanceCycle equal zero,
  * and then clear info's availableReadyList.
  */
-void AArch64Schedule::UpdateScheduleProcessInfo(ScheduleProcessInfo &info) {
+void AArch64Schedule::UpdateScheduleProcessInfo(AArch64ScheduleProcessInfo &info) {
   while (info.GetAdvanceCycle() > 0) {
     info.IncCurrCycle();
     mad->AdvanceCycle();
@@ -642,25 +667,56 @@ void AArch64Schedule::UpdateScheduleProcessInfo(ScheduleProcessInfo &info) {
  * Forward traversal readyList, if a node in readyList can be Schedule, add it to availableReadyList.
  * Return true, if availableReadyList is not empty.
  */
-bool AArch64Schedule::CheckSchedulable(ScheduleProcessInfo &info) const {
+bool AArch64Schedule::CheckSchedulable(AArch64ScheduleProcessInfo &info) const {
   for (auto node : readyList) {
-    if (node->CanBeScheduled() && node->GetEStart() <= info.GetCurrCycle()) {
+    if (GetConsiderRegPressure()) {
       info.PushElemIntoAvailableReadyList(node);
+    } else {
+      if (node->CanBeScheduled() && node->GetEStart() <= info.GetCurrCycle()) {
+        info.PushElemIntoAvailableReadyList(node);
+      }
     }
   }
+  return info.AvailableReadyListIsEmpty() ? false : true;
+}
 
-  if (info.AvailableReadyListIsEmpty()) {
-    return false;
+/*
+ * Calculate estimated machine cycle count for an input node series
+ */
+int AArch64Schedule::calSeriesCycles(const MapleVector<DepNode*> &nodes) {
+  int currentCycle = 0;
+  /* after an instruction is issued, the minimum cycle count for the next instruction is 1 */
+  int instructionBaseCycleCount = 1;
+  std::map<DepNode*, int> scheduledCycleMap;
+  for (auto node : nodes) {
+    int latencyCycle = 0;
+    /* calculate the latest begin time of this node based on its predecessor's issue time and latency */
+    for (auto pred : node->GetPreds()) {
+      DepNode &from = pred->GetFrom();
+      uint32 latency = pred->GetLatency();
+      int fromCycle = scheduledCycleMap[&from];
+      if (fromCycle + latency > latencyCycle) {
+        latencyCycle = fromCycle + latency;
+      }
+    }
+    /* the issue time of this node is the max value between the next cycle and latest begin time */
+    if (currentCycle + instructionBaseCycleCount >= latencyCycle) {
+      currentCycle = currentCycle + instructionBaseCycleCount;
+    } else {
+      currentCycle = latencyCycle;
+    }
+    /* record this node's issue cycle */
+    scheduledCycleMap[node] = currentCycle;
   }
-  return true;
+  return currentCycle;
 }
 
 /* After building dependence graph, schedule insns. */
 uint32 AArch64Schedule::DoSchedule() {
-  ScheduleProcessInfo scheduleInfo(nodeSize);
+  AArch64ScheduleProcessInfo scheduleInfo(nodeSize);
   Init();
   UpdateELStartsOnCycle(scheduleInfo.GetCurrCycle());
-
+  InitLiveRegSet(scheduleInfo);
   while (!readyList.empty()) {
     UpdateScheduleProcessInfo(scheduleInfo);
     /* Check if schedulable */
@@ -691,11 +747,135 @@ uint32 AArch64Schedule::DoSchedule() {
   return (nodes[nodes.size() - 2]->GetSchedCycle());
 }
 
+struct RegisterInfoUnit {
+  RegisterInfoUnit() : intRegNum(0), fpRegNum(0), ccRegNum(0) {}
+  uint32 intRegNum = 0;
+  uint32 fpRegNum = 0;
+  uint32 ccRegNum = 0;
+};
+
+RegisterInfoUnit GetDepNodeDefType(const DepNode &depNode, CGFunc &f) {
+  RegisterInfoUnit rIU;
+  for (auto defRegNO : depNode.GetDefRegnos()) {
+    RegType defRegTy = AArch64ScheduleProcessInfo::GetRegisterType(f, defRegNO);
+    if (defRegTy == kRegTyInt) {
+      rIU.intRegNum++;
+    } else if (defRegTy == kRegTyFloat) {
+      rIU.fpRegNum++;
+    } else if (defRegTy == kRegTyCc) {
+      rIU.ccRegNum++;
+      ASSERT(rIU.ccRegNum <= 1, "spill cc reg?");
+    } else {
+      CHECK_FATAL(false, "NIY aarch64 register type");
+    }
+  }
+  /* call node will not increase reg def pressure */
+  if (depNode.GetInsn() != nullptr && depNode.GetInsn()->IsCall()) {
+    rIU.intRegNum = 0;
+    rIU.fpRegNum = 0;
+  }
+  return rIU;
+}
+
+AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2,
+                                                  AArch64ScheduleProcessInfo &scheduleInfo) const {
+  RegisterInfoUnit defRIU1 = GetDepNodeDefType(node1, cgFunc);
+  RegisterInfoUnit defRIU2 = GetDepNodeDefType(node2, cgFunc);
+  /* do not increase callee save pressure before call */
+  if (scheduleInfo.SizeOfCalleeSaveLiveRegister(true) >= intCalleeSaveThreshold) {
+    if (defRIU1.intRegNum > 0 && defRIU2.intRegNum > 0) {
+      CSRResult csrInfo = ScheduleCrossCall(node1, node2);
+      if ((csrInfo == kNode1 && defRIU1.intRegNum >= scheduleInfo.GetFreeIntRegs(node1)) ||
+          (csrInfo == kNode2 && defRIU2.intRegNum >= scheduleInfo.GetFreeIntRegs(node2))) {
+        return csrInfo;
+      }
+    }
+  }
+  if (scheduleInfo.SizeOfCalleeSaveLiveRegister(false) >= fpCalleeSaveThreshold) {
+    if (defRIU1.fpRegNum > 0 && defRIU2.fpRegNum > 0) {
+      CSRResult csrInfo = ScheduleCrossCall(node1, node2);
+      if ((csrInfo == kNode1 && defRIU1.fpRegNum >= scheduleInfo.GetFreeFpRegs(node1)) ||
+          (csrInfo == kNode2 && defRIU2.fpRegNum >= scheduleInfo.GetFreeFpRegs(node2))) {
+        return csrInfo;
+      }
+    }
+  }
+  auto FindFreeRegNode = [&](bool isInt)->CSRResult {
+    auto freeRegNodes = isInt ? scheduleInfo.GetFreeIntRegNodeSet() : scheduleInfo.GetFreeFpRegNodeSet();
+    if (freeRegNodes.find(&node1) != freeRegNodes.end() && freeRegNodes.find(&node2) == freeRegNodes.end()) {
+      return kNode1;
+    }
+    if (freeRegNodes.find(&node1) == freeRegNodes.end() && freeRegNodes.find(&node2) != freeRegNodes.end()) {
+      return kNode2;
+    }
+    return kDoCSP;
+  };
+  if (scheduleInfo.SizeOfIntLiveRegSet() >= intRegPressureThreshold) {
+    if (FindFreeRegNode(true) != kDoCSP) {
+      return FindFreeRegNode(true);
+    }
+  }
+  if (scheduleInfo.SizeOfFpLiveRegSet() >= fpRegPressureThreshold) {
+    if (FindFreeRegNode(false) != kDoCSP) {
+      return FindFreeRegNode(false);
+    }
+  }
+
+  bool canDoCSPFurther = false;
+  if (scheduleInfo.SizeOfIntLiveRegSet() >= intRegPressureThreshold) {
+    if (defRIU1.intRegNum != defRIU2.intRegNum) {
+      return defRIU1.intRegNum < defRIU2.intRegNum ? kNode1 : kNode2;
+    } else  {
+      canDoCSPFurther = defRIU1.intRegNum == 0;
+    }
+  }
+  if (scheduleInfo.SizeOfFpLiveRegSet() >= fpRegPressureThreshold) {
+    if (defRIU1.fpRegNum != defRIU2.fpRegNum) {
+      return defRIU1.fpRegNum < defRIU2.fpRegNum ? kNode1 : kNode2;
+    } else {
+      canDoCSPFurther = (defRIU1.fpRegNum == 0 && canDoCSPFurther);
+    }
+  }
+  /* if both nodes are going to increase reg pressure, do not do CSP further */
+  return canDoCSPFurther ? kDoCSP : (node1.GetInsn()->GetId() < node2.GetInsn()->GetId() ? kNode1 : kNode2);
+}
+
+AArch64Schedule::CSRResult AArch64Schedule::ScheduleCrossCall(DepNode &node1, DepNode &node2) const {
+  uint32 node1ID = node1.GetInsn()->GetId();
+  uint32 node2ID = node2.GetInsn()->GetId();
+  bool order = node1ID < node2ID; /* true -- node1 before node2  false -- node1 after node2 */
+  Insn *beginInsn = order ? node1.GetInsn() : node2.GetInsn();
+  uint32 finialId = order ? node2ID : node1ID;
+  for (Insn *checkInsn = beginInsn; (checkInsn != nullptr && checkInsn->GetId() <= finialId);
+      checkInsn = checkInsn->GetNextMachineInsn()) {
+    if (checkInsn->IsCall()) {
+      return order ? kNode1 : kNode2;
+    }
+  }
+  return kDoCSP;
+};
+
 /*
  * Comparing priorities of node1 and node2 according to some heuristic rules
  * return true if node1's priority is higher
+ * crp -- consider reg pressure
  */
-bool AArch64Schedule::CompareDepNode(const DepNode &node1, const DepNode &node2) {
+bool AArch64Schedule::CompareDepNode(DepNode &node1, DepNode &node2, AArch64ScheduleProcessInfo &scheduleInfo) const {
+  /*
+   * strategy CSR -- code schedule for register pressure
+   * if pressure is above the threshold, select the node which can reduce register pressure
+   */
+  if (GetConsiderRegPressure()) {
+    switch (DoCSR(node1, node2, scheduleInfo)) {
+      case kNode1:
+        return true;
+      case kNode2:
+        return false;
+      default:
+        break;
+    }
+  }
+  /* strategy CSP -- code schedule for CPU pipeline */
   /* less LStart first */
   if (node1.GetLStart() != node2.GetLStart()) {
     return node1.GetLStart() < node2.GetLStart();
@@ -745,6 +925,73 @@ void AArch64Schedule::CalculateMaxUnitKindCount(ScheduleProcessInfo &scheduleInf
     if (maxCount < unitKindCount[i]) {
       maxCount = unitKindCount[i];
       maxUnitIndex = i;
+    }
+  }
+}
+
+/*
+ * Update the release reg node set
+ * When node in this set is scheduled, register pressure can be reduced
+ */
+void AArch64Schedule::UpdateReleaseRegInfo(AArch64ScheduleProcessInfo &scheduleInfo) {
+  auto &availableReadyList = scheduleInfo.GetAvailableReadyList();
+  scheduleInfo.ClearALLFreeRegNodeSet();
+  /* Traverse availableReadyList and add those can reduce register pressure to release reg node set */
+  for (auto node : availableReadyList) {
+    std::set<regno_t> freeRegNO = CanFreeRegister(*node);
+    if (!freeRegNO.empty()) {
+      scheduleInfo.VaryFreeRegSet(cgFunc, freeRegNO, *node);
+    }
+  }
+}
+
+/*
+ * return registers which an instruction can release after being scheduled
+ */
+std::set<regno_t> AArch64Schedule::CanFreeRegister(const DepNode &node) const {
+  std::set<regno_t> freeRegSet;
+  for (auto reg : node.GetUseRegnos()) {
+    if (RegPressureSchedule::IsLastUse(node, reg)) {
+      freeRegSet.emplace(reg);
+    }
+  }
+  return freeRegSet;
+}
+
+/*
+ * After an instruction is scheduled, update live reg set
+ */
+void AArch64Schedule::UpdateLiveRegSet(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode& node) {
+  /* dealing with def reg, add def reg into the live reg set */
+  size_t i = 1;
+  for (auto &defReg : node.GetDefRegnos()) {
+    if (scheduleInfo.FindIntLiveReg(defReg) == 0 && scheduleInfo.FindFpLiveReg(defReg) == 0) {
+      scheduleInfo.VaryLiveRegSet(cgFunc, defReg, true);
+    }
+    /* delete dead def reg from live reg set because its live range is only 1 cycle */
+    if (node.GetRegDefs(i) == nullptr && liveOutRegNo.find(defReg) == liveOutRegNo.end()) {
+      scheduleInfo.VaryLiveRegSet(cgFunc, defReg, false);
+    }
+    ++i;
+  }
+  /* dealing with use reg, delete use reg from live reg set if this instruction is last use of it */
+  for (auto &useReg : node.GetUseRegnos()) {
+    if (RegPressureSchedule::IsLastUse(node, useReg)) {
+      if ((scheduleInfo.FindIntLiveReg(useReg) != 0 || scheduleInfo.FindFpLiveReg(useReg) != 0) &&
+          liveOutRegNo.find(useReg) == liveOutRegNo.end()) {
+        scheduleInfo.VaryLiveRegSet(cgFunc, useReg, false);
+      }
+    }
+  }
+}
+
+/*
+ * Initialize the live reg set based on the live in reg information
+ */
+void AArch64Schedule::InitLiveRegSet(AArch64ScheduleProcessInfo &scheduleInfo) {
+  if (GetConsiderRegPressure()) {
+    for (auto reg : liveInRegNo) {
+      scheduleInfo.VaryLiveRegSet(cgFunc, reg, true);
     }
   }
 }
@@ -1110,6 +1357,49 @@ void AArch64Schedule::GenerateDot(const BB &bb, const MapleVector<DepNode*> &nod
   std::cout.rdbuf(coutBuf);
 }
 
+RegType AArch64ScheduleProcessInfo::GetRegisterType(CGFunc &f, regno_t regNO) {
+  if (AArch64isa::IsPhysicalRegister(regNO)) {
+    if (AArch64isa::IsGPRegister(static_cast<AArch64reg>(regNO))) {
+      return kRegTyInt;
+    } else if (AArch64isa::IsFPSIMDRegister(static_cast<AArch64reg>(regNO))) {
+      return kRegTyFloat;
+    } else {
+      CHECK_FATAL(false, "unknown physical reg");
+    }
+  } else {
+    RegOperand *curRegOpnd = f.GetVirtualRegisterOperand(regNO);
+    ASSERT(curRegOpnd != nullptr, "register which is not physical and virtual");
+    return curRegOpnd->GetRegisterType();
+  }
+}
+
+void AArch64ScheduleProcessInfo::VaryLiveRegSet(CGFunc &f, regno_t regNO, bool isInc) {
+  RegType registerTy = GetRegisterType(f, regNO);
+  if (registerTy == kRegTyInt || registerTy == kRegTyVary) {
+    isInc ? IncIntLiveRegSet(regNO) : DecIntLiveRegSet(regNO);
+  } else if (registerTy == kRegTyFloat) {
+    isInc ? IncFpLiveRegSet(regNO) : DecFpLiveRegSet(regNO);
+  }
+  /* consider other type register */
+}
+
+void AArch64ScheduleProcessInfo::VaryFreeRegSet(CGFunc &f, std::set<regno_t> regNOs, DepNode &node) {
+  for (auto regNO : regNOs) {
+    RegType registerTy = GetRegisterType(f, regNO);
+    if (registerTy == kRegTyInt || registerTy == kRegTyVary /* memory base register must be int */) {
+      IncFreeIntRegNode(node);
+    } else if (registerTy == kRegTyFloat) {
+      IncFreeFpRegNode(node);
+    } else if (registerTy == kRegTyCc) {
+      /* do not count CC reg */
+      return;
+    } else  {
+      /* consider other type register */
+      CHECK_FATAL(false, "do not support this type of register");
+    }
+  }
+}
+
 /* Do brute force scheduling and dump scheduling information */
 void AArch64Schedule::BruteForceScheduling(const BB &bb) {
   LogInfo::MapleLogger() << "\n\n$$ Function: " << cgFunc.GetName();
@@ -1185,7 +1475,14 @@ void AArch64Schedule::ListScheduling(bool beforeRA) {
       DumpDepGraph(nodes);
     }
     if (beforeRA) {
-      RegPressureScheduling(*bb, nodes);
+      liveInRegNo = bb->GetLiveInRegNO();;
+      liveOutRegNo = bb->GetLiveOutRegNO();
+      if (bb->GetKind() != BB::kBBReturn) {
+        SetConsiderRegPressure();
+        DoSchedule();
+      } else {
+        RegPressureScheduling(*bb, nodes);
+      }
     } else {
       ClinitPairOpt();
       MemoryAccessPairOpt();
