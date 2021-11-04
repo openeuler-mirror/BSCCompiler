@@ -53,11 +53,39 @@ bool IsConnectingBB(BB &bb) {
 // RealSucc is a non-connecting BB which is not empty (or has just a single gotoStmt).
 // If we want to find the non-empty succ of currBB, we start from the succ (i.e. the argument)
 // skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
-BB *FindFirstRealSucc(BB *succ) {
-  while (succ != nullptr && IsConnectingBB(*succ)) {
+// func will stop at first non-connecting BB or stopBB
+BB *FindFirstRealSucc(BB *succ, BB *stopBB = nullptr) {
+  while (succ != stopBB && IsConnectingBB(*succ)) {
     succ = succ->GetSucc(0);
   }
   return succ;
+}
+
+// RealPred is a non-connecting BB which is not empty (or has just a single gotoStmt).
+// If we want to find the non-empty pred of currBB, we start from the pred (i.e. the argument)
+// skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
+// func will stop at first non-connecting BB or stopBB
+BB *FindFirstRealPred(BB *pred, BB *stopBB = nullptr) {
+  while (pred != stopBB && IsConnectingBB(*pred)) {
+    pred = pred->GetPred(0);
+  }
+  return pred;
+}
+
+int GetRealPredIdx(BB &succ, BB &realPred) {
+  size_t i = 0;
+  size_t predSize = succ.GetPred().size();
+  while (i < predSize) {
+    if (FindFirstRealPred(succ.GetPred(i), &realPred) == &realPred) {
+      break;
+    }
+    ++i;
+  }
+  if (i == predSize) {
+    // bb not in the vector
+    return -1;
+  }
+  return static_cast<int>(i);
 }
 
 // delete all empty bb used to connect its pred and succ, like: pred -- empty -- empty -- succ
@@ -74,20 +102,43 @@ void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg)
     BB *pred = emptyBB->GetPred(0);
     DEBUG_LOG() << "Delete empty connecting : BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(emptyBB)
                 << "(deleted)->BB" << LOG_BBID(succ) << "\n";
-    succ->ReplacePred(emptyBB, pred);
-    emptyBB->RemoveAllPred();
+    int predIdx = succ->GetPredIndex(*emptyBB);
+    succ->SetPred(predIdx, pred);
+    int succIdx = pred->GetSuccIndex(*emptyBB);
+    pred->SetSucc(succIdx, succ);
     cfg.DeleteBasicBlock(*emptyBB);
     emptyBB = succ;
   }
 }
 
-bool HasFallthruPred(const BB &bb) {
+size_t GetFallthruPredNum(const BB &bb) {
+  size_t num = 0;
   for (BB *pred : bb.GetPred()) {
     if (pred->GetKind() == kBBFallthru) {
-      return true;
+      ++num;
     } else if (pred->GetKind() == kBBCondGoto && pred->GetSucc(0) == &bb) {
-      return true;
+      ++num;
     }
+  }
+  return num;
+}
+
+bool HasFallthruPred(const BB &bb) {
+  return GetFallthruPredNum(bb) != 0;
+}
+
+// contains only one valid condgoto stmt
+bool HasOnlyCondGotoStmt(BB &bb) {
+  if (bb.IsMeStmtEmpty() || bb.GetKind() != kBBCondGoto) {
+    return false;
+  }
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip comment stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  if (kOpcodeInfo.IsCondBr(stmt->GetOp())) {
+    return true;
   }
   return false;
 }
@@ -307,7 +358,9 @@ bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
     ASSERT(bb.GetSucc().back() == destBB, "[FUNC: %s]Goto BB%d has different destination", funcName, LOG_BBID(&bb));
     bb.RemoveSucc(*bb.GetSucc().back());
   }
-  if (destBB->GetPred().size() > 1) {
+  // bb must be one of fallthru pred of destBB, if there is another one,
+  // we should add gotoStmt to avoid duplicate fallthru pred
+  if (GetFallthruPredNum(*destBB) > 1) {
     LabelIdx label = f.GetOrCreateBBLabel(*destBB);
     auto *gotoStmt = irmap->CreateGotoMeStmt(label, &bb, &bb.GetLastMe()->GetSrcPosition());
     bb.RemoveLastMeStmt();
@@ -632,12 +685,24 @@ bool SimplifyCFG::CondBranchToSelect() {
   if (ftRHS == nullptr) {
     int predIdx = jointBB->GetPredIndex(*ftBB);
     ASSERT(predIdx != -1, "[FUNC: %s]ftBB is not a pred of jointBB", funcName);
-    ftRHS = jointBB->GetMePhiList()[gtReg->GetOstIdx()]->GetOpnd(predIdx);
+    auto &phiList = jointBB->GetMePhiList();
+    auto it = phiList.find(gtReg->GetOstIdx());
+    if (it == phiList.end()) {
+      return false;
+    }
+    MePhiNode *phi = it->second;
+    ftRHS = phi->GetOpnd(predIdx);
     ftReg = gtReg;
   } else if (gtRHS == nullptr) {
     int predIdx = jointBB->GetPredIndex(*gtBB);
     ASSERT(predIdx != -1, "[FUNC: %s]gtBB is not a pred of jointBB", funcName);
-    gtRHS = jointBB->GetMePhiList()[ftReg->GetOstIdx()]->GetOpnd(predIdx);
+    auto &phiList = jointBB->GetMePhiList();
+    auto it = phiList.find(ftReg->GetOstIdx());
+    if (it == phiList.end()) {
+      return false;
+    }
+    MePhiNode *phi = it->second;
+    gtRHS = phi->GetOpnd(predIdx);
     gtReg = ftReg;
   }
   // pattern not found
@@ -723,7 +788,11 @@ bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
       return static_cast<AddrofMeExpr*>(expr1)->GetOstIdx() == static_cast<AddrofMeExpr*>(expr2)->GetOstIdx();
     }
     case kMeOpOp: {
-      if (expr1->GetNumOpnds() != expr2->GetNumOpnds()) {
+      auto *opExpr1 = static_cast<OpMeExpr*>(expr1);
+      auto *opExpr2 = static_cast<OpMeExpr*>(expr2);
+      if (opExpr1->GetOp() != opExpr2->GetOp() || opExpr1->GetTyIdx() != opExpr2->GetTyIdx() ||
+          opExpr1->GetFieldID() != opExpr2->GetFieldID() || opExpr1->GetBitsOffSet() != opExpr2->GetBitsOffSet() ||
+          opExpr1->GetBitsSize() != opExpr2->GetBitsSize() || opExpr1->GetNumOpnds() != opExpr2->GetNumOpnds()) {
         return false;
       }
       for (size_t i = 0; i < expr1->GetNumOpnds(); ++i) {
@@ -739,60 +808,128 @@ bool IsExprSameLexicalally(MeExpr *expr1, MeExpr *expr2) {
   }
 }
 
-// cond1 and cond2 has same result
-// note: same result means both is zero or both is not zero
-bool IsSameCondResult(MeExpr *cond1, MeExpr *cond2) {
-  if (cond1 == cond2) {
-    return true;
+enum BranchResult {
+  kBrFalse,
+  kBrTrue,
+  kBrUnknown
+};
+
+void SwapCmpOpnds(Opcode &op, MeExpr *&opnd0, MeExpr *&opnd1) {
+  if (!kOpcodeInfo.IsCompare(op)) {
+    return;
   }
-  Opcode op1 = cond1->GetOp();
-  Opcode op2 = cond2->GetOp();
-  if (kOpcodeInfo.IsCompare(op1) && kOpcodeInfo.IsCompare(op2)) {
-    MeExpr *opnd10 = cond1->GetOpnd(0);
-    MeExpr *opnd11 = cond1->GetOpnd(1);
-    MeExpr *opnd20 = cond2->GetOpnd(0);
-    MeExpr *opnd21 = cond2->GetOpnd(1);
-    if (op1 == op2) {
-      if (IsExprSameLexicalally(opnd10, opnd20) && IsExprSameLexicalally(opnd11, opnd21)) {
-        return true;
-      }
-      if (op1 == OP_eq || op1 == OP_ne || op1 == OP_cmp || op1 == OP_cmpg || op1 == OP_cmpl) {
-        // for cmp/cmpg/cmpl, only if the opnds are equal, the result is zero, otherwise the result is not zero(-1/+1)
-        return (IsExprSameLexicalally(opnd10, opnd21) && IsExprSameLexicalally(opnd11, opnd20));
-      }
-    } else if (IsCompareHasReverseOp(op1) && GetReverseCmpOp(op1) == op2) {
-      if (op1 == OP_eq || op1 == OP_ne) {
-        // eq/ne is commutative
-        return false;
-      }
-      return (IsExprSameLexicalally(opnd10, opnd21) &&
-              IsExprSameLexicalally(opnd11, opnd20));
-    }
+  MeExpr *tmp = opnd0;
+  opnd0 = opnd1;
+  opnd1 = tmp;
+  // keep the result of succCond the same
+  // for cmp/cmpg/cmpl, only if the opnds are equal, the result is zero, otherwise the result is not zero(-1/+1)
+  switch (op) {
+    case OP_ge:
+      op = OP_le;
+      return;
+    case OP_gt:
+      op = OP_lt;
+      return;
+    case OP_le:
+      op = OP_ge;
+      return;
+    case OP_lt:
+      op = OP_gt;
+      return;
+    default:
+      return;
   }
-  return false;
 }
 
-bool IsInvertCondResult(MeExpr *cond1, MeExpr *cond2) {
-  if (cond1 == cond2) {
-    return false;
+// Precondition : predCond branches to succCond
+// isPredTrueBrSucc : predCond->succCond is true branch or false branch
+BranchResult InferSuccCondBrFromPredCond(MeExpr *predCond, MeExpr *succCond, bool isPredTrueBrSucc) {
+  if (!kOpcodeInfo.IsCompare(predCond->GetOp()) || !kOpcodeInfo.IsCompare(succCond->GetOp())) {
+    return kBrUnknown;
   }
-  Opcode op1 = cond1->GetOp();
-  Opcode op2 = cond2->GetOp();
-  if (IsCompareHasReverseOp(op1) && GetReverseCmpOp(op1) == op2) {
-    MeExpr *opnd10 = cond1->GetOpnd(0);
-    MeExpr *opnd11 = cond1->GetOpnd(1);
-    MeExpr *opnd20 = cond2->GetOpnd(0);
-    MeExpr *opnd21 = cond2->GetOpnd(1);
-    if (IsExprSameLexicalally(opnd10, opnd20) && IsExprSameLexicalally(opnd11, opnd21)) {
-      return true;
-    }
-    if (op1 == OP_eq || op1 == OP_ne) {
-      // eq/ne is commutative
-      return (IsExprSameLexicalally(opnd10, opnd21) &&
-              IsExprSameLexicalally(opnd11, opnd20));
+  if (predCond == succCond) {
+    return isPredTrueBrSucc ? kBrTrue : kBrFalse;
+  }
+  Opcode op1 = predCond->GetOp();
+  Opcode op2 = succCond->GetOp();
+  MeExpr *opnd10 = predCond->GetOpnd(0);
+  MeExpr *opnd11 = predCond->GetOpnd(1);
+  MeExpr *opnd20 = succCond->GetOpnd(0);
+  MeExpr *opnd21 = succCond->GetOpnd(1);
+  if (IsExprSameLexicalally(opnd10, opnd21) && IsExprSameLexicalally(opnd11, opnd20)) {
+    // swap two opnds ptr of succCond
+    SwapCmpOpnds(op2, opnd20, opnd21);
+  }
+  if (!IsExprSameLexicalally(opnd10, opnd20) || !IsExprSameLexicalally(opnd11, opnd21)) {
+    return kBrUnknown;
+  }
+  if (op1 == op2) {
+    return isPredTrueBrSucc ? kBrTrue : kBrFalse;
+  }
+  if (!isPredTrueBrSucc) {
+    if (IsCompareHasReverseOp(op1)) {
+      // if predCond false br to succCond, we invert its op and assume it true br to succCond
+      op1 = GetReverseCmpOp(op1);
     }
   }
-  return false;
+  switch (op1) {
+    case OP_ge: {
+      if (op2 == OP_lt) {
+        return kBrFalse;
+      }
+      return kBrUnknown;
+    }
+    case OP_gt: {
+      if (op2 == OP_ge || op2 == OP_ne || op2 == OP_cmp) {
+        return kBrTrue;
+      } else if (op2 == OP_le || op2 == OP_lt || op2 == OP_eq) {
+        return kBrFalse;
+      }
+      return kBrUnknown;
+    }
+    case OP_eq: {
+      if (op2 == OP_gt || op2 == OP_lt || op2 == OP_ne || op2 == OP_cmp) {
+        return kBrFalse;
+      }
+      return kBrUnknown;
+    }
+    case OP_le: {
+      if (op2 == OP_gt) {
+        return kBrFalse;
+      }
+      return kBrUnknown;
+    }
+    case OP_lt: {
+      if (op2 == OP_ge || op2 == OP_gt || op2 == OP_eq) {
+        return kBrFalse;
+      } else if (op2 == OP_le || op2 == OP_ne || op2 == OP_cmp) {
+        return kBrTrue;
+      }
+      return kBrUnknown;
+    }
+    case OP_ne: {
+      if (op2 == OP_eq) {
+        return kBrFalse;
+      } else if (op2 == OP_cmp) {
+        return kBrTrue;
+      }
+      return kBrUnknown;
+    }
+    case OP_cmp: {
+      if (op2 == OP_eq) {
+        return isPredTrueBrSucc ? kBrFalse : kBrTrue;
+      } else if (op2 == OP_ne) {
+        return isPredTrueBrSucc ? kBrTrue : kBrFalse;
+      }
+      return kBrUnknown;
+    }
+    case OP_cmpg:
+    case OP_cmpl: {
+      return kBrUnknown;
+    }
+    default:
+      return kBrUnknown;
+  }
 }
 
 static bool IsAllOpndsNotDefByCurrBBStmt(const MeExpr &expr, const BB &currBB) {
@@ -860,8 +997,12 @@ static bool IsAllOpndsNotDefByCurrBBStmt(const MeStmt &stmt) {
 // 1. pred's cond is the same as succ's
 // 2. pred's cond is opposite to succ's
 bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
-  if (pred.GetKind() != kBBCondGoto || succ.GetKind() != kBBCondGoto) {
+  if (pred.GetKind() != kBBCondGoto || succ.GetKind() != kBBCondGoto || &pred == &succ) {
     return false;
+  }
+  // try to simplify succ first, if all successors of succ is the same, no need to check the condition
+  if (SimplifyBranchBBToUncondBB(succ)) {
+    return true;
   }
   auto *predBr = static_cast<CondGotoMeStmt*>(pred.GetLastMe());
   auto *succBr = static_cast<CondGotoMeStmt*>(succ.GetLastMe());
@@ -872,21 +1013,19 @@ bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
   MeExpr *succCond = succBr->GetOpnd(0);
   auto ptfSucc = GetTrueFalseBrPair(&pred); // pred true and false
   auto stfSucc = GetTrueFalseBrPair(&succ); // succ true and false
-  // if succ's cond can be inferred from pred's cond, pred can skip succ and branches to newTarget directly
-  BB *newTarget = nullptr;
-  // condition's result of pred and succ are the same or opposite
-  if (IsSameCondResult(predCond, succCond)) {
-    // if pred's true branch is succ, we can infer that succ's must be true, so newTarget is succ's true branch.
-    newTarget = (ptfSucc.first == &succ) ? stfSucc.first : stfSucc.second;
-  } else if (IsInvertCondResult(predCond, succCond)) {
-    // if pred's true branch is succ, we can infer that succ's must be false, so newTarget is succ's false branch.
-    newTarget = (ptfSucc.first == &succ) ? stfSucc.second : stfSucc.first;
+  // Try to infer result of succCond from predCond
+  bool isPredTrueBrSucc = (FindFirstRealSucc(ptfSucc.first) == &succ);
+  BranchResult tfBranch = InferSuccCondBrFromPredCond(predCond, succCond, isPredTrueBrSucc);
+  if (tfBranch == kBrUnknown) { // succCond cannot be inferred from predCond
+    return false;
   }
+  // if succ's cond can be inferred from pred's cond, pred can skip succ and branches to newTarget directly
+  BB *newTarget = (tfBranch == kBrTrue) ? FindFirstRealSucc(stfSucc.first) : FindFirstRealSucc(stfSucc.second);
   if (newTarget == nullptr || newTarget == &succ) {
     return  false;
   }
   DEBUG_LOG() << "Condition in BB" << LOG_BBID(&succ) << " is redundant, since it has been checked in BB"
-              << LOG_BBID(&pred) << "\n";
+              << LOG_BBID(&pred) << ", BB" << LOG_BBID(&pred) << " can branch to BB" << LOG_BBID(newTarget) << "\n";
   // succ has only one pred, turn succ to an uncondBB(fallthru or gotoBB)
   //         pred
   //         /  \
@@ -894,38 +1033,43 @@ bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
   //      /  \
   //    ftBB  gtBB
   if (succ.GetPred().size() == 1) { // succ has only one pred
-    // if newTarget is succ's gotoBB, and it has fallthru pred, we should use a goto stmt to succ's last
+    // if newTarget is succ's gotoBB, and it has fallthru pred, we should add a goto stmt to succ's last
     // to replace condGoto stmt. Otherwise, newTarget will have two fallthru pred
-    if (newTarget == succ.GetSucc(1) && HasFallthruPred(*newTarget)) {
+    if (newTarget == FindFirstRealSucc(succ.GetSucc(1)) && HasFallthruPred(*newTarget)) {
       auto *gotoStmt =
           irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*newTarget), &succ, &succ.GetLastMe()->GetSrcPosition());
       succ.ReplaceMeStmt(succ.GetLastMe(), gotoStmt);
       succ.SetKind(kBBGoto);
       DEBUG_LOG() << "SkipRedundantCond : Replace condBr in BB" << LOG_BBID(&succ) << " with an uncond goto\n";
+      EliminateEmptyConnectingBB(&succ, succ.GetSucc(1), newTarget, *cfg);
+      ASSERT(succ.GetSucc(1) == newTarget, "[FUNC: %s] newTarget should be successor of succ!", funcName);
     } else {
       succ.RemoveLastMeStmt();
       succ.SetKind(kBBFallthru);
       DEBUG_LOG() << "SkipRedundantCond : Remove condBr in BB" << LOG_BBID(&succ) << ", turn it to fallthruBB\n";
     }
-    BB *rmBB = (succ.GetSucc(0) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
+    BB *rmBB = (FindFirstRealSucc(succ.GetSucc(0)) == newTarget) ? succ.GetSucc(1) : succ.GetSucc(0);
     succ.RemoveSucc(*rmBB, true);
     DEBUG_LOG() << "Remove succ BB" << LOG_BBID(rmBB) << " of pred BB" << LOG_BBID(&succ) << "\n";
     return true;
   } else {
-    // succ has more than one pred, clone all stmts in succ (except last stmt) to a new BB
     BB *newBB = cfg->NewBasicBlock();
-    DEBUG_LOG() << "Create a new BB" << LOG_BBID(newBB) << ", and copy stmts from BB" << LOG_BBID(&succ) << "\n";
-    // this step will create new def version and collect it to ssa updater
-    LoopUnrolling::CopyAndInsertStmt(*irmap, *MP, *MA, *cands, *newBB, succ, true);
-    // we should update use version in newBB as phiopnds in succ
-    // BB succ:
-    //  ...    pred(v2 is def here or its pred)              ...               pred(v2 is def here or its pred)
-    //    \      /                                            \                  /
-    //      succ                                 ==>         succ             newBB
-    //   v3 = phi(..., v2)                               v3 = phi(...)       newBB should use v2 instead of v3
-    //
-    // here we collect ost in philist of succ, and make it defBB as pred, then ssa updater will update it in newBB
-    UpdateSSACandForBBPhiList(&succ, &pred);
+    // if succ has only last stmt, no need to copy
+    if (!HasOnlyCondGotoStmt(succ)) {
+      // succ has more than one pred, clone all stmts in succ (except last stmt) to a new BB
+      DEBUG_LOG() << "Create a new BB" << LOG_BBID(newBB) << ", and copy stmts from BB" << LOG_BBID(&succ) << "\n";
+      // this step will create new def version and collect it to ssa updater
+      LoopUnrolling::CopyAndInsertStmt(*irmap, *MP, *MA, *cands, *newBB, succ, true);
+      // we should update use version in newBB as phiopnds in succ
+      // BB succ:
+      //  ...    pred(v2 is def here or its pred)              ...               pred(v2 is def here or its pred)
+      //    \      /                                            \                  /
+      //      succ                                 ==>         succ             newBB
+      //   v3 = phi(..., v2)                               v3 = phi(...)       newBB should use v2 instead of v3
+      //
+      // here we collect ost in philist of succ, and make it defBB as pred, then ssa updater will update it in newBB
+      UpdateSSACandForBBPhiList(&succ, &pred);
+    }
     newBB->SetAttributes(succ.GetAttributes());
     if (HasFallthruPred(*newTarget)) {
       // insert a gotostmt to avoid duplicate fallthru pred
@@ -936,22 +1080,19 @@ bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
     } else {
       newBB->SetKind(kBBFallthru);
     }
-    pred.ReplaceSucc(&succ, newBB, true);
-    DEBUG_LOG() << "Replace succ BB" << LOG_BBID(&succ) << " with BB" << LOG_BBID(newBB) << ": BB" << LOG_BBID(&pred)
-                << "->BB" << LOG_BBID(&succ) << " => BB" << LOG_BBID(&pred) << "->BB" << LOG_BBID(newBB) << "\n";
+    BB *replacedSucc = isPredTrueBrSucc ? ptfSucc.first : ptfSucc.second;
+    EliminateEmptyConnectingBB(&pred, replacedSucc, &succ, *cfg);
+    ASSERT(pred.IsPredBB(succ), "[FUNC: %s]After eliminate connecting BB, pred must be predecessor of succ", funcName);
+    int predPredIdx = succ.GetPredIndex(pred); // before replace succ, record predidx for UpdatePhiForMovingPred
+    pred.ReplaceSucc(&succ, newBB, false); // do not update phi here, UpdatePhiForMovingPred will do it
+    DEBUG_LOG() << "Replace succ BB" << LOG_BBID(replacedSucc) << " with BB" << LOG_BBID(newBB) << ": BB"
+                << LOG_BBID(&pred) << "->...->BB" << LOG_BBID(&succ) << "(skipped)" << " => BB" << LOG_BBID(&pred)
+                << "->BB" << LOG_BBID(newBB) << "(new)->BB" << LOG_BBID(newTarget) << "\n";
     if (pred.GetSucc(1) == newBB) {
       cfg->UpdateBranchTarget(pred, succ, *newBB, f);
     }
     newTarget->AddPred(*newBB);
-    // if philist is not empty, add a item to phiopnds;
-    // otherwise, ssaupdater will insert phinode in newTarget
-    if (!newTarget->GetMePhiList().empty()) {
-      int succPredIdx = newTarget->GetPredIndex(succ);
-      for (auto &phi : newTarget->GetMePhiList()) {
-        // here we just set new phiOpnd the same as succ
-        phi.second->GetOpnds().push_back(phi.second->GetOpnd(succPredIdx));
-      }
-    }
+    UpdatePhiForMovingPred(predPredIdx, newBB, &succ, newTarget);
     return true;
   }
   return false;
@@ -965,8 +1106,8 @@ bool SimplifyCFG::SkipRedundantCond() {
   bool changed = false;
   // Check for currBB and its successors
   for (size_t i = 0; i < currBB->GetSucc().size(); ++i) {
-    BB *succ = currBB->GetSucc(i);
-    changed |= SkipRedundantCond(*currBB, *succ);
+    BB *realSucc = FindFirstRealSucc(currBB->GetSucc(i));
+    changed |= SkipRedundantCond(*currBB, *realSucc);
   }
   return changed;
 }
@@ -984,9 +1125,11 @@ bool SimplifyCFG::SimplifyCondBB() {
   MeStmt *stmt = currBB->GetLastMe();
   CHECK_FATAL(stmt != nullptr, "[FUNC: %s] CondBB has no stmt", f.GetName().c_str());
   CHECK_FATAL(kOpcodeInfo.IsCondBr(stmt->GetOp()), "[FUNC: %s] Opcode is error!", f.GetName().c_str());
+  bool change = false;
   // 2. result of currBB's cond can be inferred from predBB's cond, change predBB's br target
   if (SkipRedundantCond()) {
     SetBBRunAgain();
+    change = true;
   }
   // 3.fold two continuous condBB to one condBB, use or/and to combine two condition
   if (FoldBranchToCommonDest()) {
@@ -998,7 +1141,7 @@ bool SimplifyCFG::SimplifyCondBB() {
     SetBBRunAgain();
     return true;
   }
-  return false;
+  return change;
 }
 
 // after moving pred from curr to curr's successor (i.e. succ), update the phiList of curr and succ
@@ -1027,12 +1170,10 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
       phiMeNode->SetDefBB(succ);
       succPhiList.emplace(phiNode.first, phiMeNode);
       auto &phiOpnds = phiMeNode->GetOpnds();
-      phiOpnds.resize(2); // succ has 2 pred now : curr and pred
-      int currPredIdx = succ->GetPredIndex(*curr);
-      int predPredIdx = succ->GetPredIndex(*pred);
-      // curr is already pred of succ, so we add its phiLHS as succ's phiOpnd
-      phiMeNode->SetOpnd(currPredIdx, phiNode.second->GetLHS());
+      // curr is already pred of succ, so all phiOpnds (except for pred) are phiNode lhs in curr
+      phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phiNode.second->GetLHS());
       // pred is a new pred for succ, we copy its corresponding phiopnd in curr to succ
+      int predPredIdx = GetRealPredIdx(*succ, *pred);
       phiMeNode->SetOpnd(predPredIdx, phiNode.second->GetOpnd(predIdxForCurr));
       OStIdx ostIdx = phiNode.first;
       // create a new version for new phi
@@ -1044,15 +1185,17 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
     for (auto &phi : succPhiList) {
       OStIdx ostIdx = phi.first;
       auto it = currPhilist.find(ostIdx);
-      int predPredIdx = succ->GetPredIndex(*pred);
+      int predPredIdx = GetRealPredIdx(*succ, *pred);
+      ASSERT(predPredIdx != -1, "[FUNC: %s]pred BB%d is not a predecessor of succ BB%d yet", funcName, LOG_BBID(pred),
+             LOG_BBID(succ));
       auto &phiOpnds = phi.second->GetOpnds();
       if (it != currPhilist.end()) {
         // curr has phiNode for this ost, we copy pred's corresponding phiOpnd in curr to succ
         phiOpnds.insert(phiOpnds.begin() + predPredIdx, it->second->GetOpnd(predIdxForCurr));
       } else {
         // curr has no phiNode for this ost, pred's phiOpnd in succ will be the same as curr's phiOpnd in succ
-        int index = succ->GetPredIndex(*curr);
-        ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's pred", f.GetName().c_str());
+        int index = GetRealPredIdx(*succ, *curr);
+        ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's real pred", f.GetName().c_str());
         // pred's phi opnd is the same as curr.
         phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(index));
       }
@@ -1070,10 +1213,10 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
         resPair.first->second = phiMeNode; // replace nullptr inserted before
         auto &phiOpnds = phiMeNode->GetOpnds();
         // insert opnd into New phiNode : all phiOpnds (except for pred) are phiNode lhs in curr
-        phiOpnds.insert(phiOpnds.end(), succ->GetPred().size() - 1, phi.second->GetLHS());
+        phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phi.second->GetLHS());
         // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
-        int predPredIdx = succ->GetPredIndex(*pred);
-        phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(predIdxForCurr));
+        int predPredIdx = GetRealPredIdx(*succ, *pred);
+        phiMeNode->SetOpnd(predPredIdx, phi.second->GetOpnd(predIdxForCurr));
         // create a new version for new phinode
         phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
         UpdateSSACandForOst(ostIdx, succ);

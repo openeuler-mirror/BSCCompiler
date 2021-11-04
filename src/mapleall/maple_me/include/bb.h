@@ -503,6 +503,7 @@ class BB {
   void RemoveBBFromPred(const BB &bb, bool updatePhi);
   void RemoveBBFromSucc(const BB &bb);
   int GetPredIndex(const BB &predBB) const;
+  int GetSuccIndex(const BB &succBB) const;
   void RemovePhiOpnd(int index);
  private:
   bool IsInList(const MapleVector<BB*> &bbList) const;
