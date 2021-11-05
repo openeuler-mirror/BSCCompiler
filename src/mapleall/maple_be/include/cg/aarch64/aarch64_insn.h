@@ -175,7 +175,7 @@ class AArch64Insn : public Insn {
 
   bool IsRegDefined(regno_t regNO) const override;
 
-  bool IsRegDefUse(regno_t regNO) const;
+  bool IsRegDefOrUse(regno_t regNO) const;
 
  private:
   void CheckOpnd(Operand &opnd, OpndProp &mopd) const;

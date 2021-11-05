@@ -600,7 +600,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     if (curInsn->GetMachineOpcode() == MOP_asm) {
       return prevContiInsns;
     }
-    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefUse(destRegNO)) {
+    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(destRegNO)) {
       return prevContiInsns;
     }
   }
@@ -1412,7 +1412,7 @@ Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) {
     if (curInsn->GetMachineOpcode() == MOP_wcmpri || curInsn->GetMachineOpcode() == MOP_xcmpri) {
       return curInsn;
     }
-    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefUse(defRegNO)) {
+    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(defRegNO)) {
       return nullptr;
     }
   }

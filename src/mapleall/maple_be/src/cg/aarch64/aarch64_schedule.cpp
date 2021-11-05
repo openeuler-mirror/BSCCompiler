@@ -36,11 +36,11 @@ constexpr uint32 kClinitTailAdvanceCycle = 4;
 }
 
 uint32 AArch64Schedule::maxUnitIndex = 0;
-int AArch64Schedule::intRegPressureThreshold = 27;
-int AArch64Schedule::fpRegPressureThreshold = 29;
-int AArch64Schedule::intCalleeSaveThresholdBase = 10;
-int AArch64Schedule::intCalleeSaveThresholdEnhance = 11;
-int AArch64Schedule::fpCalleeSaveThreshold = 8;
+int AArch64Schedule::intRegPressureThreshold = R27 - R0; /* reserve two register for special purpose */
+int AArch64Schedule::fpRegPressureThreshold = V30 - V0;
+int AArch64Schedule::intCalleeSaveThresholdBase = R29 - R19;
+int AArch64Schedule::intCalleeSaveThresholdEnhance = R30 - R19;
+int AArch64Schedule::fpCalleeSaveThreshold = R16 - R8;
 /* Init schedule's data struction. */
 void AArch64Schedule::Init() {
   readyList.clear();
@@ -683,7 +683,7 @@ bool AArch64Schedule::CheckSchedulable(AArch64ScheduleProcessInfo &info) const {
 /*
  * Calculate estimated machine cycle count for an input node series
  */
-int AArch64Schedule::calSeriesCycles(const MapleVector<DepNode*> &nodes) {
+int AArch64Schedule::CalSeriesCycles(const MapleVector<DepNode*> &nodes) {
   int currentCycle = 0;
   /* after an instruction is issued, the minimum cycle count for the next instruction is 1 */
   int instructionBaseCycleCount = 1;
