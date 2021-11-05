@@ -328,9 +328,13 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
     std::string sectionName = namemangler::kMuidJavatextPrefixStr;
     (void)emitter.Emit("\t.section  ." + sectionName + ",\"ax\"\n");
   } else {
-    (void)emitter.Emit("\t.text\n");
+    if (CGOptions::IsFunctionSections()) {
+      (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
+    } else {
+      (void)emitter.Emit("\t.text\n");
+    }
   }
-  (void)emitter.Emit("\t.align 3\n");
+  (void)emitter.Emit("\t.align 5\n");
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());
   const std::string &funcName = std::string(cgFunc.GetShortFuncName().c_str());
 
@@ -372,7 +376,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   /* should refer to function attribute */
     isExternFunction = kJniNativeFuncList.find(funcStName) != kJniNativeFuncList.end();
     (void)emitter.Emit("\t.globl\t").Emit(funcSt->GetName()).Emit("\n");
-    if (!currCG->GetMIRModule()->IsCModule() || !isExternFunction) {
+    if (!currCG->GetMIRModule()->IsCModule()) {
       (void)emitter.Emit("\t.hidden\t").Emit(funcSt->GetName()).Emit("\n");
     }
   }
@@ -399,11 +403,18 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   }
   /* emit instructions */
   FOR_ALL_BB(bb, &aarchCGFunc) {
+    if (bb->IsUnreachable()) {
+      continue;
+    }
     if (currCG->GenerateVerboseCG()) {
       emitter.Emit("#    freq:").Emit(bb->GetFrequency()).Emit("\n");
     }
     /* emit bb headers */
     if (bb->GetLabIdx() != 0) {
+      if (aarchCGFunc.GetMirModule().IsCModule() && bb->IsBBNeedAlign()) {
+        uint32 power = bb->GetAlignPower();
+        emitter.Emit("\t.p2align ").Emit(power).Emit("\n");
+      }
       EmitBBHeaderLabel(funcEmitInfo, funcName, bb->GetLabIdx());
     }
 
@@ -552,5 +563,4 @@ bool CgEmission::PhaseRun(maplebe::CGFunc &f) {
   emitter->EmitHugeSoRoutines();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgEmission, emit)
 }  /* namespace maplebe */

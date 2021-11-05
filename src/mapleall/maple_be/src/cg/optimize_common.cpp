@@ -66,7 +66,11 @@ void OptimizationPattern::Search2Op(bool noOptimize) {
   checkOnly = noOptimize;
   BB *curBB = cgFunc->GetFirstBB();
   while (curBB != nullptr) {
-    static_cast<void>(Optimize(*curBB));
+    bool changed = false;
+    do
+    {
+      changed = Optimize(*curBB);
+    } while (changed);
     if (keepPosition) {
       keepPosition = false;
     } else {
@@ -103,25 +107,25 @@ std::string DotGenerator::GetFileName(const MIRModule &mirModule, const std::str
   return fileName;
 }
 
-static bool IsBackEdgeForLoop(const CGFuncLoops *loop, const BB *from, const BB *to) {
-  const BB *header = loop->GetHeader();
-  if (header->GetId() == to->GetId()) {
-    for (auto *be : loop->GetBackedge()) {
-      if (be->GetId() == from->GetId()) {
+static bool IsBackEdgeForLoop(const CGFuncLoops &loop, const BB &from, const BB &to) {
+  const BB *header = loop.GetHeader();
+  if (header->GetId() == to.GetId()) {
+    for (auto *be : loop.GetBackedge()) {
+      if (be->GetId() == from.GetId()) {
         return true;
       }
     }
   }
-  for (auto *inner : loop->GetInnerLoops()) {
-    if (IsBackEdgeForLoop(inner, from, to)) {
+  for (auto *inner : loop.GetInnerLoops()) {
+    if (IsBackEdgeForLoop(*inner, from, to)) {
       return true;
     }
   }
   return false;
 }
-bool DotGenerator::IsBackEdge(const CGFunc &cgFunction, const BB *from, const BB *to) {
+bool DotGenerator::IsBackEdge(const CGFunc &cgFunction, const BB &from, const BB &to) {
   for (const auto *loop : cgFunction.GetLoops()) {
-    if (IsBackEdgeForLoop(loop, from, to)) {
+    if (IsBackEdgeForLoop(*loop, from, to)) {
       return true;
     }
   }
@@ -134,7 +138,7 @@ void DotGenerator::DumpEdge(const CGFunc &cgFunction, std::ofstream &cfgFileOfSt
       cfgFileOfStream << "BB" << bb->GetId();
       cfgFileOfStream << " -> "
               << "BB" << succBB->GetId();
-      if (IsBackEdge(cgFunction, bb, succBB)) {
+      if (IsBackEdge(cgFunction, *bb, *succBB)) {
         cfgFileOfStream << " [color=red]";
       } else {
         cfgFileOfStream << " [color=green]";

@@ -403,6 +403,46 @@ class FEOptions {
     return useSignedChar;
   }
 
+  void SetNpeCheckDynamic(bool flag) {
+    isNpeCheckDynamic = flag;
+  }
+
+  bool IsNpeCheckDynamic() const {
+    return isNpeCheckDynamic;
+  }
+
+  void SetBoundaryCheckDynamic(bool flag) {
+    isBoundaryCheckDynamic = flag;
+  }
+
+  bool IsBoundaryCheckDynamic() const {
+    return isBoundaryCheckDynamic;
+  }
+
+  void SetO2(bool flag) {
+    isO2 = flag;
+  }
+
+  bool IsO2() const {
+    return isO2;
+  }
+
+  void SetSimplifyShortCircuit(bool flag) {
+    isSimplifyShortCircuit = flag;
+  }
+
+  bool IsSimplifyShortCircuit() const {
+    return isSimplifyShortCircuit;
+  }
+
+  void SetEnableVariableArray(bool flag) {
+    isEnableVariableArray = flag;
+  }
+
+  bool IsEnableVariableArray() const {
+    return isEnableVariableArray;
+  }
+
  private:
   static FEOptions options;
   // input control options
@@ -451,6 +491,9 @@ class FEOptions {
   // bc compiler options
   bool isRC = false;
   bool isNoBarrier = false;
+  bool isO2 = false;
+  bool isSimplifyShortCircuit = false;
+  bool isEnableVariableArray = false;
 
   // ast compiler options
   bool useSignedChar = false;
@@ -468,6 +511,10 @@ class FEOptions {
 
   // symbol resolve
   bool isAOT = false;
+
+  // EnhanceC
+  bool isNpeCheckDynamic = false;
+  bool isBoundaryCheckDynamic = false;
 
   FEOptions();
   ~FEOptions() = default;

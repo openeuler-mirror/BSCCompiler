@@ -108,15 +108,7 @@ class ASTExpr {
     return srcFileLineNum;
   }
 
-  virtual void SetShortCircuitParent() {}
-
-  virtual bool GetShortCircuitParent() const {
-    return false;
-  }
-
-  virtual bool GetShortCircuit() const {
-    return false;
-  }
+  virtual void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) {}
 
  protected:
   virtual ASTValue *GetConstantValueImpl() const {
@@ -321,25 +313,18 @@ class ASTUONotExpr: public ASTUnaryOperatorExpr {
 
 class ASTUOLNotExpr: public ASTUnaryOperatorExpr {
  public:
-  ASTUOLNotExpr() : ASTUnaryOperatorExpr(kASTOpLNot), tempVarName(FEUtils::GetSequentialName("tempVar_")) {}
+  ASTUOLNotExpr() : ASTUnaryOperatorExpr(kASTOpLNot) {}
   ~ASTUOLNotExpr() = default;
 
-  void SetShortCircuitParent() override {
-    shortCircuitParent = true;
-  }
-
-  bool GetShortCircuitParent() const override {
-    return shortCircuitParent;
-  }
-
-  bool GetShortCircuit() const override {
-    return AstShortCircuitUtil::Instance().GetIsShortCircuit();
+  void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) override {
+    trueIdx = leftIdx;
+    falseIdx = rightIdx;
   }
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  bool shortCircuitParent = false;
-  std::string tempVarName;
+  uint32 trueIdx = 0;
+  uint32 falseIdx = 0;
 };
 
 class ASTUOPostIncExpr: public ASTUnaryOperatorExpr {
@@ -674,8 +659,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
  public:
   explicit ASTBinaryOperatorExpr(ASTOp o) : ASTExpr(o) {}
   ASTBinaryOperatorExpr()
-      : ASTExpr(kASTOpBO), varName("shortCircuit"),
-        tempVarName(FEUtils::GetSequentialName("tempVar_")) {}
+      : ASTExpr(kASTOpBO), varName(FEUtils::GetSequentialName("shortCircuit_")) {}
 
   ~ASTBinaryOperatorExpr() override = default;
 
@@ -727,16 +711,9 @@ class ASTBinaryOperatorExpr : public ASTExpr {
     cvtNeeded = needed;
   }
 
-  void SetShortCircuitParent() override {
-    shortCircuitParent = true;
-  }
-
-  bool GetShortCircuitParent() const override {
-    return shortCircuitParent;
-  }
-
-  bool GetShortCircuit() const override {
-    return opcode == OP_lior || opcode == OP_land;
+  void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) override {
+    trueIdx = leftIdx;
+    falseIdx = rightIdx;
   }
 
   UniqueFEIRType SelectBinaryOperatorType(UniqueFEIRExpr &left, UniqueFEIRExpr &right) const;
@@ -747,6 +724,7 @@ class ASTBinaryOperatorExpr : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprComplexCalculations(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr Emit2FEExprComplexCompare(std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr Emit2FEExprLogicOperate(std::list<UniqueFEIRStmt> &stmts) const;
+  UniqueFEIRExpr Emit2FEExprLogicOperateSimplify(std::list<UniqueFEIRStmt> &stmts) const;
 
   Opcode opcode = OP_undef;
   MIRType *retType = nullptr;
@@ -758,9 +736,9 @@ class ASTBinaryOperatorExpr : public ASTExpr {
   ASTExpr *rightRealExpr = nullptr;
   ASTExpr *rightImagExpr = nullptr;
   bool cvtNeeded = false;
-  bool shortCircuitParent = false;
   std::string varName;
-  std::string tempVarName;
+  uint32 trueIdx = 0;
+  uint32 falseIdx = 0;
 };
 
 class ASTImplicitValueInitExpr : public ASTExpr {
@@ -849,10 +827,6 @@ class ASTArraySubscriptExpr : public ASTExpr {
     isVLA = flag;
   }
 
-  void SetVLASizeExpr(ASTExpr *expr) {
-    vlaSizeExpr = expr;
-  }
-
  private:
   ASTExpr *FindFinalBase() const;
   MIRConst *GenerateMIRConstImpl() const override;
@@ -867,7 +841,6 @@ class ASTArraySubscriptExpr : public ASTExpr {
   MIRType *arrayType = nullptr;
   ASTExpr *idxExpr = nullptr;
   bool isVLA = false;
-  ASTExpr *vlaSizeExpr = nullptr;
 };
 
 class ASTExprUnaryExprOrTypeTraitExpr : public ASTExpr {
@@ -1244,23 +1217,16 @@ UniqueFEIRExpr EmitBuiltin##STR(std::list<UniqueFEIRStmt> &stmts) const;
 
 class ASTParenExpr : public ASTExpr {
  public:
-  ASTParenExpr() : ASTExpr(kASTParen), tempVarName(FEUtils::GetSequentialName("tempVar_")) {}
+  ASTParenExpr() : ASTExpr(kASTParen) {}
   ~ASTParenExpr() = default;
 
   void SetASTExpr(ASTExpr *astExpr) {
     child = astExpr;
   }
 
-  void SetShortCircuitParent() override {
-    shortCircuitParent = true;
-  }
-
-  bool GetShortCircuitParent() const override {
-    return shortCircuitParent;
-  }
-
-  bool GetShortCircuit() const override {
-    return AstShortCircuitUtil::Instance().GetIsShortCircuit();
+  void SetShortCircuitIdx(uint32 leftIdx, uint32 rightIdx) override {
+    trueIdx = leftIdx;
+    falseIdx = rightIdx;
   }
 
  protected:
@@ -1276,8 +1242,8 @@ class ASTParenExpr : public ASTExpr {
   }
 
   ASTExpr *child = nullptr;
-  bool shortCircuitParent = false;
-  std::string tempVarName;
+  uint32 trueIdx = 0;
+  uint32 falseIdx = 0;
 };
 
 class ASTIntegerLiteral : public ASTExpr {

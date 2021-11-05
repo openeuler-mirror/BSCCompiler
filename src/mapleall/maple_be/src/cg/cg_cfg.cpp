@@ -95,8 +95,12 @@ void CGCFG::BuildCFG() {
         break;
       }
       case BB::kBBRangeGoto: {
+        std::set<BB*> bbs;
         for (auto labelIdx : curBB->GetRangeGotoLabelVec()) {
           BB *gotoBB = cgFunc->GetBBFromLab2BBMap(labelIdx);
+          bbs.insert(gotoBB);
+        }
+        for (auto gotoBB : bbs) {
           curBB->PushBackSuccs(*gotoBB);
           gotoBB->PushBackPreds(*curBB);
         }
@@ -137,6 +141,43 @@ void CGCFG::BuildCFG() {
   }
 }
 
+void CGCFG::CheckCFG() {
+  FOR_ALL_BB(bb, cgFunc) {
+    for (BB *sucBB : bb->GetSuccs()) {
+      bool found = false;
+      for (BB *sucPred : sucBB->GetPreds()) {
+        if (sucPred == bb) {
+          if (found == false) {
+            found = true;
+          } else {
+            LogInfo::MapleLogger() << "dup pred " << sucPred->GetId() << " for sucBB " << sucBB->GetId() << "\n";
+          }
+        }
+      }
+      if (found == false) {
+        LogInfo::MapleLogger() << "non pred for sucBB " << sucBB->GetId() << " for BB " << bb->GetId() << "\n";
+      }
+    }
+  }
+  FOR_ALL_BB(bb, cgFunc) {
+    for (BB *predBB : bb->GetPreds()) {
+      bool found = false;
+      for (BB *predSucc : predBB->GetSuccs()) {
+        if (predSucc == bb) {
+          if (found == false) {
+            found = true;
+          } else {
+            LogInfo::MapleLogger() << "dup succ " << predSucc->GetId() << " for predBB " << predBB->GetId() << "\n";
+          }
+        }
+      }
+      if (found == false) {
+        LogInfo::MapleLogger() << "non succ for predBB " << predBB->GetId() << " for BB " << bb->GetId() << "\n";
+      }
+    }
+  }
+}
+
 InsnVisitor *CGCFG::insnVisitor;
 
 void CGCFG::InitInsnVisitor(CGFunc &func) {
@@ -160,6 +201,9 @@ RegOperand *CGCFG::CreateVregFromReg(const RegOperand &pReg) {
  */
 bool CGCFG::BBJudge(const BB &first, const BB &second) const {
   if (first.GetKind() == BB::kBBReturn || second.GetKind() == BB::kBBReturn) {
+    return false;
+  }
+  if (&first == &second) {
     return false;
   }
   if (second.GetPreds().size() == 1 && second.GetPreds().front() == &first) {
@@ -389,6 +433,9 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) {
   }
 
   for (BB *preBB : curBB.GetPreds()) {
+    if (preBB->GetKind() == BB::kBBIgoto) {
+      return;
+    }
     /*
      * If curBB is the target of its predecessor, change
      * the jump target.
@@ -458,8 +505,8 @@ BB *CGCFG::GetTargetSuc(BB &curBB, bool branchOnly, bool isGotoIf) {
           }
         }
       }
-      CHECK_FATAL(false, "Cannot find label in Igoto bb");
-      break;
+      /* can also be a MOP_xbr. */
+      return nullptr;
     }
     case BB::kBBFallthru: {
       return (branchOnly ? nullptr : curBB.GetNext());
@@ -487,7 +534,8 @@ bool CGCFG::InSwitchTable(LabelIdx label, const CGFunc &func) {
   if (!label) {
     return false;
   }
-  for (auto *st : func.GetEmitStVec()) {
+  for (auto &it : func.GetEmitStVec()) {
+    MIRSymbol *st = it.second;
     CHECK_FATAL(st->GetKonst()->GetKind() == kConstAggConst, "not a kConstAggConst");
     MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
     for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
@@ -642,5 +690,101 @@ BB *CGCFG::FindLastRetBB() {
     }
   }
   return nullptr;
+}
+
+void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
+  /* connext newBB -> succ */
+  for (auto it = succ.GetPredsBegin(); it != succ.GetPredsEnd(); ++it) {
+    if (*it == &pred) {
+      auto origIt = it;
+      succ.ErasePreds(it);
+      if (origIt != succ.GetPredsBegin()) {
+        origIt--;
+        succ.InsertPred(origIt, newBB);
+      } else {
+        succ.PushFrontPreds(newBB);
+      }
+      break;
+    }
+  }
+  newBB.PushBackSuccs(succ);
+
+  /* connext pred -> newBB */
+  for (auto it = pred.GetSuccsBegin(); it != pred.GetSuccsEnd(); ++it) {
+    if (*it == &succ) {
+      auto origIt = it;
+      pred.EraseSuccs(it);
+      if (origIt != succ.GetSuccsBegin()) {
+        origIt--;
+        pred.InsertSucc(origIt, newBB);
+      } else {
+        pred.PushFrontSuccs(newBB);
+      }
+      break;
+    }
+  }
+  newBB.PushBackPreds(pred);
+}
+
+void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
+  LabelIdx newLblIdx = cgFunc->CreateLabel();
+  BB *newBB = cgFunc->CreateNewBB(newLblIdx, false, BB::kBBGoto, pred.GetFrequency());
+  bool isFallThru = pred.GetNext() == &succ;
+  /* set prev, next */
+  if (isFallThru) {
+    BB *origNext = pred.GetNext();
+    origNext->SetPrev(newBB);
+    newBB->SetNext(origNext);
+    pred.SetNext(newBB);
+    newBB->SetPrev(&pred);
+    newBB->SetKind(BB::kBBFallthru);
+  } else {
+    BB *exitBB = cgFunc->GetExitBBsVec().size() == 0 ? nullptr : cgFunc->GetExitBB(0);
+    if (exitBB == nullptr) {
+      cgFunc->GetLastBB()->AppendBB(*newBB);
+      cgFunc->SetLastBB(*newBB);
+    } else {
+      exitBB->AppendBB(*newBB);
+    }
+    newBB->AppendInsn(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        MOP_xuncond, cgFunc->GetOrCreateLabelOperand(succ.GetLabIdx())));
+  }
+
+  /* update offset if succ is goto target */
+  if (pred.GetKind() == BB::kBBIf) {
+    Insn *brInsn = FindLastCondBrInsn(pred);
+    LabelOperand &brTarget = static_cast<LabelOperand&>(
+        brInsn->GetOperand(static_cast<int>(brInsn->GetJumpTargetIdx())));
+    if (brTarget.GetLabelIndex() == succ.GetLabIdx()) {
+      brInsn->SetOperand(brInsn->GetJumpTargetIdx(), cgFunc->GetOrCreateLabelOperand(newLblIdx));
+    }
+  } else if (pred.GetKind() == BB::kBBRangeGoto) {
+    const MapleVector<LabelIdx> &labelVec = pred.GetRangeGotoLabelVec();
+    uint32 index = 0;
+    for (auto label: labelVec) {
+      /* single edge for multi jump target, so have to replace all. */
+      if (label == succ.GetLabIdx()) {
+        pred.SetRangeGotoLabel(index, newLblIdx);
+      }
+      index++;
+    }
+    MIRSymbol *st = cgFunc->GetEmitSt(pred.GetId());
+    MIRAggConst *arrayConst = safe_cast<MIRAggConst>(st->GetKonst());
+    MIRType *etype = GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64);
+    MIRConst *mirConst = cgFunc->GetMemoryPool()->New<MIRLblConst>(newLblIdx, cgFunc->GetFunction().GetPuidx(), *etype);
+    for (size_t i = 0; i < arrayConst->GetConstVec().size(); ++i) {
+      CHECK_FATAL(arrayConst->GetConstVecItem(i)->GetKind() == kConstLblConst, "not a kConstLblConst");
+      MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
+      if (succ.GetLabIdx() == lblConst->GetValue()) {
+        arrayConst->SetConstVecItem(i, *mirConst);
+        break;
+      }
+    }
+  } else {
+    ASSERT(0, "unexpeced bb kind in BreakCriticalEdge");
+  }
+
+  /* update pred, succ */
+  UpdatePredsSuccsAfterSplit(pred, succ, *newBB);
 }
 }  /* namespace maplebe */

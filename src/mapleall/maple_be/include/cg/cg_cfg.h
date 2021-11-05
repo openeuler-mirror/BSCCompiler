@@ -70,6 +70,7 @@ class CGCFG {
   ~CGCFG() = default;
 
   void BuildCFG();
+  void CheckCFG();
 
   void InitInsnVisitor(CGFunc &func);
   InsnVisitor *GetInsnModifier() const {
@@ -108,6 +109,9 @@ class CGCFG {
   void MarkLabelTakenBB();
   void UnreachCodeAnalysis();
   BB *FindLastRetBB();
+
+  void UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB);
+  void BreakCriticalEdge(BB &pred, BB &succ);
  /* cgcfgvisitor */
  private:
   CGFunc *cgFunc;

@@ -200,6 +200,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("generateproepilog", true);
   ADDMAPLECGPHASE("offsetadjustforfplr", true);
   ADDMAPLECGPHASE("dbgfixcallframeoffsets", true);
+  ADDMAPLECGPHASE("cfgo", CLANG && CGOptions::DoCFGO());
   ADDMAPLECGPHASE("peephole0", CGOptions::DoPeephole())
   ADDMAPLECGPHASE("postebo", CGOptions::DoEBO());
   ADDMAPLECGPHASE("postcfgo", CGOptions::DoCFGO());
