@@ -181,26 +181,23 @@ int BB::GetPredIndex(const BB &predBB) const {
   int i = 0;
   while (i < pred.size()) {
     if (pred[i] == &predBB) {
-      break;
+      return i;
     }
     ++i;
   }
-  if (i == pred.size()) {
-    // bb not in the vector
-    return -1;
-  }
-  return i;
+  return -1;
 }
 
 int BB::GetSuccIndex(const BB &succBB) const {
   int i = 0;
   while (i < succ.size()) {
     if (succ[i] == &succBB) {
-      break;
+      return i;
     }
     ++i;
   }
-  return (i == succ.size()) ? -1 : i;
+  // bb not in the vector
+  return -1;
 }
 
 // add stmtnode to bb and update first_stmt_ and last_stmt_

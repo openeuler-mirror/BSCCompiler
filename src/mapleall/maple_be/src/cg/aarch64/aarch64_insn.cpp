@@ -1467,7 +1467,7 @@ void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
   }
 }
 
-bool AArch64Insn::IsRegDefUse(regno_t regNO) const {
+bool AArch64Insn::IsRegDefOrUse(regno_t regNO) const {
   uint32 opndNum = GetOperandSize();
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = GetOperand(i);

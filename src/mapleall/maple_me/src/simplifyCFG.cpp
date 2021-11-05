@@ -77,15 +77,12 @@ int GetRealPredIdx(BB &succ, BB &realPred) {
   size_t predSize = succ.GetPred().size();
   while (i < predSize) {
     if (FindFirstRealPred(succ.GetPred(i), &realPred) == &realPred) {
-      break;
+      return static_cast<int>(i);
     }
     ++i;
   }
-  if (i == predSize) {
-    // bb not in the vector
-    return -1;
-  }
-  return static_cast<int>(i);
+  // bb not in the vector
+  return -1;
 }
 
 // delete all empty bb used to connect its pred and succ, like: pred -- empty -- empty -- succ
@@ -102,10 +99,15 @@ void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg)
     BB *pred = emptyBB->GetPred(0);
     DEBUG_LOG() << "Delete empty connecting : BB" << LOG_BBID(pred) << "->BB" << LOG_BBID(emptyBB)
                 << "(deleted)->BB" << LOG_BBID(succ) << "\n";
-    int predIdx = succ->GetPredIndex(*emptyBB);
-    succ->SetPred(predIdx, pred);
-    int succIdx = pred->GetSuccIndex(*emptyBB);
-    pred->SetSucc(succIdx, succ);
+    if (pred->IsPredBB(*succ)) {
+      pred->RemoveSucc(*emptyBB, true);
+      emptyBB->RemoveSucc(*succ, true);
+    } else {
+      int predIdx = succ->GetPredIndex(*emptyBB);
+      succ->SetPred(predIdx, pred);
+      int succIdx = pred->GetSuccIndex(*emptyBB);
+      pred->SetSucc(succIdx, succ);
+    }
     cfg.DeleteBasicBlock(*emptyBB);
     emptyBB = succ;
   }

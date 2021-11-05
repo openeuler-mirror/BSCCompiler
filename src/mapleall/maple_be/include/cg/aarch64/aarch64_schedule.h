@@ -274,7 +274,7 @@ class AArch64Schedule : public Schedule {
   std::set<regno_t> CanFreeRegister(const DepNode &node) const;
   void UpdateLiveRegSet(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode& node);
   void InitLiveRegSet(AArch64ScheduleProcessInfo &scheduleInfo);
-  int calSeriesCycles(const MapleVector<DepNode*> &nodes);
+  int CalSeriesCycles(const MapleVector<DepNode*> &nodes);
   CSRResult DoCSR(DepNode &node1, DepNode &node2, AArch64ScheduleProcessInfo &scheduleInfo) const;
   AArch64Schedule::CSRResult ScheduleCrossCall(DepNode &node1, DepNode &node2) const;
   int intCalleeSaveThreshold = 0;
