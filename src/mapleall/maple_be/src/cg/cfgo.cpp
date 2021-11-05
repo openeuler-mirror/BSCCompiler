@@ -329,7 +329,8 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
   if (curBB.GetKind() == BB::kBBGoto && !curBB.IsEmpty()) {
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
     CHECK_FATAL(sucBB != nullptr, "sucBB is null in SequentialJumpPattern::Optimize");
-    if (sucBB->IsSoloGoto() && cgFunc->GetTheCFG()->GetTargetSuc(*sucBB) != nullptr) {
+    BB *tragetBB = cgFunc->GetTheCFG()->GetTargetSuc(*sucBB);
+    if ((sucBB != &curBB) && sucBB->IsSoloGoto() &&  tragetBB != nullptr && tragetBB != sucBB) {
       Log(curBB.GetId());
       if (checkOnly) {
         return false;
@@ -340,19 +341,20 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
     }
   } else if (curBB.GetKind() == BB::kBBIf) {
     for (BB *sucBB : curBB.GetSuccs()) {
+      BB *tragetBB = cgFunc->GetTheCFG()->GetTargetSuc(*sucBB);
       if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
-          cgFunc->GetTheCFG()->GetTargetSuc(*sucBB) != nullptr) {
+          tragetBB != nullptr && tragetBB != sucBB) {
         Log(curBB.GetId());
         if (checkOnly) {
           return false;
         }
         cgFunc->GetTheCFG()->RetargetJump(*sucBB, curBB);
         SkipSucBB(curBB, *sucBB);
-        break;
+        return true;
       }
     }
-    return true;
   } else if (curBB.GetKind() == BB::kBBRangeGoto) {
+    bool changed = false;
     for (BB *sucBB : curBB.GetSuccs()) {
       if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
           cgFunc->GetTheCFG()->GetTargetSuc(*sucBB) != nullptr) {
@@ -362,9 +364,10 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
         }
         UpdateSwitchSucc(curBB, *sucBB);
         cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(*sucBB, *cgFunc);
+        changed = true;
       }
     }
-    return true;
+    return changed;
   }
   return false;
 }
@@ -375,10 +378,16 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
   const MapleVector<LabelIdx> &labelVec = curBB.GetRangeGotoLabelVec();
   uint32 index = 0;
   LabelIdx targetLable = gotoTarget->GetLabIdx();
+  bool isPred = false;
+  for (auto label: labelVec) {
+    if (label == gotoTarget->GetLabIdx()) {
+      isPred = true;
+      break;
+    }
+  }
   for (auto label: labelVec) {
     if (label == sucBB.GetLabIdx()) {
       curBB.SetRangeGotoLabel(index, targetLable);
-      break;
     }
     index++;
   }
@@ -391,14 +400,15 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
     MIRLblConst *lblConst = safe_cast<MIRLblConst>(arrayConst->GetConstVecItem(i));
     if (sucBB.GetLabIdx() == lblConst->GetValue()) {
       arrayConst->SetConstVecItem(i, *mirConst);
-      break;
     }
   }
   /* connect curBB, gotoTarget */
   for (auto it = gotoTarget->GetPredsBegin(); it != gotoTarget->GetPredsEnd(); ++it) {
     if (*it == &sucBB) {
       auto origIt = it;
-      gotoTarget->ErasePreds(it);
+      if (isPred) {
+        break;
+      }
       if (origIt != gotoTarget->GetPredsBegin()) {
         origIt--;
         gotoTarget->InsertPred(origIt, curBB);
@@ -412,6 +422,9 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
     if (*it == &sucBB) {
       auto origIt = it;
       curBB.EraseSuccs(it);
+      if (isPred) {
+        break;
+      }
       if (origIt != curBB.GetSuccsBegin()) {
         origIt--;
         curBB.InsertSucc(origIt, *gotoTarget);
@@ -425,6 +438,11 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
   for (auto it = sucBB.GetPredsBegin(); it != sucBB.GetPredsEnd(); ++it) {
     if (*it == &curBB) {
       sucBB.ErasePreds(it);
+    }
+  }
+  for (auto it = curBB.GetSuccsBegin(); it != curBB.GetSuccsEnd(); ++it) {
+    if (*it == &sucBB) {
+      curBB.EraseSuccs(it);
     }
   }
 }
@@ -654,7 +672,8 @@ bool EmptyBBPattern::Optimize(BB &curBB) {
       return false;
     }
     cgFunc->GetTheCFG()->RemoveBB(curBB);
-    return true;
+    /* removeBB may do nothing. since no need to repeat, always ret false here. */
+    return false;
   }
   return false;
 }
@@ -670,7 +689,6 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
     if (checkOnly) {
       return false;
     }
-
     /* if curBB in exitbbsvec,return false. */
     EHFunc *ehFunc = cgFunc->GetEHFunc();
     ASSERT(ehFunc != nullptr, "get ehfunc failed in UnreachBBPattern::Optimize");
@@ -701,6 +719,10 @@ bool UnreachBBPattern::Optimize(BB &curBB) {
       }
 
       ehFunc->GetLSDACallSiteTable()->UpdateCallSite(curBB, *nextReachableBB);
+    }
+
+    if (curBB.GetSuccs().empty() && curBB.GetEhSuccs().empty()) {
+      return false;
     }
 
     ASSERT(curBB.GetPrev() != nullptr, "nullptr check");
@@ -788,6 +810,7 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
       if (checkOnly) {
         return false;
       }
+      bool changed = false;
       for (BB *bb : candidates) {
         if (curBB.GetEhSuccs().size() != bb->GetEhSuccs().size()) {
           continue;
@@ -809,9 +832,10 @@ bool DuplicateBBPattern::Optimize(BB &curBB) {
           item->PushBackPreds(*bb);
         }
         curBB.RemovePreds(*bb);
+        changed = true;
       }
       cgFunc->GetTheCFG()->FlushUnReachableStatusAndRemoveRelations(curBB, *cgFunc);
-      return true;
+      return changed;
     }
   }
   return false;

@@ -19,6 +19,7 @@
 #include "feir_var_name.h"
 #include "feir_builder.h"
 #include "fe_manager.h"
+#include "enhance_c_checker.h"
 #include "conditional_operator.h"
 
 namespace maple {
@@ -57,6 +58,11 @@ std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
   feirVar->SetAttrs(const_cast<GenericAttrs&>(genAttrs));
   feirVar->SetSrcLOC(srcFileIdx, srcFileLineNum);
   feirVar->SetSectionAttr(sectionAttr);
+  if (boundaryLenExpr != nullptr) {
+    std::list<UniqueFEIRStmt> nullStmts;
+    UniqueFEIRExpr lenExpr = boundaryLenExpr->Emit2FEExpr(nullStmts);
+    feirVar->SetBoundaryLenExpr(std::move(lenExpr));
+  }
   return feirVar;
 }
 
@@ -114,6 +120,20 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
 
 void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   MIRSymbol *sym = Translate2MIRSymbol();
+  ENCChecker::CheckNonnullLocalVarInit(*sym, initExpr, stmts);
+  UniqueFEIRVar feirVar = Translate2FEIRVar();
+  if (variableArrayExpr != nullptr) {
+    // free, Currently, the back-end are not supported.
+    // alloca
+    UniqueFEIRExpr variableArrayFEIRExpr = variableArrayExpr->Emit2FEExpr(stmts);
+    MIRType *mirType = GlobalTables::GetTypeTable().GetPrimType(PTY_a64);
+    UniqueFEIRType feType = std::make_unique<FEIRTypeNative>(*mirType);
+    UniqueFEIRExpr allocaExpr = std::make_unique<FEIRExprUnary>(std::move(feType), OP_alloca,
+                                                                std::move(variableArrayFEIRExpr));
+    UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtDAssign(feirVar->Clone(), std::move(allocaExpr));
+    stmts.emplace_back(std::move(stmt));
+    return;
+  }
   if (initExpr == nullptr) {
     return;
   }
@@ -124,7 +144,6 @@ void ASTVar::GenerateInitStmtImpl(std::list<UniqueFEIRStmt> &stmts) {
   if (initFeirExpr == nullptr) {
     return;
   }
-  UniqueFEIRVar feirVar = Translate2FEIRVar();
   if (initExpr->GetASTOp() == kASTStringLiteral) { // init for StringLiteral
     return GenerateInitStmt4StringLiteral(initExpr, feirVar, initFeirExpr, stmts);
   }
@@ -225,8 +244,10 @@ std::list<UniqueFEIRStmt> ASTFunc::EmitASTStmtToFEIR() const {
     UniqueFEIRStmt retStmt = std::make_unique<FEIRStmtReturn>(std::move(retExpr));
     stmts.emplace_back(std::move(retStmt));
   }
+  InsertBoundaryCheckingInRet(stmts);
   return stmts;
 }
+
 // ---------- ASTStruct ----------
 std::string ASTStruct::GetStructName(bool mapled) const {
   return mapled ? namemangler::EncodeName(name) : name;

@@ -79,6 +79,14 @@ class ASTDecl {
     genAttrs.SetAttr(attrKind);
   }
 
+  void SetSectionAttr(const std::string &str) {
+    sectionAttr = str;
+  }
+
+  const std::string &GetSectionAttr() const {
+    return sectionAttr;
+  }
+
   void GenerateInitStmt(std::list<UniqueFEIRStmt> &stmts) {
     return GenerateInitStmtImpl(stmts);
   }
@@ -108,12 +116,12 @@ class ASTDecl {
 
   std::string GenerateUniqueVarName() const;
 
-  bool IsBoundaryAttr() const {
-    return isBoundaryAttr;
+  void SetBoundaryLenExpr(ASTExpr *expr) {
+    boundaryLenExpr = expr;
   }
 
-  void SetIsBoundaryAttr(bool flag) {
-    isBoundaryAttr = flag;
+  ASTExpr *GetBoundaryLenExpr() const {
+    return boundaryLenExpr;
   }
 
  protected:
@@ -133,7 +141,8 @@ class ASTDecl {
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
   DeclKind declKind = kASTDecl;
-  bool isBoundaryAttr = false;
+  ASTExpr *boundaryLenExpr = nullptr;
+  std::string sectionAttr;
 };
 
 class ASTField : public ASTDecl {
@@ -172,6 +181,8 @@ class ASTFunc : public ASTDecl {
   }
   std::vector<std::unique_ptr<FEIRVar>> GenArgVarList() const;
   std::list<UniqueFEIRStmt> EmitASTStmtToFEIR() const;
+  std::list<UniqueFEIRStmt> InitArgsBoundaryVar(MIRFunction &mirFunc) const;
+  void InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) const;
 
   void SetAliasAttr(const std::string &attr) {
     aliasAttr = attr;
@@ -249,20 +260,16 @@ class ASTVar : public ASTDecl {
     return initExpr;
   }
 
-  void SetSectionAttr(const std::string &str) {
-    sectionAttr = str;
-  }
-
-  const std::string &GetSectionAttr() const {
-    return sectionAttr;
-  }
-
   void SetAsmAttr(const std::string &str) {
     asmAttr = str;
   }
 
   const std::string &GetAsmAttr() const {
     return asmAttr;
+  }
+
+  void SetVariableArrayExpr(ASTExpr *expr) {
+    variableArrayExpr = expr;
   }
 
   std::unique_ptr<FEIRVar> Translate2FEIRVar() const;
@@ -274,8 +281,8 @@ class ASTVar : public ASTDecl {
   void GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFEIRVar &feirVar,
                                       const UniqueFEIRExpr &initFeirExpr, std::list<UniqueFEIRStmt> &stmts);
   ASTExpr *initExpr = nullptr;
-  std::string sectionAttr;
   std::string asmAttr;
+  ASTExpr *variableArrayExpr = nullptr;
 };
 
 class ASTFileScopeAsm : public ASTDecl {

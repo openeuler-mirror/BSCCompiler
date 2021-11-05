@@ -20,6 +20,7 @@
 #include "option_parser.h"
 #include "parser_opt.h"
 #include "fe_file_type.h"
+#include "version.h"
 
 namespace maple {
 using namespace mapleOption;
@@ -74,6 +75,12 @@ enum OptionIndex : uint32 {
   kInputFile,
   kCollectDepTypes,
   kDepSameNamePolicy,
+  // EnhanceC
+  kNpeCheckDynamic,
+  kBoundaryCheckDynamic,
+  kO2,
+  kSimplifyShortCircuit,
+  kEnableVariableArray,
 };
 
 const Descriptor kUsage[] = {
@@ -274,6 +281,22 @@ const Descriptor kUsage[] = {
     "  -DepSameNamePolicy=sys or src\n"\
     "                       : [sys] load type from sys when on-demand load same name type\n"\
     "                       : [src] load type from src when on-demand load same name type", "mplfe", {} },
+  // EnhanceC
+  { kNpeCheckDynamic, 0, "", "npe-check-dynamic",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  --npe-check-dynamic     : EnhanceC: nonnull pointr dynamic checking", "mplfe", {} },
+  { kBoundaryCheckDynamic, 0, "", "boundary-check-dynamic",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  --boundary-check-dynamic: EnhanceC: boundary dynamic checking", "mplfe", {} },
+  { kO2, 0, "", "O2",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -O2                     : enable mplfe O2 optimize", "mplfe", {} },
+  { kSimplifyShortCircuit, 0, "", "simplify-short-circuit",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -simplify-short-circuit : enable simplify short circuit", "mplfe", {} },
+  { kEnableVariableArray, 0, "", "enable-variable-array",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -enable-variable-array : enable variable array", "mplfe", {} },
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyNone,
     "", "mplfe", {} }
@@ -385,6 +408,18 @@ bool MPLFEOptions::InitFactory() {
                                                 &MPLFEOptions::ProcessCollectDepTypes);
   RegisterFactoryFunction<OptionProcessFactory>(kDepSameNamePolicy,
                                                 &MPLFEOptions::ProcessDepSameNamePolicy);
+  // EnhanceC
+  RegisterFactoryFunction<OptionProcessFactory>(kNpeCheckDynamic,
+                                                &MPLFEOptions::ProcessNpeCheckDynamic);
+  RegisterFactoryFunction<OptionProcessFactory>(kBoundaryCheckDynamic,
+                                                &MPLFEOptions::ProcessBoundaryCheckDynamic);
+
+  RegisterFactoryFunction<OptionProcessFactory>(kO2,
+                                                &MPLFEOptions::ProcessO2);
+  RegisterFactoryFunction<OptionProcessFactory>(kSimplifyShortCircuit,
+                                                &MPLFEOptions::ProcessSimplifyShortCircuit);
+  RegisterFactoryFunction<OptionProcessFactory>(kEnableVariableArray,
+                                                &MPLFEOptions::ProcessEnableVariableArray);
   return true;
 }
 
@@ -437,7 +472,7 @@ void MPLFEOptions::DumpUsage() const {
 }
 
 void MPLFEOptions::DumpVersion() const {
-  std::cout << "Version: " << std::endl;
+  std::cout << "Maple FE Version : " << Version::GetVersionStr() << std::endl;
 }
 
 bool MPLFEOptions::ProcessHelp(const Option &opt) {
@@ -741,6 +776,33 @@ bool MPLFEOptions::ProcessDepSameNamePolicy(const Option &opt) {
   return true;
 }
 
+// EnhanceC
+bool MPLFEOptions::ProcessNpeCheckDynamic(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetNpeCheckDynamic(true);
+  return true;
+}
+
+bool MPLFEOptions::ProcessBoundaryCheckDynamic(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetBoundaryCheckDynamic(true);
+  return true;
+}
+
+bool MPLFEOptions::ProcessO2(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetO2(true);
+  return true;
+}
+
+bool MPLFEOptions::ProcessSimplifyShortCircuit(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetSimplifyShortCircuit(true);
+  return true;
+}
+
+bool MPLFEOptions::ProcessEnableVariableArray(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetEnableVariableArray(true);
+  return true;
+}
+
+// AOT
 bool MPLFEOptions::ProcessAOT(const Option &opt) {
   FEOptions::GetInstance().SetIsAOT(true);
   return true;
