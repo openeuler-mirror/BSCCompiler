@@ -22,197 +22,6 @@
 namespace {
 using namespace maple;
 
-const std::set<std::string> kNoSideEffectWhiteList {
-  "Landroid_2Fos_2FParcel_24ReadWriteHelper_3B_7CwriteString_7C_28Landroid_2Fos_2FParcel_3BLjava_2Flang_2FString_3B_29V",
-  "abs",
-  "asinh",
-  "asinhf",
-  "asinhl",
-  "atan",
-  "atanf",
-  "atanl",
-  "cabs",
-  "cabsf",
-  "cabsl",
-  "cacos",
-  "cacosf",
-  "cacosh",
-  "cacoshf",
-  "cacoshl",
-  "cacosl",
-  "carg",
-  "cargf",
-  "cargl",
-  "casin",
-  "casinf",
-  "casinh",
-  "casinhf",
-  "casinhl",
-  "casinl",
-  "catan",
-  "catanf",
-  "catanh",
-  "catanhf",
-  "catanhl",
-  "catanl",
-  "cbrt",
-  "cbrtf",
-  "cbrtl",
-  "ccos",
-  "ccosf",
-  "ccosh",
-  "ccoshf",
-  "ccoshl",
-  "ccosl",
-  "ceil",
-  "ceilf",
-  "ceill",
-  "cexp",
-  "cexpf",
-  "cexpl",
-  "cimag",
-  "cimagf",
-  "cimagl",
-  "clog",
-  "clog10",
-  "clog10f",
-  "clog10l",
-  "clogf",
-  "clogl",
-  "conj",
-  "conjf",
-  "conjl",
-  "copysign",
-  "copysignf",
-  "copysignl",
-  "cos",
-  "cosf",
-  "cosl",
-  "cpow",
-  "cpowf",
-  "cpowl",
-  "cproj",
-  "cprojf",
-  "cprojl",
-  "creal",
-  "crealf",
-  "creall",
-  "csin",
-  "csinf",
-  "csinh",
-  "csinhf",
-  "csinhl",
-  "csinl",
-  "csqrt",
-  "csqrtf",
-  "csqrtl",
-  "ctan",
-  "ctanf",
-  "ctanh",
-  "ctanhf",
-  "ctanhl",
-  "ctanl",
-  "erf",
-  "erff",
-  "erfl",
-  "fabs",
-  "fabsd128",
-  "fabsd32",
-  "fabsd64",
-  "fabsf",
-  "fabsl",
-  "fegetround",
-  "floor",
-  "floorf",
-  "floorl",
-  "fma",
-  "fmaf",
-  "fmal",
-  "fmax",
-  "fmaxf",
-  "fmaxl",
-  "fmin",
-  "fminf",
-  "fminl",
-  "huge_val",
-  "imaxabs",
-  "inf",
-  "isalnum",
-  "isalpha",
-  "isblank",
-  "iscntrl",
-  "isdigit",
-  "isgraph",
-  "isinf",
-  "islower",
-  "isnan",
-  "isprint",
-  "ispunct",
-  "isspace",
-  "isupper",
-  "iswalnum",
-  "iswalpha",
-  "iswblank",
-  "iswcntrl",
-  "iswdigit",
-  "iswgraph",
-  "iswlower",
-  "iswprint",
-  "iswpunct",
-  "iswspace",
-  "iswupper",
-  "iswxdigit",
-  "isxdigit",
-  "labs",
-  "llabs",
-  "memchr",
-  "memcmp",
-  "nan",
-  "nand128",
-  "nand32",
-  "nand64",
-  "nanf",
-  "nanl",
-  "nans",
-  "nearbyint",
-  "nearbyintf",
-  "nearbyintl",
-  "rint",
-  "rintf",
-  "rintl",
-  "round",
-  "roundeven",
-  "roundevenf",
-  "roundevenl",
-  "roundf",
-  "roundl",
-  "sin",
-  "sinf",
-  "sinl",
-  "strchr",
-  "strcmp",
-  "strcspn",
-  "strlen",
-  "strncmp",
-  "strpbrk",
-  "strrchr",
-  "strspn",
-  "strstr",
-  "tan",
-  "tanf",
-  "tanh",
-  "tanhf",
-  "tanhl",
-  "tanl",
-  "tolower",
-  "toupper",
-  "towlower",
-  "towupper",
-  "trunc",
-  "truncf",
-  "truncl",
-};
-
 inline bool IsReadOnlyOst(const OriginalSt &ost) {
   return ost.GetMIRSymbol()->HasAddrOfValues();
 }
@@ -291,10 +100,6 @@ bool AliasClass::CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, Fun
     hasAttr = (attrKind == FUNCATTR_nosideeffect) ? (callee->IsNoDefEffect() && callee->IsNoDefArgEffect()) :
                                                     callee->IsNoPrivateDefEffect();
   }
-  if (!hasAttr && attrKind == FUNCATTR_nosideeffect) {
-    const std::string &funcName = callee->GetName();
-    hasAttr = kNoSideEffectWhiteList.find(funcName) != kNoSideEffectWhiteList.end();
-  }
   return hasAttr;
 }
 
@@ -307,6 +112,28 @@ bool AliasClass::CallHasSideEffect(StmtNode *stmt) const {
     return true;
   }
   return !CallHasNoSideEffectOrPrivateDefEffect(*callstmt, FUNCATTR_nosideeffect);
+}
+
+// ost is a restrict pointer
+static bool IsRestrictPointer(const OriginalSt *ost) {
+  if (!IsAddress(ost->GetType()->GetPrimType())) {
+    return false;
+  }
+
+  if (ost->IsSymbolOst() && ost->GetIndirectLev() == 0) {
+    auto *symbol = ost->GetMIRSymbol();
+    auto fieldId = ost->GetFieldID();
+    if (fieldId != 0) {
+      auto type = symbol->GetType();
+      CHECK_FATAL(type->IsStructType(), "must be struct type");
+      bool restrictField = static_cast<MIRStructType*>(type)->IsFieldRestrict(fieldId);
+      return restrictField;
+    } else {
+      bool restrictPointer = symbol->GetAttr(ATTR_restrict);
+      return restrictPointer;
+    }
+  }
+  return false;
 }
 
 bool AliasClass::CallHasNoPrivateDefEffect(StmtNode *stmt) const {
@@ -350,7 +177,8 @@ AliasElem *AliasClass::FindOrCreateAliasElem(OriginalSt &ost) {
       aliasElem->SetNextLevNotAllDefsSeen(true);
     }
   }
-  if (aliasElem->GetOriginalSt().IsFormal() || ost.GetIndirectLev() > 0) {
+
+  if ((ost.IsFormal() && !IsRestrictPointer(&ost) && ost.GetIndirectLev() >= 0) || ost.GetIndirectLev() > 0) {
     aliasElem->SetNextLevNotAllDefsSeen(true);
   }
   if (ost.GetIndirectLev() > 1) {
@@ -789,11 +617,11 @@ void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
         }
         // pointer arithmetic may cause ptr escape from no address type
         // e.g.
-        // struct Node {
-        //   int val;
-        //   Node *next;
-        // } node;
-        // *((int*)&node + 1) <- ptr :
+        // Examples: struct Node {
+        // Examples:  int val;
+        // Examples:  Node *next;
+        // Examples: } node;
+        // Examples: *((int*)&node + 1) <- ptr :
         // LHS is next, and ptr will escape, but LHS's primtype is agg, not an address type.
         //
         // Hence we should not skip for this case
@@ -996,6 +824,17 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
   }
   if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
+    if (stmt.GetOpCode() == OP_callassigned) {
+      auto &callStmt = static_cast<CallNode&>(stmt);
+      auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
+      if (mirFunc != nullptr && mirFunc->GetFuncDesc().IsReturnNoAlias()) {
+        MapleVector<MustDefNode> &mustDefs = ssaTab.GetStmtsSSAPart().GetMustDefNodesOf(callStmt);
+        for (auto &mustDef : mustDefs) {
+          (void)FindOrCreateAliasElem(*mustDef.GetResult()->GetOst());
+        }
+        return;
+      }
+    }
     SetNotAllDefsSeenForMustDefs(stmt);
   }
 }
@@ -1172,7 +1011,29 @@ void AliasClass::ApplyUnionForPointedTos() {
   std::vector<bool> aliasElemProcessed(id2Elem.size(), false);
   MapleSet<uint> tempset(std::less<uint>(), acAlloc.Adapter());
   for (AliasElem *aliaselem : id2Elem) {
-    if (aliaselem->GetAssignSet() == nullptr || aliasElemProcessed[aliaselem->GetClassID()]) {
+    if (aliasElemProcessed[aliaselem->GetClassID()]) {
+      continue;
+    }
+
+    if (aliaselem->GetAssignSet() == nullptr) {
+      // next level Alias Elements of aliaselem may alias each other. union aliasing elements in following
+      auto &nextLevelNodes = aliaselem->GetOriginalSt().GetNextLevelOsts();
+      std::set<AliasElem *> aesToUnionNextLev;
+      for (auto ostAit = nextLevelNodes.begin(); ostAit != nextLevelNodes.end(); ++ostAit) {
+        for (auto ostBit = ostAit; ostBit != nextLevelNodes.end(); ++ostBit) {
+          if (!MayAliasBasicAA(*ostAit, *ostBit)) {
+            continue;
+          }
+          uint32 idA = FindAliasElem(**ostAit)->GetClassID();
+          uint32 idB = FindAliasElem(**ostBit)->GetClassID();
+          if (unionFind.Root(idA) != unionFind.Root(idB)) {
+            unionFind.Union(idA, idB);
+            aesToUnionNextLev.insert(id2Elem[unionFind.Root(idA)]);
+          }
+        }
+      }
+      // union next-level-osts of aliased osts
+      UnionNextLevelOfAliasOst(aesToUnionNextLev);
       continue;
     }
 
@@ -1334,8 +1195,7 @@ void AliasClass::UnionForNotAllDefsSeenCLang() {
     if (ae == nullptr) {
       continue;
     }
-    OriginalSt *ostOfAe = &(ae->GetOriginalSt());
-    bool hasNotAllDefsSeen = ae->IsNotAllDefsSeen() || ostOfAe->GetMIRSymbol()->GetStorageClass() == kScFormal;
+    bool hasNotAllDefsSeen = ae->IsNotAllDefsSeen();
     if (!hasNotAllDefsSeen) {
       // see if any at level 1 has notAllDefsSeen set
       for (OriginalSt *nextLevelNode : ost->GetNextLevelOsts()) {
@@ -1453,6 +1313,12 @@ void AliasClass::ApplyUnionForStorageOverlaps() {
     }
 
     for (auto *nextLevOst : nextLevOsts) {
+      // offset of nextLevOst is indeteminate, it may alias all other next-level-osts
+      if (nextLevOst->GetOffset().IsInvalid()) {
+        UnionAllNodes(&nextLevOsts);
+        break;
+      }
+
       MIRType *nextLevType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(nextLevOst->GetTyIdx());
       if (nextLevType->HasFields()) {
         // union all fields if one next-level-ost has fields
@@ -1818,6 +1684,69 @@ void AliasClass::InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANo
   }
 }
 
+void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
+  auto *curFunc = mirModule.CurFunction();
+  std::set<OriginalSt*> restrictFormalOsts;
+  for (auto formalId = 0; formalId < curFunc->GetFormalCount(); ++formalId) {
+    auto *formal = curFunc->GetFormal(formalId);
+    if (formal->GetAttr(ATTR_restrict)) {
+      (void)restrictFormalOsts.insert(ssaTab.FindOrCreateSymbolOriginalSt(*formal, curFunc->GetPuidx(), 0));
+    }
+  }
+  // non-restrict formals are set next-level-not-all-defines-seen,
+  // the may-used virtual vars are collected in nadsOsts, not need collect again
+  if (restrictFormalOsts.empty()) {
+    return;
+  }
+
+  for (auto *aliasElem : id2Elem) {
+    if (aliasElem == nullptr || aliasElem->IsNextLevNotAllDefsSeen()) {
+      continue;
+    }
+
+    bool valueAliasRestrictFormal = false;
+    auto *ost = aliasElem->GetOst();
+    if (restrictFormalOsts.find(ost) != restrictFormalOsts.end()) {
+      valueAliasRestrictFormal = true; // formalOst value alias itself
+      // virtual osts with indirectLev = 2 are set not-all-defines-seen and collected in nadsOsts.
+      // only next-level osts(indirectLev = 1) of formals are collected in the following:
+      for (auto *nextLevelOst : ost->GetNextLevelOsts()) {
+        mayUseOsts.insert(nextLevelOst);
+      }
+    }
+
+    auto *assignSet = aliasElem->GetAssignSet();
+    if (assignSet == nullptr) {
+      continue;
+    }
+
+    if (!valueAliasRestrictFormal) {
+      for (auto *formalOst : restrictFormalOsts) {
+        // formalOst has not been used in function, no need to collect its next-level-osts
+        if (formalOst->GetIndex() >= osym2Elem.size()) {
+          continue;
+        }
+        auto aeId = osym2Elem[formalOst->GetIndex()]->GetClassID();
+        if (assignSet->find(aeId) != assignSet->end()) {
+          valueAliasRestrictFormal = true;
+          break;
+        }
+      }
+    }
+
+    if (!valueAliasRestrictFormal) {
+      continue;
+    }
+
+    for (auto id : *assignSet) {
+      auto *valueAliasedOst = id2Elem[id]->GetOst();
+      for (auto *nextLevelOst : valueAliasedOst->GetNextLevelOsts()) {
+        mayUseOsts.insert(nextLevelOst);
+      }
+    }
+  }
+}
+
 // insert mayUse for Return-statement.
 // two kinds of mayUse's are insert into the mayUseNodes:
 // 1. mayUses caused by not_all_def_seen_ae;
@@ -1829,6 +1758,7 @@ void AliasClass::InsertMayUseReturn(const StmtNode &stmt) {
   mayUseOsts.insert(nadsOsts.begin(), nadsOsts.end());
   // 2. collect mayUses caused by globals_affected_by_call.
   CollectMayUseFromGlobalsAffectedByCalls(mayUseOsts);
+  CollectMayUseFromFormals(mayUseOsts);
   // 3. collect mayUses caused by defined final field for constructor
   if (mirModule.CurFunction()->IsConstructor()) {
     CollectMayUseFromDefinedFinalField(mayUseOsts);
