@@ -208,7 +208,8 @@ void MeSink::AddScalarUseSite(const ScalarMeExpr *scalar, T *useSite) {
     useSites.resize(scalar->GetExprID() + bufferSize);
   }
   if (useSites[scalar->GetExprID()] == nullptr) {
-    useSites[scalar->GetExprID()] = std::make_unique<std::list<UseItem>>();
+    useSites[scalar->GetExprID()] = std::make_unique<std::list<UseItem>>(1, UseItem(useSite));
+    return;
   }
   if (!useSites[scalar->GetExprID()]->front().SameUseItem(useSite)) {
     useSites[scalar->GetExprID()]->push_front(UseItem(useSite));
@@ -979,8 +980,7 @@ BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
 }
 
 void MeSink::ReplaceUsesOfScalar(const ScalarMeExpr *replacedScalar, ScalarMeExpr *replaceeScalar) {
-  auto exprId = replacedScalar->GetExprID();
-  auto *useList = useSites[static_cast<uint32>(exprId)].get();
+  auto *useList = GetUseSitesOf(replacedScalar);
   if (useList == nullptr || useList->empty()) {
     return;
   }
@@ -1056,7 +1056,7 @@ BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
   if (scalar->IsVolatile() || scalar->GetPrimType() == PTY_ref) {
     return nullptr;
   }
-  auto *useList = useSites[static_cast<uint32>(scalar->GetExprID())].get();
+  auto *useList = GetUseSitesOf(scalar);
   if (useList == nullptr || useList->empty()) {
     return nullptr;
   }
