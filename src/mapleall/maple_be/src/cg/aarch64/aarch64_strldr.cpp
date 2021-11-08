@@ -687,7 +687,9 @@ void AArch64StoreLoadOpt::SelectPropMode(AArch64MemOperand &currMemOpnd) {
   AArch64MemOperand::AArch64AddressingMode currAddrMode = currMemOpnd.GetAddrMode();
   switch (currAddrMode) {
     case AArch64MemOperand::kAddrModeBOi:
-      propMode = kPropBase;
+      if (!currMemOpnd.IsPreIndexed() && !currMemOpnd.IsPostIndexed()) {
+        propMode = kPropBase;
+      }
       break;
     case AArch64MemOperand::kAddrModeBOrX:
       propMode = kPropOffset;
