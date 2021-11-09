@@ -9453,9 +9453,9 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
 
   MOperator mOp;
   if (isLow) {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddwvvu : MOP_vuaddwvvu;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddwvvu : MOP_vsaddwvvu;
   } else {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddw2vvv : MOP_vuaddw2vvv;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
