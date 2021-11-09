@@ -20,7 +20,8 @@
 
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions&) const{
-  return FileUtils::SafeGetenv(kMapleRoot) + "/output/aarch64-clang-debug/bin/";
+  return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
+    FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
 }
 
 const std::string &Cpp2MplCompiler::GetBinName() const {
@@ -42,7 +43,7 @@ std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const A
   return action.GetOutputFolder() + outputName + ".ast";
 }
 
-DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
+DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
   uint32_t len = sizeof(kCpp2MplDefaultOptionsForAst) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
@@ -59,13 +60,13 @@ DefaultOption Cpp2MplCompiler::GetDefaultOptions(const MplOptions &options, cons
     return defaultOptions;
 }
 
-void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+void Cpp2MplCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
                                           std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".mpl");
   tempFiles.push_back(action.GetFullOutputName() + ".mplt");
 }
 
-std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> Cpp2MplCompiler::GetFinalOutputs(const MplOptions&,
                                                                  const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".mpl");
