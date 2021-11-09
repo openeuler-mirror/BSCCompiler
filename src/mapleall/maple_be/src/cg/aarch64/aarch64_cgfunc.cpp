@@ -9481,7 +9481,7 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
   }
 
   MOperator mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vmovvi : MOP_vmovui;
-  if (GetPrimTypeSize(sType) == 1 && val < 0) {
+  if (GetVecEleSize(rType) == k8BitSize && val < 0) {
     src = &CreateImmOperand(static_cast<uint8>(val), k8BitSize, true);
   } else if (val < 0) {
     src = &CreateImmOperand(-(val + 1), k8BitSize, true);
