@@ -64,10 +64,11 @@ bool MEMeProp::PhaseRun(maple::MeFunction &f) {
   }
   MeProp meProp(*hMap, *dom, *GetPhaseMemPool(), Prop::PropConfig { MeOption::propBase, propIloadRef,
       MeOption::propGlobalRef, MeOption::propFinaliLoadRef, MeOption::propIloadRefNonParm, MeOption::propAtPhi,
-      MeOption::propWithInverse || f.IsLfo() });
+      MeOption::propWithInverse || f.IsLfo() }, MeOption::propLimit);
   meProp.TraversalBB(*f.GetCfg()->GetCommonEntryBB());
   if (DEBUGFUNC_NEWPM(f)) {
-    LogInfo::MapleLogger() << "\n============== After Copy Propagation  =============" << '\n';
+    LogInfo::MapleLogger() << "\nNumber of propagations performed by hprop: " << meProp.propsPerformed << std::endl;
+    LogInfo::MapleLogger() << "============== After Copy Propagation  =============" << '\n';
     f.Dump(false);
   }
 
