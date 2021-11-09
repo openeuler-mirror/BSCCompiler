@@ -18,6 +18,7 @@
 #include <string>
 #include "mempool.h"
 #include "mempool_allocator.h"
+#include "mpl_options.h"
 #include "types_def.h"
 #include "driver_option_common.h"
 #include "option_parser.h"
@@ -117,6 +118,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool ignoreInferredRetType;
   static uint32 pregRenameLimit;
   static uint32 rename2pregLimit;
+  static uint32 propLimit;
   static uint32 copyPropLimit;
   static uint32 delRcPULimit;
   static uint32 profileBBHotRate;
@@ -174,6 +176,10 @@ class MeOption : public MapleDriverOptionBase {
   static bool seqVec;
   static uint8 rematLevel;
   static bool layoutWithPredict;
+// safety check option begin
+  static SafetyCheckMode npeCheckMode;
+  static SafetyCheckMode boundaryCheckMode;
+// safety check option end
 #if MIR_JAVA
   static std::string acquireFuncName;
   static std::string releaseFuncName;
