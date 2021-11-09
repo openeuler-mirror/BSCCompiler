@@ -255,21 +255,24 @@ void LoopFinder::markExtraEntryAndEncl() {
     }
     origEntries[loop->GetHeader()->GetId()] = loop->GetHeader();
 
-    // Form loop closure
-    loopEnclosure[loop->GetHeader()->GetId()] = nullptr;
+    // Form loop closure from the primary entry. At end collect all other entries
+    bool changed = false;
     dfsBBs.push(loop->GetHeader());
     while (true) {
       while (!dfsBBs.empty()) {
         BB *bb = dfsBBs.top();
         visitedBBs[bb->GetId()] = true;
         if (startProcess[bb->GetId()]) {
+          dfsBBs.pop();
           for (const auto succBB : bb->GetSuccs()) {
-            if (loopEnclosure[succBB->GetId()] != nullptr) {
+            if (loopEnclosure[bb->GetId()] == nullptr &&
+                loopEnclosure[succBB->GetId()] != nullptr &&
+                succBB != loop->GetHeader()) {
+              changed = true;
               loopEnclosure[bb->GetId()] = bb;
               break;
             }
           }
-          dfsBBs.pop();
           continue;
         } else {
           startProcess[bb->GetId()] = true;
@@ -280,7 +283,15 @@ void LoopFinder::markExtraEntryAndEncl() {
           }
         }
       }
-      loopEnclosure[loop->GetHeader()->GetId()] = loop->GetHeader();
+
+      // Repeat till no new item is added in
+      if (changed) {
+        dfsBBs.push(loop->GetHeader());
+        changed = false;
+        fill(visitedBBs.begin(), visitedBBs.end(), false);
+        fill(startProcess.begin(), startProcess.end(), false);
+        continue;
+      }
 
       // Collect all entries
       bool foundNewEntry = false;
@@ -332,14 +343,12 @@ void LoopFinder::markExtraEntryAndEncl() {
     }
 
     // Setup head and extra entries
-    // Note: With new entries added, the original head/backedge may become inner node/edge of new loop
-    CHECK_FATAL(newEntries.size() >= 1, "There must be at least one entry");
     for (const auto bb : newEntries) {
       if (bb != nullptr) {
         loop->otherLoopEntries.insert(bb);
       }
     }
-
+#if 0
     // Keep the original backedge if possible
     bool keepBEdge = false;
     BB *origBackBB = *(loop->GetBackedge().begin());
@@ -372,6 +381,7 @@ void LoopFinder::markExtraEntryAndEncl() {
     }
 
     loop->SetHeader(*(*loop->otherLoopEntries.begin()));
+#endif
     loop->otherLoopEntries.erase(loop->GetHeader());
   }
 }
@@ -515,7 +525,6 @@ void LoopFinder::CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer) {
   }
 }
 
-
 static void FindLoopExits(LoopHierarchy *loop) {
   for (auto *bb : loop->GetLoopMembers()) {
     for (auto succ : bb->GetSuccs()) {
@@ -541,13 +550,23 @@ void LoopFinder::DetectInnerLoop() {
       for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
            loopHierarchy2 = loopHierarchy2->GetNext()) {
         if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
-          for (auto *bb : loopHierarchy2->GetLoopMembers()) {
-            if (loopHierarchy1->GetHeader() != bb) {
-              continue;
+          auto loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
+          if (find(loopHierarchy2Members.begin(),loopHierarchy2Members.end(), loopHierarchy1->GetHeader()) !=
+                   loopHierarchy2Members.end()) {
+            bool allin = true;
+            // Make sure body is included
+            auto loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
+            for (auto *bb1 : loopHierarchy1->GetLoopMembers()) {
+              if (find(loopHierarchy2Members.begin(),loopHierarchy2Members.end(), bb1) ==
+                       loopHierarchy2Members.end()) {
+                allin = false;
+                break;
+              }
             }
-            CreateInnerLoop(*loopHierarchy1, *loopHierarchy2);
-            innerCreated = true;
-            break;
+            if (allin) {
+              CreateInnerLoop(*loopHierarchy1, *loopHierarchy2);
+              innerCreated = true;
+            }
           }
           if (innerCreated) {
             break;
