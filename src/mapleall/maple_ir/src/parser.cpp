@@ -1042,18 +1042,33 @@ bool MIRParser::ParseFieldAttrs(FieldAttrs &attrs) {
 
 bool MIRParser::ParseFuncAttrs(FuncAttrs &attrs) {
   do {
-    switch (lexer.GetTokenKind()) {
+    FuncAttrKind attrKind;
+    TokenKind currentToken = lexer.GetTokenKind();
+    switch (currentToken) {
 #define FUNC_ATTR
-#define ATTR(X)                \
-      case TK_##X:                 \
-        attrs.SetAttr(FUNCATTR_##X); \
-        break;
+#define ATTR(X)                       \
+      case TK_##X: {                  \
+        attrKind = FUNCATTR_##X;      \
+        attrs.SetAttr(attrKind);      \
+        break;                        \
+      }
 #include "all_attributes.def"
 #undef ATTR
 #undef FUNC_ATTR
       default:
         return true;
     }  // switch
+    if (currentToken != TK_alias && currentToken != TK_section) {
+      lexer.NextToken();
+      continue;
+    }
+    if (lexer.NextToken() != TK_lparen || lexer.NextToken() != TK_string) {
+      return false;
+    }
+    attrs.SetAttrContentName(attrKind, lexer.GetName());
+    if (lexer.NextToken() != TK_rparen) {
+      return false;
+    }
     lexer.NextToken();
   } while (true);
 }
@@ -1264,7 +1279,12 @@ bool MIRParser::ParseFuncType(TyIdx &tyIdx) {
     Error("expect return type for function type but get ");
     return false;
   }
-  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs);
+  TypeAttrs retTypeAttrs;
+  if (!ParseTypeAttrs(retTypeAttrs)) {
+    Error("bad attribute in function ret type at ");
+    return false;
+  }
+  MIRFuncType functype(retTyIdx, vecTyIdx, vecAttrs, retTypeAttrs);
   functype.SetVarArgs(varargs);
   tyIdx = GlobalTables::GetTypeTable().GetOrCreateMIRType(&functype);
   return true;
@@ -1734,7 +1754,8 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     return false;
   }
   symbol.SetTyIdx(tyIdx);
-  if (lexer.GetTokenKind() == TK_section) {  // parse section attribute
+  /* parse section/register attribute from inline assembly */
+  if (lexer.GetTokenKind() == TK_section) {
     lexer.NextToken();
     if (lexer.GetTokenKind() != TK_lparen) {
       Error("expect ( for section attribute but get ");
@@ -1747,6 +1768,26 @@ bool MIRParser::ParseDeclareVar(MIRSymbol &symbol) {
     }
     UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
     symbol.sectionAttr = literalStrIdx;
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_rparen) {
+      Error("expect ) for section attribute but get ");
+      return false;
+    }
+    lexer.NextToken();
+  } else if (lexer.GetTokenKind() == TK_asmattr) { /* Specifying Registers for Local Variables */
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_lparen) {
+      Error("expect ( for register inline-asm attribute but get ");
+      return false;
+    }
+    lexer.NextToken();
+    if (lexer.GetTokenKind() != TK_string) {
+      Error("expect string literal for section attribute but get ");
+      return false;
+    }
+    UStrIdx literalStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    symbol.asmAttr = literalStrIdx;
+
     lexer.NextToken();
     if (lexer.GetTokenKind() != TK_rparen) {
       Error("expect ) for section attribute but get ");
@@ -2835,7 +2876,7 @@ bool MIRParser::ParseMIRForAsmdecl() {
     Error("expect asm string after iasm but get ");
     return false;
   }
-  mod.GetAsmDecls().push_back(MapleString(lexer.GetName(), mod.GetMemPool()));
+  mod.GetAsmDecls().emplace_back(MapleString(lexer.GetName(), mod.GetMemPool()));
   lexer.NextToken();
   return true;
 }

@@ -101,5 +101,3 @@
   KEYWORD(fstatic)
   // file-scope asm
   KEYWORD(asmdecl)
-  // section attribute
-  KEYWORD(section)

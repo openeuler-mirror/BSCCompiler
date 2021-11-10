@@ -2248,6 +2248,13 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
         retTyIdx(cstmt->retTyIdx),
         stmtID(cstmt->stmtID) {}
 
+  IcallMeStmt(MapleAllocator *alloc, const NaryMeStmt *nary, TyIdx idx, uint32 id)
+      : NaryMeStmt(alloc, nary),
+        MuChiMePart(alloc),
+        AssignedPart(alloc),
+        retTyIdx(idx),
+        stmtID(id) {}
+
   virtual ~IcallMeStmt() = default;
 
   void Dump(const IRMap*) const;
@@ -2322,6 +2329,10 @@ class IcallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
 
   void SetRetTyIdx(TyIdx idx) {
     retTyIdx = idx;
+  }
+
+  uint32 GetStmtID() const {
+    return stmtID;
   }
 
  private:

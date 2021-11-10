@@ -50,9 +50,6 @@ void TypeTable::SetTypeWithTyIdx(const TyIdx &tyIdx, MIRType &type) {
   typeTable.at(tyIdx) = &type;
   if (oldType != nullptr && oldType != &type) {
     (void)typeHashTable.erase(oldType);
-#if 0 // cannot delete because typTab in BinaryMplImport is still pointing to it
-    delete oldType;
-#endif
     (void)typeHashTable.insert(&type);
   }
 }
@@ -75,7 +72,8 @@ void TypeTable::UpdateMIRType(const MIRType &pType, const TyIdx tyIdx) {
 }
 
 // used only by bin_mpl_import
-void TypeTable::CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete) {
+void TypeTable::CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module,
+                                    bool isObject, bool isIncomplete) {
   MIRType *nType = pType.CopyMIRTypeNode();
   nType->SetTypeIndex(tyIdxUsed);
   typeTable[tyIdxUsed] = nType;
@@ -228,8 +226,9 @@ MIRType *TypeTable::GetOrCreateJarrayType(const MIRType &elem) {
 }
 
 MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecType,
-                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg) {
-  MIRFuncType funcType(retTyIdx, vecType, vecAttrs);
+                                            const std::vector<TypeAttrs> &vecAttrs, bool isVarg,
+                                            const TypeAttrs &retAttrs) {
+  MIRFuncType funcType(retTyIdx, vecType, vecAttrs, retAttrs);
   funcType.SetVarArgs(isVarg);
   TyIdx tyIdx = GetOrCreateMIRType(&funcType);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreateFunctionType");
@@ -304,8 +303,7 @@ MIRIntConst *IntConstTable::GetOrCreateIntConst(int64 val, MIRType &type) {
 }
 
 MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type) {
-  uint64 idid = static_cast<uint64>(type.GetTypeIndex()); // shift bit is 32
-  IntConstKey key(val, idid);
+  IntConstKey key(val, type.GetTypeIndex());
   if (intConstTable.find(key) != intConstTable.end()) {
     return intConstTable[key];
   }
@@ -314,8 +312,7 @@ MIRIntConst *IntConstTable::DoGetOrCreateIntConst(int64 val, MIRType &type) {
 }
 
 MIRIntConst *IntConstTable::DoGetOrCreateIntConstTreadSafe(int64 val, MIRType &type) {
-  uint64 idid = static_cast<uint64>(type.GetTypeIndex()); // shift bit is 32
-  IntConstKey key(val, idid);
+  IntConstKey key(val, type.GetTypeIndex());
   {
     std::shared_lock<std::shared_timed_mutex> lock(mtx);
     if (intConstTable.find(key) != intConstTable.end()) {

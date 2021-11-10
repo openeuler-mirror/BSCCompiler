@@ -27,6 +27,8 @@ class ENCChecker {
   static bool HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
   static void CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst *cst);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr, std::list<UniqueFEIRStmt> &stmts);
+  static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
+                                               uint32 fileNum, uint32 fileLine);
   static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr);
   static MIRType *GetArrayTypeFromExpr(const UniqueFEIRExpr &expr);
   static void AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &dstExpr, const UniqueFEIRExpr &srcExpr,

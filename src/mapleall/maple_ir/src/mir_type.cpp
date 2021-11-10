@@ -231,6 +231,8 @@ uint32 GetPrimTypeSize(PrimType primType) {
     case PTY_v8u8:
     case PTY_v2f32:
       return 8;
+    case PTY_u128:
+    case PTY_i128:
     case PTY_c128:
     case PTY_f128:
     case PTY_v2i64:
@@ -326,8 +328,39 @@ uint32 GetPrimTypeP2Size(PrimType primType) {
   }
 }
 
-uint32 GetPrimTypeLanes(PrimType pty) {
-  switch (pty) {
+uint32 GetVecEleSize(PrimType primType) {
+  switch (primType) {
+    case PTY_v2i64:
+    case PTY_v2u64:
+    case PTY_v2f64:
+    case PTY_i64:
+    case PTY_u64:
+    case PTY_f64:
+      return 64;
+    case PTY_v2i32:
+    case PTY_v2u32:
+    case PTY_v2f32:
+    case PTY_v4i32:
+    case PTY_v4u32:
+    case PTY_v4f32:
+      return 32;
+    case PTY_v4i16:
+    case PTY_v4u16:
+    case PTY_v8i16:
+    case PTY_v8u16:
+      return 16;
+    case PTY_v8i8:
+    case PTY_v8u8:
+    case PTY_v16i8:
+    case PTY_v16u8:
+      return 8;
+    default:
+      CHECK_FATAL(false, "unexpected primtType for vector");
+  }
+}
+
+uint32 GetVecLanes(PrimType primType) {
+  switch (primType) {
     case PTY_v2i32:
     case PTY_v2u32:
     case PTY_v2f32:
@@ -635,6 +668,9 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   size_t size = paramTypeList.size();
   for (size_t i = 0; i < size; ++i) {
     GlobalTables::GetTypeTable().GetTypeFromTyIdx(paramTypeList[i])->Dump(indent + 1);
+    if (i < paramAttrsList.size()) {
+      paramAttrsList[i].DumpAttributes();
+    }
     if (size - 1 != i) {
       LogInfo::MapleLogger() << ",";
     }
@@ -644,6 +680,7 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
   }
   LogInfo::MapleLogger() << ") ";
   GlobalTables::GetTypeTable().GetTypeFromTyIdx(retTyIdx)->Dump(indent + 1);
+  retAttrs.DumpAttributes();
   LogInfo::MapleLogger() << ">";
 }
 
@@ -1517,7 +1554,8 @@ bool MIRFuncType::EqualTo(const MIRType &type) const {
   }
   const auto &pType = static_cast<const MIRFuncType&>(type);
   return (pType.retTyIdx == retTyIdx && pType.paramTypeList == paramTypeList &&
-          pType.isVarArgs == isVarArgs && pType.paramAttrsList == paramAttrsList);
+          pType.isVarArgs == isVarArgs && pType.paramAttrsList == paramAttrsList &&
+          pType.retAttrs == retAttrs);
 }
 
 bool MIRBitFieldType::EqualTo(const MIRType &type) const {
@@ -1821,6 +1859,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
         // align alloced_size_in_bits to fieldAlign
         allocedBitSize = RoundUp(allocedBitSize, fieldAlign * bitsPerByte);
       }
+
       // target field id is found
       if (curFieldID == fieldID) {
         return allocedBitSize;

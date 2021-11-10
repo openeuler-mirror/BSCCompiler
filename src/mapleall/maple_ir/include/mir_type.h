@@ -39,13 +39,24 @@ const std::string kJstrTypeName = "constStr";
 extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // verify if primType1 and primType2 match
 extern uint32 GetPrimTypeSize(PrimType primType);                         // answer in bytes; 0 if unknown
 extern uint32 GetPrimTypeP2Size(PrimType primType);                       // answer in bytes in power-of-two.
-extern PrimType GetSignedPrimType(PrimType pty);                          // return signed version
-extern PrimType GetUnsignedPrimType(PrimType pty);                        // return unsigned version
-extern uint32 GetPrimTypeLanes(PrimType pty);                             // lane size if vector
+extern PrimType GetSignedPrimType(PrimType primType);                     // return signed version
+extern PrimType GetUnsignedPrimType(PrimType primType);                   // return unsigned version
+extern uint32 GetVecEleSize(PrimType primType);                           // element size of each lane in vector
+extern uint32 GetVecLanes(PrimType primType);                             // lane size if vector
 extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
+extern int64 MinValOfSignedInteger(PrimType primType);
 
 inline uint32 GetPrimTypeBitSize(PrimType primType) {
+  // 1 byte = 8 bits = 2^3 bits
+  return GetPrimTypeSize(primType) << 3;
+}
+
+inline uint32 GetPrimTypeActualBitSize(PrimType primType) {
+  // GetPrimTypeSize(PTY_u1) will return 1, so we take it as a special case
+  if (primType == PTY_u1) {
+    return 1;
+  }
   // 1 byte = 8 bits = 2^3 bits
   return GetPrimTypeSize(primType) << 3;
 }
@@ -56,6 +67,7 @@ PrimType GetRegPrimType(PrimType primType);
 PrimType GetDynType(PrimType primType);
 PrimType GetReg64PrimType(PrimType primType);
 PrimType GetNonDynType(PrimType primType);
+PrimType GetIntegerPrimTypeBySizeAndSign(size_t sizeBit, bool isSign);
 
 inline bool IsAddress(PrimitiveType primitiveType) {
   return primitiveType.IsAddress();
@@ -78,12 +90,16 @@ inline bool IsPrimitivePureScalar(PrimitiveType primitiveType) {
          !primitiveType.IsDynamic() && !primitiveType.IsVector();
 }
 
+inline bool IsPrimitiveUnsigned(PrimitiveType primitiveType) {
+  return primitiveType.IsUnsigned();
+}
+
 inline bool IsUnsignedInteger(PrimitiveType primitiveType) {
-  return primitiveType.IsInteger() && primitiveType.IsUnsigned() && !primitiveType.IsDynamic();
+  return IsPrimitiveUnsigned(primitiveType) && primitiveType.IsInteger() && !primitiveType.IsDynamic();
 }
 
 inline bool IsSignedInteger(PrimitiveType primitiveType) {
-  return primitiveType.IsInteger() && !primitiveType.IsUnsigned() && !primitiveType.IsDynamic();
+  return !IsPrimitiveUnsigned(primitiveType) && primitiveType.IsInteger() && !primitiveType.IsDynamic();
 }
 
 inline bool IsPrimitiveInteger(PrimitiveType primitiveType) {
@@ -130,6 +146,10 @@ inline bool IsPrimitiveVectorFloat(PrimitiveType primitiveType) {
 
 inline bool IsPrimitiveVectorInteger(PrimitiveType primitiveType) {
   return primitiveType.IsVector() && primitiveType.IsInteger();
+}
+
+inline bool IsPrimitiveUnSignedVector(const PrimitiveType &primitiveType) {
+  return IsPrimitiveUnsigned(primitiveType) && primitiveType.IsVector();
 }
 
 bool IsNoCvtNeeded(PrimType toType, PrimType fromType);
@@ -312,6 +332,10 @@ class FieldAttrs {
     return !(*this == tA);
   }
 
+  bool operator<(const FieldAttrs &tA) const {
+    return attrFlag < tA.attrFlag && attrAlign < tA.attrAlign;
+  }
+
   void Clear() {
     attrFlag = 0;
     attrAlign = 0;
@@ -348,6 +372,29 @@ class FuncAttrs {
     }
   }
 
+  void SetAttrContentName(FuncAttrKind x, const std::string &name) {
+    switch (x) {
+      case FUNCATTR_alias: {
+        aliasFuncName = name;
+        break;
+      }
+      case FUNCATTR_section: {
+        prefixSectionName = name;
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  const std::string &GetAliasFuncName() const {
+    return aliasFuncName;
+  }
+
+  const std::string &GetPrefixSectionName() const {
+    return prefixSectionName;
+  }
+
   void SetAttrFlag(uint64 flag) {
     attrFlag = flag;
   }
@@ -372,50 +419,8 @@ class FuncAttrs {
 
  private:
   uint64 attrFlag = 0;
-};
-
-// only for internal use, not emitted
-enum GenericAttrKind {
-#define FUNC_ATTR
-#define TYPE_ATTR
-#define FIELD_ATTR
-#define ATTR(STR) GENATTR_##STR,
-#include "all_attributes.def"
-#undef ATTR
-#undef FUNC_ATTR
-#undef TYPE_ATTR
-#undef FIELD_ATTR
-};
-
-class GenericAttrs {
- public:
-  GenericAttrs() = default;
-  GenericAttrs(const GenericAttrs &ta) = default;
-  GenericAttrs &operator=(const GenericAttrs &p) = default;
-  ~GenericAttrs() = default;
-
-  void SetAttr(GenericAttrKind x) {
-    attrFlag |= (1ULL << x);
-  }
-
-  bool GetAttr(GenericAttrKind x) const {
-    return (attrFlag & (1ULL << x)) != 0;
-  }
-
-  bool operator==(const GenericAttrs &tA) const {
-    return attrFlag == tA.attrFlag;
-  }
-
-  bool operator!=(const GenericAttrs &tA) const {
-    return !(*this == tA);
-  }
-
-  FieldAttrs ConvertToFieldAttrs();
-  TypeAttrs ConvertToTypeAttrs();
-  FuncAttrs ConvertToFuncAttrs();
-
- private:
-  uint64 attrFlag = 0;
+  std::string aliasFuncName;
+  std::string prefixSectionName;
 };
 
 #if MIR_FEATURE_FULL
@@ -442,9 +447,9 @@ struct OffsetType {
     return val == kOffsetUnknown;
   }
 
-  OffsetType operator=(const OffsetType &other) {
+  OffsetType &operator=(const OffsetType &other) {
     val = other.val;
-    return other;
+    return *this;
   }
 
   OffsetType operator+(int64 offset) const {
@@ -1043,6 +1048,11 @@ class MIRStructType : public MIRType {
     return fieldPair.second.second.GetAttr(FLDATTR_rcweak);
   }
 
+  bool IsFieldRestrict(FieldID id) const {
+    const FieldPair &fieldPair = TraverseToField(id);
+    return fieldPair.second.second.GetAttr(FLDATTR_restrict);
+  }
+
   bool IsOwnField(FieldID id) const {
     const FieldPair &fieldPair = TraverseToField(id);
     return std::find(fields.begin(), fields.end(), fieldPair) != fields.end();
@@ -1229,6 +1239,8 @@ class MIRStructType : public MIRType {
   FieldPair TraverseToField(FieldID fieldID) const ;
 
   int64 GetBitOffsetFromBaseAddr(FieldID fieldID) override;
+
+  bool HasPadding() const;
 
  protected:
   FieldVector fields{};
@@ -1619,11 +1631,13 @@ class MIRFuncType : public MIRType {
   explicit MIRFuncType(const GStrIdx &strIdx)
       : MIRType(kTypeFunction, PTY_ptr, strIdx) {}
 
-  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy, const std::vector<TypeAttrs> &vecAt)
+  MIRFuncType(const TyIdx &retTyIdx, const std::vector<TyIdx> &vecTy, const std::vector<TypeAttrs> &vecAt,
+              const TypeAttrs &retAttrsIn)
       : MIRType(kTypeFunction, PTY_ptr),
         retTyIdx(retTyIdx),
         paramTypeList(vecTy),
-        paramAttrsList(vecAt) {}
+        paramAttrsList(vecAt),
+        retAttrs(retAttrsIn) {}
 
   ~MIRFuncType() override = default;
 
@@ -1699,6 +1713,18 @@ class MIRFuncType : public MIRType {
     isVarArgs = flag;
   }
 
+  const TypeAttrs &GetRetAttrs() const {
+    return retAttrs;
+  }
+
+  TypeAttrs &GetRetAttrs() {
+    return retAttrs;
+  }
+
+  void SetRetAttrs(const TypeAttrs &attrs) {
+    retAttrs = attrs;
+  }
+
   size_t GetHashIndex() const override {
     constexpr uint8 idxShift = 6;
     size_t hIdx = (static_cast<size_t>(retTyIdx) << idxShift) + (typeKind << kShiftNumOfTypeKind);
@@ -1711,6 +1737,7 @@ class MIRFuncType : public MIRType {
   TyIdx retTyIdx{ 0 };
   std::vector<TyIdx> paramTypeList;
   std::vector<TypeAttrs> paramAttrsList;
+  TypeAttrs retAttrs;
   bool isVarArgs = false;
 };
 

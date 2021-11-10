@@ -179,7 +179,7 @@ void LiveAnalysis::InsertInOutOfCleanupBB() {
   if (cleanupBB == nullptr) {
     return;
   }
-  if (cleanupBB->GetLiveIn()->NoneBit()) {
+  if (cleanupBB->GetLiveIn() == nullptr || cleanupBB->GetLiveIn()->NoneBit()) {
     return;
   }
   DataInfo cleanupBBLi = *(cleanupBB->GetLiveIn());
@@ -317,5 +317,4 @@ bool CgLiveAnalysis::PhaseRun(maplebe::CGFunc &f) {
   }
   return false;
 }
-MAPLE_ANALYSIS_PHASE_REGISTER(CgLiveAnalysis, liveanalysis)
 }  /* namespace maplebe */

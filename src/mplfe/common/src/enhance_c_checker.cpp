@@ -21,6 +21,36 @@
 #include "fe_manager.h"
 
 namespace maple {
+void ASTParser::ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, ASTDecl &astVar) {
+  const MIRFuncType *funcType = FEUtils::GetFuncPtrType(*astVar.GetTypeDesc().front());
+  if (funcType == nullptr) {
+    return;
+  }
+  std::vector<TypeAttrs> attrsVec = funcType->GetParamAttrsList();
+  TypeAttrs retAttr = funcType->GetRetAttrs();
+  // nonnull with args in function type pointers need marking nonnull arg
+  for (const auto *nonNull : valueDecl.specific_attrs<clang::NonNullAttr>()) {
+    if (!nonNull->args_size()) {
+      continue;
+    }
+    for (const clang::ParamIdx &paramIdx : nonNull->args()) {
+      // The clang ensures that nonnull attribute only applies to pointer parameter
+      unsigned int idx = paramIdx.getASTIndex();
+      if (idx >= attrsVec.size()) {
+        continue;
+      }
+      attrsVec[idx].SetAttr(ATTR_nonnull);
+    }
+  }
+  if (valueDecl.hasAttr<clang::ReturnsNonNullAttr>()) {
+    retAttr.SetAttr(ATTR_nonnull);
+  }
+  MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
+      funcType->GetRetTyIdx(), funcType->GetParamTypeList(), attrsVec, funcType->IsVarargs(), retAttr);
+  astVar.SetTypeDesc(std::vector<MIRType*>{GlobalTables::GetTypeTable().GetOrCreatePointerType(
+      *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
+}
+
 bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr) {
   if (expr->GetKind() == kExprDRead) {
     FEIRExprDRead *dread = static_cast<FEIRExprDRead*>(expr.get());
@@ -103,6 +133,74 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *i
     stmt->SetSrcFileInfo(sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum());
     stmts.emplace_back(std::move(stmt));
   }
+}
+
+void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
+                                                  uint32 fileNum, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+    return;
+  }
+  const MIRFuncType *funcType = FEUtils::GetFuncPtrType(dstType);
+  if (funcType == nullptr) {
+    return;
+  }
+  if (srcExpr->GetKind() == kExprAddrofFunc) {  // check func ptr l-value and &func decl r-value
+    GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(
+        static_cast<FEIRExprAddrofFunc*>(srcExpr.get())->GetFuncAddr());
+    MIRFunction *srcFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
+    CHECK_FATAL(srcFunc != nullptr, "can not get MIRFunction");
+    bool isMatched = true;
+    for (size_t i = 0; i < srcFunc->GetParamSize() && funcType->GetParamAttrsList().size(); ++i) {
+      if (srcFunc->GetNthParamAttr(i).GetAttr(ATTR_nonnull) != funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
+        isMatched = false;
+        break;
+      }
+    }
+    if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
+      isMatched = false;
+    }
+    if (!isMatched) {
+      ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched",
+          FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+    }
+  }
+  const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
+  if (srcFuncType != nullptr) {   // check func ptr l-value and func ptr r-value
+    bool isMatched = true;
+    for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && funcType->GetParamAttrsList().size(); ++i) {
+      if (srcFuncType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull) !=
+          funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
+        isMatched = false;
+        break;
+      }
+    }
+    if (srcFuncType->GetRetAttrs().GetAttr(ATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
+      isMatched = false;
+    }
+    if (!isMatched) {
+      ERR(kLncErr, "%s:%d error: function pointer's attributes are mismatched",
+          FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+    }
+  }
+}
+
+void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr() const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+    return;
+  }
+  MIRType *baseType = var->GetType()->GenerateMIRTypeAuto();
+  if (fieldID != 0) {
+    baseType = FEUtils::GetStructFieldType(static_cast<MIRStructType*>(baseType), fieldID);
+  }
+  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
+}
+
+void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRType &baseType) const {
+  MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+    return;
+  }
+  ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
 }
 
 // ---------------------------
@@ -430,15 +528,12 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   } else {
     if (lRealLenExpr != nullptr) {  // init boundary in func body if a field/global var l-value with boundary attr
       std::list<UniqueFEIRStmt> stmts;
-      std::list<StmtNode*> stmtNodes;
       lBoundaryVarStIdx = InitBoundaryVar(*curFunction, dstExpr, lRealLenExpr->Clone(), stmts);
       for (const auto &stmt : stmts) {
-        std::list<StmtNode*> res = stmt->GenMIRStmts(mirBuilder);
-        stmtNodes.splice(stmtNodes.end(), res);
-      }
-      for (auto stmtNode : stmtNodes) {
-        MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
-        curFunction->GetBody()->InsertFirst(stmtNode);
+        std::list<StmtNode*> stmtNodes = stmt->GenMIRStmts(mirBuilder);
+        for (auto stmtNode : stmtNodes) {
+          curFunction->GetBody()->InsertFirst(stmtNode);
+        }
       }
     }
   }

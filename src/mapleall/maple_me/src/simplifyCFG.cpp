@@ -42,6 +42,51 @@ std::pair<BB *, BB *> GetTrueFalseBrPair(BB *bb) {
   }
   return { nullptr, nullptr };
 }
+} // anonymous namespace
+
+// contains only one valid goto stmt
+bool HasOnlyGotoStmt(BB &bb) {
+  if (bb.IsMeStmtEmpty() || !bb.IsGoto()) {
+    return false;
+  }
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip comment stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  if (stmt->GetOp() == OP_goto) {
+    return true;
+  }
+  return false;
+}
+
+// contains only one valid condgoto stmt
+bool HasOnlyCondGotoStmt(BB &bb) {
+  if (bb.IsMeStmtEmpty() || bb.GetKind() != kBBCondGoto) {
+    return false;
+  }
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip comment stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  if (kOpcodeInfo.IsCondBr(stmt->GetOp())) {
+    return true;
+  }
+  return false;
+}
+
+bool IsEmptyBB(BB &bb) {
+  if (bb.IsMeStmtEmpty()) {
+    return true;
+  }
+  MeStmt *stmt = bb.GetFirstMe();
+  // Skip comment stmt
+  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
+    stmt = stmt->GetNextMeStmt();
+  }
+  return stmt == nullptr;
+}
 
 // pred-connecting-succ
 // connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
@@ -54,7 +99,7 @@ bool IsConnectingBB(BB &bb) {
 // If we want to find the non-empty succ of currBB, we start from the succ (i.e. the argument)
 // skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
 // func will stop at first non-connecting BB or stopBB
-BB *FindFirstRealSucc(BB *succ, BB *stopBB = nullptr) {
+BB *FindFirstRealSucc(BB *succ, BB *stopBB) {
   while (succ != stopBB && IsConnectingBB(*succ)) {
     succ = succ->GetSucc(0);
   }
@@ -65,7 +110,7 @@ BB *FindFirstRealSucc(BB *succ, BB *stopBB = nullptr) {
 // If we want to find the non-empty pred of currBB, we start from the pred (i.e. the argument)
 // skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
 // func will stop at first non-connecting BB or stopBB
-BB *FindFirstRealPred(BB *pred, BB *stopBB = nullptr) {
+BB *FindFirstRealPred(BB *pred, BB *stopBB) {
   while (pred != stopBB && IsConnectingBB(*pred)) {
     pred = pred->GetPred(0);
   }
@@ -128,23 +173,6 @@ size_t GetFallthruPredNum(const BB &bb) {
 bool HasFallthruPred(const BB &bb) {
   return GetFallthruPredNum(bb) != 0;
 }
-
-// contains only one valid condgoto stmt
-bool HasOnlyCondGotoStmt(BB &bb) {
-  if (bb.IsMeStmtEmpty() || bb.GetKind() != kBBCondGoto) {
-    return false;
-  }
-  MeStmt *stmt = bb.GetFirstMe();
-  // Skip comment stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  if (kOpcodeInfo.IsCondBr(stmt->GetOp())) {
-    return true;
-  }
-  return false;
-}
-} // anonymous namespace
 
 static bool RemoveUnreachableBB(maple::MeFunction &f) {
   return f.GetCfg()->UnreachCodeAnalysis(true);
@@ -218,6 +246,8 @@ class SimplifyCFG {
   bool SimplifySwitchBB();
 
   // for sub-pattern in SimplifyCondBB
+  MeExpr *TryToSimplifyCombinedCond(const MeExpr &expr);
+  bool FoldBranchToCommonDest(BB *pred, BB *succ);
   bool FoldBranchToCommonDest();
   bool SkipRedundantCond();
   bool SkipRedundantCond(BB &pred, BB &succ);
@@ -394,13 +424,28 @@ bool SimplifyCFG::ChangeCondBr2UnCond() {
       return true;
     }
   }
-  MeExpr *condExpr = currBB->GetLastMe()->GetOpnd(0);
+  MeStmt *brStmt = currBB->GetLastMe();
+  MeExpr *condExpr = brStmt->GetOpnd(0);
   // case 1
   if (condExpr->GetMeOp() == kMeOpConst) {
     // work to be done later
-    return false;
+    BB *ftBB = currBB->GetSucc(0);
+    BB *gtBB = currBB->GetSucc(1);
+    bool cond = (!condExpr->IsZero());
+    bool isBrtrue = (brStmt->GetOp() == OP_brtrue);
+    if (cond ^ isBrtrue) { // goto fallthru BB
+      currBB->RemoveLastMeStmt();
+      currBB->SetKind(kBBFallthru);
+      currBB->RemoveSucc(*gtBB, true);
+    } else {
+      MeStmt *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*gtBB), currBB, &brStmt->GetSrcPosition());
+      currBB->ReplaceMeStmt(brStmt, gotoStmt);
+      currBB->SetKind(kBBGoto);
+      currBB->RemoveSucc(*ftBB, true);
+    }
+    SetBBRunAgain();
+    return true;
   }
-  // case 1 : work to be done - condExpr is not a const, but all its opnd is const but has not been constfolded
   return false;
 }
 
@@ -487,20 +532,41 @@ bool SimplifyCFG::SinkCommonCode() {
   return false;
 }
 
-static bool IsSafeForCond2Sel(MeExpr *expr) {
+static void GetUnsafeExpr(MeExpr *expr, std::set<MeExpr*>& exprSet) {
+  if (expr->GetMeOp() == kMeOpConst || expr->GetMeOp() == kMeOpVar) {
+    return;
+  }
+  if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
+    exprSet.insert(expr);
+  }
+  if (expr->GetOp() == OP_div || expr->GetOp() == OP_rem) {
+    MeExpr *opnd1 = expr->GetOpnd(1);
+    if (opnd1->GetMeOp() == kMeOpConst && !opnd1->IsZero()) {
+      GetUnsafeExpr(expr->GetOpnd(0), exprSet);
+    }
+    // we are not sure whether opnd1 may be zero
+    exprSet.insert(expr);
+  }
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    GetUnsafeExpr(expr->GetOpnd(i), exprSet);
+  }
+}
+
+// expr not throw exception
+static bool IsSafeExpr(MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
     return false;
   }
   if (expr->GetOp() == OP_div || expr->GetOp() == OP_rem) {
     MeExpr *opnd1 = expr->GetOpnd(1);
     if (opnd1->GetMeOp() == kMeOpConst && !opnd1->IsZero()) {
-      return true;
+      return IsSafeExpr(expr->GetOpnd(0));
     }
     // we are not sure whether opnd1 may be zero
     return false;
   }
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
-    if (!IsSafeForCond2Sel(expr->GetOpnd(i))) {
+    if (!IsSafeExpr(expr->GetOpnd(i))) {
       return false;
     }
   }
@@ -534,8 +600,8 @@ bool SimplifyCFG::IsProfitableForCond2Sel(MeExpr *condExpr, MeExpr *trueExpr, Me
   if (trueExpr == falseExpr) {
     return true;
   }
-  ASSERT(IsSafeForCond2Sel(trueExpr), "[FUNC: %s]Please check for safety first", funcName) ;
-  ASSERT(IsSafeForCond2Sel(falseExpr), "[FUNC: %s]Please check for safety first", funcName) ;
+  ASSERT(IsSafeExpr(trueExpr), "[FUNC: %s]Please check for safety first", funcName) ;
+  ASSERT(IsSafeExpr(falseExpr), "[FUNC: %s]Please check for safety first", funcName) ;
   // try to simplify
   MeExpr *selExpr = irmap->CreateMeExprSelect(trueExpr->GetPrimType(), *condExpr, *trueExpr, *falseExpr);
   MeExpr *simplifiedSel = irmap->SimplifyMeExpr(selExpr);
@@ -713,7 +779,7 @@ bool SimplifyCFG::CondBranchToSelect() {
   }
   if (ftRHS != gtRHS) { // if ftRHS is the same as gtRHS, they can be simplified, and no need to check safety
     // black list
-    if (!IsSafeForCond2Sel(ftRHS) || !IsSafeForCond2Sel(gtRHS)) {
+    if (!IsSafeExpr(ftRHS) || !IsSafeExpr(gtRHS)) {
       return false;
     }
   }
@@ -1419,9 +1485,304 @@ bool SimplifyCFG::SimplifySwitchBB() {
   return true;
 }
 
+static MeExpr *GetInvertCond(MeIRMap *irmap, MeExpr *cond) {
+  if (IsCompareHasReverseOp(cond->GetOp())) {
+    return irmap->CreateMeExprBinary(GetReverseCmpOp(cond->GetOp()), cond->GetPrimType(),
+                                     *cond->GetOpnd(0), *cond->GetOpnd(1));
+  }
+  return irmap->CreateMeExprUnary(OP_lnot, cond->GetPrimType(), *cond);
+}
+
+// Is subSet a subset of superSet?
+template <class T>
+static bool IsSubset(const std::set<T> &subSet, const std::set<T> &superSet) {
+  return std::includes(superSet.begin(), superSet.end(),
+                       subSet.begin(), subSet.end());
+}
+
+static bool IsSafeToMergeCond(MeExpr *predCond, MeExpr *succCond) {
+  // Make sure succCond is not dependent on predCond
+  // e.g. if (ptr != nullptr) if (*ptr), the second condition depends on the first one
+  if (predCond == succCond) {
+    return true; // same expr
+  }
+  if (!IsSafeExpr(succCond)) {
+    std::set<MeExpr*> predSet;
+    GetUnsafeExpr(predCond, predSet);
+    std::set<MeExpr*> succSet;
+    GetUnsafeExpr(succCond, succSet);
+    if (!IsSubset(succSet, predSet)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool IsProfitableToMergeCond(MeExpr *predCond, MeExpr *succCond) {
+  if (predCond == succCond) {
+    return true;
+  }
+  ASSERT(IsSafeToMergeCond(predCond, succCond), "please check for safety first");
+  // no constraint for predCond
+  // Only "cmpop (var/reg/const, var/reg/const)" are allowed for subCond
+  if (IsCompareHasReverseOp(succCond->GetOp())) {
+    MeExprOp opnd0Op = succCond->GetOpnd(0)->GetMeOp();
+    MeExprOp opnd1Op = succCond->GetOpnd(1)->GetMeOp();
+    if ((opnd0Op == kMeOpVar || opnd0Op == kMeOpReg || opnd0Op == kMeOpConst) &&
+        (opnd1Op == kMeOpVar || opnd1Op == kMeOpReg || opnd1Op == kMeOpConst)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// simple cmp expr is "scalarExpr cmp constExpr/scalarExpr"
+static std::unique_ptr<ValueRange> GetVRForSimpleCmpExpr(const MeExpr &expr) {
+  Opcode op = expr.GetOp();
+  if (!IsCompareHasReverseOp(op)) {
+    return nullptr;
+  }
+  // only deal with "scalarExpr cmp constExpr"
+  MeExpr *opnd0 = expr.GetOpnd(0);
+  if (!opnd0->IsScalar()) {
+    return nullptr;
+  }
+  PrimType opndType = static_cast<const OpMeExpr&>(expr).GetOpndType();
+  if (!IsPrimitiveInteger(opndType)) {
+    return nullptr;
+  }
+  Bound opnd1Bound(nullptr, 0, opndType); // bound of expr's opnd1
+  if (expr.GetOpnd(1)->GetMeOp() == kMeOpConst) {
+    MIRConst *constVal = static_cast<ConstMeExpr *>(expr.GetOpnd(1))->GetConstVal();
+    if (constVal->GetKind() != kConstInt) {
+      return nullptr;
+    }
+    int64 val = static_cast<MIRIntConst*>(constVal)->GetValue();
+    opnd1Bound.SetConstant(val);
+  } else if (expr.GetOpnd(1)->IsScalar()) {
+    opnd1Bound.SetVar(expr.GetOpnd(1));
+  } else {
+    return nullptr;
+  }
+  Bound maxBound = Bound::MaxBound(opndType);
+  Bound minBound = Bound::MinBound(opndType);
+
+  switch (op) {
+    case OP_gt: {
+      return std::make_unique<ValueRange>(++opnd1Bound, maxBound, kLowerAndUpper);
+    }
+    case OP_ge: {
+      return std::make_unique<ValueRange>(opnd1Bound, maxBound, kLowerAndUpper);
+    }
+    case OP_lt: {
+      return std::make_unique<ValueRange>(minBound, --opnd1Bound, kLowerAndUpper);
+    }
+    case OP_le: {
+      return std::make_unique<ValueRange>(minBound, opnd1Bound, kLowerAndUpper);
+    }
+    case OP_eq: {
+      return std::make_unique<ValueRange>(opnd1Bound, kEqual);
+    }
+    case OP_ne: {
+      return std::make_unique<ValueRange>(opnd1Bound, kNotEqual);
+    }
+    default: {
+      return nullptr;
+    }
+  }
+}
+
+MeExpr *SimplifyCFG::TryToSimplifyCombinedCond(const MeExpr &expr) {
+  Opcode op = expr.GetOp();
+  if (op != OP_land && op != OP_lior) {
+    return nullptr;
+  }
+  // we can only deal with "and/or(cmpop1(sameExpr, constExpr1/scalarExpr), cmpop2(sameExpr, constExpr2/scalarExpr))"
+  if (expr.GetOpnd(0)->GetOpnd(0) != expr.GetOpnd(1)->GetOpnd(0)) {
+    return nullptr;
+  }
+  auto vr1 = GetVRForSimpleCmpExpr(*expr.GetOpnd(0));
+  auto vr2 = GetVRForSimpleCmpExpr(*expr.GetOpnd(1));
+  if (vr1.get() == nullptr || vr2.get() == nullptr) {
+    return nullptr;
+  }
+  auto vrRes = MergeVR(*vr1, *vr2, op == OP_land);
+  MeExpr *resExpr = GetCmpExprFromVR(vrRes.get(), *expr.GetOpnd(0)->GetOpnd(0), irmap);
+  if (resExpr != nullptr) {
+    resExpr->SetPtyp(expr.GetPrimType());
+    if (!IsCompareHasReverseOp(resExpr->GetOp())) {
+      return nullptr;
+    }
+  }
+  return resExpr;
+}
+
+// Check for pattern:
+//        predBB
+//        /  \
+//       /  succBB
+//      /   /   \
+//     commonBB  exitBB
+// note: there may be some empty BB between predBB->commonBB, and succBB->commonBB, we should skip them
+// return commonBB if exit, return nullptr otherwise.
+static BB *GetCommonDest(BB *predBB, BB *succBB) {
+  if (predBB == nullptr || succBB == nullptr || predBB == succBB) {
+    return nullptr;
+  }
+  if (predBB->GetKind() != kBBCondGoto || succBB->GetKind() != kBBCondGoto) {
+    return nullptr;
+  }
+  BB *psucc0 = FindFirstRealSucc(predBB->GetSucc(0));
+  BB *psucc1 = FindFirstRealSucc(predBB->GetSucc(1));
+  BB *ssucc0 = FindFirstRealSucc(succBB->GetSucc(0));
+  BB *ssucc1 = FindFirstRealSucc(succBB->GetSucc(1));
+  if (psucc0 == nullptr || psucc1 == nullptr || ssucc0 == nullptr || ssucc1 == nullptr) {
+    return nullptr;
+  }
+
+  if (psucc0 != succBB && psucc1 != succBB) {
+    return nullptr; // predBB has no branch to succBB
+  }
+  BB *commonBB = (psucc0 == succBB) ? psucc1 : psucc0;
+  if (commonBB == nullptr) {
+    return nullptr;
+  }
+  if (ssucc0 == commonBB || ssucc1 == commonBB) {
+    return commonBB;
+  }
+  return nullptr;
+};
+
+// pattern is like:
+//       pred(condBB)
+//       /         \
+//      /     succ(condBB)
+//     /     /       \
+//    commonBB       exitBB
+//
+// note: pred->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
+bool SimplifyCFG::FoldBranchToCommonDest(BB *pred, BB *succ) {
+  if (!HasOnlyCondGotoStmt(*succ)) {
+    // not a simple condBB
+    return false;
+  }
+  // try to simplify realSucc first, if all successors of realSucc is the same, no need to check the condition
+  if (SimplifyBranchBBToUncondBB(*succ)) {
+    return true;
+  }
+  if (succ->GetPred().size() != 1) {
+    return false;
+  }
+  // Check for pattern : predBB branches to succ, and one of succ's successor(common BB)
+  BB *commonBB = GetCommonDest(pred, succ);
+  if (commonBB == nullptr) {
+    return false;
+  }
+  // we have found a pattern
+  auto *succCondBr = static_cast<CondGotoMeStmt*>(succ->GetLastMe());
+  MeExpr *succCond = succCondBr->GetOpnd();
+  auto *predCondBr = static_cast<CondGotoMeStmt*>(pred->GetLastMe());
+  MeExpr *predCond = predCondBr->GetOpnd();
+  // Check for safety
+  if (!IsSafeToMergeCond(predCond, succCond)) {
+    DEBUG_LOG() << "Abort Merging Two CondBB : Condition in successor BB" << LOG_BBID(succ) << " is not safe\n";
+    return false;
+  }
+  if (!IsProfitableToMergeCond(predCond, succCond)) {
+    DEBUG_LOG() << "Abort Merging Two CondBB : Condition in successor BB"
+                << LOG_BBID(succ) << " is not simple enough and not profitable\n";
+    return false;
+  }
+  // Start trying to merge two condition together if possible
+  auto ptfBrPair = GetTrueFalseBrPair(pred); // pred's true and false branches
+  auto stfBrPair = GetTrueFalseBrPair(succ); // succ's true and false branches
+  Opcode combinedCondOp = OP_undef;
+  bool invertSuccCond = false; // invert second condition, e.g. (cond1 && !cond2)
+  // all cases are listed as follow:
+  //  | case | predBB -> common | succBB -> common | invertSuccCond | or/and |
+  //  | ---- | ---------------- | ---------------- | -------------- | ------ |
+  //  | 1    | true             | true             |                | or     |
+  //  | 2    | false            | false            |                | and    |
+  //  | 3    | true             | false            | true           | or     |
+  //  | 4    | false            | true             | true           | and    |
+  //
+  // pred's false branch to succ, so true branch to common
+  bool isPredTrueToCommon = (FindFirstRealSucc(ptfBrPair.second) == succ);
+  bool isSuccTrueToCommon = (FindFirstRealSucc(stfBrPair.first) == commonBB);
+  if (isPredTrueToCommon && isSuccTrueToCommon) { // case 1
+    invertSuccCond = false;
+    combinedCondOp = OP_lior;
+  } else if (!isPredTrueToCommon && !isSuccTrueToCommon) { // case 2
+    invertSuccCond = false;
+    combinedCondOp = OP_land;
+  } else if (isPredTrueToCommon && !isSuccTrueToCommon) { // case 3
+    invertSuccCond = true;
+    combinedCondOp = OP_lior;
+  } else if (!isPredTrueToCommon && isSuccTrueToCommon){ // case 4
+    invertSuccCond = true;
+    combinedCondOp = OP_land;
+  } else {
+    CHECK_FATAL(false, "[FUNC: %s] pred and succ have no common dest", f.GetName().c_str());
+  }
+  if (invertSuccCond) {
+    succCond = GetInvertCond(irmap, succCond);
+  }
+  MeExpr *combinedCond = irmap->CreateMeExprBinary(combinedCondOp, PTY_u1, *predCond, *succCond);
+  // try to simplify combinedCond, if failed, not combine condition
+  combinedCond = TryToSimplifyCombinedCond(*combinedCond);
+  if (combinedCond == nullptr) {
+    // work to do : after enhance instruction select, rm this restriction
+    return false;
+  }
+  // eliminate empty bb between pred and succ.
+  EliminateEmptyConnectingBB(pred, isPredTrueToCommon ? ptfBrPair.second : ptfBrPair.first, succ, *cfg);
+  DEBUG_LOG() << "CondBB Group To Merge : \n  {\n"
+              << "    BB" << LOG_BBID(pred) << " succ : (BB" << LOG_BBID(pred->GetSucc(0)) << ", BB"
+              << LOG_BBID(pred->GetSucc(1)) << ")\n"
+              << "    BB" << LOG_BBID(succ) << " succ : (BB" << LOG_BBID(succ->GetSucc(0)) << ", BB"
+              << LOG_BBID(succ->GetSucc(1)) << ")\n  }\n";
+  predCondBr->SetOpnd(0, combinedCond);
+  // remove succ and update cfg
+  BB *exitBB = isSuccTrueToCommon ? stfBrPair.second : stfBrPair.first;
+  pred->ReplaceSucc(succ, exitBB);
+  exitBB->RemovePred(*succ, false); // not update phi here, because its phi opnd is the same as before.
+  // we should eliminate edge from succ to commonBB
+  BB *toEliminateBB = isSuccTrueToCommon ? stfBrPair.first : stfBrPair.second;
+  EliminateEmptyConnectingBB(succ, toEliminateBB, commonBB /* stop here */, *cfg);
+  succ->RemoveSucc(*commonBB);
+  // Update target label
+  if (predCondBr->GetOffset() != pred->GetSucc(1)->GetBBLabel()) {
+    LabelIdx label = f.GetOrCreateBBLabel(*pred->GetSucc(1));
+    predCondBr->SetOffset(label);
+  }
+  DEBUG_LOG() << "Delete CondBB BB" << LOG_BBID(succ) << " after merged to CondBB BB" << LOG_BBID(pred) << "\n";
+  DeleteBB(succ);
+  SetBBRunAgain();
+  return true;
+}
+
+// pattern is like:
+//       curr(condBB)
+//       /         \
+//      /     succ(condBB)
+//     /     /       \
+//    commonBB       exitBB
+//
+// note: curr->commonBB and succ->commonBB are critical edge, they may be cut by an empty bb before
 bool SimplifyCFG::FoldBranchToCommonDest() {
   CHECK_CURR_BB();
-  return false;
+  if (currBB->GetKind() != kBBCondGoto) {
+    return false;
+  }
+  bool change = false;
+  for (size_t i = 0; i < currBB->GetSucc().size(); ++i) {
+    BB *realSucc = FindFirstRealSucc(currBB->GetSucc(i));
+    if (realSucc == nullptr) {
+      continue;
+    }
+    change |= FoldBranchToCommonDest(currBB, realSucc);
+  }
+  return change;
 }
 
 bool SimplifyCFG::RunOnceOnBB() {

@@ -36,6 +36,10 @@ const std::vector<MIRType*> &ASTDecl::GetTypeDesc() const {
   return typeDesc;
 }
 
+void ASTDecl::SetTypeDesc(const std::vector<MIRType*> &typeVecIn) {
+  typeDesc = typeVecIn;
+}
+
 MIRConst *ASTDecl::Translate2MIRConst() const {
   return Translate2MIRConstImpl();
 }

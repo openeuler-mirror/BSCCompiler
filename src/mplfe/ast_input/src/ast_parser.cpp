@@ -2408,6 +2408,10 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
       astFile->GetContext()->getTypeUnadjustedAlign(qualType));
   uint32 maxAlign = std::max(alignment.getQuantity(), unadjust.getQuantity());
   fieldDecl->SetAlign(maxAlign);
+  const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&decl);
+  if (valueDecl != nullptr) {
+    ProcessNonnullFuncPtrAttrs(*valueDecl, *fieldDecl);
+  }
   return fieldDecl;
 }
 
@@ -2480,6 +2484,10 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
         astVar->SetAlign(alignment);
       }
     }
+  }
+  const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&varDecl);
+  if (valueDecl != nullptr) {
+    ProcessNonnullFuncPtrAttrs(*valueDecl, *astVar);
   }
   ProcessBoundaryVarAttrs(allocator, varDecl, *astVar);
   return astVar;

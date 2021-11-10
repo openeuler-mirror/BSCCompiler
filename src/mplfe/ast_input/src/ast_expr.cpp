@@ -1661,20 +1661,20 @@ UniqueFEIRExpr ASTMemberExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
     FieldID fieldID = FEUtils::GetStructFieldID(structType, fieldName);
     MIRType *reType = FEUtils::GetStructFieldType(structType, fieldID);
     CHECK_FATAL(reType->GetPrimType() == memberType->GetPrimType(), "traverse fieldID error, type is inconsistent");
-    UniqueFEIRType memberFEType = std::make_unique<FEIRTypeNative>(*memberType);
+    UniqueFEIRType reFEType = std::make_unique<FEIRTypeNative>(*reType);
     FieldID baseID = baseFEExpr->GetFieldID();
     if (baseFEExpr->GetKind() == FEIRNodeKind::kExprIRead) {
       baseFEExpr->SetFieldID(baseID + fieldID);
-      baseFEExpr->SetType(std::move(memberFEType));
+      baseFEExpr->SetType(std::move(reFEType));
       return baseFEExpr;
     }
     UniqueFEIRVar tmpVar = static_cast<FEIRExprDRead*>(baseFEExpr.get())->GetVar()->Clone();
-    if (memberFEType->IsArray()) {
+    if (reFEType->IsArray()) {
       auto addrofExpr = std::make_unique<FEIRExprAddrofVar>(std::move(tmpVar));
       addrofExpr->SetFieldID(baseID + fieldID);
       return addrofExpr;
     } else {
-      return FEIRBuilder::CreateExprDReadAggField(std::move(tmpVar), baseID + fieldID, std::move(memberFEType));
+      return FEIRBuilder::CreateExprDReadAggField(std::move(tmpVar), baseID + fieldID, std::move(reFEType));
     }
   }
 }

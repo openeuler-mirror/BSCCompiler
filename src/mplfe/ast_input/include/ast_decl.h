@@ -45,6 +45,7 @@ class ASTDecl {
   const std::string &GetSrcFileName() const;
   const std::string &GetName() const;
   const std::vector<MIRType*> &GetTypeDesc() const;
+  void SetTypeDesc(const std::vector<MIRType*> &typeVecIn);
   GenericAttrs GetGenericAttrs() const {
     return genAttrs;
   }

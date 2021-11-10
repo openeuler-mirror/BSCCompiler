@@ -68,13 +68,13 @@ class UseItem {
   } useNode;
 };
 
-struct DefineInfoOfPhi {
+struct DefUseInfoOfPhi {
   bool allOpndsUsedOnlyInPhi; // true only if all opnds of phi used only in current phi
   bool allOpndsDefedByStmt; // true only if all opnds of phi defined by stmt (assign/callassign)
   bool opndsHasIdenticalVal;
   MeExpr *valueExpr; // nonnull only if all opnds of phi defined by AssignMeStmt with identical rhs
 
-  DefineInfoOfPhi &MergeDefInfoOfPhi(const DefineInfoOfPhi &other) {
+  DefUseInfoOfPhi &MergeDefInfoOfPhi(const DefUseInfoOfPhi &other) {
     allOpndsUsedOnlyInPhi &= other.allOpndsUsedOnlyInPhi;
     allOpndsDefedByStmt &= other.allOpndsDefedByStmt;
     opndsHasIdenticalVal &= other.opndsHasIdenticalVal;
@@ -99,8 +99,8 @@ class MeSink {
   bool OpndOfExprRedefined(const MeExpr *expr) const;
   template <class T>
   void AddScalarUseSite(const ScalarMeExpr *scalar, T *useSite);
-  std::pair<AssignMeStmt*, bool> ScalarUsedInSingleCopy(const ScalarMeExpr *scalar,
-                                                        std::set<const ScalarMeExpr*> &visitedScalars) const;
+  bool ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *stmt,
+                               std::set<const ScalarMeExpr*> &visitedScalars) const;
   void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB);
   void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB);
 
@@ -112,8 +112,10 @@ class MeSink {
   bool ScalarHasValidDefStmt(const ScalarMeExpr *scalar);
 
   bool MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAssign);
-  DefineInfoOfPhi PhiOpndsAllDefinedByStmtAndUsedInPhi(MePhiNode *phi);
+  DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::list<std::pair<ScalarMeExpr*, MeStmt*>> &defStmts);
   bool ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar);
+  bool PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
+                                            std::list<std::pair<ScalarMeExpr*, MeStmt*>> &defStmtsOfPhiOpnds);
   bool MergeAssignStmtWithPhi(AssignMeStmt *assign, MePhiNode *phi);
   bool UpwardMergeAssignStmt(MeStmt *stmt);
   void ProcessStmt(MeStmt *stmt);
@@ -281,21 +283,29 @@ bool MeSink::OstHasNotBeenDefined(const OriginalSt *ost) {
     return false;
   }
 
-  auto *vers = versionStack[ost->GetIndex()].get();
-  if (vers == nullptr || vers->empty()) {
+  auto *versions = versionStack[ost->GetIndex()].get();
+  if (versions == nullptr || versions->empty()) {
     return true;
   }
-  if (vers->size() > 1) {
-    return false;
+  for (auto *ver : *versions) {
+    if (ver == nullptr) {
+      continue;
+    }
+    if (ver->GetExprID() == ost->GetZeroVersionIndex()) {
+      continue;
+    }
+
+    if (ver->IsDefByStmt()) {
+      if (ScalarHasValidDefStmt(ver)) {
+        return false;
+      }
+      continue;
+    }
+    if (!ver->IsDefByNo()) {
+      return false;
+    }
   }
-  auto *topVer = vers->front();
-  if (topVer == nullptr) {
-    return true;
-  }
-  if (ost->GetZeroVersionIndex() == topVer->GetExprID()) {
-    return true;
-  }
-  return false;
+  return true;
 }
 
 bool MeSink::ScalarHasValidDefStmt(const ScalarMeExpr *scalar) {
@@ -316,16 +326,21 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
   if (sinkCnt >= MeOption::sinkLimit) {
     return false;
   }
+  auto &mustDefNode = callAssignStmt->GetMustDefList()->front();
+  // preg has no alias, it is safe to replace it with another scalar
+  if (mustDefNode.GetLHS()->GetMeOp() != kMeOpReg) {
+    return false;
+  }
 
   if (assign == callAssignStmt->GetNextMeStmt() || OstHasNotBeenDefined(lhs->GetOst())) {
     ++sinkCnt;
     if (debug) {
-      LogInfo::MapleLogger() << ">>merge call assign:";
+      LogInfo::MapleLogger() << sinkCnt << ": merge call assign:";
       callAssignStmt->Dump(irMap);
       LogInfo::MapleLogger() << ">>with:";
       assign->Dump(irMap);
     }
-    auto &mustDefNode = callAssignStmt->GetMustDefList()->front();
+
     lhs->SetDefBy(kDefByMustDef);
     lhs->SetDefMustDef(const_cast<MustDefMeNode&>(mustDefNode));
     const_cast<MustDefMeNode&>(mustDefNode).SetLHS(lhs);
@@ -351,11 +366,13 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
   return false;
 }
 
-DefineInfoOfPhi MeSink::PhiOpndsAllDefinedByStmtAndUsedInPhi(MePhiNode *phi) {
-  DefineInfoOfPhi defInfo{true, true, true, nullptr};
+DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi,
+                                                std::list<std::pair<ScalarMeExpr*, MeStmt*>> &defStmts) {
+  DefUseInfoOfPhi defInfo{true, true, true, nullptr};
   auto &opnds = phi->GetOpnds();
   for (auto *opnd : opnds) {
     auto *useSitesOfOpnd = GetUseSitesOf(opnd);
+    // use sites of phi-opnd has not been traced, or it is used in multiple-sites
     if (useSitesOfOpnd == nullptr || useSitesOfOpnd->size() != 1) {
       return {false, false, false, nullptr};
     }
@@ -374,12 +391,14 @@ DefineInfoOfPhi MeSink::PhiOpndsAllDefinedByStmtAndUsedInPhi(MePhiNode *phi) {
         defInfo.valueExpr = nullptr;
         defInfo.opndsHasIdenticalVal = false;
       }
+      defStmts.emplace_back(opnd, assignStmt);
     } else if (opnd->IsDefByMustDef()) {
       defInfo.opndsHasIdenticalVal = false;
       defInfo.valueExpr = nullptr;
+      defStmts.emplace_back(opnd, opnd->GetDefMustDef().GetBase());
     } else if (opnd->IsDefByPhi()) {
       auto *defPhi = &opnd->GetDefPhi();
-      const auto &defineInfo = PhiOpndsAllDefinedByStmtAndUsedInPhi(defPhi);
+      const auto &defineInfo = DefAndUseInfoOfPhiOpnds(defPhi, defStmts);
       defInfo.MergeDefInfoOfPhi(defineInfo);
     } else {
       return {false, false, false, nullptr};
@@ -396,11 +415,23 @@ bool MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
   bb->GetMePhiList().insert(std::pair<OStIdx, MePhiNode*>(scalar->GetOstIdx(), newMePhi));
   scalar->SetDefBy(kDefByPhi);
   scalar->SetDefPhi(*newMePhi);
-
+  AddNewDefinedScalar(scalar);
   for (auto *opnd : phi->GetOpnds()) {
     auto *newVerScalar = irMap->CreateRegOrVarMeExprVersion(scalar->GetOstIdx());
+    auto idxOfPred = newMePhi->GetOpnds().size();
     if (opnd->IsDefByStmt()) {
       auto *defStmt = opnd->GetDefStmt();
+      // if rhs is the same var with scalar, not create self copy
+      if (kOpcodeInfo.AssignActualVar(defStmt->GetOp())) {
+        auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
+        if (rhs->IsScalar() && static_cast<ScalarMeExpr*>(rhs)->GetOst() == scalar->GetOst()) {
+          AddScalarUseSite(static_cast<ScalarMeExpr*>(rhs), bb->GetPred(idxOfPred));
+          newMePhi->GetOpnds().push_back(static_cast<ScalarMeExpr*>(rhs));
+          defStmt->GetBB()->RemoveMeStmt(defStmt);
+          defStmt->SetIsLive(false);
+          continue;
+        }
+      }
       if (opnd->GetMeOp() != newVerScalar->GetMeOp()) {
         auto *newDefStmt = irMap->CreateAssignMeStmt(*newVerScalar, *defStmt->GetRHS(), *defStmt->GetBB());
         defStmt->GetBB()->InsertMeStmtAfter(defStmt, newDefStmt);
@@ -412,25 +443,78 @@ bool MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
       }
       newVerScalar->SetDefBy(kDefByStmt);
       newVerScalar->SetDefByStmt(*defStmt);
-      AddScalarUseSite(newVerScalar, defStmt);
+      AddNewDefinedScalar(newVerScalar);
+      AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else if (opnd->IsDefByMustDef()) {
       auto &mustDef = opnd->GetDefMustDef();
       mustDef.SetLHS(newVerScalar);
       newVerScalar->SetDefBy(kDefByMustDef);
       newVerScalar->SetDefMustDef(mustDef);
-      auto idxOfPred = newMePhi->GetOpnds().size();
+      AddNewDefinedScalar(newVerScalar);
       AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else if (opnd->IsDefByPhi()) {
       auto &defPhi = opnd->GetDefPhi();
       ReplacePhiWithNewDataFlow(&defPhi, newVerScalar);
+      AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else {
       CHECK_FATAL(false, "scalar defined by no or chi cannot be replaced");
     }
   }
   phi->SetIsLive(false);
+  return true;
+}
+
+bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
+    std::list<std::pair<ScalarMeExpr*, MeStmt*>> &defStmtsOfPhiOpnds) {
+  auto *verStack = versionStack[scalar->GetOstIdx()].get();
+  // scalar has not been defined, the phi can be replaced
+  if (verStack == nullptr || verStack->empty()) {
+    return true;
+  }
+  auto *topVer = verStack->front();
+  MeStmt *defStmt = nullptr;
+  const BB *defBBOfTopVer = topVer->GetDefByBBMeStmt(*domTree, defStmt);
+  (void)defStmt;
+
+  // define stmt/phi of top-version must dominate phi and the define stmts of phi-opnds.
+  // define stmt of scalar must post-dominate define stmts of phi-opnds.
+  // Otherwise, new value of scalar will be available in a path which was nonavailable.
+  auto *domBBOfDefStmts = phi->GetDefBB();
+  if (domTree->Dominate(*domBBOfDefStmts, *defBBOfTopVer)) {
+    return false;
+  }
+  for (const auto &scalar2stmt : defStmtsOfPhiOpnds) {
+    auto *bbOfDefStmt = scalar2stmt.second->GetBB();
+    if (defBBOfTopVer == bbOfDefStmt || !domTree->Dominate(*defBBOfTopVer, *bbOfDefStmt)) {
+      return false;
+    }
+    if (defBBOfScalar == bbOfDefStmt || !domTree->PostDominate(*defBBOfScalar, *bbOfDefStmt)) {
+      return false;
+    }
+    while (!domTree->Dominate(*domBBOfDefStmts, *bbOfDefStmt)) {
+      domBBOfDefStmts = domTree->GetDom(domBBOfDefStmts->GetBBId());
+    }
+  }
+  if (!domTree->Dominate(*defBBOfTopVer, *domBBOfDefStmts)) {
+    return false;
+  }
+
+  // define stmts of phi-opnds will be replaced by define stmts of scalar,
+  // new defs of scalar cannot destruct its data-flow.
+  // To keep validation of data-flow of scalar,
+  // dominator of new define stmts should not dominate use sites of top-version.
+  auto *useSitesOfTopVer = GetUseSitesOf(topVer);
+  if (useSitesOfTopVer != nullptr) {
+    for (const auto &useSite : *useSitesOfTopVer) {
+      auto *bbOfUseSite = useSite.GetUseBB();
+      if (domTree->Dominate(*domBBOfDefStmts, *bbOfUseSite)) {
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -451,23 +535,25 @@ bool MeSink::MergeAssignStmtWithPhi(AssignMeStmt *assign, MePhiNode *phi) {
   if (!assign->GetIsLive()) {
     return false;
   }
+  if (assign->GetChiList() != nullptr && !assign->GetChiList()->empty()) {
+    return false;
+  }
 
   auto *lhsOfPhi = phi->GetLHS();
   std::set<const ScalarMeExpr*> visitedScalars;
-  const auto &singleCopyStmtInfo = ScalarUsedInSingleCopy(lhsOfPhi, visitedScalars);
-  if (!singleCopyStmtInfo.second || singleCopyStmtInfo.first != assign) {
+  bool scalarOnlyUsedInCurStmt = ScalarOnlyUsedInCurStmt(lhsOfPhi, assign, visitedScalars);
+  if (!scalarOnlyUsedInCurStmt) {
     return false;
   }
 
-  const auto &infoOfPhi = PhiOpndsAllDefinedByStmtAndUsedInPhi(phi);
-  if (!infoOfPhi.allOpndsDefedByStmt) {
+  std::list<std::pair<ScalarMeExpr*, MeStmt*>> defStmtsOfPhiOpnds;
+  const auto &defUseInfo = DefAndUseInfoOfPhiOpnds(phi, defStmtsOfPhiOpnds);
+  if (!defUseInfo.allOpndsUsedOnlyInPhi || !defUseInfo.allOpndsDefedByStmt) {
     return false;
   }
-  if (!infoOfPhi.allOpndsUsedOnlyInPhi) {
-    return false;
-  }
-  if (infoOfPhi.valueExpr && !OpndOfExprRedefined(infoOfPhi.valueExpr)) {
-    assign->SetRHS(infoOfPhi.valueExpr);
+
+  if (defUseInfo.valueExpr && !OpndOfExprRedefined(defUseInfo.valueExpr)) {
+    assign->SetRHS(defUseInfo.valueExpr);
     if (debug) {
       LogInfo::MapleLogger() << "merge assign with phi: " << std::endl;
       assign->Dump(irMap);
@@ -477,9 +563,9 @@ bool MeSink::MergeAssignStmtWithPhi(AssignMeStmt *assign, MePhiNode *phi) {
   }
 
   auto *lhs = assign->GetLHS();
-  if (OstHasNotBeenDefined(lhs->GetOst())) {
+  if (PhiCanBeReplacedWithDataFlowOfScalar(lhs, assign->GetBB(), phi, defStmtsOfPhiOpnds)) {
     if (debug) {
-      LogInfo::MapleLogger() << "merge assign with phi: " << std::endl;
+      LogInfo::MapleLogger() << sinkCnt << ": merge assign with phi: " << std::endl;
       assign->Dump(irMap);
       phi->Dump(irMap);
     }
@@ -540,8 +626,8 @@ bool MeSink::UpwardMergeAssignStmt(MeStmt *stmt) {
   }
 
   std::set<const ScalarMeExpr*> visitedScalars;
-  const auto &singleCopyInfo = ScalarUsedInSingleCopy(rhs, visitedScalars);
-  if (!singleCopyInfo.second || singleCopyInfo.first != assign) {
+  bool scalarOnlyUsedInCurStmt = ScalarOnlyUsedInCurStmt(rhs, assign, visitedScalars);
+  if (!scalarOnlyUsedInCurStmt) {
     return false;
   }
 
@@ -701,33 +787,26 @@ MeExpr *MeSink::ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB) {
   }
 }
 
-std::pair<AssignMeStmt*, bool> MeSink::ScalarUsedInSingleCopy(const ScalarMeExpr *scalar,
-                                                              std::set<const ScalarMeExpr*> &visitedScalars) const {
+bool MeSink::ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *stmt,
+                                     std::set<const ScalarMeExpr*> &visitedScalars) const {
   const auto &itPair = visitedScalars.insert(scalar);
   if (!itPair.second) {
-    return {nullptr, false};
+    return true;
   }
 
   auto *useSitesOfExpr = GetUseSitesOf(scalar);
   if (useSitesOfExpr == nullptr) {
-    return {nullptr, false};
+    if (visitedScalars.size() == 1) {
+      return false;
+    }
+    return true;
   }
 
-  AssignMeStmt *singleAssign = nullptr;
   for (auto &useItem : *useSitesOfExpr) {
     if (useItem.IsUseByStmt()) {
-      if (singleAssign != nullptr) {
-        return {nullptr, true};
-      }
       auto *useStmt = useItem.GetStmt();
-      if (kOpcodeInfo.AssignActualVar(useStmt->GetOp()) &&
-          GetEquivalentScalar(useStmt->GetRHS()) != nullptr) {
-        if (useStmt->GetChiList() != nullptr && !useStmt->GetChiList()->empty()) {
-          return {nullptr, true};
-        }
-        singleAssign = static_cast<AssignMeStmt *>(useStmt);
-      } else {
-        return {nullptr, true};
+      if (stmt != useStmt) {
+        return false;
       }
     } else if (useItem.IsUseByPhi()) {
       auto *bb = useItem.GetUseBB();
@@ -743,21 +822,14 @@ std::pair<AssignMeStmt*, bool> MeSink::ScalarUsedInSingleCopy(const ScalarMeExpr
           continue;
         }
 
-        const auto &useStmtInfo = ScalarUsedInSingleCopy(phi->GetLHS(), visitedScalars);
-        if (useStmtInfo.second) {
-          if (useStmtInfo.first == nullptr) {
-            return {nullptr, true};
-          }
-          if (singleAssign != nullptr) {
-            return {nullptr, true};
-          } else {
-            singleAssign = useStmtInfo.first;
-          }
+        bool usedOnlyInCurStmt = ScalarOnlyUsedInCurStmt(phi->GetLHS(), stmt, visitedScalars);
+        if (!usedOnlyInCurStmt) {
+          return false;
         }
       }
     }
   }
-  return {singleAssign, true};
+  return true;
 }
 
 static void ResetLiveStateOfDefPhi(MeExpr *expr) {
@@ -870,7 +942,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
   bb->GetMeStmts().push_front(assign);
   bb->GetMePhiList().erase(phi->GetLHS()->GetOstIdx());
   if (debug) {
-    LogInfo::MapleLogger() << "sink phi ";
+    LogInfo::MapleLogger() << sinkCnt << ": sink phi ";
     phi->Dump(irMap);
     LogInfo::MapleLogger() << " as ";
     assign->Dump(irMap);
@@ -1123,6 +1195,7 @@ void MeSink::ProcessPhiList(BB *bb) {
 
   for (auto &ost2Phi : phiList) {
     versionStack[ost2Phi.first]->push_front(ost2Phi.second->GetLHS());
+    AddNewDefinedScalar(ost2Phi.second->GetLHS());
   }
 
   for (auto &ost2Phi : phiList) {
@@ -1180,7 +1253,7 @@ void MeSink::SinkStmtsToHeaderOfBB(BB *bb) {
       }
 
       if (debug) {
-        LogInfo::MapleLogger() << "sink stmt to header of bb(" << bb->GetBBId() << ") from "
+        LogInfo::MapleLogger() << sinkCnt << ": sink stmt to header of bb(" << bb->GetBBId() << ") from bb"
                                << defStmt->GetBB()->GetBBId() << "): ";
         defStmt->Dump(irMap);
       }
@@ -1250,7 +1323,7 @@ void MeSink::SinkStmtsToBottomOfBB(BB *bb) {
       }
 
       if (debug) {
-        LogInfo::MapleLogger() << "sink stmt to bottom of bb(" << bb->GetBBId() << ") from ("
+        LogInfo::MapleLogger() << sinkCnt << ": sink stmt to bottom of bb(" << bb->GetBBId() << ") from bb("
                                << stmt->GetBB()->GetBBId() << "): ";
         stmt->Dump(irMap);
       }

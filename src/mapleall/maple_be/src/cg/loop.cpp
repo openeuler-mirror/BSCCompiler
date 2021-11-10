@@ -348,40 +348,6 @@ void LoopFinder::markExtraEntryAndEncl() {
         loop->otherLoopEntries.insert(bb);
       }
     }
-#if 0
-    // Keep the original backedge if possible
-    bool keepBEdge = false;
-    BB *origBackBB = *(loop->GetBackedge().begin());
-    for (auto succBB : origBackBB->GetSuccs()) {
-      if (loop->otherLoopEntries.find(succBB) != loop->otherLoopEntries.end()) {
-        keepBEdge = true;
-      }
-    }
-    if (!keepBEdge) {
-      loop->GetBackedgeNonConst().erase(origBackBB);
-    }
-
-    // Make head/entries have their backedges
-    for (auto entryBB : loop->otherLoopEntries) {
-      bool foundBEdge = false;
-      for (auto predBB : entryBB->GetPreds()) {
-        if (loop->GetBackedgeNonConst().find(predBB) != loop->GetBackedgeNonConst().end()) {
-          foundBEdge = true;
-          break;
-        }
-      }
-      if (!foundBEdge) {
-        for (auto predBB : entryBB->GetPreds()) {
-          if (loop->GetLoopMembers().find(predBB) != loop->GetLoopMembers().end()) {
-            loop->GetBackedgeNonConst().insert(predBB);
-            break;
-          }
-        }
-      }
-    }
-
-    loop->SetHeader(*(*loop->otherLoopEntries.begin()));
-#endif
     loop->otherLoopEntries.erase(loop->GetHeader());
   }
 }
@@ -551,14 +517,14 @@ void LoopFinder::DetectInnerLoop() {
            loopHierarchy2 = loopHierarchy2->GetNext()) {
         if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
           auto loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
-          if (find(loopHierarchy2Members.begin(),loopHierarchy2Members.end(), loopHierarchy1->GetHeader()) !=
-                   loopHierarchy2Members.end()) {
+          if (find(loopHierarchy2Members.begin(), loopHierarchy2Members.end(), loopHierarchy1->GetHeader()) !=
+              loopHierarchy2Members.end()) {
             bool allin = true;
             // Make sure body is included
             auto loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
             for (auto *bb1 : loopHierarchy1->GetLoopMembers()) {
-              if (find(loopHierarchy2Members.begin(),loopHierarchy2Members.end(), bb1) ==
-                       loopHierarchy2Members.end()) {
+              if (find(loopHierarchy2Members.begin(), loopHierarchy2Members.end(), bb1) ==
+                  loopHierarchy2Members.end()) {
                 allin = false;
                 break;
               }

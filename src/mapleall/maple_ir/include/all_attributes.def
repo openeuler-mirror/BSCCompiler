@@ -51,6 +51,8 @@
   ATTR(ipaseen)
   ATTR(rclocalunowned)
   ATTR(callersensitive)
+  ATTR(alias)
+  ATTR(weakref)
 #endif
 #if defined(FUNC_ATTR) || defined(TYPE_ATTR)
   ATTR(abstract)
@@ -79,5 +81,9 @@
 #endif
 #ifdef FUNC_ATTR
   ATTR(firstarg_return)
+  ATTR(called_once)
 #endif
   ATTR(oneelem_simd)
+  ATTR(nonnull)
+  ATTR(section)
+  ATTR(asmattr)
