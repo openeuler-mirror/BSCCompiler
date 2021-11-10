@@ -21,7 +21,7 @@
 namespace maple {
 std::string Cpp2MplCompiler::GetBinPath(const MplOptions&) const{
   return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
-    FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
+      FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
 }
 
 const std::string &Cpp2MplCompiler::GetBinName() const {

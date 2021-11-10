@@ -25,6 +25,7 @@ namespace maple {
 int64 GetMinNumber(PrimType primType);
 int64 GetMaxNumber(PrimType primType);
 bool IsNeededPrimType(PrimType prim);
+int64 GetRealValue(int64 value, PrimType primType);
 
 class Bound {
  public:
@@ -42,8 +43,16 @@ class Bound {
     return var;
   }
 
+  void SetVar(MeExpr *expr) {
+    var = expr;
+  }
+
   int64 GetConstant() const {
     return constant;
+  }
+
+  void SetConstant(int64 val) {
+    constant = val;
   }
 
   PrimType GetPrimType() const {
@@ -54,10 +63,33 @@ class Bound {
     primType = type;
   }
 
-  bool IsEqual(Bound bound) {
-    return var == bound.GetVar() && constant == bound.GetConstant() && primType && bound.GetPrimType();
+  bool CanBeComparedWith(const Bound &bound) const;
+
+  bool operator==(const Bound &bound) const {
+    return var == bound.GetVar() && constant == bound.GetConstant() && primType == bound.GetPrimType();
   }
 
+  bool operator<(const Bound &bound) const;
+
+  bool operator<=(const Bound &bound) const {
+    return (*this) == bound || (*this) < bound;
+  }
+  Bound &operator++() { // prefix inc
+    ++constant;
+    return *this;
+  }
+  Bound &operator--() { // prefix dec
+    --constant;
+    return *this;
+  }
+
+  static Bound MinBound(PrimType pType) {
+    return Bound(nullptr, GetMinNumber(pType), pType);
+  }
+
+  static Bound MaxBound(PrimType pType) {
+    return Bound(nullptr, GetMaxNumber(pType), pType);
+  }
  private:
   MeExpr *var;
   int64 constant;
@@ -65,13 +97,15 @@ class Bound {
 };
 
 enum RangeType {
+  kRTEmpty,
   kLowerAndUpper,
   kSpecialUpperForLoop,
   kSpecialLowerForLoop,
   kOnlyHasLowerBound,
   kOnlyHasUpperBound,
   kNotEqual,
-  kEqual
+  kEqual,
+  kRTComplete
 };
 
 enum StrideType {
@@ -112,6 +146,8 @@ class ValueRange {
     range.bound = bound;
   }
 
+  explicit ValueRange(RangeType type) : rangeType(type) {} // only used for kRTEmpty/kRTComplete
+
   ~ValueRange() = default;
 
   void SetRangePair(Bound lower, Bound upper) {
@@ -131,7 +167,7 @@ class ValueRange {
     range.pair.upper = upper;
   }
 
-  Bound GetUpper() {
+  Bound GetUpper() const {
     switch (rangeType) {
       case kLowerAndUpper:
       case kSpecialLowerForLoop:
@@ -148,7 +184,7 @@ class ValueRange {
     }
   }
 
-  Bound GetLower() {
+  Bound GetLower() const {
     switch (rangeType) {
       case kLowerAndUpper:
       case kSpecialLowerForLoop:
@@ -240,6 +276,11 @@ class ValueRange {
   RangeType rangeType;
 };
 
+// return nullptr means cannot merge, intersect = true : intersection set, intersect = false : union set
+std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2, bool intersect = false);
+// give expr and its value range, use irmap to create a cmp expr
+MeExpr *GetCmpExprFromVR(const ValueRange *vr, MeExpr &expr, MeIRMap *irmap);
+
 class ValueRangePropagation {
  public:
   static bool isDebug;
@@ -266,57 +307,13 @@ class ValueRangePropagation {
   }
 
  private:
-  bool IsBiggerThanMaxInt64(ValueRange &valueRange) const {
-    PrimType lowerPrim = valueRange.GetLower().GetPrimType();
-    PrimType upperPrim = valueRange.GetUpper().GetPrimType();
-
-    if (IsUnsignedInteger(lowerPrim) && GetPrimTypeSize(lowerPrim) == 4) { // 32bit
-      lowerPrim = PTY_u32;
-    }
-    if (IsUnsignedInteger(upperPrim) && GetPrimTypeSize(upperPrim) == 4) { // 32bit
-      upperPrim = PTY_u32;
-    }
-    if (IsUnsignedInteger(lowerPrim) && GetPrimTypeSize(lowerPrim) == 8) { // 64bit
-      lowerPrim = PTY_u64;
-    }
-    if (IsUnsignedInteger(upperPrim) && GetPrimTypeSize(upperPrim) == 8) { // 64bit
-      upperPrim = PTY_u64;
-    }
-
-    if (lowerPrim == PTY_u64) {
-      if (static_cast<uint64>(valueRange.GetLower().GetConstant()) > GetMaxNumber(PTY_i64)) {
-        return true;
-      }
-    }
-
-    if (upperPrim == PTY_u64) {
-      if (static_cast<uint64>(valueRange.GetUpper().GetConstant()) > GetMaxNumber(PTY_i64)) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool IsBiggerThanMaxInt64(ValueRange &valueRange) const;
 
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(const MeExpr &meExpr) {
     return std::make_unique<ValueRange>(Bound(nullptr, 0, meExpr.GetPrimType()), kNotEqual);
   }
 
-  bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange) {
-    if (valueRange == nullptr) {
-      caches.at(bbID)[exprID] = nullptr;
-      return true;
-    }
-    if (IsBiggerThanMaxInt64(*valueRange)) {
-      return false;
-    }
-    if (use2Defs.find(exprID) != use2Defs.end() && valueRange->IsConstant()) {
-      for (auto it : use2Defs[exprID]) {
-        caches.at(bbID)[it] = CopyValueRange(*valueRange.get(), valueRange->GetBound().GetPrimType());
-      }
-    }
-    caches.at(bbID)[exprID] = std::move(valueRange);
-    return true;
-  }
+  bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange);
 
   ValueRange *FindValueRangeInCurrentBB(BBId bbID, int32 exprID) {
     auto it = caches.at(bbID).find(exprID);
@@ -348,10 +345,6 @@ class ValueRangePropagation {
     if (!ret.second) {
       CHECK_FATAL(ret.first->second == opnd.GetExprID(), "must be equal");
     }
-  }
-
-  bool IsConditionalOp(Opcode op) const {
-    return op == OP_le || op == OP_lt || op == OP_ge || op == OP_gt || op == OP_ne || op == OP_eq;
   }
 
   BB *GetNewCopyFallthruBB(BB &trueOrFalseBranch, BB &bb) {
@@ -438,7 +431,6 @@ class ValueRangePropagation {
   bool BrStmtInRange(BB &bb, ValueRange &leftRange, ValueRange &rightRange, Opcode op,
                      bool judgeNotInRange = false);
   void ChangeLoop2Goto(LoopDesc &loop, BB &bb, BB &succBB, BB &unreachableBB);
-  int64 GetRealValue(int64 value, PrimType primType) const;
   void UpdateTryAttribute(BB &bb);
   void GetTrueAndFalseBranch(Opcode op, BB &bb, BB *&trueBranch, BB *&falseBranch) const;
   Opcode GetTheOppositeOp(Opcode op) const;
@@ -447,7 +439,7 @@ class ValueRangePropagation {
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
   bool ConditionEdgeCanBeDeletedAfterOPNeOrEq(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
-      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, bool dealWithShortCircuit = false);
+      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType);
   void DealWithOPNeOrEq(Opcode op, MeExpr *opnd0, BB &bb, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt, PrimType opndType);
   void InsertCandsForSSAUpdate(BB &bb, bool insertDefBBOfPhiOpnds2Cands = false);
@@ -455,14 +447,13 @@ class ValueRangePropagation {
   bool ConditionEdgeCanBeDeletedAfterOPNeOrEq(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
                                               BB &trueBranch, PrimType opndType, BB *condGoto = nullptr);
   bool OnlyHaveCondGotoStmt(BB &bb) const;
-  bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch, bool dealWithShortCircuit = false);
+  bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch);
   void RemoveUnreachableBB(BB &condGotoBB, BB &trueBranch);
   BB *CreateNewBasicBlockWithoutCondGotoStmt(BB &bb);
   void InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb);
   void CopyMeStmts(BB &fromBB, BB &toBB);
   bool ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB &trueBranch);
-  bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch, bool dealWithShortCircuit = false);
-  bool CopyFallthruBBAndRemoveUnreachableEdgeWhenDealWithShortCircuit(BB &pred, BB &bb, BB &trueBranch);
+  bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch);
   size_t GetRealPredSize(const BB &bb) const;
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch);
   void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1,
@@ -502,9 +493,6 @@ class ValueRangePropagation {
                                      MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
                                      std::unique_ptr<ValueRange> &valueRangeOfLength, uint32 &byteSize);
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
-  void DealWithShortCricuit(MeExpr &opnd, ValueRange &rightRange, BB &falseBranch, BB &trueBranch, BB &newMerge,
-                            PrimType opndType, bool &opt, std::unordered_map<BB*, ValueRange*> &pred2ValueRange,
-      bool hasCondGotoFromDomToPredBB = false);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
@@ -513,19 +501,13 @@ class ValueRangePropagation {
                                CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void Insert2UnreachableBBs(BB &unreachableBB);
-  void MergeValueRangeOfPred(BB &bb, const MeExpr &opnd);
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
   void DealWithCallassigned(BB &bb, MeStmt &stmt);
   void DeleteAssertNonNull();
   void DeleteBoundaryCheck();
   bool MustBeFallthruOrGoto(const BB &defBB, const BB &bb);
   std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange);
-  void PropValueRangeOfNewPredOfTrue2FalseBranch(
-      MeExpr &opnd, BB &condGoto, BB &bb, std::unique_ptr<ValueRange> valueRange);
   void DeleteUnreachableBBs(BB &curBB, BB &falseBranch, BB &trueBranch);
-  void PropValueRangeFromCondGotoToTrueAndFalseBranch(
-      BB &curBB, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch, BB &trueBranch,
-      std::unordered_map<BB*, ValueRange*> &pred2ValueRange);
   void PropValueRangeFromCondGotoToTrueAndFalseBranch(
       MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch, BB &trueBranch);
   bool CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const BB &bb);
@@ -552,9 +534,6 @@ class ValueRangePropagation {
   MapleMap<OStIdx, MapleSet<BBId>*> &cands;
   LoopScalarAnalysisResult &sa;
   std::unordered_map<BB*, BB*> loopHead2TrueBranch;
-  std::unordered_map<BB*, std::set<std::pair<BB*, MeExpr*>>> pred2NewSuccs;
-  // Collection of newMergeBB.
-  std::unordered_map<BB*, std::vector<std::pair<BB*, ValueRange*>>> trueOrFalseBranch2NewPred;
   std::unordered_map<BB*, uint32> newMergeBB2Opnd;
   std::set<std::unique_ptr<ValueRange>> valueRanges;
   std::unordered_map<BB*, std::vector<std::pair<BB*, BB*>>> trueOrFalseBranch2NewCopyFallthru;

@@ -45,7 +45,7 @@ bool LibAstFile::Open(const std::string &fileName,
   return true;
 }
 
-const AstASTContext *LibAstFile::GetAstContext() {
+const AstASTContext *LibAstFile::GetAstContext() const {
   return astContext;
 }
 
@@ -247,7 +247,13 @@ void LibAstFile::CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAtt
     genAttrs.SetAttr(GENATTR_weak);
   }
   if (decl.hasAttr<clang::NonNullAttr>() && decl.getKind() != clang::Decl::Function) {
-    genAttrs.SetAttr(GENATTR_nonnull);
+    for (const auto *nonNull : decl.specific_attrs<clang::NonNullAttr>()) {
+      if (nonNull->args_size() > 0) {
+        // nonnull with args in function type pointers need special handling to mark nonnull arg
+        continue;
+      }
+      genAttrs.SetAttr(GENATTR_nonnull);
+    }
   }
 }
 

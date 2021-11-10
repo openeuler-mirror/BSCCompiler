@@ -45,6 +45,7 @@ class FEUtils {
   static bool TraverseToNamedField(MIRStructType &structType, const GStrIdx &nameIdx, FieldID &fieldID,
                                    bool isTopLevel = true);
   static MIRType *GetStructFieldType(const MIRStructType *type, FieldID feildID);
+  static const MIRFuncType *GetFuncPtrType(const MIRType &type);
   static FieldPair GetLastestStructTypeAndField(MIRStructType &type, MIRStructType *&lastestType, FieldID &fieldID);
   static MIRConst *CreateImplicitConst(MIRType *type);
   static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
@@ -356,52 +357,6 @@ class AstLoopUtil {
   AstLoopUtil() = default;
   std::stack<std::pair<std::string, bool>> breakLabels = std::stack<std::pair<std::string, bool>>();
   std::stack<std::pair<std::string, bool>> continueLabels = std::stack<std::pair<std::string, bool>>();
-};
-
-class AstShortCircuitUtil {
- public:
-  static AstShortCircuitUtil &Instance() {
-    static AstShortCircuitUtil local;
-    return local;
-  }
-  ~AstShortCircuitUtil() = default;
-
-  void PushParen(const std::string &label) {
-    ParenLabels.push(label);
-  }
-
-  void PopParen() {
-    ParenLabels.pop();
-  }
-
-  bool IsParenLabelsEmpty() const {
-    return ParenLabels.empty();
-  }
-
-  void PushBinaryOperator(const std::string &label) {
-    BinaryOperatorLabels.push(label);
-  }
-
-  void PopBinaryOperator() {
-    BinaryOperatorLabels.pop();
-  }
-
-  bool IsBinaryOperatorLabelsEmpty() const {
-    return BinaryOperatorLabels.empty();
-  }
-
-  void SetIsShortCircuit(bool shortCircuit) {
-    isShortCircuit = shortCircuit;
-  }
-
-  bool GetIsShortCircuit() const {
-    return isShortCircuit;
-  }
- private:
-  AstShortCircuitUtil() = default;
-  bool isShortCircuit = false;
-  std::stack<std::string> ParenLabels = std::stack<std::string>();
-  std::stack<std::string> BinaryOperatorLabels = std::stack<std::string>();
 };
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_FE_UTILS_H

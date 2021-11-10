@@ -333,6 +333,9 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
         break;
       }
       const MIRSymbol *sym = ost->GetMIRSymbol();
+      if (sym->GetAsmAttr() != 0) {
+        break;
+      }
       if (sym->IsInstrumented() && !(func->GetHints() & kPlacementRCed)) {
         // not doing because its SSA form is not complete
         break;
@@ -350,7 +353,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (!MeOption::lpre4Address) {
         break;
       }
-      if (MeOption::rematLevel < mapleOption::kLevelTwo) {
+      if (!(mirModule->IsCModule()) || MeOption::rematLevel < mapleOption::kLevelTwo) {
         auto *addrOfMeExpr = static_cast<AddrofMeExpr *>(&meExpr);
         const OriginalSt *ost = ssaTab->GetOriginalStFromID(addrOfMeExpr->GetOstIdx());
         if (ost->IsLocal()) {  // skip lpre for stack addresses as they are cheap and need keep for rc

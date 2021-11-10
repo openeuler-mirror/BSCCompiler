@@ -19,32 +19,38 @@
 #include "maple_phase.h"
 namespace maple {
 // contains only one valid goto stmt
-inline bool HasOnlyGotoStmt(BB &bb) {
-  if (bb.IsMeStmtEmpty() || !bb.IsGoto()) {
-    return false;
-  }
-  const MeStmt *stmt = bb.GetFirstMe();
-  // Skip commont stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  if (stmt->GetOp() == OP_goto) {
-    return true;
-  }
-  return false;
-}
+bool HasOnlyGotoStmt(BB &bb);
 
-inline bool IsEmptyBB(BB &bb) {
-  if (bb.IsMeStmtEmpty()) {
-    return true;
-  }
-  const MeStmt *stmt = bb.GetFirstMe();
-  // Skip commont stmt
-  while (stmt != nullptr && stmt->GetOp() == OP_comment) {
-    stmt = stmt->GetNextMeStmt();
-  }
-  return stmt == nullptr;
-}
+// contains only one valid condgoto stmt
+bool HasOnlyCondGotoStmt(BB &bb);
+
+// contains no valid stmt
+bool IsEmptyBB(BB &bb);
+
+// pred-connecting-succ
+// connectingBB has only one pred and succ, and has no stmt (except a single gotoStmt) in it
+bool IsConnectingBB(BB &bb);
+
+// RealSucc is a non-connecting BB which is not empty (or has just a single gotoStmt).
+// If we want to find the non-empty succ of currBB, we start from the succ (i.e. the argument)
+// skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
+BB *FindFirstRealSucc(BB *succ, BB *stopBB = nullptr);
+
+// RealPred is a non-connecting BB which is not empty (or has just a single gotoStmt).
+// If we want to find the non-empty pred of currBB, we start from the pred (i.e. the argument)
+// skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
+// func will stop at first non-connecting BB or stopBB
+BB *FindFirstRealPred(BB *pred, BB *stopBB = nullptr);
+
+int GetRealPredIdx(BB &succ, BB &realPred);
+// delete all empty bb used to connect its pred and succ, like: pred -- empty -- empty -- succ
+// the result after this will be : pred -- succ
+// if no empty exist, return;
+// we will stop at stopBB(stopBB will not be deleted), if stopBB is nullptr, means no constraint
+void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg);
+
+// Does bb have fallthru pred, including fallthruBB and condBB's fallthru target
+bool HasFallthruPred(const BB &bb);
 
 MAPLE_FUNC_PHASE_DECLARE(MESimplifyCFG, MeFunction)
 

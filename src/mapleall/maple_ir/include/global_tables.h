@@ -65,6 +65,7 @@ class IntConstKey {
   friend class IntConstCmp;
  public:
   IntConstKey(int64 v, TyIdx tyIdx) : val(v), tyIdx(tyIdx) {}
+  virtual ~IntConstKey() {}
  private:
   int64 val;
   TyIdx tyIdx;
@@ -397,7 +398,7 @@ class TypeTable {
   MIRType *GetOrCreateFarrayType(const MIRType &elem);
   MIRType *GetOrCreateJarrayType(const MIRType &elem);
   MIRType *GetOrCreateFunctionType(const TyIdx&, const std::vector<TyIdx>&, const std::vector<TypeAttrs>&,
-                                   bool isVarg = false);
+                                   bool isVarg = false, const TypeAttrs &retAttrs = TypeAttrs());
   MIRType *GetOrCreateStructType(const std::string &name, const FieldVector &fields, const FieldVector &prntFields,
                                  MIRModule &module) {
     return GetOrCreateStructOrUnion(name, fields, prntFields, module);
@@ -752,7 +753,7 @@ class ConstPool {
   }
 
   void InsertConstPool(GStrIdx strIdx, MIRConst *cst) {
-    (void)constMap.insert(std::pair<GStrIdx, MIRConst*>(strIdx, cst));
+    (void)constMap.emplace(strIdx, cst);
   }
 
   MIRConst *GetConstFromPool(GStrIdx strIdx) {

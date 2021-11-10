@@ -327,12 +327,13 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   if (cgFunc.GetFunction().IsJava()) {
     std::string sectionName = namemangler::kMuidJavatextPrefixStr;
     (void)emitter.Emit("\t.section  ." + sectionName + ",\"ax\"\n");
+  } else if (cgFunc.GetFunction().GetAttr(FUNCATTR_section)) {
+    const std::string &sectionName = cgFunc.GetFunction().GetAttrs().GetPrefixSectionName();
+    (void)emitter.Emit("\t.section  " + sectionName).Emit(",\"ax\",@progbits\n");
+  } else if (CGOptions::IsFunctionSections()) {
+    (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
   } else {
-    if (CGOptions::IsFunctionSections()) {
-      (void)emitter.Emit("\t.section  .text.").Emit(cgFunc.GetName()).Emit(",\"ax\",@progbits\n");
-    } else {
-      (void)emitter.Emit("\t.text\n");
-    }
+    (void)emitter.Emit("\t.text\n");
   }
   (void)emitter.Emit("\t.align 5\n");
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(cgFunc.GetFunction().GetStIdx().Idx());

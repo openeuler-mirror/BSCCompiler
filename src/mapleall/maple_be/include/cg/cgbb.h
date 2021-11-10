@@ -626,6 +626,7 @@ class BB {
   }
   void LiveInClearDataInfo() {
     liveIn->ClearDataInfo();
+    liveIn = nullptr;
   }
   DataInfo *GetLiveOut() {
     return liveOut;
@@ -647,6 +648,7 @@ class BB {
   }
   void LiveOutClearDataInfo() {
     liveOut->ClearDataInfo();
+    liveOut = nullptr;
   }
   const DataInfo *GetDef() const {
     return def;
@@ -665,6 +667,7 @@ class BB {
   }
   void DefClearDataInfo() {
     def->ClearDataInfo();
+    def = nullptr;
   }
   const DataInfo *GetUse() const {
     return use;
@@ -683,6 +686,7 @@ class BB {
   }
   void UseClearDataInfo() {
     use->ClearDataInfo();
+    use = nullptr;
   }
   void SetNeedAlign(bool flag) {
     needAlign = flag;

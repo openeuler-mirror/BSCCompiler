@@ -28,7 +28,7 @@ const std::string &MapleCombCompilerWrp::GetBinName() const {
 
 std::string MapleCombCompilerWrp::GetBinPath(const MplOptions&) const {
   return FileUtils::SafeGetenv(kMapleRoot) + "/output/" +
-    FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
+      FileUtils::SafeGetenv("MAPLE_BUILD_TYPE") + "/bin/";
 }
 
 DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptions,

@@ -186,10 +186,13 @@ std::string FEUtils::GetSequentialName0(const std::string &prefix, uint32_t num)
   return ss.str();
 }
 
-std::string FEUtils::GetSequentialName(const std::string &prefix) {
+uint32 FEUtils::GetSequentialNumber() {
   static uint32 unnamedSymbolIdx = 1;
-  std::string name = GetSequentialName0(prefix, unnamedSymbolIdx);
-  ++unnamedSymbolIdx;
+  return unnamedSymbolIdx++;
+}
+
+std::string FEUtils::GetSequentialName(const std::string &prefix) {
+  std::string name = GetSequentialName0(prefix, GetSequentialNumber());
   return name;
 }
 
@@ -237,6 +240,50 @@ MIRType *FEUtils::GetStructFieldType(const MIRStructType *type, FieldID fieldID)
   FieldPair fieldPair = type->TraverseToFieldRef(tmpID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
   return fieldType;
+}
+
+const MIRFuncType *FEUtils::GetFuncPtrType(const MIRType &type) {
+  const MIRType *mirType = &type;
+  if (mirType->GetKind() != kTypePointer) {
+    return nullptr;
+  }
+  mirType = static_cast<const MIRPtrType*>(mirType)->GetPointedType();
+  if (mirType->GetKind() != kTypePointer) {
+    return nullptr;
+  }
+  mirType = static_cast<const MIRPtrType*>(mirType)->GetPointedType();
+  if (mirType->GetKind() != kTypeFunction) {
+    return nullptr;
+  }
+  return static_cast<const MIRFuncType*>(mirType);
+}
+
+FieldPair FEUtils::GetLastestStructTypeAndField(MIRStructType &type, MIRStructType *&lastestType,
+                                                FieldID &fieldID) {
+  lastestType = &type;
+  if (!type.GetFieldsSize()) {
+    return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
+  }
+  uint32 fieldIdx = 0;
+  FieldPair curPair = type.GetFields()[0];
+  while (fieldID > 1) {
+    --fieldID;
+    MIRType *curFieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(curPair.second.first);
+    MIRStructType *subStructTy = curFieldType->EmbeddedStructType();
+    if (subStructTy != nullptr) {
+      lastestType = subStructTy;
+      curPair = GetLastestStructTypeAndField(*subStructTy, lastestType, fieldID);
+      if (fieldID == 1 && curPair.second.first != TyIdx(0)) {
+        return curPair;
+      }
+    }
+    ++fieldIdx;
+    if (fieldIdx == type.GetFieldsSize()) {
+      return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
+    }
+    curPair = type.GetFields()[fieldIdx];
+  }
+  return curPair;
 }
 
 MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
