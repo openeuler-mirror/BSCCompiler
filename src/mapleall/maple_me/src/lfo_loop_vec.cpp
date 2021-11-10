@@ -96,7 +96,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
     } else if (upNode->GetOpCode() == OP_dread || upNode->GetOpCode() == OP_regread) {
       // step 1: generate vectorized loop bound
       // upNode of vBound is (uppnode - initnode) / newIncr * newIncr + initnode
-      BinaryNode *divnode;
+      BinaryNode *divnode = nullptr;
       BaseNode *addnode = upNode;
       if (condOpHasEqual) {
         addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
@@ -118,7 +118,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
   } else if (initNode->GetOpCode() == OP_dread || initNode->GetOpCode() == OP_regread) {
     // initnode is not constant
     // set bound of vectorized loop
-    BinaryNode *subnode;
+    BinaryNode *subnode = nullptr;
     if (condOpHasEqual) {
       BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
       subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
@@ -516,7 +516,8 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       if (tp->vecInfo->uniformNodes.find(vecNode) == tp->vecInfo->uniformNodes.end()) {
         VectorizeNode(vecNode, tp);
         if (vecType->GetPrimType() != vecNode->GetPrimType()) {
-          BaseNode *newVecNode = codeMP->New<TypeCvtNode>(OP_cvt, vecType->GetPrimType(), vecNode->GetPrimType(), vecNode);
+          BaseNode *newVecNode = codeMP->New<TypeCvtNode>(OP_cvt, vecType->GetPrimType(),
+                                                          vecNode->GetPrimType(), vecNode);
           dassign->GetRHS()->SetOpnd(newVecNode, 1);
         }
       }
@@ -659,7 +660,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
       redName.append("_");
       redName.append(std::to_string(count++));
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(redName);
-      MIRSymbol *st = mirFunc->GetModule()->GetMIRBuilder()->CreateSymbol(vecType->GetTypeIndex(), strIdx, kStVar, kScAuto, mirFunc, kScopeLocal);
+      MIRSymbol *st = mirFunc->GetModule()->GetMIRBuilder()->CreateSymbol(vecType->GetTypeIndex(), strIdx, kStVar,
+                                                                          kScAuto, mirFunc, kScopeLocal);
       DassignNode *redInitStmt = codeMP->New<DassignNode>(ptype, dupscalar, st->GetStIdx(), 0);
       pblock->InsertBefore(doloop, redInitStmt);
       AddrofNode *dreadNode = codeMP->New<AddrofNode>(OP_dread, vecType->GetPrimType(), st->GetStIdx(), 0);
@@ -781,10 +783,8 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_cmpg:
     case OP_cmpl: {
       // check two operands are constant
-      MeExpr *r0MeExpr = (*lfoExprParts)[x->Opnd(0)]->GetMeExpr();
-      MeExpr *r1MeExpr = (*lfoExprParts)[x->Opnd(1)]->GetMeExpr();
-      bool r0Uniform = doloopInfo->IsLoopInvariant(r0MeExpr);
-      bool r1Uniform = doloopInfo->IsLoopInvariant(r1MeExpr);
+      bool r0Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(0));
+      bool r1Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(1));
       if (r0Uniform && r1Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         vecInfo->uniformNodes.insert(x->Opnd(1));
@@ -803,8 +803,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_lnot:
     case OP_neg:
     case OP_abs: {
-      MeExpr *r0MeExpr = (*lfoExprParts)[x->Opnd(0)]->GetMeExpr();
-      bool r0Uniform = doloopInfo->IsLoopInvariant(r0MeExpr);
+      bool r0Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(0));
       if (r0Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         return true;
@@ -824,8 +823,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
           IreadNode *iread = static_cast<IreadNode *>(x);
           if ((iread->GetFieldID() != 0 || MustBeAddress(iread->GetPrimType())) &&
               iread->Opnd(0)->GetOpCode() == OP_array) {
-            MeExpr *meExpr = depInfo->preEmit->GetLfoExprPart(iread->Opnd(0))->GetMeExpr();
-            canVec = doloopInfo->IsLoopInvariant(meExpr);
+            canVec = doloopInfo->IsLoopInvariant2(iread->Opnd(0));
           }
         }
       }
@@ -931,8 +929,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         bool canVec = ExprVectorizable(doloopInfo, vecInfo, iassign->GetRHS());
         if (canVec) {
           if (iassign->GetFieldID() != 0) {  // check base of iassign
-            MeExpr *meExpr = (*lfoExprParts)[iassign->Opnd(0)]->GetMeExpr();
-            canVec = doloopInfo->IsLoopInvariant(meExpr);
+            canVec = doloopInfo->IsLoopInvariant2(iassign->Opnd(0));
           }
         }
         if (canVec) {
@@ -957,8 +954,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
             return false; // need cvt instruction
           }
           // rsh is loop invariant
-          MeExpr *meExpr = (*lfoExprParts)[iassign->GetRHS()]->GetMeExpr();
-          if (meExpr && doloopInfo->IsLoopInvariant(meExpr)) {
+          if (doloopInfo->IsLoopInvariant2(iassign->GetRHS())) {
             vecInfo->uniformNodes.insert(iassign->GetRHS());
           }
           vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
@@ -991,7 +987,8 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
             }
             vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
             vecInfo->UpdateWidestTypeSize(lshtypesize);
-            vecInfo->reductionVars.insert(std::make_pair((static_cast<AddrofNode *>(opnd0))->GetStIdx(), rhs->GetOpCode()));
+            vecInfo->reductionVars.insert(std::make_pair((static_cast<AddrofNode *>(opnd0))->GetStIdx(),
+                                                         rhs->GetOpCode()));
           } else {
             return false; // only handle reduction scalar
           }
