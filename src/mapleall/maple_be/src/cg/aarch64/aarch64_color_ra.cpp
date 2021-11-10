@@ -3768,11 +3768,10 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
       }
     }
   }
-  ASSERT(defLrs.size() <= 1, "expected single def");
   for (auto lr: defLrs) {
     lr->SetID(insn.GetId());
     if (lr->GetSpillReg() != 0) {
-      break;
+      continue;
     }
     RegType rtype = lr->GetRegType();
     for (uint i = 0; i < kSpillMemOpndNum; i++) {
