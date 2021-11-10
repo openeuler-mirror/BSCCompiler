@@ -295,6 +295,8 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
   RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oTyp, Operand *o2, bool isLow) override;
+  RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
+                                   Operand *o2, PrimType otyp2, bool isLow, bool isWide) override;
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;
