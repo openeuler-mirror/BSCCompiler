@@ -3674,6 +3674,7 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
     }
   }
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(&insn)->GetMachineOpcode()];
+  bool isIndexedMemOp = false;
   for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
     Operand *opnd = &insn.GetOperand(static_cast<int32>(opndIdx));
     if (opnd == nullptr) {
@@ -3683,6 +3684,9 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
       // call parameters
     } else if (opnd->IsMemoryAccessOperand()) {
       auto *memopnd = static_cast<AArch64MemOperand*>(opnd);
+      if (memopnd->GetIndexOpt() == AArch64MemOperand::kPreIndex || memopnd->GetIndexOpt() == AArch64MemOperand::kPostIndex) {
+        isIndexedMemOp = true;
+      }
       auto *base = static_cast<AArch64RegOperand*>(memopnd->GetBaseRegister());
       if (base != nullptr && !IsUnconcernedReg(*base)) {
         if (!memopnd->IsIntactIndexed()) {
@@ -3768,6 +3772,12 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
       }
     }
   }
+  uint spillRegIdx;
+  if (isIndexedMemOp) {
+    spillRegIdx = useLrs.size();
+  } else {
+    spillRegIdx = 0;
+  }
   ASSERT(defLrs.size() <= 1, "expected single def");
   for (auto lr: defLrs) {
     lr->SetID(insn.GetId());
@@ -3775,8 +3785,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
       break;
     }
     RegType rtype = lr->GetRegType();
-    for (uint i = 0; i < kSpillMemOpndNum; i++) {
-      regno_t preg = rtype == kRegTyInt ? intRegs[i] : fpRegs[i];
+    for (; spillRegIdx < kSpillMemOpndNum; spillRegIdx++) {
+      regno_t preg = rtype == kRegTyInt ? intRegs[spillRegIdx] : fpRegs[spillRegIdx];
       if (defPregs.find(preg) == defPregs.end()) {
         lr->SetSpillReg(preg);
         defPregs.insert(preg);
