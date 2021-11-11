@@ -1286,7 +1286,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void CalculatePriority(LiveRange &lr) const;
   bool CreateLiveRangeHandleLocal(regno_t regNO, const BB &bb, bool isDef);
   LiveRange *CreateLiveRangeAllocateAndUpdate(regno_t regNO, const BB &bb, bool isDef, uint32 currId);
-  bool CreateLiveRange(regno_t regNO, BB &bb, bool isDef, uint32 currPoint, bool updateCount);
+  void CreateLiveRange(regno_t regNO, BB &bb, bool isDef, uint32 currPoint, bool updateCount);
   bool SetupLiveRangeByOpHandlePhysicalReg(RegOperand &op, Insn &insn, regno_t regNO, bool isDef);
   void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
