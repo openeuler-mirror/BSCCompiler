@@ -4452,11 +4452,32 @@ Operand *AArch64CGFunc::SelectRegularBitFieldLoad(ExtractbitsNode &node, const B
 }
 
 Operand *AArch64CGFunc::SelectExtractbits(ExtractbitsNode &node, Operand &srcOpnd, const BaseNode &parent) {
+  uint8 bitOffset = node.GetBitsOffset();
+  uint8 bitSize = node.GetBitsSize();
+  RegOperand *srcVecRegOperand = static_cast<RegOperand*>(&srcOpnd);
+  if (srcVecRegOperand && srcVecRegOperand->IsRegister() && (srcVecRegOperand->GetSize() == k128BitSize)) {
+    if ((bitSize == k8BitSize || bitSize == k16BitSize || bitSize == k32BitSize || bitSize == k64BitSize) &&
+        (bitOffset % bitSize) == k0BitSize) {
+      uint32 lane = bitOffset / bitSize;
+      PrimType srcVecPtype;
+      if (bitSize == k64BitSize) {
+        srcVecPtype = PTY_v2u64;
+      } else if (bitSize == k32BitSize) {
+        srcVecPtype = PTY_v4u32;
+      } else if (bitSize == k16BitSize) {
+        srcVecPtype = PTY_v8u16;
+      } else {
+        srcVecPtype = PTY_v16u8;
+      }
+      RegOperand *resRegOperand = SelectVectorGetElement(node.GetPrimType(), &srcOpnd, srcVecPtype, lane);
+      return resRegOperand;
+    } else {
+      CHECK_FATAL(false, "NYI");
+    }
+  }
   PrimType dtype = node.GetPrimType();
   RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
   bool isSigned = (node.GetOpCode() == OP_sext) ? true : (node.GetOpCode() == OP_zext) ? false : IsSignedInteger(dtype);
-  uint8 bitOffset = node.GetBitsOffset();
-  uint8 bitSize = node.GetBitsSize();
   bool is64Bits = (GetPrimTypeBitSize(dtype) == k64BitSize);
   uint32 immWidth = is64Bits ? kMaxImmVal13Bits : kMaxImmVal12Bits;
   Operand &opnd0 = LoadIntoRegister(srcOpnd, dtype);
