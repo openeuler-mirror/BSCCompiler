@@ -3148,7 +3148,7 @@ void GraphColorRegAllocator::CollectCannotUseReg(std::unordered_set<regno_t> &ca
      */
     if ((conflictLr->GetAssignedRegNO() > 0) && IsBitArrElemSet(conflictLr->GetBBMember(), insn.GetBB()->GetId())) {
       if (!AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(conflictLr->GetAssignedRegNO())) &&
-          conflictLr->GetNumCall()) {
+          conflictLr->GetNumCall() && !conflictLr->GetProcessed()) {
         return;
       }
       (void)cannotUseReg.insert(conflictLr->GetAssignedRegNO());
