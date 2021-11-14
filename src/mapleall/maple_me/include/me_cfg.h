@@ -294,9 +294,9 @@ class MeCFG : public AnalysisResult {
   }
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
+  void UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func);
 
  private:
-  void ReplaceSwitchContainsOneCaseBranchWithBrtrue(BB &bb, MapleVector<BB*> &exitBlocks);
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);
   std::string ConstructFileNameToDump(const std::string &prefix) const;
   void DumpToFileInStrs(std::ofstream &cfgFile) const;
