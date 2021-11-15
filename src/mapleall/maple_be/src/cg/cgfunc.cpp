@@ -454,6 +454,14 @@ Operand *HandleVectorShiftNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, boo
   return cgFunc.SelectVectorShiftRNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, isLow);
 }
 
+Operand *HandleVectorSubWiden(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow, bool isWide) {
+  PrimType resType = intrnNode.GetPrimType();                          /* uint32_t result */
+  Operand *o1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));
+  Operand *o2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));
+  return cgFunc.SelectVectorSubWiden(resType, o1, intrnNode.Opnd(0)->GetPrimType(),
+    o2, intrnNode.Opnd(1)->GetPrimType(), isLow, isWide);
+}
+
 Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   PrimType resType = intrnNode.GetPrimType();                          /* uint32_t result */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand */
@@ -753,6 +761,26 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_shr_narrow_low_v4u32: case INTRN_vector_shr_narrow_low_v4i32:
     case INTRN_vector_shr_narrow_low_v2u64: case INTRN_vector_shr_narrow_low_v2i64:
       return HandleVectorShiftNarrow(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_subl_low_v8i8: case INTRN_vector_subl_low_v8u8:
+    case INTRN_vector_subl_low_v4i16: case INTRN_vector_subl_low_v4u16:
+    case INTRN_vector_subl_low_v2i32: case INTRN_vector_subl_low_v2u32:
+      return HandleVectorSubWiden(intrinsicopNode, cgFunc, true, false);
+
+    case INTRN_vector_subl_high_v8i8: case INTRN_vector_subl_high_v8u8:
+    case INTRN_vector_subl_high_v4i16: case INTRN_vector_subl_high_v4u16:
+    case INTRN_vector_subl_high_v2i32: case INTRN_vector_subl_high_v2u32:
+      return HandleVectorSubWiden(intrinsicopNode, cgFunc, false, false);
+
+    case INTRN_vector_subw_low_v8i8: case INTRN_vector_subw_low_v8u8:
+    case INTRN_vector_subw_low_v4i16: case INTRN_vector_subw_low_v4u16:
+    case INTRN_vector_subw_low_v2i32: case INTRN_vector_subw_low_v2u32:
+      return HandleVectorSubWiden(intrinsicopNode, cgFunc, true, true);
+
+    case INTRN_vector_subw_high_v8i8: case INTRN_vector_subw_high_v8u8:
+    case INTRN_vector_subw_high_v4i16: case INTRN_vector_subw_high_v4u16:
+    case INTRN_vector_subw_high_v2i32: case INTRN_vector_subw_high_v2u32:
+      return HandleVectorSubWiden(intrinsicopNode, cgFunc, false, true);
 
     case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
     case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:
