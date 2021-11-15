@@ -1209,6 +1209,9 @@ class MeStmt {
     op = sst->GetOpCode();
     srcPos = sst->GetSrcPos();
     originalId = sst->GetOriginalID();
+    if (sst->IsInSafeRegion()) {
+      SetInSafeRegion();
+    }
   }
 
   explicit MeStmt(Opcode op1) : op(op1) {}
@@ -1281,6 +1284,7 @@ class MeStmt {
     srcPos = meStmt.srcPos;
     isLive = meStmt.isLive;
     originalId = meStmt.originalId;
+    stmtAttrs = meStmt.stmtAttrs;
   }
 
   bool IsTheSameWorkcand(const MeStmt&) const;
@@ -1397,6 +1401,17 @@ class MeStmt {
   uint32 GetOriginalId() {
     return originalId;
   }
+
+  bool IsInSafeRegion() const {
+    return stmtAttrs.GetAttr(STMTATTR_insaferegion);
+  }
+
+  void SetInSafeRegion() {
+    stmtAttrs.SetAttr(STMTATTR_insaferegion);
+  }
+
+ protected:
+  StmtAttrs stmtAttrs;
 
  private:
   uint32 originalId = 0xdeadbeef;

@@ -83,6 +83,9 @@
   ATTR(firstarg_return)
   ATTR(called_once)
 #endif
+#ifdef STMT_ATTR
+  ATTR(insaferegion)
+#endif
   ATTR(oneelem_simd)
   ATTR(nonnull)
   ATTR(section)

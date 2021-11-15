@@ -41,7 +41,7 @@ AArch64OpndProp mopdIntImm8Src = {Operand::kOpdImmediate, {kRegTyUndef, kAllRegN
 
 bool Imm12BitValid(int64 value) {
   bool result = maplebe::IsBitSizeImmediate(value, kMaxImmVal12Bits, 0);
-  result |= maplebe::IsBitSizeImmediate(value, kMaxImmVal12Bits, kMaxImmVal12Bits); // for target linux-aarch64-gnu
+  result = result || maplebe::IsBitSizeImmediate(value, kMaxImmVal12Bits, kMaxImmVal12Bits); // for target linux-aarch64-gnu
   return result;
 }
 
@@ -54,7 +54,7 @@ bool Imm12BitMaskValid(int64 value) {
 
 bool Imm13BitValid(int64 value) {
   bool result = maplebe::IsBitSizeImmediate(value, kMaxImmVal13Bits, 0);
-  result |= maplebe::IsBitSizeImmediate(value, kMaxImmVal13Bits, kMaxImmVal13Bits); // for target linux-aarch64-gnu
+  result = result || maplebe::IsBitSizeImmediate(value, kMaxImmVal13Bits, kMaxImmVal13Bits); // for target linux-aarch64-gnu
   return result;
 }
 
@@ -72,7 +72,7 @@ bool Imm16BitValid(int64 value) {
     * aarch64 assembly takes up to 24-bits immediate, generating
     * either cmp or cmp with shift 12 encoding
     */
-  result |= maplebe::IsBitSizeImmediate(value, kMaxImmVal12Bits, kMaxImmVal12Bits);
+  result = result || maplebe::IsBitSizeImmediate(value, kMaxImmVal12Bits, kMaxImmVal12Bits);
   return result;
 }
 
@@ -119,7 +119,7 @@ bool StrLdr32ImmValid(int64 value) {
 }
 
 bool StrLdr32PairImmValid(int64 value) {
-  if ((value < k256BitSize)  && (value >= kNegative256BitSize)) {
+  if ((value <= kMaxSimm32Pair)  && (value >= kMinSimm32)) {
     return (static_cast<uint64>(value) & 3) ? false : true;
   }
   return false;
@@ -130,7 +130,7 @@ bool StrLdr64ImmValid(int64 value) {
 }
 
 bool StrLdr64PairImmValid(int64 value) {
-  if (value < k512BitSize && (value >= kNegative512BitSize)) {
+  if (value <= kMaxSimm64Pair && (value >= kMinSimm64)) {
     return (static_cast<uint64>(value) & 7) ? false : true;
   }
   return false;

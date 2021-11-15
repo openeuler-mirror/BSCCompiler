@@ -573,6 +573,30 @@ class Insn {
     return id;
   }
 
+  void SetAddress(uint32 addr) {
+    address = addr;
+  }
+
+  uint32 GetAddress() {
+    return address;
+  }
+
+  void SetNopNum(uint32 num) {
+    nopNum = num;
+  }
+
+  uint32 GetNopNum() {
+    return nopNum;
+  }
+
+  void SetNeedSplit(bool flag) {
+    needSplit = flag;
+  }
+
+  bool IsNeedSplit() {
+    return needSplit;
+  }
+
   void SetIsThrow(bool isThrow) {
     this->isThrow = isThrow;
   }
@@ -689,6 +713,8 @@ class Insn {
   };
 
   uint32 id = 0;
+  uint32 address = 0;
+  uint32 nopNum = 0;
   RetType retType = kRegNull;    /* if this insn is call, it represent the return register type R0/V0 */
   uint32 retSize = 0;  /* Byte size of the return value if insn is a call. */
   /* record the stack cleared by MCC_ClearLocalStackRef or MCC_DecRefResetPair */
@@ -703,6 +729,7 @@ class Insn {
   bool isFrameDef = false;
   bool asmDefCondCode = false;
   bool asmModMem = false;
+  bool needSplit = false;
 };
 
 struct InsnIdCmp {

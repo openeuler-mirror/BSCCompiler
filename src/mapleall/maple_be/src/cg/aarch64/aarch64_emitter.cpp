@@ -15,6 +15,7 @@
 #include "aarch64_emitter.h"
 #include <sys/stat.h>
 #include "aarch64_cgfunc.h"
+#include "aarch64_cg.h"
 
 namespace {
 using namespace maple;
@@ -36,7 +37,6 @@ Func2CodeInsnMap func2CodeInsnMap {
       { "maple/mrt/codetricks/arch/arm64/stringEquals.s", 50 } }
 };
 constexpr uint32 kQuadInsnCount = 2;
-constexpr uint32 kInsnSize = 4;
 
 void GetMethodLabel(const std::string &methodName, std::string &methodLabel) {
   methodLabel = ".Lmethod_desc." + methodName;
@@ -411,8 +411,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       emitter.Emit("#    freq:").Emit(bb->GetFrequency()).Emit("\n");
     }
     /* emit bb headers */
-    if (bb->GetLabIdx() != 0) {
-      if (aarchCGFunc.GetMirModule().IsCModule() && bb->IsBBNeedAlign()) {
+    if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
+      if (aarchCGFunc.GetMirModule().IsCModule() && bb->IsBBNeedAlign() && bb->GetAlignNopNum() != kAlignMovedFlag) {
         uint32 power = bb->GetAlignPower();
         emitter.Emit("\t.p2align ").Emit(power).Emit("\n");
       }

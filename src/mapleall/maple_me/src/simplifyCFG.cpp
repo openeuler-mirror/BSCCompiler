@@ -1230,6 +1230,7 @@ bool SimplifyCFG::SimplifyCondBB() {
 void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr, BB *succ) {
   auto &succPhiList = succ->GetMePhiList();
   auto &currPhilist = curr->GetMePhiList();
+  int predPredIdx = succ->GetPredIndex(*pred);
   if (succPhiList.empty()) {
     // succ has only one pred(i.e. curr) before
     // we copy curr's philist to succ, but not with all phiOpnd
@@ -1241,7 +1242,6 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
       // curr is already pred of succ, so all phiOpnds (except for pred) are phiNode lhs in curr
       phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phiNode.second->GetLHS());
       // pred is a new pred for succ, we copy its corresponding phiopnd in curr to succ
-      int predPredIdx = GetRealPredIdx(*succ, *pred);
       phiMeNode->SetOpnd(predPredIdx, phiNode.second->GetOpnd(predIdxForCurr));
       OStIdx ostIdx = phiNode.first;
       // create a new version for new phi
@@ -1253,7 +1253,6 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
     for (auto &phi : succPhiList) {
       OStIdx ostIdx = phi.first;
       auto it = currPhilist.find(ostIdx);
-      int predPredIdx = GetRealPredIdx(*succ, *pred);
       ASSERT(predPredIdx != -1, "[FUNC: %s]pred BB%d is not a predecessor of succ BB%d yet", funcName, LOG_BBID(pred),
              LOG_BBID(succ));
       auto &phiOpnds = phi.second->GetOpnds();
@@ -1283,7 +1282,6 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
         // insert opnd into New phiNode : all phiOpnds (except for pred) are phiNode lhs in curr
         phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phi.second->GetLHS());
         // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
-        int predPredIdx = GetRealPredIdx(*succ, *pred);
         phiMeNode->SetOpnd(predPredIdx, phi.second->GetOpnd(predIdxForCurr));
         // create a new version for new phinode
         phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));

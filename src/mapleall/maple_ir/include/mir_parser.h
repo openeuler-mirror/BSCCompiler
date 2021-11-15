@@ -32,7 +32,9 @@ class MIRParser {
   explicit MIRParser(MIRModule &md)
       : lexer(md),
         mod(md),
-        definedLabels(mod.GetMPAllocator().Adapter()) {}
+        definedLabels(mod.GetMPAllocator().Adapter()) {
+    safeRegionFlag.push(false);
+  }
 
   ~MIRParser() = default;
 
@@ -132,8 +134,11 @@ class MIRParser {
   bool ParseCallReturnPair(CallReturnPair&);
   bool ParseCallReturns(CallReturnVector&);
   bool ParseBinaryStmt(StmtNodePtr&, Opcode op);
-  bool ParseBinaryStmtAssertGE(StmtNodePtr&);
-  bool ParseBinaryStmtAssertLT(StmtNodePtr&);
+  bool ParseNaryStmtAssertGE(StmtNodePtr&);
+  bool ParseNaryStmtAssertLT(StmtNodePtr&);
+  bool ParseNaryStmtCallAssertLE(StmtNodePtr&);
+  bool ParseNaryStmtReturnAssertLE(StmtNodePtr&);
+  bool ParseNaryStmtAssignAssertLE(StmtNodePtr&);
   bool ParseNaryStmt(StmtNodePtr&, Opcode op);
   bool ParseNaryStmtReturn(StmtNodePtr&);
   bool ParseNaryStmtSyncEnter(StmtNodePtr&);
@@ -150,9 +155,13 @@ class MIRParser {
   bool ParseUnaryStmtEval(StmtNodePtr&);
   bool ParseUnaryStmtFree(StmtNodePtr&);
   bool ParseUnaryStmtAssertNonNull(StmtNodePtr&);
+  bool ParseUnaryStmtCallAssertNonNull(StmtNodePtr&);
+  bool ParseUnaryStmtAssignAssertNonNull(StmtNodePtr&);
+  bool ParseUnaryStmtReturnAssertNonNull(StmtNodePtr&);
   bool ParseStmtMarker(StmtNodePtr&);
   bool ParseStmtGosub(StmtNodePtr&);
   bool ParseStmtAsm(StmtNodePtr&);
+  bool ParseStmtSafeRegion(StmtNodePtr&);
 
   // Expression Parser
   bool ParseExpression(BaseNodePtr &expr);
@@ -186,6 +195,10 @@ class MIRParser {
   bool ParseExprTernary(BaseNodePtr &expr);
   bool ParseExprArray(BaseNodePtr &expr);
   bool ParseExprIntrinsicop(BaseNodePtr &expr);
+  bool ParseNaryExpr(NaryStmtNode &stmtNode);
+
+  // funcName and paramIndex is out parameter
+  bool ParseCallAssertInfo(std::string &funcName, int *paramIndex);
 
   bool ParseTypedef();
   bool ParseJavaClassInterface(MIRSymbol&, bool);
@@ -298,6 +311,7 @@ class MIRParser {
   bool paramIsComb = false;
   TokenKind paramTokenKind = TK_invalid;
   std::vector<std::string> paramImportFileList;
+  std::stack<bool> safeRegionFlag;
 };
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_MIR_PARSER_H

@@ -128,20 +128,6 @@ bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
   return false;
 }
 
-// check if x is loop-invariant w.r.t. the doloop
-bool DoloopInfo::IsLoopInvariant2(BaseNode *x) {
-  MeExpr *meExpr = depInfo->preEmit->GetMexpr(x);
-  if (meExpr != nullptr) {
-    return IsLoopInvariant(meExpr);
-  }
-  for (size_t i = 0; i < x->NumOpnds(); i++) {
-    if (!IsLoopInvariant2(x->Opnd(i))) {
-      return false;
-    }
-  }
-  return true;
-}
-
 // check if all the scalars contained in x are loop-invariant unless it is IV
 bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
   if (x == nullptr) {
@@ -196,7 +182,7 @@ bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
 SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   MeExpr *meExpr = depInfo->preEmit->GetMexpr(subsX);
   SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>(meExpr);
-  if (IsLoopInvariant2(subsX)) {
+  if (IsLoopInvariant(meExpr)) {
     subsDesc->loopInvariant = true;
     return subsDesc;
   }
@@ -273,15 +259,15 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   size_t dim = arryty->GetDim();
   CHECK_FATAL(dim >= arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
   // ensure array base is loop invariant
-  if (!IsLoopInvariant2(arr->Opnd(0))) {
+  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
+  if (!IsLoopInvariant(arrayMeExpr->GetOpnd(0))) {
     hasPtrAccess = true;
     return nullptr;
   }
   // determine arryOst
   IvarMeExpr *ivarMeExpr = nullptr;
   OriginalSt *arryOst = nullptr;
-  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
-  if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
+  if (arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
   } else if (parent->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parent));
     CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
@@ -318,7 +304,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
 void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent) {
   if (x->GetOpCode() == OP_array) {
     if (parent->GetOpCode() != OP_iread) { // skip arrays not underneath iread unless loop-invariant
-      if (IsLoopInvariant2(x)) {
+      if (IsLoopInvariant(depInfo->preEmit->GetMexpr(x))) {
         return;
       }
       hasPtrAccess = true;

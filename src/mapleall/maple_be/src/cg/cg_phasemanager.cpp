@@ -208,7 +208,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("gencfi", !CLANG);
   ADDMAPLECGPHASE("yieldpoint", JAVALANG && CGOptions::IsInsertYieldPoint());
   ADDMAPLECGPHASE("scheduling", CGOptions::DoSchedule());
-  ADDMAPLECGPHASE("alignanalysis", CLANG);
+  ADDMAPLECGPHASE("alignanalysis", CLANG && CGOptions::DoAlignAnalysis());
   ADDMAPLECGPHASE("fixshortbranch", true);
   ADDMAPLECGPHASE("cgemit", true);
 }

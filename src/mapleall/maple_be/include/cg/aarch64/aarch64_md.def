@@ -844,14 +844,6 @@ DEFINE_MOP(MOP_vnotuu,  {mopdReg64VD,mopdReg64VS},ISVECTOR,kLtFpalu,"not","0,1",
 DEFINE_MOP(MOP_vnotvv,  {mopdReg128VD,mopdReg128VS},ISVECTOR,kLtFpalu,"not","0,1",1)
 DEFINE_MOP(MOP_vneguu,  {mopdReg64VD,mopdReg64VS},ISVECTOR,kLtFpalu,"neg","0,1",1)
 DEFINE_MOP(MOP_vnegvv,  {mopdReg128VD,mopdReg128VS},ISVECTOR,kLtFpalu,"neg","0,1",1)
-DEFINE_MOP(MOP_vssublvuu,{mopdReg128VD,mopdReg64VS,mopdReg64VS},ISVECTOR,kLtFpalu,"ssubl","0,1,2",1)
-DEFINE_MOP(MOP_vusublvuu,{mopdReg128VD,mopdReg64VS,mopdReg64VS},ISVECTOR,kLtFpalu,"usubl","0,1,2",1)
-DEFINE_MOP(MOP_vssubl2vvv,{mopdReg128VD,mopdReg128VS,mopdReg128VS},ISVECTOR,kLtFpalu,"ssubl2","0,1,2",1)
-DEFINE_MOP(MOP_vusubl2vvv,{mopdReg128VD,mopdReg128VS,mopdReg128VS},ISVECTOR,kLtFpalu,"usubl2","0,1,2",1)
-DEFINE_MOP(MOP_vssubwvvu,{mopdReg128VD,mopdReg128VS,mopdReg64VS},ISVECTOR,kLtFpalu,"ssubw","0,1,2",1)
-DEFINE_MOP(MOP_vusubwvvu,{mopdReg128VD,mopdReg128VS,mopdReg64VS},ISVECTOR,kLtFpalu,"usubw","0,1,2",1)
-DEFINE_MOP(MOP_vssubw2vvv,{mopdReg128VD,mopdReg128VS,mopdReg128VS},ISVECTOR,kLtFpalu,"ssubw2","0,1,2",1)
-DEFINE_MOP(MOP_vusubw2vvv,{mopdReg128VD,mopdReg128VS,mopdReg128VS},ISVECTOR,kLtFpalu,"usubw2","0,1,2",1)
 DEFINE_MOP(MOP_vzip1vvv,{mopdReg64VD,mopdReg64VS,mopdReg64VS},ISVECTOR,kLtFpalu,"zip1","0,1,2",1)
 DEFINE_MOP(MOP_vzip2vvv,{mopdReg64VD,mopdReg64VS,mopdReg64VS},ISVECTOR,kLtFpalu,"zip2","0,1,2",1)
 
@@ -1078,11 +1070,12 @@ DEFINE_MOP(MOP_pseudo_ret_float, {mopdReg64FS},0,kLtUndef,"//MOP_pseudo_ret_floa
 /* MOP_pseudo_eh_def_x, */
 DEFINE_MOP(MOP_pseudo_eh_def_x, {mopdReg64ID},0,kLtUndef,"//MOP_pseudo_eh_def_x","0", 0)
 
+/*MOP_nop */
+DEFINE_MOP(MOP_nop, {},0,kLtAlu,"nop","", 1)
+
 /* for comments */
 /* MOP_comment */
 DEFINE_MOP(MOP_comment, {mopdSTRING},0,kLtUndef,"//","0", 0)
-/*MOP_nop */
-DEFINE_MOP(MOP_nop, {},0,kLtAlu,"nop","", 0)
 
 
 /* A pseudo instruction that used for seperating dependence graph. */

@@ -245,6 +245,14 @@ bool BB::IsSoloGoto() const {
   return false;
 }
 
+BB *BB::GetValidPrev() {
+  BB *pre = GetPrev();
+  while (pre != nullptr && (pre->IsEmptyOrCommentOnly() || pre->IsUnreachable())) {
+    pre = pre->GetPrev();
+  }
+  return pre;
+}
+
 bool Bfs::AllPredBBVisited(BB &bb, long &level) const {
   bool isAllPredsVisited = true;
   for (const auto *predBB : bb.GetPreds()) {

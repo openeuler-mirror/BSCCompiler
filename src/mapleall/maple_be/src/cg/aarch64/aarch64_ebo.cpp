@@ -671,19 +671,21 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
   if (immOperand0.GetValue() < 0 || immOperand1.GetValue() < 0) {
     return false;
   }
+  uint64 opndValue0 = static_cast<uint64>(immOperand0.GetValue());
+  uint64 opndValue1 = static_cast<uint64>(immOperand1.GetValue());
   switch (mOp) {
     case MOP_weorrri12:
     case MOP_weorrrr:
     case MOP_xeorrri13:
     case MOP_xeorrrr:
-      val = immOperand0.GetValue() ^ immOperand1.GetValue();
+      val = static_cast<int64>(opndValue0 ^ opndValue1);
       break;
     case MOP_wandrri12:
     case MOP_waddrri24:
     case MOP_wandrrr:
     case MOP_xandrri13:
     case MOP_xandrrr:
-      val = immOperand0.GetValue() & immOperand1.GetValue();
+      val = static_cast<int64>(opndValue0 & opndValue1);
       break;
     case MOP_wiorrri12:
     case MOP_wiorri12r:
@@ -691,7 +693,7 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
     case MOP_xiorrri13:
     case MOP_xiorri13r:
     case MOP_xiorrrr:
-      val = immOperand0.GetValue() | immOperand1.GetValue();
+      val = static_cast<int64>(opndValue0 | opndValue1);
       break;
     default:
       return false;
@@ -761,7 +763,7 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
   if (newMop == oldMop) {
     return true;
   }
-  if (prevOpndInfo != nullptr && prevOpndInfo->refCount > 1) {
+  if (prevOpndInfo == nullptr || prevOpndInfo->refCount > 1) {
     return false;
   }
   if (OperandLiveAfterInsn(opnd, *insn)) {
@@ -1301,10 +1303,13 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
             auto &immOpnd2 = static_cast<AArch64ImmOperand&>(insn2->GetOperand(kInsnThirdOpnd));
             auto &res1 = static_cast<RegOperand&>(insn1->GetOperand(kInsnFirstOpnd));
             OpndInfo *base2DefOpndInfo = GetOpndInfo(base2, -1);
+            if (base2DefOpndInfo == nullptr) {
+              return false;
+            }
             bool isNotSkipCall = beforeRegAlloc ||
                 (base2DefOpndInfo->insn != nullptr && !base2DefOpndInfo->insn->IsCall());
             if (RegistersIdentical(res1, *op1) && RegistersIdentical(res1, res2) &&
-                (GetOpndInfo(base2, -1) != nullptr) && (!base2DefOpndInfo->redefined) && isNotSkipCall) {
+                (!base2DefOpndInfo->redefined) && isNotSkipCall) {
               if (beforeRegAlloc) {
                 immVal = imm0Val + imm1.GetValue() +
                          static_cast<int64>(static_cast<uint64>(immOpnd2.GetValue()) << kMaxImmVal12Bits);

@@ -24,6 +24,7 @@ constexpr int64 kNegativeImmLowerLimit = -4096;
 constexpr int32 kIntRegTypeNum = 5;
 constexpr uint32 kAlignPseudoSize = 3;
 constexpr uint32 kInsnSize = 4;
+constexpr uint32 kAlignMovedFlag = 31;
 
 /* Supporting classes for GCTIB merging */
 class GCTIBKey {

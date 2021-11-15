@@ -1132,6 +1132,10 @@ void MeStmt::Dump(const IRMap *irMap) const {
     return;
   }
   CHECK_NULL_FATAL(irMap);
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   irMap->GetMIRModule().GetOut() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(op).name << '\n';
 }
 
@@ -1156,6 +1160,10 @@ void PiassignMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void DassignMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   CHECK_FATAL(lhs != nullptr, "lhs is null");
   lhs->Dump(irMap);
@@ -1175,6 +1183,10 @@ void DassignMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void AssignMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   CHECK_FATAL(lhs != nullptr, "lhs is null");
   lhs->Dump(irMap);
@@ -1190,6 +1202,10 @@ void AssignMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void MaydassignMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "rhs = ";
@@ -1268,6 +1284,10 @@ void DumpChiList(const IRMap *irMap, const MapleMap<OStIdx, ChiMeNode*> &chiList
 }
 
 void IassignMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "lhs = ";
@@ -1298,6 +1318,10 @@ void NaryMeStmt::DumpOpnds(const IRMap *irMap) const {
 }
 
 void NaryMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " \n";
   DumpOpnds(irMap);
 }
@@ -1319,6 +1343,10 @@ void AssignedPart::DumpAssignedPart(const IRMap *irMap) const {
 }
 
 void CallMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   if (tyIdx != 0u) {
     LogInfo::MapleLogger() << " TYIDX:" << tyIdx;
@@ -1339,6 +1367,10 @@ void CallMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void IcallMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   LogInfo::MapleLogger() << " TYIDX:" << retTyIdx;
   DumpOpnds(irMap);
@@ -1348,6 +1380,10 @@ void IcallMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void IntrinsiccallMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " ";
   LogInfo::MapleLogger() << "TYIDX:" << tyIdx;
   MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
@@ -1362,6 +1398,10 @@ void IntrinsiccallMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void AsmMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << " \"";
   if (!asmString.empty()) {
     LogInfo::MapleLogger() << asmString.c_str();
@@ -1375,12 +1415,20 @@ void AsmMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void RetMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList);
 }
 
 void CondGotoMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name;
   if (IsBranchProbValid()) {
     double branchPercent = branchProb * 100.0 / CondGotoNode::probAll;
@@ -1396,6 +1444,10 @@ void CondGotoMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void UnaryMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << " unaryopnd: ";
@@ -1405,6 +1457,10 @@ void UnaryMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void SwitchMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "switchOpnd: ";
@@ -1413,12 +1469,20 @@ void SwitchMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void GosubMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpMuList(irMap, *GetMuList());
   LogInfo::MapleLogger() << '\n';
 }
 
 void ThrowMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   PrintIndentation(kDefaultPrintIndentNum);
   LogInfo::MapleLogger() << "throwopnd: ";
@@ -1429,6 +1493,11 @@ void ThrowMeStmt::Dump(const IRMap *irMap) const {
 }
 
 void SyncMeStmt::Dump(const IRMap *irMap) const {
+  if (IsInSafeRegion()) {
+    stmtAttrs.DumpAttributes();
+    LogInfo::MapleLogger() << "\n";
+  }
+  LogInfo::MapleLogger() << "\n";
   LogInfo::MapleLogger() << "||MEIR|| " << kOpcodeInfo.GetTableItemAt(GetOp()).name << '\n';
   DumpOpnds(irMap);
   DumpMuList(irMap, muList);

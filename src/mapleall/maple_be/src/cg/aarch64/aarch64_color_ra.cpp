@@ -4720,12 +4720,11 @@ void GraphColorRegAllocator::FinalizeRegisters() {
             auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
             auto *srcOpndsNew =
                 a64CGFunc->GetMemoryPool()->New<AArch64ListOperand>(*a64CGFunc->GetFuncScopeAllocator());
-            RegOperand *phyOpnd;
             for (auto opnd : inList->GetOperands()) {
               if ((static_cast<const RegOperand *>(opnd))->GetRegisterNumber() < kAllRegNum) {
                 srcOpndsNew->PushOpnd(*opnd);
               } else {
-                phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, false);
+                RegOperand *phyOpnd = GetReplaceOpnd(*insn, *opnd, useSpillIdx, usedRegMask, false);
                 srcOpndsNew->PushOpnd(*phyOpnd);
               }
             }

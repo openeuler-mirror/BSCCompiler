@@ -356,7 +356,7 @@ void HDSE::CollectNotNullExpr(MeStmt &stmt, MeExpr &meExpr, uint8 exprType) {
       } else {
         // Ref expr used array or assertnotnull
         Opcode op = meExpr.GetOp();
-        bool notNull = op == OP_array || op == OP_assertnonnull;
+        bool notNull = op == OP_array || kOpcodeInfo.IsAssertNonnull(op);
         exprType = notNull ? kExprTypeNotNull : kExprTypeNormal;
       }
       for (size_t i = 0; i < meExpr.GetNumOpnds(); ++i) {
@@ -454,7 +454,7 @@ bool HDSE::HasNonDeletableExpr(const MeStmt &meStmt) const {
       VarMeExpr *varMeExpr = static_cast<VarMeExpr *>(dasgn.GetVarLHS());
       return (varMeExpr != nullptr && varMeExpr->IsVolatile()) || ExprNonDeletable(*dasgn.GetRHS()) ||
              (hdseKeepRef && dasgn.Propagated()) || dasgn.GetWasMayDassign() ||
-             (decoupleStatic && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
+             (decoupleStatic && varMeExpr != nullptr && varMeExpr->GetOst()->GetMIRSymbol()->IsGlobal());
     }
     case OP_regassign: {
       auto &rasgn = static_cast<const AssignMeStmt&>(meStmt);

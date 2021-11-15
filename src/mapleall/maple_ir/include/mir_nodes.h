@@ -214,6 +214,7 @@ class UnaryNode : public BaseNode {
   virtual ~UnaryNode() override = default;
 
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
+  void DumpOpnd(int32 indent) const;
   void Dump(int32 indent) const override;
   bool Verify() const override;
 
@@ -576,6 +577,7 @@ class IreadPCoffNode : public IreadFPoffNode {
     ptyp = typ;
     numOpnds = numopns;
   }
+  virtual ~IreadPCoffNode() {}
 };
 
 typedef IreadPCoffNode AddroffPCNode;
@@ -1399,15 +1401,24 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   static std::atomic<uint32> stmtIDNext;  // for assigning stmtID, initialized to 1; 0 is reserved
   static uint32 lastPrintedLineNum;       // used during printing ascii output
 
-  explicit StmtNode(Opcode o) : BaseNode(o), PtrListNodeBase(), stmtID(stmtIDNext) {
+  explicit StmtNode(Opcode o) : BaseNode(o), PtrListNodeBase(), stmtID(stmtIDNext), stmtOriginalID(stmtIDNext) {
     ++stmtIDNext;
   }
 
-  StmtNode(Opcode o, uint8 numOpr) : BaseNode(o, numOpr), PtrListNodeBase(), stmtID(stmtIDNext) {
+  StmtNode(Opcode o, uint8 numOpr)
+      : BaseNode(o, numOpr), PtrListNodeBase(), stmtID(stmtIDNext), stmtOriginalID(stmtIDNext) {
     ++stmtIDNext;
   }
 
-  StmtNode(Opcode o, PrimType typ, uint8 numOpr) : BaseNode(o, typ, numOpr), PtrListNodeBase(), stmtID(stmtIDNext) {
+  StmtNode(Opcode o, PrimType typ, uint8 numOpr)
+      : BaseNode(o, typ, numOpr), PtrListNodeBase(), stmtID(stmtIDNext), stmtOriginalID(stmtIDNext) {
+    ++stmtIDNext;
+  }
+
+  // used for NaryStmtNode when clone
+  StmtNode(Opcode o, PrimType typ, uint8 numOpr, SrcPosition srcPosition, uint32 stmtOriginalID, StmtAttrs attrs)
+      : BaseNode(o, typ, numOpr), PtrListNodeBase(), srcPosition(srcPosition), stmtID(stmtIDNext),
+        stmtOriginalID(stmtOriginalID), stmtAttrs(attrs) {
     ++stmtIDNext;
   }
 
@@ -1453,6 +1464,10 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     stmtID = id;
   }
 
+  uint32 GetOriginalID() const {
+    return stmtOriginalID;
+  }
+
   StmtNode *GetRealNext() const;
 
   virtual BaseNode *GetRHS() const {
@@ -1466,13 +1481,28 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   void SetIsLive(bool live) const {
     isLive = live;
   }
+
+  bool IsInSafeRegion() const {
+    return stmtAttrs.GetAttr(STMTATTR_insaferegion);
+  }
+
+  void SetInSafeRegion() {
+    stmtAttrs.SetAttr(STMTATTR_insaferegion);
+  }
+
+  const StmtAttrs &GetStmtAttrs() const {
+    return stmtAttrs;
+  }
+
  protected:
   SrcPosition srcPosition;
 
  private:
   uint32 stmtID;  // a unique ID assigned to it
+  const uint32 stmtOriginalID; // first define id, no change when clone
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
+  StmtAttrs stmtAttrs;
 };
 
 class IassignNode : public StmtNode {
@@ -1766,7 +1796,7 @@ class CppCatchNode : public StmtNode {
   explicit CppCatchNode(const TyIdx &idx) : StmtNode(OP_cppcatch), exceptionTyIdx(idx) {}
   explicit CppCatchNode() : CppCatchNode(TyIdx(0)) {}
 
-  CppCatchNode(const CppCatchNode &node) = delete;
+  explicit CppCatchNode(const CppCatchNode &node) = delete;
   CppCatchNode &operator=(const CppCatchNode &node) = delete;
   ~CppCatchNode() = default;
 
@@ -1897,7 +1927,8 @@ class MultiwayNode : public StmtNode {
   MultiwayNode(const MIRModule &mod, LabelIdx label) : MultiwayNode(mod.GetCurFuncCodeMPAllocator(), label) {}
 
   MultiwayNode(MapleAllocator &allocator, const MultiwayNode &node)
-      : StmtNode(node.GetOpCode(), node.GetPrimType(), node.numOpnds),
+      : StmtNode(node.GetOpCode(), node.GetPrimType(), node.numOpnds, node.GetSrcPos(), node.GetOriginalID(),
+                 node.GetStmtAttrs()),
         defaultLabel(node.defaultLabel),
         multiWayTable(allocator.Adapter()) {}
 
@@ -1964,6 +1995,7 @@ class UnaryStmtNode : public StmtNode {
   void Dump(int32 indent) const override;
   void Dump() const;
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
+  void DumpOpnd(int32 indent) const;
 
   bool Verify() const  override {
     return uOpnd->Verify();
@@ -2087,7 +2119,7 @@ class DassignoffNode : public UnaryStmtNode {
 
   DassignoffNode(PrimType typ, BaseNode *opnd) : UnaryStmtNode(OP_dassignoff, typ, opnd), stIdx() {}
 
-  DassignoffNode(StIdx lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode)
+  DassignoffNode(const StIdx &lhsStIdx, int32 dOffset, PrimType rhsType, BaseNode *rhsNode)
       : DassignoffNode(rhsType, rhsNode) {
     stIdx = lhsStIdx;
     offset = dOffset;
@@ -2217,7 +2249,7 @@ class CondGotoNode : public UnaryStmtNode {
   int32 branchProb = -1;  // branch probability, a negative number indicates that the probability is invalid
 };
 
-using SmallCasePair = std::pair<uint16, uint16>;
+using SmallCasePair = std::pair<uint16, uint32>;
 using SmallCaseVector = MapleVector<SmallCasePair>;
 class RangeGotoNode : public UnaryStmtNode {
  public:
@@ -2227,7 +2259,7 @@ class RangeGotoNode : public UnaryStmtNode {
   explicit RangeGotoNode(const MIRModule &mod) : RangeGotoNode(mod.GetCurFuncCodeMPAllocator()) {}
 
   RangeGotoNode(MapleAllocator &allocator, const RangeGotoNode &node)
-      : UnaryStmtNode(node.GetOpCode(), node.GetPrimType()),
+      : UnaryStmtNode(node),
         tagOffset(node.tagOffset),
         rangegotoTable(allocator.Adapter()) {}
 
@@ -2779,12 +2811,15 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
   NaryStmtNode(const MIRModule &mod, Opcode o) : NaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o) {}
 
   NaryStmtNode(MapleAllocator &allocator, const NaryStmtNode &node)
-      : StmtNode(node.GetOpCode(), node.GetPrimType(), node.numOpnds), NaryOpnds(allocator) {}
+      // do not use stmt copy constructor
+      : StmtNode(node.GetOpCode(), node.GetPrimType(), node.numOpnds, node.GetSrcPos(), node.GetOriginalID(),
+                 node.GetStmtAttrs()),
+        NaryOpnds(allocator) {}
 
   NaryStmtNode(const MIRModule &mod, const NaryStmtNode &node)
       : NaryStmtNode(mod.GetCurFuncCodeMPAllocator(), node) {}
 
-  NaryStmtNode(NaryStmtNode &node) = delete;
+  explicit NaryStmtNode(const NaryStmtNode &node) = delete;
   NaryStmtNode &operator=(const NaryStmtNode &node) = delete;
   virtual ~NaryStmtNode() = default;
 
@@ -2836,6 +2871,77 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
     }
     (void)GetNopnd().insert(begin, node);
     SetNumOpnds(GetNopndSize());
+  }
+};
+
+// used by callassertnonnull, callassertle
+class SafetyCallCheckStmtNode {
+ public:
+  SafetyCallCheckStmtNode(const std::string &funcName, size_t paramIndex);
+  explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode& stmtNode)
+      : funcNameIdx(stmtNode.GetFuncNameIdx()), paramIndex(stmtNode.GetParamIndex()) {}
+
+  virtual ~SafetyCallCheckStmtNode() = default;
+
+  std::string GetFuncName() const;
+
+  GStrIdx GetFuncNameIdx() const {
+    return funcNameIdx;
+  }
+
+  size_t GetParamIndex() const {
+    return paramIndex;
+  }
+
+  void Dump() const {
+    LogInfo::MapleLogger() << " <&" << GetFuncName() << ", " << paramIndex << ">";
+  }
+
+ private:
+  GStrIdx funcNameIdx;
+  size_t paramIndex;
+};
+
+// used by callassertnonnull
+class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckStmtNode {
+ public:
+  CallAssertNonnullStmtNode(Opcode o, std::string &funcName, size_t paramIndex)
+      : UnaryStmtNode(o), SafetyCallCheckStmtNode(funcName, paramIndex) {}
+  virtual ~CallAssertNonnullStmtNode() {}
+
+  void Dump(int32 indent) const override;
+
+  CallAssertNonnullStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<CallAssertNonnullStmtNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+    node->SetOpnd(Opnd()->CloneTree(allocator), 0);
+    return node;
+  }
+};
+
+// used by callassertle
+class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckStmtNode {
+ public:
+  CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, std::string &funcName, size_t paramIndex)
+      : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcName, paramIndex) {}
+  virtual ~CallAssertBoundaryStmtNode() {}
+
+  CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
+      : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}
+
+  CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, std::string &funcName, size_t paramIndex)
+      : CallAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcName, paramIndex) {}
+
+  void Dump(int32 indent) const override;
+
+  CallAssertBoundaryStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<CallAssertBoundaryStmtNode>(allocator, *this);
+    node->SetStmtID(stmtIDNext++);
+    for (size_t i = 0; i < GetNopndSize(); ++i) {
+      node->GetNopnd().push_back(GetNopndAt(i)->CloneTree(allocator));
+    }
+    node->SetNumOpnds(GetNopndSize());
+    return node;
   }
 };
 
@@ -3169,21 +3275,6 @@ class CallinstantNode : public CallNode {
   TyIdx instVecTyIdx;
 };
 
-// for java boundary check
-class AssertStmtNode : public BinaryStmtNode {
- public:
-  explicit AssertStmtNode(Opcode op) : BinaryStmtNode(op) {
-    isLt = (op == OP_assertlt);
-  }
-
-  virtual ~AssertStmtNode() = default;
-
-  void Dump(int32 indent) const override;
-
- private:
-  bool isLt;
-};
-
 class LabelNode : public StmtNode {
  public:
   LabelNode() : StmtNode(OP_label) {}
@@ -3218,13 +3309,13 @@ class CommentNode : public StmtNode {
 
   explicit CommentNode(const MIRModule &mod) : CommentNode(mod.GetCurFuncCodeMPAllocator()) {}
 
-  CommentNode(MapleAllocator &allocator, const std::string &cmt)
+  CommentNode(const MapleAllocator &allocator, const std::string &cmt)
       : StmtNode(OP_comment), comment(cmt, allocator.GetMemPool()) {}
 
   CommentNode(const MIRModule &mod, const std::string &cmt) : CommentNode(mod.GetCurFuncCodeMPAllocator(), cmt) {}
 
   CommentNode(const MapleAllocator &allocator, const CommentNode &node)
-      : StmtNode(node.GetOpCode(), node.GetPrimType(), node.numOpnds),
+      : StmtNode(node.GetOpCode(), node.GetPrimType()),
         comment(node.comment, allocator.GetMemPool()) {}
 
   CommentNode(const MIRModule &mod, const CommentNode &node) : CommentNode(mod.GetCurFuncCodeMPAllocator(), node) {}
@@ -3279,7 +3370,7 @@ class AsmNode : public NaryStmtNode {
         clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
 
   AsmNode(MapleAllocator &allocator, const AsmNode &node)
-      : NaryStmtNode(allocator, OP_asm), asmString(node.asmString), inputConstraints(allocator.Adapter()),
+      : NaryStmtNode(allocator, node), asmString(node.asmString), inputConstraints(allocator.Adapter()),
         asmOutputs(allocator.Adapter()), outputConstraints(allocator.Adapter()),
         clobberList(allocator.Adapter()), gotoLabels(allocator.Adapter()), qualifiers(node.qualifiers) {}
 
@@ -3303,7 +3394,7 @@ class AsmNode : public NaryStmtNode {
     hasWriteInputs = true;
   }
 
-  bool HasWriteInputs() {
+  bool HasWriteInputs() const {
     return hasWriteInputs;
   }
 
