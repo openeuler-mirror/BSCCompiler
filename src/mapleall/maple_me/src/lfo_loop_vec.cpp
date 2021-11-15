@@ -792,10 +792,8 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_cmpg:
     case OP_cmpl: {
       // check two operands are constant
-      MeExpr *r0MeExpr = (*lfoExprParts)[x->Opnd(0)]->GetMeExpr();
-      MeExpr *r1MeExpr = (*lfoExprParts)[x->Opnd(1)]->GetMeExpr();
-      bool r0Uniform = doloopInfo->IsLoopInvariant(r0MeExpr);
-      bool r1Uniform = doloopInfo->IsLoopInvariant(r1MeExpr);
+      bool r0Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(0));
+      bool r1Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(1));
       if (r0Uniform && r1Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         vecInfo->uniformNodes.insert(x->Opnd(1));
@@ -814,8 +812,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_lnot:
     case OP_neg:
     case OP_abs: {
-      MeExpr *r0MeExpr = (*lfoExprParts)[x->Opnd(0)]->GetMeExpr();
-      bool r0Uniform = doloopInfo->IsLoopInvariant(r0MeExpr);
+      bool r0Uniform = doloopInfo->IsLoopInvariant2(x->Opnd(0));
       if (r0Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(0));
         return true;
@@ -835,8 +832,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
           IreadNode *iread = static_cast<IreadNode *>(x);
           if ((iread->GetFieldID() != 0 || MustBeAddress(iread->GetPrimType())) &&
               iread->Opnd(0)->GetOpCode() == OP_array) {
-            MeExpr *meExpr = depInfo->preEmit->GetLfoExprPart(iread->Opnd(0))->GetMeExpr();
-            canVec = doloopInfo->IsLoopInvariant(meExpr);
+            canVec = doloopInfo->IsLoopInvariant2(iread->Opnd(0));
           }
         }
       }
@@ -945,8 +941,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
         bool canVec = ExprVectorizable(doloopInfo, vecInfo, iassign->GetRHS());
         if (canVec) {
           if (iassign->GetFieldID() != 0) {  // check base of iassign
-            MeExpr *meExpr = (*lfoExprParts)[iassign->Opnd(0)]->GetMeExpr();
-            canVec = doloopInfo->IsLoopInvariant(meExpr);
+            canVec = doloopInfo->IsLoopInvariant2(iassign->Opnd(0));
             if ((!canVec) && enableDebug) {
               LogInfo::MapleLogger() << "NOT VECTORIZABLE because of baseaddress is not const with non-zero filedID\n";
             }
@@ -977,8 +972,7 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
             return false; // need cvt instruction
           }
           // rsh is loop invariant
-          MeExpr *meExpr = (*lfoExprParts)[iassign->GetRHS()]->GetMeExpr();
-          if (meExpr && doloopInfo->IsLoopInvariant(meExpr)) {
+          if (doloopInfo->IsLoopInvariant2(iassign->GetRHS())) {
             vecInfo->uniformNodes.insert(iassign->GetRHS());
           }
           vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());

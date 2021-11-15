@@ -88,7 +88,11 @@ class LfoPreEmitter : public AnalysisResult {
     return nullptr;
   }
   MeExpr *GetMexpr(BaseNode *node) {
-    LfoPart *lfopart = lfoExprParts[node];
+    MapleMap<BaseNode *, LfoPart *>::iterator it = lfoExprParts.find(node);
+    if (it == lfoExprParts.end()) {
+      return nullptr;
+    }
+    LfoPart *lfopart = it->second;
     return lfopart->meexpr;
   }
   MeStmt *GetMeStmt(uint32_t stmtID) {

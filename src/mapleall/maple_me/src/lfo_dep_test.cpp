@@ -128,6 +128,20 @@ bool DoloopInfo::IsLoopInvariant(MeExpr *x) {
   return false;
 }
 
+// check if x is loop-invariant w.r.t. the doloop
+bool DoloopInfo::IsLoopInvariant2(BaseNode *x) {
+  MeExpr *meExpr = depInfo->preEmit->GetMexpr(x);
+  if (meExpr != nullptr) {
+    return IsLoopInvariant(meExpr);
+  }
+  for (size_t i = 0; i < x->NumOpnds(); i++) {
+    if (!IsLoopInvariant2(x->Opnd(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // check if all the scalars contained in x are loop-invariant unless it is IV
 bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
   if (x == nullptr) {
@@ -182,7 +196,7 @@ bool DoloopInfo::OnlyInvariantScalars(MeExpr *x) {
 SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   MeExpr *meExpr = depInfo->preEmit->GetMexpr(subsX);
   SubscriptDesc *subsDesc = alloc->GetMemPool()->New<SubscriptDesc>(meExpr);
-  if (IsLoopInvariant(meExpr)) {
+  if (IsLoopInvariant2(subsX)) {
     subsDesc->loopInvariant = true;
     return subsDesc;
   }
@@ -259,15 +273,15 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   size_t dim = arryty->GetDim();
   CHECK_FATAL(dim >= arr->NumOpnds() - 1, "BuildOneArrayAccessDesc: inconsistent array dimension");
   // ensure array base is loop invariant
-  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
-  if (!IsLoopInvariant(arrayMeExpr->GetOpnd(0))) {
+  if (!IsLoopInvariant2(arr->Opnd(0))) {
     hasPtrAccess = true;
     return nullptr;
   }
   // determine arryOst
   IvarMeExpr *ivarMeExpr = nullptr;
   OriginalSt *arryOst = nullptr;
-  if (arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
+  OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
+  if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
   } else if (parent->op == OP_iread) {
     ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parent));
     CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
@@ -304,7 +318,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
 void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent) {
   if (x->GetOpCode() == OP_array) {
     if (parent->GetOpCode() != OP_iread) { // skip arrays not underneath iread unless loop-invariant
-      if (IsLoopInvariant(depInfo->preEmit->GetMexpr(x))) {
+      if (IsLoopInvariant2(x)) {
         return;
       }
       hasPtrAccess = true;
@@ -350,21 +364,6 @@ void DoloopInfo::CreateArrayAccessDesc(BlockNode *block) {
         if (iass->addrExpr->GetOpCode() == OP_array) {
           ArrayAccessDesc *adesc = BuildOneArrayAccessDesc(static_cast<ArrayNode *>(iass->addrExpr), iass);
           if (adesc != nullptr) {
-#if 0
-            CHECK_FATAL(adesc->arrayOst, "CreateArrayAccessDesc: arrayOst not valid");
-            // check if the chi list has only the same array
-            LfoPart *lfopart = depInfo->preEmit->GetLfoStmtPart(iass->GetStmtID());
-            IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(lfopart->GetMeStmt());
-            MapleMap<OStIdx, ChiMeNode*> *chilist = iassMeStmt->GetChiList();
-            MapleMap<OStIdx, ChiMeNode*>::iterator chiit = chilist->begin();
-            for (; chiit != chilist->end(); chiit++) {
-              OriginalSt *chiOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiit->first);
-              if (!chiOst->IsSameSymOrPreg(adesc->arrayOst)) {
-                hasMayDef = true;
-                break;
-              }
-            }
-#endif
           }
         } else {
           hasPtrAccess = true;
