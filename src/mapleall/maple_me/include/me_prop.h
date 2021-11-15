@@ -14,16 +14,15 @@
  */
 #ifndef MAPLE_ME_INCLUDE_MEPROP_H
 #define MAPLE_ME_INCLUDE_MEPROP_H
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "bb.h"
-#include "me_phase.h"
 #include "prop.h"
 
 namespace maple {
 class MeProp : public Prop {
  public:
-  MeProp(MeIRMap &irMap, Dominance &dom, MemPool &memPool, const PropConfig &config)
-      : Prop(irMap, dom, memPool, irMap.GetFunc().GetCfg()->GetAllBBs().size(), config),
+  MeProp(MeIRMap &irMap, Dominance &dom, MemPool &memPool, const PropConfig &config, uint32 limit = UINT32_MAX)
+      : Prop(irMap, dom, memPool, irMap.GetFunc().GetCfg()->GetAllBBs().size(), config, limit),
         func(&irMap.GetFunc()) {}
 
   virtual ~MeProp() = default;
@@ -35,15 +34,6 @@ class MeProp : public Prop {
   }
 };
 
-class MeDoMeProp : public MeFuncPhase {
- public:
-  explicit MeDoMeProp(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoMeProp() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "hprop";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEMeProp, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MEPROP_H
