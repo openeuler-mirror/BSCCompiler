@@ -486,6 +486,17 @@ const char *GetPrimTypeJavaName(PrimType primType) {
   }
 }
 
+void StmtAttrs::DumpAttributes() const {
+#define STMT_ATTR
+#define STRING(s) #s
+#define ATTR(AT)          \
+  if (GetAttr(STMTATTR_##AT)) \
+    LogInfo::MapleLogger() << STRING(AT);
+#include "all_attributes.def"
+#undef ATTR
+#undef STMT_ATTR
+}
+
 void TypeAttrs::DumpAttributes() const {
 #define TYPE_ATTR
 #define STRING(s) #s

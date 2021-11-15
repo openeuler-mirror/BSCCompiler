@@ -676,6 +676,19 @@ class CGOptions : public MapleDriverOptionBase {
   static bool DoGlobalOpt() {
     return doGlobalOpt;
   }
+
+  static void EnableAlignAnalysis() {
+    doAlignAnalysis = true;
+  }
+
+  static void DisableAlignAnalysis() {
+    doAlignAnalysis = false;
+  }
+
+  static bool DoAlignAnalysis() {
+    return doAlignAnalysis;
+  }
+
   static void EnableVregRename() {
     doVregRename = true;
   }
@@ -1143,6 +1156,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doPrePeephole;
   static bool doPeephole;
   static bool doSchedule;
+  static bool doAlignAnalysis;
   static bool doWriteRefFieldOpt;
   static bool dumpOptimizeCommonLog;
   static bool checkArrayStore;

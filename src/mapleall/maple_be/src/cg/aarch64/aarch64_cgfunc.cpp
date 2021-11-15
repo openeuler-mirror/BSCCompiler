@@ -4269,7 +4269,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
     int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
     resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, sConst, opcode);
   } else if ((IsPrimitiveVector(dtype) || isOneElemVector) && !opnd1.IsConstImmediate()) {
-    resOpnd = SelectVectorShift(dtype, &opnd0, expr->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), opcode);
+    resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
@@ -9474,9 +9474,9 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
 
   MOperator mOp;
   if (isLow) {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddwvvu : MOP_vsaddwvvu;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddwvvu : MOP_vuaddwvvu;
   } else {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddw2vvv : MOP_vuaddw2vvv;
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
@@ -9854,8 +9854,7 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) {
-  PrepareVectorOperands(&o1, oty1, &o2, oty2);
+RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) {
   PrimType resultType = rType;
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
@@ -9944,7 +9943,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
     Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *imm);
     static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
     GetCurBB()->AppendInsn(*insn);
-    res = SelectVectorShift(rType, o1, rType, res, rType, opc);
+    res = SelectVectorShift(rType, o1, res, opc);
     return res;
   }
   MOperator mOp;
@@ -10139,35 +10138,6 @@ RegOperand *AArch64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1,
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1,
-  PrimType otyp1, Operand *o2, PrimType otyp2, bool isLow, bool isWide) {
-  RegOperand *res = &CreateRegisterOperandOfType(resType);                   /* result reg */
-  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resType);
-  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp1);      /* vector operand 1 */
-  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(otyp2);      /* vector operand 2 */
-
-  MOperator mOp;
-  if (!isWide) {
-    if (isLow) {
-      mOp = IsUnsignedInteger(otyp1) ? MOP_vusublvuu : MOP_vssublvuu;
-    } else {
-      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubl2vvv : MOP_vssubl2vvv;
-    }
-  } else {
-    if (isLow) {
-      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubwvvu : MOP_vssubwvvu;
-    } else {
-      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubw2vvv : MOP_vssubw2vvv;
-    }
-  }
-  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
-  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
-  GetCurBB()->AppendInsn(*insn);
-  return res;
-}
-
 void AArch64CGFunc::SelectVectorZip(PrimType rType, Operand *o1, Operand *o2) {
   RegOperand *res1 = &CreateRegisterOperandOfType(rType);                   /* result operand 1 */
   RegOperand *res2 = &CreateRegisterOperandOfType(rType);                   /* result operand 2 */
@@ -10213,4 +10183,31 @@ RegOperand *AArch64CGFunc::SelectVectorWiden(PrimType rType, Operand *o1, PrimTy
   return res;
 }
 
+/*
+ * Check the distance between the first insn of BB with the lable(targ_labidx)
+ * and the insn with targ_id. If the distance greater than kShortBRDistance
+ * return false.
+ */
+bool AArch64CGFunc::DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) {
+  for (auto *tBB : bb.GetSuccs()) {
+    if (tBB->GetLabIdx() != targLabIdx) {
+      continue;
+    }
+    Insn *tInsn = tBB->GetFirstInsn();
+    while (tInsn == nullptr || !tInsn->IsMachineInstruction()) {
+      if (tInsn == nullptr) {
+        tBB = tBB->GetNext();
+        if (tBB == nullptr) { /* tailcallopt may make the target block empty */
+          return true;
+        }
+        tInsn = tBB->GetFirstInsn();
+      } else {
+        tInsn = tInsn->GetNext();
+      }
+    }
+    uint32 tmp = (tInsn->GetId() > targId) ? (tInsn->GetId() - targId) : (targId - tInsn->GetId());
+    return (tmp < kShortBRDistance);
+  }
+  CHECK_FATAL(false, "CFG error");
+}
 }  /* namespace maplebe */

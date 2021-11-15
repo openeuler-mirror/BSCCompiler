@@ -110,6 +110,7 @@ class BB {
   bool IsCommentBB() const;
   bool IsEmptyOrCommentOnly() const;
   bool IsSoloGoto() const;
+  BB* GetValidPrev();
 
   bool IsEmpty() const {
     if (lastInsn == nullptr) {
@@ -700,6 +701,12 @@ class BB {
   uint32 GetAlignPower() {
     return alignPower;
   }
+  void SetAlignNopNum(uint32 num) {
+    alignNopNum = num;
+  }
+  uint32 GetAlignNopNum() {
+    return alignNopNum;
+  }
 
  private:
   static const std::string bbNames[kBBLast];
@@ -782,6 +789,7 @@ class BB {
 
   bool needAlign = false;
   uint32 alignPower = 0;
+  uint32 alignNopNum = 0;
 };  /* class BB */
 
 struct BBIdCmp {

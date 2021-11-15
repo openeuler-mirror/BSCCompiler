@@ -240,6 +240,9 @@ void DotGenerator::DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, st
     }
     cfgFile << "{ ";
     cfgFile << bb->GetKindName() << "\n";
+    if (bb->GetLabIdx() != 0) {
+      cfgFile << "LabIdx=" << bb->GetLabIdx() << "\n";
+    }
     cfgFile << "}\"];\n";
   }
 }

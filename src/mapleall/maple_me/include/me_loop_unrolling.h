@@ -55,20 +55,22 @@ class LoopUnrolling {
   static void BuildMustDefList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
                                MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
                                const MapleVector<MustDefMeNode> &oldMustDef, MapleVector<MustDefMeNode> &newMustDef);
-  static void CopyDassignStmt(MemPool &memPool, MapleAllocator &mpAllocator, MapleMap<OStIdx, MapleSet<BBId>*> &cands,
-                              MeIRMap &irMap, MeStmt &stmt, BB &bb);
-  static void CopyRegassignStmt(MemPool &memPool, MapleAllocator &mpAllocator, MapleMap<OStIdx, MapleSet<BBId>*> &cands,
-                                MeIRMap &irMap, MeStmt &stmt, BB &bb);
-  static void CopyIassignStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+  static MeStmt *CopyDassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
+                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                 MeIRMap &irMap, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyRegassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
+                                   MapleMap<OStIdx, MapleSet<BBId>*> &cands,
+                                   MeIRMap &irMap, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyIassignStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyIntrinsiccallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                                       MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyIcallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                               MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyCallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
                               MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static void CopyIntrinsiccallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                                    MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static void CopyIcallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                            MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static void CopyCallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                           MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static void CopyAsmStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                          MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
+  static MeStmt *CopyAsmStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
+                             MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
   static void InsertCandsForSSAUpdate(MemPool &memPool, MapleAllocator &mpAllocator,
                                       MapleMap<OStIdx, MapleSet<BBId>*> &cands, OStIdx ostIdx, const BB &bb);
 
@@ -132,6 +134,7 @@ class LoopUnrolling {
 class LoopUnrollingExecutor {
  public:
   explicit LoopUnrollingExecutor(MemPool &mp) : innerMp(&mp) {}
+  virtual ~LoopUnrollingExecutor() = default;
   static bool enableDebug;
   static bool enableDump;
 

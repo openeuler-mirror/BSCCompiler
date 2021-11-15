@@ -30,7 +30,7 @@ static constexpr uint32 kMaxRegParamNum = 4;
 static constexpr uint32 kMaxRegParamNum = 8;
 #endif
 
-Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config, uint32 limit)
+Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, const PropConfig &config)
     : dom(dom),
       irMap(irMap),
       ssaTab(irMap.GetSSATab()),
@@ -39,8 +39,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       vstLiveStackVec(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
       config(config),
-      candsForSSAUpdate(propMapAlloc.Adapter()),
-      propLimit(limit) {
+      candsForSSAUpdate(propMapAlloc.Adapter()) {
   const MapleVector<OriginalSt *> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
   for (size_t i = 1; i < originalStVec.size(); ++i) {
@@ -635,7 +634,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
 // return varMeExpr itself if no propagation opportunity
 MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
   const MIRSymbol *st = varMeExpr.GetOst()->GetMIRSymbol();
-  if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr() || propsPerformed >= propLimit) {
+  if (st->IsInstrumented() || varMeExpr.IsVolatile() || varMeExpr.GetOst()->HasOneElemSimdAttr()) {
     return varMeExpr;
   }
 
@@ -659,7 +658,6 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
       if (propagatable == kPropOnlyWithInverse) {
         rhs = RehashUsingInverse(rhs);
       }
-      propsPerformed++;
       return *CheckTruncation(&varMeExpr, rhs);
     } else {
       return varMeExpr;
@@ -683,16 +681,12 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
         return varMeExpr;
       }
     }
-    propsPerformed++;
     return *opndLastProp;
   }
   return varMeExpr;
 }
 
 MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
-  if (propsPerformed >= propLimit) {
-    return regMeExpr;
-  }
   if (regMeExpr.GetDefBy() == kDefByStmt) {
     AssignMeStmt *defStmt = static_cast<AssignMeStmt*>(regMeExpr.GetDefStmt());
     MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
@@ -704,7 +698,6 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
       if (propagatable == kPropOnlyWithInverse) {
         rhs = *RehashUsingInverse(&rhs);
       }
-      propsPerformed++;
       return rhs;
     }
   } else if (checkPhi && regMeExpr.GetDefBy() == kDefByPhi && config.propagateAtPhi) {
@@ -722,23 +715,18 @@ MeExpr &Prop::PropReg(RegMeExpr &regMeExpr, bool atParm, bool checkPhi) {
         return regMeExpr;
       }
     }
-    propsPerformed++;
     return *opndLastProp;
   }
   return regMeExpr;
 }
 
 MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
-  if (propsPerformed >= propLimit) {
-    return ivarMeExpr;
-  }
   IassignMeStmt *defStmt = ivarMeExpr.GetDefStmt();
   if (defStmt == nullptr || ivarMeExpr.IsVolatile()) {
     return ivarMeExpr;
   }
   MeExpr &rhs = utils::ToRef(defStmt->GetRHS());
   if (rhs.GetDepth() <= kPropTreeLevel && Propagatable(&rhs, defStmt->GetBB(), false) != kPropNo) {
-    propsPerformed++;
     return *CheckTruncation(&ivarMeExpr, &rhs);
   }
   if (mirModule.IsCModule() && ivarMeExpr.GetPrimType() != PTY_agg) {

@@ -30,7 +30,7 @@ inline static bool IsAlloc(const BaseNode *x) {
 }
 
 void PEGNode::Dump() {
-  LogInfo::MapleLogger() << "PEGNode: ";
+  LogInfo::MapleLogger() << "PEGNode: idx(" << ost->GetIndex() << ")";
   ost->Dump();
   if (attr[kAliasAttrNotAllDefsSeen]) {
     LogInfo::MapleLogger() << " NADS";
@@ -46,6 +46,9 @@ void PEGNode::Dump() {
   }
   if (attr[kAliasAttrNextLevNotAllDefsSeen]) {
     LogInfo::MapleLogger() << " NextLevNADS";
+  }
+  if (multiDefed) {
+    LogInfo::MapleLogger() << " multiDefed";
   }
   LogInfo::MapleLogger() << std::endl;
 }
@@ -93,6 +96,7 @@ void ProgramExprGraph::Dump() const {
 
   for (auto &node : allNodes) {
     node->ost->Dump();
+    LogInfo::MapleLogger() << " idx(" << node->ost->GetIndex() << ")";
     if (node->attr[kAliasAttrNotAllDefsSeen]) {
       LogInfo::MapleLogger() << " NADS";
     }
@@ -107,6 +111,9 @@ void ProgramExprGraph::Dump() const {
     }
     if (node->attr[kAliasAttrNextLevNotAllDefsSeen]) {
       LogInfo::MapleLogger() << " NextLevNADS";
+    }
+    if (node->multiDefed) {
+      LogInfo::MapleLogger() << " multiDefed";
     }
 
     LogInfo::MapleLogger() << std::endl << ">>>assign from : ";
@@ -638,26 +645,17 @@ void PEGBuilder::BuildPEGNodeInStmt(const StmtNode *stmt) {
       auto *mustDefedOst = mustDefNodes.front().GetResult()->GetOst();
       auto *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(mustDefedOst->GetTyIdx());
       if (IsAddress(mirType->GetPrimType())) {
-        peg->GetOrCreateNodeOf(mustDefedOst)->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
+        auto *pegNode = peg->GetOrCreateNodeOf(mustDefedOst);
+        if (stmt->GetOpCode() == OP_callassigned) {
+          auto *callStmt = static_cast<const CallNode*>(stmt);
+          auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt->GetPUIdx());
+          if (mirFunc != nullptr && mirFunc->GetFuncDesc().IsReturnNoAlias()) {
+            return;
+          }
+        }
+        pegNode->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
       }
     }
-  }
-}
-
-void ResetNextLevelOffsetResultingFromMultiDefOfPtr(PEGNode *node, std::set<PEGNode*> updatedPEGNode) {
-  const auto &it = updatedPEGNode.insert(node);
-  // insert failed, the node has been updated
-  if (!it.second) {
-    return;
-  }
-
-  node->SetMultiDefined();
-  for (auto *nextLevNode : node->nextLevNodes) {
-    nextLevNode->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
-  }
-
-  for (const auto &assignTo : node->assignTo) {
-    ResetNextLevelOffsetResultingFromMultiDefOfPtr(assignTo.pegNode, updatedPEGNode);
   }
 }
 
@@ -713,7 +711,7 @@ void PEGBuilder::UpdateAttributes() {
     if (node->ost->GetIndirectLev() > 0 || node->assignFrom.size() > 1 ||
         (node->ost->IsFormal() && node->assignFrom.size() > 0) ||
         (node->ost->IsSymbolOst() && node->ost->GetMIRSymbol()->IsStatic())) {
-      ResetNextLevelOffsetResultingFromMultiDefOfPtr(node, updatedPEGNode);
+      node->SetMultiDefined();
     }
   }
   updatedPEGNode.clear();
@@ -810,27 +808,62 @@ void PEGBuilder::BuildPEG() {
       BuildPEGNodeInStmt(&stmt);
     }
   }
-
   UpdateAttributes();
 }
 
-void DemandDrivenAliasAnalysis::Propagate(WorkListType &workList, PEGNode *to, PEGNode *src, ReachState state,
-                                          OffsetType offset) {
-  if (to == nullptr || src == nullptr) {
+MapleSet<ReachItem*, ReachItemComparator> *DemandDrivenAliasAnalysis::ReachSetOf(PEGNode *node) {
+  auto *reachSet = reachNodes[node];
+  if (reachSet == nullptr) {
+    reachSet = tmpMP->New<MapleSet<ReachItem*, ReachItemComparator>>(tmpAlloc.Adapter());
+    reachNodes[node] = reachSet;
+    return reachSet;
+  }
+  return reachSet;
+}
+
+std::pair<bool, ReachItem*> DemandDrivenAliasAnalysis::AddReachNode(PEGNode *to, PEGNode *src,
+                                                                    ReachState state, OffsetType offset) {
+  auto *reachSet = ReachSetOf(to);
+  auto reachItem = tmpMP->New<ReachItem>(src, state, offset);
+  const auto &insertedReachItemPair = reachSet->insert(reachItem);
+  auto it = insertedReachItemPair.first;
+  if (!insertedReachItemPair.second && (*it)->offset != offset) {
+    (*it)->offset.Set(kOffsetUnknown);
+  }
+  return {insertedReachItemPair.second, *it};
+}
+
+void DemandDrivenAliasAnalysis::Propagate(WorkListType &workList, PEGNode *to, const ReachItem &reachItem,
+                                          bool selfProp) {
+  if (to == nullptr || reachItem.src == nullptr) {
     return;
   }
-  bool insertNewNode = AddReachNode(to, src, state, offset);
-  if (insertNewNode) {
-    workList.push_back(WorkListItem(to, src, state, offset));
-    to->CopyAttrFromValueAliasedNode(src);
+  if (to == reachItem.src && !selfProp) {
+    return;
+  }
+  const auto &newNode = AddReachNode(to, reachItem.src, reachItem.state, reachItem.offset);
+  const auto &offset = newNode.second->offset;
+  if (newNode.first) {
+    workList.push_back(WorkListItem(to, reachItem.src, reachItem.state, offset));
+    to->CopyAttrFromValueAliasedNode(reachItem.src);
     if (enableDebug) {
       LogInfo::MapleLogger() << "===New candidate: ";
-      src->ost->Dump();
+      reachItem.src->ost->Dump();
       LogInfo::MapleLogger() << " + " << offset.val << " => ";
       to->ost->Dump();
       LogInfo::MapleLogger() << std::endl << std::endl;
     }
   }
+}
+
+MapleSet<OriginalSt*> *DemandDrivenAliasAnalysis::AliasSetOf(OriginalSt *ost) {
+  auto it = aliasSets.find(ost);
+  if (it->second == nullptr || it == aliasSets.end()) {
+    auto *aliasSet = tmpMP->New<MapleSet<OriginalSt*>>(tmpAlloc.Adapter());
+    aliasSets[ost] = aliasSet;
+    return aliasSet;
+  }
+  return it->second;
 }
 
 bool DemandDrivenAliasAnalysis::AliasBasedOnAliasAttr(PEGNode *to, PEGNode *src) const {
@@ -874,10 +907,6 @@ inline static bool MemOverlapAccordingOffset(OffsetType startA, OffsetType endA,
 }
 
 inline static OffsetType OffsetFromPrevLevNode(const PEGNode *pegNode) {
-  if (pegNode->prevLevNode->multiDefed) {
-    return OffsetType::InvalidOffset();
-  }
-
   return pegNode->ost->GetOffset();
 }
 
@@ -891,6 +920,9 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
     auto state = item.srcItem.state;
     auto offset = item.srcItem.offset;
     workList.pop_front();
+    if (srcNode->multiDefed || toNode->multiDefed) {
+      offset = OffsetType::InvalidOffset();
+    }
 
     // toNode->ost value alias with srcNode->ost, the nextLevOsts may memory alias with each other
     for (auto *nextLevNodeOfTo : toNode->nextLevNodes) {
@@ -906,11 +938,11 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
           for (const auto &reachItem : *ReachSetOf(nextLevNodeOfSrc)) {
             switch (reachItem->state) {
               case S1: {
-                Propagate(workList, nextLevNodeOfTo, reachItem->src, S2, reachItem->offset);
+                Propagate(workList, nextLevNodeOfTo, {reachItem->src, S2, reachItem->offset});
                 break;
               }
               case S3: {
-                Propagate(workList, nextLevNodeOfTo, reachItem->src, S4, reachItem->offset);
+                Propagate(workList, nextLevNodeOfTo, {reachItem->src, S4, reachItem->offset});
                 break;
               }
               default:
@@ -924,39 +956,39 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
     switch (state) {
       case S1: {
         for (const auto &readNode : toNode->assignFrom) {
-          Propagate(workList, readNode.pegNode, srcNode, S1, offset + readNode.offset);
+          Propagate(workList, readNode.pegNode, {srcNode, S1, offset + readNode.offset});
         }
         for (auto *aliasOst : *AliasSetOf(toNode->ost)) {
           auto *aliasNode = peg.GetNodeOf(aliasOst);
-          Propagate(workList, aliasNode, srcNode, S2, offset);
+          Propagate(workList, aliasNode, {srcNode, S2, offset});
         }
         for (const auto &writeNode : toNode->assignTo) {
-          Propagate(workList, writeNode.pegNode, srcNode, S3, writeNode.offset + (-offset));
+          Propagate(workList, writeNode.pegNode, {srcNode, S3, writeNode.offset + (-offset)});
         }
         break;
       }
       case S2: {
         for (const auto &readNode : toNode->assignFrom) {
-          Propagate(workList, readNode.pegNode, srcNode, S1, offset +  readNode.offset);
+          Propagate(workList, readNode.pegNode, {srcNode, S1, offset +  readNode.offset});
         }
         for (const auto &writeNode : toNode->assignTo) {
-          Propagate(workList, writeNode.pegNode, srcNode, S3, writeNode.offset + (-offset));
+          Propagate(workList, writeNode.pegNode, {srcNode, S3, writeNode.offset + (-offset)});
         }
         break;
       }
       case S3: {
         for (const auto &writeNode : toNode->assignTo) {
-          Propagate(workList, writeNode.pegNode, srcNode, S3, writeNode.offset + offset);
+          Propagate(workList, writeNode.pegNode, {srcNode, S3, writeNode.offset + offset});
         }
         for (auto *aliasOst : *AliasSetOf(toNode->ost)) {
           auto *aliasNode = peg.GetNodeOf(aliasOst);
-          Propagate(workList, aliasNode, srcNode, S4, offset);
+          Propagate(workList, aliasNode, {srcNode, S4, offset});
         }
         break;
       }
       case S4: {
         for (const auto &writeNode : toNode->assignTo) {
-          Propagate(workList, writeNode.pegNode, srcNode, S3, writeNode.offset + offset);
+          Propagate(workList, writeNode.pegNode, {srcNode, S3, writeNode.offset + offset});
         }
         break;
       }
@@ -972,7 +1004,7 @@ void DemandDrivenAliasAnalysis::UpdateAliasInfoOfPegNode(PEGNode *pegNode) {
     }
     auto pegNodeOfPrevLevOst = toNode->prevLevNode;
     if (pegNodeOfPrevLevOst != nullptr) {
-      Propagate(workList, pegNodeOfPrevLevOst, pegNodeOfPrevLevOst, S1);
+      Propagate(workList, pegNodeOfPrevLevOst, {pegNodeOfPrevLevOst, S1, OffsetType(0)}, true);
     }
   }
 }
@@ -1023,6 +1055,14 @@ bool DemandDrivenAliasAnalysis::MayAlias(PEGNode *to, PEGNode *src) {
 bool DemandDrivenAliasAnalysis::MayAlias(OriginalSt *ostA, OriginalSt *ostB) {
   auto *aliasSet = AliasSetOf(ostA);
   if (aliasSet->find(ostB) != aliasSet->end()) {
+    if (enableDebug) {
+      LogInfo::MapleLogger() << "a) Demand Driven Alias Aanlysis: ";
+      ostA->Dump();
+      LogInfo::MapleLogger() << " ostIdx(" << ostA->GetIndex() << ") and ";
+      ostB->Dump();
+      LogInfo::MapleLogger() << " ostIdx(" << ostB->GetIndex() << ")";
+      LogInfo::MapleLogger() << " alias." << std::endl;
+    }
     return true;
   }
 
@@ -1036,20 +1076,25 @@ bool DemandDrivenAliasAnalysis::MayAlias(OriginalSt *ostA, OriginalSt *ostB) {
 
   auto *to = peg.GetNodeOf(ostA);
   auto *src = peg.GetNodeOf(ostB);
-  if (to == nullptr) {
-    return true;
-  }
-  if (src == nullptr) {
+  if (to == nullptr || src == nullptr) {
+    if (enableDebug) {
+      LogInfo::MapleLogger() << "b) Demand Driven Alias Aanlysis: ";
+      ostA->Dump();
+      LogInfo::MapleLogger() << " ostIdx(" << ostA->GetIndex() << ") and ";
+      ostB->Dump();
+      LogInfo::MapleLogger() << " ostIdx(" << ostB->GetIndex() << ")";
+      LogInfo::MapleLogger() << " alias." << std::endl;
+    }
     return true;
   }
 
   bool aliasAccordingDDAA = MayAlias(to, src);
   if (enableDebug) {
-    LogInfo::MapleLogger() << "Demand Driven Alias Aanlysis: ";
-    to->ost->Dump();
-    LogInfo::MapleLogger() << " ostIdx(" << to->ost->GetIndex() << ") and ";
-    src->ost->Dump();
-    LogInfo::MapleLogger() << " ostIdx(" << src->ost->GetIndex() << ")";
+    LogInfo::MapleLogger() << "c) Demand Driven Alias Aanlysis: ";
+    ostA->Dump();
+    LogInfo::MapleLogger() << " ostIdx(" << ostA->GetIndex() << ") and ";
+    ostB->Dump();
+    LogInfo::MapleLogger() << " ostIdx(" << ostB->GetIndex() << ")";
     if (!aliasAccordingDDAA) {
       LogInfo::MapleLogger() << " not ";
     }

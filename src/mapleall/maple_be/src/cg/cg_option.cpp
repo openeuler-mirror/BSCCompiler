@@ -104,6 +104,7 @@ bool CGOptions::doCalleeToSpill = false;
 bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
+bool CGOptions::doAlignAnalysis = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -198,6 +199,7 @@ enum OptionIndex : uint64 {
   kOmitFramePointer,
   kFastMath,
   kTailCall,
+  kAlignAnalysis,
 };
 
 const Descriptor kUsage[] = {
@@ -1092,6 +1094,16 @@ const Descriptor kUsage[] = {
     "  --no-tailcall\n",
     "mplcg",
     {} },
+  { kAlignAnalysis,
+    kEnable,
+    "",
+    "align-analysis",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --align-analysis                 \tPerform alignanalysis\n"
+    "  --no-align-analysis\n",
+    "mplcg",
+    {} },
 
 // End
   { kUnknown,
@@ -1477,6 +1489,8 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
       case kFastMath:
         (opt.Type() == kEnable) ? EnableFastMath() : DisableFastMath();
         break;
+      case kAlignAnalysis:
+        (opt.Type() == kEnable) ? EnableAlignAnalysis() : DisableAlignAnalysis();
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
         break;
@@ -1570,6 +1584,7 @@ void CGOptions::EnableO0() {
   doCalleeToSpill = false;
   doSchedule = false;
   doWriteRefFieldOpt = false;
+  doAlignAnalysis = false;
   SetOption(kUseStackGuard);
   ClearOption(kConstFold);
   ClearOption(kProEpilogueOpt);
@@ -1597,6 +1612,7 @@ void CGOptions::EnableO2() {
   doGlobalOpt = true;
   doPreSchedule = true;
   doSchedule = true;
+  doAlignAnalysis = true;
   SetOption(kConstFold);
   ClearOption(kUseStackGuard);
 #if TARGARM32

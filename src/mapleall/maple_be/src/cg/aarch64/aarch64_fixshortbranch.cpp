@@ -18,34 +18,6 @@
 #include "common_utils.h"
 
 namespace maplebe {
-/*
- * Check the distance between the first insn of BB with the lable(targ_labidx)
- * and the insn with targ_id. If the distance greater than kShortBRDistance
- * return false.
- */
-bool AArch64FixShortBranch::DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId) {
-  for (auto *tBB : bb.GetSuccs()) {
-    if (tBB->GetLabIdx() != targLabIdx) {
-      continue;
-    }
-    Insn *tInsn = tBB->GetFirstInsn();
-    while (tInsn == nullptr || !tInsn->IsMachineInstruction()) {
-      if (tInsn == nullptr) {
-        tBB = tBB->GetNext();
-        if (tBB == nullptr) { /* tailcallopt may make the target block empty */
-          return true;
-        }
-        tInsn = tBB->GetFirstInsn();
-      } else {
-        tInsn = tInsn->GetNext();
-      }
-    }
-    uint32 tmp = (tInsn->GetId() > targId) ? (tInsn->GetId() - targId) : (targId - tInsn->GetId());
-    return (tmp < kShortBRDistance);
-  }
-  CHECK_FATAL(false, "CFG error");
-}
-
 uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) {
   if (addr == 0) {
     return addr;
@@ -60,11 +32,11 @@ uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) {
    *          The pseudo-instruction will be expanded to nop.
    *      eg. .p2align 5
    *          alignPower = 5, alignValue = 2^5 = 32
-   *          range = (32 - ((addr - 1) * 4) % 32) / 4
+   *          range = (32 - ((addr - 1) * 4) % 32) / 4 - 1
    *
    * =======> max[range, kAlignPseudoSize]
    */
-  uint32 range = ((2 << alignPower) - (((addr - 1) * kInsnSize) & ((2 << alignPower) - 1))) / kInsnSize;
+  uint32 range = ((1 << alignPower) - (((addr - 1) * kInsnSize) & ((1 << alignPower) - 1))) / kInsnSize - 1;
   return range > kAlignPseudoSize ? range : kAlignPseudoSize;
 }
 
@@ -72,7 +44,7 @@ void AArch64FixShortBranch::SetInsnId(){
   uint32 i = 0;
   AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_ALL_BB(bb, aarch64CGFunc) {
-    if (aarch64CGFunc->GetMirModule().IsCModule() && bb != nullptr && bb->IsBBNeedAlign()) {
+    if (aarch64CGFunc->GetMirModule().IsCModule() && bb->IsBBNeedAlign() && bb->GetAlignNopNum() != 0) {
       i = i + CalculateAlignRange(*bb, i);
     }
     FOR_BB_INSNS(insn, bb) {
@@ -104,9 +76,9 @@ void AArch64FixShortBranch::FixShortBranches() {
   do {
     change = false;
     SetInsnId();
-    FOR_ALL_BB(bb, aarch64CGFunc) {
+    for (auto *bb = aarch64CGFunc->GetFirstBB(); bb != nullptr && !change; bb = bb->GetNext()) {
       /* Do a backward scan searching for short branches */
-      FOR_BB_INSNS_REV(insn, bb) {
+      for (auto *insn = bb->GetLastInsn(); insn != nullptr && !change; insn = insn->GetPrev()) {
         if (!insn->IsMachineInstruction()) {
           continue;
         }
@@ -116,7 +88,7 @@ void AArch64FixShortBranch::FixShortBranches() {
         }
         LabelOperand &label = static_cast<LabelOperand&>(insn->GetOperand(kInsnThirdOpnd));
         /*  should not be commented out after bug fix */
-        if (DistanceCheck(*bb, label.GetLabelIndex(), insn->GetId())) {
+        if (aarch64CGFunc->DistanceCheck(*bb, label.GetLabelIndex(), insn->GetId())) {
           continue;
         }
         auto &reg = static_cast<AArch64RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
@@ -150,7 +122,6 @@ void AArch64FixShortBranch::FixShortBranches() {
         (void)bb->InsertInsnAfter(*insn, cg->BuildInstruction<AArch64Insn>(ubfxOp, tmp, reg, bitPos, bitSize));
         bb->RemoveInsn(*insn);
         change = true;
-        break;
       }
     }
   } while (change);

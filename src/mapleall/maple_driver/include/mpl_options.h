@@ -70,9 +70,8 @@ class Compiler;
 
 class InputInfo {
 public:
-  InputInfo(const std::string &inputFile)
-    : inputFile(inputFile) {
-
+  explicit InputInfo(const std::string &inputFile)
+      : inputFile(inputFile) {
     inputFileType = GetInputFileType(inputFile);
 
     inputName = FileUtils::GetFileName(inputFile, true);
@@ -82,10 +81,10 @@ public:
     fullOutput = outputFolder + outputName;
   }
 
+  ~InputInfo() = default;
   static InputFileType GetInputFileType(const std::string &inputFile) {
     InputFileType fileType = InputFileType::kFileTypeNone;
     std::string extensionName = FileUtils::GetFileExtension(inputFile);
-
     if (extensionName == "class") {
       fileType = InputFileType::kFileTypeClass;
     }
@@ -155,24 +154,25 @@ private:
 class Action {
 public:
   Action(const std::string &tool, const InputInfo *const inputInfo)
-    : inputInfo(inputInfo), tool(tool) {}
+      : inputInfo(inputInfo), tool(tool) {}
 
   Action(const std::string &tool, const InputInfo *const inputInfo,
          std::unique_ptr<Action> &inAction)
-    : inputInfo(inputInfo), tool(tool)  {
+      : inputInfo(inputInfo), tool(tool)  {
     inputActions.push_back(std::move(inAction));
   }
 
   Action(const std::string &tool, std::vector<std::unique_ptr<Action>> &inActions,
          const InputInfo *const inputInfo)
-    : inputInfo(inputInfo), tool(tool)  {
-
+      : inputInfo(inputInfo), tool(tool)  {
     for (auto &inAction : inActions) {
       linkInputFiles.push_back(inAction->GetInputFile());
     }
 
     std::move(begin(inActions), end(inActions), std::back_inserter(inputActions));
   }
+
+  ~Action() = default;
 
   const std::string &GetTool() const {
     return tool;

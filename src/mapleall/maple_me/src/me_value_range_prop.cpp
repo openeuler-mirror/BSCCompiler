@@ -829,7 +829,9 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {
         pred = pred->GetPred(0);
       }
       auto *valueRange = FindValueRangeInCaches(pred->GetBBId(), opnd->GetExprID());
-      return (valueRange != nullptr && valueRange->IsNotEqualZero()) ? true : false;
+      if (valueRange != nullptr && valueRange->IsNotEqualZero()) {
+        return true;
+      }
     }
     Insert2Caches(bb.GetBBId(), opnd->GetExprID(),
                   std::make_unique<ValueRange>(Bound(nullptr, 0, opnd->GetPrimType()), kNotEqual));

@@ -349,6 +349,39 @@ class FieldAttrs {
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
 };
 
+enum StmtAttrKind : unsigned {
+#define STMT_ATTR
+#define ATTR(STR) STMTATTR_##STR,
+#include "all_attributes.def"
+#undef ATTR
+#undef STMT_ATTR
+};
+
+class StmtAttrs {
+ public:
+  StmtAttrs() = default;
+  StmtAttrs(const StmtAttrs &ta) = default;
+  StmtAttrs &operator=(const StmtAttrs &p) = default;
+  ~StmtAttrs() = default;
+
+  void SetAttr(StmtAttrKind x) {
+    attrFlag |= (1u << static_cast<unsigned int>(x));
+  }
+
+  bool GetAttr(StmtAttrKind x) const {
+    return (attrFlag & (1u << static_cast<unsigned int>(x))) != 0;
+  }
+
+  void Clear() {
+    attrFlag = 0;
+  }
+
+  void DumpAttributes() const;
+
+ private:
+  uint32 attrFlag = 0;
+};
+
 enum FuncAttrKind : unsigned {
 #define FUNC_ATTR
 #define ATTR(STR) FUNCATTR_##STR,
@@ -476,6 +509,9 @@ struct OffsetType {
   }
 
   OffsetType operator-() const {
+    if (this->IsInvalid()) {
+      return *this;
+    }
     return OffsetType(-val);
   }
 

@@ -1205,6 +1205,9 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
   while (lexer.GetTokenKind() == TK_string) {
     // parse an input constraint string
     uStrIdx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(lexer.GetName());
+    if (lexer.GetName()[0] == '+') {
+      asmNode->SetHasWriteInputs();
+    }
     if (lexer.NextToken() != TK_lparen) {
       Error("expect ( but get ");
       return false;
@@ -1267,6 +1270,26 @@ bool MIRParser::ParseStmtAsm(StmtNodePtr &stmt) {
     return false;
   }
   stmt = asmNode;
+  lexer.NextToken();
+  return true;
+}
+
+bool MIRParser::ParseStmtSafeRegion(StmtNodePtr &stmt) {
+  switch (lexer.GetTokenKind()) {
+    case TK_safe:
+      safeRegionFlag.push(true);
+      break;
+    case TK_unsafe:
+      safeRegionFlag.push(false);
+      break;
+    case TK_endsafe:
+    case TK_endunsafe:
+      safeRegionFlag.pop();
+      break;
+    default:
+      Error("Only support safe/unsafe/endsafe/endunsafe.");
+      return false;
+  }
   lexer.NextToken();
   return true;
 }
@@ -1404,6 +1427,32 @@ bool MIRParser::ParseUnaryStmtAssertNonNull(StmtNodePtr &stmt) {
   return ParseUnaryStmt(OP_assertnonnull, stmt);
 }
 
+bool MIRParser::ParseUnaryStmtAssignAssertNonNull(StmtNodePtr &stmt) {
+  return ParseUnaryStmt(OP_assignassertnonnull, stmt);
+}
+
+bool MIRParser::ParseUnaryStmtCallAssertNonNull(StmtNodePtr &stmt) {
+  std::string funcName;
+  int index = 0;
+  if (!ParseCallAssertInfo(funcName, &index)) {
+    Error("ParseCallAssertInfo failed");
+    return false;
+  }
+  lexer.NextToken();
+  stmt = mod.CurFuncCodeMemPool()->New<CallAssertNonnullStmtNode>(OP_callassertnonnull, funcName, index);
+  BaseNode *expr = nullptr;
+  if (!ParseExprOneOperand(expr)) {
+    return false;
+  }
+  stmt->SetOpnd(expr, 0);
+  lexer.NextToken();
+  return true;
+}
+
+bool MIRParser::ParseUnaryStmtReturnAssertNonNull(StmtNodePtr &stmt) {
+  return ParseUnaryStmt(OP_returnassertnonnull, stmt);
+}
+
 bool MIRParser::ParseStmtMarker(StmtNodePtr &stmt) {
   Opcode op;
   switch (paramTokenKindForStmt) {
@@ -1477,33 +1526,104 @@ bool MIRParser::ParseBinaryStmt(StmtNodePtr &stmt, Opcode op) {
   return true;
 }
 
-bool MIRParser::ParseBinaryStmtAssertGE(StmtNodePtr &stmt) {
-  return ParseBinaryStmt(stmt, OP_assertge);
+bool MIRParser::ParseNaryStmtAssertGE(StmtNodePtr &stmt) {
+  return ParseNaryStmt(stmt, OP_assertge);
 }
 
-bool MIRParser::ParseBinaryStmtAssertLT(StmtNodePtr &stmt) {
-  return ParseBinaryStmt(stmt, OP_assertlt);
+bool MIRParser::ParseNaryStmtAssertLT(StmtNodePtr &stmt) {
+  return ParseNaryStmt(stmt, OP_assertlt);
+}
+
+bool MIRParser::ParseCallAssertInfo(std::string &funcName, int *paramIndex) {
+  if (lexer.NextToken() != TK_langle) {
+    Error("expect < parsing safey call check ");
+    return false;
+  }
+  if (lexer.NextToken() != TK_fname) {
+    Error("expect &funcname parsing parsing safey call check ");
+    return false;
+  }
+  funcName = lexer.GetName();
+  if (lexer.NextToken() != TK_coma) {
+    Error("expect , parsing parsing safey call check ");
+    return false;
+  }
+  if (lexer.NextToken() != TK_intconst) {
+    Error("expect intconst parsing parsing safey call check ");
+    return false;
+  }
+  *paramIndex = lexer.GetTheIntVal();
+  if (lexer.NextToken() != TK_rangle) {
+    Error("expect > parsing parsing safey call check ");
+    return false;
+  }
+  return true;
+}
+
+bool MIRParser::ParseNaryStmtCallAssertLE(StmtNodePtr &stmt) {
+  std::string funcName;
+  int index = 0;
+  if (!ParseCallAssertInfo(funcName, &index)) {
+    Error("ParseCallAssertInfo failed");
+    return false;
+  }
+  auto *assStmt = mod.CurFuncCodeMemPool()->New<CallAssertBoundaryStmtNode>(mod, OP_callassertle, funcName, index);
+  if (!ParseNaryExpr(*assStmt)) {
+    Error("ParseNaryExpr failed");
+    return false;
+  }
+  assStmt->SetNumOpnds(assStmt->GetNopndSize());
+  stmt = assStmt;
+  lexer.NextToken();
+  return true;
+}
+
+bool MIRParser::ParseNaryStmtReturnAssertLE(StmtNodePtr &stmt) {
+  return ParseNaryStmt(stmt, OP_returnassertle);
+}
+
+bool MIRParser::ParseNaryStmtAssignAssertLE(StmtNodePtr &stmt) {
+  return ParseNaryStmt(stmt, OP_assignassertle);
+}
+
+bool MIRParser::ParseNaryExpr(NaryStmtNode &stmtNode) {
+  if (lexer.NextToken() != TK_lparen) {
+    Error("expect ( parsing NaryExpr ");
+    return false;
+  }
+  lexer.NextToken(); // skip TK_lparen
+  while (lexer.GetTokenKind() != TK_rparen) {
+    BaseNode *expr = nullptr;
+    if (!ParseExpression(expr)) {
+      Error("ParseStmtReturn failed");
+      return false;
+    }
+    stmtNode.GetNopnd().push_back(expr);
+    if (lexer.GetTokenKind() != TK_coma && lexer.GetTokenKind() != TK_rparen) {
+      Error("expect , or ) parsing NaryStmt");
+      return false;
+    }
+    if (lexer.GetTokenKind() == TK_coma) {
+      lexer.NextToken();
+    }
+  }
+  return true;
 }
 
 bool MIRParser::ParseNaryStmt(StmtNodePtr &stmt, Opcode op) {
   auto *stmtReturn = mod.CurFuncCodeMemPool()->New<NaryStmtNode>(mod, op);
-  if (lexer.NextToken() != TK_lparen) {
-    Error("expect return with ( but get ");
-    return false;
-  }
-  TokenKind exprTk = lexer.NextToken();
-  if (exprTk == TK_rparen) {  // no operand
-    stmt = stmtReturn;
+  if (op == OP_syncenter) { // old code reconstruct later
+    if (lexer.NextToken() != TK_lparen) {
+      Error("expect return with ( but get ");
+      return false;
+    }
     lexer.NextToken();
-    return true;
-  }
-  BaseNode *expr = nullptr;
-  if (!ParseExpression(expr)) {
-    Error("ParseStmtReturn failed");
-    return false;
-  }
-  stmtReturn->GetNopnd().push_back(expr);
-  if (op == OP_syncenter) {
+    BaseNode *expr = nullptr;
+    if (!ParseExpression(expr)) {
+      Error("ParseStmtReturn failed");
+      return false;
+    }
+    stmtReturn->GetNopnd().push_back(expr);
     if (lexer.GetTokenKind() == TK_coma) {
       lexer.NextToken();
       BaseNode *exprSync = nullptr;
@@ -1522,9 +1642,13 @@ bool MIRParser::ParseNaryStmt(StmtNodePtr &stmt, Opcode op) {
       stmtReturn->GetNopnd().push_back(exprConst);
       stmtReturn->SetNumOpnds(stmtReturn->GetNopndSize());
     }
-  }
-  if (lexer.GetTokenKind() != TK_rparen) {
-    Error("expect ) parsing return but get ");
+
+    if (lexer.GetTokenKind() != TK_rparen) {
+      Error("expect ) parsing NaryStmt");
+      return false;
+    }
+  } else if (!ParseNaryExpr(*stmtReturn)) {
+    Error("ParseNaryExpr failed");
     return false;
   }
   stmtReturn->SetNumOpnds(stmtReturn->GetNopndSize());
@@ -1584,6 +1708,9 @@ bool MIRParser::ParseStatement(StmtNodePtr &stmt) {
     stmt->GetSrcPos().SetFileNum(fnum);
     stmt->GetSrcPos().SetLineNum(lnum);
     stmt->GetSrcPos().SetMplLineNum(mplNum);
+    if (safeRegionFlag.top()) {
+      stmt->SetInSafeRegion();
+    }
   }
   return true;
 }
@@ -3081,6 +3208,7 @@ std::map<TokenKind, MIRParser::FuncPtrParseExpr> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_mul] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_rem] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_shl] = &MIRParser::ParseExprBinary;
+  funcPtrMap[TK_ror] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_sub] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_CG_array_elem_add] = &MIRParser::ParseExprBinary;
   funcPtrMap[TK_cmp] = &MIRParser::ParseExprCompare;
@@ -3171,12 +3299,22 @@ std::map<TokenKind, MIRParser::FuncPtrParseStmt> MIRParser::InitFuncPtrMapForPar
   funcPtrMap[TK_eval] = &MIRParser::ParseUnaryStmtEval;
   funcPtrMap[TK_free] = &MIRParser::ParseUnaryStmtFree;
   funcPtrMap[TK_assertnonnull] = &MIRParser::ParseUnaryStmtAssertNonNull;
-  funcPtrMap[TK_assertge] = &MIRParser::ParseBinaryStmtAssertGE;
-  funcPtrMap[TK_assertlt] = &MIRParser::ParseBinaryStmtAssertLT;
+  funcPtrMap[TK_callassertnonnull] = &MIRParser::ParseUnaryStmtCallAssertNonNull;
+  funcPtrMap[TK_assignassertnonnull] = &MIRParser::ParseUnaryStmtAssignAssertNonNull;
+  funcPtrMap[TK_returnassertnonnull] = &MIRParser::ParseUnaryStmtReturnAssertNonNull;
+  funcPtrMap[TK_assertge] = &MIRParser::ParseNaryStmtAssertGE;
+  funcPtrMap[TK_assertlt] = &MIRParser::ParseNaryStmtAssertLT;
+  funcPtrMap[TK_returnassertle] = &MIRParser::ParseNaryStmtReturnAssertLE;
+  funcPtrMap[TK_callassertle] = &MIRParser::ParseNaryStmtCallAssertLE;
+  funcPtrMap[TK_assignassertle] = &MIRParser::ParseNaryStmtAssignAssertLE;
   funcPtrMap[TK_label] = &MIRParser::ParseStmtLabel;
   funcPtrMap[TK_LOC] = &MIRParser::ParseLocStmt;
   funcPtrMap[TK_ALIAS] = &MIRParser::ParseAlias;
   funcPtrMap[TK_asm] = &MIRParser::ParseStmtAsm;
+  funcPtrMap[TK_safe] = &MIRParser::ParseStmtSafeRegion;
+  funcPtrMap[TK_endsafe] = &MIRParser::ParseStmtSafeRegion;
+  funcPtrMap[TK_unsafe] = &MIRParser::ParseStmtSafeRegion;
+  funcPtrMap[TK_endunsafe] = &MIRParser::ParseStmtSafeRegion;
   return funcPtrMap;
 }
 

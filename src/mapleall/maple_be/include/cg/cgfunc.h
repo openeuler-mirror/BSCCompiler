@@ -317,12 +317,10 @@ class CGFunc {
   virtual RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) = 0;
   virtual RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) = 0;
   virtual RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) = 0;
-  virtual RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) = 0;
+  virtual RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) = 0;
   virtual RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oType,
                                                Operand *o2, bool isLow) = 0;
-  virtual RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
-                                           Operand *o2, PrimType otyp2, bool isLow, bool isWide) = 0;
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;

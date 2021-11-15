@@ -87,7 +87,6 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
-      !IsPrimitiveVector(expr.GetPrimType()) &&
       !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(0)->Opnd(0)->GetOpCode() != OP_constval &&
       expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
@@ -95,7 +94,6 @@ Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
                              *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
-             !IsPrimitiveVector(expr.GetPrimType()) &&
              !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
              expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
@@ -325,6 +323,16 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
 }
 
 Operand *HandleCmp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
+  // fix opnd type before select insn
+  PrimType targetPtyp = parent.GetPrimType();
+  if (kOpcodeInfo.IsCompare(parent.GetOpCode())) {
+    targetPtyp = static_cast<const CompareNode&>(parent).GetOpndType();
+  } else if (kOpcodeInfo.IsTypeCvt(parent.GetOpCode())) {
+    targetPtyp = static_cast<const TypeCvtNode&>(parent).FromType();
+  }
+  if (IsPrimitiveInteger(targetPtyp) && targetPtyp != expr.GetPrimType()) {
+    expr.SetPrimType(targetPtyp);
+  }
   return cgFunc.SelectCmpOp(static_cast<CompareNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)),
                             *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
 }
@@ -452,14 +460,6 @@ Operand *HandleVectorShiftNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, boo
     CHECK_FATAL(0, "VectorShiftNarrow does not have shift const");
   }
   return cgFunc.SelectVectorShiftRNarrow(rType, opnd1, intrnNode.Opnd(0)->GetPrimType(), opnd2, isLow);
-}
-
-Operand *HandleVectorSubWiden(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow, bool isWide) {
-  PrimType resType = intrnNode.GetPrimType();                          /* uint32_t result */
-  Operand *o1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));
-  Operand *o2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));
-  return cgFunc.SelectVectorSubWiden(resType, o1, intrnNode.Opnd(0)->GetPrimType(),
-    o2, intrnNode.Opnd(1)->GetPrimType(), isLow, isWide);
 }
 
 Operand *HandleVectorSum(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -761,26 +761,6 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_shr_narrow_low_v4u32: case INTRN_vector_shr_narrow_low_v4i32:
     case INTRN_vector_shr_narrow_low_v2u64: case INTRN_vector_shr_narrow_low_v2i64:
       return HandleVectorShiftNarrow(intrinsicopNode, cgFunc, true);
-
-    case INTRN_vector_subl_low_v8i8: case INTRN_vector_subl_low_v8u8:
-    case INTRN_vector_subl_low_v4i16: case INTRN_vector_subl_low_v4u16:
-    case INTRN_vector_subl_low_v2i32: case INTRN_vector_subl_low_v2u32:
-      return HandleVectorSubWiden(intrinsicopNode, cgFunc, true, false);
-
-    case INTRN_vector_subl_high_v8i8: case INTRN_vector_subl_high_v8u8:
-    case INTRN_vector_subl_high_v4i16: case INTRN_vector_subl_high_v4u16:
-    case INTRN_vector_subl_high_v2i32: case INTRN_vector_subl_high_v2u32:
-      return HandleVectorSubWiden(intrinsicopNode, cgFunc, false, false);
-
-    case INTRN_vector_subw_low_v8i8: case INTRN_vector_subw_low_v8u8:
-    case INTRN_vector_subw_low_v4i16: case INTRN_vector_subw_low_v4u16:
-    case INTRN_vector_subw_low_v2i32: case INTRN_vector_subw_low_v2u32:
-      return HandleVectorSubWiden(intrinsicopNode, cgFunc, true, true);
-
-    case INTRN_vector_subw_high_v8i8: case INTRN_vector_subw_high_v8u8:
-    case INTRN_vector_subw_high_v4i16: case INTRN_vector_subw_high_v4u16:
-    case INTRN_vector_subw_high_v2i32: case INTRN_vector_subw_high_v2u32:
-      return HandleVectorSubWiden(intrinsicopNode, cgFunc, false, true);
 
     case INTRN_vector_table_lookup_v8u8: case INTRN_vector_table_lookup_v8i8:
     case INTRN_vector_table_lookup_v16u8: case INTRN_vector_table_lookup_v16i8:

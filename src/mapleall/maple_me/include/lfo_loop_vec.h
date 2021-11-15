@@ -41,7 +41,6 @@ class LoopVecInfo {
         reductionVars(alloc.Adapter()),
         redVecNodes(alloc.Adapter()) {
     largestTypeSize = 8; // i8 bit size
-    smallestTypeSize = 64; // i64 bit size
     currentRHSTypeSize = 0;
   }
   virtual ~LoopVecInfo() = default;
@@ -49,7 +48,6 @@ class LoopVecInfo {
   void ResetStmtRHSTypeSize() { currentRHSTypeSize = 0; }
   bool UpdateRHSTypeSize(PrimType); // record rhs node typesize
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
-  uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
@@ -80,7 +78,7 @@ class LoopTransPlan {
   LoopVecInfo *vecInfo; // collect loop information
 
   // function
-  bool Generate(DoloopNode *, DoloopInfo *);
+  void Generate(DoloopNode *, DoloopInfo *);
   void GenerateBoundInfo(DoloopNode *, DoloopInfo *);
 };
 
