@@ -4269,7 +4269,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
     int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
     resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, sConst, opcode);
   } else if ((IsPrimitiveVector(dtype) || isOneElemVector) && !opnd1.IsConstImmediate()) {
-    resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
+    resOpnd = SelectVectorShift(dtype, &opnd0, expr->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), opcode);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
@@ -9474,9 +9474,9 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
 
   MOperator mOp;
   if (isLow) {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddwvvu : MOP_vuaddwvvu;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddwvvu : MOP_vsaddwvvu;
   } else {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddw2vvv : MOP_vuaddw2vvv;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
@@ -9854,7 +9854,8 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) {
+RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) {
+  PrepareVectorOperands(&o1, oty1, &o2, oty2);
   PrimType resultType = rType;
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
@@ -9943,7 +9944,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
     Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *imm);
     static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
     GetCurBB()->AppendInsn(*insn);
-    res = SelectVectorShift(rType, o1, res, opc);
+    res = SelectVectorShift(rType, o1, rType, res, rType, opc);
     return res;
   }
   MOperator mOp;
