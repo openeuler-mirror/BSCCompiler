@@ -31,6 +31,9 @@ void LoopVecInfo::UpdateWidestTypeSize(uint32_t newtypesize) {
 
 bool LoopVecInfo::UpdateRHSTypeSize(PrimType ptype) {
   uint32_t newSize = GetPrimTypeSize(ptype) * 8;
+  if (smallestTypeSize > newSize) {
+    smallestTypeSize = newSize;
+  }
   if (currentRHSTypeSize == 0) {
     currentRHSTypeSize = newSize;
     return true;
@@ -93,10 +96,10 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
         // generate epilog
         eBound = localMP->New<LoopBound>(newUpNode, nullptr, nullptr);
       }
-    } else if (upNode->GetOpCode() == OP_dread || upNode->GetOpCode() == OP_regread) {
+    } else {
       // step 1: generate vectorized loop bound
       // upNode of vBound is (uppnode - initnode) / newIncr * newIncr + initnode
-      BinaryNode *divnode;
+      BinaryNode *divnode = nullptr;
       BaseNode *addnode = upNode;
       if (condOpHasEqual) {
         addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
@@ -112,13 +115,11 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
       vBound = localMP->New<LoopBound>(nullptr, addnode, newIncrNode);
       // step2:  generate epilog bound
       eBound = localMP->New<LoopBound>(addnode, nullptr, nullptr);
-    } else {
-      ASSERT(0, "upper bound is complex, NIY");
     }
-  } else if (initNode->GetOpCode() == OP_dread || initNode->GetOpCode() == OP_regread) {
+  } else {
     // initnode is not constant
     // set bound of vectorized loop
-    BinaryNode *subnode;
+    BinaryNode *subnode = nullptr;
     if (condOpHasEqual) {
       BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
       subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
@@ -131,18 +132,19 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
     vBound = localMP->New<LoopBound>(nullptr, addnode, newIncrNode);
     // set bound of epilog loop
     eBound = localMP->New<LoopBound>(addnode, nullptr, nullptr);
-  } else {
-    ASSERT(0, "low bound is complex, NIY");
   }
 }
 
 // generate best plan for current doloop
-void LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
+// now get vecLanes based on largest type used in loop
+bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
   // vector length / type size
   vecLanes = 128 / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
+  if (vecFactor * vecInfo->smallestTypeSize < 64) return false;
   // generate bound information
   GenerateBoundInfo(doloop, li);
+  return true;
 }
 
 MIRType* LoopVectorization::GenVecType(PrimType sPrimType, uint8 lanes) {
@@ -516,7 +518,8 @@ void LoopVectorization::VectorizeNode(BaseNode *node, LoopTransPlan *tp) {
       if (tp->vecInfo->uniformNodes.find(vecNode) == tp->vecInfo->uniformNodes.end()) {
         VectorizeNode(vecNode, tp);
         if (vecType->GetPrimType() != vecNode->GetPrimType()) {
-          BaseNode *newVecNode = codeMP->New<TypeCvtNode>(OP_cvt, vecType->GetPrimType(), vecNode->GetPrimType(), vecNode);
+          BaseNode *newVecNode = codeMP->New<TypeCvtNode>(OP_cvt, vecType->GetPrimType(),
+                                                          vecNode->GetPrimType(), vecNode);
           dassign->GetRHS()->SetOpnd(newVecNode, 1);
         }
       }
@@ -632,6 +635,13 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
         pblock->InsertBefore(doloop, dupScalarStmt);
         RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), regIdx);
         tp->vecInfo->uniformVecNodes[node] = regreadNode;
+      } else if (lfoP->GetParent()->IsBinaryNode() && (node->GetOpCode() != OP_dread)) {
+        // assign uniform node to regvar and promote out of loop
+        PregIdx regIdx = mirFunc->GetPregTab()->CreatePreg(node->GetPrimType());
+        RegassignNode *scalarStmt = codeMP->New<RegassignNode>(node->GetPrimType(), regIdx, node);
+        pblock->InsertBefore(doloop, scalarStmt);
+        RegreadNode *regreadNode = codeMP->New<RegreadNode>(node->GetPrimType(), regIdx);
+        tp->vecInfo->uniformVecNodes[node] = regreadNode;
       }
     }
   }
@@ -659,7 +669,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
       redName.append("_");
       redName.append(std::to_string(count++));
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(redName);
-      MIRSymbol *st = mirFunc->GetModule()->GetMIRBuilder()->CreateSymbol(vecType->GetTypeIndex(), strIdx, kStVar, kScAuto, mirFunc, kScopeLocal);
+      MIRSymbol *st = mirFunc->GetModule()->GetMIRBuilder()->CreateSymbol(vecType->GetTypeIndex(), strIdx, kStVar,
+                                                                          kScAuto, mirFunc, kScopeLocal);
       DassignNode *redInitStmt = codeMP->New<DassignNode>(ptype, dupscalar, st->GetStIdx(), 0);
       pblock->InsertBefore(doloop, redInitStmt);
       AddrofNode *dreadNode = codeMP->New<AddrofNode>(OP_dread, vecType->GetPrimType(), st->GetStIdx(), 0);
@@ -924,6 +935,9 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           if (accessDesc->subscriptVec[dim - 1]->tooMessy ||
               accessDesc->subscriptVec[dim - 1]->loopInvariant ||
               accessDesc->subscriptVec[dim - 1]->coeff != 1) {
+            if (enableDebug) {
+              LogInfo::MapleLogger() << "NOT VECTORIZABLE because of complex array subscript\n";
+            }
             return false;
           }
         }
@@ -933,6 +947,9 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           if (iassign->GetFieldID() != 0) {  // check base of iassign
             MeExpr *meExpr = (*lfoExprParts)[iassign->Opnd(0)]->GetMeExpr();
             canVec = doloopInfo->IsLoopInvariant(meExpr);
+            if ((!canVec) && enableDebug) {
+              LogInfo::MapleLogger() << "NOT VECTORIZABLE because of baseaddress is not const with non-zero filedID\n";
+            }
           }
         }
         if (canVec) {
@@ -954,6 +971,9 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           }
           if (!CanConvert(lshtypesize, vecInfo->currentRHSTypeSize)) {
              // use one cvt could handle the type difference
+            if (enableDebug) {
+              LogInfo::MapleLogger() << "NOT VECTORIZABLE because of lhs and rhs type different\n";
+            }
             return false; // need cvt instruction
           }
           // rsh is loop invariant
@@ -966,8 +986,15 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           uint32_t maxSize = vecInfo->currentRHSTypeSize > lshtypesize ?
               vecInfo->currentRHSTypeSize : lshtypesize;
           vecInfo->UpdateWidestTypeSize(maxSize);
+          // update smallest type
+          if (lshtypesize < vecInfo->smallestTypeSize) {
+            vecInfo->smallestTypeSize = lshtypesize;
+          }
         } else {
           // early return
+          if (enableDebug) {
+            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of RHS is not vectorizable\n";
+          }
           return false;
         }
         break;
@@ -987,15 +1014,25 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
           if (ExprVectorizable(doloopInfo, vecInfo, opnd1)) {
             // there's iread in rhs
             if ((vecInfo->currentRHSTypeSize != 0) && (lshtypesize != vecInfo->currentRHSTypeSize)) {
+              if (enableDebug) {
+                LogInfo::MapleLogger() << "NOT VECTORIZABLE because of different type between dassign reduction var and other opnd \n";
+              }
               return false;
             }
             vecInfo->vecStmtIDs.insert((stmt)->GetStmtID());
             vecInfo->UpdateWidestTypeSize(lshtypesize);
-            vecInfo->reductionVars.insert(std::make_pair((static_cast<AddrofNode *>(opnd0))->GetStIdx(), rhs->GetOpCode()));
+            vecInfo->reductionVars.insert(std::make_pair((static_cast<AddrofNode *>(opnd0))->GetStIdx(),
+                                                         rhs->GetOpCode()));
           } else {
+            if (enableDebug) {
+              LogInfo::MapleLogger() << "NOT VECTORIZABLE because of other opnd can't be vectorized\n";
+            }
             return false; // only handle reduction scalar
           }
         } else {
+          if (enableDebug) {
+            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of dassign variable is not reduction var\n";
+          }
           return false;
         }
         break;
@@ -1017,9 +1054,6 @@ void LoopVectorization::Perform() {
     }
     LoopVecInfo *vecInfo = localMP->New<LoopVecInfo>(localAlloc);
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
-    if (vectorizable) {
-      LoopVectorization::vectorizedLoop++;
-    }
     if (enableDebug) {
       LogInfo::MapleLogger() << "\nInnermost Doloop:";
       if (!vectorizable) {
@@ -1033,8 +1067,14 @@ void LoopVectorization::Perform() {
     }
     // generate vectorize plan;
     LoopTransPlan *tplan = localMP->New<LoopTransPlan>(codeMP, localMP, vecInfo);
-    tplan->Generate(mapit->first, mapit->second);
-    vecPlans[mapit->first] = tplan;
+    if (tplan->Generate(mapit->first, mapit->second)) {
+      if (vectorizable) {
+        LoopVectorization::vectorizedLoop++;
+      }
+      vecPlans[mapit->first] = tplan;
+    } else if (enableDebug) {
+      LogInfo::MapleLogger() << "NOT VECTORIZABLED because of gap between smallest and largest type in loop \n";
+    }
   }
   // step 3: do transform
   // transform plan map to each doloop
