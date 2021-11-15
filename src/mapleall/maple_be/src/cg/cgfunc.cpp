@@ -87,6 +87,7 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
 
 Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(0)->GetOpCode() == OP_mul &&
+      !IsPrimitiveVector(expr.GetPrimType()) &&
       !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(0)->Opnd(0)->GetOpCode() != OP_constval &&
       expr.Opnd(0)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
@@ -94,6 +95,7 @@ Operand *HandleAdd(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
                              *cgFunc.HandleExpr(*expr.Opnd(0), *expr.Opnd(0)->Opnd(1)),
                              *cgFunc.HandleExpr(expr, *expr.Opnd(1)), parent);
   } else if (Globals::GetInstance()->GetOptimLevel() >= CGOptions::kLevel2 && expr.Opnd(1)->GetOpCode() == OP_mul &&
+             !IsPrimitiveVector(expr.GetPrimType()) &&
              !IsPrimitiveFloat(expr.GetPrimType()) && expr.Opnd(1)->Opnd(0)->GetOpCode() != OP_constval &&
              expr.Opnd(1)->Opnd(1)->GetOpCode() != OP_constval) {
     return cgFunc.SelectMadd(static_cast<BinaryNode&>(expr),
