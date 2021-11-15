@@ -28,7 +28,7 @@ fi
 curdir=$(pwd)
 export MAPLE_ROOT=${curdir}
 export SPEC=${MAPLE_ROOT}/testsuite/c_test/spec_test
-export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib:${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04:${LD_LIBRARY_PATH}
+export LD_LIBRARY_PATH=${MAPLE_ROOT}/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/lib:${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/lib:${LD_LIBRARY_PATH}
 export SPECPERLLIB=${SPEC}/bin/lib:${SPEC}/bin:${SPEC}/SPEC500-perlbench_r/data/all/input/lib:${SPEC}/SPEC500-perlbench_r/t/lib
 export CASE_ROOT=${curdir}/testsuite
 export OUT_ROOT=${curdir}/output
@@ -114,5 +114,95 @@ if [ ! -f $MAPLE_ROOT/tools/qemu/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; 
   echo " "
 fi
 
+function mm
+{
+  THREADS=$(cat /proc/cpuinfo| grep "processor"| wc -l)
+  PWD=$(pwd)
+  num=${#CASE_ROOT}
+  let num++
+  ALL_MODE_LIST=$(cd ${CASE_ROOT}/driver/src/mode; find -name "*.py" | xargs basename -s .py;)
+  TARGET=${PWD:${num}}
+  MODE=
 
+  #mm MODE=O0
+  if [ $# -lt 3 ] && [[ "x${1^^}" =~ ^xMODE=.* ]]; then
+      MODE=${1#*=}
+      MODE=${MODE^^}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --mode=${MODE} --detail
+  elif [ $# -lt 3 ] && [[ `echo ${ALL_MODE_LIST[@]} | grep -w ${1^^}` ]] ; then
+      MODE=${1^^}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --mode=${MODE} --detail
+
+  #mm clean
+  elif [ $# -lt 3 ] && [ "x${1}" = "xclean" ]; then
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --clean --detail
+
+  #mm save
+  elif [ $# = 1 ] && [ "x${1}" = "xsave" ]; then
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --save
+
+  #mm testall
+  elif [ $# = 1 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ]; then
+      TARGET=${1}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --j=${THREADS}
+
+  #mm testall MODE=O0
+  elif [ $# = 2 ] && [ -f ${CASE_ROOT}/driver/config/${1}.conf ]; then
+      if [[ "x${2^^}" =~ ^xMODE=.* ]]; then
+          MODE=${2#*=}
+          MODE=${MODE^^}
+      elif [[ `echo ${ALL_MODE_LIST[@]} | grep -w ${2^^}` ]] ; then
+          MODE=${2^^}
+      fi
+      TARGET=${1}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mode=${MODE} --j=${THREADS}
+
+  #mm app_test
+  elif [ $# = 1 ] && [ -d ${CASE_ROOT}/${1} ]
+  then
+      TARGET=${1}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --j=${THREADS}
+
+  #mm app_test MODE=O2
+  elif [ $# = 2 ] && [ -d ${CASE_ROOT}/${1} ]; then
+      if [[ "x${2^^}" =~ ^xMODE=.* ]]; then
+          MODE=${2#*=}
+          MODE=${MODE^^}
+      elif [[ `echo ${ALL_MODE_LIST[@]} | grep -w ${2^^}` ]] ; then
+          MODE=${2^^}
+      fi
+      TARGET=${1}
+      python3 ${CASE_ROOT}/driver/src/driver.py --target=${TARGET} --run-path=${OUT_ROOT}/host/test --mode=${MODE} --j=${THREADS}
+
+  elif [ $# = 1 ] && [ "x${1,,}" = "x-h" -o "x${1,,}" = "x--help" ];
+  then
+      cat <<EOF
+---------------------- MAPLE TEST FRAME INSTRUCTION ---------------------------
+[2021/9/17]: capable with uppercase and lowercase for MODE, and "MODE=" is not necessary.
+[*] Run mm [command] under ${MAPLE_ROOT}:
+  - mm testall:               run all test cases for all modes
+
+  - mm testall (MODE=)XX      run all test cases with XX mode. type XX directly if XX in [MODE SUITE]
+                              e.g. mm testall [co0 / CO0 / mode=co0 / MODE=CO0];
+
+  - mm [testsuite]            run [testsuite] with all modes. note [testsuite] should start under $CASE_ROOT.
+                              e.g. mm c_test/ast_test : test all testcases in c_test/ast_test
+                              e.g. mm c_test : test all testcases in c_test
+
+  - mm [testsuite] (MODE=)XX  run [testsuite] with XX mode. note [testsuite] should support XX mode.
+                              e.g. mm c_test/gtorture_test [CO2 / co2 / MODE=CO2 / mode=co2]
+
+[*] Run mm [command] under    single testcase (${MAPLE_ROOT}/testsuite/c_test/ast_test/AST0001-HelloWorld):
+  - mm MODE=XX:               run XX mode for this case
+                              e.g. mm [ASTO0 / asto0 / mode=asto0 / MODE=ASTO0]
+
+  - mm save:                  save temp files for this case
+
+  - mm clean:            clean all temp files for this case
+
+EOF
+  else
+      echo "Input Wrong~! please run: mm -h/--help for more help!"
+  fi
+}
 
