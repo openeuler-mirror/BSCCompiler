@@ -197,6 +197,7 @@ class MIRSymbol {
   // AddAttrs adds more attributes instead of overrides the current one
   void AddAttrs(TypeAttrs attr) {
     typeAttrs.SetAttrFlag(typeAttrs.GetAttrFlag() | attr.GetAttrFlag());
+    typeAttrs.AddAttrBoundary(attr.GetAttrBoundary());
   }
 
   bool GetAttr(AttrKind attrKind) const {
@@ -216,6 +217,8 @@ class MIRSymbol {
   }
 
   bool IsTypeVolatile(int fieldID) const;
+
+  bool NeedPIC() const;
 
   bool IsStatic() const {
     return typeAttrs.GetAttr(ATTR_static);
@@ -314,6 +317,10 @@ class MIRSymbol {
   }
 
   SrcPosition &GetSrcPosition() {
+    return srcPosition;
+  }
+
+  const SrcPosition &GetSrcPosition() const {
     return srcPosition;
   }
 
@@ -465,6 +472,10 @@ class MIRSymbol {
 
   const std::pair<bool, UStrIdx> &GetWeakrefAttr() const {
     return weakrefAttr;
+  }
+
+  bool IsFormal() const {
+    return storageClass == kScFormal;
   }
 
   // Please keep order of the fields, avoid paddings.
@@ -674,7 +685,6 @@ class MIRLabelTable {
     strIdxToLabIdxMap.erase(idx);
   }
 
- public:
   MapleUnorderedSet<LabelIdx> addrTakenLabels; // those appeared in addroflabel or MIRLblConst
   MapleUnorderedSet<LabelIdx> caseLabelSet;    // labels marking starts of switch cases
 

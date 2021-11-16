@@ -526,8 +526,7 @@ bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno
           base->GetRegisterNumber() != stackBaseRegNO && base->GetRegisterNumber() != regNO) {
         return true;
       }
-      if (isStore && base != nullptr && base->GetRegisterNumber() == regNO && destRegNO != RZR &&
-          static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber() != RZR) {
+      if (isStore && base != nullptr && base->GetRegisterNumber() == regNO) {
         if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi && memOpnd.GetOffsetImmediate() != nullptr) {
           int32 curOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
           if (memOpnd.GetSize() == k64BitSize) {

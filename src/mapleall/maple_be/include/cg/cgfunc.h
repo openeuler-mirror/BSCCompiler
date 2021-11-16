@@ -260,8 +260,8 @@ class CGFunc {
   virtual Operand *SelectRound(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
-  virtual Operand *SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
-                                const BaseNode &parent, bool hasCompare = false) = 0;
+  virtual Operand *SelectSelect(TernaryNode &node, Operand &cond, Operand &opnd0, Operand &opnd1,
+                                const BaseNode &parent, bool hasCompare = false, bool canLtOpt = false) = 0;
   virtual Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) = 0;
   virtual RegOperand &SelectCopy(Operand &src, PrimType srcType, PrimType dstType) = 0;
   virtual Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) = 0;
@@ -317,10 +317,12 @@ class CGFunc {
   virtual RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) = 0;
   virtual RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) = 0;
   virtual RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) = 0;
-  virtual RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) = 0;
+  virtual RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) = 0;
   virtual RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) = 0;
   virtual RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oType,
                                                Operand *o2, bool isLow) = 0;
+  virtual RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
+                                           Operand *o2, PrimType otyp2, bool isLow, bool isWide) = 0;
   virtual RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) = 0;
   virtual RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) = 0;
   virtual RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) = 0;
@@ -445,6 +447,12 @@ class CGFunc {
   uint32 GetVRegSize(regno_t vregNum) {
     CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
     return GetOrCreateVirtualRegisterOperand(vregNum).GetSize() / kBitsPerByte;
+  }
+
+  void SetVRegSize(regno_t vregNum, size_t size) {
+    CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
+    RegOperand &opnd = GetOrCreateVirtualRegisterOperand(vregNum);
+    opnd.SetSize(size);
   }
 
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);

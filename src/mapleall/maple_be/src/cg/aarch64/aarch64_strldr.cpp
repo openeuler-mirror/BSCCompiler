@@ -348,7 +348,7 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet
   if (defInsn.GetBB() == currInsn.GetBB()) {
     /* check replace reg def between defInsn and currInsn */
     Insn *tmpInsn = defInsn.GetNext();
-    while (tmpInsn != &currInsn) {
+    while (tmpInsn != nullptr && tmpInsn != &currInsn) {
       if (replaceRegDefSet.find(tmpInsn) != replaceRegDefSet.end()) {
         return false;
       }

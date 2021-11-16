@@ -191,6 +191,49 @@ enum AttrKind : unsigned {
 #undef TYPE_ATTR
 };
 
+class AttrBoundary {
+ public:
+  AttrBoundary() = default;
+  ~AttrBoundary() = default;
+
+  bool operator==(const AttrBoundary &tA) const {
+    return lenExprHash == tA.lenExprHash && lenParamIdx == tA.lenParamIdx;
+  }
+
+  bool operator!=(const AttrBoundary &tA) const {
+    return !(*this == tA);
+  }
+
+  bool operator<(const AttrBoundary &tA) const {
+    return lenExprHash < tA.lenExprHash && lenParamIdx < tA.lenParamIdx;
+  }
+
+  void SetLenExprHash(uint32 val) {
+    lenExprHash = val;
+  }
+
+  uint32 GetLenExprHash() const {
+    return lenExprHash;
+  }
+
+  void SetLenParamIdx(int8 idx) {
+    lenParamIdx = idx;
+  }
+
+  int8 GetLenParamIdx() const {
+    return lenParamIdx;
+  }
+
+  void Clear() {
+    lenExprHash = 0;
+    lenParamIdx = -1;
+  }
+
+ private:
+  uint32 lenExprHash = 0;
+  int8 lenParamIdx = -1;
+};
+
 class TypeAttrs {
  public:
   TypeAttrs() = default;
@@ -249,7 +292,7 @@ class TypeAttrs {
   }
 
   bool operator==(const TypeAttrs &tA) const {
-    return attrFlag == tA.attrFlag && attrAlign == tA.attrAlign;
+    return attrFlag == tA.attrFlag && attrAlign == tA.attrAlign && attrBoundary == tA.attrBoundary;
   }
 
   bool operator!=(const TypeAttrs &tA) const {
@@ -258,9 +301,27 @@ class TypeAttrs {
 
   void DumpAttributes() const;
 
+  const AttrBoundary &GetAttrBoundary() const {
+    return attrBoundary;
+  }
+
+  AttrBoundary &GetAttrBoundary() {
+    return attrBoundary;
+  }
+
+  void AddAttrBoundary(const AttrBoundary &attr) {
+    if (attr.GetLenExprHash() != 0) {
+      attrBoundary.SetLenExprHash(attr.GetLenExprHash());
+    }
+    if ( attr.GetLenParamIdx() != -1) {
+      attrBoundary.SetLenParamIdx(attr.GetLenParamIdx());
+    }
+  }
+
  private:
   uint64 attrFlag = 0;
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
+  AttrBoundary attrBoundary;  // boundary attr for EnhanceC
 };
 
 enum FieldAttrKind {
@@ -325,7 +386,7 @@ class FieldAttrs {
   }
 
   bool operator==(const FieldAttrs &tA) const {
-    return attrFlag == tA.attrFlag && attrAlign == tA.attrAlign;
+    return attrFlag == tA.attrFlag && attrAlign == tA.attrAlign && attrBoundary == tA.attrBoundary;
   }
 
   bool operator!=(const FieldAttrs &tA) const {
@@ -333,20 +394,30 @@ class FieldAttrs {
   }
 
   bool operator<(const FieldAttrs &tA) const {
-    return attrFlag < tA.attrFlag && attrAlign < tA.attrAlign;
+    return attrFlag < tA.attrFlag && attrAlign < tA.attrAlign && attrBoundary < tA.attrBoundary;
   }
 
   void Clear() {
     attrFlag = 0;
     attrAlign = 0;
+    attrBoundary.Clear();
   }
 
   void DumpAttributes() const;
   TypeAttrs ConvertToTypeAttrs();
 
+  const AttrBoundary &GetAttrBoundary() const {
+    return attrBoundary;
+  }
+
+  AttrBoundary &GetAttrBoundary() {
+    return attrBoundary;
+  }
+
  private:
   uint32 attrFlag = 0;
   uint8 attrAlign = 0;  // alignment in bytes is 2 to the power of attrAlign
+  AttrBoundary attrBoundary;
 };
 
 enum StmtAttrKind : unsigned {
@@ -450,10 +521,19 @@ class FuncAttrs {
 
   void DumpAttributes() const;
 
+  const AttrBoundary &GetAttrBoundary() const {
+    return attrBoundary;
+  }
+
+  AttrBoundary &GetAttrBoundary() {
+    return attrBoundary;
+  }
+
  private:
   uint64 attrFlag = 0;
   std::string aliasFuncName;
   std::string prefixSectionName;
+  AttrBoundary attrBoundary;  // ret boundary for EnhanceC
 };
 
 #if MIR_FEATURE_FULL

@@ -1089,6 +1089,7 @@ class ASTCallExpr : public ASTExpr {
   void AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const;
   void InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts) const;
+  void InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &calleeExpr) const;
   void InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const;
   void InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) const;
 

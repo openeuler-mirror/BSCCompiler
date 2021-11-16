@@ -227,14 +227,13 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) override;
   Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
-                        const BaseNode &parent, bool hasCompare = false) override;
+                        const BaseNode &parent, bool hasCompare = false, bool canLtOpt = false) override;
   Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) override;
   Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) override;
   Operand *SelectGCMalloc(GCMallocNode &call) override;
   Operand *SelectJarrayMalloc(JarrayMallocNode &call, Operand &opnd0) override;
   void SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &trueOpnd, Operand &falseOpnd, PrimType dtype,
                     PrimType ctype, bool hasCompare = false, AArch64CC_t cc = CC_NE);
-  bool CanLtOptimized(BaseNode &node);
   void SelectAArch64Select(Operand &dest, Operand &opnd0, Operand &opnd1, CondOperand &cond, bool isIntType,
                            uint32 is64bits);
   void SelectRangeGoto(RangeGotoNode &rangeGotoNode, Operand &opnd0) override;
@@ -292,9 +291,11 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorPairwiseAdd(PrimType rType, Operand *src, PrimType sType) override;
   RegOperand *SelectVectorReverse(PrimType rtype, Operand *src, PrimType stype, uint32 size) override;
   RegOperand *SelectVectorSetElement(Operand *eOp, PrimType eTyp, Operand *vOpd, PrimType vTyp, int32 lane) override;
-  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) override;
+  RegOperand *SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2, Opcode opc) override;
   RegOperand *SelectVectorShiftImm(PrimType rType, Operand *o1, Operand *imm, int32 sVal, Opcode opc) override;
   RegOperand *SelectVectorShiftRNarrow(PrimType rType, Operand *o1, PrimType oTyp, Operand *o2, bool isLow) override;
+  RegOperand *SelectVectorSubWiden(PrimType resType, Operand *o1, PrimType otyp1,
+                                   Operand *o2, PrimType otyp2, bool isLow, bool isWide) override;
   RegOperand *SelectVectorSum(PrimType rtype, Operand *o1, PrimType oType) override;
   RegOperand *SelectVectorTableLookup(PrimType rType, Operand *o1, Operand *o2) override;
   RegOperand *SelectVectorWiden(PrimType rType, Operand *o1, PrimType otyp, bool isLow) override;

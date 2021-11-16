@@ -321,6 +321,7 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   }
   InsertNonnullChecking(mirBuilder, *dstSym, ans);
   CheckNonnullArgsAndRetForFuncPtr();
+  CheckBoundaryArgsAndRetForFuncPtr();
   StmtNode *mirStmt = mirBuilder.CreateStmtDassign(*dstSym, fieldID, srcNode);
   ans.push_back(mirStmt);
   AssignBoundaryVarAndChecking(mirBuilder, ans);
@@ -800,6 +801,7 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
       mirStmt = mirBuilder.CreateStmtReturn(nullptr);
     } else {
       InsertNonnullChecking(mirBuilder, ans);
+      ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
       mirStmt = mirBuilder.CreateStmtReturn(srcNode);
     }
   }
@@ -1761,6 +1763,7 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
   const std::string funcName = methodInfo.GetMirFunc()->GetName();
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     InsertNonnullCheckingInArgs(exprArg, index++, mirBuilder, ans, funcName);
+    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     args.push_back(node);
   }
@@ -1941,6 +1944,7 @@ std::list<StmtNode*> FEIRStmtICallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder
   args.reserve(exprArgs.size());
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
+    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
     args.push_back(node);
   }
   InsertNonnullCheckingInArgs(mirBuilder, ans);
@@ -4022,6 +4026,7 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
                 "If fieldID is not 0, then the computed address must correspond to a structure");
     InsertNonnullChecking(mirBuilder, *baseType, ans);
     CheckNonnullArgsAndRetForFuncPtr(*baseType);
+    CheckBoundaryArgsAndRetForFuncPtr(*baseType);
   }
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fieldID, addrNode, baseNode);
   ans.emplace_back(iAssignNode);

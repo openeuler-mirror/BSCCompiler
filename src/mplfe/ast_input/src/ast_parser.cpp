@@ -2411,6 +2411,7 @@ ASTDecl *ASTParser::ProcessDeclFieldDecl(MapleAllocator &allocator, const clang:
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&decl);
   if (valueDecl != nullptr) {
     ProcessNonnullFuncPtrAttrs(*valueDecl, *fieldDecl);
+    ProcessBoundaryFuncPtrAttrs(allocator, *valueDecl, *fieldDecl);
   }
   return fieldDecl;
 }
@@ -2488,6 +2489,7 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
   const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&varDecl);
   if (valueDecl != nullptr) {
     ProcessNonnullFuncPtrAttrs(*valueDecl, *astVar);
+    ProcessBoundaryFuncPtrAttrs(allocator, *valueDecl, *astVar);
   }
   ProcessBoundaryVarAttrs(allocator, varDecl, *astVar);
   return astVar;
@@ -2515,6 +2517,11 @@ ASTDecl *ASTParser::ProcessDeclParmVarDecl(MapleAllocator &allocator, const clan
   parmVar = ASTDeclsBuilder::ASTVarBuilder(
       allocator, fileName, parmName, std::vector<MIRType*>{paramType}, attrs, parmVarDecl.getID());
   parmVar->SetIsParam(true);
+  const auto *valueDecl = llvm::dyn_cast<clang::ValueDecl>(&parmVarDecl);
+  if (valueDecl != nullptr) {
+    ProcessNonnullFuncPtrAttrs(*valueDecl, *parmVar);
+    ProcessBoundaryFuncPtrAttrs(allocator, *valueDecl, *parmVar);
+  }
   return parmVar;
 }
 

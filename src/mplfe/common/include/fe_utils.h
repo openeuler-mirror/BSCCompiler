@@ -46,7 +46,6 @@ class FEUtils {
                                    bool isTopLevel = true);
   static MIRType *GetStructFieldType(const MIRStructType *type, FieldID feildID);
   static const MIRFuncType *GetFuncPtrType(const MIRType &type);
-  static FieldPair GetLastestStructTypeAndField(MIRStructType &type, MIRStructType *&lastestType, FieldID &fieldID);
   static MIRConst *CreateImplicitConst(MIRType *type);
   static PrimType GetVectorElementPrimType(PrimType vectorPrimType);
   static bool EndsWith(const std::string &value, const std::string &ending);

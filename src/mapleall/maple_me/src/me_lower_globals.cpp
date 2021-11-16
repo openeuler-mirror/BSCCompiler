@@ -64,7 +64,8 @@ void MeLowerGlobals::LowerGlobalDreads(MeStmt &stmt, MeExpr &expr) {
         PUIdx puIdx = func.GetMirFunc()->GetPuidx();
         baseOst = ssaTable->FindOrCreateSymbolOriginalSt(*ost->GetMIRSymbol(), puIdx, 0);
       }
-      auto *addrofExpr = static_cast<AddrofMeExpr*>(irMap->CreateAddrofMeExpr(varExpr));
+      AddrofMeExpr tmpAddrofMeExpr(-1, PTY_ptr, baseOst->GetIndex());
+      auto *addrofExpr = static_cast<AddrofMeExpr*>(irMap->HashMeExpr(tmpAddrofMeExpr));
       MIRPtrType ptrType(baseOst->GetTyIdx(), PTY_ptr);
       if (ost->IsVolatile() || ost->HasOneElemSimdAttr()) {
         TypeAttrs attrs;

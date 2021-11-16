@@ -37,6 +37,11 @@ enum DeclKind {
   kASTFileScopeAsm,
 };
 
+struct BoundaryInfo {
+  ASTExpr *lenExpr = nullptr;
+  int8 lenParamIdx = -1;  // -1 means not on the parameter
+};
+
 class ASTDecl {
  public:
   ASTDecl(const std::string &srcFile, const std::string &nameIn, const std::vector<MIRType*> &typeDescIn)
@@ -118,11 +123,23 @@ class ASTDecl {
   std::string GenerateUniqueVarName() const;
 
   void SetBoundaryLenExpr(ASTExpr *expr) {
-    boundaryLenExpr = expr;
+    boundary.lenExpr = expr;
+  }
+
+  const BoundaryInfo &GetBoundaryInfo() const {
+    return boundary;
   }
 
   ASTExpr *GetBoundaryLenExpr() const {
-    return boundaryLenExpr;
+    return boundary.lenExpr;
+  }
+
+  void SetBoundaryLenParamIdx(int8 idx) {
+    boundary.lenParamIdx = idx;
+  }
+
+  int8 GetBoundaryLenParamIdx() const {
+    return boundary.lenParamIdx;
   }
 
  protected:
@@ -142,7 +159,7 @@ class ASTDecl {
   uint32 srcFileIdx = 0;
   uint32 srcFileLineNum = 0;
   DeclKind declKind = kASTDecl;
-  ASTExpr *boundaryLenExpr = nullptr;
+  BoundaryInfo boundary;
   std::string sectionAttr;
 };
 

@@ -14,8 +14,11 @@
  */
 #include "ast_struct2fe_helper.h"
 #include "fe_manager.h"
+#include "feir_builder.h"
 #include "fe_utils_ast.h"
 #include "ast_util.h"
+#include "ast_decl_builder.h"
+#include "enhance_c_checker.h"
 
 namespace maple {
 // ---------- ASTStruct2FEHelper ----------
@@ -40,7 +43,8 @@ void ASTStruct2FEHelper::InitFieldHelpersImpl() {
   ASSERT(mp != nullptr, "mem pool is nullptr");
   for (const ASTField *field : astStruct.GetFields()) {
     ASSERT(field != nullptr, "field is nullptr");
-    ASTStructField2FEHelper *fieldHelper = mp->New<ASTStructField2FEHelper>(allocator, *field);
+    ASTStructField2FEHelper *fieldHelper = mp->New<ASTStructField2FEHelper>(
+        allocator, *field, *astStruct.GetTypeDesc().front());
     fieldHelpers.push_back(fieldHelper);
   }
 }
@@ -129,6 +133,7 @@ bool ASTStructField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &alloc
   attrs.SetAlign(field.GetAlign());
   MIRType *fieldType = field.GetTypeDesc().front();
   ASSERT(fieldType != nullptr, "nullptr check for fieldType");
+  ENCChecker::InsertBoundaryInAtts(attrs, field.GetBoundaryInfo());
   mirFieldPair.first = idx;
   mirFieldPair.second.first = fieldType->GetTypeIndex();
   mirFieldPair.second.second = attrs;
@@ -146,6 +151,7 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   mirSymbol->GetSrcPosition().SetFileNum(astVar.GetSrcFileIdx());
   mirSymbol->GetSrcPosition().SetLineNum(astVar.GetSrcFileLineNum());
   auto typeAttrs = astVar.GetGenericAttrs().ConvertToTypeAttrs();
+  ENCChecker::InsertBoundaryInAtts(typeAttrs, astVar.GetBoundaryInfo());
   // do not allow extern var override global var
   if (mirSymbol->GetAttrs().GetAttrFlag() != 0 && typeAttrs.GetAttr(ATTR_extern)) {
     ASTExpr *initExpr = astVar.GetInitExpr();
@@ -169,12 +175,16 @@ bool ASTGlobalVar2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
   if (!astVar.GetSectionAttr().empty()) {
     mirSymbol->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetSectionAttr());
   }
-  ASTExpr *initExpr = astVar.GetInitExpr();
-  if (initExpr == nullptr) {
-    return true;
+  if (!astVar.GetAsmAttr().empty()) {
+    mirSymbol->SetAsmAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(astVar.GetAsmAttr()));
   }
-  MIRConst *cst = initExpr->GenerateMIRConst();
-  mirSymbol->SetKonst(cst);
+  ASTExpr *initExpr = astVar.GetInitExpr();
+  MIRConst *cst = nullptr;
+  if (initExpr != nullptr) {
+    cst = initExpr->GenerateMIRConst();
+    mirSymbol->SetKonst(cst);
+  }
+  ENCChecker::CheckNonnullGlobalVarInit(*mirSymbol, cst);
   return true;
 }
 
@@ -213,18 +223,41 @@ bool ASTFunc2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
                                                        argsTypeIdx, isVarg, isStatic);
   mirFunc->GetSrcPosition().SetFileNum(func.GetSrcFileIdx());
   mirFunc->GetSrcPosition().SetLineNum(func.GetSrcFileLineNum());
-  std::vector<std::string> parmNames = func.GetParmNames();
-  if (firstArgRet) {
-    parmNames.insert(parmNames.begin(), "first_arg_return");
+  MIRSymbol *funSym = mirFunc->GetFuncSymbol();
+  if (!func.GetAliasAttr().empty()) {
+    funSym->SetAliasAttr(GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetAliasAttr()));
   }
-  for (uint32 i = 0; i < parmNames.size(); ++i) {
-    MIRSymbol *sym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(parmNames[i], *argMIRTypes[i], *mirFunc);
+  if (!func.GetSectionAttr().empty()) {
+    funSym->sectionAttr = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(func.GetSectionAttr());
+  }
+  if (func.GetWeakrefAttr().first) {
+    std::string attrStr = func.GetWeakrefAttr().second;
+    UStrIdx idx { 0 };
+    if (!attrStr.empty()) {
+      idx = GlobalTables::GetUStrTable().GetOrCreateStrIdxFromName(attrStr);
+    }
+    funSym->SetWeakrefAttr(std::pair<bool, UStrIdx> { true, idx });
+  }
+  std::vector<ASTDecl*> paramDecls = func.GetParamDecls();
+  if (firstArgRet) {
+    ASTDecl *returnParamVar = ASTDeclsBuilder::ASTVarBuilder(
+        allocator, "", "first_arg_return", std::vector<MIRType*>{}, GenericAttrs());
+    returnParamVar->SetIsParam(true);
+    paramDecls.insert(paramDecls.begin(), returnParamVar);
+  }
+  for (uint32 i = 0; i < paramDecls.size(); ++i) {
+    MIRSymbol *sym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(
+        paramDecls[i]->GetName(), *argMIRTypes[i], *mirFunc);
     sym->SetStorageClass(kScFormal);
     sym->SetSKind(kStVar);
+    TypeAttrs attrs = paramDecls[i]->GetGenericAttrs().ConvertToTypeAttrs();
+    ENCChecker::InsertBoundaryInAtts(attrs, paramDecls[i]->GetBoundaryInfo());
+    sym->AddAttrs(attrs);
     mirFunc->AddArgument(sym);
   }
   mirMethodPair.first = mirFunc->GetStIdx();
   mirMethodPair.second.first = mirFunc->GetMIRFuncType()->GetTypeIndex();
+  ENCChecker::InsertBoundaryInAtts(attrs, func.GetBoundaryInfo());
   mirMethodPair.second.second = attrs;
   mirFunc->SetFuncAttrs(attrs);
   return true;
