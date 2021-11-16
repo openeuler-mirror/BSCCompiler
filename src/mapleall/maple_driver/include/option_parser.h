@@ -58,9 +58,7 @@ class OptionParser {
  private:
 
   struct UsageWrp {
-    UsageWrp(const Descriptor &desc, const OptionPrefixType &type) :
-      desc(desc),
-      type(type) {};
+    UsageWrp(const Descriptor &desc, const OptionPrefixType &type) : desc(desc), type(type) {};
     Descriptor desc;
     OptionPrefixType type;
   };
@@ -70,6 +68,9 @@ class OptionParser {
                       bool isAllOption = true, bool isEqualPrefix = false);
   bool CheckOpt(const std::string option, std::string &lastKey, bool &isLastMatch,
                 std::vector<mapleOption::Option> &inputOption, const std::string &exeName);
+  bool CheckJoinedOption(const std::string &option,
+                         std::vector<mapleOption::Option> &inputOption,
+                         const std::string &exeName);
   void InsertOption(const std::string &opt, const Descriptor &usage,
                     OptionPrefixType optPrefix) {
     if (usage.IsEnabledForCurrentBuild()) {
