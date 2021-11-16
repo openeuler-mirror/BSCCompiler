@@ -100,7 +100,7 @@ const mapleOption::Descriptor kUsages[] = {
     kArgCheckPolicyNone,
     "  -O2                         \tDo more optimization. (Default)\n",
     "all",
-    {} },
+    {"mplfe"} },
   { kPartO2,
     0,
     "",
