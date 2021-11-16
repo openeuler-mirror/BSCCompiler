@@ -62,14 +62,14 @@ class Compiler {
   virtual ErrorCode Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule);
 
-  virtual void GetTmpFilesToDelete(const MplOptions&, const Action &action,
+  virtual void GetTmpFilesToDelete(const MplOptions&, const Action&,
                                    std::vector<std::string>&) const {}
 
-  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions&, const Action &) const {
+  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions&, const Action&) const {
     return std::unordered_set<std::string>();
   }
 
-  virtual void PrintCommand(const MplOptions&, const Action &action) const {}
+  virtual void PrintCommand(const MplOptions&, const Action&) const {}
 
  protected:
   virtual std::string GetBinPath(const MplOptions &mplOptions) const;
@@ -77,28 +77,30 @@ class Compiler {
     return kBinNameNone;
   }
 
-  virtual std::string GetInputFileName(const MplOptions &, const Action &action) const {
+  virtual std::string GetInputFileName(const MplOptions&, const Action &action) const {
     return action.GetInputFile();
   }
 
-
-  virtual DefaultOption GetDefaultOptions(const MplOptions&, const Action &) const {
+  virtual DefaultOption GetDefaultOptions(const MplOptions&, const Action&) const {
     return DefaultOption();
   }
 
  private:
   const std::string name;
-  std::string MakeOption(const MplOptions &options, const Action &action) const;
+  std::map<std::string, MplOption> MakeOption(const MplOptions &options,
+                                              const Action &action) const;
   void AppendDefaultOptions(std::map<std::string, MplOption> &finalOptions,
                             const std::map<std::string, MplOption> &defaultOptions,
-                            std::ostringstream &strOption, bool isDebug) const;
+                            bool isDebug) const;
   void AppendOptions(std::map<std::string, MplOption> &finalOptions, const std::string &key,
                      const std::string &value) const;
   void AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
-                          const MplOptions &options,
-                          std::ostringstream &strOption, bool isDebug) const;
-  std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options, const Action &action) const;
-  int Exe(const MplOptions &mplOptions, const std::string &options) const;
+                          const MplOptions &options, bool isDebug) const;
+  void AppendInputsAsOptions(std::map<std::string, MplOption> &finalOptions,
+                             const MplOptions &mplOptions, const Action &action) const;
+  std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options,
+                                                      const Action &action) const;
+  int Exe(const MplOptions &mplOptions, const std::map<std::string, MplOption> &options) const;
   const std::string &GetName() const {
     return name;
   }

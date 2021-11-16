@@ -21,7 +21,8 @@
 namespace maple {
 using namespace mapleOption;
 
-int Compiler::Exe(const MplOptions &mplOptions, const std::string &options) const {
+int Compiler::Exe(const MplOptions &mplOptions,
+                  const std::map<std::string, MplOption> &options) const {
   std::ostringstream ostrStream;
   ostrStream << GetBinPath(mplOptions) << GetBinName();
   std::string binPath = ostrStream.str();
@@ -43,15 +44,16 @@ std::string Compiler::GetBinPath(const MplOptions &mplOptions) const {
 }
 
 ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
-                            std::unique_ptr<MIRModule> &) {
+                            std::unique_ptr<MIRModule>&) {
   MPLTimer timer = MPLTimer();
   LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
   timer.Start();
-  std::string strOption = MakeOption(options, action);
-  if (strOption.empty()) {
+
+  std::map<std::string, MplOption> generatedOptions = MakeOption(options, action);
+  if (generatedOptions.empty()) {
     return kErrorInvalidParameter;
   }
-  if (Exe(options, strOption) != 0) {
+  if (Exe(options, generatedOptions) != 0) {
     return kErrorCompileFail;
   }
   timer.Stop();
@@ -59,35 +61,37 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
   return kErrorNoError;
 }
 
-std::string Compiler::MakeOption(const MplOptions &options, const Action &action) const {
+std::map<std::string, MplOption> Compiler::MakeOption(const MplOptions &options,
+                                                      const Action &action) const {
   std::map<std::string, MplOption> finalOptions;
   std::map<std::string, MplOption> defaultOptions = MakeDefaultOptions(options, action);
-  std::ostringstream strOption;
-  AppendDefaultOptions(finalOptions, defaultOptions, strOption, options.HasSetDebugFlag());
-  AppendExtraOptions(finalOptions, options, strOption, options.HasSetDebugFlag());
-  strOption << " " << GetInputFileName(options, action);
-  if (options.HasSetDebugFlag()) {
-    LogInfo::MapleLogger() << Compiler::GetName() << " input files: " << GetInputFileName(options, action) << '\n';
-  }
-  return strOption.str();
+
+  AppendDefaultOptions(finalOptions, defaultOptions, options.HasSetDebugFlag());
+  AppendExtraOptions(finalOptions, options, options.HasSetDebugFlag());
+  AppendInputsAsOptions(finalOptions, options, action);
+
+  return finalOptions;
 }
 
 void Compiler::AppendDefaultOptions(std::map<std::string, MplOption> &finalOptions,
                                     const std::map<std::string, MplOption> &defaultOptions,
-                                    std::ostringstream &strOption, bool isDebug) const {
+                                    bool isDebug) const {
   for (const auto &defaultIt : defaultOptions) {
     (void)finalOptions.insert(make_pair(defaultIt.first, defaultIt.second));
-    strOption << " " << defaultIt.first << " " << defaultIt.second.GetValue();
-    if (isDebug) {
-      LogInfo::MapleLogger() << Compiler::GetName() << " options: " << defaultIt.first << " "
-                             << defaultIt.second.GetValue() << '\n';
+  }
+
+  if (isDebug) {
+    LogInfo::MapleLogger() << Compiler::GetName() << " Default Options: ";
+    for (const auto &defaultIt : defaultOptions) {
+      LogInfo::MapleLogger() << defaultIt.first << " "
+                             << defaultIt.second.GetValue();
     }
+    LogInfo::MapleLogger() << '\n';
   }
 }
 
 void Compiler::AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
-                                  const MplOptions &options,
-                                  std::ostringstream &strOption, bool isDebug) const {
+                                  const MplOptions &options, bool isDebug) const {
   const std::string &binName = GetBinName();
   auto exeOption = options.GetExeOptions().find(binName);
   if (exeOption == options.GetExeOptions().end()) {
@@ -106,11 +110,26 @@ void Compiler::AppendExtraOptions(std::map<std::string, MplOption> &finalOptions
   }
   for (const auto &secondExtras : extraOption) {
     AppendOptions(finalOptions, secondExtras.GetKey(), secondExtras.GetValue());
-    strOption << " " << secondExtras.GetKey() << " " << secondExtras.GetValue();
-    if (isDebug) {
-      LogInfo::MapleLogger() << Compiler::GetName() << " options: " << secondExtras.GetKey() << " "
-                             << secondExtras.GetValue() << '\n';
+  }
+
+  if (isDebug) {
+    LogInfo::MapleLogger() << Compiler::GetName() << " Extra Options: ";
+    for (const auto &secondExtras : extraOption) {
+      LogInfo::MapleLogger() << secondExtras.GetKey() << " "
+                             << secondExtras.GetValue();
     }
+    LogInfo::MapleLogger() << '\n';
+  }
+}
+
+void Compiler::AppendInputsAsOptions(std::map<std::string, MplOption> &finalOptions,
+                                     const MplOptions &mplOptions, const Action &action) const {
+  std::vector<std::string> splittedInputFileNames;
+  std::string inputFileNames = GetInputFileName(mplOptions, action);
+  StringUtils::Split(inputFileNames, splittedInputFileNames, ' ');
+
+  for (auto &inputFileName : splittedInputFileNames) {
+    (void)finalOptions.insert(make_pair(inputFileName, MplOption(inputFileName, "")));
   }
 }
 
