@@ -715,5 +715,6 @@ bool MELfoDepTest::PhaseRun(MeFunction &f) {
 void MELfoDepTest::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
   aDep.AddRequired<MELfoPreEmission>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple

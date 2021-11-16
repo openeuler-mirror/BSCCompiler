@@ -20,7 +20,6 @@
 #include "constantfold.h"
 
 namespace maple {
-
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
 // ptrTyIdx is the high level pointer type of x
 ArrayNode *LfoPreEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
@@ -871,5 +870,6 @@ bool MELfoPreEmission::PhaseRun(MeFunction &f) {
 
 void MELfoPreEmission::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple
