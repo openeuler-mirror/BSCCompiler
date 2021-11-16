@@ -38,11 +38,14 @@ class LoopVecInfo {
         uniformNodes(alloc.Adapter()),
         uniformVecNodes(alloc.Adapter()),
         constvalTypes(alloc.Adapter()),
-        reductionVars(alloc.Adapter()),
-        redVecNodes(alloc.Adapter()) {
-    largestTypeSize = 8; // i8 bit size
+        redVecNodes(alloc.Adapter()),
+        beforeLoopStmts(alloc.Adapter()),
+        afterLoopStmts(alloc.Adapter()) {
+    largestTypeSize = 8; // type bit size
     smallestTypeSize = 64; // i64 bit size
     currentRHSTypeSize = 0;
+    widenop = 0;
+    hasRedvar = false;
   }
   virtual ~LoopVecInfo() = default;
   void UpdateWidestTypeSize(uint32_t);
@@ -51,14 +54,17 @@ class LoopVecInfo {
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
+  uint32_t widenop;          // can't handle t * t which t need widen operation
+  bool     hasRedvar;                          // loop has reduction variable
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
   MapleSet<uint32_t> vecStmtIDs;
   MapleSet<BaseNode *> uniformNodes; // loop invariable scalar set
   MapleMap<BaseNode *, BaseNode *> uniformVecNodes; // new generated vector node
   // constval node need to adjust with new PrimType
   MapleMap<BaseNode *, PrimType>  constvalTypes;
-  MapleSet<std::pair<StIdx, Opcode>> reductionVars; // reduction variables used in rhs->opnd(0)
   MapleMap<StIdx, BaseNode *> redVecNodes; // new generate vector node
+  MapleVector<StmtNode *> beforeLoopStmts;
+  MapleVector<StmtNode *> afterLoopStmts;
 };
 
 // tranform plan for current loop
@@ -67,6 +73,7 @@ class LoopTransPlan {
   LoopTransPlan(MemPool *mp, MemPool *localmp, LoopVecInfo *info)
       : vBound(nullptr), eBound(nullptr), codeMP(mp), localMP(localmp), vecInfo(info) {
     vecFactor = 1;
+    const0Node = nullptr;
   }
   ~LoopTransPlan() = default;
   LoopBound *vBound;   // bound of vectorized part
@@ -78,7 +85,7 @@ class LoopTransPlan {
   MemPool *codeMP;     // use to generate new bound node
   MemPool *localMP;    // use to generate local info
   LoopVecInfo *vecInfo; // collect loop information
-
+  BaseNode *const0Node;   // zero const used in reduction variable
   // function
   bool Generate(DoloopNode *, DoloopInfo *);
   void GenerateBoundInfo(DoloopNode *, DoloopInfo *);
@@ -102,7 +109,8 @@ class LoopVectorization {
   void Perform();
   void TransformLoop();
   void VectorizeDoLoop(DoloopNode *, LoopTransPlan*);
-  void VectorizeNode(BaseNode *, LoopTransPlan *);
+  void VectorizeStmt(BaseNode *, LoopTransPlan *);
+  void VectorizeExpr(BaseNode *, LoopTransPlan *, MapleVector<BaseNode *>&, uint32_t);
   MIRType *GenVecType(PrimType, uint8_t);
   IntrinsicopNode *GenDupScalarExpr(BaseNode *scalar, PrimType vecPrimType);
   bool ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo*, BaseNode *x);
@@ -114,10 +122,18 @@ class LoopVectorization {
   MapleMap<DoloopNode *, LoopTransPlan *> *GetVecPlans() { return &vecPlans; }
   std::string PhaseName() const { return "lfoloopvec"; }
   bool CanConvert(uint32_t, uint32_t);
-  bool CanAdjustRhsType(PrimType, ConstvalNode *);
+  bool CanAdjustRhsConstType(PrimType, ConstvalNode *);
   bool IsReductionOp(Opcode op);
-  IntrinsicopNode *GenSumVecStmt(BaseNode *vecTemp, PrimType vecPrimType);
-
+  bool CanWidenOpcode(BaseNode *, PrimType);
+  IntrinsicopNode *GenSumVecStmt(BaseNode *, PrimType);
+  IntrinsicopNode *GenVectorGetLow(BaseNode *, PrimType);
+  IntrinsicopNode *GenVectorWidenAdd(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorSubLong(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorWidenIntrn(BaseNode *, BaseNode *, PrimType, bool, Opcode);
+  IntrinsicopNode *GenWidenOpndIntrn(BaseNode *, PrimType, bool);
+  void GenWidenBinaryExpr(Opcode, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&);
+  BaseNode* ConvertNodeType(bool, BaseNode*);
+  RegreadNode* GenVectorRedVarInit(StIdx, LoopTransPlan *);
  public:
   static uint32_t vectorizedLoop;
  private:
