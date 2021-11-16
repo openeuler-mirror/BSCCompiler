@@ -387,6 +387,41 @@ uint32 GetVecLanes(PrimType primType) {
   }
 }
 
+PrimType GetVecElemPrimType(PrimType primType) {
+  switch (primType) {
+    case PTY_v2i32:
+    case PTY_v4i32:
+      return PTY_i32;
+    case PTY_v2u32:
+    case PTY_v4u32:
+      return PTY_u32;
+    case PTY_v2i64:
+      return PTY_i64;
+    case PTY_v2u64:
+      return PTY_u64;
+    case PTY_v16i8:
+    case PTY_v8i8:
+      return PTY_i8;
+    case PTY_v16u8:
+    case PTY_v8u8:
+      return PTY_u8;
+    case PTY_v8i16:
+    case PTY_v4i16:
+      return PTY_i16;
+    case PTY_v8u16:
+    case PTY_v4u16:
+      return PTY_u16;
+    case PTY_v2f32:
+    case PTY_v4f32:
+      return PTY_f32;
+    case PTY_v2f64:
+      return PTY_f64;
+    default:
+      return PTY_begin; // not a vector type
+  }
+  return PTY_begin; // not a vector type
+}
+
 // return the signed version that has the same size
 PrimType GetSignedPrimType(PrimType pty) {
   switch (pty) {
@@ -696,7 +731,9 @@ void MIRFuncType::Dump(int indent, bool dontUseName) const {
 }
 
 static constexpr uint64 RoundUpConst(uint64 offset, uint32 align) {
-  return (-align) & (offset + align - 1);
+  uint64 tempFirst = static_cast<uint64>(-align);
+  uint64 tempSecond = static_cast<uint64>(offset + align - 1);
+  return tempFirst & tempSecond;
 }
 
 static inline uint64 RoundUp(uint64 offset, uint32 align) {
@@ -707,7 +744,8 @@ static inline uint64 RoundUp(uint64 offset, uint32 align) {
 }
 
 static constexpr uint64 RoundDownConst(uint64 offset, uint32 align) {
-  return (-align) & offset;
+  uint64 temp = static_cast<uint64>(-align);
+  return temp & offset;
 }
 
 static inline uint64 RoundDown(uint64 offset, uint32 align) {
