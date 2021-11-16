@@ -51,37 +51,38 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(optForWrapperCnt),
                                    optForWrapperCnt };
 
-  for (unsigned int i = 0; i < optForWrapperCnt; ++i) {
+  for (unsigned int tmpOpInd = 0, defOptInd = 0; tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
     /* Does not check -c in this place, after finish of -c flag logic implementation.
      * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files.
      * We do not forward this -c flag into MapleCombCompilerWrp to Run only me,mpl2mpl,mplcg phases */
-    if (tmpOptions[i]->OptionKey() == "c") {
+
+    if (tmpOptions[tmpOpInd]->OptionKey() == "c") {
       defaultOptions.length--;
-      optForWrapperCnt--;
       continue;
     }
 
     std::string strOpt;
-    if (tmpOptions[i]->GetPrefixType() == shortOptPrefix) {
+    if (tmpOptions[tmpOpInd]->GetPrefixType() == shortOptPrefix) {
       strOpt = "-";
-    } else if (tmpOptions[i]->GetPrefixType() == longOptPrefix) {
+    } else if (tmpOptions[tmpOpInd]->GetPrefixType() == longOptPrefix) {
       strOpt = "--";
     }
 
-    if (!tmpOptions[i]->OptionKey().empty()) {
-      strOpt += tmpOptions[i]->OptionKey();
+    if (!tmpOptions[tmpOpInd]->OptionKey().empty()) {
+      strOpt += tmpOptions[tmpOpInd]->OptionKey();
     }
 
-    if (!tmpOptions[i]->Args().empty()) {
-      if (tmpOptions[i]->CheckEqualPrefix() == true) {
+    if (!tmpOptions[tmpOpInd]->Args().empty()) {
+      if (tmpOptions[tmpOpInd]->CheckEqualPrefix() == true) {
         strOpt += "=";
       } else {
         strOpt += " ";
       }
-      strOpt += tmpOptions[i]->Args();
+      strOpt += tmpOptions[tmpOpInd]->Args();
     }
 
-    defaultOptions.mplOptions[i].SetKey(strOpt);
+    /* defOptInd is incremented only for usefull options (not "-c") */
+    defaultOptions.mplOptions[defOptInd++].SetKey(strOpt);
   }
 
   return defaultOptions;
