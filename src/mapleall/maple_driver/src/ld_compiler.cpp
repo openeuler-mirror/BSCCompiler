@@ -30,8 +30,7 @@ const std::string &LdCompiler::GetBinName() const {
   return kBinNameGcc;
 }
 
-DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action &) const {
-
+DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
   uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
 
@@ -48,13 +47,20 @@ DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string LdCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+std::string LdCompiler::GetInputFileName(const MplOptions&, const Action &action) const {
     std::string files;
+
+    bool isFirstEntry = true;
     for (const auto &file : action.GetLinkFiles()) {
+      /* Split Input files with " "; (except first entry) */
+      if (isFirstEntry == true) {
+        isFirstEntry = false;
+      } else {
+        files += " ";
+      }
+
       files += FileUtils::GetFileName(file, false) + ".o";
-      files += " ";
     }
     return files;
 }
-
 }  // namespace maple
