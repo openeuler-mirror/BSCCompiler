@@ -232,6 +232,7 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
   if (isIcall) {
     UniqueFEIRExpr expr = calleeExpr->Emit2FEExpr(stmts);
     InsertNonnullCheckingForIcall(expr, stmts);
+    InsertBoundaryCheckingInArgsForICall(stmts, expr);
     callStmt->AddExprArgReverse(std::move(expr));
   }
   InsertBoundaryCheckingInArgs(stmts);

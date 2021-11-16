@@ -13,9 +13,11 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "feir_var.h"
+#include "feir_stmt.h"
 #include "global_tables.h"
 #include "feir_type_helper.h"
 #include "fe_config_parallel.h"
+#include "enhance_c_checker.h"
 
 namespace maple {
 // ---------- FEIRVarTrans ----------
@@ -85,11 +87,24 @@ FEIRVar::FEIRVar(FEIRVarKind argKind)
     : kind(argKind),
       isGlobal(false),
       isDef(false),
-      type(std::make_unique<FEIRTypeDefault>()) {}
+      type(std::make_unique<FEIRTypeDefault>()) {
+  boundaryLenExpr = nullptr;
+}
 
 FEIRVar::FEIRVar(FEIRVarKind argKind, std::unique_ptr<FEIRType> argType)
     : FEIRVar(argKind) {
+  boundaryLenExpr = nullptr;
   SetType(std::move(argType));
+}
+
+FEIRVar::~FEIRVar() {}
+
+void FEIRVar::SetBoundaryLenExpr(std::unique_ptr<FEIRExpr> expr) {
+  boundaryLenExpr = std::move(expr);
+}
+
+const std::unique_ptr<FEIRExpr> &FEIRVar::GetBoundaryLenExpr() const {
+  return boundaryLenExpr;
 }
 
 MIRSymbol *FEIRVar::GenerateGlobalMIRSymbolImpl(MIRBuilder &builder) const {
@@ -99,6 +114,7 @@ MIRSymbol *FEIRVar::GenerateGlobalMIRSymbolImpl(MIRBuilder &builder) const {
   GStrIdx nameIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   MIRSymbol *gSymbol = builder.GetOrCreateGlobalDecl(name, *mirType);
   auto attrs = const_cast<GenericAttrs&>(genAttrs).ConvertToTypeAttrs();
+  ENCChecker::InsertBoundaryLenExprInAtts(attrs, boundaryLenExpr);
   // do not allow extern var override global var
   if (gSymbol->GetAttrs().GetAttrFlag() != 0 && attrs.GetAttr(ATTR_extern)) {
     return  gSymbol;
@@ -148,11 +164,12 @@ MIRSymbol *FEIRVar::GenerateLocalMIRSymbolImpl(MIRBuilder &builder) const {
   std::string name = GetName(*mirType);
   MIRSymbol *mirSymbol = builder.GetOrCreateLocalDecl(name, *mirType);
   auto attrs = const_cast<GenericAttrs&>(genAttrs).ConvertToTypeAttrs();
+  ENCChecker::InsertBoundaryLenExprInAtts(attrs, boundaryLenExpr);
   if (attrs.GetAttr(ATTR_static)) {
     attrs.ResetAttr(ATTR_static);
     mirSymbol->SetStorageClass(MIRStorageClass::kScPstatic);
   }
-  mirSymbol->SetAttrs(attrs);
+  mirSymbol->AddAttrs(attrs);
   return mirSymbol;
 }
 

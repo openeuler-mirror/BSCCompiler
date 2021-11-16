@@ -159,19 +159,30 @@ class ASTParser {
   ASTDecl *PROCESS_DECL(Label);
   ASTDecl *PROCESS_DECL(StaticAssert);
 
+  static ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, uint32 typeSize);
+
  private:
   void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, ASTDecl &astVar);
   void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessBoundaryFuncAttrsByIndex(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                       ASTFunc &astFunc);
   void ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessBoundaryParamAttrsByIndex(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                        ASTFunc &astFunc);
   void ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::VarDecl &varDecl, ASTVar &astVar);
   void ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTStruct &structDecl,
                                  const clang::RecordDecl &recDecl);
+  void ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl, ASTDecl &astDecl);
+  void ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &valueDecl, ASTDecl &astDecl,
+                                          const MIRFuncType &funcType);
   void ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::QualType &qualType,
                               const std::function<ASTExpr* ()> &getLenExprFromStringLiteral,
                               ASTExpr *lenExpr, bool isSize);
   void ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                     unsigned int idx, ASTFunc &astFunc, ASTExpr *lenExpr, bool isSize);
+  void ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
+                                    unsigned int idx, ASTFunc &astFunc, unsigned int lenIdx, bool isSize);
   void ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::QualType &qualType,
                                    ASTExpr *lenExpr, bool isSize);
   void ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl &ptrDecl, const ASTStruct &structDecl,
@@ -185,7 +196,6 @@ class ASTParser {
   ASTExpr *GetTypeSizeFromQualType(MapleAllocator &allocator, const clang::QualType qualType);
   uint32_t GetAlignOfType(const clang::QualType currQualType, clang::UnaryExprOrTypeTrait exprKind);
   uint32_t GetAlignOfExpr(const clang::Expr &expr, clang::UnaryExprOrTypeTrait exprKind);
-  ASTExpr *GetAddrShiftExpr(MapleAllocator &allocator, ASTExpr *expr, uint32 typeSize);
   ASTExpr *BuildExprToComputeSizeFromVLA(MapleAllocator &allocator, const clang::QualType &qualType);
   ASTExpr *ProcessExprBinaryOperatorComplex(MapleAllocator &allocator, const clang::BinaryOperator &bo);
 

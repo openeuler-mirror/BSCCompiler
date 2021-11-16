@@ -1,5 +1,5 @@
 /*
- * Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+ * Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
  *
  * Licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -18,7 +18,7 @@
 
 int helper(int in)
 {
-	printf("HELPER\n");
-	return in * 2;
+    printf("HELPER\n");
+    return in * 2;
 }
 

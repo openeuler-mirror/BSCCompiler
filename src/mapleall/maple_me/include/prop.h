@@ -43,7 +43,7 @@ class Prop {
     bool propagateWithInverse;
   };
 
-  Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config);
+  Prop(IRMap&, Dominance&, MemPool&, uint32 bbvecsize, const PropConfig &config, uint32 limit = UINT32_MAX);
   virtual ~Prop() = default;
 
   MeExpr *CheckTruncation(MeExpr *lhs, MeExpr *rhs) const;
@@ -118,6 +118,9 @@ class Prop {
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;
   MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+ public:
+  uint32 propLimit;
+  uint32 propsPerformed = 0;    // count number of copy propagations performed
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_PROP_H

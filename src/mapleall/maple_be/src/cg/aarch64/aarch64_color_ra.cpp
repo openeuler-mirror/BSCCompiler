@@ -3792,7 +3792,7 @@ RegOperand *GraphColorRegAllocator::CreateSpillFillCode(RegOperand &opnd, Insn &
   if (lr != nullptr && lr->IsSpilled()) {
     AArch64CGFunc *a64cgfunc = static_cast<AArch64CGFunc*>(cgFunc);
     CG *cg = a64cgfunc->GetCG();
-    uint32 bits = opnd.GetValidBitsNum();
+    uint32 bits = opnd.GetSize();
     if (bits < k32BitSize) {
       bits = k32BitSize;
     }

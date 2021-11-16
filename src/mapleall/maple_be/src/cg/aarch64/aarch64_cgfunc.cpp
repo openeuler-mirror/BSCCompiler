@@ -4269,7 +4269,7 @@ Operand *AArch64CGFunc::SelectShift(BinaryNode &node, Operand &opnd0, Operand &o
     int64 sConst = static_cast<ImmOperand&>(opnd1).GetValue();
     resOpnd = SelectVectorShiftImm(dtype, &opnd0, &opnd1, sConst, opcode);
   } else if ((IsPrimitiveVector(dtype) || isOneElemVector) && !opnd1.IsConstImmediate()) {
-    resOpnd = SelectVectorShift(dtype, &opnd0, &opnd1, opcode);
+    resOpnd = SelectVectorShift(dtype, &opnd0, expr->GetPrimType(), &opnd1, node.Opnd(1)->GetPrimType(), opcode);
   } else {
     PrimType primType = isFloat ? dtype : (is64Bits ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32));
     resOpnd = &GetOrCreateResOperand(parent, primType);
@@ -5139,24 +5139,15 @@ void AArch64CGFunc::SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &t
                       GetCondOperand(cc), isIntType, GetPrimTypeBitSize(dtype));
 }
 
-bool AArch64CGFunc::CanLtOptimized(BaseNode &node) {
-  Operand *opnd0 = HandleExpr(node, *node.Opnd(0));
-  Operand *opnd1 = HandleExpr(node, *node.Opnd(1));
-  if (opnd0->IsRegister() && opnd1->IsImmediate() && (static_cast<ImmOperand*>(opnd1)->GetValue() == 0)) {
-    return false;
-  }
-  return true;
-}
-
-Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
-                                     const BaseNode &parent, bool hasCompare) {
-  PrimType dtype = node.GetPrimType();
-  PrimType ctype = node.Opnd(0)->GetPrimType();
+Operand *AArch64CGFunc::SelectSelect(TernaryNode &expr, Operand &cond, Operand &trueOpnd, Operand &falseOpnd,
+                                     const BaseNode &parent, bool hasCompare, bool canLtOptimized) {
+  PrimType dtype = expr.GetPrimType();
+  PrimType ctype = expr.Opnd(0)->GetPrimType();
 
   RegOperand &resOpnd = GetOrCreateResOperand(parent, dtype);
   AArch64CC_t cc = CC_NE;
-  Opcode opcode = node.Opnd(0)->GetOpCode();
-  PrimType cmpType = static_cast<CompareNode *>(node.Opnd(0))->GetOpndType();
+  Opcode opcode = expr.Opnd(0)->GetOpCode();
+  PrimType cmpType = static_cast<CompareNode *>(expr.Opnd(0))->GetOpndType();
   bool isFloat = IsPrimitiveFloat(cmpType);
   bool unsignedIntegerComparison = !isFloat && !IsSignedInteger(cmpType);
   switch (opcode) {
@@ -5176,7 +5167,7 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand 
       cc = unsignedIntegerComparison ? CC_HI : CC_GT;
       break;
     case OP_lt:
-      if (CanLtOptimized(*(node.Opnd(0)))) {
+      if (canLtOptimized) {
         cc = unsignedIntegerComparison ? CC_LO : CC_LT;
       } else {
         hasCompare = true;
@@ -5186,7 +5177,7 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &node, Operand &opnd0, Operand 
       hasCompare = true;
       break;
   }
-  SelectSelect(resOpnd, opnd0, opnd1, opnd2, dtype, ctype, hasCompare, cc);
+  SelectSelect(resOpnd, cond, trueOpnd, falseOpnd, dtype, ctype, hasCompare, cc);
   return &resOpnd;
 }
 
@@ -9474,9 +9465,9 @@ RegOperand *AArch64CGFunc::SelectVectorAddWiden(Operand *o1, PrimType otyp1, Ope
 
   MOperator mOp;
   if (isLow) {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddwvvu : MOP_vuaddwvvu;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddwvvu : MOP_vsaddwvvu;
   } else {
-    mOp = IsUnsignedInteger(otyp1) ? MOP_vsaddw2vvv : MOP_vuaddw2vvv;
+    mOp = IsUnsignedInteger(otyp1) ? MOP_vuaddw2vvv : MOP_vsaddw2vvv;
   }
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
@@ -9854,7 +9845,9 @@ RegOperand *AArch64CGFunc::SelectVectorCompare(Operand *o1, PrimType oty1, Opera
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, Operand *o2, Opcode opc) {
+RegOperand *AArch64CGFunc::SelectVectorShift(PrimType rType, Operand *o1, PrimType oty1,
+                                             Operand *o2, PrimType oty2, Opcode opc) {
+  PrepareVectorOperands(&o1, oty1, &o2, oty2);
   PrimType resultType = rType;
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(rType);          /* vector operand 1 */
@@ -9943,7 +9936,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
     Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *imm);
     static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
     GetCurBB()->AppendInsn(*insn);
-    res = SelectVectorShift(rType, o1, res, opc);
+    res = SelectVectorShift(rType, o1, rType, res, rType, opc);
     return res;
   }
   MOperator mOp;
@@ -10134,6 +10127,35 @@ RegOperand *AArch64CGFunc::SelectVectorShiftRNarrow(PrimType rType, Operand *o1,
   Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *imm);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
   static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  GetCurBB()->AppendInsn(*insn);
+  return res;
+}
+
+RegOperand *AArch64CGFunc::SelectVectorSubWiden(PrimType resType, Operand *o1,PrimType otyp1,
+                                                Operand *o2, PrimType otyp2, bool isLow, bool isWide) {
+  RegOperand *res = &CreateRegisterOperandOfType(resType);                   /* result reg */
+  VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(resType);
+  VectorRegSpec *vecSpec1 = GetMemoryPool()->New<VectorRegSpec>(otyp1);      /* vector operand 1 */
+  VectorRegSpec *vecSpec2 = GetMemoryPool()->New<VectorRegSpec>(otyp2);      /* vector operand 2 */
+
+  MOperator mOp;
+  if (!isWide) {
+    if (isLow) {
+      mOp = IsUnsignedInteger(otyp1) ? MOP_vusublvuu : MOP_vssublvuu;
+    } else {
+      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubl2vvv : MOP_vssubl2vvv;
+    }
+  } else {
+    if (isLow) {
+      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubwvvu : MOP_vssubwvvu;
+    } else {
+      mOp = IsUnsignedInteger(otyp1) ? MOP_vusubw2vvv : MOP_vssubw2vvv;
+    }
+  }
+  Insn *insn = &GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, *res, *o1, *o2);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpecDest);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec1);
+  static_cast<AArch64VectorInsn*>(insn)->PushRegSpecEntry(vecSpec2);
   GetCurBB()->AppendInsn(*insn);
   return res;
 }

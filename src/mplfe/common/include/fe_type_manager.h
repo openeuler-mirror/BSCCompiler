@@ -24,6 +24,7 @@
 #include "feir_type.h"
 #include "fe_struct_elem_info.h"
 #include "fe_utils.h"
+#include "feir_stmt.h"
 
 namespace maple {
 enum FETypeFlag : uint16 {
@@ -229,6 +230,18 @@ class FETypeManager {
     srcLang = argSrcLang;
   }
 
+  void InsertBoundaryLenExprHashMap(uint32 hash, UniqueFEIRExpr expr) {
+    (void)boundaryLenExprHashMap.insert(std::pair<uint32, UniqueFEIRExpr>(hash, std::move(expr)));
+  }
+
+  UniqueFEIRExpr GetBoundaryLenExprFromMap(uint32 hash) {
+    auto iter = boundaryLenExprHashMap.find(hash);
+    if (iter != boundaryLenExprHashMap.end()) {
+      return iter->second->Clone();
+    }
+    return nullptr;
+  }
+
  private:
   void UpdateStructNameTypeMapFromTypeTable(const std::string &mpltName, FETypeFlag flag);
   void UpdateNameFuncMapFromTypeTable();
@@ -271,6 +284,9 @@ class FETypeManager {
   // ---------- MCC function list  ----------
   std::unordered_map<GStrIdx, MIRFunction*, GStrIdxHash> nameMCCFuncMap;
   MIRFunction *funcMCCGetOrInsertLiteral;
+
+  // ---------- Enhance C  ----------
+  std::unordered_map<uint32, UniqueFEIRExpr> boundaryLenExprHashMap;
 
   MIRFunction *funcMCCStaticFieldGetBool = nullptr;
   MIRFunction *funcMCCStaticFieldGetByte = nullptr;

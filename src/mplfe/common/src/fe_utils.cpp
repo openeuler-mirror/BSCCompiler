@@ -258,34 +258,6 @@ const MIRFuncType *FEUtils::GetFuncPtrType(const MIRType &type) {
   return static_cast<const MIRFuncType*>(mirType);
 }
 
-FieldPair FEUtils::GetLastestStructTypeAndField(MIRStructType &type, MIRStructType *&lastestType,
-                                                FieldID &fieldID) {
-  lastestType = &type;
-  if (!type.GetFieldsSize()) {
-    return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
-  }
-  uint32 fieldIdx = 0;
-  FieldPair curPair = type.GetFields()[0];
-  while (fieldID > 1) {
-    --fieldID;
-    MIRType *curFieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(curPair.second.first);
-    MIRStructType *subStructTy = curFieldType->EmbeddedStructType();
-    if (subStructTy != nullptr) {
-      lastestType = subStructTy;
-      curPair = GetLastestStructTypeAndField(*subStructTy, lastestType, fieldID);
-      if (fieldID == 1 && curPair.second.first != TyIdx(0)) {
-        return curPair;
-      }
-    }
-    ++fieldIdx;
-    if (fieldIdx == type.GetFieldsSize()) {
-      return FieldPair(GStrIdx(0), TyIdxFieldAttrPair(TyIdx(0), FieldAttrs()));
-    }
-    curPair = type.GetFields()[fieldIdx];
-  }
-  return curPair;
-}
-
 MIRConst *FEUtils::CreateImplicitConst(MIRType *type) {
   switch (type->GetPrimType()) {
     case PTY_u1: {

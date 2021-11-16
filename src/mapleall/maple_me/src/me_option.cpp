@@ -56,6 +56,7 @@ uint32 MeOption::lpreLimit = UINT32_MAX;
 uint32 MeOption::lprePULimit = UINT32_MAX;
 uint32 MeOption::pregRenameLimit = UINT32_MAX;
 uint32 MeOption::rename2pregLimit = UINT32_MAX;
+uint32 MeOption::propLimit = UINT32_MAX;
 uint32 MeOption::copyPropLimit = UINT32_MAX;
 uint32 MeOption::profileBBHotRate = 10;
 uint32 MeOption::profileBBColdRate = 99;
@@ -175,6 +176,7 @@ enum OptionIndex {
   kLprepulLimit,
   kPregreNameLimit,
   kRename2pregLimit,
+  kPropLimit,
   kCopyPropLimit,
   kDelrcpuLimit,
   kProfileBBHotRate,
@@ -609,6 +611,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyRequired,
     "  --rename2preglimit          \tApply Rename-to-Preg optimization only up to NUM times\n"
     "                              \t--rename2preglimit=NUM\n",
+    "me",
+    {} },
+  { kPropLimit,
+    0,
+    "",
+    "proplimit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --proplimit             \tApply propagation only up to NUM times in each hprop invocation\n"
+    "                              \t--proplimit=NUM\n",
     "me",
     {} },
   { kCopyPropLimit,
@@ -1476,6 +1488,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kRename2pregLimit:
         rename2pregLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kPropLimit:
+        propLimit = std::stoul(opt.Args(), nullptr);
         break;
       case kCopyPropLimit:
         copyPropLimit = std::stoul(opt.Args(), nullptr);

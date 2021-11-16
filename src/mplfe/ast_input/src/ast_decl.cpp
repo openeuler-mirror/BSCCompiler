@@ -62,9 +62,9 @@ std::unique_ptr<FEIRVar> ASTVar::Translate2FEIRVar() const {
   feirVar->SetAttrs(const_cast<GenericAttrs&>(genAttrs));
   feirVar->SetSrcLOC(srcFileIdx, srcFileLineNum);
   feirVar->SetSectionAttr(sectionAttr);
-  if (boundaryLenExpr != nullptr) {
+  if (boundary.lenExpr != nullptr) {
     std::list<UniqueFEIRStmt> nullStmts;
-    UniqueFEIRExpr lenExpr = boundaryLenExpr->Emit2FEExpr(nullStmts);
+    UniqueFEIRExpr lenExpr = boundary.lenExpr->Emit2FEExpr(nullStmts);
     feirVar->SetBoundaryLenExpr(std::move(lenExpr));
   }
   return feirVar;

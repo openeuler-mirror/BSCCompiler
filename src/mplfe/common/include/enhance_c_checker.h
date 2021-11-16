@@ -29,6 +29,9 @@ class ENCChecker {
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr, std::list<UniqueFEIRStmt> &stmts);
   static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                uint32 fileNum, uint32 fileLine);
+  static bool IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2);
+  static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
+                                                uint32 fileNum, uint32 fileLine);
   static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr);
   static MIRType *GetArrayTypeFromExpr(const UniqueFEIRExpr &expr);
   static void AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &dstExpr, const UniqueFEIRExpr &srcExpr,
@@ -41,6 +44,8 @@ class ENCChecker {
   static void PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &baseExpr);
   static UniqueFEIRExpr GetRealBoundaryLenExprInFunc(const UniqueFEIRExpr &lenExpr, const ASTFunc &astFunc,
                                                      const ASTCallExpr &astCallExpr);
+  static UniqueFEIRExpr GetRealBoundaryLenExprInFuncByIndex(const TypeAttrs &typeAttrs, const MIRType &type,
+                                                            const ASTCallExpr &astCallExpr);
   static UniqueFEIRExpr GetRealBoundaryLenExprInField(const UniqueFEIRExpr &lenExpr, MIRStructType &baseType,
                                                       const UniqueFEIRExpr &dstExpr);
   static void InitBoundaryVarFromASTDecl(MapleAllocator &allocator, ASTDecl *ptrDecl,
@@ -55,11 +60,13 @@ class ENCChecker {
   static void InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
                                            const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine);
   static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr);
-  static void SaveBoundaryLenExprCache(const std::pair<StIdx, StIdx> &key, ASTExpr *astLenExpr);
-  static void SaveBoundaryLenExprCache(const std::pair<TyIdx, FieldPair> &key, ASTExpr *astLenExpr);
-  static void SaveBoundaryLenExprCache(const std::pair<StIdx, StIdx> &key, const UniqueFEIRExpr &expr);
-  static UniqueFEIRExpr GetBoundaryLenExprCache(const MIRSymbol &funcSym, const MIRSymbol &varSym);
-  static UniqueFEIRExpr GetBoundaryLenExprCache(const MIRStructType &type, const FieldPair &fieldPair);
+  static UniqueFEIRExpr GetBoundaryLenExprCache(uint32 hash);
+  static UniqueFEIRExpr GetBoundaryLenExprCache(const TypeAttrs &attr);
+  static UniqueFEIRExpr GetBoundaryLenExprCache(const FieldAttrs &attr);
+  static void InsertBoundaryInAtts(TypeAttrs &attr, const BoundaryInfo &boundary);
+  static void InsertBoundaryLenExprInAtts(TypeAttrs &attr, const UniqueFEIRExpr &expr);
+  static void InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boundary);
+  static void InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &boundary);
 };  // class ENCChecker
 }  // namespace maple
 #endif  // MPLFE_INCLUDE_COMMON_ENCCHECKER_H
