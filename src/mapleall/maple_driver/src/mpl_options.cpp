@@ -66,6 +66,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
   optionParser->RegisteUsages(ldUsage);
+  optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());

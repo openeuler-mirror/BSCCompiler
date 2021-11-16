@@ -77,6 +77,13 @@ class Compiler {
     return kBinNameNone;
   }
 
+  /* Default behaviour ToolName==BinName, But some tools have another behaviour:
+   * AsCompiler: ToolName=kAsFlag, BinName=kMachine + kOperatingSystem + kAsFlag
+   */
+  virtual const std::string &GetTool() const {
+    return GetBinName();
+  }
+
   virtual std::string GetInputFileName(const MplOptions&, const Action &action) const {
     return action.GetInputFile();
   }
@@ -258,6 +265,7 @@ class AsCompiler : public Compiler {
  private:
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
+  const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
@@ -276,6 +284,7 @@ class LdCompiler : public Compiler {
  private:
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
+  const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
 };
