@@ -46,6 +46,7 @@ extern uint32 GetVecLanes(PrimType primType);                             // lan
 extern const char *GetPrimTypeName(PrimType primType);
 extern const char *GetPrimTypeJavaName(PrimType primType);
 extern int64 MinValOfSignedInteger(PrimType primType);
+extern PrimType GetVecElemPrimType(PrimType primType);
 
 inline uint32 GetPrimTypeBitSize(PrimType primType) {
   // 1 byte = 8 bits = 2^3 bits
