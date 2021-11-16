@@ -30,6 +30,11 @@ const std::string &LdCompiler::GetBinName() const {
   return kBinNameGcc;
 }
 
+/* the tool name must be the same as exeName field in Descriptor structure */
+const std::string &LdCompiler::GetTool() const {
+  return kLdFlag;
+}
+
 DefaultOption LdCompiler::GetDefaultOptions(const MplOptions &options, const Action&) const {
   uint32_t len = sizeof(kLdDefaultOptions) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };

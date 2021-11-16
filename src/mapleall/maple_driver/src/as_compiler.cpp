@@ -29,6 +29,11 @@ const std::string &AsCompiler::GetBinName() const {
   return kBinNameAs;
 }
 
+/* the tool name must be the same as exeName field in Descriptor structure */
+const std::string &AsCompiler::GetTool() const {
+  return kAsFlag;
+}
+
 DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
   uint32_t len = sizeof(kAsDefaultOptions) / sizeof(MplOption);
   DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
@@ -49,16 +54,16 @@ DefaultOption AsCompiler::GetDefaultOptions(const MplOptions &options, const Act
   return defaultOptions;
 }
 
-std::string AsCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+std::string AsCompiler::GetInputFileName(const MplOptions&, const Action &action) const {
   return action.GetFullOutputName() + ".s";
 }
 
-void AsCompiler::GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
+void AsCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
                                      std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".o");
 }
 
-std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> AsCompiler::GetFinalOutputs(const MplOptions&,
                                                             const Action &action) const {
   auto finalOutputs = std::unordered_set<std::string>();
   (void)finalOutputs.insert(action.GetFullOutputName() + ".o");

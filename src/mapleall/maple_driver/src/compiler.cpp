@@ -92,7 +92,7 @@ void Compiler::AppendDefaultOptions(std::map<std::string, MplOption> &finalOptio
 
 void Compiler::AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
                                   const MplOptions &options, bool isDebug) const {
-  const std::string &binName = GetBinName();
+  const std::string &binName = GetTool();
   auto exeOption = options.GetExeOptions().find(binName);
   if (exeOption == options.GetExeOptions().end()) {
     return;
