@@ -20,6 +20,27 @@
 #include "cast_opt.h"
 
 namespace maple {
+void IRMap::UpdateIncDecAttr(MeStmt &meStmt) {
+  if (!kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
+    return;
+  }
+  auto *assign = static_cast<AssignMeStmt*>(&meStmt);
+  if (assign->GetOpnd(0)->GetMeOp() != kMeOpOp) {
+    assign->isIncDecStmt = false;
+    return;
+  }
+  auto *rhs = static_cast<OpMeExpr *>(assign->GetOpnd(0));
+  if (rhs->GetOp() != OP_add && rhs->GetOp() != OP_sub) {
+    assign->isIncDecStmt = false;
+    return;
+  }
+  if (rhs->GetOpnd(0)->GetMeOp() == kMeOpReg && rhs->GetOpnd(1)->GetMeOp() == kMeOpConst) {
+    assign->isIncDecStmt = assign->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(rhs->GetOpnd(0))->GetOst();
+  } else {
+    assign->isIncDecStmt = false;
+  }
+}
+
 // Return a simplified expr if succeed, return nullptr if fail
 MeExpr *IRMap::SimplifyCast(MeExpr *expr) {
   return MeCastOpt::SimplifyCast(*this, expr);
@@ -285,6 +306,7 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         newBase = base->GetOpnd(0);
         offsetVal = offset.val;
       } else {
+        offsetVal = ivar->GetOffset();
         // reassociate the base expression such that the constant is added directly to ptrVar
         MeExpr *newAddSub = CreateMeExprBinary(base->GetOp(), ptrVar->GetPrimType(), *ptrVar, *offsetNode);
         if (ptrVar == base->GetOpnd(0)) {

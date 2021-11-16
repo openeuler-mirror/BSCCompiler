@@ -449,6 +449,7 @@ MeExpr *Prop::RehashUsingInverse(MeExpr *x) {
       MeExpr *result = RehashUsingInverse(ivarx->GetBase());
       if (result != nullptr) {
         IvarMeExpr newivarx(-1, ivarx->GetPrimType(), ivarx->GetTyIdx(), ivarx->GetFieldID());
+        newivarx.SetOffset(ivarx->GetOffset());
         newivarx.SetBase(result);
         newivarx.SetMuVal(ivarx->GetMu());
         return irMap.HashMeExpr(newivarx);
