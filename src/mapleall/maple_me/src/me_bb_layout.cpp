@@ -1026,7 +1026,7 @@ void BBLayout::RunLayout() {
 
 void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
-  aDep.PreservedAllExcept<MEDominance>();
+  aDep.SetPreservedAll();
 }
 
 bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
