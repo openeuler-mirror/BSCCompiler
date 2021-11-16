@@ -102,14 +102,12 @@ int MplOptions::Parse(int argc, char **argv) {
     if (ret != kErrorNoError) {
       return ret;
     }
-  }
-
-  /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
-   * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
-   * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
-   * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
-   */
-  else { // kCustomRun
+  } else { // kCustomRun
+    /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
+     * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
+     * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
+     * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
+    */
     ret = DecideRunningPhases(runningExes);
     if (ret != kErrorNoError) {
       return ret;
@@ -261,6 +259,9 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kBoundaryDynamicCheckSilent:
         boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
         break;
+      case kSafeRegionOption:
+        safeRegion = true;
+        break;
       default:
         // I do not care
         break;
@@ -354,6 +355,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      [[clang::fallthrough]];
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
       newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
@@ -438,9 +440,9 @@ ErrorCode MplOptions::DecideRunningPhases() {
     lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
     CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
 
-    /* TODO: Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
+    /* Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
      * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files. */
-    if (lastAction->GetTool() == kAsFlag /*&& !HasSetGenObj()*/) {
+    if (lastAction->GetTool() == kAsFlag /* && !HasSetGenObj() */) {
       /* For linking step, inputActions are all assembly actions. */
       linkActions.push_back(std::move(lastAction));
     } else {
@@ -546,7 +548,7 @@ void MplOptions::DumpActionTree() const {
 
 void MplOptions::DumpActionTree(const Action &action, int indents) const {
   for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
-    DumpActionTree(*a, indents+1);
+    DumpActionTree(*a, indents + 1);
   }
 
   if (indents != 0) {
@@ -765,8 +767,31 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   return ret;
 }
 
+void MplOptions::DumpAppendedOptions(const std::string &exeName,
+                                     MplOption mplOptions[], unsigned int length) const {
+  LogInfo::MapleLogger() << exeName << " Default Options: ";
+  for (size_t i = 0; i < length; ++i) {
+    LogInfo::MapleLogger() << mplOptions[i].GetKey() << " "
+                           << mplOptions[i].GetValue() << " ";
+  }
+  LogInfo::MapleLogger() << "\n";
+
+  auto &exeOption = exeOptions.at(exeName);
+  LogInfo::MapleLogger() << exeName << " Extra Options: ";
+  for (auto &opt : exeOption) {
+    LogInfo::MapleLogger() << opt.OptionKey() << " "
+                           << opt.Args() << " ";
+  }
+  LogInfo::MapleLogger() << "\n";
+}
+
 ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length) {
   auto &exeOption = exeOptions[exeName];
+
+  if (HasSetDebugFlag()) {
+    DumpAppendedOptions(exeName, mplOptions, length);
+  }
+
   for (size_t i = 0; i < length; ++i) {
     mplOptions[i].SetValue(FileUtils::AppendMapleRootIfNeeded(mplOptions[i].GetNeedRootPath(), mplOptions[i].GetValue(),
                                                               exeFolder));
