@@ -39,6 +39,7 @@ bool CgStoreLoadOpt::PhaseRun(maplebe::CGFunc &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgReachingDefinition::id);
     return false;
   }
+  GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(&CgLoopAnalysis::id, f);
 
   StoreLoadOpt *storeLoadOpt = nullptr;
 #if TARGAARCH64 || TARGRISCV64
