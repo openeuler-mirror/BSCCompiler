@@ -648,40 +648,6 @@ bool MplOptions::Init(const std::string &inputFile) {
   inputFolder = FileUtils::GetFileFolder(firstInputFile);
   outputFolder = inputFolder;
   outputName = FileUtils::GetFileName(firstInputFile, false);
-  std::string extensionName = FileUtils::GetFileExtension(firstInputFile);
-  if (extensionName == "class") {
-    inputFileType = InputFileType::kFileTypeClass;
-  }
-  else if (extensionName == "dex") {
-    inputFileType = InputFileType::kFileTypeDex;
-  }
-  else if (extensionName == "c") {
-    inputFileType = InputFileType::kFileTypeC;
-  }
-  else if (extensionName == "cpp") {
-    inputFileType = InputFileType::kFileTypeCpp;
-  }
-  else if (extensionName == "ast") {
-    inputFileType = InputFileType::kFileTypeAst;
-  }
-  else if (extensionName == "jar") {
-    inputFileType = InputFileType::kFileTypeJar;
-  }
-  else if (extensionName == "mpl" || extensionName == "bpl") {
-    if (firstInputFile.find("VtableImpl") == std::string::npos) {
-      if (firstInputFile.find(".me.mpl") != std::string::npos) {
-        inputFileType = InputFileType::kFileTypeMeMpl;
-      } else {
-        inputFileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
-      }
-    } else {
-      inputFileType = InputFileType::kFileTypeVtableImplMpl;
-    }
-  } else if (extensionName == "s") {
-    inputFileType = InputFileType::kFileTypeS;
-  } else {
-    return false;
-  }
   return true;
 }
 
@@ -863,41 +829,6 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
   }
 }
 
-std::string MplOptions::GetInputFileNameForPrint() const{
-  if (!runningExes.empty()) {
-    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl
-        || runningExes[0] == kBinNameMplcg) {
-      return inputFiles;
-    }
-  }
-  if (inputFileType == InputFileType::kFileTypeVtableImplMpl) {
-    return outputFolder + outputName + ".VtableImpl.mpl";
-  }
-  if (inputFileType == InputFileType::kFileTypeBpl) {
-    return outputFolder + outputName + ".bpl";
-  }
-  return outputFolder + outputName + ".mpl";
-}
-
-void MplOptions::PrintCommand() {
-  if (hasPrinted) {
-    return;
-  }
-  std::ostringstream optionStr;
-  if (runMode == RunMode::kAutoRun) {
-    if (optimizationLevel == kO0) {
-      optionStr << " -O0";
-    } else if (optimizationLevel == kO2) {
-      optionStr << " -O2";
-    }
-    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  }
-  if (runMode == RunMode::kCustomRun) {
-    PrintDetailCommand(true);
-  }
-  hasPrinted = true;
-}
 void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
                                std::string &runStr) {
   std::string connectSym = "";
@@ -916,7 +847,7 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
     }
   }
 }
-void MplOptions::PrintDetailCommand(bool isBeforeParse) {
+void MplOptions::PrintDetailCommand() {
   if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end()
       && exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
     return;
@@ -929,12 +860,9 @@ void MplOptions::PrintDetailCommand(bool isBeforeParse) {
   connectOptStr(optionStr, kBinNameMpl2mpl, firstComb, runStr);
   connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
   optionStr += "\"";
-  if (isBeforeParse) {
-    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  } else {
-    LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  }
+
+  LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple "
+                         << runStr << " " << optionStr << " "
+                         << printCommandStr << " " << GetInputFiles() << '\n';
 }
 } // namespace maple

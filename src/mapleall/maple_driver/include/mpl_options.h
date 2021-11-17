@@ -301,10 +301,6 @@ class MplOptions {
     return exeFolder;
   }
 
-  const InputFileType &GetInputFileType() const {
-    return inputFileType;
-  }
-
   const OptimizationLevel &GetOptimizationLevel() const {
     return optimizationLevel;
   }
@@ -403,10 +399,9 @@ class MplOptions {
 
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
-  std::string GetInputFileNameForPrint() const;
   void PrintCommand();
   void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
-  void PrintDetailCommand(bool isBeforeParse);
+  void PrintDetailCommand();
  private:
   bool Init(const std::string &inputFile);
   ErrorCode HandleGeneralOptions();
@@ -442,7 +437,6 @@ class MplOptions {
   std::string meOptArgs = "";
   std::string mpl2mplOptArgs = "";
   std::string mplcgOptArgs = "";
-  InputFileType inputFileType = InputFileType::kFileTypeNone;
   OptimizationLevel optimizationLevel = OptimizationLevel::kO0;
   RunMode runMode = RunMode::kUnkownRun;
   bool setDefaultLevel = false;
