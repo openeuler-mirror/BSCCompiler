@@ -1411,7 +1411,11 @@ Insn *AndCmpBranchesToCsetAArch64::FindPreviousCmp(Insn &insn) {
     if (curInsn->GetMachineOpcode() == MOP_wcmpri || curInsn->GetMachineOpcode() == MOP_xcmpri) {
       return curInsn;
     }
-    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(defRegNO)) {
+    /*
+     * if any def/use of CC or insn defReg between insn and curInsn, stop searching and return nullptr.
+     */
+    if (static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(defRegNO) ||
+        static_cast<AArch64Insn*>(curInsn)->IsRegDefOrUse(kRFLAG)) {
       return nullptr;
     }
   }
