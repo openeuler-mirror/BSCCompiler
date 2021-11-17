@@ -58,6 +58,7 @@ uint32 MeOption::pregRenameLimit = UINT32_MAX;
 uint32 MeOption::rename2pregLimit = UINT32_MAX;
 uint32 MeOption::propLimit = UINT32_MAX;
 uint32 MeOption::copyPropLimit = UINT32_MAX;
+uint32 MeOption::vecLoopLimit = UINT32_MAX;
 uint32 MeOption::profileBBHotRate = 10;
 uint32 MeOption::profileBBColdRate = 99;
 bool MeOption::noDelegateRC = false;
@@ -121,6 +122,7 @@ uint8 MeOption::rematLevel = 2;
 bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 SafetyCheckMode MeOption::npeCheckMode = SafetyCheckMode::kNoCheck;
 SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
+bool MeOption::safeRegionMode = false;
 #if MIR_JAVA
 std::string MeOption::acquireFuncName = "Landroid/location/LocationManager;|requestLocationUpdates|";
 std::string MeOption::releaseFuncName = "Landroid/location/LocationManager;|removeUpdates|";
@@ -250,6 +252,7 @@ enum OptionIndex {
   kSeqVec,
   kRematLevel,
   kLayoutWithPredict,
+  kvecLoops,
 };
 
 const Descriptor kUsage[] = {
@@ -1205,6 +1208,16 @@ const Descriptor kUsage[] = {
     "  --no-layoutwithpredict     \tDisable optimizing output layout using branch prediction\n",
     "me",
     {} },
+  { kvecLoops,
+    0,
+    "",
+    "veclooplimit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --veclooplimit             \tApply vectorize loops only up to NUM \n"
+    "                              \t--copyproplimit=NUM\n",
+    "me",
+    {} },
 #if MIR_JAVA
   { kMeAcquireFunc,
     0,
@@ -1687,6 +1700,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kLayoutWithPredict:
         layoutWithPredict = (opt.Type() == kEnable);
+        break;
+      case kvecLoops:
+        vecLoopLimit = std::stoul(opt.Args(), nullptr);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:

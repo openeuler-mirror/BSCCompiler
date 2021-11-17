@@ -785,7 +785,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       }
       PrimType optype = node->GetPrimType();
       node->SetPrimType(vecType->GetPrimType());
-      if ((depth == 0) &&
+      if ((depth == 0 && (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType())))) &&
           ((GetPrimTypeSize(optype) / GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) > 2)) {
         // widen node type: split two nodes
         if (GetPrimTypeSize(vecType->GetPrimType()) == 16) {
@@ -852,6 +852,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       // widen instruction (addl/subl) need two operands with same vectype
       if ((PTY_begin != GetVecElemPrimType(opnd0PrimType)) &&
           (PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
+          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd0PrimType))) &&
           CanWidenOpcode(node, GetVecElemPrimType(opnd0PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
       } else {
@@ -935,6 +936,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
       MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
       MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
+      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
       ASSERT(lhsvecType != nullptr, "vector type should not be null");
       MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
       // update lhs type
@@ -972,17 +974,19 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
       LfoPart* lfopart = (*lfoStmtParts)[dassign->GetStmtID()];
       BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
-      // rhsvecNode : vectorizable_expr
-      BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
-      // skip vectorizing uniform node
-      if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
-        VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
-      }
+      // create vector lhs
       RegreadNode *regReadlhsvec;
       if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
         regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[dassign->GetStIdx()]);
       } else {
         regReadlhsvec = GenVectorRedVarInit(dassign->GetStIdx(), tp);
+      }
+      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
+      // rhsvecNode : vectorizable_expr
+      BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
+      // skip vectorizing uniform node
+      if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
+        VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
       }
       // use widen intrinsic
       if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) > MAX_VECTOR_LENGTH_SIZE) {
@@ -1040,6 +1044,13 @@ void LoopVectorization::widenDoloop(DoloopNode *doloop, LoopTransPlan *tp) {
     }
     if (tp->vBound->upperNode) {
       BinaryNode *cmpn = static_cast<BinaryNode *>(doloop->GetCondExpr());
+      // remove equal condition included in compare
+      // updated upper node consider equal condition
+      if (cmpn->GetOpCode() == OP_le) {
+        cmpn->SetOpCode(OP_lt);
+      } else if (cmpn->GetOpCode() == OP_ge) {
+        cmpn->SetOpCode(OP_gt);
+      }
       cmpn->SetBOpnd(tp->vBound->upperNode, 1);
     }
   }
@@ -1482,6 +1493,10 @@ void LoopVectorization::Perform() {
     if (!mapit->second->children.empty() ||
         ((!mapit->second->Parallelizable()) && (!mapit->second->CheckReductionLoop()))) {
       continue;
+    }
+    // check in debug
+    if (LoopVectorization::vectorizedLoop >= MeOption::vecLoopLimit) {
+      break;
     }
     LoopVecInfo *vecInfo = localMP->New<LoopVecInfo>(localAlloc);
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
