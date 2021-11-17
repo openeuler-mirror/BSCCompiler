@@ -21,7 +21,6 @@
 #include "mir_builder.h"
 #include "constantfold.h"
 #include "me_irmap.h"
-#include "me_phase.h"
 #include "lfo_mir_lower.h"
 
 namespace maple {
@@ -37,19 +36,23 @@ void MeFunction::PartialInit() {
   regNum = 0;
   hasEH = false;
   ConstantFold cf(mirModule);
-  cf.Simplify(mirModule.CurFunction()->GetBody());
-  if (mirModule.IsJavaModule() && (!mirModule.CurFunction()->GetInfoVector().empty())) {
+  cf.Simplify(mirFunc->GetBody());
+  if (mirModule.IsJavaModule() && (!mirFunc->GetInfoVector().empty())) {
     std::string string("INFO_registers");
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(string);
-    regNum = mirModule.CurFunction()->GetInfo(strIdx);
+    regNum = mirFunc->GetInfo(strIdx);
     std::string tryNum("INFO_tries_size");
     strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(tryNum);
-    uint32 num = mirModule.CurFunction()->GetInfo(strIdx);
+    uint32 num = mirFunc->GetInfo(strIdx);
     hasEH = (num != 0);
   }
 }
 
 void MeFunction::DumpFunction() const {
+  if (theCFG == nullptr) {
+    mirFunc->Dump(false);
+    return;
+  }
   if (meSSATab == nullptr) {
     LogInfo::MapleLogger() << "no ssa info, just dump simpfunction\n";
     DumpFunctionNoSSA();
@@ -128,12 +131,7 @@ void MeFunction::Dump(bool DumpSimpIr) const {
   }
 }
 
-void MeFunction::Prepare(unsigned long rangeNum) {
-  if (!MeOption::quiet) {
-    LogInfo::MapleLogger() << "---Preparing Function  < " << CurFunction()->GetName() << " > [" << rangeNum
-                           << "] ---\n";
-  }
-
+void MeFunction::Prepare() {
   if (MeOption::optLevel >= 3) {
     MemPool* lfomp = memPoolCtrler.NewMemPool("lfo", true);
     SetLfoFunc(lfomp->New<LfoFunction>(lfomp, this));
