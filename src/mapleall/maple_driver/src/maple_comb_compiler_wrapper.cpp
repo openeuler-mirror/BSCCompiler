@@ -48,18 +48,18 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
     }
   }
 
-  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(optForWrapperCnt),
-                                   optForWrapperCnt };
+  /* need to add --maple-phase option to run only maple phase.
+   * linker will be called as separated step (AsCompiler).
+   */
+  uint32 additionalOption = 1;
+  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(optForWrapperCnt + additionalOption),
+                                   optForWrapperCnt + additionalOption };
 
-  for (unsigned int tmpOpInd = 0, defOptInd = 0; tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
-    /* Does not check -c in this place, after finish of -c flag logic implementation.
-     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files.
-     * We do not forward this -c flag into MapleCombCompilerWrp to Run only me,mpl2mpl,mplcg phases */
+  /* Set additional option */
+  defaultOptions.mplOptions[0].SetKey("--maple-phase");
 
-    if (tmpOptions[tmpOpInd]->OptionKey() == "c") {
-      defaultOptions.length--;
-      continue;
-    }
+  for (unsigned int tmpOpInd = 0, defOptInd = additionalOption;
+       tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
 
     std::string strOpt;
     if (tmpOptions[tmpOpInd]->GetPrefixType() == shortOptPrefix) {
@@ -81,7 +81,6 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
       strOpt += tmpOptions[tmpOpInd]->Args();
     }
 
-    /* defOptInd is incremented only for usefull options (not "-c") */
     defaultOptions.mplOptions[defOptInd++].SetKey(strOpt);
   }
 

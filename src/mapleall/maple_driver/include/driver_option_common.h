@@ -65,6 +65,7 @@ enum DriverOptionIndex {
   kBoundaryDynamicCheckSilent,
   kSafeRegionOption,
   kMaplePrintPhases,
+  kMaplePhaseOnly,
   kLdStatic,
   kClangMacro,
   kClangInclude,
