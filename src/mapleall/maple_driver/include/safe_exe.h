@@ -85,14 +85,14 @@ class SafeExe {
   }
 
   static ErrorCode HandleCommand(const std::string &cmd,
-                                 const std::map<std::string, MplOption> &options) {
+                                 const std::vector<MplOption> &options) {
     int argIndex;
     char **argv;
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options);
 
     LogInfo::MapleLogger() << "Run: " << cmd;
     for (auto &opt : options) {
-      LogInfo::MapleLogger() << " " << opt.second.GetKey() << " " << opt.second.GetValue();
+      LogInfo::MapleLogger() << " " << opt.GetKey() << " " << opt.GetValue();
     }
     LogInfo::MapleLogger() << "\n";
 
@@ -122,7 +122,7 @@ class SafeExe {
       if (ret != kErrorNoError) {
         LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << " args: ";
         for (auto &opt : options) {
-          LogInfo::MapleLogger() << opt.second.GetKey() << " " << opt.second.GetValue();
+          LogInfo::MapleLogger() << opt.GetKey() << " " << opt.GetValue();
         }
         LogInfo::MapleLogger() << "\n";
       }
@@ -174,7 +174,7 @@ class SafeExe {
   }
 
   static ErrorCode HandleCommand(const std::string &cmd,
-                                 const std::map<std::string, MplOption> &options) {
+                                 const std::vector<MplOption> &options) {
     ErrorCode ret = ErrorCode::kErrorNoError;
 
     STARTUPINFO startInfo;
@@ -187,7 +187,7 @@ class SafeExe {
     startInfo.cb = sizeof(STARTUPINFO);\
     std::string argString;
     for (auto &opt : options) {
-      argString += opt.second.GetKey() + " " + opt.second.GetValue() + " ";
+      argString += opt.GetKey() + " " + opt.GetValue() + " ";
     }
 
     char* appName = strdup(cmd.c_str());
@@ -227,7 +227,7 @@ class SafeExe {
   }
 
   static ErrorCode Exe(const std::string &cmd,
-                       const std::map<std::string, MplOption> &options) {
+                       const std::vector<MplOption> &options) {
     if (StringUtils::HasCommandInjectionChar(cmd)) {
       LogInfo::MapleLogger() << "Error while Exe, cmd: " << cmd << '\n';
       return kErrorCompileFail;
@@ -253,7 +253,7 @@ class SafeExe {
   }
 
   static std::tuple<char **, int> GenerateUnixArguments(const std::string &cmd,
-                                                        const std::map<std::string, MplOption> &options) {
+                                                        const std::vector<MplOption> &options) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     int argSize = 2;
 
@@ -274,9 +274,8 @@ class SafeExe {
     /* Allocate and fill all arguments */
     int argIndex = 1; // firts index is reserved for cmd, so it starts with 1
     for (auto &opt : options) {
-      auto mplOpt = opt.second;
-      auto key = mplOpt.GetKey();
-      auto val = mplOpt.GetValue();
+      auto key = opt.GetKey();
+      auto val = opt.GetValue();
       /* +1 for NUL terminal */
       int keySize = key.size() + 1;
       int valSize = val.size() + 1;
