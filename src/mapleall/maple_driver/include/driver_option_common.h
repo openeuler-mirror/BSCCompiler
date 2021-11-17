@@ -71,6 +71,7 @@ enum DriverOptionIndex {
   kLdLibPath,
   kClangMacro,
   kClangInclude,
+  kMapleOut,
   kCommonOptionEnd,
 };
 

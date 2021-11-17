@@ -263,6 +263,12 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kSafeRegionOption:
         safeRegion = true;
         break;
+      case kMapleOut:
+        CHECK_FATAL(!(rootActions[0]->GetTool().empty()),
+                    "rootActions must be set as last compilation step\n");
+        /* Add -o <out> option to last compilation step */
+        exeOptions[rootActions[0]->GetTool()].push_back(opt);
+        break;
       default:
         // I do not care
         break;
