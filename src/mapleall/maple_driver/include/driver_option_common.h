@@ -67,6 +67,8 @@ enum DriverOptionIndex {
   kMaplePrintPhases,
   kMaplePhaseOnly,
   kLdStatic,
+  kLdLib,
+  kLdLibPath,
   kClangMacro,
   kClangInclude,
   kCommonOptionEnd,
