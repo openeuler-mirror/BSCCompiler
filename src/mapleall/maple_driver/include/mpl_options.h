@@ -328,10 +328,6 @@ class MplOptions {
     return splitsInputFiles;
   }
 
-  const std::map<std::string, std::vector<MplOption>> &GetExtras() const {
-    return extras;
-  }
-
   const std::vector<std::string> &GetRunningExes() const {
     return runningExes;
   }
@@ -439,7 +435,6 @@ class MplOptions {
   bool isSaveTmps = false;
   std::vector<std::string> saveFiles = {};
   std::vector<std::string> splitsInputFiles = {};
-  std::map<std::string, std::vector<MplOption>> extras = {};
   std::vector<std::string> runningExes = {};
   std::vector<std::string> selectedExes = {};
   bool isWithIpa = false;

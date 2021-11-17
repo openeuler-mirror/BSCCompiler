@@ -95,22 +95,30 @@ class Compiler {
 
  private:
   const std::string name;
-  std::map<std::string, MplOption> MakeOption(const MplOptions &options,
-                                              const Action &action) const;
-  void AppendDefaultOptions(std::map<std::string, MplOption> &finalOptions,
+  std::vector<MplOption> MakeOption(const MplOptions &options,
+                                    const Action &action) const;
+  void AppendDefaultOptions(std::vector<MplOption> &finalOptions,
                             const std::map<std::string, MplOption> &defaultOptions,
                             bool isDebug) const;
-  void AppendOptions(std::map<std::string, MplOption> &finalOptions, const std::string &key,
-                     const std::string &value) const;
-  void AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
+  void AppendExtraOptions(std::vector<MplOption> &finalOptions,
+                          std::map<std::string, MplOption> defaultOptions,
                           const MplOptions &options, bool isDebug) const;
-  void AppendInputsAsOptions(std::map<std::string, MplOption> &finalOptions,
+  void AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
                              const MplOptions &mplOptions, const Action &action) const;
   std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options,
                                                       const Action &action) const;
-  int Exe(const MplOptions &mplOptions, const std::map<std::string, MplOption> &options) const;
+  int Exe(const MplOptions &mplOptions, const std::vector<MplOption> &options) const;
   const std::string &GetName() const {
     return name;
+  }
+
+  void ReplaceOption(std::vector<MplOption> &finalOptions,
+                     const std::string &key, const std::string &value) const {
+    for (auto &opt : finalOptions) {
+      if (opt.GetKey() == key) {
+        opt.SetValue(value);
+      }
+    }
   }
 };
 

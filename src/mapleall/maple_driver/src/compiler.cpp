@@ -22,7 +22,7 @@ namespace maple {
 using namespace mapleOption;
 
 int Compiler::Exe(const MplOptions &mplOptions,
-                  const std::map<std::string, MplOption> &options) const {
+                  const std::vector<MplOption> &options) const {
   std::ostringstream ostrStream;
   ostrStream << GetBinPath(mplOptions) << GetBinName();
   std::string binPath = ostrStream.str();
@@ -49,7 +49,7 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
   LogInfo::MapleLogger() << "Starting " << GetName() << '\n';
   timer.Start();
 
-  std::map<std::string, MplOption> generatedOptions = MakeOption(options, action);
+  std::vector<MplOption> generatedOptions = MakeOption(options, action);
   if (generatedOptions.empty()) {
     return kErrorInvalidParameter;
   }
@@ -61,23 +61,23 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
   return kErrorNoError;
 }
 
-std::map<std::string, MplOption> Compiler::MakeOption(const MplOptions &options,
-                                                      const Action &action) const {
-  std::map<std::string, MplOption> finalOptions;
+std::vector<MplOption> Compiler::MakeOption(const MplOptions &options,
+                                            const Action &action) const {
+  std::vector<MplOption> finalOptions;
   std::map<std::string, MplOption> defaultOptions = MakeDefaultOptions(options, action);
 
-  AppendDefaultOptions(finalOptions, defaultOptions, options.HasSetDebugFlag());
-  AppendExtraOptions(finalOptions, options, options.HasSetDebugFlag());
   AppendInputsAsOptions(finalOptions, options, action);
+  AppendDefaultOptions(finalOptions, defaultOptions, options.HasSetDebugFlag());
+  AppendExtraOptions(finalOptions, defaultOptions, options, options.HasSetDebugFlag());
 
   return finalOptions;
 }
 
-void Compiler::AppendDefaultOptions(std::map<std::string, MplOption> &finalOptions,
+void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
                                     const std::map<std::string, MplOption> &defaultOptions,
                                     bool isDebug) const {
   for (const auto &defaultIt : defaultOptions) {
-    (void)finalOptions.insert(make_pair(defaultIt.first, defaultIt.second));
+    (void)finalOptions.push_back(defaultIt.second);
   }
 
   if (isDebug) {
@@ -90,49 +90,53 @@ void Compiler::AppendDefaultOptions(std::map<std::string, MplOption> &finalOptio
   }
 }
 
-void Compiler::AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
+void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
+                                  std::map<std::string, MplOption> defaultOptions,
                                   const MplOptions &options, bool isDebug) const {
   const std::string &binName = GetTool();
   auto exeOption = options.GetExeOptions().find(binName);
   if (exeOption == options.GetExeOptions().end()) {
     return;
   }
-  std::map<std::string, std::vector<MplOption>> extraOptions = options.GetExtras();
-  auto &extraOption = extraOptions[binName];
-  for (size_t i = 0; i < exeOption->second.size(); ++i) {
 
+  for (const Option &opt : exeOption->second) {
     std::string prefix;
-    if (exeOption->second[i].GetPrefixType() == mapleOption::shortOptPrefix) {
+    if (opt.GetPrefixType() == mapleOption::shortOptPrefix) {
       prefix = "-";
-    } else if (exeOption->second[i].GetPrefixType() == mapleOption::longOptPrefix) {
+    } else if (opt.GetPrefixType() == mapleOption::longOptPrefix) {
       prefix = "--";
     }
 
-    MplOption mplOption(prefix + exeOption->second[i].OptionKey(), exeOption->second[i].Args());
-    extraOption.push_back(mplOption);
-  }
-  for (const auto &secondExtras : extraOption) {
-    AppendOptions(finalOptions, secondExtras.GetKey(), secondExtras.GetValue());
+    const std::string key = prefix + opt.OptionKey();
+    const std::string value  = opt.Args();
+
+    /* Update option if needed */
+    auto it = defaultOptions.find(key);
+    if (it != defaultOptions.end()) {
+      ReplaceOption(finalOptions, key, value);
+    } else {
+      finalOptions.push_back(MplOption(key, value));
+    }
   }
 
   if (isDebug) {
     LogInfo::MapleLogger() << Compiler::GetName() << " Extra Options: ";
-    for (const auto &secondExtras : extraOption) {
-      LogInfo::MapleLogger() << secondExtras.GetKey() << " "
-                             << secondExtras.GetValue();
+    for (const Option &opt : exeOption->second) {
+      LogInfo::MapleLogger() << opt.OptionKey() << " "
+                             << opt.Args();
     }
     LogInfo::MapleLogger() << '\n';
   }
 }
 
-void Compiler::AppendInputsAsOptions(std::map<std::string, MplOption> &finalOptions,
+void Compiler::AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
                                      const MplOptions &mplOptions, const Action &action) const {
   std::vector<std::string> splittedInputFileNames;
   std::string inputFileNames = GetInputFileName(mplOptions, action);
   StringUtils::Split(inputFileNames, splittedInputFileNames, ' ');
 
   for (auto &inputFileName : splittedInputFileNames) {
-    (void)finalOptions.insert(make_pair(inputFileName, MplOption(inputFileName, "")));
+    (void)finalOptions.push_back(MplOption(inputFileName, ""));
   }
 }
 
@@ -147,16 +151,5 @@ std::map<std::string, MplOption> Compiler::MakeDefaultOptions(const MplOptions &
     }
   }
   return defaultOptions;
-}
-
-void Compiler::AppendOptions(std::map<std::string, MplOption> &finalOptions, const std::string &key,
-                             const std::string &value) const {
-  auto finalOpt = finalOptions.find(key);
-  if (finalOpt != finalOptions.end()) {
-    finalOpt->second.SetValue(value);
-  } else {
-    MplOption option(key, value);
-    (void)finalOptions.insert(make_pair(key, option));
-  }
 }
 }  // namespace maple
