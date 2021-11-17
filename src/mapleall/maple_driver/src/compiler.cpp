@@ -100,13 +100,16 @@ void Compiler::AppendExtraOptions(std::map<std::string, MplOption> &finalOptions
   std::map<std::string, std::vector<MplOption>> extraOptions = options.GetExtras();
   auto &extraOption = extraOptions[binName];
   for (size_t i = 0; i < exeOption->second.size(); ++i) {
-    if (exeOption->second[i].Args() != "") {
-      MplOption mplOption("-" + exeOption->second[i].OptionKey(), exeOption->second[i].Args());
-      extraOption.push_back(mplOption);
-    } else {
-      MplOption mplOption("-" + exeOption->second[i].OptionKey(), "");
-      extraOption.push_back(mplOption);
+
+    std::string prefix;
+    if (exeOption->second[i].GetPrefixType() == mapleOption::shortOptPrefix) {
+      prefix = "-";
+    } else if (exeOption->second[i].GetPrefixType() == mapleOption::longOptPrefix) {
+      prefix = "--";
     }
+
+    MplOption mplOption(prefix + exeOption->second[i].OptionKey(), exeOption->second[i].Args());
+    extraOption.push_back(mplOption);
   }
   for (const auto &secondExtras : extraOption) {
     AppendOptions(finalOptions, secondExtras.GetKey(), secondExtras.GetValue());
