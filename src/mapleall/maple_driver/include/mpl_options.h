@@ -41,6 +41,7 @@ enum InputFileType {
   kFileTypeMpl,
   kFileTypeVtableImplMpl,
   kFileTypeS,
+  kFileTypeObj,
   kFileTypeBpl,
   kFileTypeMeMpl,
 };
@@ -115,6 +116,8 @@ public:
       }
     } else if (extensionName == "s") {
       fileType = InputFileType::kFileTypeS;
+    } else if (extensionName == "o") {
+      fileType = InputFileType::kFileTypeObj;
     }
 
     return fileType;
@@ -357,8 +360,12 @@ class MplOptions {
     return genMeMpl;
   }
 
-  bool HasSetGenObj() const {
+  bool HasSetGenOnlyObj() const {
     return genObj;
+  }
+
+  bool HasSetRunMaplePhase() const {
+    return runMaplePhaseOnly;
   }
 
   bool HasSetGenVtableImpl() const {
@@ -443,6 +450,7 @@ class MplOptions {
   bool timePhases = false;
   bool genObj = false;
   bool genMeMpl = false;
+  bool runMaplePhaseOnly = false;
   bool genVtableImpl = false;
   bool hasPrinted = false;
   bool generalRegOnly = false;

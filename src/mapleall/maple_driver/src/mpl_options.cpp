@@ -313,6 +313,9 @@ ErrorCode MplOptions::DecideRunType() {
         genObj = true;
         printCommandStr += " -c";
         break;
+      case kMaplePhaseOnly:
+        runMaplePhaseOnly = true;
+        break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
           runModeConflict = true;
@@ -344,7 +347,7 @@ ErrorCode MplOptions::DecideRunType() {
 std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *const inputInfo,
                                                               bool isMultipleFiles) {
   InputFileType inputFileType = inputInfo->GetInputFileType();
-  std::unique_ptr<Action> currentAction = std::make_unique<Action>("Input", inputInfo);
+  std::unique_ptr<Action> currentAction = std::make_unique<Action>(kInputPhase, inputInfo);
   std::unique_ptr<Action> newAction;
 
   bool isNeedMapleComb = true;
@@ -386,11 +389,23 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       isNeedMplcg = false;
       isNeedMapleComb = false;
       break;
+    case InputFileType::kFileTypeObj:
+      isNeedMplcg = false;
+      isNeedMapleComb = false;
+      isNeedAs = false;
+      break;
     case InputFileType::kFileTypeNone:
+      return nullptr;
       break;
     default:
+      return nullptr;
       break;
   }
+
+  if (runMaplePhaseOnly == true) {
+    isNeedAs = false;
+  }
+
   if (isNeedMapleComb) {
     if (isMultipleFiles) {
       selectedExes.push_back(kBinNameMapleCombWrp);
@@ -409,13 +424,13 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  // This condition is used for testing purposes: -c option will generate ELF file
-  if (HasSetGenObj()) {
-    // Required to use flags, since user will need them for specific scenarios
+  if (isNeedAs == true) {
     UpdateRunningExe(kAsFlag);
     newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
     currentAction = std::move(newAction);
+  }
 
+  if (!HasSetGenOnlyObj()) {
     UpdateRunningExe(kLdFlag);
     /* "Linking step" Action can have several inputActions.
      * Each inputAction links to previous Actions to create the action tree.
@@ -439,12 +454,18 @@ ErrorCode MplOptions::DecideRunningPhases() {
     CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
 
     lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
-    CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
 
-    /* Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
-     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files. */
-    if (lastAction->GetTool() == kAsFlag /* && !HasSetGenObj() */) {
-      /* For linking step, inputActions are all assembly actions. */
+    /* TODO: Add a message interface for correct exit with compilation error. And use it here
+     * instead of CHECK_FATAL.
+     */
+    CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
+                inputInfo->GetInputFile().c_str());
+
+    if ((lastAction->GetTool() == kAsFlag && !HasSetGenOnlyObj()) ||
+        lastAction->GetTool() == kInputPhase) {
+      /* 1. For linking step, inputActions are all assembly actions;
+       * 2. If we try to link with maple driver, inputActions are all kInputPhase objects;
+       */
       linkActions.push_back(std::move(lastAction));
     } else {
       rootActions.push_back(std::move(lastAction));
@@ -519,7 +540,7 @@ ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExe
     bool isCombCompiler = false;
     bool wasWrpCombCompilerCreated = false;
 
-    auto currentAction = std::make_unique<Action>("Input", inputInfo.get());
+    auto currentAction = std::make_unique<Action>(kInputPhase, inputInfo.get());
 
     for (const auto &exe : runExes) {
       if (isMultipleFiles == true) {
@@ -560,7 +581,7 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
     }
   }
 
-  if (action.GetTool() == "Input") {
+  if (action.GetTool() == kInputPhase) {
     LogInfo::MapleLogger() << action.GetTool() << " " << action.GetInputFile() << '\n';
   } else {
     LogInfo::MapleLogger() << action.GetTool() << '\n';

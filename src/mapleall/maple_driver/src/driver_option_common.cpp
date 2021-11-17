@@ -305,10 +305,7 @@ const mapleOption::Descriptor kUsages[] = {
     "",
     kBuildTypeProduct,
     kArgCheckPolicyNone,
-    "  -c                          \tCompile or assemble the source files, but do not link.\n"
-    "                              \tNOTE: Currently this flag is used for full compilation\n"
-    "                              \tand linking. This temporary behaviour is needed to make\n"
-    "                              \tSUCCESSFULL CI Jenkins test.\n",
+    "  -c                          \tCompile or assemble the source files, but do not link.\n",
     "all",
     {}  },
   { kGenVtableImpl,
@@ -477,6 +474,15 @@ const mapleOption::Descriptor kUsages[] = {
     "  -I <dir>                    \tAdd directory to include search path\n",
     "all",
     {"clang"} },
+  { kMaplePhaseOnly,
+    0,
+    "",
+    "maple-phase",
+    kBuildTypeAll,
+    kArgCheckPolicyNone,
+    "  --maple-phase               \tRun maple phase only\n",
+    "all",
+    {} },
   { kUnknown,
     0,
     "",

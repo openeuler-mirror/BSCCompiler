@@ -48,6 +48,7 @@ const std::string kLdFlag = "ld";
 const std::string kGccFlag = "gcc";
 const std::string kGppFlag = "g++";
 const std::string kAsFlag = "as";
+const std::string kInputPhase = "input";
 const std::string kBinNameLd = kMachine + kOperatingSystem + kLdFlag;
 const std::string kBinNameAs = kMachine + kOperatingSystem + kAsFlag;
 const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
