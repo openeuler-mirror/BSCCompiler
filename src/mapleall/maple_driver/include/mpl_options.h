@@ -445,7 +445,7 @@ class MplOptions {
   bool timePhases = false;
   bool genObj = false;
   bool genMeMpl = false;
-  bool runMaplePhaseOnly = false;
+  bool runMaplePhaseOnly = true;
   bool genVtableImpl = false;
   bool hasPrinted = false;
   bool generalRegOnly = false;

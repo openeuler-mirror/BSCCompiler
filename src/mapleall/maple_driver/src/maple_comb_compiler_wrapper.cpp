@@ -61,6 +61,11 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   for (unsigned int tmpOpInd = 0, defOptInd = additionalOption;
        tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
 
+    if (tmpOptions[tmpOpInd]->OptionKey() == "no-maple-phase") {
+      defaultOptions.length--;
+      continue;
+    }
+
     std::string strOpt;
     if (tmpOptions[tmpOpInd]->GetPrefixType() == shortOptPrefix) {
       strOpt = "-";

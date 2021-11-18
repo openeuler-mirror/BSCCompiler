@@ -320,7 +320,7 @@ ErrorCode MplOptions::DecideRunType() {
         printCommandStr += " -c";
         break;
       case kMaplePhaseOnly:
-        runMaplePhaseOnly = true;
+        runMaplePhaseOnly = (opt.Type() == kEnable) ? true : false;
         break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
