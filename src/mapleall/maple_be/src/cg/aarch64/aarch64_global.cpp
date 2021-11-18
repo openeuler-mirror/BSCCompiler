@@ -46,6 +46,7 @@ void AArch64GlobalOpt::Run() {
     optManager.Optimize<RedundantUxtPattern>();
     optManager.Optimize<LocalVarSaveInsnPattern>();
   }
+  optManager.Optimize<SameDefPattern>();
   optManager.Optimize<ExtendShiftOptPattern>();
 }
 
@@ -1647,5 +1648,96 @@ void UxtwMovPattern::Init() {}
 
 void UxtwMovPattern::Optimize(Insn &insn) {
   insn.SetMOperator(MOP_xmovrr_uxtw);
+}
+
+void SameDefPattern::Run() {
+  FOR_ALL_BB_REV(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!CheckCondition(*insn) || !bb->GetEhPreds().empty()) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+void SameDefPattern::Init() {}
+
+bool SameDefPattern::CheckCondition(Insn &insn) {
+  MOperator mOp = insn.GetMachineOpcode();
+  if (insn.GetBB()->GetPreds().size() > k1BitSize) {
+    return false;
+  }
+  if (insn.GetBB()->HasCall()) {
+    return false;
+  }
+  return (mOp == MOP_wcmprr) || (mOp == MOP_xcmprr);
+}
+
+void SameDefPattern::Optimize(Insn &insn) {
+  InsnSet sameDefSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, 0, false);
+  if (sameDefSet.size() != k1BitSize) {
+    return;
+  }
+  Insn *sameDefInsn = *sameDefSet.begin();
+  if (sameDefInsn == nullptr) {
+    return;
+  }
+  if (!IsSameDef(insn, *sameDefInsn)) {
+    return;
+  }
+  if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << "=======remove insn: \n";
+    insn.Dump();
+    LogInfo::MapleLogger() << "=======sameDef insn: \n";
+    sameDefInsn->Dump();
+  }
+  insn.GetBB()->RemoveInsn(insn);
+}
+
+bool SameDefPattern::IsSameDef(Insn &currInsn, Insn &sameInsn) {
+  if (!CheckCondition(sameInsn)) {
+    return false;
+  }
+  if (&currInsn == &sameInsn) {
+    return false;
+  }
+  if (currInsn.GetMachineOpcode() != sameInsn.GetMachineOpcode()) {
+    return false;
+  }
+  for (uint32 i = k1BitSize; i < currInsn.GetOperandSize(); ++i) {
+    Operand &opnd0 = currInsn.GetOperand(i);
+    Operand &opnd1 = sameInsn.GetOperand(i);
+    CHECK_FATAL(opnd0.IsRegister(), "must be RegOperand!");
+    CHECK_FATAL(opnd1.IsRegister(), "must be RegOperand!");
+    RegOperand &regOpnd0 = static_cast<RegOperand&>(opnd0);
+    RegOperand &regOpnd1 = static_cast<RegOperand&>(opnd1);
+    if (!RegOperand::IsSameReg(regOpnd0, regOpnd1)) {
+      return false;
+    }
+    regno_t regNo = regOpnd0.GetRegisterNumber();
+    /* src reg not redefined between sameInsn and currInsn */
+    if (SrcRegIsRedefined(currInsn, sameInsn, regNo)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool SameDefPattern::SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t regNo) {
+  AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
+  if (currInsn.GetBB() == sameInsn.GetBB()) {
+    FOR_BB_INSNS(insn, currInsn.GetBB()) {
+      if (insn->GetMachineOpcode() == MOP_xbl) {
+        return true;
+      }
+    }
+    if (!a64RD->FindRegDefBetweenInsn(regNo, &sameInsn, &currInsn).empty()) {
+      return true;
+    }
+  } else if (a64RD->HasRegDefBetweenInsnGlobal(regNo, sameInsn, currInsn)) {
+    return true;
+  }
+  return false;
 }
 }  /* namespace maplebe */

@@ -102,7 +102,9 @@ class ForwardPropPattern : public OptimizePattern {
  */
 class BackPropPattern : public OptimizePattern {
  public:
-  explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {
+    globalProp = cgFunc.GetMirModule().IsCModule();
+  }
   ~BackPropPattern() override = default;
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
@@ -116,14 +118,17 @@ class BackPropPattern : public OptimizePattern {
   bool DestOpndHasUseInsns(Insn &insn);
   bool DestOpndLiveOutToEHSuccs(Insn &insn);
   bool CheckSrcOpndDefAndUseInsns(Insn &insn);
+  bool CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn);
   bool CheckPredefineInsn(Insn &insn);
   bool CheckRedefineInsn(Insn &insn);
+  bool CheckReplacedUseInsn(Insn &insn);
   RegOperand *firstRegOpnd = nullptr;
   RegOperand *secondRegOpnd = nullptr;
   uint32 firstRegNO = 0;
   uint32 secondRegNO = 0;
   InsnSet srcOpndUseInsnSet;
   Insn *defInsnForSecondOpnd = nullptr;
+  bool globalProp = false;
 };
 
 /*
@@ -274,32 +279,70 @@ class ExtendShiftOptPattern : public OptimizePattern {
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
+  void DoExtendShiftOpt(Insn &insn);
+
+  enum ExMOpType : uint8 {
+    kExUndef,
+    kExAdd,  /* MOP_xaddrrr | MOP_xxwaddrrre | MOP_xaddrrrs */
+    kEwAdd,  /* MOP_waddrrr | MOP_wwwaddrrre | MOP_waddrrrs */
+    kExSub,  /* MOP_xsubrrr | MOP_xxwsubrrre | MOP_xsubrrrs */
+    kEwSub,  /* MOP_wsubrrr | MOP_wwwsubrrre | MOP_wsubrrrs */
+    kExCmn,  /* MOP_xcmnrr | MOP_xwcmnrre | MOP_xcmnrrs */
+    kEwCmn,  /* MOP_wcmnrr | MOP_wwcmnrre | MOP_wcmnrrs */
+    kExCmp,  /* MOP_xcmprr | MOP_xwcmprre | MOP_xcmprrs */
+    kEwCmp,  /* MOP_wcmprr | MOP_wwcmprre | MOP_wcmprrs */
+  };
+
+  enum LsMOpType : uint8 {
+    kLsUndef,
+    kLxAdd,  /* MOP_xaddrrr | MOP_xaddrrrs */
+    kLwAdd,  /* MOP_waddrrr | MOP_waddrrrs */
+    kLxSub,  /* MOP_xsubrrr | MOP_xsubrrrs */
+    kLwSub,  /* MOP_wsubrrr | MOP_wsubrrrs */
+    kLxCmn,  /* MOP_xcmnrr | MOP_xcmnrrs */
+    kLwCmn,  /* MOP_wcmnrr | MOP_wcmnrrs */
+    kLxCmp,  /* MOP_xcmprr | MOP_xcmprrs */
+    kLwCmp,  /* MOP_wcmprr | MOP_wcmprrs */
+    kLxEor,  /* MOP_xeorrrr | MOP_xeorrrrs */
+    kLwEor,  /* MOP_weorrrr | MOP_weorrrrs */
+    kLxNeg,  /* MOP_xinegrr | MOP_xinegrrs */
+    kLwNeg,  /* MOP_winegrr | MOP_winegrrs */
+    kLxIor,  /* MOP_xiorrrr | MOP_xiorrrrs */
+    kLwIor,  /* MOP_wiorrrr | MOP_wiorrrrs */
+  };
 
  protected:
   void Init() final;
 
  private:
-  bool CheckCurrMop(Insn &insn);
-  void SelectExtenOp(const Insn &def);
-  bool CheckDefUseInfo(const Insn &use, const Insn &def);
+  void SelectExtendOrShift(const Insn &def);
+  bool CheckDefUseInfo(Insn &use, Insn &def);
+  bool CheckExtendOp(Operand &lastOpnd);
+  bool CheckShiftOp(Operand &lastOpnd);
   void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
-  void SelectReplaceOp(Insn &use);
+  void SetExMOpType(Insn &use);
+  void SetLsMOpType(Insn &use);
 
   MOperator replaceOp;
   uint32 replaceIdx;
   ExtendShiftOperand::ExtendOp extendOp;
   BitShiftOperand::ShiftOp shiftOp;
   Insn *defInsn;
+  Insn *newInsn;
+  bool optSuccess;
+  bool removeDefInsn;
+  ExMOpType exMOpType;
+  LsMOpType lsMOpType;
 };
 
 /*
- * uxtw vreg:R215 validBitNum:[64], vreg:R214 validBitNum:[32]
+ * uxtw vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
  *
- * CG IR After globalopt:
+ * globalopt:UxtwMovPattern
  *
- * mov vreg:R215 validBitNum:[64], vreg:R214 validBitNum:[32]
+ * mov vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
  */
-class UxtwMovPattern : public OptimizePattern{
+class UxtwMovPattern : public OptimizePattern {
  public:
   explicit UxtwMovPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
   ~UxtwMovPattern() override = default;
@@ -312,6 +355,22 @@ class UxtwMovPattern : public OptimizePattern{
 
  private:
   bool CheckHideUxtw(Insn &insn, regno_t regno);
+};
+
+class SameDefPattern : public OptimizePattern {
+ public:
+  explicit SameDefPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  ~SameDefPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final;
+
+ private:
+  bool IsSameDef(Insn &currInsn, Insn &sameInsn);
+  bool SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t regNo);
 };
 }  /* namespace maplebe */
 
