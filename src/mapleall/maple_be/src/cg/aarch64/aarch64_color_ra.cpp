@@ -91,7 +91,15 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
       return false;
     }
     const MIRIntConst *intConst = static_cast<const MIRIntConst *>(rematInfo.mirConst);
-    return intConst->GetValue() >= -kMax16UnsignedImm && intConst->GetValue() <= kMax16UnsignedImm;
+    int64 val = intConst->GetValue();
+    if (val >= -kMax16UnsignedImm && val <= kMax16UnsignedImm) {
+      return true;
+    }
+    uint64 uval = val;
+    if (IsMoveWidableImmediate(uval, GetSpillSize())) {
+      return true;
+    }
+    return IsBitmaskImmediate(uval, GetSpillSize());
   }
   case OP_addrof: {
     if (rematLevel < rematAddr) {
@@ -154,7 +162,8 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
         static_cast<const MIRIntConst *>(rematInfo.mirConst));
 
       Operand *immOp = cgFunc->SelectIntConst(*intConst);
-      insns.push_back(&cg->BuildInstruction<AArch64Insn>(MOP_xmovri64, regOp, *immOp));
+      MOperator movOp = (GetSpillSize() == k32BitSize) ? MOP_xmovri32 : MOP_xmovri64;
+      insns.push_back(&cg->BuildInstruction<AArch64Insn>(movOp, regOp, *immOp));
     }
     break;
     default:
@@ -334,6 +343,13 @@ void GraphColorRegAllocator::PrintLiveRange(const LiveRange &lr, const std::stri
     LogInfo::MapleLogger() << "(F)";
   } else {
     LogInfo::MapleLogger() << "(U)";
+  }
+  if (lr.GetSpillSize() == k32) {
+    LogInfo::MapleLogger() << "S32";
+  } else if (lr.GetSpillSize() == k64) {
+    LogInfo::MapleLogger() << "S64";
+  } else {
+    CHECK_FATAL(0, "Unknown LR size");
   }
   LogInfo::MapleLogger() << "\tnumCall " << lr.GetNumCall();
   LogInfo::MapleLogger() << "\tpriority " << lr.GetPriority();
@@ -750,7 +766,7 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
   return lr;
 }
 
-bool GraphColorRegAllocator::CreateLiveRange(regno_t regNO, BB &bb, bool isDef, uint32 currId, bool updateCount) {
+void GraphColorRegAllocator::CreateLiveRange(regno_t regNO, BB &bb, bool isDef, uint32 currId, bool updateCount) {
   bool isNonLocal = CreateLiveRangeHandleLocal(regNO, bb, isDef);
 
   if (!isDef) {
@@ -790,8 +806,6 @@ bool GraphColorRegAllocator::CreateLiveRange(regno_t regNO, BB &bb, bool isDef, 
   lr->SetMemberBitArrElem(bbID);
 
   lrVec[regNO] = lr;
-
-  return true;
 }
 
 bool GraphColorRegAllocator::SetupLiveRangeByOpHandlePhysicalReg(RegOperand &regOpnd, Insn &insn, regno_t regNO,
@@ -855,10 +869,13 @@ void GraphColorRegAllocator::SetupLiveRangeByOp(Operand &op, Insn &insn, bool is
   if (SetupLiveRangeByOpHandlePhysicalReg(regOpnd, insn, regNO, isDef)) {
     return;
   }
-  if (!CreateLiveRange(regNO, *insn.GetBB(), isDef, insn.GetId(), true)) {
-    return;
-  }
+
+  CreateLiveRange(regNO, *insn.GetBB(), isDef, insn.GetId(), true);
+
   LiveRange *lr = lrVec[regNO];
+  if (isDef) {
+    lr->SetSpillSize((regOpnd.GetSize() <= k32) ? k32 : k64);
+  }
   if (lr->GetRegType() == kRegTyUndef) {
     lr->SetRegType(regOpnd.GetRegisterType());
   }
