@@ -686,7 +686,6 @@ bool AArch64ReachingDefinition::DFSFindRegDefBetweenBB(const BB &startBB, const 
       return true;
     }
   }
-  CHECK_FATAL(startBB.GetEhSuccs().empty(), "C Module have no eh");
   return false;
 }
 

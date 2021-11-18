@@ -165,6 +165,7 @@ class ASTParser {
   void ProcessNonnullFuncAttrs(const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, ASTDecl &astVar);
   void ProcessBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
+  void ProcessByteBoundaryFuncAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
   void ProcessBoundaryFuncAttrsByIndex(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                        ASTFunc &astFunc);
   void ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl, ASTFunc &astFunc);
