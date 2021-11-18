@@ -64,12 +64,14 @@ class MIRLower {
   }
 
   virtual BlockNode *LowerIfStmt(IfStmtNode &ifStmt, bool recursive);
+  BlockNode *LowerSwitchStmt(SwitchNode *switchNode);
   virtual BlockNode *LowerWhileStmt(WhileStmtNode&);
   BlockNode *LowerDowhileStmt(WhileStmtNode&);
   BlockNode *LowerDoloopStmt(DoloopNode&);
   BlockNode *LowerBlock(BlockNode&);
   BaseNode *LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockNode *block);
   void LowerCandCior(BlockNode &block);
+  void LowerBuiltinExpect(BlockNode &block);
   void LowerFunc(MIRFunction &func);
   BaseNode *LowerFarray(ArrayNode *array);
   BaseNode *LowerCArray(ArrayNode *array);

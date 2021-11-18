@@ -225,6 +225,73 @@ BlockNode *MIRLower::LowerIfStmt(IfStmtNode &ifStmt, bool recursive) {
   return blk;
 }
 
+static bool ConsecutiveCaseValsAndSameTarget(const CaseVector *switchTable) {
+  size_t caseNum = switchTable->size();
+  int lastVal = (*switchTable)[0].first;
+  LabelIdx lblIdx = (*switchTable)[0].second;
+  for (size_t id = 1; id < caseNum; id++) {
+    lastVal++;
+    if (lastVal != (*switchTable)[id].first) {
+      return false;
+    }
+    if (lblIdx != (*switchTable)[id].second) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// if there is only 1 case branch, replace with conditional branch(es) and 
+// return the optimized multiple statements; otherwise, return nullptr
+BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
+  CaseVector *switchTable = &switchNode->GetSwitchTable();
+  if (switchTable->empty()) {  // goto @defaultLabel
+    BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
+    LabelIdx defaultLabel = switchNode->GetDefaultLabel();
+    MIRBuilder *builder = mirModule.GetMIRBuilder();
+    GotoNode *gotoStmt = builder->CreateStmtGoto(OP_goto, defaultLabel);
+    blk->AddStatement(gotoStmt);
+    return blk;
+  }
+  if (!ConsecutiveCaseValsAndSameTarget(switchTable)) {
+    return nullptr;
+  }
+  BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
+  LabelIdx caseGotoLabel = switchTable->front().second;
+  LabelIdx defaultLabel = switchNode->GetDefaultLabel();
+  int64 minCaseVal = switchTable->front().first;
+  int64 maxCaseVal = switchTable->back().first;
+  BaseNode *switchOpnd = switchNode->Opnd(0);
+  MIRBuilder *builder = mirModule.GetMIRBuilder();
+  ConstvalNode *minCaseNode = builder->CreateIntConst(minCaseVal, switchOpnd->GetPrimType());
+  ConstvalNode *maxCaseNode = builder->CreateIntConst(maxCaseVal, switchOpnd->GetPrimType());
+  if (minCaseVal == maxCaseVal) {
+    // brtrue (x == minCaseVal) @case_goto_label
+    // goto @default_label
+    CompareNode *eqNode = builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(), 
+        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
+    CondGotoNode *condGoto = builder->CreateStmtCondGoto(eqNode, OP_brtrue, caseGotoLabel);
+    blk->AddStatement(condGoto);
+    GotoNode *gotoStmt = builder->CreateStmtGoto(OP_goto, defaultLabel);
+    blk->AddStatement(gotoStmt);
+  } else {
+    // brtrue (x < minCaseVal) @default_label
+    // brtrue (x > maxCaseVal) @default_label
+    // goto @case_goto_label
+    CompareNode *ltNode = builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetInt32(), 
+        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
+    CondGotoNode *condGoto = builder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabel);
+    blk->AddStatement(condGoto);
+    CompareNode *gtNode = builder->CreateExprCompare(OP_gt, *GlobalTables::GetTypeTable().GetInt32(), 
+        *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, maxCaseNode);
+    condGoto = builder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabel);
+    blk->AddStatement(condGoto);
+    GotoNode *gotoStmt = builder->CreateStmtGoto(OP_goto, caseGotoLabel);
+    blk->AddStatement(gotoStmt);
+  }
+  return blk;
+}
+
 //     while <cond> <body>
 // is lowered to:
 //     brfalse <cond> <endlabel>
@@ -376,6 +443,14 @@ BlockNode *MIRLower::LowerBlock(BlockNode &block) {
       case OP_if:
         tmp = LowerIfStmt(static_cast<IfStmtNode&>(*stmt), true);
         newBlock->AppendStatementsFromBlock(*tmp);
+        break;
+      case OP_switch:
+        tmp = LowerSwitchStmt(static_cast<SwitchNode *>(stmt));
+        if (tmp != nullptr) {
+          newBlock->AppendStatementsFromBlock(*tmp);
+        } else {
+          newBlock->AddStatement(stmt);
+        }
         break;
       case OP_while:
         newBlock->AppendStatementsFromBlock(*LowerWhileStmt(static_cast<WhileStmtNode&>(*stmt)));
@@ -562,7 +637,7 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
    * This is dictated by the number of indexes.
    */
   bool nestedArray = false;
-  int dim = arrayType->GetDim();
+  uint64 dim = arrayType->GetDim();
   MIRType *innerType = nullptr;
   MIRArrayType *innerArrayType = nullptr;
   uint64 elemSize = 0;
@@ -580,12 +655,12 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
     }
   }
 
-  int32 numIndex = static_cast<int>(array->NumOpnds()) - 1;
+  size_t numIndex = array->NumOpnds() - 1;
   MIRArrayType *curArrayType = arrayType;
   BaseNode *resNode = array->GetIndex(0);
   if (dim > 1) {
     BaseNode *prevNode = nullptr;
-    for (int i = 0; (i < dim) && (i < numIndex); i++) {
+    for (size_t i = 0; (i < dim) && (i < numIndex); ++i) {
       uint32 mpyDim = 1;
       if (nestedArray) {
         CHECK_FATAL(arrayType->GetSizeArrayItem(0) > 0, "Zero size array dimension");
@@ -598,12 +673,12 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
         }
       } else {
         CHECK_FATAL(arrayType->GetSizeArrayItem(static_cast<uint32>(i)) > 0, "Zero size array dimension");
-        for (int j = i + 1; j < dim; j++) {
+        for (size_t j = i + 1; j < dim; ++j) {
           mpyDim *= arrayType->GetSizeArrayItem(static_cast<uint32>(j));
         }
       }
 
-      BaseNode *index = static_cast<ConstvalNode *>(array->GetIndex(static_cast<size_t>(i)));
+      BaseNode *index = static_cast<ConstvalNode *>(array->GetIndex(i));
       bool isConst = false;
       int64 indexVal = 0;
       if (index->op == OP_constval) {
@@ -623,7 +698,7 @@ BaseNode *MIRLower::LowerCArray(ArrayNode *array) {
         }
       }
       if (i > 0 && isConst == false) {
-        resNode = array->GetIndex(static_cast<size_t>(i));
+        resNode = array->GetIndex(i);
       }
 
       BaseNode *mpyNode;
