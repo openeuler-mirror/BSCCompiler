@@ -1690,7 +1690,7 @@ void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
   /* merge multi return */
-  if (!func.GetModule()->IsCModule()) {
+  if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge()) {
     MergeReturn();
   }
   if (func.IsJava()) {
