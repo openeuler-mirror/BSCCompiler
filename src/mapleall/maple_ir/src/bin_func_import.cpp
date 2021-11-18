@@ -29,14 +29,14 @@ void BinaryMplImport::ImportInfoVector(MIRInfoVector &infoVector, MapleVector<bo
   int64 size = ReadNum();
   for (int64 i = 0; i < size; ++i) {
     GStrIdx gStrIdx = ImportStr();
-    bool isstring = ReadNum();
+    bool isstring = (ReadNum() != 0);
     infoVectorIsString.push_back(isstring);
     if (isstring) {
       GStrIdx fieldval = ImportStr();
-      infoVector.push_back(MIRInfoPair(gStrIdx, fieldval.GetIdx()));
+      infoVector.emplace_back(MIRInfoPair(gStrIdx, fieldval.GetIdx()));
     } else {
       uint32 fieldval = ReadNum();
-      infoVector.push_back(MIRInfoPair(gStrIdx, fieldval));
+      infoVector.emplace_back(MIRInfoPair(gStrIdx, fieldval));
     }
   }
 }
@@ -71,7 +71,7 @@ void BinaryMplImport::ImportLocalSymbol(MIRFunction *func) {
   sym->SetSKind((MIRSymKind)ReadNum());
   sym->SetStorageClass((MIRStorageClass)ReadNum());
   sym->SetAttrs(ImportTypeAttrs());
-  sym->SetIsTmp(ReadNum());
+  sym->SetIsTmp(ReadNum() != 0);
   if (sym->GetSKind() == kStVar || sym->GetSKind() == kStFunc) {
     ImportSrcPos(sym->GetSrcPosition());
   }
@@ -110,12 +110,12 @@ void BinaryMplImport::ImportPregTab(const MIRFunction *func) {
   CHECK_FATAL(tag == kBinPregStart, "kBinPregStart expected in ImportPregTab()");
   int32 size = ReadInt();
   for (int64 i = 0; i < size; ++i) {
-    int64 tag = ReadNum();
-    if (tag == 0) {
+    int64 nextTag = ReadNum();
+    if (nextTag == 0) {
       func->GetPregTab()->GetPregTable().push_back(nullptr);
       continue;
     }
-    CHECK_FATAL(tag == kBinPreg, "expecting kBinPreg in ImportPregTab()");
+    CHECK_FATAL(nextTag == kBinPreg, "expecting kBinPreg in ImportPregTab()");
     int32 pregNo = ReadNum();
     TyIdx tyIdx = ImportType();
     MIRType *ty = (tyIdx == 0) ? nullptr : GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
@@ -447,7 +447,7 @@ void BinaryMplImport::ImportReturnValues(MIRFunction *func, CallReturnVector *re
     if (idx == 0) {
       continue;
     }
-    MIRSymbol *lsym = func->GetSymTab()->GetSymbolFromStIdx(idx, 0);
+    MIRSymbol *lsym = func->GetSymTab()->GetSymbolFromStIdx(idx, false);
     if (lsym->GetName().find("L_STR") == 0) {
       MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lsym->GetTyIdx());
       CHECK_FATAL(ty->GetKind() == kTypePointer, "Pointer type expected for L_STR prefix");
@@ -565,6 +565,10 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         ImportReturnValues(func, &s->GetReturnVec());
         numOpr = ReadNum();
         s->SetNumOpnds(numOpr);
+        const auto &calleeName = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(s->GetPUIdx())->GetName();
+        if (calleeName == "setjmp") {
+          func->SetHasSetjmp();
+        }
         for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
         }
@@ -712,7 +716,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       case OP_decref:
       case OP_incref:
       case OP_decrefreset:
-      case OP_assertnonnull:
+      CASE_OP_ASSERT_NONNULL
       case OP_igoto: {
         UnaryStmtNode *s = mod.CurFuncCodeMemPool()->New<UnaryStmtNode>(op);
         s->SetOpnd(ImportExpression(func), 0);
@@ -798,7 +802,7 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
       }
       case OP_if: {
         IfStmtNode *s = mod.CurFuncCodeMemPool()->New<IfStmtNode>();
-        bool hasElsePart = ReadNum();
+        bool hasElsePart = (ReadNum() != 0);
         s->SetThenPart(ImportBlockNode(func));
         if (hasElsePart) {
           s->SetElsePart(ImportBlockNode(func));
@@ -845,6 +849,10 @@ BlockNode *BinaryMplImport::ImportBlockNode(MIRFunction *func) {
         for (int32 i = 0; i < numOpr; ++i) {
           strIdx = ImportUsrStr();
           s->inputConstraints.push_back(strIdx);
+          const std::string &str = GlobalTables::GetUStrTable().GetStringFromStrIdx(strIdx);
+          if (str[0] == '+') {
+            s->SetHasWriteInputs();
+          }
         }
         for (int32 i = 0; i < numOpr; ++i) {
           s->GetNopnd().push_back(ImportExpression(func));
