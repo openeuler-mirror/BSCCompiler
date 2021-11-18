@@ -20,7 +20,6 @@
 #include "constantfold.h"
 
 namespace maple {
-
 // convert x to use OP_array if possible; return nullptr if unsuccessful;
 // ptrTyIdx is the high level pointer type of x
 ArrayNode *LfoPreEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
@@ -404,7 +403,10 @@ StmtNode* LfoPreEmitter::EmitLfoStmt(MeStmt *mestmt, BaseNode *parent) {
     }
     case OP_goto: {
       GotoMeStmt *gotoStmt = static_cast<GotoMeStmt *>(mestmt);
-      if (lfoFunc->LabelCreatedByLfo(gotoStmt->GetOffset())) {
+      if (lfoFunc->WhileLabelCreatedByLfo(gotoStmt->GetOffset())) {
+        return nullptr;
+      }
+      if (lfoFunc->IfLabelCreatedByLfo(gotoStmt->GetOffset())) {
         return nullptr;
       }
       GotoNode *gto = codeMP->New<GotoNode>(OP_goto);
@@ -619,7 +621,7 @@ void LfoPreEmitter::EmitBB(BB *bb, BlockNode *curblk) {
   CHECK_FATAL(curblk != nullptr, "null ptr check");
   // emit head. label
   LabelIdx labidx = bb->GetBBLabel();
-  if (labidx != 0 && !lfoFunc->LabelCreatedByLfo(labidx)) {
+  if (labidx != 0 && !lfoFunc->WhileLabelCreatedByLfo(labidx) && !lfoFunc->IfLabelCreatedByLfo(labidx)) {
     // not a empty bb
     LabelNode *lbnode = codeMP->New<LabelNode>();
     lbnode->SetLabelIdx(labidx);
@@ -731,7 +733,7 @@ uint32 LfoPreEmitter::Raise2LfoIf(uint32 curj, BlockNode *curblk) {
   BB *curbb = bbvec[curj];
   // emit BB contents before the if statement
   LabelIdx labidx = curbb->GetBBLabel();
-  if (labidx != 0 && !lfoFunc->LabelCreatedByLfo(labidx)) {
+  if (labidx != 0 && !lfoFunc->IfLabelCreatedByLfo(labidx)) {
     LabelNode *lbnode = mirFunc->GetCodeMempool()->New<LabelNode>();
     lbnode->SetLabelIdx(labidx);
     curblk->AddStatement(lbnode);
@@ -815,7 +817,7 @@ uint32 LfoPreEmitter::EmitLfoBB(uint32 curj, BlockNode *curblk) {
         curj = Raise2LfoWhile(curj, curblk);
         return curj;
       } else {
-        lfoFunc->lfoCreatedLabelSet.erase(mebb->GetBBLabel());
+        lfoFunc->lfoCreatedWhileLabelSet.erase(mebb->GetBBLabel());
       }
     }
   }

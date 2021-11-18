@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co., Ltd. All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co., Ltd. All rights reserved.
  *
  * OpenArkCompiler is licensed under the Mulan Permissive Software License v2.
  * You can use this software according to the terms and conditions of the MulanPSL - 2.0.
@@ -24,18 +24,16 @@ using namespace maple;
 // <body>
 // goto <whilelabel>
 // label <endlabel>
-
 BlockNode *LFOMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
-//DoCondVarProp(whilestmt);
   whilestmt.SetBody(LowerBlock(*whilestmt.GetBody()));
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
-  LabelIdx whilelblidx = func->GetMirFunc()->GetLabelTab()->CreateLabel();
+  LabelIdx whilelblidx = func->GetMirFunc()->GetLabelTab()->CreateLabelWithPrefix('w');
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(whilelblidx);
   LabelNode *whilelblstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   whilelblstmt->SetLabelIdx(whilelblidx);
   LfoWhileInfo *whileInfo = lfoFunc->lfomp->New<LfoWhileInfo>();
-  lfoFunc->SetLabelCreatedByLfo(whilelblidx);
+  lfoFunc->SetWhileLabelCreatedByLfo(whilelblidx);
   lfoFunc->label2WhileInfo.insert(std::make_pair(whilelblidx, whileInfo));
   blk->AddStatement(whilelblstmt);
   CondGotoNode *brfalsestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
@@ -50,8 +48,8 @@ BlockNode *LFOMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   GotoNode *whilegotonode = mirbuilder->CreateStmtGoto(OP_goto, whilelblidx);
   blk->AddStatement(whilegotonode);
   // create endlabel
-  LabelIdx endlblidx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  lfoFunc->SetLabelCreatedByLfo(endlblidx);
+  LabelIdx endlblidx = mirModule.CurFunction()->GetLabelTab()->CreateLabelWithPrefix('w');
+  lfoFunc->SetWhileLabelCreatedByLfo(endlblidx);
   mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(endlblidx);
   LabelNode *endlblstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   endlblstmt->SetLabelIdx(endlblidx);
@@ -60,22 +58,38 @@ BlockNode *LFOMIRLower::LowerWhileStmt(WhileStmtNode &whilestmt) {
   return blk;
 }
 
+static bool BlockHasLabel(BlockNode *blk) {
+  for (StmtNode &stmt : blk->GetStmtNodes()) {
+    if (stmt.GetOpCode() == OP_label) {
+      return true;
+    }
+  }
+  return false;
+}
+
 BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
   bool thenempty = ifstmt.GetThenPart() == nullptr || ifstmt.GetThenPart()->GetFirst() == nullptr;
   bool elseempty = ifstmt.GetElsePart() == nullptr || ifstmt.GetElsePart()->GetFirst() == nullptr;
+  bool canRaiseBack = true;
 
   if (recursive) {
     if (!thenempty) {
+      if (BlockHasLabel(ifstmt.GetThenPart())) {
+        canRaiseBack = false;
+      }
       ifstmt.SetThenPart(LowerBlock(*ifstmt.GetThenPart()));
     }
     if (!elseempty) {
+      if (BlockHasLabel(ifstmt.GetElsePart())) {
+        canRaiseBack = false;
+      }
       ifstmt.SetElsePart(LowerBlock(*ifstmt.GetElsePart()));
     }
   }
 
   BlockNode *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   MIRFunction *mirFunc = func->GetMirFunc();
-  MIRBuilder *mirbuilder = mirModule.GetMIRBuilder(); 
+  MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
 
   if (thenempty && elseempty) {
     // generate EVAL <cond> statement
@@ -90,9 +104,11 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     CondGotoNode *brfalsestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
     brfalsestmt->SetOpnd(ifstmt.Opnd(), 0);
     brfalsestmt->SetSrcPos(ifstmt.GetSrcPos());
-    LabelIdx endlabelidx = mirFunc->GetLabelTab()->CreateLabel();
+    LabelIdx endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
     mirFunc->GetLabelTab()->AddToStringLabelMap(endlabelidx);
-    lfoFunc->SetLabelCreatedByLfo(endlabelidx);
+    if (canRaiseBack) {
+      lfoFunc->SetIfLabelCreatedByLfo(endlabelidx);
+    }
     LfoIfInfo *ifInfo = lfoFunc->lfomp->New<LfoIfInfo>();
     brfalsestmt->SetOffset(endlabelidx);
     blk->AddStatement(brfalsestmt);
@@ -102,7 +118,9 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
     labstmt->SetLabelIdx(endlabelidx);
     ifInfo->endLabel = endlabelidx;
-    lfoFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
+    if (canRaiseBack) {
+      lfoFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
+    }
     blk->AddStatement(labstmt);
   } else if (thenempty) {
     // brtrue <cond> <endlabel>
@@ -111,8 +129,10 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     CondGotoNode *brtruestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brtrue);
     brtruestmt->SetOpnd(ifstmt.Opnd(), 0);
     brtruestmt->SetSrcPos(ifstmt.GetSrcPos());
-    LabelIdx endlabelidx = mirFunc->GetLabelTab()->CreateLabel();
-    lfoFunc->SetLabelCreatedByLfo(endlabelidx);
+    LabelIdx endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
+    if (canRaiseBack) {
+      lfoFunc->SetIfLabelCreatedByLfo(endlabelidx);
+    }
     LfoIfInfo *ifInfo = lfoFunc->lfomp->New<LfoIfInfo>();
     mirFunc->GetLabelTab()->AddToStringLabelMap(endlabelidx);
     brtruestmt->SetOffset(endlabelidx);
@@ -122,7 +142,9 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     LabelNode *labstmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
     labstmt->SetLabelIdx(endlabelidx);
     ifInfo->endLabel = endlabelidx;
-    lfoFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
+    if (canRaiseBack) {
+      lfoFunc->label2IfInfo.insert(std::make_pair(endlabelidx, ifInfo));
+    }
     blk->AddStatement(labstmt);
   } else {
     // brfalse <cond> <elselabel>
@@ -134,14 +156,18 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
     CondGotoNode *brfalsestmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
     brfalsestmt->SetOpnd(ifstmt.Opnd(), 0);
     brfalsestmt->SetSrcPos(ifstmt.GetSrcPos());
-    LabelIdx elselabelidx = mirFunc->GetLabelTab()->CreateLabel();
+    LabelIdx elselabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('s');
     mirFunc->GetLabelTab()->AddToStringLabelMap(elselabelidx);
-    lfoFunc->SetLabelCreatedByLfo(elselabelidx);
+    if (canRaiseBack) {
+      lfoFunc->SetIfLabelCreatedByLfo(elselabelidx);
+    }
     LfoIfInfo *ifInfo = lfoFunc->lfomp->New<LfoIfInfo>();
     brfalsestmt->SetOffset(elselabelidx);
     blk->AddStatement(brfalsestmt);
     ifInfo->elseLabel = elselabelidx;
-    lfoFunc->label2IfInfo.insert(std::make_pair(elselabelidx, ifInfo));
+    if (canRaiseBack) {
+      lfoFunc->label2IfInfo.insert(std::make_pair(elselabelidx, ifInfo));
+    }
 
     blk->AppendStatementsFromBlock(*ifstmt.GetThenPart());
     bool fallthru_from_then = !OpCodeNoFallThrough(ifstmt.GetThenPart()->GetLast()->GetOpCode());
@@ -149,9 +175,11 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
 
     if (fallthru_from_then) {
       GotoNode *gotostmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
-      endlabelidx = mirFunc->GetLabelTab()->CreateLabel();
+      endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
       mirFunc->GetLabelTab()->AddToStringLabelMap(endlabelidx);
-      lfoFunc->SetLabelCreatedByLfo(endlabelidx);
+      if (canRaiseBack) {
+        lfoFunc->SetIfLabelCreatedByLfo(endlabelidx);
+      }
       gotostmt->SetOffset(endlabelidx);
       blk->AddStatement(gotostmt);
     }
@@ -168,8 +196,10 @@ BlockNode *LFOMIRLower::LowerIfStmt(IfStmtNode &ifstmt, bool recursive) {
       blk->AddStatement(labstmt);
     }
     if (endlabelidx == 0) {  // create end label
-      endlabelidx = mirbuilder->CreateLabIdx(*mirFunc);
-      lfoFunc->SetLabelCreatedByLfo(endlabelidx);
+      endlabelidx = mirFunc->GetLabelTab()->CreateLabelWithPrefix('e');
+      if (canRaiseBack) {
+        lfoFunc->SetIfLabelCreatedByLfo(endlabelidx);
+      }
       LabelNode *endlabelnode = mirbuilder->CreateStmtLabel(endlabelidx);
       blk->AddStatement(endlabelnode);
     }
