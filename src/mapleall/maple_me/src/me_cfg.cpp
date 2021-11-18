@@ -25,18 +25,6 @@
 
 namespace {
 constexpr int kFuncNameLenLimit = 80;
-static bool CaseValOfSwitchIsSuccInt(const maple::CaseVector &switchTable) {
-  ASSERT(!switchTable.empty(), "switch table is empty");
-  size_t caseNum = switchTable.size();
-  int val = switchTable[0].first;
-  for (size_t id = 1; id < caseNum; id++) {
-    val++;
-    if (val != switchTable[id].first) {
-      return false;
-    }
-  }
-  return true;
-}
 }
 
 namespace maple {
@@ -88,82 +76,6 @@ bool MeCFG::IfReplaceWithAssertNonNull(const BB &bb) const {
   return true;
 }
 
-void MeCFG::ReplaceSwitchContainsOneCaseBranchWithBrtrue(maple::BB &bb, MapleVector<BB*> &exitBlocks) {
-  StmtNode &lastStmt = bb.GetStmtNodes().back();
-  ASSERT(lastStmt.GetOpCode() == OP_switch, "runtime check error");
-  auto &switchStmt = static_cast<SwitchNode&>(lastStmt);
-  auto &swithcTable = switchStmt.GetSwitchTable();
-  if (!CaseValOfSwitchIsSuccInt(swithcTable)) {
-    return;
-  }
-  LabelIdx defaultLabelIdx = switchStmt.GetDefaultLabel();
-  int32 minCaseVal = swithcTable.front().first;
-  int32 maxCaseVal = swithcTable.back().first;
-
-  // lfopreemit can't handle the optimized cfg for swith with one case with range value branch
-  if ((minCaseVal != maxCaseVal) && func.GetLfoFunc()) {
-    return;
-  }
-  auto &mirBuilder = func.GetMIRModule().GetMIRBuilder();
-  auto *baseNode = switchStmt.Opnd(0);
-  auto *minCaseNode = mirBuilder->CreateIntConst(minCaseVal, PTY_i32);
-  auto *maxCaseNode = mirBuilder->CreateIntConst(maxCaseVal, PTY_i32);
-  if (minCaseVal == maxCaseVal) {
-    // brtrue != minCaseVal, @default_label
-    // caseBB
-    // @default_label
-    //    defaultBB;
-    auto *neNode = mirBuilder->CreateExprCompare(OP_ne, GetTypeFromTyIdx(TyIdx(PTY_u1)),
-                                                 GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, minCaseNode);
-    auto *condGoto = mirBuilder->CreateStmtCondGoto(neNode, OP_brtrue, defaultLabelIdx);
-    bb.ReplaceStmt(&switchStmt, condGoto);
-    bb.SetKind(kBBCondGoto);
-    // reset bb succ
-    bb.RemoveAllSucc();
-    BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
-    ASSERT(defaultBB != nullptr, "null ptr check");
-    BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
-    ASSERT(caseBB != nullptr, "null ptr check");
-    bb.AddSucc(*caseBB);  // add fallthru
-    bb.AddSucc(*defaultBB);  // add target
-    return;
-  } else {
-    // lfopreemit can't handle the optimized cfg for swith with one case branch
-    auto *ltNode = mirBuilder->CreateExprCompare(OP_lt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
-                                                 GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, minCaseNode);
-    auto *condGoto = mirBuilder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabelIdx);
-    bb.ReplaceStmt(&switchStmt, condGoto);
-    bb.SetKind(kBBCondGoto);
-
-    auto *newBB = NewBasicBlock();
-    auto *gtNode = mirBuilder->CreateExprCompare(OP_gt, GetTypeFromTyIdx(TyIdx(PTY_u1)),
-                                                 GetTypeFromTyIdx(TyIdx(PTY_i32)), baseNode, maxCaseNode);
-    condGoto = mirBuilder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabelIdx);
-    newBB->GetStmtNodes().push_back(condGoto);
-    newBB->SetKind(kBBCondGoto);
-
-    BB *defaultBB = GetLabelBBAt(defaultLabelIdx);
-    ASSERT(defaultBB != nullptr, "null ptr check");
-    while (!bb.GetSucc().empty()) {
-      bb.RemoveSucc(*bb.GetSucc(0));
-    }
-    bb.AddSucc(*newBB);
-    bb.AddSucc(*defaultBB);
-
-    BB *caseBB = GetLabelBBAt(switchStmt.GetSwitchTable().front().second);
-    ASSERT(caseBB != nullptr, "null ptr check");
-    newBB->AddSucc(*caseBB);
-    newBB->AddSucc(*defaultBB);
-
-    if (bb.GetAttributes(kBBAttrIsTry)) {
-      newBB->SetAttributes(kBBAttrIsTry);
-      SetBBTryNodeMap(*newBB, *GetBBTryNodeMap().at(&bb));
-      AddCatchHandlerForTryBB(bb, exitBlocks);
-      AddCatchHandlerForTryBB(*newBB, exitBlocks);
-    }
-  }
-}
-
 void MeCFG::AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks) {
   if (!bb.GetAttributes(kBBAttrIsTry)) {
     return;
@@ -208,7 +120,6 @@ void MeCFG::AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks) {
 void MeCFG::BuildMirCFG() {
   MapleVector<BB*> entryBlocks(GetAlloc().Adapter());
   MapleVector<BB*> exitBlocks(GetAlloc().Adapter());
-  std::vector<BB*> switchBBsWithOneCaseBranch;
   auto eIt = valid_end();
   for (auto bIt = valid_begin(); bIt != eIt; ++bIt) {
     if (bIt == common_entry() || bIt == common_exit()) {
@@ -271,22 +182,17 @@ void MeCFG::BuildMirCFG() {
         LabelIdx lblIdx = switchStmt.GetDefaultLabel();
         BB *mirBB = GetLabelBBAt(lblIdx);
         bb->AddSucc(*mirBB);
-        std::set<LabelIdx> caseLabels;
         for (size_t j = 0; j < switchStmt.GetSwitchTable().size(); ++j) {
           lblIdx = switchStmt.GetCasePair(j).second;
           BB *meBB = GetLabelBBAt(lblIdx);
-          (void)caseLabels.insert(lblIdx);
           // Avoid duplicate succs.
-          auto it = std::find(bb->GetSucc().begin(), bb->GetSucc().end(), meBB);
-          if (it == bb->GetSucc().end()) {
+          if (!meBB->IsSuccBB(*bb)) {
             bb->AddSucc(*meBB);
           }
         }
         if (bb->GetSucc().size() == 1) {
           bb->RemoveLastStmt();
           bb->SetKind(kBBFallthru);
-        } else if (caseLabels.size() == 1) {
-          switchBBsWithOneCaseBranch.push_back(bb);
         }
         break;
       }
@@ -315,9 +221,6 @@ void MeCFG::BuildMirCFG() {
     }
   }
 
-  for (BB *switchBB : switchBBsWithOneCaseBranch) {
-    ReplaceSwitchContainsOneCaseBranchWithBrtrue(*switchBB, exitBlocks);
-  }
   // merge all blocks in entryBlocks
   for (BB *bb : entryBlocks) {
     GetCommonEntryBB()->AddEntry(*bb);
@@ -401,7 +304,7 @@ bool MeCFG::FindUse(const StmtNode &stmt, StIdx stIdx) const {
         return FindExprUse(*iNode.GetRHS(), stIdx);
       }
     }
-    case OP_assertnonnull:
+    CASE_OP_ASSERT_NONNULL
     case OP_eval:
     case OP_free:
     case OP_switch: {
@@ -1742,6 +1645,45 @@ void MeCFG::BuildSCC() {
 
   VerifySCC();
   SCCTopologicalSort(sccNodes);
+}
+
+// After currBB's succ is changed, we can update currBB's target
+void MeCFG::UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func) {
+  // update statement offset if succ is goto target
+  if (currBB.IsGoto()) {
+    ASSERT(currBB.GetSucc(0) == &newTarget, "[FUNC: %s]Goto's target BB is not newTarget", func.GetName().c_str());
+    auto *gotoBr = static_cast<GotoMeStmt*>(currBB.GetLastMe());
+    if (gotoBr->GetOffset() != newTarget.GetBBLabel()) {
+      LabelIdx label = func.GetOrCreateBBLabel(newTarget);
+      gotoBr->SetOffset(label);
+    }
+  } else if (currBB.GetKind() == kBBCondGoto) {
+    if (currBB.GetSucc(0) == &newTarget) {
+      return; // no need to update offset for fallthru BB
+    }
+    auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
+    BB *gotoBB = currBB.GetSucc().at(1);
+    ASSERT(gotoBB == &newTarget, "[FUNC: %s]newTarget is not one of CondGoto's succ BB", func.GetName().c_str());
+    LabelIdx oldLabelIdx = condBr->GetOffset();
+    if (oldLabelIdx != gotoBB->GetBBLabel()) {
+      // original gotoBB is replaced by newBB
+      LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
+      condBr->SetOffset(label);
+    }
+  } else if (currBB.GetKind() == kBBSwitch) {
+    auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
+    LabelIdx oldLabelIdx = oldTarget.GetBBLabel();
+    LabelIdx label = func.GetOrCreateBBLabel(newTarget);
+    if (switchStmt->GetDefaultLabel() == oldLabelIdx) {
+      switchStmt->SetDefaultLabel(label);
+    }
+    for (size_t i = 0; i < switchStmt->GetSwitchTable().size(); ++i) {
+      LabelIdx labelIdx = switchStmt->GetSwitchTable().at(i).second;
+      if (labelIdx == oldLabelIdx) {
+        switchStmt->SetCaseLabel(i, label);
+      }
+    }
+  }
 }
 
 bool MEMeCfg::PhaseRun(MeFunction &f) {
