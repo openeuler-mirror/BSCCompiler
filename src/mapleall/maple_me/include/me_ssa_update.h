@@ -21,7 +21,8 @@
 namespace maple {
 class MeSSAUpdate {
  public:
-  MeSSAUpdate(MeFunction &f, SSATab &stab, Dominance &d, MapleMap<OStIdx, MapleSet<BBId>*> &cands, MemPool &mp)
+  MeSSAUpdate(MeFunction &f, SSATab &stab, Dominance &d,
+              std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, MemPool &mp)
       : func(f),
         irMap(*f.GetIRMap()),
         ssaTab(stab),
@@ -34,6 +35,9 @@ class MeSSAUpdate {
   ~MeSSAUpdate() = default;
 
   void Run();
+  // tool function - insert ost defined in defBB to ssaCands, if ssaCands is nullptr, do not insert.
+  static void InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
+                                  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr);
 
  private:
   void InsertPhis();
@@ -48,8 +52,9 @@ class MeSSAUpdate {
   Dominance &dom;
   MemPool &ssaUpdateMp;
   MapleAllocator ssaUpdateAlloc;
-  MapleMap<OStIdx, MapleSet<BBId>*> &updateCands;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &updateCands;
   MapleMap<OStIdx, MapleStack<ScalarMeExpr*>*> renameStacks;
 };
+
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_SSA_UPDATE_H

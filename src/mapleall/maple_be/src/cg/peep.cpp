@@ -58,7 +58,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
         }
       }
 
-      if (!opnd.IsRegister() && !opnd.IsConditionCode()) {
+      if (!opnd.IsRegister()) {
         continue;
       }
       auto &tmpRegOpnd = static_cast<RegOperand&>(opnd);

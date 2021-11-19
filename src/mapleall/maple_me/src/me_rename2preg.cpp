@@ -227,11 +227,7 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeex
     mestmt->GetBB()->RemoveMeStmt(mestmt);
     mestmt->SetIsLive(false);
     if (ostDefedByChi[varmeexpr->GetOstIdx()]) {
-      auto *&bbSet = candsForSSAUpdate[varreg->GetOstIdx()];
-      if (bbSet == nullptr) {
-        bbSet = alloc.New<MapleSet<BBId>>(alloc.Adapter());
-      }
-      (void)bbSet->insert(mestmt->GetBB()->GetBBId());
+      MeSSAUpdate::InsertOstToSSACands(varreg->GetOstIdx(), *mestmt->GetBB(), &candsForSSAUpdate);
     }
     meirmap->SimplifyAssign(regssmestmt);
   }

@@ -35,9 +35,9 @@ class LoopUnrolling {
     kCanNotFullyUnroll,
   };
 
-  LoopUnrolling(MeFunction &f, LoopDesc &l, MeIRMap &map, MemPool &pool, const MapleAllocator &alloc,
-                MapleMap<OStIdx, MapleSet<BBId>*> &candsTemp)
-      : func(&f), cfg(f.GetCfg()), loop(&l), irMap(&map), memPool(&pool), mpAllocator(alloc),
+  LoopUnrolling(MeFunction &f, LoopDesc &l, MeIRMap &map, const MapleAllocator &alloc,
+                std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTemp)
+      : func(&f), cfg(f.GetCfg()), loop(&l), irMap(&map), mpAllocator(alloc),
         cands(candsTemp), lastNew2OldBB(mpAllocator.Adapter()),
         profValid(func->IsIRProfValid()) {}
   ~LoopUnrolling() = default;
@@ -45,34 +45,6 @@ class LoopUnrolling {
   bool LoopPartialUnrollWithConst(uint64 tripCount);
   bool LoopPartialUnrollWithVar(CR &cr, CRNode &varNode, uint32 i);
   bool LoopUnrollingWithConst(uint64 tripCount, bool onlyFully = false);
-
-  static void CopyAndInsertStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                                MapleMap<OStIdx, MapleSet<BBId>*> &cands, BB &bb, BB &oldBB,
-                                bool copyWithoutLastMe = false);
-  static void BuildChiList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                           MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
-                           const MapleMap<OStIdx, ChiMeNode*> &oldChilist, MapleMap<OStIdx, ChiMeNode*> &newChiList);
-  static void BuildMustDefList(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                               MapleMap<OStIdx, MapleSet<BBId>*> &cands, const BB &bb, MeStmt &newStmt,
-                               const MapleVector<MustDefMeNode> &oldMustDef, MapleVector<MustDefMeNode> &newMustDef);
-  static MeStmt *CopyDassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
-                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands,
-                                 MeIRMap &irMap, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyRegassignStmt(MemPool &memPool, MapleAllocator &mpAllocator,
-                                   MapleMap<OStIdx, MapleSet<BBId>*> &cands,
-                                   MeIRMap &irMap, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyIassignStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                                 MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyIntrinsiccallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                                       MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyIcallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                               MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyCallStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                              MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static MeStmt *CopyAsmStmt(MeIRMap &irMap, MemPool &memPool, MapleAllocator &mpAllocator,
-                             MapleMap<OStIdx, MapleSet<BBId>*> &cands, MeStmt &stmt, BB &bb);
-  static void InsertCandsForSSAUpdate(MemPool &memPool, MapleAllocator &mpAllocator,
-                                      MapleMap<OStIdx, MapleSet<BBId>*> &cands, OStIdx ostIdx, const BB &bb);
 
  private:
   bool SplitCondGotoBB();
@@ -116,9 +88,8 @@ class LoopUnrolling {
   MeCFG      *cfg;
   LoopDesc *loop;
   MeIRMap *irMap;
-  MemPool *memPool;
   MapleAllocator mpAllocator;
-  MapleMap<OStIdx, MapleSet<BBId>*> &cands;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands;
   MapleMap<BB*, BB*> lastNew2OldBB;
   BB *partialSuccHead = nullptr;
   uint64 replicatedLoopNum = 0;
@@ -139,7 +110,7 @@ class LoopUnrollingExecutor {
   static bool enableDump;
 
   void ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
-      MapleMap<OStIdx, MapleSet<BBId>*> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc);
+      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc);
   bool IsCFGChange() const {
     return isCFGChange;
   }

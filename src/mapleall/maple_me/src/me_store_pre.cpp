@@ -162,7 +162,7 @@ void MeStorePre::CodeMotion() {
         insertBB->InsertMeStmtBefore(curStmt, newDass);
       }
 
-      AddCandsForSSAUpdate(lhsVar->GetOstIdx(), insertBB->GetBBId());
+      AddCandsForSSAUpdate(lhsVar->GetOstIdx(), *insertBB);
     }
   }
   // pass 2 only doing deletion

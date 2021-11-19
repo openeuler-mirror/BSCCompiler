@@ -54,8 +54,7 @@ void MeStmtPre::CodeMotion() {
             auto *dass = static_cast<DassignMeStmt*>(realOcc->GetMeStmt());
             OStIdx ostIdx = dass->GetVarLHS()->GetOstIdx();
             if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-              candsForSSAUpdate[ostIdx] =
-                  ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
+              candsForSSAUpdate.emplace(ostIdx, std::make_unique<std::set<BBId>>(std::less<BBId>()));
             }
           } else if (realOcc->GetOpcodeOfMeStmt() == OP_callassigned) {
             auto *call = static_cast<CallMeStmt*>(realOcc->GetMeStmt());
@@ -64,8 +63,7 @@ void MeStmtPre::CodeMotion() {
               auto *var = static_cast<VarMeExpr*>(call->GetAssignedLHS());
               OStIdx ostIdx = var->GetOstIdx();
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-                candsForSSAUpdate[ostIdx] =
-                    ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
+                candsForSSAUpdate.emplace(ostIdx, std::make_unique<std::set<BBId>>(std::less<BBId>()));
               }
             }
           }
@@ -74,8 +72,7 @@ void MeStmtPre::CodeMotion() {
             for (const auto &ostIdx2Chi : *chiList) {
               OStIdx ostIdx = ostIdx2Chi.first;
               if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-                candsForSSAUpdate[ostIdx] =
-                    ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
+                candsForSSAUpdate.emplace(ostIdx, std::make_unique<std::set<BBId>>(std::less<BBId>()));
               }
             }
           }
@@ -94,14 +91,7 @@ void MeStmtPre::CodeMotion() {
             if (insertedOcc->GetOpcodeOfMeStmt() == OP_dassign) {
               auto *dass = static_cast<DassignMeStmt*>(insertedOcc->GetMeStmt());
               OStIdx ostIdx = dass->GetVarLHS()->GetOstIdx();
-              if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-                MapleSet<BBId> *bbSet =
-                    ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-                (void)bbSet->insert(occ->GetBB()->GetBBId());
-                candsForSSAUpdate[ostIdx] = bbSet;
-              } else {
-                (void)candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
-              }
+              MeSSAUpdate::InsertOstToSSACands(ostIdx, *occ->GetBB(), &candsForSSAUpdate);
               // create a new LHS for the dassign in insertedOcc->GetMeStmt()
               VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*(static_cast<VarMeExpr *>(dass->GetVarLHS())));
               dass->UpdateLhs(newVarVersion);
@@ -112,14 +102,7 @@ void MeStmtPre::CodeMotion() {
                 auto *var = static_cast<VarMeExpr*>(call->GetAssignedLHS());
                 ASSERT_NOT_NULL(var);
                 OStIdx ostIdx = var->GetOstIdx();
-                if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-                  MapleSet<BBId> *bbSet =
-                      ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-                  (void)bbSet->insert(occ->GetBB()->GetBBId());
-                  candsForSSAUpdate[ostIdx] = bbSet;
-                } else {
-                  (void)candsForSSAUpdate[ostIdx]->insert(occ->GetBB()->GetBBId());
-                }
+                MeSSAUpdate::InsertOstToSSACands(ostIdx, *occ->GetBB(), &candsForSSAUpdate);
                 VarMeExpr *newVarVersion = irMap->CreateVarMeExprVersion(*var);
                 auto &mustDef = call->GetMustDefList()->front();
                 mustDef.UpdateLHS(*newVarVersion);
@@ -1110,14 +1093,7 @@ void MeStmtPre::RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt) {
   BB *bb = dssMeStmt.GetBB();
   bb->RemoveMeStmt(&dssMeStmt);
   OStIdx ostIdx = dssMeStmt.GetVarLHS()->GetOstIdx();
-  MapleSet<BBId> *bbSet = nullptr;
-  if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-    bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-    candsForSSAUpdate[ostIdx] = bbSet;
-  } else {
-    bbSet = candsForSSAUpdate[ostIdx];
-  }
-  (void)bbSet->insert(bb->GetBBId());
+  MeSSAUpdate::InsertOstToSSACands(ostIdx, *bb, &candsForSSAUpdate);
 }
 
 void MEStmtPre::GetAnalysisDependence(maple::AnalysisDep &aDep) const {

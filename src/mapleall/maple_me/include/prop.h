@@ -22,6 +22,7 @@
 #include "dominance.h"
 #include "irmap.h"
 #include "safe_ptr.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 
@@ -66,7 +67,7 @@ class Prop {
 
   bool NoPropUnionAggField(const MeStmt *meStmt, const StmtNode *stmt /* for irmap */, const MeExpr *propedRHS) const;
 
-  MapleMap<OStIdx, MapleSet<BBId>*> &CandsForSSAUpdate() {
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &CandsForSSAUpdate() {
     return candsForSSAUpdate;
   }
 
@@ -101,12 +102,8 @@ class Prop {
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);
   MeExpr *RehashUsingInverse(MeExpr *x);
 
-  void RecordSSAUpdateCandidate(const OStIdx &ostIdx, const BBId &bbId) {
-    auto &bbSet = candsForSSAUpdate[ostIdx];
-    if (bbSet == nullptr) {
-      bbSet = propMapAlloc.New<MapleSet<BBId>>(propMapAlloc.Adapter());
-    }
-    bbSet->insert(bbId);
+  void RecordSSAUpdateCandidate(const OStIdx &ostIdx, const BB &bb) {
+    MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
   }
 
   IRMap &irMap;
@@ -117,7 +114,7 @@ class Prop {
   MapleVector<bool> bbVisited;  // needed because dominator tree is a DAG in wpo
   BB *curBB = nullptr;          // gives the bb of the traversal
   PropConfig config;
-  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
  public:
   uint32 propLimit;
   uint32 propsPerformed = 0;    // count number of copy propagations performed

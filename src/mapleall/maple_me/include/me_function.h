@@ -298,8 +298,8 @@ class MeFunction : public FuncEmit {
     return profValid;
   }
 
-  void SetProfValid() {
-    profValid = true;
+  void SetProfValid(bool val) {
+    profValid = val;
   }
 
   uint32 GetFrequency() const {
@@ -318,7 +318,7 @@ class MeFunction : public FuncEmit {
     return hasWriteInputAsmNode;
   }
 
-  uint32 GetUniqueID() {
+  uint32 GetUniqueID() const {
     return mirFunc->GetPuidx();
   }
 
@@ -333,6 +333,8 @@ class MeFunction : public FuncEmit {
   MemPool *GetLfoMempool() { return lfoMp; }
   bool IsLfo() const { return isLfo; }
   void SetLfo(bool islfo) { isLfo = islfo; }
+  void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
+                      bool copyWithoutLastMe = false);
  private:
   MemPool *memPool;
   StackMemPool &stackMP;

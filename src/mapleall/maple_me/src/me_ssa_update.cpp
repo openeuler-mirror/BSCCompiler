@@ -256,6 +256,21 @@ void MeSSAUpdate::RenameBB(BB &bb) {
   }
 }
 
+void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
+                                      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands) {
+  if (ssaCands == nullptr) {
+    return;
+  }
+  auto it = ssaCands->find(ostIdx);
+  if (it == ssaCands->end()) {
+    std::unique_ptr<std::set<BBId>> bbSet = std::make_unique<std::set<BBId>>(std::less<BBId>());
+    bbSet->insert(defBB.GetBBId());
+    ssaCands->emplace(ostIdx, std::move(bbSet));
+  } else {
+    it->second->insert(defBB.GetBBId());
+  }
+}
+
 void MeSSAUpdate::Run() {
   InsertPhis();
   // push zero-version varmeexpr nodes to rename stacks

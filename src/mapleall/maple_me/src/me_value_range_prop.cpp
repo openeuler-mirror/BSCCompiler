@@ -17,6 +17,7 @@
 #include "me_abco.h"
 #include "me_ssa_update.h"
 #include "me_phase_manager.h"
+#include "me_safety_warning.h"
 
 namespace maple {
 bool ValueRangePropagation::isDebug = false;
@@ -76,6 +77,17 @@ void ValueRangePropagation::Execute() {
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
       }
+      if (MeOption::safeRegionMode && (it->IsInSafeRegion() || func.GetMirFunc()->GetAttr(FUNCATTR_safed)) &&
+          kOpcodeInfo.IsCall(it->GetOp()) && instance_of<CallMeStmt>(*it)) {
+        MIRFunction *callFunc =
+            GlobalTables::GetFunctionTable().GetFunctionFromPuidx(static_cast<CallMeStmt&>(*it).GetPUIdx());
+        if (callFunc->GetAttr(FUNCATTR_unsafed)) {
+          auto srcPosition = it->GetSrcPosition();
+          FATAL(kLncFatal, "%s %d error: call unsafe function %s from safe region that requires safe function",
+                func.GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+                callFunc->GetName().c_str());
+        }
+      }
       switch (it->GetOp()) {
         case OP_dassign:
         case OP_maydassign:
@@ -92,7 +104,10 @@ void ValueRangePropagation::Execute() {
           break;
         }
         CASE_OP_ASSERT_NONNULL {
-          if (DealWithAssertNonnull(*bb, *it)) {
+          // If the option safeRegion is open and the stmt is not in safe region, delete it.
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
+            deleteStmt = true;
+          } else if (DealWithAssertNonnull(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
               LogInfo::MapleLogger() << "=========delete assert nonnull=========\n";
               it->Dump(&irMap);
@@ -103,7 +118,10 @@ void ValueRangePropagation::Execute() {
           break;
         }
         CASE_OP_ASSERT_BOUNDARY {
-          if (DealWithBoundaryCheck(*bb, *it)) {
+          // If the option safeRegion is open and the stmt is not in safe region, delete it.
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
+            deleteStmt = true;
+          } else if (DealWithBoundaryCheck(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
               LogInfo::MapleLogger() << "=========delete boundary check=========\n";
               it->Dump(&irMap);
@@ -541,6 +559,42 @@ std::unique_ptr<ValueRange> ValueRangePropagation::GetTheValueRangeOfIndex(
   return valueRangeOfIndex;
 }
 
+void SafetyCheckWithBoundaryError::HandleBoundaryCheck(
+    const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {
+  std::set<MePhiNode*> visitedPhi;
+  std::vector<MeStmt*> stmts{ &meStmt };
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, indexOpnd, visitedPhi, stmts);
+  visitedPhi.clear();
+  stmts.clear();
+  stmts.push_back(&meStmt);
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedPhi, stmts);
+}
+
+void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
+  if (valueRangeOfIndex.IsEqualZero()) {
+    Error(meStmt);
+  }
+}
+
+void SafetyCheckWithBoundaryError::HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
+  if (valueRangeOfIndex.IsLessThanZero()) {
+    Error(meStmt);
+  }
+}
+
+void SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
+    const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) {
+  if (kOpcodeInfo.IsAssertLeBoundary((op))) {
+    if (indexValue > lengthValue) {
+      Error(meStmt);
+    }
+  } else {
+    if (indexValue >= lengthValue) {
+      Error(meStmt);
+    }
+  }
+}
+
 // Deal with lower boundary check.
 bool ValueRangePropagation::DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR) {
   // The cr of lower bound must only have base address.
@@ -572,8 +626,11 @@ bool ValueRangePropagation::DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &ind
   uint32 byteSize = 0;
   std::unique_ptr<ValueRange> valueRangeOfIndex = GetTheValueRangeOfIndex(
       bb, meStmt, *crADDNode, byteSize, nullptr, nullptr);
-  if (valueRangeOfIndex != nullptr && valueRangeOfIndex->IsBiggerThanZero()) {
-    return true;
+  if (valueRangeOfIndex != nullptr) {
+    if (valueRangeOfIndex->IsBiggerThanZero()) {
+      return true;
+    }
+    safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
   }
   return false;
 }
@@ -621,7 +678,7 @@ bool ValueRangePropagation::GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt
   return true;
 }
 
-bool ValueRangePropagation::CompareIndexWithUpper(MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
+bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
     int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op) {
   // Opt array boundary check when the array length is a constant.
   if (valueRangeOfLengthPtr.IsConstant()) {
@@ -635,6 +692,7 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeExpr &baseAddress, ValueRang
     if (byteSize != 0) {
       lengthValue = valueRangeOfLengthPtr.GetBound().GetConstant() / byteSize;
     }
+    safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(), lengthValue);
     return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lengthValue :
         valueRangeOfIndex.GetUpper().GetConstant() < lengthValue;
   }
@@ -656,22 +714,29 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeExpr &baseAddress, ValueRang
         return false;
       }
       sa.SortCROperand(*crNode, baseAddress);
-      return crNode->GetCRType() == kCRAddNode &&
-             static_cast<CRAddNode*>(crNode)->GetOpndsSize() == kNumOperands &&
-             static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != nullptr &&
-             static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() == valueRangeOfLengthPtr.GetBound().GetVar() &&
-             static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetCRType() == kCRConstNode &&
-             (kOpcodeInfo.IsAssertLeBoundary(op) ?
-                 static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <=
-                     valueRangeOfLengthPtr.GetBound().GetConstant() :
-                 static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
-                     valueRangeOfLengthPtr.GetBound().GetConstant());
+      if (crNode->GetCRType() != kCRAddNode ||
+          static_cast<CRAddNode*>(crNode)->GetOpndsSize() != kNumOperands ||
+          static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() == nullptr ||
+          static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != valueRangeOfLengthPtr.GetBound().GetVar() ||
+          static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetCRType() != kCRConstNode) {
+        return false;
+      }
+      safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op,
+          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue(),
+              valueRangeOfLengthPtr.GetBound().GetConstant());
+      return (kOpcodeInfo.IsAssertLeBoundary(op) ?
+          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <=
+              valueRangeOfLengthPtr.GetBound().GetConstant() :
+          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
+              valueRangeOfLengthPtr.GetBound().GetConstant());
     }
   } else if ((valueRangeOfIndex.GetLower().GetVar() != valueRangeOfIndex.GetUpper().GetVar()) ||
              valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar() ||
              valueRangeOfIndex.GetLower().GetConstant() > valueRangeOfIndex.GetUpper().GetConstant()) {
     return false;
   }
+  safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+      valueRangeOfLengthPtr.GetBound().GetConstant());
   return kOpcodeInfo.IsAssertLeBoundary(op) ?
       valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
       valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant();
@@ -719,7 +784,7 @@ bool ValueRangePropagation::DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode 
   if (valueRangeOfIndex == nullptr) {
     return false;
   }
-  return CompareIndexWithUpper(*baseAddress, *valueRangeOfIndex, lengthValue, *valueRangeOfLengthPtr,
+  return CompareIndexWithUpper(meStmt, *baseAddress, *valueRangeOfIndex, lengthValue, *valueRangeOfLengthPtr,
                                byteSize, op);
 }
 
@@ -750,29 +815,76 @@ bool ValueRangePropagation::IfAnalysisedBefore(BB &bb, MeStmt &stmt) {
   return false;
 }
 
-bool ValueRangePropagation::DeleteBoundaryCheckWhenBoundIsInvalied(BB &bb, MeStmt &meStmt, MeExpr &boundOpnd) {
-  if (boundOpnd.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(boundOpnd).GetIntValue() == kInvaliedBound) {
-    Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
+bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
+    const BB &bb, MeStmt *meStmt, const MeExpr &boundOpnd, bool updateCaches) {
+  if (boundOpnd.GetMeOp() == kMeOpConst &&
+      static_cast<const ConstMeExpr&>(boundOpnd).GetConstVal()->GetKind() == kConstInt &&
+      static_cast<const ConstMeExpr&>(boundOpnd).GetIntValue() == kInvaliedBound) {
+    if (updateCaches) {
+      Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt->GetOpnd(1), *meStmt->GetOpnd(0), meStmt->GetOp());
+    }
     return true;
   } else {
     auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), boundOpnd.GetExprID());
     if (valueRange != nullptr && valueRange->GetRangeType() != kNotEqual &&
         valueRange->IsConstant() && valueRange->GetLower().GetConstant() == kInvaliedBound) {
-      Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
+      if (updateCaches) {
+        Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt->GetOpnd(1), *meStmt->GetOpnd(0), meStmt->GetOp());
+      }
       return true;
     }
   }
   return false;
 }
 
+// Pointer assigned from multibranch requires the bounds info for all branches.
+// if:
+//    p = GetBoundaryPtr
+// else:
+//    p = GetBoundarylessPtr
+// error: p + i
+void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
+    const BB &bb, MeExpr &expr, std::set<MePhiNode*> &visitedPhi, std::vector<MeStmt*> &stmts) {
+  if (TheValueOfOpndIsInvaliedInABCO(bb, nullptr, expr, false)) {
+    std::string errorLog = "error: pointer assigned from multibranch requires the bounds info for all branches.\n";
+    for (size_t i = 0; i < stmts.size(); ++i) {
+      auto &srcPosition = stmts[i]->GetSrcPosition();
+      errorLog += func.GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()) + ":" +
+          std::to_string(srcPosition.LineNum()) + "\n";
+    }
+    FATAL(kLncFatal, "%s", errorLog.c_str());
+  }
+  if (!expr.IsScalar()) {
+    for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *expr.GetOpnd(i), visitedPhi, stmts);
+    }
+    return;
+  }
+  ScalarMeExpr &scalar = static_cast<ScalarMeExpr&>(expr);
+  if (scalar.GetDefBy() == kDefByStmt) {
+    stmts.push_back(scalar.GetDefStmt());
+    JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedPhi, stmts);
+  } else if (scalar.GetDefBy() == kDefByPhi) {
+    MePhiNode &phi = scalar.GetDefPhi();
+    if (visitedPhi.find(&phi) != visitedPhi.end()) {
+      return;
+    }
+    visitedPhi.insert(&phi);
+    for (auto &opnd : phi.GetOpnds()) {
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *opnd, visitedPhi, stmts);
+    }
+  }
+}
+
 bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   CHECK_FATAL(meStmt.NumMeStmtOpnds() == kNumOperands, "must have two opnds");
   auto &naryMeStmt = static_cast<NaryMeStmt&>(meStmt);
   auto *boundOpnd = naryMeStmt.GetOpnd(1);
-  if (DeleteBoundaryCheckWhenBoundIsInvalied(bb, meStmt, *boundOpnd)) {
+  if (TheValueOfOpndIsInvaliedInABCO(bb, &meStmt, *boundOpnd)) {
     return true;
   }
   auto *indexOpnd = naryMeStmt.GetOpnd(0);
+  safetyCheckBoundary->HandleBoundaryCheck(bb, meStmt, *indexOpnd, *boundOpnd);
   CRNode *indexCR = sa.GetOrCreateCRNode(*indexOpnd);
   CRNode *boundCR = sa.GetOrCreateCRNode(*boundOpnd);
   if (indexCR == nullptr || boundCR == nullptr) {
@@ -811,10 +923,71 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   return false;
 }
 
+void SafetyCheck::Error(const MeStmt &stmt) const {
+  auto srcPosition = stmt.GetSrcPosition();
+  switch (stmt.GetOp()) {
+    case OP_assertnonnull: {
+      FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+      break;
+    }
+    case OP_returnassertnonnull: {
+      FATAL(kLncFatal, "%s:%d error: %s return nonnull but got nullable pointer",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+            func->GetName().c_str());
+      break;
+    }
+    case OP_assignassertnonnull: {
+      FATAL(kLncFatal, "%s:%d error: nullable assignment of nonnull pointer",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+      break;
+    }
+    case OP_callassertnonnull: {
+      auto &callStmt = static_cast<const CallAssertNonnullMeStmt &>(stmt);
+      FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires nonnull for %s argument",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+            callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+      break;
+    }
+    case OP_assertlt:
+    case OP_assertge: {
+      std::ostringstream oss;
+      if (stmt.GetOp() == OP_assertlt) {
+        oss << "%s:%d error: cant't prove the offset < the upper bounds";
+      } else {
+        oss << "%s:%d error: cant't prove the offset >= the lower bounds";
+      }
+      FATAL(kLncFatal, oss.str().c_str(), func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(),
+            srcPosition.LineNum());
+      break;
+    }
+    case OP_callassertle: {
+      auto &callStmt = static_cast<const CallAssertBoundaryMeStmt&>(stmt);
+      FATAL(kLncFatal,
+            "%s:%d error: can't prove pointer's bounds match the function %s declaration for the %s argument",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+            callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+      break;
+    }
+    case OP_returnassertle: {
+      FATAL(kLncFatal, "%s:%d error: can't prove return value's bounds match the function declaration for %s",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+            func->GetName().c_str());
+      break;
+    }
+    case OP_assignassertle: { // support 2
+      FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary",
+            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
+      break;
+    }
+    default:
+      CHECK_FATAL(false, "can not be here");
+  }
+}
+
 bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {
   auto *opnd = static_cast<const UnaryMeStmt&>(meStmt).GetOpnd();
   auto *valueRange = FindValueRangeInCaches(bb.GetBBId(), opnd->GetExprID());
-
   if (valueRange == nullptr) {
     // If the cfg is changed and dom is not update, need find the valuerange in pred bbs
     // when pred bbs are goto or fallthru. The cfg changed like this :
@@ -837,6 +1010,7 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {
                   std::make_unique<ValueRange>(Bound(nullptr, 0, opnd->GetPrimType()), kNotEqual));
     return false;
   }
+  safetyCheckNonnull->HandleAssertNonnull(meStmt, *valueRange);
   auto newValueRange = ZeroIsInRange(*valueRange);
   if (newValueRange != nullptr) {
     Insert2Caches(bb.GetBBId(), opnd->GetExprID(), std::move(newValueRange));
@@ -884,6 +1058,13 @@ void ValueRangePropagation::CollectMeExpr(
 
 void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr) {
   switch (meExpr.GetMeOp()) {
+    case kMeOpConst: {
+      if (static_cast<ConstMeExpr&>(meExpr).GetConstVal()->GetKind() == kConstInt) {
+        Insert2Caches(bb.GetBBId(), meExpr.GetExprID(), std::make_unique<ValueRange>(
+            Bound(nullptr, static_cast<ConstMeExpr&>(meExpr).GetIntValue(), meExpr.GetPrimType()), kEqual));
+      }
+      break;
+    }
     case kMeOpIvar: {
       auto &ivarMeExpr = static_cast<IvarMeExpr&>(meExpr);
       // prop value range of base
@@ -1018,13 +1199,7 @@ void ValueRangePropagation::InsertOstOfPhi2CandsForSSAUpdate(const BB &oldSuccBB
 }
 
 void ValueRangePropagation::InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) {
-  if (cands.find(ostIdx) == cands.end()) {
-    MapleSet<BBId> *bbSet = memPool.New<MapleSet<BBId>>(std::less<BBId>(), mpAllocator.Adapter());
-    bbSet->insert(bb.GetBBId());
-    cands[ostIdx] = bbSet;
-  } else {
-    cands[ostIdx]->insert(bb.GetBBId());
-  }
+  MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &cands);
 }
 
 // When unreachable bb has trystmt or endtry attribute, need update try and endtry bbs.
@@ -2464,8 +2639,7 @@ void ValueRangePropagation::CopyMeStmts(BB &fromBB, BB &toBB) {
   } else {
     CHECK_FATAL(false, "must be condGoto, goto or fallthru bb");
   }
-  LoopUnrolling::CopyAndInsertStmt(
-      irMap, memPool, mpAllocator, cands, toBB, fromBB, copyWithoutLastStmt);
+  func.CloneBBMeStmts(fromBB, toBB, &cands, copyWithoutLastStmt);
 }
 
 size_t ValueRangePropagation::GetRealPredSize(const BB &bb) const {
@@ -3432,10 +3606,25 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   }
   auto *valueRangeMemPool = GetPhaseMemPool();
   MapleAllocator valueRangeAlloc = MapleAllocator(valueRangeMemPool);
-  MapleMap<OStIdx, MapleSet<BBId>*> cands((std::less<OStIdx>(), valueRangeAlloc.Adapter()));
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   LoopScalarAnalysisResult sa(*irMap, nullptr);
   sa.SetComputeTripCountForLoopUnroll(false);
   ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa);
+
+  SafetyCheck safetyCheck; // dummy
+  SafetyCheckWithBoundaryError safetyCheckBoundaryError(f, valueRangePropagation);
+  SafetyCheckWithNonnullError safetyCheckNonnullError(f);
+  if (MeOption::boundaryCheckMode == kNoCheck) {
+    valueRangePropagation.SetSafetyBoundaryCheck(safetyCheck);
+  } else {
+    valueRangePropagation.SetSafetyBoundaryCheck(safetyCheckBoundaryError);
+  }
+  if (MeOption::npeCheckMode == kNoCheck) {
+    valueRangePropagation.SetSafetyNonnullCheck(safetyCheck);
+  } else {
+    valueRangePropagation.SetSafetyNonnullCheck(safetyCheckNonnullError);
+  }
+
   valueRangePropagation.Execute();
   f.GetCfg()->UnreachCodeAnalysis(true);
   f.GetCfg()->WontExitAnalysis();
