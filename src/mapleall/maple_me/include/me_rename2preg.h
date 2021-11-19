@@ -35,8 +35,9 @@ class SSARename2Preg {
         ostDefedByChi(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
         ostDefedByDassign(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
         ostUsedByDread(ssaTab->GetOriginalStTableSize(), false, alloc.Adapter()),
-        candsForSSAUpdate(alloc.Adapter()) {}
+        candsForSSAUpdate() {}
 
+  virtual ~SSARename2Preg() = default;
   void RunSelf();
   void PromoteEmptyFunction();
 
@@ -80,7 +81,7 @@ class SSARename2Preg {
   MapleVector<bool> ostDefedByChi;
   MapleVector<bool> ostDefedByDassign;
   MapleVector<bool> ostUsedByDread;
-  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
  public:
   uint32 rename2pregCount = 0;
 };

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,15 +16,22 @@
 #define MAPLE_ME_INCLUDE_MESTOREPRE_H
 #include "me_ssu_pre.h"
 #include "me_alias_class.h"
+#include "me_irmap_build.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 class MeStorePre : public MeSSUPre {
  public:
   MeStorePre(MeFunction &f, Dominance &dom, AliasClass &ac, MemPool &memPool, bool enabledDebug)
       : MeSSUPre(f, dom, memPool, kStorePre, enabledDebug), aliasClass(&ac), curTemp(nullptr),
-        bbCurTempMap(spreAllocator.Adapter()) {}
+        bbCurTempMap(spreAllocator.Adapter()),
+        candsForSSAUpdate() {}
 
   virtual ~MeStorePre() = default;
+
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &CandsForSSAUpdate() {
+    return candsForSSAUpdate;
+  }
 
  private:
   inline bool IsJavaLang() const {
@@ -46,21 +53,17 @@ class MeStorePre : public MeSSUPre {
     bbCurTempMap.clear();
   }
 
+  void AddCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) {
+    MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
+  }
+
   AliasClass *aliasClass;
   // step 6 code motion
   RegMeExpr *curTemp;                               // the preg for the RHS of inserted stores
   MapleUnorderedMap<BB*, RegMeExpr*> bbCurTempMap;  // map bb to curTemp version
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
 };
 
-class MeDoStorePre : public MeFuncPhase {
- public:
-  explicit MeDoStorePre(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoStorePre() = default;
-  AnalysisResult *Run(MeFunction *ir, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "storepre";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEStorePre, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MESTOREPRE_H

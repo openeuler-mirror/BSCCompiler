@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,7 +16,7 @@
 #define MAPLE_ME_INCLUDE_MESTMTPRE_H
 
 #include "me_function.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "ssa_epre.h"
 
 namespace maple {
@@ -26,7 +26,7 @@ class MeStmtPre : public SSAEPre {
   // the mapped set gives bbs where dassign's are inserted by stmtpre for the symbol
   MeStmtPre(MeFunction &func, IRMap &map, Dominance &dom, MemPool &memPool, MemPool &mp2, uint32 limit)
       : SSAEPre(map, dom, memPool, mp2, kStmtPre, limit, true, false),
-        candsForSSAUpdate(std::less<OStIdx>(), ssaPreAllocator.Adapter()),
+        candsForSSAUpdate(std::less<OStIdx>()),
         func(&func),
         versionStackVec(ssaTab->GetOriginalStTable().GetOriginalStVector().size(), nullptr, ssaPreAllocator.Adapter()),
         useOccurMap(std::less<OStIdx>(), ssaPreAllocator.Adapter()) {}
@@ -36,12 +36,12 @@ class MeStmtPre : public SSAEPre {
     return true;
   }
 
-  MapleMap<OStIdx, MapleSet<BBId>*> &GetCandsForSSAUpdate() {
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &GetCandsForSSAUpdate() {
     return candsForSSAUpdate;
   }
 
  protected:
-  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
   MeFunction *func;
   MapleVector<MapleStack<ScalarMeExpr*>*> versionStackVec;  // top of stack gives last version during BuildWorkList()
   MapleMap<OStIdx, MapleSet<uint32>*> useOccurMap;  // give the set of BBs (in dfn) that contain uses of the symbol
@@ -83,15 +83,6 @@ class MeStmtPre : public SSAEPre {
   }
 };
 
-class MeDoStmtPre : public MeFuncPhase {
- public:
-  explicit MeDoStmtPre(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoStmtPre() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "stmtpre";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEStmtPre, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MESTMTPRE_H

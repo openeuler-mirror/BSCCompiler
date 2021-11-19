@@ -17,6 +17,7 @@
 #include "ssa_pre.h"
 #include "me_irmap.h"
 #include "me_loop_analysis.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 constexpr size_t kDoLpreBBsLimit = 0x7fffff;
@@ -28,23 +29,17 @@ class MeSSALPre : public SSAPre {
         func(&f),
         assignedFormals(ssaPreAllocator.Adapter()),
         loopHeadBBs(ssaPreAllocator.Adapter()),
-        candsForSSAUpdate(ssaPreAllocator.Adapter()) {}
+        candsForSSAUpdate() {}
 
   virtual ~MeSSALPre() = default;
   void FindLoopHeadBBs(const IdentifyLoops &identLoops);
 
-  MapleMap<OStIdx, MapleSet<BBId>*> &GetCandsForSSAUpdate() {
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &GetCandsForSSAUpdate() {
     return candsForSSAUpdate;
   }
 
   void EnterCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) override {
-    if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-      MapleSet<BBId> *bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-      (void)bbSet->insert(bb.GetBBId());
-      candsForSSAUpdate[ostIdx] = bbSet;
-    } else {
-      (void)candsForSSAUpdate[ostIdx]->insert(bb.GetBBId());
-    }
+    MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
   }
  private:
   void GenerateSaveRealOcc(MeRealOcc&) override;
@@ -57,7 +52,7 @@ class MeSSALPre : public SSAPre {
   }
 
   void CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const override {
-    if (meExpr.GetMeOp() == kMeOpAddrof || 
+    if (meExpr.GetMeOp() == kMeOpAddrof ||
         meExpr.GetMeOp() == kMeOpAddroffunc ||
         meExpr.GetMeOp() == kMeOpConst) {
       return;
@@ -66,7 +61,7 @@ class MeSSALPre : public SSAPre {
   }
 
   void CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varVec) const override {
-    if (realOcc.GetMeExpr()->GetMeOp() == kMeOpAddrof || 
+    if (realOcc.GetMeExpr()->GetMeOp() == kMeOpAddrof ||
         realOcc.GetMeExpr()->GetMeOp() == kMeOpAddroffunc ||
         realOcc.GetMeExpr()->GetMeOp() == kMeOpConst) {
       return;
@@ -96,7 +91,7 @@ class MeSSALPre : public SSAPre {
   MeFunction *func;
   MapleSet<OStIdx> assignedFormals;  // set of formals that are assigned
   MapleSet<BBId> loopHeadBBs;
-  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MESSALPre, MeFunction)

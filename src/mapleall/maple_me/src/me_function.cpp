@@ -21,8 +21,8 @@
 #include "mir_builder.h"
 #include "constantfold.h"
 #include "me_irmap.h"
-#include "me_phase.h"
 #include "lfo_mir_lower.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 #if DEBUG
@@ -37,14 +37,14 @@ void MeFunction::PartialInit() {
   regNum = 0;
   hasEH = false;
   ConstantFold cf(mirModule);
-  cf.Simplify(mirModule.CurFunction()->GetBody());
-  if (mirModule.IsJavaModule() && (!mirModule.CurFunction()->GetInfoVector().empty())) {
+  cf.Simplify(mirFunc->GetBody());
+  if (mirModule.IsJavaModule() && (!mirFunc->GetInfoVector().empty())) {
     std::string string("INFO_registers");
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(string);
-    regNum = mirModule.CurFunction()->GetInfo(strIdx);
+    regNum = mirFunc->GetInfo(strIdx);
     std::string tryNum("INFO_tries_size");
     strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(tryNum);
-    uint32 num = mirModule.CurFunction()->GetInfo(strIdx);
+    uint32 num = mirFunc->GetInfo(strIdx);
     hasEH = (num != 0);
   }
 }
@@ -128,12 +128,7 @@ void MeFunction::Dump(bool DumpSimpIr) const {
   }
 }
 
-void MeFunction::Prepare(unsigned long rangeNum) {
-  if (!MeOption::quiet) {
-    LogInfo::MapleLogger() << "---Preparing Function  < " << CurFunction()->GetName() << " > [" << rangeNum
-                           << "] ---\n";
-  }
-
+void MeFunction::Prepare() {
   if (MeOption::optLevel >= 3) {
     MemPool* lfomp = memPoolCtrler.NewMemPool("lfo", true);
     SetLfoFunc(lfomp->New<LfoFunction>(lfomp, this));
@@ -170,5 +165,207 @@ LabelIdx MeFunction::GetOrCreateBBLabel(BB &bb) {
   bb.SetBBLabel(label);
   theCFG->SetLabelBBAt(label, &bb);
   return label;
+}
+
+namespace {
+// Clone ChiList from srcStmt to destStmt
+void CloneChiListOfStmt(MeStmt &srcStmt, MeStmt &destStmt, MeIRMap &irmap,
+                        std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr) {
+  const MapleMap<OStIdx, ChiMeNode*> *srcChiList = srcStmt.GetChiList();
+  MapleMap<OStIdx, ChiMeNode*> *destChiList = destStmt.GetChiList();
+  if (srcChiList == nullptr || destChiList == nullptr || !destChiList->empty()) {
+    return;
+  }
+  const BB &newBB = *destStmt.GetBB();
+  for (auto &chiNode : *srcChiList) {
+    CHECK_FATAL(chiNode.first == chiNode.second->GetLHS()->GetOstIdx(), "must be");
+    VarMeExpr *newMul = irmap.CreateVarMeExprVersion(chiNode.second->GetLHS()->GetOst());
+    MeSSAUpdate::InsertOstToSSACands(newMul->GetOstIdx(), newBB, ssaCands);
+    auto *newChiNode = irmap.New<ChiMeNode>(&destStmt);
+    newMul->SetDefChi(*newChiNode);
+    newMul->SetDefBy(kDefByChi);
+    newChiNode->SetLHS(newMul);
+    newChiNode->SetRHS(chiNode.second->GetRHS());
+    destChiList->emplace(chiNode.first, newChiNode);
+  }
+}
+
+// Clone MustDefList from srcStmt to destStmt
+void CloneMustDefListOfStmt(MeStmt &srcStmt, MeStmt &destStmt, MeIRMap &irmap,
+                            std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr) {
+  const MapleVector<MustDefMeNode> *srcMustDef = srcStmt.GetMustDefList();
+  MapleVector<MustDefMeNode> *destMustDef = destStmt.GetMustDefList();
+  if (srcMustDef == nullptr || destMustDef == nullptr || !destMustDef->empty()) {
+    return;
+  }
+  const BB &newBB = *destStmt.GetBB();
+  for (auto &mustDefNode : *srcMustDef) {
+    const ScalarMeExpr *oldLHS = mustDefNode.GetLHS();
+    ScalarMeExpr *newLHS = irmap.CreateRegOrVarMeExprVersion(oldLHS->GetOstIdx());
+    newLHS->SetDefBy(kDefByMustDef);
+    MeSSAUpdate::InsertOstToSSACands(newLHS->GetOstIdx(), newBB, ssaCands);
+    auto *mustDef = irmap.New<MustDefMeNode>(newLHS, &destStmt);
+    newLHS->SetDefMustDef(*mustDef);
+    destMustDef->push_back(*mustDef);
+  }
+}
+} // anonymous namespace
+
+// clone MeStmts from srcBB to destBB, and collect new version to ssaCands which is used for ssa-updater
+// if ssaCands is nullptr, no new version will be collected.
+void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands,
+                                bool copyWithoutLastMe) {
+  if (irmap == nullptr) {
+    return;
+  }
+  for (auto &stmt : srcBB.GetMeStmts()) {
+    if (copyWithoutLastMe && &stmt == srcBB.GetLastMe()) {
+      break;
+    }
+    MeStmt *newStmt = nullptr;
+    switch (stmt.GetOp()) {
+      case OP_dassign:
+      case OP_regassign: {
+        ScalarMeExpr *scalarLHS = stmt.GetLHS();
+        ScalarMeExpr *newVerLHS = irmap->CreateRegOrVarMeExprVersion(scalarLHS->GetOstIdx());
+        MeSSAUpdate::InsertOstToSSACands(newVerLHS->GetOstIdx(), destBB, ssaCands);
+        newStmt = irmap->CreateAssignMeStmt(*newVerLHS, *stmt.GetRHS(), destBB);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_iassign: {
+        auto *iassStmt = static_cast<IassignMeStmt*>(&stmt);
+        IvarMeExpr *ivar = irmap->BuildLHSIvarFromIassMeStmt(*iassStmt);
+        newStmt = irmap->NewInPool<IassignMeStmt>(
+            iassStmt->GetTyIdx(), *static_cast<IvarMeExpr*>(ivar), *iassStmt->GetRHS());
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_maydassign: {
+        auto &maydassStmt = static_cast<MaydassignMeStmt&>(stmt);
+        newStmt = irmap->NewInPool<MaydassignMeStmt>(maydassStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_goto: {
+        auto &gotoStmt = static_cast<GotoMeStmt&>(stmt);
+        newStmt = irmap->New<GotoMeStmt>(gotoStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_brfalse:
+      case OP_brtrue: {
+        auto &condGotoStmt = static_cast<CondGotoMeStmt&>(stmt);
+        newStmt = irmap->New<CondGotoMeStmt>(condGotoStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_intrinsiccall:
+      case OP_intrinsiccallassigned:
+      case OP_intrinsiccallwithtype: {
+        auto *intrnStmt = static_cast<IntrinsiccallMeStmt*>(&stmt);
+        newStmt =
+            irmap->NewInPool<IntrinsiccallMeStmt>(static_cast<const NaryMeStmt*>(intrnStmt), intrnStmt->GetIntrinsic(),
+                                                  intrnStmt->GetTyIdx(), intrnStmt->GetReturnPrimType());
+        for (auto &mu : *intrnStmt->GetMuList()) {
+          newStmt->GetMuList()->emplace(mu.first, mu.second);
+        }
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_icall:
+      case OP_icallassigned: {
+        auto *icallStmt = static_cast<IcallMeStmt*>(&stmt);
+        newStmt = irmap->NewInPool<IcallMeStmt>(static_cast<NaryMeStmt*>(icallStmt),
+                                                icallStmt->GetRetTyIdx(), icallStmt->GetStmtID());
+        for (auto &mu : *icallStmt->GetMuList()) {
+          newStmt->GetMuList()->emplace(mu.first, mu.second);
+        }
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_asm:{
+        auto *asmStmt = static_cast<AsmMeStmt*>(&stmt);
+        newStmt = irmap->NewInPool<AsmMeStmt>(asmStmt);
+        for (auto &mu : *asmStmt->GetMuList()) {
+          newStmt->GetMuList()->emplace(mu.first, mu.second);
+        }
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_call:
+      case OP_callassigned:
+      case OP_virtualcallassigned:
+      case OP_virtualicallassigned:
+      case OP_interfaceicallassigned: {
+        auto *callStmt = static_cast<CallMeStmt*>(&stmt);
+        newStmt =
+            irmap->NewInPool<CallMeStmt>(static_cast<NaryMeStmt*>(callStmt), callStmt->GetPUIdx());
+        for (auto &mu : *callStmt->GetMuList()) {
+          newStmt->GetMuList()->emplace(mu.first, mu.second);
+        }
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_assertnonnull:
+      case OP_assignassertnonnull:
+      case OP_returnassertnonnull: {
+        auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
+        newStmt = irmap->New<UnaryMeStmt>(unaryStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_callassertnonnull: {
+        auto &callAssertStmt = static_cast<CallAssertNonnullMeStmt&>(stmt);
+        newStmt = irmap->New<CallAssertNonnullMeStmt>(callAssertStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_membaracquire:
+      case OP_membarrelease:
+      case OP_membarstoreload:
+      case OP_membarstorestore: {
+        newStmt = irmap->New<MeStmt>(stmt.GetOp());
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_eval: {
+        newStmt = irmap->New<UnaryMeStmt>(static_cast<UnaryMeStmt&>(stmt));
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_comment: {
+        break;
+      }
+      case OP_assertlt:
+      case OP_assertge:
+      case OP_returnassertle:
+      case OP_assignassertle: {
+        auto &oldStmt = static_cast<NaryMeStmt&>(stmt);
+        newStmt = irmap->New<NaryMeStmt>(oldStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_callassertle:{
+        auto &oldStmt = static_cast<CallAssertBoundaryMeStmt&>(stmt);
+        newStmt = irmap->New<CallAssertBoundaryMeStmt>(oldStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      default:
+        LogInfo::MapleLogger() << "stmt with op :"<< stmt.GetOp() << " is not implemented yet\n";
+        CHECK_FATAL(false, "NYI");
+        break;
+    }
+    if (stmt.GetChiList() != nullptr) {
+      CloneChiListOfStmt(stmt, *newStmt, *irmap, ssaCands);
+    }
+    if (stmt.GetMustDefList() != nullptr) {
+      CloneMustDefListOfStmt(stmt, *newStmt, *irmap, ssaCands);
+    }
+    if (newStmt != nullptr && stmt.IsInSafeRegion()) {
+      newStmt->SetInSafeRegion();
+    }
+  }
 }
 }  // namespace maple

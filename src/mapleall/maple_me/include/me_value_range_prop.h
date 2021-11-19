@@ -22,6 +22,45 @@
 #include "me_loop_analysis.h"
 #include "me_scalar_analysis.h"
 namespace maple {
+class ValueRangePropagation;
+class ValueRange;
+class SafetyCheck {
+ public:
+  SafetyCheck() = default;
+  explicit SafetyCheck(MeFunction &f) : func(&f) {}
+  ~SafetyCheck() = default;
+
+  void Error(const MeStmt &stmt) const;
+  virtual void HandleBoundaryCheck (const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
+  virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {}
+  virtual void HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {}
+  virtual void HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) {}
+
+ private:
+  MeFunction *func = nullptr;
+};
+
+class SafetyCheckWithNonnullError : public SafetyCheck {
+ public:
+  explicit SafetyCheckWithNonnullError(MeFunction &f)
+      : SafetyCheck(f) {}
+  ~SafetyCheckWithNonnullError() = default;
+  void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) override;
+};
+
+class SafetyCheckWithBoundaryError : public SafetyCheck {
+ public:
+  SafetyCheckWithBoundaryError(MeFunction &f, ValueRangePropagation &valueRangeProp)
+      : SafetyCheck(f), vrp(valueRangeProp) {}
+  ~SafetyCheckWithBoundaryError() = default;
+  void HandleBoundaryCheck (const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
+  void HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) override;
+  void HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) override;
+
+ private:
+  ValueRangePropagation &vrp;
+};
+
 int64 GetMinNumber(PrimType primType);
 int64 GetMaxNumber(PrimType primType);
 bool IsNeededPrimType(PrimType prim);
@@ -232,7 +271,7 @@ class ValueRange {
     rangeType = type;
   }
 
-  bool IsConstant() {
+  bool IsConstant() const {
     return (rangeType == kEqual && range.bound.GetVar() == nullptr) ||
            (rangeType == kNotEqual && range.bound.GetVar() == nullptr) ||
            (rangeType == kLowerAndUpper && range.pair.lower.GetVar() == nullptr &&
@@ -240,17 +279,24 @@ class ValueRange {
             range.pair.lower.GetConstant() == range.pair.upper.GetConstant());
   }
 
-  bool IsConstantLowerAndUpper() {
+  bool IsConstantLowerAndUpper() const {
     return (rangeType == kEqual && range.bound.GetVar() == nullptr) ||
            (rangeType == kLowerAndUpper && range.pair.lower.GetVar() == nullptr &&
             range.pair.upper.GetVar() == nullptr);
   }
 
-  bool IsBiggerThanZero() {
+  bool IsBiggerThanZero() const {
     return (IsConstantLowerAndUpper() && GetLower().GetConstant() >= 0 && GetUpper().GetConstant() >= 0 &&
         GetLower().GetConstant() <= GetUpper().GetConstant()) ||
-        (rangeType == kSpecialUpperForLoop && GetLower().GetConstant() >= 0 && GetLower().GetVar() == 0) ||
-        (rangeType == kOnlyHasLowerBound && GetLower().GetConstant() >= 0 && GetLower().GetVar() == 0);
+        (rangeType == kSpecialUpperForLoop && GetLower().GetConstant() >= 0 && GetLower().GetVar() == nullptr) ||
+        (rangeType == kOnlyHasLowerBound && GetLower().GetConstant() >= 0 && GetLower().GetVar() == nullptr);
+  }
+
+  bool IsLessThanZero() const {
+    return (IsConstantLowerAndUpper() && GetLower().GetConstant() <= GetUpper().GetConstant() &&
+            GetUpper().GetConstant() < 0) ||
+           (rangeType == kSpecialLowerForLoop && GetUpper().GetConstant() < 0 && GetUpper().GetVar() == nullptr) ||
+           (rangeType == kOnlyHasUpperBound && GetUpper().GetConstant() < 0 && GetUpper().GetVar() == nullptr);
   }
 
   static Bound MinBound(PrimType pType) {
@@ -261,8 +307,12 @@ class ValueRange {
     return Bound(nullptr, GetMaxNumber(pType), pType);
   }
 
-  bool IsNotEqualZero() {
+  bool IsNotEqualZero() const {
     return rangeType == kNotEqual && range.bound.GetVar() == nullptr && range.bound.GetConstant() == 0;
+  }
+
+  bool IsEqualZero() const {
+    return rangeType == kEqual && range.bound.GetVar() == nullptr && range.bound.GetConstant() == 0;
   }
 
   bool IsEqual(ValueRange *valueRangeRight);
@@ -286,8 +336,8 @@ class ValueRangePropagation {
   static bool isDebug;
 
   ValueRangePropagation(MeFunction &meFunc, MeIRMap &argIRMap, Dominance &argDom,
-                        IdentifyLoops *argLoops, MemPool &pool, MapleMap<OStIdx, MapleSet<BBId>*> &candsTem,
-                        LoopScalarAnalysisResult &currSA)
+                        IdentifyLoops *argLoops, MemPool &pool,
+                        std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem, LoopScalarAnalysisResult &currSA)
       : func(meFunc), irMap(argIRMap), dom(argDom), memPool(pool), mpAllocator(&pool), loops(argLoops),
         caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
@@ -305,6 +355,18 @@ class ValueRangePropagation {
   bool NeedUpdateSSA() const {
     return needUpdateSSA;
   }
+
+  void SetSafetyNonnullCheck(SafetyCheck &check) {
+    safetyCheckNonnull = &check;
+  }
+
+  void SetSafetyBoundaryCheck(SafetyCheck &check) {
+    safetyCheckBoundary = &check;
+  }
+
+  void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
+      const BB &bb, MeExpr &expr, std::set<MePhiNode*> &visitedPhi, std::vector<MeStmt*> &stmts);
+  bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, MeStmt *meStmt, const MeExpr &boundOpnd, bool updateCaches = true);
 
  private:
   bool IsBiggerThanMaxInt64(ValueRange &valueRange) const;
@@ -473,7 +535,6 @@ class ValueRangePropagation {
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
-  bool DeleteBoundaryCheckWhenBoundIsInvalied(BB &bb, MeStmt &meStmt, MeExpr &boundOpnd);
   bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
@@ -487,7 +548,7 @@ class ValueRangePropagation {
       BB &bb, MeStmt &meStmt, CRAddNode &crAddNode, uint32 &byteSize, MeExpr *lengthExpr,
       ValueRange *valueRangeOfLengthPtr);
   bool DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
-  bool CompareIndexWithUpper(MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
+  bool CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
                              int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op);
   bool GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
                                      MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
@@ -531,7 +592,7 @@ class ValueRangePropagation {
   std::map<MeExpr*, MeExpr*> length2Def;
   std::set<BB*> unreachableBBs;
   std::unordered_map<int32, std::set<int32>> use2Defs;
-  MapleMap<OStIdx, MapleSet<BBId>*> &cands;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands;
   LoopScalarAnalysisResult &sa;
   std::unordered_map<BB*, BB*> loopHead2TrueBranch;
   std::unordered_map<BB*, uint32> newMergeBB2Opnd;
@@ -543,6 +604,8 @@ class ValueRangePropagation {
   bool isCFGChange = false;
   bool needUpdateSSA = false;
   uint32 codeSizeCost = 0;
+  SafetyCheck *safetyCheckNonnull;
+  SafetyCheck *safetyCheckBoundary;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)

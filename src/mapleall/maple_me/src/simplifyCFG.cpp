@@ -188,8 +188,8 @@ static bool MergeEmptyReturnBB(maple::MeFunction &f) {
 class SimplifyCFG {
  public:
   SimplifyCFG(BB *bb, MeFunction &func, Dominance *dominance, MeIRMap *hmap,
-              MapleMap<OStIdx, MapleSet<BBId>*> *candidates, MemPool *mp, MapleAllocator *ma)
-      : currBB(bb), f(func), cfg(func.GetCfg()), dom(dominance), irmap(hmap), cands(candidates), MP(mp), MA(ma) {
+              std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
+      : currBB(bb), f(func), cfg(func.GetCfg()), dom(dominance), irmap(hmap), cands(candidates) {
     (void)dom; // to be use by some optimization, not used now
     (void)irmap;
   }
@@ -202,9 +202,7 @@ class SimplifyCFG {
   MeCFG *cfg = nullptr;     // requiring cfg to find pattern to simplify
   Dominance *dom = nullptr; // some simplification need to check dominance
   MeIRMap *irmap = nullptr; // used to create new MeExpr/MeStmt
-  MapleMap<OStIdx, MapleSet<BBId>*> *cands = nullptr; // candidates ost need to be updated ssa
-  MemPool *MP = nullptr;    // for creating elements to cands
-  MapleAllocator *MA = nullptr; // for creating elements to cands
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to be updated ssa
 
   bool runOnSameBBAgain = false; // It will be always set false by RunIterativelyOnBB. If there is some optimization
                                  // opportunity for currBB after a/some simplification, we should set it true.
@@ -315,13 +313,7 @@ bool SimplifyCFG::CheckCurrBB() {
 }
 
 void SimplifyCFG::UpdateSSACandForOst(OStIdx ostIdx, BB *bb) {
-  if (cands->find(ostIdx) == cands->end()) {
-    MapleSet<BBId> *bbSet = MP->New<MapleSet<BBId>>(std::less<BBId>(), MA->Adapter());
-    bbSet->insert(bb->GetBBId());
-    (*cands)[ostIdx] = bbSet;
-  } else {
-    (*cands)[ostIdx]->insert(bb->GetBBId());
-  }
+  MeSSAUpdate::InsertOstToSSACands(ostIdx, *bb, cands);
 }
 
 void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, BB *newBB) {
@@ -1127,7 +1119,7 @@ bool SimplifyCFG::SkipRedundantCond(BB &pred, BB &succ) {
       // succ has more than one pred, clone all stmts in succ (except last stmt) to a new BB
       DEBUG_LOG() << "Create a new BB" << LOG_BBID(newBB) << ", and copy stmts from BB" << LOG_BBID(&succ) << "\n";
       // this step will create new def version and collect it to ssa updater
-      LoopUnrolling::CopyAndInsertStmt(*irmap, *MP, *MA, *cands, *newBB, succ, true);
+      f.CloneBBMeStmts(succ, *newBB, cands, true);
       // we should update use version in newBB as phiopnds in succ
       // BB succ:
       //  ...    pred(v2 is def here or its pred)              ...               pred(v2 is def here or its pred)
@@ -1850,8 +1842,8 @@ bool SimplifyCFG::RunIterativelyOnBB() {
 class SimplifyFuntionCFG {
  public:
   SimplifyFuntionCFG(maple::MeFunction &func, Dominance *dominance, MeIRMap *hmap,
-                     MapleMap<OStIdx, MapleSet<BBId>*> *candidates, MemPool *mp, MapleAllocator *ma)
-      : f(func), dom(dominance), irmap(hmap), cands(candidates), MP(mp), MA(ma) {}
+                     std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *candidates)
+      : f(func), dom(dominance), irmap(hmap), cands(candidates) {}
 
   bool RunSimplifyOnFunc();
 
@@ -1860,16 +1852,14 @@ class SimplifyFuntionCFG {
   Dominance *dom = nullptr;
   MeIRMap *irmap = nullptr;
 
-  MapleMap<OStIdx, MapleSet<BBId>*> *cands = nullptr; // candidates ost need to update ssa
-  MemPool *MP = nullptr;
-  MapleAllocator *MA = nullptr;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to update ssa
 
   bool RepeatSimplifyFunctionCFG();
   bool SimplifyCFGForBB(BB *currBB);
 };
 
 bool SimplifyFuntionCFG::SimplifyCFGForBB(BB *currBB) {
-  return SimplifyCFG(currBB, f, dom, irmap, cands, MP, MA)
+  return SimplifyCFG(currBB, f, dom, irmap, cands)
       .RunIterativelyOnBB();
 }
 // run until no changes happened
@@ -1944,12 +1934,11 @@ bool MESimplifyCFG::PhaseRun(maple::MeFunction &f) {
   if (debug) {
     f.GetCfg()->DumpToFile("Before_SimplifyCFG");
   }
-  auto *MP = GetPhaseMemPool();
-  MapleAllocator MA = MapleAllocator(MP);
-  MapleMap<OStIdx, MapleSet<BBId>*> cands((std::less<OStIdx>(), MA.Adapter()));
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   uint32 bbNumBefore = f.GetCfg()->ValidBBNum();
   // simplify entry
-  bool change = SimplifyFuntionCFG(f, dom, irmap, &cands, MP, &MA).RunSimplifyOnFunc();
+  bool change = SimplifyFuntionCFG(f, dom, irmap, &cands)
+      .RunSimplifyOnFunc();
   if (change) {
     if (debug) {
       uint32 bbNumAfter = f.GetCfg()->ValidBBNum();
@@ -1965,6 +1954,7 @@ bool MESimplifyCFG::PhaseRun(maple::MeFunction &f) {
     FORCE_INVALID(MEDominance, f);
     dom = FORCE_GET(MEDominance);
     if (!cands.empty()) {
+      auto *MP = GetPhaseMemPool();
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *MP);
       ssaUpdate.Run();
     }

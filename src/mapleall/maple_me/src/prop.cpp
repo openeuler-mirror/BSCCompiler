@@ -39,7 +39,7 @@ Prop::Prop(IRMap &irMap, Dominance &dom, MemPool &memPool, uint32 bbvecsize, con
       vstLiveStackVec(propMapAlloc.Adapter()),
       bbVisited(bbvecsize, false, propMapAlloc.Adapter()),
       config(config),
-      candsForSSAUpdate(propMapAlloc.Adapter()),
+      candsForSSAUpdate(),
       propLimit(limit) {
   const MapleVector<OriginalSt *> &originalStVec = ssaTab.GetOriginalStTable().GetOriginalStVector();
   vstLiveStackVec.resize(originalStVec.size());
@@ -756,7 +756,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     auto *regassign = irMap.CreateAssignMeStmt(*tmpReg, *newRHS, *defStmt->GetBB());
     defStmt->SetRHS(tmpReg);
     defStmt->GetBB()->InsertMeStmtBefore(defStmt, regassign);
-    RecordSSAUpdateCandidate(tmpReg->GetOstIdx(), defStmt->GetBB()->GetBBId());
+    RecordSSAUpdateCandidate(tmpReg->GetOstIdx(), *defStmt->GetBB());
     return *tmpReg;
   }
   return ivarMeExpr;

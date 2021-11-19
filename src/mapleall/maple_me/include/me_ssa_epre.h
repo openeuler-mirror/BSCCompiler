@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +19,8 @@
 #include "me_irmap.h"
 #include "me_cfg.h"
 #include "ssa_epre.h"
-#include "class_hierarchy.h"
+#include "class_hierarchy_phase.h"
+#include "me_ssa_update.h"
 
 namespace maple {
 class MeSSAEPre : public SSAEPre {
@@ -29,7 +30,7 @@ class MeSSAEPre : public SSAEPre {
   explicit MeSSAEPre(MeFunction &func, IRMap &map, Dominance &dom, KlassHierarchy *kh, MemPool &memPool, MemPool &mp2,
                      uint32 limit, bool includeRef, bool epreLocalRefVar, bool lhsIvar)
       : SSAEPre(map, dom, memPool, mp2, kExprPre, limit, includeRef, lhsIvar),
-        candsForSSAUpdate(std::less<OStIdx>(), ssaPreAllocator.Adapter()),
+        candsForSSAUpdate(std::less<OStIdx>()),
         func(&func),
         epreLocalRefVar(epreLocalRefVar),
         klassHierarchy(kh) {}
@@ -39,12 +40,12 @@ class MeSSAEPre : public SSAEPre {
     return true;
   }
 
-  MapleMap<OStIdx, MapleSet<BBId>*> &GetCandsForSSAUpdate() {
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &GetCandsForSSAUpdate() {
     return candsForSSAUpdate;
   }
 
  protected:
-  MapleMap<OStIdx, MapleSet<BBId>*> candsForSSAUpdate;
+  std::map<OStIdx, std::unique_ptr<std::set<BBId>>> candsForSSAUpdate;
   MeFunction *func;
   bool epreLocalRefVar;
   KlassHierarchy *klassHierarchy;
@@ -69,25 +70,10 @@ class MeSSAEPre : public SSAEPre {
   }
 
   void EnterCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) override {
-    if (candsForSSAUpdate.find(ostIdx) == candsForSSAUpdate.end()) {
-      MapleSet<BBId> *bbSet = ssaPreMemPool->New<MapleSet<BBId>>(std::less<BBId>(), ssaPreAllocator.Adapter());
-      (void)bbSet->insert(bb.GetBBId());
-      candsForSSAUpdate[ostIdx] = bbSet;
-    } else {
-      (void)candsForSSAUpdate[ostIdx]->insert(bb.GetBBId());
-    }
+    MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &candsForSSAUpdate);
   }
 };
 
-class MeDoSSAEPre : public MeFuncPhase {
- public:
-  explicit MeDoSSAEPre(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoSSAEPre() = default;
-  AnalysisResult *Run(MeFunction *ir, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "epre";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MESSAEPre, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_MESSAEPRE_H
