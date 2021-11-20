@@ -25,6 +25,7 @@ class ENCChecker {
   ENCChecker() = default;
   ~ENCChecker() = default;
   static bool HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
+  static bool HasNullExpr(const UniqueFEIRExpr &expr);
   static void CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst *cst);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr, std::list<UniqueFEIRStmt> &stmts);
   static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,

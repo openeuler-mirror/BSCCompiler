@@ -44,7 +44,7 @@ void MPLFECompiler::Release() {
   FEUtils::DeleteMempoolPtr(mp);
 }
 
-void MPLFECompiler::Run() {
+int MPLFECompiler::Run() {
   bool success = true;
   Init();
   CheckInput();
@@ -70,8 +70,10 @@ void MPLFECompiler::Run() {
   CHECK_FATAL(success, "Compile Error");
   ExportMpltFile();
   ExportMplFile();
+  int res = FEManager::GetDiagManager().GetDiagRes();
   MPLFEEnv::GetInstance().Finish();
   Release();
+  return res;
 }
 
 void MPLFECompiler::CheckInput() {
