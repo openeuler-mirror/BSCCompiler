@@ -63,6 +63,7 @@ static_library("lib_mplfe_util") {
     "${MPLFE_ROOT}/common/src/fe_utils.cpp",
     "${MPLFE_ROOT}/common/src/fe_utils_ast.cpp",
     "${MPLFE_ROOT}/common/src/fe_utils_java.cpp",
+    "${MPLFE_ROOT}/common/src/fe_diag_manager.cpp",
     "${MPLFE_ROOT}/common/src/feir_builder.cpp",
     "${MPLFE_ROOT}/common/src/feir_dfg.cpp",
     "${MPLFE_ROOT}/common/src/feir_stmt.cpp",
@@ -146,7 +147,6 @@ executable("mplfe") {
     "-lz",
     "-rdynamic",
     "-L${LLVMLIBDIR}/",
-    "-Wl,-rpath,${LLVMLIBDIR}/",
   ]
 }
 

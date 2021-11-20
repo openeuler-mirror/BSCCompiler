@@ -28,6 +28,7 @@
 #include "rc_setter.h"
 #include "fe_utils.h"
 #include "enhance_c_checker.h"
+#include "fe_macros.h"
 
 namespace maple {
 std::string GetFEIRNodeKindDescription(FEIRNodeKind kindArg) {
@@ -331,6 +332,11 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
 void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSymbol &dstSym,
                                             std::list<StmtNode*> &ans) const {
   if (isNonnullChecking && dstSym.GetAttr(ATTR_nonnull)) {
+    if (ENCChecker::HasNullExpr(expr)) {
+      FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+      return;
+    }
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, expr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
@@ -813,9 +819,15 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr == nullptr) {
     return;
   }
-  if (mirBuilder.GetCurrentFunction()->GetAttrs().GetAttr(FUNCATTR_nonnull) &&
-      (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) &&
-      expr->GetPrimType() == PTY_ptr) {
+  if (!mirBuilder.GetCurrentFunction()->GetAttrs().GetAttr(FUNCATTR_nonnull)) {
+    return;
+  }
+  if (ENCChecker::HasNullExpr(expr)) {
+    FE_ERR(kLncErr, "%s:%d error: null returned from function that requires a nonnull return value",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+    return;
+  }
+  if ((expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) && expr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_returnassertnonnull, expr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
@@ -1800,14 +1812,20 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
   if (index >= methodInfo.GetMirFunc()->GetParamSize()) {  // Skip variable parameter
     return;
   }
-  if (methodInfo.GetMirFunc()->GetNthParamAttr(index).GetAttr(ATTR_nonnull)) {
-    if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
-        (expr->GetKind() == kExprIRead && expr->GetFieldID() != 0 && expr->GetPrimType() == PTY_ptr)) {
-      UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(OP_callassertnonnull, expr->Clone(),
-                                                                        funcName, index);
-      std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
-      ans.splice(ans.end(), stmts);
-    }
+  if (!methodInfo.GetMirFunc()->GetNthParamAttr(index).GetAttr(ATTR_nonnull)) {
+    return;
+  }
+  if (ENCChecker::HasNullExpr(expr)) {
+    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, index + 1);
+    return;
+  }
+  if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
+      (expr->GetKind() == kExprIRead && expr->GetFieldID() != 0 && expr->GetPrimType() == PTY_ptr)) {
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(OP_callassertnonnull, expr->Clone(),
+                                                                      funcName, index);
+    std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
+    ans.splice(ans.end(), stmts);
   }
 }
 
@@ -1910,6 +1928,11 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
   for (const auto &expr : exprArgs) {
     ++idx;
     if (idx < 0 || idx >= size || !funcType->GetNthParamAttrs(idx).GetAttr(ATTR_nonnull)) {
+      continue;
+    }
+    if (ENCChecker::HasNullExpr(expr)) {
+      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, idx + 1);
       continue;
     }
     if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
@@ -3971,6 +3994,44 @@ std::string FEIRStmtPesudoCatch2::DumpDotStringImpl() const {
   return ss.str();
 }
 
+FEIRStmtPesudoSafe::FEIRStmtPesudoSafe(bool isEnd)
+    : FEIRStmt(kStmtPesudoSafe), end(isEnd) {}
+
+std::list<StmtNode*> FEIRStmtPesudoSafe::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
+  std::list<StmtNode*> ans;
+  MemPool *mp = mirBuilder.GetCurrentFuncCodeMp();
+  ASSERT(mp != nullptr, "mempool is nullptr");
+  Opcode op = end ? OP_endsafe : OP_safe;
+  StmtNode *stmt = mp->New<StmtNode>(op);
+  ans.push_back(stmt);
+  return ans;
+}
+
+std::string FEIRStmtPesudoSafe::DumpDotStringImpl() const {
+  std::stringstream ss;
+  ss << "<stmt" << id << "> " << id << ": " << GetFEIRNodeKindDescription(kind);
+  return ss.str();
+}
+
+FEIRStmtPesudoUnsafe::FEIRStmtPesudoUnsafe(bool isEnd)
+    : FEIRStmt(kStmtPesudoUnsafe), end(isEnd) {}
+
+std::list<StmtNode*> FEIRStmtPesudoUnsafe::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
+  std::list<StmtNode*> ans;
+  MemPool *mp = mirBuilder.GetCurrentFuncCodeMp();
+  ASSERT(mp != nullptr, "mempool is nullptr");
+  Opcode op = end ? OP_endunsafe : OP_unsafe;
+  StmtNode *stmt = mp->New<StmtNode>(op);
+  ans.push_back(stmt);
+  return ans;
+}
+
+std::string FEIRStmtPesudoUnsafe::DumpDotStringImpl() const {
+  std::stringstream ss;
+  ss << "<stmt" << id << "> " << id << ": " << GetFEIRNodeKindDescription(kind);
+  return ss.str();
+}
+
 // ---------- FEIRStmtPesudoComment ----------
 FEIRStmtPesudoComment::FEIRStmtPesudoComment(FEIRNodeKind argKind)
     : FEIRStmt(argKind) {
@@ -4042,6 +4103,11 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &bas
   FieldID tmpID = fieldID;
   FieldPair fieldPair = static_cast<MIRStructType&>(baseType).TraverseToFieldRef(tmpID);
   if (fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
+    if (ENCChecker::HasNullExpr(baseExpr)) {
+      FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+      return;
+    }
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, baseExpr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);

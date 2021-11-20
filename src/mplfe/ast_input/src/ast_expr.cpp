@@ -2086,6 +2086,10 @@ bool ASTAssignExpr::IsInsertNonnullChecking(const UniqueFEIRExpr &rExpr) const {
       (rExpr->GetKind() == kExprIRead && rExpr->GetFieldID() != 0 && rExpr->GetPrimType() == PTY_ptr)) {
     return true;
   }
+  // The Rvalue is NULL
+  if (ENCChecker::HasNullExpr(rExpr)) {
+    return true;
+  }
   return false;
 }
 

@@ -26,7 +26,6 @@
 #include "ark_annotation_processor.h"
 #include "dex_reader.h"
 #include "ast_compiler_component.h"
-#include "fe_errno.h"
 #include "mpl_timer.h"
 #include "mplfe_env.h"
 #include "fe_manager.h"
@@ -38,7 +37,7 @@ class MPLFECompiler {
   explicit MPLFECompiler(MIRModule &argModule);
   ~MPLFECompiler();
   // common process
-  void Run();
+  int Run();
   void Init();
   void Release();
   void CheckInput();
