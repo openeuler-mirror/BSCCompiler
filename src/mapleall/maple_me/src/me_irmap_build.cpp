@@ -47,6 +47,7 @@ bool MEIRMapBuild::PhaseRun(maple::MeFunction &f) {
     // create propgation
     propMp = ApplyTempMemPool();
     MeProp meprop(*irMap, *dom, *propMp, Prop::PropConfig{false, false, false, false, false, false, false});
+    meprop.isLfo = f.IsLfo();
     IRMapBuild irmapbuild(irMap, dom, &meprop);
     std::vector<bool> bbIrmapProcessed(cfg->NumBBs(), false);
     irmapbuild.BuildBB(*cfg->GetCommonEntryBB(), bbIrmapProcessed);

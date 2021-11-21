@@ -24,12 +24,12 @@
 namespace maple {
 void PregRenamer::RunSelf() {
   // BFS the graph of register phi node;
-  const MapleVector<MeExpr *> &regmeexprtable = meirmap->GetVerst2MeExprTable();
-  MIRPregTable *pregtab = func->GetMirFunc()->GetPregTab();
-  std::vector<bool> firstappeartable(pregtab->GetPregTable().size());
+  const MapleVector<MeExpr *> &regMeExprTable = meirmap->GetVerst2MeExprTable();
+  MIRPregTable *pregTab = func->GetMirFunc()->GetPregTab();
+  std::vector<bool> firstAppearTable(pregTab->GetPregTable().size());
   uint32 renameCount = 0;
-  UnionFind unionFind(*mp, regmeexprtable.size());
-  auto cfg = func->GetCfg();
+  UnionFind unionFind(*mp, regMeExprTable.size());
+  auto *cfg = func->GetCfg();
   // iterate all the bbs' phi to setup the union
   for (BB *bb : cfg->GetAllBBs()) {
     if (bb == nullptr || bb == cfg->GetCommonEntryBB() || bb == cfg->GetCommonExitBB()) {
@@ -44,6 +44,9 @@ void PregRenamer::RunSelf() {
       if (!ost->IsPregOst()) { // only handle reg phi
         continue;
       }
+      if (ost->GetIndirectLev() != 0) {
+        continue;
+      }
       MePhiNode *meRegPhi = it->second;
       size_t vstIdx = meRegPhi->GetLHS()->GetVstIdx();
       size_t nOpnds = meRegPhi->GetOpnds().size();
@@ -53,26 +56,29 @@ void PregRenamer::RunSelf() {
     }
   }
   std::map<uint32, std::vector<uint32> > root2childrenMap;
-  for (uint32 i = 0; i < regmeexprtable.size(); ++i) {
-    MeExpr *meexpr = regmeexprtable[i];
-    if (!meexpr || meexpr->GetMeOp() != kMeOpReg)
+  for (uint32 i = 0; i < regMeExprTable.size(); ++i) {
+    MeExpr *meExpr = regMeExprTable[i];
+    if (meExpr == nullptr || meExpr->GetMeOp() != kMeOpReg)
       continue;
-    RegMeExpr *regmeexpr = static_cast<RegMeExpr *> (meexpr);
-    if (regmeexpr->GetRegIdx() < 0) {
+    auto *regMeExpr = static_cast<RegMeExpr*> (meExpr);
+    if (regMeExpr->GetRegIdx() < 0) {
       continue;  // special register
     }
-    if (PrimitiveType(regmeexpr->GetPrimType()).IsVector()) {
+    if (PrimitiveType(regMeExpr->GetPrimType()).IsVector()) {
       // can be removed after mplbe support this
       continue;
     }
-    uint32 rootVstidx = unionFind.Root(i);
+    if (regMeExpr->GetOst()->GetIndirectLev() != 0) {
+      continue;
+    }
+    uint32 rootVstIdx = unionFind.Root(i);
 
-    auto mpit = root2childrenMap.find(rootVstidx);
-    if (mpit == root2childrenMap.end()) {
+    auto mpIt = root2childrenMap.find(rootVstIdx);
+    if (mpIt == root2childrenMap.end()) {
       std::vector<uint32> vec(1, i);
-      root2childrenMap[rootVstidx] = vec;
+      root2childrenMap[rootVstIdx] = vec;
     } else {
-      std::vector<uint32> &vec = mpit->second;
+      std::vector<uint32> &vec = mpIt->second;
       vec.push_back(i);
     }
   }
@@ -82,10 +88,10 @@ void PregRenamer::RunSelf() {
     bool isIntryOrZerov = false; // in try block or zero version
     for (uint32 i = 0; i < vec.size(); ++i) {
       uint32 vstIdx = vec[i];
-      ASSERT(vstIdx < regmeexprtable.size(), "over size");
-      RegMeExpr *tregMeexpr = static_cast<RegMeExpr *> (regmeexprtable[vstIdx]);
-      if (tregMeexpr->GetDefBy() == kDefByNo ||
-          tregMeexpr->DefByBB()->GetAttributes(kBBAttrIsTry)) {
+      ASSERT(vstIdx < regMeExprTable.size(), "over size");
+      auto *tregMeExpr = static_cast<RegMeExpr*>(regMeExprTable[vstIdx]);
+      if (tregMeExpr->GetDefBy() == kDefByNo ||
+          tregMeExpr->DefByBB()->GetAttributes(kBBAttrIsTry)) {
         isIntryOrZerov = true;
         break;
       }
@@ -93,35 +99,71 @@ void PregRenamer::RunSelf() {
     if (isIntryOrZerov) {
       continue;
     }
+
+    if (vec.size() == 1) { // if by itself, make sure it is live
+      uint32 vstIdx = it->first;
+      RegMeExpr *regMeExpr = static_cast<RegMeExpr*>(regMeExprTable[vstIdx]);
+      if (regMeExpr->GetDefBy() == kDefByNo) {
+        continue;  // will not rename if there is no def
+      }
+      if (regMeExpr->GetDefBy() == kDefByPhi) {
+        MePhiNode *defPhi = &regMeExpr->GetDefPhi();
+        if (!defPhi->GetIsLive()) {
+          continue;
+        }
+      } else if (regMeExpr->GetDefBy() == kDefByStmt) {
+        MeStmt *defStmt = regMeExpr->GetDefStmt();
+        if (defStmt == nullptr || !defStmt->GetIsLive()) {
+          continue;
+        }
+      } else if (regMeExpr->GetDefBy() == kDefByMustDef) {
+        MustDefMeNode *mustDef = &regMeExpr->GetDefMustDef();
+        if (!mustDef->GetIsLive()) {
+          continue;
+        }
+      } else {
+        continue;
+      }
+    }
+
     // get all the nodes in candidates the same register
-    RegMeExpr *regMeexpr = static_cast<RegMeExpr *>(regmeexprtable[it->first]);
-    PregIdx newpregidx = regMeexpr->GetRegIdx();
-    ASSERT(static_cast<uint32>(newpregidx) < firstappeartable.size(), "oversize ");
-    if (!firstappeartable[newpregidx]) {
+    auto *regMeexpr = static_cast<RegMeExpr*>(regMeExprTable[it->first]);
+    PregIdx oldPredIdx = regMeexpr->GetRegIdx();
+    ASSERT(static_cast<uint32>(oldPredIdx) < firstAppearTable.size(), "oversize ");
+    if (!firstAppearTable[oldPredIdx]) {
       // use the previous register
-      firstappeartable[newpregidx] = true;
+      firstAppearTable[oldPredIdx] = true;
       continue;
     }
-    newpregidx = pregtab->ClonePreg(*pregtab->PregFromPregIdx(regMeexpr->GetRegIdx()));
-    OriginalSt *newost =
-        func->GetMeSSATab()->GetOriginalStTable().CreatePregOriginalSt(newpregidx, func->GetMirFunc()->GetPuidx());
+    PregIdx newPregIdx = pregTab->ClonePreg(*pregTab->PregFromPregIdx(oldPredIdx));
+    OriginalStTable &ostTab = func->GetMeSSATab()->GetOriginalStTable();
+    // no need to find here, because the newPregIdx is the newest
+    OriginalSt *newOst = ostTab.CreatePregOriginalSt(newPregIdx, func->GetMirFunc()->GetPuidx());
     renameCount++;
-    MIRPreg *oldpreg = func->GetMirFunc()->GetPregTab()->PregFromPregIdx(regMeexpr->GetRegIdx());
-    if (oldpreg->GetOp() != OP_undef) {
+    MIRPreg *oldPreg = pregTab->PregFromPregIdx(oldPredIdx);
+    if (oldPreg->GetOp() != OP_undef) {
       // carry over fields in MIRPreg to support rematerialization
-      MIRPreg *newpreg = func->GetMirFunc()->GetPregTab()->PregFromPregIdx(newpregidx);
-      newpreg->SetOp(oldpreg->GetOp());
-      newpreg->rematInfo = oldpreg->rematInfo;
-      newpreg->fieldID = oldpreg->fieldID;
+      MIRPreg *newPreg = pregTab->PregFromPregIdx(newPregIdx);
+      newPreg->SetOp(oldPreg->GetOp());
+      newPreg->rematInfo = oldPreg->rematInfo;
+      newPreg->fieldID = oldPreg->fieldID;
     }
     if (DEBUGFUNC(func)) {
-      LogInfo::MapleLogger() << "%" << pregtab->PregFromPregIdx(regMeexpr->GetRegIdx())->GetPregNo();
-      LogInfo::MapleLogger() << " renamed to %" << pregtab->PregFromPregIdx(newpregidx)->GetPregNo() << std::endl;
+      LogInfo::MapleLogger() << "%" << pregTab->PregFromPregIdx(regMeexpr->GetRegIdx())->GetPregNo();
+      LogInfo::MapleLogger() << " renamed to %" << pregTab->PregFromPregIdx(newPregIdx)->GetPregNo() << std::endl;
     }
     // reneme all the register
     for (uint32 i = 0; i < vec.size(); ++i) {
-      RegMeExpr *canregnode =  static_cast<RegMeExpr *> (regmeexprtable[vec[i]]);
-      canregnode->SetOst(newost);  // rename it to a new register
+      auto *canRegNode =  static_cast<RegMeExpr*> (regMeExprTable[vec[i]]);
+      canRegNode->SetOst(newOst);  // rename it to a new register
+      if (canRegNode->IsDefByPhi()) {
+        // update philist key with new ost index
+        MePhiNode &phiNode = canRegNode->GetDefPhi();
+        BB *bb = phiNode.GetDefBB();
+        OriginalSt *oldOst = ostTab.FindOrCreatePregOriginalSt(oldPredIdx, func->GetMirFunc()->GetPuidx());
+        bb->GetMePhiList().erase(oldOst->GetIndex());
+        bb->GetMePhiList().emplace(newOst->GetIndex(), &phiNode);
+      }
     }
   }
 }
