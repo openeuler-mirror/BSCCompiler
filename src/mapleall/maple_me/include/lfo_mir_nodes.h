@@ -30,9 +30,11 @@ class LfoPart {
   LfoPart (BaseNode *p) : parent(p), meexpr(nullptr) {}
   LfoPart (BaseNode *p, MeExpr *expr) : parent(p), meexpr(expr) {}
   LfoPart (BaseNode *p, MeStmt *stmt) : parent(p), mestmt(stmt) {}
+  virtual ~LfoPart() = default;
   BaseNode *GetParent() { return parent; }
   MeExpr *GetMeExpr()   { return meexpr; }
   MeStmt *GetMeStmt()   { return mestmt; }
+  void SetParent(BaseNode *p) { parent = p; }
 };
 }  // namespace maple
 #endif  // MAPLE_LFO_INCLUDE_LFO_MIR_NODES_H_

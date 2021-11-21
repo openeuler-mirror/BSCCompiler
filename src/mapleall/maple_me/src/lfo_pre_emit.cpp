@@ -69,6 +69,13 @@ ArrayNode *LfoPreEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
   arryNode->GetNopnd().push_back(indexOpnd);
   arryNode->SetNumOpnds(2);
   lfoExprParts[arryNode] = lfoExprParts[x];
+  // update opnds' parent info if it has
+  if (lfoExprParts[opnd0]) {
+    lfoExprParts[opnd0]->SetParent(arryNode);
+  }
+  if (lfoExprParts[indexOpnd]) {
+    lfoExprParts[indexOpnd]->SetParent(arryNode);
+  }
   return arryNode;
 }
 
