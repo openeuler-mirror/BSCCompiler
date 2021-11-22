@@ -58,12 +58,12 @@ bool MEAutoVectorization::PhaseRun(MeFunction &f) {
     }
   }
 
-  // lower lfoIR for other mapleme phases
-  MIRLower mirlowerer(f.GetMIRModule(), f.GetMirFunc());
-  mirlowerer.SetLowerME();
-  mirlowerer.SetLowerExpandArray();
-  mirlowerer.LowerFunc(*(f.GetMirFunc()));
-
+  // invalid irmap
+  //  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEIRMapBuild::id);
+  GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
+  f.SetMeSSATab(nullptr);
+  f.SetIRMap(nullptr);
+  f.SetTheCfg(nullptr);
   return false;
 }
 

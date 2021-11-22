@@ -172,6 +172,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 hpropRunsLimit;
   static uint32 sinkLimit;
   static uint32 sinkPULimit;
+  static uint32 vecLoopLimit;
   static bool loopVec;
   static bool seqVec;
   static uint8 rematLevel;
@@ -179,6 +180,7 @@ class MeOption : public MapleDriverOptionBase {
 // safety check option begin
   static SafetyCheckMode npeCheckMode;
   static SafetyCheckMode boundaryCheckMode;
+  static bool safeRegionMode;
 // safety check option end
 #if MIR_JAVA
   static std::string acquireFuncName;
