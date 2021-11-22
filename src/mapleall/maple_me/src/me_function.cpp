@@ -50,6 +50,10 @@ void MeFunction::PartialInit() {
 }
 
 void MeFunction::DumpFunction() const {
+  if (theCFG == nullptr) {
+    mirFunc->Dump(false);
+    return;
+  }
   if (meSSATab == nullptr) {
     LogInfo::MapleLogger() << "no ssa info, just dump simpfunction\n";
     DumpFunctionNoSSA();
