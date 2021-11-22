@@ -871,7 +871,12 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
           BaseNode *vecn2 = i < vecopnd2.size() ? vecopnd2[i] : vecopnd2[0];
           newbin->SetOpnd(vecn1, 0);
           newbin->SetOpnd(vecn2, 1);
-          newbin->SetPrimType(vecn1->GetPrimType()); // update primtype of binary op with opnd's type
+          if (GetVecLanes(vecn1->GetPrimType()) > 0) {
+            newbin->SetPrimType(vecn1->GetPrimType()); // update primtype of binary op with opnd's type
+          } else {
+            CHECK_FATAL(GetVecLanes(vecn2->GetPrimType()) > 0, "opnd2 should be vectype since opnd1 is scalar");
+            newbin->SetPrimType(vecn2->GetPrimType()); // update primtype of binary op with opnd's type
+          }
           vectorizedNode.push_back(newbin);
         }
       }
