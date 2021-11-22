@@ -773,6 +773,18 @@ class CGOptions : public MapleDriverOptionBase {
     return doPeephole;
   }
 
+  static void EnableRetMerge() {
+    doRetMerge = true;
+  }
+
+  static void DisableRetMerge() {
+    doRetMerge = false;
+  }
+
+  static bool DoRetMerge() {
+    return doRetMerge;
+  }
+
   static void EnablePreSchedule() {
     doPreSchedule = true;
   }
@@ -1155,6 +1167,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool doMultiPassColorRA;
   static bool doPrePeephole;
   static bool doPeephole;
+  static bool doRetMerge;
   static bool doSchedule;
   static bool doAlignAnalysis;
   static bool doWriteRefFieldOpt;

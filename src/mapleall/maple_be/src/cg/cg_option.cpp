@@ -70,6 +70,7 @@ bool CGOptions::doVregRename = false;
 bool CGOptions::doMultiPassColorRA = true;
 bool CGOptions::doPrePeephole = false;
 bool CGOptions::doPeephole = false;
+bool CGOptions::doRetMerge = false;
 bool CGOptions::doSchedule = false;
 bool CGOptions::doWriteRefFieldOpt = false;
 bool CGOptions::dumpOptimizeCommonLog = false;
@@ -126,6 +127,7 @@ enum OptionIndex : uint64 {
   kPeep,
   kPreSchedule,
   kSchedule,
+  kRetMerge,
   kVregRename,
   kMultiPassRA,
   kWriteRefFieldOpt,
@@ -430,6 +432,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --schedule                  \tPerform scheduling\n"
     "  --no-schedule\n",
+    "mplcg",
+    {} },
+  { kRetMerge,
+    kEnable,
+    "",
+    "ret-merge",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --ret-merge                 \tMerge return bb into a single destination\n"
+    "  --no-ret-merge              \tallows for multiple return bb\n",
     "mplcg",
     {} },
   { kVregRename,
@@ -1387,6 +1399,9 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kPeep:
         (opt.Type() == kEnable) ? EnablePeephole() : DisablePeephole();
+        break;
+      case kRetMerge:
+        (opt.Type() == kEnable) ? EnableRetMerge() : DisableRetMerge();
         break;
       case kPreSchedule:
         (opt.Type() == kEnable) ? EnablePreSchedule() : DisablePreSchedule();
