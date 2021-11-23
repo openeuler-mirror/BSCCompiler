@@ -118,6 +118,7 @@ class Prop {
  public:
   uint32 propLimit;
   uint32 propsPerformed = 0;    // count number of copy propagations performed
+  bool isLfo = false;           // true during LFO phases 
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_PROP_H

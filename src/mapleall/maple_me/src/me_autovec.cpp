@@ -18,6 +18,7 @@
 #include "mir_module.h"
 #include "mir_lower.h"
 #include "mir_builder.h"
+#include "me_loop_analysis.h"
 #include "me_autovec.h"
 #include "lfo_loop_vec.h"
 #include "seqvec.h"
@@ -58,17 +59,14 @@ bool MEAutoVectorization::PhaseRun(MeFunction &f) {
     }
   }
 
-  // invalid irmap
-  //  GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEIRMapBuild::id);
-  GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
-  f.SetMeSSATab(nullptr);
-  f.SetIRMap(nullptr);
-  f.SetTheCfg(nullptr);
   return false;
 }
 
 void MEAutoVectorization::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MELfoPreEmission>();
   aDep.AddRequired<MELfoDepTest>();
+  aDep.PreservedAllExcept<MEMeCfg>();
+  aDep.PreservedAllExcept<MEDominance>();
+  aDep.PreservedAllExcept<MELoopAnalysis>();
 }
 }  // namespace maple
