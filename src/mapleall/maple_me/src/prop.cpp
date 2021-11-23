@@ -743,7 +743,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
     propsPerformed++;
     return *CheckTruncation(&ivarMeExpr, &rhs);
   }
-  if (mirModule.IsCModule() && ivarMeExpr.GetPrimType() != PTY_agg) {
+  if (!isLfo && mirModule.IsCModule() && ivarMeExpr.GetPrimType() != PTY_agg) {
     auto *tmpReg = irMap.CreateRegMeExpr(ivarMeExpr);
 
     // create new verstStack for new RegMeExpr
