@@ -14,6 +14,7 @@
  */
 #include "mir_lower.h"
 #include "constantfold.h"
+#include "ext_constantfold.h"
 
 #define DO_LT_0_CHECK 1
 
@@ -241,7 +242,7 @@ static bool ConsecutiveCaseValsAndSameTarget(const CaseVector *switchTable) {
   return true;
 }
 
-// if there is only 1 case branch, replace with conditional branch(es) and 
+// if there is only 1 case branch, replace with conditional branch(es) and
 // return the optimized multiple statements; otherwise, return nullptr
 BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   CaseVector *switchTable = &switchNode->GetSwitchTable();
@@ -268,7 +269,7 @@ BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   if (minCaseVal == maxCaseVal) {
     // brtrue (x == minCaseVal) @case_goto_label
     // goto @default_label
-    CompareNode *eqNode = builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *eqNode = builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
     CondGotoNode *condGoto = builder->CreateStmtCondGoto(eqNode, OP_brtrue, caseGotoLabel);
     blk->AddStatement(condGoto);
@@ -278,11 +279,11 @@ BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
     // brtrue (x < minCaseVal) @default_label
     // brtrue (x > maxCaseVal) @default_label
     // goto @case_goto_label
-    CompareNode *ltNode = builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *ltNode = builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
     CondGotoNode *condGoto = builder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabel);
     blk->AddStatement(condGoto);
-    CompareNode *gtNode = builder->CreateExprCompare(OP_gt, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *gtNode = builder->CreateExprCompare(OP_gt, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, maxCaseNode);
     condGoto = builder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabel);
     blk->AddStatement(condGoto);
@@ -560,6 +561,11 @@ do {
 }
 
 void MIRLower::LowerFunc(MIRFunction &func) {
+  if (GetOptLevel() > 0) {
+    ExtConstantFold ecf(func.GetModule());
+    (void)ecf.ExtSimplify(func.GetBody());;
+  }
+
   mirModule.SetCurFunction(&func);
   if (IsLowerExpandArray()) {
     ExpandArrayMrt(func);

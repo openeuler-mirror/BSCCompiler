@@ -201,6 +201,10 @@ class BaseNode : public BaseNodeT {
   virtual bool IsSSANode() const {
     return false;
   }
+
+  virtual bool IsSameContent(BaseNode* node) const {
+    return false;
+  }
 };
 
 class UnaryNode : public BaseNode {
@@ -248,6 +252,8 @@ class UnaryNode : public BaseNode {
     return true;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
+
  private:
   BaseNode *uOpnd = nullptr;
 };
@@ -283,6 +289,8 @@ class TypeCvtNode : public UnaryNode {
   void SetFromType(PrimType from) {
     fromPrimType = from;
   }
+
+  bool IsSameContent(BaseNode* node) const override;
 
  private:
   PrimType fromPrimType = kPtyInvalid;
@@ -489,6 +497,8 @@ class IreadNode : public UnaryNode {
     fieldID = fieldIDVal;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
+
   // the base of an address expr is either a leaf or an iread
   BaseNode &GetAddrExprBase() const {
     BaseNode *base = Opnd(0);
@@ -537,6 +547,8 @@ class IreadoffNode : public UnaryNode {
     offset = offsetValue;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
+
  private:
   int32 offset = 0;
 };
@@ -564,6 +576,8 @@ class IreadFPoffNode : public BaseNode {
   void SetOffset(int32 offsetValue) {
     offset = offsetValue;
   }
+
+  bool IsSameContent(BaseNode* node) const override;
 
  private:
   int32 offset = 0;
@@ -597,6 +611,8 @@ class BinaryOpnds {
     CHECK_FATAL(i < kOperandNumBinary, "Invalid operand idx in BinaryOpnds");
     bOpnd[i] = node;
   }
+
+  bool IsSameContent(BaseNode* node) const;
 
  private:
   BaseNode *bOpnd[kOperandNumBinary];
@@ -662,6 +678,7 @@ class BinaryNode : public BaseNode, public BinaryOpnds {
   bool IsBinaryNode() const override {
     return true;
   }
+  bool IsSameContent(BaseNode* node) const override;
 };
 
 class CompareNode : public BinaryNode {
@@ -1024,6 +1041,7 @@ class ConstvalNode : public BaseNode {
     constVal = val;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
  private:
   MIRConst *constVal = nullptr;
 };
@@ -1279,6 +1297,8 @@ class AddrofNode : public BaseNode {
   }
 
   bool IsVolatile(const MIRModule &mod) const;
+
+  bool IsSameContent(BaseNode* node) const override;
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
@@ -1302,6 +1322,9 @@ class DreadoffNode : public BaseNode {
   }
 
   bool IsVolatile(const MIRModule &mod) const;
+
+  bool IsSameContent(BaseNode* node) const override;
+
  public:
   StIdx stIdx;
   int32 offset = 0;
@@ -1336,6 +1359,7 @@ class RegreadNode : public BaseNode {
     regIdx = reg;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
  private:
   PregIdx regIdx = 0;  // 32bit, negative if special register
 };
@@ -1363,6 +1387,7 @@ class AddroffuncNode : public BaseNode {
     puIdx = puIdxValue;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
  private:
   PUIdx puIdx = 0;  // 32bit now
 };
@@ -1390,6 +1415,7 @@ class AddroflabelNode : public BaseNode {
     offset = offsetValue;
   }
 
+  bool IsSameContent(BaseNode* node) const override;
  private:
   LabelIdx offset = 0;
 };
@@ -1468,6 +1494,10 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     return stmtOriginalID;
   }
 
+  void SetOriginalID(uint32 id) {
+    stmtOriginalID = id;
+  }
+
   StmtNode *GetRealNext() const;
 
   virtual BaseNode *GetRHS() const {
@@ -1490,6 +1520,10 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     stmtAttrs.SetAttr(STMTATTR_insaferegion);
   }
 
+  void CopySafeRegionAttr(const StmtAttrs &stmtAttrs) {
+    this->stmtAttrs.AppendAttr(stmtAttrs.GetTargetAttrFlag(STMTATTR_insaferegion));
+  }
+
   const StmtAttrs &GetStmtAttrs() const {
     return stmtAttrs;
   }
@@ -1499,7 +1533,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
  private:
   uint32 stmtID;  // a unique ID assigned to it
-  const uint32 stmtOriginalID; // first define id, no change when clone
+  uint32 stmtOriginalID; // first define id, no change when clone, need copy when emit from MeStmt
   mutable bool isLive = false;  // only used for dse to save compile time
                                 // mutable to keep const-ness at most situation
   StmtAttrs stmtAttrs;
