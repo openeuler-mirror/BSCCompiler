@@ -355,6 +355,20 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet
       tmpInsn = tmpInsn->GetNext();
     }
   } else {
+    regno_t defRegno = static_cast<AArch64RegOperand&>(defInsn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+    if (defRegno == replaceRegNo) {
+      uint32 defLoopId = 0;
+      uint32 curLoopId = 0;
+      if (defInsn.GetBB()->GetLoop()) {
+        defLoopId = defInsn.GetBB()->GetLoop()->GetHeader()->GetId();
+      }
+      if (currInsn.GetBB()->GetLoop()) {
+        curLoopId = currInsn.GetBB()->GetLoop()->GetHeader()->GetId();
+      }
+      if (defLoopId != curLoopId) {
+        return false;
+      }
+    }
     AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
     if (a64RD->HasRegDefBetweenInsnGlobal(replaceRegNo, defInsn, currInsn)) {
       return false;
