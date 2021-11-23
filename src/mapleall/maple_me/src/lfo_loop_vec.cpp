@@ -143,7 +143,9 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
   vecLanes = MAX_VECTOR_LENGTH_SIZE / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
   // return false if small type has no builtin vector type
-  if (vecFactor * vecInfo->smallestTypeSize < 64) return false;
+  if (vecFactor * vecInfo->smallestTypeSize < 64) {
+    return false;
+  }
   // compare trip count if lanes is larger than tripcount
   {
     BaseNode *initNode = doloop->GetStartExpr();
@@ -532,7 +534,7 @@ IntrinsicopNode *LoopVectorization::GenVectorGetLow(BaseNode *vecNode, PrimType 
 
 // vector add long oper0 and oper1 have same types
 IntrinsicopNode *LoopVectorization::GenVectorWidenAdd(BaseNode *oper0,
-  BaseNode *oper1, PrimType op1Type, bool highPart) {
+    BaseNode *oper1, PrimType op1Type, bool highPart) {
   MIRIntrinsicID intrnID = INTRN_vector_addw_low_v8i8;
   MIRType *resType = nullptr;
   switch (op1Type) {
@@ -582,7 +584,7 @@ IntrinsicopNode *LoopVectorization::GenVectorWidenAdd(BaseNode *oper0,
 
 // Subtract Long
 IntrinsicopNode *LoopVectorization::GenVectorSubLong(BaseNode *oper0,
-  BaseNode *oper1, PrimType op1Type, bool highPart) {
+    BaseNode *oper1, PrimType op1Type, bool highPart) {
   MIRIntrinsicID intrnID = INTRN_vector_subl_low_v8i8;
   MIRType *resType = nullptr;
   switch (op1Type) {
@@ -678,7 +680,7 @@ IntrinsicopNode *LoopVectorization::GenWidenOpndIntrn(BaseNode *opnd, PrimType v
 }
 
 IntrinsicopNode *LoopVectorization::GenVectorWidenIntrn(BaseNode *oper0,
-  BaseNode *oper1, PrimType opndType, bool highPart, Opcode op) {
+    BaseNode *oper1, PrimType opndType, bool highPart, Opcode op) {
   if (op == OP_add) {
     return GenVectorWidenAdd(oper0, oper1, opndType, highPart);
   } else if (op == OP_sub) {
@@ -690,10 +692,14 @@ IntrinsicopNode *LoopVectorization::GenVectorWidenIntrn(BaseNode *oper0,
 
 bool LoopVectorization::CanWidenOpcode(BaseNode *target, PrimType opndType) {
   if ((target->GetPrimType() == opndType) ||
-      (GetPrimTypeSize(target->GetPrimType()) < GetPrimTypeSize(opndType))) return false;
+      (GetPrimTypeSize(target->GetPrimType()) < GetPrimTypeSize(opndType))) {
+        return false;
+      }
   Opcode op = target->GetOpCode();
   // we have add/sub widen intrinsic now
-  if (op == OP_sub || op == OP_add) return true;
+  if (op == OP_sub || op == OP_add) {
+    return true;
+  }
   // no other widen intrins supported now
   return false;
 }
@@ -715,8 +721,10 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
     if ((GetPrimTypeSize(opnd0PrimType) * 8) == MAX_VECTOR_LENGTH_SIZE) {
       IntrinsicopNode *getLowop0Intrn = GenVectorGetLow(opnd0, opnd0PrimType);
       IntrinsicopNode *getLowop1Intrn = GenVectorGetLow(opnd1, opnd1PrimType);
-      IntrinsicopNode *widenOpLow = GenVectorWidenIntrn(getLowop0Intrn, getLowop1Intrn, getLowop0Intrn->GetPrimType(), false, binOp);
-      IntrinsicopNode *widenOpHigh = GenVectorWidenIntrn(opnd0, opnd1, getLowop0Intrn->GetPrimType(), true /*high part*/, binOp);
+      IntrinsicopNode *widenOpLow = GenVectorWidenIntrn(getLowop0Intrn, getLowop1Intrn, getLowop0Intrn->GetPrimType(),
+          false, binOp);
+      IntrinsicopNode *widenOpHigh = GenVectorWidenIntrn(opnd0, opnd1, getLowop0Intrn->GetPrimType(),
+          true /*high part*/, binOp);
       vectorizedNode.push_back(widenOpLow);
       vectorizedNode.push_back(widenOpHigh);
     } else {
@@ -729,8 +737,8 @@ void LoopVectorization::GenWidenBinaryExpr(Opcode binOp,
 
 // insert retype/cvt if sign/unsign
 BaseNode *LoopVectorization::ConvertNodeType(bool cvtSigned, BaseNode* n) {
-  MIRType* opcodetype;
-  MIRType* nodetype = GenVecType(GetVecElemPrimType(n->GetPrimType()), GetVecLanes(n->GetPrimType()));
+  MIRType *opcodetype = nullptr;
+  MIRType *nodetype = GenVecType(GetVecElemPrimType(n->GetPrimType()), GetVecLanes(n->GetPrimType()));
   if (cvtSigned) {
     opcodetype = GenVecType(GetSignedPrimType(GetVecElemPrimType(n->GetPrimType())), GetVecLanes(n->GetPrimType()));
   } else {
@@ -763,7 +771,8 @@ RegreadNode *LoopVectorization::GenVectorRedVarInit(StIdx redStIdx, LoopTransPla
   return regReadlhsvec;
 }
 
-void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *>& vectorizedNode, uint32_t depth) {
+void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVector<BaseNode *>& vectorizedNode,
+    uint32_t depth) {
   switch (node->GetOpCode()) {
     case OP_iread: {
       IreadNode *ireadnode = static_cast<IreadNode *>(node);
@@ -785,7 +794,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       }
       PrimType optype = node->GetPrimType();
       node->SetPrimType(vecType->GetPrimType());
-      if ((depth == 0 && (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType())))) &&
+      if ((depth == 0) &&
           ((GetPrimTypeSize(optype) / GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) > 2)) {
         // widen node type: split two nodes
         if (GetPrimTypeSize(vecType->GetPrimType()) == 16) {
@@ -852,7 +861,6 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       // widen instruction (addl/subl) need two operands with same vectype
       if ((PTY_begin != GetVecElemPrimType(opnd0PrimType)) &&
           (PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
-          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd0PrimType))) &&
           CanWidenOpcode(node, GetVecElemPrimType(opnd0PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
       } else {
@@ -936,7 +944,6 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
       MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
       MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
-      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
       ASSERT(lhsvecType != nullptr, "vector type should not be null");
       MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
       // update lhs type
@@ -972,50 +979,59 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       //  sum = sum +/- intrinsic_op vec_sum(t1)
       DassignNode *dassign = static_cast<DassignNode *>(node);
       MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
-      LfoPart* lfopart = (*lfoStmtParts)[dassign->GetStmtID()];
+      LfoPart *lfopart = (*lfoStmtParts)[dassign->GetStmtID()];
       BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
-      // create vector lhs
-      RegreadNode *regReadlhsvec;
-      if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
-        regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[dassign->GetStIdx()]);
-      } else {
-        regReadlhsvec = GenVectorRedVarInit(dassign->GetStIdx(), tp);
-      }
-      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
       // rhsvecNode : vectorizable_expr
       BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
       // skip vectorizing uniform node
       if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
         VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
       }
+      RegreadNode *regReadlhsvec;
+      if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
+        regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[dassign->GetStIdx()]);
+      } else {
+        regReadlhsvec = GenVectorRedVarInit(dassign->GetStIdx(), tp);
+      }
       // use widen intrinsic
-      if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) > MAX_VECTOR_LENGTH_SIZE) {
+      if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) >
+          MAX_VECTOR_LENGTH_SIZE) {
         BaseNode *currVecNode = nullptr;
         PrimType currVecType;
         for (int i = 0; i < vecOpnd.size(); i++) {
           currVecNode = vecOpnd[i];
           currVecType = currVecNode->GetPrimType();
           // need widen
-          if (GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) > GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
+          if (GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) >
+              GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
             // low part
             IntrinsicopNode *getLowIntrn = GenVectorGetLow(currVecNode, currVecType);
-            ASSERT((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(getLowIntrn->GetPrimType()) == 2, "type size check");
-            IntrinsicopNode *widenaddLowIntrn = GenVectorWidenAdd(regReadlhsvec, getLowIntrn, getLowIntrn->GetPrimType(), false/*low part*/);
-            RegassignNode *regassign2 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), widenaddLowIntrn);
+            ASSERT((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(getLowIntrn->GetPrimType()) == 2,
+                "type size check");
+            IntrinsicopNode *widenaddLowIntrn = GenVectorWidenAdd(regReadlhsvec, getLowIntrn,
+                getLowIntrn->GetPrimType(), false/*low part*/);
+            RegassignNode *regassign2 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+                regReadlhsvec->GetRegIdx(), widenaddLowIntrn);
             doloopbody->InsertBefore(dassign, regassign2);
             // high part
-            IntrinsicopNode *widenaddHighIntrn = GenVectorWidenAdd(regReadlhsvec, currVecNode, getLowIntrn->GetPrimType(), true /*high part*/);
-            RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), widenaddHighIntrn);
+            IntrinsicopNode *widenaddHighIntrn = GenVectorWidenAdd(regReadlhsvec, currVecNode,
+                getLowIntrn->GetPrimType(), true /*high part*/);
+            RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+                regReadlhsvec->GetRegIdx(), widenaddHighIntrn);
             doloopbody->InsertBefore(dassign, regassign3);
           } else {
-            BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec, currVecNode);
-            RegassignNode *regassign = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), binaryNode);
+            BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
+                currVecNode);
+            RegassignNode *regassign = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+                regReadlhsvec->GetRegIdx(), binaryNode);
             doloopbody->InsertBefore(dassign, regassign);
           }
         }
       } else {
-        BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec, rhsvecNode);
-        RegassignNode *regassign1 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(), regReadlhsvec->GetRegIdx(), binaryNode);
+        BinaryNode *binaryNode = codeMP->New<BinaryNode>(OP_add, regReadlhsvec->GetPrimType(), regReadlhsvec,
+            rhsvecNode);
+        RegassignNode *regassign1 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
+            regReadlhsvec->GetRegIdx(), binaryNode);
         doloopbody->InsertBefore(dassign, regassign1);
       }
       // red = red +/- sum_vec(redvec)
@@ -1064,7 +1080,7 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
 
   // step 2: insert dup stmt before doloop
   if (!tp->vecInfo->uniformNodes.empty()) {
-    LfoPart* lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
+    LfoPart *lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -1109,7 +1125,7 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // step 4: insert stmts before/after doloop
   if (!tp->vecInfo->beforeLoopStmts.empty() ||
       !tp->vecInfo->afterLoopStmts.empty()) {
-    LfoPart* lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
+    LfoPart *lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -1229,7 +1245,8 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
       } else if (r1Uniform) {
         vecInfo->uniformNodes.insert(x->Opnd(1));
         isvectorizable = ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
-      } else if (ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0)) && ExprVectorizable(doloopInfo, vecInfo, x->Opnd(1))) {
+      } else if (ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0)) && ExprVectorizable(doloopInfo, vecInfo,
+          x->Opnd(1))) {
         isvectorizable = true;
       }
       if (vecInfo->widenop > 0) {
@@ -1457,7 +1474,9 @@ bool LoopVectorization::Vectorizable(DoloopInfo *doloopInfo, LoopVecInfo* vecInf
                 return false;
               }
               // return false if widen op in nested binary operation
-              if (vecInfo->widenop >= 4) return false;
+              if (vecInfo->widenop >= 4) {
+                return false;
+              }
               vecInfo->UpdateWidestTypeSize(vecInfo->currentRHSTypeSize);
             } else {
               vecInfo->UpdateWidestTypeSize(lshtypesize);
