@@ -873,5 +873,6 @@ bool MELfoPreEmission::PhaseRun(MeFunction &f) {
 
 void MELfoPreEmission::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEIRMapBuild>();
+  aDep.SetPreservedAll();
 }
 }  // namespace maple
