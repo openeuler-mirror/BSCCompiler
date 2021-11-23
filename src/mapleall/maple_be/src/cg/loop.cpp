@@ -352,6 +352,23 @@ void LoopFinder::markExtraEntryAndEncl() {
   }
 }
 
+bool LoopFinder::HasSameHeader(LoopHierarchy *lp1, LoopHierarchy *lp2) {
+  if (lp1->GetHeader() == lp2->GetHeader()) {
+    return true;
+  }
+  for (auto other1 : lp1->otherLoopEntries) {
+    if (lp2->GetHeader() == other1) {
+      return true;
+    }
+    for (auto other2 : lp2->otherLoopEntries) {
+      if (other2 == other1) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void LoopFinder::MergeLoops() {
   for (LoopHierarchy *loopHierarchy1 = loops; loopHierarchy1 != nullptr; loopHierarchy1 = loopHierarchy1->GetNext()) {
     for (LoopHierarchy *loopHierarchy2 = loopHierarchy1->GetNext(); loopHierarchy2 != nullptr;
@@ -383,14 +400,19 @@ void LoopFinder::MergeLoops() {
           continue;
         }
       }
-      if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
+      if (HasSameHeader(loopHierarchy1, loopHierarchy2) == false) {
         continue;
       }
       for (auto *bb : loopHierarchy2->GetLoopMembers()) {
         loopHierarchy1->InsertLoopMembers(*bb);
       }
+      if (loopHierarchy1->GetHeader() != loopHierarchy2->GetHeader()) {
+        loopHierarchy1->otherLoopEntries.insert(loopHierarchy2->GetHeader());
+      }
       for (auto bb : loopHierarchy2->otherLoopEntries) {
-        loopHierarchy1->otherLoopEntries.insert(bb);
+        if (loopHierarchy1->GetHeader() != bb) {
+          loopHierarchy1->otherLoopEntries.insert(bb);
+        }
       }
       for (auto *bb : loopHierarchy2->GetBackedge()) {
         loopHierarchy1->InsertBackedge(*bb);
