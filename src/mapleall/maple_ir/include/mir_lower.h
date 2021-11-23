@@ -102,6 +102,14 @@ class MIRLower {
     lowerPhase |= kShiftLowerCG;
   }
 
+  uint8 GetOptLevel() {
+    return optLevel;
+  }
+
+  void SetOptLevel(uint8 optlvl) {
+    optLevel = optlvl;
+  }
+
   bool IsLowerME() const {
     return lowerPhase & kShiftLowerMe;
   }
@@ -132,6 +140,7 @@ class MIRLower {
   MIRFunction *mirFunc;
   MIRBuilder *mirBuilder = nullptr;
   uint32 lowerPhase = 0;
+  uint8 optLevel = 0;
   LabelIdx CreateCondGotoStmt(Opcode op, BlockNode &blk, const IfStmtNode &ifStmt);
   void CreateBrFalseStmt(BlockNode &blk, const IfStmtNode &ifStmt);
   void CreateBrTrueStmt(BlockNode &blk, const IfStmtNode &ifStmt);
