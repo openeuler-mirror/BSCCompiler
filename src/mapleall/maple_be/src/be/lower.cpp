@@ -1579,13 +1579,15 @@ void CGLowerer::LowerSwitchOpnd(StmtNode &stmt, BlockNode &newBlk) {
   }
 }
 
-void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk) {
+void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode &newBlk,
+                                    std::vector<StmtNode *> &abortNode) {
   MIRFunction *curFunc = mirModule.CurFunction();
   BaseNode *op0 = LowerExpr(stmt, *stmt.Opnd(0), block);
   BaseNode *op1 = LowerExpr(stmt, *stmt.Opnd(1), block);
   MIRSymbol *errMsg;
   LabelIdx labIdx = GetLabelIdx(*curFunc);
   LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
+  labelBC->SetSrcPos(stmt.GetSrcPos());
   Opcode op = OP_ge;
   if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOpCode())) {
     op = (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) ? OP_le : OP_lt;
@@ -1593,7 +1595,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   BaseNode *cond = mirBuilder->CreateExprCompare(op, *GlobalTables::GetTypeTable().GetUInt1(),
                                                  *GlobalTables::GetTypeTable().GetPrimType(op0->GetPrimType()),
                                                  op0, op1);
-  CondGotoNode *brTrueNode = mirBuilder->CreateStmtCondGoto(cond, OP_brtrue, labIdx);
+  CondGotoNode *brFalseNode = mirBuilder->CreateStmtCondGoto(cond, OP_brfalse, labIdx);
 
   MIRFunction *printf = mirBuilder->GetOrCreateFunction("printf", TyIdx(PTY_i32));
   beCommon.UpdateTypeTable(*printf->GetMIRFuncType());
@@ -1618,15 +1620,16 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
   StmtNode *call = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
 
-  newBlk.AddStatement(brTrueNode);
-  newBlk.AddStatement(callPrintf);
-  newBlk.AddStatement(call);
-  newBlk.AddStatement(labelBC);
+  newBlk.AddStatement(brFalseNode);
+  abortNode.emplace_back(labelBC);
+  abortNode.emplace_back(callPrintf);
+  abortNode.emplace_back(call);
 }
 
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
   BlockNode *newBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   BlockNode *tmpBlockNode = nullptr;
+  std::vector<StmtNode *> abortNode;
   if (block.GetFirst() == nullptr) {
     return newBlk;
   }
@@ -1667,7 +1670,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         break;
       }
       CASE_OP_ASSERT_BOUNDARY {
-        LowerAssertBoundary(*stmt, block, *newBlk);
+        LowerAssertBoundary(*stmt, block, *newBlk, abortNode);
         break;
       }
       case OP_iassign: {
@@ -1775,6 +1778,9 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         break;
     }
   } while (nextStmt != nullptr);
+  for (auto node : abortNode) {
+      newBlk->AddStatement(node);
+  }
   return newBlk;
 }
 
