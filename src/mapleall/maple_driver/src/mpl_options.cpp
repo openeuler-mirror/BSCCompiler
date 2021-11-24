@@ -66,6 +66,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(jbcUsage);
   optionParser->RegisteUsages(cppUsage);
   optionParser->RegisteUsages(ldUsage);
+  optionParser->RegisteUsages(asUsage);
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
@@ -102,14 +103,12 @@ int MplOptions::Parse(int argc, char **argv) {
     if (ret != kErrorNoError) {
       return ret;
     }
-  }
-
-  /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
-   * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
-   * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
-   * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
-   */
-  else { // kCustomRun
+  } else { // kCustomRun
+    /* kCustomRun run mode is set if --run=tool1:tool2 option is used.
+     * This Option is parsed on DecideRunType step. DecideRunType fills runningExes vector.
+     * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
+     * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
+    */
     ret = DecideRunningPhases(runningExes);
     if (ret != kErrorNoError) {
       return ret;
@@ -261,6 +260,15 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kBoundaryDynamicCheckSilent:
         boundaryCheckMode = SafetyCheckMode::kDynamicCheckSilent;
         break;
+      case kSafeRegionOption:
+        safeRegion = true;
+        break;
+      case kMapleOut:
+        CHECK_FATAL(!(rootActions[0]->GetTool().empty()),
+                    "rootActions must be set as last compilation step\n");
+        /* Add -o <out> option to last compilation step */
+        exeOptions[rootActions[0]->GetTool()].push_back(opt);
+        break;
       default:
         // I do not care
         break;
@@ -311,6 +319,9 @@ ErrorCode MplOptions::DecideRunType() {
         genObj = true;
         printCommandStr += " -c";
         break;
+      case kMaplePhaseOnly:
+        runMaplePhaseOnly = (opt.Type() == kEnable) ? true : false;
+        break;
       case kRun:
         if (runMode == RunMode::kAutoRun) {    // O0 and run should not appear at the same time
           runModeConflict = true;
@@ -342,7 +353,7 @@ ErrorCode MplOptions::DecideRunType() {
 std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *const inputInfo,
                                                               bool isMultipleFiles) {
   InputFileType inputFileType = inputInfo->GetInputFileType();
-  std::unique_ptr<Action> currentAction = std::make_unique<Action>("Input", inputInfo);
+  std::unique_ptr<Action> currentAction = std::make_unique<Action>(kInputPhase, inputInfo);
   std::unique_ptr<Action> newAction;
 
   bool isNeedMapleComb = true;
@@ -354,6 +365,7 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       UpdateRunningExe(kBinNameClang);
       newAction = std::make_unique<Action>(kBinNameClang, inputInfo, currentAction);
       currentAction = std::move(newAction);
+      [[clang::fallthrough]];
     case InputFileType::kFileTypeAst:
       UpdateRunningExe(kBinNameCpp2mpl);
       newAction = std::make_unique<Action>(kBinNameCpp2mpl, inputInfo, currentAction);
@@ -383,11 +395,23 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
       isNeedMplcg = false;
       isNeedMapleComb = false;
       break;
+    case InputFileType::kFileTypeObj:
+      isNeedMplcg = false;
+      isNeedMapleComb = false;
+      isNeedAs = false;
+      break;
     case InputFileType::kFileTypeNone:
+      return nullptr;
       break;
     default:
+      return nullptr;
       break;
   }
+
+  if (runMaplePhaseOnly == true) {
+    isNeedAs = false;
+  }
+
   if (isNeedMapleComb) {
     if (isMultipleFiles) {
       selectedExes.push_back(kBinNameMapleCombWrp);
@@ -406,13 +430,13 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     currentAction = std::move(newAction);
   }
 
-  // This condition is used for testing purposes: -c option will generate ELF file
-  if (HasSetGenObj()) {
-    // Required to use flags, since user will need them for specific scenarios
+  if (isNeedAs == true) {
     UpdateRunningExe(kAsFlag);
     newAction = std::make_unique<Action>(kAsFlag, inputInfo, currentAction);
     currentAction = std::move(newAction);
+  }
 
+  if (!HasSetGenOnlyObj()) {
     UpdateRunningExe(kLdFlag);
     /* "Linking step" Action can have several inputActions.
      * Each inputAction links to previous Actions to create the action tree.
@@ -436,12 +460,18 @@ ErrorCode MplOptions::DecideRunningPhases() {
     CHECK_FATAL(inputInfo != nullptr, "InputInfo must be created!!");
 
     lastAction = DecideRunningPhasesByType(inputInfo.get(), isMultipleFiles);
-    CHECK_FATAL(lastAction != nullptr, "Action must be created!!");
 
-    /* TODO: Uncomment "&& !HasSetGenObj()" condition after finish of -c flag logic implementation.
-     * Currently -c flag is used to generate ELF file. But it must be used to generate only objects .o files. */
-    if (lastAction->GetTool() == kAsFlag /*&& !HasSetGenObj()*/) {
-      /* For linking step, inputActions are all assembly actions. */
+    /* TODO: Add a message interface for correct exit with compilation error. And use it here
+     * instead of CHECK_FATAL.
+     */
+    CHECK_FATAL(lastAction != nullptr, "Incorrect input file type: %s",
+                inputInfo->GetInputFile().c_str());
+
+    if ((lastAction->GetTool() == kAsFlag && !HasSetGenOnlyObj()) ||
+        lastAction->GetTool() == kInputPhase) {
+      /* 1. For linking step, inputActions are all assembly actions;
+       * 2. If we try to link with maple driver, inputActions are all kInputPhase objects;
+       */
       linkActions.push_back(std::move(lastAction));
     } else {
       rootActions.push_back(std::move(lastAction));
@@ -516,7 +546,7 @@ ErrorCode MplOptions::DecideRunningPhases(const std::vector<std::string> &runExe
     bool isCombCompiler = false;
     bool wasWrpCombCompilerCreated = false;
 
-    auto currentAction = std::make_unique<Action>("Input", inputInfo.get());
+    auto currentAction = std::make_unique<Action>(kInputPhase, inputInfo.get());
 
     for (const auto &exe : runExes) {
       if (isMultipleFiles == true) {
@@ -546,7 +576,7 @@ void MplOptions::DumpActionTree() const {
 
 void MplOptions::DumpActionTree(const Action &action, int indents) const {
   for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
-    DumpActionTree(*a, indents+1);
+    DumpActionTree(*a, indents + 1);
   }
 
   if (indents != 0) {
@@ -557,7 +587,7 @@ void MplOptions::DumpActionTree(const Action &action, int indents) const {
     }
   }
 
-  if (action.GetTool() == "Input") {
+  if (action.GetTool() == kInputPhase) {
     LogInfo::MapleLogger() << action.GetTool() << " " << action.GetInputFile() << '\n';
   } else {
     LogInfo::MapleLogger() << action.GetTool() << '\n';
@@ -641,44 +671,6 @@ bool MplOptions::Init(const std::string &inputFile) {
     inputInfos.push_back(std::make_unique<InputInfo>(inFile));
   }
 
-  std::string firstInputFile = splitsInputFiles[0];
-  inputFolder = FileUtils::GetFileFolder(firstInputFile);
-  outputFolder = inputFolder;
-  outputName = FileUtils::GetFileName(firstInputFile, false);
-  std::string extensionName = FileUtils::GetFileExtension(firstInputFile);
-  if (extensionName == "class") {
-    inputFileType = InputFileType::kFileTypeClass;
-  }
-  else if (extensionName == "dex") {
-    inputFileType = InputFileType::kFileTypeDex;
-  }
-  else if (extensionName == "c") {
-    inputFileType = InputFileType::kFileTypeC;
-  }
-  else if (extensionName == "cpp") {
-    inputFileType = InputFileType::kFileTypeCpp;
-  }
-  else if (extensionName == "ast") {
-    inputFileType = InputFileType::kFileTypeAst;
-  }
-  else if (extensionName == "jar") {
-    inputFileType = InputFileType::kFileTypeJar;
-  }
-  else if (extensionName == "mpl" || extensionName == "bpl") {
-    if (firstInputFile.find("VtableImpl") == std::string::npos) {
-      if (firstInputFile.find(".me.mpl") != std::string::npos) {
-        inputFileType = InputFileType::kFileTypeMeMpl;
-      } else {
-        inputFileType = extensionName == "mpl" ? InputFileType::kFileTypeMpl : InputFileType::kFileTypeBpl;
-      }
-    } else {
-      inputFileType = InputFileType::kFileTypeVtableImplMpl;
-    }
-  } else if (extensionName == "s") {
-    inputFileType = InputFileType::kFileTypeS;
-  } else {
-    return false;
-  }
   return true;
 }
 
@@ -765,8 +757,31 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   return ret;
 }
 
+void MplOptions::DumpAppendedOptions(const std::string &exeName,
+                                     MplOption mplOptions[], unsigned int length) const {
+  LogInfo::MapleLogger() << exeName << " Default Options: ";
+  for (size_t i = 0; i < length; ++i) {
+    LogInfo::MapleLogger() << mplOptions[i].GetKey() << " "
+                           << mplOptions[i].GetValue() << " ";
+  }
+  LogInfo::MapleLogger() << "\n";
+
+  auto &exeOption = exeOptions.at(exeName);
+  LogInfo::MapleLogger() << exeName << " Extra Options: ";
+  for (auto &opt : exeOption) {
+    LogInfo::MapleLogger() << opt.OptionKey() << " "
+                           << opt.Args() << " ";
+  }
+  LogInfo::MapleLogger() << "\n";
+}
+
 ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length) {
   auto &exeOption = exeOptions[exeName];
+
+  if (HasSetDebugFlag()) {
+    DumpAppendedOptions(exeName, mplOptions, length);
+  }
+
   for (size_t i = 0; i < length; ++i) {
     mplOptions[i].SetValue(FileUtils::AppendMapleRootIfNeeded(mplOptions[i].GetNeedRootPath(), mplOptions[i].GetValue(),
                                                               exeFolder));
@@ -837,41 +852,6 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
   }
 }
 
-std::string MplOptions::GetInputFileNameForPrint() const{
-  if (!runningExes.empty()) {
-    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl
-        || runningExes[0] == kBinNameMplcg) {
-      return inputFiles;
-    }
-  }
-  if (inputFileType == InputFileType::kFileTypeVtableImplMpl) {
-    return outputFolder + outputName + ".VtableImpl.mpl";
-  }
-  if (inputFileType == InputFileType::kFileTypeBpl) {
-    return outputFolder + outputName + ".bpl";
-  }
-  return outputFolder + outputName + ".mpl";
-}
-
-void MplOptions::PrintCommand() {
-  if (hasPrinted) {
-    return;
-  }
-  std::ostringstream optionStr;
-  if (runMode == RunMode::kAutoRun) {
-    if (optimizationLevel == kO0) {
-      optionStr << " -O0";
-    } else if (optimizationLevel == kO2) {
-      optionStr << " -O2";
-    }
-    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  }
-  if (runMode == RunMode::kCustomRun) {
-    PrintDetailCommand(true);
-  }
-  hasPrinted = true;
-}
 void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
                                std::string &runStr) {
   std::string connectSym = "";
@@ -890,7 +870,7 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
     }
   }
 }
-void MplOptions::PrintDetailCommand(bool isBeforeParse) {
+void MplOptions::PrintDetailCommand() {
   if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end()
       && exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
     return;
@@ -903,12 +883,9 @@ void MplOptions::PrintDetailCommand(bool isBeforeParse) {
   connectOptStr(optionStr, kBinNameMpl2mpl, firstComb, runStr);
   connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
   optionStr += "\"";
-  if (isBeforeParse) {
-    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  } else {
-    LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printCommandStr << " " << GetInputFileNameForPrint() << '\n';
-  }
+
+  LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple "
+                         << runStr << " " << optionStr << " "
+                         << printCommandStr << " " << GetInputFiles() << '\n';
 }
 } // namespace maple

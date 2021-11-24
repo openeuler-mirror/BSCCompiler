@@ -252,6 +252,24 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
   return true;
 }
 
+bool OptionParser::CheckJoinedOption(const std::string &option,
+                                     std::vector<mapleOption::Option> &inputOption,
+                                     const std::string &exeName) {
+  /* TODO: Add special field in Descriptor to check only joined usages */
+  for (auto usage : usages) {
+    /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
+    if (option.find(usage.first) == 0) {
+      return HandleKeyValue(option.substr(0, std::strlen(usage.first.c_str())),
+                            option.substr(strlen(usage.first.c_str())),
+                            inputOption, exeName);
+    }
+  }
+
+  LogInfo::MapleLogger(kLlErr) << ("Unknown Option: " + option) << '\n';
+  return false;
+}
+
+
 bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
                             bool &isLastMatch, std::vector<mapleOption::Option> &inputOption,
                             const std::string &exeName) {
@@ -268,27 +286,40 @@ bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
   }
   size_t pos = option.find('=');
   if (pos != std::string::npos) {
+    /* option like --key=value */
     ASSERT(pos > 0, "option should not begin with symbol '='");
     isLastMatch = false;
     std::string key = option.substr(0, pos);
     std::string value = option.substr(pos + 1);
+
+    auto item = usages.find(key);
+    if (item == usages.end()) {
+      /* It can be joined option, like: -DMACRO=VALUE */
+      return CheckJoinedOption(option, inputOption, exeName);
+    }
+
     isValueEmpty = value.empty();
     return HandleKeyValue(key, value, inputOption, exeName,
-                          false /*isAllOption*/,
-                          true /*isEqualPrefix*/);
+                          false /* isAllOption */,
+                          true /* isEqualPrefix */);
   } else {
     auto item = usages.find(option);
     if (item != usages.end()) {
-      if (item->second.desc.checkPolicy == kArgCheckPolicyRequired || item->second.desc.checkPolicy == kArgCheckPolicyNumeric) {
+      if (item->second.desc.checkPolicy == kArgCheckPolicyRequired ||
+          item->second.desc.checkPolicy == kArgCheckPolicyNumeric) {
+        /* option contains key and value: --key value. key is saved
+         * in lastKey, key will be handled in HandleInputArgs as second argument
+         */
         lastKey = option;
         isLastMatch = true;
       } else {
+        /* option does not contain a value (only key) */
         isValueEmpty = false;
         return HandleKeyValue(option, "", inputOption, exeName);
       }
     } else {
-      LogInfo::MapleLogger(kLlErr) << ("Unknown Option: " + option) << '\n';
-      return false;
+      /* It can be joined option, like: -DMACRO */
+      return CheckJoinedOption(option, inputOption, exeName);;
     }
   }
   return true;

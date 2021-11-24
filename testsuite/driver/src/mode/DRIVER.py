@@ -18,7 +18,7 @@ DRIVER = {
     "compile": [
         Driver(
             maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
-            global_option="-c",
+            global_option="${OPTION}",
             inputs="${APP}"
         )
     ],
