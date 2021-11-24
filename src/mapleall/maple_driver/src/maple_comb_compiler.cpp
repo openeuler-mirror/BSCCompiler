@@ -40,7 +40,7 @@ std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const
   return action.GetFullOutputName() + ".mpl";
 }
 
-void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
                                             std::vector<std::string> &tempFiles) const {
   std::string filePath;
   filePath = action.GetFullOutputName() + ".data.muid";
@@ -59,7 +59,7 @@ void MapleCombCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &ac
   }
 }
 
-std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> MapleCombCompiler::GetFinalOutputs(const MplOptions&,
                                                                    const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".VtableImpl.mpl");
@@ -118,6 +118,7 @@ ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunn
   meOption.generalRegOnly = options.HasSetGeneralRegOnly();
   meOption.npeCheckMode = options.GetNpeCheckMode();
   meOption.boundaryCheckMode = options.GetBoundaryCheckMode();
+  meOption.safeRegionMode = options.IsSafeRegion();
   // Set me options for driver runner
   runner.SetMeOptions(&MeOption::GetInstance());
   return kErrorNoError;
@@ -170,7 +171,6 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     theModule = std::make_unique<MIRModule>(fileName);
     fileParsed = false;
   }
-  options.PrintCommand();
   LogInfo::MapleLogger() << "Starting maplecomb\n";
   theModule->InitPartO2List(options.GetPartO2List());
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,
@@ -196,9 +196,11 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     return ret;
   }
   runner.SetPrintOutExe(DecideOutExe(options));
+
   if (options.HasSetDebugFlag()) {
     PrintCommand(options, action);
   }
+
   ErrorCode nErr = runner.Run();
   return nErr;
 }

@@ -20,7 +20,6 @@ namespace maple {
 enum DriverOptionIndex {
   kUnknown,
   kHelp,
-  kMaplePrintPhases,
   kVersion,
   kInFile,
   kInMplt,
@@ -64,6 +63,15 @@ enum DriverOptionIndex {
   kBoundaryStaticCheck,
   kBoundaryDynamicCheck,
   kBoundaryDynamicCheckSilent,
+  kSafeRegionOption,
+  kMaplePrintPhases,
+  kMaplePhaseOnly,
+  kLdStatic,
+  kLdLib,
+  kLdLibPath,
+  kClangMacro,
+  kClangInclude,
+  kMapleOut,
   kCommonOptionEnd,
 };
 

@@ -41,6 +41,7 @@ enum InputFileType {
   kFileTypeMpl,
   kFileTypeVtableImplMpl,
   kFileTypeS,
+  kFileTypeObj,
   kFileTypeBpl,
   kFileTypeMeMpl,
 };
@@ -115,6 +116,8 @@ public:
       }
     } else if (extensionName == "s") {
       fileType = InputFileType::kFileTypeS;
+    } else if (extensionName == "o") {
+      fileType = InputFileType::kFileTypeObj;
     }
 
     return fileType;
@@ -289,20 +292,8 @@ class MplOptions {
     return inputFiles;
   }
 
-  const std::string &GetOutputFolder() const {
-    return outputFolder;
-  }
-
-  const std::string &GetOutputName() const {
-    return outputName;
-  }
-
   const std::string &GetExeFolder() const {
     return exeFolder;
-  }
-
-  const InputFileType &GetInputFileType() const {
-    return inputFileType;
   }
 
   const OptimizationLevel &GetOptimizationLevel() const {
@@ -337,10 +328,6 @@ class MplOptions {
     return splitsInputFiles;
   }
 
-  const std::map<std::string, std::vector<MplOption>> &GetExtras() const {
-    return extras;
-  }
-
   const std::vector<std::string> &GetRunningExes() const {
     return runningExes;
   }
@@ -369,8 +356,12 @@ class MplOptions {
     return genMeMpl;
   }
 
-  bool HasSetGenObj() const {
+  bool HasSetGenOnlyObj() const {
     return genObj;
+  }
+
+  bool HasSetRunMaplePhase() const {
+    return runMaplePhaseOnly;
   }
 
   bool HasSetGenVtableImpl() const {
@@ -397,12 +388,15 @@ class MplOptions {
     return optionParser->GetOptions();
   }
 
+  bool IsSafeRegion() const {
+    return safeRegion;
+  }
+
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
-  std::string GetInputFileNameForPrint() const;
   void PrintCommand();
   void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
-  void PrintDetailCommand(bool isBeforeParse);
+  void PrintDetailCommand();
  private:
   bool Init(const std::string &inputFile);
   ErrorCode HandleGeneralOptions();
@@ -421,6 +415,8 @@ class MplOptions {
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
+  void DumpAppendedOptions(const std::string &exeName, MplOption mplOptions[],
+                           unsigned int length) const;
   void UpdateRunningExe(const std::string &args);
   void DumpActionTree(const Action &action, int idents) const;
   void DumpActionTree() const;
@@ -428,22 +424,17 @@ class MplOptions {
   std::map<std::string, std::vector<mapleOption::Option>> options = {};
   std::map<std::string, std::vector<mapleOption::Option>> exeOptions = {};
   std::string inputFiles = "";
-  std::string inputFolder = "";
-  std::string outputFolder = "";
-  std::string outputName = "maple";
   std::string exeFolder = "";
   std::string mpltFile = "";
   std::string meOptArgs = "";
   std::string mpl2mplOptArgs = "";
   std::string mplcgOptArgs = "";
-  InputFileType inputFileType = InputFileType::kFileTypeNone;
   OptimizationLevel optimizationLevel = OptimizationLevel::kO0;
   RunMode runMode = RunMode::kUnkownRun;
   bool setDefaultLevel = false;
   bool isSaveTmps = false;
   std::vector<std::string> saveFiles = {};
   std::vector<std::string> splitsInputFiles = {};
-  std::map<std::string, std::vector<MplOption>> extras = {};
   std::vector<std::string> runningExes = {};
   std::vector<std::string> selectedExes = {};
   bool isWithIpa = false;
@@ -454,6 +445,7 @@ class MplOptions {
   bool timePhases = false;
   bool genObj = false;
   bool genMeMpl = false;
+  bool runMaplePhaseOnly = true;
   bool genVtableImpl = false;
   bool hasPrinted = false;
   bool generalRegOnly = false;
@@ -462,6 +454,7 @@ class MplOptions {
   std::string partO2List = "";
   SafetyCheckMode npeCheckMode = SafetyCheckMode::kNoCheck;
   SafetyCheckMode boundaryCheckMode = SafetyCheckMode::kNoCheck;
+  bool safeRegion = false;
 
   std::vector<std::unique_ptr<InputInfo>> inputInfos;
   std::vector<std::unique_ptr<Action>> rootActions;

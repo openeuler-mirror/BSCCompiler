@@ -79,7 +79,6 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
       }
     }
     if (!isSave && mplOptions.GetInputFiles().find(tmpFile) == std::string::npos /* not input */) {
-
       bool isNeedRemove = true;
       /* If we compile several files we can have several last Actions,
        * so we need to NOT remove output files for each last Action.
@@ -111,7 +110,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
   }
 
   /* Actions owner is MplOption, so while MplOption is alive we can use raw pointers here */
-  std::vector<Action *> actions;
+  std::vector<Action*> actions;
   if (compilerSelector == nullptr) {
     LogInfo::MapleLogger() << "Failed! Compiler is null." << "\n";
     return kErrorCompileFail;
@@ -138,7 +137,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
     }
   }
   if (mplOptions.HasSetDebugFlag()) {
-    mplOptions.PrintDetailCommand(false);
+    mplOptions.PrintDetailCommand();
   }
   // Compiler finished
   compileFinished = true;

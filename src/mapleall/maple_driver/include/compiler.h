@@ -48,6 +48,7 @@ const std::string kLdFlag = "ld";
 const std::string kGccFlag = "gcc";
 const std::string kGppFlag = "g++";
 const std::string kAsFlag = "as";
+const std::string kInputPhase = "input";
 const std::string kBinNameLd = kMachine + kOperatingSystem + kLdFlag;
 const std::string kBinNameAs = kMachine + kOperatingSystem + kAsFlag;
 const std::string kBinNameGcc = kMachine + kOperatingSystem + kGccFlag;
@@ -62,14 +63,14 @@ class Compiler {
   virtual ErrorCode Compile(MplOptions &options, const Action &action,
                             std::unique_ptr<MIRModule> &theModule);
 
-  virtual void GetTmpFilesToDelete(const MplOptions&, const Action &action,
+  virtual void GetTmpFilesToDelete(const MplOptions&, const Action&,
                                    std::vector<std::string>&) const {}
 
-  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions&, const Action &) const {
+  virtual std::unordered_set<std::string> GetFinalOutputs(const MplOptions&, const Action&) const {
     return std::unordered_set<std::string>();
   }
 
-  virtual void PrintCommand(const MplOptions&, const Action &action) const {}
+  virtual void PrintCommand(const MplOptions&, const Action&) const {}
 
  protected:
   virtual std::string GetBinPath(const MplOptions &mplOptions) const;
@@ -77,30 +78,47 @@ class Compiler {
     return kBinNameNone;
   }
 
-  virtual std::string GetInputFileName(const MplOptions &, const Action &action) const {
+  /* Default behaviour ToolName==BinName, But some tools have another behaviour:
+   * AsCompiler: ToolName=kAsFlag, BinName=kMachine + kOperatingSystem + kAsFlag
+   */
+  virtual const std::string &GetTool() const {
+    return GetBinName();
+  }
+
+  virtual std::string GetInputFileName(const MplOptions&, const Action &action) const {
     return action.GetInputFile();
   }
 
-
-  virtual DefaultOption GetDefaultOptions(const MplOptions&, const Action &) const {
+  virtual DefaultOption GetDefaultOptions(const MplOptions&, const Action&) const {
     return DefaultOption();
   }
 
  private:
   const std::string name;
-  std::string MakeOption(const MplOptions &options, const Action &action) const;
-  void AppendDefaultOptions(std::map<std::string, MplOption> &finalOptions,
+  std::vector<MplOption> MakeOption(const MplOptions &options,
+                                    const Action &action) const;
+  void AppendDefaultOptions(std::vector<MplOption> &finalOptions,
                             const std::map<std::string, MplOption> &defaultOptions,
-                            std::ostringstream &strOption, bool isDebug) const;
-  void AppendOptions(std::map<std::string, MplOption> &finalOptions, const std::string &key,
-                     const std::string &value) const;
-  void AppendExtraOptions(std::map<std::string, MplOption> &finalOptions,
-                          const MplOptions &options,
-                          std::ostringstream &strOption, bool isDebug) const;
-  std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options, const Action &action) const;
-  int Exe(const MplOptions &mplOptions, const std::string &options) const;
+                            bool isDebug) const;
+  void AppendExtraOptions(std::vector<MplOption> &finalOptions,
+                          std::map<std::string, MplOption> defaultOptions,
+                          const MplOptions &options, bool isDebug) const;
+  void AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
+                             const MplOptions &mplOptions, const Action &action) const;
+  std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options,
+                                                      const Action &action) const;
+  int Exe(const MplOptions &mplOptions, const std::vector<MplOption> &options) const;
   const std::string &GetName() const {
     return name;
+  }
+
+  void ReplaceOption(std::vector<MplOption> &finalOptions,
+                     const std::string &key, const std::string &value) const {
+    for (auto &opt : finalOptions) {
+      if (opt.GetKey() == key) {
+        opt.SetValue(value);
+      }
+    }
   }
 };
 
@@ -256,6 +274,7 @@ class AsCompiler : public Compiler {
  private:
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
+  const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
   void GetTmpFilesToDelete(const MplOptions &mplOptions, const Action &action,
@@ -274,6 +293,7 @@ class LdCompiler : public Compiler {
  private:
   std::string GetBinPath(const MplOptions &options) const override;
   const std::string &GetBinName() const override;
+  const std::string &GetTool() const override;
   DefaultOption GetDefaultOptions(const MplOptions &options, const Action &action) const override;
   std::string GetInputFileName(const MplOptions &options, const Action &action) const override;
 };
