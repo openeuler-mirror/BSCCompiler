@@ -657,7 +657,7 @@ bool CgLoopAnalysis::PhaseRun(maplebe::CGFunc &f) {
     /* do dot gen after detection so the loop backedge can be properly colored using the loop info */
     DotGenerator::GenerateDot("buildloop", f, f.GetMirModule(), true, f.GetName());
   }
-#if xDEBUG
+#if DEBUG
   for (const auto *lp : f.GetLoops()) {
     lp->CheckLoops();
   }
