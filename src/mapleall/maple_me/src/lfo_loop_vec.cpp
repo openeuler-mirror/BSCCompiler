@@ -74,6 +74,7 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
   MIRIntConst *newIncr = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
       vecFactor * incrConst->GetValue(), *typeInt);
   ConstvalNode *newIncrNode = codeMP->New<ConstvalNode>(PTY_i32, newIncr);
+  PrimType newOpndtype = (static_cast<CompareNode *>(condNode))->GetOpndType() == PTY_ptr ? PTY_i64 : PTY_i32;
   if (initNode->IsConstval()) {
     ConstvalNode *lcn = static_cast<ConstvalNode *>(initNode);
     MIRIntConst *lowConst = static_cast<MIRIntConst *>(lcn->GetConstVal());
@@ -104,16 +105,16 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
       BinaryNode *divnode = nullptr;
       BaseNode *addnode = upNode;
       if (condOpHasEqual) {
-        addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
+        addnode = codeMP->New<BinaryNode>(OP_add, newOpndtype, upNode, constOnenode);
       }
       if (lowvalue != 0) {
-        BinaryNode *subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
-        divnode = codeMP->New<BinaryNode>(OP_div, PTY_i32, subnode, newIncrNode);
+        BinaryNode *subnode = codeMP->New<BinaryNode>(OP_sub, newOpndtype, addnode, initNode);
+        divnode = codeMP->New<BinaryNode>(OP_div, newOpndtype, subnode, newIncrNode);
       } else {
-        divnode = codeMP->New<BinaryNode>(OP_div, PTY_i32, addnode, newIncrNode);
+        divnode = codeMP->New<BinaryNode>(OP_div, newOpndtype, addnode, newIncrNode);
       }
-      BinaryNode *mulnode = codeMP->New<BinaryNode>(OP_mul, PTY_i32, divnode, newIncrNode);
-      addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, mulnode, initNode);
+      BinaryNode *mulnode = codeMP->New<BinaryNode>(OP_mul, newOpndtype, divnode, newIncrNode);
+      addnode = codeMP->New<BinaryNode>(OP_add, newOpndtype, mulnode, initNode);
       vBound = localMP->New<LoopBound>(nullptr, addnode, newIncrNode);
       // step2:  generate epilog bound
       eBound = localMP->New<LoopBound>(addnode, nullptr, nullptr);
@@ -123,14 +124,14 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
     // set bound of vectorized loop
     BinaryNode *subnode = nullptr;
     if (condOpHasEqual) {
-      BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, upNode, constOnenode);
-      subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, addnode, initNode);
+      BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, newOpndtype, upNode, constOnenode);
+      subnode = codeMP->New<BinaryNode>(OP_sub, newOpndtype, addnode, initNode);
     } else {
-      subnode = codeMP->New<BinaryNode>(OP_sub, PTY_i32, upNode, initNode);
+      subnode = codeMP->New<BinaryNode>(OP_sub, newOpndtype, upNode, initNode);
     }
-    BinaryNode *divnode = codeMP->New<BinaryNode>(OP_div, PTY_i32, subnode, newIncrNode);
-    BinaryNode *mulnode = codeMP->New<BinaryNode>(OP_mul, PTY_i32, divnode, newIncrNode);
-    BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, PTY_i32, mulnode, initNode);
+    BinaryNode *divnode = codeMP->New<BinaryNode>(OP_div, newOpndtype, subnode, newIncrNode);
+    BinaryNode *mulnode = codeMP->New<BinaryNode>(OP_mul, newOpndtype, divnode, newIncrNode);
+    BinaryNode *addnode = codeMP->New<BinaryNode>(OP_add, newOpndtype, mulnode, initNode);
     vBound = localMP->New<LoopBound>(nullptr, addnode, newIncrNode);
     // set bound of epilog loop
     eBound = localMP->New<LoopBound>(addnode, nullptr, nullptr);
@@ -138,12 +139,15 @@ void LoopTransPlan::GenerateBoundInfo(DoloopNode *doloop, DoloopInfo *li) {
 }
 
 // generate best plan for current doloop
-bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
+bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li, bool enableDebug) {
   // vector length / type size
   vecLanes = MAX_VECTOR_LENGTH_SIZE / (vecInfo->largestTypeSize);
   vecFactor = vecLanes;
   // return false if small type has no builtin vector type
   if (vecFactor * vecInfo->smallestTypeSize < 64) {
+    if (enableDebug) {
+      LogInfo::MapleLogger() << "NOT VECTORIZABLE because no builtin vector type for smallestType in loop\n";
+    }
     return false;
   }
   // compare trip count if lanes is larger than tripcount
@@ -152,6 +156,18 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
     BaseNode *incrNode = doloop->GetIncrExpr();
     BaseNode *condNode = doloop->GetCondExpr();
     BaseNode *upNode = condNode->Opnd(1);
+    BaseNode *condOpnd0 = condNode->Opnd(0);
+
+    // check opnd0 of condNode is an expression not a variable
+    // upperbound formula doesn't handle this case now
+    if (condOpnd0->GetOpCode() != OP_dread ||
+        condOpnd0->GetOpCode() != OP_regread) {
+      if (enableDebug) {
+        LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop condition compare is complex \n";
+      }
+      return false;
+    }
+
     bool condOpHasEqual = ((condNode->GetOpCode() == OP_le) || (condNode->GetOpCode() == OP_ge));
     if (initNode->IsConstval() && upNode->IsConstval() && incrNode->IsConstval()) {
       ConstvalNode *lcn = static_cast<ConstvalNode *>(initNode);
@@ -166,6 +182,9 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li) {
         upvalue += 1;
       }
       if (((upvalue - lowvalue) / (incrConst->GetValue())) < vecLanes) {
+        if (enableDebug) {
+          LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop trip count is small \n";
+        }
         return false;
       }
     }
@@ -795,6 +814,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       PrimType optype = node->GetPrimType();
       node->SetPrimType(vecType->GetPrimType());
       if ((depth == 0) &&
+          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) &&
           ((GetPrimTypeSize(optype) / GetPrimTypeSize(GetVecElemPrimType(vecType->GetPrimType()))) > 2)) {
         // widen node type: split two nodes
         if (GetPrimTypeSize(vecType->GetPrimType()) == 16) {
@@ -861,6 +881,7 @@ void LoopVectorization::VectorizeExpr(BaseNode *node, LoopTransPlan *tp, MapleVe
       // widen instruction (addl/subl) need two operands with same vectype
       if ((PTY_begin != GetVecElemPrimType(opnd0PrimType)) &&
           (PTY_begin != GetVecElemPrimType(opnd1PrimType)) &&
+          (tp->vecInfo->currentLHSTypeSize > GetPrimTypeSize(GetVecElemPrimType(opnd0PrimType))) &&
           CanWidenOpcode(node, GetVecElemPrimType(opnd0PrimType))) {
         GenWidenBinaryExpr(binNode->GetOpCode(), vecopnd1, vecopnd2, vectorizedNode);
       } else {
@@ -950,6 +971,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
       MIRType *lhsvecType = GenVecType(ptrType->GetPointedType()->GetPrimType(), tp->vecFactor);
       ASSERT(lhsvecType != nullptr, "vector type should not be null");
+      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(lhsvecType->GetPrimType()));
       MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*lhsvecType, PTY_ptr);
       // update lhs type
       iassign->SetTyIdx(pvecType->GetTypeIndex());
@@ -986,17 +1008,18 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
       LfoPart *lfopart = (*lfoStmtParts)[dassign->GetStmtID()];
       BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
-      // rhsvecNode : vectorizable_expr
-      BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
-      // skip vectorizing uniform node
-      if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
-        VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
-      }
       RegreadNode *regReadlhsvec;
       if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
         regReadlhsvec = static_cast<RegreadNode *>(tp->vecInfo->redVecNodes[dassign->GetStIdx()]);
       } else {
         regReadlhsvec = GenVectorRedVarInit(dassign->GetStIdx(), tp);
+      }
+      tp->vecInfo->currentLHSTypeSize = GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType()));
+      // skip vectorizing uniform node
+      // rhsvecNode : vectorizable_expr
+      BaseNode *rhsvecNode = dassign->GetRHS()->Opnd(1);
+      if (tp->vecInfo->uniformNodes.find(rhsvecNode) == tp->vecInfo->uniformNodes.end()) {
+        VectorizeExpr(rhsvecNode, tp, vecOpnd, 0);
       }
       // use widen intrinsic
       if ((GetPrimTypeSize(GetVecElemPrimType(regReadlhsvec->GetPrimType())) * 8 * tp->vecFactor) >
@@ -1540,10 +1563,8 @@ void LoopVectorization::Perform() {
     }
     // generate vectorize plan;
     LoopTransPlan *tplan = localMP->New<LoopTransPlan>(codeMP, localMP, vecInfo);
-    if (tplan->Generate(mapit->first, mapit->second)) {
+    if (tplan->Generate(mapit->first, mapit->second, enableDebug)) {
       vecPlans[mapit->first] = tplan;
-    } else if (enableDebug) {
-      LogInfo::MapleLogger() << "NOT VECTORIZABLED because of gap between smallest and largest type in loop \n";
     }
   }
   // step 3: do transform

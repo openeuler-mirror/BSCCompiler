@@ -55,7 +55,7 @@ class LoopVecInfo {
   uint32_t largestTypeSize;  // largest size type in vectorizable stmtnodes
   uint32_t smallestTypeSize;  // smallest size type in vectorizable stmtnodes
   uint32_t currentRHSTypeSize; // largest size of current stmt's RHS, this is temp value and update for each stmt
-  uint32_t currentLHSTypeSize; // used in vectorize phase
+  uint32_t currentLHSTypeSize; // record current stmt lhs type in vectorize phase
   uint32_t widenop;          // can't handle t * t which t need widen operation
   bool     hasRedvar;                          // loop has reduction variable
   // list of vectorizable stmtnodes in current loop, others can't be vectorized
@@ -89,7 +89,7 @@ class LoopTransPlan {
   LoopVecInfo *vecInfo; // collect loop information
   BaseNode *const0Node;   // zero const used in reduction variable
   // function
-  bool Generate(DoloopNode *, DoloopInfo *);
+  bool Generate(DoloopNode *, DoloopInfo *, bool);
   void GenerateBoundInfo(DoloopNode *, DoloopInfo *);
 };
 
