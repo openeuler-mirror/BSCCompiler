@@ -300,9 +300,6 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         if (offset.IsInvalid()) {
           return nullptr;
         }
-        if (offset.val != 0) {
-          op = OP_ireadoff;
-        }
         newBase = base->GetOpnd(0);
         offsetVal = offset.val;
       } else {
@@ -315,6 +312,9 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
           OpMeExpr newMeExpr(*static_cast<OpMeExpr *>(base->GetOpnd(0)), kInvalidExprID);
           newBase = ReplaceMeExprExpr(*base->GetOpnd(0), newMeExpr, 1, *ptrVar, *newAddSub);
         }
+      }
+      if (offsetVal != 0) {
+        op = OP_ireadoff;
       }
       if (lhsIvar) {
         auto *meDef = New<IvarMeExpr>(exprID++, ivar->GetPrimType(), ivar->GetTyIdx(), ivar->GetFieldID(), op);
