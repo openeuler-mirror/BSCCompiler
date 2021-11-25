@@ -27,6 +27,7 @@ namespace maple {
 MIRModule *theMIRModule = nullptr;
 std::atomic<uint32> StmtNode::stmtIDNext(1);  // 0 is reserved
 uint32 StmtNode::lastPrintedLineNum = 0;
+const int32 CondGotoNode::probAll = 10000;
 
 const char *GetIntrinsicName(MIRIntrinsicID intrn) {
   switch (intrn) {
@@ -132,6 +133,14 @@ bool AddrofNode::CheckNode(const MIRModule &mod) const {
     default:
       return false;
   }
+}
+
+MIRType *IreadNode::GetType() const {
+  MIRPtrType *ptrtype = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx));
+  if (fieldID == 0) {
+    return ptrtype->GetPointedType();
+  }
+  return GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrtype->GetPointedTyIdxWithFieldID(fieldID));
 }
 
 bool IreadNode::IsVolatile() const {
@@ -263,9 +272,15 @@ void CppCatchNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << std::endl;
 }
 
-void UnaryNode::DumpOpnd(const MIRModule&, int indent) const {
+void UnaryNode::DumpOpnd(const MIRModule&, int32 indent) const {
+  DumpOpnd(indent);
+}
+
+void UnaryNode::DumpOpnd(int32 indent) const {
   LogInfo::MapleLogger() << " (";
-  uOpnd->Dump(indent);
+  if (uOpnd != nullptr) {
+    uOpnd->Dump(indent);
+  }
   LogInfo::MapleLogger() << ")";
 }
 
@@ -859,19 +874,21 @@ void MultiwayNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
-void UnaryStmtNode::DumpOpnd(const MIRModule&, int indent) const {
+void UnaryStmtNode::DumpOpnd(const MIRModule&, int32 indent) const {
+  DumpOpnd(indent);
+}
+
+void UnaryStmtNode::DumpOpnd(int32 indent) const {
   LogInfo::MapleLogger() << " (";
-  uOpnd->Dump(indent);
-  LogInfo::MapleLogger() << ")";
+  if (uOpnd != nullptr) {
+    uOpnd->Dump(indent);
+  }
+  LogInfo::MapleLogger() << ")\n";
 }
 
 void UnaryStmtNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
-  LogInfo::MapleLogger() << " (";
-  if (uOpnd) {
-    uOpnd->Dump(indent);
-  }
-  LogInfo::MapleLogger() << ")\n";
+  DumpOpnd(indent);
 }
 
 void UnaryStmtNode::Dump() const {
@@ -971,12 +988,21 @@ void BinaryStmtNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << '\n';
 }
 
-void AssertStmtNode::Dump(int32 indent) const {
-  BinaryStmtNode::Dump(indent);
-}
-
 void NaryStmtNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
+  NaryOpnds::Dump(indent);
+  LogInfo::MapleLogger() << '\n';
+}
+
+void CallAssertNonnullStmtNode::Dump(int32 indent) const {
+  StmtNode::DumpBase(indent);
+  SafetyCallCheckStmtNode::Dump();
+  UnaryStmtNode::DumpOpnd(indent);
+}
+
+void CallAssertBoundaryStmtNode::Dump(int32 indent) const {
+  StmtNode::DumpBase(indent);
+  SafetyCallCheckStmtNode::Dump();
   NaryOpnds::Dump(indent);
   LogInfo::MapleLogger() << '\n';
 }
@@ -1043,6 +1069,19 @@ bool HasIreadExpr(const BaseNode *expr) {
     }
   }
   return false;
+}
+
+// layer to leaf node
+size_t MaxDepth(const BaseNode *expr) {
+  if (expr->IsLeaf()) {
+    return 1;
+  }
+  size_t maxSubDepth = 0;
+  for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
+    size_t depth = MaxDepth(expr->Opnd(i));
+    maxSubDepth = (depth > maxSubDepth) ? depth : maxSubDepth;
+  }
+  return maxSubDepth + 1; // expr itself
 }
 
 MIRType *CallNode::GetCallReturnType() {
@@ -2293,5 +2332,174 @@ bool IcallNode::Verify() const {
 
 bool IntrinsiccallNode::Verify() const {
   return VerifyOpnds();
+}
+
+SafetyCallCheckStmtNode::SafetyCallCheckStmtNode(const std::string &funcName, size_t paramIndex)
+    : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)),
+      paramIndex(paramIndex) {}
+
+std::string SafetyCallCheckStmtNode::GetFuncName() const {
+  return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
+}
+
+bool UnaryNode::IsSameContent(BaseNode* node) const {
+  UnaryNode *unaryNode = dynamic_cast<UnaryNode *>(node);
+  if ((this == unaryNode) ||
+      (unaryNode && (GetOpCode() == unaryNode->GetOpCode()) &&
+      (GetPrimType() == unaryNode->GetPrimType()) &&
+      (uOpnd && unaryNode->Opnd(0) && uOpnd->IsSameContent(unaryNode->Opnd(0))))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool TypeCvtNode::IsSameContent(BaseNode* node) const {
+  TypeCvtNode *tyCvtNode = dynamic_cast<TypeCvtNode *>(node);
+  if ((this == tyCvtNode) ||
+      (tyCvtNode && (fromPrimType == tyCvtNode->FromType()) &&
+      UnaryNode::IsSameContent(tyCvtNode))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool IreadNode::IsSameContent(BaseNode* node) const {
+  IreadNode *ireadNode = dynamic_cast<IreadNode *>(node);
+  if ((this == ireadNode) ||
+      (ireadNode && (tyIdx == ireadNode->GetTyIdx()) &&
+      (fieldID == ireadNode->GetFieldID()) &&
+      UnaryNode::IsSameContent(ireadNode))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool IreadoffNode::IsSameContent(BaseNode* node) const {
+  IreadoffNode *ireadoffNode = dynamic_cast<IreadoffNode *>(node);
+  if ((this == ireadoffNode) ||
+      (ireadoffNode && (GetOffset() == ireadoffNode->GetOffset()) &&
+      UnaryNode::IsSameContent(ireadoffNode))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool IreadFPoffNode::IsSameContent(BaseNode* node) const {
+  IreadFPoffNode *ireadFPoffNode = dynamic_cast<IreadFPoffNode *>(node);
+  if ((this == ireadFPoffNode) ||
+      (ireadFPoffNode && (GetOpCode() == ireadFPoffNode->GetOpCode()) &&
+      (GetPrimType() == ireadFPoffNode->GetPrimType()) &&
+      (GetOffset() == ireadFPoffNode->GetOffset()))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool BinaryOpnds::IsSameContent(BaseNode* node) const {
+  BinaryOpnds *binaryOpnds = dynamic_cast<BinaryOpnds *>(node);
+  if ((this == binaryOpnds) ||
+      (binaryOpnds &&
+      GetBOpnd(0)->IsSameContent(binaryOpnds->GetBOpnd(0)) &&
+      GetBOpnd(1)->IsSameContent(binaryOpnds->GetBOpnd(1)))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool BinaryNode::IsSameContent(BaseNode* node) const {
+  BinaryNode *binaryNode = dynamic_cast<BinaryNode *>(node);
+  if ((this == binaryNode) ||
+      (binaryNode &&
+      (GetOpCode() == binaryNode->GetOpCode()) &&
+      (GetPrimType() == binaryNode->GetPrimType()) &&
+      BinaryOpnds::IsSameContent(binaryNode))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool ConstvalNode::IsSameContent(BaseNode* node) const {
+  ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(node);
+  if ((this == constvalNode) ||
+      (constvalNode &&
+      //(GetOpCode() == constvalNode->GetOpCode()) &&
+      //(GetPrimType() == constvalNode->GetPrimType()) &&
+      GetConstVal()->GetKind() == kConstInt &&
+      constvalNode->GetConstVal()->GetKind() == kConstInt &&
+      static_cast<MIRIntConst *>(const_cast<MIRConst *>(GetConstVal()))->GetValue() ==
+      static_cast<MIRIntConst *>(const_cast<MIRConst *>(constvalNode->GetConstVal()))->GetValue())) {
+    return true;
+  } else {
+    // make it false for now on kinds other than kConstInt
+    return false;
+  }
+}
+
+bool AddrofNode::IsSameContent(BaseNode* node) const {
+  AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(node);
+  if ((this == addrofNode) ||
+      (addrofNode && (GetOpCode() == addrofNode->GetOpCode()) &&
+      (GetPrimType() == addrofNode->GetPrimType()) &&
+      (GetNumOpnds() ==  addrofNode->GetNumOpnds()) &&
+      (stIdx.FullIdx() == addrofNode->GetStIdx().FullIdx()) &&
+      (fieldID == addrofNode->GetFieldID()))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool DreadoffNode::IsSameContent(BaseNode* node) const {
+  DreadoffNode *dreaddoffNode = dynamic_cast<DreadoffNode *>(node);
+  if ((this == dreaddoffNode) ||
+      (dreaddoffNode && (GetOpCode() == dreaddoffNode->GetOpCode()) &&
+      (GetPrimType() == dreaddoffNode->GetPrimType()) && (stIdx == dreaddoffNode->stIdx) &&
+      (offset == dreaddoffNode->offset))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool RegreadNode::IsSameContent(BaseNode* node) const {
+  RegreadNode *regreadNode = dynamic_cast<RegreadNode *>(node);
+  if ((this == regreadNode) ||
+      (regreadNode && (GetOpCode() == regreadNode->GetOpCode()) &&
+      (GetPrimType() == regreadNode->GetPrimType()) && (regIdx == regreadNode->GetRegIdx()))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool AddroffuncNode::IsSameContent(BaseNode* node) const {
+  AddroffuncNode *addroffuncNode = dynamic_cast<AddroffuncNode *>(node);
+  if ((this == addroffuncNode) ||
+      (addroffuncNode && (GetOpCode() == addroffuncNode->GetOpCode()) &&
+      (GetPrimType() == addroffuncNode->GetPrimType()) &&
+      (puIdx == addroffuncNode->GetPUIdx()))) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool AddroflabelNode::IsSameContent(BaseNode* node) const {
+  AddroflabelNode *addroflabelNode = dynamic_cast<AddroflabelNode *>(node);
+  if ((this == addroflabelNode) ||
+      (addroflabelNode && (GetOpCode() == addroflabelNode->GetOpCode()) &&
+      (GetPrimType() == addroflabelNode->GetPrimType()) &&
+      (offset == addroflabelNode->GetOffset()))) {
+    return true;
+  } else {
+    return false;
+  }
 }
 }  // namespace maple

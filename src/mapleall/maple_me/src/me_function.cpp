@@ -144,6 +144,7 @@ void MeFunction::Prepare() {
     MIRLower mirLowerer(mirModule, CurFunction());
     mirLowerer.Init();
     mirLowerer.SetLowerME();
+    mirLowerer.SetOptLevel(MeOption::optLevel);
     if (mirModule.IsJavaModule()) {
       mirLowerer.SetLowerExpandArray();
     }
