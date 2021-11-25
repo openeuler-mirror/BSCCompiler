@@ -553,6 +553,10 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
       return true;
     };
     /* ensure that the use insns to be replaced is defined by defInsnForSecondOpnd only */
+    if (useInsn->IsMemAccess() &&
+        static_cast<AArch64MemOperand *>(static_cast<AArch64Insn *>(useInsn)->GetMemOpnd())->GetIndexOpt() != AArch64MemOperand::kIntact) {
+      return false;
+    }
     InsnSet defInsnVecOfSrcOpnd = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, secondRegNO, true);
     if (!checkOneDefOnly(defInsnVecOfSrcOpnd, *defInsnForSecondOpnd, true)) {
       return false;
@@ -1334,6 +1338,9 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
       break;
     case MOP_xlsrrri6:
     case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+      break;
+    case MOP_xasrrri6:
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
       break;
     default: {
       extendOp = ExtendShiftOperand::kUndef;
