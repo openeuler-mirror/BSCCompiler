@@ -852,6 +852,50 @@ void MplOptions::UpdateRunningExe(const std::string &args) {
   }
 }
 
+std::string MplOptions::GetInputFileNameForPrint(const Action * const action) const {
+  if (!runningExes.empty()) {
+    if (runningExes[0] == kBinNameMe || runningExes[0] == kBinNameMpl2mpl
+        || runningExes[0] == kBinNameMplcg) {
+      return inputFiles;
+    }
+  }
+
+  if (action == nullptr) {
+    return GetInputFiles();
+  }
+
+  if (action->GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
+    return action->GetFullOutputName() + ".VtableImpl.mpl";
+  }
+  if (action->GetInputFileType() == InputFileType::kFileTypeBpl) {
+    return action->GetFullOutputName() + ".bpl";
+  }
+  return action->GetFullOutputName() + ".mpl";
+}
+
+void MplOptions::PrintCommand(const Action * const action) {
+  if (hasPrinted) {
+    return;
+  }
+  std::ostringstream optionStr;
+  if (runMode == RunMode::kAutoRun) {
+    if (optimizationLevel == kO0) {
+      optionStr << " -O0";
+    } else if (optimizationLevel == kO2) {
+      optionStr << " -O2";
+    }
+
+    auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
+
+    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
+                           << printExtraOptStr.str() << printCommandStr << " " << inputs << '\n';
+  }
+  if (runMode == RunMode::kCustomRun) {
+    PrintDetailCommand(action, true);
+  }
+  hasPrinted = true;
+}
+
 void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb,
                                std::string &runStr) {
   std::string connectSym = "";
@@ -870,7 +914,8 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
     }
   }
 }
-void MplOptions::PrintDetailCommand() {
+
+void MplOptions::PrintDetailCommand(const Action * const action, bool isBeforeParse) {
   if (exeOptions.find(kBinNameMe) == exeOptions.end() && exeOptions.find(kBinNameMpl2mpl) == exeOptions.end()
       && exeOptions.find(kBinNameMplcg) == exeOptions.end()) {
     return;
@@ -884,8 +929,14 @@ void MplOptions::PrintDetailCommand() {
   connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
   optionStr += "\"";
 
-  LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple "
-                         << runStr << " " << optionStr << " "
-                         << printCommandStr << " " << GetInputFiles() << '\n';
+  auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
+
+  if (isBeforeParse) {
+    LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
+                           << printExtraOptStr.str() << printCommandStr << " " << inputs << '\n';
+  } else {
+    LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
+                           << printCommandStr << " " << inputs << '\n';
+  }
 }
 } // namespace maple

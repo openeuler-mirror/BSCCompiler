@@ -171,6 +171,7 @@ ErrorCode MapleCombCompiler::Compile(MplOptions &options, const Action &action,
     theModule = std::make_unique<MIRModule>(fileName);
     fileParsed = false;
   }
+  options.PrintCommand(&action);
   LogInfo::MapleLogger() << "Starting maplecomb\n";
   theModule->InitPartO2List(options.GetPartO2List());
   DriverRunner runner(theModule.get(), options.GetSelectedExes(), action.GetInputFileType(), fileName,

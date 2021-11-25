@@ -394,9 +394,13 @@ class MplOptions {
 
   ErrorCode AppendCombOptions(MIRSrcLang srcLang);
   ErrorCode AppendMplcgOptions(MIRSrcLang srcLang);
-  void PrintCommand();
+  std::string GetInputFileNameForPrint(const Action * const action) const;
+  void PrintCommand(const Action * const action);
   void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
-  void PrintDetailCommand();
+  void PrintDetailCommand(const Action * const action, bool isBeforeParse);
+  inline void PrintDetailCommand(bool isBeforeParse) {
+    PrintDetailCommand(nullptr, isBeforeParse);
+  }
  private:
   bool Init(const std::string &inputFile);
   ErrorCode HandleGeneralOptions();
