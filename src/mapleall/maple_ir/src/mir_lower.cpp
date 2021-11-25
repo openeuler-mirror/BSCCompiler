@@ -241,7 +241,7 @@ static bool ConsecutiveCaseValsAndSameTarget(const CaseVector *switchTable) {
   return true;
 }
 
-// if there is only 1 case branch, replace with conditional branch(es) and 
+// if there is only 1 case branch, replace with conditional branch(es) and
 // return the optimized multiple statements; otherwise, return nullptr
 BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   CaseVector *switchTable = &switchNode->GetSwitchTable();
@@ -268,7 +268,7 @@ BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
   if (minCaseVal == maxCaseVal) {
     // brtrue (x == minCaseVal) @case_goto_label
     // goto @default_label
-    CompareNode *eqNode = builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *eqNode = builder->CreateExprCompare(OP_eq, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
     CondGotoNode *condGoto = builder->CreateStmtCondGoto(eqNode, OP_brtrue, caseGotoLabel);
     blk->AddStatement(condGoto);
@@ -278,11 +278,11 @@ BlockNode *MIRLower::LowerSwitchStmt(SwitchNode *switchNode) {
     // brtrue (x < minCaseVal) @default_label
     // brtrue (x > maxCaseVal) @default_label
     // goto @case_goto_label
-    CompareNode *ltNode = builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *ltNode = builder->CreateExprCompare(OP_lt, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, minCaseNode);
     CondGotoNode *condGoto = builder->CreateStmtCondGoto(ltNode, OP_brtrue, defaultLabel);
     blk->AddStatement(condGoto);
-    CompareNode *gtNode = builder->CreateExprCompare(OP_gt, *GlobalTables::GetTypeTable().GetInt32(), 
+    CompareNode *gtNode = builder->CreateExprCompare(OP_gt, *GlobalTables::GetTypeTable().GetInt32(),
         *GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(switchOpnd->GetPrimType())), switchOpnd, maxCaseNode);
     condGoto = builder->CreateStmtCondGoto(gtNode, OP_brtrue, defaultLabel);
     blk->AddStatement(condGoto);
@@ -480,12 +480,12 @@ BaseNode* MIRLower::LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockN
     MIRBuilder *builder = mirModule.GetMIRBuilder();
     BinaryNode *bnode = static_cast<BinaryNode *>(x);
     bnode->SetOpnd(LowerEmbeddedCandCior(bnode->Opnd(0), curstmt, blk), 0);
-    PregIdx pregIdx = mirFunc->GetPregTab()->CreatePreg(PTY_u8);
-    RegassignNode *regass = builder->CreateStmtRegassign(PTY_u8, pregIdx, bnode->Opnd(0));
+    PregIdx pregIdx = mirFunc->GetPregTab()->CreatePreg(x->GetPrimType());
+    RegassignNode *regass = builder->CreateStmtRegassign(x->GetPrimType(), pregIdx, bnode->Opnd(0));
     blk->InsertBefore(curstmt, regass);
     LabelIdx labIdx = mirFunc->GetLabelTab()->CreateLabel();
     (void)mirFunc->GetLabelTab()->AddToStringLabelMap(labIdx);
-    BaseNode *cond = builder->CreateExprRegread(PTY_u8, pregIdx);
+    BaseNode *cond = builder->CreateExprRegread(x->GetPrimType(), pregIdx);
     CondGotoNode *cgoto = mirFunc->GetCodeMempool()->New<CondGotoNode>(
         x->GetOpCode() == OP_cior ? OP_brtrue : OP_brfalse);
     cgoto->SetOpnd(cond, 0);
@@ -493,12 +493,12 @@ BaseNode* MIRLower::LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockN
     blk->InsertBefore(curstmt, cgoto);
 
     bnode->SetOpnd(LowerEmbeddedCandCior(bnode->Opnd(1), curstmt, blk), 1);
-    regass = builder->CreateStmtRegassign(PTY_u8, pregIdx, bnode->Opnd(1));
+    regass = builder->CreateStmtRegassign(x->GetPrimType(), pregIdx, bnode->Opnd(1));
     blk->InsertBefore(curstmt, regass);
     LabelNode *lbl = mirFunc->GetCodeMempool()->New<LabelNode>();
     lbl->SetLabelIdx(labIdx);
     blk->InsertBefore(curstmt, lbl);
-    return builder->CreateExprRegread(PTY_u8, pregIdx);
+    return builder->CreateExprRegread(x->GetPrimType(), pregIdx);
   } else {
     for (size_t i = 0; i < x->GetNumOpnds(); i++) {
       x->SetOpnd(LowerEmbeddedCandCior(x->Opnd(i), curstmt, blk), i);
