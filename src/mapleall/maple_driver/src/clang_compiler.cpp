@@ -29,16 +29,56 @@ const std::string &ClangCompiler::GetBinName() const {
   return kBinNameClang;
 }
 
-DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
-  uint32_t len = sizeof(kClangDefaultOptions) / sizeof(MplOption);
-  DefaultOption defaultOptions = { std::make_unique<MplOption[]>(len), len };
+static uint32_t FillSpecialDefaulOpt(std::unique_ptr<MplOption[]> &opt,
+                                     const Action &action) {
+  uint32_t additionalLen = 1; // for -o option
 
-  for (uint32_t i = 0; i < len; ++i) {
-    defaultOptions.mplOptions[i] = kClangDefaultOptions[i];
+  /* TODO: Add check for the target architecture and OS environment.
+   * Currently it supports only aarch64 and linux-gnu-
+   */
+  if (kOperatingSystem == "linux-gnu-" && kMachine == "aarch64-") {
+    additionalLen += 3;
+    opt = std::make_unique<MplOption[]>(additionalLen);
+
+    opt[0].SetKey("-isystem");
+    opt[0].SetValue(FileUtils::SafeGetenv(kMapleRoot) + "/tools/gcc-linaro-7.5.0/aarch64-linux-gnu/libc/usr/include");
+
+    opt[1].SetKey("-isystem");
+    opt[1].SetValue(FileUtils::SafeGetenv(kMapleRoot) + "/tools/gcc-linaro-7.5.0/lib/gcc/aarch64-linux-gnu/7.5.0/include");
+
+    opt[2].SetKey("-target");
+    opt[2].SetValue("aarch64");
+  } else {
+    CHECK_FATAL(false, "Only linux-gnu OS and aarch64 target are supported \n");
   }
 
-  CHECK_FATAL((len > 1), "Option is hardcoded in O0_options_clang.def file \n");
-  defaultOptions.mplOptions[1].SetValue(action.GetFullOutputName() + ".ast");
+  /* Set last option as -o option */
+  opt[additionalLen-1].SetKey("-o");
+  opt[additionalLen-1].SetValue(action.GetFullOutputName() + ".ast");
+
+  return additionalLen;
+}
+
+DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const Action &action) const {
+  DefaultOption defaultOptions;
+  uint32_t fullLen = 0;
+  uint32_t defaultLen = 0;
+  uint32_t additionalLen = 0;
+  std::unique_ptr<MplOption[]> additionalOptions;
+
+  additionalLen = FillSpecialDefaulOpt(additionalOptions, action);
+  defaultLen = sizeof(kClangDefaultOptions) / sizeof(MplOption);
+  fullLen = defaultLen + additionalLen;
+
+  defaultOptions = { std::make_unique<MplOption[]>(fullLen), fullLen };
+
+  for (uint32_t i = 0; i < defaultLen; ++i) {
+    defaultOptions.mplOptions[i] = kClangDefaultOptions[i];
+  }
+  for (uint32_t defInd = defaultLen, additionalInd = 0;
+       additionalInd < additionalLen; ++additionalInd) {
+    defaultOptions.mplOptions[defInd++] = additionalOptions[additionalInd];
+  }
 
   for (uint32_t i = 0; i < defaultOptions.length; ++i) {
     defaultOptions.mplOptions[i].SetValue(
@@ -49,12 +89,12 @@ DefaultOption ClangCompiler::GetDefaultOptions(const MplOptions &options, const 
   return defaultOptions;
 }
 
-void ClangCompiler::GetTmpFilesToDelete(const MplOptions &, const Action &action,
+void ClangCompiler::GetTmpFilesToDelete(const MplOptions&, const Action &action,
                                         std::vector<std::string> &tempFiles) const {
   tempFiles.push_back(action.GetFullOutputName() + ".ast");
 }
 
-std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions &,
+std::unordered_set<std::string> ClangCompiler::GetFinalOutputs(const MplOptions&,
                                                                const Action &action) const {
   std::unordered_set<std::string> finalOutputs;
   (void)finalOutputs.insert(action.GetFullOutputName() + ".ast");
