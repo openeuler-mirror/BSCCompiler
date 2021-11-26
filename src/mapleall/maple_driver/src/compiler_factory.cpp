@@ -137,7 +137,7 @@ ErrorCode CompilerFactory::Compile(MplOptions &mplOptions) {
     }
   }
   if (mplOptions.HasSetDebugFlag()) {
-    mplOptions.PrintDetailCommand();
+    mplOptions.PrintDetailCommand(false);
   }
   // Compiler finished
   compileFinished = true;
