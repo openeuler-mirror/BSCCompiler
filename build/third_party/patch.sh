@@ -40,7 +40,7 @@ function install_patch {
     patch -p0 < $TOOLS_PATH/system_001.patch
     patch -p0 < $TOOLS_PATH/art_001.patch
     mkdir -p include/
-    cp -r ${MAPLE_ROOT}/src/mplfe/dex_input/include/string_view_format.h include/
+    cp -r ${MAPLE_ROOT}/src/mplfe/bytecode_input/dex/include/string_view_format.h include/
 
     cd $MODIFIED_LLVM_PATH
     patch -p0 < $TOOLS_PATH/llvm_001.patch
