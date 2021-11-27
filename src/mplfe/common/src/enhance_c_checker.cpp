@@ -86,11 +86,7 @@ bool ENCChecker::HasNullExpr(const UniqueFEIRExpr &expr) {
     return false;
   }
   const UniqueFEIRExpr &cstExpr = static_cast<FEIRExprUnary*>(expr.get())->GetOpnd();
-  if (cstExpr != nullptr && cstExpr->GetKind() == kExprConst &&
-      static_cast<FEIRExprConst*>(cstExpr.get())->GetValue().u64 == 0) {
-    return true;
-  }
-  return false;
+  return FEIRBuilder::IsZeroConstExpr(cstExpr);
 }
 
 void ENCChecker::CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst *cst) {
@@ -111,8 +107,7 @@ void ENCChecker::CheckNonnullGlobalVarInit(const MIRSymbol &sym, const MIRConst 
   }
 }
 
-void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr,
-                                          std::list<UniqueFEIRStmt> &stmts) {
+void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !sym.GetAttr(ATTR_nonnull)) {
     return;
   }
@@ -122,17 +117,22 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *i
            sym.GetSrcPosition().LineNum());
     return;
   }
-  std::list<UniqueFEIRStmt> nullStmts;
-  UniqueFEIRExpr initFeirExpr = initExpr->Emit2FEExpr(nullStmts);
-  if (HasNullExpr(initFeirExpr)) {
+}
+
+void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIRExpr &initFEExpr,
+                                          std::list<UniqueFEIRStmt> &stmts) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !sym.GetAttr(ATTR_nonnull)) {
+    return;
+  }
+  if (HasNullExpr(initFEExpr)) {
     FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
            FEManager::GetModule().GetFileNameFromFileNum(sym.GetSrcPosition().FileNum()).c_str(),
            sym.GetSrcPosition().LineNum());
     return;
   }
-  if ((initFeirExpr->GetKind() == kExprDRead || initFeirExpr->GetKind() == kExprIRead) &&
-      initFeirExpr->GetPrimType() == PTY_ptr) {
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, std::move(initFeirExpr));
+  if ((initFEExpr->GetKind() == kExprDRead || initFEExpr->GetKind() == kExprIRead) &&
+      initFEExpr->GetPrimType() == PTY_ptr) {
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, initFEExpr->Clone());
     stmt->SetSrcFileInfo(sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum());
     stmts.emplace_back(std::move(stmt));
   }
@@ -152,7 +152,7 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
         static_cast<FEIRExprAddrofFunc*>(srcExpr.get())->GetFuncAddr());
     MIRFunction *srcFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
     CHECK_FATAL(srcFunc != nullptr, "can not get MIRFunction");
-    for (size_t i = 0; i < srcFunc->GetParamSize() && funcType->GetParamAttrsList().size(); ++i) {
+    for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFunc->GetNthParamAttr(i).GetAttr(ATTR_nonnull) != funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
         FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched "
                "in %d parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, i + 1);
@@ -166,7 +166,7 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
   if (srcFuncType != nullptr) {   // check func ptr l-value and func ptr r-value
-    for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && funcType->GetParamAttrsList().size(); ++i) {
+    for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFuncType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull) !=
           funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
         FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in %d parameter",
@@ -198,6 +198,49 @@ void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRType &baseType) 
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
   ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
+}
+
+bool ENCChecker::CheckNonnullFieldInStruct(const MIRType &mirType) {
+  if (mirType.IsMIRPtrType()) {
+    MIRType *structType = static_cast<const MIRPtrType&>(mirType).GetPointedType();
+    if (structType != nullptr && structType->IsStructType() &&
+        FEManager::GetTypeManager().IsOwnedNonnullFieldStructSet(structType->GetTypeIndex())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ASTCallExpr::CheckNonnullFieldInStruct() const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+    return;
+  }
+  std::list<UniqueFEIRStmt> nullStmts;
+  UniqueFEIRExpr baseExpr = nullptr;
+  if (funcName == "bzero" && args.size() == 2) {
+    baseExpr = args[0]->Emit2FEExpr(nullStmts);
+  } else if (funcName == "memset" && args.size() == 3 &&
+             FEIRBuilder::IsZeroConstExpr(args[1]->Emit2FEExpr(nullStmts))) {
+    baseExpr = args[0]->Emit2FEExpr(nullStmts);
+  }
+  if (baseExpr != nullptr && (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) &&
+      baseExpr->GetType() != nullptr) {
+    MIRType *mirType = baseExpr->GetType()->GenerateMIRTypeAuto();
+    if (ENCChecker::CheckNonnullFieldInStruct(*mirType)) {
+      FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull structure field pointer in %s",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum, funcName.c_str());
+    }
+  }
+}
+
+void ASTCastExpr::CheckNonnullFieldInStruct() const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || dst->GetTypeIndex() == src->GetTypeIndex()) {
+    return;
+  }
+  if (ENCChecker::CheckNonnullFieldInStruct(*dst)) {
+    FE_ERR(kLncErr, "%s:%d error: NULL assignment risk of nonnull pointer",
+           FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum);
+  }
 }
 
 // ---------------------------
@@ -749,8 +792,7 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
         return arrType;
       }
     }
-  }
-  if (expr->GetKind() == kExprIAddrof) {
+  } else if (expr->GetKind() == kExprIAddrof) {
     FEIRExprIAddrof *iaddrof = static_cast<FEIRExprIAddrof*>(expr.get());
     MIRType *pointerType = iaddrof->GetClonedPtrType()->GenerateMIRTypeAuto();
     CHECK_FATAL(pointerType->IsMIRPtrType(), "Must be ptr type!");
@@ -762,6 +804,72 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
     if (arrType->GetKind() == kTypeArray) {
       return arrType;
     }
+  } else if (expr->GetKind() == kExprAddrof) {  // local char* value size
+    auto *constArr = static_cast<FEIRExprAddrofConstArray*>(expr.get());
+    return GlobalTables::GetTypeTable().GetOrCreateArrayType(
+        *constArr->GetElemType(), constArr->GetStringLiteralSize());
+  } else if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) {  // global char* value size
+    MIRType *type = expr->GetType()->GenerateMIRTypeAuto();
+    if (type->IsMIRPtrType() && static_cast<MIRPtrType*>(type)->GetPointedType()->GetPrimType() == PTY_u8) {
+      MIRConst *cst = GetMIRConstFromExpr(expr);
+      if (cst != nullptr && cst->GetKind() == kConstStrConst) {
+        size_t size = GlobalTables::GetUStrTable().GetStringFromStrIdx(
+            static_cast<MIRStrConst*>(cst)->GetValue()).size();
+        if (size != 0) {
+          return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
+        }
+      }
+    }
+    return nullptr;
+  }
+  return nullptr;
+}
+
+MIRConst *ENCChecker::GetMIRConstFromExpr(const UniqueFEIRExpr &expr) {
+  if (expr == nullptr || expr->GetVarUses().size() != 1) {
+    return nullptr;
+  }
+  MIRSymbol *sym = expr->GetVarUses().front()->GenerateMIRSymbol(FEManager::GetMIRBuilder());
+  if (!sym->IsGlobal() || sym->GetKonst() == nullptr) {
+    return nullptr;
+  }
+  if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprAddrofVar) {
+    if (expr->GetFieldID() == 0) {
+      return sym->GetKonst();
+    } else if (expr->GetFieldID() != 0 && sym->GetKonst()->GetKind() == kConstAggConst) {
+      MIRAggConst *aggConst = static_cast<MIRAggConst*>(sym->GetKonst());
+      FieldID tmpID = expr->GetFieldID();
+      MIRConst *cst = FEUtils::TraverseToMIRConst(aggConst, *static_cast<MIRStructType*>(sym->GetType()), tmpID);
+      return cst;
+    }
+    return nullptr;
+  } else if (expr->GetKind() == kExprIRead) {
+    auto *iread = static_cast<FEIRExprIRead*>(expr.get());
+    MIRConst *cst = GetMIRConstFromExpr(iread->GetClonedOpnd());
+    if (expr->GetFieldID() != 0 && cst != nullptr && sym->GetKonst()->GetKind() == kConstAggConst) {
+      MIRType *pointType = static_cast<MIRPtrType*>(iread->GetClonedPtrType()->GenerateMIRTypeAuto())->GetPointedType();
+      FieldID tmpID = expr->GetFieldID();
+      cst = FEUtils::TraverseToMIRConst(static_cast<MIRAggConst*>(cst), *static_cast<MIRStructType*>(pointType), tmpID);
+    }
+    return cst;
+  } else if (expr->GetKind() == kExprAddrofArray) {
+    FEIRExprAddrofArray *arrExpr = static_cast<FEIRExprAddrofArray*>(expr.get());
+    MIRConst *cst = GetMIRConstFromExpr(arrExpr->GetExprArray());
+    if (cst != nullptr && cst->GetKind() == kConstAggConst) {
+      for (const auto & idxExpr : arrExpr->GetExprIndexs()) {
+        MIRAggConst *aggConst = static_cast<MIRAggConst*>(cst);
+        if (idxExpr->GetKind() != kExprConst) {
+          return nullptr;
+        }
+        uint64 idx = static_cast<FEIRExprConst*>(idxExpr.get())->GetValue().u64;
+        if (idx >= aggConst->GetConstVec().size()) {
+          return nullptr;
+        }
+        cst = aggConst->GetConstVecItem(idx);
+      }
+      return cst;
+    }
+    return nullptr;
   }
   return nullptr;
 }
@@ -1672,6 +1780,9 @@ void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const
   if (funcName == "malloc" && args.size() == 1) {
     realLenExpr = args[0]->Emit2FEExpr(nullStmts);
   }
+  if (funcName == "calloc" && args.size() == 2) {
+    realLenExpr = args[1]->Emit2FEExpr(nullStmts);
+  }
   if (funcDecl != nullptr && funcDecl->GetBoundaryLenExpr() != nullptr) {  // call
     realLenExpr = ENCChecker::GetRealBoundaryLenExprInFunc(
         funcDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);
@@ -1717,7 +1828,7 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
         static_cast<FEIRExprAddrofFunc*>(srcExpr.get())->GetFuncAddr());
     MIRFunction *srcFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
     CHECK_FATAL(srcFunc != nullptr, "can not get MIRFunction");
-    for (size_t i = 0; i < srcFunc->GetParamSize() && funcType->GetParamAttrsList().size(); ++i) {
+    for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFunc->GetNthParamAttr(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
         FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
@@ -1732,7 +1843,7 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
   if (srcFuncType != nullptr) {  // check func ptr l-value and func ptr r-value
-    for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && funcType->GetParamAttrsList().size(); ++i) {
+    for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFuncType->GetNthParamAttrs(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
         FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in %d paramater",
