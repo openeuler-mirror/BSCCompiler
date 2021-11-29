@@ -77,11 +77,11 @@ void ValueRangePropagation::Execute() {
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
       }
-      if (MeOption::safeRegionMode && (it->IsInSafeRegion() || func.GetMirFunc()->GetAttr(FUNCATTR_safed)) &&
+      if (MeOption::safeRegionMode && (it->IsInSafeRegion() || func.IsSafe()) &&
           kOpcodeInfo.IsCall(it->GetOp()) && instance_of<CallMeStmt>(*it)) {
         MIRFunction *callFunc =
             GlobalTables::GetFunctionTable().GetFunctionFromPuidx(static_cast<CallMeStmt&>(*it).GetPUIdx());
-        if (callFunc->GetAttr(FUNCATTR_unsafed)) {
+        if (callFunc->IsUnSafe()) {
           auto srcPosition = it->GetSrcPosition();
           FATAL(kLncFatal, "%s %d error: call unsafe function %s from safe region that requires safe function",
                 func.GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
@@ -105,7 +105,7 @@ void ValueRangePropagation::Execute() {
         }
         CASE_OP_ASSERT_NONNULL {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
-          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion() && func.IsUnSafe()) {
             deleteStmt = true;
           } else if (DealWithAssertNonnull(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
@@ -119,7 +119,7 @@ void ValueRangePropagation::Execute() {
         }
         CASE_OP_ASSERT_BOUNDARY {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
-          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion() && func.IsUnSafe()) {
             deleteStmt = true;
           } else if (DealWithBoundaryCheck(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
@@ -168,9 +168,18 @@ void ValueRangePropagation::DealWithCallassigned(BB &bb, MeStmt &stmt) {
 void ValueRangePropagation::DealWithSwitch(MeStmt &stmt) {
   auto &switchMeStmt = static_cast<SwitchMeStmt&>(stmt);
   auto *opnd = switchMeStmt.GetOpnd();
+  std::set<BBId> bbs;
   for (auto &pair : switchMeStmt.GetSwitchTable()) {
-    Insert2Caches(func.GetCfg()->GetLabelBBAt(pair.second)->GetBBId(), opnd->GetExprID(),
-                  std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
+    auto *bb = func.GetCfg()->GetLabelBBAt(pair.second);
+    // Can prop value range to target bb only when the pred size of target bb is one and
+    // only one case can jump to the target bb.
+    if (bbs.find(bb->GetBBId()) == bbs.end() && bb->GetPred().size() == 1) {
+      Insert2Caches(bb->GetBBId(), opnd->GetExprID(),
+                    std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
+    } else {
+      Insert2Caches(bb->GetBBId(), opnd->GetExprID(), nullptr);
+    }
+    bbs.insert(bb->GetBBId());
   }
 }
 
@@ -348,15 +357,6 @@ std::unique_ptr<ValueRange> MergeVR(const ValueRange &vr1, const ValueRange &vr2
 }
 
 MeExpr *GetCmpExprFromBound(Bound b, MeExpr &expr, MeIRMap *irmap, Opcode op) {
-  if (b.GetConstant() != 0) {
-    if (op == OP_le) {
-      ++b;
-      op = OP_lt;
-    } else if (op == OP_ge) {
-      --b;
-      op = OP_gt;
-    }
-  }
   int64 val = b.GetConstant();
   MeExpr *var = const_cast<MeExpr *>(b.GetVar());
   PrimType ptyp = b.GetPrimType();
@@ -864,6 +864,7 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
   if (scalar.GetDefBy() == kDefByStmt) {
     stmts.push_back(scalar.GetDefStmt());
     JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedPhi, stmts);
+    stmts.pop_back();
   } else if (scalar.GetDefBy() == kDefByPhi) {
     MePhiNode &phi = scalar.GetDefPhi();
     if (visitedPhi.find(&phi) != visitedPhi.end()) {
@@ -927,24 +928,24 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
   auto srcPosition = stmt.GetSrcPosition();
   switch (stmt.GetOp()) {
     case OP_assertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: Dereference of nullable pointer",
+      FATAL(kLncFatal, "%s:%d error: Dereference of null pointer",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
       break;
     }
     case OP_returnassertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: %s return nonnull but got nullable pointer",
+      FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
             func->GetName().c_str());
       break;
     }
     case OP_assignassertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: nullable assignment of nonnull pointer",
+      FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
       break;
     }
     case OP_callassertnonnull: {
       auto &callStmt = static_cast<const CallAssertNonnullMeStmt &>(stmt);
-      FATAL(kLncFatal, "%s:%d error: nullable pointer passed to %s that requires nonnull for %s argument",
+      FATAL(kLncFatal, "%s:%d error: null pointer passed to %s that requires nonnull for %s argument",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
             callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
       break;
@@ -2855,6 +2856,9 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
   if (GetRealPredSize(bb) >= kNumOperands) {
     if (OnlyHaveCondGotoStmt(bb)) {
       size_t index = FindBBInSuccs(pred, bb);
+      for (auto *currPred : bb.GetPred()) {
+        InsertOstOfPhi2CandsForSSAUpdate(bb, *currPred);
+      }
       pred.RemoveSucc(bb);
       InsertCandsForSSAUpdate(pred);
       InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
@@ -3593,6 +3597,7 @@ void MEValueRangePropagation::GetAnalysisDependence(maple::AnalysisDep &aDep) co
 }
 
 bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
+  f.vrpRuns++;
   auto *dom = GET_ANALYSIS(MEDominance, f);
   CHECK_FATAL(dom != nullptr, "dominance phase has problem");
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
@@ -3619,7 +3624,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   } else {
     valueRangePropagation.SetSafetyBoundaryCheck(safetyCheckBoundaryError);
   }
-  if (MeOption::npeCheckMode == kNoCheck) {
+  if (MeOption::npeCheckMode == kNoCheck || f.vrpRuns == 1) {
     valueRangePropagation.SetSafetyNonnullCheck(safetyCheck);
   } else {
     valueRangePropagation.SetSafetyNonnullCheck(safetyCheckNonnullError);
