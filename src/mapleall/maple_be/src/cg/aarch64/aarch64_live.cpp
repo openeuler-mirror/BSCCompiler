@@ -165,11 +165,11 @@ void AArch64LiveAnalysis::ProcessListOpnd(BB &bb, Operand &opnd) const {
 }
 
 void AArch64LiveAnalysis::ProcessMemOpnd(BB &bb, Operand &opnd) const {
-  MemOperand &memOpnd = static_cast<MemOperand&>(opnd);
+  auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
   Operand *base = memOpnd.GetBaseRegister();
   Operand *offset = memOpnd.GetIndexRegister();
   if (base != nullptr) {
-    CollectLiveInfo(bb, *base, false, true);
+    CollectLiveInfo(bb, *base, !memOpnd.IsIntactIndexed(), true);
   }
   if (offset != nullptr) {
     CollectLiveInfo(bb, *offset, false, true);

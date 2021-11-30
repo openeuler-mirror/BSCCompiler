@@ -29,6 +29,11 @@
 #include "mad.h"
 
 namespace maplebe {
+
+/* subtarget opt phase -- cyclic Dependency, use Forward declaring */
+class CGSSAInfo;
+class DomAnalysis;
+
 class Globals {
  public:
   static Globals *GetInstance() {
@@ -189,6 +194,10 @@ class CG {
     }
     return *insn;
   }
+
+  virtual Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) = 0;
+
+  virtual PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) = 0;
 
   virtual CGFunc *CreateCGFunc(MIRModule &mod, MIRFunction&, BECommon&, MemPool&, StackMemPool&,
                                MapleAllocator&, uint32) = 0;
@@ -351,6 +360,9 @@ class CG {
   const MIRSymbol *GetDebugTraceExitFunction() const {
     return dbgTraceExit;
   }
+
+  /* Init SubTarget optimization */
+  virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);

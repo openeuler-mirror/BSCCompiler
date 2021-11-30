@@ -1045,10 +1045,13 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
       isVolStore = false;
     }
   }
-  if (memOrd == AArch64isa::kMoNone) {
+  if (symbol->GetAsmAttr() != UStrIdx(0)) {
+    std::string regDesp = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
+    AArch64RegOperand &specifiedOpnd = GetOrCreatePhysicalRegisterOperand(regDesp);
+    SelectCopy(specifiedOpnd, type->GetPrimType(), opnd0, rhsPType);
+  } else if (memOrd == AArch64isa::kMoNone) {
     mOp = PickStInsn(GetPrimTypeBitSize(ptyp), ptyp);
     Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(mOp, stOpnd, *memOpnd);
-
     if (GetCG()->GenerateVerboseCG()) {
       insn.SetComment(GenerateMemOpndVerbose(*memOpnd));
     }
@@ -2304,7 +2307,6 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   if (symbol->GetAsmAttr() != UStrIdx(0)) {
     std::string regDesp = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol->GetAsmAttr());
     AArch64RegOperand &specifiedOpnd = GetOrCreatePhysicalRegisterOperand(regDesp);
-    SelectCopy(specifiedOpnd, expr.GetPrimType(), *memOpnd, symType);
     return &specifiedOpnd;
   }
   PrimType resultType = expr.GetPrimType();
@@ -3824,7 +3826,7 @@ Operand *AArch64CGFunc::SelectLor(BinaryNode &node, Operand &opnd0, Operand &opn
 }
 
 void AArch64CGFunc::SelectCmpOp(Operand &resOpnd, Operand &lhsOpnd, Operand &rhsOpnd,
-                                Opcode opcode, PrimType primType) {
+                                Opcode opcode, PrimType primType, const BaseNode &parent) {
   uint32 dsize = resOpnd.GetSize();
   bool isFloat = IsPrimitiveFloat(primType);
   Operand &opnd0 = LoadIntoRegister(lhsOpnd, primType);
@@ -3876,8 +3878,9 @@ void AArch64CGFunc::SelectCmpOp(Operand &resOpnd, Operand &lhsOpnd, Operand &rhs
   }
 
   static_cast<RegOperand*>(&resOpnd)->SetValidBitsNum(1);
+  // lt u8 i32 ( xxx, 0 ) => get sign bit
   if ((opcode == OP_lt) && opnd0.IsRegister() && opnd1->IsImmediate() &&
-      (static_cast<ImmOperand*>(opnd1)->GetValue() == 0)) {
+      (static_cast<ImmOperand*>(opnd1)->GetValue() == 0) && parent.GetOpCode() != OP_select) {
     bool is64Bits = (opnd0.GetSize() == k64BitSize);
     if (!unsignedIntegerComparison) {
       int32 bitLen = is64Bits ? kBitLenOfShift64Bits : kBitLenOfShift32Bits;
@@ -3923,7 +3926,7 @@ Operand *AArch64CGFunc::SelectCmpOp(CompareNode &node, Operand &opnd0, Operand &
   RegOperand *resOpnd = nullptr;
   if (!IsPrimitiveVector(node.GetPrimType())) {
     resOpnd = &GetOrCreateResOperand(parent, node.GetPrimType());
-    SelectCmpOp(*resOpnd, opnd0, opnd1, node.GetOpCode(), node.GetOpndType());
+    SelectCmpOp(*resOpnd, opnd0, opnd1, node.GetOpCode(), node.GetOpndType(), parent);
   } else {
     resOpnd = SelectVectorCompare(&opnd0, node.Opnd(0)->GetPrimType(), &opnd1,
                                   node.Opnd(1)->GetPrimType(), node.GetOpCode());
@@ -5140,7 +5143,7 @@ void AArch64CGFunc::SelectSelect(Operand &resOpnd, Operand &condOpnd, Operand &t
 }
 
 Operand *AArch64CGFunc::SelectSelect(TernaryNode &expr, Operand &cond, Operand &trueOpnd, Operand &falseOpnd,
-                                     const BaseNode &parent, bool hasCompare, bool canLtOptimized) {
+                                     const BaseNode &parent, bool hasCompare) {
   PrimType dtype = expr.GetPrimType();
   PrimType ctype = expr.Opnd(0)->GetPrimType();
 
@@ -5167,11 +5170,7 @@ Operand *AArch64CGFunc::SelectSelect(TernaryNode &expr, Operand &cond, Operand &
       cc = unsignedIntegerComparison ? CC_HI : CC_GT;
       break;
     case OP_lt:
-      if (canLtOptimized) {
-        cc = unsignedIntegerComparison ? CC_LO : CC_LT;
-      } else {
-        hasCompare = true;
-      }
+      cc = unsignedIntegerComparison ? CC_LO : CC_LT;
       break;
     default:
       hasCompare = true;
@@ -5978,7 +5977,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
 }
 
 RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
-  ASSERT((vRegOperandTable.find(vRegNO) == vRegOperandTable.end()) || IsVRegNOForPseudoRegister(vRegNO), "");
+  ASSERT((vRegOperandTable.find(vRegNO) == vRegOperandTable.end()), "already exist");
   uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vRegTable[vRegNO].GetSize())) * kBitsPerByte);
   RegOperand *res = memPool->New<AArch64RegOperand>(vRegNO, bitSize, vRegTable.at(vRegNO).GetType());
   vRegOperandTable[vRegNO] = res;
@@ -5988,6 +5987,23 @@ RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
 RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(regno_t vRegNO) {
   auto it = vRegOperandTable.find(vRegNO);
   return (it != vRegOperandTable.end()) ? *(it->second) : CreateVirtualRegisterOperand(vRegNO);
+}
+
+RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) {
+  regno_t regNO = regOpnd.GetRegisterNumber();
+  auto it = vRegOperandTable.find(regNO);
+  if (it != vRegOperandTable.end()) {
+    it->second->SetSize(regOpnd.GetSize());
+    ASSERT(it->second->GetRegisterNumber() == regNO, "vregtable is not accurate");
+    if (it->second->GetRegisterType() != regOpnd.GetRegisterType()) {
+      it->second->SetRegisterType(regOpnd.GetRegisterType());
+    }
+    return *it->second;
+  } else {
+    auto *newRegOpnd = static_cast<RegOperand*>(regOpnd.Clone(*memPool));
+    vRegOperandTable[newRegOpnd->GetRegisterNumber()] = newRegOpnd;
+    return *newRegOpnd;
+  }
 }
 
 /*
@@ -6790,6 +6806,11 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOp
     BaseNode *argExpr = naryNode.Opnd(i);
     PrimType primType = argExpr->GetPrimType();
     ASSERT(primType != PTY_void, "primType should not be void");
+    auto calleePuIdx = static_cast<CallNode&>(naryNode).GetPUIdx();
+    auto *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(calleePuIdx);
+    if (callee != nullptr && pnum < callee->GetFormalCount() && callee->GetFormal(pnum) != nullptr) {
+      is64x1vec = callee->GetFormal(pnum)->GetAttr(ATTR_oneelem_simd);
+    }
     switch (argExpr->op) {
       case OP_dread: {
         DreadNode *dNode = static_cast<DreadNode *>(argExpr);
@@ -7264,6 +7285,9 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   }
 
   GetFunction().SetHasCall();
+  if (GetMirModule().IsCModule()) { /* do not mark abort BB in C at present */
+    return;
+  }
   if ((fsym->GetName() == "MCC_ThrowException") || (fsym->GetName() == "MCC_RethrowException") ||
       (fsym->GetName() == "MCC_ThrowArithmeticException") ||
       (fsym->GetName() == "MCC_ThrowArrayIndexOutOfBoundsException") ||
@@ -7752,6 +7776,16 @@ AArch64MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(AArch64MemOperand::AArch64A
   }
   AArch64MemOperand *res = memPool->New<AArch64MemOperand>(tMemOpnd);
   hashMemOpndTable[tMemOpnd] = res;
+  return *res;
+}
+
+AArch64MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(AArch64MemOperand &oldMem) {
+  auto it = hashMemOpndTable.find(oldMem);
+  if (it != hashMemOpndTable.end()) {
+    return *(it->second);
+  }
+  AArch64MemOperand *res = memPool->New<AArch64MemOperand>(oldMem);
+  hashMemOpndTable[oldMem] = res;
   return *res;
 }
 

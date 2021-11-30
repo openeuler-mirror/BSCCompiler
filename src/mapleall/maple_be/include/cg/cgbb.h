@@ -97,7 +97,8 @@ class BB {
         liveInRegNO(mallocator.Adapter()),
         liveOutRegNO(mallocator.Adapter()),
         callInsns(mallocator.Adapter()),
-        rangeGotoLabelVec(mallocator.Adapter()) {}
+        rangeGotoLabelVec(mallocator.Adapter()),
+        phiInsnList(mallocator.Adapter()) {}
 
   virtual ~BB() = default;
 
@@ -592,6 +593,15 @@ class BB {
   void PushBackRangeGotoLabel(LabelIdx labelIdx) {
     rangeGotoLabelVec.emplace_back(labelIdx);
   }
+  void AddPhiInsn(regno_t regNO, Insn &insn) {
+    phiInsnList.emplace(std::pair<regno_t, Insn*>(regNO, &insn));
+  }
+  bool HasPhiInsn(regno_t regNO) {
+    return phiInsnList.find(regNO) != phiInsnList.end();
+  }
+  MapleMap<regno_t, Insn*> &GetPhiInsns() {
+    return phiInsnList;
+  }
   const Insn *GetFirstLoc() const {
     return firstLoc;
   }
@@ -776,6 +786,9 @@ class BB {
   long internalFlag3 = 0;
   MapleList<Insn*> callInsns;
   MapleVector<LabelIdx> rangeGotoLabelVec;
+
+  /* bb support for SSA analysis */
+  MapleMap<regno_t, Insn*> phiInsnList;
 
   /* includes Built-in functions for atomic memory access */
   bool isAtomicBuiltIn = false;

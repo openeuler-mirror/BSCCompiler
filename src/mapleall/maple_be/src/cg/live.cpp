@@ -72,11 +72,7 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) {
       bb.LiveOutOrBits(*ehSuccBB->GetLiveIn());
     }
   }
-
-  if (!bb.GetLiveOut()->IsEqual(bbLiveOutBak)) {
-    return true;
-  }
-  return false;
+  return !bb.GetLiveOut()->IsEqual(bbLiveOutBak);
 }
 
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
@@ -130,11 +126,11 @@ void LiveAnalysis::BuildInOutforFunc() {
   } while (hasChange);
 }
 
-/* only reset to liveout/in_regno in schedule and ra phase. */
+/*  reset to liveout/in_regno */
 void LiveAnalysis::ResetLiveSet() {
   FOR_ALL_BB(bb, cgFunc) {
-    bb->GetLiveIn()->GetBitsOfInfo(bb->GetLiveInRegNO());
-    bb->GetLiveOut()->GetBitsOfInfo(bb->GetLiveOutRegNO());
+    bb->GetLiveIn()->GetBitsOfInfo<MapleSet<uint32>>(bb->GetLiveInRegNO());
+    bb->GetLiveOut()->GetBitsOfInfo<MapleSet<uint32>>(bb->GetLiveOutRegNO());
   }
 }
 

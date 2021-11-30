@@ -475,7 +475,7 @@ OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, int32 opndInd
     }
     /* forward prop for base register. */
     if ((baseInfo != nullptr) && base->IsRegister()) {
-      RegOperand *baseReg = static_cast<RegOperand*>(base);
+      auto *baseReg = static_cast<RegOperand*>(base);
       Operand *replaceOpnd = baseInfo->replacementOpnd;
       OpndInfo *replaceInfo = baseInfo->replacementInfo;
       if ((replaceInfo != nullptr) && (replaceOpnd != nullptr) && !baseReg->IsSPOrFP() &&

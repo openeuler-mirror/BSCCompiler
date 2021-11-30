@@ -475,6 +475,12 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
+  if (defInsnForSecondOpnd->IsStore() || defInsnForSecondOpnd->IsLoad()) {
+    auto *memOpnd = static_cast<AArch64MemOperand*>(defInsnForSecondOpnd->GetMemOpnd());
+    if (memOpnd != nullptr && !memOpnd->IsIntactIndexed()) {
+      return false;
+    }
+  }
 
   bool findFinish = cgFunc.GetRD()->FindRegUseBetweenInsn(secondRegNO, defInsnForSecondOpnd->GetNext(),
                                                           bb.GetLastInsn(), srcOpndUseInsnSet);
@@ -494,6 +500,7 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn) {
 
   /* ensure that there is no fisrt RegNO def/use between insn and defInsnForSecondOpnd */
   std::vector<Insn*> defInsnVecFirst;
+
   if (insn.GetBB() != defInsnForSecondOpnd->GetBB()) {
     defInsnVecFirst = cgFunc.GetRD()->FindRegDefBetweenInsnGlobal(firstRegNO, defInsnForSecondOpnd, &insn);
   } else {
@@ -508,6 +515,14 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsnsGlobal(Insn &insn) {
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
+
+  if (defInsnForSecondOpnd->IsStore() || defInsnForSecondOpnd->IsLoad()) {
+    auto *memOpnd = static_cast<AArch64MemOperand*>(defInsnForSecondOpnd->GetMemOpnd());
+    if (memOpnd != nullptr && !memOpnd->IsIntactIndexed()) {
+      return false;
+    }
+  }
+
   srcOpndUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(*defInsnForSecondOpnd, secondRegNO, true);
   /*
    * useInsn is not expected to have multiple definition
@@ -530,6 +545,15 @@ bool BackPropPattern::CheckPredefineInsn(Insn &insn) {
 
 bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
   for (auto *useInsn : srcOpndUseInsnSet) {
+    if (useInsn->GetMemOpnd() != nullptr) {
+      auto *a64MemOpnd = static_cast<AArch64MemOperand*>(useInsn->GetMemOpnd());
+      if (!a64MemOpnd->IsIntactIndexed() ){
+        if (a64MemOpnd->GetBaseRegister() != nullptr &&
+            a64MemOpnd->GetBaseRegister()->GetRegisterNumber() == secondRegNO) {
+          return false;
+        }
+      }
+    }
     /* insn has been checked def */
     if (useInsn == &insn) {
       if (defInsnForSecondOpnd != useInsn->GetPrev() &&
@@ -647,6 +671,14 @@ void BackPropPattern::Optimize(Insn &insn) {
     }
 
     if (opnd.IsRegister() && (static_cast<RegOperand&>(opnd).GetRegisterNumber() == secondRegNO)) {
+      /* remove remat info */
+      Operand &defOp = defInsnForSecondOpnd->GetOperand(i);
+      CHECK_FATAL(defOp.IsRegister() ,"unexpect def opnd type");
+      auto &defRegOp = static_cast<RegOperand&>(defOp);
+      MIRPreg *preg = static_cast<AArch64CGFunc&>(cgFunc).GetPseudoRegFromVirtualRegNO(defRegOp.GetRegisterNumber());
+      if (preg != nullptr) {
+        preg->SetOp(OP_undef);
+      }
       defInsnForSecondOpnd->SetOperand(i, firstOpnd);
       cgFunc.GetRD()->UpdateInOut(*defInsnForSecondOpnd->GetBB());
     } else if (opnd.IsMemoryAccessOperand()) {

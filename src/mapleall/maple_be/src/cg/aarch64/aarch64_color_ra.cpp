@@ -1813,20 +1813,28 @@ void GraphColorRegAllocator::ComputeBBForNewSplit(LiveRange &newLr, LiveRange &o
   ForEachBBArrElem(newLr.GetBBMember(), pruneTopLr); /* prune the top LR. */
 }
 
-bool GraphColorRegAllocator::UseIsUncovered(BB &bb, const BB &startBB) {
+bool GraphColorRegAllocator::UseIsUncovered(BB &bb, const BB &startBB, std::vector<bool> &visitedBB) {
+  CHECK_FATAL(bb.GetId() < visitedBB.size(), "index out of range");
+  visitedBB[bb.GetId()] = true;
   for (auto pred : bb.GetPreds()) {
+    if (visitedBB[pred->GetId()]) {
+      continue;
+    }
     if (pred->GetLevel() <= startBB.GetLevel()) {
       return true;
     }
-    if (UseIsUncovered(*pred, startBB)) {
+    if (UseIsUncovered(*pred, startBB, visitedBB)) {
       return true;
     }
   }
   for (auto pred : bb.GetEhPreds()) {
+    if (visitedBB[pred->GetId()]) {
+      continue;
+    }
     if (pred->GetLevel() <= startBB.GetLevel()) {
       return true;
     }
-    if (UseIsUncovered(*pred, startBB)) {
+    if (UseIsUncovered(*pred, startBB, visitedBB)) {
       return true;
     }
   }
@@ -1862,6 +1870,7 @@ void GraphColorRegAllocator::FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo,
     useNum = lu->second->GetUseNum();
   }
 
+  std::vector<bool> visitedBB(cgFunc->GetAllBBs().size(), false);
   if (remove) {
     /* In removal mode, has not encountered a ref yet. */
     if (defNum == 0 && useNum == 0) {
@@ -1877,7 +1886,7 @@ void GraphColorRegAllocator::FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo,
       /* A potential point for a upward exposing use. (might be a def). */
       lu->second->SetNeedReload(true);
     }
-  } else if ((defNum > 0 || useNum > 0) && UseIsUncovered(*bb, *startBB)) {
+  } else if ((defNum > 0 || useNum > 0) && UseIsUncovered(*bb, *startBB, visitedBB)) {
     lu->second->SetNeedReload(true);
   }
 

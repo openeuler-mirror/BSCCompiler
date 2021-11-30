@@ -70,8 +70,10 @@ void CGCFG::BuildCFG() {
         ASSERT(lastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
         auto &labelOpnd = static_cast<LabelOperand&>(lastOpnd);
         BB *brToBB = cgFunc->GetBBFromLab2BBMap(labelOpnd.GetLabelIndex());
-        curBB->PushBackSuccs(*brToBB);
-        brToBB->PushBackPreds(*curBB);
+        if (fallthruBB->GetId() != brToBB->GetId()) {
+          curBB->PushBackSuccs(*brToBB);
+          brToBB->PushBackPreds(*curBB);
+        }
         break;
       }
       case BB::kBBGoto: {

@@ -26,7 +26,6 @@
 #include "emit.h"
 #include "common_utils.h"
 
-
 namespace maplebe {
 using namespace maple;
 
@@ -887,6 +886,20 @@ class AArch64ListOperand : public ListOperand {
   }
 
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
+};
+
+class AArch64PhiOperand : public PhiOperand {
+ public:
+  explicit AArch64PhiOperand(MapleAllocator &allocator) : PhiOperand(allocator) {}
+
+  ~AArch64PhiOperand() override = default;
+
+  Operand *Clone(MemPool &memPool) const override {
+    return memPool.Clone<AArch64PhiOperand>(*this);
+  }
+
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override;
+  void Dump() const override;
 };
 
 class CondOperand : public Operand {

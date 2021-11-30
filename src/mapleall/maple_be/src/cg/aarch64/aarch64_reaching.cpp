@@ -624,16 +624,20 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsnGlobal(uint32 regNO, Insn *
     return false;
   }
   if (startInsn->GetBB() == endInsn->GetBB()) {
-    return FindRegUsingBetweenInsn(regNO, startInsn->GetNext(), endInsn->GetPrev());
+    if (startInsn->GetNextMachineInsn() == endInsn) {
+      return false;
+    } else {
+      return FindRegUsingBetweenInsn(regNO, startInsn->GetNextMachineInsn(), endInsn->GetPreviousMachineInsn());
+    }
   } else {
     /* check Start BB */
     BB* startBB = startInsn->GetBB();
-    if (FindRegUsingBetweenInsn(regNO, startInsn->GetNext(), startBB->GetLastInsn())) {
+    if (FindRegUsingBetweenInsn(regNO, startInsn->GetNextMachineInsn(), startBB->GetLastInsn())) {
       return true;
     }
     /* check End BB */
     BB *endBB = endInsn->GetBB();
-    if (FindRegUsingBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn->GetPrev())) {
+    if (FindRegUsingBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn->GetPreviousMachineInsn())) {
       return true;
     }
     /* Global : startBB cannot dominate BB which it doesn't dominate before */
