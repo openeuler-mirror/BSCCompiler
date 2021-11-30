@@ -565,9 +565,14 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, RegOpera
         CHECK_FATAL(offsetTmp != nullptr, "newOffset is null!");
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
             AArch64MemOperand::kAddrModeBOi, k64BitSize, *newBase, nullptr, offsetTmp, nullptr);
-      } else if (propMode == kPropOffset) {
-        newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newBase, amount);
+      } else if (propMode == kPropOffset) { /* if newOffset is SP, swap base and newOffset */
+        if (newBase->IsSPOrFP()) {
+          newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
+              AArch64MemOperand::kAddrModeBOrX, k64BitSize, *newBase, &base, nullptr, nullptr);
+        } else {
+          newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
+              AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, newBase, nullptr, nullptr);
+        }
       } else if (propMode == kPropSignedExtend) {
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
             AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newBase, amount, true);

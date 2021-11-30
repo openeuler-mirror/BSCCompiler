@@ -378,6 +378,8 @@ void MePrediction::EstimateBBProb(BB &bb) {
     // try fallthrou if taken.
     if (!bb.GetMeStmts().empty() && bb.GetMeStmts().back().GetOp() == OP_try && i == 0) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredTry, kTaken);
+    } else if(sigSucc->GetAttributes(kBBAttrWontExit)) {
+      PredEdgeDef(*FindEdge(bb, *dest), kPredWontExit, kNotTaken);
     } else if (!sigSucc->GetMeStmts().empty() && sigSucc->GetMeStmts().back().GetOp() == OP_return) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredEarlyReturn, kNotTaken);
     } else if (dest != cfg->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&

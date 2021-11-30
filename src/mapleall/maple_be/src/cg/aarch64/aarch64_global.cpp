@@ -553,8 +553,8 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
       return true;
     };
     /* ensure that the use insns to be replaced is defined by defInsnForSecondOpnd only */
-    if (useInsn->IsMemAccess() &&
-        static_cast<AArch64MemOperand *>(static_cast<AArch64Insn *>(useInsn)->GetMemOpnd())->GetIndexOpt() != AArch64MemOperand::kIntact) {
+    if (useInsn->IsMemAccess() && static_cast<AArch64MemOperand *>(
+        static_cast<AArch64Insn *>(useInsn)->GetMemOpnd())->GetIndexOpt() != AArch64MemOperand::kIntact) {
       return false;
     }
     InsnSet defInsnVecOfSrcOpnd = cgFunc.GetRD()->FindDefForRegOpnd(*useInsn, secondRegNO, true);
@@ -1746,5 +1746,82 @@ bool SameDefPattern::SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t r
     return true;
   }
   return false;
+}
+
+void AndCbzPattern::Init() {
+  prevInsn = nullptr;
+}
+
+bool AndCbzPattern::CheckCondition(Insn &insn) {
+  MOperator mOp = insn.GetMachineOpcode();
+  if ((mOp != MOP_wcbz) && (mOp != MOP_xcbz) && (mOp != MOP_wcbnz) && (mOp != MOP_xcbnz)) {
+    return false;
+  }
+  regno_t regNo = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  InsnSet defSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, regNo, true);
+  if (defSet.size() != k1BitSize) {
+    return false;
+  }
+  prevInsn = *defSet.begin();
+  if (prevInsn->GetMachineOpcode() != MOP_wandrri12 && prevInsn->GetMachineOpcode() != MOP_xandrri13) {
+    return false;
+  }
+  return !(cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(regNo, prevInsn, &insn, insn.GetBB()));
+}
+
+int64 AndCbzPattern::CalculateLogValue(int64 val) {
+  return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
+}
+
+void AndCbzPattern::Optimize(Insn &insn) {
+  BB *bb = insn.GetBB();
+  auto &aarchFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  auto &andImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+  int64 tbzVal = CalculateLogValue(andImm.GetValue());
+  if (tbzVal < 0) {
+    return;
+  }
+  MOperator mOp = insn.GetMachineOpcode();
+  MOperator newMop = MOP_undef;
+  switch (mOp) {
+    case MOP_wcbz:
+      newMop = MOP_wtbz;
+      break;
+    case MOP_wcbnz:
+      newMop = MOP_wtbnz;
+      break;
+    case MOP_xcbz:
+      newMop = MOP_xtbz;
+      break;
+    case MOP_xcbnz:
+      newMop = MOP_xtbnz;
+      break;
+    default:
+      CHECK_FATAL(false, "must be cbz/cbnz");
+      break;
+  }
+  auto &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &tbzImm = aarchFunc.CreateImmOperand(tbzVal, k8BitSize, false);
+  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
+                                                                tbzImm, label);
+  bb->ReplaceInsn(insn, newInsn);
+  if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
+    insn.Dump();
+    LogInfo::MapleLogger() << "=======NewInsn :\n";
+    newInsn.Dump();
+  }
+  cgFunc.GetRD()->UpdateInOut(*bb, true);
+}
+
+void AndCbzPattern::Run() {
+  FOR_ALL_BB_REV(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!insn->IsMachineInstruction() || !CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
 }
 }  /* namespace maplebe */

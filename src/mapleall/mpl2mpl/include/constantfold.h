@@ -15,7 +15,6 @@
 #ifndef MPL2MPL_INCLUDE_CONSTANTFOLD_H
 #define MPL2MPL_INCLUDE_CONSTANTFOLD_H
 #include "mir_nodes.h"
-#include "module_phase.h"
 #include "phase_impl.h"
 #include "me_verify.h"
 
@@ -54,7 +53,7 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRConst *FoldIntConstBinaryMIRConst(Opcode opcode, PrimType resultType,
                                        const MIRIntConst *intConst0, const MIRIntConst *intConst1) const;
   MIRConst *FoldConstComparisonMIRConst(Opcode, PrimType, PrimType, const MIRConst&, const MIRConst&);
-
+  static bool IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB);
  private:
   StmtNode *SimplifyBinary(BinaryStmtNode *node);
   StmtNode *SimplifyBlock(BlockNode *node);
@@ -131,23 +130,6 @@ class ConstantFold : public FuncOptimizeImpl {
   MIRModule *mirModule;
 };
 
-class DoConstantFold : public ModulePhase {
- public:
-  explicit DoConstantFold(ModulePhaseID id) : ModulePhase(id) {}
-
-  ~DoConstantFold() = default;
-
-  std::string PhaseName() const override {
-    return "ConstantFold";
-  }
-
-  AnalysisResult *Run(MIRModule *mod, ModuleResultMgr *mrm) override {
-    OPT_TEMPLATE(ConstantFold);
-    if (MeOption::meVerify) {
-      VerifyGlobalTypeTable();
-    }
-    return nullptr;
-  }
-};
+MAPLE_MODULE_PHASE_DECLARE(M2MConstantFold)
 }  // namespace maple
 #endif  // MPL2MPL_INCLUDE_CONSTANTFOLD_H

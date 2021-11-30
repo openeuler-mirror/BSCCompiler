@@ -754,7 +754,6 @@ ConstvalNode *ConstantFold::FoldFPConstBinary(Opcode opcode, PrimType resultType
   return resultConst;
 }
 
-
 bool ConstantFold::ConstValueEqual(int64 leftValue, int64 rightValue) const {
   return (leftValue == rightValue);
 }
@@ -1465,7 +1464,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
           GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
       return p; // the cvt is redundant
     }
-  } else if (node->GetOpCode() == OP_cvt && p.second != 0 &&
+  } else if (node->GetOpCode() == OP_cvt && p.second != 0 && (p.second > -INT_MAX) &&
              IsPrimitiveInteger(node->GetPrimType()) && IsSignedInteger(node->FromType()) &&
              GetPrimTypeSize(node->GetPrimType()) > GetPrimTypeSize(node->FromType())) {
     result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(), node->FromType(), p.first);
@@ -1573,6 +1572,36 @@ std::pair<BaseNode*, int64> ConstantFold::FoldIread(IreadNode *node) {
           OP_dread, node->GetPrimType(), addrofNode->GetStIdx(), node->GetFieldID() + addrofNode->GetFieldID());
   }
   return std::make_pair(result, 0);
+}
+
+bool ConstantFold::IntegerOpIsOverflow(Opcode op, PrimType primType, int64 cstA, int64 cstB) {
+  switch (op ){
+    case OP_add: {
+      int64 res = static_cast<int64>(static_cast<uint64>(cstA) + static_cast<uint64>(cstB));
+      if (IsUnsignedInteger(primType)) {
+        return static_cast<uint64>(res) < static_cast<uint64>(cstA);
+      }
+      auto rightShiftNumToGetSignFlag = GetPrimTypeBitSize(primType) - 1;
+      return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+              static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag) &&
+             (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+              static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag );
+    }
+    case OP_sub: {
+      if (IsUnsignedInteger(primType)) {
+        return cstA < cstB;
+      }
+      int64 res = static_cast<int64>(static_cast<uint64>(cstA) - static_cast<uint64>(cstB));
+      auto rightShiftNumToGetSignFlag = GetPrimTypeBitSize(primType) - 1;
+      return (static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag !=
+              static_cast<uint64>(cstB) >> rightShiftNumToGetSignFlag) &&
+             (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
+              static_cast<uint64>(cstA) >> rightShiftNumToGetSignFlag);
+    }
+    default: {
+      return false;
+    }
+  }
 }
 
 std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
@@ -1688,8 +1717,13 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
     PrimType cstTyp = mcst->GetType().GetPrimType();
     int64 cst = mcst->GetValue();
     if (op == OP_add) {
-      result = l;
-      sum = lp.second + cst;
+      if (IntegerOpIsOverflow(op, cstTyp, lp.second, cst)) {
+        result = NewBinaryNode(node, op, primType, PairToExpr(lPrimTypes, lp), PairToExpr(rPrimTypes, rp));
+        sum = 0;
+      } else {
+        result = l;
+        sum = lp.second + cst;
+      }
     } else if (op == OP_sub && cst != INT_MIN) {
       {
         result = l;
@@ -1706,7 +1740,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // case [X / 1 = X]
       sum = lp.second;
       result = l;
-    } else if (op == OP_mul && lp.second != 0) {
+    } else if (op == OP_mul && lp.second != 0 && lp.second > -INT_MAX) {
       // (X + konst) * rConst -> the pair [(X*rConst), (konst*rConst)]
       sum = lp.second * static_cast<uint64>(cst);
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {
@@ -1772,9 +1806,9 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       result = NewBinaryNode(node, op, primType, l, r);
       sum = lp.second + rp.second;
     } else if (node->Opnd(1)->GetOpCode() == OP_sub && r->GetOpCode() == OP_neg) {
-      // if fold is sub(x - (y - z))    ->     (x - neg(z)) - y
+      // if fold is (x - (y - z))    ->     (x - neg(z)) - y
+      // (x - neg(z)) Could cross the int limit
       // return node
-      // x + z Could cross the int line
       result = node;
       sum = 0;
     } else {
