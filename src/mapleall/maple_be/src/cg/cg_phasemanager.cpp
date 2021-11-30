@@ -24,6 +24,7 @@
 #include "global.h"
 #include "strldr.h"
 #include "peep.h"
+#include "cg_ssa.h"
 #if TARGAARCH64
 #include "aarch64_fixshortbranch.h"
 #elif TARGRISCV64
@@ -180,6 +181,9 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("buildehfunc", true);
   ADDMAPLECGPHASE("handlefunction", true);
   ADDMAPLECGPHASE("moveargs", true);
+
+   ADDMAPLECGPHASE("cgssaconstruct", false);
+
   ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
   ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
   ADDMAPLECGPHASE("ico", CGOptions::DoICO())
@@ -420,6 +424,8 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgFuncPM, cgFuncPhaseManager)
 MAPLE_ANALYSIS_PHASE_REGISTER(CgLiveAnalysis, liveanalysis)
 MAPLE_ANALYSIS_PHASE_REGISTER(CgLoopAnalysis, loopanalysis)
 MAPLE_ANALYSIS_PHASE_REGISTER(CgReachingDefinition, reachingdefinition)
+
+MAPLE_ANALYSIS_PHASE_REGISTER(CgSSAConstruct, cgssaconstruct) /* both transform & analysis */
 
 MAPLE_TRANSFORM_PHASE_REGISTER(CgHandleFunction, handlefunction)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixCFLocOsft, dbgfixcallframeoffsets)

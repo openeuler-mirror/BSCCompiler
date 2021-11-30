@@ -478,11 +478,9 @@ class Insn {
     return ((flags & kOpAccessRefField) != 0);
   }
 
-  virtual bool IsRegDefined(regno_t regNO) const {
-    (void)regNO;
-    ASSERT(false, "implement in subclass");
-    return false;
-  }
+  virtual bool IsRegDefined(regno_t regNO) const = 0;
+
+  virtual std::set<uint32> GetDefRegs() const = 0;
 
   virtual bool IsDefinition() const = 0;
 

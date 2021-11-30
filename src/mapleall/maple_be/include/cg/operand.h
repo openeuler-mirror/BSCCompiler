@@ -46,6 +46,7 @@ class Operand {
     kOpdMem,
     kOpdBBAddress,
     kOpdList,           /*  for list operand */
+    kOpdPhi,            /*  for phi operand */
     kOpdCond,           /*  for condition code */
     kOpdShift,          /*  for imm shift operand */
     kOpdRegShift,       /*  for reg shift operand */
@@ -97,6 +98,10 @@ class Operand {
 
   bool IsList() const {
     return opndKind == kOpdList;
+  }
+
+  bool IsPhi() const {
+    return opndKind == kOpdPhi;
   }
 
   bool IsMemoryAccessOperand() const {
@@ -220,6 +225,10 @@ class RegOperand : public Operand {
     return regType;
   }
 
+  void SetRegisterType(RegType newTy) {
+    regType = newTy;
+  }
+
   virtual bool IsVirtualRegister() const {
     return false;
   }
@@ -302,6 +311,15 @@ class RegOperand : public Operand {
     }
     return IsSameRegNO(firstOpnd, secondOpnd);
   }
+  void SetOpndSSAForm() {
+    isSSAForm = true;
+  }
+  void SetOpndOutOfSSAForm() {
+    isSSAForm = false;
+  }
+  bool IsSSAForm() const {
+    return isSSAForm;
+  }
 
  protected:
   regno_t regNO;
@@ -314,10 +332,8 @@ class RegOperand : public Operand {
    */
   bool isBBLocal = true;
   uint32 validBitsNum;
-
-  void SetRegisterType(RegType type) {
-    regType = type;
-  }
+  /* use for SSA analysis */
+  bool isSSAForm = false;
 };  /* class RegOperand */
 
 enum VaryType : uint8 {
@@ -704,7 +720,7 @@ class ListOperand : public Operand {
     opndList.push_front(&opnd);
   }
 
-  void removeOpnd(RegOperand &opnd) {
+  void RemoveOpnd(RegOperand &opnd) {
     opndList.remove(&opnd);
   }
 
@@ -715,8 +731,9 @@ class ListOperand : public Operand {
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
 
   void Dump() const override {
-    for (auto *regOpnd : opndList) {
-      regOpnd->Dump();
+    for (auto it = opndList.begin(); it != opndList.end();) {
+      (*it)->Dump();
+      LogInfo::MapleLogger() << (++it == opndList.end() ? "" : " ,");
     }
   }
 
@@ -740,6 +757,49 @@ class ListOperand : public Operand {
 
  protected:
   MapleList<RegOperand*> opndList;
+};
+
+/* for cg ssa analysis */
+class PhiOperand : public Operand {
+ public:
+  explicit PhiOperand(MapleAllocator &allocator)
+      : Operand(Operand::kOpdPhi, 0),
+        phiList(allocator.Adapter()) {}
+
+  ~PhiOperand() override = default;
+
+  void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
+
+  void Dump() const override = 0;
+
+  void InsertOpnd(uint32 bbId, RegOperand &phiParam) {
+    ASSERT(!phiList.count(bbId), "cannot insert duplicate operand");
+    phiList.insert(std::pair(bbId, &phiParam));
+  }
+
+  MapleMap<uint32, RegOperand*> &GetOperands() {
+    return phiList;
+  }
+
+  bool Less(const Operand &right) const override {
+    /* For different type. */
+    if (opndKind != right.GetKind()) {
+      return opndKind < right.GetKind();
+    }
+    ASSERT(false, "We don't need to compare list operand.");
+    return false;
+  }
+
+  bool Equals(Operand &operand) const override {
+    if (!operand.IsPhi()) {
+      return false;
+    }
+    auto &op = static_cast<PhiOperand&>(operand);
+    return (&op == this);
+  }
+
+ protected:
+  MapleMap<uint32, RegOperand*> phiList; /* ssa-operand && BBId */
 };
 }  /* namespace maplebe */
 

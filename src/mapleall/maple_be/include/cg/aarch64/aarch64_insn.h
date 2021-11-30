@@ -175,6 +175,8 @@ class AArch64Insn : public Insn {
 
   bool IsRegDefined(regno_t regNO) const override;
 
+  std::set<uint32> GetDefRegs() const override;
+
   bool IsRegDefOrUse(regno_t regNO) const;
 
  private:

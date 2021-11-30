@@ -320,22 +320,8 @@ Operand *HandleSelect(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   }
   Operand &trueOpnd = *cgFunc.HandleExpr(expr, *expr.Opnd(1));
   Operand &falseOpnd = *cgFunc.HandleExpr(expr, *expr.Opnd(2));
-  BaseNode &node = *expr.Opnd(0);
-  Opcode opcode = node.GetOpCode();
-  Operand *cond = nullptr;
-  bool canLtOpt = false;
-  if (opcode == OP_lt) {
-    canLtOpt = true;
-    Operand *opnd0 = cgFunc.HandleExpr(node, *node.Opnd(0));
-    Operand *opnd1 = cgFunc.HandleExpr(node, *node.Opnd(1));
-    if (opnd0->IsRegister() && opnd1->IsImmediate() && (static_cast<ImmOperand *>(opnd1)->GetValue() == 0)) {
-      canLtOpt = false;
-    }
-    cond = cgFunc.SelectCmpOp(static_cast<CompareNode&>(node), *opnd0, *opnd1, expr);
-  } else {
-    cond = cgFunc.HandleExpr(expr, *expr.Opnd(0));
-  }
-  return cgFunc.SelectSelect(static_cast<TernaryNode&>(expr), *cond, trueOpnd, falseOpnd, parent, hasCompare, canLtOpt);
+  Operand *cond = cgFunc.HandleExpr(expr, *expr.Opnd(0));
+  return cgFunc.SelectSelect(static_cast<TernaryNode&>(expr), *cond, trueOpnd, falseOpnd, parent, hasCompare);
 }
 
 Operand *HandleCmp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
@@ -1801,6 +1787,12 @@ void CGFunc::DumpCGIR() const {
       LogInfo::MapleLogger() << "succs: ";
       for (auto *succBB : bb->GetSuccs()) {
         LogInfo::MapleLogger() << succBB->GetId() << " ";
+      }
+    }
+    if (!bb->GetPreds().empty()) {
+      LogInfo::MapleLogger() << "preds: ";
+      for (auto *predBB : bb->GetPreds()) {
+        LogInfo::MapleLogger() << predBB->GetId() << " ";
       }
     }
     if (!bb->GetEhSuccs().empty()) {

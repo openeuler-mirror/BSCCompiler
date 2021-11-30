@@ -1502,6 +1502,11 @@ bool AArch64Insn::IsRegDefOrUse(regno_t regNO) const {
 }
 
 bool AArch64Insn::IsRegDefined(regno_t regNO) const {
+  return GetDefRegs().count(regNO);
+}
+
+std::set<uint32> AArch64Insn::GetDefRegs() const {
+  std::set<uint32> defRegNOs;
   uint32 opndNum = opnds.size();
   const AArch64MD *md = &AArch64CG::kMd[mOp];
   for (uint32 i = 0; i < opndNum; ++i) {
@@ -1518,17 +1523,17 @@ bool AArch64Insn::IsRegDefined(regno_t regNO) const {
       RegOperand *base = memOpnd.GetBaseRegister();
       if (base != nullptr) {
         if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
-            (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed()) &&
-            base->GetRegisterNumber() == regNO) {
-          return true;
+            (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
+          ASSERT(!defRegNOs.count(base->GetRegisterNumber()), "duplicate def in one insn");
+          defRegNOs.emplace(base->GetRegisterNumber());
         }
       }
-    } else if ((opnd.IsConditionCode() || opnd.IsRegister()) &&
-               (static_cast<RegOperand&>(opnd).GetRegisterNumber() == regNO)) {
-      return true;
+    } else if (opnd.IsConditionCode() || opnd.IsRegister()) {
+      ASSERT(!defRegNOs.count(static_cast<RegOperand&>(opnd).GetRegisterNumber()), "duplicate def in one insn");
+      defRegNOs.emplace(static_cast<RegOperand&>(opnd).GetRegisterNumber());
     }
   }
-  return false;
+  return defRegNOs;
 }
 
 bool AArch64Insn::IsVolatile() const {

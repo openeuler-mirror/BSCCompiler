@@ -17,6 +17,7 @@
 
 #include "cg.h"
 #include "aarch64_cgfunc.h"
+#include "aarch64_ssa.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -109,6 +110,7 @@ class GCTIBPattern {
   GCTIBKey *key;
 };
 
+/* sub Target info & implement */
 class AArch64CG : public CG {
  public:
   AArch64CG(MIRModule &mod, const CGOptions &opts, const std::vector<std::string> &nameVec,
@@ -138,7 +140,15 @@ class AArch64CG : public CG {
 
   void CreateRefSymForGlobalPtn(GCTIBPattern &ptn);
 
+  Insn &BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) override;
+
+  PhiOperand &CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) override;
+
   std::string FindGCTIBPatternName(const std::string &name) const override;
+
+  CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override {
+    return mp.New<AArch64CGSSAInfo>(f, da, mp, tmp);
+  }
 
   static const AArch64MD kMd[kMopLast];
   enum : uint8 {

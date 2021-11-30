@@ -571,6 +571,20 @@ void AArch64ListOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const 
   }
 }
 
+void AArch64PhiOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
+  (void)emitter;
+  (void)opndProp;
+  CHECK_FATAL(false, "phi is a pseudo-operand. cannot emit");
+}
+
+void AArch64PhiOperand::Dump() const {
+  for (auto it = phiList.begin(); it != phiList.end();) {
+    it->second->Dump();
+    LogInfo::MapleLogger() << " fBB<" << it->first << ">";
+    LogInfo::MapleLogger() << (++it == phiList.end() ? "" : " ,");
+  }
+}
+
 void ListConstraintOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   /* nothing emitted for inline asm constraints */
   (void)emitter;

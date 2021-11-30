@@ -261,7 +261,7 @@ class CGFunc {
   virtual Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) = 0;
   virtual Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) = 0;
   virtual Operand *SelectSelect(TernaryNode &node, Operand &cond, Operand &opnd0, Operand &opnd1,
-                                const BaseNode &parent, bool hasCompare = false, bool canLtOpt = false) = 0;
+                                const BaseNode &parent, bool hasCompare = false) = 0;
   virtual Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) = 0;
   virtual RegOperand &SelectCopy(Operand &src, PrimType srcType, PrimType dstType) = 0;
   virtual Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) = 0;
@@ -282,6 +282,7 @@ class CGFunc {
   virtual LabelOperand &GetOrCreateLabelOperand(BB &bb) = 0;
   virtual RegOperand &CreateVirtualRegisterOperand(regno_t vRegNO) = 0;
   virtual RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vRegNO) = 0;
+  virtual RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) = 0;
   virtual RegOperand &GetOrCreateFramePointerRegOperand() = 0;
   virtual RegOperand &GetOrCreateStackBaseRegOperand() = 0;
   virtual int32 GetBaseOffset(const SymbolAlloc &symbolAlloc) = 0;
@@ -344,8 +345,7 @@ class CGFunc {
 
   RegOperand *GetVirtualRegisterOperand(regno_t vRegNO) {
     auto it = vRegOperandTable.find(vRegNO);
-    ASSERT(it != vRegOperandTable.end(), "");
-    return it->second;
+    return it == vRegOperandTable.end() ? nullptr : it->second;
   }
 
   Operand &CreateCfiImmOperand(int64 val, uint32 size) {
@@ -990,6 +990,10 @@ class CGFunc {
 
   bool UseFP() {
     return useFP;
+  }
+
+  void RegisterVregMapping(regno_t vRegNum, PregIdx pidx) {
+    vregsToPregsMap[vRegNum] = pidx;
   }
 
  protected:

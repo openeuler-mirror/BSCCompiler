@@ -1378,7 +1378,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   bool AssignColorToLr(LiveRange &lr, bool isDelayed = false);
   void PruneLrForSplit(LiveRange &lr, BB &bb, bool remove, std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
-  bool UseIsUncovered(BB &bb, const BB &startBB);
+  bool UseIsUncovered(BB &bb, const BB &startBB, std::vector<bool> &visitedBB);
   void FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo, bool &remove,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);

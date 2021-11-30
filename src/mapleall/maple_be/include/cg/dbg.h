@@ -23,7 +23,7 @@
 namespace mpldbg {
 using namespace maple;
 
-// https://sourceware.org/binutils/docs-2.28/as/Loc.html
+/* https://sourceware.org/binutils/docs-2.28/as/Loc.html */
 enum LocOpt { kBB, kProEnd, kEpiBeg, kIsStmt, kIsa, kDisc };
 
 enum DbgOpcode : uint8 {
@@ -70,6 +70,16 @@ class DbgInsn : public maplebe::Insn {
 
   bool IsDbgInsn() const override {
     return true;
+  }
+
+  bool IsRegDefined(maplebe::regno_t regNO) const override {
+    CHECK_FATAL(false, "dbg insn do not def regs");
+    return false;
+  }
+
+  std::set<uint32> GetDefRegs() const override{
+    CHECK_FATAL(false, "dbg insn do not def regs");
+    return std::set<uint32>();
   }
 
   uint32 GetLoc() const;

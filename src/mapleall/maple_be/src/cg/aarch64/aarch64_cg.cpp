@@ -296,4 +296,23 @@ void AArch64CG::GenerateObjectMaps(BECommon &beCommon) {
     FindOrCreateRepresentiveSym(bitmapWords, rcHeader, name);
   }
 }
+
+Insn &AArch64CG::BuildPhiInsn(RegOperand &defOpnd, Operand &listParam) {
+  ASSERT(defOpnd.IsRegister(), "build SSA on register operand");
+  CHECK_FATAL(defOpnd.IsOfIntClass() || defOpnd.IsOfFloatOrSIMDClass(), " unknown operand type ");
+  bool is64bit = defOpnd.GetSize() == k64BitSize;
+  MOperator mop = MOP_nop;
+  if (defOpnd.GetSize() == k128BitSize) {
+    ASSERT(defOpnd.IsOfFloatOrSIMDClass(), "unexpect 128bit int operand in aarch64");
+    mop = MOP_xvphivd;
+  } else {
+    mop = defOpnd.IsOfIntClass() ? is64bit ? MOP_xphirr : MOP_wphirr : is64bit ? MOP_xvphid: MOP_xvphis;
+  }
+  ASSERT(mop != MOP_nop, "unexpect 128bit int operand in aarch64");
+  return BuildInstruction<AArch64Insn>(mop, defOpnd, listParam);
+}
+
+PhiOperand &AArch64CG::CreatePhiOperand(MemPool &mp, MapleAllocator &mAllocator) {
+  return *mp.New<AArch64PhiOperand>(mAllocator);
+}
 }  /* namespace maplebe */

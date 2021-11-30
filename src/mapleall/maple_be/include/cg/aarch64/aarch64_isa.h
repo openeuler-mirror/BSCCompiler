@@ -307,6 +307,10 @@ struct AArch64MD {
     return properties & ISCALL;
   }
 
+  bool IsPhi() const {
+    return properties & ISPHI;
+  }
+
   bool HasLoop() const {
     return properties & HASLOOP;
   }

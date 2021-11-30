@@ -22,12 +22,16 @@
 namespace maplebe {
 class DataInfo {
  public:
-  explicit DataInfo(uint32 bitNum, MemPool &mp)
-      : allocator(&mp),
-        info(allocator.Adapter()) {
+  DataInfo(uint32 bitNum, MapleAllocator &alloc)
+      : info(alloc.Adapter()) {
     for (uint64 i = 0;i < (bitNum / kWordSize + 1); ++i) {
       info.emplace_back(0);
     }
+  }
+  DataInfo(const DataInfo &other, MapleAllocator &alloc) : info(other.info, alloc.Adapter()) {}
+  DataInfo &Clone(MapleAllocator &alloc) {
+    auto *dataInfo = alloc.New<DataInfo>(*this, alloc);
+    return *dataInfo;
   }
 
   ~DataInfo() = default;
@@ -156,8 +160,8 @@ class DataInfo {
     }
   }
 
-  MapleSet<uint32> GetBitsOfInfo() {
-    MapleSet<uint32> wordRes(allocator.Adapter());
+  template<typename T>
+  void GetBitsOfInfo(T &wordRes) const {
     wordRes.clear();
     for (size_t i = 0; i != info.size(); ++i) {
       uint32 result = 0;
@@ -189,7 +193,6 @@ class DataInfo {
         word = word >> static_cast<uint64>(index);
       }
     }
-    return wordRes;
   }
 
   void ClearDataInfo() {
@@ -199,7 +202,6 @@ class DataInfo {
  private:
   /* long type has 8 bytes, 64 bits */
   static constexpr int32 kWordSize = 64;
-  MapleAllocator allocator;
   MapleVector<uint64> info;
 };
 }  /* namespace maplebe */

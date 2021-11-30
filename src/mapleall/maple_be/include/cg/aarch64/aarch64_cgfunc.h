@@ -186,7 +186,8 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectMax(BinaryNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
   void SelectMax(Operand &resOpnd, Operand &o0, Operand &o1, PrimType primType) override;
   void SelectFMinFMax(Operand &resOpnd, Operand &o0, Operand &o1, bool is64Bits, bool isMin);
-  void SelectCmpOp(Operand &resOpnd, Operand &o0, Operand &o1, Opcode opCode, PrimType primType);
+  void SelectCmpOp(Operand &resOpnd, Operand &o0, Operand &o1, Opcode opCode, PrimType primType,
+                   const BaseNode &parent);
 
   Operand *SelectCmpOp(CompareNode &node, Operand &o0, Operand &o1, const BaseNode &parent) override;
 
@@ -227,7 +228,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectCvt(const BaseNode &parent, TypeCvtNode &node, Operand &opnd0) override;
   Operand *SelectTrunc(TypeCvtNode &node, Operand &opnd0, const BaseNode &parent) override;
   Operand *SelectSelect(TernaryNode &node, Operand &opnd0, Operand &opnd1, Operand &opnd2,
-                        const BaseNode &parent, bool hasCompare = false, bool canLtOpt = false) override;
+                        const BaseNode &parent, bool hasCompare = false) override;
   Operand *SelectMalloc(UnaryNode &call, Operand &opnd0) override;
   Operand *SelectAlloca(UnaryNode &call, Operand &opnd0) override;
   Operand *SelectGCMalloc(GCMallocNode &call) override;
@@ -259,6 +260,7 @@ class AArch64CGFunc : public CGFunc {
   AArch64RegOperand &GetOrCreatePhysicalRegisterOperand(std::string &asmAttr);
   RegOperand &CreateVirtualRegisterOperand(regno_t vregNO) override;
   RegOperand &GetOrCreateVirtualRegisterOperand(regno_t vregNO) override;
+  RegOperand &GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd) override;
   const LabelOperand *GetLabelOperand(LabelIdx labIdx) const override;
   LabelOperand &GetOrCreateLabelOperand(LabelIdx labIdx) override;
   LabelOperand &GetOrCreateLabelOperand(BB &bb) override;
@@ -381,6 +383,8 @@ class AArch64CGFunc : public CGFunc {
 
   AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand::AArch64AddressingMode, uint32 size, RegOperand *base,
                                         RegOperand *index, int32 shift, bool isSigned = false);
+
+  AArch64MemOperand &GetOrCreateMemOpnd(AArch64MemOperand &oldMem);
 
   MemOperand &CreateMemOpnd(AArch64reg reg, int64 offset, uint32 size) {
     AArch64RegOperand &baseOpnd = GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, kRegTyInt);
