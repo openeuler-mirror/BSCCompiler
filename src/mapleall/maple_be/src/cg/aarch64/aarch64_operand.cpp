@@ -67,6 +67,34 @@ bool AArch64RegOperand::operator<(const AArch64RegOperand &o) const {
          (myRn == otherRn && mySz == otherSz && myFl < otherFl);
 }
 
+void AArch64RegOperand::EmitVectorOpnd(Emitter &emitter) const {
+  std::string width;
+  switch (GetVecElementSize()) {
+    case k8BitSize:
+      width = "b";
+      break;
+    case k16BitSize:
+      width = "h";
+      break;
+    case k32BitSize:
+      width = "s";
+      break;
+    case k64BitSize:
+      width = "d";
+      break;
+    default:
+      CHECK_FATAL(false, "unexpected value size for vector element");
+      break;
+  }
+  emitter.Emit(AArch64CG::vectorRegNames[regNO]);
+  uint32 lanePos = GetVecLanePosition();
+  if (lanePos == -1) {
+    emitter.Emit("." + std::to_string(GetVecLaneSize()) + width);
+  } else {
+    emitter.Emit("." + width + "[" + std::to_string(lanePos) + "]");
+  }
+}
+
 void AArch64RegOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
   ASSERT((opndProp == nullptr || (static_cast<const AArch64OpndProp*>(opndProp)->IsRegister())),
          "operand type doesn't match");
@@ -86,21 +114,8 @@ void AArch64RegOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
     case kRegTyFloat: {
       ASSERT((opndSize == k8BitSize || opndSize == k16BitSize || opndSize == k32BitSize ||
               opndSize == k64BitSize || opndSize == k128BitSize), "illegal register size");
-      int32 laneSize = GetVecLaneSize();
-      if (static_cast<const AArch64OpndProp*>(opndProp)->IsVectorOperand() && laneSize != 0) {
-        std::string width;
-        if (opndSize == k128BitSize) {
-          width = laneSize == k16ByteSize ? "b" : (laneSize == k8ByteSize ? "h" : (laneSize == k4ByteSize ? "s" : "d"));
-        } else if (opndSize == k64BitSize) {
-          width = laneSize == k8ByteSize ? "b" : (laneSize == k4ByteSize ? "h" : (laneSize == k2ByteSize ? "s" : "d"));
-        }
-        int16 lanePos = GetVecLanePosition();
-        emitter.Emit(AArch64CG::vectorRegNames[regNO]);
-        if (lanePos == -1) {
-          emitter.Emit("." + std::to_string(laneSize) + width);
-        } else {
-          emitter.Emit("." + width + "[" + std::to_string(lanePos) + "]");
-        }
+      if (static_cast<const AArch64OpndProp*>(opndProp)->IsVectorOperand() && GetVecLaneSize() != 0) {
+        EmitVectorOpnd(emitter);
       } else {
         /* FP reg cannot be reffield. 8~0, 16~1, 32~2, 64~3. 8 is 1000b, has 3 zero. */
         uint32 regSet = __builtin_ctz(opndSize) - 3;
@@ -287,7 +302,6 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
           if (size > k8BitSize) {
             dsize = RoundUp(size, k8BitSize);
           }
-          ASSERT(!IsPIMMOffsetOutOfRange(offset->GetOffsetValue(), dsize), "should not be PIMMOffsetOutOfRange");
           if (!offset->IsZero()) {
             emitter.Emit(",");
             offset->Emit(emitter, nullptr);
@@ -380,6 +394,7 @@ void AArch64MemOperand::Dump() const {
       GetOffsetRegister()->Dump();
       LogInfo::MapleLogger() << " " << GetExtendAsString();
       LogInfo::MapleLogger() << " shift: " << ShiftAmount();
+      LogInfo::MapleLogger() << " extend: " << extend;
       break;
     }
     case kAddrModeLiteral:

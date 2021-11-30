@@ -109,6 +109,12 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
     if (symbol->IsDeleted()) {
       return false;
     }
+    /* cost too much to remat */
+    if ((symbol->GetStorageClass() == kScFormal) && (symbol->GetSKind() == kStVar) &&
+        ((fieldID != 0) ||
+         (cgFunc.GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()) > k16ByteSize))) {
+      return false;
+    }
     return true;
   }
   case OP_dread: {
@@ -2954,7 +2960,6 @@ void GraphColorRegAllocator::SpillOperandForSpillPost(Insn &insn, const Operand 
     MOperator mOp = a64CGFunc->PickLdInsn(spillMem->GetSize(), stype);
     Insn &ldrInsn = cg->BuildInstruction<AArch64Insn>(mOp, phyOpnd, *spillMem);
     ldrInsn.SetComment(comment);
-    CHECK_FATAL(nextInsn != nullptr, "must be");
     if (isOutOfRange) {
       if (nextInsn == nullptr) {
         insn.GetBB()->AppendInsn(ldrInsn);
@@ -3701,7 +3706,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
       // call parameters
     } else if (opnd->IsMemoryAccessOperand()) {
       auto *memopnd = static_cast<AArch64MemOperand*>(opnd);
-      if (memopnd->GetIndexOpt() == AArch64MemOperand::kPreIndex || memopnd->GetIndexOpt() == AArch64MemOperand::kPostIndex) {
+      if (memopnd->GetIndexOpt() == AArch64MemOperand::kPreIndex ||
+          memopnd->GetIndexOpt() == AArch64MemOperand::kPostIndex) {
         isIndexedMemOp = true;
       }
       auto *base = static_cast<AArch64RegOperand*>(memopnd->GetBaseRegister());

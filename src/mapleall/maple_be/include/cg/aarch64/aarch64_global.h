@@ -372,6 +372,33 @@ class SameDefPattern : public OptimizePattern {
   bool IsSameDef(Insn &currInsn, Insn &sameInsn);
   bool SrcRegIsRedefined(Insn &currInsn, Insn &sameInsn, regno_t regNo);
 };
+
+/*
+ * and r0, r0, #4        (the imm is n power of 2)
+ * ...                   (r0 is not used)
+ * cbz r0, .Label
+ * ===>  tbz r0, #2, .Label
+ *
+ * and r0, r0, #4        (the imm is n power of 2)
+ * ...                   (r0 is not used)
+ * cbnz r0, .Label
+ * ===>  tbnz r0, #2, .Label
+ */
+class AndCbzPattern : public OptimizePattern {
+ public:
+  explicit AndCbzPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  ~AndCbzPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final;
+
+ private:
+  int64 CalculateLogValue(int64 val);
+  Insn *prevInsn;
+};
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_AARCH64_AARCH64_GLOBAL_H */
