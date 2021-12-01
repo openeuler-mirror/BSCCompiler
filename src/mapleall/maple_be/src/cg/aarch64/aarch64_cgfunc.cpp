@@ -1260,14 +1260,14 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       PregIdx pregIdx = static_cast<PregIdx>(regFieldPair.GetPregIdx());
       MIRPreg *mirPreg = mirModule.CurFunction()->GetPregTab()->PregFromPregIdx(pregIdx);
       RegOperand *outOpnd =
-          isOutputTempNode ? rPOpnd : &CreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
+          isOutputTempNode ? rPOpnd : &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
       PrimType srcType = mirPreg->GetPrimType();
       PrimType destType = srcType;
       if (GetPrimTypeBitSize(destType) < k32BitSize) {
         destType = IsSignedInteger(destType) ? PTY_i32 : PTY_u32;
       }
       RegType rtype = GetRegTyFromPrimTy(srcType);
-      RegOperand *opnd0 = isOutputTempNode ? &CreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
+      RegOperand *opnd0 = isOutputTempNode ? &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
           &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
       SelectCopy(*opnd0, destType, *outOpnd, srcType);
       if (!isOutputTempNode) {
