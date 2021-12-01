@@ -29,6 +29,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // create a new meStmt before realOcc->GetMeStmt()
     MeStmt *newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
+    newMeStmt->CopySrcPosAndId(*realOcc.GetMeStmt());
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
     EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
     // replace realOcc->GetMeStmt()'s occ with regOrVar
@@ -99,8 +100,12 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
     for (; it != mustDefList->end(); it++) {
       MustDefMeNode *mustDefMeNode = &(*it);
+      VarMeExpr *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
+      // check that this var is the worklist item being worked on
+      if (static_cast<VarMeExpr *>(workCand->GetTheMeExpr())->GetOst() != theLHS->GetOst()) {
+        continue;
+      }
       if (regOrVar->GetMeOp() == kMeOpReg) {
-        auto *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
         // change mustDef lhs to regOrVar
         mustDefMeNode->UpdateLHS(*regOrVar);
         EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());

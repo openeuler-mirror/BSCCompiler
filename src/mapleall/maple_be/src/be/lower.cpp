@@ -1068,7 +1068,12 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
       continue;
     }
     // introduce a temporary to store the expression tree operand
-    MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol((TyIdx)opnd->GetPrimType(), NewAsmTempStrIdx(),
+    TyIdx tyIdxUsed = (TyIdx)opnd->GetPrimType();
+    if (opnd->op == OP_iread) {
+      IreadNode *ireadNode = static_cast<IreadNode *>(opnd);
+      tyIdxUsed = ireadNode->GetType()->GetTypeIndex();
+    }
+    MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(tyIdxUsed, NewAsmTempStrIdx(),
         kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
     DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
 
