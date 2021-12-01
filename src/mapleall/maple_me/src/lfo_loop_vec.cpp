@@ -160,8 +160,8 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li, bool enableDebu
 
     // check opnd0 of condNode is an expression not a variable
     // upperbound formula doesn't handle this case now
-    if (condOpnd0->GetOpCode() != OP_dread ||
-        condOpnd0->GetOpCode() != OP_regread) {
+    if ((condOpnd0->GetOpCode() != OP_dread) &&
+        (condOpnd0->GetOpCode() != OP_regread)) {
       if (enableDebug) {
         LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop condition compare is complex \n";
       }
@@ -181,11 +181,18 @@ bool LoopTransPlan::Generate(DoloopNode *doloop, DoloopInfo* li, bool enableDebu
       if (condOpHasEqual) {
         upvalue += 1;
       }
-      if (((upvalue - lowvalue) / (incrConst->GetValue())) < vecLanes) {
-        if (enableDebug) {
-          LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop trip count is small \n";
+      int tripCount = (upvalue - lowvalue) / (incrConst->GetValue());
+      if (tripCount < vecLanes) {
+        tripCount = (tripCount / 4 * 4); // get closest 2^n
+        if (tripCount * vecInfo->smallestTypeSize < 64) {
+          if (enableDebug) {
+            LogInfo::MapleLogger() << "NOT VECTORIZABLE because of doloop trip count is small \n";
+          }
+          return false;
+        } else {
+          vecLanes = tripCount;
+          vecFactor = tripCount;
         }
-        return false;
       }
     }
   }
