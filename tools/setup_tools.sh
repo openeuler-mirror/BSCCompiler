@@ -186,6 +186,7 @@ ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/clang ${TOOL_BIN_PATH}/clang
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ar ${TOOL_BIN_PATH}/llvm-ar
 ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/llvm-ranlib ${TOOL_BIN_PATH}/llvm-ranlib
+ln -s -f ${MAPLE_ROOT}/tools/clang+llvm-12.0.0-x86_64-linux-gnu-ubuntu-18.04/bin/FileCheck ${TOOL_BIN_PATH}/FileCheck
 ln -s -f ${MAPLE_ROOT}/tools/qemu/usr/bin/qemu-aarch64 ${TOOL_BIN_PATH}/qemu-aarch64
 ln -s -f ${MAPLE_ROOT}/build/java2dex ${TOOL_BIN_PATH}/java2dex
 ln -s -f ${MAPLE_ROOT}/tools/r8-d81513/d8/lib ${MAPLE_ROOT}/tools/lib
