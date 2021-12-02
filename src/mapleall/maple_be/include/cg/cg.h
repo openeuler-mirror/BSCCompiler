@@ -32,6 +32,7 @@ namespace maplebe {
 
 /* subtarget opt phase -- cyclic Dependency, use Forward declaring */
 class CGSSAInfo;
+class PhiEliminate;
 class DomAnalysis;
 
 class Globals {
@@ -363,6 +364,7 @@ class CG {
 
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
+  virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);

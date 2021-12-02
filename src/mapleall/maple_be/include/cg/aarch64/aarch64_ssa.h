@@ -23,6 +23,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
  public:
   AArch64CGSSAInfo(CGFunc &f, DomAnalysis &da, MemPool &mp, MemPool &tmp) : CGSSAInfo(f, da, mp, tmp) {}
   ~AArch64CGSSAInfo() override = default;
+  void DumpInsnInSSAForm(const Insn &insn) const override;
 
  private:
   void RenameInsn(Insn &insn) override;
@@ -31,6 +32,11 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   void RenameListOpnd(AArch64ListOperand &listOpnd, bool isAsm, uint32 idx, Insn &curInsn);
   void RenameMemOpnd(AArch64MemOperand &memOpnd, Insn &curInsn);
   AArch64MemOperand *CreateMemOperandOnSSA(AArch64MemOperand &memOpnd);
+
+  void DumpA64SSAOpnd(RegOperand &vRegOpnd) const;
+  bool DumpA64SSAMemOpnd(AArch64MemOperand& a64MemOpnd) const;
+  void DumpA64PhiOpnd(AArch64PhiOperand &phi) const;
+  bool DumpA64ListOpnd(AArch64ListOperand &list) const;
 };
 }
 

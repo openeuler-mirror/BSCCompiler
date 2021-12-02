@@ -32,7 +32,8 @@ void CGSSAInfo::InsertPhiInsn() {
         continue;
       }
       std::set<uint32> defRegNOs = insn->GetDefRegs();
-      CHECK_FATAL(defRegNOs.size() <= 2, "NYI");
+      constexpr int perInsnMaxDefOpndNum = 2;
+      CHECK_FATAL(defRegNOs.size() <= perInsnMaxDefOpndNum, "NYI");
       for (auto vRegNO : defRegNOs) {
         RegOperand *virtualOpnd = cgFunc->GetVirtualRegisterOperand(vRegNO);
         if (virtualOpnd != nullptr) {
@@ -178,13 +179,57 @@ VRegVersion *CGSSAInfo::FindSSAVersion(regno_t ssaRegNO) {
   return it != allSSAOperands.end() ? it->second : nullptr;
 }
 
+void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
+  LogInfo::MapleLogger() << "\n******  SSA CGIR for " << cgFunc->GetName() << " *******\n";
+  FOR_ALL_BB_CONST(bb, cgFunc) {
+    LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
+    if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
+      LogInfo::MapleLogger() << "[labeled with " << bb->GetLabIdx();
+      LogInfo::MapleLogger() << " ==> @" << cgFunc->GetFunction().GetLabelName(bb->GetLabIdx()) << "]";
+    }
+
+    LogInfo::MapleLogger() << "> <" << bb->GetId() << "> ";
+    if (bb->IsCleanup()) {
+      LogInfo::MapleLogger() << "[is_cleanup] ";
+    }
+    if (bb->IsUnreachable()) {
+      LogInfo::MapleLogger() << "[unreachable] ";
+    }
+    if (bb->GetFirstStmt() == cgFunc->GetCleanupLabel()) {
+      LogInfo::MapleLogger() << "cleanup ";
+    }
+    if (!bb->GetSuccs().empty()) {
+      LogInfo::MapleLogger() << "succs: ";
+      for (auto *succBB : bb->GetSuccs()) {
+        LogInfo::MapleLogger() << succBB->GetId() << " ";
+      }
+    }
+    if (!bb->GetEhSuccs().empty()) {
+      LogInfo::MapleLogger() << "eh_succs: ";
+      for (auto *ehSuccBB : bb->GetEhSuccs()) {
+        LogInfo::MapleLogger() << ehSuccBB->GetId() << " ";
+      }
+    }
+    LogInfo::MapleLogger() << "===\n";
+    LogInfo::MapleLogger() << "frequency:" << bb->GetFrequency() << "\n";
+
+    FOR_BB_INSNS_CONST(insn, bb) {
+      if (insn->IsCfiInsn() && insn->IsDbgInsn()) {
+        insn->Dump();
+      } else {
+        CHECK_FATAL(!insn->IsDMBInsn(), "NYI");
+        DumpInsnInSSAForm(*insn);
+      }
+    }
+  }
+}
+
 void CgSSAConstruct::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgDomAnalysis>();
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
 bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
-  // DotGenerator::GenerateDot("ssa", f, f.GetMirModule(), true);
   MemPool *ssaMemPool = GetPhaseMemPool();
   MemPool *ssaTempMp = ApplyTempMemPool(); /* delete after ssa construct */
   DomAnalysis *domInfo = nullptr;
@@ -194,6 +239,10 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   liveInfo->ResetLiveSet();
   ssaInfo = f.GetCG()->CreateCGSSAInfo(*ssaMemPool, f, *domInfo, *ssaTempMp);
   ssaInfo->ConstructSSA();
+  if (CG_DEBUG_FUNC(f)) {
+    LogInfo::MapleLogger() << "******** CG IR After ssaconstruct : *********" << "\n";
+    ssaInfo->DumpFuncCGIRinSSAForm();
+  }
   if (liveInfo != nullptr) {
     liveInfo->ClearInOutDataInfo();
   }

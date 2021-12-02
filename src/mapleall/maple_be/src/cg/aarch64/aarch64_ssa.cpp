@@ -30,7 +30,7 @@ void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
     if (opnd.IsList()) {
       ASSERT(!opndProp->IsDef(), "do not support def list in aarch64");
       RenameListOpnd(static_cast<AArch64ListOperand&>(opnd), insn.GetMachineOpcode() == MOP_asm, i, insn);
-#if 1
+#if DEBUG
       for (auto *op : static_cast<ListOperand&>(opnd).GetOperands()) {
         CHECK_FATAL(static_cast<RegOperand*>(op)->GetRegisterNumber() != hasDef, "check in armv8");
       }
@@ -55,8 +55,6 @@ void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
           insn.SetOperand(i, *GetRenamedOperand(regOpnd, opndProp->IsRegDef(), insn));
         }
       }
-    } else {
-      /* unsupport ssa opnd */
     }
   }
 }
@@ -128,5 +126,97 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
   RegOperand *newVreg = memPool->New<AArch64RegOperand>(ssaRegNO, virtualOpnd.GetSize(), virtualOpnd.GetRegisterType());
   newVreg->SetOpndSSAForm();
   return newVreg;
+}
+
+void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
+  auto &a64Insn = static_cast<const AArch64Insn&>(insn);
+  MOperator mOp = a64Insn.GetMachineOpcode();
+  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  ASSERT(md != nullptr, "md should not be nullptr");
+
+  LogInfo::MapleLogger() << "< " << a64Insn.GetId() << " > ";
+  LogInfo::MapleLogger() << md->name << "(" << mOp << ")";
+
+  for (uint32 i = 0; i < a64Insn.GetOperandSize(); ++i) {
+    Operand &opnd = a64Insn.GetOperand(i);
+    LogInfo::MapleLogger() << " (opnd" << i << ": ";
+    if (opnd.IsRegister()) {
+      auto &regOpnd = static_cast<RegOperand&>(opnd);
+      ASSERT(!opnd.IsConditionCode(), "both condi and reg");
+      if (regOpnd.IsSSAForm()) {
+        DumpA64SSAOpnd(regOpnd);
+        continue;
+      }
+    } else if (opnd.IsList()) {
+      if (DumpA64ListOpnd(static_cast<AArch64ListOperand&>(opnd))) {
+        continue;
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      if (DumpA64SSAMemOpnd(static_cast<AArch64MemOperand&>(opnd))) {
+        continue;
+      }
+    } else if (opnd.IsPhi()) {
+      DumpA64PhiOpnd(static_cast<AArch64PhiOperand&>(opnd));
+      continue;
+    }
+    opnd.Dump();
+    LogInfo::MapleLogger() << ")";
+  }
+
+  if (a64Insn.IsVectorOp()) {
+    const AArch64VectorInsn &vInsn = static_cast<const AArch64VectorInsn&>(insn);
+    if (vInsn.GetNumOfRegSpec() != 0) {
+      LogInfo::MapleLogger() << " (vecSpec: " << vInsn.GetNumOfRegSpec() << ")";
+    }
+  }
+  LogInfo::MapleLogger() << "\n";
+}
+
+bool AArch64CGSSAInfo::DumpA64SSAMemOpnd(AArch64MemOperand &a64MemOpnd) const {
+  bool hasDumpedSSAbase = false;
+  bool hasDumpedSSAIndex = false;
+  if (a64MemOpnd.GetBaseRegister() != nullptr && a64MemOpnd.GetBaseRegister()->IsSSAForm()) {
+    DumpA64SSAOpnd(*a64MemOpnd.GetBaseRegister());
+    hasDumpedSSAbase = true;
+  }
+  if (a64MemOpnd.GetIndexRegister() != nullptr && a64MemOpnd.GetIndexRegister()->IsSSAForm() ) {
+    DumpA64SSAOpnd(*a64MemOpnd.GetIndexRegister());
+    hasDumpedSSAIndex = true;
+  }
+  return hasDumpedSSAbase | hasDumpedSSAIndex;
+}
+
+bool AArch64CGSSAInfo::DumpA64ListOpnd(AArch64ListOperand &list) const {
+  bool hasDumpedSSA = false;
+  for (auto regOpnd : list.GetOperands()) {
+    if (regOpnd->IsSSAForm()) {
+      DumpA64SSAOpnd(*regOpnd);
+      hasDumpedSSA = true;
+      continue;
+    }
+  }
+  return hasDumpedSSA;
+}
+
+void AArch64CGSSAInfo::DumpA64PhiOpnd(AArch64PhiOperand &phi) const {
+  for (auto phiListIt = phi.GetOperands().begin(); phiListIt != phi.GetOperands().end();) {
+    DumpA64SSAOpnd(*(phiListIt->second));
+    LogInfo::MapleLogger() << " fBB<" << phiListIt->first << ">";
+    LogInfo::MapleLogger() << (++phiListIt == phi.GetOperands().end() ? ")" : ", ");
+  }
+}
+
+void AArch64CGSSAInfo::DumpA64SSAOpnd(RegOperand &vRegOpnd) const {
+  std::array<const std::string, kRegTyLast> prims = { "U", "R", "V", "C", "X", "Vra" };
+  std::array<const std::string, kRegTyLast> classes = { "[U]", "[I]", "[F]", "[CC]", "[X87]", "[Vra]" };
+  CHECK_FATAL(vRegOpnd.IsVirtualRegister() && vRegOpnd.IsSSAForm(), "only dump ssa opnd here");
+  RegType regType = vRegOpnd.GetRegisterType();
+  ASSERT(regType < kRegTyLast, "unexpected regType");
+  auto ssaVit = GetAllSSAOperands().find(vRegOpnd.GetRegisterNumber());
+  CHECK_FATAL(ssaVit != GetAllSSAOperands().end(), "find ssa version failed");
+  LogInfo::MapleLogger() << "ssa_reg:" << prims[regType] << ssaVit->second->GetOriginalRegNO() << "_"
+                         << ssaVit->second->GetVersionIdx() << " class: " << classes[regType] << " validBitNum: ["
+                         << static_cast<uint32>(vRegOpnd.GetValidBitsNum()) << "]";
+  LogInfo::MapleLogger() << ")";
 }
 }

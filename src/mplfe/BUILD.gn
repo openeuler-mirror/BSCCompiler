@@ -22,12 +22,19 @@ cflags += [
   "-DMPLFE_FULL_INFO_DUMP=1",
 ]
 
+if (MAST == 1) {
+  cflags += [
+    "-w",
+    "-DENABLE_MAST",
+  ]
+}
+
 include_directories = [
   "${MPLFE_ROOT}/common/include",
   "${MPLFE_ROOT}/optimize/include",
-  "${MPLFE_ROOT}/jbc_input/include",
-  "${MPLFE_ROOT}/bc_input/include",
-  "${MPLFE_ROOT}/dex_input/include",
+  "${MPLFE_ROOT}/bytecode_input/class/include",
+  "${MPLFE_ROOT}/bytecode_input/common/include",
+  "${MPLFE_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_ipa/include",
   "${MAPLEALL_ROOT}/maple_util/include",
@@ -37,13 +44,24 @@ include_directories = [
   "${MAPLEALL_ROOT}/maple_me/include",
   "${MAPLEALL_ROOT}/mempool/include",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
-  "${MPLFE_ROOT}/ast_input/include",
-  "${MPLFE_ROOT}/ast_input/lib",
+  "${MPLFE_ROOT}/ast_input/clang/include",
+  "${MPLFE_ROOT}/ast_input/clang/lib",
+  "${MPLFE_ROOT}/ast_input/common/include",
+  "${MPLFE_ROOT}/ast_input/maple/include",
+  "${MPLFE_ROOT}/ast_input/maple/lib",
   "${LLVMINC}",
   "${THIRD_PARTY_ROOT}/llvm_modified/clang/tools",
 ]
 
-static_library("lib_mplfe_util") {
+if (MAST == 1) {
+  include_directories += [
+    "${MAPLE_PARSER_PATH}/output/c/ast_gen/shared",
+    "${MAPLE_PARSER_PATH}/shared/include",
+    "${MAPLE_PARSER_PATH}/astopt/include",
+  ]
+}
+
+static_library("lib_mplfe_common") {
   sources = [
     "${MPLFE_ROOT}/common/src/base64.cpp",
     "${MPLFE_ROOT}/common/src/basic_io.cpp",
@@ -119,7 +137,7 @@ static_library("lib_mplfe_optimize") {
   output_dir = "${root_out_dir}/ar"
 }
 
-static_library("lib_mplfe_input") {
+static_library("lib_mplfe_input_helper") {
   sources = [ "${MPLFE_ROOT}/common/src/fe_input_helper.cpp" ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"
@@ -129,12 +147,13 @@ executable("mplfe") {
   sources = [ "${MPLFE_ROOT}/common/src/mplfe.cpp" ]
   include_dirs = include_directories
   deps = [
-    ":lib_mplfe_ast_input",
-    ":lib_mplfe_bc_input",
-    ":lib_mplfe_dex_input",
-    ":lib_mplfe_input",
-    ":lib_mplfe_jbc_input",
-    ":lib_mplfe_util",
+    ":lib_mplfe_ast_input_clang",
+    ":lib_mplfe_ast_input_common",
+    ":lib_mplfe_bytecode_input_common",
+    ":lib_mplfe_bytecode_input_dex",
+    ":lib_mplfe_input_helper",
+    ":lib_mplfe_bytecode_input_class",
+    ":lib_mplfe_common",
     ":lib_mplfe_optimize",
     "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
     "${MAPLEALL_ROOT}/maple_ir:libmplir",
@@ -143,16 +162,28 @@ executable("mplfe") {
     "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
     "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
   ]
+  if (MAST == 1) {
+    deps += [
+      ":lib_mplfe_ast_input_maple",
+    ]
+  }
   ldflags = [
     "-lz",
     "-rdynamic",
     "-L${LLVMLIBDIR}/",
   ]
+
+  if (MAST == 1) {
+    ldflags += [
+      "-lstdc++fs",
+      "-L${MAPLE_PARSER_PATH}/output/c/ast_gen/shared",
+    ]
+  }
 }
 
-include_jbc_input_directories = [
+include_bytecode_input_jbc_directories = [
   "${MPLFE_ROOT}/common/include",
-  "${MPLFE_ROOT}/jbc_input/include",
+  "${MPLFE_ROOT}/bytecode_input/class/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -160,34 +191,34 @@ include_jbc_input_directories = [
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
-static_library("lib_mplfe_jbc_input") {
+static_library("lib_mplfe_bytecode_input_class") {
   sources = [
-    "${MPLFE_ROOT}/jbc_input/src/jbc_attr.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_attr_item.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_bb.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_class.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_class2fe_helper.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_class_const.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_class_const_pool.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_compiler_component.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_function.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_function_context.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_input.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_opcode.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_opcode_helper.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_stack2fe_helper.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_stack_helper.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_stmt.cpp",
-    "${MPLFE_ROOT}/jbc_input/src/jbc_util.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_attr.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_attr_item.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_bb.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_class.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_class_const.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_class_const_pool.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_compiler_component.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_function.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_function_context.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_input.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_opcode.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_opcode_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_stack2fe_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_stack_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_stmt.cpp",
+    "${MPLFE_ROOT}/bytecode_input/class/src/jbc_util.cpp",
   ]
-  include_dirs = include_jbc_input_directories
+  include_dirs = include_bytecode_input_jbc_directories
   output_dir = "${root_out_dir}/ar"
 }
 
-include_bc_input_directories = [
+include_bytecode_input_common_directories = [
   "${MPLFE_ROOT}/common/include",
-  "${MPLFE_ROOT}/bc_input/include",
-  "${MPLFE_ROOT}/dex_input/include",
+  "${MPLFE_ROOT}/bytecode_input/common/include",
+  "${MPLFE_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -195,28 +226,28 @@ include_bc_input_directories = [
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
-static_library("lib_mplfe_bc_input") {
+static_library("lib_mplfe_bytecode_input_common") {
   sources = [
-    "${MPLFE_ROOT}/bc_input/src/ark_annotation_map.cpp",
-    "${MPLFE_ROOT}/bc_input/src/ark_annotation_processor.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_class.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_class2fe_helper.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_function.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_instruction.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_io.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_parser_base.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_pragma.cpp",
-    "${MPLFE_ROOT}/bc_input/src/bc_util.cpp",
-    "${MPLFE_ROOT}/bc_input/src/rc_setter.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/ark_annotation_map.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/ark_annotation_processor.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_class.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_function.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_instruction.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_io.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_parser_base.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_pragma.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/bc_util.cpp",
+    "${MPLFE_ROOT}/bytecode_input/common/src/rc_setter.cpp",
   ]
-  include_dirs = include_bc_input_directories
+  include_dirs = include_bytecode_input_common_directories
   output_dir = "${root_out_dir}/ar"
 }
 
-include_dex_input_directories = [
+include_bytecode_input_dex_directories = [
   "${MPLFE_ROOT}/common/include",
-  "${MPLFE_ROOT}/bc_input/include",
-  "${MPLFE_ROOT}/dex_input/include",
+  "${MPLFE_ROOT}/bytecode_input/common/include",
+  "${MPLFE_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_util/include",
   "${MAPLEALL_ROOT}/maple_driver/include",
@@ -224,17 +255,17 @@ include_dex_input_directories = [
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
 ]
 
-static_library("lib_mplfe_dex_input") {
+static_library("lib_mplfe_bytecode_input_dex") {
   sources = [
-    "${MPLFE_ROOT}/dex_input/src/class_linker.cpp",
-    "${MPLFE_ROOT}/dex_input/src/class_loader_context.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_class.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_class2fe_helper.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_encode_value.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_file_util.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_op.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_pragma.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_strfac.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/class_linker.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/class_loader_context.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_class.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_class2fe_helper.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_encode_value.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_file_util.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_op.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_pragma.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_strfac.cpp",
   ]
 
   # for libdexfile
@@ -255,11 +286,11 @@ static_library("lib_mplfe_dex_input") {
   ]
 
   sources += [
-    "${MPLFE_ROOT}/dex_input/src/dex_parser.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dex_reader.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dexfile_factory.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dexfile_interface.cpp",
-    "${MPLFE_ROOT}/dex_input/src/dexfile_libdexfile.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_parser.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dex_reader.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dexfile_factory.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dexfile_interface.cpp",
+    "${MPLFE_ROOT}/bytecode_input/dex/src/dexfile_libdexfile.cpp",
   ]
   deps_libdexfile = [
     "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile:libdexfile",
@@ -270,12 +301,12 @@ static_library("lib_mplfe_dex_input") {
   deps = deps_libdexfile
   libs = lib_dex
   include_dirs =
-      include_dex_input_directories + include_dirs_libdexfile + include_dirs_dex
+      include_bytecode_input_dex_directories + include_dirs_libdexfile + include_dirs_dex
   output_dir = "${root_out_dir}/ar"
 }
 
-static_library("lib_ast_interface") {
-  sources = [ "${MPLFE_ROOT}/ast_input/lib/ast_interface.cpp" ]
+static_library("lib_mplfe_ast_input_clang_lib") {
+  sources = [ "${MPLFE_ROOT}/ast_input/clang/lib/ast_interface.cpp" ]
   include_dirs = include_directories
   defines = [
     "CLANG_ENABLE_ARCMT",
@@ -315,21 +346,52 @@ static_library("lib_ast_interface") {
   ]
 }
 
-static_library("lib_mplfe_ast_input") {
+static_library("lib_mplfe_ast_input_common") {
   sources = [
-    "${MPLFE_ROOT}/ast_input/lib/ast_type.cpp",
-    "${MPLFE_ROOT}/ast_input/lib/ast_util.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_compiler_component.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_decl.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_expr.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_function.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_input.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_parser.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_parser_builting_func.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_stmt.cpp",
-    "${MPLFE_ROOT}/ast_input/src/ast_struct2fe_helper.cpp",
+    "${MPLFE_ROOT}/ast_input/common/src/ast_decl.cpp",
   ]
   include_dirs = include_directories
-  deps = [ ":lib_ast_interface" ]
   output_dir = "${root_out_dir}/ar"
+}
+
+static_library("lib_mplfe_ast_input_clang") {
+  sources = [
+    "${MPLFE_ROOT}/ast_input/clang/lib/ast_type.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/lib/ast_util.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_expr.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_function.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_parser.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_parser_builting_func.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_stmt.cpp",
+    "${MPLFE_ROOT}/ast_input/clang/src/ast_struct2fe_helper.cpp",
+  ]
+  include_dirs = include_directories
+  deps = [ ":lib_mplfe_ast_input_clang_lib" ]
+  output_dir = "${root_out_dir}/ar"
+}
+
+if (MAST == 1) {
+  static_library("lib_mplfe_ast_input_maple_lib") {
+    sources = [ "${MPLFE_ROOT}/ast_input/maple/lib/maple_ast_interface.cpp" ]
+    include_dirs = include_directories
+    defines = [
+      "DEBUG",
+    ]
+    output_dir = "${root_out_dir}/ar"
+    libs = [
+      "${MAPLE_PARSER_PATH}/output/c/ast_gen/shared/genast.a",
+      "${MAPLE_PARSER_PATH}/output/c/shared/shared.a",
+      "${MAPLE_PARSER_PATH}/output/c/gen/gen.a",
+      "${MAPLE_PARSER_PATH}/output/c/astopt/astopt.a",
+    ]
+  }
+
+  static_library("lib_mplfe_ast_input_maple") {
+    sources = [
+      "${MPLFE_ROOT}/ast_input/maple/src/maple_ast_parser.cpp",
+    ]
+    include_dirs = include_directories
+    deps = [ ":lib_mplfe_ast_input_maple_lib" ]
+    output_dir = "${root_out_dir}/ar"
+  }
 }

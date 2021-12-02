@@ -83,6 +83,9 @@ class CGSSAInfo {
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
 
+  void DumpFuncCGIRinSSAForm() const;
+  virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
+
  protected:
   const MapleUnorderedMap<regno_t, VRegVersion*> &GetAllSSAOperands() const {
     return allSSAOperands;

@@ -1180,7 +1180,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
         bbVec(alloc.Adapter()),
         vregLive(alloc.Adapter()),
         pregLive(alloc.Adapter()),
-        lrVec(alloc.Adapter()),
+        lrMap(alloc.Adapter()),
         localRegVec(alloc.Adapter()),
         bbRegInfo(alloc.Adapter()),
         unconstrained(alloc.Adapter()),
@@ -1201,7 +1201,6 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
         fpCalleeUsed(alloc.Adapter()) {
     constexpr uint32 kNumInsnThreashold = 30000;
     numVregs = cgFunc.GetMaxVReg();
-    lrVec.resize(numVregs);
     localRegVec.resize(cgFunc.NumBBs());
     bbRegInfo.resize(cgFunc.NumBBs());
     if (CGOptions::DoMultiPassColorRA() && cgFunc.GetMirModule().IsCModule()) {
@@ -1233,10 +1232,23 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   };
  public:
   LiveRange *GetLiveRange(regno_t regNO) {
-    return lrVec[regNO];
+    auto it = lrMap.find(regNO);
+    if (it != lrMap.end()) {
+      return it->second;
+    } else {
+      return nullptr;
+    }
   }
-  MapleVector<LiveRange*> &GetLrVec() {
-    return lrVec;
+  LiveRange *GetLiveRange(regno_t regNO) const {
+    auto it = lrMap.find(regNO);
+    if (it != lrMap.end()) {
+      return it->second;
+    } else {
+      return nullptr;
+    }
+  }
+  MapleMap<regno_t, LiveRange*> &GetLrMap() {
+    return lrMap;
   }
   Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, AArch64RegOperand &phyOpnd, bool forCall = false);
  private:
@@ -1408,7 +1420,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleVector<BB*> bbVec;
   MapleUnorderedSet<regno_t> vregLive;
   MapleUnorderedSet<regno_t> pregLive;
-  MapleVector<LiveRange*> lrVec;
+  MapleMap<regno_t, LiveRange*> lrMap;
   MapleVector<LocalRaInfo*> localRegVec;  /* local reg info for each bb, no local reg if null */
   MapleVector<BBAssignInfo*> bbRegInfo;   /* register assignment info for each bb */
   MapleVector<LiveRange*> unconstrained;

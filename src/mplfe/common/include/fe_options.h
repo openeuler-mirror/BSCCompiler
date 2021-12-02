@@ -80,6 +80,11 @@ class FEOptions {
     return inputASTFiles;
   }
 
+  void AddInputMASTFile(const std::string &fileName);
+  const std::vector<std::string> &GetInputMASTFiles() const {
+    return inputMASTFiles;
+  }
+
   void AddInputMpltFileFromSys(const std::string &fileName) {
     inputMpltFilesFromSys.push_back(fileName);
   }
@@ -419,6 +424,14 @@ class FEOptions {
     return isBoundaryCheckDynamic;
   }
 
+  void SetSafeRegion(bool flag) {
+    isEnableSafeRegion = flag;
+  }
+
+  bool IsEnableSafeRegion() const {
+    return isEnableSafeRegion;
+  }
+
   void SetO2(bool flag) {
     isO2 = flag;
   }
@@ -443,6 +456,14 @@ class FEOptions {
     return isEnableVariableArray;
   }
 
+  void SetFuncInlineSize(uint32 size) {
+    funcInlineSize = size;
+  }
+
+  uint32 GetFuncInlineSize() const {
+    return funcInlineSize;
+  }
+
  private:
   static FEOptions options;
   // input control options
@@ -450,6 +471,7 @@ class FEOptions {
   std::list<std::string> inputJarFiles;
   std::vector<std::string> inputDexFiles;
   std::vector<std::string> inputASTFiles;
+  std::vector<std::string> inputMASTFiles;
   std::list<std::string> inputMpltFilesFromSys;
   std::list<std::string> inputMpltFilesFromApk;
   std::list<std::string> inputMpltFiles;
@@ -515,6 +537,9 @@ class FEOptions {
   // EnhanceC
   bool isNpeCheckDynamic = false;
   bool isBoundaryCheckDynamic = false;
+  bool isEnableSafeRegion = false;
+
+  uint32 funcInlineSize = 0;
 
   FEOptions();
   ~FEOptions() = default;

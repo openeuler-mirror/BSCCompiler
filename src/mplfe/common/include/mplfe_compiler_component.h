@@ -119,7 +119,7 @@ class MPLFECompilerComponent {
   virtual bool LoadOnDemandTypeImpl();
   virtual bool PreProcessDeclImpl();
   virtual bool ProcessDeclImpl();
-  virtual void ProcessPragmaImpl() = 0;
+  virtual void ProcessPragmaImpl() {};
   virtual std::unique_ptr<FEFunction> CreatFEFunctionImpl(FEInputMethodHelper *methodHelper) = 0;
   virtual bool ProcessFunctionSerialImpl();
   virtual bool ProcessFunctionParallelImpl(uint32 nthreads);

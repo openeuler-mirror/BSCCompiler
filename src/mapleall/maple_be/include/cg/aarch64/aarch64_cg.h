@@ -18,6 +18,7 @@
 #include "cg.h"
 #include "aarch64_cgfunc.h"
 #include "aarch64_ssa.h"
+#include "aarch64_phi_elimination.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -148,6 +149,9 @@ class AArch64CG : public CG {
 
   CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const override {
     return mp.New<AArch64CGSSAInfo>(f, da, mp, tmp);
+  }
+  PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
+    return mp.New<AArch64PhiEliminate>(f, ssaInfo, mp);
   }
 
   static const AArch64MD kMd[kMopLast];
