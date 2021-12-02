@@ -26,6 +26,10 @@
 #include "ark_annotation_processor.h"
 #include "dex_reader.h"
 #include "ast_compiler_component.h"
+#include "ast_parser.h"
+#ifdef ENABLE_MAST
+#include "maple_ast_parser.h"
+#endif
 #include "mpl_timer.h"
 #include "mplfe_env.h"
 #include "fe_manager.h"
@@ -66,6 +70,7 @@ class MPLFECompiler {
   std::string firstInputName;
   std::string outputPath;
   std::string outputName;
+  std::string outputInlineName;
   std::list<std::unique_ptr<MPLFECompilerComponent>> components;
   std::set<FEFunction*> compileFailedFEFunctions;
 };

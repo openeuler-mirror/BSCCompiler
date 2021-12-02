@@ -34,6 +34,7 @@ enum OptionIndex : uint32 {
   kInJar,
   kInDex,
   kInAST,
+  kInMAST,
   // output control options
   kOutputPath,
   kOutputName,
@@ -78,9 +79,11 @@ enum OptionIndex : uint32 {
   // EnhanceC
   kNpeCheckDynamic,
   kBoundaryCheckDynamic,
+  kSafeRegion,
   kO2,
   kSimplifyShortCircuit,
   kEnableVariableArray,
+  kFuncInlineSize,
 };
 
 const Descriptor kUsage[] = {
@@ -127,6 +130,10 @@ const Descriptor kUsage[] = {
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  --in-ast file1.ast,file2.ast\n"
     "                         : input ast files", "mplfe", {} },
+  { kInMAST, 0, "", "in-mast",
+    kBuildTypeAll, kArgCheckPolicyRequired,
+    "  --in-mast file1.mast,file2.mast\n"
+    "                         : input mast files", "mplfe", {} },
 
   // output control options
   { kUnknown, 0, "", "",
@@ -288,6 +295,9 @@ const Descriptor kUsage[] = {
   { kBoundaryCheckDynamic, 0, "", "boundary-check-dynamic",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  --boundary-check-dynamic: EnhanceC: boundary dynamic checking", "mplfe", {} },
+  { kSafeRegion, 0, "", "safe-region",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -safe-region            : EnhanceC: enable safe region", "mplfe", {} },
   { kO2, 0, "", "O2",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  -O2                     : enable mplfe O2 optimize", "mplfe", {} },
@@ -297,6 +307,9 @@ const Descriptor kUsage[] = {
   { kEnableVariableArray, 0, "", "enable-variable-array",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  -enable-variable-array : enable variable array", "mplfe", {} },
+  { kFuncInlineSize, 0, "", "func-inline-size",
+    kBuildTypeAll, kArgCheckPolicyRequired,
+    "  -func-inline-size       : set func inline size", "mplfe", {} },
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyNone,
     "", "mplfe", {} }
@@ -334,6 +347,8 @@ bool MPLFEOptions::InitFactory() {
                                                 &MPLFEOptions::ProcessInDex);
   RegisterFactoryFunction<OptionProcessFactory>(kInAST,
                                                 &MPLFEOptions::ProcessInAST);
+  RegisterFactoryFunction<OptionProcessFactory>(kInMAST,
+                                                &MPLFEOptions::ProcessInMAST);
 
   // output control options
   RegisterFactoryFunction<OptionProcessFactory>(kOutputPath,
@@ -413,6 +428,8 @@ bool MPLFEOptions::InitFactory() {
                                                 &MPLFEOptions::ProcessNpeCheckDynamic);
   RegisterFactoryFunction<OptionProcessFactory>(kBoundaryCheckDynamic,
                                                 &MPLFEOptions::ProcessBoundaryCheckDynamic);
+  RegisterFactoryFunction<OptionProcessFactory>(kSafeRegion,
+                                                &MPLFEOptions::ProcessSafeRegion);
 
   RegisterFactoryFunction<OptionProcessFactory>(kO2,
                                                 &MPLFEOptions::ProcessO2);
@@ -420,6 +437,8 @@ bool MPLFEOptions::InitFactory() {
                                                 &MPLFEOptions::ProcessSimplifyShortCircuit);
   RegisterFactoryFunction<OptionProcessFactory>(kEnableVariableArray,
                                                 &MPLFEOptions::ProcessEnableVariableArray);
+  RegisterFactoryFunction<OptionProcessFactory>(kFuncInlineSize,
+                                                &MPLFEOptions::ProcessFuncInlineSize);
   return true;
 }
 
@@ -513,6 +532,14 @@ bool MPLFEOptions::ProcessInAST(const Option &opt) {
   std::list<std::string> listFiles = SplitByComma(opt.Args());
   for (const std::string &fileName : listFiles) {
     FEOptions::GetInstance().AddInputASTFile(fileName);
+  }
+  return true;
+}
+
+bool MPLFEOptions::ProcessInMAST(const Option &opt) {
+  std::list<std::string> listFiles = SplitByComma(opt.Args());
+  for (const std::string &fileName : listFiles) {
+    FEOptions::GetInstance().AddInputMASTFile(fileName);
   }
   return true;
 }
@@ -723,6 +750,10 @@ void MPLFEOptions::ProcessInputFiles(const std::vector<std::string> &inputs) {
         FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "AST file detected: %s", inputName.c_str());
         FEOptions::GetInstance().AddInputASTFile(inputName);
         break;
+      case FEFileType::kMAST:
+        FE_INFO_LEVEL(FEOptions::kDumpLevelInfoDetail, "MAST file detected: %s", inputName.c_str());
+        FEOptions::GetInstance().AddInputMASTFile(inputName);
+        break;
       default:
         WARN(kLncErr, "unsupported file format (%s)", inputName.c_str());
         break;
@@ -787,6 +818,11 @@ bool MPLFEOptions::ProcessBoundaryCheckDynamic(const mapleOption::Option &opt) {
   return true;
 }
 
+bool MPLFEOptions::ProcessSafeRegion(const mapleOption::Option &opt) {
+  FEOptions::GetInstance().SetSafeRegion(true);
+  return true;
+}
+
 bool MPLFEOptions::ProcessO2(const mapleOption::Option &opt) {
   FEOptions::GetInstance().SetO2(true);
   return true;
@@ -799,6 +835,15 @@ bool MPLFEOptions::ProcessSimplifyShortCircuit(const mapleOption::Option &opt) {
 
 bool MPLFEOptions::ProcessEnableVariableArray(const mapleOption::Option &opt) {
   FEOptions::GetInstance().SetEnableVariableArray(true);
+  return true;
+}
+
+bool MPLFEOptions::ProcessFuncInlineSize(const mapleOption::Option &opt) {
+  std::string arg = opt.Args();
+  int size = std::stoi(arg);
+  if (size > 0) {
+    FEOptions::GetInstance().SetFuncInlineSize(static_cast<uint32>(size));
+  }
   return true;
 }
 

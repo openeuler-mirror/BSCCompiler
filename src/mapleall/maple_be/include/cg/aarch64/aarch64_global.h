@@ -311,14 +311,21 @@ class ExtendShiftOptPattern : public OptimizePattern {
     kLwIor,  /* MOP_wiorrrr | MOP_wiorrrrs */
   };
 
+  enum SuffixType : uint8 {
+    kNoSuffix, /* no suffix or do not perform the optimization. */
+    kLSL,      /* logical shift left */
+    kLSR,      /* logical shift right */
+    kASR,      /* arithmetic shift right */
+    kExten     /* ExtendOp */
+  };
+
  protected:
   void Init() final;
 
  private:
   void SelectExtendOrShift(const Insn &def);
   bool CheckDefUseInfo(Insn &use, Insn &def);
-  bool CheckExtendOp(Operand &lastOpnd);
-  bool CheckShiftOp(Operand &lastOpnd);
+  SuffixType CheckOpType(Operand &lastOpnd);
   void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
   void SetExMOpType(Insn &use);
   void SetLsMOpType(Insn &use);

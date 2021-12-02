@@ -97,7 +97,7 @@ void CGCFG::BuildCFG() {
         break;
       }
       case BB::kBBRangeGoto: {
-        std::set<BB*> bbs;
+        std::set<BB*, BBIdCmp> bbs;
         for (auto labelIdx : curBB->GetRangeGotoLabelVec()) {
           BB *gotoBB = cgFunc->GetBBFromLab2BBMap(labelIdx);
           bbs.insert(gotoBB);

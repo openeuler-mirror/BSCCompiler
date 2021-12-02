@@ -61,4 +61,13 @@ void FEOptions::AddInputASTFile(const std::string &fileName) {
     WARN(kLncWarn, "invalid input AST file %s...skipped", fileName.c_str());
   }
 }
+
+void FEOptions::AddInputMASTFile(const std::string &fileName) {
+  FEFileType::FileType type = FEFileType::GetInstance().GetFileTypeByMagicNumber(fileName);
+  if (type == FEFileType::FileType::kMAST) {
+    inputMASTFiles.push_back(fileName);
+  } else {
+    WARN(kLncWarn, "invalid input MAST file %s...skipped", fileName.c_str());
+  }
+}
 }  // namespace maple

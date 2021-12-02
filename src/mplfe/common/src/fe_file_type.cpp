@@ -90,6 +90,8 @@ void FEFileType::LoadDefault() {
   RegisterMagicNumber(kDex, kMagicDex);
   RegisterExtName(kAST, "ast");
   RegisterMagicNumber(kAST, kMagicAST);
+  RegisterExtName(kMAST, "mast");
+  RegisterMagicNumber(kMAST, kMagicMAST);
 }
 
 void FEFileType::RegisterExtName(FileType argFileType, const std::string &extName) {

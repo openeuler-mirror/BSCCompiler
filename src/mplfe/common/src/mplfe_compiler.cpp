@@ -115,6 +115,16 @@ void MPLFECompiler::CheckInput() {
       firstInputName = inputASTNames[0];
     }
   }
+
+  // check input mast files
+  const std::vector<std::string> &inputMASTNames = FEOptions::GetInstance().GetInputMASTFiles();
+  if (!inputMASTNames.empty()) {
+    nInput += inputMASTNames.size();
+    if (firstInputName.empty()) {
+      firstInputName = inputMASTNames[0];
+    }
+  }
+
   CHECK_FATAL(nInput > 0, "Error occurs: no inputs. exit.");
 }
 
@@ -152,8 +162,11 @@ void MPLFECompiler::SetupOutputPathAndName() {
     outNameWithoutType = outName.substr(0, lastDot);
   }
   std::string mpltName = outNameWithoutType + ".mplt";
-  GStrIdx strIdx = module.GetMIRBuilder()->GetOrCreateStringIndex(mpltName);
-  module.GetImportFiles().push_back(strIdx);
+  outputInlineName = outNameWithoutType + ".mplt_inline";
+  if (srcLang != kSrcLangC) {
+    GStrIdx strIdx = module.GetMIRBuilder()->GetOrCreateStringIndex(mpltName);
+    module.GetImportFiles().push_back(strIdx);
+  }
 }
 
 inline void MPLFECompiler::InsertImportInMpl(const std::list<std::string> &mplt) const {
@@ -184,7 +197,7 @@ bool MPLFECompiler::LoadMplt() {
 }
 
 void MPLFECompiler::ExportMpltFile() {
-  if (!FEOptions::GetInstance().IsNoMplFile()) {
+  if (!FEOptions::GetInstance().IsNoMplFile() && srcLang != kSrcLangC) {
     FETimer timer;
     timer.StartAndDump("Output mplt");
     module.DumpToHeaderFile(!FEOptions::GetInstance().IsGenAsciiMplt());
@@ -203,6 +216,9 @@ void MPLFECompiler::ExportMplFile() {
       emitStructureType = true;
     }
     module.OutputAsciiMpl("", ".mpl", nullptr, emitStructureType, false);
+    if (FEOptions::GetInstance().GetFuncInlineSize() != 0) {
+      module.DumpInlineCandidateToFile(outputInlineName);
+    }
     timer.StopAndDumpTimeMS("Output mpl");
   }
 }
@@ -305,9 +321,18 @@ void MPLFECompiler::RegisterCompilerComponent() {
   }
   if (FEOptions::GetInstance().GetInputASTFiles().size() != 0) {
     srcLang = kSrcLangC;
-    std::unique_ptr<MPLFECompilerComponent> astCompilerComp = std::make_unique<ASTCompilerComponent>(module);
+    std::unique_ptr<MPLFECompilerComponent> astCompilerComp =
+        std::make_unique<ASTCompilerComponent<ASTParser>>(module);
     RegisterCompilerComponent(std::move(astCompilerComp));
   }
+#ifdef ENABLE_MAST
+  if (FEOptions::GetInstance().GetInputMASTFiles().size() != 0) {
+    srcLang = kSrcLangC;
+    std::unique_ptr<MPLFECompilerComponent> mapleAstCompilerComp =
+        std::make_unique<ASTCompilerComponent<MapleASTParser>>(module);
+    RegisterCompilerComponent(std::move(mapleAstCompilerComp));
+  }
+#endif
   module.SetSrcLang(srcLang);
   FEManager::GetTypeManager().SetSrcLang(srcLang);
 }

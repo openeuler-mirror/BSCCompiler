@@ -34,6 +34,31 @@ MOperator lsMOpTable[kLsMOpTypeSize] = {
     MOP_weorrrrs, MOP_xinegrrs, MOP_winegrrs, MOP_xiorrrrs, MOP_wiorrrrs
 };
 
+/* Optimize ExtendShiftOptPattern:
+ * ==========================================================
+ *           nosuffix  LSL   LSR   ASR      extrn   (def)
+ * nosuffix |   F    | LSL | LSR | ASR |    extrn  |
+ * LSL      |   F    | LSL |  F  |  F  |    extrn  |
+ * LSR      |   F    |  F  | LSR |  F  |     F     |
+ * ASR      |   F    |  F  |  F  | ASR |     F     |
+ * exten    |   F    |  F  |  F  |  F  |exten(self)|
+ * (use)
+ * ===========================================================
+ */
+constexpr uint32 kExtenAddShift = 5;
+ExtendShiftOptPattern::SuffixType doOptimize[kExtenAddShift][kExtenAddShift] = {
+    { ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kLSL, ExtendShiftOptPattern::kLSR,
+        ExtendShiftOptPattern::kASR, ExtendShiftOptPattern::kExten },
+    { ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kLSL, ExtendShiftOptPattern::kNoSuffix,
+        ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kExten },
+    { ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kLSR,
+        ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix },
+    { ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix,
+        ExtendShiftOptPattern::kASR, ExtendShiftOptPattern::kNoSuffix },
+    { ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kNoSuffix,
+        ExtendShiftOptPattern::kNoSuffix, ExtendShiftOptPattern::kExten }
+};
+
 void AArch64GlobalOpt::Run() {
   OptimizeManager optManager(cgFunc);
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
@@ -1430,58 +1455,56 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
   return true;
 }
 
-bool ExtendShiftOptPattern::CheckExtendOp(Operand &lastOpnd) {
-  replaceOp = exMOpTable[exMOpType];
-  if (shiftOp == BitShiftOperand::kLSR) { /* defInsn is LSR */
-    return false;
+/* Check whether ExtendShiftOptPattern optimization can be performed. */
+ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &lastOpnd) {
+  /* Assign values to useType and defType. */
+  uint32 useType = ExtendShiftOptPattern::kNoSuffix;
+  uint32 defType = shiftOp;
+  if (extendOp != ExtendShiftOperand::kUndef) {
+    defType = ExtendShiftOptPattern::kExten;
   }
-  /* currInsn with extend */
-  if (lastOpnd.IsOpdExtend()) {
-    ExtendShiftOperand &lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
-    /* def and use is not same ext */
-    if ((extendOp != ExtendShiftOperand::kUndef) && (extendOp != lastExtendOpnd.GetExtendOp())) {
-      return false;
-    }
-    extendOp = lastExtendOpnd.GetExtendOp();
-  }
-  return true;
-}
-
-bool ExtendShiftOptPattern::CheckShiftOp(Operand &lastOpnd) {
-  replaceOp = lsMOpTable[lsMOpType];
-  /* currInsn with shift */
   if (lastOpnd.IsOpdShift()) {
-    BitShiftOperand &lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
-    /* def and use is not same shift */
-    if (shiftOp != lastShiftOpnd.GetShiftOp()) {
-      return false;
+    BitShiftOperand lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    useType = lastShiftOpnd.GetShiftOp();
+  } else if (lastOpnd.IsOpdExtend()) {
+    ExtendShiftOperand lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    useType = ExtendShiftOptPattern::kExten;
+    /* two insn is exten and exten ,value is exten(oneself) */
+    if (useType == defType && extendOp != lastExtendOpnd.GetExtendOp()) {
+      return ExtendShiftOptPattern::kNoSuffix;
     }
   }
-  return true;
+  return doOptimize[useType][defType];
 }
 
 /* new Insn extenType:
  * =====================
- * |         | ex | ls | (defMop)
- * | noexten | ex | ls |
- * | exten   | ex | ex |
- * | shift   | ex | ls |
- * (useMop)
+ * (useMop)   (defMop) (newmop)
+ * | nosuffix |  all  | all|
+ * | exten    |  ex   | ex |
+ * |  ls      |  ex   | ls |
+ * |  asr     |  !asr | F  |
+ * |  !asr    |  asr  | F  |
+ * (useMop)   (defMop)
  * =====================
  */
 void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) {
   AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   uint32 lastIdx = use.GetOperandSize() - k1BitSize;
   Operand &lastOpnd = use.GetOperand(lastIdx);
+  ExtendShiftOptPattern::SuffixType optType = CheckOpType(lastOpnd);
   Operand *shiftOpnd = nullptr;
-  bool isExten = (extendOp != ExtendShiftOperand::kUndef) || lastOpnd.IsOpdExtend();
-  if (isExten) {
-    if (!CheckExtendOp(lastOpnd) || (amount > k4BitSize)) {
+  if (optType == ExtendShiftOptPattern::kNoSuffix) {
+    return;
+  }else if (optType == ExtendShiftOptPattern::kExten) {
+    replaceOp = exMOpTable[exMOpType];
+    if (amount > k4BitSize) {
       return;
     }
     shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
   } else {
-    if (!CheckShiftOp(lastOpnd) || (amount >= k32BitSize)) {
+    replaceOp = lsMOpTable[lsMOpType];
+    if (amount >= k32BitSize) {
       return;
     }
     shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
@@ -1489,6 +1512,7 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   if (replaceOp == MOP_undef) {
     return;
   }
+
   Insn *replaceUseInsn = nullptr;
   Operand &firstOpnd = use.GetOperand(kInsnFirstOpnd);
   Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
@@ -1517,11 +1541,7 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   cgFunc.GetRD()->InitGenUse(*defInsn->GetBB(), false);
   cgFunc.GetRD()->UpdateInOut(*use.GetBB(), true);
   newInsn = replaceUseInsn;
-  if (isExten) {
-    optSuccess = false;
-  } else {
-    optSuccess = true;
-  }
+  optSuccess = true;
 }
 
 /*

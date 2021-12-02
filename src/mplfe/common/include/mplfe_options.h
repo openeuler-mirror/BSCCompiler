@@ -57,6 +57,7 @@ class MPLFEOptions : public maple::MapleDriverOptionBase {
   bool ProcessInJar(const mapleOption::Option &opt);
   bool ProcessInDex(const mapleOption::Option &opt);
   bool ProcessInAST(const mapleOption::Option &opt);
+  bool ProcessInMAST(const mapleOption::Option &opt);
   bool ProcessInputMplt(const mapleOption::Option &opt);
   bool ProcessInputMpltFromSys(const mapleOption::Option &opt);
   bool ProcessInputMpltFromApk(const mapleOption::Option &opt);
@@ -93,6 +94,7 @@ class MPLFEOptions : public maple::MapleDriverOptionBase {
   bool ProcessO2(const mapleOption::Option &opt);
   bool ProcessSimplifyShortCircuit(const mapleOption::Option &opt);
   bool ProcessEnableVariableArray(const mapleOption::Option &opt);
+  bool ProcessFuncInlineSize(const mapleOption::Option &opt);
 
   // ast compiler options
   bool ProcessUseSignedChar(const mapleOption::Option &opt);
@@ -115,6 +117,7 @@ class MPLFEOptions : public maple::MapleDriverOptionBase {
   // EnhanceC
   bool ProcessNpeCheckDynamic(const mapleOption::Option &opt);
   bool ProcessBoundaryCheckDynamic(const mapleOption::Option &opt);
+  bool ProcessSafeRegion(const mapleOption::Option &opt);
 
   // symbol resolve
   bool ProcessAOT(const mapleOption::Option &opt);

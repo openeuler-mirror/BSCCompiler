@@ -25,6 +25,7 @@
 #include "strldr.h"
 #include "peep.h"
 #include "cg_ssa.h"
+#include "cg_phi_elimination.h"
 #if TARGAARCH64
 #include "aarch64_fixshortbranch.h"
 #elif TARGRISCV64
@@ -182,8 +183,8 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("handlefunction", true);
   ADDMAPLECGPHASE("moveargs", true);
 
-   ADDMAPLECGPHASE("cgssaconstruct", false);
-
+  ADDMAPLECGPHASE("cgssaconstruct", false);
+  ADDMAPLECGPHASE("cgphielimination", false);
   ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
   ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())
   ADDMAPLECGPHASE("ico", CGOptions::DoICO())
@@ -458,4 +459,5 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 }  /* namespace maplebe */
