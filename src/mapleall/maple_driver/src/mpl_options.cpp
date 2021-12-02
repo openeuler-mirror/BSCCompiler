@@ -199,22 +199,18 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         break;
       case kTimePhases:
         timePhases = true;
-        printCommandStr += " -time-phases";
         break;
       case kGenMeMpl:
         genMeMpl = true;
-        printCommandStr += " --genmempl";
         break;
       case kGenVtableImpl:
         genVtableImpl = true;
-        printCommandStr += " --genVtableImpl";
         break;
       case kSaveTemps:
         isSaveTmps = true;
         genMeMpl = true;
         genVtableImpl = true;
         StringUtils::Split(opt.Args(), saveFiles, ',');
-        printCommandStr += " --save-temps";
         break;
       case kOption:
         if (UpdateExtraOptionOpt(opt.Args()) != kErrorNoError) {
@@ -317,7 +313,6 @@ ErrorCode MplOptions::DecideRunType() {
         break;
       case kGenObj:
         genObj = true;
-        printCommandStr += " -c";
         break;
       case kMaplePhaseOnly:
         runMaplePhaseOnly = (opt.Type() == kEnable) ? true : false;
@@ -636,6 +631,12 @@ ErrorCode MplOptions::CheckFileExits() {
 
 ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
   if (!option.HasExtra()) {
+    if (option.GetExeName() == "all") {
+      /* If it doesn't have extra options and it's a common option for driver,
+       * set this option in exeOptions as "all"" to use this info in debug print.
+       */
+      exeOptions[option.GetExeName()].push_back(option);
+    }
     return kErrorNoError;
   }
   for (const auto &exeName : option.GetExtras()) {
@@ -647,6 +648,19 @@ ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
     exeOptions[exeName].push_back(option);
   }
   return kErrorNoError;
+}
+
+std::string MplOptions::GetCommonOptionsStr() const {
+  std::string driverOptions;
+  auto it = exeOptions.find("all");
+  if (it != exeOptions.end()) {
+    for (const mapleOption::Option &opt : it->second) {
+      auto connectSym = !opt.Args().empty() ? "=" : "";
+      driverOptions += " --" + opt.OptionKey() + connectSym + opt.Args();
+    }
+  }
+
+  return driverOptions;
 }
 
 InputInfo *MplOptions::AllocateInputInfo(const std::string &inputFile) {
@@ -885,10 +899,11 @@ void MplOptions::PrintCommand(const Action * const action) {
       optionStr << " -O2";
     }
 
+    std::string driverOptions = GetCommonOptionsStr();
     auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
 
     LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << optionStr.str() << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << inputs << '\n';
+                           << printExtraOptStr.str() << driverOptions << " " << inputs << '\n';
   }
   if (runMode == RunMode::kCustomRun) {
     PrintDetailCommand(action, true);
@@ -929,14 +944,15 @@ void MplOptions::PrintDetailCommand(const Action * const action, bool isBeforePa
   connectOptStr(optionStr, kBinNameMplcg, firstComb, runStr);
   optionStr += "\"";
 
+  std::string driverOptions = GetCommonOptionsStr();
   auto inputs = (action == nullptr) ? GetInputFiles() : GetInputFileNameForPrint(action);
 
   if (isBeforeParse) {
     LogInfo::MapleLogger() << "Starting:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printExtraOptStr.str() << printCommandStr << " " << inputs << '\n';
+                           << printExtraOptStr.str() << driverOptions << " " << inputs << '\n';
   } else {
     LogInfo::MapleLogger() << "Finished:" << exeFolder << "maple " << runStr << " " << optionStr << " "
-                           << printCommandStr << " " << inputs << '\n';
+                           << driverOptions << " " << inputs << '\n';
   }
 }
 } // namespace maple
