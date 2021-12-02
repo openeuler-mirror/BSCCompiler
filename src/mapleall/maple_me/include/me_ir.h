@@ -342,6 +342,7 @@ class ScalarMeExpr : public MeExpr {
   BaseNode &EmitExpr(SSATab&) override;
   bool IsSameVariableValue(const VarMeExpr&) const override;
   ScalarMeExpr *FindDefByStmt(std::set<ScalarMeExpr*> &visited);
+  bool IsZeroVersion() const;
 
  protected:
   OriginalSt *ost;
@@ -372,7 +373,6 @@ class VarMeExpr final : public ScalarMeExpr {
   bool IsVolatile() const override;
   // indicate if the variable is local variable but not a function formal variable
   bool IsPureLocal(const MIRFunction&) const;
-  bool IsZeroVersion() const;
   bool IsSameVariableValue(const VarMeExpr&) const override;
   VarMeExpr &ResolveVarMeValue();
   bool PointsToStringLiteral();
@@ -535,6 +535,10 @@ class ConstMeExpr : public MeExpr {
   int64 GetIntValue() const;
 
   MIRConst *GetConstVal() {
+    return constVal;
+  }
+
+  const MIRConst *GetConstVal() const {
     return constVal;
   }
 
@@ -1374,6 +1378,11 @@ class MeStmt {
     srcPos = pos;
   }
 
+  void CopySrcPosAndId(const MeStmt &stmt) {
+    this->srcPos = stmt.srcPos;
+    this->originalId = stmt.originalId;
+  }
+
   void SetPrev(MeStmt *v) {
     prev = v;
   }
@@ -1402,12 +1411,24 @@ class MeStmt {
     return originalId;
   }
 
+  void SetOriginalId(uint32 id) {
+    originalId = id;
+  }
+
   bool IsInSafeRegion() const {
     return stmtAttrs.GetAttr(STMTATTR_insaferegion);
   }
 
   void SetInSafeRegion() {
     stmtAttrs.SetAttr(STMTATTR_insaferegion);
+  }
+
+  void CopySafeRegionAttr(const StmtAttrs &stmtAttrs) {
+    this->stmtAttrs.AppendAttr(stmtAttrs.GetTargetAttrFlag(STMTATTR_insaferegion));
+  }
+
+  const StmtAttrs &GetStmtAttr() const {
+    return stmtAttrs;
   }
 
  protected:

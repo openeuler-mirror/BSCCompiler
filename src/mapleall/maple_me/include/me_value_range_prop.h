@@ -510,8 +510,8 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType primType = PTY_begin);
   bool LowerInRange(const BB &bb, Bound lowerTemp, Bound lower, bool lowerIsZero);
   bool UpperInRange(const BB &bb, Bound upperTemp, Bound upper, bool upperIsArrayLength);
-  void InsertOstOfPhi2CandsForSSAUpdate(const BB &bb, const BB &trueBranch);
-  void InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb);
+  void PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb);
+  void InsertOstOfPhi2Cands(BB &bb, size_t i, bool setPhiIsDead = false);
   void AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB);
   void CreateValueRangeForNeOrEq(
       MeExpr &opnd, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch);
@@ -528,7 +528,6 @@ class ValueRangePropagation {
                                             BB &trueBranch);
   bool ConditionEdgeCanBeDeleted(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
       ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op);
-  void InsertCandsForSSAUpdate(BB &bb, bool insertDefBBOfPhiOpnds2Cands = false);
   void GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB);
   bool ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
                                  BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto = nullptr);
@@ -536,7 +535,6 @@ class ValueRangePropagation {
   bool RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb, BB &trueBranch);
   void RemoveUnreachableBB(BB &condGotoBB, BB &trueBranch);
   BB *CreateNewGotoBBWithoutCondGotoStmt(BB &bb);
-  void InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb);
   void CopyMeStmts(BB &fromBB, BB &toBB);
   bool ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB &trueBranch);
   bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch);

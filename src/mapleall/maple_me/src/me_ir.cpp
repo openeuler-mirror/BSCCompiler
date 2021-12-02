@@ -561,7 +561,7 @@ bool VarMeExpr::IsPureLocal(const MIRFunction &irFunc) const {
   return st->IsLocal() && !irFunc.IsAFormal(st);
 }
 
-bool VarMeExpr::IsZeroVersion() const {
+bool ScalarMeExpr::IsZeroVersion() const {
   ASSERT(GetVstIdx() != 0, "VarMeExpr::IsZeroVersion: cannot determine because vstIdx is 0");
   return GetOst()->GetZeroVersionIndex() == GetVstIdx();
 }

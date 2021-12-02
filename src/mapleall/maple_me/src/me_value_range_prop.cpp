@@ -192,7 +192,7 @@ void ValueRangePropagation::DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb) {
     return;
   }
   if (bb.GetPred().size() == 1) {
-    InsertOstOfPhi2CandsForSSAUpdate(bb, bb);
+    InsertOstOfPhi2Cands(bb, 0, true);
     bb.GetMePhiList().clear();
     needUpdateSSA = true;
   }
@@ -1172,38 +1172,6 @@ void ValueRangePropagation::DealWithCVT(const BB &bb, OpMeExpr &opMeExpr) {
   }
 }
 
-// case1: Need insert phi in oldSuccBB to newSuccBB with ssaupdate when the cfg changed like this :
-//        pred                         pred
-//         |                            |
-//     oldSuccBB[condgoto]  ---->       |  oldSuccBB[condgoto]
-//      /     \                         |   /    \
-// newSuccBB  bb                     newSuccBB   bb
-// case2: Need insert phi in pred and oldSuccBB to newSuccBB with ssaupdate when the cfg changed like this :
-//    pred0 pred1                     pred0   pred1
-//        \ /                           |      |
-//        pred                          |     pred
-//         |                            |      |
-//     oldSuccBB[condgoto]  ---->       |  oldSuccBB[condgoto]
-//      /     \                         |   /    \
-// newSuccBB  bb                     newSuccBB   bb
-// case3: Need insert phi in bb to needUpdateBB for ssaupdate when change the cfg like this :
-//           preheader                    preheader
-//              |                             |
-//              bb[header]---             newCopyBB   bb[header]----
-//            /   \          |                |       /   \         |
-//   needUpdateBB  bb1       |  --->      needUpdateBB    bb1       |
-//            \   /          |                        \   /         |
-//             bb2 ----------                          bb2----------
-void ValueRangePropagation::InsertOstOfPhi2CandsForSSAUpdate(const BB &oldSuccBB, const BB &newSuccBB) {
-  for (auto &it : oldSuccBB.GetMePhiList()) {
-    InsertCandsForSSAUpdate(it.first, newSuccBB);
-  }
-}
-
-void ValueRangePropagation::InsertCandsForSSAUpdate(OStIdx ostIdx, const BB &bb) {
-  MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &cands);
-}
-
 // When unreachable bb has trystmt or endtry attribute, need update try and endtry bbs.
 void ValueRangePropagation::UpdateTryAttribute(BB &bb) {
   // update try end bb
@@ -1237,41 +1205,51 @@ void ValueRangePropagation::UpdateTryAttribute(BB &bb) {
   }
 }
 
-void ValueRangePropagation::InsertCandsForSSAUpdate(MeStmt &meStmt, BB &bb) {
-  if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
-    InsertCandsForSSAUpdate(meStmt.GetLHS()->GetOstIdx(), bb);
-  }
-  if (meStmt.GetChiList() != nullptr) {
-    for (auto &chi : *meStmt.GetChiList()) {
-      auto *lhs = chi.second->GetLHS();
-      const OStIdx &ostIdx = lhs->GetOstIdx();
-      InsertCandsForSSAUpdate(ostIdx, bb);
+// Insert the ost of phi opnds to their def bbs.
+void ValueRangePropagation::InsertOstOfPhi2Cands(BB &bb, size_t i, bool setPhiIsDead) {
+  for (auto &it : bb.GetMePhiList()) {
+    if (setPhiIsDead) {
+      it.second->SetIsLive(false);
     }
-  }
-  if (meStmt.GetMustDefList() != nullptr) {
-    for (auto &mustDefNode : *meStmt.GetMustDefList()) {
-      const ScalarMeExpr *lhs = static_cast<const ScalarMeExpr*>(mustDefNode.GetLHS());
-      if (lhs->GetMeOp() != kMeOpReg && lhs->GetMeOp() != kMeOpVar) {
-        CHECK_FATAL(false, "unexpected opcode");
-      }
-      InsertCandsForSSAUpdate(lhs->GetOstIdx(), bb);
-    }
+    auto *opnd = it.second->GetOpnd(i);
+    MeStmt *stmt = nullptr;
+    auto *defBB = opnd->GetDefByBBMeStmt(dom, stmt);
+    MeSSAUpdate::InsertOstToSSACands(it.first, *defBB, &cands);
   }
 }
 
-void ValueRangePropagation::InsertCandsForSSAUpdate(BB &bb, bool insertDefBBOfPhiOpnds2Cands) {
+// Deal with the cfg changed like this:
+//  pred                  pred
+//    |                     |
+//    bb       -->          |   bb
+//   /  \                   |  /  \
+// true false              true   false
+void ValueRangePropagation::PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb) {
+  int index = bb.GetPredIndex(pred);
+  CHECK_FATAL(index != -1, "pred is not in preds of bb");
+  InsertOstOfPhi2Cands(bb, index);
+  // Insert the ost of philist to bb.
   for (auto &it : bb.GetMePhiList()) {
-    InsertCandsForSSAUpdate(it.first, bb);
-    if (insertDefBBOfPhiOpnds2Cands) {
-      for (auto *opnd : it.second->GetOpnds()) {
-        MeStmt *stmt = nullptr;
-        auto *defBB = opnd->GetDefByBBMeStmt(dom, stmt);
-        InsertCandsForSSAUpdate(it.first, *defBB);
+    MeSSAUpdate::InsertOstToSSACands(it.first, bb, &cands);
+  }
+  // Insert the ost of def points to the def bbs.
+  for (auto &meStmt : bb.GetMeStmts()) {
+    if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
+      MeSSAUpdate::InsertOstToSSACands(meStmt.GetLHS()->GetOstIdx(), bb, &cands);
+    }
+    if (meStmt.GetChiList() != nullptr) {
+      for (auto &chi : *meStmt.GetChiList()) {
+        auto *lhs = chi.second->GetLHS();
+        const OStIdx &ostIdx = lhs->GetOstIdx();
+        MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &cands);
       }
     }
-  }
-  for (auto &meStmt : bb.GetMeStmts()) {
-    InsertCandsForSSAUpdate(meStmt, bb);
+    if (meStmt.GetMustDefList() != nullptr) {
+      for (auto &mustDefNode : *meStmt.GetMustDefList()) {
+        const ScalarMeExpr *lhs = static_cast<const ScalarMeExpr*>(mustDefNode.GetLHS());
+        MeSSAUpdate::InsertOstToSSACands(lhs->GetOstIdx(), bb, &cands);
+      }
+    }
   }
 }
 
@@ -1281,7 +1259,6 @@ void ValueRangePropagation::DeleteUnreachableBBs() {
   }
   isCFGChange = true;
   for (BB *bb : unreachableBBs) {
-    InsertCandsForSSAUpdate(*bb);
     auto succs = bb->GetSucc();
     bb->RemoveAllPred();
     bb->RemoveAllSucc();
@@ -2910,10 +2887,9 @@ bool ValueRangePropagation::CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const 
 bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB &trueBranch) {
   auto *exitCopyFallthru = GetNewCopyFallthruBB(trueBranch, bb);
   if (exitCopyFallthru != nullptr) {
+    PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb);
     size_t index = FindBBInSuccs(pred, bb);
     pred.RemoveSucc(bb);
-    InsertCandsForSSAUpdate(pred);
-    InsertOstOfPhi2CandsForSSAUpdate(bb, *exitCopyFallthru);
     DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
     pred.AddSucc(*exitCopyFallthru, index);
     CreateLabelForTargetBB(pred, *exitCopyFallthru);
@@ -2930,31 +2906,28 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB 
     LogInfo::MapleLogger() << "old: " << pred.GetBBId() << " new: " << mergeAllFallthruBBs->GetBBId() << "\n";
   }
   auto *currBB = &bb;
+  BB *predOfCurrBB = nullptr;
   while (currBB->GetKind() != kBBCondGoto) {
     if (currBB->GetKind() != kBBFallthru && currBB->GetKind() != kBBGoto) {
       CHECK_FATAL(false, "must be fallthru or goto bb");
     }
-    InsertOstOfPhi2CandsForSSAUpdate(*currBB, *mergeAllFallthruBBs);
+    predOfCurrBB = currBB;
     currBB = currBB->GetSucc(0);
     CopyMeStmts(*currBB, *mergeAllFallthruBBs);
+  }
+  if (predOfCurrBB != nullptr) {
+    PrepareForSSAUpdateWhenPredBBIsRemoved(*predOfCurrBB, *currBB);
   }
   CHECK_FATAL(currBB->GetKind() == kBBCondGoto, "must be condgoto bb");
   auto *gotoMeStmt = irMap.New<GotoMeStmt>(func.GetOrCreateBBLabel(trueBranch));
   mergeAllFallthruBBs->AddMeStmtLast(gotoMeStmt);
+  PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb);
   size_t index = FindBBInSuccs(pred, bb);
   pred.RemoveSucc(bb);
   pred.AddSucc(*mergeAllFallthruBBs, index);
   mergeAllFallthruBBs->AddSucc(trueBranch);
-  InsertCandsForSSAUpdate(pred);
-  // When the currBB is not equal to bb, the cfg changed like case 2 in func InsertOstOfPhi2CandsForSSAUpdate.
-  if (currBB != &bb) {
-    InsertOstOfPhi2CandsForSSAUpdate(*currBB, trueBranch);
-  }
-  InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
   DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
-  InsertOstOfPhi2CandsForSSAUpdate(*currBB, *mergeAllFallthruBBs);
   CreateLabelForTargetBB(pred, *mergeAllFallthruBBs);
-  Insert2TrueOrFalseBranch2NewCopyFallthru(trueBranch, bb, *mergeAllFallthruBBs);
   return true;
 }
 
@@ -3008,23 +2981,18 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
   CHECK_FATAL(bb.GetKind() == kBBCondGoto, "must be condgoto bb");
   if (GetRealPredSize(bb) >= kNumOperands) {
     if (OnlyHaveCondGotoStmt(bb)) {
+      PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb);
       size_t index = FindBBInSuccs(pred, bb);
-      for (auto *currPred : bb.GetPred()) {
-        InsertOstOfPhi2CandsForSSAUpdate(bb, *currPred);
-      }
       pred.RemoveSucc(bb);
-      InsertCandsForSSAUpdate(pred);
-      InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
       pred.AddSucc(trueBranch, index);
       CreateLabelForTargetBB(pred, trueBranch);
     } else {
       auto *exitCopyFallthru = GetNewCopyFallthruBB(trueBranch, bb);
       if (exitCopyFallthru != nullptr) {
+        PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb);
         size_t index = FindBBInSuccs(pred, bb);
         pred.RemoveSucc(bb);
-        InsertCandsForSSAUpdate(pred);
-        InsertOstOfPhi2CandsForSSAUpdate(bb, *exitCopyFallthru);
         DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
         pred.AddSucc(*exitCopyFallthru, index);
         CreateLabelForTargetBB(pred, *exitCopyFallthru);
@@ -3039,17 +3007,14 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
       }
       auto *gotoMeStmt = irMap.New<GotoMeStmt>(func.GetOrCreateBBLabel(trueBranch));
       newBB->AddMeStmtLast(gotoMeStmt);
+      PrepareForSSAUpdateWhenPredBBIsRemoved(pred, bb);
       size_t index = FindBBInSuccs(pred, bb);
       pred.RemoveSucc(bb);
       pred.AddSucc(*newBB, index);
       newBB->AddSucc(trueBranch);
-      InsertCandsForSSAUpdate(pred);
-      InsertOstOfPhi2CandsForSSAUpdate(bb, trueBranch);
-      InsertOstOfPhi2CandsForSSAUpdate(bb, *newBB);
       DeleteThePhiNodeWhichOnlyHasOneOpnd(bb);
       func.GetOrCreateBBLabel(trueBranch);
       CreateLabelForTargetBB(pred, *newBB);
-      Insert2TrueOrFalseBranch2NewCopyFallthru(trueBranch, bb, *newBB);
     }
   } else {
     CHECK_FATAL(GetRealPredSize(bb) == 1, "must have one pred");
@@ -3073,12 +3038,9 @@ bool ValueRangePropagation::RemoveUnreachableEdge(MeExpr &opnd, BB &pred, BB &bb
     LogInfo::MapleLogger() << "===========delete edge " << pred.GetBBId() << " " << bb.GetBBId() << " " <<
         trueBranch.GetBBId() << "===========\n";
   }
-  InsertCandsForSSAUpdate(pred, true);
-  InsertOstOfPhi2CandsForSSAUpdate(bb, pred);
   if (trueBranch.GetPred().size() > 1) {
     (void)func.GetOrCreateBBLabel(trueBranch);
   }
-  InsertCandsForSSAUpdate(bb, true);
   needUpdateSSA = true;
   isCFGChange = true;
   return true;
