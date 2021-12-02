@@ -30,6 +30,7 @@ declare_args() {
   RELEASE_VERSION = ""
   BUILD_VERSION = ""
   GIT_REVISION = ""
+  MAST = 0
 }
 
 # Define global args

@@ -21,6 +21,9 @@ LLVMLIBDIR = "${CLANG_PATH}/lib"
 CFE_SRC_DIR = "${MAPLE_ROOT}/../third-party/clang-10.0.0.src"
 CFE_SRC_PATH = "${MAPLE_ROOT}/third_party/llvm-12.0.0.src/clang"
 
+# MapleFE path
+MAPLE_PARSER_PATH = ""
+
 GCC_LINARO_PATH = "${MAPLE_ROOT}/tools/gcc-linaro-7.5.0"
 NDK_PATH = "${MAPLE_ROOT}/tools/android-ndk-r21"
 
