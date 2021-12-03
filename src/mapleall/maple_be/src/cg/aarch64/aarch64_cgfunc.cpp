@@ -9528,7 +9528,7 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
 
   int64 val = static_cast<ImmOperand*>(src)->GetValue();
-  const int32 kMinImmVal = -256;
+  const int32 kMinImmVal = -128;
   const int32 kMaxImmVal = 255;
 
   /* copy the src imm operand to a reg if out of range */
@@ -9749,9 +9749,21 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
   RegOperand *res = &CreateRegisterOperandOfType(rType);
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
 
+  bool immOpnd = false;
+  if (opd->IsConstImmediate()) {
+    int64 val = static_cast<ImmOperand*>(opd)->GetValue();
+    if (val >= -128 && val <= 255) {
+      immOpnd = true;
+    } else {
+      RegOperand *regOpd = &CreateRegisterOperandOfType(origTyp);
+      SelectCopyImm(*regOpd, origTyp, static_cast<ImmOperand&>(*opd), origTyp);
+      opd = static_cast<Operand*>(regOpd);
+    }
+  }
+
   /* need dup to vector operand */
   MOperator mOp;
-  if (opd->IsConstImmediate()) {
+  if (immOpnd) {
     mOp = GetPrimTypeSize(rType) > k8ByteSize ? MOP_vmovvi : MOP_vmovui;    /* a const */
   } else {
     if (GetPrimTypeSize(origTyp) > k4ByteSize) {
