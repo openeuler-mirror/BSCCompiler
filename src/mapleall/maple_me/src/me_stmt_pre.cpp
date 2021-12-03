@@ -760,6 +760,9 @@ void MeStmtPre::ConstructUseOccurMap() {
 
 // create a new realOcc based on meStmt
 PreStmtWorkCand *MeStmtPre::CreateStmtRealOcc(MeStmt &meStmt, int seqStmt) {
+  if (meStmt.GetLHS() != nullptr && meStmt.GetLHS()->IsVolatile()) {
+    return nullptr;
+  }
   uint32 hashIdx = PreWorkCandHashTable::ComputeStmtWorkCandHashIndex(meStmt);
   auto *wkCand = static_cast<PreStmtWorkCand*>(preWorkCandHashTable.GetWorkcandFromIndex(hashIdx));
   while (wkCand != nullptr) {
@@ -1079,7 +1082,7 @@ void MeStmtPre::BuildWorkList() {
   const MapleVector<OriginalSt*> &originalStVec = ssaTab->GetOriginalStTable().GetOriginalStVector();
   for (size_t i = 1; i < originalStVec.size(); ++i) {
     OriginalSt *ost = originalStVec[i];
-    if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0) {
+    if (!ost->IsSymbolOst() || ost->GetIndirectLev() != 0 || ost->GetVersionsIndices().empty()) {
       continue;
     }
     MapleStack<ScalarMeExpr*> *varStack = ssaPreMemPool->New<MapleStack<ScalarMeExpr*>>(ssaPreAllocator.Adapter());
