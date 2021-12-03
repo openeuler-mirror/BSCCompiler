@@ -1093,6 +1093,18 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
+void AArch64CGFunc::SelectAbort(UnaryStmtNode &stmt) {
+  AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
+  auto &xzr = AArch64RegOperand::Get64bitZeroRegister();
+  auto &mem = CreateMemOpnd(inOpnd, 0, k64BitSize);
+  Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovrr, inOpnd, xzr);
+  Insn &loadRef = GetCG()->BuildInstruction<AArch64Insn>(MOP_wldr, xzr, mem);
+  loadRef.SetDoNotRemove(true);
+  movXzr.SetDoNotRemove(true);
+  GetCurBB()->AppendInsn(movXzr);
+  GetCurBB()->AppendInsn(loadRef);
+}
+
 static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string constraint) {
   std::string regPrefix = "";
   /* memory access check */
@@ -1260,14 +1272,14 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
       PregIdx pregIdx = static_cast<PregIdx>(regFieldPair.GetPregIdx());
       MIRPreg *mirPreg = mirModule.CurFunction()->GetPregTab()->PregFromPregIdx(pregIdx);
       RegOperand *outOpnd =
-          isOutputTempNode ? rPOpnd : &CreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
+          isOutputTempNode ? rPOpnd : &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx));
       PrimType srcType = mirPreg->GetPrimType();
       PrimType destType = srcType;
       if (GetPrimTypeBitSize(destType) < k32BitSize) {
         destType = IsSignedInteger(destType) ? PTY_i32 : PTY_u32;
       }
       RegType rtype = GetRegTyFromPrimTy(srcType);
-      RegOperand *opnd0 = isOutputTempNode ? &CreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
+      RegOperand *opnd0 = isOutputTempNode ? &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
           &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
       SelectCopy(*opnd0, destType, *outOpnd, srcType);
       if (!isOutputTempNode) {
@@ -9728,7 +9740,7 @@ RegOperand *AArch64CGFunc::SelectVectorSum(PrimType rType, Operand *o1, PrimType
 
 void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand **o2, PrimType &oty2) {
   /* Only 1 operand can be non vector, otherwise it's a scalar operation, wouldn't come here */
-  if (IsPrimitiveVector(oty1) && IsPrimitiveVector(oty2)) {
+  if (IsPrimitiveVector(oty1) == IsPrimitiveVector(oty2)) {
     return;
   }
   PrimType origTyp = !IsPrimitiveVector(oty2) ? oty2 : oty1;
