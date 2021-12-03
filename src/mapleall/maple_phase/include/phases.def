@@ -13,7 +13,7 @@ ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline)
 ADDMODULEPHASE("simplify", Options::O2)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
-ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2 && Options::npeCheckDynamic)
+ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2 && MeOption::npeCheckMode != SafetyCheckMode::kNoCheck)
 // me phase manager is also a phase itself.
 ADDMAPLEPHASE("meFuncPM", IsRunMe());
 ADDMODULEPHASE("clinit", JAVALANG)
@@ -57,7 +57,7 @@ ADDMAPLEMEPHASE("hdse", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("may2dassign", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("condbasednpc", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("epre", MeOption::optLevel >= 2)
-ADDMAPLEMEPHASE("stmtpre", JAVALANG && MeOption::optLevel >= 2)
+ADDMAPLEMEPHASE("stmtpre", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("analyzerc", MeOption::optLevel != 0 && JAVALANG && !MeOption::noRC && !MeOption::gcOnly)
 ADDMAPLEMEPHASE("rclowering", JAVALANG && !MeOption::noRC && MeOption::rcLowering && !MeOption::gcOnly)
 ADDMAPLEMEPHASE("gclowering", JAVALANG && MeOption::gcOnly)

@@ -445,7 +445,8 @@ void RCLowering::PreprocessAssignMeStmt(MeStmt &stmt) {
     return;
   }
   const MIRSymbol *lsym = stmt.GetVarLHS()->GetOst()->GetMIRSymbol();
-  if (stmt.GetOp() == OP_dassign && (lsym->GetStorageClass() == kScAuto || lsym->GetStorageClass() == kScFormal)) {
+  if (stmt.GetOp() == OP_dassign && (lsym->GetStorageClass() == kScAuto || lsym->GetStorageClass() == kScFormal) &&
+      stmt.GetLHS()->GetOst() != static_cast<ScalarMeExpr *>(stmt.GetRHS())->GetOst()) {
     assignedPtrSym.insert(lsym);
   }
   if (rhs->GetMeOp() != kMeOpGcmalloc) {

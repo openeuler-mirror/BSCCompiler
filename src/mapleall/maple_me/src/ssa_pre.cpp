@@ -1150,6 +1150,7 @@ void SSAPre::SetVarPhis(MeExpr *meExpr) {
     CHECK(defBBId < dom->GetDtDfnSize(), "defBBId.idx out of range in SSAPre::SetVarPhis");
     if (varPhiDfns.find(dom->GetDtDfnItem(defBBId)) == varPhiDfns.end() && ScreenPhiBB(defBBId)) {
       (void)varPhiDfns.insert(dom->GetDtDfnItem(defBBId));
+      GetIterDomFrontier(phiMeNode->GetDefBB(), &varPhiDfns);
       for (auto opndIt = phiMeNode->GetOpnds().begin(); opndIt != phiMeNode->GetOpnds().end(); ++opndIt) {
         ScalarMeExpr *opnd = *opndIt;
         SetVarPhis(opnd);
@@ -1576,10 +1577,6 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       if (dassMeStmt->isIncDecStmt && preKind == kExprPre) {
         break;
       }
-      if (dassMeStmt->GetRHS()->GetMeOp() == dassMeStmt->GetLHS()->GetMeOp() &&
-          dassMeStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(dassMeStmt->GetRHS())->GetOst()) {
-        break; // identity assignment converted from phi
-      }
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *dassMeStmt->GetRHS(), isRebuilt,
                         tempVar, true, isRebuilt);
       BuildWorkListLHSOcc(*meStmt, static_cast<int32>(seqStmt));
@@ -1615,7 +1612,7 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
     case OP_decrefreset:
     case OP_eval:
     case OP_igoto:
-    case OP_assertnonnull:
+    CASE_OP_ASSERT_NONNULL
     case OP_free: {
       auto *unaryStmt = static_cast<UnaryMeStmt*>(meStmt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *unaryStmt->GetOpnd(), isRebuilt,
@@ -1712,9 +1709,8 @@ void SSAPre::BuildWorkListStmt(MeStmt &stmt, uint32 seqStmt, bool isRebuilt, MeE
       }
       break;
     }
-    case OP_assertlt:
-    case OP_assertge: {
-      auto *assMeStmt = static_cast<AssertMeStmt*>(meStmt);
+    CASE_OP_ASSERT_BOUNDARY {
+      auto *assMeStmt = static_cast<NaryMeStmt*>(meStmt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(0), isRebuilt,
                         tempVar, true, isRebuilt);
       BuildWorkListExpr(*meStmt, static_cast<int32>(seqStmt), *assMeStmt->GetOpnd(1), isRebuilt,

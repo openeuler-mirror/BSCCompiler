@@ -1732,7 +1732,9 @@ void ElimDuplicateExtensionAArch64::Run(BB &bb, Insn &insn) {
       regno_t src = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
       if (dest == src) {
         insn.SetMOP(is32bits ? MOP_wmovrr : MOP_xmovrr);
-        if (upper == kSizeOfSextMopTable && prevDestOpnd.GetSize() != insn.GetOperand(kInsnFirstOpnd).GetSize()) {
+        if (upper == kSizeOfSextMopTable &&
+            static_cast<RegOperand&>(prevDestOpnd).GetValidBitsNum() !=
+            static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetValidBitsNum()) {
           if (is32bits) {
             insn.GetOperand(kInsnFirstOpnd).SetSize(k64BitSize);
             insn.SetMOP(MOP_xmovrr);
