@@ -8,7 +8,7 @@ help:
 	@echo "  make setup"
 	@echo ""
 	@echo "2. setup env"
-	@echo "  source envsetup.sh [ clang2mpl | mplfe ] # select frontend"
+	@echo "  source envsetup.sh [ clang2mpl | hir2mpl ] # select frontend"
 	@echo ""
 	@echo "3. build and run, eg for benchmark 605.mcf_s:"
 	@echo "  make build.605 # optional" 

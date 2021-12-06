@@ -29,7 +29,7 @@ CO0 = {
             outfile="${APP}.ast"
         ),
         Mplfe(
-            mplfe="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/mplfe",
+            hir2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/hir2mpl",
             infile="${APP}.ast",
             outfile="${APP}.mpl"
         ),

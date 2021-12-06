@@ -29,22 +29,22 @@ else
   verbose=$4
 fi
 
-WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_mplfe
+WORKDIR=$MAPLE_BUILD_OUTPUT/$rel/$dir/aarch64_with_hir2mpl
 
 mkdir -p $WORKDIR
 cp $dir/$src.c $WORKDIR
 cd $WORKDIR
 
 echo ======================================================================== > cmd.log
-echo ====================== use mplfe as C Frontend ========================= >> cmd.log
+echo ====================== use hir2mpl as C Frontend ========================= >> cmd.log
 echo ======================================================================== >> cmd.log
 echo cd $WORKDIR >> cmd.log
 
 echo $MAPLE_ROOT/tools/bin/clang -emit-ast -o $src.ast $src.c >> cmd.log
 $MAPLE_ROOT/tools/bin/clang -emit-ast -o $src.ast $src.c >> doit.log 2>&1
 
-echo $MAPLE_EXECUTE_BIN/mplfe $src.ast -o $src.mpl >> cmd.log
-$MAPLE_EXECUTE_BIN/mplfe $src.ast -o $src.mpl >> doit.log 2>&1
+echo $MAPLE_EXECUTE_BIN/hir2mpl $src.ast -o $src.mpl >> cmd.log
+$MAPLE_EXECUTE_BIN/hir2mpl $src.ast -o $src.mpl >> doit.log 2>&1
 
 if [ $opt -eq 0 ]; then
   echo $MAPLE_EXECUTE_BIN/maple --run=mplcg --option=\"-quiet\" $src.mpl >> cmd.log

@@ -96,17 +96,17 @@ mpldbg:
 ast2mpl:
 	$(call build_gn, $(GN_OPTIONS), ast2mpl)
 
-.PHONY: mplfe
-mplfe: install_patch
-	$(call build_gn, $(GN_OPTIONS), mplfe)
+.PHONY: hir2mpl
+hir2mpl: install_patch
+	$(call build_gn, $(GN_OPTIONS), hir2mpl)
 
 .PHONY: clang2mpl
 clang2mpl: maple
 	(cd tools/clang2mpl; make setup; make; make install)
 
-.PHONY: mplfeUT
-mplfeUT:
-	$(call build_gn, $(GN_OPTIONS) COV_CHECK=1, mplfeUT)
+.PHONY: hir2mplUT
+hir2mplUT:
+	$(call build_gn, $(GN_OPTIONS) COV_CHECK=1, hir2mplUT)
 
 .PHONY: libcore
 libcore: maple-rt
@@ -126,13 +126,13 @@ java-core-def: install
 	$(MAKE) gen-def OPT=$(OPT) DEBUG=$(DEBUG) OPS_ANDROID=$(OPS_ANDROID)
 
 .PHONY: install
-install: maple dex2mpl_install irbuild mplfe
+install: maple dex2mpl_install irbuild hir2mpl
 	$(shell mkdir -p $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MRT_ROOT)/maplert/linker/maplelld.so.lds $(INSTALL_DIR)/ops/linker/; \
 	rsync -a -L $(MAPLE_ROOT)/build/java2d8 $(INSTALL_DIR)/bin; \
 	rsync -a -L $(MAPLE_BIN_DIR)/java2jar $(INSTALL_DIR)/bin/; \
 	cp -rf $(MAPLE_ROOT)/tools $(INSTALL_DIR)/../; \
-	rsync -a -L $(MAPLE_ROOT)/src/mplfe/ast_input/clang/lib/sys/ $(INSTALL_DIR)/lib/include/;)
+	rsync -a -L $(MAPLE_ROOT)/src/hir2mpl/ast_input/clang/lib/sys/ $(INSTALL_DIR)/lib/include/;)
 
 .PHONY: all
 all: install libcore
@@ -147,7 +147,7 @@ setup:
 
 .PHONY: demo
 demo:
-	test/maple_aarch64_with_mplfe.sh test/c_demo printHuawei 1 1
+	test/maple_aarch64_with_hir2mpl.sh test/c_demo printHuawei 1 1
 	test/maple_aarch64_with_clang2mpl.sh test/c_demo printHuawei 1 1
 
 .PHONY: ctorture-ci
