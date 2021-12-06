@@ -26,13 +26,13 @@ group("irbuild") {
 
 group("hir2mpl") {
   deps = [
-    "${MPLFE_ROOT}:hir2mpl",
+    "${HIR2MPL_ROOT}:hir2mpl",
   ]
 }
 
 group("hir2mplUT") {
   deps = [
-    "${MPLFE_ROOT}/test:hir2mplUT",
+    "${HIR2MPL_ROOT}/test:hir2mplUT",
   ]
 }
 
