@@ -62,12 +62,15 @@ void foo3() {
 }
 
 void foo4() {
+#if 0     // Turn off temporarily, awaiting arm_neon.h to be updated. Turn on
+          // again after that.
   uint32x2_t a = {1, 0};
   uint32x2_t b = vdup_n_u32(10);
   uint32x4_t r = vreinterpretq_u32_u64( vmull_u32(a, b) );
   if (vgetq_lane_u32(r, 0) != 0xa || vgetq_lane_u32(r, 1) != 0 ||
       vgetq_lane_u32(r, 2) != 0   || vgetq_lane_u32(r, 3) != 0)
     abort();
+#endif
 }
 
 int main()
