@@ -372,7 +372,7 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
 }
 
 void RemoveIdenticalLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
-  Insn *nextInsn = insn.GetNext();
+  Insn *nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr) {
     return;
   }
@@ -1831,6 +1831,14 @@ bool CmpCsetAArch64::OpndDefByOneValidBit(const Insn &defInsn) {
  * for cmp reg,#0(#1), that is checking for reg
  */
 bool CmpCsetAArch64::CheckOpndDefPoints(Insn &checkInsn, int opndIdx) {
+  if (checkInsn.GetBB()->GetPrev() == nullptr) {
+    /* For 1st BB, be conservative for def of parameter registers */
+    /* Since peep is light weight, do not want to insert pseudo defs */
+    regno_t reg = static_cast<RegOperand&>(checkInsn.GetOperand(opndIdx)).GetRegisterNumber();
+    if ((reg >= R0 && reg <= R7) || (reg >= D0 && reg <= D7)) {
+      return false;
+    }
+  }
   /* check current BB */
   const Insn *defInsn = DefInsnOfOperandInBB(checkInsn, checkInsn, opndIdx);
   if (defInsn != nullptr) {
