@@ -60,7 +60,7 @@ AST2MPL_ROOT = "${MAPLE_ROOT}/src/ast2mpl"
 IS_AST2MPL_EXISTS = getenv("IS_AST2MPL_EXISTS")
 MAPLEALL_ROOT = "${MAPLE_ROOT}/src"
 MAPLEALL_ROOT = "${MAPLE_ROOT}/src/mapleall"
-MPLFE_ROOT = "${MAPLE_ROOT}/src/hir2mpl"
+HIR2MPL_ROOT = "${MAPLE_ROOT}/src/hir2mpl"
 MAPLE_MRT_ROOT = "${MAPLE_ROOT}/src/mrt"
 THIRD_PARTY_ROOT = "${MAPLE_ROOT}/third_party"
 
