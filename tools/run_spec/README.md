@@ -24,7 +24,7 @@ make clang2mpl
 ```
 cd tools/run_spec
 make setup
-source envsetup.sh [ clang2mpl | mplfe ] # select frontend
+source envsetup.sh [ clang2mpl | hir2mpl ] # select frontend
 ```
 
 3. Run a test

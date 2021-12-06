@@ -24,15 +24,15 @@ group("irbuild") {
   ]
 }
 
-group("mplfe") {
+group("hir2mpl") {
   deps = [
-    "${MPLFE_ROOT}:mplfe",
+    "${MPLFE_ROOT}:hir2mpl",
   ]
 }
 
-group("mplfeUT") {
+group("hir2mplUT") {
   deps = [
-    "${MPLFE_ROOT}/test:mplfeUT",
+    "${MPLFE_ROOT}/test:hir2mplUT",
   ]
 }
 

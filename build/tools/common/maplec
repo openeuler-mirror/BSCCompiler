@@ -14,7 +14,7 @@ std="-std=gnu99"
 list_mode="false"
 
 # config fe compiler
-use_mplfe=true
+use_hir2mpl=true
 use_clang2mpl=false
 # config maple optimization level
 use_O2=true
@@ -55,12 +55,12 @@ while [ $# -ne 0 ]; do
     -O0)
         use_O2=false
         ;;
-    -mplfe)
-        use_mplfe=true
+    -hir2mpl)
+        use_hir2mpl=true
         use_clang2mpl=false
         ;;
     -clang2mpl)
-        use_mplfe=false
+        use_hir2mpl=false
         use_clang2mpl=true
         ;;
     --list)
@@ -174,13 +174,13 @@ function excecute() {
   echo ""
 }
 
-function mplfe() {
+function hir2mpl() {
   # generate .ast
   color_print "Starting ast for $src_file_path:"
   excecute $TOOLS_BIN/clang $CLANG_FLAGS $option $src_file_path -o $file_name.ast
   # generate .mpl
-  color_print "Starting mplfe for $src_file_path:"
-  excecute $MAPLE_BIN/mplfe $file_name.ast
+  color_print "Starting hir2mpl for $src_file_path:"
+  excecute $MAPLE_BIN/hir2mpl $file_name.ast
 }
 
 function clangfe() {
@@ -200,7 +200,7 @@ function clang2mpl() {
 
 function c_to_mpl() {
   [ "$use_clang2mpl" == "true" ] && clang2mpl && return
-  [ "$use_mplfe" == "true" ] && mplfe && return
+  [ "$use_hir2mpl" == "true" ] && hir2mpl && return
   clangfe
 }
 

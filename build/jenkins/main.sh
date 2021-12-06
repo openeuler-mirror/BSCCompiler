@@ -12,7 +12,7 @@ function debug_test {
   make clean
   make
   make irbuild
-  make mplfe
+  make hir2mpl
   make clang2mpl
   mkdir -p ${MAPLE_ROOT}/output/script
   cp ${MAPLE_ROOT}/testsuite/driver/script/check.py ${MAPLE_ROOT}/output/script/
@@ -40,7 +40,7 @@ function release_test {
   make clean
   make
   make irbuild
-  make mplfe
+  make hir2mpl
   make clang2mpl
 
   mode_list="O0 O2 GC_O0 GC_O2"
