@@ -1,0 +1,398 @@
+#
+# Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+#
+# OpenArkCompiler is licensed under Mulan PSL v2.
+# You can use this software according to the terms and conditions of the Mulan PSL v2.
+# You may obtain a copy of Mulan PSL v2 at:
+#
+#     http://license.coscl.org.cn/MulanPSL2
+#
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+# FIT FOR A PARTICULAR PURPOSE.
+# See the Mulan PSL v2 for more details.
+#
+configs = [ "${MAPLEALL_ROOT}:mapleallcompilecfg" ]
+if (COV_CHECK == 1) {
+  cflags = [ "-DENABLE_COV_CHECK=1" ]
+}
+
+cflags += [
+  "-DMIR_FEATURE_FULL=1",
+  "-DHIR2MPL_FULL_INFO_DUMP=1",
+]
+
+if (MAST == 1) {
+  cflags += [
+    "-w",
+    "-DENABLE_MAST",
+  ]
+}
+
+include_directories = [
+  "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
+  "${HIR2MPL_ROOT}/bytecode_input/class/include",
+  "${HIR2MPL_ROOT}/bytecode_input/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/dex/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_ipa/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_phase/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mpl2mpl/include",
+  "${MAPLEALL_ROOT}/maple_me/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+  "${HIR2MPL_ROOT}/ast_input/clang/include",
+  "${HIR2MPL_ROOT}/ast_input/clang/lib",
+  "${HIR2MPL_ROOT}/ast_input/common/include",
+  "${HIR2MPL_ROOT}/ast_input/maple/include",
+  "${HIR2MPL_ROOT}/ast_input/maple/lib",
+  "${LLVMINC}",
+  "${THIRD_PARTY_ROOT}/llvm_modified/clang/tools",
+]
+
+if (MAST == 1) {
+  include_directories += [
+    "${MAPLE_PARSER_PATH}/output/c/ast_gen/shared",
+    "${MAPLE_PARSER_PATH}/shared/include",
+    "${MAPLE_PARSER_PATH}/astopt/include",
+  ]
+}
+
+static_library("lib_hir2mpl_common") {
+  sources = [
+    "${HIR2MPL_ROOT}/common/src/base64.cpp",
+    "${HIR2MPL_ROOT}/common/src/basic_io.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_config_parallel.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_file_ops.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_file_type.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_function.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_function_phase_result.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_input_helper.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_java_string_manager.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_manager.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_options.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_struct_elem_info.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_timer_ns.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_type_hierarchy.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_type_manager.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_utils.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_utils_ast.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_utils_java.cpp",
+    "${HIR2MPL_ROOT}/common/src/fe_diag_manager.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_builder.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_dfg.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_stmt.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_type.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_type_helper.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_type_infer.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_var.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_var_name.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_var_reg.cpp",
+    "${HIR2MPL_ROOT}/common/src/feir_var_type_scatter.cpp",
+    "${HIR2MPL_ROOT}/common/src/general_bb.cpp",
+    "${HIR2MPL_ROOT}/common/src/general_cfg.cpp",
+    "${HIR2MPL_ROOT}/common/src/general_stmt.cpp",
+    "${HIR2MPL_ROOT}/common/src/hir2mpl_compiler.cpp",
+    "${HIR2MPL_ROOT}/common/src/hir2mpl_compiler_component.cpp",
+    "${HIR2MPL_ROOT}/common/src/hir2mpl_env.cpp",
+    "${HIR2MPL_ROOT}/common/src/hir2mpl_options.cpp",
+    "${HIR2MPL_ROOT}/common/src/simple_xml.cpp",
+    "${HIR2MPL_ROOT}/common/src/simple_zip.cpp",
+    "${HIR2MPL_ROOT}/common/src/generic_attrs.cpp",
+    "${HIR2MPL_ROOT}/common/src/enhance_c_checker.cpp",
+  ]
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/ar"
+
+  if (MAJOR_VERSION != "") {
+    cflags_cc += [ "-DMAJOR_VERSION=${MAJOR_VERSION}", ]
+  }
+
+  if (MINOR_VERSION != "") {
+    cflags_cc += [ "-DMINOR_VERSION=${MINOR_VERSION}", ]
+  }
+
+  if (RELEASE_VERSION != "") {
+    cflags_cc += [ "-DRELEASE_VERSION=\"${RELEASE_VERSION}\"", ]
+  }
+
+  if (BUILD_VERSION != "") {
+    cflags_cc += [ "-DBUILD_VERSION=${BUILD_VERSION}", ]
+  }
+
+  if (GIT_REVISION != "") {
+    cflags_cc += [ "-DGIT_REVISION=\"${GIT_REVISION}\"", ]
+  }
+}
+
+static_library("lib_hir2mpl_optimize") {
+  sources = [
+    "${HIR2MPL_ROOT}/optimize/src/ror.cpp",
+    "${HIR2MPL_ROOT}/optimize/src/conditional_operator.cpp",
+  ]
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+static_library("lib_hir2mpl_input_helper") {
+  sources = [ "${HIR2MPL_ROOT}/common/src/fe_input_helper.cpp" ]
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+executable("hir2mpl") {
+  sources = [ "${HIR2MPL_ROOT}/common/src/hir2mpl.cpp" ]
+  include_dirs = include_directories
+  deps = [
+    ":lib_hir2mpl_ast_input_clang",
+    ":lib_hir2mpl_ast_input_common",
+    ":lib_hir2mpl_bytecode_input_common",
+    ":lib_hir2mpl_bytecode_input_dex",
+    ":lib_hir2mpl_input_helper",
+    ":lib_hir2mpl_bytecode_input_class",
+    ":lib_hir2mpl_common",
+    ":lib_hir2mpl_optimize",
+    "${MAPLEALL_ROOT}/maple_driver:libdriver_option",
+    "${MAPLEALL_ROOT}/maple_ir:libmplir",
+    "${MAPLEALL_ROOT}/maple_util:libmplutil",
+    "${MAPLEALL_ROOT}/mempool:libmempool",
+    "${MAPLEALL_ROOT}/mpl2mpl:libmpl2mpl",
+    "${THIRD_PARTY_ROOT}/bounds_checking_function:libHWSecureC",
+  ]
+  if (MAST == 1) {
+    deps += [
+      ":lib_hir2mpl_ast_input_maple",
+    ]
+  }
+  ldflags = [
+    "-lz",
+    "-rdynamic",
+    "-L${LLVMLIBDIR}/",
+  ]
+
+  if (MAST == 1) {
+    ldflags += [
+      "-lstdc++fs",
+      "-L${MAPLE_PARSER_PATH}/output/c/ast_gen/shared",
+    ]
+  }
+}
+
+include_bytecode_input_jbc_directories = [
+  "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/class/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+]
+
+static_library("lib_hir2mpl_bytecode_input_class") {
+  sources = [
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_attr.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_attr_item.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_bb.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_class.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_class2fe_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_class_const.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_class_const_pool.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_compiler_component.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_function.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_function_context.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_input.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_opcode.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_opcode_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_stack2fe_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_stack_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_stmt.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/class/src/jbc_util.cpp",
+  ]
+  include_dirs = include_bytecode_input_jbc_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+include_bytecode_input_common_directories = [
+  "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/dex/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+]
+
+static_library("lib_hir2mpl_bytecode_input_common") {
+  sources = [
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_map.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/ark_annotation_processor.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_class2fe_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_function.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_instruction.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_io.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_parser_base.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_pragma.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/bc_util.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/common/src/rc_setter.cpp",
+  ]
+  include_dirs = include_bytecode_input_common_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+include_bytecode_input_dex_directories = [
+  "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/common/include",
+  "${HIR2MPL_ROOT}/bytecode_input/dex/include",
+  "${MAPLEALL_ROOT}/maple_ir/include",
+  "${MAPLEALL_ROOT}/maple_util/include",
+  "${MAPLEALL_ROOT}/maple_driver/include",
+  "${MAPLEALL_ROOT}/mempool/include",
+  "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
+]
+
+static_library("lib_hir2mpl_bytecode_input_dex") {
+  sources = [
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_linker.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/class_loader_context.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_class2fe_helper.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_encode_value.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_file_util.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_op.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_pragma.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_strfac.cpp",
+  ]
+
+  # for libdexfile
+  include_dirs_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/include" ]
+  include_dirs_libdexfile = [
+    #for libdexfile -start
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libutils/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartpalette/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libartbase",
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile",
+    "${THIRD_PARTY_ROOT}/aosp_modified/include",
+    "${THIRD_PARTY_ROOT}/aosp_modified/libnativehelper/include_jni",
+
+    #for libdexfile -end
+  ]
+
+  sources += [
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_parser.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dex_reader.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_factory.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_interface.cpp",
+    "${HIR2MPL_ROOT}/bytecode_input/dex/src/dexfile_libdexfile.cpp",
+  ]
+  deps_libdexfile = [
+    "${THIRD_PARTY_ROOT}/aosp_modified/art/libdexfile:libdexfile",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/libziparchive:libziparchive",
+    "${THIRD_PARTY_ROOT}/aosp_modified/system/core/base:libbase",
+  ]
+  lib_dex = [ "${THIRD_PARTY_ROOT}/aosp_modified/system/core/liblog/liblog.a" ]
+  deps = deps_libdexfile
+  libs = lib_dex
+  include_dirs =
+      include_bytecode_input_dex_directories + include_dirs_libdexfile + include_dirs_dex
+  output_dir = "${root_out_dir}/ar"
+}
+
+static_library("lib_hir2mpl_ast_input_clang_lib") {
+  sources = [ "${HIR2MPL_ROOT}/ast_input/clang/lib/ast_interface.cpp" ]
+  include_dirs = include_directories
+  defines = [
+    "CLANG_ENABLE_ARCMT",
+    "CLANG_ENABLE_OBJC_REWRITER",
+    "CLANG_ENABLE_STATIC_ANALYZER",
+    "GTEST_HAS_RTTI=0",
+    "_DEBUG",
+    "_GNU_SOURCE",
+    "__STDC_CONSTANT_MACROS",
+    "__STDC_FORMAT_MACROS",
+    "__STDC_LIMIT_MACROS",
+  ]
+
+  output_dir = "${root_out_dir}/ar"
+  libs = [
+    "${LLVMLIBDIR}/libclang.so",
+    "${LLVMLIBDIR}/libclang-cpp.so",
+    "${LLVMLIBDIR}/libclangFrontend.a",
+    "${LLVMLIBDIR}/libclangDriver.a",
+    "${LLVMLIBDIR}/libclangSerialization.a",
+    "${LLVMLIBDIR}/libclangParse.a",
+    "${LLVMLIBDIR}/libclangSema.a",
+    "${LLVMLIBDIR}/libclangEdit.a",
+    "${LLVMLIBDIR}/libclangLex.a",
+    "${LLVMLIBDIR}/libclangAnalysis.a",
+    "${LLVMLIBDIR}/libclangAST.a",
+    "${LLVMLIBDIR}/libclangBasic.a",
+    "${LLVMLIBDIR}/libLLVMDemangle.a",
+    "${LLVMLIBDIR}/libLLVMMCParser.a",
+    "${LLVMLIBDIR}/libLLVMMC.a",
+    "${LLVMLIBDIR}/libLLVMBitReader.a",
+    "${LLVMLIBDIR}/libLLVMCore.a",
+    "${LLVMLIBDIR}/libLLVMBinaryFormat.a",
+    "${LLVMLIBDIR}/libLLVMProfileData.a",
+    "${LLVMLIBDIR}/libLLVMOption.a",
+    "${LLVMLIBDIR}/libLLVMSupport.a",
+  ]
+}
+
+static_library("lib_hir2mpl_ast_input_common") {
+  sources = [
+    "${HIR2MPL_ROOT}/ast_input/common/src/ast_decl.cpp",
+  ]
+  include_dirs = include_directories
+  output_dir = "${root_out_dir}/ar"
+}
+
+static_library("lib_hir2mpl_ast_input_clang") {
+  sources = [
+    "${HIR2MPL_ROOT}/ast_input/clang/lib/ast_type.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/lib/ast_util.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_expr.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_function.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_parser.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_parser_builting_func.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_stmt.cpp",
+    "${HIR2MPL_ROOT}/ast_input/clang/src/ast_struct2fe_helper.cpp",
+  ]
+  include_dirs = include_directories
+  deps = [ ":lib_hir2mpl_ast_input_clang_lib" ]
+  output_dir = "${root_out_dir}/ar"
+}
+
+if (MAST == 1) {
+  static_library("lib_hir2mpl_ast_input_maple_lib") {
+    sources = [ "${HIR2MPL_ROOT}/ast_input/maple/lib/maple_ast_interface.cpp" ]
+    include_dirs = include_directories
+    defines = [
+      "DEBUG",
+    ]
+    output_dir = "${root_out_dir}/ar"
+    libs = [
+      "${MAPLE_PARSER_PATH}/output/c/ast_gen/shared/genast.a",
+      "${MAPLE_PARSER_PATH}/output/c/shared/shared.a",
+      "${MAPLE_PARSER_PATH}/output/c/gen/gen.a",
+      "${MAPLE_PARSER_PATH}/output/c/astopt/astopt.a",
+    ]
+  }
+
+  static_library("lib_hir2mpl_ast_input_maple") {
+    sources = [
+      "${HIR2MPL_ROOT}/ast_input/maple/src/maple_ast_parser.cpp",
+    ]
+    include_dirs = include_directories
+    deps = [ ":lib_hir2mpl_ast_input_maple_lib" ]
+    output_dir = "${root_out_dir}/ar"
+  }
+}
+
