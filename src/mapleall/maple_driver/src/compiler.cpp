@@ -64,34 +64,33 @@ ErrorCode Compiler::Compile(MplOptions &options, const Action &action,
 std::vector<MplOption> Compiler::MakeOption(const MplOptions &options,
                                             const Action &action) const {
   std::vector<MplOption> finalOptions;
-  std::map<std::string, MplOption> defaultOptions = MakeDefaultOptions(options, action);
+  std::vector<MplOption> defaultOptions = MakeDefaultOptions(options, action);
 
   AppendInputsAsOptions(finalOptions, options, action);
   AppendDefaultOptions(finalOptions, defaultOptions, options.HasSetDebugFlag());
-  AppendExtraOptions(finalOptions, defaultOptions, options, options.HasSetDebugFlag());
+  AppendExtraOptions(finalOptions, options, options.HasSetDebugFlag());
 
   return finalOptions;
 }
 
 void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
-                                    const std::map<std::string, MplOption> &defaultOptions,
+                                    const std::vector<MplOption> &defaultOptions,
                                     bool isDebug) const {
   for (const auto &defaultIt : defaultOptions) {
-    (void)finalOptions.push_back(defaultIt.second);
+    (void)finalOptions.push_back(defaultIt);
   }
 
   if (isDebug) {
     LogInfo::MapleLogger() << Compiler::GetName() << " Default Options: ";
     for (const auto &defaultIt : defaultOptions) {
-      LogInfo::MapleLogger() << defaultIt.first << " "
-                             << defaultIt.second.GetValue();
+      LogInfo::MapleLogger() << defaultIt.GetKey() << " "
+                             << defaultIt.GetValue();
     }
     LogInfo::MapleLogger() << '\n';
   }
 }
 
 void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
-                                  std::map<std::string, MplOption> defaultOptions,
                                   const MplOptions &options, bool isDebug) const {
   const std::string &binName = GetTool();
   auto exeOption = options.GetExeOptions().find(binName);
@@ -107,13 +106,18 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
       prefix = "--";
     }
 
-    const std::string key = prefix + opt.OptionKey();
+    const std::string baseKey = opt.OptionKey();
+    const std::string key = prefix + baseKey;
     const std::string value  = opt.Args();
 
-    /* Update option if needed */
-    auto it = defaultOptions.find(key);
-    if (it != defaultOptions.end()) {
-      ReplaceOption(finalOptions, key, value);
+    /* Default behaviour: extra options do not replace default options,
+     * because it can be some additional option with the same key.
+     * For example: we can have some default -isystem SYSTEM pathes option.
+     * And if some additional -isystem SYSTEM pathes is added, it's not correct
+     * to replace them (SYSTEM pathes msut be extended (not replaced)).
+     * If you need to replace some special option, check and replace it here */
+    if (baseKey == "o") {
+      ReplaceOrInsertOption(finalOptions, key, value);
     } else {
       finalOptions.push_back(MplOption(key, value));
     }
@@ -129,6 +133,21 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
   }
 }
 
+void Compiler::ReplaceOrInsertOption(std::vector<MplOption> &finalOptions,
+                                     const std::string &key, const std::string &value) const {
+  bool wasFound = false;
+  for (auto &opt : finalOptions) {
+    if (opt.GetKey() == key) {
+      opt.SetValue(value);
+      wasFound = true;
+    }
+  }
+
+  if (!wasFound) {
+    finalOptions.push_back(MplOption(key, value));
+  }
+}
+
 void Compiler::AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
                                      const MplOptions &mplOptions, const Action &action) const {
   std::vector<std::string> splittedInputFileNames;
@@ -140,14 +159,13 @@ void Compiler::AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
   }
 }
 
-std::map<std::string, MplOption> Compiler::MakeDefaultOptions(const MplOptions &options,
-                                                              const Action &action) const {
+std::vector<MplOption> Compiler::MakeDefaultOptions(const MplOptions &options,
+                                                    const Action &action) const {
   DefaultOption rawDefaultOptions = GetDefaultOptions(options, action);
-  std::map<std::string, MplOption> defaultOptions;
+  std::vector<MplOption> defaultOptions;
   if (rawDefaultOptions.mplOptions != nullptr) {
     for (uint32_t i = 0; i < rawDefaultOptions.length; ++i) {
-      (void)defaultOptions.insert(std::make_pair(rawDefaultOptions.mplOptions[i].GetKey(),
-          rawDefaultOptions.mplOptions[i]));
+      (void)defaultOptions.push_back(rawDefaultOptions.mplOptions[i]);
     }
   }
   return defaultOptions;

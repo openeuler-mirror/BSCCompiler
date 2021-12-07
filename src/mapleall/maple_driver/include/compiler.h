@@ -32,7 +32,7 @@
 namespace maple {
 const std::string kBinNameNone = "";
 const std::string kBinNameJbc2mpl = "jbc2mpl";
-const std::string kBinNameCpp2mpl = "mplfe";
+const std::string kBinNameCpp2mpl = "hir2mpl";
 const std::string kBinNameClang = "clang";
 const std::string kBinNameDex2mpl = "dex2mpl";
 const std::string kBinNameMplipa = "mplipa";
@@ -98,27 +98,19 @@ class Compiler {
   std::vector<MplOption> MakeOption(const MplOptions &options,
                                     const Action &action) const;
   void AppendDefaultOptions(std::vector<MplOption> &finalOptions,
-                            const std::map<std::string, MplOption> &defaultOptions,
+                            const std::vector<MplOption> &defaultOptions,
                             bool isDebug) const;
   void AppendExtraOptions(std::vector<MplOption> &finalOptions,
-                          std::map<std::string, MplOption> defaultOptions,
                           const MplOptions &options, bool isDebug) const;
   void AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
                              const MplOptions &mplOptions, const Action &action) const;
-  std::map<std::string, MplOption> MakeDefaultOptions(const MplOptions &options,
-                                                      const Action &action) const;
+  void ReplaceOrInsertOption(std::vector<MplOption> &finalOptions,
+                             const std::string &key, const std::string &value) const;
+  std::vector<MplOption> MakeDefaultOptions(const MplOptions &options,
+                                            const Action &action) const;
   int Exe(const MplOptions &mplOptions, const std::vector<MplOption> &options) const;
   const std::string &GetName() const {
     return name;
-  }
-
-  void ReplaceOption(std::vector<MplOption> &finalOptions,
-                     const std::string &key, const std::string &value) const {
-    for (auto &opt : finalOptions) {
-      if (opt.GetKey() == key) {
-        opt.SetValue(value);
-      }
-    }
   }
 };
 
