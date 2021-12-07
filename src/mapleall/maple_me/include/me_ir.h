@@ -1378,9 +1378,10 @@ class MeStmt {
     srcPos = pos;
   }
 
-  void CopySrcPosAndId(const MeStmt &stmt) {
+  void CopyInfo(const MeStmt &stmt) {
     this->srcPos = stmt.srcPos;
     this->originalId = stmt.originalId;
+    this->stmtAttrs = stmt.stmtAttrs;
   }
 
   void SetPrev(MeStmt *v) {

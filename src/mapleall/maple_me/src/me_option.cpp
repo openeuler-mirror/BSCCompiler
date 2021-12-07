@@ -109,6 +109,7 @@ bool MeOption::performFSAA = true;
 bool MeOption::strengthReduction = true;
 bool MeOption::srForAdd = false;
 bool MeOption::doLFTR = true;
+bool MeOption::ivopts = false;
 std::string MeOption::inlineFuncList = "";
 bool MeOption::meVerify = false;
 uint32 MeOption::dseRunsLimit = 2;    // dse phase run at most 2 times each PU
@@ -215,6 +216,7 @@ enum OptionIndex {
   kStrengthReduction,
   kSRAdd,
   kLFTR,
+  kIVOPTS,
   kRegReadAtReturn,
   kProPatphi,
   kNoProPatphi,
@@ -876,6 +878,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --lftr                   \tPerform linear function test replacement\n"
     "  --no-lftr                \tDisable linear function test replacement\n",
+    "me",
+    {} },
+  { kIVOPTS,
+    kEnable,
+    "",
+    "ivopts",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    "  --ivopts                   \tPerform induction variables optimization\n"
+    "  --no-ivopts                \tDisable induction variables optimization\n",
     "me",
     {} },
   { kCheckCastOpt,
@@ -1658,6 +1670,9 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         break;
       case kLFTR:
         doLFTR = (opt.Type() == kEnable);
+        break;
+      case kIVOPTS:
+        ivopts = (opt.Type() == kEnable);
         break;
       case kMeInlineHint:
         inlineFuncList = opt.Args();

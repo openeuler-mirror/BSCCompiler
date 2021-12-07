@@ -63,7 +63,7 @@ void AArch64GlobalOpt::Run() {
   OptimizeManager optManager(cgFunc);
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
   if (!hasSpillBarrier) {
-    optManager.Optimize<UxtwMovPattern>();
+    optManager.Optimize<ExtenToMovPattern>();
     optManager.Optimize<BackPropPattern>();
     optManager.Optimize<ForwardPropPattern>();
     optManager.Optimize<CselPattern>();
@@ -313,6 +313,10 @@ bool ForwardPropPattern::CheckCondition(Insn &insn) {
   bool toDoOpt = true;
   for (auto useInsn : firstRegUseInsnSet) {
     if (!cgFunc.GetRD()->RegIsLiveBetweenInsn(secondRegNO, insn, *useInsn)) {
+      toDoOpt = false;
+      break;
+    }
+    if (useInsn->GetMachineOpcode() == MOP_asm) {
       toDoOpt = false;
       break;
     }
@@ -1426,7 +1430,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
     /* check replace reg def between defInsn and currInsn */
     Insn *tmpInsn = def.GetNext();
     while (tmpInsn != &use) {
-      if (tmpInsn == defSrcInsn) {
+      if (tmpInsn == defSrcInsn || tmpInsn == nullptr) {
         return false;
       }
       tmpInsn = tmpInsn->GetNext();
@@ -1647,7 +1651,7 @@ void ExtendShiftOptPattern::Run() {
   }
 }
 
-void UxtwMovPattern::Run() {
+void ExtenToMovPattern::Run() {
   if (!cgFunc.GetMirModule().IsCModule()) {
     return;
   }
@@ -1665,7 +1669,7 @@ void UxtwMovPattern::Run() {
 }
 
 /* Check for Implicit uxtw */
-bool UxtwMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
+bool ExtenToMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
   int optSize = insn.GetOperandSize();
   for (int i = 0; i < optSize; i++) {
@@ -1680,33 +1684,89 @@ bool UxtwMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
   return false;
 }
 
-bool UxtwMovPattern::CheckCondition(Insn &insn) {
-  if (insn.GetMachineOpcode() == MOP_xuxtw64) {
-    if (insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize &&
-        insn.GetOperand(kInsnSecondOpnd).GetSize() == k32BitSize) {
-      ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "is not Register");
-      regno_t regno = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
-      InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(insn, kInsnSecondOpnd, false);
-      if (preDef.size() >= 1) {
-        bool isHideUxtw = false;
-        for (auto defInsn : preDef) {
-          isHideUxtw = CheckHideUxtw(*defInsn, regno);
-          if (!isHideUxtw) {
-            return false;
-          }
-        }
-        return true;
+bool ExtenToMovPattern::CheckUxtw(Insn &insn) {
+  if (insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize &&
+      insn.GetOperand(kInsnSecondOpnd).GetSize() == k32BitSize) {
+    ASSERT(insn.GetOperand(kInsnSecondOpnd).IsRegister(), "is not Register");
+    regno_t regno = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+    InsnSet preDef = cgFunc.GetRD()->FindDefForRegOpnd(insn, kInsnSecondOpnd, false);
+    if (preDef.empty()) {
+      return false;
+    }
+    for (auto defInsn : preDef) {
+      if (!CheckHideUxtw(*defInsn, regno)) {
+        return false;
       }
     }
+    replaceMop = MOP_xmovrr_uxtw;
+    return true;
   }
   return false;
 }
 
-/* No initialization required */
-void UxtwMovPattern::Init() {}
+bool ExtenToMovPattern::CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum) {
+  InsnSet srcDefSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, srcRegNo, true);
+  if (srcDefSet.size() != k1BitSize) {
+    return false;
+  }
+  Insn *defInsn = *srcDefSet.begin();
+  CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
+  MOperator mOp = defInsn->GetMachineOpcode();
+  switch (mOp) {
+    case MOP_wandrri12:
+    case MOP_wiorrri12:
+    case MOP_weorrri12: {
+      AArch64ImmOperand &imm = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+      uint32 bitNum = imm.GetValue();
+      if ((bitNum >> validNum) != 0) {
+        return false;
+      }
+      /* check defSrcReg */
+      RegOperand &defSrcRegOpnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+      regno_t defSrcRegNo = defSrcRegOpnd.GetRegisterNumber();
+      return CheckSrcReg(*defInsn, defSrcRegNo, validNum);
+    }
+    case MOP_wldrb: return (validNum == k8BitSize);
+    case MOP_wldrh: return (validNum == k16BitSize);
+    default:
+      return false;
+  }
+}
 
-void UxtwMovPattern::Optimize(Insn &insn) {
-  insn.SetMOperator(MOP_xmovrr_uxtw);
+bool ExtenToMovPattern::CheckBit(Insn &insn, uint32 validNum) {
+  RegOperand &firstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  regno_t desRegNo = firstOpnd.GetRegisterNumber();
+  regno_t srcRegNo = secondOpnd.GetRegisterNumber();
+  InsnSet desDefSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, desRegNo, true);
+  /* desReg is not redefined */
+  if (!desDefSet.empty()) {
+    return false;
+  }
+  if (!CheckSrcReg(insn, srcRegNo, validNum)) {
+    return false;
+  }
+  replaceMop = MOP_wmovrr;
+  return true;
+}
+
+bool ExtenToMovPattern::CheckCondition(Insn &insn) {
+  MOperator mOp = insn.GetMachineOpcode();
+  switch (mOp) {
+    case MOP_xuxtw64: return CheckUxtw(insn);
+    case MOP_xuxtb32: return CheckBit(insn, k8BitSize);
+    case MOP_xuxth32: return CheckBit(insn, k16BitSize);
+    default: return false;
+  }
+}
+
+/* No initialization required */
+void ExtenToMovPattern::Init() {
+  replaceMop = MOP_undef;
+}
+
+void ExtenToMovPattern::Optimize(Insn &insn) {
+  insn.SetMOperator(replaceMop);
 }
 
 void SameDefPattern::Run() {

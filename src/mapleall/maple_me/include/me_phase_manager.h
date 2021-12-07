@@ -51,7 +51,7 @@
 #include "me_placement_rc.h"
 #include "me_subsum_rc.h"
 #include "me_predict.h"
-#include "ipa_side_effect.h"
+#include "me_side_effect.h"
 #include "do_ipa_escape_analysis.h"
 #include "me_gc_lowering.h"
 #include "me_gc_write_barrier_opt.h"
@@ -69,6 +69,7 @@
 #include "gen_check_cast.h"
 #include "me_fsaa.h"
 #include "simplifyCFG.h"
+#include "me_ivopts.h"
 #if MIR_JAVA
 #include "sync_select.h"
 #endif  // MIR_JAVA

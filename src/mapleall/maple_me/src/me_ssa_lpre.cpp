@@ -29,7 +29,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     // create a new meStmt before realOcc->GetMeStmt()
     MeStmt *newMeStmt = irMap->CreateAssignMeStmt(*regOrVar, *realOcc.GetMeExpr(), *realOcc.GetMeStmt()->GetBB());
     regOrVar->SetDefByStmt(*newMeStmt);
-    newMeStmt->CopySrcPosAndId(*realOcc.GetMeStmt());
+    newMeStmt->CopyInfo(*realOcc.GetMeStmt());
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
     EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
     // replace realOcc->GetMeStmt()'s occ with regOrVar

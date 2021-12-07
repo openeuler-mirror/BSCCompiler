@@ -267,6 +267,15 @@ void MeStmtPre::CollectVarForMeStmt(const MeStmt &meStmt, MeExpr *meExpr, std::v
       }
       break;
     }
+    CASE_OP_ASSERT_BOUNDARY {
+      auto *naryStmt = static_cast<const NaryMeStmt*>(&meStmt);
+      for (auto *opnd : naryStmt->GetOpnds()) {
+        if (opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg) {
+          varVec.push_back(opnd);
+        }
+      }
+      break;
+    }
     case OP_dassign: {
       auto *dassMeStmt = static_cast<const DassignMeStmt*>(&meStmt);
       if (dassMeStmt->GetRHS()->GetMeOp() == kMeOpVar || dassMeStmt->GetRHS()->GetMeOp() == kMeOpReg) {
@@ -315,6 +324,21 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
       auto *newCallAssertStmt = irMap->New<CallAssertNonnullMeStmt>(*callAssertStmt);
       return newCallAssertStmt;
     }
+    case OP_assertlt:
+    case OP_assertge:
+    case OP_assignassertle:
+    case OP_returnassertle: {
+      auto *naryStmt = static_cast<const NaryMeStmt*>(&meStmt);
+      auto *newNaryMeStmt = irMap->NewInPool<NaryMeStmt>(naryStmt);
+      newNaryMeStmt->CopyInfo(*naryStmt);
+      return newNaryMeStmt;
+    }
+    case OP_callassertle: {
+      auto *callAssertStmt = static_cast<const CallAssertBoundaryMeStmt*>(&meStmt);
+      auto *newCallAssertStmt = irMap->NewInPool<CallAssertBoundaryMeStmt>(*callAssertStmt);
+      newCallAssertStmt->CopyInfo(*callAssertStmt);
+      return newCallAssertStmt;
+    }
     case OP_dassign: {
       auto *dass = static_cast<const DassignMeStmt*>(&meStmt);
       DassignMeStmt *newDass = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), dass);
@@ -352,6 +376,17 @@ MeStmt *MeStmtPre::PhiOpndFromRes4Stmt(MeRealOcc &realZ, size_t j, MeExpr *&lhsV
       MeExpr *retOpnd = GetReplaceMeExpr(*unaryStmtQ->GetOpnd(), *phiBB, j);
       if (retOpnd != nullptr) {
         unaryStmtQ->SetMeStmtOpndValue(retOpnd);
+      }
+      break;
+    }
+    CASE_OP_ASSERT_BOUNDARY {
+      auto *naryStmtQ = static_cast<NaryMeStmt*>(stmtQ);
+      for (size_t i = 0; i < naryStmtQ->GetOpnds().size(); ++i) {
+        auto *opnd = naryStmtQ->GetOpnd(i);
+        MeExpr *retOpnd = GetReplaceMeExpr(*opnd, *phiBB, j);
+        if (retOpnd != nullptr) {
+          naryStmtQ->SetOpnd(i, retOpnd);
+        }
       }
       break;
     }
@@ -501,6 +536,13 @@ void MeStmtPre::ComputeVarAndDfPhis() {
       CASE_OP_ASSERT_NONNULL {
         auto *unaryStmt = static_cast<UnaryMeStmt*>(stmt);
         SetVarPhis(unaryStmt->GetOpnd());
+        break;
+      }
+      CASE_OP_ASSERT_BOUNDARY {
+        auto *naryStmt = static_cast<NaryMeStmt*>(stmt);
+        for (auto *opnd : naryStmt->GetOpnds()) {
+          SetVarPhis(opnd);
+        }
         break;
       }
       case OP_dassign: {
@@ -890,7 +932,6 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       case OP_free:
       case OP_syncenter:
       case OP_syncexit:
-      CASE_OP_ASSERT_BOUNDARY
         break;
       case OP_asm:
       case OP_call:
@@ -932,6 +973,20 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
           break;
         }
         (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
+        break;
+      }
+      CASE_OP_ASSERT_BOUNDARY {
+        auto &naryStmt = static_cast<NaryMeStmt&>(stmt);
+        bool allIsLeaf = true;
+        for (auto *opnd : naryStmt.GetOpnds()) {
+          if (!opnd->IsLeaf()) {
+            allIsLeaf = false;
+            break;
+          }
+        }
+        if (allIsLeaf) {
+          (void)CreateStmtRealOcc(stmt, static_cast<int>(seqStmt));
+        }
         break;
       }
       case OP_dassign: {

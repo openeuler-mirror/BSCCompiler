@@ -59,7 +59,8 @@ class MeCFG : public AnalysisResult {
   void Verify() const;
   void VerifyLabels() const;
   void Dump() const;
-  void DumpToFile(const std::string &prefix, bool dumpInStrs = false, bool dumpEdgeFreq = false) const;
+  void DumpToFile(const std::string &prefix, bool dumpInStrs = false, bool dumpEdgeFreq = false,
+                  const MapleVector<BB*> *laidOut = nullptr) const;
   bool FindExprUse(const BaseNode &expr, StIdx stIdx) const;
   bool FindUse(const StmtNode &stmt, StIdx stIdx) const;
   bool FindDef(const StmtNode &stmt, StIdx stIdx) const;
@@ -295,6 +296,7 @@ class MeCFG : public AnalysisResult {
   void BBTopologicalSort(SCCOfBBs &scc);
   void BuildSCC();
   void UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func);
+  void SwapBBId(BB &bb1, BB &bb2);
 
  private:
   void AddCatchHandlerForTryBB(BB &bb, MapleVector<BB*> &exitBlocks);

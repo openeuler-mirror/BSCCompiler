@@ -155,6 +155,7 @@ void SSAEPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     realOcc.GetMeStmt()->GetBB()->InsertMeStmtBefore(realOcc.GetMeStmt(), newMeStmt);
     EnterCandsForSSAUpdate(localRefVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
   }
+  newMeStmt->CopyInfo(*realOcc.GetMeStmt());
   EnterCandsForSSAUpdate(regOrVar->GetOstIdx(), *realOcc.GetMeStmt()->GetBB());
   // replace realOcc->GetMeStmt()'s occ with regOrVar
   bool isReplaced = irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);

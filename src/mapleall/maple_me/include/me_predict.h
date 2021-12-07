@@ -59,7 +59,7 @@ class MePrediction : public AnalysisResult {
  public:
   static const PredictorInfo predictorInfo[kEndPrediction + 1];
   static bool VerifyFreq(MeFunction &func);
-  static void RebuildFreq(MeFunction &func, MaplePhase &phase);
+  static void RebuildFreq(MeFunction &func, Dominance &dom, IdentifyLoops &meLoop);
   MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, IdentifyLoops &loops,
                MeIRMap &map)
       : AnalysisResult(&memPool),
@@ -69,6 +69,7 @@ class MePrediction : public AnalysisResult {
         cfg(mf.GetCfg()),
         dom(&dom),
         meLoop(&loops),
+        sccVec(tmpAlloc.Adapter()),
         hMap(&map),
         bbPredictions(tmpAlloc.Adapter()),
         edges(tmpAlloc.Adapter()),
@@ -92,12 +93,17 @@ class MePrediction : public AnalysisResult {
   void EstimateBBProb(BB &bb);
   void ClearBBPredictions(const BB &bb);
   void CombinePredForBB(const BB &bb);
-  void PropagateFreq(BB &head, BB &bb);
-  void EstimateLoops();
-  void EstimateBBFrequencies();
-  void EstimateProbability(bool isRebuild = false);
+  bool DoPropFreq(BB *head, std::vector<BB*> *headers, BB &bb);
+  void PropFreqInLoops();
+  void PropFreqInIrreducibleSCCs();
+  bool PropFreqInFunc();
+  void ComputeBBFreq();
+  void EstimateBranchProb(bool isRebuild);
+  void Run(bool isRebuild = false);
   void SetPredictDebug(bool val);
   void SavePredictResultIntoCfg();
+  void BuildSCC();
+  void FindSCCHeaders(SCCOfBBs &scc, std::vector<BB*> &headers);
 
  protected:
   MapleAllocator mePredAlloc;
@@ -106,6 +112,8 @@ class MePrediction : public AnalysisResult {
   MeCFG      *cfg;
   Dominance *dom;
   IdentifyLoops *meLoop;
+  MapleVector<SCCOfBBs*> sccVec;
+  MapleVector<std::pair<bool, uint32>> *inSCCPtr = nullptr;   // entry format: <isInSucc, rpoIdx>
   MeIRMap *hMap;
   MapleVector<EdgePrediction*> bbPredictions;  // indexed by edge src bb id
   MapleVector<Edge*> edges;

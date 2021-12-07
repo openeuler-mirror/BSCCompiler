@@ -15,6 +15,7 @@
 #include "me_cfg.h"
 #include <iostream>
 #include <algorithm>
+#include <string>
 #include "bb.h"
 #include "ssa_mir_nodes.h"
 #include "me_irmap.h"
@@ -937,7 +938,8 @@ void MeCFG::DumpToFileInStrs(std::ofstream &cfgFile) const {
 }
 
 // generate dot file for cfg
-void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdgeFreq) const {
+void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdgeFreq,
+                       const MapleVector<BB*> *laidOut) const {
   if (MeOption::noDot) {
     return;
   }
@@ -956,9 +958,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     if (bIt == common_exit()) {
       // specical case for common_exit_bb
       for (auto it = bb->GetPred().begin(); it != bb->GetPred().end(); ++it) {
-        dumpEdgeFreq ? cfgFile << "BB" << (*it)->GetBBId() << "_freq_" << (*it)->GetFrequency() << " -> " <<
-            "BB" << bb->GetBBId() << "_freq_" << bb->GetFrequency() << "[style=dotted];\n" :
-            cfgFile << "BB" << (*it)->GetBBId()<< " -> " << "BB" << bb->GetBBId() << "[style=dotted];\n";
+        cfgFile << "BB" << (*it)->GetBBId()<< " -> " << "BB" << bb->GetBBId() << "[style=dotted];\n";
       }
       continue;
     }
@@ -967,9 +967,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
     }
 
     for (auto it = bb->GetSucc().begin(); it != bb->GetSucc().end(); ++it) {
-      dumpEdgeFreq ? cfgFile << "BB" << bb->GetBBId() << "_freq_" << bb->GetFrequency() << " -> " <<
-          "BB" << (*it)->GetBBId() << "_freq_" << (*it)->GetFrequency() :
-          cfgFile << "BB" << bb->GetBBId() << " -> " << "BB" << (*it)->GetBBId();
+      cfgFile << "BB" << bb->GetBBId() << " -> " << "BB" << (*it)->GetBBId();
       if (bb == GetCommonEntryBB()) {
         cfgFile << "[style=dotted]";
         continue;
@@ -983,6 +981,34 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
         cfgFile << "[label=" << bb->GetEdgeFreq(*it) << "];\n";
       } else {
         cfgFile << ";\n";
+      }
+    }
+  }
+  if (dumpEdgeFreq && laidOut == nullptr) {
+    for (auto it = valid_begin(); it != valid_end(); ++it) {
+      auto bbId = (*it)->GetBBId();
+      cfgFile << "BB" << bbId << "[label=BB" << bbId << "_freq_" << (*it)->GetFrequency() << "];\n";
+    }
+  }
+  if (laidOut != nullptr) {
+    static std::vector<std::string> colors = {
+      "indianred1", "darkorange1", "lightyellow1", "green3", "cyan", "dodgerblue2", "purple2"
+    };
+    uint32 colorIdx = 0;
+    uint32 clusterSize = laidOut->size() / colors.size();
+    uint32 cnt = 0;
+    for (uint32 i = 0; i < laidOut->size(); ++i) {
+      auto *bb = (*laidOut)[i];
+      auto bbId = bb->GetBBId();
+      std::string bbNameLabel = dumpEdgeFreq ?
+        "BB" + std::to_string(bbId.GetIdx()) + "_freq_" + std::to_string(bb->GetFrequency()) :
+        "BB" + std::to_string(bbId.GetIdx());
+      cfgFile << "BB" << bbId << "[style=filled, color=" << colors[colorIdx % colors.size()] << ", label=" <<
+          bbNameLabel << "__" << i << "]\n";
+      ++cnt;
+      if (cnt > clusterSize) {
+        cnt = 0;
+        ++colorIdx;
       }
     }
   }
@@ -1684,6 +1710,15 @@ void MeCFG::UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunct
       }
     }
   }
+}
+
+// BBId is index of BB in the bbVec, so we should swap two BB's pos in bbVec, if we want to swap their BBId.
+void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
+  bbVec[bb1.GetBBId()] = &bb2;
+  bbVec[bb2.GetBBId()] = &bb1;
+  BBId tmp = bb1.GetBBId();
+  bb1.SetBBId(bb2.GetBBId());
+  bb2.SetBBId(tmp);
 }
 
 bool MEMeCfg::PhaseRun(MeFunction &f) {

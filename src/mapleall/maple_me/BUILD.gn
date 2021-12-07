@@ -27,6 +27,7 @@ include_directories = [
 src_libmplme = [
   "src/dse.cpp",
   "src/hdse.cpp",
+  "src/meexpr_use_info.cpp",
   "src/me_sink.cpp",
   "src/prop.cpp",
   "src/me_alias_class.cpp",
@@ -83,7 +84,7 @@ src_libmplme = [
   "src/me_cfg_opt.cpp",
   "src/me_predict.cpp",
   "src/me_check_cast.cpp",
-  "src/ipa_side_effect.cpp",
+  "src/me_side_effect.cpp",
   "src/me_bb_analyze.cpp",
   "src/meconstprop.cpp",
   "src/sync_select.cpp",
@@ -104,6 +105,7 @@ src_libmplme = [
   "src/me_value_range_prop.cpp",
   "src/cfg_opt.cpp",
   "src/simplifyCFG.cpp",
+  "src/me_ivopts.cpp",
   "src/seqvec.cpp",
   "src/me_autovec.cpp",
   "src/me_safety_warning.cpp"

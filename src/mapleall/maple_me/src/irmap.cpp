@@ -1051,6 +1051,10 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
     if (opnd0->GetMeOp() == kMeOpConst && opnd1->GetMeOp() == kMeOpConst) {
       return FoldConstExpr(addExpr->GetPrimType(), addExpr->GetOp(),
                            static_cast<ConstMeExpr*>(opnd0), static_cast<ConstMeExpr*>(opnd1));
+    } else if (opnd0->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd0)->IsZero()) {
+      return opnd1;
+    } else if (opnd1->GetMeOp() == kMeOpConst && static_cast<ConstMeExpr*>(opnd1)->IsZero()) {
+      return opnd0;
     }
     return nullptr;
   }
@@ -1779,6 +1783,14 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
     case OP_cmpl:
     case OP_cmpg:
       return SimplifyCmpExpr(opmeexpr);
+    case OP_neg: {
+      auto *opnd = opmeexpr->GetOpnd(0);
+      if (opnd->GetMeOp() == kMeOpConst && IsPrimitiveInteger(opnd->GetPrimType()) &&
+          IsPrimitiveInteger(opmeexpr->GetPrimType())) {
+        return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetIntValue(), opmeexpr->GetPrimType());
+      }
+      return nullptr;
+    }
     default:
       return nullptr;
   }

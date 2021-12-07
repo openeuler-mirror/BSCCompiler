@@ -13,9 +13,6 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "me_phase_manager.h"
-#include <iostream>
-#include <vector>
-#include <string>
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -168,6 +165,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESubsumRC, subsumrc)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESSARename2Preg, rename2preg)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeProp, hprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMeSink, sink)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEIVOpts, ivopts)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MESyncSelect, syncselect)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MEMay2Dassign, may2dassign)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(MECondBasedRC, condbasedrc)

@@ -165,6 +165,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool strengthReduction;
   static bool srForAdd;
   static bool doLFTR;
+  static bool ivopts;
   static std::string inlineFuncList;
   static bool meVerify;
   static uint32 dseRunsLimit;
