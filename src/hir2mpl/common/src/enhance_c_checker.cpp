@@ -1418,7 +1418,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
     stmts.emplace_front(std::move(lenStmt));
     lenExpr = FEIRBuilder::CreateExprDRead(std::move(retSizeVar));
   }
-  lenExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), std::move(lenExpr));
+  lenExpr = FEIRBuilder::CreateExprBinary(OP_add, retExpr->Clone(), std::move(lenExpr));
   exprs.emplace_back(std::move(lenExpr));
   exprs.emplace_back(std::move(baseExpr));
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtNary>(OP_returnassertle, std::move(exprs));
@@ -1768,7 +1768,7 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
       continue;
     }
     std::list<UniqueFEIRExpr> exprs;
-    realLenExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), std::move(realLenExpr));
+    realLenExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(argExpr), std::move(realLenExpr));
     exprs.emplace_back(std::move(realLenExpr));
     exprs.emplace_back(std::move(baseExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertBoundary>(OP_callassertle, std::move(exprs),
@@ -1796,12 +1796,13 @@ void ASTCallExpr::InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt>
     if (lenExpr == nullptr) {
       continue;
     }
-    UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(args[i]->Emit2FEExpr(nullStmts));
+    UniqueFEIRExpr argExpr = args[i]->Emit2FEExpr(nullStmts);
+    UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(argExpr);
     if (baseExpr == nullptr) {
       continue;
     }
     std::list<UniqueFEIRExpr> exprs;
-    lenExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), std::move(lenExpr));
+    lenExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(argExpr), std::move(lenExpr));
     exprs.emplace_back(std::move(lenExpr));
     exprs.emplace_back(std::move(baseExpr));
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertBoundary>(
