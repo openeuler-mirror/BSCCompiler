@@ -1,0 +1,80 @@
+/*
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+const char * const strV2 = "Ljava/lang/String;|<init>|()V";
+const char * const strAB2 = "Ljava/lang/String;|<init>|([B)V";
+const char * const strABI2 = "Ljava/lang/String;|<init>|([BI)V";
+const char * const strABII2 = "Ljava/lang/String;|<init>|([BII)V";
+const char * const strABIII2 = "Ljava/lang/String;|<init>|([BIII)V";
+const char * const strABIIS2 = "Ljava/lang/String;|<init>|([BIILjava/lang/String;)V";
+const char * const strABIIT2 = "Ljava/lang/String;|<init>|([BIILjava/nio/charset/Charset;)V";
+const char * const strABS2 = "Ljava/lang/String;|<init>|([BLjava/lang/String;)V";
+const char * const strABT2 = "Ljava/lang/String;|<init>|([BLjava/nio/charset/Charset;)V";
+const char * const strAC2 = "Ljava/lang/String;|<init>|([C)V";
+const char * const strACZ2 = "Ljava/lang/String;|<init>|([CZ)V";
+const char * const strACII2 = "Ljava/lang/String;|<init>|([CII)V";
+const char * const strAIII2 = "Ljava/lang/String;|<init>|([III)V";
+const char * const strIIAC2 = "Ljava/lang/String;|<init>|(II[C)V";
+const char * const strS2 = "Ljava/lang/String;|<init>|(Ljava/lang/String;)V";
+const char * const strF2 = "Ljava/lang/String;|<init>|(Ljava/lang/StringBuffer;)V";
+const char * const strD2 = "Ljava/lang/String;|<init>|(Ljava/lang/StringBuilder;)V";
+const char * const strFacV2 = "Ljava/lang/StringFactory;|newEmptyString|()Ljava/lang/String;";
+const char * const strFacAB2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([B)Ljava/lang/String;";
+const char * const strFacABI2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BI)Ljava/lang/String;";
+const char * const strFacABII2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BII)Ljava/lang/String;";
+const char * const strFacABIII2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BIII)Ljava/lang/String;";
+const char * const strFacABIIS2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BIILjava/lang/String;)Ljava/lang/String;";
+const char * const strFacABIIT2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BIILjava/nio/charset/Charset;)Ljava/lang/String;";
+const char * const strFacABS2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BLjava/lang/String;)Ljava/lang/String;";
+const char * const strFacABT2 =
+    "Ljava/lang/StringFactory;|newStringFromBytes|([BLjava/nio/charset/Charset;)Ljava/lang/String;";
+const char * const strFacAC2 =
+    "Ljava/lang/StringFactory;|newStringFromChars|([C)Ljava/lang/String;";
+const char * const strFacACII2 =
+    "Ljava/lang/StringFactory;|newStringFromChars|([CII)Ljava/lang/String;";
+const char * const strFacAIII2 =
+    "Ljava/lang/StringFactory;|newStringFromCodePoints|([III)Ljava/lang/String;";
+const char * const strFacIIAC2 =
+    "Ljava/lang/StringFactory;|newStringFromChars|(II[C)Ljava/lang/String;";
+const char * const strFacS2 =
+    "Ljava/lang/StringFactory;|newStringFromString|(Ljava/lang/String;)Ljava/lang/String;";
+const char * const strFacF2 =
+    "Ljava/lang/StringFactory;|newStringFromStringBuffer|(Ljava/lang/StringBuffer;)Ljava/lang/String;";
+const char * const strFacD2 =
+    "Ljava/lang/StringFactory;|newStringFromStringBuilder|(Ljava/lang/StringBuilder;)Ljava/lang/String;";
+
+STR_STRFAC_MAP2(strV2, strFacV2)
+STR_STRFAC_MAP2(strAB2, strFacAB2)
+STR_STRFAC_MAP2(strABI2, strFacABI2)
+STR_STRFAC_MAP2(strABII2, strFacABII2)
+STR_STRFAC_MAP2(strABIII2, strFacABIII2)
+STR_STRFAC_MAP2(strABIIS2, strFacABIIS2)
+STR_STRFAC_MAP2(strABIIT2, strFacABIIT2)
+STR_STRFAC_MAP2(strABS2, strFacABS2)
+STR_STRFAC_MAP2(strABT2, strFacABT2)
+STR_STRFAC_MAP2(strAC2, strFacAC2)
+STR_STRFAC_MAP2(strACZ2, strFacAC2)
+STR_STRFAC_MAP2(strACII2, strFacACII2)
+STR_STRFAC_MAP2(strAIII2, strFacAIII2)
+STR_STRFAC_MAP2(strIIAC2, strFacIIAC2)
+STR_STRFAC_MAP2(strS2, strFacS2)
+STR_STRFAC_MAP2(strF2, strFacF2)
+STR_STRFAC_MAP2(strD2, strFacD2)
