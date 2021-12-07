@@ -29,7 +29,7 @@ SCO2_TRAIN = {
             outfile="${APP}.ast",
             extra_opt="${SPEC_PARAM}"
         ),
-        Mplfe(
+        Hir2mpl(
             hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
             infile="${APP}.ast",
             outfile="${APP}.mpl"

@@ -25,7 +25,7 @@ ASTO2 = {
             infile="${APP}.c",
             outfile="${APP}.ast"
         ),
-        Mplfe(
+        Hir2mpl(
             hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
             option="-O2 -func-inline-size 10",
             infile="${APP}.ast",

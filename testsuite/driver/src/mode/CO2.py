@@ -28,7 +28,7 @@ CO2 = {
             infile="${APP}.c",
             outfile="${APP}.ast"
         ),
-        Mplfe(
+        Hir2mpl(
             hir2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/hir2mpl",
             infile="${APP}.ast",
             outfile="${APP}.mpl"
