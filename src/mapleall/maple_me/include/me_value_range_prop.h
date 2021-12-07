@@ -68,7 +68,7 @@ int64 GetRealValue(int64 value, PrimType primType);
 
 class Bound {
  public:
-  Bound() = default;
+  Bound() : var(nullptr), constant(0), primType(PTY_begin) {};
   Bound(MeExpr *argVar, int64 argConstant, PrimType pType) : var(argVar), constant(argConstant), primType(pType) {}
   Bound(MeExpr *argVar, PrimType pType) : var(argVar), constant(0), primType(pType) {}
   Bound(int64 argConstant, PrimType pType) : var(nullptr), constant(argConstant), primType(pType) {}
@@ -130,9 +130,9 @@ class Bound {
     return Bound(nullptr, GetMaxNumber(pType), pType);
   }
  private:
-  MeExpr *var;
-  int64 constant;
-  PrimType primType;
+  MeExpr *var = nullptr;
+  int64 constant = 0;
+  PrimType primType = PTY_begin;
 };
 
 enum RangeType {
@@ -164,14 +164,20 @@ using Lower = Bound;
 using Upper = Bound;
 
 struct RangePair {
-  RangePair() = default;
+  RangePair() : lower(Bound()), upper(Bound()) {};
   RangePair(Bound l, Bound u) : lower(l), upper(u) {};
-  Lower lower;
-  Upper upper;
+  Lower lower = Bound();
+  Upper upper = Bound();
 };
 
 class ValueRange {
  public:
+  union Range {
+    Range() {};
+    RangePair pair;
+    Bound bound;
+  };
+
   ValueRange(Bound bound, int64 argStride, RangeType type) : stride(argStride), rangeType(type) {
     range.bound = bound;
   }
@@ -325,10 +331,7 @@ class ValueRange {
   bool IsEqual(ValueRange *valueRangeRight);
 
  private:
-  union {
-    RangePair pair;
-    Bound bound;
-  } range;
+  Range range;
   int64 stride = 0;
   RangeType rangeType;
 };
@@ -560,6 +563,9 @@ class ValueRangePropagation {
   bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
+  bool IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
+  void CollectIndexOpndWithBoundInLoop(
+      LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr);
   std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
       std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
       int64 constant);

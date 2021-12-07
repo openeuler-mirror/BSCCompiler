@@ -763,7 +763,6 @@ bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *star
   }
 
   ASSERT(startInsn->GetBB() == endInsn->GetBB(), "two insns must be in a same BB");
-  ASSERT(endInsn->GetId() >= startInsn->GetId(), "two insns must be in a same BB");
   for (Insn *insn = startInsn; insn != nullptr && insn != endInsn->GetNext(); insn = insn->GetNext()) {
     if (!insn->IsMachineInstruction()) {
       continue;
@@ -1105,17 +1104,19 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-    if (insn->IsCall()) {
-      if (insn->GetMachineOpcode() == MOP_asm) {
-        GenAllAsmDefRegs(bb, *insn, kAsmOutputListOpnd);
-        GenAllAsmDefRegs(bb, *insn, kAsmClobberListOpnd);
-        GenAllAsmUseRegs(bb, *insn, kAsmInputListOpnd);
-        continue;
-      } else {
-        GenAllCallerSavedRegs(bb);
-        InitMemInfoForClearStackCall(*insn);
-      }
+
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      GenAllAsmDefRegs(bb, *insn, kAsmOutputListOpnd);
+      GenAllAsmDefRegs(bb, *insn, kAsmClobberListOpnd);
+      GenAllAsmUseRegs(bb, *insn, kAsmInputListOpnd);
+      continue;
     }
+
+    if (insn->IsCall()) {
+      GenAllCallerSavedRegs(bb);
+      InitMemInfoForClearStackCall(*insn);
+    }
+
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(insn)->GetMachineOpcode()];
     uint32 opndNum = insn->GetOperandSize();
     for (uint32 i = 0; i < opndNum; ++i) {

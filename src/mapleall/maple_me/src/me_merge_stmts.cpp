@@ -273,6 +273,7 @@ void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMir
     IassignMeStmt *xIassignStmt = genSimdIassign(offset, iVarBase, *srcRegMeExpr, memsetCallStmtChi,
                                                  uXTgtPtrType->GetTypeIndex());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+    xIassignStmt->CopyInfo(*memsetCallStmt);
 }
 
 const uint32 simdThreshold = 128;
@@ -313,6 +314,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
         *addrRegMeExpr, *dstMeExpr, *memcpyCallStmt->GetBB());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
+    addrRegAssignMeStmt->CopyInfo(*memcpyCallStmt);
     dstMeExpr = addrRegMeExpr;
   }
   tmpIvar1.SetBase(dstMeExpr);
@@ -322,6 +324,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
         *addrRegMeExpr, *srcMeExpr, *memcpyCallStmt->GetBB());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, addrRegAssignMeStmt);
+    addrRegAssignMeStmt->CopyInfo(*memcpyCallStmt);
     srcMeExpr = addrRegMeExpr;
   }
   tmpIvar2.SetBase(srcMeExpr);
@@ -330,6 +333,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar1, tmpIvar2, *memcpyCallStmtChi,
                                                  v16uint8PtrType->GetTypeIndex());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
+    xIassignStmt->CopyInfo(*memcpyCallStmt);
   }
 
   if (numOf8Byte != 0) {
@@ -342,6 +346,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
     IassignMeStmt *xIassignStmt = genSimdIassign(offset8Byte, tmpIvar3, tmpIvar4, *memcpyCallStmtChi,
                                                  v8uint8PtrType->GetTypeIndex());
     memcpyCallStmt->GetBB()->InsertMeStmtBefore(memcpyCallStmt, xIassignStmt);
+    xIassignStmt->CopyInfo(*memcpyCallStmt);
   }
 
   // Remove memcpy stmt
@@ -385,6 +390,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
     MeStmt *addrRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
         *addrRegMeExpr, *dstMeExpr, *memsetCallStmt->GetBB());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, addrRegAssignMeStmt);
+    addrRegAssignMeStmt->CopyInfo(*memsetCallStmt);
     dstMeExpr = addrRegMeExpr;
   }
   tmpIvar.SetBase(dstMeExpr);
@@ -397,11 +403,13 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
   MeStmt *dupRegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
       *dupRegMeExpr, *dupValMeExpr, *memsetCallStmt->GetBB());
   memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, dupRegAssignMeStmt);
+  dupRegAssignMeStmt->CopyInfo(*memsetCallStmt);
 
   for (int32 i = 0; i < numOf16Byte; i++) {
     IassignMeStmt *xIassignStmt = genSimdIassign(16 * i, tmpIvar, *dupRegMeExpr, *memsetCallStmtChi,
                                                  v16u8PtrType->GetTypeIndex());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, xIassignStmt);
+    xIassignStmt->CopyInfo(*memsetCallStmt);
   }
 
   bool hasRemainder = numOf1Byte != 0 || numOf2Byte != 0 ||
@@ -416,6 +424,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
     MeStmt *u64RegAssignMeStmt = func.GetIRMap()->CreateAssignMeStmt(
         *u64RegMeExpr, *u64BitsMeOpExpr, *memsetCallStmt->GetBB());
     memsetCallStmt->GetBB()->InsertMeStmtBefore(memsetCallStmt, u64RegAssignMeStmt);
+    u64RegAssignMeStmt->CopyInfo(*memsetCallStmt);
 
     if (numOf8Byte != 0) {
       MIRType *u64MirType = GlobalTables::GetTypeTable().GetUInt64();
@@ -451,7 +460,7 @@ void MergeStmts::MergeMeStmts() {
     std::queue<MeStmt*> candidateStmts;
 
     // Identify consecutive (I/D)assign stmts
-    // Candiates of (I/D)assignment are grouped together and saparated by nullptr
+    // Candidates of (I/D)assignment are grouped together and seperated by nullptr
     MeStmts &meStmts = bb->GetMeStmts();
     for (MeStmt &meStmt : meStmts) {
       Opcode op = meStmt.GetOp();
@@ -532,8 +541,10 @@ void MergeStmts::MergeMeStmts() {
           IntrinsiccallMeStmt *intrinsicCallStmt = static_cast<IntrinsiccallMeStmt*>(&meStmt);
           MIRIntrinsicID intrinsicCallID = intrinsicCallStmt->GetIntrinsic();
           if (intrinsicCallID == INTRN_C_memcpy) {
+            candidateStmts.push(nullptr);
             simdMemcpy(intrinsicCallStmt);
           } else if (intrinsicCallID == INTRN_C_memset) {
+            candidateStmts.push(nullptr);
             simdMemset(intrinsicCallStmt);
           } else {
             // More to come
@@ -557,7 +568,7 @@ void MergeStmts::MergeMeStmts() {
       switch (op) {
         case OP_iassign: {
           vOffsetStmt iassignCandidates;
-          std::map<FieldID, MeStmt*> uniqueCheck;
+          std::map<uint32, MeStmt*> uniqueCheck;
           while (!candidateStmts.empty() && candidateStmts.front() != nullptr &&
                  candidateStmts.front()->GetOp() == OP_iassign) {
             IassignMeStmt *iassignStmt = static_cast<IassignMeStmt*>(candidateStmts.front());
@@ -566,7 +577,7 @@ void MergeStmts::MergeMeStmts() {
             if (iVarIassignStmt->GetFieldID() == 0) {
               int32 bitOffsetIVar = iVarIassignStmt->GetOffset() * 8;
               // It is possible to have dup bitOffsetIVar for FieldID() == 0
-              if (uniqueCheck[bitOffsetIVar] != NULL) {
+              if (uniqueCheck[bitOffsetIVar] != nullptr) {
                 bb->RemoveMeStmt(uniqueCheck[bitOffsetIVar]);
               }
               uniqueCheck[bitOffsetIVar] = iassignStmt;
@@ -576,29 +587,31 @@ void MergeStmts::MergeMeStmts() {
                 static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
               MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
               int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVarIassignStmt->GetFieldID());
-              if (uniqueCheck[fieldBitOffset] != NULL) {
+              if (uniqueCheck[fieldBitOffset] != nullptr) {
                 bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
               }
               uniqueCheck[fieldBitOffset] = candidateStmts.front();
-              // iassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
             }
             candidateStmts.pop();
           }
-          for (std::pair<int32, MeStmt*> pair : uniqueCheck) {
-            iassignCandidates.push_back(pair);
-          }
+          iassignCandidates.insert(iassignCandidates.begin(), uniqueCheck.begin(), uniqueCheck.end());
           mergeIassigns(iassignCandidates);
           break;
         }
         case OP_dassign: {
           vOffsetStmt dassignCandidates;
+          std::map<int32, MeStmt*> uniqueCheck;
           while (!candidateStmts.empty() && candidateStmts.front() != nullptr &&
                  candidateStmts.front()->GetOp() == OP_dassign) {
             OriginalSt *lhsOrigSt = static_cast<DassignMeStmt*>(candidateStmts.front())->GetLHS()->GetOst();
             int32 fieldBitOffset = lhsOrigSt->GetOffset().val;
-            dassignCandidates.push_back(std::make_pair(fieldBitOffset, candidateStmts.front()));
+            if (uniqueCheck[fieldBitOffset] != nullptr) {
+              bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
+            }
+            uniqueCheck[fieldBitOffset] = candidateStmts.front();
             candidateStmts.pop();
           }
+          dassignCandidates.insert(dassignCandidates.begin(), uniqueCheck.begin(), uniqueCheck.end());
           mergeDassigns(dassignCandidates);
           break;
         }

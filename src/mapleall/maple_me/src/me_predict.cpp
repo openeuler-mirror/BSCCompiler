@@ -30,7 +30,7 @@ constexpr int kProbBase = 10000;
 constexpr int kProbLikely = 9000;
 constexpr int kProbUnlikely = kProbBase - kProbLikely;
 // The base value for BB frequency.
-constexpr int kFreqBase = 10000;
+constexpr int kFreqBase = 100000;
 constexpr uint32 kScaleDownFactor = 2;
 // kProbVeryUnlikely should be small enough so basic block predicted
 // by it gets below HOT_BB_FREQUENCY_FRACTION.
@@ -182,7 +182,7 @@ void MePrediction::BBLevelPredictions() {
   }
 }
 
-// Make edges for all bbs in the cfg.
+// Build edges for all bbs in the cfg.
 void MePrediction::Init() {
   bbPredictions.resize(cfg->GetAllBBs().size());
   edges.resize(cfg->GetAllBBs().size());
@@ -221,11 +221,27 @@ bool MePrediction::PredictedByLoopHeuristic(const BB &bb) const {
   return false;
 }
 
-// Sort loops first so that hanle innermost loop first in EstimateLoops.
+// Sort loops first so that hanle innermost loop first in PropFreqInLoops.
 void MePrediction::SortLoops() {
+  const auto &bbId2rpoId = dom->GetReversePostOrderId();
   std::stable_sort(meLoop->GetMeLoops().begin(), meLoop->GetMeLoops().end(),
-                   [](const LoopDesc *loop1, const LoopDesc *loop2) {
-    return loop1->nestDepth > loop2->nestDepth;
+                   [&bbId2rpoId](const LoopDesc *loop1, const LoopDesc *loop2) {
+    // inner loop first
+    if (loop1->nestDepth > loop2->nestDepth) {
+      return true;
+    } else if (loop1->nestDepth < loop2->nestDepth) {
+      return false;
+    }
+    uint32_t loop1RpoId = bbId2rpoId[loop1->head->GetBBId()];
+    uint32_t loop2RpoId = bbId2rpoId[loop2->head->GetBBId()];
+    // big rpoId first
+    if (loop1RpoId > loop2RpoId) {
+      return true;
+    } else if (loop1RpoId < loop2RpoId) {
+      return false;
+    }
+    // small loop first
+    return (loop1->loopBBs.size() < loop2->loopBBs.size());
   });
 }
 
@@ -553,13 +569,82 @@ void MePrediction::CombinePredForBB(const BB &bb) {
   second->probability = kProbBase - combinedProbability;
 }
 
-void MePrediction::PropagateFreq(BB &head, BB &bb) {
+void MePrediction::FindSCCHeaders(SCCOfBBs &scc, std::vector<BB*> &headers) {
+  // init inSCCPtr
+  if (inSCCPtr == nullptr) {
+    inSCCPtr = tmpAlloc.GetMemPool()->New<MapleVector<std::pair<bool, uint32>>>(
+        cfg->NumBBs(), std::pair{ false, 0 }, tmpAlloc.Adapter());
+  } else {
+    std::fill(inSCCPtr->begin(), inSCCPtr->end(), std::pair{ false, 0 });
+  }
+  auto &inSCC = *inSCCPtr;
+  for (BB *bb : scc.GetBBs()) {
+    inSCC[bb->GetBBId()] = { true, 0 };
+  }
+
+  uint32 rpoIdx = 0;
+  for (auto *bb : dom->GetReversePostOrder()) {
+    if (inSCC[bb->GetBBId()].first) {
+      inSCC[bb->GetBBId()].second = rpoIdx++;
+    }
+  }
+
+  // detect entry header
+  for (auto *bb : scc.GetBBs()) {
+    for (BB *pred : bb->GetPred()) {
+      bool isPredInSCC = inSCC[pred->GetBBId()].first;
+      auto predRpoIdx = inSCC[pred->GetBBId()].second;
+      auto bbRpoIdx = inSCC[bb->GetBBId()].second;
+      // case1: out scc BB --> in scc BB
+      // case2: big rpoIdx BB --> small rpoIdx BB
+      if (!isPredInSCC || predRpoIdx > bbRpoIdx) {
+        // entry block
+        headers.push_back(bb);
+        break;
+      }
+    }
+  }
+  // only add back edge for irreducible SCC
+  if (headers.size() > 1) {
+    for (auto *header : headers) {
+      for (auto *pred : header->GetPred()) {
+        bool isPredInSCC = inSCC[pred->GetBBId()].first;
+        auto predRpoIdx = inSCC[pred->GetBBId()].second;
+        auto bbRpoIdx = inSCC[header->GetBBId()].second;
+        if (isPredInSCC && predRpoIdx > bbRpoIdx) {
+          backEdges.push_back(FindEdge(*pred, *header));
+        }
+      }
+    }
+  }
+}
+
+void MePrediction::BuildSCC() {
+  cfg->BuildSCC();
+  for (auto *scc : cfg->GetSccTopologicalVec()) {
+    if (scc->GetBBs().size() > 1) {
+      sccVec.push_back(scc);
+    }
+  }
+}
+
+// Use head to propagate freq for normal loops. Use headers to propagate freq for irreducible SCCs
+// because there are multiple headers in irreducible SCCs.
+bool MePrediction::DoPropFreq(BB *head, std::vector<BB*> *headers, BB &bb) {
   if (bbVisited[bb.GetBBId()]) {
-    return;
+    return true;
   }
   // 1. find bfreq(bb)
-  if (&bb == &head) {
-    head.SetFrequency(kFreqBase);
+  if (&bb == head) {
+    bb.SetFrequency(kFreqBase);
+    if (predictDebug) {
+      LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetBBId() << ": " << bb.GetFrequency() << std::endl;
+    }
+  } else if (headers != nullptr && std::find(headers->begin(), headers->end(), &bb) != headers->end()) {
+    bb.SetFrequency(kFreqBase / headers->size());
+    if (predictDebug) {
+      LogInfo::MapleLogger() << "Set Header Frequency BB" << bb.GetBBId() << ": " << bb.GetFrequency() << std::endl;
+    }
   } else {
     // Check whether all pred bb have been estimated
     for (size_t i = 0; i < bb.GetPred().size(); ++i) {
@@ -575,7 +660,7 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
                 " can't be recognized as loop head/tail because of eh.\n";
           }
         }
-        return;
+        return false;
       }
     }
     uint32 freq = 0;
@@ -616,7 +701,9 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
     }
     edge->frequency = bb.GetFrequency() * edge->probability / kProbBase;
     total += edge->frequency;
-    if (&edge->dest == &head) {  // is the edge a back edge
+    bool isBackEdge = headers != nullptr ? std::find(headers->begin(), headers->end(), &edge->dest) != headers->end() :
+                                           &edge->dest == head;
+    if (isBackEdge) {  // is the edge a back edge
       backEdgeProb[edge] = static_cast<double>(edge->probability) * bb.GetFrequency() / (kProbBase * kFreqBase);
     }
   }
@@ -624,15 +711,70 @@ void MePrediction::PropagateFreq(BB &head, BB &bb) {
   if (bestEdge != nullptr && total != bb.GetFrequency()) {
     bestEdge->frequency += bb.GetFrequency() - total;
   }
-  // 3. propagate to successor blocks
-  for (auto *succ : bb.GetSucc()) {
-    if (!bbVisited[succ->GetBBId()]) {
-      PropagateFreq(head, *succ);
+  return true;
+}
+
+void MePrediction::PropFreqInIrreducibleSCCs() {
+  if (predictDebug) {
+    LogInfo::MapleLogger() << "== freq prop for irreducible SCC" << std::endl;
+  }
+  BuildSCC();
+  CHECK_FATAL(!sccVec.empty(), "must be");
+  // prop freq for irreducible SCC
+  for (auto *scc : sccVec) {
+    std::vector<BB*> headers;
+    FindSCCHeaders(*scc, headers);
+    if (headers.size() <= 1) {
+      continue;  // The normal loops should have been processed by PropFreqInLoops
+    }
+    std::fill(bbVisited.begin(), bbVisited.end(), false);
+    // prop header first
+    for (auto *sccHead : headers) {
+      bool result = DoPropFreq(nullptr, &headers, *sccHead);
+      CHECK_FATAL(result, "prop freq for irreducible SCC headers failed");
+    }
+    // prop other BBs in the SCC by topological orde
+    for (auto *curBB : dom->GetReversePostOrder()) {
+      bool inSCC = (*inSCCPtr)[curBB->GetBBId()].first;
+      if (!inSCC) {
+        continue;
+      }
+      bool result = DoPropFreq(nullptr, &headers, *curBB);
+      CHECK_FATAL(result, "prop freq for irreducible SCC BB failed");
     }
   }
 }
 
-void MePrediction::EstimateLoops() {
+bool MePrediction::PropFreqInFunc() {
+  if (predictDebug) {
+    LogInfo::MapleLogger() << "== freq prop for func" << std::endl;
+  }
+  // Now propagate the frequencies through all the blocks.
+  std::fill(bbVisited.begin(), bbVisited.end(), false);
+  BB *entryBB = cfg->GetCommonEntryBB();
+  if (entryBB != cfg->GetFirstBB()) {
+    bbVisited[entryBB->GetBBId()] = false;
+  }
+  if (cfg->GetCommonExitBB() != cfg->GetLastBB()) {
+    bbVisited[cfg->GetCommonExitBB()->GetBBId()] = false;
+  }
+  entryBB->SetFrequency(kFreqBase);
+
+  for (auto *bb : dom->GetReversePostOrder()) {
+    if (bb == entryBB) {
+      continue;
+    }
+    ASSERT(entryBB->GetSucc().size() == 1, "comment entry BB always has only 1 succ");
+    bool ret = DoPropFreq(entryBB->GetSucc()[0], nullptr, *bb);
+    if (!ret) {
+      // found irreducible SCC
+      return false;
+    }
+  }
+  return true;
+}
+
+void MePrediction::PropFreqInLoops() {
   for (auto *loop : meLoop->GetMeLoops()) {
     MapleSet<BBId> &loopBBs = loop->loopBBs;
     auto *backEdge = FindEdge(*loop->tail, *loop->head);
@@ -640,23 +782,29 @@ void MePrediction::EstimateLoops() {
     for (auto &bbId : loopBBs) {
       bbVisited[bbId] = false;
     }
-    PropagateFreq(*loop->head, *loop->head);
-  }
-  // Now propagate the frequencies through all the blocks.
-  std::fill(bbVisited.begin(), bbVisited.end(), false);
-  if (cfg->GetCommonEntryBB() != cfg->GetFirstBB()) {
-    bbVisited[cfg->GetCommonEntryBB()->GetBBId()] = false;
-  }
-  if (cfg->GetCommonExitBB() != cfg->GetLastBB()) {
-    bbVisited[cfg->GetCommonExitBB()->GetBBId()] = false;
-  }
-  cfg->GetCommonEntryBB()->SetFrequency(kFreqBase);
-  for (BB *bb : cfg->GetCommonEntryBB()->GetSucc()) {
-    PropagateFreq(*bb, *bb);
+    if (predictDebug) {
+      LogInfo::MapleLogger() << "== freq prop for loop: header BB" << loop->head->GetBBId() << std::endl;
+    }
+    // sort loop BB by topological order
+    const auto &bbId2RpoId = dom->GetReversePostOrderId();
+    std::vector<BBId> rpoLoopBBs(loopBBs.begin(), loopBBs.end());
+    std::sort(rpoLoopBBs.begin(), rpoLoopBBs.end(), [&bbId2RpoId](BBId a, BBId b) {
+      return bbId2RpoId[a] < bbId2RpoId[b];
+    });
+    // calculate header first
+    bool ret = DoPropFreq(loop->head, nullptr, *loop->head);
+    CHECK_FATAL(ret, "prop freq for loop header failed");
+    for (auto bbId : rpoLoopBBs) {
+      // it will fail if the loop contains irreducible SCC
+      (void)DoPropFreq(loop->head, nullptr, *cfg->GetBBFromID(bbId));
+    }
   }
 }
 
-void MePrediction::EstimateBBFrequencies() {
+void MePrediction::ComputeBBFreq() {
+  if (predictDebug) {
+    LogInfo::MapleLogger() << "\ncompute-bb-freq" << std::endl;
+  }
   BB *entry = cfg->GetCommonEntryBB();
   edges[entry->GetBBId()]->probability = kProbAlways;
   double backProb = 0.0;
@@ -675,16 +823,38 @@ void MePrediction::EstimateBBFrequencies() {
   }
   // First compute frequencies locally for each loop from innermost
   // to outermost to examine frequencies for back edges.
-  EstimateLoops();
+  PropFreqInLoops();
+  if (!PropFreqInFunc()) {
+    // found irreducible SCC
+    PropFreqInIrreducibleSCCs();
+    bool ret = PropFreqInFunc();  // estimate func again after solving irr scc
+    CHECK_FATAL(ret, "estimate func failure again");
+  }
+}
+
+void MePrediction::Run(bool isRebuild) {
+  if (predictDebug) {
+    LogInfo::MapleLogger() << "prediction: " << func->GetName() << "\n" <<
+                           "============" << std::string(func->GetName().size(), '=') << std::endl;
+  }
+  if (cfg->GetAllBBs().size() > kMaxNumBBToPredict) {
+    // The func is too large, won't run prediction
+    if (predictDebug) {
+      LogInfo::MapleLogger() << "func is too large to run prediction, bb number > " << kMaxNumBBToPredict << std::endl;
+    }
+    return;
+  }
+  EstimateBranchProb(isRebuild);
+  ComputeBBFreq();
+  SavePredictResultIntoCfg();
 }
 
 // Main function
 // When isRebuild == true, we will skip predictions that rely on ssa information,
 // because the correctness of ssa cannot be guaranteed. For example BBLayout::OptimiseCFG did not maintain correct ssa
-void MePrediction::EstimateProbability(bool isRebuild) {
-  if (cfg->GetAllBBs().size() > kMaxNumBBToPredict) {
-    // The func is too large, won't run prediction
-    return;
+void MePrediction::EstimateBranchProb(bool isRebuild) {
+  if (predictDebug) {
+    LogInfo::MapleLogger() << "estimate-block-prob" << std::endl;
   }
   Init();
   if (!isRebuild) {
@@ -721,8 +891,6 @@ void MePrediction::EstimateProbability(bool isRebuild) {
       CHECK_FATAL(all == kProbBase, "total probability is not 1");
     }
   }
-  EstimateBBFrequencies();
-  SavePredictResultIntoCfg();
 }
 
 void MePrediction::SetPredictDebug(bool val) {
@@ -786,21 +954,15 @@ bool MePrediction::VerifyFreq(MeFunction &func) {
   return true;
 }
 
-void MePrediction::RebuildFreq(MeFunction &func, MaplePhase &phase) {
+// Prediction will sort meLoop
+void MePrediction::RebuildFreq(MeFunction &func, Dominance &dom, IdentifyLoops &meLoop) {
   func.SetProfValid(false);
-  auto *hook = phase.GetAnalysisInfoHook();
-  hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MEDominance::id);
-  hook->ForceEraseAnalysisPhase(func.GetUniqueID(), &MELoopAnalysis::id);
-  auto *dom = static_cast<MEDominance*>(
-      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MEDominance::id, func))->GetResult();
-  auto *meLoop = static_cast<MELoopAnalysis*>(
-      hook->ForceRunAnalysisPhase<MapleFunctionPhase<MeFunction>>(&MELoopAnalysis::id, func))->GetResult();
   StackMemPool stackMp(memPoolCtrler, "");
-  MePrediction predict(stackMp, stackMp, func, *dom, *meLoop, *func.GetIRMap());
+  MePrediction predict(stackMp, stackMp, func, dom, meLoop, *func.GetIRMap());
   if (MeOption::dumpFunc == func.GetName()) {
     predict.SetPredictDebug(true);
   }
-  predict.EstimateProbability(true);
+  predict.Run(true);
 }
 
 void Edge::Dump(bool dumpNext) const {
@@ -831,7 +993,7 @@ bool MEPredict::PhaseRun(maple::MeFunction &f) {
   if (DEBUGFUNC_NEWPM(f)) {
     mePredict->SetPredictDebug(true);
   }
-  mePredict->EstimateProbability();
+  mePredict->Run();
 
   if (DEBUGFUNC_NEWPM(f)) {
     f.GetCfg()->DumpToFile("freq", false, true);

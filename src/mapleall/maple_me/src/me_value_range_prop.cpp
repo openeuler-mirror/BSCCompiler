@@ -681,6 +681,9 @@ bool ValueRangePropagation::GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt
 
 bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
     int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op) {
+  if (valueRangeOfIndex.GetRangeType() == kNotEqual || valueRangeOfLengthPtr.GetRangeType() == kNotEqual) {
+    return false;
+  }
   // Opt array boundary check when the array length is a constant.
   if (valueRangeOfLengthPtr.IsConstant()) {
     if (!valueRangeOfIndex.IsConstantLowerAndUpper() ||
@@ -696,51 +699,59 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAd
     safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(), lengthValue);
     return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lengthValue :
         valueRangeOfIndex.GetUpper().GetConstant() < lengthValue;
-  }
-  // Opt array boundary check when the array length is a var.
-  if (valueRangeOfIndex.GetRangeType() == kSpecialUpperForLoop) {
-    // When the var of index is not equal to the var of length, need analysis if the var of index is related to the
-    // var of length. For example:
-    // Example: i = len - i;
-    // Example: p[i];
-    // Example: assertlt(p + i * 4, p + len * 4)
-    if (valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar()) {
-      // deal with the case like i = len + x:
-      auto *upperVar = valueRangeOfIndex.GetUpper().GetVar();
-      if (upperVar == nullptr) {
-        return false;
+  } else if (valueRangeOfLengthPtr.GetRangeType() == kEqual) {
+    // Opt array boundary check when the array length is a var.
+    if (valueRangeOfIndex.GetRangeType() == kSpecialUpperForLoop) {
+      // When the var of index is not equal to the var of length, need analysis if the var of index is related to the
+      // var of length. For example:
+      // Example: i = len - i;
+      // Example: p[i];
+      // Example: assertlt(p + i * 4, p + len * 4)
+      if (valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar()) {
+        // deal with the case like i = len + x:
+        auto *upperVar = valueRangeOfIndex.GetUpper().GetVar();
+        if (upperVar == nullptr) {
+          return false;
+        }
+        auto *crNode = sa.GetOrCreateCRNode(*upperVar);
+        if (crNode == nullptr) {
+          return false;
+        }
+        sa.SortCROperand(*crNode, baseAddress);
+        if (crNode->GetCRType() != kCRAddNode ||
+            static_cast<CRAddNode*>(crNode)->GetOpndsSize() != kNumOperands ||
+            static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() == nullptr ||
+            static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != valueRangeOfLengthPtr.GetBound().GetVar() ||
+            static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetCRType() != kCRConstNode) {
+          return false;
+        }
+        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op,
+            static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue(),
+            valueRangeOfLengthPtr.GetBound().GetConstant());
+        return (kOpcodeInfo.IsAssertLeBoundary(op) ?
+                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <=
+                    valueRangeOfLengthPtr.GetBound().GetConstant() :
+                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
+                    valueRangeOfLengthPtr.GetBound().GetConstant());
+      } else {
+        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+            valueRangeOfLengthPtr.GetBound().GetConstant());
+        return (kOpcodeInfo.IsAssertLeBoundary(op) ?
+            valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
+                valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
       }
-      auto *crNode = sa.GetOrCreateCRNode(*upperVar);
-      if (crNode == nullptr) {
-        return false;
-      }
-      sa.SortCROperand(*crNode, baseAddress);
-      if (crNode->GetCRType() != kCRAddNode ||
-          static_cast<CRAddNode*>(crNode)->GetOpndsSize() != kNumOperands ||
-          static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() == nullptr ||
-          static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != valueRangeOfLengthPtr.GetBound().GetVar() ||
-          static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetCRType() != kCRConstNode) {
-        return false;
-      }
-      safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op,
-          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue(),
-              valueRangeOfLengthPtr.GetBound().GetConstant());
-      return (kOpcodeInfo.IsAssertLeBoundary(op) ?
-          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <=
-              valueRangeOfLengthPtr.GetBound().GetConstant() :
-          static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
-              valueRangeOfLengthPtr.GetBound().GetConstant());
     }
-  } else if ((valueRangeOfIndex.GetLower().GetVar() != valueRangeOfIndex.GetUpper().GetVar()) ||
-             valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar() ||
-             valueRangeOfIndex.GetLower().GetConstant() > valueRangeOfIndex.GetUpper().GetConstant()) {
-    return false;
+    if ((valueRangeOfIndex.GetLower().GetVar() != valueRangeOfIndex.GetUpper().GetVar()) ||
+        valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar()) {
+      return false;
+    }
+    safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                  valueRangeOfLengthPtr.GetBound().GetConstant());
+    return kOpcodeInfo.IsAssertLeBoundary(op) ?
+        valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
+        valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant();
   }
-  safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
-      valueRangeOfLengthPtr.GetBound().GetConstant());
-  return kOpcodeInfo.IsAssertLeBoundary(op) ?
-      valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
-      valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant();
+  return false;
 }
 
 // Deal with upper boundary check.
@@ -878,6 +889,82 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
   }
 }
 
+bool ValueRangePropagation::IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const {
+  if (!opnd.IsScalar()) {
+    return false;
+  }
+  auto defBy = static_cast<const ScalarMeExpr&>(opnd).GetDefBy();
+  if (defBy != kDefByPhi) {
+    return false;
+  }
+  auto &defPhi = static_cast<const ScalarMeExpr&>(opnd).GetDefPhi();
+  MeStmt *defStmt = nullptr;
+  if (defPhi.GetOpnds().size() == kNumOperands) {
+    auto *defBBOfOpnd0 = defPhi.GetOpnd(0)->GetDefByBBMeStmt(dom, defStmt);
+    auto *defBBOfOpnd1 = defPhi.GetOpnd(1)->GetDefByBBMeStmt(dom, defStmt);
+    // if the def bb of opnd0 is out of loop and the def bb of opnd1 is in loop, the opnd is loop variable.
+    if (defPhi.GetDefBB() == loop.head && !loop.Has(*defBBOfOpnd0) && loop.Has(*defBBOfOpnd1)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
+    LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr) {
+  if (!opnd.IsScalar()) {
+    index2NewExpr[&opnd] = nullptr;
+  } else {
+    bool opndIsLoopVar = false;
+    auto defBy = static_cast<ScalarMeExpr&>(opnd).GetDefBy();
+    // Check whether it is a loop variable.
+    if (defBy == kDefByStmt) {
+      // If the def stmt is inc or dec stmt, the opnd is loop variable.
+      auto *defStmt = static_cast<ScalarMeExpr&>(opnd).GetDefByMeStmt();
+      if (defStmt != nullptr && kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
+        MeExpr *rhs = defStmt->GetRHS();
+        if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+          OpMeExpr *opRHS = static_cast<OpMeExpr*>(rhs);
+          if (defStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr*>(opRHS->GetOpnd(0))->GetOst()) {
+            opndIsLoopVar = IsLoopVariable(loop, *opRHS->GetOpnd(0));
+          }
+        }
+      }
+    } else if (defBy == kDefByPhi) {
+      opndIsLoopVar = IsLoopVariable(loop, opnd);
+    }
+    if (opndIsLoopVar == false) {
+      index2NewExpr[&opnd] = nullptr;
+    } else {
+      auto *valueRange = FindValueRange(bb, opnd);
+      auto rangeType = valueRange->GetRangeType();
+      if (valueRange == nullptr ||
+          (rangeType != kEqual && rangeType != kLowerAndUpper &&
+           rangeType != kSpecialLowerForLoop && rangeType != kSpecialUpperForLoop)) {
+        index2NewExpr[&opnd] = nullptr;
+      } else {
+        // If the assert stmt is lower boundary check, replace the index opnd with the lower bound, otherwise,
+        // replace the index opnd with the upper bound.
+        auto bound =
+            kOpcodeInfo.IsAssertLowerBoundary(meStmt.GetOp()) ? valueRange->GetLower() : valueRange->GetUpper();
+        MeExpr *newExpr = nullptr;
+        if (bound.GetVar() == nullptr) {
+          newExpr = irMap.CreateIntConstMeExpr(bound.GetConstant(), bound.GetPrimType());
+        } else if (bound.GetConstant() == 0) {
+          newExpr = bound.GetVar();
+        } else {
+          auto *newConstExpr = irMap.CreateIntConstMeExpr(bound.GetConstant(), bound.GetPrimType());
+          newExpr = irMap.CreateMeExprBinary(OP_add, bound.GetPrimType(), *bound.GetVar(), *newConstExpr);
+        }
+        index2NewExpr[&opnd] = newExpr;
+      }
+    }
+  }
+  for (int32 i = 0; i < opnd.GetNumOpnds(); ++i) {
+    CollectIndexOpndWithBoundInLoop(loop, bb, meStmt, *(opnd.GetOpnd(i)), index2NewExpr);
+  }
+}
+
 bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   CHECK_FATAL(meStmt.NumMeStmtOpnds() == kNumOperands, "must have two opnds");
   auto &naryMeStmt = static_cast<NaryMeStmt&>(meStmt);
@@ -911,6 +998,15 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   if (IfAnalysisedBefore(bb, meStmt)) {
     return true;
   }
+  bool indexIsEqualToBound = indexCR->IsEqual(*boundCR);
+  if (indexIsEqualToBound) {
+    if (kOpcodeInfo.IsAssertLowerBoundary(meStmt.GetOp()) || kOpcodeInfo.IsAssertLeBoundary(meStmt.GetOp())) {
+      return true;
+    }
+    if (MeOption::boundaryCheckMode != kNoCheck) {
+      safetyCheckBoundary->Error(meStmt);
+    }
+  }
   if (kOpcodeInfo.IsAssertLowerBoundary(meStmt.GetOp())) {
     if (DealWithAssertGe(bb, meStmt, *indexCR, *boundCR)) {
       return true;
@@ -921,6 +1017,24 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
       return true;
     }
     Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
+  }
+  auto *loop = loops->GetBBLoopParent(bb.GetBBId());
+  if (loop != nullptr && loop->IsCanonicalLoop() && loop->inloopBB2exitBBs.size() == 1 &&
+      loop->inloopBB2exitBBs.begin()->second->size() == 1) {
+    std::map<MeExpr*, MeExpr*> index2NewExpr;
+    for (uint8 i = 0; i < indexOpnd->GetNumOpnds(); ++i) {
+      auto *opnd = indexOpnd->GetOpnd(i);
+      if (index2NewExpr.find(opnd) != index2NewExpr.end()) {
+        continue;
+      }
+      CollectIndexOpndWithBoundInLoop(*loop, bb, meStmt, *opnd, index2NewExpr);
+    }
+    for (auto it = index2NewExpr.begin(); it != index2NewExpr.end(); ++it) {
+      if (it->second == nullptr) {
+        continue;
+      }
+      (void)irMap.ReplaceMeExprStmt(meStmt, *it->first, *it->second);
+    }
   }
   return false;
 }

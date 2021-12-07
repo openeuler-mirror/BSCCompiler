@@ -224,7 +224,9 @@ void CopyProp::TraversalMeStmt(MeStmt &meStmt) {
       auto *lhs = ivarStmt.GetLHSVal();
       auto *baseOfIvar = lhs->GetBase();
       MeExpr *propedExpr = &PropMeExpr(utils::ToRef(baseOfIvar), subProped, false);
-      if (propedExpr != baseOfIvar && PropagatableBaseOfIvar(lhs, propedExpr)) {
+      if (propedExpr != baseOfIvar &&
+          (PropagatableByCopyProp(propedExpr) ||
+           (propedExpr->GetDepth() == baseOfIvar->GetDepth() && !propedExpr->IsLeaf()))) {
         ivarStmt.GetLHSVal()->SetBase(propedExpr);
         ivarStmt.SetLHSVal(irMap.BuildLHSIvarFromIassMeStmt(ivarStmt));
       }

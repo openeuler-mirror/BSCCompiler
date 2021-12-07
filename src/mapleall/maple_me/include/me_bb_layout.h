@@ -21,7 +21,133 @@
 #include "me_loop_analysis.h"
 
 namespace maple {
-class BBLayout{
+class BBChain {
+public:
+  using iterator = MapleVector<BB*>::iterator;
+  using const_iterator = MapleVector<BB*>::const_iterator;
+  BBChain(MapleAllocator &alloc, MapleVector<BBChain*> &bb2chain, BB *bb)
+      : bbVec(1, bb, alloc.Adapter()), bb2chain(bb2chain) {
+    bb2chain[bb->GetBBId()] = this;
+  }
+
+  iterator begin() {
+    return bbVec.begin();
+  }
+  const_iterator begin() const {
+    return bbVec.begin();
+  }
+  iterator end() {
+    return bbVec.end();
+  }
+  const_iterator end() const {
+    return bbVec.end();
+  }
+
+  bool empty() const {
+    return bbVec.empty();
+  }
+
+  size_t size() const {
+    return bbVec.size();
+  }
+
+  BB *GetHeader() {
+    CHECK_FATAL(!bbVec.empty(), "cannot get header from a empty bb chain");
+    return bbVec.front();
+  }
+  BB *GetTail() {
+    CHECK_FATAL(!bbVec.empty(), "cannot get tail from a empty bb chain");
+    return bbVec.back();
+  }
+
+  // update unlaidPredCnt if needed. The chain is ready to layout only if unlaidPredCnt == 0
+  bool IsReadyToLayout(const MapleVector<bool> *context) {
+    MayRecalculateUnlaidPredCnt(context);
+    return (unlaidPredCnt == 0);
+  }
+
+  // Merge src chain to this one
+  void MergeFrom(BBChain *srcChain) {
+    CHECK_FATAL(this != srcChain, "merge same chain?");
+    ASSERT_NOT_NULL(srcChain);
+    if (srcChain->empty()) {
+      return;
+    }
+    for (BB *bb : *srcChain) {
+      bbVec.push_back(bb);
+      bb2chain[bb->GetBBId()] = this;
+    }
+    srcChain->bbVec.clear();
+    srcChain->unlaidPredCnt = 0;
+    srcChain->isCacheValid = false;
+    isCacheValid = false;  // is this necessary?
+  }
+
+  void UpdateSuccChainBeforeMerged(const BBChain &destChain, const MapleVector<bool> *context,
+                                   MapleSet<BBChain*> &readyToLayoutChains) {
+    for (BB *bb : bbVec) {
+      for (BB *succ : bb->GetSucc()) {
+        if (context != nullptr && !(*context)[succ->GetBBId()]) {
+          continue;
+        }
+        if (bb2chain[succ->GetBBId()] == this || bb2chain[succ->GetBBId()] == &destChain) {
+          continue;
+        }
+        BBChain *succChain = bb2chain[succ->GetBBId()];
+        succChain->MayRecalculateUnlaidPredCnt(context);
+        if (succChain->unlaidPredCnt != 0) {
+          --succChain->unlaidPredCnt;
+        }
+        if (succChain->unlaidPredCnt == 0) {
+          readyToLayoutChains.insert(succChain);
+        }
+      }
+    }
+  }
+
+  void Dump() const {
+    LogInfo::MapleLogger() << "bb chain with " << bbVec.size() << " blocks: ";
+    for (BB *bb : bbVec) {
+      LogInfo::MapleLogger() << bb->GetBBId() << " ";
+    }
+    LogInfo::MapleLogger() << std::endl;
+  }
+
+  void DumpOneLine() const {
+    for (BB *bb : bbVec) {
+      LogInfo::MapleLogger() << bb->GetBBId() << " ";
+    }
+  }
+
+private:
+  void MayRecalculateUnlaidPredCnt(const MapleVector<bool> *context) {
+    if (isCacheValid) {
+      return;  // If cache is trustable, no need to recalculate
+    }
+    unlaidPredCnt = 0;
+    for (BB *bb : bbVec) {
+      for (BB *pred : bb->GetPred()) {
+        // exclude blocks out of context
+        if (context != nullptr && !(*context)[pred->GetBBId()]) {
+          continue;
+        }
+        // exclude blocks within the same chain
+        if (bb2chain[pred->GetBBId()] == this) {
+          continue;
+        }
+        ++unlaidPredCnt;
+      }
+    }
+    isCacheValid = true;
+  }
+
+  MapleVector<BB*> bbVec;
+  MapleVector<BBChain*> &bb2chain;
+  uint32 unlaidPredCnt = 0;   // how many predecessors are not laid out
+  bool isCacheValid = false;  // whether unlaidPredCnt is trustable
+};
+
+class BBLayout {
  public:
   BBLayout(MemPool &memPool, MeFunction &f, bool enabledDebug, MaplePhase *phase)
       : func(f),
@@ -30,6 +156,8 @@ class BBLayout{
         startTryBBVec(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         bbVisited(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         allEdges(layoutAlloc.Adapter()),
+        bb2chain(layoutAlloc.Adapter()),
+        readyToLayoutChains(layoutAlloc.Adapter()),
         laidOut(func.GetCfg()->GetAllBBs().size(), false, layoutAlloc.Adapter()),
         enabledDebug(enabledDebug),
         profValid(func.IsIRProfValid()),
@@ -104,7 +232,7 @@ class BBLayout{
   void OptimiseCFG();
   BB *NextBBProf(BB &bb);
   BB *GetBBFromEdges();
-  void LayoutWithProf();
+  void LayoutWithProf(bool useChainLayout);
   void LayoutWithoutProf();
   void RunLayout();
   void DumpBBPhyOrder() const;
@@ -115,6 +243,18 @@ class BBLayout{
   void DealWithStartTryBB();
   void UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const;
   void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &fallthru) const;
+  void RebuildFreq();
+  bool IsBBInCurrContext(BB &bb, const MapleVector<bool> *context) const;
+  void InitBBChains();
+  void BuildChainForFunc();
+  void BuildChainForLoops();
+  void BuildChainForLoop(LoopDesc *loop, MapleVector<bool> *context);
+  BB *FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context);
+  void DoBuildChain(BB &header, BBChain &chain, const MapleVector<bool> *context);
+  BB *GetBestSucc(BB &bb, BBChain &chain, const MapleVector<bool> *context, BB *excludeHeader,
+                  bool considerBetterPredForSucc);
+  bool IsCandidateSucc(BB &bb, BB &succ, const MapleVector<bool> *context);
+  bool HasBetterLayoutPred(BB &bb, BB &succ, const MapleVector<bool> *context);
 
   MeFunction &func;
   MapleAllocator layoutAlloc;
@@ -122,6 +262,12 @@ class BBLayout{
   MapleVector<bool> startTryBBVec;  // record the try BB to fix the try&endtry map
   MapleVector<bool> bbVisited; // mark the bb as visited when accessed
   MapleVector<BBEdge*> allEdges;
+  MapleVector<BBChain*> bb2chain;   // mapping bb id to the chain that bb belongs to
+  MapleSet<BBChain*> readyToLayoutChains;
+  IdentifyLoops *meLoop = nullptr;
+  Dominance *dom = nullptr;
+  uint32 rpoSearchPos = 0;   // reverse post order search beginning position
+  bool debugChainLayout = false;
   bool needDealWithTryBB = false;
   BBId curBBId { 0 };          // to index into func.bb_vec_ to return the next BB
   bool bbCreated = false;      // new create bb will change mefunction::bb_vec_ and
