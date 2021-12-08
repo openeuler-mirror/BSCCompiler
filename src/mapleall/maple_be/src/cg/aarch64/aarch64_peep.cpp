@@ -711,7 +711,7 @@ MOperator CombineContiLoadAndStoreAArch64::GetMopHigherByte(MOperator mop) {
 
 void CombineContiLoadAndStoreAArch64::RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn) {
   /* keep the comment */
-  Insn *nn = prevInsn.GetNext();
+  Insn *nn = prevInsn.GetNextMachineInsn();
   std::string newComment = "";
   MapleString comment = insn.GetComment();
   if (comment.c_str() != nullptr && strlen(comment.c_str()) > 0) {
@@ -886,7 +886,7 @@ void EliminateSpecifcUXTAArch64::Run(BB &bb, Insn &insn) {
 
 void FmovRegAArch64::Run(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
-  Insn *nextInsn = insn.GetNext();
+  Insn *nextInsn = insn.GetNextMachineInsn();
   if (&insn == bb.GetFirstInsn()) {
     return;
   }
@@ -1498,13 +1498,13 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
 
 void AndCmpBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   /* nextInsn must be "cmp" insn */
-  Insn *nextInsn = insn.GetNext();
+  Insn *nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr ||
       (nextInsn->GetMachineOpcode() != MOP_wcmpri && nextInsn->GetMachineOpcode() != MOP_xcmpri)) {
     return;
   }
   /* nextNextInsn must be "beq" or "bne" insn */
-  Insn *nextNextInsn = nextInsn->GetNext();
+  Insn *nextNextInsn = nextInsn->GetNextMachineInsn();
   if (nextNextInsn == nullptr ||
       (nextNextInsn->GetMachineOpcode() != MOP_beq && nextNextInsn->GetMachineOpcode() != MOP_bne)) {
     return;
@@ -1545,7 +1545,7 @@ void AndCmpBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
 
 void AndCbzBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   /* nextInsn must be "cbz" or "cbnz" insn */
-  Insn *nextInsn = insn.GetNext();
+  Insn *nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr ||
       (nextInsn->GetMachineOpcode() != MOP_wcbz && nextInsn->GetMachineOpcode() != MOP_xcbz)) {
     return;
