@@ -202,7 +202,7 @@ class BaseNode : public BaseNodeT {
     return false;
   }
 
-  virtual bool IsSameContent(BaseNode* node) const {
+  virtual bool IsSameContent(BaseNode *node) const {
     return false;
   }
 };
@@ -252,7 +252,7 @@ class UnaryNode : public BaseNode {
     return true;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
  private:
   BaseNode *uOpnd = nullptr;
@@ -290,7 +290,7 @@ class TypeCvtNode : public UnaryNode {
     fromPrimType = from;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
  private:
   PrimType fromPrimType = kPtyInvalid;
@@ -497,7 +497,7 @@ class IreadNode : public UnaryNode {
     fieldID = fieldIDVal;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
   // the base of an address expr is either a leaf or an iread
   BaseNode &GetAddrExprBase() const {
@@ -547,7 +547,7 @@ class IreadoffNode : public UnaryNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
  private:
   int32 offset = 0;
@@ -577,7 +577,7 @@ class IreadFPoffNode : public BaseNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
  private:
   int32 offset = 0;
@@ -612,7 +612,7 @@ class BinaryOpnds {
     bOpnd[i] = node;
   }
 
-  bool IsSameContent(BaseNode* node) const;
+  bool IsSameContent(BaseNode *node) const;
 
  private:
   BaseNode *bOpnd[kOperandNumBinary];
@@ -678,7 +678,7 @@ class BinaryNode : public BaseNode, public BinaryOpnds {
   bool IsBinaryNode() const override {
     return true;
   }
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 };
 
 class CompareNode : public BinaryNode {
@@ -1041,7 +1041,7 @@ class ConstvalNode : public BaseNode {
     constVal = val;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
  private:
   MIRConst *constVal = nullptr;
 };
@@ -1298,7 +1298,7 @@ class AddrofNode : public BaseNode {
 
   bool IsVolatile(const MIRModule &mod) const;
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
@@ -1323,7 +1323,7 @@ class DreadoffNode : public BaseNode {
 
   bool IsVolatile(const MIRModule &mod) const;
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
 
  public:
   StIdx stIdx;
@@ -1359,7 +1359,7 @@ class RegreadNode : public BaseNode {
     regIdx = reg;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
  private:
   PregIdx regIdx = 0;  // 32bit, negative if special register
 };
@@ -1387,7 +1387,7 @@ class AddroffuncNode : public BaseNode {
     puIdx = puIdxValue;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
  private:
   PUIdx puIdx = 0;  // 32bit now
 };
@@ -1415,7 +1415,7 @@ class AddroflabelNode : public BaseNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode* node) const override;
+  bool IsSameContent(BaseNode *node) const override;
  private:
   LabelIdx offset = 0;
 };
@@ -2583,6 +2583,10 @@ class DoloopNode : public StmtNode {
     doVarStIdx = idx;
   }
 
+  PregIdx GetDoVarPregIdx() const {
+    return (PregIdx) doVarStIdx.FullIdx();
+  }
+
   const StIdx &GetDoVarStIdx() const {
     return doVarStIdx;
   }
@@ -2911,7 +2915,8 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
 // used by callassertnonnull, callassertle
 class SafetyCallCheckStmtNode {
  public:
-  SafetyCallCheckStmtNode(const std::string &funcName, size_t paramIndex);
+  SafetyCallCheckStmtNode(GStrIdx funcNameIdx, size_t paramIndex)
+      : funcNameIdx(funcNameIdx), paramIndex(paramIndex) {}
   explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode& stmtNode)
       : funcNameIdx(stmtNode.GetFuncNameIdx()), paramIndex(stmtNode.GetParamIndex()) {}
 
@@ -2939,8 +2944,8 @@ class SafetyCallCheckStmtNode {
 // used by callassertnonnull
 class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckStmtNode {
  public:
-  CallAssertNonnullStmtNode(Opcode o, std::string &funcName, size_t paramIndex)
-      : UnaryStmtNode(o), SafetyCallCheckStmtNode(funcName, paramIndex) {}
+  CallAssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
+      : UnaryStmtNode(o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex) {}
   virtual ~CallAssertNonnullStmtNode() {}
 
   void Dump(int32 indent) const override;
@@ -2956,15 +2961,15 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
 // used by callassertle
 class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckStmtNode {
  public:
-  CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, std::string &funcName, size_t paramIndex)
-      : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcName, paramIndex) {}
+  CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
+      : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex) {}
   virtual ~CallAssertBoundaryStmtNode() {}
 
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}
 
-  CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, std::string &funcName, size_t paramIndex)
-      : CallAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcName, paramIndex) {}
+  CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
+      : CallAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx, paramIndex) {}
 
   void Dump(int32 indent) const override;
 
@@ -3404,9 +3409,10 @@ class AsmNode : public NaryStmtNode {
         clobberList(alloc->Adapter()), gotoLabels(alloc->Adapter()), qualifiers(0) {}
 
   AsmNode(MapleAllocator &allocator, const AsmNode &node)
-      : NaryStmtNode(allocator, node), asmString(node.asmString), inputConstraints(allocator.Adapter()),
-        asmOutputs(allocator.Adapter()), outputConstraints(allocator.Adapter()),
-        clobberList(allocator.Adapter()), gotoLabels(allocator.Adapter()), qualifiers(node.qualifiers) {}
+      : NaryStmtNode(allocator, node), asmString(node.asmString, allocator.GetMemPool()),
+        inputConstraints(allocator.Adapter()), asmOutputs(allocator.Adapter()),
+        outputConstraints(allocator.Adapter()), clobberList(allocator.Adapter()),
+        gotoLabels(allocator.Adapter()), qualifiers(node.qualifiers) {}
 
   virtual ~AsmNode() = default;
 

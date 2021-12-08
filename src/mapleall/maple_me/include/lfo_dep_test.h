@@ -77,6 +77,7 @@ class DoloopInfo {
   bool hasPtrAccess = false;                    // give up dep testing if true
   bool hasScalarAssign = false;                 // give up dep testing if true
   bool hasMayDef = false;                       // give up dep testing if true
+  bool hasBeenVectorized = false;               // set by loopvec phase
   MapleVector<DepTestPair> outputDepTestList;   // output dependence only
   MapleVector<DepTestPair> flowDepTestList;     // include both true and anti dependences
   MapleSet<StIdx>          redVars;             // reduction variables

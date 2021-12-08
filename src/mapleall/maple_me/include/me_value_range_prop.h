@@ -458,6 +458,9 @@ class ValueRangePropagation {
   }
 
   void Insert2PairOfExprs(MeExpr &lhs, MeExpr &rhs, BB &bb) {
+    if (lhs.IsVolatile() || rhs.IsVolatile()) {
+      return;
+    }
     auto it = pairOfExprs.find(&lhs);
     if (it == pairOfExprs.end()) {
       std::map<BB*, std::set<MeExpr*>> valueOfPairOfExprs{

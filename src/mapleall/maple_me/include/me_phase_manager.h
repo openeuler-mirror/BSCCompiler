@@ -83,6 +83,7 @@
 #include "cfg_opt.h"
 #include "lfo_dep_test.h"
 #include "me_autovec.h"
+#include "lfo_unroll.h"
 #include "me_safety_warning.h"
 #include "me_sink.h"
 
