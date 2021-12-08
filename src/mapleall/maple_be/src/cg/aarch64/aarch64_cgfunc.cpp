@@ -1279,7 +1279,8 @@ void AArch64CGFunc::SelectAsm(AsmNode &node) {
         destType = IsSignedInteger(destType) ? PTY_i32 : PTY_u32;
       }
       RegType rtype = GetRegTyFromPrimTy(srcType);
-      RegOperand *opnd0 = isOutputTempNode ? &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
+      RegOperand *opnd0 = isOutputTempNode ?
+          &GetOrCreateVirtualRegisterOperand(GetVirtualRegNOFromPseudoRegIdx(pregIdx)) :
           &CreateVirtualRegisterOperand(NewVReg(rtype, GetPrimTypeSize(srcType)));
       SelectCopy(*opnd0, destType, *outOpnd, srcType);
       if (!isOutputTempNode) {
@@ -6550,7 +6551,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand
 
   if (sym != nullptr) {
     if (sym->GetStorageClass() == kScGlobal || sym->GetStorageClass() == kScExtern) {
-      StImmOperand &stopnd = CreateStImmOperand(*sym, 0, 0);
+      StImmOperand &stopnd = CreateStImmOperand(*sym, fromOffset, 0);
       AArch64RegOperand &staddropnd = static_cast<AArch64RegOperand &>(CreateRegisterOperandOfType(PTY_u64));
       SelectAddrof(staddropnd, stopnd);
       opndVec.push_back(&staddropnd);  /* param 1 */
@@ -6559,7 +6560,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand
       AArch64SymbolAlloc *symloc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetSymAllocInfo(sym->GetStIndex()));
       AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(GetBaseReg(*symloc));
       int32 stoffset = GetBaseOffset(*symloc);
-      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(stoffset, k64BitSize, false);
+      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(stoffset + fromOffset, k64BitSize, false);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *parm1Reg, *baseOpnd, *offsetOpnd1));
       if (sym->GetStorageClass() == kScFormal) {
         MemOperand *ldmopnd =
@@ -9528,8 +9529,6 @@ RegOperand *AArch64CGFunc::SelectVectorImmMov(PrimType rType, Operand *src, Prim
   VectorRegSpec *vecSpec = GetMemoryPool()->New<VectorRegSpec>(rType);
 
   int64 val = static_cast<ImmOperand*>(src)->GetValue();
-  const int32 kMinImmVal = -128;
-  const int32 kMaxImmVal = 255;
 
   /* copy the src imm operand to a reg if out of range */
   if ((GetPrimTypeSize(sType) > k4ByteSize && val != 0) || val < kMinImmVal || val > kMaxImmVal) {
@@ -9752,7 +9751,7 @@ void AArch64CGFunc::PrepareVectorOperands(Operand **o1, PrimType &oty1, Operand 
   bool immOpnd = false;
   if (opd->IsConstImmediate()) {
     int64 val = static_cast<ImmOperand*>(opd)->GetValue();
-    if (val >= -128 && val <= 255) {
+    if (val >= kMinImmVal && val <= kMaxImmVal) {
       immOpnd = true;
     } else {
       RegOperand *regOpd = &CreateRegisterOperandOfType(origTyp);
