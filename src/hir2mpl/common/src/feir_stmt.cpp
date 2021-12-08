@@ -781,7 +781,8 @@ std::list<StmtNode*> FEIRStmtCallAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirB
     return ans;
   }
   BaseNode *srcNode = expr->GenMIRNode(mirBuilder);
-  StmtNode *mirStmt = mirBuilder.CreateStmtCallAssertNonnull(op, srcNode, GetFuncName(), GetParamIndex());
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
+  StmtNode *mirStmt = mirBuilder.CreateStmtCallAssertNonnull(op, srcNode, stridx, GetParamIndex());
   ans.push_back(mirStmt);
   return ans;
 }
@@ -792,7 +793,8 @@ std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mir
   StmtNode *stmt = nullptr;
   auto args = ReplaceBoundaryChecking(mirBuilder);
   if (args.size() > 0) {
-    stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), GetFuncName(), GetParamIndex());
+    GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
+    stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex());
   }
   if (stmt != nullptr) {
     stmts.emplace_back(stmt);
