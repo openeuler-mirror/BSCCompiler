@@ -108,7 +108,8 @@ src_libmplme = [
   "src/me_ivopts.cpp",
   "src/seqvec.cpp",
   "src/me_autovec.cpp",
-  "src/me_safety_warning.cpp"
+  "src/me_safety_warning.cpp",
+  "src/lfo_unroll.cpp",
 ]
 
 src_libmplmewpo = [

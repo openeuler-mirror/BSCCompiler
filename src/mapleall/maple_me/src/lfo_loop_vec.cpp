@@ -1556,6 +1556,7 @@ void LoopVectorization::Perform() {
     bool vectorizable = Vectorizable(mapit->second, vecInfo, mapit->first->GetDoBody());
     if (vectorizable) {
       LoopVectorization::vectorizedLoop++;
+      mapit->second->hasBeenVectorized = true;
     }
     if (enableDebug) {
       LogInfo::MapleLogger() << "\nInnermost Doloop:";
