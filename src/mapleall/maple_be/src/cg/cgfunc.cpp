@@ -360,6 +360,12 @@ Operand *HandleJarrayMalloc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFu
 }
 
 /* Neon intrinsic handling */
+Operand *HandleVectorAddLong(BaseNode &expr, CGFunc &cgFunc, bool isLow) {
+  Operand *o1 = cgFunc.HandleExpr(expr, *expr.Opnd(0));
+  Operand *o2 = cgFunc.HandleExpr(expr, *expr.Opnd(1));
+  return cgFunc.SelectVectorAddLong(expr.GetPrimType(), o1, o2, expr.Opnd(0)->GetPrimType(), isLow);
+}
+
 Operand *HandleVectorAddWiden(BaseNode &expr, CGFunc &cgFunc, bool isLow) {
   Operand *o1 = cgFunc.HandleExpr(expr, *expr.Opnd(0));
   Operand *o2 = cgFunc.HandleExpr(expr, *expr.Opnd(1));
@@ -369,6 +375,12 @@ Operand *HandleVectorAddWiden(BaseNode &expr, CGFunc &cgFunc, bool isLow) {
 Operand *HandleVectorFromScalar(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorFromScalar(intrnNode.GetPrimType(), cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0)),
                                        intrnNode.Opnd(0)->GetPrimType());
+}
+
+Operand *HandleVectorAbsSubL(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
+  Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
+  Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
+  return cgFunc.SelectVectorAbsSubL(intrnNode.GetPrimType(), opnd1, opnd2, intrnNode.Opnd(0)->GetPrimType(), isLow);
 }
 
 Operand *HandleVectorMerge(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -418,9 +430,17 @@ Operand *HandleVectorGetElement(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
 }
 
 Operand *HandleVectorPairwiseAdd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
-  Operand *src = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));     /* vector src operand*/
+  Operand *src = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));     /* vector src operand */
   PrimType sType = intrnNode.Opnd(0)->GetPrimType();
   return cgFunc.SelectVectorPairwiseAdd(intrnNode.GetPrimType(), src, sType);
+}
+
+Operand *HandleVectorPairwiseAdalp(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+  BaseNode *arg1 = intrnNode.Opnd(0);
+  BaseNode *arg2 = intrnNode.Opnd(1);
+  Operand *src1 = cgFunc.HandleExpr(intrnNode, *arg1);                  /* vector src operand 1 */
+  Operand *src2 = cgFunc.HandleExpr(intrnNode, *arg2);                  /* vector src operand 2 */
+  return cgFunc.SelectVectorPairwiseAdalp(src1, arg1->GetPrimType(), src2, arg2->GetPrimType());
 }
 
 Operand *HandleVectorSetElement(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
@@ -495,13 +515,13 @@ Operand *HandleVectorMadd(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
   return cgFunc.SelectVectorMadd(opnd1, oTyp1, opnd2, oTyp2, opnd3, oTyp3);
 }
 
-Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc) {
+Operand *HandleVectorMull(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
   PrimType rType = intrnNode.GetPrimType();                            /* result operand */
   Operand *opnd1 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(0));   /* vector operand 1 */
   Operand *opnd2 = cgFunc.HandleExpr(intrnNode, *intrnNode.Opnd(1));   /* vector operand 2 */
   PrimType oTyp1 = intrnNode.Opnd(0)->GetPrimType();
   PrimType oTyp2 = intrnNode.Opnd(1)->GetPrimType();
-  return cgFunc.SelectVectorMull(rType, opnd1, oTyp1, opnd2, oTyp2);
+  return cgFunc.SelectVectorMull(rType, opnd1, oTyp1, opnd2, oTyp2, isLow);
 }
 
 Operand *HandleVectorNarrow(IntrinsicopNode &intrnNode, CGFunc &cgFunc, bool isLow) {
@@ -662,6 +682,16 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_abs_v4i32: case INTRN_vector_abs_v2i64:
       return HandleAbs(parent, intrinsicopNode, cgFunc);
 
+    case INTRN_vector_addl_low_v8i8: case INTRN_vector_addl_low_v8u8:
+    case INTRN_vector_addl_low_v4i16: case INTRN_vector_addl_low_v4u16:
+    case INTRN_vector_addl_low_v2i32: case INTRN_vector_addl_low_v2u32:
+      return HandleVectorAddLong(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_addl_high_v8i8: case INTRN_vector_addl_high_v8u8:
+    case INTRN_vector_addl_high_v4i16: case INTRN_vector_addl_high_v4u16:
+    case INTRN_vector_addl_high_v2i32: case INTRN_vector_addl_high_v2u32:
+      return HandleVectorAddLong(intrinsicopNode, cgFunc, false);
+
     case INTRN_vector_addw_low_v8i8: case INTRN_vector_addw_low_v8u8:
     case INTRN_vector_addw_low_v4i16: case INTRN_vector_addw_low_v4u16:
     case INTRN_vector_addw_low_v2i32: case INTRN_vector_addw_low_v2u32:
@@ -690,6 +720,16 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_from_scalar_v4u32: case INTRN_vector_from_scalar_v4i32:
     case INTRN_vector_from_scalar_v2u64: case INTRN_vector_from_scalar_v2i64:
       return HandleVectorFromScalar(intrinsicopNode, cgFunc);
+
+    case INTRN_vector_labssub_low_v8u8: case INTRN_vector_labssub_low_v8i8:
+    case INTRN_vector_labssub_low_v4u16: case INTRN_vector_labssub_low_v4i16:
+    case INTRN_vector_labssub_low_v2u32: case INTRN_vector_labssub_low_v2i32:
+      return HandleVectorAbsSubL(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_labssub_high_v8u8: case INTRN_vector_labssub_high_v8i8:
+    case INTRN_vector_labssub_high_v4u16: case INTRN_vector_labssub_high_v4i16:
+    case INTRN_vector_labssub_high_v2u32: case INTRN_vector_labssub_high_v2i32:
+      return HandleVectorAbsSubL(intrinsicopNode, cgFunc, false);
 
     case INTRN_vector_merge_v8u8: case INTRN_vector_merge_v8i8:
     case INTRN_vector_merge_v4u16: case INTRN_vector_merge_v4i16:
@@ -733,6 +773,14 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_get_element_v2u64: case INTRN_vector_get_element_v2i64:
       return HandleVectorGetElement(intrinsicopNode, cgFunc);
 
+    case INTRN_vector_pairwise_adalp_v8i8: case INTRN_vector_pairwise_adalp_v4i16:
+    case INTRN_vector_pairwise_adalp_v2i32: case INTRN_vector_pairwise_adalp_v8u8:
+    case INTRN_vector_pairwise_adalp_v4u16: case INTRN_vector_pairwise_adalp_v2u32:
+    case INTRN_vector_pairwise_adalp_v16i8: case INTRN_vector_pairwise_adalp_v8i16:
+    case INTRN_vector_pairwise_adalp_v4i32: case INTRN_vector_pairwise_adalp_v16u8:
+    case INTRN_vector_pairwise_adalp_v8u16: case INTRN_vector_pairwise_adalp_v4u32:
+      return HandleVectorPairwiseAdalp(intrinsicopNode, cgFunc);
+
     case INTRN_vector_pairwise_add_v8u8: case INTRN_vector_pairwise_add_v8i8:
     case INTRN_vector_pairwise_add_v4u16: case INTRN_vector_pairwise_add_v4i16:
     case INTRN_vector_pairwise_add_v2u32: case INTRN_vector_pairwise_add_v2i32:
@@ -746,10 +794,15 @@ Operand *HandleIntrinOp(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
     case INTRN_vector_madd_v2u32: case INTRN_vector_madd_v2i32:
       return HandleVectorMadd(intrinsicopNode, cgFunc);
 
-    case INTRN_vector_mul_v8u8: case INTRN_vector_mul_v8i8:
-    case INTRN_vector_mul_v4u16: case INTRN_vector_mul_v4i16:
-    case INTRN_vector_mul_v2u32: case INTRN_vector_mul_v2i32:
-      return HandleVectorMull(intrinsicopNode, cgFunc);
+    case INTRN_vector_mull_low_v8u8: case INTRN_vector_mull_low_v8i8:
+    case INTRN_vector_mull_low_v4u16: case INTRN_vector_mull_low_v4i16:
+    case INTRN_vector_mull_low_v2u32: case INTRN_vector_mull_low_v2i32:
+      return HandleVectorMull(intrinsicopNode, cgFunc, true);
+
+    case INTRN_vector_mull_high_v8u8: case INTRN_vector_mull_high_v8i8:
+    case INTRN_vector_mull_high_v4u16: case INTRN_vector_mull_high_v4i16:
+    case INTRN_vector_mull_high_v2u32: case INTRN_vector_mull_high_v2i32:
+      return HandleVectorMull(intrinsicopNode, cgFunc, false);
 
     case INTRN_vector_narrow_low_v8u16: case INTRN_vector_narrow_low_v8i16:
     case INTRN_vector_narrow_low_v4u32: case INTRN_vector_narrow_low_v4i32:
@@ -1156,6 +1209,11 @@ void HandleAssertNull(StmtNode &stmt, CGFunc &cgFunc) {
   cgFunc.SelectAssertNull(cgAssertNode);
 }
 
+void HandleAbort(StmtNode &stmt, CGFunc &cgFunc) {
+  auto &cgAbortNode = static_cast<UnaryStmtNode&>(stmt);
+  cgFunc.SelectAbort(cgAbortNode);
+}
+
 void HandleAsm(StmtNode &stmt, CGFunc &cgFunc) {
   cgFunc.SelectAsm(static_cast<AsmNode&>(stmt));
 }
@@ -1187,6 +1245,7 @@ void InitHandleStmtFactory() {
   RegisterFactoryFunction<HandleStmtFactory>(OP_membarstorestore, HandleMembar);
   RegisterFactoryFunction<HandleStmtFactory>(OP_comment, HandleComment);
   RegisterFactoryFunction<HandleStmtFactory>(OP_catch, HandleCatchOp);
+  RegisterFactoryFunction<HandleStmtFactory>(OP_abort, HandleAbort);
   RegisterFactoryFunction<HandleStmtFactory>(OP_assertnonnull, HandleAssertNull);
   RegisterFactoryFunction<HandleStmtFactory>(OP_callassertnonnull, HandleAssertNull);
   RegisterFactoryFunction<HandleStmtFactory>(OP_assignassertnonnull, HandleAssertNull);

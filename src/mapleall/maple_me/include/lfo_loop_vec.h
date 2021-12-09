@@ -129,13 +129,19 @@ class LoopVectorization {
   bool CanWidenOpcode(BaseNode *, PrimType);
   IntrinsicopNode *GenSumVecStmt(BaseNode *, PrimType);
   IntrinsicopNode *GenVectorGetLow(BaseNode *, PrimType);
-  IntrinsicopNode *GenVectorWidenAdd(BaseNode *, BaseNode *, PrimType, bool);
-  IntrinsicopNode *GenVectorSubLong(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorAddw(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorSubl(BaseNode *, BaseNode *, PrimType, bool);
   IntrinsicopNode *GenVectorWidenIntrn(BaseNode *, BaseNode *, PrimType, bool, Opcode);
-  IntrinsicopNode *GenWidenOpndIntrn(BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorWidenOpnd(BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorMull(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorAbsSubl(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorPairWiseAccumulate(BaseNode *, BaseNode *, PrimType);
+  IntrinsicopNode *GenVectorAddl(BaseNode *, BaseNode *, PrimType, bool);
+  IntrinsicopNode *GenVectorNarrowLowNode(BaseNode *, PrimType);
   void GenWidenBinaryExpr(Opcode, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&, MapleVector<BaseNode *>&);
   BaseNode* ConvertNodeType(bool, BaseNode*);
   RegreadNode* GenVectorRedVarInit(StIdx, LoopTransPlan *);
+  MIRIntrinsicID GenVectorAbsSublID(MIRIntrinsicID intrnID);
  public:
   static uint32_t vectorizedLoop;
  private:
