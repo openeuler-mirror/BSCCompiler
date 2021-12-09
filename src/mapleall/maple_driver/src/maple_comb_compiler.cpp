@@ -94,9 +94,12 @@ void MapleCombCompiler::PrintCommand(const MplOptions &options, const Action &ac
       optionStr << " --" << opt.OptionKey() << connectSym << opt.Args();
     }
   }
+
+  std::string driverOptions = options.GetCommonOptionsStr();
+
   optionStr << "\"";
   LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr.str() << " "
-                         << GetInputFileName(options, action) << options.GetPrintCommandStr() << '\n';
+                         << driverOptions << " " << GetInputFileName(options, action) << '\n';
 }
 
 ErrorCode MapleCombCompiler::MakeMeOptions(const MplOptions &options, DriverRunner &runner) {

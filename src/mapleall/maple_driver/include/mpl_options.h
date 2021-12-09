@@ -336,10 +336,6 @@ class MplOptions {
     return selectedExes;
   }
 
-  const std::string &GetPrintCommandStr() const {
-    return printCommandStr;
-  }
-
   bool HasSetDebugFlag() const {
     return debugFlag;
   }
@@ -397,6 +393,7 @@ class MplOptions {
   std::string GetInputFileNameForPrint(const Action * const action) const;
   void PrintCommand(const Action * const action);
   void connectOptStr(std::string &optionStr, const std::string &exeName, bool &firstComb, std::string &runStr);
+  std::string GetCommonOptionsStr() const;
   void PrintDetailCommand(const Action * const action, bool isBeforeParse);
   inline void PrintDetailCommand(bool isBeforeParse) {
     PrintDetailCommand(nullptr, isBeforeParse);
@@ -442,7 +439,6 @@ class MplOptions {
   std::vector<std::string> runningExes = {};
   std::vector<std::string> selectedExes = {};
   bool isWithIpa = false;
-  std::string printCommandStr;
   std::ostringstream printExtraOptStr;
   bool debugFlag = false;
   bool withDwarf = false;
