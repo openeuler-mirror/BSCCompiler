@@ -157,6 +157,17 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
   }
 }
 
+std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
+  std::ostringstream os;
+  for (auto iter = idxs.begin(); iter != idxs.end(); ++iter) {
+    if (iter != idxs.begin()) {
+      os << ", ";
+    }
+    os << *iter;
+  }
+  return os.str();
+}
+
 void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                   uint32 fileNum, uint32 fileLine) {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
@@ -171,12 +182,16 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
         static_cast<FEIRExprAddrofFunc*>(srcExpr.get())->GetFuncAddr());
     MIRFunction *srcFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
     CHECK_FATAL(srcFunc != nullptr, "can not get MIRFunction");
+    std::list<size_t> errIdxs;
     for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFunc->GetNthParamAttr(i).GetAttr(ATTR_nonnull) != funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
-        FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched "
-               "in %d parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, i + 1);
-        break;
+        errIdxs.emplace_back(i + 1);
       }
+    }
+    if (!errIdxs.empty()) {
+      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched "
+             "in %s parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             PrintParamIdx(errIdxs).c_str());
     }
     if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched in return",
@@ -185,13 +200,16 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
   if (srcFuncType != nullptr) {   // check func ptr l-value and func ptr r-value
+    std::list<size_t> errIdxs;
     for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFuncType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull) !=
           funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
-        FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in %d parameter",
-               FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, i + 1);
-        break;
+        errIdxs.emplace_back(i + 1);
       }
+    }
+    if (!errIdxs.empty()) {
+      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in %s parameter",
+             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
     }
     if (srcFuncType->GetRetAttrs().GetAttr(ATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in return",
@@ -1320,9 +1338,11 @@ UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFunc(const UniqueFEIRExpr &le
         return astCallExpr.GetArgsExpr()[i]->Emit2FEExpr(nullStmts);
       }
     }
-    WARN(kLncWarn, "%s:%d EnhanceC warning: The actual parameter [%s] as boundary length var is not found"
-         "in the caller [%s]", FEManager::GetModule().GetFileNameFromFileNum(astCallExpr.GetSrcFileIdx()).c_str(),
-         astCallExpr.GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
+    // the var may be a global var
+    FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "%s:%d EnhanceC warning: The var [%s] as boundary length var "
+        "is not found in the caller func [%s], check the caller whether the var is the actual parameter",
+        FEManager::GetModule().GetFileNameFromFileNum(astCallExpr.GetSrcFileIdx()).c_str(),
+        astCallExpr.GetSrcFileLineNum(), lenName.c_str(), astFunc.GetName().c_str());
   }
   return lenExpr->Clone();
 }
@@ -1421,7 +1441,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   lenExpr = FEIRBuilder::CreateExprBinary(OP_add, retExpr->Clone(), std::move(lenExpr));
   exprs.emplace_back(std::move(lenExpr));
   exprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtNary>(OP_returnassertle, std::move(exprs));
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturnAssertBoundary>(OP_returnassertle, std::move(exprs), GetName());
   stmt->SetSrcFileInfo(stmts.back()->GetSrcFileIdx(), stmts.back()->GetSrcFileLineNum());
   stmts.insert(--stmts.end(), std::move(stmt));
 }
@@ -1869,13 +1889,17 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
         static_cast<FEIRExprAddrofFunc*>(srcExpr.get())->GetFuncAddr());
     MIRFunction *srcFunc = FEManager::GetTypeManager().GetMIRFunction(strIdx, false);
     CHECK_FATAL(srcFunc != nullptr, "can not get MIRFunction");
+    std::list<size_t> errIdxs;
     for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFunc->GetNthParamAttr(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
-        FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-               "in %d parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, i + 1);
-        break;
+        errIdxs.emplace_back(i + 1);
       }
+    }
+    if (!errIdxs.empty()) {
+      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
+             "in %s parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFunc->GetFuncAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
@@ -1884,13 +1908,16 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
   if (srcFuncType != nullptr) {  // check func ptr l-value and func ptr r-value
+    std::list<size_t> errIdxs;
     for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFuncType->GetNthParamAttrs(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
-        FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in %d paramater",
-               FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, i + 1);
-        break;
+        errIdxs.emplace_back(i + 1);
       }
+    }
+    if (!errIdxs.empty()) {
+      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in %s paramater",
+             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFuncType->GetRetAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
       FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in return",

@@ -1686,6 +1686,38 @@ class FEIRStmtSafetyCallAssert {
   size_t paramIndex;
 };
 
+// ---------- FEIRStmtSafetyReturnAssert ----------
+class FEIRStmtSafetyReturnAssert {
+ public:
+  FEIRStmtSafetyReturnAssert(const std::string &funcName)
+      : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)) {}
+
+  virtual ~FEIRStmtSafetyReturnAssert() = default;
+
+  const std::string& GetFuncName() const {
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
+  }
+
+  GStrIdx GetFuncNameIdx() const {
+    return funcNameIdx;
+  }
+
+ private:
+  GStrIdx funcNameIdx;
+};
+
+// ---------- FEIRStmtReturnAssertNonnull ----------
+class FEIRStmtReturnAssertNonnull : public FEIRStmtUseOnly, public FEIRStmtSafetyReturnAssert {
+ public:
+  FEIRStmtReturnAssertNonnull(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr, const std::string &funcName)
+      : FEIRStmtUseOnly(argOp, std::move(argExpr)), FEIRStmtSafetyReturnAssert(funcName) {}
+
+  ~FEIRStmtReturnAssertNonnull() = default;
+
+ protected:
+  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+};
+
 // ---------- FEIRStmtCallAssertNonnull ----------
 class FEIRStmtCallAssertNonnull : public FEIRStmtUseOnly, public FEIRStmtSafetyCallAssert {
  public:
@@ -1712,6 +1744,18 @@ class FEIRStmtCallAssertBoundary : public FEIRStmtNary, public FEIRStmtSafetyCal
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 };
 
+// ---------- FEIRStmtReturnAssertBoundary ----------
+class FEIRStmtReturnAssertBoundary : public FEIRStmtNary, public FEIRStmtSafetyReturnAssert {
+ public:
+  FEIRStmtReturnAssertBoundary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn,
+      const std::string &funcName) : FEIRStmtNary(opIn, std::move(argExprsIn)), FEIRStmtSafetyReturnAssert(funcName) {}
+
+  ~FEIRStmtReturnAssertBoundary() = default;
+
+ protected:
+  std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+};
+
 // ---------- FEIRStmtReturn ----------
 class FEIRStmtReturn : public FEIRStmtUseOnly {
  public:
@@ -1726,7 +1770,7 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
  private:
-  void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans, const std::string& funcName) const;
 };
 
 // ---------- FEIRStmtPesudoLabel ----------

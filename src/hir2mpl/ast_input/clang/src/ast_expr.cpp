@@ -283,6 +283,7 @@ std::unique_ptr<FEIRStmtAssign> ASTCallExpr::GenCallStmt() const {
     }
     callStmt = std::make_unique<FEIRStmtCallAssign>(*info, op, nullptr, false);
   }
+  callStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   return callStmt;
 }
 
