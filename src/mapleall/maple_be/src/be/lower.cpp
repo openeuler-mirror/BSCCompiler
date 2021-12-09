@@ -1073,12 +1073,21 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
       IreadNode *ireadNode = static_cast<IreadNode *>(opnd);
       tyIdxUsed = ireadNode->GetType()->GetTypeIndex();
     }
-    MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(tyIdxUsed, NewAsmTempStrIdx(),
-        kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
-    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
-
-    newBlk->AddStatement(dass);
-    asmNode->SetOpnd(mirModule.GetMIRBuilder()->CreateExprDread(*st), i);
+    StmtNode *assignNode = nullptr;
+    BaseNode *readOpnd = nullptr;
+    PrimType type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdxUsed)->GetPrimType();
+    if ((type != PTY_agg) && CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
+      PregIdx pregIdx = mirModule.CurFunction()->GetPregTab()->CreatePreg(type);
+      assignNode = mirBuilder->CreateStmtRegassign(type, pregIdx, opnd);
+      readOpnd = mirBuilder->CreateExprRegread(type, pregIdx);
+    } else {
+      MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(tyIdxUsed, NewAsmTempStrIdx(),
+          kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
+      assignNode = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
+      readOpnd = mirBuilder->CreateExprDread(*st);
+    }
+    newBlk->AddStatement(assignNode);
+    asmNode->SetOpnd(readOpnd, i);
   }
   newBlk->AddStatement(asmNode);
 }
@@ -1620,15 +1629,12 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   argsPrintf.push_back(mirBuilder->CreateAddrof(*errMsg, PTY_a64));
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
 
-  MIRFunction *func = mirBuilder->GetOrCreateFunction("abort", TyIdx(PTY_void));
-  beCommon.UpdateTypeTable(*func->GetMIRFuncType());
-  MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  StmtNode *call = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
+  UnaryStmtNode *abortModeNode = mirBuilder->CreateStmtUnary(OP_abort, nullptr);
 
   newBlk.AddStatement(brFalseNode);
   abortNode.emplace_back(labelBC);
   abortNode.emplace_back(callPrintf);
-  abortNode.emplace_back(call);
+  abortNode.emplace_back(abortModeNode);
 }
 
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
