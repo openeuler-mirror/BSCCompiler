@@ -98,8 +98,8 @@ class Option {
   Option(const Descriptor &desc, const std::string &optionKey,
          const std::string &args, OptionPrefixType prefixType,
          bool isEqualPrefix)
-    : descriptor(desc), optionKey(optionKey), args(args),
-      prefixType(prefixType), isEqualPrefix(isEqualPrefix) {}
+      : descriptor(desc), optionKey(optionKey), args(args),
+        prefixType(prefixType), isEqualPrefix(isEqualPrefix) {}
 
   ~Option() = default;
 
@@ -109,6 +109,10 @@ class Option {
 
   int Type() const {
     return descriptor.type;
+  }
+
+  const std::string &GetExeName() const {
+    return descriptor.exeName;
   }
 
   OptionPrefixType GetPrefixType() const {
