@@ -467,7 +467,7 @@ void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::
     if (countAttr->index_size()) {
       continue;  // boundary attrs with index args are only marked function pointers
     }
-    ProcessBoundaryLenExprInVar(allocator, astVar, varDecl.getType(), lenExpr, true);
+    ProcessBoundaryLenExprInVar(allocator, astVar, varDecl, lenExpr, true);
   }
   for (const auto *byteCountAttr : varDecl.specific_attrs<clang::ByteCountAttr>()) {
     clang::Expr *expr = byteCountAttr->getLenExpr();
@@ -475,7 +475,7 @@ void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::
     if (lenExpr == nullptr) {
       continue;
     }
-    ProcessBoundaryLenExprInVar(allocator, astVar, varDecl.getType(), lenExpr, false);
+    ProcessBoundaryLenExprInVar(allocator, astVar, varDecl, lenExpr, false);
   }
 }
 
@@ -742,6 +742,17 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
 }
 
 void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl,
+                                            const clang::VarDecl &varDecl, ASTExpr *lenExpr, bool isSize) {
+  if (!varDecl.isLocalVarDeclOrParm()) {
+    ASTDecl *lenDecl = lenExpr->GetASTDecl();
+    if (lenDecl != nullptr && FEUtils::IsInteger(lenDecl->GetTypeDesc().front()->GetPrimType())) {
+      lenDecl->SetAttr(GENATTR_final_boundary_size);
+    }
+  }
+  ProcessBoundaryLenExprInVar(allocator, ptrDecl, varDecl.getType(), lenExpr, isSize);
+}
+
+void ASTParser::ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl,
                                             const clang::QualType &qualType, ASTExpr *lenExpr, bool isSize) {
   // The StringLiteral is not allowed to use as boundary length of var
   auto getLenExprFromStringLiteral = [&]() -> ASTExpr* {
@@ -770,6 +781,7 @@ void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl
                lenExpr->GetSrcFileLineNum(), lenName.c_str(), structDecl.GetName().c_str());
         return nullptr;
       }
+      fieldDecl->SetAttr(GENATTR_final_boundary_size);
       ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
       lenRefExpr->SetASTDecl(fieldDecl);
       lenRefExpr->SetType(fieldDecl->GetTypeDesc().front());
@@ -1630,6 +1642,73 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);
+}
+
+void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
+                                             uint32 fileIdx, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  bool isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
+  if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+    isUnsafe = !FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+  }
+  if (isUnsafe) {  // not warning in unsafe region
+    return;
+  }
+  if (fieldID == 0) {
+    MIRSymbol *dstSym = var->GenerateMIRSymbol(mirBuilder);
+    if (dstSym->GetAttr(ATTR_final_boundary_size)) {
+      WARN(kLncWarn, "%s:%d warning: this var specified as the global or field boundary length is "
+           "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+    }
+  } else {
+    FieldID tmpID = fieldID;
+    MIRStructType *structType = static_cast<MIRStructType*>(var->GetType()->GenerateMIRTypeAuto());
+    FieldPair fieldPair = structType->TraverseToFieldRef(tmpID);
+    if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
+      WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
+           "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+           FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+    }
+  }
+}
+
+void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
+                                             uint32 fileIdx, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || fieldID == 0) {
+    return;
+  }
+  bool isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
+  if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+    isUnsafe = !FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+  }
+  if (isUnsafe) {  // not warning in unsafe region
+    return;
+  }
+  MIRType *baseType = static_cast<MIRPtrType*>(addrType->GenerateMIRTypeAuto())->GetPointedType();
+  FieldID tmpID = fieldID;
+  FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
+  if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
+    WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
+         "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+         FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
+  }
+}
+
+void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr,
+                                           uint32 fileIdx, uint32 fileLine) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  if (expr->GetKind() == kExprAddrofVar) {
+    UniqueFEIRVar var = expr->GetVarUses().front()->Clone();
+    CheckBoundaryLenFinalAssign(mirBuilder, var, expr->GetFieldID(), fileIdx, fileLine);
+  } else if (expr->GetKind() == kExprIAddrof) {
+    auto *iaddrof = static_cast<FEIRExprIAddrof*>(expr.get());
+    CheckBoundaryLenFinalAssign(mirBuilder, iaddrof->GetClonedPtrType(), expr->GetFieldID(), fileIdx, fileLine);
+  }
 }
 
 MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuilder) const {

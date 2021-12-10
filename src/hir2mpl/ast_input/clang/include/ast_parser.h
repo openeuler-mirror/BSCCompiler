@@ -181,6 +181,8 @@ class ASTParser {
                                     unsigned int idx, ASTFunc &astFunc, ASTExpr *lenExpr, bool isSize);
   void ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                     unsigned int idx, ASTFunc &astFunc, unsigned int lenIdx, bool isSize);
+  void ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::VarDecl &varDecl,
+                                   ASTExpr *lenExpr, bool isSize);
   void ProcessBoundaryLenExprInVar(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::QualType &qualType,
                                    ASTExpr *lenExpr, bool isSize);
   void ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl &ptrDecl, const ASTStruct &structDecl,
