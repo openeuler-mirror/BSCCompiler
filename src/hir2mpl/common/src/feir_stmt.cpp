@@ -326,6 +326,8 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   StmtNode *mirStmt = mirBuilder.CreateStmtDassign(*dstSym, fieldID, srcNode);
   ans.push_back(mirStmt);
   AssignBoundaryVarAndChecking(mirBuilder, ans);
+  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, var, fieldID, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
   return ans;
 }
 
@@ -852,6 +854,7 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
       std::string funcName = mirBuilder.GetCurrentFunction()->GetName();
       InsertNonnullChecking(mirBuilder, ans, funcName);
       ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
+      ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
       mirStmt = mirBuilder.CreateStmtReturn(srcNode);
     }
   }
@@ -1822,6 +1825,7 @@ std::list<StmtNode*> FEIRStmtCallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     InsertNonnullCheckingInArgs(exprArg, index++, mirBuilder, ans, funcName);
     ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
+    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, srcFileIndex, srcFileLineNum);
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     args.push_back(node);
   }
@@ -2019,6 +2023,7 @@ std::list<StmtNode*> FEIRStmtICallAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder
   for (const UniqueFEIRExpr &exprArg : exprArgs) {
     BaseNode *node = exprArg->GenMIRNode(mirBuilder);
     ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, exprArg, srcFileIndex, srcFileLineNum);
+    ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, exprArg, srcFileIndex, srcFileLineNum);
     args.push_back(node);
   }
   InsertNonnullCheckingInArgs(mirBuilder, ans);
@@ -4174,6 +4179,8 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fieldID, addrNode, baseNode);
   ans.emplace_back(iAssignNode);
   AssignBoundaryVarAndChecking(mirBuilder, ans);
+  ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, addrType, fieldID, srcFileIndex, srcFileLineNum);
+  ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, addrExpr, srcFileIndex, srcFileLineNum);
   return ans;
 }
 
