@@ -292,6 +292,8 @@ class CGFunc {
   virtual Operand &GetTargetRetOperand(PrimType primType, int32 sReg) = 0;
   virtual Operand &CreateImmOperand(PrimType primType, int64 val) = 0;
   virtual Operand *CreateZeroOperand(PrimType primType) = 0;
+  virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) = 0;
+  virtual void CleanupDeadMov() = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
@@ -313,7 +315,8 @@ class CGFunc {
   virtual RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, Operand *o3,
                                        PrimType oTyp3) = 0;
   virtual RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) = 0;
-  virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, bool isLow) = 0;
+  virtual RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1,
+      Operand *o2, PrimType oTyp2, bool isLow) = 0;
   virtual RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp) = 0;
   virtual RegOperand *SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) = 0;
   virtual RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) = 0;

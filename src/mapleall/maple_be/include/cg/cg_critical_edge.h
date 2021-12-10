@@ -38,8 +38,7 @@ class CriticalEdge{
   MapleVector<std::pair<BB*, BB*>> criticalEdges;
 };
 
-MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgCriticalEdge, maplebe::CGFunc)
-MAPLE_FUNC_PHASE_DECLARE_END
+MAPLE_FUNC_PHASE_DECLARE(CgCriticalEdge, maplebe::CGFunc)
 }  /* namespace maplebe */
 
 #endif  /* MAPLEBE_INCLUDE_CG_CRITICAL_EDGE_H */

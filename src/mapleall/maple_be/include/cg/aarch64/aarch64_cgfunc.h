@@ -247,6 +247,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyImm(Operand &dest, PrimType dType, ImmOperand &src, PrimType sType);
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
+  bool IsRegRematCand(RegOperand &reg);
+  void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
+  void CleanupDeadMov() override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
   const Operand *GetRflag() const override;
@@ -288,7 +291,8 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *SelectVectorMadd(Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2,
                                Operand *o3, PrimType oTyp3) override;
   RegOperand *SelectVectorMerge(PrimType rTyp, Operand *o1, Operand *o2, int32 iNum) override;
-  RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1, Operand *o2, PrimType oTyp2, bool isLow) override;
+  RegOperand *SelectVectorMull(PrimType rType, Operand *o1, PrimType oTyp1,
+      Operand *o2, PrimType oTyp2, bool isLow) override;
   RegOperand *SelectVectorNarrow(PrimType rType, Operand *o1, PrimType otyp) override;
   RegOperand *SelectVectorNarrow2(PrimType rType, Operand *o1, PrimType oty1, Operand *o2, PrimType oty2) override;
   RegOperand *SelectVectorNeg(PrimType rType, Operand *o1) override;
