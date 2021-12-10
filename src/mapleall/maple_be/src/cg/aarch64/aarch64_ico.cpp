@@ -100,16 +100,18 @@ Insn *AArch64ICOPattern::BuildCondSet(const Insn &branch, RegOperand &reg, bool 
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
   AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
   CondOperand &cond = func->GetCondOperand(ccCode);
+  Operand &rflag = func->GetOrCreateRflag();
   MOperator mopCode = (reg.GetSize() == k64BitSize) ? MOP_xcsetrc : MOP_wcsetrc;
-  return &func->GetCG()->BuildInstruction<AArch64Insn>(mopCode, reg, cond);
+  return &func->GetCG()->BuildInstruction<AArch64Insn>(mopCode, reg, cond, rflag);
 }
 
 Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1,
                                       RegOperand &src2) {
   AArch64CC_t ccCode = Encode(branch.GetMachineOpcode(), false);
   ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
-  CondOperand &cond = static_cast<AArch64CGFunc*>(cgFunc)->GetCondOperand(ccCode);
-  return &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dst, src1, src2, cond);
+  CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
+  Operand &rflag = static_cast<AArch64CGFunc *>(cgFunc)->GetOrCreateRflag();
+  return &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dst, src1, src2, cond, rflag);
 }
 
 void AArch64ICOPattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
@@ -122,13 +124,17 @@ void AArch64ICOPattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDe
     ASSERT(csetInsn != nullptr, "build a insn failed");
     generateInsn.emplace_back(csetInsn);
   } else if (imm1.GetValue() == imm2.GetValue()) {
-    MOperator mOp = (destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32);
+    bool destIsIntTy = destReg.IsOfIntClass();
+    MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
+                    ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     Insn &tempInsn =
         cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, destReg,
                                                                                                     imm1);
     generateInsn.emplace_back(&tempInsn);
   } else {
-    MOperator mOp = (destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32);
+    bool destIsIntTy = destReg.IsOfIntClass();
+    MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
+                    ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     RegOperand *tempTarIf = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
     Insn &tempInsnIf =
         cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, *tempTarIf,
@@ -156,7 +162,9 @@ RegOperand *AArch64ICOPattern::GenerateRegAndTempInsn(Operand &dest, const RegOp
                                                       std::vector<Insn*> &generateInsn) {
   RegOperand *reg = nullptr;
   if (!dest.IsRegister()) {
-    MOperator mOp = (destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32);
+    bool destIsIntTy = destReg.IsOfIntClass();
+    MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
+        ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     reg = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
     ImmOperand &tempSrcElse = static_cast<ImmOperand&>(dest);
     Insn &tempInsn =
@@ -171,8 +179,8 @@ RegOperand *AArch64ICOPattern::GenerateRegAndTempInsn(Operand &dest, const RegOp
 
 void AArch64ICOPattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
                                            RegOperand &destReg, std::vector<Insn*> &generateInsn) {
-  RegOperand *tReg = GenerateRegAndTempInsn(ifDest, destReg, generateInsn);
-  RegOperand *eReg = GenerateRegAndTempInsn(elseDest, destReg, generateInsn);
+  RegOperand *tReg = static_cast<RegOperand*>(&ifDest);
+  RegOperand *eReg = static_cast<RegOperand*>(&elseDest);
 
   /* mov w0, w1   mov w0, w1  --> mov w0, w1 */
   if (eReg->GetRegisterNumber() == tReg->GetRegisterNumber()) {
@@ -260,7 +268,13 @@ bool AArch64ICOPattern::BuildCondMovInsn(BB &cmpBB, const BB &bb, const std::map
     if (ifDest->IsIntImmediate() && elseDest->IsIntImmediate()) {
       GenerateInsnForImm(*branchInsn, *ifDest, *elseDest, *destReg, generateInsn);
     } else {
-      GenerateInsnForReg(*branchInsn, *ifDest, *elseDest, *destReg, generateInsn);
+      RegOperand *tReg = GenerateRegAndTempInsn(*ifDest, *destReg, generateInsn);
+      RegOperand *eReg = GenerateRegAndTempInsn(*elseDest, *destReg, generateInsn);
+      if ((tReg->GetRegisterType() != eReg->GetRegisterType()) ||
+          (tReg->GetRegisterType() != destReg->GetRegisterType())) {
+        return false;
+      }
+      GenerateInsnForReg(*branchInsn, *tReg, *eReg, *destReg, generateInsn);
     }
   }
 

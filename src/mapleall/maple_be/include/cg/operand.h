@@ -777,6 +777,11 @@ class PhiOperand : public Operand {
     phiList.insert(std::pair(bbId, &phiParam));
   }
 
+  void UpdateOpnd(uint32 bbId, uint32 newId, RegOperand &phiParam) {
+    phiList.insert(std::pair(newId, &phiParam));
+    phiList.erase(bbId);
+  }
+
   MapleMap<uint32, RegOperand*> &GetOperands() {
     return phiList;
   }

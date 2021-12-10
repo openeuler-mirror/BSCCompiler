@@ -726,6 +726,20 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
     }
   }
   newBB.PushBackPreds(pred);
+
+  /* update phi */
+  for (auto phiInsnIt : succ.GetPhiInsns()) {
+    auto &phiList = static_cast<PhiOperand&>(phiInsnIt.second->GetOperand(kInsnSecondOpnd));
+    for (auto phiOpndIt : phiList.GetOperands()) {
+      uint32 fBBId = phiOpndIt.first;
+      ASSERT(fBBId != 0, "GetFromBBID = 0");
+      BB *predBB = cgFunc->GetBBFromID(fBBId);
+      if (predBB == &pred) {
+        phiList.UpdateOpnd(fBBId, newBB.GetId(), *phiOpndIt.second);
+        break;
+      }
+    }
+  }
 }
 
 void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {

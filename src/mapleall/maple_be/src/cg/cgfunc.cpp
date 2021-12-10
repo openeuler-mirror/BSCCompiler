@@ -1734,6 +1734,7 @@ void CGFunc::UpdateCallBBFrequency() {
 void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
+  CleanupDeadMov();
   /* merge multi return */
   if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge()) {
     MergeReturn();

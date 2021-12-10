@@ -14,6 +14,7 @@
  */
 #include "cg.h"
 #include "cg_critical_edge.h"
+#include "cg_ssa.h"
 
 namespace maplebe {
 void CriticalEdge::SplitCriticalEdges() {
@@ -51,5 +52,9 @@ bool CgCriticalEdge::PhaseRun(maplebe::CGFunc &f) {
     split->SplitCriticalEdges();
   }
   return false;
+}
+
+void CgCriticalEdge::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddPreserved<CgSSAConstruct>();
 }
 }  /* namespace maplebe */

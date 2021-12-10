@@ -5412,6 +5412,86 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   return &resOpnd;
 }
 
+bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
+  MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber());
+  if (preg != nullptr && preg->GetOp() != OP_undef) {
+    if ( preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
+      return true;
+    }
+    else if ( preg->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
+      return true;
+    }
+    else if ( preg->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) {
+  auto opndNum = static_cast<int32>(insn.GetOperandSize());
+  for (int i = opndNum - 1; i >= 0; --i) {
+    Operand &opnd = insn.GetOperand(i);
+    if (opnd.IsList()) {
+      std::list<RegOperand*> tempRegStore;
+      for (auto regOpnd : static_cast<AArch64ListOperand&>(opnd).GetOperands()) {
+        if (regOpnd == &regDest) {
+          tempRegStore.push_back(&regSrc);
+          static_cast<AArch64ListOperand&>(opnd).RemoveOpnd(*regOpnd);
+        }
+      }
+      for (auto newOpnd : tempRegStore) {
+        static_cast<AArch64ListOperand&>(opnd).PushOpnd(*newOpnd);
+      }
+    } else if (opnd.IsMemoryAccessOperand()) {
+      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+      RegOperand *baseRegOpnd = memOpnd.GetBaseRegister();
+      RegOperand *indexRegOpnd = memOpnd.GetIndexRegister();
+      if ((baseRegOpnd != nullptr && baseRegOpnd == &regDest) ||
+          (indexRegOpnd != nullptr && indexRegOpnd == &regDest)) {
+        if (baseRegOpnd != nullptr && baseRegOpnd == &regDest) {
+          memOpnd.SetBaseRegister(static_cast<AArch64RegOperand&>(regSrc));
+        }
+        if (indexRegOpnd != nullptr && indexRegOpnd == &regDest) {
+          memOpnd.SetIndexRegister(regSrc);
+        }
+        insn.SetMemOpnd(&GetOrCreateMemOpnd(memOpnd));
+      }
+    } else if (opnd.IsRegister()) {
+      auto &regOpnd = static_cast<RegOperand&>(opnd);
+      if (&regOpnd == &regDest) {
+        ASSERT(regOpnd.GetRegisterNumber() != kRFLAG, "both condi and reg");
+        insn.SetOperand(i, regSrc);
+      }
+    }
+  }
+}
+
+void AArch64CGFunc::CleanupDeadMov() {
+  /* clean dead mov. */
+  FOR_ALL_BB(bb, this) {
+    FOR_BB_INSNS_SAFE(insn, bb, ninsn) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (insn->GetMachineOpcode() == MOP_xmovrr || insn->GetMachineOpcode() == MOP_wmovrr ||
+          insn->GetMachineOpcode() == MOP_xvmovs || insn->GetMachineOpcode() == MOP_xvmovd) {
+        RegOperand &regDest = static_cast<RegOperand &>(insn->GetOperand(kInsnFirstOpnd));
+        RegOperand &regSrc = static_cast<RegOperand &>(insn->GetOperand(kInsnSecondOpnd));
+        if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
+          continue;
+        }
+        if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
+          bb->RemoveInsn(*insn);
+        }
+      }
+    }
+  }
+}
+
 Operand &AArch64CGFunc::GetZeroOpnd(uint32 size) {
   return AArch64RegOperand::GetZeroRegister(size <= k32BitSize ? k32BitSize : k64BitSize);
 }
@@ -9504,7 +9584,8 @@ RegOperand *AArch64CGFunc::SelectVectorAbs(PrimType rType, Operand *o1) {
   return res;
 }
 
-RegOperand *AArch64CGFunc::SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2, PrimType otyp, bool isLow) {
+RegOperand *AArch64CGFunc::SelectVectorAddLong(PrimType rType, Operand *o1, Operand *o2,
+    PrimType otyp, bool isLow) {
 
   RegOperand *res = &CreateRegisterOperandOfType(rType);                     /* result type */
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
@@ -9655,7 +9736,8 @@ RegOperand *AArch64CGFunc::SelectVectorGetElement(PrimType rType, Operand *src, 
        return tmp+b;
    The return value of vadalp is then assigned to c, leaving value of a intact.
  */
-RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty1, Operand *src2, PrimType sty2) {
+RegOperand *AArch64CGFunc::SelectVectorPairwiseAdalp(Operand *src1, PrimType sty1,
+    Operand *src2, PrimType sty2) {
   VectorRegSpec *vecSpecDest;
   RegOperand *res;
 
@@ -9737,7 +9819,8 @@ RegOperand *AArch64CGFunc::SelectVectorSetElement(Operand *eOpnd, PrimType eType
   return static_cast<RegOperand*>(vOpnd);
 }
 
-RegOperand *AArch64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2, PrimType oTy, bool isLow) {
+RegOperand *AArch64CGFunc::SelectVectorAbsSubL(PrimType rType, Operand *o1, Operand *o2,
+    PrimType oTy, bool isLow) {
   RegOperand *res = &CreateRegisterOperandOfType(rType);
   VectorRegSpec *vecSpecDest = GetMemoryPool()->New<VectorRegSpec>(rType);
   VectorRegSpec *vecSpecOpd1 = GetMemoryPool()->New<VectorRegSpec>(oTy);

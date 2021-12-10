@@ -376,7 +376,10 @@ bool AArch64Ebo::DoConstProp(Insn &insn, uint32 idx, Operand &opnd) {
   AArch64ImmOperand *src = static_cast<AArch64ImmOperand*>(&opnd);
   const AArch64MD *md = &AArch64CG::kMd[(insn.GetMachineOpcode())];
   /* avoid the invalid case "cmp wzr, #0"/"add w1, wzr, #100" */
-  if (src->IsZero() && insn.GetOperand(idx).IsRegister() && (insn.IsStore() || insn.IsMove() || md->IsCondDef())) {
+  Operand &destOpnd = insn.GetOperand(idx);
+  if (src->IsZero() && destOpnd.IsRegister() &&
+      (static_cast<RegOperand&>(destOpnd).GetRegisterType() == kRegTyInt) &&
+      (insn.IsStore() || insn.IsMove() || md->IsCondDef())) {
     insn.SetOperand(idx, *GetZeroOpnd(src->GetSize()));
     return true;
   }
@@ -459,15 +462,14 @@ bool AArch64Ebo::Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) {
 
   Operand *res = insn.GetResult(0);
 
-  ASSERT(res != nullptr, "expect a register");
-  ASSERT(res->IsRegister(), "expect a register");
-  /* only do integers */
-  RegOperand *reg = static_cast<RegOperand*>(res);
-  if ((res == nullptr) || (!reg->IsOfIntClass())) {
-    return false;
-  }
   /* csel ->cset */
   if ((opCode == MOP_wcselrrrc) || (opCode == MOP_xcselrrrc)) {
+    ASSERT(res->IsRegister(), "expect a register");
+    /* only do integers */
+    RegOperand *reg = static_cast<RegOperand*>(res);
+    if ((res == nullptr) || (!reg->IsOfIntClass())) {
+      return false;
+    }
     Operand *op0 = opnds.at(kInsnSecondOpnd);
     Operand *op1 = opnds.at(kInsnThirdOpnd);
     AArch64ImmOperand *imm0 = nullptr;
