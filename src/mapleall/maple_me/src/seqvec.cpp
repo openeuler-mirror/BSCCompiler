@@ -304,19 +304,7 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
   } else {
     CHECK_FATAL(0, "NIY:: iassign addrExpr op");
   }
-#if 0
-  if (iassign->addrExpr->GetOpCode() == OP_array) {
-    NaryMeExpr *baseNary = static_cast<NaryMeExpr *>(ivarMeExpr->GetBase());
-    base = baseNary->GetOpnd(0);
-  } else if (ivarMeExpr->GetOp() == maple::OP_iread || ivarMeExpr->GetOp() == maple::OP_ireadoff) {
-    base = ivarMeExpr->GetBase();
-  } else if (iassign->addrExpr->GetOpCode() == OP_add) {
-    OpMeExpr *opexpr = static_cast<OpMeExpr *>(ivarMeExpr->GetBase());
-    base = opexpr->GetOpnd(0);
-  } else {
-    CHECK_FATAL(0, "NIY:: iassign addrExpr op");
-  }
-#endif
+
   if (stores.count(base) > 0) {
     StoreList *list = stores[base];
     (*list).push_back(iassign);
@@ -343,8 +331,17 @@ bool SeqVectorize::SameIntConstValue(MeExpr *e1, MeExpr *e2) {
 
 bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
   // case 1: rhs1 and rhs2 are constval and same value
-  if (SameIntConstValue(rhs1, rhs2)) {
-    return true;
+  if ((rhs1 == rhs2) || SameIntConstValue(rhs1, rhs2)) {
+    if (IsRhsConst() || IsRhsStatusUnset()) {
+      SetRhsConst();
+      return true;
+    } else {
+      return false;
+    }
+  }
+  // current rhs is not same status
+  if (IsRhsConst()) {
+    return false;
   }
   // case 2: iread consecutive memory
   if (rhs1->GetMeOp() == rhs2->GetMeOp()) {
@@ -361,6 +358,7 @@ bool SeqVectorize::CanSeqVecRhs(MeExpr *rhs1, MeExpr *rhs2) {
       }
       PrimType diffType = ptrType->GetPointedType()->GetPrimType();
       if (IsIvarExprConsecutiveMem(rhs1Ivar, rhs2Ivar, diffType)) {
+        SetRhsConsercutiveMem();
         return true;
       }
     }
@@ -495,7 +493,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     CHECK_FATAL(parent && parent->GetOpCode() == OP_block, "unexpect parent type");
     BlockNode *blockParent = static_cast<BlockNode *>(parent);
     // update rhs
-    if (iassign->GetRHS()->GetOpCode() == OP_constval) {
+    if (IsRhsConst()) {
       // rhs is constant
       RegassignNode *dupScalarStmt = GenDupScalarStmt(iassign->GetRHS(), vecType->GetPrimType());
       RegreadNode *regreadNode = codeMP->New<RegreadNode>(vecType->GetPrimType(), dupScalarStmt->GetRegIdx());
@@ -504,16 +502,14 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     } else if (iassign->GetRHS()->GetOpCode() == OP_iread) {
       // rhs is iread
       IreadNode *ireadnode = static_cast<IreadNode *>(iassign->GetRHS());
-      MIRType &mirType = GetTypeFromTyIdx(ireadnode->GetTyIdx());
-      CHECK_FATAL(mirType.GetKind() == kTypePointer, "iread must have pointer type");
-      MIRPtrType *rhsptrType = static_cast<MIRPtrType*>(&mirType);
+      MIRType *mirType = ireadnode->GetType();
       MIRType *rhsvecType = nullptr;
-      if (rhsptrType->GetPointedType()->GetPrimType() == PTY_agg) {
+      if (mirType->GetPrimType() == PTY_agg) {
         // iread variable from a struct, use iread type
         rhsvecType = GenVecType(ireadnode->GetPrimType(), lanes);
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
       } else {
-        rhsvecType = GenVecType(rhsptrType->GetPointedType()->GetPrimType(), lanes);
+        rhsvecType = GenVecType(mirType->GetPrimType(), lanes);
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
         MIRType *rhspvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*rhsvecType, PTY_ptr);
         ireadnode->SetTyIdx(rhspvecType->GetTypeIndex()); // update ptr type
@@ -539,6 +535,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
   uint32_t len = storelist->size();
   bool needReverse = true;
   cands.clear();
+  ResetRhsStatus(); // reset rhs is const flag
   for (int i = 0; i < len; i++) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
@@ -558,6 +555,7 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
   }
 
   if (!needReverse) return;
+  ResetRhsStatus(); // reset rhs is const flag
   for (int i = len - 1; i >= 0; i--) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));

@@ -33,6 +33,7 @@ class SeqVectorize {
     lfoStmtParts = lfoEmit->GetLfoStmtMap();
     lfoExprParts = lfoEmit->GetLfoExprMap();
   }
+  virtual ~SeqVectorize() = default;
   void Perform();
   void VisitNode(StmtNode *);
   void CollectStores(IassignNode *iassign);
@@ -49,6 +50,13 @@ class SeqVectorize {
   bool CanAdjustRhsType(PrimType targetType, ConstvalNode *rhs);
   void MergeIassigns(MapleVector<IassignNode *> &cands);
   bool IsIvarExprConsecutiveMem(IvarMeExpr *, IvarMeExpr *, PrimType);
+ private:
+  void ResetRhsStatus() { currRhsStatus = 0; }
+  void SetRhsConst() { currRhsStatus = 1; }
+  void SetRhsConsercutiveMem() { currRhsStatus = 2; }
+  bool IsRhsStatusUnset() { return currRhsStatus == 0; }
+  bool IsRhsConst() { return currRhsStatus == 1; }
+  bool IsRhsConsercutiveMem() { return currRhsStatus == 0; }
  public:
   static uint32_t seqVecStores;
   // iassignnode in same level block
@@ -63,6 +71,7 @@ class SeqVectorize {
   // point to lfoexprparts of lfopreemit, map lfoinfo for exprNode, key is mirnode
   MapleMap<BaseNode *, LfoPart *> *lfoExprParts;
   StoreListMap stores;
+  uint32_t currRhsStatus = 0; // unset
   bool enableDebug = true;
 };
 }  // namespace maple
