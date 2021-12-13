@@ -17,13 +17,12 @@ set -e
 
 if [ ! -d $MAPLEALL_ROOT ]; then
   cd $MAPLE_ROOT
-  git clone https://gitee.com/openarkcompiler/OpenArkCompiler.git
+  git clone https://gitee.com/openarkcompiler/OpenArkCompiler.git -b dev_MapleFE
 fi
 
 cd $MAPLEALL_ROOT
-git checkout master
-git pull
 git checkout dev_MapleFE
+git pull
 source build/envsetup.sh arm debug
 make setup
 make clobber
