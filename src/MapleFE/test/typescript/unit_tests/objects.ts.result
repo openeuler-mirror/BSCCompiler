@@ -1,0 +1,44 @@
+Matched 6 tokens.
+Matched 24 tokens.
+Matched 47 tokens.
+Matched 55 tokens.
+Matched 68 tokens.
+Matched 80 tokens.
+Matched 90 tokens.
+Matched 100 tokens.
+Matched 111 tokens.
+Matched 122 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func()  throws: 
+
+== Sub Tree ==
+js_let Decl: funcObj=func  (name)  throws: 
+  this._name Assign name
+
+== Sub Tree ==
+class  ObjClass
+  Fields: 
+    _name
+  Instance Initializer: 
+  Constructors: 
+    constructor  (name)  throws: 
+      this._name Assign name
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_let Decl: obj_a= {}
+== Sub Tree ==
+js_let Decl: obj_b=Object.create( {})
+== Sub Tree ==
+js_let Decl: obj_c=Object.create(null)
+== Sub Tree ==
+js_let Decl: obj_d=new Object()
+== Sub Tree ==
+js_let Decl: obj_e=new func()
+== Sub Tree ==
+js_let Decl: obj_f=new funcObj("John")
+== Sub Tree ==
+js_let Decl: obj_g=new ObjClass("John")

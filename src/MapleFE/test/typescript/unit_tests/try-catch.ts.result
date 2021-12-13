@@ -1,0 +1,14 @@
+Matched 70 tokens.
+============= Module ===========
+== Sub Tree ==
+for ( )
+  try     cond-branch cond:i EQ 0
+    true branch :
+      throw new Error("Zero")
+    false branch :
+
+    console.log("try",3 Div i)
+  catch()    console.log("catch",err)
+  finally     console.log("finally",i)
+
+

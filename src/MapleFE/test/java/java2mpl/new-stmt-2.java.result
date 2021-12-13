@@ -1,0 +1,26 @@
+Matched 18 tokens.
+Matched 29 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo(a)  throws: 
+      new Cyclic(a)
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  Cyclic
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+    constructor  Cyclic(i)  throws: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+

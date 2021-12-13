@@ -1,0 +1,13 @@
+Matched 18 tokens.
+============= Module ===========
+== Sub Tree ==
+declare class  Klass
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    get flag()  throws: 
+  LocalClasses: 
+  LocalInterfaces: 
+

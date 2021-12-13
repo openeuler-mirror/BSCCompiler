@@ -1,0 +1,32 @@
+Matched 27 tokens.
+Matched 36 tokens.
+Matched 43 tokens.
+Matched 114 tokens.
+Matched 121 tokens.
+============= Module ===========
+== Sub Tree ==
+js_var Decl: arr=[7,4,5,9,2,8,1,6,3]
+== Sub Tree ==
+js_var Decl: len=arr.length
+== Sub Tree ==
+js_var Decl: sum=0
+== Sub Tree ==
+outer:
+for ( )
+  for ( )
+    sum AddAssign arr[i]
+    console.log(sum)
+    cond-branch cond:arr[j] GT 5
+    true branch :
+      continue:outer
+    false branch :
+
+    cond-branch cond:sum GE 60
+    true branch :
+      break:outer
+    false branch :
+
+
+
+== Sub Tree ==
+console.log(sum)

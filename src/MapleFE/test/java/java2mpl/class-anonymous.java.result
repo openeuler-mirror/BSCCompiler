@@ -1,0 +1,14 @@
+Matched 55 tokens.
+============= Module ===========
+== Sub Tree ==
+class  ChatTest
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  performDontReceiveMessageInNameState()  throws:     Exception
+      Decl: client2=new Thread(new ChatConnection())
+  LocalClasses: 
+  LocalInterfaces: 
+

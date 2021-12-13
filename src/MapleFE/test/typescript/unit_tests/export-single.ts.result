@@ -1,0 +1,15 @@
+Matched 10 tokens.
+Matched 14 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    name=""
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+export { SINGLE Klass} 

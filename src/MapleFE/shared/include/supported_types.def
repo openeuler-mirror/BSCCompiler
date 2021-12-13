@@ -1,0 +1,54 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+
+// This file defines the complete set of primitive types supported in Autogen
+// and the parser.
+
+TYPE(None)
+
+PRIMTYPE(Boolean)
+PRIMTYPE(Byte)
+PRIMTYPE(Short)
+PRIMTYPE(Int)
+PRIMTYPE(Long)
+PRIMTYPE(Char)
+PRIMTYPE(Float)
+PRIMTYPE(Double)
+
+// keep these two after primitive types as we are going to create
+// primitive types for them as well
+TYPE(Number)    // First come from JS
+TYPE(String)    // First come from JS
+
+TYPE(Void)      // Although this is not a type, it does categorize the types.
+TYPE(Null)      // The Null type. It is a type.
+TYPE(Unknown)   // First come from TS 3.0
+TYPE(Never)     // First come from TS
+TYPE(Undefined) // First come from JS
+TYPE(Symbol)    // First come from JS
+TYPE(Any)       // First come from JS
+
+TYPE(Array)
+TYPE(Object)
+TYPE(Function)  // function/lambda decl
+TYPE(Class)     // class/interface decl
+TYPE(Module)    // import/export module
+TYPE(Namespace) // namespace
+TYPE(User)      // user types
+TYPE(Merge)     // merge of two types, unexpected
+
+// last entry
+TYPE(Max)
+

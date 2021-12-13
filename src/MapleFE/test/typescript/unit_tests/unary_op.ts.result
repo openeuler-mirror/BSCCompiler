@@ -1,0 +1,60 @@
+Matched 17 tokens.
+Matched 32 tokens.
+Matched 37 tokens.
+Matched 45 tokens.
+Matched 53 tokens.
+Matched 60 tokens.
+Matched 68 tokens.
+Matched 76 tokens.
+Matched 83 tokens.
+Matched 91 tokens.
+Matched 99 tokens.
+Matched 107 tokens.
+Matched 115 tokens.
+Matched 123 tokens.
+Matched 131 tokens.
+Matched 139 tokens.
+Matched 147 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+    a?=0    b=0
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_var Decl: x= {a:1, b:2}
+== Sub Tree ==
+ delete x.a
+== Sub Tree ==
+console.log(void)
+== Sub Tree ==
+console.log( typeof 8)
+== Sub Tree ==
+js_var Decl: a=8
+== Sub Tree ==
+console.log(PreInc a)
+== Sub Tree ==
+console.log(PreDec a)
+== Sub Tree ==
+console.log(8)
+== Sub Tree ==
+console.log(Plus "-8")
+== Sub Tree ==
+console.log(Minus "8")
+== Sub Tree ==
+console.log(Minus a)
+== Sub Tree ==
+console.log(Bcomp 8)
+== Sub Tree ==
+console.log(Bcomp "8")
+== Sub Tree ==
+console.log(Bcomp a)
+== Sub Tree ==
+console.log(Not false)
+== Sub Tree ==
+console.log(Not true)

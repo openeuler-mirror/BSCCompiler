@@ -1,0 +1,28 @@
+Matched 11 tokens.
+Matched 96 tokens.
+============= Module ===========
+== Sub Tree ==
+interface  StringFunction
+  Fields: 
+
+  Methods: 
+    func  run(str)  throws: 
+
+== Sub Tree ==
+class  Main
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  main(args)  throws: 
+      Decl: exclaim=(s) -> s Add "!"
+      Decl: ask=(s) -> s Add "?"
+      printFormatted("Hello",exclaim)
+      printFormatted("Hello",ask)
+    func  printFormatted(str,format)  throws: 
+      Decl: result=format.run(str)
+      System.out.println(result)
+  LocalClasses: 
+  LocalInterfaces: 
+

@@ -1,0 +1,23 @@
+Matched 15 tokens.
+Matched 37 tokens.
+Matched 51 tokens.
+Matched 69 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    a=0    b?
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+func  f({:a, :b=1})  throws: 
+  return a Add b
+
+== Sub Tree ==
+console.log(f( {a:1}))
+== Sub Tree ==
+console.log(f( {a:1, b:2}))

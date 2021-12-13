@@ -1,0 +1,31 @@
+Matched 7 tokens.
+Matched 41 tokens.
+Matched 54 tokens.
+Matched 63 tokens.
+Matched 72 tokens.
+Matched 85 tokens.
+Matched 94 tokens.
+Matched 103 tokens.
+============= Module ===========
+== Sub Tree ==
+js_var Decl: base=10
+== Sub Tree ==
+func  counter(private_count)  throws: 
+  func  increment()  throws: 
+    private_count AddAssign 1
+    return base Add private_count
+
+  return increment
+
+== Sub Tree ==
+js_var Decl: count=counter(0)
+== Sub Tree ==
+console.log(count())
+== Sub Tree ==
+console.log(count())
+== Sub Tree ==
+js_var Decl: count2=counter(100)
+== Sub Tree ==
+console.log(count2())
+== Sub Tree ==
+console.log(count2())

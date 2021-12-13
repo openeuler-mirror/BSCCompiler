@@ -1,0 +1,19 @@
+Matched 9 tokens.
+Matched 18 tokens.
+Matched 25 tokens.
+Matched 36 tokens.
+Matched 47 tokens.
+Matched 56 tokens.
+============= Module ===========
+== Sub Tree ==
+ type Foo =  {name }
+== Sub Tree ==
+ type Bar =  {name }
+== Sub Tree ==
+ type Tee = union  = Foo | Bar
+== Sub Tree ==
+js_var Decl: f= {name:"foo"}
+== Sub Tree ==
+js_var Decl: b= {name:"bar"}
+== Sub Tree ==
+console.log(f,b)

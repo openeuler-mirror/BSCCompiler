@@ -1,0 +1,24 @@
+Matched 15 tokens.
+Matched 28 tokens.
+Matched 38 tokens.
+Matched 46 tokens.
+Matched 56 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+<T,>  Fields: 
+    f=undefined
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_const Decl: t=new Klass()
+== Sub Tree ==
+t.f Assign [123,456]
+== Sub Tree ==
+console.log( typeof t)
+== Sub Tree ==
+export { type MyType = Klass< typeof t>} 

@@ -1,0 +1,14 @@
+Matched 19 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Point
+  Fields: 
+    x=1
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo()  throws: 
+      return x
+  LocalClasses: 
+  LocalInterfaces: 
+

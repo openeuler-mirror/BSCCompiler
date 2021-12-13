@@ -1,0 +1,17 @@
+Matched 17 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  loseEdges()  throws: 
+      search:
+      break:search
+
+
+  LocalClasses: 
+  LocalInterfaces: 
+

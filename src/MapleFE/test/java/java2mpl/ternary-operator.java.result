@@ -1,0 +1,17 @@
+Matched 32 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  Is3(s)  throws: 
+      Decl: b
+      b Assign ()
+      return b
+  LocalClasses: 
+  LocalInterfaces: 
+
+Identifier:b has no decl.

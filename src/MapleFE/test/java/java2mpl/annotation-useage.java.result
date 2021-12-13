@@ -1,0 +1,13 @@
+Matched 14 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  travelThroughTime(destination)  throws: 
+  LocalClasses: 
+  LocalInterfaces: 
+

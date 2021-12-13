@@ -1,0 +1,14 @@
+Matched 17 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Point
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+    constructor  Point(x)  throws: 
+      this.x Assign x
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+

@@ -1,0 +1,50 @@
+Matched 71 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo()  throws: 
+      Decl: a,b,c
+      a Assign b Add c
+      a Assign b Sub c
+      a Assign b GT c
+      a Assign b GE c
+      a Assign b LT c
+      a Assign b LE c
+      a Assign b Shl c
+      a Assign b Shr c
+      a Assign b Zext c
+  LocalClasses: 
+  LocalInterfaces: 
+
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.
+Identifier:a has no decl.
+Identifier:b has no decl.
+Identifier:c has no decl.

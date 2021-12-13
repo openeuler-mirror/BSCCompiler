@@ -1,0 +1,23 @@
+Matched 11 tokens.
+Matched 34 tokens.
+Matched 43 tokens.
+Matched 57 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Foo
+  Fields: 
+    a=""
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+func  func(x?)  throws: 
+  return x ? x :  {a:"default:a"}
+
+== Sub Tree ==
+console.log(func())
+== Sub Tree ==
+console.log(func( {a:"Foo:a"}))

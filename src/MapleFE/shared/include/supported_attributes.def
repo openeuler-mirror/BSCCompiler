@@ -1,0 +1,34 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+
+// This file defines attributes supported which are common in most languages.
+// Each language can define its unique attributes in its directory.
+
+ATTRIBUTE(abstract)
+ATTRIBUTE(const)
+ATTRIBUTE(volatile)
+ATTRIBUTE(final)
+ATTRIBUTE(native)
+ATTRIBUTE(private)
+ATTRIBUTE(protected)
+ATTRIBUTE(public)
+ATTRIBUTE(static)
+ATTRIBUTE(strictfp)
+ATTRIBUTE(default)
+ATTRIBUTE(synchronized)
+ATTRIBUTE(async)
+ATTRIBUTE(readonly)           // Typescript
+ATTRIBUTE(getter)             // Javascript getter function
+ATTRIBUTE(setter)             // Javascript setter function

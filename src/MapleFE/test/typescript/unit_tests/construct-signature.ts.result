@@ -1,0 +1,13 @@
+Matched 12 tokens.
+Matched 30 tokens.
+Matched 38 tokens.
+Matched 46 tokens.
+============= Module ===========
+== Sub Tree ==
+ type T_Ctor<T> = new () -> 
+== Sub Tree ==
+ts_interface: I_Class<T,> {__vals__ }
+== Sub Tree ==
+ type AnyCtor = T_Ctor<Object>
+== Sub Tree ==
+ type AnyClass = I_Class<Object>

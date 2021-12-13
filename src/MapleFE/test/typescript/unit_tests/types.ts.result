@@ -1,0 +1,116 @@
+Matched 10 tokens.
+Matched 20 tokens.
+Matched 30 tokens.
+Matched 40 tokens.
+Matched 50 tokens.
+Matched 62 tokens.
+Matched 72 tokens.
+Matched 83 tokens.
+Matched 93 tokens.
+Matched 104 tokens.
+Matched 114 tokens.
+Matched 125 tokens.
+Matched 132 tokens.
+Matched 142 tokens.
+Matched 153 tokens.
+Matched 164 tokens.
+Matched 174 tokens.
+Matched 186 tokens.
+Matched 198 tokens.
+Matched 210 tokens.
+Matched 222 tokens.
+Matched 235 tokens.
+Matched 248 tokens.
+Matched 261 tokens.
+Matched 274 tokens.
+Matched 286 tokens.
+Matched 298 tokens.
+Matched 310 tokens.
+Matched 322 tokens.
+Matched 334 tokens.
+Matched 345 tokens.
+Matched 358 tokens.
+Matched 370 tokens.
+============= Module ===========
+== Sub Tree ==
+console.log( typeof undefined)
+== Sub Tree ==
+console.log( typeof null)
+== Sub Tree ==
+console.log( typeof true)
+== Sub Tree ==
+console.log( typeof false)
+== Sub Tree ==
+console.log( typeof "abc")
+== Sub Tree ==
+console.log( typeof Symbol())
+== Sub Tree ==
+console.log( typeof 123)
+== Sub Tree ==
+console.log( typeof  {})
+== Sub Tree ==
+console.log( {} instanceof Object)
+== Sub Tree ==
+console.log( typeof [])
+== Sub Tree ==
+console.log([] instanceof Array)
+== Sub Tree ==
+console.log( typeof new Array())
+== Sub Tree ==
+console.log("====")
+== Sub Tree ==
+console.log( typeof Object())
+== Sub Tree ==
+console.log( typeof new Object())
+== Sub Tree ==
+console.log(Object() instanceof Object)
+== Sub Tree ==
+console.log(new Object() instanceof Object)
+== Sub Tree ==
+console.log( typeof String())
+== Sub Tree ==
+console.log( typeof Boolean())
+== Sub Tree ==
+console.log( typeof Date())
+== Sub Tree ==
+console.log( typeof Number())
+== Sub Tree ==
+console.log( typeof new String())
+== Sub Tree ==
+console.log( typeof new Boolean())
+== Sub Tree ==
+console.log( typeof new Date())
+== Sub Tree ==
+console.log( typeof new Number())
+== Sub Tree ==
+console.log(new String() instanceof String)
+== Sub Tree ==
+console.log(new Boolean() instanceof Boolean)
+== Sub Tree ==
+console.log(new Date() instanceof Date)
+== Sub Tree ==
+console.log(new Number() instanceof Number)
+== Sub Tree ==
+console.log( typeof class  
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+)
+== Sub Tree ==
+console.log(class  
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+ instanceof Function)
+== Sub Tree ==
+console.log( typeof new ())
+== Sub Tree ==
+console.log(new () instanceof Object)
