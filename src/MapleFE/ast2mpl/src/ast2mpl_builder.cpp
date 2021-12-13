@@ -23,7 +23,7 @@
 namespace maplefe {
 
 Ast2MplBuilder::Ast2MplBuilder(AST_Handler *h, unsigned f) : mASTHandler(h), mFlags(f) {
-  mFilename = h->GetModuleHandler(0)->GetASTModule()->GetFilename();
+  mFilename = h->GetModuleHandler((unsigned)0)->GetASTModule()->GetFilename();
   mMirModule = new maple::MIRModule(mFilename);
   maple::theMIRModule = mMirModule;
   mMirBuilder = new FEMIRBuilder(mMirModule);

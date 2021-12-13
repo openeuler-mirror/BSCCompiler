@@ -11,7 +11,7 @@ LANG=java
 MKDIR_P = mkdir -p
 
 MAPLELIBPATH:=$(MAPLE_ROOT)/OpenArkCompiler/output/aarch64-clang-debug/lib/64
-MAPLELIBS := -L $(MAPLELIBPATH) -lmplir -loption_parser -lmpl2mpl -lmplutil -lmempool -lHWSecureC -ldriver_option
+MAPLELIBS := -L $(MAPLELIBPATH) -lmplir -loption_parser -lmplphase -lmplutil -lmempool -lmpl2mpl -lHWSecureC -ldriver_option -lmplir -loption_parser -ldriver_option
 
 MAPLEALL_INC = -I $(MAPLEALL_SRC)/maple_ir/include \
 							 -I $(MAPLEALL_SRC)/mempool/include \
