@@ -41,7 +41,7 @@ export MAPLEFE_ROOT=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
 export MAPLE_ROOT=$(dirname ${MAPLEFE_ROOT})
 
 unset MAPLEALL_ROOT
-export MAPLEALL_ROOT=${MAPLE_ROOT}/OpenArkCompiler
+export MAPLEALL_ROOT=${MAPLE_ROOT}/..
 
 unset MAPLEALL_SRC
 export MAPLEALL_SRC=${MAPLEALL_ROOT}/src/mapleall
