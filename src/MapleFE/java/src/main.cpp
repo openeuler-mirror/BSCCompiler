@@ -17,8 +17,10 @@
 #include "common_header_autogen.h"
 #include "ruletable_util.h"
 #include "gen_summary.h"
+#include "gen_aststore.h"
+#include "gen_astdump.h"
+#include "gen_astgraph.h"
 #include "vfy_java.h"
-#include "ast2mpl_java.h"
 
 static void help() {
   std::cout << "java2mpl sourcefile [options]:\n" << std::endl;
@@ -35,6 +37,8 @@ static void help() {
   std::cout << "   --trace-patch-was-succ : Trace Patching of WasSucc nodes" << std::endl;
   std::cout << "   --trace-warning   : Print Warning" << std::endl;
   std::cout << "   --trace-a2m       : Trace MPL Builder" << std::endl;
+  std::cout << "   --dump-ast        : Dump AST in text format" << std::endl;
+  std::cout << "   --dump-dot        : Dump AST in dot format" << std::endl;
 }
 
 int main (int argc, char *argv[]) {
@@ -45,7 +49,9 @@ int main (int argc, char *argv[]) {
 
   maplefe::Parser *parser = new maplefe::Parser(argv[1]);
 
-  bool trace_a2m = false;
+  bool dump_ast = false;
+  bool dump_dot = false;
+  bool succ;
 
   // Parse the argument
   for (unsigned i = 2; i < argc; i++) {
@@ -71,8 +77,10 @@ int main (int argc, char *argv[]) {
       parser->mTracePatchWasSucc = true;
     } else if (!strncmp(argv[i], "--trace-warning", 15) && (strlen(argv[i]) == 15)) {
       parser->mTraceWarning = true;
-    } else if (!strncmp(argv[i], "--trace-a2m", 11) && (strlen(argv[i]) == 11)) {
-      trace_a2m = true;
+    } else if (!strncmp(argv[i], "--dump-ast", 10) && (strlen(argv[i]) == 10)) {
+      dump_ast = true;
+    } else if (!strncmp(argv[i], "--dump-dot", 10) && (strlen(argv[i]) == 10)) {
+      dump_dot = true;
     } else {
       std::cerr << "unknown option " << argv[i] << std::endl;
       exit(-1);
@@ -80,20 +88,40 @@ int main (int argc, char *argv[]) {
   }
 
   parser->InitRecursion();
-  parser->Parse();
+  succ = parser->Parse();
+  if (!succ) {
+    delete parser;
+    return 1;
+  }
 
+  // the module from parser
   maplefe::ModuleNode *module = parser->GetModule();
 
   maplefe::VerifierJava vfy_java(module);
   vfy_java.Do();
 
-  maplefe::A2MJava *a2m = new maplefe::A2MJava(module);
-  a2m->ProcessAST(trace_a2m);
+  if(dump_ast) {
+    maplefe::AstDump astdump(module);
+    astdump.Dump("ts2ast: Initial AST", &std::cout);
+  }
 
-  a2m->mMirModule->OutputAsciiMpl("", ".mpl");
+  if(dump_dot) {
+    maplefe::AstGraph graph(module);
+    graph.DumpGraph("ts2ast: Initial AST", &std::cout);
+  }
+
+  maplefe::AstStore saveAst(module);
+  saveAst.StoreInAstBuf();
+  maplefe::AstBuffer &ast_buf = saveAst.GetAstBuf();
+
+  std::ofstream ofs;
+  std::string fname(module->GetFilename());
+  fname += ".ast";
+  ofs.open(fname, std::ofstream::out);
+  const char *addr = (const char *)(&(ast_buf[0]));
+  ofs.write(addr, ast_buf.size());
+  ofs.close();
 
   delete parser;
-  delete a2m;
-
   return 0;
 }

@@ -37,13 +37,15 @@ my $outroot = '';
 print "Running $lang\n";
 if ($lang =~ /\Qjava\E/) {
   $pinput = "java";
-  $cmnd = "../output/java/java/java2mpl";
-  $cmnd1 = "echo";
+  $cmnd = "../output/java/bin/java2ast";
+  $cmnd1 = "../output/java/bin/ast2mpl";
+  $flag = "";
   $outroot = "$currdir/../output/$pinput/test";
 } elsif ($lang =~ /\Qtypescript\E/) {
   $pinput = "ts";
   $cmnd = "../output/typescript/bin/ts2ast";
   $cmnd1 = "../output/typescript/bin/ast2cpp";
+  $flag = "--no-imported";
   $outroot = "$currdir/../output/typescript/test";
 } else {
   print "$lang is an invalid option\n";
@@ -103,6 +105,7 @@ foreach my $file (@paths) {
       #my $res = system("$pwd/$cmnd $outroot/$file > $outroot/$outresult");
       #my $res = system('$pwd/$cmnd $outroot/$file; $pwd/$cmnd1 $outroot/$file.ast > $outroot/$outresult');
       my $res = system("$pwd/$cmnd $outroot/$file > $outroot/$outresult");
+      #print "$pwd/$cmnd $outroot/$file > $outroot/$outresult";
 
       if ($res > 0) {
         print " ==$pinput===> $file\n";
@@ -112,7 +115,8 @@ foreach my $file (@paths) {
         #print "---------------------------\n";
         next;
       } else {
-        my $res1 = system("$cmnd1 $outroot/$file.ast --no-imported > $outroot/$outresult.1");
+        my $res1 = system("$cmnd1 $outroot/$file.ast $flag > $outroot/$outresult.1");
+        #print "$cmnd1 $outroot/$file.ast $flag > $outroot/$outresult.1";
 
         if ($res1 > 0) {
           print " ==$pinput===> $file\n";

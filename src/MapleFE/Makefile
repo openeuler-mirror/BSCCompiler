@@ -20,14 +20,14 @@ TARGS = autogen shared recdetect ladetect astopt java2mpl ast2mpl ts2ast ast2cpp
 $(shell $(MKDIR_P) $(BUILDDIR))
 
 ifeq ($(SRCLANG),java)
-  TARGET := java2mpl
+  TARGET := java2ast ast2mpl
 else ifeq ($(SRCLANG),typescript)
   TARGET := ts2ast ast2cpp
 endif
 
 all: $(TARGET)
 
-java2mpl: autogen recdetect ladetect shared ast2mpl
+java2ast: autogen recdetect ladetect shared
 	$(MAKE) LANG=$(SRCLANG) -C $(SRCLANG)
 
 ts2ast: autogen recdetect ladetect shared
@@ -39,7 +39,7 @@ recdetect: autogen shared ladetect
 ladetect: autogen shared
 	$(MAKE) LANG=$(SRCLANG) -C ladetect
 
-ast2mpl: shared
+ast2mpl: astopt java2ast
 	$(MAKE) -C ast2mpl
 
 astopt: shared recdetect ladetect
