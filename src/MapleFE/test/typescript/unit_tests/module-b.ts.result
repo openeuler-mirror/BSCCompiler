@@ -1,0 +1,9 @@
+Matched 7 tokens.
+Matched 22 tokens.
+============= Module ===========
+== Sub Tree ==
+js_var Decl: x=10
+== Sub Tree ==
+export {func  add(y)  throws: 
+  return x Add y
+} 

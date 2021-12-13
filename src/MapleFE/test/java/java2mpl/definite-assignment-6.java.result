@@ -1,0 +1,18 @@
+Matched 38 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo()  throws: 
+      Decl: k
+      cond-branch cond:v GT 0 Land (k Assign System.read()) GE 0
+      true branch :
+        System.println(k)      false branch :
+
+  LocalClasses: 
+  LocalInterfaces: 
+

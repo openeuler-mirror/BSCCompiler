@@ -1,0 +1,62 @@
+[Origin of MapleFE]
+
+This project is to create a programming language frontend, which leverages 'Autogen' to complete
+most of work of lexing and parsing. The origin of this project is coming from the history in our parst twenty
+years of work in compiler and programming languages. We are tired of the tons of modifications of existing
+opensource frontend project like Clang, if we want to do something in new language features. So we decided to
+have our own frontend, which could be easier to handle new languages.
+
+[Key points]
+
+1. Autogen is the key idea which automatically generates lexing/parsing data structures in .h/.cpp files which
+   are further included in the language frontend. The language implementors write .spec files describing the
+   language specifications under the language directory, such as java/.
+2. The parsing algorithm is named Wavefront. The rules are categorized into recursions, and recursions are
+   combined into group if they reach each other. The Wavefront parsing is working on the recursion group.
+   It works wave by wave until it reaches the fixed point.
+
+[Source code directory]
+
+1. Most programming languages have very similar syntax, so it's very helpful to put
+   the shared part into a common directory. shared/ is for this usage. It contains
+     a) shared data structures representing shared syntax;
+     b) shared parser/translater components; 
+2. Language specific parts are in their own directory, such as java/. It contains some special part of this
+   language, the language .spec files, and gen_xxx.h/gen_xxx.cpp which are generted by autogen.
+3. The tool autogen is under autogen/
+4. The tool recdetect is under recdetec/. It's used to find the recursions and recursion groups.
+
+[Preparation]
+
+https://gitee.com/openarkcompiler/OpenArkCompiler/blob/master/doc/en/DevelopmentPreparation.md
+Follow the instruction in "Recommended Development Environment" section to get tools installed
+
+The following packages also need to be installed:
+```bash
+sudo apt install -y clang-tools-10 clang-format-10 python3 python3-pip libyaml-cpp-dev nodejs npm
+pip3 install pyyaml
+sudo npm install -g typescript@latest
+```
+
+[How to build]
+
+1. source envsetup.sh [java|typescript]
+2. make mapleall
+   This step is to build mapleall (Maple IR related libraries). If you have done it once,
+   you dont need do it again unless you changed the code in mapleall.
+3. make
+4. If you are working at Java frontend, you will see output/java/java/java2mpl. This is the executable
+   frontend.
+4. If you are working at Typescript frontend, you will see output/typescript/bin/ts2ast. This is the executable
+   frontend. You can also see output/typescript/bin/ast2cpp, which translate AST to cpp source code.
+
+[How to test]
+
+1. make test
+
+run a single test, say t1.java:
+1. cd test
+2. make t1
+
+You can find all Java test cases in test/java.
+You can find all Typescript test cases in test/typescript.

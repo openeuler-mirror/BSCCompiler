@@ -1,0 +1,14 @@
+Matched 18 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+    a    b    c    c=a Add b
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+Field Decl Duplication! Identifier:c is duplicated with Identifier:c
+Field Decl Duplication! Identifier:c is duplicated with Identifier:c

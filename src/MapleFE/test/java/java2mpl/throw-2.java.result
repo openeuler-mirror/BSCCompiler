@@ -1,0 +1,14 @@
+Matched 23 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo()  throws:     A    B
+    func  bar()  throws:     A    B
+  LocalClasses: 
+  LocalInterfaces: 
+

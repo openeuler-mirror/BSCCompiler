@@ -1,0 +1,134 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+
+// This file defines the AST Node Kind list. It is shared nodes among different languages.
+// Each language can have its own unique set of noke kind list, and be included too.
+
+NODEKIND(Module)
+NODEKIND(Package)
+
+NODEKIND(XXportAsPair)   // JS has: import {x as y}, and export {x as y}
+NODEKIND(Import)
+NODEKIND(Export)
+NODEKIND(Declare)        // c/c++ extern decl, or typescript 'declare'
+
+NODEKIND(Decl)
+NODEKIND(Identifier)
+NODEKIND(Field)
+NODEKIND(Dimension)
+NODEKIND(Attr)
+
+// A pair of <name, type>
+NODEKIND(NameTypePair)
+
+// Type related
+NODEKIND(PrimType)
+NODEKIND(PrimArrayType)
+NODEKIND(UserType)
+NODEKIND(TypeParameter)
+NODEKIND(AsType)
+NODEKIND(TypeAlias)
+NODEKIND(ConditionalType)  // Conditional types in Typescript
+NODEKIND(TupleType)        // tuple types in Typescript
+
+//
+NODEKIND(Cast)
+NODEKIND(Parenthesis)
+
+// For de-structuring syntax, first in JS
+NODEKIND(BindingElement)
+NODEKIND(BindingPattern)
+
+// Struct
+NODEKIND(Struct)
+NODEKIND(StructLiteral)
+NODEKIND(FieldLiteral)
+
+// define two spcial nodes for typescript index signature
+NODEKIND(NumIndexSig)
+NODEKIND(StrIndexSig)
+
+// Typescript, computed name
+NODEKIND(ComputedName)
+
+// Array related
+NODEKIND(ArrayElement)
+NODEKIND(ArrayLiteral)
+
+// VarList is for identifier list only.
+// ExprList is for all kinds of node.
+NODEKIND(VarList)
+NODEKIND(ExprList)
+
+NODEKIND(TemplateLiteral)
+NODEKIND(RegExpr)
+
+NODEKIND(Literal)
+NODEKIND(UnaOperator)
+NODEKIND(BinOperator)
+NODEKIND(TerOperator)
+NODEKIND(Lambda)
+NODEKIND(InstanceOf)
+NODEKIND(TypeOf)
+NODEKIND(KeyOf)
+NODEKIND(In)
+NODEKIND(Is)
+NODEKIND(Infer)
+
+NODEKIND(Block)
+NODEKIND(Function)
+NODEKIND(Class)
+NODEKIND(Interface)
+NODEKIND(Namespace)  // First come from Typescript namespace.
+
+// Annotation, Pragma in c/c++, has no effects for execution, but has meanings
+// for compiler or runtime.
+//
+// AnnotationType : The definition of a type of annotation
+// Annotation     : The usage of an annotation type
+
+NODEKIND(AnnotationType)
+NODEKIND(Annotation)
+
+NODEKIND(Try)
+NODEKIND(Catch)
+NODEKIND(Finally)
+NODEKIND(Exception)
+
+// This is for the throw statement. Not the "exceptions thrown by functions".
+NODEKIND(Throw)
+
+NODEKIND(Await)
+
+// These are statement nodes, or control flow related nodes. They are
+// common in most languages.
+NODEKIND(Return)
+NODEKIND(Yield)
+NODEKIND(CondBranch)
+NODEKIND(Break)
+NODEKIND(Continue)
+NODEKIND(ForLoop)
+NODEKIND(WhileLoop)
+NODEKIND(DoLoop)
+NODEKIND(New)
+NODEKIND(Delete)
+NODEKIND(Call)
+NODEKIND(Assert)
+
+NODEKIND(SwitchLabel)
+NODEKIND(SwitchCase)
+NODEKIND(Switch)
+
+NODEKIND(Pass)

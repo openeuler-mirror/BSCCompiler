@@ -1,0 +1,284 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+This file defines Rule Actions supported in both Autogen and Parser. The cooperation between
+all modules are as below.
+1. The Action names in .spec files should be one of Actions below.
+2. Autogen generates rule tables in gen_xxx.h/cpp files. It user ActionId.
+3. AST maintains a table which is basically a mapping between ActionId and the corresponding
+   utility functions.
+4. The utility functions will (1) do the validation (2) create the tree node.
+
+[NOTE] This file only contains actions to create common tree node seen in most programming
+       languages. If a language has tree nodes not covered here, they can be defined in its
+       dedicated directory.
+
+[Format] The Format tells the parameters it needs when writing .spec files.
+         It also shows the internal parameters when parser creates the AST tree node.
+
+* BuildField
+  Format: BuildField(parent, field-name)
+  It takes two arguments. The first is parent tree node. The second is the field.
+  It also handles a much more complicated case, where 'field-name' is actually a list
+  of identifiers. This actually tells more than one levels down to the children
+  fields.
+
+* BuildBlock
+  Format: BuildBlock(block-tree)
+  Block is widely used in many scenarios, like function body, class body, or just a block.
+  It only takes one parameter which is the root node of block tree.
+
+* AddToBlock
+  Format: AddToBlock(tree)
+  Assume mLastTreeNode is the BlockNode to be added to. Add 'tree' to BlockNode.
+
+* BuildParenthesis
+  Format: BuildParenthesis(Expression)
+  Returns mLastTreeNode.
+
+* BuildCast
+  Format: BuildCast(DestType, Expression)
+  Cast Expression to DestType. Returns mLastTreeNode.
+
+* BuildBinaryOperation
+  Format: BuildBinaryOperation(Left operand, Operator, Right Operand)
+
+* BuildUnaryOperation
+  Format: BuildUnaryOperation(Operator, Operand)
+  This is the prefix unary operation. It's the default mode of a unary operation. So we don't
+  give it a name like BuildPreUnaryOperation...
+
+* BuildPostfixOperation
+  Format: BuildPostfixOperation(Operator, Operand)
+  This is the postfix unary operation.
+
+* BuildNewOperation
+  Format: BuildNewOperation(class-name, argument-list, class-body)
+  This is to build a 'new' operation, which is generally a class instance creation.
+  If class-body is not empty, this defines an anonymous class.
+
+* AddLabel
+  Format: AddLabel(Stmt-or-expr, Label)
+  It returns the statment or expr with label attached.
+
+* BuildAssignment
+  Format: BuildAssignment(Left operand, Operator, Right Operand)
+          The operator is the assignment in the language
+  The reason we take Operator as an operand is there could be different types of assignment,
+  like +=, -=, etc.
+
+* BuildReturn
+  Format: BuildReturn(return-value)
+
+* BuildCondBranch
+  Format: BuildCondBranch(cond-expre)
+
+* AddCondBranchTrueStatement
+  Format: BuildCondBranch(true-expre)
+
+* AddCondBranchFalseStatement
+  Format: BuildFalseBranch(false-expre)
+
+* BuildBreak
+  BuildBreak(break-identifier)
+  Build a break statement. The break point could be an identifier or empty.
+
+* BuildForLoop
+  BuildForLoop(init, cond, update, body)
+  Build a common for loop. 'init' could be a list of expression, 'cond' should be boolean
+  expression, 'update' could be a list of expression. 'body' could be a single statement
+  or a block or empty.
+
+* BuildWhileLoop
+  Format : BuildWhileLoop(cond, body)
+
+* BuildDoLoop
+  Format : BuildDoLoop(cond, body)
+
+* BuildSwitchLabel
+  BuildSwitchLabel(const-expr)
+  The only argument is the expression of 'case'.
+
+* BuildDefaultSwitchLabel
+  Format: BuildDefaultSwitchLabel()
+  It takes NO argument. This is to build 'default' label.
+
+* BuildOneCase
+  Format : BuildOneCase(label, statement)
+  It takes two arguments. First is the tree node of label built by BuildSwitchLabel.
+  The second the statements under this label.
+
+* BuildAllCases
+  Format : BuildAllCases(list-of-cases)
+  It builds the body of the switch statement. It includes all cases.
+  The only argument is the tree node of all-cases.
+
+* BuildSwitch
+  Format : BuildSwitch(cond-expr, all-cases)
+
+* BuildDecl
+  Format: BuildDecl(Type, Variable)
+  The Decl will be added to its scope. Every Decl has a scope which is the nearest one
+  enclosing it.
+
+  [NOTE] It's usually combined with BuildVarList().
+
+* BuildVarList
+  Format: BuildVarlList(Variable_A, Variable_B)
+
+  [NOTE] THIS MUST BE CALLED WHEN BUILDING A LIST OF PARAMETERS, ...
+         Please see examples in java/stmt.spec or java/stmt.block.spec
+
+  1) This is the build a list of variables. This could be used in multiple place, as long as
+     they have the syntax like: a, b, c. For example, in variable declarations like
+       int a, b;
+     or in function parameters like
+       foo (a ,b);
+     Right now we only support two parameters. It can be extended later if needed.
+
+  2) The ',' in between is a separator which could be varied between different languages. some
+     language may use whitespace as separator between variables.
+  3) The result will be a VariableListNode, which contains a list of IdentifierNode (Variable).
+  4) If a variable is a tree containing multiple variables, the function will do a consolidatation
+     to put all the variables in the list, and removing the tree from the resulting tree.
+  5) If a variable is a already a VariableListNode, 4) is applied too.
+
+* BuildClass
+  Format: BuildClass(classIdentifier)
+
+* SetClassIsJavaEnum
+  Format: SetClassIsJavaEnum()
+  This is specifically for Java Enum which is a special kind of class.
+
+* AddSuperClass
+  Format: AddSuperClass(superclassIdentifier)
+
+* AddSuperInterface
+  Format: AddSuperInterface(superInterfaceIdentifier)
+
+* AddClassBody
+  Format: AddClassBody(classbody)
+  Add a classbody to mLastTreeNode, which should be a ClassNode.
+  'classbody' is usually a Block which is generated by BuildBlock.
+
+* AddModifier
+  Format: AddModifier(Modifier list)
+  Modifier could be Annotation or Attribute.
+  AddModifier is attached together with its previous BuildDecl. Both BuildDecl and AddModifier
+  are in the same rule. The modifiers will be applied to the tree node of BuildDecl().
+
+* AddModifierTo
+  Format: AddModifierTo(Tree, Modifier list)
+  Modifier could be Annotation or Attribute.
+  This is another format of adding modifier. The first argument is the tree to be applied to.
+  This function doesn't depend on any already built declarator. An example is
+    rule VariableDeclarator : VariableDeclaratorId + ZEROORONE('=' + VariableInitializer)
+      attr.action: AddModifierTo(%1, %2)
+
+* AddInitTo
+  Format: AddInitTo(Target, InitValue)
+  The first argument is the target declarator, or expression, or etc. The second is the init value.
+  An example is
+    rule VariableDeclarator : VariableDeclaratorId + ZEROORONE('=' + VariableInitializer)
+      attr.action: AddInitTo(%1, %2)
+
+* BuildAnnotationType
+  Format: BuildAnnotationType(annotation-name)
+
+* BuildAnnotation
+  Format: BuildAnnotation(annotation-name)
+
+* AddAnnotationTypeBody
+  Format: AddAnnotationTypeBody(annotation-type-body)
+
+* BuildDim
+  Format: BuildDim(annotation-of-dim)
+  Build one dimension with possible annotation
+
+* BuildDims
+  Format: BuildDims(the-first-set-of-dims, the-rest-dims)
+  Build multiple dimensions. The first set of dimensions is the first parameter, this could be
+  multiple dimension already. The second parameter tells the rest of dimensions.
+
+* AddDims
+  Format: AddDims(dims)
+  Add the dimensions into the mLastTreeNode.
+
+* AddDimsTo
+  Format: AddDimsTo(var, dims)
+  Add the dimensions into var.
+
+* BuildFunction
+  Format: BuildFunction(function-Identifier)
+
+* AddParams
+  Format: AddParams(parameters)
+  Adds the parameters into the mLastTreeNode.
+
+* BuildCall
+  Format: BuildCall(function)
+  To build a call site. The method is 'function'.
+
+  Format: BuildCall()
+  To build a call site. The method is mLastTreeNode which was just created.
+
+* AddArguments
+  Format: AddArguments(Arguments)
+  Adds the Arguments into the mLastTreeNode, which should be the CallNode just created.
+
+* BuildConstructor
+  Format: BuildConstructor(function-Identifier)
+  This is almost the same as BuildFunction, except it has no return type.
+
+* BuildInstInit
+  Format: BuildInstInit(block-tree, or an existing block node)
+  It takes one argument, either a tree, or an existing block node.
+  This is the same as BuildBlock, except setting it's a instance initializer.
+  This is to accomadate Java spec. C++ has different syntax/semantic regarding
+  instance initializer.
+
+* AddFunctionBody
+  Format: AddFunctionBody(funcbody)
+  Add a funcbody to mLastTreeNode, which should be a FunctionNode.
+  'funcbody' is usually a Block which is generated by BuildBlock.
+
+* AddFunctionBodyTo
+  Format: AddFunctionBodyTo(func, funcbody)
+  Add a funcbody to func, which should be a FunctionNode.
+  'funcbody' is usually a Block which is generated by BuildBlock.
+
+* AddTypeTo
+  Format: AddTypeTo(tree, type)
+
+* BuildThrows
+  Format: BuildThrows(tree)
+  It builds a list of thrown exceptions. It's actually a PassNode.
+
+* AddThrowsTo
+  Format: AddThrowsTo(tree, throws)
+  It builds a list of thrown exceptions. It's actually a PassNode with >1 exception,
+  or just a simple IdentifierNode with exception name. It returns the tree with
+  throws attached.
+
+* BuildUserType
+  Format: BuildUserType(Identifier)
+
+* AddTypeArgument
+  Format: AddTypeArgument(TypeArguments)
+  Add list of type arguments to mLastTreeNode. The arguments could one single identifier
+  or a list of identifiers.
+
+* BuildLambda
+  Format: BuildLambda(param-list, body)
+  It builds a lambda expression.

@@ -1,0 +1,14 @@
+Matched 13 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+    a
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  a()  throws: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+Field Decl Duplication! Identifier:a is duplicated with Function:a

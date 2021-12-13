@@ -1,0 +1,22 @@
+Matched 7 tokens.
+Matched 14 tokens.
+Matched 21 tokens.
+Matched 52 tokens.
+============= Module ===========
+== Sub Tree ==
+js_var Decl: x=1
+== Sub Tree ==
+js_var Decl: a=2
+== Sub Tree ==
+js_var Decl: b=3
+== Sub Tree ==
+cond-branch cond:x
+true branch :
+  a Add bfalse branch :
+  cond-branch cond:x
+  true branch :
+    a Sub b  false branch :
+    cond-branch cond:x
+    true branch :
+      a Mul b    false branch :
+      a Div b

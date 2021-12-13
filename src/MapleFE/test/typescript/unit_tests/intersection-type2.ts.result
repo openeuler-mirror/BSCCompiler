@@ -1,0 +1,49 @@
+Matched 10 tokens.
+Matched 20 tokens.
+Matched 30 tokens.
+Matched 48 tokens.
+Matched 63 tokens.
+Matched 70 tokens.
+Matched 77 tokens.
+Matched 92 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+    id=0
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  B
+  Fields: 
+    flag=false
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  C
+  Fields: 
+    name=""
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+ type I = intersect  = A & B["flag"] extends true ? B : C
+== Sub Tree ==
+js_let Decl: v= {id:0, name:""}
+== Sub Tree ==
+v!.id Assign 10
+== Sub Tree ==
+v!.name Assign "B"
+== Sub Tree ==
+console.log(v!.id,v!.name)

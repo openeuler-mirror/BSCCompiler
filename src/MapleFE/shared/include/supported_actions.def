@@ -1,0 +1,240 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+// This file defines Rule Actions supported in both Autogen and Parser. The cooperation between
+// all modules are as below.
+// 1. The Action names in .spec files should be one of Actions below.
+// 2. Autogen generates rule tables in gen_xxx.h/cpp files. It user ActionId.
+// 3. AST maintains a table which is basically a mapping between ActionId and the corresponding
+//    utility functions.
+// 4. The utility functions will (1) do the validation (2) create the tree node.
+//
+// [NOTE] This file only contains actions to create common tree node seen in most programming
+//        languages. If a language has tree nodes not covered here, they can be defined in its
+//        dedicated directory.
+//
+// [Format] The Format tells the parameters it needs when writing .spec files.
+//          It also shows the internal parameters when parser creates the AST tree node.
+//          Please refer autogen/README.ACTIONS for details.
+
+ACTION(BuildModule)
+ACTION(AddModuleBody)
+ACTION(SetIsAmbient)
+
+ACTION(BuildPackageName)
+
+// These are about import/include
+ACTION(BuildSingleTypeImport)      // style like java single type import
+ACTION(BuildAllTypeImport)         // style like java ondemand type import
+ACTION(BuildSingleStaticImport)    // style like java single static import
+ACTION(BuildAllStaticImport)       // style like java on-demand static import
+ACTION(BuildAllImport)             // style like c/c++ include all in .h file
+
+ACTION(BuildExternalDeclaration)           // c/c++ external decl, typescript declare.
+ACTION(BuildGlobalExternalDeclaration)     // typescript global declare.
+
+// Special actions for JS import/export
+ACTION(BuildImport)
+ACTION(BuildExport)
+ACTION(SetIsXXportType)
+ACTION(SetPairs)
+ACTION(SetDefaultPairs)
+ACTION(SetSinglePairs)
+ACTION(SetFromModule)
+ACTION(SetIsEverything)   // Apply to all pairs in import/export
+ACTION(SetAsNamespace)    // Apply to all pairs in import/export
+
+ACTION(BuildXXportAsPair)             // normal pair
+ACTION(BuildXXportAsPairEverything)   // '*'
+ACTION(BuildXXportAsPairDefault)      // 'default'
+
+
+ACTION(BuildBlock)
+ACTION(AddToBlock)
+ACTION(AddSyncToBlock)             // Java allows a sync obj to block
+
+ACTION(BuildAwait)
+
+ACTION(BuildCast)
+ACTION(BuildParenthesis)
+ACTION(BuildBinaryOperation)
+ACTION(BuildUnaryOperation)
+ACTION(BuildTernaryOperation)
+ACTION(BuildPostfixOperation)
+ACTION(BuildInstanceOf)
+ACTION(BuildIn)
+ACTION(BuildIs)
+ACTION(BuildTypeOf)
+ACTION(BuildKeyOf)
+ACTION(BuildInfer)
+
+ACTION(BuildLambda)
+ACTION(SetJavaLambda)       // java lambda
+ACTION(SetArrowFunction)    // JS arrow function
+
+// This is very special function, it changes other
+// keyword, attr node or anything into a new identifier node
+ACTION(BuildIdentifier)
+
+ACTION(BuildLiteral)
+
+// For variable declaration, expression
+ACTION(BuildDecl)
+ACTION(SetJSVar)
+ACTION(SetJSLet)
+ACTION(SetJSConst)
+
+ACTION(BuildField)
+ACTION(BuildVarList)
+ACTION(BuildComputedName)
+
+ACTION(BuildBindingElement)
+ACTION(BuildBindingPattern)
+ACTION(SetObjectBinding)
+ACTION(SetArrayBinding)
+
+// For struct
+ACTION(BuildStruct)
+ACTION(SetTSInterface)
+ACTION(SetTSEnum)
+ACTION(AddStructField)
+ACTION(BuildFieldLiteral)
+ACTION(BuildStructLiteral)
+
+ACTION(BuildStrIndexSig)
+ACTION(BuildNumIndexSig)
+
+// For Array
+ACTION(BuildArrayElement)
+ACTION(BuildArrayLiteral)
+
+// For function
+ACTION(AddParams)
+ACTION(BuildFunction)
+ACTION(BuildConstructor)
+ACTION(AddFunctionBody)
+ACTION(AddFunctionBodyTo)
+ACTION(SetGetAccessor)   // TS 'get' accessor
+ACTION(SetSetAccessor)   // TS 'set' accessor
+ACTION(SetCallSignature) // TS call signature
+ACTION(SetConstructSignature) // TS construct signature
+ACTION(SetIsGenerator)   // JS generator
+ACTION(AddAssert)
+
+// For callsite
+ACTION(BuildCall)
+ACTION(AddArguments)
+ACTION(BuildExprList)
+
+// For class/inheritance
+ACTION(BuildClass)
+ACTION(SetClassIsJavaEnum)
+ACTION(AddSuperClass)
+ACTION(AddSuperInterface)
+ACTION(AddClassBody)
+ACTION(BuildInstInit)
+
+ACTION(BuildNamespace)
+ACTION(AddNamespaceBody)
+
+ACTION(AddModifier)
+ACTION(AddModifierTo)
+ACTION(AddInit)
+ACTION(AddInitTo)
+ACTION(AddType)
+ACTION(AddAsType)
+
+// Annotation.
+ACTION(BuildAnnotationType)
+ACTION(BuildAnnotation)
+ACTION(AddAnnotationTypeBody)
+
+// Interface
+ACTION(BuildInterface)
+ACTION(AddInterfaceBody)
+
+// Dimension
+ACTION(BuildDim)
+ACTION(BuildDims)
+ACTION(AddDims)
+ACTION(AddDimsTo)
+
+// Set a tree node as ... properties
+ACTION(SetIsStmt)
+ACTION(SetIsOptional)
+ACTION(SetIsNonNull)
+ACTION(SetIsRest)
+ACTION(SetIsConst)
+ACTION(SetIsUnique)
+
+ACTION(BuildYield)
+ACTION(SetIsTransfer)
+
+// statment, control flow
+ACTION(BuildAssignment)
+ACTION(BuildAssert)
+ACTION(BuildReturn)
+ACTION(BuildCondBranch)
+ACTION(AddCondBranchTrueStatement)
+ACTION(AddCondBranchFalseStatement)
+ACTION(AddLabel)
+ACTION(BuildBreak)
+ACTION(BuildContinue)
+ACTION(BuildForLoop)
+ACTION(BuildForLoop_In)     //This is Javascript, for (.. in ..){}
+ACTION(BuildForLoop_Of)     //This is Javascript, for (.. of ..){}
+ACTION(BuildWhileLoop)
+ACTION(BuildDoLoop)
+ACTION(BuildNewOperation)
+ACTION(BuildDeleteOperation)
+
+ACTION(BuildSwitchLabel)
+ACTION(BuildDefaultSwitchLabel)
+ACTION(BuildOneCase)
+ACTION(BuildSwitch)
+
+// Exceptions, Throws
+ACTION(BuildThrows)
+ACTION(AddThrowsTo)
+
+// Try, Catch, Finally
+ACTION(BuildTry)
+ACTION(BuildCatch)
+ACTION(BuildFinally)
+ACTION(AddCatch)
+ACTION(AddFinally)
+
+// User Types
+ACTION(BuildUserType)
+ACTION(BuildTupleType)      // Comes from Typescript.
+ACTION(AddTypeGenerics)     // add type arguments or type parameters or type generics
+ACTION(BuildUnionUserType)  // build union type
+ACTION(BuildInterUserType)  // build intersect type
+ACTION(BuildArrayType)      // From Spec point of view,
+                            // In languages like TS, dimension info is attached to type.
+                            // In C/C++, dimension info is attached to identifier.
+                            // However, the AST design is up to each implementation.
+ACTION(BuildNeverArrayType) // Special 'never' array type.
+
+ACTION(BuildTypeAlias)
+ACTION(BuildAsType)
+ACTION(BuildConditionalType)
+
+ACTION(BuildTypeParameter)
+ACTION(AddTypeParameterExtends)
+
+ACTION(BuildNameTypePair)
+
+// This is a special action to pass a child to parent
+ACTION(PassChild)

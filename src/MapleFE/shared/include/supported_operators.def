@@ -1,0 +1,84 @@
+/*
+* Copyright (C) [2020] Futurewei Technologies, Inc. All rights reverved.
+*
+* OpenArkFE is licensed under the Mulan PSL v2.
+* You can use this software according to the terms and conditions of the Mulan PSL v2.
+* You may obtain a copy of Mulan PSL v2 at:
+*
+*  http://license.coscl.org.cn/MulanPSL2
+*
+* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+* FIT FOR A PARTICULAR PURPOSE.
+* See the Mulan PSL v2 for more details.
+*/
+
+// This file defines the operators supported by AutoGen and MapleFE
+
+// NOTE
+// 1. Add/Sub will be used as binary only after AST building.
+//    Plus/Minus will be the unary
+// 2. Inc/Dec will be used as post after AST building.
+//    PreInc/PreDec will be pre operators.
+
+OPERATOR(Add, Binary|Unary)
+OPERATOR(Sub, Binary|Unary)
+OPERATOR(Mul, Binary)
+OPERATOR(Div, Binary)
+OPERATOR(Mod, Binary)
+OPERATOR(Inc, Pre|Post)
+OPERATOR(Dec, Pre|Post)
+
+OPERATOR(Exp, Binary)
+
+OPERATOR(Plus,   Unary)
+OPERATOR(Minus,  Unary)
+OPERATOR(PreInc, Pre)
+OPERATOR(PreDec, Pre)
+
+OPERATOR(EQ, Binary)
+OPERATOR(NE, Binary)
+OPERATOR(GT, Binary)
+OPERATOR(LT, Binary)
+OPERATOR(GE, Binary)
+OPERATOR(LE, Binary)
+
+OPERATOR(Band, Binary)
+OPERATOR(Bor,  Binary)
+OPERATOR(Bxor, Binary)
+OPERATOR(Bcomp,Unary)
+
+OPERATOR(Shl, Binary)
+OPERATOR(Shr, Binary)
+OPERATOR(Zext,Binary)
+
+OPERATOR(Land,Binary)
+OPERATOR(Lor, Binary)
+OPERATOR(Not, Unary)
+
+OPERATOR(Assign, Binary)
+OPERATOR(AddAssign, Binary)
+OPERATOR(SubAssign, Binary)
+OPERATOR(MulAssign, Binary)
+OPERATOR(DivAssign, Binary)
+OPERATOR(ModAssign, Binary)
+OPERATOR(ShlAssign, Binary)
+OPERATOR(ShrAssign, Binary)
+OPERATOR(BandAssign, Binary)
+OPERATOR(BorAssign, Binary)
+OPERATOR(BxorAssign, Binary)
+OPERATOR(ZextAssign, Binary)
+
+OPERATOR(Arrow, Binary)
+
+// In Java, there is a special type argument, <>, meaning no arguments.
+// It could appear in other languages. So I define Diamond.
+OPERATOR(Diamond, Unary)
+
+// This part comes from JS/TS
+OPERATOR(StEq, Binary)
+OPERATOR(StNe, Binary)
+OPERATOR(ArrowFunction, Binary)
+OPERATOR(NullCoalesce, Binary)
+OPERATOR(NullAssign, Binary)
+

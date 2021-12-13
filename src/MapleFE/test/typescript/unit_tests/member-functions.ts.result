@@ -1,0 +1,28 @@
+Matched 49 tokens.
+Matched 75 tokens.
+Matched 84 tokens.
+Matched 97 tokens.
+Matched 109 tokens.
+============= Module ===========
+== Sub Tree ==
+class  MyClass
+  Fields: 
+    operand    calc?    add=(x) -> this.operand Add x
+  Instance Initializer: 
+  Constructors: 
+    constructor  (opr)  throws: 
+      this.operand Assign opr
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+MyClass.prototype.calc Assign func  (this,x)  throws: 
+  return this.operand Add x
+
+== Sub Tree ==
+js_var Decl: myObj=new MyClass(1)
+== Sub Tree ==
+console.log(myObj.calc!(2))
+== Sub Tree ==
+console.log(myObj.add(3))

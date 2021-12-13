@@ -1,0 +1,28 @@
+Matched 35 tokens.
+Matched 51 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Point
+  Fields: 
+    x    y    list    next
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  foo()  throws: 
+      Decl: pl
+      pl.z Assign 1
+      return pl.z
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  PointList
+  Fields: 
+    z    first
+  Instance Initializer: 
+  Constructors: 
+    constructor  PointList()  throws: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+

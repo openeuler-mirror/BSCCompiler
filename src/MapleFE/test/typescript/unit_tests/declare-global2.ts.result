@@ -1,0 +1,7 @@
+Matched 5 tokens.
+Matched 19 tokens.
+============= Module ===========
+== Sub Tree ==
+export {ts_interface: IFace { }} 
+== Sub Tree ==
+declare js_const Decl: flag1js_const Decl: flag2

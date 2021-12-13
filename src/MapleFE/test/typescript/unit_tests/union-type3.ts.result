@@ -1,0 +1,21 @@
+Matched 16 tokens.
+Matched 24 tokens.
+Matched 31 tokens.
+Matched 38 tokens.
+Matched 42 tokens.
+Matched 54 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(k)  throws: 
+  return k Add k
+
+== Sub Tree ==
+ type UT = union  = string |  typeof func
+== Sub Tree ==
+js_var Decl: s="abc"
+== Sub Tree ==
+console.log(s)
+== Sub Tree ==
+s Assign func
+== Sub Tree ==
+console.log(s,s(3))

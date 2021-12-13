@@ -1,0 +1,22 @@
+Matched 47 tokens.
+Matched 71 tokens.
+Matched 86 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Foo
+<T,>  Fields: 
+    _ctor
+  Instance Initializer: 
+  Constructors: 
+    constructor  (ctor)  throws: 
+      this._ctor Assign ctor
+  Methods: 
+    func  alloc()  throws: 
+      return this._ctor()
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_const Decl: FooString=new Foo(() -> new String("foo"))
+== Sub Tree ==
+console.log(FooString.alloc().toString())

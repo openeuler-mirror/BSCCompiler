@@ -1,0 +1,35 @@
+Matched 14 tokens.
+Matched 20 tokens.
+Matched 42 tokens.
+Matched 56 tokens.
+Matched 63 tokens.
+Matched 70 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Base
+  Fields: 
+    union  = number | string
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  Derived
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+ type T<E> =  {[key in E[ keyof E]] : string }
+== Sub Tree ==
+js_var Decl: obj= {str:"abc"}
+== Sub Tree ==
+obj[0] Assign "zero"
+== Sub Tree ==
+console.log(obj)

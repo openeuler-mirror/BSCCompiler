@@ -1,0 +1,26 @@
+Matched 12 tokens.
+Matched 29 tokens.
+Matched 48 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    number
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  EXT
+<B,T,>  Fields: 
+    B
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+ type TYPE<B,T> = EXT<B,T>[ keyof Klass]

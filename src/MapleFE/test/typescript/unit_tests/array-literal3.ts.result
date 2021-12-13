@@ -1,0 +1,10 @@
+Matched 5 tokens.
+Matched 12 tokens.
+Matched 22 tokens.
+============= Module ===========
+== Sub Tree ==
+js_var Decl: _2=0
+== Sub Tree ==
+this["_2"] Assign 22
+== Sub Tree ==
+console.log(this["_2"])

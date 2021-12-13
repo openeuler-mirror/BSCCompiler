@@ -1,0 +1,22 @@
+Matched 28 tokens.
+Matched 36 tokens.
+Matched 43 tokens.
+Matched 50 tokens.
+Matched 57 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(x)  throws: 
+  cond-branch cond: typeof x StEq "number"
+  true branch :
+    return x Mul x  false branch :
+
+  return undefined
+
+== Sub Tree ==
+js_let Decl: v=func("a")
+== Sub Tree ==
+console.log(v)
+== Sub Tree ==
+v Assign func(3)
+== Sub Tree ==
+console.log(v)

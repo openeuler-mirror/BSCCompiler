@@ -1,0 +1,14 @@
+Matched 13 tokens.
+============= Module ===========
+== Sub Tree ==
+class  A
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  append()  throws: 
+      return this
+  LocalClasses: 
+  LocalInterfaces: 
+

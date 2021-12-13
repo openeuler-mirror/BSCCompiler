@@ -1,0 +1,67 @@
+Matched 9 tokens.
+Matched 20 tokens.
+Matched 46 tokens.
+Matched 53 tokens.
+Matched 125 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Point
+  Fields: 
+    x    y
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+interface  Colorable
+  Fields: 
+
+  Methods: 
+    func  setColor(color)  throws: 
+
+== Sub Tree ==
+class  ColoredPoint
+  Fields: 
+    color
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  setColor(color)  throws: 
+      this.color Assign color
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  EndPoint
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+class  Test
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  main(args)  throws: 
+      Decl: p=new Point()
+      Decl: cp=new ColoredPoint()
+      Decl: c
+      cp Assign (ColoredPoint)p
+      c Assign (Colorable)p
+      Decl: l=(Long)p
+      Decl: e=new EndPoint()
+      c Assign (Colorable)e
+  LocalClasses: 
+  LocalInterfaces: 
+
+Identifier:cp has no decl.
+Identifier:c has no decl.
+Identifier:c has no decl.

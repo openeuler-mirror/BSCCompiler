@@ -1,0 +1,15 @@
+Matched 19 tokens.
+Matched 34 tokens.
+Matched 44 tokens.
+Matched 53 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(arr?)  throws: 
+  return arr?[0]
+
+== Sub Tree ==
+js_let Decl: arr=[1,2,3]
+== Sub Tree ==
+console.log(func(arr))
+== Sub Tree ==
+console.log(func())

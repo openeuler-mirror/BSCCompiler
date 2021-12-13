@@ -1,0 +1,10 @@
+Matched 16 tokens.
+Matched 23 tokens.
+Matched 27 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(msg)  throws: 
+  return "MSG: " Add msg
+
+== Sub Tree ==
+console.log( template-literal: "Status: ",func("OK"))

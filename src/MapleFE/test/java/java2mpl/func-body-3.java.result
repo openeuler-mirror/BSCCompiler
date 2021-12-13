@@ -1,0 +1,18 @@
+Matched 25 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Test
+  Fields: 
+
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+    func  main()  throws: 
+      Decl: i=12
+      i Assign 2
+      i Assign 1
+  LocalClasses: 
+  LocalInterfaces: 
+
+Identifier:i has no decl.
+Identifier:i has no decl.
