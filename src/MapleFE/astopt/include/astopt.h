@@ -51,7 +51,7 @@ public:
 
 public:
   explicit AstOpt(AST_Handler *h, unsigned f);
-  ~AstOpt() { delete mASTHandler; }
+  ~AstOpt() {}
 
   AST_Handler *GetASTHandler() {return mASTHandler;}
   AST_XXport *GetASTXXport() {return mASTXXport;}
