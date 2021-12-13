@@ -169,18 +169,21 @@ void ValueRangePropagation::DealWithCallassigned(BB &bb, MeStmt &stmt) {
 void ValueRangePropagation::DealWithSwitch(MeStmt &stmt) {
   auto &switchMeStmt = static_cast<SwitchMeStmt&>(stmt);
   auto *opnd = switchMeStmt.GetOpnd();
-  std::set<BBId> bbs;
+  std::set<BBId> bbOfCases;
+  auto *defalutBB = func.GetCfg()->GetLabelBBAt(switchMeStmt.GetDefaultLabel());
+  if (defalutBB != nullptr) {
+    bbOfCases.insert(defalutBB->GetBBId());
+  }
   for (auto &pair : switchMeStmt.GetSwitchTable()) {
     auto *bb = func.GetCfg()->GetLabelBBAt(pair.second);
     // Can prop value range to target bb only when the pred size of target bb is one and
     // only one case can jump to the target bb.
-    if (bbs.find(bb->GetBBId()) == bbs.end() && bb->GetPred().size() == 1) {
+    if (bb->GetPred().size() == 1 && bbOfCases.insert(bb->GetBBId()).second) {
       Insert2Caches(bb->GetBBId(), opnd->GetExprID(),
                     std::make_unique<ValueRange>(Bound(nullptr, pair.first, PTY_i64), kEqual));
     } else {
       Insert2Caches(bb->GetBBId(), opnd->GetExprID(), nullptr);
     }
-    bbs.insert(bb->GetBBId());
   }
 }
 
@@ -679,6 +682,15 @@ bool ValueRangePropagation::GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt
   return true;
 }
 
+bool ValueRangePropagation::CompareConstantOfIndexAndLength(
+    MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op) {
+  safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                valueRangeOfLengthPtr.GetBound().GetConstant());
+  return (kOpcodeInfo.IsAssertLeBoundary(op) ?
+      valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
+      valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
+}
+
 bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
     int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op) {
   if (valueRangeOfIndex.GetRangeType() == kNotEqual || valueRangeOfLengthPtr.GetRangeType() == kNotEqual) {
@@ -717,6 +729,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAd
         if (crNode == nullptr) {
           return false;
         }
+        if (crNode->GetCRType() == kCRVarNode) {
+          return (crNode->GetExpr() == valueRangeOfLengthPtr.GetBound().GetVar()) &&
+              CompareConstantOfIndexAndLength(meStmt, valueRangeOfIndex, valueRangeOfLengthPtr, op);
+        }
         sa.SortCROperand(*crNode, baseAddress);
         if (crNode->GetCRType() != kCRAddNode ||
             static_cast<CRAddNode*>(crNode)->GetOpndsSize() != kNumOperands ||
@@ -734,11 +750,7 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAd
                 static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
                     valueRangeOfLengthPtr.GetBound().GetConstant());
       } else {
-        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
-            valueRangeOfLengthPtr.GetBound().GetConstant());
-        return (kOpcodeInfo.IsAssertLeBoundary(op) ?
-            valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
-                valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
+        return CompareConstantOfIndexAndLength(meStmt, valueRangeOfIndex, valueRangeOfLengthPtr, op);
       }
     }
     if ((valueRangeOfIndex.GetLower().GetVar() != valueRangeOfIndex.GetUpper().GetVar()) ||
@@ -910,6 +922,14 @@ bool ValueRangePropagation::IsLoopVariable(const LoopDesc &loop, const MeExpr &o
   return false;
 }
 
+static inline bool CanNotDoReplaceLoopVarOpt(ValueRange *valueRange) {
+  if (valueRange == nullptr) {
+    return true;
+  }
+  auto type = valueRange->GetRangeType();
+  return type != kEqual && type != kLowerAndUpper && type != kSpecialLowerForLoop && type != kSpecialUpperForLoop;
+}
+
 void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
     LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr) {
   if (!opnd.IsScalar()) {
@@ -937,10 +957,7 @@ void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
       index2NewExpr[&opnd] = nullptr;
     } else {
       auto *valueRange = FindValueRange(bb, opnd);
-      auto rangeType = valueRange->GetRangeType();
-      if (valueRange == nullptr ||
-          (rangeType != kEqual && rangeType != kLowerAndUpper &&
-           rangeType != kSpecialLowerForLoop && rangeType != kSpecialUpperForLoop)) {
+      if (CanNotDoReplaceLoopVarOpt(valueRange)) {
         index2NewExpr[&opnd] = nullptr;
       } else {
         // If the assert stmt is lower boundary check, replace the index opnd with the lower bound, otherwise,
@@ -1048,9 +1065,18 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
       break;
     }
     case OP_returnassertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-            func->GetName().c_str());
+      auto &returnStmt = static_cast<const ReturnAssertNonnullMeStmt &>(stmt);
+      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func->GetName().c_str());
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
+      if (curFuncNameIdx == stmtFuncNameIdx) {
+        FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer",
+              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+              returnStmt.GetFuncName().c_str());
+      } else {
+        FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
+              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+              returnStmt.GetFuncName().c_str(), func->GetName().c_str());
+      }
       break;
     }
     case OP_assignassertnonnull: {
@@ -1086,9 +1112,19 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
       break;
     }
     case OP_returnassertle: {
-      FATAL(kLncFatal, "%s:%d error: can't prove return value's bounds match the function declaration for %s",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-            func->GetName().c_str());
+      auto &returnStmt = static_cast<const ReturnAssertBoundaryMeStmt &>(stmt);
+      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func->GetName().c_str());
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
+      if (curFuncNameIdx == stmtFuncNameIdx) {
+        FATAL(kLncFatal, "%s:%d error: can't prove return value's bounds match the function declaration for %s",
+              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+              returnStmt.GetFuncName().c_str());
+      } else {
+        FATAL(kLncFatal,
+              "%s:%d error: %s can't prove return value's bounds match the function declaration when inlined to %s",
+              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
+              returnStmt.GetFuncName().c_str(), func->GetName().c_str());
+      }
       break;
     }
     case OP_assignassertle: { // support 2
@@ -1254,7 +1290,9 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
       }
       break;
     }
-    case kMeOpAddrof: {
+    case kMeOpAddrof:
+    case kMeOpAddroffunc:
+    case kMeOpAddroflabel: {
       auto *valueRangeOfAddrof = FindValueRange(bb, meExpr);
       if (valueRangeOfAddrof == nullptr) {
         Insert2Caches(bb.GetBBId(), meExpr.GetExprID(), CreateValueRangeOfNotEqualZero(meExpr.GetPrimType()));
@@ -2004,8 +2042,8 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
     }
   }
   if (initBound.GetVar() == nullptr) {
-    return std::make_unique<ValueRange>(initBound, Bound(&opnd1, GetRealValue(
-        rightConstant, initBound.GetPrimType()), initBound.GetPrimType()), kSpecialUpperForLoop);
+    return std::make_unique<ValueRange>(
+        initBound, Bound(&opnd1, rightConstant, initBound.GetPrimType()), kSpecialUpperForLoop);
   }
   return nullptr;
 }
@@ -2050,8 +2088,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicD
   } else {
     if (initBound.GetVar() == nullptr) {
       return std::make_unique<ValueRange>(
-          Bound(&opnd1, GetRealValue(rightConstant, opnd1.GetPrimType()), opnd1.GetPrimType()), initBound,
-          kSpecialLowerForLoop);
+          Bound(&opnd1, rightConstant, opnd1.GetPrimType()), initBound, kSpecialLowerForLoop);
     }
   }
   return nullptr;

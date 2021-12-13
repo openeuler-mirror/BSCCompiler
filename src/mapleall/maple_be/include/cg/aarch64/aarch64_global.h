@@ -343,16 +343,24 @@ class ExtendShiftOptPattern : public OptimizePattern {
 };
 
 /*
+ * This pattern do:
+ * 1)
  * uxtw vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
- *
- * globalopt:UxtwMovPattern
- *
+ * ------>
  * mov vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
+ * 2)
+ * ldrh  R201, [...]
+ * and R202, R201, #65520
+ * uxth  R203, R202
+ * ------->
+ * ldrh  R201, [...]
+ * and R202, R201, #65520
+ * mov  R203, R202
  */
-class UxtwMovPattern : public OptimizePattern {
+class ExtenToMovPattern : public OptimizePattern {
  public:
-  explicit UxtwMovPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
-  ~UxtwMovPattern() override = default;
+  explicit ExtenToMovPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  ~ExtenToMovPattern() override = default;
   bool CheckCondition(Insn &insn) final;
   void Optimize(Insn &insn) final;
   void Run() final;
@@ -362,6 +370,11 @@ class UxtwMovPattern : public OptimizePattern {
 
  private:
   bool CheckHideUxtw(Insn &insn, regno_t regno);
+  bool CheckUxtw(Insn &insn);
+  bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
+  bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
+
+  MOperator replaceMop = MOP_undef;
 };
 
 class SameDefPattern : public OptimizePattern {
