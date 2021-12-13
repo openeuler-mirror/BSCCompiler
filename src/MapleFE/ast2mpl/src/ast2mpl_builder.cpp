@@ -124,24 +124,6 @@ maple::MIRType *Ast2MplBuilder::MapPrimType(PrimTypeNode *ptnode) {
   return MapPrimType(ptnode->GetPrimType());
 }
 
-/*
-const char *Ast2MplBuilder::Type2Label(const maple::MIRType *type) {
-  maple::PrimType pty = type->GetPrimType();
-  switch (pty) {
-    case maple::PTY_u1:   return "Z";
-    case maple::PTY_u8:   return "B";
-    case maple::PTY_i16:  return "S";
-    case maple::PTY_u16:  return "C";
-    case maple::PTY_i32:  return "I";
-    case maple::PTY_i64:  return "J";
-    case maple::PTY_f32:  return "F";
-    case maple::PTY_f64:  return "D";
-    case maple::PTY_void: return "V";
-    default:       return "L";
-  }
-}
-*/
-
 maple::MIRType *Ast2MplBuilder::MapType(TreeNode *type) {
   if (!type) {
     return maple::GlobalTables::GetTypeTable().GetVoid();
@@ -253,6 +235,24 @@ maple::Opcode Ast2MplBuilder::MapBinComboOpcode(OprId ast_op) {
   return op;
 }
 
+#if 1
+const char *Ast2MplBuilder::Type2Label(const maple::MIRType *type) {
+  maple::PrimType pty = type->GetPrimType();
+  switch (pty) {
+    case maple::PTY_u1:   return "Z";
+    case maple::PTY_u8:   return "B";
+    case maple::PTY_i16:  return "S";
+    case maple::PTY_u16:  return "C";
+    case maple::PTY_i32:  return "I";
+    case maple::PTY_i64:  return "J";
+    case maple::PTY_f32:  return "F";
+    case maple::PTY_f64:  return "D";
+    case maple::PTY_void: return "V";
+    default:       return "L";
+  }
+}
+#else
+
 const char *Ast2MplBuilder::Type2Label(const maple::MIRType *type) {
   maple::PrimType pty = type->GetPrimType();
   switch (pty) {
@@ -271,6 +271,7 @@ const char *Ast2MplBuilder::Type2Label(const maple::MIRType *type) {
     default:       return "L";
   }
 }
+#endif
 
 bool Ast2MplBuilder::IsStmt(TreeNode *tnode) {
   bool status = true;
