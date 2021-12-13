@@ -36,7 +36,7 @@ vpath %.cpp $(DIRS)
 .PHONY: $(SRCLANG)
 .PHONY: mssetup
 
-$(SRCLANG): mssetup
+$(SRCLANG):
 	env LANG=en_US.UTF-8 ./new_runtests.pl $(SRCLANG)
 
 full:
