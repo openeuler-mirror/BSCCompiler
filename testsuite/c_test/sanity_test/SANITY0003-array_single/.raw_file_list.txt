@@ -1,0 +1,4 @@
+expected.txt
+array_single.c
+test.cfg
+-----
