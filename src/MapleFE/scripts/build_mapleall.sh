@@ -24,7 +24,7 @@ cd $MAPLEALL_ROOT
 git checkout master
 git pull
 # use a version that is compatible at moment
-git checkout 2a89d0a89
+# git checkout 2a89d0a89
 source build/envsetup.sh arm debug
 make setup
 make clobber
