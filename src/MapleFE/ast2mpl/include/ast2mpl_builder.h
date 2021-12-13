@@ -24,6 +24,7 @@
 #include "ast_handler.h"
 
 #include "mir_module.h"
+#include "generic_attrs.h"
 #include "maplefe_mir_builder.h"
 
 namespace maplefe {
