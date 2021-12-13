@@ -334,6 +334,9 @@ DEFINE_MOP(MOP_wubfizrri5i5, {mopdReg32IDS,mopdReg32IS,mopdImm5,mopdImm5},ISMOVE
 /* MPO_xubfizrri6i6 */
 DEFINE_MOP(MOP_xubfizrri6i6, {mopdReg64IDS,mopdReg64IS,mopdImm6,mopdImm6},ISMOVE|ISPARTDEF,kLtAluShift,"ubfiz","0,1,2,3",1)
 
+/* MPO_xsbfizrri6i6 Signed Bitfield Insert in Zero */
+DEFINE_MOP(MOP_xsbfizrri6i6, {mopdReg64ID,mopdReg64IS,mopdImm6,mopdImm6},0,kLtAluShift,"sbfiz","0,1,2,3",1)
+
 /* MPO_wbfirri5i5 -- Bitfield Insert */
 DEFINE_MOP(MPO_wbfirri5i5, {mopdReg32IDS,mopdReg32IS,mopdImm5,mopdImm5},ISMOVE|ISPARTDEF,kLtAluShift,"bfi","0,1,2,3",1)
 /* MPO_xbfirri6i6 */

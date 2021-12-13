@@ -745,6 +745,57 @@ class RemoveSxtBeforeStrAArch64 : public PeepPattern {
   ~RemoveSxtBeforeStrAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 };
+/*
+ * Optimize the following patterns:
+ * ubfx  x201, x202, #0, #32
+ * ====>
+ * uxtw x201, w202
+ */
+class UbfxToUxtwAArch64 : public PeepPattern {
+ public:
+  explicit UbfxToUxtwAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~UbfxToUxtwAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+};
+
+/*
+ * Optimize the following patterns:
+ * mov x1, #1
+ * csel  x22, xzr, x1, LS   ====> cset x22, HI
+ *
+ * mov x1, #1
+ * csel  x22, x1, xzr, LS   ====> cset x22, LS
+ */
+class CselZeroOneToCsetOpt : public PeepPattern {
+ public:
+  explicit CselZeroOneToCsetOpt(CGFunc &cgFunc) : PeepPattern(cgFunc), cgFunc(&cgFunc) {}
+  ~CselZeroOneToCsetOpt() override = default;
+  void Run(BB &bb, Insn &insn) override;
+ private:
+  Insn *trueMovInsn = nullptr;
+  Insn *falseMovInsn = nullptr;
+  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, Insn &insn);
+  AArch64CC_t GetReverseCond(const CondOperand &cond) const;
+ protected:
+  CGFunc *cgFunc;
+};
+
+/*
+ * Replace following pattern:
+ * sxtw  x1, w0
+ * lsl   x2, x1, #3
+ * =>
+ * sbfiz x2, x0, #3, #32
+ */
+class ComplexSxtwLslAArch64 : public PeepPattern {
+ public:
+  explicit ComplexSxtwLslAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~ComplexSxtwLslAArch64() override = default;
+  void Run(BB &bb, Insn &insn) override;
+
+  private:
+  bool IsSxtwAndLslPattern(Insn &insn);
+};
 
 class AArch64PeepHole : public PeepPatternMatch {
  public:
@@ -771,6 +822,7 @@ class AArch64PeepHole : public PeepPatternMatch {
     kAndCmpBranchesToTstOpt,
     kAndCbzBranchesToTstOpt,
     kZeroCmpBranchesOpt,
+    kCselZeroOneToCsetOpt,
     kPeepholeOptsNum
   };
 };
@@ -816,6 +868,7 @@ class AArch64PrePeepHole : public PeepPatternMatch {
     kWriteFieldCallOpt,
     kDuplicateExtensionOpt,
     kEnhanceStrLdrAArch64Opt,
+    kUbfxToUxtw,
     kPeepholeOptsNum
   };
 };
@@ -834,6 +887,7 @@ class AArch64PrePeepHole1 : public PeepPatternMatch {
     kOneHoleBranchesOpt,
     kReplaceIncDecWithIncOpt,
     kAndCmpBranchesToTbzOpt,
+    kComplexSxtwLslOpt,
     kPeepholeOptsNum
   };
 };

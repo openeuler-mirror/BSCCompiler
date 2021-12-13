@@ -391,7 +391,7 @@ void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
   RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   RegOperand &newOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   newOpnd.SetRegisterNumber(secondOpnd.GetRegisterNumber());
-  cgFunc.SetVRegSize(secondOpnd.GetRegisterNumber(), newOpnd.GetSize());
+  cgFunc.InsertExtendSet(secondOpnd.GetRegisterNumber());
 
   uint32 firstRegNo = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
   InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, firstRegNo, true);
