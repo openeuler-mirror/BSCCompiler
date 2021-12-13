@@ -6631,7 +6631,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand
 
   if (sym != nullptr) {
     if (sym->GetStorageClass() == kScGlobal || sym->GetStorageClass() == kScExtern) {
-      StImmOperand &stopnd = CreateStImmOperand(*sym, 0, 0);
+      StImmOperand &stopnd = CreateStImmOperand(*sym, fromOffset, 0);
       AArch64RegOperand &staddropnd = static_cast<AArch64RegOperand &>(CreateRegisterOperandOfType(PTY_u64));
       SelectAddrof(staddropnd, stopnd);
       opndVec.push_back(&staddropnd);  /* param 1 */
@@ -6640,7 +6640,7 @@ void AArch64CGFunc::CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand
       AArch64SymbolAlloc *symloc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetSymAllocInfo(sym->GetStIndex()));
       AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(GetBaseReg(*symloc));
       int32 stoffset = GetBaseOffset(*symloc);
-      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(stoffset, k64BitSize, false);
+      AArch64ImmOperand *offsetOpnd1 = &CreateImmOperand(stoffset + fromOffset, k64BitSize, false);
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, *parm1Reg, *baseOpnd, *offsetOpnd1));
       if (sym->GetStorageClass() == kScFormal) {
         MemOperand *ldmopnd =
