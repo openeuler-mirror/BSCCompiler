@@ -457,12 +457,6 @@ class CGFunc {
     return GetOrCreateVirtualRegisterOperand(vregNum).GetSize() / kBitsPerByte;
   }
 
-  void SetVRegSize(regno_t vregNum, size_t size) {
-    CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
-    RegOperand &opnd = GetOrCreateVirtualRegisterOperand(vregNum);
-    opnd.SetSize(size);
-  }
-
   MIRSymbol *GetRetRefSymbol(BaseNode &expr);
   void GenerateCfiPrologEpilog();
 
@@ -712,6 +706,15 @@ class CGFunc {
 
   void ClearExitBBsVec() {
     exitBBVec.clear();
+  }
+
+  bool IsExtendReg(regno_t vregNum) {
+    CHECK(vregNum < vRegTable.size(), "index out of range in GetVRegSize");
+    return extendSet.find(vregNum) != extendSet.end();
+  }
+
+  void InsertExtendSet(regno_t vregNum) {
+    extendSet.insert(vregNum);
   }
 
   bool IsExitBB(const BB &currentBB) {
@@ -1126,6 +1129,7 @@ class CGFunc {
   BB *dummyBB;   /* use this bb for add some instructions to bb that is no curBB. */
   Insn *volReleaseInsn = nullptr;  /* use to record the release insn for volatile strore */
   MapleVector<BB*> exitBBVec;
+  MapleSet<regno_t> extendSet;  /* use to mark regs which spilled 32 bits but loaded 64 bits. */
   MapleUnorderedMap<LabelIdx, BB*> lab2BBMap;
   BECommon &beCommon;
   MemLayout *memLayout = nullptr;
