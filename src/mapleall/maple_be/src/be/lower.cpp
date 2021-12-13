@@ -1068,17 +1068,25 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
       continue;
     }
     // introduce a temporary to store the expression tree operand
-    TyIdx tyIdxUsed = (TyIdx)opnd->GetPrimType();
+    PrimType type = opnd->GetPrimType();
     if (opnd->op == OP_iread) {
       IreadNode *ireadNode = static_cast<IreadNode *>(opnd);
-      tyIdxUsed = ireadNode->GetType()->GetTypeIndex();
+      type = ireadNode->GetType()->GetPrimType();
     }
-    MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(tyIdxUsed, NewAsmTempStrIdx(),
-        kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
-    DassignNode *dass = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
-
-    newBlk->AddStatement(dass);
-    asmNode->SetOpnd(mirModule.GetMIRBuilder()->CreateExprDread(*st), i);
+    StmtNode *assignNode = nullptr;
+    BaseNode *readOpnd = nullptr;
+    if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
+      PregIdx pregIdx = mirModule.CurFunction()->GetPregTab()->CreatePreg(type);
+      assignNode = mirBuilder->CreateStmtRegassign(type, pregIdx, opnd);
+      readOpnd = mirBuilder->CreateExprRegread(type, pregIdx);
+    } else {
+      MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(TyIdx(type), NewAsmTempStrIdx(),
+          kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
+      assignNode = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
+      readOpnd = mirBuilder->CreateExprDread(*st);
+    }
+    newBlk->AddStatement(assignNode);
+    asmNode->SetOpnd(readOpnd, i);
   }
   newBlk->AddStatement(asmNode);
 }
@@ -1592,7 +1600,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   MIRSymbol *errMsg;
   LabelIdx labIdx = GetLabelIdx(*curFunc);
   LabelNode *labelBC = mirBuilder->CreateStmtLabel(labIdx);
-  labelBC->SetSrcPos(stmt.GetSrcPos());
+
   Opcode op = OP_ge;
   if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOpCode())) {
     op = (kOpcodeInfo.IsAssertLeBoundary(stmt.GetOpCode())) ? OP_le : OP_lt;
@@ -1619,16 +1627,18 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   }
   argsPrintf.push_back(mirBuilder->CreateAddrof(*errMsg, PTY_a64));
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
+  UnaryStmtNode *abortModeNode = mirBuilder->CreateStmtUnary(OP_abort, nullptr);
 
-  MIRFunction *func = mirBuilder->GetOrCreateFunction("abort", TyIdx(PTY_void));
-  beCommon.UpdateTypeTable(*func->GetMIRFuncType());
-  MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
-  StmtNode *call = mirBuilder->CreateStmtCall(func->GetPuidx(), args);
+  brFalseNode->SetSrcPos(stmt.GetSrcPos());
+  labelBC->SetSrcPos(stmt.GetSrcPos());
+  callPrintf->SetSrcPos(stmt.GetSrcPos());
+  abortModeNode->SetSrcPos(stmt.GetSrcPos());
+
 
   newBlk.AddStatement(brFalseNode);
   abortNode.emplace_back(labelBC);
   abortNode.emplace_back(callPrintf);
-  abortNode.emplace_back(call);
+  abortNode.emplace_back(abortModeNode);
 }
 
 BlockNode *CGLowerer::LowerBlock(BlockNode &block) {

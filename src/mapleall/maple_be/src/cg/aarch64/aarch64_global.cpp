@@ -1706,34 +1706,71 @@ bool ExtenToMovPattern::CheckUxtw(Insn &insn) {
 
 bool ExtenToMovPattern::CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum) {
   InsnSet srcDefSet = cgFunc.GetRD()->FindDefForRegOpnd(insn, srcRegNo, true);
-  if (srcDefSet.size() != k1BitSize) {
-    return false;
-  }
-  Insn *defInsn = *srcDefSet.begin();
-  CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
-  MOperator mOp = defInsn->GetMachineOpcode();
-  switch (mOp) {
-    case MOP_wandrri12:
-    case MOP_wiorrri12:
-    case MOP_weorrri12: {
-      AArch64ImmOperand &imm = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-      uint32 bitNum = imm.GetValue();
-      if ((bitNum >> validNum) != 0) {
-        return false;
+  for (auto defInsn : srcDefSet) {
+    CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
+    MOperator mOp = defInsn->GetMachineOpcode();
+    switch (mOp) {
+      case MOP_wiorrri12:
+      case MOP_weorrri12: {
+        /* check immVal if mop is OR */
+        AArch64ImmOperand &imm = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        uint32 bitNum = imm.GetValue();
+        if ((bitNum >> validNum) != 0) {
+          return false;
+        }
       }
-      /* check defSrcReg */
-      RegOperand &defSrcRegOpnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
-      regno_t defSrcRegNo = defSrcRegOpnd.GetRegisterNumber();
-      return CheckSrcReg(*defInsn, defSrcRegNo, validNum);
+      case MOP_wandrri12: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        regno_t defSrcRegNo = defSrcRegOpnd.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wandrrr: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd1 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        RegOperand &defSrcRegOpnd2 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        regno_t defSrcRegNo1 = defSrcRegOpnd1.GetRegisterNumber();
+        regno_t defSrcRegNo2 = defSrcRegOpnd2.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo1, validNum) && !CheckSrcReg(*defInsn, defSrcRegNo2, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wiorrrr:
+      case MOP_weorrrr: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd1 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        RegOperand &defSrcRegOpnd2 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        regno_t defSrcRegNo1 = defSrcRegOpnd1.GetRegisterNumber();
+        regno_t defSrcRegNo2 = defSrcRegOpnd2.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo1, validNum) || !CheckSrcReg(*defInsn, defSrcRegNo2, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wldrb: {
+        if (validNum != k8BitSize) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wldrh: {
+        if (validNum != k16BitSize) {
+          return false;
+        }
+        break;
+      }
+      default:
+        return false;
     }
-    case MOP_wldrb: return (validNum == k8BitSize);
-    case MOP_wldrh: return (validNum == k16BitSize);
-    default:
-      return false;
   }
+  return true;
 }
 
-bool ExtenToMovPattern::CheckBit(Insn &insn, uint32 validNum) {
+bool ExtenToMovPattern::BitNotAffected(Insn &insn, uint32 validNum) {
   RegOperand &firstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   regno_t desRegNo = firstOpnd.GetRegisterNumber();
@@ -1754,8 +1791,8 @@ bool ExtenToMovPattern::CheckCondition(Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   switch (mOp) {
     case MOP_xuxtw64: return CheckUxtw(insn);
-    case MOP_xuxtb32: return CheckBit(insn, k8BitSize);
-    case MOP_xuxth32: return CheckBit(insn, k16BitSize);
+    case MOP_xuxtb32: return BitNotAffected(insn, k8BitSize);
+    case MOP_xuxth32: return BitNotAffected(insn, k16BitSize);
     default: return false;
   }
 }
