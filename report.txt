@@ -1,0 +1,4 @@
+=========== case total num : 1  passed num : 0  failed num : 1  timeout num : 0 ================
+
+failed case list:
+c_test/sanity_test/SANITY0003-array_single: CO0
