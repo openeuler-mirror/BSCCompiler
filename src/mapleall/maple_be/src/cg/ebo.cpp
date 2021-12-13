@@ -422,16 +422,26 @@ void Ebo::HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const Map
     insnInfo->origOpnd.emplace_back(origInfo.at(i));
     insnInfo->optimalOpnd.emplace_back(opndInfos.at(i));
     /* Keep the result info. */
-    if (insn.OpndIsDef(i)) {
+    if (!insn.OpndIsDef(i)) {
+      continue;
+    }
+    auto genOpndInfoDef = [this, insnInfo](Operand &op) {
       OpndInfo *opndInfo = nullptr;
-      Operand &op = insn.GetOperand(i);
       if ((&op != TRUE_OPND) &&
           ((op.IsRegister() && (&op) != GetZeroOpnd(op.GetSize())) ||
            (op.IsMemoryAccessOperand() && (static_cast<MemOperand&>(op)).GetBaseRegister() != nullptr))) {
-        opndInfo = OperandInfoDef(*insn.GetBB(), insn, op);
+        opndInfo = OperandInfoDef(*insnInfo->bb, *insnInfo->insn, op);
         opndInfo->insnInfo = insnInfo;
       }
       insnInfo->result.emplace_back(opndInfo);
+    };
+    Operand &op = insn.GetOperand(i);
+    if (op.IsList() && !static_cast<ListOperand&>(op).GetOperands().empty()) {
+      for (auto operand : static_cast<ListOperand&>(op).GetOperands()) {
+        genOpndInfoDef(*operand);
+      }
+    } else {
+      genOpndInfoDef(op);
     }
   }
   SetInsnInfo(hashVal, *insnInfo);
@@ -663,8 +673,8 @@ void Ebo::SimplifyInsn(Insn &insn, bool &insnReplaced, bool opndsConstant,
       /* special case */
       if (insn.GetResultNum() > 0 && ResIsNotDefAndUse(insn)) {
         if ((opndNum == 2) && (insn.GetResultNum() == 1) &&
-            (((opnds[kInsnSecondOpnd] != nullptr) && opnds[kInsnSecondOpnd]->IsConstant()) ||
-             ((opnds[kInsnThirdOpnd] != nullptr) && opnds[kInsnThirdOpnd]->IsConstant()))) {
+            (((kInsnSecondOpnd < opnds.size()) && (opnds[kInsnSecondOpnd] != nullptr) && opnds[kInsnSecondOpnd]->IsConstant()) ||
+             ((kInsnThirdOpnd < opnds.size()) && (opnds[kInsnThirdOpnd] != nullptr) && opnds[kInsnThirdOpnd]->IsConstant()))) {
           insnReplaced = SimplifyConstOperand(insn, opnds, opndInfos);
         }
       }
@@ -685,7 +695,6 @@ void Ebo::FindRedundantInsns(BB &bb, Insn *&insn, const Insn *prev, bool insnRep
                              MapleVector<Operand*> &opnds, MapleVector<OpndInfo*> &opndInfos,
                              const MapleVector<OpndInfo*> &origInfos) {
   CHECK_FATAL(insn != nullptr, "nullptr check");
-
   if (!insnReplaced) {
     CHECK_FATAL(origInfos.size() != 0, "null ptr check");
     CHECK_FATAL(opndInfos.size() != 0, "null ptr check");
@@ -931,6 +940,10 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       goto insn_is_needed;
     }
 
+    if (insn->GetMachineOpcode() == MOP_asm) {
+      goto insn_is_needed;
+    }
+
     /* Check all result that can be removed. */
     for (uint32 i = 0; i < resNum; ++i) {
       opndInfo = insnInfo->result[i];
@@ -1120,6 +1133,7 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
         goto insn_is_needed;
       }
     }
+
     if (!normal || insnInfo->mustNotBeRemoved || insn->GetDoNotRemove()) {
       goto insn_is_needed;
     }
