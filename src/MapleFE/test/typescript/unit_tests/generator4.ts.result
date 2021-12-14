@@ -1,0 +1,35 @@
+Matched 68 tokens.
+Matched 76 tokens.
+Matched 83 tokens.
+Matched 90 tokens.
+Matched 106 tokens.
+============= Module ===========
+== Sub Tree ==
+class  IterableClass
+  Fields: 
+    elements
+  Instance Initializer: 
+  Constructors: 
+    constructor  ()  throws: 
+      this.elements Assign []
+  Methods: 
+    func  add(element)  throws: 
+      this.elements.push(element)
+    func  ()  throws: 
+      js_let Decl: element
+      for ( )
+        yield element
+
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_let Decl: obj=new IterableClass()
+== Sub Tree ==
+obj.add(123)
+== Sub Tree ==
+obj.add(456)
+== Sub Tree ==
+for ( )
+  console.log(e)
+

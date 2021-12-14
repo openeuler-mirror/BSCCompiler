@@ -2263,8 +2263,9 @@ rule MemberFunctionDeclaration: ONEOF(
 
   ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + KeywordMemberFunctionName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
 
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + KeywordMemberFunctionName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + ZEROORONE(';'))
-  attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : BuildFunction(%3)
+  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + KeywordMemberFunctionName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + ZEROORONE(';'),
+  '*' + '[' + MemberExpression + ']' + '(' + ')' + '{' + FunctionBody + '}')
+  attr.action.%1,%2,%3,%4,%5,%6,%7,%8,%9 : BuildFunction(%3)
   attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : AddModifier(%2)
   attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : AddModifier(%1)
   attr.action.%1,%2,%5,%6,%7,%8 : AddTypeGenerics(%4)
@@ -2278,6 +2279,8 @@ rule MemberFunctionDeclaration: ONEOF(
   attr.action.%3,%4 : SetIsOptional(%3)
   attr.action.%5,%6 : AddType(%9)
   attr.action.%5    : AddFunctionBody(%11)
+  attr.action.%9    : SetIsIterator()
+  attr.action.%9    : AddFunctionBody(%8)
 
 ## MemberAccessorDeclaration: AccessibilityModifieropt staticopt GetAccessor AccessibilityModifieropt staticopt SetAccessor
 rule MemberAccessorDeclaration: ONEOF(
