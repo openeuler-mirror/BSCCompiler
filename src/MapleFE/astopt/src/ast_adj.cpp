@@ -20,6 +20,7 @@
 #include "typetable.h"
 #include "ast_info.h"
 #include "ast_adj.h"
+#include "ast_util.h"
 
 namespace maplefe {
 
@@ -39,39 +40,18 @@ void AST_ADJ::AdjustAST() {
 // set parent for some identifier's type
 IdentifierNode *AdjustASTVisitor::VisitIdentifierNode(IdentifierNode *node) {
   (void) AstVisitor::VisitIdentifierNode(node);
-  // MASSERT(node->GetParent() && "identifier with NULL parent");
+  CheckAndRenameCppKeywords(node);
+
   TreeNode *type = node->GetType();
   if (type && type->IsUserType()) {
     type->SetParent(node);
-  }
-  // rename return() function to return__fixed()
-  unsigned stridx = node->GetStrIdx();
-  if (stridx == gStringPool.GetStrIdx("return")) {
-    unsigned idx = gStringPool.GetStrIdx("return__fixed");
-    node->SetStrIdx(idx);
-    TreeNode *parent = node->GetParent();
-    if (parent && parent->IsFunction()) {
-      FunctionNode *func = static_cast<FunctionNode *>(parent);
-      MASSERT(func->GetFuncName() == node && "return not function name");
-      func->SetStrIdx(idx);
-    }
-  }
-  // rename throw() function to throw__fixed()
-  else if (stridx == gStringPool.GetStrIdx("throw")) {
-    unsigned idx = gStringPool.GetStrIdx("throw__fixed");
-    node->SetStrIdx(idx);
-    TreeNode *parent = node->GetParent();
-    if (parent && parent->IsFunction()) {
-      FunctionNode *func = static_cast<FunctionNode *>(parent);
-      MASSERT(func->GetFuncName() == node && "throw not function name");
-      func->SetStrIdx(idx);
-    }
   }
   return node;
 }
 
 ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
   (void) AstVisitor::VisitClassNode(node);
+  CheckAndRenameCppKeywords(node);
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperClassesNum() || node->GetSuperInterfacesNum() ||
       node->GetSuperClassesNum() || node->GetTypeParamsNum()) {
@@ -94,6 +74,7 @@ ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
 
 InterfaceNode *AdjustASTVisitor::VisitInterfaceNode(InterfaceNode *node) {
   (void) AstVisitor::VisitInterfaceNode(node);
+  CheckAndRenameCppKeywords(node);
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperInterfacesNum()) {
     return node;
@@ -147,6 +128,7 @@ StructLiteralNode *AdjustASTVisitor::VisitStructLiteralNode(StructLiteralNode *n
 
 StructNode *AdjustASTVisitor::VisitStructNode(StructNode *node) {
   (void) AstVisitor::VisitStructNode(node);
+  CheckAndRenameCppKeywords(node);
   // skip getting canonical type for TypeAlias
   TreeNode *parent_orig = node->GetParent();
   TreeNode *p = parent_orig;
@@ -270,6 +252,8 @@ UnaOperatorNode *AdjustASTVisitor::VisitUnaOperatorNode(UnaOperatorNode *node) {
 
 FunctionNode *AdjustASTVisitor::VisitFunctionNode(FunctionNode *node) {
   (void) AstVisitor::VisitFunctionNode(node);
+  CheckAndRenameCppKeywords(node);
+
   TreeNode *type = node->GetType();
   if (type && type->IsUserType()) {
     type->SetParent(node);
@@ -294,6 +278,7 @@ DeclNode *AdjustASTVisitor::VisitDeclNode(DeclNode *node) {
   TreeNode *var = node->GetVar();
   if (var->IsIdentifier()) {
     IdentifierNode *inode = static_cast<IdentifierNode *>(var);
+    (void) AstVisitor::VisitIdentifierNode(inode);
 
     // copy stridx from Identifier to Decl
     unsigned stridx = inode->GetStrIdx();
@@ -516,6 +501,25 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
   mUpdated = true;
   // note: the following conversion is only for the visitor to notice the node is updated
   return (LambdaNode*)func;
+}
+
+void AdjustASTVisitor::CheckAndRenameCppKeywords(TreeNode *node) {
+  if (!mIsTS || node->GetStrIdx() == 0) {
+    return;
+  }
+
+  unsigned stridx = node->GetStrIdx();
+  if (mRenameMap.find(stridx) != mRenameMap.end()) {
+    node->SetStrIdx(mRenameMap[stridx]);
+    return;
+  }
+
+  if (mUtil->IsCppKeyWord(stridx)) {
+    std::string name = gStringPool.GetStringFromStrIdx(stridx);
+    unsigned newidx = gStringPool.GetStrIdx(name + "__RENAMED");
+    node->SetStrIdx(newidx);
+    mRenameMap[stridx] = newidx;
+  }
 }
 
 }
