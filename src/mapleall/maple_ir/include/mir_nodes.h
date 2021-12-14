@@ -2450,7 +2450,7 @@ class BlockNode : public StmtNode {
 class IfStmtNode : public UnaryStmtNode {
  public:
   IfStmtNode() : UnaryStmtNode(OP_if) {
-    numOpnds = kOperandNumBinary;
+    numOpnds = kOperandNumTernary;
   }
 
   virtual ~IfStmtNode() = default;
@@ -2500,7 +2500,10 @@ class IfStmtNode : public UnaryStmtNode {
   }
 
   size_t NumOpnds() const override {
-    return numOpnds;
+    if (elsePart == nullptr) {
+      return kOperandNumBinary;
+    }
+    return kOperandNumTernary;
   }
 
  private:
@@ -2912,6 +2915,30 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
   }
 };
 
+// used by returnassertnonnull
+class SafetyReturnCheckStmtNode {
+ public:
+  explicit SafetyReturnCheckStmtNode(GStrIdx funcNameIdx)
+      : funcNameIdx(funcNameIdx) {}
+  explicit SafetyReturnCheckStmtNode(const SafetyReturnCheckStmtNode& stmtNode)
+      : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
+
+  virtual ~SafetyReturnCheckStmtNode() = default;
+
+  std::string GetFuncName() const;
+
+  GStrIdx GetFuncNameIdx() const {
+    return funcNameIdx;
+  }
+
+  void Dump() const {
+    LogInfo::MapleLogger() << " <&" << GetFuncName() << ">";
+  }
+
+ private:
+  GStrIdx funcNameIdx;
+};
+
 // used by callassertnonnull, callassertle
 class SafetyCallCheckStmtNode {
  public:
@@ -2954,6 +2981,49 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
     auto *node = allocator.GetMemPool()->New<CallAssertNonnullStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
+    return node;
+  }
+};
+
+// used by returnassertnonnull
+class ReturnAssertNonnullStmtNode : public UnaryStmtNode, public SafetyReturnCheckStmtNode {
+ public:
+  ReturnAssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
+      : UnaryStmtNode(o), SafetyReturnCheckStmtNode(funcNameIdx) {}
+  virtual ~ReturnAssertNonnullStmtNode() {}
+
+  void Dump(int32 indent) const override;
+
+  ReturnAssertNonnullStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<ReturnAssertNonnullStmtNode>(*this);
+    node->SetStmtID(stmtIDNext++);
+    node->SetOpnd(Opnd()->CloneTree(allocator), 0);
+    return node;
+  }
+};
+
+// used by returnassertle
+class ReturnAssertBoundaryStmtNode : public NaryStmtNode, public SafetyReturnCheckStmtNode {
+ public:
+  ReturnAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx)
+      : NaryStmtNode(allocator, o), SafetyReturnCheckStmtNode(funcNameIdx) {}
+  virtual ~ReturnAssertBoundaryStmtNode() {}
+
+  ReturnAssertBoundaryStmtNode(MapleAllocator &allocator, const ReturnAssertBoundaryStmtNode& stmtNode)
+      : NaryStmtNode(allocator, stmtNode), SafetyReturnCheckStmtNode(stmtNode) {}
+
+  ReturnAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx)
+      : ReturnAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx) {}
+
+  void Dump(int32 indent) const override;
+
+  ReturnAssertBoundaryStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<ReturnAssertBoundaryStmtNode>(allocator, *this);
+    node->SetStmtID(stmtIDNext++);
+    for (size_t i = 0; i < GetNopndSize(); ++i) {
+      node->GetNopnd().push_back(GetNopndAt(i)->CloneTree(allocator));
+    }
+    node->SetNumOpnds(GetNopndSize());
     return node;
   }
 };

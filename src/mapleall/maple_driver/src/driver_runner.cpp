@@ -219,6 +219,7 @@ void DriverRunner::RunNewPM(const std::string &output, const std::string &vtable
   {
     LogInfo::MapleLogger() << "\n" << LoopVectorization::vectorizedLoop << " loop vectorized\n";
     LogInfo::MapleLogger() << "\n" << SeqVectorize::seqVecStores << " sequencestores vectorized\n";
+    LogInfo::MapleLogger() << "\n" << LfoUnrollOneLoop::countOfLoopsUnrolled << " loops unrolled\n";
   }
 }
 

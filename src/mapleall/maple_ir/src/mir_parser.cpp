@@ -400,9 +400,6 @@ bool MIRParser::ParseStmtIf(StmtNodePtr &stmt) {
       return false;
     }
     ifStmt->SetElsePart(elseBlock);
-    if (elseBlock != nullptr) {
-      ifStmt->SetNumOpnds(ifStmt->GetNumOpnds() + 1);
-    }
   }
   stmt = ifStmt;
   return true;
@@ -1439,7 +1436,8 @@ bool MIRParser::ParseUnaryStmtCallAssertNonNull(StmtNodePtr &stmt) {
     return false;
   }
   lexer.NextToken();
-  stmt = mod.CurFuncCodeMemPool()->New<CallAssertNonnullStmtNode>(OP_callassertnonnull, funcName, index);
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
+  stmt = mod.CurFuncCodeMemPool()->New<CallAssertNonnullStmtNode>(OP_callassertnonnull, stridx, index);
   BaseNode *expr = nullptr;
   if (!ParseExprOneOperand(expr)) {
     return false;
@@ -1449,8 +1447,39 @@ bool MIRParser::ParseUnaryStmtCallAssertNonNull(StmtNodePtr &stmt) {
   return true;
 }
 
+bool MIRParser::ParseReturnAssertInfo(std::string &funcName) {
+  if (lexer.NextToken() != TK_langle) {
+    Error("expect < parsing safey return check ");
+    return false;
+  }
+  if (lexer.NextToken() != TK_fname) {
+    Error("expect &funcname parsing parsing safey return check ");
+    return false;
+  }
+  funcName = lexer.GetName();
+  if (lexer.NextToken() != TK_rangle) {
+    Error("expect > parsing safey return check ");
+    return false;
+  }
+  return true;
+}
+
 bool MIRParser::ParseUnaryStmtReturnAssertNonNull(StmtNodePtr &stmt) {
-  return ParseUnaryStmt(OP_returnassertnonnull, stmt);
+  std::string funcName;
+  if (!ParseReturnAssertInfo(funcName)) {
+    Error("ParseReturnAssertInfo failed");
+    return false;
+  }
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
+  lexer.NextToken();
+  stmt = mod.CurFuncCodeMemPool()->New<ReturnAssertNonnullStmtNode>(OP_returnassertnonnull, stridx);
+  BaseNode *expr = nullptr;
+  if (!ParseExprOneOperand(expr)) {
+    return false;
+  }
+  stmt->SetOpnd(expr, 0);
+  lexer.NextToken();
+  return true;
 }
 
 bool MIRParser::ParseStmtMarker(StmtNodePtr &stmt) {
@@ -1567,7 +1596,8 @@ bool MIRParser::ParseNaryStmtCallAssertLE(StmtNodePtr &stmt) {
     Error("ParseCallAssertInfo failed");
     return false;
   }
-  auto *assStmt = mod.CurFuncCodeMemPool()->New<CallAssertBoundaryStmtNode>(mod, OP_callassertle, funcName, index);
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
+  auto *assStmt = mod.CurFuncCodeMemPool()->New<CallAssertBoundaryStmtNode>(mod, OP_callassertle, stridx, index);
   if (!ParseNaryExpr(*assStmt)) {
     Error("ParseNaryExpr failed");
     return false;
@@ -1579,7 +1609,21 @@ bool MIRParser::ParseNaryStmtCallAssertLE(StmtNodePtr &stmt) {
 }
 
 bool MIRParser::ParseNaryStmtReturnAssertLE(StmtNodePtr &stmt) {
-  return ParseNaryStmt(stmt, OP_returnassertle);
+  std::string funcName;
+  if (!ParseReturnAssertInfo(funcName)) {
+    Error("ParseReturnAssertInfo failed");
+    return false;
+  }
+  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);
+  auto *assStmt = mod.CurFuncCodeMemPool()->New<ReturnAssertBoundaryStmtNode>(mod, OP_returnassertle, stridx);
+  if (!ParseNaryExpr(*assStmt)) {
+    Error("ParseNaryStmtReturnAssertLE failed");
+    return false;
+  }
+  assStmt->SetNumOpnds(assStmt->GetNopndSize());
+  stmt = assStmt;
+  lexer.NextToken();
+  return true;
 }
 
 bool MIRParser::ParseNaryStmtAssignAssertLE(StmtNodePtr &stmt) {
