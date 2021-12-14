@@ -50,7 +50,6 @@ class AdjustASTVisitor : public AstVisitor {
   AST_Util       *mUtil;
   unsigned       mFlags;
   bool           mUpdated;
-  bool           mIsTS;
 
  public:
   explicit AdjustASTVisitor(Module_Handler *h, unsigned f, bool base = false)
@@ -58,7 +57,6 @@ class AdjustASTVisitor : public AstVisitor {
       mInfo = h->GetINFO();
       mInfo->SetNameAnonyStruct(true);
       mUtil = h->GetUtil();
-      mIsTS = (h->GetASTModule()->GetSrcLang() == SrcLangTypeScript);
     }
   ~AdjustASTVisitor() = default;
 

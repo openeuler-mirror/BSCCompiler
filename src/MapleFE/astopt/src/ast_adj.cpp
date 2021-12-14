@@ -504,7 +504,7 @@ LambdaNode *AdjustASTVisitor::VisitLambdaNode(LambdaNode *node) {
 }
 
 void AdjustASTVisitor::CheckAndRenameCppKeywords(TreeNode *node) {
-  if (!mIsTS || node->GetStrIdx() == 0) {
+  if (!mHandler->IsTS() || node->GetStrIdx() == 0) {
     return;
   }
 

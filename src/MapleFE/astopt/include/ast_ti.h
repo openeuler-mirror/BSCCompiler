@@ -110,7 +110,6 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
   AST_INFO       *mInfo;
   AST_XXport     *mXXport;
   AstOpt         *mAstOpt;
-  bool            mIsTS;
 
   ChangeTypeIdxVisitor *mChangeTypeIdxVisitor;
 
@@ -127,7 +126,6 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
       mInfo = h->GetINFO();
       mXXport = h->GetASTXXport();
       mAstOpt = h->GetAstOpt();
-      mIsTS = (h->GetASTModule()->GetSrcLang() == SrcLangTypeScript);
     }
 
   ~TypeInferVisitor() = default;
