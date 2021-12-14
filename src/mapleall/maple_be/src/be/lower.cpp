@@ -1068,19 +1068,20 @@ void CGLowerer::LowerAsmStmt(AsmNode *asmNode, BlockNode *newBlk) {
       continue;
     }
     // introduce a temporary to store the expression tree operand
-    PrimType type = opnd->GetPrimType();
+    TyIdx tyIdxUsed = (TyIdx)opnd->GetPrimType();
     if (opnd->op == OP_iread) {
       IreadNode *ireadNode = static_cast<IreadNode *>(opnd);
-      type = ireadNode->GetType()->GetPrimType();
+      tyIdxUsed = ireadNode->GetType()->GetTypeIndex();
     }
     StmtNode *assignNode = nullptr;
     BaseNode *readOpnd = nullptr;
-    if (CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
+    PrimType type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdxUsed)->GetPrimType();
+    if ((type != PTY_agg) && CGOptions::GetInstance().GetOptimizeLevel() >= CGOptions::kLevel2) {
       PregIdx pregIdx = mirModule.CurFunction()->GetPregTab()->CreatePreg(type);
       assignNode = mirBuilder->CreateStmtRegassign(type, pregIdx, opnd);
       readOpnd = mirBuilder->CreateExprRegread(type, pregIdx);
     } else {
-      MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(TyIdx(type), NewAsmTempStrIdx(),
+      MIRSymbol *st = mirModule.GetMIRBuilder()->CreateSymbol(tyIdxUsed, NewAsmTempStrIdx(),
           kStVar, kScAuto, mirModule.CurFunction(), kScopeLocal);
       assignNode = mirModule.GetMIRBuilder()->CreateStmtDassign(*st, 0, opnd);
       readOpnd = mirBuilder->CreateExprDread(*st);
