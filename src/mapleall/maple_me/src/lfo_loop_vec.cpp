@@ -913,7 +913,8 @@ IntrinsicopNode *LoopVectorization::GenVectorWidenOpnd(BaseNode *opnd, PrimType 
   return rhs;
 }
 
-IntrinsicopNode *LoopVectorization::GenVectorPairWiseAccumulate(BaseNode *oper0, BaseNode *oper1, PrimType oper1Type) {
+IntrinsicopNode *LoopVectorization::GenVectorPairWiseAccumulate(BaseNode *oper0,
+    BaseNode *oper1, PrimType oper1Type) {
   MIRIntrinsicID intrnID = INTRN_vector_pairwise_adalp_v8i8;
   MIRType *resType = nullptr;
   switch (oper1Type) {
@@ -1395,7 +1396,8 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
               GetPrimTypeSize(GetVecElemPrimType(currVecType))) {
             ASSERT(((GetVecEleSize(regReadlhsvec->GetPrimType())) / GetVecEleSize(currVecType) == 2) &&
                    (GetVecLanes(regReadlhsvec->GetPrimType()) * 2 ==  GetVecLanes(currVecType)) , "type check");
-            IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec, currVecNode, currVecType);
+            IntrinsicopNode *pairwiseWidenAddIntrn = GenVectorPairWiseAccumulate(regReadlhsvec,
+                currVecNode, currVecType);
             RegassignNode *regassign3 = codeMP->New<RegassignNode>(regReadlhsvec->GetPrimType(),
                 regReadlhsvec->GetRegIdx(), pairwiseWidenAddIntrn);
             doloopbody->InsertBefore(dassign, regassign3);
@@ -1470,7 +1472,8 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
       LfoPart *lfoP = (*lfoExprParts)[node];
       // check node's parent, if they are binary node, skip the duplication
       if ((!lfoP->GetParent()->IsBinaryNode()) || (node->GetOpCode() == OP_iread)) {
-        PrimType ptype = node->GetPrimType();
+        PrimType ptype =  (node->GetOpCode() == OP_iread) ?
+            (static_cast<IreadNode *>(node))->GetType()->GetPrimType() : node->GetPrimType();
         if (tp->vecInfo->constvalTypes.count(node) > 0) {
           ptype = tp->vecInfo->constvalTypes[node];
         }
@@ -1657,10 +1660,13 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
         if (!vecInfo->UpdateRHSTypeSize(mirType->GetPrimType())) {
           canVec = false; // skip if rhs type is not consistent
         } else {
-          IreadNode *iread = static_cast<IreadNode *>(x);
-          if ((iread->GetFieldID() != 0 || MustBeAddress(iread->GetPrimType())) &&
-              iread->Opnd(0)->GetOpCode() == OP_array) {
-            canVec = doloopInfo->IsLoopInvariant2(iread->Opnd(0));
+          if ((ireadnode->GetFieldID() != 0 || MustBeAddress(ireadnode->GetPrimType())) &&
+              ireadnode->Opnd(0)->GetOpCode() == OP_array) {
+            canVec = doloopInfo->IsLoopInvariant2(ireadnode->Opnd(0));
+          }
+          if (canVec && IsPrimitiveInteger(mirType->GetPrimType()) &&
+              doloopInfo->IsLoopInvariant2(ireadnode->Opnd(0))) {
+            vecInfo->uniformNodes.insert(x);
           }
         }
       }
