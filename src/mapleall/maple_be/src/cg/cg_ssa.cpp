@@ -18,11 +18,15 @@
 #include "optimize_common.h"
 
 namespace maplebe {
+uint32 CGSSAInfo::SSARegNObase = 100;
+void VRegVersion::SetNewSSAOpnd(RegOperand &regOpnd) {
+  ssaRegOpnd = &regOpnd;
+}
+
 void CGSSAInfo::ConstructSSA() {
   InsertPhiInsn();
   /* Rename variables */
   RenameVariablesForBB(domInfo->GetCommonEntryBB().GetId());
-
 }
 
 void CGSSAInfo::InsertPhiInsn() {
@@ -102,9 +106,9 @@ void CGSSAInfo::RenameBB(BB &bb) {
   RenameSuccPhiUse(bb);
   RenameVariablesForBB(bb.GetId());
   /* stack pop up */
-  for (auto it : vRegStk) {
+  for (auto &it : vRegStk) {
     if (oriStackSize.count(it.first)) {
-      while (it.second.size() > oriStackSize.size()) {
+      while (it.second.size() > oriStackSize[it.first]) {
         ASSERT(!it.second.empty(), "empty stack");
         it.second.pop();
       }
@@ -150,13 +154,23 @@ uint32 CGSSAInfo::IncreaseVregCount(regno_t vRegNO) {
   return vRegDefCount[vRegNO];
 }
 
+bool CGSSAInfo::IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst) {
+  if (allSSAOperands.count(vRegNO)) {
+    return false;
+  }
+  allSSAOperands.emplace(vRegNO, vst);
+  return true;
+}
+
 VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, bool isDefByPhi) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
   uint32 verionIdx = IncreaseVregCount(vRegNO);
   RegOperand *ssaOpnd = CreateSSAOperand(virtualOpnd);
   auto *newVst = memPool->New<VRegVersion>(ssaAlloc, *ssaOpnd, verionIdx, vRegNO);
-  newVst->SetDefInsn(defInsn, isDefByPhi ? kDefByPhi : kDefByInsn);
-  allSSAOperands.emplace(ssaOpnd->GetRegisterNumber(), newVst);
+  newVst->SetDefInsn(&defInsn, isDefByPhi ? kDefByPhi : kDefByInsn);
+  if (!IncreaseSSAOperand(ssaOpnd->GetRegisterNumber(), newVst)) {
+    CHECK_FATAL(false, "insert ssa operand failed");
+  }
   auto it = vRegStk.find(vRegNO);
   if (it == vRegStk.end()) {
     MapleStack<VRegVersion*> vRegVersionStack(ssaAlloc.Adapter());
@@ -164,6 +178,7 @@ VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn,
     CHECK_FATAL(ret.second, "insert failed");
     it = ret.first;
   }
+
   it->second.push(newVst);
   return newVst;
 }
@@ -229,7 +244,11 @@ void CgSSAConstruct::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgLiveAnalysis>();
   aDep.PreservedAllExcept<CgLiveAnalysis>();
 }
+
 bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
+  if (CG_DEBUG_FUNC(f)) {
+    DotGenerator::GenerateDot("beforessa", f, f.GetMirModule(), true);
+  }
   MemPool *ssaMemPool = GetPhaseMemPool();
   MemPool *ssaTempMp = ApplyTempMemPool(); /* delete after ssa construct */
   DomAnalysis *domInfo = nullptr;
@@ -240,7 +259,8 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   ssaInfo = f.GetCG()->CreateCGSSAInfo(*ssaMemPool, f, *domInfo, *ssaTempMp);
   ssaInfo->ConstructSSA();
   if (CG_DEBUG_FUNC(f)) {
-    LogInfo::MapleLogger() << "******** CG IR After ssaconstruct : *********" << "\n";
+
+    LogInfo::MapleLogger() << "******** CG IR After ssaconstruct in ssaForm : *********" << "\n";
     ssaInfo->DumpFuncCGIRinSSAForm();
   }
   if (liveInfo != nullptr) {

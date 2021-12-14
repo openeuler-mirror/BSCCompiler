@@ -1517,7 +1517,10 @@ std::set<uint32> AArch64Insn::GetDefRegs() const {
       continue;
     }
     if (opnd.IsList()) {
-      CHECK_FATAL(false, "Internal error, list operand should not be defined.");
+      for (auto *op : static_cast<AArch64ListOperand&>(opnd).GetOperands()) {
+        ASSERT(op != nullptr, "invalid operand in list operand");
+        defRegNOs.emplace(op->GetRegisterNumber());
+      }
     } else if (opnd.IsMemoryAccessOperand()) {
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       RegOperand *base = memOpnd.GetBaseRegister();
@@ -1655,6 +1658,10 @@ bool AArch64Insn::IsDMBInsn() const {
 
 bool AArch64Insn::IsMove() const {
   return AArch64CG::kMd[mOp].IsMove();
+}
+
+bool AArch64Insn::IsPhi() const {
+  return AArch64CG::kMd[mOp].IsPhi();
 }
 
 bool AArch64Insn::IsLoad() const {

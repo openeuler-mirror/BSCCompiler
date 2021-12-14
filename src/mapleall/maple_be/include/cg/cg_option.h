@@ -629,6 +629,10 @@ class CGOptions : public MapleDriverOptionBase {
     return doEBO;
   }
 
+  static bool DoCGSSA() {
+    return doCGSSA;
+  }
+
   static void EnableCFGO() {
     doCFGO = true;
   }
@@ -1159,6 +1163,7 @@ class CGOptions : public MapleDriverOptionBase {
   static bool dumpAfter;
   static bool timePhases;
   static bool doEBO;
+  static bool doCGSSA;
   static bool doCFGO;
   static bool doICO;
   static bool doStoreLoadOpt;

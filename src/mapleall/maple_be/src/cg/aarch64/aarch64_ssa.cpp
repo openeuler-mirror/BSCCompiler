@@ -28,7 +28,6 @@ void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
     Operand &opnd = insn.GetOperand(i);
     auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
     if (opnd.IsList()) {
-      ASSERT(!opndProp->IsDef(), "do not support def list in aarch64");
       RenameListOpnd(static_cast<AArch64ListOperand&>(opnd), insn.GetMachineOpcode() == MOP_asm, i, insn);
 #if DEBUG
       for (auto *op : static_cast<ListOperand&>(opnd).GetOperands()) {
@@ -90,7 +89,7 @@ void AArch64CGSSAInfo::RenameMemOpnd(AArch64MemOperand &memOpnd, Insn &curInsn) 
     if (index != nullptr && index->IsVirtualRegister()) {
       copyMem->SetIndexRegister(*GetRenamedOperand(*index, false, curInsn));
     }
-    curInsn.SetMemOpnd(copyMem);
+    curInsn.SetMemOpnd(&static_cast<AArch64CGFunc*>(cgFunc)->GetOrCreateMemOpnd(*copyMem));
   }
 }
 
@@ -108,9 +107,7 @@ RegOperand *AArch64CGSSAInfo::GetRenamedOperand(RegOperand &vRegOpnd, bool isDef
     } else {
       VRegVersion *curVersion = GetVersion(vRegOpnd);
       if (curVersion == nullptr) {
-        LogInfo::MapleLogger() << "WARNING: " << vRegOpnd.GetRegisterNumber() << " has no def info in function : "
-                               << cgFunc->GetName() << " !\n";
-        curVersion = CreateNewVersion(vRegOpnd, curInsn);
+        curVersion = RenamedOperandSpecialCase(vRegOpnd, curInsn);
       }
       curVersion->addUseInsn(curInsn);
       return curVersion->GetSSAvRegOpnd();
@@ -120,9 +117,25 @@ RegOperand *AArch64CGSSAInfo::GetRenamedOperand(RegOperand &vRegOpnd, bool isDef
   return nullptr;
 }
 
+VRegVersion *AArch64CGSSAInfo::RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn) {
+  LogInfo::MapleLogger() << "WARNING: " << vRegOpnd.GetRegisterNumber() << " has no def info in function : "
+                         << cgFunc->GetName() << " !\n";
+  /* occupy operand for no def vreg */
+  if (!IncreaseSSAOperand(vRegOpnd.GetRegisterNumber(), nullptr)) {
+    ASSERT(GetAllSSAOperands().find(vRegOpnd.GetRegisterNumber()) != GetAllSSAOperands().end(), "should find");
+    AddNoDefVReg(vRegOpnd.GetRegisterNumber());
+  }
+  VRegVersion *version = CreateNewVersion(vRegOpnd, curInsn);
+  version->SetDefInsn(nullptr, kDefByNo);
+  return version;
+}
+
 RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
-  constexpr uint32 ssaRegNObase = 100;
-  regno_t ssaRegNO = GetAllSSAOperands().size() + ssaRegNObase;
+  regno_t ssaRegNO = GetAllSSAOperands().size() + SSARegNObase;
+  while (GetAllSSAOperands().count(ssaRegNO)) {
+    ssaRegNO++;
+    SSARegNObase++;
+  }
   RegOperand *newVreg = memPool->New<AArch64RegOperand>(ssaRegNO, virtualOpnd.GetSize(), virtualOpnd.GetRegisterType());
   newVreg->SetOpndSSAForm();
   return newVreg;
@@ -164,7 +177,7 @@ void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
   }
 
   if (a64Insn.IsVectorOp()) {
-    const AArch64VectorInsn &vInsn = static_cast<const AArch64VectorInsn&>(insn);
+    auto &vInsn = static_cast<const AArch64VectorInsn&>(insn);
     if (vInsn.GetNumOfRegSpec() != 0) {
       LogInfo::MapleLogger() << " (vecSpec: " << vInsn.GetNumOfRegSpec() << ")";
     }
@@ -176,10 +189,17 @@ bool AArch64CGSSAInfo::DumpA64SSAMemOpnd(AArch64MemOperand &a64MemOpnd) const {
   bool hasDumpedSSAbase = false;
   bool hasDumpedSSAIndex = false;
   if (a64MemOpnd.GetBaseRegister() != nullptr && a64MemOpnd.GetBaseRegister()->IsSSAForm()) {
+    LogInfo::MapleLogger() << "Mem: ";
     DumpA64SSAOpnd(*a64MemOpnd.GetBaseRegister());
+    if (a64MemOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi) {
+      LogInfo::MapleLogger() << "offset:";
+      a64MemOpnd.GetOffsetOperand()->Dump();
+    }
     hasDumpedSSAbase = true;
   }
   if (a64MemOpnd.GetIndexRegister() != nullptr && a64MemOpnd.GetIndexRegister()->IsSSAForm() ) {
+    ASSERT(a64MemOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOrX, "mem mode false");
+    LogInfo::MapleLogger() << "offset:";
     DumpA64SSAOpnd(*a64MemOpnd.GetIndexRegister());
     hasDumpedSSAIndex = true;
   }

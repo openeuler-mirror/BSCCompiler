@@ -277,6 +277,7 @@ void AArch64AlignAnalysis::AddNopAfterMark() {
       BB *region = bb;
       while (detect != nullptr || region != aarFunc->GetFirstBB()) {
         while (detect == nullptr) {
+          ASSERT(region->GetPrev() != nullptr, "get region prev failed");
           region = region->GetPrev();
           detect = region->GetLastInsn();
         }

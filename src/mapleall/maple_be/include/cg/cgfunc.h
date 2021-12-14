@@ -375,6 +375,7 @@ class CGFunc {
     /* when vRegCount reach to maxRegCount, maxRegCount limit adds 80 every time */
     /* and vRegTable increases 80 elements. */
     if (vRegCount >= maxRegCount) {
+      ASSERT(vRegCount < maxRegCount + 1, "MAINTIAN FAILED");
       maxRegCount += kRegIncrStepLen;
       vRegTable.resize(maxRegCount);
     }
@@ -1003,6 +1004,8 @@ class CGFunc {
     return useFP;
   }
 
+  void UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap);
+
   void RegisterVregMapping(regno_t vRegNum, PregIdx pidx) {
     vregsToPregsMap[vRegNum] = pidx;
   }
@@ -1028,6 +1031,7 @@ class CGFunc {
   int32 totalInsns = 0;
   int32 structCopySize;
   int32 maxParamStackSize;
+  static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
 
   bool hasVLAOrAlloca;
   bool hasProEpilogue = false;
@@ -1142,7 +1146,7 @@ class CGFunc {
   MapleVector<CGFuncLoops*> loops;
   CGCFG *theCFG = nullptr;
   uint32 nextSpillLocation = 0;
-  static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */
+
   const MapleString shortFuncName;
   bool hasAsm = false;
   bool useFP = true;

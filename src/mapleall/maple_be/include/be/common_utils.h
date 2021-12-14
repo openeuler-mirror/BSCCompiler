@@ -33,9 +33,11 @@ constexpr uint32 k1FConst = 31;
 constexpr uint32 k0BitSize = 0;
 constexpr uint32 k1BitSize = 1;
 constexpr uint32 k2BitSize = 2;
+constexpr uint32 k3BitSize = 3;
 constexpr uint32 k4BitSize = 4;
 constexpr uint32 k5BitSize = 5;
 constexpr uint32 k6BitSize = 6;
+constexpr uint32 k7BitSize = 7;
 constexpr uint32 k8BitSize = 8;
 constexpr uint32 k16BitSize = 16;
 constexpr uint32 k24BitSize = 24;
@@ -81,6 +83,7 @@ constexpr int32 kInsnFifthOpnd = 4;
 constexpr int32 kInsnSixthOpnd = 5;
 constexpr int32 kInsnSeventhOpnd = 6;
 constexpr int32 kInsnEighthOpnd = 7;
+constexpr int32 kInsnMaxOpnd = 8;
 
 /* inline asm operand designations */
 constexpr uint32 kAsmStringOpnd = 0;
@@ -144,9 +147,19 @@ constexpr int32 kMaxPimm128 = 65520;
 constexpr int32 kMaxPimm[k5BitSize] = {kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64, kMaxPimm128};
 constexpr int32 kMaxPairPimm[k2BitSize] = {k256BitSize, k512BitSize};
 
+constexpr int32 kMaxSimm32 = 255;
+constexpr int32 kMaxSimm32Pair = 252;
+constexpr int32 kMinSimm32 = kNegative256BitSize;
+constexpr int32 kMaxSimm64Pair = 504;
+constexpr int32 kMinSimm64 = kNegative512BitSize;
+
 constexpr int32 kMax12UnsignedImm = 4096;
 constexpr int32 kMax13UnsignedImm = 8192;
 constexpr int32 kMax16UnsignedImm = 65535;
+
+/* Dedicated for Vector */
+constexpr int32 kMinImmVal = -128;
+constexpr int32 kMaxImmVal = 255;
 
 /* aarch64 assembly takes up to 24-bits */
 constexpr uint32 kMaxImmVal24Bits = 24;

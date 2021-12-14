@@ -23,8 +23,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
     for (auto phiInsnIt : bb->GetPhiInsns()) {
       /* Method I create a temp move for phi-node */
       auto &destReg = static_cast<RegOperand&>(phiInsnIt.second->GetOperand(kInsnFirstOpnd));
-      regno_t tempMovDestRegNO = cgFunc->NewVReg(destReg.GetRegisterType(), destReg.GetSize() >> 3);
-      RegOperand &tempMovDest = cgFunc->CreateVirtualRegisterOperand(tempMovDestRegNO);
+      RegOperand &tempMovDest = cgFunc->GetOrCreateVirtualRegisterOperand(CreateTempRegForCSSA(destReg));
       auto &phiList = static_cast<PhiOperand&>(phiInsnIt.second->GetOperand(kInsnSecondOpnd));
       for (auto phiOpndIt : phiList.GetOperands()) {
         uint32 fBBId = phiOpndIt.first;
@@ -38,9 +37,9 @@ void PhiEliminate::TranslateTSSAToCSSA() {
         }
         CHECK_FATAL(find, "dont exited pred for phi-node");
 #endif
-        PlaceMovInPredBB(fBBId, CreateMoveCopyRematInfo(tempMovDest, *(phiOpndIt.second)));
+        PlaceMovInPredBB(fBBId, CreateMov(tempMovDest, *(phiOpndIt.second)));
       }
-      Insn &movInsn = CreateMoveCopyRematInfo(destReg, tempMovDest);
+      Insn &movInsn = CreateMov(destReg, tempMovDest);
       bb->ReplaceInsn(*phiInsnIt.second, movInsn);
     }
   }
@@ -54,50 +53,47 @@ void PhiEliminate::TranslateTSSAToCSSA() {
       ReCreateRegOperand(*insn);
     }
   }
+  UpdateRematInfo();
+}
+
+void PhiEliminate::UpdateRematInfo() {
+  if (CGOptions::GetRematLevel() > 0) {
+    cgFunc->UpdateAllRegisterVregMapping(remateInfoAfterSSA);
+  }
 }
 
 void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) {
   BB *predBB = cgFunc->GetBBFromID(predBBId);
   ASSERT(movInsn.GetOperand(kInsnSecondOpnd).IsRegister(), "unexpect operand");
-  auto &prevDef = static_cast<RegOperand&>(movInsn.GetOperand(kInsnSecondOpnd));
-  VRegVersion *ssaVerion = GetSSAInfo()->FindSSAVersion(prevDef.GetRegisterNumber());
-  ASSERT(ssaVerion != nullptr, "find ssaInfo failed");
-  Insn *defInsn = ssaVerion->GetDefInsn();
-  ASSERT(defInsn != nullptr, "get def insn failed");
-  if (defInsn->GetBB()->GetId() == predBB->GetId()) {
-    if (ssaVerion->GetDefType() == kDefByPhi) {
-      Insn *posInsn = nullptr;
-      FOR_BB_INSNS(insn, predBB) {
-        if (!insn->IsMachineInstruction()) {
-          continue;
-        }
-        ASSERT(insn != nullptr, "empty bb");
-        if (!eliminatedBB.count(predBB->GetId())) {
-          ASSERT(insn != nullptr, "unexpected null posInsn");
-          predBB->InsertInsnBefore(*insn, movInsn);
-          return;
-        }
-        if (insn->IsComment() || insn->IsMove()) {
-          posInsn = insn;
-          continue;
-        }
-        break;
-      }
-      if (posInsn == nullptr) { /* phi self depend */
-        AppendMovAfterLastVregDef(*predBB, movInsn);
-      } else {
-        predBB->InsertInsnAfter(*posInsn, movInsn);
-      }
-    } else {
-      ASSERT(ssaVerion->GetDefType() != kDefByNo, "Get DefType failed");
-      predBB->InsertInsnAfter(*ssaVerion->GetDefInsn(), movInsn);
-    }
+  AppendMovAfterLastVregDef(*predBB, movInsn);
+}
+
+regno_t PhiEliminate::GetAndIncreaseTempRegNO() {
+  while (GetSSAInfo()->GetAllSSAOperands().count(tempRegNO)) {
+    tempRegNO++;
+  }
+  regno_t ori = tempRegNO;
+  tempRegNO++;
+  return ori;
+}
+
+RegOperand *PhiEliminate::MakeRoomForNoDefVreg(RegOperand &conflictReg) {
+  regno_t conflictVregNO = conflictReg.GetRegisterNumber();
+  auto rVregIt = replaceVreg.find(conflictVregNO);
+  if (rVregIt != replaceVreg.end()) {
+    return rVregIt->second;
   } else {
-    if (predBB->GetKind() == BB::kBBFallthru) {
-      predBB->AppendInsn(movInsn);
-    } else {
-      AppendMovAfterLastVregDef(*predBB, movInsn);
-    }
+    RegOperand *regForRecreate = &CreateTempRegForCSSA(conflictReg);
+    replaceVreg.insert(std::pair<regno_t, RegOperand*>(conflictVregNO, regForRecreate));
+    return regForRecreate;
+  }
+}
+
+void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
+  if (remateInfoAfterSSA.count(vRegNO)) {
+    CHECK_FATAL(remateInfoAfterSSA[vRegNO] == pIdx, "new remat on same reg opnd");
+  } else {
+    remateInfoAfterSSA.insert(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
   }
 }
 

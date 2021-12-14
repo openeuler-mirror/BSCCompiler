@@ -1111,7 +1111,6 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
       GenAllAsmUseRegs(bb, *insn, kAsmInputListOpnd);
       continue;
     }
-
     if (insn->IsCall()) {
       GenAllCallerSavedRegs(bb);
       InitMemInfoForClearStackCall(*insn);

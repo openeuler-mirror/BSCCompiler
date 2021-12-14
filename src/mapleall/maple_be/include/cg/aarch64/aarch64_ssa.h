@@ -28,6 +28,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
  private:
   void RenameInsn(Insn &insn) override;
   RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) override;
+  VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
   void RenameListOpnd(AArch64ListOperand &listOpnd, bool isAsm, uint32 idx, Insn &curInsn);
   void RenameMemOpnd(AArch64MemOperand &memOpnd, Insn &curInsn);

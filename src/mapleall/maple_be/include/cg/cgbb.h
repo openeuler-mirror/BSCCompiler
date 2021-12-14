@@ -594,6 +594,7 @@ class BB {
     rangeGotoLabelVec.emplace_back(labelIdx);
   }
   void AddPhiInsn(regno_t regNO, Insn &insn) {
+    ASSERT(!phiInsnList.count(regNO), "repeat phiInsn");
     phiInsnList.emplace(std::pair<regno_t, Insn*>(regNO, &insn));
   }
   bool HasPhiInsn(regno_t regNO) {

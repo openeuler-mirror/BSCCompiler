@@ -24,10 +24,14 @@ class AArch64PhiEliminate : public PhiEliminate {
 
  private:
   void ReCreateRegOperand(Insn &insn) override;
-  void ReCreateListOperand(ListOperand &lOpnd);
-  Insn &CreateMoveCopyRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd) const override;
+  void ReCreateListOperand(ListOperand &lOpnd, Insn &curInsn);
+  Insn &CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd) override;
+  void MaintainRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd, bool isCopy) override;
+  RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) override;
   void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const override;
-  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd);
+  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn /* for remat */);
+  /* reduce the live range of exisit regsiter*/
+  void DoRegLiveRangeOpt(Insn &insn, Insn &movInsn) const;
 };
 }
 #endif //MAPLEBE_CG_INCLUDE_AARCH64_PHI_ELIMINATION_H

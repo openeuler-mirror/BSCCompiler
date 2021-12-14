@@ -113,6 +113,7 @@ class AArch64Insn : public Insn {
   bool IsCondBranch() const final;
   bool IsUnCondBranch() const final;
   bool IsMove() const final;
+  bool IsPhi() const final;
   bool IsLoad() const final;
   bool IsLoadLabel() const final;
   bool IsLoadStorePair() const final;

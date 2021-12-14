@@ -1929,6 +1929,13 @@ void CGFunc::PatchLongBranch() {
   }
 }
 
+void CGFunc::UpdateAllRegisterVregMapping(MapleMap<regno_t, PregIdx> &newMap) {
+  vregsToPregsMap.clear();
+  for (auto it : newMap) {
+    vregsToPregsMap[it.first] = it.second;
+  }
+}
+
 bool CgHandleFunction::PhaseRun(maplebe::CGFunc &f) {
   f.HandleFunction();
   if (!f.GetCG()->GetCGOptions().DoEmitCode() || f.GetCG()->GetCGOptions().DoDumpCFG()) {
