@@ -310,39 +310,34 @@ void AArch64RegisterCoalesce::CoalesceRegPair(RegOperand &regDest, RegOperand &r
   vregIntervals.erase(lrDest->GetRegNO());
 }
 
-void AArch64RegisterCoalesce::CoalesceRegisters() {
-  std::vector<Insn*> movInsns;
+void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  if (REGCOAL_DUMP) {
-    cgFunc->DumpCFGToDot("regcoal-");
-    LogInfo::MapleLogger() << "handle function: " << a64CGFunc->GetFunction().GetName() << std::endl;
-  }
-  for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
-    BB *bb = bfs->sortedBBs[bbIdx - 1];
-
-    FOR_BB_INSNS_SAFE(insn, bb, ninsn) {
-      if (!insn->IsMachineInstruction()) {
+  FOR_BB_INSNS_SAFE(insn, &bb, ninsn) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (IsSimpleMov(*insn)) {
+      RegOperand &regDest = static_cast<RegOperand &>(insn->GetOperand(kInsnFirstOpnd));
+      RegOperand &regSrc = static_cast<RegOperand &>(insn->GetOperand(kInsnSecondOpnd));
+      if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
         continue;
       }
-      if (IsSimpleMov(*insn)) {
-        RegOperand &regDest = static_cast<RegOperand &>(insn->GetOperand(kInsnFirstOpnd));
-        RegOperand &regSrc = static_cast<RegOperand &>(insn->GetOperand(kInsnSecondOpnd));
-        if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
-          continue;
-        }
-        if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
-          continue;
-        }
-        if (a64CGFunc->IsRegRematCand(regDest)) {
-          continue;
-        }
-        if (a64CGFunc->IsRegRematCand(regSrc)) {
-          continue;
-        }
-        movInsns.emplace_back(insn);
+      if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
+        continue;
       }
+      if (a64CGFunc->IsRegRematCand(regDest)) {
+        continue;
+      }
+      if (a64CGFunc->IsRegRematCand(regSrc)) {
+        continue;
+      }
+      movInsns.emplace_back(insn);
     }
   }
+}
+
+void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns) {
+  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   bool changed = false;
   do {
     changed = false;
@@ -372,6 +367,32 @@ void AArch64RegisterCoalesce::CoalesceRegisters() {
       }
     }
   } while (changed);
+}
+
+void AArch64RegisterCoalesce::CoalesceRegisters() {
+  std::vector<Insn*> movInsns;
+  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  if (REGCOAL_DUMP) {
+    cgFunc->DumpCFGToDot("regcoal-");
+    LogInfo::MapleLogger() << "handle function: " << a64CGFunc->GetFunction().GetName() << std::endl;
+  }
+  for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
+    BB *bb = bfs->sortedBBs[bbIdx - 1];
+
+    if (bb->GetCritical() == false) {
+      continue;
+    }
+    CollectMoveForEachBB(*bb, movInsns);
+  }
+  for (size_t bbIdx = bfs->sortedBBs.size(); bbIdx > 0; --bbIdx) {
+    BB *bb = bfs->sortedBBs[bbIdx - 1];
+
+    if (bb->GetCritical() == true) {
+      continue;
+    }
+    CollectMoveForEachBB(*bb, movInsns);
+  }
+  CoalesceMoves(movInsns);
 
   /* clean up dead mov */
   a64CGFunc->CleanupDeadMov();

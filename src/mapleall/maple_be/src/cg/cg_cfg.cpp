@@ -471,6 +471,7 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) {
   curBB.GetNext()->RemovePreds(curBB);
   curBB.GetPrev()->SetNext(curBB.GetNext());
   curBB.GetNext()->SetPrev(curBB.GetPrev());
+  cgFunc->ClearBBInVec(curBB.GetId());
 }
 
 void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) {
@@ -745,6 +746,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
 void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   LabelIdx newLblIdx = cgFunc->CreateLabel();
   BB *newBB = cgFunc->CreateNewBB(newLblIdx, false, BB::kBBGoto, pred.GetFrequency());
+  newBB->SetCritical(true);
   bool isFallThru = pred.GetNext() == &succ;
   /* set prev, next */
   if (isFallThru) {

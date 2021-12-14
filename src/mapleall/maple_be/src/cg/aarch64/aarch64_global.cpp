@@ -64,6 +64,7 @@ void AArch64GlobalOpt::Run() {
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
   if (!hasSpillBarrier) {
     optManager.Optimize<ExtenToMovPattern>();
+    optManager.Optimize<SameRHSPropPattern>();
     optManager.Optimize<BackPropPattern>();
     optManager.Optimize<ForwardPropPattern>();
     optManager.Optimize<CselPattern>();
@@ -73,6 +74,7 @@ void AArch64GlobalOpt::Run() {
   }
   optManager.Optimize<SameDefPattern>();
   optManager.Optimize<ExtendShiftOptPattern>();
+  optManager.Optimize<AndCbzPattern>();
 }
 
 /* if used Operand in insn is defined by zero in all define insn, return true */
@@ -1531,6 +1533,7 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   }
   use.GetBB()->ReplaceInsn(use, *replaceUseInsn);
   if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In ExtendShiftOptPattern : <<<<<<<\n";
     LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
     use.Dump();
     LogInfo::MapleLogger() << "=======NewInsn :\n";
@@ -1538,6 +1541,7 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) 
   }
   if (removeDefInsn) {
     if (GLOBAL_DUMP) {
+      LogInfo::MapleLogger() << ">>>>>>> In ExtendShiftOptPattern : <<<<<<<\n";
       LogInfo::MapleLogger() << "=======RemoveDefInsn :\n";
       defInsn->Dump();
     }
@@ -1844,6 +1848,7 @@ void SameDefPattern::Optimize(Insn &insn) {
     return;
   }
   if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In SameDefPattern : <<<<<<<\n";
     LogInfo::MapleLogger() << "=======remove insn: \n";
     insn.Dump();
     LogInfo::MapleLogger() << "=======sameDef insn: \n";
@@ -1902,7 +1907,20 @@ void AndCbzPattern::Init() {
   prevInsn = nullptr;
 }
 
+bool AndCbzPattern::IsAdjacentArea(Insn &prev, Insn &curr) {
+  if (prev.GetBB() == curr.GetBB()) {
+    return true;
+  }
+  for (auto *succ : prev.GetBB()->GetSuccs()) {
+    if (succ == curr.GetBB()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool AndCbzPattern::CheckCondition(Insn &insn) {
+  auto *aar64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
   MOperator mOp = insn.GetMachineOpcode();
   if ((mOp != MOP_wcbz) && (mOp != MOP_xcbz) && (mOp != MOP_wcbnz) && (mOp != MOP_xcbnz)) {
     return false;
@@ -1916,7 +1934,20 @@ bool AndCbzPattern::CheckCondition(Insn &insn) {
   if (prevInsn->GetMachineOpcode() != MOP_wandrri12 && prevInsn->GetMachineOpcode() != MOP_xandrri13) {
     return false;
   }
-  return !(cgFunc.GetRD()->FindRegUseBetweenInsnGlobal(regNo, prevInsn, &insn, insn.GetBB()));
+  if (!IsAdjacentArea(*prevInsn, insn)) {
+    return false;
+  }
+  regno_t propRegNo = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)).GetRegisterNumber();
+  if (prevInsn->GetBB() == insn.GetBB() && !(aar64RD->FindRegDefBetweenInsn(propRegNo, prevInsn, &insn).empty())) {
+    return false;
+  }
+  if (prevInsn->GetBB() != insn.GetBB() && aar64RD->HasRegDefBetweenInsnGlobal(propRegNo, *prevInsn, insn)) {
+    return false;
+  }
+  if (!(cgFunc.GetRD()->FindUseForRegOpnd(insn, regNo, true).empty())) {
+    return false;
+  }
+  return true;
 }
 
 int64 AndCbzPattern::CalculateLogValue(int64 val) {
@@ -1954,8 +1985,11 @@ void AndCbzPattern::Optimize(Insn &insn) {
   ImmOperand &tbzImm = aarchFunc.CreateImmOperand(tbzVal, k8BitSize, false);
   Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
                                                                 tbzImm, label);
+  newInsn.SetId(insn.GetId());
   bb->ReplaceInsn(insn, newInsn);
   if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In AndCbzPattern : <<<<<<<\n";
+    LogInfo::MapleLogger() << "=======PrevInsn :\n";
     LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
     insn.Dump();
     LogInfo::MapleLogger() << "=======NewInsn :\n";
@@ -1965,9 +1999,156 @@ void AndCbzPattern::Optimize(Insn &insn) {
 }
 
 void AndCbzPattern::Run() {
+  Init();
   FOR_ALL_BB_REV(bb, &cgFunc) {
     FOR_BB_INSNS_REV(insn, bb) {
       if (!insn->IsMachineInstruction() || !CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+void SameRHSPropPattern::Init() {
+  prevInsn = nullptr;
+  candidates = {MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12, MOP_xmovri32, MOP_xmovri64};
+}
+
+bool SameRHSPropPattern::IsSameOperand(Operand *opnd1, Operand *opnd2) {
+  if (opnd1 == nullptr && opnd2 == nullptr) {
+    return true;
+  } else if (opnd1 == nullptr || opnd2 == nullptr) {
+    return false;
+  }
+  if (opnd1->IsRegister() && opnd2->IsRegister()) {
+    return RegOperand::IsSameReg(*opnd1, *opnd2);
+  } else if (opnd1->IsImmediate() && opnd2->IsImmediate()) {
+    auto *immOpnd1 = static_cast<ImmOperand*>(opnd1);
+    auto *immOpnd2 = static_cast<ImmOperand*>(opnd2);
+    return (immOpnd1->GetSize() == immOpnd2->GetSize()) && (immOpnd1->GetValue() == immOpnd2->GetValue());
+  }
+  return false;
+}
+
+bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
+  uint32 opndNum = insn.GetOperandSize();
+  Operand *curRegOpnd = nullptr;
+  Operand *curImmOpnd = nullptr;
+  for (uint32 i = 0; i < opndNum; ++i) {
+    if (insn.OpndIsDef(i)) {
+      continue;
+    }
+    Operand &opnd = insn.GetOperand(i);
+    if (opnd.IsRegister()) {
+      if (static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() || !(static_cast<RegOperand&>(opnd).IsVirtualRegister())) {
+        return false;
+      }
+      curRegOpnd = &opnd;
+    } else if (opnd.IsImmediate()) {
+      auto &immOpnd = static_cast<AArch64ImmOperand&>(opnd);
+      if (immOpnd.GetVary() == kUnAdjustVary) {
+        return false;
+      }
+      curImmOpnd = &opnd;
+    }
+  }
+  BB *bb = insn.GetBB();
+  for (auto *cursor = insn.GetPrev(); cursor != nullptr && cursor != bb->GetFirstInsn(); cursor = cursor->GetPrev()) {
+    if (!cursor->IsMachineInstruction()) {
+      continue;
+    }
+    if (cursor->IsCall()) {
+      return false;
+    }
+    if (cursor->GetMachineOpcode() != insn.GetMachineOpcode()) {
+      continue;
+    }
+    uint32 candOpndNum = cursor->GetOperandSize();
+    Operand *candRegOpnd = nullptr;
+    Operand *candImmOpnd = nullptr;
+    for (uint32 i = 0; i < candOpndNum; ++i) {
+      Operand &opnd = cursor->GetOperand(i);
+      if (cursor->OpndIsDef(i)) {
+        continue;
+      }
+      if (opnd.IsRegister()) {
+        if (static_cast<AArch64RegOperand&>(opnd).IsSPOrFP() || !(static_cast<RegOperand&>(opnd).IsVirtualRegister())) {
+          return false;
+        }
+        candRegOpnd = &opnd;
+      } else if (opnd.IsImmediate()) {
+        auto &immOpnd = static_cast<AArch64ImmOperand&>(opnd);
+        if (immOpnd.GetVary() == kUnAdjustVary) {
+          return false;
+        }
+        candImmOpnd = &opnd;
+      }
+    }
+    if (IsSameOperand(curRegOpnd, candRegOpnd) && IsSameOperand(curImmOpnd, candImmOpnd)) {
+      prevInsn = cursor;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool SameRHSPropPattern::CheckCondition(Insn &insn) {
+  if (!insn.IsMachineInstruction()) {
+    return false;
+  }
+  MOperator mOp = insn.GetMachineOpcode();
+  if (std::find(candidates.begin(), candidates.end(), mOp) == candidates.end()) {
+    return false;
+  }
+  if (insn.GetBB()->HasCall()) {
+    return false;
+  }
+  if (!FindSameRHSInsnInBB(insn)) {
+    return false;
+  }
+  CHECK_FATAL(prevInsn->GetOperand(kInsnFirstOpnd).IsRegister(), "prevInsn first operand must be register");
+  if (prevInsn->GetOperand(kInsnSecondOpnd).IsRegister() &&
+      RegOperand::IsSameReg(prevInsn->GetOperand(kInsnFirstOpnd), prevInsn->GetOperand(kInsnSecondOpnd))) {
+    return false;
+  }
+  uint32 opndNum = prevInsn->GetOperandSize();
+  for(uint32 i = 0; i < opndNum; i++) {
+    Operand &opnd = prevInsn->GetOperand(i);
+    if (!opnd.IsRegister()) {
+      continue;
+    }
+    regno_t regNO = static_cast<RegOperand&>(opnd).GetRegisterNumber();
+    if (!(cgFunc.GetRD()->FindRegDefBetweenInsn(regNO, prevInsn->GetNext(), insn.GetPrev()).empty())) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void SameRHSPropPattern::Optimize(Insn &insn) {
+  BB *bb = insn.GetBB();
+  Operand &destOpnd = insn.GetOperand(kInsnFirstOpnd);
+  uint32 bitSize = static_cast<AArch64RegOperand&>(destOpnd).GetValidBitsNum();
+  MOperator mOp = (bitSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr);
+  Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mOp, destOpnd, prevInsn->GetOperand(kInsnFirstOpnd));
+  bb->ReplaceInsn(insn, newInsn);
+  if (GLOBAL_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In SameRHSPropPattern : <<<<<<<\n";
+    LogInfo::MapleLogger() << "=======PrevInsn :\n";
+    LogInfo::MapleLogger() << "======= ReplaceInsn :\n";
+    insn.Dump();
+    LogInfo::MapleLogger() << "======= NewInsn :\n";
+    newInsn.Dump();
+  }
+  cgFunc.GetRD()->UpdateInOut(*bb, true);
+}
+
+void SameRHSPropPattern::Run() {
+  Init();
+  FOR_ALL_BB_REV(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!CheckCondition(*insn)) {
         continue;
       }
       Optimize(*insn);

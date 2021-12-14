@@ -39,6 +39,8 @@ class AArch64RegisterCoalesce : public RegisterCoalesce {
   bool IsSimpleMov(Insn &insn);
   void CoalesceRegPair(RegOperand &regDest, RegOperand &regSrc);
   void CoalesceRegisters() override;
+  void CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns);
+  void CoalesceMoves(std::vector<Insn*> &movInsns);
   void CheckInterference(LiveInterval &li1, LiveInterval &li2);
   void CollectCandidate();
   std::string PhaseName() const {

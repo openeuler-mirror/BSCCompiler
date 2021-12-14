@@ -282,6 +282,7 @@ void LiveAnalysis::InitBB(BB &bb) {
 
 void LiveAnalysis::ClearInOutDataInfo() {
   FOR_ALL_BB(bb, cgFunc) {
+    bb->SetLiveInChange(false);
     bb->DefClearDataInfo();
     bb->UseClearDataInfo();
     bb->LiveInClearDataInfo();

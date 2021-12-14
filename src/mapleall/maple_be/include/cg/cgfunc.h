@@ -820,6 +820,9 @@ class CGFunc {
   BB *GetBBFromID(uint32 id) {
     return bbVec[id];
   }
+  void ClearBBInVec(uint32 id) {
+    bbVec[id] = nullptr;
+  }
 
 #if TARGARM32
   MapleVector<BB*> &GetSortedBBs() {

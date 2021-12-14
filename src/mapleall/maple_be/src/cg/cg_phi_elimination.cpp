@@ -51,6 +51,7 @@ void PhiEliminate::TranslateTSSAToCSSA() {
         continue;
       }
       ReCreateRegOperand(*insn);
+      bb->GetPhiInsns().clear();
     }
   }
   UpdateRematInfo();

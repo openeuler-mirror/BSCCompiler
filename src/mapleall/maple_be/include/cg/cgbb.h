@@ -506,6 +506,12 @@ class BB {
   void SetLiveInChange(bool arg) {
     liveInChange = arg;
   }
+  bool GetCritical() {
+    return isCritical;
+  }
+  void SetCritical(bool arg) {
+    isCritical = arg;
+  }
   bool GetInsertUse() const {
     return insertUse;
   }
@@ -746,6 +752,7 @@ class BB {
   MapleSet<regno_t> liveOutRegNO;
   CGFuncLoops *loop = nullptr;
   bool liveInChange = false;
+  bool isCritical = false;
   bool insertUse = false;
   bool hasCall = false;
   bool unreachable = false;

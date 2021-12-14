@@ -663,6 +663,8 @@ void AArch64CGFunc::SelectCopyRegOpnd(Operand &dest, PrimType dtype, Operand::Op
   bool isIntactIndexed = memOpnd->IsIntactIndexed();
   bool isPostIndexed = memOpnd->IsPostIndexed();
   bool isPreIndexed = memOpnd->IsPreIndexed();
+  ASSERT(!isPostIndexed, "memOpnd should not be post-index type");
+  ASSERT(!isPreIndexed, "memOpnd should not be pre-index type");
   bool isInRange = false;
   if (!GetMirModule().IsCModule()) {
     isInRange = IsImmediateValueInRange(strMop, immVal, is64Bits, isIntactIndexed, isPostIndexed, isPreIndexed);
@@ -676,17 +678,8 @@ void AArch64CGFunc::SelectCopyRegOpnd(Operand &dest, PrimType dtype, Operand::Op
   }
   ASSERT(memOpnd->GetBaseRegister() != nullptr, "nullptr check");
   if (isIntactIndexed) {
-    RegOperand &reg = CreateRegisterOperandOfType(PTY_i64);
-    AArch64ImmOperand *aarch64ImmOpnd = static_cast<AArch64ImmOperand*>(immOpnd);
-    if (aarch64ImmOpnd->IsSingleInstructionMovable()) {
-      MOperator mOp = MOP_xmovri64;
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOp, reg, *immOpnd));
-    } else {
-      SplitMovImmOpndInstruction(immVal, reg);
-    }
-    MemOperand &newDest = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOrX, GetPrimTypeBitSize(dtype),
-                                             memOpnd->GetBaseRegister(), &reg, nullptr, nullptr);
-    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(strMop, src, newDest));
+    memOpnd = &SplitOffsetWithAddInstruction(*memOpnd, dsize);
+    GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(strMop, src, *memOpnd));
   } else if (isPostIndexed || isPreIndexed) {
     RegOperand &reg = CreateRegisterOperandOfType(PTY_i64);
     MOperator mopMov = MOP_xmovri64;

@@ -891,7 +891,7 @@ void GraphColorRegAllocator::SetupLiveRangeByOp(Operand &op, Insn &insn, bool is
 #ifdef MOVE_COALESCE
   if (insn.GetMachineOpcode() == MOP_xmovrr || insn.GetMachineOpcode() == MOP_wmovrr) {
     RegOperand &opnd1 = static_cast<RegOperand&>(insn.GetOperand(1));
-    if (opnd1.GetRegisterNumber() < kAllRegNum) {
+    if (opnd1.GetRegisterNumber() < kAllRegNum && !IsUnconcernedReg(opnd1)) {
       lr->InsertElemToPrefs(opnd1.GetRegisterNumber() - R0);
     }
     RegOperand &opnd0 = static_cast<RegOperand&>(insn.GetOperand(0));
