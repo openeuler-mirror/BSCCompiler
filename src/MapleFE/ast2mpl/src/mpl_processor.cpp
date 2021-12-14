@@ -13,12 +13,12 @@
 * See the Mulan PSL v2 for more details.
 */
 
-#include "ast2mpl.h"
+#include "ast2mpl_builder.h"
 #include "stringpool.h"
 
 namespace maplefe {
 
-maple::BaseNode *A2M::ProcessNodeDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNodeDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   if (!tnode) {
     return nullptr;
   }
@@ -48,7 +48,7 @@ maple::BaseNode *A2M::ProcessNodeDecl(StmtExprKind skind, TreeNode *tnode, Block
   return mpl_node;
 }
 
-maple::BaseNode *A2M::ProcessNode(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNode(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   if (!tnode) {
     return nullptr;
   }
@@ -65,41 +65,41 @@ maple::BaseNode *A2M::ProcessNode(StmtExprKind skind, TreeNode *tnode, BlockNode
   return mpl_node;
 }
 
-maple::BaseNode *A2M::ProcessModule(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessModule(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessModule()");
   ModuleNode *node = static_cast<ModuleNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessPackage(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessPackage(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessPackage()");
   PackageNode *node = static_cast<PackageNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessDeclare(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessDeclare(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessImport(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessImport(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessImport()");
   ImportNode *node = static_cast<ImportNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessExport(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessExport(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessExport()");
   ExportNode *node = static_cast<ExportNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessXXportAsPair(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessXXportAsPair(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessXXportAsPair()");
   XXportAsPairNode *node = static_cast<XXportAsPairNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessIdentifier(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessIdentifier(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   IdentifierNode *node = static_cast<IdentifierNode *>(tnode);
   std::string name = node->GetName();
 
@@ -157,7 +157,7 @@ maple::BaseNode *A2M::ProcessIdentifier(StmtExprKind skind, TreeNode *tnode, Blo
   return mMirBuilder->CreateExprDread(symbol);
 }
 
-maple::BaseNode *A2M::ProcessField(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessField(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   FieldNode *node = static_cast<FieldNode *>(tnode);
   maple::BaseNode *bn = nullptr;
 
@@ -246,7 +246,7 @@ maple::BaseNode *A2M::ProcessField(StmtExprKind skind, TreeNode *tnode, BlockNod
   return bn;
 }
 
-maple::BaseNode *A2M::ProcessFieldDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFieldDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   FieldNode *node = static_cast<FieldNode *>(tnode);
   maple::BaseNode *bn = nullptr;
 
@@ -318,60 +318,60 @@ maple::BaseNode *A2M::ProcessFieldDecl(StmtExprKind skind, TreeNode *tnode, Bloc
   return bn;
 }
 
-maple::BaseNode *A2M::ProcessDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   DeclNode *node = static_cast<DeclNode *>(tnode);
   TreeNode *vars = node->GetVar();
   return ProcessNode(skind, vars, block);
 }
 
-maple::BaseNode *A2M::ProcessAssert(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAssert(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessAssert()");
   AssertNode *node = static_cast<AssertNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessDimension(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessDimension(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessDimension()");
   DimensionNode *node = static_cast<DimensionNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessAttr(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAttr(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessAttr()");
   // AttrNode *node = static_cast<AttrNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessPrimType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessPrimType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessPrimType()");
   PrimTypeNode *node = static_cast<PrimTypeNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessPrimArrayType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessPrimArrayType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessPrimArrayType()");
   PrimArrayTypeNode *node = static_cast<PrimArrayTypeNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessUserType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessUserType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessUserType()");
   UserTypeNode *node = static_cast<UserTypeNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessCast(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessCast(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessCast()");
   CastNode *node = static_cast<CastNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessParenthesis(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessParenthesis(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   ParenthesisNode *node = static_cast<ParenthesisNode *>(tnode);
   return ProcessNode(skind, node->GetExpr(), block);
 }
 
-maple::BaseNode *A2M::ProcessVarList(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessVarList(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   VarListNode *node = static_cast<VarListNode *>(tnode);
   for (int i = 0; i < node->GetVarsNum(); i++) {
     TreeNode *n = node->GetVarAtIndex(i);
@@ -398,17 +398,17 @@ maple::BaseNode *A2M::ProcessVarList(StmtExprKind skind, TreeNode *tnode, BlockN
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessExprList(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessExprList(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessExprList()");
   ExprListNode *node = static_cast<ExprListNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessNamespace(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNamespace(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   LiteralNode *node = static_cast<LiteralNode *>(tnode);
   LitData data = node->GetData();
   maple::MIRType *type = nullptr;
@@ -478,7 +478,7 @@ maple::BaseNode *A2M::ProcessLiteral(StmtExprKind skind, TreeNode *tnode, BlockN
   return bn;
 }
 
-maple::BaseNode *A2M::ProcessUnaOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessUnaOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   UnaOperatorNode *node = static_cast<UnaOperatorNode *>(tnode);
   OprId ast_op = node->GetOprId();
   TreeNode *ast_rhs = node->GetOpnd();
@@ -500,7 +500,7 @@ maple::BaseNode *A2M::ProcessUnaOperator(StmtExprKind skind, TreeNode *tnode, Bl
   return mpl_node;
 }
 
-maple::BaseNode *A2M::ProcessBinOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBinOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   BinOperatorNode *bon = static_cast<BinOperatorNode *>(tnode);
   OprId ast_op = bon->GetOprId();
   TreeNode *ast_lhs = bon->GetOpndA();
@@ -547,69 +547,69 @@ maple::BaseNode *A2M::ProcessBinOperator(StmtExprKind skind, TreeNode *tnode, Bl
   return mpl_node;
 }
 
-maple::BaseNode *A2M::ProcessTerOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTerOperator(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessTerOperator()");
   TerOperatorNode *node = static_cast<TerOperatorNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessLambda(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessLambda(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessLambda()");
   LambdaNode *node = static_cast<LambdaNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessInstanceOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessInstanceOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessInstanceOf()");
   InstanceOfNode *node = static_cast<InstanceOfNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTemplateLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTemplateLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessTemplateLiteral()");
   TemplateLiteralNode *node = static_cast<TemplateLiteralNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessRegExpr(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessRegExpr(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessIn(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessIn(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessIn()");
   InNode *node = static_cast<InNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessComputedName(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessComputedName(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessIs(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessIs(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessIs()");
   IsNode *node = static_cast<IsNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTypeOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTypeOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessTypeOf()");
   TypeOfNode *node = static_cast<TypeOfNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessAwait(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAwait(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessKeyOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessKeyOf(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessInfer(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessInfer(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessBlockDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBlockDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   BlockNode *ast_block = static_cast<BlockNode *>(tnode);
   for (int i = 0; i < ast_block->GetChildrenNum(); i++) {
     TreeNode *child = ast_block->GetChildAtIndex(i);
@@ -618,7 +618,7 @@ maple::BaseNode *A2M::ProcessBlockDecl(StmtExprKind skind, TreeNode *tnode, Bloc
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessBlock(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBlock(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   BlockNode *ast_block = static_cast<BlockNode *>(tnode);
   if (block) {
     // promote statements to parent
@@ -638,13 +638,13 @@ maple::BaseNode *A2M::ProcessBlock(StmtExprKind skind, TreeNode *tnode, BlockNod
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessFunction(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFunction(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   MASSERT(tnode->IsFunction() && "it is not an FunctionNode");
   NOTYETIMPL("ProcessFunction()");
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessFuncDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFuncDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   FunctionNode *ast_func = static_cast<FunctionNode *>(tnode);
   std::string                     name = ast_func->GetName();
   // SmallVector<AttrId>          mAttrs;
@@ -759,7 +759,7 @@ maple::BaseNode *A2M::ProcessFuncDecl(StmtExprKind skind, TreeNode *tnode, Block
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessFuncSetup(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFuncSetup(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   FunctionNode *ast_func = static_cast<FunctionNode *>(tnode);
 
   maple::MIRFunction *func = mFuncMap[ast_func];
@@ -788,7 +788,7 @@ maple::BaseNode *A2M::ProcessFuncSetup(StmtExprKind skind, TreeNode *tnode, Bloc
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessClassDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessClassDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   ClassNode *classnode = static_cast<ClassNode *>(tnode);
   std::string name = classnode->GetName();
   TreeNode *parent = GetSuperClass(classnode);
@@ -834,7 +834,7 @@ maple::BaseNode *A2M::ProcessClassDecl(StmtExprKind skind, TreeNode *tnode, Bloc
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessClass(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessClass(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   ClassNode *classnode = static_cast<ClassNode *>(tnode);
   std::string name = classnode->GetName();
   maple::MIRType *type = mNodeTypeMap[classnode->GetStrIdx()];
@@ -859,142 +859,142 @@ maple::BaseNode *A2M::ProcessClass(StmtExprKind skind, TreeNode *tnode, BlockNod
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessInterfaceDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessInterfaceDecl(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessInterfaceDecl()");
   InterfaceNode *node = static_cast<InterfaceNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessInterface(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessInterface(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessInterface()");
   InterfaceNode *node = static_cast<InterfaceNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessArrayElement(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessArrayElement(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessArrayElement()");
   ArrayElementNode *node = static_cast<ArrayElementNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessArrayLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessArrayLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessArrayLiteral()");
   ArrayLiteralNode *node = static_cast<ArrayLiteralNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessNumIndexSig(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNumIndexSig(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessStrIndexSig(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessStrIndexSig(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessBindingElement(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBindingElement(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessBindingPattern(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBindingPattern(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTypeAlias(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTypeAlias(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessAsType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAsType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessConditionalType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessConditionalType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTypeParameter(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTypeParameter(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessNameTypePair(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNameTypePair(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTupleType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTupleType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessStruct(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessStruct(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessStruct()");
   StructNode *node = static_cast<StructNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessStructLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessStructLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessStructLiteral()");
   StructLiteralNode *node = static_cast<StructLiteralNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessFieldLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFieldLiteral(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessFieldLiteral()");
   FieldLiteralNode *node = static_cast<FieldLiteralNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessAnnotationType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAnnotationType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessAnnotationType()");
   AnnotationTypeNode *node = static_cast<AnnotationTypeNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessAnnotation(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessAnnotation(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessAnnotation()");
   AnnotationNode *node = static_cast<AnnotationNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessTry(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessTry(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessTry()");
   TryNode *node = static_cast<TryNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessCatch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessCatch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessCatch()");
   CatchNode *node = static_cast<CatchNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessFinally(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessFinally(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessFinally()");
   FinallyNode *node = static_cast<FinallyNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessThrow(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessThrow(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessThrow()");
   ThrowNode *node = static_cast<ThrowNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessException(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessException(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessException()");
   ExceptionNode *node = static_cast<ExceptionNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessReturn(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessReturn(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   ReturnNode *node = static_cast<ReturnNode *>(tnode);
   maple::BaseNode *val = ProcessNode(SK_Expr, node->GetResult(), block);
   maple::NaryStmtNode *stmt = mMirBuilder->CreateStmtReturn(val);
   return stmt;
 }
 
-maple::BaseNode *A2M::ProcessYield(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessYield(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessCondBranch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessCondBranch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   CondBranchNode *node = static_cast<CondBranchNode *>(tnode);
   maple::BaseNode *cond = ProcessNode(SK_Expr, node->GetCond(), block);
   if (!cond) {
@@ -1025,19 +1025,19 @@ maple::BaseNode *A2M::ProcessCondBranch(StmtExprKind skind, TreeNode *tnode, Blo
   return ifnode;
 }
 
-maple::BaseNode *A2M::ProcessBreak(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessBreak(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessBreak()");
   BreakNode *node = static_cast<BreakNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessContinue(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessContinue(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessContinue()");
   ContinueNode *node = static_cast<ContinueNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessLoopCondBody(StmtExprKind skind, TreeNode *cond, TreeNode *body, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessLoopCondBody(StmtExprKind skind, TreeNode *cond, TreeNode *body, BlockNode *block) {
   maple::BaseNode *mircond = ProcessNode(SK_Expr, cond, block);
   if (!mircond) {
     NOTYETIMPL("ProcessLoopCondBody() condition");
@@ -1058,7 +1058,7 @@ maple::BaseNode *A2M::ProcessLoopCondBody(StmtExprKind skind, TreeNode *cond, Tr
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessForLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessForLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   ForLoopNode *node = static_cast<ForLoopNode *>(tnode);
   maple::BlockNode *mblock = mBlockNodeMap[block];
   maple::BaseNode *bn = nullptr;
@@ -1090,17 +1090,17 @@ maple::BaseNode *A2M::ProcessForLoop(StmtExprKind skind, TreeNode *tnode, BlockN
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessWhileLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessWhileLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   WhileLoopNode *node = static_cast<WhileLoopNode *>(tnode);
   return ProcessLoopCondBody(skind, node->GetCond(), node->GetBody(), block);
 }
 
-maple::BaseNode *A2M::ProcessDoLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessDoLoop(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   DoLoopNode *node = static_cast<DoLoopNode *>(tnode);
   return ProcessLoopCondBody(skind, node->GetCond(), node->GetBody(), block);
 }
 
-maple::BaseNode *A2M::ProcessNew(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessNew(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NewNode *node = static_cast<NewNode *>(tnode);
   maple::BaseNode *bn = nullptr;
 
@@ -1155,13 +1155,13 @@ maple::BaseNode *A2M::ProcessNew(StmtExprKind skind, TreeNode *tnode, BlockNode 
   return bn;
 }
 
-maple::BaseNode *A2M::ProcessDelete(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessDelete(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessDelete()");
   DeleteNode *node = static_cast<DeleteNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessCall(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessCall(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   CallNode *node = static_cast<CallNode *>(tnode);
   maple::MapleVector<maple::BaseNode *> args(mMirModule->CurFuncCodeMemPoolAllocator()->Adapter());
   maple::MIRFunction *func = GetCurrFunc(block);
@@ -1207,25 +1207,25 @@ maple::BaseNode *A2M::ProcessCall(StmtExprKind skind, TreeNode *tnode, BlockNode
   }
 }
 
-maple::BaseNode *A2M::ProcessSwitchLabel(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessSwitchLabel(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessSwitchLabel()");
   SwitchLabelNode *node = static_cast<SwitchLabelNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessSwitchCase(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessSwitchCase(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessSwitchCase()");
   SwitchCaseNode *node = static_cast<SwitchCaseNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessSwitch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessSwitch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   NOTYETIMPL("ProcessSwitch()");
   SwitchNode *node = static_cast<SwitchNode *>(tnode);
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessPass(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::ProcessPass(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   PassNode *node = static_cast<PassNode *>(tnode);
   maple::BlockNode *blk = mBlockNodeMap[block];
   maple::BaseNode *stmt = nullptr;
@@ -1243,7 +1243,7 @@ maple::BaseNode *A2M::ProcessPass(StmtExprKind skind, TreeNode *tnode, BlockNode
   return nullptr;
 }
 
-maple::BaseNode *A2M::ProcessUnaOperatorMpl(StmtExprKind skind,
+maple::BaseNode *Ast2MplBuilder::ProcessUnaOperatorMpl(StmtExprKind skind,
                                        maple::Opcode op,
                                        maple::BaseNode *bn,
                                        BlockNode *block) {
@@ -1288,7 +1288,7 @@ maple::BaseNode *A2M::ProcessUnaOperatorMpl(StmtExprKind skind,
   return node;
 }
 
-maple::BaseNode *A2M::ProcessBinOperatorMplAssign(StmtExprKind skind,
+maple::BaseNode *Ast2MplBuilder::ProcessBinOperatorMplAssign(StmtExprKind skind,
                                              maple::BaseNode *lhs,
                                              maple::BaseNode *rhs,
                                              BlockNode *block) {
@@ -1317,7 +1317,7 @@ maple::BaseNode *A2M::ProcessBinOperatorMplAssign(StmtExprKind skind,
   return node;
 }
 
-maple::BaseNode *A2M::ProcessBinOperatorMplComboAssign(StmtExprKind skind,
+maple::BaseNode *Ast2MplBuilder::ProcessBinOperatorMplComboAssign(StmtExprKind skind,
                                                   maple::Opcode op,
                                                   maple::BaseNode *lhs,
                                                   maple::BaseNode *rhs,
@@ -1327,7 +1327,7 @@ maple::BaseNode *A2M::ProcessBinOperatorMplComboAssign(StmtExprKind skind,
   return assign;
 }
 
-maple::BaseNode *A2M::ProcessBinOperatorMplArror(StmtExprKind skind,
+maple::BaseNode *Ast2MplBuilder::ProcessBinOperatorMplArror(StmtExprKind skind,
                                             maple::BaseNode *lhs,
                                             maple::BaseNode *rhs,
                                             BlockNode *block) {
@@ -1336,7 +1336,7 @@ maple::BaseNode *A2M::ProcessBinOperatorMplArror(StmtExprKind skind,
 }
 
 // Lhs = new ...
-maple::BaseNode *A2M::GetNewNodeLhs(NewNode *node, BlockNode *block) {
+maple::BaseNode *Ast2MplBuilder::GetNewNodeLhs(NewNode *node, BlockNode *block) {
   maple::BaseNode *obj = nullptr;
   TreeNode *id = node->GetId();
 

@@ -36,7 +36,7 @@ vpath %.cpp $(DIRS)
 .PHONY: $(SRCLANG)
 .PHONY: mssetup
 
-$(SRCLANG): mssetup
+$(SRCLANG):
 	env LANG=en_US.UTF-8 ./new_runtests.pl $(SRCLANG)
 
 full:
@@ -59,11 +59,20 @@ mssetup:
 
 % : %.java
 	@cp $< $(build)
-	@echo gdb --args ../output/java/java/java2mpl $(build)/$@.java $(FLAGS)
-	../output/java/java/java2mpl $(build)/$@.java $(FLAGS)
+	@echo gdb --args ../output/java/bin/java2ast $(build)/$@.java $(FLAGS1)
+	@echo gdb --args ../output/java/bin/ast2mpl $(build)/$@.java.ast $(FLAGS2)
+	../output/java/bin/java2ast $(build)/$@.java $(FLAGS1)
+	../output/java/bin/ast2mpl $(build)/$@.java.ast $(FLAGS2)
 	@echo "\n======================= $@.java ========================="
 	@cat -n $(build)/$@.java
+	@echo "========================================================\n"
+	@echo gdb --args ../output/java/bin/java2ast $(build)/$@.java $(FLAGS1)
+	@echo gdb --args ../output/java/bin/ast2mpl $(build)/$@.java.ast $(FLAGS2)
 	@echo "\n======================= $@.mpl ========================="
+	@cat -n $(build)/$@.mpl
+	@echo "========================================================\n"
+	@echo gdb --args ../output/java/bin/java2ast $(build)/$@.java $(FLAGS1)
+	@echo gdb --args ../output/java/bin/ast2mpl $(build)/$@.java.ast $(FLAGS2)
 	@cat -n $(build)/$@.mpl
 	@echo "========================================================\n"
 	@echo gdb --args ../output/java/java/java2mpl $(build)/$@.java $(FLAGS)
