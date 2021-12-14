@@ -395,6 +395,10 @@ void TypeInferVisitor::UpdateArgArrayDecls(unsigned nid, TypeId tid) {
 
 // use input node's type info to update target node's type info
 void TypeInferVisitor::UpdateTypeUseNode(TreeNode *target, TreeNode *input) {
+  // this functionality is reserved for typescript
+  if (!mIsTS) {
+    return;
+  }
   TypeId tid = target->GetTypeId();
   TypeId iid = input->GetTypeId();
   if ((tid == iid && IsScalar(tid)) || (iid == TY_Array && tid != iid)) {
