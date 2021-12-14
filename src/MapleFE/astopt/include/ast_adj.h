@@ -24,6 +24,7 @@
 #include "ast.h"
 #include "ast_type.h"
 #include "gen_astvisitor.h"
+#include "ast_info.h"
 
 namespace maplefe {
 
@@ -38,6 +39,9 @@ class AST_ADJ {
 
   void AdjustAST();
 };
+
+// If you change RENAMINGSUFFIX, you have to update ast2cpp/runtime/include/ts2cpp.h as well
+#define RENAMINGSUFFIX "__RENAMED"
 
 class AdjustASTVisitor : public AstVisitor {
  private:
