@@ -43,16 +43,23 @@ class AdjustASTVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   AST_INFO       *mInfo;
+  AST_Util       *mUtil;
   unsigned       mFlags;
   bool           mUpdated;
+  bool           mIsTS;
 
  public:
   explicit AdjustASTVisitor(Module_Handler *h, unsigned f, bool base = false)
     : mHandler(h), mFlags(f), mUpdated(false), AstVisitor((f & FLG_trace_1) && base) {
-      mInfo = mHandler->GetINFO();
+      mInfo = h->GetINFO();
       mInfo->SetNameAnonyStruct(true);
+      mUtil = h->GetUtil();
+      mIsTS = (h->GetASTModule()->GetSrcLang() == SrcLangTypeScript);
     }
   ~AdjustASTVisitor() = default;
+
+  std::unordered_map<unsigned, unsigned> mRenameMap;
+  void CheckAndRenameCppKeywords(TreeNode *node);
 
   DeclNode *VisitDeclNode(DeclNode *node);
   ImportNode *VisitImportNode(ImportNode *node);
