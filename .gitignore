@@ -6,6 +6,7 @@ third_party/aosp_10.0.0_r35*
 third_party/aosp_modified*
 third_party/ctorture*
 third_party/llvm_modified*
+third_party/llvm_*
 tools/bin*
 tools/android*
 tools/aosp*
@@ -14,6 +15,7 @@ tools/gcc*
 tools/gn*
 tools/icu*
 tools/libz*
+tools/lib*
 tools/zlib*
 tools/ninja*
 tools/qemu*
@@ -26,3 +28,4 @@ output
 compile_commands.json
 testsuite/tools*
 *__pycache__*
+.gitignore
