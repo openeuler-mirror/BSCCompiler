@@ -92,11 +92,9 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   return defaultOptions;
 }
 
-std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, const Action &action) const {
-  if (!options.GetRunningExes().empty()) {
-    if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
-      return action.GetInputFile();
-    }
+std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &, const Action &action) const {
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
   }
 
   InputFileType fileType = action.GetInputFileType();
