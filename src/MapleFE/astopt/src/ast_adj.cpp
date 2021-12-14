@@ -409,9 +409,9 @@ NamespaceNode *AdjustASTVisitor::VisitNamespaceNode(NamespaceNode *node) {
       node->SetId(upper);
 
       NamespaceNode *ns = mHandler->NewTreeNode<NamespaceNode>();
-      // name node with field
+      // name ns with field
       ns->SetId(field);
-      // move elements of node ot ns
+      // move elements of node to ns
       for (unsigned i = 0; i < node->GetElementsNum(); i++) {
         ns->AddElement(node->GetElementAtIndex(i));
       }

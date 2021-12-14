@@ -13,27 +13,45 @@
 # 
 
 include ../../Makefile.in
+BUILDBIN=$(BUILDDIR)/bin
 BUILD=$(BUILDDIR)/ast2mpl
+BUILDGEN=$(BUILDDIR)/gen
+BUILDASTGEN=$(BUILDDIR)/ast_gen/shared
 $(shell $(MKDIR_P) $(BUILD))
 
 SRC=$(wildcard *.cpp)
 OBJ :=$(patsubst %.cpp,%.o,$(SRC))
 DEP :=$(patsubst %.cpp,%.d,$(SRC))
 
-OBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj))
+SRCG := $(wildcard $(BUILDGEN)/gen*.cpp)
+OBJG := $(patsubst %.cpp, %.o, $(SRCG))
+DEPG := $(patsubst %.cpp, %.d, $(SRCG))
+
+OBJS :=$(foreach obj,$(OBJ), $(BUILD)/$(obj)) $(OBJG)
+DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep)) $(DEPG)
+
 LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
-DEPS :=$(foreach dep,$(DEP), $(BUILD)/$(dep))
 
 GENDIR:=${BUILDDIR}/ast_gen/shared
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
+            -I $(MAPLEFE_ROOT)/astopt/include \
             -I $(MAPLEFE_ROOT)/ast2mpl/include \
+            -I $(MAPLEFE_ROOT)/autogen/include \
+            -I $(MAPLEFE_ROOT)/shared/include \
+            -I $(MAPLEFE_ROOT)/java/include \
             $(MAPLEALL_INC) -I ${GENDIR}
 
 AST2MPLLIB = ast2mpl.a
 
+INCLUDEGEN := -I $(MAPLEFE_ROOT)/shared/include -I $(BUILDDIR)/gen -I $(BUILDASTGEN)
+
+TARGET=ast2mpl
+SHAREDLIB = $(BUILDDIR)/astopt/astopt.a $(BUILDDIR)/shared/shared.a $(BUILDASTGEN)/genast.a
+LANGSPEC=$(BUILDDIR)/java/lang_spec.o
+
 .PHONY: all
-all: $(BUILD)/$(AST2MPLLIB)
+all: $(BUILDBIN)/$(TARGET)
 
 -include $(DEPS)
 .PHONY: clean
@@ -46,13 +64,25 @@ $(BUILD)/%.o : %.cpp
 	$(CXX) $(CXXFLAGS) -fpermissive $(INCLUDES) -w -c $< -o $@
 
 $(BUILD)/%.d : %.cpp
-	@$(CXX) $(CXXFLAGS) -std=c++11 -MM $(INCLUDES) $< > $@
+	@$(CXX) $(CXXFLAGS) -MM $(INCLUDES) $< > $@
 	@mv -f $(BUILD)/$*.d $(BUILD)/$*.d.tmp
 	@sed -e 's|.*:|$(BUILD)/$*.o:|' < $(BUILD)/$*.d.tmp > $(BUILD)/$*.d
 	@rm -f $(BUILD)/$*.d.tmp
 
-$(BUILD)/$(AST2MPLLIB) : $(OBJS)
-	/usr/bin/ar rcs $(BUILD)/$(AST2MPLLIB) $(LIBOBJS)
+$(BUILDGEN)/%.o : $(BUILDGEN)/%.cpp $(BUILDGEN)/%.d
+	$(CXX) $(CXXFLAGS) -fpermissive $(INCLUDEGEN) -w -c $< -o $@
+
+$(BUILDGEN)/%.d : $(BUILDGEN)/%.cpp
+	@$(CXX) $(CXXFLAGS) -std=c++11 -MM $(INCLUDEGEN) $< > $@
+	@mv -f $(BUILDGEN)/$*.d $(BUILDGEN)/$*.d.tmp
+	@sed -e 's|.*:|$(BUILDGEN)/$*.o:|' < $(BUILDGEN)/$*.d.tmp > $(BUILDGEN)/$*.d
+	@rm -f $(BUILDGEN)/$*.d.tmp
+
+# TARGET depends on OBJS and shared OBJS from shared directory
+# as well as mapleall libraries
+$(BUILDBIN)/$(TARGET): $(OBJS) $(SHAREDLIB)
+	@mkdir -p $(BUILDBIN)
+	$(LD) -o $(BUILDBIN)/$(TARGET) $(OBJS) $(LANGSPEC) $(SHAREDLIB) $(MAPLELIBS)
 
 clean:
 	rm -rf $(BUILD)

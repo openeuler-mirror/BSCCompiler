@@ -38,7 +38,7 @@ fi
 export SRCLANG=$LANGSRC
 
 export MAPLEFE_ROOT=$(cd $(dirname ${BASH_SOURCE[0]}); pwd)
-export MAPLE_ROOT=$(dirname ${MAPLEFE_ROOT})
+export MAPLE_ROOT=$(cd ${MAPLEFE_ROOT}/../../..; pwd)
 
 unset MAPLEALL_ROOT
 export MAPLEALL_ROOT=${MAPLE_ROOT}/OpenArkCompiler

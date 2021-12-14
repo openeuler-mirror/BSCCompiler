@@ -2,8 +2,10 @@
 # Usage: cd MapleFE/test/typescript/unit_tests; ../ts2cpp-test.sh *.ts
 [ $# -lt 1 ] && exec $0 $(git ls-files "*.ts")
 SUCC=
-TSOUT=$(cd $(dirname $0)/../../; pwd)/output/typescript
-RTSRC=$(cd $(dirname $0)/../../; pwd)/ast2cpp/runtime/src
+MPLFEPATH=$(cd $(dirname $0)/../../; pwd)
+TSOUT=$MPLFEPATH/output/typescript
+RTSRC=$MPLFEPATH/ast2cpp/runtime/src
+RTINC=$MPLFEPATH/ast2cpp/runtime/include
 TS2AST=$TSOUT/bin/ts2ast
 AST2CPP=$TSOUT/bin/ast2cpp
 TSCSH=$(dirname $0)/tsc.sh
@@ -46,7 +48,7 @@ for f in $list; do
     done
     dep=$(echo $dep | xargs -n1 | sort -u)
     $AST2CPP $f.ast || { echo "(ast2cpp)$f" >> ts2cpp.failures.out; break; }
-    g++ -std=c++17 -g $t.cpp $RTSRC/*.cpp $dep -o $t.out || { echo "(g++)$f" >> ts2cpp.failures2.out; break; }
+    g++ -std=c++17 -g -I$RTINC $t.cpp $RTSRC/*.cpp $dep -o $t.out || { echo "(g++)$f" >> ts2cpp.failures2.out; break; }
     ./$t.out 2>&1 > $f-run.out || { echo "(run)$f" >> ts2cpp.failures2.out; break; }
     $TSCSH $f
     diff $f-run.out $f-nodejs.out
