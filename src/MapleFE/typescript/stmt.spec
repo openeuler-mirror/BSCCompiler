@@ -2244,6 +2244,11 @@ rule MemberVariableDeclaration: ONEOF(
   attr.action.%7 : AddInitTo(%5)
   attr.action.%7 : BuildDecl()
 
+rule KeywordMemberFunctionName : ONEOF("return",
+                                       "get",
+                                       "set",
+                                       "export")
+  attr.action : BuildIdentifier()
 
 ## MemberFunctionDeclaration: AccessibilityModifieropt staticopt PropertyName CallSignature { FunctionBody } AccessibilityModifieropt staticopt PropertyName CallSignature ;
 #NOTE: I inlined CallSignature to make it easier for building function.
@@ -2256,19 +2261,16 @@ rule MemberFunctionDeclaration: ONEOF(
   ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ':' + IsExpression + '{' + FunctionBody + '}',
   ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + PropertyName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ':' + IsExpression + ZEROORONE(';'),
 
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + "return" + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + "get" + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + "set" + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + "export" + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
+  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + KeywordMemberFunctionName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
 
-  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + "export" + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + ZEROORONE(';'))
-  attr.action.%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11 : BuildFunction(%3)
-  attr.action.%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11 : AddModifier(%2)
-  attr.action.%1,%2,%3,%4,%5,%6,%7,%8,%9,%10,%11 : AddModifier(%1)
-  attr.action.%1,%2,%5,%6,%7,%8,%9,%10,%11 : AddTypeGenerics(%4)
-  attr.action.%1,%2,%5,%6,%7,%8,%9,%10,%11 : AddParams(%6)
-  attr.action.%1,%2,%7,%8,%9,%10,%11 : AddType(%8)
-  attr.action.%1,%7,%8,%9,%10    : AddFunctionBody(%10)
+  ZEROORONE(Annotation) + ZEROORMORE(AccessibilityModifier) + KeywordMemberFunctionName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')' + ZEROORONE(TypeAnnotation) + ZEROORONE(';'))
+  attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : BuildFunction(%3)
+  attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : AddModifier(%2)
+  attr.action.%1,%2,%3,%4,%5,%6,%7,%8 : AddModifier(%1)
+  attr.action.%1,%2,%5,%6,%7,%8 : AddTypeGenerics(%4)
+  attr.action.%1,%2,%5,%6,%7,%8 : AddParams(%6)
+  attr.action.%1,%2,%7,%8 : AddType(%8)
+  attr.action.%1,%7    : AddFunctionBody(%10)
   attr.action.%3,%4 : AddTypeGenerics(%5)
   attr.action.%3,%4 : AddParams(%7)
   attr.action.%3,%4 : AddType(%9)
