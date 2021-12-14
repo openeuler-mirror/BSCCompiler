@@ -10,7 +10,6 @@ output/
 *.png
 *.out.ts
 *.ts.ast
-.gitigore
 gdbfile
 test/typescript/**/*.cpp
 test/typescript/**/*.h
