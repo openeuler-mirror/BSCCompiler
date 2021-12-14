@@ -2315,7 +2315,9 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(MIRType &type) const {
         info = { false, 16, 8, false, nullptr };
         break;
       case PTY_i32:
+      case PTY_u32:
       case PTY_i64:
+      case PTY_u64:
         info = { true, 8, 8, false, nullptr };
         break;
       default:  // bool, char, short, and unscoped enumerations are converted to int or wider integer types

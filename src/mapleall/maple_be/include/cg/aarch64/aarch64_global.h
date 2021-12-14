@@ -417,7 +417,46 @@ class AndCbzPattern : public OptimizePattern {
 
  private:
   int64 CalculateLogValue(int64 val);
+  bool IsAdjacentArea(Insn &prev, Insn &curr);
   Insn *prevInsn;
+};
+
+/*
+ * [arithmetic operation]
+ * add/sub/ R202, R201, #1            add/sub/ R202, R201, #1
+ * ...                           ...
+ * add/sub/ R203, R201, #1    --->    mov R203, R202
+ *
+ * [copy operation]
+ * mov R201, #1                  mov R201, #1
+ * ...                           ...
+ * mov R202, #1          --->    mov R202, R201
+ *
+ * The pattern finds the insn with the same rvalue as the current insn,
+ * then prop its lvalue, and replaces the current insn with movrr insn.
+ * The mov can be prop in forwardprop or backprop.
+ *
+ * conditions:
+ * 1. in same BB
+ * 2. rvalue is not defined between two insns
+ * 3. lvalue is not defined between two insns
+ */
+class SameRHSPropPattern : public OptimizePattern {
+ public:
+  explicit SameRHSPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {}
+  ~SameRHSPropPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final;
+
+ private:
+  bool IsSameOperand(Operand *opnd1, Operand *opnd2);
+  bool FindSameRHSInsnInBB(Insn &insn);
+  Insn *prevInsn;
+  std::vector<MOperator> candidates;
 };
 }  /* namespace maplebe */
 
