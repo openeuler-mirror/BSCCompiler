@@ -25,11 +25,9 @@
 namespace maple {
 using namespace mapleOption;
 
-std::string MapleCombCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
-  if (!options.GetRunningExes().empty()) {
-    if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
-      return action.GetInputFile();
-    }
+std::string MapleCombCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
+  if (action.IsItFirstRealAction()) {
+    return action.GetInputFile();
   }
   if (action.GetInputFileType() == InputFileType::kFileTypeVtableImplMpl) {
     return action.GetFullOutputName() + ".VtableImpl.mpl";

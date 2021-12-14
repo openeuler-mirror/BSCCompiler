@@ -217,6 +217,16 @@ public:
     compilerTool = compiler;
   }
 
+  bool IsItFirstRealAction() const {
+    /* First action is always "Input".
+     * But first real  action will be a tool from kMapleCompilers.
+     */
+    if (inputActions.size() > 0 && inputActions[0]->tool == "input") {
+      return true;
+    }
+    return false;
+  }
+
 private:
   const InputInfo *inputInfo;
 
