@@ -437,35 +437,36 @@ MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, BB *ftOrGtBB, BB *jointBB, OStIdx
 
 // expr has deref nullptr or div/rem zero, return expr;
 // if it is not sure whether the expr will throw exception, return nullptr
-MeExpr *MustThrowExceptionExpr(MeExpr *expr) {
+void MustThrowExceptionExpr(MeExpr *expr, std::set<MeExpr*> &exceptionExpr) {
   if (expr->GetMeOp() == kMeOpIvar) {
     // deref nullptr
     if (static_cast<IvarMeExpr*>(expr)->GetBase()->IsZero()) {
-      return static_cast<IvarMeExpr*>(expr)->GetBase();
+      exceptionExpr.emplace(static_cast<IvarMeExpr*>(expr)->GetBase());
+      return;
     }
   } else if ((expr->GetOp() == OP_div || expr->GetOp() == OP_rem) && expr->GetOpnd(1)->IsZero()) {
-    return expr->GetOpnd(1);
+    exceptionExpr.emplace(expr->GetOpnd(1));
+    return;
   } else if (expr->GetOp() == OP_select) {
-    MeExpr *cond = MustThrowExceptionExpr(expr->GetOpnd(0));
-    if (cond != nullptr) {
-      return cond;
-    }
-    MeExpr *trueOpnd = MustThrowExceptionExpr(expr->GetOpnd(1));
-    MeExpr *falseOpnd = MustThrowExceptionExpr(expr->GetOpnd(2));
+    MustThrowExceptionExpr(expr->GetOpnd(0), exceptionExpr);
     // for select, if only one result will cause error, we are not sure whether
     // the actual result of this select expr will cause error
-    if (trueOpnd != nullptr && falseOpnd != nullptr) {
-      return trueOpnd; // return one of them
+    std::set<MeExpr*> trueExpr;
+    MustThrowExceptionExpr(expr->GetOpnd(1), trueExpr);
+    if (trueExpr.empty()) {
+      return;
     }
-    return nullptr;
+    std::set<MeExpr*> falseExpr;
+    MustThrowExceptionExpr(expr->GetOpnd(2), falseExpr);
+    if (falseExpr.empty()) {
+      return;
+    }
+    exceptionExpr.emplace(expr);
+    return;
   }
   for (size_t i = 0; i < expr->GetNumOpnds(); ++i) {
-    MeExpr *exceptExpr = MustThrowExceptionExpr(expr->GetOpnd(i));
-    if (exceptExpr != nullptr) {
-      return exceptExpr;
-    }
+    MustThrowExceptionExpr(expr->GetOpnd(i), exceptionExpr);
   }
-  return nullptr;
 }
 
 // No return stmt :
@@ -474,9 +475,10 @@ MeExpr *MustThrowExceptionExpr(MeExpr *expr) {
 MeStmt *GetNoReturnStmt(BB *bb) {
   // iterate all stmt
   for (auto *stmt = bb->GetFirstMe(); stmt != nullptr; stmt = stmt->GetNextMeStmt()) {
+    std::set<MeExpr*> exceptionExpr;
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
-      MeExpr *expr = MustThrowExceptionExpr(stmt->GetOpnd(i));
-      if (expr != nullptr) {
+      MustThrowExceptionExpr(stmt->GetOpnd(i), exceptionExpr);
+      if (!exceptionExpr.empty()) {
         return stmt;
       }
     }
@@ -971,10 +973,17 @@ bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
     if (exceptionStmt->GetOp() != OP_call) {
       currBB->RemoveLastMeStmt();
       // we create a expr that must throw exception
-      UnaryMeStmt *nullCheck = irmap->New<UnaryMeStmt>(OP_assertnonnull);
-      MeExpr *nullExpr = irmap->CreateIntConstMeExpr(0, PTY_ptr);
-      nullCheck->SetMeStmtOpndValue(nullExpr);
-      currBB->AddMeStmtLast(nullCheck);
+      std::set<MeExpr*> exceptionExprSet;
+      for (size_t i = 0; i < exceptionStmt->NumMeStmtOpnds(); ++i) {
+        MustThrowExceptionExpr(exceptionStmt->GetOpnd(i), exceptionExprSet);
+      }
+      ASSERT(!exceptionExprSet.empty(), "Exception stmt must have an exception expr");
+      for (auto *exceptionExpr : exceptionExprSet) {
+        UnaryMeStmt *evalStmt = irmap->New<UnaryMeStmt>(OP_eval);
+        evalStmt->SetOpnd(0, exceptionExpr);
+        evalStmt->CopyInfo(*exceptionStmt);
+        currBB->AddMeStmtLast(evalStmt);
+      }
     }
     // make currBB connect to common exit for post dominance updating
     currBB->SetAttributes(kBBAttrWontExit);
