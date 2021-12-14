@@ -16,8 +16,10 @@
 #include "me_loop_analysis.h"
 
 namespace maple {
+uint32 LfoUnrollOneLoop::countOfLoopsUnrolled = 0;
 
 constexpr size_t unrolledSizeLimit = 12;  // unrolled loop body size to be < this value
+constexpr size_t unrollMax = 8;           // times to unroll never more than this
 
 BaseNode *LfoUnrollOneLoop::CloneIVNode() {
   if (doloop->IsPreg()) {
@@ -61,7 +63,7 @@ void LfoUnrollOneLoop::ReplaceIV(BaseNode *x, BaseNode *repNode) {
   }
 }
 
-void LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
+BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
   BlockNode *unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
   ReplaceIV(unrolledBlk, doloop->GetStartExpr());
   BlockNode *nextIterBlk = nullptr;
@@ -76,16 +78,52 @@ void LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
     unrolledBlk->InsertBlockAfter(*nextIterBlk, unrolledBlk->GetLast());
     tripCount--;
   }
-
-  // replace doloop by the statements in unrolledBlk
-  LfoPart *lfopart = (*preEmit->GetLfoStmtMap())[doloop->GetStmtID()];
-  BaseNode *parent = lfopart->GetParent();
-  ASSERT(parent && (parent->GetOpCode() == OP_block), "LfoUnroll: parent of doloop is not OP_block");
-  BlockNode *pblock = static_cast<BlockNode *>(parent);
-  pblock->ReplaceStmtWithBlock(*doloop, *unrolledBlk);
+  return unrolledBlk;
 }
 
-void LfoUnrollOneLoop::DoUnroll(size_t times) {
+// only handling constant trip count for now
+BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
+  BlockNode *unrolledBlk = nullptr;
+  // form the remainder loop before the unrolled loop
+  size_t remainderTripCount = tripCount % times;
+  if (remainderTripCount == 0) {
+    unrolledBlk = codeMP->New<BlockNode>();
+  } else if (remainderTripCount == 1) {
+    unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
+    ReplaceIV(unrolledBlk, doloop->GetStartExpr());
+  } else {
+    DoloopNode *remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
+    // generate remDoloop's termination
+    BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
+                    doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
+                    mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+    remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
+    unrolledBlk = codeMP->New<BlockNode>();
+    unrolledBlk->AddStatement(remDoloop);
+  }
+  // form the unrolled loop
+  DoloopNode *unrolledDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
+  uint32 i = 1;
+  BlockNode *nextIterBlk = nullptr;
+  do {
+    nextIterBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
+    BaseNode *adjExpr = mirBuilder->CreateIntConst(stepAmount * i, ivPrimType);
+    BaseNode *repExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, CloneIVNode(), adjExpr);
+    ReplaceIV(nextIterBlk, repExpr);
+    unrolledDoloop->GetDoBody()->InsertBlockAfter(*nextIterBlk, unrolledDoloop->GetDoBody()->GetLast());
+    i++;
+  } while (i != times);
+  if (remainderTripCount != 0) { // update startExpr
+    BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(), 
+                mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+    unrolledDoloop->SetStartExpr(newStartExpr);
+  }
+  // update incrExpr
+  ConstvalNode *stepNode = static_cast<ConstvalNode *>(unrolledDoloop->GetIncrExpr());
+  int64 origIncr = static_cast<MIRIntConst *>(stepNode->GetConstVal())->GetValue();
+  unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(origIncr*times, ivPrimType));
+  unrolledBlk->AddStatement(unrolledDoloop);
+  return unrolledBlk;
 }
 
 static size_t CountBlockStmts(BlockNode *blk) {
@@ -166,19 +204,30 @@ void LfoUnrollOneLoop::Process() {
   }
   size_t unrollTimes = 1;
   size_t unrolledStmtCount = stmtCount;
-  while (unrolledStmtCount < unrolledSizeLimit) {
+  while (unrolledStmtCount < unrolledSizeLimit && unrollTimes < unrollMax) {
     unrollTimes++;
     unrolledStmtCount += stmtCount;
   }
   bool fullUnroll = tripCount < (unrollTimes * 2);
+  BlockNode *unrolledBlk = nullptr;
   if (fullUnroll) {
-    DoFullUnroll(tripCount);
+    unrolledBlk = DoFullUnroll(tripCount);
   } else {
     if (unrollTimes == 1) {
       return;
     }
-    DoUnroll(unrollTimes);
+    unrolledBlk = DoUnroll(unrollTimes, tripCount);
   }
+
+  // replace doloop by the statements in unrolledBlk
+  LfoPart *lfopart = (*preEmit->GetLfoStmtMap())[doloop->GetStmtID()];
+  BaseNode *parent = lfopart->GetParent();
+  ASSERT(parent && (parent->GetOpCode() == OP_block), "LfoUnroll: parent of doloop is not OP_block");
+  BlockNode *pblock = static_cast<BlockNode *>(parent);
+  pblock->ReplaceStmtWithBlock(*doloop, *unrolledBlk);
+
+  // update counter
+  countOfLoopsUnrolled++;
 };
 
 bool MELfoUnroll::PhaseRun(MeFunction &f) {
@@ -187,6 +236,7 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
   LfoDepInfo *lfoDepInfo = GET_ANALYSIS(MELfoDepTest, f);
   ASSERT(lfoDepInfo != nullptr, "lfo dep test phase has problem");
   LfoFunction *lfoFunc = f.GetLfoFunc();
+//uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
 
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = lfoDepInfo->doloopInfoMap.begin();
   for (; mapit != lfoDepInfo->doloopInfoMap.end(); mapit++) {
@@ -196,6 +246,9 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
     LfoUnrollOneLoop unroll(lfoFunc, preEmit, mapit->second);
     unroll.Process();
   }
+//if (!MeOption::quiet && savedCountOfLoopsUnrolled != LfoUnrollOneLoop::countOfLoopsUnrolled) {
+//  f.GetMirFunc()->Dump();
+//}
   return false;
 }
 

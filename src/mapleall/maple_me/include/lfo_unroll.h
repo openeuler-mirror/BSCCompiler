@@ -34,8 +34,8 @@ class LfoUnrollOneLoop {
   BaseNode *CloneIVNode();
   bool IsIVNode(BaseNode *x);
   void ReplaceIV(BaseNode *x, BaseNode *repNode);
-  void DoFullUnroll(size_t tripCount);
-  void DoUnroll(size_t times);
+  BlockNode *DoFullUnroll(size_t tripCount);
+  BlockNode *DoUnroll(size_t times, size_t tripCount);
   void Process();
 
   LfoFunction *lfoFunc;
@@ -47,6 +47,7 @@ class LfoUnrollOneLoop {
   MIRBuilder *mirBuilder;
   int64 stepAmount = 0;
   PrimType ivPrimType = PTY_unknown;
+  static uint32 countOfLoopsUnrolled;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MELfoUnroll, MeFunction)
