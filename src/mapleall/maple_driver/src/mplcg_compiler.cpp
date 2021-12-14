@@ -100,8 +100,11 @@ void MplcgCompiler::PrintMplcgCommand(const MplOptions &options, const Action &a
     }
   }
   optionStr += "\"";
-  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr
-                         << " --infile " << GetInputFile(options, action, &md) << '\n';
+
+  std::string driverOptions = options.GetCommonOptionsStr();
+
+  LogInfo::MapleLogger() << "Starting:" << options.GetExeFolder() << "maple " << runStr << " " << optionStr << " "
+                         << driverOptions << " --infile " << GetInputFile(options, action, &md) << '\n';
 }
 
 ErrorCode MplcgCompiler::MakeCGOptions(const MplOptions &options) {
