@@ -516,7 +516,7 @@ void AdjustASTVisitor::CheckAndRenameCppKeywords(TreeNode *node) {
 
   if (mUtil->IsCppKeyWord(stridx)) {
     std::string name = gStringPool.GetStringFromStrIdx(stridx);
-    unsigned newidx = gStringPool.GetStrIdx(name + "__RENAMED");
+    unsigned newidx = gStringPool.GetStrIdx(name + RENAMINGSUFFIX);
     node->SetStrIdx(newidx);
     mRenameMap[stridx] = newidx;
   }
