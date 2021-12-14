@@ -1844,6 +1844,7 @@ private:
   bool mIsGetAccessor;
   bool mIsSetAccessor;
   bool mIsGenerator;          // JS/TS generator
+  bool mIsIterator;           // JS/TS iterator
   bool mIsCallSignature;      // no func name, no func body
   bool mIsConstructSignature; // no func name, no func body, and is a construct sig in TS
 
@@ -1868,6 +1869,8 @@ public:
   void SetIsConstructor(bool b = true) {mIsConstructor = b;}
   bool IsGenerator()                 {return mIsGenerator;}
   void SetIsGenerator(bool b = true) {mIsGenerator = b;}
+  bool IsIterator()                 {return mIsIterator;}
+  void SetIsIterator(bool b = true) {mIsIterator = b;}
   bool IsGetAccessor()               {return mIsGetAccessor;}
   void SetIsGetAccessor(bool b = true) {mIsGetAccessor = b;}
   bool IsSetAccessor()                 {return mIsSetAccessor;}
