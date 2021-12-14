@@ -464,6 +464,7 @@ bool AArch64Ebo::Csel2Cset(Insn &insn, const MapleVector<Operand*> &opnds) {
 
   /* csel ->cset */
   if ((opCode == MOP_wcselrrrc) || (opCode == MOP_xcselrrrc)) {
+    ASSERT(res != nullptr, "expect a register");
     ASSERT(res->IsRegister(), "expect a register");
     /* only do integers */
     RegOperand *reg = static_cast<RegOperand*>(res);
@@ -942,6 +943,9 @@ bool AArch64Ebo::CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bo
   AArch64CGFunc *aarchFunc = static_cast<AArch64CGFunc*>(cgFunc);
   Insn *prevInsn = opndInfo.insn;
   InsnInfo *insnInfo = opndInfo.insnInfo;
+  if (insnInfo == nullptr) {
+    return false;
+  }
   CHECK_NULL_FATAL(insnInfo);
   MOperator opc1 = prevInsn->GetMachineOpcode();
   if (!isFp && ((opc1 == MOP_xlsrrri6) || (opc1 == MOP_wlsrrri5))) {

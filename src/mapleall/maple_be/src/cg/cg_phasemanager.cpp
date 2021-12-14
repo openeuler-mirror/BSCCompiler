@@ -184,10 +184,10 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("handlefunction", true);
   ADDMAPLECGPHASE("moveargs", true);
 
-  ADDMAPLECGPHASE("cgssaconstruct", false);
-  ADDMAPLECGPHASE("cgsplitcriticaledge", false);
-  ADDMAPLECGPHASE("cgphielimination", false);
-  ADDMAPLECGPHASE("cgregcoalesce", false);
+  ADDMAPLECGPHASE("cgssaconstruct", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgphielimination", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgregcoalesce", CGOptions::DoCGSSA());
 
   ADDMAPLECGPHASE("ebo", CGOptions::DoEBO());
   ADDMAPLECGPHASE("prepeephole", CGOptions::DoPrePeephole())

@@ -355,7 +355,7 @@ void GraphColorRegAllocator::PrintLiveRange(const LiveRange &lr, const std::stri
   } else if (lr.GetSpillSize() == k64) {
     LogInfo::MapleLogger() << "S64";
   } else {
-    CHECK_FATAL(0, "Unknown LR size");
+    LogInfo::MapleLogger() << "S0(nodef)";
   }
   LogInfo::MapleLogger() << "\tnumCall " << lr.GetNumCall();
   LogInfo::MapleLogger() << "\tpriority " << lr.GetPriority();
@@ -745,7 +745,7 @@ LiveRange *GraphColorRegAllocator::CreateLiveRangeAllocateAndUpdate(regno_t regN
 
   if (CLANG) {
     auto *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    MIRPreg *preg = a64CGFunc->GetPseudoRegFromVirtualRegNO(regNO);
+    MIRPreg *preg = a64CGFunc->GetPseudoRegFromVirtualRegNO(regNO, CGOptions::DoCGSSA());
     if (preg) {
       switch (preg->GetOp()) {
         case OP_constval:
@@ -3782,6 +3782,9 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   std::sort(useLrs.begin(), useLrs.end(), comparator);
   for (auto lr: useLrs) {
     lr->SetID(insn.GetId());
+    if (lr->GetSpillReg() != 0 && lr->GetPregveto(lr->GetSpillReg())) {
+      lr->SetSpillReg(0);
+    }
     if (lr->GetSpillReg() != 0 && lr->GetSpillReg() >= R10 && usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
       usePregs.insert(lr->GetSpillReg());
       continue;
@@ -3806,6 +3809,9 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   }
   for (auto lr: defLrs) {
     lr->SetID(insn.GetId());
+    if (lr->GetSpillReg() != 0 && lr->GetPregveto(lr->GetSpillReg())) {
+      lr->SetSpillReg(0);
+    }
     if (lr->GetSpillReg() != 0) {
       continue;
     }

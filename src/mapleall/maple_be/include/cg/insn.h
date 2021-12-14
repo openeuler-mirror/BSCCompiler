@@ -265,6 +265,10 @@ class Insn {
     return false;
   }
 
+  virtual bool IsPhi() const{
+    return false;
+  }
+
   virtual bool IsLoad() const {
     return false;
   }

@@ -62,6 +62,7 @@ bool CGOptions::useBarriersForVolatile = true;
 #endif
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
+bool CGOptions::doCGSSA = false;
 bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;

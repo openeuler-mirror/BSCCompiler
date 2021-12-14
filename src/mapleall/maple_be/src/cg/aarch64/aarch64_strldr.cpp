@@ -642,6 +642,23 @@ bool AArch64StoreLoadOpt::ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &
   if (newMemOpnd == nullptr) {
     return false;
   }
+
+  /* check new memOpnd */
+  if (newMemOpnd->GetBaseRegister() != nullptr) {
+    InsnSet regDefSetForNewBase =
+        a64RD->FindDefForRegOpnd(insn, newMemOpnd->GetBaseRegister()->GetRegisterNumber(), true);
+    if (regDefSetForNewBase.size() != k1BitSize) {
+      return false;
+    }
+  }
+  if (newMemOpnd->GetIndexRegister() != nullptr) {
+    InsnSet regDefSetForNewIndex =
+        a64RD->FindDefForRegOpnd(insn, newMemOpnd->GetIndexRegister()->GetRegisterNumber(), true);
+    if (regDefSetForNewIndex.size() != k1BitSize) {
+      return false;
+    }
+  }
+
   uint32 opndIdx;
   if (insn.IsLoadPair() || insn.IsStorePair()) {
     if (newMemOpnd->GetOffsetImmediate() == nullptr) {
@@ -756,7 +773,10 @@ void AArch64StoreLoadOpt::DoStoreLoadOpt() {
       MOperator mOp = insn->GetMachineOpcode();
       if (CanDoMemProp(insn)) {
         MemProp(*insn);
-        StrLdrIndexModeOpt(*insn);
+        /* Reaching define not support index */
+        if (a64CgFunc.IsAfterRegAlloc() || !CGOptions::DoCGSSA()) {
+          StrLdrIndexModeOpt(*insn);
+        }
       }
       if (a64CgFunc.GetMirModule().IsCModule() && cgFunc.GetRD()->OnlyAnalysisReg()) {
         continue;
@@ -905,7 +925,7 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectIndexOptMode(Insn &insn, AArch64Me
     if (defOffset < kMaxPimm8) {
       InsnSet tempCheck;
       (void)a64RD->FindRegUseBetweenInsn(baseRegisterNO, defInsn->GetNext(), insn.GetPrev(), tempCheck);
-      if (tempCheck.empty()) {
+      if (tempCheck.empty() && (defInsn->GetBB() == insn.GetBB())) {
         auto &newMem = static_cast<AArch64MemOperand&>(
             a64cgFunc.CreateMemOpnd(*curMemOpnd.GetBaseRegister(), defOffset, curMemOpnd.GetSize()));
         ASSERT(newMem.GetOffsetImmediate() != nullptr, "need offset for memopnd in this case");
@@ -923,7 +943,7 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectIndexOptMode(Insn &insn, AArch64Me
     if (defOffset < kMaxPimm8) {
       InsnSet tempCheck;
       (void)a64RD->FindRegUseBetweenInsn(baseRegisterNO, insn.GetNext(), defInsn->GetPrev(), tempCheck);
-      if (tempCheck.empty()) {
+      if (tempCheck.empty() && (defInsn->GetBB() == insn.GetBB())) {
         auto &newMem = static_cast<AArch64MemOperand&>(a64cgFunc.CreateMemOpnd(
             *curMemOpnd.GetBaseRegister(), defOffset, curMemOpnd.GetSize()));
         ASSERT(newMem.GetOffsetImmediate() != nullptr, "need offset for memopnd in this case");

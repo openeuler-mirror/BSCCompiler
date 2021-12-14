@@ -21,6 +21,42 @@ namespace maple {
 bool LoopScalarAnalysisResult::enableDebug = false;
 constexpr int kNumOpnds = 2;
 
+bool CRNode::IsEqual(const CRNode &crNode) const {
+  if (crType != crNode.GetCRType()) {
+    return false;
+  }
+  switch (crType) {
+    case kCRConstNode: {
+      return static_cast<const CRConstNode&>(crNode).GetConstValue() ==
+             static_cast<const CRConstNode*>(this)->GetConstValue();
+    }
+    case kCRVarNode: {
+      return expr == crNode.expr;
+    }
+    case kCRNode:
+    case kCRAddNode:
+    case kCRMulNode: {
+      auto &opndsOfCRNode = crNode.GetOpnds();
+      auto &opndsOfThis = this->GetOpnds();
+      if (opndsOfCRNode.size() != opndsOfThis.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < opndsOfCRNode.size(); ++i) {
+        if (!opndsOfCRNode.at(i)->IsEqual(*opndsOfThis.at(i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    case kCRDivNode: {
+      return static_cast<const CRDivNode&>(crNode).GetLHS()->IsEqual(*static_cast<const CRDivNode*>(this)->GetLHS()) &&
+             static_cast<const CRDivNode&>(crNode).GetRHS()->IsEqual(*static_cast<const CRDivNode*>(this)->GetRHS());
+    }
+    default:
+      return false;
+  }
+}
+
 CRNode *CR::GetPolynomialsValueAtITerm(CRNode &iterCRNode, size_t num, LoopScalarAnalysisResult &scalarAnalysis) const {
   if (num == 1) {
     return &iterCRNode;
@@ -469,6 +505,68 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
       crMulOpnds.erase(crMulOpnds.begin() + mulCRIndex);
     }
     return GetCRMulNode(expr, crMulOpnds);
+  }
+
+  // if the crType of operand is CRAddNode, unfold the operand
+  // 2 * (X + Y) -> 2 * X + 2 * Y
+  if (irMap->GetMIRModule().IsCModule() &&
+      crMulOpnds.size() == kNumOpnds && crMulOpnds[0]->GetCRType() == kCRConstNode &&
+      crMulOpnds[1]->GetCRType() == kCRAddNode && static_cast<CRAddNode*>(crMulOpnds[1])->GetOpndsSize() == kNumOpnds) {
+    auto *addCRNode = static_cast<CRAddNode*>(crMulOpnds[1]);
+    std::vector<CRNode*> currOpndsLHSOfMulNode { crMulOpnds[0], addCRNode->GetOpnd(0) };
+    std::vector<CRNode*> currOpndsRHSOfMulNode { crMulOpnds[0], addCRNode->GetOpnd(1) };
+    CRNode *lhsOfMulNode = GetCRMulNode(nullptr, currOpndsLHSOfMulNode);
+    CRNode *rhsOfMulNode = GetCRMulNode(nullptr, currOpndsRHSOfMulNode);
+    std::vector<CRNode*> crAddOpnds({ lhsOfMulNode, rhsOfMulNode });
+    return GetCRAddNode(expr, crAddOpnds);
+  }
+
+  // if the crType of operand is CRDivNode, simplify the operand
+  // 8 * (X / 4) -> 2 * X
+  if (crMulOpnds.size() > 1 && crMulOpnds[0]->GetCRType() == kCRConstNode) {
+    size_t divCRIndex = index;
+    while (divCRIndex < crMulOpnds.size() && crMulOpnds[divCRIndex]->GetCRType() != kCRDivNode) {
+      ++divCRIndex;
+    }
+    if (divCRIndex < crMulOpnds.size()) {
+      auto *divCRNode = static_cast<CRDivNode*>(crMulOpnds[divCRIndex]);
+      if (divCRNode->GetRHS()->GetCRType() == kCRConstNode) {
+        auto constantOfDivOperand = static_cast<CRConstNode*>(divCRNode->GetRHS())->GetConstValue();
+        auto constantOfMulOperand = static_cast<CRConstNode*>(crMulOpnds[0])->GetConstValue();
+        if (constantOfMulOperand == constantOfDivOperand) {
+          // 8 * (X / 8) -> X
+          crMulOpnds.insert(crMulOpnds.end(), divCRNode->GetLHS());
+          crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
+          crMulOpnds.erase(crMulOpnds.begin());
+          if (crMulOpnds.size() == 1) {
+            return crMulOpnds[0];
+          }
+        } else if (constantOfMulOperand > constantOfDivOperand) {
+          auto rem = constantOfMulOperand % constantOfDivOperand;
+          if (rem == 0) {
+            // 8 * (X / 4) -> X * 2
+            auto res = constantOfMulOperand / constantOfDivOperand;
+            crMulOpnds.insert(crMulOpnds.end(), divCRNode->GetLHS());
+            crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
+            crMulOpnds.erase(crMulOpnds.begin());
+            crMulOpnds.insert(crMulOpnds.end(), GetOrCreateCRConstNode(nullptr, res));
+          }
+        } else {
+          auto rem = constantOfDivOperand % constantOfMulOperand;
+          if (rem == 0) {
+            // 4 * (X / 8) -> X / 2
+            auto res = constantOfDivOperand / constantOfMulOperand;
+            crMulOpnds.erase(crMulOpnds.begin() + divCRIndex);
+            crMulOpnds.erase(crMulOpnds.begin());
+            crMulOpnds.insert(crMulOpnds.end(), GetOrCreateCRDivNode(nullptr, *divCRNode->GetLHS(),
+                *GetOrCreateCRConstNode(nullptr, res)));
+            if (crMulOpnds.size() == 1) {
+              return crMulOpnds[0];
+            }
+          }
+        }
+      }
+    }
   }
 
   // merge cr
@@ -1003,7 +1101,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
       // consider if there's overflow
       if (stride > 0) {
         if (isSigned ||  // undefined overflow
-            value == 0 || value - stride < 0 ||  // infinite loop
+            value == 0 || value < stride ||  // infinite loop
             remainder != 0) {  // not common case, just skip
           return kInvalidTripCount;
         }
@@ -1032,7 +1130,7 @@ uint64 LoopScalarAnalysisResult::ComputeTripCountWithSimpleConstCR(Opcode op, bo
       // consider if there's underflow
       if (stride < 0) {
         if (isSigned ||  // undefined underflow
-            value == -1 || value - stride >= 0 ||  // infinite loop
+            value == -1 || static_cast<uint64>(value) >= static_cast<uint64>(stride) ||  // infinite loop
             remainder != 0) {  // not common case, just skip
           return kInvalidTripCount;
         }

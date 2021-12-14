@@ -25,7 +25,11 @@ class PhiEliminate {
       cgFunc(&f),
       ssaInfo(&ssaAnalysisResult),
       phiEliAlloc(&mp),
-      eliminatedBB(phiEliAlloc.Adapter()){}
+      eliminatedBB(phiEliAlloc.Adapter()),
+      replaceVreg(phiEliAlloc.Adapter()),
+      remateInfoAfterSSA(phiEliAlloc.Adapter()) {
+    tempRegNO = GetSSAInfo()->GetAllSSAOperands().size() + CGSSAInfo::SSARegNObase;
+  }
   virtual ~PhiEliminate() = default;
   CGSSAInfo *GetSSAInfo() {
     return ssaInfo;
@@ -35,15 +39,31 @@ class PhiEliminate {
   virtual void ReCreateRegOperand(Insn &insn) = 0;
 
  protected:
+  virtual Insn &CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd) = 0;
+  virtual void MaintainRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd, bool isCopy) = 0;
+  virtual void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const = 0;
+  void UpdateRematInfo();
+  regno_t GetAndIncreaseTempRegNO();
+  RegOperand *MakeRoomForNoDefVreg(RegOperand &conflictReg);
+  void RecordRematInfo(regno_t vRegNO, PregIdx pIdx);
+  PregIdx FindRematInfo(regno_t vRegNO) {
+    return remateInfoAfterSSA.count(vRegNO) ? remateInfoAfterSSA[vRegNO] : -1;
+  }
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
   MapleAllocator phiEliAlloc;
-  virtual Insn &CreateMoveCopyRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd) const = 0;
-  virtual void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const = 0;
 
  private:
   void PlaceMovInPredBB(uint32 predBBId, Insn &movInsn);
+  virtual RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) = 0;
   MapleSet<uint32> eliminatedBB;
+  /*
+   * noDef Vregs occupy the vregno_t which is used for ssa re_creating
+   * first : conflicting VReg with noDef VReg  second : new_Vreg opnd to replace occupied Vreg
+   */
+  MapleUnorderedMap<regno_t, RegOperand*> replaceVreg;
+  regno_t tempRegNO = 0; /* use for create mov insn for phi */
+  MapleMap<regno_t, PregIdx> remateInfoAfterSSA;
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgPhiElimination, maplebe::CGFunc)

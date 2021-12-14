@@ -34,10 +34,11 @@ class VRegVersion {
       versionIdx(vIdx),
       originalRegNO(vregNO),
       useInsns(versionAlloc.Adapter()) {}
-  void SetDefInsn(Insn &insn, SSAOpndDefBy defTy) {
-    defInsn = &insn;
+  void SetDefInsn(Insn *insn, SSAOpndDefBy defTy) {
+    defInsn = insn;
     defType = defTy;
   }
+  void SetNewSSAOpnd(RegOperand &regOpnd);
   Insn *GetDefInsn() const {
     return defInsn;
   }
@@ -78,20 +79,34 @@ class CGSSAInfo {
       renamedBBs(ssaAlloc.Adapter()),
       vRegDefCount(ssaAlloc.Adapter()),
       vRegStk(ssaAlloc.Adapter()),
-      allSSAOperands(ssaAlloc.Adapter()) {}
+      allSSAOperands(ssaAlloc.Adapter()),
+      noDefVRegs(ssaAlloc.Adapter()) {}
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
 
   void DumpFuncCGIRinSSAForm() const;
   virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
-
- protected:
   const MapleUnorderedMap<regno_t, VRegVersion*> &GetAllSSAOperands() const {
     return allSSAOperands;
   }
+  bool IsNoDefVReg(regno_t vRegNO) const {
+    return noDefVRegs.find(vRegNO) != noDefVRegs.end();
+  }
+  static uint32 SSARegNObase;
+
+ protected:
   VRegVersion *CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, bool isDefByPhi = false);
+  virtual RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) = 0;
   VRegVersion *GetVersion(RegOperand &virtualOpnd);
+  MapleUnorderedMap<regno_t, VRegVersion*> &GetPrivateAllSSAOperands() {
+    return allSSAOperands;
+  }
+  bool IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst);
+  void AddNoDefVReg(regno_t noDefVregNO) {
+    ASSERT(!noDefVRegs.count(noDefVregNO), "duplicate no def Reg, please check");
+    noDefVRegs.emplace(noDefVregNO);
+  }
   CGFunc *cgFunc  = nullptr;
   MemPool *memPool = nullptr;
   MemPool *tempMp = nullptr;
@@ -103,12 +118,11 @@ class CGSSAInfo {
   virtual void RenameInsn(Insn &insn) = 0;
   /* build ssa on virtual register only */
   virtual RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) = 0;
-  virtual RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) = 0;
   void RenameSuccPhiUse(BB &bb);
   void PrunedPhiInsertion(BB &bb, RegOperand &virtualOpnd);
 
   void AddRenamedBB(uint32 bbID) {
-    CHECK_FATAL(!renamedBBs.count(bbID), "changed to assert");
+    ASSERT(!renamedBBs.count(bbID), "cgbb has been renamed already");
     renamedBBs.emplace(bbID);
   }
   bool IsBBRenamed(uint32 bbID) {
@@ -125,6 +139,8 @@ class CGSSAInfo {
   MapleMap<regno_t, MapleStack<VRegVersion*>> vRegStk;
   /* ssa regNO - ssa virtual operand version */
   MapleUnorderedMap<regno_t, VRegVersion*> allSSAOperands;
+  /* For virtual registers which do not have definition */
+  MapleSet<regno_t> noDefVRegs;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgSSAConstruct, maplebe::CGFunc);

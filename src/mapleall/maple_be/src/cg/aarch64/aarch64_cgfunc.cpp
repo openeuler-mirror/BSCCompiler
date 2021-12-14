@@ -2398,7 +2398,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
 
       // Register this vreg mapping
-      vregsToPregsMap[vRegNO] = pregIdx;
+      RegisterVregMapping(vRegNO, pregIdx);
 
       // Store rematerialization info in the preg
       tmpPreg->SetOp(OP_addrof);
@@ -2443,7 +2443,7 @@ void AArch64CGFunc::SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, Fi
     RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
 
     // Register this vreg mapping
-    vregsToPregsMap[vRegNO] = pregIdx;
+    RegisterVregMapping(vRegNO, pregIdx);
 
     // Store rematerialization info in the preg
     tmpPreg->SetOp(OP_addrof);
@@ -5413,7 +5413,7 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
 }
 
 bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
-  MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber());
+  MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber(), CGOptions::DoCGSSA());
   if (preg != nullptr && preg->GetOp() != OP_undef) {
     if ( preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
       return true;
@@ -5438,7 +5438,7 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
     if (opnd.IsList()) {
       std::list<RegOperand*> tempRegStore;
       for (auto regOpnd : static_cast<AArch64ListOperand&>(opnd).GetOperands()) {
-        if (regOpnd == &regDest) {
+        if (regOpnd->Equals(regDest)) {
           tempRegStore.push_back(&regSrc);
           static_cast<AArch64ListOperand&>(opnd).RemoveOpnd(*regOpnd);
         }
@@ -5450,19 +5450,19 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       RegOperand *baseRegOpnd = memOpnd.GetBaseRegister();
       RegOperand *indexRegOpnd = memOpnd.GetIndexRegister();
-      if ((baseRegOpnd != nullptr && baseRegOpnd == &regDest) ||
-          (indexRegOpnd != nullptr && indexRegOpnd == &regDest)) {
-        if (baseRegOpnd != nullptr && baseRegOpnd == &regDest) {
+      if ((baseRegOpnd != nullptr && baseRegOpnd->Equals(regDest)) ||
+          (indexRegOpnd != nullptr && indexRegOpnd->Equals(regDest))) {
+        if (baseRegOpnd != nullptr && baseRegOpnd->Equals(regDest)) {
           memOpnd.SetBaseRegister(static_cast<AArch64RegOperand&>(regSrc));
         }
-        if (indexRegOpnd != nullptr && indexRegOpnd == &regDest) {
+        if (indexRegOpnd != nullptr && indexRegOpnd->Equals(regDest)) {
           memOpnd.SetIndexRegister(regSrc);
         }
         insn.SetMemOpnd(&GetOrCreateMemOpnd(memOpnd));
       }
     } else if (opnd.IsRegister()) {
       auto &regOpnd = static_cast<RegOperand&>(opnd);
-      if (&regOpnd == &regDest) {
+      if (regOpnd.Equals(regDest)) {
         ASSERT(regOpnd.GetRegisterNumber() != kRFLAG, "both condi and reg");
         insn.SetOperand(i, regSrc);
       }
@@ -6071,6 +6071,7 @@ bool AArch64CGFunc::GenRetCleanup(const IntrinsiccallNode *cleanupNode, bool for
 
 RegOperand &AArch64CGFunc::CreateVirtualRegisterOperand(regno_t vRegNO) {
   ASSERT((vRegOperandTable.find(vRegNO) == vRegOperandTable.end()), "already exist");
+  ASSERT(vRegNO < vRegTable.size() , "index out of range");
   uint8 bitSize = static_cast<uint8>((static_cast<uint32>(vRegTable[vRegNO].GetSize())) * kBitsPerByte);
   RegOperand *res = memPool->New<AArch64RegOperand>(vRegNO, bitSize, vRegTable.at(vRegNO).GetType());
   vRegOperandTable[vRegNO] = res;
@@ -6087,14 +6088,21 @@ RegOperand &AArch64CGFunc::GetOrCreateVirtualRegisterOperand(RegOperand &regOpnd
   auto it = vRegOperandTable.find(regNO);
   if (it != vRegOperandTable.end()) {
     it->second->SetSize(regOpnd.GetSize());
-    ASSERT(it->second->GetRegisterNumber() == regNO, "vregtable is not accurate");
-    if (it->second->GetRegisterType() != regOpnd.GetRegisterType()) {
-      it->second->SetRegisterType(regOpnd.GetRegisterType());
-    }
+    it->second->SetRegisterNumber(regNO);
+    it->second->SetRegisterType(regOpnd.GetRegisterType());
+    it->second->SetValidBitsNum(regOpnd.GetValidBitsNum());
     return *it->second;
   } else {
     auto *newRegOpnd = static_cast<RegOperand*>(regOpnd.Clone(*memPool));
-    vRegOperandTable[newRegOpnd->GetRegisterNumber()] = newRegOpnd;
+    regno_t newRegNO = newRegOpnd->GetRegisterNumber();
+    if (newRegNO >= maxRegCount) {
+      maxRegCount = newRegNO + kRegIncrStepLen;
+      vRegTable.resize(maxRegCount);
+    }
+    vRegOperandTable[newRegNO] = newRegOpnd;
+    VirtualRegNode *vregNode = memPool->New<VirtualRegNode>(newRegOpnd->GetRegisterType(), newRegOpnd->GetSize());
+    vRegTable[newRegNO] = *vregNode;
+    vRegCount = maxRegCount;
     return *newRegOpnd;
   }
 }
@@ -8421,8 +8429,8 @@ MemOperand *AArch64CGFunc::GetPseudoRegisterSpillMemoryOperand(PregIdx i) {
   return &memOpnd;
 }
 
-MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO) const {
-  PregIdx pri = GetPseudoRegIdxFromVirtualRegNO(vRegNO);
+MIRPreg *AArch64CGFunc::GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA) const {
+  PregIdx pri = afterSSA ? VRegNOToPRegIdx(vRegNO) : GetPseudoRegIdxFromVirtualRegNO(vRegNO);
   if (pri == -1) return nullptr;
   return GetFunction().GetPregTab()->PregFromPregIdx(pri);
 }

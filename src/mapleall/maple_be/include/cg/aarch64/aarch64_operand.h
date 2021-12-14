@@ -748,9 +748,9 @@ class AArch64MemOperand : public MemOperand {
       return (offset < kMinSimm32 || offset > kMaxSimm32);
     }
     if (is64bit) {
-      return (offset < kMinSimm64 || offset > kMaxSimm64Pair);
+      return (offset < kMinSimm64 || offset > kMaxSimm64Pair) || (static_cast<uint64>(offset) & k7BitSize) ;
     }
-    return (offset < kMinSimm32 || offset > kMaxSimm32Pair);
+    return (offset < kMinSimm32 || offset > kMaxSimm32Pair) || (static_cast<uint64>(offset) & k3BitSize);
   }
 
   static bool IsPIMMOffsetOutOfRange(int32 offset, uint32 dSize) {

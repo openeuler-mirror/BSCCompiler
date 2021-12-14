@@ -704,7 +704,8 @@ void BackPropPattern::Optimize(Insn &insn) {
       Operand &defOp = defInsnForSecondOpnd->GetOperand(i);
       CHECK_FATAL(defOp.IsRegister() ,"unexpect def opnd type");
       auto &defRegOp = static_cast<RegOperand&>(defOp);
-      MIRPreg *preg = static_cast<AArch64CGFunc&>(cgFunc).GetPseudoRegFromVirtualRegNO(defRegOp.GetRegisterNumber());
+      MIRPreg *preg = static_cast<AArch64CGFunc&>(cgFunc).GetPseudoRegFromVirtualRegNO(
+          defRegOp.GetRegisterNumber(), CGOptions::DoCGSSA());
       if (preg != nullptr) {
         preg->SetOp(OP_undef);
       }

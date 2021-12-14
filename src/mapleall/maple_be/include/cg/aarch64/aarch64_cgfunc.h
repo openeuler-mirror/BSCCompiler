@@ -617,7 +617,7 @@ class AArch64CGFunc : public CGFunc {
 
   void InsertJumpPad(Insn *insn) override;
 
-  MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO) const;
+  MIRPreg *GetPseudoRegFromVirtualRegNO(const regno_t vRegNO, bool afterSSA = false) const;
 
  private:
   enum RelationOperator : uint8 {
