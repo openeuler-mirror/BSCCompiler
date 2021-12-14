@@ -36,7 +36,7 @@ void MeFuncPM::DumpMEIR(MeFunction &f, const std::string phaseName, bool isBefor
   }
   if ((MeOption::dumpAfter || dumpPhase) && dumpFunc && !isBefore) {
     LogInfo::MapleLogger() << ">>>>> Dump after " << phaseName << " <<<<<\n";
-    if (phaseName != "meemit") {
+    if (phaseName != "meemit" && phaseName != "lfounroll") {
       f.Dump(false);
     } else {
       f.DumpFunctionNoSSA();
