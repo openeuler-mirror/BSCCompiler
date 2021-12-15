@@ -17,35 +17,28 @@ function* generator() {}
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each objects
 for(let g = 0; g < 4; ++g) {
-  let objs =  [], names = [], gen = undefined;
+  let objs =  [Function, Object], names = ["Function", "Object"], gen = undefined;
   if (g < 2) {
-    objs.push(  arr,   Array,   Vehicle,   Car,   MyCar,   car,   mycar,   Function,   Object);
-    names.push("arr", "Array", "Vehicle", "Car", "MyCar", "car", "mycar", "Function", "Object");
+    objs.unshift ( arr,   Array,   Vehicle,   Car,   MyCar,   car,   mycar);
+    names.unshift("arr", "Array", "Vehicle", "Car", "MyCar", "car", "mycar");
   } else {
     gen = generator.prototype.__proto__;
-    objs.push(  generator,   generator(),          generator.constructor,  gen);
-    names.push("generator", "generator_instance", "GeneratorFunction",    "GeneratorPrototype");
-    objs.push(  gen.__proto__,       Function,   Object);
-    names.push("IteratorPrototype", "Function", "Object");
+    objs.unshift ( generator,   generator(),          generator.constructor,  gen,                  gen.__proto__);
+    names.unshift("generator", "generator_instance", "GeneratorFunction",    "GeneratorPrototype", "IteratorPrototype");
   }
   console.log("digraph JS" + g + " {\nranksep=0.6;\nnodesep=0.6;\n" + (g % 2 == 0 ? "newrank=true;\n" : ""));
   let num = objs.length;
-  let k = num;
+  let k = num, suffix = "Prototype";
   // Add prototype objects and edges for them
   for(let i = 0; i < num; ++i) {
-    let x = typeof objs[i].prototype;
-    console.log("/* " + names[i] + ": prototype: " + x + ", __proto__: " + typeof objs[i].__proto__ + "\n",
-      Object.getOwnPropertyNames(objs[i]), "*/");
-    if(x === "function" || x === "object") {
-      objs[k] = objs[i].prototype;
-      names[k] = names[i] === "GeneratorFunction" ? "Generator" : names[i] + "Prototype";
-      if(names[i] === "GeneratorFunction" && objs[k].prototype === gen) // special case for Generator
-        console.log("GeneratorPrototype -> " + names[k] + " [label=\"prototype\", color=blue, fontcolor=blue, dir=back];");
-      console.log("/* " + names[k] + ": prototype: " + typeof objs[k] + ", __proto__: " + typeof objs[k].__proto__ + "\n",
-        Object.getOwnPropertyNames(objs[k]), "*/");
-      console.log(g % 2 == 0 ? "subgraph cluster_" + names[i] + " {\nrank=same;\ncolor=white;\n"
-        + names[i] + ";\n" + names[k] + "[label=\"" + names[k] + "\", shape=box];\n }"
-        : names[k] + "[label=\"" + names[k] + "\", shape=box];");
+    console.log(names[i].includes(suffix) ? names[i] + "[shape=box];" : "");
+    if(typeof objs[i].prototype !== "undefined") {
+      objs[k]  = objs[i].prototype;
+      let special = names[i] === "GeneratorFunction" && objs[k].prototype === gen;
+      names[k] = special ? "Generator" : names[i] + suffix;
+      console.log(special ? "GeneratorPrototype -> " + names[k] + " [label=\"prototype\", color=blue, fontcolor=blue, dir=back];" : "");
+      console.log(g % 2 == 0 ? "subgraph cluster_" + names[i] + " {\nrank=same;\ncolor=white;\n" + names[i] + ";\n"
+        + names[k] + "[shape=box];\n }" : names[k] + "[shape=box];");
       console.log(names[i] + " -> " + names[k] + " [label=\"prototype\", color=blue, fontcolor=blue];");
       k++;
     }
@@ -53,6 +46,7 @@ for(let g = 0; g < 4; ++g) {
   // Add edges for __proto__ and constructor properties of each objects
   num = objs.length;
   for(let i = 0; i < num; ++i) {
+    console.log("/* Object.getOwnPropertyNames(" + names[i] + "):\n", Object.getOwnPropertyNames(objs[i]), "*/");
     for(let j = 0; j < num; ++j) {
       // Edges for constructor properties in the second graph only
       if(g % 2 == 1 && objs[i].constructor === objs[j])
