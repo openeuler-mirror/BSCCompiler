@@ -46,10 +46,17 @@ std::ostream& operator<< (std::ostream& out, const t2crt::Object *obj) {
         auto b = k == t2crt::TY_Object || k == t2crt::TY_CXX_Object;
         if (b == flag) {
           buf.str(std::string());
-          if (isdigit(it->first.front()))
-            buf << '\'' << it->first << "': ";
-          else
-            buf << it->first << ": ";
+          const std::string &prop = it->first;
+          if (isdigit(prop.front()))
+            buf << '\'' << prop << "': ";
+          else {
+            auto len = prop.length();
+            constexpr auto suffixlen = sizeof(RENAMINGSUFFIX) - 1;
+            if (len > suffixlen && prop.substr(len - suffixlen) == RENAMINGSUFFIX)
+              buf << prop.substr(0, len - suffixlen) << ": ";
+            else
+              buf << prop << ": ";
+          }
           if (k == t2crt::TY_String || k == t2crt::TY_CXX_String)
             buf << '\'' << it->second << '\'';
           else

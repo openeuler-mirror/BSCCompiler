@@ -3285,7 +3285,8 @@ TreeNode* ASTBuilder::BuildFunction() {
           node_name = BuildIdentifier(node_name);
         } else if (!node_name->IsIdentifier() &&
                    !node_name->IsComputedName() &&
-                   !node_name->IsLiteral())
+                   !node_name->IsLiteral() &&
+                   !node_name->IsField())
           MERROR("The function name should be an indentifier node. Not?");
       } else {
         node_name = BuildIdentifier(p_name.mData.mToken);
@@ -3376,6 +3377,15 @@ TreeNode* ASTBuilder::SetIsGenerator() {
   MASSERT(mLastTreeNode->IsFunction());
   FunctionNode *node = (FunctionNode*)mLastTreeNode;
   node->SetIsGenerator();
+  return mLastTreeNode;
+}
+
+// It take no arugment. It uses mLastTreeNode which is
+// a function node.
+TreeNode* ASTBuilder::SetIsIterator() {
+  MASSERT(mLastTreeNode->IsFunction());
+  FunctionNode *node = (FunctionNode*)mLastTreeNode;
+  node->SetIsIterator();
   return mLastTreeNode;
 }
 

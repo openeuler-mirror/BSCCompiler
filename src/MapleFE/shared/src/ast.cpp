@@ -1776,7 +1776,7 @@ void ClassNode::Dump(unsigned indent) {
 
 FunctionNode::FunctionNode() : TreeNode(NK_Function),
   mFuncName(NULL), mType(NULL), mBody(NULL), mDims(NULL),
-  mIsConstructor(false), mIsGenerator(false), mIsGetAccessor(false),
+  mIsConstructor(false), mIsGenerator(false), mIsIterator(false), mIsGetAccessor(false),
   mIsSetAccessor(false), mIsCallSignature(false), mIsConstructSignature(false),
   mAssert(NULL) {}
 

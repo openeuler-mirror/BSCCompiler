@@ -24,6 +24,7 @@
 #include "ast.h"
 #include "ast_type.h"
 #include "gen_astvisitor.h"
+#include "ast_info.h"
 
 namespace maplefe {
 
@@ -39,20 +40,28 @@ class AST_ADJ {
   void AdjustAST();
 };
 
+// If you change RENAMINGSUFFIX, you have to update ast2cpp/runtime/include/ts2cpp.h as well
+#define RENAMINGSUFFIX "__RENAMED"
+
 class AdjustASTVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   AST_INFO       *mInfo;
+  AST_Util       *mUtil;
   unsigned       mFlags;
   bool           mUpdated;
 
  public:
   explicit AdjustASTVisitor(Module_Handler *h, unsigned f, bool base = false)
     : mHandler(h), mFlags(f), mUpdated(false), AstVisitor((f & FLG_trace_1) && base) {
-      mInfo = mHandler->GetINFO();
+      mInfo = h->GetINFO();
       mInfo->SetNameAnonyStruct(true);
+      mUtil = h->GetUtil();
     }
   ~AdjustASTVisitor() = default;
+
+  std::unordered_map<unsigned, unsigned> mRenameMap;
+  void CheckAndRenameCppKeywords(TreeNode *node);
 
   DeclNode *VisitDeclNode(DeclNode *node);
   ImportNode *VisitImportNode(ImportNode *node);

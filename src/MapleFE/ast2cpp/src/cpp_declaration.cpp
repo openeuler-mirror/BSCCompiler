@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cstring>
 #include "helper.h"
+#include "ast_adj.h"
 
 namespace maplefe {
 
@@ -155,7 +156,7 @@ class ImportExportModules : public AstVisitor {
               auto b = x->GetBefore();
               std::string target = mCppDecl->GetIdentifierName(b);
               bool emit = true;
-              if (target == "default") {
+              if (target == "default" RENAMINGSUFFIX) {
                 target = module + "::__export::__default";
                 mExports += "namespace __export { inline const decltype("s + target + ") &"s
                   + "__"s + "default" + " = "s + target + "; }\n"s;
@@ -166,7 +167,7 @@ class ImportExportModules : public AstVisitor {
                 emit = false;
               }
               if (emit)
-                mExports += "namespace __export { using "s + module + "::"s + "default; }\n"s;
+                mExports += "namespace __export { using "s + module + "::"s + "default" RENAMINGSUFFIX "; }\n"s;
             } else {
               if (auto n = x->GetBefore()) {
                 std::string v = mEmitter->EmitTreeNode(n);
@@ -214,10 +215,10 @@ class ImportExportModules : public AstVisitor {
               bool emit = true;
               if (auto a = x->GetAfter()) {
                 std::string after = mCppDecl->GetIdentifierName(a);
-                if (target == "default") {
+                if (target == "default" RENAMINGSUFFIX) {
                   target = module + "::__export::__default";
                   mExports += "namespace __export { inline const decltype("s + target + ") &"s
-                    + (after == "default" ? "__"s + after : after) + " = "s + target + "; }\n"s;
+                    + (after == "default" RENAMINGSUFFIX ? "__"s + after : after) + " = "s + target + "; }\n"s;
                   emit = false;
                 }
                 else if (target != after) {
