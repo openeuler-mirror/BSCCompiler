@@ -79,6 +79,7 @@ bool AST_Handler::AddModule(ModuleNode *m) {
 
   Module_Handler *handler = new(mMemPool.Alloc(sizeof(Module_Handler))) Module_Handler(mFlags);
   handler->SetASTModule(m);
+  handler->SetIsTS(m->GetSrcLang() == SrcLangTypeScript);
   handler->SetASTHandler(this);
   mModuleHandlers.PushBack(handler);
   mSize++;

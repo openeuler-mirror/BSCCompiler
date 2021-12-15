@@ -125,15 +125,18 @@ void Verifier::VerifyIdentifier(IdentifierNode *inode) {
   if (!decl) {
     mLog.MissDecl(inode);
   } else {
-    // Replace the temp IdentifierNode with the found Decl.
-    // Sometimes inode and decl are the same, which happens for the declaration statement.
-    // We will verify decl statement as the others, so its inode is the same as decl.
-    if (inode != decl) {
-      // TODO : There are many complicated cases which we will handle in the furture.
-      //        Right now I just put a simple check of mTempParent.
-      if (mTempParent)
-        mTempParent->ReplaceChild(inode, decl);
-    }
+    // We disabled this part to keep the integerity of TREE. We don't want
+    // a graph.
+    //
+    // // Replace the temp IdentifierNode with the found Decl.
+    // // Sometimes inode and decl are the same, which happens for the declaration statement.
+    // // We will verify decl statement as the others, so its inode is the same as decl.
+    // if (inode != decl) {
+    //   // TODO : There are many complicated cases which we will handle in the furture.
+    //   //        Right now I just put a simple check of mTempParent.
+    //   if (mTempParent)
+    //     mTempParent->ReplaceChild(inode, decl);
+    // }
   }
 }
 

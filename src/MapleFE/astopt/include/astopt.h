@@ -74,8 +74,6 @@ class BuildNodeIdToNodeVisitor : public AstVisitor {
   Module_Handler *mHandler;
   unsigned        mFlags;
 
-  std::unordered_map<unsigned, unsigned> mRenameMap;
-
   public:
   explicit BuildNodeIdToNodeVisitor(AstOpt *opt, unsigned f, bool base = false)
     : mAstOpt(opt), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}

@@ -115,6 +115,7 @@ class Module_Handler {
   unsigned      mHidx;       // handler index in AST_Handler
 
   unsigned      mFlags;
+  bool            mIsTS;
 
   std::unordered_map<unsigned, CfgBB *> mNodeId2BbMap;
 
@@ -194,6 +195,7 @@ class Module_Handler {
   void SetSCP(AST_SCP *p) {mSCP = p;}
   void SetTI(TypeInfer *p) {mTI = p;}
   void SetUtil(AST_Util *p) {mUtil = p;}
+  void SetIsTS(bool b) {mIsTS = b;}
 
   // deep true  : find Decl in imported module as well
   //      false : find Decl in current module only
@@ -207,6 +209,7 @@ class Module_Handler {
 
   bool IsFromLambda(TreeNode *node);
   bool IsDef(TreeNode *node);
+  bool IsTS() {return mIsTS;}
 
   void AddNodeId2DeclMap(unsigned nid, TreeNode *node) {
     mNodeId2Decl[nid] = node;
