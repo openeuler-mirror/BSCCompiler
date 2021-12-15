@@ -930,9 +930,10 @@ std::string CppDecl::EmitTSEnum(StructNode *node) {
   }
 
   str = "class "s;
-  std::string enumClsName;
+  std::string enumClsName, enumName;
   if (auto n = node->GetStructId()) {
-    enumClsName = "Enum_"s + GetIdentifierName(n);
+    enumName = GetIdentifierName(n);
+    enumClsName = "Enum_"s + enumName;
     str += enumClsName + " : public t2crt::Object {\n"s;
   }
   str += "  public:\n"s;
@@ -960,7 +961,9 @@ std::string CppDecl::EmitTSEnum(StructNode *node) {
   str += "    "s  + enumClsName + "() {};\n"s;
   str += "    ~"s + enumClsName + "() {};\n"s;
 
-  str += "};\n"s;
+  std::string def = enumClsName + "* "s + enumName + ";\n"s;
+  AddDefinition(def);
+  str += "};\nextern "s + def;
   return str;
 }
 
