@@ -2210,22 +2210,33 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
 // Calculate the valuerange of def-operand according to the valuerange of each rhs operand.
 std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode) {
   std::unique_ptr<ValueRange> mergeRange = nullptr;
-  auto *valueRangeOfOpnd0 = FindValueRange(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
-  if (valueRangeOfOpnd0 == nullptr) {
+  auto *resValueRange = FindValueRange(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
+  if (resValueRange == nullptr || !resValueRange->IsConstant()) {
     return nullptr;
   }
+  bool theRangeTypeIsNotEqual = (resValueRange->GetRangeType() == kNotEqual);
+  auto resValueRangePtr = CopyValueRange(*resValueRange);
   for (size_t i = 1; i < mePhiNode.GetOpnds().size(); ++i) {
     auto *operand = mePhiNode.GetOpnd(i);
     auto *valueRange = FindValueRange(*bb.GetPred(i), *operand);
     // If one valuerange is nullptr, the result is nullptr.
-    if (valueRange == nullptr) {
+    if (valueRange == nullptr || !valueRange->IsConstant()) {
       return nullptr;
     }
-    if (!valueRangeOfOpnd0->IsEqual(valueRange)) {
+    theRangeTypeIsNotEqual |= (valueRange->GetRangeType() == kNotEqual);
+    if (resValueRange->IsEqual(valueRange)) {
+      continue;
+    }
+    // If the range type of phi operands is kNotEqual and the values are not equal, return nullptr.
+    if (theRangeTypeIsNotEqual) {
       return nullptr;
     }
+    if (resValueRange->GetUpper().GetPrimType() != valueRange->GetUpper().GetPrimType()) {
+      return nullptr;
+    }
+    resValueRangePtr = CombineTwoValueRange(*resValueRangePtr, *valueRange, true);
   }
-  return CopyValueRange(*valueRangeOfOpnd0);
+  return resValueRangePtr;
 }
 
 bool ValueRangePropagation::IsBiggerThanMaxInt64(ValueRange &valueRange) const {
