@@ -3468,9 +3468,15 @@ void UbfxToUxtwAArch64::Run(BB &bb , Insn &insn) {
   if ((imm0.GetValue() != 0) || (imm1.GetValue() != k32BitSize)) {
     return;
   }
-  Insn &uxtwInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
-      MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
-  bb.ReplaceInsn(insn, uxtwInsn);
+  Insn *newInsn = nullptr;
+  if (insn.GetOperand(kInsnFirstOpnd).GetSize() == k32BitSize) {
+    newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
+        MOP_wmovrr, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
+  } else {
+    newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
+        MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
+  }
+  bb.ReplaceInsn(insn, *newInsn);
 }
 
 void ComplexSxtwLslAArch64::Run(BB &bb , Insn &insn) {

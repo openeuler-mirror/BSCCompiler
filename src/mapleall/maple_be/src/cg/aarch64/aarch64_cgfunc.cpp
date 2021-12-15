@@ -806,7 +806,6 @@ bool AArch64CGFunc::IsOperandImmValid(MOperator mOp, Operand *o, uint32 opndIdx)
       if (memOpnd->GetOffsetImmediate()->GetVary() == kUnAdjustVary) {
         offsetValue += static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() + 0xff;
       }
-      offsetValue += 2 * kIntregBytelen;  /* Refer to the above comment */
       return  static_cast<AArch64ImmOpndProp*>(opndProp)->IsValidImmOpnd(offsetValue);
     } else if (memOpnd->GetAddrMode() == AArch64MemOperand::kAddrModeLo12Li) {
       int32 offsetValue = memOpnd->GetOffsetImmediate()->GetOffsetValue();

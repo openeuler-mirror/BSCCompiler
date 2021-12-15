@@ -616,7 +616,7 @@ MeExpr *OpMeExpr::GetIdenticalExpr(MeExpr &expr, bool isConstructor) const {
 }
 
 bool OpMeExpr::StrengthReducible() {
-  if (MeOption::ivopts) {
+  if (MeOption::ivopts && MeOption::optLevel < 3) {
     return false;
   }
   if (!IsPrimitiveInteger(primType)) {

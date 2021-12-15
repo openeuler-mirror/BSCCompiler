@@ -1676,6 +1676,9 @@ void ExtenToMovPattern::Run() {
 /* Check for Implicit uxtw */
 bool ExtenToMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
+  if (md->IsMove()) {
+    return false;
+  }
   int optSize = insn.GetOperandSize();
   for (int i = 0; i < optSize; i++) {
     if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {

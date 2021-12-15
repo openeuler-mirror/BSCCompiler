@@ -773,10 +773,6 @@ void AArch64StoreLoadOpt::DoStoreLoadOpt() {
       MOperator mOp = insn->GetMachineOpcode();
       if (CanDoMemProp(insn)) {
         MemProp(*insn);
-        /* Reaching define not support index */
-        if (a64CgFunc.IsAfterRegAlloc() || !CGOptions::DoCGSSA()) {
-          StrLdrIndexModeOpt(*insn);
-        }
       }
       if (a64CgFunc.GetMirModule().IsCModule() && cgFunc.GetRD()->OnlyAnalysisReg()) {
         continue;

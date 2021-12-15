@@ -671,20 +671,26 @@ bool IRMap::ReplaceMeExprStmt(MeStmt &meStmt, const MeExpr &meExpr, MeExpr &repe
     bool curOpndReplaced = false;
     if (i == 0 && op == OP_iassign) {
       auto &ivarStmt = static_cast<IassignMeStmt&>(meStmt);
-      MeExpr *oldBase = ivarStmt.GetLHSVal()->GetBase();
-      MeExpr *newBase = nullptr;
-      if (oldBase == &meExpr) {
-        newBase = &repexpr;
-        curOpndReplaced = true;
-      } else if (!oldBase->IsLeaf()) {
-        newBase = ReplaceMeExprExpr(*oldBase, meExpr, repexpr);
-        curOpndReplaced = (newBase != oldBase);
-      }
-      if (curOpndReplaced) {
-        ASSERT_NOT_NULL(newBase);
-        auto *newLHS = BuildLHSIvar(*newBase, ivarStmt, ivarStmt.GetLHSVal()->GetFieldID());
-        newLHS->SetVolatileFromBaseSymbol(ivarStmt.GetLHSVal()->GetVolatileFromBaseSymbol());
-        ivarStmt.SetLHSVal(newLHS);
+      if (ivarStmt.GetLHSVal() == &meExpr) {
+        auto *newIvar = static_cast<IvarMeExpr*>(&repexpr);
+        newIvar->SetVolatileFromBaseSymbol(ivarStmt.GetLHSVal()->GetVolatileFromBaseSymbol());
+        ivarStmt.SetLHSVal(newIvar);
+      } else {
+        MeExpr *oldBase = ivarStmt.GetLHSVal()->GetBase();
+        MeExpr *newBase = nullptr;
+        if (oldBase == &meExpr) {
+          newBase = &repexpr;
+          curOpndReplaced = true;
+        } else if (!oldBase->IsLeaf()) {
+          newBase = ReplaceMeExprExpr(*oldBase, meExpr, repexpr);
+          curOpndReplaced = (newBase != oldBase);
+        }
+        if (curOpndReplaced) {
+          ASSERT_NOT_NULL(newBase);
+          auto *newLHS = BuildLHSIvar(*newBase, ivarStmt, ivarStmt.GetLHSVal()->GetFieldID());
+          newLHS->SetVolatileFromBaseSymbol(ivarStmt.GetLHSVal()->GetVolatileFromBaseSymbol());
+          ivarStmt.SetLHSVal(newLHS);
+        }
       }
     } else {
       curOpndReplaced = ReplaceMeExprStmtOpnd(i, meStmt, meExpr, repexpr);
@@ -1790,6 +1796,21 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetIntValue(), opmeexpr->GetPrimType());
       }
       return nullptr;
+    }
+    case OP_iaddrof: {
+      if (mirModule.IsJavaModule()) {
+        // keep type info in java
+        return nullptr;
+      }
+      auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(opmeexpr->GetTyIdx());
+      auto *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
+          static_cast<MIRPtrType*>(type)->GetPointedTyIdx());
+      CHECK_FATAL(pointedType != nullptr, "expect a pointed type of iaddrof");
+      auto offset = pointedType->GetBitOffsetFromBaseAddr(opmeexpr->GetFieldID()) / 8;
+      auto *newExpr = CreateMeExprBinary(OP_add, opmeexpr->GetPrimType(), *opmeexpr->GetOpnd(0),
+                                         *CreateIntConstMeExpr(offset, opmeexpr->GetOpnd(0)->GetPrimType()));
+      auto *simplified = SimplifyMeExpr(newExpr);
+      return simplified == nullptr ? newExpr : simplified;
     }
     default:
       return nullptr;
