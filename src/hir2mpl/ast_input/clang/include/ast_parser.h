@@ -172,8 +172,17 @@ class ASTParser {
   void ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTStruct &structDecl,
                                  const clang::RecordDecl &recDecl);
   void ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const clang::ValueDecl &valueDecl, ASTDecl &astDecl);
+  template <typename T>
+  bool ProcessBoundaryFuncPtrAttrsForParams(T *attr, MapleAllocator &allocator, const MIRFuncType &funcType,
+                                            const clang::FunctionProtoType &proto, std::vector<TypeAttrs> &attrsVec);
+  template <typename T>
+  bool ProcessBoundaryFuncPtrAttrsForRet(T *attr, MapleAllocator &allocator, const MIRFuncType &funcType,
+                                         const clang::FunctionType &clangFuncType, TypeAttrs &retAttr);
   void ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &valueDecl, ASTDecl &astDecl,
                                           const MIRFuncType &funcType);
+  template <typename T>
+  bool ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &astDecl, const MIRFuncType &funcType,
+                                                   std::vector<TypeAttrs> &attrsVec);
   void ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDecl, const clang::QualType &qualType,
                               const std::function<ASTExpr* ()> &getLenExprFromStringLiteral,
                               ASTExpr *lenExpr, bool isSize);
