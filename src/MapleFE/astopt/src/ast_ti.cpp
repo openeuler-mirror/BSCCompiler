@@ -1225,6 +1225,11 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
   return node;
 }
 
+// check if node is identifier with name "default__RENAMED"
+static bool IsDefault(TreeNode *node) {
+  return node->GetStrIdx() == gStringPool.GetStrIdx("default__RENAMED");
+}
+
 ExportNode *TypeInferVisitor::VisitExportNode(ExportNode *node) {
   (void) AstVisitor::VisitExportNode(node);
   unsigned hidx = mHandler->GetHidx();
@@ -1256,7 +1261,7 @@ ExportNode *TypeInferVisitor::VisitExportNode(ExportNode *node) {
           if (decl) {
             mXXport->AddExportedDeclIds(hidx, decl->GetNodeId());
           }
-          if (mXXport->IsDefault(bfnode)) {
+          if (IsDefault(bfnode)) {
             unsigned stridx = node->GetStrIdx();
             TreeNode *dflt = mXXport->GetExportedDefault(stridx);
             if (dflt) {
