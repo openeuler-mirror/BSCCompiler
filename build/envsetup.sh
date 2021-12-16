@@ -108,6 +108,11 @@ export MAPLE_EXECUTE_BIN=${MAPLE_ROOT}/output/${MAPLE_BUILD_TYPE}/bin
 export TEST_BIN=${CASE_ROOT}/driver/script
 export PATH=$PATH:${MAPLE_EXECUTE_BIN}:${TEST_BIN}
 
+# Enable Autocompletion for maple driver
+if [ -f $MAPLE_ROOT/tools/maple_autocompletion.sh ]; then
+  source ${MAPLE_ROOT}/tools/maple_autocompletion.sh
+fi
+
 if [ ! -f $MAPLE_ROOT/tools/qemu/usr/bin/qemu-aarch64 ] && [ "$OLD_OS" = "0" ]; then
   echo " "
   echo "!!! please run \"make setup\" to get proper qemu-aarch64"

@@ -43,31 +43,49 @@ ErrorCode CompilerSelectorImpl::InsertCompilerIfNeeded(std::vector<Compiler*> &s
 ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompilers,
                                        const MplOptions &mplOptions,
                                        Action &action,
-                                       std::vector<Action *> &selectedActions) const {
+                                       std::vector<Action*> &selectedActions) const {
+  ErrorCode ret = kErrorNoError;
+
   /* Traverse Action tree recursively and select compilers in
    * "from leaf(clang) to root(ld)" order */
   for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
-    Select(supportedCompilers, mplOptions, *a, selectedActions);
+    ret = Select(supportedCompilers, mplOptions, *a, selectedActions);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
   }
 
   Compiler *compiler = FindCompiler(supportedCompilers, action.GetTool());
   if (compiler == nullptr) {
-    return kErrorToolNotFound;
-  }
-  action.SetCompiler(compiler);
-  selectedActions.push_back(&action);
+    if (action.GetTool() != "input") {
+      LogInfo::MapleLogger(kLlErr) << "Fatal error: " <<  action.GetTool()
+                                   << " tool is not supported" << "\n";
+      LogInfo::MapleLogger(kLlErr) << "Supported Tool: ";
 
-  return kErrorNoError;
+      auto print = [](auto supportedComp) { std::cout << " " << supportedComp.first; };
+      std::for_each(supportedCompilers.begin(), supportedCompilers.end(), print);
+      LogInfo::MapleLogger(kLlErr) << "\n";
+
+      return kErrorToolNotFound;
+    }
+  } else {
+    action.SetCompiler(compiler);
+    selectedActions.push_back(&action);
+  }
+
+  return ret;
 }
 
 ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompilers,
                                        const MplOptions &mplOptions,
-                                       std::vector<Action *> &selectedActions) const {
-
-  ErrorCode ret = kErrorNoError;
+                                       std::vector<Action*> &selectedActions) const {
+  ErrorCode ret;
 
   for (const std::unique_ptr<Action> &action : mplOptions.GetActions()) {
     ret = Select(supportedCompilers, mplOptions, *action, selectedActions);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
   }
 
   return selectedActions.empty() ? kErrorToolNotFound : kErrorNoError;

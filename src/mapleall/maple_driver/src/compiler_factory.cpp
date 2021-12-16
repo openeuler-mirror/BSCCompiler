@@ -34,7 +34,7 @@ CompilerFactory::CompilerFactory() {
   // Supported compilers
   ADD_COMPILER("jbc2mpl", Jbc2MplCompiler)
   ADD_COMPILER("dex2mpl", Dex2MplCompiler)
-  ADD_COMPILER("mplfe", Cpp2MplCompiler)
+  ADD_COMPILER("hir2mpl", Cpp2MplCompiler)
   ADD_COMPILER("clang", ClangCompiler)
   ADD_COMPILER("mplipa", IpaCompiler)
   ADD_COMPILER("me", MapleCombCompiler)
@@ -92,10 +92,7 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
       }
 
       if (isNeedRemove == true) {
-        ret = FileUtils::Remove(tmpFile);
-        if (ret != 0) {
-          LogInfo::MapleLogger() << tmpFile << " File Not Found in DeleteTmpFiles\n";
-        }
+        FileUtils::Remove(tmpFile);
       }
     }
   }
