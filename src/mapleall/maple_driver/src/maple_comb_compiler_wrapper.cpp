@@ -36,9 +36,6 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   auto options = mplOptions.GetOptions();
   std::vector<Option *> tmpOptions;
 
-  /* kInFile and kMaplePhaseOnly will be duplicated, so it must be excluded */
-  static DriverOptionIndex exclude[] = { kMaplePhaseOnly, kInFile };
-
   uint32 optForWrapperCnt = 0;
   for (Option &opt : options) {
     auto desc = opt.GetDescriptor();
@@ -46,13 +43,6 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
         desc.exeName == "mpl2mpl" ||
         desc.exeName == "mplcg" ||
         desc.exeName == "me") {
-
-      /* Exclude */
-      if ((std::find(std::begin(exclude), std::end(exclude),
-                     opt.Index()) != std::end(exclude))) {
-        continue;
-      }
-
       ++optForWrapperCnt;
       tmpOptions.push_back(&opt);
     }
@@ -70,6 +60,12 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
 
   for (unsigned int tmpOpInd = 0, defOptInd = additionalOption;
        tmpOpInd < optForWrapperCnt; ++tmpOpInd) {
+
+    if (tmpOptions[tmpOpInd]->OptionKey() == "no-maple-phase") {
+      defaultOptions.length--;
+      continue;
+    }
+
     std::string strOpt;
     if (tmpOptions[tmpOpInd]->GetPrefixType() == shortOptPrefix) {
       strOpt = "-";
@@ -96,9 +92,11 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   return defaultOptions;
 }
 
-std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &, const Action &action) const {
-  if (action.IsItFirstRealAction()) {
-    return action.GetInputFile();
+std::string MapleCombCompilerWrp::GetInputFileName(const MplOptions &options, const Action &action) const {
+  if (!options.GetRunningExes().empty()) {
+    if (options.GetRunningExes()[0] == kBinNameMe || options.GetRunningExes()[0] == kBinNameMpl2mpl) {
+      return action.GetInputFile();
+    }
   }
 
   InputFileType fileType = action.GetInputFileType();

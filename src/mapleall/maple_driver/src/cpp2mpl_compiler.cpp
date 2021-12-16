@@ -28,9 +28,11 @@ const std::string &Cpp2MplCompiler::GetBinName() const {
   return kBinNameCpp2mpl;
 }
 
-std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &, const Action &action) const {
-  if (action.IsItFirstRealAction()) {
-    return action.GetInputFile();
+std::string Cpp2MplCompiler::GetInputFileName(const MplOptions &options, const Action &action) const {
+  if (!options.GetRunningExes().empty()) {
+    if (options.GetRunningExes()[0] == kBinNameCpp2mpl) {
+      return action.GetInputFile();
+    }
   }
   // Get base file name
   auto idx = action.GetOutputName().find(".ast");
