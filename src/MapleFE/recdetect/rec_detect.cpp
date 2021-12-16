@@ -346,6 +346,7 @@ TResult RecDetector::DetectRuleTable(RuleTable *rt, ContTreeNode<RuleTable*> *p)
     break;
   case ET_Zeroorone:
   case ET_Zeroormore:
+  case ET_ASI:
     res = DetectZeroorXXX(rt, node);
     break;
   case ET_Concatenate:
@@ -422,7 +423,7 @@ TResult RecDetector::DetectOneof(RuleTable *rule_table, ContTreeNode<RuleTable*>
   return result;
 }
 
-// Zeroormore and Zeroorone has the same way to handle.
+// Zeroormore and Zeroorone and ASI has the same way to handle.
 TResult RecDetector::DetectZeroorXXX(RuleTable *rule_table, ContTreeNode<RuleTable*> *p) {
   TResult result = TRS_NA;
   MASSERT((rule_table->mNum == 1) && "zeroormore node has more than one elements?");
@@ -756,6 +757,7 @@ bool RecDetector::LRReachable(RuleTable *from, RuleTable *to) {
     }
     case ET_Zeroorone:
     case ET_Zeroormore:
+    case ET_ASI:
     case ET_Data: {
       MASSERT(rt->mNum == 1);
       TableData *data = rt->mData;

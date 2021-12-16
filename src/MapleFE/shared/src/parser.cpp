@@ -1226,7 +1226,7 @@ bool Parser::TraverseRuleTableRegular(RuleTable *rule_table, AppealNode *appeal)
     matched = TraverseConcatenate(rule_table, appeal);
     break;
   case ET_ASI:
-    //matched = TraverseConcatenate(rule_table, appeal);
+    matched = TraverseASI(rule_table, appeal);
     break;
   case ET_Data: {
     // This is a rare case where a rule table contains only table, either a token
