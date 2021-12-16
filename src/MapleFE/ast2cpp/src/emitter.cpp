@@ -242,7 +242,7 @@ std::string Emitter::EmitFunctionNode(FunctionNode *node) {
     std::string s = EmitTreeNode(name);
     has_name = s.substr(0, 9) != "__lambda_";
     if (has_name)
-      str += s;
+      str += node->IsIterator() ? "* ["s + s + ']' : s;
   } else
     has_name = k == NK_XXportAsPair;
 
@@ -293,7 +293,7 @@ std::string Emitter::EmitFunctionNode(FunctionNode *node) {
     }
   }
 
-  str = pre + (func ? (node->IsGenerator() ? "function* "s : "function "s) : ""s) + str;
+  str = pre + (func && !node->IsIterator() ? (node->IsGenerator() ? "function* "s : "function "s) : ""s) + str;
 
   if (body) {
     auto s = EmitBlockNode(body);
