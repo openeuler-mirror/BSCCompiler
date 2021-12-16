@@ -673,8 +673,8 @@ void Ebo::SimplifyInsn(Insn &insn, bool &insnReplaced, bool opndsConstant,
       /* special case */
       if (insn.GetResultNum() > 0 && ResIsNotDefAndUse(insn)) {
         if ((opndNum == 2) && (insn.GetResultNum() == 1) &&
-            (((opnds[kInsnSecondOpnd] != nullptr) && opnds[kInsnSecondOpnd]->IsConstant()) ||
-             ((opnds[kInsnThirdOpnd] != nullptr) && opnds[kInsnThirdOpnd]->IsConstant()))) {
+            (((kInsnSecondOpnd < opnds.size()) && (opnds[kInsnSecondOpnd] != nullptr) && opnds[kInsnSecondOpnd]->IsConstant()) ||
+             ((kInsnThirdOpnd < opnds.size()) && (opnds[kInsnThirdOpnd] != nullptr) && opnds[kInsnThirdOpnd]->IsConstant()))) {
           insnReplaced = SimplifyConstOperand(insn, opnds, opndInfos);
         }
       }
