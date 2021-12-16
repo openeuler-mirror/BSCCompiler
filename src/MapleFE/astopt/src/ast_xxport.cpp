@@ -217,6 +217,7 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
             NOTYETIMPL("failed to find the exported - default");
           }
         } else if (afnode) {
+          // import bfnode as afnode
           TreeNode *exported = FindExportedDecl(targethidx, bfnode->GetStrIdx());
           if (!exported) {
             NOTYETIMPL("need to extract exported - bfnode M.x");
@@ -229,6 +230,18 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
           bfnode->SetTypeIdx(tid);
           afnode->SetTypeId(tid);
           afnode->SetTypeIdx(tid);
+        } else if (bfnode) {
+          // import bfnode
+          TreeNode *exported = FindExportedDecl(targethidx, bfnode->GetStrIdx());
+          if (!exported) {
+            NOTYETIMPL("need to extract exported - bfnode M.x");
+            exported = bfnode;
+          }
+          std::pair<unsigned, unsigned> pnid(exported->GetNodeId(), bfnode->GetNodeId());
+          info->mNodeIdPairs.insert(pnid);
+          TypeId tid = exported->GetTypeId();
+          bfnode->SetTypeId(tid);
+          bfnode->SetTypeIdx(tid);
         } else {
           NOTYETIMPL("failed to find the exported");
         }
