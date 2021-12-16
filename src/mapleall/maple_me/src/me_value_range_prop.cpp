@@ -3076,6 +3076,7 @@ bool ValueRangePropagation::ChangeTheSuccOfPred2TrueBranch(BB &pred, BB &bb, BB 
     predOfCurrBB = currBB;
     currBB = currBB->GetSucc(0);
     CopyMeStmts(*currBB, *mergeAllFallthruBBs);
+    PrepareForSSAUpdateWhenPredBBIsRemoved(*predOfCurrBB, *currBB);
   }
   if (predOfCurrBB != nullptr) {
     PrepareForSSAUpdateWhenPredBBIsRemoved(*predOfCurrBB, *currBB);
