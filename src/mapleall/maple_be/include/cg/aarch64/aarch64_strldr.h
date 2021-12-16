@@ -41,16 +41,22 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
     kPropUnsignedExtend,
     kPropShift
   };
+
  private:
+  void StrLdrIndexModeOpt(Insn &currInsn);
   bool CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
   bool CheckDefInsn(Insn &defInsn, Insn &currInsn);
   bool CheckNewAmount(Insn &insn, uint32 newAmount);
   bool CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
-  AArch64MemOperand *SelectReplaceMem(Insn &defInsn, RegOperand &base, Operand *offset);
+  AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
+  AArch64MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);
   AArch64MemOperand *SelectReplaceExt(Insn &defInsn, RegOperand &base, bool isSigned);
   bool CanDoMemProp(Insn *insn);
+  bool CanDoIndexOpt(AArch64MemOperand &MemOpnd);
   void MemPropInit();
   void SelectPropMode(AArch64MemOperand &currMemOpnd);
+  int64 GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno_t baseRegNO, uint32 memOpndSize);
+  AArch64MemOperand *SelectIndexOptMode(Insn &insn, AArch64MemOperand &curMemOpnd);
   bool ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &base, Operand *offset);
   void MemProp(Insn &insn);
   void ProcessStrPair(Insn &insn);
@@ -60,6 +66,7 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   void GenerateMoveDeadInsn(RegOperand &resRegOpnd, RegOperand &srcRegOpnd,
                             Insn &ldrInsn, Insn &strInsn, short memSeq);
   bool HasMemBarrier(const Insn &ldrInsn, const Insn &strInsn) const;
+  bool IsAdjacentBB(Insn &defInsn, Insn &curInsn) const;
   MapleAllocator localAlloc;
   /* the max number of mov insn to optimize. */
   static constexpr uint8 kMaxMovNum = 2;

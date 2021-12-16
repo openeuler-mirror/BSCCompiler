@@ -297,12 +297,11 @@ void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
       addrNode->SetStIdx(UpdateIdx(addrNode->GetStIdx(), stIdxOff, oldStIdx2New));
     }
   } else if (returnVector != nullptr) {
-    if (returnVector->size() > 1) {
-      CHECK_FATAL(false, "multiple return values are not supported");
-    }
     // Skip globals.
-    if (returnVector->size() == 1 && !(*returnVector).at(0).second.IsReg() && (*returnVector).at(0).first.Islocal()) {
-      (*returnVector)[0].first = UpdateIdx((*returnVector).at(0).first, stIdxOff, oldStIdx2New);
+    for (int i = 0; i < returnVector->size(); i++) {
+      if (!(*returnVector).at(i).second.IsReg() && (*returnVector).at(i).first.Islocal()) {
+        (*returnVector)[i].first = UpdateIdx((*returnVector).at(i).first, stIdxOff, oldStIdx2New);
+      }
     }
   } else if (baseNode->GetOpCode() == OP_foreachelem) {
     ForeachelemNode *forEachNode = static_cast<ForeachelemNode*>(baseNode);
@@ -1133,6 +1132,51 @@ FuncCostResultType MInline::GetFuncCost(const MIRFunction &func, const BaseNode 
   return kSmallFuncBody;
 }
 
+bool MInline::HasAccessStatic(const BaseNode &baseNode) const {
+  Opcode op = baseNode.GetOpCode();
+  switch (op) {
+    case OP_block: {
+      const BlockNode &blk = static_cast<const BlockNode&>(baseNode);
+      for (auto &stmt : blk.GetStmtNodes()) {
+        bool ret = HasAccessStatic(stmt);
+        if (ret) {
+          return true;
+        }
+      }
+      break;
+    }
+    case OP_addrof:
+    case OP_dread: {
+      const DreadNode &dread = static_cast<const DreadNode&>(baseNode);
+      bool isLocal = dread.GetStIdx().Islocal();
+      if (!isLocal) {
+        MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(dread.GetStIdx().Idx());
+        return symbol->IsStatic();
+      }
+      break;
+    }
+    case OP_dassign: {
+      const DassignNode &dassign = static_cast<const DassignNode&>(baseNode);
+      bool isLocal = dassign.GetStIdx().Islocal();
+      if (!isLocal) {
+        MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(dassign.GetStIdx().Idx());
+        return symbol->IsStatic();
+      }
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+  for (size_t i = 0; i < baseNode.NumOpnds(); ++i) {
+    bool ret = HasAccessStatic(*(baseNode.Opnd(i)));
+    if (ret) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void MarkParent(const CGNode &node) {
   for (auto it = node.CallerBegin(); it != node.CallerEnd(); ++it) {
     CGNode *parent = *it;
@@ -1298,6 +1342,13 @@ InlineResult MInline::AnalyzeCallsite(const MIRFunction &caller, MIRFunction &ca
       return InlineResult(false, "LIST_NOINLINE_CALLSITE");
     }
   }
+  if (callee.GetAttr(FUNCATTR_noinline)) {
+    return InlineResult(false, "ATTR_NOINLINE");
+  }
+  // When callee is unsafe but callStmt is in safe region
+  if (MeOption::safeRegionMode && (callStmt.IsInSafeRegion() || caller.IsSafe()) && (callee.IsUnSafe())) {
+    return InlineResult(false, "UNSAFE_INLINE");
+  }
   // For extern inline function, we check nothing
   if (IsExternInlineFunc(callee)) {
     return InlineResult(true, "EXTERN_INLINE");
@@ -1459,8 +1510,17 @@ void MInline::InlineCallsBlockInternal(MIRFunction &func, BlockNode &enclosingBl
       func.Dump(false);
     }
     changed = (inlined ? true : changed);
+    if (inlined && callee->IsFromMpltInline()) {
+      LogInfo::MapleLogger() << "[CROSS_MODULE] [" << result.reason << "] "
+                             << callee->GetName() << " to " << func.GetName() << '\n';
+    }
     if (dumpDetail && inlined) {
-      LogInfo::MapleLogger() << "[" << result.reason << "] " << callee->GetName() << " to " << func.GetName() << '\n';
+      if (callee->IsFromMpltInline()) {
+        LogInfo::MapleLogger() << "[CROSS_MODULE] [" << result.reason << "] "
+                               << callee->GetName() << " to " << func.GetName() << '\n';
+      } else {
+        LogInfo::MapleLogger() << "[" << result.reason << "] " << callee->GetName() << " to " << func.GetName() << '\n';
+      }
     }
   } else {
     if (dumpDetail) {
@@ -1488,11 +1548,20 @@ void MInline::CollectMustInlineFuncs() {
 
 void MInline::MarkUnInlinableFunction() const {
   const MapleVector<SCCNode*> &topVec = cg->GetSCCTopVec();
-  for (MapleVector<SCCNode*>::const_reverse_iterator it = topVec.rbegin(); it != topVec.rend(); ++it) {
+  for (auto it = topVec.rbegin(); it != topVec.rend(); ++it) {
     for (CGNode *node : (*it)->GetCGNodes()) {
-      std::string name = node->GetMIRFunction()->GetName();
+      MIRFunction *func = node->GetMIRFunction();
+      if (!func->IsEmpty() && func->IsFromMpltInline() &&
+          (node->IsMustNotBeInlined() || HasAccessStatic(*func->GetBody()))) {
+        node->SetMustNotBeInlined();
+        if (func->IsStatic() && node->HasCaller()) {
+          MarkParent(*node);
+        }
+        continue;
+      }
+
+      const std::string &name = func->GetName();
       if (node->IsMustNotBeInlined() ||
-          node->GetMIRFunction()->HasAsm() ||
           StringUtils::StartsWith(name, kDalvikSystemStr) ||
           StringUtils::StartsWith(name, kJavaLangThreadStr)) {
         node->SetMustNotBeInlined();
@@ -1532,9 +1601,13 @@ void MInline::CleanupInline() {
         // visit all the func which has been inlined, mark the static symbol, string symbol and function symbol as used.
         auto f = inlineTimesMap.find(func);
         if (f != inlineTimesMap.end() && inlineTimesMap[func] > 0) {
-          MarkUsedSymbols(func->GetBody());
+          MarkFunctionUsed(func, true);
         }
-        func->SetBody(nullptr);
+        if (!func->IsStatic()) {
+          func->SetBody(nullptr);
+          func->ReleaseCodeMemory();
+          func->ReleaseMemory();
+        }
       }
       if (func != nullptr && IsExternInlineFunc(*func)) {
         func->SetBody(nullptr);
@@ -1577,12 +1650,61 @@ void MInline::CleanupInline() {
 void MInline::MarkSymbolUsed(const StIdx &symbolIdx) const {
   MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(symbolIdx.Idx());
   symbol->SetIsTmpUnused(false);
+  if (symbol->IsConst()) {
+    auto *konst = symbol->GetKonst();
+    switch (konst->GetKind()) {
+      case kConstAddrof: {
+        auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
+        MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx());
+        MarkSymbolUsed(symbol->GetStIdx());
+        break;
+      }
+      case kConstAddrofFunc: {
+        auto *addrofFuncKonst = static_cast<MIRAddroffuncConst*>(konst);
+        auto *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(addrofFuncKonst->GetValue());
+        MarkFunctionUsed(func);
+        break;
+      }
+      case kConstAggConst: {
+        auto &constVec = static_cast<MIRAggConst*>(konst)->GetConstVec();
+        for (auto *cst : constVec) {
+          if (cst == nullptr) {
+            continue;
+          }
+          if (cst->GetKind() == kConstAddrofFunc) {
+            auto *addrofFuncKonst = static_cast<MIRAddroffuncConst*>(cst);
+            auto *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(addrofFuncKonst->GetValue());
+            MarkFunctionUsed(func);
+          }
+        }
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  }
   std::string syName = symbol->GetName();
   // when _PTR_C_STR_XXXX is used, mark _C_STR_XXXX as used too.
   if (StringUtils::StartsWith(syName, namemangler::kPtrPrefixStr)) {
     GStrIdx gStrIdx = GlobalTables::GetStrTable().GetStrIdxFromName(syName.substr(strlen(namemangler::kPtrPrefixStr)));
     MIRSymbol *anotherSymbol = GlobalTables::GetGsymTable().GetSymbolFromStrIdx(gStrIdx);
     anotherSymbol->SetIsTmpUnused(false);
+  }
+}
+
+void MInline::MarkFunctionUsed(MIRFunction *func, bool inlined) const {
+  if (func == nullptr) {
+    return;
+  }
+  if (func->IsVisited()) {
+    return;
+  }
+  func->SetIsVisited();
+  func->GetFuncSymbol()->SetIsTmpUnused(false);
+  // We should visit the body if the function is static or it has been inlined for at least one time.
+  if (func->IsStatic() || inlined) {
+    MarkUsedSymbols(func->GetBody());
   }
 }
 
@@ -1610,6 +1732,13 @@ void MInline::MarkUsedSymbols(const BaseNode *baseNode) const {
       MarkSymbolUsed(dreadNode->GetStIdx());
       break;
     }
+    case OP_addroffunc: {
+      auto *addroffunc = static_cast<const AddroffuncNode*>(baseNode);
+      MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(addroffunc->GetPUIdx());
+      MarkFunctionUsed(func);
+      break;
+    }
+    case OP_call:
     case OP_callassigned:
     case OP_virtualcallassigned:
     case OP_superclasscallassigned:
@@ -1621,8 +1750,7 @@ void MInline::MarkUsedSymbols(const BaseNode *baseNode) const {
     case OP_intrinsiccallwithtypeassigned: {
       const CallNode *callStmt = static_cast<const CallNode*>(baseNode);
       MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt->GetPUIdx());
-      MIRSymbol *symbol = callee->GetFuncSymbol();
-      symbol->SetIsTmpUnused(false);
+      MarkFunctionUsed(callee);
       break;
     }
     default: {

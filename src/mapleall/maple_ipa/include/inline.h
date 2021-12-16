@@ -138,7 +138,9 @@ class MInline {
   void ComputeTotalSize();
   void MarkSymbolUsed(const StIdx&) const;
   void MarkUsedSymbols(const BaseNode*) const;
+  void MarkFunctionUsed(MIRFunction *func, bool inlined = false) const;
   void MarkUnInlinableFunction() const;
+  bool HasAccessStatic(const BaseNode&) const;
   bool ResolveNestedTryBlock(BlockNode&, TryNode&, const StmtNode*) const;
   void RecordRealCaller(MIRFunction&, const MIRFunction&);
   void SearchCallee(const MIRFunction&, const BaseNode&, std::set<GStrIdx>&) const;
