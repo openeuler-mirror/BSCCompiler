@@ -222,8 +222,12 @@ class ImportExportModules : public AstVisitor {
                   emit = false;
                 }
                 else if (target != after) {
-                  if (a->GetTypeId() == TY_Namespace)
+                  auto t = a->GetTypeId();
+                  if (t == TY_Namespace)
                     mExports += "namespace __export { namespace "s + after + " = "s + module + "::"s + target + "; }\n"s;
+                  else if (t == TY_Function)
+                    mExports += "namespace __export { inline const decltype("s + target + ") &"s + after + " = "s
+                                + module + "::"s + target + "; }\n"s;
                   else
                     mExports += "namespace __export { using "s + after + " = "s + module + "::"s + target + "; }\n"s;
                   emit = false;
