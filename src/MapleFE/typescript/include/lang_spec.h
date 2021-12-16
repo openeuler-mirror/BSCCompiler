@@ -59,6 +59,7 @@ class TypescriptParser : public Parser {
 public:
   TypescriptParser(const char *f) : Parser(f) {}
   Token* GetRegExpr(Token *t);
+  bool TraverseASI(RuleTable*, AppealNode*);
 };
 
 }
