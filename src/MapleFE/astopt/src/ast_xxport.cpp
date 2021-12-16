@@ -154,6 +154,11 @@ void AST_XXport::CollectXXportInfo(unsigned hidx) {
   CollectExportInfo(hidx);
 }
 
+// check if node is identifier with name "default"
+static bool IsDefault(TreeNode *node) {
+  return node->GetStrIdx() == gStringPool.GetStrIdx("default");
+}
+
 void AST_XXport::CollectImportInfo(unsigned hidx) {
   Module_Handler *handler = mASTHandler->GetModuleHandler(hidx);
   ModuleNode *module = handler->GetASTModule();
