@@ -1650,24 +1650,26 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
       return ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
     }
     case OP_iread: {
+      IreadNode* ireadnode = static_cast<IreadNode *>(x);
+      MIRType *mirType = ireadnode->GetType();
+      if (GetPrimTypeSize(ireadnode->GetPrimType()) > GetPrimTypeSize(mirType->GetPrimType())) {
+        vecInfo->widenop = (vecInfo->widenop | 1);
+      }
+      if ((!ireadnode->IsVolatile()) &&
+          (ireadnode->Opnd(0)->GetOpCode() == OP_array) &&
+          (doloopInfo->IsLoopInvariant2(ireadnode->Opnd(0)))) {
+        if (vecInfo->UpdateRHSTypeSize(mirType->GetPrimType()) &&
+          IsPrimitiveInteger(mirType->GetPrimType())) {
+          vecInfo->uniformNodes.insert(x);
+          return true;
+        }
+        return false;
+      }
       bool canVec = ExprVectorizable(doloopInfo, vecInfo, x->Opnd(0));
       if (canVec) {
-        IreadNode* ireadnode = static_cast<IreadNode *>(x);
-        MIRType *mirType = ireadnode->GetType();
-        if (GetPrimTypeSize(ireadnode->GetPrimType()) > GetPrimTypeSize(mirType->GetPrimType())) {
-          vecInfo->widenop = (vecInfo->widenop | 1);
-        }
-        if (!vecInfo->UpdateRHSTypeSize(mirType->GetPrimType())) {
+        if (!vecInfo->UpdateRHSTypeSize(mirType->GetPrimType()) ||
+            (ireadnode->GetFieldID() != 0)) {
           canVec = false; // skip if rhs type is not consistent
-        } else {
-          if ((ireadnode->GetFieldID() != 0 || MustBeAddress(ireadnode->GetPrimType())) &&
-              ireadnode->Opnd(0)->GetOpCode() == OP_array) {
-            canVec = doloopInfo->IsLoopInvariant2(ireadnode->Opnd(0));
-          }
-          if (canVec && IsPrimitiveInteger(mirType->GetPrimType()) &&
-              doloopInfo->IsLoopInvariant2(ireadnode->Opnd(0))) {
-            vecInfo->uniformNodes.insert(x);
-          }
         }
       }
       return canVec;
