@@ -18,6 +18,20 @@
 #include "factory.h"
 #include "maple_phase_manager.h"
 namespace maple {
+enum ErrorNumber {
+  ERRNO_OK = EOK,
+  ERRNO_INVAL = EINVAL,
+  ERRNO_RANGE = ERANGE,
+  ERRNO_RANGE_AND_RESET = ERANGE_AND_RESET
+};
+
+enum MemOpKind {
+  MEM_OP_unknown,
+  MEM_OP_memset,
+  MEM_OP_memcpy,
+  MEM_OP_memset_s
+};
+
 // MemEntry models a memory entry with high level type information.
 struct MemEntry {
   enum MemEntryKind {
@@ -48,19 +62,14 @@ struct MemEntry {
 
   BaseNode *BuildAsRhsExpr(MIRFunction &func) const;
   bool ExpandMemset(int64 byte, int64 size, MIRFunction &func,
-                    CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const;
+                    CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug, ErrorNumber errorNumber) const;
   bool ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
                     CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const;
-  static StmtNode *GenMemopRetAssign(CallNode &callStmt, MIRFunction &func, bool isLowLevel);
+  static StmtNode *GenMemopRetAssign(CallNode &callStmt, MIRFunction &func, bool isLowLevel, MemOpKind memOpKind,
+                                     ErrorNumber errorNumber = ERRNO_OK);
 
   BaseNode *addrExpr = nullptr;   // memory address
   MIRType *memType = nullptr;     // memory type, this may be nullptr for low level memory entry
-};
-
-enum MemOpKind {
-  MEM_OP_unknown,
-  MEM_OP_memset,
-  MEM_OP_memcpy
 };
 
 // For simplifying memory operation, either memset or memcpy/memmove.
@@ -82,6 +91,7 @@ class SimplifyMemOp {
   bool SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) const;
  private:
   static const uint32 thresholdMemsetExpand;
+  static const uint32 thresholdMemsetSExpand;
   static const uint32 thresholdMemcpyExpand;
   MIRFunction *func = nullptr;
   bool debug = false;

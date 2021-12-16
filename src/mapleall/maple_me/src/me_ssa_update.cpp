@@ -15,7 +15,7 @@
 #include "me_ssa_update.h"
 
 // Create or update HSSA representation for variables given by *updateCands;
-// for each variable, the mapped bb set gives the bbs that have newly isnerted
+// for each variable, the mapped bb set gives the bbs that have newly inserted
 // dassign's to the variable.
 // If some assignments have been deleted, the current implementation does not
 // delete useless phi's, and these useless phi's may end up having identical
@@ -101,6 +101,7 @@ MeExpr *MeSSAUpdate::RenameExpr(MeExpr &meExpr, bool &changed) {
         IvarMeExpr newMeExpr(kInvalidExprID, ivarMeExpr);
         newMeExpr.SetBase(newbase);
         newMeExpr.SetMuVal(static_cast<ScalarMeExpr*>(newMU));
+        newMeExpr.SetDefStmt(nullptr);
         return irMap.HashMeExpr(newMeExpr);
       }
       return &meExpr;

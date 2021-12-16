@@ -44,36 +44,20 @@ ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompil
                                        const MplOptions &mplOptions,
                                        Action &action,
                                        std::vector<Action*> &selectedActions) const {
-  ErrorCode ret = kErrorNoError;
-
   /* Traverse Action tree recursively and select compilers in
    * "from leaf(clang) to root(ld)" order */
   for (const std::unique_ptr<Action> &a : action.GetInputActions()) {
-    ret = Select(supportedCompilers, mplOptions, *a, selectedActions);
-    if (ret != kErrorNoError) {
-      return ret;
-    }
+    Select(supportedCompilers, mplOptions, *a, selectedActions);
   }
 
   Compiler *compiler = FindCompiler(supportedCompilers, action.GetTool());
   if (compiler == nullptr) {
-    if (action.GetTool() != "input") {
-      LogInfo::MapleLogger(kLlErr) << "Fatal error: " <<  action.GetTool()
-                                   << " tool is not supported" << "\n";
-      LogInfo::MapleLogger(kLlErr) << "Supported Tool: ";
-
-      auto print = [](auto supportedComp) { std::cout << " " << supportedComp.first; };
-      std::for_each(supportedCompilers.begin(), supportedCompilers.end(), print);
-      LogInfo::MapleLogger(kLlErr) << "\n";
-
-      return kErrorToolNotFound;
-    }
-  } else {
-    action.SetCompiler(compiler);
-    selectedActions.push_back(&action);
+    return kErrorToolNotFound;
   }
+  action.SetCompiler(compiler);
+  selectedActions.push_back(&action);
 
-  return ret;
+  return kErrorNoError;
 }
 
 ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompilers,
@@ -83,9 +67,6 @@ ErrorCode CompilerSelectorImpl::Select(const SupportedCompilers &supportedCompil
 
   for (const std::unique_ptr<Action> &action : mplOptions.GetActions()) {
     ret = Select(supportedCompilers, mplOptions, *action, selectedActions);
-    if (ret != kErrorNoError) {
-      return ret;
-    }
   }
 
   return selectedActions.empty() ? kErrorToolNotFound : kErrorNoError;

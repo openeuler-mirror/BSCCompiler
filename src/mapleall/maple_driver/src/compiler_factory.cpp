@@ -92,7 +92,10 @@ ErrorCode CompilerFactory::DeleteTmpFiles(const MplOptions &mplOptions,
       }
 
       if (isNeedRemove == true) {
-        FileUtils::Remove(tmpFile);
+        ret = FileUtils::Remove(tmpFile);
+        if (ret != 0) {
+          LogInfo::MapleLogger() << tmpFile << " File Not Found in DeleteTmpFiles\n";
+        }
       }
     }
   }

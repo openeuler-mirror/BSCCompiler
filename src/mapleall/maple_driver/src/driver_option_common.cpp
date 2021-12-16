@@ -516,7 +516,7 @@ const mapleOption::Descriptor kUsages[] = {
     "maple-phase",
     kBuildTypeAll,
     kArgCheckPolicyBool,
-    "  --maple-phase               \tRun maple phase only\n  --no-maple-phase\n",
+    "  --maple-phase               \tRun maple phase only\n",
     "all",
     {} },
   { kMapleOut,

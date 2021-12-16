@@ -667,6 +667,7 @@ class SimplifyCFG {
   Dominance *dom = nullptr; // some simplification need to check dominance
   MeIRMap *irmap = nullptr; // used to create new MeExpr/MeStmt
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *cands = nullptr; // candidates ost need to be updated ssa
+  std::map<BBId, std::set<OStIdx>> candsOstInBB; // bb with ost needed to be updated
 
   bool runOnSameBBAgain = false; // It will be always set false by RunIterativelyOnBB. If there is some optimization
                                  // opportunity for currBB after a/some simplification, we should set it true.
@@ -789,12 +790,24 @@ void SimplifyCFG::UpdateSSACandForBBPhiList(BB *bb, BB *newBB) {
   if (bb == nullptr || bb->GetMePhiList().empty()) {
     return;
   }
-  if (newBB == nullptr) { // if not specified, is bb itself
+  if (newBB == nullptr) { // if not specified, newBB is bb itself
     newBB = bb;
   }
+  std::set<OStIdx> &ostSet = candsOstInBB[newBB->GetBBId()];
   for (auto phi : bb->GetMePhiList()) {
     OStIdx ostIdx = phi.first;
     UpdateSSACandForOst(ostIdx, newBB);
+    ostSet.emplace(ostIdx);
+  }
+  if (bb != newBB) {
+    auto it = candsOstInBB.find(bb->GetBBId());
+    if (it != candsOstInBB.end()) {
+      // ost in bb should be updated, make it updated with newBB
+      for (auto ostIdx : it->second) {
+        UpdateSSACandForOst(ostIdx, newBB);
+        ostSet.emplace(ostIdx);
+      }
+    }
   }
 }
 
@@ -1051,9 +1064,6 @@ BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
       // old target of goto is succ, and we merge succ into pred, so we should update it
       cfg->UpdateBranchTarget(*pred, *succ, *pred->GetSucc(0), f);
     }
-  }
-  if (pred->GetBBId().GetIdx() > succ->GetBBId().GetIdx()) {
-    cfg->SwapBBId(*pred, *succ);
   }
   DEBUG_LOG() << "Merge BB" << LOG_BBID(succ) << " to BB" << LOG_BBID(pred)
               << ", and delete BB" << LOG_BBID(succ) << "\n";
