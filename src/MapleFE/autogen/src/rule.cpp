@@ -132,6 +132,7 @@ const char *RuleElem::GetRuleOpName() {
     case RO_Oneof:       return "ONEOF";
     case RO_Zeroormore:  return "ZEROORMORE";
     case RO_Zeroorone:   return "ZEROORONE";
+    case RO_ASI:         return "ASI";
     case RO_Concatenate:
     case RO_Null:
     default:             return "";
@@ -170,7 +171,10 @@ void RuleElem::Dump(bool newline) {
     case ET_Op:
     {
       std::cout << GetRuleOpName();
-      if (mData.mOp == RO_Oneof || mData.mOp == RO_Zeroormore || mData.mOp == RO_Zeroorone)
+      if (mData.mOp == RO_Oneof
+          || mData.mOp == RO_Zeroormore
+          || mData.mOp == RO_Zeroorone
+          || mData.mOp == RO_ASI )
         std::cout << "(";
 
       std::vector<RuleElem *>::iterator it = mSubElems.begin();
@@ -197,6 +201,7 @@ void RuleElem::Dump(bool newline) {
         }
         case RO_Zeroormore:
         case RO_Zeroorone:
+        case RO_ASI:
         {
           (*it)->Dump();
           break;
@@ -205,7 +210,10 @@ void RuleElem::Dump(bool newline) {
           break;
       }
 
-      if (mData.mOp == RO_Oneof || mData.mOp == RO_Zeroormore || mData.mOp == RO_Zeroorone)
+      if (mData.mOp == RO_Oneof
+          || mData.mOp == RO_Zeroormore
+          || mData.mOp == RO_Zeroorone
+          || mData.mOp == RO_ASI)
         std::cout << ")";
       break;
     }
