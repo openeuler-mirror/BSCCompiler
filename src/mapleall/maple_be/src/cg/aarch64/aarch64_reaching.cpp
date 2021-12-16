@@ -658,13 +658,22 @@ bool AArch64ReachingDefinition::HasRegDefBetweenInsnGlobal(uint32 regNO, Insn &s
   CHECK_FATAL((startInsn.GetBB() != endInsn.GetBB()), "Is same BB!");
   /* check Start BB */
   BB* startBB = startInsn.GetBB();
-  if (!FindRegDefBetweenInsn(regNO, startInsn.GetNext(), startBB->GetLastInsn()).empty()) {
+  auto startInsnSet = FindRegDefBetweenInsn(regNO, startInsn.GetNext(), startBB->GetLastInsn());
+  if (!startInsnSet.empty()) {
     return true;
   }
   /* check End BB */
   BB *endBB = endInsn.GetBB();
-  if (!FindRegDefBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn.GetPrev()).empty()) {
+  auto endInsnSet = FindRegDefBetweenInsn(regNO, endBB->GetFirstInsn(), endInsn.GetPrev());
+  if (!endInsnSet.empty()) {
     return true;
+  }
+  if (!startBB->GetSuccs().empty()) {
+    for (auto *succ : startBB->GetSuccs()) {
+      if (succ == endBB) {
+        return (!startInsnSet.empty() && !endInsnSet.empty());
+      }
+    }
   }
   /* check bb Between start and end */
   std::vector<VisitStatus> visitedBB(kMaxBBNum, kNotVisited);

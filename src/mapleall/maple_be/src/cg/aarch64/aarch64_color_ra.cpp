@@ -1041,6 +1041,7 @@ void GraphColorRegAllocator::ComputeLiveRangesForEachDefOperand(Insn &insn, bool
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       if (!memOpnd.IsIntactIndexed()) {
         SetupLiveRangeByOp(opnd, insn, true, numUses);
+        ++numDefs;
       }
     }
     if (!md->GetOperand(i)->IsRegDef()) {

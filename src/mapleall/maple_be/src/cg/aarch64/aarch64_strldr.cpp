@@ -477,11 +477,46 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(Insn &defInsn, RegOpera
   return newMemOpnd;
 }
 
+AArch64MemOperand *AArch64StoreLoadOpt::HandleArithImmDef(AArch64RegOperand &replace,
+                                                          Operand *oldOffset, int64 defVal) {
+  if (propMode != kPropBase) {
+    return nullptr;
+  }
+  AArch64OfstOperand *newOfstImm = nullptr;
+  if (oldOffset == nullptr) {
+    newOfstImm = cgFunc.GetMemoryPool()->New<AArch64OfstOperand>(defVal, k32BitSize);
+  } else {
+    auto *ofstOpnd = static_cast<AArch64OfstOperand*>(oldOffset);
+    CHECK_FATAL(ofstOpnd != nullptr, "oldOffsetOpnd is null");
+    newOfstImm = cgFunc.GetMemoryPool()->New<AArch64OfstOperand>(defVal + ofstOpnd->GetValue(), k32BitSize);
+  }
+  CHECK_FATAL(newOfstImm != nullptr, "newOffset is null!");
+  return cgFunc.GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOi, k64BitSize,
+                                                        replace, nullptr, newOfstImm, nullptr);
+}
+
+/*
+ * limit to adjacent bb to avoid ra spill.
+ */
+bool AArch64StoreLoadOpt::IsAdjacentBB(Insn &defInsn, Insn &curInsn) const {
+  if (defInsn.GetBB() == curInsn.GetBB()) {
+    return true;
+  }
+  for (auto *bb : defInsn.GetBB()->GetSuccs()) {
+    if (bb == curInsn.GetBB()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /*
  * currAddrMode | defMop       | propMode | replaceAddrMode
  * =============================================================================
  * boi          | addrri       | base     | boi, update imm(offset)
  *              | addrrr       | base     | imm(offset) == 0(nullptr) ? borx : NA
+ *              | subrri       | base     | boi, update imm(offset)
+ *              | subrrr       | base     | NA
  *              | adrpl12      | base     | imm(offset) == 0(nullptr) ? literal : NA
  *              | movrr        | base     | boi
  *              | movri        | base     | NA
@@ -489,6 +524,8 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(Insn &defInsn, RegOpera
  * =============================================================================
  * borx         | addrri       | offset   | NA
  * (noextend)   | addrrr       | offset   | NA
+ *              | subrri       | offset   | NA
+ *              | subrrr       | offset   | NA
  *              | adrpl12      | offset   | NA
  *              | movrr        | offset   | borx
  *              | movri        | offset   | bori
@@ -496,34 +533,35 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(Insn &defInsn, RegOpera
  * =============================================================================
  * borx         | addrri       | extend   | NA
  * (extend)     | addrrr       | extend   | NA
+ *              | subrri       | extend   | NA
+ *              | subrrr       | extend   | NA
  *              | adrpl12      | extend   | NA
  *              | movrr        | extend   | borx
  *              | movri        | extend   | NA
  *              | extend/lsl   | extend   | borx(with extend)
  * =============================================================================
  */
-AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, RegOperand &base, Operand *offset) {
+AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, Insn &curInsn,
+                                                         RegOperand &base, Operand *offset) {
   AArch64MemOperand *newMemOpnd = nullptr;
   MOperator opCode = defInsn.GetMachineOpcode();
-  AArch64RegOperand *newBase = static_cast<AArch64RegOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
+  AArch64RegOperand *replace = static_cast<AArch64RegOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
   switch (opCode) {
+    case MOP_xsubrri12:
+    case MOP_wsubrri12: {
+      if (!IsAdjacentBB(defInsn, curInsn)) {
+        break;
+      }
+      auto &immOpnd = static_cast<AArch64ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
+      int64 defVal = -(immOpnd.GetValue());
+      newMemOpnd = HandleArithImmDef(*replace, offset, defVal);
+      break;
+    }
     case MOP_xaddrri12:
     case MOP_waddrri12: {
-      if (propMode == kPropBase) {
-        AArch64ImmOperand *imm = static_cast<AArch64ImmOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
-        int64 val = imm->GetValue();
-        AArch64OfstOperand *newOffset = nullptr;
-        if (offset == nullptr) {
-          newOffset = cgFunc.GetMemoryPool()->New<AArch64OfstOperand>(imm->GetValue(), k32BitSize);
-        } else {
-          AArch64OfstOperand *ofst = static_cast<AArch64OfstOperand*>(offset);
-          val += ofst->GetValue();
-          newOffset = cgFunc.GetMemoryPool()->New<AArch64OfstOperand>(val, k32BitSize);
-        }
-        CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
-        newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOi, k64BitSize, *newBase, nullptr, newOffset, nullptr);
-      }
+      auto &immOpnd = static_cast<AArch64ImmOperand&>(defInsn.GetOperand(kInsnThirdOpnd));
+      int64 defVal = immOpnd.GetValue();
+      newMemOpnd = HandleArithImmDef(*replace, offset, defVal);
       break;
     }
     case MOP_xaddrrr:
@@ -538,7 +576,7 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, RegOpera
         AArch64RegOperand *newOffset = static_cast<AArch64RegOperand*>(&defInsn.GetOperand(kInsnThirdOpnd));
         CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOrX, k64BitSize, *newBase, newOffset, nullptr, nullptr);
+            AArch64MemOperand::kAddrModeBOrX, k64BitSize, *replace, newOffset, nullptr, nullptr);
       }
       break;
     }
@@ -554,7 +592,7 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, RegOpera
         CHECK_FATAL(newOfsetOpnd != nullptr, "newOfsetOpnd is null!");
         const MIRSymbol *addr = offset1->GetSymbol();
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeLo12Li, k64BitSize, *newBase, nullptr, newOfsetOpnd, addr);
+            AArch64MemOperand::kAddrModeLo12Li, k64BitSize, *replace, nullptr, newOfsetOpnd, addr);
       }
       break;
     }
@@ -564,21 +602,21 @@ AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceMem(Insn &defInsn, RegOpera
         AArch64OfstOperand *offsetTmp = static_cast<AArch64OfstOperand*>(offset);
         CHECK_FATAL(offsetTmp != nullptr, "newOffset is null!");
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOi, k64BitSize, *newBase, nullptr, offsetTmp, nullptr);
+            AArch64MemOperand::kAddrModeBOi, k64BitSize, *replace, nullptr, offsetTmp, nullptr);
       } else if (propMode == kPropOffset) { /* if newOffset is SP, swap base and newOffset */
-        if (newBase->IsSPOrFP()) {
+        if (replace->IsSPOrFP()) {
           newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-              AArch64MemOperand::kAddrModeBOrX, k64BitSize, *newBase, &base, nullptr, nullptr);
+              AArch64MemOperand::kAddrModeBOrX, k64BitSize, *replace, &base, nullptr, nullptr);
         } else {
           newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-              AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, newBase, nullptr, nullptr);
+              AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, replace, nullptr, nullptr);
         }
       } else if (propMode == kPropSignedExtend) {
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newBase, amount, true);
+            AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *replace, amount, true);
       } else {
         newMemOpnd = cgFunc.GetMemoryPool()->New<AArch64MemOperand>(
-            AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *newBase, amount);
+            AArch64MemOperand::kAddrModeBOrX, k64BitSize, base, *replace, amount);
       }
       break;
     }
@@ -638,7 +676,7 @@ bool AArch64StoreLoadOpt::ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &
   if (!CheckDefInsn(*regDefInsn, insn)) {
     return false;
   }
-  AArch64MemOperand *newMemOpnd = SelectReplaceMem(*regDefInsn, base, offset);
+  AArch64MemOperand *newMemOpnd = SelectReplaceMem(*regDefInsn, insn, base, offset);
   if (newMemOpnd == nullptr) {
     return false;
   }
@@ -722,12 +760,13 @@ bool AArch64StoreLoadOpt::CanDoMemProp(Insn *insn) {
 void AArch64StoreLoadOpt::SelectPropMode(AArch64MemOperand &currMemOpnd) {
   AArch64MemOperand::AArch64AddressingMode currAddrMode = currMemOpnd.GetAddrMode();
   switch (currAddrMode) {
-    case AArch64MemOperand::kAddrModeBOi:
+    case AArch64MemOperand::kAddrModeBOi: {
       if (!currMemOpnd.IsPreIndexed() && !currMemOpnd.IsPostIndexed()) {
         propMode = kPropBase;
       }
       break;
-    case AArch64MemOperand::kAddrModeBOrX:
+    }
+    case AArch64MemOperand::kAddrModeBOrX: {
       propMode = kPropOffset;
       amount = currMemOpnd.ShiftAmount();
       if (currMemOpnd.GetExtendAsString() == "LSL") {
@@ -741,6 +780,7 @@ void AArch64StoreLoadOpt::SelectPropMode(AArch64MemOperand &currMemOpnd) {
         propMode = kPropUnsignedExtend;
       }
       break;
+    }
     default:
       propMode = kUndef;
   }
@@ -793,13 +833,13 @@ void AArch64StoreLoadOpt::DoStoreLoadOpt() {
 
 /*
  * PropBase:
- *   add x1, x2, #immVal1
+ *   add/sub x1, x2, #immVal1
  *   ...(no def of x2)
  *   ldr/str x0, [x1, #immVal2]
  *   ======>
- *   add x1, x2, #immVal1
+ *   add/sub x1, x2, #immVal1
  *   ...
- *   ldr/str x0, [x2, #(immVal1 + immVal2)]
+ *   ldr/str x0, [x2, #(immVal1 + immVal2)/#(-immVal1 + immVal2)]
  *
  * PropOffset:
  *   sxtw x2, w2
