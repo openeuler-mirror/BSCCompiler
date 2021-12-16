@@ -44,6 +44,8 @@ std::string CppEmitter::GetIdentifierName(TreeNode *node) {
         return GetIdentifierName(static_cast<NamespaceNode *>(node)->GetId());
     case NK_Module:
         return GetModuleName(static_cast<ModuleNode *>(node)->GetFilename());
+    case NK_Literal:
+        return AstDump::GetEnumLitData(static_cast<LiteralNode *>(node)->GetData());
     case NK_Declare:
         { auto n = static_cast<DeclareNode *>(node);
           auto num = n->GetDeclsNum();
