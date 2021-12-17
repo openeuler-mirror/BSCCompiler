@@ -1167,8 +1167,6 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
     TreeNode *bfnode = p->GetBefore();
     TreeNode *afnode = p->GetAfter();
     if (bfnode) {
-      mXXport->AddImportedDeclIds(mHandler->GetHidx(), bfnode->GetNodeId());
-
       if (hidx == DEFAULTVALUE) {
         hstridx = mXXport->ExtractTargetStrIdx(bfnode);
         if (hstridx) {

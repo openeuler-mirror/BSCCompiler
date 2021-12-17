@@ -251,6 +251,13 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
           NOTYETIMPL("failed to find the exported");
         }
       }
+      // add afnode, bfnode as a decl
+      if (afnode) {
+        AddImportedDeclIds(handler->GetHidx(), afnode->GetNodeId());
+        handler->AddNodeId2DeclMap(afnode->GetNodeId(), afnode);
+      }
+      AddImportedDeclIds(handler->GetHidx(), bfnode->GetNodeId());
+      handler->AddNodeId2DeclMap(bfnode->GetNodeId(), bfnode);
     }
 
     mImports[hidx].insert(info);
