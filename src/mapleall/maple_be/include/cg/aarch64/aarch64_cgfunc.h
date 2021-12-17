@@ -248,6 +248,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
   bool IsRegRematCand(RegOperand &reg);
+  bool IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc);
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
   void CleanupDeadMov() override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;

@@ -1269,7 +1269,11 @@ bool SimplifyCFG::CondBranchToSelect() {
   ScalarMeExpr *resLHS = nullptr;
   if (jointBB->GetPred().size() == 2) { // if jointBB has only ftBB and gtBB as its pred.
     // use phinode lhs as result
-    resLHS = jointBB->GetMePhiList()[ftLHS->GetOstIdx()]->GetLHS();
+    auto it = jointBB->GetMePhiList().find(ftLHS->GetOstIdx());
+    if (it == jointBB->GetMePhiList().end()) {
+      return false;  // volatile ost always has no phi node
+    }
+    resLHS = it->second->GetLHS();
   } else {
     // we should create a new version
     resLHS = irmap->CreateRegOrVarMeExprVersion(ftLHS->GetOstIdx());

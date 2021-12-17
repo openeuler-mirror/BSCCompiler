@@ -36,8 +36,6 @@ void CGSSAInfo::InsertPhiInsn() {
         continue;
       }
       std::set<uint32> defRegNOs = insn->GetDefRegs();
-      constexpr int perInsnMaxDefOpndNum = 2;
-      CHECK_FATAL(defRegNOs.size() <= perInsnMaxDefOpndNum, "NYI");
       for (auto vRegNO : defRegNOs) {
         RegOperand *virtualOpnd = cgFunc->GetVirtualRegisterOperand(vRegNO);
         if (virtualOpnd != nullptr) {
@@ -259,7 +257,6 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
   ssaInfo = f.GetCG()->CreateCGSSAInfo(*ssaMemPool, f, *domInfo, *ssaTempMp);
   ssaInfo->ConstructSSA();
   if (CG_DEBUG_FUNC(f)) {
-
     LogInfo::MapleLogger() << "******** CG IR After ssaconstruct in ssaForm : *********" << "\n";
     ssaInfo->DumpFuncCGIRinSSAForm();
   }

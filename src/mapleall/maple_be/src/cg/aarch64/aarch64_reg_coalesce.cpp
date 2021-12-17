@@ -177,10 +177,10 @@ void AArch64RegisterCoalesce::CollectCandidate() {
         if (regDest.GetRegisterNumber() == regSrc.GetRegisterNumber()) {
           continue;
         }
-        if (regDest.IsVirtualRegister() && !(static_cast<AArch64CGFunc*>(cgFunc)->IsRegRematCand(regDest))) {
+        if (regDest.IsVirtualRegister()) {
           candidates.insert(regDest.GetRegisterNumber());
         }
-        if (regSrc.IsVirtualRegister() && !(static_cast<AArch64CGFunc*>(cgFunc)->IsRegRematCand(regSrc))) {
+        if (regSrc.IsVirtualRegister()) {
           candidates.insert(regSrc.GetRegisterNumber());
         }
       }
@@ -311,7 +311,6 @@ void AArch64RegisterCoalesce::CoalesceRegPair(RegOperand &regDest, RegOperand &r
 }
 
 void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &movInsns) {
-  AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   FOR_BB_INSNS_SAFE(insn, &bb, ninsn) {
     if (!insn->IsMachineInstruction()) {
       continue;
@@ -323,12 +322,6 @@ void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &m
         continue;
       }
       if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
-        continue;
-      }
-      if (a64CGFunc->IsRegRematCand(regDest)) {
-        continue;
-      }
-      if (a64CGFunc->IsRegRematCand(regSrc)) {
         continue;
       }
       movInsns.emplace_back(insn);
@@ -347,10 +340,11 @@ void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns) {
       if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
         continue;
       }
-      if (a64CGFunc->IsRegRematCand(regDest)) {
+      if (a64CGFunc->IsRegRematCand(regDest) != a64CGFunc->IsRegRematCand(regSrc)) {
         continue;
       }
-      if (a64CGFunc->IsRegRematCand(regSrc)) {
+      if (a64CGFunc->IsRegRematCand(regDest) && a64CGFunc->IsRegRematCand(regSrc) &&
+          !a64CGFunc->IsRegSameRematInfo(regDest, regSrc)) {
         continue;
       }
       LiveInterval *li1 = GetLiveInterval(regDest.GetRegisterNumber());

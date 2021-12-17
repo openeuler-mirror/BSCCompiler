@@ -5407,13 +5407,29 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
 bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
   MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber(), CGOptions::DoCGSSA());
   if (preg != nullptr && preg->GetOp() != OP_undef) {
-    if ( preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
+    if (preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
       return true;
-    }
-    else if ( preg->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
+    } else if ( preg->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
       return true;
+    } else if ( preg->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
+      return true;
+    } else {
+      return false;
     }
-    else if ( preg->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
+  } else {
+    return false;
+  }
+}
+
+bool AArch64CGFunc::IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc) {
+  MIRPreg *pregDest = GetPseudoRegFromVirtualRegNO(regDest.GetRegisterNumber(), CGOptions::DoCGSSA());
+  MIRPreg *pregSrc = GetPseudoRegFromVirtualRegNO(regSrc.GetRegisterNumber(), CGOptions::DoCGSSA());
+  if (pregDest != nullptr && pregDest == pregSrc) {
+    if (pregDest->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
+      return true;
+    } else if ( pregDest->GetOp() == OP_addrof && cg->GetRematLevel() >= 2) {
+      return true;
+    } else if ( pregDest->GetOp() == OP_iread && cg->GetRematLevel() >= 4) {
       return true;
     } else {
       return false;

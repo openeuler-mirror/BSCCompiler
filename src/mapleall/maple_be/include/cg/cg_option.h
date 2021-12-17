@@ -629,6 +629,10 @@ class CGOptions : public MapleDriverOptionBase {
     return doEBO;
   }
 
+  static void DisableCGSSA() {
+    doCGSSA = false;
+  }
+
   static bool DoCGSSA() {
     return doCGSSA;
   }
