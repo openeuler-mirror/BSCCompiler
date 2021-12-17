@@ -81,6 +81,8 @@ class ENCChecker {
   static void InsertBoundaryLenExprInAtts(TypeAttrs &attr, const UniqueFEIRExpr &expr);
   static void InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boundary);
   static void InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &boundary);
+  static bool IsSafeRegion(MIRBuilder &mirBuilder);
+  static bool IsUnsafeRegion(MIRBuilder &mirBuilder);
 };  // class ENCChecker
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_ENCCHECKER_H
