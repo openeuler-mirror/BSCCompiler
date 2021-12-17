@@ -49,15 +49,16 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
   RegOperand *regForRecreate = &ssaOpnd;
   if (GetSSAInfo()->IsNoDefVReg(ssaOpnd.GetRegisterNumber())) {
     regForRecreate = MakeRoomForNoDefVreg(ssaOpnd);
+  } else {
+    ASSERT(regForRecreate->IsSSAForm(), "Opnd is not in ssa form");
   }
-  ASSERT(regForRecreate->IsSSAForm(), "Opnd is not in ssa form");
   RegOperand &newReg = cgFunc->GetOrCreateVirtualRegisterOperand(*regForRecreate);
 
   Insn *defInsn = ssaVersion->GetDefInsn();
   /*
    * case1 : both def/use
-   * case2 : inline-asm  ( do not do aggressive optimization )
-  */
+   * case2 : inline-asm  (do not do aggressive optimization) "0"
+   */
   if (defInsn != nullptr) {
     if (!defInsn->IsRegDefined(ssaOpnd.GetRegisterNumber()) &&
         !defInsn->IsRegDefined(ssaVersion->GetSSAvRegOpnd()->GetRegisterNumber())) {
@@ -91,10 +92,7 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
         }
         LastVersion = nullptr;
       }
-      /* find last version in asm failed */
-      if (LastVersion == nullptr) {
-        newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
-      } else {
+      if (LastVersion != nullptr) {
         newReg.SetRegisterNumber(LastVersion->GetSSAvRegOpnd()->GetRegisterNumber());
       }
     }

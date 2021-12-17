@@ -2074,7 +2074,6 @@ bool GraphColorRegAllocator::SplitLrShouldSplit(LiveRange &lr) {
   if (lr.GetSplitLr() != nullptr || lr.GetNumBBMembers() == 1) {
     return false;
   }
-
   /* Need to split within the same hierarchy */
   uint32 loopID = 0xFFFFFFFF; /* loopID is initialized the maximum value，and then be assigned in function */
   bool needSplit = true;
@@ -3783,16 +3782,18 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   std::sort(useLrs.begin(), useLrs.end(), comparator);
   for (auto lr: useLrs) {
     lr->SetID(insn.GetId());
-    if (lr->GetSpillReg() != 0 && lr->GetPregveto(lr->GetSpillReg())) {
+    RegType rtype = lr->GetRegType();
+    regno_t firstSpillReg = rtype == kRegTyInt ? intRegs[0] : fpRegs[0];
+    if (lr->GetSpillReg() != 0 && lr->GetSpillReg() < firstSpillReg && lr->GetPregveto(lr->GetSpillReg())) {
       lr->SetSpillReg(0);
     }
-    if (lr->GetSpillReg() != 0 && lr->GetSpillReg() >= R10 && usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
+    if (lr->GetSpillReg() != 0 && lr->GetSpillReg() >= firstSpillReg &&
+        usePregs.find(lr->GetSpillReg()) == usePregs.end()) {
       usePregs.insert(lr->GetSpillReg());
       continue;
     } else {
       lr->SetSpillReg(0);
     }
-    RegType rtype = lr->GetRegType();
     for (uint i = 0; i < kSpillMemOpndNum; i++) {
       regno_t preg = rtype == kRegTyInt ? intRegs[i] : fpRegs[i];
       if (usePregs.find(preg) == usePregs.end()) {
@@ -3801,6 +3802,7 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
         break;
       }
     }
+    ASSERT(lr->GetSpillReg() != 0, "no reg");
   }
   uint spillRegIdx;
   if (isIndexedMemOp) {
@@ -3810,13 +3812,19 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(Insn &insn) {
   }
   for (auto lr: defLrs) {
     lr->SetID(insn.GetId());
-    if (lr->GetSpillReg() != 0 && lr->GetPregveto(lr->GetSpillReg())) {
-      lr->SetSpillReg(0);
+    RegType rtype = lr->GetRegType();
+    regno_t firstSpillReg = rtype == kRegTyInt ? intRegs[0] : fpRegs[0];
+    if (lr->GetSpillReg() != 0) {
+      if (lr->GetSpillReg() < firstSpillReg && lr->GetPregveto(lr->GetSpillReg())) {
+        lr->SetSpillReg(0);
+      }
+      if (lr->GetSpillReg() >= firstSpillReg && defPregs.find(lr->GetSpillReg()) != defPregs.end()) {
+        lr->SetSpillReg(0);
+      }
     }
     if (lr->GetSpillReg() != 0) {
       continue;
     }
-    RegType rtype = lr->GetRegType();
     for (; spillRegIdx < kSpillMemOpndNum; spillRegIdx++) {
       regno_t preg = rtype == kRegTyInt ? intRegs[spillRegIdx] : fpRegs[spillRegIdx];
       if (defPregs.find(preg) == defPregs.end()) {
