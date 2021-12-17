@@ -95,8 +95,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
     DoloopNode *remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
     // generate remDoloop's termination
     BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
-                    doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
-                    mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+        doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
+        mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
     remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
     unrolledBlk = codeMP->New<BlockNode>();
     unrolledBlk->AddStatement(remDoloop);
@@ -114,8 +114,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
     i++;
   } while (i != times);
   if (remainderTripCount != 0) { // update startExpr
-    BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(), 
-                mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+    BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(),
+        mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
     unrolledDoloop->SetStartExpr(newStartExpr);
   }
   // update incrExpr
@@ -220,7 +220,7 @@ void LfoUnrollOneLoop::Process() {
   }
 
   // replace doloop by the statements in unrolledBlk
-  LfoPart *lfopart = (*preEmit->GetLfoStmtMap())[doloop->GetStmtID()];
+  PreMeMIRExtension *lfopart = (*preEmit->GetPreMeStmtExtensionMap())[doloop->GetStmtID()];
   BaseNode *parent = lfopart->GetParent();
   ASSERT(parent && (parent->GetOpCode() == OP_block), "LfoUnroll: parent of doloop is not OP_block");
   BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -231,29 +231,25 @@ void LfoUnrollOneLoop::Process() {
 };
 
 bool MELfoUnroll::PhaseRun(MeFunction &f) {
-  LfoPreEmitter *preEmit = GET_ANALYSIS(MELfoPreEmission, f);
+  PreMeEmitter *preEmit = GET_ANALYSIS(MEPreMeEmission, f);
   ASSERT(preEmit != nullptr, "lfo preemit phase has problem");
   LfoDepInfo *lfoDepInfo = GET_ANALYSIS(MELfoDepTest, f);
   ASSERT(lfoDepInfo != nullptr, "lfo dep test phase has problem");
-  LfoFunction *lfoFunc = f.GetLfoFunc();
-//uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
+  PreMeFunction *preMeFunc = f.GetPreMeFunc();
 
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = lfoDepInfo->doloopInfoMap.begin();
   for (; mapit != lfoDepInfo->doloopInfoMap.end(); mapit++) {
     if (!mapit->second->children.empty() || mapit->second->hasBeenVectorized) {
       continue;
     }
-    LfoUnrollOneLoop unroll(lfoFunc, preEmit, mapit->second);
+    LfoUnrollOneLoop unroll(preMeFunc, preEmit, mapit->second);
     unroll.Process();
   }
-//if (!MeOption::quiet && savedCountOfLoopsUnrolled != LfoUnrollOneLoop::countOfLoopsUnrolled) {
-//  f.GetMirFunc()->Dump();
-//}
   return false;
 }
 
 void MELfoUnroll::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<MELfoPreEmission>();
+  aDep.AddRequired<MEPreMeEmission>();
   aDep.AddRequired<MELfoDepTest>();
   aDep.PreservedAllExcept<MEMeCfg>();
   aDep.PreservedAllExcept<MEDominance>();

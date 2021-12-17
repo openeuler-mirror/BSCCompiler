@@ -16,7 +16,7 @@
 #include <iostream>
 #include "lfo_iv_canon.h"
 #include "me_option.h"
-#include "lfo_function.h"
+#include "pme_function.h"
 #include "me_dominance.h"
 
 // This phase implements Step 4 of the paper:
@@ -463,15 +463,13 @@ void IVCanon::ReplaceSecondaryIVPhis() {
     AssignMeStmt *ass = func->GetIRMap()->CreateAssignMeStmt(*phi->GetLHS(), *addx, *headBB);
     headBB->PrependMeStmt(ass);
     // change phi's lhs to new version
-    ScalarMeExpr *newlhs;
+    ScalarMeExpr *newlhs = nullptr;
     if (phi->GetLHS()->GetMeOp() == kMeOpVar) {
       newlhs = func->GetIRMap()->CreateVarMeExprVersion(ivdesc->ost);
     } else {
       newlhs = func->GetIRMap()->CreateRegMeExprVersion(*ivdesc->ost);
     }
     phi->SetLHS(newlhs);
-    newlhs->SetDefBy(kDefByPhi);
-    newlhs->SetDefPhi(*phi);
   }
 }
 
@@ -537,24 +535,24 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
   IdentifyLoops *identLoops = GET_ANALYSIS(MELoopAnalysis, f);
   CHECK_FATAL(identLoops != nullptr, "identloops has problem");
 
-  LfoFunction *lfoFunc = f.GetLfoFunc();
+  PreMeFunction *preMeFunc = f.GetPreMeFunc();
 
   // loop thru all the loops in reverse order so inner loops are processed first
   for (int32 i = identLoops->GetMeLoops().size()-1; i >= 0; i--) {
     LoopDesc *aloop = identLoops->GetMeLoops()[i];
     BB *headbb = aloop->head;
-    // check if the label has associated LfoWhileInfo
+    // check if the label has associated PreMeWhileInfo
     if (headbb->GetBBLabel() == 0) {
       continue;
     }
     if (aloop->exitBB == nullptr || aloop->preheader == nullptr) {
       continue;
     }
-    MapleMap<LabelIdx, LfoWhileInfo*>::iterator it = lfoFunc->label2WhileInfo.find(headbb->GetBBLabel());
-    if (it == lfoFunc->label2WhileInfo.end()) {
+    MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
+    if (it == preMeFunc->label2WhileInfo.end()) {
       continue;
     }
-    LfoWhileInfo *whileInfo = it->second;
+    PreMeWhileInfo *whileInfo = it->second;
     if (whileInfo->injectedIVSym == nullptr) {
       continue;
     }

@@ -21,7 +21,7 @@
 #include "mir_builder.h"
 #include "constantfold.h"
 #include "me_irmap.h"
-#include "lfo_mir_lower.h"
+#include "pme_mir_lower.h"
 #include "me_ssa_update.h"
 
 namespace maple {
@@ -134,11 +134,11 @@ void MeFunction::Dump(bool DumpSimpIr) const {
 
 void MeFunction::Prepare() {
   if (MeOption::optLevel >= 3) {
-    MemPool* lfomp = memPoolCtrler.NewMemPool("lfo", true);
-    SetLfoFunc(lfomp->New<LfoFunction>(lfomp, this));
-    SetLfoMempool(lfomp);
-    LFOMIRLower lfomirlowerer(mirModule, this);
-    lfomirlowerer.LowerFunc(*CurFunction());
+    MemPool* pmemp = memPoolCtrler.NewMemPool("lfo", true);
+    SetPreMeFunc(pmemp->New<PreMeFunction>(pmemp, this));
+    SetLfoMempool(pmemp);
+    PreMeMIRLower pmemirlowerer(mirModule, this);
+    pmemirlowerer.LowerFunc(*CurFunction());
   } else {
     /* lower first */
     MIRLower mirLowerer(mirModule, CurFunction());
@@ -313,8 +313,7 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         break;
       }
       case OP_assertnonnull:
-      case OP_assignassertnonnull:
-      case OP_returnassertnonnull: {
+      case OP_assignassertnonnull: {
         auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
         newStmt = irmap->New<UnaryMeStmt>(unaryStmt);
         destBB.AddMeStmtLast(newStmt);
@@ -344,7 +343,6 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       }
       case OP_assertlt:
       case OP_assertge:
-      case OP_returnassertle:
       case OP_assignassertle: {
         auto &oldStmt = static_cast<NaryMeStmt&>(stmt);
         newStmt = irmap->New<NaryMeStmt>(oldStmt);
@@ -354,6 +352,18 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       case OP_callassertle:{
         auto &oldStmt = static_cast<CallAssertBoundaryMeStmt&>(stmt);
         newStmt = irmap->New<CallAssertBoundaryMeStmt>(oldStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_returnassertle: {
+        auto &oldStmt = static_cast<ReturnAssertBoundaryMeStmt&>(stmt);
+        newStmt = irmap->New<ReturnAssertBoundaryMeStmt>(oldStmt);
+        destBB.AddMeStmtLast(newStmt);
+        break;
+      }
+      case OP_returnassertnonnull: {
+        auto &returnAssertStmt = static_cast<ReturnAssertNonnullMeStmt&>(stmt);
+        newStmt = irmap->New<ReturnAssertNonnullMeStmt>(returnAssertStmt);
         destBB.AddMeStmtLast(newStmt);
         break;
       }

@@ -78,7 +78,7 @@
 #include "constantfold.h"
 #include "me_verify.h"
 #include "lfo_inject_iv.h"
-#include "lfo_pre_emit.h"
+#include "pme_emit.h"
 #include "lfo_iv_canon.h"
 #include "cfg_opt.h"
 #include "lfo_dep_test.h"

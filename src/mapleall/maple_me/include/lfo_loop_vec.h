@@ -17,7 +17,7 @@
 #include "me_function.h"
 #include "me_irmap.h"
 #include "me_ir.h"
-#include "lfo_pre_emit.h"
+#include "pme_emit.h"
 #include "lfo_dep_test.h"
 
 namespace maple {
@@ -95,11 +95,11 @@ class LoopTransPlan {
 
 class LoopVectorization {
  public:
-  LoopVectorization(MemPool *localmp, LfoPreEmitter *lfoEmit, LfoDepInfo *depinfo, bool debug = false)
+  LoopVectorization(MemPool *localmp, PreMeEmitter *lfoEmit, LfoDepInfo *depinfo, bool debug = false)
       : localAlloc(localmp), vecPlans(localAlloc.Adapter()) {
     mirFunc = lfoEmit->GetMirFunction();
-    lfoStmtParts = lfoEmit->GetLfoStmtMap();
-    lfoExprParts = lfoEmit->GetLfoExprMap();
+    PreMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
+    PreMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
     depInfo = depinfo;
     codeMP = lfoEmit->GetCodeMP();
     codeMPAlloc = lfoEmit->GetCodeMPAlloc();
@@ -146,10 +146,10 @@ class LoopVectorization {
   static uint32_t vectorizedLoop;
  private:
   MIRFunction *mirFunc;
-  // point to lfoStmtParts of lfopreemit, map lfoinfo for StmtNode, key is stmtID
-  MapleMap<uint32_t, LfoPart *>  *lfoStmtParts;
-  // point to lfoexprparts of lfopreemit, map lfoinfo for exprNode, key is mirnode
-  MapleMap<BaseNode *, LfoPart *> *lfoExprParts;
+  // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
+  MapleMap<uint32_t, PreMeMIRExtension *>  *PreMeStmtExtensionMap;
+  // point to PreMeExprExtensionMap of PreMeEmitter, key is mirnode
+  MapleMap<BaseNode *, PreMeMIRExtension *> *PreMeExprExtensionMap;
   LfoDepInfo *depInfo;
   MemPool *codeMP;    // point to mirfunction codeMp
   MapleAllocator *codeMPAlloc;

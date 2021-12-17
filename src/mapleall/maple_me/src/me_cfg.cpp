@@ -1218,7 +1218,7 @@ void MeCFG::CreateBasicBlocks() {
       }
       case OP_dassign: {
         DassignNode *dass = static_cast<DassignNode*>(stmt);
-        if (!func.IsLfo() && func.GetLfoFunc() != nullptr) {
+        if (!func.IsLfo() && func.GetPreMeFunc() != nullptr) {
           // delete identity assignments inserted by LFO
           if (dass->GetRHS()->GetOpCode() == OP_dread) {
             DreadNode *dread = static_cast<DreadNode*>(dass->GetRHS());
@@ -1452,8 +1452,8 @@ void MeCFG::CreateBasicBlocks() {
             SetBBTryNodeMap(*newBB, *tryStmt);
           }
           curBB = newBB;
-        } else if (func.GetLfoFunc() &&
-                    (func.GetLfoFunc()->label2WhileInfo.find(labelIdx) != func.GetLfoFunc()->label2WhileInfo.end())) {
+        } else if (func.GetPreMeFunc() &&
+                    (func.GetPreMeFunc()->label2WhileInfo.find(labelIdx) != func.GetPreMeFunc()->label2WhileInfo.end())) {
           curBB->SetKind(kBBFallthru);
           BB *newBB = NewBasicBlock();
           if (tryStmt != nullptr) {
@@ -1722,7 +1722,7 @@ void MeCFG::SwapBBId(BB &bb1, BB &bb2) {
 }
 
 bool MEMeCfg::PhaseRun(MeFunction &f) {
-  if (!f.IsLfo() && f.GetLfoFunc() != nullptr) {
+  if (!f.IsLfo() && f.GetPreMeFunc() != nullptr) {
     GetAnalysisInfoHook()->ForceEraseAllAnalysisPhase();
     f.SetMeSSATab(nullptr);
     f.SetIRMap(nullptr);

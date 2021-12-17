@@ -12,12 +12,8 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "me_phase_manager.h"
 #include "ipa_phase_manager.h"
-#include "prop_return_null.h"
-#include <iostream>
-#include <vector>
-#include <string>
+#include "pme_emit.h"
 
 #define JAVALANG (mirModule.IsJavaModule())
 #define CLANG (mirModule.IsCModule())
@@ -27,6 +23,7 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   SetQuiet(true);
   bool oldProp = MeOption::propDuringBuild;
   bool oldMerge = MeOption::mergeStmts;
+  uint8 oldOptLevel = MeOption::optLevel;
   MeOption::mergeStmts = false;
   MeOption::propDuringBuild = false;
   DoPhasesPopulate(m);
@@ -36,6 +33,7 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   CallGraph *cg = GET_ANALYSIS(M2MCallGraph, m);
   // Need reverse sccV
   const MapleVector<SCCNode*> &topVec = cg->GetSCCTopVec();
+  MeOption::optLevel = 3;
   for (MapleVector<SCCNode*>::const_reverse_iterator it = topVec.rbegin(); it != topVec.rend(); ++it) {
     if (!IsQuiet()) {
       LogInfo::MapleLogger() << ">>>>>>>>>>> Optimizing SCC ---\n";
@@ -75,13 +73,16 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   }
   MeOption::mergeStmts = oldMerge;
   MeOption::propDuringBuild = oldProp;
+  MeOption::optLevel = oldOptLevel;
   return changed;
 }
 
 void IpaSccPM::DoPhasesPopulate(const MIRModule &mirModule) {
   (void)mirModule;
   AddPhase("sccprepare", true);
-  AddPhase("prop_return_attr", true);
+  AddPhase("prop_param_type",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
+  AddPhase("prop_return_attr",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
+  AddPhase("sccsideeffect", true);
   AddPhase("sccemit", true);
 }
 
@@ -144,12 +145,12 @@ bool SCCEmit::PhaseRun(SCCNode &scc) {
     }
     MIRModule &m = *func->GetModule();
     m.SetCurFunction(func);
-    const MaplePhaseInfo *phase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&EmitForIPA::id);
+    const MaplePhaseInfo *phase = MaplePhaseRegister::GetMaplePhaseRegister()->GetPhaseByID(&MEPreMeEmission::id);
     if (!IsQuiet()) {
       LogInfo::MapleLogger() << "---Run " << (phase->IsAnalysis() ? "analysis" : "transform")
                              << " Phase [ " << phase->PhaseName() << " ]---\n";
     }
-    (void)RunTransformPhase<meFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
+    (void)RunAnalysisPhase<meFuncOptTy, MeFunction>(*phase, *serialADM, *func->GetMeFunc());
   }
   return false;
 }
@@ -160,5 +161,7 @@ void SCCEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPrepare, sccprepare)
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPropReturnAttr, prop_return_attr);
+MAPLE_TRANSFORM_PHASE_REGISTER(SCCPropParamType, prop_param_type);
+MAPLE_ANALYSIS_PHASE_REGISTER(SCCSideEffect, sccsideeffect)
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCEmit, sccemit)
 }  // namespace maple

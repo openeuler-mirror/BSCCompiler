@@ -51,12 +51,12 @@
 namespace maple {
 // mark initExpr in whileinfo live
 void MeHDSE::ProcessWhileInfos() {
-  LfoFunction *lfoFunc = func.GetLfoFunc();
-  if (lfoFunc == nullptr) {
+  PreMeFunction *preMeFunc = func.GetPreMeFunc();
+  if (preMeFunc == nullptr) {
     return;
   }
-  MapleMap<LabelIdx, LfoWhileInfo *>::iterator it = lfoFunc->label2WhileInfo.begin();
-  for (; it != lfoFunc->label2WhileInfo.end(); it++) {
+  MapleMap<LabelIdx, PreMeWhileInfo *>::iterator it = preMeFunc->label2WhileInfo.begin();
+  for (; it != preMeFunc->label2WhileInfo.end(); it++) {
     if (it->second->initExpr != nullptr &&
         (it->second->initExpr->GetMeOp() == maple::kMeOpVar || it->second->initExpr->GetMeOp() == maple::kMeOpReg)) {
       workList.push_front(it->second->initExpr);

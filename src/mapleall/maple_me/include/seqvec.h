@@ -17,21 +17,21 @@
 #include "me_function.h"
 #include "me_irmap.h"
 #include "me_ir.h"
-#include "lfo_pre_emit.h"
+#include "pme_emit.h"
 
 namespace maple {
 class SeqVectorize {
   using StoreList = MapleVector<IassignNode *>;
   using StoreListMap = MapleMap<MeExpr *, StoreList *>;
  public:
-  SeqVectorize(MemPool *localmp, LfoPreEmitter *lfoEmit, bool debug = false)
+  SeqVectorize(MemPool *localmp, PreMeEmitter *lfoEmit, bool debug = false)
       : localMP(localmp), localAlloc(localmp),
         codeMP(lfoEmit->GetCodeMP()), codeMPAlloc(lfoEmit->GetCodeMPAlloc()),
         mirFunc(lfoEmit->GetMirFunction()),
         meIRMap(lfoEmit->GetMeIRMap()),
         stores(localAlloc.Adapter()), enableDebug(debug) {
-    lfoStmtParts = lfoEmit->GetLfoStmtMap();
-    lfoExprParts = lfoEmit->GetLfoExprMap();
+    PreMeStmtExtensionMap = lfoEmit->GetPreMeStmtExtensionMap();
+    PreMeExprExtensionMap = lfoEmit->GetPreMeExprExtensionMap();
   }
   virtual ~SeqVectorize() = default;
   void Perform();
@@ -66,10 +66,10 @@ class SeqVectorize {
   MapleAllocator *codeMPAlloc;
   MIRFunction *mirFunc;
   MeIRMap *meIRMap;
-  // point to lfoStmtParts of lfopreemit, map lfoinfo for StmtNode, key is stmtID
-  MapleMap<uint32_t, LfoPart *>  *lfoStmtParts;
-  // point to lfoexprparts of lfopreemit, map lfoinfo for exprNode, key is mirnode
-  MapleMap<BaseNode *, LfoPart *> *lfoExprParts;
+  // point to PreMeStmtExtensionMap of PreMeEmitter, key is stmtID
+  MapleMap<uint32_t, PreMeMIRExtension *>  *PreMeStmtExtensionMap;
+  // point to PreMeExprExtensionMap of PreMeEmitter, key is mirnode
+  MapleMap<BaseNode *, PreMeMIRExtension *> *PreMeExprExtensionMap;
   StoreListMap stores;
   uint32_t currRhsStatus = 0; // unset
   bool enableDebug = true;

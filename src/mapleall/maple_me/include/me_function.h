@@ -26,7 +26,7 @@
 #include "func_emit.h"
 #include "me_ir.h"
 #include "profile.h"
-#include "lfo_function.h"
+#include "pme_function.h"
 
 namespace maple {
 class MeCFG;  // circular dependency exists, no other choice
@@ -158,8 +158,8 @@ class MeFunction : public FuncEmit {
         mirFunc(func),
         laidOutBBVec(alloc.Adapter()),
         fileName(fileName, memPool),
-        lfoFunc(nullptr),
-        lfoMp(nullptr) {
+        preMeFunc(nullptr),
+        preMeMp(nullptr) {
           isLfo = (MeOption::optLevel == 3);
         }
 
@@ -322,15 +322,23 @@ class MeFunction : public FuncEmit {
     return mirFunc->GetPuidx();
   }
 
+  bool IsUnSafe() const {
+    return !mirFunc->GetAttr(FUNCATTR_safed) || mirFunc->GetAttr(FUNCATTR_unsafed);
+  }
+
+  bool IsSafe() const {
+    return mirFunc->GetAttr(FUNCATTR_safed);
+  }
+
   void PartialInit();
 
   MIRFunction *CurFunction() const {
     return mirModule.CurFunction();
   }
-  void SetLfoFunc(LfoFunction *lfoF) { lfoFunc = lfoF; }
-  LfoFunction *GetLfoFunc() { return lfoFunc; }
-  void SetLfoMempool(MemPool *mp) { lfoMp = mp; }
-  MemPool *GetLfoMempool() { return lfoMp; }
+  void SetPreMeFunc(PreMeFunction *lfoF) { preMeFunc = lfoF; }
+  PreMeFunction *GetPreMeFunc() { return preMeFunc; }
+  void SetLfoMempool(MemPool *mp) { preMeMp = mp; }
+  MemPool *GetLfoMempool() { return preMeMp; }
   bool IsLfo() const { return isLfo; }
   void SetLfo(bool islfo) { isLfo = islfo; }
   void CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr,
@@ -359,12 +367,13 @@ class MeFunction : public FuncEmit {
   uint32 frequency = 0;
   // lfo
   bool isLfo;
-  LfoFunction *lfoFunc;
-  MemPool *lfoMp; // used for lfo function
+  PreMeFunction *preMeFunc;
+  MemPool *preMeMp; // used for lfo function
  public:
   uint32 dseRuns = 0;   // number of times dse phase has been run
   uint32 hdseRuns = 0;  // number of times hdse phase has been run
   uint32 hpropRuns = 0; // number of times hprop phase has been run
+  uint32 vrpRuns = 0; // number of times vrp phase has been run
 };
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FUNCTION_H
