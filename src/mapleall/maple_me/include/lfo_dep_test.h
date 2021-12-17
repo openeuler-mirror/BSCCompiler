@@ -16,8 +16,8 @@
 #ifndef MAPLE_ME_INCLUDE_LFO_DEP_TETS_H
 #define MAPLE_ME_INCLUDE_LFO_DEP_TETS_H
 
-#include "lfo_function.h"
-#include "lfo_pre_emit.h"
+#include "pme_function.h"
+#include "pme_emit.h"
 #include "orig_symbol.h"
 #include "maple_phase.h"
 #include "me_ir.h"
@@ -112,16 +112,16 @@ class DoloopInfo {
 class LfoDepInfo : public AnalysisResult {
  public:
   MapleAllocator alloc;
-  LfoFunction *lfoFunc;
+  PreMeFunction *preMeFunc;
   Dominance *dom;
-  LfoPreEmitter *preEmit;
+  PreMeEmitter *preEmit;
   MapleVector<DoloopInfo *> outermostDoloopInfoVec;  // outermost doloops' DoloopInfo in program order
   MapleMap<DoloopNode *, DoloopInfo *> doloopInfoMap;
 
-  LfoDepInfo(MemPool *mempool, LfoFunction *f, Dominance *dm, LfoPreEmitter *preemit)
+  LfoDepInfo(MemPool *mempool, PreMeFunction *f, Dominance *dm, PreMeEmitter *preemit)
       : AnalysisResult(mempool),
         alloc(mempool),
-        lfoFunc(f),
+        preMeFunc(f),
         dom(dm),
         preEmit(preemit),
         outermostDoloopInfoVec(alloc.Adapter()),
