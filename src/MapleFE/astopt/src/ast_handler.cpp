@@ -171,9 +171,8 @@ TreeNode *Module_Handler::FindDecl(IdentifierNode *node, bool deep) {
   // search the existing map mNodeId2Decl first
   if (mNodeId2Decl.find(nid) != mNodeId2Decl.end()) {
     decl = mNodeId2Decl[nid];
-    // deep and decl is imported, chase down
-    if (deep && decl && !decl->IsTypeIdModule() &&
-        GetASTXXport()->IsImportedDeclId(mHidx, decl->GetNodeId())) {
+    // deep search for imported decl, chase down
+    if (deep && decl && GetASTXXport()->IsImportedDeclId(mHidx, decl->GetNodeId())) {
       decl = GetASTXXport()->GetExportedNodeFromImportedNode(mHidx, decl->GetNodeId());
     }
     return decl;
