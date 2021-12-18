@@ -127,6 +127,13 @@ void Token::Dump() {
   default:
     break;
   }
+
+  DUMP1(" line: ", mLineNum);
+  DUMP1(" col: ", mColNum);
+  if (mLineBegin)
+    DUMP0(" line-first ");
+  if (mLineEnd)
+    DUMP0(" line-last ");
 }
 
 }
