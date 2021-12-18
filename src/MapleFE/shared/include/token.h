@@ -112,6 +112,12 @@ struct RegExprData {
 
 struct Token {
   TK_Type mTkType;
+
+  unsigned mLineNum;    // line num
+  unsigned mColNum;     // column num
+  bool     mLineBegin;  // first token of line?
+  bool     mLineEnd;    // last token of line?
+
   union {
     const char *mName; // Identifier, Keyword. In the gStringPool
     LitData     mLitData;
