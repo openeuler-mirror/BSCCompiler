@@ -62,6 +62,7 @@ class AdjustASTVisitor : public AstVisitor {
 
   std::unordered_map<unsigned, unsigned> mRenameMap;
   void CheckAndRenameCppKeywords(TreeNode *node);
+  void AssignPseudoName(TreeNode *node);
 
   DeclNode *VisitDeclNode(DeclNode *node);
   ImportNode *VisitImportNode(ImportNode *node);
