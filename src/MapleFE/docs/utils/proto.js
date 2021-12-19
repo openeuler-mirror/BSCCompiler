@@ -27,15 +27,17 @@ function insert(graph, ...args) {
   }
 }
 
-// Dump graphs with edges for prototype, __proto__ and constructor properties of each objects
+// Dump graphs with edges for prototype, __proto__ and constructor properties of each object
 const gen = generator.prototype.__proto__;
-for(let g = 0; g < 4; ++g) {
+for(let g = 0; g < 6; ++g) {
   let graph = new Map();
   if (g < 2)
     insert(graph, "Function", "Object", "Array", "arr", "mycar", "car");
-  else
+  else if (g < 4)
     insert(graph, "Function", "Object", "generator", [generator(), "generator_instance"], [generator.__proto__, "Generator"],
       [generator.constructor, "GeneratorFunction"], [gen, "GeneratorPrototype"], [gen.__proto__, "IteratorPrototype"]);
+  else
+    insert(graph, "Function", "Object", "Symbol", "Math", "JSON", "Promise");
   console.log("digraph JS" + g + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (g % 2 == 1 ? "" : "newrank=true;"));
   for (let [key, value] of graph) {
     console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
