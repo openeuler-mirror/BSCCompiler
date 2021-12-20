@@ -97,8 +97,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
       DoloopNode *remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
       // generate remDoloop's termination
       BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
-                      doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
-                      mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+          doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
+          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
       remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
       unrolledBlk = codeMP->New<BlockNode>();
       unrolledBlk->AddStatement(remDoloop);
@@ -109,19 +109,19 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
     BaseNode *startExpr = doloop->GetStartExpr();
     BaseNode *condExpr = doloop->GetCondExpr();
     BaseNode *endExpr = condExpr->Opnd(1);
-    BaseNode *tripsExpr = codeMP->New<BinaryNode>(OP_sub, ivPrimType, 
-                            endExpr->CloneTree(*preEmit->GetCodeMPAlloc()), 
-                            startExpr->CloneTree(*preEmit->GetCodeMPAlloc()));
+    BaseNode *tripsExpr = codeMP->New<BinaryNode>(OP_sub, ivPrimType,
+        endExpr->CloneTree(*preEmit->GetCodeMPAlloc()),
+        startExpr->CloneTree(*preEmit->GetCodeMPAlloc()));
     if (condExpr->GetOpCode() == OP_ge || condExpr->GetOpCode() == OP_le) {
       tripsExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, tripsExpr,
-                                mirBuilder->CreateIntConst(1, ivPrimType));
+          mirBuilder->CreateIntConst(1, ivPrimType));
     }
     tripsExpr = codeMP->New<BinaryNode>(OP_rem, ivPrimType, tripsExpr,
-                                mirBuilder->CreateIntConst(times, ivPrimType));
+        mirBuilder->CreateIntConst(times, ivPrimType));
     BaseNode *remLoopEndExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType,
-                    startExpr->CloneTree(*preEmit->GetCodeMPAlloc()), tripsExpr);
+        startExpr->CloneTree(*preEmit->GetCodeMPAlloc()), tripsExpr);
     // store in a preg
-    regIdx = lfoFunc->meFunc->GetMirFunc()->GetPregTab()->CreatePreg(ivPrimType);
+    regIdx = preMeFunc->meFunc->GetMirFunc()->GetPregTab()->CreatePreg(ivPrimType);
     RegassignNode *rass = mirBuilder->CreateStmtRegassign(ivPrimType, regIdx, remLoopEndExpr);
     unrolledBlk = codeMP->New<BlockNode>();
     unrolledBlk->AddStatement(rass);
@@ -148,8 +148,8 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   // update startExpr
   if (tripCount != 0) {
     if (remainderTripCount != 0) {
-      BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(), 
-                  mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+      BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(),
+          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
       unrolledDoloop->SetStartExpr(newStartExpr);
     }
   } else {

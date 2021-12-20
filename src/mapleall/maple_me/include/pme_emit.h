@@ -20,18 +20,6 @@
 
 namespace maple {
 class PreMeEmitter : public AnalysisResult {
- private:
-  MeIRMap *meirmap;
-  PreMeFunction *preMeFunc;
-  MIRFunction *mirFunc;
-  MemPool *codeMP;
-  MapleAllocator *codeMPAlloc;
-  MemPool *preMeMP;
-  MapleAllocator preMeMPAlloc;
-  MapleMap<uint32_t, PreMeMIRExtension*>  PreMeStmtExtensionMap; // key is stmtID
-  MapleMap<BaseNode*, PreMeMIRExtension*> PreMeExprExtensionMap; // key is BaseNode*
-  MeCFG *cfg;
-
  public:
   PreMeEmitter(MeIRMap *hmap, PreMeFunction *f, MemPool *premp)
       : AnalysisResult(premp), meirmap(hmap),
@@ -45,17 +33,6 @@ class PreMeEmitter : public AnalysisResult {
         PreMeExprExtensionMap(preMeMPAlloc.Adapter()),
         cfg(f->meFunc->GetCfg()) {}
   virtual ~PreMeEmitter() = default;
-
- private:
-  ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
-  BaseNode *EmitPreMeExpr(MeExpr*, BaseNode *);
-  StmtNode* EmitPreMeStmt(MeStmt *, BaseNode *);
-  void EmitBB(BB *, BlockNode *);
-  DoloopNode *EmitPreMeDoloop(BB *, BlockNode *, PreMeWhileInfo *);
-  WhileStmtNode *EmitPreMeWhile(BB *, BlockNode *);
-  uint32 Raise2PreMeWhile(uint32, BlockNode *);
-  uint32 Raise2PreMeIf(uint32, BlockNode *);
- public:
   uint32 EmitPreMeBB(uint32, BlockNode *);
   void SetPreMeStmtExtension(uint32_t stmtID, PreMeMIRExtension* pmeExt) {
     PreMeStmtExtensionMap[stmtID] = pmeExt;
@@ -101,6 +78,27 @@ class PreMeEmitter : public AnalysisResult {
   MapleAllocator* GetCodeMPAlloc() { return codeMPAlloc; }
   MapleMap<uint32_t, PreMeMIRExtension *> *GetPreMeStmtExtensionMap() { return &PreMeStmtExtensionMap; }
   MapleMap<BaseNode *, PreMeMIRExtension *> *GetPreMeExprExtensionMap() { return &PreMeExprExtensionMap; }
+
+ private:
+  ArrayNode *ConvertToArray(BaseNode *x, TyIdx ptrTyIdx);
+  BaseNode *EmitPreMeExpr(MeExpr*, BaseNode *);
+  StmtNode* EmitPreMeStmt(MeStmt *, BaseNode *);
+  void EmitBB(BB *, BlockNode *);
+  DoloopNode *EmitPreMeDoloop(BB *, BlockNode *, PreMeWhileInfo *);
+  WhileStmtNode *EmitPreMeWhile(BB *, BlockNode *);
+  uint32 Raise2PreMeWhile(uint32, BlockNode *);
+  uint32 Raise2PreMeIf(uint32, BlockNode *);
+
+  MeIRMap *meirmap;
+  PreMeFunction *preMeFunc;
+  MIRFunction *mirFunc;
+  MemPool *codeMP;
+  MapleAllocator *codeMPAlloc;
+  MemPool *preMeMP;
+  MapleAllocator preMeMPAlloc;
+  MapleMap<uint32_t, PreMeMIRExtension*>  PreMeStmtExtensionMap; // key is stmtID
+  MapleMap<BaseNode*, PreMeMIRExtension*> PreMeExprExtensionMap; // key is BaseNode*
+  MeCFG *cfg;
 };
 
 /* emit ir to specified file */
