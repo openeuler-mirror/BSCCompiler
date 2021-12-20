@@ -65,7 +65,6 @@ bool MEAutoVectorization::PhaseRun(MeFunction &f) {
 void MEAutoVectorization::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MELfoPreEmission>();
   aDep.AddRequired<MELfoDepTest>();
-  aDep.PreservedAllExcept<MEMeCfg>();
   aDep.PreservedAllExcept<MEDominance>();
   aDep.PreservedAllExcept<MELoopAnalysis>();
 }

@@ -85,22 +85,54 @@ BlockNode *LfoUnrollOneLoop::DoFullUnroll(size_t tripCount) {
 BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   BlockNode *unrolledBlk = nullptr;
   // form the remainder loop before the unrolled loop
-  size_t remainderTripCount = tripCount % times;
-  if (remainderTripCount == 0) {
-    unrolledBlk = codeMP->New<BlockNode>();
-  } else if (remainderTripCount == 1) {
-    unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
-    ReplaceIV(unrolledBlk, doloop->GetStartExpr());
+  size_t remainderTripCount = tripCount % times; // used when constant tripcount
+  PregIdx regIdx = 0;   // used when unknown tripcount
+  if (tripCount != 0) {
+    if (remainderTripCount == 0) {
+      unrolledBlk = codeMP->New<BlockNode>();
+    } else if (remainderTripCount == 1) {
+      unrolledBlk = doloop->GetDoBody()->CloneTreeWithSrcPosition(*mirModule);
+      ReplaceIV(unrolledBlk, doloop->GetStartExpr());
+    } else {
+      DoloopNode *remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
+      // generate remDoloop's termination
+      BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
+                      doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
+                      mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+      remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
+      unrolledBlk = codeMP->New<BlockNode>();
+      unrolledBlk->AddStatement(remDoloop);
+    }
   } else {
+    // generate code to calculate the remainder loop trip count which is
+    // (endexpr - startexpr) % times (increment assumed to be 1)
+    BaseNode *startExpr = doloop->GetStartExpr();
+    BaseNode *condExpr = doloop->GetCondExpr();
+    BaseNode *endExpr = condExpr->Opnd(1);
+    BaseNode *tripsExpr = codeMP->New<BinaryNode>(OP_sub, ivPrimType, 
+                            endExpr->CloneTree(*preEmit->GetCodeMPAlloc()), 
+                            startExpr->CloneTree(*preEmit->GetCodeMPAlloc()));
+    if (condExpr->GetOpCode() == OP_ge || condExpr->GetOpCode() == OP_le) {
+      tripsExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, tripsExpr,
+                                mirBuilder->CreateIntConst(1, ivPrimType));
+    }
+    tripsExpr = codeMP->New<BinaryNode>(OP_rem, ivPrimType, tripsExpr,
+                                mirBuilder->CreateIntConst(times, ivPrimType));
+    BaseNode *remLoopEndExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType,
+                    startExpr->CloneTree(*preEmit->GetCodeMPAlloc()), tripsExpr);
+    // store in a preg
+    regIdx = lfoFunc->meFunc->GetMirFunc()->GetPregTab()->CreatePreg(ivPrimType);
+    RegassignNode *rass = mirBuilder->CreateStmtRegassign(ivPrimType, regIdx, remLoopEndExpr);
+    unrolledBlk = codeMP->New<BlockNode>();
+    unrolledBlk->AddStatement(rass);
+
     DoloopNode *remDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
     // generate remDoloop's termination
-    BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
-                    doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
-                    mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+    BaseNode *terminationRHS = mirBuilder->CreateExprRegread(ivPrimType, regIdx);
     remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
-    unrolledBlk = codeMP->New<BlockNode>();
     unrolledBlk->AddStatement(remDoloop);
   }
+
   // form the unrolled loop
   DoloopNode *unrolledDoloop = doloop->CloneTree(*preEmit->GetCodeMPAlloc());
   uint32 i = 1;
@@ -113,9 +145,15 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
     unrolledDoloop->GetDoBody()->InsertBlockAfter(*nextIterBlk, unrolledDoloop->GetDoBody()->GetLast());
     i++;
   } while (i != times);
-  if (remainderTripCount != 0) { // update startExpr
-    BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(), 
-                mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+  // update startExpr
+  if (tripCount != 0) {
+    if (remainderTripCount != 0) {
+      BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(), 
+                  mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+      unrolledDoloop->SetStartExpr(newStartExpr);
+    }
+  } else {
+    BaseNode *newStartExpr = mirBuilder->CreateExprRegread(ivPrimType, regIdx);
     unrolledDoloop->SetStartExpr(newStartExpr);
   }
   // update incrExpr
@@ -199,16 +237,13 @@ void LfoUnrollOneLoop::Process() {
       tripCount++;
     }
   }
-  if (tripCount == 0) {
-    return;     // NYI handling of variable trip count
-  }
   size_t unrollTimes = 1;
   size_t unrolledStmtCount = stmtCount;
   while (unrolledStmtCount < unrolledSizeLimit && unrollTimes < unrollMax) {
     unrollTimes++;
     unrolledStmtCount += stmtCount;
   }
-  bool fullUnroll = tripCount < (unrollTimes * 2);
+  bool fullUnroll = tripCount != 0 && tripCount < (unrollTimes * 2);
   BlockNode *unrolledBlk = nullptr;
   if (fullUnroll) {
     unrolledBlk = DoFullUnroll(tripCount);
@@ -236,7 +271,7 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
   LfoDepInfo *lfoDepInfo = GET_ANALYSIS(MELfoDepTest, f);
   ASSERT(lfoDepInfo != nullptr, "lfo dep test phase has problem");
   LfoFunction *lfoFunc = f.GetLfoFunc();
-//uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
+  uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
 
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = lfoDepInfo->doloopInfoMap.begin();
   for (; mapit != lfoDepInfo->doloopInfoMap.end(); mapit++) {
@@ -246,9 +281,10 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
     LfoUnrollOneLoop unroll(lfoFunc, preEmit, mapit->second);
     unroll.Process();
   }
-//if (!MeOption::quiet && savedCountOfLoopsUnrolled != LfoUnrollOneLoop::countOfLoopsUnrolled) {
-//  f.GetMirFunc()->Dump();
-//}
+  if (DEBUGFUNC_NEWPM(f) && savedCountOfLoopsUnrolled != LfoUnrollOneLoop::countOfLoopsUnrolled) {
+    LogInfo::MapleLogger() << "\n**** After lfo loop unrolling ****\n";
+    f.GetMirFunc()->Dump();
+  }
   return false;
 }
 
