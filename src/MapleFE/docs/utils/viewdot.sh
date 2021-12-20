@@ -1,17 +1,19 @@
 #!/bin/bash
 if [ $# -lt 1 ]; then
   out=$(cat)
-  ts=/tmp/viewdot-$$
+  tmpdir=$(mktemp -dt viewdot-XXXXXX)
+  trap "rm -rf $tmpdir" SIGINT SIGQUIT SIGKILL
   grep -n -e "digraph [^{]* {" -e "^} // digraph JS" <<< "$out" | grep -A1 "digraph [^{]* {" |
     grep -v ^-- | sed 'N;s/\n/ /' | sed -e 's/:.*digraph [^{]* { */,/' -e 's/:.*/p/g' |
       { while read cmd; do
-        idx=$((idx+1))
-        sed -n $cmd <<< "$out" > "$ts"-$idx.dot
-        dot -Tpng -o "$ts"-$idx.png "$ts"-$idx.dot
-        env LC_ALL=C viewnior $VIEWOP "$ts"-$idx.png &
+        name=$(sed -n $cmd <<< "$out" | head -1 | sed 's/.*digraph \([^{]*\) {.*/\1/')
+        echo $$-$name
+        sed -n $cmd <<< "$out" > "$tmpdir"/$$-$name.dot
+        dot -Tpng -o "$tmpdir"/$$-$name.png "$tmpdir"/$$-$name.dot
+        env LC_ALL=C viewnior "$tmpdir"/$$-$name.png &
       done
       wait
-      rm -f "$ts"-[0-9]*.png "$ts"-[0-9]*.dot; }
+      rm -rf "$tmpdir"; }
   exit
 fi
 for f; do

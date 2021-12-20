@@ -14,7 +14,25 @@ let mycar = new MyCar("My car");
 let arr = [1, 2, 3]
 
 function* generator() { yield 1; }
+const gen = generator.prototype.__proto__;
 
+function makeClosure(a) {
+  return function (b) {
+    return a + b;
+  }
+}
+const closure = makeClosure(1);
+
+// All data for generating graphs
+let data = [
+  ["Classes",   ["Array", "arr", "mycar", "car"]],
+  ["Generator", ["generator", [generator(), "generator_instance"], [generator.__proto__, "Generator"],
+                 [generator.constructor, "GeneratorFunction"], [gen, "GeneratorPrototype"], [gen.__proto__, "IteratorPrototype"]]],
+  ["Builtins",  ["Symbol", "Math", "JSON", "Promise"]],
+  ["Closure",   ["makeClosure", "closure"]],
+];
+
+// Gether all reachable objects from their prototype, __proto__ and constructor properties
 function insert(graph, ...args) {
   for (let arg of args) {
     let [obj, name]  = typeof arg === "string" ? [eval(arg), arg] : arg;
@@ -29,33 +47,30 @@ function insert(graph, ...args) {
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
 let nodejs = (typeof process !== 'undefined') && (process.release.name === 'node')
-const gen = generator.prototype.__proto__;
-for(let g = 0; g < 6; ++g) {
+for (let entry of data) {
+  let [title, objs] = entry;
   let graph = new Map();
-  if (g < 2)
-    insert(graph, "Function", "Object", "Array", "arr", "mycar", "car");
-  else if (g < 4)
-    insert(graph, "Function", "Object", "generator", [generator(), "generator_instance"], [generator.__proto__, "Generator"],
-      [generator.constructor, "GeneratorFunction"], [gen, "GeneratorPrototype"], [gen.__proto__, "IteratorPrototype"]);
-  else
-    insert(graph, "Function", "Object", "Symbol", "Math", "JSON", "Promise");
-  console.log("digraph JS" + g + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (g % 2 == 1 ? "" : "newrank=true;"));
-  for (let [key, value] of graph) {
-    if (nodejs)
-      console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
-        "\n" + value + ".toString(): " + (typeof key !== "function" ? "-" : key.toString().replace(/\s+/g, " ")) + "\n*/");
-    console.log(value + (value.includes("Prototype") ? "[shape=box];" : "[shape=oval];"));
-    // Add edges for prototype properties of objects
-    if (typeof key.prototype !== "undefined" && key.prototype !== null)
-      console.log((g % 2 == 1 ? "" : "subgraph cluster_" + value
-        + " {\nrank=same;\ncolor=white;\n" + value + ";\n" + graph.get(key.prototype) + "[shape=box];\n }")
-        + value + " -> " + graph.get(key.prototype) + " [label=\"prototype\", color=blue, fontcolor=blue];");
-    // Add edges for constructor properties of objects
-    if (g % 2 == 1 && key.constructor !== "undefined" && key.constructor !== null)
+  insert(graph, "Function", "Object", ...objs);
+  for (let ctor of ["", "_with_ctors"]) {
+    console.log("digraph JS_" + title + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
+    for (let [key, value] of graph) {
+      // Add comments with detailed information of keys
+      if (nodejs)
+        console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
+          "\n" + value + ".toString(): " + (typeof key !== "function" ? "-" : key.toString().replace(/\s+/g, " ")) + "\n*/");
+      console.log(value + (value.includes("Prototype") ? "[shape=box];" : "[shape=oval];"));
+      // Add edges for prototype properties of objects
+      if (typeof key.prototype !== "undefined" && key.prototype !== null)
+        console.log((ctor != "" ? "" : "subgraph cluster_" + value
+          + " {\nrank=same;\ncolor=white;\n" + value + ";\n" + graph.get(key.prototype) + "[shape=box];\n }")
+          + value + " -> " + graph.get(key.prototype) + " [label=\"prototype\", color=blue, fontcolor=blue];");
+      // Add edges for constructor properties of objects
+      if (ctor != "" && key.constructor !== "undefined" && key.constructor !== null)
         console.log(value + " -> " + graph.get(key.constructor) + " [label=\"ctor\", color=darkgreen, fontcolor=darkgreen];");
-    // Add edges for __proto__ properties of objects
-    if (key.__proto__ !== "undefined" && key.__proto__ !== null)
+      // Add edges for __proto__ properties of objects
+      if (key.__proto__ !== "undefined" && key.__proto__ !== null)
         console.log(value + " -> " + graph.get(key.__proto__) + " [label=\"__proto__\", color=red, fontcolor=red];");
+    }
+    console.log("} // digraph JS_" + title + ctor);
   }
-  console.log("} // digraph JS" + g);
 }
