@@ -133,7 +133,7 @@ void GenerateDOTGraph( std::vector<Object *>&obj, std::vector<std::string>&name)
           std::cout << names[i] << " -> " << names[j] << " [label=\"__proto__\", color=red, fontcolor=red];" << std::endl;
       }
     }
-    std::cout << "}" << std::endl;
+    std::cout << "} // digraph JS" << g << std::endl;
   }
 }
 
