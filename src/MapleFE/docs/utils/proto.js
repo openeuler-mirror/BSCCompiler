@@ -28,6 +28,7 @@ function insert(graph, ...args) {
 }
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
+let nodejs = (typeof process !== 'undefined') && (process.release.name === 'node')
 const gen = generator.prototype.__proto__;
 for(let g = 0; g < 6; ++g) {
   let graph = new Map();
@@ -40,8 +41,9 @@ for(let g = 0; g < 6; ++g) {
     insert(graph, "Function", "Object", "Symbol", "Math", "JSON", "Promise");
   console.log("digraph JS" + g + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (g % 2 == 1 ? "" : "newrank=true;"));
   for (let [key, value] of graph) {
-    console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
-      "\n" + value + ".toString(): " + (typeof key !== "function" ? "-" : key.toString().replace(/\s+/g, " ")) + "\n*/");
+    if (nodejs)
+      console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
+        "\n" + value + ".toString(): " + (typeof key !== "function" ? "-" : key.toString().replace(/\s+/g, " ")) + "\n*/");
     console.log(value + (value.includes("Prototype") ? "[shape=box];" : "[shape=oval];"));
     // Add edges for prototype properties of objects
     if (typeof key.prototype !== "undefined" && key.prototype !== null)
