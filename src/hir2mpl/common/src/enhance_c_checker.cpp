@@ -218,8 +218,8 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
   }
 }
 
-void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr() const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *baseType = var->GetType()->GenerateMIRTypeAuto();
@@ -229,8 +229,8 @@ void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr() const {
   ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRType &baseType) const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
@@ -927,17 +927,15 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
   } else if (expr->GetKind() == kExprAddrof) {  // local char* value size
     auto *constArr = static_cast<FEIRExprAddrofConstArray*>(expr.get());
     return GlobalTables::GetTypeTable().GetOrCreateArrayType(
-        *constArr->GetElemType(), constArr->GetStringLiteralSize());
+        *constArr->GetElemType(), constArr->GetStringLiteralSize() + 1);  // including the end character with string
   } else if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) {  // global char* value size
     MIRType *type = expr->GetType()->GenerateMIRTypeAuto();
     if (type->IsMIRPtrType() && static_cast<MIRPtrType*>(type)->GetPointedType()->GetPrimType() == PTY_u8) {
       MIRConst *cst = GetMIRConstFromExpr(expr);
       if (cst != nullptr && cst->GetKind() == kConstStrConst) {
         size_t size = GlobalTables::GetUStrTable().GetStringFromStrIdx(
-            static_cast<MIRStrConst*>(cst)->GetValue()).size();
-        if (size != 0) {
-          return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
-        }
+            static_cast<MIRStrConst*>(cst)->GetValue()).size() + 1;  // including the end character with string
+        return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
       }
     }
     return nullptr;
@@ -1828,6 +1826,9 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
         }
         rightNode = rightExpr->GenMIRNode(mirBuilder);
       } else {
+        if (ENCChecker::IsUnsafeRegion(mirBuilder)) {
+          return args;
+        }
         if (op == OP_callassertle) {
           FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to callee that requires a boundary pointer"
                  " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
@@ -1837,15 +1838,9 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
                  FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
-        } else if (FEOptions::GetInstance().IsEnableSafeRegion() && op == OP_assertge) {
-          bool isSafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_safed);
-          if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
-            isSafe = FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
-          }
-          if (isSafe) {
-            FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
-                   FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
-          }
+        } else if (ENCChecker::IsSafeRegion(mirBuilder) && op == OP_assertge) {
+          FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
+                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
         }
         return args;
       }
@@ -2086,8 +2081,8 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
   }
 }
 
-void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr() const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *baseType = var->GetType()->GenerateMIRTypeAuto();
@@ -2097,11 +2092,36 @@ void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr() const {
   ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &baseType) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
   ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
+}
+
+// ---------------------------
+// process safe region
+// ---------------------------
+bool ENCChecker::IsSafeRegion(MIRBuilder &mirBuilder) {
+  bool isSafe = false;
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    isSafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_safed);
+    if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+      isSafe = FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+    }
+  }
+  return isSafe;
+}
+
+bool ENCChecker::IsUnsafeRegion(MIRBuilder &mirBuilder) {
+  bool isUnsafe = false;
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
+    if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+      isUnsafe = !FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+    }
+  }
+  return isUnsafe;
 }
 }

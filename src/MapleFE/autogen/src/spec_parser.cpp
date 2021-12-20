@@ -194,6 +194,10 @@ bool SPECParser::ParseElement(RuleElem *&elem, bool allowConcat) {
       elem = mBaseGen->NewRuleElem(RO_Zeroormore);
       status = ParseElementSet(elem);
       break;
+    case SPECTK_ASI:
+      elem = mBaseGen->NewRuleElem(RO_ASI);
+      status = ParseElementSet(elem);
+      break;
     case SPECTK_Char:
     {
       elem = mBaseGen->GetOrCreateRuleElemFromChar(mLexer->thechar);
@@ -299,8 +303,11 @@ RuleAction *SPECParser::GetAction() {
 
 bool SPECParser::ParseElementSet(RuleElem *elem) {
   SPECTokenKind optk = mLexer->GetToken();
-  if (!(optk == SPECTK_Oneof || optk == SPECTK_Zeroorone || optk == SPECTK_Zeroormore))
-    ParserError("expect ONEOF/ZEROORONE/ZEROORMORE but get ", mLexer->GetTokenString());
+  if (!(optk == SPECTK_Oneof
+        || optk == SPECTK_Zeroorone
+        || optk == SPECTK_Zeroormore
+        || optk == SPECTK_ASI))
+    ParserError("expect ONEOF/ZEROORONE/ZEROORMORE/ASI but get ", mLexer->GetTokenString());
 
   SPECTokenKind tk = mLexer->NextToken();
   if (tk != SPECTK_Lparen)
@@ -318,8 +325,8 @@ bool SPECParser::ParseElementSet(RuleElem *elem) {
     tk = mLexer->GetToken();
     if (optk == SPECTK_Oneof && tk == SPECTK_Coma)
       tk = mLexer->NextToken();
-    else if (optk == SPECTK_Zeroorone || optk == SPECTK_Zeroormore)
-      // SPECTK_Zeroorone and SPECTK_Zeroormore only allow one element
+    else if (optk == SPECTK_Zeroorone || optk == SPECTK_Zeroormore || optk == SPECTK_ASI)
+      // SPECTK_Zeroorone, SPECTK_Zeroormore and ASI only allow one element
       break;
   }
 

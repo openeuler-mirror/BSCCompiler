@@ -101,9 +101,6 @@ class AST_XXport {
 
   unsigned GetHandleIdxFromStrIdx(unsigned stridx);
 
-  // check if node is identifier with name "default"
-  bool IsDefault(TreeNode *node) { return node->GetStrIdx() == gStringPool.GetStrIdx("default"); }
-
   // check if node with id is imported decl
   bool IsImportedDeclId(unsigned hidx, unsigned id) {
     return (std::find(mImportedDeclIds[hidx].begin(),

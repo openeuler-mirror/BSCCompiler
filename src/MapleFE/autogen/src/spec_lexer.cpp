@@ -600,6 +600,10 @@ std::string SPECLexer::GetTokenString(SPECTokenKind thekind) {
       temp = "ZEROORMORE";
       break;
     }
+    case SPECTK_ASI: {
+      temp = "ASI";
+      break;
+    }
     case SPECTK_Concat: {
       temp = "+";
       break;
