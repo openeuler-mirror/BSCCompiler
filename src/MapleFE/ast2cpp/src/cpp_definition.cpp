@@ -1298,7 +1298,7 @@ std::string CppDef::EmitStructNode(StructNode *node) {
       std::string enumClsName;
       if (auto n = node->GetStructId()) {
         enumClsName = "Enum_"s + n->GetName();
-        str += enumClsName + "* "s + n->GetName() + " = new "s + enumClsName + "();\n"s;
+        str += n->GetName() + " = new "s + enumClsName + "();\n"s;
         return str;
       }
       break;

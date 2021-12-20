@@ -87,8 +87,19 @@ ARRAY_CTOR_DECL(double)
 ARRAY_CTOR_DECL(JS_Val)
 ARRAY_CTOR_DECL(Object)
 ARRAY_CTOR_DECL(ObjectP)
+
+class JSON : public Object {
+  // TODO
+};
+
+class RegExp : public Object {
+  // TODO
+};
+
 } // namespace t2crt
 
 using t2crt::Number_ctor;
 using t2crt::Record;
+using t2crt::JSON;
+using t2crt::RegExp;
 #endif // __BUILTINS_H__

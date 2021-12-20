@@ -11,9 +11,9 @@ class MyCar extends Car {
 
 let car = new Car("A car");
 let mycar = new MyCar("My car");
-let arr = []
+let arr = [1, 2, 3]
 
-function* generator() {}
+function* generator() { yield 1; }
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each objects
 for(let g = 0; g < 4; ++g) {
@@ -46,7 +46,8 @@ for(let g = 0; g < 4; ++g) {
   // Add edges for __proto__ and constructor properties of each objects
   num = objs.length;
   for(let i = 0; i < num; ++i) {
-    console.log("/* Object.getOwnPropertyNames(" + names[i] + "):\n", Object.getOwnPropertyNames(objs[i]), "*/");
+    console.log("\n/* Object.getOwnPropertyNames(" + names[i] + "):\n", Object.getOwnPropertyNames(objs[i]), "\n"
+      + names[i] + ".toString(): " + (names[i] === "Generator" ? "-" : objs[i].toString().replace(/\s+/g, " ")) + "\n*/");
     for(let j = 0; j < num; ++j) {
       // Edges for constructor properties in the second graph only
       if(g % 2 == 1 && objs[i].constructor === objs[j])

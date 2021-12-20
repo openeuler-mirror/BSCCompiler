@@ -293,6 +293,7 @@ public:
   bool TraverseOneof(RuleTable*, AppealNode*);
   bool TraverseZeroormore(RuleTable*, AppealNode*);
   bool TraverseZeroorone(RuleTable*, AppealNode*);
+  virtual bool TraverseASI(RuleTable*, AppealNode*) {return false;}
 
   // There are some special cases we can speed up the traversal.
   // 1. If the target is a token, we just need compare mCurToken with it.

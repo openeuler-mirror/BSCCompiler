@@ -520,6 +520,9 @@ ImportNode *BuildScopeVisitor::VisitImportNode(ImportNode *node) {
         ASTScope *modscp = mod->GetScope();
         bfnode->SetScope(modscp);
       }
+    } else if (bfnode) {
+      bfnode->SetScope(scope);
+      AddImportedDecl(scope, bfnode);
     }
   }
 
