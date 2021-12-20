@@ -25,10 +25,12 @@ ReservedGen::ReservedGen(const char *dfile, const char *hf, const char *cppf)
   ReservedOp oneof = {"ONEOF", RO_Oneof};
   ReservedOp zeroplus = {"ZEROORMORE", RO_Zeroormore};
   ReservedOp zeroorone = {"ZEROORONE", RO_Zeroorone};
+  ReservedOp asi = {"ASI", RO_ASI};
 
   mOps.push_back(oneof);
   mOps.push_back(zeroplus);
   mOps.push_back(zeroorone);
+  mOps.push_back(asi);
 }
 
 // Needs to override BaseGen::Run, since we dont need process

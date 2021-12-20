@@ -45,6 +45,8 @@ typedef enum EntryType {
   ET_Zeroormore, // zero or more of (...)
   ET_Zeroorone,  // zero or one ( ... )
   ET_Concatenate,// Elem + Elem + Elem
+  ET_ASI,        // Typescript Auto-Semicolon-Insertion. This is to
+                 // parse the missing simicolon of TS/JS
   ET_Data,       // data, further categorized into DT_Char, DT_String, ...
   ET_Null
 }EntryType;

@@ -135,6 +135,9 @@ std::string RuleGen::GetEntryTypeName(ElemType type, RuleOp op) {
     case RO_Concatenate:
       name = "ET_Concatenate";
       break;
+    case RO_ASI:
+      name = "ET_ASI";
+      break;
     default:
       MERROR("unknown RuleOp");
       break;
