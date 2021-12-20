@@ -13,15 +13,15 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-#ifndef MAPLE_LFO_INCLUDE_LFO_FUNCTION_H
-#define MAPLE_LFO_INCLUDE_LFO_FUNCTION_H
-#include "lfo_mir_nodes.h"
+#ifndef MAPLE_ME_INCLUDE_PME_FUNCTION_H
+#define MAPLE_ME_INCLUDE_PME_FUNCTION_H
+#include "pme_mir_extension.h"
 #include "me_ir.h"
 
 namespace maple {
 class MeFunction;
 
-class LfoWhileInfo {
+class PreMeWhileInfo {
  public:
   MIRSymbol *injectedIVSym = nullptr;   // the injected IV
   OriginalSt *ivOst = nullptr;          // the primary IV
@@ -31,51 +31,51 @@ class LfoWhileInfo {
   bool canConvertDoloop = false;
 };
 
-class LfoIfInfo {
+class PreMeIfInfo {
  public:
   LabelIdx endLabel = 0;   // the label that is out of the if statement
   LabelIdx elseLabel = 0;  // the label that is the begin of else branch
 };
 
-class LfoFunction {
+class PreMeFunction {
  public:
-  MemPool *lfomp;
-  MapleAllocator lfoAlloc;
+  MemPool *pmemp;
+  MapleAllocator pmeAlloc;
   MeFunction *meFunc;
   // key is label at beginning of lowered while code sequence
-  MapleMap<LabelIdx, LfoWhileInfo*> label2WhileInfo;
+  MapleMap<LabelIdx, PreMeWhileInfo*> label2WhileInfo;
   // key is target label of first conditional branch of lowered if code sequence
-  MapleMap<LabelIdx, LfoIfInfo*> label2IfInfo;
-  // for the labels that were created by lfo, we won't emit it
-  MapleSet<LabelIdx> lfoCreatedIfLabelSet;
-  MapleSet<LabelIdx> lfoCreatedWhileLabelSet;
+  MapleMap<LabelIdx, PreMeIfInfo*> label2IfInfo;
+  // for the labels that were created by PreMe, we won't emit it
+  MapleSet<LabelIdx> pmeCreatedIfLabelSet;
+  MapleSet<LabelIdx> pmeCreatedWhileLabelSet;
 
  public:
-  LfoFunction(MemPool *mp, MeFunction *func)
-      : lfomp(mp),
-        lfoAlloc(mp),
+  PreMeFunction(MemPool *mp, MeFunction *func)
+      : pmemp(mp),
+        pmeAlloc(mp),
         meFunc(func),
-        label2WhileInfo(lfoAlloc.Adapter()),
-        label2IfInfo(lfoAlloc.Adapter()),
-        lfoCreatedIfLabelSet(lfoAlloc.Adapter()),
-        lfoCreatedWhileLabelSet(lfoAlloc.Adapter()) {}
-  virtual ~LfoFunction() = default;
+        label2WhileInfo(pmeAlloc.Adapter()),
+        label2IfInfo(pmeAlloc.Adapter()),
+        pmeCreatedIfLabelSet(pmeAlloc.Adapter()),
+        pmeCreatedWhileLabelSet(pmeAlloc.Adapter()) {}
+  virtual ~PreMeFunction() = default;
 
-  void SetIfLabelCreatedByLfo(LabelIdx lbidx) {
-    lfoCreatedIfLabelSet.insert(lbidx);
+  void SetIfLabelCreatedByPreMe(LabelIdx lbidx) {
+    pmeCreatedIfLabelSet.insert(lbidx);
   }
 
-  bool IfLabelCreatedByLfo(LabelIdx lbidx) {
-    return lfoCreatedIfLabelSet.count(lbidx) != 0;
+  bool IfLabelCreatedByPreMe(LabelIdx lbidx) {
+    return pmeCreatedIfLabelSet.count(lbidx) != 0;
   }
 
-  void SetWhileLabelCreatedByLfo(LabelIdx lbidx) {
-    lfoCreatedWhileLabelSet.insert(lbidx);
+  void SetWhileLabelCreatedByPreMe(LabelIdx lbidx) {
+    pmeCreatedWhileLabelSet.insert(lbidx);
   }
 
-  bool WhileLabelCreatedByLfo(LabelIdx lbidx) {
-    return lfoCreatedWhileLabelSet.count(lbidx) != 0;
+  bool WhileLabelCreatedByPreMe(LabelIdx lbidx) {
+    return pmeCreatedWhileLabelSet.count(lbidx) != 0;
   }
 };
 }  // namespace maple
-#endif  // MAPLE_LFO_INCLUDE_LFO_FUNCTION_H
+#endif  // MAPLE_ME_INCLUDE_PME_FUNCTION_H

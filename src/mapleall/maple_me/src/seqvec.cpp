@@ -277,7 +277,7 @@ void SeqVectorize::DumpCandidates(MeExpr *base, StoreList *storelist) {
 
 void SeqVectorize::CollectStores(IassignNode *iassign) {
   // if no hass information, the node may be changed by loopvec, skip
-  if ((*lfoStmtParts)[iassign->GetStmtID()] == nullptr) return;
+  if ((*PreMeStmtExtensionMap)[iassign->GetStmtID()] == nullptr) return;
   // if point to type is not integer, skip
   MIRType &mirType = GetTypeFromTyIdx(iassign->GetTyIdx());
   CHECK_FATAL(mirType.GetKind() == kTypePointer, "iassign must have pointer type");
@@ -291,7 +291,7 @@ void SeqVectorize::CollectStores(IassignNode *iassign) {
     return;
   }
   // compare base address with store list
-  LfoPart *lfoP = (*lfoStmtParts)[iassign->GetStmtID()];
+  PreMeMIRExtension *lfoP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
   IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(lfoP->GetMeStmt());
   IvarMeExpr *ivarMeExpr = iassMeStmt->GetLHSVal();
   MeExpr *base = ivarMeExpr->GetBase();
@@ -441,10 +441,10 @@ bool SeqVectorize::IsIvarExprConsecutiveMem(IvarMeExpr *ivar1, IvarMeExpr *ivar2
 }
 
 bool SeqVectorize::CanSeqVec(IassignNode *s1, IassignNode *s2) {
-  LfoPart *lfoP1 = (*lfoStmtParts)[s1->GetStmtID()];
+  PreMeMIRExtension *lfoP1 = (*PreMeStmtExtensionMap)[s1->GetStmtID()];
   IassignMeStmt *iassMeStmt1 = static_cast<IassignMeStmt *>(lfoP1->GetMeStmt());
   IvarMeExpr *lhsMeExpr1 = iassMeStmt1->GetLHSVal();
-  LfoPart *lfoP2 = (*lfoStmtParts)[s2->GetStmtID()];
+  PreMeMIRExtension *lfoP2 = (*PreMeStmtExtensionMap)[s2->GetStmtID()];
   IassignMeStmt *iassMeStmt2 = static_cast<IassignMeStmt *>(lfoP2->GetMeStmt());
   IvarMeExpr *lhsMeExpr2 = iassMeStmt2->GetLHSVal();
   MIRType &mirType = GetTypeFromTyIdx(s1->GetTyIdx());
@@ -488,7 +488,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     MIRType *pvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vecType, PTY_ptr);
     iassign->SetTyIdx(pvecType->GetTypeIndex());
 
-    LfoPart *lfoP = (*lfoStmtParts)[iassign->GetStmtID()];
+    PreMeMIRExtension *lfoP = (*PreMeStmtExtensionMap)[iassign->GetStmtID()];
     BaseNode *parent = lfoP->GetParent();
     CHECK_FATAL(parent && parent->GetOpCode() == OP_block, "unexpect parent type");
     BlockNode *blockParent = static_cast<BlockNode *>(parent);

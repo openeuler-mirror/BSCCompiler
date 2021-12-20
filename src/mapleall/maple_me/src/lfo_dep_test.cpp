@@ -29,7 +29,7 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
         } else {
           outermostDoloopInfoVec.push_back(doloopInfo);
         }
-        LfoPart *lfopart = preEmit->GetLfoStmtPart(doloop->GetStmtID());
+        PreMeMIRExtension *lfopart = preEmit->GetPreMeStmtExtension(doloop->GetStmtID());
         MeStmt *meStmt = lfopart->GetMeStmt();
         doloopInfo->doloopBB = meStmt->GetBB();
         CreateDoloopInfo(doloop->GetDoBody(), doloopInfo);
@@ -295,7 +295,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
     } else {
       MapleMap<OStIdx, ChiMeNode *> *chiList = iassMeStmt->GetChiList();
       CHECK_FATAL(!chiList->empty(), "BuildOneArrayAccessDesc: no chi corresponding to iassign");
-      arryOst = depInfo->lfoFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiList->begin()->first);
+      arryOst = depInfo->preMeFunc->meFunc->GetMeSSATab()->GetOriginalStFromID(chiList->begin()->first);
     }
   } else {
     hasPtrAccess = true;
@@ -584,7 +584,7 @@ void LfoDepInfo::PerformDepTest() {
       continue;
     }
     doloopInfo->CreateArrayAccessDesc(doloopInfo->doloop->GetDoBody());
-    if (DEBUGFUNC(lfoFunc->meFunc)) {
+    if (DEBUGFUNC(preMeFunc->meFunc)) {
       LogInfo::MapleLogger() << "Innermost Doloop:";
       if (doloopInfo->hasPtrAccess) {
         LogInfo::MapleLogger() << " hasPtrAccess";
@@ -653,7 +653,7 @@ void LfoDepInfo::PerformDepTest() {
     doloopInfo->CreateDepTestLists();
     doloopInfo->TestDependences(&doloopInfo->outputDepTestList, true);
     doloopInfo->TestDependences(&doloopInfo->flowDepTestList, false);
-    if (DEBUGFUNC(lfoFunc->meFunc)) {
+    if (DEBUGFUNC(preMeFunc->meFunc)) {
       for (DepTestPair item : doloopInfo->outputDepTestList) {
         LogInfo::MapleLogger() << "Dep between L" << item.depTestPair.first << " and L" << item.depTestPair.second;
         if (!item.dependent) {
@@ -695,11 +695,11 @@ void LfoDepInfo::PerformDepTest() {
 bool MELfoDepTest::PhaseRun(MeFunction &f) {
   Dominance *dom = GET_ANALYSIS(MEDominance, f);
   ASSERT(dom != nullptr, "dominance phase has problem");
-  LfoPreEmitter *preEmit = GET_ANALYSIS(MELfoPreEmission, f);
+  PreMeEmitter *preEmit = GET_ANALYSIS(MEPreMeEmission, f);
   ASSERT(preEmit != nullptr, "lfo preemit phase has problem");
-  LfoFunction *lfoFunc = f.GetLfoFunc();
+  PreMeFunction *preMeFunc = f.GetPreMeFunc();
   MemPool *depTestMp = GetPhaseMemPool();
-  depInfo = depTestMp->New<LfoDepInfo>(depTestMp, lfoFunc, dom, preEmit);
+  depInfo = depTestMp->New<LfoDepInfo>(depTestMp, preMeFunc, dom, preEmit);
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n============== LFO_DEP_TEST =============" << '\n';
   }
@@ -707,14 +707,14 @@ bool MELfoDepTest::PhaseRun(MeFunction &f) {
   depInfo->PerformDepTest();
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "________________" << std::endl;
-    lfoFunc->meFunc->GetMirFunc()->Dump();
+    preMeFunc->meFunc->GetMirFunc()->Dump();
   }
   return depInfo;
 }
 
 void MELfoDepTest::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEDominance>();
-  aDep.AddRequired<MELfoPreEmission>();
+  aDep.AddRequired<MEPreMeEmission>();
   aDep.SetPreservedAll();
 }
 }  // namespace maple

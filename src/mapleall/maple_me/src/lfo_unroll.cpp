@@ -255,7 +255,7 @@ void LfoUnrollOneLoop::Process() {
   }
 
   // replace doloop by the statements in unrolledBlk
-  LfoPart *lfopart = (*preEmit->GetLfoStmtMap())[doloop->GetStmtID()];
+  PreMeMIRExtension *lfopart = (*preEmit->GetPreMeStmtExtensionMap())[doloop->GetStmtID()];
   BaseNode *parent = lfopart->GetParent();
   ASSERT(parent && (parent->GetOpCode() == OP_block), "LfoUnroll: parent of doloop is not OP_block");
   BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -266,11 +266,11 @@ void LfoUnrollOneLoop::Process() {
 };
 
 bool MELfoUnroll::PhaseRun(MeFunction &f) {
-  LfoPreEmitter *preEmit = GET_ANALYSIS(MELfoPreEmission, f);
+  PreMeEmitter *preEmit = GET_ANALYSIS(MEPreMeEmission, f);
   ASSERT(preEmit != nullptr, "lfo preemit phase has problem");
   LfoDepInfo *lfoDepInfo = GET_ANALYSIS(MELfoDepTest, f);
   ASSERT(lfoDepInfo != nullptr, "lfo dep test phase has problem");
-  LfoFunction *lfoFunc = f.GetLfoFunc();
+  PreMeFunction *preMeFunc = f.GetPreMeFunc();
   uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
 
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = lfoDepInfo->doloopInfoMap.begin();
@@ -278,7 +278,7 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
     if (!mapit->second->children.empty() || mapit->second->hasBeenVectorized) {
       continue;
     }
-    LfoUnrollOneLoop unroll(lfoFunc, preEmit, mapit->second);
+    LfoUnrollOneLoop unroll(preMeFunc, preEmit, mapit->second);
     unroll.Process();
   }
   if (DEBUGFUNC_NEWPM(f) && savedCountOfLoopsUnrolled != LfoUnrollOneLoop::countOfLoopsUnrolled) {
@@ -289,7 +289,7 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
 }
 
 void MELfoUnroll::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<MELfoPreEmission>();
+  aDep.AddRequired<MEPreMeEmission>();
   aDep.AddRequired<MELfoDepTest>();
   aDep.PreservedAllExcept<MEMeCfg>();
   aDep.PreservedAllExcept<MEDominance>();
