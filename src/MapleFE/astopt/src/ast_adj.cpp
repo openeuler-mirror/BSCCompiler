@@ -306,11 +306,6 @@ DeclNode *AdjustASTVisitor::VisitDeclNode(DeclNode *node) {
   return node;
 }
 
-// check if node is identifier with name "default"
-static bool IsDefault(TreeNode *node) {
-  return node->GetStrIdx() == gStringPool.GetStrIdx("default");
-}
-
 ImportNode *AdjustASTVisitor::VisitImportNode(ImportNode *node) {
   (void) AstVisitor::VisitImportNode(node);
 

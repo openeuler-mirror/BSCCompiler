@@ -35,6 +35,7 @@ typedef enum RuleOp {
   RO_Zeroormore, // zero or more of (...)
   RO_Zeroorone,  // zero or one ( ... )
   RO_Concatenate,// Elem + Elem + Elem
+  RO_ASI,        // Typescript/Javascript semicolon checking
   RO_Null
 } RuleOp;
 

@@ -222,8 +222,12 @@ class ImportExportModules : public AstVisitor {
                   emit = false;
                 }
                 else if (target != after) {
-                  if (a->GetTypeId() == TY_Namespace)
+                  auto t = a->GetTypeId();
+                  if (t == TY_Namespace)
                     mExports += "namespace __export { namespace "s + after + " = "s + module + "::"s + target + "; }\n"s;
+                  else if (t == TY_Function)
+                    mExports += "namespace __export { inline const decltype("s + target + ") &"s + after + " = "s
+                                + module + "::"s + target + "; }\n"s;
                   else
                     mExports += "namespace __export { using "s + after + " = "s + module + "::"s + target + "; }\n"s;
                   emit = false;
@@ -930,9 +934,10 @@ std::string CppDecl::EmitTSEnum(StructNode *node) {
   }
 
   str = "class "s;
-  std::string enumClsName;
+  std::string enumClsName, enumName;
   if (auto n = node->GetStructId()) {
-    enumClsName = "Enum_"s + GetIdentifierName(n);
+    enumName = GetIdentifierName(n);
+    enumClsName = "Enum_"s + enumName;
     str += enumClsName + " : public t2crt::Object {\n"s;
   }
   str += "  public:\n"s;
@@ -960,7 +965,9 @@ std::string CppDecl::EmitTSEnum(StructNode *node) {
   str += "    "s  + enumClsName + "() {};\n"s;
   str += "    ~"s + enumClsName + "() {};\n"s;
 
-  str += "};\n"s;
+  std::string def = enumClsName + "* "s + enumName + ";\n"s;
+  AddDefinition(def);
+  str += "};\nextern "s + def;
   return str;
 }
 

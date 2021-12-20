@@ -266,6 +266,7 @@ TResult LADetector::DetectRuleTable(RuleTable *rt, ContTreeNode<RuleTable*> *p) 
       break;
     case ET_Zeroorone:
     case ET_Zeroormore:
+    case ET_ASI:
       res = DetectZeroorXXX(rt, node);
       break;
     case ET_Concatenate:
@@ -351,7 +352,7 @@ TResult LADetector::DetectOneof(RuleTable *rule_table, ContTreeNode<RuleTable*> 
   return result;
 }
 
-// Zeroormore and Zeroorone has the same way to handle.
+// Zeroormore and Zeroorone and ASI has the same way to handle.
 TResult LADetector::DetectZeroorXXX(RuleTable *rule_table, ContTreeNode<RuleTable*> *tree_node) {
   TResult result = TRS_NA;
   MASSERT((rule_table->mNum == 1) && "zeroormore node has more than one elements?");

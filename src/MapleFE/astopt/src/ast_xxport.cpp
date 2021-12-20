@@ -154,6 +154,11 @@ void AST_XXport::CollectXXportInfo(unsigned hidx) {
   CollectExportInfo(hidx);
 }
 
+// check if node is identifier with name "default"
+static bool IsDefault(TreeNode *node) {
+  return node->GetStrIdx() == gStringPool.GetStrIdx("default");
+}
+
 void AST_XXport::CollectImportInfo(unsigned hidx) {
   Module_Handler *handler = mASTHandler->GetModuleHandler(hidx);
   ModuleNode *module = handler->GetASTModule();
@@ -217,6 +222,7 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
             NOTYETIMPL("failed to find the exported - default");
           }
         } else if (afnode) {
+          // import bfnode as afnode
           TreeNode *exported = FindExportedDecl(targethidx, bfnode->GetStrIdx());
           if (!exported) {
             NOTYETIMPL("need to extract exported - bfnode M.x");
@@ -229,10 +235,29 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
           bfnode->SetTypeIdx(tid);
           afnode->SetTypeId(tid);
           afnode->SetTypeIdx(tid);
+        } else if (bfnode) {
+          // import bfnode
+          TreeNode *exported = FindExportedDecl(targethidx, bfnode->GetStrIdx());
+          if (!exported) {
+            NOTYETIMPL("need to extract exported - bfnode M.x");
+            exported = bfnode;
+          }
+          std::pair<unsigned, unsigned> pnid(exported->GetNodeId(), bfnode->GetNodeId());
+          info->mNodeIdPairs.insert(pnid);
+          TypeId tid = exported->GetTypeId();
+          bfnode->SetTypeId(tid);
+          bfnode->SetTypeIdx(tid);
         } else {
           NOTYETIMPL("failed to find the exported");
         }
       }
+      // add afnode, bfnode as a decl
+      if (afnode) {
+        AddImportedDeclIds(handler->GetHidx(), afnode->GetNodeId());
+        handler->AddNodeId2DeclMap(afnode->GetNodeId(), afnode);
+      }
+      AddImportedDeclIds(handler->GetHidx(), bfnode->GetNodeId());
+      handler->AddNodeId2DeclMap(bfnode->GetNodeId(), bfnode);
     }
 
     mImports[hidx].insert(info);

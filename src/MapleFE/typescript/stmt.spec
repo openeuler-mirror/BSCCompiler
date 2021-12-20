@@ -1041,7 +1041,7 @@ rule EmptyStatement : ';'
 ##  [lookahead NotIn {{, function, class, let [}] Expression[In, ?Yield] ;
 
 rule ExpressionStatement : ONEOF(
-                                 ConditionalExpression + ';',
+                                 ConditionalExpression + ASI(';'),
                                  YieldExpression + ';',
                                  ArrowFunction + ';',
                                  LeftHandSideExpression + '=' + AssignmentExpression + ZEROORONE(';'),
