@@ -55,5 +55,5 @@ for(let g = 0; g < 6; ++g) {
     if (key.__proto__ !== "undefined" && key.__proto__ !== null)
         console.log(value + " -> " + graph.get(key.__proto__) + " [label=\"__proto__\", color=red, fontcolor=red];");
   }
-  console.log("}");
+  console.log("} // digraph JS" + g);
 }
