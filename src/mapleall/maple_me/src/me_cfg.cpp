@@ -1452,8 +1452,8 @@ void MeCFG::CreateBasicBlocks() {
             SetBBTryNodeMap(*newBB, *tryStmt);
           }
           curBB = newBB;
-        } else if (func.GetPreMeFunc() &&
-                    (func.GetPreMeFunc()->label2WhileInfo.find(labelIdx) != func.GetPreMeFunc()->label2WhileInfo.end())) {
+        } else if (func.GetPreMeFunc() && (func.GetPreMeFunc()->label2WhileInfo.find(labelIdx) !=
+                                           func.GetPreMeFunc()->label2WhileInfo.end())) {
           curBB->SetKind(kBBFallthru);
           BB *newBB = NewBasicBlock();
           if (tryStmt != nullptr) {

@@ -1990,12 +1990,6 @@ void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const
   }
   std::list<UniqueFEIRStmt> nullStmts;
   UniqueFEIRExpr realLenExpr = nullptr;
-  if (funcName == "malloc" && args.size() == 1) {
-    realLenExpr = args[0]->Emit2FEExpr(nullStmts);
-  }
-  if (funcName == "calloc" && args.size() == 2) {
-    realLenExpr = args[1]->Emit2FEExpr(nullStmts);
-  }
   if (funcDecl != nullptr && funcDecl->GetBoundaryLenExpr() != nullptr) {  // call
     realLenExpr = ENCChecker::GetRealBoundaryLenExprInFunc(
         funcDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);

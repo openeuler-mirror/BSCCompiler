@@ -37,7 +37,6 @@ class LibMapleAstFile {
 
  private:
   maplefe::AST_Handler handler;
-  std::map<unsigned, MIRType*> typeMap;
 };
 } // namespace maple
 #endif // MAPLE_AST_INTERFACE_H
