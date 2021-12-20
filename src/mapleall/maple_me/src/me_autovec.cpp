@@ -26,7 +26,7 @@
 namespace maple {
 bool MEAutoVectorization::PhaseRun(MeFunction &f) {
   // generate lfo IR
-  LfoPreEmitter *lfoemit = GET_ANALYSIS(MELfoPreEmission, f);
+  PreMeEmitter *lfoemit = GET_ANALYSIS(MEPreMeEmission, f);
   CHECK_NULL_FATAL(lfoemit);
 
   if (MeOption::loopVec) {
@@ -63,7 +63,7 @@ bool MEAutoVectorization::PhaseRun(MeFunction &f) {
 }
 
 void MEAutoVectorization::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
-  aDep.AddRequired<MELfoPreEmission>();
+  aDep.AddRequired<MEPreMeEmission>();
   aDep.AddRequired<MELfoDepTest>();
   aDep.PreservedAllExcept<MEDominance>();
   aDep.PreservedAllExcept<MELoopAnalysis>();

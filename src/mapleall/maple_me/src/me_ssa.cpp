@@ -116,20 +116,20 @@ void MeSSA::VerifySSA() const {
 
 void MeSSA::InsertIdentifyAssignments(IdentifyLoops *identloops) {
   MIRBuilder *mirbuilder = func->GetMIRModule().GetMIRBuilder();
-  LfoFunction *lfoFunc = func->GetLfoFunc();
+  PreMeFunction *preMeFunc = func->GetPreMeFunc();
   SSATab *ssatab = func->GetMeSSATab();
 
   for (LoopDesc *aloop : identloops->GetMeLoops()) {
     BB *headbb = aloop->head;
-    // check if the label has associated LfoWhileInfo
+    // check if the label has associated PreMeWhileInfo
     if (headbb->GetBBLabel() == 0) {
       continue;
     }
     if (aloop->exitBB == nullptr) {
       continue;
     }
-    MapleMap<LabelIdx, LfoWhileInfo*>::iterator it = lfoFunc->label2WhileInfo.find(headbb->GetBBLabel());
-    if (it == lfoFunc->label2WhileInfo.end()) {
+    MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
+    if (it == preMeFunc->label2WhileInfo.end()) {
       continue;
     }
     if (headbb->GetPred().size() != 2) {

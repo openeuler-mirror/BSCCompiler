@@ -13,25 +13,26 @@
  * See the MulanPSL - 2.0 for more details.
  */
 
-#ifndef MAPLE_ME_INCLUDE_LFO_MIR_LOWER_H
-#define MAPLE_ME_INCLUDE_LFO_MIR_LOWER_H
+#ifndef MAPLE_ME_INCLUDE_PME_MIR_LOWER_H
+#define MAPLE_ME_INCLUDE_PME_MIR_LOWER_H
 #include "mir_lower.h"
 #include "me_function.h"
 namespace maple {
-class LFOMIRLower : public MIRLower {
+class PreMeMIRLower : public MIRLower {
  public:
   MeFunction *func;
-  LfoFunction *lfoFunc;
+  PreMeFunction *preMeFunc;
 
  public:
-  LFOMIRLower(MIRModule &mod, MeFunction *f)
+  PreMeMIRLower(MIRModule &mod, MeFunction *f)
       : MIRLower(mod, f->GetMirFunc()),
         func(f),
-        lfoFunc(f->GetLfoFunc()) {}
+        preMeFunc(f->GetPreMeFunc()) {}
+  virtual ~PreMeMIRLower() = default;
 
   BlockNode *LowerWhileStmt(WhileStmtNode&) override;
   BlockNode *LowerIfStmt(IfStmtNode &ifstmt, bool recursive = true) override;
   bool InLFO() const override { return true; }
 };
 }
-#endif  // MAPLE_ME_INCLUDE_LFO_MIR_LOWER_H
+#endif  // MAPLE_ME_INCLUDE_PME_MIR_LOWER_H

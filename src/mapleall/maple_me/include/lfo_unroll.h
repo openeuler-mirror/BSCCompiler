@@ -16,8 +16,8 @@
 #ifndef MAPLE_ME_INCLUDE_LFO_UNROLL_H
 #define MAPLE_ME_INCLUDE_LFO_UNROLL_H
 
-#include "lfo_function.h"
-#include "lfo_pre_emit.h"
+#include "pme_function.h"
+#include "pme_emit.h"
 #include "lfo_dep_test.h"
 #include "orig_symbol.h"
 #include "me_ir.h"
@@ -26,8 +26,8 @@ namespace maple {
 
 class LfoUnrollOneLoop {
  public:
-  LfoUnrollOneLoop(LfoFunction *f, LfoPreEmitter *preEm, DoloopInfo *doinfo) :
-        lfoFunc(f), preEmit(preEm), doloopInfo(doinfo), doloop(doinfo->doloop),
+  LfoUnrollOneLoop(PreMeFunction *f, PreMeEmitter *preEm, DoloopInfo *doinfo) :
+        preMeFunc(f), preEmit(preEm), doloopInfo(doinfo), doloop(doinfo->doloop),
         mirModule(&f->meFunc->GetMIRModule()), codeMP(preEm->GetCodeMP()),
         mirBuilder(mirModule->GetMIRBuilder()) {}
   ~LfoUnrollOneLoop() = default;
@@ -38,8 +38,8 @@ class LfoUnrollOneLoop {
   BlockNode *DoUnroll(size_t times, size_t tripCount);
   void Process();
 
-  LfoFunction *lfoFunc;
-  LfoPreEmitter *preEmit;
+  PreMeFunction *preMeFunc;
+  PreMeEmitter *preEmit;
   DoloopInfo *doloopInfo;
   DoloopNode *doloop;
   MIRModule *mirModule;

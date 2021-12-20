@@ -1368,7 +1368,7 @@ void LoopVectorization::VectorizeStmt(BaseNode *node, LoopTransPlan *tp) {
       //  sum = sum +/- intrinsic_op vec_sum(t1)
       DassignNode *dassign = static_cast<DassignNode *>(node);
       MapleVector<BaseNode *> vecOpnd(localAlloc.Adapter());
-      LfoPart *lfopart = (*lfoStmtParts)[dassign->GetStmtID()];
+      PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[dassign->GetStmtID()];
       BlockNode *doloopbody = static_cast<BlockNode *>(lfopart->GetParent());
       RegreadNode *regReadlhsvec;
       if (tp->vecInfo->redVecNodes.find(dassign->GetStIdx()) != tp->vecInfo->redVecNodes.end()) {
@@ -1462,14 +1462,14 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
 
   // step 2: insert dup stmt before doloop
   if (!tp->vecInfo->uniformNodes.empty()) {
-    LfoPart *lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
     auto it = tp->vecInfo->uniformNodes.begin();
     for (; it != tp->vecInfo->uniformNodes.end(); it++) {
       BaseNode *node = *it;
-      LfoPart *lfoP = (*lfoExprParts)[node];
+      PreMeMIRExtension *lfoP = (*PreMeExprExtensionMap)[node];
       // check node's parent, if they are binary node, skip the duplication
       if ((!lfoP->GetParent()->IsBinaryNode()) || (node->GetOpCode() == OP_iread)) {
         PrimType ptype =  (node->GetOpCode() == OP_iread) ?
@@ -1508,7 +1508,7 @@ void LoopVectorization::VectorizeDoLoop(DoloopNode *doloop, LoopTransPlan *tp) {
   // step 4: insert stmts before/after doloop
   if (!tp->vecInfo->beforeLoopStmts.empty() ||
       !tp->vecInfo->afterLoopStmts.empty()) {
-    LfoPart *lfopart = (*lfoStmtParts)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfopart = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
     BaseNode *parent = lfopart->GetParent();
     ASSERT(parent && (parent->GetOpCode() == OP_block), "nullptr check");
     BlockNode *pblock = static_cast<BlockNode *>(parent);
@@ -1547,7 +1547,7 @@ DoloopNode *LoopVectorization::PrepareDoloop(DoloopNode *doloop, LoopTransPlan *
     // update loop low bound
     edoloop->SetStartExpr(tp->eBound->lowNode);
     // add epilog after doloop
-    LfoPart *lfoInfo = (*lfoStmtParts)[doloop->GetStmtID()];
+    PreMeMIRExtension *lfoInfo = (*PreMeStmtExtensionMap)[doloop->GetStmtID()];
     ASSERT(lfoInfo, "nullptr check");
     BaseNode *parent = lfoInfo->GetParent();
     ASSERT(parent && (parent->GetOpCode() ==  OP_block), "nullptr check");
@@ -1577,7 +1577,7 @@ bool LoopVectorization::ExprVectorizable(DoloopInfo *doloopInfo, LoopVecInfo* ve
     case OP_constval:
     case OP_dread:
     case OP_addrof: {
-      LfoPart* lfopart = (*lfoExprParts)[x];
+      PreMeMIRExtension* lfopart = (*PreMeExprExtensionMap)[x];
       CHECK_FATAL(lfopart, "nullptr check");
       BaseNode *parent = lfopart->GetParent();
       if (parent && parent->GetOpCode() == OP_array) {

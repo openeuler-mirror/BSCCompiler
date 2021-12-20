@@ -29,22 +29,22 @@ bool MELfoInjectIV::PhaseRun(MeFunction &f) {
 
   uint32 ivCount = 0;
   MIRBuilder *mirbuilder = f.GetMIRModule().GetMIRBuilder();
-  LfoFunction *lfoFunc = f.GetLfoFunc();
+  PreMeFunction *preMeFunc = f.GetPreMeFunc();
 
   for (LoopDesc *aloop : identloops->GetMeLoops()) {
     BB *headbb = aloop->head;
-    // check if the label has associated LfoWhileInfo
+    // check if the label has associated PreMeWhileInfo
     if (headbb->GetBBLabel() == 0) {
       continue;
     }
     if (headbb->GetPred().size() != 2) {
       continue;  // won't insert IV for loops with > 1 tail bbs
     }
-    MapleMap<LabelIdx, LfoWhileInfo*>::iterator it = lfoFunc->label2WhileInfo.find(headbb->GetBBLabel());
-    if (it == lfoFunc->label2WhileInfo.end()) {
+    MapleMap<LabelIdx, PreMeWhileInfo*>::iterator it = preMeFunc->label2WhileInfo.find(headbb->GetBBLabel());
+    if (it == preMeFunc->label2WhileInfo.end()) {
       continue;
     }
-    LfoWhileInfo *whileInfo = it->second;
+    PreMeWhileInfo *whileInfo = it->second;
     // find the entry BB as the predecessor of headbb that dominates headbb
     MapleVector<BB*>::iterator predit = headbb->GetPred().begin();
     for (; predit != headbb->GetPred().end(); predit++) {

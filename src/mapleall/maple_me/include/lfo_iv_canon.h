@@ -16,10 +16,10 @@
 #ifndef MAPLE_ME_INCLUDE_LFO_IV_CANON_H
 #define MAPLE_ME_INCLUDE_LFO_IV_CANON_H
 
-#include "lfo_function.h"
+#include "pme_function.h"
 #include "me_loop_analysis.h"
-#include "me_irmap.h"
-#include "me_phase.h"
+#include "me_irmap_build.h"
+#include "maple_phase.h"
 
 namespace maple {
 // describe characteristics of one IV
@@ -35,6 +35,7 @@ class IVDesc {
     MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
     primType = mirType->GetPrimType();
   }
+  virtual ~IVDesc() = default;
 };
 
 // this is for processing a single loop
@@ -47,15 +48,16 @@ class IVCanon {
   SSATab *ssatab;
   LoopDesc *aloop;
   uint32 loopID;
-  LfoWhileInfo *whileInfo;
+  PreMeWhileInfo *whileInfo;
   MapleVector<IVDesc *> ivvec;
   int32 idxPrimaryIV = -1;      // the index in ivvec of the primary IV
   MeExpr *tripCount = nullptr;
 
  public:
-  IVCanon(MemPool *m, MeFunction *f, Dominance *dom, LoopDesc *ldesc, uint32 id, LfoWhileInfo *winfo)
+  IVCanon(MemPool *m, MeFunction *f, Dominance *dom, LoopDesc *ldesc, uint32 id, PreMeWhileInfo *winfo)
       : mp(m), alloc(m), func(f), dominance(dom), ssatab(f->GetMeSSATab()),
         aloop(ldesc), loopID(id), whileInfo(winfo), ivvec(alloc.Adapter()) {}
+  virtual ~IVCanon() = default;
   bool ResolveExprValue(MeExpr *x, ScalarMeExpr *philhs);
   int32 ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearances);
   void CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackversion, ScalarMeExpr *philhs);
@@ -69,18 +71,6 @@ class IVCanon {
   std::string PhaseName() const { return "ivcanon"; }
 };
 
-class DoLfoIVCanon : public MeFuncPhase {
- public:
-  explicit DoLfoIVCanon(MePhaseID id) : MeFuncPhase(id) {}
-
-  ~DoLfoIVCanon() {}
-
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *m, ModuleResultMgr *moduleResMgr) override;
-
-  std::string PhaseName() const override { return "ivcanon"; }
-
- private:
-  void IVCanonLoop(LoopDesc *aloop, LfoWhileInfo *whileInfo);
-};
+MAPLE_FUNC_PHASE_DECLARE(MELfoIVCanon, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_LFO_IV_CANON_H
