@@ -32,16 +32,16 @@ async function* asyncGenerator() {}
  const agpt = asyncGenerator.prototype.__proto__;
 
 // All data for generating graphs
-let data = [
-  ["Classes",   ["Array", "arr", "myCar", "car"]],
-  ["Generator", ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
-                 [gpt.__proto__, "IteratorPrototype"], [gpt.constructor, "Generator"]]],
-  ["Builtins",  ["Symbol", "Math", "JSON", "Promise"]],
-  ["Closure",   ["makeClosure", "closure"]],
-  ["Iterators", ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]]],
-  ["Async",     ["asyncFunc", "asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
-                 [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]]],
-];
+let data = {
+  Classes  : ["Array", "arr", "myCar", "car"],
+  Generator: ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
+              [gpt.__proto__, "IteratorPrototype"], [gpt.constructor, "Generator"]],
+  Builtins : ["Symbol", "Math", "JSON", "Promise"],
+  Closure  : ["makeClosure", "closure"],
+  Iterators: ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
+  Async    : ["asyncFunc", "asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
+              [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]],
+};
 
 // Gather all reachable objects from their prototype, __proto__ and constructor properties
 function insert(g, depth, ...args) {
@@ -67,12 +67,11 @@ function insert(g, depth, ...args) {
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
 let nodejs = (typeof process !== 'undefined') && (process.release.name === 'node')
-for (let entry of data) {
-  let [title, objs] = entry;
+for (let prop in data) {
   let graph = new Map();
-  insert(graph, 0, "Function", "Object", ...objs);
+  insert(graph, 0, "Function", "Object", ...data[prop]);
   for (let ctor of ["", "_with_ctors"]) {
-    console.log("digraph JS_" + title + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
+    console.log("digraph JS_" + prop + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
     for (let [key, value] of graph) {
       // Add comments with detailed information of keys
       if (nodejs)
@@ -91,6 +90,6 @@ for (let entry of data) {
       if (key.__proto__ !== "undefined" && key.__proto__ !== null)
         console.log(value + " -> " + graph.get(key.__proto__) + " [label=\"__proto__\", color=red, fontcolor=red];");
     }
-    console.log("} // digraph JS_" + title + ctor);
+    console.log("} // digraph JS_" + prop + ctor);
   }
 }
