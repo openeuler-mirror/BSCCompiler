@@ -19,10 +19,6 @@
 
 namespace maplebe {
 uint32 CGSSAInfo::SSARegNObase = 100;
-void VRegVersion::SetNewSSAOpnd(RegOperand &regOpnd) {
-  ssaRegOpnd = &regOpnd;
-}
-
 void CGSSAInfo::ConstructSSA() {
   InsertPhiInsn();
   /* Rename variables */

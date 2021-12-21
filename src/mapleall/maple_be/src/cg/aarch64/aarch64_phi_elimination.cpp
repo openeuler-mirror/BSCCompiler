@@ -100,7 +100,8 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
     newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
   }
 
-  MaintainRematInfo(newReg, ssaOpnd, static_cast<AArch64Insn&>(curInsn).CopyOperands() >= 0);
+  MaintainRematInfo(newReg, ssaOpnd,
+      ssaVersion->GetVersionIdx() == GetSSAInfo()->GetVersionNOOfOriginalVreg(ssaVersion->GetOriginalRegNO()));
   newReg.SetOpndOutOfSSAForm();
   return newReg;
 }

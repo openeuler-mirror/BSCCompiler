@@ -2049,14 +2049,21 @@ void IVOptimizer::UseReplace() {
         }
       } else {
         ratio = ComputeRatioOfStep(*cand->iv->step, *use->iv->step);
+        extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, ratio, replaced);
         if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
-          // use inc version to replace
-          auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
-                                                    *cand->iv->base, *cand->iv->step);
-          extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, ratio, replaced);
-          replace = cand->incVersion;
-        } else {
-          extraExpr = ComputeExtraExprOfBase(*cand->iv->base, *use->iv->base, ratio, replaced);
+          if (extraExpr == nullptr || (extraExpr->IsLeaf() && extraExpr->GetMeOp() != kMeOpConst)) {
+            auto *tmpExpr = irMap->CreateRegMeExpr(use->expr->GetPrimType());
+            auto *assignStmt = irMap->CreateAssignMeStmt(*tmpExpr, *use->expr, *incPos->GetBB());
+            incPos->GetBB()->InsertMeStmtBefore(incPos, assignStmt);
+            irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmpExpr);
+            use->stmt = assignStmt;
+          } else {
+            // use inc version to replace
+            auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
+                                                      *cand->iv->base, *cand->iv->step);
+            extraExpr = ComputeExtraExprOfBase(*newBase, *use->iv->base, ratio, replaced);
+            replace = cand->incVersion;
+          }
         }
       }
       ASSERT(replaced, "should have been replaced");
@@ -2326,6 +2333,10 @@ void IVOptimizer::Run() {
     auto *loop = loops->GetMeLoops()[i];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
+      continue;
+    }
+    if (loop->loopBBs.size() > 60) {
+      // just skip now because we can hardly get register pressure
       continue;
     }
     data = new IVOptData(ivoptMP);
