@@ -81,7 +81,7 @@ function generateGraph(data) {
         if (nodejs)
           console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + val + "):\n", Object.getOwnPropertyNames(key),
             "\n" + val + ".toString(): " + (func ? key.toString().replace(/\s+/g, " ") : "-") + "\n*/");
-        console.log(val + " [label=\"" + val + " " + index + "\", shape="
+        console.log(val + " [label=\"" + val + " " + (index < 4 ? 3 - index : index) + "\", shape="
           + (val.includes("Prototype") ? "box" : "oval") + (func ? ", style=filled" : "") + "];");
         // Add edges for prototype, constructor and __proto__ properties of objects
         for (let [f, c] of [["prototype", "blue"], ["constructor", "darkgreen"], ["__proto__", "red"]])
