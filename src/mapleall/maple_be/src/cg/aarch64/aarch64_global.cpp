@@ -1414,8 +1414,9 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
 }
 
 /* first use must match SelectExtendOrShift */
-bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
-  Operand &defSrcOpnd = def.GetOperand(kInsnSecondOpnd);
+bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
+  AArch64RegOperand &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
+  Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
   AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
   if (regDefSrc.IsPhysicalRegister()) {
@@ -1429,9 +1430,13 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
     return false;
   }
   Insn *defSrcInsn = *defSrcSet.begin();
-  if (def.GetBB() == use.GetBB()) {
+  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defSrcInsn)->GetMachineOpcode()];
+  if ((size != regOperand.GetSize()) && md->IsMove()) {
+    return false;
+  }
+  if (defInsn->GetBB() == use.GetBB()) {
     /* check replace reg def between defInsn and currInsn */
-    Insn *tmpInsn = def.GetNext();
+    Insn *tmpInsn = defInsn->GetNext();
     while (tmpInsn != &use) {
       if (tmpInsn == defSrcInsn || tmpInsn == nullptr) {
         return false;
@@ -1439,10 +1444,10 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
       tmpInsn = tmpInsn->GetNext();
     }
   } else { /* def use not in same BB */
-    if (defSrcInsn->GetBB() != def.GetBB()) {
+    if (defSrcInsn->GetBB() != defInsn->GetBB()) {
       return false;
     }
-    if (defSrcInsn->GetId() > def.GetId()) {
+    if (defSrcInsn->GetId() > defInsn->GetId()) {
       return false;
     }
   }
@@ -1452,8 +1457,8 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, Insn &def) {
    * --->
    * eor w0, w2, w0, lsl 5
    */
-  if (defSrcInsn == &def) {
-    InsnSet replaceRegUseSet = cgFunc.GetRD()->FindUseForRegOpnd(def, defSrcRegNo, true);
+  if (defSrcInsn == defInsn) {
+    InsnSet replaceRegUseSet = cgFunc.GetRD()->FindUseForRegOpnd(*defInsn, defSrcRegNo, true);
     if (replaceRegUseSet.size() != k1BitSize) {
       return false;
     }
@@ -1626,7 +1631,7 @@ bool ExtendShiftOptPattern::CheckCondition(Insn &insn) {
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
     return false;
   }
-  return CheckDefUseInfo(insn, *defInsn);
+  return CheckDefUseInfo(insn, regOperand.GetSize());
 }
 
 void ExtendShiftOptPattern::Init() {
