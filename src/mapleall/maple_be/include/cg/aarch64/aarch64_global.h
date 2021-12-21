@@ -324,7 +324,7 @@ class ExtendShiftOptPattern : public OptimizePattern {
 
  private:
   void SelectExtendOrShift(const Insn &def);
-  bool CheckDefUseInfo(Insn &use, Insn &def);
+  bool CheckDefUseInfo(Insn &use, uint32 size);
   SuffixType CheckOpType(Operand &lastOpnd);
   void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
   void SetExMOpType(Insn &use);
