@@ -10,7 +10,7 @@ class MyCar extends Car {
 }
 
 let car = new Car("A car");
-let mycar = new MyCar("My car");
+let myCar = new MyCar("My car");
 let arr = [1, 2, 3]
 
 function* generator() { yield 1; }
@@ -23,13 +23,18 @@ function makeClosure(a) {
 }
 const closure = makeClosure(1);
 
+let myMap = new Map();
+let myMapIterator = myMap[Symbol.iterator]();
+let MapIteratorPrototype = Object.getPrototypeOf(new Map()[Symbol.iterator]());
+
 // All data for generating graphs
 let data = [
-  ["Classes",   ["Array", "arr", "mycar", "car"]],
+  ["Classes",   ["Array", "arr", "myCar", "car"]],
   ["Generator", ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
                  [gpt.__proto__, "IteratorPrototype"], [gpt.constructor, "Generator"]]],
   ["Builtins",  ["Symbol", "Math", "JSON", "Promise"]],
   ["Closure",   ["makeClosure", "closure"]],
+  ["Iterators", ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]]],
 ];
 
 // Gather all reachable objects from their prototype, __proto__ and constructor properties
@@ -43,12 +48,15 @@ function insert(g, depth, ...args) {
       } else if (name !== null)
         g.set(o, name);
   }
-  if (depth === 0)
-    for (let [index, entry] of Array.from(g).entries())
-      if (entry[1] === null) // Fix up every object with null as its name
-        g.set(entry[0], "Object_" + index);
-      else
-        g.set(entry[0], entry[1].replace(/[^\w]/g, "_"));
+  if (depth === 0) {
+    let visited = new Set();
+    for (let [index, [key, value]] of Array.from(g).entries()) {
+      value = value === null || value === "" ? "Object_" + index : value.replace(/[^A-Za-z0-9]+/g, "_");
+      if (visited.has(value)) value += "__" + index;
+      visited.add(value);
+      g.set(key, value);
+    }
+  }
 }
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
