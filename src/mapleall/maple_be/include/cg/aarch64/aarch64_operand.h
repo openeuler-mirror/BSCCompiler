@@ -220,11 +220,12 @@ class AArch64ImmOperand : public ImmOperand {
   bool isFmov;
 };
 
-class ImmFPZeroOperand : public Operand {
+class ImmFPZeroOperand : public OperandVisitable<ImmFPZeroOperand> {
  public:
-  explicit ImmFPZeroOperand(uint32 sz) : Operand(kOpdFPZeroImmediate, uint8(sz)) {}
+  explicit ImmFPZeroOperand(uint32 sz) : OperandVisitable(kOpdFPZeroImmediate, uint8(sz)) {}
 
   ~ImmFPZeroOperand() override = default;
+  using OperandVisitable<ImmFPZeroOperand>::OperandVisitable;
 
   static ImmFPZeroOperand *allocate(uint8 sz) {
     CHECK_FATAL((sz == k32BitSize || sz == k64BitSize), "half-precession is yet to be supported");
@@ -360,12 +361,13 @@ class AArch64OfstOperand : public OfstOperand {
 };
 
 /* representing for global variables address */
-class StImmOperand : public Operand {
+class StImmOperand : public OperandVisitable<StImmOperand> {
  public:
   StImmOperand(const MIRSymbol &symbol, int64 offset, int32 relocs)
-      : Operand(kOpdStImmediate, 0), symbol(&symbol), offset(offset), relocs(relocs) {}
+      : OperandVisitable(kOpdStImmediate, 0), symbol(&symbol), offset(offset), relocs(relocs) {}
 
   ~StImmOperand() override = default;
+  using OperandVisitable<StImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<StImmOperand>(*this);
@@ -436,11 +438,12 @@ class FunctionLabelOperand : public LabelOperand {
 };
 
 /* Use StImmOperand instead? */
-class FuncNameOperand : public Operand {
+class FuncNameOperand : public OperandVisitable<FuncNameOperand> {
  public:
-  explicit FuncNameOperand(const MIRSymbol &fsym) : Operand(kOpdBBAddress, 0), symbol(&fsym) {}
+  explicit FuncNameOperand(const MIRSymbol &fsym) : OperandVisitable(kOpdBBAddress, 0), symbol(&fsym) {}
 
   ~FuncNameOperand() override = default;
+  using OperandVisitable<FuncNameOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<FuncNameOperand>(*this);
@@ -902,11 +905,12 @@ class AArch64PhiOperand : public PhiOperand {
   void Dump() const override;
 };
 
-class CondOperand : public Operand {
+class CondOperand : public OperandVisitable<CondOperand> {
  public:
-  explicit CondOperand(AArch64CC_t cc) : Operand(Operand::kOpdCond, k4ByteSize), cc(cc) {}
+  explicit CondOperand(AArch64CC_t cc) : OperandVisitable(Operand::kOpdCond, k4ByteSize), cc(cc) {}
 
   ~CondOperand() override = default;
+  using OperandVisitable<CondOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.New<CondOperand>(cc);
@@ -933,7 +937,7 @@ class CondOperand : public Operand {
 };
 
 /* used with MOVK */
-class LogicalShiftLeftOperand : public Operand {
+class LogicalShiftLeftOperand : public OperandVisitable<LogicalShiftLeftOperand> {
  public:
   /*
    * Do not make the constructor public unless you are sure you know what you are doing.
@@ -941,9 +945,10 @@ class LogicalShiftLeftOperand : public Operand {
    * as part of initialization
    */
   LogicalShiftLeftOperand(uint32 amt, int32 bitLen)
-      : Operand(Operand::kOpdShift, bitLen), shiftAmount(amt) {} /* bitlength is equal to 4 or 6 */
+      : OperandVisitable(Operand::kOpdShift, bitLen), shiftAmount(amt) {} /* bitlength is equal to 4 or 6 */
 
   ~LogicalShiftLeftOperand() override = default;
+  using OperandVisitable<LogicalShiftLeftOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<LogicalShiftLeftOperand>(*this);
@@ -982,7 +987,7 @@ class LogicalShiftLeftOperand : public Operand {
   uint32 shiftAmount;
 };
 
-class ExtendShiftOperand : public Operand {
+class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
  public:
   /* if and only if at least one register is WSP, ARM Recommends use of the LSL operator name rathe than UXTW */
   enum ExtendOp : uint8 {
@@ -998,9 +1003,10 @@ class ExtendShiftOperand : public Operand {
   };
 
   ExtendShiftOperand(ExtendOp op, uint32 amt, int32 bitLen)
-      : Operand(Operand::kOpdExtend, bitLen), extendOp(op), shiftAmount(amt) {}
+      : OperandVisitable(Operand::kOpdExtend, bitLen), extendOp(op), shiftAmount(amt) {}
 
   ~ExtendShiftOperand() override = default;
+  using OperandVisitable<ExtendShiftOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<ExtendShiftOperand>(*this);
@@ -1025,7 +1031,7 @@ class ExtendShiftOperand : public Operand {
   uint32 shiftAmount;
 };
 
-class BitShiftOperand : public Operand {
+class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
  public:
   enum ShiftOp : uint8 {
     kUndef,
@@ -1034,10 +1040,12 @@ class BitShiftOperand : public Operand {
     kASR, /* arithmetic shift right */
   };
 
+  /* bitlength is equal to 5 or 6 */
   BitShiftOperand(ShiftOp op, uint32 amt, int32 bitLen)
-      : Operand(Operand::kOpdShift, bitLen), shiftOp(op), shiftAmount(amt) {} /* bitlength is equal to 5 or 6 */
+      : OperandVisitable(Operand::kOpdShift, bitLen), shiftOp(op), shiftAmount(amt) {}
 
   ~BitShiftOperand() override = default;
+  using OperandVisitable<BitShiftOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<BitShiftOperand>(*this);
@@ -1069,15 +1077,16 @@ class BitShiftOperand : public Operand {
   uint32 shiftAmount;
 };
 
-class CommentOperand : public Operand {
+class CommentOperand : public OperandVisitable<CommentOperand> {
  public:
   CommentOperand(const char *str, MemPool &memPool)
-      : Operand(Operand::kOpdString, 0), comment(str, &memPool) {}
+      : OperandVisitable(Operand::kOpdString, 0), comment(str, &memPool) {}
 
   CommentOperand(const std::string &str, MemPool &memPool)
-      : Operand(Operand::kOpdString, 0), comment(str, &memPool) {}
+      : OperandVisitable(Operand::kOpdString, 0), comment(str, &memPool) {}
 
   ~CommentOperand() override = default;
+  using OperandVisitable<CommentOperand>::OperandVisitable;
 
   const MapleString &GetComment() const {
     return comment;
@@ -1114,13 +1123,14 @@ class CommentOperand : public Operand {
 
 using StringOperand = CommentOperand;
 
-class ListConstraintOperand : public Operand {
+class ListConstraintOperand : public OperandVisitable<ListConstraintOperand> {
  public:
   explicit ListConstraintOperand(MapleAllocator &allocator)
-      : Operand(Operand::kOpdString, 0),
+      : OperandVisitable(Operand::kOpdString, 0),
         stringList(allocator.Adapter()) {};
 
   ~ListConstraintOperand() override = default;
+  using OperandVisitable<ListConstraintOperand>::OperandVisitable;
 
   void Dump() const override {
     for (auto *str : stringList) {

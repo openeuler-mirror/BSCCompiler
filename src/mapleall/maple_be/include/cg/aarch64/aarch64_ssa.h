@@ -24,20 +24,35 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   AArch64CGSSAInfo(CGFunc &f, DomAnalysis &da, MemPool &mp, MemPool &tmp) : CGSSAInfo(f, da, mp, tmp) {}
   ~AArch64CGSSAInfo() override = default;
   void DumpInsnInSSAForm(const Insn &insn) const override;
+  RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) override;
+  AArch64MemOperand *CreateMemOperand(AArch64MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
 
  private:
   void RenameInsn(Insn &insn) override;
-  RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) override;
   VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
-  void RenameListOpnd(AArch64ListOperand &listOpnd, bool isAsm, uint32 idx, Insn &curInsn);
-  void RenameMemOpnd(AArch64MemOperand &memOpnd, Insn &curInsn);
-  AArch64MemOperand *CreateMemOperandOnSSA(AArch64MemOperand &memOpnd);
+};
 
-  void DumpA64SSAOpnd(RegOperand &vRegOpnd) const;
-  bool DumpA64SSAMemOpnd(AArch64MemOperand& a64MemOpnd) const;
-  void DumpA64PhiOpnd(AArch64PhiOperand &phi) const;
-  bool DumpA64ListOpnd(AArch64ListOperand &list) const;
+class A64SSAOperandRenameVisitor : public SSAOperandRenameVisitor {
+ public:
+  A64SSAOperandRenameVisitor(AArch64CGSSAInfo &cssaInfo, Insn &cInsn, OpndProp &cProp, uint32 idx)
+      : SSAOperandRenameVisitor(cInsn, cProp, idx), ssaInfo(&cssaInfo) {}
+  void Visit(RegOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(MemOperand *v) final;
+
+ private:
+  AArch64CGSSAInfo *ssaInfo;
+};
+
+class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
+ public:
+  explicit A64SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) :
+      SSAOperandDumpVisitor(allssa) {};
+  void Visit(RegOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
 };
 }
 

@@ -21,17 +21,33 @@ class AArch64PhiEliminate : public PhiEliminate {
  public:
   AArch64PhiEliminate(CGFunc &f, CGSSAInfo &ssaAnalysisResult, MemPool &mp) : PhiEliminate(f, ssaAnalysisResult, mp) {}
   ~AArch64PhiEliminate() override = default;
+  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn /* for remat */);
 
  private:
   void ReCreateRegOperand(Insn &insn) override;
-  void ReCreateListOperand(ListOperand &lOpnd, Insn &curInsn);
   Insn &CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd) override;
   void MaintainRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd, bool isCopy) override;
   RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) override;
   void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const override;
-  RegOperand &GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn /* for remat */);
   /* reduce the live range of exisit regsiter*/
   void DoRegLiveRangeOpt(Insn &insn, Insn &movInsn) const;
+};
+
+class A64OperandPhiElmVisitor : public OperandPhiElmVisitor {
+ public:
+  A64OperandPhiElmVisitor(AArch64PhiEliminate *a64PhiElm, Insn &cInsn, uint32 idx)
+      : a64PhiEliminator(a64PhiElm),
+        insn(&cInsn),
+        idx(idx) {};
+  void Visit(RegOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
+
+ private:
+  AArch64PhiEliminate *a64PhiEliminator;
+  Insn *insn;
+  uint32 idx;
 };
 }
 #endif //MAPLEBE_CG_INCLUDE_AARCH64_PHI_ELIMINATION_H

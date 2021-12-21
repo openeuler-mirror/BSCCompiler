@@ -1623,6 +1623,7 @@ void CGOptions::EnableO2() {
   doCGSSA = false;
   doCFGO = true;
   doICO = true;
+  doCGSSA = false;
   doPrePeephole = true;
   doPeephole = true;
   doStoreLoadOpt = true;

@@ -18,6 +18,8 @@
 #include "cgfunc.h"
 #include "cg_dominance.h"
 #include "live.h"
+#include "operand.h"
+#include "visitor_common.h"
 
 namespace maplebe {
 enum SSAOpndDefBy {
@@ -147,6 +149,34 @@ class CGSSAInfo {
   MapleUnorderedMap<regno_t, VRegVersion*> allSSAOperands;
   /* For virtual registers which do not have definition */
   MapleSet<regno_t> noDefVRegs;
+};
+
+class SSAOperandRenameVisitor : public OperandVisitorBase,
+                                public OperandVisitors<RegOperand, ListOperand, MemOperand> {
+ public:
+  SSAOperandRenameVisitor(Insn &cInsn, OpndProp &cProp, uint32 idx) : insn(&cInsn), opndProp(&cProp), idx(idx) {}
+
+ protected:
+  Insn *insn;
+  OpndProp *opndProp;
+  uint32 idx;
+};
+
+class SSAOperandDumpVisitor : public OperandVisitorBase,
+                              public OperandVisitors<RegOperand, ListOperand, MemOperand>,
+                              public OperandVisitor<PhiOperand> {
+ public:
+  explicit SSAOperandDumpVisitor(const MapleUnorderedMap<regno_t, VRegVersion*> &allssa) : allSSAOperands(allssa) {}
+  virtual ~SSAOperandDumpVisitor() = default;
+  void SetHasDumped() {
+    hasDumped = true;
+  }
+  bool HasDumped() {
+    return hasDumped;
+  }
+  bool hasDumped = false;
+ protected:
+  const MapleUnorderedMap<regno_t, VRegVersion*> &allSSAOperands;
 };
 
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgSSAConstruct, maplebe::CGFunc);

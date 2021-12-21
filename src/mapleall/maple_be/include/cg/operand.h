@@ -18,6 +18,7 @@
 #include "becommon.h"
 #include "isa.h"
 #include "cg_option.h"
+#include "visitor_common.h"
 
 /* maple_ir */
 #include "types_def.h"   /* need uint8 etc */
@@ -175,6 +176,8 @@ class Operand {
 
   virtual bool Less(const Operand &right) const = 0;
 
+  virtual void Accept(OperandVisitorBase &v) = 0;
+
  protected:
   OperandType opndKind;  /* operand type */
   uint32 size;           /* size in bits */
@@ -187,15 +190,30 @@ enum RegOperandState : uint32 {
   kRegOpndSetHigh32 = 0x2
 };
 
-class RegOperand : public Operand {
+
+template<typename VisitableTy>
+class OperandVisitable : public Operand {
+ public:
+  using Operand::Operand;
+  void Accept(OperandVisitorBase &v) override {
+    if (OperandVisitor<VisitableTy>* typeV = dynamic_cast<OperandVisitor<VisitableTy>*>(&v)) {
+      typeV->Visit(static_cast<VisitableTy*>(this));
+    } else {
+      /* the type which has no implements */
+    }
+  }
+};
+
+class RegOperand : public OperandVisitable<RegOperand> {
  public:
   RegOperand(regno_t regNum, uint32 size, RegType type)
-      : Operand(kOpdRegister, size),
+      : OperandVisitable(kOpdRegister, size),
         regNO(regNum),
         regType(type),
         validBitsNum(size) {}
 
   ~RegOperand() override = default;
+  using OperandVisitable<RegOperand>::OperandVisitable;
 
   void SetValidBitsNum(uint32 validNum) {
     validBitsNum = validNum;
@@ -342,14 +360,15 @@ enum VaryType : uint8 {
   kAdjustVary,
 };
 
-class ImmOperand : public Operand {
+class ImmOperand : public OperandVisitable<ImmOperand> {
  public:
   ImmOperand(int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary)
-      : Operand(kOpdImmediate, size), value(val), isSigned(isSigned), isVary(isVar) {}
+      : OperandVisitable(kOpdImmediate, size), value(val), isSigned(isSigned), isVary(isVar) {}
   ImmOperand(OperandType type, int64 val, uint32 size, bool isSigned, VaryType isVar = kNotVary)
-      : Operand(type, size), value(val), isSigned(isSigned), isVary(isVar) {}
+      : OperandVisitable(type, size), value(val), isSigned(isSigned), isVary(isVar) {}
 
   ~ImmOperand() override = default;
+  using OperandVisitable<ImmOperand>::OperandVisitable;
 
   virtual bool IsSingleInstructionMovable() const = 0;
   virtual bool IsInBitSize(uint8 size, uint8 nLowerZeroBits) const = 0;
@@ -515,7 +534,7 @@ class ImmOperand : public Operand {
 
 using OfstOperand = ImmOperand;
 
-class MemOperand : public Operand {
+class MemOperand : public OperandVisitable<MemOperand> {
  public:
   RegOperand *GetBaseRegister() const {
     return baseOpnd;
@@ -590,12 +609,12 @@ class MemOperand : public Operand {
   bool Less(const Operand &right) const override = 0;
 
   MemOperand(uint32 size, const MIRSymbol &mirSymbol)
-      : Operand(Operand::kOpdMem, size),
+      : OperandVisitable(Operand::kOpdMem, size),
         symbol(&mirSymbol) {}
 
   MemOperand(uint32 size, RegOperand *baseOp, RegOperand *indexOp, OfstOperand *ofstOp, const MIRSymbol *mirSymbol,
              Operand *scaleOp = nullptr)
-      : Operand(Operand::kOpdMem, size),
+      : OperandVisitable(Operand::kOpdMem, size),
         baseOpnd(baseOp),
         indexOpnd(indexOp),
         offsetOpnd(ofstOp),
@@ -604,7 +623,7 @@ class MemOperand : public Operand {
 
   /* Copy constructor */
   MemOperand(const MemOperand &memOpnd)
-      : Operand(Operand::kOpdMem, memOpnd.GetSize()),
+      : OperandVisitable(Operand::kOpdMem, memOpnd.GetSize()),
         baseOpnd(memOpnd.baseOpnd),
         indexOpnd(memOpnd.indexOpnd),
         offsetOpnd(memOpnd.offsetOpnd),
@@ -615,6 +634,7 @@ class MemOperand : public Operand {
   MemOperand &operator=(const MemOperand &memOpnd) = default;
 
   ~MemOperand() override = default;
+  using OperandVisitable<MemOperand>::OperandVisitable;
 
  private:
   RegOperand *baseOpnd = nullptr;     /* base register */
@@ -626,12 +646,13 @@ class MemOperand : public Operand {
   uint8 accessSize = 0;  /* temp, must be set right before use everytime. */
 };
 
-class LabelOperand : public Operand {
+class LabelOperand : public OperandVisitable<LabelOperand> {
  public:
   LabelOperand(const char *parent, LabelIdx labIdx)
-      : Operand(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent), orderID(-1u) {}
+      : OperandVisitable(kOpdBBAddress, 0), labelIndex(labIdx), parentFunc(parent), orderID(-1u) {}
 
   ~LabelOperand() override = default;
+  using OperandVisitable<LabelOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     return memPool.Clone<LabelOperand>(*this);
@@ -698,11 +719,14 @@ class LabelOperand : public Operand {
   LabelIDOrder orderID = -1u;
 };
 
-class ListOperand : public Operand {
+class ListOperand : public OperandVisitable<ListOperand> {
  public:
-  explicit ListOperand(MapleAllocator &allocator) : Operand(Operand::kOpdList, 0), opndList(allocator.Adapter()) {}
+  explicit ListOperand(MapleAllocator &allocator) :
+      OperandVisitable(Operand::kOpdList, 0),
+      opndList(allocator.Adapter()) {}
 
   ~ListOperand() override = default;
+  using OperandVisitable<ListOperand>::OperandVisitable;
 
   void PopOpnd() {
     opndList.pop_back();
@@ -760,13 +784,14 @@ class ListOperand : public Operand {
 };
 
 /* for cg ssa analysis */
-class PhiOperand : public Operand {
+class PhiOperand : public OperandVisitable<PhiOperand> {
  public:
   explicit PhiOperand(MapleAllocator &allocator)
-      : Operand(Operand::kOpdPhi, 0),
+      : OperandVisitable(Operand::kOpdPhi, 0),
         phiList(allocator.Adapter()) {}
 
   ~PhiOperand() override = default;
+  using OperandVisitable<PhiOperand>::OperandVisitable;
 
   void Emit(Emitter &emitter, const OpndProp *opndProp) const override = 0;
 

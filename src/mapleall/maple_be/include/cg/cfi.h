@@ -105,11 +105,12 @@ class CfiInsn : public maplebe::Insn {
   CfiInsn &operator=(const CfiInsn&);
 };
 
-class RegOperand : public maplebe::Operand {
+class RegOperand : public maplebe::OperandVisitable<RegOperand> {
  public:
-  RegOperand(uint32 no, uint32 size) : Operand(kOpdRegister, size), regNO(no) {}
+  RegOperand(uint32 no, uint32 size) : OperandVisitable(kOpdRegister, size), regNO(no) {}
 
   ~RegOperand() = default;
+  using OperandVisitable<RegOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<RegOperand>(*this);
@@ -129,11 +130,12 @@ class RegOperand : public maplebe::Operand {
   uint32 regNO;
 };
 
-class ImmOperand : public maplebe::Operand {
+class ImmOperand : public maplebe::OperandVisitable<ImmOperand> {
  public:
-  ImmOperand(int64 val, uint32 size) : Operand(kOpdImmediate, size), val(val) {}
+  ImmOperand(int64 val, uint32 size) : OperandVisitable(kOpdImmediate, size), val(val) {}
 
   ~ImmOperand() = default;
+  using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<ImmOperand>(*this);
@@ -153,10 +155,13 @@ class ImmOperand : public maplebe::Operand {
   int64 val;
 };
 
-class SymbolOperand : public maplebe::Operand {
+class SymbolOperand : public maplebe::OperandVisitable<SymbolOperand> {
  public:
-  SymbolOperand(maple::MIRSymbol &mirSymbol, uint8 size) : Operand(kOpdStImmediate, size), symbol(&mirSymbol) {}
+  SymbolOperand(maple::MIRSymbol &mirSymbol, uint8 size) :
+      OperandVisitable(kOpdStImmediate, size),
+      symbol(&mirSymbol) {}
   ~SymbolOperand() = default;
+  using OperandVisitable<SymbolOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<SymbolOperand>(*this);
@@ -176,11 +181,12 @@ class SymbolOperand : public maplebe::Operand {
   maple::MIRSymbol *symbol;
 };
 
-class StrOperand : public maplebe::Operand {
+class StrOperand : public maplebe::OperandVisitable<StrOperand> {
  public:
-  StrOperand(const std::string &str, MemPool &memPool) : Operand(kOpdString, 0), str(str, &memPool) {}
+  StrOperand(const std::string &str, MemPool &memPool) : OperandVisitable(kOpdString, 0), str(str, &memPool) {}
 
   ~StrOperand() = default;
+  using OperandVisitable<StrOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<StrOperand>(*this);
@@ -200,12 +206,13 @@ class StrOperand : public maplebe::Operand {
   const MapleString str;
 };
 
-class LabelOperand : public maplebe::Operand {
+class LabelOperand : public maplebe::OperandVisitable<LabelOperand> {
  public:
   LabelOperand(const std::string &parent, LabelIdx labIdx, MemPool &memPool)
-      : Operand(kOpdBBAddress, 0), parentFunc(parent, &memPool), labelIndex(labIdx) {}
+      : OperandVisitable(kOpdBBAddress, 0), parentFunc(parent, &memPool), labelIndex(labIdx) {}
 
   ~LabelOperand() = default;
+  using OperandVisitable<LabelOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd = memPool.Clone<LabelOperand>(*this);

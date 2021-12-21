@@ -66,6 +66,11 @@ class PhiEliminate {
   MapleMap<regno_t, PregIdx> remateInfoAfterSSA;
 };
 
+class OperandPhiElmVisitor : public OperandVisitorBase,
+                             public OperandVisitors<RegOperand, ListOperand, MemOperand>,
+                             public OperandVisitor<PhiOperand> {
+};
+
 MAPLE_FUNC_PHASE_DECLARE(CgPhiElimination, maplebe::CGFunc)
 }
 
