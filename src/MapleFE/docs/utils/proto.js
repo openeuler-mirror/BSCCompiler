@@ -75,13 +75,14 @@ function generateGraph(data) {
     insert(graph, 0, "Function", "Object", ...data[prop]);
     for (let ctor of ["", "_with_ctors"]) {
       console.log("digraph JS_" + prop + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
-      for (let [key, val] of graph) {
+      for (let [index, [key, val]] of Array.from(graph).entries()) {
         let func = typeof key === "function";
         // Add comments with detailed information of keys
         if (nodejs)
           console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + val + "):\n", Object.getOwnPropertyNames(key),
             "\n" + val + ".toString(): " + (func ? key.toString().replace(/\s+/g, " ") : "-") + "\n*/");
-        console.log(val + " [shape=" + (val.includes("Prototype") ? "box" : "oval") + (func ? ", style=filled" : "") + "];");
+        console.log(val + " [label=\"" + val + " " + index + "\", shape="
+          + (val.includes("Prototype") ? "box" : "oval") + (func ? ", style=filled" : "") + "];");
         // Add edges for prototype, constructor and __proto__ properties of objects
         for (let [f, c] of [["prototype", "blue"], ["constructor", "darkgreen"], ["__proto__", "red"]])
           if (typeof key[f] !== "undefined" && key[f] !== null && graph.has(key[f]) && (ctor != "" || f !== "constructor"))
