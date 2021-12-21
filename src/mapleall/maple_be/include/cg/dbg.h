@@ -88,11 +88,12 @@ class DbgInsn : public maplebe::Insn {
   DbgInsn &operator=(const DbgInsn&);
 };
 
-class ImmOperand : public maplebe::Operand {
+class ImmOperand : public maplebe::OperandVisitable<ImmOperand>{
  public:
-  ImmOperand(int64 val) : Operand(kOpdImmediate, 32), val(val) {}
+  ImmOperand(int64 val) : OperandVisitable(kOpdImmediate, 32), val(val) {}
 
   ~ImmOperand() = default;
+  using OperandVisitable<ImmOperand>::OperandVisitable;
 
   Operand *Clone(MemPool &memPool) const override {
     Operand *opnd =  memPool.Clone<ImmOperand>(*this);

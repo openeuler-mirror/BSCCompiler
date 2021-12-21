@@ -177,55 +177,54 @@ void AArch64PhiEliminate::MaintainRematInfo(RegOperand &destOpnd, RegOperand &fr
   }
 }
 
-void AArch64PhiEliminate::ReCreateListOperand(ListOperand &lOpnd, Insn &curInsn) {
-  std::list<RegOperand*> tempRegStore;
-  for (auto *regOpnd : lOpnd.GetOperands()) {
-    if (regOpnd->IsSSAForm()) {
-      tempRegStore.push_back(&GetCGVirtualOpearnd(*regOpnd, curInsn));
-    } else {
-      tempRegStore.push_back(regOpnd);
-    }
-    lOpnd.RemoveOpnd(*regOpnd);
-  }
-  ASSERT(lOpnd.GetOperands().empty(), "need to clean list");
-  lOpnd.GetOperands().assign(tempRegStore.begin(), tempRegStore.end());
-}
-
 void AArch64PhiEliminate::ReCreateRegOperand(Insn &insn) {
   auto opndNum = static_cast<int32>(insn.GetOperandSize());
   for (int i = opndNum - 1; i >= 0; --i) {
     Operand &opnd = insn.GetOperand(i);
-    if (opnd.IsList()) {
-      ReCreateListOperand(static_cast<AArch64ListOperand&>(opnd), insn);
-    } else if (opnd.IsMemoryAccessOperand()) {
-      auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
-      RegOperand *baseRegOpnd = memOpnd.GetBaseRegister();
-      RegOperand *indexRegOpnd = memOpnd.GetIndexRegister();
-      if ((baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) ||
-          (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm())) {
-        if (baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) {
-          memOpnd.SetBaseRegister(static_cast<AArch64RegOperand&>(GetCGVirtualOpearnd(*baseRegOpnd, insn)));
-        }
-        if (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm()) {
-          memOpnd.SetIndexRegister(GetCGVirtualOpearnd(*indexRegOpnd, insn));
-        }
-      }
-    } else if (opnd.IsRegister()) {
-      auto &regOpnd = static_cast<RegOperand&>(opnd);
-      if (regOpnd.IsSSAForm()) {
-        ASSERT(regOpnd.GetRegisterNumber() != kRFLAG, "both condi and reg");
-        insn.SetOperand(i, GetCGVirtualOpearnd(regOpnd, insn));
-      }
-    } else if (opnd.IsPhi()) {
-      for (auto phiOpndIt : static_cast<AArch64PhiOperand&>(opnd).GetOperands()) {
-        if (phiOpndIt.second->IsSSAForm()) {
-          static_cast<AArch64PhiOperand&>(opnd).GetOperands()[phiOpndIt.first] =
-              &GetCGVirtualOpearnd(*(phiOpndIt.second), insn);
-        }
-      }
+    A64OperandPhiElmVisitor a64OpndPhiElmVisitor(this, insn, i);
+    opnd.Accept(a64OpndPhiElmVisitor);
+  }
+}
+
+void A64OperandPhiElmVisitor::Visit(RegOperand *v) {
+  auto *a64RegOpnd = static_cast<AArch64RegOperand*>(v);
+  if (a64RegOpnd->IsSSAForm()) {
+    ASSERT(a64RegOpnd->GetRegisterNumber() != kRFLAG, "both condi and reg");
+    insn->SetOperand(idx, a64PhiEliminator->GetCGVirtualOpearnd(*a64RegOpnd, *insn));
+  }
+}
+
+void A64OperandPhiElmVisitor::Visit(ListOperand *v) {
+  std::list<RegOperand*> tempRegStore;
+  for (auto *regOpnd : v->GetOperands()) {
+    if (regOpnd->IsSSAForm()) {
+      tempRegStore.push_back(&a64PhiEliminator->GetCGVirtualOpearnd(*regOpnd, *insn));
     } else {
-      /* unsupport ssa opnd */
+      tempRegStore.push_back(regOpnd);
+    }
+    v->RemoveOpnd(*regOpnd);
+  }
+  ASSERT(v->GetOperands().empty(), "need to clean list");
+  v->GetOperands().assign(tempRegStore.begin(), tempRegStore.end());
+}
+
+void A64OperandPhiElmVisitor::Visit(MemOperand *v) {
+  auto *a64MemOpnd = static_cast<AArch64MemOperand*>(v);
+  RegOperand *baseRegOpnd = a64MemOpnd->GetBaseRegister();
+  RegOperand *indexRegOpnd = a64MemOpnd->GetIndexRegister();
+  if ((baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) ||
+      (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm())) {
+    if (baseRegOpnd != nullptr && baseRegOpnd->IsSSAForm()) {
+      a64MemOpnd->SetBaseRegister(
+          static_cast<AArch64RegOperand&>(a64PhiEliminator->GetCGVirtualOpearnd(*baseRegOpnd, *insn)));
+    }
+    if (indexRegOpnd != nullptr && indexRegOpnd->IsSSAForm()) {
+      a64MemOpnd->SetIndexRegister(a64PhiEliminator->GetCGVirtualOpearnd(*indexRegOpnd, *insn));
     }
   }
+}
+
+void A64OperandPhiElmVisitor::Visit(PhiOperand *v) {
+  CHECK_FATAL(false,"do not need recreate phi any more");
 }
 }
