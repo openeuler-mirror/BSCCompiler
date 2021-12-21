@@ -44,7 +44,6 @@ extern LitData ProcessLiteral(LitId type, const char *str);
 class TypescriptLexer : public Lexer {
 public:
   bool CharIsSeparator(const char);
-  void AppendSemiColon();
 
   TempLitData* GetTempLit();
   bool FindNextTLFormat(unsigned start, std::string& s, unsigned& end);
