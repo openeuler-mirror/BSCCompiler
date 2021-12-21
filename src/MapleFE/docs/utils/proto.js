@@ -39,14 +39,16 @@ function insert(g, depth, ...args) {
     if (typeof o !== "undefined" && o !== null)
       if (!g.has(o)) {
         g.set(o, name !== null || typeof o !== "function" ? name : o.toString().split(" ")[1].replace(/[^a-zA-Z0-9+]/g, ""));
-        insert(g, ++depth, [o.prototype, g.get(o) === null ? null : g.get(o) + "Prototype"], [o.__proto__, null], [o.constructor, null]);
+        insert(g, depth + 1, [o.prototype, g.get(o) === null ? null : g.get(o) + "Prototype"], [o.__proto__, null], [o.constructor, null]);
       } else if (name !== null)
         g.set(o, name);
   }
   if (depth === 0)
     for (let [index, entry] of Array.from(g).entries())
       if (entry[1] === null) // Fix up every object with null as its name
-        g.set(entry[0], "Node_" + index);
+        g.set(entry[0], "Object_" + index);
+      else
+        g.set(entry[0], entry[1].replace(/[^\w]/g, "_"));
 }
 
 // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
