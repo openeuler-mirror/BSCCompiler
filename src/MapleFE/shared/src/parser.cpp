@@ -393,6 +393,9 @@ unsigned Parser::LexOneLine() {
   unsigned token_num = 0;
   Token *t = NULL;
 
+  Token *last_token = NULL;
+  bool line_begin = true;
+
   // Check if there are already pending tokens.
   if (mCurToken < mActiveTokens.GetNum())
     return mActiveTokens.GetNum() - mCurToken;
@@ -425,7 +428,14 @@ unsigned Parser::LexOneLine() {
           // 3. handle regular expression
           t = GetRegExpr(t);
 
+          if (line_begin) {
+            t->mLineBegin = true;
+            line_begin = false;
+            if (mLexer->GetTrace())
+              DUMP0("Set as Line First.");
+          }
           mActiveTokens.PushBack(t);
+          last_token = t;
           token_num++;
         }
       } else {
@@ -440,6 +450,13 @@ unsigned Parser::LexOneLine() {
       else
         break;
     }
+  }
+
+  // We are done with a meaningful line
+  if (token_num) {
+    last_token->mLineEnd = true;
+    if (mLexer->GetTrace())
+      DUMP0("Set as Line End.");
   }
 
   return token_num;
