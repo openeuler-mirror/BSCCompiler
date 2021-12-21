@@ -478,91 +478,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::ComputeTheValueRangeOfIndex(
       std::move(valueRangOfOpnd) : AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, constant);
 }
 
-// Get the valueRange of index, for example:
-// assertge(p, p + 8) -> the valueRange of index is 8
-// assertge(p, p + X * 4 - 8) -> the valueRange of index is X - 2
-std::unique_ptr<ValueRange> ValueRangePropagation::GetTheValueRangeOfIndex(
-    BB &bb, MeStmt &meStmt, CRAddNode &crAddNode, uint32 &byteSize, MeExpr *lengthExpr,
-    ValueRange *valueRangeOfLengthPtr) {
-  std::unique_ptr<ValueRange> valueRangeOfIndex = nullptr;
-  for (size_t i = 1; i < crAddNode.GetOpndsSize(); ++i) {
-    auto *opndOfCRNode = crAddNode.GetOpnd(i);
-    if (opndOfCRNode->GetCRType() != kCRConstNode && opndOfCRNode->GetCRType() != kCRVarNode &&
-        opndOfCRNode->GetCRType() != kCRMulNode) {
-      return nullptr;
-    }
-    if (opndOfCRNode->SizeOfOperand() == 1) {
-      // Deal with the operand which is a constant.
-      if (opndOfCRNode->GetCRType() == kCRConstNode) {
-        int64 constant = (byteSize == 0) ? static_cast<CRConstNode*>(opndOfCRNode)->GetConstValue() :
-            static_cast<CRConstNode*>(opndOfCRNode)->GetConstValue() / byteSize;
-        valueRangeOfIndex = (valueRangeOfIndex == nullptr) ?
-            std::make_unique<ValueRange>(Bound(constant, meStmt.GetOpnd(0)->GetPrimType()), kEqual) :
-            AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, constant);
-        continue;
-      }
-      // Deal with the operand which is a meexpr.
-      if (opndOfCRNode->GetExpr() == nullptr) {
-        return nullptr;
-      }
-      auto valueRangOfOpnd = FindValueRangeInCurrBBOrDominateBBs(bb, *opndOfCRNode->GetExpr());
-      if (valueRangOfOpnd == nullptr || valueRangOfOpnd->GetRangeType() == kNotEqual ||
-          valueRangOfOpnd->GetRangeType() == kOnlyHasUpperBound ||
-          valueRangOfOpnd->GetRangeType() == kOnlyHasLowerBound) {
-        return nullptr;
-      }
-      if (valueRangOfOpnd->IsConstant()) {
-        int64 constant = (valueRangOfOpnd->GetRangeType() == kEqual) ? valueRangOfOpnd->GetBound().GetConstant() :
-            valueRangOfOpnd->GetLower().GetConstant();
-        constant = (byteSize == 0) ? constant : constant / byteSize;
-        valueRangeOfIndex = (valueRangeOfIndex == nullptr) ? std::move(valueRangOfOpnd) :
-            AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, constant);
-      } else {
-        valueRangeOfIndex = (valueRangeOfIndex == nullptr) ? std::move(valueRangOfOpnd) :
-            AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, *valueRangOfOpnd);
-      }
-      if (valueRangeOfIndex == nullptr) {
-        return nullptr;
-      }
-      continue;
-    }
-    // Deal with the operand which is a mul expr.
-    if (opndOfCRNode->GetCRType() == kCRMulNode) {
-      auto *crMulNode = static_cast<CRMulNode*>(opndOfCRNode);
-      // The second of crMulNode must be the bytesize.
-      if (crMulNode->SizeOfOperand() != kNumOperands || crMulNode->GetOpnd(1)->GetCRType() != kCRConstNode) {
-        return nullptr;
-      }
-      if (crMulNode->GetOpnd(0)->GetExpr() == nullptr) {
-        return nullptr;
-      }
-      auto valueRangOfOpndLeftOperand = FindValueRangeInCurrBBOrDominateBBs(bb, *crMulNode->GetOpnd(0)->GetExpr());
-      if (valueRangOfOpndLeftOperand == nullptr) {
-        if (lengthExpr != nullptr && crMulNode->GetOpnd(0)->GetExpr() == lengthExpr) {
-          valueRangeOfIndex = (valueRangeOfIndex == nullptr) ?
-              CopyValueRange(*valueRangeOfLengthPtr, valueRangeOfLengthPtr->GetLower().GetPrimType()) :
-              AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, *valueRangeOfLengthPtr);
-          continue;
-        } else {
-          return nullptr;
-        }
-      }
-      if (valueRangOfOpndLeftOperand->GetRangeType() == kNotEqual ||
-          valueRangOfOpndLeftOperand->GetRangeType() == kOnlyHasUpperBound ||
-          valueRangOfOpndLeftOperand->GetRangeType() == kOnlyHasLowerBound) {
-        return nullptr;
-      }
-      byteSize = static_cast<CRConstNode*>(crMulNode->GetOpnd(1))->GetConstValue();
-      valueRangeOfIndex = (valueRangeOfIndex == nullptr) ? std::move(valueRangOfOpndLeftOperand) :
-          AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, *valueRangOfOpndLeftOperand);
-      if (valueRangeOfIndex == nullptr) {
-        return nullptr;
-      }
-    }
-  }
-  return valueRangeOfIndex;
-}
-
 void SafetyCheckWithBoundaryError::HandleBoundaryCheck(
     const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {
   std::set<MePhiNode*> visitedPhi;
@@ -581,9 +496,7 @@ void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, cons
 }
 
 void SafetyCheckWithBoundaryError::HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
-  if (valueRangeOfIndex.IsLessThanZero()) {
-    Error(meStmt);
-  }
+  Error(meStmt);
 }
 
 void SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
@@ -599,89 +512,6 @@ void SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
   }
 }
 
-// Deal with lower boundary check.
-bool ValueRangePropagation::DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR) {
-  // The cr of lower bound must only have base address.
-  if (boundCR.SizeOfOperand() != 1) {
-    return false;
-  }
-  // If the index equal to the lower bound, return true.
-  if (indexCR.SizeOfOperand() == 1) {
-    if (meStmt.GetOpnd(0) == meStmt.GetOpnd(1)) {
-      return true;
-    }
-    if (boundCR.GetExpr() != nullptr && indexCR.GetExpr() != nullptr && boundCR.GetExpr() == indexCR.GetExpr()) {
-      return true;
-    }
-  }
-  // The cr of index must like this pattern: base address + offset.
-  // For example:
-  // int *p,
-  // p[i] = c, --> lower bound check : assertge(p + i * 4, p)
-  if (indexCR.GetCRType() != kCRAddNode) {
-    return false;
-  }
-  auto *crADDNode = static_cast<CRAddNode*>(&indexCR);
-  if (crADDNode->GetOpnd(0)->GetExpr() == nullptr || boundCR.GetExpr() == nullptr ||
-      (crADDNode->GetOpnd(0)->GetExpr() != boundCR.GetExpr())) {
-    // If the base address of index and lower bound are not equal, return false.
-    return false;
-  }
-  uint32 byteSize = 0;
-  std::unique_ptr<ValueRange> valueRangeOfIndex = GetTheValueRangeOfIndex(
-      bb, meStmt, *crADDNode, byteSize, nullptr, nullptr);
-  if (valueRangeOfIndex != nullptr) {
-    if (valueRangeOfIndex->IsBiggerThanZero()) {
-      return true;
-    }
-    safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
-  }
-  return false;
-}
-
-bool ValueRangePropagation::GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
-    MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
-    std::unique_ptr<ValueRange> &valueRangeOfLength, uint32 &byteSize) {
-  // Get the valueRange of upper bound.
-  if (crADDNodeOfBound.GetOpnd(1)->GetCRType() == kCRMulNode) {
-    // If the upper bound is a mul expr, the first operand of mul node must be the length and the second operand must
-    // be the sizeType, for example:
-    // assertlt(p, p + len * 4) --> the length is len and the byteSize is 4.
-    auto *crMulNodeOfBound = static_cast<CRMulNode*>(crADDNodeOfBound.GetOpnd(1));
-    if (crMulNodeOfBound->GetOpnd(1)->GetCRType() != kCRConstNode) {
-      return false;
-    }
-    byteSize = static_cast<CRConstNode*>(crMulNodeOfBound->GetOpnd(1))->GetConstValue();
-    CHECK_FATAL(byteSize > 0, "byte size must greater than zero");
-    if (crMulNodeOfBound->GetOpnd(0)->GetCRType() != kCRVarNode || crMulNodeOfBound->GetOpnd(0)->GetExpr() == nullptr) {
-      return false;
-    }
-    lengthExpr = crMulNodeOfBound->GetOpnd(0)->GetExpr();
-  } else if (crADDNodeOfBound.GetOpnd(1)->GetCRType() == kCRConstNode) {
-    lengthValue = static_cast<CRConstNode*>(crADDNodeOfBound.GetOpnd(1))->GetConstValue();
-  } else if (crADDNodeOfBound.GetOpnd(1)->GetCRType() == kCRVarNode) {
-    if (crADDNodeOfBound.GetOpnd(1)->GetExpr() == nullptr) {
-      return false;
-    }
-    lengthExpr = crADDNodeOfBound.GetOpnd(1)->GetExpr();
-  }
-  if (lengthExpr != nullptr) {
-    valueRangeOfLength = FindValueRangeInCurrBBOrDominateBBs(bb, *lengthExpr);
-    valueRangeOfLengthPtr = valueRangeOfLength.get();
-    if (valueRangeOfLength == nullptr ||
-        (valueRangeOfLength->GetRangeType() != kEqual && valueRangeOfLength->GetRangeType() != kLowerAndUpper)) {
-      valueRangeOfLength = std::make_unique<ValueRange>(Bound(lengthExpr, 0, lengthExpr->GetPrimType()),
-                                                        kEqual);
-      valueRangeOfLengthPtr = valueRangeOfLength.get();
-    }
-  } else {
-    valueRangeOfLength = std::make_unique<ValueRange>(
-        Bound(nullptr, lengthValue, meStmt.GetOpnd(1)->GetPrimType()), kEqual);
-    valueRangeOfLengthPtr = valueRangeOfLength.get();
-  }
-  return true;
-}
-
 bool ValueRangePropagation::CompareConstantOfIndexAndLength(
     MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op) {
   safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
@@ -691,26 +521,33 @@ bool ValueRangePropagation::CompareConstantOfIndexAndLength(
       valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
 }
 
-bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
-    int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op) {
+bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+    ValueRange &valueRangeOfLengthPtr, Opcode op) {
   if (valueRangeOfIndex.GetRangeType() == kNotEqual || valueRangeOfLengthPtr.GetRangeType() == kNotEqual) {
     return false;
   }
   // Opt array boundary check when the array length is a constant.
-  if (valueRangeOfLengthPtr.IsConstant()) {
+  if (valueRangeOfLengthPtr.IsConstantLowerAndUpper()) {
+    auto lowerOfLength = valueRangeOfLengthPtr.GetLower().GetConstant();
+    auto upperOfLength = valueRangeOfLengthPtr.GetUpper().GetConstant();
+    if (valueRangeOfIndex.GetRangeType() == kSpecialLowerForLoop) {
+      safetyCheckBoundary->HandleAssertltOrAssertle(
+          meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(), upperOfLength);
+      return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lowerOfLength :
+          valueRangeOfIndex.GetUpper().GetConstant() < lowerOfLength;
+    }
     if (!valueRangeOfIndex.IsConstantLowerAndUpper() ||
-        valueRangeOfIndex.GetLower().GetConstant() > valueRangeOfIndex.GetUpper().GetConstant()) {
+        valueRangeOfIndex.GetLower().GetConstant() > valueRangeOfIndex.GetUpper().GetConstant() ||
+        valueRangeOfLengthPtr.GetLower().GetConstant() > valueRangeOfLengthPtr.GetUpper().GetConstant()) {
       return false;
     }
-    if (valueRangeOfLengthPtr.GetBound().GetConstant() < 0) {
+    if (valueRangeOfLengthPtr.GetLower().GetConstant() < 0) {
       // The value of length is overflow, need deal with this case later.
     }
-    if (byteSize != 0) {
-      lengthValue = valueRangeOfLengthPtr.GetBound().GetConstant() / byteSize;
-    }
-    safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(), lengthValue);
-    return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lengthValue :
-        valueRangeOfIndex.GetUpper().GetConstant() < lengthValue;
+    safetyCheckBoundary->HandleAssertltOrAssertle(
+        meStmt, op, valueRangeOfIndex.GetLower().GetConstant(), upperOfLength);
+    return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lowerOfLength :
+        valueRangeOfIndex.GetUpper().GetConstant() < lowerOfLength;
   } else if (valueRangeOfLengthPtr.GetRangeType() == kEqual) {
     // Opt array boundary check when the array length is a var.
     if (valueRangeOfIndex.GetRangeType() == kSpecialUpperForLoop) {
@@ -733,21 +570,20 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAd
           return (crNode->GetExpr() == valueRangeOfLengthPtr.GetBound().GetVar()) &&
               CompareConstantOfIndexAndLength(meStmt, valueRangeOfIndex, valueRangeOfLengthPtr, op);
         }
-        sa.SortCROperand(*crNode, baseAddress);
         if (crNode->GetCRType() != kCRAddNode ||
             static_cast<CRAddNode*>(crNode)->GetOpndsSize() != kNumOperands ||
-            static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() == nullptr ||
-            static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetExpr() != valueRangeOfLengthPtr.GetBound().GetVar() ||
-            static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetCRType() != kCRConstNode) {
+            static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetExpr() == nullptr ||
+            static_cast<CRAddNode*>(crNode)->GetOpnd(1)->GetExpr() != valueRangeOfLengthPtr.GetBound().GetVar() ||
+            static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetCRType() != kCRConstNode) {
           return false;
         }
         safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op,
-            static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue(),
+            static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue(),
             valueRangeOfLengthPtr.GetBound().GetConstant());
         return (kOpcodeInfo.IsAssertLeBoundary(op) ?
-                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <=
+                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue() <=
                     valueRangeOfLengthPtr.GetBound().GetConstant() :
-                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(1))->GetConstValue() <
+                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue() <
                     valueRangeOfLengthPtr.GetBound().GetConstant());
       } else {
         return CompareConstantOfIndexAndLength(meStmt, valueRangeOfIndex, valueRangeOfLengthPtr, op);
@@ -764,52 +600,6 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAd
         valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant();
   }
   return false;
-}
-
-// Deal with upper boundary check.
-bool ValueRangePropagation::DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op) {
-  // The cr of upper bound must be like this: base address + len * byteSize.
-  // For example:
-  // int *p,
-  // p[i] = c, --> upper bound check : assertge(p + i * 4, p + len * 4)
-  if (boundCR.SizeOfOperand() != kNumOperands && boundCR.GetCRType() != kCRAddNode) {
-    return false;
-  }
-  auto *crADDNodeOfBound = static_cast<CRAddNode*>(&boundCR);
-  uint32 byteSize = 0;
-  MeExpr *lengthExpr = nullptr;
-  int64 lengthValue = 0;
-  ValueRange *valueRangeOfLengthPtr = nullptr;
-  std::unique_ptr<ValueRange> valueRangeOfLength;
-  if (!GetTheValueRangeOfArrayLength(bb, meStmt, *crADDNodeOfBound, lengthExpr, lengthValue, valueRangeOfLengthPtr,
-                                     valueRangeOfLength, byteSize)) {
-    return false;
-  }
-  if (indexCR.SizeOfOperand() == 1) {
-    if ((indexCR.GetExpr() == nullptr || crADDNodeOfBound->GetOpnd(0)->GetExpr() == nullptr ||
-         indexCR.GetExpr() != crADDNodeOfBound->GetOpnd(0)->GetExpr())) {
-      // If the base address of index and upper bound are not equal, return false.
-      return false;
-    }
-    return valueRangeOfLengthPtr->IsBiggerThanZero();
-  }
-  if (indexCR.GetCRType() != kCRAddNode) {
-    return false;
-  }
-  auto *crAddNodeOfIndex = static_cast<CRAddNode*>(&indexCR);
-  if (crADDNodeOfBound->GetOpnd(0)->GetExpr() == nullptr || crAddNodeOfIndex->GetOpnd(0)->GetExpr() == nullptr ||
-      (crADDNodeOfBound->GetOpnd(0)->GetExpr() != crAddNodeOfIndex->GetOpnd(0)->GetExpr())) {
-    // If the base address of index and upper bound are not equal, return false.
-    return false;
-  }
-  auto *baseAddress = crADDNodeOfBound->GetOpnd(0)->GetExpr();
-  std::unique_ptr<ValueRange> valueRangeOfIndex = GetTheValueRangeOfIndex(
-      bb, meStmt, *crAddNodeOfIndex, byteSize, lengthExpr, valueRangeOfLengthPtr);
-  if (valueRangeOfIndex == nullptr) {
-    return false;
-  }
-  return CompareIndexWithUpper(meStmt, *baseAddress, *valueRangeOfIndex, lengthValue, *valueRangeOfLengthPtr,
-                               byteSize, op);
 }
 
 // If the bb of the boundary check which is analysised befor dominates the bb of the boundary check which is
@@ -982,7 +772,78 @@ void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
   }
 }
 
+MeExpr *ValueRangePropagation::GetAddressOfIndexOrBound(MeExpr &expr) const {
+  if (expr.IsLeaf()) {
+    return (expr.IsScalar() && static_cast<ScalarMeExpr&>(expr).GetDefBy() == kDefByStmt) ?
+        GetAddressOfIndexOrBound(*static_cast<ScalarMeExpr&>(expr).GetDefStmt()->GetRHS()) : &expr;
+  }
+  return GetAddressOfIndexOrBound(*expr.GetOpnd(0));
+}
+
+// Get the valueRange of index and bound, for example:
+// assertge(ptr, ptr + 8) -> the valueRange of index is 8
+// assertge(ptr, ptr + len * 4 - 8) -> the valueRange of index is len - 2
+std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfCRNodes(
+    MeStmt &meStmt, BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes) {
+  if (crNodes.empty()) {
+    return CreateValueRangeOfEqualZero(pTypeOfArray);
+  }
+  std::unique_ptr<ValueRange> resValueRange = nullptr;
+  for (size_t i = 0; i < crNodes.size(); ++i) {
+    auto *opndOfCRNode = crNodes[i];
+    if (opndOfCRNode->GetCRType() != kCRConstNode && opndOfCRNode->GetCRType() != kCRVarNode) {
+      return nullptr;
+    }
+    // Deal with the operand which is a constant.
+    if (opndOfCRNode->GetCRType() == kCRConstNode) {
+      int64 constant = static_cast<CRConstNode*>(opndOfCRNode)->GetConstValue();
+      resValueRange = (resValueRange == nullptr) ?
+          std::make_unique<ValueRange>(Bound(constant, pTypeOfArray), kEqual) :
+              AddOrSubWithValueRange(OP_add, *resValueRange, constant);
+      continue;
+    }
+    // Deal with the operand which is a meexpr.
+    if (opndOfCRNode->GetExpr() == nullptr) {
+      return nullptr;
+    }
+    auto valueRangOfOpnd = FindValueRangeInCurrBBOrDominateBBs(bb, *opndOfCRNode->GetExpr());
+     if (valueRangOfOpnd == nullptr) {
+      valueRangOfOpnd = std::make_unique<ValueRange>(
+          Bound(opndOfCRNode->GetExpr(), opndOfCRNode->GetExpr()->GetPrimType()), kEqual);
+      if (resValueRange == nullptr) {
+        resValueRange = std::move(valueRangOfOpnd);
+      } else if (resValueRange->IsNotConstantVR()) {
+        return nullptr;
+      } else {
+        resValueRange = AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
+        if (resValueRange == nullptr) {
+          return nullptr;
+        }
+      }
+    } else if (valueRangOfOpnd->GetRangeType() == kNotEqual && resValueRange == nullptr) {
+       resValueRange = std::make_unique<ValueRange>(
+           Bound(opndOfCRNode->GetExpr(), opndOfCRNode->GetExpr()->GetPrimType()), kEqual);
+    } else if (valueRangOfOpnd->GetRangeType() == kOnlyHasUpperBound ||
+               valueRangOfOpnd->GetRangeType() == kOnlyHasLowerBound) {
+      return nullptr;
+    } else {
+      resValueRange = (resValueRange == nullptr) ? std::move(valueRangOfOpnd) :
+          AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
+    }
+    if (resValueRange == nullptr) {
+      return nullptr;
+    }
+  }
+  return resValueRange;
+}
+
 bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
+  // If the stmt is analysised before, delete the boundary check.
+  if (IfAnalysisedBefore(bb, meStmt)) {
+    return true;
+  }
+  // Add the stmt to cache to prevent duplicate checks.
+  Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
   CHECK_FATAL(meStmt.NumMeStmtOpnds() == kNumOperands, "must have two opnds");
   auto &naryMeStmt = static_cast<NaryMeStmt&>(meStmt);
   auto *boundOpnd = naryMeStmt.GetOpnd(1);
@@ -996,24 +857,20 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   if (indexCR == nullptr || boundCR == nullptr) {
     return false;
   }
-  MeExpr *addrExpr = nullptr;
-  if (boundOpnd->GetNumOpnds() == 0) {
-    addrExpr = boundOpnd;
-  } else {
-    CHECK_FATAL(boundOpnd->GetNumOpnds() >= 1, "must have one operand at least");
-    addrExpr = boundOpnd->GetOpnd(0);
+  MeExpr *addrExpr = GetAddressOfIndexOrBound(*indexOpnd);
+  if (addrExpr != GetAddressOfIndexOrBound(*boundOpnd)) {
+    if (ValueRangePropagation::isDebug) {
+      meStmt.Dump(&irMap);
+      LogInfo::MapleLogger() << "The address of bases is not equal\n";
+    }
+    return false;
   }
-  sa.SortCROperand(*indexCR, *addrExpr);
-  sa.SortCROperand(*boundCR, *addrExpr);
   if (ValueRangePropagation::isDebug) {
     meStmt.Dump(&irMap);
     sa.Dump(*indexCR);
     LogInfo::MapleLogger() << "\n";
     sa.Dump(*boundCR);
     LogInfo::MapleLogger() << "\n";
-  }
-  if (IfAnalysisedBefore(bb, meStmt)) {
-    return true;
   }
   bool indexIsEqualToBound = indexCR->IsEqual(*boundCR);
   if (indexIsEqualToBound) {
@@ -1024,16 +881,56 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
       safetyCheckBoundary->Error(meStmt);
     }
   }
+  std::vector<CRNode*> indexVector;
+  std::vector<CRNode*> boundVector;
+  indexCR->GetTheUnequalSubNodesOfIndexAndBound(*boundCR, indexVector, boundVector);
+  PrimType primType = sa.GetPrimType(indexVector);
+  auto byteSizeFromIndexVector = sa.GetByteSize(indexVector);
+  auto byteSizeFromBoundVector = sa.GetByteSize(boundVector);
+  uint8 byteSize = (byteSizeFromIndexVector > 1) ? byteSizeFromIndexVector : byteSizeFromBoundVector;
+  // If can not normalization the vector, return false.
+  if ((!sa.NormalizationWithByteCount(indexVector, byteSize) ||
+       !sa.NormalizationWithByteCount(boundVector, byteSize))) {
+    return false;
+  }
+  if (ValueRangePropagation::isDebug) {
+    std::for_each(indexVector.begin(), indexVector.end(), [&](CRNode *cr) { sa.Dump(*cr); std::cout << " ";});
+    LogInfo::MapleLogger() << "\n";
+    std::for_each(boundVector.begin(), boundVector.end(), [&](CRNode *cr) { sa.Dump(*cr); std::cout << " ";});
+    LogInfo::MapleLogger() << "\n";
+  }
+  // Get the valueRange of index and bound
+  auto valueRangeOfIndex = GetValueRangeOfCRNodes(meStmt, bb, primType, indexVector);
+  auto valueRangeOfbound = GetValueRangeOfCRNodes(meStmt, bb, primType, boundVector);
+  if (valueRangeOfIndex == nullptr || valueRangeOfbound == nullptr) {
+    return false;
+  }
   if (kOpcodeInfo.IsAssertLowerBoundary(meStmt.GetOp())) {
-    if (DealWithAssertGe(bb, meStmt, *indexCR, *boundCR)) {
+    if (BrStmtInRange(bb, *valueRangeOfIndex, *valueRangeOfbound, OP_ge,
+                      valueRangeOfIndex->GetLower().GetPrimType())) {
+      // Can opt the boundary check.
       return true;
+    } else if (BrStmtInRange(bb, *valueRangeOfIndex, *valueRangeOfbound, OP_lt,
+                             valueRangeOfIndex->GetLower().GetPrimType())) {
+      // Error during static compilation.
+      safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
+    } else if ((valueRangeOfIndex->GetRangeType() == kSpecialUpperForLoop ||
+               valueRangeOfIndex->GetRangeType() == kOnlyHasLowerBound) &&
+               valueRangeOfIndex->GetLower().GetVar() == nullptr && valueRangeOfbound->GetLower().GetVar() == nullptr &&
+               valueRangeOfbound->GetUpper().GetVar() == nullptr) {
+      if (valueRangeOfIndex->GetLower().GetConstant() < valueRangeOfbound->GetUpper().GetConstant()) {
+        // Error during static compilation.
+        safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
+        return false;
+      } else {
+        // Can opt the boundary check.
+        return true;
+      }
     }
-    Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
   } else {
-    if (DealWithAssertLtOrLe(bb, meStmt, *indexCR, *boundCR, meStmt.GetOp())) {
+    if (CompareIndexWithUpper(meStmt, *valueRangeOfIndex, *valueRangeOfbound, meStmt.GetOp())) {
       return true;
     }
-    Insert2AnalysisedArrayChecks(bb.GetBBId(), *meStmt.GetOpnd(1), *meStmt.GetOpnd(0), meStmt.GetOp());
   }
   auto *loop = loops->GetBBLoopParent(bb.GetBBId());
   if (loop != nullptr && loop->IsCanonicalLoop() && loop->inloopBB2exitBBs.size() == 1 &&
@@ -1658,38 +1555,32 @@ bool ValueRangePropagation::IsConstant(const BB &bb, MeExpr &expr, int64 &value,
 // Create new valueRange when old valueRange add or sub with a valuerange.
 std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
     Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight) {
-  if (!valueRangeLeft.IsConstantLowerAndUpper() || valueRangeRight.IsConstantLowerAndUpper()) {
+  if (valueRangeLeft.GetRangeType() == kNotEqual || valueRangeRight.GetRangeType() == kNotEqual ||
+      valueRangeLeft.GetRangeType() == kOnlyHasLowerBound || valueRangeRight.GetRangeType() == kOnlyHasLowerBound ||
+      valueRangeLeft.GetRangeType() == kOnlyHasUpperBound || valueRangeRight.GetRangeType() == kOnlyHasUpperBound) {
+    return nullptr;
+  }
+  if (valueRangeLeft.GetLower().GetVar() != valueRangeRight.GetLower().GetVar() ||
+      valueRangeLeft.GetUpper().GetVar() != valueRangeRight.GetUpper().GetVar()) {
     return nullptr;
   }
   int64 rhsLowerConst = valueRangeRight.GetLower().GetConstant();
   int64 rhsUpperConst = valueRangeRight.GetUpper().GetConstant();
-  if (valueRangeLeft.GetRangeType() == kLowerAndUpper) {
-    int64 res = 0;
-    if (!AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op,
-                              valueRangeLeft.GetLower().GetConstant(), rhsLowerConst, res)) {
-      return nullptr;
-    }
-    Bound lower = Bound(valueRangeLeft.GetLower().GetVar(), GetRealValue(
-        res, valueRangeLeft.GetLower().GetPrimType()), valueRangeLeft.GetLower().GetPrimType());
-    res = 0;
-    if (!AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op,
-                              valueRangeLeft.GetUpper().GetConstant(), rhsUpperConst, res)) {
-      return nullptr;
-    }
-    Bound upper = Bound(valueRangeLeft.GetUpper().GetVar(), GetRealValue(
-        res, valueRangeLeft.GetUpper().GetPrimType()), valueRangeLeft.GetUpper().GetPrimType());
-    return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
-  } else if (valueRangeLeft.GetRangeType() == kEqual) {
-    int64 res = 0;
-    if (!AddOrSubWithConstant(valueRangeLeft.GetBound().GetPrimType(), op,
-                              valueRangeLeft.GetBound().GetConstant(), rhsLowerConst, res)) {
-      return nullptr;
-    }
-    Bound bound = Bound(valueRangeLeft.GetBound().GetVar(), GetRealValue(
-        res, valueRangeLeft.GetBound().GetPrimType()), valueRangeLeft.GetBound().GetPrimType());
-    return std::make_unique<ValueRange>(bound, valueRangeLeft.GetRangeType());
+  int64 res = 0;
+  if (!AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op,
+                            valueRangeLeft.GetLower().GetConstant(), rhsLowerConst, res)) {
+    return nullptr;
   }
-  return nullptr;
+  Bound lower = Bound(valueRangeLeft.GetLower().GetVar(), GetRealValue(
+      res, valueRangeLeft.GetLower().GetPrimType()), valueRangeLeft.GetLower().GetPrimType());
+  res = 0;
+  if (!AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op,
+                            valueRangeLeft.GetUpper().GetConstant(), rhsUpperConst, res)) {
+    return nullptr;
+  }
+  Bound upper = Bound(valueRangeLeft.GetUpper().GetVar(), GetRealValue(
+      res, valueRangeLeft.GetUpper().GetPrimType()), valueRangeLeft.GetUpper().GetPrimType());
+  return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
 }
 
 // Create new valueRange when old valueRange add or sub with a constant.
@@ -3401,7 +3292,6 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, Val
     auto *opnd = opMeExpr.GetOpnd(0);
     if (opMeExpr.GetBitsSize() >= GetPrimTypeBitSize(opnd->GetPrimType())) {
       currOpnd = opnd;
-      opndType = currOpnd->GetPrimType();
     }
   }
   bool opt = AnalysisValueRangeInPredsOfCondGotoBB(
