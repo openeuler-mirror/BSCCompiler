@@ -27,6 +27,10 @@ let myMap = new Map();
 let myMapIterator = myMap[Symbol.iterator]();
 let MapIteratorPrototype = Object.getPrototypeOf(new Map()[Symbol.iterator]());
 
+async function asyncFunc() {}
+async function* asyncGenerator() {}
+ const agpt = asyncGenerator.prototype.__proto__;
+
 // All data for generating graphs
 let data = [
   ["Classes",   ["Array", "arr", "myCar", "car"]],
@@ -35,6 +39,8 @@ let data = [
   ["Builtins",  ["Symbol", "Math", "JSON", "Promise"]],
   ["Closure",   ["makeClosure", "closure"]],
   ["Iterators", ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]]],
+  ["Async",     ["asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
+                 [agpt.__proto__, "AsyncIteratorPrototype"], [agpt.constructor, "AsyncGenerator"], "asyncFunc"]],
 ];
 
 // Gather all reachable objects from their prototype, __proto__ and constructor properties
