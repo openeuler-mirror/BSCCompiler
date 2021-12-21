@@ -38,7 +38,6 @@ class VRegVersion {
     defInsn = insn;
     defType = defTy;
   }
-  void SetNewSSAOpnd(RegOperand &regOpnd);
   Insn *GetDefInsn() const {
     return defInsn;
   }
@@ -92,6 +91,13 @@ class CGSSAInfo {
   }
   bool IsNoDefVReg(regno_t vRegNO) const {
     return noDefVRegs.find(vRegNO) != noDefVRegs.end();
+  }
+  int32 GetVersionNOOfOriginalVreg(regno_t vRegNO) {
+    if (vRegDefCount.count(vRegNO)) {
+      return vRegDefCount[vRegNO];
+    }
+    ASSERT(false, " original vreg is not existed");
+    return 0;
   }
   static uint32 SSARegNObase;
 

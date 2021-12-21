@@ -1620,6 +1620,7 @@ void CGOptions::EnableO1() {
 void CGOptions::EnableO2() {
   optimizeLevel = kLevel2;
   doEBO = true;
+  doCGSSA = false;
   doCFGO = true;
   doICO = true;
   doPrePeephole = true;
