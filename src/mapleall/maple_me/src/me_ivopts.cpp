@@ -2335,7 +2335,7 @@ void IVOptimizer::Run() {
       // not canonicalized
       continue;
     }
-    if (loop->loopBBs.size() > 60) {
+    if (loop->loopBBs.size() > 60 && loop->nestDepth > 0) {
       // just skip now because we can hardly get register pressure
       continue;
     }
