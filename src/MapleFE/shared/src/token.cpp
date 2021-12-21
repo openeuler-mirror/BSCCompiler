@@ -30,7 +30,7 @@ const char* SeparatorTokenGetName(SepId id) {
 
 void SeparatorTokenDump(SepId id) {
   const char *name = SeparatorTokenGetName(id);
-  DUMP1("Separator  Token: ", name);
+  DUMP1_NORETURN("Separator  Token: ", name);
   return;
 }
 
@@ -46,34 +46,34 @@ const char* OperatorTokenGetName(OprId id) {
 
 void OperatorTokenDump(OprId id) {
   const char *name = OperatorTokenGetName(id);
-  DUMP1("Operator   Token: ", name);
+  DUMP1_NORETURN("Operator   Token: ", name);
   return;
 }
 
 void LiteralTokenDump(LitData data) {
   switch (data.mType) {
   case LT_IntegerLiteral:
-    DUMP1("Integer Literal Token:", data.mData.mInt);
+    DUMP1_NORETURN("Integer Literal Token:", data.mData.mInt);
     break;
   case LT_FPLiteral:
-    DUMP1("Floating Literal Token:", data.mData.mFloat);
+    DUMP1_NORETURN("Floating Literal Token:", data.mData.mFloat);
     break;
   case LT_DoubleLiteral:
-    DUMP1("Double Literal Token:", data.mData.mDouble);
+    DUMP1_NORETURN("Double Literal Token:", data.mData.mDouble);
     break;
   case LT_BooleanLiteral:
-    DUMP1("Boolean Literal Token:", data.mData.mBool);
+    DUMP1_NORETURN("Boolean Literal Token:", data.mData.mBool);
     break;
   case LT_CharacterLiteral: {
     Char the_char = data.mData.mChar;
     if (the_char.mIsUnicode)
-      DUMP1("Char Literal Token(Unicode):", the_char.mData.mUniValue);
+      DUMP1_NORETURN("Char Literal Token(Unicode):", the_char.mData.mUniValue);
     else
-      DUMP1("Char Literal Token:", the_char.mData.mChar);
+      DUMP1_NORETURN("Char Literal Token:", the_char.mData.mChar);
     break;
   }
   case LT_StringLiteral:
-    DUMP1("String Literal Token:", gStringPool.GetStringFromStrIdx(data.mData.mStrIdx));
+    DUMP1_NORETURN("String Literal Token:", gStringPool.GetStringFromStrIdx(data.mData.mStrIdx));
     break;
   case LT_NullLiteral:
     DUMP0("Null Literal Token:");
@@ -105,10 +105,10 @@ void Token::Dump() {
     OperatorTokenDump(mData.mOprId);
     break;
   case TT_ID:
-    DUMP1("Identifier Token: ", mData.mName);
+    DUMP1_NORETURN("Identifier Token: ", mData.mName);
     break;
   case TT_KW:
-    DUMP1("Keyword    Token: ", mData.mName);
+    DUMP1_NORETURN("Keyword    Token: ", mData.mName);
     break;
   case TT_CM:
     DUMP0("Comment Token: ");
@@ -117,9 +117,9 @@ void Token::Dump() {
     DUMP0("TemplateLiteral Token: ");
     break;
   case TT_RE:
-    DUMP1("RegExpr Token: ", mData.mRegExprData.mExpr);
+    DUMP1_NORETURN("RegExpr Token: ", mData.mRegExprData.mExpr);
     if (mData.mRegExprData.mFlags)
-      DUMP1(" : ", mData.mRegExprData.mFlags);
+      DUMP1_NORETURN(" : ", mData.mRegExprData.mFlags);
     break;
   case TT_LT:
     LiteralTokenDump(mData.mLitData);
@@ -128,12 +128,13 @@ void Token::Dump() {
     break;
   }
 
-  DUMP1(" line: ", mLineNum);
-  DUMP1(" col: ", mColNum);
+  DUMP1_NORETURN(" line: ", mLineNum);
+  DUMP1_NORETURN(" col: ", mColNum);
   if (mLineBegin)
-    DUMP0(" line-first ");
+    DUMP0_NORETURN(" line-first ");
   if (mLineEnd)
-    DUMP0(" line-last ");
+    DUMP0_NORETURN(" line-last ");
+  DUMP_RETURN();
 }
 
 }
