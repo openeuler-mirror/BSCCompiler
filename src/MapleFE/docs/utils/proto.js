@@ -29,17 +29,17 @@ let MapIteratorPrototype = Object.getPrototypeOf(new Map()[Symbol.iterator]());
 
 async function asyncFunc() {}
 async function* asyncGenerator() {}
- const agpt = asyncGenerator.prototype.__proto__;
+const agpt = asyncGenerator.prototype.__proto__;
 
 // All data for generating graphs
 let data = {
   Classes  : ["Array", "arr", "myCar", "car"],
   Generator: ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
-              [gpt.__proto__, "IteratorPrototype"], [gpt.constructor, "Generator"]],
+              [gpt.__proto__, "IteratorPrototype"], [generator.__proto__, "Generator"]],
   Builtins : ["Symbol", "Math", "JSON", "Promise"],
   Closure  : ["makeClosure", "closure"],
   Iterators: ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
-  Async    : ["asyncFunc", "asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
+  Async    : ["asyncFunc", "asyncGenerator", [asyncGenerator(), "asyncGenerator_instance"], [agpt, "AsyncGeneratorPrototype"],
               [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]],
 };
 
@@ -78,17 +78,12 @@ for (let prop in data) {
         console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + value + "):\n", Object.getOwnPropertyNames(key),
           "\n" + value + ".toString(): " + (typeof key !== "function" ? "-" : key.toString().replace(/\s+/g, " ")) + "\n*/");
       console.log(value + (value.includes("Prototype") ? "[shape=box];" : "[shape=oval];"));
-      // Add edges for prototype properties of objects
-      if (typeof key.prototype !== "undefined" && key.prototype !== null)
-        console.log((ctor != "" ? "" : "subgraph cluster_" + value
-          + " {\nrank=same;\ncolor=white;\n" + value + ";\n" + graph.get(key.prototype) + "[shape=box];\n}\n")
-          + value + " -> " + graph.get(key.prototype) + " [label=\"prototype\", color=blue, fontcolor=blue];");
-      // Add edges for constructor properties of objects
-      if (ctor != "" && key.constructor !== "undefined" && key.constructor !== null)
-        console.log(value + " -> " + graph.get(key.constructor) + " [label=\"ctor\", color=darkgreen, fontcolor=darkgreen];");
-      // Add edges for __proto__ properties of objects
-      if (key.__proto__ !== "undefined" && key.__proto__ !== null)
-        console.log(value + " -> " + graph.get(key.__proto__) + " [label=\"__proto__\", color=red, fontcolor=red];");
+      // Add edges for prototype, constructor and __proto__ properties of objects
+      for (let [f, c] of [["prototype", "blue"], ["constructor", "darkgreen"], ["__proto__", "red"]])
+        if (typeof key[f] !== "undefined" && key[f] !== null && graph.has(key[f]) && (ctor != "" || f !== "constructor"))
+          console.log((ctor != "" || f !== "prototype" ? "" : "subgraph cluster_" + value + " {\nrank=same;\ncolor=white;\n"
+            + value + ";\n" + graph.get(key.prototype) + "[shape=box];\n}\n") + value + " -> " + graph.get(key[f])
+            + " [label=\"" + (f === "constructor" ? "ctor" : f) + "\", color=" + c + ", fontcolor=" + c + "];");
     }
     console.log("} // digraph JS_" + prop + ctor);
   }
