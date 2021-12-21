@@ -39,8 +39,8 @@ let data = [
   ["Builtins",  ["Symbol", "Math", "JSON", "Promise"]],
   ["Closure",   ["makeClosure", "closure"]],
   ["Iterators", ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]]],
-  ["Async",     ["asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
-                 [agpt.__proto__, "AsyncIteratorPrototype"], [agpt.constructor, "AsyncGenerator"], "asyncFunc"]],
+  ["Async",     ["asyncFunc", "asyncGenerator", [asyncGenerator(), "asyncGen_instance"], [agpt, "AsyncGeneratorPrototype"],
+                 [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]]],
 ];
 
 // Gather all reachable objects from their prototype, __proto__ and constructor properties
