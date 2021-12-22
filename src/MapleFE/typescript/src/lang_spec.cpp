@@ -418,13 +418,18 @@ Token* TypescriptParser::GetRegExpr(Token *t) {
 
 
 // 'appeal' is the node of 'rule_table'.
-bool TypescriptParser::TraverseASI(RuleTable *rule_table, AppealNode *appeal) {
+// 'child' was NULL when passed in.
+bool TypescriptParser::TraverseASI(RuleTable *rule_table,
+                                   AppealNode *appeal,
+                                   AppealNode *&child) {
   MASSERT((rule_table->mNum == 1) && "ASI node has more than one elements?");
   TableData *data = rule_table->mData;
-  AppealNode *child = NULL;
   bool found = TraverseTableData(data, appeal, child);
-  if (child)
+  if (child) {
+    child->SetChildIndex(0);
     appeal->CopyMatch(child);
+  }
+
   return found;
 }
 
