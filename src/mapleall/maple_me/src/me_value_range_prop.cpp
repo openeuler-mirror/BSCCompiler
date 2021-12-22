@@ -717,7 +717,7 @@ static inline bool CanNotDoReplaceLoopVarOpt(ValueRange *valueRange) {
     return true;
   }
   auto type = valueRange->GetRangeType();
-  return type != kEqual && type != kLowerAndUpper && type != kSpecialLowerForLoop && type != kSpecialUpperForLoop;
+  return type != kEqual && type != kLowerAndUpper;
 }
 
 void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
@@ -1834,7 +1834,7 @@ void ValueRangePropagation::DealWithAssign(BB &bb, MeStmt &stmt) {
 // i1 = phi(i0, i2),
 // i2 = i1 + 1,
 // stride is 1.
-bool ValueRangePropagation::CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int &constant) {
+bool ValueRangePropagation::CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int64 &constant) {
   auto *curExpr = &expr;
   while (true) {
     if (curExpr->GetMeOp() != kMeOpVar) {
@@ -1870,7 +1870,7 @@ bool ValueRangePropagation::CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, i
 
 // Create new value range when the loop induction var is monotonic increase.
 std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicIncreaseVar(
-    LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound) {
+    LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride) {
   BB *inLoopBB = nullptr;
   BB *outLoopBB = nullptr;
   if (loop.Has(*exitBB.GetSucc(0))) {
@@ -1885,7 +1885,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
   int64 rightConstant = 0;
   if (opMeExpr.GetOp() == OP_lt || opMeExpr.GetOp() == OP_ge ||
       opMeExpr.GetOp() == OP_ne || opMeExpr.GetOp() == OP_eq) {
-    rightConstant = -1;
+    rightConstant = -stride;
   }
   Bound upperBound;
   int64 constantValue = 0;
@@ -1941,7 +1941,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicI
 
 // Create new value range when the loop induction var is monotonic decrease.
 std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicDecreaseVar(
-    LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound) {
+    LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride) {
   BB *inLoopBB = nullptr;
   BB *outLoopBB = nullptr;
   if (loop.Has(*exitBB.GetSucc(0))) {
@@ -1956,7 +1956,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForMonotonicD
   int64 rightConstant = 0;
   if (opMeExpr.GetOp() == OP_le || opMeExpr.GetOp() == OP_gt ||
       opMeExpr.GetOp() == OP_ne || opMeExpr.GetOp() == OP_eq) {
-    rightConstant = 1;
+    rightConstant = -stride;
   }
   Bound lowerBound;
   int64 constantValue = 0;
@@ -2018,7 +2018,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
   } else {
     initBound = Bound(&init, init.GetPrimType());
   }
-  int stride = 0;
+  int64 stride = 0;
   if (!CanComputeLoopIndVar(lhsOfPhi, backedge, stride) || stride == 0) {
     if (!initIsConstant) {
       return nullptr;
@@ -2078,7 +2078,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
             (loop.Has(*falseBranch) && (opMeExpr->GetOp() == OP_gt || opMeExpr->GetOp() == OP_ge)) ||
             (stride == 1 && ((loop.Has(*trueBranch) && opMeExpr->GetOp() == OP_ne) ||
                              (loop.Has(*falseBranch) && opMeExpr->GetOp() == OP_eq)))) {
-          return CreateValueRangeForMonotonicIncreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound);
+          return CreateValueRangeForMonotonicIncreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
         } else {
           return std::make_unique<ValueRange>(initBound, stride, kOnlyHasLowerBound);
         }
@@ -2088,7 +2088,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
             (loop.Has(*falseBranch) && (opMeExpr->GetOp() == OP_lt || opMeExpr->GetOp() == OP_le)) ||
             (stride == -1 && ((loop.Has(*trueBranch) && opMeExpr->GetOp() == OP_ne) ||
                               (loop.Has(*falseBranch) && opMeExpr->GetOp() == OP_eq)))) {
-          return CreateValueRangeForMonotonicDecreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound);
+          return CreateValueRangeForMonotonicDecreaseVar(loop, *exitBB, bb, *opMeExpr, *opnd1, initBound, stride);
         } else {
           return std::make_unique<ValueRange>(initBound, stride, kOnlyHasUpperBound);
         }

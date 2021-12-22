@@ -312,6 +312,10 @@ class ValueRange {
            (rangeType == kOnlyHasUpperBound && GetUpper().GetConstant() < 0 && GetUpper().GetVar() == nullptr);
   }
 
+  bool IsNotConstantVR() const {
+    return GetLower().GetVar() != nullptr || GetUpper().GetVar() != nullptr;
+  }
+
   static Bound MinBound(PrimType pType) {
     return Bound(nullptr, GetMinNumber(pType), pType);
   }
@@ -491,7 +495,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
   std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, OpMeExpr &opMeExpr);
-  bool CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int &constant);
+  bool CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int64 &constant);
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
   InRangeType InRange(const BB &bb, ValueRange &rangeTemp, ValueRange &range, bool lowerIsZero = false);
@@ -503,9 +507,9 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode);
   void ReplaceBoundForSpecialLoopRangeValue(LoopDesc &loop, ValueRange &valueRangeOfIndex, bool upperIsSpecial);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicIncreaseVar(
-      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound);
+      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicDecreaseVar(
-      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound);
+      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride);
   void CreateValueRangeForLeOrLt(MeExpr &opnd, ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
                                  BB &trueBranch, BB &falseBranch);
   void CreateValueRangeForGeOrGt(MeExpr &opnd,  ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
@@ -563,8 +567,11 @@ class ValueRangePropagation {
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
+  std::unique_ptr<ValueRange> GetValueRangeOfCRNodes(
+      MeStmt &meStmt, BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes);
   bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
+  MeExpr *GetAddressOfIndexOrBound(MeExpr &expr) const;
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
   bool IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   void CollectIndexOpndWithBoundInLoop(
@@ -575,15 +582,10 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
       std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
       ValueRange &constantValueRange);
-  std::unique_ptr<ValueRange> GetTheValueRangeOfIndex(
-      BB &bb, MeStmt &meStmt, CRAddNode &crAddNode, uint32 &byteSize, MeExpr *lengthExpr,
-      ValueRange *valueRangeOfLengthPtr);
-  bool DealWithAssertGe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR);
-  bool CompareIndexWithUpper(MeStmt &meStmt, MeExpr &baseAddress, ValueRange &valueRangeOfIndex,
-                             int64 lengthValue, ValueRange &valueRangeOfLengthPtr, uint32 byteSize, Opcode op);
-  bool GetTheValueRangeOfArrayLength(BB &bb, MeStmt &meStmt, CRAddNode &crADDNodeOfBound,
-                                     MeExpr *&lengthExpr, int64 &lengthValue, ValueRange *&valueRangeOfLengthPtr,
-                                     std::unique_ptr<ValueRange> &valueRangeOfLength, uint32 &byteSize);
+  bool CompareConstantOfIndexAndLength(
+      MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op);
+  bool CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+                             ValueRange &valueRangeOfLengthPtr, Opcode op);
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
