@@ -373,12 +373,6 @@ bool AArch64StoreLoadOpt::CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet
     if (a64RD->HasRegDefBetweenInsnGlobal(replaceRegNo, defInsn, currInsn)) {
       return false;
     }
-
-    InsnSet regDefSetForNewBase =
-        a64RD->FindDefForRegOpnd(currInsn, replaceRegNo, true);
-    if (regDefSetForNewBase.size() != k1BitSize) {
-      return false;
-    }
   }
 
   if (replaceRegDefSet.size() == 1 && *replaceRegDefSet.begin() == &defInsn) {
@@ -685,6 +679,22 @@ bool AArch64StoreLoadOpt::ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &
   AArch64MemOperand *newMemOpnd = SelectReplaceMem(*regDefInsn, insn, base, offset);
   if (newMemOpnd == nullptr) {
     return false;
+  }
+
+  /* check new memOpnd */
+  if (newMemOpnd->GetBaseRegister() != nullptr) {
+    InsnSet regDefSetForNewBase =
+        a64RD->FindDefForRegOpnd(insn, newMemOpnd->GetBaseRegister()->GetRegisterNumber(), true);
+    if (regDefSetForNewBase.size() != k1BitSize) {
+      return false;
+    }
+  }
+  if (newMemOpnd->GetIndexRegister() != nullptr) {
+    InsnSet regDefSetForNewIndex =
+        a64RD->FindDefForRegOpnd(insn, newMemOpnd->GetIndexRegister()->GetRegisterNumber(), true);
+    if (regDefSetForNewIndex.size() != k1BitSize) {
+      return false;
+    }
   }
 
   uint32 opndIdx;
