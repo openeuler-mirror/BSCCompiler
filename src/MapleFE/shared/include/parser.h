@@ -49,6 +49,7 @@ typedef enum AppealStatus {
   FailChildrenFailed,
   Fail2ndOf1st,
   FailLookAhead,
+  FailASI,
 
   // Succ :             Really does the matching, will be saved in SuccMatch
   // SuccWasSucc :      Was matched, not tried traversal for a second timewill,
@@ -57,9 +58,11 @@ typedef enum AppealStatus {
   //                    in RecurionNodes where it does multiple instances of
   //                    traversal. But it doesn't make any change compared
   //                    to the last real Succ. It will NOT be saved in SuccMatch
+  // SuccASI:           TS/JS auto-semicolon-insert
   Succ,
   SuccWasSucc,
   SuccStillWasSucc,
+  SuccASI,
 
   AppealStatus_NA
 }AppealStatus;

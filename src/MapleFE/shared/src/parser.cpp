@@ -706,8 +706,9 @@ bool Parser::TraverseTempLiteral() {
   AppealNode *child = NULL;
   succ_expr = TraverseRuleTable(t, mRootNode, child);
   if (succ_expr) {
-    MASSERT(child);
-    mRootNode->CopyMatch(child);
+    MASSERT(child || t->mType == ET_ASI);
+    if (child)
+      mRootNode->CopyMatch(child);
     // Need adjust the mCurToken. A rule could try multiple possible
     // children rules, although there is one and only one valid child
     // for a Top table. However, the mCurToken could deviate from
@@ -724,8 +725,9 @@ bool Parser::TraverseTempLiteral() {
   child = NULL;
   succ_type = TraverseRuleTable(t, mRootNode, child);
   if (succ_type) {
-    MASSERT(child);
-    mRootNode->CopyMatch(child);
+    MASSERT(child || t->mType == ET_ASI);
+    if (child)
+      mRootNode->CopyMatch(child);
     // Need adjust the mCurToken. A rule could try multiple possible
     // children rules, although there is one and only one valid child
     // for a Top table. However, the mCurToken could deviate from
@@ -766,8 +768,9 @@ bool Parser::TraverseStmt() {
     AppealNode *child = NULL;
     succ = TraverseRuleTable(t, mRootNode, child);
     if (succ) {
-      MASSERT(child);
-      mRootNode->CopyMatch(child);
+      MASSERT(child || t->mType == ET_ASI);
+      if (child)
+        mRootNode->CopyMatch(child);
       // Need adjust the mCurToken. A rule could try multiple possible
       // children rules, although there is one and only one valid child
       // for a Top table. However, the mCurToken could deviate from
@@ -834,6 +837,9 @@ void Parser::DumpExitTable(const char *table_name, unsigned indent,
     std::cout << " succ" << "}";
     DumpSuccTokens(appeal);
     std::cout << std::endl;
+  } else if (reason == SuccASI) {
+    std::cout << " succASI" << "}";
+    std::cout << std::endl;
   } else if (reason == FailWasFailed)
     std::cout << " fail@WasFailed" << "}" << std::endl;
   else if (reason == FailNotRightToken)
@@ -850,6 +856,8 @@ void Parser::DumpExitTable(const char *table_name, unsigned indent,
     std::cout << " fail@2ndOf1st" << "}" << std::endl;
   else if (reason == FailLookAhead)
     std::cout << " fail@LookAhead" << "}" << std::endl;
+  else if (reason == FailASI)
+    std::cout << " fail@ASI" << "}" << std::endl;
   else if (reason == AppealStatus_NA)
     std::cout << " fail@NA" << "}" << std::endl;
 }
@@ -957,7 +965,15 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
   }
 
   if (rule_table->mType == ET_ASI) {
-    return TraverseASI(rule_table, parent, child);
+    bool found = TraverseASI(rule_table, parent, child);
+    if (mTraceTable) {
+      if (found)
+        DumpExitTable(name, mIndentation, SuccASI);
+      else
+        DumpExitTable(name, mIndentation, FailASI);
+    }
+    mIndentation -= 2;
+    return found;
   }
 
   // Lookahead fail is fast to check, even faster than check WasFailed.
@@ -1691,6 +1707,7 @@ bool Parser::TraverseConcatenate(RuleTable *rule_table, AppealNode *appeal) {
 
   for (unsigned i = 0; i < rule_table->mNum; i++) {
     bool is_zeroxxx = false;
+    bool is_asi = false;
     bool is_token = false;
     bool old_mInAltTokensMatching = mInAltTokensMatching;
 
@@ -1699,6 +1716,8 @@ bool Parser::TraverseConcatenate(RuleTable *rule_table, AppealNode *appeal) {
       RuleTable *zero_rt = data->mData.mEntry;
       if (zero_rt->mType == ET_Zeroormore || zero_rt->mType == ET_Zeroorone)
         is_zeroxxx = true;
+      if (zero_rt->mType == ET_ASI)
+        is_asi = true;
     } else if (data->mType == DT_Token) {
       is_token = true;
     }
@@ -1724,11 +1743,17 @@ bool Parser::TraverseConcatenate(RuleTable *rule_table, AppealNode *appeal) {
         child->SetChildIndex(i);
       found_subtable |= temp_found;
 
-      if (temp_found && child) {
-        for (unsigned id = 0; id < child->GetMatchNum(); id++) {
-          unsigned match = child->GetMatch(id);
-          if (!subtable_succ_tokens.Find(match))
-            subtable_succ_tokens.PushBack(match);
+      if (temp_found ) {
+        if (child) {
+          for (unsigned id = 0; id < child->GetMatchNum(); id++) {
+            unsigned match = child->GetMatch(id);
+            if (!subtable_succ_tokens.Find(match))
+              subtable_succ_tokens.PushBack(match);
+          }
+        } else if (is_asi) {
+          // ASI succeeded, without child. It means semicolon is skipped.
+          // Keep prev. NO moving mCurToken.
+          subtable_succ_tokens.PushBack(prev);
         }
       }
     }
@@ -1803,8 +1828,14 @@ bool Parser::TraverseTableData(TableData *data, AppealNode *appeal, AppealNode *
   //              we are working on right now is not the last token. It's one of the previous matches.
   // So we need check if we are matching the last token.
   if (mEndOfFile && mCurToken >= mActiveTokens.GetNum()) {
-    if (!(mInAltTokensMatching && (mCurToken == mATMToken)))
+    if (!(mInAltTokensMatching && (mCurToken == mATMToken))) {
+      if (data->mType == DT_Subtable) {
+        RuleTable *t = data->mData.mEntry;
+        if (t->mType == ET_ASI)
+          return TraverseASI(t, appeal, child_node);
+      }
       return false;
+    }
   }
 
   unsigned old_pos = mCurToken;
@@ -2245,12 +2276,14 @@ void Parser::SortOutConcatenate(AppealNode *parent) {
   for (int i = rule_table->mNum - 1; i >= 0; i--) {
     TableData *data = rule_table->mData + i;
     AppealNode *child = parent->FindIndexedChild(last_match, i);
-    // It's possible that we find NO child if 'data' is a ZEROORxxx table
+    // It's possible that we find NO child if 'data' is a ZEROORxxx table or ASI.
     bool good_child = false;
     if (!child) {
       if (data->mType == DT_Subtable) {
         RuleTable *table = data->mData.mEntry;
         if (table->mType == ET_Zeroorone || table->mType == ET_Zeroormore)
+          good_child = true;
+        if (table->mType == ET_ASI)
           good_child = true;
       }
       MASSERT(good_child);
