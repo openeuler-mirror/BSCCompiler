@@ -234,6 +234,18 @@ FunctionNode *BuildScopeVisitor::VisitFunctionNode(FunctionNode *node) {
   for(unsigned i = 0; i < node->GetTypeParamsNum(); i++) {
     TreeNode *it = node->GetTypeParamAtIndex(i);
 
+    // add type parameter as decl
+    if (it->IsTypeParameter()) {
+      TypeParameterNode *tpn = static_cast<TypeParameterNode *>(it);
+      TreeNode *id = tpn->GetId();
+      if (id->IsIdentifier()) {
+        AddDecl(scope, id);
+      } else {
+        NOTYETIMPL("function type parameter not identifier");
+      }
+      continue;
+    }
+
     // add it to scope's mTypes only if it is a new type
     TreeNode *tn = it;
     if (it->IsUserType()) {
