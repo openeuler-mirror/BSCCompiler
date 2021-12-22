@@ -120,6 +120,13 @@ void BuildScopeVisitor::AddTypeAndDecl(ASTScope *scope, TreeNode *node) {
   AddDecl(scope, node);
 }
 
+#define ADD_DECL(K) {\
+  TreeNode *node = mHandler->NewTreeNode<IdentifierNode>(); \
+  unsigned idx = gStringPool.GetStrIdx(K); \
+  node->SetStrIdx(idx); \
+  AddDecl(scope, node); \
+}
+
 void BuildScopeVisitor::InitInternalTypes() {
   // add primitive and builtin types to root scope
   ModuleNode *module = mHandler->GetASTModule();
@@ -145,6 +152,12 @@ void BuildScopeVisitor::InitInternalTypes() {
   console->AddMethod(log);
   log->SetScope(scp);
   AddDecl(scp, log);
+
+  // add dummy decl for some keywords
+  ADD_DECL("undefined");
+  ADD_DECL("null");
+  ADD_DECL("Error");
+  ADD_DECL("NonNullable");
 }
 
 ClassNode *BuildScopeVisitor::AddClass(std::string name, unsigned tyidx) {
