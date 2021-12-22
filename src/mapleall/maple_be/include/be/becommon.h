@@ -112,6 +112,8 @@ class BECommon {
     return *(jClassLayoutTable.at(&klass));
   }
 
+  void AddNewTypeAfterBecommon(uint32 oldTypeTableSize, uint32 newTypeTableSize);
+
   void AddElementToJClassLayout(MIRClassType &klass, JClassFieldInfo info);
 
   bool HasFuncReturnType(MIRFunction &func) const {

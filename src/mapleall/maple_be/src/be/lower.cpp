@@ -1321,7 +1321,12 @@ BlockNode *CGLowerer::LowerMemop(StmtNode &stmt) {
   auto *next = stmt.GetNext();
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   blk->AddStatement(&stmt);
+  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   bool success = simplifyMemOp.AutoSimplify(stmt, *blk, true);
+  uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
+  if (newTypeTableSize != oldTypeTableSize) {
+    beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
+  }
   stmt.SetPrev(prev);
   stmt.SetNext(next);  // recover callStmt's position
   if (!success) {
@@ -1624,7 +1629,7 @@ void CGLowerer::LowerAssertBoundary(StmtNode &stmt, BlockNode &block, BlockNode 
   }
   uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
   if (newTypeTableSize != oldTypeTableSize) {
-    beCommon.AddNewTypeAfterBecommon(*GlobalTables::GetTypeTable().GetTypeFromTyIdx(oldTypeTableSize));
+    beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
   }
   argsPrintf.push_back(mirBuilder->CreateAddrof(*errMsg, PTY_a64));
   StmtNode *callPrintf = mirBuilder->CreateStmtCall(printf->GetPuidx(), argsPrintf);
@@ -1793,6 +1798,7 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
         newBlk->AddStatement(stmt);
         break;
     }
+    CHECK_FATAL(beCommon.GetSizeOfTypeSizeTable() == GlobalTables::GetTypeTable().GetTypeTableSize(), "Error!");
   } while (nextStmt != nullptr);
   for (auto node : abortNode) {
       newBlk->AddStatement(node);

@@ -113,6 +113,19 @@ static void AddPaddingSlot(std::list<uint32> paddingSlots[], uint32 offset, uint
   }
 }
 
+void BECommon::AddNewTypeAfterBecommon(uint32 oldTypeTableSize, uint32 newTypeTableSize) {
+  for (auto i = oldTypeTableSize; i < newTypeTableSize; ++i) {
+    MIRType *ty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(i);
+    CHECK_NULL_FATAL(ty);
+    typeSizeTable.emplace_back(0);
+    typeAlignTable.emplace_back(static_cast<uint8>(mirModule.IsCModule()));
+    typeHasFlexibleArray.emplace_back(0);
+    structFieldCountTable.emplace_back(0);
+    ComputeTypeSizesAligns(*ty);
+    LowerTypeAttribute(*ty);
+  }
+}
+
 void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   auto &structType = static_cast<MIRStructType&>(ty);
   const FieldVector &fields = structType.GetFields();
