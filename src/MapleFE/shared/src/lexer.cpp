@@ -72,9 +72,6 @@ int Lexer::ReadALine() {
     curidx += 3;
   }
 
-  if (current_line_size > 0 && _linenum == _total_linenum)
-    AppendSemiColon();
-
   return current_line_size;
 }
 
@@ -329,9 +326,12 @@ Token* Lexer::LexToken(void) {
 // Read a token until end of line.
 // Return NULL if no token read.
 Token* Lexer::LexTokenNoNewLine(void) {
+  unsigned old_curidx = curidx;
   bool is_comment = GetComment();
   if (is_comment) {
     Token *t = FindCommentToken();
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     if (mTrace)
       t->Dump();
     return t;
@@ -340,6 +340,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
   OprId opr = GetOperator();
   if (opr != OPR_NA) {
     Token *t = FindOperatorToken(opr);
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     if (mTrace)
       t->Dump();
     return t;
@@ -347,7 +349,6 @@ Token* Lexer::LexTokenNoNewLine(void) {
 
   // There is a corner case: .2
   // The dot is lexed as separator, and 2 is an integer. But actually it's a decimal.
-  unsigned old_curidx = curidx;
   SepId sep = GetSeparator();
   unsigned new_curidx = curidx;
 
@@ -360,6 +361,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
       if (ld.mType != LT_NA) {
         MASSERT(ld.mType == LT_FPLiteral || ld.mType == LT_DoubleLiteral);
         Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+        t->mLineNum = _linenum;
+        t->mColNum = old_curidx;
         t->SetLiteral(ld);
         if (mTrace)
           t->Dump();
@@ -370,6 +373,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
     }
 
     Token *t = FindSeparatorToken(sep);
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     if (mTrace)
       t->Dump();
     return t;
@@ -378,6 +383,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
   const char *keyword = GetKeyword();
   if (keyword != NULL) {
     Token *t = FindKeywordToken(keyword);
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     if (mTrace)
       t->Dump();
     return t;
@@ -386,6 +393,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
   LitData ld = GetLiteral();
   if (ld.mType != LT_NA) {
     Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     t->SetLiteral(ld);
     if (mTrace)
       t->Dump();
@@ -396,6 +405,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
   if (identifier != NULL) {
     Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
     t->SetIdentifier(identifier);
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     if (mTrace)
       t->Dump();
     return t;
@@ -404,6 +415,8 @@ Token* Lexer::LexTokenNoNewLine(void) {
   TempLitData* tldata = GetTempLit();
   if (tldata != NULL) {
     Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    t->mLineNum = _linenum;
+    t->mColNum = old_curidx;
     t->SetTempLit(tldata);
     if (mTrace)
       t->Dump();

@@ -155,7 +155,7 @@ void TokenGen::GenCppFile() {
 
   std::list<Operator>::iterator oit = gTokenTable.mOperators->begin();
   for (; oit != gTokenTable.mOperators->end(); oit++, overall_index++) {
-    std::string output = "  {.mTkType = TT_OP, {.mOprId = ";
+    std::string output = "  {.mTkType = TT_OP, .mLineNum = 0, .mColNum = 0, .mLineBegin = false, .mLineEnd = false, {.mOprId = ";
     Operator opr = *oit;
     std::string opr_name = "OPR_";
     opr_name += FindOperatorName(opr.mID);
@@ -186,7 +186,7 @@ void TokenGen::GenCppFile() {
 
   std::list<Separator>::iterator sit = gTokenTable.mSeparators->begin();
   for (; sit != gTokenTable.mSeparators->end(); sit++, overall_index++) {
-    std::string output = "  {.mTkType = TT_SP, {.mSepId = ";
+    std::string output = "  {.mTkType = TT_SP, .mLineNum = 0, .mColNum = 0, .mLineBegin = false, .mLineEnd = false, {.mSepId = ";
     Separator sep = *sit;
     std::string sep_name = "SEP_";
     sep_name += FindSeparatorName(sep.mID);
@@ -217,7 +217,7 @@ void TokenGen::GenCppFile() {
 
   unsigned kw_size = gTokenTable.mKeywords.size();
   for (unsigned index = 0; index < kw_size; index++, overall_index++) {
-    std::string output = "  {.mTkType = TT_KW, {.mName = ";
+    std::string output = "  {.mTkType = TT_KW, .mLineNum = 0, .mColNum = 0, .mLineBegin = false, .mLineEnd = false, {.mName = ";
     std::string keyword = gTokenTable.mKeywords[index];
     output += "\"";
     output += keyword;
@@ -247,7 +247,7 @@ void TokenGen::GenCppFile() {
   }
 
   // Write the comment token
-  std::string output = "  {.mTkType = TT_CM, {.mName = NULL}, .mAltTokens = NULL}";
+  std::string output = "  {.mTkType = TT_CM, .mLineNum = 0, .mColNum = 0, .mLineBegin = false, .mLineEnd = false, {.mName = NULL}, .mAltTokens = NULL}";
   mCppFile.WriteOneLine(output.c_str(), output.size());
   mCppFile.WriteOneLine("};", 2);
   mCppFile.WriteOneLine("}", 1);

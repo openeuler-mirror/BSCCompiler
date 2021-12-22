@@ -10,52 +10,87 @@ class MyCar extends Car {
 }
 
 let car = new Car("A car");
-let mycar = new MyCar("My car");
+let myCar = new MyCar("My car");
 let arr = [1, 2, 3]
 
 function* generator() { yield 1; }
+const gpt = generator.prototype.__proto__;
 
-// Dump graphs with edges for prototype, __proto__ and constructor properties of each objects
-for(let g = 0; g < 4; ++g) {
-  let objs =  [Function, Object], names = ["Function", "Object"], gen = undefined;
-  if (g < 2) {
-    objs.unshift ( arr,   Array,   Vehicle,   Car,   MyCar,   car,   mycar);
-    names.unshift("arr", "Array", "Vehicle", "Car", "MyCar", "car", "mycar");
-  } else {
-    gen = generator.prototype.__proto__;
-    objs.unshift ( generator,   generator(),          generator.constructor,  gen,                  gen.__proto__);
-    names.unshift("generator", "generator_instance", "GeneratorFunction",    "GeneratorPrototype", "IteratorPrototype");
+function makeClosure(a) {
+  return function (b) {
+    return a + b;
   }
-  console.log("digraph JS" + g + " {\nranksep=0.6;\nnodesep=0.6;\n" + (g % 2 == 0 ? "newrank=true;\n" : ""));
-  let num = objs.length;
-  let k = num, suffix = "Prototype";
-  // Add prototype objects and edges for them
-  for(let i = 0; i < num; ++i) {
-    console.log(names[i].includes(suffix) ? names[i] + "[shape=box];" : "");
-    if(typeof objs[i].prototype !== "undefined") {
-      objs[k]  = objs[i].prototype;
-      let special = names[i] === "GeneratorFunction" && objs[k].prototype === gen;
-      names[k] = special ? "Generator" : names[i] + suffix;
-      console.log(special ? "GeneratorPrototype -> " + names[k] + " [label=\"prototype\", color=blue, fontcolor=blue, dir=back];" : "");
-      console.log(g % 2 == 0 ? "subgraph cluster_" + names[i] + " {\nrank=same;\ncolor=white;\n" + names[i] + ";\n"
-        + names[k] + "[shape=box];\n }" : names[k] + "[shape=box];");
-      console.log(names[i] + " -> " + names[k] + " [label=\"prototype\", color=blue, fontcolor=blue];");
-      k++;
-    }
-  }
-  // Add edges for __proto__ and constructor properties of each objects
-  num = objs.length;
-  for(let i = 0; i < num; ++i) {
-    console.log("\n/* Object.getOwnPropertyNames(" + names[i] + "):\n", Object.getOwnPropertyNames(objs[i]), "\n"
-      + names[i] + ".toString(): " + (names[i] === "Generator" ? "-" : objs[i].toString().replace(/\s+/g, " ")) + "\n*/");
-    for(let j = 0; j < num; ++j) {
-      // Edges for constructor properties in the second graph only
-      if(g % 2 == 1 && objs[i].constructor === objs[j])
-        console.log(names[i] + " -> " + names[j] + " [label=\"ctor\", color=darkgreen, fontcolor=darkgreen];");
-      // Edges for __proto__ properties
-      if(objs[i].__proto__ === objs[j])
-        console.log(names[i] + " -> " + names[j] + " [label=\"__proto__\", color=red, fontcolor=red];");
-    }
-  }
-  console.log("}");
 }
+const closure = makeClosure(1);
+
+let myMap = new Map();
+let myMapIterator = myMap[Symbol.iterator]();
+let MapIteratorPrototype = Object.getPrototypeOf(new Map()[Symbol.iterator]());
+
+async function asyncFunction() {}
+async function* asyncGenerator() {}
+const agpt = asyncGenerator.prototype.__proto__;
+
+// All data for generating graphs
+let graphData = {
+  Classes  : ["Array", "arr", "myCar", "car"],
+  Generator: ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
+              [gpt.__proto__, "IteratorPrototype"], [generator.__proto__, "Generator"]],
+  Builtins : ["Symbol", "Math", "JSON", "Promise"],
+  Closure  : ["makeClosure", "closure"],
+  Iterators: ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
+  Async    : ["asyncFunction", "asyncGenerator", [asyncGenerator(), "asyncGenerator_instance"], [agpt, "AsyncGeneratorPrototype"],
+              [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]],
+};
+
+generateGraph(graphData);
+
+function generateGraph(data) {
+  // Gather all reachable objects from their prototype, __proto__ and constructor properties
+  function insert(g, depth, ...args) {
+    for (let arg of args) {
+      let [o, name] = typeof arg === "string" ? [eval(arg), arg] : arg;
+      if (typeof o !== "undefined" && o !== null)
+        if (!g.has(o)) {
+          g.set(o, name !== null || typeof o !== "function" ? name : o.toString().split(" ")[1].replace(/[^a-zA-Z0-9+]/g, ""));
+          insert(g, depth + 1, [o.prototype, g.get(o) === null ? null : g.get(o) + "Prototype"], [o.__proto__, null], [o.constructor, null]);
+        } else if (name !== null)
+        g.set(o, name);
+    }
+    if (depth === 0) {
+      let visited = new Set();
+      for (let [index, [key, val]] of Array.from(g).entries()) {
+        val = val === null || val === "" ? "Object_" + index : val.replace(/[^A-Za-z0-9]+/g, "_");
+        if (visited.has(val)) val += "__" + index;
+        visited.add(val);
+        g.set(key, val);
+      }
+    }
+  }
+
+  // Dump graphs with edges for prototype, __proto__ and constructor properties of each object
+  let nodejs = (typeof process !== 'undefined') && (process.release.name === 'node')
+  for (let prop in data) {
+    let graph = new Map();
+    insert(graph, 0, "Function", "Object", ...data[prop]);
+    for (let ctor of ["", "_with_ctors"]) {
+      console.log("digraph JS_" + prop + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
+      for (let [index, [key, val]] of Array.from(graph).entries()) {
+        let func = typeof key === "function";
+        // Add comments with detailed information of keys
+        if (nodejs)
+          console.log("\n/* key =", key, "\nObject.getOwnPropertyNames(" + val + "):\n", Object.getOwnPropertyNames(key),
+            "\n" + val + ".toString(): " + (func ? key.toString().replace(/\s+/g, " ") : "-") + "\n*/");
+        console.log(val + " [label=\"" + val + " " + (index < 4 ? 3 - index : index) + "\", shape="
+          + (val.includes("Prototype") ? "box" : "oval") + (func ? ", style=filled" : "") + "];");
+        // Add edges for prototype, constructor and __proto__ properties of objects
+        for (let [f, c] of [["prototype", "blue"], ["constructor", "darkgreen"], ["__proto__", "red"]])
+          if (typeof key[f] !== "undefined" && key[f] !== null && graph.has(key[f]) && (ctor != "" || f !== "constructor"))
+            console.log((ctor != "" || f !== "prototype" ? "" : "subgraph cluster_" + val + " {\nrank=same;\ncolor=white;\n"
+              + val + ";\n" + graph.get(key.prototype) + " [shape=box];\n}\n") + val + " -> " + graph.get(key[f])
+              + " [label=\"" + (f === "constructor" ? "ctor" : f) + "\", color=" + c + ", fontcolor=" + c + "];");
+      }
+      console.log("} // digraph JS_" + prop + ctor);
+    }
+  }
+} // generateGraph 
