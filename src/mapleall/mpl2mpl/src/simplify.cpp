@@ -1010,9 +1010,6 @@ MemOpKind SimplifyMemOp::ComputeMemOpKind(StmtNode &stmt) {
   }
   auto &callStmt = static_cast<CallNode&>(stmt);
   MIRFunction *func = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt.GetPUIdx());
-  if (!func->GetAttr(FUNCATTR_extern)) {
-    return MEM_OP_unknown;  // function from libc is always marked as extern
-  }
   const char *funcName = func->GetName().c_str();
   if (strcmp(funcName, kFuncNameOfMemset) == 0) {
     return MEM_OP_memset;
