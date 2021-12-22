@@ -956,6 +956,10 @@ bool Parser::TraverseRuleTable(RuleTable *rule_table, AppealNode *parent, Appeal
     DumpEnterTable(name, mIndentation);
   }
 
+  if (rule_table->mType == ET_ASI) {
+    return TraverseASI(rule_table, parent, child);
+  }
+
   // Lookahead fail is fast to check, even faster than check WasFailed.
   if (LookAheadFail(rule_table, mCurToken) &&
       (rule_table->mType != ET_Zeroormore) &&
@@ -1242,9 +1246,11 @@ bool Parser::TraverseRuleTableRegular(RuleTable *rule_table, AppealNode *appeal)
   case ET_Concatenate:
     matched = TraverseConcatenate(rule_table, appeal);
     break;
-  case ET_ASI:
-    matched = TraverseASI(rule_table, appeal);
+  case ET_ASI: {
+    AppealNode *child = NULL;
+    matched = TraverseASI(rule_table, appeal, child);
     break;
+  }
   case ET_Data: {
     // This is a rare case where a rule table contains only table, either a token
     // or a single child rule. In this case, we need merge the child's match into
