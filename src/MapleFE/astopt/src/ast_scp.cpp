@@ -278,9 +278,15 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld->IsIdentifier()) {
+      AddDecl(scope, fld);
+    } else {
+      NOTYETIMPL("new type of class field");
     }
   }
   mScopeStack.push(scope);
@@ -304,9 +310,13 @@ InterfaceNode *BuildScopeVisitor::VisitInterfaceNode(InterfaceNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld->IsIdentifier()) {
+      AddDecl(scope, fld);
     }
   }
   mScopeStack.push(scope);
@@ -330,9 +340,13 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld->IsIdentifier()) {
+      AddDecl(scope, fld);
     }
   }
   mScopeStack.push(scope);
