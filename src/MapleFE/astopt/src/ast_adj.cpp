@@ -52,6 +52,7 @@ IdentifierNode *AdjustASTVisitor::VisitIdentifierNode(IdentifierNode *node) {
 ClassNode *AdjustASTVisitor::VisitClassNode(ClassNode *node) {
   (void) AstVisitor::VisitClassNode(node);
   CheckAndRenameCppKeywords(node);
+  AssignPseudoName(node);
   // skip getting canonical type if not only fields
   if (node->GetMethodsNum() || node->GetSuperClassesNum() || node->GetSuperInterfacesNum() ||
       node->GetSuperClassesNum() || node->GetTypeParamsNum()) {
@@ -515,6 +516,16 @@ void AdjustASTVisitor::CheckAndRenameCppKeywords(TreeNode *node) {
     node->SetStrIdx(newidx);
     mRenameMap[stridx] = newidx;
   }
+}
+
+void AdjustASTVisitor::AssignPseudoName(TreeNode *node) {
+  if (!mHandler->IsTS() || node->GetStrIdx() != 0) {
+    return;
+  }
+  static int pseudo = 0;
+  // Set a pseudo name
+  unsigned newidx = gStringPool.GetStrIdx("__Pseudo_" + std::to_string(++pseudo));
+  node->SetStrIdx(newidx);
 }
 
 }
