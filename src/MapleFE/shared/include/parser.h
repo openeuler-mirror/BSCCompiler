@@ -227,7 +227,7 @@ struct RecStackEntry {
 ////////////////////////////////////////////////////////////////////////////
 
 class Parser {
-private:
+protected:
   friend class RecursionTraversal;
 
   // Matching on alternative tokens needs a state machine.
