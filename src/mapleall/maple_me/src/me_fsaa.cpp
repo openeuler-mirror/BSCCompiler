@@ -32,6 +32,13 @@
 using namespace std;
 
 namespace maple {
+static VersionSt *GetVersionStFromExpr(BaseNode *expr) {
+  if (!expr->IsSSANode()) {
+    return nullptr;
+  }
+  return static_cast<SSANode*>(expr)->GetSSAVar();
+}
+
 // if the pointer represented by vst is found to have a unique pointer value,
 // return the BB of the definition
 BB *FSAA::FindUniquePointerValueDefBB(VersionSt *vst) {
@@ -55,7 +62,6 @@ BB *FSAA::FindUniquePointerValueDefBB(VersionSt *vst) {
     } else {  // rhs is another pointer; call recursively for its rhs
       return FindUniquePointerValueDefBB(dread->GetSSAVar());
     }
-    return nullptr;
   } else if (rhs->GetOpCode() == OP_iread) {
     if (func->GetMirFunc()->IsConstructor() || func->GetMirFunc()->IsStatic() ||
         func->GetMirFunc()->GetFormalDefVec().empty()) {
@@ -79,6 +85,107 @@ BB *FSAA::FindUniquePointerValueDefBB(VersionSt *vst) {
   return nullptr;
 }
 
+// Only allow dassign stmt
+void FSAA::FindDefStmtsChain(VersionSt *vst, std::vector<DassignNode*> &stmtChain) {
+  if (vst == nullptr) {
+    return;
+  }
+  if (vst->GetDefType() != VersionSt::kAssign) {
+    return;
+  }
+  StmtNode *defStmt = vst->GetAssignNode();
+  if (defStmt->GetOpCode() != OP_dassign) {
+    return;
+  }
+  auto *dassNode = static_cast<DassignNode*>(defStmt);
+  stmtChain.emplace_back(dassNode);
+  // find upwards thru rhs iteratively
+  BaseNode *rhs = dassNode->GetRHS();
+  VersionSt *rhsVst = GetVersionStFromExpr(rhs);
+  FindDefStmtsChain(rhsVst, stmtChain);
+}
+
+bool FSAA::IsTheSameExprSemantically(BaseNode *exprA, BaseNode *exprB) {
+  if (exprA == nullptr || exprB == nullptr) {
+    return false;
+  }
+  if (exprA == exprB) {
+    return true;
+  }
+  Opcode opA = exprA->GetOpCode();
+  Opcode opB = exprB->GetOpCode();
+  PrimType ptypA = exprA->GetPrimType();
+  PrimType ptypB = exprB->GetPrimType();
+  size_t opndNumA = exprA->NumOpnds();
+  size_t opndNumB = exprA->NumOpnds();
+  if (opA != opB || ptypA != ptypB || opndNumA != opndNumB) {
+    return false;
+  }
+  if (opA == OP_constval) {
+    auto *constValA = static_cast<ConstvalNode*>(exprA);
+    auto *constValB = static_cast<ConstvalNode*>(exprB);
+    return constValA->IsSameContent(constValB);
+  }
+  VersionSt *vstA = GetVersionStFromExpr(exprA);
+  VersionSt *vstB = GetVersionStFromExpr(exprB);
+  if (vstA != nullptr || vstB != nullptr) {
+    return (vstA == vstB);
+  }
+  for (size_t i = 0; i < opndNumA; ++i) {
+    if (!IsTheSameExprSemantically(exprA->Opnd(i), exprB->Opnd(i))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool FSAA::HasTheSameRHS(const std::vector<DassignNode*> &stmtsA, const std::vector<DassignNode*> &stmtsB) {
+  if (stmtsA.empty() || stmtsB.empty()) {
+    return false;
+  }
+  for (auto *stmtA : stmtsA) {
+    for (auto *stmtB: stmtsB) {
+      if (IsTheSameExprSemantically(stmtA->GetRHS(), stmtB->GetRHS())) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+void FSAA::FilterAliasByRHSAA(IassignNode *stmt, BB *bb) {
+  BaseNode *rhs = stmt->GetRHS();
+  if (rhs->GetOpCode() == OP_iread) {
+    BaseNode *rhsBase = static_cast<IreadSSANode*>(rhs)->Opnd(0);
+    VersionSt *rhsBaseVst = GetVersionStFromExpr(rhsBase);
+    std::vector<DassignNode*> rhsDefStmtChain;
+    FindDefStmtsChain(rhsBaseVst, rhsDefStmtChain);
+    FieldID rhsFldID = static_cast<IreadSSANode*>(rhs)->GetFieldID();
+    TypeOfMayDefList &mayDefNodes = ssaTab->GetStmtsSSAPart().GetMayDefNodesOf(*stmt);
+    for (auto it = mayDefNodes.begin(); it != mayDefNodes.end();) {
+      std::vector<DassignNode*> aliasDefStmtChain;
+      if (it->second.base != nullptr && it->second.GetResult()->GetOst()->GetFieldID() == rhsFldID) {
+        FindDefStmtsChain(it->second.base, aliasDefStmtChain);
+      }
+      // if this alias pointer X has the same value as rhs, their points-to(memory) are the same exactly.
+      bool canBeErased = HasTheSameRHS(rhsDefStmtChain, aliasDefStmtChain);
+      if (canBeErased) {
+        if (DEBUGFUNC(func)) {
+          LogInfo::MapleLogger() << "FSAA deletes mayDef of ";
+          it->second.GetResult()->Dump();
+          LogInfo::MapleLogger() << " in BB " << bb->GetBBId() << " at:" << endl;
+          stmt->Dump(0);
+        }
+        it = mayDefNodes.erase(it);
+        needUpdateSSA = true;
+        CHECK_FATAL(!mayDefNodes.empty(), "FSAA::FilterAliasByRHSAA: mayDefNodes of iassign rendered empty");
+      } else {
+        ++it;
+      }
+    }
+  }
+}
+
 void FSAA::ProcessBB(BB *bb) {
   auto &stmtNodes = bb->GetStmtNodes();
   for (auto itStmt = stmtNodes.begin(); itStmt != stmtNodes.rbegin().base(); ++itStmt) {
@@ -94,6 +201,8 @@ void FSAA::ProcessBB(BB *bb) {
     } else {
       break;
     }
+    FilterAliasByRHSAA(iass, bb);
+
     BB *defBB = FindUniquePointerValueDefBB(vst);
     if (defBB != nullptr) {
       if (DEBUGFUNC(func)) {
@@ -101,47 +210,40 @@ void FSAA::ProcessBB(BB *bb) {
       }
       // delete any maydefnode in the list that is defined before defBB
       TypeOfMayDefList *mayDefNodes = &ssaTab->GetStmtsSSAPart().GetMayDefNodesOf(*itStmt);
-
-      bool hasErase = false;
-      do {
-        hasErase = false;
-        TypeOfMayDefList::iterator it = mayDefNodes->begin();
-        // due to use of iterator, can do at most 1 erasion each iterator usage
-        for (; it != mayDefNodes->end(); ++it) {
-          if (it->second.base == nullptr) {
+      for (auto it = mayDefNodes->begin(); it != mayDefNodes->end(); ++it) {
+        bool canBeErased = false;
+        if (it->second.base != nullptr) {
+          BB *aliasedDefBB = it->second.base->GetDefBB();
+          if (aliasedDefBB == nullptr) {
+            canBeErased = true;
           } else {
-            BB *aliasedDefBB = it->second.base->GetDefBB();
-            if (aliasedDefBB == nullptr) {
-              hasErase = true;
-            } else {
-              hasErase = defBB != aliasedDefBB && dom->Dominate(*aliasedDefBB, *defBB);
-            }
-          }
-          if (hasErase) {
-            if (DEBUGFUNC(func)) {
-              LogInfo::MapleLogger() << "FSAA deletes mayDef of ";
-              it->second.GetResult()->Dump();
-              LogInfo::MapleLogger() << " in BB " << bb->GetBBId() << " at:" << endl;
-              itStmt->Dump();
-            }
-            (void)mayDefNodes->erase(it);
-            needUpdateSSA = true;
-            CHECK_FATAL(!mayDefNodes->empty(), "FSAA::ProcessBB: mayDefNodes of iassign rendered empty");
-            break;
+            canBeErased = defBB != aliasedDefBB && dom->Dominate(*aliasedDefBB, *defBB);
           }
         }
-      } while (hasErase);
+        if (canBeErased) {
+          if (DEBUGFUNC(func)) {
+            LogInfo::MapleLogger() << "FSAA deletes mayDef of ";
+            it->second.GetResult()->Dump();
+            LogInfo::MapleLogger() << " in BB " << bb->GetBBId() << " at:" << endl;
+            itStmt->Dump();
+          }
+          it = mayDefNodes->erase(it);
+          needUpdateSSA = true;
+          CHECK_FATAL(!mayDefNodes->empty(), "FSAA::ProcessBB: mayDefNodes of iassign rendered empty");
+          break;
+        }
+      }
     }
   }
 }
 
 bool MEFSAA::PhaseRun(MeFunction &f) {
+  auto *dom = GET_ANALYSIS(MEDominance, f);
+  CHECK_NULL_FATAL(dom);
   auto *ssaTab = GET_ANALYSIS(MESSATab, f);
   CHECK_NULL_FATAL(ssaTab);
   auto *ssa = GET_ANALYSIS(MESSA, f);
   CHECK_NULL_FATAL(ssa);
-  auto *dom = GET_ANALYSIS(MEDominance, f);
-  CHECK_NULL_FATAL(dom);
 
   FSAA fsaa(&f, dom);
   auto cfg = f.GetCfg();
@@ -155,6 +257,7 @@ bool MEFSAA::PhaseRun(MeFunction &f) {
     ssa->runRenameOnly = true;
 
     ssa->InitRenameStack(ssaTab->GetOriginalStTable(), cfg->GetAllBBs().size(), ssaTab->GetVersionStTable());
+    ssa->UpdateDom(dom); // dom info may be set invalid in dse when cfg is modified
     // recurse down dominator tree in pre-order traversal
     auto *children = &dom->domChildren[cfg->GetCommonEntryBB()->GetBBId()];
     for (BBId child : *children) {
