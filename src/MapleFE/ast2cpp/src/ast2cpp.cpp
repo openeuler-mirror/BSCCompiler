@@ -172,13 +172,13 @@ int A2C::ProcessAST() {
     if (mFlags & FLG_trace_2) {
       std::cout << "============= AstGraph ===========" << std::endl;
       AstGraph graph(module);
-      graph.DumpGraph("After BuildCFG()", &std::cout);
+      graph.DumpGraph("After TypeInference()", &std::cout);
     }
 
     if (mFlags & FLG_trace_2) {
       std::cout << "============= AstDump ===========" << std::endl;
       AstDump astdump(module);
-      astdump.Dump("After BuildCFG()", &std::cout);
+      astdump.Dump("After TypeInference()", &std::cout);
     }
 
     // data flow analysis
