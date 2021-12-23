@@ -370,7 +370,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
       StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
       fld = sn->GetKey();
     }
-    if (fld->IsIdentifier()) {
+    if (fld && fld->IsIdentifier()) {
       AddDecl(scope, fld);
     }
   }
@@ -394,7 +394,7 @@ StructLiteralNode *BuildScopeVisitor::VisitStructLiteralNode(StructLiteralNode *
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     FieldLiteralNode *fld = node->GetField(i);
     TreeNode *name = fld->GetFieldName();
-    if (name->IsIdentifier()) {
+    if (name && name->IsIdentifier()) {
       AddDecl(scope, name);
     }
   }
