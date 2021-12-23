@@ -217,7 +217,8 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
             info->mNodeIdPairs.insert(pnid);
             TypeId tid = exported->GetTypeId();
             bfnode->SetTypeId(tid);
-            bfnode->SetTypeIdx(tid);
+            unsigned tidx = exported->GetTypeIdx();
+            bfnode->SetTypeIdx(tidx);
           } else {
             NOTYETIMPL("failed to find the exported - default");
           }
@@ -231,10 +232,11 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
           std::pair<unsigned, unsigned> pnid(exported->GetNodeId(), afnode->GetNodeId());
           info->mNodeIdPairs.insert(pnid);
           TypeId tid = exported->GetTypeId();
+          unsigned tidx = exported->GetTypeIdx();
           bfnode->SetTypeId(tid);
-          bfnode->SetTypeIdx(tid);
+          bfnode->SetTypeIdx(tidx);
           afnode->SetTypeId(tid);
-          afnode->SetTypeIdx(tid);
+          afnode->SetTypeIdx(tidx);
         } else if (bfnode) {
           // import bfnode
           TreeNode *exported = FindExportedDecl(targethidx, bfnode->GetStrIdx());
@@ -245,8 +247,9 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
           std::pair<unsigned, unsigned> pnid(exported->GetNodeId(), bfnode->GetNodeId());
           info->mNodeIdPairs.insert(pnid);
           TypeId tid = exported->GetTypeId();
+          unsigned tidx = exported->GetTypeIdx();
           bfnode->SetTypeId(tid);
-          bfnode->SetTypeIdx(tid);
+          bfnode->SetTypeIdx(tidx);
         } else {
           NOTYETIMPL("failed to find the exported");
         }
@@ -262,6 +265,27 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
 
     mImports[hidx].insert(info);
   }
+}
+
+TreeNode *AST_XXport::GetIdentifier(TreeNode *node) {
+  switch (node->GetKind()) {
+    case NK_Identifier:
+      break;
+    case NK_TypeAlias: {
+      TypeAliasNode *ta = static_cast<TypeAliasNode *>(node);
+      node = GetIdentifier(ta->GetId());
+      break;
+    }
+    case NK_UserType: {
+      UserTypeNode *ut = static_cast<UserTypeNode *>(node);
+      node = GetIdentifier(ut->GetId());
+      break;
+    }
+    default:
+      NOTYETIMPL("need to extract identifier");
+      break;
+  }
+  return node;
 }
 
 void AST_XXport::CollectExportInfo(unsigned hidx) {
@@ -331,25 +355,31 @@ void AST_XXport::CollectExportInfo(unsigned hidx) {
         p->SetAfter(NULL);
       }
 
-      bfnode = p->GetBefore();
       afnode = p->GetAfter();
+      bfnode = p->GetBefore();
+      if (!bfnode->IsIdentifier()) {
+        bfnode = GetIdentifier(bfnode);
+      }
+
       unsigned exportednid = (afnode ? afnode->GetNodeId(): bfnode->GetNodeId());
       if (p->IsDefault()) {
         info->mDefaultNodeId = exportednid;
-        AddExportedDeclIds(hidx, exportednid);
       } else if (mExportNodeSets[hidx].size() == 1 && node->GetPairsNum() == 1) {
         info->mDefaultNodeId = bfnode->GetNodeId();
-        std::pair<unsigned, unsigned> pnid(bfnode->GetNodeId(), afnode ? afnode->GetNodeId() : 0);
+        std::pair<unsigned, unsigned> pnid(bfnode->GetNodeId(), exportednid);
         info->mNodeIdPairs.insert(pnid);
-        AddExportedDeclIds(hidx, exportednid);
       } else {
-        std::pair<unsigned, unsigned> pnid(bfnode->GetNodeId(), afnode ? afnode->GetNodeId() : 0);
+        std::pair<unsigned, unsigned> pnid(bfnode->GetNodeId(), exportednid);
         info->mNodeIdPairs.insert(pnid);
-        AddExportedDeclIds(hidx, exportednid);
       }
+      AddExportedDeclIds(hidx, exportednid);
     }
 
-    mExports[hidx].insert(info);
+    if (info->mDefaultNodeId || info->mNodeIdPairs.size()) {
+      mExports[hidx].insert(info);
+    } else {
+      delete info;
+    }
   }
 }
 
