@@ -67,7 +67,8 @@ class ENCChecker {
   static UniqueFEIRExpr GetGlobalOrFieldLenExprInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
   static void InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
                                            const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine);
-  static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr);
+  static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr,
+                                                 const UniqueFEIRExpr &dstExpr);
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
                                           uint32 fileIdx, uint32 fileLine);
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,

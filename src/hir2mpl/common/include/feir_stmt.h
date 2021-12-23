@@ -1487,8 +1487,7 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
 
  private:
   void InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSymbol &dstSym, std::list<StmtNode*> &ans) const;
-  void InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
-  void AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+  void AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
   void CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const;
   void CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const;
 
@@ -1514,7 +1513,7 @@ class FEIRStmtIAssign : public FEIRStmt {
   void InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &baseType, std::list<StmtNode*> &ans) const;
   void CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
   void CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
-  void AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
+  void AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 
   UniqueFEIRType addrType;
   UniqueFEIRExpr addrExpr;

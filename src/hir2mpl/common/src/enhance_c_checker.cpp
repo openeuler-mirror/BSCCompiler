@@ -1010,6 +1010,9 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   if (baseExpr == nullptr) {
     return;
   }
+  if (dstExpr->Hash() == baseExpr->Hash()) {  // skip self-assignment, e.g. p++;
+    return;
+  }
   // Check if the l-value has a boundary var
   std::pair<StIdx, StIdx> lBoundaryVarStIdx = std::make_pair(StIdx(0), StIdx(0));
   auto lIt = curFEFunction.GetBoundaryMap().find(dstExpr->Hash());
@@ -1081,9 +1084,9 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
     if (lowerStmt == nullptr || upperStmt == nullptr) {
       return;
     }
-    if (lRealLenExpr != nullptr) {  // use l-vaule own boundary(use r-value base) when l-value has a boundary attr
+    if (lRealLenExpr != nullptr) {  // use l-vaule own boundary(use r-base + offset) when l-value has a boundary attr
       BaseNode *binExpr = mirBuilder.CreateExprBinary(
-          OP_add, *lLowerSym->GetType(), mirBuilder.CreateExprDread(*lLowerSym), lRealLenExpr->GenMIRNode(mirBuilder));
+          OP_add, *lLowerSym->GetType(), srcExpr->GenMIRNode(mirBuilder), lRealLenExpr->GenMIRNode(mirBuilder));
       upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr);
     }
     ans.emplace_back(lowerStmt);
@@ -1552,13 +1555,17 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   ans.splice(ans.end(), upperStmts);
 }
 
-UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr) {
+UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr,
+                                                    const UniqueFEIRExpr &dstExpr) {
   UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(srcExpr);
   if (baseExpr == nullptr) {
     return nullptr;
   }
-  UniqueFEIRExpr boundaryExpr = FEIRBuilder::CreateExprBinary(  // use r-value base
-      OP_add, baseExpr->Clone(), std::move(lenExpr));
+  if (dstExpr->Hash() == baseExpr->Hash()) {  // skip self-assignment, e.g. p++;
+    return nullptr;
+  }
+  UniqueFEIRExpr boundaryExpr = FEIRBuilder::CreateExprBinary(  // use r-value base + offset
+      OP_add, srcExpr->Clone(), std::move(lenExpr));
   std::list<UniqueFEIRExpr> exprs;
   exprs.emplace_back(std::move(boundaryExpr));
   exprs.emplace_back(std::move(baseExpr));
@@ -1636,7 +1643,7 @@ void ENCChecker::InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &bound
 // ---------------------------
 // process boundary var and checking in stmt of ast func
 // ---------------------------
-void FEIRStmtDAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
+void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || expr->GetPrimType() != PTY_ptr) {
     return;
   }
@@ -1644,6 +1651,8 @@ void FEIRStmtDAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNo
   if (var->GetNameRaw().compare(0, prefix.size(), prefix) == 0) {
     return;
   }
+  // insert assign boundary checking for computed r-value
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
 
   UniqueFEIRExpr dstExpr = nullptr;
   UniqueFEIRExpr lenExpr = nullptr;
@@ -1670,7 +1679,7 @@ void FEIRStmtDAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNo
     }
   }
   if (lenExpr != nullptr) {
-    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), expr);
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), expr, dstExpr);
     if (stmt != nullptr) {
       stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
@@ -1680,10 +1689,12 @@ void FEIRStmtDAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNo
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, expr, lenExpr, ans);
 }
 
-void FEIRStmtIAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
+void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || fieldID == 0 || baseExpr->GetPrimType() != PTY_ptr) {
     return;
   }
+  // insert assign boundary checking for computed r-value
+  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, baseExpr, srcFileIndex, srcFileLineNum);
 
   MIRType *baseType = static_cast<MIRPtrType*>(addrType->GenerateMIRTypeAuto())->GetPointedType();
   FieldID tmpID = fieldID;
@@ -1699,7 +1710,7 @@ void FEIRStmtIAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNo
     if (realLenExpr != nullptr) {
       lenExpr = std::move(realLenExpr);
     }
-    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), baseExpr);
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), baseExpr, dstExpr);
     if (stmt != nullptr) {
       stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
@@ -1707,17 +1718,6 @@ void FEIRStmtIAssign::AssignBoundaryVar(MIRBuilder &mirBuilder, std::list<StmtNo
     }
   }
   ENCChecker::AssignBoundaryVar(mirBuilder, dstExpr, baseExpr, lenExpr, ans);
-}
-
-void FEIRStmtDAssign::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
-    return;
-  }
-  const std::string prefix = "_boundary.";
-  if (var->GetNameRaw().compare(0, prefix.size(), prefix) == 0) {
-    return;
-  }
-  ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
 }
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
