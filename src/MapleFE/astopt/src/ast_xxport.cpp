@@ -451,23 +451,23 @@ TreeNode *AST_XXport::GetExportedNamedNode(unsigned hidx, unsigned stridx) {
 
 // hidx is the index of handler, string is the string index of identifier
 TreeNode *AST_XXport::GetExportedNodeFromImportedNode(unsigned hidx, unsigned nid) {
-  TreeNode *node = NULL;
+  TreeNode *node = mAstOpt->GetNodeFromNodeId(nid);
 
   for (auto it : mImports[hidx]) {
     if (it->mDefaultNodeId == nid) {
-      TreeNode *node = GetExportedDefault(it->mModuleStrIdx);
+      node = GetExportedDefault(it->mModuleStrIdx);
       return node;
     }
     for (auto it1 : it->mNodeIdPairs) {
       unsigned nid2 = it1.second;
       if (nid2 == nid) {
         unsigned nid1 = it1.first;
-        TreeNode *node1 = mAstOpt->GetNodeFromNodeId(nid1);
-        return node1;
+        node = mAstOpt->GetNodeFromNodeId(nid1);
+        return node;
       }
     }
   }
-  return NULL;
+  return node;
 }
 
 ImportNode *XXportBasicVisitor::VisitImportNode(ImportNode *node) {
