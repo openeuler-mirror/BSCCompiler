@@ -18,6 +18,9 @@
 
 namespace maplefe {
 
+#define DEFAULTVALUE 0xdeadbeef
+#define RENAMINGSUFFIX "__RENAMED"
+
 #define NOTYETIMPL(M) { if (mFlags & FLG_trace) { MNYI(M);        }}
 #define MSGNOLOC0(M)  { if (mFlags & FLG_trace_3) { MMSGNOLOC0(M);  }}
 #define MSGNOLOC(M,v) { if (mFlags & FLG_trace_3) { MMSGNOLOC(M,v); }}

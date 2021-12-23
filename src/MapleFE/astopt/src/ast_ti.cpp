@@ -1242,9 +1242,9 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
   return node;
 }
 
-// check if node is identifier with name "default__RENAMED"
+// check if node is identifier with name "default"+RENAMINGSUFFIX
 static bool IsDefault(TreeNode *node) {
-  return node->GetStrIdx() == gStringPool.GetStrIdx("default__RENAMED");
+  return node->GetStrIdx() == gStringPool.GetStrIdx(std::string("default") + RENAMINGSUFFIX);
 }
 
 ExportNode *TypeInferVisitor::VisitExportNode(ExportNode *node) {
