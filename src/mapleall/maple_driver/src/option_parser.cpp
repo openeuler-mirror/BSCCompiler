@@ -16,11 +16,52 @@
 #include <regex>
 #include <iostream>
 #include <cstring>
+#include <string>
+#include <string_view>
+#include "error_code.h"
 #include "mpl_logging.h"
 #include "driver_option_common.h"
 
 using namespace maple;
 using namespace mapleOption;
+
+namespace mapleOption {
+
+std::map<OptionPrefixType, std::string_view> prefixInfo = {
+  {shortOptPrefix, "-"},
+  {longOptPrefix, "--"},
+  {undefinedOpt, ""}
+};
+
+OptionPrefixType DetectOptPrefix(std::string_view opt) {
+  OptionPrefixType prefix = undefinedOpt;
+  if (opt.size() > 1) {
+    if (opt[0] == '-') {
+      prefix = shortOptPrefix;
+      if (opt[1] == '-') {
+        prefix = longOptPrefix;
+      }
+    }
+  }
+  return prefix;
+}
+
+/* NOTE: return value will be a part of input string_view */
+std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
+                                                         OptionPrefixType prefix) {
+  auto optStr = prefixInfo.find(prefix);
+  ASSERT(optStr != prefixInfo.end(), "Incorrect prefix");
+
+  size_t index = optStr->second.size();
+  if (opt.size() <= index) {
+    return std::make_pair(kErrorInvalidParameter, opt);
+  }
+
+  auto key = opt.substr(index);
+  return {kErrorNoError, key};
+}
+
+}
 
 void OptionParser::InsertExtraUsage(const Descriptor &usage) {
   unsigned int index = 0;
@@ -129,42 +170,16 @@ void OptionParser::PrintUsage(const std::string &helpType, const uint32_t helpLe
   }
 }
 
-bool OptionParser::CheckSpecialOption(const std::string &option, std::string &key, std::string &value) {
-  uint32_t index = 0;
-  std::string pattern;
-  if (strncmp(option.c_str(), "j", strlen("j")) == 0) {
-    pattern = "^j[0-9]+\\b";
-    index = strlen("j");
-  } else if (strncmp(option.c_str(), "maxid", strlen("maxid")) == 0) {
-    pattern = "^maxid.[0-9]+\\b";
-    index = strlen("maxid");
-  } else if (strncmp(option.c_str(), "minid", strlen("minid")) == 0) {
-    pattern = "^minid.[0-9]+\\b";
-    index = strlen("maxid");
-  }
-  if (index != 0) {
-    std::regex rx(pattern);
-    bool isMatched = std::regex_match(option.begin(), option.end(), rx);
-    if (isMatched) {
-      key = option.substr(0, index);
-      value = option.substr(index);
-      return true;
-    }
-  }
-  return false;
-}
+bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option> &inputOption,
+                                  const std::string &exeName) {
+  auto &key = arg.key;
+  auto &value = arg.val;
 
-bool OptionParser::HandleKeyValue(const std::string &key, const std::string &value,
-                                  std::deque<mapleOption::Option> &inputOption, const std::string &exeName,
-                                  bool isAllOption, bool isEqualPrefix) {
   if (key.empty()) {
-    if (!isAllOption) {
-      LogInfo::MapleLogger(kLlErr) << "Cannot recognize " << value << '\n';
-      return false;
-    }
-    nonOptionsArgs.push_back(value);
-    return true;
+    LogInfo::MapleLogger(kLlErr) << "Cannot recognize " << value << '\n';
+    return false;
   }
+
   size_t count = usages.count(key);
   auto item = usages.find(key);
   while (count > 0 && item->second.desc.exeName != exeName) {
@@ -172,31 +187,32 @@ bool OptionParser::HandleKeyValue(const std::string &key, const std::string &val
     --count;
   }
   if (count == 0) {
-    LogInfo::MapleLogger(kLlErr) << ("Unknown Option: " + key) << '\n';
+    LogInfo::MapleLogger(kLlErr) << "Unknown Option: " << key << '\n';
     return false;
   }
   switch (item->second.desc.checkPolicy) {
     case kArgCheckPolicyUnknown:
-      LogInfo::MapleLogger(kLlErr) << ("Unknown option " + key) << '\n';
+      LogInfo::MapleLogger(kLlErr) << "Unknown option " << key << '\n';
       return false;
     case kArgCheckPolicyNone:
     case kArgCheckPolicyOptional:
       break;
     case kArgCheckPolicyRequired:
       if (value.empty() && !isValueEmpty) {
-        LogInfo::MapleLogger(kLlErr) << ("Option " + key + " requires an argument.") << '\n';
+        LogInfo::MapleLogger(kLlErr) << "Option " << key << " requires an argument." << '\n';
         return false;
       }
       break;
     case kArgCheckPolicyNumeric:
       if (value.empty()) {
-        LogInfo::MapleLogger(kLlErr) << ("Option " + key + " requires an argument.") << '\n';
+        LogInfo::MapleLogger(kLlErr) << "Option " << key << " requires an argument." << '\n';
         return false;
       } else {
         std::regex rx("^(-|)[0-9]+\\b");
         bool isNumeric = std::regex_match(value.begin(), value.end(), rx);
         if (!isNumeric) {
-          LogInfo::MapleLogger(kLlErr) << ("Option " + key + " requires a numeric argument.") << '\n';
+          LogInfo::MapleLogger(kLlErr) << "Option " << key
+                                       << " requires a numeric argument." << '\n';
           return false;
         }
       }
@@ -204,8 +220,8 @@ bool OptionParser::HandleKeyValue(const std::string &key, const std::string &val
     default:
       break;
   }
-  inputOption.push_back(Option(item->second.desc, key, value,
-                               item->second.type, isEqualPrefix));
+  inputOption.push_back(Option(item->second.desc, std::string(key), std::string(value),
+                               arg.prefixType, arg.isEqualOpt));
   return true;
 }
 
@@ -252,123 +268,119 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
   return true;
 }
 
-bool OptionParser::CheckJoinedOption(const std::string &option,
+bool OptionParser::CheckJoinedOption(Arg &arg,
                                      std::deque<mapleOption::Option> &inputOption,
                                      const std::string &exeName) {
+  auto &option = arg.key;
+
   /* TODO: Add special field in Descriptor to check only joined usages */
   for (auto usage : usages) {
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (option.find(usage.first) == 0) {
-      return HandleKeyValue(option.substr(0, std::strlen(usage.first.c_str())),
-                            option.substr(strlen(usage.first.c_str())),
-                            inputOption, exeName);
+      arg.val = option.substr(strlen(usage.first.c_str()));
+      arg.key = option.substr(0, std::strlen(usage.first.c_str()));
+      return HandleKeyValue(arg, inputOption, exeName);
     }
   }
 
-  LogInfo::MapleLogger(kLlErr) << ("Unknown Option: " + option) << '\n';
+  LogInfo::MapleLogger(kLlErr) << "Unknown Option: " << arg.rawArg << '\n';
   return false;
 }
 
-
-bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
-                            bool &isLastMatch, std::deque<mapleOption::Option> &inputOption,
+bool OptionParser::CheckOpt(std::vector<Arg> &inputArgs, size_t &argsIndex,
+                            std::deque<mapleOption::Option> &inputOption,
                             const std::string &exeName) {
-  std::vector<std::string> temps;
-  // check -j100, -maxid, -minid
-  if (exeName == "dex2mpl") {
-    std::string key;
-    std::string value;
-    bool isMatched = CheckSpecialOption(option, key, value);
-    if (isMatched) {
-      isValueEmpty = value.empty();
-      return HandleKeyValue(key, value, inputOption, exeName);
-    }
-  }
+  auto &arg = inputArgs[argsIndex];
+  auto &option = arg.key;
+
   size_t pos = option.find('=');
   if (pos != std::string::npos) {
     /* option like --key=value */
     ASSERT(pos > 0, "option should not begin with symbol '='");
-    isLastMatch = false;
-    std::string key = option.substr(0, pos);
-    std::string value = option.substr(pos + 1);
+    arg.isEqualOpt = true;
 
-    auto item = usages.find(key);
+    /* To handle joined option, we must have full (not splitted key),
+     * because joined option splitting is different:
+     * As example for -Dkey=value: default splitting key="Dkey" value="value",
+     * Joined option splitting key="D" value="key=value"
+     */
+    std::string_view tmpKey = option.substr(0, pos);
+    auto item = usages.find(tmpKey);
     if (item == usages.end()) {
       /* It can be joined option, like: -DMACRO=VALUE */
-      return CheckJoinedOption(option, inputOption, exeName);
+      argsIndex++;
+      return CheckJoinedOption(arg, inputOption, exeName);
     }
 
-    isValueEmpty = value.empty();
-    return HandleKeyValue(key, value, inputOption, exeName,
-                          false /* isAllOption */,
-                          true /* isEqualPrefix */);
-  } else {
+    arg.val = option.substr(pos + 1);
+    arg.key = tmpKey;
+
+    argsIndex++;
+    return HandleKeyValue(arg, inputOption, exeName);
+  }
+
+  /* option like "--key value" or "--key" */
+  else {
     auto item = usages.find(option);
     if (item != usages.end()) {
       if (item->second.desc.checkPolicy == kArgCheckPolicyRequired ||
           item->second.desc.checkPolicy == kArgCheckPolicyNumeric) {
-        /* option contains key and value: --key value. key is saved
-         * in lastKey, key will be handled in HandleInputArgs as second argument
-         */
-        lastKey = option;
-        isLastMatch = true;
+        /* option like "--key value", so we need to check value as next argument */
+        argsIndex++;
+        if (argsIndex >= inputArgs.size() ||
+            inputArgs[argsIndex].rawArg.empty()) {
+          /* Something wrong: Value is missed */
+          return false;
+        }
+
+        arg.val = inputArgs[argsIndex].rawArg;
+
+        argsIndex++;
+        return HandleKeyValue(arg, inputOption, exeName);
       } else {
-        /* option does not contain a value (only key) */
-        isValueEmpty = false;
-        return HandleKeyValue(option, "", inputOption, exeName);
+        /* option does not contain a value (only key): --key */
+        argsIndex++;
+        return HandleKeyValue(arg, inputOption, exeName);
       }
     } else {
       /* It can be joined option, like: -DMACRO */
-      return CheckJoinedOption(option, inputOption, exeName);;
+      argsIndex++;
+      return CheckJoinedOption(arg, inputOption, exeName);;
     }
   }
   return true;
 }
 
-ErrorCode OptionParser::HandleInputArgs(const std::vector<std::string> &inputArgs, const std::string &exeName,
+ErrorCode OptionParser::HandleInputArgs(std::vector<Arg> &inputArgs, const std::string &exeName,
                                         std::deque<mapleOption::Option> &inputOption, bool isAllOption) {
-  bool isLastMatchOpt = false;
-  std::string lastKey = "";
-  bool ret = true;
-  for (size_t i = 0; i < inputArgs.size(); ++i) {
-    if (inputArgs[i] == "") {
+  ErrorCode ret = kErrorNoError;
+  for (size_t argsIndex = 0; argsIndex < inputArgs.size();) {
+    auto &arg = inputArgs[argsIndex];
+    auto &rawArg = arg.rawArg;
+    if (rawArg == "") {
+      argsIndex++;
       continue;
     }
-    bool isMatchLongOpt = false;
-    bool isMatchShortOpt = false;
-    MatchedIndex index = kMatchNone;
-    if (inputArgs[i][0] == '-') {
-      index = kMatchShortOpt;
-      if (inputArgs[i][1] == '-') {
-        index = kMatchLongOpt;
+
+    arg.prefixType = DetectOptPrefix(rawArg);
+    std::tie(ret, arg.key) = ExtractKey(rawArg, arg.prefixType);
+    if (ret != kErrorNoError) {
+      return ret;
+    }
+
+    if (arg.prefixType != undefinedOpt) {
+      /* options prefix is matched -> Try to detect and handle the option */
+      bool wasOptHandled = CheckOpt(inputArgs, argsIndex, inputOption, exeName);
+      if (!wasOptHandled) {
+        LogInfo::MapleLogger(kLlErr) << "Unknown Option: " << arg.rawArg << '\n';
+        return kErrorInvalidParameter;
       }
-    }
-    if (index == kMatchShortOpt) {
-      isMatchShortOpt = true;
-    } else if (index == kMatchLongOpt) {
-      isMatchLongOpt = true;
-    }
-    std::string arg = inputArgs[i].substr(index);
-    bool isOptMatched = (isMatchLongOpt || isMatchShortOpt);
-    if (!isLastMatchOpt && isOptMatched) {
-      ret = CheckOpt(arg, lastKey, isLastMatchOpt, inputOption, exeName);
-    } else if (isLastMatchOpt && !isOptMatched) {
-      isLastMatchOpt = false;
-      isValueEmpty = false;
-      ret = HandleKeyValue(lastKey, arg, inputOption, exeName, isAllOption);
-    } else if (isLastMatchOpt && isOptMatched) {
-      LogInfo::MapleLogger(kLlErr) << ("Unknown Option: " + arg) << '\n';
-      return kErrorInvalidParameter;
     } else {
-      isValueEmpty = false;
-      ret = HandleKeyValue("", arg, inputOption, exeName, isAllOption);
-    }
-    if (i == inputArgs.size() - 1 && isLastMatchOpt) {
-      LogInfo::MapleLogger(kLlErr) << ("Option " + lastKey + " requires an argument.") << '\n';
-      return kErrorInvalidParameter;
-    }
-    if (!ret) {
-      return kErrorInvalidParameter;
+      /* if it's not an option, it can be input file */
+      argsIndex++;
+      if (isAllOption) {
+        nonOptionsArgs.push_back(std::string(arg.key));
+      }
     }
   }
   return kErrorNoError;
@@ -385,9 +397,9 @@ ErrorCode OptionParser::Parse(int argc, char **argv, const std::string exeName) 
     return kErrorInitFail;
   }
   // transform char* to string
-  std::vector<std::string> inputArgs;
+  std::vector<Arg> inputArgs;
   while (argc != 0 && *argv != nullptr) {
-    inputArgs.push_back(*argv);
+    inputArgs.push_back(Arg(*argv));
     ++argv;
     --argc;
   }

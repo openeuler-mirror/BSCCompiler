@@ -841,11 +841,13 @@ ErrorCode MplOptions::UpdatePhaseOption(const std::string &args, const std::stri
     LogInfo::MapleLogger(kLlErr) << "Cannot find phase " << exeName << '\n';
     return kErrorExit;
   }
-  std::vector<std::string> tmpArgs;
-  // Split options with ' '
-  StringUtils::Split(args, tmpArgs, ' ');
+
+  std::vector<Arg> inputArgs;
+  /* Split will use implicit conversion to construct Arg by the string */
+  StringUtils::Split(args, inputArgs, ' ');
+
   auto &exeOption = exeOptions[exeName];
-  ErrorCode ret = optionParser->HandleInputArgs(tmpArgs, exeName, exeOption);
+  ErrorCode ret = optionParser->HandleInputArgs(inputArgs, exeName, exeOption);
   if (ret != kErrorNoError) {
     return ret;
   }

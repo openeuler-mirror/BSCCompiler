@@ -17,12 +17,27 @@
 #include <deque>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 #include "error_code.h"
 #include "option_descriptor.h"
 #include "driver_option_common.h"
 
 namespace mapleOption {
+
+OptionPrefixType DetectOptPrefix(std::string_view opt);
+std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
+                                                         OptionPrefixType prefix);
+
+struct Arg {
+  Arg(std::string_view arg) : rawArg(arg) {}
+  std::string rawArg;
+  std::string_view key;
+  std::string_view val;
+  OptionPrefixType prefixType = undefinedOpt;
+  bool isEqualOpt = false;
+};
+
 class OptionParser {
  public:
   OptionParser() = default;
@@ -33,7 +48,7 @@ class OptionParser {
 
   maple::ErrorCode Parse(int argc, char **argv, const std::string exeName = "all");
 
-  maple::ErrorCode HandleInputArgs(const std::vector<std::string> &inputArgs, const std::string &exeName,
+  maple::ErrorCode HandleInputArgs(std::vector<Arg> &inputArgs, const std::string &exeName,
                                    std::deque<mapleOption::Option> &inputOption, bool isAllOption = false);
 
   const std::deque<Option> &GetOptions() const {
@@ -64,12 +79,12 @@ class OptionParser {
     OptionPrefixType type;
   };
 
-  bool HandleKeyValue(const std::string &key, const std::string &value,
-                      std::deque<mapleOption::Option> &inputOption, const std::string &exeName,
-                      bool isAllOption = true, bool isEqualPrefix = false);
-  bool CheckOpt(const std::string option, std::string &lastKey, bool &isLastMatch,
-                std::deque<mapleOption::Option> &inputOption, const std::string &exeName);
-  bool CheckJoinedOption(const std::string &option,
+  bool HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option> &inputOption,
+                      const std::string &exeName);
+  bool CheckOpt(std::vector<Arg> &inputArgs, size_t &argsIndex,
+                std::deque<mapleOption::Option> &inputOption,
+                const std::string &exeName);
+  bool CheckJoinedOption(Arg &arg,
                          std::deque<mapleOption::Option> &inputOption,
                          const std::string &exeName);
   void InsertOption(const std::string &opt, const Descriptor &usage,
@@ -79,9 +94,8 @@ class OptionParser {
     }
   }
 
-  bool CheckSpecialOption(const std::string &option, std::string &key, std::string &value);
   std::vector<Descriptor> rawUsages;
-  std::multimap<std::string, UsageWrp> usages;
+  std::multimap<std::string, UsageWrp, std::less<>> usages;
   std::deque<Option> options;
   std::vector<std::string> nonOptionsArgs;
   bool isValueEmpty = false;
