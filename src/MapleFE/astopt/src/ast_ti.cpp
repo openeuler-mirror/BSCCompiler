@@ -297,6 +297,15 @@ void TypeInferVisitor::SetTypeIdx(TreeNode *node, unsigned tidx) {
   }
 }
 
+void TypeInferVisitor::SetTypeId(TreeNode *node1, TreeNode *node2) {
+  SetTypeId(node1, node2->GetTypeId());
+  SetTypeIdx(node1, node2->GetTypeIdx());
+}
+
+void TypeInferVisitor::SetTypeIdx(TreeNode *node1, TreeNode *node2) {
+  SetTypeIdx(node1, node2->GetTypeIdx());
+}
+
 void TypeInferVisitor::UpdateTypeId(TreeNode *node, TypeId tid) {
   if (tid == TY_None || !node || node->IsLiteral()) {
     return;
@@ -1152,7 +1161,7 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
 }
 
 ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
-  (void) AstVisitor::VisitImportNode(node);
+  //(void) AstVisitor::VisitImportNode(node);
   TreeNode *target = node->GetTarget();
   unsigned hidx = DEFAULTVALUE;
   unsigned hstridx = 0;
@@ -1203,8 +1212,7 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
         } else {
           exported = mXXport->GetExportedNamedNode(hidx, bfnode->GetStrIdx());
           if (exported) {
-            UpdateTypeId(bfnode, exported->GetTypeId());
-            UpdateTypeIdx(bfnode, exported->GetTypeIdx());
+            SetTypeId(bfnode, exported);
           }
         }
         if (!exported) {
@@ -1212,11 +1220,9 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
         }
       }
 
-      UpdateTypeId(p, bfnode->GetTypeId());
-      UpdateTypeIdx(p, bfnode->GetTypeIdx());
+      SetTypeId(p, bfnode);
       if (afnode) {
-        UpdateTypeId(afnode, bfnode->GetTypeId());
-        UpdateTypeIdx(afnode, bfnode->GetTypeIdx());
+        SetTypeId(afnode, bfnode);
       }
     }
   }
@@ -1582,8 +1588,7 @@ TerOperatorNode *TypeInferVisitor::VisitTerOperatorNode(TerOperatorNode *node) {
   (void) VisitTreeNode(ta);
   (void) VisitTreeNode(tb);
   (void) VisitTreeNode(tc);
-  UpdateTypeId(node, tb->GetTypeId());
-  UpdateTypeId(node, tc->GetTypeId());
+  UpdateTypeId(node, tb);
   return node;
 }
 
@@ -1598,8 +1603,8 @@ TypeAliasNode *TypeInferVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   UserTypeNode *id = node->GetId();
   TreeNode *alias = node->GetAlias();
   TypeId tid = alias->GetTypeId();
-  UpdateTypeId(id, tid);
-  UpdateTypeId(node, tid);
+  unsigned tidx = alias->GetTypeIdx();
+  UpdateTypeId(id, alias);
   return node;
 }
 
