@@ -104,6 +104,19 @@ FieldNode *BuildIdDirectFieldVisitor::VisitFieldNode(FieldNode *node) {
   return node;
 }
 
+FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralNode *node) {
+  (void) AstVisitor::VisitFieldLiteralNode(node);
+  TreeNode *name = node->GetFieldName();
+  IdentifierNode *field = static_cast<IdentifierNode *>(name);
+  TreeNode *decl = NULL;
+  decl = mHandler->FindDecl(field);
+  if (decl) {
+    mHandler->AddDirectField(field);
+    mHandler->AddDirectField(node);
+  }
+  return node;
+}
+
 ArrayElementNode *BuildIdDirectFieldVisitor::VisitArrayElementNode(ArrayElementNode *node) {
   (void) AstVisitor::VisitArrayElementNode(node);
   TreeNode *array = node->GetArray();

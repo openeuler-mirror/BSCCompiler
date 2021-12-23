@@ -63,6 +63,7 @@ class BuildIdDirectFieldVisitor : public AstVisitor {
   ~BuildIdDirectFieldVisitor() = default;
 
   FieldNode *VisitFieldNode(FieldNode *node);
+  FieldLiteralNode *VisitFieldLiteralNode(FieldLiteralNode *node);
   ArrayElementNode *VisitArrayElementNode(ArrayElementNode *node);
   void Dump();
 };

@@ -380,6 +380,30 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   return node;
 }
 
+StructLiteralNode *BuildScopeVisitor::VisitStructLiteralNode(StructLiteralNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  // struct is a decl
+  if (parent) {
+    AddDecl(parent, node);
+    AddType(parent, node);
+  }
+
+  ASTScope *scope = NewScope(parent, node);
+
+  // add fields as decl
+  for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    FieldLiteralNode *fld = node->GetField(i);
+    TreeNode *name = fld->GetFieldName();
+    if (name->IsIdentifier()) {
+      AddDecl(scope, name);
+    }
+  }
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitStructLiteralNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
 NamespaceNode *BuildScopeVisitor::VisitNamespaceNode(NamespaceNode *node) {
   node->SetTypeId(TY_Namespace);
   TreeNode *id = node->GetId();

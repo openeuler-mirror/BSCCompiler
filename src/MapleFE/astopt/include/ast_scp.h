@@ -114,6 +114,7 @@ class BuildScopeVisitor : public BuildScopeBaseVisitor {
   LambdaNode *VisitLambdaNode(LambdaNode *node);
   ClassNode *VisitClassNode(ClassNode *node);
   StructNode *VisitStructNode(StructNode *node);
+  StructLiteralNode *VisitStructLiteralNode(StructLiteralNode *node);
   InterfaceNode *VisitInterfaceNode(InterfaceNode *node);
   NamespaceNode *VisitNamespaceNode(NamespaceNode *node);
   ForLoopNode *VisitForLoopNode(ForLoopNode *node);
