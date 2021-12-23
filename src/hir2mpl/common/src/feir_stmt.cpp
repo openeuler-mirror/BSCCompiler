@@ -322,12 +322,10 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   }
   InsertNonnullChecking(mirBuilder, *dstSym, ans);
   CheckNonnullArgsAndRetForFuncPtr(mirBuilder);
-  // insert assign boundary checking for computed r-value
-  InsertBoundaryAssignChecking(mirBuilder, ans);
+  AssignBoundaryVarAndChecking(mirBuilder, ans);
   CheckBoundaryArgsAndRetForFuncPtr(mirBuilder);
   StmtNode *mirStmt = mirBuilder.CreateStmtDassign(*dstSym, fieldID, srcNode);
   ans.push_back(mirStmt);
-  AssignBoundaryVar(mirBuilder, ans);
   ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, var, fieldID, srcFileIndex, srcFileLineNum);
   ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
   return ans;
@@ -4176,13 +4174,11 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
                 "If fieldID is not 0, then the computed address must correspond to a structure");
     InsertNonnullChecking(mirBuilder, *baseType, ans);
     CheckNonnullArgsAndRetForFuncPtr(mirBuilder, *baseType);
-    // insert assign boundary checking for computed r-value
-    ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, baseExpr, srcFileIndex, srcFileLineNum);
     CheckBoundaryArgsAndRetForFuncPtr(mirBuilder, *baseType);
   }
+  AssignBoundaryVarAndChecking(mirBuilder, ans);
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fieldID, addrNode, baseNode);
   ans.emplace_back(iAssignNode);
-  AssignBoundaryVar(mirBuilder, ans);
   ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, addrType, fieldID, srcFileIndex, srcFileLineNum);
   ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, addrExpr, srcFileIndex, srcFileLineNum);
   return ans;
