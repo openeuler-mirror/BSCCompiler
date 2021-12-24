@@ -71,7 +71,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
-  exeFolder = FileUtils::GetFileFolder(*argv);
+  exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
   int ret = optionParser->Parse(argc, argv);
   if (ret != kErrorNoError) {
     return ret;
