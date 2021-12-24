@@ -1990,6 +1990,7 @@ rule IndexSignature: ONEOF(
 
 rule KeywordMethodName : ONEOF("return",
                                "throw",
+                               "continue",
                                "export")
   attr.action : BuildIdentifier()
 
@@ -2247,6 +2248,7 @@ rule MemberVariableDeclaration: ONEOF(
 rule KeywordMemberFunctionName : ONEOF("return",
                                        "get",
                                        "set",
+                                       "continue",
                                        "export")
   attr.action : BuildIdentifier()
 
