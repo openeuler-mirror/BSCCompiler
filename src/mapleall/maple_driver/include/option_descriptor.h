@@ -15,6 +15,7 @@
 #ifndef MAPLE_OPTION_DESCRIPTOR_H
 #define MAPLE_OPTION_DESCRIPTOR_H
 #include <vector>
+#include <map>
 #include <string>
 #include <algorithm>
 
@@ -41,6 +42,8 @@ enum OptionPrefixType {
   longOptPrefix,
   undefinedOpt,
 };
+
+extern std::map<OptionPrefixType, std::string_view> prefixInfo;
 
 constexpr size_t kMaxExtraOptions = 10;
 
@@ -154,6 +157,16 @@ class Option {
       return false;
     }
     return true;
+  }
+
+  std::string GetPrefix() const {
+    auto it = prefixInfo.find(prefixType);
+    if (it == prefixInfo.end()) {
+      /* If Option is initialized, this case is NOT POSSIBLE */
+      return "";
+    }
+
+    return std::string(it->second);
   }
 
  private:

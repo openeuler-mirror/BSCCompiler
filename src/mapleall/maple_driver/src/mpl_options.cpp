@@ -668,13 +668,7 @@ std::string MplOptions::GetCommonOptionsStr() const {
   if (it != exeOptions.end()) {
     for (const mapleOption::Option &opt : it->second) {
       if (!(std::find(std::begin(exclude), std::end(exclude), opt.Index()) != std::end(exclude))) {
-        std::string prefix;
-        if (opt.GetPrefixType() == mapleOption::shortOptPrefix) {
-          prefix = "-";
-        } else if (opt.GetPrefixType() == mapleOption::longOptPrefix) {
-          prefix = "--";
-        }
-
+        std::string prefix = opt.GetPrefix();
         auto connectSym = !opt.Args().empty() ? "=" : "";
         driverOptions += " " + prefix + opt.OptionKey() + connectSym + opt.Args();
       }
