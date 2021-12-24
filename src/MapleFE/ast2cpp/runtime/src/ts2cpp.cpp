@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <sstream>
 #include "../include/ts2cpp.h"
+#include "ast_common.h"
 
 std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
   switch(v.type) {

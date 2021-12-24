@@ -139,6 +139,9 @@ class AST_XXport {
   // hidx is the handler index of node with index nid
   TreeNode *GetExportedNodeFromImportedNode(unsigned hidx, unsigned nid);
 
+  // get identifier from node
+  TreeNode *GetIdentifier(TreeNode *node);
+
   void Dump();
 };
 

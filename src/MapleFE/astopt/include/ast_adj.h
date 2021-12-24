@@ -40,9 +40,6 @@ class AST_ADJ {
   void AdjustAST();
 };
 
-// If you change RENAMINGSUFFIX, you have to update ast2cpp/runtime/include/ts2cpp.h as well
-#define RENAMINGSUFFIX "__RENAMED"
-
 class AdjustASTVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;

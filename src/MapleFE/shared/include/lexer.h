@@ -76,6 +76,7 @@ public:
   }
 
   void SetTrace()     {mTrace = true;}
+  bool GetTrace()     {return mTrace;}
 
   void SetLineMode()  {mLineMode = true;}
   void ResetLineMode(){mLineMode = false;}

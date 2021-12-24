@@ -31,8 +31,6 @@
 #include "ast_common.h"
 #include "gen_astvisitor.h"
 
-#define DEFAULTVALUE 0xdeadbeef
-
 namespace maplefe {
 
 class CfgBB;
