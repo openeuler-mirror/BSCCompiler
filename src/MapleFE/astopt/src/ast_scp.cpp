@@ -120,6 +120,13 @@ void BuildScopeVisitor::AddTypeAndDecl(ASTScope *scope, TreeNode *node) {
   AddDecl(scope, node);
 }
 
+#define ADD_DECL(K) {\
+  TreeNode *node = mHandler->NewTreeNode<IdentifierNode>(); \
+  unsigned idx = gStringPool.GetStrIdx(K); \
+  node->SetStrIdx(idx); \
+  AddDecl(scope, node); \
+}
+
 void BuildScopeVisitor::InitInternalTypes() {
   // add primitive and builtin types to root scope
   ModuleNode *module = mHandler->GetASTModule();
@@ -145,6 +152,12 @@ void BuildScopeVisitor::InitInternalTypes() {
   console->AddMethod(log);
   log->SetScope(scp);
   AddDecl(scp, log);
+
+  // add dummy decl for some keywords
+  ADD_DECL("undefined");
+  ADD_DECL("null");
+  ADD_DECL("Error");
+  ADD_DECL("NonNullable");
 }
 
 ClassNode *BuildScopeVisitor::AddClass(std::string name, unsigned tyidx) {
@@ -221,6 +234,18 @@ FunctionNode *BuildScopeVisitor::VisitFunctionNode(FunctionNode *node) {
   for(unsigned i = 0; i < node->GetTypeParamsNum(); i++) {
     TreeNode *it = node->GetTypeParamAtIndex(i);
 
+    // add type parameter as decl
+    if (it->IsTypeParameter()) {
+      TypeParameterNode *tpn = static_cast<TypeParameterNode *>(it);
+      TreeNode *id = tpn->GetId();
+      if (id->IsIdentifier()) {
+        AddDecl(scope, id);
+      } else {
+        NOTYETIMPL("function type parameter not identifier");
+      }
+      continue;
+    }
+
     // add it to scope's mTypes only if it is a new type
     TreeNode *tn = it;
     if (it->IsUserType()) {
@@ -278,9 +303,15 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld->IsIdentifier()) {
+      AddDecl(scope, fld);
+    } else {
+      NOTYETIMPL("new type of class field");
     }
   }
   mScopeStack.push(scope);
@@ -304,9 +335,13 @@ InterfaceNode *BuildScopeVisitor::VisitInterfaceNode(InterfaceNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld->IsIdentifier()) {
+      AddDecl(scope, fld);
     }
   }
   mScopeStack.push(scope);
@@ -330,13 +365,41 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
 
   // add fields as decl
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
-    TreeNode *it = node->GetField(i);
-    if (it->IsIdentifier()) {
-      AddDecl(scope, it);
+    TreeNode *fld = node->GetField(i);
+    if (fld->IsStrIndexSig()) {
+      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
+      fld = sn->GetKey();
+    }
+    if (fld && fld->IsIdentifier()) {
+      AddDecl(scope, fld);
     }
   }
   mScopeStack.push(scope);
   BuildScopeBaseVisitor::VisitStructNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
+StructLiteralNode *BuildScopeVisitor::VisitStructLiteralNode(StructLiteralNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  // struct is a decl
+  if (parent) {
+    AddDecl(parent, node);
+    AddType(parent, node);
+  }
+
+  ASTScope *scope = NewScope(parent, node);
+
+  // add fields as decl
+  for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
+    FieldLiteralNode *fld = node->GetField(i);
+    TreeNode *name = fld->GetFieldName();
+    if (name && name->IsIdentifier()) {
+      AddDecl(scope, name);
+    }
+  }
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitStructLiteralNode(node);
   mScopeStack.pop();
   return node;
 }

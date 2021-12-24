@@ -418,13 +418,66 @@ Token* TypescriptParser::GetRegExpr(Token *t) {
 
 
 // 'appeal' is the node of 'rule_table'.
-bool TypescriptParser::TraverseASI(RuleTable *rule_table, AppealNode *appeal) {
+// 'child' was NULL when passed in.
+bool TypescriptParser::TraverseASI(RuleTable *rule_table,
+                                   AppealNode *appeal,
+                                   AppealNode *&child) {
+  // Usually mCurToken is a new token to be matched. So if it's end of file, we simply return false.
+  // However, (1) if mCurToken is actually an ATMToken, which means it needs to be matched
+  //              multiple times, we are NOT at the end yet.
+  //          (2) If we are traverse a Concatenate rule, and the previous sub-rule has multiple matches,
+  //              and we are trying the current sub-rule, ie. 'data', using one of the matches.
+  //              The lexer actually reaches the EndOfFile in previous matchings, but the mCurToken
+  //              we are working on right now is not the last token. It's one of the previous matches.
+  // So we need check if we are matching the last token.
+  //if (mEndOfFile && mCurToken >= mActiveTokens.GetNum()) {
+  //  if (!(mInAltTokensMatching && (mCurToken == mATMToken)))
+  //    return false;
+  //}
+
+  if (mCurToken <= 1)
+    return false;
+
+  if (mEndOfFile && mCurToken == mActiveTokens.GetNum())
+    return true;
+
+  unsigned old_pos = mCurToken;
+  bool     found = false;
+  Token   *curr_token = GetActiveToken(mCurToken);
+  Token   *prev_token = GetActiveToken(mCurToken - 1);
+
   MASSERT((rule_table->mNum == 1) && "ASI node has more than one elements?");
+
   TableData *data = rule_table->mData;
-  AppealNode *child = NULL;
-  bool found = TraverseTableData(data, appeal, child);
-  if (child)
+  MASSERT(data->mType == DT_Token && "ASI data is not a token?");
+
+  Token *semicolon = &gSystemTokens[data->mData.mTokenId];
+  MASSERT(semicolon->IsSeparator());
+  MASSERT(semicolon->GetSepId() == SEP_Semicolon);
+
+  if (curr_token == semicolon) {
+    // To simplify the code, I reused TraverseToken().
+    found = TraverseToken(semicolon, appeal, child);
+  } else {
+    if (curr_token->mLineBegin &&
+        prev_token->mLineEnd &&
+        prev_token->IsSeparator()){
+      if (prev_token->GetSepId() == SEP_Rbrace ||
+          prev_token->GetSepId() == SEP_Rbrack ||
+          prev_token->GetSepId() == SEP_Rparen) {
+        if (mTraceTable) {
+          std::cout << "TraverseASI, Auto-insert one semicolon." << std::endl;
+        }
+        return true;
+      }
+    }
+  }
+
+  if (child) {
+    child->SetChildIndex(0);
     appeal->CopyMatch(child);
+  }
+
   return found;
 }
 

@@ -104,6 +104,19 @@ FieldNode *BuildIdDirectFieldVisitor::VisitFieldNode(FieldNode *node) {
   return node;
 }
 
+FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralNode *node) {
+  (void) AstVisitor::VisitFieldLiteralNode(node);
+  TreeNode *name = node->GetFieldName();
+  IdentifierNode *field = static_cast<IdentifierNode *>(name);
+  TreeNode *decl = NULL;
+  decl = mHandler->FindDecl(field);
+  if (decl) {
+    mHandler->AddDirectField(field);
+    mHandler->AddDirectField(node);
+  }
+  return node;
+}
+
 ArrayElementNode *BuildIdDirectFieldVisitor::VisitArrayElementNode(ArrayElementNode *node) {
   (void) AstVisitor::VisitArrayElementNode(node);
   TreeNode *array = node->GetArray();
@@ -295,6 +308,15 @@ void TypeInferVisitor::SetTypeIdx(TreeNode *node, unsigned tidx) {
   if (node && node->GetTypeIdx() != tidx) {
     SetUpdated();
   }
+}
+
+void TypeInferVisitor::SetTypeId(TreeNode *node1, TreeNode *node2) {
+  SetTypeId(node1, node2->GetTypeId());
+  SetTypeIdx(node1, node2->GetTypeIdx());
+}
+
+void TypeInferVisitor::SetTypeIdx(TreeNode *node1, TreeNode *node2) {
+  SetTypeIdx(node1, node2->GetTypeIdx());
 }
 
 void TypeInferVisitor::UpdateTypeId(TreeNode *node, TypeId tid) {
@@ -1152,7 +1174,7 @@ DeclNode *TypeInferVisitor::VisitDeclNode(DeclNode *node) {
 }
 
 ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
-  (void) AstVisitor::VisitImportNode(node);
+  //(void) AstVisitor::VisitImportNode(node);
   TreeNode *target = node->GetTarget();
   unsigned hidx = DEFAULTVALUE;
   unsigned hstridx = 0;
@@ -1203,8 +1225,7 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
         } else {
           exported = mXXport->GetExportedNamedNode(hidx, bfnode->GetStrIdx());
           if (exported) {
-            UpdateTypeId(bfnode, exported->GetTypeId());
-            UpdateTypeIdx(bfnode, exported->GetTypeIdx());
+            SetTypeId(bfnode, exported);
           }
         }
         if (!exported) {
@@ -1212,20 +1233,18 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
         }
       }
 
-      UpdateTypeId(p, bfnode->GetTypeId());
-      UpdateTypeIdx(p, bfnode->GetTypeIdx());
+      SetTypeId(p, bfnode);
       if (afnode) {
-        UpdateTypeId(afnode, bfnode->GetTypeId());
-        UpdateTypeIdx(afnode, bfnode->GetTypeIdx());
+        SetTypeId(afnode, bfnode);
       }
     }
   }
   return node;
 }
 
-// check if node is identifier with name "default__RENAMED"
+// check if node is identifier with name "default"+RENAMINGSUFFIX
 static bool IsDefault(TreeNode *node) {
-  return node->GetStrIdx() == gStringPool.GetStrIdx("default__RENAMED");
+  return node->GetStrIdx() == gStringPool.GetStrIdx(std::string("default") + RENAMINGSUFFIX);
 }
 
 ExportNode *TypeInferVisitor::VisitExportNode(ExportNode *node) {
@@ -1582,8 +1601,7 @@ TerOperatorNode *TypeInferVisitor::VisitTerOperatorNode(TerOperatorNode *node) {
   (void) VisitTreeNode(ta);
   (void) VisitTreeNode(tb);
   (void) VisitTreeNode(tc);
-  UpdateTypeId(node, tb->GetTypeId());
-  UpdateTypeId(node, tc->GetTypeId());
+  UpdateTypeId(node, tb);
   return node;
 }
 
@@ -1598,8 +1616,8 @@ TypeAliasNode *TypeInferVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   UserTypeNode *id = node->GetId();
   TreeNode *alias = node->GetAlias();
   TypeId tid = alias->GetTypeId();
-  UpdateTypeId(id, tid);
-  UpdateTypeId(node, tid);
+  unsigned tidx = alias->GetTypeIdx();
+  UpdateTypeId(id, alias);
   return node;
 }
 

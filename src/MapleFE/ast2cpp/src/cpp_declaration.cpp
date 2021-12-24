@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cstring>
 #include "helper.h"
-#include "ast_adj.h"
+#include "ast_common.h"
 
 namespace maplefe {
 

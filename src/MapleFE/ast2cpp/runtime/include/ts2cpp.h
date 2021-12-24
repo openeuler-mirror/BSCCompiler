@@ -24,9 +24,6 @@
 #include <cstdarg>
 #include <cctype>
 
-// Copied from astopt/include/ast_adj.h
-#define RENAMINGSUFFIX "__RENAMED"
-
 using namespace std::string_literals;
 
 namespace t2crt {
