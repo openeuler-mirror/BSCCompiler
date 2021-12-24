@@ -182,7 +182,8 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
 
   size_t count = usages.count(key);
   auto item = usages.find(key);
-  while (count > 0 && item->second.desc.exeName != exeName) {
+  while (count > 0 &&
+         (item->second.desc.exeName != exeName || item->second.type != arg.prefixType)) {
     ++item;
     --count;
   }
