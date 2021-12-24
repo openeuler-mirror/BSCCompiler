@@ -1823,7 +1823,7 @@ rule ArrayType: ONEOF(ZEROORONE("readonly") + PrimaryType + '[' + ']',
   attr.action.%3 : BuildArrayType(%1, %1)
 
 ## rule TupleType: [ TupleElementTypes ]
-rule TupleType: ZEROORONE("readonly") + '[' + TupleElementTypes + ']'
+rule TupleType: ZEROORONE("readonly") + '[' + TupleElementTypes + ZEROORONE(Elision) + ']'
   attr.action : BuildTupleType()
   attr.action : AddModifier(%1)
   attr.action : AddStructField(%3)
