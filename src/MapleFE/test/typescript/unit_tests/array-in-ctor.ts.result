@@ -1,0 +1,24 @@
+Matched 58 tokens.
+Matched 68 tokens.
+Matched 75 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    data
+  Instance Initializer: 
+  Constructors: 
+    constructor  ()  throws: 
+      this.data Assign [new Array(123,456)]
+
+  Methods: 
+    func  dump(value)  throws: 
+      A switch
+
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+js_let Decl: obj=new Klass()
+== Sub Tree ==
+obj.dump(1)
