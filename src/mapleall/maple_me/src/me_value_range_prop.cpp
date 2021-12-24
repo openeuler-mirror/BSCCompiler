@@ -480,13 +480,13 @@ std::unique_ptr<ValueRange> ValueRangePropagation::ComputeTheValueRangeOfIndex(
 
 void SafetyCheckWithBoundaryError::HandleBoundaryCheck(
     const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {
-  std::set<MePhiNode*> visitedPhi;
+  std::set<MeExpr*> visitedLHS;
   std::vector<MeStmt*> stmts{ &meStmt };
-  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, indexOpnd, visitedPhi, stmts);
-  visitedPhi.clear();
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, indexOpnd, visitedLHS, stmts);
+  visitedLHS.clear();
   stmts.clear();
   stmts.push_back(&meStmt);
-  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedPhi, stmts);
+  vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedLHS, stmts);
 }
 
 void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
@@ -577,14 +577,21 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
             static_cast<CRAddNode*>(crNode)->GetOpnd(0)->GetCRType() != kCRConstNode) {
           return false;
         }
-        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op,
-            static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue(),
-            valueRangeOfLengthPtr.GetBound().GetConstant());
-        return (kOpcodeInfo.IsAssertLeBoundary(op) ?
-                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue() <=
-                    valueRangeOfLengthPtr.GetBound().GetConstant() :
-                static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue() <
-                    valueRangeOfLengthPtr.GetBound().GetConstant());
+        // Update the valueRange of index after analysis the relationship of expr and length.
+        // valueRangeOfIndex : (lower(nullptr, 1), upper: (expr, -1), kLowerAndUpper)
+        // valueRangeOfLength: (Bound(length, 0), kEqual)
+        // expr = length - 1
+        // after analysis: valueRangeOfIndex :  (lower(length), upper: (-2), kLowerAndUpper)
+        int64 res = 0;
+        auto constantValue =
+            static_cast<CRConstNode*>(static_cast<CRAddNode*>(crNode)->GetOpnd(0))->GetConstValue();
+        if (!AddOrSubWithConstant(valueRangeOfLengthPtr.GetUpper().GetPrimType(), OP_add, constantValue,
+                                  valueRangeOfIndex.GetUpper().GetConstant(), res)) {
+          return false;
+        }
+        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, res, valueRangeOfLengthPtr.GetBound().GetConstant());
+        return (kOpcodeInfo.IsAssertLeBoundary(op) ? res <= valueRangeOfLengthPtr.GetBound().GetConstant() :
+            res < valueRangeOfLengthPtr.GetBound().GetConstant());
       } else {
         return CompareConstantOfIndexAndLength(meStmt, valueRangeOfIndex, valueRangeOfLengthPtr, op);
       }
@@ -658,7 +665,7 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
 //    p = GetBoundarylessPtr
 // error: p + i
 void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
-    const BB &bb, MeExpr &expr, std::set<MePhiNode*> &visitedPhi, std::vector<MeStmt*> &stmts) {
+    const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts) {
   if (TheValueOfOpndIsInvaliedInABCO(bb, nullptr, expr, false)) {
     std::string errorLog = "error: pointer assigned from multibranch requires the bounds info for all branches.\n";
     for (size_t i = 0; i < stmts.size(); ++i) {
@@ -670,23 +677,27 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
   }
   if (!expr.IsScalar()) {
     for (size_t i = 0; i < expr.GetNumOpnds(); ++i) {
-      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *expr.GetOpnd(i), visitedPhi, stmts);
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *expr.GetOpnd(i), visitedLHS, stmts);
     }
     return;
   }
   ScalarMeExpr &scalar = static_cast<ScalarMeExpr&>(expr);
   if (scalar.GetDefBy() == kDefByStmt) {
     stmts.push_back(scalar.GetDefStmt());
-    JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedPhi, stmts);
-    stmts.pop_back();
-  } else if (scalar.GetDefBy() == kDefByPhi) {
-    MePhiNode &phi = scalar.GetDefPhi();
-    if (visitedPhi.find(&phi) != visitedPhi.end()) {
+    if (visitedLHS.find(scalar.GetDefStmt()->GetRHS()) != visitedLHS.end()) {
       return;
     }
-    visitedPhi.insert(&phi);
+    JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *scalar.GetDefStmt()->GetRHS(), visitedLHS, stmts);
+    stmts.pop_back();
+    visitedLHS.insert(scalar.GetDefStmt()->GetRHS());
+  } else if (scalar.GetDefBy() == kDefByPhi) {
+    MePhiNode &phi = scalar.GetDefPhi();
+    if (visitedLHS.find(phi.GetLHS()) != visitedLHS.end()) {
+      return;
+    }
+    visitedLHS.insert(phi.GetLHS());
     for (auto &opnd : phi.GetOpnds()) {
-      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *opnd, visitedPhi, stmts);
+      JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, *opnd, visitedLHS, stmts);
     }
   }
 }
@@ -1559,6 +1570,23 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
       valueRangeLeft.GetRangeType() == kOnlyHasLowerBound || valueRangeRight.GetRangeType() == kOnlyHasLowerBound ||
       valueRangeLeft.GetRangeType() == kOnlyHasUpperBound || valueRangeRight.GetRangeType() == kOnlyHasUpperBound) {
     return nullptr;
+  }
+  // Deal with the case like :
+  // x: vr(var: expr, constant: 4, kEqual)
+  // y: vr(var: nullptr, constant: 2, kEqual)
+  // x + y => vr(expr, 6, kEqual)
+  if (valueRangeLeft.GetRangeType() == kEqual && valueRangeRight.GetRangeType() == kEqual) {
+    auto *varOfLHS = valueRangeLeft.GetBound().GetVar();
+    auto *varOfRHS = valueRangeRight.GetBound().GetVar();
+    if ((varOfLHS == nullptr && varOfRHS != nullptr) || (varOfLHS != nullptr && varOfRHS == nullptr)) {
+      auto *resVar = (varOfLHS == nullptr) ? varOfRHS : varOfLHS;
+      int64 rhsConst = valueRangeRight.GetBound().GetConstant();
+      int64 lhsConst = valueRangeLeft.GetBound().GetConstant();
+      int64 res = 0;
+      if (AddOrSubWithConstant(valueRangeLeft.GetLower().GetPrimType(), op, rhsConst, lhsConst, res)) {
+        return std::make_unique<ValueRange>(Bound(resVar, res, valueRangeLeft.GetLower().GetPrimType()), kEqual);
+      }
+    }
   }
   if (valueRangeLeft.GetLower().GetVar() != valueRangeRight.GetLower().GetVar() ||
       valueRangeLeft.GetUpper().GetVar() != valueRangeRight.GetUpper().GetVar()) {

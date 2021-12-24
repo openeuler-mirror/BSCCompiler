@@ -379,7 +379,7 @@ class ValueRangePropagation {
   }
 
   void JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
-      const BB &bb, MeExpr &expr, std::set<MePhiNode*> &visitedPhi, std::vector<MeStmt*> &stmts);
+      const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts);
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
 
  private:
