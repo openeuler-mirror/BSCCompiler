@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <climits>
+#include <unistd.h>
 #include "file_utils.h"
 #include "string_utils.h"
 #include "mpl_logging.h"
@@ -80,6 +81,39 @@ std::string FileUtils::GetFileName(const std::string &filePath, bool isWithExten
 
 std::string FileUtils::GetFileExtension(const std::string &filePath) {
   return StringUtils::GetStrAfterLast(filePath, ".", true);
+}
+
+std::string FileUtils::GetExecutable() {
+#ifdef _WIN32
+  static_assert(false, "Implement me for Windows");
+
+#else /* _WIN32 */
+  /* Linux Implementation */
+  char exePath[PATH_MAX];
+  const char *symLinkToCurrentExe = "/proc/self/exe";
+
+  int len = readlink(symLinkToCurrentExe, exePath, sizeof(exePath));
+  ASSERT(len >= 0, "Something wrong: %d, Not Linux System??\n", len);
+
+  /* Add Null terminate for the string: readlink does not
+   * append a terminating null byte to buf */
+  len = std::min(len, static_cast<int>(sizeof(exePath) - 1));
+  exePath[len] = '\0';
+
+  /* On Linux, /proc/self/exe always looks through symlinks. However, on
+   * GNU/Hurd, /proc/self/exe is a symlink to the path that was used to start
+   * the program, and not the eventual binary file. Therefore, call realpath
+   * so this behaves the same on all platforms.
+   */
+  if (char *realPath = realpath(exePath, nullptr)) {
+    std::string ret = std::string(realPath);
+    free(realPath);
+    return ret;
+  }
+  ASSERT(false, "Something wrong: %s\n", exePath);
+
+  return "";
+#endif /* _WIN32 */
 }
 
 std::string FileUtils::GetFileFolder(const std::string &filePath) {
