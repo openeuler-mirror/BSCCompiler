@@ -455,7 +455,7 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
   MASSERT(semicolon->IsSeparator());
   MASSERT(semicolon->GetSepId() == SEP_Semicolon);
 
-  if (curr_token == semicolon) {
+  if (curr_token->Equal(semicolon)) {
     // To simplify the code, I reused TraverseToken().
     found = TraverseToken(semicolon, appeal, child);
   } else {

@@ -137,4 +137,34 @@ void Token::Dump() {
   DUMP_RETURN();
 }
 
+bool Token::Equal(Token *t) {
+  bool equal = false;
+  switch (mTkType) {
+  case TT_SP:
+    if (t->mTkType == TT_SP &&
+        GetSepId() == t->GetSepId())
+      equal = true;
+    break;
+  case TT_OP:
+    if (t->mTkType == TT_OP &&
+        GetOprId() == t->GetOprId())
+      equal = true;
+    break;
+  case TT_KW:
+    if (t->mTkType == TT_KW &&
+        GetName() == t->GetName())
+      equal = true;
+    break;
+  case TT_ID:
+  case TT_CM:
+  case TT_TL:
+  case TT_RE:
+  case TT_LT:
+  default:
+    break;
+  }
+
+  return equal;
+}
+
 }

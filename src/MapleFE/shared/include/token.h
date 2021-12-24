@@ -152,6 +152,9 @@ struct Token {
   TempLitData* GetTempLitData()   const {return mData.mTempLitData;}
   RegExprData  GetRegExpr()   const {return mData.mRegExprData;}
 
+  // This is handle only Operator, Separator, and Keyword. All others return false.
+  bool Equal(Token *);
+
   void Dump();
 };
 

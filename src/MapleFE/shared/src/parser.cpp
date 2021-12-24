@@ -905,7 +905,7 @@ bool Parser::LookAheadFail(RuleTable *rule_table, unsigned token) {
       // which are not recoganized by lexer.
       break;
     case LA_Token:
-      if (curr_token == &gSystemTokens[la.mData.mTokenId])
+      if (curr_token->Equal(&gSystemTokens[la.mData.mTokenId]))
         found = true;
       // TemplateLiteral, Regular Expression is treated as a special keyword.
       {
@@ -1353,7 +1353,7 @@ bool Parser::TraverseToken(Token *token, AppealNode *parent, AppealNode *&child_
     }
   }
 
-  if (token == curr_token) {
+  if (token->Equal(curr_token)) {
     appeal = mAppealNodePool.NewAppealNode();
     child_node = appeal;
     mAppealNodes.push_back(appeal);
@@ -1380,7 +1380,7 @@ bool Parser::TraverseToken(Token *token, AppealNode *parent, AppealNode *&child_
       if (parent->GetTable()->mProperties & RP_NoAltToken)
         parent_ok = false;
 
-      if (parent_ok && (token == &gSystemTokens[pat->mAltTokenId])) {
+      if (parent_ok && (token->Equal(&gSystemTokens[pat->mAltTokenId]))) {
         appeal = mAppealNodePool.NewAppealNode();
         child_node = appeal;
         mAppealNodes.push_back(appeal);
