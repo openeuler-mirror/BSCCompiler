@@ -1,0 +1,9 @@
+Matched 16 tokens.
+Matched 66 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(arg)  throws: 
+  console.log(arg)
+
+== Sub Tree ==
+func([[ template-literal: "Number",NULL, {type:Number, count:1}],[ template-literal: "String",NULL, {type:String, count:2}]])
