@@ -353,6 +353,9 @@ bool Parser::TokenMerge(Token *t) {
 //   typename<typearg>= initval
 // Look at the '>='. It first recognazied by lexer as GE,
 // but it's actually a > and a =.
+//
+// Another case is
+//   typename<t extends T>= s;
 
 bool Parser::TokenSplit(Token *t) {
   if (!t->IsOperator() || t->GetOprId() != OPR_GE)
@@ -365,13 +368,20 @@ bool Parser::TokenSplit(Token *t) {
   if (!type_arg->IsIdentifier())
     return false;
 
-  Token *lt = mActiveTokens.ValueAtIndex(size - 2);
-  if (!lt->IsOperator() || lt->GetOprId() != OPR_LT)
-    return false;
+  Token *extends_token = mLexer->FindKeywordToken("extends");
 
-  Token *type_name = mActiveTokens.ValueAtIndex(size - 3);
-  if (!type_name->IsIdentifier())
-    return false;
+  Token *lt = mActiveTokens.ValueAtIndex(size - 2);
+
+  if (lt->Equal(extends_token)) {
+    // This is a good candidate. Do nothing
+  } else {
+    if (!lt->IsOperator() || lt->GetOprId() != OPR_LT)
+      return false;
+
+    Token *type_name = mActiveTokens.ValueAtIndex(size - 3);
+    if (!type_name->IsIdentifier())
+      return false;
+  }
 
   // Now we got a matching case.
   Token *gt_token = mLexer->FindOperatorToken(OPR_GT);
