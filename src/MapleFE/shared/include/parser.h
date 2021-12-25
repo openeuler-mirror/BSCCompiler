@@ -402,9 +402,10 @@ public:
   unsigned LexOneLine();
 
   bool   TokenMerge(Token *);
-  bool   TokenSplit(Token *);
-  virtual Token* GetRegExpr(Token *t) {return t;}  // This is language specific.
-                                           // See examples in Typescript.
+
+  // These are language specific.
+  virtual bool   TokenSplit(Token *)  {return false;}
+  virtual Token* GetRegExpr(Token *t) {return t;}
 };
 
 // Each language will have its own implementation of lexer. Most of lexer
