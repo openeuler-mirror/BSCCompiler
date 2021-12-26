@@ -107,6 +107,7 @@ bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
 bool CGOptions::doAlignAnalysis = false;
 bool CGOptions::cgBigEndian = false;
+bool CGOptions::arm64ilp32 = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -201,6 +202,7 @@ enum OptionIndex : uint64 {
   kFastMath,
   kTailCall,
   kAlignAnalysis,
+  kArm64ilp32,
 };
 
 const Descriptor kUsage[] = {
@@ -706,8 +708,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO0,
     0,
-    "",
     "O0",
+    "",
     kBuildTypeExperimental,
     kArgCheckPolicyNone,
     "  -O0                         \tNo optimization.\n",
@@ -715,8 +717,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO1,
     0,
-    "",
     "O1",
+    "",
     kBuildTypeExperimental,
     kArgCheckPolicyOptional,
     "  -O1                         \tDo some optimization.\n",
@@ -724,8 +726,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO2,
     0,
-    "",
     "O2",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                          \tDo some optimization.\n",
@@ -1093,6 +1095,16 @@ const Descriptor kUsage[] = {
     kArgCheckPolicyBool,
     "  --align-analysis                 \tPerform alignanalysis\n"
     "  --no-align-analysis\n",
+    "mplcg",
+    {} },
+  { kArm64ilp32, /* change to Target */
+    kEnable,
+    "ilp32",
+    "arm64-ilp32",
+    kBuildTypeExperimental,
+    kArgCheckPolicyBool,
+    " --arm64-ilp32                 \tarm64 with a 32-bit ABI instead of a 64bit ABI\n"
+    " --no-arm64-ilp32\n",
     "mplcg",
     {} },
 
@@ -1482,6 +1494,9 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kBigEndian:
         (opt.Type() == kEnable) ? EnableBigEndianInCG() : DisableBigEndianInCG();
+        break;
+      case kArm64ilp32:
+        (opt.Type() == kEnable) ? EnableArm64ilp32() : DisableArm64ilp32();
         break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
