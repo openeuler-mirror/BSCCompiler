@@ -276,8 +276,8 @@ bool OptionParser::CheckJoinedOption(Arg &arg,
   for (auto usage : usages) {
     /* Joined Option (like -DMACRO) can be detected as substring (-D) in the option string */
     if (option.find(usage.first) == 0) {
-      arg.val = option.substr(strlen(usage.first.c_str()));
-      arg.key = option.substr(0, std::strlen(usage.first.c_str()));
+      arg.val = option.substr(usage.first.size());
+      arg.key = option.substr(0, usage.first.size());
       return HandleKeyValue(arg, inputOption, exeName);
     }
   }
