@@ -227,20 +227,19 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
 
 bool OptionParser::SetOption(const std::string &rawKey, const std::string &value, const std::string &exeName,
                              std::deque<mapleOption::Option> &exeOption) {
-  constexpr char kOptionMark = '-';
   if (rawKey.empty()) {
     LogInfo::MapleLogger(kLlErr) << "Invalid key" << '\n';
     PrintUsage("all");
     return false;
   }
-  int index = 0;
-  if (rawKey[0] == kOptionMark) {
-    ++index;
-    if (rawKey[1] == kOptionMark) {
-      ++index;
-    }
+
+  ErrorCode err;
+  std::string_view key;
+  std::tie(err, key) = ExtractKey(rawKey, DetectOptPrefix(rawKey));
+  if (err != kErrorNoError) {
+    return false;
   }
-  std::string key = rawKey.substr(index);
+
   int count = usages.count(key);
   auto item = usages.find(key);
   while (count > 0) {
@@ -255,7 +254,7 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
         break;
       case kArgCheckPolicyRequired:
         if (value.empty()) {
-          LogInfo::MapleLogger(kLlErr) << ("Option " + key + " requires an argument.") << '\n';
+          LogInfo::MapleLogger(kLlErr) << "Option " << key << " requires an argument." << '\n';
           return false;
         }
         break;
@@ -264,7 +263,7 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
     }
     break;
   }
-  exeOption.emplace_front(item->second.desc, key, value);
+  exeOption.emplace_front(item->second.desc, std::string(key), value);
   return true;
 }
 
