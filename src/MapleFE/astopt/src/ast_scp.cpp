@@ -777,7 +777,6 @@ IdentifierNode *RenameVarVisitor::VisitIdentifierNode(IdentifierNode *node) {
     return node;
   }
   if (mPass == 0) {
-    unsigned id = node->GetNodeId();
     unsigned stridx = node->GetStrIdx();
     if (stridx) {
       TreeNode *parent = node->GetParent();

@@ -43,11 +43,10 @@ class TypeInfer {
 
 class BuildIdNodeToDeclVisitor : public AstVisitor {
   Module_Handler *mHandler;
-  unsigned        mFlags;
 
   public:
   explicit BuildIdNodeToDeclVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {}
   ~BuildIdNodeToDeclVisitor() = default;
 
   IdentifierNode *VisitIdentifierNode(IdentifierNode *node);
@@ -59,7 +58,7 @@ class BuildIdDirectFieldVisitor : public AstVisitor {
 
   public:
   explicit BuildIdDirectFieldVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mFlags(f) {}
   ~BuildIdDirectFieldVisitor() = default;
 
   FieldNode *VisitFieldNode(FieldNode *node);
@@ -69,12 +68,9 @@ class BuildIdDirectFieldVisitor : public AstVisitor {
 };
 
 class TypeInferBaseVisitor : public AstVisitor {
- private:
-  unsigned mFlags;
-
  public:
   explicit TypeInferBaseVisitor(unsigned f, bool base = false)
-    : mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base) {}
   ~TypeInferBaseVisitor() = default;
 
 #undef  NODEKIND
@@ -88,14 +84,12 @@ class TypeInferBaseVisitor : public AstVisitor {
 class ChangeTypeIdxVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
-  unsigned        mFlags;
   unsigned        mStrIdx;
   unsigned        mTypeIdx;
-  bool            mUpdated;
 
  public:
   explicit ChangeTypeIdxVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {}
   ~ChangeTypeIdxVisitor() = default;
 
   void Setup(unsigned stridx, unsigned tidx) { mStrIdx = stridx; mTypeIdx = tidx;}
@@ -122,7 +116,7 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
 
  public:
   explicit TypeInferVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), TypeInferBaseVisitor(f, base) {
+    : TypeInferBaseVisitor(f, base), mHandler(h), mFlags(f) {
       mChangeTypeIdxVisitor = new ChangeTypeIdxVisitor(h, f, true);
       mInfo = h->GetINFO();
       mXXport = h->GetASTXXport();
@@ -196,15 +190,11 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
 
 class ShareUTVisitor : public AstVisitor {
  private:
-  Module_Handler *mHandler;
-  unsigned        mFlags;
-  bool            mUpdated;
-
   std::stack<ASTScope *> mScopeStack;
 
  public:
   explicit ShareUTVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base) {}
   ~ShareUTVisitor() = default;
 
   void Push(ASTScope *scope) { mScopeStack.push(scope); }
@@ -217,13 +207,12 @@ class CheckTypeVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   unsigned        mFlags;
-  bool            mUpdated;
 
   std::stack<ASTScope *> mScopeStack;
 
  public:
   explicit CheckTypeVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mFlags(f) {}
   ~CheckTypeVisitor() = default;
 
   // check if typeid "tid" is compatible with "target"

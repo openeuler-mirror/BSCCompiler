@@ -46,16 +46,13 @@ class AST_SCP {
 };
 
 class BuildScopeBaseVisitor : public AstVisitor {
- private:
-  unsigned mFlags;
-
  public:
   std::stack<ASTScope *> mScopeStack;
   std::stack<ASTScope *> mUserScopeStack;
 
  public:
   explicit BuildScopeBaseVisitor(unsigned f, bool base = false)
-    : mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base) {}
   ~BuildScopeBaseVisitor() = default;
 
 #undef  NODEKIND
@@ -86,7 +83,7 @@ class BuildScopeVisitor : public BuildScopeBaseVisitor {
 
  public:
   explicit BuildScopeVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), BuildScopeBaseVisitor(f, base) {
+    : BuildScopeBaseVisitor(f, base), mHandler(h), mFlags(f) {
       mASTModule = mHandler->GetASTModule();
       mXXport = h->GetASTXXport();
     }
@@ -144,7 +141,7 @@ class RenameVarVisitor : public AstVisitor {
 
  public:
   explicit RenameVarVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mFlags(f) {
       mASTModule = mHandler->GetASTModule();
       mAstOpt = mHandler->GetASTHandler()->GetAstOpt();
     }
@@ -159,14 +156,10 @@ class RenameVarVisitor : public AstVisitor {
 class AdjustASTWithScopeVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
-  unsigned       mFlags;
-  bool           mUpdated;
-
-  CfgBB *mCurrentBB;
 
  public:
   explicit AdjustASTWithScopeVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {}
   ~AdjustASTWithScopeVisitor() = default;
 
   IdentifierNode *VisitIdentifierNode(IdentifierNode *node);

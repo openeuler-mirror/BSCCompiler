@@ -148,16 +148,14 @@ class AST_XXport {
 class XXportBasicVisitor : public AstVisitor {
  private:
   AST_XXport     *mASTXXport;
-  Module_Handler *mHandler;
   unsigned       mHandlerIdx;
-  unsigned       mFlags;
 
  public:
   std::unordered_set<ModuleNode *> mImported;
 
  public:
   explicit XXportBasicVisitor(AST_XXport *xx, Module_Handler *h, unsigned i, unsigned f, bool base = false)
-    : mASTXXport(xx), mHandler(h), mHandlerIdx(i), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mASTXXport(xx), mHandlerIdx(i) {}
   ~XXportBasicVisitor() = default;
 
   ImportNode *VisitImportNode(ImportNode *node);
