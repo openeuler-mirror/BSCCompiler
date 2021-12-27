@@ -257,6 +257,10 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
 
 bool OptionParser::SetOption(const std::string &rawKey, const std::string &value, const std::string &exeName,
                              std::deque<mapleOption::Option> &exeOption) {
+  /* TODO: This method looks almost identical to OptionParser::HandleKeyValue.
+   * So it's good idea to refactor it to use OptionParser::HandleKeyValue to reduce code duplication.
+   */
+
   if (rawKey.empty()) {
     LogInfo::MapleLogger(kLlErr) << "Invalid key" << '\n';
     PrintUsage("all");
@@ -265,7 +269,8 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
 
   ErrorCode err;
   std::string_view key;
-  std::tie(err, key) = ExtractKey(rawKey, DetectOptPrefix(rawKey));
+  auto prefixType = DetectOptPrefix(rawKey);
+  std::tie(err, key) = ExtractKey(rawKey, prefixType);
   if (err != kErrorNoError) {
     return false;
   }
@@ -293,7 +298,7 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
     }
     break;
   }
-  exeOption.emplace_front(item->second.desc, std::string(key), value);
+  exeOption.emplace_front(item->second.desc, std::string(key), value, prefixType, false);
   return true;
 }
 
