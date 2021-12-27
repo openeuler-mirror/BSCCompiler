@@ -101,6 +101,10 @@ if (GN_BUILD_TYPE == "RELEASE") {
     "-ftrapv",
     "-fstack-check",
   ]
+  if (target_toolchain == "//build/toolchain:clang") {
+    cflags_c += ["-fno-limit-debug-info"]
+    cflags_cc += ["-fno-limit-debug-info"]
+  }
 } else {
   cflags_cc += [
     "-O2",
