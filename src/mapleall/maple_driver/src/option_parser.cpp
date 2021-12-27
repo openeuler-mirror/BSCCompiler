@@ -211,8 +211,10 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
    *    is registered outside the driver, but this option can be used by the driver.
    *    It checks here too.
    */
-  while (count > 0 && (IsOptionForCurrentTool(item->second.desc, exeName) != true ||
-                       item->second.type != arg.prefixType)) {
+
+  /* TODO: Add prefix type check (item->second.type != arg.prefixType) after CI tests reworking.
+   * CI tests must use correct prefixes. */
+  while (count > 0 && (IsOptionForCurrentTool(item->second.desc, exeName) != true)) {
     ++item;
     --count;
   }
