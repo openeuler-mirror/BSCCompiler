@@ -21,6 +21,7 @@
 #include "error_code.h"
 #include "mpl_logging.h"
 #include "driver_option_common.h"
+#include "option_descriptor.h"
 
 using namespace maple;
 using namespace mapleOption;
@@ -61,6 +62,18 @@ std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
   return {kErrorNoError, key};
 }
 
+}
+
+static bool IsOptionForCurrentTool(const Descriptor &desc, std::string_view exeName) {
+  bool ret = false;
+  if (desc.exeName == exeName ||
+      (exeName == "all" && (std::find(std::begin(desc.extras),
+                                      std::end(desc.extras),
+                                      exeName) != std::end(desc.extras)))) {
+    ret = true;
+  }
+
+  return ret;
 }
 
 void OptionParser::InsertExtraUsage(const Descriptor &usage) {
@@ -160,7 +173,13 @@ void OptionParser::RegisteUsages(const Descriptor usage[]) {
 
 void OptionParser::PrintUsage(const std::string &helpType, const uint32_t helpLevel) const {
   for (size_t i = 0; i < rawUsages.size(); ++i) {
-    if (rawUsages[i].help != "" && rawUsages[i].IsEnabledForCurrentBuild() && rawUsages[i].exeName == helpType) {
+
+    bool isOptionForCurrentTool = (rawUsages[i].exeName == helpType ||
+                                   (helpType == "all" &&
+                                    (std::find(std::begin(rawUsages[i].extras),
+                                               std::end(rawUsages[i].extras),
+                                               helpType) != std::end(rawUsages[i].extras))));
+    if (rawUsages[i].help != "" && rawUsages[i].IsEnabledForCurrentBuild() && isOptionForCurrentTool) {
       if (helpLevel != kBuildTypeDefault &&
           (rawUsages[i].enableBuildType != helpLevel && rawUsages[i].enableBuildType != kBuildTypeAll)) {
         continue;
@@ -182,8 +201,18 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
 
   size_t count = usages.count(key);
   auto item = usages.find(key);
-  while (count > 0 &&
-         (item->second.desc.exeName != exeName || item->second.type != arg.prefixType)) {
+
+  /* Skip option if:
+   * 1. Prefix is not matched.
+   * 2. Option is registered for different tool. Descriptor.exeName shows a tool
+   *    registering for current option.
+   *    Special case: extras field in Descriptor allows to register an option in additional tool.
+   *    If extras exeName == driver name ("all"), it means that this option
+   *    is registered outside the driver, but this option can be used by the driver.
+   *    It checks here too.
+   */
+  while (count > 0 && (IsOptionForCurrentTool(item->second.desc, exeName) != true ||
+                       item->second.type != arg.prefixType)) {
     ++item;
     --count;
   }
