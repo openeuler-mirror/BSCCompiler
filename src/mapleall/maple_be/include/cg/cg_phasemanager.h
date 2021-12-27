@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -19,7 +19,6 @@
 #include <sys/stat.h>
 #include "mempool.h"
 #include "mempool_allocator.h"
-#include "phase_manager.h"
 #include "mir_module.h"
 #include "mir_lower.h"
 #include "lower.h"
@@ -57,7 +56,7 @@ class CgFuncPM : public FunctionPM {
     return beCommon;
   }
  private:
-  bool FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM, unsigned long &rangeNum);
+  bool FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM);
   void GenerateOutPutFile(MIRModule &m);
   void CreateCGAndBeCommon(MIRModule &m);
   void PrepareLower(MIRModule &m);
@@ -65,7 +64,7 @@ class CgFuncPM : public FunctionPM {
   void DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc);
   void DoPhasesPopulate(const MIRModule &m);
   /* Tool functions */
-  void DumpFuncCGIR(CGFunc &f, const std::string phaseName, bool isBefore);
+  void DumpFuncCGIR(const CGFunc &f, const std::string& phaseName) const;
   /* For Emit */
   void InitProfile(MIRModule &m) const;
   void EmitGlobalInfo(MIRModule &m) const;
@@ -80,11 +79,6 @@ class CgFuncPM : public FunctionPM {
   CGLowerer *cgLower = nullptr;
   /* module options */
   CGOptions *cgOptions = nullptr;
-
-  /* phase time */
-  time_t extraPhaseTime = 0;
-  time_t analysisPhaseTempTime = 0; /* record analysis phase time before a transform phase */
 };
 }  /* namespace maplebe */
-
 #endif  /* MAPLEBE_INCLUDE_CG_CG_PHASEMANAGER_H */

@@ -28,8 +28,6 @@ using namespace mapleOption;
 
 const std::string kMplcgVersion = "";
 
-bool CGOptions::dumpBefore = false;
-bool CGOptions::dumpAfter = false;
 bool CGOptions::timePhases = false;
 std::unordered_set<std::string> CGOptions::dumpPhases = {};
 std::unordered_set<std::string> CGOptions::skipPhases = {};
@@ -149,8 +147,6 @@ enum OptionIndex : uint64 {
   kEhList,
   kObjMap,
   kCGDumpcfg,
-  kCGDumpBefore,
-  kCGDumpAfter,
   kCGTimePhases,
   kCGDumpFunc,
   kDebuggingInfo,
@@ -838,26 +834,6 @@ const Descriptor kUsage[] = {
     "                              \t(can only specify once)\n",
     "mplcg",
     {} },
-  { kCGDumpBefore,
-    kEnable,
-    "",
-    "dump-before",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --dump-before               \tDo extra IR dump before the specified phase\n"
-    "  --no-dump-before            \tDon't extra IR dump before the specified phase\n",
-    "mplcg",
-    {} },
-  { kCGDumpAfter,
-    kEnable,
-    "",
-    "dump-after",
-    kBuildTypeExperimental,
-    kArgCheckPolicyBool,
-    "  --dump-after                \tDo extra IR dump after the specified phase\n"
-    "  --no-dump-after             \tDon't extra IR dump after the specified phase\n",
-    "mplcg",
-    {} },
   { kCGTimePhases,
     kEnable,
     "",
@@ -1219,12 +1195,6 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kCGRange:
         SetRange(opt.Args(), "--range", GetRange());
-        break;
-      case kCGDumpBefore:
-        (opt.Type() == kEnable) ? EnableDumpBefore() : DisableDumpBefore();
-        break;
-      case kCGDumpAfter:
-        (opt.Type() == kEnable) ? EnableDumpAfter() : DisableDumpAfter();
         break;
       case kCGTimePhases:
         (opt.Type() == kEnable) ? EnableTimePhases() : DisableTimePhases();
