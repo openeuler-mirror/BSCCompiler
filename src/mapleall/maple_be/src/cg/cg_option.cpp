@@ -215,7 +215,7 @@ const Descriptor kUsage[] = {
     "  --pie                       \tGenerate position-independent executable\n"
     "  --no-pie\n",
     "mplcg",
-    {} },
+    {"all"} },
   { kPic,
     kEnable,
     "",
@@ -225,7 +225,7 @@ const Descriptor kUsage[] = {
     "  --fpic                      \tGenerate position-independent shared library\n"
     "  --no-fpic\n",
     "mplcg",
-    {} },
+    {"all"} },
   { kCGVerbose,
     kEnable,
     "",
@@ -1066,7 +1066,7 @@ const Descriptor kUsage[] = {
     " --omit-frame-pointer          \t do not use frame pointer \n"
     " --no-omit-frame-pointer\n",
     "mplcg",
-    {} },
+    {"all"} },
   { kFastMath,
     kEnable,
     "",

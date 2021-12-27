@@ -649,13 +649,23 @@ ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
     }
     return kErrorNoError;
   }
+
   for (const auto &exeName : option.GetExtras()) {
-    auto iter = std::find(runningExes.begin(), runningExes.end(), exeName);
+
+    /* extras field in Descriptor allows to register an option in additional tool.
+     * If extras exeName == driver name ("all"), it means that this option
+     * is registered outside the driver, but this option can be used by the driver.
+     * In this case the tool is set in Descriptor.exeName (not in Descriptor.extras).
+     * And Descriptor.extras=="all" shows only that this option can be handled by the driver.
+     */
+    const std::string &exe = (exeName == "all") ? option.GetExeName() : exeName;
+
+    auto iter = std::find(runningExes.begin(), runningExes.end(), exe);
     if (iter == runningExes.end()) {
       continue;
     }
     // For compilers, such as me, mpl2mpl
-    exeOptions[exeName].push_back(option);
+    exeOptions[exe].push_back(option);
   }
   return kErrorNoError;
 }
