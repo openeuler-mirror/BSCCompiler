@@ -109,15 +109,13 @@ class AST_DFA {
 
 class CollectInfoVisitor : public AstVisitor {
  private:
-  Module_Handler *mHandler;
   AST_DFA        *mDFA;
-  unsigned        mFlags;
   unsigned        mStmtIdx;
   unsigned        mBbId;
 
  public:
   explicit CollectInfoVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mDFA(h->GetDFA()), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mDFA(h->GetDFA()) {}
   ~CollectInfoVisitor() = default;
 
   void SetStmtIdx(unsigned id) { mStmtIdx = id; }
@@ -142,7 +140,7 @@ class DefUseChainVisitor : public AstVisitor {
 
  public:
   explicit DefUseChainVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mDFA(h->GetDFA()), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mDFA(h->GetDFA()), mFlags(f) {}
   ~DefUseChainVisitor() = default;
 
   void SetStmtIdx(unsigned id) { mStmtIdx = id; }

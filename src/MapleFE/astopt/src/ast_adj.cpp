@@ -221,7 +221,6 @@ UnaOperatorNode *AdjustASTVisitor::VisitUnaOperatorNode(UnaOperatorNode *node) {
   (void) AstVisitor::VisitUnaOperatorNode(node);
   TreeNode *opnd = node->GetOpnd();
   OprId op = node->GetOprId();
-  TreeNode *newnode = NULL;
   if (op == OPR_Plus || op == OPR_Minus) {
     if (opnd->IsLiteral()) {
       LiteralNode *lit = static_cast<LiteralNode *>(opnd);
@@ -326,7 +325,6 @@ ExportNode *AdjustASTVisitor::VisitExportNode(ExportNode *node) {
   if (node->GetPairsNum() == 1) {
     XXportAsPairNode *p = node->GetPair(0);
     TreeNode *bfnode = p->GetBefore();
-    TreeNode *after = p->GetAfter();
     if (bfnode) {
       if (!bfnode->IsIdentifier()) {
         switch (bfnode->GetKind()) {
@@ -370,6 +368,9 @@ ExportNode *AdjustASTVisitor::VisitExportNode(ExportNode *node) {
             node->ClearAnnotation();
             break;
           }
+          default:
+            NOTYETIMPL("VisitExportNode neither function nor class");
+            break;
         }
       }
     }

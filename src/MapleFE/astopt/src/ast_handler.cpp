@@ -192,7 +192,7 @@ TreeNode *Module_Handler::FindDecl(IdentifierNode *node, bool deep) {
 
   if (decl) {
     unsigned did = decl->GetNodeId();
-    mNodeId2Decl[nid] = decl;
+    mNodeId2Decl[did] = decl;
   }
 
   if (deep && decl && GetASTXXport()->IsImportedDeclId(mHidx, decl->GetNodeId())) {

@@ -65,8 +65,6 @@ void AST_INFO::CollectInfo() {
   mPass = 2;
   MSGNOLOC0("============== merge class/interface/struct ==============");
   visitor.Visit(module);
-
-  delete mStrIdxVisitor;
 }
 
 TypeId AST_INFO::GetTypeId(TreeNode *node) {

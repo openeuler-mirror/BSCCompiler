@@ -275,7 +275,7 @@ void AST_DFA::CollectDefNodes() {
         if (mFlags & FLG_trace_3) std::cout << "working_list work " << bbid << std::endl;
         for (int i = 0; i < bb->GetStatementsNum(); i++) {
           TreeNode *stmt = bb->GetStatementAtIndex(i);
-          unsigned nid = AddDef(stmt, bitnum, bbid);
+          (void) AddDef(stmt, bitnum, bbid);
         }
 
         for (int i = 0; i < bb->GetSuccessorsNum(); i++) {
@@ -386,7 +386,6 @@ void AST_DFA::BuildBitVectors() {
     mRchInMap[bbid] = bv;
   }
 
-  bool changed = true;
   working_list.clear();
   // initialize work list with all reachable BB
   for (auto it: done_list) {
