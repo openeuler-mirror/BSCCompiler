@@ -269,6 +269,11 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
 
 TreeNode *AST_XXport::GetIdentifier(TreeNode *node) {
   switch (node->GetKind()) {
+    case NK_Decl: {
+      DeclNode *decl = static_cast<DeclNode *>(node);
+      node = GetIdentifier(decl->GetVar());
+      break;
+    }
     case NK_Identifier:
       break;
     case NK_TypeAlias: {
