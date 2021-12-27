@@ -112,7 +112,7 @@ bool RuleActionHasElem(RuleTable *table, unsigned target_idx) {
       return true;
     for (unsigned j = 0; j < act->mNumElem; j++) {
       unsigned index = act->mElems[j];
-      if (index = target_idx)
+      if (index == target_idx)
         return true;
     }
   }
