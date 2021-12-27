@@ -955,7 +955,8 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
     auto it = exeOptions.find(exeName);
     for (const mapleOption::Option &opt : it->second) {
       connectSym = !opt.Args().empty() ? "=" : "";
-      optionStr += (" --" + opt.OptionKey() + connectSym + opt.Args());;
+      auto prefixStr = opt.GetPrefix();
+      optionStr += (" " + prefixStr + opt.OptionKey() + connectSym + opt.Args());
     }
   }
 }
