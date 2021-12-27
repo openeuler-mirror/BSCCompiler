@@ -788,7 +788,7 @@ public:
   unsigned GetDimsNum()          {return mDims->GetDimensionsNum();}
   unsigned GetDim(unsigned n)    {return mDims->GetDimension(n);} // 0 means unspecified.
   bool     IsArray()             {return mDims && GetDimsNum() > 0;}
-  unsigned AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
+  void     AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
   unsigned GetNthNum(unsigned n) {return mDims->GetDimension(n);} // 0 means unspecified.
   void     SetNthNum(unsigned n, unsigned i) {mDims->SetDimension(n, i);}
 
@@ -1916,7 +1916,7 @@ public:
   void SetDims(DimensionNode *t) {mDims = t;}
   unsigned GetDimsNum()          {return mDims->GetDimensionsNum();}
   bool     IsArray()             {return mDims && mDims->GetDimensionsNum() > 0;}
-  unsigned AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
+  void     AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
   unsigned GetNthDim(unsigned n) {return mDims->GetDimension(n);} // 0 means unspecified.
   void     SetNthDim(unsigned n, unsigned i) {mDims->SetDimension(n, i);}
 

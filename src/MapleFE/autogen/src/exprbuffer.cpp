@@ -104,7 +104,7 @@ ExprBuffer::ExprBuffer() {
 // Depth-first search to free string memory which is allocated by
 // the caller of ExprBuffer.
 ExprBuffer::~ExprBuffer() {
-  if (mData);
+  if (mData)
     free(mData);
 }
 

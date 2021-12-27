@@ -289,7 +289,7 @@ void Recursion::FindFronNodes(unsigned circle_index) {
           fnode.mData.mToken = &gSystemTokens[data->mData.mTokenId];
           fron_nodes->PushBack(fnode);
           //std::cout << "  Token " << data->mData.mToken->GetName() << std::endl;
-        } else if (data->mType = DT_Subtable) {
+        } else if (data->mType == DT_Subtable) {
           RuleTable *ruletable = data->mData.mEntry;
           bool found = IsRecursionNode(ruletable);
           if (!found && (ruletable != next)) {
