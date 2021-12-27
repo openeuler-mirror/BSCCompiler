@@ -569,30 +569,6 @@ class CGOptions : public MapleDriverOptionBase {
     return fastAlloc;
   }
 
-  static void EnableDumpBefore() {
-    dumpBefore = true;
-  }
-
-  static void DisableDumpBefore() {
-    dumpBefore = false;
-  }
-
-  static bool IsDumpBefore() {
-    return dumpBefore;
-  }
-
-  static bool IsDumpAfter() {
-    return dumpAfter;
-  }
-
-  static void EnableDumpAfter() {
-    dumpAfter = true;
-  }
-
-  static void DisableDumpAfter() {
-    dumpAfter = false;
-  }
-
   static bool IsEnableTimePhases() {
     return timePhases;
   }
@@ -1163,8 +1139,6 @@ class CGOptions : public MapleDriverOptionBase {
   static std::string dumpFunc;
   static std::string duplicateAsmFile;
   static bool useBarriersForVolatile;
-  static bool dumpBefore;
-  static bool dumpAfter;
   static bool timePhases;
   static bool doEBO;
   static bool doCGSSA;
