@@ -28,23 +28,20 @@ using namespace mapleOption;
 
 namespace mapleOption {
 
-std::map<OptionPrefixType, std::string_view> prefixInfo = {
+static std::map<OptionPrefixType, std::string_view> prefixInfo = {
   {shortOptPrefix, "-"},
   {longOptPrefix, "--"},
   {undefinedOpt, ""}
 };
 
 OptionPrefixType DetectOptPrefix(std::string_view opt) {
-  OptionPrefixType prefix = undefinedOpt;
-  if (opt.size() > 1) {
-    if (opt[0] == '-') {
-      prefix = shortOptPrefix;
-      if (opt[1] == '-') {
-        prefix = longOptPrefix;
-      }
-    }
+  if (opt.substr(0, 2) == "--") {
+    return longOptPrefix;
+  } else if (opt.substr(0, 1) == "-") {
+    return shortOptPrefix;
+  } else {
+    return undefinedOpt;
   }
-  return prefix;
 }
 
 /* NOTE: return value will be a part of input string_view */
@@ -58,6 +55,10 @@ std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
     return std::make_pair(kErrorInvalidParameter, opt);
   }
 
+  if (opt.substr(0, index) != optStr->second) {
+    return std::make_pair(kErrorInvalidParameter, opt);
+  }
+
   auto key = opt.substr(index);
   return {kErrorNoError, key};
 }
@@ -65,15 +66,21 @@ std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
 }
 
 static bool IsOptionForCurrentTool(const Descriptor &desc, std::string_view exeName) {
-  bool ret = false;
-  if (desc.exeName == exeName ||
-      (exeName == "driver" && (std::find(std::begin(desc.extras),
-                                      std::end(desc.extras),
-                                      exeName) != std::end(desc.extras)))) {
-    ret = true;
+  if (desc.exeName == exeName) {
+    return true;
   }
 
-  return ret;
+  /* external tool can register options for the driver with "extras" field in the descriptor.
+   * As example: mplcg registers --omit-frame-pointer, --fpic and another options with this way.
+   * So if it can find "driver" in "extras", it's possible option for the driver.
+   */
+  auto &extra = desc.extras;
+  if (exeName == "driver" &&
+      (std::find(std::begin(extra), std::end(extra), exeName) != std::end(extra))) {
+    return true;
+  }
+
+  return false;
 }
 
 void OptionParser::InsertExtraUsage(const Descriptor &usage) {
@@ -174,11 +181,12 @@ void OptionParser::RegisteUsages(const Descriptor usage[]) {
 void OptionParser::PrintUsage(const std::string &helpType, const uint32_t helpLevel) const {
   for (size_t i = 0; i < rawUsages.size(); ++i) {
 
+    auto contains = [](const auto &container, const auto &data) {
+      return (std::find(std::begin(container), std::end(container), data) != container.end());
+    };
     bool isOptionForCurrentTool = (rawUsages[i].exeName == helpType ||
-                                   (helpType == "driver" &&
-                                    (std::find(std::begin(rawUsages[i].extras),
-                                               std::end(rawUsages[i].extras),
-                                               helpType) != std::end(rawUsages[i].extras))));
+                                   (helpType == "driver" && contains(rawUsages[i].extras, helpType)));
+
     if (rawUsages[i].help != "" && rawUsages[i].IsEnabledForCurrentBuild() && isOptionForCurrentTool) {
       if (helpLevel != kBuildTypeDefault &&
           (rawUsages[i].enableBuildType != helpLevel && rawUsages[i].enableBuildType != kBuildTypeAll)) {
@@ -230,7 +238,7 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
     case kArgCheckPolicyOptional:
       break;
     case kArgCheckPolicyRequired:
-      if (value.empty() && !isValueEmpty) {
+      if (value.empty()) {
         LogInfo::MapleLogger(kLlErr) << "Option " << key << " requires an argument." << '\n';
         return false;
       }
@@ -252,8 +260,8 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
     default:
       break;
   }
-  inputOption.push_back(Option(item->second.desc, std::string(key), std::string(value),
-                               arg.prefixType, arg.isEqualOpt));
+  inputOption.emplace_back(item->second.desc, std::string(key), std::string(value),
+                           arg.prefixType, arg.isEqualOpt);
   return true;
 }
 
@@ -326,6 +334,7 @@ bool OptionParser::CheckJoinedOption(Arg &arg,
 bool OptionParser::CheckOpt(std::vector<Arg> &inputArgs, size_t &argsIndex,
                             std::deque<mapleOption::Option> &inputOption,
                             const std::string &exeName) {
+  ASSERT(argsIndex < inputArgs.size(), "Incorrect argsIndex in OptionParser::CheckOpt");
   auto &arg = inputArgs[argsIndex];
   auto &option = arg.key;
 
@@ -366,18 +375,21 @@ bool OptionParser::CheckOpt(std::vector<Arg> &inputArgs, size_t &argsIndex,
         if (argsIndex >= inputArgs.size() ||
             inputArgs[argsIndex].rawArg.empty()) {
           /* Something wrong: Value is missed */
+          LogInfo::MapleLogger(kLlErr) << "Last option must be a value for option: " << option << '\n';
           return false;
         }
 
         arg.val = inputArgs[argsIndex].rawArg;
-
-        argsIndex++;
-        return HandleKeyValue(arg, inputOption, exeName);
-      } else {
-        /* option does not contain a value (only key): --key */
-        argsIndex++;
-        return HandleKeyValue(arg, inputOption, exeName);
+        /* Check: option like "--key value", so "value" must not contain any prefix (--value is incorrect) */
+        auto prefixType = DetectOptPrefix(arg.val);
+        if (prefixType != undefinedOpt) {
+          LogInfo::MapleLogger(kLlErr) << "Incorrect value=" << arg.val << " for option=" << option << '\n';
+          return false;
+        }
       }
+
+      argsIndex++;
+      return HandleKeyValue(arg, inputOption, exeName);
     } else {
       /* It can be joined option, like: -DMACRO */
       argsIndex++;
@@ -415,7 +427,7 @@ ErrorCode OptionParser::HandleInputArgs(std::vector<Arg> &inputArgs, const std::
       /* if it's not an option, it can be input file */
       argsIndex++;
       if (isAllOption) {
-        nonOptionsArgs.push_back(std::string(arg.key));
+        nonOptionsArgs.emplace_back(arg.key);
       }
     }
   }
@@ -435,10 +447,16 @@ ErrorCode OptionParser::Parse(int argc, char **argv, const std::string exeName) 
   // transform char* to string
   std::vector<Arg> inputArgs;
   while (argc != 0 && *argv != nullptr) {
-    inputArgs.push_back(Arg(*argv));
+    inputArgs.emplace_back(*argv);
     ++argv;
     --argc;
   }
   ErrorCode ret = HandleInputArgs(inputArgs, exeName, options, true);
   return ret;
+}
+
+std::string Option::GetPrefix() const {
+  auto it = prefixInfo.find(prefixType);
+  ASSERT(it != prefixInfo.end(), "Prefix must be initialized!!");
+  return std::string(it->second);
 }

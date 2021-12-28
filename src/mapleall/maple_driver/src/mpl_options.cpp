@@ -847,8 +847,7 @@ ErrorCode MplOptions::UpdatePhaseOption(const std::string &args, const std::stri
   }
 
   std::vector<Arg> inputArgs;
-  /* Split will use implicit conversion to construct Arg by the string */
-  StringUtils::Split(args, inputArgs, ' ');
+  StringUtils::SplitSV(args, inputArgs, ' ');
 
   auto &exeOption = exeOptions[exeName];
   ErrorCode ret = optionParser->HandleInputArgs(inputArgs, exeName, exeOption);
