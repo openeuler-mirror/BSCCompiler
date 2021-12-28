@@ -29,13 +29,16 @@ OptionPrefixType DetectOptPrefix(std::string_view opt);
 std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
                                                          OptionPrefixType prefix);
 
+/* This structure is used to aggregate option information during option parsing.
+ * It's a string view from original input command line string. */
 struct Arg {
-  Arg(std::string_view arg) : rawArg(arg) {}
-  std::string rawArg;
-  std::string_view key;
-  std::string_view val;
+  explicit Arg(std::string_view arg) : rawArg(arg) {}
+  std::string_view rawArg; /* full option, like "--key=value"  */
+  std::string_view key; /* Extracted key, like "--key" */
+  std::string_view val; /* Extracted value, like "value" */
   OptionPrefixType prefixType = undefinedOpt;
-  bool isEqualOpt = false;
+  bool isEqualOpt = false; /* indicates whether the parsed option contained "=" symbol.
+                              For options like --key=value, it's true. For options like --key value, it's false */
 };
 
 class OptionParser {
@@ -95,10 +98,10 @@ class OptionParser {
   }
 
   std::vector<Descriptor> rawUsages;
+  /* std::less comparator is used to mix string and string_view as map keys */
   std::multimap<std::string, UsageWrp, std::less<>> usages;
   std::deque<Option> options;
   std::vector<std::string> nonOptionsArgs;
-  bool isValueEmpty = false;
 };
 enum MatchedIndex {
   kMatchNone,

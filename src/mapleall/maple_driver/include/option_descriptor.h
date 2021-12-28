@@ -43,8 +43,6 @@ enum OptionPrefixType {
   undefinedOpt,
 };
 
-extern std::map<OptionPrefixType, std::string_view> prefixInfo;
-
 constexpr size_t kMaxExtraOptions = 10;
 
 struct Descriptor {
@@ -106,6 +104,8 @@ class Option {
 
   ~Option() = default;
 
+  std::string GetPrefix() const;
+
   size_t Index() const {
     return descriptor.index;
   }
@@ -157,16 +157,6 @@ class Option {
       return false;
     }
     return true;
-  }
-
-  std::string GetPrefix() const {
-    auto it = prefixInfo.find(prefixType);
-    if (it == prefixInfo.end()) {
-      /* If Option is initialized, this case is NOT POSSIBLE */
-      return "";
-    }
-
-    return std::string(it->second);
   }
 
  private:
