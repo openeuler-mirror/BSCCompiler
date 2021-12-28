@@ -717,8 +717,10 @@ StructNode *ClassStructVisitor::VisitStructNode(StructNode *node) {
     }
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
-      if (auto t = node->GetField(i)) {
-        mHandler->AddDirectField(t);
+      if (TreeNode *t = node->GetField(i)) {
+        if (!t->IsStrIndexSig()) {
+          mHandler->AddDirectField(t);
+        }
       }
     }
   } else if (mInfo->GetPass() == 1) {
@@ -745,8 +747,10 @@ ClassNode *ClassStructVisitor::VisitClassNode(ClassNode *node) {
   if (mInfo->GetPass() == 0) {
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
-      if (auto t = node->GetField(i)) {
-        mHandler->AddDirectField(t);
+      if (TreeNode *t = node->GetField(i)) {
+        if (!t->IsStrIndexSig()) {
+          mHandler->AddDirectField(t);
+        }
       }
     }
   } else if (mInfo->GetPass() == 1) {
@@ -773,8 +777,10 @@ InterfaceNode *ClassStructVisitor::VisitInterfaceNode(InterfaceNode *node) {
   if (mInfo->GetPass() == 0) {
     mInfo->SetStrIdx2Struct(node->GetStrIdx(), node);
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
-      if (auto t = node->GetField(i)) {
-        mHandler->AddDirectField(t);
+      if (TreeNode *t = node->GetField(i)) {
+        if (!t->IsStrIndexSig()) {
+          mHandler->AddDirectField(t);
+        }
       }
     }
   } else if (mInfo->GetPass() == 1) {
