@@ -305,8 +305,7 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
@@ -337,8 +336,7 @@ InterfaceNode *BuildScopeVisitor::VisitInterfaceNode(InterfaceNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
@@ -367,8 +365,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld && fld->IsIdentifier()) {
       AddDecl(scope, fld);
