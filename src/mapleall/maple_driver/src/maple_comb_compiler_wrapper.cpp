@@ -39,7 +39,7 @@ DefaultOption MapleCombCompilerWrp::GetDefaultOptions(const MplOptions &mplOptio
   uint32 optForWrapperCnt = 0;
   for (Option &opt : options) {
     auto desc = opt.GetDescriptor();
-    if (desc.exeName == "all" ||
+    if (desc.exeName == "driver" ||
         desc.exeName == "mpl2mpl" ||
         desc.exeName == "mplcg" ||
         desc.exeName == "me") {
