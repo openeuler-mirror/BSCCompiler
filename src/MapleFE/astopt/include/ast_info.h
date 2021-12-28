@@ -110,12 +110,10 @@ class FillNodeInfoVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   AST_INFO       *mInfo;
-  unsigned       mFlags;
-  bool           mUpdated;
 
  public:
   explicit FillNodeInfoVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), mUpdated(false), AstVisitor((f & FLG_trace_1) && base) {
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {
       mInfo= mHandler->GetINFO();
     }
   ~FillNodeInfoVisitor() = default;
@@ -131,12 +129,10 @@ class ClassStructVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   AST_INFO       *mInfo;
-  unsigned       mFlags;
-  bool           mUpdated;
 
  public:
   explicit ClassStructVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), mUpdated(false), AstVisitor((f & FLG_trace_1) && base) {
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h) {
       mInfo= mHandler->GetINFO();
     }
   ~ClassStructVisitor() = default;
@@ -153,15 +149,14 @@ class FindStrIdxVisitor : public AstVisitor {
  private:
   Module_Handler *mHandler;
   AST_INFO       *mInfo;
-  unsigned       mFlags;
   unsigned       mStrIdx;
   bool           mCheckThis;
   bool           mFound;
 
  public:
   explicit FindStrIdxVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), mStrIdx(0), mCheckThis(false), mFound(false),
-      AstVisitor((f & FLG_trace_1) && base) {
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mStrIdx(0),
+      mCheckThis(false), mFound(false) {
       mInfo = mHandler->GetINFO();
     }
   ~FindStrIdxVisitor() = default;

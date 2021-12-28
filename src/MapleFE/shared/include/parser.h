@@ -67,11 +67,11 @@ typedef enum AppealStatus {
   AppealStatus_NA
 }AppealStatus;
 
-typedef enum ParseStatus {
+typedef enum {
   ParseSucc,
   ParseFail,
   ParseEOF
-};
+} ParseStatus;
 
 // As in Left Recursion scenario, a rule can have multiple matches on a start token.
 // Each AppealNode represents an instance in the recursion, and it matches different
@@ -389,7 +389,7 @@ public:
   ~Parser();
 
   void SetVerbose(int i) { mLexer->SetVerbose(i); }
-  int  GetVerbose() { mLexer->GetVerbose(); }
+  int  GetVerbose() { return mLexer->GetVerbose(); }
 
   ModuleNode* GetModule() {return mASTModule;}
 
@@ -402,9 +402,10 @@ public:
   unsigned LexOneLine();
 
   bool   TokenMerge(Token *);
-  bool   TokenSplit(Token *);
-  virtual Token* GetRegExpr(Token *t) {return t;}  // This is language specific.
-                                           // See examples in Typescript.
+
+  // These are language specific.
+  virtual bool   TokenSplit(Token *)  {return false;}
+  virtual Token* GetRegExpr(Token *t) {return t;}
 };
 
 // Each language will have its own implementation of lexer. Most of lexer

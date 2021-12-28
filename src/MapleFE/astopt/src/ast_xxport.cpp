@@ -83,7 +83,6 @@ void AST_XXport::CollectXXportNodes() {
 
 void AST_XXport::AddHandler() {
   for (unsigned hidx = 0; hidx < GetModuleNum(); hidx++) {
-    Module_Handler *handler = mASTHandler->GetModuleHandler(hidx);
     for (auto it : mImportNodeSets[hidx]) {
       ImportNode *node = it;
       UpdateDependency(hidx, node);
@@ -129,7 +128,6 @@ void AST_XXport::SortHandler() {
 
   if (mFlags & FLG_trace_2) {
     std::cout << "============== Module Order ==============" << std::endl;
-    std::list<unsigned>::iterator it = mHandlersIdxInOrder.begin();
     for (auto hidx: mHandlersIdxInOrder) {
       Module_Handler *handler = mASTHandler->GetModuleHandler(hidx);
       ModuleNode *module = handler->GetASTModule();
@@ -269,6 +267,11 @@ void AST_XXport::CollectImportInfo(unsigned hidx) {
 
 TreeNode *AST_XXport::GetIdentifier(TreeNode *node) {
   switch (node->GetKind()) {
+    case NK_Decl: {
+      DeclNode *decl = static_cast<DeclNode *>(node);
+      node = GetIdentifier(decl->GetVar());
+      break;
+    }
     case NK_Identifier:
       break;
     case NK_TypeAlias: {

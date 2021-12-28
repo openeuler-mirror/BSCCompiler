@@ -508,11 +508,13 @@ void EnumBuffer::Generate(BaseGen *bg, const char *last_item){
   while(!bg->EnumEnd()) {
     NewLine();
     std::string elem = bg->EnumNextElem();
-    if (!bg->EnumEnd() || last_item)
-      if (!elem.size())
+    if (!bg->EnumEnd() || last_item) {
+      if (!elem.size()) {
         elem = ",";
-      else
+      } else {
         elem = elem + ",";
+      }
+    }
     AddString(elem);
   }
   NewLine();
@@ -596,11 +598,13 @@ void TableBuffer::Generate(BaseGen *bg, const std::string decl){
   while(!bg->EnumEnd()) {
     NewLine();
     std::string elem = bg->EnumNextElem();
-    if (!bg->EnumEnd())
-      if (!elem.size())
+    if (!bg->EnumEnd()) {
+      if (!elem.size()) {
         elem = ",";
-      else
+      } else {
         elem = elem + ",";
+      }
+    }
     AddString(elem);
   }
 

@@ -329,7 +329,9 @@ Token* Lexer::LexTokenNoNewLine(void) {
   unsigned old_curidx = curidx;
   bool is_comment = GetComment();
   if (is_comment) {
-    Token *t = FindCommentToken();
+    Token *sys_t = FindCommentToken();
+    Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    *t = *sys_t;
     t->mLineNum = _linenum;
     t->mColNum = old_curidx;
     if (mTrace)
@@ -339,7 +341,9 @@ Token* Lexer::LexTokenNoNewLine(void) {
 
   OprId opr = GetOperator();
   if (opr != OPR_NA) {
-    Token *t = FindOperatorToken(opr);
+    Token *sys_t = FindOperatorToken(opr);
+    Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    *t = *sys_t;
     t->mLineNum = _linenum;
     t->mColNum = old_curidx;
     if (mTrace)
@@ -372,7 +376,9 @@ Token* Lexer::LexTokenNoNewLine(void) {
       }
     }
 
-    Token *t = FindSeparatorToken(sep);
+    Token *sys_t = FindSeparatorToken(sep);
+    Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    *t = *sys_t;
     t->mLineNum = _linenum;
     t->mColNum = old_curidx;
     if (mTrace)
@@ -382,7 +388,9 @@ Token* Lexer::LexTokenNoNewLine(void) {
 
   const char *keyword = GetKeyword();
   if (keyword != NULL) {
-    Token *t = FindKeywordToken(keyword);
+    Token *sys_t = FindKeywordToken(keyword);
+    Token *t = (Token*)mTokenPool.NewToken(sizeof(Token));
+    *t = *sys_t;
     t->mLineNum = _linenum;
     t->mColNum = old_curidx;
     if (mTrace)

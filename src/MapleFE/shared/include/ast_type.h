@@ -120,7 +120,7 @@ public:
 
   unsigned GetDimsNum()          {return mDims->GetDimensionsNum();}
   bool     IsArray()             {return mDims && GetDimsNum() > 0;}
-  unsigned AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
+  void     AddDim(unsigned i = 0){mDims->AddDimension(i);}        // 0 means unspecified
   unsigned GetNthNum(unsigned n) {return mDims->GetDimension(n);} // 0 means unspecified.
   void     SetNthNum(unsigned n, unsigned i) {mDims->SetDimension(n, i);}
 

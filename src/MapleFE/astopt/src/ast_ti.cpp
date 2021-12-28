@@ -93,7 +93,6 @@ IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *no
 
 FieldNode *BuildIdDirectFieldVisitor::VisitFieldNode(FieldNode *node) {
   (void) AstVisitor::VisitFieldNode(node);
-  TreeNode *upper = node->GetUpper();
   IdentifierNode *field = static_cast<IdentifierNode *>(node->GetField());
   TreeNode *decl = NULL;
   decl = mHandler->FindDecl(field);
@@ -728,7 +727,7 @@ ArrayElementNode *TypeInferVisitor::VisitArrayElementNode(ArrayElementNode *node
               }
             } else if (exp->IsTypeIdInt()) {
               // indexed access of fields
-              unsigned i = (static_cast<LiteralNode *>(exp))->GetData().mData.mInt64;
+              // unsigned i = (static_cast<LiteralNode *>(exp))->GetData().mData.mInt64;
               NOTYETIMPL("indexed access with literal field id");
             } else {
               AstVisitor::VisitTreeNode(exp);
@@ -1016,7 +1015,6 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
               NOTYETIMPL("VisitCallNode decl init");
             }
           } else if (decl->IsLiteral()) {
-            LiteralNode *l = static_cast<LiteralNode *>(decl);
             NOTYETIMPL("VisitCallNode literal node");
           } else {
             NOTYETIMPL("VisitCallNode not function node");
@@ -1615,8 +1613,6 @@ TypeAliasNode *TypeInferVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   (void) AstVisitor::VisitTypeAliasNode(node);
   UserTypeNode *id = node->GetId();
   TreeNode *alias = node->GetAlias();
-  TypeId tid = alias->GetTypeId();
-  unsigned tidx = alias->GetTypeIdx();
   UpdateTypeId(id, alias);
   return node;
 }

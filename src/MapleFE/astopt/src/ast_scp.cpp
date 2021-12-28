@@ -374,6 +374,28 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
       AddDecl(scope, fld);
     }
   }
+
+  // add type parameter as decl
+  for(unsigned i = 0; i < node->GetTypeParamsNum(); i++) {
+    TypeParameterNode *tpn = node->GetTypeParamAtIndex(i);
+    TreeNode *id = tpn->GetId();
+    if (id->IsIdentifier()) {
+      AddDecl(scope, id);
+    } else {
+      NOTYETIMPL("function type parameter not identifier");
+    }
+    continue;
+  }
+
+  // add string indexed field as decl
+  StrIndexSigNode *sig = node->GetStrIndexSig();
+  if (sig) {
+    TreeNode *fld = sig->GetKey();
+    if (fld && fld->IsIdentifier()) {
+      AddDecl(scope, fld);
+    }
+  }
+
   mScopeStack.push(scope);
   BuildScopeBaseVisitor::VisitStructNode(node);
   mScopeStack.pop();
@@ -755,7 +777,6 @@ IdentifierNode *RenameVarVisitor::VisitIdentifierNode(IdentifierNode *node) {
     return node;
   }
   if (mPass == 0) {
-    unsigned id = node->GetNodeId();
     unsigned stridx = node->GetStrIdx();
     if (stridx) {
       TreeNode *parent = node->GetParent();
