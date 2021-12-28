@@ -388,6 +388,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   StrIndexSigNode *sig = node->GetStrIndexSig();
   if (sig) {
     TreeNode *fld = sig->GetKey();
+    sig->SetStrIdx(fld->GetStrIdx());
     if (fld && fld->IsIdentifier()) {
       AddDecl(scope, fld);
     }
@@ -498,8 +499,11 @@ UserTypeNode *BuildScopeVisitor::VisitUserTypeNode(UserTypeNode *node) {
 TypeAliasNode *BuildScopeVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   ASTScope *scope = mScopeStack.top();
   BuildScopeBaseVisitor::VisitTypeAliasNode(node);
-  AddDecl(scope, node);
-  AddType(scope, node);
+  TreeNode *ut = node->GetId();
+  if (ut->IsUserType()) {
+    TreeNode *id = static_cast<UserTypeNode *>(ut)->GetId();
+    AddDecl(scope, id);
+  }
   return node;
 }
 

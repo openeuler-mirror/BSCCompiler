@@ -39,14 +39,6 @@ void TypeInfer::TypeInference() {
   BuildIdNodeToDeclVisitor visitor_build(mHandler, mFlags, true);
   visitor_build.Visit(module);
 
-  // build mDirectFieldSet
-  MSGNOLOC0("============== Build DirectFieldSet ==============");
-  BuildIdDirectFieldVisitor visitor_field(mHandler, mFlags, true);
-  visitor_field.Visit(module);
-  if (mFlags & FLG_trace_3) {
-    visitor_field.Dump();
-  }
-
   // type inference
   MSGNOLOC0("============== TypeInfer ==============");
   TypeInferVisitor visitor_ti(mHandler, mFlags, true);
@@ -56,6 +48,14 @@ void TypeInfer::TypeInference() {
     MSGNOLOC("\n TypeInference iterate ", count);
     visitor_ti.SetUpdated(false);
     visitor_ti.Visit(module);
+  }
+
+  // build mDirectFieldSet
+  MSGNOLOC0("============== Build DirectFieldSet ==============");
+  BuildIdDirectFieldVisitor visitor_field(mHandler, mFlags, true);
+  visitor_field.Visit(module);
+  if (mFlags & FLG_trace_3) {
+    visitor_field.Dump();
   }
 
   if (mFlags & FLG_trace_3) std::cout << "\n>>>>>> TypeInference() iterated " << count << " times\n" << std::endl;
@@ -103,15 +103,38 @@ FieldNode *BuildIdDirectFieldVisitor::VisitFieldNode(FieldNode *node) {
   return node;
 }
 
+TreeNode *BuildIdDirectFieldVisitor::GetParentVarClass(TreeNode *node) {
+  TreeNode *n = node;
+  while (n && !n->IsModule()) {
+    unsigned tyidx = 0;
+    if (n->IsDecl()) {
+      tyidx = n->GetTypeIdx();
+    } else if (n->IsBinOperator()) {
+      tyidx = n->GetTypeIdx();
+    }
+    if (tyidx) {
+      return gTypeTable.GetTypeFromTypeIdx(tyidx);
+    }
+    n = n->GetParent();
+  }
+  return NULL;
+}
+
 FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralNode *node) {
   (void) AstVisitor::VisitFieldLiteralNode(node);
   TreeNode *name = node->GetFieldName();
   IdentifierNode *field = static_cast<IdentifierNode *>(name);
-  TreeNode *decl = NULL;
-  decl = mHandler->FindDecl(field);
-  if (decl) {
-    mHandler->AddDirectField(field);
-    mHandler->AddDirectField(node);
+  TreeNode *decl = mHandler->FindDecl(field);
+  TreeNode *vtype = GetParentVarClass(decl);
+  if (vtype) {
+    // check if decl is a field of vtype
+    // note: vtype could be in different module
+    Module_Handler *h = mHandler->GetModuleHandler(vtype);
+    TreeNode *fld = h->GetINFO()->GetField(vtype->GetNodeId(), decl->GetStrIdx());
+    if (fld) {
+      mHandler->AddDirectField(field);
+      mHandler->AddDirectField(node);
+    }
   }
   return node;
 }
@@ -1212,8 +1235,7 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
           TreeNode *fld = field->GetField();
           if (upper->IsTypeIdModule()) {
             TreeNode *type = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
-            ModuleNode *mod = static_cast<ModuleNode *>(type);
-            Module_Handler *h = mHandler->GetASTHandler()->GetModuleHandler(mod);
+            Module_Handler *h = mHandler->GetModuleHandler(type);
             exported = mXXport->GetExportedNamedNode(h->GetHidx(), fld->GetStrIdx());
             if (exported) {
               UpdateTypeId(bfnode, exported->GetTypeId());
