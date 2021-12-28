@@ -416,6 +416,58 @@ Token* TypescriptParser::GetRegExpr(Token *t) {
   return t;
 }
 
+// return true if t should be split into multiple tokens.
+// [NOTE] t is not push into mActiveTokens yet.
+//
+// We will handle these cases specifically.
+//
+// We take care of only one scenarios right now..
+//   typename<typearg>= initval
+// Look at the '>='. It first recognazied by lexer as GE,
+// but it's actually a > and a =.
+//
+// Another case is
+//   typename<t extends T>= s;
+
+bool TypescriptParser::TokenSplit(Token *t) {
+  if (!t->IsOperator() || t->GetOprId() != OPR_GE)
+    return false;
+  unsigned size = mActiveTokens.GetNum();
+  if (size < 2)
+    return false;
+
+  Token *type_arg = mActiveTokens.ValueAtIndex(size - 1);
+  if (!type_arg->IsIdentifier())
+    return false;
+
+  Token *extends_token = mLexer->FindKeywordToken("extends");
+
+  Token *lt = mActiveTokens.ValueAtIndex(size - 2);
+
+  if (lt->Equal(extends_token)) {
+    // This is a good candidate. Do nothing
+  } else {
+    if (!lt->IsOperator() || lt->GetOprId() != OPR_LT)
+      return false;
+
+    Token *type_name = mActiveTokens.ValueAtIndex(size - 3);
+    if (!type_name->IsIdentifier())
+      return false;
+  }
+
+  // Now we got a matching case.
+  Token *gt_token = mLexer->FindOperatorToken(OPR_GT);
+  Token *assign_token = mLexer->FindOperatorToken(OPR_Assign);
+  mActiveTokens.PushBack(gt_token);
+  mActiveTokens.PushBack(assign_token);
+
+  if (mLexer->mTrace) {
+    std::cout << "Split >= to > and =" << std::endl;
+  }
+
+  return true;
+}
+
 
 // 'appeal' is the node of 'rule_table'.
 // 'child' was NULL when passed in.
@@ -455,7 +507,7 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
   MASSERT(semicolon->IsSeparator());
   MASSERT(semicolon->GetSepId() == SEP_Semicolon);
 
-  if (curr_token == semicolon) {
+  if (curr_token->Equal(semicolon)) {
     // To simplify the code, I reused TraverseToken().
     found = TraverseToken(semicolon, appeal, child);
   } else {

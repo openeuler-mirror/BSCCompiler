@@ -50,7 +50,7 @@ class AdjustASTVisitor : public AstVisitor {
 
  public:
   explicit AdjustASTVisitor(Module_Handler *h, unsigned f, bool base = false)
-    : mHandler(h), mFlags(f), mUpdated(false), AstVisitor((f & FLG_trace_1) && base) {
+    : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mFlags(f), mUpdated(false) {
       mInfo = h->GetINFO();
       mInfo->SetNameAnonyStruct(true);
       mUtil = h->GetUtil();

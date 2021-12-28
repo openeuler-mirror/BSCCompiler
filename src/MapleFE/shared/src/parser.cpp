@@ -344,48 +344,6 @@ bool Parser::TokenMerge(Token *t) {
   return false;
 }
 
-// return true if t should be split into multiple tokens.
-// [NOTE] t is not push into mActiveTokens yet.
-//
-// We will handle these cases specifically.
-//
-// We take care of only one scenarios right now..
-//   typename<typearg>= initval
-// Look at the '>='. It first recognazied by lexer as GE,
-// but it's actually a > and a =.
-
-bool Parser::TokenSplit(Token *t) {
-  if (!t->IsOperator() || t->GetOprId() != OPR_GE)
-    return false;
-  unsigned size = mActiveTokens.GetNum();
-  if (size < 2)
-    return false;
-
-  Token *type_arg = mActiveTokens.ValueAtIndex(size - 1);
-  if (!type_arg->IsIdentifier())
-    return false;
-
-  Token *lt = mActiveTokens.ValueAtIndex(size - 2);
-  if (!lt->IsOperator() || lt->GetOprId() != OPR_LT)
-    return false;
-
-  Token *type_name = mActiveTokens.ValueAtIndex(size - 3);
-  if (!type_name->IsIdentifier())
-    return false;
-
-  // Now we got a matching case.
-  Token *gt_token = mLexer->FindOperatorToken(OPR_GT);
-  Token *assign_token = mLexer->FindOperatorToken(OPR_Assign);
-  mActiveTokens.PushBack(gt_token);
-  mActiveTokens.PushBack(assign_token);
-
-  if (mLexer->mTrace) {
-    std::cout << "Split >= to > and =" << std::endl;
-  }
-
-  return true;
-}
-
 // Lex all tokens in a line, save to mActiveTokens.
 // If no valuable in current line, we continue to the next line.
 // Returns the number of valuable tokens read. Returns 0 if EOF.
@@ -905,7 +863,7 @@ bool Parser::LookAheadFail(RuleTable *rule_table, unsigned token) {
       // which are not recoganized by lexer.
       break;
     case LA_Token:
-      if (curr_token == &gSystemTokens[la.mData.mTokenId])
+      if (curr_token->Equal(&gSystemTokens[la.mData.mTokenId]))
         found = true;
       // TemplateLiteral, Regular Expression is treated as a special keyword.
       {
@@ -1353,7 +1311,7 @@ bool Parser::TraverseToken(Token *token, AppealNode *parent, AppealNode *&child_
     }
   }
 
-  if (token == curr_token) {
+  if (token->Equal(curr_token)) {
     appeal = mAppealNodePool.NewAppealNode();
     child_node = appeal;
     mAppealNodes.push_back(appeal);
@@ -1380,7 +1338,7 @@ bool Parser::TraverseToken(Token *token, AppealNode *parent, AppealNode *&child_
       if (parent->GetTable()->mProperties & RP_NoAltToken)
         parent_ok = false;
 
-      if (parent_ok && (token == &gSystemTokens[pat->mAltTokenId])) {
+      if (parent_ok && (token->Equal(&gSystemTokens[pat->mAltTokenId]))) {
         appeal = mAppealNodePool.NewAppealNode();
         child_node = appeal;
         mAppealNodes.push_back(appeal);

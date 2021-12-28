@@ -81,8 +81,8 @@ BaseGen::~BaseGen() {
 }
 
 Rule *BaseGen::AddLiteralRule(std::string rulename) {
-  Rule *rule = NULL;
-  if (rule = FindRule(rulename)) {
+  Rule *rule = FindRule(rulename);
+  if (rule) {
     return rule;
   }
 

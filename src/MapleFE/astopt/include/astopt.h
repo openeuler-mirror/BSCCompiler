@@ -71,12 +71,12 @@ public:
 
 class BuildNodeIdToNodeVisitor : public AstVisitor {
   AstOpt         *mAstOpt;
-  Module_Handler *mHandler;
   unsigned        mFlags;
+  Module_Handler *mHandler;
 
   public:
   explicit BuildNodeIdToNodeVisitor(AstOpt *opt, unsigned f, bool base = false)
-    : mAstOpt(opt), mFlags(f), AstVisitor((f & FLG_trace_1) && base) {}
+    : AstVisitor((f & FLG_trace_1) && base), mAstOpt(opt), mFlags(f) {}
   ~BuildNodeIdToNodeVisitor() = default;
 
   void SetHandler(Module_Handler *handler) { mHandler = handler; }

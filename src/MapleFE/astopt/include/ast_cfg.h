@@ -150,7 +150,7 @@ class CfgFunc {
   BBIndex               mLastBBId;
 
  public:
-  explicit CfgFunc() : mParent(nullptr), mEntryBB(nullptr), mExitBB(nullptr), mFuncNode(nullptr) {}
+  explicit CfgFunc() : mFuncNode(nullptr), mParent(nullptr), mEntryBB(nullptr), mExitBB(nullptr) {}
   ~CfgFunc() {mNestedFuncs.Release();}
 
   void      SetFuncNode(TreeNode *func) {mFuncNode = func;}
@@ -199,7 +199,7 @@ class CfgBuilder : public AstVisitor {
 
  public:
   explicit CfgBuilder(Module_Handler *h, unsigned f)
-    : mHandler(h), mFlags(f), AstVisitor(false) {}
+    : AstVisitor(false), mHandler(h), mFlags(f) {}
   ~CfgBuilder() = default;
 
   void Build();

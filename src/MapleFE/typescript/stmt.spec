@@ -1823,7 +1823,7 @@ rule ArrayType: ONEOF(ZEROORONE("readonly") + PrimaryType + '[' + ']',
   attr.action.%3 : BuildArrayType(%1, %1)
 
 ## rule TupleType: [ TupleElementTypes ]
-rule TupleType: ZEROORONE("readonly") + '[' + TupleElementTypes + ']'
+rule TupleType: ZEROORONE("readonly") + '[' + TupleElementTypes + ZEROORONE(Elision) + ']'
   attr.action : BuildTupleType()
   attr.action : AddModifier(%1)
   attr.action : AddStructField(%3)
@@ -1990,6 +1990,7 @@ rule IndexSignature: ONEOF(
 
 rule KeywordMethodName : ONEOF("return",
                                "throw",
+                               "continue",
                                "export")
   attr.action : BuildIdentifier()
 
@@ -2247,6 +2248,7 @@ rule MemberVariableDeclaration: ONEOF(
 rule KeywordMemberFunctionName : ONEOF("return",
                                        "get",
                                        "set",
+                                       "continue",
                                        "export")
   attr.action : BuildIdentifier()
 
