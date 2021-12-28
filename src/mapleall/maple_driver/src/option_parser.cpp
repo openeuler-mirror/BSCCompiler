@@ -67,7 +67,7 @@ std::pair<maple::ErrorCode, std::string_view> ExtractKey(std::string_view opt,
 static bool IsOptionForCurrentTool(const Descriptor &desc, std::string_view exeName) {
   bool ret = false;
   if (desc.exeName == exeName ||
-      (exeName == "all" && (std::find(std::begin(desc.extras),
+      (exeName == "driver" && (std::find(std::begin(desc.extras),
                                       std::end(desc.extras),
                                       exeName) != std::end(desc.extras)))) {
     ret = true;
@@ -175,7 +175,7 @@ void OptionParser::PrintUsage(const std::string &helpType, const uint32_t helpLe
   for (size_t i = 0; i < rawUsages.size(); ++i) {
 
     bool isOptionForCurrentTool = (rawUsages[i].exeName == helpType ||
-                                   (helpType == "all" &&
+                                   (helpType == "driver" &&
                                     (std::find(std::begin(rawUsages[i].extras),
                                                std::end(rawUsages[i].extras),
                                                helpType) != std::end(rawUsages[i].extras))));
@@ -207,7 +207,7 @@ bool OptionParser::HandleKeyValue(const Arg &arg, std::deque<mapleOption::Option
    * 2. Option is registered for different tool. Descriptor.exeName shows a tool
    *    registering for current option.
    *    Special case: extras field in Descriptor allows to register an option in additional tool.
-   *    If extras exeName == driver name ("all"), it means that this option
+   *    If extras exeName == driver name ("driver"), it means that this option
    *    is registered outside the driver, but this option can be used by the driver.
    *    It checks here too.
    */
@@ -265,7 +265,7 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
 
   if (rawKey.empty()) {
     LogInfo::MapleLogger(kLlErr) << "Invalid key" << '\n';
-    PrintUsage("all");
+    PrintUsage("driver");
     return false;
   }
 

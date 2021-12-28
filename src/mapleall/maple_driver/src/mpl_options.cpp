@@ -145,7 +145,7 @@ ErrorCode MplOptions::HandleGeneralOptions() {
             return kErrorExitHelp;
           }
         }
-        optionParser->PrintUsage("all", helpLevel);
+        optionParser->PrintUsage("driver", helpLevel);
         return kErrorExitHelp;
       }
       case kVersion: {
@@ -641,9 +641,9 @@ ErrorCode MplOptions::CheckFileExits() {
 
 ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
   if (!option.HasExtra()) {
-    if (option.GetExeName() == "all") {
+    if (option.GetExeName() == "driver") {
       /* If it doesn't have extra options and it's a common option for driver,
-       * set this option in exeOptions as "all"" to use this info in debug print.
+       * set this option in exeOptions as "driver"" to use this info in debug print.
        */
       exeOptions[option.GetExeName()].push_back(option);
     }
@@ -653,12 +653,12 @@ ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
   for (const auto &exeName : option.GetExtras()) {
 
     /* extras field in Descriptor allows to register an option in additional tool.
-     * If extras exeName == driver name ("all"), it means that this option
+     * If extras exeName == driver name ("driver"), it means that this option
      * is registered outside the driver, but this option can be used by the driver.
      * In this case the tool is set in Descriptor.exeName (not in Descriptor.extras).
-     * And Descriptor.extras=="all" shows only that this option can be handled by the driver.
+     * And Descriptor.extras=="driver" shows only that this option can be handled by the driver.
      */
-    const std::string &exe = (exeName == "all") ? option.GetExeName() : exeName;
+    const std::string &exe = (exeName == "driver") ? option.GetExeName() : exeName;
 
     auto iter = std::find(runningExes.begin(), runningExes.end(), exe);
     if (iter == runningExes.end()) {
@@ -674,7 +674,7 @@ std::string MplOptions::GetCommonOptionsStr() const {
   static DriverOptionIndex exclude[] = { kRun, kOption, kInFile, kMeOpt, kMpl2MplOpt, kMplcgOpt };
 
   std::string driverOptions;
-  auto it = exeOptions.find("all");
+  auto it = exeOptions.find("driver");
   if (it != exeOptions.end()) {
     for (const mapleOption::Option &opt : it->second) {
       if (!(std::find(std::begin(exclude), std::end(exclude), opt.Index()) != std::end(exclude))) {
