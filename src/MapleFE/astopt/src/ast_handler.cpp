@@ -51,10 +51,6 @@ MemPool *Module_Handler::GetMemPool() {
   return mASTHandler->GetMemPool();
 }
 
-Module_Handler *AST_Handler::GetModuleHandler(unsigned i) {
-  return mModuleHandlers.ValueAtIndex(i);
-}
-
 Module_Handler *AST_Handler::GetModuleHandler(ModuleNode *module) {
   for (unsigned i = 0; i < mModuleHandlers.GetNum(); i++) {
     Module_Handler *h = mModuleHandlers.ValueAtIndex(i);
@@ -63,6 +59,20 @@ Module_Handler *AST_Handler::GetModuleHandler(ModuleNode *module) {
     }
   }
   return NULL;
+}
+
+Module_Handler *AST_Handler::GetModuleHandler(TreeNode *node) {
+  ASTScope *scp = node->GetScope();
+  while (!scp->GetTree()->IsModule()) {
+    scp = scp->GetParent();
+  }
+  TreeNode *mod = scp->GetTree();
+  Module_Handler *h = NULL;
+  if (mod && mod->IsModule()) {
+    h = GetModuleHandler(static_cast<ModuleNode *>(mod));
+  }
+
+  return h;
 }
 
 HandlerIndex AST_Handler::GetHandlerIndex(const char *filename) {

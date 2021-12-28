@@ -61,6 +61,9 @@ class BuildIdDirectFieldVisitor : public AstVisitor {
     : AstVisitor((f & FLG_trace_1) && base), mHandler(h), mFlags(f) {}
   ~BuildIdDirectFieldVisitor() = default;
 
+  TreeNode *GetParentVarClass(TreeNode *node);
+  Module_Handler *GetHandler(TreeNode *node);
+
   FieldNode *VisitFieldNode(FieldNode *node);
   FieldLiteralNode *VisitFieldLiteralNode(FieldLiteralNode *node);
   ArrayElementNode *VisitArrayElementNode(ArrayElementNode *node);
