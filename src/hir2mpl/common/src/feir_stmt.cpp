@@ -1871,8 +1871,9 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, index + 1);
+    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
+           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+           ENCChecker::GetNthStr(index).c_str());
     return;
   }
   if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
@@ -1986,8 +1987,9 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
-      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, idx + 1);
+      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+             ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
     if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
