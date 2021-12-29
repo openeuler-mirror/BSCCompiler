@@ -1442,12 +1442,17 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
           decl = mHandler->FindDecl(static_cast<IdentifierNode *>(upper), true);
         }
         if (decl) {
-          // for imported decl, need trace down the import/export chain
-          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
-            scope = decl->GetScope();
-            decl = scope->FindExportedDeclOf(node->GetStrIdx());
+          unsigned tidx = decl->GetTypeIdx();
+          if (tidx) {
+            TreeNode *declt = gTypeTable.GetTypeFromTypeIdx(tidx);
+            scope = declt->GetScope();
           } else {
             scope = decl->GetScope();
+          }
+          // for imported decl, need trace down the import/export chain
+          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
+            decl = scope->FindExportedDeclOf(node->GetStrIdx());
+          } else {
             decl = scope->FindDeclOf(node->GetStrIdx());
           }
         }
