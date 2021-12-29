@@ -209,7 +209,7 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
       }
       sizeArray = tempSizeArray;
     }
-    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray);
+    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray, elemAttrs);
   } else {
     bool asFlag = srcType->isIncompleteArrayType();
     CHECK_FATAL(asFlag, "Incomplete Array Type");
@@ -217,10 +217,9 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
   }
 
   if (srcType->isIncompleteArrayType()) {
-    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*retType, 1);
-  }
-  if (retType->GetKind() == kTypeArray) {
-    static_cast<MIRArrayType*>(retType)->SetTypeAttrs(elemAttrs);
+    // For an incomplete array type, assume a length of 1. If enable MIRFarrayType, delete ATTR_incomplete_array
+    elemAttrs.SetAttr(ATTR_incomplete_array);
+    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*retType, 1, elemAttrs);
   }
   return retType;
 }
