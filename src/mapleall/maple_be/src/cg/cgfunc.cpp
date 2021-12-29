@@ -1788,7 +1788,9 @@ void CGFunc::HandleFunction() {
   DetermineReturnTypeofCall();
   theCFG->MarkLabelTakenBB();
   theCFG->UnreachCodeAnalysis();
-  theCFG->WontExitAnalysis();
+  if (mirModule.GetSrcLang() == kSrcLangC) {
+    theCFG->WontExitAnalysis();
+  }
   SplitStrLdrPair();
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();

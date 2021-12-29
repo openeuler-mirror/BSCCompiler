@@ -605,18 +605,20 @@ bool CgRegAlloc::PhaseRun(maplebe::CGFunc &f) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLiveAnalysis::id);
   }
 #if 0  // for exercising postdominance analysis and DoRestorePlacementOpt()
-  PostDomAnalysis *pdom = nullptr;
-  MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
-      &CgPostDomAnalysis::id, f);
-  pdom = static_cast<CgPostDomAnalysis*>(it)->GetResult();
-  CHECK_FATAL(pdom != nullptr, "null ptr check");
-  MemPool *phaseMp = GetPhaseMemPool();
-  MapleAllocator sprealloc(phaseMp);
-  SPreWorkCand wkCand(&sprealloc);
-  // initialize the inputs here, e.g.
-  // wkCand.saveBBs.insert(2);
-  // wkCand.occBBs.insert(9);
-  DoRestorePlacementOpt(&f, pdom, &wkCand);
+  if (f.GetMirModule().GetSrcLang() == kSrcLangC) {
+    PostDomAnalysis *pdom = nullptr;
+    MaplePhase *it = GetAnalysisInfoHook()->ForceRunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(
+        &CgPostDomAnalysis::id, f);
+    pdom = static_cast<CgPostDomAnalysis*>(it)->GetResult();
+    CHECK_FATAL(pdom != nullptr, "null ptr check");
+    MemPool *phaseMp = GetPhaseMemPool();
+    MapleAllocator sprealloc(phaseMp);
+    SPreWorkCand wkCand(&sprealloc);
+    // initialize the inputs here, e.g.
+    // wkCand.saveBBs.insert(2);
+    // wkCand.occBBs.insert(9);
+    DoRestorePlacementOpt(&f, pdom, &wkCand);
+  }
 #endif
   GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &CgLoopAnalysis::id);
   return false;
