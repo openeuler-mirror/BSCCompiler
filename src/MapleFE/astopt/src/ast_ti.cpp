@@ -607,7 +607,8 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       }
     } else if (init->IsIdentifier()) {
       TreeNode *decl = mHandler->FindDecl(static_cast<IdentifierNode *>(init));
-      if (decl && (decl->IsClass() || decl->GetTypeIdx() < (unsigned)TY_Max)) {
+      unsigned tidx = decl->GetTypeIdx();
+      if (decl && (decl->IsClass() || (0 < tidx && tidx < (unsigned)TY_Max))) {
         SetTypeId(idnode, TY_Function);
         SetUpdated();
         result = true;
