@@ -1,0 +1,16 @@
+Matched 12 tokens.
+Matched 13 tokens.
+Matched 36 tokens.
+============= Module ===========
+== Sub Tree ==
+class  Klass
+  Fields: 
+    number
+  Instance Initializer: 
+  Constructors: 
+  Methods: 
+  LocalClasses: 
+  LocalInterfaces: 
+
+== Sub Tree ==
+ type MyArray<T> = Array<Klass[T["type"]]>

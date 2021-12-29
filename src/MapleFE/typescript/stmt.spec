@@ -1705,8 +1705,9 @@ rule InferType : "infer" + Identifier
 rule TypeArray : ONEOF(PrimaryType + '[' + PrimaryExpression + ']',
                        PrimaryType + '[' + TypeReference + ']',
                        TypeArray + '[' + PrimaryExpression + ']',
-                       PrimaryType + '[' + ConditionalType + ']')
-  attr.action.%1,%2,%3,%4 : BuildArrayElement(%1, %3)
+                       PrimaryType + '[' + ConditionalType + ']',
+                       PrimaryType + '[' + TypeArray + ']')
+  attr.action.%1,%2,%3,%4,%5 : BuildArrayElement(%1, %3)
 
 rule ImportedType : "import" + '(' + Literal + ')'
   attr.action : BuildImport()
