@@ -1140,14 +1140,16 @@ BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
   bool isSuccEmpty = IsMeEmptyBB(*succ) && IsMplEmptyBB(*succ);
   if (!isSuccEmpty) {
     if (isMeIR) {
-      for (MeStmt *stmt = succ->GetFirstMe(); stmt != nullptr;) {
+      MeStmt *stmt = succ->GetFirstMe();
+      while (stmt && (!succ->IsMeStmtEmpty())) {
         MeStmt *next = stmt->GetNextMeStmt();
         succ->RemoveMeStmt(stmt);
         pred->AddMeStmtLast(stmt);
         stmt = next;
       }
     } else {
-      for (StmtNode *stmt = &succ->GetFirst(); stmt != nullptr;) {
+      StmtNode *stmt = &succ->GetFirst();
+      while (stmt && (!succ->IsEmpty())) {
         StmtNode *next = stmt->GetNext();
         succ->RemoveStmtNode(stmt);
         pred->AddStmtNode(stmt);
