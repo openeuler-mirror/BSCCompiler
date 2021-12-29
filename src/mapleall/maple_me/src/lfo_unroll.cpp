@@ -189,7 +189,7 @@ static size_t CountBlockStmts(BlockNode *blk) {
 }
 
 void LfoUnrollOneLoop::Process() {
-  if (doloopInfo->hasOtherCtrlFlow || doloopInfo->hasBeenVectorized) {
+  if (doloopInfo->hasOtherCtrlFlow || doloopInfo->hasBeenVectorized || doloopInfo->hasLabels) {
     return;
   }
   if (!doloop->GetIncrExpr()->IsConstval()) {

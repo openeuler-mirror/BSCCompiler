@@ -108,6 +108,8 @@ class CGCFG {
   void FlushUnReachableStatusAndRemoveRelations(BB &curBB, const CGFunc &func) const;
   void MarkLabelTakenBB();
   void UnreachCodeAnalysis();
+  void FindWillExitBBs(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs);
+  void WontExitAnalysis();
   BB *FindLastRetBB();
 
   void UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB);
