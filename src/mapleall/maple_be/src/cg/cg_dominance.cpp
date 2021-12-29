@@ -314,7 +314,8 @@ void PostDomAnalysis::ComputePostDominance() {
       BB *bb = pdomReversePostOrder[i];
       BB *suc = nullptr;
       auto it = bb->GetSuccsBegin();
-      if (cgFunc.IsExitBB(*bb) || bb->GetSuccs().empty()) {
+      if (cgFunc.IsExitBB(*bb) || bb->GetSuccs().empty() ||
+          (bb->IsWontExit() && bb->GetKind() == BB::kBBGoto)) {
         suc = &commonExitBB;
       } else {
         suc = *it;
@@ -378,6 +379,35 @@ void PostDomAnalysis::ComputePdomChildren() {
   }
 }
 
+// bbidMarker indicates that the iterPdomFrontier results for bbid < bbidMarker
+// have been computed
+void PostDomAnalysis::GetIterPdomFrontier(const BB *bb, MapleSet<uint32> *dfset, uint32 bbidMarker,
+                                     std::vector<bool> &visitedMap) {
+  if (visitedMap[bb->GetId()]) {
+    return;
+  }
+  visitedMap[bb->GetId()] = true;
+  for (uint32 frontierbbid : pdomFrontier[bb->GetId()]) {
+    (void)dfset->insert(frontierbbid);
+    if (frontierbbid < bbidMarker) {  // union with its computed result
+      dfset->insert(iterPdomFrontier[frontierbbid].begin(), iterPdomFrontier[frontierbbid].end());
+    } else {  // recursive call
+      BB *frontierbb = bbVec[frontierbbid];
+      GetIterPdomFrontier(frontierbb, dfset, bbidMarker, visitedMap);
+    }
+  }
+}
+
+void PostDomAnalysis::ComputeIterPdomFrontiers() {
+  for (BB *bb : bbVec) {
+    if (bb == nullptr || bb == &commonEntryBB) {
+      continue;
+    }
+    std::vector<bool> visitedMap(bbVec.size(), false);
+    GetIterPdomFrontier(bb, &iterPdomFrontier[bb->GetId()], bb->GetId(), visitedMap);
+  }
+}
+
 uint32 PostDomAnalysis::ComputePdtPreorder(const BB &bb, uint32 &num) {
   ASSERT(num < pdtPreOrder.size(), "index out of range in Dominance::ComputePdtPreOrder");
   pdtPreOrder[num] = bb.GetId();
@@ -426,8 +456,33 @@ void PostDomAnalysis::Compute() {
   ComputePostDominance();
   ComputePdomFrontiers();
   ComputePdomChildren();
+  ComputeIterPdomFrontiers();
   uint32 num = 0;
   (void)ComputePdtPreorder(GetCommonExitBB(), num);
   ResizePdtPreOrder(num);
 }
+
+bool CgDomAnalysis::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *domMemPool = GetPhaseMemPool();
+  domAnalysis = domMemPool->New<DomAnalysis>(f, *domMemPool, *domMemPool, f.GetAllBBs(),
+                                             *f.GetFirstBB(), *f.GetCommonExitBB());
+  domAnalysis->Compute();
+  if (CG_DEBUG_FUNC(f)) {
+    domAnalysis->Dump();
+  }
+  return false;
+}
+MAPLE_ANALYSIS_PHASE_REGISTER(CgDomAnalysis, domanalysis)
+
+bool CgPostDomAnalysis::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *pdomMemPool = GetPhaseMemPool();
+  pdomAnalysis = pdomMemPool->New<PostDomAnalysis>(f, *pdomMemPool, *pdomMemPool, f.GetAllBBs(),
+                                             *f.GetFirstBB(), *f.GetCommonExitBB());
+  pdomAnalysis->Compute();
+  if (CG_DEBUG_FUNC(f)) {
+    pdomAnalysis->Dump();
+  }
+  return false;
+}
+MAPLE_ANALYSIS_PHASE_REGISTER(CgPostDomAnalysis, pdomanalysis)
 }  /* namespace maplebe */

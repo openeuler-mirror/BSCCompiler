@@ -180,6 +180,7 @@ src_libcg = [
   "src/cg/cg_phi_elimination.cpp",
   "src/cg/reg_coalesce.cpp",
   "src/cg/alignment.cpp",
+  "src/cg/cg_ssu_pre.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]
