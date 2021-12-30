@@ -667,8 +667,14 @@ bool ValueRangePropagation::TheValueOfOpndIsInvaliedInABCO(
 void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
     const BB &bb, MeExpr &expr, std::set<MeExpr*> &visitedLHS, std::vector<MeStmt*> &stmts) {
   if (TheValueOfOpndIsInvaliedInABCO(bb, nullptr, expr, false)) {
-    std::string errorLog = "error: pointer assigned from multibranch requires the bounds info for all branches.\n";
+    std::string errorLog = "error: pointer assigned from multibranch requires the boundary info for all branches.\n";
     for (size_t i = 0; i < stmts.size(); ++i) {
+      if (i == 0) {
+        errorLog += "Where the pointer is used at the statement:\n";
+      }
+      if (i == 1) {
+        errorLog += "Pointer is assigned from pointer which has no boundary info. The data flow is:\n";
+      }
       auto &srcPosition = stmts[i]->GetSrcPosition();
       errorLog += func.GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()) + ":" +
           std::to_string(srcPosition.LineNum()) + "\n";
@@ -733,8 +739,13 @@ static inline bool CanNotDoReplaceLoopVarOpt(ValueRange *valueRange) {
 
 void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
     LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr) {
+  // If the var is opnd of ivar, can not replace it with the bound.
+  // For example: array[s[i]]
+  // assert(array + iread(s + i) * 4, array + 1024)
+  // Can not replace i with its upper bound.
   if (!opnd.IsScalar()) {
     index2NewExpr[&opnd] = nullptr;
+    return;
   } else {
     bool opndIsLoopVar = false;
     auto defBy = static_cast<ScalarMeExpr&>(opnd).GetDefBy();
@@ -791,6 +802,47 @@ MeExpr *ValueRangePropagation::GetAddressOfIndexOrBound(MeExpr &expr) const {
   return GetAddressOfIndexOrBound(*expr.GetOpnd(0));
 }
 
+void ValueRangePropagation::GetValueRangeOfCRNode(
+    BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange, PrimType pTypeOfArray) {
+  // Deal with the operand which is a constant.
+  if (opndOfCRNode.GetCRType() == kCRConstNode) {
+    int64 constant = static_cast<CRConstNode&>(opndOfCRNode).GetConstValue();
+    resValueRange = (resValueRange == nullptr) ?
+        std::make_unique<ValueRange>(Bound(constant, pTypeOfArray), kEqual) :
+        AddOrSubWithValueRange(OP_add, *resValueRange, constant);
+    return;
+  }
+  // Deal with the operand which is a meexpr.
+  if (opndOfCRNode.GetExpr() == nullptr) {
+    resValueRange = nullptr;
+    return;
+  }
+  auto valueRangOfOpnd = FindValueRangeInCurrBBOrDominateBBs(bb, *opndOfCRNode.GetExpr());
+  if (valueRangOfOpnd == nullptr) {
+    valueRangOfOpnd = std::make_unique<ValueRange>(
+        Bound(opndOfCRNode.GetExpr(), opndOfCRNode.GetExpr()->GetPrimType()), kEqual);
+    if (resValueRange == nullptr) {
+      resValueRange = std::move(valueRangOfOpnd);
+    } else if (resValueRange->IsNotConstantVR()) {
+      resValueRange = nullptr;
+    } else {
+      resValueRange = AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
+      if (resValueRange == nullptr) {
+        resValueRange = nullptr;
+      }
+    }
+  } else if (valueRangOfOpnd->GetRangeType() == kNotEqual && resValueRange == nullptr) {
+    resValueRange = std::make_unique<ValueRange>(
+        Bound(opndOfCRNode.GetExpr(), opndOfCRNode.GetExpr()->GetPrimType()), kEqual);
+  } else if (valueRangOfOpnd->GetRangeType() == kOnlyHasUpperBound ||
+             valueRangOfOpnd->GetRangeType() == kOnlyHasLowerBound) {
+    resValueRange = nullptr;
+  } else {
+    resValueRange = (resValueRange == nullptr) ? std::move(valueRangOfOpnd) :
+        AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
+  }
+}
+
 // Get the valueRange of index and bound, for example:
 // assertge(ptr, ptr + 8) -> the valueRange of index is 8
 // assertge(ptr, ptr + len * 4 - 8) -> the valueRange of index is len - 2
@@ -802,44 +854,20 @@ std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfCRNodes(
   std::unique_ptr<ValueRange> resValueRange = nullptr;
   for (size_t i = 0; i < crNodes.size(); ++i) {
     auto *opndOfCRNode = crNodes[i];
-    if (opndOfCRNode->GetCRType() != kCRConstNode && opndOfCRNode->GetCRType() != kCRVarNode) {
+    if (opndOfCRNode->GetCRType() != kCRConstNode && opndOfCRNode->GetCRType() != kCRVarNode &&
+        opndOfCRNode->GetCRType() != kCRAddNode) {
       return nullptr;
     }
-    // Deal with the operand which is a constant.
-    if (opndOfCRNode->GetCRType() == kCRConstNode) {
-      int64 constant = static_cast<CRConstNode*>(opndOfCRNode)->GetConstValue();
-      resValueRange = (resValueRange == nullptr) ?
-          std::make_unique<ValueRange>(Bound(constant, pTypeOfArray), kEqual) :
-              AddOrSubWithValueRange(OP_add, *resValueRange, constant);
-      continue;
-    }
-    // Deal with the operand which is a meexpr.
-    if (opndOfCRNode->GetExpr() == nullptr) {
-      return nullptr;
-    }
-    auto valueRangOfOpnd = FindValueRangeInCurrBBOrDominateBBs(bb, *opndOfCRNode->GetExpr());
-     if (valueRangOfOpnd == nullptr) {
-      valueRangOfOpnd = std::make_unique<ValueRange>(
-          Bound(opndOfCRNode->GetExpr(), opndOfCRNode->GetExpr()->GetPrimType()), kEqual);
-      if (resValueRange == nullptr) {
-        resValueRange = std::move(valueRangOfOpnd);
-      } else if (resValueRange->IsNotConstantVR()) {
-        return nullptr;
-      } else {
-        resValueRange = AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
+    if (opndOfCRNode->GetCRType() != kCRAddNode) {
+      GetValueRangeOfCRNode(bb, *opndOfCRNode, resValueRange, pTypeOfArray);
+    } else {
+      auto *addCRNOde = static_cast<CRAddNode*>(opndOfCRNode);
+      for (size_t addNodeIndex = 0; addNodeIndex < addCRNOde->GetOpndsSize(); ++addNodeIndex) {
+        GetValueRangeOfCRNode(bb, *addCRNOde->GetOpnd(addNodeIndex), resValueRange, pTypeOfArray);
         if (resValueRange == nullptr) {
           return nullptr;
         }
       }
-    } else if (valueRangOfOpnd->GetRangeType() == kNotEqual && resValueRange == nullptr) {
-       resValueRange = std::make_unique<ValueRange>(
-           Bound(opndOfCRNode->GetExpr(), opndOfCRNode->GetExpr()->GetPrimType()), kEqual);
-    } else if (valueRangOfOpnd->GetRangeType() == kOnlyHasUpperBound ||
-               valueRangOfOpnd->GetRangeType() == kOnlyHasLowerBound) {
-      return nullptr;
-    } else {
-      resValueRange = (resValueRange == nullptr) ? std::move(valueRangOfOpnd) :
-          AddOrSubWithValueRange(OP_add, *resValueRange, *valueRangOfOpnd);
     }
     if (resValueRange == nullptr) {
       return nullptr;
@@ -1003,9 +1031,9 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
     case OP_assertge: {
       std::ostringstream oss;
       if (stmt.GetOp() == OP_assertlt) {
-        oss << "%s:%d error: cant't prove the offset < the upper bounds";
+        oss << "%s:%d error: the offset >= the upper bounds";
       } else {
-        oss << "%s:%d error: cant't prove the offset >= the lower bounds";
+        oss << "%s:%d error: the offset < the lower bounds";
       }
       FATAL(kLncFatal, oss.str().c_str(), func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(),
             srcPosition.LineNum());
@@ -1014,7 +1042,7 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
     case OP_callassertle: {
       auto &callStmt = static_cast<const CallAssertBoundaryMeStmt&>(stmt);
       FATAL(kLncFatal,
-            "%s:%d error: can't prove pointer's bounds match the function %s declaration for the %s argument",
+            "%s:%d error: the pointer's bounds does not match the function %s declaration for the %s argument",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
             callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
       break;
@@ -1024,12 +1052,12 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
       GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func->GetName().c_str());
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
-        FATAL(kLncFatal, "%s:%d error: can't prove return value's bounds match the function declaration for %s",
+        FATAL(kLncFatal, "%s:%d error: return value's bounds does not match the function declaration for %s",
               func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
               returnStmt.GetFuncName().c_str());
       } else {
         FATAL(kLncFatal,
-              "%s:%d error: %s can't prove return value's bounds match the function declaration when inlined to %s",
+              "%s:%d error: %s return value's bounds does not match the function declaration when inlined to %s",
               func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
               returnStmt.GetFuncName().c_str(), func->GetName().c_str());
       }
@@ -3767,7 +3795,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << f.GetName() << "\n";
     f.Dump(false);
-    f.GetCfg()->DumpToFile("valuerange-before");
+    f.GetCfg()->DumpToFile("valuerange-before" + std::to_string(f.vrpRuns));
   }
   auto *valueRangeMemPool = GetPhaseMemPool();
   MapleAllocator valueRangeAlloc = MapleAllocator(valueRangeMemPool);
@@ -3797,7 +3825,7 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   MeSplitCEdge(false).SplitCriticalEdgeForMeFunc(f);
   if (valueRangePropagation.IsCFGChange()) {
     if (ValueRangePropagation::isDebug) {
-      f.GetCfg()->DumpToFile("valuerange-after");
+      f.GetCfg()->DumpToFile("valuerange-after" + std::to_string(f.vrpRuns));
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto *dom = FORCE_GET(MEDominance);
