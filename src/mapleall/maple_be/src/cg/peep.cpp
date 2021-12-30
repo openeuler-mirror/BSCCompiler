@@ -301,7 +301,7 @@ bool PeepPattern::IsMemOperandOptPattern(const Insn &insn, Insn &nextInsn) {
 
 template<typename T>
 void PeepOptimizer::Run() {
-  auto *patterMatcher =  peepOptMemPool->New<T>(cgFunc, peepOptMemPool);
+  auto *patterMatcher = peepOptMemPool->New<T>(cgFunc, peepOptMemPool);
   patterMatcher->InitOpts();
   FOR_ALL_BB(bb, &cgFunc) {
     FOR_BB_INSNS_SAFE(insn, bb, nextInsn) {
@@ -359,7 +359,18 @@ void PeepHoleOptimizer::PrePeepholeOpt1() {
 #endif
 }
 
-/* === new pm === */
+/* === SSA form === */
+bool CgPeepHole::PhaseRun(maplebe::CGFunc &f) {
+  CGSSAInfo *cgssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
+  CHECK_FATAL((cgssaInfo != nullptr), "Get ssaInfo failed!");
+  MemPool *mp = GetPhaseMemPool();
+  auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp, cgssaInfo);
+  CHECK_FATAL((cgpeep != nullptr), "Creat AArch64CGPeepHole failed!");
+  cgpeep->Run();
+  return false;
+}
+
+/* === Physical form === */
 bool CgPrePeepHole0::PhaseRun(maplebe::CGFunc &f) {
   auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");

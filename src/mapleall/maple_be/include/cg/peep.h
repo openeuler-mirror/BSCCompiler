@@ -43,6 +43,33 @@ class PeepPattern {
   CGFunc &cgFunc;
 };
 
+class CGPeepPattern {
+ public:
+  /* normal constructor */
+  CGPeepPattern(CGFunc &f, BB &bb, Insn &insn)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  CGPeepPattern(CGFunc &f, BB &bb, Insn &insn, CGSSAInfo &info)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(&info) {}
+  virtual ~CGPeepPattern() = default;
+  virtual void Run(BB &bb, Insn &insn) = 0;
+  virtual bool CheckCondition(BB &bb, Insn &insn) = 0;
+  virtual void DumpAfterPattern(BB &bb, Insn &insn) = 0;
+  virtual void UpdateSSAInfo() = 0;
+
+ protected:
+  CGFunc *cgFunc;
+  BB *currBB;
+  Insn *currInsn;
+  CGSSAInfo *ssaInfo;
+};
+
 class PeepHoleOptimizer {
  public:
   explicit PeepHoleOptimizer(CGFunc *cf) : cgFunc(cf) {
@@ -93,6 +120,8 @@ class PeepOptimizer {
   MemPool *peepOptMemPool;
 };
 
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPeepHole, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole0, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole1, maplebe::CGFunc)
