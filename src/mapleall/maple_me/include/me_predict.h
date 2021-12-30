@@ -84,6 +84,8 @@ class MePrediction : public AnalysisResult {
   Predictor ReturnPrediction(const MeExpr *meExpr, Prediction &prediction) const;
   void PredictEdge(Edge &edge, Predictor predictor, int probability);
   void PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken);
+  bool HasEdgePredictedBy(Edge &edge, Predictor predictor);
+  void PredictForPostDomFrontier(BB &bb, Predictor predictor, Prediction direction);
   void BBLevelPredictions();
   void Init();
   bool PredictedByLoopHeuristic(const BB &bb) const;

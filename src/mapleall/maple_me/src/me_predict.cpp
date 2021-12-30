@@ -74,45 +74,68 @@ bool MePrediction::IsBackEdge(const Edge &edge) const {
   return false;
 }
 
+// search use-def chain
+const ConstMeExpr *TryGetConstExprFromMeExpr(const MeExpr *expr) {
+  if (expr == nullptr) {
+    return nullptr;
+  }
+  if (expr->GetMeOp() == kMeOpConst) {
+    return static_cast<const ConstMeExpr*>(expr);
+  }
+  if (expr->GetMeOp() == kMeOpReg) {
+    auto *reg = static_cast<const RegMeExpr*>(expr);
+    if (reg->GetDefBy() != kDefByStmt) {
+      return nullptr;
+    }
+    MeStmt *defStmt = reg->GetDefStmt();
+    if (defStmt->GetOp() != OP_regassign) {
+      return nullptr;
+    }
+    auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
+    CHECK_NULL_FATAL(rhs);
+    if (rhs->GetMeOp() == kMeOpConst) {
+      return static_cast<ConstMeExpr*>(rhs);
+    }
+  }
+  return nullptr;
+}
+
 // Try to guess whether the value of return means error code.
 Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &prediction) const {
-  if (val == nullptr || val->GetMeOp() != kMeOpReg) {
+  auto *constExpr = TryGetConstExprFromMeExpr(val);
+  if (constExpr == nullptr) {
     return kPredNoPrediction;
   }
-  auto *reg = static_cast<const RegMeExpr*>(val);
-  if (reg->GetDefBy() != kDefByStmt) {
-    return kPredNoPrediction;
-  }
-  MeStmt *def = reg->GetDefStmt();
-  if (def->GetOp() != OP_regassign) {
-    return kPredNoPrediction;
-  }
-  auto *rhs = static_cast<AssignMeStmt*>(def)->GetRHS();
-  ASSERT_NOT_NULL(rhs);
-  if (rhs->GetMeOp() != kMeOpConst) {
-    return kPredNoPrediction;
-  }
-  auto *constVal = static_cast<ConstMeExpr*>(rhs);
-  if (constVal->GetPrimType() == PTY_ref) {
+  PrimType retType = constExpr->GetPrimType();
+  if ((retType == PTY_ref || retType == PTY_ptr) && constExpr->IsZero()) {
     // nullptr is usually not returned.
-    if (constVal->IsZero()) {
-      prediction = kNotTaken;
-      return kPredNullReturn;
-    }
-  } else if (IsPrimitiveInteger(constVal->GetPrimType())) {
+    prediction = kNotTaken;
+    return kPredNullReturn;
+  } else if (IsPrimitiveInteger(retType)) {
     // Negative return values are often used to indicate errors.
-    if (constVal->GetIntValue() < 0) {
+    if (constExpr->GetIntValue() < 0) {
       prediction = kNotTaken;
       return kPredNegativeReturn;
     }
     // Constant return values seems to be commonly taken.Zero/one often represent
     // booleans so exclude them from the heuristics.
-    if (!constVal->IsZero() && !constVal->IsOne()) {
+    if (!constExpr->IsZero() && !constExpr->IsOne()) {
       prediction = kNotTaken;
       return kPredConstReturn;
     }
   }
   return kPredNoPrediction;
+}
+
+bool MePrediction::HasEdgePredictedBy(Edge &edge, Predictor predictor) {
+  EdgePrediction *curr = bbPredictions[edge.src.GetBBId()];
+  while (curr != nullptr) {
+    if (curr->epPredictor == predictor) {
+      return true;
+    }
+    curr = curr->epNext;
+  }
+  return false;
 }
 
 // Predict edge E with the given PROBABILITY.
@@ -137,47 +160,89 @@ void MePrediction::PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken
   PredictEdge(edge, predictor, probability);
 }
 
+void MePrediction::PredictForPostDomFrontier(BB &bb, Predictor predictor, Prediction direction) {
+  // prediction for frontier condgoto BB
+  const auto &frontier = dom->GetPdomFrontierItem(bb.GetBBId());
+  for (auto bbId : frontier) {
+    BB *frontBB = cfg->GetBBFromID(bbId);
+    if (frontBB->GetSucc().size() != 2) {  // only consider 2-way branch BB
+      continue;
+    }
+    // find succ that leading to target return BB
+    uint32 leadingRetIdx = 0;
+    if (!dom->PostDominate(bb, *frontBB->GetSucc(0))) {
+      leadingRetIdx = 1;
+    }
+    auto *targetEdge = FindEdge(*frontBB, *frontBB->GetSucc(leadingRetIdx));
+    CHECK_NULL_FATAL(targetEdge);
+    PredEdgeDef(*targetEdge, predictor, direction);
+  }
+}
+
 // Look for basic block that contains unlikely to happen events
 // (such as noreturn calls) and mark all paths leading to execution
 // of this basic blocks as unlikely.
 void MePrediction::BBLevelPredictions() {
-  RetMeStmt *retStmt = nullptr;
+  // iterate all return BB for return prediction
   for (BB *bb : cfg->GetCommonExitBB()->GetPred()) {
     MeStmt *lastMeStmt = to_ptr(bb->GetMeStmts().rbegin());
-    if (lastMeStmt != nullptr && lastMeStmt->GetOp() == OP_return) {
-      retStmt = static_cast<RetMeStmt*>(lastMeStmt);
-      break;
+    if (lastMeStmt == nullptr || lastMeStmt->GetOp() != OP_return) {
+      continue;
     }
-  }
-  CHECK_NULL_FATAL(retStmt);
-  if (retStmt->NumMeStmtOpnds() == 0) {
-    return;
-  }
-  MeExpr *retVal = retStmt->GetOpnd(0);
-  CHECK_NULL_FATAL(retVal);
-  if (retVal->GetMeOp() != kMeOpReg) {
-    return;
-  }
-  auto *reg = static_cast<RegMeExpr*>(retVal);
-  if (reg->GetDefBy() != kDefByPhi) {
-    return;
-  }
-  auto &defPhi = reg->GetDefPhi();
-  const size_t defPhiOpndSize = defPhi.GetOpnds().size();
-  CHECK_FATAL(defPhiOpndSize > 0, "container check");
-  Prediction direction;
-  // Avoid the degenerate case where all return values form the function
-  // belongs to same category (ie they are all positive constants)
-  // so we can hardly say something about them.
-  size_t phiNumArgs = defPhi.GetOpnds().size();
-  for (size_t i = 0; i < phiNumArgs; ++i) {
-    Predictor pred = ReturnPrediction(defPhi.GetOpnd(i), direction);
-    if (pred != kPredNoPrediction) {
-      BB *dest = defPhi.GetDefBB();
-      BB *src = dest->GetPred(i);
-      Edge *findEdgeResult = FindEdge(*src, *dest);
-      ASSERT_NOT_NULL(findEdgeResult);
-      PredEdgeDef(*findEdgeResult, pred, direction);
+    auto *retStmt = static_cast<RetMeStmt*>(lastMeStmt);
+    if (retStmt->NumMeStmtOpnds() == 0) {
+      continue;
+    }
+    MeExpr *retExpr = retStmt->GetOpnd(0);
+    auto *constExpr = TryGetConstExprFromMeExpr(retExpr);
+    if (constExpr != nullptr) {
+      Prediction direction;
+      Predictor predictor = ReturnPrediction(retExpr, direction);
+      if (predictor == kPredNoPrediction) {
+        continue;
+      }
+      // prediction for frontier condgoto BB
+      PredictForPostDomFrontier(*bb, predictor, direction);
+      continue;
+    }
+
+    // handle return opnd defined by phi
+    if (retExpr->GetMeOp() != kMeOpReg || static_cast<RegMeExpr*>(retExpr)->GetDefBy() != kDefByPhi) {
+      continue;
+    }
+    auto *regExpr = static_cast<RegMeExpr*>(retExpr);
+    auto &defPhi = regExpr->GetDefPhi();
+    const size_t defPhiOpndSize = defPhi.GetOpnds().size();
+    CHECK_FATAL(defPhiOpndSize > 0, "container check");
+    Prediction firstDirection;
+    Predictor firstPred = ReturnPrediction(defPhi.GetOpnd(0), firstDirection);
+    size_t phiNumArgs = defPhi.GetOpnds().size();
+    uint32 i = 0;
+    for (i = 1; i < phiNumArgs; ++i) {
+      Prediction direction;
+      Predictor pred = ReturnPrediction(defPhi.GetOpnd(i), direction);
+      if (pred != firstPred) {
+        break;
+      }
+    }
+
+    if (i == phiNumArgs) {
+      // all phi of return opnd has same predictor
+      PredictForPostDomFrontier(*bb, firstPred, firstDirection);
+      continue;
+    }
+    for (uint32 k = 0; k < phiNumArgs; ++k) {
+      // ssa phi info is not trustable, we need check it and skip wrong info
+      if (k >= bb->GetPred().size()) {
+        break;
+      }
+      BB *currBB = bb->GetPred(k);
+      if (currBB->GetSucc().size() != 1) {
+        continue;  // skip bb with multiple succ
+      }
+      Prediction direction;
+      Predictor pred = ReturnPrediction(defPhi.GetOpnd(k), direction);
+      PredictForPostDomFrontier(*currBB, pred, direction);
     }
   }
 }
@@ -318,9 +383,13 @@ void MePrediction::PredictByOpcode(const BB *bb) {
   }
 
   PrimType pty = op0->GetPrimType();
+  bool isCmpPtr = cmpExpr->GetOpndType() == PTY_ptr || cmpExpr->GetOpndType() == PTY_ref;
+  // cmpExpr is not always real compare op, so we should check nullptr for op0 and op1
+  bool isOpnd0Ptr = op0 != nullptr && (op0->GetPrimType() == PTY_ptr || op0->GetPrimType() == PTY_ref);
+  bool isOpnd1Ptr = op1 != nullptr && (op1->GetPrimType() == PTY_ptr || op1->GetPrimType() == PTY_ref);
   // Try "pointer heuristic." A comparison ptr == 0 is predicted as false.
   // Similarly, a comparison ptr1 == ptr2 is predicted as false.
-  if (pty == PTY_ptr || pty == PTY_ref) {
+  if (isCmpPtr || isOpnd0Ptr || isOpnd1Ptr) {
     if (cmp == OP_eq) {
       PredEdgeDef(*thenEdge, kPredPointer, kNotTaken);
     } else if (cmp == OP_ne) {
@@ -377,8 +446,8 @@ static const BB *GetSignificativeSucc(BB &bb, size_t i) {
   BB *curr = bb.GetSucc(i);
   while (curr->GetSucc().size() == 1) {
     BB *next = curr->GetSucc(0);
-    if ((next->GetKind() == kBBFallthru && IsEmptyBB(*next)) ||  // case 1
-        HasOnlyGotoStmt(*next)) {                                // case 2
+    if ((next->GetKind() == kBBFallthru && IsMeEmptyBB(*next)) ||  // case 1
+         HasOnlyMeGotoStmt(*next)) {                               // case 2
       curr = next;
       continue;
     }
@@ -397,7 +466,12 @@ void MePrediction::EstimateBBProb(BB &bb) {
     } else if(sigSucc->GetAttributes(kBBAttrWontExit)) {
       PredEdgeDef(*FindEdge(bb, *dest), kPredWontExit, kNotTaken);
     } else if (!sigSucc->GetMeStmts().empty() && sigSucc->GetMeStmts().back().GetOp() == OP_return) {
-      PredEdgeDef(*FindEdge(bb, *dest), kPredEarlyReturn, kNotTaken);
+      Edge *currEdge = FindEdge(bb, *dest);
+      if (HasEdgePredictedBy(*currEdge, kPredNullReturn) || HasEdgePredictedBy(*currEdge, kPredNegativeReturn) ||
+          HasEdgePredictedBy(*currEdge, kPredConstReturn)) {
+        continue;
+      }
+      PredEdgeDef(*currEdge, kPredEarlyReturn, kNotTaken);
     } else if (dest != cfg->GetCommonExitBB() && dest != &bb && dom->Dominate(bb, *dest) &&
                !dom->PostDominate(*dest, bb)) {
       for (const MeStmt &stmt : sigSucc->GetMeStmts()) {
@@ -857,9 +931,7 @@ void MePrediction::EstimateBranchProb(bool isRebuild) {
     LogInfo::MapleLogger() << "estimate-block-prob" << std::endl;
   }
   Init();
-  if (!isRebuild) {
-    BBLevelPredictions();
-  }
+  BBLevelPredictions();
   if (!meLoop->GetMeLoops().empty()) {
     // innermost loop in the first place for EstimateFrequencies.
     SortLoops();
