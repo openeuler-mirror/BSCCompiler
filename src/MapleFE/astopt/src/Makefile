@@ -28,6 +28,7 @@ LIBOBJS :=$(patsubst $(BUILD)/main.o,,$(OBJS))
 
 INCLUDES := -I $(MAPLEFE_ROOT)/shared/include \
             -I $(MAPLEFE_ROOT)/astopt/include \
+            -I $(MAPLEFE_ROOT)/$(SRCLANG)/include \
             -I ${BUILDDIR}/ast_gen/shared
 
 TARGET=astopt.a
