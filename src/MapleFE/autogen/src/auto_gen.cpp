@@ -203,6 +203,17 @@ void AutoGen::Init() {
   mKeywordGen->SetReserved(mReservedGen);
   mGenArray.push_back(mKeywordGen);
 
+  if (mLang == "c") {
+    hFile = lang_path + "gen_preprocessor_keyword.h";
+    cppFile = lang_path + "gen_preprocessor_keyword.cpp";
+    specFile = "../../../";
+    specFile += mLang;
+    specFile += "/preprocessor_keyword.spec";
+    mPreProcessorKeywordGen = new KeywordGen(specFile.c_str(), hFile.c_str(), cppFile.c_str(), "Preprocessor");
+    mPreProcessorKeywordGen->SetReserved(mReservedGen);
+    mGenArray.push_back(mPreProcessorKeywordGen);
+  }
+
   hFile = lang_path + "gen_stmt.h";
   cppFile = lang_path + "gen_stmt.cpp";
   specFile = "../../../";
@@ -264,6 +275,7 @@ void AutoGen::Gen() {
   gTokenTable.mOperators = &(mOperatorGen->mOperators);
   gTokenTable.mSeparators = &(mSeparatorGen->mSeparators);
   gTokenTable.mKeywords = mKeywordGen->mKeywords;
+  gTokenTable.mPreprocessorKeywords = mPreProcessorKeywordGen->mKeywords;
   gTokenTable.Prepare();
 
   std::vector<BaseGen*>::iterator it = mGenArray.begin();

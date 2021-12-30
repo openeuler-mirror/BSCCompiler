@@ -42,6 +42,8 @@ int main(int argc, char *argv[]) {
         lang = "java";
       } else if (!strncmp(argv[i], "typescript", 10)) {
         lang = "typescript";
+      } else if (!strncmp(argv[i], "c", 1)) {
+        lang = "c";
       } else if (strcmp(argv[i], "-p") == 0) {
         checkParserOnly = true;
       } else {
