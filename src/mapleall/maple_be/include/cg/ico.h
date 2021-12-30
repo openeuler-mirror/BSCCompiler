@@ -36,10 +36,8 @@ class ICOPattern : public OptimizationPattern {
   }
   ~ICOPattern() override = default;
   static constexpr int kThreshold = 2;
-  bool Optimize(BB &curBB) override;
 
  protected:
-  virtual bool DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB) = 0;
   Insn *FindLastCmpInsn(BB &bb) const;
 };
 

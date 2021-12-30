@@ -47,50 +47,6 @@ Insn *ICOPattern::FindLastCmpInsn(BB &bb) const {
   return nullptr;
 }
 
-/*
- * Find IF-THEN-ELSE or IF-THEN basic block pattern,
- * and then invoke DoOpt(...) to finish optimize.
- */
-bool ICOPattern::Optimize(BB &curBB) {
-  if (curBB.GetKind() != BB::kBBIf) {
-    return false;
-  }
-  BB *ifBB = nullptr;
-  BB *elseBB = nullptr;
-  BB *joinBB = nullptr;
-
-  BB *thenDest = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
-  BB *elseDest = curBB.GetNext();
-  CHECK_FATAL(thenDest != nullptr, "then_dest is null in ITEPattern::Optimize");
-  CHECK_FATAL(elseDest != nullptr, "else_dest is null in ITEPattern::Optimize");
-  /* IF-THEN-ELSE */
-  if (thenDest->NumPreds() == 1 && thenDest->NumSuccs() == 1 && elseDest->NumSuccs() == 1 &&
-      elseDest->NumPreds() == 1 && thenDest->GetSuccs().front() == elseDest->GetSuccs().front()) {
-    ifBB = thenDest;
-    elseBB = elseDest;
-    joinBB = thenDest->GetSuccs().front();
-  } else if (elseDest->NumPreds() == 1 && elseDest->NumSuccs() == 1 && elseDest->GetSuccs().front() == thenDest) {
-    /* IF-THEN */
-    ifBB = nullptr;
-    elseBB = elseDest;
-    joinBB = thenDest;
-  } else {
-    /* not a form we can handle */
-    return false;
-  }
-  if (cgFunc->GetTheCFG()->InLSDA(elseBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
-      cgFunc->GetTheCFG()->InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
-    return false;
-  }
-
-  if (ifBB != nullptr &&
-      (cgFunc->GetTheCFG()->InLSDA(ifBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
-       cgFunc->GetTheCFG()->InSwitchTable(ifBB->GetLabIdx(), *cgFunc))) {
-    return false;
-  }
-  return DoOpt(curBB, ifBB, elseBB, *joinBB);
-}
-
 bool CgIco::PhaseRun(maplebe::CGFunc &f) {
   LiveAnalysis *live = GET_ANALYSIS(CgLiveAnalysis, f);
   if (ICO_DUMP_NEWPM) {

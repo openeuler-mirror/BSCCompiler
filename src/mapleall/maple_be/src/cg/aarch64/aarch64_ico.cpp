@@ -26,7 +26,7 @@
  */
 namespace maplebe {
 void AArch64IfConversionOptimizer::InitOptimizePatterns() {
-  singlePassPatterns.emplace_back(memPool->New<AArch64ICOPattern>(*cgFunc));
+  singlePassPatterns.emplace_back(memPool->New<AArch64ICOIfThenElsePattern>(*cgFunc));
 }
 
 Insn *AArch64ICOPattern::BuildCmpInsn(const Insn &condBr) {
@@ -114,7 +114,7 @@ Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOper
   return &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dst, src1, src2, cond, rflag);
 }
 
-void AArch64ICOPattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
+void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
                                            RegOperand &destReg, std::vector<Insn*> &generateInsn) {
   ImmOperand &imm1 = static_cast<ImmOperand&>(ifDest);
   ImmOperand &imm2 = static_cast<ImmOperand&>(elseDest);
@@ -136,15 +136,13 @@ void AArch64ICOPattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDe
     MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
                     ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     RegOperand *tempTarIf = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
-    Insn &tempInsnIf =
-        cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, *tempTarIf,
-                                                                                                    imm1);
+    Insn &tempInsnIf = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+        mOp, *tempTarIf, imm1);
     generateInsn.emplace_back(&tempInsnIf);
 
     RegOperand *tempTarElse = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
-    Insn &tempInsnElse =
-        cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, *tempTarElse,
-                                                                                                    imm2);
+    Insn &tempInsnElse = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+        mOp, *tempTarElse, imm2);
     generateInsn.emplace_back(&tempInsnElse);
 
     uint32 dSize = destReg.GetSize();
@@ -158,7 +156,7 @@ void AArch64ICOPattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDe
   }
 }
 
-RegOperand *AArch64ICOPattern::GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg,
+RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg,
                                                       std::vector<Insn*> &generateInsn) {
   RegOperand *reg = nullptr;
   if (!dest.IsRegister()) {
@@ -167,9 +165,8 @@ RegOperand *AArch64ICOPattern::GenerateRegAndTempInsn(Operand &dest, const RegOp
         ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
     reg = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
     ImmOperand &tempSrcElse = static_cast<ImmOperand&>(dest);
-    Insn &tempInsn =
-      cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, *reg,
-                                                                                                  tempSrcElse);
+    Insn &tempInsn = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+        mOp, *reg, tempSrcElse);
     generateInsn.emplace_back(&tempInsn);
     return reg;
   } else {
@@ -177,7 +174,7 @@ RegOperand *AArch64ICOPattern::GenerateRegAndTempInsn(Operand &dest, const RegOp
   }
 }
 
-void AArch64ICOPattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
+void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
                                            RegOperand &destReg, std::vector<Insn*> &generateInsn) {
   RegOperand *tReg = static_cast<RegOperand*>(&ifDest);
   RegOperand *eReg = static_cast<RegOperand*>(&elseDest);
@@ -193,9 +190,8 @@ void AArch64ICOPattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDe
     } else {
       mOp = srcIsIntTy ? (destIsIntTy ? MOP_wmovrr : MOP_xvmovsr) : (destIsIntTy ? MOP_xvmovrs : MOP_xvmovs);
     }
-    Insn &tempInsnIf =
-        cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(mOp, destReg,
-                                                                                                    *tReg);
+    Insn &tempInsnIf = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+        mOp, destReg, *tReg);
     generateInsn.emplace_back(&tempInsnIf);
   } else {
     uint32 dSize = destReg.GetSize();
@@ -209,7 +205,7 @@ void AArch64ICOPattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDe
   }
 }
 
-Operand *AArch64ICOPattern::GetDestReg(const std::map<Operand*, Operand*> &destSrcMap,
+Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, Operand*> &destSrcMap,
                                        const RegOperand &destReg) const {
   Operand *dest = nullptr;
   for (const auto &destSrcPair : destSrcMap) {
@@ -224,9 +220,11 @@ Operand *AArch64ICOPattern::GetDestReg(const std::map<Operand*, Operand*> &destS
   return dest;
 }
 
-bool AArch64ICOPattern::BuildCondMovInsn(BB &cmpBB, const BB &bb, const std::map<Operand*, Operand*> &ifDestSrcMap,
-                                         const std::map<Operand*, Operand*> &elseDestSrcMap,
-                                         bool elseBBIsProcessed, std::vector<Insn*> &generateInsn) {
+bool AArch64ICOIfThenElsePattern::BuildCondMovInsn(BB &cmpBB, const BB &bb,
+                                                   const std::map<Operand*, Operand*> &ifDestSrcMap,
+                                                   const std::map<Operand*, Operand*> &elseDestSrcMap,
+                                                   bool elseBBIsProcessed,
+                                                   std::vector<Insn*> &generateInsn) {
   Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(cmpBB);
   FOR_BB_INSNS_CONST(insn, (&bb)) {
     if (!insn->IsMachineInstruction() || insn->IsBranch()) {
@@ -281,8 +279,8 @@ bool AArch64ICOPattern::BuildCondMovInsn(BB &cmpBB, const BB &bb, const std::map
   return true;
 }
 
-bool AArch64ICOPattern::CheckModifiedRegister(Insn &insn, std::map<Operand*, Operand*> &destSrcMap, Operand &src,
-                                              Operand &dest) const {
+bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Operand*, Operand*> &destSrcMap,
+                                                        Operand &src, Operand &dest) const {
 /* src was modified in this blcok earlier */
   if (src.IsRegister()) {
     RegOperand &srcReg = static_cast<RegOperand&>(src);
@@ -327,7 +325,7 @@ bool AArch64ICOPattern::CheckModifiedRegister(Insn &insn, std::map<Operand*, Ope
   return true;
 }
 
-bool AArch64ICOPattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &destSrcMap,
+bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &destSrcMap,
                                         std::vector<Operand*> &destRegs, Operand *flagOpnd) const {
   if (bb == nullptr) {
     return false;
@@ -372,7 +370,7 @@ bool AArch64ICOPattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &de
 }
 
 /* Convert conditional branches into cset/csel instructions */
-bool AArch64ICOPattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB) {
+bool AArch64ICOIfThenElsePattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB) {
   Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(cmpBB);
   ASSERT(condBr != nullptr, "nullptr check");
   Insn *cmpInsn = FindLastCmpInsn(cmpBB);
@@ -490,4 +488,49 @@ bool AArch64ICOPattern::DoOpt(BB &cmpBB, BB *ifBB, BB *elseBB, BB &joinBB) {
   }
   return true;
 }
+
+/*
+ * Find IF-THEN-ELSE or IF-THEN basic block pattern,
+ * and then invoke DoOpt(...) to finish optimize.
+ */
+bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
+  if (curBB.GetKind() != BB::kBBIf) {
+    return false;
+  }
+  BB *ifBB = nullptr;
+  BB *elseBB = nullptr;
+  BB *joinBB = nullptr;
+
+  BB *thenDest = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
+  BB *elseDest = curBB.GetNext();
+  CHECK_FATAL(thenDest != nullptr, "then_dest is null in ITEPattern::Optimize");
+  CHECK_FATAL(elseDest != nullptr, "else_dest is null in ITEPattern::Optimize");
+  /* IF-THEN-ELSE */
+  if (thenDest->NumPreds() == 1 && thenDest->NumSuccs() == 1 && elseDest->NumSuccs() == 1 &&
+      elseDest->NumPreds() == 1 && thenDest->GetSuccs().front() == elseDest->GetSuccs().front()) {
+    ifBB = thenDest;
+    elseBB = elseDest;
+    joinBB = thenDest->GetSuccs().front();
+  } else if (elseDest->NumPreds() == 1 && elseDest->NumSuccs() == 1 && elseDest->GetSuccs().front() == thenDest) {
+    /* IF-THEN */
+    ifBB = nullptr;
+    elseBB = elseDest;
+    joinBB = thenDest;
+  } else {
+    /* not a form we can handle */
+    return false;
+  }
+  if (cgFunc->GetTheCFG()->InLSDA(elseBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
+      cgFunc->GetTheCFG()->InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
+    return false;
+  }
+
+  if (ifBB != nullptr &&
+      (cgFunc->GetTheCFG()->InLSDA(ifBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
+       cgFunc->GetTheCFG()->InSwitchTable(ifBB->GetLabIdx(), *cgFunc))) {
+    return false;
+  }
+  return DoOpt(curBB, ifBB, elseBB, *joinBB);
+}
+
 }  /* namespace maplebe */
