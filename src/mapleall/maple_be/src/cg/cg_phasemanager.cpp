@@ -25,6 +25,8 @@
 #include "strldr.h"
 #include "peep.h"
 #include "cg_ssa.h"
+#include "cg_prop.h"
+#include "cg_dce.h"
 #include "cg_phi_elimination.h"
 #include "reg_coalesce.h"
 #if TARGAARCH64
@@ -123,6 +125,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
 
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
+
     DoPhasesPopulate(m);
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
@@ -185,6 +188,9 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("moveargs", true);
 
   ADDMAPLECGPHASE("cgssaconstruct", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgpropagation", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgphielimination", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgregcoalesce", CGOptions::DoCGSSA());
@@ -445,6 +451,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPostCfgo, postcfgo)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgYieldPointInsertion, yieldpoint)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRaOpt, raopt)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgBuildEHFunc, buildehfunc)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole, cgpeephole)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole0, prepeephole)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPrePeepHole1, prepeephole1)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgPeepHole0, peephole0)
@@ -465,4 +472,6 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgProp, cgpropagation)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgDce, cgdeadcodeelimination)
 }  /* namespace maplebe */

@@ -22,6 +22,54 @@
 #include "mir_builder.h"
 
 namespace maplebe {
+class AArch64CGPeepHole {
+ public:
+  /* normal constructor */
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(cgssaInfo) {}
+  ~AArch64CGPeepHole() = default;
+  void Run();
+  void DoOptimize(BB &bb, Insn &insn);
+
+ protected:
+  CGFunc *cgFunc;
+  MemPool *peepMemPool;
+  CGSSAInfo *ssaInfo;
+};
+
+class PeepOptimizeManager {
+ public:
+  /* normal constructor */
+  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  PeepOptimizeManager(CGFunc &f, BB &bb, Insn &insn, CGSSAInfo &info)
+      : cgFunc(&f),
+        currBB(&bb),
+        currInsn(&insn),
+        ssaInfo(&info) {}
+  ~PeepOptimizeManager() = default;
+  template<typename OptimizePattern>
+  void Optimize() {
+    OptimizePattern optPattern(cgFunc, currBB, currInsn, ssaInfo);
+    optPattern.Run();
+  }
+ private:
+  CGFunc *cgFunc;
+  BB *currBB;
+  Insn *currInsn;
+  CGSSAInfo *ssaInfo;
+};
 /*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
@@ -74,6 +122,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
   bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst, regno_t destRegNO);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop);
+  bool SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd);
   bool doAggressiveCombine = false;
 };
 
@@ -783,18 +832,19 @@ class CselZeroOneToCsetOpt : public PeepPattern {
 /*
  * Replace following pattern:
  * sxtw  x1, w0
- * lsl   x2, x1, #3
- * =>
- * sbfiz x2, x0, #3, #32
+ * lsl   x2, x1, #3  ====>  sbfiz x2, x0, #3, #32
+ *
+ * uxtw  x1, w0
+ * lsl   x2, x1, #3  ====>  ubfiz x2, x0, #3, #32
  */
-class ComplexSxtwLslAArch64 : public PeepPattern {
+class ComplexExtendWordLslAArch64 : public PeepPattern {
  public:
-  explicit ComplexSxtwLslAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComplexSxtwLslAArch64() override = default;
+  explicit ComplexExtendWordLslAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
+  ~ComplexExtendWordLslAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 
   private:
-  bool IsSxtwAndLslPattern(Insn &insn);
+  bool IsExtendWordLslPattern(Insn &insn);
 };
 
 class AArch64PeepHole : public PeepPatternMatch {
@@ -887,7 +937,7 @@ class AArch64PrePeepHole1 : public PeepPatternMatch {
     kOneHoleBranchesOpt,
     kReplaceIncDecWithIncOpt,
     kAndCmpBranchesToTbzOpt,
-    kComplexSxtwLslOpt,
+    kComplexExtendWordLslOpt,
     kPeepholeOptsNum
   };
 };
