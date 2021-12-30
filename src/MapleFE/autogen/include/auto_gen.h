@@ -44,6 +44,7 @@ private:
   SeparatorGen *mSeparatorGen;
   OperatorGen  *mOperatorGen;
   KeywordGen   *mKeywordGen;
+  KeywordGen   *mPreProcessorKeywordGen;
   StmtGen      *mStmtGen;
   TokenGen     *mTokenGen;
 

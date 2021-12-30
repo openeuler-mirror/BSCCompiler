@@ -4,7 +4,7 @@ AR = ar rcs
 FLAVOR = gnu
 LD = clang++
 
-CXXFLAGS = -O0 -g3 -Wall -std=c++17 -DDEBUG
+CXXFLAGS = -O0 -g3 -Wall -std=c++17 -DDEBUG -fPIC
 LFLAGS=-std=c++17
 LANG=java
 

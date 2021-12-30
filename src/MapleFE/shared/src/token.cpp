@@ -86,7 +86,7 @@ void LiteralTokenDump(LitData data) {
 }
 
 const char* Token::GetName() const {
-  if (mTkType == TT_KW || mTkType == TT_ID)
+  if (mTkType == TT_KW || mTkType == TT_ID || mTkType == TT_PKW)
     return mData.mName;
   else if (mTkType == TT_SP)
     return SeparatorTokenGetName(mData.mSepId);

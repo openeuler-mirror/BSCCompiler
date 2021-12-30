@@ -21,6 +21,7 @@ void TokenTable::Prepare() {
   PrepareOperators();
   PrepareSeparators();
   PrepareKeywords();
+  PreparePreprocessorKeywords();
   // Need a comment token in the end
   Token t;
   t.mTkType = TT_CM;
@@ -57,6 +58,16 @@ void TokenTable::PrepareKeywords() {
     Token t;
     t.mTkType = TT_KW;
     t.mData.mName = mKeywords[i].c_str();
+    mTokens.push_back(t);
+  }
+}
+
+void TokenTable::PreparePreprocessorKeywords() {
+  mNumPreprocessorKeywords = mPreprocessorKeywords.size();
+  for (unsigned i = 0; i < mNumPreprocessorKeywords; i++) {
+    Token t;
+    t.mTkType = TT_PKW;
+    t.mData.mName = mPreprocessorKeywords[i].c_str();
     mTokens.push_back(t);
   }
 }
@@ -113,6 +124,14 @@ bool TokenTable::FindStringTokenId(const char *str, unsigned &id) {
   std::vector<std::string>::iterator kit = mKeywords.begin();
   for (; kit != mKeywords.end(); kit++, id++) {
     std::string keyword = *kit;
+    if (keyword.size() == strlen(str) &&
+        strncmp(keyword.c_str(), str, strlen(str)) == 0)
+      return true;
+  }
+
+  std::vector<std::string>::iterator pkit = mPreprocessorKeywords.begin();
+  for (; pkit != mPreprocessorKeywords.end(); pkit++, id++) {
+    std::string keyword = *pkit;
     if (keyword.size() == strlen(str) &&
         strncmp(keyword.c_str(), str, strlen(str)) == 0)
       return true;

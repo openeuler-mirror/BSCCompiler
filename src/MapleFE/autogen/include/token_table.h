@@ -32,11 +32,13 @@ public:
   unsigned mNumOperators;
   unsigned mNumSeparators;
   unsigned mNumKeywords;
+  unsigned mNumPreprocessorKeywords;
 
   std::list<Operator>      *mOperators;
   std::list<Separator>     *mSeparators;
   std::vector<std::string>  mKeywords;   // using an object instead of pointer
                                          // to save the string data.
+  std::vector<std::string>  mPreprocessorKeywords;
 
 public:
   TokenTable(){}
@@ -46,6 +48,7 @@ public:
   void PrepareOperators();
   void PrepareSeparators();
   void PrepareKeywords();
+  void PreparePreprocessorKeywords();
 
   bool FindCharTokenId(char c, unsigned&);
   bool FindStringTokenId(const char *s, unsigned&);

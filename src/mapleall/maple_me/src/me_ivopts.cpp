@@ -851,8 +851,9 @@ bool IVOptimizer::LHSEscape(ScalarMeExpr *lhs) {
 void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
   for (uint32 i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     auto *opnd = stmt.GetOpnd(i);
-    bool isLhsBase = (stmt.GetOp() == OP_iassign || stmt.GetOp() == OP_iassignoff) && i == 0;
-    if (FindGeneralIVInExpr(stmt, *opnd, isLhsBase)) {
+    bool isUsedInAddr = (stmt.GetOp() == OP_iassign || stmt.GetOp() == OP_iassignoff) && i == 0;
+    isUsedInAddr |= stmt.GetOp() == OP_assertnonnull;
+    if (FindGeneralIVInExpr(stmt, *opnd, isUsedInAddr)) {
       auto *iv = data->GetIV(*opnd);
       if (stmt.GetOp() == OP_regassign || stmt.GetOp() == OP_dassign) {
         // record lhs scalar same (base, step) iv as rhs
@@ -864,7 +865,11 @@ void IVOptimizer::FindGeneralIVInStmt(MeStmt &stmt) {
           continue;
         }
       }
-      if (isLhsBase) {
+      if (stmt.GetOp() == OP_assertnonnull) {
+        data->CreateGroup(stmt, *iv, kUseAddress, opnd);
+        continue;
+      }
+      if (isUsedInAddr) {
         data->CreateGroup(stmt, *iv, kUseAddress, static_cast<IassignMeStmt&>(stmt).GetLHSVal());
         (*(*data->groups.rbegin())->uses.rbegin())->hasField =
             static_cast<IassignMeStmt&>(stmt).GetLHSVal()->GetFieldID() != 0;
@@ -1297,6 +1302,7 @@ static void FindScalarFactor(MeExpr &expr, std::unordered_map<int32, std::pair<M
         auto *opnd0 = op.GetOpnd(0);
         auto *opnd1 = op.GetOpnd(1);
         if (opnd0->GetMeOp() != kMeOpConst && opnd1->GetMeOp() != kMeOpConst) {
+          record.emplace(expr.GetExprID(), std::make_pair(&expr, multiplier));
           return;
         }
         if (opnd0->GetMeOp() == kMeOpConst) {
@@ -1495,6 +1501,9 @@ uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
         return kInfinityCost;
       }
       auto *cmp = static_cast<OpMeExpr*>(group.uses[0]->expr);
+      if (ratio < 0 && IsUnsignedInteger(cmp->GetOpndType())) {
+        return kInfinityCost;
+      }
       if (ratio < 0 && (cmp->GetOp() == OP_gt || cmp->GetOp() == OP_ge) && IsSignedInteger(cmp->GetOpndType())) {
         if (cand.iv->step->GetMeOp() == kMeOpConst) {
           int64 candConst = static_cast<ConstMeExpr &>(*cand.iv->step).GetIntValue();
@@ -1513,6 +1522,17 @@ uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
             candConst = static_cast<int64>(static_cast<int32>(candConst));
           }
           if (candConst > 0) {
+            return kInfinityCost;
+          }
+        }
+      }
+      if (ratio > 0 && (cmp->GetOp() == OP_lt || cmp->GetOp() == OP_le) && cmp->GetOpnd(0) == group.uses[0]->iv->expr) {
+        if (cand.iv->step->GetMeOp() == kMeOpConst) {
+          int64 candConst = static_cast<ConstMeExpr &>(*cand.iv->step).GetIntValue();
+          if (cand.iv->step->GetPrimType() == PTY_u32) {
+            candConst = static_cast<int64>(static_cast<int32>(candConst));
+          }
+          if (candConst < 0) {
             return kInfinityCost;
           }
         }
@@ -1982,8 +2002,7 @@ void IVOptimizer::UseReplace() {
                                         extraExpr->GetPrimType());
           }
           if (static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_eq ||
-              static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne ||
-              (!mayOverflow && IsSignedInteger(static_cast<OpMeExpr*>(use->expr)->GetOpndType()))) {
+              static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne) {
             if (extraExpr != nullptr) {
               auto *comparedExpr = use->comparedExpr;
               if (GetPrimTypeSize(extraExpr->GetPrimType()) != GetPrimTypeSize(comparedExpr->GetPrimType()) ||
@@ -2021,30 +2040,28 @@ void IVOptimizer::UseReplace() {
               use->comparedExpr = extraExpr;
               extraExpr = nullptr;
             }
-            if (extraExpr == nullptr) {
-              if (use->comparedExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
-                auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
-                                                       use->comparedExpr->GetPrimType(), *use->comparedExpr);
-                if (invariables.find(cvt->GetExprID()) == invariables.end()) {
-                  auto *cvtReg = irMap->CreateRegMeExpr(cvt->GetPrimType());
-                  auto *assign = irMap->CreateAssignMeStmt(*cvtReg, *cvt, *data->currLoop->preheader);
-                  if (preheaderLast == nullptr) {
-                    data->currLoop->preheader->AddMeStmtFirst(assign);
-                  } else {
-                    preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
-                  }
-                  preheaderLast = assign;
-                  invariables.emplace(cvt->GetExprID(), cvtReg);
-                  cvt = cvtReg;
-                } else {
-                  cvt = invariables[cvt->GetExprID()];
-                }
-                auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *cvt);
-                (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
-                use->expr = tmp;
-                use->comparedExpr = cvt;
+          }
+          if (use->comparedExpr->GetPrimType() != static_cast<OpMeExpr*>(use->expr)->GetOpndType()) {
+            auto *cvt = irMap->CreateMeExprTypeCvt(static_cast<OpMeExpr*>(use->expr)->GetOpndType(),
+                                                   use->comparedExpr->GetPrimType(), *use->comparedExpr);
+            if (invariables.find(cvt->GetExprID()) == invariables.end()) {
+              auto *cvtReg = irMap->CreateRegMeExpr(cvt->GetPrimType());
+              auto *assign = irMap->CreateAssignMeStmt(*cvtReg, *cvt, *data->currLoop->preheader);
+              if (preheaderLast == nullptr) {
+                data->currLoop->preheader->AddMeStmtFirst(assign);
+              } else {
+                preheaderLast->GetBB()->InsertMeStmtAfter(preheaderLast, assign);
               }
+              preheaderLast = assign;
+              invariables.emplace(cvt->GetExprID(), cvtReg);
+              cvt = cvtReg;
+            } else {
+              cvt = invariables[cvt->GetExprID()];
             }
+            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *cvt);
+            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+            use->expr = tmp;
+            use->comparedExpr = cvt;
           }
         }
       } else {

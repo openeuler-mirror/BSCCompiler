@@ -462,6 +462,11 @@ TreeNode* ASTBuilder::BuildAllStaticImport() {
 }
 
 TreeNode* ASTBuilder::BuildAllImport() {
+  ImportNode *n = (ImportNode*)gTreePool.NewTreeNode(sizeof(ImportNode));
+  new (n) ImportNode();
+  n->SetImportAll();
+  mLastTreeNode = n;
+  return mLastTreeNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////
