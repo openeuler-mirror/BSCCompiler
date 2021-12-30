@@ -1,0 +1,71 @@
+// Copyright (C) [2021] Futurewei Technologies Inc. All rights reverved.
+//
+// OpenArkFE is licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//
+//  http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS WITHOUT WARRANTIES OF ANY KIND, EITHER
+// EXPRESS OR IMPLIED INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+// FIT FOR A PARTICULAR PURPOSE.
+// See the Mulan PSL v2 for more details.
+//
+
+LANGKEYWORD(boolean)
+LANGKEYWORD(byte)
+LANGKEYWORD(char)
+LANGKEYWORD(class)
+LANGKEYWORD(double)
+LANGKEYWORD(enum)
+LANGKEYWORD(float)
+LANGKEYWORD(int)
+LANGKEYWORD(interface)
+LANGKEYWORD(long)
+LANGKEYWORD(package)
+LANGKEYWORD(short)
+LANGKEYWORD(void)
+
+LANGKEYWORD(var)
+
+LANGKEYWORD(break)
+LANGKEYWORD(case)
+LANGKEYWORD(catch)
+LANGKEYWORD(continue)
+LANGKEYWORD(default)
+LANGKEYWORD(do)
+LANGKEYWORD(else)
+LANGKEYWORD(finally)
+LANGKEYWORD(for)
+LANGKEYWORD(goto)
+LANGKEYWORD(if)
+LANGKEYWORD(return)
+LANGKEYWORD(switch)
+LANGKEYWORD(try)
+LANGKEYWORD(while)
+
+LANGKEYWORD(abstract)
+LANGKEYWORD(const)
+LANGKEYWORD(volatile)
+
+LANGKEYWORD(assert)
+LANGKEYWORD(new)
+
+LANGKEYWORD(instanceof)
+LANGKEYWORD(extends)
+LANGKEYWORD(implements)
+LANGKEYWORD(import)
+LANGKEYWORD(super)
+LANGKEYWORD(synchronized)
+// LANGKEYWORD(this)
+LANGKEYWORD(throw)
+LANGKEYWORD(throws)
+LANGKEYWORD(transient)
+
+LANGKEYWORD(final)
+LANGKEYWORD(native)
+LANGKEYWORD(private)
+LANGKEYWORD(protected)
+LANGKEYWORD(public)
+LANGKEYWORD(static)
+LANGKEYWORD(strictfp)

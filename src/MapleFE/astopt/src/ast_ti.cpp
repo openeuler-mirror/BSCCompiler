@@ -74,6 +74,9 @@ void TypeInfer::TypeInference() {
 
 // build up mNodeId2Decl by visiting each Identifier
 IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *node) {
+  if (mHandler->GetAstOpt()->IsLangKeyword(node)) {
+    return node;
+  }
   (void) AstVisitor::VisitIdentifierNode(node);
   // mHandler->FindDecl() will use/add entries to mNodeId2Decl
   TreeNode *decl = mHandler->FindDecl(node);
@@ -607,11 +610,13 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       }
     } else if (init->IsIdentifier()) {
       TreeNode *decl = mHandler->FindDecl(static_cast<IdentifierNode *>(init));
-      unsigned tidx = decl->GetTypeIdx();
-      if (decl && (decl->IsClass() || (0 < tidx && tidx < (unsigned)TY_Max))) {
-        SetTypeId(idnode, TY_Function);
-        SetUpdated();
-        result = true;
+      if (decl) {
+        unsigned tidx = decl->GetTypeIdx();
+        if ((decl->IsClass() || (0 < tidx && tidx < (unsigned)TY_Max))) {
+          SetTypeId(idnode, TY_Function);
+          SetUpdated();
+          result = true;
+        }
       }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
@@ -970,7 +975,7 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
           if (id->GetType()) {
             decl = id->GetType();
           } else if (id->IsTypeIdFunction()) {
-            NOTYETIMPL("VisitCallNode nTY_Function");
+            NOTYETIMPL("VisitCallNode TY_Function");
           }
         }
         if (decl) {
@@ -1390,6 +1395,9 @@ FunctionNode *TypeInferVisitor::VisitFunctionNode(FunctionNode *node) {
 
 IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
   if (mFlags & FLG_trace_1) std::cout << "Visiting IdentifierNode, id=" << node->GetNodeId() << "..." << std::endl;
+  if (mAstOpt->IsLangKeyword(node)) {
+    return node;
+  }
   TreeNode *type = node->GetType();
   if (type) {
     if (type->IsPrimArrayType()) {

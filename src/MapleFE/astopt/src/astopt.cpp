@@ -56,7 +56,7 @@ void AstOpt::ProcessAST(unsigned flags) {
     }
   }
 
-  // build dependency of modules 
+  // build dependency of modules
   PreprocessModules();
 
   for (auto handler: mHandlersInOrder) {
@@ -89,6 +89,11 @@ void AstOpt::ProcessAST(unsigned flags) {
 void AstOpt::PreprocessModules() {
   // initialize gTypeTable with builtin types
   gTypeTable.AddPrimAndBuiltinTypes();
+
+  // collect language keywords
+#undef LANGKEYWORD
+#define LANGKEYWORD(K) mLangKeywords.insert(gStringPool.GetStrIdx(#K));
+#include "lang_keywords.def"
 
   // scan through modules to setup mNodeId2NodeMap
   BuildNodeIdToNodeVisitor visitor(this, mFlags);
