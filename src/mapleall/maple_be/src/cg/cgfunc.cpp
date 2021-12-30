@@ -1692,7 +1692,6 @@ void CGFunc::ProcessExitBBVec() {
     BB *retBB = CreateNewBB(newLabelIdx, cleanupBB->IsUnreachable(), BB::kBBReturn, cleanupBB->GetFrequency());
     cleanupBB->PrependBB(*retBB);
     exitBBVec.emplace_back(retBB);
-    commonExitBB = retBB;
     return;
   }
   /* split an empty exitBB */
@@ -1716,29 +1715,20 @@ void CGFunc::ProcessExitBBVec() {
     bb->AddLabel(newLabelIdx);
     lab2BBMap[newLabelIdx] = bb;
   }
-  /* set commonExitBB */
+}
+
+void CGFunc::AddCommonExitBB() {
   uint32 i = 0;
   while (exitBBVec[i]->IsUnreachable() && i < exitBBVec.size()) {
     i++;
   }
-  ASSERT(i < exitBBVec.size(), "all exit BBs are unreacable");
-  commonExitBB = exitBBVec[i];
-  bool multipleExitBBs = false;
-  i++;
-  while (i < exitBBVec.size()) {
-    if (!exitBBVec[i]->IsUnreachable()) {
-      multipleExitBBs = true;
-      break;
-    }
-    i++;
-  }
-  if (multipleExitBBs) {  // create fake commonExitBB
-    commonExitBB = CreateNewBB(true, BB::kBBFallthru, 0);
-    ASSERT(commonExitBB != nullptr, "cannot create fake commonExitBB");
-    for (BB *cgbb : exitBBVec) {
-      if (!cgbb->IsUnreachable()) {
-        commonExitBB->PushBackPreds(*cgbb);
-      }
+  ASSERT(i < exitBBVec.size(), "all exit BBs are unreachable");
+  // create fake commonExitBB
+  commonExitBB = CreateNewBB(true, BB::kBBFallthru, 0);
+  ASSERT(commonExitBB != nullptr, "cannot create fake commonExitBB");
+  for (BB *cgbb : exitBBVec) {
+    if (!cgbb->IsUnreachable()) {
+      commonExitBB->PushBackPreds(*cgbb);
     }
   }
 }
@@ -1780,6 +1770,7 @@ void CGFunc::HandleFunction() {
   /* build control flow graph */
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
+  AddCommonExitBB();
   UpdateCallBBFrequency();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();

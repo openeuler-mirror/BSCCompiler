@@ -144,6 +144,7 @@ class CGFunc {
   void UpdateCallBBFrequency();
   void HandleFunction();
   void ProcessExitBBVec();
+  void AddCommonExitBB();
   virtual void MergeReturn() = 0;
   void TraverseAndClearCatchMark(BB &bb);
   void MarkCatchBBs();
