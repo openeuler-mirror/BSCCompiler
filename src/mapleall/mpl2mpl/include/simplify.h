@@ -62,10 +62,10 @@ struct MemEntry {
 
   BaseNode *BuildAsRhsExpr(MIRFunction &func) const;
   bool ExpandMemset(int64 byte, int64 size, MIRFunction &func,
-                    CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug, ErrorNumber errorNumber) const;
+                    StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug, ErrorNumber errorNumber) const;
   bool ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
-                    CallNode &callStmt, BlockNode &block, bool isLowLevel, bool debug) const;
-  static StmtNode *GenMemopRetAssign(CallNode &callStmt, MIRFunction &func, bool isLowLevel, MemOpKind memOpKind,
+                    StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug) const;
+  static StmtNode *GenMemopRetAssign(StmtNode &stmt, MIRFunction &func, bool isLowLevel, MemOpKind memOpKind,
                                      ErrorNumber errorNumber = ERRNO_OK);
 
   BaseNode *addrExpr = nullptr;   // memory address
