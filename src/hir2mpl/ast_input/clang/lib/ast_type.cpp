@@ -117,10 +117,8 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (attrs == TypeAttrs()) {
       prtType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
     } else {
-      std::vector<TypeAttrs> attrsVec;
-      attrsVec.push_back(attrs);
       prtType = static_cast<MIRPtrType*>(
-          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrsVec));
+          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrs));
     }
     return prtType;
   }
