@@ -39,14 +39,6 @@ void TypeInfer::TypeInference() {
   BuildIdNodeToDeclVisitor visitor_build(mHandler, mFlags, true);
   visitor_build.Visit(module);
 
-  // build mDirectFieldSet
-  MSGNOLOC0("============== Build DirectFieldSet ==============");
-  BuildIdDirectFieldVisitor visitor_field(mHandler, mFlags, true);
-  visitor_field.Visit(module);
-  if (mFlags & FLG_trace_3) {
-    visitor_field.Dump();
-  }
-
   // type inference
   MSGNOLOC0("============== TypeInfer ==============");
   TypeInferVisitor visitor_ti(mHandler, mFlags, true);
@@ -56,6 +48,14 @@ void TypeInfer::TypeInference() {
     MSGNOLOC("\n TypeInference iterate ", count);
     visitor_ti.SetUpdated(false);
     visitor_ti.Visit(module);
+  }
+
+  // build mDirectFieldSet
+  MSGNOLOC0("============== Build DirectFieldSet ==============");
+  BuildIdDirectFieldVisitor visitor_field(mHandler, mFlags, true);
+  visitor_field.Visit(module);
+  if (mFlags & FLG_trace_3) {
+    visitor_field.Dump();
   }
 
   if (mFlags & FLG_trace_3) std::cout << "\n>>>>>> TypeInference() iterated " << count << " times\n" << std::endl;
@@ -74,6 +74,9 @@ void TypeInfer::TypeInference() {
 
 // build up mNodeId2Decl by visiting each Identifier
 IdentifierNode *BuildIdNodeToDeclVisitor::VisitIdentifierNode(IdentifierNode *node) {
+  if (mHandler->GetAstOpt()->IsLangKeyword(node)) {
+    return node;
+  }
   (void) AstVisitor::VisitIdentifierNode(node);
   // mHandler->FindDecl() will use/add entries to mNodeId2Decl
   TreeNode *decl = mHandler->FindDecl(node);
@@ -103,15 +106,38 @@ FieldNode *BuildIdDirectFieldVisitor::VisitFieldNode(FieldNode *node) {
   return node;
 }
 
+TreeNode *BuildIdDirectFieldVisitor::GetParentVarClass(TreeNode *node) {
+  TreeNode *n = node;
+  while (n && !n->IsModule()) {
+    unsigned tyidx = 0;
+    if (n->IsDecl()) {
+      tyidx = n->GetTypeIdx();
+    } else if (n->IsBinOperator()) {
+      tyidx = n->GetTypeIdx();
+    }
+    if (tyidx) {
+      return gTypeTable.GetTypeFromTypeIdx(tyidx);
+    }
+    n = n->GetParent();
+  }
+  return NULL;
+}
+
 FieldLiteralNode *BuildIdDirectFieldVisitor::VisitFieldLiteralNode(FieldLiteralNode *node) {
   (void) AstVisitor::VisitFieldLiteralNode(node);
   TreeNode *name = node->GetFieldName();
   IdentifierNode *field = static_cast<IdentifierNode *>(name);
-  TreeNode *decl = NULL;
-  decl = mHandler->FindDecl(field);
-  if (decl) {
-    mHandler->AddDirectField(field);
-    mHandler->AddDirectField(node);
+  TreeNode *decl = mHandler->FindDecl(field);
+  TreeNode *vtype = GetParentVarClass(decl);
+  if (vtype) {
+    // check if decl is a field of vtype
+    // note: vtype could be in different module
+    Module_Handler *h = mHandler->GetModuleHandler(vtype);
+    TreeNode *fld = h->GetINFO()->GetField(vtype->GetNodeId(), decl->GetStrIdx());
+    if (fld) {
+      mHandler->AddDirectField(field);
+      mHandler->AddDirectField(node);
+    }
   }
   return node;
 }
@@ -584,10 +610,13 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       }
     } else if (init->IsIdentifier()) {
       TreeNode *decl = mHandler->FindDecl(static_cast<IdentifierNode *>(init));
-      if (decl && (decl->IsClass() || decl->GetTypeIdx() < (unsigned)TY_Max)) {
-        SetTypeId(idnode, TY_Function);
-        SetUpdated();
-        result = true;
+      if (decl) {
+        unsigned tidx = decl->GetTypeIdx();
+        if ((decl->IsClass() || (0 < tidx && tidx < (unsigned)TY_Max))) {
+          SetTypeId(idnode, TY_Function);
+          SetUpdated();
+          result = true;
+        }
       }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
@@ -946,7 +975,7 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
           if (id->GetType()) {
             decl = id->GetType();
           } else if (id->IsTypeIdFunction()) {
-            NOTYETIMPL("VisitCallNode nTY_Function");
+            NOTYETIMPL("VisitCallNode TY_Function");
           }
         }
         if (decl) {
@@ -1212,8 +1241,7 @@ ImportNode *TypeInferVisitor::VisitImportNode(ImportNode *node) {
           TreeNode *fld = field->GetField();
           if (upper->IsTypeIdModule()) {
             TreeNode *type = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
-            ModuleNode *mod = static_cast<ModuleNode *>(type);
-            Module_Handler *h = mHandler->GetASTHandler()->GetModuleHandler(mod);
+            Module_Handler *h = mHandler->GetModuleHandler(type);
             exported = mXXport->GetExportedNamedNode(h->GetHidx(), fld->GetStrIdx());
             if (exported) {
               UpdateTypeId(bfnode, exported->GetTypeId());
@@ -1367,6 +1395,9 @@ FunctionNode *TypeInferVisitor::VisitFunctionNode(FunctionNode *node) {
 
 IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
   if (mFlags & FLG_trace_1) std::cout << "Visiting IdentifierNode, id=" << node->GetNodeId() << "..." << std::endl;
+  if (mAstOpt->IsLangKeyword(node)) {
+    return node;
+  }
   TreeNode *type = node->GetType();
   if (type) {
     if (type->IsPrimArrayType()) {
@@ -1420,12 +1451,17 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
           decl = mHandler->FindDecl(static_cast<IdentifierNode *>(upper), true);
         }
         if (decl) {
-          // for imported decl, need trace down the import/export chain
-          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
-            scope = decl->GetScope();
-            decl = scope->FindExportedDeclOf(node->GetStrIdx());
+          unsigned tidx = decl->GetTypeIdx();
+          if (tidx) {
+            TreeNode *declt = gTypeTable.GetTypeFromTypeIdx(tidx);
+            scope = declt->GetScope();
           } else {
             scope = decl->GetScope();
+          }
+          // for imported decl, need trace down the import/export chain
+          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
+            decl = scope->FindExportedDeclOf(node->GetStrIdx());
+          } else {
             decl = scope->FindDeclOf(node->GetStrIdx());
           }
         }

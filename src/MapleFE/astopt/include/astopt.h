@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include "ast_module.h"
 #include "ast.h"
 #include "gen_astvisitor.h"
@@ -41,6 +42,9 @@ private:
 
   // nodeid to node map for all nodes in all modules
   std::unordered_map<unsigned, TreeNode*> mNodeId2NodeMap;
+
+  // language keywords
+  std::unordered_set<unsigned> mLangKeywords;
 
   // nodeid to handler map for all nodes in all modules
   std::unordered_map<unsigned, Module_Handler*> mNodeId2HandlerMap;
@@ -67,6 +71,10 @@ public:
 
   Module_Handler *GetHandlerFromNodeId(unsigned nid) { return mNodeId2HandlerMap[nid]; }
   void AddNodeId2HandlerMap(unsigned nid, Module_Handler *h) { mNodeId2HandlerMap[nid] = h; }
+
+  bool IsLangKeyword(TreeNode *node) {
+    return mLangKeywords.find(node->GetStrIdx()) != mLangKeywords.end();
+  }
 };
 
 class BuildNodeIdToNodeVisitor : public AstVisitor {

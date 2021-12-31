@@ -511,17 +511,32 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
     // To simplify the code, I reused TraverseToken().
     found = TraverseToken(semicolon, appeal, child);
   } else {
-    if (curr_token->mLineBegin &&
-        prev_token->mLineEnd &&
-        prev_token->IsSeparator()){
-      if (prev_token->GetSepId() == SEP_Rbrace ||
-          prev_token->GetSepId() == SEP_Rbrack ||
-          prev_token->GetSepId() == SEP_Rparen) {
+    if (curr_token->mLineBegin && prev_token->mLineEnd) {
+      // If prev token (line end) is a separator
+      if (prev_token->IsSeparator() &&
+           (prev_token->GetSepId() == SEP_Rbrace ||
+            prev_token->GetSepId() == SEP_Rbrack ||
+            prev_token->GetSepId() == SEP_Rparen)) {
         if (mTraceTable) {
           std::cout << "TraverseASI, Auto-insert one semicolon." << std::endl;
         }
-        return true;
+        found = true;
       }
+
+      // if prev token is identifier or keyword AND the curr token is also id or keyword
+      // we can try to insert semicolon. A simple case is:
+      //        a    <-- we can insert semicolon
+      //        console.log();
+      if ( (prev_token->IsIdentifier() || prev_token->IsKeyword()) &&
+           (curr_token->IsIdentifier() || curr_token->IsKeyword()) ){
+        if (mTraceTable) {
+          std::cout << "TraverseASI, Auto-insert one semicolon." << std::endl;
+        }
+        found = true;
+      }
+
+      if (found)
+        return found;
     }
   }
 
