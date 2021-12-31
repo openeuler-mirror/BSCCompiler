@@ -120,13 +120,6 @@ void BuildScopeVisitor::AddTypeAndDecl(ASTScope *scope, TreeNode *node) {
   AddDecl(scope, node);
 }
 
-#define ADD_DECL(K) {\
-  TreeNode *node = mHandler->NewTreeNode<IdentifierNode>(); \
-  unsigned idx = gStringPool.GetStrIdx(K); \
-  node->SetStrIdx(idx); \
-  AddDecl(scope, node); \
-}
-
 void BuildScopeVisitor::InitInternalTypes() {
   // add primitive and builtin types to root scope
   ModuleNode *module = mHandler->GetASTModule();
@@ -152,12 +145,6 @@ void BuildScopeVisitor::InitInternalTypes() {
   console->AddMethod(log);
   log->SetScope(scp);
   AddDecl(scp, log);
-
-  // add dummy decl for some keywords
-  ADD_DECL("undefined");
-  ADD_DECL("null");
-  ADD_DECL("Error");
-  ADD_DECL("NonNullable");
 }
 
 ClassNode *BuildScopeVisitor::AddClass(std::string name, unsigned tyidx) {
@@ -305,8 +292,7 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
@@ -337,8 +323,7 @@ InterfaceNode *BuildScopeVisitor::VisitInterfaceNode(InterfaceNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
@@ -367,8 +352,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      StrIndexSigNode *sn = static_cast<StrIndexSigNode *>(fld);
-      fld = sn->GetKey();
+      continue;
     }
     if (fld && fld->IsIdentifier()) {
       AddDecl(scope, fld);
@@ -391,6 +375,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   StrIndexSigNode *sig = node->GetStrIndexSig();
   if (sig) {
     TreeNode *fld = sig->GetKey();
+    sig->SetStrIdx(fld->GetStrIdx());
     if (fld && fld->IsIdentifier()) {
       AddDecl(scope, fld);
     }
@@ -501,8 +486,11 @@ UserTypeNode *BuildScopeVisitor::VisitUserTypeNode(UserTypeNode *node) {
 TypeAliasNode *BuildScopeVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   ASTScope *scope = mScopeStack.top();
   BuildScopeBaseVisitor::VisitTypeAliasNode(node);
-  AddDecl(scope, node);
-  AddType(scope, node);
+  TreeNode *ut = node->GetId();
+  if (ut->IsUserType()) {
+    TreeNode *id = static_cast<UserTypeNode *>(ut)->GetId();
+    AddDecl(scope, id);
+  }
   return node;
 }
 

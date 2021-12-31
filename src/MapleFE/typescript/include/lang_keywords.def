@@ -1,0 +1,101 @@
+// Copyright (C) [2021] Futurewei Technologies, Inc. All rights reverved.
+//
+// OpenArkFE is licensed under the Mulan PSL v2.
+// You can use this software according to the terms and conditions of the Mulan PSL v2.
+// You may obtain a copy of Mulan PSL v2 at:
+//
+//  http://license.coscl.org.cn/MulanPSL2
+//
+// THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+// FIT FOR A PARTICULAR PURPOSE.
+// See the Mulan PSL v2 for more details.
+//
+
+LANGKEYWORD(boolean)
+LANGKEYWORD(number)
+LANGKEYWORD(string)
+LANGKEYWORD(symbol)
+LANGKEYWORD(unique)
+LANGKEYWORD(any)
+LANGKEYWORD(unknown)
+LANGKEYWORD(never)
+LANGKEYWORD(undefined)
+LANGKEYWORD(type)
+
+LANGKEYWORD(get)
+LANGKEYWORD(set)
+LANGKEYWORD(as)
+LANGKEYWORD(from)
+LANGKEYWORD(constructor)
+LANGKEYWORD(namespace)
+LANGKEYWORD(module)
+LANGKEYWORD(declare)
+
+LANGKEYWORD(break)
+LANGKEYWORD(do)
+LANGKEYWORD(in)
+LANGKEYWORD(is)
+LANGKEYWORD(of)
+LANGKEYWORD(typeof)
+LANGKEYWORD(keyof)
+LANGKEYWORD(infer)
+LANGKEYWORD(case)
+LANGKEYWORD(else)
+LANGKEYWORD(instanceof)
+LANGKEYWORD(var)
+LANGKEYWORD(catch)
+LANGKEYWORD(export)
+LANGKEYWORD(new)
+LANGKEYWORD(void)
+LANGKEYWORD(class)
+LANGKEYWORD(extends)
+LANGKEYWORD(return)
+LANGKEYWORD(while)
+LANGKEYWORD(const)
+LANGKEYWORD(finally)
+LANGKEYWORD(super)
+LANGKEYWORD(with)
+LANGKEYWORD(continue)
+LANGKEYWORD(for)
+LANGKEYWORD(switch)
+LANGKEYWORD(yield)
+LANGKEYWORD(debugger)
+LANGKEYWORD(function)
+// LANGKEYWORD(this)
+LANGKEYWORD(default)
+LANGKEYWORD(if)
+LANGKEYWORD(throw)
+LANGKEYWORD(delete)
+LANGKEYWORD(import)
+LANGKEYWORD(require)
+LANGKEYWORD(try)
+LANGKEYWORD(asserts)
+
+LANGKEYWORD(let)
+LANGKEYWORD(static)
+LANGKEYWORD(implements)
+LANGKEYWORD(protected)
+LANGKEYWORD(interface)
+LANGKEYWORD(private)
+LANGKEYWORD(public)
+LANGKEYWORD(abstract)
+
+LANGKEYWORD(readonly)
+
+LANGKEYWORD(enum)
+LANGKEYWORD(await)
+LANGKEYWORD(async)
+
+LANGKEYWORD(global)
+
+// extra
+
+LANGKEYWORD(console)
+LANGKEYWORD(log)
+
+LANGKEYWORD(null)
+
+LANGKEYWORD(Parameters)
+LANGKEYWORD(Error)
+LANGKEYWORD(NonNullable)

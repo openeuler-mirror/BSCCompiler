@@ -65,6 +65,7 @@ class AST_Handler {
 
   // vector of all AST modules
   SmallVector<Module_Handler *> mModuleHandlers;
+  Module_Handler *GetModuleHandler(ModuleNode *module);
 
  public:
   // mapping of mModuleHandlers index with its corresponding filename as its key
@@ -78,8 +79,8 @@ class AST_Handler {
   AstOpt *GetAstOpt() {return mAstOpt;}
   void SetAstOpt(AstOpt *opt) {mAstOpt = opt;}
 
-  Module_Handler *GetModuleHandler(unsigned i);
-  Module_Handler *GetModuleHandler(ModuleNode *module);
+  Module_Handler *GetModuleHandler(unsigned i) {return mModuleHandlers.ValueAtIndex(i);}
+  Module_Handler *GetModuleHandler(TreeNode *node);
 
   unsigned GetSize() {return mSize;}
 
@@ -221,6 +222,9 @@ class Module_Handler {
     opt->AddNodeId2NodeMap(node);
     return node;
   }
+
+  Module_Handler *GetModuleHandler(unsigned i) {return mASTHandler->GetModuleHandler(i);}
+  Module_Handler *GetModuleHandler(TreeNode *node) {return mASTHandler->GetModuleHandler(node);}
 
   // API to check a node is c++ field which satisfy both:
   // 1. direct field
