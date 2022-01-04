@@ -31,7 +31,7 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
   }
   void Init();
   static bool InitFactory();
-  bool SolveOptions(const std::vector<mapleOption::Option> &opts, bool isDebug);
+  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
   bool SolveArgs(int argc, char **argv);
   void DumpUsage() const;
   void DumpVersion() const;

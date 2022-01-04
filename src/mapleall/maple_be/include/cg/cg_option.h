@@ -127,8 +127,8 @@ class CGOptions : public MapleDriverOptionBase {
   static CGOptions &GetInstance();
   CGOptions();
   virtual ~CGOptions() = default;
-  bool SolveOptions(const std::vector<mapleOption::Option> &opts, bool isDebug);
-  void DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inputOptions, bool isDebug);
+  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
+  void DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inputOptions, bool isDebug);
 
   void DumpOptions();
   std::vector<std::string> &GetSequence() {

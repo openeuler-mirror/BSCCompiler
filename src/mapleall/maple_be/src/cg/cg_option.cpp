@@ -1139,7 +1139,7 @@ CGOptions::CGOptions() {
   CreateUsages(kUsage);
 }
 
-void CGOptions::DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inputOptions, bool isDebug) {
+void CGOptions::DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inputOptions, bool isDebug) {
   int realLevel = -1;
   for (const mapleOption::Option &opt : inputOptions) {
     switch (opt.Index()) {
@@ -1168,7 +1168,7 @@ void CGOptions::DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inp
   }
 }
 
-bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
+bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
   DecideMplcgRealLevel(opts, isDebug);
   for (const mapleOption::Option &opt : opts) {
     if (isDebug) {
@@ -1623,7 +1623,6 @@ void CGOptions::EnableO2() {
   doCGSSA = false;
   doCFGO = true;
   doICO = true;
-  doCGSSA = false;
   doPrePeephole = true;
   doPeephole = true;
   doStoreLoadOpt = true;

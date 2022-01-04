@@ -32,7 +32,7 @@ class MeOption : public MapleDriverOptionBase {
 
   ~MeOption() = default;
 
-  bool SolveOptions(const std::vector<mapleOption::Option> &opts, bool isDebug);
+  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
 
   void ParseOptions(int argc, char **argv, std::string &fileName);
 
@@ -192,7 +192,7 @@ class MeOption : public MapleDriverOptionBase {
   static bool skipVirtualMethod;
 #endif
  private:
-  void DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOptions) const;
+  void DecideMeRealLevel(const std::deque<mapleOption::Option> &inputOptions) const;
 };
 
 #ifndef DEBUGFUNC
