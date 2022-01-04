@@ -64,7 +64,7 @@ class CgFuncPM : public FunctionPM {
   void DoFuncCGLower(const MIRModule &m, MIRFunction &mirFunc);
   void DoPhasesPopulate(const MIRModule &m);
   /* Tool functions */
-  void DumpFuncCGIR(const CGFunc &f, const std::string& phaseName) const;
+  void DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const;
   /* For Emit */
   void InitProfile(MIRModule &m) const;
   void EmitGlobalInfo(MIRModule &m) const;
