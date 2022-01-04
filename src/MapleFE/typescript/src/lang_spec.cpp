@@ -44,6 +44,44 @@ bool StringToValueImpl::StringToBool(std::string &s) {
 
 bool StringToValueImpl::StringIsNull(std::string &s) {return false;}
 
+const char* StringToValueImpl::StringToString(std::string &in_str) {
+  std::string target;
+
+  // For most languages, the input 'in_str' still contains the leading " or ' and the
+  // ending " or '. They need to be removed.
+  std::string str;
+
+  // If empty string literal, return the empty 'target'.
+  if (in_str.size() == 2) {
+    const char *s = gStringPool.FindString(target);
+    return s;
+  } else {
+    str.assign(in_str, 1, in_str.size() - 2);
+  }
+
+  // For typescript, if a string literal is:
+  //    s : string = "abc \
+  //                   efg";
+  // The \ is actually connnecting the next line into the string literal.
+  // We need handle the connection.
+
+  std::string s_ret;
+  for (unsigned i = 0; i < str.length(); i++) {
+    char c = str[i];
+    if (c == '\\') {
+      if ((i < str.length() - 1) && (str[i+1] == '\n')) {
+        // skip \ and \n
+        i += 1;
+        continue;
+      }
+    }
+    s_ret.push_back(c);
+  }
+
+  const char *s = gStringPool.FindString(s_ret);
+  return s;
+}
+
 static char DeEscape(char c) {
   switch(c) {
   case 'b':
