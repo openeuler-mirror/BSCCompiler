@@ -89,13 +89,33 @@ LANGKEYWORD(async)
 
 LANGKEYWORD(global)
 
+// Utility Types
+LANGKEYWORD(Partial)
+LANGKEYWORD(Required)
+LANGKEYWORD(Readonly)
+LANGKEYWORD(Record)
+LANGKEYWORD(Pick)
+LANGKEYWORD(Omit)
+LANGKEYWORD(Exclude)
+LANGKEYWORD(Extract)
+LANGKEYWORD(NonNullable)
+LANGKEYWORD(Parameters)
+LANGKEYWORD(ConstructorParameters)
+LANGKEYWORD(ReturnType)
+LANGKEYWORD(InstanceType)
+LANGKEYWORD(ThisParameterType)
+LANGKEYWORD(OmitThisParameter)
+LANGKEYWORD(ThisType)
+LANGKEYWORD(Uppercase)
+LANGKEYWORD(Lowercase)
+LANGKEYWORD(Capitalize)
+LANGKEYWORD(Uncapitalize)
+
+LANGKEYWORD(Error)
+
 // extra
 
 LANGKEYWORD(console)
 LANGKEYWORD(log)
 
 LANGKEYWORD(null)
-
-LANGKEYWORD(Parameters)
-LANGKEYWORD(Error)
-LANGKEYWORD(NonNullable)
