@@ -33,6 +33,7 @@ public:
   bool   StringToBool(std::string &s);
   Char   StringToChar(std::string &s);
   bool   StringIsNull(std::string &s);
+  const char* StringToString(std::string &);
 };
 
 extern LitData ProcessLiteral(LitId type, const char *str);
