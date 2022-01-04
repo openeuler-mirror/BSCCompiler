@@ -227,7 +227,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("cgemit", true);
 }
 
-void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string& phaseName) const {
+void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const {
   if (CGOptions::DumpPhase(phaseName) && CGOptions::FuncFilter(f.GetName())) {
     LogInfo::MapleLogger() << "\n******** CG IR after " << phaseName << ": *********\n";
     f.DumpCGIR();
