@@ -95,9 +95,8 @@ bool CgFuncPM::FuncLevelRun(CGFunc &cgFunc, AnalysisDataManager &serialADM) {
     if (curPhase->IsAnalysis()) {
       changed |= RunAnalysisPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
     } else  {
-      DumpFuncCGIR(cgFunc, curPhase->PhaseName(), true);
       changed |= RunTransformPhase<MapleFunctionPhase<CGFunc>, CGFunc>(*curPhase, serialADM, cgFunc);
-      DumpFuncCGIR(cgFunc, curPhase->PhaseName(), false);
+      DumpFuncCGIR(cgFunc, curPhase->PhaseName());
     }
     SolveSkipAfter(CGOptions::GetSkipAfterPhase(), i);
   }
@@ -228,21 +227,9 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("cgemit", true);
 }
 
-void CgFuncPM::DumpFuncCGIR(CGFunc &f, const std::string phaseName, bool isBefore) {
-  bool dumpFunc = CGOptions::FuncFilter(f.GetName());
-  bool dumpPhase = IS_STR_IN_SET(CGOptions::GetDumpPhases(), phaseName);
-  if (CGOptions::IsDumpBefore() && dumpFunc && dumpPhase && isBefore) {
-    LogInfo::MapleLogger() << "******** CG IR Before " << phaseName << ": *********" << "\n";
-    f.DumpCGIR();
-    return;
-  }
-  bool dumpPhases = CGOptions::DumpPhase(phaseName);
-  if (((CGOptions::IsDumpAfter() && dumpPhase) || dumpPhases) && dumpFunc && !isBefore) {
-    if (phaseName == "buildehfunc") {
-      LogInfo::MapleLogger() << "******** Maple IR After buildehfunc: *********" << "\n";
-      f.GetFunction().Dump();
-    }
-    LogInfo::MapleLogger() << "******** CG IR After " << phaseName << ": *********" << "\n";
+void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string& phaseName) const {
+  if (CGOptions::DumpPhase(phaseName) && CGOptions::FuncFilter(f.GetName())) {
+    LogInfo::MapleLogger() << "\n******** CG IR after " << phaseName << ": *********\n";
     f.DumpCGIR();
   }
 }
