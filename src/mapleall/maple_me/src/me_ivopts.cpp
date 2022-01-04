@@ -1344,13 +1344,21 @@ int64 IVOptimizer::ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep) {
   FindScalarFactor(candStep, candMap, 1);
   FindScalarFactor(groupStep, groupMap, 1);
   int64 commonRatio = 0;
-  for (auto &itCand : candMap) {
-    if (itCand.first == kInvalidExprID) {
-      continue;
+  for (auto &itGroup : groupMap) {
+    auto itCand = candMap.find(itGroup.first);
+    if (itCand == candMap.end()) {
+      return 0;
     }
+  }
+  for (auto &itCand : candMap) {
     auto itGroup = groupMap.find(itCand.first);
     if (itGroup == groupMap.end()) {
+      return 0;
+    }
+    if (itGroup->second.second == 0 && itCand.second.second == 0) {
       continue;
+    } else if (itCand.second.second == 0) {
+      return kInfinityCost;
     }
     int64 remainder = itGroup->second.second % itCand.second.second;
     if (remainder != 0) {
@@ -2085,7 +2093,8 @@ void IVOptimizer::UseReplace() {
       }
       ASSERT(replaced, "should have been replaced");
       auto realUseType = replace->GetPrimType();
-      if (use->expr->GetMeOp() == kMeOpOp && static_cast<OpMeExpr*>(use->expr)->GetOpndType() != kPtyInvalid) {
+      if (IsCompareHasReverseOp(use->expr->GetOp()) &&
+          static_cast<OpMeExpr*>(use->expr)->GetOpndType() != kPtyInvalid) {
         realUseType = static_cast<OpMeExpr*>(use->expr)->GetOpndType();
       }
       if (extraExpr != nullptr) {
