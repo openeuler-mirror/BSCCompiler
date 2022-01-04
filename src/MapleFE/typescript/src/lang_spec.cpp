@@ -478,7 +478,7 @@ bool TypescriptParser::TokenSplit(Token *t) {
   if (!type_arg->IsIdentifier())
     return false;
 
-  Token *extends_token = mLexer->FindKeywordToken("extends");
+  Token *extends_token = FindKeywordToken("extends");
 
   Token *lt = mActiveTokens.ValueAtIndex(size - 2);
 
@@ -494,8 +494,8 @@ bool TypescriptParser::TokenSplit(Token *t) {
   }
 
   // Now we got a matching case.
-  Token *gt_token = mLexer->FindOperatorToken(OPR_GT);
-  Token *assign_token = mLexer->FindOperatorToken(OPR_Assign);
+  Token *gt_token = FindOperatorToken(OPR_GT);
+  Token *assign_token = FindOperatorToken(OPR_Assign);
   mActiveTokens.PushBack(gt_token);
   mActiveTokens.PushBack(assign_token);
 
