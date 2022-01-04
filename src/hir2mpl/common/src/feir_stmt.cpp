@@ -3774,7 +3774,7 @@ void FEIRExprAtomic::ProcessAtomicBinary(MIRBuilder &mirBuilder, BlockNode &bloc
     opcode = OP_band;
   } else if (atomicOp == kAtomicBinaryOpOr) {
     opcode = OP_bior;
-  } else if (atomicOp == kAtomicBinaryOpOr) {
+  } else if (atomicOp == kAtomicBinaryOpXor) {
     opcode = OP_bxor;
   } else {
   }
