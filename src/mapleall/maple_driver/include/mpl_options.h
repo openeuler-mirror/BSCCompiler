@@ -217,6 +217,16 @@ public:
     compilerTool = compiler;
   }
 
+  bool IsItFirstRealAction() const {
+    /* First action is always "Input".
+     * But first real  action will be a tool from kMapleCompilers.
+     */
+    if (inputActions.size() > 0 && inputActions[0]->tool == "input") {
+      return true;
+    }
+    return false;
+  }
+
 private:
   const InputInfo *inputInfo;
 
@@ -284,7 +294,7 @@ class MplOptions {
 
   int Parse(int argc, char **argv);
 
-  const std::map<std::string, std::vector<mapleOption::Option>> &GetExeOptions() const {
+  const std::map<std::string, std::deque<mapleOption::Option>> &GetExeOptions() const {
     return exeOptions;
   }
 
@@ -380,7 +390,7 @@ class MplOptions {
     return rootActions;
   }
 
-  const std::vector<mapleOption::Option> &GetOptions() const {
+  const std::deque<mapleOption::Option> &GetOptions() const {
     return optionParser->GetOptions();
   }
 
@@ -423,7 +433,7 @@ class MplOptions {
   void DumpActionTree() const;
   std::unique_ptr<mapleOption::OptionParser> optionParser = nullptr;
   std::map<std::string, std::vector<mapleOption::Option>> options = {};
-  std::map<std::string, std::vector<mapleOption::Option>> exeOptions = {};
+  std::map<std::string, std::deque<mapleOption::Option>> exeOptions = {};
   std::string inputFiles = "";
   std::string exeFolder = "";
   std::string mpltFile = "";
