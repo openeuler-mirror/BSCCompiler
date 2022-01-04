@@ -135,68 +135,6 @@ void Lexer::PrepareForString(const char *str) {
   endoffile = false;
 }
 
-///////////////////////////////////////////////////////////////////////////
-//                Utilities for finding system tokens
-// Remember the order of tokens are operators, separators, and keywords.
-///////////////////////////////////////////////////////////////////////////
-
-Token* Lexer::FindOperatorToken(OprId id) {
-  Token *token = NULL;
-  bool found = false;
-  for (unsigned i = 0; i < gOperatorTokensNum; i++) {
-    token = &gSystemTokens[i];
-    MASSERT(token->mTkType == TT_OP);
-    if (token->GetOprId() == id) {
-      found = true;
-      break;
-    }
-  }
-  MASSERT(found && token);
-  return token;
-}
-
-Token* Lexer::FindSeparatorToken(SepId id) {
-  Token *token = NULL;
-  bool found = false;
-  for (unsigned i = gOperatorTokensNum; i < gOperatorTokensNum + gSeparatorTokensNum; i++) {
-    token = &gSystemTokens[i];
-    MASSERT(token->mTkType == TT_SP);
-    if (token->GetSepId() == id) {
-      found = true;
-      break;
-    }
-  }
-  MASSERT(found && token);
-  return token;
-}
-
-// The caller of this function makes sure 'key' is already in the
-// string pool of Lexer.
-Token* Lexer::FindKeywordToken(const char *key) {
-  Token *token = NULL;
-  bool found = false;
-  for (unsigned i = gOperatorTokensNum + gSeparatorTokensNum;
-       i < gOperatorTokensNum + gSeparatorTokensNum + gKeywordTokensNum;
-       i++) {
-    token = &gSystemTokens[i];
-    MASSERT(token->mTkType == TT_KW);
-    if (strlen(key) == strlen(token->GetName()) &&
-        !strncmp(key, token->GetName(), strlen(key))) {
-      found = true;
-      break;
-    }
-  }
-  MASSERT(found && token);
-  return token;
-}
-
-// CommentToken is the last predefined token
-Token* Lexer::FindCommentToken() {
-  Token *token = &gSystemTokens[gSystemTokensNum - 1];
-  MASSERT((token->mTkType == TT_CM) && "Last system token is not a comment token.");
-  return token;
-}
-
 /////////////////////////////////////////////////////////////////////////////
 // Both ClearLeadingNewLine() and AddEndingNewLine() will later be implemented
 // as language specific, and they will be overriding functions.
