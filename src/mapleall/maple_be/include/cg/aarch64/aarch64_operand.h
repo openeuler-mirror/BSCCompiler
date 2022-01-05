@@ -719,18 +719,18 @@ class AArch64MemOperand : public MemOperand {
     int32 alignment = GetImmediateOffsetAlignment(dSize);
     /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
     ASSERT(alignment >= kOffsetAlignmentOf8Bit, "error val:alignment");
-    ASSERT(alignment <= kOffsetAlignmentOf64Bit, "error val:alignment");
+    ASSERT(alignment <= kOffsetAlignmentOf128Bit, "error val:alignment");
     return (kMaxPimm[alignment]);
   }
 
   static int32 GetMaxPairPIMM(uint32 dSize) {
     ASSERT(dSize >= k32BitSize, "error val:dSize");
-    ASSERT(dSize <= k64BitSize, "error val:dSize");
+    ASSERT(dSize <= k128BitSize, "error val:dSize");
     ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
     int32 alignment = GetImmediateOffsetAlignment(dSize);
     /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
     ASSERT(alignment >= kOffsetAlignmentOf32Bit, "error val:alignment");
-    ASSERT(alignment <= kOffsetAlignmentOf64Bit, "error val:alignment");
+    ASSERT(alignment <= kOffsetAlignmentOf128Bit, "error val:alignment");
     return (kMaxPairPimm[alignment - k2BitSize]);
   }
 
