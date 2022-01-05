@@ -98,4 +98,28 @@ std::string CppEmitter::GetQualifiedName(IdentifierNode *node) {
   return ns.empty() ? name : ns + "::"s + name;
 }
 
+// Returns true if identifier is a class
+bool CppEmitter::IsClassId(TreeNode* node) {
+  if (node == nullptr || !node->IsIdentifier())
+    return false;
+  if (auto decl = mHandler->FindDecl(static_cast<IdentifierNode*>(node), true)) { // deep, cross module lookup
+    if (decl->IsClass())
+      return true;
+    // TODO: handle type alias
+  }
+  return false;
+}
+
+// Returns true if the declared type of a var is a TS class
+bool CppEmitter::IsVarTypeClass(TreeNode* var) {
+  if (var == nullptr)
+    return false;
+  if (auto n = gTypeTable.GetTypeFromTypeIdx(var->GetTypeIdx())) {
+    if (n->IsClass())
+      return true;
+  }
+  return false;
+}
+
+
 } // namespace maplefe

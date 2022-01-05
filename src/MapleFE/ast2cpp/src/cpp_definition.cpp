@@ -406,7 +406,7 @@ std::string CppDef::EmitDirectFieldInit(std::string varName, StructLiteralNode* 
       auto lit = field->GetLiteral();
       std::string fieldName = EmitTreeNode(field->GetFieldName());
       std::string fieldVal = EmitTreeNode(lit);
-      if (false) // TODO: Check if it accesses a Cxx class field
+      if (mHandler->IsCppField(field)) // Check if it accesses a Cxx class field
         str += tab(1) + varName + "->"s + fieldName + " = "s + fieldVal + ";\n"s;
       else
         str += tab(1) + "(*"s + varName + ")[\""s + fieldName + "\"] = "s + fieldVal + ";\n"s;
@@ -415,7 +415,7 @@ std::string CppDef::EmitDirectFieldInit(std::string varName, StructLiteralNode* 
   return str;
 }
 
-std::string CppDef::EmitObjPropInit(std::string varName, TreeNode* varIdType, StructLiteralNode* node) {
+std::string CppDef::EmitObjPropInit(TreeNode* var, std::string varName, TreeNode* varIdType, StructLiteralNode* node) {
   if (varName.empty())
     return std::string();
 
@@ -426,11 +426,10 @@ std::string CppDef::EmitObjPropInit(std::string varName, TreeNode* varIdType, St
   if (userType == nullptr) {
     // no type info - create instance of builtin t2crt::Object with proplist
     str = varName+ " = t2crt::Object_ctor._new("s + EmitTreeNode(node) + ")"s;
-  } else if (IsClassId(userType->GetId())) {
-    // user def class type
+  } else if (IsVarTypeClass(var)) {
+    // init var of type TS class
     // - create obj instance of user defined class and do direct field access init
     // - todo: handle class with generics
-    // - todo: generate addprop instead of direct field access if prop is not a field in class decl
     str = varName+ " = "s +userType->GetId()->GetName()+ "_ctor._new();\n"s;
     str += EmitDirectFieldInit(varName, node);
   } else {
@@ -526,7 +525,7 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
     if (n->IsArrayLiteral())
       str += varStr + " = " + EmitArrayLiteral(idType, n);
     else if (n->IsStructLiteral())
-      str += EmitObjPropInit(varStr, idType, static_cast<StructLiteralNode*>(n));
+      str += EmitObjPropInit(node->GetVar(), varStr, idType, static_cast<StructLiteralNode*>(n));
     else if (node->GetVar()->IsIdentifier() && n->IsIdentifier() && n->IsTypeIdClass())
       str += varStr + "= &"s + n->GetName() + "_ctor"s;           // init with ctor address
     else if (n->IsFunction()) {
@@ -979,18 +978,6 @@ std::string CppDef::EmitBracketNotationProp(ArrayElementNode* ae, OprId binOpId,
     // Need type info for each property
   }
   return str;
-}
-
-// return true if identifier is a class
-bool CppDef::IsClassId(TreeNode* node) {
-  if (node != nullptr &&
-      node->IsIdentifier() &&
-      node->IsTypeIdClass() &&
-      mHandler->FindDecl(static_cast<IdentifierNode*>(node)) &&
-      mHandler->FindDecl(static_cast<IdentifierNode*>(node))->IsClass())
-    return true;
-  else
-    return false;
 }
 
 std::string CppDef::EmitBinOperatorNode(BinOperatorNode *node) {

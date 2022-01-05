@@ -31,6 +31,8 @@ public:
   bool IsInNamespace(TreeNode *node);
   std::string GetNamespace(TreeNode *node);
   std::string GetQualifiedName(IdentifierNode *node);
+  bool IsClassId(TreeNode *node);
+  bool IsVarTypeClass(TreeNode* var);
 };
 
 } // namespace maplefe
