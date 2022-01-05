@@ -84,6 +84,23 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
   }
 }
 
+bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) {
+  auto *td = srcType->getAsTagDecl();
+  if (td != nullptr && td->hasAttr<clang::MayAliasAttr>()) {
+    return true;
+  }
+
+  clang::QualType qualType = srcType;
+  while (auto *tt = qualType->getAs<clang::TypedefType>()) {
+    if (tt->getDecl()->hasAttr<clang::MayAliasAttr>()) {
+      return true;
+    }
+    qualType = tt->desugar();
+  }
+
+  return false;
+}
+
 MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {
@@ -113,6 +130,13 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (IsOneElementVector(srcPteType)) {
       attrs.SetAttr(ATTR_oneelem_simd);
     }
+
+    // Currently, only the pointer type is needed to handle may alias.
+    // The input parameter must be the raw pointee type.
+    if (TypeHasMayAlias(qualType->getPointeeType())) {
+      attrs.SetAttr(ATTR_may_alias);
+    }
+
     MIRPtrType *prtType;
     if (attrs == TypeAttrs()) {
       prtType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
