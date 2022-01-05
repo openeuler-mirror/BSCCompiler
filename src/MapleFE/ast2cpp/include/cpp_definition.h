@@ -69,7 +69,7 @@ public:
   std::string EmitFuncScopeVarDecls(FunctionNode *node);
   std::string EmitStructNode(StructNode *node);
   std::string EmitStructLiteralNode(StructLiteralNode* node);
-  std::string EmitObjPropInit(std::string varName, TreeNode* idType, StructLiteralNode* n);
+  std::string EmitObjPropInit(TreeNode* var, std::string varName, TreeNode* idType, StructLiteralNode* n);
   std::string EmitDirectFieldInit(std::string varName, StructLiteralNode* node);
   std::string EmitCppCtor(ClassNode* node);
   std::string EmitCtorInstance(ClassNode *c);
@@ -79,7 +79,6 @@ public:
   std::string EmitArrayLiterals(TreeNode* arrLiteral, int dim, std::string type);
   TypeId GetTypeIdFromDecl(TreeNode* id);
   bool   IsClassField(ArrayElementNode* node, std::string propKey);
-  bool   IsClassId(TreeNode* node);
   std::string GetTypeForTemplateArg(TreeNode* node);
   TreeNode*   FindDeclType(TreeNode* node);
   std::string GetThisParamObjType(TreeNode *node);
