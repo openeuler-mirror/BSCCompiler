@@ -1316,29 +1316,7 @@ void ValueRangePropagation::PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pre
   int index = bb.GetPredIndex(pred);
   CHECK_FATAL(index != -1, "pred is not in preds of bb");
   InsertOstOfPhi2Cands(bb, index);
-  // Insert the ost of philist to bb.
-  for (auto &it : bb.GetMePhiList()) {
-    MeSSAUpdate::InsertOstToSSACands(it.first, bb, &cands);
-  }
-  // Insert the ost of def points to the def bbs.
-  for (auto &meStmt : bb.GetMeStmts()) {
-    if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
-      MeSSAUpdate::InsertOstToSSACands(meStmt.GetLHS()->GetOstIdx(), bb, &cands);
-    }
-    if (meStmt.GetChiList() != nullptr) {
-      for (auto &chi : *meStmt.GetChiList()) {
-        auto *lhs = chi.second->GetLHS();
-        const OStIdx &ostIdx = lhs->GetOstIdx();
-        MeSSAUpdate::InsertOstToSSACands(ostIdx, bb, &cands);
-      }
-    }
-    if (meStmt.GetMustDefList() != nullptr) {
-      for (auto &mustDefNode : *meStmt.GetMustDefList()) {
-        const ScalarMeExpr *lhs = static_cast<const ScalarMeExpr*>(mustDefNode.GetLHS());
-        MeSSAUpdate::InsertOstToSSACands(lhs->GetOstIdx(), bb, &cands);
-      }
-    }
-  }
+  MeSSAUpdate::InsertDefPointsOfBBToSSACands(bb, cands);
 }
 
 void ValueRangePropagation::DeleteUnreachableBBs() {
