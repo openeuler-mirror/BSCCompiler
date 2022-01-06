@@ -1587,10 +1587,11 @@ uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
     return (cost / data->iterNum) + (extraExpr->IsLeaf() ? 0 : kRegCost) + addressCost;
   } else if (group.type == kUseCompare) {
     if (extraExpr == nullptr) {
-      return (ratio == 1 ? 0 : mulCost + kRegCost);
+      return ((ratio == 1 || ratio == -1) ? 0 : mulCost + kRegCost);
     }
     uint32 cost = ComputeExprCost(*extraExpr);
-    return (cost / data->iterNum) + (ratio == 1 ? 0 : mulCost + kRegCost * 2);
+    auto isEqNe = group.uses[0]->expr->GetOp() == OP_eq || group.uses[0]->expr->GetOp() == OP_ne;
+    return (cost / data->iterNum) + ((ratio == 1 || (ratio == -1 && isEqNe)) ? 0 : mulCost + kRegCost * 2);
   }
   return kInfinityCost;
 }
@@ -2042,6 +2043,13 @@ void IVOptimizer::UseReplace() {
               } else {
                 extraExpr = invariables[extraExpr->GetExprID()];
               }
+              if (ratio == -1) {
+                extraExpr = irMap->CreateMeExprBinary(OP_mul, extraExpr->GetPrimType(), *extraExpr,
+                                                      *irMap->CreateIntConstMeExpr(-1, extraExpr->GetPrimType()));
+                ratio = 1;
+                simplified = irMap->SimplifyMeExpr(extraExpr);
+                if (simplified != nullptr) { extraExpr = simplified; }
+              }
               auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->comparedExpr, *extraExpr);
               (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
               use->expr = tmp;
@@ -2142,10 +2150,23 @@ void IVOptimizer::UseReplace() {
       } else {
         replace = irMap->CreateMeExprBinary(OP_mul, realUseType, *replace,
                                             *irMap->CreateIntConstMeExpr(ratio, replace->GetPrimType()));
-        replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
-        simplified = irMap->SimplifyMeExpr(replace);
-        if (simplified != nullptr) {
-          replace = simplified;
+        if (replaceCompare) {
+          auto *regExtra = static_cast<RegMeExpr*>(extraExpr);
+          auto *tmpReplace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(),
+                                                       *regExtra->GetDefStmt()->GetRHS(), *replace);
+          simplified = irMap->SimplifyMeExpr(tmpReplace);
+          if (simplified != nullptr) { tmpReplace = simplified; }
+          if (tmpReplace->GetDepth() <= regExtra->GetDefStmt()->GetRHS()->GetDepth()) {
+            replace = tmpReplace;
+          } else {
+            replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
+            simplified = irMap->SimplifyMeExpr(replace);
+            if (simplified != nullptr) { replace = simplified; }
+          }
+        } else {
+          replace = irMap->CreateMeExprBinary(OP_add, replace->GetPrimType(), *extraExpr, *replace);
+          simplified = irMap->SimplifyMeExpr(replace);
+          if (simplified != nullptr) { replace = simplified; }
         }
       }
       if (replaceCompare) {
