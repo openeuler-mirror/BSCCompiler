@@ -73,6 +73,11 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
           parent->hasOtherCtrlFlow = true;
         }
         break;
+      case OP_label:
+        if (parent) {
+          parent->hasLabels = true;
+        }
+        break;
       default:
         break;
     }

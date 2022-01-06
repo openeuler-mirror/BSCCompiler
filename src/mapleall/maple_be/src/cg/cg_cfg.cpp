@@ -686,6 +686,37 @@ void CGCFG::UnreachCodeAnalysis() {
   }
 }
 
+void CGCFG::FindWillExitBBs(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs) {
+  if (visitedBBs->count(bb) != 0) {
+    return;
+  }
+  visitedBBs->insert(bb);
+  for (BB *predbb : bb->GetPreds()) {
+    FindWillExitBBs(predbb, visitedBBs);
+  }
+}
+
+/*
+ * analyse the CFG to find the BBs that will not reach any function exit; these
+ * are BBs inside infinite loops; mark their wontExit flag and create
+ * artificial edges from them to commonExitBB
+ */
+void CGCFG::WontExitAnalysis() {
+  std::set<BB*, BBIdCmp> visitedBBs;
+  FindWillExitBBs(cgFunc->GetCommonExitBB(), &visitedBBs);
+  BB *bb = cgFunc->GetFirstBB();
+  while (bb != nullptr) {
+    if (visitedBBs.count(bb) == 0) {
+      bb->SetWontExit(true);
+      if (bb->GetKind() == BB::kBBGoto || bb->GetKind() == BB::kBBThrow) {
+        // make this bb a predecessor of commonExitBB
+        cgFunc->GetCommonExitBB()->PushBackPreds(*bb);
+      }
+    }
+    bb = bb->GetNext();
+  }
+}
+
 BB *CGCFG::FindLastRetBB() {
   FOR_ALL_BB_REV(bb, cgFunc) {
     if (bb->GetKind() == BB::kBBReturn) {
