@@ -30,22 +30,31 @@ class MapleASTParser {
       : fileIdx(fileIdxIn), fileName(fileNameIn),
         globalVarDecles(allocatorIn.Adapter()), funcDecles(allocatorIn.Adapter()),
         astStructs(astStructsIn), astFuncs(astFuncsIn),
-        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn) {}
+        astVars(astVarsIn), astFileScopeAsms(astFileScopeAsmsIn),
+        astFuncMap(allocatorIn.Adapter()) {}
   virtual ~MapleASTParser() = default;
   bool OpenFile();
   const uint32 GetFileIdx() const;
   bool Verify() const;
   bool PreProcessAST();
 
+  std::list<ASTDecl*> ProcessDeclNode(MapleAllocator &allocator, maplefe::DeclNode *decl);
   ASTDecl *ProcessDecl(MapleAllocator &allocator, maplefe::TreeNode *decl);
 #define MAPLE_PROCESS_DECL(CLASS) ProcessDecl##CLASS##Node(MapleAllocator &allocator, maplefe::CLASS##Node*)
   ASTDecl *MAPLE_PROCESS_DECL(Function);
   ASTDecl *MAPLE_PROCESS_DECL(Identifier);
-  ASTDecl *MAPLE_PROCESS_DECL(Decl);
 
   ASTStmt *ProcessStmt(MapleAllocator &allocator, maplefe::TreeNode *stmt);
 #define MAPLE_PROCESS_STMT(CLASS) ProcessStmt##CLASS##Node(MapleAllocator&, maplefe::CLASS##Node*)
   ASTStmt *MAPLE_PROCESS_STMT(Block);
+  ASTStmt *MAPLE_PROCESS_STMT(Decl);
+  ASTStmt *MAPLE_PROCESS_STMT(Return);
+
+  ASTExpr *ProcessExpr(MapleAllocator &allocator, maplefe::TreeNode *expr);
+#define MAPLE_PROCESS_EXPR(CLASS) ProcessExpr##CLASS##Node(MapleAllocator&, maplefe::CLASS##Node*)
+  ASTExpr *MAPLE_PROCESS_EXPR(Literal);
+  ASTExpr *MAPLE_PROCESS_EXPR(Call);
+  ASTExpr *MAPLE_PROCESS_EXPR(Identifier);
 
   bool RetrieveStructs(MapleAllocator &allocator);
   bool RetrieveFuncs(MapleAllocator &allocator);
@@ -62,6 +71,7 @@ class MapleASTParser {
   MapleList<ASTFunc*> &astFuncs;
   MapleList<ASTVar*> &astVars;
   MapleList<ASTFileScopeAsm*> &astFileScopeAsms;
+  MapleMap<uint32, ASTFunc*> astFuncMap;
 };
 } // namespace maple
 #endif // MAPLE_AST_PARSER_H

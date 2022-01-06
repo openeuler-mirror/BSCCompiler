@@ -49,7 +49,6 @@ config("mapleallcompilecfg") {
     ldflags = []
     ldflags += [
       "-fPIC",
-      "-std=c++14",
       "-rdynamic",
       "-lpthread",
       "-Wl,-z,relro",

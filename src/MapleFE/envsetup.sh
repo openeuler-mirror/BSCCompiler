@@ -19,7 +19,7 @@ fi
 
 function print_usage {
   echo " "
-  echo "usage: source envsetup.sh java/typescript"
+  echo "usage: source envsetup.sh java/typescript/c"
   echo " "
 }
 
@@ -33,6 +33,8 @@ LANGSRC=java
 if [ "$#" -eq 1 ]; then
   if [ $1 = "typescript" ]; then
     LANGSRC=typescript
+  elif [ $1 = "c" ]; then
+    LANGSRC=c
   fi
 fi
 export SRCLANG=$LANGSRC

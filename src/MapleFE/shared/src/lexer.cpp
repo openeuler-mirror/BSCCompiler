@@ -135,6 +135,25 @@ void Lexer::PrepareForString(const char *str) {
   endoffile = false;
 }
 
+// The caller of this function makes sure 'key' is already in the
+// string pool of Lexer.
+Token* Lexer::FindPreprocessorKeywordToken(const char *key) {
+  Token *token = NULL;
+  bool found = false;
+  for (unsigned i = gOperatorTokensNum + gSeparatorTokensNum + gKeywordTokensNum;
+       i < gOperatorTokensNum + gSeparatorTokensNum + gKeywordTokensNum + gPreprocessorKeywordTokensNum;
+       i++) {
+    token = &gSystemTokens[i];
+    MASSERT(token->mTkType == TT_PKW);
+    if (strlen(key) == strlen(token->GetName()) &&
+        !strncmp(key, token->GetName(), strlen(key))) {
+      found = true;
+      break;
+    }
+  }
+  return found && token ? token : NULL;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Both ClearLeadingNewLine() and AddEndingNewLine() will later be implemented
 // as language specific, and they will be overriding functions.

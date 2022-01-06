@@ -84,6 +84,23 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
   }
 }
 
+bool LibAstFile::TypeHasMayAlias(const clang::QualType srcType) {
+  auto *td = srcType->getAsTagDecl();
+  if (td != nullptr && td->hasAttr<clang::MayAliasAttr>()) {
+    return true;
+  }
+
+  clang::QualType qualType = srcType;
+  while (auto *tt = qualType->getAs<clang::TypedefType>()) {
+    if (tt->getDecl()->hasAttr<clang::MayAliasAttr>()) {
+      return true;
+    }
+    qualType = tt->desugar();
+  }
+
+  return false;
+}
+
 MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
   clang::QualType srcType = qualType.getCanonicalType();
   if (srcType.isNull()) {
@@ -113,14 +130,19 @@ MIRType *LibAstFile::CvtType(const clang::QualType qualType) {
     if (IsOneElementVector(srcPteType)) {
       attrs.SetAttr(ATTR_oneelem_simd);
     }
+
+    // Currently, only the pointer type is needed to handle may alias.
+    // The input parameter must be the raw pointee type.
+    if (TypeHasMayAlias(qualType->getPointeeType())) {
+      attrs.SetAttr(ATTR_may_alias);
+    }
+
     MIRPtrType *prtType;
     if (attrs == TypeAttrs()) {
       prtType = static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType));
     } else {
-      std::vector<TypeAttrs> attrsVec;
-      attrsVec.push_back(attrs);
       prtType = static_cast<MIRPtrType*>(
-          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrsVec));
+          GlobalTables::GetTypeTable().GetOrCreatePointerType(*mirPointeeType, PTY_ptr, attrs));
     }
     return prtType;
   }
@@ -209,7 +231,7 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
       }
       sizeArray = tempSizeArray;
     }
-    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray);
+    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*elemType, dim, sizeArray, elemAttrs);
   } else {
     bool asFlag = srcType->isIncompleteArrayType();
     CHECK_FATAL(asFlag, "Incomplete Array Type");
@@ -217,10 +239,9 @@ MIRType *LibAstFile::CvtArrayType(const clang::QualType srcType) {
   }
 
   if (srcType->isIncompleteArrayType()) {
-    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*retType, 1);
-  }
-  if (retType->GetKind() == kTypeArray) {
-    static_cast<MIRArrayType*>(retType)->SetTypeAttrs(elemAttrs);
+    // For an incomplete array type, assume a length of 1. If enable MIRFarrayType, delete ATTR_incomplete_array
+    elemAttrs.SetAttr(ATTR_incomplete_array);
+    retType = GlobalTables::GetTypeTable().GetOrCreateArrayType(*retType, 1, elemAttrs);
   }
   return retType;
 }

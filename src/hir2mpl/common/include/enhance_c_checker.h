@@ -31,6 +31,7 @@ class ENCChecker {
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const ASTExpr *initExpr);
   static void CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIRExpr &initFEExpr,
                                        std::list<UniqueFEIRStmt> &stmts);
+  static std::string GetNthStr(size_t index);
   static std::string PrintParamIdx(const std::list<size_t> &idxs);
   static void CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                uint32 fileNum, uint32 fileLine);
@@ -39,7 +40,8 @@ class ENCChecker {
   static bool IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2);
   static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                 uint32 fileNum, uint32 fileLine);
-  static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr);
+  static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr, bool isIncludingAddrof = false);
+  static MIRType *GetTypeFromAddrExpr(const UniqueFEIRExpr &expr);
   static MIRType *GetArrayTypeFromExpr(const UniqueFEIRExpr &expr);
   static MIRConst *GetMIRConstFromExpr(const UniqueFEIRExpr &expr);
   static void AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &dstExpr, const UniqueFEIRExpr &srcExpr,
@@ -67,7 +69,8 @@ class ENCChecker {
   static UniqueFEIRExpr GetGlobalOrFieldLenExprInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
   static void InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
                                            const UniqueFEIRExpr &srcExpr, uint32 fileIdx, uint32 fileLine);
-  static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr);
+  static UniqueFEIRStmt InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr,
+                                                 const UniqueFEIRExpr &dstExpr);
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
                                           uint32 fileIdx, uint32 fileLine);
   static void CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
@@ -81,6 +84,8 @@ class ENCChecker {
   static void InsertBoundaryLenExprInAtts(TypeAttrs &attr, const UniqueFEIRExpr &expr);
   static void InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boundary);
   static void InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &boundary);
+  static bool IsSafeRegion(MIRBuilder &mirBuilder);
+  static bool IsUnsafeRegion(MIRBuilder &mirBuilder);
 };  // class ENCChecker
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_ENCCHECKER_H

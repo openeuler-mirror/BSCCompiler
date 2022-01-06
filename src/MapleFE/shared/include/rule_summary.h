@@ -48,6 +48,7 @@ extern unsigned gSystemTokensNum;
 extern unsigned gOperatorTokensNum;
 extern unsigned gSeparatorTokensNum;
 extern unsigned gKeywordTokensNum;
+extern unsigned gPreprocessorKeywordTokensNum;
 extern Token gSystemTokens[];
 extern unsigned gAltTokensNum;
 extern AltToken gAltTokens[];

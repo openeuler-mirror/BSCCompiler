@@ -91,27 +91,16 @@ MIRType *LibMapleAstFile::MapType(maplefe::TreeNode *type) {
   }
 
   MIRType *mirType = nullptr;
-  unsigned idx = type->GetStrIdx();
-  if (typeMap.find(idx) != typeMap.end()) {
-    return typeMap[idx];
-  }
-
   if (type->IsPrimType()) {
     maplefe::PrimTypeNode *ptnode = static_cast<maplefe::PrimTypeNode*>(type);
     mirType = MapPrimType(ptnode);
-    typeMap[idx] = mirType;
   } else if (type->IsUserType()) {
     if (type->IsIdentifier()) {
       maplefe::IdentifierNode *inode = static_cast<maplefe::IdentifierNode*>(type);
       mirType = MapType(inode->GetType());
-    } else if (type->IsLiteral()) {
-      CHECK_FATAL(false, "MapType IsUserType IsLiteral");
     } else {
       CHECK_FATAL(false, "MapType IsUserType");
     }
-    typeMap[idx] = mirType;
-  } else if (idx) {
-    CHECK_FATAL(false, "MapType unknown type");
   } else {
     CHECK_FATAL(false, "MapType unknown type");
   }

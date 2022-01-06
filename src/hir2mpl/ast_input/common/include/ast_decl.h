@@ -40,6 +40,7 @@ enum DeclKind {
 struct BoundaryInfo {
   ASTExpr *lenExpr = nullptr;
   int8 lenParamIdx = -1;  // -1 means not on the parameter
+  bool isBytedLen = false;
 };
 
 class ASTDecl {
@@ -140,6 +141,14 @@ class ASTDecl {
 
   int8 GetBoundaryLenParamIdx() const {
     return boundary.lenParamIdx;
+  }
+
+  void SetIsBytedLen(bool flag) {
+    boundary.isBytedLen = flag;
+  }
+
+  bool IsBytedLen() const {
+    return boundary.isBytedLen;
   }
 
  protected:

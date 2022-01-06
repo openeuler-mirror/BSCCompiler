@@ -321,11 +321,11 @@ std::list<StmtNode*> FEIRStmtDAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
                 "If fieldID is not 0, then the variable must be a structure");
   }
   InsertNonnullChecking(mirBuilder, *dstSym, ans);
-  CheckNonnullArgsAndRetForFuncPtr();
-  CheckBoundaryArgsAndRetForFuncPtr();
+  CheckNonnullArgsAndRetForFuncPtr(mirBuilder);
+  AssignBoundaryVarAndChecking(mirBuilder, ans);
+  CheckBoundaryArgsAndRetForFuncPtr(mirBuilder);
   StmtNode *mirStmt = mirBuilder.CreateStmtDassign(*dstSym, fieldID, srcNode);
   ans.push_back(mirStmt);
-  AssignBoundaryVarAndChecking(mirBuilder, ans);
   ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, var, fieldID, srcFileIndex, srcFileLineNum);
   ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
   return ans;
@@ -1871,8 +1871,9 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, index + 1);
+    FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
+           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+           ENCChecker::GetNthStr(index).c_str());
     return;
   }
   if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
@@ -1986,8 +1987,9 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
       continue;
     }
     if (ENCChecker::HasNullExpr(expr)) {
-      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument, idx: %d",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum, idx + 1);
+      FE_ERR(kLncErr, "%s:%d error: null passed to a callee that requires a nonnull argument[the %s argument]",
+             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+             ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
     if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
@@ -3772,7 +3774,7 @@ void FEIRExprAtomic::ProcessAtomicBinary(MIRBuilder &mirBuilder, BlockNode &bloc
     opcode = OP_band;
   } else if (atomicOp == kAtomicBinaryOpOr) {
     opcode = OP_bior;
-  } else if (atomicOp == kAtomicBinaryOpOr) {
+  } else if (atomicOp == kAtomicBinaryOpXor) {
     opcode = OP_bxor;
   } else {
   }
@@ -4173,12 +4175,12 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
     CHECK_FATAL((baseType->GetKind() == MIRTypeKind::kTypeStruct || baseType->GetKind() == MIRTypeKind::kTypeUnion),
                 "If fieldID is not 0, then the computed address must correspond to a structure");
     InsertNonnullChecking(mirBuilder, *baseType, ans);
-    CheckNonnullArgsAndRetForFuncPtr(*baseType);
-    CheckBoundaryArgsAndRetForFuncPtr(*baseType);
+    CheckNonnullArgsAndRetForFuncPtr(mirBuilder, *baseType);
+    CheckBoundaryArgsAndRetForFuncPtr(mirBuilder, *baseType);
   }
+  AssignBoundaryVarAndChecking(mirBuilder, ans);
   IassignNode *iAssignNode = mirBuilder.CreateStmtIassign(*mirType, fieldID, addrNode, baseNode);
   ans.emplace_back(iAssignNode);
-  AssignBoundaryVarAndChecking(mirBuilder, ans);
   ENCChecker::CheckBoundaryLenFinalAssign(mirBuilder, addrType, fieldID, srcFileIndex, srcFileLineNum);
   ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, addrExpr, srcFileIndex, srcFileLineNum);
   return ans;
