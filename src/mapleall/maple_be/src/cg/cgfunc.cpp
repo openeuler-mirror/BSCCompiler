@@ -1414,7 +1414,7 @@ void CGFunc::GenerateInstruction() {
   for (StmtNode *stmt = secondStmt; stmt != nullptr; stmt = stmt->GetNext()) {
     /* insert Insn for .loc before cg for the stmt */
     GenerateLoc(stmt, lastSrcLoc, lastMplLoc);
-
+    BB *tmpBB = curBB;
     isVolLoad = false;
     if (CheckSkipMembarOp(*stmt)) {
       continue;
@@ -1445,6 +1445,9 @@ void CGFunc::GenerateInstruction() {
         volReleaseInsn = nullptr;
         isVolStore = false;
       }
+    }
+    if (curBB != tmpBB) {
+      lastSrcLoc = 0;
     }
   }
 
@@ -1735,7 +1738,6 @@ void CGFunc::UpdateCallBBFrequency() {
 void CGFunc::HandleFunction() {
   /* select instruction */
   GenerateInstruction();
-  CleanupDeadMov();
   /* merge multi return */
   if (!func.GetModule()->IsCModule() || CGOptions::DoRetMerge()) {
     MergeReturn();
@@ -1824,6 +1826,9 @@ void CGFunc::DumpCGIR() const {
   MIRSymbol *funcSt = GlobalTables::GetGsymTable().GetSymbolFromStidx(func.GetStIdx().Idx());
   LogInfo::MapleLogger() << "\n******  CGIR for " << funcSt->GetName() << " *******\n";
   FOR_ALL_BB_CONST(bb, this) {
+    if (bb->IsUnreachable()) {
+      continue;
+    }
     LogInfo::MapleLogger() << "=== BB " << " <" << bb->GetKindName();
     if (bb->GetLabIdx() != MIRLabelTable::GetDummyLabel()) {
       LogInfo::MapleLogger() << "[labeled with " << bb->GetLabIdx();

@@ -25,6 +25,11 @@ void CGSSAInfo::ConstructSSA() {
   RenameVariablesForBB(domInfo->GetCommonEntryBB().GetId());
 }
 
+void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
+  insnCount++;
+  insn.SetId(insnCount);
+}
+
 void CGSSAInfo::InsertPhiInsn() {
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb){
@@ -51,8 +56,7 @@ void CGSSAInfo::PrunedPhiInsertion(BB &bb, RegOperand &virtualOpnd) {
     if (phiBB->HasPhiInsn(vRegNO)) {
       continue;
     }
-    /* change to TESTBIT */
-    if (phiBB->GetLiveInRegNO().count(vRegNO) ) {
+    if (phiBB->GetLiveIn()->TestBit(vRegNO)) {
       CG *codeGen = cgFunc->GetCG();
       PhiOperand &phiList = codeGen->CreatePhiOperand(*memPool, ssaAlloc);
       /* do not insert phi opnd when insert phi insn? */
@@ -65,6 +69,7 @@ void CGSSAInfo::PrunedPhiInsertion(BB &bb, RegOperand &virtualOpnd) {
         }
       }
       Insn &phiInsn = codeGen->BuildPhiInsn(virtualOpnd, phiList);
+      MarkInsnsInSSA(phiInsn);
       phiBB->InsertInsnBegin(phiInsn);
       phiBB->AddPhiInsn(vRegNO, phiInsn);
       PrunedPhiInsertion(*phiBB, virtualOpnd);
@@ -86,22 +91,26 @@ void CGSSAInfo::RenameBB(BB &bb) {
   }
   AddRenamedBB(bb.GetId());
   /* record version stack size */
-  std::map<regno_t, uint32> oriStackSize;
+  size_t tempSize = vRegStk.empty() ? allSSAOperands.size() + cgFunc->GetFirstMapleIrVRegNO() + 1 :
+      vRegStk.rbegin()->first + 1;
+  std::vector<int32> oriStackSize(tempSize, -1);
   for (auto it : vRegStk) {
-    oriStackSize.emplace(it.first, it.second.size());
+    ASSERT(it.first < oriStackSize.size(), "out of range");
+    oriStackSize[it.first] = it.second.size();
   }
   RenamePhi(bb);
   FOR_BB_INSNS(insn, &bb) {
     if (!insn->IsMachineInstruction()) {
       continue;
     }
+    MarkInsnsInSSA(*insn);
     RenameInsn(*insn);
   }
   RenameSuccPhiUse(bb);
   RenameVariablesForBB(bb.GetId());
   /* stack pop up */
   for (auto &it : vRegStk) {
-    if (oriStackSize.count(it.first)) {
+    if (oriStackSize[it.first] >= 0) {
       while (it.second.size() > oriStackSize[it.first]) {
         ASSERT(!it.second.empty(), "empty stack");
         it.second.pop();
@@ -127,12 +136,12 @@ void CGSSAInfo::RenameSuccPhiUse(BB &bb) {
       CHECK_FATAL(phiInsn != nullptr, "get phi insn failed");
       Operand *phiListOpnd = &phiInsn->GetOperand(kInsnSecondOpnd);
       CHECK_FATAL(phiListOpnd->IsPhi(), "unexpect phi operand");
-      MapleMap<uint32, RegOperand*> &philist = static_cast<PhiOperand*>(phiListOpnd)->GetOperands();
-      ASSERT(philist.size() <= sucBB->GetPreds().size(), "unexpect phiList size need check");
-      for (auto phiOpndIt : philist) {
-        if (phiOpndIt.first == bb.GetId()) {
-          RegOperand *renamedOpnd = GetRenamedOperand(*(phiOpndIt.second), false, *phiInsn);
-          philist[phiOpndIt.first] = renamedOpnd;
+      MapleMap<uint32, RegOperand*> &phiList = static_cast<PhiOperand*>(phiListOpnd)->GetOperands();
+      ASSERT(phiList.size() <= sucBB->GetPreds().size(), "unexpect phiList size need check");
+      for (auto phiOpndIt = phiList.begin(); phiOpndIt != phiList.end(); phiOpndIt++) {
+        if (phiOpndIt->first == bb.GetId()) {
+          RegOperand *renamedOpnd = GetRenamedOperand(*(phiOpndIt->second), false, *phiInsn, kInsnSecondOpnd);
+          phiList[phiOpndIt->first] = renamedOpnd;
         }
       }
     }
@@ -156,12 +165,13 @@ bool CGSSAInfo::IncreaseSSAOperand(regno_t vRegNO, VRegVersion *vst) {
   return true;
 }
 
-VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, bool isDefByPhi) {
+VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, uint32 idx, bool isDefByPhi) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
   uint32 verionIdx = IncreaseVregCount(vRegNO);
   RegOperand *ssaOpnd = CreateSSAOperand(virtualOpnd);
   auto *newVst = memPool->New<VRegVersion>(ssaAlloc, *ssaOpnd, verionIdx, vRegNO);
-  newVst->SetDefInsn(&defInsn, isDefByPhi ? kDefByPhi : kDefByInsn);
+  auto *defInfo = CreateDUInsnInfo(&defInsn, idx);
+  newVst->SetDefInsn(defInfo, isDefByPhi ? kDefByPhi : kDefByInsn);
   if (!IncreaseSSAOperand(ssaOpnd->GetRegisterNumber(), newVst)) {
     CHECK_FATAL(false, "insert ssa operand failed");
   }
@@ -233,6 +243,24 @@ void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
   }
 }
 
+void VRegVersion::AddUseInsn(CGSSAInfo &ssaInfo, Insn &useInsn, uint32 idx) {
+  auto useInsnIt = useInsnInfos.find(useInsn.GetId());
+  if (useInsnIt != useInsnInfos.end()) {
+    useInsnIt->second->IncreaseDU(idx);
+  } else {
+    useInsnInfos.insert(std::make_pair(useInsn.GetId(), ssaInfo.CreateDUInsnInfo(&useInsn, idx)));
+  }
+}
+
+void VRegVersion::RemoveUseInsn(Insn &useInsn, uint32 idx) {
+  auto useInsnIt = useInsnInfos.find(useInsn.GetId());
+  ASSERT(useInsnIt != useInsnInfos.end(), "use Insn not found");
+  useInsnIt->second->DecreaseDU(idx);
+  if (useInsnIt->second->HasNoDU()) {
+    useInsnInfos.erase(useInsnIt);
+  }
+}
+
 void CgSSAConstruct::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgDomAnalysis>();
   aDep.AddRequired<CgLiveAnalysis>();
@@ -244,16 +272,15 @@ bool CgSSAConstruct::PhaseRun(maplebe::CGFunc &f) {
     DotGenerator::GenerateDot("beforessa", f, f.GetMirModule(), true);
   }
   MemPool *ssaMemPool = GetPhaseMemPool();
-  MemPool *ssaTempMp = ApplyTempMemPool(); /* delete after ssa construct */
+  MemPool *ssaTempMp = ApplyTempMemPool();
   DomAnalysis *domInfo = nullptr;
   domInfo = GET_ANALYSIS(CgDomAnalysis, f);
   LiveAnalysis *liveInfo = nullptr;
   liveInfo = GET_ANALYSIS(CgLiveAnalysis, f);
-  liveInfo->ResetLiveSet();
   ssaInfo = f.GetCG()->CreateCGSSAInfo(*ssaMemPool, f, *domInfo, *ssaTempMp);
   ssaInfo->ConstructSSA();
   if (CG_DEBUG_FUNC(f)) {
-    LogInfo::MapleLogger() << "******** CG IR After ssaconstruct in ssaForm : *********" << "\n";
+    LogInfo::MapleLogger() << "******** CG IR After ssaconstruct in ssaForm: *********" << "\n";
     ssaInfo->DumpFuncCGIRinSSAForm();
   }
   if (liveInfo != nullptr) {

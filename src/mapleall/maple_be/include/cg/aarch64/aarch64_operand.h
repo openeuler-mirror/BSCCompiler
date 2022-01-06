@@ -775,15 +775,18 @@ class AArch64MemOperand : public MemOperand {
             GetSymbol() < opnd.GetSymbol()) ||
            (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
             GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
-            GetSymbol() == opnd.GetSymbol() && GetSize() < opnd.GetSize());
+            GetSymbol() == opnd.GetSymbol() && GetSize() < opnd.GetSize()) ||
+           (addrMode == opnd.addrMode && GetBaseRegister() == opnd.GetBaseRegister() &&
+            GetIndexRegister() == opnd.GetIndexRegister() && GetOffsetOperand() == opnd.GetOffsetOperand() &&
+            GetSymbol() == opnd.GetSymbol() && GetSize() == opnd.GetSize() && extend < opnd.extend);
   }
 
   bool operator==(const AArch64MemOperand &opnd) const {
-    return  (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) &&
+    return  (GetSize() == opnd.GetSize()) && (addrMode == opnd.addrMode) && (extend == opnd.extend) &&
             (GetBaseRegister() == opnd.GetBaseRegister()) &&
             (GetIndexRegister() == opnd.GetIndexRegister()) &&
             (GetSymbol() == opnd.GetSymbol()) &&
-            (GetOffsetOperand() == opnd.GetOffsetOperand());
+            (GetOffsetOperand() == opnd.GetOffsetOperand()) ;
   }
 
   bool Less(const Operand &right) const override;

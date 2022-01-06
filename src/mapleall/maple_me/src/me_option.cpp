@@ -30,9 +30,9 @@ unsigned long MeOption::range[kRangeArrayLen] = { 0, 0 };
 bool MeOption::useRange = false;
 bool MeOption::quiet = false;
 bool MeOption::setCalleeHasSideEffect = false;
-bool MeOption::noSteensgaard = false;
-bool MeOption::noTBAA = false;
-bool MeOption::noDDAA = false;
+bool MeOption::steensgaardAA = true;
+bool MeOption::tbaa = true;
+bool MeOption::ddaa = true;
 uint8 MeOption::aliasAnalysisLevel = 3;
 bool MeOption::noDot = false;
 bool MeOption::stmtNum = false;
@@ -150,9 +150,9 @@ enum OptionIndex {
   kMeSkipFrom,
   kMeSkipAfter,
   kSetCalleeHasSideEffect,
-  kNoSteensgaard,
-  kNoTBAA,
-  kNoDDAA,
+  kSteensgaardAA,
+  kTBAA,
+  kDDAA,
   kAliasAnalysisLevel,
   kStmtNum,
   kRcLower,
@@ -415,34 +415,34 @@ const Descriptor kUsage[] = {
     "  --no-setCalleeHasSideEffect \tNot set all the callees have side effect\n",
     "me",
     {} },
-  { kNoSteensgaard,
+  { kSteensgaardAA,
     kEnable,
     "",
-    "noSteensgaard",
+    "steens-aa",
     kBuildTypeExperimental,
     kArgCheckPolicyBool,
-    "  --noSteensgaard             \tDisable Steensgaard-style alias analysis\n"
-    "  --no-noSteensgaard          \tEnable Steensgaard-style alias analysis\n",
+    "  --steens-aa                 \tEnable Steensgaard-style alias analysis\n"
+    "  --no-steens-aa              \tDisable Steensgaard-style alias analysis\n",
     "me",
     {} },
-  { kNoTBAA,
+  { kTBAA,
     kEnable,
     "",
-    "noTBAA",
+    "tbaa",
     kBuildTypeExperimental,
     kArgCheckPolicyBool,
-    "  --noTBAA                    \tDisable type-based alias analysis\n"
-    "  --no-noTBAA                 \tEnable type-based alias analysis\n",
+    "  --tbaa                      \tEnable type-based alias analysis\n"
+    "  --no-tbaa                   \tDisable type-based alias analysis\n",
     "me",
     {} },
-  { kNoDDAA,
+  { kDDAA,
     kEnable,
     "",
-    "noDDAA",
+    "ddaa",
     kBuildTypeExperimental,
     kArgCheckPolicyBool,
-    "  --noDDAA                    \tDisable demand driven alias analysis\n"
-    "  --no-noDDAA                 \tEnable demand driven alias analysis\n",
+    "  --ddaa                      \tEnable demand driven alias analysis\n"
+    "  --no-ddaa                   \tDisable demand driven alias analysis\n",
     "me",
     {} },
   { kAliasAnalysisLevel,
@@ -1406,14 +1406,14 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
       case kSetCalleeHasSideEffect:
         setCalleeHasSideEffect = (opt.Type() == kEnable);
         break;
-      case kNoSteensgaard:
-        noSteensgaard = (opt.Type() == kEnable);
+      case kSteensgaardAA:
+        steensgaardAA = (opt.Type() == kEnable);
         break;
-      case kNoTBAA:
-        noTBAA = (opt.Type() == kEnable);
+      case kTBAA:
+        tbaa = (opt.Type() == kEnable);
         break;
-      case kNoDDAA: {
-        noDDAA = (opt.Type() == kEnable);
+      case kDDAA: {
+        ddaa = (opt.Type() == kEnable);
         break;
       }
       case kAliasAnalysisLevel:
@@ -1424,23 +1424,23 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         switch (aliasAnalysisLevel) {
           case kLevelThree:
             setCalleeHasSideEffect = false;
-            noSteensgaard = false;
-            noTBAA = false;
+            steensgaardAA = true;
+            tbaa = true;
             break;
           case kLevelZero:
             setCalleeHasSideEffect = true;
-            noSteensgaard = true;
-            noTBAA = true;
+            steensgaardAA = false;
+            tbaa = false;
             break;
           case kLevelOne:
             setCalleeHasSideEffect = false;
-            noSteensgaard = false;
-            noTBAA = true;
+            steensgaardAA = true;
+            tbaa = false;
             break;
           case kLevelTwo:
             setCalleeHasSideEffect = false;
-            noSteensgaard = true;
-            noTBAA = false;
+            steensgaardAA = false;
+            tbaa = true;
             break;
           default:
             break;
@@ -1448,8 +1448,8 @@ bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool i
         if (isDebug) {
           LogInfo::MapleLogger() << "--sub options: setCalleeHasSideEffect "
                                  << setCalleeHasSideEffect << '\n';
-          LogInfo::MapleLogger() << "--sub options: noSteensgaard " << noSteensgaard << '\n';
-          LogInfo::MapleLogger() << "--sub options: noTBAA " << noTBAA << '\n';
+          LogInfo::MapleLogger() << "--sub options: steens-aa " << steensgaardAA << '\n';
+          LogInfo::MapleLogger() << "--sub options: tbaa " << tbaa << '\n';
         }
         break;
       case kRcLower:

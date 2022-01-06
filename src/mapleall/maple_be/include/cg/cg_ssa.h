@@ -22,26 +22,67 @@
 #include "visitor_common.h"
 
 namespace maplebe {
+class CGSSAInfo;
 enum SSAOpndDefBy {
   kDefByNo,
   kDefByInsn,
   kDefByPhi
 };
 
+/* precise def/use info in machine instrcution */
+class DUInsnInfo {
+ public:
+  DUInsnInfo(Insn *cInsn, uint32 cIdx, MapleAllocator &alloc) : insn(cInsn), DUInfo(alloc.Adapter()) {
+    IncreaseDU(cIdx);
+  }
+  void IncreaseDU(uint32 idx) {
+    if (!DUInfo.count(idx)) {
+      DUInfo[idx] = 0;
+    }
+    DUInfo[idx]++;
+  }
+  void DecreaseDU(uint32 idx) {
+    ASSERT(DUInfo[idx] > 0, "no def/use any more");
+    DUInfo[idx]--;
+  }
+  void ClearDU(uint32 idx) {
+    ASSERT(DUInfo.count(idx), "no def/use find");
+    DUInfo[idx] = 0;
+  }
+  bool HasNoDU() {
+    for(auto it : DUInfo) {
+      if (it.second != 0) {
+        return false;
+      }
+    }
+    return true;
+  }
+  Insn *GetInsn() {
+    return insn;
+  }
+  MapleMap<uint32, uint32>& GetOperands() {
+    return DUInfo;
+  }
+ private:
+  Insn *insn;
+  /* operand idx --- count */
+  MapleMap<uint32, uint32> DUInfo;
+};
+
 class VRegVersion {
  public:
-  VRegVersion(MapleAllocator &allocr, RegOperand &vReg, uint32 vIdx, regno_t vregNO) :
-      versionAlloc(allocr),
+  VRegVersion(MapleAllocator &alloc, RegOperand &vReg, uint32 vIdx, regno_t vregNO) :
+      versionAlloc(alloc),
       ssaRegOpnd(&vReg),
       versionIdx(vIdx),
       originalRegNO(vregNO),
-      useInsns(versionAlloc.Adapter()) {}
-  void SetDefInsn(Insn *insn, SSAOpndDefBy defTy) {
-    defInsn = insn;
+      useInsnInfos(versionAlloc.Adapter()) {}
+  void SetDefInsn(DUInsnInfo *duInfo, SSAOpndDefBy defTy) {
+    defInsnInfo = duInfo;
     defType = defTy;
   }
-  Insn *GetDefInsn() const {
-    return defInsn;
+  DUInsnInfo *GetDefInsnInfo() const {
+    return defInsnInfo;
   }
   SSAOpndDefBy GetDefType() const {
     return defType;
@@ -55,8 +96,16 @@ class VRegVersion {
   regno_t GetOriginalRegNO() const {
     return originalRegNO;
   }
-  void addUseInsn(Insn &insn) {
-    useInsns.push_back(&insn);
+  void AddUseInsn(CGSSAInfo &ssaInfo, Insn &useInsn, uint32 idx);
+  void RemoveUseInsn(Insn &useInsn, uint32 idx);
+  MapleUnorderedMap<uint32, DUInsnInfo*> &GetAllUseInsns() {
+    return useInsnInfos;
+  }
+  void MarkDeleted () {
+    deleted = true;
+  }
+  bool IsDeleted() {
+    return deleted;
   }
 
  private:
@@ -64,9 +113,12 @@ class VRegVersion {
   RegOperand *ssaRegOpnd;
   uint32 versionIdx;
   regno_t originalRegNO;
-  Insn *defInsn = nullptr;
+  DUInsnInfo *defInsnInfo = nullptr;
   SSAOpndDefBy defType = kDefByNo;
-  MapleVector<Insn*> useInsns;
+  /* insn ID ->  insn* & operand Idx */
+  // --> vector?
+  MapleUnorderedMap<uint32, DUInsnInfo*> useInsnInfos;
+  bool deleted = false;
 };
 
 class CGSSAInfo {
@@ -86,8 +138,10 @@ class CGSSAInfo {
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
 
-  void DumpFuncCGIRinSSAForm() const;
-  virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
+  DUInsnInfo *CreateDUInsnInfo(Insn *cInsn, uint32 idx) {
+    return memPool->New<DUInsnInfo>(cInsn, idx, ssaAlloc);
+  }
+
   const MapleUnorderedMap<regno_t, VRegVersion*> &GetAllSSAOperands() const {
     return allSSAOperands;
   }
@@ -101,10 +155,11 @@ class CGSSAInfo {
     ASSERT(false, " original vreg is not existed");
     return 0;
   }
+  void DumpFuncCGIRinSSAForm() const;
   static uint32 SSARegNObase;
 
  protected:
-  VRegVersion *CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, bool isDefByPhi = false);
+  VRegVersion *CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn, uint32 idx, bool isDefByPhi = false);
   virtual RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) = 0;
   VRegVersion *GetVersion(RegOperand &virtualOpnd);
   MapleUnorderedMap<regno_t, VRegVersion*> &GetPrivateAllSSAOperands() {
@@ -125,9 +180,10 @@ class CGSSAInfo {
   void RenamePhi(BB &bb);
   virtual void RenameInsn(Insn &insn) = 0;
   /* build ssa on virtual register only */
-  virtual RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) = 0;
+  virtual RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) = 0;
   void RenameSuccPhiUse(BB &bb);
   void PrunedPhiInsertion(BB &bb, RegOperand &virtualOpnd);
+  virtual void DumpInsnInSSAForm(const Insn &insn) const = 0;
 
   void AddRenamedBB(uint32 bbID) {
     ASSERT(!renamedBBs.count(bbID), "cgbb has been renamed already");
@@ -137,6 +193,7 @@ class CGSSAInfo {
     return renamedBBs.count(bbID);
   }
   uint32 IncreaseVregCount(regno_t vRegNO);
+  void MarkInsnsInSSA(Insn &insn);
 
   DomAnalysis *domInfo = nullptr;
   MapleAllocator ssaAlloc;
@@ -149,6 +206,7 @@ class CGSSAInfo {
   MapleUnorderedMap<regno_t, VRegVersion*> allSSAOperands;
   /* For virtual registers which do not have definition */
   MapleSet<regno_t> noDefVRegs;
+  int32 insnCount = 0;
 };
 
 class SSAOperandRenameVisitor : public OperandVisitorBase,
@@ -188,7 +246,5 @@ CGSSAInfo *ssaInfo = nullptr;
   void GetAnalysisDependence(maple::AnalysisDep &aDep) const override;
 MAPLE_FUNC_PHASE_DECLARE_END
 }
-
-
 
 #endif //MAPLEBE_CG_INCLUDE_CG_SSA_H

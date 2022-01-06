@@ -293,7 +293,7 @@ class CGFunc {
   virtual Operand &CreateImmOperand(PrimType primType, int64 val) = 0;
   virtual Operand *CreateZeroOperand(PrimType primType) = 0;
   virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) = 0;
-  virtual void CleanupDeadMov() = 0;
+  virtual void CleanupDeadMov(bool dump = false) = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
@@ -1011,6 +1011,10 @@ class CGFunc {
 
   void RegisterVregMapping(regno_t vRegNum, PregIdx pidx) {
     vregsToPregsMap[vRegNum] = pidx;
+  }
+
+  uint32 GetFirstMapleIrVRegNO() const {
+    return firstMapleIrVRegNO;
   }
 
  protected:

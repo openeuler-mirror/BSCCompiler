@@ -18,6 +18,8 @@
 #include "ssa_mir_nodes.h"
 #include "mir_function.h"
 #include "mir_builder.h"
+#include "ipa_side_effect.h"
+#include "type_based_alias_analysis.h"
 
 namespace {
 using namespace maple;
@@ -103,15 +105,9 @@ bool AliasClass::CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, Fun
   return hasAttr;
 }
 
-bool AliasClass::CallHasSideEffect(StmtNode *stmt) const {
-  if (calleeHasSideEffect) {
-    return true;
-  }
-  CallNode *callstmt = dynamic_cast<CallNode *>(stmt);
-  if (callstmt == nullptr) {
-    return true;
-  }
-  return !CallHasNoSideEffectOrPrivateDefEffect(*callstmt, FUNCATTR_nosideeffect);
+const FuncDesc &AliasClass::GetFuncDescFromCallStmt(const CallNode &callstmt) const {
+  MIRFunction *callee = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callstmt.GetPUIdx());
+  return callee->GetFuncDesc();
 }
 
 // ost is a restrict pointer
@@ -354,7 +350,6 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       } else {
         ASSERT(expr.GetOpCode() == OP_add, "Wrong operation!");
       }
-      constexpr int64 bitsPerByte = 8;
       OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * bitsPerByte;
       return AliasInfo(aliasInfo.ae, 0, newOffset);
     }
@@ -741,14 +736,16 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     }
     case OP_call:
     case OP_callassigned: {
-      bool callHasSideEffect = CallHasSideEffect(&stmt);
+      const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
       bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasElemsExpr(*stmt.Opnd(i));
-        if (mirModule.IsCModule() || callHasSideEffect) {
-          SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.ae, hasnoprivatedefeffect);
-          SetPtrFieldsOfAggNextLevNADS(stmt.Opnd(i), ainfo.ae);
+        // no need to solve args that are not used.
+        if (desc.IsArgUnused(i)) {
+          continue;
         }
+        SetPtrOpndNextLevNADS(*stmt.Opnd(i), ainfo.ae, hasnoprivatedefeffect);
+        SetPtrFieldsOfAggNextLevNADS(stmt.Opnd(i), ainfo.ae);
       }
       break;
     }
@@ -766,7 +763,7 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
     case OP_interfaceicallassigned:
     case OP_customcallassigned:
     case OP_polymorphiccallassigned: {
-      bool callHasSideEffect = CallHasSideEffect(&stmt);
+      const FuncDesc &desc = GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
       bool hasnoprivatedefeffect = CallHasNoPrivateDefEffect(&stmt);
       for (uint32 i = 0; i < stmt.NumOpnds(); ++i) {
         const AliasInfo &ainfo = CreateAliasElemsExpr(*stmt.Opnd(i));
@@ -776,7 +773,8 @@ void AliasClass::ApplyUnionForCopies(StmtNode &stmt) {
         if (i == 0) {
           continue;
         }
-        if (!callHasSideEffect) {
+        // no need to solve args that are not used.
+        if (desc.IsArgUnused(i)) {
           continue;
         }
         if (hasnoprivatedefeffect && ainfo.ae->GetOriginalSt().IsPrivate()) {
@@ -895,6 +893,38 @@ void AliasClass::DumpAssignSets() {
         id2Elem[elemID]->Dump();
       }
       LogInfo::MapleLogger() << '\n';
+    }
+  }
+}
+
+void AliasClass::GetValueAliasSetOfOst(OriginalSt *ost, std::set<OriginalSt*> &result) {
+  if (ost == nullptr || ost->GetIndex() >= osym2Elem.size()) {
+    return;
+  }
+  AliasElem *rootAe = nullptr;
+  auto *ae = osym2Elem[ost->GetIndex()];
+  if (ae->GetAssignSet() != nullptr) {
+    rootAe = ae;
+  }
+  if (rootAe == nullptr) {
+    for (auto *aliasElem : id2Elem) {
+      if (unionFind.Root(aliasElem->GetClassID()) != aliasElem->GetClassID()) {
+        continue;
+      }
+      if (aliasElem->GetAssignSet() == nullptr) {
+        continue;
+      }
+      if (aliasElem->GetAssignSet()->find(ae->GetClassID()) != aliasElem->GetAssignSet()->end()) {
+        rootAe = aliasElem;
+        break;
+      }
+    }
+  }
+  if (rootAe == nullptr) {
+    result.insert(ost);
+  } else {
+    for (auto elemID : *(rootAe->GetAssignSet())) {
+      result.insert(id2Elem[elemID]->GetOst());
     }
   }
 }
@@ -1527,13 +1557,7 @@ bool AliasResultInNegtiveOffset(const OriginalSt *ostA, const OriginalSt *ostB) 
   OffsetType offsetB = ostB->GetOffset();
   auto typeA = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostA->GetTyIdx());
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
-    constexpr int bitsPerByte = 8;
-    int32 bitSizeA = 0;
-    if (typeA->GetKind() == kTypeBitField) {
-      bitSizeA = static_cast<MIRBitFieldType*>(typeA)->GetFieldSize();
-    } else {
-      bitSizeA = static_cast<int32>(typeA->GetSize()) * bitsPerByte;
-    }
+    int32 bitSizeA = GetTypeBitSize(typeA);
     return (offsetA + bitSizeA) < offsetB;
   }
   return false;
@@ -1555,7 +1579,10 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   if (indirectLevA < 0 || indirectLevB < 0) {
     return false;
   }
-
+  // alias analysis based on type info
+  if (!TypeBasedAliasAnalysis::MayAlias(ostA, ostB)) {
+    return false;
+  }
   // for global variable, negative-offset access is not permitted
   if (indirectLevA == 0 && ostA->IsSymbolOst() && ostA->GetMIRSymbol()->IsGlobal() && indirectLevB > 0) {
     return !AliasResultInNegtiveOffset(ostA, ostB);
@@ -1580,29 +1607,14 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   if (ostA->GetMIRSymbol() != ostB->GetMIRSymbol()) {
     return false;
   }
-
-  // alias analysis based on offset, currently only valid for array-element.
-  OffsetType offsetA = ostA->GetOffset();
-  OffsetType offsetB = ostB->GetOffset();
-  auto typeA = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostA->GetTyIdx());
-  auto typeB = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostB->GetTyIdx());
+  const OffsetType &offsetA = ostA->GetOffset();
+  const OffsetType &offsetB = ostB->GetOffset();
+  int32 bitSizeA = GetTypeBitSize(ostA->GetType());
+  int32 bitSizeB = GetTypeBitSize(ostB->GetType());
+  // alias analysis based on offset.
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     // return if memory of ostA and ostB overlap
-    constexpr int bitsPerByte = 8;
-    int32 bitSizeA = 0;
-    int32 bitSizeB = 0;
-    if (typeA->GetKind() == kTypeBitField) {
-      bitSizeA = static_cast<MIRBitFieldType*>(typeA)->GetFieldSize();
-    } else {
-      bitSizeA = static_cast<int32>(typeA->GetSize()) * bitsPerByte;
-    }
-    if (typeB->GetKind() == kTypeBitField) {
-      bitSizeB = static_cast<MIRBitFieldType*>(typeB)->GetFieldSize();
-    } else {
-      bitSizeB = static_cast<int32>(typeB->GetSize()) * bitsPerByte;
-    }
-    return offsetA < (offsetB + bitSizeB) &&
-           offsetB < (offsetA + bitSizeA);
+    return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
   }
   return true;
 }
@@ -1707,7 +1719,7 @@ void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
     bool valueAliasRestrictFormal = false;
     auto *ost = aliasElem->GetOst();
     if (restrictFormalOsts.find(ost) != restrictFormalOsts.end()) {
-      valueAliasRestrictFormal = true; // formalOst value alias itself
+      valueAliasRestrictFormal = true; // ostValueAliasWithFormal value alias itself
       // virtual osts with indirectLev = 2 are set not-all-defines-seen and collected in nadsOsts.
       // only next-level osts(indirectLev = 1) of formals are collected in the following:
       for (auto *nextLevelOst : ost->GetNextLevelOsts()) {
@@ -1722,7 +1734,7 @@ void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
 
     if (!valueAliasRestrictFormal) {
       for (auto *formalOst : restrictFormalOsts) {
-        // formalOst has not been used in function, no need to collect its next-level-osts
+        // ostValueAliasWithFormal has not been used in function, no need to collect its next-level-osts
         if (formalOst->GetIndex() >= osym2Elem.size()) {
           continue;
         }
@@ -1873,6 +1885,26 @@ bool AliasClass::IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, Fie
   return fldA == fldB;
 }
 
+bool AliasClass::IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr) {
+  if (ai.ae == nullptr || ai.offset.IsInvalid()) {
+    return false;
+  }
+  switch (expr->GetOpCode()) {
+    case OP_addrof:
+    case OP_dread:
+    case OP_regread: {
+      return true;
+    }
+    case OP_iread: {
+      BaseNode *base = expr->Opnd(0);
+      return IsAliasInfoEquivalentToExpr(CreateAliasElemsExpr(*base), base);
+    }
+    default: {
+      return false;
+    }
+  }
+}
+
 void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts) {
   auto &iassignNode = static_cast<IassignNode&>(stmt);
   AliasElem *lhsAe =
@@ -1885,6 +1917,13 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
   }
   OriginalSt *ostOfLhsAe = &lhsAe->GetOriginalSt();
   TyIdx pointedTyIdx = ostOfLhsAe->GetTyIdx();
+  BaseNode *rhs = iassignNode.GetRHS();
+  // we will try to filter rhs's alias element when rhs is iread expr
+  AliasInfo ai = CreateAliasElemsExpr(*rhs);
+  OriginalSt *rhsOst = nullptr;
+  if (rhs->GetOpCode() == OP_iread && IsAliasInfoEquivalentToExpr(ai, rhs)) {
+    rhsOst = ai.ae->GetOst();
+  }
   for (unsigned int elemID : *(lhsAe->GetClassSet())) {
     AliasElem *aliasElem = id2Elem[elemID];
     OriginalSt &ostOfAliasAE = aliasElem->GetOriginalSt();
@@ -1897,6 +1936,9 @@ void AliasClass::CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &
       }
     } else {
       if (!MayAliasBasicAA(ostOfLhsAe, &ostOfAliasAE)) {
+        continue;
+      }
+      if (TypeBasedAliasAnalysis::FilterAliasElemOfRHSForIassign(&ostOfAliasAE, ostOfLhsAe, rhsOst)) {
         continue;
       }
     }
@@ -2087,6 +2129,48 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
   }
 }
 
+void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
+                                             std::set<OriginalSt*> &mayDefOsts,
+                                             std::set<OriginalSt*> &mayUseOsts) {
+  size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
+  const FuncDesc *desc = nullptr;
+  if (stmt.GetOpCode() == OP_call || stmt.GetOpCode() == OP_callassigned) {
+    desc = &GetFuncDescFromCallStmt(static_cast<const CallNode&>(stmt));
+  }
+  for (; opndId < stmt.NumOpnds(); ++opndId) {
+    if (desc != nullptr && (desc->IsArgUnused(opndId) || desc->IsArgReadSelfOnly(opndId))) {
+      continue;
+    }
+    BaseNode *expr = stmt.Opnd(opndId);
+    expr = RemoveTypeConvertionIfExist(expr);
+    if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
+      continue;
+    }
+
+    AliasInfo aInfo = CreateAliasElemsExpr(*expr);
+    if (aInfo.ae == nullptr ||
+        (aInfo.ae->IsNextLevNotAllDefsSeen() && aInfo.ae->GetOriginalSt().GetIndirectLev() > 0)) {
+      continue;
+    }
+
+    if (GlobalTables::GetTypeTable().GetTypeFromTyIdx(aInfo.ae->GetOriginalSt().GetTyIdx())->PointsToConstString()) {
+      continue;
+    }
+
+    if (desc != nullptr && desc->IsArgReadMemoryOnly(opndId)) {
+      CollectMayUseForNextLevel(&aInfo.ae->GetOriginalSt(), mayUseOsts, stmt, opndId == 0);
+      continue;
+    }
+
+    if (desc != nullptr && desc->IsArgWriteMemoryOnly(opndId)) {
+      CollectMayUseForNextLevel(&aInfo.ae->GetOriginalSt(), mayDefOsts, stmt, opndId == 0);
+      continue;
+    }
+    CollectMayUseForNextLevel(&aInfo.ae->GetOriginalSt(), mayDefOsts, stmt, opndId == 0);
+    CollectMayUseForNextLevel(&aInfo.ae->GetOriginalSt(), mayUseOsts, stmt, opndId == 0);
+  }
+}
+
 void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
                                          StmtNode &stmt, BBId bbid,
                                          bool hasNoPrivateDefEffect) {
@@ -2102,31 +2186,43 @@ void AliasClass::InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, Acce
 // Insert mayDefs and mayUses for the callees.
 // Four kinds of mayDefs and mayUses are inserted, which are caused by callee
 // opnds, not_all_def_seen_ae, globalsAffectedByCalls, and mustDefs.
-void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool hasSideEffect, bool hasNoPrivateDefEffect) {
-  auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
-  std::set<OriginalSt*> mayDefUseOstsA;
-  // 1. collect mayDefs and mayUses caused by callee-opnds
-  CollectMayUseForCallOpnd(stmt, mayDefUseOstsA);
-  // 2. collect mayDefs and mayUses caused by not_all_def_seen_ae
-  mayDefUseOstsA.insert(nadsOsts.begin(), nadsOsts.end());
-  InsertMayUseNode(mayDefUseOstsA, ssaPart);
-  // insert may def node, if the callee has side-effect.
-  if (hasSideEffect) {
-    InsertMayDefNodeForCall(mayDefUseOstsA, ssaPart, stmt, bbid, hasNoPrivateDefEffect);
+void AliasClass::InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCall) {
+  bool hasSideEffect = true;
+  bool hasNoPrivateDefEffect = false;
+  const FuncDesc *desc = nullptr;
+  if (isDirectCall) {
+    desc = &GetFuncDescFromCallStmt(static_cast<CallNode&>(stmt));
+    hasSideEffect = !desc->IsPure() && !desc->IsConst();
   }
+  auto *ssaPart = ssaTab.GetStmtsSSAPart().SSAPartOf(stmt);
+  std::set<OriginalSt*> mayDefOstsA;
+  std::set<OriginalSt*> mayUseOstsA;
+  // 1. collect mayDefs and mayUses caused by callee-opnds
+  CollectMayDefUseForCallOpnd(stmt, mayDefOstsA, mayUseOstsA);
+  // 2. collect mayDefs and mayUses caused by not_all_def_seen_ae
+  mayUseOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+  if (hasSideEffect) {
+    mayDefOstsA.insert(nadsOsts.begin(), nadsOsts.end());
+  }
+  // insert mayuse node caused by opnd and not_all_def_seen_ae.
+  InsertMayUseNode(mayUseOstsA, ssaPart);
+  // insert maydef node caused by opnd and not_all_def_seen_ae.
+  InsertMayDefNodeForCall(mayDefOstsA, ssaPart, stmt, bbid, hasNoPrivateDefEffect);
   // 3. insert mayDefs and mayUses caused by globalsAffectedByCalls
   std::set<OriginalSt*> mayDefUseOstsB;
   CollectMayUseFromGlobalsAffectedByCalls(mayDefUseOstsB);
-  InsertMayUseNode(mayDefUseOstsB, ssaPart);
+  if (desc == nullptr || !desc->IsConst()) {
+    InsertMayUseNode(mayDefUseOstsB, ssaPart);
+  }
   // insert may def node, if the callee has side-effect.
   if (hasSideEffect) {
     InsertMayDefNodeExcludeFinalOst(mayDefUseOstsB, ssaPart, stmt, bbid);
-    if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
-      // 4. insert mayDefs caused by the mustDefs
-      std::set<OriginalSt*> mayDefOstsC;
-      CollectMayDefForMustDefs(stmt, mayDefOstsC);
-      InsertMayDefNodeExcludeFinalOst(mayDefOstsC, ssaPart, stmt, bbid);
-    }
+  }
+  if (kOpcodeInfo.IsCallAssigned(stmt.GetOpCode())) {
+    // 4. insert mayDefs caused by the mustDefs
+    std::set<OriginalSt*> mayDefOstsC;
+    CollectMayDefForMustDefs(stmt, mayDefOstsC);
+    InsertMayDefNodeExcludeFinalOst(mayDefOstsC, ssaPart, stmt, bbid);
   }
 }
 
@@ -2213,8 +2309,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     }
     case OP_call:
     case OP_callassigned: {
-      InsertMayDefUseCall(stmt, bbID, CallHasSideEffect(&stmt),
-                          CallHasNoPrivateDefEffect(&stmt));
+      InsertMayDefUseCall(stmt, bbID, true);
       return;
     }
     case OP_asm:
@@ -2234,7 +2329,7 @@ void AliasClass::GenericInsertMayDefUse(StmtNode &stmt, BBId bbID) {
     case OP_customcall:
     case OP_polymorphiccall:
     case OP_icall: {
-      InsertMayDefUseCall(stmt, bbID, true, false);
+      InsertMayDefUseCall(stmt, bbID, false);
       return;
     }
     case OP_intrinsiccallwithtype: {

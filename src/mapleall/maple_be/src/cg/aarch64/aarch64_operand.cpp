@@ -323,7 +323,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
     GetBaseRegister()->Emit(emitter, nullptr);
     emitter.Emit(",");
     GetOffsetRegister()->Emit(emitter, nullptr);
-    if (ShouldEmitExtend()) {
+    if (ShouldEmitExtend() || GetBaseRegister()->GetSize() > GetOffsetRegister()->GetSize()) {
       emitter.Emit(",");
       /* extend, #0, of #3/#2 */
       emitter.Emit(GetExtendAsString());
@@ -366,6 +366,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
 
 void AArch64MemOperand::Dump() const {
   LogInfo::MapleLogger() << "Mem:";
+  LogInfo::MapleLogger() << " size:" << GetSize() << " ";
   switch (addrMode) {
     case kAddrModeBOi: {
       LogInfo::MapleLogger() << "base:";

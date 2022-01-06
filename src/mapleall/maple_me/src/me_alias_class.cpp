@@ -45,7 +45,7 @@ bool MeAliasClass::HasWriteToStaticFinal() const {
 }
 
 void MeAliasClass::PerformDemandDrivenAliasAnalysis() {
-  if (MeOption::noDDAA) {
+  if (!MeOption::ddaa) {
     return;
   }
   if (!mirModule.IsCModule()) {
@@ -95,7 +95,7 @@ void MeAliasClass::DoAliasAnalysis() {
     DumpAssignSets();
   }
   ReinitUnionFind();
-  if (MeOption::noSteensgaard) {
+  if (!MeOption::steensgaardAA) {
     UnionAllPointedTos();
   } else {
     ApplyUnionForPointedTos();
@@ -106,13 +106,13 @@ void MeAliasClass::DoAliasAnalysis() {
     }
   }
   // TBAA
-  if (!MeOption::noTBAA && mirModule.IsJavaModule()) {
+  if (MeOption::tbaa && mirModule.IsJavaModule()) {
     ReconstructAliasGroups();
   }
   CreateClassSets();
   PerformDemandDrivenAliasAnalysis();
   if (enabledDebug) {
-    if (!MeOption::noDDAA) {
+    if (MeOption::ddaa) {
       ReinitUnionFind();
     }
     DumpClassSets();

@@ -20,6 +20,25 @@
 #include "union_find.h"
 
 namespace maple {
+namespace {
+constexpr int64 bitsPerByte = 8;
+
+inline int64 GetTypeBitSize(MIRType *type) {
+  if (type->GetKind() == kTypeBitField) {
+    return static_cast<MIRBitFieldType*>(type)->GetFieldSize();
+  } else {
+    return static_cast<int64>(type->GetSize()) * bitsPerByte;
+  }
+}
+
+inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, int64 sizeB) {
+  // A : |---------|
+  // B :   |----------|
+  return startA < (startB + sizeB) &&
+         startB < (startA + sizeA);
+}
+} // anonymous namespace
+
 class AliasElem {
   friend class AliasClass;
  public:
@@ -161,6 +180,7 @@ class AliasClass : public AnalysisResult {
   void UnionAddrofOstOfUnionFields();
   void CreateAssignSets();
   void DumpAssignSets();
+  void GetValueAliasSetOfOst(OriginalSt *ost, std::set<OriginalSt*> &result);
   void UnionAllPointedTos();
   void ApplyUnionForPointedTos();
   void CollectRootIDOfNextLevelNodes(const OriginalSt &ost, std::set<unsigned int> &rootIDOfNADSs);
@@ -175,7 +195,7 @@ class AliasClass : public AnalysisResult {
   void CollectNotAllDefsSeenAes();
   void CreateClassSets();
   void DumpClassSets();
-  void InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool hasSideEffect, bool hasNoPrivateDefEffect);
+  void InsertMayDefUseCall(StmtNode &stmt, BBId bbid, bool isDirectCall);
   void GenericInsertMayDefUse(StmtNode &stmt, BBId bbID);
 
   static bool MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB);
@@ -207,7 +227,7 @@ class AliasClass : public AnalysisResult {
 
  private:
   bool CallHasNoSideEffectOrPrivateDefEffect(const CallNode &stmt, FuncAttrKind attrKind) const;
-  bool CallHasSideEffect(StmtNode *stmt) const;
+  const FuncDesc &GetFuncDescFromCallStmt(const CallNode &stmt) const;
   bool CallHasNoPrivateDefEffect(StmtNode *stmt) const;
   AliasElem *FindOrCreateAliasElem(OriginalSt &ost);
   AliasElem *FindOrCreateExtraLevAliasElem(BaseNode &expr, const TyIdx &tyIdx, FieldID fieldId, bool typeHasBeenCasted);
@@ -230,9 +250,12 @@ class AliasClass : public AnalysisResult {
   void CollectMayUseForNextLevel(const OriginalSt *ost, std::set<OriginalSt*> &mayUseOsts,
                                  const StmtNode &stmt, bool isFirstOpnd);
   void CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayUseOsts);
+  void CollectMayDefUseForCallOpnd(const StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts,
+                                   std::set<OriginalSt*> &mayUseOsts);
   void InsertMayDefNodeForCall(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
                                StmtNode &stmt, BBId bbid, bool hasNoPrivateDefEffect);
   void InsertMayUseExpr(BaseNode &expr);
+  void CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts);
   void CollectMayUseFromGlobalsAffectedByCalls(std::set<OriginalSt*> &mayUseOsts);
   void CollectMayUseFromDefinedFinalField(std::set<OriginalSt*> &mayUseOsts);
   void InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANodes *ssaPart);
@@ -244,6 +267,7 @@ class AliasClass : public AnalysisResult {
   void InsertMayDefNode(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart, StmtNode &stmt, BBId bbid);
   void InsertMayDefDassign(StmtNode &stmt, BBId bbid);
   bool IsEquivalentField(TyIdx tyIdxA, FieldID fldA, TyIdx tyIdxB, FieldID fldB) const;
+  bool IsAliasInfoEquivalentToExpr(const AliasInfo &ai, const BaseNode *expr);
   void CollectMayDefForIassign(StmtNode &stmt, std::set<OriginalSt*> &mayDefOsts);
   void InsertMayDefNodeExcludeFinalOst(std::set<OriginalSt*> &mayDefOsts, AccessSSANodes *ssaPart,
                                        StmtNode &stmt, BBId bbid);

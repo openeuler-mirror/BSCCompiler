@@ -29,8 +29,6 @@ class AArch64PhiEliminate : public PhiEliminate {
   void MaintainRematInfo(RegOperand &destOpnd, RegOperand &fromOpnd, bool isCopy) override;
   RegOperand &CreateTempRegForCSSA(RegOperand &oriOpnd) override;
   void AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const override;
-  /* reduce the live range of exisit regsiter*/
-  void DoRegLiveRangeOpt(Insn &insn, Insn &movInsn) const;
 };
 
 class A64OperandPhiElmVisitor : public OperandPhiElmVisitor {
@@ -42,7 +40,6 @@ class A64OperandPhiElmVisitor : public OperandPhiElmVisitor {
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
-  void Visit(PhiOperand *v) final;
 
  private:
   AArch64PhiEliminate *a64PhiEliminator;
