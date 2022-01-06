@@ -357,7 +357,7 @@ bool Parser::HandlePreprocessorToken(Token *t) {
     return false;
   }
 
-  Token *pt = mLexer->FindPreprocessorKeywordToken(t->mData.mName);
+  Token *pt = FindPreprocessorKeywordToken(t->mData.mName);
   if (pt == nullptr)
     return false;
 
