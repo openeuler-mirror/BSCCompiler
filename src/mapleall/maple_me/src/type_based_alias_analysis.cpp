@@ -37,21 +37,21 @@ bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *
   if (!MeOption::tbaa) {
     return true; // deal with alias relation conservatively for non-type-safe
   }
-  if (ostA == ostB) {
-    return true;
-  }
   if (ostA == nullptr || ostB == nullptr) {
     return false;
   }
+  if (ostA == ostB) {
+    return true;
+  }
   const OffsetType &offsetA = ostA->GetOffset();
   const OffsetType &offsetB = ostB->GetOffset();
-  int32 bitSizeA = GetTypeBitSize(ostA->GetType());
-  int32 bitSizeB = GetTypeBitSize(ostB->GetType());
   // Check field alias - If both of ost are fields of the same agg type, check if they overlap
   if (ostA->GetFieldID() != 0 && ostB->GetFieldID() != 0 && !offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     MIRType *aggTypeA = GetStructTypeOstEmbedded(ostA);
     MIRType *aggTypeB = GetStructTypeOstEmbedded(ostB);
     if (aggTypeA == aggTypeB) { // We should check type compatibility here actually
+      int32 bitSizeA = GetTypeBitSize(ostA->GetType());
+      int32 bitSizeB = GetTypeBitSize(ostB->GetType());
       return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
     }
   }

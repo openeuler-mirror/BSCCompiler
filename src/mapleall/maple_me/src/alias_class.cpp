@@ -1609,11 +1609,11 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   }
   const OffsetType &offsetA = ostA->GetOffset();
   const OffsetType &offsetB = ostB->GetOffset();
-  int32 bitSizeA = GetTypeBitSize(ostA->GetType());
-  int32 bitSizeB = GetTypeBitSize(ostB->GetType());
   // alias analysis based on offset.
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     // return if memory of ostA and ostB overlap
+    int32 bitSizeA = GetTypeBitSize(ostA->GetType());
+    int32 bitSizeB = GetTypeBitSize(ostB->GetType());
     return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
   }
   return true;
