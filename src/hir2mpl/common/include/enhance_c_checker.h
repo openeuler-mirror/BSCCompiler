@@ -40,7 +40,8 @@ class ENCChecker {
   static bool IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2);
   static void CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const UniqueFEIRExpr &srcExpr,
                                                 uint32 fileNum, uint32 fileLine);
-  static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr);
+  static UniqueFEIRExpr FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr, bool isIncludingAddrof = false);
+  static MIRType *GetTypeFromAddrExpr(const UniqueFEIRExpr &expr);
   static MIRType *GetArrayTypeFromExpr(const UniqueFEIRExpr &expr);
   static MIRConst *GetMIRConstFromExpr(const UniqueFEIRExpr &expr);
   static void AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &dstExpr, const UniqueFEIRExpr &srcExpr,
