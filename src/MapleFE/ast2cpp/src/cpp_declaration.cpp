@@ -755,15 +755,16 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
   if (node == nullptr)
     return std::string();
 
+  std::string clsName = node->GetName();
   // 1. c++ class for JS object
   base = (node->GetSuperClassesNum() != 0)? node->GetSuperClass(0)->GetName() : "t2crt::Object";
-  str += "class "s + node->GetName() + " : public "s + base + " {\n"s;
+  str += "class "s + clsName + " : public "s + base + " {\n"s;
 
   str += "public:\n";
 
   // constructor decl
-  str += "  "s + node->GetName() + "(t2crt::Function* ctor, t2crt::Object* proto);\n"s;
-  str += "  ~"s + node->GetName() + "(){}\n";
+  str += "  "s + clsName + "(t2crt::Function* ctor, t2crt::Object* proto);\n"s;
+  str += "  ~"s + clsName + "(){}\n";
 
   // class field decl and init. TODO: handle private, protected attrs.
   for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
@@ -776,8 +777,8 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
       IdentifierNode* id = static_cast<IdentifierNode*>(n);
       if (HasAttrStatic<IdentifierNode>(id)) {
         // static field - add field to ctor prop and init later at field def in cpp
-        staticProps += tab(3) + "this->AddProp(\""s + n->GetName() + "\", t2crt::JS_Val("s +
-          TypeIdToJSTypeCXX[n->GetTypeId()] + ", &"s + node->GetName() + "::"s + id->GetName() + "));\n"s;
+        staticProps += tab(3) + "this->AddProp(\""s + clsName + "\", t2crt::JS_Val("s +
+          TypeIdToJSTypeCXX[n->GetTypeId()] + ", &"s + clsName + "::"s + id->GetName() + "));\n"s;
       } else if (auto init = id->GetInit()) {
         if (init->IsArrayLiteral() && id->GetType() && id->GetType()->IsPrimArrayType()) {
           // Generate initializer for t2crt::Array member field decl in header file
@@ -809,7 +810,7 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
   for (unsigned i = 0; i < node->GetConstructorsNum(); ++i) {
     std::string ctor;
     if (auto c = node->GetConstructor(i)) {
-      ctor = indent + "  "s + node->GetName() + "* operator()("s + node->GetName() + "* obj"s;
+      ctor = indent + "  "s + clsName + "* operator()("s + clsName + "* obj"s;
       for (unsigned k = 0; k < c->GetParamsNum(); ++k) {
         ctor += ", "s;
         if (auto n = c->GetParam(k)) {
@@ -823,13 +824,14 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
 
   // Generate decl for default constructor function if none declared for class
   if (node->GetConstructorsNum() == 0)
-    str += indent + "  "s + node->GetName() + "* operator()("s + node->GetName() + "* obj);\n"s;
+    str += indent + "  "s + clsName + "* operator()("s + clsName + "* obj);\n"s;
 
   // Generate new() function
-  str += indent + "  "s+node->GetName()+"* _new() {return new "s+node->GetName()+"(this, this->prototype);}\n"s;
-  str += indent + "  virtual const char* __GetClassName() const {return \""s + node->GetName() + " \";}\n"s;
+  str += indent + "  "s+clsName+"* _new() {return new "s+clsName+"(this, this->prototype);}\n"s;
+  str += indent + "  virtual const char* __GetClassName() const {return \""s + clsName + " \";}\n"s;
   str += indent + "};\n";
-  str += "};\n\n";
+  str += "};\n";
+  str += "extern " + clsName + "::Ctor "s + clsName + "_ctor;\n"s; // emit declaration for JS class object constructor
   return str;
 }
 

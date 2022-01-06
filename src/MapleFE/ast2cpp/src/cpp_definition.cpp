@@ -30,8 +30,8 @@ std::string CppDef::EmitCtorInstance(ClassNode *c) {
     prototypeProto = proto + ".prototype"s;
     proto.insert(0, "&"s, 0, std::string::npos);
   }
-  str = "\n// Instantiate constructor\n"s;
-  str += thisClass + "::Ctor "s + thisClass+"_ctor("s +ctor+","s+proto+","+prototypeProto+");\n"s;
+  str = "\n// Instantiate constructor for class "+ thisClass+ "\n"s;
+  str += thisClass + "::Ctor "s + thisClass+"_ctor("s +ctor+","s+proto+","+prototypeProto+");\n\n"s;
 
   // piggy back generation of static field definition
   for (unsigned i = 0; i < c->GetFieldsNum(); ++i) {
