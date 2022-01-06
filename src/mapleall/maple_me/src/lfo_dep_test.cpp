@@ -24,7 +24,7 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
         DoloopNode *doloop = static_cast<DoloopNode *>(stmt);
         DoloopInfo *doloopInfo = memPool->New<DoloopInfo>(&alloc, this, doloop, parent);
         doloopInfoMap.insert(std::pair<DoloopNode *, DoloopInfo *>(doloop, doloopInfo));
-        if (parent) {
+        if (parent != nullptr) {
           parent->children.push_back(doloopInfo);
         } else {
           outermostDoloopInfoVec.push_back(doloopInfo);
@@ -51,7 +51,7 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       }
       case OP_dowhile:
       case OP_while: {
-        if (parent) {
+        if (parent != nullptr) {
           parent->hasOtherCtrlFlow = true;
         }
         CreateDoloopInfo(static_cast<WhileStmtNode *>(stmt)->GetBody(), parent);
@@ -69,12 +69,12 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       case OP_return:
       case OP_throw:
       case OP_asm:
-        if (parent) {
+        if (parent != nullptr) {
           parent->hasOtherCtrlFlow = true;
         }
         break;
       case OP_label:
-        if (parent) {
+        if (parent != nullptr) {
           parent->hasLabels = true;
         }
         break;

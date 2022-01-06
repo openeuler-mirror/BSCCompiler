@@ -412,7 +412,7 @@ void SSUPre::CreateSortedOccs() {
       allOccs.push_back(pickedOcc);
       switch (pickedOcc->occTy) {
         case kSOccReal:
-        case kSOccKill:
+        case kSOccKill: {
           // get the next real/kill occ
           CHECK_FATAL(realOccIt != realOccs.end(), "iterator check");
           ++realOccIt;
@@ -422,7 +422,8 @@ void SSUPre::CreateSortedOccs() {
             nextRealOcc = nullptr;
           }
           break;
-        case kSOccEntry:
+        }
+        case kSOccEntry: {
           CHECK_FATAL(entryOccIt != entryOccs.end(), "iterator check");
           ++entryOccIt;
           if (entryOccIt != entryOccs.end()) {
@@ -431,7 +432,8 @@ void SSUPre::CreateSortedOccs() {
             nextEntryOcc = nullptr;
           }
           break;
-        case kSOccLambda:
+        }
+        case kSOccLambda: {
           lambdaOccs.push_back(static_cast<SLambdaOcc*>(pickedOcc));
           CHECK_FATAL(lambdaDfnIt != lambdaDfns.end(), "iterator check");
           ++lambdaDfnIt;
@@ -442,7 +444,8 @@ void SSUPre::CreateSortedOccs() {
             nextLambdaOcc = nullptr;
           }
           break;
-        case kSOccLambdaRes:
+        }
+        case kSOccLambdaRes: {
           CHECK_FATAL(lambdaResDfnIt != lambdaResDfns.end(), "iterator check");
           ++lambdaResDfnIt;
           if (lambdaResDfnIt != lambdaResDfns.end()) {
@@ -459,6 +462,7 @@ void SSUPre::CreateSortedOccs() {
             nextLambdaResOcc = nullptr;
           }
           break;
+        }
         default:
           ASSERT(false, "CreateSortedOccs: unexpected occTy");
           break;
