@@ -490,6 +490,9 @@ TypeAliasNode *BuildScopeVisitor::VisitTypeAliasNode(TypeAliasNode *node) {
   if (ut->IsUserType()) {
     TreeNode *id = static_cast<UserTypeNode *>(ut)->GetId();
     AddDecl(scope, id);
+
+    // add to Alias type
+    mHandler->AddAliasType(id->GetNodeId());
   }
   return node;
 }
