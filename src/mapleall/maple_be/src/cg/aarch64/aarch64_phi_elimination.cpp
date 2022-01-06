@@ -40,13 +40,16 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
   /* copy remat info */
   MaintainRematInfo(destOpnd, fromOpnd, true);
   ASSERT(insn != nullptr, "create move insn failed");
+  insn->SetIsPhiMovInsn(true);
   return *insn;
 }
 
 RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn) {
   VRegVersion *ssaVersion = GetSSAInfo()->FindSSAVersion(ssaOpnd.GetRegisterNumber());
   ASSERT(ssaVersion != nullptr, "find ssaVersion failed");
+  ASSERT(!ssaVersion->IsDeleted(), "ssaVersion has been deleted");
   RegOperand *regForRecreate = &ssaOpnd;
+  ASSERT(!ssaVersion->GetAllUseInsns().empty(), "check");
   if (GetSSAInfo()->IsNoDefVReg(ssaOpnd.GetRegisterNumber())) {
     regForRecreate = MakeRoomForNoDefVreg(ssaOpnd);
   } else {
@@ -54,7 +57,8 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
   }
   RegOperand &newReg = cgFunc->GetOrCreateVirtualRegisterOperand(*regForRecreate);
 
-  Insn *defInsn = ssaVersion->GetDefInsn();
+  DUInsnInfo *defInfo = ssaVersion->GetDefInsnInfo();
+  Insn *defInsn = defInfo != nullptr ? defInfo->GetInsn() : nullptr;
   /*
    * case1 : both def/use
    * case2 : inline-asm  (do not do aggressive optimization) "0"
@@ -67,19 +71,14 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
       }
     }
     /* case 1*/
-    MOperator mOp = defInsn->GetMachineOpcode();
-    const AArch64MD *md = &AArch64CG::kMd[mOp];
-    uint32 defUseIdx = kInsnMaxOpnd;
-    for (uint32 i = 0; i < defInsn->GetOperandSize(); ++i) {
-      auto *opndProp = static_cast<AArch64OpndProp *>(md->operand[i]);
-      if (opndProp->IsRegUse() && opndProp->IsDef()) {
-        defUseIdx = i;
-      }
-    }
+    uint32 defUseIdx = defInsn->GetBothDefUseOpnd();
     if (defUseIdx != kInsnMaxOpnd) {
-      Operand &preRegOpnd = defInsn->GetOperand(defUseIdx);
-      ASSERT(preRegOpnd.IsRegister(), "unexpect operand type");
-      newReg.SetRegisterNumber(static_cast<RegOperand&>(preRegOpnd).GetRegisterNumber());
+      if (defInfo->GetOperands().count(defUseIdx)) {
+        CHECK_FATAL(defInfo->GetOperands()[defUseIdx] == 1, "multiple definiation");
+        Operand &preRegOpnd = defInsn->GetOperand(defUseIdx);
+        ASSERT(preRegOpnd.IsRegister(), "unexpect operand type");
+        newReg.SetRegisterNumber(static_cast<RegOperand&>(preRegOpnd).GetRegisterNumber());
+      }
     }
     /* case 2 */
     if (defInsn->GetMachineOpcode() == MOP_asm) {
@@ -100,60 +99,34 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
     newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
   }
 
-  MaintainRematInfo(newReg, ssaOpnd,
-      ssaVersion->GetVersionIdx() == GetSSAInfo()->GetVersionNOOfOriginalVreg(ssaVersion->GetOriginalRegNO()));
+  MaintainRematInfo(newReg, ssaOpnd, true);
   newReg.SetOpndOutOfSSAForm();
   return newReg;
 }
 
 void AArch64PhiEliminate::AppendMovAfterLastVregDef(BB &bb, Insn &movInsn) const {
   Insn *posInsn = nullptr;
-  Insn *firstInsn = nullptr;
+  bool isPosPhi = false;
   FOR_BB_INSNS_REV(insn, &bb) {
     if (insn->IsPhi()) {
       posInsn = insn;
+      isPosPhi = true;
       break;
     }
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-    firstInsn = insn;
-    std::set<uint32> defRegs = insn->GetDefRegs();
-    for (auto defReg : defRegs) {
-      if (!(AArch64isa::IsPhysicalRegister(defReg) || defReg == kRFLAG)) {
-        posInsn = insn;
-        break;
-      }
+    if (insn->IsBranch()) {
+      posInsn = insn;
+      continue;
     }
-    if (posInsn != nullptr) {
-      break;
-    }
-    DoRegLiveRangeOpt(*insn, movInsn);
+    break;
   }
-  if (posInsn == nullptr) {
-    if (firstInsn == nullptr) { /* empty BB */
-      bb.AppendInsn(movInsn);
-    } else {
-      bb.InsertInsnBefore(*firstInsn, movInsn);
-    }
-  } else {
+  CHECK_FATAL(posInsn != nullptr, "insert mov for phi failed");
+  if (isPosPhi) {
     bb.InsertInsnAfter(*posInsn, movInsn);
-  }
-}
-
-void AArch64PhiEliminate::DoRegLiveRangeOpt(Insn &insn, Insn &movInsn) const {
-  Operand &exisitReg = movInsn.GetOperand(kInsnSecondOpnd);
-  ASSERT(exisitReg.IsRegister(), "second operand of mov must be register");
-  auto &curInsn = static_cast<AArch64Insn&>(insn);
-  ASSERT(!curInsn.IsRegDefined(static_cast<RegOperand&>(exisitReg).GetRegisterNumber()), "cannot have def here!!!");
-  /* replace register type */
-  for (int i = 0; i < curInsn.GetOperandSize(); ++i) {
-    if (curInsn.GetOperand(i).IsRegister()) {
-      auto &regOpnd = static_cast<RegOperand&>(curInsn.GetOperand(i));
-      if (regOpnd.GetRegisterNumber() == static_cast<RegOperand&>(exisitReg).GetRegisterNumber()) {
-        insn.SetOperand(i, movInsn.GetOperand(kInsnFirstOpnd));
-      }
-    }
+  } else {
+    bb.InsertInsnBefore(*posInsn, movInsn);
   }
 }
 
@@ -222,9 +195,5 @@ void A64OperandPhiElmVisitor::Visit(MemOperand *v) {
       a64MemOpnd->SetIndexRegister(a64PhiEliminator->GetCGVirtualOpearnd(*indexRegOpnd, *insn));
     }
   }
-}
-
-void A64OperandPhiElmVisitor::Visit(PhiOperand *v) {
-  CHECK_FATAL(false,"do not need recreate phi any more");
 }
 }

@@ -21,6 +21,14 @@
 
 namespace maplebe {
 using namespace maple;
+enum MemPropMode : uint8 {
+  kUndef,
+  kPropBase,
+  kPropOffset,
+  kPropSignedExtend,
+  kPropUnsignedExtend,
+  kPropShift
+};
 
 class AArch64StoreLoadOpt : public StoreLoadOpt {
  public:
@@ -32,21 +40,12 @@ class AArch64StoreLoadOpt : public StoreLoadOpt {
   void DoLoadZeroToMoveTransfer(const Insn&, short, const InsnSet&) const;
   void DoLoadToMoveTransfer(Insn&, short, short, const InsnSet&);
   bool CheckStoreOpCode(MOperator opCode) const;
-
-  enum MemPropMode : uint8 {
-    kUndef,
-    kPropBase,
-    kPropOffset,
-    kPropSignedExtend,
-    kPropUnsignedExtend,
-    kPropShift
-  };
+  static bool CheckNewAmount(Insn &insn, uint32 newAmount);
 
  private:
   void StrLdrIndexModeOpt(Insn &currInsn);
   bool CheckReplaceReg(Insn &defInsn, Insn &currInsn, InsnSet &replaceRegDefSet, regno_t replaceRegNo);
   bool CheckDefInsn(Insn &defInsn, Insn &currInsn);
-  bool CheckNewAmount(Insn &insn, uint32 newAmount);
   bool CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
   AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
   AArch64MemOperand *SelectReplaceMem(Insn &defInsn, Insn &curInsn, RegOperand &base, Operand *offset);

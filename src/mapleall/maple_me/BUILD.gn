@@ -115,6 +115,7 @@ src_libmplme = [
 src_libmplmewpo = [
   "src/alias_class.cpp",
   "src/demand_driven_alias_analysis.cpp",
+  "src/type_based_alias_analysis.cpp",
   "src/bb.cpp",
   "src/dominance.cpp",
   "src/func_emit.cpp",

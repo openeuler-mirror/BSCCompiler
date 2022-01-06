@@ -89,9 +89,9 @@ class MeOption : public MapleDriverOptionBase {
   static std::string skipAfter;
   static bool quiet;
   static bool setCalleeHasSideEffect;
-  static bool noSteensgaard;
-  static bool noTBAA;
-  static bool noDDAA;
+  static bool steensgaardAA;
+  static bool tbaa;
+  static bool ddaa;
   static uint8 aliasAnalysisLevel;
   static bool noDot;
   static bool stmtNum;
