@@ -33,7 +33,7 @@ typedef uint32 BBId;
 // returned to the caller by setting restoreAtEntryBBs and restoreAtExitBBs.
 class SPreWorkCand {
  public:
-  SPreWorkCand(MapleAllocator *alloc):
+  explicit SPreWorkCand(MapleAllocator *alloc):
      occBBs(alloc->Adapter()), saveBBs(alloc->Adapter()),
      restoreAtEntryBBs(alloc->Adapter()), restoreAtExitBBs(alloc->Adapter())  {}
   // inputs
@@ -153,8 +153,8 @@ class SKillOcc : public SOcc {
 
 class SSUPre {
  public:
-  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool enDebug):
-        cgFunc(cgfunc),
+  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool enDebug)
+      : cgFunc(cgfunc),
         pdom(pd),
         spreMp(memPool),
         spreAllocator(memPool),
@@ -167,8 +167,8 @@ class SSUPre {
         lambdaOccs(spreAllocator.Adapter()),
         entryOccs(spreAllocator.Adapter()),
         enabledDebug(enDebug) {
-      CreateEntryOcc(cgfunc->GetFirstBB());
-    }
+    CreateEntryOcc(cgfunc->GetFirstBB());
+  }
   ~SSUPre() = default;
 
   void ApplySSUPre();

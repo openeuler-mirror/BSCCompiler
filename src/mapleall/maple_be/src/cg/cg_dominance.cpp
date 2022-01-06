@@ -382,7 +382,7 @@ void PostDomAnalysis::ComputePdomChildren() {
 // bbidMarker indicates that the iterPdomFrontier results for bbid < bbidMarker
 // have been computed
 void PostDomAnalysis::GetIterPdomFrontier(const BB *bb, MapleSet<uint32> *dfset, uint32 bbidMarker,
-                                     std::vector<bool> &visitedMap) {
+                                          std::vector<bool> &visitedMap) {
   if (visitedMap[bb->GetId()]) {
     return;
   }
@@ -477,7 +477,7 @@ MAPLE_ANALYSIS_PHASE_REGISTER(CgDomAnalysis, domanalysis)
 bool CgPostDomAnalysis::PhaseRun(maplebe::CGFunc &f) {
   MemPool *pdomMemPool = GetPhaseMemPool();
   pdomAnalysis = pdomMemPool->New<PostDomAnalysis>(f, *pdomMemPool, *pdomMemPool, f.GetAllBBs(),
-                                             *f.GetFirstBB(), *f.GetCommonExitBB());
+                                                   *f.GetFirstBB(), *f.GetCommonExitBB());
   pdomAnalysis->Compute();
   if (CG_DEBUG_FUNC(f)) {
     pdomAnalysis->Dump();
