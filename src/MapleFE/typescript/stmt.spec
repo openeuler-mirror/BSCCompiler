@@ -2250,6 +2250,7 @@ rule KeywordMemberFunctionName : ONEOF("return",
                                        "get",
                                        "set",
                                        "continue",
+                                       "break",
                                        "export")
   attr.action : BuildIdentifier()
 
