@@ -38,6 +38,8 @@ class MeSSAUpdate {
   // tool function - insert ost defined in defBB to ssaCands, if ssaCands is nullptr, do not insert.
   static void InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
                                   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> *ssaCands = nullptr);
+  // tool function - insert ost defined in defBB to ssaCands after traverse philist and all statements.
+  static void InsertDefPointsOfBBToSSACands(BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands);
 
  private:
   void InsertPhis();

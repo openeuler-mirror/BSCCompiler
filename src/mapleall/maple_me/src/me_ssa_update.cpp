@@ -272,6 +272,33 @@ void MeSSAUpdate::InsertOstToSSACands(OStIdx ostIdx, const BB &defBB,
   }
 }
 
+void MeSSAUpdate::InsertDefPointsOfBBToSSACands(
+    BB &defBB, std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &ssaCands) {
+  // Insert the ost of philist to defBB.
+  for (auto &it : defBB.GetMePhiList()) {
+    MeSSAUpdate::InsertOstToSSACands(it.first, defBB, &ssaCands);
+  }
+  // Insert the ost of def points to the def bbs.
+  for (auto &meStmt : defBB.GetMeStmts()) {
+    if (kOpcodeInfo.AssignActualVar(meStmt.GetOp()) && meStmt.GetLHS() != nullptr) {
+      MeSSAUpdate::InsertOstToSSACands(meStmt.GetLHS()->GetOstIdx(), defBB, &ssaCands);
+    }
+    if (meStmt.GetChiList() != nullptr) {
+      for (auto &chi : *meStmt.GetChiList()) {
+        auto *lhs = chi.second->GetLHS();
+        const OStIdx &ostIdx = lhs->GetOstIdx();
+        MeSSAUpdate::InsertOstToSSACands(ostIdx, defBB, &ssaCands);
+      }
+    }
+    if (meStmt.GetMustDefList() != nullptr) {
+      for (auto &mustDefNode : *meStmt.GetMustDefList()) {
+        const ScalarMeExpr *lhs = static_cast<const ScalarMeExpr*>(mustDefNode.GetLHS());
+        MeSSAUpdate::InsertOstToSSACands(lhs->GetOstIdx(), defBB, &ssaCands);
+      }
+    }
+  }
+}
+
 void MeSSAUpdate::Run() {
   InsertPhis();
   // push zero-version varmeexpr nodes to rename stacks

@@ -351,8 +351,14 @@ void LoopUnrolling::ResetFrequency() {
   }
 }
 
+// When copying the loop for the first time, insert the loop header behind the tail of the original loop.
 void LoopUnrolling::AddEdgeForExitBBLastNew2OldBBEmpty(BB &exitBB, std::unordered_map<BB*, BB*> &old2NewBB,
                                                        BB &newHeadBB) {
+  if (!exitBB.GetPred().empty()) {
+    for (auto &it : exitBB.GetMePhiList()) {
+      MeSSAUpdate::InsertOstToSSACands(it.first, *exitBB.GetPred(0), &cands);
+    }
+  }
   for (size_t idx = 0; idx < exitBB.GetPred().size(); ++idx) {
     auto *bb = exitBB.GetPred(idx);
     auto it = old2NewBB.find(bb);
@@ -1100,7 +1106,8 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
   if (LoopUnrollingExecutor::enableDebug) {
     irMap->Dump();
     func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfobeforLoopUnrolling", false, true) :
-                            func->GetCfg()->DumpToFile("cfgbeforLoopUnrolling");
+                            func->GetCfg()->DumpToFile("cfgbeforLoopUnrolling" +
+                                                       std::to_string(loop->head->GetBBId()));
   }
   // fully unroll
   ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(tripCount);
@@ -1114,7 +1121,8 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
     if (LoopUnrollingExecutor::enableDebug) {
       irMap->Dump();
       func->IsIRProfValid() ? func->GetCfg()->DumpToFile("cfgIncludeFreqInfoafterLoopFullyUnrolling", false, true) :
-                              func->GetCfg()->DumpToFile("cfgafterLoopFullyUnrolling");
+                              func->GetCfg()->DumpToFile("cfgafterLoopFullyUnrolling" +
+                                                         std::to_string(loop->head->GetBBId()));
     }
     return true;
   }
@@ -1138,8 +1146,6 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
 
 void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
     std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc) {
-  enableDebug = false;
-  enableDump = false;
   if (enableDebug) {
     LogInfo::MapleLogger() << func.GetName() << "\n";
   }
@@ -1211,11 +1217,11 @@ bool MELoopUnrolling::PhaseRun(maple::MeFunction &f) {
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   auto *irMap = GET_ANALYSIS(MEIRMapBuild, f);
   CHECK_NULL_FATAL(irMap);
-  LoopUnrollingExecutor loopUnrollingExe = LoopUnrollingExecutor(*loopunrollMemPool);
-  loopUnrollingExe.ExecuteLoopUnrolling(f, *irMap, cands, *meLoop, loopUnrollingAlloc);
   if (DEBUGFUNC_NEWPM(f)) {
     f.GetCfg()->DumpToFile("beforeloopunrolling", false);
   }
+  LoopUnrollingExecutor loopUnrollingExe = LoopUnrollingExecutor(*loopunrollMemPool);
+  loopUnrollingExe.ExecuteLoopUnrolling(f, *irMap, cands, *meLoop, loopUnrollingAlloc);
   if (loopUnrollingExe.IsCFGChange()) {
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
     auto dom = FORCE_GET(MEDominance);
