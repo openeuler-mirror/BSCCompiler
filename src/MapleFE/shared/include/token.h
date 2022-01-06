@@ -163,6 +163,7 @@ struct Token {
   Token* FindSeparatorToken(SepId id);
   Token* FindOperatorToken(OprId id);
   Token* FindKeywordToken(const char *key);
+  Token* FindPreprocessorKeywordToken(const char *key);
   Token* FindCommentToken();
 
 }
