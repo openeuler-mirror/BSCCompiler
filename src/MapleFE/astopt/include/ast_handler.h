@@ -131,6 +131,8 @@ class Module_Handler {
   std::unordered_map<unsigned, TypeId> mArrayDeclId2EleTypeIdMap;
   // fields' nodeid set
   std::unordered_set<unsigned> mDirectFieldSet;
+  // alias type, identifier node id
+  std::unordered_set<unsigned> mAliasTypeSet;
 
  public:
   explicit Module_Handler(unsigned f) :
@@ -213,6 +215,12 @@ class Module_Handler {
   void AddNodeId2DeclMap(unsigned nid, TreeNode *node) {
     mNodeId2Decl[nid] = node;
   }
+
+  void AddAliasType(unsigned nid) { mAliasTypeSet.insert(nid); }
+  bool isAliasType(unsigned nid) {
+    return mAliasTypeSet.find(nid) != mAliasTypeSet.end();
+  }
+  bool isAliasType(TreeNode *node) { return isAliasType(node->GetNodeId()); }
 
   template <typename T>
   T *NewTreeNode() {
