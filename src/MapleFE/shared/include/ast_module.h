@@ -27,7 +27,8 @@ enum SrcLang {
   SrcLangUnknown,
   SrcLangJava,
   SrcLangJavaScript,
-  SrcLangTypeScript
+  SrcLangTypeScript,
+  SrcLangC,
 };
 
 // The module is a member of class Parser.

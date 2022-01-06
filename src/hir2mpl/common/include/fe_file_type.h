@@ -54,7 +54,7 @@ class FEFileType {
   static const uint32 kMagicZip = 0x04034B50;
   static const uint32 kMagicDex = 0x0A786564;
   static const uint32 kMagicAST = 0x48435043;
-  static const uint32 kMagicMAST = 0xbe4c504d;
+  static const uint32 kMagicMAST = 0x854C504D;
   std::map<std::string, FileType> mapExtNameType;
   std::map<FileType, uint32> mapTypeMagic;
   std::map<uint32, FileType> mapMagicType;

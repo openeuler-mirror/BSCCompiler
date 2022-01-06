@@ -157,13 +157,29 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
   }
 }
 
+std::string ENCChecker::GetNthStr(size_t index) {
+  switch (index) {
+    case 0:
+      return "1st";
+    case 1:
+      return "2nd";
+    case 2:
+      return "3rd";
+    default: {
+      std::ostringstream oss;
+      oss << index + 1 << "th";
+      return oss.str();
+    }
+  }
+}
+
 std::string ENCChecker::PrintParamIdx(const std::list<size_t> &idxs) {
   std::ostringstream os;
   for (auto iter = idxs.begin(); iter != idxs.end(); ++iter) {
     if (iter != idxs.begin()) {
       os << ", ";
     }
-    os << *iter;
+    os << GetNthStr(*iter);
   }
   return os.str();
 }
@@ -185,17 +201,17 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
     std::list<size_t> errIdxs;
     for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFunc->GetNthParamAttr(i).GetAttr(ATTR_nonnull) != funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
-        errIdxs.emplace_back(i + 1);
+        errIdxs.emplace_back(i);
       }
     }
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched "
-             "in %s parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
              PrintParamIdx(errIdxs).c_str());
     }
     if (srcFunc->GetFuncAttrs().GetAttr(FUNCATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched in return",
-             FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+      FE_ERR(kLncErr, "%s:%d error: function pointer and target function's nonnull attributes are mismatched for"
+             " the return value", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -204,22 +220,22 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
     for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (srcFuncType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull) !=
           funcType->GetNthParamAttrs(i).GetAttr(ATTR_nonnull)) {
-        errIdxs.emplace_back(i + 1);
+        errIdxs.emplace_back(i);
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in %s parameter",
+      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the %s argument",
              FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
     }
     if (srcFuncType->GetRetAttrs().GetAttr(ATTR_nonnull) != funcType->GetRetAttrs().GetAttr(ATTR_nonnull)) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched in return",
+      FE_ERR(kLncErr, "%s:%d error: function pointer's nonnull attributes are mismatched for the return value",
              FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
     }
   }
 }
 
-void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr() const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *baseType = var->GetType()->GenerateMIRTypeAuto();
@@ -229,8 +245,8 @@ void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr() const {
   ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRType &baseType) const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
@@ -281,7 +297,7 @@ void ASTCastExpr::CheckNonnullFieldInStruct() const {
     return;
   }
   if (ENCChecker::HasNonnullFieldInPtrStruct(*dst)) {
-    FE_ERR(kLncErr, "%s:%d error: NULL assignment risk of nonnull field pointer",
+    FE_ERR(kLncErr, "%s:%d error: null assignment risk of nonnull field pointer",
            FEManager::GetModule().GetFileNameFromFileNum(srcFileIdx).c_str(), srcFileLineNum);
   }
 }
@@ -423,6 +439,9 @@ void ASTParser::ProcessBoundaryParamAttrs(MapleAllocator &allocator, const clang
     }
     for (const auto *byteCountAttr : parmDecl->specific_attrs<clang::ByteCountAttr>()) {
       clang::Expr *expr = byteCountAttr->getLenExpr();
+      if (byteCountAttr->index_size()) {
+        continue;  // boundary attrs with index args are only marked function pointers
+      }
       ASTExpr *lenExpr = ProcessExpr(allocator, expr);
       if (lenExpr == nullptr) {
         continue;
@@ -448,6 +467,9 @@ void ASTParser::ProcessBoundaryParamAttrsByIndex(MapleAllocator &allocator, cons
       ProcessBoundaryLenExprInFunc(allocator, funcDecl, i, astFunc, lenIdx, true);
     }
     for (const auto *byteCountIndexAttr : parmDecl->specific_attrs<clang::ByteCountIndexAttr>()) {
+      if (byteCountIndexAttr->index_size()) {
+        continue;  // boundary attrs with index args are only marked function pointers
+      }
       unsigned int lenIdx = byteCountIndexAttr->getLenVarIndex().getASTIndex();
       ProcessBoundaryLenExprInFunc(allocator, funcDecl, i, astFunc, lenIdx, false);
     }
@@ -475,6 +497,9 @@ void ASTParser::ProcessBoundaryVarAttrs(MapleAllocator &allocator, const clang::
     if (lenExpr == nullptr) {
       continue;
     }
+    if (byteCountAttr->index_size()) {
+      continue;  // boundary attrs with index args are only marked function pointers
+    }
     ProcessBoundaryLenExprInVar(allocator, astVar, varDecl, lenExpr, false);
   }
 }
@@ -498,40 +523,27 @@ void ASTParser::ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const cla
     return;
   }
   std::vector<TypeAttrs> attrsVec = funcType->GetParamAttrsList();
-  std::vector<TyIdx> typesVec = funcType->GetParamTypeList();
   TypeAttrs retAttr = funcType->GetRetAttrs();
   bool isUpdated = false;
   for (const auto *countAttr : valueDecl.specific_attrs<clang::CountAttr>()) {
-    clang::Expr *expr = countAttr->getLenExpr();
-    ASTExpr *lenExpr = ProcessExpr(allocator, expr);
-    if (!countAttr->index_size() || lenExpr == nullptr) {
-      continue;
+    if (ProcessBoundaryFuncPtrAttrsForParams(countAttr, allocator, *funcType, *proto, attrsVec)) {
+      isUpdated = true;
     }
-    for (const clang::ParamIdx &paramIdx : countAttr->index()) {
-      unsigned int idx = paramIdx.getASTIndex();
-      if (idx >= attrsVec.size() || idx >= typesVec.size()) {
-        continue;
-      }
-      MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[idx]);
-      ASTVar *tmpDecl = ASTDeclsBuilder::ASTVarBuilder(
-          allocator, "", "tmpVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
-      ProcessBoundaryLenExprInVar(allocator, *tmpDecl, proto->getParamType(idx), lenExpr, true);
-      ENCChecker::InsertBoundaryInAtts(attrsVec[idx], tmpDecl->GetBoundaryInfo());
+  }
+  for (const auto *byteCountAttr : valueDecl.specific_attrs<clang::ByteCountAttr>()) {
+    if (ProcessBoundaryFuncPtrAttrsForParams(byteCountAttr, allocator, *funcType, *proto, attrsVec)) {
       isUpdated = true;
     }
   }
   for (const auto *returnsCountAttr : valueDecl.specific_attrs<clang::ReturnsCountAttr>()) {
-    clang::Expr *expr = returnsCountAttr->getLenExpr();
-    ASTExpr *lenExpr = ProcessExpr(allocator, expr);
-    if (lenExpr == nullptr) {
-        continue;
+    if (ProcessBoundaryFuncPtrAttrsForRet(returnsCountAttr, allocator, *funcType, *clangFuncType, retAttr)) {
+      isUpdated = true;
     }
-    MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType->GetRetTyIdx());
-    ASTVar *tmpRetDecl = ASTDeclsBuilder::ASTVarBuilder(
-        allocator, "", "tmpRetVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
-    ProcessBoundaryLenExprInVar(allocator, *tmpRetDecl, clangFuncType->getReturnType(), lenExpr, true);
-    ENCChecker::InsertBoundaryInAtts(retAttr, tmpRetDecl->GetBoundaryInfo());
-    isUpdated = true;
+  }
+  for (const auto *returnsByteCountAttr : valueDecl.specific_attrs<clang::ReturnsByteCountAttr>()) {
+    if (ProcessBoundaryFuncPtrAttrsForRet(returnsByteCountAttr, allocator, *funcType, *clangFuncType, retAttr)) {
+      isUpdated = true;
+    }
   }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
@@ -542,30 +554,62 @@ void ASTParser::ProcessBoundaryFuncPtrAttrs(MapleAllocator &allocator, const cla
   ProcessBoundaryFuncPtrAttrsByIndex(valueDecl, astDecl, *funcType);
 }
 
+template <typename T>
+bool ASTParser::ProcessBoundaryFuncPtrAttrsForParams(T *attr, MapleAllocator &allocator, const MIRFuncType &funcType,
+                                                     const clang::FunctionProtoType &proto,
+                                                     std::vector<TypeAttrs> &attrsVec) {
+  bool isUpdated = false;
+  clang::Expr *expr = attr->getLenExpr();
+  ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+  if (!attr->index_size() || lenExpr == nullptr) {
+    return isUpdated;
+  }
+  std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
+  for (const clang::ParamIdx &paramIdx : attr->index()) {
+    unsigned int idx = paramIdx.getASTIndex();
+    if (idx >= attrsVec.size() || idx >= typesVec.size()) {
+      continue;
+    }
+    MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[idx]);
+    ASTVar *tmpDecl = ASTDeclsBuilder::ASTVarBuilder(
+        allocator, "", "tmpVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
+    bool isByte = std::is_same<typename std::decay<T>::type, clang::ByteCountAttr>::value;
+    ProcessBoundaryLenExprInVar(allocator, *tmpDecl, proto.getParamType(idx), lenExpr, !isByte);
+    ENCChecker::InsertBoundaryInAtts(attrsVec[idx], tmpDecl->GetBoundaryInfo());
+    isUpdated = true;
+  }
+  return isUpdated;
+}
+
+template <typename T>
+bool ASTParser::ProcessBoundaryFuncPtrAttrsForRet(T *attr, MapleAllocator &allocator, const MIRFuncType &funcType,
+                                                  const clang::FunctionType &clangFuncType, TypeAttrs &retAttr) {
+  clang::Expr *expr = attr->getLenExpr();
+  ASTExpr *lenExpr = ProcessExpr(allocator, expr);
+  if (lenExpr == nullptr) {
+    return false;
+  }
+  MIRType *ptrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(funcType.GetRetTyIdx());
+  ASTVar *tmpRetDecl = ASTDeclsBuilder::ASTVarBuilder(
+      allocator, "", "tmpRetVar", std::vector<MIRType*>{ptrType}, GenericAttrs());
+  bool isByte = std::is_same<typename std::decay<T>::type, clang::ReturnsByteCountAttr>::value;
+  ProcessBoundaryLenExprInVar(allocator, *tmpRetDecl, clangFuncType.getReturnType(), lenExpr, !isByte);
+  ENCChecker::InsertBoundaryInAtts(retAttr, tmpRetDecl->GetBoundaryInfo());
+  return true;
+}
+
 void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &valueDecl, ASTDecl &astDecl,
                                                    const MIRFuncType &funcType) {
   std::vector<TypeAttrs> attrsVec = funcType.GetParamAttrsList();
-  std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
   TypeAttrs retAttr = funcType.GetRetAttrs();
   bool isUpdated = false;
   for (const auto *countAttr : valueDecl.specific_attrs<clang::CountIndexAttr>()) {
-    unsigned int lenIdx = countAttr->getLenVarIndex().getASTIndex();
-    if (!countAttr->index_size() || lenIdx >= typesVec.size()) {
-      continue;
+    if (ProcessBoundaryFuncPtrAttrsByIndexForParams(countAttr, astDecl, funcType, attrsVec)) {
+      isUpdated = true;
     }
-    MIRType *lenType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[lenIdx]);
-    if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-      FE_ERR(kLncErr, "%s:%d error: The boundary length var by index[%d] is not an integer type",
-             FEManager::GetModule().GetFileNameFromFileNum(astDecl.GetSrcFileIdx()).c_str(),
-             astDecl.GetSrcFileLineNum(), lenIdx);
-      continue;
-    }
-    for (const clang::ParamIdx &paramIdx : countAttr->index()) {
-      unsigned int idx = paramIdx.getASTIndex();
-      if (idx >= attrsVec.size() || idx >= typesVec.size()) {
-        continue;
-      }
-      attrsVec[idx].GetAttrBoundary().SetLenParamIdx(static_cast<int8>(lenIdx));
+  }
+  for (const auto *byteCountAttr : valueDecl.specific_attrs<clang::ByteCountIndexAttr>()) {
+    if (ProcessBoundaryFuncPtrAttrsByIndexForParams(byteCountAttr, astDecl, funcType, attrsVec)) {
       isUpdated = true;
     }
   }
@@ -574,12 +618,48 @@ void ASTParser::ProcessBoundaryFuncPtrAttrsByIndex(const clang::ValueDecl &value
     retAttr.GetAttrBoundary().SetLenParamIdx(static_cast<int8>(lenIdx));
     isUpdated = true;
   }
+  for (const auto *returnsByteCountIndexAttr : valueDecl.specific_attrs<clang::ReturnsByteCountIndexAttr>()) {
+    unsigned int lenIdx = returnsByteCountIndexAttr->getLenVarIndex().getASTIndex();
+    retAttr.GetAttrBoundary().SetLenParamIdx(static_cast<int8>(lenIdx));
+    retAttr.GetAttrBoundary().SetIsBytedLen(true);
+    isUpdated = true;
+  }
   if (isUpdated) {
     MIRType *newFuncType = GlobalTables::GetTypeTable().GetOrCreateFunctionType(
         funcType.GetRetTyIdx(), funcType.GetParamTypeList(), attrsVec, funcType.IsVarargs(), retAttr);
     astDecl.SetTypeDesc(std::vector<MIRType*>{GlobalTables::GetTypeTable().GetOrCreatePointerType(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
   }
+}
+
+template <typename T>
+bool ASTParser::ProcessBoundaryFuncPtrAttrsByIndexForParams(T *attr, ASTDecl &astDecl, const MIRFuncType &funcType,
+                                                            std::vector<TypeAttrs> &attrsVec) {
+  bool isUpdated = false;
+  std::vector<TyIdx> typesVec = funcType.GetParamTypeList();
+  unsigned int lenIdx = attr->getLenVarIndex().getASTIndex();
+  if (!attr->index_size() || lenIdx >= typesVec.size()) {
+    return isUpdated;
+  }
+  MIRType *lenType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(typesVec[lenIdx]);
+  if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
+    FE_ERR(kLncErr, "%s:%d error: The boundary length var by the %s argument is not an integer type",
+           FEManager::GetModule().GetFileNameFromFileNum(astDecl.GetSrcFileIdx()).c_str(),
+           astDecl.GetSrcFileLineNum(), ENCChecker::GetNthStr(lenIdx).c_str());
+    return isUpdated;
+  }
+  for (const clang::ParamIdx &paramIdx : attr->index()) {
+    unsigned int idx = paramIdx.getASTIndex();
+    if (idx >= attrsVec.size() || idx >= typesVec.size()) {
+      continue;
+    }
+    attrsVec[idx].GetAttrBoundary().SetLenParamIdx(static_cast<int8>(lenIdx));
+    if (std::is_same<typename std::decay<T>::type, clang::ByteCountIndexAttr>::value) {
+      attrsVec[idx].GetAttrBoundary().SetIsBytedLen(true);
+    }
+    isUpdated = true;
+  }
+  return isUpdated;
 }
 
 void ASTParser::ProcessBoundaryFieldAttrs(MapleAllocator &allocator, const ASTStruct &structDecl,
@@ -662,6 +742,7 @@ void ASTParser::ProcessBoundaryLenExpr(MapleAllocator &allocator, ASTDecl &ptrDe
     lenExpr = GetAddrShiftExpr(allocator, lenExpr, lenSize);
   }
   ptrDecl.SetBoundaryLenExpr(lenExpr);
+  ptrDecl.SetIsBytedLen(!isSize);
 }
 
 void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
@@ -675,9 +756,9 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
     ptrDecl = astFunc.GetParamDecls()[idx];
     qualType = funcDecl.getParamDecl(idx)->getType();
   } else {
-    FE_ERR(kLncErr, "%s:%d error: The parameter annotated boundary attr [idx:%d] is not found"
+    FE_ERR(kLncErr, "%s:%d error: The parameter annotated boundary attr [the %s argument] is not found"
            "in the function [%s]", FEManager::GetModule().GetFileNameFromFileNum(lenExpr->GetSrcFileIdx()).c_str(),
-           lenExpr->GetSrcFileLineNum(), idx, astFunc.GetName().c_str());
+           lenExpr->GetSrcFileLineNum(), ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
   // parameter stringLiteral -> real parameter decl
@@ -712,15 +793,15 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
 void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const clang::FunctionDecl &funcDecl,
                                              unsigned int idx, ASTFunc &astFunc, unsigned int lenIdx, bool isSize) {
   if (lenIdx > astFunc.GetParamDecls().size()) {
-    FE_ERR(kLncErr, "error: The parameter [idx:%d] specified as boundary length var is not found "
-           "in the function [%s]", lenIdx, astFunc.GetName().c_str());
+    FE_ERR(kLncErr, "error: The %s parameter specified as boundary length var is not found "
+           "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ASTDecl *lenDecl = astFunc.GetParamDecls()[lenIdx];
   MIRType *lenType = lenDecl->GetTypeDesc().front();
   if (lenType == nullptr || !FEUtils::IsInteger(lenType->GetPrimType())) {
-    FE_ERR(kLncErr, "error: The parameter [idx:%d] specified as boundary length var is not an integer type "
-           "in the function [%s]", lenIdx, astFunc.GetName().c_str());
+    FE_ERR(kLncErr, "error: The %s parameter specified as boundary length var is not an integer type "
+           "in the function [%s]", ENCChecker::GetNthStr(lenIdx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ASTDeclRefExpr *lenRefExpr = ASTDeclsBuilder::ASTExprBuilder<ASTDeclRefExpr>(allocator);
@@ -733,8 +814,8 @@ void ASTParser::ProcessBoundaryLenExprInFunc(MapleAllocator &allocator, const cl
   } else if (idx < astFunc.GetParamDecls().size()) {
     ptrDecl = astFunc.GetParamDecls()[idx];
   } else {
-    FE_ERR(kLncErr, "error: The parameter annotated boundary attr [idx:%d] is not found in the function [%s]",
-           idx, astFunc.GetName().c_str());
+    FE_ERR(kLncErr, "error: The %s parameter annotated boundary attr is not found in the function [%s]",
+           ENCChecker::GetNthStr(idx).c_str(), astFunc.GetName().c_str());
     return;
   }
   ptrDecl->SetBoundaryLenParamIdx(static_cast<int8>(lenIdx));
@@ -798,7 +879,7 @@ void ASTParser::ProcessBoundaryLenExprInField(MapleAllocator &allocator, ASTDecl
 // ---------------------------
 // process boundary var
 // ---------------------------
-UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr) {
+UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &expr, bool isIncludingAddrof) {
   if (expr == nullptr) {
     return nullptr;
   }
@@ -827,25 +908,22 @@ UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &
       (expr->GetKind() == kExprIRead && expr->GetPrimType() == PTY_ptr && expr->GetFieldID() != 0) ||
       GetArrayTypeFromExpr(expr) != nullptr) {
     baseExpr = expr->Clone();
+  } else if (isIncludingAddrof && GetTypeFromAddrExpr(expr) != nullptr) {  // addrof as 1-sized array
+    baseExpr = expr->Clone();
   }
   return baseExpr;
 }
 
-MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
+MIRType *ENCChecker::GetTypeFromAddrExpr(const UniqueFEIRExpr &expr) {
   if (expr->GetKind() == kExprAddrofVar) {
     MIRType *type = expr->GetVarUses().front()->GetType()->GenerateMIRTypeAuto();
     if (expr->GetFieldID() == 0) {
-      if (type->GetKind() == kTypeArray) {
-        return type;
-      }
+      return type;
     } else {
       CHECK_FATAL(type->IsStructType(), "basetype must be StructType");
       FieldID fieldID = expr->GetFieldID();
       FieldPair fieldPair = static_cast<MIRStructType*>(type)->TraverseToFieldRef(fieldID);
-      MIRType *arrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
-      if (arrType->GetKind() == kTypeArray) {
-        return arrType;
-      }
+      return GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
     }
   } else if (expr->GetKind() == kExprIAddrof) {
     FEIRExprIAddrof *iaddrof = static_cast<FEIRExprIAddrof*>(expr.get());
@@ -855,24 +933,30 @@ MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
     CHECK_FATAL(baseType->IsStructType(), "basetype must be StructType");
     FieldID fieldID = iaddrof->GetFieldID();
     FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(fieldID);
-    MIRType *arrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
-    if (arrType->GetKind() == kTypeArray) {
-      return arrType;
-    }
-  } else if (expr->GetKind() == kExprAddrof) {  // local char* value size
+    return GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldPair.second.first);
+  } else {
+    return nullptr;
+  }
+}
+
+MIRType *ENCChecker::GetArrayTypeFromExpr(const UniqueFEIRExpr &expr) {
+  MIRType *arrType = GetTypeFromAddrExpr(expr);
+  if (arrType != nullptr && arrType->GetKind() == kTypeArray &&
+      !static_cast<MIRArrayType*>(arrType)->GetTypeAttrs().GetAttr(ATTR_incomplete_array)) {
+    return arrType;
+  }
+  if (expr->GetKind() == kExprAddrof) {  // local char* value size
     auto *constArr = static_cast<FEIRExprAddrofConstArray*>(expr.get());
     return GlobalTables::GetTypeTable().GetOrCreateArrayType(
-        *constArr->GetElemType(), constArr->GetStringLiteralSize());
+        *constArr->GetElemType(), constArr->GetStringLiteralSize() + 1);  // including the end character with string
   } else if (expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) {  // global char* value size
     MIRType *type = expr->GetType()->GenerateMIRTypeAuto();
     if (type->IsMIRPtrType() && static_cast<MIRPtrType*>(type)->GetPointedType()->GetPrimType() == PTY_u8) {
       MIRConst *cst = GetMIRConstFromExpr(expr);
       if (cst != nullptr && cst->GetKind() == kConstStrConst) {
         size_t size = GlobalTables::GetUStrTable().GetStringFromStrIdx(
-            static_cast<MIRStrConst*>(cst)->GetValue()).size();
-        if (size != 0) {
-          return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
-        }
+            static_cast<MIRStrConst*>(cst)->GetValue()).size() + 1;  // including the end character with string
+        return GlobalTables::GetTypeTable().GetOrCreateArrayType(*GlobalTables::GetTypeTable().GetUInt8(), size);
       }
     }
     return nullptr;
@@ -943,8 +1027,11 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   }
   MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
   FEFunction &curFEFunction = FEManager::GetCurrentFEFunction();
-  UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(srcExpr);
+  UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(srcExpr, true);
   if (baseExpr == nullptr) {
+    return;
+  }
+  if (dstExpr->Hash() == baseExpr->Hash()) {  // skip self-assignment, e.g. p++;
     return;
   }
   // Check if the l-value has a boundary var
@@ -1014,13 +1101,21 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
       lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
       UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(OP_add, baseExpr->Clone(), rRealLenExpr->Clone());
       upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
+    } else {
+      MIRType *addrofType = GetTypeFromAddrExpr(baseExpr);
+      if (addrofType != nullptr) {  // addrof as 1-sized array, if l-value with boundary and r-value is addrof non-array
+        lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
+        UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(
+            OP_add, baseExpr->Clone(), std::make_unique<FEIRExprConst>(addrofType->GetSize(), PTY_ptr));
+        upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
+      }
     }
     if (lowerStmt == nullptr || upperStmt == nullptr) {
       return;
     }
-    if (lRealLenExpr != nullptr) {  // use l-vaule own boundary(use r-value base) when l-value has a boundary attr
+    if (lRealLenExpr != nullptr) {  // use l-vaule own boundary(use r-base + offset) when l-value has a boundary attr
       BaseNode *binExpr = mirBuilder.CreateExprBinary(
-          OP_add, *lLowerSym->GetType(), mirBuilder.CreateExprDread(*lLowerSym), lRealLenExpr->GenMIRNode(mirBuilder));
+          OP_add, *lLowerSym->GetType(), srcExpr->GenMIRNode(mirBuilder), lRealLenExpr->GenMIRNode(mirBuilder));
       upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr);
     }
     ans.emplace_back(lowerStmt);
@@ -1297,13 +1392,16 @@ void ENCChecker::PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, co
 }
 
 UniqueFEIRExpr ENCChecker::GetRealBoundaryLenExprInFuncByIndex(const TypeAttrs &typeAttrs, const MIRType &type,
-                                                        const ASTCallExpr &astCallExpr) {
+                                                               const ASTCallExpr &astCallExpr) {
   int8 idx = typeAttrs.GetAttrBoundary().GetLenParamIdx();
   if (idx >= 0) {
-    CHECK_FATAL(type.IsMIRPtrType(), "Must be ptr type!");
-    size_t lenSize = static_cast<const MIRPtrType&>(type).GetPointedType()->GetSize();
-    MapleAllocator &allocator = FEManager::GetModule().GetMPAllocator();
-    ASTExpr *astLenExpr = ASTParser::GetAddrShiftExpr(allocator, astCallExpr.GetArgsExpr()[idx], lenSize);
+    ASTExpr *astLenExpr = astCallExpr.GetArgsExpr()[idx];
+    if (!typeAttrs.GetAttrBoundary().IsBytedLen()) {
+      CHECK_FATAL(type.IsMIRPtrType(), "Must be ptr type!");
+      size_t lenSize = static_cast<const MIRPtrType&>(type).GetPointedType()->GetSize();
+      MapleAllocator &allocator = FEManager::GetModule().GetMPAllocator();
+      astLenExpr = ASTParser::GetAddrShiftExpr(allocator, astCallExpr.GetArgsExpr()[idx], lenSize);
+    }
     std::list<UniqueFEIRStmt> nullStmts;
     return astLenExpr->Emit2FEExpr(nullStmts);
   } else if (typeAttrs.GetAttrBoundary().GetLenExprHash() != 0) {
@@ -1472,7 +1570,7 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(srcExpr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assertge, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_calcassertge, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(fileIdx, fileLine);
   std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), lowerStmts);
@@ -1480,19 +1578,23 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(srcExpr->Clone());
   upperExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assertlt, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_calcassertlt, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(fileIdx, fileLine);
   std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), upperStmts);
 }
 
-UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr) {
+UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, const UniqueFEIRExpr &srcExpr,
+                                                    const UniqueFEIRExpr &dstExpr) {
   UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(srcExpr);
   if (baseExpr == nullptr) {
     return nullptr;
   }
-  UniqueFEIRExpr boundaryExpr = FEIRBuilder::CreateExprBinary(  // use r-value base
-      OP_add, baseExpr->Clone(), std::move(lenExpr));
+  if (dstExpr->Hash() == baseExpr->Hash()) {  // skip self-assignment, e.g. p++;
+    return nullptr;
+  }
+  UniqueFEIRExpr boundaryExpr = FEIRBuilder::CreateExprBinary(  // use r-value base + offset
+      OP_add, srcExpr->Clone(), std::move(lenExpr));
   std::list<UniqueFEIRExpr> exprs;
   exprs.emplace_back(std::move(boundaryExpr));
   exprs.emplace_back(std::move(baseExpr));
@@ -1516,6 +1618,7 @@ UniqueFEIRExpr ENCChecker::GetBoundaryLenExprCache(const FieldAttrs &attr) {
 }
 
 void ENCChecker::InsertBoundaryInAtts(TypeAttrs &attr, const BoundaryInfo &boundary) {
+  attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
   if (boundary.lenParamIdx != -1) {
     attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
   }
@@ -1537,6 +1640,7 @@ void ENCChecker::InsertBoundaryLenExprInAtts(TypeAttrs &attr, const UniqueFEIREx
 }
 
 void ENCChecker::InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boundary) {
+  attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
   if (boundary.lenParamIdx != -1) {
     attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
   }
@@ -1551,6 +1655,7 @@ void ENCChecker::InsertBoundaryInAtts(FieldAttrs &attr, const BoundaryInfo &boun
 }
 
 void ENCChecker::InsertBoundaryInAtts(FuncAttrs &attr, const BoundaryInfo &boundary) {
+  attr.GetAttrBoundary().SetIsBytedLen(boundary.isBytedLen);
   if (boundary.lenParamIdx != -1) {
     attr.GetAttrBoundary().SetLenParamIdx(boundary.lenParamIdx);
   }
@@ -1603,7 +1708,7 @@ void FEIRStmtDAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     }
   }
   if (lenExpr != nullptr) {
-    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), expr);
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), expr, dstExpr);
     if (stmt != nullptr) {
       stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
@@ -1634,7 +1739,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
     if (realLenExpr != nullptr) {
       lenExpr = std::move(realLenExpr);
     }
-    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), baseExpr);
+    UniqueFEIRStmt stmt = ENCChecker::InsertBoundaryLEChecking(lenExpr->Clone(), baseExpr, dstExpr);
     if (stmt != nullptr) {
       stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
       std::list<StmtNode*> stmtnodes = stmt->GenMIRStmts(mirBuilder);
@@ -1750,6 +1855,9 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
         }
         rightNode = rightExpr->GenMIRNode(mirBuilder);
       } else {
+        if (ENCChecker::IsUnsafeRegion(mirBuilder)) {
+          return args;
+        }
         if (op == OP_callassertle) {
           FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to callee that requires a boundary pointer"
                  " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
@@ -1759,15 +1867,9 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
                  FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
-        } else if (FEOptions::GetInstance().IsEnableSafeRegion() && op == OP_assertge) {
-          bool isSafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_safed);
-          if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
-            isSafe = FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
-          }
-          if (isSafe) {
-            FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
-                   FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
-          }
+        } else if (ENCChecker::IsSafeRegion(mirBuilder) && kOpcodeInfo.IsAssertLowerBoundary(op)) {
+          FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
+                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
         }
         return args;
       }
@@ -1816,28 +1918,29 @@ void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
 }
 
 void ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
-      expr->GetKind() != kExprBinary) {  // only computed pointer
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
     return;
   }
   UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(expr);
   if (baseExpr == nullptr) {
     return;
   }
+  auto checkUpperOp = expr->GetKind() != kExprBinary ? OP_assertlt : OP_calcassertlt;
+  auto checkLowerOp = expr->GetKind() != kExprBinary ? OP_assertge : OP_calcassertge;
   // peel nested boundary checking in a multi-dereference
   ENCChecker::PeelNestedBoundaryChecking(stmts, baseExpr);
   // insert lower boundary chencking, baseExpr will be replace by lower boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(expr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assertge, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(checkLowerOp, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(std::move(expr));
   upperExprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assertlt, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(checkUpperOp, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
 }
@@ -1917,12 +2020,6 @@ void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const
   }
   std::list<UniqueFEIRStmt> nullStmts;
   UniqueFEIRExpr realLenExpr = nullptr;
-  if (funcName == "malloc" && args.size() == 1) {
-    realLenExpr = args[0]->Emit2FEExpr(nullStmts);
-  }
-  if (funcName == "calloc" && args.size() == 2) {
-    realLenExpr = args[1]->Emit2FEExpr(nullStmts);
-  }
   if (funcDecl != nullptr && funcDecl->GetBoundaryLenExpr() != nullptr) {  // call
     realLenExpr = ENCChecker::GetRealBoundaryLenExprInFunc(
         funcDecl->GetBoundaryLenExpr()->Emit2FEExpr(stmts), *funcDecl, *this);
@@ -1945,6 +2042,9 @@ void ASTCallExpr::InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const
 }
 
 bool ENCChecker::IsSameBoundary(const AttrBoundary &arg1, const AttrBoundary &arg2) {
+  if (arg1.IsBytedLen() != arg2.IsBytedLen()) {
+    return false;
+  }
   if (arg1.GetLenExprHash() != 0 && arg1.GetLenExprHash() == arg2.GetLenExprHash()) {
     return true;
   }
@@ -1972,17 +2072,17 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
     for (size_t i = 0; i < srcFunc->GetParamSize() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFunc->GetNthParamAttr(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
-        errIdxs.emplace_back(i + 1);
+        errIdxs.emplace_back(i);
       }
     }
     if (!errIdxs.empty()) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "in %s parameter", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
+             "for the %s argument", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine,
              PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFunc->GetFuncAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
       FE_ERR(kLncErr, "%s:%d error: function pointer and target function's boundary attributes are mismatched "
-             "in return", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
+             "for the return value", FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
     }
   }
   const MIRFuncType *srcFuncType = FEUtils::GetFuncPtrType(*srcExpr->GetType()->GenerateMIRTypeAuto());
@@ -1991,22 +2091,22 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
     for (size_t i = 0; i < srcFuncType->GetParamAttrsList().size() && i < funcType->GetParamAttrsList().size(); ++i) {
       if (!IsSameBoundary(
           srcFuncType->GetNthParamAttrs(i).GetAttrBoundary(), funcType->GetNthParamAttrs(i).GetAttrBoundary())) {
-        errIdxs.emplace_back(i + 1);
+        errIdxs.emplace_back(i);
       }
     }
     if (!errIdxs.empty()) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in %s paramater",
+      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the %s argument",
              FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine, PrintParamIdx(errIdxs).c_str());
     }
     if (!IsSameBoundary(srcFuncType->GetRetAttrs().GetAttrBoundary(), funcType->GetRetAttrs().GetAttrBoundary())) {
-      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched in return",
+      FE_ERR(kLncErr, "%s:%d error: function pointer's boundary attributes are mismatched for the return value",
              FEManager::GetModule().GetFileNameFromFileNum(fileNum).c_str(), fileLine);
     }
   }
 }
 
-void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr() const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *baseType = var->GetType()->GenerateMIRTypeAuto();
@@ -2016,11 +2116,36 @@ void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr() const {
   ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &baseType) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
   MIRType *fieldType = FEUtils::GetStructFieldType(static_cast<const MIRStructType*>(&baseType), fieldID);
   ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*fieldType, baseExpr, srcFileIndex, srcFileLineNum);
+}
+
+// ---------------------------
+// process safe region
+// ---------------------------
+bool ENCChecker::IsSafeRegion(MIRBuilder &mirBuilder) {
+  bool isSafe = false;
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    isSafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_safed);
+    if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+      isSafe = FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+    }
+  }
+  return isSafe;
+}
+
+bool ENCChecker::IsUnsafeRegion(MIRBuilder &mirBuilder) {
+  bool isUnsafe = false;
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
+    if (!FEManager::GetCurrentFEFunction().GetSafeRegionFlag().empty()) {
+      isUnsafe = !FEManager::GetCurrentFEFunction().GetSafeRegionFlag().top();
+    }
+  }
+  return isUnsafe;
 }
 }

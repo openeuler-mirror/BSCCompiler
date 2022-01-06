@@ -65,11 +65,12 @@ void TokenGen::ProcessAltTokens() {
   for (unsigned i = 0; i < mAltTokensNum; i++) {
     AlternativeToken at = alt_tokens[i];
     unsigned orig_id;
-    bool found = gTokenTable.FindStringTokenId(at.mName, orig_id);
-    MASSERT(found);
+    bool orig_found = gTokenTable.FindStringTokenId(at.mName, orig_id);
     unsigned alt_id;
-    found = gTokenTable.FindStringTokenId(at.mAltName, alt_id);
-    MASSERT(found);
+    bool alt_found = gTokenTable.FindStringTokenId(at.mAltName, alt_id);
+    if (!orig_found || !alt_found) {
+      continue;
+    }
 
     ProcessedAltToken pat;
     pat.mId = orig_id;
@@ -140,6 +141,12 @@ void TokenGen::GenCppFile() {
 
   s = "unsigned gKeywordTokensNum=";
   num = std::to_string(gTokenTable.mNumKeywords);
+  s += num;
+  s += ";";
+  mCppFile.WriteOneLine(s.c_str(), s.size());
+
+  s = "unsigned gPreprocessorKeywordTokensNum=";
+  num = std::to_string(gTokenTable.mNumPreprocessorKeywords);
   s += num;
   s += ";";
   mCppFile.WriteOneLine(s.c_str(), s.size());
@@ -243,6 +250,17 @@ void TokenGen::GenCppFile() {
       output += "}, .mAltTokens = NULL},";
     }
 
+    mCppFile.WriteOneLine(output.c_str(), output.size());
+  }
+
+  unsigned pre_kw_size = gTokenTable.mPreprocessorKeywords.size();
+  for (unsigned index = 0; index < pre_kw_size; index++, overall_index++) {
+    std::string output = "  {.mTkType = TT_PKW, {.mName = ";
+    std::string keyword = gTokenTable.mPreprocessorKeywords[index];
+    output += "\"";
+    output += keyword;
+    output += "\"";
+    output += "}, .mAltTokens = NULL},";
     mCppFile.WriteOneLine(output.c_str(), output.size());
   }
 

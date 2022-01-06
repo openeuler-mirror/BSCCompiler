@@ -49,6 +49,7 @@ std::string ModuleNode::GetSrcLangString() {
     case SrcLangJava: return "Java";
     case SrcLangTypeScript: return "TypeScript";
     case SrcLangJavaScript: return "JavaScript";
+    case SrcLangC: return "C";
     default: break;
   }
   return "Unknown";

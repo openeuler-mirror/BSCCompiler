@@ -140,6 +140,8 @@ public:
   //void PlantTraverseRuleTable(RuleTable*);
   //void PlantTraverseTableData(TableData*);
 
+  Token* FindPreprocessorKeywordToken(const char *key);
+
   // When we start walk a rule table to find a token, do we need check if
   // the following data is a separator?
   bool mCheckSeparator;

@@ -138,9 +138,13 @@ UniqueFEIRExpr ASTCallExpr::ProcessBuiltinFunc(std::list<UniqueFEIRStmt> &stmts,
     return EmitBuiltinFunc(stmts);
   }
   isFinish = false;
-  prefix = "__builtin";
-  if (funcName.compare(0, prefix.size(), prefix) == 0) {
-    WARN(kLncWarn, "BuiltinFunc (%s) has not been implemented, line: %d", funcName.c_str(), GetSrcFileLineNum());
+  if (FEOptions::GetInstance().GetDumpLevel() >= FEOptions::kDumpLevelInfo) {
+    prefix = "__builtin";
+    if (funcName.compare(0, prefix.size(), prefix) == 0) {
+      FE_INFO_LEVEL(FEOptions::kDumpLevelInfo, "%s:%d BuiltinFunc (%s) has not been implemented",
+                    FEManager::GetModule().GetFileNameFromFileNum(GetSrcFileIdx()).c_str(), GetSrcFileLineNum(),
+                    funcName.c_str());
+    }
   }
   return nullptr;
 }
