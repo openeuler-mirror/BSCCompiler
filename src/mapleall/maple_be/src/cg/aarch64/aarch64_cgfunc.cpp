@@ -3253,10 +3253,11 @@ void AArch64CGFunc::SelectAdd(Operand &resOpnd, Operand &opnd0, Operand &opnd1, 
             CreateImmOperand(static_cast<int64>(static_cast<uint64>(immOpnd->GetValue()) >> kMaxImmVal12Bits),
                              immOpnd->GetSize(), immOpnd->IsSignedValue());
         mOpCode = is64Bits ? MOP_xaddrri24 : MOP_waddrri24;
-        Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, resOpnd, opnd0, immOpnd2, addSubLslOperand);
+        Operand *tmpRes = IsAfterRegAlloc() ? &resOpnd : &CreateRegisterOperandOfType(primType);
+        Insn &newInsn = GetCG()->BuildInstruction<AArch64Insn>(mOpCode, *tmpRes, opnd0, immOpnd2, addSubLslOperand);
         GetCurBB()->AppendInsn(newInsn);
         immOpnd->ModuloByPow2(static_cast<int32>(kMaxImmVal12Bits));
-        newOpnd0 = &resOpnd;
+        newOpnd0 = tmpRes;
       }
       /* process lower 12  bits */
       mOpCode = is64Bits ? MOP_xaddrri12 : MOP_waddrri12;
@@ -5421,6 +5422,13 @@ bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
   }
 }
 
+void AArch64CGFunc::ClearRegRematInfo(RegOperand &reg) {
+  MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber(), CGOptions::DoCGSSA());
+  if (preg != nullptr && preg->GetOp() != OP_undef) {
+    preg->SetOp(OP_undef);
+  }
+}
+
 bool AArch64CGFunc::IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc) {
   MIRPreg *pregDest = GetPseudoRegFromVirtualRegNO(regDest.GetRegisterNumber(), CGOptions::DoCGSSA());
   MIRPreg *pregSrc = GetPseudoRegFromVirtualRegNO(regSrc.GetRegisterNumber(), CGOptions::DoCGSSA());
@@ -5458,15 +5466,16 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       RegOperand *baseRegOpnd = memOpnd.GetBaseRegister();
       RegOperand *indexRegOpnd = memOpnd.GetIndexRegister();
+      AArch64MemOperand *newMem = static_cast<AArch64MemOperand*>(memOpnd.Clone(*GetMemoryPool()));
       if ((baseRegOpnd != nullptr && baseRegOpnd->Equals(regDest)) ||
           (indexRegOpnd != nullptr && indexRegOpnd->Equals(regDest))) {
         if (baseRegOpnd != nullptr && baseRegOpnd->Equals(regDest)) {
-          memOpnd.SetBaseRegister(static_cast<AArch64RegOperand&>(regSrc));
+          newMem->SetBaseRegister(static_cast<AArch64RegOperand&>(regSrc));
         }
         if (indexRegOpnd != nullptr && indexRegOpnd->Equals(regDest)) {
-          memOpnd.SetIndexRegister(regSrc);
+          newMem->SetIndexRegister(regSrc);
         }
-        insn.SetMemOpnd(&GetOrCreateMemOpnd(memOpnd));
+        insn.SetMemOpnd(&GetOrCreateMemOpnd(*newMem));
       }
     } else if (opnd.IsRegister()) {
       auto &regOpnd = static_cast<RegOperand&>(opnd);
@@ -5478,7 +5487,7 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
   }
 }
 
-void AArch64CGFunc::CleanupDeadMov() {
+void AArch64CGFunc::CleanupDeadMov(bool dumpInfo) {
   /* clean dead mov. */
   FOR_ALL_BB(bb, this) {
     FOR_BB_INSNS_SAFE(insn, bb, ninsn) {
@@ -5492,8 +5501,12 @@ void AArch64CGFunc::CleanupDeadMov() {
         if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
           continue;
         }
+
         if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
           bb->RemoveInsn(*insn);
+        } else if (insn->IsPhiMovInsn() && dumpInfo) {
+          LogInfo::MapleLogger() << "fail to remove mov: " << regDest.GetRegisterNumber() << " <- "
+              << regSrc.GetRegisterNumber() << std::endl;
         }
       }
     }
@@ -6928,9 +6941,9 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOp
           MIRStructType *structType = static_cast<MIRStructType *>(symbol->GetType());
           ASSERT(structType != nullptr, "SelectParmList: non-zero fieldID for non-structure");
           FieldAttrs fa = structType->GetFieldAttrs(dNode->GetFieldID());
-          is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd) ? true : false;
+          is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd);
         } else {
-          is64x1vec = symbol->GetAttr(ATTR_oneelem_simd) ? true : false;
+          is64x1vec = symbol->GetAttr(ATTR_oneelem_simd);
         }
         break;
       }
@@ -6943,11 +6956,23 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOp
         if (iNode->GetFieldID() != 0) {
           MIRStructType *structType = static_cast<MIRStructType *>(pointedTy);
           FieldAttrs fa = structType->GetFieldAttrs(iNode->GetFieldID());
-          is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd) ? true : false;
+          is64x1vec = fa.GetAttr(FLDATTR_oneelem_simd);
         } else {
           TypeAttrs ta = static_cast<MIRPtrType *>(ptrTyp)->GetTypeAttrs();
-          is64x1vec = ta.GetAttr(ATTR_oneelem_simd) ? true : false;
+          is64x1vec = ta.GetAttr(ATTR_oneelem_simd);
         }
+        break;
+      }
+      case OP_constval: {
+        CallNode *call = safe_cast<CallNode>(&naryNode);
+        if (call == nullptr) {
+          break;
+        }
+        MIRFunction *fn = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(call->GetPUIdx());
+        if (fn == nullptr || fn->GetFormalCount() == 0 || fn->GetFormalCount() <= pnum) {
+          break;
+        }
+        is64x1vec = fn->GetFormalDefAt(pnum).formalAttrs.GetAttr(ATTR_oneelem_simd);
         break;
       }
       default:
@@ -7614,7 +7639,6 @@ AArch64RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(AArch64reg 
     size = (size == k128BitSize) ? k128BitSize : k64BitSize;
     aarch64PhyRegIdx = aarch64PhyRegIdx << 2;
   }
-  ASSERT(aarch64PhyRegIdx < k256BitSize, "phyRegOperandTable index out of range");
   AArch64RegOperand *phyRegOpnd = nullptr;
   auto phyRegIt = phyRegOperandTable.find(aarch64PhyRegIdx);
   if (phyRegIt != phyRegOperandTable.end()) {
