@@ -170,6 +170,7 @@ class PostDomAnalysis : public DominanceBase {
         pdoms(bbVec.size() + 1, nullptr, domAllocator.Adapter()),
         pdomFrontier(bbVec.size() + 1, MapleVector<uint32>(domAllocator.Adapter()), domAllocator.Adapter()),
         pdomChildren(bbVec.size() + 1, MapleVector<uint32>(domAllocator.Adapter()), domAllocator.Adapter()),
+        iterPdomFrontier(bbVec.size() + 1, MapleSet<uint32>(domAllocator.Adapter()), domAllocator.Adapter()),
         pdtPreOrder(bbVec.size() + 1, 0, domAllocator.Adapter()),
         pdtDfn(bbVec.size() + 1, -1, domAllocator.Adapter()),
         pdtDfnOut(bbVec.size() + 1, -1, domAllocator.Adapter()) {}
@@ -180,6 +181,8 @@ class PostDomAnalysis : public DominanceBase {
   void ComputePostDominance();
   void ComputePdomFrontiers();
   void ComputePdomChildren();
+  void GetIterPdomFrontier(const BB *bb, MapleSet<uint32> *dfset, uint32 bbidMarker, std::vector<bool> &visitedMap);
+  void ComputeIterPdomFrontiers();
   uint32 ComputePdtPreorder(const BB &bb, uint32 &num);
   bool PostDominate(const BB &bb1, const BB &bb2);  // true if bb1 postdominates bb2
   void Dump();
@@ -192,6 +195,10 @@ class PostDomAnalysis : public DominanceBase {
     return pdomFrontier.size();
   }
 
+  auto &GetIpdomFrontier(uint32 idx) {
+    return iterPdomFrontier[idx];
+  }
+
   auto &GetPdomChildrenItem(size_t idx) {
     return pdomChildren[idx];
   }
@@ -202,6 +209,10 @@ class PostDomAnalysis : public DominanceBase {
 
   uint32 GetPdtPreOrderItem(size_t idx) const {
     return pdtPreOrder[idx];
+  }
+
+  size_t GetPdtPreOrderSize() const {
+    return pdtPreOrder.size();
   }
 
   uint32 GetPdtDfnItem(size_t idx) const {
@@ -246,6 +257,7 @@ class PostDomAnalysis : public DominanceBase {
   MapleVector<BB *> pdoms;                   // index is bb id; immediate dominator for each BB
   MapleVector<MapleVector<uint32>> pdomFrontier;  // index is bb id
   MapleVector<MapleVector<uint32>> pdomChildren;  // index is bb id; for pdom tree
+  MapleVector<MapleSet<uint32>> iterPdomFrontier;
   MapleVector<uint32> pdtPreOrder;             // ordering of the BBs in a preorder traversal of the post-dominator tree
   MapleVector<uint32> pdtDfn;                // gives position of each BB in pdt_preorder
   MapleVector<uint32> pdtDfnOut;                 // max position of all nodes in the sub tree of each BB in pdt_preorder
@@ -256,6 +268,13 @@ MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgDomAnalysis, maplebe::CGFunc);
     return domAnalysis;
   }
   DomAnalysis *domAnalysis = nullptr;
+MAPLE_FUNC_PHASE_DECLARE_END
+
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPostDomAnalysis, maplebe::CGFunc);
+  PostDomAnalysis *GetResult() {
+    return pdomAnalysis;
+  }
+  PostDomAnalysis *pdomAnalysis = nullptr;
 MAPLE_FUNC_PHASE_DECLARE_END
 }  /* namespace maplebe */
 

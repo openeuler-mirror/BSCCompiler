@@ -144,6 +144,7 @@ class CGFunc {
   void UpdateCallBBFrequency();
   void HandleFunction();
   void ProcessExitBBVec();
+  void AddCommonExitBB();
   virtual void MergeReturn() = 0;
   void TraverseAndClearCatchMark(BB &bb);
   void MarkCatchBBs();
@@ -677,6 +678,10 @@ class CGFunc {
     return dummyBB;
   }
 
+  BB *GetCommonExitBB() {
+    return commonExitBB;
+  }
+
   LabelIdx GetFirstCGGenLabelIdx() const {
     return firstCGGenLabelIdx;
   }
@@ -1138,6 +1143,7 @@ class CGFunc {
   BB *lastBB = nullptr;
   BB *curBB = nullptr;
   BB *dummyBB;   /* use this bb for add some instructions to bb that is no curBB. */
+  BB *commonExitBB = nullptr;  /* this post-dominate all BBs */
   Insn *volReleaseInsn = nullptr;  /* use to record the release insn for volatile strore */
   MapleVector<BB*> exitBBVec;
   MapleSet<regno_t> extendSet;  /* use to mark regs which spilled 32 bits but loaded 64 bits. */

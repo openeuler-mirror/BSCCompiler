@@ -1720,6 +1720,22 @@ void CGFunc::ProcessExitBBVec() {
   }
 }
 
+void CGFunc::AddCommonExitBB() {
+  uint32 i = 0;
+  while (exitBBVec[i]->IsUnreachable() && i < exitBBVec.size()) {
+    i++;
+  }
+  ASSERT(i < exitBBVec.size(), "all exit BBs are unreachable");
+  // create fake commonExitBB
+  commonExitBB = CreateNewBB(true, BB::kBBFallthru, 0);
+  ASSERT(commonExitBB != nullptr, "cannot create fake commonExitBB");
+  for (BB *cgbb : exitBBVec) {
+    if (!cgbb->IsUnreachable()) {
+      commonExitBB->PushBackPreds(*cgbb);
+    }
+  }
+}
+
 void CGFunc::UpdateCallBBFrequency() {
   if (!func.HasFreqMap() || func.GetFreqMap().empty()) {
     return;
@@ -1756,6 +1772,7 @@ void CGFunc::HandleFunction() {
   /* build control flow graph */
   theCFG = memPool->New<CGCFG>(*this);
   theCFG->BuildCFG();
+  AddCommonExitBB();
   UpdateCallBBFrequency();
   if (mirModule.GetSrcLang() != kSrcLangC) {
     MarkCatchBBs();
@@ -1764,6 +1781,9 @@ void CGFunc::HandleFunction() {
   DetermineReturnTypeofCall();
   theCFG->MarkLabelTakenBB();
   theCFG->UnreachCodeAnalysis();
+  if (mirModule.GetSrcLang() == kSrcLangC) {
+    theCFG->WontExitAnalysis();
+  }
   SplitStrLdrPair();
   if (CGOptions::IsLazyBinding() && !GetCG()->IsLibcore()) {
     ProcessLazyBinding();

@@ -524,6 +524,12 @@ class BB {
   void SetUnreachable(bool arg) {
     unreachable = arg;
   }
+  bool IsWontExit() const {
+    return wontExit;
+  }
+  void SetWontExit(bool arg) {
+    wontExit = arg;
+  }
   void SetFastPath(bool arg) {
     fastPath = arg;
   }
@@ -756,6 +762,7 @@ class BB {
   bool insertUse = false;
   bool hasCall = false;
   bool unreachable = false;
+  bool wontExit = false;
   bool fastPath = false;
   bool isCatch = false;  /* part of the catch bb, true does might also mean it is unreachable */
   /*

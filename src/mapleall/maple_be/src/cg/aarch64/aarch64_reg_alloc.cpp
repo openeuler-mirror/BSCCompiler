@@ -20,6 +20,7 @@
 #include "cg_dominance.h"
 #include "mir_lower.h"
 #include "securec.h"
+#include "cg_ssu_pre.h"
 
 namespace maplebe {
 /*
@@ -522,8 +523,8 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       uint32 opndNum = insn->GetOperandSize();
       for (uint32 i = 0; i < opndNum; ++i) {  /* the dest registers */
         Operand &opnd = insn->GetOperand(i);
-        if (!static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef() && (!md->IsCall() || i != kAsmOutputListOpnd)) {
-          /* a call here means it is an inline asm */
+        if (!static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef() &&
+            (insn->GetMachineOpcode() != MOP_asm || i != kAsmOutputListOpnd)) {
           continue;
         }
         if (opnd.IsList()) {
@@ -536,7 +537,7 @@ bool DefaultO0RegAllocator::AllocateRegisters() {
       for (uint32 i = 0; i < opndNum; ++i) {  /* the src registers */
         Operand &opnd = insn->GetOperand(i);
         if (!(static_cast<AArch64OpndProp*>(md->operand[i])->IsRegUse() || opnd.GetKind() == Operand::kOpdMem) &&
-            (!insn->IsCall() || i != kAsmInputListOpnd)) {
+            (insn->GetMachineOpcode() != MOP_asm || i != kAsmInputListOpnd)) {
           continue;
         }
         if (opnd.IsList()) {
