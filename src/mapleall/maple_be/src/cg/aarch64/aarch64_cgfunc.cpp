@@ -4777,7 +4777,7 @@ Operand *AArch64CGFunc::SelectAArch64ffs(Operand &argOpnd, PrimType argType) {
   /* csincc */
   GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
       argSize == k64BitSize ? MOP_xcsincrrrc : MOP_wcsincrrrc,
-      *tempResReg, AArch64RegOperand::Get32bitZeroRegister(), *tempResReg, GetCondOperand(CC_EQ)));
+      *tempResReg, AArch64RegOperand::Get32bitZeroRegister(), *tempResReg, GetCondOperand(CC_EQ), rflag));
   return tempResReg;
 }
 
@@ -5509,6 +5509,30 @@ void AArch64CGFunc::CleanupDeadMov(bool dumpInfo) {
               << regSrc.GetRegisterNumber() << std::endl;
         }
       }
+    }
+  }
+}
+
+void AArch64CGFunc::GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) {
+  auto *targetOpnd = insn.GetCallTargetOperand();
+  CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+  if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
+    FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+    const MIRSymbol *funcSt = target->GetFunctionSymbol();
+    ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+    MIRFunction *func = funcSt->GetFunction();
+    if (func != nullptr && func->IsReferedRegsValid()) {
+      for (auto preg : func->GetReferedRegs()) {
+        if (AArch64Abi::IsCallerSaveReg((AArch64reg)preg)) {
+          realSaveRegs.insert(preg);
+        }
+      }
+      return;
+    }
+  }
+  for (uint32 i = R0; i <= kMaxRegNum; ++i) {
+    if (AArch64Abi::IsCallerSaveReg((AArch64reg)i)) {
+      realSaveRegs.insert(i);
     }
   }
 }

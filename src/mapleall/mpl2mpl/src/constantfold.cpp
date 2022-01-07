@@ -29,6 +29,7 @@ constexpr maple::uint64 kJsTypeNumber = 4;
 constexpr maple::uint64 kJsTypeNumberInHigh32Bit = kJsTypeNumber << 32; // set high 32 bit as JSTYPE_NUMBER
 constexpr maple::uint32 kByteSizeOfBit64 = 8; // byte number for 64 bit
 constexpr maple::uint32 kBitSizePerByte = 8;
+constexpr maple::int32 kMaxOffset = INT_MAX - 8;
 enum CompareRes : maple::int64 {
   kLess = -1,
   kEqual = 0,
@@ -1464,7 +1465,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldTypeCvt(TypeCvtNode *node) {
           GetPrimTypeSize(node->FromType()) == GetPrimTypeSize(node->GetPrimType()))) {
       return p; // the cvt is redundant
     }
-  } else if (node->GetOpCode() == OP_cvt && p.second != 0 && (p.second > -INT_MAX) &&
+  } else if (node->GetOpCode() == OP_cvt && p.second != 0 && (p.second > -kMaxOffset) &&
              IsPrimitiveInteger(node->GetPrimType()) && IsSignedInteger(node->FromType()) &&
              GetPrimTypeSize(node->GetPrimType()) > GetPrimTypeSize(node->FromType())) {
     result = mirModule->CurFuncCodeMemPool()->New<TypeCvtNode>(OP_cvt, node->GetPrimType(), node->FromType(), p.first);
@@ -1740,7 +1741,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldBinary(BinaryNode *node) {
       // case [X / 1 = X]
       sum = lp.second;
       result = l;
-    } else if (op == OP_mul && lp.second != 0 && lp.second > -INT_MAX) {
+    } else if (op == OP_mul && lp.second != 0 && lp.second > -kMaxOffset) {
       // (X + konst) * rConst -> the pair [(X*rConst), (konst*rConst)]
       sum = lp.second * static_cast<uint64>(cst);
       if (GetPrimTypeSize(primType) > GetPrimTypeSize(lp.first->GetPrimType())) {

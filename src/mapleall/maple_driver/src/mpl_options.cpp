@@ -233,10 +233,14 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         partO2List = opt.Args();
         break;
       case kNpeNoCheck:
-        npeCheckMode = SafetyCheckMode::kNoCheck;
+        if (!safeRegion) {
+          npeCheckMode = SafetyCheckMode::kNoCheck;
+        }
         break;
       case kNpeStaticCheck:
-        npeCheckMode = SafetyCheckMode::kStaticCheck;
+        if (!safeRegion) {
+          npeCheckMode = SafetyCheckMode::kStaticCheck;
+        }
         break;
       case kNpeDynamicCheck:
         npeCheckMode = SafetyCheckMode::kDynamicCheck;
@@ -244,11 +248,18 @@ ErrorCode MplOptions::HandleGeneralOptions() {
       case kNpeDynamicCheckSilent:
         npeCheckMode = SafetyCheckMode::kDynamicCheckSilent;
         break;
+      case kNpeDynamicCheckAll:
+        isNpeCheckAll = true;
+        break;
       case kBoundaryNoCheck:
-        boundaryCheckMode = SafetyCheckMode::kNoCheck;
+        if (!safeRegion) {
+          boundaryCheckMode = SafetyCheckMode::kNoCheck;
+        }
         break;
       case kBoundaryStaticCheck:
-        boundaryCheckMode = SafetyCheckMode::kStaticCheck;
+        if (!safeRegion) {
+          boundaryCheckMode = SafetyCheckMode::kStaticCheck;
+        }
         break;
       case kBoundaryDynamicCheck:
         boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
@@ -258,6 +269,8 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         break;
       case kSafeRegionOption:
         safeRegion = true;
+        npeCheckMode = SafetyCheckMode::kDynamicCheck;
+        boundaryCheckMode = SafetyCheckMode::kDynamicCheck;
         break;
       case kMapleOut:
         CHECK_FATAL(!(rootActions[0]->GetTool().empty()),
@@ -389,6 +402,8 @@ std::unique_ptr<Action> MplOptions::DecideRunningPhasesByType(const InputInfo *c
     case InputFileType::kFileTypeS:
       isNeedMplcg = false;
       isNeedMapleComb = false;
+      break;
+    case InputFileType::kFileTypeBpl:
       break;
     case InputFileType::kFileTypeObj:
       isNeedMplcg = false;
@@ -651,12 +666,23 @@ ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
 }
 
 std::string MplOptions::GetCommonOptionsStr() const {
+  static DriverOptionIndex exclude[] = { kRun, kOption, kInFile, kMeOpt, kMpl2MplOpt, kMplcgOpt };
+
   std::string driverOptions;
   auto it = exeOptions.find("all");
   if (it != exeOptions.end()) {
     for (const mapleOption::Option &opt : it->second) {
-      auto connectSym = !opt.Args().empty() ? "=" : "";
-      driverOptions += " --" + opt.OptionKey() + connectSym + opt.Args();
+      if (!(std::find(std::begin(exclude), std::end(exclude), opt.Index()) != std::end(exclude))) {
+        std::string prefix;
+        if (opt.GetPrefixType() == mapleOption::shortOptPrefix) {
+          prefix = "-";
+        } else if (opt.GetPrefixType() == mapleOption::longOptPrefix) {
+          prefix = "--";
+        }
+
+        auto connectSym = !opt.Args().empty() ? "=" : "";
+        driverOptions += " " + prefix + opt.OptionKey() + connectSym + opt.Args();
+      }
     }
   }
 

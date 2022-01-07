@@ -62,14 +62,9 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
   /*
    * case1 : both def/use
    * case2 : inline-asm  (do not do aggressive optimization) "0"
+   * case3 : cc flag operand
    */
   if (defInsn != nullptr) {
-    if (!defInsn->IsRegDefined(ssaOpnd.GetRegisterNumber()) &&
-        !defInsn->IsRegDefined(ssaVersion->GetSSAvRegOpnd()->GetRegisterNumber())) {
-      if (defInsn->IsPhi()) {
-        CHECK_FATAL(false, " check this case");
-      }
-    }
     /* case 1*/
     uint32 defUseIdx = defInsn->GetBothDefUseOpnd();
     if (defUseIdx != kInsnMaxOpnd) {
@@ -94,6 +89,10 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
       if (LastVersion != nullptr) {
         newReg.SetRegisterNumber(LastVersion->GetSSAvRegOpnd()->GetRegisterNumber());
       }
+    }
+    /* case 3 */
+    if (ssaVersion->GetOriginalRegNO() == kRFLAG) {
+      newReg.SetRegisterNumber(kRFLAG);
     }
   } else {
     newReg.SetRegisterNumber(ssaVersion->GetOriginalRegNO());
