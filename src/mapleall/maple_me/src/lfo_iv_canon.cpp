@@ -40,6 +40,9 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
       return true;
     }
     ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
+    if (!scalar->GetOst()->IsLocal() || scalar->GetOst()->IsAddressTaken()) {
+      return false;
+    }
     if (scalar->GetDefBy() != kDefByStmt) {
       return false;
     }
