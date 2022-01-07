@@ -24,6 +24,7 @@ constexpr uint32 kOffsetAlignmentOf8Bit = 0;
 constexpr uint32 kOffsetAlignmentOf16Bit = 1;
 constexpr uint32 kOffsetAlignmentOf32Bit = 2;
 constexpr uint32 kOffsetAlignmentOf64Bit = 3;
+constexpr uint32 kOffsetAlignmentOf128Bit = 4;
 constexpr uint32 kBaseOffsetAlignment = 3;
 /*
  * The constexpr implementations, without assertions.  Suitable for using in
@@ -145,7 +146,7 @@ constexpr int32 kMaxPimm64 = 32760;
 constexpr int32 kMaxPimm128 = 65520;
 
 constexpr int32 kMaxPimm[k5BitSize] = {kMaxPimm8, kMaxPimm16, kMaxPimm32, kMaxPimm64, kMaxPimm128};
-constexpr int32 kMaxPairPimm[k2BitSize] = {k256BitSize, k512BitSize};
+constexpr int32 kMaxPairPimm[k3BitSize] = {k256BitSize, k512BitSize, k512BitSize};
 
 constexpr int32 kMaxSimm32 = 255;
 constexpr int32 kMaxSimm32Pair = 252;
