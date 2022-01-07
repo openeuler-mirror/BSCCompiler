@@ -2043,6 +2043,7 @@ void ASTAssignExpr::GetActualRightExpr(UniqueFEIRExpr &right, const UniqueFEIREx
 }
 
 UniqueFEIRExpr ASTAssignExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
+  UniqueFEIRExpr rightFEExpr = rightExpr->Emit2FEExpr(stmts); // parse the right expr to generate stmt first
   UniqueFEIRExpr leftFEExpr;
   if (isCompoundAssign) {
     std::list<UniqueFEIRStmt> dummyStmts;
@@ -2050,7 +2051,6 @@ UniqueFEIRExpr ASTAssignExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
   } else {
     leftFEExpr = leftExpr->Emit2FEExpr(stmts);
   }
-  UniqueFEIRExpr rightFEExpr = rightExpr->Emit2FEExpr(stmts);
   // C89 does not support lvalue casting, but cxx support, needs to improve here
   if (leftFEExpr->GetKind() == FEIRNodeKind::kExprDRead && !leftFEExpr->GetType()->IsArray()) {
     auto dreadFEExpr = static_cast<FEIRExprDRead*>(leftFEExpr.get());

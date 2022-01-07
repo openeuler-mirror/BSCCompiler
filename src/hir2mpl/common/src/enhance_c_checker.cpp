@@ -1062,12 +1062,6 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
     arrType = GetArrayTypeFromExpr(baseExpr);
     if (arrType == nullptr) {
       rRealLenExpr = GetGlobalOrFieldLenExprInExpr(mirBuilder, baseExpr);
-      if (rRealLenExpr == nullptr && lBoundaryVarStIdx.first != StIdx(0)) {
-        // Insert a empty r-value boundary var
-        // when there is a l-value boundary var and r-value without a boundary var, or an array,
-        // or a global var/field r-value with boundary attr
-        rBoundaryVarStIdx = ENCChecker::InsertBoundaryVar(mirBuilder, baseExpr);
-      }
     }
   }
   // insert L-value bounary and assign boundary var
@@ -1107,6 +1101,13 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
         lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
         UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(
             OP_add, baseExpr->Clone(), std::make_unique<FEIRExprConst>(addrofType->GetSize(), PTY_ptr));
+        upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
+      } else {
+        // Insert a undef boundary r-value
+        // when there is a l-value boundary var and r-value without a boundary var
+        lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
+        UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(
+            OP_add, baseExpr->Clone(), std::make_unique<FEIRExprConst>(kUndefValue, PTY_ptr));
         upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
       }
     }
@@ -1185,10 +1186,10 @@ std::string ENCChecker::GetBoundaryName(const UniqueFEIRExpr &expr) {
 void ENCChecker::AssignUndefVal(MIRBuilder &mirBuilder, MIRSymbol &sym) {
   if (sym.IsGlobal()) {
     MIRIntConst *cst = FEManager::GetModule().GetMemPool()->New<MIRIntConst>(
-        0xdeadbeef, *GlobalTables::GetTypeTable().GetPrimType(PTY_ptr));
+        kUndefValue, *GlobalTables::GetTypeTable().GetPrimType(PTY_ptr));
     sym.SetKonst(cst);
   } else {
-    BaseNode *undef = mirBuilder.CreateIntConst(0xdeadbeef, PTY_ptr);
+    BaseNode *undef = mirBuilder.CreateIntConst(kUndefValue, PTY_ptr);
     StmtNode *assign = mirBuilder.CreateStmtDassign(sym, 0, undef);
     MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
     curFunction->GetBody()->InsertFirst(assign);
@@ -1765,7 +1766,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
     MIRSymbol *dstSym = var->GenerateMIRSymbol(mirBuilder);
     if (dstSym->GetAttr(ATTR_final_boundary_size)) {
       WARN(kLncWarn, "%s:%d warning: this var specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
            FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
     }
   } else {
@@ -1774,7 +1775,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
     FieldPair fieldPair = structType->TraverseToFieldRef(tmpID);
     if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
       WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-           "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+           "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
            FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
     }
   }
@@ -1797,7 +1798,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
   FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(tmpID);
   if (fieldPair.second.second.GetAttr(FLDATTR_final_boundary_size)) {
     WARN(kLncWarn, "%s:%d warning: this field specified as the global or field boundary length is "
-         "assigned or token address. [Use __Unsafe__ to eliminate warining]",
+         "assigned or token address. [Use __Unsafe__ to eliminate the warning]",
          FEManager::GetModule().GetFileNameFromFileNum(fileIdx).c_str(), fileLine);
   }
 }
