@@ -18,10 +18,6 @@
 
 namespace t2crt {
 
-extern Function::Ctor  Function_ctor;
-extern Object::Ctor    Object_ctor;
-extern Function::Ctor  Number_ctor;
-
 template <typename T1, typename T2>
 class Record : public Object {
   public:
@@ -64,7 +60,7 @@ class Ctor_Array: public Function {
 
 // For creating array and array constructor instances
 #define ARR_OBJ(NM,CTOR) NM(&CTOR, CTOR.prototype)
-#define ARR_CTOR(NM)     NM(&Function_ctor, Function_ctor.prototype, Object_ctor.prototype)
+#define ARR_CTOR(NM)     NM(&Function::ctor, Function::ctor.prototype, Object::ctor.prototype)
 
 // Need all text type name for macros to generate names for predefined Array type constuctors.
 using ObjectP = t2crt::Object*;
@@ -96,9 +92,19 @@ class RegExp : public Object {
   // TODO
 };
 
+class Number : public Object {
+public:
+  // TODO
+  class Ctor : public t2crt::Function {
+  public:
+    Ctor(t2crt::Function* ctor, t2crt::Object* proto, t2crt::Object* prototype_proto) : t2crt::Function(ctor, proto, prototype_proto) { }
+    virtual const char* __GetClassName() const {return "Number ";}
+  };
+  static Ctor ctor;
+};
+
 } // namespace t2crt
 
-using t2crt::Number_ctor;
 using t2crt::Record;
 using t2crt::JSON;
 using t2crt::RegExp;

@@ -125,7 +125,7 @@ std::string GenFuncClass(std::string retType, std::string funcName, std::string 
   str = R"""(
 class )""" + clsName + R"""( : public t2crt::Function {
   public:
-    )""" + clsName + R"""(() : t2crt::Function(&t2crt::Function_ctor,t2crt::Function_ctor.prototype,t2crt::Object_ctor.prototype) {}
+    )""" + clsName + R"""(() : t2crt::Function(&t2crt::Function::ctor,t2crt::Function::ctor.prototype,t2crt::Object::ctor.prototype) {}
     ~)""" + clsName + R"""(() {}
 
     )""" + retType + R"""(  _body()""" + params + R"""();

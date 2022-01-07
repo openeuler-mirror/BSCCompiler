@@ -57,7 +57,7 @@ class ImportExportModules : public AstVisitor {
           std::size_t found = mIncludes.find(incl);
           if (found == std::string::npos) {
             mIncludes += "#include \""s + filename + ".h\"\n"s;
-            mCppDecl->AddInit(mCppDecl->GetModuleName(filename.c_str()) + "::__init_func__();\n"s);
+            mCppDecl->AddInit(tab(1) + mCppDecl->GetModuleName(filename.c_str()) + "::__init_func__();\n"s);
           }
         }
       }
@@ -830,8 +830,8 @@ std::string CppDecl::EmitClassNode(ClassNode *node) {
   str += indent + "  "s+clsName+"* _new() {return new "s+clsName+"(this, this->prototype);}\n"s;
   str += indent + "  virtual const char* __GetClassName() const {return \""s + clsName + " \";}\n"s;
   str += indent + "};\n";
+  str += indent + "static Ctor ctor;\n"s;
   str += "};\n";
-  str += "extern " + clsName + "::Ctor "s + clsName + "_ctor;\n"s; // emit declaration for JS class object constructor
   return str;
 }
 
@@ -843,10 +843,10 @@ std::string CppDecl::EmitNewNode(NewNode *node) {
   MASSERT(node->GetId() && "No mId on NewNode");
   if (node->GetId() && node->GetId()->IsTypeIdClass()) {
     // Generate code to create new obj and call constructor
-    str = node->GetId()->GetName() + "_ctor("s + node->GetId()->GetName() + "_ctor._new("s;
+    str = node->GetId()->GetName() + "::ctor("s + node->GetId()->GetName() + "::ctor._new("s;
   } else if (IsBuiltinObj(node->GetId()->GetName())) {
     // Check for builtin obejcts: t2crt::Object, t2crt::Function, etc.
-    str = node->GetId()->GetName() + "_ctor._new("s;
+    str = node->GetId()->GetName() + "::ctor._new("s;
   } else  {
     str = "new "s + EmitTreeNode(node->GetId());
     str += "("s;
