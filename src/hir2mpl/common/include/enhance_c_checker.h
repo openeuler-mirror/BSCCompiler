@@ -20,6 +20,7 @@
 #include "ast_decl.h"
 
 namespace maple {
+constexpr int64 kUndefValue = 0xdeadbeef;
 class ENCChecker {
  public:
   ENCChecker() = default;
