@@ -126,6 +126,8 @@ public:
   const char*  GetIdentifier();
   bool         GetComment();
 
+  Token* FindRegExprToken();
+
   // For most languages, this does nothing. TS/JS are doing something.
   virtual bool CharIsSeparator(const char c) {return false;}
 
@@ -137,14 +139,6 @@ public:
   //void PlantTokens();
   //void PlantTraverseRuleTable(RuleTable*);
   //void PlantTraverseTableData(TableData*);
-
-  //
-  Token* FindSeparatorToken(SepId id);
-  Token* FindOperatorToken(OprId id);
-  Token* FindKeywordToken(const char *key);
-  Token* FindPreprocessorKeywordToken(const char *key);
-  Token* FindCommentToken();
-  Token* FindRegExprToken();
 
   // When we start walk a rule table to find a token, do we need check if
   // the following data is a separator?
