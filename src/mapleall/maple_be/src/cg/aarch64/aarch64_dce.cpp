@@ -24,7 +24,8 @@ void AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
     }
     CHECK_FATAL(defInsnInfo->GetInsn() != nullptr, "Get def insn failed");
     Insn *defInsn = defInsnInfo->GetInsn();
-    if (defInsn->GetMachineOpcode() == MOP_asm) {
+    /* have not support asm/neon opt yet */
+    if (defInsn->GetMachineOpcode() == MOP_asm || defInsn->IsVectorOp()) {
       return;
     }
     std::set<uint32> defRegs = defInsn->GetDefRegs();
