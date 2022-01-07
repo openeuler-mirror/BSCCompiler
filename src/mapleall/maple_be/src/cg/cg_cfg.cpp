@@ -472,6 +472,13 @@ void CGCFG::RemoveBB(BB &curBB, bool isGotoIf) {
   curBB.GetPrev()->SetNext(curBB.GetNext());
   curBB.GetNext()->SetPrev(curBB.GetPrev());
   cgFunc->ClearBBInVec(curBB.GetId());
+  /* remove callsite */
+  EHFunc* ehFunc = cgFunc->GetEHFunc();
+  ASSERT(ehFunc != nullptr, "get ehfunc in cgfunc failed");
+  /* only java try has ehFunc->GetLSDACallSiteTable */
+  if (ehFunc->GetLSDACallSiteTable() != nullptr) {
+    ehFunc->GetLSDACallSiteTable()->RemoveCallSite(curBB);
+  }
 }
 
 void CGCFG::RetargetJump(BB &srcBB, BB &targetBB) {
