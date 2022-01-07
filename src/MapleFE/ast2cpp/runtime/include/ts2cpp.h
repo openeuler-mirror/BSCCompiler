@@ -215,6 +215,7 @@ class Object {
     }
     virtual ~Object() {}
     class Ctor;
+    static Ctor ctor;
 
     JS_Val& operator[] (std::string key)
     {
@@ -316,6 +317,7 @@ class Function : public Object {
       prototype->AddProp("constructor", val);
     }
     class Ctor;
+    static Ctor ctor;
 
     bool IsFuncObj() {
       return true;

@@ -20,18 +20,18 @@ namespace maplefe {
 
 std::string CppDef::EmitCtorInstance(ClassNode *c) {
   std::string str, thisClass, ctor, proto, prototypeProto;
-  ctor = "&t2crt::Function_ctor";
+  ctor = "&t2crt::Function::ctor";
   thisClass = c->GetName();
   if (c->GetSuperClassesNum() == 0) {
-    proto = "t2crt::Function_ctor.prototype";
-    prototypeProto = "t2crt::Object_ctor.prototype";
+    proto = "t2crt::Function::ctor.prototype";
+    prototypeProto = "t2crt::Object::ctor.prototype";
   } else {
-    proto = c->GetSuperClass(0)->GetName() + "_ctor"s;
+    proto = c->GetSuperClass(0)->GetName() + "::ctor"s;
     prototypeProto = proto + ".prototype"s;
     proto.insert(0, "&"s, 0, std::string::npos);
   }
-  str = "\n// Instantiate constructor for class "+ thisClass+ "\n"s;
-  str += thisClass + "::Ctor "s + thisClass+"_ctor("s +ctor+","s+proto+","+prototypeProto+");\n\n"s;
+  str = "\n// Init class ctor as a static class field for "+ thisClass+ "\n"s;
+  str += thisClass + "::Ctor "s + thisClass+"::ctor = " + thisClass + "::Ctor("s +ctor+","s+proto+","+prototypeProto+");\n\n"s;
 
   // piggy back generation of static field definition
   for (unsigned i = 0; i < c->GetFieldsNum(); ++i) {
@@ -388,7 +388,7 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
           // Handle embedded t2crt::ObjectLiterals recursively
           if (lit->IsStructLiteral()) {
             std::string props = EmitStructLiteralNode(static_cast<StructLiteralNode*>(lit));
-            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(t2crt::Object_ctor._new("s + props + ")))"s;
+            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(t2crt::Object::ctor._new("s + props + ")))"s;
           }
           break;
       }
@@ -425,17 +425,17 @@ std::string CppDef::EmitObjPropInit(TreeNode* var, std::string varName, TreeNode
 
   if (userType == nullptr) {
     // no type info - create instance of builtin t2crt::Object with proplist
-    str = varName+ " = t2crt::Object_ctor._new("s + EmitTreeNode(node) + ")"s;
+    str = varName+ " = t2crt::Object::ctor._new("s + EmitTreeNode(node) + ")"s;
   } else if (IsVarTypeClass(var)) {
     // init var of type TS class
     // - create obj instance of user defined class and do direct field access init
     // - todo: handle class with generics
-    str = varName+ " = "s +userType->GetId()->GetName()+ "_ctor._new();\n"s;
+    str = varName+ " = "s +userType->GetId()->GetName()+ "::ctor._new();\n"s;
     str += EmitDirectFieldInit(varName, node);
   } else {
     // type is builtin (e.g. t2crt::Record) and StructNode types (e.g. TSInterface)
     // create instance of type but set constructor to the builtin t2crt::Object.
-    str = varName+ " = new "s +EmitUserTypeNode(userType)+ "(&t2crt::Object_ctor, t2crt::Object_ctor.prototype);\n"s;
+    str = varName+ " = new "s +EmitUserTypeNode(userType)+ "(&t2crt::Object::ctor, t2crt::Object::ctor.prototype);\n"s;
     auto n = mHandler->FindDecl(static_cast<IdentifierNode*>(userType->GetId()));
     if (n && n->IsStruct() && static_cast<StructNode*>(n)->GetProp() == SProp_TSInterface) {
       str += EmitDirectFieldInit(varName, node); // do direct field init
@@ -527,7 +527,7 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
     else if (n->IsStructLiteral())
       str += EmitObjPropInit(node->GetVar(), varStr, idType, static_cast<StructLiteralNode*>(n));
     else if (node->GetVar()->IsIdentifier() && n->IsIdentifier() && n->IsTypeIdClass())
-      str += varStr + "= &"s + n->GetName() + "_ctor"s;           // init with ctor address
+      str += varStr + "= &"s + n->GetName() + "::ctor"s;           // init with ctor address
     else if (n->IsFunction()) {
       if (hFuncTable.IsTopLevelFunc(n)) {
         str += varStr + " = new "s + "Cls_" + n->GetName() + "()"s;
@@ -556,7 +556,7 @@ std::string EmitSuperCtorCall(TreeNode* node) {
   if (node && node->IsClass()) {
     std::string base, str;
     base = (static_cast<ClassNode*>(node)->GetSuperClassesNum() != 0)? static_cast<ClassNode*>(node)->GetSuperClass(0)->GetName() : "t2crt::Object";
-    str = "  "s + base + "_ctor"s;
+    str = "  "s + base + "::ctor"s;
     return str;
   }
   return ""s;
@@ -1008,7 +1008,7 @@ std::string CppDef::EmitBinOperatorNode(BinOperatorNode *node) {
     if (IsBracketNotationProp(n)) {
       rhs = EmitBracketNotationProp(static_cast<ArrayElementNode*>(n), node->GetOprId(), false, rhsIsDynProp);
     } else if (IsClassId(n)) {
-      rhs = "&"s + n->GetName() + "_ctor"s;
+      rhs = "&"s + n->GetName() + "::ctor"s;
     } else
       rhs = EmitTreeNode(n);
     if(precd > mPrecedence || (precd == mPrecedence && !rl_assoc))
@@ -1225,7 +1225,7 @@ std::string CppDef::EmitNewNode(NewNode *node) {
       std::string clsName = EmitTreeNode(node->GetId());
       if (IsBuiltinObj(clsName))
         clsName = "t2crt::"s + clsName;
-      str = clsName + "_ctor("s + clsName + "_ctor._new()"s;
+      str = clsName + "::ctor("s + clsName + "::ctor._new()"s;
 
     } else if (id->IsTypeIdFunction()) {  // TS: new <func> (<args..>)
       // When calling TS new() on constructor function:
@@ -1425,7 +1425,7 @@ std::string CppDef::EmitInstanceOfNode(InstanceOfNode *node) {
 
   if (auto n = node->GetRight()) {
     if (IsClassId(n) || IsBuiltinObj(n->GetName()))
-      rhs = "&"s + n->GetName() + "_ctor"s;
+      rhs = "&t2crt::"s + n->GetName() + "::ctor"s;
     else
       rhs = EmitTreeNode(n);
     if(precd > mPrecedence || (precd == mPrecedence && !rl_assoc))
