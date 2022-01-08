@@ -15,7 +15,7 @@
 
 不同于MapleModulePhase，MapleFunctionPhase是一个模板类，主要是因为Maple中有不同层次的函数级IR。中端的优化phase和后端的优化phase都是该类的派生类。
 
-### phae的内存管理
+### phase的内存管理
 
 方舟编译器的phasemanager可以对内存进行有效的管理，以便每个phase可以保留可能被其他phase依赖的分析结果；以及丢弃失效的结果。每个phasemanager中提供一个AnalysisDataManager类（多线程时，每个线程对应一个AnalysisDataManager）用来存储分析结果。为了实现这个功能，每个phase需要实现GetAnalysisDependence函数。如下：
 
