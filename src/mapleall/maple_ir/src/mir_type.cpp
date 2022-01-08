@@ -195,6 +195,11 @@ bool IsNoCvtNeeded(PrimType toType, PrimType fromType) {
   #define POINTER_SIZE 4
   #define POINTER_P2SIZE 2
 #endif
+
+PrimType GetExactPtrPrimType() {
+  return (POINTER_SIZE == 8) ? PTY_a64 : PTY_a32;
+}
+
 // answer in bytes; 0 if unknown
 uint32 GetPrimTypeSize(PrimType primType) {
   switch (primType) {
@@ -1301,9 +1306,11 @@ void MIRStructType::Dump(int indent, bool dontUseName) const {
   if (!dontUseName && CheckAndDumpTypeName(nameStrIdx, nameIsLocal)) {
     return;
   }
-  LogInfo::MapleLogger() << ((typeKind == kTypeStruct) ? "<struct {"
-                                                       : ((typeKind == kTypeUnion) ? "<union {"
-                                                                                   : "<structincomplete {"));
+  LogInfo::MapleLogger() << ((typeKind == kTypeStruct) ? "<struct"
+                                                       : ((typeKind == kTypeUnion) ? "<union"
+                                                                                   : "<structincomplete"));
+  typeAttrs.DumpAttributes();
+  LogInfo::MapleLogger() << " {";
   DumpFieldsAndMethods(indent, !methods.empty());
   LogInfo::MapleLogger() << "}>";
 }
@@ -1625,6 +1632,9 @@ bool MIRStructType::EqualTo(const MIRType &type) const {
 
   ASSERT(type.IsStructType(), "p is null in MIRStructType::EqualTo");
   const MIRStructType *p = static_cast<const MIRStructType*>(&type);
+  if (typeAttrs != p->typeAttrs) {
+    return false;
+  }
   if (fields != p->fields) {
     return false;
   }

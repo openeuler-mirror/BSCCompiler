@@ -1437,7 +1437,9 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       continue;
     }
     if (itGroup == groupMap.end()) {
-      if (itCand.second.first->GetPrimType() == PTY_ptr) {  // it's not good to use one obj to form others
+      if (itCand.second.first->GetPrimType() == PTY_ptr ||
+          itCand.second.first->GetPrimType() == PTY_a64 ||
+          itCand.second.first->GetPrimType() == PTY_a32) {  // it's not good to use one obj to form others
         replaced = false;
         return nullptr;
       }
