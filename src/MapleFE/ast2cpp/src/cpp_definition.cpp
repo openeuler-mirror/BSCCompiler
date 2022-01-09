@@ -451,8 +451,8 @@ std::string CppDef::EmitArrayLiterals(TreeNode *node, int dim, std::string type)
   if (type.back() == ' ')
     type.pop_back();
 
-  // Generate ctor call to instantiate t2crt::Array, e.g. t2crt::Array1D_long._new(). See builtins.h
-  std::string str("t2crt::Array"s + std::to_string(dim) + "D_"s + type + "._new({"s );
+  // Generate array ctor call to instantiate array
+  std::string str = ArrayCtorName(dim, type) + "._new({"s;
   for (unsigned i = 0; i < static_cast<ArrayLiteralNode*>(node)->GetLiteralsNum(); ++i) {
     if (i)
       str += ", "s;
@@ -477,13 +477,9 @@ std::string CppDef::EmitArrayLiteral(TreeNode* arrType, TreeNode* arrLiteral) {
     if (static_cast<UserTypeNode*>(arrType)->GetDims())
       dims = static_cast<UserTypeNode*>(arrType)->GetDimsNum();
     if (auto id = static_cast<UserTypeNode*>(arrType)->GetId()) {
-      // Get class name or TS builtin obj name for array of usertyp objects.
-      // ("Object" need to be translated into its type alias "ObjectP"
-      // see builtins.h).
       type = id->GetName();
-      if (type.compare("t2crt::Object") == 0 ||
-          type.compare("Object") == 0)
-        type = "ObjectP";
+      if (type.compare("t2crt::Object") == 0 || type.compare("Object") == 0)
+        type = "t2crt::Object*";
     }
     str = EmitArrayLiterals(arrLiteral, dims, type);
   } else if (arrType->IsPrimArrayType()) { // array of prim type

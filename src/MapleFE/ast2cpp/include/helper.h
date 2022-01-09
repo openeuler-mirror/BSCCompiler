@@ -42,6 +42,7 @@ extern std::string GenAnonFuncName(TreeNode* node);
 inline std::string ClsName(std::string func) { return "Cls_"s + func; }
 extern void HandleThisParam(unsigned nParams, TreeNode* node, std::string& params, std::string&args);
 extern std::string hlpGetJSValTypeStr(TypeId typeId);
+extern std::string ArrayCtorName(int dim, std::string type);
 
 class FuncTable {
 private:

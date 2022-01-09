@@ -568,8 +568,8 @@ std::string CppDecl::EmitArrayLiteral(ArrayLiteralNode *node, int dim, std::stri
   if (node == nullptr)
     return std::string();
 
-  // Generate ctor call to instantiate array, e.g. t2crt::Array1D_long._new(). See builtins.h
-  std::string str("t2crt::Array"s + std::to_string(dim) + "D_"s + type + "._new({"s );
+  // Generate array ctor call to instantiate array
+  std::string str = ArrayCtorName(dim, type) + "._new({"s;
   for (unsigned i = 0; i < node->GetLiteralsNum(); ++i) {
     if (i)
       str += ", "s;
