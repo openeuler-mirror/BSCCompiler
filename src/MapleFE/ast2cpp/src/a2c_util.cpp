@@ -43,21 +43,31 @@ std::string ImportedFiles::GetTargetFilename(TreeNode *node) {
 
 ImportNode *ImportedFiles::VisitImportNode(ImportNode *node) {
   std::string name = GetTargetFilename(node->GetTarget());
-  if (!name.empty())
-      mFilenames.push_back(name);
-  for (unsigned i = 0; i < node->GetPairsNum(); ++i)
+  if (!name.empty()) {
+    mFilenames.push_back(name);
+  }
+  for (unsigned i = 0; i < node->GetPairsNum(); ++i) {
     if (auto x = node->GetPair(i); x->IsSingle()) {
       std::string s = GetTargetFilename(x->GetBefore());
       if (!s.empty())
         mFilenames.push_back(s);
     }
+  }
+  for (unsigned i = 0; i < node->GetPairsNum(); i++) {
+    XXportAsPairNode *pair = node->GetPair(i);
+    (void) AstVisitor::VisitTreeNode(pair);
+  }
   return node;
 }
 
 ExportNode *ImportedFiles::VisitExportNode(ExportNode *node) {
   std::string name = GetTargetFilename(node->GetTarget());
   if (!name.empty())
-      mFilenames.push_back(name);
+    mFilenames.push_back(name);
+  for (unsigned i = 0; i < node->GetPairsNum(); i++) {
+    XXportAsPairNode *pair = node->GetPair(i);
+    (void) AstVisitor::VisitTreeNode(pair);
+  }
   return node;
 }
 }
