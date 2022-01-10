@@ -1537,15 +1537,22 @@ StructNode *TypeInferVisitor::VisitStructNode(StructNode *node) {
   }
   if (node->GetProp() == SProp_TSEnum) {
     TypeId tid = TY_None;
+    unsigned tidx = 0;
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       TreeNode *t = node->GetField(i);
       tid = MergeTypeId(tid, t->GetTypeId());
+      tidx = MergeTypeIdx(tidx, t->GetTypeIdx());
     }
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       TreeNode *t = node->GetField(i);
       SetTypeId(t, tid);
+      SetTypeIdx(t, tidx);
     }
-    SetTypeId(node, tid);
+    TreeNode *id = node->GetStructId();
+    if (id) {
+      SetTypeId(id, node->GetTypeId());
+      SetTypeIdx(id, node->GetTypeIdx());
+    }
   }
   (void) AstVisitor::VisitStructNode(node);
   return node;
