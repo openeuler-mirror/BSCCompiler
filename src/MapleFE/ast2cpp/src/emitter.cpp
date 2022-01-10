@@ -594,7 +594,7 @@ std::string Emitter::EmitImportNode(ImportNode *node) {
       str += " from "s + s;
     else {
       auto p = node->GetParent();
-      if (p && p->IsField())
+      if (p && (p->IsField() || p->IsTypeOf()))
         str += '(' + s + ')';
       else
         str += s;
