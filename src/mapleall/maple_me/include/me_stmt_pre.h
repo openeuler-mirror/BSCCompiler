@@ -72,7 +72,7 @@ class MeStmtPre : public SSAEPre {
   void VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &chiList);
   void BuildWorkListBB(BB *bb) override;
   void BuildWorkList() override;
-  void RemoveUnnecessaryDassign(DassignMeStmt &dssMeStmt);
+  void RemoveUnnecessaryAssign(MeStmt &meStmt);
   void DoSSAFRE() override;
   BB *GetBB(BBId id) const override {
     return func->GetCfg()->GetBBFromID(id);

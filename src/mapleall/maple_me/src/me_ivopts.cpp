@@ -1509,41 +1509,9 @@ uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
         return kInfinityCost;
       }
       auto *cmp = static_cast<OpMeExpr*>(group.uses[0]->expr);
-      if (ratio < 0 && IsUnsignedInteger(cmp->GetOpndType())) {
+      auto isEqNe = cmp->GetOp() == OP_eq || cmp->GetOp() == OP_ne;
+      if (!isEqNe && ratio != 1 && ratio != -1) {
         return kInfinityCost;
-      }
-      if (ratio < 0 && (cmp->GetOp() == OP_gt || cmp->GetOp() == OP_ge) && IsSignedInteger(cmp->GetOpndType())) {
-        if (cand.iv->step->GetMeOp() == kMeOpConst) {
-          int64 candConst = static_cast<ConstMeExpr &>(*cand.iv->step).GetIntValue();
-          if (cand.iv->step->GetPrimType() == PTY_u32) {
-            candConst = static_cast<int64>(static_cast<int32>(candConst));
-          }
-          if (candConst < 0) {
-            return kInfinityCost;
-          }
-        }
-      }
-      if (ratio > 0 && (cmp->GetOp() == OP_gt || cmp->GetOp() == OP_ge) && cmp->GetOpnd(0) == group.uses[0]->iv->expr) {
-        if (cand.iv->step->GetMeOp() == kMeOpConst) {
-          int64 candConst = static_cast<ConstMeExpr &>(*cand.iv->step).GetIntValue();
-          if (cand.iv->step->GetPrimType() == PTY_u32) {
-            candConst = static_cast<int64>(static_cast<int32>(candConst));
-          }
-          if (candConst > 0) {
-            return kInfinityCost;
-          }
-        }
-      }
-      if (ratio > 0 && (cmp->GetOp() == OP_lt || cmp->GetOp() == OP_le) && cmp->GetOpnd(0) == group.uses[0]->iv->expr) {
-        if (cand.iv->step->GetMeOp() == kMeOpConst) {
-          int64 candConst = static_cast<ConstMeExpr &>(*cand.iv->step).GetIntValue();
-          if (cand.iv->step->GetPrimType() == PTY_u32) {
-            candConst = static_cast<int64>(static_cast<int32>(candConst));
-          }
-          if (candConst < 0) {
-            return kInfinityCost;
-          }
-        }
       }
       MeExpr *extraExpr = ComputeExtraExprOfBase(*group.uses[0]->iv->base, *cand.iv->base, ratio, replaced);
       if (!replaced) {
