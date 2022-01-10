@@ -1969,7 +1969,6 @@ void AliasClass::InsertMayDefIassign(StmtNode &stmt, BBId bbid) {
   }
 
   TypeOfMayDefList &mayDefNodes = ssaTab.GetStmtsSSAPart().GetMayDefNodesOf(stmt);
-  ASSERT(!mayDefNodes.empty(), "AliasClass::InsertMayUseIassign(): iassign cannot have empty maydef");
   // go thru inserted MayDefNode to add the base info
   TypeOfMayDefList::iterator it = mayDefNodes.begin();
   for (; it != mayDefNodes.end(); ++it) {
