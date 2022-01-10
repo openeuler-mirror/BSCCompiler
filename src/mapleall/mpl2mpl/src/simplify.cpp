@@ -13,6 +13,7 @@
  * See the Mulan PSL v1 for more details.
  */
 #include "simplify.h"
+#include <initializer_list>
 #include <iostream>
 #include <algorithm>
 #include "constantfold.h"
@@ -27,8 +28,7 @@ constexpr char kFuncNameOfMathAbs[] = "abs";
 constexpr char kFuncNameOfMemset[] = "memset";
 constexpr char kFuncNameOfMemcpy[] = "memcpy";
 constexpr char kFuncNameOfMemsetS[] = "memset_s";
-constexpr uint32_t kSecondOpnd = 1;
-constexpr uint32_t kThirdOpnd = 2;
+constexpr char kFuncNameOfMemcpyS[] = "memcpy_s";
 constexpr uint64_t kSecurecMemMaxLen = 0x7fffffffUL;
 } // namespace
 
@@ -37,6 +37,7 @@ namespace maple {
 const uint32 SimplifyMemOp::thresholdMemsetExpand = 512;
 const uint32 SimplifyMemOp::thresholdMemcpyExpand = 512;
 const uint32 SimplifyMemOp::thresholdMemsetSExpand = 1024;
+const uint32 SimplifyMemOp::thresholdMemcpySExpand = 1024;
 static uint32 kMaxMemoryBlockSizeToAssign = 8;  // in byte
 
 static void MayPrintLog(bool debug, bool success, MemOpKind memOpKind, const char *str) {
@@ -50,6 +51,8 @@ static void MayPrintLog(bool debug, bool success, MemOpKind memOpKind, const cha
     memop = "memcpy";
   } else if (memOpKind == MEM_OP_memset_s) {
     memop = "memset_s";
+  } else if (memOpKind == MEM_OP_memcpy_s) {
+    memop = "memcpy_s";
   }
   LogInfo::MapleLogger() << memop << " expand " << (success ? "success: " : "failure: ") << str << std::endl;
 }
@@ -625,6 +628,174 @@ BaseNode *MemEntry::BuildAsRhsExpr(MIRFunction &func) const {
   return expr;
 }
 
+static void InsertAndMayPrintStmt(BlockNode &block, StmtNode &anchor, bool debug, StmtNode *stmt) {
+  if (stmt == nullptr) {
+    return;
+  }
+  block.InsertBefore(&anchor, stmt);
+  if (debug) {
+    stmt->Dump(0);
+  }
+}
+
+static void InsertAndMayPrintStmtList(BlockNode &block, StmtNode &anchor,
+                                      bool debug, std::initializer_list<StmtNode*> stmtList) {
+  for (StmtNode *stmt : stmtList) {
+    if (stmt == nullptr) {
+      continue;
+    }
+    block.InsertBefore(&anchor, stmt);
+    if (debug) {
+      stmt->Dump(0);
+    }
+  }
+}
+
+static bool NeedCheck(MemOpKind memOpKind) {
+  if (memOpKind == MEM_OP_memset_s || memOpKind == MEM_OP_memcpy_s) {
+    return true;
+  }
+  return false;
+}
+
+// Create maple IR to check whether `expr` is a null pointer, IR is as follows:
+//   brfalse @@n1 (ne u8 ptr (regread ptr %1, constval u64 0))
+static CondGotoNode *CreateNullptrCheckStmt(BaseNode &expr, MIRFunction &func, MIRBuilder *mirBuilder,
+                                            MIRType &cmpResType, MIRType &cmpOpndType) {
+  LabelIdx nullLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('n');  // 'n' means nullptr
+  auto *checkExpr = mirBuilder->CreateExprCompare(OP_ne, cmpResType, cmpOpndType, &expr,
+                                                  ConstructConstvalNode(0, PTY_u64, *mirBuilder));
+  auto *checkStmt = mirBuilder->CreateStmtCondGoto(checkExpr, OP_brfalse, nullLabIdx);
+  return checkStmt;
+}
+
+// Create maple IR to check whether `expr1` and `expr2` are overlapped
+// brfalse @@o1 (ge u8 ptr (
+//   abs ptr (sub ptr (regread ptr %1, regread ptr %2)),
+//   constval u64 xxx))
+static CondGotoNode *CreateOverlapCheckStmt(BaseNode &expr1, BaseNode &expr2, uint32 size, MIRFunction &func,
+    MIRBuilder *mirBuilder, MIRType &cmpResType, MIRType &cmpOpndType) {
+  LabelIdx overlapLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('o');  // 'n' means overlap
+  auto *checkExpr = mirBuilder->CreateExprCompare(OP_ge, cmpResType, cmpOpndType,
+      mirBuilder->CreateExprUnary(OP_abs, cmpOpndType,
+          mirBuilder->CreateExprBinary(OP_sub, cmpOpndType, &expr1, &expr2)),
+      ConstructConstvalNode(size, PTY_u64, *mirBuilder));
+  auto *checkStmt = mirBuilder->CreateStmtCondGoto(checkExpr, OP_brfalse, overlapLabIdx);
+  return checkStmt;
+}
+
+// Generate IR to handle nullptr, IR is as follows:
+//   @curLabel
+//   regassign i32 %1 (constval i32 errNum)
+//   goto @finalLabel
+static void AddNullptrHandlerIR(StmtNode &stmt, MIRBuilder *mirBuilder, BlockNode &block, ErrorNumber errNum,
+                                StmtNode *retAssign, LabelIdx curLabIdx, LabelIdx finalLabIdx, bool debug) {
+  auto *curLabelNode = mirBuilder->CreateStmtLabel(curLabIdx);
+  auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+  InsertAndMayPrintStmtList(block, stmt, debug, { curLabelNode, retAssign, gotoFinal });
+}
+
+// Generate IR to handle overlapping, IR is as follows:
+//   @curLabel
+//   call memset  # new genrated memset will be expanded if possible
+//   regassign i32 %1 (constval i32 errNum)
+//   goto @finalLabel
+static void AddOverlapHandlerIR(StmtNode &stmt, MIRFunction &func, BlockNode &block, ErrorNumber errNum,
+                                StmtNode *retAssign, LabelIdx curLabIdx, LabelIdx finalLabIdx,
+                                BaseNode *addrExpr, bool debug) {
+  MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
+  auto *curLabelNode = mirBuilder->CreateStmtLabel(curLabIdx);
+  InsertAndMayPrintStmtList(block, stmt, debug , { curLabelNode, retAssign });
+  // call memset for dst memory when detecting overlapping
+  MapleVector<BaseNode*> args(mirBuilder->GetCurrentFuncCodeMpAllocator()->Adapter());
+  args.push_back(addrExpr);
+  args.push_back(ConstructConstvalNode(0, PTY_i32, *mirBuilder));
+  args.push_back(stmt.Opnd(1));
+  auto *callMemset = mirBuilder->CreateStmtCall("memset", args);
+  block.InsertBefore(&stmt, callMemset);
+  // Try to expand new generated memset
+  SimplifyMemOp subSimplfiy(&func, true);
+  subSimplfiy.SimplifyMemset(*callMemset, block, true);
+  auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+  InsertAndMayPrintStmt(block, stmt, debug, gotoFinal);
+}
+
+static BaseNode *TryToExtractComplexExpr(BaseNode *expr, MIRFunction &func, BlockNode &block, StmtNode &anchor,
+    bool debug) {
+  if (!IsComplexExpr(expr, func)) {
+    return expr;
+  }
+  MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
+  auto pregIdx = func.GetPregTab()->CreatePreg(PTY_ptr);
+  StmtNode *regassign = mirBuilder->CreateStmtRegassign(PTY_ptr, pregIdx, expr);
+  InsertAndMayPrintStmt(block, anchor, debug, regassign);
+  auto *extractedExpr = mirBuilder->CreateExprRegread(PTY_ptr, pregIdx);
+  return extractedExpr;
+}
+
+void MemEntry::ExpandMemsetLowLevel(int64 byte, int64 size, MIRFunction &func, StmtNode &stmt, BlockNode &block,
+    MemOpKind memOpKind, bool debug, ErrorNumber errorNumber) const {
+  MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
+  std::vector<uint32> blocks;
+  SplitMemoryIntoBlocks(size, blocks);
+  int32 offset = 0;
+  // If blocks.size() > 1 and `dst` is not a leaf node,
+  // we should extract common expr to avoid redundant expression
+  BaseNode *realDstExpr = addrExpr;
+  if (blocks.size() > 1) {
+    realDstExpr = TryToExtractComplexExpr(addrExpr, func, block, stmt, debug);
+  }
+  LabelIdx nullLabIdx;
+  if (NeedCheck(memOpKind)) {
+    auto *cmpResType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
+    auto *cmpOpndType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+    auto *checkStmt = CreateNullptrCheckStmt(*realDstExpr, func, mirBuilder, *cmpResType, *cmpOpndType);
+    nullLabIdx = checkStmt->GetOffset();
+    InsertAndMayPrintStmt(block, stmt, debug, checkStmt);
+  }
+  BaseNode *readConst = nullptr;
+  // rhs const is big, extract it to avoid redundant expression
+  bool shouldExtractRhs = blocks.size() > 1 && (byte & 0xff) != 0;
+  for (auto curSize : blocks) {
+    // low level memset expand result:
+    //   iassignoff <prim-type> <offset> (dstAddrExpr, constval <prim-type> xx)
+    PrimType constType = GetIntegerPrimTypeBySizeAndSign(curSize * 8, false);
+    BaseNode *rhsExpr = ConstructConstvalNode(byte, curSize, constType, *mirBuilder);
+    if (shouldExtractRhs) {
+      // we only need to extract u64 const once
+      PregIdx pregIdx = func.GetPregTab()->CreatePreg(constType);
+      auto *constAssign = mirBuilder->CreateStmtRegassign(constType, pregIdx, rhsExpr);
+      InsertAndMayPrintStmt(block, stmt, debug, constAssign);
+      readConst = mirBuilder->CreateExprRegread(constType, pregIdx);
+      shouldExtractRhs = false;
+    }
+    if (readConst != nullptr && curSize == kMaxMemoryBlockSizeToAssign) {
+      rhsExpr = readConst;
+    }
+    auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
+    InsertAndMayPrintStmt(block, stmt, debug, iassignoff);
+    if (debug) {
+      iassignoff->Dump(false);
+    }
+    offset += curSize;
+  }
+  // handle memset return val
+  auto *retAssign = GenMemopRetAssign(stmt, func, true, memOpKind, errorNumber);
+  InsertAndMayPrintStmt(block, stmt, debug, retAssign);
+  // return ERRNO_INVAL if memset_s dest is NULL
+  if (NeedCheck(memOpKind)) {
+    LabelIdx finalLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('f');
+    auto *finalLabelNode = mirBuilder->CreateStmtLabel(finalLabIdx);
+    // Add goto final stmt for expanded body
+    auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+    InsertAndMayPrintStmt(block, stmt, debug, gotoFinal);
+    auto *errnoAssign = GenMemopRetAssign(stmt, func, true, memOpKind, ERRNO_INVAL);
+    AddNullptrHandlerIR(stmt, mirBuilder, block, ERRNO_INVAL, errnoAssign, nullLabIdx, finalLabIdx, debug);
+    InsertAndMayPrintStmt(block, stmt, debug, finalLabelNode);
+  }
+  block.RemoveStmt(&stmt);
+}
+
 // Lower memset(MemEntry, byte, size) into a series of assign stmts and replace callStmt in the block
 // with these assign stmts
 bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
@@ -646,70 +817,12 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
   }
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
 
-  bool addNullptrCheck = (memOpKind == MEM_OP_memset_s);
-  LabelIdx nullLabIdx;
   if (isLowLevel) {  // For cglower, replace memset with a series of low-level iassignoff
-    std::vector<uint32> blocks;
-    SplitMemoryIntoBlocks(size, blocks);
-    int32 offset = 0;
-    // If blocks.size() > 1 and `dst` is not a leaf node,
-    // we should extract common expr to avoid redundant expression
-    BaseNode *realDstExpr = addrExpr;
-    bool shouldExtractRhs = false;
-    if (blocks.size() > 1) {
-      if (IsComplexExpr(addrExpr, func)) {
-        auto pregIdx = func.GetPregTab()->CreatePreg(PTY_ptr);
-        StmtNode *regassign = mirBuilder->CreateStmtRegassign(PTY_ptr, pregIdx, addrExpr);
-        block.InsertBefore(&stmt, regassign);
-        if (debug) {
-          regassign->Dump(false);
-        }
-        realDstExpr = mirBuilder->CreateExprRegread(PTY_ptr, pregIdx);
-      }
-      if ((byte & 0xff) != 0) {
-        shouldExtractRhs = true;  // rhs const is big, extract it to avoid redundant expression
-      }
-    }
-    if (addNullptrCheck) {
-      auto *cmpResType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
-      auto *cmpOpndType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
-      auto *zeroNode = ConstructConstvalNode(0, PTY_u64, *mirBuilder);
-      auto *checkDstExpr = mirBuilder->CreateExprCompare(OP_ne, *cmpResType, *cmpOpndType, realDstExpr, zeroNode);
-      nullLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('n');
-      auto *checkStmt = mirBuilder->CreateStmtCondGoto(checkDstExpr, OP_brfalse, nullLabIdx);
-      block.InsertBefore(&stmt, checkStmt);
-      if (debug) {
-        checkStmt->Dump(false);
-      }
-    }
-    BaseNode *readConst = nullptr;
-    for (auto curSize : blocks) {
-      // low level memset expand result:
-      //   iassignoff <prim-type> <offset> (dstAddrExpr, constval <prim-type> xx)
-      PrimType constType = GetIntegerPrimTypeBySizeAndSign(curSize * 8, false);
-      BaseNode *rhsExpr = ConstructConstvalNode(byte, curSize, constType, *mirBuilder);
-      if (shouldExtractRhs) {
-        // we only need to extract u64 const once
-        PregIdx pregIdx = func.GetPregTab()->CreatePreg(constType);
-        auto *constAssign = mirBuilder->CreateStmtRegassign(constType, pregIdx, rhsExpr);
-        block.InsertBefore(&stmt, constAssign);
-        if (debug) {
-          constAssign->Dump(false);
-        }
-        readConst = mirBuilder->CreateExprRegread(constType, pregIdx);
-        shouldExtractRhs = false;
-      }
-      if (readConst != nullptr && curSize == kMaxMemoryBlockSizeToAssign) {
-        rhsExpr = readConst;
-      }
-      auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
-      block.InsertBefore(&stmt, iassignoff);
-      if (debug) {
-        iassignoff->Dump(false);
-      }
-      offset += curSize;
-    }
-  } else if (memKind == kMemEntryPrimitive) {
+    ExpandMemsetLowLevel(byte, size, func, stmt, block, memOpKind, debug, errorNumber);
+    return true;
+  }
+
+  if (memKind == kMemEntryPrimitive) {
     BaseNode *rhsExpr = ConstructConstvalNode(byte, size, memType->GetPrimType(), *mirBuilder);
     StmtNode *newAssign = nullptr;
     if (addrExpr->GetOpCode() == OP_addrof) {  // We prefer dassign to iassign
@@ -720,10 +833,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
       MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
       newAssign = mirBuilder->CreateStmtIassign(*memPtrType, 0, addrExpr, rhsExpr);
     }
-    block.InsertBefore(&stmt, newAssign);
-    if (debug) {
-      newAssign->Dump(false);
-    }
+    InsertAndMayPrintStmt(block, stmt, debug, newAssign);
   } else if (memKind == kMemEntryStruct) {
     auto *structType = static_cast<MIRStructType*>(memType);
     // struct size should be small enough, struct field size should be big enough
@@ -777,10 +887,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
         MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
         fieldAssign = mirBuilder->CreateStmtIassign(*memPtrType, id, addrExpr, rhsExpr);
       }
-      block.InsertBefore(&stmt, fieldAssign);
-      if (debug) {
-        fieldAssign->Dump(false);
-      }
+      InsertAndMayPrintStmt(block, stmt, debug, fieldAssign);
     }
   } else if (memKind == kMemEntryArray) {
     // We only consider array with dim == 1 now, and element type must be primitive type
@@ -806,10 +913,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
       auto *newValOpnd = ConstructConstvalNode(byte, elemType->GetSize(), elemType->GetPrimType(), *mirBuilder);
       MIRType *elemPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType);
       auto *arrayElementAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, newValOpnd);
-      block.InsertBefore(&stmt, arrayElementAssign);
-      if (debug) {
-        arrayElementAssign->Dump(false);
-      }
+      InsertAndMayPrintStmt(block, stmt, debug, arrayElementAssign);
     }
   } else {
     CHECK_FATAL(false, "impossible");
@@ -817,82 +921,69 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
 
   // handle memset return val
   auto *retAssign = GenMemopRetAssign(stmt, func, isLowLevel, memOpKind, errorNumber);
-  if (retAssign != nullptr) {
-    block.InsertBefore(&stmt, retAssign);
-    if (debug) {
-      retAssign->Dump(false);
-    }
-  }
-  // return ERRNO_INVAL if memset_s dest is NULL
-  if (isLowLevel && addNullptrCheck) {
-    LabelIdx finalLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('f');
-    auto *finalLabelNode = mirBuilder->CreateStmtLabel(finalLabIdx);
-    auto *gotoStmt = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
-    auto *nullLabelNode = mirBuilder->CreateStmtLabel(nullLabIdx);
-    block.InsertBefore(&stmt, gotoStmt);
-    block.InsertBefore(&stmt, nullLabelNode);
-    if (debug) {
-      gotoStmt->Dump(0);
-      nullLabelNode->Dump(0);
-    }
-    auto *errnoAssign = GenMemopRetAssign(stmt, func, isLowLevel, memOpKind, ERRNO_INVAL);
-    if (errnoAssign != nullptr) {
-      block.InsertBefore(&stmt, errnoAssign);
-      if (debug) {
-        errnoAssign->Dump(false);
-      }
-    }
-    block.InsertBefore(&stmt, finalLabelNode);
-    if (debug) {
-      finalLabelNode->Dump(0);
-    }
-  }
+  InsertAndMayPrintStmt(block, stmt, debug, retAssign);
   block.RemoveStmt(&stmt);
   return true;
 }
 
-bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
-                            StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug) const {
-  MemOpKind memOpKind = MEM_OP_memcpy;
-  MemEntryKind memKind = GetKind();
-  if (!isLowLevel) {  // check type consistency and memKind only for high level expand
-    if (memType != srcMem.memType) {
-      return false;
-    }
-    CHECK_FATAL(memKind != kMemEntryUnknown, "invalid memKind");
+static std::pair<StmtNode*, StmtNode*> GenerateMemoryCopyPair(MIRBuilder *mirBuilder, BaseNode *rhs,
+    BaseNode *lhs, uint32 offset, uint32 curSize, PregIdx tmpRegIdx) {
+  auto *ptrType = GlobalTables::GetTypeTable().GetPtrType();
+  PrimType constType = GetIntegerPrimTypeBySizeAndSign(curSize * 8, false);
+  MIRType *constMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(constType));
+  auto *constMIRPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*constMIRType);
+  BaseNode *rhsAddrExpr = rhs;
+  if (offset != 0) {
+    auto *offsetConstExpr = ConstructConstvalNode(offset, PTY_u64, *mirBuilder);
+    rhsAddrExpr = mirBuilder->CreateExprBinary(OP_add, *ptrType, rhs, offsetConstExpr);
   }
+  BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
+  auto *regassign = mirBuilder->CreateStmtRegassign(PTY_u64, tmpRegIdx, rhsExpr);
+  auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, lhs,
+      mirBuilder->CreateExprRegread(PTY_u64, tmpRegIdx));
+  return { regassign, iassignoff };
+}
+
+void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
+    StmtNode &stmt, BlockNode &block, MemOpKind memOpKind, bool debug, ErrorNumber errorNumber) const {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
-  StmtNode *newAssign = nullptr;
-  if (isLowLevel) {  // For cglower, replace memcpy with a series of low-level iassignoff
-    std::vector<uint32> blocks;
-    SplitMemoryIntoBlocks(copySize, blocks);
-    int32 offset = 0;
-    // If blocks.size() > 1 and `src` or `dst` is not a leaf node,
-    // we should extract common expr to avoid redundant expression
-    BaseNode *realSrcExpr = srcMem.addrExpr;
-    BaseNode *realDstExpr = addrExpr;
-    if (blocks.size() > 1) {
-      if (IsComplexExpr(addrExpr, func)) {
-        auto pregIdx = func.GetPregTab()->CreatePreg(PTY_ptr);
-        StmtNode *regassign = mirBuilder->CreateStmtRegassign(PTY_ptr, pregIdx, addrExpr);
-        block.InsertBefore(&stmt, regassign);
-        if (debug) {
-          regassign->Dump(false);
-        }
-        realDstExpr = mirBuilder->CreateExprRegread(PTY_ptr, pregIdx);
-      }
-      if (IsComplexExpr(srcMem.addrExpr, func)) {
-        auto pregIdx = func.GetPregTab()->CreatePreg(PTY_ptr);
-        StmtNode *regassign = mirBuilder->CreateStmtRegassign(PTY_ptr, pregIdx, srcMem.addrExpr);
-        block.InsertBefore(&stmt, regassign);
-        if (debug) {
-          regassign->Dump(false);
-        }
-        realSrcExpr = mirBuilder->CreateExprRegread(PTY_ptr, pregIdx);
-      }
-    }
-    auto *ptrType = GlobalTables::GetTypeTable().GetPtrType();
-    for (auto curSize : blocks) {
+  std::vector<uint32> blocks;
+  SplitMemoryIntoBlocks(copySize, blocks);
+  int32 offset = 0;
+  // If blocks.size() > 1 and `src` or `dst` is not a leaf node,
+  // we should extract common expr to avoid redundant expression
+  BaseNode *realSrcExpr = srcMem.addrExpr;
+  BaseNode *realDstExpr = addrExpr;
+  if (blocks.size() > 1) {
+    realDstExpr = TryToExtractComplexExpr(addrExpr, func, block, stmt, debug);
+    realSrcExpr = TryToExtractComplexExpr(srcMem.addrExpr, func, block, stmt, debug);
+  }
+  auto *ptrType = GlobalTables::GetTypeTable().GetPtrType();
+  LabelIdx dstNullLabIdx;
+  LabelIdx srcNullLabIdx;
+  LabelIdx overlapLabIdx;
+  if (NeedCheck(memOpKind)) {
+    auto *cmpResType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_u8));
+    auto *cmpOpndType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_ptr));
+    // check dst != NULL
+    auto *checkDstStmt = CreateNullptrCheckStmt(*realDstExpr, func, mirBuilder, *cmpResType, *cmpOpndType);
+    dstNullLabIdx = checkDstStmt->GetOffset();
+    // check src != NULL
+    auto *checkSrcStmt = CreateNullptrCheckStmt(*realSrcExpr, func, mirBuilder, *cmpResType, *cmpOpndType);
+    srcNullLabIdx = checkSrcStmt->GetOffset();
+    // check overlap
+    auto *checkOverlapStmt = CreateOverlapCheckStmt(*realDstExpr, *realSrcExpr, copySize, func, mirBuilder,
+        *cmpResType, *cmpOpndType);
+    overlapLabIdx = checkOverlapStmt->GetOffset();
+    InsertAndMayPrintStmtList(block, stmt, debug, { checkDstStmt, checkSrcStmt, checkOverlapStmt });
+  }
+  // memory copy optimization
+  PregIdx tmpRegIdx1 = 0;
+  PregIdx tmpRegIdx2 = 0;
+  for (uint32 i = 0; i < blocks.size(); ++i) {
+    uint32 curSize = blocks[i];
+    bool canMergedWithNextSize = (i + 1 < blocks.size()) && blocks[i + 1] == curSize;
+    if (!canMergedWithNextSize) {
       // low level memcpy expand result:
       // It seems ireadoff has not been supported by cg HandleFunction, so we use iread instead of ireadoff
       // [not support] iassignoff <prim-type> <offset> (dstAddrExpr, ireadoff <prim-type> <offset> (srcAddrExpr))
@@ -907,13 +998,71 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction 
       }
       BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
       auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
-      block.InsertBefore(&stmt, iassignoff);
-      if (debug) {
-        iassignoff->Dump(false);
-      }
+      InsertAndMayPrintStmt(block, stmt, debug, iassignoff);
       offset += curSize;
+      continue;
     }
-  } else if (memKind == kMemEntryPrimitive || memKind == kMemEntryStruct) {
+
+    // merge two str/ldr into a stp/ldp
+    if (tmpRegIdx1 == 0 || tmpRegIdx2 == 0) {
+      tmpRegIdx1 = func.GetPregTab()->CreatePreg(PTY_u64);
+      tmpRegIdx2 = func.GetPregTab()->CreatePreg(PTY_u64);
+    }
+    auto pair1 = GenerateMemoryCopyPair(mirBuilder, realSrcExpr, realDstExpr, offset, curSize, tmpRegIdx1);
+    auto pair2 = GenerateMemoryCopyPair(mirBuilder, realSrcExpr, realDstExpr, offset + curSize, curSize, tmpRegIdx2);
+    // insert order: regassign1, regassign2, iassignoff1, iassignoff2
+    InsertAndMayPrintStmtList(block, stmt, debug, { pair1.first, pair2.first, pair1.second, pair2.second});
+    offset += (2 * curSize);
+    ++i;
+  }
+  // handle memcpy return val
+  auto *retAssign = GenMemopRetAssign(stmt, func, true, memOpKind, errorNumber);
+  InsertAndMayPrintStmt(block, stmt, debug, retAssign);
+  if (NeedCheck(memOpKind)) {
+    LabelIdx finalLabIdx = func.GetLabelTab()->CreateLabelWithPrefix('f');
+    auto *finalLabelNode = mirBuilder->CreateStmtLabel(finalLabIdx);
+    // Add goto final stmt for expanded body
+    auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
+    InsertAndMayPrintStmt(block, stmt, debug, gotoFinal);
+    // Add handler IR if dst == NULL
+    auto *dstErrAssign = GenMemopRetAssign(stmt, func, true, memOpKind, ERRNO_INVAL);
+    AddNullptrHandlerIR(stmt, mirBuilder, block, ERRNO_INVAL, dstErrAssign, dstNullLabIdx, finalLabIdx, debug);
+    // Add handler IR if src == NULL
+    auto *srcErrAssign = GenMemopRetAssign(stmt, func, true, memOpKind, ERRNO_INVAL_AND_RESET);
+    AddNullptrHandlerIR(stmt, mirBuilder, block, ERRNO_INVAL_AND_RESET,
+                        srcErrAssign, srcNullLabIdx, finalLabIdx, debug);
+    // Add handler IR if dst and src are overlapped
+    auto *overlapErrAssign = GenMemopRetAssign(stmt, func, true, memOpKind, ERRNO_OVERLAP_AND_RESET);
+    AddOverlapHandlerIR(stmt, func, block, ERRNO_OVERLAP_AND_RESET,
+                        overlapErrAssign, overlapLabIdx, finalLabIdx, addrExpr, debug);
+    InsertAndMayPrintStmt(block, stmt, debug, finalLabelNode);
+  }
+  block.RemoveStmt(&stmt);
+}
+
+bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction &func,
+                            StmtNode &stmt, BlockNode &block, bool isLowLevel, bool debug,
+                            ErrorNumber errorNumber) const {
+  MemOpKind memOpKind = SimplifyMemOp::ComputeMemOpKind(stmt);
+  MemEntryKind memKind = GetKind();
+  if (!isLowLevel) {  // check type consistency and memKind only for high level expand
+    if (memOpKind == MEM_OP_memcpy_s) {
+      MayPrintLog(debug, false, memOpKind, "all memcpy_s will be handed by cglower");
+      return false;
+    }
+    if (memType != srcMem.memType) {
+      return false;
+    }
+    CHECK_FATAL(memKind != kMemEntryUnknown, "invalid memKind");
+  }
+  MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
+  StmtNode *newAssign = nullptr;
+  if (isLowLevel) {  // For cglower, replace memcpy with a series of low-level iassignoff
+    ExpandMemcpyLowLevel(srcMem, copySize, func, stmt, block, memOpKind, debug, errorNumber);
+    return true;
+  }
+
+  if (memKind == kMemEntryPrimitive || memKind == kMemEntryStruct) {
     // Do low level expand for all struct memcpy for now
     if (memKind == kMemEntryStruct) {
       MayPrintLog(debug, false, memOpKind, "Do low level expand for all struct memcpy for now");
@@ -927,10 +1076,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction 
       MIRType *memPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*memType);
       newAssign = mirBuilder->CreateStmtIassign(*memPtrType, 0, addrExpr, srcMem.BuildAsRhsExpr(func));
     }
-    block.InsertBefore(&stmt, newAssign);
-    if (debug) {
-      newAssign->Dump(false);
-    }
+    InsertAndMayPrintStmt(block, stmt, debug, newAssign);
     // split struct agg copy
     if (memKind == kMemEntryStruct) {
       if (newAssign->GetOpCode() == OP_dassign) {
@@ -974,23 +1120,15 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction 
       auto *rhsArrayExpr = mirBuilder->CreateExprArray(*arrayType, srcMem.addrExpr, indexExpr);
       auto *rhsIreadExpr = mirBuilder->CreateExprIread(*elemType, *elemPtrType, 0, rhsArrayExpr);
       auto *arrayElemAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, rhsIreadExpr);
-      block.InsertBefore(&stmt, arrayElemAssign);
-      if (debug) {
-        arrayElemAssign->Dump(false);
-      }
+      InsertAndMayPrintStmt(block, stmt, debug, arrayElemAssign);
     }
   } else {
     CHECK_FATAL(false, "impossible");
   }
 
   // handle memcpy return val
-  auto *retAssign = GenMemopRetAssign(stmt, func, isLowLevel, memOpKind);
-  if (retAssign != nullptr) {
-    block.InsertBefore(&stmt, retAssign);
-    if (debug) {
-      retAssign->Dump(false);
-    }
-  }
+  auto *retAssign = GenMemopRetAssign(stmt, func, isLowLevel, memOpKind, errorNumber);
+  InsertAndMayPrintStmt(block, stmt, debug, retAssign);
   block.RemoveStmt(&stmt);
   return true;
 }
@@ -1008,8 +1146,8 @@ StmtNode *MemEntry::GenMemopRetAssign(StmtNode &stmt, MIRFunction &func, bool is
   }
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   BaseNode *rhs = callStmt.Opnd(0);  // for memset, memcpy
-  if (memOpKind == MEM_OP_memset_s) {
-    // memset_s must return an errorNumber
+  if (memOpKind == MEM_OP_memset_s || memOpKind == MEM_OP_memcpy_s) {
+    // memset_s and memcpy_s must return an errorNumber
     MIRType *constType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(PTY_i32));
     MIRConst *mirConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(errorNumber, *constType);
     rhs = mirBuilder->CreateConstval(mirConst);
@@ -1056,6 +1194,9 @@ MemOpKind SimplifyMemOp::ComputeMemOpKind(StmtNode &stmt) {
   if (strcmp(funcName, kFuncNameOfMemsetS) == 0) {
     return MEM_OP_memset_s;
   }
+  if (strcmp(funcName, kFuncNameOfMemcpyS) == 0) {
+    return MEM_OP_memcpy_s;
+  }
   return MEM_OP_unknown;
 }
 
@@ -1066,7 +1207,8 @@ bool SimplifyMemOp::AutoSimplify(StmtNode &stmt, BlockNode &block, bool isLowLev
     case MEM_OP_memset_s: {
       return SimplifyMemset(stmt, block, isLowLevel);
     }
-    case MEM_OP_memcpy: {
+    case MEM_OP_memcpy:
+    case MEM_OP_memcpy_s: {
       return SimplifyMemcpy(stmt, block, isLowLevel);
     }
     default:
@@ -1170,12 +1312,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
   } else {
     // if size == 0, no need to set memory, just return error nummber
     auto *retAssign = dstMemEntry.GenMemopRetAssign(stmt, *func, isLowLevel, memOpKind, errNum);
-    if (retAssign != nullptr) {
-      block.InsertBefore(&stmt, retAssign);
-      if (debug) {
-        retAssign->Dump(false);
-      }
-    }
+    InsertAndMayPrintStmt(block, stmt, debug, retAssign);
     block.RemoveStmt(&stmt);
     ret = true;
   }
@@ -1187,40 +1324,73 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
 
 bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowLevel) const {
   MemOpKind memOpKind = ComputeMemOpKind(stmt);
-  if (memOpKind != MEM_OP_memcpy) {
+  if (memOpKind != MEM_OP_memcpy && memOpKind != MEM_OP_memcpy_s) {
     return false;
+  }
+  uint32 dstOpndIdx = 0;
+  uint32 dstSizeOpndIdx = 0;  // only used by memcpy_s
+  uint32 srcOpndIdx = 1;
+  uint32 srcSizeOpndIdx = 2;
+  bool isSafeVersion = memOpKind == MEM_OP_memcpy_s;
+  if (isSafeVersion) {
+    dstSizeOpndIdx = 1;
+    srcOpndIdx = 2;
+    srcSizeOpndIdx = 3;
   }
   if (debug) {
     LogInfo::MapleLogger() << "[funcName] " << func->GetName() << std::endl;
     stmt.Dump(false);
   }
 
-  int64 copySize = 0;
+  int64 srcSize = 0;
   bool isIntConst = false;
-  BaseNode *foldCopySizeExpr = FoldIntConst(stmt.Opnd(kThirdOpnd), copySize, isIntConst);
+  BaseNode *foldCopySizeExpr = FoldIntConst(stmt.Opnd(srcSizeOpndIdx), srcSize, isIntConst);
   if (foldCopySizeExpr != nullptr) {
-    stmt.SetOpnd(foldCopySizeExpr, kThirdOpnd);
+    stmt.SetOpnd(foldCopySizeExpr, srcSizeOpndIdx);
   }
   if (!isIntConst) {
-    MayPrintLog(debug, false, memOpKind, "copy size is not an int const");
+    MayPrintLog(debug, false, memOpKind, "src size is not an int const");
     return false;
   }
-  if (copySize > thresholdMemcpyExpand) {
+  uint32 thresholdExpand = (isSafeVersion ? thresholdMemcpySExpand : thresholdMemcpyExpand);
+  if (srcSize > thresholdExpand) {
     MayPrintLog(debug, false, memOpKind, "size is too big");
     return false;
   }
-  if (copySize == 0) {
-    MayPrintLog(debug, false, memOpKind, "memcpy with copy size 0");
+  if (srcSize == 0) {
+    MayPrintLog(debug, false, memOpKind, "memcpy with src size 0");
     return false;
   }
+  uint32 copySize = srcSize;
+  ErrorNumber errNum = ERRNO_OK;
+  if (isSafeVersion) {
+    int64 dstSize = 0;
+    bool isDstSizeConst = false;
+    BaseNode *foldDstSizeExpr = FoldIntConst(stmt.Opnd(dstSizeOpndIdx), dstSize, isDstSizeConst);
+    if (foldDstSizeExpr != nullptr) {
+      stmt.SetOpnd(foldDstSizeExpr, dstSizeOpndIdx);
+    }
+    if (!isDstSizeConst) {
+      MayPrintLog(debug, false, memOpKind, "dst size is not int const");
+      return false;
+    }
+    if (dstSize == 0 || dstSize > kSecurecMemMaxLen) {
+      copySize = 0;
+      errNum = ERRNO_RANGE;
+    } else if (srcSize > dstSize) {
+      copySize = dstSize;
+      errNum = ERRNO_RANGE_AND_RESET;
+    }
+  }
+
   MemEntry dstMemEntry;
-  bool valid = MemEntry::ComputeMemEntry(*stmt.Opnd(0), *func, dstMemEntry, isLowLevel);
+  bool valid = MemEntry::ComputeMemEntry(*stmt.Opnd(dstOpndIdx), *func, dstMemEntry, isLowLevel);
   if (!valid) {
     MayPrintLog(debug, false, memOpKind, "dstMemEntry is invalid");
     return false;
   }
   MemEntry srcMemEntry;
-  valid = MemEntry::ComputeMemEntry(*stmt.Opnd(kSecondOpnd), *func, srcMemEntry, isLowLevel);
+  valid = MemEntry::ComputeMemEntry(*stmt.Opnd(srcOpndIdx), *func, srcMemEntry, isLowLevel);
   if (!valid) {
     MayPrintLog(debug, false, memOpKind, "srcMemEntry is invalid");
     return false;
@@ -1231,12 +1401,21 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
       MayPrintLog(debug, false, memOpKind, "dst and src have different type");
       return false;   // entryType must be identical
     }
-    if (dstMemEntry.memType->GetSize() != copySize) {
+    if (dstMemEntry.memType->GetSize() != srcSize) {
       MayPrintLog(debug, false, memOpKind, "copy size != dst memory size");
       return false;  // copy size should equal to dst memory size, we maybe allow smaller copy size later
     }
   }
-  bool ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, stmt, block, isLowLevel, debug);
+  bool ret = false;
+  if (copySize != 0) {
+    ret = dstMemEntry.ExpandMemcpy(srcMemEntry, copySize, *func, stmt, block, isLowLevel, debug, errNum);
+  } else {
+    // if copySize == 0, no need to copy memory, just return error number
+    auto *retAssign = dstMemEntry.GenMemopRetAssign(stmt, *func, isLowLevel, memOpKind, errNum);
+    InsertAndMayPrintStmt(block, stmt, debug, retAssign);
+    block.RemoveStmt(&stmt);
+    ret = true;
+  }
   if (ret) {
     MayPrintLog(debug, true, memOpKind, "well done");
   }
@@ -1253,3 +1432,4 @@ bool M2MSimplify::PhaseRun(maple::MIRModule &m) {
   return true;
 }
 }  // namespace maple
+
