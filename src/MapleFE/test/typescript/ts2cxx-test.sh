@@ -42,11 +42,21 @@ for f in $list; do
   while true; do
     $TS2AST $f || { echo "(ts2ast)$f" >> ts2cpp.failures.out; break; }
     dep=$(grep "^[ei][xm]port.* from " "$f" | sed "s/^ *[ei][xm]port.* from .\([^'\"]*\).*/\1.cpp/" | sort -u)
+    if [ -z $dep ]; then
+#     dep=$(grep "^[ei][xm]port.* require" "$f" | sed "s/^ *[ei][xm]port.* require *\([^();\"]*\)/\1.cpp/" | sort -u)
+      dep=$(grep "^[ei][xm]port.* require" "$f" | sed "s/^ *[ei][xm]port.* require(\"\(.*\)\");/\1.cpp/" | sort -u)
+    fi
+echo $dep > xxx
     for cpp in $dep; do
       ts=$(sed 's/\.cpp/.ts/' <<< "$cpp")
       $TS2AST $ts
       dep="$dep "$(grep "^[ei][xm]port.* from " "$ts" | sed "s/^ *[ei][xm]port.* from .\([^'\"]*\).*/\1.cpp/" | sort -u)
+      if [ -z $dep ]; then
+#       dep=$(grep "^[ei][xm]port.* require" "$f" | sed "s/^ *[ei][xm]port.* require *\([^();\"]*\)/\1.cpp/" | sort -u)
+        dep=$(grep "^[ei][xm]port.* require" "$f" | sed "s/^ *[ei][xm]port.* require(\"\(.*\)\");/\1.cpp/" | sort -u)
+      fi
     done
+echo $dep >> xxx
     dep=$(echo $dep | xargs -n1 | sort -u)
     $AST2CPP $f.ast || { echo "(ast2cpp)$f" >> ts2cpp.failures.out; break; }
     g++ -std=c++17 -g -I$RTINC -I$ASTINC $t.cpp $RTSRC/*.cpp $dep -o $t.out || { echo "(g++)$f" >> ts2cpp.failures2.out; break; }
