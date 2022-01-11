@@ -1073,6 +1073,21 @@ CastNode *TypeInferVisitor::VisitCastNode(CastNode *node) {
   return node;
 }
 
+AsTypeNode *TypeInferVisitor::VisitAsTypeNode(AsTypeNode *node) {
+  (void) AstVisitor::VisitAsTypeNode(node);
+  TreeNode *dest = node->GetType();
+  SetTypeId(node, dest);
+
+  TreeNode *parent = node->GetParent();
+  if (parent) {
+    // pass to parent, need refine if multiple AsTypeNode
+    if (parent->GetAsTypesNum() == 1 && parent->GetAsTypeAtIndex(0) == node) {
+      SetTypeId(parent, dest);
+    }
+  }
+  return node;
+}
+
 ClassNode *TypeInferVisitor::VisitClassNode(ClassNode *node) {
   if (mFlags & FLG_trace_1) std::cout << "Visiting ClassNode, id=" << node->GetNodeId() << "..." << std::endl;
   UpdateTypeId(node, TY_Class);
