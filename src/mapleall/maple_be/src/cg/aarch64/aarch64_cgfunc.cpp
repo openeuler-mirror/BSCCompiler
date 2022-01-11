@@ -7026,15 +7026,16 @@ void AArch64CGFunc::SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOp
     }
     /* is64x1vec should be an int64 value in an FP/simd reg for ABI compliance,
        convert R-reg to equivalent V-reg */
+    PrimType destPrimType = primType;
     if (is64x1vec && ploc.reg0 != kRinvalid && ploc.reg0 < R7) {
       ploc.reg0 = AArch64Abi::floatParmRegs[static_cast<int>(ploc.reg0) - 1];
-      primType = PTY_f64;
+      destPrimType = PTY_f64;
     }
     if (ploc.reg0 != kRinvalid) {  /* load to the register. */
       CHECK_FATAL(expRegOpnd != nullptr, "null ptr check");
       AArch64RegOperand &parmRegOpnd = GetOrCreatePhysicalRegisterOperand(ploc.reg0, expRegOpnd->GetSize(),
-                                                                          GetRegTyFromPrimTy(primType));
-      SelectCopy(parmRegOpnd, primType, *expRegOpnd, primType);
+                                                                          GetRegTyFromPrimTy(destPrimType));
+      SelectCopy(parmRegOpnd, destPrimType, *expRegOpnd, primType);
       srcOpnds.PushOpnd(parmRegOpnd);
     } else {  /* store to the memory segment for stack-passsed arguments. */
       Operand &actMemOpnd = CreateMemOpnd(RSP, ploc.memOffset, GetPrimTypeBitSize(primType));
@@ -7530,12 +7531,13 @@ void AArch64CGFunc::SelectReturn(Operand *opnd0) {
   if (retMech.GetRegCount() > 0) {
     CHECK_FATAL(opnd0 != nullptr, "opnd0 must not be nullptr");
     RegType regTyp = is64x1vec ? kRegTyFloat : GetRegTyFromPrimTy(retMech.GetPrimTypeOfReg0());
+    PrimType oriPrimType = is64x1vec ? GetFunction().GetReturnType()->GetPrimType() : retMech.GetPrimTypeOfReg0();
     if (opnd0->IsRegister()) {
       RegOperand *regOpnd = static_cast<RegOperand*>(opnd0);
       if (regOpnd->GetRegisterNumber() != retMech.GetReg0()) {
         AArch64RegOperand &retOpnd =
             GetOrCreatePhysicalRegisterOperand(retMech.GetReg0(), regOpnd->GetSize(), regTyp);
-        SelectCopy(retOpnd, retMech.GetPrimTypeOfReg0(), *regOpnd, retMech.GetPrimTypeOfReg0());
+        SelectCopy(retOpnd, retMech.GetPrimTypeOfReg0(), *regOpnd, oriPrimType);
       }
     } else if (opnd0->IsMemoryAccessOperand()) {
       AArch64MemOperand *memopnd = static_cast<AArch64MemOperand*>(opnd0);

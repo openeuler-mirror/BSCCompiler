@@ -62,6 +62,10 @@ ExtendShiftOptPattern::SuffixType doOptimize[kExtenAddShift][kExtenAddShift] = {
 void AArch64GlobalOpt::Run() {
   OptimizeManager optManager(cgFunc);
   bool hasSpillBarrier = (cgFunc.NumBBs() > kMaxBBNum) || (cgFunc.GetRD()->GetMaxInsnNO() > kMaxInsnNum);
+  if (cgFunc.IsAfterRegAlloc()) {
+    optManager.Optimize<BackPropPattern>();
+    return;
+  }
   if (!hasSpillBarrier) {
     optManager.Optimize<ExtenToMovPattern>();
     optManager.Optimize<SameRHSPropPattern>();
@@ -449,7 +453,12 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
   if (!insn.IsMachineInstruction()) {
     return false;
   }
-  if ((insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr)) {
+  if (!cgFunc.IsAfterRegAlloc() && (insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr)) {
+    return false;
+  }
+  if (cgFunc.IsAfterRegAlloc() &&
+    (insn.GetMachineOpcode() != MOP_xmovrr) && (insn.GetMachineOpcode() != MOP_wmovrr) &&
+    (insn.GetMachineOpcode() != MOP_xvmovs) && (insn.GetMachineOpcode() != MOP_xvmovd)) {
     return false;
   }
   Operand &firstOpnd = insn.GetOperand(kInsnFirstOpnd);
@@ -462,7 +471,10 @@ bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
   }
   firstRegOpnd = &static_cast<RegOperand&>(firstOpnd);
   secondRegOpnd = &static_cast<RegOperand&>(secondOpnd);
-  if (firstRegOpnd->IsZeroRegister() || !secondRegOpnd->IsVirtualRegister() || !firstRegOpnd->IsVirtualRegister()) {
+  if (firstRegOpnd->IsZeroRegister()) {
+    return false;
+  }
+  if (!cgFunc.IsAfterRegAlloc() && (!secondRegOpnd->IsVirtualRegister() || !firstRegOpnd->IsVirtualRegister())) {
     return false;
   }
   firstRegNO = firstRegOpnd->GetRegisterNumber();
@@ -506,6 +518,13 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
       (defInsnForSecondOpnd->GetMachineOpcode() == MOP_asm)) {
     return false;
   }
+  if (defInsnForSecondOpnd->IsPseudoInstruction() || defInsnForSecondOpnd->IsCall()) {
+    return false;
+  }
+  /* unconcerned regs. */
+  if ((secondRegNO >= RLR && secondRegNO <= RZR) || secondRegNO == RFP) {
+    return false;
+  }
   if (defInsnForSecondOpnd->IsStore() || defInsnForSecondOpnd->IsLoad()) {
     auto *memOpnd = static_cast<AArch64MemOperand*>(defInsnForSecondOpnd->GetMemOpnd());
     if (memOpnd != nullptr && !memOpnd->IsIntactIndexed()) {
@@ -516,6 +535,10 @@ bool BackPropPattern::CheckSrcOpndDefAndUseInsns(Insn &insn) {
   bool findFinish = cgFunc.GetRD()->FindRegUseBetweenInsn(secondRegNO, defInsnForSecondOpnd->GetNext(),
                                                           bb.GetLastInsn(), srcOpndUseInsnSet);
   if (!findFinish && bb.GetLiveOut()->TestBit(secondRegNO)) {
+    return false;
+  }
+  if (cgFunc.IsAfterRegAlloc() && findFinish && srcOpndUseInsnSet.size() > 1) {
+    /* use later before killed. */
     return false;
   }
   return true;

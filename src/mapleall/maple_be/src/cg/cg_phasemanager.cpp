@@ -212,6 +212,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("cgsplitcriticaledge", CLANG);
   ADDMAPLECGPHASE("regalloc", true);
   ADDMAPLECGPHASE("storeloadopt", CLANG && CGOptions::DoStoreLoadOpt())
+  ADDMAPLECGPHASE("globalopt", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("clearrdinfo", CLANG && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
   ADDMAPLECGPHASE("generateproepilog", true);
   ADDMAPLECGPHASE("offsetadjustforfplr", true);

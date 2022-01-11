@@ -766,6 +766,14 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
   }
   newBB.PushBackPreds(pred);
 
+  /* maintain eh info */
+  for (auto it = pred.GetEhSuccs().begin(); it != pred.GetEhSuccs().end(); ++it) {
+    newBB.PushBackEhSuccs(**it);
+  }
+  for (auto it = pred.GetEhPredsBegin(); it != pred.GetEhPredsEnd(); ++it) {
+    newBB.PushBackEhPreds(**it);
+  }
+
   /* update phi */
   for (auto phiInsnIt : succ.GetPhiInsns()) {
     auto &phiList = static_cast<PhiOperand&>(phiInsnIt.second->GetOperand(kInsnSecondOpnd));

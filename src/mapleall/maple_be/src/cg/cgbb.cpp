@@ -236,6 +236,9 @@ bool BB::IsSoloGoto() const {
   if (GetKind() != kBBGoto) {
     return false;
   }
+  if (GetHasCfi()) {
+    return false;
+  }
   FOR_BB_INSNS_CONST(insn, this) {
     if (!insn->IsMachineInstruction()) {
       continue;
