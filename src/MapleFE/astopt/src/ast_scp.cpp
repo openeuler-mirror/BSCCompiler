@@ -477,7 +477,14 @@ UserTypeNode *BuildScopeVisitor::VisitUserTypeNode(UserTypeNode *node) {
 
     if (p->IsScope()) {
       // normal type decl
-      AddType(scope, node);
+      // check if it is already in typetable
+      TreeNode *id = node->GetId();
+      if (id) {
+        TreeNode *decl = scope->FindTypeOf(id->GetStrIdx());
+        if (!decl) {
+          AddType(scope, node);
+        }
+      }
     }
   }
   return node;
