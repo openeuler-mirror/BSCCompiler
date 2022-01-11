@@ -16,9 +16,11 @@
 #include "cg.h"
 #include "mpl_logging.h"
 #include "common_utils.h"
+#include "cg_option.h"
 
 namespace maplebe {
 #define JAVALANG (cgFunc.GetMirModule().IsJavaModule())
+#define CG_PEEP_DUMP CG_DEBUG_FUNC(*cgFunc)
 namespace {
 const std::string kMccLoadRef = "MCC_LoadRefField";
 const std::string kMccLoadRefV = "MCC_LoadVolatileField";
@@ -77,9 +79,9 @@ void AArch64CGPeepHole::Run() {
 void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   if (ssaInfo != nullptr) {
-    PeepOptimizeManager manager(*cgFunc, bb, insn, *ssaInfo);
+    manager = peepMemPool->New<PeepOptimizeManager>(*cgFunc, bb, insn, *ssaInfo);
   } else {
-    PeepOptimizeManager manager(*cgFunc, bb, insn);
+    manager = peepMemPool->New<PeepOptimizeManager>(*cgFunc, bb, insn);
   }
   switch (thisMop) {
     case MOP_wmovrr:
@@ -88,11 +90,78 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_xvmovd:
     case MOP_vmovuu:
     case MOP_vmovvv: {
-      /* manager.Optimize<RemoveIdenticalLoadAndStoreAArch64>(); */
+      break;
+    }
+    case MOP_wcbz:
+    case MOP_xcbz:
+    case MOP_wcbnz:
+    case MOP_xcbnz: {
+      manager->Optimize<AndCbzToTbzPattern>();
       break;
     }
     default:
       break;
+  }
+}
+
+std::string AndCbzToTbzPattern::GetPatternName() {
+  return "AndCbzToTbzPattern";
+}
+
+bool AndCbzToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+  regno_t useRegNO = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
+  prevInsn = GetDefInsn(useRegNO);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_wandrri12 && prevMop != MOP_xandrri13) {
+    return false;
+  }
+  return true;
+}
+
+void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
+  auto *aarchFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  auto &andImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+  int64 tbzVal = GetLogValueAtBase2(andImm.GetValue());
+  if (tbzVal == -1) {
+    return;
+  }
+  MOperator mOp = insn.GetMachineOpcode();
+  MOperator newMop = MOP_undef;
+  switch(mOp) {
+    case MOP_wcbz:
+      newMop = MOP_wtbz;
+      break;
+    case MOP_wcbnz:
+      newMop = MOP_wtbnz;
+      break;
+    case MOP_xcbz:
+      newMop = MOP_xtbz;
+      break;
+    case MOP_xcbnz:
+      newMop = MOP_xtbnz;
+      break;
+    default:
+      CHECK_FATAL(false, "must be cbz/cbnz");
+      break;
+  }
+  auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &tbzImm = aarchFunc->CreateImmOperand(tbzVal, k8BitSize, false);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
+                                                                 tbzImm, labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  UpdateSSAInfo(insn, kInsnFirstOpnd, newInsn, kInsnFirstOpnd);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
 
@@ -1363,7 +1432,6 @@ void RemoveIncDecRefAArch64::Run(BB &bb, Insn &insn) {
       static_cast<RegOperand&>(insnMov->GetOperand(kInsnSecondOpnd)).GetRegisterNumber() == R0) {
     bb.RemoveInsn(*insnMov);
     bb.RemoveInsn(insn);
-    bb.SetKind(BB::kBBFallthru);
   }
 }
 
@@ -1510,7 +1578,6 @@ void InlineReadBarriersAArch64::Run(BB &bb, Insn &insn) {
     Insn &loadInsn = cg->BuildInstruction<AArch64Insn>(loadOp, regOp, addr);
     bb.ReplaceInsn(insn, loadInsn);
   }
-  bb.SetKind(BB::kBBFallthru);
   bool isTailCall = (insn.GetMachineOpcode() == MOP_tail_call_opt_xbl);
   if (isTailCall) {
     /* add 'ret' instruction for tail call optimized load barrier. */
@@ -3154,7 +3221,6 @@ void RemoveDecRefAArch64::Run(BB &bb, Insn &insn) {
   }
   bb.RemoveInsn(*insnMov);
   bb.RemoveInsn(insn);
-  bb.SetKind(BB::kBBFallthru);
 }
 
 /*

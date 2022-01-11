@@ -1887,6 +1887,12 @@ void CGFunc::DumpCGIR() const {
         LogInfo::MapleLogger() << ehSuccBB->GetId() << " ";
       }
     }
+    if (!bb->GetEhPreds().empty()) {
+      LogInfo::MapleLogger() << "eh_preds: ";
+      for (auto *ehPredBB : bb->GetEhPreds()) {
+        LogInfo::MapleLogger() << ehPredBB->GetId() << " ";
+      }
+    }
     LogInfo::MapleLogger() << "===\n";
     LogInfo::MapleLogger() << "frequency:" << bb->GetFrequency() << "\n";
 
