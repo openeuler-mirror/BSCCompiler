@@ -154,9 +154,11 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   ImmOperand &tbzImm = aarchFunc->CreateImmOperand(tbzVal, k8BitSize, false);
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
                                                                  tbzImm, labelOpnd);
-  bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
-  UpdateSSAInfo(insn, kInsnFirstOpnd, newInsn, kInsnFirstOpnd);
+  ssaInfo->ReplaceInsn(insn, newInsn);
+
+  bb.ReplaceInsn(insn, newInsn);
+
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;

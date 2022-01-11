@@ -34,7 +34,7 @@ class CGDce {
   CGSSAInfo *ssaInfo;
 
  private:
-  virtual void RemoveUnuseDef(VRegVersion &defVersion) = 0;
+  virtual bool RemoveUnuseDef(VRegVersion &defVersion) = 0;
 };
 
 class DeleteRegUseVisitor : public OperandVisitorBase,

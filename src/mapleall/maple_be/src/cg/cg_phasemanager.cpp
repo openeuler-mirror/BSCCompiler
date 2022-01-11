@@ -232,7 +232,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
 
 void CgFuncPM::DumpFuncCGIR(const CGFunc &f, const std::string &phaseName) const {
   if (CGOptions::DumpPhase(phaseName) && CGOptions::FuncFilter(f.GetName())) {
-    LogInfo::MapleLogger() << "\n******** CG IR after " << phaseName << ": *********\n";
+    LogInfo::MapleLogger() << "\n******** CG IR After " << phaseName << ": *********\n";
     f.DumpCGIR();
   }
 }

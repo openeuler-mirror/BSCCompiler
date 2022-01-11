@@ -26,6 +26,7 @@ void CGSSAInfo::ConstructSSA() {
 }
 
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
+  CHECK_FATAL(insn.GetId() == 0, "insn is not clean !!"); /* change to assert*/
   insnCount++;
   insn.SetId(insnCount);
 }
@@ -110,7 +111,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   RenameVariablesForBB(bb.GetId());
   /* stack pop up */
   for (auto &it : vRegStk) {
-    if (oriStackSize[it.first] >= 0) {
+    if (it.first < oriStackSize.size() && oriStackSize[it.first] >= 0) {
       while (it.second.size() > oriStackSize[it.first]) {
         ASSERT(!it.second.empty(), "empty stack");
         it.second.pop();
@@ -182,7 +183,6 @@ VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn,
     CHECK_FATAL(ret.second, "insert failed");
     it = ret.first;
   }
-
   it->second.push(newVst);
   return newVst;
 }
@@ -244,6 +244,7 @@ void CGSSAInfo::DumpFuncCGIRinSSAForm() const {
 }
 
 void VRegVersion::AddUseInsn(CGSSAInfo &ssaInfo, Insn &useInsn, uint32 idx) {
+  ASSERT(useInsn.GetId() > 0, "insn should be marked during ssa");
   auto useInsnIt = useInsnInfos.find(useInsn.GetId());
   if (useInsnIt != useInsnInfos.end()) {
     useInsnIt->second->IncreaseDU(idx);

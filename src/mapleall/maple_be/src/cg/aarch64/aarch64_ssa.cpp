@@ -80,6 +80,32 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
   return newVreg;
 }
 
+void AArch64CGSSAInfo::AddInsn(Insn &newInsn) {
+  CHECK_FATAL(false, "NYI");
+}
+
+void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
+  A64OpndSSAUpdateVsitor ssaUpdator(*this);
+  auto UpdateInsnSSAInfo = [&ssaUpdator](Insn &curInsn, bool isDelete) {
+    const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(curInsn).GetMachineOpcode()];
+    for (int i = 0; i < curInsn.GetOperandSize(); ++i) {
+      Operand &opnd = curInsn.GetOperand(i);
+      auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      if (isDelete) {
+        ssaUpdator.MarkDecrease();
+      } else {
+        ssaUpdator.MarkIncrease();
+      }
+      ssaUpdator.SetInsnOpndInfo(curInsn, *opndProp, i);
+      opnd.Accept(ssaUpdator);
+    }
+  };
+  UpdateInsnSSAInfo(oriInsn, true);
+  MarkInsnsInSSA(newInsn);
+  UpdateInsnSSAInfo(newInsn, false);
+  CHECK_FATAL(!ssaUpdator.HasDeleteDef(), "delete def point in replace insn, please check");
+}
+
 void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
   auto &a64Insn = static_cast<const AArch64Insn&>(insn);
   MOperator mOp = a64Insn.GetMachineOpcode();
@@ -158,6 +184,77 @@ void A64SSAOperandRenameVisitor::Visit(ListOperand *v) {
   }
   ASSERT(a64ListOpnd->GetOperands().empty(), "need to clean list");
   a64ListOpnd->GetOperands().assign(tempList.begin(), tempList.end());
+}
+
+void A64OpndSSAUpdateVsitor::Visit(RegOperand *v) {
+  auto *regOpnd = static_cast<AArch64RegOperand*>(v);
+  auto *a64OpndProp = static_cast<AArch64OpndProp*>(opndProp);
+  if (regOpnd->IsSSAForm()) {
+    CHECK_FATAL(!(a64OpndProp->IsRegDef() && a64OpndProp->IsRegUse()), "do not support yet");
+    if (a64OpndProp->IsRegDef()){
+     UpdateRegDef(regOpnd->GetRegisterNumber());
+    } else if (a64OpndProp->IsRegUse()) {
+      UpdateRegUse(regOpnd->GetRegisterNumber());
+    } else {
+      ASSERT(false, "invalid opnd");
+    }
+  }
+}
+
+void A64OpndSSAUpdateVsitor::Visit(maplebe::MemOperand *v) {
+  auto *a64MemOpnd = static_cast<AArch64MemOperand*>(v);
+  RegOperand *base = a64MemOpnd->GetBaseRegister();
+  RegOperand *index = a64MemOpnd->GetIndexRegister();
+  if (base != nullptr && base->IsSSAForm()) {
+    if (a64MemOpnd->IsIntactIndexed()) {
+      UpdateRegUse(base->GetRegisterNumber());
+    } else {
+      UpdateRegDef(base->GetRegisterNumber());
+    }
+  }
+  if (index != nullptr && index->IsSSAForm()) {
+    UpdateRegUse(index->GetRegisterNumber());
+  }
+}
+
+void A64OpndSSAUpdateVsitor::Visit(ListOperand *v) {
+  auto *a64ListOpnd = static_cast<AArch64ListOperand*>(v);
+  /* do not handle asm here, so there is no list def */
+  if (insn->GetMachineOpcode() == MOP_asm) {
+    ASSERT(false, "do not support asm yet");
+    return;
+  }
+  for (auto *op : a64ListOpnd->GetOperands()) {
+    if (op->IsSSAForm()) {
+      UpdateRegUse(op->GetRegisterNumber());
+    }
+  }
+}
+
+void A64OpndSSAUpdateVsitor::UpdateRegUse(uint32 ssaIdx) {
+  VRegVersion *curVersion = ssaInfo->FindSSAVersion(ssaIdx);
+  if (isDecrease) {
+    curVersion->RemoveUseInsn(*insn, idx);
+  } else {
+    curVersion->AddUseInsn(*ssaInfo, *insn, idx);
+  }
+}
+
+void A64OpndSSAUpdateVsitor::UpdateRegDef(uint32 ssaIdx) {
+  VRegVersion *curVersion = ssaInfo->FindSSAVersion(ssaIdx);
+  if (isDecrease) {
+    deletedDef.emplace(ssaIdx);
+    curVersion->MarkDeleted();
+  } else {
+    if (deletedDef.count(ssaIdx)) {
+      deletedDef.erase(ssaIdx);
+      curVersion->MarkRecovery();
+    } else {
+      CHECK_FATAL(false, "do no support new define in ssaUpdating");
+    }
+    ASSERT(!insn->IsPhi(), "do no support yet");
+    curVersion->SetDefInsn(ssaInfo->CreateDUInsnInfo(insn, idx), kDefByInsn);
+  }
 }
 
 void A64SSAOperandDumpVisitor::Visit(RegOperand *v) {

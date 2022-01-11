@@ -101,8 +101,11 @@ class VRegVersion {
   MapleUnorderedMap<uint32, DUInsnInfo*> &GetAllUseInsns() {
     return useInsnInfos;
   }
-  void MarkDeleted () {
+  void MarkDeleted() {
     deleted = true;
+  }
+  void MarkRecovery() {
+    deleted = false;
   }
   bool IsDeleted() {
     return deleted;
@@ -137,6 +140,10 @@ class CGSSAInfo {
   virtual ~CGSSAInfo() = default;
   void ConstructSSA();
   VRegVersion *FindSSAVersion(regno_t ssaRegNO); /* Get specific ssa info */
+  /* replace insn & update ssaInfo */
+  virtual void ReplaceInsn(Insn &oriInsn, Insn &newInsn) = 0;
+  /* only used in cg peep */
+  virtual void AddInsn(Insn &newInsn) = 0;
 
   DUInsnInfo *CreateDUInsnInfo(Insn *cInsn, uint32 idx) {
     return memPool->New<DUInsnInfo>(cInsn, idx, ssaAlloc);
@@ -170,6 +177,7 @@ class CGSSAInfo {
     ASSERT(!noDefVRegs.count(noDefVregNO), "duplicate no def Reg, please check");
     noDefVRegs.emplace(noDefVregNO);
   }
+  void MarkInsnsInSSA(Insn &insn);
   CGFunc *cgFunc  = nullptr;
   MemPool *memPool = nullptr;
   MemPool *tempMp = nullptr;
@@ -193,7 +201,6 @@ class CGSSAInfo {
     return renamedBBs.count(bbID);
   }
   uint32 IncreaseVregCount(regno_t vRegNO);
-  void MarkInsnsInSSA(Insn &insn);
 
   DomAnalysis *domInfo = nullptr;
   MapleAllocator ssaAlloc;
@@ -209,15 +216,22 @@ class CGSSAInfo {
   int32 insnCount = 0;
 };
 
-class SSAOperandRenameVisitor : public OperandVisitorBase,
-                                public OperandVisitors<RegOperand, ListOperand, MemOperand> {
+class SSAOperandVisitor : public OperandVisitorBase,
+                          public OperandVisitors<RegOperand, ListOperand, MemOperand> {
  public:
-  SSAOperandRenameVisitor(Insn &cInsn, OpndProp &cProp, uint32 idx) : insn(&cInsn), opndProp(&cProp), idx(idx) {}
+  SSAOperandVisitor(Insn &cInsn, OpndProp &cProp, uint32 idx) : insn(&cInsn), opndProp(&cProp), idx(idx) {}
+  SSAOperandVisitor() = default;
+  virtual ~SSAOperandVisitor() = default;
+  void SetInsnOpndInfo(Insn &cInsn, OpndProp &cProp, uint32 idx) {
+    insn = &cInsn;
+    opndProp = &cProp;
+    this->idx = idx;
+  }
 
  protected:
-  Insn *insn;
-  OpndProp *opndProp;
-  uint32 idx;
+  Insn *insn = nullptr;
+  OpndProp *opndProp = nullptr;
+  uint32 idx = 0;
 };
 
 class SSAOperandDumpVisitor : public OperandVisitorBase,

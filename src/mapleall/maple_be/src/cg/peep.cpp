@@ -26,6 +26,69 @@
 #endif
 
 namespace maplebe {
+int64 CGPeepPattern::GetLogValueAtBase2(int64 val) {
+  return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
+}
+
+Insn *CGPeepPattern::GetDefInsn(regno_t useRegNO) {
+  VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  return defInfo == nullptr ? nullptr : defInfo->GetInsn();
+}
+
+void CGPeepPattern::UpdateSSAInfo(Insn &insn, int32 opndIdx, bool isReplaced) {
+  auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(opndIdx));
+  VRegVersion *version = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
+  CHECK_FATAL(version != nullptr, "VRegVersion must be non-null based on ssa");
+  if (isReplaced) {
+    version->RemoveUseInsn(insn, opndIdx);
+  } else {
+    version->AddUseInsn(*ssaInfo, insn, opndIdx);
+  }
+}
+
+void CGPeepPattern::UpdateSSAInfo(Insn &replacedInsn, int32 replacedOpndIdx, Insn &newInsn, int32 newOpndIdx) {
+  /* 1. update replacedRegOpnd ssa info. */
+  UpdateSSAInfo(replacedInsn, replacedOpndIdx, true);
+  /* 2. update newRegOpnd ssa info. */
+  UpdateSSAInfo(newInsn, newOpndIdx, false);
+}
+
+void CGPeepPattern::UpdateSSAInfo(Insn &replacedInsn, std::vector<int32> &replacedOpndIdxList,
+                                  Insn &newInsn, std::vector<int32> &newOpndIdxList) {
+  /* 1. update replacedInsn {reg1, reg2, ...} ssa info. */
+  for (int32 replacedIdx : replacedOpndIdxList) {
+    UpdateSSAInfo(replacedInsn, replacedIdx, true);
+  }
+  /* 2. update newInsn {reg1, reg2, ...} ssa info. */
+  for (int32 newIdx : newOpndIdxList) {
+    UpdateSSAInfo(newInsn, newIdx, false);
+  }
+}
+
+void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replacedInsn, Insn *newInsn) {
+  LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
+  if (!prevInsns.empty()) {
+    LogInfo::MapleLogger() << "======= PrevInsns : {\n";
+    for (auto *prevInsn : prevInsns) {
+      if (prevInsn != nullptr) {
+        prevInsn->Dump();
+      }
+    }
+    LogInfo::MapleLogger() << "}\n";
+  }
+  if (replacedInsn != nullptr) {
+    LogInfo::MapleLogger() << "======= ReplacedInsn :\n";
+    replacedInsn->Dump();
+  }
+  if (newInsn != nullptr) {
+    LogInfo::MapleLogger() << "======= NewInsn :\n";
+    newInsn->Dump();
+  }
+}
+
 int PeepPattern::logValueAtBase2(int64 val) const {
   return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : (-1);
 }
@@ -368,6 +431,11 @@ bool CgPeepHole::PhaseRun(maplebe::CGFunc &f) {
   CHECK_FATAL((cgpeep != nullptr), "Creat AArch64CGPeepHole failed!");
   cgpeep->Run();
   return false;
+}
+
+void CgPeepHole::GetAnalysisDependence(AnalysisDep &aDep) const {
+  aDep.AddRequired<CgSSAConstruct>();
+  aDep.AddPreserved<CgSSAConstruct>();
 }
 
 /* === Physical form === */
