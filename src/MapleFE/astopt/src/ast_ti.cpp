@@ -1066,6 +1066,13 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
   return node;
 }
 
+CastNode *TypeInferVisitor::VisitCastNode(CastNode *node) {
+  (void) AstVisitor::VisitCastNode(node);
+  TreeNode *dest = node->GetDestType();
+  SetTypeId(node, dest);
+  return node;
+}
+
 ClassNode *TypeInferVisitor::VisitClassNode(ClassNode *node) {
   if (mFlags & FLG_trace_1) std::cout << "Visiting ClassNode, id=" << node->GetNodeId() << "..." << std::endl;
   UpdateTypeId(node, TY_Class);

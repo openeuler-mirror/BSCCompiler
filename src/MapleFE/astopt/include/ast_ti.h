@@ -165,6 +165,7 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
   ArrayLiteralNode *VisitArrayLiteralNode(ArrayLiteralNode *node);
   BinOperatorNode *VisitBinOperatorNode(BinOperatorNode *node);
   CallNode *VisitCallNode(CallNode *node);
+  CastNode *VisitCastNode(CastNode *node);
   ClassNode *VisitClassNode(ClassNode *node);
   CondBranchNode *VisitCondBranchNode(CondBranchNode *node);
   DeclNode *VisitDeclNode(DeclNode *node);
