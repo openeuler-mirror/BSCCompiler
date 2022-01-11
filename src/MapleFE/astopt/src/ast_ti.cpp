@@ -1451,26 +1451,15 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
         decl = mHandler->FindDecl(node, true);
       }
     } else if (node == fld) {
-      if (upper->IsIdentifier()) {
-        if (upper->IsThis()) {
-          decl = upper;
+      TreeNode *cls = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
+      if (cls) {
+        scope = cls->GetScope();
+
+        // for imported decl, need trace down the import/export chain
+        if (decl && mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
+          decl = scope->FindExportedDeclOf(node->GetStrIdx());
         } else {
-          decl = mHandler->FindDecl(static_cast<IdentifierNode *>(upper), true);
-        }
-        if (decl) {
-          unsigned tidx = decl->GetTypeIdx();
-          if (tidx) {
-            TreeNode *declt = gTypeTable.GetTypeFromTypeIdx(tidx);
-            scope = declt->GetScope();
-          } else {
-            scope = decl->GetScope();
-          }
-          // for imported decl, need trace down the import/export chain
-          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
-            decl = scope->FindExportedDeclOf(node->GetStrIdx());
-          } else {
-            decl = scope->FindDeclOf(node->GetStrIdx());
-          }
+          decl = scope->FindDeclOf(node->GetStrIdx());
         }
       }
     } else {
