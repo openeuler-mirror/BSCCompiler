@@ -98,7 +98,6 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
 
   // ast compiler options
   bool ProcessUseSignedChar(const mapleOption::Option &opt);
-  bool ProcessBigEndian(const mapleOption::Option &opt);
 
   // general stmt/bb/cfg debug options
   bool ProcessDumpGeneralCFGGraph(const mapleOption::Option &opt);
