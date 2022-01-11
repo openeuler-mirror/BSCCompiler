@@ -15,22 +15,22 @@
 #include "aarch64_dce.h"
 #include "aarch64_operand.h"
 namespace maplebe {
-void AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
+bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
   /* delete defs which have no uses */
   if (defVersion.GetAllUseInsns().empty()) {
     DUInsnInfo *defInsnInfo = defVersion.GetDefInsnInfo();
     if (defInsnInfo == nullptr) {
-      return;
+      return false;
     }
     CHECK_FATAL(defInsnInfo->GetInsn() != nullptr, "Get def insn failed");
     Insn *defInsn = defInsnInfo->GetInsn();
     /* have not support asm/neon opt yet */
     if (defInsn->GetMachineOpcode() == MOP_asm || defInsn->IsVectorOp()) {
-      return;
+      return false;
     }
     std::set<uint32> defRegs = defInsn->GetDefRegs();
     if (defRegs.size() != 1) {
-      return;
+      return false;
     }
     uint32 bothDUIdx = defInsn->GetBothDefUseOpnd();
     if (!(bothDUIdx != kInsnMaxOpnd && defInsnInfo->GetOperands().count(bothDUIdx))) {
@@ -43,8 +43,10 @@ void AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
         CHECK_FATAL(!opnd.IsPhi(), "unexpect phi insn");
         opnd.Accept(deleteUseRegVisitor);
       }
+      return true;
     }
   }
+  return false;
 }
 
 void A64DeleteRegUseVisitor::Visit(RegOperand *v) {

@@ -23,7 +23,7 @@ class AArch64Dce : public CGDce {
   AArch64Dce(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo) : CGDce(mp, f, sInfo) {}
 
  private:
-   void RemoveUnuseDef(VRegVersion &defVersion) override;
+   bool RemoveUnuseDef(VRegVersion &defVersion) override;
 };
 
 class A64DeleteRegUseVisitor : public DeleteRegUseVisitor {

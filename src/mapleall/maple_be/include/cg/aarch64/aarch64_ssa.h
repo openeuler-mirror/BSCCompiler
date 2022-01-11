@@ -24,25 +24,51 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   AArch64CGSSAInfo(CGFunc &f, DomAnalysis &da, MemPool &mp, MemPool &tmp) : CGSSAInfo(f, da, mp, tmp) {}
   ~AArch64CGSSAInfo() override = default;
   void DumpInsnInSSAForm(const Insn &insn) const override;
-  RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn) override;
+  RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) override;
   AArch64MemOperand *CreateMemOperand(AArch64MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
+  void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
+  void AddInsn(Insn &newInsn) override;
 
  private:
   void RenameInsn(Insn &insn) override;
-  VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn);
+  VRegVersion *RenamedOperandSpecialCase(RegOperand &vRegOpnd, Insn &curInsn, uint32 idx);
   RegOperand *CreateSSAOperand(RegOperand &virtualOpnd) override;
 };
 
-class A64SSAOperandRenameVisitor : public SSAOperandRenameVisitor {
+class A64SSAOperandRenameVisitor : public SSAOperandVisitor {
  public:
   A64SSAOperandRenameVisitor(AArch64CGSSAInfo &cssaInfo, Insn &cInsn, OpndProp &cProp, uint32 idx)
-      : SSAOperandRenameVisitor(cInsn, cProp, idx), ssaInfo(&cssaInfo) {}
+      : SSAOperandVisitor(cInsn, cProp, idx), ssaInfo(&cssaInfo) {}
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
 
  private:
   AArch64CGSSAInfo *ssaInfo;
+};
+
+class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
+ public:
+  explicit A64OpndSSAUpdateVsitor(AArch64CGSSAInfo &cssaInfo) : ssaInfo(&cssaInfo) {}
+  void MarkIncrease() {
+    isDecrease = false;
+  };
+  void MarkDecrease() {
+    isDecrease = true;
+  };
+  bool HasDeleteDef() {
+    return !deletedDef.empty();
+  }
+  void Visit(RegOperand *v) final;
+  void Visit(ListOperand *v) final;
+  void Visit(MemOperand *v) final;
+
+ private:
+  void UpdateRegUse(uint32 ssaIdx);
+  void UpdateRegDef(uint32 ssaIdx);
+  AArch64CGSSAInfo *ssaInfo;
+  bool isDecrease = false;
+  std::set<regno_t> deletedDef;
 };
 
 class A64SSAOperandDumpVisitor : public SSAOperandDumpVisitor {
