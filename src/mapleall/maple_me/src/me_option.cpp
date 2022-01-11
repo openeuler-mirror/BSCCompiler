@@ -122,6 +122,7 @@ bool MeOption::seqVec = true;
 uint8 MeOption::rematLevel = 2;
 bool MeOption::layoutWithPredict = true;  // optimize output layout using branch prediction
 SafetyCheckMode MeOption::npeCheckMode = SafetyCheckMode::kNoCheck;
+bool MeOption::isNpeCheckAll = false;
 SafetyCheckMode MeOption::boundaryCheckMode = SafetyCheckMode::kNoCheck;
 bool MeOption::safeRegionMode = false;
 #if MIR_JAVA
@@ -1314,7 +1315,7 @@ const Descriptor kUsage[] = {
     {} }
 };
 
-void MeOption::DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOptions) const {
+void MeOption::DecideMeRealLevel(const std::deque<mapleOption::Option> &inputOptions) const {
   int realLevel = -1;
   for (const mapleOption::Option &opt : inputOptions) {
     switch (opt.Index()) {
@@ -1350,7 +1351,7 @@ void MeOption::DecideMeRealLevel(const std::vector<mapleOption::Option> &inputOp
   }
 }
 
-bool MeOption::SolveOptions(const std::vector<mapleOption::Option> &opts, bool isDebug) {
+bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug) {
   DecideMeRealLevel(opts);
   if (isDebug) {
     LogInfo::MapleLogger() << "Real Me level:" << std::to_string(optLevel) << "\n";

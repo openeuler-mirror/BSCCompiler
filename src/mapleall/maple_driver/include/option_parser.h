@@ -14,6 +14,7 @@
  */
 #ifndef MAPLE_UTIL_INCLUDE_OPTION_PARSER_H
 #define MAPLE_UTIL_INCLUDE_OPTION_PARSER_H
+#include <deque>
 #include <map>
 #include <string>
 #include <vector>
@@ -33,9 +34,9 @@ class OptionParser {
   maple::ErrorCode Parse(int argc, char **argv, const std::string exeName = "all");
 
   maple::ErrorCode HandleInputArgs(const std::vector<std::string> &inputArgs, const std::string &exeName,
-                                   std::vector<mapleOption::Option> &inputOption, bool isAllOption = false);
+                                   std::deque<mapleOption::Option> &inputOption, bool isAllOption = false);
 
-  const std::vector<Option> &GetOptions() const {
+  const std::deque<Option> &GetOptions() const {
     return options;
   }
 
@@ -52,7 +53,7 @@ class OptionParser {
   void CreateNoOption(const Descriptor &usage);
 
   bool SetOption(const std::string &key, const std::string &value, const std::string &exeName,
-                 std::vector<mapleOption::Option> &exeOption);
+                 std::deque<mapleOption::Option> &exeOption);
   void PrintUsage(const std::string &helpType, const uint32_t helpLevel = kBuildTypeDefault) const;
 
  private:
@@ -64,12 +65,12 @@ class OptionParser {
   };
 
   bool HandleKeyValue(const std::string &key, const std::string &value,
-                      std::vector<mapleOption::Option> &inputOption, const std::string &exeName,
+                      std::deque<mapleOption::Option> &inputOption, const std::string &exeName,
                       bool isAllOption = true, bool isEqualPrefix = false);
   bool CheckOpt(const std::string option, std::string &lastKey, bool &isLastMatch,
-                std::vector<mapleOption::Option> &inputOption, const std::string &exeName);
+                std::deque<mapleOption::Option> &inputOption, const std::string &exeName);
   bool CheckJoinedOption(const std::string &option,
-                         std::vector<mapleOption::Option> &inputOption,
+                         std::deque<mapleOption::Option> &inputOption,
                          const std::string &exeName);
   void InsertOption(const std::string &opt, const Descriptor &usage,
                     OptionPrefixType optPrefix) {
@@ -81,7 +82,7 @@ class OptionParser {
   bool CheckSpecialOption(const std::string &option, std::string &key, std::string &value);
   std::vector<Descriptor> rawUsages;
   std::multimap<std::string, UsageWrp> usages;
-  std::vector<Option> options;
+  std::deque<Option> options;
   std::vector<std::string> nonOptionsArgs;
   bool isValueEmpty = false;
 };
