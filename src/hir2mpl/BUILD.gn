@@ -20,6 +20,7 @@ if (COV_CHECK == 1) {
 cflags += [
   "-DMIR_FEATURE_FULL=1",
   "-DHIR2MPL_FULL_INFO_DUMP=1",
+  "-DJAVA_OBJ_IN_MFILE=1",
 ]
 
 if (MAST == 1) {
