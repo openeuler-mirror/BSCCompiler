@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include "compiler.h"
 #include "compiler_factory.h"
 #include "file_utils.h"
 #include "mpl_logging.h"
@@ -133,6 +134,8 @@ int MplOptions::Parse(int argc, char **argv) {
 
 ErrorCode MplOptions::HandleGeneralOptions() {
   ErrorCode ret = kErrorNoError;
+
+  const std::string *updatedOptToolName = nullptr;
   for (auto opt : optionParser->GetOptions()) {
     switch (opt.Index()) {
       case kHelp: {
@@ -149,53 +152,36 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         LogInfo::MapleLogger() << kMapleDriverVersion << "\n";
         return kErrorExitHelp;
       }
+
       case kDex2mplOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameDex2mpl);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kBinNameDex2mpl;
         break;
       case kAsOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameAs);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kBinNameAs;
         break;
       case kCpp2mplOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameCpp2mpl);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kBinNameCpp2mpl;
         break;
       case kJbc2mplOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameJbc2mpl);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kBinNameJbc2mpl;
         break;
       case kMplipaOpt:
-        ret = UpdatePhaseOption(opt.Args(), kBinNameMplipa);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kBinNameMplipa;
         break;
       case kMeOpt:
-        meOptArgs = opt.Args();
-        printExtraOptStr << " --me-opt=" << "\"" << meOptArgs << "\"";
+        updatedOptToolName = &kBinNameMe;
+        printExtraOptStr << " --me-opt=" << "\"" << opt.Args() << "\"";
         break;
       case kMpl2MplOpt:
-        mpl2mplOptArgs = opt.Args();
-        printExtraOptStr << " --mpl2mpl-opt=" << "\"" << mpl2mplOptArgs << "\"";
+        updatedOptToolName = &kBinNameMpl2mpl;
+        printExtraOptStr << " --mpl2mpl-opt=" << "\"" << opt.Args() << "\"";
         break;
       case kMplcgOpt:
-        mplcgOptArgs = opt.Args();
-        printExtraOptStr << " --mplcg-opt=" << "\"" << mplcgOptArgs << "\"";
+        updatedOptToolName = &kBinNameMplcg;
+        printExtraOptStr << " --mplcg-opt=" << "\"" << opt.Args() << "\"";
         break;
       case kLdOpt:
-        ret = UpdatePhaseOption(opt.Args(), kLdFlag);
-        if (ret != kErrorNoError) {
-          return ret;
-        }
+        updatedOptToolName = &kLdFlag;
         break;
       case kTimePhases:
         timePhases = true;
@@ -282,6 +268,15 @@ ErrorCode MplOptions::HandleGeneralOptions() {
         // I do not care
         break;
     }
+
+    if (updatedOptToolName != nullptr) {
+      ret = UpdatePhaseOption(opt.Args(), *updatedOptToolName);
+      if (ret != kErrorNoError) {
+        return ret;
+      }
+      updatedOptToolName = nullptr;
+    }
+
     ret = AddOption(opt);
   }
 
@@ -760,11 +755,7 @@ ErrorCode MplOptions::AppendCombOptions(MIRSrcLang srcLang) {
       return ret;
     }
   }
-  ret = UpdatePhaseOption(meOptArgs, kBinNameMe);
-  if (ret != kErrorNoError) {
-    return ret;
-  }
-  ret = UpdatePhaseOption(mpl2mplOptArgs, kBinNameMpl2mpl);
+
   return ret;
 }
 
@@ -793,7 +784,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
   if (ret != kErrorNoError) {
     return ret;
   }
-  ret = UpdatePhaseOption(mplcgOptArgs, kBinNameMplcg);
+
   return ret;
 }
 
@@ -838,7 +829,14 @@ ErrorCode MplOptions::AppendDefaultOptions(const std::string &exeName, MplOption
 }
 
 ErrorCode MplOptions::UpdatePhaseOption(const std::string &args, const std::string &exeName) {
-  auto iter = std::find(runningExes.begin(), runningExes.end(), exeName);
+
+  const std::string *exe = &exeName;
+  /* TODO: maplecomb combines mpl2mpl and me tools, this if-hack to detect them. Fix it. */
+  if (exeName == kBinNameMe || exeName == kBinNameMpl2mpl) {
+    exe = (inputInfos.size() > 1) ? &kBinNameMapleCombWrp : &kBinNameMapleComb;
+  }
+
+  auto iter = std::find(selectedExes.begin(), selectedExes.end(), *exe);
   if (iter == runningExes.end()) {
     LogInfo::MapleLogger(kLlErr) << "Cannot find phase " << exeName << '\n';
     return kErrorExit;

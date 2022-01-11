@@ -155,7 +155,7 @@ bool OptionParser::CheckSpecialOption(const std::string &option, std::string &ke
 }
 
 bool OptionParser::HandleKeyValue(const std::string &key, const std::string &value,
-                                  std::vector<mapleOption::Option> &inputOption, const std::string &exeName,
+                                  std::deque<mapleOption::Option> &inputOption, const std::string &exeName,
                                   bool isAllOption, bool isEqualPrefix) {
   if (key.empty()) {
     if (!isAllOption) {
@@ -210,7 +210,7 @@ bool OptionParser::HandleKeyValue(const std::string &key, const std::string &val
 }
 
 bool OptionParser::SetOption(const std::string &rawKey, const std::string &value, const std::string &exeName,
-                             std::vector<mapleOption::Option> &exeOption) {
+                             std::deque<mapleOption::Option> &exeOption) {
   constexpr char kOptionMark = '-';
   if (rawKey.empty()) {
     LogInfo::MapleLogger(kLlErr) << "Invalid key" << '\n';
@@ -248,12 +248,12 @@ bool OptionParser::SetOption(const std::string &rawKey, const std::string &value
     }
     break;
   }
-  exeOption.push_back(Option(item->second.desc, key, value));
+  exeOption.emplace_front(item->second.desc, key, value);
   return true;
 }
 
 bool OptionParser::CheckJoinedOption(const std::string &option,
-                                     std::vector<mapleOption::Option> &inputOption,
+                                     std::deque<mapleOption::Option> &inputOption,
                                      const std::string &exeName) {
   /* TODO: Add special field in Descriptor to check only joined usages */
   for (auto usage : usages) {
@@ -271,7 +271,7 @@ bool OptionParser::CheckJoinedOption(const std::string &option,
 
 
 bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
-                            bool &isLastMatch, std::vector<mapleOption::Option> &inputOption,
+                            bool &isLastMatch, std::deque<mapleOption::Option> &inputOption,
                             const std::string &exeName) {
   std::vector<std::string> temps;
   // check -j100, -maxid, -minid
@@ -326,7 +326,7 @@ bool OptionParser::CheckOpt(const std::string option, std::string &lastKey,
 }
 
 ErrorCode OptionParser::HandleInputArgs(const std::vector<std::string> &inputArgs, const std::string &exeName,
-                                        std::vector<mapleOption::Option> &inputOption, bool isAllOption) {
+                                        std::deque<mapleOption::Option> &inputOption, bool isAllOption) {
   bool isLastMatchOpt = false;
   std::string lastKey = "";
   bool ret = true;

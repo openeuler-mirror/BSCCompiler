@@ -442,7 +442,7 @@ bool HIR2MPLOptions::InitFactory() {
   return true;
 }
 
-bool HIR2MPLOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
+bool HIR2MPLOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
   for (const Option &opt : opts) {
     if (isDebug) {
       LogInfo::MapleLogger() << "hir2mpl options: " << opt.Index() << " " << opt.OptionKey() << " " <<

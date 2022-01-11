@@ -61,6 +61,7 @@ bool CGOptions::useBarriersForVolatile = true;
 bool CGOptions::exclusiveEH = false;
 bool CGOptions::doEBO = false;
 bool CGOptions::doCGSSA = false;
+bool CGOptions::doIPARA = true;
 bool CGOptions::doCFGO = false;
 bool CGOptions::doICO = false;
 bool CGOptions::doStoreLoadOpt = false;
@@ -105,6 +106,7 @@ bool CGOptions::replaceASM = false;
 bool CGOptions::generalRegOnly = false;
 bool CGOptions::fastMath = false;
 bool CGOptions::doAlignAnalysis = false;
+bool CGOptions::cgBigEndian = false;
 
 enum OptionIndex : uint64 {
   kCGQuiet = kCommonOptionEnd + 1,
@@ -1115,7 +1117,7 @@ CGOptions::CGOptions() {
   CreateUsages(kUsage);
 }
 
-void CGOptions::DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inputOptions, bool isDebug) {
+void CGOptions::DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inputOptions, bool isDebug) {
   int realLevel = -1;
   for (const mapleOption::Option &opt : inputOptions) {
     switch (opt.Index()) {
@@ -1144,7 +1146,7 @@ void CGOptions::DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inp
   }
 }
 
-bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
+bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
   DecideMplcgRealLevel(opts, isDebug);
   for (const mapleOption::Option &opt : opts) {
     if (isDebug) {
@@ -1477,6 +1479,10 @@ bool CGOptions::SolveOptions(const std::vector<Option> &opts, bool isDebug) {
         break;
       case kAlignAnalysis:
         (opt.Type() == kEnable) ? EnableAlignAnalysis() : DisableAlignAnalysis();
+        break;
+      case kBigEndian:
+        (opt.Type() == kEnable) ? EnableBigEndianInCG() : DisableBigEndianInCG();
+        break;
       default:
         WARN(kLncWarn, "input invalid key for mplcg " + opt.OptionKey());
         break;

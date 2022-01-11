@@ -127,8 +127,8 @@ class CGOptions : public MapleDriverOptionBase {
   static CGOptions &GetInstance();
   CGOptions();
   virtual ~CGOptions() = default;
-  bool SolveOptions(const std::vector<mapleOption::Option> &opts, bool isDebug);
-  void DecideMplcgRealLevel(const std::vector<mapleOption::Option> &inputOptions, bool isDebug);
+  bool SolveOptions(const std::deque<mapleOption::Option> &opts, bool isDebug);
+  void DecideMplcgRealLevel(const std::deque<mapleOption::Option> &inputOptions, bool isDebug);
 
   void DumpOptions();
   std::vector<std::string> &GetSequence() {
@@ -613,6 +613,14 @@ class CGOptions : public MapleDriverOptionBase {
     return doCGSSA;
   }
 
+  static void DisableIPARA() {
+    doIPARA = false;
+  }
+
+  static bool DoIPARA() {
+    return doIPARA;
+  }
+
   static void EnableCFGO() {
     doCFGO = true;
   }
@@ -672,6 +680,19 @@ class CGOptions : public MapleDriverOptionBase {
   static bool DoAlignAnalysis() {
     return doAlignAnalysis;
   }
+
+  static void EnableBigEndianInCG() {
+    cgBigEndian = true;
+  }
+
+  static void DisableBigEndianInCG() {
+    cgBigEndian = false;
+  }
+
+  static bool IsBigEndian() {
+    return cgBigEndian;
+  }
+
 
   static void EnableVregRename() {
     doVregRename = true;
@@ -1140,8 +1161,10 @@ class CGOptions : public MapleDriverOptionBase {
   static std::string duplicateAsmFile;
   static bool useBarriersForVolatile;
   static bool timePhases;
+  static bool cgBigEndian;
   static bool doEBO;
   static bool doCGSSA;
+  static bool doIPARA;
   static bool doCFGO;
   static bool doICO;
   static bool doStoreLoadOpt;
