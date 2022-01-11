@@ -63,7 +63,6 @@ enum OptionIndex : uint32 {
   kEmitJBCLocalVarInfo,
   // ast compiler options
   kUseSignedChar,
-  kBigEndian,
   // general stmt/bb/cfg debug options
   kDumpGenCFGGraph,
   // multi-thread control options
@@ -203,9 +202,6 @@ const Descriptor kUsage[] = {
   { kUseSignedChar, 0, "", "usesignedchar",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  --usesignedchar        : use signed char", "hir2mpl", {} },
-  { kBigEndian, 0, "", "be",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --be                   : enable big endian", "hir2mpl", {} },
   // java bytecode compile options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
@@ -416,8 +412,6 @@ bool HIR2MPLOptions::InitFactory() {
   // ast compiler options
   RegisterFactoryFunction<OptionProcessFactory>(kUseSignedChar,
                                                 &HIR2MPLOptions::ProcessUseSignedChar);
-  RegisterFactoryFunction<OptionProcessFactory>(kBigEndian,
-                                                &HIR2MPLOptions::ProcessBigEndian);
   // On Demand Type Creation
   RegisterFactoryFunction<OptionProcessFactory>(kXBootClassPath,
                                                 &HIR2MPLOptions::ProcessXbootclasspath);
@@ -710,11 +704,6 @@ bool HIR2MPLOptions::ProcessNoBarrier(const Option &opt) {
 // ast compiler options
 bool HIR2MPLOptions::ProcessUseSignedChar(const Option &opt) {
   FEOptions::GetInstance().SetUseSignedChar(true);
-  return true;
-}
-
-bool HIR2MPLOptions::ProcessBigEndian(const Option &opt) {
-  FEOptions::GetInstance().SetBigEndian(true);
   return true;
 }
 

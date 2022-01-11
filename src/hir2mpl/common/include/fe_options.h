@@ -408,14 +408,6 @@ class FEOptions {
     return useSignedChar;
   }
 
-  void SetBigEndian(bool flag) {
-    isBigEndian = flag;
-  }
-
-  bool IsBigEndian() const {
-    return isBigEndian;
-  }
-
   void SetNpeCheckDynamic(bool flag) {
     isNpeCheckDynamic = flag;
   }
@@ -527,7 +519,6 @@ class FEOptions {
 
   // ast compiler options
   bool useSignedChar = false;
-  bool isBigEndian = false;
 
   // general stmt/bb/cfg debug options
   bool isDumpGenCFGGraph = false;
