@@ -2362,6 +2362,9 @@ void IVOptimizer::Run() {
     CR *itCR = nullptr;
     TripCountType type = sa.ComputeTripCount(func, tripCount, conditionCRNode, itCR);
     data->iterNum = type == kConstCR ? tripCount : kDefaultEstimatedLoopIterNum;
+    if ((loops->GetMeLoops().size() - i) > MeOption::ivoptsLimit) {
+      break;
+    }
     ApplyOptimize();
   }
   useInfo->InvalidUseInfo();
