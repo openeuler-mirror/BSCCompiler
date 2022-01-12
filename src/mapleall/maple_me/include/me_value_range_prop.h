@@ -562,10 +562,10 @@ class ValueRangePropagation {
                                                 Opcode opOfBrStmt, Opcode conditionalOp);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
   void DealWithMeOp(const BB &bb, MeStmt &stmt);
-  void ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
+  void ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, int64 &rhsConstant,
       MapleVector<ScalarMeExpr*> &phiOpnds, bool &thePhiIsInBB);
-  bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, MeExpr &currOpnd, ValueRange &rightRange,
-      BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto = nullptr);
+  bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, int64 rhsConstant, MeExpr &currOpnd,
+      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto = nullptr);
   void CreateLabelForTargetBB(BB &pred, BB &newBB);
   size_t FindBBInSuccs(const BB &bb, const BB &succBB) const;
   void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
