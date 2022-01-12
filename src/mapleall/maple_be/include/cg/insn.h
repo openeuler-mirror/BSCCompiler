@@ -201,6 +201,10 @@ class Insn {
     return false;
   }
 
+  virtual bool IsAsmInsn() const {
+    return false;
+  }
+
   virtual bool IsTailCall() const {
     return false;
   }
@@ -262,6 +266,10 @@ class Insn {
   }
 
   virtual bool IsMove() const{
+    return false;
+  }
+
+  virtual bool IsMoveRegReg() const{
     return false;
   }
 
@@ -486,6 +494,10 @@ class Insn {
 
   virtual std::set<uint32> GetDefRegs() const = 0;
 
+  virtual uint32 GetBothDefUseOpnd() const {
+    CHECK_FATAL(false, "impl in sub");
+  };
+
   virtual bool IsDefinition() const = 0;
 
   virtual bool IsDestRegAlsoSrcReg() const {
@@ -685,6 +697,14 @@ class Insn {
     return depNode;
   }
 
+  void SetIsPhiMovInsn(bool val) {
+    isPhiMovInsn = val;
+  }
+
+  bool IsPhiMovInsn() {
+    return isPhiMovInsn;
+  }
+
   void InitWithOriginalInsn(const Insn &originalInsn, MemPool &memPool) {
     prev = originalInsn.prev;
     next = originalInsn.next;
@@ -697,6 +717,16 @@ class Insn {
     }
   }
 
+  std::vector<LabelOperand*> GetLabelOpnd() const {
+    std::vector<LabelOperand*> labelOpnds;
+    for (uint32 i = 0; i < opnds.size(); i++) {
+      if (opnds[i]->IsLabelOpnd()) {
+        labelOpnds.emplace_back(static_cast<LabelOperand*>(opnds[i]));
+      }
+    }
+    return labelOpnds;
+  }
+
  protected:
   MOperator mOp;
   MapleAllocator localAlloc;
@@ -705,6 +735,7 @@ class Insn {
   Insn *next = nullptr;
   BB *bb = nullptr;        /* BB to which this insn belongs */
   uint32 flags = 0;
+  bool isPhiMovInsn = false;
 
  private:
   enum OpKind : uint32 {
