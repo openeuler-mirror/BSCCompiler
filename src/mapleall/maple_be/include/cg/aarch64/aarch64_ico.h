@@ -35,9 +35,11 @@ class AArch64ICOPattern : public ICOPattern {
  protected:
   AArch64CC_t Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr);
+  Insn *BuildCcmpInsn(AArch64CC_t ccCode, Insn *cmpInsn);
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse);
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2);
   bool IsSetInsn(const Insn &insn, Operand *&dest, Operand *&src) const;
+  static uint32 GetNZCV(AArch64CC_t ccCode, bool inverse);
 };
 
 /* If-Then-Else pattern */
@@ -61,6 +63,23 @@ class AArch64ICOIfThenElsePattern : public AArch64ICOPattern {
                              Operand &dest) const;
   bool CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &destSrcMap,
                        std::vector<Operand*> &destRegs, Operand *flagReg) const;
+};
+
+/* If( cmp || cmp ) then or If( cmp && cmp ) then
+ * cmp  w4, #1
+ * beq  .L.886__1(branch1)              cmp  w4, #1
+ * .L.886__2:                =>         ccmp w4, #4, #4, NE
+ * cmp  w4, #4                          beq  .L.886__1
+ * beq  .L.886__1(branch2)
+ * */
+class AArch64ICOSameCondPattern : public AArch64ICOPattern {
+ public:
+  explicit AArch64ICOSameCondPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  ~AArch64ICOSameCondPattern() override = default;
+  bool Optimize(BB &curBB) override;
+ protected:
+  bool DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB);
+  bool CheckMop(MOperator mOperator);
 };
 }  /* namespace maplebe */
 

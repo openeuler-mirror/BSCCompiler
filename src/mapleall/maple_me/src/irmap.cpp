@@ -269,13 +269,17 @@ IvarMeExpr *IRMap::BuildLHSIvar(MeExpr &baseAddr, PrimType primType, const TyIdx
   return meDef;
 }
 
-static MeExpr *GetTerminalBase(MeExpr *baseExpr) {
+static std::pair<MeExpr*, MeExpr*> GetTerminalBase(MeExpr *baseExpr) {
   if (baseExpr->GetMeOp() == kMeOpOp &&
       IsPrimitiveInteger(baseExpr->GetPrimType()) &&
       (baseExpr->GetOp() == OP_add || baseExpr->GetOp() == OP_sub || baseExpr->GetOp() == OP_cvt)) {
-      return GetTerminalBase(static_cast<OpMeExpr *>(baseExpr)->GetOpnd(0));
+    auto ret = GetTerminalBase(static_cast<OpMeExpr *>(baseExpr)->GetOpnd(0));
+    if (ret.first == nullptr) {
+      ret.first = baseExpr;
     }
-  return baseExpr;
+    return ret;
+  }
+  return std::make_pair(nullptr, baseExpr);
 }
 
 MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
@@ -286,7 +290,8 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
   if (base->GetOp() == OP_add || base->GetOp() == OP_sub) {
     MeExpr *offsetNode = base->GetOpnd(1);
     if (offsetNode->GetOp() == OP_constval) {
-      ScalarMeExpr *ptrVar = dynamic_cast<ScalarMeExpr *>(GetTerminalBase(base));
+      auto foundTerminal = GetTerminalBase(base);
+      ScalarMeExpr *ptrVar = dynamic_cast<ScalarMeExpr *>(foundTerminal.second);
       MeExpr *newBase = nullptr;
       int32 offsetVal = 0;
       if ((ptrVar == nullptr || ptrVar->GetOst()->isPtrWithIncDec)) {
@@ -308,8 +313,14 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
         if (ptrVar == base->GetOpnd(0)) {
           newBase = newAddSub;
         } else {
-          OpMeExpr newMeExpr(*static_cast<OpMeExpr *>(base->GetOpnd(0)), kInvalidExprID);
-          newBase = ReplaceMeExprExpr(*base->GetOpnd(0), newMeExpr, 1, *ptrVar, *newAddSub);
+          OpMeExpr newTerminal(*static_cast<OpMeExpr *>(foundTerminal.first), kInvalidExprID);
+          auto *newTerminalAddSub = ReplaceMeExprExpr(*foundTerminal.first, newTerminal, 1, *ptrVar, *newAddSub);
+          if (foundTerminal.first == base->GetOpnd(0)) {
+            newBase = newTerminalAddSub;
+          } else {
+            OpMeExpr newMeExpr(*static_cast<OpMeExpr *>(base->GetOpnd(0)), kInvalidExprID);
+            newBase = ReplaceMeExprExpr(*base->GetOpnd(0), newMeExpr, 1, *foundTerminal.first, *newTerminalAddSub);
+          }
         }
       }
       Opcode op = (offsetVal == 0) ? OP_iread : OP_ireadoff;
@@ -338,10 +349,6 @@ MeExpr* IRMap::SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar) {
 }
 
 MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
-  if (ivar->GetOffset() != 0) {
-    return nullptr;
-  }
-
   auto *base = ivar->GetBase();
   if (base->GetOp() != OP_addrof) {
     return nullptr;
@@ -352,10 +359,6 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   auto *typeOfIvar = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ivar->GetTyIdx());
   CHECK_FATAL(typeOfIvar->IsMIRPtrType(), "type of ivar must be ptr");
   auto *ptrTypeOfIvar = static_cast<MIRPtrType *>(typeOfIvar);
-  if (ptrTypeOfIvar->GetPointedTyIdx() != ost->GetTyIdx()) {
-    return nullptr;
-  }
-
   OffsetType offset(0);
   if (addrofExpr->GetFieldID() > 1) {
     auto *type = ost->GetMIRSymbol()->GetType();
@@ -363,6 +366,40 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
   }
   if (ivar->GetFieldID() > 1) {
     offset += ptrTypeOfIvar->GetPointedType()->GetBitOffsetFromBaseAddr(ivar->GetFieldID());
+  }
+
+  if (ptrTypeOfIvar->GetPointedTyIdx() != ost->GetTyIdx()) {
+    //  dassign u64 %b 0 (dread u64 %x)
+    //  dassign u32 %c 0 (iread u32 <* u8> 0 (addrof ptr %b, constval u64 1))
+    //  simplify to ===>
+    //  dassign u64 %b 0 (dread u64 %x)
+    //  dassign u32 %c 0 (extractbits u32 8 8 (dread u64 %b))
+    if (ivar->GetMu() != nullptr && ivar->GetMu()->GetOst() == ost) {
+      MeStmt *meStmt = ivar->GetMu()->GetDefByMeStmt();
+      if (meStmt == nullptr || !IsPrimitiveInteger(meStmt->GetVarLHS()->GetPrimType()) ||
+          !IsPrimitiveInteger(ivar->GetPrimType())) {
+        return nullptr;
+      }
+      offset += ivar->GetOffset();
+      if (offset.val > 7) {  // allowed max byte offset is 7
+        return nullptr;
+      }
+      auto bitOffset = offset.val * 8;  // change byte offset to bit offset
+      auto bitSize = GetPrimTypeBitSize(ptrTypeOfIvar->GetPointedType()->GetPrimType());
+      auto *srcRHS = meStmt->GetRHS();
+      if (srcRHS->GetPrimType() != ivar->GetPrimType()) {
+        srcRHS = CreateMeExprTypeCvt(ivar->GetPrimType(), srcRHS->GetPrimType(), *srcRHS);
+      }
+      auto *extract = CreateMeExprUnary(OP_extractbits, ivar->GetPrimType(), *srcRHS);
+      static_cast<OpMeExpr *>(extract)->SetBitsSize(bitSize);
+      static_cast<OpMeExpr *>(extract)->SetBitsOffSet(bitOffset);
+      return extract;
+    }
+    return nullptr;
+  }
+
+  if (ivar->GetOffset() != 0) {
+    return nullptr;
   }
 
   auto fieldTypeIdx = ptrTypeOfIvar->GetPointedTyIdxWithFieldID(ivar->GetFieldID());

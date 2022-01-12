@@ -27,6 +27,62 @@
 namespace maplebe {
 void AArch64IfConversionOptimizer::InitOptimizePatterns() {
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOIfThenElsePattern>(*cgFunc));
+  singlePassPatterns.emplace_back(memPool->New<AArch64ICOSameCondPattern>(*cgFunc));
+}
+
+/* build ccmp Insn */
+Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, Insn *cmpInsn) {
+  Operand &opnd0 = cmpInsn->GetOperand(kInsnFirstOpnd);
+  Operand &opnd1 = cmpInsn->GetOperand(kInsnSecondOpnd);
+  Operand &opnd2 = cmpInsn->GetOperand(kInsnThirdOpnd);
+  /* ccmp has only int opnd */
+  if (!static_cast<RegOperand&>(opnd1).IsOfIntClass()) {
+    return nullptr;
+  }
+  AArch64CGFunc *func = static_cast<AArch64CGFunc*>(cgFunc);
+  uint32 nzcv = GetNZCV(ccCode, false);
+  if (nzcv == k16BitSize) {
+    return nullptr;
+  }
+  AArch64ImmOperand &opnd3 = func->CreateImmOperand(PTY_u8, nzcv);
+  CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
+  uint32 dSize = opnd1.GetSize();
+  bool isIntTy = opnd2.IsIntImmediate();
+  MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xccmpriic : MOP_wccmpriic)
+                              : (dSize == k64BitSize ? MOP_xccmprric : MOP_wccmprric);
+  /* cmp opnd2 in the range 0-4095, ccmp opnd2 in the range 0-31 */
+  if (isIntTy && static_cast<RegOperand&>(opnd2).GetRegisterNumber() >= k32BitSize) {
+    return nullptr;
+  }
+  return &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOpCode, opnd0, opnd1, opnd2, opnd3, cond);
+}
+
+/* Rooted ccCode resource NZCV */
+uint32 AArch64ICOPattern::GetNZCV(AArch64CC_t ccCode, bool inverse) {
+  switch (ccCode) {
+    case CC_EQ:
+      return inverse ? k4BitSize : k0BitSize;
+    case CC_HS:
+      return inverse ? k2BitSize : k0BitSize;
+    case CC_MI:
+      return inverse ? k8BitSize : k0BitSize;
+    case CC_VS:
+      return inverse ? k1BitSize : k0BitSize;
+    case CC_VC:
+      return inverse ? k0BitSize : k1BitSize;
+    case CC_LS:
+      return inverse ? k4BitSize : k2BitSize;
+    case CC_LO:
+      return inverse ? k0BitSize : k2BitSize;
+    case CC_NE:
+      return inverse ? k0BitSize : k4BitSize;
+    case CC_HI:
+      return inverse ? k2BitSize : k4BitSize;
+    case CC_PL:
+      return inverse ? k0BitSize : k8BitSize;
+    default:
+      return k16BitSize;
+  }
 }
 
 Insn *AArch64ICOPattern::BuildCmpInsn(const Insn &condBr) {
@@ -115,7 +171,7 @@ Insn *AArch64ICOPattern::BuildCondSel(const Insn &branch, MOperator mOp, RegOper
 }
 
 void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
-                                           RegOperand &destReg, std::vector<Insn*> &generateInsn) {
+                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) {
   ImmOperand &imm1 = static_cast<ImmOperand&>(ifDest);
   ImmOperand &imm2 = static_cast<ImmOperand&>(elseDest);
   bool inverse = imm1.IsZero() && imm2.IsOne();
@@ -157,7 +213,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Ope
 }
 
 RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, const RegOperand &destReg,
-                                                      std::vector<Insn*> &generateInsn) {
+                                                                std::vector<Insn*> &generateInsn) {
   RegOperand *reg = nullptr;
   if (!dest.IsRegister()) {
     bool destIsIntTy = destReg.IsOfIntClass();
@@ -175,7 +231,7 @@ RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, c
 }
 
 void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Operand &ifDest, Operand &elseDest,
-                                           RegOperand &destReg, std::vector<Insn*> &generateInsn) {
+                                                     RegOperand &destReg, std::vector<Insn*> &generateInsn) {
   RegOperand *tReg = static_cast<RegOperand*>(&ifDest);
   RegOperand *eReg = static_cast<RegOperand*>(&elseDest);
 
@@ -206,7 +262,7 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForReg(const Insn &branchInsn, Ope
 }
 
 Operand *AArch64ICOIfThenElsePattern::GetDestReg(const std::map<Operand*, Operand*> &destSrcMap,
-                                       const RegOperand &destReg) const {
+                                                 const RegOperand &destReg) const {
   Operand *dest = nullptr;
   for (const auto &destSrcPair : destSrcMap) {
     ASSERT(destSrcPair.first->IsRegister(), "opnd must be register");
@@ -326,7 +382,7 @@ bool AArch64ICOIfThenElsePattern::CheckModifiedRegister(Insn &insn, std::map<Ope
 }
 
 bool AArch64ICOIfThenElsePattern::CheckCondMoveBB(BB *bb, std::map<Operand*, Operand*> &destSrcMap,
-                                        std::vector<Operand*> &destRegs, Operand *flagOpnd) const {
+                                                  std::vector<Operand*> &destRegs, Operand *flagOpnd) const {
   if (bb == nullptr) {
     return false;
   }
@@ -531,6 +587,117 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
     return false;
   }
   return DoOpt(curBB, ifBB, elseBB, *joinBB);
+}
+
+/* If( cmp || cmp ) then
+ * or
+ * If( cmp && cmp ) then */
+bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
+  if (secondIfBB.GetKind() != BB::kBBIf || secondIfBB.NumPreds() != 1) {
+    return false;
+  }
+  BB *firstIfBB = secondIfBB.GetPrev();
+  BB *nextBB = firstIfBB->GetNext();
+  CHECK_FATAL(nextBB != nullptr, "nextBB is null in AArch64ICOSameCondPattern::Optimize");
+  /* firstIfBB's nextBB is secondIfBB */
+  if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
+    return false;
+  }
+  BB *thenBB = cgFunc->GetTheCFG()->GetTargetSuc(secondIfBB);
+  if (thenBB->NumSuccs() != 1) {
+    return false;
+  }
+  for (BB *preBB : thenBB->GetPreds()) {
+    if (preBB != firstIfBB && preBB != &secondIfBB) {
+      return false;
+    }
+  }
+  return DoOpt(firstIfBB,secondIfBB,thenBB);
+}
+
+bool AArch64ICOSameCondPattern::CheckMop(MOperator mOperator) {
+  switch (mOperator) {
+    case MOP_beq:
+    case MOP_bne:
+    case MOP_blt:
+    case MOP_ble:
+    case MOP_bgt:
+    case MOP_bge:
+    case MOP_blo:
+    case MOP_bls:
+    case MOP_bhs:
+    case MOP_bhi:
+    case MOP_bpl:
+    case MOP_bmi:
+    case MOP_bvc:
+    case MOP_bvs:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/* branchInsn1 is firstIfBB's LastCondBrInsn
+ * branchInsn2 is secondIfBB's LastCondBrInsn
+ *
+ * Limitations: branchInsn1 is the same as branchInsn2
+ * */
+bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB) {
+  Insn *branchInsn1 = cgFunc->GetTheCFG()->FindLastCondBrInsn(*firstIfBB);
+  ASSERT(branchInsn1 != nullptr, "nullptr check");
+  Insn *cmpInsn1 = FindLastCmpInsn(*firstIfBB);
+  MOperator mOperator1 = branchInsn1->GetMachineOpcode();
+  Insn *branchInsn2 = cgFunc->GetTheCFG()->FindLastCondBrInsn(secondIfBB);
+  ASSERT(branchInsn2 != nullptr, "nullptr check");
+  Insn *cmpInsn2 = FindLastCmpInsn(secondIfBB);
+  MOperator mOperator2 = branchInsn2->GetMachineOpcode();
+  if (mOperator1 != mOperator2) {
+    return false;
+  }
+  if (cmpInsn1 == nullptr || cmpInsn2 == nullptr) {
+    return false;
+  }
+
+  /* tbz ans cbz will not be optimized */
+  if (CheckMop(mOperator1)) {
+    return false;
+  }
+
+  /* two BB has same branch */
+  std::vector<LabelOperand*> labelOpnd1 = branchInsn1->GetLabelOpnd();
+  std::vector<LabelOperand*> labelOpnd2 = branchInsn2->GetLabelOpnd();
+  if (labelOpnd1.size() != 1 || labelOpnd1.size() != 1 ||
+      labelOpnd1[0]->GetLabelIndex() != labelOpnd2[0]->GetLabelIndex()) {
+    return false;
+  }
+
+  /* secondifBB only has branchInsn and cmpInsn */
+  FOR_BB_INSNS_REV(insn, &secondIfBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn != branchInsn2 && insn != cmpInsn2) {
+      return false;
+    }
+  }
+
+  /* build ccmp Insn */
+  AArch64CC_t ccCode = Encode(branchInsn1->GetMachineOpcode(), true);
+  ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
+  Insn *ccmpInsn = BuildCcmpInsn(ccCode, cmpInsn2);
+  if (ccmpInsn == nullptr) {
+    return false;
+  }
+
+  /* insert ccmp Insn */
+  firstIfBB->InsertInsnBefore(*branchInsn1, *ccmpInsn);
+
+  /* Remove secondIfBB */
+  BB *nextBB = secondIfBB.GetNext();
+  cgFunc->GetTheCFG()->RemoveBB(secondIfBB);
+  firstIfBB->PushFrontSuccs(*nextBB);
+  nextBB->PushFrontPreds(*firstIfBB);
+  return true;
 }
 
 }  /* namespace maplebe */
