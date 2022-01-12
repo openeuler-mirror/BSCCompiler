@@ -435,6 +435,14 @@ void AST_XXport::UpdateDependency(unsigned hidx, TreeNode *node) {
     // update handler dependency map
     unsigned dep = GetHandleIdxFromStrIdx(stridx);
     mHandlerIdx2DependentHandlerIdxMap[hidx].insert(dep);
+
+    if (node->IsImport()) {
+      Module_Handler *handler = mASTHandler->GetModuleHandler(dep);
+      ModuleNode *module = handler->GetASTModule();
+
+      node->SetTypeId(module->GetTypeId());
+      node->SetTypeIdx(module->GetTypeIdx());
+    }
   }
 }
 

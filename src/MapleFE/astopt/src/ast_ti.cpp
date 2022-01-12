@@ -1066,6 +1066,28 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
   return node;
 }
 
+CastNode *TypeInferVisitor::VisitCastNode(CastNode *node) {
+  (void) AstVisitor::VisitCastNode(node);
+  TreeNode *dest = node->GetDestType();
+  SetTypeId(node, dest);
+  return node;
+}
+
+AsTypeNode *TypeInferVisitor::VisitAsTypeNode(AsTypeNode *node) {
+  (void) AstVisitor::VisitAsTypeNode(node);
+  TreeNode *dest = node->GetType();
+  SetTypeId(node, dest);
+
+  TreeNode *parent = node->GetParent();
+  if (parent) {
+    // pass to parent, need refine if multiple AsTypeNode
+    if (parent->GetAsTypesNum() == 1 && parent->GetAsTypeAtIndex(0) == node) {
+      SetTypeId(parent, dest);
+    }
+  }
+  return node;
+}
+
 ClassNode *TypeInferVisitor::VisitClassNode(ClassNode *node) {
   if (mFlags & FLG_trace_1) std::cout << "Visiting ClassNode, id=" << node->GetNodeId() << "..." << std::endl;
   UpdateTypeId(node, TY_Class);
@@ -1444,26 +1466,15 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
         decl = mHandler->FindDecl(node, true);
       }
     } else if (node == fld) {
-      if (upper->IsIdentifier()) {
-        if (upper->IsThis()) {
-          decl = upper;
+      TreeNode *cls = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
+      if (cls) {
+        scope = cls->GetScope();
+
+        // for imported decl, need trace down the import/export chain
+        if (decl && mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
+          decl = scope->FindExportedDeclOf(node->GetStrIdx());
         } else {
-          decl = mHandler->FindDecl(static_cast<IdentifierNode *>(upper), true);
-        }
-        if (decl) {
-          unsigned tidx = decl->GetTypeIdx();
-          if (tidx) {
-            TreeNode *declt = gTypeTable.GetTypeFromTypeIdx(tidx);
-            scope = declt->GetScope();
-          } else {
-            scope = decl->GetScope();
-          }
-          // for imported decl, need trace down the import/export chain
-          if (mXXport->IsImportedDeclId(mHandler->GetHidx(), decl->GetNodeId())) {
-            decl = scope->FindExportedDeclOf(node->GetStrIdx());
-          } else {
-            decl = scope->FindDeclOf(node->GetStrIdx());
-          }
+          decl = scope->FindDeclOf(node->GetStrIdx());
         }
       }
     } else {
@@ -1537,15 +1548,22 @@ StructNode *TypeInferVisitor::VisitStructNode(StructNode *node) {
   }
   if (node->GetProp() == SProp_TSEnum) {
     TypeId tid = TY_None;
+    unsigned tidx = 0;
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       TreeNode *t = node->GetField(i);
       tid = MergeTypeId(tid, t->GetTypeId());
+      tidx = MergeTypeIdx(tidx, t->GetTypeIdx());
     }
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       TreeNode *t = node->GetField(i);
       SetTypeId(t, tid);
+      SetTypeIdx(t, tidx);
     }
-    SetTypeId(node, tid);
+    TreeNode *id = node->GetStructId();
+    if (id) {
+      SetTypeId(id, node->GetTypeId());
+      SetTypeIdx(id, node->GetTypeIdx());
+    }
   }
   (void) AstVisitor::VisitStructNode(node);
   return node;

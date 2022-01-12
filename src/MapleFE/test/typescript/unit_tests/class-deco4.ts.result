@@ -1,7 +1,7 @@
 Matched 38 tokens.
-Matched 84 tokens.
-Matched 94 tokens.
-Matched 101 tokens.
+Matched 90 tokens.
+Matched 100 tokens.
+Matched 107 tokens.
 ============= Module ===========
 == Sub Tree ==
 func  class_deco(name)  throws: 
@@ -13,7 +13,7 @@ func  class_deco(name)  throws:
 == Sub Tree ==
 class  Klass
   Fields: 
-    data= {}
+    data= {n:123}
   Instance Initializer: 
   Constructors: 
   Methods: 
