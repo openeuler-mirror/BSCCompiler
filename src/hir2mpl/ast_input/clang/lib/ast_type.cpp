@@ -49,6 +49,11 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::UInt:
       return PTY_u32;
     case clang::BuiltinType::ULong:
+#if ILP32
+      return PTY_u32;
+#else
+      return PTY_u64;
+#endif
     case clang::BuiltinType::ULongLong:
       return PTY_u64;
     case clang::BuiltinType::UInt128:
@@ -64,6 +69,11 @@ PrimType LibAstFile::CvtPrimType(const clang::BuiltinType::Kind kind) const {
     case clang::BuiltinType::Int:
       return PTY_i32;
     case clang::BuiltinType::Long:
+#if ILP32
+      return PTY_i32;
+#else
+      return PTY_i64;
+#endif
     case clang::BuiltinType::LongLong:
       return PTY_i64;
     case clang::BuiltinType::Int128:
