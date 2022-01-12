@@ -163,8 +163,10 @@ class TypeInferVisitor : public TypeInferBaseVisitor {
 
   ArrayElementNode *VisitArrayElementNode(ArrayElementNode *node);
   ArrayLiteralNode *VisitArrayLiteralNode(ArrayLiteralNode *node);
+  AsTypeNode *VisitAsTypeNode(AsTypeNode *node);
   BinOperatorNode *VisitBinOperatorNode(BinOperatorNode *node);
   CallNode *VisitCallNode(CallNode *node);
+  CastNode *VisitCastNode(CastNode *node);
   ClassNode *VisitClassNode(ClassNode *node);
   CondBranchNode *VisitCondBranchNode(CondBranchNode *node);
   DeclNode *VisitDeclNode(DeclNode *node);

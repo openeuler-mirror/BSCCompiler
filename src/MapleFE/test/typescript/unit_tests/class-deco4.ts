@@ -8,7 +8,7 @@ function class_deco(name: string): Function {
 @class_deco('Klass')
 class Klass {
   data:
-    {} = {};
+    {n: number} = {n : 123};
 
   public dump (value: number) {
     switch (value) {
