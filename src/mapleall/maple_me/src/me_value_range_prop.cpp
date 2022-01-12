@@ -77,7 +77,7 @@ void ValueRangePropagation::Execute() {
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
       }
-      if (MeOption::safeRegionMode && (it->IsInSafeRegion() || func.IsSafe()) &&
+      if (MeOption::safeRegionMode && (it->IsInSafeRegion()) &&
           kOpcodeInfo.IsCall(it->GetOp()) && instance_of<CallMeStmt>(*it)) {
         MIRFunction *callFunc =
             GlobalTables::GetFunctionTable().GetFunctionFromPuidx(static_cast<CallMeStmt&>(*it).GetPUIdx());
@@ -106,7 +106,7 @@ void ValueRangePropagation::Execute() {
         }
         CASE_OP_ASSERT_NONNULL {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
-          if (MeOption::safeRegionMode && !it->IsInSafeRegion() && func.IsUnSafe()) {
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
           } else if (DealWithAssertNonnull(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
@@ -120,7 +120,7 @@ void ValueRangePropagation::Execute() {
         }
         CASE_OP_ASSERT_BOUNDARY {
           // If the option safeRegion is open and the stmt is not in safe region, delete it.
-          if (MeOption::safeRegionMode && !it->IsInSafeRegion() && func.IsUnSafe()) {
+          if (MeOption::safeRegionMode && !it->IsInSafeRegion()) {
             deleteStmt = true;
           } else if (DealWithBoundaryCheck(*bb, *it)) {
             if (ValueRangePropagation::isDebug) {
@@ -995,6 +995,10 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
 void SafetyCheck::Error(const MeStmt &stmt) const {
   auto srcPosition = stmt.GetSrcPosition();
   switch (stmt.GetOp()) {
+    case OP_calcassertlt:
+    case OP_calcassertge: {
+      break;
+    }
     case OP_assertnonnull: {
       FATAL(kLncFatal, "%s:%d error: Dereference of null pointer",
             func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
@@ -1030,7 +1034,7 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
     case OP_assertlt:
     case OP_assertge: {
       std::ostringstream oss;
-      if (stmt.GetOp() == OP_assertlt) {
+      if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
         oss << "%s:%d error: the offset >= the upper bounds";
       } else {
         oss << "%s:%d error: the offset < the lower bounds";
@@ -3661,6 +3665,120 @@ void ValueRangePropagation::InsertValueRangeOfCondExpr2Caches(BB &bb, const MeSt
   }
 }
 
+// This function deals with the case like this:
+// Example1: first brfalse mx1 ge mx2
+//          second brfalse mx1 ge/lt mx2 ==>  remove falseBranch or trueBranch
+// Example2: first brfalse mx1 gt mx2
+//          second brfalse mx1 gt/le mx2 ==>  remove falseBranch or trueBranch
+// mx1: valuerange [mx2+1, max(mx2_type)] or [mx2, max(mx2_type)]
+// ==>
+// remove falseBranch or trueBranch
+bool ValueRangePropagation::AnalysisUnreachableForGeOrGt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange) {
+  Opcode op = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOp();
+  BB *trueBranch = nullptr;
+  BB *falseBranch = nullptr;
+  GetTrueAndFalseBranch(brMeStmt.GetOp(), bb, trueBranch, falseBranch);
+  // When the redundant branch can be inferred directly from the condGoto stmt
+  if (op == OP_gt && leftRange.GetLower().GetConstant() == 1) {
+    // falseBranch is unreachable
+    AnalysisUnreachableBBOrEdge(bb, *falseBranch, *trueBranch);
+    return true;
+  } else if (op == OP_le && leftRange.GetLower().GetConstant() == 1) {
+    AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
+    return true;
+  } else if (op == OP_ge && leftRange.GetLower().GetConstant() == 0) {
+    AnalysisUnreachableBBOrEdge(bb, *falseBranch, *trueBranch);
+    return true;
+  } else if (op == OP_lt && leftRange.GetLower().GetConstant() == 0) {
+    AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
+    return true;
+  }
+  return false;
+}
+
+// This function deals with the case like this:
+// Example1: first brfalse mx1 le mx2
+//          second brfalse mx1 lt/ge mx2 ==>  remove falseBranch or trueBranch
+// Example2: first brfalse mx1 lt mx2
+//          second brfalse mx1 le/gt mx2 ==>  remove falseBranch or trueBranch
+// mx1: valuerange [min(mx2_type), mx2-1] or [min(mx2_type), mx2]
+// ==>
+// remove falseBranch or trueBranch
+bool ValueRangePropagation::AnalysisUnreachableForLeOrLt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange) {
+  Opcode op = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOp();
+  BB *trueBranch = nullptr;
+  BB *falseBranch = nullptr;
+  GetTrueAndFalseBranch(brMeStmt.GetOp(), bb, trueBranch, falseBranch);
+  // When the redundant branch can be inferred directly from the condGoto stmt
+  if (op == OP_lt && leftRange.GetUpper().GetConstant()  == -1) {
+    // falseBranch is unreachable
+    AnalysisUnreachableBBOrEdge(bb, *falseBranch, *trueBranch);
+    return true;
+  } else if (op == OP_ge && leftRange.GetUpper().GetConstant() == -1) {
+    AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
+    return true;
+  } else if (op == OP_le && leftRange.GetUpper().GetConstant() == 0) {
+    // falseBranch is the unreachableBB
+    AnalysisUnreachableBBOrEdge(bb, *falseBranch, *trueBranch);
+    return true;
+  } else if (op == OP_gt && leftRange.GetUpper().GetConstant() == 0) {
+    AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
+    return true;
+  }
+  return false;
+}
+
+// This function deals with the case like this:
+// Example1: first brfalse mx1 eg mx2
+//          second brfalse mx1 eq/ne mx2 ==>  remove falseBranch or trueBranch
+// Example2: first brfalse mx1 ne mx2
+//          second brfalse mx1 eq/ne mx2 ==>  remove falseBranch or trueBranch
+// mx1: valuerange [mx2, mx2]
+// ==>
+// remove falseBranch or trueBranch
+bool ValueRangePropagation::AnalysisUnreachableForEqOrNe(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange) {
+  Opcode op = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOp();
+  BB *trueBranch = nullptr;
+  BB *falseBranch = nullptr;
+  GetTrueAndFalseBranch(brMeStmt.GetOp(), bb, trueBranch, falseBranch);
+  // When the redundant branch can be inferred directly from the condGoto stmt
+  if ((op == OP_eq && leftRange.GetRangeType() == kEqual) ||
+      (op == OP_ne && leftRange.GetRangeType() == kNotEqual)) {
+    // falseBranch is unreachable
+    AnalysisUnreachableBBOrEdge(bb, *falseBranch, *trueBranch);
+    return true;
+  } else if ((op == OP_ne && leftRange.GetRangeType() == kEqual) ||
+             (op == OP_eq && leftRange.GetRangeType() == kNotEqual)) {
+    AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
+    return true;
+  }
+  return false;
+}
+
+// This function deals with the case like this:
+// Example: first brfalse mx1 eq(ne/gt/le/ge/lt) mx2
+//          second brfalse mx1 eq(ne/gt/le/ge/lt) mx2 ==>  remove falseBranch or trueBranch
+bool ValueRangePropagation::DealWithVariableRange(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange) {
+  MeExpr *opnd1 = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOpnd(1);
+  // Example1: deal with like if (mx1 > mx2), when the valuerange of mx1 is [mx2+1, max(mx2_type)]
+  // Example2: deal with like if (mx1 >= mx2), when the valuerange of mx1 is [mx2, max(mx2_type)]
+  if (leftRange.GetLower().GetVar() == opnd1 && leftRange.GetUpper().GetVar() == nullptr &&
+      leftRange.UpperIsMax(opnd1->GetPrimType())) {
+    return AnalysisUnreachableForGeOrGt(bb, brMeStmt, leftRange);
+  // Example1: deal with like if (mx1 < mx2), when the valuerange of mx1 is [min(mx2_type), mx2-1]
+  // Example2: deal with like if (mx1 <= mx2), when the valuerange of mx1 is [min(mx2_type), mx2]
+  } else if (leftRange.GetLower().GetVar() == nullptr && leftRange.GetUpper().GetVar() == opnd1 &&
+      leftRange.LowerIsMin(opnd1->GetPrimType())) {
+    return AnalysisUnreachableForLeOrLt(bb, brMeStmt, leftRange);
+  // Example: deal with like if (mx1 == mx2), when the valuerange of mx1 is [mx2, mx2]
+  // Example: deal with like if (mx1 != mx2), when the valuerange of mx1 is [mx2, mx2]
+  } else if (leftRange.GetLower().GetVar() == opnd1 && leftRange.GetLower().GetConstant() == 0 &&
+             leftRange.GetUpper().GetVar() == opnd1 && leftRange.GetUpper().GetConstant() == 0) {
+    return AnalysisUnreachableForEqOrNe(bb, brMeStmt, leftRange);
+  }
+  return false;
+}
+
 void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
   CondGotoMeStmt &brMeStmt = static_cast<CondGotoMeStmt&>(stmt);
   const BB *brTarget = bb.GetSucc(1);
@@ -3681,14 +3799,20 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
   ValueRange *leftRange = nullptr;
   std::unique_ptr<ValueRange> rightRangePtr;
   std::unique_ptr<ValueRange> leftRangePtr;
+  if (!GetValueRangeOfCondGotoOpnd(bb, *opMeExpr, *opnd0, leftRange, leftRangePtr)) {
+    return;
+  }
+  // Example: deal with brfalse mx1 eq(ne/gt/le/ge/lt) mx2,
+  //          mx1: valuerange [mx2+1, max(mx2_type)] or [min(mx2_type), mx2] or [mx2,mx2], etc
+  //          remove falseBranch or trueBranch
+  if (leftRange != nullptr && DealWithVariableRange(bb, brMeStmt, *leftRange)) {
+    return;
+  }
   if (!GetValueRangeOfCondGotoOpnd(bb, *opMeExpr, *opnd1, rightRange, rightRangePtr)) {
     return;
   }
   if (rightRange == nullptr) {
     DealWithCondGotoWhenRightRangeIsNotExist(bb, *opnd0, *opnd1, brMeStmt.GetOp(), opMeExpr->GetOp());
-    return;
-  }
-  if (!GetValueRangeOfCondGotoOpnd(bb, *opMeExpr, *opnd0, leftRange, leftRangePtr)) {
     return;
   }
   if (leftRange == nullptr && rightRange->GetRangeType() != kEqual) {
@@ -3731,24 +3855,30 @@ void ValueRangePropagation::DumpCaches() {
             std::to_string(bIt->second->GetUpper().GetConstant()) :
             "mx" + std::to_string(bIt->second->GetUpper().GetVar()->GetExprID()) + " " +
             std::to_string(bIt->second->GetUpper().GetConstant());
-
-        LogInfo::MapleLogger() << "mx" << bIt->first << " lower: " << lower << " upper: " << upper << "\n";
+        LogInfo::MapleLogger() << "mx" << bIt->first << " lower: " << lower << " upper: " << upper;
+        if (bIt->second->GetRangeType() == kLowerAndUpper) {
+          LogInfo::MapleLogger() << " kLowerAndUpper\n";
+        } else if (bIt->second->GetRangeType() == kSpecialLowerForLoop) {
+          LogInfo::MapleLogger() << " kSpecialLowerForLoop\n";
+        } else {
+          LogInfo::MapleLogger() << " kSpecialUpperForLoop\n";
+        }
       } else if (bIt->second->GetRangeType() == kOnlyHasLowerBound) {
         std::string lower = (bIt->second->GetBound().GetVar() == nullptr) ?
             std::to_string(bIt->second->GetBound().GetConstant()) :
             "mx" + std::to_string(bIt->second->GetBound().GetVar()->GetExprID()) + " " +
             std::to_string(bIt->second->GetBound().GetConstant());
-        LogInfo::MapleLogger() << "mx" << bIt->first << " lower: " << lower << " upper: max" << "\n";
+        LogInfo::MapleLogger() << "mx" << bIt->first << " lower: " << lower << " upper: max " << "kOnlyHasLowerBound\n";
       } else if (bIt->second->GetRangeType() == kEqual || bIt->second->GetRangeType() == kNotEqual) {
         std::string lower = (bIt->second->GetBound().GetVar() == nullptr) ?
             std::to_string(bIt->second->GetBound().GetConstant()) :
             "mx" + std::to_string(bIt->second->GetBound().GetVar()->GetExprID()) + " " +
             std::to_string(bIt->second->GetBound().GetConstant());
-        LogInfo::MapleLogger() << "mx" << bIt->first << " lower and upper: " << lower << " ";
+        LogInfo::MapleLogger() << "mx" << bIt->first << " lower and upper: " << lower;
         if (bIt->second->GetRangeType() == kEqual) {
-          LogInfo::MapleLogger() << "kEqual\n";
+          LogInfo::MapleLogger() << " kEqual\n";
         } else {
-          LogInfo::MapleLogger() << "kNotEqual\n";
+          LogInfo::MapleLogger() << " kNotEqual\n";
         }
       }
     }

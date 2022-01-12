@@ -61,10 +61,10 @@ class SafetyCheckWithBoundaryError : public SafetyCheck {
   ValueRangePropagation &vrp;
 };
 
-int64 GetMinNumber(PrimType primType);
-int64 GetMaxNumber(PrimType primType);
-bool IsNeededPrimType(PrimType prim);
-int64 GetRealValue(int64 value, PrimType primType);
+int64 GetMinNumber(PrimType pType);
+int64 GetMaxNumber(PrimType pType);
+bool IsNeededPrimType(PrimType pType);
+int64 GetRealValue(int64 value, PrimType pType);
 
 class Bound {
  public:
@@ -98,8 +98,8 @@ class Bound {
     return primType;
   }
 
-  void SetPrimType(PrimType type) {
-    primType = type;
+  void SetPrimType(PrimType pType) {
+    primType = pType;
   }
 
   bool CanBeComparedWith(const Bound &bound) const;
@@ -253,6 +253,14 @@ class ValueRange {
             range.pair.lower.GetConstant() == range.pair.upper.GetConstant());
   }
 
+  bool UpperIsMax(PrimType pType) const {
+    return GetRealValue(GetUpper().GetConstant(), pType) == GetMaxNumber(pType);
+  }
+
+  bool LowerIsMin(PrimType pType) const {
+    return GetRealValue(GetLower().GetConstant(), pType) == GetMinNumber(pType);
+  }
+
   void SetBound(Bound argBound) {
     range.bound = argBound;
   }
@@ -385,12 +393,12 @@ class ValueRangePropagation {
  private:
   bool IsBiggerThanMaxInt64(ValueRange &valueRange) const;
 
-  std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType primType) {
-    return std::make_unique<ValueRange>(Bound(nullptr, 0, primType), kNotEqual);
+  std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) {
+    return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kNotEqual);
   }
 
-  std::unique_ptr<ValueRange> CreateValueRangeOfEqualZero(PrimType primType) {
-    return std::make_unique<ValueRange>(Bound(nullptr, 0, primType), kEqual);
+  std::unique_ptr<ValueRange> CreateValueRangeOfEqualZero(PrimType pType) {
+    return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kEqual);
   }
 
   bool Insert2Caches(BBId bbID, int32 exprID, std::unique_ptr<ValueRange> valueRange);
@@ -485,12 +493,12 @@ class ValueRangePropagation {
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
   void InsertValueRangeOfCondExpr2Caches(BB &bb, const MeStmt &stmt);
   void DealWithBrStmtWithOneOpnd(BB &bb, CondGotoMeStmt &stmt, MeExpr &opnd, Opcode op);
-  bool OverflowOrUnderflow(PrimType primType, int64 lhs, int64 rhs);
+  bool OverflowOrUnderflow(PrimType pType, int64 lhs, int64 rhs);
   void DealWithAssign(BB &bb, MeStmt &stmt);
   bool IsConstant(const BB &bb, MeExpr &expr, int64 &constant, bool canNotBeNotEqual = true);
   std::unique_ptr<ValueRange> CreateValueRangeForPhi(
       LoopDesc &loop, BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, ScalarMeExpr &lhsOfPhi);
-  bool AddOrSubWithConstant(PrimType primType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res);
+  bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
@@ -517,7 +525,7 @@ class ValueRangePropagation {
   void DealWithCondGoto(BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt);
   bool CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res);
-  std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType primType = PTY_begin);
+  std::unique_ptr<ValueRange> CopyValueRange(ValueRange &valueRange, PrimType pType = PTY_begin);
   bool LowerInRange(const BB &bb, Bound lowerTemp, Bound lower, bool lowerIsZero);
   bool UpperInRange(const BB &bb, Bound upperTemp, Bound upper, bool upperIsArrayLength);
   void PrepareForSSAUpdateWhenPredBBIsRemoved(const BB &pred, BB &bb);
@@ -567,6 +575,8 @@ class ValueRangePropagation {
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
   void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
+  void GetValueRangeOfCRNode(BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange,
+                             PrimType pTypeOfArray);
   std::unique_ptr<ValueRange> GetValueRangeOfCRNodes(
       MeStmt &meStmt, BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes);
   bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
@@ -608,6 +618,10 @@ class ValueRangePropagation {
   void ComputeCodeSize(MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
   void DealWithSwitch(MeStmt &stmt);
+  bool AnalysisUnreachableForGeOrGt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
+  bool AnalysisUnreachableForLeOrLt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
+  bool AnalysisUnreachableForEqOrNe(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
+  bool DealWithVariableRange(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
   std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound);
 
