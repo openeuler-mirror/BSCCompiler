@@ -39,6 +39,7 @@ TYPE(Never)     // First come from TS
 TYPE(Undefined) // First come from JS
 TYPE(Symbol)    // First come from JS
 TYPE(Any)       // First come from JS
+TYPE(Date)
 
 TYPE(Array)
 TYPE(Object)
