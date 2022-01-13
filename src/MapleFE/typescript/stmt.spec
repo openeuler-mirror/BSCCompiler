@@ -1992,6 +1992,7 @@ rule IndexSignature: ONEOF(
 rule KeywordMethodName : ONEOF("return",
                                "throw",
                                "continue",
+                               "import",
                                "export")
   attr.action : BuildIdentifier()
 
