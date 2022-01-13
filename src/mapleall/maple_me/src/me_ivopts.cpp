@@ -196,6 +196,7 @@ class IVOptimizer {
   bool CreateIVFromMul(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromSub(OpMeExpr &op, MeStmt &stmt);
   bool CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt);
+  bool CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt);
   bool FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress = false);
   bool LHSEscape(ScalarMeExpr *lhs);
   void FindGeneralIVInStmt(MeStmt &stmt);
@@ -703,6 +704,25 @@ bool IVOptimizer::CreateIVFromCvt(OpMeExpr &op, MeStmt &stmt) {
   return true;
 }
 
+bool IVOptimizer::CreateIVFromIaddrof(OpMeExpr &op, MeStmt &stmt) {
+  auto *iv = data->GetIV(*op.GetOpnd(0));
+  ASSERT_NOT_NULL(iv);
+  if (!IsPrimitiveInteger(op.GetPrimType())) {
+    data->CreateGroup(stmt, *iv, kUseGeneral, &op);
+    return false;
+  }
+  auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(op.GetTyIdx());
+  auto *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
+  CHECK_FATAL(pointedType != nullptr, "expect a pointed type of iaddrof");
+  auto offset = pointedType->GetBitOffsetFromBaseAddr(op.GetFieldID()) / 8;
+  auto *inc = irMap->CreateIntConstMeExpr(offset, op.GetPrimType());
+  auto *initValue = irMap->CreateMeExprBinary(OP_add, op.GetPrimType(), *iv->base, *inc);
+  auto *simplified = irMap->SimplifyMeExpr(initValue);
+  if (simplified != nullptr) { initValue = simplified; }
+  data->CreateIV(&op, initValue, iv->step, false);
+  return true;
+}
+
 // find other ivs that is the affine transform of other ivs
 bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddress) {
   switch (expr.GetMeOp()) {
@@ -731,6 +751,9 @@ bool IVOptimizer::FindGeneralIVInExpr(MeStmt &stmt, MeExpr &expr, bool useInAddr
       }
       if (op.GetOp() == OP_cvt) {
         return CreateIVFromCvt(op, stmt);
+      }
+      if (op.GetOp() == OP_iaddrof) {
+        return CreateIVFromIaddrof(op, stmt);
       }
       if (IsCompareHasReverseOp(op.GetOp())) {  // record compare use
         auto *iv = data->GetIV(*op.GetOpnd(0));
@@ -1953,12 +1976,14 @@ void IVOptimizer::UseReplace() {
             auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
                                                       *cand->iv->base, *cand->iv->step);
             extraExpr = ComputeExtraExprOfBase(*use->iv->base, *newBase, ratio, replaced);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->iv->expr, *cand->incVersion);
-            use->expr = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *cand->incVersion);
+            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *cand->incVersion);
+            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+            use->expr = tmp;
           } else {
             extraExpr = ComputeExtraExprOfBase(*use->iv->base, *cand->iv->base, ratio, replaced);
-            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->iv->expr, *replace);
-            use->expr = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
+            auto *tmp = irMap->ReplaceMeExprExpr(*use->expr, *use->iv->expr, *replace);
+            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmp);
+            use->expr = tmp;
           }
           replace = use->comparedExpr;
           replaceCompare = true;
@@ -2069,7 +2094,7 @@ void IVOptimizer::UseReplace() {
       }
       ASSERT(replaced, "should have been replaced");
       auto realUseType = replace->GetPrimType();
-      if (IsCompareHasReverseOp(use->expr->GetOp()) &&
+      if ((IsCompareHasReverseOp(use->expr->GetOp()) || use->expr->GetOp() == OP_retype) &&
           static_cast<OpMeExpr*>(use->expr)->GetOpndType() != kPtyInvalid) {
         realUseType = static_cast<OpMeExpr*>(use->expr)->GetOpndType();
       }
@@ -2362,6 +2387,9 @@ void IVOptimizer::Run() {
     CR *itCR = nullptr;
     TripCountType type = sa.ComputeTripCount(func, tripCount, conditionCRNode, itCR);
     data->iterNum = type == kConstCR ? tripCount : kDefaultEstimatedLoopIterNum;
+    if ((loops->GetMeLoops().size() - i) > MeOption::ivoptsLimit) {
+      break;
+    }
     ApplyOptimize();
   }
   useInfo->InvalidUseInfo();

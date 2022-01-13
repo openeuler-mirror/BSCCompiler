@@ -174,6 +174,7 @@ class MeOption : public MapleDriverOptionBase {
   static uint32 sinkLimit;
   static uint32 sinkPULimit;
   static uint32 vecLoopLimit;
+  static uint32 ivoptsLimit;
   static bool loopVec;
   static bool seqVec;
   static uint8 rematLevel;
