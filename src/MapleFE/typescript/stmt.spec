@@ -801,6 +801,9 @@ rule Expression : ONEOF(
 ##  TryStatement[?Yield, ?Return]
 ##  DebuggerStatement
 
+rule SpecialStatement : ONEOF( ImportedType + '.' + Expression + ASI(';') )
+  attr.action.%1 : BuildField(%1, %3)
+
 rule Statement : ONEOF(
   BlockStatement,
   VariableStatement,
@@ -815,6 +818,7 @@ rule Statement : ONEOF(
   LabelledStatement,
   ThrowStatement,
   TryStatement,
+  SpecialStatement,
 ## I suppose to include CallExpression in ExpressionStatement, but due to the
 ## complexity of auto-insert-semicolon of TS, I put CallExpression here.
   CallExpression)
