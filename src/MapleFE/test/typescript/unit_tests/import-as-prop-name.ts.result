@@ -1,0 +1,5 @@
+Matched 22 tokens.
+============= Module ===========
+== Sub Tree ==
+declare ts_interface: Load {func  import(n,o?)  throws: 
+ }
