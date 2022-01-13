@@ -59,6 +59,7 @@ uint32 MeOption::rename2pregLimit = UINT32_MAX;
 uint32 MeOption::propLimit = UINT32_MAX;
 uint32 MeOption::copyPropLimit = UINT32_MAX;
 uint32 MeOption::vecLoopLimit = UINT32_MAX;
+uint32 MeOption::ivoptsLimit = UINT32_MAX;
 uint32 MeOption::profileBBHotRate = 10;
 uint32 MeOption::profileBBColdRate = 99;
 bool MeOption::noDelegateRC = false;
@@ -256,6 +257,7 @@ enum OptionIndex {
   kRematLevel,
   kLayoutWithPredict,
   kvecLoops,
+  kIvoptsLimit,
 };
 
 const Descriptor kUsage[] = {
@@ -1228,7 +1230,17 @@ const Descriptor kUsage[] = {
     kBuildTypeExperimental,
     kArgCheckPolicyRequired,
     "  --veclooplimit             \tApply vectorize loops only up to NUM \n"
-    "                              \t--copyproplimit=NUM\n",
+    "                              \t--veclooplimit=NUM\n",
+    "me",
+    {} },
+  { kIvoptsLimit,
+    0,
+    "",
+    "ivoptslimit",
+    kBuildTypeExperimental,
+    kArgCheckPolicyRequired,
+    "  --ivoptslimit              \tApply ivopts only up to NUM loops \n"
+    "                              \t--ivoptslimit=NUM\n",
     "me",
     {} },
 #if MIR_JAVA
@@ -1719,6 +1731,9 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       case kvecLoops:
         vecLoopLimit = std::stoul(opt.Args(), nullptr);
+        break;
+      case kIvoptsLimit:
+        ivoptsLimit = std::stoul(opt.Args(), nullptr);
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:
