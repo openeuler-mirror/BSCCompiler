@@ -65,8 +65,13 @@ Operand *HandleConstStr(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) 
   (void)parent;
   auto &constStrNode = static_cast<ConststrNode&>(expr);
 #if TARGAARCH64 || TARGRISCV64
-  return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
-      constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+  if (CGOptions::IsArm64ilp32()) {
+    return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
+        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
+  } else {
+    return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
+        constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+  }
 #else
   return cgFunc.SelectStrConst(*cgFunc.GetMemoryPool()->New<MIRStrConst>(
       constStrNode.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
@@ -77,8 +82,13 @@ Operand *HandleConstStr16(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc
   (void)parent;
   auto &constStr16Node = static_cast<Conststr16Node&>(expr);
 #if TARGAARCH64 || TARGRISCV64
-  return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
-      constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+  if (CGOptions::IsArm64ilp32()) {
+    return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
+        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
+  } else {
+    return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
+        constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a64)));
+   }
 #else
   return cgFunc.SelectStr16Const(*cgFunc.GetMemoryPool()->New<MIRStr16Const>(
       constStr16Node.GetStrIdx(), *GlobalTables::GetTypeTable().GetTypeFromTyIdx((TyIdx)PTY_a32)));
@@ -221,7 +231,8 @@ Operand *HandleExtractBits(const BaseNode &parent, BaseNode &expr, CGFunc &cgFun
   ExtractbitsNode &node = static_cast<ExtractbitsNode&>(expr);
   uint8 bitOffset = node.GetBitsOffset();
   uint8 bitSize = node.GetBitsSize();
-  if ((bitSize == k8BitSize || bitSize == k16BitSize) && GetPrimTypeBitSize(node.GetPrimType()) != k64BitSize &&
+  if (!CGOptions::IsBigEndian() && (bitSize == k8BitSize || bitSize == k16BitSize) &&
+      GetPrimTypeBitSize(node.GetPrimType()) != k64BitSize &&
       (bitOffset == 0 || bitOffset == k8BitSize || bitOffset == k16BitSize || bitOffset == k24BitSize) &&
       expr.Opnd(0)->GetOpCode() == OP_iread && node.GetOpCode() == OP_extractbits) {
     return cgFunc.SelectRegularBitFieldLoad(node, parent);

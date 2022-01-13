@@ -248,9 +248,11 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
   bool IsRegRematCand(RegOperand &reg);
+  void ClearRegRematInfo(RegOperand &reg);
   bool IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc);
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
-  void CleanupDeadMov() override;
+  void CleanupDeadMov(bool dump = false) override;
+  void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
   Operand &GetTargetRetOperand(PrimType primType, int32 sReg) override;
   Operand &GetOrCreateRflag() override;
   const Operand *GetRflag() const override;
@@ -665,6 +667,7 @@ class AArch64CGFunc : public CGFunc {
     Operand *opndCatch;  /* For O0-O1. */
   } uCatch;
   enum fpParamState {
+    kNotFp_be,
     kNotFp,
     kFp32Bit,
     kFp64Bit,

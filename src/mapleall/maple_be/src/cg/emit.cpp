@@ -352,6 +352,11 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       Emit("\n");
       return;
     }
+    case kAsmZero: {
+      uint64 size = Globals::GetInstance()->GetBECommon()->GetTypeSize(mirType->GetTypeIndex());
+      EmitNullConstant(size);
+      return;
+    }
     case kAsmComm: {
       std::string size;
       if (isFlexibleArray) {
@@ -395,23 +400,22 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
       return;
     }
     case kAsmAlign: {
-      std::string align;
-      if (mirSymbol.GetType()->GetKind() == kTypeStruct ||
-          mirSymbol.GetType()->GetKind() == kTypeClass ||
-          mirSymbol.GetType()->GetKind() == kTypeArray ||
-          mirSymbol.GetType()->GetKind() == kTypeUnion) {
-        align = "3";
-      } else {
+      uint8 align = mirSymbol.GetAttrs().GetAlignValue();
+      if (align == 0) {
+        if (mirSymbol.GetType()->GetKind() == kTypeStruct ||
+            mirSymbol.GetType()->GetKind() == kTypeClass ||
+            mirSymbol.GetType()->GetKind() == kTypeArray ||
+            mirSymbol.GetType()->GetKind() == kTypeUnion) {
+          align = 3;
+        } else {
+          align = Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex());
 #if TARGARM32 || TARGAARCH64 || TARGARK || TARGRISCV64
-        align = std::to_string(static_cast<int>(
-          log2(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex()))));
-#else
-        align =
-          std::to_string(Globals::GetInstance()->GetBECommon()->GetTypeAlign(mirSymbol.GetType()->GetTypeIndex()));
+          align = static_cast<uint8>(log2(align));
 #endif
+        }
       }
       Emit(asmInfo->GetAlign());
-      Emit(align);
+      Emit(std::to_string(align));
       Emit("\n");
       return;
     }
@@ -454,7 +458,7 @@ void Emitter::EmitAsmLabel(const MIRSymbol &mirSymbol, AsmLabel label) {
   }
 }
 
-void Emitter::EmitNullConstant(uint32 size) {
+void Emitter::EmitNullConstant(uint64 size) {
   EmitAsmLabel(kAsmZero);
   Emit(std::to_string(size));
   Emit("\n");
@@ -462,14 +466,34 @@ void Emitter::EmitNullConstant(uint32 size) {
 
 void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
   uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
-  while (structEmitInfo.GetCombineBitFieldWidth() > charBitWidth) {
-    /* fetch the lower 8 bits */
-    uint64 tmp = structEmitInfo.GetCombineBitFieldValue() & 0x00000000000000ffUL;
-    EmitAsmLabel(kAsmByte);
-    Emit(std::to_string(tmp));
-    Emit("\n");
-    structEmitInfo.DecreaseCombineBitFieldWidth(charBitWidth);
-    structEmitInfo.SetCombineBitFieldValue(structEmitInfo.GetCombineBitFieldValue() >> charBitWidth);
+  auto emitBfldValue = [&](bool flag) {
+    while (structEmitInfo.GetCombineBitFieldWidth() > charBitWidth) {
+      uint8 shift = flag ? (structEmitInfo.GetCombineBitFieldWidth() - charBitWidth) : 0;
+      uint64 tmp = (structEmitInfo.GetCombineBitFieldValue() >> shift) & 0x00000000000000ffUL;
+      EmitAsmLabel(kAsmByte);
+      Emit(std::to_string(tmp));
+      Emit("\n");
+      structEmitInfo.DecreaseCombineBitFieldWidth(charBitWidth);
+      uint64 value = flag ?
+          structEmitInfo.GetCombineBitFieldValue() - (tmp << structEmitInfo.GetCombineBitFieldWidth()) :
+          structEmitInfo.GetCombineBitFieldValue() >> charBitWidth;
+      structEmitInfo.SetCombineBitFieldValue(value);
+    }
+  };
+  if (CGOptions::IsBigEndian()) {
+    /*
+     * If the total number of bits in the bit field is not a multiple of 8,
+     * the bits must be aligned to 8 bits to prevent errors in the emit.
+     */
+    uint64 width = RoundUp(structEmitInfo.GetCombineBitFieldWidth(), charBitWidth);
+    if(structEmitInfo.GetCombineBitFieldWidth() < width) {
+      structEmitInfo.SetCombineBitFieldValue(structEmitInfo.GetCombineBitFieldValue() <<
+                                             (width - structEmitInfo.GetCombineBitFieldWidth()));
+      structEmitInfo.IncreaseCombineBitFieldWidth(width - structEmitInfo.GetCombineBitFieldWidth());
+    }
+    emitBfldValue(true);
+  } else {
+    emitBfldValue(false);
   }
   if (structEmitInfo.GetCombineBitFieldWidth() != 0) {
     EmitAsmLabel(kAsmByte);
@@ -508,9 +532,18 @@ void Emitter::EmitBitFieldConstant(StructEmitInfo &structEmitInfo, MIRConst &mir
     structEmitInfo.SetCombineBitFieldValue((~(~0ULL << structEmitInfo.GetCombineBitFieldWidth())) &
                                            structEmitInfo.GetCombineBitFieldValue());
   }
-  structEmitInfo.SetCombineBitFieldValue(
-      (static_cast<uint64>(fieldValue.GetValue()) << structEmitInfo.GetCombineBitFieldWidth()) +
-      structEmitInfo.GetCombineBitFieldValue());
+  if (CGOptions::IsBigEndian()) {
+    uint64 beValue = static_cast<uint64>(fieldValue.GetValue());
+    if (fieldValue.GetValue() < 0) {
+      beValue = beValue - ((beValue >> fieldSize) << fieldSize);
+    }
+    structEmitInfo.SetCombineBitFieldValue(
+        (structEmitInfo.GetCombineBitFieldValue() << fieldSize) + beValue);
+  } else {
+    structEmitInfo.SetCombineBitFieldValue(
+        (static_cast<uint64>(fieldValue.GetValue()) << structEmitInfo.GetCombineBitFieldWidth()) +
+        structEmitInfo.GetCombineBitFieldValue());
+  }
   structEmitInfo.IncreaseCombineBitFieldWidth(fieldSize);
   structEmitInfo.IncreaseNextFieldOffset(fieldSize);
   if ((nextType == nullptr) || (kTypeBitField != nextType->GetKind())) {
@@ -587,7 +620,11 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
     if (stringPtr[strId] == 0) {
       stringPtr[strId] = mirStrConst.GetValue();
     }
-    Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+    if (CGOptions::IsArm64ilp32()) {
+      Emit("\t.word\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+    } else {
+      Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+    }
     return;
   }
 
@@ -686,11 +723,17 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       StIdx stIdx = symAddr.GetSymbolIndex();
       MIRSymbol *symAddrSym = stIdx.IsGlobal() ? GlobalTables::GetGsymTable().GetSymbolFromStidx(stIdx.Idx())
           : CG::GetCurCGFunc()->GetMirModule().CurFunction()->GetSymTab()->GetSymbolFromStIdx(stIdx.Idx());
+      std::string str;
+      if (CGOptions::IsArm64ilp32()) {
+        str = ".word";
+      } else {
+        str = ".quad";
+      }
       if (stIdx.IsGlobal() == false && symAddrSym->GetStorageClass() == kScPstatic) {
         PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-        Emit("\t.quad\t" + symAddrSym->GetName() + std::to_string(pIdx));
+        Emit("\t" + str + "\t" + symAddrSym->GetName() + std::to_string(pIdx));
       } else {
-        Emit("\t.quad\t" + symAddrSym->GetName());
+        Emit("\t" + str + "\t" + symAddrSym->GetName());
       }
       if (symAddr.GetOffset() != 0) {
         Emit(" + ").Emit(symAddr.GetOffset());
@@ -707,7 +750,13 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       MIRAddroffuncConst &funcAddr = static_cast<MIRAddroffuncConst&>(mirConst);
       MIRFunction *func = GlobalTables::GetFunctionTable().GetFuncTable().at(funcAddr.GetValue());
       MIRSymbol *symAddrSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
-      (void)Emit("\t.quad\t" + symAddrSym->GetName());
+      std::string str;
+      if (CGOptions::IsArm64ilp32()) {
+        str = ".word";
+      } else {
+        str = ".quad";
+      }
+      (void)Emit("\t" + str + "\t" + symAddrSym->GetName());
       break;
     }
     case kConstLblConst: {
@@ -1627,7 +1676,7 @@ void Emitter::EmitVectorConstant(MIRConst &mirConst) {
       ASSERT(false, "should not run here");
     }
   }
-  int lanes = GetPrimTypeLanes(mirType.GetPrimType());
+  int lanes = GetVecLanes(mirType.GetPrimType());
   if (lanes > uNum) {
     MIRIntConst zConst(0, vecCt.GetConstVecItem(0)->GetType());
     for (int32 i = uNum; i < lanes; i++) {
@@ -1669,7 +1718,7 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     if (i != static_cast<uint32>(num - 1)) {
       nextElemType = structType.GetElemType(i + 1);
     }
-    uint32 elemSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(elemType->GetTypeIndex());
+    uint64 elemSize = Globals::GetInstance()->GetBECommon()->GetTypeSize(elemType->GetTypeIndex());
     uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
     if (elemType->GetKind() == kTypeBitField) {
       if (elemConst == nullptr) {
@@ -1708,11 +1757,11 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
 
     if (nextElemType != nullptr && kTypeBitField != nextElemType->GetKind()) {
       ASSERT(i < static_cast<uint32>(num - 1), "NYI");
-      uint32 nextAlign = Globals::GetInstance()->GetBECommon()->GetTypeAlign(nextElemType->GetTypeIndex());
+      uint8 nextAlign = Globals::GetInstance()->GetBECommon()->GetTypeAlign(nextElemType->GetTypeIndex());
       ASSERT(nextAlign != 0, "expect non-zero");
       /* append size, append 0 when align need. */
       uint64 totalSize = sEmitInfo->GetTotalSize();
-      uint32 psize = (totalSize % nextAlign == 0) ? 0 : (nextAlign - (totalSize % nextAlign));
+      uint64 psize = (totalSize % nextAlign == 0) ? 0 : (nextAlign - (totalSize % nextAlign));
       if (psize != 0) {
         EmitNullConstant(psize);
         sEmitInfo->IncreaseTotalSize(psize);
@@ -1722,8 +1771,8 @@ void Emitter::EmitStructConstant(MIRConst &mirConst) {
     }
     fieldIdx++;
   }
-
-  uint32 opSize = size - sEmitInfo->GetTotalSize();
+  isFlexibleArray = false;
+  uint64 opSize = size - sEmitInfo->GetTotalSize();
   if (opSize != 0) {
     EmitNullConstant(opSize);
   }
@@ -2031,6 +2080,7 @@ void Emitter::EmitLocalVariable(const CGFunc &cgfunc) {
           Emit(asmInfo->GetData());
           Emit("\n");
           EmitAsmLabel(*st, kAsmAlign);
+          EmitAsmLabel(*st, kAsmLocal);
           MIRType *ty = st->GetType();
           MIRConst *ct = st->GetKonst();
           if (ct == nullptr) {
@@ -2121,6 +2171,27 @@ void Emitter::EmitGlobalVars(std::vector<std::pair<MIRSymbol*, bool>> &globalVar
   EmitBlockMarker("__MBlock_globalVars_cold_end", "", true, kStaticVarEndAdd);
 }
 
+void Emitter::EmitSymbolsWithPrefixSection(const MIRSymbol &symbol) {
+  const std::string &sectionName = GlobalTables::GetUStrTable().GetStringFromStrIdx(symbol.sectionAttr);
+  EmitAsmLabel(symbol, kAsmType);
+  Emit(asmInfo->GetSection());
+  Emit(sectionName).Emit(",\"aw\",");
+  if (sectionName == ".bss" || StringUtils::StartsWith(sectionName, ".bss.")) {
+    Emit("%nobits\n");
+  } else {
+    Emit("%progbits\n");
+  }
+  if (symbol.GetAttr(ATTR_weak)) {
+    EmitAsmLabel(symbol, kAsmWeak);
+  } else if (symbol.GetStorageClass() == kScGlobal) {
+    EmitAsmLabel(symbol, kAsmGlbl);
+  }
+  EmitAsmLabel(symbol, kAsmAlign);
+  EmitAsmLabel(symbol, kAsmSyname);
+  EmitAsmLabel(symbol, kAsmZero);
+  EmitAsmLabel(symbol, kAsmSize);
+}
+
 void Emitter::EmitGlobalVariable() {
   std::vector<MIRSymbol*> typeStVec;
   std::vector<MIRSymbol*> typeNameStVec;
@@ -2171,6 +2242,9 @@ void Emitter::EmitGlobalVariable() {
       } else {
         continue;
       }
+    }
+    if (mirSymbol->GetSKind() == kStFunc) {
+      EmitAliasAndRef(*mirSymbol);
     }
 
     if (mirSymbol->GetName().find(VTAB_PREFIX_STR) == 0) {
@@ -2291,12 +2365,16 @@ void Emitter::EmitGlobalVariable() {
         /* GCTIB symbols are generated in GenerateObjectMaps */
         continue;
       }
-      if (mirSymbol->GetStorageClass() == kScGlobal) {
-        EmitAsmLabel(*mirSymbol, kAsmType);
-        EmitAsmLabel(*mirSymbol, kAsmComm);
-      } else {
+      if (mirSymbol->GetStorageClass() != kScGlobal) {
         globalVarVec.emplace_back(std::make_pair(mirSymbol, false));
+        continue;
       }
+      if (mirSymbol->sectionAttr != UStrIdx(0)) {
+        EmitSymbolsWithPrefixSection(*mirSymbol);
+        continue;
+      }
+      EmitAsmLabel(*mirSymbol, kAsmType);
+      EmitAsmLabel(*mirSymbol, kAsmComm);
       continue;
     }
 
@@ -2371,9 +2449,11 @@ void Emitter::EmitGlobalVariable() {
       if (IsPrimitiveVector(mirType->GetPrimType())) {
         EmitVectorConstant(*mirConst);
       } else if (IsPrimitiveScalar(mirType->GetPrimType())) {
-        if (IsAddress(mirType->GetPrimType())) {
-          uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
-          CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
+        if (!CGOptions::IsArm64ilp32()) {
+          if (IsAddress(mirType->GetPrimType())) {
+            uint32 sizeinbits = GetPrimTypeBitSize(mirConst->GetType().GetPrimType());
+            CHECK_FATAL(sizeinbits == k64BitSize, "EmitGlobalVariable: pointer must be of size 8");
+          }
         }
         if (cg->GetMIRModule()->IsCModule()) {
           EmitScalarConstant(*mirConst, true, false, true);
@@ -2412,6 +2492,7 @@ void Emitter::EmitGlobalVariable() {
       Emit(asmInfo->GetData());
       Emit("\n");
       EmitAsmLabel(*mirSymbol, kAsmAlign);
+      EmitAsmLabel(*mirSymbol, kAsmLocal);
       MIRConst *ct = mirSymbol->GetKonst();
       if (ct == nullptr) {
         EmitAsmLabel(*mirSymbol, kAsmComm);
@@ -3381,6 +3462,19 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
 
   /* compute DIE sizes and offsets */
   mirdi->ComputeSizeAndOffsets();
+}
+
+void Emitter::EmitAliasAndRef(MIRSymbol &sym) {
+  MIRFunction *mFunc = sym.GetFunction();
+  if (mFunc == nullptr || !mFunc->GetAttr(FUNCATTR_alias)) {
+    return;
+  }
+  if (mFunc->GetAttr(FUNCATTR_extern)) {
+    Emit(asmInfo->GetGlobal()).Emit(mFunc->GetName()).Emit("\n");
+  }
+  auto &aliasPrefix = mFunc->GetAttr(FUNCATTR_weakref) ? asmInfo->GetWeakref() : asmInfo->GetSet();
+  Emit(aliasPrefix);
+  Emit(sym.GetName()).Emit(",").Emit(mFunc->GetAttrs().GetAliasFuncName()).Emit("\n");
 }
 
 void Emitter::EmitHugeSoRoutines(bool lastRoutine) {

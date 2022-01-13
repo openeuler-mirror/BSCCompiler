@@ -310,6 +310,93 @@ void AArch64AsmEmitter::EmitJavaInsnAddr(FuncEmitInfo &funcEmitInfo) {
   }
 }
 
+void AArch64AsmEmitter::RecordRegInfo(FuncEmitInfo &funcEmitInfo) {
+  if (!CGOptions::DoIPARA() || funcEmitInfo.GetCGFunc().GetFunction().IsJava()) {
+    return;
+  }
+  CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
+  AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+
+  std::set<regno_t> referedRegs;
+  MIRFunction &mirFunc = cgFunc.GetFunction();
+  FOR_ALL_BB_REV(bb, &aarchCGFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (insn->IsCall() || insn->IsTailCall()) {
+        auto *targetOpnd = insn->GetCallTargetOperand();
+        bool safeCheck = false;
+        CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+        if (targetOpnd->IsFuncNameOpnd()) {
+          FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+          const MIRSymbol *funcSt = target->GetFunctionSymbol();
+          ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+          MIRFunction *func = funcSt->GetFunction();
+          if (func != nullptr && func->IsReferedRegsValid()) {
+            safeCheck = true;
+            for (auto preg : func->GetReferedRegs()) {
+              referedRegs.insert(preg);
+            }
+          }
+        }
+        if (!safeCheck){
+          mirFunc.SetReferedRegsValid(false);
+          return;
+        }
+      }
+      if (referedRegs.size() == kMaxRegNum) {
+        break;
+      }
+      uint32 opndNum = insn->GetOperandSize();
+      for (uint32 i = 0; i < opndNum; ++i) {
+        if (insn->GetMachineOpcode() == MOP_asm) {
+          if (i == kAsmInputListOpnd || i == kAsmOutputListOpnd || i == kAsmClobberListOpnd) {
+            for (auto opnd : static_cast<ListOperand &>(insn->GetOperand(i)).GetOperands()) {
+              if (opnd->IsRegister()) {
+                referedRegs.insert(static_cast<RegOperand *>(opnd)->GetRegisterNumber());
+              }
+            }
+          }
+          continue;
+        }
+        Operand &opnd = insn->GetOperand(i);
+        if (opnd.IsList()) {
+          auto &listOpnd = static_cast<ListOperand&>(opnd);
+          for (auto op : listOpnd.GetOperands()) {
+            referedRegs.insert(op->GetRegisterNumber());
+          }
+        } else if (opnd.IsMemoryAccessOperand()) {
+          auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
+          RegOperand *base = memOpnd.GetBaseRegister();
+          RegOperand *offset = memOpnd.GetIndexRegister();
+          if (base != nullptr) {
+            referedRegs.insert(base->GetRegisterNumber());
+          }
+          if (offset != nullptr) {
+            referedRegs.insert(offset->GetRegisterNumber());
+          }
+        } else if (opnd.IsRegister()) {
+          RegType regType = static_cast<RegOperand&>(opnd).GetRegisterType();
+          if (regType == kRegTyCc || regType == kRegTyVary) {
+            continue;
+          }
+          referedRegs.insert(static_cast<RegOperand&>(opnd).GetRegisterNumber());
+        }
+      }
+    }
+  }
+  mirFunc.SetReferedRegsValid(true);
+#ifdef DEBUG
+  for (auto reg : referedRegs) {
+    if (reg > kMaxRegNum) {
+      ASSERT(0, "unexpected preg");
+    }
+  }
+#endif
+  mirFunc.CopyReferedRegs(referedRegs);
+}
+
 void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   CGFunc &cgFunc = funcEmitInfo.GetCGFunc();
   AArch64CGFunc &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
@@ -385,6 +472,7 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
   /* add these messege , solve the simpleperf tool error */
   EmitRefToMethodDesc(funcEmitInfo, emitter);
   (void)emitter.Emit(funcStName + ":\n");
+
   /* if the last  insn is call, then insert nop */
   bool found = false;
   FOR_ALL_BB_REV(bb, &aarchCGFunc) {
@@ -402,6 +490,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       break;
     }
   }
+
+  RecordRegInfo(funcEmitInfo);
+
   /* emit instructions */
   FOR_ALL_BB(bb, &aarchCGFunc) {
     if (bb->IsUnreachable()) {
@@ -485,10 +576,17 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
         }
         case PTY_f64: {
           MIRDoubleConst *doubleConst = safe_cast<MIRDoubleConst>(st->GetKonst());
-          emitter.Emit("\t.word ").Emit(doubleConst->GetIntLow32()).Emit("\n");
-          emitter.IncreaseJavaInsnCount();
-          emitter.Emit("\t.word ").Emit(doubleConst->GetIntHigh32()).Emit("\n");
-          emitter.IncreaseJavaInsnCount();
+          auto emitF64 = [&](int64 first, int64 second) {
+            emitter.Emit("\t.word ").Emit(first).Emit("\n");
+            emitter.IncreaseJavaInsnCount();
+            emitter.Emit("\t.word ").Emit(second).Emit("\n");
+            emitter.IncreaseJavaInsnCount();
+          };
+          if (CGOptions::IsBigEndian()) {
+            emitF64(doubleConst->GetIntHigh32(), doubleConst->GetIntLow32());
+          } else {
+            emitF64(doubleConst->GetIntLow32(), doubleConst->GetIntHigh32());
+          }
           break;
         }
         default:
