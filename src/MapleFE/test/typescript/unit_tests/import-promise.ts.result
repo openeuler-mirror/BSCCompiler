@@ -1,0 +1,5 @@
+Matched 20 tokens.
+============= Module ===========
+== Sub Tree ==
+import "./M".then(() -> console.log("Completed")
+)
