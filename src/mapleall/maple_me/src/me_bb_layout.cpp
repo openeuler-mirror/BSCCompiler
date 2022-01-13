@@ -1126,7 +1126,7 @@ void BBLayout::AddBBProf(BB &bb) {
     return;
   }
   BB *curBB = layoutBBs.back();
-  if (curBB->GetKind() == kBBFallthru || curBB->GetKind() == kBBGoto) {
+  if ((curBB->GetKind() == kBBFallthru || curBB->GetKind() == kBBGoto) && !curBB->GetSucc().empty()) {
     BB *targetBB = curBB->GetSucc().front();
     if (curBB->GetKind() == kBBFallthru && (&bb != targetBB)) {
       CreateGoto(*curBB, func, *targetBB);
