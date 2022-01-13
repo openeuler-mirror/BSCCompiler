@@ -1635,13 +1635,17 @@ rule ExportsList : ONEOF(ExportSpecifier,
 ## ExportSpecifier :
 ## IdentifierName
 ## IdentifierName as IdentifierName
+rule KeywordExportName : ONEOF("import")
+  attr.action : BuildIdentifier()
+
 rule ExportSpecifier : ONEOF(JSIdentifier,
                              JSIdentifier + "as" + BindingIdentifier,
                              JSIdentifier + "as" + "default",
                              "default" + "as" + JSIdentifier,
                              JSIdentifier + "as" + "super",
-                             JSIdentifier + "as" + "function")
-  attr.action.%2,%5,%6 : BuildXXportAsPair(%1, %3)
+                             JSIdentifier + "as" + "function",
+                             JSIdentifier + "as" + KeywordExportName)
+  attr.action.%2,%5,%6,%7 : BuildXXportAsPair(%1, %3)
   attr.action.%3 : BuildXXportAsPairDefault(%1)
   attr.action.%4 : BuildXXportAsPairDefault(%3)
 
