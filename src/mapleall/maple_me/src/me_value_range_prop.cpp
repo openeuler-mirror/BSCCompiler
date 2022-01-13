@@ -994,82 +994,108 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
 
 void SafetyCheck::Error(const MeStmt &stmt) const {
   auto srcPosition = stmt.GetSrcPosition();
+  const char *fileName = func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str();
   switch (stmt.GetOp()) {
     case OP_calcassertlt:
     case OP_calcassertge: {
       break;
     }
-    case OP_assertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: Dereference of null pointer",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
-      break;
-    }
+    case OP_assignassertnonnull:
+    case OP_assertnonnull:
     case OP_returnassertnonnull: {
-      auto &returnStmt = static_cast<const ReturnAssertNonnullMeStmt &>(stmt);
-      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func->GetName().c_str());
-      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
+      auto &newStmt = static_cast<const AssertNonnullMeStmt &>(stmt);
+      GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
-        FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer",
-              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-              returnStmt.GetFuncName().c_str());
+        if (stmt.GetOp() == OP_assertnonnull) {
+          FATAL(kLncFatal, "%s:%d error: Dereference of null pointer", fileName, srcPosition.LineNum());
+        } else if (stmt.GetOp() == OP_returnassertnonnull) {
+          FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer", fileName, srcPosition.LineNum(),
+                newStmt.GetFuncName().c_str());
+        } else {
+          FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer", fileName, srcPosition.LineNum());
+        }
       } else {
-        FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
-              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-              returnStmt.GetFuncName().c_str(), func->GetName().c_str());
+        if (stmt.GetOp() == OP_assertnonnull) {
+          FATAL(kLncFatal, "%s:%d error: Dereference of null pointer when inlined to %s",
+                fileName, srcPosition.LineNum(), func->GetName().c_str());
+        } else if (stmt.GetOp() == OP_returnassertnonnull) {
+          FATAL(kLncFatal, "%s:%d error: %s return nonnull but got null pointer when inlined to %s",
+                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+        } else {
+          FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer when inlined to %s",
+                fileName, srcPosition.LineNum(), func->GetName().c_str());
+        }
       }
-      break;
-    }
-    case OP_assignassertnonnull: {
-      FATAL(kLncFatal, "%s:%d error: null assignment of nonnull pointer",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
       break;
     }
     case OP_callassertnonnull: {
       auto &callStmt = static_cast<const CallAssertNonnullMeStmt &>(stmt);
-      FATAL(kLncFatal, "%s:%d error: null pointer passed to %s that requires nonnull for %s argument",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-            callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetFuncName().c_str());
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
+      if (curFuncNameIdx == stmtFuncNameIdx) {
+        FATAL(kLncFatal, "%s:%d error: null pointer passed to %s that requires nonnull for %s argument", fileName,
+              srcPosition.LineNum(), callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+      } else {
+        FATAL(kLncFatal,
+              "%s:%d error: null pointer passed to %s that requires nonnull for %s argument when inlined to %s",
+              fileName, srcPosition.LineNum(), callStmt.GetFuncName().c_str(),
+              GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
+      }
       break;
     }
+    case OP_returnassertle:
+    case OP_assignassertle:
     case OP_assertlt:
     case OP_assertge: {
-      std::ostringstream oss;
-      if (kOpcodeInfo.IsAssertUpperBoundary(stmt.GetOp())) {
-        oss << "%s:%d error: the offset >= the upper bounds";
+      auto &newStmt = static_cast<const AssertBoundaryMeStmt &>(stmt);
+      GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
+      if (curFuncNameIdx == stmtFuncNameIdx) {
+        if (stmt.GetOp() == OP_assertlt) {
+          FATAL(kLncFatal, "%s:%d error: the offset >= the upper bounds", fileName, srcPosition.LineNum());
+        } else if (stmt.GetOp() == OP_assertge) {
+          FATAL(kLncFatal, "%s:%d error: the offset < the lower bounds", fileName, srcPosition.LineNum());
+        } else if (stmt.GetOp() == OP_assignassertle) {
+          FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary", fileName,
+                srcPosition.LineNum());
+        } else {
+          FATAL(kLncFatal, "%s:%d error: return value's bounds does not match the function declaration for %s",
+                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str());
+        }
       } else {
-        oss << "%s:%d error: the offset < the lower bounds";
+        if (stmt.GetOp() == OP_assertlt) {
+          FATAL(kLncFatal, "%s:%d error: the offset >= the upper bounds when inlined to %s", fileName,
+                srcPosition.LineNum(), func->GetName().c_str());
+        } else if (stmt.GetOp() == OP_assertge) {
+          FATAL(kLncFatal, "%s:%d error: the offset < the lower bounds when inlined to %s", fileName,
+                srcPosition.LineNum(), func->GetName().c_str());
+        } else if (stmt.GetOp() == OP_assignassertle) {
+          FATAL(kLncFatal,
+                "%s:%d error: l-value boundary should not be larger than r-value boundary when inlined to %s",
+                fileName, srcPosition.LineNum(), func->GetName().c_str());
+        } else {
+          FATAL(kLncFatal,
+                "%s:%d error: return value's bounds does not match the function declaration for %s when inlined to %s",
+                fileName, srcPosition.LineNum(), newStmt.GetFuncName().c_str(), func->GetName().c_str());
+        }
       }
-      FATAL(kLncFatal, oss.str().c_str(), func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(),
-            srcPosition.LineNum());
       break;
     }
     case OP_callassertle: {
       auto &callStmt = static_cast<const CallAssertBoundaryMeStmt&>(stmt);
-      FATAL(kLncFatal,
-            "%s:%d error: the pointer's bounds does not match the function %s declaration for the %s argument",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-            callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
-      break;
-    }
-    case OP_returnassertle: {
-      auto &returnStmt = static_cast<const ReturnAssertBoundaryMeStmt &>(stmt);
-      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(func->GetName().c_str());
-      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(returnStmt.GetFuncName().c_str());
+      GStrIdx curFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetFuncName().c_str());
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(callStmt.GetStmtFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
-        FATAL(kLncFatal, "%s:%d error: return value's bounds does not match the function declaration for %s",
-              func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-              returnStmt.GetFuncName().c_str());
-      } else {
         FATAL(kLncFatal,
-              "%s:%d error: %s return value's bounds does not match the function declaration when inlined to %s",
+              "%s:%d error: the pointer's bounds does not match the function %s declaration for the %s argument",
               func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum(),
-              returnStmt.GetFuncName().c_str(), func->GetName().c_str());
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str());
+      } else {
+        FATAL(kLncFatal, "%s:%d error: the pointer's bounds does not match the function %s declaration "\
+              "for the %s argument when inlined to %s", fileName, srcPosition.LineNum(),
+              callStmt.GetFuncName().c_str(), GetNthStr(callStmt.GetParamIndex()).c_str(), func->GetName().c_str());
       }
-      break;
-    }
-    case OP_assignassertle: { // support 2
-      FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary",
-            func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str(), srcPosition.LineNum());
       break;
     }
     default:
@@ -3430,6 +3456,9 @@ void ValueRangePropagation::DealWithCondGoto(
     CreateValueRangeForNeOrEq(*opnd0, leftRange, rightRange, *trueBranch, *falseBranch);
   } else if (op == OP_ne) {
     CreateValueRangeForNeOrEq(*opnd0, leftRange, rightRange, *falseBranch, *trueBranch);
+  }
+  if (rightRange.GetRangeType() == kNotEqual) {
+    return;
   }
   if ((op == OP_lt) || (op == OP_ge)) {
     int64 constant = 0;
