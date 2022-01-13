@@ -1686,33 +1686,13 @@ class FEIRStmtSafetyCallAssert {
   size_t paramIndex;
 };
 
-// ---------- FEIRStmtSafetyReturnAssert ----------
-class FEIRStmtSafetyReturnAssert {
+// ---------- FEIRStmtAssertNonnull ----------
+class FEIRStmtAssertNonnull : public FEIRStmtUseOnly {
  public:
-  FEIRStmtSafetyReturnAssert(const std::string &funcName)
-      : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)) {}
+  FEIRStmtAssertNonnull(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr)
+      : FEIRStmtUseOnly(argOp, std::move(argExpr)) {}
 
-  virtual ~FEIRStmtSafetyReturnAssert() = default;
-
-  const std::string& GetFuncName() const {
-    return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
-  }
-
-  GStrIdx GetFuncNameIdx() const {
-    return funcNameIdx;
-  }
-
- private:
-  GStrIdx funcNameIdx;
-};
-
-// ---------- FEIRStmtReturnAssertNonnull ----------
-class FEIRStmtReturnAssertNonnull : public FEIRStmtUseOnly, public FEIRStmtSafetyReturnAssert {
- public:
-  FEIRStmtReturnAssertNonnull(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr, const std::string &funcName)
-      : FEIRStmtUseOnly(argOp, std::move(argExpr)), FEIRStmtSafetyReturnAssert(funcName) {}
-
-  ~FEIRStmtReturnAssertNonnull() = default;
+  ~FEIRStmtAssertNonnull() = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1744,13 +1724,13 @@ class FEIRStmtCallAssertBoundary : public FEIRStmtNary, public FEIRStmtSafetyCal
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 };
 
-// ---------- FEIRStmtReturnAssertBoundary ----------
-class FEIRStmtReturnAssertBoundary : public FEIRStmtNary, public FEIRStmtSafetyReturnAssert {
+// ---------- FEIRStmtAssertBoundary ----------
+class FEIRStmtAssertBoundary : public FEIRStmtNary {
  public:
-  FEIRStmtReturnAssertBoundary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn,
-      const std::string &funcName) : FEIRStmtNary(opIn, std::move(argExprsIn)), FEIRStmtSafetyReturnAssert(funcName) {}
+  FEIRStmtAssertBoundary(Opcode opIn,
+      std::list<std::unique_ptr<FEIRExpr>> argExprsIn) : FEIRStmtNary(opIn, std::move(argExprsIn)) {}
 
-  ~FEIRStmtReturnAssertBoundary() = default;
+  ~FEIRStmtAssertBoundary() = default;
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -1770,7 +1750,7 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
  private:
-  void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans, const std::string& funcName) const;
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 };
 
 // ---------- FEIRStmtPesudoLabel ----------
@@ -2367,9 +2347,8 @@ class FEIRStmtCallAssign : public FEIRStmtAssign {
  private:
   Opcode AdjustMIROp() const;
   void InsertNonnullInRetVar(MIRSymbol &retVarSym) const;
-  void InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index,
-                                   MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                   const std::string &funcName) const;
+  void InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index, MIRBuilder &mirBuilder,
+                                   std::list<StmtNode*> &ans, const std::string &funcName) const;
   FEStructMethodInfo &methodInfo;
   Opcode mirOp;
   bool isStatic;

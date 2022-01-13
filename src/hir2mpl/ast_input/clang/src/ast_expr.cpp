@@ -244,7 +244,7 @@ void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std:
       !(expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead)) {
     return;
   }
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, expr->Clone());
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, expr->Clone());
   stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(stmt));
 }
@@ -767,7 +767,7 @@ void ASTUODerefExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uni
     return;
   }
   if (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) {
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, std::move(baseExpr));
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseExpr));
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
@@ -1483,7 +1483,7 @@ void ASTArraySubscriptExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stm
     return;
   }
   if (FEIRBuilder::IsZeroConstExpr(idxExpr)) {  // insert nonnull checking when ptr[0]
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, baseAddrExpr->Clone());
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, baseAddrExpr->Clone());
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }
@@ -1621,7 +1621,7 @@ void ASTMemberExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uniq
     return;
   }
   if (baseFEExpr->GetKind() == kExprDRead || baseFEExpr->GetKind() == kExprIRead) {
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assertnonnull, std::move(baseFEExpr));
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseFEExpr));
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
   }

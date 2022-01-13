@@ -352,7 +352,7 @@ void FEIRStmtDAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSym
            FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
     return;
   }
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, expr->Clone());
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, expr->Clone());
   std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), stmts);
 }
@@ -775,16 +775,14 @@ std::string FEIRStmtUseOnly::DumpDotStringImpl() const {
   return ss.str();
 }
 
-// ---------- FEIRStmtCallAssertNonnull ----------
-std::list<StmtNode*> FEIRStmtReturnAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
+std::list<StmtNode*> FEIRStmtAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> ans;
   ASSERT_NOT_NULL(expr);
   if (SkipNonnullChecking(mirBuilder)) {
     return ans;
   }
   BaseNode *srcNode = expr->GenMIRNode(mirBuilder);
-  GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
-  StmtNode *mirStmt = mirBuilder.CreateStmtReturnAssertNonnull(op, srcNode, stridx);
+  StmtNode *mirStmt = mirBuilder.CreateStmtAssertNonnull(op, srcNode, mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   ans.push_back(mirStmt);
   return ans;
 }
@@ -798,7 +796,8 @@ std::list<StmtNode*> FEIRStmtCallAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirB
   }
   BaseNode *srcNode = expr->GenMIRNode(mirBuilder);
   GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
-  StmtNode *mirStmt = mirBuilder.CreateStmtCallAssertNonnull(op, srcNode, stridx, GetParamIndex());
+  StmtNode *mirStmt = mirBuilder.CreateStmtCallAssertNonnull(op, srcNode, stridx, GetParamIndex(),
+                                                             mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   ans.push_back(mirStmt);
   return ans;
 }
@@ -810,7 +809,8 @@ std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mir
   auto args = ReplaceBoundaryChecking(mirBuilder);
   if (args.size() > 0) {
     GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
-    stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex());
+    stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex(),
+                                                   mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   }
   if (stmt != nullptr) {
     stmts.emplace_back(stmt);
@@ -818,14 +818,13 @@ std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mir
   return stmts;
 }
 
-// ---------- FEIRStmtReturnAssertBoundary ----------
-std::list<StmtNode*> FEIRStmtReturnAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
+// ---------- FEIRStmtAssertBoundary ----------
+std::list<StmtNode*> FEIRStmtAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
   auto args = ReplaceBoundaryChecking(mirBuilder);
   if (args.size() > 0) {
-    GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
-    stmt = mirBuilder.CreateStmtReturnAssertBoundary(op, std::move(args), stridx);
+    stmt = mirBuilder.CreateStmtAssertBoundary(op, std::move(args), mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   }
   if (stmt != nullptr) {
     stmts.emplace_back(stmt);
@@ -851,8 +850,7 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
       ans.emplace_back(iNode);
       mirStmt = mirBuilder.CreateStmtReturn(nullptr);
     } else {
-      std::string funcName = mirBuilder.GetCurrentFunction()->GetName();
-      InsertNonnullChecking(mirBuilder, ans, funcName);
+      InsertNonnullChecking(mirBuilder, ans);
       ENCChecker::InsertBoundaryAssignChecking(mirBuilder, ans, expr, srcFileIndex, srcFileLineNum);
       ENCChecker::CheckBoundaryLenFinalAddr(mirBuilder, expr, srcFileIndex, srcFileLineNum);
       mirStmt = mirBuilder.CreateStmtReturn(srcNode);
@@ -862,8 +860,7 @@ std::list<StmtNode*> FEIRStmtReturn::GenMIRStmtsImpl(MIRBuilder &mirBuilder) con
   return ans;
 }
 
-void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-    const std::string& funcName) const {
+void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr == nullptr) {
     return;
   }
@@ -876,8 +873,7 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
     return;
   }
   if ((expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) && expr->GetPrimType() == PTY_ptr) {
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturnAssertNonnull>(OP_returnassertnonnull, expr->Clone(),
-        funcName);
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_returnassertnonnull, expr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
   }
@@ -1858,9 +1854,8 @@ void FEIRStmtCallAssign::InsertNonnullInRetVar(MIRSymbol &retVarSym) const {
   }
 }
 
-void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index,
-                                                     MIRBuilder &mirBuilder, std::list<StmtNode*> &ans,
-                                                     const std::string& funcName) const {
+void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr, size_t index, MIRBuilder &mirBuilder,
+                                                     std::list<StmtNode*> &ans, const std::string& funcName) const {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
@@ -4199,7 +4194,7 @@ void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &bas
              FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
       return;
     }
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, baseExpr->Clone());
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, baseExpr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
   }

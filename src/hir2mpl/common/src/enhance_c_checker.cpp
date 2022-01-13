@@ -151,7 +151,7 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
   }
   if ((initFEExpr->GetKind() == kExprDRead || initFEExpr->GetKind() == kExprIRead) &&
       initFEExpr->GetPrimType() == PTY_ptr) {
-    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtUseOnly>(OP_assignassertnonnull, initFEExpr->Clone());
+    UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, initFEExpr->Clone());
     stmt->SetSrcFileInfo(sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum());
     stmts.emplace_back(std::move(stmt));
   }
@@ -1552,7 +1552,7 @@ void ASTFunc::InsertBoundaryCheckingInRet(std::list<UniqueFEIRStmt> &stmts) cons
   lenExpr = FEIRBuilder::CreateExprBinary(OP_add, retExpr->Clone(), std::move(lenExpr));
   exprs.emplace_back(std::move(lenExpr));
   exprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtReturnAssertBoundary>(OP_returnassertle, std::move(exprs), GetName());
+  UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertBoundary>(OP_returnassertle, std::move(exprs));
   stmt->SetSrcFileInfo(stmts.back()->GetSrcFileIdx(), stmts.back()->GetSrcFileLineNum());
   stmts.insert(--stmts.end(), std::move(stmt));
 }
@@ -1571,7 +1571,7 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(srcExpr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_calcassertge, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_calcassertge, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(fileIdx, fileLine);
   std::list<StmtNode*> lowerStmts = lowerStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), lowerStmts);
@@ -1579,7 +1579,7 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(srcExpr->Clone());
   upperExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_calcassertlt, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_calcassertlt, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(fileIdx, fileLine);
   std::list<StmtNode*> upperStmts = upperStmt->GenMIRStmts(mirBuilder);
   ans.splice(ans.end(), upperStmts);
@@ -1599,7 +1599,7 @@ UniqueFEIRStmt ENCChecker::InsertBoundaryLEChecking(UniqueFEIRExpr lenExpr, cons
   std::list<UniqueFEIRExpr> exprs;
   exprs.emplace_back(std::move(boundaryExpr));
   exprs.emplace_back(std::move(baseExpr));
-  return std::make_unique<FEIRStmtNary>(OP_assignassertle, std::move(exprs));
+  return std::make_unique<FEIRStmtAssertBoundary>(OP_assignassertle, std::move(exprs));
 }
 
 UniqueFEIRExpr ENCChecker::GetBoundaryLenExprCache(uint32 hash) {
@@ -1906,14 +1906,14 @@ void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(idxExpr->Clone());
   lowerExprs.emplace_back(baseAddrFEExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(OP_assertge, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(std::move(idxExpr));
   upperExprs.emplace_back(std::move(baseAddrFEExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(OP_assertlt, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
 }
@@ -1934,14 +1934,14 @@ void ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, Un
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(expr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtNary>(checkLowerOp, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(checkLowerOp, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(std::move(expr));
   upperExprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtNary>(checkUpperOp, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(checkUpperOp, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
 }
