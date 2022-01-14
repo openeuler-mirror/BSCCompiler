@@ -27,6 +27,7 @@ void CGProp::DoProp() {
       TargetProp(*insn);
     }
   }
+  PropPatternOpt();
 }
 
 bool CgProp::PhaseRun(maplebe::CGFunc &f) {

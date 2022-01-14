@@ -41,6 +41,7 @@ class CGProp {
  private:
   virtual void CopyProp(Insn &insn) = 0;
   virtual void TargetProp(Insn &insn) = 0;
+  virtual void PropPatternOpt() = 0;
   CGSSAInfo *ssaInfo;
 };
 

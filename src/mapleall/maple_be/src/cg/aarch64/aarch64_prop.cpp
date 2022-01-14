@@ -14,8 +14,12 @@
  */
 #include "aarch64_prop.h"
 #include "aarch64_isa.h"
+#include "aarch64_cg.h"
 
 namespace maplebe {
+
+#define PROP_DUMP CG_DEBUG_FUNC(cgFunc)
+
 void AArch64Prop::ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) {
   MapleUnorderedMap<uint32, DUInsnInfo*> &useList = toBeReplaced->GetAllUseInsns();
   for (auto it = useList.begin(); it != useList.end();) {
@@ -396,6 +400,594 @@ bool A64StrLdrProp::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd,
     return false;
   }
   return true;
+}
+
+void AArch64Prop::PropPatternOpt() {
+  /* if the number of bbs is more than 500 or the number of insns is more than 9000, don't optimize. */
+  constexpr uint32 kMaxBBNum = 500;
+  constexpr uint32 kMaxInsnNum = 9000;
+  bool hasBurden = (cgFunc->NumBBs() > kMaxBBNum) || (cgFunc->GetTotalNumberOfInstructions() > kMaxInsnNum);
+  if (hasBurden) {
+    return;
+  }
+  PropOptimizeManager optManager(*cgFunc, GetSSAInfo());
+  optManager.Optimize<ExtendMovPattern>();
+  optManager.Optimize<ExtendShiftPattern>();
+  return;
+}
+
+void ExtendShiftPattern::SetExMOpType(Insn &use) {
+  MOperator op = use.GetMachineOpcode();
+  switch (op) {
+    case MOP_xaddrrr:
+    case MOP_xxwaddrrre:
+    case MOP_xaddrrrs: {
+      exMOpType = kExAdd;
+      break;
+    }
+    case MOP_waddrrr:
+    case MOP_wwwaddrrre:
+    case MOP_waddrrrs: {
+      exMOpType = kEwAdd;
+      break;
+    }
+    case MOP_xsubrrr:
+    case MOP_xxwsubrrre:
+    case MOP_xsubrrrs: {
+      exMOpType = kExSub;
+      break;
+    }
+    case MOP_wsubrrr:
+    case MOP_wwwsubrrre:
+    case MOP_wsubrrrs: {
+      exMOpType = kEwSub;
+      break;
+    }
+    case MOP_xcmnrr:
+    case MOP_xwcmnrre:
+    case MOP_xcmnrrs: {
+      exMOpType = kExCmn;
+      break;
+    }
+    case MOP_wcmnrr:
+    case MOP_wwcmnrre:
+    case MOP_wcmnrrs: {
+      exMOpType = kEwCmn;
+      break;
+    }
+    case MOP_xcmprr:
+    case MOP_xwcmprre:
+    case MOP_xcmprrs: {
+      exMOpType = kExCmp;
+      break;
+    }
+    case MOP_wcmprr:
+    case MOP_wwcmprre:
+    case MOP_wcmprrs: {
+      exMOpType = kEwCmp;
+      break;
+    }
+    default: {
+      exMOpType = kExUndef;
+    }
+  }
+}
+
+void ExtendShiftPattern::SetLsMOpType(Insn &use) {
+  MOperator op = use.GetMachineOpcode();
+  switch (op) {
+    case MOP_xaddrrr:
+    case MOP_xaddrrrs: {
+      lsMOpType = kLxAdd;
+      break;
+    }
+    case MOP_waddrrr:
+    case MOP_waddrrrs: {
+      lsMOpType = kLwAdd;
+      break;
+    }
+    case MOP_xsubrrr:
+    case MOP_xsubrrrs: {
+      lsMOpType = kLxSub;
+      break;
+    }
+    case MOP_wsubrrr:
+    case MOP_wsubrrrs: {
+      lsMOpType = kLwSub;
+      break;
+    }
+    case MOP_xcmnrr:
+    case MOP_xcmnrrs: {
+      lsMOpType = kLxCmn;
+      break;
+    }
+    case MOP_wcmnrr:
+    case MOP_wcmnrrs: {
+      lsMOpType = kLwCmn;
+      break;
+    }
+    case MOP_xcmprr:
+    case MOP_xcmprrs: {
+      lsMOpType = kLxCmp;
+      break;
+    }
+    case MOP_wcmprr:
+    case MOP_wcmprrs: {
+      lsMOpType = kLwCmp;
+      break;
+    }
+    case MOP_xeorrrr:
+    case MOP_xeorrrrs: {
+      lsMOpType = kLxEor;
+      break;
+    }
+    case MOP_weorrrr:
+    case MOP_weorrrrs: {
+      lsMOpType = kLwEor;
+      break;
+    }
+    case MOP_xinegrr:
+    case MOP_xinegrrs: {
+      lsMOpType = kLxNeg;
+      replaceIdx = kInsnSecondOpnd;
+      break;
+    }
+    case MOP_winegrr:
+    case MOP_winegrrs: {
+      lsMOpType = kLwNeg;
+      replaceIdx = kInsnSecondOpnd;
+      break;
+    }
+    case MOP_xiorrrr:
+    case MOP_xiorrrrs: {
+      lsMOpType = kLxIor;
+      break;
+    }
+    case MOP_wiorrrr:
+    case MOP_wiorrrrs: {
+      lsMOpType = kLwIor;
+      break;
+    }
+    default: {
+      lsMOpType = kLsUndef;
+    }
+  }
+}
+
+void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
+  MOperator op = def.GetMachineOpcode();
+  switch (op) {
+    case MOP_xsxtb32:
+    case MOP_xsxtb64: extendOp = ExtendShiftOperand::kSXTB;
+      break;
+    case MOP_xsxth32:
+    case MOP_xsxth64: extendOp = ExtendShiftOperand::kSXTH;
+      break;
+    case MOP_xsxtw64: extendOp = ExtendShiftOperand::kSXTW;
+      break;
+    case MOP_xuxtb32: extendOp = ExtendShiftOperand::kUXTB;
+      break;
+    case MOP_xuxth32: extendOp = ExtendShiftOperand::kUXTH;
+      break;
+    case MOP_xuxtw64: extendOp = ExtendShiftOperand::kUXTW;
+      break;
+    case MOP_wlslrri5:
+    case MOP_xlslrri6: shiftOp = BitShiftOperand::kLSL;
+      break;
+    case MOP_xlsrrri6:
+    case MOP_wlsrrri5: shiftOp = BitShiftOperand::kLSR;
+      break;
+    case MOP_xasrrri6:
+    case MOP_wasrrri5: shiftOp = BitShiftOperand::kASR;
+      break;
+    default: {
+      extendOp = ExtendShiftOperand::kUndef;
+      shiftOp = BitShiftOperand::kUndef;
+    }
+  }
+}
+
+/* first use must match SelectExtendOrShift */
+bool ExtendShiftPattern::CheckDefUseInfo(Insn &use, uint32 size) {
+  AArch64RegOperand &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
+  Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
+  CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
+  AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
+  if (regDefSrc.IsPhysicalRegister()) {
+    return false;
+  }
+  regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
+  /* check regDefSrc */
+  Insn *defSrcInsn = nullptr;
+  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(defSrcRegNo);
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (defInfo == nullptr) {
+    return false;
+  }
+  defSrcInsn = defInfo->GetInsn();
+
+  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(defSrcInsn)->GetMachineOpcode()];
+  if ((size != regOperand.GetSize()) && md->IsMove()) {
+    return false;
+  }
+  if (defInsn->GetBB() == use.GetBB()) {
+    /* check replace reg def between defInsn and currInsn */
+    Insn *tmpInsn = defInsn->GetNext();
+    while (tmpInsn != &use) {
+      if (tmpInsn == defSrcInsn || tmpInsn == nullptr) {
+        return false;
+      }
+      tmpInsn = tmpInsn->GetNext();
+    }
+  } else { /* def use not in same BB */
+    if (defSrcInsn->GetBB() != defInsn->GetBB()) {
+      return false;
+    }
+    if (defSrcInsn->GetId() > defInsn->GetId()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Optimize ExtendShiftPattern:
+ * ==========================================================
+ *           nosuffix  LSL   LSR   ASR      extrn   (def)
+ * nosuffix |   F    | LSL | LSR | ASR |    extrn  |
+ * LSL      |   F    | LSL |  F  |  F  |    extrn  |
+ * LSR      |   F    |  F  | LSR |  F  |     F     |
+ * ASR      |   F    |  F  |  F  | ASR |     F     |
+ * exten    |   F    |  F  |  F  |  F  |exten(self)|
+ * (use)
+ * ===========================================================
+ */
+constexpr uint32 kExtenAddShiftNum = 5;
+ExtendShiftPattern::SuffixType optTable[kExtenAddShiftNum][kExtenAddShiftNum] = {
+        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kLSR,
+                ExtendShiftPattern::kASR, ExtendShiftPattern::kExten },
+        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSL, ExtendShiftPattern::kNoSuffix,
+                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten },
+        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kLSR,
+                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix },
+        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
+                ExtendShiftPattern::kASR, ExtendShiftPattern::kNoSuffix },
+        { ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kNoSuffix,
+                ExtendShiftPattern::kNoSuffix, ExtendShiftPattern::kExten }
+};
+
+/* Check whether ExtendShiftPattern optimization can be performed. */
+ExtendShiftPattern::SuffixType ExtendShiftPattern::CheckOpType(Operand &lastOpnd) {
+  /* Assign values to useType and defType. */
+  uint32 useType = ExtendShiftPattern::kNoSuffix;
+  uint32 defType = shiftOp;
+  if (extendOp != ExtendShiftOperand::kUndef) {
+    defType = ExtendShiftPattern::kExten;
+  }
+  if (lastOpnd.IsOpdShift()) {
+    BitShiftOperand lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    useType = lastShiftOpnd.GetShiftOp();
+  } else if (lastOpnd.IsOpdExtend()) {
+    ExtendShiftOperand lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    useType = ExtendShiftPattern::kExten;
+    /* two insn is exten and exten ,value is exten(oneself) */
+    if (useType == defType && extendOp != lastExtendOpnd.GetExtendOp()) {
+      return ExtendShiftPattern::kNoSuffix;
+    }
+  }
+  return optTable[useType][defType];
+}
+
+constexpr uint32 kExMopTypeSize = 9;
+constexpr uint32 kLsMopTypeSize = 15;
+
+MOperator exMopTable[kExMopTypeSize] = {
+        MOP_undef, MOP_xxwaddrrre, MOP_wwwaddrrre, MOP_xxwsubrrre, MOP_wwwsubrrre,
+        MOP_xwcmnrre, MOP_wwcmnrre, MOP_xwcmprre, MOP_wwcmprre
+};
+MOperator lsMopTable[kLsMopTypeSize] = {
+        MOP_undef, MOP_xaddrrrs, MOP_waddrrrs, MOP_xsubrrrs, MOP_wsubrrrs,
+        MOP_xcmnrrs, MOP_wcmnrrs, MOP_xcmprrs, MOP_wcmprrs, MOP_xeorrrrs,
+        MOP_weorrrrs, MOP_xinegrrs, MOP_winegrrs, MOP_xiorrrrs, MOP_wiorrrrs
+};
+/* new Insn extenType:
+ * =====================
+ * (useMop)   (defMop) (newmop)
+ * | nosuffix |  all  | all|
+ * | exten    |  ex   | ex |
+ * |  ls      |  ex   | ls |
+ * |  asr     |  !asr | F  |
+ * |  !asr    |  asr  | F  |
+ * (useMop)   (defMop)
+ * =====================
+ */
+void ExtendShiftPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) {
+  AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
+  uint32 lastIdx = use.GetOperandSize() - k1BitSize;
+  Operand &lastOpnd = use.GetOperand(lastIdx);
+  ExtendShiftPattern::SuffixType optType = CheckOpType(lastOpnd);
+  Operand *shiftOpnd = nullptr;
+  if (optType == ExtendShiftPattern::kNoSuffix) {
+    return;
+  }else if (optType == ExtendShiftPattern::kExten) {
+    replaceOp = exMopTable[exMOpType];
+    if (amount > k4BitSize) {
+      return;
+    }
+    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
+  } else {
+    replaceOp = lsMopTable[lsMOpType];
+    if (amount >= k32BitSize) {
+      return;
+    }
+    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
+  }
+  if (replaceOp == MOP_undef) {
+    return;
+  }
+
+  Insn *replaceUseInsn = nullptr;
+  Operand &firstOpnd = use.GetOperand(kInsnFirstOpnd);
+  Operand *secondOpnd = &use.GetOperand(kInsnSecondOpnd);
+  if (replaceIdx == kInsnSecondOpnd) { /* replace neg insn */
+    secondOpnd = &def.GetOperand(kInsnSecondOpnd);
+    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd, *shiftOpnd);
+  } else {
+    Operand &thirdOpnd = def.GetOperand(kInsnSecondOpnd);
+    replaceUseInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(replaceOp, firstOpnd, *secondOpnd,
+                                                                    thirdOpnd, *shiftOpnd);
+  }
+  use.GetBB()->ReplaceInsn(use, *replaceUseInsn);
+  if (PROP_DUMP) {
+    LogInfo::MapleLogger() << ">>>>>>> In ExtendShiftPattern : <<<<<<<\n";
+    LogInfo::MapleLogger() << "=======ReplaceInsn :\n";
+    use.Dump();
+    LogInfo::MapleLogger() << "=======NewInsn :\n";
+    replaceUseInsn->Dump();
+  }
+  if (removeDefInsn) {
+    if (PROP_DUMP) {
+      LogInfo::MapleLogger() << ">>>>>>> In ExtendShiftPattern : <<<<<<<\n";
+      LogInfo::MapleLogger() << "=======RemoveDefInsn :\n";
+      defInsn->Dump();
+    }
+    defInsn->GetBB()->RemoveInsn(*defInsn);
+  }
+  /* update ssa info */
+  optSsaInfo->ReplaceInsn(use, *replaceUseInsn);
+  newInsn = replaceUseInsn;
+  optSuccess = true;
+}
+
+/*
+ * pattern1:
+ * UXTB/UXTW X0, W1              <---- def x0
+ * ....                          <---- (X0 not used)
+ * AND/SUB/EOR X0, X1, X0        <---- use x0
+ * ======>
+ * AND/SUB/EOR X0, X1, W1 UXTB/UXTW
+ *
+ * pattern2:
+ * LSL/LSR X0, X1, #8
+ * ....(X0 not used)
+ * AND/SUB/EOR X0, X1, X0
+ * ======>
+ * AND/SUB/EOR X0, X1, X1 LSL/LSR #8
+ */
+void ExtendShiftPattern::Optimize(Insn &insn) {
+  uint32 amount = 0;
+  uint32 offset = 0;
+  uint32 lastIdx = insn.GetOperandSize() - k1BitSize;
+  Operand &lastOpnd = insn.GetOperand(lastIdx);
+  if (lastOpnd.IsOpdShift()) {
+    BitShiftOperand &lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    amount = lastShiftOpnd.GetShiftAmount();
+  } else if (lastOpnd.IsOpdExtend()) {
+    ExtendShiftOperand &lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    amount = lastExtendOpnd.GetShiftAmount();
+  }
+  if (shiftOp != BitShiftOperand::kUndef) {
+    AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+    offset = immOpnd.GetValue();
+  }
+  amount += offset;
+
+  ReplaceUseInsn(insn, *defInsn, amount);
+}
+
+void ExtendShiftPattern::DoExtendShiftOpt(Insn &insn) {
+  Init();
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  Optimize(insn);
+  if (optSuccess) {
+    DoExtendShiftOpt(*newInsn);
+  }
+}
+
+/* check and set:
+ * exMOpType, lsMOpType, extendOp, shiftOp, defInsn
+ */
+bool ExtendShiftPattern::CheckCondition(Insn &insn) {
+  SetLsMOpType(insn);
+  SetExMOpType(insn);
+  if ((exMOpType == kExUndef) && (lsMOpType == kLsUndef)) {
+    return false;
+  }
+  AArch64RegOperand &regOperand = static_cast<AArch64RegOperand&>(insn.GetOperand(replaceIdx));
+  if (regOperand.IsPhysicalRegister()) {
+    return false;
+  }
+  regno_t regNo = regOperand.GetRegisterNumber();
+  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(regNo);
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (defInfo == nullptr) {
+    return false;
+  }
+  defInsn = defInfo->GetInsn();
+  SelectExtendOrShift(*defInsn);
+  /* defInsn must be shift or extend */
+  if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
+    return false;
+  }
+  return CheckDefUseInfo(insn, regOperand.GetSize());
+}
+
+void ExtendShiftPattern::Init() {
+  replaceOp = MOP_undef;
+  extendOp = ExtendShiftOperand::kUndef;
+  shiftOp = BitShiftOperand::kUndef;
+  defInsn = nullptr;
+  replaceIdx = kInsnThirdOpnd;
+  newInsn = nullptr;
+  optSuccess = false;
+  removeDefInsn = false;
+  exMOpType = kExUndef;
+  lsMOpType = kLsUndef;
+}
+
+void ExtendShiftPattern::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB_REV(bb, &cgFunc) {
+    FOR_BB_INSNS_REV(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      DoExtendShiftOpt(*insn);
+    }
+  }
+}
+
+void ExtendMovPattern::Run() {
+  if (!cgFunc.GetMirModule().IsCModule()) {
+    return;
+  }
+  FOR_ALL_BB(bb, &cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
+      if (!CheckCondition(*insn)) {
+        continue;
+      }
+      Optimize(*insn);
+    }
+  }
+}
+
+bool ExtendMovPattern::CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum) {
+  InsnSet srcDefSet;
+  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(srcRegNo);
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (defInfo == nullptr) {
+    return false;
+  }
+  Insn *defInsn = defInfo->GetInsn();
+  srcDefSet.insert(defInsn);
+  /* reserve insn set for non ssa version. */
+  for (auto defInsn : srcDefSet) {
+    CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
+    MOperator mOp = defInsn->GetMachineOpcode();
+    switch (mOp) {
+      case MOP_wiorrri12:
+      case MOP_weorrri12: {
+        /* check immVal if mop is OR */
+        AArch64ImmOperand &imm = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        uint32 bitNum = imm.GetValue();
+        if ((bitNum >> validNum) != 0) {
+          return false;
+        }
+      }
+      case MOP_wandrri12: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        regno_t defSrcRegNo = defSrcRegOpnd.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wandrrr: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd1 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        RegOperand &defSrcRegOpnd2 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        regno_t defSrcRegNo1 = defSrcRegOpnd1.GetRegisterNumber();
+        regno_t defSrcRegNo2 = defSrcRegOpnd2.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo1, validNum) && !CheckSrcReg(*defInsn, defSrcRegNo2, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wiorrrr:
+      case MOP_weorrrr: {
+        /* check defSrcReg */
+        RegOperand &defSrcRegOpnd1 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnSecondOpnd));
+        RegOperand &defSrcRegOpnd2 = static_cast<RegOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
+        regno_t defSrcRegNo1 = defSrcRegOpnd1.GetRegisterNumber();
+        regno_t defSrcRegNo2 = defSrcRegOpnd2.GetRegisterNumber();
+        if (!CheckSrcReg(*defInsn, defSrcRegNo1, validNum) || !CheckSrcReg(*defInsn, defSrcRegNo2, validNum)) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wldrb: {
+        if (validNum != k8BitSize) {
+          return false;
+        }
+        break;
+      }
+      case MOP_wldrh: {
+        if (validNum != k16BitSize) {
+          return false;
+        }
+        break;
+      }
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+bool ExtendMovPattern::BitNotAffected(Insn &insn, uint32 validNum) {
+  RegOperand &firstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  regno_t desRegNo = firstOpnd.GetRegisterNumber();
+  regno_t srcRegNo = secondOpnd.GetRegisterNumber();
+  VRegVersion *useVersion = optSsaInfo->FindSSAVersion(desRegNo);
+  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
+  if (defInfo == nullptr) {
+    return false;
+  }
+  if (!CheckSrcReg(insn, srcRegNo, validNum)) {
+    return false;
+  }
+  replaceMop = MOP_wmovrr;
+  return true;
+}
+
+bool ExtendMovPattern::CheckCondition(Insn &insn) {
+  MOperator mOp = insn.GetMachineOpcode();
+  switch (mOp) {
+    case MOP_xuxtb32: return BitNotAffected(insn, k8BitSize);
+    case MOP_xuxth32: return BitNotAffected(insn, k16BitSize);
+    default: return false;
+  }
+}
+
+/* No initialization required */
+void ExtendMovPattern::Init() {
+  replaceMop = MOP_undef;
+}
+
+void ExtendMovPattern::Optimize(Insn &insn) {
+  insn.SetMOperator(replaceMop);
 }
 
 void A64ReplaceRegOpndVisitor::Visit(RegOperand *v) {

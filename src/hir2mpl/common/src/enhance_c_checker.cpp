@@ -1863,8 +1863,10 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
           FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to callee that requires a boundary pointer"
                  " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
         } else if (op == OP_returnassertle) {
-          FE_ERR(kLncErr, "%s:%d error: returned pointer's boundary and the functions requirement are "
-                 "mismatched", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+          if (curFunction->GetName().compare(kBoundsBuiltFunc) != 0) {
+            FE_ERR(kLncErr, "%s:%d error: returned pointer's boundary and the functions requirement are "
+                   "mismatched", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+          }
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
                  FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
