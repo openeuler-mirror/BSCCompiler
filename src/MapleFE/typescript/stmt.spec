@@ -818,10 +818,7 @@ rule Statement : ONEOF(
   LabelledStatement,
   ThrowStatement,
   TryStatement,
-  SpecialStatement,
-## I suppose to include CallExpression in ExpressionStatement, but due to the
-## complexity of auto-insert-semicolon of TS, I put CallExpression here.
-  CallExpression)
+  SpecialStatement)
 #  DebuggerStatement
   attr.property : Top
   attr.property : Single  # This is extremely important to give CallExpression the
