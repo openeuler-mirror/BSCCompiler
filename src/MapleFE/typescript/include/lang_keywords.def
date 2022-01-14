@@ -112,6 +112,7 @@ LANGKEYWORD(Capitalize)
 LANGKEYWORD(Uncapitalize)
 
 LANGKEYWORD(Error)
+LANGKEYWORD(toString)
 
 // extra
 

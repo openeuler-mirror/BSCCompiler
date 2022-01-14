@@ -1,0 +1,10 @@
+Matched 41 tokens.
+Matched 48 tokens.
+============= Module ===========
+== Sub Tree ==
+func  func(n,o?)  throws: 
+  return new Promise((resolve,reject) -> resolve("OK")
+)
+
+== Sub Tree ==
+export {func as import} 
