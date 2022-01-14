@@ -28,6 +28,7 @@ namespace maplebe {
 void AArch64IfConversionOptimizer::InitOptimizePatterns() {
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOIfThenElsePattern>(*cgFunc));
   singlePassPatterns.emplace_back(memPool->New<AArch64ICOSameCondPattern>(*cgFunc));
+  singlePassPatterns.emplace_back(memPool->New<AArch64ICOMorePredsPattern>(*cgFunc));
 }
 
 /* build ccmp Insn */
@@ -615,7 +616,7 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   return DoOpt(firstIfBB,secondIfBB,thenBB);
 }
 
-bool AArch64ICOSameCondPattern::CheckMop(MOperator mOperator) {
+bool AArch64ICOPattern::CheckMop(MOperator mOperator) {
   switch (mOperator) {
     case MOP_beq:
     case MOP_bne:
@@ -697,6 +698,153 @@ bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB)
   cgFunc->GetTheCFG()->RemoveBB(secondIfBB);
   firstIfBB->PushFrontSuccs(*nextBB);
   nextBB->PushFrontPreds(*firstIfBB);
+  return true;
+}
+/*
+ * find the preds all is ifBB
+ */
+bool AArch64ICOMorePredsPattern::Optimize(BB &curBB) {
+  if (curBB.GetKind() != BB::kBBGoto) {
+    return false;
+  }
+  for (BB *preBB : curBB.GetPreds()) {
+    if (preBB->GetKind() != BB::kBBIf) {
+      return false;
+    }
+  }
+  for (BB *succsBB : curBB.GetSuccs()) {
+    if (succsBB->GetKind() != BB::kBBFallthru) {
+      return false;
+    }
+    if (succsBB->NumPreds() > 2) {
+      return false;
+    }
+  }
+  for (BB *preBB : curBB.GetPreds()) {
+    Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
+    ASSERT(condBr != nullptr, "nullptr check");
+    Operand &condBrLastOpnd = condBr->GetOperand(condBr->GetOperandSize() - 1);
+    ASSERT(condBrLastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
+    auto &labelOpnd = static_cast<LabelOperand&>(condBrLastOpnd);
+    if (labelOpnd.GetLabelIndex() != curBB.GetLabIdx()) {
+      return false;
+    }
+  }
+  return DoOpt(curBB);
+}
+
+/* this BBGoto only has mov Insn and Branch */
+bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn) {
+  FOR_BB_INSNS(insn, &gotoBB) {
+    if (!insn->IsMachineInstruction()) {
+      continue;
+    }
+    if (insn->IsMove()) {
+      movInsn.emplace_back(insn);
+      continue;
+    }
+    if (insn->GetId() != gotoBB.GetLastInsn()->GetId()) {
+      return false;
+    } else if (!insn->IsBranch()) { /* last Insn is Branch */
+      return false;
+    }
+  }
+  return true;
+}
+
+/* this BBGoto only has mov Insn */
+bool AArch64ICOMorePredsPattern::MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn,
+                                           Insn &branchInsn) {
+  Operand &branchOpnd0 = branchInsn.GetOperand(kInsnFirstOpnd);
+  regno_t branchRegNo;
+  if (branchOpnd0.IsRegister()) {
+    branchRegNo = static_cast<RegOperand&>(branchOpnd0).GetRegisterNumber();
+  }
+  for (Insn *insn:movInsn) {
+    /* use mov build csel */
+    Operand &opnd0 = insn->GetOperand(kInsnFirstOpnd);
+    Operand &opnd1 = insn->GetOperand(kInsnSecondOpnd);
+    AArch64CC_t ccCode = AArch64ICOPattern::Encode(branchInsn.GetMachineOpcode(), false);
+    ASSERT(ccCode != kCcLast, "unknown cond, ccCode can't be kCcLast");
+    CondOperand &cond = static_cast<AArch64CGFunc *>(cgFunc)->GetCondOperand(ccCode);
+    Operand &rflag = static_cast<AArch64CGFunc *>(cgFunc)->GetOrCreateRflag();
+    RegOperand &regOpnd0 = static_cast<RegOperand&>(opnd0);
+    RegOperand &regOpnd1 = static_cast<RegOperand&>(opnd1);
+    /* movInsn's opnd1 is Immediate */
+    if (opnd1.IsImmediate()) {
+      return false;
+    }
+    /* opnd0 and opnd1 hsa same type and size */
+    if (regOpnd0.GetSize() != regOpnd1.GetSize() || (regOpnd0.IsOfIntClass() != regOpnd1.IsOfIntClass())) {
+      return false;
+    }
+    /* The branchOpnd0 cannot be modified for csel. */
+    regno_t movRegNo0 = static_cast<RegOperand&>(opnd0).GetRegisterNumber();
+    if (branchOpnd0.IsRegister() && branchRegNo == movRegNo0) {
+      return false;
+    }
+    uint32 dSize = regOpnd0.GetSize();
+    bool isIntTy = regOpnd0.IsOfIntClass();
+    MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xcselrrrc : MOP_wcselrrrc)
+                                : (dSize == k64BitSize ? MOP_dcselrrrc : (dSize == k32BitSize ?
+                                                                          MOP_scselrrrc : MOP_hcselrrrc));
+    cselInsn.emplace_back(&cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOpCode, opnd0, opnd1,
+                                                                          opnd0, cond, rflag));
+  }
+  if (cselInsn.size() < 1) {
+    return false;
+  }
+  return true;
+}
+
+bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) {
+  std::vector<Insn*> movInsn;
+  std::vector<std::vector<Insn*>> presCselInsn;
+  std::vector<BB*> presBB;
+  Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(gotoBB);
+  ASSERT(branchInsn != nullptr, "nullptr check");
+  /* get preds's new label */
+  std::vector<LabelOperand*> labelOpnd = branchInsn->GetLabelOpnd();
+  if (labelOpnd.size() != 1) {
+    return false;
+  }
+  if (!CheckGotoBB(gotoBB, movInsn)) {
+    return false;
+  }
+  /* Check all preBB, Exclude gotoBBs that cannot be optimized. */
+  for (BB *preBB : gotoBB.GetPreds()) {
+    Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
+    ASSERT(condBr != nullptr, "nullptr check");
+
+    /* tbz/cbz will not be optimized */
+    MOperator mOperator = condBr->GetMachineOpcode();
+    if (!CheckMop(mOperator)) {
+      return false;
+    }
+    std::vector<Insn*> cselInsn;
+    if (!MovToCsel(movInsn, cselInsn, *condBr)) {
+      return false;
+    }
+    if (cselInsn.size() < 1) {
+      return false;
+    }
+    presCselInsn.emplace_back(cselInsn);
+    presBB.emplace_back(preBB);
+  }
+  /* modifies presBB */
+  for (int i = 0; i < presCselInsn.size(); ++i) {
+    BB *preBB = presBB[i];
+    Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
+    std::vector<Insn*> cselInsn = presCselInsn[i];
+    /* insert csel insn */
+    for (Insn *csel : cselInsn) {
+      preBB->InsertInsnBefore(*condBr, *csel);
+    }
+    /* new condBr */
+    condBr->SetOperand(condBr->GetOperandSize() - 1, *labelOpnd[0]);
+  }
+  /* Remove branches and merge gotoBB */
+  cgFunc->GetTheCFG()->RemoveBB(gotoBB);
   return true;
 }
 

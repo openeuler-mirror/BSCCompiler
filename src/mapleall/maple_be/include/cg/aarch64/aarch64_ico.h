@@ -40,6 +40,7 @@ class AArch64ICOPattern : public ICOPattern {
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2);
   bool IsSetInsn(const Insn &insn, Operand *&dest, Operand *&src) const;
   static uint32 GetNZCV(AArch64CC_t ccCode, bool inverse);
+  bool CheckMop(MOperator mOperator);
 };
 
 /* If-Then-Else pattern */
@@ -79,7 +80,18 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   bool Optimize(BB &curBB) override;
  protected:
   bool DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB);
-  bool CheckMop(MOperator mOperator);
+};
+
+/* If-Then MorePreds pattern */
+class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
+ public:
+  explicit AArch64ICOMorePredsPattern(CGFunc &func) : AArch64ICOPattern(func) {}
+  ~AArch64ICOMorePredsPattern() override = default;
+  bool Optimize(BB &curBB) override;
+ protected:
+  bool DoOpt(BB &gotoBB);
+  bool CheckGotoBB(BB &gotoBB, std::vector<Insn*> &movInsn);
+  bool MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn, Insn &branchInsn);
 };
 }  /* namespace maplebe */
 
