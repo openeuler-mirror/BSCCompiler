@@ -2000,6 +2000,7 @@ rule IndexSignature: ONEOF(
 rule KeywordMethodName : ONEOF("return",
                                "throw",
                                "continue",
+                               "if",
                                "import",
                                "export")
   attr.action : BuildIdentifier()
@@ -2036,7 +2037,7 @@ rule AllPropertyName : ONEOF(PropertyName, KeywordPropName)
 rule PropertyDefinition: ONEOF(IdentifierReference,
                                CoverInitializedName,
                                AllPropertyName + ':' + AssignmentExpression,
-                               ZEROORONE(AccessibilityModifier) + PropertyName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')'
+                               ZEROORONE(AccessibilityModifier) + AllPropertyName + ZEROORONE(TypeParameters) + '(' + ZEROORONE(ParameterList)  + ')'
                                  + ZEROORONE(TypeAnnotation) + '{' + FunctionBody + '}',
                                GetAccessor,
                                SetAccessor,
