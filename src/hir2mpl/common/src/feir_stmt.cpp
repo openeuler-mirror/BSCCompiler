@@ -806,7 +806,7 @@ std::list<StmtNode*> FEIRStmtCallAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirB
 std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  auto args = ReplaceBoundaryChecking(mirBuilder);
+  auto args = ReplaceBoundaryChecking(mirBuilder, GetParamIndex());
   if (args.size() > 0) {
     GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
     stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex(),
@@ -868,8 +868,9 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
     return;
   }
   if (ENCChecker::HasNullExpr(expr)) {
-    FE_ERR(kLncErr, "%s:%d error: null returned from function that requires a nonnull return value",
-             FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+    FE_ERR(kLncErr, "%s:%d error: %s return nonnull but got null pointer",
+           FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+           mirBuilder.GetCurrentFunction()->GetName().c_str());
     return;
   }
   if ((expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) && expr->GetPrimType() == PTY_ptr) {

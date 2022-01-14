@@ -1817,7 +1817,7 @@ void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueF
   }
 }
 
-MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuilder) const {
+MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuilder, size_t paramIdx) const {
   MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
   UniqueFEIRExpr leftExpr = argExprs.front()->Clone();
   UniqueFEIRExpr rightExpr = argExprs.back()->Clone();
@@ -1860,12 +1860,15 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
           return args;
         }
         if (op == OP_callassertle) {
-          FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to callee that requires a boundary pointer"
-                 " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+          std::string paramIdxStr = paramIdx != SIZE_MAX ? ENCChecker::GetNthStr(paramIdx) : "unknown";
+          FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to %s that requires a boundary pointer for the %s"
+                 " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+                 curFunction->GetName().c_str(), paramIdxStr.c_str());
         } else if (op == OP_returnassertle) {
           if (curFunction->GetName().compare(kBoundsBuiltFunc) != 0) {
-            FE_ERR(kLncErr, "%s:%d error: returned pointer's boundary and the functions requirement are "
-                   "mismatched", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+            FE_ERR(kLncErr, "%s:%d error: boundaryless pointer returned from %s that requires a boundary pointer",
+                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
+                 curFunction->GetName().c_str());
           }
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
