@@ -24,11 +24,11 @@ GC_O2 = {
             outfile="${APP}.dex",
             infile=["${APP}.java","${EXTRA_JAVA_FILE}"]
         ),
-        Dex2mpl(
-            dex2mpl="${OUT_ROOT}/aarch64-clang-release/bin/dex2mpl",
-            mplt="${OUT_ROOT}/aarch64-clang-release/libjava-core/host-x86_64-GC_O2/libcore-all.mplt",
-            litprofile="${OUT_ROOT}/tools/codetricks/profile.pv/meta.list",
-            infile="${APP}.dex"
+        Hir2mpl(
+            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
+            option="-mplt ${OUT_ROOT}/aarch64-clang-release/libjava-core/host-x86_64-GC_O2/libcore-all.mplt",
+            infile="${APP}.dex",
+            outfile="${APP}.mpl"
         ),
         Maple(
             maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",

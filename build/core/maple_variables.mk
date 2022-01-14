@@ -40,7 +40,7 @@ JBC2MPL_BIN := $(MAPLE_OUT)/bin/jbc2mpl
 MAPLE_BIN := $(MAPLE_OUT)/bin/maple
 MPLCG_BIN := $(MAPLE_OUT)/bin/mplcg
 JAVA2D8 := $(MAPLE_OUT)/bin/java2d8
-DEX2MPL_BIN := $(MAPLE_OUT)/bin/dex2mpl
+HIR2MPL_BIN := $(MAPLE_OUT)/bin/hir2mpl
 JAVA2DEX := ${MAPLE_ROOT}/build/java2dex
 
 D8 := $(MAPLE_ROOT)/build/d8
@@ -69,30 +69,30 @@ QEMU_CLANG_FLAGS += -nostdlibinc \
   -target aarch64-linux-gnu
 
 ifeq ($(OPT),O2)
-    DEX2MPL_FLAGS :=
+    HIR2MPL_FLAGS := --rc
     MPLME_FLAGS := --O2 --quiet
     MPL2MPL_FLAGS := --O2 --quiet --regnativefunc --no-nativeopt --maplelinker
     MPLCG_FLAGS := --O2 --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
     MPLCG_SO_FLAGS := --fpic
 else ifeq ($(OPT),O0)
-    DEX2MPL_FLAGS :=
+    HIR2MPL_FLAGS := --rc
     MPLME_FLAGS := --quiet
     MPL2MPL_FLAGS := --quiet --regnativefunc --maplelinker
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s
     MPLCG_SO_FLAGS := --fpic
 else ifeq ($(OPT),GC_O2)
-    DEX2MPL_FLAGS := -gconly
+    HIR2MPL_FLAGS :=
     MPLME_FLAGS := --O2 --quiet --gconly
     MPL2MPL_FLAGS := --O2 --quiet --regnativefunc --no-nativeopt --maplelinker
     MPLCG_FLAGS := --O2 --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s --gconly
     MPLCG_SO_FLAGS := --fpic
 else ifeq ($(OPT),GC_O0)
-    DEX2MPL_FLAGS := -gconly
+    HIR2MPL_FLAGS :=
     MPLME_FLAGS := --quiet --gconly
     MPL2MPL_FLAGS := --quiet --regnativefunc --maplelinker
     MPLCG_FLAGS := --quiet --no-pie --verbose-asm --gen-c-macro-def --maplelinker --duplicate_asm_list=$(DUPLICATE_DIR)/duplicateFunc.s --gconly
     MPLCG_SO_FLAGS := --fpic
 endif
-DEX2MPL_APP_FLAGS := -mplt=${LIB_CORE_PATH}/libcore-all.mplt -litprofile=${MAPLE_ROOT}/src/mrt/codetricks/profile.pv/meta.list
+HIR2MPL_APP_FLAGS := -mplt=${LIB_CORE_PATH}/libcore-all.mplt
 MPLCOMBO_FLAGS := --run=me:mpl2mpl:mplcg --option="$(MPLME_FLAGS):$(MPL2MPL_FLAGS):$(MPLCG_FLAGS) $(MPLCG_SO_FLAGS)"
 JAVA2DEX_FLAGS := -p ${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar:${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar

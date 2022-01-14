@@ -18,20 +18,20 @@ O0 = {
     "compile": [
         Java2dex(
             jar_file=[
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
+                "${OUT_ROOT}/aarch64-clang-release/ops/third_party/JAVA_LIBRARIES/core-oj_intermediates/classes.jar",
+                "${OUT_ROOT}/aarch64-clang-release/ops/third_party/JAVA_LIBRARIES/core-libart_intermediates/classes.jar"
             ],
             outfile="${APP}.dex",
             infile=["${APP}.java","${EXTRA_JAVA_FILE}"]
         ),
-        Dex2mpl(
-            dex2mpl="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/dex2mpl",
-            mplt="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/libjava-core/host-x86_64-O2/libcore-all.mplt",
-            litprofile="${OUT_ROOT}/tools/codetricks/profile.pv/meta.list",
-            infile="${APP}.dex"
+        Hir2mpl(
+            hir2mpl="${OUT_ROOT}/aarch64-clang-release/bin/hir2mpl",
+            option="-mplt ${OUT_ROOT}/aarch64-clang-release/libjava-core/host-x86_64-O0/libcore-all.mplt --rc",
+            infile="${APP}.dex",
+            outfile="${APP}.mpl"
         ),
         Maple(
-            maple="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/bin/maple",
+            maple="${OUT_ROOT}/aarch64-clang-release/bin/maple",
             run=["me", "mpl2mpl", "mplcg"],
             option={
                 "me": "--quiet",
@@ -42,7 +42,7 @@ O0 = {
             infile="${APP}.mpl"
         ),
         Linker(
-            lib="host-x86_64-O2",
+            lib="host-x86_64-O0",
         )
     ],
     "run": [
@@ -53,11 +53,11 @@ O0 = {
             qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party",
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/aarch64-clang-release/ops/third_party",
+                "${OUT_ROOT}/aarch64-clang-release/ops/host-x86_64-O0",
                 "./"
             ],
-            mplsh="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mplsh",
+            mplsh="${OUT_ROOT}/aarch64-clang-release/ops/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",
@@ -75,11 +75,11 @@ O0 = {
             qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party",
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/aarch64-clang-release/ops/third_party",
+                "${OUT_ROOT}/aarch64-clang-release/ops/host-x86_64-O0",
                 "./"
             ],
-            mplsh="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mplsh",
+            mplsh="${OUT_ROOT}/aarch64-clang-release/ops/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",
@@ -97,11 +97,11 @@ O0 = {
             qemu="${OUT_ROOT}/tools/bin/qemu-aarch64",
             qemu_libc="/usr/aarch64-linux-gnu",
             qemu_ld_lib=[
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/third_party",
-                "${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/host-x86_64-O2",
+                "${OUT_ROOT}/aarch64-clang-release/ops/third_party",
+                "${OUT_ROOT}/aarch64-clang-release/ops/host-x86_64-O0",
                 "./"
             ],
-            mplsh="${OUT_ROOT}/${MAPLE_BUILD_TYPE}/ops/mplsh",
+            mplsh="${OUT_ROOT}/aarch64-clang-release/ops/mplsh",
             garbage_collection_kind="RC",
             xbootclasspath="libcore-all.so",
             infile="${APP}.so",
