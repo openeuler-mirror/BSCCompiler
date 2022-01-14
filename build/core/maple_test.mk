@@ -19,7 +19,7 @@ include $(MAPLE_BUILD_CORE)/qemu_run.mk
 include $(MAPLE_BUILD_CORE)/link.mk	
 include $(MAPLE_BUILD_CORE)/mplcomb_dex.mk
 include $(MAPLE_BUILD_CORE)/genmplt.mk
-include $(MAPLE_BUILD_CORE)/dex2mpl_test.mk
+include $(MAPLE_BUILD_CORE)/hir2mpl_test.mk
 include $(MAPLE_BUILD_CORE)/java2dex.mk
 
 .PHONY: clean

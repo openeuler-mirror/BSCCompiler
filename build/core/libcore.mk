@@ -41,7 +41,7 @@ $(APP_QEMU_SO): %.VtableImpl.qemu.so : %.VtableImpl.o $(INIT_CXX_O) $(qemu)
 
 include $(MAPLE_BUILD_CORE)/extra.mk
 include $(MAPLE_BUILD_CORE)/mplcomb_dex.mk
-include $(MAPLE_BUILD_CORE)/dex2mpl.mk
+include $(MAPLE_BUILD_CORE)/hir2mpl.mk
 
 $(APP_DEX): %.dex : $(D8) $(LIB_CORE_JAR)
 	$(D8) --min-api 39 --output . $(LIB_CORE_JAR)
