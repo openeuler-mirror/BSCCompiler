@@ -831,6 +831,9 @@ bool HIR2MPLOptions::ProcessBoundaryCheckDynamic(const mapleOption::Option &opt)
 
 bool HIR2MPLOptions::ProcessSafeRegion(const mapleOption::Option &opt) {
   FEOptions::GetInstance().SetSafeRegion(true);
+  // boundary and npe checking options will be opened, if safe region option is opened
+  FEOptions::GetInstance().SetNpeCheckDynamic(true);
+  FEOptions::GetInstance().SetBoundaryCheckDynamic(true);
   return true;
 }
 

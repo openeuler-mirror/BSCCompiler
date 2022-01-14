@@ -1406,7 +1406,7 @@ class FEIRStmtNary : public FEIRStmt {
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
-  MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder) const;
+  MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, size_t paramIdx = SIZE_MAX) const;
 
   Opcode op;
   std::list<std::unique_ptr<FEIRExpr>> argExprs;
