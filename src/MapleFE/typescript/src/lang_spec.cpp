@@ -549,6 +549,7 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
     // To simplify the code, I reused TraverseToken().
     found = TraverseToken(semicolon, appeal, child);
   } else {
+    // case 1. We are crossing lines.
     if (curr_token->mLineBegin && prev_token->mLineEnd) {
       // If prev token (line end) is a separator
       if (prev_token->IsSeparator() &&
@@ -576,6 +577,11 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
       if (found)
         return found;
     }
+
+    // case 2. like:
+    //     {foo()}   <-- , is missed before }
+    if (curr_token->IsSeparator() && (curr_token->GetSepId() == SEP_Rbrace))
+      return true;
   }
 
   if (child) {
