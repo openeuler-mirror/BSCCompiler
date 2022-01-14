@@ -33,12 +33,12 @@ const agpt = asyncGenerator.prototype.__proto__;
 
 // All data for generating graphs
 let graphData = {
-  Classes  : ["Array", "arr", "myCar", "car"],
+  Class    : ["Array", "arr", "myCar", "car"],
   Generator: ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
               [gpt.__proto__, "IteratorPrototype"], [generator.__proto__, "Generator"]],
-  Builtins : ["Symbol", "Math", "JSON", "Promise"],
+  Builtin  : ["Symbol", "Math", "JSON", "Promise"],
   Closure  : ["makeClosure", "closure"],
-  Iterators: ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
+  Iterator : ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
   Async    : ["asyncFunction", "asyncGenerator", [asyncGenerator(), "asyncGenerator_instance"], [agpt, "AsyncGeneratorPrototype"],
               [agpt.__proto__, "AsyncIteratorPrototype"], [asyncGenerator.__proto__, "AsyncGenerator"]],
 };
@@ -73,8 +73,9 @@ function generateGraph(data) {
   for (let prop in data) {
     let graph = new Map();
     insert(graph, 0, "Function", "Object", ...data[prop]);
-    for (let ctor of ["", "_with_ctors"]) {
-      console.log("digraph JS_" + prop + ctor + " {\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
+    for (let ctor of ["", "_with_Constructor_Edges"]) {
+      console.log("digraph JS_" + prop + ctor + " {\nlabel=\"\\n" + prop + " Graph" + ctor.replace(/_/g, " ") + "\\n(Node in gray: function)"
+        + "\";\nrankdir = TB;\nranksep=0.6;\nnodesep=0.6;\n" + (ctor != "" ? "" : "newrank=true;"));
       for (let [index, [key, val]] of Array.from(graph).entries()) {
         let func = typeof key === "function";
         // Add comments with detailed information of keys
@@ -86,7 +87,7 @@ function generateGraph(data) {
         // Add edges for prototype, constructor and __proto__ properties of objects
         for (let [f, c] of [["prototype", "blue"], ["constructor", "darkgreen"], ["__proto__", "red"]])
           if (typeof key[f] !== "undefined" && key[f] !== null && graph.has(key[f]) && (ctor != "" || f !== "constructor"))
-            console.log((ctor != "" || f !== "prototype" ? "" : "subgraph cluster_" + val + " {\nrank=same;\ncolor=white;\n"
+            console.log((ctor != "" || f !== "prototype" ? "" : "subgraph cluster_" + val + " {\nlabel=\"\";rank=same;color=white;\n"
               + val + ";\n" + graph.get(key.prototype) + " [shape=box];\n}\n") + val + " -> " + graph.get(key[f])
               + " [label=\"" + (f === "constructor" ? "ctor" : f) + "\", color=" + c + ", fontcolor=" + c + "];");
       }

@@ -199,6 +199,8 @@ FunctionNode *BuildScopeVisitor::VisitFunctionNode(FunctionNode *node) {
   // function is a decl
   AddDecl(parent, node);
   ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
+  mUserScopeStack.push(scope);
 
   // add parameters as decl
   for(unsigned i = 0; i < node->GetParamsNum(); i++) {
@@ -223,13 +225,7 @@ FunctionNode *BuildScopeVisitor::VisitFunctionNode(FunctionNode *node) {
 
     // add type parameter as decl
     if (it->IsTypeParameter()) {
-      TypeParameterNode *tpn = static_cast<TypeParameterNode *>(it);
-      TreeNode *id = tpn->GetId();
-      if (id->IsIdentifier()) {
-        AddDecl(scope, id);
-      } else {
-        NOTYETIMPL("function type parameter not identifier");
-      }
+      VisitTreeNode(it);
       continue;
     }
 
@@ -250,8 +246,6 @@ FunctionNode *BuildScopeVisitor::VisitFunctionNode(FunctionNode *node) {
       AddType(scope, it);
     }
   }
-  mScopeStack.push(scope);
-  mUserScopeStack.push(scope);
   BuildScopeBaseVisitor::VisitFunctionNode(node);
   mUserScopeStack.pop();
   mScopeStack.pop();
@@ -344,6 +338,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
   }
 
   ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
   if (node->GetStructId() && node->GetStructId()->GetStrIdx()) {
     mStrIdx2ScopeMap[node->GetStructId()->GetStrIdx()] = scope;
   }
@@ -361,13 +356,7 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
 
   // add type parameter as decl
   for(unsigned i = 0; i < node->GetTypeParamsNum(); i++) {
-    TypeParameterNode *tpn = node->GetTypeParamAtIndex(i);
-    TreeNode *id = tpn->GetId();
-    if (id->IsIdentifier()) {
-      AddDecl(scope, id);
-    } else {
-      NOTYETIMPL("function type parameter not identifier");
-    }
+    VisitTreeNode(node->GetTypeParamAtIndex(i));
     continue;
   }
 
@@ -381,7 +370,6 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
     }
   }
 
-  mScopeStack.push(scope);
   BuildScopeBaseVisitor::VisitStructNode(node);
   mScopeStack.pop();
   return node;
@@ -563,6 +551,17 @@ FieldNode *BuildScopeVisitor::VisitFieldNode(FieldNode *node) {
     }
   }
 
+  return node;
+}
+
+TypeParameterNode *BuildScopeVisitor::VisitTypeParameterNode(TypeParameterNode *node) {
+  BuildScopeBaseVisitor::VisitTypeParameterNode(node);
+  TreeNode *id = node->GetId();
+  if (id && id->IsIdentifier()) {
+    ASTScope *scope = mScopeStack.top();
+    id->SetScope(scope);
+    AddDecl(scope, id);
+  }
   return node;
 }
 
