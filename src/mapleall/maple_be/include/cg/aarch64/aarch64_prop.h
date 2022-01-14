@@ -20,6 +20,37 @@
 #include "aarch64_cgfunc.h"
 #include "aarch64_strldr.h"
 namespace maplebe{
+
+class PropOptimizeManager {
+public:
+  PropOptimizeManager(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : cgFunc(cgFunc), optSsaInfo(cgssaInfo) {}
+  ~PropOptimizeManager() = default;
+  template<typename PropOptimizePattern>
+  void Optimize() {
+    PropOptimizePattern optPattern(cgFunc, optSsaInfo);
+    optPattern.Run();
+  }
+private:
+  CGFunc &cgFunc;
+  CGSSAInfo *optSsaInfo;
+};
+
+class PropOptimizePattern {
+public:
+  PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : cgFunc(cgFunc), optSsaInfo(cgssaInfo) {}
+  virtual ~PropOptimizePattern() = default;
+  virtual bool CheckCondition(Insn &insn) = 0;
+  virtual void Optimize(Insn &insn) = 0;
+  virtual void Run() = 0;
+protected:
+  std::string PhaseName() const {
+    return "propopt";
+  }
+  virtual void Init() = 0;
+  CGFunc &cgFunc;
+  CGSSAInfo *optSsaInfo = nullptr;
+};
+
 class AArch64Prop : public CGProp {
  public:
   AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
@@ -34,6 +65,7 @@ class AArch64Prop : public CGProp {
    * 3. add/ext/shf prop -> str/ldr
    */
   void TargetProp(Insn &insn) override;
+  void PropPatternOpt() override;
 
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion);
 };
@@ -67,6 +99,109 @@ class A64StrLdrProp {
   MapleAllocator a64StrLdrAlloc;
   MapleMap<regno_t, VRegVersion*> replaceVersions;
   MemPropMode memPropMode = kUndef;
+};
+
+/*
+ * This pattern do:
+ * 1)
+ * uxtw vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
+ * ------>
+ * mov vreg:Rm validBitNum:[64], vreg:Rn validBitNum:[32]
+ * 2)
+ * ldrh  R201, [...]
+ * and R202, R201, #65520
+ * uxth  R203, R202
+ * ------->
+ * ldrh  R201, [...]
+ * and R202, R201, #65520
+ * mov  R203, R202
+ */
+class ExtendMovPattern : public PropOptimizePattern {
+public:
+  ExtendMovPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~ExtendMovPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+protected:
+  void Init() final;
+
+private:
+  bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
+  bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
+
+  MOperator replaceMop = MOP_undef;
+};
+
+class ExtendShiftPattern : public PropOptimizePattern {
+public:
+  ExtendShiftPattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~ExtendShiftPattern() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+  void DoExtendShiftOpt(Insn &insn);
+
+  enum ExMOpType : uint8 {
+    kExUndef,
+    kExAdd,  /* MOP_xaddrrr | MOP_xxwaddrrre | MOP_xaddrrrs */
+    kEwAdd,  /* MOP_waddrrr | MOP_wwwaddrrre | MOP_waddrrrs */
+    kExSub,  /* MOP_xsubrrr | MOP_xxwsubrrre | MOP_xsubrrrs */
+    kEwSub,  /* MOP_wsubrrr | MOP_wwwsubrrre | MOP_wsubrrrs */
+    kExCmn,  /* MOP_xcmnrr | MOP_xwcmnrre | MOP_xcmnrrs */
+    kEwCmn,  /* MOP_wcmnrr | MOP_wwcmnrre | MOP_wcmnrrs */
+    kExCmp,  /* MOP_xcmprr | MOP_xwcmprre | MOP_xcmprrs */
+    kEwCmp,  /* MOP_wcmprr | MOP_wwcmprre | MOP_wcmprrs */
+  };
+
+  enum LsMOpType : uint8 {
+    kLsUndef,
+    kLxAdd,  /* MOP_xaddrrr | MOP_xaddrrrs */
+    kLwAdd,  /* MOP_waddrrr | MOP_waddrrrs */
+    kLxSub,  /* MOP_xsubrrr | MOP_xsubrrrs */
+    kLwSub,  /* MOP_wsubrrr | MOP_wsubrrrs */
+    kLxCmn,  /* MOP_xcmnrr | MOP_xcmnrrs */
+    kLwCmn,  /* MOP_wcmnrr | MOP_wcmnrrs */
+    kLxCmp,  /* MOP_xcmprr | MOP_xcmprrs */
+    kLwCmp,  /* MOP_wcmprr | MOP_wcmprrs */
+    kLxEor,  /* MOP_xeorrrr | MOP_xeorrrrs */
+    kLwEor,  /* MOP_weorrrr | MOP_weorrrrs */
+    kLxNeg,  /* MOP_xinegrr | MOP_xinegrrs */
+    kLwNeg,  /* MOP_winegrr | MOP_winegrrs */
+    kLxIor,  /* MOP_xiorrrr | MOP_xiorrrrs */
+    kLwIor,  /* MOP_wiorrrr | MOP_wiorrrrs */
+  };
+
+  enum SuffixType : uint8 {
+    kNoSuffix, /* no suffix or do not perform the optimization. */
+    kLSL,      /* logical shift left */
+    kLSR,      /* logical shift right */
+    kASR,      /* arithmetic shift right */
+    kExten     /* ExtendOp */
+  };
+
+protected:
+  void Init() final;
+
+private:
+  void SelectExtendOrShift(const Insn &def);
+  bool CheckDefUseInfo(Insn &use, uint32 size);
+  SuffixType CheckOpType(Operand &lastOpnd);
+  void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
+  void SetExMOpType(Insn &use);
+  void SetLsMOpType(Insn &use);
+
+  MOperator replaceOp;
+  uint32 replaceIdx;
+  ExtendShiftOperand::ExtendOp extendOp;
+  BitShiftOperand::ShiftOp shiftOp;
+  Insn *defInsn;
+  Insn *newInsn;
+  bool optSuccess;
+  bool removeDefInsn;
+  ExMOpType exMOpType;
+  LsMOpType lsMOpType;
 };
 
 class A64ReplaceRegOpndVisitor : public ReplaceRegOpndVisitor {

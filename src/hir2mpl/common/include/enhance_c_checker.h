@@ -21,6 +21,7 @@
 
 namespace maple {
 constexpr int64 kUndefValue = 0xdeadbeef;
+static const char *kBoundsBuiltFunc = "__builtin_dynamic_bounds_cast";
 class ENCChecker {
  public:
   ENCChecker() = default;

@@ -478,7 +478,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::ComputeTheValueRangeOfIndex(
       std::move(valueRangOfOpnd) : AddOrSubWithValueRange(OP_add, *valueRangeOfIndex, constant);
 }
 
-void SafetyCheckWithBoundaryError::HandleBoundaryCheck(
+void SafetyCheckWithBoundaryError::HandleAssignWithDeadBeef(
     const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {
   std::set<MeExpr*> visitedLHS;
   std::vector<MeStmt*> stmts{ &meStmt };
@@ -491,31 +491,34 @@ void SafetyCheckWithBoundaryError::HandleBoundaryCheck(
 
 void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
   if (valueRangeOfIndex.IsEqualZero()) {
-    Error(meStmt);
+    (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
   }
 }
 
-void SafetyCheckWithBoundaryError::HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
-  Error(meStmt);
+bool SafetyCheckWithBoundaryError::HandleAssertError(const MeStmt &meStmt) {
+  return NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
 }
 
-void SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
+bool SafetyCheckWithBoundaryError::HandleAssertltOrAssertle(
     const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) {
   if (kOpcodeInfo.IsAssertLeBoundary((op))) {
     if (indexValue > lengthValue) {
-      Error(meStmt);
+      return NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
     }
   } else {
     if (indexValue >= lengthValue) {
-      Error(meStmt);
+      return NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
     }
   }
+  return false;
 }
 
 bool ValueRangePropagation::CompareConstantOfIndexAndLength(
     MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op) {
-  safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
-                                                valueRangeOfLengthPtr.GetBound().GetConstant());
+  if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                    valueRangeOfLengthPtr.GetBound().GetConstant())) {
+    return true;
+  }
   return (kOpcodeInfo.IsAssertLeBoundary(op) ?
       valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
       valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
@@ -531,8 +534,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
     auto lowerOfLength = valueRangeOfLengthPtr.GetLower().GetConstant();
     auto upperOfLength = valueRangeOfLengthPtr.GetUpper().GetConstant();
     if (valueRangeOfIndex.GetRangeType() == kSpecialLowerForLoop) {
-      safetyCheckBoundary->HandleAssertltOrAssertle(
-          meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(), upperOfLength);
+      if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                        upperOfLength)) {
+        return true;
+      }
       return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lowerOfLength :
           valueRangeOfIndex.GetUpper().GetConstant() < lowerOfLength;
     }
@@ -544,8 +549,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
     if (valueRangeOfLengthPtr.GetLower().GetConstant() < 0) {
       // The value of length is overflow, need deal with this case later.
     }
-    safetyCheckBoundary->HandleAssertltOrAssertle(
-        meStmt, op, valueRangeOfIndex.GetLower().GetConstant(), upperOfLength);
+    if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(),
+                                                      upperOfLength)) {
+      return true;
+    }
     return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lowerOfLength :
         valueRangeOfIndex.GetUpper().GetConstant() < lowerOfLength;
   } else if (valueRangeOfLengthPtr.GetRangeType() == kEqual) {
@@ -589,7 +596,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
                                   valueRangeOfIndex.GetUpper().GetConstant(), res)) {
           return false;
         }
-        safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, res, valueRangeOfLengthPtr.GetBound().GetConstant());
+        if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, res,
+                                                          valueRangeOfLengthPtr.GetBound().GetConstant())) {
+          return true;
+        }
         return (kOpcodeInfo.IsAssertLeBoundary(op) ? res <= valueRangeOfLengthPtr.GetBound().GetConstant() :
             res < valueRangeOfLengthPtr.GetBound().GetConstant());
       } else {
@@ -600,8 +610,10 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
         valueRangeOfIndex.GetUpper().GetVar() != valueRangeOfLengthPtr.GetBound().GetVar()) {
       return false;
     }
-    safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
-                                                  valueRangeOfLengthPtr.GetBound().GetConstant());
+    if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                      valueRangeOfLengthPtr.GetBound().GetConstant())) {
+      return true;
+    }
     return kOpcodeInfo.IsAssertLeBoundary(op) ?
         valueRangeOfIndex.GetUpper().GetConstant() <= valueRangeOfLengthPtr.GetBound().GetConstant() :
         valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant();
@@ -890,7 +902,7 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
     return true;
   }
   auto *indexOpnd = naryMeStmt.GetOpnd(0);
-  safetyCheckBoundary->HandleBoundaryCheck(bb, meStmt, *indexOpnd, *boundOpnd);
+  safetyCheckBoundary->HandleAssignWithDeadBeef(bb, meStmt, *indexOpnd, *boundOpnd);
   CRNode *indexCR = sa.GetOrCreateCRNode(*indexOpnd);
   CRNode *boundCR = sa.GetOrCreateCRNode(*boundOpnd);
   if (indexCR == nullptr || boundCR == nullptr) {
@@ -916,8 +928,8 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
     if (kOpcodeInfo.IsAssertLowerBoundary(meStmt.GetOp()) || kOpcodeInfo.IsAssertLeBoundary(meStmt.GetOp())) {
       return true;
     }
-    if (MeOption::boundaryCheckMode != kNoCheck) {
-      safetyCheckBoundary->Error(meStmt);
+    if (safetyCheckBoundary->HandleAssertError(meStmt)) {
+      return true;
     }
   }
   std::vector<CRNode*> indexVector;
@@ -952,14 +964,18 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
     } else if (BrStmtInRange(bb, *valueRangeOfIndex, *valueRangeOfbound, OP_lt,
                              valueRangeOfIndex->GetLower().GetPrimType())) {
       // Error during static compilation.
-      safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
+      if (safetyCheckBoundary->HandleAssertError(meStmt)) {
+        return true;
+      }
     } else if ((valueRangeOfIndex->GetRangeType() == kSpecialUpperForLoop ||
                valueRangeOfIndex->GetRangeType() == kOnlyHasLowerBound) &&
                valueRangeOfIndex->GetLower().GetVar() == nullptr && valueRangeOfbound->GetLower().GetVar() == nullptr &&
                valueRangeOfbound->GetUpper().GetVar() == nullptr) {
       if (valueRangeOfIndex->GetLower().GetConstant() < valueRangeOfbound->GetUpper().GetConstant()) {
         // Error during static compilation.
-        safetyCheckBoundary->HandleAssertge(meStmt, *valueRangeOfIndex);
+        if (safetyCheckBoundary->HandleAssertError(meStmt)) {
+          return true;
+        }
         return false;
       } else {
         // Can opt the boundary check.
@@ -992,13 +1008,34 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   return false;
 }
 
-void SafetyCheck::Error(const MeStmt &stmt) const {
+// If error in Compile return false, else return true.
+bool SafetyCheck::NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const {
   auto srcPosition = stmt.GetSrcPosition();
   const char *fileName = func->GetMIRModule().GetFileNameFromFileNum(srcPosition.FileNum()).c_str();
   switch (stmt.GetOp()) {
     case OP_calcassertlt:
     case OP_calcassertge: {
-      break;
+      auto &newStmt = static_cast<const AssertBoundaryMeStmt &>(stmt);
+      GStrIdx curFuncNameIdx = func->GetMirFunc()->GetNameStrIdx();
+      GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
+      if (curFuncNameIdx == stmtFuncNameIdx) {
+        if (stmt.GetOp() == OP_calcassertlt) {
+          WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation",
+               fileName, srcPosition.LineNum());
+        } else if (stmt.GetOp() == OP_calcassertge) {
+          WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation",
+               fileName, srcPosition.LineNum());
+        }
+      } else {
+        if (stmt.GetOp() == OP_calcassertlt) {
+          WARN(kLncWarn, "%s:%d warning: the pointer >= the upper bounds after calculation when inlined to %s",
+               fileName, srcPosition.LineNum(), func->GetName().c_str());
+        } else if (stmt.GetOp() == OP_calcassertge) {
+          WARN(kLncWarn, "%s:%d warning: the pointer < the lower bounds after calculation when inlined to %s",
+               fileName, srcPosition.LineNum(), func->GetName().c_str());
+        }
+      }
+      return true;
     }
     case OP_assignassertnonnull:
     case OP_assertnonnull:
@@ -1053,9 +1090,11 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
       GStrIdx stmtFuncNameIdx = GlobalTables::GetStrTable().GetStrIdxFromName(newStmt.GetFuncName().c_str());
       if (curFuncNameIdx == stmtFuncNameIdx) {
         if (stmt.GetOp() == OP_assertlt) {
-          FATAL(kLncFatal, "%s:%d error: the offset >= the upper bounds", fileName, srcPosition.LineNum());
+          FATAL(kLncFatal, "%s:%d error: the pointer >= the upper bounds when accessing the memory",
+                fileName, srcPosition.LineNum());
         } else if (stmt.GetOp() == OP_assertge) {
-          FATAL(kLncFatal, "%s:%d error: the offset < the lower bounds", fileName, srcPosition.LineNum());
+          FATAL(kLncFatal, "%s:%d error: the pointer < the lower bounds when accessing the memory",
+                fileName, srcPosition.LineNum());
         } else if (stmt.GetOp() == OP_assignassertle) {
           FATAL(kLncFatal, "%s:%d error: l-value boundary should not be larger than r-value boundary", fileName,
                 srcPosition.LineNum());
@@ -1065,11 +1104,11 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
         }
       } else {
         if (stmt.GetOp() == OP_assertlt) {
-          FATAL(kLncFatal, "%s:%d error: the offset >= the upper bounds when inlined to %s", fileName,
-                srcPosition.LineNum(), func->GetName().c_str());
+          FATAL(kLncFatal, "%s:%d error: the pointer >= the upper bounds when accessing the memory and inlined to %s",
+                fileName, srcPosition.LineNum(), func->GetName().c_str());
         } else if (stmt.GetOp() == OP_assertge) {
-          FATAL(kLncFatal, "%s:%d error: the offset < the lower bounds when inlined to %s", fileName,
-                srcPosition.LineNum(), func->GetName().c_str());
+          FATAL(kLncFatal, "%s:%d error: error: the pointer < the lower bounds when accessing the memory and"
+                "inlined to %s", fileName, srcPosition.LineNum(), func->GetName().c_str());
         } else if (stmt.GetOp() == OP_assignassertle) {
           FATAL(kLncFatal,
                 "%s:%d error: l-value boundary should not be larger than r-value boundary when inlined to %s",
@@ -1101,6 +1140,7 @@ void SafetyCheck::Error(const MeStmt &stmt) const {
     default:
       CHECK_FATAL(false, "can not be here");
   }
+  return false;
 }
 
 bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, MeStmt &meStmt) {

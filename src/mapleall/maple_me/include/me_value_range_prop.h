@@ -30,11 +30,16 @@ class SafetyCheck {
   explicit SafetyCheck(MeFunction &f) : func(&f) {}
   ~SafetyCheck() = default;
 
-  void Error(const MeStmt &stmt) const;
-  virtual void HandleBoundaryCheck (const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
+  bool NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const;
+  virtual void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
   virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {}
-  virtual void HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {}
-  virtual void HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) {}
+  virtual bool HandleAssertError(const MeStmt &meStmt) {
+    return false;
+  }
+
+  virtual bool HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) {
+    return false;
+  }
 
  protected:
   MeFunction *func = nullptr;
@@ -53,9 +58,9 @@ class SafetyCheckWithBoundaryError : public SafetyCheck {
   SafetyCheckWithBoundaryError(MeFunction &f, ValueRangePropagation &valueRangeProp)
       : SafetyCheck(f), vrp(valueRangeProp) {}
   ~SafetyCheckWithBoundaryError() = default;
-  void HandleBoundaryCheck (const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
-  void HandleAssertge(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) override;
-  void HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) override;
+  void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
+  bool HandleAssertError(const MeStmt &meStmt) override;
+  bool HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) override;
 
  private:
   ValueRangePropagation &vrp;
