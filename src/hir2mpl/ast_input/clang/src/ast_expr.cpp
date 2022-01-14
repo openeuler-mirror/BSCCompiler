@@ -2309,7 +2309,7 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
 
 void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &offsetVar,
                                           VaArgInfo &info) const {
-  if (!Options::GetInstance().IsBigEndian()) {
+  if (!FEOptions::GetInstance().IsBigEndian()) {
     return;
   }
   int offset = 0;
@@ -2330,7 +2330,7 @@ void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, cons
 }
 
 void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &vaArgVar) const {
-  if (!Options::GetInstance().IsBigEndian() ||
+  if (!FEOptions::GetInstance().IsBigEndian() ||
       mirType->IsStructType() || mirType->GetSize() >= 8) {
     return;
   }
