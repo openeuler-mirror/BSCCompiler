@@ -107,7 +107,7 @@ Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &predicti
     return kPredNoPrediction;
   }
   PrimType retType = constExpr->GetPrimType();
-  if ((retType == PTY_ref || retType == PTY_ptr) && constExpr->IsZero()) {
+  if (MustBeAddress(retType) && constExpr->IsZero()) {
     // nullptr is usually not returned.
     prediction = kNotTaken;
     return kPredNullReturn;
@@ -383,10 +383,10 @@ void MePrediction::PredictByOpcode(const BB *bb) {
   }
 
   PrimType pty = op0->GetPrimType();
-  bool isCmpPtr = cmpExpr->GetOpndType() == PTY_ptr || cmpExpr->GetOpndType() == PTY_ref;
+  bool isCmpPtr = MustBeAddress(cmpExpr->GetOpndType());
   // cmpExpr is not always real compare op, so we should check nullptr for op0 and op1
-  bool isOpnd0Ptr = op0 != nullptr && (op0->GetPrimType() == PTY_ptr || op0->GetPrimType() == PTY_ref);
-  bool isOpnd1Ptr = op1 != nullptr && (op1->GetPrimType() == PTY_ptr || op1->GetPrimType() == PTY_ref);
+  bool isOpnd0Ptr = op0 != nullptr && MustBeAddress(op0->GetPrimType());
+  bool isOpnd1Ptr = op1 != nullptr && MustBeAddress(op1->GetPrimType());
   // Try "pointer heuristic." A comparison ptr == 0 is predicted as false.
   // Similarly, a comparison ptr1 == ptr2 is predicted as false.
   if (isCmpPtr || isOpnd0Ptr || isOpnd1Ptr) {
