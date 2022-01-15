@@ -87,7 +87,8 @@ void SSUPre::Finalize() {
                                                !static_cast<SLambdaOcc*>(lambdaResOcc->use)->WillBeAnt())) {
             // insert a store
             if (lambdaResOcc->cgbb->GetPreds().size() != 1) {  // critical edge
-              CHECK_FATAL(false, "SSUPre::Finalize: insertion at critical edge");
+              workCand->restoreAtEpilog = true;
+              break;
             }
             lambdaResOcc->insertHere = true;
           } else {
@@ -103,9 +104,16 @@ void SSUPre::Finalize() {
         ASSERT(false, "Finalize: unexpected occ type");
         break;
     }
+    if (workCand->restoreAtEpilog) {
+      break;
+    }
   }
   if (enabledDebug) {
     LogInfo::MapleLogger() << " _______ after finalize _______" << '\n';
+    if (workCand->restoreAtEpilog) {
+      LogInfo::MapleLogger() << "Giving up because of insertion at critical edge" << '\n';
+      return;
+    }
     for (SOcc *occ : allOccs) {
       if (occ->occTy == kSOccReal) {
         SRealOcc *realOcc = static_cast<SRealOcc*>(occ);
@@ -535,8 +543,10 @@ void SSUPre::ApplySSUPre() {
   }
   // #5 Finalize
   Finalize();
-  // #6 Code Motion
-  CodeMotion();
+  if (!workCand->restoreAtEpilog) {
+    // #6 Code Motion
+    CodeMotion();
+  }
 }
 
 void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand) {
