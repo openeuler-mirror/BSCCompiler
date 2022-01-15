@@ -30,12 +30,12 @@ static bool IsParaAndRetTypeRefOrPtr(const CallMeStmt &stmt) {
     return false;
   }
   for (auto it : stmt.GetOpnds()) {
-    if (it->GetPrimType() == PTY_ref || it->GetPrimType() == PTY_ptr) {
+    if (MustBeAddress(it->GetPrimType())) {
       return true;
     }
   }
   const MeExpr *expr = stmt.GetAssignedLHS();
-  if (expr != nullptr && (expr->GetPrimType() == PTY_ref || expr->GetPrimType() == PTY_ptr)) {
+  if (expr != nullptr && MustBeAddress(expr->GetPrimType())) {
     return true;
   }
   return false;
@@ -313,10 +313,9 @@ void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varV
 static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
   switch (meStmt.GetOp()) {
     case OP_assertnonnull:
-    case OP_assignassertnonnull:
-    case OP_returnassertnonnull: {
+    case OP_assignassertnonnull: {
       auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
-      UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(unaryStmt);
+      UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(*unaryStmt);
       return newUnaryStmt;
     }
     case OP_callassertnonnull: {
@@ -327,7 +326,9 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
     case OP_assertlt:
     case OP_assertge:
     case OP_assignassertle:
-    case OP_returnassertle: {
+    case OP_returnassertle:
+    case OP_calcassertge:
+    case OP_calcassertlt: {
       auto *naryStmt = static_cast<const NaryMeStmt*>(&meStmt);
       auto *newNaryMeStmt = irMap->NewInPool<NaryMeStmt>(naryStmt);
       newNaryMeStmt->CopyInfo(*naryStmt);
@@ -354,6 +355,11 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
       auto *callAss = static_cast<const CallMeStmt*>(&meStmt);
       CallMeStmt *newCallAss = irMap->NewInPool<CallMeStmt>(callAss);
       return newCallAss;
+    }
+    case OP_returnassertnonnull: {
+      auto *returnAssertStmt = static_cast<const ReturnAssertNonnullMeStmt*>(&meStmt);
+      auto *newReturnAssertStmt = irMap->New<ReturnAssertNonnullMeStmt>(*returnAssertStmt);
+      return newReturnAssertStmt;
     }
     default:
       CHECK_FATAL(false, "MeStmtEPre::CopyMeStmt: NYI");
