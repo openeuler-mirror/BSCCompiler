@@ -99,6 +99,8 @@ class AST_INFO {
   void InsertWithThisFunc(TreeNode *node) { mWithThisFuncSet.insert(node->GetNodeId()); }
   bool IsFuncBodyUseThis(TreeNode *node) { return mWithThisFuncSet.find(node->GetNodeId())!= mWithThisFuncSet.end(); }
 
+  bool WithSuper(TreeNode *node);
+
   void SetTypeId(TreeNode *node, TypeId tid);
   void SetTypeIdx(TreeNode *node, unsigned tidx);
 
