@@ -340,11 +340,6 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
       return s;
     }
 
-    // s can not have super
-    if (WithSuper(s)) {
-      return node;
-    }
-
     bool isI = IsInterface(s);
     if (!node->IsStructLiteral()) {
       // skip if one is interface but other is not
