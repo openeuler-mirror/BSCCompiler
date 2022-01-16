@@ -12,7 +12,7 @@ function ReleaseLock {
 }
 rm -rf -- tsc-lock-* *-tsc.out tsc.summary.out tsc.failures*.out
 
-OPT="--target es6 \
+OPT="--target es2017 \
      --lib es2015,es2017,dom \
      --module commonjs \
      --downlevelIteration \
