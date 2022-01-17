@@ -30,7 +30,12 @@ int64 CGPeepPattern::GetLogValueAtBase2(int64 val) {
   return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
-Insn *CGPeepPattern::GetDefInsn(regno_t useRegNO) {
+Insn *CGPeepPattern::GetDefInsn(RegOperand &useReg) {
+  CHECK_FATAL(useReg.IsRegister(), "must be regOpnd");
+  if (!useReg.IsSSAForm()) {
+    return nullptr;
+  }
+  regno_t useRegNO = useReg.GetRegisterNumber();
   VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
   CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
   CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
@@ -38,43 +43,21 @@ Insn *CGPeepPattern::GetDefInsn(regno_t useRegNO) {
   return defInfo == nullptr ? nullptr : defInfo->GetInsn();
 }
 
-void CGPeepPattern::UpdateSSAInfo(Insn &insn, int32 opndIdx, bool isReplaced) {
-  auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(opndIdx));
-  VRegVersion *version = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
-  CHECK_FATAL(version != nullptr, "VRegVersion must be non-null based on ssa");
-  if (isReplaced) {
-    version->RemoveUseInsn(insn, opndIdx);
-  } else {
-    version->AddUseInsn(*ssaInfo, insn, opndIdx);
-  }
-}
-
-void CGPeepPattern::UpdateSSAInfo(Insn &replacedInsn, int32 replacedOpndIdx, Insn &newInsn, int32 newOpndIdx) {
-  /* 1. update replacedRegOpnd ssa info. */
-  UpdateSSAInfo(replacedInsn, replacedOpndIdx, true);
-  /* 2. update newRegOpnd ssa info. */
-  UpdateSSAInfo(newInsn, newOpndIdx, false);
-}
-
-void CGPeepPattern::UpdateSSAInfo(Insn &replacedInsn, std::vector<int32> &replacedOpndIdxList,
-                                  Insn &newInsn, std::vector<int32> &newOpndIdxList) {
-  /* 1. update replacedInsn {reg1, reg2, ...} ssa info. */
-  for (int32 replacedIdx : replacedOpndIdxList) {
-    UpdateSSAInfo(replacedInsn, replacedIdx, true);
-  }
-  /* 2. update newInsn {reg1, reg2, ...} ssa info. */
-  for (int32 newIdx : newOpndIdxList) {
-    UpdateSSAInfo(newInsn, newIdx, false);
-  }
-}
-
 void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replacedInsn, Insn *newInsn) {
+  auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
   LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
   if (!prevInsns.empty()) {
-    LogInfo::MapleLogger() << "======= PrevInsns : {\n";
+    if ((replacedInsn == nullptr) && (newInsn == nullptr)) {
+      LogInfo::MapleLogger() << "======= RemoveInsns : {\n";
+    } else {
+      LogInfo::MapleLogger() << "======= PrevInsns : {\n";
+    }
     for (auto *prevInsn : prevInsns) {
       if (prevInsn != nullptr) {
         prevInsn->Dump();
+        if (ssaInfo != nullptr) {
+          aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
+        }
       }
     }
     LogInfo::MapleLogger() << "}\n";
@@ -82,10 +65,16 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replac
   if (replacedInsn != nullptr) {
     LogInfo::MapleLogger() << "======= ReplacedInsn :\n";
     replacedInsn->Dump();
+    if (ssaInfo != nullptr) {
+      aarCGSSAInfo->DumpInsnInSSAForm(*replacedInsn);
+    }
   }
   if (newInsn != nullptr) {
     LogInfo::MapleLogger() << "======= NewInsn :\n";
     newInsn->Dump();
+    if (ssaInfo != nullptr) {
+      aarCGSSAInfo->DumpInsnInSSAForm(*newInsn);
+    }
   }
 }
 

@@ -99,8 +99,207 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<AndCbzToTbzPattern>();
       break;
     }
+    case MOP_beq:
+    case MOP_bne: {
+      manager->Optimize<AndCmpBranchesToTbzPattern>();
+      break;
+    }
+    case MOP_wcsetrc:
+    case MOP_xcsetrc: {
+      manager->Optimize<CmpCsetOpt>();
+      break;
+    }
     default:
       break;
+  }
+}
+
+std::string AndCmpBranchesToTbzPattern::GetPatternName() {
+  return "AndCmpBranchesToTbzPattern";
+}
+
+bool AndCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
+  MOperator curMop = currInsn.GetMachineOpcode();
+  MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
+  auto &andImmOpnd = static_cast<ImmOperand&>(prevAndInsn->GetOperand(kInsnThirdOpnd));
+  auto &cmpImmOpnd = static_cast<ImmOperand&>(prevCmpInsn->GetOperand(kInsnThirdOpnd));
+  if (cmpImmOpnd.GetValue() == 0) {
+    tbzImmVal = GetLogValueAtBase2(andImmOpnd.GetValue());
+    if (tbzImmVal < 0) {
+      return false;
+    }
+    switch (curMop) {
+      case MOP_beq:
+        newMop = (prevAndMop == MOP_wandrri12) ?  MOP_wtbz : MOP_xtbz;
+        break;
+      case MOP_bne:
+        newMop = (prevAndMop == MOP_wandrri12) ? MOP_wtbnz : MOP_xtbnz;
+        break;
+      default:
+        return false;
+    }
+  } else {
+    tbzImmVal = GetLogValueAtBase2(andImmOpnd.GetValue());
+    int64 tmpVal = GetLogValueAtBase2(cmpImmOpnd.GetValue());
+    if (tbzImmVal < 0 || tmpVal < 0 || tbzImmVal != tmpVal) {
+      return false;
+    }
+    switch (curMop) {
+      case MOP_beq:
+        newMop = (prevAndMop == MOP_wandrri12) ?  MOP_wtbnz : MOP_xtbnz;
+        break;
+      case MOP_bne:
+        newMop = (prevAndMop == MOP_wandrri12) ? MOP_wtbz : MOP_xtbz;
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+bool AndCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevCmpInsn = GetDefInsn(ccReg);
+  if (prevCmpInsn == nullptr) {
+    return false;
+  }
+  MOperator prevCmpMop = prevCmpInsn->GetMachineOpcode();
+  if (prevCmpMop != MOP_wcmpri && prevCmpMop != MOP_xcmpri) {
+    return false;
+  }
+  auto &cmpUseReg = static_cast<RegOperand&>(prevCmpInsn->GetOperand(kInsnSecondOpnd));
+  prevAndInsn = GetDefInsn(cmpUseReg);
+  if (prevAndInsn == nullptr) {
+    return false;
+  }
+  MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
+  if (prevAndMop != MOP_wandrri12 && prevAndMop != MOP_xandrri13) {
+    return false;
+  }
+  CHECK_FATAL(prevAndInsn->GetOperand(kInsnFirstOpnd).GetSize() ==
+              prevCmpInsn->GetOperand(kInsnSecondOpnd).GetSize(), "def-use reg size must be same based-on ssa");
+  if (!CheckAndSelectPattern(insn)) {
+    return false;
+  }
+  return true;
+}
+
+void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  ImmOperand &tbzImmOpnd = aarFunc->CreateImmOperand(tbzImmVal, k8BitSize, false);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevAndInsn->GetOperand(kInsnFirstOpnd),
+                                                                 tbzImmOpnd, labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevAndInsn);
+    prevs.emplace_back(prevCmpInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
+void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
+  if (!CheckCondition(bb, csetInsn)) {
+    return;
+  }
+  Operand &csetFirstOpnd = csetInsn.GetOperand(kInsnFirstOpnd);
+  Operand &cmpFirstOpnd = cmpInsn->GetOperand(kInsnSecondOpnd);
+  auto &cond = static_cast<CondOperand&>(csetInsn.GetOperand(kInsnSecondOpnd));
+  Insn *newInsn = nullptr;
+
+  /* cmpFirstOpnd == 1 */
+  if ((cmpConstVal == 0 && cond.GetCode() == CC_NE) || (cmpConstVal == 1 && cond.GetCode() == CC_EQ)) {
+    MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
+    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
+    bb.ReplaceInsn(csetInsn, *newInsn);
+    ssaInfo->ReplaceInsn(csetInsn, *newInsn);
+  } else if ((cmpConstVal == 1 && cond.GetCode() == CC_NE) || (cmpConstVal == 0 && cond.GetCode() == CC_EQ)) {
+    /* cmpFirstOpnd == 0 */
+    MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
+    ImmOperand &one = static_cast<AArch64CGFunc*>(cgFunc)->CreateImmOperand(1, k8BitSize, false);
+    newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
+    bb.ReplaceInsn(csetInsn, *newInsn);
+    ssaInfo->ReplaceInsn(csetInsn, *newInsn);
+  }
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevInsns;
+    prevInsns.emplace_back(cmpInsn);
+    prevInsns.emplace_back(&csetInsn);
+    DumpAfterPattern(prevInsns, newInsn, nullptr);
+  }
+}
+
+bool CmpCsetOpt::CheckCondition(BB &bb, Insn &csetInsn) {
+  RegOperand &ccReg = static_cast<RegOperand&>(csetInsn.GetOperand(kInsnThirdOpnd));
+  regno_t ccRegNo = ccReg.GetRegisterNumber();
+  cmpInsn = GetDefInsn(ccReg);
+  CHECK_NULL_FATAL(cmpInsn);
+  MOperator mop = cmpInsn->GetMachineOpcode();
+  if ((mop != MOP_wcmpri) && (mop != MOP_xcmpri)) {
+    return false;
+  }
+  VRegVersion *ccRegVersion = ssaInfo->FindSSAVersion(ccRegNo);
+  if (ccRegVersion->GetAllUseInsns().size() > k1BitSize) {
+    return false;
+  }
+  Operand &cmpSecondOpnd = cmpInsn->GetOperand(kInsnThirdOpnd);
+  CHECK_FATAL(cmpSecondOpnd.IsIntImmediate(), "expects ImmOperand");
+  auto &cmpConst = static_cast<ImmOperand&>(cmpSecondOpnd);
+  cmpConstVal = cmpConst.GetValue();
+  /* get ImmOperand, must be 0 or 1 */
+  if ((cmpConstVal != 0) && (cmpConstVal != k1BitSize)) {
+    return false;
+  }
+  Operand &csetFirstOpnd = csetInsn.GetOperand(kInsnFirstOpnd);
+  Operand &cmpFirstOpnd = cmpInsn->GetOperand(kInsnSecondOpnd);
+  if (cmpFirstOpnd.GetSize() != csetFirstOpnd.GetSize()) {
+    return false;
+  }
+  CHECK_FATAL(cmpFirstOpnd.IsRegister(), "cmpFirstOpnd must be register!");
+  RegOperand &cmpReg = static_cast<RegOperand&>(cmpFirstOpnd);
+  Insn *defInsn = GetDefInsn(cmpReg);
+  if (defInsn == nullptr) {
+    return false;
+  }
+  return OpndDefByOneValidBit(*defInsn);
+}
+
+bool CmpCsetOpt::OpndDefByOneValidBit(const Insn &defInsn) {
+  MOperator defMop = defInsn.GetMachineOpcode();
+  switch (defMop) {
+    case MOP_wcsetrc:
+    case MOP_xcsetrc:
+      return true;
+    case MOP_xmovri32:
+    case MOP_xmovri64: {
+      Operand &defOpnd = defInsn.GetOperand(kInsnSecondOpnd);
+      ASSERT(defOpnd.IsIntImmediate(), "expects ImmOperand");
+      auto &defConst = static_cast<ImmOperand&>(defOpnd);
+      int64 defConstValue = defConst.GetValue();
+      return (defConstValue == 0 || defConstValue == 1);
+    }
+    case MOP_xmovrr:
+    case MOP_wmovrr:
+      return defInsn.GetOperand(kInsnSecondOpnd).IsZeroRegister();
+    case MOP_wlsrrri5:
+    case MOP_xlsrrri6: {
+      Operand &opnd2 = defInsn.GetOperand(kInsnThirdOpnd);
+      ASSERT(opnd2.IsIntImmediate(), "expects ImmOperand");
+      auto &opndImm = static_cast<ImmOperand&>(opnd2);
+      int64 shiftBits = opndImm.GetValue();
+      return ((defMop == MOP_wlsrrri5 && shiftBits == (k32BitSize - 1)) ||
+              (defMop == MOP_xlsrrri6 && shiftBits == (k64BitSize - 1)));
+    }
+    default:
+      return false;
   }
 }
 
@@ -109,8 +308,8 @@ std::string AndCbzToTbzPattern::GetPatternName() {
 }
 
 bool AndCbzToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
-  regno_t useRegNO = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
-  prevInsn = GetDefInsn(useRegNO);
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevInsn = GetDefInsn(useReg);
   if (prevInsn == nullptr) {
     return false;
   }
@@ -154,11 +353,9 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   ImmOperand &tbzImm = aarchFunc->CreateImmOperand(tbzVal, k8BitSize, false);
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnSecondOpnd),
                                                                  tbzImm, labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
-
-  bb.ReplaceInsn(insn, newInsn);
-
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
