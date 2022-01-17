@@ -340,7 +340,6 @@ void ForwardPropPattern::Optimize(Insn &insn) {
   Operand &secondOpnd = insn.GetOperand(kInsnSecondOpnd);
   RegOperand &firstRegOpnd = static_cast<RegOperand&>(firstOpnd);
   uint32 firstRegNO = firstRegOpnd.GetRegisterNumber();
-
   for (auto *useInsn : firstRegUseInsnSet) {
     if (useInsn->GetMachineOpcode() == MOP_asm) {
       ReplaceAsmListReg(useInsn, kAsmInputListOpnd, firstRegNO, &secondOpnd);
@@ -394,26 +393,28 @@ void ForwardPropPattern::Optimize(Insn &insn) {
 }
 
 void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
-  RegOperand &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
-  RegOperand &newOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  newOpnd.SetRegisterNumber(secondOpnd.GetRegisterNumber());
+  auto &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  uint32 destRegNo = destOpnd.GetRegisterNumber();
+  destOpnd.SetRegisterNumber(secondOpnd.GetRegisterNumber());
+  auto *newOpnd = static_cast<RegOperand*>(destOpnd.Clone(*cgFunc.GetMemoryPool()));
   cgFunc.InsertExtendSet(secondOpnd.GetRegisterNumber());
-
-  uint32 firstRegNo = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd)).GetRegisterNumber();
-  InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, firstRegNo, true);
+  InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, destRegNo, true);
   if (firstRegUseInsnSet.size() >= 1) {
-    for (auto defInsn : firstRegUseInsnSet) {
-      int optSize = defInsn->GetOperandSize();
+    for (auto useInsn : firstRegUseInsnSet) {
+      int optSize = useInsn->GetOperandSize();
       for (int i = 0; i < optSize; i++) {
-        if (firstRegNo == static_cast<RegOperand&>(defInsn->GetOperand(i)).GetRegisterNumber()) {
-          defInsn->SetOperand(i, newOpnd);
+        ASSERT(useInsn->GetOperand(i).IsRegister(), "only design for register");
+        if (destRegNo == static_cast<RegOperand&>(useInsn->GetOperand(i)).GetRegisterNumber()) {
+          useInsn->SetOperand(i, *newOpnd);
         }
       }
-      cgFunc.GetRD()->InitGenUse(*defInsn->GetBB(), false);
+      cgFunc.GetRD()->InitGenUse(*useInsn->GetBB(), false);
     }
   }
   insn.GetBB()->RemoveInsn(insn);
 }
+
 void ForwardPropPattern::Init() {
   firstRegUseInsnSet.clear();
 }
@@ -2083,6 +2084,9 @@ bool SameRHSPropPattern::FindSameRHSInsnInBB(Insn &insn) {
       }
       curImmOpnd = &opnd;
     }
+  }
+  if (curRegOpnd == nullptr && curImmOpnd != nullptr && static_cast<AArch64ImmOperand*>(curImmOpnd)->IsZero()) {
+    return false;
   }
   BB *bb = insn.GetBB();
   for (auto *cursor = insn.GetPrev(); cursor != nullptr && cursor != bb->GetFirstInsn(); cursor = cursor->GetPrev()) {

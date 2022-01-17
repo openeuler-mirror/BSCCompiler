@@ -49,7 +49,9 @@ RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &
   ASSERT(ssaVersion != nullptr, "find ssaVersion failed");
   ASSERT(!ssaVersion->IsDeleted(), "ssaVersion has been deleted");
   RegOperand *regForRecreate = &ssaOpnd;
-  ASSERT(!ssaVersion->GetAllUseInsns().empty(), "check");
+  if (curInsn.GetMachineOpcode() != MOP_asm && !curInsn.IsVectorOp() && ssaVersion->GetAllUseInsns().empty()) {
+    CHECK_FATAL(false, "plz delete dead version");
+  }
   if (GetSSAInfo()->IsNoDefVReg(ssaOpnd.GetRegisterNumber())) {
     regForRecreate = MakeRoomForNoDefVreg(ssaOpnd);
   } else {

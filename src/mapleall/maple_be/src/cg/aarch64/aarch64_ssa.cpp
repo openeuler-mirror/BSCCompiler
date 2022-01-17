@@ -101,7 +101,7 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
     }
   };
   UpdateInsnSSAInfo(oriInsn, true);
-  MarkInsnsInSSA(newInsn);
+  newInsn.SetId(oriInsn.GetId());
   UpdateInsnSSAInfo(newInsn, false);
   CHECK_FATAL(!ssaUpdator.HasDeleteDef(), "delete def point in replace insn, please check");
 }

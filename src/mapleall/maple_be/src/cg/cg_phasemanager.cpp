@@ -125,6 +125,9 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
     uint32 countFuncId = 0;
     unsigned long rangeNum = 0;
 
+    if (!m.IsCModule()) {
+      CGOptions::DisableCGSSA();
+    }
     DoPhasesPopulate(m);
 
     auto admMempool = AllocateMemPoolInPhaseManager("cg phase manager's analysis data manager mempool");
@@ -190,8 +193,6 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgpropagation", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgpropagation", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgphielimination", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgregcoalesce", CGOptions::DoCGSSA());
@@ -201,7 +202,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("ico", CGOptions::DoICO())
   ADDMAPLECGPHASE("cfgo", !CLANG && CGOptions::DoCFGO());
 #if TARGAARCH64
-  ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt())
+  ADDMAPLECGPHASE("storeloadopt", CGOptions::DoStoreLoadOpt() && !CGOptions::DoCGSSA())
   ADDMAPLECGPHASE("globalopt", CGOptions::DoGlobalOpt())
   ADDMAPLECGPHASE("clearrdinfo", (CGOptions::DoStoreLoadOpt()) || CGOptions::DoGlobalOpt())
 #endif

@@ -97,6 +97,8 @@ class VRegVersion {
     return originalRegNO;
   }
   void AddUseInsn(CGSSAInfo &ssaInfo, Insn &useInsn, uint32 idx);
+  /* elimate dead use */
+  void CheckDeadUse(Insn &useInsn);
   void RemoveUseInsn(Insn &useInsn, uint32 idx);
   MapleUnorderedMap<uint32, DUInsnInfo*> &GetAllUseInsns() {
     return useInsnInfos;

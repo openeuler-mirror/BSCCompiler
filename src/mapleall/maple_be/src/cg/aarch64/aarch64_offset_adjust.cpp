@@ -89,7 +89,15 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
   MemLayout *memLayout = aarchCGFunc.GetMemlayout();
   if (immOpnd.GetVary() == kUnAdjustVary) {
     int64 ofst = static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() - memLayout->SizeOfArgsToStackPass();
-    immOpnd.Add(ofst);
+    if (insn.GetMachineOpcode() == MOP_xsubrri12 || insn.GetMachineOpcode() == MOP_wsubrri12) {
+      immOpnd.SetValue(immOpnd.GetValue() - ofst);
+      if (immOpnd.GetValue() < 0) {
+        immOpnd.Negate();
+      }
+      insn.SetMOperator(A64ConstProp::GetReversalMOP(insn.GetMachineOpcode()));
+    } else {
+      immOpnd.Add(ofst);
+    }
   }
   if (!aarchCGFunc.IsOperandImmValid(insn.GetMachineOpcode(), &immOpnd, index)) {
     if (insn.GetMachineOpcode() >= MOP_xaddrri24 && insn.GetMachineOpcode() <= MOP_waddrri12) {
@@ -100,6 +108,16 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
           immOpnd.GetValue(), immOpnd.GetSize(), immOpnd.IsSignedValue());
       aarchCGFunc.SelectAddAfterInsn(*resOpnd, insn.GetOperand(kInsnSecondOpnd), copyImmOpnd, destTy, false, insn);
       insn.GetBB()->RemoveInsn(insn);
+    } else if (insn.GetMachineOpcode() == MOP_xsubrri12 || insn.GetMachineOpcode() == MOP_wsubrri12) {
+      if (immOpnd.IsSingleInstructionMovable()) {
+        AArch64RegOperand &tempReg = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
+        bool is64bit = insn.GetOperand(kInsnFirstOpnd).GetSize() == k64BitSize;
+        MOperator tempMovOp = is64bit ? MOP_xmovri64 : MOP_xmovri32;
+        Insn &tempMov = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(tempMovOp, tempReg, immOpnd);
+        insn.SetOperand(index, tempReg);
+        insn.SetMOperator(is64bit ? MOP_xsubrrr : MOP_wsubrrr);
+        insn.GetBB()->InsertInsnBefore(insn, tempMov);
+      }
     } else {
       CHECK_FATAL(false, "NIY");
     }

@@ -1088,11 +1088,10 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
 }
 
 void AArch64CGFunc::SelectAbort(UnaryStmtNode &stmt) {
-  AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R0, k64BitSize, kRegTyInt);
-  auto &xzr = AArch64RegOperand::Get64bitZeroRegister();
+  AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
   auto &mem = CreateMemOpnd(inOpnd, 0, k64BitSize);
-  Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovrr, inOpnd, xzr);
-  Insn &loadRef = GetCG()->BuildInstruction<AArch64Insn>(MOP_wldr, xzr, mem);
+  Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri64, inOpnd, CreateImmOperand(0, k64BitSize,false));
+  Insn &loadRef = GetCG()->BuildInstruction<AArch64Insn>(MOP_wldr, AArch64RegOperand::Get64bitZeroRegister(), mem);
   loadRef.SetDoNotRemove(true);
   movXzr.SetDoNotRemove(true);
   GetCurBB()->AppendInsn(movXzr);
