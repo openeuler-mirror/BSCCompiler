@@ -1,4 +1,0 @@
-Test if programe got passed!
-condition is value, goto assertEqual
-Check if condition value would be Zero
-expected:0 and actual:0 are equal
