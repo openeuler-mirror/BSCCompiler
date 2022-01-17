@@ -2731,7 +2731,7 @@ Operand *AArch64CGFunc::SelectIread(const BaseNode &parent, IreadNode &expr,
           break;
         }
         GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(
-            mOp, insn.GetOperand(0), insn.GetOperand(1)));
+            mOp, insn.GetOperand(0), insn.GetOperand(0)));
       }
     }
   } else {
