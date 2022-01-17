@@ -31,10 +31,20 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 
 ANDROID_DIR=$MAPLE_ROOT/android
 
+USR_EMAIL=`git config user.email`
+if [[ $USR_EMAIL =~ @huawei.com$ ]]; then
+  export http_proxy=http://f00603748:Hw.2416522@proxycn2.huawei.com:8080
+  export https_proxy=https://f00603748:Hw.2416522@proxycn2.huawei.com:8080
+  export ftp_proxy=ftp://f00603748:Hw.2416522@proxycn2.huawei.com:8080
+  export no_proxy=127.0.0.1,*.huawei.com,10.67.146.57,localhost,local,*.local
+  git config --global http.proxy http://f00603748:Hw.2416522@proxycn2.huawei.com:8080
+  git config --global https.proxy https://f00603748:Hw.2416522@proxycn2.huawei.com:8080
+fi
+
 if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
     cd $TOOLS
-    wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip
+    wget https://dl.google.com/android/repository/android-ndk-r21d-linux-x86_64.zip --no-check-certificate
     echo unpacking android ndk ...
     unzip android-ndk-r21d-linux-x86_64.zip > /dev/null
     mv android-ndk-r21d android-ndk-r21
@@ -59,7 +69,7 @@ if [ ! -f $TOOLS/ninja/ninja ]; then
   echo Start wget ninja ...
   mkdir -p ./ninja
   cd ./ninja || exit 3
-  wget https://github.com/ninja-build/ninja/releases/download/v1.10.0/ninja-linux.zip
+  wget https://github.com/ninja-build/ninja/releases/download/v1.10.0/ninja-linux.zip --no-check-certificate
   unzip ninja-linux.zip
   echo Downloaded ninja.
 fi
@@ -123,7 +133,7 @@ fi
 if [ ! -f $MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu/libz.so.1.2.8 ]; then
   cd $TOOLS
   echo Start wget libz ...
-  wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.2.8.dfsg-2ubuntu4_arm64.deb
+  wget http://ports.ubuntu.com/pool/main/z/zlib/zlib1g_1.2.8.dfsg-2ubuntu4_arm64.deb --no-check-certificate
   mkdir -p libz_extract
   dpkg --extract zlib1g_1.2.8.dfsg-2ubuntu4_arm64.deb libz_extract
   ZLIBDIR=$MAPLE_ROOT/third_party/libdex/prebuilts/aarch64-linux-gnu
@@ -147,11 +157,11 @@ if [ ! -f $TOOLS/qemu/usr/bin/qemu-aarch64 ]; then
   rm -rf qemu
   mkdir -p qemu
   if [ "$OLD_OS" == "1" ];then
-    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb --no-check-certificate
     dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   else
     # we will use QEMU 2.11 for now, and will upgrade it to a new version after further investigations
-    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb
+    wget http://archive.ubuntu.com/ubuntu/pool/universe/q/qemu/qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb --no-check-certificate
     dpkg-deb -R qemu-user_2.11+dfsg-1ubuntu7.37_amd64.deb qemu
   fi
   echo Installed qemu-aarch64
