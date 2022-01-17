@@ -939,8 +939,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
 bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd) {
   auto *baseRegOpnd = static_cast<AArch64RegOperand*>(memOpnd.GetBaseRegister());
   auto *ofstOpnd = static_cast<AArch64OfstOperand*>(memOpnd.GetOffsetImmediate());
-  auto &elemOpnd = static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-  CHECK_FATAL(elemOpnd.GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(), "the size must equal");
+  CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(), "the size must equal");
   Insn *splitAdd = nullptr;
   for (Insn *cursor = insn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {
@@ -969,10 +968,12 @@ bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArc
       break;
     }
   }
+  const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
+  auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[kInsnFirstOpnd]);
   auto &aarFunc = static_cast<AArch64CGFunc&>(cgFunc);
   if (splitAdd == nullptr) {
     regno_t pregNO = R16;
-    AArch64MemOperand &newMemOpnd = aarFunc.SplitOffsetWithAddInstruction(memOpnd, elemOpnd.GetSize(),
+    AArch64MemOperand &newMemOpnd = aarFunc.SplitOffsetWithAddInstruction(memOpnd, opndProp->GetSize(),
                                                                           static_cast<AArch64reg>(pregNO),
                                                                           false, &insn, true);
     insn.SetOperand(kInsnThirdOpnd, newMemOpnd);
@@ -983,7 +984,7 @@ bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArc
     auto *newOfstOpnd = aarFunc.GetMemoryPool()->New<AArch64OfstOperand>(
         (ofstOpnd->GetOffsetValue() - addImmOpnd.GetValue()), ofstOpnd->GetSize());
     auto *newMemOpnd = aarFunc.GetMemoryPool()->New<AArch64MemOperand>(
-        AArch64MemOperand::kAddrModeBOi, elemOpnd.GetSize(), newBaseReg, nullptr, newOfstOpnd, memOpnd.GetSymbol());
+        AArch64MemOperand::kAddrModeBOi, opndProp->GetSize(), newBaseReg, nullptr, newOfstOpnd, memOpnd.GetSymbol());
     if (!(static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, kInsnThirdOpnd))) {
       return false;
     }
