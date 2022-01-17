@@ -1,2 +1,0 @@
-Compare irbuild result!
-Main.irb.mpl and Main.irb.irb.mpl are the same
