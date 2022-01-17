@@ -801,8 +801,10 @@ bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) {
   std::vector<Insn*> movInsn;
   std::vector<std::vector<Insn*>> presCselInsn;
   std::vector<BB*> presBB;
-  Insn *branchInsn = cgFunc->GetTheCFG()->FindLastCondBrInsn(gotoBB);
-  ASSERT(branchInsn != nullptr, "nullptr check");
+  Insn *branchInsn = gotoBB.GetLastMachineInsn();
+  if (branchInsn == nullptr || !branchInsn->IsUnCondBranch()) {
+    return false;
+  }
   /* get preds's new label */
   std::vector<LabelOperand*> labelOpnd = branchInsn->GetLabelOpnd();
   if (labelOpnd.size() != 1) {

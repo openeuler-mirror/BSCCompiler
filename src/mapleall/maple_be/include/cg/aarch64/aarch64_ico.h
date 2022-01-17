@@ -82,7 +82,20 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   bool DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB);
 };
 
-/* If-Then MorePreds pattern */
+/* If-Then MorePreds pattern
+ *
+ * .L.891__92:                                             .L.891__92:
+ * cmp     x4, w0, UXTW                                    cmp     x4, w0, UXTW
+ * bls     .L.891__41                                      csel    x0, x2, x0, LS
+ * .L.891__42:                                             bls     .L.891__94
+ * sub     x0, x4, w0, UXTW           =====>               .L.891__42:
+ * cmp     x0, x2                                          sub     x0, x4, w0, UXTW
+ * bls     .L.891__41                                      cmp     x0, x2
+ * ......                                                  csel    x0, x2, x0, LS
+ * .L.891__41:                                             bls     .L.891__94
+ * mov     x0, x2
+ * b       .L.891__94
+ * */
 class AArch64ICOMorePredsPattern : public AArch64ICOPattern {
  public:
   explicit AArch64ICOMorePredsPattern(CGFunc &func) : AArch64ICOPattern(func) {}

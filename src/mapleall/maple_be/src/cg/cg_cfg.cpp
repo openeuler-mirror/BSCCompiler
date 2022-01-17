@@ -564,7 +564,7 @@ bool CGCFG::IsCompareAndBranchInsn(const Insn &insn) const {
 }
 
 Insn *CGCFG::FindLastCondBrInsn(BB &bb) const {
-  if (bb.GetKind() != BB::kBBIf && bb.GetKind() != BB::kBBGoto) {
+  if (bb.GetKind() != BB::kBBIf) {
     return nullptr;
   }
   FOR_BB_INSNS_REV(insn, (&bb)) {
