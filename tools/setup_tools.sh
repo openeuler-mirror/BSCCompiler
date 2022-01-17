@@ -32,14 +32,6 @@ ANDROID_SRCDIR=$MAPLE_ROOT/../android/$ANDROID_VERSION
 ANDROID_DIR=$MAPLE_ROOT/android
 
 USR_EMAIL=`git config user.email`
-if [[ $USR_EMAIL =~ @huawei.com$ ]]; then
-  export http_proxy=http://f00603748:Hw.2416522@proxycn2.huawei.com:8080
-  export https_proxy=https://f00603748:Hw.2416522@proxycn2.huawei.com:8080
-  export ftp_proxy=ftp://f00603748:Hw.2416522@proxycn2.huawei.com:8080
-  export no_proxy=127.0.0.1,*.huawei.com,10.67.146.57,localhost,local,*.local
-  git config --global http.proxy http://f00603748:Hw.2416522@proxycn2.huawei.com:8080
-  git config --global https.proxy https://f00603748:Hw.2416522@proxycn2.huawei.com:8080
-fi
 
 if [ "$android_env" == "android" ]; then
   if [ ! -f $TOOLS/android-ndk-r21/ndk-build ]; then
