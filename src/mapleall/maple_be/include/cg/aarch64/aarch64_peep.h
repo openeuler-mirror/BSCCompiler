@@ -22,28 +22,6 @@
 #include "mir_builder.h"
 
 namespace maplebe {
-class AArch64CGPeepHole {
- public:
-  /* normal constructor */
-  AArch64CGPeepHole(CGFunc &f, MemPool *memPool)
-      : cgFunc(&f),
-        peepMemPool(memPool),
-        ssaInfo(nullptr) {}
-  /* constructor for ssa */
-  AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo)
-      : cgFunc(&f),
-        peepMemPool(memPool),
-        ssaInfo(cgssaInfo) {}
-  ~AArch64CGPeepHole() = default;
-  void Run();
-  void DoOptimize(BB &bb, Insn &insn);
-
- protected:
-  CGFunc *cgFunc;
-  MemPool *peepMemPool;
-  CGSSAInfo *ssaInfo;
-};
-
 class PeepOptimizeManager {
  public:
   /* normal constructor */
@@ -61,8 +39,8 @@ class PeepOptimizeManager {
   ~PeepOptimizeManager() = default;
   template<typename OptimizePattern>
   void Optimize() {
-    OptimizePattern optPattern(cgFunc, currBB, currInsn, ssaInfo);
-    optPattern.Run();
+    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
+    optPattern.Run(*currBB, *currInsn);
   }
  private:
   CGFunc *cgFunc;
@@ -70,6 +48,145 @@ class PeepOptimizeManager {
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
 };
+
+class AArch64CGPeepHole {
+ public:
+  /* normal constructor */
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(nullptr) {}
+  /* constructor for ssa */
+  AArch64CGPeepHole(CGFunc &f, MemPool *memPool, CGSSAInfo *cgssaInfo)
+      : cgFunc(&f),
+        peepMemPool(memPool),
+        ssaInfo(cgssaInfo) {}
+  ~AArch64CGPeepHole() = default;
+
+  void Run();
+  void DoOptimize(BB &bb, Insn &insn);
+
+ protected:
+  CGFunc *cgFunc;
+  MemPool *peepMemPool;
+  CGSSAInfo *ssaInfo;
+  PeepOptimizeManager *manager = nullptr;
+};
+
+/*
+ * Optimize the following patterns:
+ * Example 1)
+ *  and  w0, w6, #1  ====> tbz  w6, #0, .label
+ *  cmp  w0, #1
+ *  bne  .label
+ *
+ *  and  w0, w6, #16  ====> tbz  w6, #4, .label
+ *  cmp  w0, #16
+ *  bne  .label
+ *
+ *  and  w0, w6, #32  ====> tbnz  w6, #5, .label
+ *  cmp  w0, #32
+ *  beq  .label
+ *
+ * Conditions:
+ * 1. cmp_imm value == and_imm value
+ * 2. (and_imm value is (1 << n)) && (cmp_imm value is (1 << n))
+ *
+ * Example 2)
+ *  and  x0, x6, #32  ====> tbz  x6, #5, .label
+ *  cmp  x0, #0
+ *  beq  .label
+ *
+ *  and  x0, x6, #32  ====> tbnz  x6, #5, .label
+ *  cmp  x0, #0
+ *  bne  .label
+ *
+ * Conditions:
+ * 1. (cmp_imm value is 0) || (cmp_imm == and_imm)
+ * 2. and_imm value is (1 << n)
+ */
+class AndCmpBranchesToTbzPattern : public CGPeepPattern {
+ public:
+  AndCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~AndCmpBranchesToTbzPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  bool CheckAndSelectPattern(Insn &currInsn);
+  Insn *prevAndInsn = nullptr;
+  Insn *prevCmpInsn = nullptr;
+  MOperator newMop = MOP_undef;
+  int64 tbzImmVal = -1;
+};
+
+/*
+ * and r0, r1, #4                  (the imm is n power of 2)
+ * ...
+ * cbz r0, .Label
+ * ===>  tbz r1, #2, .Label
+ *
+ * and r0, r1, #4                  (the imm is n power of 2)
+ * ...
+ * cbnz r0, .Label
+ * ===>  tbnz r1, #2, .Label
+ */
+class AndCbzToTbzPattern : public CGPeepPattern {
+ public:
+  AndCbzToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+                CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~AndCbzToTbzPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  Insn *prevInsn = nullptr;
+};
+
+/*
+ *  cmp  w0, #0
+ *  cset w1, NE --> mov w1, w0
+ *
+ *  cmp  w0, #0
+ *  cset w1, EQ --> eor w1, w0, 1
+ *
+ *  cmp  w0, #1
+ *  cset w1, NE --> eor w1, w0, 1
+ *
+ *  cmp  w0, #1
+ *  cset w1, EQ --> mov w1, w0
+ *
+ *  cmp w0,  #0
+ *  cset w0, NE -->null
+ *
+ *  cmp w0, #1
+ *  cset w0, EQ -->null
+ *
+ *  condition:
+ *    1. the first operand of cmp instruction must has only one valid bit
+ *    2. the second operand of cmp instruction must be 0 or 1
+ *    3. flag register of cmp isntruction must not be used later
+ */
+class CmpCsetOpt : public CGPeepPattern {
+ public:
+  CmpCsetOpt(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CmpCsetOpt() override = default;
+  void Run(BB &bb, Insn &csetInsn) override;
+  bool CheckCondition(BB &bb, Insn &csetInsn) override;
+  std::string GetPatternName() override {
+    return "CmpCsetOpt Pattern";
+  };
+
+ private:
+  bool OpndDefByOneValidBit(const Insn &defInsn);
+  Insn *cmpInsn = nullptr;
+  int64 cmpConstVal = -1;
+};
+
 /*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
