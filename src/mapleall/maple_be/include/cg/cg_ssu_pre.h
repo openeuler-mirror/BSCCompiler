@@ -20,7 +20,7 @@
 #include "cg_dominance.h"
 
 // Use SSUPRE to determine where to insert restores for callee-saved registers.
-// The usage interface is DoRestorePlacementOpt().  Class SPreWorkCand is used
+// The external interface is DoRestorePlacementOpt(). Class SPreWorkCand is used
 // as input/output interface.
 
 namespace maplebe {
@@ -42,6 +42,8 @@ class SPreWorkCand {
   // outputs
   MapleSet<BBId> restoreAtEntryBBs; // Id's of BBs to insert restores of the register at BB entry
   MapleSet<BBId> restoreAtExitBBs; // Id's of BBs to insert restores of the register at BB exit
+  bool restoreAtEpilog = false;    // if true, no shrinkwrapping can be done and
+                                   // the other outputs can be ignored
 };
 
 extern void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand);
