@@ -15,6 +15,7 @@
 #include "aarch64_prop.h"
 #include "aarch64_isa.h"
 #include "aarch64_cg.h"
+#include <climits>
 
 namespace maplebe {
 
@@ -46,9 +47,10 @@ void AArch64Prop::CopyProp(Insn &insn) {
     if (mOp == MOP_xmovrr || mOp == MOP_wmovrr || mOp == MOP_xvmovs || mOp == MOP_xvmovd) {
       Operand &destOpnd = insn.GetOperand(kInsnFirstOpnd);
       Operand &srcOpnd = insn.GetOperand(kInsnSecondOpnd);
-      CHECK_FATAL(destOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
+      ASSERT(destOpnd.IsRegister() && srcOpnd.IsRegister(), "must be");
       auto &destReg = static_cast<RegOperand&>(destOpnd);
       auto &srcReg = static_cast<RegOperand&>(srcOpnd);
+      CHECK_FATAL(srcReg.GetRegisterNumber() != RZR, "CHECK ZERO REGISTER");
       if (destReg.IsSSAForm() && srcReg.IsSSAForm()) {
         /* open in future */
         if (destReg.GetSize() != srcReg.GetSize()) {
@@ -72,18 +74,335 @@ void AArch64Prop::CopyProp(Insn &insn) {
 }
 
 void AArch64Prop::TargetProp(Insn &insn) {
-  A64StrLdrProp a64StrLdrProp(*memPool, *cgFunc, *GetSSAInfo(), insn);
+  if (insn.GetMachineOpcode() ==  MOP_wiorri12r || insn.GetMachineOpcode() == MOP_xiorri13r) {
+    CHECK_FATAL(false, "invalid arm instruction");
+  }
+  A64ConstProp a64ConstProp(*memPool, *cgFunc, *GetSSAInfo(), insn);
+  a64ConstProp.DoOpt();
+  A64StrLdrProp a64StrLdrProp(*memPool, *cgFunc, *GetSSAInfo(), insn, *GetDce());
   a64StrLdrProp.DoOpt();
+}
+
+void A64ConstProp::DoOpt() {
+  if (curInsn->GetMachineOpcode() == MOP_xmovri32 || curInsn->GetMachineOpcode() == MOP_xmovri64) {
+    Operand &destOpnd = curInsn->GetOperand(kInsnFirstOpnd);
+    CHECK_FATAL(destOpnd.IsRegister(), "must be reg operand");
+    auto &destReg = static_cast<RegOperand&>(destOpnd);
+    if (destReg.IsSSAForm()) {
+      VRegVersion *destVersion = ssaInfo->FindSSAVersion(destReg.GetRegisterNumber());
+      ASSERT(destVersion != nullptr, "find Version failed");
+      Operand &constOpnd = curInsn->GetOperand(kInsnSecondOpnd);
+      CHECK_FATAL(constOpnd.IsImmediate(), "must be imm operand");
+      auto &immOperand = static_cast<AArch64ImmOperand&>(constOpnd);
+      bool isZero = immOperand.IsZero();
+      for (auto useDUInfoIt : destVersion->GetAllUseInsns()) {
+        if (isZero) {
+          ZeroRegProp(*useDUInfoIt.second, *destVersion->GetSSAvRegOpnd());
+          destVersion->CheckDeadUse(*useDUInfoIt.second->GetInsn());
+        }
+        (void)ConstProp(*useDUInfoIt.second, immOperand);
+      }
+    }
+  }
+}
+
+void A64ConstProp::ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg) {
+  auto *useInsn = static_cast<AArch64Insn*>(useDUInfo.GetInsn());
+  const AArch64MD *md = &AArch64CG::kMd[(useInsn->GetMachineOpcode())];
+  /* special case */
+  bool isSpecficCase = useInsn->GetMachineOpcode() == MPO_wbfirri5i5 || useInsn->GetMachineOpcode() == MPO_xbfirri6i6;
+  isSpecficCase &= (useDUInfo.GetOperands().size() == 1) && (useDUInfo.GetOperands().begin()->first == kInsnSecondOpnd);
+  if (useInsn->IsStore() || md->IsCondDef() || isSpecficCase)  {
+    AArch64RegOperand &zeroOpnd = toReplaceReg.GetSize() == k64BitSize ?
+                                  AArch64RegOperand::Get64bitZeroRegister() : AArch64RegOperand::Get32bitZeroRegister();
+    for (auto &opndIt : useDUInfo.GetOperands()) {
+      if (useInsn->IsStore() && opndIt.first != 0) {
+        return;
+      }
+      Operand &opnd = useInsn->GetOperand(opndIt.first);
+      A64ReplaceRegOpndVisitor replaceRegOpndVisitor(*cgFunc, *useInsn,
+          opndIt.first, toReplaceReg, zeroOpnd);
+      opnd.Accept(replaceRegOpndVisitor);
+      useDUInfo.ClearDU(opndIt.first);
+    }
+  }
+}
+
+MOperator A64ConstProp::GetReversalMOP(MOperator arithMop) {
+  switch (arithMop) {
+    case MOP_waddrri12:
+      return MOP_wsubrri12;
+    case MOP_xaddrri12:
+      return MOP_xsubrri12;
+    case MOP_xsubrri12:
+      return MOP_xaddrri12;
+    default:
+      CHECK_FATAL(false, "NYI");
+      break;
+  }
+  return MOP_undef;
+}
+
+MOperator A64ConstProp::GetRegImmMOP(MOperator regregMop, bool withLeftShift) {
+  switch (regregMop) {
+    case MOP_xaddrrrs:
+    case MOP_xaddrrr: {
+      return withLeftShift ? MOP_xaddrri24 : MOP_xaddrri12;
+    }
+    case MOP_waddrrrs:
+    case MOP_waddrrr: {
+      return withLeftShift ? MOP_waddrri24 : MOP_waddrri12;
+    }
+    case MOP_xsubrrrs:
+    case MOP_xsubrrr: {
+      return withLeftShift ? MOP_xsubrri24 : MOP_xsubrri12;
+    }
+    case MOP_wsubrrrs:
+    case MOP_wsubrrr: {
+      return withLeftShift ? MOP_wsubrri24 : MOP_wsubrri12;
+    }
+    case MOP_xandrrrs:
+      return MOP_xandrri13;
+    case MOP_wandrrrs:
+      return MOP_wandrri12;
+    case MOP_xeorrrrs:
+      return MOP_xeorrri13;
+    case MOP_weorrrrs:
+      return MOP_weorrri12;
+    case MOP_xiorrrrs:
+      return MOP_xiorrri13;
+    case MOP_wiorrrrs:
+      return MOP_wiorrri12;
+    case MOP_xmovrr: {
+      return MOP_xmovri64;
+    }
+    case MOP_wmovrr: {
+      return MOP_xmovri32;
+    }
+    default:
+      CHECK_FATAL(false, "NYI");
+      break;
+  }
+  return MOP_undef;
+}
+
+void A64ConstProp::ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn) {
+  ssaInfo->ReplaceInsn(oriInsn, newInsn);
+  oriInsn.GetBB()->ReplaceInsn(oriInsn, newInsn);
+  /* dump insn replacement here */
+}
+
+bool A64ConstProp::MovConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd) {
+  Insn *useInsn = useDUInfo.GetInsn();
+  MOperator curMop = useInsn->GetMachineOpcode();
+  if (useDUInfo.GetOperands().size() == 1) {
+    MOperator newMop = GetRegImmMOP(curMop, false);
+    Operand &destOpnd = useInsn->GetOperand(kInsnFirstOpnd);
+    if (constOpnd.IsSingleInstructionMovable(destOpnd.GetSize())) {
+      auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+      uint32 useOpndIdx = useOpndInfoIt->first;
+      ASSERT(useOpndIdx == kInsnSecondOpnd, "invalid instruction in ssa form");
+      if (useOpndIdx == kInsnSecondOpnd) {
+        Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, destOpnd, constOpnd);
+        ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
+        return true;
+      }
+    }
+  } else {
+    ASSERT(false, "invalid instruction in ssa form");
+  }
+  return false;
+}
+
+
+/* support add now */
+bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT) {
+  Insn *useInsn = useDUInfo.GetInsn();
+  MOperator curMop = useInsn->GetMachineOpcode();
+  if (useDUInfo.GetOperands().size() == 1) {
+    MOperator newMop = GetRegImmMOP(curMop, false);
+    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+    uint32 useOpndIdx = useOpndInfoIt->first;
+    CHECK_FATAL(useOpndIdx == kInsnSecondOpnd || useOpndIdx == kInsnThirdOpnd, "check this insn");
+    Insn *newInsn = nullptr;
+    if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, &constOpnd, kInsnThirdOpnd)) {
+      newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+          newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), constOpnd);
+      if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
+        newInsn->SetOperand(kInsnSecondOpnd, useInsn->GetOperand(kInsnThirdOpnd));
+      }
+    }
+    /* try aggressive opt in aarch64 add and sub */
+    if (newInsn == nullptr && (aT == kAArch64Add || aT == kAArch64Sub)) {
+      auto *tempImm = static_cast<AArch64ImmOperand*>(constOpnd.Clone(*constPropMp));
+      /* try aarch64 imm shift mode */
+      tempImm->SetValue(tempImm->GetValue() >> 12);
+      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
+        ASSERT(false, "NIY");
+      }
+      /* Addition and subtraction reversal */
+      tempImm->SetValue(-constOpnd.GetValue());
+      newMop = GetReversalMOP(newMop);
+      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, tempImm, kInsnThirdOpnd)) {
+        auto *cgImm = static_cast<AArch64ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool()));
+        newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), *cgImm);
+        if (useOpndIdx == kInsnSecondOpnd) { /* swap operand due to legality in aarch */
+          newInsn->SetOperand(kInsnSecondOpnd, useInsn->GetOperand(kInsnThirdOpnd));
+        }
+      }
+    }
+    if (newInsn != nullptr) {
+      ReplaceInsnAndUpdateSSA(*useInsn, *newInsn);
+      return true;
+    }
+  } else if (useDUInfo.GetOperands().size() == 2) {
+    /* no case in SPEC 2017 */
+    ASSERT(false, "should be optimized by other phase");
+  } else {
+    ASSERT(false, "invalid instruction in ssa form");
+  }
+  return false;
+}
+
+bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT) {
+  Insn *useInsn = useDUInfo.GetInsn();
+  if (useDUInfo.GetOperands().size() == 1) {
+    Operand &existedImm = useInsn->GetOperand(kInsnThirdOpnd);
+    ASSERT(existedImm.IsImmediate(), "must be");
+    Operand &destOpnd = useInsn->GetOperand(kInsnFirstOpnd);
+    bool is64Bit = destOpnd.GetSize() == k64BitSize;
+    AArch64ImmOperand *foldConst = CanDoConstFold(constOpnd, static_cast<AArch64ImmOperand&>(existedImm), aT, is64Bit);
+    if (foldConst != nullptr) {
+      MOperator newMop = is64Bit ? MOP_xmovri64 : MOP_xmovri32;
+      Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, destOpnd, *foldConst);
+      ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
+      return true;
+    }
+  }
+  return false;
+}
+
+bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd) {
+  Insn *useInsn = useDUInfo.GetInsn();
+  MOperator curMop = useInsn->GetMachineOpcode();
+  if (useDUInfo.GetOperands().size() == 1) {
+    auto useOpndInfoIt = useDUInfo.GetOperands().begin();
+    uint32 useOpndIdx = useOpndInfoIt->first;
+    if (useOpndIdx == kInsnThirdOpnd) {
+      auto &shiftBit = static_cast<BitShiftOperand&>(useInsn->GetOperand(kInsnFourthOpnd));
+      int64 val = constOpnd.GetValue();
+      if (shiftBit.GetShiftOp() == BitShiftOperand::kLSL) {
+        val = val << shiftBit.GetShiftAmount();
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kLSR) {
+        val = val >> shiftBit.GetShiftAmount();
+      } else if (shiftBit.GetShiftOp() == BitShiftOperand::kASR) {
+        val = (static_cast<uint64>(val)) >> shiftBit.GetShiftAmount();
+      } else {
+        CHECK_FATAL(false, "shift type is not defined");
+      }
+      auto *newImm = static_cast<AArch64ImmOperand*>(constOpnd.Clone(*constPropMp));
+      newImm->SetValue(val);
+      MOperator newMop = GetRegImmMOP(curMop, false);
+      if (static_cast<AArch64CGFunc*>(cgFunc)->IsOperandImmValid(newMop, newImm, kInsnThirdOpnd)) {
+        auto *cgNewImm = static_cast<AArch64ImmOperand*>(constOpnd.Clone(*cgFunc->GetMemoryPool()));
+        Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+            newMop, useInsn->GetOperand(kInsnFirstOpnd), useInsn->GetOperand(kInsnSecondOpnd), *cgNewImm);
+        ReplaceInsnAndUpdateSSA(*useInsn, newInsn);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool A64ConstProp::ConstProp(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd) {
+  MOperator curMop = useDUInfo.GetInsn()->GetMachineOpcode();
+  switch (curMop) {
+    case MOP_xmovrr:
+    case MOP_wmovrr: {
+      return MovConstReplace(useDUInfo, constOpnd);
+    }
+    case MOP_xsubrrr:
+    case MOP_wsubrrr: {
+      break;
+    }
+    case MOP_xaddrrr:
+    case MOP_waddrrr: {
+      return ArithmeticConstReplace(useDUInfo, constOpnd, kAArch64Add);
+    }
+    case MOP_waddrri12:
+    case MOP_xaddrri12: {
+      return ArithmeticConstFold(useDUInfo, constOpnd, kAArch64Add);
+
+    }
+    case MOP_xsubrri12:
+    case MOP_wsubrri12: {
+      return ArithmeticConstFold(useDUInfo, constOpnd, kAArch64Sub);
+    }
+    case MOP_xiorrrrs:
+    case MOP_wiorrrrs:
+    case MOP_xeorrrrs:
+    case MOP_weorrrrs:
+    case MOP_xandrrrs:
+    case MOP_wandrrrs:
+    case MOP_xaddrrrs:
+    case MOP_waddrrrs:
+    case MOP_wsubrrrs:
+    case MOP_xsubrrrs: {
+     return ShiftConstReplace(useDUInfo, constOpnd);
+    }
+    default:
+      break;
+  }
+  return false;
+}
+
+AArch64ImmOperand *A64ConstProp::CanDoConstFold(
+    AArch64ImmOperand &value1, AArch64ImmOperand &value2, ArithmeticType aT, bool is64Bit) {
+  auto *tempImm = static_cast<AArch64ImmOperand*>(value1.Clone(*constPropMp));
+  int64 newVal = 0;
+  switch (aT) {
+    case kAArch64Add : {
+      newVal = value1.GetValue() + value2.GetValue();
+      break;
+    }
+    case kAArch64Sub : {
+      newVal = value1.GetValue() - value2.GetValue();
+      break;
+    }
+    default:
+      return nullptr;
+  }
+  if (!is64Bit && newVal > INT_MAX) {
+    return nullptr;
+  }
+  if (newVal < 0) {
+    tempImm->SetSigned();
+  }
+  tempImm->SetValue(newVal);
+  if (value2.GetVary() == kUnAdjustVary) {
+    tempImm->SetVary(kUnAdjustVary);
+  }
+  bool canBeMove = tempImm->IsSingleInstructionMovable(k64BitSize);
+  return canBeMove ? static_cast<AArch64ImmOperand*>(tempImm->Clone(*cgFunc->GetMemoryPool())): nullptr;
 }
 
 void A64StrLdrProp::DoOpt() {
   ASSERT(curInsn != nullptr, "not input insn");
-  AArch64MemOperand *currMemOpnd = StrLdrPropPreCheck(*curInsn);
-  if (currMemOpnd != nullptr && memPropMode != kUndef) {
-    /* can be changed to recursive propagation */
-    (void)ReplaceMemOpnd(*currMemOpnd, nullptr);
-    replaceVersions.clear();
-  }
+  bool tryOptAgain;
+  do {
+    tryOptAgain = false;
+    AArch64MemOperand *currMemOpnd = StrLdrPropPreCheck(*curInsn);
+    if (currMemOpnd != nullptr && memPropMode != kUndef) {
+      /* can be changed to recursive propagation */
+      if (ReplaceMemOpnd(*currMemOpnd, nullptr)) {
+        tryOptAgain = true;
+      }
+      replaceVersions.clear();
+    }
+
+  } while (tryOptAgain);
 }
 
 bool A64StrLdrProp::ReplaceMemOpnd(AArch64MemOperand &currMemOpnd, Insn *defInsn) {
@@ -127,6 +446,8 @@ bool A64StrLdrProp::ReplaceMemOpnd(AArch64MemOperand &currMemOpnd, Insn *defInsn
       doFullReplaceProp = false;
       break;
     }
+  } else {
+    doFullReplaceProp = false;
   }
   if (doFullReplaceProp) {
     for (size_t i = 0; i < newMemOpnds.size(); ++i) {
@@ -166,11 +487,13 @@ void A64StrLdrProp::DoMemReplace(RegOperand &replacedReg, AArch64MemOperand &new
   ASSERT(replacedV != nullptr, "must in ssa form");
   uint32 opndIdx = GetMemOpndIdx(&newMem, useInsn);
   replacedV->RemoveUseInsn(useInsn, opndIdx);
+  if (replacedV->GetAllUseInsns().empty()) {
+    cgDce->RemoveUnuseDef(*replacedV);
+  }
   for (auto &replaceit : replaceVersions) {
     replaceit.second->AddUseInsn(*ssaInfo, useInsn, opndIdx);
   }
   useInsn.SetOperand(opndIdx, newMem);
-  replaceVersions.clear();
 }
 
 AArch64MemOperand *A64StrLdrProp::StrLdrPropPreCheck(Insn &insn, MemPropMode prevMod) {
@@ -413,7 +736,6 @@ void AArch64Prop::PropPatternOpt() {
   PropOptimizeManager optManager(*cgFunc, GetSSAInfo());
   optManager.Optimize<ExtendMovPattern>();
   optManager.Optimize<ExtendShiftPattern>();
-  return;
 }
 
 void ExtendShiftPattern::SetExMOpType(Insn &use) {

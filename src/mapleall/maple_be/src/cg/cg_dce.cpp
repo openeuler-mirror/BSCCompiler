@@ -16,17 +16,17 @@
 #include "cg.h"
 namespace maplebe {
 void CGDce::DoDce() {
-  bool hasRemoved;
+  bool tryDceAgain;
   do {
-    hasRemoved = false;
+    tryDceAgain = false;
     for (auto &ssaIt : GetSSAInfo()->GetAllSSAOperands()) {
       if (ssaIt.second != nullptr && !ssaIt.second->IsDeleted()) {
         if (RemoveUnuseDef(*ssaIt.second)) {
-          hasRemoved = true;
+          tryDceAgain = true;
         }
       }
     }
-  } while (hasRemoved);
+  } while (tryDceAgain);
 }
 
 bool CgDce::PhaseRun(maplebe::CGFunc &f) {

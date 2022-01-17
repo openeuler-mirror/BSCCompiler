@@ -262,6 +262,14 @@ void VRegVersion::RemoveUseInsn(Insn &useInsn, uint32 idx) {
   }
 }
 
+void VRegVersion::CheckDeadUse(Insn &useInsn) {
+  auto useInsnIt = useInsnInfos.find(useInsn.GetId());
+  ASSERT(useInsnIt != useInsnInfos.end(), "use Insn not found");
+  if (useInsnIt->second->HasNoDU()) {
+    useInsnInfos.erase(useInsnIt);
+  }
+}
+
 void CgSSAConstruct::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgDomAnalysis>();
   aDep.AddRequired<CgLiveAnalysis>();

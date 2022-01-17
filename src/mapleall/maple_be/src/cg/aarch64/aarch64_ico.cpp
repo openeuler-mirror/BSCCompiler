@@ -190,23 +190,33 @@ void AArch64ICOIfThenElsePattern::GenerateInsnForImm(const Insn &branchInsn, Ope
     generateInsn.emplace_back(&tempInsn);
   } else {
     bool destIsIntTy = destReg.IsOfIntClass();
+    uint32 dSize = destReg.GetSize();
+    bool isD64 = dSize == k64BitSize;
     MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
                     ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
-    RegOperand *tempTarIf = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
-    Insn &tempInsnIf = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
-        mOp, *tempTarIf, imm1);
-    generateInsn.emplace_back(&tempInsnIf);
+    RegOperand *tempTarIf = nullptr;
+    if (imm1.IsZero()) {
+      tempTarIf = isD64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+    } else {
+      tempTarIf = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
+      Insn &tempInsnIf = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+          mOp, *tempTarIf, imm1);
+      generateInsn.emplace_back(&tempInsnIf);
+    }
 
-    RegOperand *tempTarElse = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
-    Insn &tempInsnElse = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
-        mOp, *tempTarElse, imm2);
-    generateInsn.emplace_back(&tempInsnElse);
+    RegOperand *tempTarElse = nullptr;
+    if (imm2.IsZero()) {
+      tempTarElse = isD64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+    } else {
+      tempTarElse = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
+      Insn &tempInsnElse = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
+          mOp, *tempTarElse, imm2);
+      generateInsn.emplace_back(&tempInsnElse);
+    }
 
-    uint32 dSize = destReg.GetSize();
     bool isIntTy = destReg.IsOfIntClass();
-    MOperator mOpCode = isIntTy ? (dSize == k64BitSize ? MOP_xcselrrrc : MOP_wcselrrrc)
-                                : (dSize == k64BitSize ? MOP_dcselrrrc : (dSize == k32BitSize ?
-                                                                          MOP_scselrrrc : MOP_hcselrrrc));
+    MOperator mOpCode = isIntTy ? (isD64 ? MOP_xcselrrrc : MOP_wcselrrrc)
+                                : (isD64 ? MOP_dcselrrrc : (dSize == k32BitSize ? MOP_scselrrrc : MOP_hcselrrrc));
     Insn *cselInsn = BuildCondSel(branchInsn, mOpCode, destReg, *tempTarIf, *tempTarElse);
     CHECK_FATAL(cselInsn != nullptr, "build a csel insn failed");
     generateInsn.emplace_back(cselInsn);
@@ -218,10 +228,13 @@ RegOperand *AArch64ICOIfThenElsePattern::GenerateRegAndTempInsn(Operand &dest, c
   RegOperand *reg = nullptr;
   if (!dest.IsRegister()) {
     bool destIsIntTy = destReg.IsOfIntClass();
-    MOperator mOp = destIsIntTy ? ((destReg.GetSize() == k64BitSize ? MOP_xmovri64 : MOP_xmovri32)) :
-        ((destReg.GetSize() == k64BitSize ? MOP_xdfmovri : MOP_wsfmovri));
+    bool isDest64 = destReg.GetSize() == k64BitSize;
+    MOperator mOp = destIsIntTy ? (isDest64 ? MOP_xmovri64 : MOP_xmovri32) : (isDest64 ? MOP_xdfmovri : MOP_wsfmovri);
     reg = cgFunc->GetTheCFG()->CreateVregFromReg(destReg);
     ImmOperand &tempSrcElse = static_cast<ImmOperand&>(dest);
+    if (tempSrcElse.IsZero()) {
+      return isDest64 ? &AArch64RegOperand::Get64bitZeroRegister() : &AArch64RegOperand::Get32bitZeroRegister();
+    }
     Insn &tempInsn = cgFunc->GetTheCFG()->GetInsnModifier()->GetCGFunc()->GetCG()->BuildInstruction<AArch64Insn>(
         mOp, *reg, tempSrcElse);
     generateInsn.emplace_back(&tempInsn);

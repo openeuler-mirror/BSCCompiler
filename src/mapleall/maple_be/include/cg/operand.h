@@ -401,6 +401,10 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     return isSigned;
   }
 
+  void SetSigned() {
+    isSigned = true;
+  }
+
   bool IsInBitSizeRot(uint8 size) const {
     return IsInBitSizeRot(size, value);
   }

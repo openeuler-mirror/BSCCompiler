@@ -1539,6 +1539,27 @@ std::set<uint32> AArch64Insn::GetDefRegs() const {
   return defRegNOs;
 }
 
+uint32 AArch64Insn::GetBothDefUseOpnd() const {
+  const AArch64MD *md = &AArch64CG::kMd[mOp];
+  uint32 opndNum = opnds.size();
+  uint32 opndIdx = kInsnMaxOpnd;
+  for (uint32 i = 0; i < opndNum; ++i) {
+    auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+    if (opndProp->IsRegUse() && opndProp->IsDef()) {
+      ASSERT(opndIdx == kInsnMaxOpnd, "Do not support in aarch64 yet");
+      opndIdx = i;
+    }
+    if (opnds[i]->IsMemoryAccessOperand()) {
+      auto *a64MemOpnd = static_cast<AArch64MemOperand*>(opnds[i]);
+      if (!a64MemOpnd->IsIntactIndexed()) {
+        ASSERT(opndIdx == kInsnMaxOpnd, "Do not support in aarch64 yet");
+        opndIdx = i;
+      }
+    }
+  }
+  return opndIdx;
+}
+
 bool AArch64Insn::IsVolatile() const {
   return AArch64CG::kMd[mOp].IsVolatile();
 }
@@ -1596,6 +1617,10 @@ bool AArch64Insn::IsSpecialIntrinsic() const {
       return false;
     }
   }
+}
+
+bool AArch64Insn::IsAsmInsn() const {
+  return (mOp == MOP_asm);
 }
 
 bool AArch64Insn::IsTailCall() const {
@@ -1658,6 +1683,10 @@ bool AArch64Insn::IsDMBInsn() const {
 
 bool AArch64Insn::IsMove() const {
   return AArch64CG::kMd[mOp].IsMove();
+}
+
+bool AArch64Insn::IsMoveRegReg() const {
+  return mOp == MOP_xmovrr || mOp == MOP_wmovrr || mOp == MOP_xvmovs || mOp  == MOP_xvmovd;
 }
 
 bool AArch64Insn::IsPhi() const {
@@ -1730,7 +1759,7 @@ bool AArch64Insn::IsYieldPoint() const {
 }
 /* Return the copy operand id of reg1 if it is an insn who just do copy from reg1 to reg2.
  * i. mov reg2, reg1
- * ii. add/sub reg2, reg1, 0
+ * ii. add/sub reg2, reg1, 0/zero register
  * iii. mul reg2, reg1, 1
  */
 int32 AArch64Insn::CopyOperands() const {

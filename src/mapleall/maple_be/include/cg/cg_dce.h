@@ -26,15 +26,16 @@ class CGDce {
   virtual ~CGDce() = default;
 
   void DoDce();
+  /* provide public use in ssa opt */
+  virtual bool RemoveUnuseDef(VRegVersion &defVersion) = 0;
   CGSSAInfo *GetSSAInfo() {
     return ssaInfo;
   }
+
+ protected:
   MemPool *memPool;
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
-
- private:
-  virtual bool RemoveUnuseDef(VRegVersion &defVersion) = 0;
 };
 
 class DeleteRegUseVisitor : public OperandVisitorBase,

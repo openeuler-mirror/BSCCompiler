@@ -18,6 +18,9 @@
 
 #include "cgfunc.h"
 #include "cg_ssa.h"
+#include "cg_dce.h"
+#include "cg.h"
+
 namespace maplebe {
 class CGProp {
  public:
@@ -25,7 +28,9 @@ class CGProp {
       : memPool(&mp),
         cgFunc(&f),
         propAlloc(&mp),
-        ssaInfo(&sInfo) {}
+        ssaInfo(&sInfo) {
+    cgDce = f.GetCG()->CreateCGDce(mp, f, sInfo);
+  }
   virtual ~CGProp() = default;
 
   void DoProp();
@@ -37,12 +42,16 @@ class CGProp {
   CGSSAInfo *GetSSAInfo() {
     return ssaInfo;
   }
+  CGDce *GetDce() {
+    return cgDce;
+  }
 
  private:
   virtual void CopyProp(Insn &insn) = 0;
   virtual void TargetProp(Insn &insn) = 0;
   virtual void PropPatternOpt() = 0;
   CGSSAInfo *ssaInfo;
+  CGDce *cgDce = nullptr;
 };
 
 class ReplaceRegOpndVisitor : public OperandVisitorBase,

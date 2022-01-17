@@ -14,20 +14,32 @@
  */
 
 #include "cg_prop.h"
-#include "cg.h"
 
 namespace maplebe {
 void CGProp::DoProp() {
+  /* instruction level opt */
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
+      /* change to optimize level opt */
       CopyProp(*insn);
+    }
+  }
+  cgDce->DoDce();
+  FOR_ALL_BB(bb, cgFunc) {
+    FOR_BB_INSNS(insn, bb) {
+      if (!insn->IsMachineInstruction()) {
+        continue;
+      }
       TargetProp(*insn);
     }
   }
-  PropPatternOpt();
+  /* wait for performance test */
+  if (CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    PropPatternOpt();
+  }
 }
 
 bool CgProp::PhaseRun(maplebe::CGFunc &f) {

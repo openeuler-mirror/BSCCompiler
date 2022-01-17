@@ -72,12 +72,13 @@ class AArch64Prop : public CGProp {
 
 class A64StrLdrProp {
  public:
-  A64StrLdrProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, Insn &insn)
+  A64StrLdrProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, Insn &insn, CGDce &dce)
       : cgFunc(&f),
         ssaInfo(&sInfo),
         curInsn(&insn),
         a64StrLdrAlloc(&mp),
-        replaceVersions(a64StrLdrAlloc.Adapter()) {}
+        replaceVersions(a64StrLdrAlloc.Adapter()),
+        cgDce(&dce) {}
   void DoOpt();
  private:
   AArch64MemOperand *StrLdrPropPreCheck(Insn &insn, MemPropMode prevMod = kUndef);
@@ -99,6 +100,51 @@ class A64StrLdrProp {
   MapleAllocator a64StrLdrAlloc;
   MapleMap<regno_t, VRegVersion*> replaceVersions;
   MemPropMode memPropMode = kUndef;
+  CGDce *cgDce = nullptr;
+};
+
+class A64ConstProp {
+ public:
+  A64ConstProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, Insn &insn)
+      : constPropMp(&mp),
+        cgFunc(&f),
+        ssaInfo(&sInfo),
+        curInsn(&insn) {}
+  void DoOpt();
+  enum ArithmeticType {
+    kAArch64Add,
+    kAArch64Sub,
+    kAArch64Orr,
+    kAARch64Eor,
+    kUndef
+  };
+  /* false : default lsl #0 true: lsl #12 (only support 12 bit left shift in aarch64) */
+  static MOperator GetRegImmMOP(MOperator regregMop, bool withLeftShift);
+  static MOperator GetReversalMOP(MOperator arithMop);
+
+
+ private:
+  bool ConstProp(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
+  AArch64ImmOperand *CanDoConstFold(AArch64ImmOperand &value1, AArch64ImmOperand &value2,
+                                    ArithmeticType aT, bool is64Bit);
+  /* SP/FP will not be varied in function, prop them as const */
+  void SPFPProp();
+  /* use xzr/wzr in aarch64 to shrink register live range */
+  void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
+
+  /* replace old Insn with new Insn, update ssa info automatically */
+  void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn);
+
+  /* optimization */
+  bool MovConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
+  bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT);
+  bool ShiftConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
+
+  MemPool *constPropMp;
+  CGFunc *cgFunc;
+  CGSSAInfo *ssaInfo;
+  Insn *curInsn;
 };
 
 /*
