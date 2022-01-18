@@ -241,6 +241,30 @@ class CmpCsetOpt : public CGPeepPattern {
 };
 
 /*
+ * Example 1)
+ *  lsr w0, w1, #6
+ *  and w0, w0, #1                 --->        (currInsn)
+ *  ===> ubfx w0, w1, #6, #1
+ *
+ * Conditions:
+ * 1. and_imm value is (1 << n -1)
+ * 2. is64bits ? (ubfx_imm_lsb in range [0, 63]) : (ubfx_imm_lsb in range [0, 31])
+ * 3. is64bits ? ((ubfx_imm_lsb + ubfx_imm_width) in range [1, 32]) : ((ubfx_imm_lsb + ubfx_imm_width) in range [1, 64])
+ */
+class LsrAndToUbfxPattern : public CGPeepPattern {
+ public:
+  LsrAndToUbfxPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~LsrAndToUbfxPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  Insn *prevInsn = nullptr;
+};
+
+/*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
  * 1. str + str
