@@ -454,6 +454,11 @@ rule NewExpression : ONEOF(MemberExpression,
 ##  CallExpression[?Yield] . IdentifierName
 ##  CallExpression[?Yield] TemplateLiteral[?Yield]
 
+rule ImportFunction : ONEOF("import" + '(' + Literal + ')',
+                            "import" + '(' + TemplateLiteral + ')')
+  attr.action.%1,%2 : BuildImport()
+  attr.action.%1,%2 : SetFromModule(%3)
+
 rule CallExpression : ONEOF(
   MemberExpression + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   SuperCall,
@@ -466,7 +471,8 @@ rule CallExpression : ONEOF(
   MemberExpression + "?." + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   "set" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
   "get" + ZEROORONE(TypeArguments) + Arguments + ZEROORMORE(AsType),
-  CallExpression + "?." + Arguments + ZEROORMORE(AsType))
+  CallExpression + "?." + Arguments + ZEROORMORE(AsType),
+  ImportFunction)
   attr.action.%1,%3,%10,%11 : BuildCall(%1)
   attr.action.%1,%10,%11 : AddAsType(%4)
   attr.action.%1,%10,%11 : AddTypeGenerics(%2)
@@ -801,9 +807,6 @@ rule Expression : ONEOF(
 ##  TryStatement[?Yield, ?Return]
 ##  DebuggerStatement
 
-rule SpecialStatement : ONEOF( ImportedType + '.' + Expression + ASI(';') )
-  attr.action.%1 : BuildField(%1, %3)
-
 rule Statement : ONEOF(
   BlockStatement,
   VariableStatement,
@@ -817,8 +820,7 @@ rule Statement : ONEOF(
 #  WithStatement[?Yield, ?Return]
   LabelledStatement,
   ThrowStatement,
-  TryStatement,
-  SpecialStatement)
+  TryStatement)
 #  DebuggerStatement
   attr.property : Top
   attr.property : Single  # This is extremely important to give CallExpression the
@@ -1714,11 +1716,6 @@ rule TypeArray : ONEOF(PrimaryType + '[' + PrimaryExpression + ']',
                        PrimaryType + '[' + TypeArray + ']')
   attr.action.%1,%2,%3,%4,%5 : BuildArrayElement(%1, %3)
 
-rule ImportedType : ONEOF("import" + '(' + Literal + ')',
-                          "import" + '(' + TemplateLiteral + ')')
-  attr.action.%1,%2 : BuildImport()
-  attr.action.%1,%2 : SetFromModule(%3)
-
 rule PrimaryTypeKeyOf : PrimaryType + '[' + KeyOf + ']'
   attr.action : BuildArrayElement(%1, %3)
 
@@ -1738,8 +1735,8 @@ rule Type : ONEOF(UnionOrIntersectionOrPrimaryType,
                   IsExpression,
                   PrimaryType + '[' + TypeQuery + ']',
                   TemplateLiteral,
-                  ImportedType,
-                  ImportedType + '.' + TypeReference)
+                  ImportFunction,
+                  ImportFunction + '.' + TypeReference)
   attr.action.%7,%11 : BuildArrayElement(%1, %3)
   attr.action.%14 : BuildField(%1, %3)
 
@@ -1764,8 +1761,8 @@ rule PrimaryType: ONEOF(ParenthesizedType,
                         NeverArrayType,
                         Literal,
                         ArrayLiteral,
-                        ImportedType,
-                        ImportedType + '.' + TypeReference)
+                        ImportFunction,
+                        ImportFunction + '.' + TypeReference)
   attr.action.%13 : BuildField(%1, %3)
 
 rule NeverArrayType : '[' + ']'
@@ -1882,7 +1879,7 @@ rule TypeQuery: ONEOF("typeof" + TypeQueryExpression,
 rule TypeQueryExpression: ONEOF(IdentifierReference,
                                 TypeQueryExpression + '.' + JSIdentifier,
                                 UnaryExpression,
-                                ImportedType)
+                                ImportFunction)
   attr.action.%2 : BuildField(%1, %3)
 
 ## rule ThisType: this
