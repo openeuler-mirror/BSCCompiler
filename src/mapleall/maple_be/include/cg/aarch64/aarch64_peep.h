@@ -156,6 +156,45 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
 };
 
 /*
+ * optimize the following patterns:
+ * Example 1)
+ * cmp w[0-9]*, wzr
+ * bge .label        ====> tbz w[0-9]*, #31, .label
+ *
+ * cmp wzr, w[0-9]*
+ * ble .label        ====> tbz w[0-9]*, #31, .label
+ *
+ * cmp w[0-9]*,wzr
+ * blt .label        ====> tbnz w[0-9]*, #31, .label
+ *
+ * cmp wzr, w[0-9]*
+ * bgt .label        ====> tbnz w[0-9]*, #31, .label
+ *
+ *
+ * Example 2)
+ * cmp w[0-9]*, #0
+ * bge .label        ====> tbz w[0-9]*, #31, .label
+ *
+ * cmp w[0-9]*, #0
+ * blt .label        ====> tbnz w[0-9]*, #31, .label
+ */
+class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
+ public:
+  ZeroCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~ZeroCmpBranchesToTbzPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  bool CheckAndSelectPattern(Insn &currInsn);
+  Insn *prevInsn = nullptr;
+  MOperator newMop = MOP_undef;
+  RegOperand *regOpnd = nullptr;
+};
+
+/*
  * mvn  w3, w3          ====> bic  w3, w5, w3
  * and  w3, w5, w3
  * ====>
