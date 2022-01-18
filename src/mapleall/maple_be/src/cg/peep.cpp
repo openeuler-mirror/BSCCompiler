@@ -54,8 +54,10 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replac
     }
     for (auto *prevInsn : prevInsns) {
       if (prevInsn != nullptr) {
+        LogInfo::MapleLogger() << "[primal form] ";
         prevInsn->Dump();
         if (ssaInfo != nullptr) {
+          LogInfo::MapleLogger() << "[ssa form] ";
           aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
         }
       }
@@ -63,16 +65,20 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replac
     LogInfo::MapleLogger() << "}\n";
   }
   if (replacedInsn != nullptr) {
-    LogInfo::MapleLogger() << "======= ReplacedInsn :\n";
+    LogInfo::MapleLogger() << "======= OldInsn :\n";
+    LogInfo::MapleLogger() << "[primal form] ";
     replacedInsn->Dump();
     if (ssaInfo != nullptr) {
+      LogInfo::MapleLogger() << "[ssa form] ";
       aarCGSSAInfo->DumpInsnInSSAForm(*replacedInsn);
     }
   }
   if (newInsn != nullptr) {
     LogInfo::MapleLogger() << "======= NewInsn :\n";
+    LogInfo::MapleLogger() << "[primal form] ";
     newInsn->Dump();
     if (ssaInfo != nullptr) {
+      LogInfo::MapleLogger() << "[ssa form] ";
       aarCGSSAInfo->DumpInsnInSSAForm(*newInsn);
     }
   }

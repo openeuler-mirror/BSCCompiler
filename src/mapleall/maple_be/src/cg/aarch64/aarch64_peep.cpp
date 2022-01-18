@@ -109,6 +109,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_wcbnz:
     case MOP_xcbnz: {
       manager->Optimize<AndCbzToTbzPattern>();
+      manager->Optimize<CsetCbzToBeqPattern>();
       manager->Optimize<OneHoleBranchPattern>();
       break;
     }
@@ -141,6 +142,80 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     }
     default:
       break;
+  }
+}
+
+std::string CsetCbzToBeqPattern::GetPatternName() {
+  return "CsetCbzToBeqPattern";
+}
+
+bool CsetCbzToBeqPattern::CheckCondition(BB &bb, Insn &insn) {
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_wcsetrc && prevMop != MOP_xcsetrc) {
+    return false;
+  }
+  return true;
+}
+
+MOperator CsetCbzToBeqPattern::SelectNewMop(AArch64CC_t condCode, bool inverse) const {
+  switch (condCode) {
+    case CC_NE:
+      return inverse ? MOP_beq : MOP_bne;
+    case CC_EQ:
+      return inverse ? MOP_bne : MOP_beq;
+    case CC_MI:
+      return inverse ? MOP_bpl : MOP_bmi;
+    case CC_PL:
+      return inverse ? MOP_bmi : MOP_bpl;
+    case CC_VS:
+      return inverse ? MOP_bvc : MOP_bvs;
+    case CC_VC:
+      return inverse ? MOP_bvs : MOP_bvc;
+    case CC_HI:
+      return inverse ? MOP_bls : MOP_bhi;
+    case CC_LS:
+      return inverse ? MOP_bhi : MOP_bls;
+    case CC_GE:
+      return inverse ? MOP_blt : MOP_bge;
+    case CC_LT:
+      return inverse ? MOP_bge : MOP_blt;
+    case CC_HS:
+      return inverse ? MOP_blo : MOP_bhs;
+    case CC_LO:
+      return inverse ? MOP_bhs : MOP_blo;
+    case CC_LE:
+      return inverse ? MOP_bgt : MOP_ble;
+    case CC_GT:
+      return inverse ? MOP_ble : MOP_bgt;
+    default:
+      return MOP_undef;
+  }
+}
+
+void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  MOperator curMop = insn.GetMachineOpcode();
+  bool reverse = (curMop == MOP_wcbz || curMop == MOP_xcbz);
+  auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &condOpnd = static_cast<CondOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  MOperator newMop = SelectNewMop(condOpnd.GetCode(), reverse);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnThirdOpnd),
+                                                                 labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
 
