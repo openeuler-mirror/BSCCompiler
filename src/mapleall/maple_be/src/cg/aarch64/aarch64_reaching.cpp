@@ -197,11 +197,45 @@ void AArch64ReachingDefinition::GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 inde
 }
 
 /* all caller saved register are modified by call insn */
-void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb) {
-  for (uint32 i = R0; i <= V31; ++i) {
-    if (IsCallerSavedReg(i)) {
+void AArch64ReachingDefinition::GenAllCallerSavedRegs(BB &bb, Insn &insn) {
+  if (CGOptions::DoIPARA()) {
+    std::set<regno_t> callerSaveRegs;
+    cgFunc->GetRealCallerSaveRegs(insn, callerSaveRegs);
+    for (auto i : callerSaveRegs) {
       regGen[bb.GetId()]->SetBit(i);
     }
+  } else {
+    for (uint32 i = R0; i <= V31; ++i) {
+      if (AArch64Abi::IsCallerSaveReg((AArch64reg)i)) {
+        regGen[bb.GetId()]->SetBit(i);
+      }
+    }
+  }
+}
+
+/* reg killed killed by call insn */
+bool AArch64ReachingDefinition::IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const {
+  if (CGOptions::DoIPARA()) {
+    std::set<regno_t> callerSaveRegs;
+    cgFunc->GetRealCallerSaveRegs(insn, callerSaveRegs);
+    return callerSaveRegs.find(regNO) != callerSaveRegs.end();
+  } else {
+    return AArch64Abi::IsCallerSaveReg((AArch64reg)regNO);
+  }
+}
+
+bool AArch64ReachingDefinition::KilledByCallBetweenInsnInSameBB(const Insn &startInsn,
+    const Insn &endInsn, regno_t regNO) const {
+  ASSERT(startInsn.GetBB() == endInsn.GetBB(), "two insns must be in same bb");
+  if (CGOptions::DoIPARA()) {
+    for (const Insn *insn = &startInsn; insn != endInsn.GetNext(); insn = insn->GetNext()) {
+      if (insn->IsCall() && IsRegKilledByCallInsn(*insn, regNO)) {
+        return true;
+      }
+    }
+    return false;
+  } else {
+    return HasCallBetweenInsnInSameBB(startInsn, endInsn);
   }
 }
 
@@ -239,7 +273,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsnGlobal(
     return defInsnVec;
   }
   if (IsCallerSavedReg(regNO) && startInsn->GetNext() != nullptr &&
-      cgFunc->GetRD()->HasCallBetweenInsnInSameBB(*startInsn->GetNext(), *startBB->GetLastInsn())) {
+      KilledByCallBetweenInsnInSameBB(*startInsn->GetNext(), *startBB->GetLastInsn(), regNO)) {
     defInsnVec.emplace_back(startInsn);
     defInsnVec.emplace_back(endInsn);
     return defInsnVec;
@@ -256,7 +290,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsnGlobal(
     return defInsnVec;
   }
   if (IsCallerSavedReg(regNO) && endInsn->GetPrev() != nullptr &&
-      cgFunc->GetRD()->HasCallBetweenInsnInSameBB(*endBB->GetFirstInsn(), *endInsn->GetPrev())) {
+      KilledByCallBetweenInsnInSameBB(*endBB->GetFirstInsn(), *endInsn->GetPrev(), regNO)) {
     defInsnVec.emplace_back(startInsn);
     defInsnVec.emplace_back(endInsn);
     return defInsnVec;
@@ -303,7 +337,7 @@ std::vector<Insn*> AArch64ReachingDefinition::FindRegDefBetweenInsn(
         }
       }
     }
-    if (insn->IsCall() && IsCallerSavedReg(regNO)) {
+    if (insn->IsCall() && IsRegKilledByCallInsn(*insn, regNO)) {
       defInsnVec.emplace_back(insn);
       if (!findAll) {
         return defInsnVec;
@@ -346,7 +380,7 @@ void AArch64ReachingDefinition::FindRegDefInBB(uint32 regNO, BB &bb, InsnSet &de
       IsRegInAsmList(insn, kAsmClobberListOpnd, regNO, defInsnSet);
       continue;
     }
-    if (insn->IsCall() && IsCallerSavedReg(regNO)) {
+    if (insn->IsCall() && IsRegKilledByCallInsn(*insn, regNO)) {
       (void)defInsnSet.insert(insn);
       continue;
     }
@@ -508,7 +542,7 @@ void AArch64ReachingDefinition::DFSFindDefForRegOpnd(const BB &startBB, uint32 r
       continue;
     }
     visitedBB[predBB->GetId()] = kNormalVisited;
-    if (regGen[predBB->GetId()]->TestBit(regNO)) {
+    if (regGen[predBB->GetId()]->TestBit(regNO) || (regNO == kRFLAG && predBB->HasCall())) {
       defInsnVec.clear();
       defInsnVec = FindRegDefBetweenInsn(regNO, predBB->GetFirstInsn(), predBB->GetLastInsn());
       defInsnSet.insert(defInsnVec.begin(), defInsnVec.end());
@@ -522,7 +556,7 @@ void AArch64ReachingDefinition::DFSFindDefForRegOpnd(const BB &startBB, uint32 r
       continue;
     }
     visitedBB[predEhBB->GetId()] = kEHVisited;
-    if (regGen[predEhBB->GetId()]->TestBit(regNO)) {
+    if (regGen[predEhBB->GetId()]->TestBit(regNO) || (regNO == kRFLAG && predEhBB->HasCall())) {
       FindRegDefInBB(regNO, *predEhBB, defInsnSet);
     }
 
@@ -851,7 +885,7 @@ bool AArch64ReachingDefinition::FindRegUseBetweenInsn(uint32 regNO, Insn *startI
       continue;
     }
     /* if insn is call and regNO is caller-saved register, then regNO will not be used later */
-    if (insn->IsCall() && IsCallerSavedReg(regNO)) {
+    if (insn->IsCall() && IsRegKilledByCallInsn(*insn, regNO)) {
       findFinish = true;
     }
 
@@ -1120,8 +1154,8 @@ void AArch64ReachingDefinition::InitGenUse(BB &bb, bool firstTime) {
       GenAllAsmUseRegs(bb, *insn, kAsmInputListOpnd);
       continue;
     }
-    if (insn->IsCall()) {
-      GenAllCallerSavedRegs(bb);
+    if (insn->IsCall() || insn->IsTailCall()) {
+      GenAllCallerSavedRegs(bb, *insn);
       InitMemInfoForClearStackCall(*insn);
     }
 
@@ -1239,7 +1273,7 @@ int32 AArch64ReachingDefinition::GetStackSize() const {
 }
 
 bool AArch64ReachingDefinition::IsCallerSavedReg(uint32 regNO) const {
-  return (R0 <= regNO && regNO <= R18) || (V0 <= regNO && regNO <= V7) || (V16 <= regNO && regNO <= V31);
+  return AArch64Abi::IsCallerSaveReg((AArch64reg)regNO);
 }
 
 int64 AArch64ReachingDefinition::GetEachMemSizeOfPair(MOperator opCode) const {
