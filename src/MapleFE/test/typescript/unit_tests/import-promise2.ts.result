@@ -1,0 +1,10 @@
+Matched 7 tokens.
+Matched 42 tokens.
+Matched 43 tokens.
+============= Module ===========
+== Sub Tree ==
+js_const Decl: m="./M"
+== Sub Tree ==
+import  template-literal: NULL,m.then(() -> console.log("Completed")
+).catch(() -> console.log("Failed")
+)
