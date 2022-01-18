@@ -520,6 +520,8 @@ void TypeInferVisitor::UpdateTypeUseNode(TreeNode *target, TreeNode *input) {
       }
       break;
     }
+    case TY_User:
+      break;
     default:
       NOTYETIMPL("TypeId not handled");
       break;
