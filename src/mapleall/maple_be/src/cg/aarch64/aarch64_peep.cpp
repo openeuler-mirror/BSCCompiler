@@ -97,6 +97,13 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<MvnAndToBicPattern>();
       break;
     }
+    case MOP_wiorri12r:
+    case MOP_wiorrri12:
+    case MOP_xiorri13r:
+    case MOP_xiorrri13: {
+      manager->Optimize<OrrToMovPattern>();
+      break;
+    }
     case MOP_wcbz:
     case MOP_xcbz:
     case MOP_wcbnz:
@@ -829,6 +836,60 @@ bool OneHoleBranchPattern::CheckPrePrevInsn() {
     return false;
   }
   if (&(prePrevInsn->GetOperand(kInsnFirstOpnd)) != &(prevInsn->GetOperand(kInsnSecondOpnd))) {
+    return false;
+  }
+  return true;
+}
+
+void OrrToMovPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  AArch64RegOperand *reg1 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *reg1, *reg2);
+  bb.ReplaceInsn(insn, newInsn);
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(&insn);
+    DumpAfterPattern(prevs, &newInsn, nullptr);
+  }
+}
+
+bool OrrToMovPattern::CheckCondition(BB &bb, Insn &insn) {
+  MOperator thisMop = insn.GetMachineOpcode();
+  Operand *opndOfOrr = nullptr;
+  switch (thisMop) {
+    case MOP_wiorri12r: {  /* opnd1 is Reg32 and opnd2 is immediate. */
+      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
+      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      newMop = MOP_wmovrr;
+      break;
+    }
+    case MOP_wiorrri12: {  /* opnd1 is reg32 and opnd3 is immediate. */
+      opndOfOrr = &(insn.GetOperand(kInsnThirdOpnd));
+      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      newMop = MOP_wmovrr;
+      break;
+    }
+    case MOP_xiorri13r: {  /* opnd1 is Reg64 and opnd2 is immediate. */
+      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
+      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+      newMop = MOP_xmovrr;
+      break;
+    }
+    case MOP_xiorrri13: {  /* opnd1 is reg64 and opnd3 is immediate. */
+      opndOfOrr = &(insn.GetOperand(kInsnThirdOpnd));
+      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      newMop = MOP_xmovrr;
+      break;
+    }
+    default:
+      return false;
+  }
+  CHECK_FATAL(opndOfOrr->IsIntImmediate(), "expects immediate operand");
+  ImmOperand *immOpnd = static_cast<ImmOperand*>(opndOfOrr);
+  if (immOpnd->GetValue() != 0) {
     return false;
   }
   return true;
