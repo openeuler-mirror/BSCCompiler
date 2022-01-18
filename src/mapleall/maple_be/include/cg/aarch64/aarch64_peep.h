@@ -74,6 +74,39 @@ class AArch64CGPeepHole {
 };
 
 /*
+ * Example 1)
+ *  mov w5, #1
+ *   ...
+ *  mov w0, #0
+ *  csel w5, w5, w0, NE    ===> cset w5, NE
+ *
+ * Example 2)
+ *  mov w5, #0
+ *   ...
+ *  mov w0, #1
+ *  csel w5, w5, w0, NE    ===> cset w5,EQ
+ *
+ * conditions:
+ * 1. mov_imm1 value is 0(1) && mov_imm value is 1(0)
+ */
+class CselToCsetPattern : public CGPeepPattern {
+ public:
+  CselToCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CselToCsetPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  bool IsOpndDefByZero(Insn &insn);
+  bool IsOpndDefByOne(Insn &insn);
+  AArch64CC_t GetInversedCondCode(const CondOperand &condOpnd);
+  Insn *prevMovInsn1 = nullptr;
+  Insn *prevMovInsn2 = nullptr;
+};
+
+/*
  * Optimize the following patterns:
  * Example 1)
  *  and  w0, w6, #1  ====> tbz  w6, #0, .label

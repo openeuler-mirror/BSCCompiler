@@ -120,8 +120,132 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<LsrAndToUbfxPattern>();
       break;
     }
+    case MOP_wcselrrrc:
+    case MOP_xcselrrrc: {
+      manager->Optimize<CselToCsetPattern>();
+      break;
+    }
     default:
       break;
+  }
+}
+
+std::string CselToCsetPattern::GetPatternName() {
+  return "CselToCsetPattern";
+}
+
+bool CselToCsetPattern::IsOpndDefByZero(Insn &insn) {
+  MOperator movMop = insn.GetMachineOpcode();
+  switch (movMop) {
+    case MOP_xmovrr:
+    case MOP_wmovrr: {
+      return insn.GetOperand(kInsnSecondOpnd).IsZeroRegister();
+    }
+    case MOP_xmovri32:
+    case MOP_xmovri64: {
+      auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (immOpnd.GetValue() == 0) {
+        return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+bool CselToCsetPattern::IsOpndDefByOne(Insn &insn) {
+  MOperator movMop = insn.GetMachineOpcode();
+  switch (movMop) {
+    case MOP_xmovri32:
+    case MOP_xmovri64: {
+      auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
+      if (immOpnd.GetValue() == 1) {
+        return true;
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+bool CselToCsetPattern::CheckCondition(BB &bb, Insn &insn) {
+  auto &useOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  prevMovInsn1 = GetDefInsn(useOpnd1);
+  if (prevMovInsn1 == nullptr) {
+    return false;
+  }
+  MOperator prevMop1 = prevMovInsn1->GetMachineOpcode();
+  if (prevMop1 != MOP_xmovri32 && prevMop1 != MOP_xmovri64 &&
+      prevMop1 != MOP_wmovrr && prevMop1 != MOP_xmovrr) {
+    return false;
+  }
+  auto &useOpnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  prevMovInsn2 = GetDefInsn(useOpnd2);
+  if (prevMovInsn2 == nullptr) {
+    return false;
+  }
+  MOperator prevMop2 = prevMovInsn2->GetMachineOpcode();
+  if (prevMop2 != MOP_xmovri32 && prevMop2 != MOP_xmovri64 &&
+      prevMop2 != MOP_wmovrr && prevMop2 != MOP_xmovrr) {
+    return false;
+  }
+  return true;
+}
+
+AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) {
+  switch (condOpnd.GetCode()) {
+    case CC_NE:
+      return CC_EQ;
+    case CC_EQ:
+      return CC_NE;
+    case CC_LT:
+      return CC_GE;
+    case CC_GE:
+      return CC_LT;
+    case CC_GT:
+      return CC_LE;
+    case CC_LE:
+      return CC_GT;
+    default:
+      return kCcLast;
+  }
+}
+
+void CselToCsetPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
+  MOperator newMop = (dstOpnd.GetSize() == k64BitSize ? MOP_xcsetrc : MOP_wcsetrc);
+  Operand &condOpnd = insn.GetOperand(kInsnFourthOpnd);
+  Operand &rflag = cgFunc->GetOrCreateRflag();
+  Insn *newInsn = nullptr;
+  if (IsOpndDefByOne(*prevMovInsn1) && IsOpndDefByZero(*prevMovInsn2)) {
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, dstOpnd, condOpnd, rflag));
+  } else if (IsOpndDefByZero(*prevMovInsn1) && IsOpndDefByOne(*prevMovInsn2)) {
+    auto &origCondOpnd = static_cast<CondOperand&>(condOpnd);
+    AArch64CC_t inverseCondCode = GetInversedCondCode(origCondOpnd);
+    if (inverseCondCode == kCcLast) {
+      return;
+    }
+    auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    CondOperand &inverseCondOpnd = aarFunc->GetCondOperand(inverseCondCode);
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, dstOpnd, inverseCondOpnd, rflag));
+  }
+  if (newInsn == nullptr) {
+    return;
+  }
+  bb.ReplaceInsn(insn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, *newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevMovInsn1);
+    prevs.emplace_back(prevMovInsn2);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 
