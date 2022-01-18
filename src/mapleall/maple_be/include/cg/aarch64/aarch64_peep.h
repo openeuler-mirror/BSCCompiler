@@ -170,6 +170,36 @@ class AndCbzToTbzPattern : public CGPeepPattern {
 };
 
 /*
+ * We optimize the following pattern in this function:
+ * if w0's valid bits is one
+ * uxtb w0, w0
+ * eor w0, w0, #1
+ * cbz w0, .label
+ * =>
+ * tbnz w0, .label
+ * if there exists uxtb w0, w0 and w0's valid bits is
+ * less than 8, eliminate it.
+ */
+class OneHoleBranchPattern : public CGPeepPattern {
+ public:
+  explicit OneHoleBranchPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~OneHoleBranchPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override {
+    return "OneHoleBranchPattern";
+  }
+
+ private:
+  void FindNewMop(const BB &bb, const Insn &insn);
+  bool CheckPrePrevInsn();
+  Insn *prevInsn = nullptr;
+  Insn *prePrevInsn = nullptr;
+  MOperator newOp = MOP_undef;
+};
+
+/*
  *  cmp  w0, #0
  *  cset w1, NE --> mov w1, w0
  *

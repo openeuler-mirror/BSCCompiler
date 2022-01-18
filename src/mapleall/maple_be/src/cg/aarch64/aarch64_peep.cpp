@@ -102,6 +102,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_wcbnz:
     case MOP_xcbnz: {
       manager->Optimize<AndCbzToTbzPattern>();
+      manager->Optimize<OneHoleBranchPattern>();
       break;
     }
     case MOP_beq:
@@ -409,6 +410,117 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
     prevs.emplace_back(prevInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
+}
+
+void OneHoleBranchPattern::FindNewMop(const BB &bb, const Insn &insn) {
+  if (&insn != bb.GetLastInsn()) {
+    return;
+  }
+  MOperator thisMop = insn.GetMachineOpcode();
+  switch (thisMop) {
+    case MOP_wcbz:
+      newOp = MOP_wtbnz;
+      break;
+    case MOP_wcbnz:
+      newOp = MOP_wtbz;
+      break;
+    case MOP_xcbz:
+      newOp = MOP_xtbnz;
+      break;
+    case MOP_xcbnz:
+      newOp = MOP_xtbz;
+      break;
+    default:
+      break;
+  }
+}
+
+/*
+ * pattern1:
+ *  uxtb w0, w1     <-----(ValidBitsNum <= 8)
+ *  cbz w0, .label
+ *  ===>
+ *  cbz w1, .label
+ *
+ * pattern2:
+ *  uxtb w2, w1     <-----(ValidBitsNum == 1)
+ *  eor w3, w2, #1
+ *  cbz w3, .label
+ *  ===>
+ *   tbnz w1, #0, .label
+ */
+void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  LabelOperand &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  bool pattern1 = (prevInsn->GetMachineOpcode() == MOP_xuxtb32) &&
+                  (static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)).GetValidBitsNum() <= k8BitSize ||
+                   static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd)).GetValidBitsNum() <= k8BitSize);
+  if (pattern1) {
+    Insn &newCbzInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+        insn.GetMachineOpcode(), prevInsn->GetOperand(kInsnSecondOpnd), label);
+    bb.ReplaceInsn(insn, newCbzInsn);
+    ssaInfo->ReplaceInsn(insn, newCbzInsn);
+    if (CG_PEEP_DUMP) {
+      std::vector<Insn*> prevs;
+      prevs.emplace_back(prevInsn);
+      DumpAfterPattern(prevs, &newCbzInsn, nullptr);
+    }
+    return;
+  }
+  bool pattern2 = (prevInsn->GetMachineOpcode() == MOP_xeorrri13 || prevInsn->GetMachineOpcode() == MOP_weorrri12) &&
+                  (static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue() == 1);
+  if (pattern2) {
+    if (!CheckPrePrevInsn()) {
+      return;
+    }
+    AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(0, k8BitSize, false);
+    auto &regOperand = static_cast<AArch64RegOperand&>(prePrevInsn->GetOperand(kInsnSecondOpnd));
+    Insn &newTbzInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newOp, regOperand, oneHoleOpnd, label);
+    bb.ReplaceInsn(insn, newTbzInsn);
+    ssaInfo->ReplaceInsn(insn, newTbzInsn);
+    if (CG_PEEP_DUMP) {
+      std::vector<Insn*> prevs;
+      prevs.emplace_back(prevInsn);
+      prevs.emplace_back(prePrevInsn);
+      DumpAfterPattern(prevs, &newTbzInsn, nullptr);
+    }
+  }
+}
+
+bool OneHoleBranchPattern::CheckCondition(BB &bb, Insn &insn) {
+  FindNewMop(bb, insn);
+  if (newOp == MOP_undef) {
+    return false;
+  }
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  if (&(prevInsn->GetOperand(kInsnFirstOpnd)) != &(insn.GetOperand(kInsnFirstOpnd))) {
+    return false;
+  }
+  (void)bb;
+  return true;
+}
+
+bool OneHoleBranchPattern::CheckPrePrevInsn() {
+  auto &useReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  prePrevInsn = GetDefInsn(useReg);
+  if (prePrevInsn == nullptr) {
+    return false;
+  }
+  if (prePrevInsn->GetMachineOpcode() != MOP_xuxtb32 ||
+      static_cast<RegOperand&>(prePrevInsn->GetOperand(kInsnSecondOpnd)).GetValidBitsNum() != 1) {
+    return false;
+  }
+  if (&(prePrevInsn->GetOperand(kInsnFirstOpnd)) != &(prevInsn->GetOperand(kInsnSecondOpnd))) {
+    return false;
+  }
+  return true;
 }
 
 void AArch64PeepHole::InitOpts() {
