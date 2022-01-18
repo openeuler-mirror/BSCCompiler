@@ -1714,9 +1714,10 @@ rule TypeArray : ONEOF(PrimaryType + '[' + PrimaryExpression + ']',
                        PrimaryType + '[' + TypeArray + ']')
   attr.action.%1,%2,%3,%4,%5 : BuildArrayElement(%1, %3)
 
-rule ImportedType : "import" + '(' + Literal + ')'
-  attr.action : BuildImport()
-  attr.action : SetFromModule(%3)
+rule ImportedType : ONEOF("import" + '(' + Literal + ')',
+                          "import" + '(' + TemplateLiteral + ')')
+  attr.action.%1,%2 : BuildImport()
+  attr.action.%1,%2 : SetFromModule(%3)
 
 rule PrimaryTypeKeyOf : PrimaryType + '[' + KeyOf + ']'
   attr.action : BuildArrayElement(%1, %3)
