@@ -125,6 +125,13 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<CselToCsetPattern>();
       break;
     }
+    case MOP_bge:
+    case MOP_ble:
+    case MOP_blt:
+    case MOP_bgt: {
+      manager->Optimize<ZeroCmpBranchesToTbzPattern>();
+      break;
+    }
     default:
       break;
   }
@@ -337,6 +344,119 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(prevAndInsn);
     prevs.emplace_back(prevCmpInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
+std::string ZeroCmpBranchesToTbzPattern::GetPatternName() {
+  return "ZeroCmpBranchesToTbzPattern";
+}
+
+bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
+  MOperator currMop = currInsn.GetMachineOpcode();
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  switch (prevMop) {
+    case MOP_wcmpri:
+    case MOP_xcmpri: {
+      regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+      auto &immOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+      if (immOpnd.GetValue() != 0) {
+        return false;
+      }
+      switch (currMop) {
+        case MOP_bge:
+          newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbz : MOP_xtbz;
+          break;
+        case MOP_blt:
+          newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbnz : MOP_xtbnz;
+          break;
+        default:
+          return false;
+      }
+    }
+    case MOP_wcmprr:
+    case MOP_xcmprr: {
+      auto &regOpnd0 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+      auto &regOpnd1 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+      if (!regOpnd0.IsZeroRegister() && !regOpnd1.IsZeroRegister()) {
+        return false;
+      }
+      switch (currMop) {
+        case MOP_bge:
+          if (regOpnd1.IsZeroRegister()) {
+            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+            newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbz : MOP_xtbz;
+          } else {
+            return false;
+          }
+          break;
+        case MOP_ble:
+          if (regOpnd0.IsZeroRegister()) {
+            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+            newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbz : MOP_xtbz;
+          } else {
+            return false;
+          }
+          break;
+        case MOP_blt:
+          if (regOpnd1.IsZeroRegister()) {
+            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+            newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbnz : MOP_xtbnz;
+          } else {
+            return false;
+          }
+          break;
+        case MOP_bgt:
+          if (regOpnd0.IsZeroRegister()) {
+            regOpnd = &static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+            newMop = (regOpnd->GetSize() <= k32BitSize) ? MOP_wtbnz : MOP_xtbnz;
+          } else {
+            return false;
+          }
+          break;
+        default:
+          return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool ZeroCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+  CHECK_FATAL(insn.GetOperand(kInsnSecondOpnd).IsLabel(), "must be labelOpnd");
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  prevInsn = GetDefInsn(ccReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_wcmpri && prevMop != MOP_xcmpri && prevMop != MOP_wcmprr && prevMop != MOP_xcmprr) {
+    return false;
+  }
+  if (!CheckAndSelectPattern(insn)) {
+    return false;
+  }
+  return true;
+}
+
+void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  CHECK_FATAL(regOpnd != nullptr, "must have regOpnd");
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  ImmOperand &bitOpnd = aarFunc->CreateImmOperand(
+      (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
+  auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *static_cast<AArch64RegOperand*>(regOpnd),
+                                                                 bitOpnd, labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
