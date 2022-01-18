@@ -1470,7 +1470,8 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
 bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd) {
   auto *baseRegOpnd = static_cast<AArch64RegOperand*>(memOpnd.GetBaseRegister());
   auto *ofstOpnd = static_cast<AArch64OfstOperand*>(memOpnd.GetOffsetImmediate());
-  CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(), "the size must equal");
+  CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(),
+              "the size must equal");
   Insn *splitAdd = nullptr;
   for (Insn *cursor = insn.GetPrev(); cursor != nullptr; cursor = cursor->GetPrev()) {
     if (!cursor->IsMachineInstruction()) {
