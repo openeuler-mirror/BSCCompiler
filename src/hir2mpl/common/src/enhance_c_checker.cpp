@@ -1873,7 +1873,7 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
                  FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
-        } else if (ENCChecker::IsSafeRegion(mirBuilder) && kOpcodeInfo.IsAssertLowerBoundary(op)) {
+        } else if (ENCChecker::IsSafeRegion(mirBuilder) && op == OP_calcassertge) {
           FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
                  FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
         }
