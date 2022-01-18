@@ -251,6 +251,11 @@ DEFINE_MOP(MOP_wandrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,
 /* MOP_wandrri12 */
 DEFINE_MOP(MOP_wandrri12, {mopdReg32ID,mopdReg32IS,mopdImmBm12},0,kLtAlu,"and","0,1,2",1)
 
+/* MOP_xbicrrr */
+DEFINE_MOP(MOP_xbicrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"bic","0,1,2",1)
+/* MOP_wbicrrr */
+DEFINE_MOP(MOP_wbicrrr, {mopdReg32ID,mopdReg32IS,mopdReg32IS},0,kLtAlu,"bic","0,1,2",1)
+
 /* MOP_xiorrrr */
 DEFINE_MOP(MOP_xiorrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"orr","0,1,2",1)
 /* MOP_xiorrrrs */
@@ -330,9 +335,9 @@ DEFINE_MOP(MOP_wsbfxrri5i5, {mopdReg32ID,mopdReg32IS,mopdImm5,mopdImm5},0,kLtAlu
 DEFINE_MOP(MOP_xsbfxrri6i6, {mopdReg64ID,mopdReg64IS,mopdImm6,mopdImm6},0,kLtAluShift,"sbfx","0,1,2,3",1)
 
 /* MPO_wubfizrri5i5 -- Unsigned Bitfield Insert in Zero */
-DEFINE_MOP(MOP_wubfizrri5i5, {mopdReg32IDS,mopdReg32IS,mopdImm5,mopdImm5},ISMOVE|ISPARTDEF,kLtAluShift,"ubfiz","0,1,2,3",1)
+DEFINE_MOP(MOP_wubfizrri5i5, {mopdReg32ID,mopdReg32IS,mopdImm5,mopdImm5},0,kLtAluShift,"ubfiz","0,1,2,3",1)
 /* MPO_xubfizrri6i6 */
-DEFINE_MOP(MOP_xubfizrri6i6, {mopdReg64IDS,mopdReg64IS,mopdImm6,mopdImm6},ISMOVE|ISPARTDEF,kLtAluShift,"ubfiz","0,1,2,3",1)
+DEFINE_MOP(MOP_xubfizrri6i6, {mopdReg64ID,mopdReg64IS,mopdImm6,mopdImm6},0,kLtAluShift,"ubfiz","0,1,2,3",1)
 
 /* MPO_xsbfizrri6i6 Signed Bitfield Insert in Zero */
 DEFINE_MOP(MOP_xsbfizrri6i6, {mopdReg64ID,mopdReg64IS,mopdImm6,mopdImm6},0,kLtAluShift,"sbfiz","0,1,2,3",1)

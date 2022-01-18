@@ -92,6 +92,11 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_vmovvv: {
       break;
     }
+    case MOP_xandrrr:
+    case MOP_wandrrr: {
+      manager->Optimize<MvnAndToBicPattern>();
+      break;
+    }
     case MOP_wcbz:
     case MOP_xcbz:
     case MOP_wcbnz:
@@ -300,6 +305,48 @@ bool CmpCsetOpt::OpndDefByOneValidBit(const Insn &defInsn) {
     }
     default:
       return false;
+  }
+}
+
+std::string MvnAndToBicPattern::GetPatternName() {
+  return "MvnAndToBicPattern";
+}
+
+bool MvnAndToBicPattern::CheckCondition(BB &bb, Insn &insn) {
+  auto &useReg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &useReg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  prevInsn1 = GetDefInsn(useReg1);
+  prevInsn2 = GetDefInsn(useReg2);
+  MOperator mop = insn.GetMachineOpcode();
+  MOperator desMop = mop == MOP_xandrrr ? MOP_xnotrr : MOP_wnotrr;
+  op1IsMvnDef = prevInsn1 != nullptr && prevInsn1->GetMachineOpcode() == desMop;
+  op2IsMvnDef = prevInsn2 != nullptr && prevInsn2->GetMachineOpcode() == desMop;
+  if (op1IsMvnDef || op2IsMvnDef) {
+    return true;
+  }
+  return false;
+}
+
+void MvnAndToBicPattern::Run(BB &bb , Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  MOperator newMop = insn.GetMachineOpcode() == MOP_xandrrr ? MOP_xbicrrr : MOP_wbicrrr;
+  Insn *prevInsn = op1IsMvnDef ? prevInsn1 : prevInsn2;
+  auto &prevOpnd1 = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  auto &opnd0 = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto &opnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  auto &opnd2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      newMop, opnd0, op1IsMvnDef ? opnd2 : opnd1, prevOpnd1);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  bb.ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }
 

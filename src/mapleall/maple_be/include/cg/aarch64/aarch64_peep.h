@@ -123,6 +123,29 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
 };
 
 /*
+ * mvn  w3, w3          ====> bic  w3, w5, w3
+ * and  w3, w5, w3
+ * ====>
+ * mvn  x3, x3          ====> bic  x3, x5, x3
+ * and  x3, x5, x3
+ */
+class MvnAndToBicPattern : public CGPeepPattern {
+ public:
+  MvnAndToBicPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~MvnAndToBicPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  Insn *prevInsn1 = nullptr;
+  Insn *prevInsn2 = nullptr;
+  bool op1IsMvnDef = false;
+  bool op2IsMvnDef = false;
+};
+
+/*
  * and r0, r1, #4                  (the imm is n power of 2)
  * ...
  * cbz r0, .Label
