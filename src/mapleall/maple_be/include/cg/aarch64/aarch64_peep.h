@@ -107,6 +107,36 @@ class CselToCsetPattern : public CGPeepPattern {
 };
 
 /*
+ * combine cset & cbz/cbnz ---> beq/bne
+ * Example 1)
+ *  cset    w0, EQ            or       cset    w0, NE
+ *  cbnz    w0, .label                 cbnz    w0, .label
+ *  ===> beq .label                    ===> bne .label
+ *
+ * Case: same conditon_code
+ *
+ * Example 2)
+ *  cset    w0, EQ            or       cset    w0, NE
+ *  cbz     w0, .label                 cbz    w0, .label
+ *  ===> bne .label                    ===> beq .label
+ *
+ * Case: reversed condition_code
+ */
+class CsetCbzToBeqPattern : public CGPeepPattern {
+ public:
+  CsetCbzToBeqPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CsetCbzToBeqPattern() override = default;
+  std::string GetPatternName() override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+  MOperator SelectNewMop(AArch64CC_t condCode, bool inverse) const;
+  Insn *prevInsn = nullptr;
+};
+
+/*
  * Optimize the following patterns:
  * Example 1)
  *  and  w0, w6, #1  ====> tbz  w6, #0, .label
