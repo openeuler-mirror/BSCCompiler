@@ -15,11 +15,11 @@
 #ifndef HIR2MPL_INCLUDE_JBC_BB_H
 #define HIR2MPL_INCLUDE_JBC_BB_H
 #include <memory>
-#include "general_bb.h"
+#include "feir_bb.h"
 #include "jbc_stack_helper.h"
 
 namespace maple {
-class JBCBB : public GeneralBB {
+class JBCBB : public FEIRBB {
  public:
   JBCBB(const jbc::JBCConstPool &argConstPool);
   JBCBB(uint8 argBBKind, const jbc::JBCConstPool &argConstPool);
@@ -44,7 +44,7 @@ class JBCBB : public GeneralBB {
   }
 
  protected:
-  void DumpImpl() const override;
+  void Dump() const override;
 
  private:
   const jbc::JBCConstPool &constPool;

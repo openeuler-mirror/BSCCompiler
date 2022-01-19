@@ -17,6 +17,7 @@
 #include "fe_configs.h"
 #include "feir_type.h"
 #include "feir_var.h"
+#include "feir_dfg.h"
 
 namespace maple {
 class FEIRTypeMergeHelper {

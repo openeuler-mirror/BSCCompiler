@@ -12,56 +12,56 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "general_bb.h"
+#include "feir_bb.h"
 
 namespace maple {
-GeneralBB::GeneralBB(uint8 argKind)
+FEIRBB::FEIRBB(uint8 argKind)
     : kind(argKind),
+      id(0),
       stmtHead(nullptr),
       stmtTail(nullptr),
       stmtNoAuxHead(nullptr),
-      stmtNoAuxTail(nullptr),
-      id(0) {}
+      stmtNoAuxTail(nullptr) {}
 
-GeneralBB::GeneralBB()
-    : GeneralBB(GeneralBBKind::kBBKindDefault) {}
+FEIRBB::FEIRBB()
+    : FEIRBB(FEIRBBKind::kBBKindDefault) {}
 
-GeneralBB::~GeneralBB() {
+FEIRBB::~FEIRBB() {
   stmtHead = nullptr;
   stmtTail = nullptr;
   stmtNoAuxHead = nullptr;
   stmtNoAuxTail = nullptr;
 }
 
-void GeneralBB::AppendStmt(GeneralStmt &stmt) {
+void FEIRBB::AppendStmt(FEIRStmt *stmt) {
   if (stmtHead == nullptr) {
-    stmtHead = &stmt;
+    stmtHead = stmt;
   }
-  stmtTail = &stmt;
-  if (stmt.IsAux() == false) {
+  stmtTail = stmt;
+  if (stmt->IsAux()) {
     if (stmtNoAuxHead == nullptr) {
-      stmtNoAuxHead = &stmt;
+      stmtNoAuxHead = stmt;
     }
-    stmtNoAuxTail = &stmt;
+    stmtNoAuxTail = stmt;
   }
 }
 
-void GeneralBB::AddStmtAuxPre(GeneralStmt &stmt) {
-  if (stmt.IsAuxPre() == false) {
+void FEIRBB::AddStmtAuxPre(FEIRStmt *stmt) {
+  if (!stmt->IsAuxPre()) {
     return;
   }
-  stmtHead = &stmt;
+  stmtHead = stmt;
 }
 
-void GeneralBB::AddStmtAuxPost(GeneralStmt &stmt) {
-  if (stmt.IsAuxPost() == false) {
+void FEIRBB::AddStmtAuxPost(FEIRStmt *stmt) {
+  if (!stmt->IsAuxPost()) {
     return;
   }
-  stmtTail = &stmt;
+  stmtTail = stmt;
 }
 
-bool GeneralBB::IsPredBB(uint32 bbID) {
-  for (GeneralBB *bb : predBBs) {
+bool FEIRBB::IsPredBB(uint32 bbID) {
+  for (FEIRBB *bb : predBBs) {
     if (bb->GetID() == bbID) {
       return true;
     }
@@ -69,8 +69,8 @@ bool GeneralBB::IsPredBB(uint32 bbID) {
   return false;
 }
 
-bool GeneralBB::IsSuccBB(uint32 bbID) {
-  for (GeneralBB *bb : succBBs) {
+bool FEIRBB::IsSuccBB(uint32 bbID) {
+  for (FEIRBB *bb : succBBs) {
     if (bb->GetID() == bbID) {
       return true;
     }
@@ -78,24 +78,20 @@ bool GeneralBB::IsSuccBB(uint32 bbID) {
   return false;
 }
 
-bool GeneralBB::IsDeadImpl() {
-  return predBBs.size() == 0;
-}
-
-void GeneralBB::DumpImpl() const {
-  std::cout << "GeneralBB (id=" << id << ", kind=" << GetBBKindName() <<
+void FEIRBB::Dump() const {
+  std::cout << "FEIRBB (id=" << id << ", kind=" << GetBBKindName() <<
                ", preds={";
-  for (GeneralBB *bb : predBBs) {
+  for (FEIRBB *bb : predBBs) {
     std::cout << bb->GetID() << " ";
   }
   std::cout << "}, succs={";
-  for (GeneralBB *bb : succBBs) {
+  for (FEIRBB *bb : succBBs) {
     std::cout << bb->GetID() << " ";
   }
   std::cout << "})" << std::endl;
 }
 
-std::string GeneralBB::GetBBKindNameImpl() const {
+std::string FEIRBB::GetBBKindName() const {
   switch (kind) {
     case kBBKindDefault:
       return "Default";

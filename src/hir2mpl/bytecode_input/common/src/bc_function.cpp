@@ -99,13 +99,6 @@ bool BCFunction::GenerateAliasVars(const std::string &phaseName) {
 bool BCFunction::ProcessFEIRFunction() {
   bool success = true;
   success = success && UpdateRegNum2This("fe/update reg num to this pointer");
-  if (FEOptions::GetInstance().GetTypeInferKind() == FEOptions::kRoahAlgorithm) {
-    success = success && BuildFEIRBB("fe/build feir bb");
-    success = success && BuildFEIRCFG("fe/build feir CFG");
-    success = success && BuildFEIRDFG("fe/build feir DFG");
-    success = success && BuildFEIRUDDU("fe/build feir UDDU");
-    success = success && TypeInfer("fe/type infer");
-  }
   return success;
 }
 
@@ -120,19 +113,6 @@ bool BCFunction::EmitToFEIRStmt(const std::string &phaseName) {
   std::list<UniqueFEIRStmt> feirStmts = method->EmitInstructionsToFEIR();
   AppendFEIRStmts(feirStmts);
   return phaseResult.Finish(true);
-}
-
-void BCFunction::AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts) {
-  ASSERT_NOT_NULL(feirStmtTail);
-  InsertFEIRStmtsBefore(*feirStmtTail, stmts);
-}
-
-void BCFunction::InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts) {
-  while (stmts.size() > 0) {
-    FEIRStmt *ptrFEIRStmt = RegisterFEIRStmt(std::move(stmts.front()));
-    stmts.pop_front();
-    pos.InsertBefore(ptrFEIRStmt);
-  }
 }
 
 void BCFunction::FinishImpl() {

@@ -88,6 +88,7 @@ executable("hir2mplUT") {
 
 include_ast_input_clang_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/ast_input/clang/include",
   "${HIR2MPL_ROOT}/ast_input/common/include",
   "${HIR2MPL_ROOT}/test/common",
@@ -110,6 +111,7 @@ source_set("lib_hir2mpl_test_ast_input_clang") {
 
 include_bytecode_input_class_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/bytecode_input/class/include",
   "${HIR2MPL_ROOT}/test/common",
   "${THIRD_PARTY_ROOT}/bounds_checking_function/include",
@@ -183,6 +185,7 @@ source_set("lib_hir2mpl_test_common") {
 
 include_bytecode_input_dex_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/bytecode_input/common/include",
   "${HIR2MPL_ROOT}/bytecode_input/dex/include",
   "${HIR2MPL_ROOT}/test/common",

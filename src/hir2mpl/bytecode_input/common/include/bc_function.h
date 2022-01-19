@@ -65,8 +65,6 @@ class BCFunction : public FEFunction {
   bool ProcessFEIRFunction() override;
   void FinishImpl() override;
   bool EmitToMIR(const std::string &phaseName) override;
-  void AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts);
-  void InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts);
 
   const BCClassMethod2FEHelper &methodHelper;
   std::unique_ptr<BCClassMethod> &method;

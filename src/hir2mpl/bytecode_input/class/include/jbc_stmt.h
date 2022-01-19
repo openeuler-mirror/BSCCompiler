@@ -16,7 +16,6 @@
 #define HIR2MPL_INCLUDE_JBC_STMT_H
 #include <memory>
 #include <list>
-#include "general_stmt.h"
 #include "jbc_opcode.h"
 #include "jbc_stack2fe_helper.h"
 
@@ -46,23 +45,20 @@ class JBCStmtKindHelper {
   ~JBCStmtKindHelper() = default;
 };  // class JBCStmtKindHelper
 
-class JBCStmt : public GeneralStmt {
+class JBCStmt : public FEIRStmt {
  public:
   explicit JBCStmt(JBCStmtKind argKind)
-      : kind(argKind),
+      : FEIRStmt(kStmt), kind(argKind),
         pc(UINT32_MAX) {}
 
-  JBCStmt(GeneralStmtKind argGenKind, JBCStmtKind argKind)
-      : GeneralStmt(argGenKind),
+  JBCStmt(FEIRNodeKind argGenKind, JBCStmtKind argKind)
+      : FEIRStmt(argGenKind),
         kind(argKind),
         pc(UINT32_MAX) {}
 
   virtual ~JBCStmt() = default;
   std::list<UniqueFEIRStmt> EmitToFEIR(JBCFunctionContext &context, bool &success) const {
     std::list<UniqueFEIRStmt> feirStmts = EmitToFEIRImpl(context, success);
-    for (UniqueFEIRStmt &stmt : feirStmts) {
-      stmt->SetThrowable(IsThrowable());
-    }
     return feirStmts;
   }
 
@@ -82,11 +78,12 @@ class JBCStmt : public GeneralStmt {
     return pc;
   }
 
- protected:
-  virtual std::list<UniqueFEIRStmt> EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const = 0;
-  bool IsBranchImpl() const override {
+  bool IsBranch() const {
     return kind == JBCStmtKind::kJBCStmtInstBranch || kind == JBCStmtKind::kJBCStmtInstBranchRet;
   }
+
+ protected:
+  virtual std::list<UniqueFEIRStmt> EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const = 0;
 
   JBCStmtKind kind;
   uint32 pc;
@@ -221,7 +218,7 @@ class JBCStmtInstBranchRet : public JBCStmtInstBranch {
 class JBCStmtPesudoLabel : public JBCStmt {
  public:
   JBCStmtPesudoLabel()
-      : JBCStmt(GeneralStmtKind::kStmtMultiIn, kJBCStmtPesudoLabel),
+      : JBCStmt(kStmtPesudo, kJBCStmtPesudoLabel),
         labelIdx(0) {}
 
   ~JBCStmtPesudoLabel() = default;

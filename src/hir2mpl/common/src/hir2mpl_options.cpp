@@ -400,7 +400,7 @@ bool HIR2MPLOptions::InitFactory() {
 
   // general stmt/bb/cfg debug options
   RegisterFactoryFunction<OptionProcessFactory>(kDumpGenCFGGraph,
-                                                &HIR2MPLOptions::ProcessDumpGeneralCFGGraph);
+                                                &HIR2MPLOptions::ProcessDumpFEIRCFGGraph);
 
   // multi-thread control options
   RegisterFactoryFunction<OptionProcessFactory>(kNThreads,
@@ -719,9 +719,9 @@ bool HIR2MPLOptions::ProcessBigEndian(const Option &opt) {
 }
 
 // general stmt/bb/cfg debug options
-bool HIR2MPLOptions::ProcessDumpGeneralCFGGraph(const Option &opt) {
-  FEOptions::GetInstance().SetIsDumpGeneralCFGGraph(true);
-  FEOptions::GetInstance().SetGeneralCFGGraphFileName(opt.Args());
+bool HIR2MPLOptions::ProcessDumpFEIRCFGGraph(const Option &opt) {
+  FEOptions::GetInstance().SetIsDumpFEIRCFGGraph(true);
+  FEOptions::GetInstance().SetFEIRCFGGraphFileName(opt.Args());
   return true;
 }
 

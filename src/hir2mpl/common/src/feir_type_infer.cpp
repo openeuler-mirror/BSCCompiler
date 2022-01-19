@@ -16,6 +16,7 @@
 #include "fe_type_hierarchy.h"
 #include "feir_type_helper.h"
 #include "feir_var_type_scatter.h"
+#include "feir_dfg.h"
 
 namespace maple {
 // ---------- FEIRTypeMergeHelper ----------

@@ -293,15 +293,15 @@ class FEOptions {
     return isDumpJBCBB;
   }
 
-  void SetIsDumpGeneralCFGGraph(bool flag) {
+  void SetIsDumpFEIRCFGGraph(bool flag) {
     isDumpGenCFGGraph = flag;
   }
 
-  bool IsDumpGeneralCFGGraph() const {
+  bool IsDumpFEIRCFGGraph() const {
     return isDumpGenCFGGraph;
   }
 
-  void SetGeneralCFGGraphFileName(const std::string &fileName) {
+  void SetFEIRCFGGraphFileName(const std::string &fileName) {
     genCFGGraphFileName = fileName;
   }
 

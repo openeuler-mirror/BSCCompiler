@@ -48,19 +48,6 @@ bool ASTFunction::EmitToFEIRStmt(const std::string &phaseName) {
   return phaseResult.Finish(true);
 }
 
-void ASTFunction::AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts) {
-  ASSERT_NOT_NULL(feirStmtTail);
-  InsertFEIRStmtsBefore(*feirStmtTail, stmts);
-}
-
-void ASTFunction::InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts) {
-  while (stmts.size() > 0) {
-    FEIRStmt *ptrFEIRStmt = RegisterFEIRStmt(std::move(stmts.front()));
-    stmts.pop_front();
-    pos.InsertBefore(ptrFEIRStmt);
-  }
-}
-
 void ASTFunction::PreProcessImpl() {
   CHECK_FATAL(false, "NIY");
 }

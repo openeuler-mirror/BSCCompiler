@@ -12,63 +12,56 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#include "general_cfg.h"
+#include "feir_cfg.h"
 #include "mpl_logging.h"
 
 namespace maple {
-GeneralCFG::GeneralCFG(const GeneralStmt &argStmtHead, const GeneralStmt &argStmtTail)
-    : stmtHead(argStmtHead), stmtTail(argStmtTail) {}
+FEIRCFG::FEIRCFG(FEIRStmt *argStmtHead, FEIRStmt *argStmtTail)
+    : stmtHead(argStmtHead), stmtTail(argStmtTail) {
+  (void)stmtTail;
+}
 
-void GeneralCFG::Init() {
-  bbHead = std::make_unique<GeneralBB>(kBBKindPesudoHead);
-  bbTail = std::make_unique<GeneralBB>(kBBKindPesudoTail);
+void FEIRCFG::Init() {
+  bbHead = std::make_unique<FEIRBB>(kBBKindPesudoHead);
+  bbTail = std::make_unique<FEIRBB>(kBBKindPesudoTail);
   bbHead->SetNext(bbTail.get());
   bbTail->SetPrev(bbHead.get());
 }
 
-void GeneralCFG::BuildBB() {
-  BuildBasicBB();
-  AppendAuxStmt();
-}
-
-void GeneralCFG::BuildBasicBB() {
-  FELinkListNode *nodeStmt = stmtHead.GetNext();
-  GeneralBB *currBB = nullptr;
+void FEIRCFG::BuildBB() {
+  FELinkListNode *nodeStmt = stmtHead->GetNext();
+  FEIRBB *currBB = nullptr;
   while (nodeStmt != nullptr) {
-    GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-    if (stmt->GetGeneralStmtKind() == kStmtDummyEnd) {
-      break;
-    }
-    if (stmt->IsAux() == false) {
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
+    if (!stmt->IsAux()) {
       // check start of BB
-      if (currBB == nullptr || stmt->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiIn) {
+      if (currBB == nullptr) { // Additional conditions need to be added
         currBB = NewBBAppend();
         bbTail->InsertBefore(currBB);
       }
       CHECK_FATAL(currBB != nullptr, "nullptr check of currBB");
-      currBB->AppendStmt(*stmt);
+      currBB->AppendStmt(stmt);
       // check end of BB
-      if (stmt->IsFallThru() == false || stmt->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiOut) {
+      if (!stmt->IsFallThru()) { // Additional conditions need to be added
         currBB = nullptr;
       }
     }
     nodeStmt = nodeStmt->GetNext();
   }
+
+  AppendAuxStmt();
 }
 
-void GeneralCFG::AppendAuxStmt() {
+void FEIRCFG::AppendAuxStmt() {
   FELinkListNode *nodeBB = bbHead->GetNext();
   while (nodeBB != nullptr && nodeBB != bbTail.get()) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     // add pre
     FELinkListNode *nodeStmt = bb->GetStmtHead()->GetPrev();
     while (nodeStmt != nullptr) {
-      GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-      if (stmt->GetGeneralStmtKind() == kStmtDummyBegin) {
-        break;
-      }
+      FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
       if (stmt->IsAuxPre()) {
-        bb->AddStmtAuxPre(*stmt);
+        bb->AddStmtAuxPre(stmt);
       } else {
         break;
       }
@@ -77,12 +70,9 @@ void GeneralCFG::AppendAuxStmt() {
     // add post
     nodeStmt = bb->GetStmtTail()->GetNext();
     while (nodeStmt != nullptr) {
-      GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-      if (stmt->GetGeneralStmtKind() == kStmtDummyEnd) {
-        break;
-      }
+      FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
       if (stmt->IsAuxPost()) {
-        bb->AddStmtAuxPost(*stmt);
+        bb->AddStmtAuxPost(stmt);
       } else {
         break;
       }
@@ -92,21 +82,21 @@ void GeneralCFG::AppendAuxStmt() {
   }
 }
 
-GeneralBB *GeneralCFG::NewBBAppend() {
-  std::unique_ptr<GeneralBB> bbNew = NewGeneralBB();
+FEIRBB *FEIRCFG::NewBBAppend() {
+  std::unique_ptr<FEIRBB> bbNew = NewFEIRBB();
   ASSERT(bbNew != nullptr, "nullptr check for bbNew");
   listBB.push_back(std::move(bbNew));
   return listBB.back().get();
 }
 
-bool GeneralCFG::BuildCFG() {
+bool FEIRCFG::BuildCFG() {
   // build target map
-  std::map<const GeneralStmt*, GeneralBB*> mapTargetStmtBB;
+  std::map<const FEIRStmt*, FEIRBB*> mapTargetStmtBB;
   FELinkListNode *nodeBB = bbHead->GetNext();
   while (nodeBB != nullptr && nodeBB != bbTail.get()) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    const GeneralStmt *locStmtHead = bb->GetStmtNoAuxHead();
-    if (locStmtHead != nullptr && locStmtHead->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiIn) {
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    const FEIRStmt *locStmtHead = bb->GetStmtNoAuxHead();
+    if (locStmtHead != nullptr) { // Additional conditions need to be added
       mapTargetStmtBB[locStmtHead] = bb;
     }
     nodeBB = nodeBB->GetNext();
@@ -115,13 +105,13 @@ bool GeneralCFG::BuildCFG() {
   nodeBB = bbHead->GetNext();
   bool firstBB = true;
   while (nodeBB != nullptr && nodeBB != bbTail.get()) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     if (firstBB) {
-      bb->AddPredBB(*(bbHead.get()));
-      bbHead->AddSuccBB(*bb);
+      bb->AddPredBB(bbHead.get());
+      bbHead->AddSuccBB(bb);
       firstBB = false;
     }
-    const GeneralStmt *locStmtTail = bb->GetStmtNoAuxTail();
+    const FEIRStmt *locStmtTail = bb->GetStmtNoAuxTail();
     CHECK_FATAL(locStmtTail != nullptr, "stmt tail is nullptr");
     if (locStmtTail->IsFallThru()) {
       FELinkListNode *nodeBBNext = nodeBB->GetNext();
@@ -129,37 +119,35 @@ bool GeneralCFG::BuildCFG() {
         ERR(kLncErr, "Method without return");
         return false;
       }
-      GeneralBB *bbNext = static_cast<GeneralBB*>(nodeBBNext);
-      bb->AddSuccBB(*bbNext);
-      bbNext->AddPredBB(*bb);
+      FEIRBB *bbNext = static_cast<FEIRBB*>(nodeBBNext);
+      bb->AddSuccBB(bbNext);
+      bbNext->AddPredBB(bb);
     }
-    if (locStmtTail->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiOut) {
-      for (GeneralStmt *stmt : locStmtTail->GetSuccs()) {
-        auto itBB = mapTargetStmtBB.find(stmt);
-        CHECK_FATAL(itBB != mapTargetStmtBB.end(), "Target BB is not found");
-        GeneralBB *bbNext = itBB->second;
-        bb->AddSuccBB(*bbNext);
-        bbNext->AddPredBB(*bb);
-      }
+    for (FEIRStmt *stmt : locStmtTail->GetSuccs()) {
+      auto itBB = mapTargetStmtBB.find(stmt);
+      CHECK_FATAL(itBB != mapTargetStmtBB.end(), "Target BB is not found");
+      FEIRBB *bbNext = itBB->second;
+      bb->AddSuccBB(bbNext);
+      bbNext->AddPredBB(bb);
     }
     nodeBB = nodeBB->GetNext();
   }
   return true;
 }
 
-const GeneralBB *GeneralCFG::GetHeadBB() {
+const FEIRBB *FEIRCFG::GetHeadBB() {
   currBBNode = bbHead->GetNext();
   if (currBBNode == bbTail.get()) {
     return nullptr;
   }
-  return static_cast<GeneralBB*>(currBBNode);
+  return static_cast<FEIRBB*>(currBBNode);
 }
 
-const GeneralBB *GeneralCFG::GetNextBB() {
+const FEIRBB *FEIRCFG::GetNextBB() {
   currBBNode = currBBNode->GetNext();
   if (currBBNode == bbTail.get()) {
     return nullptr;
   }
-  return static_cast<GeneralBB*>(currBBNode);
+  return static_cast<FEIRBB*>(currBBNode);
 }
 }  // namespace maple

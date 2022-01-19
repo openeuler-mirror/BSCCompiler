@@ -39,9 +39,9 @@ void JBCFunctionContext::ArrangeStmts() {
    *   comment
    *   inst
    */
-  for (const std::pair<const uint32, GeneralStmt*> &pcInst : mapPCStmtInst) {
+  for (const std::pair<const uint32, FEIRStmt*> &pcInst : mapPCStmtInst) {
     uint32 pc = pcInst.first;
-    GeneralStmt *stmtInst = pcInst.second;
+    FEIRStmt *stmtInst = pcInst.second;
     if (mapPCEndTryStmt.find(pc) != mapPCEndTryStmt.end()) {
       stmtInst->InsertBefore(mapPCEndTryStmt[pc]);
     }

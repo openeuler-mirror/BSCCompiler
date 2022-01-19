@@ -84,7 +84,6 @@ static_library("lib_hir2mpl_common") {
     "${HIR2MPL_ROOT}/common/src/fe_utils_java.cpp",
     "${HIR2MPL_ROOT}/common/src/fe_diag_manager.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_builder.cpp",
-    "${HIR2MPL_ROOT}/common/src/feir_dfg.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_stmt.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_type.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_type_helper.cpp",
@@ -93,9 +92,6 @@ static_library("lib_hir2mpl_common") {
     "${HIR2MPL_ROOT}/common/src/feir_var_name.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_var_reg.cpp",
     "${HIR2MPL_ROOT}/common/src/feir_var_type_scatter.cpp",
-    "${HIR2MPL_ROOT}/common/src/general_bb.cpp",
-    "${HIR2MPL_ROOT}/common/src/general_cfg.cpp",
-    "${HIR2MPL_ROOT}/common/src/general_stmt.cpp",
     "${HIR2MPL_ROOT}/common/src/hir2mpl_compiler.cpp",
     "${HIR2MPL_ROOT}/common/src/hir2mpl_compiler_component.cpp",
     "${HIR2MPL_ROOT}/common/src/hir2mpl_env.cpp",
@@ -133,6 +129,10 @@ static_library("lib_hir2mpl_optimize") {
   sources = [
     "${HIR2MPL_ROOT}/optimize/src/ror.cpp",
     "${HIR2MPL_ROOT}/optimize/src/conditional_operator.cpp",
+    "${HIR2MPL_ROOT}/optimize/src/feir_lower.cpp",
+    "${HIR2MPL_ROOT}/optimize/src/feir_bb.cpp",
+    "${HIR2MPL_ROOT}/optimize/src/feir_cfg.cpp",
+    "${HIR2MPL_ROOT}/optimize/src/feir_dfg.cpp"
   ]
   include_dirs = include_directories
   output_dir = "${root_out_dir}/ar"
@@ -184,6 +184,7 @@ executable("hir2mpl") {
 
 include_bytecode_input_jbc_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/bytecode_input/class/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
   "${MAPLEALL_ROOT}/maple_util/include",
@@ -218,6 +219,7 @@ static_library("lib_hir2mpl_bytecode_input_class") {
 
 include_bytecode_input_common_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/bytecode_input/common/include",
   "${HIR2MPL_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",
@@ -247,6 +249,7 @@ static_library("lib_hir2mpl_bytecode_input_common") {
 
 include_bytecode_input_dex_directories = [
   "${HIR2MPL_ROOT}/common/include",
+  "${HIR2MPL_ROOT}/optimize/include",
   "${HIR2MPL_ROOT}/bytecode_input/common/include",
   "${HIR2MPL_ROOT}/bytecode_input/dex/include",
   "${MAPLEALL_ROOT}/maple_ir/include",

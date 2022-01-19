@@ -28,12 +28,12 @@
 #include "factory.h"
 #include "safe_ptr.h"
 #include "fe_utils.h"
-#include "general_stmt.h"
 #include "feir_var.h"
 #include "fe_struct_elem_info.h"
 #include "feir_var_type_scatter.h"
 #include "fe_options.h"
 #include "feir_type_helper.h"
+#include "feir_dfg.h"
 
 namespace maple {
 class FEIRBuilder;
@@ -98,14 +98,13 @@ using UniqueFEIRDFGNode = std::unique_ptr<FEIRDFGNode>;
 
 class FEIRStmtCheckPoint;
 // ---------- FEIRStmt ----------
-class FEIRStmt : public GeneralStmt {
+class FEIRStmt : public FELinkListNode {
  public:
   explicit FEIRStmt(FEIRNodeKind argKind)
       : kind(argKind) {}
 
-  FEIRStmt(GeneralStmtKind argGenKind, FEIRNodeKind argKind)
-      : GeneralStmt(argGenKind),
-        kind(argKind) {}
+  FEIRStmt()
+      : kind(kStmt) {} // kStmt as default
 
   virtual ~FEIRStmt() = default;
   void RegisterDFGNodes2CheckPoint(FEIRStmtCheckPoint &checkPoint) {
@@ -138,12 +137,80 @@ class FEIRStmt : public GeneralStmt {
     kind = argKind;
   }
 
+  bool IsFallThru() const {
+    return isFallThru;
+  }
+
+  void SetFallThru(bool arg) {
+    isFallThru = arg;
+  }
+
   bool IsFallThrough() const {
     return IsFallThroughImpl();
   }
 
+  bool IsBranch() const {
+    return IsBranchImpl();
+  }
+
+  bool IsStmtInst() const {
+    return IsStmtInstImpl();
+  }
+
   bool IsTarget() const {
     return IsTargetImpl();
+  }
+
+  bool IsThrowable() const {
+    return isThrowable;
+  }
+
+  void SetThrowable(bool argIsThrowable) {
+    isThrowable = argIsThrowable;
+  }
+
+  uint32 GetID() const {
+    return id;
+  }
+
+  void SetID(uint32 arg) {
+    id = arg;
+  }
+
+  bool IsAuxPre() const {
+    return isAuxPre;
+  }
+
+  bool IsAuxPost() const {
+    return isAuxPost;
+  }
+
+  bool IsAux() const {
+    return isAuxPre || isAuxPost;
+  }
+
+  const std::vector<FEIRStmt*> &GetPredsOrSuccs() const {
+    return predsOrSuccs;
+  }
+
+  void AddPredOrSucc(FEIRStmt &stmt) {
+    predsOrSuccs.push_back(&stmt);
+  }
+
+  const std::vector<FEIRStmt*> &GetPreds() const {
+    return predsOrSuccs;
+  }
+
+  const std::vector<FEIRStmt*> &GetSuccs() const {
+    return predsOrSuccs;
+  }
+
+  void AddPred(FEIRStmt &stmt) {
+    predsOrSuccs.push_back(&stmt);
+  }
+
+  void AddSucc(FEIRStmt &stmt) {
+    predsOrSuccs.push_back(&stmt);
   }
 
   bool HasDef() const {
@@ -186,8 +253,17 @@ class FEIRStmt : public GeneralStmt {
     isDummy = true;
   }
 
+  std::string DumpDotString() const {
+    return DumpDotStringImpl();
+  }
+
+  void Dump(const std::string &prefix = "") const {
+    return DumpImpl(prefix);
+  }
+
  protected:
-  std::string DumpDotStringImpl() const override;
+  virtual std::string DumpDotStringImpl() const;
+  virtual void DumpImpl(const std::string &prefix) const;
   virtual void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) {}
   virtual bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) {
     return true;
@@ -199,12 +275,12 @@ class FEIRStmt : public GeneralStmt {
 
   virtual void InitTrans4AllVarsImpl() {}
   virtual std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const;
-  virtual bool IsStmtInstImpl() const override;
+  virtual bool IsStmtInstImpl() const;
   virtual bool IsFallThroughImpl() const {
     return true;
   }
 
-  bool IsBranchImpl() const override {
+  virtual bool IsBranchImpl() const {
     return false;
   }
 
@@ -232,10 +308,16 @@ class FEIRStmt : public GeneralStmt {
   }
 
   FEIRNodeKind kind;
+  uint32 id;
   uint32 srcFileIndex = 0;
   uint32 srcFileLineNum = 0;
   uint32 hexPC = UINT32_MAX;
   bool isDummy = false;
+  bool isFallThru = false;
+  bool isAuxPre = false;
+  bool isAuxPost = false;
+  bool isThrowable = false;
+  std::vector<FEIRStmt*> predsOrSuccs;
 };
 
 using UniqueFEIRStmt = std::unique_ptr<FEIRStmt>;

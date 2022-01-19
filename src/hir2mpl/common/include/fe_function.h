@@ -22,12 +22,10 @@
 #include "safe_ptr.h"
 #include "mir_function.h"
 #include "fe_utils.h"
-#include "general_stmt.h"
-#include "general_bb.h"
-#include "feir_stmt.h"
 #include "feir_bb.h"
+#include "feir_stmt.h"
 #include "fe_timer_ns.h"
-#include "general_cfg.h"
+#include "feir_cfg.h"
 #include "fe_function_phase_result.h"
 #include "feir_type_infer.h"
 
@@ -45,11 +43,10 @@ class FEFunction {
   bool HasDeadBB();
 
   // element memory manage method
-  GeneralStmt *RegisterGeneralStmt(std::unique_ptr<GeneralStmt> stmt);
-  const std::unique_ptr<GeneralStmt> &RegisterGeneralStmtUniqueReturn(std::unique_ptr<GeneralStmt> stmt);
-  GeneralBB *RegisterGeneralBB(std::unique_ptr<GeneralBB> bb);
-  FEIRStmt *RegisterFEIRStmt(UniqueFEIRStmt stmt);
+  FEIRStmt *RegisterGeneralStmt(std::unique_ptr<FEIRStmt> stmt);
+  const std::unique_ptr<FEIRStmt> &RegisterGeneralStmtUniqueReturn(std::unique_ptr<FEIRStmt> stmt);
   FEIRBB *RegisterFEIRBB(std::unique_ptr<FEIRBB> bb);
+  FEIRStmt *RegisterFEIRStmt(UniqueFEIRStmt stmt);
   std::string GetDescription();
   void OutputUseDefChain();
   void OutputDefUseChain();
@@ -61,6 +58,9 @@ class FEFunction {
   void Init() {
     InitImpl();
   }
+
+  void AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts);
+  void InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts);
 
   void PreProcess() {
     PreProcessImpl();
@@ -101,12 +101,10 @@ class FEFunction {
  LLT_PROTECTED:
   // run phase routines
   virtual bool GenerateGeneralStmt(const std::string &phaseName) = 0;
-  virtual bool BuildGeneralBB(const std::string &phaseName);
-  virtual bool BuildGeneralCFG(const std::string &phaseName);
-  virtual bool CheckDeadBB(const std::string &phaseName);
   virtual bool LabelGeneralStmts(const std::string &phaseName);
-  virtual bool LabelGeneralBBs(const std::string &phaseName);
+  virtual bool LabelFEIRBBs(const std::string &phaseName);
   virtual bool ProcessFEIRFunction();
+
   virtual bool GenerateArgVarList(const std::string &phaseName) = 0;
   virtual bool GenerateAliasVars(const std::string &phaseName) = 0;
   virtual bool EmitToFEIRStmt(const std::string &phaseName) = 0;
@@ -114,8 +112,6 @@ class FEFunction {
   virtual bool SetupFEIRStmtJavaTry(const std::string &phaseName);
   virtual bool SetupFEIRStmtBranch(const std::string &phaseName);
   virtual bool UpdateRegNum2This(const std::string &phaseName);
-  bool BuildFEIRBB(const std::string &phaseName);  // build fe ir bb chain
-  bool BuildFEIRCFG(const std::string &phaseName);  // build fe ir CFG
   bool BuildFEIRDFG(const std::string &phaseName);  // process fe ir check point, build fe ir DFG
   bool BuildFEIRUDDU(const std::string &phaseName);  // build fe ir UD DU chain
   bool TypeInfer(const std::string &phaseName);  // feir based Type Infer
@@ -139,35 +135,33 @@ class FEFunction {
   virtual bool VerifyGeneral() = 0;
   virtual void VerifyGeneralFailCallBack() = 0;
   virtual void DumpGeneralStmts();
-  virtual void DumpGeneralBBs();
-  virtual void DumpGeneralCFGGraph();
+  virtual void DumpFEIRBBs();
+  virtual void DumpFEIRCFGGraph();
   virtual std::string GetGeneralFuncName() const;
   void EmitToMIRStmt();
 
-  virtual GeneralBB *NewGeneralBB();
-  virtual GeneralBB *NewGeneralBB(uint8 kind);
   void PhaseTimerStart(FETimerNS &timer);
   void PhaseTimerStopAndDump(FETimerNS &timer, const std::string &label);
-  virtual void DumpGeneralCFGGraphForBB(std::ofstream &file, const GeneralBB &bb);
-  virtual void DumpGeneralCFGGraphForCFGEdge(std::ofstream &file);
-  virtual void DumpGeneralCFGGraphForDFGEdge(std::ofstream &file);
+  virtual void DumpFEIRCFGGraphForBB(std::ofstream &file, const FEIRBB &bb);
+  virtual void DumpFEIRCFGGraphForCFGEdge(std::ofstream &file);
+  virtual void DumpFEIRCFGGraphForDFGEdge(std::ofstream &file);
   virtual bool HasThis() = 0;
   virtual bool IsNative() = 0;
   void BuildMapLabelIdx();
   bool CheckPhaseResult(const std::string &phaseName);
 
-  GeneralStmt *genStmtHead;
-  GeneralStmt *genStmtTail;
-  std::list<GeneralStmt*> genStmtListRaw;
-  GeneralBB *genBBHead;
-  GeneralBB *genBBTail;
-  std::unique_ptr<GeneralCFG> generalCFG;
+  FEIRStmt *genStmtHead;
+  FEIRStmt *genStmtTail;
+  std::list<FEIRStmt*> genStmtListRaw;
+  FEIRBB *genBBHead;
+  FEIRBB *genBBTail;
+  std::unique_ptr<FEIRCFG> generalCFG;
   FEIRStmt *feirStmtHead;
   FEIRStmt *feirStmtTail;
   FEIRBB *feirBBHead;
   FEIRBB *feirBBTail;
-  std::unique_ptr<GeneralCFG> feirCFG;
-  std::map<const GeneralStmt*, GeneralBB*> genStmtBBMap;
+  std::unique_ptr<FEIRCFG> feirCFG;
+  std::map<const FEIRStmt*, FEIRBB*> genStmtBBMap;
   std::vector<std::unique_ptr<FEIRVar>> argVarList;
   std::map<uint32, LabelIdx> mapLabelIdx;
   std::map<uint32, FEIRStmtPesudoLabel*> mapLabelStmt;
@@ -198,10 +192,6 @@ class FEFunction {
   void ProcessCheckPoints();
   void InsertCheckPointForBBs();
   void InsertCheckPointForTrys();
-  void LinkCheckPointBetweenBBs();
-  void LinkCheckPointInsideBBs();
-  void LinkCheckPointForTrys();
-  void LinkCheckPointForTry(FEIRStmtCheckPoint &checkPoint);
   void InitFirstVisibleStmtForCheckPoints();
   void InitFEIRStmtCheckPointMap();
   void RegisterDFGNodes2CheckPoints();
@@ -221,15 +211,13 @@ class FEFunction {
   bool WithFinalFieldsNeedBarrier(MIRClassType *classType, bool isStatic) const;
   bool IsNeedInsertBarrier();
 
-  std::list<std::unique_ptr<GeneralStmt>> genStmtList;
-  std::list<std::unique_ptr<GeneralBB>> genBBList;
+  std::list<std::unique_ptr<FEIRStmt>> genStmtList;
+  std::list<std::unique_ptr<FEIRBB>> genBBList;
   std::list<UniqueFEIRStmt> feirStmtList;
   std::list<std::unique_ptr<FEIRBB>> feirBBList;
   std::map<const FEIRStmt*, FEIRBB*> feirStmtBBMap;
   std::map<const FEIRStmt*, FEIRStmtCheckPoint*> feirStmtCheckPointMap;
   std::map<FEIRStmtCheckPoint*, FEIRStmtPesudoJavaTry2*> checkPointJavaTryMap;
-  FEIRUseDefChain useDefChain;
-  FEIRDefUseChain defUseChain;
   std::unique_ptr<FEIRTypeInfer> typeInfer;
   uint32 stmtCount = 0;
   std::map<const FEIRVarTypeScatter*, FEIRStmt*> defVarTypeScatterStmtMap;

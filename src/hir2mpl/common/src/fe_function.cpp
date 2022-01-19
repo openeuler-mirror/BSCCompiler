@@ -13,7 +13,7 @@
  * See the Mulan PSL v2 for more details.
  */
 #include "fe_function.h"
-#include "general_bb.h"
+#include "feir_bb.h"
 #include "mpl_logging.h"
 #include "fe_options.h"
 #include "fe_manager.h"
@@ -53,41 +53,38 @@ FEFunction::~FEFunction() {
 }
 
 void FEFunction::InitImpl() {
-  // general stmt/bb
-  genStmtHead = RegisterGeneralStmt(std::make_unique<GeneralStmt>(GeneralStmtKind::kStmtDummyBegin));
-  genStmtTail = RegisterGeneralStmt(std::make_unique<GeneralStmt>(GeneralStmtKind::kStmtDummyEnd));
-  genStmtHead->SetNext(genStmtTail);
-  genStmtTail->SetPrev(genStmtHead);
-  genBBHead = RegisterGeneralBB(std::make_unique<GeneralBB>(GeneralBBKind::kBBKindPesudoHead));
-  genBBTail = RegisterGeneralBB(std::make_unique<GeneralBB>(GeneralBBKind::kBBKindPesudoTail));
-  genBBHead->SetNext(genBBTail);
-  genBBTail->SetPrev(genBBHead);
   // feir stmt/bb
-  feirStmtHead = RegisterFEIRStmt(std::make_unique<FEIRStmt>(GeneralStmtKind::kStmtDummyBegin,
-                                                             FEIRNodeKind::kStmtPesudoFuncStart));
-  feirStmtTail = RegisterFEIRStmt(std::make_unique<FEIRStmt>(GeneralStmtKind::kStmtDummyEnd,
-                                                             FEIRNodeKind::kStmtPesudoFuncEnd));
+  feirStmtHead = RegisterFEIRStmt(std::make_unique<FEIRStmt>(FEIRNodeKind::kStmtPesudoFuncStart));
+  feirStmtTail = RegisterFEIRStmt(std::make_unique<FEIRStmt>(FEIRNodeKind::kStmtPesudoFuncEnd));
   feirStmtHead->SetNext(feirStmtTail);
   feirStmtTail->SetPrev(feirStmtHead);
-  feirBBHead = RegisterFEIRBB(std::make_unique<FEIRBB>(GeneralBBKind::kBBKindPesudoHead));
-  feirBBTail = RegisterFEIRBB(std::make_unique<FEIRBB>(GeneralBBKind::kBBKindPesudoTail));
+  feirBBHead = RegisterFEIRBB(std::make_unique<FEIRBB>(FEIRBBKind::kBBKindPesudoHead));
+  feirBBTail = RegisterFEIRBB(std::make_unique<FEIRBB>(FEIRBBKind::kBBKindPesudoTail));
   feirBBHead->SetNext(feirBBTail);
   feirBBTail->SetPrev(feirBBHead);
 }
 
-GeneralStmt *FEFunction::RegisterGeneralStmt(std::unique_ptr<GeneralStmt> stmt) {
+void FEFunction::AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts) {
+  ASSERT_NOT_NULL(feirStmtTail);
+  InsertFEIRStmtsBefore(*feirStmtTail, stmts);
+}
+
+void FEFunction::InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts) {
+  while (stmts.size() > 0) {
+    FEIRStmt *ptrFEIRStmt = RegisterFEIRStmt(std::move(stmts.front()));
+    stmts.pop_front();
+    pos.InsertBefore(ptrFEIRStmt);
+  }
+}
+
+FEIRStmt *FEFunction::RegisterGeneralStmt(std::unique_ptr<FEIRStmt> stmt) {
   genStmtList.push_back(std::move(stmt));
   return genStmtList.back().get();
 }
 
-const std::unique_ptr<GeneralStmt> &FEFunction::RegisterGeneralStmtUniqueReturn(std::unique_ptr<GeneralStmt> stmt) {
+const std::unique_ptr<FEIRStmt> &FEFunction::RegisterGeneralStmtUniqueReturn(std::unique_ptr<FEIRStmt> stmt) {
   genStmtList.push_back(std::move(stmt));
   return genStmtList.back();
-}
-
-GeneralBB *FEFunction::RegisterGeneralBB(std::unique_ptr<GeneralBB> bb) {
-  genBBList.push_back(std::move(bb));
-  return genBBList.back().get();
 }
 
 FEIRStmt *FEFunction::RegisterFEIRStmt(UniqueFEIRStmt stmt) {
@@ -100,152 +97,11 @@ FEIRBB *FEFunction::RegisterFEIRBB(std::unique_ptr<FEIRBB> bb) {
   return feirBBList.back().get();
 }
 
-GeneralBB *FEFunction::NewGeneralBB() {
-  return new GeneralBB();
-}
-
-GeneralBB *FEFunction::NewGeneralBB(uint8 argBBKind) {
-  return new GeneralBB(argBBKind);
-}
-
-bool FEFunction::BuildGeneralBB(const std::string &phaseName) {
-  phaseResult.RegisterPhaseNameAndStart(phaseName);
-  bool success = phaseResult.IsSuccess();
-  if (!success) {
-    return phaseResult.Finish(success);
-  }
-  // Build BB
-  FELinkListNode *nodeStmt = genStmtHead->GetNext();
-  GeneralBB *currBB = nullptr;
-  while (nodeStmt != nullptr && nodeStmt != genStmtTail) {
-    GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-    if (stmt->IsAux() == false) {
-      // check start of BB
-      if (currBB == nullptr || stmt->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiIn) {
-        currBB = NewGeneralBB();
-        genBBTail->InsertBefore(currBB);
-      }
-      CHECK_FATAL(currBB != nullptr, "nullptr check for currBB");
-      currBB->AppendStmt(*stmt);
-      // check end of BB
-      if (stmt->IsFallThru() == false || stmt->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiOut) {
-        currBB = nullptr;
-      }
-    }
-    nodeStmt = nodeStmt->GetNext();
-  }
-  // Add Aux Stmt
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    // add pre
-    nodeStmt = bb->GetStmtHead()->GetPrev();
-    while (nodeStmt != nullptr && nodeStmt != genStmtHead) {
-      GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-      if (stmt->IsAuxPre()) {
-        bb->AddStmtAuxPre(*stmt);
-      } else {
-        break;
-      }
-      nodeStmt = nodeStmt->GetPrev();
-    }
-    // add post
-    nodeStmt = bb->GetStmtTail()->GetNext();
-    while (nodeStmt != nullptr && nodeStmt != genStmtTail) {
-      GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
-      if (stmt->IsAuxPost()) {
-        bb->AddStmtAuxPost(*stmt);
-      } else {
-        break;
-      }
-      nodeStmt = nodeStmt->GetNext();
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::BuildGeneralCFG(const std::string &phaseName) {
-  phaseResult.RegisterPhaseNameAndStart(phaseName);
-  bool success = phaseResult.IsSuccess();
-  if (!success) {
-    return phaseResult.Finish(success);
-  }
-  // build target map
-  std::map<const GeneralStmt*, GeneralBB*> mapTargetStmtBB;
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    const GeneralStmt *stmtHead = bb->GetStmtNoAuxHead();
-    if (stmtHead != nullptr && stmtHead->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiIn) {
-      mapTargetStmtBB[stmtHead] = bb;
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  // link
-  nodeBB = genBBHead->GetNext();
-  bool firstBB = true;
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    if (firstBB) {
-      bb->AddPredBB(*genBBHead);
-      genBBHead->AddSuccBB(*bb);
-      firstBB = false;
-    }
-    const GeneralStmt *stmtTail = bb->GetStmtNoAuxTail();
-    CHECK_FATAL(stmtTail != nullptr, "stmt tail is nullptr");
-    if (stmtTail->IsFallThru()) {
-      FELinkListNode *nodeBBNext = nodeBB->GetNext();
-      if (nodeBBNext == nullptr || nodeBBNext == genBBTail) {
-        ERR(kLncErr, "Method without return");
-        return phaseResult.Finish(false);
-      }
-      GeneralBB *bbNext = static_cast<GeneralBB*>(nodeBBNext);
-      bb->AddSuccBB(*bbNext);
-      bbNext->AddPredBB(*bb);
-    }
-    if (stmtTail->GetGeneralStmtKind() == GeneralStmtKind::kStmtMultiOut) {
-      for (GeneralStmt *stmt : stmtTail->GetSuccs()) {
-        auto itBB = mapTargetStmtBB.find(stmt);
-        CHECK_FATAL(itBB != mapTargetStmtBB.end(), "Target BB is not found");
-        GeneralBB *bbNext = itBB->second;
-        bb->AddSuccBB(*bbNext);
-        bbNext->AddPredBB(*bb);
-      }
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::CheckDeadBB(const std::string &phaseName) {
-  phaseResult.RegisterPhaseNameAndStart(phaseName);
-  bool success = phaseResult.IsSuccess();
-  if (!success) {
-    return phaseResult.Finish(success);
-  }
-  uint32 nDeadBB = 0;
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    ASSERT(bb != nullptr, "nullptr check");
-    if (bb->IsDead()) {
-      nDeadBB++;
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  if (nDeadBB > 0) {
-    ERR(kLncErr, "Dead BB existed");
-    success = false;
-  }
-  return phaseResult.Finish(success);
-}
-
 void FEFunction::LabelGenStmt() {
   FELinkListNode *nodeStmt = genStmtHead;
   uint32 idx = 0;
   while (nodeStmt != nullptr) {
-    GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
     stmt->SetID(idx);
     idx++;
     nodeStmt = nodeStmt->GetNext();
@@ -256,7 +112,7 @@ void FEFunction::LabelGenBB() {
   FELinkListNode *nodeBB = genBBHead;
   uint32 idx = 0;
   while (nodeBB != nullptr) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     bb->SetID(idx);
     idx++;
     nodeBB = nodeBB->GetNext();
@@ -266,7 +122,7 @@ void FEFunction::LabelGenBB() {
 bool FEFunction::HasDeadBB() {
   FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     if (bb->IsDead()) {
       return true;
     }
@@ -278,24 +134,24 @@ bool FEFunction::HasDeadBB() {
 void FEFunction::DumpGeneralStmts() {
   FELinkListNode *nodeStmt = genStmtHead;
   while (nodeStmt != nullptr) {
-    GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
     stmt->Dump();
     nodeStmt = nodeStmt->GetNext();
   }
 }
 
-void FEFunction::DumpGeneralBBs() {
+void FEFunction::DumpFEIRBBs() {
   FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     bb->Dump();
     nodeBB = nodeBB->GetNext();
   }
 }
 
-void FEFunction::DumpGeneralCFGGraph() {
+void FEFunction::DumpFEIRCFGGraph() {
   HIR2MPL_PARALLEL_FORBIDDEN();
-  if (!FEOptions::GetInstance().IsDumpGeneralCFGGraph()) {
+  if (!FEOptions::GetInstance().IsDumpFEIRCFGGraph()) {
     return;
   }
   std::string fileName = FEOptions::GetInstance().GetJBCCFGGraphFileName();
@@ -306,21 +162,21 @@ void FEFunction::DumpGeneralCFGGraph() {
   file << "  # /* " << GetGeneralFuncName() << " */" << std::endl;
   FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    DumpGeneralCFGGraphForBB(file, *bb);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
+    DumpFEIRCFGGraphForBB(file, *bb);
     nodeBB = nodeBB->GetNext();
   }
-  DumpGeneralCFGGraphForCFGEdge(file);
-  DumpGeneralCFGGraphForDFGEdge(file);
+  DumpFEIRCFGGraphForCFGEdge(file);
+  DumpFEIRCFGGraphForDFGEdge(file);
   file << "}" << std::endl;
   file.close();
 }
 
-void FEFunction::DumpGeneralCFGGraphForBB(std::ofstream &file, const GeneralBB &bb) {
+void FEFunction::DumpFEIRCFGGraphForBB(std::ofstream &file, const FEIRBB &bb) {
   file << "  BB" << bb.GetID() << " [shape=record,label=\"{" << std::endl;
   const FELinkListNode *nodeStmt = bb.GetStmtHead();
   while (nodeStmt != nullptr) {
-    const GeneralStmt *stmt = static_cast<const GeneralStmt*>(nodeStmt);
+    const FEIRStmt *stmt = static_cast<const FEIRStmt*>(nodeStmt);
     file << "      " << stmt->DumpDotString();
     if (nodeStmt == bb.GetStmtTail()) {
       file << std::endl;
@@ -333,15 +189,15 @@ void FEFunction::DumpGeneralCFGGraphForBB(std::ofstream &file, const GeneralBB &
   file << "    }\"];" << std::endl;
 }
 
-void FEFunction::DumpGeneralCFGGraphForCFGEdge(std::ofstream &file) {
+void FEFunction::DumpFEIRCFGGraphForCFGEdge(std::ofstream &file) {
   file << "  subgraph cfg_edges {" << std::endl;
   file << "    edge [color=\"#000000\",weight=0.3,len=3];" << std::endl;
   const FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    const GeneralBB *bb = static_cast<const GeneralBB*>(nodeBB);
-    const GeneralStmt *stmtS = bb->GetStmtTail();
-    for (GeneralBB *bbNext : bb->GetSuccBBs()) {
-      const GeneralStmt *stmtE = bbNext->GetStmtHead();
+    const FEIRBB *bb = static_cast<const FEIRBB*>(nodeBB);
+    const FEIRStmt *stmtS = bb->GetStmtTail();
+    for (FEIRBB *bbNext : bb->GetSuccBBs()) {
+      const FEIRStmt *stmtE = bbNext->GetStmtHead();
       file << "    BB" << bb->GetID() << ":stmt" << stmtS->GetID() << " -> ";
       file << "BB" << bbNext->GetID() << ":stmt" << stmtE->GetID() << std::endl;
     }
@@ -350,7 +206,7 @@ void FEFunction::DumpGeneralCFGGraphForCFGEdge(std::ofstream &file) {
   file << "  }" << std::endl;
 }
 
-void FEFunction::DumpGeneralCFGGraphForDFGEdge(std::ofstream &file) {
+void FEFunction::DumpFEIRCFGGraphForDFGEdge(std::ofstream &file) {
   file << "  subgraph cfg_edges {" << std::endl;
   file << "    edge [color=\"#00FF00\",weight=0.3,len=3];" << std::endl;
   file << "  }" << std::endl;
@@ -360,10 +216,10 @@ bool FEFunction::BuildGeneralStmtBBMap(const std::string &phaseName) {
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     const FELinkListNode *nodeStmt = bb->GetStmtHead();
     while (nodeStmt != nullptr) {
-      const GeneralStmt *stmt = static_cast<const GeneralStmt*>(nodeStmt);
+      const FEIRStmt *stmt = static_cast<const FEIRStmt*>(nodeStmt);
       genStmtBBMap[stmt] = bb;
       if (nodeStmt == bb->GetStmtTail()) {
         break;
@@ -380,7 +236,7 @@ bool FEFunction::LabelGeneralStmts(const std::string &phaseName) {
   uint32 idx = 0;
   FELinkListNode *nodeStmt = genStmtHead;
   while (nodeStmt != nullptr) {
-    GeneralStmt *stmt = static_cast<GeneralStmt*>(nodeStmt);
+    FEIRStmt *stmt = static_cast<FEIRStmt*>(nodeStmt);
     stmt->SetID(idx);
     idx++;
     nodeStmt = nodeStmt->GetNext();
@@ -388,12 +244,12 @@ bool FEFunction::LabelGeneralStmts(const std::string &phaseName) {
   return phaseResult.Finish();
 }
 
-bool FEFunction::LabelGeneralBBs(const std::string &phaseName) {
+bool FEFunction::LabelFEIRBBs(const std::string &phaseName) {
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   uint32 idx = 0;
   FELinkListNode *nodeBB = genBBHead->GetNext();
   while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
+    FEIRBB *bb = static_cast<FEIRBB*>(nodeBB);
     bb->SetID(idx);
     idx++;
     nodeBB = nodeBB->GetNext();
@@ -510,13 +366,6 @@ bool FEFunction::ProcessFEIRFunction() {
   success = success && SetupFEIRStmtJavaTry("fe/setup stmt javatry");
   success = success && SetupFEIRStmtBranch("fe/setup stmt branch");
   success = success && UpdateRegNum2This("fe/update reg num to this pointer");
-  if (FEOptions::GetInstance().GetTypeInferKind() == FEOptions::kRoahAlgorithm) {
-    success = success && BuildFEIRBB("fe/build feir bb");
-    success = success && BuildFEIRCFG("fe/build feir CFG");
-    success = success && BuildFEIRDFG("fe/build feir DFG");
-    success = success && BuildFEIRUDDU("fe/build feir UDDU");
-    success = success && TypeInfer("fe/type infer");
-  }
   return success;
 }
 
@@ -645,126 +494,6 @@ void FEFunction::OutputStmts() {
   }
 }
 
-bool FEFunction::BuildFEIRBB(const std::string &phaseName) {
-  bool success = CheckPhaseResult(phaseName);
-  if (!success) {
-    return success;
-  }
-  LabelFEIRStmts();
-  FEIRBB *currBB = nullptr;
-  uint32 bbID = 1;
-  FELinkListNode *node = feirStmtHead->GetNext();
-  while (node != feirStmtTail) {
-    FEIRStmt *currStmt = static_cast<FEIRStmt*>(node);
-    if (ShouldNewBB(currBB, *currStmt)) {
-      currBB = NewFEIRBB(bbID);
-      FELinkListNode::InsertBefore(currBB, feirBBTail);
-    }
-    currBB->AppendStmt(*currStmt);
-    (void)feirStmtBBMap.insert(std::make_pair(currStmt, currBB));
-    if (IsBBEnd(*currStmt)) {
-      currBB = nullptr;
-    }
-    node = node->GetNext();
-  }
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::BuildFEIRCFG(const std::string &phaseName) {
-  bool success = CheckPhaseResult(phaseName);
-  if (!success) {
-    return success;
-  }
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    LinkFallThroughBBAndItsNext(*currBB);
-    LinkBranchBBAndItsTargets(*currBB);
-    node = currBB->GetNext();
-  }
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::BuildFEIRDFG(const std::string &phaseName) {
-  bool success = CheckPhaseResult(phaseName);
-  if (!success) {
-    return success;
-  }
-  ProcessCheckPoints();
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::BuildFEIRUDDU(const std::string &phaseName) {
-  bool success = CheckPhaseResult(phaseName);
-  if (!success) {
-    return success;
-  }
-  InitFirstVisibleStmtForCheckPoints();
-  InitFEIRStmtCheckPointMap();
-  RegisterDFGNodes2CheckPoints();
-  success = success && CalculateDefs4AllUses();  // build Use-Def Chain
-  FEIRDFG::CalculateDefUseByUseDef(defUseChain, useDefChain);  // build Def-Use Chain
-  return phaseResult.Finish(success);
-}
-
-bool FEFunction::TypeInfer(const std::string &phaseName) {
-  bool success = CheckPhaseResult(phaseName);
-  if (!success) {
-    return success;
-  }
-  InitTrans4AllVars();
-  typeInfer = std::make_unique<FEIRTypeInfer>(srcLang, defUseChain);
-  for (auto it : defUseChain) {
-    UniqueFEIRVar *def = it.first;
-    typeInfer->ProcessVarDef(*def);
-  }
-  SetUpDefVarTypeScatterStmtMap();
-  if (defVarTypeScatterStmtMap.size() == 0) {
-    return phaseResult.Finish(success);
-  }
-  for (auto it : defUseChain) {
-    UniqueFEIRVar *def = it.first;
-    InsertRetypeStmtsAfterDef(*def);
-  }
-  return phaseResult.Finish(success);
-}
-
-void FEFunction::OutputUseDefChain() {
-  std::cout << "useDefChain : {" << std::endl;
-  for (auto it : useDefChain) {
-    UniqueFEIRVar *use = it.first;
-    std::cout << "  use : " << (*use)->GetNameRaw() << "_" << GetPrimTypeName((*use)->GetType()->GetPrimType());
-    std::cout << " defs : [";
-    std::set<UniqueFEIRVar*> &defs = it.second;
-    for (UniqueFEIRVar *def : defs) {
-      std::cout << (*def)->GetNameRaw() << "_" << GetPrimTypeName((*def)->GetType()->GetPrimType()) << ", ";
-    }
-    if (defs.size() == 0) {
-      std::cout << "empty defs";
-    }
-    std::cout << " ]" << std::endl;
-  }
-  std::cout << "}" << std::endl;
-}
-
-void FEFunction::OutputDefUseChain() {
-  std::cout << "defUseChain : {" << std::endl;
-  for (auto it : defUseChain) {
-    UniqueFEIRVar *def = it.first;
-    std::cout << "  def : " << (*def)->GetNameRaw() << "_" << GetPrimTypeName((*def)->GetType()->GetPrimType());
-    std::cout << " uses : [";
-    std::set<UniqueFEIRVar*> &uses = it.second;
-    for (UniqueFEIRVar *use : uses) {
-      std::cout << (*use)->GetNameRaw()  << "_" << GetPrimTypeName((*use)->GetType()->GetPrimType()) << ", ";
-    }
-    if (uses.size() == 0) {
-      std::cout << "empty uses";
-    }
-    std::cout << " ]" << std::endl;
-  }
-  std::cout << "}" << std::endl;
-}
-
 void FEFunction::LabelFEIRStmts() {
   // stmt idx start from 1
   FELinkListNode *node = feirStmtHead->GetNext();
@@ -775,13 +504,6 @@ void FEFunction::LabelFEIRStmts() {
     node = node->GetNext();
   }
   stmtCount = --id;
-}
-
-FEIRBB *FEFunction::NewFEIRBB(uint32 &bbID) {
-  std::unique_ptr<FEIRBB> uniqueFEIRBB = std::make_unique<FEIRBB>(GeneralBBKind::kBBKindDefault);
-  uniqueFEIRBB->SetID(bbID);
-  bbID++;
-  return RegisterFEIRBB(std::move(uniqueFEIRBB));
 }
 
 bool FEFunction::ShouldNewBB(const FEIRBB *currBB, const FEIRStmt &currStmt) const {
@@ -840,8 +562,7 @@ void FEFunction::LinkBranchBBAndItsTargets(FEIRBB &bb) {
   if (!bb.IsBranch()) {
     return;
   }
-  const GeneralStmt *generalStmtTail = bb.GetStmtNoAuxTail();
-  const FEIRStmt *stmtTail = static_cast<const FEIRStmt*>(generalStmtTail);
+  const FEIRStmt *stmtTail = bb.GetStmtNoAuxTail();
   FEIRNodeKind nodeKind = stmtTail->GetKind();
   switch (nodeKind) {
     case FEIRNodeKind::kStmtCondGoto:
@@ -882,8 +603,8 @@ void FEFunction::LinkSwitchBBAndItsTargets(FEIRBB &bb, const FEIRStmt &stmtTail)
 }
 
 void FEFunction::LinkBB(FEIRBB &predBB, FEIRBB &succBB) {
-  predBB.AddSuccBB(succBB);
-  succBB.AddPredBB(predBB);
+  predBB.AddSuccBB(&succBB);
+  succBB.AddPredBB(&predBB);
 }
 
 FEIRBB &FEFunction::GetFEIRBBByStmt(const FEIRStmt &stmt) {
@@ -897,15 +618,6 @@ bool FEFunction::CheckBBsStmtNoAuxTail(const FEIRBB &bb) {
   return true;
 }
 
-void FEFunction::ProcessCheckPoints() {
-  InsertCheckPointForBBs();
-  InsertCheckPointForTrys();
-  LabelFEIRStmts();
-  LinkCheckPointBetweenBBs();
-  LinkCheckPointInsideBBs();
-  LinkCheckPointForTrys();
-}
-
 void FEFunction::InsertCheckPointForBBs() {
   FELinkListNode *node = feirBBHead->GetNext();
   while (node != feirBBTail) {
@@ -914,13 +626,13 @@ void FEFunction::InsertCheckPointForBBs() {
     std::unique_ptr<FEIRStmtCheckPoint> chekPointIn = std::make_unique<FEIRStmtCheckPoint>();
     currBB->SetCheckPointIn(std::move(chekPointIn));  // set to currBB's checkPointIn
     FEIRStmtCheckPoint &cpIn = currBB->GetCheckPointIn();
-    currBB->InsertAndUpdateNewHead(cpIn);  // insert and update new head to chekPointIn
+    currBB->InsertAndUpdateNewHead(&cpIn);  // insert and update new head to chekPointIn
     (void)feirStmtBBMap.insert(std::make_pair(&cpIn, currBB));  // add pair to feirStmtBBMap
     // create chekPointOut
     std::unique_ptr<FEIRStmtCheckPoint> chekPointOut = std::make_unique<FEIRStmtCheckPoint>();
     currBB->SetCheckPointOut(std::move(chekPointOut));  // set to currBB's checkPointOut
     FEIRStmtCheckPoint &cpOut = currBB->GetCheckPointOut();
-    currBB->InsertAndUpdateNewTail(cpOut);  // insert and update new tail to chekPointOut
+    currBB->InsertAndUpdateNewTail(&cpOut);  // insert and update new tail to chekPointOut
     (void)feirStmtBBMap.insert(std::make_pair(&cpOut, currBB));  // add pair to feirStmtBBMap
     // get next BB
     node = node->GetNext();
@@ -945,20 +657,20 @@ void FEFunction::InsertCheckPointForTrys() {
         checkPointInTry = &(currBB.GetCheckPointIn());
         (void)checkPointJavaTryMap.insert(std::make_pair(checkPointInTry, currTry));
         if (currStmt == currBB.GetStmtHead()) {
-          currBB.SetStmtHead(*currStmt);
+          currBB.SetStmtHead(currStmt);
         }
         node = node->GetNext();
         continue;
       }
       std::unique_ptr<FEIRStmtCheckPoint> newCheckPoint = std::make_unique<FEIRStmtCheckPoint>();
-      currBB.AddCheckPointInside(std::move(newCheckPoint));
-      checkPointInTry = currBB.GetLatestCheckPointInside();
+      currBB.AddCheckPoint(std::move(newCheckPoint));
+      checkPointInTry = currBB.GetLatestCheckPoint();
       CHECK_NULL_FATAL(checkPointInTry);
       FELinkListNode::InsertBefore(checkPointInTry, currStmt);
       (void)feirStmtBBMap.insert(std::make_pair(checkPointInTry, &currBB));
       (void)checkPointJavaTryMap.insert(std::make_pair(checkPointInTry, currTry));
       if (currStmt == currBB.GetStmtHead()) {
-        currBB.SetStmtHead(*currStmt);
+        currBB.SetStmtHead(currStmt);
       }
     }
     if (currStmt->GetKind() == FEIRNodeKind::kStmtPesudoEndTry) {
@@ -966,114 +678,6 @@ void FEFunction::InsertCheckPointForTrys() {
     }
     node = node->GetNext();
   }
-}
-
-void FEFunction::LinkCheckPointBetweenBBs() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    currBB->LinkSuccBBsCheckPoints();
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::LinkCheckPointInsideBBs() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    currBB->LinkCheckPointsInside();
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::LinkCheckPointForTrys() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    FEIRStmtCheckPoint &checkPointIn = currBB->GetCheckPointIn();
-    if (checkPointJavaTryMap.find(&checkPointIn) != checkPointJavaTryMap.end()) {
-      LinkCheckPointForTry(checkPointIn);
-    }
-    const std::vector<std::unique_ptr<FEIRStmtCheckPoint>> &checkPointsInside = currBB->GetCheckPointsInside();
-    for (const std::unique_ptr<FEIRStmtCheckPoint> &currCheckPoint : checkPointsInside) {
-      LinkCheckPointForTry(*(currCheckPoint.get()));
-    }
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::LinkCheckPointForTry(FEIRStmtCheckPoint &checkPoint) {
-  FEIRStmtPesudoJavaTry2 &currTry = GetJavaTryByCheckPoint(checkPoint);
-  const std::vector<FEIRStmtPesudoLabel2*> &catchTargets = currTry.GetCatchTargets();
-  for (FEIRStmtPesudoLabel2 *label : catchTargets) {
-    FEIRBB &targetBB = GetFEIRBBByStmt(*label);
-    FEIRStmtCheckPoint &checkPointIn = targetBB.GetCheckPointIn();
-    checkPointIn.AddPredCheckPoint(checkPoint);
-  }
-}
-
-void FEFunction::InitFirstVisibleStmtForCheckPoints() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    currBB->InitFirstVisibleStmtForCheckPoints();
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::InitFEIRStmtCheckPointMap() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    const std::map<const FEIRStmt*, FEIRStmtCheckPoint*> &stmtCheckPointMap = currBB->GetFEIRStmtCheckPointMap();
-    feirStmtCheckPointMap.insert(stmtCheckPointMap.begin(), stmtCheckPointMap.end());
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::RegisterDFGNodes2CheckPoints() {
-  RegisterDFGNodesForFuncParameters();
-  RegisterDFGNodesForStmts();
-}
-
-void FEFunction::RegisterDFGNodesForStmts() {
-  FELinkListNode *node = feirBBHead->GetNext();
-  while (node != feirBBTail) {
-    FEIRBB *currBB = static_cast<FEIRBB*>(node);
-    currBB->RegisterDFGNodes2CheckPoints();
-    node = node->GetNext();
-  }
-}
-
-void FEFunction::RegisterDFGNodesForFuncParameters() {
-  if (argVarList.size() == 0) {
-    return;
-  }
-  FELinkListNode *node = feirBBHead->GetNext();
-  if (node == feirBBTail) {
-    OutputStmts();
-    CHECK_FATAL((feirStmtHead->GetNext() == feirStmtTail), "there is no bb in function");
-  }
-  FEIRBB *funcHeadBB = static_cast<FEIRBB*>(node);
-  FEIRStmtCheckPoint &checkPointIn = funcHeadBB->GetCheckPointIn();
-  for (std::unique_ptr<FEIRVar> &argVar : argVarList) {
-    argVar->SetDef(true);
-    checkPointIn.RegisterDFGNode(argVar);
-  }
-}
-
-bool FEFunction::CalculateDefs4AllUses() {
-  bool success = true;
-  FELinkListNode *node = feirStmtHead->GetNext();
-  while (node != feirStmtTail) {
-    FEIRStmt *currStmt = static_cast<FEIRStmt*>(node);
-    if (currStmt->GetKind() != FEIRNodeKind::kStmtCheckPoint) {
-      FEIRStmtCheckPoint &checkPoint = GetCheckPointByFEIRStmt(*currStmt);
-      success = success && currStmt->CalculateDefs4AllUses(checkPoint, useDefChain);
-    }
-    node = node->GetNext();
-  }
-  return success;
 }
 
 void FEFunction::InitTrans4AllVars() {
