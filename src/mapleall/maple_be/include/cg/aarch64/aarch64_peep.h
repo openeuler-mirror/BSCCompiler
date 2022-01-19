@@ -137,6 +137,34 @@ class CsetCbzToBeqPattern : public CGPeepPattern {
 };
 
 /*
+ * combine neg & cmp --> cmn
+ * Example 1)
+ *  neg x0, x6
+ *  cmp x2, x0                --->    (currInsn)
+ *  ===> cmn x2, x6
+ *
+ * Example 2)
+ *  neg x0, x6, LSL #5
+ *  cmp x2, x0                --->    (currInsn)
+ *  ===> cmn x2, x6, LSL #5
+ *
+ * Conditions:
+ * 1. neg_amount_val is valid in cmn amount range
+ */
+class NegCmpToCmnPattern : public CGPeepPattern {
+ public:
+  NegCmpToCmnPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~NegCmpToCmnPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  Insn *prevInsn = nullptr;
+};
+
+/*
  * Optimize the following patterns:
  * Example 1)
  *  and  w0, w6, #1  ====> tbz  w6, #0, .label
