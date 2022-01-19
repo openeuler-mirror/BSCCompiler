@@ -618,14 +618,6 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
     return false;
   }
   BB *thenBB = cgFunc->GetTheCFG()->GetTargetSuc(secondIfBB);
-  if (thenBB->NumSuccs() != 1) {
-    return false;
-  }
-  for (BB *preBB : thenBB->GetPreds()) {
-    if (preBB != firstIfBB && preBB != &secondIfBB) {
-      return false;
-    }
-  }
   return DoOpt(firstIfBB,secondIfBB,thenBB);
 }
 
@@ -665,15 +657,12 @@ bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB)
   ASSERT(branchInsn2 != nullptr, "nullptr check");
   Insn *cmpInsn2 = FindLastCmpInsn(secondIfBB);
   MOperator mOperator2 = branchInsn2->GetMachineOpcode();
-  if (mOperator1 != mOperator2) {
-    return false;
-  }
   if (cmpInsn1 == nullptr || cmpInsn2 == nullptr) {
     return false;
   }
 
-  /* tbz ans cbz will not be optimized */
-  if (CheckMop(mOperator1)) {
+  /* tbz and cbz will not be optimized */
+  if (mOperator1 != mOperator2 || !CheckMop(mOperator1)) {
     return false;
   }
 
