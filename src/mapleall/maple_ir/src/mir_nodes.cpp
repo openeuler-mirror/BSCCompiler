@@ -1000,6 +1000,21 @@ void CallAssertNonnullStmtNode::Dump(int32 indent) const {
   UnaryStmtNode::DumpOpnd(indent);
 }
 
+void AssertNonnullStmtNode::Dump(int32 indent) const {
+  StmtNode::DumpBase(indent);
+  if (theMIRModule->IsCModule()) {
+    SafetyCheckStmtNode::Dump();
+  }
+  UnaryStmtNode::DumpOpnd(indent);
+}
+
+void AssertBoundaryStmtNode::Dump(int32 indent) const {
+  StmtNode::DumpBase(indent);
+  SafetyCheckStmtNode::Dump();
+  NaryOpnds::Dump(indent);
+  LogInfo::MapleLogger() << '\n';
+}
+
 void CallAssertBoundaryStmtNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   SafetyCallCheckStmtNode::Dump();
@@ -2334,144 +2349,152 @@ bool IntrinsiccallNode::Verify() const {
   return VerifyOpnds();
 }
 
-SafetyCallCheckStmtNode::SafetyCallCheckStmtNode(const std::string &funcName, size_t paramIndex)
-    : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)),
-      paramIndex(paramIndex) {}
-
 std::string SafetyCallCheckStmtNode::GetFuncName() const {
+  return GlobalTables::GetStrTable().GetStringFromStrIdx(callFuncNameIdx);
+}
+
+std::string SafetyCallCheckStmtNode::GetStmtFuncName() const {
+  return GlobalTables::GetStrTable().GetStringFromStrIdx(stmtFuncNameIdx);
+}
+
+std::string SafetyCheckStmtNode::GetFuncName() const {
   return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
 }
 
-bool UnaryNode::IsSameContent(BaseNode* node) const {
-  UnaryNode *unaryNode = dynamic_cast<UnaryNode *>(node);
+bool UnaryNode::IsSameContent(const BaseNode *node) const {
+  auto *unaryNode = dynamic_cast<const UnaryNode *>(node);
   if ((this == unaryNode) ||
-      (unaryNode && (GetOpCode() == unaryNode->GetOpCode()) &&
-      (GetPrimType() == unaryNode->GetPrimType()) &&
-      (uOpnd && unaryNode->Opnd(0) && uOpnd->IsSameContent(unaryNode->Opnd(0))))) {
+      (unaryNode != nullptr && (GetOpCode() == unaryNode->GetOpCode()) &&
+       (GetPrimType() == unaryNode->GetPrimType()) &&
+       (uOpnd && unaryNode->Opnd(0) && uOpnd->IsSameContent(unaryNode->Opnd(0))))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool TypeCvtNode::IsSameContent(BaseNode* node) const {
-  TypeCvtNode *tyCvtNode = dynamic_cast<TypeCvtNode *>(node);
+bool TypeCvtNode::IsSameContent(const BaseNode *node) const {
+  auto *tyCvtNode = dynamic_cast<const TypeCvtNode *>(node);
   if ((this == tyCvtNode) ||
-      (tyCvtNode && (fromPrimType == tyCvtNode->FromType()) &&
-      UnaryNode::IsSameContent(tyCvtNode))) {
+      (tyCvtNode != nullptr && (fromPrimType == tyCvtNode->FromType()) && UnaryNode::IsSameContent(tyCvtNode))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool IreadNode::IsSameContent(BaseNode* node) const {
-  IreadNode *ireadNode = dynamic_cast<IreadNode *>(node);
+bool IreadNode::IsSameContent(const BaseNode *node) const {
+  auto *ireadNode = dynamic_cast<const IreadNode *>(node);
   if ((this == ireadNode) ||
-      (ireadNode && (tyIdx == ireadNode->GetTyIdx()) &&
-      (fieldID == ireadNode->GetFieldID()) &&
-      UnaryNode::IsSameContent(ireadNode))) {
+      (ireadNode != nullptr && (tyIdx == ireadNode->GetTyIdx()) &&
+       (fieldID == ireadNode->GetFieldID()) && UnaryNode::IsSameContent(ireadNode))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool IreadoffNode::IsSameContent(BaseNode* node) const {
-  IreadoffNode *ireadoffNode = dynamic_cast<IreadoffNode *>(node);
+bool IreadoffNode::IsSameContent(const BaseNode *node) const {
+  auto *ireadoffNode = dynamic_cast<const IreadoffNode *>(node);
   if ((this == ireadoffNode) ||
-      (ireadoffNode && (GetOffset() == ireadoffNode->GetOffset()) &&
-      UnaryNode::IsSameContent(ireadoffNode))) {
+      (ireadoffNode != nullptr && (GetOffset() == ireadoffNode->GetOffset()) &&
+       UnaryNode::IsSameContent(ireadoffNode))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool IreadFPoffNode::IsSameContent(BaseNode* node) const {
-  IreadFPoffNode *ireadFPoffNode = dynamic_cast<IreadFPoffNode *>(node);
+bool IreadFPoffNode::IsSameContent(const BaseNode *node) const {
+  auto *ireadFPoffNode = dynamic_cast<const IreadFPoffNode *>(node);
   if ((this == ireadFPoffNode) ||
-      (ireadFPoffNode && (GetOpCode() == ireadFPoffNode->GetOpCode()) &&
-      (GetPrimType() == ireadFPoffNode->GetPrimType()) &&
-      (GetOffset() == ireadFPoffNode->GetOffset()))) {
+      (ireadFPoffNode != nullptr && (GetOpCode() == ireadFPoffNode->GetOpCode()) &&
+       (GetPrimType() == ireadFPoffNode->GetPrimType()) &&
+       (GetOffset() == ireadFPoffNode->GetOffset()))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool BinaryOpnds::IsSameContent(BaseNode* node) const {
-  BinaryOpnds *binaryOpnds = dynamic_cast<BinaryOpnds *>(node);
+bool BinaryOpnds::IsSameContent(const BaseNode *node) const {
+  auto *binaryOpnds = dynamic_cast<const BinaryOpnds *>(node);
   if ((this == binaryOpnds) ||
-      (binaryOpnds &&
-      GetBOpnd(0)->IsSameContent(binaryOpnds->GetBOpnd(0)) &&
-      GetBOpnd(1)->IsSameContent(binaryOpnds->GetBOpnd(1)))) {
+      (binaryOpnds != nullptr &&
+       GetBOpnd(0)->IsSameContent(binaryOpnds->GetBOpnd(0)) &&
+       GetBOpnd(1)->IsSameContent(binaryOpnds->GetBOpnd(1)))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool BinaryNode::IsSameContent(BaseNode* node) const {
-  BinaryNode *binaryNode = dynamic_cast<BinaryNode *>(node);
+bool BinaryNode::IsSameContent(const BaseNode *node) const {
+  auto *binaryNode = dynamic_cast<const BinaryNode *>(node);
   if ((this == binaryNode) ||
-      (binaryNode &&
-      (GetOpCode() == binaryNode->GetOpCode()) &&
-      (GetPrimType() == binaryNode->GetPrimType()) &&
-      BinaryOpnds::IsSameContent(binaryNode))) {
+      (binaryNode != nullptr &&
+       (GetOpCode() == binaryNode->GetOpCode()) &&
+       (GetPrimType() == binaryNode->GetPrimType()) &&
+          BinaryOpnds::IsSameContent(binaryNode))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool ConstvalNode::IsSameContent(BaseNode* node) const {
-  ConstvalNode *constvalNode = dynamic_cast<ConstvalNode *>(node);
-  if ((this == constvalNode) ||
-      (constvalNode &&
-      //(GetOpCode() == constvalNode->GetOpCode()) &&
-      //(GetPrimType() == constvalNode->GetPrimType()) &&
-      GetConstVal()->GetKind() == kConstInt &&
-      constvalNode->GetConstVal()->GetKind() == kConstInt &&
-      static_cast<MIRIntConst *>(const_cast<MIRConst *>(GetConstVal()))->GetValue() ==
-      static_cast<MIRIntConst *>(const_cast<MIRConst *>(constvalNode->GetConstVal()))->GetValue())) {
+bool ConstvalNode::IsSameContent(const BaseNode *node) const {
+  auto *constvalNode = dynamic_cast<const ConstvalNode *>(node);
+  if (this == constvalNode) {
     return true;
+  }
+  if (constvalNode == nullptr) {
+    return false;
+  }
+  const MIRConst *mirConst = constvalNode->GetConstVal();
+  if (constVal == mirConst) {
+    return true;
+  }
+  if (constVal->GetKind() != mirConst->GetKind()) {
+    return false;
+  }
+  if (constVal->GetKind() == kConstInt) {
+    // integer may differ in primtype, and they may be different MIRIntConst Node
+    return static_cast<MIRIntConst*>(constVal)->GetValue() == static_cast<const MIRIntConst*>(mirConst)->GetValue();
   } else {
-    // make it false for now on kinds other than kConstInt
     return false;
   }
 }
 
-bool AddrofNode::IsSameContent(BaseNode* node) const {
-  AddrofNode *addrofNode = dynamic_cast<AddrofNode *>(node);
+bool AddrofNode::IsSameContent(const BaseNode *node) const {
+  auto *addrofNode = dynamic_cast<const AddrofNode *>(node);
   if ((this == addrofNode) ||
-      (addrofNode && (GetOpCode() == addrofNode->GetOpCode()) &&
-      (GetPrimType() == addrofNode->GetPrimType()) &&
-      (GetNumOpnds() ==  addrofNode->GetNumOpnds()) &&
-      (stIdx.FullIdx() == addrofNode->GetStIdx().FullIdx()) &&
-      (fieldID == addrofNode->GetFieldID()))) {
+      (addrofNode != nullptr && (GetOpCode() == addrofNode->GetOpCode()) &&
+       (GetPrimType() == addrofNode->GetPrimType()) &&
+       (GetNumOpnds() ==  addrofNode->GetNumOpnds()) &&
+       (stIdx.FullIdx() == addrofNode->GetStIdx().FullIdx()) &&
+       (fieldID == addrofNode->GetFieldID()))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool DreadoffNode::IsSameContent(BaseNode* node) const {
-  DreadoffNode *dreaddoffNode = dynamic_cast<DreadoffNode *>(node);
+bool DreadoffNode::IsSameContent(const BaseNode *node) const {
+  auto *dreaddoffNode = dynamic_cast<const DreadoffNode *>(node);
   if ((this == dreaddoffNode) ||
-      (dreaddoffNode && (GetOpCode() == dreaddoffNode->GetOpCode()) &&
-      (GetPrimType() == dreaddoffNode->GetPrimType()) && (stIdx == dreaddoffNode->stIdx) &&
-      (offset == dreaddoffNode->offset))) {
+      (dreaddoffNode != nullptr && (GetOpCode() == dreaddoffNode->GetOpCode()) &&
+       (GetPrimType() == dreaddoffNode->GetPrimType()) && (stIdx == dreaddoffNode->stIdx) &&
+       (offset == dreaddoffNode->offset))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool RegreadNode::IsSameContent(BaseNode* node) const {
-  RegreadNode *regreadNode = dynamic_cast<RegreadNode *>(node);
+bool RegreadNode::IsSameContent(const BaseNode *node) const {
+  auto *regreadNode = dynamic_cast<const RegreadNode *>(node);
   if ((this == regreadNode) ||
-      (regreadNode && (GetOpCode() == regreadNode->GetOpCode()) &&
+      (regreadNode != nullptr && (GetOpCode() == regreadNode->GetOpCode()) &&
       (GetPrimType() == regreadNode->GetPrimType()) && (regIdx == regreadNode->GetRegIdx()))) {
     return true;
   } else {
@@ -2479,24 +2502,24 @@ bool RegreadNode::IsSameContent(BaseNode* node) const {
   }
 }
 
-bool AddroffuncNode::IsSameContent(BaseNode* node) const {
-  AddroffuncNode *addroffuncNode = dynamic_cast<AddroffuncNode *>(node);
+bool AddroffuncNode::IsSameContent(const BaseNode *node) const {
+  auto *addroffuncNode = dynamic_cast<const AddroffuncNode *>(node);
   if ((this == addroffuncNode) ||
-      (addroffuncNode && (GetOpCode() == addroffuncNode->GetOpCode()) &&
-      (GetPrimType() == addroffuncNode->GetPrimType()) &&
-      (puIdx == addroffuncNode->GetPUIdx()))) {
+      (addroffuncNode != nullptr && (GetOpCode() == addroffuncNode->GetOpCode()) &&
+       (GetPrimType() == addroffuncNode->GetPrimType()) &&
+       (puIdx == addroffuncNode->GetPUIdx()))) {
     return true;
   } else {
     return false;
   }
 }
 
-bool AddroflabelNode::IsSameContent(BaseNode* node) const {
-  AddroflabelNode *addroflabelNode = dynamic_cast<AddroflabelNode *>(node);
+bool AddroflabelNode::IsSameContent(const BaseNode *node) const {
+  auto *addroflabelNode = dynamic_cast<const AddroflabelNode *>(node);
   if ((this == addroflabelNode) ||
-      (addroflabelNode && (GetOpCode() == addroflabelNode->GetOpCode()) &&
-      (GetPrimType() == addroflabelNode->GetPrimType()) &&
-      (offset == addroflabelNode->GetOffset()))) {
+      (addroflabelNode != nullptr && (GetOpCode() == addroflabelNode->GetOpCode()) &&
+       (GetPrimType() == addroflabelNode->GetPrimType()) &&
+       (offset == addroflabelNode->GetOffset()))) {
     return true;
   } else {
     return false;

@@ -158,22 +158,25 @@ void IRMapBuild::BuildMuList(TypeOfMayUseList &mayUseList, MapleMap<OStIdx, Scal
 }
 
 void IRMapBuild::SetMeExprOpnds(MeExpr &meExpr, BaseNode &mirNode, bool atParm, bool noProp) {
-  auto &opMeExpr = static_cast<OpMeExpr&>(meExpr);
   if (mirNode.IsUnaryNode()) {
     if (mirNode.GetOpCode() != OP_iread) {
-      opMeExpr.SetOpnd(0, BuildExpr(*static_cast<UnaryNode&>(mirNode).Opnd(0), atParm, noProp));
+      meExpr.SetOpnd(0, BuildExpr(*static_cast<UnaryNode&>(mirNode).Opnd(0), atParm, noProp));
     }
   } else if (mirNode.IsBinaryNode()) {
     auto &binaryNode = static_cast<BinaryNode&>(mirNode);
-    opMeExpr.SetOpnd(0, BuildExpr(*binaryNode.Opnd(0), atParm, noProp));
-    opMeExpr.SetOpnd(1, BuildExpr(*binaryNode.Opnd(1), atParm, noProp));
-    opMeExpr.SetHasAddressValue();
+    meExpr.SetOpnd(0, BuildExpr(*binaryNode.Opnd(0), atParm, noProp));
+    meExpr.SetOpnd(1, BuildExpr(*binaryNode.Opnd(1), atParm, noProp));
+    if (meExpr.IsOpMeExpr()) {
+      static_cast<OpMeExpr&>(meExpr).SetHasAddressValue();
+    }
   } else if (mirNode.IsTernaryNode()) {
     auto &ternaryNode = static_cast<TernaryNode&>(mirNode);
-    opMeExpr.SetOpnd(0, BuildExpr(*ternaryNode.Opnd(0), atParm, noProp));
-    opMeExpr.SetOpnd(1, BuildExpr(*ternaryNode.Opnd(1), atParm, noProp));
-    opMeExpr.SetOpnd(2, BuildExpr(*ternaryNode.Opnd(2), atParm, noProp));
-    opMeExpr.SetHasAddressValue();
+    meExpr.SetOpnd(0, BuildExpr(*ternaryNode.Opnd(0), atParm, noProp));
+    meExpr.SetOpnd(1, BuildExpr(*ternaryNode.Opnd(1), atParm, noProp));
+    meExpr.SetOpnd(2, BuildExpr(*ternaryNode.Opnd(2), atParm, noProp));
+    if (meExpr.IsOpMeExpr()) {
+      static_cast<OpMeExpr&>(meExpr).SetHasAddressValue();
+    }
   } else if (mirNode.IsNaryNode()) {
     auto &naryMeExpr = static_cast<NaryMeExpr&>(meExpr);
     auto &naryNode = static_cast<NaryNode&>(mirNode);
@@ -417,9 +420,11 @@ MeExpr *IRMapBuild::BuildExpr(BaseNode &mirNode, bool atParm, bool noProp) {
     return retmeexpr;
   }
 
-  auto *simplifiedMeExpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr*>(meExpr));
-  if (simplifiedMeExpr != nullptr) {
-    return simplifiedMeExpr;
+  if (meExpr->IsOpMeExpr()) {
+    auto *simplifiedMeExpr = irMap->SimplifyOpMeExpr(static_cast<OpMeExpr*>(meExpr));
+    if (simplifiedMeExpr != nullptr) {
+      return simplifiedMeExpr;
+    }
   }
 
   if (op == OP_mul) {
@@ -540,27 +545,30 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
       }
       return tryMeStmt;
     }
-    case OP_assertnonnull:
-    case OP_assignassertnonnull:
-    case OP_returnassertnonnull:
     case OP_eval:
     case OP_igoto:
-    case OP_free:
-    case OP_switch: {
+    case OP_free: {
       auto &unaryStmt = static_cast<UnaryStmtNode&>(stmt);
-      auto *unMeStmt = static_cast<UnaryMeStmt*>((op == OP_switch) ? irMap->NewInPool<SwitchMeStmt>(&stmt)
-                                                                   : irMap->New<UnaryMeStmt>(&stmt));
+      auto *unMeStmt = irMap->New<UnaryMeStmt>(&stmt);
       unMeStmt->SetOpnd(0, BuildExpr(*unaryStmt.Opnd(0), false, false));
       return unMeStmt;
     }
-    case OP_assertge:
-    case OP_assertlt:
+    case OP_switch: {
+      auto &switchNode = static_cast<SwitchNode&>(stmt);
+      auto *meStmt = irMap->NewInPool<SwitchMeStmt>(&stmt);
+      meStmt->SetOpnd(0, BuildExpr(*switchNode.Opnd(0), false, false));
+      return meStmt;
+    }
+    case OP_calcassertge:
+    case OP_calcassertlt:
     case OP_returnassertle:
-    case OP_assignassertle: {
-      auto &naryStmt = static_cast<NaryStmtNode&>(stmt);
-      auto *naryMeStmt = static_cast<NaryMeStmt*>(irMap->NewInPool<NaryMeStmt>(&stmt));
-      naryMeStmt->PushBackOpnd(BuildExpr(*naryStmt.Opnd(0), false, false));
-      naryMeStmt->PushBackOpnd(BuildExpr(*naryStmt.Opnd(1), false, false));
+    case OP_assignassertle:
+    case OP_assertge:
+    case OP_assertlt: {
+      auto &checkStmt = static_cast<AssertBoundaryStmtNode&>(stmt);
+      auto *naryMeStmt = irMap->NewInPool<AssertBoundaryMeStmt>(&checkStmt);
+      naryMeStmt->PushBackOpnd(BuildExpr(*checkStmt.Opnd(0), false, false));
+      naryMeStmt->PushBackOpnd(BuildExpr(*checkStmt.Opnd(1), false, false));
       return naryMeStmt;
     }
     case OP_callassertle: {
@@ -575,6 +583,21 @@ MeStmt *IRMapBuild::BuildMeStmtWithNoSSAPart(StmtNode &stmt) {
       auto *checkMeStmt = irMap->New<CallAssertNonnullMeStmt>(&checkStmt);
       checkMeStmt->SetOpnd(0, BuildExpr(*checkStmt.Opnd(0), false, false));
       return checkMeStmt;
+    }
+    case OP_assertnonnull:
+    case OP_assignassertnonnull:
+    case OP_returnassertnonnull: {
+      if (mirModule.IsCModule()) {
+        auto &checkStmt = static_cast<AssertNonnullStmtNode&>(stmt);
+        auto *checkMeStmt = irMap->New<AssertNonnullMeStmt>(&checkStmt);
+        checkMeStmt->SetOpnd(0, BuildExpr(*checkStmt.Opnd(0), false, false));
+        return checkMeStmt;
+      } else {
+        auto &checkStmt = static_cast<UnaryStmtNode&>(stmt);
+        auto *checkMeStmt = irMap->New<UnaryMeStmt>(&checkStmt);
+        checkMeStmt->SetOpnd(0, BuildExpr(*checkStmt.Opnd(0), false, false));
+        return checkMeStmt;
+      }
     }
     default:
       CHECK_FATAL(false, "NYI");
@@ -671,21 +694,24 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
         ostIdx = addrofExpr->GetOstIdx();
       }
       if (ostIdx != 0) {
-        auto *vst = ssaPart.GetMayDefNodes().at(ostIdx).GetResult();
-        VarMeExpr *lhs = GetOrCreateVarFromVerSt(*vst);
-        CHECK_FATAL(fldId == lhs->GetFieldID(), "field id must be equal");
-        auto rhs = BuildExpr(*iasNode.GetRHS(), false, false);
-        auto *meStmt = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), lhs, rhs);
+        TypeOfMayDefList &mayDefList = ssaPart.GetMayDefNodes();
+        if (mayDefList.find(ostIdx) != mayDefList.end()) {
+          auto *vst = mayDefList.at(ostIdx).GetResult();
+          VarMeExpr *lhs = GetOrCreateVarFromVerSt(*vst);
+          CHECK_FATAL(fldId == lhs->GetFieldID(), "field id must be equal");
+          auto rhs = BuildExpr(*iasNode.GetRHS(), false, false);
+          auto *meStmt = irMap->New<DassignMeStmt>(&irMap->GetIRMapAlloc(), lhs, rhs);
 
-        BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));
-        meStmt->GetChiList()->erase(lhs->GetOstIdx());
-        lhs->SetDefByStmt(*meStmt);
-        lhs->SetDefBy(kDefByStmt);
-        if (propagater) {
-          propagater->PropUpdateDef(*meStmt->GetLHS());
-          propagater->PropUpdateChiListDef(*meStmt->GetChiList());
+          BuildChiList(*meStmt, ssaPart.GetMayDefNodes(), *(meStmt->GetChiList()));
+          meStmt->GetChiList()->erase(lhs->GetOstIdx());
+          lhs->SetDefByStmt(*meStmt);
+          lhs->SetDefBy(kDefByStmt);
+          if (propagater) {
+            propagater->PropUpdateDef(*meStmt->GetLHS());
+            propagater->PropUpdateChiListDef(*meStmt->GetChiList());
+          }
+          return meStmt;
         }
-        return meStmt;
       }
     }
   }

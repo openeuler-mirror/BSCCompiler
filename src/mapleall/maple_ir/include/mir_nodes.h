@@ -202,7 +202,7 @@ class BaseNode : public BaseNodeT {
     return false;
   }
 
-  virtual bool IsSameContent(BaseNode *node) const {
+  virtual bool IsSameContent(const BaseNode *node) const {
     return false;
   }
 };
@@ -252,7 +252,7 @@ class UnaryNode : public BaseNode {
     return true;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   BaseNode *uOpnd = nullptr;
@@ -290,7 +290,7 @@ class TypeCvtNode : public UnaryNode {
     fromPrimType = from;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   PrimType fromPrimType = kPtyInvalid;
@@ -497,7 +497,7 @@ class IreadNode : public UnaryNode {
     fieldID = fieldIDVal;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
   // the base of an address expr is either a leaf or an iread
   BaseNode &GetAddrExprBase() const {
@@ -547,7 +547,7 @@ class IreadoffNode : public UnaryNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   int32 offset = 0;
@@ -577,7 +577,7 @@ class IreadFPoffNode : public BaseNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
  private:
   int32 offset = 0;
@@ -612,7 +612,7 @@ class BinaryOpnds {
     bOpnd[i] = node;
   }
 
-  bool IsSameContent(BaseNode *node) const;
+  bool IsSameContent(const BaseNode *node) const;
 
  private:
   BaseNode *bOpnd[kOperandNumBinary];
@@ -678,7 +678,7 @@ class BinaryNode : public BaseNode, public BinaryOpnds {
   bool IsBinaryNode() const override {
     return true;
   }
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 };
 
 class CompareNode : public BinaryNode {
@@ -1041,7 +1041,7 @@ class ConstvalNode : public BaseNode {
     constVal = val;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
  private:
   MIRConst *constVal = nullptr;
 };
@@ -1298,7 +1298,7 @@ class AddrofNode : public BaseNode {
 
   bool IsVolatile(const MIRModule &mod) const;
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
  private:
   StIdx stIdx;
   FieldID fieldID = 0;
@@ -1323,7 +1323,7 @@ class DreadoffNode : public BaseNode {
 
   bool IsVolatile(const MIRModule &mod) const;
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
 
  public:
   StIdx stIdx;
@@ -1359,7 +1359,7 @@ class RegreadNode : public BaseNode {
     regIdx = reg;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
  private:
   PregIdx regIdx = 0;  // 32bit, negative if special register
 };
@@ -1387,7 +1387,7 @@ class AddroffuncNode : public BaseNode {
     puIdx = puIdxValue;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
  private:
   PUIdx puIdx = 0;  // 32bit now
 };
@@ -1415,7 +1415,7 @@ class AddroflabelNode : public BaseNode {
     offset = offsetValue;
   }
 
-  bool IsSameContent(BaseNode *node) const override;
+  bool IsSameContent(const BaseNode *node) const override;
  private:
   LabelIdx offset = 0;
 };
@@ -2915,15 +2915,14 @@ class NaryStmtNode : public StmtNode, public NaryOpnds {
   }
 };
 
-// used by returnassertnonnull
-class SafetyReturnCheckStmtNode {
+class SafetyCheckStmtNode {
  public:
-  explicit SafetyReturnCheckStmtNode(GStrIdx funcNameIdx)
+  explicit SafetyCheckStmtNode(GStrIdx funcNameIdx)
       : funcNameIdx(funcNameIdx) {}
-  explicit SafetyReturnCheckStmtNode(const SafetyReturnCheckStmtNode& stmtNode)
+  explicit SafetyCheckStmtNode(const SafetyCheckStmtNode& stmtNode)
       : funcNameIdx(stmtNode.GetFuncNameIdx()) {}
 
-  virtual ~SafetyReturnCheckStmtNode() = default;
+  virtual ~SafetyCheckStmtNode() = default;
 
   std::string GetFuncName() const;
 
@@ -2942,37 +2941,42 @@ class SafetyReturnCheckStmtNode {
 // used by callassertnonnull, callassertle
 class SafetyCallCheckStmtNode {
  public:
-  SafetyCallCheckStmtNode(GStrIdx funcNameIdx, size_t paramIndex)
-      : funcNameIdx(funcNameIdx), paramIndex(paramIndex) {}
+  SafetyCallCheckStmtNode(GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
+      : callFuncNameIdx(callFuncNameIdx), paramIndex(paramIndex), stmtFuncNameIdx(stmtFuncNameIdx) {}
   explicit SafetyCallCheckStmtNode(const SafetyCallCheckStmtNode& stmtNode)
-      : funcNameIdx(stmtNode.GetFuncNameIdx()), paramIndex(stmtNode.GetParamIndex()) {}
+      : callFuncNameIdx(stmtNode.GetFuncNameIdx()), paramIndex(stmtNode.GetParamIndex()),
+        stmtFuncNameIdx(stmtNode.GetStmtFuncNameIdx()) {}
 
   virtual ~SafetyCallCheckStmtNode() = default;
 
   std::string GetFuncName() const;
-
   GStrIdx GetFuncNameIdx() const {
-    return funcNameIdx;
+    return callFuncNameIdx;
   }
-
+  std::string GetStmtFuncName() const;
   size_t GetParamIndex() const {
     return paramIndex;
   }
 
+  GStrIdx GetStmtFuncNameIdx() const {
+    return stmtFuncNameIdx;
+  }
+
   void Dump() const {
-    LogInfo::MapleLogger() << " <&" << GetFuncName() << ", " << paramIndex << ">";
+    LogInfo::MapleLogger() << " <&" << GetFuncName() << ", " << paramIndex << ", &" << GetStmtFuncName() << ">";
   }
 
  private:
-  GStrIdx funcNameIdx;
+  GStrIdx callFuncNameIdx;
   size_t paramIndex;
+  GStrIdx stmtFuncNameIdx;
 };
 
 // used by callassertnonnull
 class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckStmtNode {
  public:
-  CallAssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
-      : UnaryStmtNode(o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex) {}
+  CallAssertNonnullStmtNode(Opcode o, GStrIdx callFuncNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
+      : UnaryStmtNode(o), SafetyCallCheckStmtNode(callFuncNameIdx, paramIndex, stmtFuncNameIdx) {}
   virtual ~CallAssertNonnullStmtNode() {}
 
   void Dump(int32 indent) const override;
@@ -2985,40 +2989,40 @@ class CallAssertNonnullStmtNode : public UnaryStmtNode, public SafetyCallCheckSt
   }
 };
 
-// used by returnassertnonnull
-class ReturnAssertNonnullStmtNode : public UnaryStmtNode, public SafetyReturnCheckStmtNode {
+// used by assertnonnull
+class AssertNonnullStmtNode : public UnaryStmtNode, public SafetyCheckStmtNode {
  public:
-  ReturnAssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
-      : UnaryStmtNode(o), SafetyReturnCheckStmtNode(funcNameIdx) {}
-  virtual ~ReturnAssertNonnullStmtNode() {}
+  AssertNonnullStmtNode(Opcode o, GStrIdx funcNameIdx)
+      : UnaryStmtNode(o), SafetyCheckStmtNode(funcNameIdx) {}
+  virtual ~AssertNonnullStmtNode() {}
 
   void Dump(int32 indent) const override;
 
-  ReturnAssertNonnullStmtNode *CloneTree(MapleAllocator &allocator) const override {
-    auto *node = allocator.GetMemPool()->New<ReturnAssertNonnullStmtNode>(*this);
+  AssertNonnullStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<AssertNonnullStmtNode>(*this);
     node->SetStmtID(stmtIDNext++);
     node->SetOpnd(Opnd()->CloneTree(allocator), 0);
     return node;
   }
 };
 
-// used by returnassertle
-class ReturnAssertBoundaryStmtNode : public NaryStmtNode, public SafetyReturnCheckStmtNode {
+// used by assertle
+class AssertBoundaryStmtNode : public NaryStmtNode, public SafetyCheckStmtNode {
  public:
-  ReturnAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx)
-      : NaryStmtNode(allocator, o), SafetyReturnCheckStmtNode(funcNameIdx) {}
-  virtual ~ReturnAssertBoundaryStmtNode() {}
+  AssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx)
+      : NaryStmtNode(allocator, o), SafetyCheckStmtNode(funcNameIdx) {}
+  virtual ~AssertBoundaryStmtNode() {}
 
-  ReturnAssertBoundaryStmtNode(MapleAllocator &allocator, const ReturnAssertBoundaryStmtNode& stmtNode)
-      : NaryStmtNode(allocator, stmtNode), SafetyReturnCheckStmtNode(stmtNode) {}
+  AssertBoundaryStmtNode(MapleAllocator &allocator, const AssertBoundaryStmtNode& stmtNode)
+      : NaryStmtNode(allocator, stmtNode), SafetyCheckStmtNode(stmtNode) {}
 
-  ReturnAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx)
-      : ReturnAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx) {}
+  AssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx)
+      : AssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx) {}
 
   void Dump(int32 indent) const override;
 
-  ReturnAssertBoundaryStmtNode *CloneTree(MapleAllocator &allocator) const override {
-    auto *node = allocator.GetMemPool()->New<ReturnAssertBoundaryStmtNode>(allocator, *this);
+  AssertBoundaryStmtNode *CloneTree(MapleAllocator &allocator) const override {
+    auto *node = allocator.GetMemPool()->New<AssertBoundaryStmtNode>(allocator, *this);
     node->SetStmtID(stmtIDNext++);
     for (size_t i = 0; i < GetNopndSize(); ++i) {
       node->GetNopnd().push_back(GetNopndAt(i)->CloneTree(allocator));
@@ -3031,15 +3035,17 @@ class ReturnAssertBoundaryStmtNode : public NaryStmtNode, public SafetyReturnChe
 // used by callassertle
 class CallAssertBoundaryStmtNode : public NaryStmtNode, public SafetyCallCheckStmtNode {
  public:
-  CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
-      : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex) {}
+  CallAssertBoundaryStmtNode(MapleAllocator &allocator, Opcode o, GStrIdx funcNameIdx, size_t paramIndex,
+                             GStrIdx stmtFuncNameIdx)
+      : NaryStmtNode(allocator, o), SafetyCallCheckStmtNode(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
   virtual ~CallAssertBoundaryStmtNode() {}
 
   CallAssertBoundaryStmtNode(MapleAllocator &allocator, const CallAssertBoundaryStmtNode& stmtNode)
       : NaryStmtNode(allocator, stmtNode), SafetyCallCheckStmtNode(stmtNode) {}
 
-  CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx, size_t paramIndex)
-      : CallAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx, paramIndex) {}
+  CallAssertBoundaryStmtNode(const MIRModule &mod, Opcode o, GStrIdx funcNameIdx, size_t paramIndex,
+                             GStrIdx stmtFuncNameIdx)
+      : CallAssertBoundaryStmtNode(mod.GetCurFuncCodeMPAllocator(), o, funcNameIdx, paramIndex, stmtFuncNameIdx) {}
 
   void Dump(int32 indent) const override;
 
