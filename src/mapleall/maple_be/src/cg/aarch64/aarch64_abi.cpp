@@ -212,7 +212,8 @@ bool IsAvailableReg(AArch64reg reg) {
 }
 
 bool IsCallerSaveReg(AArch64reg regNO) {
-  return (R0 <= regNO && regNO <= R18) || (V0 <= regNO && regNO <= V7) || (V16 <= regNO && regNO <= V31) || (regNO == kRFLAG);
+  return (R0 <= regNO && regNO <= R18) || (V0 <= regNO && regNO <= V7) ||
+      (V16 <= regNO && regNO <= V31) || (regNO == kRFLAG);
 }
 
 bool IsCalleeSavedReg(AArch64reg reg) {
