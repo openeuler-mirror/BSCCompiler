@@ -51,7 +51,7 @@ class JBCFunctionContext {
     return code;
   }
 
-  const std::map<uint32, GeneralStmt*> &GetMapPCStmtInst() const {
+  const std::map<uint32, FEIRStmt*> &GetMapPCStmtInst() const {
     return mapPCStmtInst;
   }
 
@@ -83,7 +83,7 @@ class JBCFunctionContext {
     return mapJsrSlotRetAddr;
   }
 
-  void UpdateMapPCStmtInst(uint32 pc, GeneralStmt *stmt) {
+  void UpdateMapPCStmtInst(uint32 pc, FEIRStmt *stmt) {
     mapPCStmtInst[pc] = stmt;
   }
 
@@ -128,7 +128,7 @@ class JBCFunctionContext {
   const jbc::JBCConstPool &constPool;
   JBCStack2FEHelper &stack2feHelper;
   const jbc::JBCAttrCode *code;
-  std::map<uint32, GeneralStmt*> mapPCStmtInst;
+  std::map<uint32, FEIRStmt*> mapPCStmtInst;
   std::map<uint32, JBCStmtPesudoTry*> mapPCTryStmt;  // key: tryStartPC, value: stmt
   std::map<uint32, JBCStmtPesudoEndTry*> mapPCEndTryStmt;  // key: tryEndPC, value: stmt
   std::map<uint32, JBCStmtPesudoCatch*> mapPCCatchStmt;  // key: handlePC, value: stmt

@@ -19,17 +19,17 @@
 #include "hir2mpl_ut_environment.h"
 
 namespace maple {
-class GeneralStmtAuxPre : public GeneralStmt {
+class GeneralStmtAuxPre : public FEIRStmt {
  public:
-  GeneralStmtAuxPre() {
+  GeneralStmtAuxPre() : FEIRStmt(kStmtPesudo) {
     isAuxPre = true;
   }
   ~GeneralStmtAuxPre() = default;
 };
 
-class GeneralStmtAuxPost : public GeneralStmt {
+class GeneralStmtAuxPost : public FEIRStmt {
  public:
-  GeneralStmtAuxPost() {
+  GeneralStmtAuxPost() : FEIRStmt(kStmtPesudo) {
     isAuxPost = true;
   }
   ~GeneralStmtAuxPost() = default;
@@ -83,29 +83,21 @@ class FEFunctionDemo : public FEFunction {
   void LoadGenStmtDemo4();
   void LoadGenStmtDemo5();
 
-  GeneralStmt *GetStmtByIdx(uint32 idx) {
+  FEIRStmt *GetStmtByIdx(uint32 idx) {
     CHECK_FATAL(mapIdxStmt.find(idx) != mapIdxStmt.end(), "invalid idx");
     return mapIdxStmt[idx];
   }
 
   template <typename T>
   T *NewGenStmt(uint32 idx) {
-    GeneralStmt *ptrStmt = RegisterGeneralStmt(std::make_unique<T>());
-    genStmtTail->InsertBefore(ptrStmt);
-    mapIdxStmt[idx] = ptrStmt;
-    return static_cast<T*>(ptrStmt);
-  }
-
-  template <typename T>
-  T *NewGenStmt(GeneralStmtKind genKind, uint32 idx) {
-    GeneralStmt *ptrStmt = RegisterGeneralStmt(std::make_unique<T>(genKind));
+    FEIRStmt *ptrStmt = RegisterGeneralStmt(std::make_unique<T>());
     genStmtTail->InsertBefore(ptrStmt);
     mapIdxStmt[idx] = ptrStmt;
     return static_cast<T*>(ptrStmt);
   }
 
  private:
-  MapleMap<uint32, GeneralStmt*> mapIdxStmt;
+  MapleMap<uint32, FEIRStmt*> mapIdxStmt;
 };
 
 class FEFunctionTest : public testing::Test, public RedirectBuffer {
@@ -140,24 +132,9 @@ MemPool *FEFunctionTest::mp = nullptr;
 void FEFunctionDemo::LoadGenStmtDemo1() {
   Init();
   mapIdxStmt.clear();
-  (void)NewGenStmt<GeneralStmt>(1);
-  GeneralStmt *stmt2 = NewGenStmt<GeneralStmt>(2);
+  (void)NewGenStmt<FEIRStmt>(1);
+  FEIRStmt *stmt2 = NewGenStmt<FEIRStmt>(2);
   stmt2->SetFallThru(false);
-}
-
-TEST_F(FEFunctionTest, GeneralBBBuildForBB) {
-  demoFunc.LoadGenStmtDemo1();
-  bool resultBB = demoFunc.BuildGeneralBB("build Demo1 bb");
-  ASSERT_EQ(resultBB, true);
-  bool resultCFG = demoFunc.BuildGeneralCFG("build Demo1 cfg");
-  ASSERT_EQ(resultCFG, true);
-  demoFunc.LabelGenStmt();
-  demoFunc.LabelGenBB();
-  GeneralBB *bb1 = static_cast<GeneralBB*>(demoFunc.genBBHead->GetNext());
-  EXPECT_EQ(bb1->GetNext(), demoFunc.genBBTail);
-  EXPECT_EQ(bb1->GetStmtHead()->GetID(), 1);
-  EXPECT_EQ(bb1->GetStmtTail()->GetID(), 2);
-  EXPECT_EQ(demoFunc.HasDeadBB(), false);
 }
 
 /* GenStmtDemo2:BB_StmtAux
@@ -172,27 +149,10 @@ void FEFunctionDemo::LoadGenStmtDemo2() {
   Init();
   mapIdxStmt.clear();
   (void)NewGenStmt<GeneralStmtAuxPre>(1);
-  (void)NewGenStmt<GeneralStmt>(2);
-  GeneralStmt *stmt3 = NewGenStmt<GeneralStmt>(3);
+  (void)NewGenStmt<FEIRStmt>(2);
+  FEIRStmt *stmt3 = NewGenStmt<FEIRStmt>(3);
   (void)NewGenStmt<GeneralStmtAuxPost>(4);
   stmt3->SetFallThru(false);
-}
-
-TEST_F(FEFunctionTest, GeneralBBBuildForBB_StmtAux) {
-  demoFunc.LoadGenStmtDemo2();
-  bool resultBB = demoFunc.BuildGeneralBB("build Demo2 bb");
-  ASSERT_EQ(resultBB, true);
-  bool resultCFG = demoFunc.BuildGeneralCFG("build Demo2 cfg");
-  ASSERT_EQ(resultCFG, true);
-  demoFunc.LabelGenStmt();
-  demoFunc.LabelGenBB();
-  GeneralBB *bb1 = static_cast<GeneralBB*>(demoFunc.genBBHead->GetNext());
-  EXPECT_EQ(bb1->GetNext(), demoFunc.genBBTail);
-  EXPECT_EQ(bb1->GetStmtHead()->GetID(), 1);
-  EXPECT_EQ(bb1->GetStmtTail()->GetID(), 4);
-  EXPECT_EQ(bb1->GetStmtNoAuxHead()->GetID(), 2);
-  EXPECT_EQ(bb1->GetStmtNoAuxTail()->GetID(), 3);
-  EXPECT_EQ(demoFunc.HasDeadBB(), false);
 }
 
 /* GenStmtDemo3:CFG
@@ -226,65 +186,22 @@ void FEFunctionDemo::LoadGenStmtDemo3() {
   mapIdxStmt.clear();
   // --- BB1 ---
   (void)NewGenStmt<GeneralStmtAuxPre>(1);
-  GeneralStmt *stmt2 = NewGenStmt<GeneralStmt>(GeneralStmtKind::kStmtMultiOut, 2);
+  FEIRStmt *stmt2 = NewGenStmt<FEIRStmt>(2);
   (void)NewGenStmt<GeneralStmtAuxPost>(3);
   // --- BB2 ---
   (void)NewGenStmt<GeneralStmtAuxPre>(4);
-  GeneralStmt *stmt5 = NewGenStmt<GeneralStmt>(5);
+  FEIRStmt *stmt5 = NewGenStmt<FEIRStmt>(5);
   stmt5->SetFallThru(false);
   (void)NewGenStmt<GeneralStmtAuxPost>(6);
   // --- BB3 ---
   (void)NewGenStmt<GeneralStmtAuxPre>(7);
-  GeneralStmt *stmt8 = NewGenStmt<GeneralStmt>(GeneralStmtKind::kStmtMultiIn, 8);
-  GeneralStmt *stmt9 = NewGenStmt<GeneralStmt>(9);
+  FEIRStmt *stmt8 = NewGenStmt<FEIRStmt>(8);
+  FEIRStmt *stmt9 = NewGenStmt<FEIRStmt>(9);
   stmt9->SetFallThru(false);
   (void)NewGenStmt<GeneralStmtAuxPost>(10);
   // Link
   stmt2->AddSucc(*stmt8);
   stmt8->AddPred(*stmt2);
-}
-
-TEST_F(FEFunctionTest, GeneralBBBuildForCFG) {
-  demoFunc.LoadGenStmtDemo3();
-  bool resultBB = demoFunc.BuildGeneralBB("build Demo3 bb");
-  ASSERT_EQ(resultBB, true);
-  bool resultCFG = demoFunc.BuildGeneralCFG("build Demo3 cfg");
-  ASSERT_EQ(resultCFG, true);
-  demoFunc.LabelGenStmt();
-  demoFunc.LabelGenBB();
-  // Check BB
-  GeneralBB *bb1 = static_cast<GeneralBB*>(demoFunc.genBBHead->GetNext());
-  ASSERT_NE(bb1, demoFunc.genBBTail);
-  GeneralBB *bb2 = static_cast<GeneralBB*>(bb1->GetNext());
-  ASSERT_NE(bb2, demoFunc.genBBTail);
-  GeneralBB *bb3 = static_cast<GeneralBB*>(bb2->GetNext());
-  ASSERT_NE(bb3, demoFunc.genBBTail);
-  // Check BB's detail
-  EXPECT_EQ(bb1->GetStmtHead()->GetID(), 1);
-  EXPECT_EQ(bb1->GetStmtNoAuxHead()->GetID(), 2);
-  EXPECT_EQ(bb1->GetStmtNoAuxTail()->GetID(), 2);
-  EXPECT_EQ(bb1->GetStmtTail()->GetID(), 3);
-  EXPECT_EQ(bb2->GetStmtHead()->GetID(), 4);
-  EXPECT_EQ(bb2->GetStmtNoAuxHead()->GetID(), 5);
-  EXPECT_EQ(bb2->GetStmtNoAuxTail()->GetID(), 5);
-  EXPECT_EQ(bb2->GetStmtTail()->GetID(), 6);
-  EXPECT_EQ(bb3->GetStmtHead()->GetID(), 7);
-  EXPECT_EQ(bb3->GetStmtNoAuxHead()->GetID(), 8);
-  EXPECT_EQ(bb3->GetStmtNoAuxTail()->GetID(), 9);
-  EXPECT_EQ(bb3->GetStmtTail()->GetID(), 10);
-  // Check CFG
-  EXPECT_EQ(bb1->GetPredBBs().size(), 1);
-  EXPECT_EQ(bb1->IsPredBB(0U), true);
-  EXPECT_EQ(bb1->GetSuccBBs().size(), 2);
-  EXPECT_EQ(bb1->IsSuccBB(2), true);
-  EXPECT_EQ(bb1->IsSuccBB(3), true);
-  EXPECT_EQ(bb2->GetPredBBs().size(), 1);
-  EXPECT_EQ(bb2->IsPredBB(1), true);
-  EXPECT_EQ(bb2->GetSuccBBs().size(), 0);
-  EXPECT_EQ(bb3->GetPredBBs().size(), 1);
-  EXPECT_EQ(bb3->IsPredBB(1), true);
-  EXPECT_EQ(bb3->GetSuccBBs().size(), 0);
-  EXPECT_EQ(demoFunc.HasDeadBB(), false);
 }
 
 /* GenStmtDemo4:CFG_Fail
@@ -296,16 +213,8 @@ TEST_F(FEFunctionTest, GeneralBBBuildForCFG) {
 void FEFunctionDemo::LoadGenStmtDemo4() {
   Init();
   mapIdxStmt.clear();
-  (void)NewGenStmt<GeneralStmt>(1);
-  (void)NewGenStmt<GeneralStmt>(2);
-}
-
-TEST_F(FEFunctionTest, GeneralBBBuildForCFG_Fail) {
-  demoFunc.LoadGenStmtDemo4();
-  bool resultBB = demoFunc.BuildGeneralBB("build Demo4 bb");
-  ASSERT_EQ(resultBB, true);
-  bool resultCFG = demoFunc.BuildGeneralCFG("build Demo4 cfg");
-  ASSERT_EQ(resultCFG, false);
+  (void)NewGenStmt<FEIRStmt>(1);
+  (void)NewGenStmt<FEIRStmt>(2);
 }
 
 /* GenStmtDemo5:CFG_DeadBB
@@ -327,35 +236,10 @@ TEST_F(FEFunctionTest, GeneralBBBuildForCFG_Fail) {
 void FEFunctionDemo::LoadGenStmtDemo5() {
   Init();
   mapIdxStmt.clear();
-  (void)NewGenStmt<GeneralStmt>(1);
-  GeneralStmt *stmt2 = NewGenStmt<GeneralStmt>(2);
+  (void)NewGenStmt<FEIRStmt>(1);
+  FEIRStmt *stmt2 = NewGenStmt<FEIRStmt>(2);
   stmt2->SetFallThru(false);
-  GeneralStmt *stmt3 = NewGenStmt<GeneralStmt>(3);
+  FEIRStmt *stmt3 = NewGenStmt<FEIRStmt>(3);
   stmt3->SetFallThru(false);
-}
-
-TEST_F(FEFunctionTest, GeneralBBBuildForCFG_DeadBB) {
-  demoFunc.LoadGenStmtDemo5();
-  bool resultBB = demoFunc.BuildGeneralBB("build Demo5 bb");
-  ASSERT_EQ(resultBB, true);
-  bool resultCFG = demoFunc.BuildGeneralCFG("build Demo5 cfg");
-  ASSERT_EQ(resultCFG, true);
-  demoFunc.LabelGenStmt();
-  demoFunc.LabelGenBB();
-  // Check BB
-  GeneralBB *bb1 = static_cast<GeneralBB*>(demoFunc.genBBHead->GetNext());
-  ASSERT_NE(bb1, demoFunc.genBBTail);
-  GeneralBB *bb2 = static_cast<GeneralBB*>(bb1->GetNext());
-  ASSERT_NE(bb2, demoFunc.genBBTail);
-  // Check BB's detail
-  EXPECT_EQ(bb1->GetStmtHead()->GetID(), 1);
-  EXPECT_EQ(bb1->GetStmtTail()->GetID(), 2);
-  EXPECT_EQ(bb2->GetStmtHead()->GetID(), 3);
-  EXPECT_EQ(bb2->GetStmtTail()->GetID(), 3);
-  // Check CFG
-  EXPECT_EQ(bb1->GetPredBBs().size(), 1);
-  EXPECT_EQ(bb1->IsPredBB(0U), true);
-  EXPECT_EQ(bb2->GetSuccBBs().size(), 0);
-  EXPECT_EQ(demoFunc.HasDeadBB(), true);
 }
 }  // namespace maple

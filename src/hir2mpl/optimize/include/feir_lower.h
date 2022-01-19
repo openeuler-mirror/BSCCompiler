@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -12,17 +12,17 @@
  * FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  */
-#ifndef HIR2MPL_INCLUDE_FEIR_DFG_H
-#define HIR2MPL_INCLUDE_FEIR_DFG_H
-#include "feir_var.h"
+
+#ifndef HIR2MPL_FEIR_LOWER_H
+#define HIR2MPL_FEIR_LOWER_H
+#include "fe_function.h"
 
 namespace maple {
-class FEIRDFG {
- public:
-  FEIRDFG() = default;
-  ~FEIRDFG() = default;
-  static void CalculateDefUseByUseDef(FEIRDefUseChain &mapDefUse, const FEIRUseDefChain &mapUseDef);
-  static void CalculateUseDefByDefUse(FEIRUseDefChain &mapUseDef, const FEIRDefUseChain &mapDefUse);
+class FEIRLower {
+public:
+  void LowerFunc(FEFunction *func);
+
+private:
 };
-}  // namespace maple
-#endif  // HIR2MPL_INCLUDE_FEIR_DFG_H
+} // namespace maple
+#endif // HIR2MPL_FEIR_LOWER_H

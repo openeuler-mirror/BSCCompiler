@@ -101,7 +101,7 @@ class HIR2MPLOptions : public maple::MapleDriverOptionBase {
   bool ProcessBigEndian(const mapleOption::Option &opt);
 
   // general stmt/bb/cfg debug options
-  bool ProcessDumpGeneralCFGGraph(const mapleOption::Option &opt);
+  bool ProcessDumpFEIRCFGGraph(const mapleOption::Option &opt);
 
   // multi-thread control options
   bool ProcessNThreads(const mapleOption::Option &opt);

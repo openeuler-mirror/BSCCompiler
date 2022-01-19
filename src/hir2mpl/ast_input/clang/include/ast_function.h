@@ -62,8 +62,6 @@ class ASTFunction : public FEFunction {
   bool ProcessFEIRFunction() override;
   void FinishImpl() override;
   bool EmitToMIR(const std::string &phaseName) override;
-  void AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts);
-  void InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts);
   void SetMIRFunctionInfo();
 
   const ASTFunc2FEHelper &funcHelper;

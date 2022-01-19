@@ -18,10 +18,10 @@
 
 namespace maple {
 JBCBB::JBCBB(const jbc::JBCConstPool &argConstPool)
-    : JBCBB(GeneralBBKind::kBBKindDefault, argConstPool) {}
+    : JBCBB(FEIRBBKind::kBBKindDefault, argConstPool) {}
 
 JBCBB::JBCBB(uint8 argBBKind, const jbc::JBCConstPool &argConstPool)
-    : GeneralBB(argBBKind),
+    : FEIRBB(argBBKind),
       constPool(argConstPool),
       stackError(false),
       stackInUpdated(false),
@@ -98,8 +98,8 @@ bool JBCBB::CheckStack() {
   if (stackError) {
     return false;
   }
-  for (GeneralBB *bb : GetPredBBs()) {
-    if (bb->GetBBKind() == GeneralBBKind::kBBKindPesudoHead) {
+  for (FEIRBB *bb : GetPredBBs()) {
+    if (bb->GetBBKind() == FEIRBBKind::kBBKindPesudoHead) {
       continue;
     }
     if (bb->GetBBKind() == JBCBBPesudoCatchPred::kBBKindPesudoCatchPred) {
@@ -113,11 +113,11 @@ bool JBCBB::CheckStack() {
   return true;
 }
 
-void JBCBB::DumpImpl() const {
-  std::cout << "GeneralBB (id=" << id << ", kind=" << GetBBKindName() <<
+void JBCBB::Dump() const {
+  std::cout << "FEIRBB (id=" << GetID() << ", kind=" << GetBBKindName() <<
                ", preds={";
-  for (GeneralBB *bb : predBBs) {
-    if (bb->GetBBKind() == GeneralBBKind::kBBKindPesudoHead) {
+  for (FEIRBB *bb : GetPredBBs()) {
+    if (bb->GetBBKind() == FEIRBBKind::kBBKindPesudoHead) {
       std::cout << "FuncHead ";
     } else if (bb->GetBBKind() == JBCBBPesudoCatchPred::kBBKindPesudoCatchPred) {
       std::cout << "CatchPred ";
@@ -126,16 +126,16 @@ void JBCBB::DumpImpl() const {
     }
   }
   std::cout << "}, succs={";
-  for (GeneralBB *bb : succBBs) {
+  for (FEIRBB *bb : GetSuccBBs()) {
     std::cout << bb->GetID() << " ";
   }
   std::cout << "})" << std::endl;
   std::cout << "  StackIn (" << (stackInUpdated ? "updated" : "") << "): ";
   minStackIn.Dump();
   std::cout << std::endl;
-  const FELinkListNode *nodeStmt = stmtHead;
+  const FELinkListNode *nodeStmt = GetStmtHead();
   while (nodeStmt != nullptr) {
-    const GeneralStmt *stmt = static_cast<const GeneralStmt*>(nodeStmt);
+    const FEIRStmt *stmt = static_cast<const FEIRStmt*>(nodeStmt);
     stmt->Dump("  ");
     if (nodeStmt == stmtTail) {
       break;

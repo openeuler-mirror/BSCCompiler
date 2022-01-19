@@ -36,9 +36,9 @@ JBCFunction::~JBCFunction() {
 
 void JBCFunction::InitImpl() {
   FEFunction::InitImpl();
-  generalCFG = std::make_unique<JBCFunctionCFG>(method, *genStmtHead, *genStmtTail);
+  generalCFG = std::make_unique<FEIRCFG>(genStmtHead, genStmtTail);
   generalCFG->Init();
-  pesudoBBCatchPred = RegisterGeneralBB(std::make_unique<JBCBBPesudoCatchPred>());
+  pesudoBBCatchPred = RegisterFEIRBB(std::make_unique<JBCBBPesudoCatchPred>());
 }
 
 void JBCFunction::PreProcessImpl() {
@@ -51,11 +51,8 @@ bool JBCFunction::ProcessImpl() {
     return success;  // Skip abstract and native method, not emit it to mpl but mplts.
   }
   success = success && GenerateGeneralStmt("create general stmt");
-  success = success && BuildGeneralBB("build general bb");
-  success = success && BuildGeneralCFG("build general cfg");
-  success = success && CheckDeadBB("check dead bb");
   success = success && LabelGeneralStmts("label general stmt");
-  success = success && LabelGeneralBBs("label general bb");
+  success = success && LabelFEIRBBs("label general bb");
   success = success && LabelLabelIdx("label label idx");
   success = success && CheckJVMStack("check jvm stack");
   success = success && GenerateArgVarList("gen arg var list");
@@ -84,10 +81,10 @@ void JBCFunction::FinishImpl() {
     DumpGeneralStmts();
   }
   if (FEOptions::GetInstance().IsDumpJBCBB() && dumpFunc) {
-    DumpGeneralBBs();
+    DumpFEIRBBs();
   }
-  if (FEOptions::GetInstance().IsDumpGeneralCFGGraph() && dumpFunc) {
-    DumpGeneralCFGGraph();
+  if (FEOptions::GetInstance().IsDumpFEIRCFGGraph() && dumpFunc) {
+    DumpFEIRCFGGraph();
   }
   (void)UpdateFormal("finish/update formal");
   // Not gen func body for abstract method
@@ -241,44 +238,6 @@ std::string JBCFunction::GetGeneralFuncName() const {
   return method.GetFullName();
 }
 
-GeneralBB *JBCFunction::NewGeneralBB() {
-  return new JBCBB(method.GetConstPool());
-}
-
-GeneralBB *JBCFunction::NewGeneralBB(uint8 argBBKind) {
-  return new JBCBB(argBBKind, method.GetConstPool());
-}
-
-bool JBCFunction::BuildGeneralBB(const std::string &phaseName) {
-  phaseResult.RegisterPhaseNameAndStart(phaseName);
-  bool success = phaseResult.IsSuccess();
-  genBBHead = generalCFG->GetDummyHead();
-  genBBTail = generalCFG->GetDummyTail();
-  if (success) {
-    generalCFG->BuildBB();
-  }
-  return phaseResult.Finish(success);
-}
-
-bool JBCFunction::BuildGeneralCFG(const std::string &phaseName) {
-  phaseResult.RegisterPhaseNameAndStart(phaseName);
-  bool success = phaseResult.IsSuccess();
-  success = success && generalCFG->BuildCFG();
-  // process catch BB
-  ASSERT(pesudoBBCatchPred != nullptr, "nullptr check");
-  FELinkListNode *nodeBB = genBBHead->GetNext();
-  while (nodeBB != nullptr && nodeBB != genBBTail) {
-    GeneralBB *bb = static_cast<GeneralBB*>(nodeBB);
-    const JBCStmt *stmtHead = static_cast<const JBCStmt*>(bb->GetStmtNoAuxHead());
-    if (stmtHead != nullptr && stmtHead->GetKind() == JBCStmtKind::kJBCStmtPesudoCatch) {
-      bb->AddPredBB(*pesudoBBCatchPred);
-      pesudoBBCatchPred->AddSuccBB(*bb);
-    }
-    nodeBB = nodeBB->GetNext();
-  }
-  return phaseResult.Finish(success);
-}
-
 bool JBCFunction::CheckJVMStack(const std::string &phaseName) {
   phaseResult.RegisterPhaseNameAndStart(phaseName);
   bool success = phaseResult.IsSuccess();
@@ -291,7 +250,7 @@ bool JBCFunction::CheckJVMStack(const std::string &phaseName) {
   JBCBB *jbcBB = static_cast<JBCBB*>(nodeBB);
   success = success && jbcBB->InitForFuncHeader();
   // initialize catch
-  for (GeneralBB *bbCatch : pesudoBBCatchPred->GetSuccBBs()) {
+  for (FEIRBB *bbCatch : pesudoBBCatchPred->GetSuccBBs()) {
     JBCBB *jbcBBCatch = static_cast<JBCBB*>(bbCatch);
     success = success && jbcBBCatch->InitForCatch();
   }
@@ -302,7 +261,7 @@ bool JBCFunction::CheckJVMStack(const std::string &phaseName) {
   std::map<JBCBB*, std::set<JBCBB*>> correlation;
   while (nodeBB != genBBTail) {
     jbcBB = static_cast<JBCBB*>(nodeBB);
-    for (GeneralBB *bb : jbcBB->GetPredBBs()) {
+    for (FEIRBB *bb : jbcBB->GetPredBBs()) {
       if (bb != genBBHead && bb != pesudoBBCatchPred) {
         CHECK_FATAL(correlation[jbcBB].insert(static_cast<JBCBB*>(bb)).second, "correlation map insert failed");
       }
@@ -363,7 +322,7 @@ bool JBCFunction::PreBuildJsrInfo(const jbc::JBCAttrCode &code) {
 }
 
 bool JBCFunction::BuildStmtFromInstruction(const jbc::JBCAttrCode &code) {
-  GeneralStmt *stmt = nullptr;
+  FEIRStmt *stmt = nullptr;
   const MapleMap<const uint32, jbc::JBCOp*> &instMap = code.GetInstMap();
   for (const std::pair<const uint32, jbc::JBCOp*> &it : instMap) {
     uint32 pc = it.first;
@@ -389,7 +348,7 @@ bool JBCFunction::BuildStmtFromInstruction(const jbc::JBCAttrCode &code) {
         }
         break;
       default:
-        stmt = RegisterGeneralStmt(std::make_unique<JBCStmtInst>(*op));
+        stmt = RegisterFEIRStmt(std::make_unique<JBCStmtInst>(*op));
         break;
     }
     stmt->SetThrowable(op->IsThrowable());
@@ -401,58 +360,58 @@ bool JBCFunction::BuildStmtFromInstruction(const jbc::JBCAttrCode &code) {
   return true;
 }
 
-GeneralStmt *JBCFunction::BuildStmtFromInstructionForBranch(const jbc::JBCOp &op) {
-  const std::unique_ptr<GeneralStmt> &uniStmt =
+FEIRStmt *JBCFunction::BuildStmtFromInstructionForBranch(const jbc::JBCOp &op) {
+  const std::unique_ptr<FEIRStmt> &uniStmt =
       RegisterGeneralStmtUniqueReturn(std::make_unique<JBCStmtInstBranch>(op));
-  GeneralStmt *stmt = uniStmt.get();
+  FEIRStmt *stmt = uniStmt.get();
   const jbc::JBCOpBranch &opBranch = static_cast<const jbc::JBCOpBranch&>(op);
-  GeneralStmt *target = BuildAndUpdateLabel(opBranch.GetTarget(), uniStmt);
+  FEIRStmt *target = BuildAndUpdateLabel(opBranch.GetTarget(), uniStmt);
   static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
-GeneralStmt *JBCFunction::BuildStmtFromInstructionForGoto(const jbc::JBCOp &op) {
-  const std::unique_ptr<GeneralStmt> &uniStmt =
+FEIRStmt *JBCFunction::BuildStmtFromInstructionForGoto(const jbc::JBCOp &op) {
+  const std::unique_ptr<FEIRStmt> &uniStmt =
       RegisterGeneralStmtUniqueReturn(std::make_unique<JBCStmtInstBranch>(op));
-  GeneralStmt *stmt = uniStmt.get();
+  FEIRStmt *stmt = uniStmt.get();
   stmt->SetFallThru(false);
   const jbc::JBCOpGoto &opGoto = static_cast<const jbc::JBCOpGoto&>(op);
-  GeneralStmt *target = BuildAndUpdateLabel(opGoto.GetTarget(), uniStmt);
+  FEIRStmt *target = BuildAndUpdateLabel(opGoto.GetTarget(), uniStmt);
   static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
-GeneralStmt *JBCFunction::BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op) {
-  const std::unique_ptr<GeneralStmt> &uniStmt =
+FEIRStmt *JBCFunction::BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op) {
+  const std::unique_ptr<FEIRStmt> &uniStmt =
       RegisterGeneralStmtUniqueReturn(std::make_unique<JBCStmtInstBranch>(op));
-  GeneralStmt *stmt = uniStmt.get();
+  FEIRStmt *stmt = uniStmt.get();
   stmt->SetFallThru(false);
   const jbc::JBCOpSwitch &opSwitch = static_cast<const jbc::JBCOpSwitch&>(op);
   for (const std::pair<const int32, uint32> &targetInfo : opSwitch.GetTargets()) {
-    GeneralStmt *target = BuildAndUpdateLabel(targetInfo.second, uniStmt);
+    FEIRStmt *target = BuildAndUpdateLabel(targetInfo.second, uniStmt);
     static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   }
-  GeneralStmt *target = BuildAndUpdateLabel(opSwitch.GetDefaultTarget(), uniStmt);
+  FEIRStmt *target = BuildAndUpdateLabel(opSwitch.GetDefaultTarget(), uniStmt);
   static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
-GeneralStmt *JBCFunction::BuildStmtFromInstructionForJsr(const jbc::JBCOp &op) {
-  const std::unique_ptr<GeneralStmt> &uniStmt =
+FEIRStmt *JBCFunction::BuildStmtFromInstructionForJsr(const jbc::JBCOp &op) {
+  const std::unique_ptr<FEIRStmt> &uniStmt =
       RegisterGeneralStmtUniqueReturn(std::make_unique<JBCStmtInstBranch>(op));
-  GeneralStmt *stmt = uniStmt.get();
+  FEIRStmt *stmt = uniStmt.get();
   stmt->SetFallThru(false);
   const jbc::JBCOpJsr &opJsr = static_cast<const jbc::JBCOpJsr&>(op);
-  GeneralStmt *target = BuildAndUpdateLabel(opJsr.GetTarget(), uniStmt);
+  FEIRStmt *target = BuildAndUpdateLabel(opJsr.GetTarget(), uniStmt);
   static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   return stmt;
 }
 
-GeneralStmt *JBCFunction::BuildStmtFromInstructionForRet(const jbc::JBCOp &op) {
+FEIRStmt *JBCFunction::BuildStmtFromInstructionForRet(const jbc::JBCOp &op) {
   const std::map<uint16, std::map<int32, uint32>> &mapJsrSlotRetAddr = context.GetMapJsrSlotRetAddr();
-  const std::unique_ptr<GeneralStmt> &uniStmt =
+  const std::unique_ptr<FEIRStmt> &uniStmt =
       RegisterGeneralStmtUniqueReturn(std::make_unique<JBCStmtInstBranchRet>(op));
-  GeneralStmt *stmt = uniStmt.get();
+  FEIRStmt *stmt = uniStmt.get();
   stmt->SetFallThru(false);
   const jbc::JBCOpRet &opRet = static_cast<const jbc::JBCOpRet&>(op);
   auto itJsrInfo = mapJsrSlotRetAddr.find(opRet.GetIndex());
@@ -462,7 +421,7 @@ GeneralStmt *JBCFunction::BuildStmtFromInstructionForRet(const jbc::JBCOp &op) {
   }
   for (auto itTarget : itJsrInfo->second) {
     uint32 pc = itTarget.second;
-    GeneralStmt *target = BuildAndUpdateLabel(pc, uniStmt);
+    FEIRStmt *target = BuildAndUpdateLabel(pc, uniStmt);
     static_cast<JBCStmtInstBranch*>(stmt)->AddSucc(*target);
   }
   return stmt;
@@ -476,7 +435,7 @@ void JBCFunction::BuildStmtForCatch(const jbc::JBCAttrCode &code) {
     JBCStmtPesudoCatch *stmtCatch = nullptr;
     auto it = mapPCCatchStmt.find(handlerPC);
     if (it == mapPCCatchStmt.end()) {
-      stmtCatch = static_cast<JBCStmtPesudoCatch*>(RegisterGeneralStmt(std::make_unique<JBCStmtPesudoCatch>()));
+      stmtCatch = static_cast<JBCStmtPesudoCatch*>(RegisterFEIRStmt(std::make_unique<JBCStmtPesudoCatch>()));
       context.UpdateMapPCCatchStmt(handlerPC, stmtCatch);
     } else {
       stmtCatch = static_cast<JBCStmtPesudoCatch*>(it->second);
@@ -506,7 +465,7 @@ void JBCFunction::BuildStmtForTry(const jbc::JBCAttrCode &code) {
   for (const std::pair<const uint32, uint32> &startEnd : outMapStartEnd) {
     // Try
     JBCStmtPesudoTry *stmtTry =
-        static_cast<JBCStmtPesudoTry*>(RegisterGeneralStmt(std::make_unique<JBCStmtPesudoTry>()));
+        static_cast<JBCStmtPesudoTry*>(RegisterFEIRStmt(std::make_unique<JBCStmtPesudoTry>()));
     auto it = outMapStartCatch.find(startEnd.first);
     CHECK_FATAL(it != outMapStartCatch.end(), "catch info not exist");
     for (uint32 handlerPC : it->second) {
@@ -517,7 +476,7 @@ void JBCFunction::BuildStmtForTry(const jbc::JBCAttrCode &code) {
     context.UpdateMapPCTryStmt(startEnd.first, stmtTry);
     // EndTry
     JBCStmtPesudoEndTry *stmtEndTry =
-        static_cast<JBCStmtPesudoEndTry*>(RegisterGeneralStmt(std::make_unique<JBCStmtPesudoEndTry>()));
+        static_cast<JBCStmtPesudoEndTry*>(RegisterFEIRStmt(std::make_unique<JBCStmtPesudoEndTry>()));
     context.UpdateMapPCEndTryStmt(startEnd.second, stmtEndTry);
   }
 }
@@ -611,7 +570,7 @@ void JBCFunction::BuildStmtForLOC(const jbc::JBCAttrCode &code) {
   const MapleVector<jbc::attr::LineNumberTableItem*> &lineNums = attrLineNumTab->GetLineNums();
   for (const jbc::attr::LineNumberTableItem *item : lineNums) {
     JBCStmtPesudoLOC *stmtLOC =
-        static_cast<JBCStmtPesudoLOC*>(RegisterGeneralStmt(std::make_unique<JBCStmtPesudoLOC>()));
+        static_cast<JBCStmtPesudoLOC*>(RegisterFEIRStmt(std::make_unique<JBCStmtPesudoLOC>()));
     stmtLOC->SetSrcFileIdx(srcFileIdx);
     stmtLOC->SetLineNumber(item->GetLineNumber());
     context.UpdateMapPCStmtLOC(item->GetStartPC(), stmtLOC);
@@ -650,18 +609,18 @@ void JBCFunction::BuildStmtForInstComment(const jbc::JBCAttrCode &code) {
           std::setfill('0') << std::setw(4) << std::hex << pc << " : " <<
           op->Dump(constPool);
     std::unique_ptr<JBCStmt> stmt = std::make_unique<JBCStmtPesudoComment>(ss.str());
-    JBCStmtPesudoComment *ptrStmt = static_cast<JBCStmtPesudoComment*>(RegisterGeneralStmt(std::move(stmt)));
+    JBCStmtPesudoComment *ptrStmt = static_cast<JBCStmtPesudoComment*>(RegisterFEIRStmt(std::move(stmt)));
     context.UpdateMapPCCommentStmt(pc, ptrStmt);
     ss.str("");
   }
 }
 
-GeneralStmt *JBCFunction::BuildAndUpdateLabel(uint32 dstPC, const std::unique_ptr<GeneralStmt> &srcStmt) {
+FEIRStmt *JBCFunction::BuildAndUpdateLabel(uint32 dstPC, const std::unique_ptr<FEIRStmt> &srcStmt) {
   const std::map<uint32, JBCStmtPesudoLabel*> &mapPCLabelStmt = context.GetMapPCLabelStmt();
   auto it = mapPCLabelStmt.find(dstPC);
   JBCStmtPesudoLabel *stmtLabel = nullptr;
   if (it == mapPCLabelStmt.end()) {
-    stmtLabel = static_cast<JBCStmtPesudoLabel*>(RegisterGeneralStmt(std::make_unique<JBCStmtPesudoLabel>()));
+    stmtLabel = static_cast<JBCStmtPesudoLabel*>(RegisterFEIRStmt(std::make_unique<JBCStmtPesudoLabel>()));
     context.UpdateMapPCLabelStmt(dstPC, stmtLabel);
   } else {
     stmtLabel = it->second;
@@ -707,31 +666,31 @@ void JBCFunction::InitStack2FEHelper() {
         ", nSwaps=" << stack2feHelper.GetNSwaps() <<
         ", maxLocals=" << code->GetMaxLocals() <<
         ", nArgs=" << stack2feHelper.GetNArgs();
-  feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment(ss.str())));
-  feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment("==== Reg Map ====")));
+  feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment(ss.str())));
+  feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment("==== Reg Map ====")));
   uint32 regStart = 0;
   ss.str("");
   ss << "  " << regStart << " - " << (regStart + stack2feHelper.GetNStacks() - 1) << ": stacks";
-  feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment(ss.str())));
+  feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment(ss.str())));
   regStart += stack2feHelper.GetNStacks();
   if (stack2feHelper.GetNSwaps() > 0) {
     ss.str("");
     ss << "  " << regStart << " - " << (regStart + stack2feHelper.GetNSwaps() - 1) << ": swaps";
-    feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment(ss.str())));
+    feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment(ss.str())));
     regStart += stack2feHelper.GetNSwaps();
   }
   if (stack2feHelper.GetNLocals() > 0) {
     ss.str("");
     ss << "  " << regStart << " - " << (regStart + stack2feHelper.GetNLocals() - 1) << ": locals";
-    feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment(ss.str())));
+    feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment(ss.str())));
     regStart += stack2feHelper.GetNLocals();
   }
   if (stack2feHelper.GetNArgs() > 0) {
     ss.str("");
     ss << "  " << regStart << " - " << (regStart + stack2feHelper.GetNArgs() - 1) << ": args";
-    feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment(ss.str())));
+    feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment(ss.str())));
   }
-  feirStmtTail->InsertBefore(RegisterGeneralStmt(FEIRBuilder::CreateStmtComment("=================")));
+  feirStmtTail->InsertBefore(RegisterFEIRStmt(FEIRBuilder::CreateStmtComment("=================")));
 }
 
 uint32 JBCFunction::CalculateMaxSwapSize() const {
@@ -778,19 +737,6 @@ bool JBCFunction::NeedConvertToInt32(const std::unique_ptr<FEIRVar> &var) {
     return true;
   } else {
     return false;
-  }
-}
-
-void JBCFunction::AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts) {
-  ASSERT_NOT_NULL(feirStmtTail);
-  InsertFEIRStmtsBefore(*feirStmtTail, stmts);
-}
-
-void JBCFunction::InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts) {
-  while (stmts.size() > 0) {
-    FEIRStmt *ptrFEIRStmt = RegisterFEIRStmt(std::move(stmts.front()));
-    stmts.pop_front();
-    pos.InsertBefore(ptrFEIRStmt);
   }
 }
 }  // namespace maple

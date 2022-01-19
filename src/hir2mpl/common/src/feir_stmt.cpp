@@ -107,6 +107,10 @@ std::string FEIRStmt::DumpDotStringImpl() const {
   return ss.str();
 }
 
+void FEIRStmt::DumpImpl(const std::string &prefix) const {
+  std::cout << prefix << "FEIRStmt" << id << "(kind=" << GetKind() << ")" << std::endl;
+}
+
 // ---------- FEIRStmtCheckPoint ----------
 void FEIRStmtCheckPoint::Reset() {
   predCPs.clear();

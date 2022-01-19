@@ -357,8 +357,6 @@ void HIR2MPLCompiler::FindMinCompileFailedFEFunctions() {
   if (minCompileFailedFEFunction != nullptr) {
     INFO(kLncWarn, "function compile failed!!! the min function is :");
     INFO(kLncWarn, minCompileFailedFEFunction->GetDescription().c_str());
-    minCompileFailedFEFunction->OutputUseDefChain();
-    minCompileFailedFEFunction->OutputDefUseChain();
   }
 }
 }  // namespace maple

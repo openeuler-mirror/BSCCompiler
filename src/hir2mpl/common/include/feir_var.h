@@ -206,9 +206,5 @@ class FEIRVar {
 };
 
 using UniqueFEIRVar = std::unique_ptr<FEIRVar>;
-// FEIRUseDefChain key is use, value is def set
-using FEIRUseDefChain = std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>>;
-// FEIRUseDefChain key is def, value is use set
-using FEIRDefUseChain = std::map<UniqueFEIRVar*, std::set<UniqueFEIRVar*>>;
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_FEIR_VAR_H

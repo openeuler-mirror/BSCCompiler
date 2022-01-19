@@ -30,30 +30,13 @@
 #include "jbc_function_context.h"
 
 namespace maple {
-class JBCBBPesudoCatchPred : public GeneralBB {
+class JBCBBPesudoCatchPred : public FEIRBB {
  public:
-  static const uint8 kBBKindPesudoCatchPred = GeneralBBKind::kBBKindExt + 1;
+  static const uint8 kBBKindPesudoCatchPred = FEIRBBKind::kBBKindExt + 1;
   JBCBBPesudoCatchPred()
-      : GeneralBB(kBBKindPesudoCatchPred) {}
+      : FEIRBB(kBBKindPesudoCatchPred) {}
   ~JBCBBPesudoCatchPred() = default;
 };  // class JBCBBPesudoCatchPred
-
-class JBCFunctionCFG : public GeneralCFG {
- public:
-  JBCFunctionCFG(const jbc::JBCClassMethod &argMethod, const GeneralStmt &argStmtHead, const GeneralStmt &argStmtTail)
-      : GeneralCFG(argStmtHead, argStmtTail),
-        method(argMethod) {}
-
-  ~JBCFunctionCFG() = default;
-
- protected:
-  std::unique_ptr<GeneralBB> NewGeneralBBImpl() const override {
-    return std::make_unique<JBCBB>(method.GetConstPool());
-  }
-
- private:
-  const jbc::JBCClassMethod &method;
-};  // class JBCFunctionCFG
 
 class JBCFunction : public FEFunction {
  public:
@@ -64,8 +47,6 @@ class JBCFunction : public FEFunction {
  LLT_PROTECTED:
   // run phase routines
   bool GenerateGeneralStmt(const std::string &phaseName) override;
-  bool BuildGeneralBB(const std::string &phaseName) override;
-  bool BuildGeneralCFG(const std::string &phaseName) override;
   bool LabelLabelIdx(const std::string &phaseName);
   bool CheckJVMStack(const std::string &phaseName);
   bool GenerateArgVarList(const std::string &phaseName) override;
@@ -86,8 +67,6 @@ class JBCFunction : public FEFunction {
   void VerifyGeneralFailCallBack() override;
   std::string GetGeneralFuncName() const override;
 
-  GeneralBB *NewGeneralBB() override;
-  GeneralBB *NewGeneralBB(uint8 argBBKind) override;
   bool HasThis() override {
     return methodHelper.HasThis();
   }
@@ -104,15 +83,15 @@ class JBCFunction : public FEFunction {
   JBCStack2FEHelper stack2feHelper;
   JBCFunctionContext context;
   bool error = false;
-  GeneralBB *pesudoBBCatchPred = nullptr;
+  FEIRBB *pesudoBBCatchPred = nullptr;
 
   bool PreBuildJsrInfo(const jbc::JBCAttrCode &code);
   bool BuildStmtFromInstruction(const jbc::JBCAttrCode &code);
-  GeneralStmt *BuildStmtFromInstructionForBranch(const jbc::JBCOp &op);
-  GeneralStmt *BuildStmtFromInstructionForGoto(const jbc::JBCOp &op);
-  GeneralStmt *BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op);
-  GeneralStmt *BuildStmtFromInstructionForJsr(const jbc::JBCOp &op);
-  GeneralStmt *BuildStmtFromInstructionForRet(const jbc::JBCOp &op);
+  FEIRStmt *BuildStmtFromInstructionForBranch(const jbc::JBCOp &op);
+  FEIRStmt *BuildStmtFromInstructionForGoto(const jbc::JBCOp &op);
+  FEIRStmt *BuildStmtFromInstructionForSwitch(const jbc::JBCOp &op);
+  FEIRStmt *BuildStmtFromInstructionForJsr(const jbc::JBCOp &op);
+  FEIRStmt *BuildStmtFromInstructionForRet(const jbc::JBCOp &op);
   void BuildStmtForCatch(const jbc::JBCAttrCode &code);
   void BuildStmtForTry(const jbc::JBCAttrCode &code);
   void BuildTryInfo(const std::map<std::pair<uint32, uint32>, std::vector<uint32>> &rawInfo,
@@ -124,14 +103,12 @@ class JBCFunction : public FEFunction {
                          std::map<uint32, std::vector<uint32>> &outMapStartCatch);
   void BuildStmtForLOC(const jbc::JBCAttrCode &code);
   void BuildStmtForInstComment(const jbc::JBCAttrCode &code);
-  GeneralStmt *BuildAndUpdateLabel(uint32 dstPC, const std::unique_ptr<GeneralStmt> &srcStmt);
+  FEIRStmt *BuildAndUpdateLabel(uint32 dstPC, const std::unique_ptr<FEIRStmt> &srcStmt);
   void ArrangeStmts();
   bool CheckJVMStackResult();
   void InitStack2FEHelper();
   uint32 CalculateMaxSwapSize() const;
   bool NeedConvertToInt32(const std::unique_ptr<FEIRVar> &var);
-  void AppendFEIRStmts(std::list<UniqueFEIRStmt> &stmts);
-  void InsertFEIRStmtsBefore(FEIRStmt &pos, std::list<UniqueFEIRStmt> &stmts);
 };  // class JBCFunction
 }  // namespace maple
 #endif  // HIR2MPL_INCLUDE_COMMON_JBC_FUNCTION_H
