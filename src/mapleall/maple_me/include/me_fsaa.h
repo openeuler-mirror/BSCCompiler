@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,17 +14,17 @@
  */
 #ifndef MAPLE_ME_INCLUDE_ME_FSAA_H
 #define MAPLE_ME_INCLUDE_ME_FSAA_H
-#include "me_phase.h"
 #include "me_option.h"
 #include "me_function.h"
-#include "dominance.h"
-#include "ssa_tab.h"
+#include "me_dominance.h"
+#include "me_ssa_tab.h"
+#include "maple_phase.h"
 
 namespace maple {
-
 class FSAA {
  public:
-  explicit FSAA(MeFunction *f, Dominance *dm): func(f), mirModule(&f->GetMIRModule()), ssaTab(f->GetMeSSATab()), dom(dm) {}
+  FSAA(MeFunction *f, Dominance *dm)
+      : func(f), mirModule(&f->GetMIRModule()), ssaTab(f->GetMeSSATab()), dom(dm) {}
   ~FSAA() {}
 
   BB *FindUniquePointerValueDefBB(VersionSt *vst);
@@ -32,6 +32,11 @@ class FSAA {
 
   bool needUpdateSSA = false;
  private:
+  void RemoveMayDefIfSameAsRHS(IassignNode *stmt, BB *bb);
+  void RemoveMayDefByIreadRHS(IreadSSANode *rhs, TypeOfMayDefList &mayDefNodes);
+  void RemoveMayDefByDreadRHS(AddrofSSANode *rhs, TypeOfMayDefList &mayDefNodes);
+  void EraseMayDefItem(TypeOfMayDefList &mayDefNodes, MapleMap<OStIdx, MayDefNode>::iterator &it, bool canBeErased);
+
   MeFunction *func;
   MIRModule *mirModule;
   SSATab *ssaTab;
@@ -42,16 +47,6 @@ class FSAA {
   }
 };
 
-class MeDoFSAA : public MeFuncPhase {
- public:
-  MeDoFSAA(MePhaseID id) : MeFuncPhase(id) {}
-
-  ~MeDoFSAA() {}
-
-  AnalysisResult *Run(MeFunction *ir, MeFuncResultMgr *m, ModuleResultMgr *mrm) override;
-  std::string PhaseName() const override {
-    return "fsaa";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEFSAA, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_FSAA_H
