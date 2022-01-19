@@ -140,8 +140,62 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<ZeroCmpBranchesToTbzPattern>();
       break;
     }
+    case MOP_wcmprr:
+    case MOP_xcmprr: {
+      manager->Optimize<NegCmpToCmnPattern>();
+      break;
+    }
     default:
       break;
+  }
+}
+
+std::string NegCmpToCmnPattern::GetPatternName() {
+  return "NegCmpToCmnPattern";
+}
+
+bool NegCmpToCmnPattern::CheckCondition(BB &bb, Insn &insn) {
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_winegrr && prevMop != MOP_xinegrr &&
+      prevMop != MOP_winegrrs && prevMop != MOP_xinegrrs) {
+    return false;
+  }
+  return true;
+}
+
+void NegCmpToCmnPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  Operand &opnd1 = insn.GetOperand(kInsnSecondOpnd);
+  Operand &opnd2 = prevInsn->GetOperand(kInsnSecondOpnd);
+  auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  MOperator currMop = insn.GetMachineOpcode();
+  Insn *newInsn = nullptr;
+  if (prevMop == MOP_winegrr || prevMop == MOP_xinegrr) {
+    MOperator newMop = (currMop == MOP_wcmprr) ? MOP_wcmnrr : MOP_xcmnrr;
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, ccReg, opnd1, opnd2));
+  } else {
+    /* prevMop == MOP_winegrrs || prevMop == MOP_xinegrrs */
+    MOperator newMop = (currMop == MOP_wcmprr) ? MOP_wcmnrrs : MOP_xcmnrrs;
+    Operand &shiftOpnd = prevInsn->GetOperand(kInsnThirdOpnd);
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, ccReg, opnd1, opnd2, shiftOpnd));
+  }
+  CHECK_FATAL(newInsn != nullptr, "must create newInsn");
+  bb.ReplaceInsn(insn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, *newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, newInsn);
   }
 }
 
