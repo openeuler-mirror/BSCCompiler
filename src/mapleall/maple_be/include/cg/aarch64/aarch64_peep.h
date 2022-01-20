@@ -371,6 +371,46 @@ class CmpCsetOpt : public CGPeepPattern {
 };
 
 /*
+ * Combine logical shift and orr to [extr wd, wn, wm, #lsb  /  extr xd, xn, xm, #lsb]
+ * Example 1)
+ *  lsr w5, w6, #16
+ *  lsl w4, w7, #16
+ *  orr w5, w5, w4                  --->        (currInsn)
+ *  ===> extr w5, w6, w7, #16
+ *
+ * Example 2)
+ *  lsr w5, w6, #16
+ *  orr w5, w5, w4, LSL #16         --->        (currInsn)
+ *  ===> extr w5, w6, w4, #16
+ *
+ * Example 3)
+ *  lsl w4, w7, #16
+ *  orr w5, w4, w5, LSR #16         --->        (currInsn)
+ *  ===> extr w5, w5, w7, #16
+ *
+ * Conditions:
+ *  1. (def[wn] is lsl) & (def[wm] is lsr)
+ *  2. lsl_imm + lsr_imm == curr type size (32 or 64)
+ *  3. is64bits ? (extr_imm in range [0, 63]) : (extr_imm in range [0, 31])
+ *  4. extr_imm = lsr_imm
+ */
+class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
+ public:
+  LogicShiftAndOrrToExtrPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~LogicShiftAndOrrToExtrPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(BB &bb, Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  Insn *prevLsrInsn = nullptr;
+  Insn *prevLslInsn = nullptr;
+  int64 shiftValue = 0;
+  bool is64Bits = false;
+};
+
+/*
  * Example 1)
  *  lsr w0, w1, #6
  *  and w0, w0, #1                 --->        (currInsn)
