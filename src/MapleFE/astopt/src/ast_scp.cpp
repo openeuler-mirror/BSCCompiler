@@ -286,9 +286,12 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      continue;
-    }
-    if (fld->IsIdentifier()) {
+      StrIndexSigNode *sis = static_cast<StrIndexSigNode *>(fld);
+      TreeNode *key = sis->GetKey();
+      if (key) {
+        AddDecl(scope, key);
+      }
+    } else if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
     } else {
       NOTYETIMPL("new type of class field");
