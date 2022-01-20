@@ -2253,7 +2253,8 @@ FEIRExpr::FEIRExpr(FEIRNodeKind argKind)
     : kind(argKind),
       isNestable(true),
       isAddrof(false),
-      hasException(false) {
+      hasException(false),
+      isBoundaryChecking(false) {
   type = std::make_unique<FEIRTypeDefault>();
 }
 
@@ -2261,8 +2262,18 @@ FEIRExpr::FEIRExpr(FEIRNodeKind argKind, std::unique_ptr<FEIRType> argType)
     : kind(argKind),
       isNestable(true),
       isAddrof(false),
-      hasException(false) {
+      hasException(false),
+      isBoundaryChecking(false) {
   SetType(std::move(argType));
+}
+
+std::unique_ptr<FEIRExpr> FEIRExpr::Clone() {
+  auto expr = CloneImpl();
+  expr->isNestable = IsNestable();
+  expr->isAddrof = IsAddrof();
+  expr->hasException = HasException();
+  expr->isBoundaryChecking = IsBoundaryChecking();
+  return expr;
 }
 
 bool FEIRExpr::IsNestableImpl() const {
