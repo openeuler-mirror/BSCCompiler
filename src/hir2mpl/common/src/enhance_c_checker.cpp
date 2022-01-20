@@ -1563,10 +1563,14 @@ void ENCChecker::InsertBoundaryAssignChecking(MIRBuilder &mirBuilder, std::list<
       srcExpr->GetKind() != kExprBinary) {  // pointer computed assignment
     return;
   }
+  if (srcExpr->IsBoundaryChecking()) {  // skip if boundary checking has been generated
+    return;
+  }
   UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(srcExpr);
   if (baseExpr == nullptr) {
     return;
   }
+  srcExpr->SetIsBoundaryChecking(true);
   // insert l-value lower boundary chencking
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(srcExpr->Clone());
@@ -1887,14 +1891,14 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
   return args;
 }
 
-void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts,
+bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts,
                                                    UniqueFEIRExpr idxExpr, UniqueFEIRExpr baseAddrFEExpr) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
-    return;
+    return false;
   }
   if (arrayType->GetKind() == MIRTypeKind::kTypeArray) {
     if (ENCChecker::IsConstantIndex(idxExpr)) {
-      return;  // skip checking when all indexes are constants
+      return false;  // skip checking when all indexes are constants
     }
     while (baseAddrFEExpr != nullptr && baseAddrFEExpr->GetKind() == kExprAddrofArray) {
       baseAddrFEExpr = static_cast<FEIRExprAddrofArray*>(baseAddrFEExpr.get())->GetExprArray()->Clone();
@@ -1902,7 +1906,7 @@ void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   } else {
     baseAddrFEExpr = ENCChecker::FindBaseExprInPointerOperation(baseAddrFEExpr);
     if (baseAddrFEExpr == nullptr) {
-      return;
+      return false;
     }
   }
   // peel nested boundary checking in a multi-dimensional array
@@ -1921,34 +1925,61 @@ void ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
+  return true;
 }
 
-void ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const {
+bool ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
-    return;
+    return false;
   }
   UniqueFEIRExpr baseExpr = ENCChecker::FindBaseExprInPointerOperation(expr);
   if (baseExpr == nullptr) {
-    return;
+    return false;
   }
-  auto checkUpperOp = expr->GetKind() != kExprBinary ? OP_assertlt : OP_calcassertlt;
-  auto checkLowerOp = expr->GetKind() != kExprBinary ? OP_assertge : OP_calcassertge;
   // peel nested boundary checking in a multi-dereference
   ENCChecker::PeelNestedBoundaryChecking(stmts, baseExpr);
   // insert lower boundary chencking, baseExpr will be replace by lower boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(expr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(checkLowerOp, std::move(lowerExprs));
+  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(std::move(expr));
   upperExprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(checkUpperOp, std::move(upperExprs));
+  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
+  return true;
+}
+
+void ENCChecker::ReduceBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &expr) {
+  // assert* --> calcassert*, when addrof the dereference, e.g. &arr[i]
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+    return;
+  }
+  std::list<UniqueFEIRStmt>::iterator iter = stmts.begin();
+  for (; iter != stmts.end(); ++iter) {
+    if ((*iter)->GetKind() != kFEIRStmtNary) {
+      continue;
+    }
+    FEIRStmtNary *nary = static_cast<FEIRStmtNary*>((*iter).get());
+    if (nary->GetOP() != OP_assertge ||
+        nary->GetArgExprs().front()->Hash() != expr->Hash()) {  // addrof expr and index expr of checking are consistent
+      continue;
+    }
+    nary->SetOP(OP_calcassertge);
+    std::list<UniqueFEIRStmt>::iterator nextedIter = std::next(iter, 1);
+    if (nextedIter != stmts.end() && (*nextedIter)->GetKind() == kFEIRStmtNary) {
+      FEIRStmtNary *nextedNary = static_cast<FEIRStmtNary*>((*nextedIter).get());
+      if (nextedNary->GetOP() == OP_assertlt) {
+        nextedNary->SetOP(OP_calcassertlt);
+      }
+    }
+    break;
+  }
 }
 
 // ---------------------------

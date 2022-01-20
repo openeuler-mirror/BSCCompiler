@@ -490,7 +490,9 @@ UniqueFEIRExpr ASTCastExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) co
     } else if (childFEExpr->GetKind() == kExprIRead) {
       auto iread = static_cast<FEIRExprIRead*>(childFEExpr.get());
       if (iread->GetFieldID() == 0) {
-        return iread->GetClonedOpnd();
+        auto addrOfExpr = iread->GetClonedOpnd();
+        ENCChecker::ReduceBoundaryChecking(stmts, addrOfExpr);
+        return addrOfExpr;
       } else {
         return std::make_unique<FEIRExprIAddrof>(iread->GetClonedPtrType(), iread->GetFieldID(),
             iread->GetClonedOpnd());
@@ -720,10 +722,12 @@ UniqueFEIRExpr ASTUOAddrOfExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts
   } else if (childFEIRExpr->GetKind() == kExprIRead) {
     auto ireadExpr = static_cast<FEIRExprIRead*>(childFEIRExpr.get());
     if (ireadExpr->GetFieldID() == 0) {
-      return ireadExpr->GetClonedOpnd();
+      addrOfExpr = ireadExpr->GetClonedOpnd();
+      ENCChecker::ReduceBoundaryChecking(stmts, addrOfExpr);
+    } else {
+      addrOfExpr = std::make_unique<FEIRExprIAddrof>(ireadExpr->GetClonedPtrType(), ireadExpr->GetFieldID(),
+                                                     ireadExpr->GetClonedOpnd());
     }
-    addrOfExpr = std::make_unique<FEIRExprIAddrof>(ireadExpr->GetClonedPtrType(), ireadExpr->GetFieldID(),
-        ireadExpr->GetClonedOpnd());
   } else if (childFEIRExpr->GetKind() == kExprIAddrof || childFEIRExpr->GetKind() == kExprAddrofVar ||
       childFEIRExpr->GetKind() == kExprAddrofFunc || childFEIRExpr->GetKind() == kExprAddrof) {
     return childFEIRExpr;
@@ -756,7 +760,9 @@ UniqueFEIRExpr ASTUODerefExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts)
     return childFEIRExpr;
   }
   InsertNonnullChecking(stmts, childFEIRExpr->Clone());
-  InsertBoundaryChecking(stmts, childFEIRExpr->Clone());
+  if (InsertBoundaryChecking(stmts, childFEIRExpr->Clone())) {
+    childFEIRExpr->SetIsBoundaryChecking(true);
+  }
   UniqueFEIRExpr derefExpr = FEIRBuilder::CreateExprIRead(std::move(retType), std::move(ptrType),
                                                           std::move(childFEIRExpr));
   return derefExpr;
@@ -1572,7 +1578,9 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
     addrOfArray = FEIRBuilder::CreateExprBinary(std::move(sizeType), OP_add, baseAddrFEExpr->Clone(),
                                                 std::move(offsetExpr));
   }
-  InsertBoundaryChecking(stmts, addrOfArray->Clone(), std::move(baseAddrFEExpr));
+  if (InsertBoundaryChecking(stmts, addrOfArray->Clone(), std::move(baseAddrFEExpr))) {
+    addrOfArray->SetIsBoundaryChecking(true);
+  }
   return FEIRBuilder::CreateExprIRead(std::move(retFEType), fePtrType->Clone(), addrOfArray->Clone());
 }
 

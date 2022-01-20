@@ -405,7 +405,7 @@ class ASTUODerefExpr: public ASTUnaryOperatorExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr baseExpr) const;
-  void InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const;
+  bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr expr) const;
 };
 
 class ASTUOPlusExpr: public ASTUnaryOperatorExpr {
@@ -836,7 +836,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
                              const UniqueFEIRExpr &addrOfArray) const;
-  void InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr,
+  bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr,
                               UniqueFEIRExpr baseAddrFEExpr) const;
 
   ASTExpr *baseExpr = nullptr;

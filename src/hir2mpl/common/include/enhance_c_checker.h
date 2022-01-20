@@ -54,6 +54,7 @@ class ENCChecker {
   static std::pair<StIdx, StIdx> InsertBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr);
   static bool IsConstantIndex(const UniqueFEIRExpr &expr);
   static void PeelNestedBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &baseExpr);
+  static void ReduceBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &expr);
   static UniqueFEIRExpr GetRealBoundaryLenExprInFunc(const UniqueFEIRExpr &lenExpr, const ASTFunc &astFunc,
                                                      const ASTCallExpr &astCallExpr);
   static UniqueFEIRExpr GetRealBoundaryLenExprInFuncByIndex(const TypeAttrs &typeAttrs, const MIRType &type,

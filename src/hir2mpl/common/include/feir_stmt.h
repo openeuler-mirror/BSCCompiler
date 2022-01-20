@@ -367,9 +367,7 @@ class FEIRExpr {
   FEIRExpr(const FEIRExpr&) = delete;
   FEIRExpr& operator=(const FEIRExpr&) = delete;
   std::string DumpDotString() const;
-  std::unique_ptr<FEIRExpr> Clone() {
-    return CloneImpl();
-  }
+  std::unique_ptr<FEIRExpr> Clone();
 
   virtual bool operator==(const FEIRExpr &expr) const {
     return false;
@@ -401,6 +399,14 @@ class FEIRExpr {
 
   bool HasException() const {
     return HasExceptionImpl();
+  }
+
+  void SetIsBoundaryChecking(bool flag) {
+    isBoundaryChecking = flag;
+  }
+
+  bool IsBoundaryChecking() const {
+    return isBoundaryChecking;
   }
 
   void SetType(std::unique_ptr<FEIRType> argType) {
@@ -504,6 +510,7 @@ class FEIRExpr {
   bool isNestable : 1;
   bool isAddrof : 1;
   bool hasException : 1;
+  bool isBoundaryChecking : 1;
   std::unique_ptr<FEIRType> type;
 };  // class FEIRExpr
 
@@ -1477,6 +1484,10 @@ class FEIRStmtNary : public FEIRStmt {
  public:
   FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn);
   ~FEIRStmtNary() = default;
+
+  void SetOP(Opcode opIn) {
+    op = opIn;
+  }
 
   Opcode GetOP() const {
     return op;
