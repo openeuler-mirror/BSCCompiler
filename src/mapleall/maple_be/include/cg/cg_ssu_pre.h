@@ -161,6 +161,7 @@ class SSUPre {
         spreMp(memPool),
         spreAllocator(memPool),
         workCand(wkcand),
+        fullyAvailBBs(cgfunc->GetAllBBs().size(), true, spreAllocator.Adapter()),
         realOccDfns(std::less<uint32>(), spreAllocator.Adapter()),
         lambdaDfns(std::less<uint32>(), spreAllocator.Adapter()),
         classCount(0),
@@ -204,6 +205,7 @@ class SSUPre {
     SEntryOcc *entryOcc = spreMp->New<SEntryOcc>(bb);
     entryOccs.push_back(entryOcc);
   }
+  void PropagateNotAvail(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs);
   void FormReals();
 
   CGFunc *cgFunc;
@@ -214,6 +216,7 @@ class SSUPre {
   // following are set of BBs in terms of their dfn's; index into
   // dominance->pdt_preorder to get their bbid's
   // step 0
+  MapleVector<bool> fullyAvailBBs; // index is BBid; true if occ is fully available at BB exit
   MapleSet<uint32> realOccDfns; // set by FormReals()
   // step 1 lambda insertion data structures:
   MapleSet<uint32> lambdaDfns;  // set by FormLambdas()
