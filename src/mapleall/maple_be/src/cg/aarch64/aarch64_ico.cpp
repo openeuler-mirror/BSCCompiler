@@ -571,7 +571,7 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
   BB *elseBB = nullptr;
   BB *joinBB = nullptr;
 
-  BB *thenDest = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
+  BB *thenDest = CGCFG::GetTargetSuc(curBB);
   BB *elseDest = curBB.GetNext();
   CHECK_FATAL(thenDest != nullptr, "then_dest is null in ITEPattern::Optimize");
   CHECK_FATAL(elseDest != nullptr, "else_dest is null in ITEPattern::Optimize");
@@ -590,14 +590,14 @@ bool AArch64ICOIfThenElsePattern::Optimize(BB &curBB) {
     /* not a form we can handle */
     return false;
   }
-  if (cgFunc->GetTheCFG()->InLSDA(elseBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
-      cgFunc->GetTheCFG()->InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
+  if (CGCFG::InLSDA(elseBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
+      CGCFG::InSwitchTable(elseBB->GetLabIdx(), *cgFunc)) {
     return false;
   }
 
   if (ifBB != nullptr &&
-      (cgFunc->GetTheCFG()->InLSDA(ifBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
-       cgFunc->GetTheCFG()->InSwitchTable(ifBB->GetLabIdx(), *cgFunc))) {
+      (CGCFG::InLSDA(ifBB->GetLabIdx(), *cgFunc->GetEHFunc()) ||
+       CGCFG::InSwitchTable(ifBB->GetLabIdx(), *cgFunc))) {
     return false;
   }
   return DoOpt(curBB, ifBB, elseBB, *joinBB);
@@ -617,7 +617,7 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
     return false;
   }
-  BB *thenBB = cgFunc->GetTheCFG()->GetTargetSuc(secondIfBB);
+  BB *thenBB = CGCFG::GetTargetSuc(secondIfBB);
   return DoOpt(firstIfBB,secondIfBB,thenBB);
 }
 

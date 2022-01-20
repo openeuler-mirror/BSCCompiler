@@ -320,7 +320,18 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
      *                                      imm=0 or 3               imm=0 or 2, s/u
      */
     emitter.Emit("[");
+    auto *baseReg = static_cast<AArch64RegOperand*>(GetBaseRegister());
+    ASSERT(baseReg != nullptr, "expect an AArch64RegOperand here");
+    uint32 baseSize = baseReg->GetSize();
+    if (CGOptions::IsArm64ilp32()) {
+      if (CGOptions::IsPIC() && (baseSize != k64BitSize)) {
+        baseReg->SetSize(k64BitSize);
+      }
+    }
     GetBaseRegister()->Emit(emitter, nullptr);
+    if (CGOptions::IsArm64ilp32()) {
+      baseReg->SetSize(baseSize);
+    }
     emitter.Emit(",");
     GetOffsetRegister()->Emit(emitter, nullptr);
     if (ShouldEmitExtend() || GetBaseRegister()->GetSize() > GetOffsetRegister()->GetSize()) {
@@ -633,7 +644,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
   (void)prop;
   ASSERT(shiftAmount <= k4BitSize && shiftAmount >= 0,
          "shift amount out of range in ExtendShiftOperand");
-  auto emitExtendShift = [&](std::string extendKind)->void {
+  auto emitExtendShift = [&](const std::string extendKind)->void {
     emitter.Emit(extendKind);
     if (shiftAmount != 0) {
       emitter.Emit(" #").Emit(shiftAmount);
@@ -671,7 +682,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
 }
 
 void ExtendShiftOperand::Dump() const {
-  auto dumpExtendShift = [&](std::string extendKind)->void {
+  auto dumpExtendShift = [&](const std::string extendKind)->void {
     LogInfo::MapleLogger() << extendKind;
     if (shiftAmount != 0) {
       LogInfo::MapleLogger() << " : " << shiftAmount;

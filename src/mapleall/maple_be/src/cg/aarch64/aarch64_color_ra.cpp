@@ -1098,7 +1098,7 @@ void GraphColorRegAllocator::ComputeLiveRangesForEachUseOperand(Insn &insn) {
 }
 
 void GraphColorRegAllocator::ComputeLiveRangesUpdateIfInsnIsCall(const Insn &insn) {
-  if (!insn.IsCall() || insn.GetMachineOpcode() == MOP_asm) {
+  if (!insn.IsCall()) {
     return;
   }
   /* def the return value */
@@ -1147,7 +1147,35 @@ bool GraphColorRegAllocator::UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &cur
   return false;
 }
 
-void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint) {
+void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint, Insn &insn) {
+  auto *targetOpnd = insn.GetCallTargetOperand();
+  CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+  if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
+    FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+    const MIRSymbol *funcSt = target->GetFunctionSymbol();
+    ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+    MIRFunction *func = funcSt->GetFunction();
+    if (func != nullptr && func->IsReferedRegsValid()) {
+      for (auto preg : func->GetReferedRegs()) {
+        if (AArch64Abi::IsCallerSaveReg((AArch64reg) preg)) {
+          for (auto vregNO : vregLive) {
+            LiveRange *lr = lrMap[vregNO];
+            lr->InsertElemToCallDef(preg);
+          }
+        }
+      }
+    } else {
+      for (auto vregNO : vregLive) {
+        LiveRange *lr = lrMap[vregNO];
+        lr->SetCrossCall(true);
+      }
+    }
+  } else {
+    for (auto vregNO : vregLive) {
+      LiveRange *lr = lrMap[vregNO];
+      lr->SetCrossCall(true);
+    }
+  }
   for (auto vregNO : vregLive) {
     LiveRange *lr = lrMap[vregNO];
     lr->IncNumCall();
@@ -1221,7 +1249,7 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
     --currPoint;
 
     if (bb->GetLastInsn() != nullptr && bb->GetLastInsn()->IsCall()) {
-      UpdateCallInfo(bb->GetId(), currPoint);
+      UpdateCallInfo(bb->GetId(), currPoint, *bb->GetLastInsn());
     }
 
     FOR_BB_INSNS_REV_SAFE(insn, bb, ninsn) {
@@ -1237,7 +1265,7 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
 #endif
       if (UpdateInsnCntAndSkipUseless(*insn, currPoint)) {
         if (ninsn != nullptr && ninsn->IsCall()) {
-          UpdateCallInfo(bb->GetId(), currPoint);
+          UpdateCallInfo(bb->GetId(), currPoint, *ninsn);
         }
         continue;
       }
@@ -1250,7 +1278,7 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
       SetupMustAssignedLiveRanges(*insn);
 
       if (ninsn != nullptr && ninsn->IsCall()) {
-        UpdateCallInfo(bb->GetId(), currPoint - kInsnStep);
+        UpdateCallInfo(bb->GetId(), currPoint - kInsnStep, *ninsn);
       }
 
       ComputeLiveRangesUpdateIfInsnIsCall(*insn);
@@ -1604,7 +1632,8 @@ void GraphColorRegAllocator::AddCalleeUsed(regno_t regNO, RegType regType) {
   }
 }
 
-regno_t GraphColorRegAllocator::FindColorForLr(const LiveRange &lr) const {
+regno_t GraphColorRegAllocator::FindColorForLr(LiveRange &lr) const {
+  regno_t reg = 0;
   regno_t base;
   RegType regType = lr.GetRegType();
   const MapleSet<uint32> *currRegSet = nullptr;
@@ -1629,7 +1658,6 @@ regno_t GraphColorRegAllocator::FindColorForLr(const LiveRange &lr) const {
     base = V0;
   }
 
-  regno_t reg;
 #ifdef MOVE_COALESCE
   if (lr.GetNumCall() == 0 || (lr.GetNumDefs() + lr.GetNumUses() <= 2)) {
     for (const auto &it : lr.GetPrefs()) {
@@ -1657,6 +1685,38 @@ regno_t GraphColorRegAllocator::FindColorForLr(const LiveRange &lr) const {
   return 0;
 }
 
+regno_t GraphColorRegAllocator::TryToAssignCallerSave(LiveRange &lr) const {
+  regno_t base;
+  RegType regType = lr.GetRegType();
+  const MapleSet<uint32> *currRegSet = nullptr;
+  if (regType == kRegTyInt) {
+    currRegSet = &intCallerRegSet;
+    base = R0;
+  } else {
+    currRegSet = &fpCallerRegSet;
+    base = V0;
+  }
+
+  regno_t reg = 0;
+#ifdef MOVE_COALESCE
+  if (lr.GetNumCall() == 0 || (lr.GetNumDefs() + lr.GetNumUses() <= 2)) {
+    for (const auto &it : lr.GetPrefs()) {
+      reg = it + base;
+      if ((FindIn(*currRegSet, reg)) && !lr.GetForbidden(reg) && !lr.GetPregveto(reg) && !lr.GetCallDef(reg)) {
+        return reg;
+      }
+    }
+  }
+#endif  /*  MOVE_COALESCE */
+  for (const auto &it : *currRegSet) {
+    reg = it + base;
+    if (!lr.GetForbidden(reg) && !lr.GetPregveto(reg) && !lr.GetCallDef(reg)) {
+      return reg;
+    }
+  }
+  return 0;
+}
+
 /*
  * If forbidden list has more registers than max of all BB's local reg
  *  requirement, then LR can be colored.
@@ -1668,9 +1728,25 @@ bool GraphColorRegAllocator::AssignColorToLr(LiveRange &lr, bool isDelayed) {
     return true;
   }
   if (!HaveAvailableColor(lr, lr.GetForbiddenSize() + lr.GetPregvetoSize())) {
+    if (GCRA_DUMP) {
+      LogInfo::MapleLogger() << "assigned fail to R" << lr.GetRegNO() << "\n";
+    }
     return false;
   }
-  lr.SetAssignedRegNO(FindColorForLr(lr));
+  regno_t callerSaveReg = 0;
+  regno_t reg = FindColorForLr(lr);
+  if (lr.GetNumCall() != 0 && lr.GetCrossCall() == false) {
+    callerSaveReg = TryToAssignCallerSave(lr);
+    if (callerSaveReg != 0 && AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(reg)) &&
+        intCalleeUsed.find(reg) == intCalleeUsed.end() && fpCalleeUsed.find(reg) == fpCalleeUsed.end()) {
+      reg = callerSaveReg;
+      lr.SetNumCall(0);
+    }
+  }
+  lr.SetAssignedRegNO(reg);
+  if (GCRA_DUMP) {
+    LogInfo::MapleLogger() << "assigned " << lr.GetAssignedRegNO() << " to R" << lr.GetRegNO() << "\n";
+  }
   if (lr.GetAssignedRegNO() == 0) {
     return false;
   }
@@ -1688,9 +1764,6 @@ bool GraphColorRegAllocator::AssignColorToLr(LiveRange &lr, bool isDelayed) {
   UpdateForbiddenForNeighbors(lr);
   ForEachBBArrElem(lr.GetBBMember(),
                    [&lr, this](uint32 bbID) { SetBBInfoGlobalAssigned(bbID, lr.GetAssignedRegNO()); });
-  if (GCRA_DUMP) {
-    LogInfo::MapleLogger() << "assigned " << lr.GetAssignedRegNO() << " to R" << lr.GetRegNO() << "\n";
-  }
   return true;
 }
 
@@ -2376,14 +2449,26 @@ void GraphColorRegAllocator::SplitAndColorForEachLr(MapleVector<LiveRange*> &tar
 
 void GraphColorRegAllocator::SplitAndColor() {
   /* handle mustAssigned */
+  if (GCRA_DUMP) {
+    LogInfo::MapleLogger() << " starting mustAssigned : \n";
+  }
   SplitAndColorForEachLr(mustAssigned);
 
+  if (GCRA_DUMP) {
+    LogInfo::MapleLogger() << " starting unconstrainedPref : \n";
+  }
   /* assign color for unconstained */
   SplitAndColorForEachLr(unconstrainedPref);
 
+  if (GCRA_DUMP) {
+    LogInfo::MapleLogger() << " starting constrained : \n";
+  }
   /* handle constrained */
   SplitAndColorForEachLr(constrained);
 
+  if (GCRA_DUMP) {
+    LogInfo::MapleLogger() << " starting unconstrained : \n";
+  }
   /* assign color for unconstained */
   SplitAndColorForEachLr(unconstrained);
 
@@ -4381,7 +4466,21 @@ void CallerSavePre::BuildWorkList() {
             (void)CreateRealOcc(*insnMap[it->first], opnd, kOccDef);
           }
           if (it->second & kIsCall) {
-            (void)CreateRealOcc(*insnMap[it->first], opnd, kOccStore);
+            Insn *callInsn = insnMap[it->first];
+            auto *targetOpnd = callInsn->GetCallTargetOperand();
+            if (CGOptions::DoIPARA() && targetOpnd->IsFuncNameOpnd()) {
+              FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+              const MIRSymbol *funcSt = target->GetFunctionSymbol();
+              ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+              MIRFunction *func = funcSt->GetFunction();
+              if (func != nullptr && func->IsReferedRegsValid()) {
+                auto regSet = func->GetReferedRegs();
+                if (regSet.find(lr->GetAssignedRegNO()) == regSet.end()) {
+                  continue;
+                }
+              }
+            }
+            (void) CreateRealOcc(*callInsn, opnd, kOccStore);
           }
         }
       }
@@ -4617,7 +4716,7 @@ void GraphColorRegAllocator::AnalysisLoop(const CGFuncLoops &loop) {
         continue;
       }
       if (succ->IsSoloGoto() || succ->IsEmpty()) {
-        BB *realSucc = cgFunc->GetTheCFG()->GetTargetSuc(*succ);
+        BB *realSucc = CGCFG::GetTargetSuc(*succ);
         if (realSucc != nullptr) {
           loopExits.insert(realSucc);
         }
@@ -4874,6 +4973,8 @@ bool GraphColorRegAllocator::AllocateRegisters() {
   if (GCRA_DUMP) {
     cgFunc->DumpCGIR();
   }
+
+  bfs = nullptr; /*bfs is not utilized outside the function. */
 
   if (doMultiPass && hasSpill) {
     return false;

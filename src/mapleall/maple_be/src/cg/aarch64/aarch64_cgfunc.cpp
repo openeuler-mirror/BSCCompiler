@@ -26,6 +26,7 @@
 #include "mpl_atomic.h"
 #include "metadata_layout.h"
 #include "emit.h"
+#include "simplify.h"
 
 namespace maplebe {
 using namespace maple;
@@ -881,9 +882,9 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
    */
   int32 maxPimm = 0;
   if (!forPair) {
-    maxPimm = memOpnd.GetMaxPIMM(bitLen);
+    maxPimm = AArch64MemOperand::GetMaxPIMM(bitLen);
   } else {
-    maxPimm = memOpnd.GetMaxPairPIMM(bitLen);
+    maxPimm = AArch64MemOperand::GetMaxPairPIMM(bitLen);
   }
   ASSERT(maxPimm != 0, "get max pimm failed");
 
@@ -894,7 +895,7 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
     misAlignment = true;
   }
   int64 r0 = opndVal - addend;
-  int64 alignment = memOpnd.GetImmediateOffsetAlignment(bitLen);
+  int64 alignment = AArch64MemOperand::GetImmediateOffsetAlignment(bitLen);
   int64 q1 = static_cast<uint64>(r0) >> static_cast<uint64>(alignment);
   int64 r1 = static_cast<uint64>(r0) & ((1u << static_cast<uint64>(alignment)) - 1);
   int64 remained = static_cast<uint32>(q1) << static_cast<uint32>(alignment);
@@ -1098,7 +1099,7 @@ void AArch64CGFunc::SelectAbort(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
-static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, std::string constraint) {
+static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, const std::string constraint) {
   std::string regPrefix = "";
   /* memory access check */
   if (constraint.find("m") != std::string::npos || constraint.find("Q") != std::string::npos) {
@@ -8256,8 +8257,13 @@ Operand &AArch64CGFunc::GetOrCreatevaryreg() {
 /* the first operand in opndvec is return opnd */
 void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Operand*> &opndVec, PrimType primType,
                                   PrimType retPrimType, bool is2ndRet) {
+  std::string newName = funcName;
+  // Check whether we have a maple version of libcall and we want to use it instead.
+  if (!CGOptions::IsDuplicateAsmFileEmpty() && asmMap.find(funcName) != asmMap.end()) {
+    newName = asmMap.at(funcName);
+  }
   MIRSymbol *st = GlobalTables::GetGsymTable().CreateSymbol(kScopeGlobal);
-  st->SetNameStrIdx(funcName);
+  st->SetNameStrIdx(newName);
   st->SetStorageClass(kScExtern);
   st->SetSKind(kStFunc);
   /* setup the type of the callee function */
@@ -8272,7 +8278,7 @@ void AArch64CGFunc::SelectLibCall(const std::string &funcName, std::vector<Opera
   st->SetTyIdx(GetBecommon().BeGetOrCreateFunctionType(retType->GetTypeIndex(), vec, vecAt)->GetTypeIndex());
 
   if (GetCG()->GenerateVerboseCG()) {
-    const std::string &comment = "lib call : " + funcName;
+    const std::string &comment = "lib call : " + newName;
     GetCurBB()->AppendInsn(CreateCommentInsn(comment));
   }
 
