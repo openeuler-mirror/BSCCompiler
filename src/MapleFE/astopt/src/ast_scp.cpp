@@ -660,6 +660,40 @@ ExportNode *BuildScopeVisitor::VisitExportNode(ExportNode *node) {
   return node;
 }
 
+TryNode *BuildScopeVisitor::VisitTryNode(TryNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitTryNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
+CatchNode *BuildScopeVisitor::VisitCatchNode(CatchNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+
+  // add params as decl
+  for (unsigned i = 0; i < node->GetParamsNum(); i++) {
+    TreeNode *n = node->GetParamAtIndex(i);
+    AddDecl(scope, n);
+  }
+
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitCatchNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
+FinallyNode *BuildScopeVisitor::VisitFinallyNode(FinallyNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitFinallyNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
 // rename var with same name, i --> i__vN where N is 1, 2, 3 ...
 void AST_SCP::RenameVar() {
   MSGNOLOC0("============== RenameVar ==============");
