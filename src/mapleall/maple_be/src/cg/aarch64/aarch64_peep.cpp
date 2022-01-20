@@ -133,6 +133,13 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<CselToCsetPattern>();
       break;
     }
+    case MOP_wiorrrr:
+    case MOP_xiorrrr:
+    case MOP_wiorrrrs:
+    case MOP_xiorrrrs: {
+      manager->Optimize<LogicShiftAndOrrToExtrPattern>();
+      break;
+    }
     case MOP_bge:
     case MOP_ble:
     case MOP_blt:
@@ -855,6 +862,108 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
+std::string LogicShiftAndOrrToExtrPattern::GetPatternName() {
+  return "LogicShiftAndOrrToExtrPattern";
+}
+
+bool LogicShiftAndOrrToExtrPattern::CheckCondition(BB &bb, Insn &insn) {
+  Operand &curDstOpnd = insn.GetOperand(kInsnFirstOpnd);
+  is64Bits = (curDstOpnd.GetSize() == k64BitSize);
+  MOperator curMop = insn.GetMachineOpcode();
+  if (curMop == MOP_wiorrrr || curMop == MOP_xiorrrr) {
+    auto &useReg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    Insn *prevInsn1 = GetDefInsn(useReg1);
+    auto &useReg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
+    Insn *prevInsn2 = GetDefInsn(useReg2);
+    if (prevInsn1 == nullptr || prevInsn2 == nullptr) {
+      return false;
+    }
+    MOperator prevMop1 = prevInsn1->GetMachineOpcode();
+    MOperator prevMop2 = prevInsn2->GetMachineOpcode();
+    if ((prevMop1 == MOP_wlsrrri5 || prevMop1 == MOP_xlsrrri6) &&
+        (prevMop2 == MOP_wlslrri5 || prevMop2 == MOP_xlslrri6)) {
+      prevLsrInsn = prevInsn1;
+      prevLslInsn = prevInsn2;
+    } else if ((prevMop2 == MOP_wlsrrri5 || prevMop2 == MOP_xlsrrri6) &&
+               (prevMop1 == MOP_wlslrri5 || prevMop1 == MOP_xlslrri6)) {
+      prevLsrInsn = prevInsn2;
+      prevLslInsn = prevInsn1;
+    } else {
+      return false;
+    }
+    int64 prevLsrImmValue = static_cast<AArch64ImmOperand&>(prevLsrInsn->GetOperand(kInsnThirdOpnd)).GetValue();
+    int64 prevLslImmValue = static_cast<AArch64ImmOperand&>(prevLslInsn->GetOperand(kInsnThirdOpnd)).GetValue();
+    if ((prevLsrImmValue + prevLslImmValue) < 0) {
+      return false;
+    }
+    if ((is64Bits && (prevLsrImmValue + prevLslImmValue) != k64BitSize) ||
+        (!is64Bits && (prevLsrImmValue + prevLslImmValue) != k32BitSize)) {
+      return false;
+    }
+    shiftValue = prevLsrImmValue;
+  } else if (curMop == MOP_wiorrrrs || curMop == MOP_xiorrrrs) {
+    auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+    Insn *prevInsn = GetDefInsn(useReg);
+    if (prevInsn == nullptr) {
+      return false;
+    }
+    MOperator prevMop = prevInsn->GetMachineOpcode();
+    if (prevMop != MOP_wlsrrri5 && prevMop != MOP_xlsrrri6 && prevMop != MOP_wlslrri5 && prevMop != MOP_xlslrri6) {
+      return false;
+    }
+    int64 prevImm = static_cast<AArch64ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd)).GetValue();
+    auto &shiftOpnd = static_cast<BitShiftOperand&>(insn.GetOperand(kInsnFourthOpnd));
+    uint32 shiftAmount = shiftOpnd.GetShiftAmount();
+    if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSL && (prevMop == MOP_wlsrrri5 || prevMop == MOP_xlsrrri6)) {
+      prevLsrInsn = prevInsn;
+      shiftValue = prevImm;
+    } else if (shiftOpnd.GetShiftOp() == BitShiftOperand::kLSR &&
+               (prevMop == MOP_wlslrri5 || prevMop == MOP_xlslrri6)) {
+      prevLslInsn = prevInsn;
+      shiftValue = shiftAmount;
+    } else {
+      return false;
+    }
+    if (prevImm + static_cast<int64>(shiftAmount) < 0) {
+      return false;
+    }
+    if ((is64Bits && (prevImm + static_cast<int64>(shiftAmount)) >= k64BitSize) ||
+        (!is64Bits && (prevImm + static_cast<int64>(shiftAmount)) >= k32BitSize)) {
+      return false;
+    }
+  } else {
+    CHECK_FATAL(false, "must be above mop");
+    return false;
+  }
+  return true;
+}
+
+void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(bb, insn)) {
+    return;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  Operand &opnd1 = (prevLslInsn == nullptr ? insn.GetOperand(kInsnThirdOpnd) :
+                    prevLslInsn->GetOperand(kInsnSecondOpnd));
+  Operand &opnd2 = (prevLsrInsn == nullptr ? insn.GetOperand(kInsnThirdOpnd) :
+                    prevLsrInsn->GetOperand(kInsnSecondOpnd));
+  ImmOperand &immOpnd = is64Bits ? aarFunc->CreateImmOperand(shiftValue, kMaxImmVal6Bits, false) :
+                                   aarFunc->CreateImmOperand(shiftValue, kMaxImmVal5Bits, false);
+  MOperator newMop = is64Bits ? MOP_xextrrrri6 : MOP_wextrrrri5;
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                                 opnd1, opnd2, immOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevLsrInsn);
+    prevs.emplace_back(prevLslInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
 }

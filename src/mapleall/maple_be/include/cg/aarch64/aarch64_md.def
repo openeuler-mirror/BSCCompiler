@@ -347,7 +347,6 @@ DEFINE_MOP(MPO_wbfirri5i5, {mopdReg32IDS,mopdReg32IS,mopdImm5,mopdImm5},ISMOVE|I
 /* MPO_xbfirri6i6 */
 DEFINE_MOP(MPO_xbfirri6i6, {mopdReg64IDS,mopdReg64IS,mopdImm6,mopdImm6},ISMOVE|ISPARTDEF,kLtAluShift,"bfi","0,1,2,3",1)
 
-
 /* MOP_xlslrri6,--- Logical Shift Left */
 DEFINE_MOP(MOP_xlslrri6, {mopdReg64ID,mopdReg64IS,mopdImm6},0,kLtAluShift,"lsl","0,1,2",1)
 /* MOP_wlslrri5 */
@@ -384,6 +383,10 @@ DEFINE_MOP(MOP_xtstri64, {mopdRegCCD,mopdReg64ID,mopdImm64},0,kLtAlu,"tst","1,2"
 DEFINE_MOP(MOP_wtstrr, {mopdRegCCD,mopdReg32ID,mopdReg32IS},0,kLtAlu,"tst","1,2",1)
 /* MOP_xtstrr */
 DEFINE_MOP(MOP_xtstrr, {mopdRegCCD,mopdReg64ID,mopdReg64IS},0,kLtAlu,"tst","1,2",1)
+/* MOP_wextrrrri5 -- Extracts a register from a pair of registers */
+DEFINE_MOP(MOP_wextrrrri5, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdImm5},0,kLtAluShift,"extr","0,1,2,3",1)
+/* MOP_xextrrrri6 */
+DEFINE_MOP(MOP_xextrrrri6, {mopdReg64ID,mopdReg64IS,mopdReg64IS,mopdImm6},0,kLtAluShift,"extr","0,1,2,3",1)
 
 /* MOP_wsfmovri imm8->s */
 DEFINE_MOP(MOP_wsfmovri, {mopdReg32FD,mopdImm8},ISMOVE,kLtFconst,"fmov","0,1",1)
