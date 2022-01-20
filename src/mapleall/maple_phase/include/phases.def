@@ -13,7 +13,7 @@ ADDMODULEPHASE("callgraph", Options::O2 && Options::useInline)
 ADDMODULEPHASE("simplify", Options::O2)
 ADDMODULEPHASE("ConstantFold", Options::O2)
 // ipa phase manager
-ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2 && MeOption::npeCheckMode != SafetyCheckMode::kNoCheck)
+ADDMODULEPHASE("IpaSccPM", CLANG && Options::O2)
 // me phase manager is also a phase itself.
 ADDMAPLEPHASE("meFuncPM", IsRunMe());
 ADDMODULEPHASE("clinit", JAVALANG)
@@ -41,6 +41,7 @@ ADDMAPLEMEPHASE("deptest", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("autovec", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("lfounroll", CLANG && MeOption::optLevel >= 3)
 ADDMAPLEMEPHASE("mecfgbuild", MeOption::optLevel >= 2 || JAVALANG)
+ADDMAPLEMEPHASE("simplifyCFGNoSSA", CLANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("bypatheh", JAVALANG && MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("loopcanon", MeOption::optLevel >= 2)
 ADDMAPLEMEPHASE("splitcriticaledge", MeOption::optLevel >= 2)

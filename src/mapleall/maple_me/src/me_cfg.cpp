@@ -1218,14 +1218,12 @@ void MeCFG::CreateBasicBlocks() {
       }
       case OP_dassign: {
         DassignNode *dass = static_cast<DassignNode*>(stmt);
-        if (!func.IsLfo() && func.GetPreMeFunc() != nullptr) {
-          // delete identity assignments inserted by LFO
-          if (dass->GetRHS()->GetOpCode() == OP_dread) {
-            DreadNode *dread = static_cast<DreadNode*>(dass->GetRHS());
-            if (dass->GetStIdx() == dread->GetStIdx() && dass->GetFieldID() == dread->GetFieldID()) {
-              func.CurFunction()->GetBody()->RemoveStmt(stmt);
-              break;
-            }
+        // delete identity assignments inserted by LFO
+        if (dass->GetRHS()->GetOpCode() == OP_dread) {
+          DreadNode *dread = static_cast<DreadNode*>(dass->GetRHS());
+          if (dass->GetStIdx() == dread->GetStIdx() && dass->GetFieldID() == dread->GetFieldID()) {
+            func.CurFunction()->GetBody()->RemoveStmt(stmt);
+            break;
           }
         }
         if (curBB->IsEmpty()) {
@@ -1675,38 +1673,65 @@ void MeCFG::BuildSCC() {
 
 // After currBB's succ is changed, we can update currBB's target
 void MeCFG::UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func) {
+  bool forMeIR = func.GetIRMap() != nullptr;
   // update statement offset if succ is goto target
   if (currBB.IsGoto()) {
     ASSERT(currBB.GetSucc(0) == &newTarget, "[FUNC: %s]Goto's target BB is not newTarget", func.GetName().c_str());
-    auto *gotoBr = static_cast<GotoMeStmt*>(currBB.GetLastMe());
-    if (gotoBr->GetOffset() != newTarget.GetBBLabel()) {
-      LabelIdx label = func.GetOrCreateBBLabel(newTarget);
-      gotoBr->SetOffset(label);
+    LabelIdx label = func.GetOrCreateBBLabel(newTarget);
+    if (forMeIR) {
+      auto *gotoBr = static_cast<GotoMeStmt*>(currBB.GetLastMe());
+      if (gotoBr->GetOffset() != label) {
+        gotoBr->SetOffset(label);
+      }
+    } else {
+      auto &gotoBr = static_cast<GotoNode&>(currBB.GetLast());
+      if (gotoBr.GetOffset() != label) {
+        gotoBr.SetOffset(label);
+      }
     }
   } else if (currBB.GetKind() == kBBCondGoto) {
     if (currBB.GetSucc(0) == &newTarget) {
       return; // no need to update offset for fallthru BB
     }
-    auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
     BB *gotoBB = currBB.GetSucc().at(1);
     ASSERT(gotoBB == &newTarget, "[FUNC: %s]newTarget is not one of CondGoto's succ BB", func.GetName().c_str());
-    LabelIdx oldLabelIdx = condBr->GetOffset();
-    if (oldLabelIdx != gotoBB->GetBBLabel()) {
-      // original gotoBB is replaced by newBB
-      LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
-      condBr->SetOffset(label);
+    LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
+    if (forMeIR) {
+      auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
+      if (condBr->GetOffset() != label) {
+        // original gotoBB is replaced by newBB
+        condBr->SetOffset(label);
+      }
+    } else {
+      auto &condBr = static_cast<CondGotoNode&>(currBB.GetLast());
+      if (condBr.GetOffset() != label) {
+        condBr.SetOffset(label);
+      }
     }
   } else if (currBB.GetKind() == kBBSwitch) {
-    auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
     LabelIdx oldLabelIdx = oldTarget.GetBBLabel();
     LabelIdx label = func.GetOrCreateBBLabel(newTarget);
-    if (switchStmt->GetDefaultLabel() == oldLabelIdx) {
-      switchStmt->SetDefaultLabel(label);
-    }
-    for (size_t i = 0; i < switchStmt->GetSwitchTable().size(); ++i) {
-      LabelIdx labelIdx = switchStmt->GetSwitchTable().at(i).second;
-      if (labelIdx == oldLabelIdx) {
-        switchStmt->SetCaseLabel(i, label);
+    if (forMeIR) {
+      auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
+      if (switchStmt->GetDefaultLabel() == oldLabelIdx) {
+        switchStmt->SetDefaultLabel(label);
+      }
+      for (size_t i = 0; i < switchStmt->GetSwitchTable().size(); ++i) {
+        LabelIdx caseLabel = switchStmt->GetSwitchTable().at(i).second;
+        if (caseLabel == oldLabelIdx) {
+          switchStmt->SetCaseLabel(i, label);
+        }
+      }
+    } else {
+      auto &switchStmt = static_cast<SwitchNode&>(currBB.GetLast());
+      if (switchStmt.GetDefaultLabel() == oldLabelIdx) {
+        switchStmt.SetDefaultLabel(label);
+      }
+      for (size_t i = 0; i < switchStmt.GetSwitchTable().size(); ++i) {
+        LabelIdx  caseLabel = switchStmt.GetSwitchTable().at(i).second;
+        if (caseLabel == oldLabelIdx) {
+          switchStmt.UpdateCaseLabelAt(i, label);
+        }
       }
     }
   }
