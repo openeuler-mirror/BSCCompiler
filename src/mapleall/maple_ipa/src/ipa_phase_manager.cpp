@@ -24,8 +24,10 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   bool oldProp = MeOption::propDuringBuild;
   bool oldMerge = MeOption::mergeStmts;
   uint8 oldOptLevel = MeOption::optLevel;
+  bool oldLayout = MeOption::layoutWithPredict;
   MeOption::mergeStmts = false;
   MeOption::propDuringBuild = false;
+  MeOption::layoutWithPredict = false;
   DoPhasesPopulate(m);
   bool changed = false;
   auto admMempool = AllocateMemPoolInPhaseManager("Ipa Phase Manager's Analysis Data Manager mempool");
@@ -44,7 +46,7 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
     bool runScc = false;
     for (auto *cgNode : (*it)->GetCGNodes()) {
       MIRFunction *func = cgNode->GetMIRFunction();
-      if (func->IsEmpty() || !func->GetBody()) {
+      if (func->IsEmpty()) {
         continue;
       }
       runScc = true;
@@ -74,6 +76,7 @@ bool IpaSccPM::PhaseRun(MIRModule &m) {
   MeOption::mergeStmts = oldMerge;
   MeOption::propDuringBuild = oldProp;
   MeOption::optLevel = oldOptLevel;
+  MeOption::layoutWithPredict = oldLayout;
   return changed;
 }
 
@@ -82,7 +85,8 @@ void IpaSccPM::DoPhasesPopulate(const MIRModule &mirModule) {
   AddPhase("sccprepare", true);
   AddPhase("prop_param_type",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
   AddPhase("prop_return_attr",  MeOption::npeCheckMode != SafetyCheckMode::kNoCheck);
-  AddPhase("sccsideeffect", true);
+  AddPhase("collect_ipa_info", false);
+  AddPhase("sccsideeffect", Options::sideEffect);
   AddPhase("sccemit", true);
 }
 
@@ -102,7 +106,7 @@ bool SCCPrepare::PhaseRun(SCCNode &scc) {
   AddPhase("irmapbuild", true);
 
   // Not like other phasemanager which use temp mempool to hold analysis results generated from the sub phases.
-  // Here we use GetPhaseMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
+  // Here we use GetManagerMemPool which lives longer than this phase(manager) itself to hold all the analysis result.
   // So the following phase can access the result in this phase.
   result = GetManagerMemPool()->New<AnalysisDataManager>(*GetPhaseMemPool());
   for (auto *cgNode : scc.GetCGNodes()) {
@@ -160,6 +164,7 @@ void SCCEmit::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
 }
 
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPrepare, sccprepare)
+MAPLE_ANALYSIS_PHASE_REGISTER(SCCCollectIpaInfo, collect_ipa_info);
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCPropReturnAttr, prop_return_attr);
 MAPLE_TRANSFORM_PHASE_REGISTER(SCCPropParamType, prop_param_type);
 MAPLE_ANALYSIS_PHASE_REGISTER(SCCSideEffect, sccsideeffect)
