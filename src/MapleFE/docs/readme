@@ -1,0 +1,179 @@
+1. SOURCE CODE
+==============
+
+git clone https://gitee.com/openarkcompiler/OpenArkCompiler -b dev_MapleFE
+
+2. ENVIRONMENT
+==============
+
+export MFE=~/OpenArkCompiler/src/MapleFE
+export tsbin=$MFE/output/typescript/bin
+export rtsrc=$MFE/ast2cpp/runtime/src
+export unit=$MFE/test/typescript/unit_tests
+export rtsrc=$MFE/ast2cpp/runtime/src
+alias runbld='cd $MFE;source envsetup.sh typescript;make -j16;cd -'
+alias runtest='rm cxx.log; ../ts2cxx-test.sh
+alias goutil='cd $MFE/test/typescript/utils'
+alias gofe='cd $MFE'
+alias gocpp='cd $MFE/ast2cpp/src'
+alias gort='cd $MFE/ast2cpp/runtime/include'
+alias gounit='cd $unit'
+
+- To build everything: runbld
+- To run unit tests:   cd $unit; runtest
+- To run single test:  cd $unit; ../ts2cxx-test.sh <xxx.ts>
+- To run TSC compile and nodejs execute of JS only for specific testcase:  cd $unit; ../tsc.sh <xxx.ts>
+- CPP emitter source code: $MFE/ast2cpp/src
+- MapleFe compiler toolsfor TSC:
+  o  xxx.ts -> [ast2cpp] -> xxx.ts.ast -> [ast2cpp] -> xxx.h xxx.cpp
+  o $tsbin/ts2ast        - Compile .ts into .ts.ast
+  o $tsbin/ast2cpp       - Compiles .ts.ast into .cpp or back into .ts (for verification)
+  o $MFE/test/astdump.sh - Dump AST tree from .ts.ast. Output can be text or graph.
+  o run each of above cmds to see parameters and options, e.g. $tsbin/ast2cpp will display:
+     ast2cpp a.ast[,b.ast] [options]:
+     --out=x.cpp      : cpp output file
+     --help           : print this help
+     --trace=n        : Emit trace with 4-bit combo levels 1...15
+                      1 : Emit ast tree visits
+                      2 : Emit graph
+     --emit-ts-only   : Emit ts code only
+     --emit-ts        : Emit ts code
+     --format-cpp     : Format cpp
+     ...
+- For graphic view of JavaScript object inheritance relations:
+  o cd $MFE/docs/util; node proto.js | ./viewdot.sh
+
+3. TypeScript/JavaScript inheritance modeling in C++
+====================================================
+
+3.1 JavaScript Object Properties
+
+JavaScript objects have both instance properties and inherited
+properties. Instance properties are held in the object's own property
+list. Inherited properties are held in an object pointed to by the
+instance property __proto__.
+
+The chain of __proto__ between objects forms a hierarchical prototype
+chain used in the lookup for an object's inherited properties. Inherited
+properites have only a single copy and is shared by all objects that
+inherits the property.
+
+In Javascript, object property lookup order is:
+- first lookup instance property (from property list of current object)
+- then lookup inherited property (from property list of object pointed to
+  by chain of __proto__ starting from __proto__ of current object
+
+3.2 TypeScript/JavaScript inheritance modeling in C++
+
+The inheritance relationship of TS/JS objects is mapped to C++ as
+classes derived hierarchically along the __proto__ chain. This allows
+accessing inherited properties directly as C++ fields and methods of
+parent classess, instead of having to traverse the __proto__ chain.
+
+To maintain continued support of property lookup by __proto__ chain
+traversal, each object has a proplist which is a C++ map of the object's
+property name and value pairs.
+
+Proplist entries for runtime created instance properties holds the
+actual property value. Proplist entries for properties generated as
+C++ class fields and methods at compile time holds pointers to class
+fields and methods.
+
+This guarantees continued functioning of run time property lookup
+using prop list and __proto__ chain traversal. This is necessary not
+only because of compatibility but also because TS objects can have
+instance properties created at runtime which can only be accessed
+through prop list because they cannot be generated as C++ class fields
+at compile time.
+
+To ensure inherited properties have only a single copy, all properties
+in prototype objects are generated at compile time as C++ static class
+fields and methods and accessed either via direct C++ object field
+reference, or via pointers from the prototype object's proplist.
+
+Note that where __proto__ points to a JavaScript function constructor
+instead of a prototype object, there is still only a single copy of
+inheited properties, because in JavaScript, there is only 1 single
+instance of each function constructor.
+ 
+3.3 Property inheritance with __proto__ chain
+
+See environment section in readme for instruction to view graphic
+display of JavaScript object inheritance relationship. The following
+graphs will be displayed:
+
+ Graph Id.   Graph Name
+   1. Class Graph with Constructor Edges
+   2. Generator Graph with Constructor Edges
+   3. Builtin Graph with Constructor Edges
+   4. Closure Graph with Constructor Edges
+   5. Iterator Graph with Constructor Edges
+   6. Async Graph with Constructor Edges
+   7. Class Graph
+   8. Generator Graph
+   9. Builtin Graph
+  10. Closure Graph
+  11. Iterator Graph
+  12. Async Graph
+
+The CPP emitter optimises property access with static compilation by:
+- Generate C++ class fields and methods for JS properties of an object and
+- Generate code to access JS properties directly as C++ object fields/method
+- Disallow runtime modification of __proto__ property.
+- Disallow runtime modification of inheritable properties in prototype objects.
+
+All JavaScript objects have a __proto__ property. Depending on what the
+kind of JS object, its __proto__ may point to different kinds of JS objects:
+note: (graph x: node x) cross refs example objects by id of graph above and node within graph.
+
+JS object                                        What the object's __proto__ is set to
+=========                                        =====================================
+1) Object instances                              (What <obj>.__proto__ is set to)
+   a) Created by user defined or
+      builtin JS ctor functions,                 Prototype of the object's ctor function
+      e.g. myCar, car (graph 1: node 7, 14)      (graph 1: node 8, 9)
+      including builtin objects:
+      - JSON (graph 3: node 7)                   (graph 3: node 1)
+      - Math (graph 3: node 6)
+   b) Special object instances:
+      - user defined generators                  The builtin "Generator" (renamed GeneratorFunction.prototype in 2022 spec)
+        (graph 2: node 4)                        (graph 2: node 8)
+      - generator instances returned by          Prototype of user defined generator that returned the instance
+        user defined generators                  (graph 2: node 5)
+        (graph 2: node 10)
+   
+2) Prototype object of ctor function which is:  (What <ctor>.prototype.__proto__ is set to)
+   a) ctor of a JS class                         Prototype of ctor of class it extends
+      (graph 1: node 8)                          (graph 1: node 9)
+   b) ctor of top level func or class            Prototype of the builtin "Object" (Object.prototype)
+      (graph 1: node 10)                         (graph 1: node 1)
+      includes builtin functions
+      - Symbol (graph 3: node 5)                 (graph 3: node 1)
+      - Promise (graph 3: node 9)                (graph 3: node 1)
+      
+3) Special Prototype objects
+   a) prototype of user defined generators       The builtin "GeneratorPrototype"
+      (graph 2: node 5)                          (graph 2: node 6)
+   b) the builtin "Generator"                    Prototype of the builtin "Function" (Function.prototype)
+      (graph 2: node 8)                          (graph 2: node 2)
+      (GeneratorFunction.prototype in 2022 spec)                                         
+   c) the builtin "GeneratorPrototype"           The builtin "IteratorPrototype"
+      (graph 2: node 6)                          (graph 2: node 7)
+      (renamed GeneratorFunction.prototype.prototype in 2022 spec)
+   d) the builtin "IteratorPrototype"            Prototype of the builtin "Object" (Object.prototype)
+      (graph 2: node 7)                          (graph 2: node 1)
+      note: A prototype object is usaually the prototype object of its constructor
+            but IteraorPrototype is an exception. Its constructor is "Object" but
+            it is not the prototype object of "Object", or any other ctor function.
+            It's an independent prototype object that does not belong to any constructor
+            
+4) Ctor function                                 (What <ctor>.__proto__ is set to)
+   a) ctor for a JS class                        Ctor of class it extends (i.e parent class)
+      (graph 1: node 13)                         (graph 1: node 12)
+   b) top level func or class                    Prototype of the builtin "Function" (Function.prototype)
+      (graph 1: node 11)                         (graph 1: node 2)
+      includes builtin functions
+      - Symbol (graph 3: node 4)                 (graph 3: node 2)
+      - Promise (graph 3: node 8)
+   c) the builtin "GeneratorFunction"            Ctor of "Function" ("GeneratorFunction extends Function" - so use rule a)
+      (graph 2: node 9)                          (graph 2: node 3)
