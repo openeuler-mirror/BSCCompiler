@@ -17,7 +17,7 @@ from api.shell_operator import ShellOperator
 
 class Hir2mpl(ShellOperator):
 
-    def __init__(self, hir2mpl, infile, outfile, option="-enable-variable-array", return_value_list=None, redirection=None):
+    def __init__(self, hir2mpl, infile, outfile, option="--enable-variable-array", return_value_list=None, redirection=None):
         super().__init__(return_value_list, redirection)
         self.hir2mpl = hir2mpl
         self.infile = infile
