@@ -350,10 +350,10 @@ class BB {
   bool IsLastInsn(const Insn *insn) const{
     return (lastInsn == insn);
   }
-  void InsertPred(MapleList<BB*>::iterator it, BB &bb) {
+  void InsertPred(const MapleList<BB*>::iterator it, BB &bb) {
     preds.insert(it, &bb);
   }
-  void InsertSucc(MapleList<BB*>::iterator it, BB &bb) {
+  void InsertSucc(const MapleList<BB*>::iterator it, BB &bb) {
     succs.insert(it, &bb);
   }
   const MapleList<BB*> &GetPreds() const {

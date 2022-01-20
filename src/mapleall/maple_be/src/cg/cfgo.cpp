@@ -329,7 +329,7 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
   if (curBB.GetKind() == BB::kBBGoto && !curBB.IsEmpty()) {
     BB *sucBB = cgFunc->GetTheCFG()->GetTargetSuc(curBB);
     CHECK_FATAL(sucBB != nullptr, "sucBB is null in SequentialJumpPattern::Optimize");
-    BB *tragetBB = cgFunc->GetTheCFG()->GetTargetSuc(*sucBB);
+    BB *tragetBB = CGCFG::GetTargetSuc(*sucBB);
     if ((sucBB != &curBB) && sucBB->IsSoloGoto() &&  tragetBB != nullptr && tragetBB != sucBB) {
       Log(curBB.GetId());
       if (checkOnly) {
@@ -341,7 +341,7 @@ bool SequentialJumpPattern::Optimize(BB &curBB) {
     }
   } else if (curBB.GetKind() == BB::kBBIf) {
     for (BB *sucBB : curBB.GetSuccs()) {
-      BB *tragetBB = cgFunc->GetTheCFG()->GetTargetSuc(*sucBB);
+      BB *tragetBB = CGCFG::GetTargetSuc(*sucBB);
       if (sucBB != curBB.GetNext() && sucBB->IsSoloGoto() &&
           tragetBB != nullptr && tragetBB != sucBB) {
         Log(curBB.GetId());

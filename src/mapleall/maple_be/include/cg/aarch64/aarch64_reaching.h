@@ -45,7 +45,9 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   void InitGenUse(BB &bb, bool firstTime = true) final;
   void GenAllAsmDefRegs(BB &bb, Insn &insn, uint32 index) final;
   void GenAllAsmUseRegs(BB &bb, Insn &insn, uint32 index) final;
-  void GenAllCallerSavedRegs(BB &bb) final;
+  void GenAllCallerSavedRegs(BB &bb, Insn &insn) final;
+  bool IsRegKilledByCallInsn(const Insn &insn, regno_t regNO) const;
+  bool KilledByCallBetweenInsnInSameBB(const Insn &startInsn, const Insn &endInsn, regno_t regNO) const final;
   void AddRetPseudoInsn(BB &bb) final;
   void AddRetPseudoInsns() final;
   bool IsCallerSavedReg(uint32 regNO) const final;
@@ -59,9 +61,9 @@ class AArch64ReachingDefinition : public ReachingDefinition {
 
  private:
   void InitInfoForMemOperand(Insn &insn, Operand &opnd, bool isDef);
-  inline void InitInfoForListOpnd(const BB &bb, Operand &opnd);
-  inline void InitInfoForConditionCode(const BB &bb);
-  inline void InitInfoForRegOpnd(const BB &bb, Operand &opnd, bool isDef);
+  void InitInfoForListOpnd(const BB &bb, Operand &opnd);
+  void InitInfoForConditionCode(const BB &bb);
+  void InitInfoForRegOpnd(const BB &bb, Operand &opnd, bool isDef);
   void InitMemInfoForClearStackCall(Insn &callInsn);
   inline bool CallInsnClearDesignateStackRef(const Insn &callInsn, int64 offset) const;
   int64 GetEachMemSizeOfPair(MOperator opCode) const;

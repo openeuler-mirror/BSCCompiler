@@ -36,12 +36,16 @@ void RegisterCoalesce::Run() {
   ComputeLiveIntervals();
 
   CoalesceRegisters();
+
+  bfs = nullptr; /*bfs is not utilized outside the function. */
 }
 
 void RegisterCoalesce::Dump() {
   for (auto it : vregIntervals) {
     LiveInterval *li = it.second;
     li->Dump();
+    li->DumpDefs();
+    li->DumpUses();
   }
 }
 

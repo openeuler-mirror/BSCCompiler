@@ -46,8 +46,8 @@ void LabelCreation::CreateStartEndLabel() {
     fdie->SetAttr(DW_AT_high_pc, endLblIdx);
   }
   /* add start/end labels into the static map table in class cg */
-  if (!cg->IsInFuncWrapLabels(func)) {
-    cg->SetFuncWrapLabels(func, std::make_pair(startLblIdx, endLblIdx));
+  if (!CG::IsInFuncWrapLabels(func)) {
+    CG::SetFuncWrapLabels(func, std::make_pair(startLblIdx, endLblIdx));
   }
 }
 
@@ -57,5 +57,4 @@ bool CgCreateLabel::PhaseRun(maplebe::CGFunc &f) {
   labelCreate->Run();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgCreateLabel, createstartendlabel)
 } /* namespace maplebe */

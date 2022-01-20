@@ -34,6 +34,8 @@ namespace maplebe {
 class CGSSAInfo;
 class PhiEliminate;
 class DomAnalysis;
+class CGProp;
+class CGDce;
 
 class Globals {
  public:
@@ -277,7 +279,7 @@ class CG {
   }
 
   uint8 GetRematLevel() const {
-    return cgOption.GetRematLevel();
+    return CGOptions::GetRematLevel();
   }
 
   bool GenYieldPoint() const {
@@ -365,6 +367,8 @@ class CG {
   /* Init SubTarget optimization */
   virtual CGSSAInfo *CreateCGSSAInfo(MemPool &mp, CGFunc &f, DomAnalysis &da, MemPool &tmp) const = 0;
   virtual PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
+  virtual CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const = 0;
 
   /* Object map generation helper */
   std::vector<int64> GetReferenceOffsets64(const BECommon &beCommon, MIRStructType &structType);

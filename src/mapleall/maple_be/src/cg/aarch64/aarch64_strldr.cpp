@@ -506,6 +506,12 @@ bool AArch64StoreLoadOpt::IsAdjacentBB(Insn &defInsn, Insn &curInsn) const {
     if (bb == curInsn.GetBB()) {
       return true;
     }
+    if (bb->IsSoloGoto()) {
+      BB *tragetBB = CGCFG::GetTargetSuc(*bb);
+      if (tragetBB == curInsn.GetBB()) {
+        return true;
+      }
+    }
   }
   return false;
 }

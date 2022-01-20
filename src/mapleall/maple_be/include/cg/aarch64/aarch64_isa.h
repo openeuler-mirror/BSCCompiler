@@ -270,7 +270,7 @@ class AArch64OpndProp : public OpndProp {
  */
 class AArch64ImmOpndProp : public AArch64OpndProp {
  public:
-  AArch64ImmOpndProp(Operand::OperandType t, RegProp p, uint8 s, const std::function<bool(int64)> f)
+  AArch64ImmOpndProp(Operand::OperandType t, const RegProp p, uint8 s, const std::function<bool(int64)> f)
       : AArch64OpndProp(t, p, s),
         validFunc(f) {
     SetContainImm();

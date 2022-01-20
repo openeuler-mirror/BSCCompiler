@@ -217,6 +217,7 @@ class LiveRange {
  public:
   explicit LiveRange(MapleAllocator &allocator)
       : pregveto(allocator.Adapter()),
+        callDef(allocator.Adapter()),
         forbidden(allocator.Adapter()),
         prefs(allocator.Adapter()),
         refMap(std::less<uint32>(), allocator.Adapter()),
@@ -369,6 +370,8 @@ class LiveRange {
   void InitPregveto() {
     pregveto.clear();
     pregveto.resize(kMaxRegNum);
+    callDef.clear();
+    callDef.resize(kMaxRegNum);
   }
 
   bool GetPregveto(regno_t regNO) const {
@@ -384,6 +387,25 @@ class LiveRange {
       pregveto[regNO] = true;
       ++numPregveto;
     }
+  }
+
+  bool GetCallDef(regno_t regNO) const {
+    return callDef[regNO];
+  }
+
+  void InsertElemToCallDef(regno_t regNO) {
+    if (!callDef[regNO]) {
+      callDef[regNO] = true;
+      ++numCallDef;
+    }
+  }
+
+  void SetCrossCall(bool val) {
+    crossCall = true;
+  }
+
+  bool GetCrossCall() {
+    return crossCall;
   }
 
   void InitForbidden() {
@@ -666,9 +688,12 @@ class LiveRange {
   uint64 *bbMember = nullptr;         /* Same as smember, but use bit array */
 
   MapleVector<bool> pregveto;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
+  MapleVector<bool> callDef;         /* pregs cannot be assigned   -- SplitLr may clear forbidden */
   MapleVector<bool> forbidden;        /* pregs cannot be assigned */
   uint32 numPregveto = 0;
+  uint32 numCallDef = 0;
   uint32 numForbidden = 0;
+  bool crossCall = false;
 
   uint32 numBBConflicts = 0;          /* number of bits set in bbConflict */
   uint64 *bbConflict = nullptr;       /* vreg interference from graph neighbors (bit) */
@@ -1230,7 +1255,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
     kSpillMemPre,
     kSpillMemPost,
   };
- public:
+
   LiveRange *GetLiveRange(regno_t regNO) {
     auto it = lrMap.find(regNO);
     if (it != lrMap.end()) {
@@ -1247,7 +1272,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
       return nullptr;
     }
   }
-  MapleMap<regno_t, LiveRange*> &GetLrMap() {
+  const MapleMap<regno_t, LiveRange*> &GetLrMap() {
     return lrMap;
   }
   Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, AArch64RegOperand &phyOpnd, bool forCall = false);
@@ -1303,7 +1328,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
   bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint);
-  void UpdateCallInfo(uint32 bbId, uint32 currPoint);
+  void UpdateCallInfo(uint32 bbId, uint32 currPoint, Insn &insn);
   void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs, const Operand &opnd);
   void SetOpndConflict(const Insn &insn, bool onlyDef);
   void UpdateOpndConflict(const Insn &insn, bool multiDef);
@@ -1383,7 +1408,8 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
   void UpdateForbiddenForNeighbors(LiveRange &lr) const;
   void UpdatePregvetoForNeighbors(LiveRange &lr) const;
-  regno_t FindColorForLr(const LiveRange &lr) const;
+  regno_t FindColorForLr(LiveRange &lr) const;
+  regno_t TryToAssignCallerSave(LiveRange &lr) const;
   bool ShouldUseCallee(LiveRange &lr, const MapleSet<regno_t> &calleeUsed,
                        const MapleVector<LiveRange*> &delayed) const;
   void AddCalleeUsed(regno_t regNO, RegType regType);

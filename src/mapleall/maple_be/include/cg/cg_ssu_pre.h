@@ -67,7 +67,7 @@ class SOcc {
     return pdom->PostDominate(*cgbb, *occ->cgbb);
   }
 
- public:
+
   SOccType occTy;
   uint32 classId = 0;
   BB *cgbb;  // the BB it occurs in
@@ -84,7 +84,7 @@ class SRealOcc : public SOcc {
     LogInfo::MapleLogger() << " classId" << classId;
   }
 
- public:
+
   bool redundant = true;
 };
 
@@ -99,7 +99,7 @@ class SLambdaResOcc : public SOcc {
     LogInfo::MapleLogger() << "LambdaResOcc at bb" << cgbb->GetId() << " classId" << classId;
   }
 
- public:
+
   SLambdaOcc *useLambdaOcc = nullptr;  // its rhs use
   bool hasRealUse = false;
   bool insertHere = false;
@@ -126,7 +126,7 @@ class SLambdaOcc : public SOcc {
     LogInfo::MapleLogger() << "]";
   }
 
- public:
+
   bool isUpsafe = true;
   bool isCanBeAnt = true;
   bool isEarlier = true;

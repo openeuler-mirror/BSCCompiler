@@ -117,11 +117,11 @@ class CgOccur {
   };
 
  private:
-  OccType occTy;  // kinds of occ
-  int classID;    // class id
-  BB *cgBB;      // the BB it occurs in
-  Insn *insn;
-  Operand *opnd;
+  OccType occTy = kOccUndef;  // kinds of occ
+  int classID = 0;    // class id
+  BB *cgBB = nullptr;      // the BB it occurs in
+  Insn *insn = nullptr;
+  Operand *opnd = nullptr;
   CgOccur *def = nullptr;
   bool processed = false;
 };
