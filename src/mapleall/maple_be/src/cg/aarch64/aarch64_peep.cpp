@@ -614,7 +614,7 @@ bool LsrAndToUbfxPattern::CheckCondition(Insn &insn) {
   int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
   /* and_imm value must be (1 << n - 1) */
   if (immValue <= 0 ||
-      (((static_cast<uint64>(immValue)) & (static_cast<uint64>(immValue) + 1)) == 0)) {
+      (((static_cast<uint64>(immValue)) & (static_cast<uint64>(immValue) + 1)) != 0)) {
     return false;
   }
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
@@ -1736,6 +1736,11 @@ bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArc
   auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[kInsnFirstOpnd]);
   auto &aarFunc = static_cast<AArch64CGFunc&>(cgFunc);
   if (splitAdd == nullptr) {
+    if (insn.IsStorePair() || insn.IsLoadPair()) {
+      if (ofstOpnd->GetOffsetValue() < 0) {
+        return false; /* do not split*/
+      }
+    }
     regno_t pregNO = R16;
     AArch64MemOperand &newMemOpnd = aarFunc.SplitOffsetWithAddInstruction(memOpnd, opndProp->GetSize(),
                                                                           static_cast<AArch64reg>(pregNO),
@@ -2438,6 +2443,9 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
       CondOperand &cond = func->GetCondOperand(ccCode);
       Operand &rflag = func->GetOrCreateRflag();
       Insn &csetInsn = func->GetCG()->BuildInstruction<AArch64Insn>(mopCode, reg, cond, rflag);
+      if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+        CHECK_FATAL(false, "check this case in ssa opt");
+      }
       insn.GetBB()->ReplaceInsn(insn, csetInsn);
       if (trueMovInsn != nullptr) {
         insn.GetBB()->RemoveInsn(*trueMovInsn);
@@ -2798,6 +2806,9 @@ void AndCmpBranchesToTstAArch64::Run(BB &bb, Insn &insn) {
   }
   Operand &rflag = static_cast<AArch64CGFunc*>(&cgFunc)->GetOrCreateRflag();
   Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newOp, rflag, andRegOp2, andOpnd3);
+  if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    CHECK_FATAL(false, "check this case in ssa opt");
+  }
   bb.InsertInsnAfter(*nextInsn, newInsn);
   bb.RemoveInsn(insn);
   bb.RemoveInsn(*nextInsn);
@@ -2925,6 +2936,9 @@ void ZeroCmpBranchesAArch64::Run(BB &bb, Insn &insn) {
   auto aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
   ImmOperand &bitp = aarch64CGFunc->CreateImmOperand(
       (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
+  if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    CHECK_FATAL(false, "check this case in ssa opt");
+  }
   bb.InsertInsnAfter(
       insn, cg->BuildInstruction<AArch64Insn>(newOp, *static_cast<AArch64RegOperand*>(regOpnd), bitp, *label));
   bb.RemoveInsn(insn);
@@ -3178,6 +3192,9 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
     auto &cond = static_cast<CondOperand&>(csetInsn->GetOperand(kInsnSecondOpnd));
     if ((cmpConstVal == 0 && cond.GetCode() == CC_NE) || (cmpConstVal == 1 && cond.GetCode() == CC_EQ)) {
       if (RegOperand::IsSameRegNO(cmpFirstOpnd, csetFirstOpnd)) {
+        if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+          CHECK_FATAL(false, "check this case in ssa opt");
+        }
         bb.RemoveInsn(insn);
         bb.RemoveInsn(*csetInsn);
       } else {
@@ -3186,6 +3203,9 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
         }
         MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
         Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
+        if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+          CHECK_FATAL(false, "check this case in ssa opt");
+        }
         bb.ReplaceInsn(insn, newInsn);
         bb.RemoveInsn(*csetInsn);
       }
@@ -3196,6 +3216,9 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
       MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
       ImmOperand &one = static_cast<AArch64CGFunc*>(&cgFunc)->CreateImmOperand(1, k8BitSize, false);
       Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
+      if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+        CHECK_FATAL(false, "check this case in ssa opt");
+      }
       bb.ReplaceInsn(insn, newInsn);
       bb.RemoveInsn(*csetInsn);
     }
@@ -3477,6 +3500,9 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
       return;
     }
     insn.SetOperand(kInsnFirstOpnd, prevInsn->GetOperand(kInsnSecondOpnd));
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     bb.RemoveInsn(*prevInsn);
   }
   if (prevInsn != nullptr &&
@@ -3498,6 +3524,9 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
     }
     ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(0, k8BitSize, false);
     auto &regOperand = static_cast<AArch64RegOperand&>(prevPrevInsn->GetOperand(kInsnSecondOpnd));
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newOp, regOperand, oneHoleOpnd, label));
     bb.RemoveInsn(insn);
     bb.RemoveInsn(*prevInsn);
@@ -3640,6 +3669,9 @@ void ReplaceOrrToMovAArch64::Run(BB &bb, Insn &insn){
   immOpnd = static_cast<ImmOperand*>(opndOfOrr);
   if (immOpnd->GetValue() == 0) {
     reg1 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     bb.ReplaceInsn(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, *reg1, *reg2));
   }
 }
@@ -4359,6 +4391,9 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);
@@ -4397,6 +4432,9 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);
