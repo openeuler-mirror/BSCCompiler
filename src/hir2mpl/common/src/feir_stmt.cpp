@@ -229,12 +229,7 @@ FEIRStmtNary::FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> arg
 std::list<StmtNode*> FEIRStmtNary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  if (kOpcodeInfo.IsAssertBoundary(op)) {
-    auto args = ReplaceBoundaryChecking(mirBuilder);
-    if (args.size() > 0) {
-      stmt = mirBuilder.CreateStmtNary(op, std::move(args));
-    }
-  } else if (argExprs.size() > 1) {
+  if (argExprs.size() > 1) {
     MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
     for (const auto &arg : argExprs) {
       BaseNode *node = arg->GenMIRNode(mirBuilder);
@@ -810,7 +805,7 @@ std::list<StmtNode*> FEIRStmtCallAssertNonnull::GenMIRStmtsImpl(MIRBuilder &mirB
 std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  auto args = ReplaceBoundaryChecking(mirBuilder, GetParamIndex());
+  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this);
   if (args.size() > 0) {
     GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(GetFuncName());
     stmt = mirBuilder.CreateStmtCallAssertBoundary(op, std::move(args), stridx, GetParamIndex(),
@@ -826,7 +821,7 @@ std::list<StmtNode*> FEIRStmtCallAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mir
 std::list<StmtNode*> FEIRStmtAssertBoundary::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   StmtNode *stmt = nullptr;
-  auto args = ReplaceBoundaryChecking(mirBuilder);
+  auto args = ENCChecker::ReplaceBoundaryChecking(mirBuilder, this);
   if (args.size() > 0) {
     stmt = mirBuilder.CreateStmtAssertBoundary(op, std::move(args), mirBuilder.GetCurrentFunction()->GetNameStrIdx());
   }

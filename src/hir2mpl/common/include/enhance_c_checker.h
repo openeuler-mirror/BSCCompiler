@@ -80,6 +80,7 @@ class ENCChecker {
                                           uint32 fileIdx, uint32 fileLine);
   static void CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr,
                                         uint32 fileIdx, uint32 fileLine);
+  static MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt);
   static UniqueFEIRExpr GetBoundaryLenExprCache(uint32 hash);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const TypeAttrs &attr);
   static UniqueFEIRExpr GetBoundaryLenExprCache(const FieldAttrs &attr);

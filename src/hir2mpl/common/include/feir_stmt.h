@@ -1499,7 +1499,6 @@ class FEIRStmtNary : public FEIRStmt {
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
-  MapleVector<BaseNode*> ReplaceBoundaryChecking(MIRBuilder &mirBuilder, size_t paramIdx = SIZE_MAX) const;
 
   Opcode op;
   std::list<std::unique_ptr<FEIRExpr>> argExprs;
@@ -1762,7 +1761,7 @@ class FEIRStmtSafetyCallAssert {
 
   virtual ~FEIRStmtSafetyCallAssert() = default;
 
-  const std::string& GetFuncName() const {
+  const std::string &GetFuncName() const {
     return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
   }
 
