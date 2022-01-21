@@ -805,11 +805,17 @@ bool MIRParser::ParseStructType(TyIdx &styIdx, const GStrIdx &strIdx) {
     default:
       break;
   }
+  MIRStructType structType(tkind, strIdx);
   if (lexer.NextToken() != TK_lbrace) {
+    if (!ParseTypeAttrs(structType.GetTypeAttrs())) {
+      Error("bad type attribute in struct type specification");
+      return false;
+    }
+  }
+  if (lexer.GetTokenKind() != TK_lbrace) {
     Error("expect { parsing struct body");
     return false;
   }
-  MIRStructType structType(tkind, strIdx);
   if (mod.GetSrcLang() == kSrcLangCPlusPlus) {
     structType.SetIsCPlusPlus(true);
   }
@@ -1208,9 +1214,9 @@ bool MIRParser::ParsePointType(TyIdx &tyIdx) {
     return false;
   }
   ASSERT(pointTypeIdx != 0u, "something wrong with parsing element type ");
-  PrimType pty = mod.IsJavaModule() ? PTY_ref : PTY_ptr;
+  PrimType pty = mod.IsJavaModule() ? PTY_ref : GetExactPtrPrimType();
   if (pdtk == maple::TK_constStr) {
-    pty = PTY_ptr;
+    pty = GetExactPtrPrimType();
   }
   MIRPtrType pointType(pointTypeIdx, pty);  // use reference type here
   if (!ParseTypeAttrs(pointType.GetTypeAttrs())) {
@@ -1949,10 +1955,6 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
   if (funcSymbol != nullptr && funcSymbol->GetSKind() == kStFunc &&
       funcSymbol->IsNeedForwDecl() == true && !funcSymbol->GetFunction()->GetBody()) {
     SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
-    // when parsing func in mplt_inline file, set it as tmpunused.
-    if (options & kParseInlineFuncBody) {
-      funcSymbol->SetIsTmpUnused(true);
-    }
   }
   if (funcSymbol != nullptr) {
     // there has been an earlier forward declaration, so check consistency
@@ -2016,10 +2018,6 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     maple::MIRBuilder mirBuilder(&mod);
     funcSymbol = mirBuilder.CreateSymbol(TyIdx(0), strIdx, kStFunc, kScText, nullptr, kScopeGlobal);
     SetSrcPos(funcSymbol->GetSrcPosition(), lexer.GetLineNum());
-    // when parsing func in mplt_inline file, set it as tmpunused.
-    if (options & kParseInlineFuncBody) {
-      funcSymbol->SetIsTmpUnused(true);
-    }
     func = mod.GetMemPool()->New<MIRFunction>(&mod, funcSymbol->GetStIdx());
     func->SetPuidx(GlobalTables::GetFunctionTable().GetFuncTable().size());
     GlobalTables::GetFunctionTable().GetFuncTable().push_back(func);
@@ -2037,6 +2035,10 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
   }
   if (lexer.GetTokenKind() == TK_lbrace) {  // #2 parse Function body
     funcSymbol->SetAppearsInCode(true);
+    // when parsing func in mplt_inline file, set it as tmpunused.
+    if (options & kParseInlineFuncBody) {
+      funcSymbol->SetIsTmpUnused(true);
+    }
     definedLabels.clear();
     mod.SetCurFunction(func);
     mod.AddFunction(func);
@@ -2048,7 +2050,10 @@ bool MIRParser::ParseFunction(uint32 fileIdx) {
     lastLineNum = 0;
     func->NewBody();
     BlockNode *block = nullptr;
-    if (!ParseStmtBlock(block)) {
+    safeRegionFlag.push(curFunc->IsSafe());
+    auto IsParseSucc = ParseStmtBlock(block);
+    safeRegionFlag.pop();
+    if (!IsParseSucc) {
       Error("ParseFunction failed when parsing stmt block");
       ResetCurrentFunction();
       return false;
@@ -2506,6 +2511,7 @@ bool MIRParser::ParseMIRForFunc() {
   // when parsing function in mplt_inline file, set fromMpltInline as true.
   if ((this->options & kParseInlineFuncBody) && curFunc) {
     curFunc->SetFromMpltInline(true);
+    return true;
   }
   if ((this->options & kParseOptFunc) && curFunc) {
     curFunc->SetAttr(FUNCATTR_optimized);

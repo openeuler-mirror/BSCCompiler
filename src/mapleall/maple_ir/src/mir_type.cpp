@@ -189,12 +189,22 @@ bool IsNoCvtNeeded(PrimType toType, PrimType fromType) {
 }
 
 #if TARGX86_64 || TARGAARCH64
+#if ILP32
+  #define POINTER_SIZE 4
+  #define POINTER_P2SIZE 2
+#else
   #define POINTER_SIZE 8
   #define POINTER_P2SIZE 3
+#endif
 #elif TARGX86 || TARGARM32 || TARGVM
   #define POINTER_SIZE 4
   #define POINTER_P2SIZE 2
 #endif
+
+PrimType GetExactPtrPrimType() {
+  return (POINTER_SIZE == 8) ? PTY_a64 : PTY_a32;
+}
+
 // answer in bytes; 0 if unknown
 uint32 GetPrimTypeSize(PrimType primType) {
   switch (primType) {
@@ -769,6 +779,9 @@ size_t MIRArrayType::GetSize() const {
 }
 
 uint32 MIRArrayType::GetAlign() const {
+  if (GetSize() == 0) {
+    return typeAttrs.GetAlign();
+  }
   return std::max(GetElemType()->GetAlign(), typeAttrs.GetAlign());
 }
 
@@ -1301,9 +1314,11 @@ void MIRStructType::Dump(int indent, bool dontUseName) const {
   if (!dontUseName && CheckAndDumpTypeName(nameStrIdx, nameIsLocal)) {
     return;
   }
-  LogInfo::MapleLogger() << ((typeKind == kTypeStruct) ? "<struct {"
-                                                       : ((typeKind == kTypeUnion) ? "<union {"
-                                                                                   : "<structincomplete {"));
+  LogInfo::MapleLogger() << ((typeKind == kTypeStruct) ? "<struct"
+                                                       : ((typeKind == kTypeUnion) ? "<union"
+                                                                                   : "<structincomplete"));
+  typeAttrs.DumpAttributes();
+  LogInfo::MapleLogger() << " {";
   DumpFieldsAndMethods(indent, !methods.empty());
   LogInfo::MapleLogger() << "}>";
 }
@@ -1625,6 +1640,9 @@ bool MIRStructType::EqualTo(const MIRType &type) const {
 
   ASSERT(type.IsStructType(), "p is null in MIRStructType::EqualTo");
   const MIRStructType *p = static_cast<const MIRStructType*>(&type);
+  if (typeAttrs != p->typeAttrs) {
+    return false;
+  }
   if (fields != p->fields) {
     return false;
   }
