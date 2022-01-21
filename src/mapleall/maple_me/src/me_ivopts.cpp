@@ -150,7 +150,8 @@ class IVOptData {
                                                                // use base.exprID as key
   std::unordered_map<int32, IV*> ivs;  // record all ivs, use exprID as key
   LoopDesc *currLoop = nullptr;  // currently optimized loop
-  uint64 iterNum = 0;  // the iterations of current loop
+  uint64 iterNum = kDefaultEstimatedLoopIterNum;  // the iterations of current loop
+  uint64 realIterNum = -1;  // record the real iternum if we can compute
   std::set<uint32> importantCands;  // record the IVCand.id of every important IVCand
   bool considerAll = false;  // true if we consider all candidates for every use
   CandSet *set = nullptr;  // used to record set
@@ -1460,7 +1461,9 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
       continue;
     }
     if (itGroup == groupMap.end()) {
-      if (itCand.second.first->GetPrimType() == PTY_ptr) {  // it's not good to use one obj to form others
+      if (itCand.second.first->GetPrimType() == PTY_ptr ||
+          itCand.second.first->GetPrimType() == PTY_a64 ||
+          itCand.second.first->GetPrimType() == PTY_a32) {  // it's not good to use one obj to form others
         replaced = false;
         return nullptr;
       }
@@ -1489,7 +1492,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
 static bool CheckOverflow(MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp) {
   // can be extended to scalar later
   if (opnd0->GetMeOp() != kMeOpConst || opnd1->GetMeOp() != kMeOpConst) {
-    return false;
+    return true;
   }
   int64 const0 = static_cast<ConstMeExpr*>(opnd0)->GetIntValue();
   int64 const1 = static_cast<ConstMeExpr*>(opnd1)->GetIntValue();
@@ -1515,7 +1518,7 @@ static bool CheckOverflow(MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp
            (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
             static_cast<uint64>(const0) >> rightShiftNumToGetSignFlag);
   }
-  return false;
+  return true;
 }
 
 uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
@@ -1988,7 +1991,7 @@ void IVOptimizer::UseReplace() {
           replace = use->comparedExpr;
           replaceCompare = true;
         } else {
-          bool mayOverflow = false;
+          bool mayOverflow = true;
           if (incPos != nullptr && incPos->IsCondBr() && use->stmt == incPos) {
             // use inc version to replace
             auto *newBase = irMap->CreateMeExprBinary(OP_add, cand->iv->base->GetPrimType(),
@@ -2000,11 +2003,27 @@ void IVOptimizer::UseReplace() {
           }
           // move extra computation to comparedExpr
           if (extraExpr != nullptr) {
-            mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
-                                        extraExpr->GetPrimType());
+            if (data->realIterNum == -1) {
+              mayOverflow = true;
+            } else {
+              mayOverflow = CheckOverflow(use->comparedExpr, extraExpr, OP_sub,
+                                          extraExpr->GetPrimType());
+              if (!mayOverflow) {
+                auto *candBase = cand->iv->base;
+                auto *candStep = cand->iv->step;
+                auto *tmp = irMap->CreateMeExprBinary(OP_mul, candStep->GetPrimType(), *candStep,
+                    *irMap->CreateIntConstMeExpr(data->realIterNum, candStep->GetPrimType()));
+                simplified = irMap->SimplifyMeExpr(tmp);
+                tmp = simplified == nullptr ? tmp : simplified;
+                mayOverflow = CheckOverflow(candBase, tmp, OP_add, tmp->GetPrimType()) ||
+                              CheckOverflow(candBase, extraExpr, OP_add, extraExpr->GetPrimType()) ||
+                              CheckOverflow(tmp, extraExpr, OP_add, extraExpr->GetPrimType());
+              }
+            }
           }
           if (static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_eq ||
-              static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne) {
+              static_cast<OpMeExpr*>(use->expr)->GetOp() == OP_ne ||
+              !mayOverflow) {
             if (extraExpr != nullptr) {
               auto *comparedExpr = use->comparedExpr;
               if (GetPrimTypeSize(extraExpr->GetPrimType()) != GetPrimTypeSize(comparedExpr->GetPrimType()) ||
@@ -2386,7 +2405,10 @@ void IVOptimizer::Run() {
     CRNode *conditionCRNode = nullptr;
     CR *itCR = nullptr;
     TripCountType type = sa.ComputeTripCount(func, tripCount, conditionCRNode, itCR);
-    data->iterNum = type == kConstCR ? tripCount : kDefaultEstimatedLoopIterNum;
+    if (type == kConstCR) {
+      data->iterNum = tripCount;
+      data->realIterNum = tripCount;
+    }
     if ((loops->GetMeLoops().size() - i) > MeOption::ivoptsLimit) {
       break;
     }

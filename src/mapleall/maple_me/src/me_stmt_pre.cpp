@@ -30,12 +30,12 @@ static bool IsParaAndRetTypeRefOrPtr(const CallMeStmt &stmt) {
     return false;
   }
   for (auto it : stmt.GetOpnds()) {
-    if (it->GetPrimType() == PTY_ref || it->GetPrimType() == PTY_ptr) {
+    if (MustBeAddress(it->GetPrimType())) {
       return true;
     }
   }
   const MeExpr *expr = stmt.GetAssignedLHS();
-  if (expr != nullptr && (expr->GetPrimType() == PTY_ref || expr->GetPrimType() == PTY_ptr)) {
+  if (expr != nullptr && MustBeAddress(expr->GetPrimType())) {
     return true;
   }
   return false;
@@ -312,12 +312,6 @@ void MeStmtPre::CollectVarForCand(MeRealOcc &realOcc, std::vector<MeExpr*> &varV
 
 static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
   switch (meStmt.GetOp()) {
-    case OP_assertnonnull:
-    case OP_assignassertnonnull: {
-      auto *unaryStmt = static_cast<const UnaryMeStmt*>(&meStmt);
-      UnaryMeStmt *newUnaryStmt = irMap->New<UnaryMeStmt>(*unaryStmt);
-      return newUnaryStmt;
-    }
     case OP_callassertnonnull: {
       auto *callAssertStmt = static_cast<const CallAssertNonnullMeStmt*>(&meStmt);
       auto *newCallAssertStmt = irMap->New<CallAssertNonnullMeStmt>(*callAssertStmt);
@@ -326,11 +320,11 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
     case OP_assertlt:
     case OP_assertge:
     case OP_assignassertle:
-    case OP_returnassertle:
     case OP_calcassertge:
-    case OP_calcassertlt: {
-      auto *naryStmt = static_cast<const NaryMeStmt*>(&meStmt);
-      auto *newNaryMeStmt = irMap->NewInPool<NaryMeStmt>(naryStmt);
+    case OP_calcassertlt:
+    case OP_returnassertle: {
+      auto *naryStmt = static_cast<const AssertBoundaryMeStmt*>(&meStmt);
+      auto *newNaryMeStmt = irMap->NewInPool<AssertBoundaryMeStmt>(*naryStmt);
       newNaryMeStmt->CopyInfo(*naryStmt);
       return newNaryMeStmt;
     }
@@ -356,10 +350,12 @@ static MeStmt *CopyMeStmt(IRMap *irMap, const MeStmt &meStmt) {
       CallMeStmt *newCallAss = irMap->NewInPool<CallMeStmt>(callAss);
       return newCallAss;
     }
+    case OP_assertnonnull:
+    case OP_assignassertnonnull:
     case OP_returnassertnonnull: {
-      auto *returnAssertStmt = static_cast<const ReturnAssertNonnullMeStmt*>(&meStmt);
-      auto *newReturnAssertStmt = irMap->New<ReturnAssertNonnullMeStmt>(*returnAssertStmt);
-      return newReturnAssertStmt;
+      auto *assertStmt = static_cast<const AssertNonnullMeStmt*>(&meStmt);
+      auto *newAssertStmt = irMap->New<AssertNonnullMeStmt>(*assertStmt);
+      return newAssertStmt;
     }
     default:
       CHECK_FATAL(false, "MeStmtEPre::CopyMeStmt: NYI");
@@ -926,6 +922,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
         auto *rhs = iass.GetRHS();
         const static auto identicalAssign = [](const IvarMeExpr *lhs, const IvarMeExpr *rhs) -> bool {
           return lhs->GetOp() == rhs->GetOp() && lhs->GetBase() == rhs->GetBase() &&
+                 lhs->GetPrimType() == rhs->GetPrimType() && lhs->GetTyIdx() == rhs->GetTyIdx() &&
                  lhs->GetOffset() == rhs->GetOffset() && lhs->GetFieldID() == rhs->GetFieldID();
         };
         if (rhs->GetMeOp() == kMeOpIvar && identicalAssign(lhs, static_cast<IvarMeExpr*>(rhs))) {

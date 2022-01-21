@@ -37,6 +37,7 @@ constexpr size_t kMaxArrayDim = 10;
 const std::string kJstrTypeName = "constStr";
 #if MIR_FEATURE_FULL
 extern bool VerifyPrimType(PrimType primType1, PrimType primType2);       // verify if primType1 and primType2 match
+extern PrimType GetExactPtrPrimType();  // return either PTY_a64 or PTY_a32
 extern uint32 GetPrimTypeSize(PrimType primType);                         // answer in bytes; 0 if unknown
 extern uint32 GetPrimTypeP2Size(PrimType primType);                       // answer in bytes in power-of-two.
 extern PrimType GetSignedPrimType(PrimType primType);                     // return signed version
@@ -198,7 +199,7 @@ class AttrBoundary {
   ~AttrBoundary() = default;
 
   bool operator==(const AttrBoundary &tA) const {
-    return lenExprHash == tA.lenExprHash && lenParamIdx == tA.lenParamIdx;
+    return lenExprHash == tA.lenExprHash && lenParamIdx == tA.lenParamIdx && isBytedLen == tA.isBytedLen;
   }
 
   bool operator!=(const AttrBoundary &tA) const {
@@ -206,7 +207,7 @@ class AttrBoundary {
   }
 
   bool operator<(const AttrBoundary &tA) const {
-    return lenExprHash < tA.lenExprHash && lenParamIdx < tA.lenParamIdx;
+    return lenExprHash < tA.lenExprHash && lenParamIdx < tA.lenParamIdx && isBytedLen < tA.isBytedLen;
   }
 
   void SetLenExprHash(uint32 val) {
@@ -225,14 +226,24 @@ class AttrBoundary {
     return lenParamIdx;
   }
 
+  void SetIsBytedLen(bool flag) {
+    isBytedLen = flag;
+  }
+
+  bool IsBytedLen() const {
+    return isBytedLen;
+  }
+
   void Clear() {
     lenExprHash = 0;
     lenParamIdx = -1;
+    isBytedLen = false;
   }
 
  private:
   uint32 lenExprHash = 0;
   int8 lenParamIdx = -1;
+  bool isBytedLen = false;
 };
 
 class TypeAttrs {
@@ -314,8 +325,11 @@ class TypeAttrs {
     if (attr.GetLenExprHash() != 0) {
       attrBoundary.SetLenExprHash(attr.GetLenExprHash());
     }
-    if ( attr.GetLenParamIdx() != -1) {
+    if (attr.GetLenParamIdx() != -1) {
       attrBoundary.SetLenParamIdx(attr.GetLenParamIdx());
+    }
+    if (attr.IsBytedLen()) {
+      attrBoundary.SetIsBytedLen(attr.IsBytedLen());
     }
   }
 
@@ -442,6 +456,18 @@ class StmtAttrs {
 
   bool GetAttr(StmtAttrKind x) const {
     return (attrFlag & (1u << static_cast<unsigned int>(x))) != 0;
+  }
+
+  uint32 GetTargetAttrFlag(StmtAttrKind x) const {
+    return attrFlag & (1u << static_cast<unsigned int>(x));
+  }
+
+  uint32 GetAttrFlag() const {
+    return attrFlag;
+  }
+
+  void AppendAttr(uint32 flag) {
+    attrFlag |= flag;
   }
 
   void Clear() {
@@ -1175,6 +1201,18 @@ class MIRStructType : public MIRType {
     return std::find(fields.begin(), fields.end(), fieldPair) != fields.end();
   }
 
+  TypeAttrs &GetTypeAttrs() {
+    return typeAttrs;
+  }
+
+  const TypeAttrs &GetTypeAttrs() const {
+    return typeAttrs;
+  }
+
+  void SetTypeAttrs(const TypeAttrs &attrs) {
+    typeAttrs = attrs;
+  }
+
   bool HasVolatileField() const override;
   bool HasTypeParam() const override;
   bool EqualTo(const MIRType &type) const override;
@@ -1255,8 +1293,9 @@ class MIRStructType : public MIRType {
   uint32 GetAlign() const override;
 
   size_t GetHashIndex() const override {
-    return ((static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind)) %
-           kTypeHashLength;
+    constexpr uint8 attrShift = 3;
+    return ((static_cast<size_t>(nameStrIdx) << kShiftNumOfNameStrIdx) + (typeKind << kShiftNumOfTypeKind) +
+            ((typeAttrs.GetAttrFlag() << attrShift) + typeAttrs.GetAlignValue())) % kTypeHashLength;
   }
 
   virtual void ClearContents() {
@@ -1378,6 +1417,7 @@ class MIRStructType : public MIRType {
   std::vector<GenericDeclare*> genericDeclare;
   std::map<GStrIdx, AnnotationType*> fieldGenericDeclare;
   std::vector<GenericType*> inheritanceGeneric;
+  TypeAttrs typeAttrs;
 
  private:
   FieldPair TraverseToField(GStrIdx fieldStrIdx) const ;
