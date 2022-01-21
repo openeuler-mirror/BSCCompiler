@@ -316,6 +316,13 @@ class Function : public Object {
       prototype = new Object(this, prototype_proto);
       prototype->AddProp("constructor", val);
     }
+    // Special constructor for creating builtin constructor function "GeneratorFunction" see builtins.h
+    Function(Function* ctor, Object* proto, Object* prototype_proto, Object* prototype_obj) : Object(ctor, proto) {
+      JS_Val val(this);
+      prototype =  prototype_obj;
+      prototype->AddProp("constructor", val);
+    }
+
     class Ctor;
     static Ctor ctor;
 
@@ -323,11 +330,11 @@ class Function : public Object {
       return true;
     }
 
-    Object* bind(Object* obj, ArgsT* argv);
-    virtual JS_Val func(Object* obj, ArgsT& args) {JS_Val res; return res;}
-
     // Put code for JS Function.prototype props as static fields and methods in this class
     // and add to propList of Function_ctor.prototype object on system init.
+    virtual Object* bind (Object* obj, ArgsT* argv) { return nullptr; }
+    virtual JS_Val  call (Object* obj, ArgsT* argv) { JS_Val res; return res; }
+    virtual JS_Val  apply(Object* obj, ArgsT* argv) { JS_Val res; return res; }
 
     std::string TypeId() override {
       return "function"s;
@@ -354,6 +361,7 @@ class Object::Ctor : public Function {
 class Function::Ctor : public Function {
   public:
     Ctor(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) {}
+    Ctor(Function* ctor, Object* proto, Object* prototype_proto, Object* prototype_obj) : Function(ctor, proto, prototype_proto, prototype_obj) {}
 };
 
 template <class T>
