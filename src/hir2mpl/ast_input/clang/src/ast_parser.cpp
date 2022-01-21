@@ -2094,9 +2094,11 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
     case clang::AtomicExpr::AO__c11_atomic_load:
       astExpr->SetAtomicOp(kAtomicOpLoad);
       break;
+    case clang::AtomicExpr::AO__atomic_store_n:
     case clang::AtomicExpr::AO__c11_atomic_store:
       astExpr->SetAtomicOp(kAtomicOpStore);
       break;
+    case clang::AtomicExpr::AO__atomic_exchange_n:
     case clang::AtomicExpr::AO__c11_atomic_exchange:
       astExpr->SetAtomicOp(kAtomicOpExchange);
       break;

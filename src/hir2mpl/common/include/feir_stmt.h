@@ -1449,10 +1449,6 @@ class FEIRExprAtomic : public FEIRExpr {
     val = std::move(value);
   }
 
-  void SetLockVar(UniqueFEIRVar value) {
-    lock = std::move(value);
-  }
-
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
@@ -1469,13 +1465,13 @@ class FEIRExprAtomic : public FEIRExpr {
                                     const MIRSymbol *valueVar) const;
   MIRType *mirType = nullptr;
   MIRType *refType = nullptr;
+  MIRType *ptrType = nullptr;
   MIRType *val1Type = nullptr;
   MIRType *val2Type = nullptr;
   UniqueFEIRExpr objExpr;
   UniqueFEIRExpr valExpr1;
   UniqueFEIRExpr valExpr2;
   ASTAtomicOp atomicOp;
-  UniqueFEIRVar lock;
   UniqueFEIRVar val;
 };
 
