@@ -95,7 +95,7 @@ class CselToCsetPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CselToCsetPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -128,7 +128,7 @@ class CsetCbzToBeqPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CsetCbzToBeqPattern() override = default;
   std::string GetPatternName() override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   void Run(BB &bb, Insn &insn) override;
 
  private:
@@ -157,7 +157,7 @@ class NegCmpToCmnPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~NegCmpToCmnPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -202,7 +202,7 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~AndCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -242,7 +242,7 @@ class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~ZeroCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -265,7 +265,7 @@ class MvnAndToBicPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~MvnAndToBicPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -292,7 +292,7 @@ class AndCbzToTbzPattern : public CGPeepPattern {
                 CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~AndCbzToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -316,7 +316,7 @@ class OneHoleBranchPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~OneHoleBranchPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
     return "OneHoleBranchPattern";
   }
@@ -359,7 +359,7 @@ class CmpCsetOpt : public CGPeepPattern {
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~CmpCsetOpt() override = default;
   void Run(BB &bb, Insn &csetInsn) override;
-  bool CheckCondition(BB &bb, Insn &csetInsn) override;
+  bool CheckCondition(Insn &csetInsn) override;
   std::string GetPatternName() override {
     return "CmpCsetOpt Pattern";
   };
@@ -400,7 +400,7 @@ class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~LogicShiftAndOrrToExtrPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -427,7 +427,7 @@ class LsrAndToUbfxPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~LsrAndToUbfxPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override;
 
  private:
@@ -445,7 +445,7 @@ class OrrToMovPattern : public CGPeepPattern {
       CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~OrrToMovPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
     return "OrrToMovPattern";
   }
@@ -504,7 +504,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst, regno_t destRegNO);
+  bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop);
   bool SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd);
@@ -1083,28 +1083,6 @@ class RemoveDecRefAArch64 : public PeepPattern {
   explicit RemoveDecRefAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~RemoveDecRefAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
-};
-
-/*
- * We optimize the following pattern in this function:
- * add x1, x1, #16
- * add w2, w10, w10
- * add w2, w2, #1
- * sxtw x2, w2
- * add x1, x1, x2, LSL #3
- * =>
- * add x1, x1, w10, SXTW #(3+1) combine origin insn 2 (self-added operation)
- * add x1, x1, #24
- */
-class ComputationTreeAArch64 : public PeepPattern {
- public:
-  explicit ComputationTreeAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~ComputationTreeAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-
- private:
-  bool IsPatternMatch(const std::vector<Insn*> &optInsn) const;
-  bool FindComputationTree(std::vector<Insn*> &optInsn, Insn &insn);
 };
 
 /*

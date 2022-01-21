@@ -161,7 +161,7 @@ std::string NegCmpToCmnPattern::GetPatternName() {
   return "NegCmpToCmnPattern";
 }
 
-bool NegCmpToCmnPattern::CheckCondition(BB &bb, Insn &insn) {
+bool NegCmpToCmnPattern::CheckCondition(Insn &insn) {
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
   prevInsn = GetDefInsn(useReg);
   if (prevInsn == nullptr) {
@@ -176,7 +176,7 @@ bool NegCmpToCmnPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void NegCmpToCmnPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   Operand &opnd1 = insn.GetOperand(kInsnSecondOpnd);
@@ -210,7 +210,7 @@ std::string CsetCbzToBeqPattern::GetPatternName() {
   return "CsetCbzToBeqPattern";
 }
 
-bool CsetCbzToBeqPattern::CheckCondition(BB &bb, Insn &insn) {
+bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   prevInsn = GetDefInsn(useReg);
   if (prevInsn == nullptr) {
@@ -259,7 +259,7 @@ MOperator CsetCbzToBeqPattern::SelectNewMop(AArch64CC_t condCode, bool inverse) 
 }
 
 void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   MOperator curMop = insn.GetMachineOpcode();
@@ -320,7 +320,7 @@ bool CselToCsetPattern::IsOpndDefByOne(Insn &insn) {
   }
 }
 
-bool CselToCsetPattern::CheckCondition(BB &bb, Insn &insn) {
+bool CselToCsetPattern::CheckCondition(Insn &insn) {
   auto &useOpnd1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   prevMovInsn1 = GetDefInsn(useOpnd1);
   if (prevMovInsn1 == nullptr) {
@@ -364,7 +364,7 @@ AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) 
 }
 
 void CselToCsetPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   Operand &dstOpnd = insn.GetOperand(kInsnFirstOpnd);
@@ -443,7 +443,7 @@ bool AndCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
   return true;
 }
 
-bool AndCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+bool AndCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   prevCmpInsn = GetDefInsn(ccReg);
   if (prevCmpInsn == nullptr) {
@@ -471,7 +471,7 @@ bool AndCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
@@ -565,7 +565,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
   return true;
 }
 
-bool ZeroCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+bool ZeroCmpBranchesToTbzPattern::CheckCondition(Insn &insn) {
   CHECK_FATAL(insn.GetOperand(kInsnSecondOpnd).IsLabel(), "must be labelOpnd");
   auto &ccReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   prevInsn = GetDefInsn(ccReg);
@@ -583,7 +583,7 @@ bool ZeroCmpBranchesToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   CHECK_FATAL(regOpnd != nullptr, "must have regOpnd");
@@ -608,7 +608,7 @@ std::string LsrAndToUbfxPattern::GetPatternName() {
   return "LsrAndToUbfxPattern";
 }
 
-bool LsrAndToUbfxPattern::CheckCondition(BB &bb, Insn &insn) {
+bool LsrAndToUbfxPattern::CheckCondition(Insn &insn) {
   CHECK_FATAL(insn.GetMachineOpcode() == MOP_wandrri12 || insn.GetMachineOpcode() == MOP_xandrri13,
               "must be these mops");
   int64 immValue = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd)).GetValue();
@@ -634,7 +634,7 @@ bool LsrAndToUbfxPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
@@ -667,7 +667,7 @@ void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
 }
 
 void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
-  if (!CheckCondition(bb, csetInsn)) {
+  if (!CheckCondition(csetInsn)) {
     return;
   }
   Operand &csetFirstOpnd = csetInsn.GetOperand(kInsnFirstOpnd);
@@ -697,7 +697,7 @@ void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
   }
 }
 
-bool CmpCsetOpt::CheckCondition(BB &bb, Insn &csetInsn) {
+bool CmpCsetOpt::CheckCondition(Insn &csetInsn) {
   RegOperand &ccReg = static_cast<RegOperand&>(csetInsn.GetOperand(kInsnThirdOpnd));
   regno_t ccRegNo = ccReg.GetRegisterNumber();
   cmpInsn = GetDefInsn(ccReg);
@@ -767,7 +767,7 @@ std::string MvnAndToBicPattern::GetPatternName() {
   return "MvnAndToBicPattern";
 }
 
-bool MvnAndToBicPattern::CheckCondition(BB &bb, Insn &insn) {
+bool MvnAndToBicPattern::CheckCondition(Insn &insn) {
   auto &useReg1 = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &useReg2 = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
   prevInsn1 = GetDefInsn(useReg1);
@@ -783,7 +783,7 @@ bool MvnAndToBicPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void MvnAndToBicPattern::Run(BB &bb , Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   MOperator newMop = insn.GetMachineOpcode() == MOP_xandrrr ? MOP_xbicrrr : MOP_wbicrrr;
@@ -809,7 +809,7 @@ std::string AndCbzToTbzPattern::GetPatternName() {
   return "AndCbzToTbzPattern";
 }
 
-bool AndCbzToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
+bool AndCbzToTbzPattern::CheckCondition(Insn &insn) {
   auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   prevInsn = GetDefInsn(useReg);
   if (prevInsn == nullptr) {
@@ -824,7 +824,7 @@ bool AndCbzToTbzPattern::CheckCondition(BB &bb, Insn &insn) {
 
 void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   auto *aarchFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition( insn)) {
     return;
   }
   auto &andImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
@@ -870,7 +870,7 @@ std::string LogicShiftAndOrrToExtrPattern::GetPatternName() {
   return "LogicShiftAndOrrToExtrPattern";
 }
 
-bool LogicShiftAndOrrToExtrPattern::CheckCondition(BB &bb, Insn &insn) {
+bool LogicShiftAndOrrToExtrPattern::CheckCondition(Insn &insn) {
   Operand &curDstOpnd = insn.GetOperand(kInsnFirstOpnd);
   is64Bits = (curDstOpnd.GetSize() == k64BitSize);
   MOperator curMop = insn.GetMachineOpcode();
@@ -943,7 +943,7 @@ bool LogicShiftAndOrrToExtrPattern::CheckCondition(BB &bb, Insn &insn) {
 }
 
 void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
@@ -1006,7 +1006,7 @@ void OneHoleBranchPattern::FindNewMop(const BB &bb, const Insn &insn) {
  *   tbnz w1, #0, .label
  */
 void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   LabelOperand &label = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
@@ -1046,8 +1046,8 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool OneHoleBranchPattern::CheckCondition(BB &bb, Insn &insn) {
-  FindNewMop(bb, insn);
+bool OneHoleBranchPattern::CheckCondition(Insn &insn) {
+  FindNewMop(*insn.GetBB(), insn);
   if (newOp == MOP_undef) {
     return false;
   }
@@ -1059,7 +1059,6 @@ bool OneHoleBranchPattern::CheckCondition(BB &bb, Insn &insn) {
   if (&(prevInsn->GetOperand(kInsnFirstOpnd)) != &(insn.GetOperand(kInsnFirstOpnd))) {
     return false;
   }
-  (void)bb;
   return true;
 }
 
@@ -1080,7 +1079,7 @@ bool OneHoleBranchPattern::CheckPrePrevInsn() {
 }
 
 void OrrToMovPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(bb, insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   AArch64RegOperand *reg1 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
@@ -1094,7 +1093,7 @@ void OrrToMovPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool OrrToMovPattern::CheckCondition(BB &bb, Insn &insn) {
+bool OrrToMovPattern::CheckCondition(Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   Operand *opndOfOrr = nullptr;
   switch (thisMop) {
@@ -1409,7 +1408,6 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
 void AArch64PrePeepHole1::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kRemoveDecRefOpt] = optOwnMemPool->New<RemoveDecRefAArch64>(cgFunc);
-  optimizations[kComputationTreeOpt] = optOwnMemPool->New<ComputationTreeAArch64>(cgFunc);
   optimizations[kOneHoleBranchesOpt] = optOwnMemPool->New<OneHoleBranchesAArch64>(cgFunc);
   optimizations[kReplaceIncDecWithIncOpt] = optOwnMemPool->New<ReplaceIncDecWithIncAArch64>(cgFunc);
   optimizations[kAndCmpBranchesToTbzOpt] = optOwnMemPool->New<AndCmpBranchesToTbzAArch64>(cgFunc);
@@ -1424,10 +1422,6 @@ void AArch64PrePeepHole1::Run(BB &bb, Insn &insn) {
         (static_cast<RemoveDecRefAArch64*>(optimizations[kRemoveDecRefOpt]))->Run(bb, insn);
         (static_cast<ReplaceIncDecWithIncAArch64*>(optimizations[kReplaceIncDecWithIncOpt]))->Run(bb, insn);
       }
-      break;
-    }
-    case MOP_xaddrri12: {
-      (static_cast<ComputationTreeAArch64*>(optimizations[kComputationTreeOpt]))->Run(bb, insn);
       break;
     }
     case MOP_xsxtw64:
@@ -1572,7 +1566,7 @@ bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
 }
 
 bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore,
-                                                               int32 baseOfst, regno_t destRegNO) {
+                                                               int32 baseOfst) {
   uint32 opndNum = insn.GetOperandSize();
   bool sameMemAccess = false; /* both store or load */
   if (insn.IsStore() == isStore) {
@@ -1667,7 +1661,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     if (curInsn->IsRegDefined(memBaseRegNO)) {
       return prevContiInsns;
     }
-    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst, destRegNO)) {
+    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst)) {
       return prevContiInsns;
     }
     /* return continuous STD/LDR insn */
@@ -4191,147 +4185,6 @@ void RemoveDecRefAArch64::Run(BB &bb, Insn &insn) {
   }
   bb.RemoveInsn(*insnMov);
   bb.RemoveInsn(insn);
-}
-
-/*
- * Find 5 insn with certain OP code
- * 1 : MOP_xaddrri12
- * 2 : MOP_waddrrr
- * 3 : MOP_waddrri12
- * 4 : MOP_xsxtw64
- * 5 : MOP_xaddrrrs
- */
-bool ComputationTreeAArch64::FindComputationTree(std::vector<Insn*> &optInsn, Insn &insn) {
-  MOperator thisMop = insn.GetMachineOpcode();
-  optInsn.clear();
-  /* first */
-  if (thisMop != MOP_xaddrri12) {
-    return false;
-  }
-  optInsn.emplace_back(&insn);
-  /* second */
-  Insn *nextInsn1 = insn.GetNextMachineInsn();
-  if (nextInsn1 == nullptr) {
-    return false;
-  }
-  MOperator nextMop1 = nextInsn1->GetMachineOpcode();
-  if (nextMop1 != MOP_waddrrr) {
-    return false;
-  }
-  optInsn.emplace_back(nextInsn1);
-  /* third */
-  Insn *nextInsn2 = nextInsn1->GetNextMachineInsn();
-  if (nextInsn2 == nullptr) {
-    return false;
-  }
-  MOperator nextMop2 = nextInsn2->GetMachineOpcode();
-  if (nextMop2 != MOP_waddrri12) {
-    return false;
-  }
-  optInsn.emplace_back(nextInsn2);
-  /* forth */
-  Insn *nextInsn3 = nextInsn2->GetNextMachineInsn();
-  if (nextInsn3 == nullptr) {
-    return false;
-  }
-  MOperator nextMop3 = nextInsn3->GetMachineOpcode();
-  if (nextMop3 != MOP_xsxtw64) {
-    return false;
-  }
-  optInsn.emplace_back(nextInsn3);
-  /* fifth */
-  Insn *nextInsn4 = nextInsn3->GetNextMachineInsn();
-  if (nextInsn4 == nullptr) {
-    return false;
-  }
-  MOperator nextMop4 = nextInsn4->GetMachineOpcode();
-  if (nextMop4 != MOP_xaddrrrs) {
-    return false;
-  }
-  optInsn.emplace_back(nextInsn4);
-  return true;
-}
-
-/*
- * Make sure the insn in opt_insn match the pattern as following:
- * add x1, x1, #16
- * add w2, w10, w10
- * add w2, w2, #1
- * sxtw x2, w2
- * add x1, x1, x2, LSL #3
- * bl MCC_LoadRefField_NaiveRCFast
- */
-bool ComputationTreeAArch64::IsPatternMatch(const std::vector<Insn*> &optInsn) const {
-  /* this speific pattern has exactly four insns */
-  if (optInsn.size() <= 4) {
-    ERR(kLncErr, "access opt_insn failed");
-    return false;
-  }
-  int insnNum = 0;
-  Insn *insn1 = optInsn[insnNum];
-  Insn *insn2 = optInsn[++insnNum];
-  Insn *insn3 = optInsn[++insnNum];
-  Insn *insn4 = optInsn[++insnNum];
-  Insn *insn5 = optInsn[++insnNum];
-  ASSERT(insnNum == 4, "match pattern failed in AArch64Peep::PatternIsMatch");
-  Insn *insn6 = insn5->GetNext();
-  if (insn6 != nullptr && insn6->GetMachineOpcode() != MOP_xbl && insn6->GetMachineOpcode() != MOP_tail_call_opt_xbl) {
-    return false;
-  }
-  CHECK_FATAL(insn6 != nullptr, "Insn null ptr check");
-  auto &funcNameOpnd = static_cast<FuncNameOperand&>(insn6->GetOperand(kInsnFirstOpnd));
-  if (&(insn1->GetOperand(kInsnFirstOpnd)) == &(insn5->GetOperand(kInsnSecondOpnd)) &&
-      &(insn2->GetOperand(kInsnSecondOpnd)) == &(insn2->GetOperand(kInsnThirdOpnd)) &&
-      &(insn2->GetOperand(kInsnFirstOpnd)) == &(insn3->GetOperand(kInsnSecondOpnd)) &&
-      &(insn3->GetOperand(kInsnFirstOpnd)) == &(insn4->GetOperand(kInsnSecondOpnd)) &&
-      &(insn4->GetOperand(kInsnFirstOpnd)) == &(insn5->GetOperand(kInsnThirdOpnd)) &&
-      funcNameOpnd.GetName() == "MCC_LoadRefField_NaiveRCFast" &&
-      static_cast<ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd)).GetValue() == k16BitSize &&
-      static_cast<ImmOperand&>(insn3->GetOperand(kInsnThirdOpnd)).GetValue() == 1) {
-    return true;
-  }
-  return false;
-}
-
-void ComputationTreeAArch64::Run(BB &bb, Insn &insn) {
-  std::vector<Insn*> optInsn;
-  AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
-  if (!insn.IsMachineInstruction()) {
-    return;
-  }
-  /* found pattern */
-  if (FindComputationTree(optInsn, insn) && IsPatternMatch(optInsn)) {
-    Insn *sxtwInsn = optInsn[4]; // The pattern must has four insns.
-    CHECK_FATAL(sxtwInsn->GetOperand(kInsnFourthOpnd).GetKind() == Operand::kOpdShift, "should not happened");
-    auto &lsl = static_cast<BitShiftOperand&>(sxtwInsn->GetOperand(kInsnFourthOpnd));
-    Operand *sxtw = nullptr;
-    Operand *imm = nullptr;
-    int32 lslBitLenth = 3;
-    uint32 lslShiftAmountCaseA = 3;
-    uint32 lslShiftAmountCaseB = 2;
-    int32 oriAddEnd = 16;
-    if (lsl.GetShiftAmount() == lslShiftAmountCaseA) {
-      sxtw = &aarch64CGFunc->CreateExtendShiftOperand(ExtendShiftOperand::kSXTW,
-                                                      lslShiftAmountCaseA + 1, lslBitLenth);
-      imm = &aarch64CGFunc->CreateImmOperand(oriAddEnd + static_cast<int64>(1ULL << lslShiftAmountCaseA),
-                                             kMaxImmVal12Bits, true);
-    } else if (lsl.GetShiftAmount() == lslShiftAmountCaseB) {
-      sxtw = &aarch64CGFunc->CreateExtendShiftOperand(ExtendShiftOperand::kSXTW,
-                                                      lslShiftAmountCaseB + 1, lslBitLenth);
-      imm = &aarch64CGFunc->CreateImmOperand(oriAddEnd + static_cast<int64>(1ULL << lslShiftAmountCaseB),
-                                             kMaxImmVal12Bits, true);
-    }
-    Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_xxwaddrrre,
-                                                                  sxtwInsn->GetOperand(kInsnFirstOpnd),
-                                                                  optInsn[0]->GetOperand(kInsnSecondOpnd),
-                                                                  optInsn[1]->GetOperand(kInsnSecondOpnd), *sxtw);
-    bb.ReplaceInsn(*sxtwInsn, newInsn);
-    Insn &newAdd =
-        cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_xaddrri12, sxtwInsn->GetOperand(kInsnFirstOpnd),
-                                                      sxtwInsn->GetOperand(kInsnFirstOpnd), *imm);
-    (void)bb.InsertInsnAfter(newInsn, newAdd);
-    optInsn.clear();
-  }
 }
 
 /*
