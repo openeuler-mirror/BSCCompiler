@@ -2508,9 +2508,8 @@ UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) 
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
   }
-  auto lock = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("lockVar"), *mirType, false, false);
-  auto var = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("valueVar"), *refType, false, false);
-  atomicExpr->SetLockVar(lock->Clone());
+  auto var = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("ret.var."),
+                                            *refType, false, false);
   atomicExpr->SetValVar(var->Clone());
   if (!isFromStmt) {
     auto stmt = std::make_unique<FEIRStmtAtomic>(std::move(atomicExpr));
