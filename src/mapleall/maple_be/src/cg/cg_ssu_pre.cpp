@@ -36,10 +36,18 @@ void SSUPre::CodeMotion() {
     }
     SRealOcc *realOcc = static_cast<SRealOcc*>(occ);
     if (!realOcc->redundant) {
+      if (realOcc->cgbb->IsWontExit()) {
+        workCand->restoreAtEpilog = true;
+        break;
+      }
       workCand->restoreAtExitBBs.insert(realOcc->cgbb->GetId());
     }
   }
   if (enabledDebug) {
+    if (workCand->restoreAtEpilog) {
+      LogInfo::MapleLogger() << "Giving up because of restore inside infinite loop" << '\n';
+      return;
+    }
     LogInfo::MapleLogger() << " _______ output _______" << '\n';
     LogInfo::MapleLogger() << " restoreAtEntryBBs: [";
     for (uint32 id : workCand->restoreAtEntryBBs) {
@@ -497,18 +505,36 @@ void SSUPre::CreateSortedOccs() {
 
 // ================ Step 0: Preparations ================
 
+void SSUPre::PropagateNotAvail(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs) {
+  if (visitedBBs->count(bb) != 0) {
+    return;
+  }
+  visitedBBs->insert(bb);
+  if (workCand->occBBs.count(bb->GetId()) != 0 ||
+      workCand->saveBBs.count(bb->GetId()) != 0) {
+    return;
+  }
+  fullyAvailBBs[bb->GetId()] = false;
+  for (BB *succbb : bb->GetSuccs()) {
+    PropagateNotAvail(succbb, visitedBBs);
+  }
+}
+
 void SSUPre::FormReals() {
+  std::set<BB*, BBIdCmp> visitedBBs;
+  fullyAvailBBs[cgFunc->GetCommonExitBB()->GetId()] = false;
+  PropagateNotAvail(cgFunc->GetFirstBB(), &visitedBBs);
+
   for (uint32 i = 0; i < pdom->GetPdtPreOrderSize(); i++) {
-    uint32 bbid = pdom->GetPdtPreOrderItem(i);
+    BBId bbid = pdom->GetPdtPreOrderItem(i);
     BB *cgbb = cgFunc->GetAllBBs()[bbid];
-    if (workCand->saveBBs.count(cgbb->GetId()) != 0) {
+    if (fullyAvailBBs[cgbb->GetId()]) {
       SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
       realOccs.push_back(realOcc);
-      SKillOcc *killOcc = spreMp->New<SKillOcc>(cgbb);
-      realOccs.push_back(killOcc);
-    } else if (workCand->occBBs.count(cgbb->GetId()) != 0) {
-      SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
-      realOccs.push_back(realOcc);
+      if (workCand->saveBBs.count(cgbb->GetId()) != 0) {
+        SKillOcc *killOcc = spreMp->New<SKillOcc>(cgbb);
+        realOccs.push_back(killOcc);
+      }
     }
   }
   if (enabledDebug) {
