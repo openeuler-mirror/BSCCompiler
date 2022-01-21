@@ -76,15 +76,52 @@ class RegExp : public Object {
 class Number : public Object {
 public:
   // TODO
-  class Ctor : public t2crt::Function {
+  class Ctor : public Function {
   public:
-    Ctor(t2crt::Function* ctor, t2crt::Object* proto, t2crt::Object* prototype_proto) : t2crt::Function(ctor, proto, prototype_proto) { }
+    Ctor(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
     virtual const char* __GetClassName() const {return "Number ";}
   };
   static Ctor ctor;
 };
 
+class IteratorProto : public Object {
+public:
+  // TODO
+  IteratorProto(Function* ctor, Object* proto) : Object(ctor, proto) { }
+};
+
+class GeneratorFunctionPrototype : public Function {
+public:
+  GeneratorFunctionPrototype(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
+};
+
+
+class GeneratorProto : public IteratorProto {
+public:
+  // TODO
+  GeneratorProto(Function* ctor, Object* proto) : IteratorProto(ctor, proto) { }
+};
+
+class GeneratorFunc : public Function::Ctor {
+public:
+  // TODO
+  GeneratorFunc(Function* ctor, Object* proto, Object* prototype_proto, Function* prototype_obj) : Function::Ctor(ctor, proto, prototype_proto, prototype_obj) { }
+};
+
+// GeneratorFunction objects. (Ref: ECMA spec 27.3)
+// IteratorPrototype: It is not a prototype object of any constructor func, but holds shared properties for iterators
+// GeneratorFunction: A builtin function used as the constructor for generators (i.e. generator functions).//
+// Generator:         (a.k.a. GeneratorFuncion.prototype in 2022 spec) is the prototype object of GeneratorFunction,
+//                    It is a special object used as both prototype object and constructor - as prototype for sharing
+//                    properties between generator functions, and as constructor whose prototype object (GeneratorPrototype
+//                    in pre-2022 spec) holds shared properties for instances returned by generator functions.
+extern IteratorProto              IteratorPrototype;
+extern GeneratorFunc              GeneratorFunction;
+extern GeneratorFunctionPrototype Generator;
+extern Object*                    GeneratorPrototype;
+
 } // namespace t2crt
+
 
 using t2crt::Record;
 using t2crt::JSON;
