@@ -146,7 +146,7 @@ bool CgFuncPM::PhaseRun(MIRModule &m) {
       m.SetCurFunction(mirFunc);
       if (cg->DoConstFold()) {
         ConstantFold cf(m);
-        cf.Simplify(mirFunc->GetBody());
+        (void)cf.Simplify(mirFunc->GetBody());
       }
 
       DoFuncCGLower(m, *mirFunc);
@@ -190,8 +190,9 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("moveargs", true);
 
   ADDMAPLECGPHASE("cgssaconstruct", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgpropagation", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgcopyprop", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA()  && CGOptions::GetInstance().GetOptimizeLevel() < 0);
+  ADDMAPLECGPHASE("cgtargetprop", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgphielimination", CGOptions::DoCGSSA());
@@ -339,11 +340,6 @@ void CgFuncPM::EmitDuplicatedAsmFunc(MIRModule &m) const {
     return;
   }
 
-  struct stat buffer;
-  if (stat(CGOptions::GetDuplicateAsmFile().c_str(), &buffer) != 0) {
-    return;
-  }
-
   std::ifstream duplicateAsmFileFD(CGOptions::GetDuplicateAsmFile());
 
   if (!duplicateAsmFileFD.is_open()) {
@@ -463,6 +459,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
-MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgProp, cgpropagation)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCopyProp, cgcopyprop)
+MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgTargetProp, cgtargetprop)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgDce, cgdeadcodeelimination)
 }  /* namespace maplebe */

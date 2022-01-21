@@ -254,10 +254,32 @@ void AArch64Ebo::DefineAsmRegisters(InsnInfo &insnInfo) {
 
 void AArch64Ebo::DefineCallerSaveRegisters(InsnInfo &insnInfo) {
   Insn *insn = insnInfo.insn;
-  ASSERT(insn->IsCall(), "insn should be a call insn.");
-  if (insn->GetMachineOpcode() == MOP_asm) {
+  if (insn->IsAsmInsn()) {
     DefineAsmRegisters(insnInfo);
     return;
+  }
+  ASSERT(insn->IsCall() || insn->IsTailCall(), "insn should be a call insn.");
+  if (CGOptions::DoIPARA()) {
+    auto *targetOpnd = insn->GetCallTargetOperand();
+    CHECK_FATAL(targetOpnd != nullptr, "target is null in AArch64Insn::IsCallToFunctionThatNeverReturns");
+    if (targetOpnd->IsFuncNameOpnd()) {
+      FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
+      const MIRSymbol *funcSt = target->GetFunctionSymbol();
+      ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
+      MIRFunction *func = funcSt->GetFunction();
+      if (func != nullptr && func->IsReferedRegsValid()) {
+        for (auto preg : func->GetReferedRegs()) {
+          if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(preg))) {
+            continue;
+          }
+          RegOperand *opnd = &a64CGFunc->GetOrCreatePhysicalRegisterOperand((AArch64reg)preg, k64BitSize,
+              AArch64isa::IsFPSIMDRegister((AArch64reg)preg) ? kRegTyFloat : kRegTyInt);
+          OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
+          opndInfo->insnInfo = &insnInfo;
+        }
+        return;
+      }
+    }
   }
   for (auto opnd : callerSaveRegTable) {
     OpndInfo *opndInfo = OperandInfoDef(*insn->GetBB(), *insn, *opnd);
@@ -970,6 +992,9 @@ bool AArch64Ebo::CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bo
     MOperator mOp = (is64bits ? MOP_xubfxrri6i6 : MOP_wubfxrri5i5);
     insn.GetBB()->ReplaceInsn(insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1,
                                                                                    immOpnd1, immOpnd2));
+    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+       CHECK_FATAL(false, "check this case in ssa opt");
+    }
     return true;
   }
   return false;

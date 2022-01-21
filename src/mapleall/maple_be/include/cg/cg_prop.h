@@ -33,7 +33,8 @@ class CGProp {
   }
   virtual ~CGProp() = default;
 
-  void DoProp();
+  void DoCopyProp();
+  void DoTargetProp();
 
  protected:
   MemPool *memPool;
@@ -74,6 +75,7 @@ class ReplaceRegOpndVisitor : public OperandVisitorBase,
   RegOperand *newReg;
 };
 
-MAPLE_FUNC_PHASE_DECLARE(CgProp, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(CgCopyProp, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE(CgTargetProp, maplebe::CGFunc)
 }
 #endif /* MAPLEBE_INCLUDE_CG_PROP_H */

@@ -16,8 +16,7 @@
 #include "cg_prop.h"
 
 namespace maplebe {
-void CGProp::DoProp() {
-  /* instruction level opt */
+void CGProp::DoCopyProp() {
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
@@ -28,6 +27,10 @@ void CGProp::DoProp() {
     }
   }
   cgDce->DoDce();
+}
+
+void CGProp::DoTargetProp() {
+  /* instruction level opt */
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
       if (!insn->IsMachineInstruction()) {
@@ -36,20 +39,33 @@ void CGProp::DoProp() {
       TargetProp(*insn);
     }
   }
-  /* wait for performance test */
+  /*
+   * pattern  level opt
+   * wait for performance test
+   */
   if (CGOptions::GetInstance().GetOptimizeLevel() < 0) {
     PropPatternOpt();
   }
 }
 
-bool CgProp::PhaseRun(maplebe::CGFunc &f) {
+bool CgCopyProp::PhaseRun(maplebe::CGFunc &f) {
   CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
   CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo);
-  cgProp->DoProp();
+  cgProp->DoCopyProp();
   return false;
 }
+void CgCopyProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+  aDep.AddRequired<CgSSAConstruct>();
+  aDep.AddPreserved<CgSSAConstruct>();
+}
 
-void CgProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
+bool CgTargetProp::PhaseRun(maplebe::CGFunc &f) {
+  CGSSAInfo *ssaInfo = GET_ANALYSIS(CgSSAConstruct, f);
+  CGProp *cgProp = f.GetCG()->CreateCGProp(*GetPhaseMemPool(),f, *ssaInfo);
+  cgProp->DoTargetProp();
+  return false;
+}
+void CgTargetProp::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<CgSSAConstruct>();
   aDep.AddPreserved<CgSSAConstruct>();
 }
