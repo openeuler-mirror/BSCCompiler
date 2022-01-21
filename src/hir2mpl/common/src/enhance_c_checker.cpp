@@ -1821,14 +1821,15 @@ void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueF
   }
 }
 
-MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuilder, size_t paramIdx) const {
+MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilder, const FEIRStmtNary *stmt) {
   MIRFunction *curFunction = mirBuilder.GetCurrentFunctionNotNull();
-  UniqueFEIRExpr leftExpr = argExprs.front()->Clone();
-  UniqueFEIRExpr rightExpr = argExprs.back()->Clone();
+  UniqueFEIRExpr leftExpr = stmt->GetArgExprs().front()->Clone();
+  UniqueFEIRExpr rightExpr = stmt->GetArgExprs().back()->Clone();
   BaseNode *leftNode = nullptr;
   BaseNode *rightNode = nullptr;
-  MIRType *arrType = ENCChecker::GetArrayTypeFromExpr(argExprs.back());
+  MIRType *arrType = ENCChecker::GetArrayTypeFromExpr(stmt->GetArgExprs().back());
   MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  Opcode op = stmt->GetOP();
   if (arrType != nullptr) {  // var must be array type by the previous checking
     if (arrType->GetSize() == 0) {  // unsized array
       return args;
@@ -1864,22 +1865,23 @@ MapleVector<BaseNode*> FEIRStmtNary::ReplaceBoundaryChecking(MIRBuilder &mirBuil
           return args;
         }
         if (op == OP_callassertle) {
-          std::string paramIdxStr = paramIdx != SIZE_MAX ? ENCChecker::GetNthStr(paramIdx) : "unknown";
+          auto callAssert = static_cast<const FEIRStmtCallAssertBoundary*>(stmt);
           FE_ERR(kLncErr, "%s:%d error: boundaryless pointer passed to %s that requires a boundary pointer for the %s"
-                 " argument", FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
-                 curFunction->GetName().c_str(), paramIdxStr.c_str());
+                 " argument", FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(),
+                 stmt->GetSrcFileLineNum(), callAssert->GetFuncName().c_str(),
+                 ENCChecker::GetNthStr(callAssert->GetParamIndex()).c_str());
         } else if (op == OP_returnassertle) {
           if (curFunction->GetName().compare(kBoundsBuiltFunc) != 0) {
             FE_ERR(kLncErr, "%s:%d error: boundaryless pointer returned from %s that requires a boundary pointer",
-                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum,
-                 curFunction->GetName().c_str());
+                   FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(),
+                   stmt->GetSrcFileLineNum(), curFunction->GetName().c_str());
           }
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
-                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+              FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
         } else if (ENCChecker::IsSafeRegion(mirBuilder) && op == OP_calcassertge) {
           FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
-                 FEManager::GetModule().GetFileNameFromFileNum(srcFileIndex).c_str(), srcFileLineNum);
+              FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
         }
         return args;
       }
