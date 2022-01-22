@@ -186,7 +186,7 @@ class IVOptimizer {
   void DumpGroup(const IVGroup &group);
   void DumpCand(const IVCand &cand);
   void DumpSet(const CandSet &set);
-  bool LoopOptimized();
+  bool LoopOptimized() const;
   // step1: find basic iv (the minimal inc uint)
   MeExpr *ReplacePhiLhs(OpMeExpr *op, ScalarMeExpr *phiLhs, MeExpr *replace);
   MeExpr *ResolveBasicIV(ScalarMeExpr *backValue, ScalarMeExpr *phiLhs, MeExpr *replace);
@@ -335,7 +335,7 @@ void IVOptimizer::DumpSet(const CandSet &set) {
   }
 }
 
-bool IVOptimizer::LoopOptimized() {
+bool IVOptimizer::LoopOptimized() const {
   return optimized;
 }
 
@@ -1499,7 +1499,9 @@ static bool CheckOverflow(MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp
   if (op == OP_add) {
     int64 res = static_cast<int64>(static_cast<uint64>(const0) + static_cast<uint64>(const1));
     if (IsUnsignedInteger(ptyp)) {
-      return static_cast<uint64>(res) < static_cast<uint64>(const0);
+      auto shiftNum = 64 - GetPrimTypeBitSize(ptyp);
+      return (static_cast<uint64>(res) << shiftNum) >> shiftNum <
+             (static_cast<uint64>(const0) << shiftNum) >> shiftNum;
     }
     auto rightShiftNumToGetSignFlag = GetPrimTypeBitSize(ptyp) - 1;
     return (static_cast<uint64>(res) >> rightShiftNumToGetSignFlag !=
@@ -2100,7 +2102,7 @@ void IVOptimizer::UseReplace() {
             auto *tmpExpr = irMap->CreateRegMeExpr(use->expr->GetPrimType());
             auto *assignStmt = irMap->CreateAssignMeStmt(*tmpExpr, *use->expr, *incPos->GetBB());
             incPos->GetBB()->InsertMeStmtBefore(incPos, assignStmt);
-            irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmpExpr);
+            (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *tmpExpr);
             use->stmt = assignStmt;
           } else {
             // use inc version to replace
