@@ -1199,7 +1199,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     return;
   }
 
-  uint32 unionInitSize = 0;
+  uint32 curFieldTypeSize = 0;
+  uint32 offset = 0;
   for (size_t i = 0; i < initList->initExprs.size(); ++i) {
     if (initList->initExprs[i] == nullptr) {
       continue; // skip anonymous field
@@ -1210,10 +1211,18 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
     FEUtils::TraverseToNamedField(*curStructMirType, curStructMirType->GetElemStrIdx(fieldIdx), curFieldID);
     uint32 fieldID = baseFieldID + curFieldID;
     MIRType *fieldMirType = curStructMirType->GetFieldType(curFieldID);
-    unionInitSize = static_cast<uint32>(fieldMirType->GetSize());
+    curFieldTypeSize = static_cast<uint32>(fieldMirType->GetSize());
+    offset += curFieldTypeSize;
 
     if (initList->initExprs[i]->GetASTOp() == kASTImplicitValueInitExpr && fieldMirType->GetPrimType() == PTY_agg) {
-      UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID);
+      UniqueFEIRExpr addrOfExpr;
+      if (std::holds_alternative<UniqueFEIRExpr>(base)) {
+        UniqueFEIRExpr offsetExpr = FEIRBuilder::CreateExprConstU32(offset - curFieldTypeSize);
+        addrOfExpr = FEIRBuilder::CreateExprBinary(OP_add, std::get<UniqueFEIRExpr>(base)->Clone(),
+                                                   std::move(offsetExpr));
+      } else {
+        addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), fieldID);
+      }
       ProcessImplicitInit(addrOfExpr->Clone(), 0, fieldMirType->GetSize(), 1, stmts);
       continue;
     }
@@ -1270,7 +1279,8 @@ void ASTInitListExpr::ProcessStructInitList(std::variant<std::pair<UniqueFEIRVar
   // Handling Incomplete Union Initialization
   if (curStructMirType->GetKind() == kTypeUnion) {
     UniqueFEIRExpr addrOfExpr = std::make_unique<FEIRExprAddrofVar>(var->Clone(), 0);
-    ProcessImplicitInit(addrOfExpr->Clone(), unionInitSize, curStructMirType->GetSize(), 1, stmts);
+    ProcessImplicitInit(addrOfExpr->Clone(), curFieldTypeSize,
+                        curStructMirType->GetSize(), 1, stmts);
   }
 }
 
