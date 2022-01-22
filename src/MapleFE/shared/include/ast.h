@@ -393,7 +393,7 @@ public:
 
   void SetProperty(ImportProperty p) {mProperty = p;}
   ImportProperty GetProperty() {return mProperty;}
-  void SetTarget(TreeNode *t) {mTarget = t;}
+  void SetTarget(TreeNode *n) {mTarget = n; SETPARENT(n);}
   TreeNode* GetTarget() {return mTarget;}
 
   void SetImportType()   {mProperty |= ImpType;}
@@ -2345,7 +2345,7 @@ public:
   ~AwaitNode() {}
 
   TreeNode* GetExpr() {return mExpr;}
-  void SetExpr(TreeNode *t) {mExpr = t;}
+  void SetExpr(TreeNode *n) {mExpr = n; SETPARENT(n);}
 
   void Dump(unsigned);
 };

@@ -326,6 +326,11 @@ bool AST_INFO::IsFieldCompatibleTo(TreeNode *field, TreeNode *target) {
 }
 
 TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
+  // node with super does not map to others
+  if (WithSuper(node)) {
+    return node;
+  }
+
   unsigned size = GetFieldsSize(node);
   bool isI0 = IsInterface(node);
 
@@ -334,6 +339,7 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
     if (node == s) {
       return s;
     }
+
     bool isI = IsInterface(s);
     if (!node->IsStructLiteral()) {
       // skip if one is interface but other is not
@@ -510,6 +516,21 @@ bool AST_INFO::WithThis(TreeNode *node) {
 
 bool AST_INFO::WithTypeParamFast(TreeNode *node) {
   return (mWithTypeParamNodeSet.find(node->GetNodeId()) != mWithTypeParamNodeSet.end());
+}
+
+bool AST_INFO::WithSuper(TreeNode *node) {
+  unsigned supernum = 0;
+  switch (node->GetKind()) {
+    case NK_Class:
+      supernum = static_cast<ClassNode *>(node)->GetSuperClassesNum();
+      break;
+    case NK_Interface:
+      supernum = static_cast<InterfaceNode *>(node)->GetSuperInterfacesNum();
+      break;
+    default:
+      break;
+  }
+  return (supernum != 0);
 }
 
 template <typename T1>

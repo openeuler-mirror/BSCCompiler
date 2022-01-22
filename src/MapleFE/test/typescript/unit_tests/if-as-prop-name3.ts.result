@@ -1,0 +1,9 @@
+Matched 17 tokens.
+Matched 23 tokens.
+============= Module ===========
+== Sub Tree ==
+js_const Decl: obj= {if:func  if()  throws: 
+  console.log("if")
+}
+== Sub Tree ==
+obj.if()

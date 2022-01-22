@@ -115,6 +115,9 @@ class BuildScopeVisitor : public BuildScopeBaseVisitor {
   InterfaceNode *VisitInterfaceNode(InterfaceNode *node);
   NamespaceNode *VisitNamespaceNode(NamespaceNode *node);
   ForLoopNode *VisitForLoopNode(ForLoopNode *node);
+  TryNode *VisitTryNode(TryNode *node);
+  CatchNode *VisitCatchNode(CatchNode *node);
+  FinallyNode *VisitFinallyNode(FinallyNode *node);
 
   FieldNode *VisitFieldNode(FieldNode *node);
   TypeParameterNode *VisitTypeParameterNode(TypeParameterNode *node);
