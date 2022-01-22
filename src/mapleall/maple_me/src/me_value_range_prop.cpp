@@ -3292,7 +3292,7 @@ void ValueRangePropagation::PropValueRangeFromCondGotoToTrueAndFalseBranch(
 // predOpnd: a, rhs of currOpnd in this bb
 // phiOpnds: (b, c), phi rhs of opnd in this bb
 // predOpnd or phiOpnds is uesd to find the valuerange in the pred of bb
-void ValueRangePropagation::ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd, int64 &rhsConstant,
+void ValueRangePropagation::ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
     MapleVector<ScalarMeExpr*> &phiOpnds, bool &thePhiIsInBB) {
   /* If currOpnd is not defined in bb, set opnd to currOpnd */
   predOpnd = &currOpnd;
@@ -3301,19 +3301,6 @@ void ValueRangePropagation::ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&
          static_cast<ScalarMeExpr&>(*predOpnd).GetDefBy() == kDefByStmt &&
          static_cast<ScalarMeExpr&>(*predOpnd).GetDefStmt()->GetBB() == &bb) {
     predOpnd = static_cast<ScalarMeExpr&>(*predOpnd).GetDefStmt()->GetRHS();
-    if(predOpnd->GetOp() == OP_add || predOpnd->GetOp() == OP_sub) {
-      MeExpr *opnd0 = static_cast<OpMeExpr*>(predOpnd)->GetOpnd(0);
-      MeExpr *opnd1 = static_cast<OpMeExpr*>(predOpnd)->GetOpnd(1);
-      int64 constantValue = 0;
-      if (IsConstant(bb, *opnd1, constantValue)) {
-        if(predOpnd->GetOp() == OP_add) {
-          rhsConstant += constantValue;
-        } else {
-          rhsConstant -= constantValue;
-        }
-        predOpnd = opnd0;
-      }
-    }
   }
   /* find the phi rhs of opnd */
   if ((predOpnd->GetMeOp() == kMeOpVar || predOpnd->GetMeOp() == kMeOpReg) &&
@@ -3325,7 +3312,7 @@ void ValueRangePropagation::ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&
 }
 
 bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
-    BB &bb, MeExpr &opnd0, int64 rhsConstant, MeExpr &currOpnd, ValueRange &rightRange,
+    BB &bb, MeExpr &opnd0, MeExpr &currOpnd, ValueRange &rightRange,
     BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto) {
   BB *curBB = (condGoto == nullptr) ? &bb : condGoto;
   bool opt = false;
@@ -3334,7 +3321,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
   bool thePhiIsInBB = false;
   MapleVector<ScalarMeExpr*> phiOpnds(mpAllocator.Adapter());
   /* find the rhs of currOpnd, which is used as the currOpnd of pred */
-  ReplaceOpndByDef(bb, currOpnd, predOpnd, rhsConstant, phiOpnds, thePhiIsInBB);
+  ReplaceOpndByDef(bb, currOpnd, predOpnd, phiOpnds, thePhiIsInBB);
   size_t indexOfOpnd = 0;
   for (size_t i = 0; i < bb.GetPred().size();) {
     predOpnd = thePhiIsInBB ? phiOpnds.at(indexOfOpnd) : predOpnd;
@@ -3365,24 +3352,8 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
         continue;
       }
     }
-    std::unique_ptr<ValueRange> resValueRange = nullptr;
     auto *valueRangeInPred = FindValueRange(*pred, *predOpnd);
-    // Processing add or sub statements in recursive backtracking
-    //      pred   pred1 [mx2 = 0]
-    //       ^ \  /
-    //       |  \/
-    //       |     [mx3 = phi(mx1, mx2)]
-    //       |  bb [mx4 = mx3 +/- 1]
-    //       |     [brfalse mx4 cmp 5]
-    //       |  /\
-    //       | /  \
-    //      true  false
-    if (rhsConstant != 0 && valueRangeInPred != nullptr) {
-      resValueRange = AddOrSubWithValueRange(OP_add, *valueRangeInPred, rhsConstant);
-      valueRangeInPred = resValueRange.get();
-    }
-    if (valueRangeInPred != nullptr &&
-        ConditionEdgeCanBeDeleted(opnd0, *pred, bb, valueRangeInPred, rightRange,
+    if (ConditionEdgeCanBeDeleted(opnd0, *pred, bb, valueRangeInPred, rightRange,
                                   falseBranch, trueBranch, opndType, op)) {
       opt = true;
     } else {
@@ -3390,7 +3361,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       if ((pred->GetKind() == kBBFallthru || pred->GetKind() == kBBGoto) &&
            pred->GetBBId() != falseBranch.GetBBId() && pred->GetBBId() != trueBranch.GetBBId()) {
         (void)AnalysisValueRangeInPredsOfCondGotoBB(
-            *pred, opnd0, rhsConstant, *predOpnd, rightRange, falseBranch, trueBranch, opndType, op);
+            *pred, opnd0, *predOpnd, rightRange, falseBranch, trueBranch, opndType, op);
       }
     }
     if (bb.GetPred().size() == predSize) {
@@ -3428,9 +3399,8 @@ bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, Val
       currOpnd = opnd;
     }
   }
-  int64 rhsConstant = 0;
   bool opt = AnalysisValueRangeInPredsOfCondGotoBB(
-      bb, *currOpnd, rhsConstant, *currOpnd, rightRange, falseBranch, trueBranch, opndType, op, condGoto);
+      bb, *currOpnd, *currOpnd, rightRange, falseBranch, trueBranch, opndType, op, condGoto);
   bool canDeleteBB = false;
   for (size_t i = 0; i < bb.GetPred().size(); ++i) {
     if (unreachableBBs.find(bb.GetPred(i)) == unreachableBBs.end()) {
