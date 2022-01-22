@@ -37,7 +37,7 @@ void MeFunction::PartialInit() {
   regNum = 0;
   hasEH = false;
   ConstantFold cf(mirModule);
-  cf.Simplify(mirFunc->GetBody());
+  (void)cf.Simplify(mirFunc->GetBody());
   if (mirModule.IsJavaModule() && (!mirFunc->GetInfoVector().empty())) {
     std::string string("INFO_registers");
     GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(string);
@@ -312,10 +312,11 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
         destBB.AddMeStmtLast(newStmt);
         break;
       }
+      case OP_returnassertnonnull:
       case OP_assertnonnull:
       case OP_assignassertnonnull: {
-        auto &unaryStmt = static_cast<UnaryMeStmt&>(stmt);
-        newStmt = irmap->New<UnaryMeStmt>(unaryStmt);
+        auto &unaryStmt = static_cast<AssertNonnullMeStmt&>(stmt);
+        newStmt = irmap->New<AssertNonnullMeStmt>(unaryStmt);
         destBB.AddMeStmtLast(newStmt);
         break;
       }
@@ -341,29 +342,20 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
       case OP_comment: {
         break;
       }
-      case OP_assertlt:
-      case OP_assertge:
-      case OP_assignassertle: {
-        auto &oldStmt = static_cast<NaryMeStmt&>(stmt);
-        newStmt = irmap->New<NaryMeStmt>(oldStmt);
-        destBB.AddMeStmtLast(newStmt);
-        break;
-      }
       case OP_callassertle:{
         auto &oldStmt = static_cast<CallAssertBoundaryMeStmt&>(stmt);
         newStmt = irmap->New<CallAssertBoundaryMeStmt>(oldStmt);
         destBB.AddMeStmtLast(newStmt);
         break;
       }
+      case OP_calcassertge:
+      case OP_calcassertlt:
+      case OP_assignassertle:
+      case OP_assertlt:
+      case OP_assertge:
       case OP_returnassertle: {
-        auto &oldStmt = static_cast<ReturnAssertBoundaryMeStmt&>(stmt);
-        newStmt = irmap->New<ReturnAssertBoundaryMeStmt>(oldStmt);
-        destBB.AddMeStmtLast(newStmt);
-        break;
-      }
-      case OP_returnassertnonnull: {
-        auto &returnAssertStmt = static_cast<ReturnAssertNonnullMeStmt&>(stmt);
-        newStmt = irmap->New<ReturnAssertNonnullMeStmt>(returnAssertStmt);
+        auto &oldStmt = static_cast<AssertBoundaryMeStmt&>(stmt);
+        newStmt = irmap->New<AssertBoundaryMeStmt>(oldStmt);
         destBB.AddMeStmtLast(newStmt);
         break;
       }
@@ -378,8 +370,8 @@ void MeFunction::CloneBBMeStmts(BB &srcBB, BB &destBB, std::map<OStIdx, std::uni
     if (stmt.GetMustDefList() != nullptr) {
       CloneMustDefListOfStmt(stmt, *newStmt, *irmap, ssaCands);
     }
-    if (newStmt != nullptr && stmt.IsInSafeRegion()) {
-      newStmt->SetInSafeRegion();
+    if (newStmt != nullptr) {
+      newStmt->CopyInfo(stmt);
     }
   }
 }
