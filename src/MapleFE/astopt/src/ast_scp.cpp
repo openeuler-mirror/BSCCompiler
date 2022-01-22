@@ -286,9 +286,12 @@ ClassNode *BuildScopeVisitor::VisitClassNode(ClassNode *node) {
   for(unsigned i = 0; i < node->GetFieldsNum(); i++) {
     TreeNode *fld = node->GetField(i);
     if (fld->IsStrIndexSig()) {
-      continue;
-    }
-    if (fld->IsIdentifier()) {
+      StrIndexSigNode *sis = static_cast<StrIndexSigNode *>(fld);
+      TreeNode *key = sis->GetKey();
+      if (key) {
+        AddDecl(scope, key);
+      }
+    } else if (fld->IsIdentifier()) {
       AddDecl(scope, fld);
     } else {
       NOTYETIMPL("new type of class field");
@@ -657,6 +660,40 @@ ExportNode *BuildScopeVisitor::VisitExportNode(ExportNode *node) {
     }
   }
 
+  return node;
+}
+
+TryNode *BuildScopeVisitor::VisitTryNode(TryNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitTryNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
+CatchNode *BuildScopeVisitor::VisitCatchNode(CatchNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+
+  // add params as decl
+  for (unsigned i = 0; i < node->GetParamsNum(); i++) {
+    TreeNode *n = node->GetParamAtIndex(i);
+    AddDecl(scope, n);
+  }
+
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitCatchNode(node);
+  mScopeStack.pop();
+  return node;
+}
+
+FinallyNode *BuildScopeVisitor::VisitFinallyNode(FinallyNode *node) {
+  ASTScope *parent = mScopeStack.top();
+  ASTScope *scope = NewScope(parent, node);
+  mScopeStack.push(scope);
+  BuildScopeBaseVisitor::VisitFinallyNode(node);
+  mScopeStack.pop();
   return node;
 }
 

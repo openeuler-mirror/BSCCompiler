@@ -1,0 +1,8 @@
+Matched 55 tokens.
+============= Module ===========
+== Sub Tree ==
+() -> js_const Decl: {default:myX, :getx, :setx}
+console.log(myX,getx())
+setx(3)
+console.log(myX,getx())
+()

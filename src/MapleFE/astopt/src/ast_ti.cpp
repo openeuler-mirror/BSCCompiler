@@ -520,6 +520,8 @@ void TypeInferVisitor::UpdateTypeUseNode(TreeNode *target, TreeNode *input) {
       }
       break;
     }
+    case TY_User:
+      break;
     default:
       NOTYETIMPL("TypeId not handled");
       break;
@@ -1051,6 +1053,8 @@ CallNode *TypeInferVisitor::VisitCallNode(CallNode *node) {
         } else {
           NOTYETIMPL("VisitCallNode null decl");
         }
+      } else if (mAstOpt->IsLangKeyword(mid)) {
+        // known calls
       } else {
         // calling constructor like Array(...) could also end up here
         TreeNode *type = mHandler->FindType(mid);
