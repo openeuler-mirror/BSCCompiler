@@ -40,23 +40,13 @@ static void help() {
   std::cout << "   --dump-dot        : Dump AST in dot format" << std::endl;
 }
 
-static std::list<std::string> filePaths = {
-  "",
-  "/usr/include/",
-};
-
-std::string GetFileRealPath(const std::string &file) {
-  for (auto &e : filePaths) {
-    std::string realPath = e + file;
-    std::ifstream f(realPath.c_str());
-    if (f.good())
-      return realPath;
+int main (int argc, char *argv[]) {
+  if (argc == 1 || (!strncmp(argv[1], "--help", 6) && (strlen(argv[1]) == 6))) {
+    help();
+    exit(-1);
   }
-  return "";
-}
 
-int ParserFile(int argc, char *argv[], std::string file) {
-  maplefe::Parser *parser = new maplefe::Parser(file.c_str());
+  maplefe::Parser *parser = new maplefe::Parser(argv[1]);
 
   bool dump_ast = false;
   bool dump_dot = false;
@@ -103,8 +93,6 @@ int ParserFile(int argc, char *argv[], std::string file) {
     return 1;
   }
 
-  std::list<std::string> importFiles = parser->GetImportFiles();
-
   // the module from parser
   maplefe::ModuleNode *module = parser->GetModule();
 
@@ -129,27 +117,7 @@ int ParserFile(int argc, char *argv[], std::string file) {
   const char *addr = (const char *)(&(ast_buf[0]));
   ofs.write(addr, ast_buf.size());
   ofs.close();
+
   delete parser;
-
-  for (auto &e : importFiles) {
-    std::string realPath = GetFileRealPath(e);
-    if (realPath.empty()) {
-      std::cout << "error : " << e << " not found." << std::endl;
-      return 1;
-    }
-    succ = ParserFile(argc, argv, realPath);
-    if (succ)
-      return 1;
-  }
-
   return 0;
-}
-
-int main (int argc, char *argv[]) {
-  if (argc == 1 || (!strncmp(argv[1], "--help", 6) && (strlen(argv[1]) == 6))) {
-    help();
-    exit(-1);
-  }
-
-  return ParserFile(argc, argv, argv[1]);
 }

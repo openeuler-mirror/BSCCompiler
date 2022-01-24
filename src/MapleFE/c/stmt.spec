@@ -140,11 +140,3 @@ rule BlockStatements : BlockStatement + ZEROORMORE(BlockStatement)
 
 rule Block           : '{' + ZEROORONE(BlockStatements) + '}'
   attr.action: BuildBlock(%2)
-
-######################################################################
-#                        Preprocessor                                #
-######################################################################
-rule IncludePreprocessor: '#' + "include" + Literal
-  attr.property : Top
-  attr.action : BuildAllImport()
-  attr.action : SetFromModule(%3)

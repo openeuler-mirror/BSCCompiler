@@ -145,12 +145,6 @@ void TokenGen::GenCppFile() {
   s += ";";
   mCppFile.WriteOneLine(s.c_str(), s.size());
 
-  s = "unsigned gPreprocessorKeywordTokensNum=";
-  num = std::to_string(gTokenTable.mNumPreprocessorKeywords);
-  s += num;
-  s += ";";
-  mCppFile.WriteOneLine(s.c_str(), s.size());
-
   // write:
   //   Token gSystemTokens[] = {
   s = "Token gSystemTokens[] = {";
@@ -250,17 +244,6 @@ void TokenGen::GenCppFile() {
       output += "}, .mAltTokens = NULL},";
     }
 
-    mCppFile.WriteOneLine(output.c_str(), output.size());
-  }
-
-  unsigned pre_kw_size = gTokenTable.mPreprocessorKeywords.size();
-  for (unsigned index = 0; index < pre_kw_size; index++, overall_index++) {
-    std::string output = "  {.mTkType = TT_PKW, {.mName = ";
-    std::string keyword = gTokenTable.mPreprocessorKeywords[index];
-    output += "\"";
-    output += keyword;
-    output += "\"";
-    output += "}, .mAltTokens = NULL},";
     mCppFile.WriteOneLine(output.c_str(), output.size());
   }
 

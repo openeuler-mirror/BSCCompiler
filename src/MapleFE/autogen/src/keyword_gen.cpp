@@ -70,13 +70,13 @@ void KeywordGen::GenHeaderFile() {
   mHeaderFile.WriteOneLine("namespace maplefe {", 19);
 
   // table decl
-  std::string s = "extern KeywordTableEntry " + mPrefix + "KeywordTable[";
+  std::string s = "extern KeywordTableEntry KeywordTable[";
   s = s + std::to_string(mKeywords.size());
   s = s + "];";
   mHeaderFile.WriteOneLine(s.c_str(), s.size());
 
   // table size decl
-  s = "extern unsigned " + mPrefix + "KeywordTableSize;";
+  s = "extern unsigned KeywordTableSize;";
   mHeaderFile.WriteOneLine(s.c_str(), s.size());
 
   mHeaderFile.WriteOneLine("}", 1);
@@ -87,7 +87,7 @@ void KeywordGen::GenCppFile() {
   mCppFile.WriteOneLine("#include \"ruletable.h\"", 22);
   mCppFile.WriteOneLine("namespace maplefe {", 19);
   TableBuffer tb;
-  std::string s = "KeywordTableEntry " + mPrefix + "KeywordTable[";
+  std::string s = "KeywordTableEntry KeywordTable[";
   s = s + std::to_string(mKeywords.size());
   s = s + "] = {";
   tb.Generate(this, s);
@@ -95,7 +95,7 @@ void KeywordGen::GenCppFile() {
   mCppFile.WriteOneLine("};", 2);
 
   // table size;
-  s = "unsigned " + mPrefix + "KeywordTableSize = ";
+  s = "unsigned KeywordTableSize = ";
   s = s + std::to_string(mKeywords.size());
   s = s + ";";
   mCppFile.WriteOneLine(s.c_str(), s.size());

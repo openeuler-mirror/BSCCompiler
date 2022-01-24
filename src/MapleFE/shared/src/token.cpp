@@ -90,7 +90,7 @@ void LiteralTokenDump(LitData data) {
 }
 
 const char* Token::GetName() const {
-  if (mTkType == TT_KW || mTkType == TT_ID || mTkType == TT_PKW)
+  if (mTkType == TT_KW || mTkType == TT_ID)
     return mData.mName;
   else if (mTkType == TT_SP)
     return SeparatorTokenGetName(mData.mSepId);
@@ -224,25 +224,6 @@ Token* FindKeywordToken(const char *key) {
   }
   MASSERT(found && token);
   return token;
-}
-
-// The caller of this function makes sure 'key' is already in the
-// string pool of Lexer.
-Token* FindPreprocessorKeywordToken(const char *key) {
-  Token *token = NULL;
-  bool found = false;
-  for (unsigned i = gOperatorTokensNum + gSeparatorTokensNum + gKeywordTokensNum;
-       i < gOperatorTokensNum + gSeparatorTokensNum + gKeywordTokensNum + gPreprocessorKeywordTokensNum;
-       i++) {
-    token = &gSystemTokens[i];
-    MASSERT(token->mTkType == TT_PKW);
-    if (strlen(key) == strlen(token->GetName()) &&
-        !strncmp(key, token->GetName(), strlen(key))) {
-      found = true;
-      break;
-    }
-  }
-  return found && token ? token : NULL;
 }
 
 // CommentToken is the last predefined token

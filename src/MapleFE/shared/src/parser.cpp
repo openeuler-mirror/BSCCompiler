@@ -346,25 +346,6 @@ bool Parser::TokenMerge(Token *t) {
   return false;
 }
 
-// The C language preprocessing starts with # and the following is a keyword.
-bool Parser::HandlePreprocessorToken(Token *t) {
-  if (!t->IsIdentifier())
-    return false;
-
-  if (mActiveTokens.GetNum() == 0 ||
-      !mActiveTokens.Back()->IsSeparator() ||
-      mActiveTokens.Back()->mData.mSepId != SEP_Pound) {
-    return false;
-  }
-
-  Token *pt = FindPreprocessorKeywordToken(t->mData.mName);
-  if (pt == nullptr)
-    return false;
-
-  mActiveTokens.PushBack(pt);
-  return true;
-}
-
 // Lex all tokens in a line, save to mActiveTokens.
 // If no valuable in current line, we continue to the next line.
 // Returns the number of valuable tokens read. Returns 0 if EOF.
@@ -412,11 +393,6 @@ unsigned Parser::LexOneLine() {
             line_begin = false;
             if (mLexer->GetTrace())
               DUMP0("Set as Line First.");
-          }
-          // process preprocessor token
-          if (HandlePreprocessorToken(t)) {
-            token_num++;
-            continue;
           }
 
           mActiveTokens.PushBack(t);
@@ -544,22 +520,6 @@ void Parser::ParseTemplateLiterals() {
   }
   mLineMode = false;
   mLexer->ResetLineMode();
-}
-
-std::list<std::string> Parser::GetImportFiles() {
-  std::list<std::string> files;
-  unsigned numImports = mASTModule->GetImportsNum();
-  for (unsigned i = 0; i < numImports; ++i) {
-    ImportNode *importNode = mASTModule->GetImport(i);
-    TreeNode *node = importNode->GetTarget();
-    if (node && node->IsLiteral()) {
-      LiteralNode *lit = static_cast<LiteralNode *>(node);
-      LitData data = lit->GetData();
-      std::string filename = std::string(gStringPool.GetStringFromStrIdx(data.mData.mStrIdx));
-      files.emplace_back(filename);
-    }
-  }
-  return files;
 }
 
 void Parser::ClearAppealNodes() {

@@ -32,10 +32,9 @@ namespace maplefe {
 class KeywordGen : public BaseGen {
 public:
   std::vector<std::string> mKeywords;
-  std::string mPrefix; // There are multiple types of keywords, which are distinguished by prefixes
 public:
-  KeywordGen(const char *dfile, const char *hfile, const char *cfile, std::string prefix = "")
-      : BaseGen(dfile, hfile, cfile), mPrefix(prefix) {}
+  KeywordGen(const char *dfile, const char *hfile, const char *cfile)
+      : BaseGen(dfile, hfile, cfile) {}
   ~KeywordGen(){}
 
   void ProcessStructData();
