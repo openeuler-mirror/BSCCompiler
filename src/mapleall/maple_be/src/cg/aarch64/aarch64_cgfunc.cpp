@@ -197,7 +197,7 @@ MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) const {
   return MOP_undef;
 }
 
-MOperator AArch64CGFunc::PickMovBetweenRegs(PrimType destType, PrimType srcType) {
+MOperator AArch64CGFunc::PickMovBetweenRegs(PrimType destType, PrimType srcType) const {
   if (IsPrimitiveVector(destType) && IsPrimitiveVector(srcType)) {
     return GetPrimTypeSize(srcType) == k8ByteSize ? MOP_vmovuu : MOP_vmovvv;
   }
@@ -774,13 +774,13 @@ bool AArch64CGFunc::IsImmediateOffsetOutOfRange(AArch64MemOperand &memOpnd, uint
   ASSERT(bitLen <= k128BitSize, "bitlen error");
 
   if (bitLen >= k8BitSize) {
-    bitLen = RoundUp(bitLen, k8BitSize);
+    bitLen = static_cast<uint32>(RoundUp(bitLen, k8BitSize));
   }
   ASSERT((bitLen & (bitLen - 1)) == 0, "bitlen error");
 
   AArch64MemOperand::AArch64AddressingMode mode = memOpnd.GetAddrMode();
   if ((mode == AArch64MemOperand::kAddrModeBOi) && memOpnd.IsIntactIndexed()) {
-    int32 offsetValue = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    int32 offsetValue = static_cast<int32>(memOpnd.GetOffsetImmediate()->GetOffsetValue());
     if (memOpnd.GetOffsetImmediate()->GetVary() == kUnAdjustVary) {
       offsetValue += static_cast<AArch64MemLayout*>(GetMemlayout())->RealStackFrameSize() + 0xff;
     }
@@ -888,12 +888,8 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
   }
   ASSERT(maxPimm != 0, "get max pimm failed");
 
-  bool misAlignment = false;
   int64 q0 = opndVal / maxPimm + (opndVal < 0 ? -1 : 0);
   int64 addend = q0 * maxPimm;
-  if (addend == 0) {
-    misAlignment = true;
-  }
   int64 r0 = opndVal - addend;
   int64 alignment = AArch64MemOperand::GetImmediateOffsetAlignment(bitLen);
   int64 q1 = static_cast<uint64>(r0) >> static_cast<uint64>(alignment);
@@ -1058,7 +1054,7 @@ void AArch64CGFunc::SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPTyp
 
 void AArch64CGFunc::SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) {
   MIRSymbol *symbol = GetFunction().GetLocalOrGlobalSymbol(stmt.stIdx);
-  int32 offset = stmt.offset;
+  int64 offset = stmt.offset;
   int32 size = GetPrimTypeSize(stmt.GetPrimType()) * k8ByteSize;
   MOperator mOp = (size == k16BitSize) ? MOP_wstrh :
                       ((size == k32BitSize) ? MOP_wstr :
@@ -1088,7 +1084,7 @@ void AArch64CGFunc::SelectAssertNull(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
-void AArch64CGFunc::SelectAbort(UnaryStmtNode &stmt) {
+void AArch64CGFunc::SelectAbort() {
   AArch64RegOperand &inOpnd = GetOrCreatePhysicalRegisterOperand(R16, k64BitSize, kRegTyInt);
   auto &mem = CreateMemOpnd(inOpnd, 0, k64BitSize);
   Insn &movXzr = GetCG()->BuildInstruction<AArch64Insn>(MOP_xmovri64, inOpnd, CreateImmOperand(0, k64BitSize,false));
@@ -1099,7 +1095,7 @@ void AArch64CGFunc::SelectAbort(UnaryStmtNode &stmt) {
   GetCurBB()->AppendInsn(loadRef);
 }
 
-static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, const std::string constraint) {
+static std::string GetRegPrefixFromPrimType(PrimType pType, uint32 size, const std::string &constraint) {
   std::string regPrefix = "";
   /* memory access check */
   if (constraint.find("m") != std::string::npos || constraint.find("Q") != std::string::npos) {
@@ -1544,7 +1540,7 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
     Insn *lastStr = nullptr;
     for (uint32 i = 0; i < (lhsSize / copySize); i++) {
       uint32 rhsBaseOffset = i * copySize + rhsOffsetVal;
-      uint32 lhsBaseOffset = i * copySize + lhsOffsetVal;
+      uint32 lhsBaseOffset = i * copySize + static_cast<uint32>(lhsOffsetVal);
       AArch64MemOperand::AArch64AddressingMode addrMode =
           rhsIsLo12 ? AArch64MemOperand::kAddrModeLo12Li : AArch64MemOperand::kAddrModeBOi;
       MIRSymbol *sym = rhsIsLo12 ? rhsSymbol : nullptr;
@@ -2233,13 +2229,13 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       }
       /* generate the load */
       AArch64OfstOperand &rhsOfstOpnd = GetOrCreateOfstOpnd(rhsOffset + lhsSizeCovered, k32BitSize);
-      uint64 memOpndSize = newAlignUsed * k8BitSize;
+      uint32 memOpndSize = newAlignUsed * k8BitSize;
       MemOperand *rhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, memOpndSize,
           static_cast<AArch64RegOperand*>(rhsAddrOpnd), nullptr, &rhsOfstOpnd, nullptr);
       regno_t vRegNO = NewVReg(kRegTyInt, std::max(4u, newAlignUsed));
       RegOperand &result = CreateVirtualRegisterOperand(vRegNO);
       MOperator mOpLD = PickLdInsn(memOpndSize, PTY_u32);
-      rhsMemOpnd = FixLargeMemOpnd(mOpLD, *rhsMemOpnd, memOpndSize, kInsnSecondOpnd);
+      rhsMemOpnd = FixLargeMemOpnd(mOpLD, *rhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
       Insn &insn = GetCG()->BuildInstruction<AArch64Insn>(mOpLD, result, *rhsMemOpnd);
       insn.MarkAsAccessRefField(isRefField);
       GetCurBB()->AppendInsn(insn);
@@ -2248,7 +2244,7 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       MemOperand *lhsMemOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, memOpndSize,
           static_cast<AArch64RegOperand*>(&lhsAddrOpnd), nullptr, &lhsOfstOpnd, nullptr);
       MOperator mOpST = PickStInsn(memOpndSize, PTY_u32);
-      lhsMemOpnd = FixLargeMemOpnd(mOpST, *lhsMemOpnd, memOpndSize, kInsnSecondOpnd);
+      lhsMemOpnd = FixLargeMemOpnd(mOpST, *lhsMemOpnd, memOpndSize, static_cast<uint32>(kInsnSecondOpnd));
       GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(mOpST, result, *lhsMemOpnd));
       lhsSizeCovered += newAlignUsed;
     }
@@ -2280,7 +2276,7 @@ Operand *AArch64CGFunc::SelectDread(const BaseNode &parent, DreadNode &expr) {
   uint32 aggSize = 0;
   if (symType == PTY_agg) {
     if (expr.GetPrimType() == PTY_agg) {
-      aggSize = GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx());
+      aggSize = static_cast<uint32>(GetBecommon().GetTypeSize(symbol->GetType()->GetTypeIndex().GetIdx()));
       dataSize = ((expr.GetFieldID() == 0) ? kSizeOfPtr : aggSize) << 3;
     } else {
       dataSize = GetPrimTypeBitSize(expr.GetPrimType());
@@ -7502,7 +7498,7 @@ void AArch64CGFunc::SelectCall(CallNode &callNode) {
   Insn &callInsn = AppendCall(*fsym, *srcOpnds);
   GetCurBB()->SetHasCall();
   if (retType != nullptr) {
-    callInsn.SetRetSize(retType->GetSize());
+    callInsn.SetRetSize(static_cast<uint32>(retType->GetSize()));
     callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
   }
 
@@ -7540,7 +7536,7 @@ void AArch64CGFunc::SelectIcall(IcallNode &icallNode, Operand &srcOpnd) {
 
   MIRType *retType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(icallNode.GetRetTyIdx());
   if (retType != nullptr) {
-    callInsn.SetRetSize(retType->GetSize());
+    callInsn.SetRetSize(static_cast<uint32>(retType->GetSize()));
     callInsn.SetIsCallReturnUnsigned(IsUnsignedInteger(retType->GetPrimType()));
   }
 
@@ -7909,7 +7905,7 @@ MemOperand &AArch64CGFunc::GetOrCreateMemOpnd(const MIRSymbol &symbol, int64 off
     }
 
     AArch64RegOperand *baseOpnd = static_cast<AArch64RegOperand*>(GetBaseReg(*symLoc));
-    int32 totalOffset = stOffset + offset;
+    int32 totalOffset = stOffset + static_cast<int32>(offset);
     /* needs a fresh copy of OfstOperand as we may adjust its offset at a later stage. */
     AArch64OfstOperand *offsetOpnd;
     if (CGOptions::IsBigEndian()) {

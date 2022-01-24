@@ -57,6 +57,129 @@ bool CRNode::IsEqual(const CRNode &crNode) const {
   }
 }
 
+// Put the sub nodes of crNode in vector for opt the boundary check, such as:
+// crNode: ptr + length * 4 - 8
+// =>
+// curVector: { ptr, length * 4, -8 }
+void CRNode::PutTheSubNode2Vector(std::vector<CRNode*> &curVector) {
+  switch (crType) {
+    case kCRConstNode:
+    case kCRVarNode:
+    case kCRDivNode:
+    case kCRMulNode:
+    case kCRNode:
+    case kCRUnKnown:
+      curVector.push_back(this);
+      break;
+    case kCRAddNode:
+      auto *crAddNode = static_cast<CRAddNode*>(this);
+      curVector.insert(curVector.end(), crAddNode->GetOpnds().begin(), crAddNode->GetOpnds().end());
+      break;
+  }
+}
+
+static bool IsConstantMultipliedByVariable(const CRMulNode &crMulNode) {
+  return (crMulNode.GetOpndsSize() == kNumOpnds && crMulNode.GetOpnd(0)->GetCRType() == kCRConstNode);
+}
+
+// Get the byte size of array for simpify the crNodes.
+uint8 LoopScalarAnalysisResult::GetByteSize(std::vector<CRNode*> &crNodeVector) {
+  for (size_t i = 0; i < crNodeVector.size(); ++i) {
+    if (crNodeVector[i]->GetCRType() != kCRMulNode) {
+      continue;
+    }
+    auto *crMulNode = static_cast<CRMulNode*>(crNodeVector[i]);
+    if (!IsConstantMultipliedByVariable(*crMulNode)) {
+      return false;
+    }
+    return static_cast<CRConstNode*>(crMulNode->GetOpnd(0))->GetConstValue();
+  }
+  return 0;
+}
+
+// Get the prim type of index or bound, if not found, return PTY_i64.
+PrimType LoopScalarAnalysisResult::GetPrimType(std::vector<CRNode*> &crNodeVector) {
+  for (size_t i = 0; i < crNodeVector.size(); ++i) {
+    if (crNodeVector[i]->GetCRType() == kCRVarNode) {
+      return crNodeVector[i]->GetExpr()->GetPrimType();
+    }
+  }
+  return PTY_i64;
+}
+
+// If the byteSize is 4, simpify the crNodes like this:
+// before: length * 4 - var * 4 - 4
+// =>
+// after: lenght - var - 1
+bool LoopScalarAnalysisResult::NormalizationWithByteCount(std::vector<CRNode*> &crNodeVector, uint8 byteSize) {
+  if (byteSize <= 1) {
+    return true;
+  }
+  for (size_t i = 0; i < crNodeVector.size(); ++i) {
+    if (crNodeVector[i]->GetCRType() != kCRConstNode && crNodeVector[i]->GetCRType() != kCRMulNode) {
+      return false;
+    }
+    if (crNodeVector[i]->GetCRType() == kCRConstNode) {
+      auto value = static_cast<CRConstNode*>(crNodeVector[i])->GetConstValue();
+      if (value % byteSize != 0) {
+        return false;
+      }
+      value = value / byteSize;
+      crNodeVector[i] = GetOrCreateCRConstNode(nullptr, value);
+      continue;
+    }
+    if (crNodeVector[i]->GetCRType() == kCRMulNode) {
+      auto *crMulNode = static_cast<CRMulNode*>(crNodeVector[i]);
+      if (!IsConstantMultipliedByVariable(*crMulNode)) {
+        return false;
+      }
+      auto value = static_cast<CRConstNode*>(crMulNode->GetOpnd(0))->GetConstValue();
+      if (value % byteSize != 0) {
+        return false;
+      }
+      value = value / byteSize;
+      if (value == 1) {
+        crNodeVector[i] = crMulNode->GetOpnd(1);
+      } else {
+        std::vector<CRNode*> crMulNodes { GetOrCreateCRConstNode(nullptr, value), crMulNode->GetOpnd(1) };
+        crNodeVector[i] = GetOrCreateCRMulNode(nullptr, crMulNodes);
+      }
+      continue;
+    }
+  }
+  return true;
+}
+
+// Return the unequal sub nodes of index crNode and bound crNode.
+void CRNode::GetTheUnequalSubNodesOfIndexAndBound(
+    CRNode &boundCRNode, std::vector<CRNode*> &indexVector, std::vector<CRNode*> &boundVector) {
+  this->PutTheSubNode2Vector(indexVector);
+  boundCRNode.PutTheSubNode2Vector(boundVector);
+  for (auto it = indexVector.begin(); it != indexVector.end();) {
+    bool findTheSameCR = false;
+    for (auto itOfBoundVec = boundVector.begin(); itOfBoundVec != boundVector.end(); ++itOfBoundVec) {
+      // The vectors are sorted by specified order like :
+      // kCRConstNode < kCRVarNode < kCRAddNode < kCRMulNode < kCRDivNode < kCRNode < kCRUnKnown.
+      if ((*itOfBoundVec)->GetCRType() > (*it)->GetCRType()) {
+        break;
+      }
+      if ((*itOfBoundVec)->GetCRType() != (*it)->GetCRType()) {
+        continue;
+      }
+      // If the crNodes are equal, erase them from their vector.
+      if ((*it)->IsEqual(**itOfBoundVec)) {
+        findTheSameCR = true;
+        it = indexVector.erase(it);
+        boundVector.erase(itOfBoundVec);
+        break;
+      }
+    }
+    if (!findTheSameCR) {
+      ++it;
+    }
+  }
+}
+
 CRNode *CR::GetPolynomialsValueAtITerm(CRNode &iterCRNode, size_t num, LoopScalarAnalysisResult &scalarAnalysis) const {
   if (num == 1) {
     return &iterCRNode;
@@ -169,7 +292,10 @@ void LoopScalarAnalysisResult::Dump(const CRNode &crNode) {
       const MeExpr *meExpr = crNode.GetExpr();
       std::string name;
       OStIdx oStIdx;
-      if (meExpr->GetMeOp() == kMeOpAddrof) {
+      if (meExpr->GetMeOp() == kMeOpReg) {
+        LogInfo::MapleLogger() << "mx" + std::to_string(meExpr->GetExprID());
+        return;
+      } else if (meExpr->GetMeOp() == kMeOpAddrof) {
         oStIdx = static_cast<const AddrofMeExpr*>(meExpr)->GetOstIdx();
       } else if (meExpr->GetMeOp() == kMeOpVar) {
         oStIdx = static_cast<const VarMeExpr*>(meExpr)->GetOstIdx();
@@ -261,7 +387,7 @@ void LoopScalarAnalysisResult::Dump(const CRNode &crNode) {
   }
 }
 
-CRNode *LoopScalarAnalysisResult::GetOrCreateCRConstNode(MeExpr *expr, int32 value) {
+CRNode *LoopScalarAnalysisResult::GetOrCreateCRConstNode(MeExpr *expr, int64 value) {
   if (expr == nullptr) {
     std::unique_ptr<CRConstNode> constNode = std::make_unique<CRConstNode>(nullptr, value);
     CRConstNode *constPtr = constNode.get();
@@ -295,7 +421,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRVarNode(MeExpr &expr) {
 
 CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
   if (expr.GetMeOp() == kMeOpConst && static_cast<ConstMeExpr&>(expr).GetConstVal()->GetKind() == kConstInt) {
-    return GetOrCreateCRConstNode(&expr, static_cast<int32>(static_cast<ConstMeExpr&>(expr).GetIntValue()));
+    return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr&>(expr).GetIntValue());
   }
   if (expr.GetMeOp() == kMeOpVar || expr.GetMeOp() == kMeOpReg) {
     // Try to resolve Var is assigned from Const
@@ -305,7 +431,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
     scalar = TryToResolveScalar(*scalar, visitedPhi, dummyExpr);
     if (scalar != nullptr && scalar != &dummyExpr) {
       CHECK_FATAL(scalar->GetMeOp() == kMeOpConst, "must be");
-      return GetOrCreateCRConstNode(&expr, static_cast<int32>(static_cast<ConstMeExpr*>(scalar)->GetIntValue()));
+      return GetOrCreateCRConstNode(&expr, static_cast<ConstMeExpr*>(scalar)->GetIntValue());
     }
     return GetOrCreateCRVarNode(expr);
   }
@@ -935,23 +1061,21 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
     case kMeOpConst: {
       return GetOrCreateLoopInvariantCR(expr);
     }
-    case kMeOpVar: {
-      VarMeExpr *varExpr = static_cast<VarMeExpr*>(&expr);
-      if (varExpr->IsVolatile()) {
+    case kMeOpVar:
+    case kMeOpReg: {
+      ScalarMeExpr *scalar = static_cast<ScalarMeExpr*>(&expr);
+      if (scalar->IsVolatile()) {
         // volatile variable can not find real def pos, skip it
         InsertExpr2CR(expr, nullptr);
         return nullptr;
       }
-      if (varExpr->DefByBB() != nullptr && loop != nullptr && !loop->Has(*varExpr->DefByBB())) {
+      if (scalar->DefByBB() != nullptr && loop != nullptr && !loop->Has(*scalar->DefByBB())) {
         return GetOrCreateLoopInvariantCR(expr);
       }
-      switch (varExpr->GetDefBy()) {
+      switch (scalar->GetDefBy()) {
         case kDefByStmt: {
-          MeExpr *rhs = varExpr->GetDefStmt()->GetRHS();
+          MeExpr *rhs = scalar->GetDefStmt()->GetRHS();
           switch (rhs->GetMeOp()) {
-            case kMeOpConst: {
-              return GetOrCreateLoopInvariantCR(*rhs);
-            }
             case kMeOpVar: {
               return GetOrCreateCRNode(*rhs);
             }
@@ -959,15 +1083,14 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
               return DealWithMeOpOp(*rhs, expr);
             }
             default:
-              InsertExpr2CR(expr, nullptr);
-              return nullptr;
+              return GetOrCreateLoopInvariantCR(*rhs);
           }
         }
         case kDefByPhi: {
           if (!computeTripCountForLoopUnroll) {
-            return GetOrCreateLoopInvariantCR(expr);
+            return GetOrCreateCRVarNode(expr);
           }
-          MePhiNode *phiNode = &(varExpr->GetDefPhi());
+          MePhiNode *phiNode = &(scalar->GetDefPhi());
           if (phiNode->GetOpnds().size() == kNumOpnds) {
             return CreateCRForPhi(*phiNode);
           } else {
@@ -975,37 +1098,15 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCRNode(MeExpr &expr) {
             return nullptr;
           }
         }
-        case kDefByChi: {
-          ChiMeNode *chiNode = &(varExpr->GetDefChi());
-          if (loop != nullptr && !loop->Has(*chiNode->GetBase()->GetBB())) {
-            return GetOrCreateLoopInvariantCR(expr);
-          } else {
-            InsertExpr2CR(expr, nullptr);
-            return nullptr;
-          }
-        }
-        case kDefByMustDef: {
-          return GetOrCreateLoopInvariantCR(expr);
-        }
-        case kDefByNo: {
-          return GetOrCreateLoopInvariantCR(expr);
-        }
         default:
-          InsertExpr2CR(expr, nullptr);
-          return nullptr;
+          return GetOrCreateLoopInvariantCR(expr);
       }
     }
     case kMeOpOp: {
       return DealWithMeOpOp(expr, expr);
-      break;
-    }
-    case kMeOpIvar:
-    case kMeOpAddrof: {
-      return GetOrCreateLoopInvariantCR(expr);
     }
     default:
-      InsertExpr2CR(expr, nullptr);
-      return nullptr;
+      return GetOrCreateLoopInvariantCR(expr);
   }
 }
 
@@ -1251,6 +1352,14 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint6
     BB *brTarget = exitBB->GetSucc(1);
     CHECK_FATAL(brMeStmt->GetOffset() == brTarget->GetBBLabel(), "must be");
     auto *opMeExpr = static_cast<OpMeExpr*>(brMeStmt->GetOpnd());
+    Opcode op = OP_undef;
+    if (loop->Has(*exitBB->GetSucc(0)) && !loop->Has(*exitBB->GetSucc(1))) {
+      op = (brMeStmt->GetOp() == OP_brtrue) ? GetReverseCmpOp(opMeExpr->GetOp()) : opMeExpr->GetOp();
+    } else if (loop->Has(*exitBB->GetSucc(1)) && !loop->Has(*exitBB->GetSucc(0))) {
+      op = (brMeStmt->GetOp() == OP_brtrue) ? opMeExpr->GetOp() : GetReverseCmpOp(opMeExpr->GetOp());
+    } else {
+      return kCouldNotComputeCR;
+    }
     MeExpr *opnd1 = opMeExpr->GetOpnd(0);
     MeExpr *opnd2 = opMeExpr->GetOpnd(1);
     if (!IsPrimitiveInteger(opMeExpr->GetOpndType())) {
@@ -1301,7 +1410,6 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint6
     }
     CHECK_FATAL(cr->GetOpndsSize() > 1, "impossible");
     if (cr->GetOpndsSize() == 2) { // cr has two opnds like {1, + 1}
-      auto op = brMeStmt->GetOp() == OP_brtrue ? opMeExpr->GetOp() : GetReverseCmpOp(opMeExpr->GetOp());
       if (crNode1->GetCRType() == kCRConstNode) {
         // swap comparison to make const always being right
         op = op == OP_ge ? OP_le
@@ -1314,7 +1422,7 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint6
                                                           constNode->GetConstValue(),
                                                           static_cast<CRConstNode*>(cr->GetOpnd(0))->GetConstValue(),
                                                           static_cast<CRConstNode*>(cr->GetOpnd(1))->GetConstValue());
-      return kConstCR;
+      return (tripCountResult == 0) ? kCouldNotUnroll : kConstCR;
     } else {
       return kCouldNotComputeCR;
     }

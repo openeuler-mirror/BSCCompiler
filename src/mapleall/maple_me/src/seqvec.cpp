@@ -111,7 +111,7 @@ RegassignNode *SeqVectorize::GenDupScalarStmt(BaseNode *scalar, PrimType vecPrim
 }
 
 // v2uint8 v2int8 v2uint16 v2int16 are not added to prim type
-bool SeqVectorize::HasVecType(PrimType sPrimType, uint8 lanes) {
+bool SeqVectorize::HasVecType(PrimType sPrimType, uint8 lanes) const {
   if (lanes == 1) return false;
   if ((GetPrimTypeSize(sPrimType) == 1 && lanes < 8) ||
       (GetPrimTypeSize(sPrimType) == 2 && lanes < 4)) {
@@ -120,7 +120,7 @@ bool SeqVectorize::HasVecType(PrimType sPrimType, uint8 lanes) {
   return true;
 }
 
-MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) {
+MIRType* SeqVectorize::GenVecType(PrimType sPrimType, uint8 lanes) const {
   MIRType *vecType = nullptr;
   CHECK_FATAL(IsPrimitiveInteger(sPrimType), "primtype should be integer");
   switch (sPrimType) {
@@ -473,8 +473,8 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   PrimType ptType = ptrType->GetPointedType()->GetPrimType();
   uint32_t maxLanes = 16 / GetPrimTypeSize((ptrType->GetPointedType()->GetPrimType()));
-  int32_t len = cands.size();
-  int32_t start = 0;
+  uint32 len = cands.size();
+  uint32 start = 0;
   do {
     IassignNode *iassign = cands[start];
     uint32_t candCountP2 = PreviousPowerOfTwo(len);
@@ -520,7 +520,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     }
 
     // delete merged iassignode
-    for (int i = start + 1; i < start + lanes; i++) {
+    for (uint32 i = start + 1; i < start + lanes; i++) {
       blockParent->RemoveStmt(cands[i]);
     }
     len = len - lanes;
@@ -532,15 +532,15 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
 
 void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
   MapleVector<IassignNode *> cands(localAlloc.Adapter());
-  uint32_t len = storelist->size();
+  size_t len = storelist->size();
   bool needReverse = true;
   cands.clear();
   ResetRhsStatus(); // reset rhs is const flag
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
-    for (int j = i + 1; j < len; j++) {
+    for (size_t j = i + 1; j < len; j++) {
       IassignNode *store2 = (*storelist)[j];
       if (CanSeqVec(cands.back(), store2)) {
         cands.push_back(store2);
@@ -582,7 +582,7 @@ void SeqVectorize::CheckAndTransform() {
   // legality check and merge nodes
   StoreListMap::iterator mapit = stores.begin();
   MapleVector<IassignNode *> cands(localAlloc.Adapter());
-  for (; mapit != stores.end(); mapit++) {
+  for (; mapit != stores.end(); ++mapit) {
     if (enableDebug) {
       DumpCandidates(mapit->first, mapit->second);
     }
@@ -591,7 +591,7 @@ void SeqVectorize::CheckAndTransform() {
 
   // clear list
   mapit = stores.begin();
-  for (; mapit != stores.end(); mapit++) {
+  for (; mapit != stores.end(); ++mapit) {
     mapit->second->clear();
   }
   stores.clear();

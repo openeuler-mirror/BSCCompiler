@@ -70,7 +70,7 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       MIRConst *konst = static_cast<ConstMeExpr *>(x)->GetConstVal();
       CHECK_FATAL(konst->GetKind() == kConstInt, "ComputeIncrAmt: must be integer constant");
       MIRIntConst *intConst = static_cast<MIRIntConst *>(konst);
-      return intConst->GetValue();
+      return static_cast<int32>(intConst->GetValue());
     }
     case kMeOpVar:
     case kMeOpReg:{
@@ -87,9 +87,9 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       CHECK_FATAL(x->GetOp() == OP_add || x->GetOp() == OP_sub, "ComputeIncrAmt: cannot be here");
       OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
       int32 appear0 = 0;
-      int64 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), phiLHS, &appear0);
+      int32 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), phiLHS, &appear0);
       int32 appear1 = 0;
-      int64 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), phiLHS, &appear1);
+      int32 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), phiLHS, &appear1);
       if (x->GetOp() == OP_sub) {
         *appearances = appear0 - appear1;
         return incrAmt0 - incrAmt1;
@@ -541,7 +541,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
   PreMeFunction *preMeFunc = f.GetPreMeFunc();
 
   // loop thru all the loops in reverse order so inner loops are processed first
-  for (int32 i = identLoops->GetMeLoops().size()-1; i >= 0; i--) {
+  for (int32 i = static_cast<int32>(identLoops->GetMeLoops().size()) - 1; i >= 0; i--) {
     LoopDesc *aloop = identLoops->GetMeLoops()[i];
     BB *headbb = aloop->head;
     // check if the label has associated PreMeWhileInfo
@@ -560,7 +560,7 @@ bool MELfoIVCanon::PhaseRun(MeFunction &f) {
       continue;
     }
     MemPool *ivmp = GetPhaseMemPool();
-    IVCanon ivCanon(ivmp, &f, dom, aloop, i, whileInfo);
+    IVCanon ivCanon(ivmp, &f, dom, aloop, static_cast<uint32>(i), whileInfo);
     ivCanon.PerformIVCanon();
     // transfer primary IV info to whileinfo
     if (ivCanon.idxPrimaryIV != -1) {

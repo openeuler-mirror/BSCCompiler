@@ -349,7 +349,7 @@ void IVOptData::CreateIV(MeExpr *expr, MeExpr *base, MeExpr *step, bool isBasicI
 
 void IVOptData::CreateFakeGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr) {
   IVGroup *group = mp->New<IVGroup>();
-  group->SetID(fakeGroups.size());
+  group->SetID(static_cast<uint32>(fakeGroups.size()));
   IVUse *use = mp->New<IVUse>(&stmt, &iv);
   group->uses.emplace_back(use);
   group->type = type;
@@ -360,7 +360,7 @@ void IVOptData::CreateFakeGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *ex
 
 void IVOptData::CreateGroup(MeStmt &stmt, IV &iv, IVUseType type, MeExpr *expr) {
   IVGroup *group = mp->New<IVGroup>();
-  group->SetID(groups.size());
+  group->SetID(static_cast<uint32>(groups.size()));
   IVUse *use = mp->New<IVUse>(&stmt, &iv);
   group->uses.emplace_back(use);
   group->type = type;
@@ -382,7 +382,7 @@ IVCand *IVOptData::CreateCandidate(MeExpr *ivTmp, MeExpr *base, MeExpr *step, Me
 
   IV *iv = mp->New<IV>(ivTmp, base, step, false);
   auto *cand = mp->New<IVCand>(iv, inc);
-  cand->SetID(cands.size());
+  cand->SetID(static_cast<uint32>(cands.size()));
   cands.emplace_back(cand);
   candRecord[base->GetExprID()].emplace_back(cand);
   return cand;
@@ -2372,7 +2372,7 @@ void IVOptimizer::Run() {
   if (!useInfo->UseInfoOfScalarIsValid()) { // sink only depends on use info of scalar
     useInfo->CollectUseInfoInFunc(irMap, dom, kUseInfoOfScalar);
   }
-  for (int32 i = loops->GetMeLoops().size() - 1; i >= 0; i--) {
+  for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; i--) {
     auto *loop = loops->GetMeLoops()[i];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
@@ -2390,7 +2390,7 @@ void IVOptimizer::Run() {
       }
     }
   }
-  for (int32 i = loops->GetMeLoops().size() - 1; i >= 0; i--) {
+  for (int32 i = static_cast<int32>(loops->GetMeLoops().size()) - 1; i >= 0; i--) {
     auto *loop = loops->GetMeLoops()[i];
     if (loop->head == nullptr || loop->preheader == nullptr || loop->latch == nullptr) {
       // not canonicalized
