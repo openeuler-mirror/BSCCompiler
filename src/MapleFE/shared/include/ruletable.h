@@ -210,8 +210,5 @@ struct KeywordTableEntry {
 extern KeywordTableEntry KeywordTable[];
 extern unsigned KeywordTableSize;
 
-extern KeywordTableEntry PreprocessorKeywordTable[];
-extern unsigned PreprocessorKeywordTableSize;
-
 }
 #endif

@@ -42,7 +42,6 @@ namespace maplefe {
 typedef enum TK_Type {
   TT_ID,    // Identifier
   TT_KW,    // Keyword
-  TT_PKW,   // Preprocessor Keyword
   TT_LT,    // Literal
   TT_SP,    // separator
   TT_OP,    // operator
@@ -163,7 +162,6 @@ struct Token {
   Token* FindSeparatorToken(SepId id);
   Token* FindOperatorToken(OprId id);
   Token* FindKeywordToken(const char *key);
-  Token* FindPreprocessorKeywordToken(const char *key);
   Token* FindCommentToken();
 
 }

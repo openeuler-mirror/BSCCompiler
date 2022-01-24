@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) [2022] Huawei Technologies Co.,Ltd.All rights reserved.
+ *
+ * OpenArkCompiler is licensed under Mulan PSL v2.
+ * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * You may obtain a copy of Mulan PSL v2 at:
+ *
+ *     http://license.coscl.org.cn/MulanPSL2
+ *
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR
+ * FIT FOR A PARTICULAR PURPOSE.
+ * See the Mulan PSL v2 for more details.
+ */
+
+LANGKEYWORD(auto)
+LANGKEYWORD(break)
+LANGKEYWORD(case)
+LANGKEYWORD(char)
+LANGKEYWORD(const)
+LANGKEYWORD(continue)
+LANGKEYWORD(default)
+LANGKEYWORD(do)
+LANGKEYWORD(double)
+LANGKEYWORD(else)
+LANGKEYWORD(enum)
+LANGKEYWORD(extern)
+LANGKEYWORD(float)
+LANGKEYWORD(for)
+LANGKEYWORD(goto)
+LANGKEYWORD(if)
+LANGKEYWORD(inline)
+LANGKEYWORD(int)
+LANGKEYWORD(long)
+LANGKEYWORD(register)
+LANGKEYWORD(restrict)
+LANGKEYWORD(return)
+LANGKEYWORD(short)
+LANGKEYWORD(signed)
+LANGKEYWORD(sizeof)
+LANGKEYWORD(static)
+LANGKEYWORD(struct)
+LANGKEYWORD(switch)
+LANGKEYWORD(typedef)
+LANGKEYWORD(union)
+LANGKEYWORD(unsigned)
+LANGKEYWORD(void)
+LANGKEYWORD(volatile)
+LANGKEYWORD(while)
+LANGKEYWORD(_Bool)
+LANGKEYWORD(_Complex)
+LANGKEYWORD(_Imaginary)

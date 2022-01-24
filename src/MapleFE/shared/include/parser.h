@@ -396,7 +396,6 @@ public:
   void Dump();
 
   bool Parse();
-  std::list<std::string> GetImportFiles();
   ParseStatus  ParseStmt();
 
   void InitRecursion();
@@ -406,7 +405,6 @@ public:
 
   // These are language specific.
   virtual bool   TokenSplit(Token *)  {return false;}
-  bool   HandlePreprocessorToken(Token *t);
   virtual Token* GetRegExpr(Token *t) {return t;}
 };
 
