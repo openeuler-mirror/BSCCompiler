@@ -132,7 +132,7 @@ class BB {
 
   // Only use for common entry bb
   void RemoveEntry(const BB &bb) {
-    bb.RemoveBBFromVector(succ);
+    (void)bb.RemoveBBFromVector(succ);
   }
 
   // Only use for common exit bb
@@ -142,7 +142,7 @@ class BB {
 
   // Only use for common exit bb
   void RemoveExit(const BB &bb) {
-    bb.RemoveBBFromVector(pred);
+    (void)bb.RemoveBBFromVector(pred);
   }
 
   void AddPred(BB &predBB, size_t pos = UINT32_MAX) {
@@ -225,7 +225,9 @@ class BB {
   void SetFirstMe(MeStmt *stmt);
   void SetLastMe(MeStmt *stmt);
   MeStmt *GetLastMe();
+  const MeStmt *GetLastMe() const;
   MeStmt *GetFirstMe();
+  const MeStmt *GetFirstMe() const;
   bool IsPredBB(const BB &bb) const {
     // if this is a pred of bb return true;
     // otherwise return false;
@@ -299,13 +301,13 @@ class BB {
   const PhiNode *PhiofVerStInserted(const VersionSt &versionSt) const;
   void InsertPhi(MapleAllocator *alloc, VersionSt *versionSt);
   void PrependMeStmt(MeStmt *meStmt);
-  void RemoveMeStmt(const MeStmt *meStmt);
+  void RemoveMeStmt(MeStmt *meStmt);
   void AddMeStmtFirst(MeStmt *meStmt);
   void AddMeStmtLast(MeStmt *meStmt);
   void InsertMeStmtBefore(const MeStmt *meStmt, MeStmt *inStmt);
   void InsertMeStmtAfter(const MeStmt *meStmt, MeStmt *inStmt);
   void InsertMeStmtLastBr(MeStmt *inStmt);
-  void ReplaceMeStmt(const MeStmt *stmt, MeStmt *newStmt);
+  void ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt);
   void RemoveLastMeStmt();
   void DumpMePhiList(const IRMap *irMap);
   void DumpMeVarPiList(const IRMap *irMap);

@@ -60,10 +60,10 @@ class RCLowering {
   void CreateCleanupIntrinsics();
   void HandleArguments();
   void CompactRC(BB &bb);
-  void CompactIncAndDec(const MeStmt &incStmt, const MeStmt &decStmt);
-  void CompactIncAndDecReset(const MeStmt &incStmt, const MeStmt &resetStmt);
-  void ReplaceDecResetWithDec(MeStmt &prevStmt, const MeStmt &stmt);
-  void CompactAdjacentDecReset(const MeStmt &prevStmt, const MeStmt &stmt);
+  void CompactIncAndDec(MeStmt &incStmt, MeStmt &decStmt);
+  void CompactIncAndDecReset(MeStmt &incStmt, MeStmt &resetStmt);
+  void ReplaceDecResetWithDec(MeStmt &prevStmt, MeStmt &stmt);
+  void CompactAdjacentDecReset(MeStmt &prevStmt, MeStmt &stmt);
   // create new symbol from name and return its ost
   OriginalSt *RetrieveOSt(const std::string &name, bool isLocalrefvar) const;
   // create new symbol from temp name and return its VarMeExpr
@@ -77,13 +77,13 @@ class RCLowering {
   MIRIntrinsicID PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID index = INTRN_UNDEFINED);
   IntrinsiccallMeStmt *CreateRCIntrinsic(MIRIntrinsicID intrnID, const MeStmt &stmt, std::vector<MeExpr*> &opnds,
                                          bool assigned = false);
-  MeExpr *HandleIncRefAndDecRefStmt(const MeStmt &stmt);
+  MeExpr *HandleIncRefAndDecRefStmt(MeStmt &stmt);
   void InitializedObjectFields(MeStmt &stmt);
   bool IsInitialized(IvarMeExpr &ivar);
   void PreprocessAssignMeStmt(MeStmt &stmt);
   void HandleAssignMeStmtRHS(MeStmt &stmt);
   void HandleAssignMeStmtRegLHS(const MeStmt &stmt);
-  void HandleAssignToGlobalVar(const MeStmt &stmt);
+  void HandleAssignToGlobalVar(MeStmt &stmt);
   void HandleAssignToLocalVar(const MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtIvarLHS(MeStmt &stmt);
@@ -104,7 +104,7 @@ class RCLowering {
   bool HasCallOrBranch(const MeStmt &from, const MeStmt &to);
   MIRIntrinsicID SelectWriteBarrier(const MeStmt &stmt);
   MIRType *GetArrayNodeType(const VarMeExpr &var);
-  void CheckArrayStore(const IntrinsiccallMeStmt &writeRefCall);
+  void CheckArrayStore(IntrinsiccallMeStmt &writeRefCall);
   void FastLowerThrowStmt(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerRetStmt(MeStmt &stmt);
   void FastLowerRetVar(RetMeStmt &stmt);
