@@ -167,14 +167,19 @@ void A64SSAOperandRenameVisitor::Visit(ListOperand *v) {
   bool isAsm = insn->GetMachineOpcode() == MOP_asm;
   /* record the orignal list order */
   std::list<RegOperand*> tempList;
-  for (auto *op : a64ListOpnd->GetOperands()) {
+  auto& opndList = a64ListOpnd->GetOperands();
+
+  while (!opndList.empty()) {
+    auto* op = opndList.front();
+    opndList.pop_front();
+
     if (op->IsSSAForm() || !op->IsVirtualRegister()) {
-      a64ListOpnd->RemoveOpnd(*op);
       tempList.push_back(op);
       continue;
     }
-    a64ListOpnd->RemoveOpnd(*op);
-    bool isDef = isAsm ? idx == kAsmClobberListOpnd || idx == kAsmOutputListOpnd : false;
+
+    bool isDef =
+        isAsm && (idx == kAsmClobberListOpnd || idx == kAsmOutputListOpnd);
     RegOperand *renameOpnd = ssaInfo->GetRenamedOperand(*op, isDef, *insn, idx);
     tempList.push_back(renameOpnd);
   }
