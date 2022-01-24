@@ -220,6 +220,10 @@ bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   if (prevMop != MOP_wcsetrc && prevMop != MOP_xcsetrc) {
     return false;
   }
+  auto &ccReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+  if (IsCCRegCrossVersion(*prevInsn, insn, ccReg)) {
+    return false;
+  }
   return true;
 }
 
@@ -1554,7 +1558,7 @@ void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool EnhanceStrLdrAArch64::IsEnhanceAddImm(MOperator prevMop) {
+bool EnhanceStrLdrAArch64::IsEnhanceAddImm(MOperator prevMop) const {
   return prevMop == MOP_xaddrri12 ||  prevMop == MOP_waddrri12;
 }
 
@@ -1609,7 +1613,7 @@ bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno
       }
       if (isStore && base != nullptr && base->GetRegisterNumber() == regNO) {
         if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi && memOpnd.GetOffsetImmediate() != nullptr) {
-          int32 curOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+          int64 curOffset = memOpnd.GetOffsetImmediate()->GetOffsetValue();
           if (memOpnd.GetSize() == k64BitSize) {
             uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
             if (curOffset < baseOfst + memBarrierRange && curOffset > baseOfst - memBarrierRange) {
@@ -1651,7 +1655,7 @@ bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(Insn &insn) {
 }
 
 std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, regno_t destRegNO,
-                                                                   regno_t memBaseRegNO, int32 baseOfst) {
+                                                                   regno_t memBaseRegNO, int64 baseOfst) {
   std::vector<Insn*> prevContiInsns;
   bool isStr = insn.IsStore();
   for (Insn *curInsn = insn.GetPrev(); curInsn != nullptr; curInsn = curInsn->GetPrev()) {
@@ -1797,9 +1801,9 @@ void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
         thisMop != prevContiInsn->GetMachineOpcode() || prevDestOpnd.GetSize() != destOpnd.GetSize()) {
       continue;
     }
-    int offsetVal = offsetOpnd->GetOffsetValue();
-    int prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
-    int diffVal = std::abs(offsetVal - prevOffsetVal);
+    int64 offsetVal = offsetOpnd->GetOffsetValue();
+    int64 prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
+    int64 diffVal = std::abs(offsetVal - prevOffsetVal);
     /* do combination str/ldr -> stp/ldp */
     if ((insn.IsStore() || destOpnd.GetRegisterNumber() != prevDestOpnd.GetRegisterNumber()) ||
         (destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR)) {
@@ -1846,7 +1850,7 @@ void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-MOperator CombineContiLoadAndStoreAArch64::GetMopHigherByte(MOperator mop) {
+MOperator CombineContiLoadAndStoreAArch64::GetMopHigherByte(MOperator mop) const {
   switch (mop) {
     case MOP_wldrb:
       return MOP_wldrh;
@@ -2349,8 +2353,8 @@ void ContiLDRorSTRToSameMEMAArch64::Run(BB &bb, Insn &insn) {
 
   auto &reg1 = static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   auto &reg2 = static_cast<AArch64RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
-  int offsetVal1 = offset1->GetOffsetValue();
-  int offsetVal2 = offset2->GetOffsetValue();
+  int64 offsetVal1 = offset1->GetOffsetValue();
+  int64 offsetVal2 = offset2->GetOffsetValue();
   if (base1->GetRegisterNumber() != base2->GetRegisterNumber() ||
       reg1.GetRegisterType() != reg2.GetRegisterType() || reg1.GetSize() != reg2.GetSize() ||
       offsetVal1 != offsetVal2) {
