@@ -73,7 +73,9 @@ void ValueRangePropagation::Execute() {
     }
     for (auto it = bb->GetMeStmts().begin(); it != bb->GetMeStmts().end();) {
       bool deleteStmt = false;
-      ReplaceOpndWithConstMeExpr(*bb, *it);
+      if (!dealWithCheck) {
+        ReplaceOpndWithConstMeExpr(*bb, *it);
+      }
       for (size_t i = 0; i < it->NumMeStmtOpnds(); ++i) {
         DealWithOperand(*bb, *it, *it->GetOpnd(i));
       }
@@ -524,8 +526,8 @@ bool ValueRangePropagation::CompareConstantOfIndexAndLength(
       valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
 }
 
-bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
-    ValueRange &valueRangeOfLengthPtr, Opcode op) {
+bool ValueRangePropagation::CompareIndexWithUpper(BB &bb, MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+    ValueRange &valueRangeOfLengthPtr, Opcode op, MeExpr *indexOpnd) {
   if (valueRangeOfIndex.GetRangeType() == kNotEqual || valueRangeOfLengthPtr.GetRangeType() == kNotEqual) {
     return false;
   }
@@ -549,9 +551,18 @@ bool ValueRangePropagation::CompareIndexWithUpper(MeStmt &meStmt, ValueRange &va
     if (valueRangeOfLengthPtr.GetLower().GetConstant() < 0) {
       // The value of length is overflow, need deal with this case later.
     }
-    if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(),
-                                                      upperOfLength)) {
-      return true;
+    auto *loop = loops->GetBBLoopParent(bb.GetBBId());
+    if (indexOpnd != nullptr && loop != nullptr && loop->IsCanonicalLoop() && loop->inloopBB2exitBBs.size() == 1 &&
+        loop->inloopBB2exitBBs.begin()->second->size() == 1 && IsLoopVariable(*loop, *indexOpnd)) {
+      if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
+                                                        upperOfLength)) {
+        return true;
+      }
+    } else {
+      if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetLower().GetConstant(),
+                                                        upperOfLength)) {
+        return true;
+      }
     }
     return (kOpcodeInfo.IsAssertLeBoundary((op))) ? valueRangeOfIndex.GetUpper().GetConstant() <= lowerOfLength :
         valueRangeOfIndex.GetUpper().GetConstant() < lowerOfLength;
@@ -721,6 +732,28 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
 }
 
 bool ValueRangePropagation::IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const {
+  bool opndIsLoopVar = false;
+  auto defBy = static_cast<const ScalarMeExpr&>(opnd).GetDefBy();
+  // Check whether it is a loop variable.
+  if (defBy == kDefByStmt) {
+    // If the def stmt is inc or dec stmt, the opnd is loop variable.
+    auto *defStmt = static_cast<const ScalarMeExpr&>(opnd).GetDefByMeStmt();
+    if (defStmt != nullptr && kOpcodeInfo.AssignActualVar(defStmt->GetOp())) {
+      MeExpr *rhs = defStmt->GetRHS();
+      if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
+        OpMeExpr *opRHS = static_cast<OpMeExpr*>(rhs);
+        if (defStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr*>(opRHS->GetOpnd(0))->GetOst()) {
+          opndIsLoopVar = ThePhiLHSIsLoopVariable(loop, *opRHS->GetOpnd(0));
+        }
+      }
+    }
+  } else if (defBy == kDefByPhi) {
+    opndIsLoopVar = ThePhiLHSIsLoopVariable(loop, opnd);
+  }
+  return opndIsLoopVar;
+}
+
+bool ValueRangePropagation::ThePhiLHSIsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const {
   if (!opnd.IsScalar()) {
     return false;
   }
@@ -759,25 +792,7 @@ void ValueRangePropagation::CollectIndexOpndWithBoundInLoop(
     index2NewExpr[&opnd] = nullptr;
     return;
   } else {
-    bool opndIsLoopVar = false;
-    auto defBy = static_cast<ScalarMeExpr&>(opnd).GetDefBy();
-    // Check whether it is a loop variable.
-    if (defBy == kDefByStmt) {
-      // If the def stmt is inc or dec stmt, the opnd is loop variable.
-      auto *defStmt = static_cast<ScalarMeExpr&>(opnd).GetDefByMeStmt();
-      if (defStmt != nullptr && kOpcodeInfo.AssignActualVar(meStmt.GetOp())) {
-        MeExpr *rhs = defStmt->GetRHS();
-        if (rhs->GetOp() == OP_add || rhs->GetOp() == OP_sub) {
-          OpMeExpr *opRHS = static_cast<OpMeExpr*>(rhs);
-          if (defStmt->GetLHS()->GetOst() == static_cast<ScalarMeExpr*>(opRHS->GetOpnd(0))->GetOst()) {
-            opndIsLoopVar = IsLoopVariable(loop, *opRHS->GetOpnd(0));
-          }
-        }
-      }
-    } else if (defBy == kDefByPhi) {
-      opndIsLoopVar = IsLoopVariable(loop, opnd);
-    }
-    if (opndIsLoopVar == false) {
+    if (!IsLoopVariable(loop, opnd)) {
       index2NewExpr[&opnd] = nullptr;
     } else {
       auto *valueRange = FindValueRange(bb, opnd);
@@ -983,7 +998,8 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
       }
     }
   } else {
-    if (CompareIndexWithUpper(meStmt, *valueRangeOfIndex, *valueRangeOfbound, meStmt.GetOp())) {
+    auto *currIndexOpnd = (indexVector.size() == 1) ? indexVector[0]->GetExpr() : nullptr;
+    if (CompareIndexWithUpper(bb, meStmt, *valueRangeOfIndex, *valueRangeOfbound, meStmt.GetOp(), currIndexOpnd)) {
       return true;
     }
   }
@@ -2633,6 +2649,9 @@ void ValueRangePropagation::Insert2UnreachableBBs(BB &unreachableBB) {
 
 // when determine remove the condgoto stmt, need analysis which bbs need be deleted.
 void ValueRangePropagation::AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB) {
+  if (dealWithCheck) {
+    return;
+  }
   Insert2UnreachableBBs(unreachableBB);
   bb.RemoveSucc(unreachableBB);
   bb.RemoveMeStmt(bb.GetLastMe());
@@ -3184,6 +3203,9 @@ bool ValueRangePropagation::RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBran
 
 // tmpPred, tmpBB, reachableBB
 bool ValueRangePropagation::RemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch) {
+  if (dealWithCheck) {
+    return false;
+  }
   if (bb.GetKind() == kBBFallthru || bb.GetKind() == kBBGoto) {
     if (!CopyFallthruBBAndRemoveUnreachableEdge(pred, bb, trueBranch)) {
       return false;
@@ -3391,6 +3413,9 @@ void ValueRangePropagation::GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t
 
 bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange &rightRange,
     BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto) {
+  if (dealWithCheck) {
+    return false;
+  }
   auto *currOpnd = &opnd0;
   if (opnd0.GetOp() == OP_zext) {
     auto &opMeExpr = static_cast<OpMeExpr&>(opnd0);
@@ -3433,11 +3458,51 @@ Opcode ValueRangePropagation::GetTheOppositeOp(Opcode op) const {
   }
 }
 
-void ValueRangePropagation::DealWithCondGoto(
-    BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange, const CondGotoMeStmt &brMeStmt) {
+void ValueRangePropagation::CreateValueRangeForCondGoto(
+    BB &bb, MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch) {
   auto newRightUpper = rightRange.GetUpper();
   auto newRightLower = rightRange.GetLower();
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
+  if (op == OP_eq) {
+    CreateValueRangeForNeOrEq(opnd, leftRange, rightRange, trueBranch, falseBranch);
+  } else if (op == OP_ne) {
+    CreateValueRangeForNeOrEq(opnd, leftRange, rightRange, falseBranch, trueBranch);
+  }
+  if (rightRange.GetRangeType() == kNotEqual) {
+    return;
+  }
+  if ((op == OP_lt) || (op == OP_ge)) {
+    int64 constant = 0;
+    if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightUpper.GetConstant(), -1, constant)) {
+      return;
+    }
+    newRightUpper = Bound(newRightUpper.GetVar(),
+                          GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
+  } else if ((op == OP_le) || (op == OP_gt)) {
+    int64 constant = 0;
+    if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightLower.GetConstant(), 1, constant)) {
+      return;
+    }
+    newRightLower =
+        Bound(newRightLower.GetVar(), GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
+  }
+  if (op == OP_lt || op == OP_le) {
+    if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
+      CreateValueRangeForLeOrLt(opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch);
+    } else {
+      CreateValueRangeForLeOrLt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch);
+    }
+  } else if (op == OP_gt || op == OP_ge) {
+    if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
+      CreateValueRangeForGeOrGt(opnd, nullptr, newRightUpper, newRightLower, trueBranch, falseBranch);
+    } else {
+      CreateValueRangeForGeOrGt(opnd, leftRange, newRightUpper, newRightLower, trueBranch, falseBranch);
+    }
+  }
+}
+
+void ValueRangePropagation::DealWithCondGoto(
+    BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange, const CondGotoMeStmt &brMeStmt) {
   MeExpr *opnd0 = nullptr;
   PrimType primType;
   if (IsCompareHasReverseOp(brMeStmt.GetOpnd()->GetOp())) {
@@ -3453,6 +3518,10 @@ void ValueRangePropagation::DealWithCondGoto(
   BB *trueBranch = nullptr;
   BB *falseBranch = nullptr;
   GetTrueAndFalseBranch(brMeStmt.GetOp(), bb, trueBranch, falseBranch);
+  if (dealWithCheck) {
+    CreateValueRangeForCondGoto(bb, *opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
+    return;
+  }
   // When the redundant branch can be inferred directly from the condGoto stmt
   Opcode antiOp = GetTheOppositeOp(op);
   if (leftRange != nullptr && BrStmtInRange(bb, *leftRange, rightRange, op, primType)) {
@@ -3461,43 +3530,9 @@ void ValueRangePropagation::DealWithCondGoto(
   } else if (leftRange != nullptr && BrStmtInRange(bb, *leftRange, rightRange, antiOp, primType)) {
     AnalysisUnreachableBBOrEdge(bb, *trueBranch, *falseBranch);
   } else {
-    (void)ConditionEdgeCanBeDeleted(bb, *opnd0, rightRange, *falseBranch, *trueBranch, primType, op);
+    ConditionEdgeCanBeDeleted(bb, *opnd0, rightRange, *falseBranch, *trueBranch, primType, op);
   }
-  if (op == OP_eq) {
-    CreateValueRangeForNeOrEq(*opnd0, leftRange, rightRange, *trueBranch, *falseBranch);
-  } else if (op == OP_ne) {
-    CreateValueRangeForNeOrEq(*opnd0, leftRange, rightRange, *falseBranch, *trueBranch);
-  }
-  if (rightRange.GetRangeType() == kNotEqual) {
-    return;
-  }
-  if ((op == OP_lt) || (op == OP_ge)) {
-    int64 constant = 0;
-    if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightUpper.GetConstant(), -1, constant)) {
-      return;
-    }
-    newRightUpper = Bound(newRightUpper.GetVar(),
-        GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
-  } else if ((op == OP_le) || (op == OP_gt)) {
-    int64 constant = 0;
-    if (!AddOrSubWithConstant(newRightUpper.GetPrimType(), OP_add, newRightLower.GetConstant(), 1, constant)) {
-      return;
-    }
-    newRightLower = Bound(newRightLower.GetVar(), GetRealValue(constant, newRightUpper.GetPrimType()), newRightUpper.GetPrimType());
-  }
-  if (op == OP_lt || op == OP_le) {
-    if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
-      CreateValueRangeForLeOrLt(*opnd0, nullptr, newRightUpper, newRightLower, *trueBranch, *falseBranch);
-    } else {
-      CreateValueRangeForLeOrLt(*opnd0, leftRange, newRightUpper, newRightLower, *trueBranch, *falseBranch);
-    }
-  } else if (op == OP_gt || op == OP_ge) {
-    if (leftRange != nullptr && leftRange->GetRangeType() == kNotEqual) {
-      CreateValueRangeForGeOrGt(*opnd0, nullptr, newRightUpper, newRightLower, *trueBranch, *falseBranch);
-    } else {
-      CreateValueRangeForGeOrGt(*opnd0, leftRange, newRightUpper, newRightLower, *trueBranch, *falseBranch);
-    }
-  }
+  CreateValueRangeForCondGoto(bb, *opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
 }
 
 bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd,
@@ -3656,6 +3691,9 @@ void ValueRangePropagation::GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeEx
 // Example: if (a != 0)
 bool ValueRangePropagation::DealWithSpecialCondGoto(
     OpMeExpr &opMeExpr, ValueRange &leftRange, ValueRange &rightRange, CondGotoMeStmt &brMeStmt) {
+  if (dealWithCheck) {
+    return false;
+  }
   if (opMeExpr.GetOp() != OP_gt && opMeExpr.GetOp() != OP_lt) {
     return false;
   }
@@ -3983,18 +4021,8 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
   ValueRangePropagation valueRangePropagation(f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa);
 
   SafetyCheck safetyCheck; // dummy
-  SafetyCheckWithBoundaryError safetyCheckBoundaryError(f, valueRangePropagation);
-  SafetyCheckWithNonnullError safetyCheckNonnullError(f);
-  if (MeOption::boundaryCheckMode == kNoCheck) {
-    valueRangePropagation.SetSafetyBoundaryCheck(safetyCheck);
-  } else {
-    valueRangePropagation.SetSafetyBoundaryCheck(safetyCheckBoundaryError);
-  }
-  if (MeOption::npeCheckMode == kNoCheck || f.vrpRuns == 1) {
-    valueRangePropagation.SetSafetyNonnullCheck(safetyCheck);
-  } else {
-    valueRangePropagation.SetSafetyNonnullCheck(safetyCheckNonnullError);
-  }
+  valueRangePropagation.SetSafetyBoundaryCheck(safetyCheck);
+  valueRangePropagation.SetSafetyNonnullCheck(safetyCheck);
 
   valueRangePropagation.Execute();
   (void)f.GetCfg()->UnreachCodeAnalysis(true);
@@ -4006,12 +4034,32 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
       f.GetCfg()->DumpToFile("valuerange-after" + std::to_string(f.vrpRuns));
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MEDominance::id);
-    auto *dom = FORCE_GET(MEDominance);
+    dom = FORCE_GET(MEDominance);
     if (valueRangePropagation.NeedUpdateSSA()) {
       MeSSAUpdate ssaUpdate(f, *f.GetMeSSATab(), *dom, cands, *valueRangeMemPool);
       ssaUpdate.Run();
     }
     GetAnalysisInfoHook()->ForceEraseAnalysisPhase(f.GetUniqueID(), &MELoopAnalysis::id);
+  }
+  // Run vrp twice when need check boundary and nullable pointer.
+  if (MeOption::boundaryCheckMode != kNoCheck || MeOption::npeCheckMode != kNoCheck) {
+    meLoop = FORCE_GET(MELoopAnalysis);
+    ValueRangePropagation valueRangePropagationWithOPTAssert(
+        f, *irMap, *dom, meLoop, *valueRangeMemPool, cands, sa, true);
+    SafetyCheckWithBoundaryError safetyCheckBoundaryError(f, valueRangePropagationWithOPTAssert);
+    SafetyCheckWithNonnullError safetyCheckNonnullError(f);
+    if (MeOption::boundaryCheckMode == kNoCheck) {
+      valueRangePropagationWithOPTAssert.SetSafetyBoundaryCheck(safetyCheck);
+    } else {
+      valueRangePropagationWithOPTAssert.SetSafetyBoundaryCheck(safetyCheckBoundaryError);
+    }
+    if (MeOption::npeCheckMode == kNoCheck || f.vrpRuns == 1) {
+      valueRangePropagationWithOPTAssert.SetSafetyNonnullCheck(safetyCheck);
+    } else {
+      valueRangePropagationWithOPTAssert.SetSafetyNonnullCheck(safetyCheckNonnullError);
+    }
+    valueRangePropagationWithOPTAssert.Execute();
+    CHECK_FATAL(!valueRangePropagationWithOPTAssert.IsCFGChange(), "must not change the cfg!");
   }
   if (ValueRangePropagation::isDebug) {
     LogInfo::MapleLogger() << "***************after value range prop***************" << "\n";
