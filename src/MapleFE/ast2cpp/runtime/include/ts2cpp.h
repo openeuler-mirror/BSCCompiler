@@ -216,6 +216,7 @@ class Object {
     virtual ~Object() {}
     class Ctor;
     static Ctor ctor;
+    virtual std::string Dump(void) { return("Object"); }
 
     JS_Val& operator[] (std::string key)
     {
