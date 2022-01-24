@@ -1139,16 +1139,9 @@ std::pair<StIdx, StIdx> ENCChecker::InsertBoundaryVar(MIRBuilder &mirBuilder, co
   if (boundaryName.empty()) {
     return boundaryVarStIdx;
   }
-  MIRSymbol *lowerSrcSym = nullptr;
-  MIRSymbol *upperSrcSym = nullptr;
   MIRType *boundaryType = expr->GetType()->GenerateMIRTypeAuto();
-  if (IsGlobalVarInExpr(expr)) {
-    lowerSrcSym = mirBuilder.GetOrCreateGlobalDecl(boundaryName + ".lower", *boundaryType);
-    upperSrcSym = mirBuilder.GetOrCreateGlobalDecl(boundaryName + ".upper", *boundaryType);
-  } else {
-    lowerSrcSym = mirBuilder.GetOrCreateLocalDecl(boundaryName + ".lower", *boundaryType);
-    upperSrcSym = mirBuilder.GetOrCreateLocalDecl(boundaryName + ".upper", *boundaryType);
-  }
+  MIRSymbol *lowerSrcSym = mirBuilder.GetOrCreateLocalDecl(boundaryName + ".lower", *boundaryType);
+  MIRSymbol *upperSrcSym = mirBuilder.GetOrCreateLocalDecl(boundaryName + ".upper", *boundaryType);
   // assign undef val to boundary var in func body head
   AssignUndefVal(mirBuilder, *upperSrcSym);
   AssignUndefVal(mirBuilder, *lowerSrcSym);
@@ -1291,28 +1284,20 @@ std::pair<StIdx, StIdx> ENCChecker::InitBoundaryVar(MIRFunction &curFunction, co
     return std::make_pair(StIdx(0), StIdx(0));
   }
   MIRType *ptrType = ptrExpr->GetType()->GenerateMIRTypeAuto();
-  bool isGlobal = IsGlobalVarInExpr(ptrExpr);
   // insert lower boundary stmt
   std::string lowerVarName = ptrName + ".lower";
-  UniqueFEIRVar lowerVar = FEIRBuilder::CreateVarNameForC(lowerVarName, *ptrType, isGlobal, false);
+  UniqueFEIRVar lowerVar = FEIRBuilder::CreateVarNameForC(lowerVarName, *ptrType);
   UniqueFEIRStmt lowerStmt = FEIRBuilder::CreateStmtDAssign(std::move(lowerVar), ptrExpr->Clone());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary stmt
   UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(OP_add, ptrExpr->Clone(), std::move(lenExpr));
   std::string upperVarName = ptrName + ".upper";
-  UniqueFEIRVar upperVar = FEIRBuilder::CreateVarNameForC(upperVarName, *ptrType, isGlobal, false);
+  UniqueFEIRVar upperVar = FEIRBuilder::CreateVarNameForC(upperVarName, *ptrType);
   UniqueFEIRStmt upperStmt = FEIRBuilder::CreateStmtDAssign(std::move(upperVar), std::move(binExpr));
   stmts.emplace_back(std::move(upperStmt));
   // update BoundaryMap
-  MIRSymbol *lowerSym = nullptr;
-  MIRSymbol *upperSym = nullptr;
-  if (isGlobal) {
-    lowerSym = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(lowerVarName, *ptrType);
-    upperSym = FEManager::GetMIRBuilder().GetOrCreateGlobalDecl(upperVarName, *ptrType);
-  } else {
-    lowerSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(lowerVarName, *ptrType, curFunction);
-    upperSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(upperVarName, *ptrType, curFunction);
-  }
+  MIRSymbol *lowerSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(lowerVarName, *ptrType, curFunction);
+  MIRSymbol *upperSym = FEManager::GetMIRBuilder().GetOrCreateDeclInFunc(upperVarName, *ptrType, curFunction);
   auto stIdxs = std::make_pair(lowerSym->GetStIdx(), upperSym->GetStIdx());
   FEManager::GetCurrentFEFunction().SetBoundaryMap(ptrExpr->Hash(), stIdxs);
   return stIdxs;
@@ -1848,13 +1833,16 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
     // assertge/assertlt lnode: addrof base + index; assertle lnode: (attributed upper boundary) addrof base + len expr
     // assertge rnode: lower boundary; assertlt/assertle rnode: upper boundary
     auto it = FEManager::GetCurrentFEFunction().GetBoundaryMap().find(rightExpr->Hash());
+    UniqueFEIRExpr lenExpr = ENCChecker::GetGlobalOrFieldLenExprInExpr(mirBuilder, rightExpr);
     if (it != FEManager::GetCurrentFEFunction().GetBoundaryMap().end()) {
+      if (lenExpr == nullptr && IsGlobalVarInExpr(rightExpr)) {
+        return args;  // skip boundary checking for global var whithout boundary attr,
+      }               // because the lack of global variable boundary analysis capabilities in mapleall
       StIdx boundaryStIdx = kOpcodeInfo.IsAssertLowerBoundary(op) ? it->second.first : it->second.second;
       MIRSymbol *boundarySym = curFunction->GetLocalOrGlobalSymbol(boundaryStIdx);
       CHECK_NULL_FATAL(boundarySym);
       rightNode = mirBuilder.CreateExprDread(*boundarySym);
     } else {
-      UniqueFEIRExpr lenExpr = ENCChecker::GetGlobalOrFieldLenExprInExpr(mirBuilder, rightExpr);
       if (lenExpr != nullptr) {  // a global var or field with boundary attr
         if (kOpcodeInfo.IsAssertUpperBoundary(op)) {
           rightExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(rightExpr), std::move(lenExpr));
