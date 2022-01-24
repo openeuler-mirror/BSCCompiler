@@ -366,12 +366,13 @@ class ValueRangePropagation {
 
   ValueRangePropagation(MeFunction &meFunc, MeIRMap &argIRMap, Dominance &argDom,
                         IdentifyLoops *argLoops, MemPool &pool,
-                        std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem, LoopScalarAnalysisResult &currSA)
+                        std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &candsTem, LoopScalarAnalysisResult &currSA,
+                        bool dealWithAssert = false)
       : func(meFunc), irMap(argIRMap), dom(argDom), memPool(pool), mpAllocator(&pool), loops(argLoops),
         caches(meFunc.GetCfg()->GetAllBBs().size()), analysisedLowerBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedUpperBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
         analysisedAssignBoundChecks(meFunc.GetCfg()->GetAllBBs().size()),
-        cands(candsTem), sa(currSA) {}
+        cands(candsTem), sa(currSA), dealWithCheck(dealWithAssert) {}
   ~ValueRangePropagation() = default;
 
   void DumpCaches();
@@ -529,6 +530,8 @@ class ValueRangePropagation {
                                  BB &trueBranch, BB &falseBranch);
   void CreateValueRangeForGeOrGt(MeExpr &opnd,  ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
                                  BB &trueBranch, BB &falseBranch);
+  void CreateValueRangeForCondGoto(
+      BB &bb, MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch);
   void DealWithCondGoto(BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt);
   bool CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res);
@@ -590,6 +593,7 @@ class ValueRangePropagation {
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   MeExpr *GetAddressOfIndexOrBound(MeExpr &expr) const;
   std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
+  bool ThePhiLHSIsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   bool IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   void CollectIndexOpndWithBoundInLoop(
       LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr);
@@ -601,8 +605,8 @@ class ValueRangePropagation {
       ValueRange &constantValueRange);
   bool CompareConstantOfIndexAndLength(
       MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op);
-  bool CompareIndexWithUpper(MeStmt &meStmt, ValueRange &valueRangeOfIndex,
-                             ValueRange &valueRangeOfLengthPtr, Opcode op);
+  bool CompareIndexWithUpper(BB &bb, MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+                             ValueRange &valueRangeOfLengthPtr, Opcode op, MeExpr *indexOpnd = nullptr);
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
@@ -661,6 +665,7 @@ class ValueRangePropagation {
   SafetyCheck *safetyCheckBoundary = nullptr;
   // The map collects the exprs which have the same valueRange in bbs.
   std::map<MeExpr*, std::map<BB*, std::set<MeExpr*>>> pairOfExprs;
+  bool dealWithCheck = false; // When need deal with check, do not opt cfg.
 };
 
 MAPLE_FUNC_PHASE_DECLARE(MEValueRangePropagation, MeFunction)
