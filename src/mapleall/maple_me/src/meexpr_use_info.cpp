@@ -35,8 +35,9 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
     (*useSites)[uintExprID] = {expr, newList};
     return;
   }
-  if (!(*useSites)[uintExprID].second->front().SameUseItem(useSite)) {
-    (*useSites)[uintExprID].second->emplace_front(UseItem(useSite));
+  UseItem use(useSite);
+  if ((*useSites)[uintExprID].second->front() != use) {
+    (*useSites)[uintExprID].second->emplace_front(use);
   }
 }
 
