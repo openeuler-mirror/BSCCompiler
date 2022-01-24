@@ -95,7 +95,7 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
     if (val >= -kMax16UnsignedImm && val <= kMax16UnsignedImm) {
       return true;
     }
-    uint64 uval = val;
+    auto uval = static_cast<uint64>(val);
     if (IsMoveWidableImmediate(uval, GetSpillSize())) {
       return true;
     }
@@ -246,7 +246,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
         insn = &cg->BuildInstruction<AArch64Insn>(MOP_xldr, regOp, memOpnd);
         insns.push_back(insn);
         if (offset > 0) {
-          AArch64OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(offset, k32BitSize);
+          AArch64OfstOperand &ofstOpnd = cgFunc->GetOrCreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
           insns.push_back(&cg->BuildInstruction<AArch64Insn>(
               MOP_xaddrri12, regOp, regOp, ofstOpnd));
         }
@@ -1167,13 +1167,13 @@ void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint, Insn 
     } else {
       for (auto vregNO : vregLive) {
         LiveRange *lr = lrMap[vregNO];
-        lr->SetCrossCall(true);
+        lr->SetCrossCall();
       }
     }
   } else {
     for (auto vregNO : vregLive) {
       LiveRange *lr = lrMap[vregNO];
-      lr->SetCrossCall(true);
+      lr->SetCrossCall();
     }
   }
   for (auto vregNO : vregLive) {
@@ -1188,7 +1188,7 @@ void GraphColorRegAllocator::UpdateCallInfo(uint32 bbId, uint32 currPoint, Insn 
   }
 }
 
-void GraphColorRegAllocator::SetLrMustAssign(RegOperand *regOpnd) {
+void GraphColorRegAllocator::SetLrMustAssign(const RegOperand *regOpnd) {
   regno_t regNO = regOpnd->GetRegisterNumber();
   LiveRange *lr = GetLiveRange(regNO);
   if (lr != nullptr) {
@@ -1232,7 +1232,8 @@ void GraphColorRegAllocator::ComputeLiveRanges() {
   bbVec.clear();
   bbVec.resize(cgFunc->NumBBs());
 
-  uint32 currPoint = cgFunc->GetTotalNumberOfInstructions() + bfs->sortedBBs.size();
+  auto currPoint =
+      static_cast<uint32>(cgFunc->GetTotalNumberOfInstructions() + bfs->sortedBBs.size());
   /* distinguish use/def */
   CHECK_FATAL(currPoint < (INT_MAX >> 2), "integer overflow check");
   currPoint = currPoint << 2;
@@ -1422,20 +1423,20 @@ void GraphColorRegAllocator::BuildInterferenceGraph() {
    * takes significant long time. Taking advantage of unique bucket is one of strategies
    * to avoid unnecessary computation
    */
-  int lrSize = intLrVec.size();
+  auto lrSize = intLrVec.size();
   std::vector<int32> uniqueBucketIdx(lrSize);
-  for (int i = 0; i < lrSize; i++) {
+  for (uint32 i = 0; i < lrSize; i++) {
     uint32 count = 0;
     uint32 uniqueIdx;
     LiveRange *lr =  intLrVec[i];
-    for (int j = 0; j < bbBuckets; j++) {
+    for (uint32 j = 0; j < bbBuckets; j++) {
       if (lr->GetBBMember()[j]) {
         count++;
         uniqueIdx = j;
       }
     }
     if (count == 1) {
-      uniqueBucketIdx[i] = uniqueIdx;
+      uniqueBucketIdx[i] = static_cast<int32>(uniqueIdx);
     } else {
       /* LR spans multiple buckets */
       ASSERT(count >= 1, "A live range can not be empty");
@@ -1446,11 +1447,11 @@ void GraphColorRegAllocator::BuildInterferenceGraph() {
   for (auto it1 = intLrVec.begin(); it1 != intLrVec.end(); ++it1) {
     LiveRange *lr1 = *it1;
     CalculatePriority(*lr1);
-      int32 lr1UniqueBucketIdx = uniqueBucketIdx[std::distance(intLrVec.begin(), it1)];
+    int32 lr1UniqueBucketIdx = uniqueBucketIdx[static_cast<uint64>(std::distance(intLrVec.begin(), it1))];
     for (auto it2 = it1 + 1; it2 != intLrVec.end(); ++it2) {
       LiveRange *lr2 = *it2;
       if (lr1->GetRegNO() < lr2->GetRegNO()) {
-        int32 lr2UniqueBucketIdx = uniqueBucketIdx[std::distance(intLrVec.begin(), it2)];
+        int32 lr2UniqueBucketIdx = uniqueBucketIdx[static_cast<uint64>(std::distance(intLrVec.begin(), it2))];
         if (lr1UniqueBucketIdx == -1 && lr2UniqueBucketIdx == -1) {
           CheckInterference(*lr1, *lr2);
         } else if ((lr1UniqueBucketIdx >= 0 && lr1->GetBBMember()[lr1UniqueBucketIdx] & lr2->GetBBMember()[lr1UniqueBucketIdx]) ||
@@ -1524,7 +1525,8 @@ void GraphColorRegAllocator::Separate() {
 #endif  /* OPTIMIZE_FOR_PROLOG */
     if (lr->GetRematLevel() != rematOff) {
       unconstrained.emplace_back(lr);
-    } else if (HaveAvailableColor(*lr, lr->GetNumBBConflicts() + lr->GetPregvetoSize() + lr->GetForbiddenSize())) {
+    } else if (HaveAvailableColor(*lr, lr->GetNumBBConflicts() + static_cast<uint32>(lr->GetPregvetoSize()) +
+        static_cast<uint32>(lr->GetForbiddenSize()))) {
       if (lr->GetPrefs().size()) {
         unconstrainedPref.emplace_back(lr);
       } else {
@@ -3479,7 +3481,7 @@ bool GraphColorRegAllocator::EncountNextRef(BB &succ, LiveRange &lr, bool isDef,
     MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
     bool findNextDef = false;
     if (lu->GetDefNum() || lu->HasCall()) {
-      for (auto it = refs[succ.GetId()].begin(); it != refs[succ.GetId()].end(); it++) {
+      for (auto it = refs[succ.GetId()].begin(); it != refs[succ.GetId()].end(); ++it) {
         if ((it->second & kIsDef) != 0) {
           findNextDef = true;
           break;
@@ -3527,7 +3529,7 @@ bool GraphColorRegAllocator::HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool 
   bool findPrevRef = false;
   if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
     MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
-    for (auto it = refs[insn.GetBB()->GetId()].rbegin(); it != refs[insn.GetBB()->GetId()].rend(); it++) {
+    for (auto it = refs[insn.GetBB()->GetId()].rbegin(); it != refs[insn.GetBB()->GetId()].rend(); ++it) {
       if (it->first >= insn.GetId()) {
         continue;
       }
@@ -3550,7 +3552,7 @@ bool GraphColorRegAllocator::HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool 
   bool findNextDef = false;
   if (lu->GetDefNum() || lu->GetUseNum() || lu->HasCall()) {
     MapleMap<uint32, std::map<uint32, uint32>> refs = lr.GetRefs();
-    for (auto it = refs[insn.GetBB()->GetId()].begin(); it != refs[insn.GetBB()->GetId()].end(); it++) {
+    for (auto it = refs[insn.GetBB()->GetId()].begin(); it != refs[insn.GetBB()->GetId()].end(); ++it) {
       if (it->first <= insn.GetId()) {
         continue;
       }
@@ -4206,35 +4208,36 @@ void CallerSavePre::CalLoadSites() {
   }
   std::vector<CgOccur *> availableDef(classCount, nullptr);
   for (auto *occ : allOccs) {
+    auto classID = static_cast<uint32>(occ->GetClassID());
     switch (occ->GetOccType()) {
       case kOccDef:
-        availableDef[occ->GetClassID()] = occ;
+        availableDef[classID] = occ;
         break;
       case kOccStore: {
         if (static_cast<CgStoreOcc *>(occ)->Reload()) {
-          availableDef[occ->GetClassID()] = occ;
+          availableDef[classID] = occ;
         } else {
-          availableDef[occ->GetClassID()] = nullptr;
+          availableDef[classID] = nullptr;
         }
         break;
       }
       case kOccPhiocc: {
         auto *phiOcc = static_cast<CgPhiOcc *>(occ);
         if (!phiOcc->IsNotAvailable() && phiOcc->IsDownSafe()) {
-          availableDef[occ->GetClassID()] = occ;
+          availableDef[classID] = occ;
         } else {
-          availableDef[occ->GetClassID()] = nullptr;
+          availableDef[classID] = nullptr;
         }
         break;
       }
       case kOccUse: {
         auto *useOcc = static_cast<CgUseOcc *>(occ);
         if (useOcc->Reload()) {
-          auto *availDef = availableDef[useOcc->GetClassID()];
+          auto *availDef = availableDef[classID];
           if (availDef != nullptr && dom->Dominate(*availDef->GetBB(), *useOcc->GetBB())) {
             useOcc->SetReload(false);
           } else {
-            availableDef[useOcc->GetClassID()] = useOcc;
+            availableDef[classID] = useOcc;
           }
         }
         break;
@@ -4242,11 +4245,11 @@ void CallerSavePre::CalLoadSites() {
       case kOccPhiopnd: {
         auto *phiOpnd = static_cast<CgPhiOpndOcc *>(occ);
         if (phiOpnd->Reload()) {
-          auto *availDef = availableDef[phiOpnd->GetClassID()];
+          auto *availDef = availableDef[classID];
           if (availDef != nullptr && dom->Dominate(*availDef->GetBB(), *phiOpnd->GetBB())) {
             phiOpnd->SetReload(false);
           } else {
-            availableDef[phiOpnd->GetClassID()] = phiOpnd;
+            availableDef[classID] = phiOpnd;
           }
         }
         break;
@@ -4458,7 +4461,7 @@ void CallerSavePre::BuildWorkList() {
       RegOperand &opnd = func->GetOrCreateVirtualRegisterOperand(lr->GetRegNO());
       if (lu != nullptr) {
         MapleMap<uint32, std::map<uint32, uint32>> refs = lr->GetRefs();
-        for (auto it = refs[bb->GetId()].begin(); it != refs[bb->GetId()].end(); it++) {
+        for (auto it = refs[bb->GetId()].begin(); it != refs[bb->GetId()].end(); ++it) {
           if (it->second & kIsUse) {
             (void)CreateRealOcc(*insnMap[it->first], opnd, kOccUse);
           }
@@ -4579,7 +4582,7 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
       LiveRange *replacedLr = lrMap[*it];
       replacedLr->SetAssignedRegNO(lr->GetAssignedRegNO());
       replacedLr->SetSpilled(false);
-      it++;
+      ++it;
     }
     if (splitCount >= maxSplitCount) {
       break;
@@ -4587,7 +4590,7 @@ void GraphColorRegAllocator::SplitVregAroundLoop(const CGFuncLoops &loop, const 
   }
 }
 
-bool GraphColorRegAllocator::LrGetBadReg(LiveRange &lr) {
+bool GraphColorRegAllocator::LrGetBadReg(LiveRange &lr) const {
   if (lr.IsSpilled()) {
     return true;
   }

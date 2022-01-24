@@ -40,11 +40,12 @@ constexpr AArch64reg floatParmRegs[kNumFloatParmRegs] = { V0, V1, V2, V3, V4, V5
  */
 bool IsAvailableReg(AArch64reg reg);
 bool IsCalleeSavedReg(AArch64reg reg);
+bool IsCallerSaveReg(AArch64reg reg);
 bool IsParamReg(AArch64reg reg);
 bool IsSpillReg(AArch64reg reg);
 bool IsExtraSpillReg(AArch64reg reg);
 bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd);
-PrimType IsVectorArrayType(MIRType *ty, int &arraySize);
+PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize);
 }  /* namespace AArch64Abi */
 
 /*

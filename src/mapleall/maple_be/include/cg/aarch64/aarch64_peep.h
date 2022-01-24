@@ -38,7 +38,10 @@ class PeepOptimizeManager {
         ssaInfo(&info) {}
   ~PeepOptimizeManager() = default;
   template<typename OptimizePattern>
-  void Optimize() {
+  void Optimize(bool patternEnable = false) {
+    if (!patternEnable) {
+      return;
+    }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
     optPattern.Run(*currBB, *currInsn);
   }
@@ -165,6 +168,27 @@ class NegCmpToCmnPattern : public CGPeepPattern {
 };
 
 /*
+ * combine {sxtw / uxtw} & lsl ---> {sbfiz / ubfiz}
+ * sxtw  x1, w0
+ * lsl   x2, x1, #3    ===>   sbfiz x2, x0, #3, #32
+ *
+ * uxtw  x1, w0
+ * lsl   x2, x1, #3    ===>   ubfiz x2, x0, #3, #32
+ */
+class ExtLslToBitFieldInsertPattern : public CGPeepPattern {
+ public:
+  ExtLslToBitFieldInsertPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~ExtLslToBitFieldInsertPattern() override = default;
+  std::string GetPatternName() override;
+  bool CheckCondition(Insn &insn) override;
+  void Run(BB &bb, Insn &insn) override;
+
+ private:
+  Insn *prevInsn = nullptr;
+};
+
+/*
  * Optimize the following patterns:
  * Example 1)
  *  and  w0, w6, #1  ====> tbz  w6, #0, .label
@@ -216,25 +240,25 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
 /*
  * optimize the following patterns:
  * Example 1)
- * cmp w[0-9]*, wzr
- * bge .label        ====> tbz w[0-9]*, #31, .label
+ * cmp w1, wzr
+ * bge .label        ====> tbz w1, #31, .label
  *
- * cmp wzr, w[0-9]*
- * ble .label        ====> tbz w[0-9]*, #31, .label
+ * cmp wzr, w1
+ * ble .label        ====> tbz w1, #31, .label
  *
- * cmp w[0-9]*,wzr
- * blt .label        ====> tbnz w[0-9]*, #31, .label
+ * cmp w1,wzr
+ * blt .label        ====> tbnz w1, #31, .label
  *
- * cmp wzr, w[0-9]*
- * bgt .label        ====> tbnz w[0-9]*, #31, .label
+ * cmp wzr, w1
+ * bgt .label        ====> tbnz w1, #31, .label
  *
  *
  * Example 2)
- * cmp w[0-9]*, #0
- * bge .label        ====> tbz w[0-9]*, #31, .label
+ * cmp w1, #0
+ * bge .label        ====> tbz w1, #31, .label
  *
- * cmp w[0-9]*, #0
- * blt .label        ====> tbnz w[0-9]*, #31, .label
+ * cmp w1, #0
+ * blt .label        ====> tbnz w1, #31, .label
  */
 class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
  public:
@@ -496,7 +520,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
   ~CombineContiLoadAndStoreAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
  private:
-  std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int32 baseOfst);
+  std::vector<Insn*> FindPrevStrLdr(Insn &insn, regno_t destRegNO, regno_t memBaseRegNO, int64 baseOfst);
   /*
    * avoid the following situation:
    * str x2, [x19, #8]
@@ -506,7 +530,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
    */
   bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
-  MOperator GetMopHigherByte(MOperator mop);
+  MOperator GetMopHigherByte(MOperator mop) const;
   bool SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd);
   bool doAggressiveCombine = false;
 };
@@ -526,7 +550,7 @@ class EnhanceStrLdrAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
  private:
-  bool IsEnhanceAddImm(MOperator prevMop);
+  bool IsEnhanceAddImm(MOperator prevMop) const;
 };
 
 /* Eliminate the sxt[b|h|w] w0, w0;, when w0 is satisify following:

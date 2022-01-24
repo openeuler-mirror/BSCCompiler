@@ -36,9 +36,9 @@ class DataInfo {
 
   ~DataInfo() = default;
 
-  void SetBit(uint32 bitNO) {
+  void SetBit(int64 bitNO) {
     ASSERT(bitNO < info.size() * kWordSize, "Out of Range");
-    info[bitNO / kWordSize] |= (1ULL << (bitNO % kWordSize));
+    info[bitNO / kWordSize] |= (1ULL << static_cast<uint64>((bitNO % kWordSize)));
   }
 
   void ResetBit(uint32 bitNO) {
@@ -77,9 +77,9 @@ class DataInfo {
   }
 
   bool IsEqual(const DataInfo &secondInfo) const {
-    auto infoSize = static_cast<const int32>(info.size());
+    auto infoSize = static_cast<const uint32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
-    for (int32 i = 0; i != infoSize; ++i) {
+    for (uint32 i = 0; i != infoSize; ++i) {
       if (info[i] != secondInfo.GetElem(i)) {
         return false;
       }
@@ -107,9 +107,9 @@ class DataInfo {
   }
 
   void OrBits(const DataInfo &secondInfo) {
-    auto infoSize = static_cast<const int32>(info.size());
+    auto infoSize = static_cast<const uint32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
-    for (int32 i = 0; i != infoSize; i++) {
+    for (uint32 i = 0; i != infoSize; i++) {
       info[i] |= secondInfo.GetElem(i);
     }
   }
@@ -121,18 +121,18 @@ class DataInfo {
   }
 
   void EorBits(const DataInfo &secondInfo) {
-    auto infoSize = static_cast<const int32>(info.size());
+    auto infoSize = static_cast<const uint32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
-    for (int32 i = 0; i != infoSize; i++) {
+    for (uint32 i = 0; i != infoSize; i++) {
       info[i] ^= secondInfo.GetElem(i);
     }
   }
 
   /* if bit in secondElem is 1, bit in current DataInfo is set 0 */
   void Difference(const DataInfo &secondInfo) {
-    auto infoSize = static_cast<const int32>(info.size());
+    auto infoSize = static_cast<const uint32>(info.size());
     ASSERT(infoSize == secondInfo.GetInfo().size(), "two dataInfo's size different");
-    for (int32 i = 0; i != infoSize; i++) {
+    for (uint32 i = 0; i != infoSize; i++) {
       info[i] &= (~(secondInfo.GetElem(i)));
     }
   }
@@ -181,11 +181,11 @@ class DataInfo {
           break;
         }
         if (firstTime) {
-          offset = index - 1;
+          offset = static_cast<uint32>(index - 1);
           baseWord = i * kWordSize;
           firstTime = false;
         } else {
-          offset = index;
+          offset = static_cast<uint32>(index);
           baseWord = 0;
         }
         result += baseWord + offset;

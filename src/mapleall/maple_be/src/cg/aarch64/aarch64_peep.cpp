@@ -152,6 +152,10 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<NegCmpToCmnPattern>();
       break;
     }
+    case MOP_xlslrri6: {
+      manager->Optimize<ExtLslToBitFieldInsertPattern>(true);
+      break;
+    }
     default:
       break;
   }
@@ -273,6 +277,50 @@ void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
   MOperator newMop = SelectNewMop(condOpnd.GetCode(), reverse);
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevInsn->GetOperand(kInsnThirdOpnd),
                                                                  labelOpnd);
+  bb.ReplaceInsn(insn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(insn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &insn, &newInsn);
+  }
+}
+
+std::string ExtLslToBitFieldInsertPattern::GetPatternName() {
+  return "ExtLslToBitFieldInsertPattern";
+}
+
+bool ExtLslToBitFieldInsertPattern::CheckCondition(Insn &insn) {
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_xsxtw64 && prevMop != MOP_xuxtw64) {
+    return false;
+  }
+  auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  if (immOpnd.GetValue() > k32BitSize) {
+    return false;
+  }
+  return true;
+}
+
+void ExtLslToBitFieldInsertPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  auto &prevSrcReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  cgFunc->InsertExtendSet(prevSrcReg.GetRegisterNumber());
+  MOperator newMop = (prevInsn->GetMachineOpcode() == MOP_xsxtw64) ? MOP_xsbfizrri6i6 : MOP_xubfizrri6i6;
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto &newImmOpnd1 = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  ImmOperand &newImmOpnd2 = aarFunc->CreateImmOperand(k32BitSize, k6BitSize, false);
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, insn.GetOperand(kInsnFirstOpnd),
+                                                                 prevSrcReg, newImmOpnd1, newImmOpnd2);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
@@ -828,7 +876,7 @@ bool AndCbzToTbzPattern::CheckCondition(Insn &insn) {
 
 void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   auto *aarchFunc = static_cast<AArch64CGFunc*>(cgFunc);
-  if (!CheckCondition( insn)) {
+  if (!CheckCondition(insn)) {
     return;
   }
   auto &andImm = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
@@ -4522,5 +4570,8 @@ void ComplexExtendWordLslAArch64::Run(BB &bb , Insn &insn) {
       nextOpnd0, reg1, nextOpnd2, newImm);
   bb.RemoveInsn(*nextInsn);
   bb.ReplaceInsn(insn, newInsnSbfiz);
+  if (CGOptions::DoCGSSA()) {
+    CHECK_FATAL(false, "check this case in ssa opt");
+  }
 }
 }  /* namespace maplebe */

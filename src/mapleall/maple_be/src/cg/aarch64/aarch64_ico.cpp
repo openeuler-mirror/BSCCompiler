@@ -32,7 +32,7 @@ void AArch64IfConversionOptimizer::InitOptimizePatterns() {
 }
 
 /* build ccmp Insn */
-Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, Insn *cmpInsn) {
+Insn *AArch64ICOPattern::BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn) {
   Operand &opnd0 = cmpInsn->GetOperand(kInsnFirstOpnd);
   Operand &opnd1 = cmpInsn->GetOperand(kInsnSecondOpnd);
   Operand &opnd2 = cmpInsn->GetOperand(kInsnThirdOpnd);
@@ -617,11 +617,10 @@ bool AArch64ICOSameCondPattern::Optimize(BB &secondIfBB) {
   if (firstIfBB == nullptr || firstIfBB->GetKind() != BB::kBBIf || nextBB->GetId() != secondIfBB.GetId()) {
     return false;
   }
-  BB *thenBB = CGCFG::GetTargetSuc(secondIfBB);
-  return DoOpt(firstIfBB,secondIfBB,thenBB);
+  return DoOpt(firstIfBB,secondIfBB);
 }
 
-bool AArch64ICOPattern::CheckMop(MOperator mOperator) {
+bool AArch64ICOPattern::CheckMop(MOperator mOperator) const {
   switch (mOperator) {
     case MOP_beq:
     case MOP_bne:
@@ -648,7 +647,7 @@ bool AArch64ICOPattern::CheckMop(MOperator mOperator) {
  *
  * Limitations: branchInsn1 is the same as branchInsn2
  * */
-bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB) {
+bool AArch64ICOSameCondPattern::DoOpt(BB *firstIfBB, BB &secondIfBB) {
   Insn *branchInsn1 = cgFunc->GetTheCFG()->FindLastCondBrInsn(*firstIfBB);
   ASSERT(branchInsn1 != nullptr, "nullptr check");
   Insn *cmpInsn1 = FindLastCmpInsn(*firstIfBB);
@@ -742,7 +741,7 @@ bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &mov
       continue;
     }
     if (insn->IsMove()) {
-      movInsn.emplace_back(insn);
+      movInsn.push_back(insn);
       continue;
     }
     if (insn->GetId() != gotoBB.GetLastInsn()->GetId()) {
@@ -836,7 +835,7 @@ bool AArch64ICOMorePredsPattern::DoOpt(BB &gotoBB) {
     presBB.emplace_back(preBB);
   }
   /* modifies presBB */
-  for (int i = 0; i < presCselInsn.size(); ++i) {
+  for (size_t i = 0; i < presCselInsn.size(); ++i) {
     BB *preBB = presBB[i];
     Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
     std::vector<Insn*> cselInsn = presCselInsn[i];

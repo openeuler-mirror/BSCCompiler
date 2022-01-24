@@ -93,7 +93,7 @@ class Insn {
   void PopBackOperand() {
     opnds.pop_back();
   }
-  Operand &GetOperand(int32 index) const {
+  Operand &GetOperand(uint32 index) const {
     ASSERT(index < opnds.size(), "index out of range");
     return *opnds[index];
   }
@@ -591,7 +591,7 @@ class Insn {
     address = addr;
   }
 
-  uint32 GetAddress() {
+  uint32 GetAddress() const {
     return address;
   }
 
@@ -599,7 +599,7 @@ class Insn {
     nopNum = num;
   }
 
-  uint32 GetNopNum() {
+  uint32 GetNopNum() const {
     return nopNum;
   }
 
@@ -607,7 +607,7 @@ class Insn {
     needSplit = flag;
   }
 
-  bool IsNeedSplit() {
+  bool IsNeedSplit() const {
     return needSplit;
   }
 
@@ -643,7 +643,7 @@ class Insn {
     return isReload;
   }
 
-  bool IsSpillInsn() {
+  bool IsSpillInsn() const {
     return (isSpill || isReload);
   }
 
@@ -701,7 +701,7 @@ class Insn {
     isPhiMovInsn = val;
   }
 
-  bool IsPhiMovInsn() {
+  bool IsPhiMovInsn() const {
     return isPhiMovInsn;
   }
 

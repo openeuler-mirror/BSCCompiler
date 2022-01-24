@@ -167,7 +167,7 @@ class CGFunc {
   virtual void SelectDassign(DassignNode &stmt, Operand &opnd0) = 0;
   virtual void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) = 0;
   virtual void SelectRegassign(RegassignNode &stmt, Operand &opnd0) = 0;
-  virtual void SelectAbort(UnaryStmtNode &stmt) = 0;
+  virtual void SelectAbort() = 0;
   virtual void SelectAssertNull(UnaryStmtNode &stmt) = 0;
   virtual void SelectAsm(AsmNode &node) = 0;
   virtual void SelectAggDassign(DassignNode &stmt) = 0;
@@ -295,6 +295,7 @@ class CGFunc {
   virtual Operand *CreateZeroOperand(PrimType primType) = 0;
   virtual void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) = 0;
   virtual void CleanupDeadMov(bool dump = false) = 0;
+  virtual void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realCallerSave) = 0;
 
   virtual bool IsFrameReg(const RegOperand &opnd) const = 0;
 
@@ -495,7 +496,7 @@ class CGFunc {
     totalInsns--;
   }
 
-  int32 GetTotalNumberOfInstructions() const {
+  uint32 GetTotalNumberOfInstructions() const {
     return totalInsns;
   }
 
@@ -997,18 +998,18 @@ class CGFunc {
     return dbgCallFrameLocations;
   }
 
-  bool HasAsm() {
+  bool HasAsm() const {
     return hasAsm;
   }
 
-  uint32 GetUniqueID() {
+  uint32 GetUniqueID() const {
     return func.GetPuidx();
   }
   void SetUseFP(bool canUseFP) {
     useFP = canUseFP;
   }
 
-  bool UseFP() {
+  bool UseFP() const {
     return useFP;
   }
 
@@ -1040,7 +1041,7 @@ class CGFunc {
   MapleMap<PregIdx, StIdx> *pregsToVarsMap = nullptr;
 #endif
   MapleMap<regno_t, PregIdx> vregsToPregsMap;
-  int32 totalInsns = 0;
+  uint32 totalInsns = 0;
   int32 structCopySize;
   int32 maxParamStackSize;
   static constexpr int kRegIncrStepLen = 80; /* reg number increate step length */

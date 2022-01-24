@@ -415,8 +415,8 @@ class ImmOperand : public OperandVisitable<ImmOperand> {
     if (val == 0) {
       return true;
     }
-    int32 start = __builtin_ctzll(val);
-    int32 end = sizeof(val) * kBitsPerByte - __builtin_clzll(val) - 1;
+    int32 start = __builtin_ctzll(static_cast<uint64>(val));
+    int32 end = static_cast<int32>(sizeof(val) * kBitsPerByte - __builtin_clzll(static_cast<uint64>(val)) - 1);
     return (size >= end - start + 1);
 #else
     uint8 start = 0;

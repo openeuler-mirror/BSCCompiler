@@ -511,7 +511,7 @@ BaseNode *CGLowerer::LowerArray(ArrayNode &array, const BaseNode &parent) {
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
     int64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetValue();
     MIRIntConst *eConst =
-        GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayTypes);
+        GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * static_cast<int64>(eSize), arrayTypes);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
     if (dim == 1) {
@@ -739,9 +739,9 @@ BaseNode *CGLowerer::LowerDreadBitfield(DreadNode &dread) {
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize);
+    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
   } else {
-    extrBitsNode->SetBitsOffset(byteBitOffsets.second);
+    extrBitsNode->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
   extrBitsNode->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   extrBitsNode->SetOpnd(ireadNode, 0);
@@ -801,9 +801,9 @@ BaseNode *CGLowerer::LowerIreadBitfield(IreadNode &iread) {
   extrBitsNode->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize);
+    extrBitsNode->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
   } else {
-    extrBitsNode->SetBitsOffset(byteBitOffsets.second);
+    extrBitsNode->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
   extrBitsNode->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   extrBitsNode->SetOpnd(ireadNode, 0);
@@ -951,9 +951,9 @@ StmtNode *CGLowerer::LowerDassignBitfield(DassignNode &dassign, BlockNode &newBl
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize);
+    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
   } else {
-    depositBits->SetBitsOffset(byteBitOffsets.second);
+    depositBits->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
   depositBits->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   depositBits->SetBOpnd(ireadNode, 0);
@@ -1020,13 +1020,13 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
    */
   if (!CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    int32 bitOffset = byteBitOffsets.second;
+    auto bitOffset = static_cast<uint32>(byteBitOffsets.second);
     if (((bitOffset == k8BitSize || bitOffset == k16BitSize || bitOffset == 0) &&
          (bitSize == k8BitSize || bitSize == k16BitSize)) ||
         (bitOffset == k24BitSize && bitSize == k8BitSize)) {
       constNode->SetConstVal(
           GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-              byteBitOffsets.first + (bitOffset / k8BitSize), mirType));
+              static_cast<int64>(byteBitOffsets.first) + (bitOffset / k8BitSize), mirType));
       IassignNode *iassignStmt = mirModule.CurFuncCodeMemPool()->New<IassignNode>();
       MIRType pointedType(
           kTypeScalar, GetIntegerPrimTypeBySizeAndSign(bitSize, IsSignedInteger(fType->GetPrimType())));
@@ -1052,9 +1052,9 @@ StmtNode *CGLowerer::LowerIassignBitfield(IassignNode &iassign, BlockNode &newBl
   depositBits->SetPrimType(GetRegPrimType(fType->GetPrimType()));
   if (CGOptions::IsBigEndian()) {
     uint8 bitSize = static_cast<MIRBitFieldType*>(fType)->GetFieldSize();
-    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - byteBitOffsets.second - bitSize);
+    depositBits->SetBitsOffset(fieldAlign * kBitsPerByte - static_cast<uint8>(byteBitOffsets.second) - bitSize);
   } else {
-    depositBits->SetBitsOffset(byteBitOffsets.second);
+    depositBits->SetBitsOffset(static_cast<uint8>(byteBitOffsets.second));
   }
   depositBits->SetBitsSize(static_cast<MIRBitFieldType*>(fType)->GetFieldSize());
   depositBits->SetBOpnd(ireadNode, 0);
@@ -1497,7 +1497,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                           iassign <* u64> 0 (regread ptr %2, regread u64 %1) */
                 MIRSymbol *symbol = mirModule.CurFunction()->GetLocalOrGlobalSymbol(dnode_stmt->GetStIdx());
                 MIRStructType *structType = static_cast<MIRStructType*>(symbol->GetType());
-                uint32 size = structType->GetSize();
+                uint32 size = static_cast<uint32>(structType->GetSize());
                 for (size_t i = 0; i < callnode->GetNopndSize(); ++i) {
                   BaseNode *newOpnd = LowerExpr(*callnode, *callnode->GetNopndAt(i), newBlk);
                   callnode->SetOpnd(newOpnd, i);
@@ -1897,6 +1897,39 @@ BlockNode *CGLowerer::LowerBlock(BlockNode &block) {
       newBlk->AddStatement(node);
   }
   return newBlk;
+}
+
+void CGLowerer::SimplifyBlock(BlockNode &block) {
+  if (block.GetFirst() == nullptr) {
+    return;
+  }
+  StmtNode *nextStmt = block.GetFirst();
+  do {
+    StmtNode *stmt = nextStmt;
+    nextStmt = stmt->GetNext();
+    Opcode op = stmt->GetOpCode();
+    switch (op) {
+      case OP_call: {
+        auto *callStmt = static_cast<CallNode*>(stmt);
+        if (CGOptions::IsDuplicateAsmFileEmpty()) {
+          break;
+        }
+        auto *oldFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(callStmt->GetPUIdx());
+        if (asmMap.find(oldFunc->GetName()) == asmMap.end()) {
+          break;
+        }
+        auto *newFunc = theMIRModule->GetMIRBuilder()->GetOrCreateFunction(asmMap.at(oldFunc->GetName()),
+                                                                           callStmt->GetTyIdx());
+        newFunc->GetFuncSymbol()->SetStorageClass(kScExtern);
+        callStmt->SetPUIdx(newFunc->GetPuidx());
+        break;
+      }
+      default: {
+        break;
+      }
+    }
+  } while (nextStmt != nullptr);
+  return;
 }
 
 MIRType *CGLowerer::GetArrayNodeType(BaseNode &baseNode) {
@@ -3672,7 +3705,7 @@ bool CGLowerer::IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) con
   return intrinsic == INTRN_MPL_ATOMIC_EXCHANGE_PTR;
 }
 
-bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) {
+bool CGLowerer::IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const {
   switch (intrinsic) {
 #if TARGAARCH64
   case INTRN_C_cos:
@@ -3807,6 +3840,14 @@ void CGLowerer::LowerFunc(MIRFunction &func) {
 
   if (mirModule.IsJavaModule() && func.GetBody()->GetFirst() && GenerateExceptionHandlingCode()) {
     LowerTryCatchBlocks(*func.GetBody());
+  }
+  uint32 oldTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
+  // We do the simplify work here because now all the intrinsic calls and potential expansion work of memcpy or other
+  // functions are handled well. So we can concentrate to do the replacement work.
+  SimplifyBlock(*newBody);
+  uint32 newTypeTableSize = GlobalTables::GetTypeTable().GetTypeTableSize();
+  if (newTypeTableSize != oldTypeTableSize) {
+    beCommon.AddNewTypeAfterBecommon(oldTypeTableSize, newTypeTableSize);
   }
 }
 }  /* namespace maplebe */

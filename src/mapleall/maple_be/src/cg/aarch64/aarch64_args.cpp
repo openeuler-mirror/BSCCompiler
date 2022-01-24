@@ -92,7 +92,7 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
   argInfo.createTwoStores  = false;
   argInfo.isTwoRegParm = false;
 
-  if (GetPrimTypeLanes(argInfo.mirTy->GetPrimType()) > 0) {
+  if (GetVecLanes(argInfo.mirTy->GetPrimType()) > 0) {
     /* vector type */
     argInfo.stkSize = argInfo.symSize;
   } else if ((argInfo.symSize > k8ByteSize) && (argInfo.symSize <= k16ByteSize)) {
@@ -107,11 +107,19 @@ ArgInfo AArch64MoveRegArgs::GetArgInfo(std::map<uint32, AArch64reg> &argsList, s
         argInfo.memPairSecondRegSize = k4ByteSize;
       }
       argInfo.doMemPairOpt = true;
-      argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+      if (CGOptions::IsArm64ilp32()) {
+        argInfo.symSize = argInfo.stkSize = k8ByteSize;
+      } else {
+        argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+      }
     }
   } else if (argInfo.symSize > k16ByteSize) {
     /* For large struct passing, a pointer to the copy is used. */
-    argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+    if (CGOptions::IsArm64ilp32()) {
+      argInfo.symSize = argInfo.stkSize = k8ByteSize;
+    } else {
+      argInfo.symSize = argInfo.stkSize = kSizeOfPtr;
+    }
   } else if ((argInfo.mirTy->GetPrimType() == PTY_agg) && (argInfo.symSize < k4ByteSize)) {
     /* For small aggregate parameter, set to minimum of 4 bytes. */
     argInfo.symSize = argInfo.stkSize = k4ByteSize;
@@ -184,7 +192,7 @@ void AArch64MoveRegArgs::GenerateStpInsn(const ArgInfo &firstArgInfo, const ArgI
           aarchCGFunc->CreateImmOperand(stOffset - firstArgInfo.symLoc->GetOffset(), k64BitSize, false);
       baseReg = &aarchCGFunc->CreateRegisterOperandOfType(kRegTyInt, k8ByteSize);
       lastSegment = firstArgInfo.symLoc->GetMemSegment();
-      aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, PTY_a64);
+      aarchCGFunc->SelectAdd(*baseReg, *baseOpnd, immOpnd, LOWERED_PTR_TYPE);
     }
     AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(firstArgInfo.symLoc->GetOffset(), k32BitSize);
     if (firstArgInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
@@ -216,7 +224,7 @@ void AArch64MoveRegArgs::GenOneInsn(ArgInfo &argInfo, AArch64RegOperand &baseOpn
   MOperator mOp = aarchCGFunc->PickStInsn(stBitSize, argInfo.mirTy->GetPrimType());
   RegOperand &regOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(dest, stBitSize, argInfo.regType);
 
-  AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(offset, k32BitSize);
+  AArch64OfstOperand &offsetOpnd = aarchCGFunc->CreateOfstOpnd(static_cast<uint64>(offset), k32BitSize);
   if (argInfo.symLoc->GetMemSegment()->GetMemSegmentKind() == kMsArgsStkPassed) {
     offsetOpnd.SetVary(kUnAdjustVary);
   }
@@ -390,14 +398,12 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym)
   dstRegOpnd.SetSize(srcBitSize);
   RegOperand &srcRegOpnd = aarchCGFunc->GetOrCreatePhysicalRegisterOperand(ploc.reg0, srcBitSize, regType);
   ASSERT(mirSym.GetStorageClass() == kScFormal, "should be args");
-  MOperator mOp = aarchCGFunc->PickMovInsn(srcBitSize, regType);
+  MOperator mOp = aarchCGFunc->PickMovBetweenRegs(stype, stype);
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
     Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, dstRegOpnd, srcRegOpnd);
     AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    VectorRegSpec *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
-    vecSpec1->vecLaneMax = srcBitSize >> k3ByteSize;
-    VectorRegSpec *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>();
-    vecSpec2->vecLaneMax = srcBitSize >> k3ByteSize;
+    VectorRegSpec *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
+    VectorRegSpec *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec1);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec2);
     aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);

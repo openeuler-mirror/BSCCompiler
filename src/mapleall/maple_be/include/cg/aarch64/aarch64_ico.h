@@ -35,12 +35,12 @@ class AArch64ICOPattern : public ICOPattern {
  protected:
   AArch64CC_t Encode(MOperator mOp, bool inverse) const;
   Insn *BuildCmpInsn(const Insn &condBr);
-  Insn *BuildCcmpInsn(AArch64CC_t ccCode, Insn *cmpInsn);
+  Insn *BuildCcmpInsn(AArch64CC_t ccCode, const Insn *cmpInsn);
   Insn *BuildCondSet(const Insn &branch, RegOperand &reg, bool inverse);
   Insn *BuildCondSel(const Insn &branch, MOperator mOp, RegOperand &dst, RegOperand &src1, RegOperand &src2);
   bool IsSetInsn(const Insn &insn, Operand *&dest, Operand *&src) const;
   static uint32 GetNZCV(AArch64CC_t ccCode, bool inverse);
-  bool CheckMop(MOperator mOperator);
+  bool CheckMop(MOperator mOperator) const;
 };
 
 /* If-Then-Else pattern */
@@ -79,7 +79,7 @@ class AArch64ICOSameCondPattern : public AArch64ICOPattern {
   ~AArch64ICOSameCondPattern() override = default;
   bool Optimize(BB &curBB) override;
  protected:
-  bool DoOpt(BB *firstIfBB, BB &secondIfBB, BB *thenBB);
+  bool DoOpt(BB *firstIfBB, BB &secondIfBB);
 };
 
 /* If-Then MorePreds pattern
