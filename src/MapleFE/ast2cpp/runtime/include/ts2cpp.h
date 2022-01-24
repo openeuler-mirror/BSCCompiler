@@ -88,14 +88,14 @@ struct JS_Val {
   JS_Val(bool b)    { x.val_bool = b; type = TY_Bool; }
   JS_Val(int64_t l) { x.val_long = l; type = TY_Long; }
   JS_Val(double d)  { x.val_double = d; type = TY_Double; }
-  JS_Val(Object* o){ x.val_obj = o; type = TY_Object; }
+  JS_Val(Object* o) { x.val_obj = o; type = TY_Object; }
+  JS_Val(Object* o, JS_Type t) { x.val_obj = o; type = t; }
   JS_Val(Function* o){ x.val_func = o; type = TY_Function; }
   JS_Val(std::string* s) { x.val_string = s; type = TY_String; }
   JS_Val(std::string s) { x.val_string = new std::string(s); type = TY_String; }
   JS_Val(const char* s) { x.val_string = new std::string(s); type = TY_String; }
   JS_Val(int i) { x.val_long = i; type = TY_Long; }
   JS_Val(JS_Type jstype, bool v) { x.val_long = (int64_t)v; type = jstype; }
-
   // Prop directly generated as class fields when TS is compiled into CPP
   JS_Val(JS_Type jstype, void* field) { x.field = field; type = static_cast<JS_Type>(jstype|TY_CXX); }
 
