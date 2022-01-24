@@ -77,11 +77,11 @@ class MemSegment {
 
   ~MemSegment() = default;
 
-  int32 GetSize() const {
+  uint32 GetSize() const {
     return size;
   }
 
-  void SetSize(int32 memSize) {
+  void SetSize(uint32 memSize) {
     size = memSize;
   }
 
@@ -91,7 +91,7 @@ class MemSegment {
 
  private:
   MemSegmentKind kind;
-  int32 size;  /* size is negative if allocated offsets are negative */
+  uint32 size;  /* size is negative if allocated offsets are negative */
 };  /* class MemSegment */
 
 /* describes where a symbol is allocated */
@@ -195,11 +195,11 @@ class MemLayout {
     return loc;
   }
 
-  int32 SizeOfArgsToStackPass() const {
+  uint32 SizeOfArgsToStackPass() const {
     return segArgsToStkPass.GetSize();
   }
 
-  int32 SizeOfArgsRegisterPassed() const {
+  uint32 SizeOfArgsRegisterPassed() const {
     return segArgsRegPassed.GetSize();
   }
 

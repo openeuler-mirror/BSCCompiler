@@ -151,39 +151,39 @@ class AArch64MemLayout : public MemLayout {
 
   SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) override;
 
-  int32 StackFrameSize();
+  uint32 StackFrameSize();
 
-  int32 RealStackFrameSize();
+  uint32 RealStackFrameSize();
 
   const MemSegment &locals() const {
     return segLocals;
   }
 
-  int32 GetSizeOfSpillReg() const {
+  uint32 GetSizeOfSpillReg() const {
     return segSpillReg.GetSize();
   }
 
-  int32 GetSizeOfLocals() const {
+  uint32 GetSizeOfLocals() const {
     return segLocals.GetSize();
   }
 
-  void SetSizeOfGRSaveArea(int32 sz) {
+  void SetSizeOfGRSaveArea(uint32 sz) {
     segGrSaveArea.SetSize(sz);
   }
 
-  int32 GetSizeOfGRSaveArea() const {
+  uint32 GetSizeOfGRSaveArea() const {
     return segGrSaveArea.GetSize();
   }
 
-  inline void SetSizeOfVRSaveArea(int32 sz) {
+  inline void SetSizeOfVRSaveArea(uint32 sz) {
     segVrSaveArea.SetSize(sz);
   }
 
-  int32 GetSizeOfVRSaveArea() const {
+  uint32 GetSizeOfVRSaveArea() const {
     return segVrSaveArea.GetSize();
   }
 
-  int32 GetSizeOfRefLocals() {
+  uint32 GetSizeOfRefLocals() {
     return segRefLocals.GetSize();
   }
 

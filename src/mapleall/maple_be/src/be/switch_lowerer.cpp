@@ -102,7 +102,7 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
   node->SetOpnd(stmt->GetSwitchOpnd(), 0);
 
   node->SetRangeGotoTable(SmallCaseVector(mirModule.CurFuncCodeMemPoolAllocator()->Adapter()));
-  node->SetTagOffset(stmt->GetCasePair(startIdx).first);
+  node->SetTagOffset(static_cast<int32>(stmt->GetCasePair(startIdx).first));
   uint32 curTag = 0;
   node->AddRangeGoto(curTag, stmt->GetCasePair(startIdx).second);
   int64 lastCaseTag = stmt->GetSwitchTable().at(startIdx).first;
@@ -185,7 +185,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
     if (!lowBlockNodeChecked) {
       lowBlockNodeChecked = true;
       if (!(IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType()) &&
-          (stmt->GetCasePair(switchItems[start].first).first == 0))) {
+          (stmt->GetCasePair(static_cast<size_t>(switchItems[static_cast<uint64>(start)].first)).first == 0))) {
         cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
         localBlk->AddStatement(cGoto);
       }
@@ -284,7 +284,7 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   ASSERT(mid >= start, "switch lowering logic mid should greater than or equal start");
   ASSERT(mid <= end, "switch lowering logic mid should less than or equal end");
   /* generate test for binary search */
-  cmpNode = BuildCmpNode(OP_lt, switchItems[mid].first);
+  cmpNode = BuildCmpNode(OP_lt, static_cast<uint32>(switchItems[static_cast<uint64>(mid)].first));
   ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
   bool leftHighBNdChecked = (stmt->GetCasePair(switchItems.at(mid - 1).first).first + 1 ==
                              stmt->GetCasePair(switchItems.at(mid).first).first) ||
@@ -309,7 +309,7 @@ BlockNode *SwitchLowerer::LowerSwitch() {
 
   // add case labels to label table's caseLabelSet
   MIRLabelTable *labelTab = mirModule.CurFunction()->GetLabelTab();
-  for (CasePair casePair : stmt->GetSwitchTable()) {
+  for (CasePair &casePair : stmt->GetSwitchTable()) {
     labelTab->caseLabelSet.insert(casePair.second);
   }
 

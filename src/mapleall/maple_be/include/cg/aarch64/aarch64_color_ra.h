@@ -400,11 +400,11 @@ class LiveRange {
     }
   }
 
-  void SetCrossCall(bool val) {
+  void SetCrossCall() {
     crossCall = true;
   }
 
-  bool GetCrossCall() {
+  bool GetCrossCall() const {
     return crossCall;
   }
 
@@ -635,7 +635,7 @@ class LiveRange {
     this->rematLevel = val;
   }
 
-  uint32 GetRematLevel() {
+  uint32 GetRematLevel() const {
     return this->rematLevel;
   }
 
@@ -643,12 +643,12 @@ class LiveRange {
     return op;
   }
 
-  const MIRSymbol *GetRematSymbol() {
+  const MIRSymbol *GetRematSymbol() const {
     ASSERT(op == OP_dread || op == OP_addrof, "Remat symbol is invalid");
     return rematInfo.sym;
   }
 
-  FieldID GetRematFieldID() {
+  FieldID GetRematFieldID() const {
     ASSERT(op == OP_dread || op == OP_addrof, "Remat field ID is invalid");
     return fieldID;
   }
@@ -1332,7 +1332,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs, const Operand &opnd);
   void SetOpndConflict(const Insn &insn, bool onlyDef);
   void UpdateOpndConflict(const Insn &insn, bool multiDef);
-  void SetLrMustAssign(RegOperand *regOpnd);
+  void SetLrMustAssign(const RegOperand *regOpnd);
   void SetupMustAssignedLiveRanges(const Insn &insn);
   void ComputeLiveRangesForEachDefOperand(Insn &insn, bool &multiDef);
   void ComputeLiveRangesForEachUseOperand(Insn &insn);
@@ -1396,7 +1396,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SplitVregAroundLoop(const CGFuncLoops &loop, const std::vector<LiveRange*> &lrs,
                            BB &headerPred, BB &exitSucc, std::set<regno_t> &cands);
   bool LoopNeedSplit(const CGFuncLoops &loop, std::set<regno_t> &cands);
-  bool LrGetBadReg(LiveRange &lr);
+  bool LrGetBadReg(LiveRange &lr) const;
   void AnalysisLoopPressureAndSplit(const CGFuncLoops &loop);
   void AnalysisLoop(const CGFuncLoops &);
   void OptCallerSave();

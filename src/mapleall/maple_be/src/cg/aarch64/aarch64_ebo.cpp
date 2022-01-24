@@ -48,7 +48,7 @@ MOperator extInsnPairTable[AArch64Ebo::ExtTableSize][5][2] = {
    {MOP_undef, MOP_undef}}    /* ZXTW */
 };
 
-MOperator AArch64Ebo::ExtLoadSwitchBitSize(MOperator lowMop) {
+MOperator AArch64Ebo::ExtLoadSwitchBitSize(MOperator lowMop) const {
   switch (lowMop) {
     case MOP_wldrsb :
       return MOP_xldrsb;
@@ -377,7 +377,7 @@ int32 AArch64Ebo::GetOffsetVal(const MemOperand &mem) const {
   AArch64OfstOperand *offset = memOpnd.GetOffsetImmediate();
   int32 val = 0;
   if (offset != nullptr) {
-    val += offset->GetOffsetValue();
+    val += static_cast<int>(offset->GetOffsetValue());
 
     if (offset->IsSymOffset() || offset->IsSymAndImmOffset()) {
       val += offset->GetSymbol()->GetStIdx().Idx();
@@ -773,7 +773,7 @@ bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint32>(i)]);
 #endif
       bool isUse = regProp->IsUse();
       /* if noUse Redefined, no need to check live-out. */
@@ -808,14 +808,15 @@ bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *
   }
   const AArch64MD *md = &AArch64CG::kMd[newMop];
   uint32 memSize = md->GetOperandSize() / k8BitSize;
-  uint32 validShiftAmount = memSize == 8 ? 3 : memSize == 4 ? 2 : memSize == 2 ? 1 : 0;
+  int32 validShiftAmount = memSize == 8 ? 3 : memSize == 4 ? 2 : memSize == 2 ? 1 : 0;
   if (shiftAmount != validShiftAmount) {
     return false;
   }
   return true;
 }
 
-bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos, ExtOpTable idx, bool is64bits) {
+bool AArch64Ebo::CombineExtensionAndLoad(Insn *insn, const MapleVector<OpndInfo*> &origInfos,
+                                         ExtOpTable idx, bool is64bits) {
   if (!beforeRegAlloc) {
     return false;
   }
@@ -1145,8 +1146,8 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           auto &immOpnd = static_cast<AArch64ImmOperand&>(insn1->GetOperand(kInsnThirdOpnd));
           uint32 xLslrriBitLen = 6;
           uint32 wLslrriBitLen = 5;
-          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(
-              BitShiftOperand::kLSL, immOpnd.GetValue(), (opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen);
+          Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kLSL,
+              static_cast<uint32>(immOpnd.GetValue()),(opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen);
           MOperator mOp = (is64bits ? MOP_xaddrrrs : MOP_waddrrrs);
           insn.GetBB()->ReplaceInsn(insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, op0,
                                                                                          opnd1, shiftOpnd));

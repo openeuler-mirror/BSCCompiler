@@ -66,7 +66,7 @@ class AArch64CGFunc : public CGFunc {
     return beginOffset;
   }
 
-  MOperator PickMovBetweenRegs(PrimType destType, PrimType srcType);
+  MOperator PickMovBetweenRegs(PrimType destType, PrimType srcType) const;
   MOperator PickMovInsn(RegOperand &lhs, RegOperand &rhs);
 
   regno_t NewVRflag() override {
@@ -96,7 +96,7 @@ class AArch64CGFunc : public CGFunc {
   void SelectDassign(DassignNode &stmt, Operand &opnd0) override;
   void SelectDassignoff(DassignoffNode &stmt, Operand &opnd0) override;
   void SelectRegassign(RegassignNode &stmt, Operand &opnd0) override;
-  void SelectAbort(UnaryStmtNode &stmt) override;
+  void SelectAbort() override;
   void SelectAssertNull(UnaryStmtNode &stmt) override;
   void SelectAsm(AsmNode &stmt) override;
   AArch64MemOperand *GenLargeAggFormalMemOpnd(const MIRSymbol &sym, uint32 alignUsed, int64 offset,
@@ -319,7 +319,7 @@ class AArch64CGFunc : public CGFunc {
   RegOperand *AdjustOneElementVectorOperand(PrimType oType, RegOperand *opnd);
   bool DistanceCheck(const BB &bb, LabelIdx targLabIdx, uint32 targId);
 
-  PrimType FilterOneElementVectorType(PrimType origTyp) {
+  PrimType FilterOneElementVectorType(PrimType origTyp) const {
     PrimType nType = origTyp;
     if (origTyp == PTY_i64 || origTyp == PTY_u64) {
       nType = PTY_f64;
@@ -475,11 +475,11 @@ class AArch64CGFunc : public CGFunc {
     }
   }
 
-  int32 SizeOfCalleeSaved() {
+  uint32 SizeOfCalleeSaved() {
     /* npairs = num / 2 + num % 2 */
-    int32 nPairs = (numIntregToCalleeSave >> 1) + (numIntregToCalleeSave & 0x1);
+    uint32 nPairs = (numIntregToCalleeSave >> 1) + (numIntregToCalleeSave & 0x1);
     nPairs += (numFpregToCalleeSave >> 1) + (numFpregToCalleeSave & 0x1);
-    return(nPairs * (kIntregBytelen << 1));
+    return (nPairs * (kIntregBytelen << 1));
   }
 
   void DBGFixCallFrameLocationOffsets() override;
@@ -492,7 +492,7 @@ class AArch64CGFunc : public CGFunc {
     return fplrAddedToCalleeSaved;
   }
 
-  bool IsIntrnCallForC() {
+  bool IsIntrnCallForC() const {
     return isIntrnCallForC;
   }
 
@@ -696,7 +696,7 @@ class AArch64CGFunc : public CGFunc {
   Operand &GetZeroOpnd(uint32 size) override;
   bool IsFrameReg(const RegOperand &opnd) const override;
 
-  PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) {
+  PrimType GetOperandTy(bool isIntty, uint32 dsize, bool isSigned) const {
     ASSERT(!isSigned || isIntty, "");
     return (isIntty ? ((dsize == k64BitSize) ? (isSigned ? PTY_i64 : PTY_u64) : (isSigned ? PTY_i32 : PTY_u32))
                     : ((dsize == k64BitSize) ? PTY_f64 : PTY_f32));
@@ -721,15 +721,15 @@ class AArch64CGFunc : public CGFunc {
     return (o.IsRegister() ? static_cast<RegOperand&>(o) : SelectCopy(o, sty, dty));
   }
 
-  void CreateCallStructParamPassByStack(int32 symSize, MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
+  void CreateCallStructParamPassByStack(int32 symSize, const MIRSymbol *sym, RegOperand *addrOpnd, int32 baseOffset);
   AArch64RegOperand *SelectParmListDreadAccessField(const MIRSymbol &sym, FieldID fieldID, const PLocInfo &ploc,
                                                     int32 offset, uint32 parmNum);
   void CreateCallStructParamPassByReg(AArch64reg reg, MemOperand &memOpnd, AArch64ListOperand &srcOpnds,
                                       fpParamState state);
   void CreateCallStructParamMemcpy(const MIRSymbol *sym, RegOperand *addropnd,
                                    uint32 structSize, int32 copyOffset, int32 fromOffset);
-  AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, MIRSymbol *sym, RegOperand *addropnd,
-                                                      int32 copyOffset, int32 fromOffset, const PLocInfo &pLoc);
+  AArch64RegOperand *CreateCallStructParamCopyToStack(uint32 numMemOp, const MIRSymbol *sym, RegOperand *addrOpd,
+                                                      int32 copyOffset, int32 fromOffset, const PLocInfo &ploc);
   void SelectParmListDreadSmallAggregate(MIRSymbol &sym, MIRType &structType, AArch64ListOperand &srcOpnds,
                                          int32 offset, ParmLocator &parmLocator, FieldID fieldID);
   void SelectParmListIreadSmallAggregate(const IreadNode &iread, MIRType &structType, AArch64ListOperand &srcOpnds,

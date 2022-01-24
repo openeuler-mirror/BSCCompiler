@@ -612,7 +612,7 @@ static void AsmStringOutputRegNum(
     newRegno = regno - fpBase;
   }
   if (newRegno > (kDecimalMax - 1)) {
-    uint8 tenth = newRegno / kDecimalMax;
+    auto tenth = static_cast<char>(newRegno / kDecimalMax);
     strToEmit += '0' + tenth;
     newRegno -= (kDecimalMax * tenth);
   }
@@ -658,28 +658,28 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
       AsmStringOutputRegNum(isInt, regNO, R0, V0, stringToEmit);
     }
   };
-  for (size_t i = 0; i < asmStr.length(); ++i) {
+  for (int i = 0; i < asmStr.length(); ++i) {
     switch (asmStr[i]) {
       case '$': {
         char c = asmStr[++i];
         if ((c >= '0') && (c <= '9')) {
-          uint32 val = c - '0';
+          auto val = static_cast<uint32>(c - '0');
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
-            val = val * kDecimalMax + (asmStr[++i] - '0');
+            val = val * kDecimalMax + static_cast<uint32>(asmStr[++i] - '0');
           }
           if (val < outOpnds.size()) {
             const char *prefix = list6.stringList[val]->GetComment().c_str();
             RegOperand *opnd = outOpnds[val];
             EmitRegister(prefix, opnd->IsOfIntClass(), opnd->GetRegisterNumber(), true);
           } else {
-            val -= outOpnds.size();
+            val -= static_cast<uint32>(outOpnds.size());
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
             /* input is a immediate */
             const char *prefix = list7.stringList[val]->GetComment().c_str();
             if (prefix[0] == 'i') {
               stringToEmit += '#';
-              for (int k = 1; k < list7.stringList[val]->GetComment().length(); ++k) {
+              for (size_t k = 1; k < list7.stringList[val]->GetComment().length(); ++k) {
                 stringToEmit += prefix[k];
               }
             } else {
@@ -689,9 +689,9 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
         } else if (c == '{') {
           c = asmStr[++i];
           CHECK_FATAL(((c >= '0') && (c <= '9')), "Inline asm : invalid register constraint number");
-          uint32 val = c - '0';
+          auto val = static_cast<uint32>(c - '0');
           if (asmStr[i + 1] >= '0' && asmStr[i + 1] <= '9') {
-            val = val * kDecimalMax + (asmStr[++i] - '0');
+            val = val * kDecimalMax + static_cast<uint32>(asmStr[++i] - '0');
           }
           regno_t regno;
           bool isAddr = false;
@@ -700,7 +700,7 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
             regno = opnd->GetRegisterNumber();
             isAddr = IsMemAccess(list6.stringList[val]->GetComment().c_str()[0]);
           } else {
-            val -= outOpnds.size();
+            val -= static_cast<uint32>(outOpnds.size());
             CHECK_FATAL(val < inOpnds.size(), "Inline asm : invalid register constraint number");
             RegOperand *opnd = inOpnds[val];
             regno = opnd->GetRegisterNumber();
@@ -862,7 +862,7 @@ void AArch64Insn::EmitAdrpLabel(Emitter &emitter) const {
   Operand *opnd0 = opnds[0];
   Operand *opnd1 = opnds[1];
   OpndProp *prop0 = static_cast<AArch64OpndProp*>(md->operand[0]);
-  LabelIdx lidx = static_cast<ImmOperand *>(opnd1)->GetValue();
+  auto lidx = static_cast<ImmOperand *>(opnd1)->GetValue();
 
   /* adrp    xd, label */
   emitter.Emit("\t").Emit("adrp").Emit("\t");
@@ -1208,8 +1208,8 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
   size_t opndSize = GetOperandSize();
   std::vector<int32> seq(opndSize, -1);
   std::vector<std::string> prefix(opndSize);  /* used for print prefix like "*" in icall *rax */
-  int32 index = 0;
-  int32 commaNum = 0;
+  uint32 index = 0;
+  uint32 commaNum = 0;
   for (uint32 i = 0; i < format.length(); ++i) {
     char c = format[i];
     if (c >= '0' && c <= '5') {
@@ -1225,7 +1225,7 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
     emitter.IncreaseJavaInsnCount();
   }
   uint32 compositeOpnds = 0;
-  for (int32 i = 0; i < commaNum; ++i) {
+  for (uint32 i = 0; i < commaNum; ++i) {
     if (seq[i] == -1) {
       continue;
     }
@@ -1244,8 +1244,9 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
       emitter.Emit(nameOpnd->GetName() + emitter.HugeSoPostFix());
       break;
     }
-    AArch64RegOperand *regOpnd = static_cast<AArch64RegOperand*>(opnds[seq[i]]);
-    if (regOpnd != nullptr && static_cast<const AArch64OpndProp*>(md->operand[seq[i]])->IsVectorOperand()) {
+    AArch64RegOperand *regOpnd = static_cast<AArch64RegOperand*>(opnds[static_cast<uint32>(seq[i])]);
+    if (regOpnd != nullptr &&
+        static_cast<const AArch64OpndProp *>(md->operand[static_cast<uint32>(seq[i])])->IsVectorOperand()) {
       regOpnd->SetVecLanePosition(-1);
       regOpnd->SetVecLaneSize(0);
       regOpnd->SetVecElementSize(0);
@@ -1271,7 +1272,7 @@ void AArch64Insn::Emit(const CG &cg, Emitter &emitter) const {
     if (i != (commaNum - 1)) {
       emitter.Emit(", ");
     }
-    const int commaNumForEmitLazy = 2;
+    const uint32 commaNumForEmitLazy = 2;
     if (!CGOptions::IsLazyBinding() || cg.IsLibcore() || (mOp != MOP_wldr && mOp != MOP_xldr) ||
         commaNum != commaNumForEmitLazy || i != 1 || !opnds[seq[1]]->IsMemoryAccessOperand()) {
       continue;
@@ -1447,7 +1448,7 @@ Operand *AArch64Insn::GetOpnd(uint32 id) const {
 }
 /* Return the first memory access operand. */
 Operand *AArch64Insn::GetMemOpnd() const {
-  for (size_t i = 0; i < opnds.size(); ++i) {
+  for (int32 i = 0; i < opnds.size(); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.IsMemoryAccessOperand()) {
       return &opnd;
@@ -1461,7 +1462,7 @@ void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
   for (size_t i = 0; i < opnds.size(); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.IsMemoryAccessOperand()) {
-      SetOperand(i, *memOpnd);
+      SetOperand(static_cast<uint32>(i), *memOpnd);
       return;
     }
   }
@@ -1507,7 +1508,7 @@ bool AArch64Insn::IsRegDefined(regno_t regNO) const {
 
 std::set<uint32> AArch64Insn::GetDefRegs() const {
   std::set<uint32> defRegNOs;
-  uint32 opndNum = opnds.size();
+  size_t opndNum = opnds.size();
   const AArch64MD *md = &AArch64CG::kMd[mOp];
   for (uint32 i = 0; i < opndNum; ++i) {
     Operand &opnd = GetOperand(i);
@@ -1541,7 +1542,7 @@ std::set<uint32> AArch64Insn::GetDefRegs() const {
 
 uint32 AArch64Insn::GetBothDefUseOpnd() const {
   const AArch64MD *md = &AArch64CG::kMd[mOp];
-  uint32 opndNum = opnds.size();
+  size_t opndNum = opnds.size();
   uint32 opndIdx = kInsnMaxOpnd;
   for (uint32 i = 0; i < opndNum; ++i) {
     auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);

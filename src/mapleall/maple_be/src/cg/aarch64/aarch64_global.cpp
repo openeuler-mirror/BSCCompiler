@@ -223,9 +223,9 @@ bool OptimizePattern::InsnDefOneOrZero(Insn &insn) {
   }
 }
 
-void ReplaceAsmListReg(Insn *insn, uint32 index, uint32 regNO, Operand *newOpnd) {
+void ReplaceAsmListReg(const Insn *insn, uint32 index, uint32 regNO, Operand *newOpnd) {
   MapleList<RegOperand*> *list = &static_cast<AArch64ListOperand&>(insn->GetOperand(index)).GetOperands();
-  int32 size = list->size();
+  int32 size = static_cast<int32>(list->size());
   for (int i = 0; i < size; ++i) {
     RegOperand *opnd = static_cast<RegOperand *>(*(list->begin()));
     list->pop_front();
@@ -402,8 +402,8 @@ void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
   InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, destRegNo, true);
   if (firstRegUseInsnSet.size() >= 1) {
     for (auto useInsn : firstRegUseInsnSet) {
-      int optSize = useInsn->GetOperandSize();
-      for (int i = 0; i < optSize; i++) {
+      uint32 optSize = useInsn->GetOperandSize();
+      for (uint32 i = 0; i < optSize; i++) {
         ASSERT(useInsn->GetOperand(i).IsRegister(), "only design for register");
         if (destRegNo == static_cast<RegOperand&>(useInsn->GetOperand(i)).GetRegisterNumber()) {
           useInsn->SetOperand(i, *newOpnd);
@@ -1492,7 +1492,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
 }
 
 /* Check whether ExtendShiftOptPattern optimization can be performed. */
-ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &lastOpnd) {
+ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &lastOpnd) const {
   /* Assign values to useType and defType. */
   uint32 useType = ExtendShiftOptPattern::kNoSuffix;
   uint32 defType = shiftOp;
@@ -1611,7 +1611,7 @@ void ExtendShiftOptPattern::Optimize(Insn &insn) {
   }
   if (shiftOp != BitShiftOperand::kUndef) {
     AArch64ImmOperand &immOpnd = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-    offset = immOpnd.GetValue();
+    offset = static_cast<uint32>(immOpnd.GetValue());
   }
   amount += offset;
 
@@ -1751,7 +1751,7 @@ bool ExtenToMovPattern::CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNu
       case MOP_weorrri12: {
         /* check immVal if mop is OR */
         AArch64ImmOperand &imm = static_cast<AArch64ImmOperand&>(defInsn->GetOperand(kInsnThirdOpnd));
-        uint32 bitNum = imm.GetValue();
+        auto bitNum = static_cast<uint32>(imm.GetValue());
         if ((bitNum >> validNum) != 0) {
           return false;
         }
@@ -1982,8 +1982,8 @@ bool AndCbzPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
-int64 AndCbzPattern::CalculateLogValue(int64 val) {
-  return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
+int64 AndCbzPattern::CalculateLogValue(int64 val) const {
+  return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
 void AndCbzPattern::Optimize(Insn &insn) {
@@ -2047,7 +2047,7 @@ void SameRHSPropPattern::Init() {
   candidates = {MOP_waddrri12, MOP_xaddrri12, MOP_wsubrri12, MOP_xsubrri12, MOP_xmovri32, MOP_xmovri64};
 }
 
-bool SameRHSPropPattern::IsSameOperand(Operand *opnd1, Operand *opnd2) {
+bool SameRHSPropPattern::IsSameOperand(Operand *opnd1, Operand *opnd2) const {
   if (opnd1 == nullptr && opnd2 == nullptr) {
     return true;
   } else if (opnd1 == nullptr || opnd2 == nullptr) {

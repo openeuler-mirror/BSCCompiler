@@ -316,7 +316,7 @@ bool IsSpillRegInRA(AArch64reg regNO, bool has3RegOpnd) {
   return AArch64Abi::IsSpillReg(regNO);
 }
 
-PrimType IsVectorArrayType(MIRType *ty, int &arraySize) {
+PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize) {
   if (ty->GetKind() == kTypeStruct) {
     MIRStructType *structTy = static_cast<MIRStructType *>(ty);
     if (structTy->GetFields().size() == 1) {
@@ -406,7 +406,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
 
   bool is64x1vec = false;
   if (tFunc != nullptr && tFunc->GetParamSize() > 0) {
-    is64x1vec = tFunc->GetNthParamAttr(paramNum).GetAttr(ATTR_oneelem_simd) != 0;
+    is64x1vec = tFunc->GetNthParamAttr(static_cast<size_t>(paramNum)).GetAttr(ATTR_oneelem_simd) != 0;
   }
 
   if (isFirst) {

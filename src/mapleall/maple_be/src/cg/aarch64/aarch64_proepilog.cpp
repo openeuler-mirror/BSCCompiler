@@ -219,7 +219,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     std::set<Insn*> callInsns;
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
-      optCount += callInsns.size();
+      optCount += static_cast<int>(callInsns.size());
       exitBB2CallSitesMap[exitBB] = callInsns;
     }
     if (i < exitBBSize) {
@@ -328,7 +328,7 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     insn.SetDoNotRemove(true);
     cgFunc.GetCurBB()->AppendInsn(insn);
 
-    int vArea = 0;
+    uint64 vArea = 0;
     if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
       AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
       if (ml->GetSizeOfGRSaveArea() > 0) {
@@ -343,9 +343,8 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
     if (useFP) {
       stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
     }
-    AArch64MemOperand *downStk =
-        aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg, stkSize - kOffset8MemPos - vArea,
-                                                            kSizeOfPtr * kBitsPerByte);
+    AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg,
+        stkSize - kOffset8MemPos - static_cast<int32>(vArea), kSizeOfPtr * kBitsPerByte);
     if (downStk->GetMemVaryType() == kNotVary &&
         aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
       downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*downStk, k64BitSize, R10);
@@ -389,7 +388,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   insn.SetDoNotRemove(true);
   cgFunc.GetCurBB()->AppendInsn(insn);
 
-  int vArea = 0;
+  uint64 vArea = 0;
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
     if (ml->GetSizeOfGRSaveArea() > 0) {
@@ -406,9 +405,8 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
   if (useFP) {
     stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
   }
-  AArch64MemOperand *downStk =
-      aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg, stkSize - kOffset8MemPos - vArea,
-                                                          kSizeOfPtr * kBitsPerByte);
+  AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg,
+      stkSize - kOffset8MemPos - static_cast<int32>(vArea), kSizeOfPtr * kBitsPerByte);
   if (downStk->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*downStk, k64BitSize)) {
     downStk = &aarchCGFunc.SplitOffsetWithAddInstruction(*static_cast<AArch64MemOperand*>(downStk), k64BitSize, R10);
   }
@@ -677,7 +675,7 @@ bool AArch64GenProEpilog::BackwardFindDependency(BB &ifbb, std::set<regno_t> &ve
       }
     }
   } while (pred != nullptr);
-  for (std::set<regno_t>::iterator it = vecTargetRegs.begin(); it != vecTargetRegs.end(); it++) {
+  for (std::set<regno_t>::iterator it = vecTargetRegs.begin(); it != vecTargetRegs.end(); ++it) {
     if (AArch64Abi::IsCalleeSavedReg(static_cast<AArch64reg>(*it))) { /* flag register */
       return false;
     }
@@ -830,7 +828,7 @@ AArch64MemOperand *AArch64GenProEpilog::SplitStpLdpOffsetForCalleeSavedWithAddIn
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CHECK_FATAL(mo.GetAddrMode() == AArch64MemOperand::kAddrModeBOi, "mode should be kAddrModeBOi");
   AArch64OfstOperand *ofstOp = mo.GetOffsetImmediate();
-  int32 offsetVal = ofstOp->GetOffsetValue();
+  int32 offsetVal = static_cast<int32>(ofstOp->GetOffsetValue());
   CHECK_FATAL(offsetVal > 0, "offsetVal should be greater than 0");
   CHECK_FATAL((static_cast<uint32>(offsetVal) & 0x7) == 0, "(offsetVal & 0x7) should be equal to 0");
   /*
@@ -1018,7 +1016,7 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
     MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
     AArch64RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
     AArch64RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-    AArch64MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(-offset, kSizeOfPtr * kBitsPerByte);
+    AArch64MemOperand &o2 = aarchCGFunc.CreateCallFrameOperand(static_cast<int32>(-offset), kSizeOfPtr * kBitsPerByte);
     ipoint = &currCG->BuildInstruction<AArch64Insn>(mOp, o0, o1, o2);
     AppendInstructionTo(*ipoint, cgFunc);
     cfiOffset = offset;
@@ -1178,10 +1176,10 @@ void AArch64GenProEpilog::GeneratePushRegs() {
     AppendInstructionAllocateCallFrameDebug(R29, RLR, kRegTyInt);
   }
 
-  if (currCG->GenerateVerboseCG()) {
-    cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("copy SP to FP"));
-  }
   if (useFP) {
+    if (currCG->GenerateVerboseCG()) {
+      cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("copy SP to FP"));
+    }
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
     Operand &fpOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(stackBaseReg, k64BitSize, kRegTyInt);
     int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
@@ -1219,16 +1217,15 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
-    offset -= saveareasize;
+    uint64 saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
+    offset -= static_cast<int32>(saveareasize);
   }
 
   for (; it != regsToSave.end(); ++it) {
     AArch64reg reg = *it;
     CHECK_FATAL(reg != RFP, "stray RFP in callee_saved_list?");
     CHECK_FATAL(reg != RLR, "stray RLR in callee_saved_list?");
-
     RegType regType = AArch64isa::IsGPRegister(reg) ? kRegTyInt : kRegTyFloat;
     AArch64reg &firstHalf = AArch64isa::IsGPRegister(reg) ? intRegFirstHalf : fpRegFirstHalf;
     if (firstHalf == kRinvalid) {
@@ -1333,7 +1330,7 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     MIRFunction *func = &cgFunc.GetFunction();
     MIRSymbol *fSym = GlobalTables::GetGsymTable().GetSymbolFromStidx(func->GetStIdx().Idx());
     if (currCG->GetCGOptions().WithSrc()) {
-      uint32 tempmaxsize = currCG->GetMIRModule()->GetSrcFileInfo().size();
+      uint32 tempmaxsize = static_cast<uint32>(currCG->GetMIRModule()->GetSrcFileInfo().size());
       uint32 endfilenum = currCG->GetMIRModule()->GetSrcFileInfo()[tempmaxsize - 1].second;
       if (fSym->GetSrcPosition().FileNum() != 0 && fSym->GetSrcPosition().FileNum() <= endfilenum) {
         Operand *o0 = cgFunc.CreateDbgImmOperand(fSym->GetSrcPosition().FileNum());
@@ -1511,7 +1508,7 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
    * if ldp's imm > 504, we fall back to the ldp-add version
    */
   bool useLdpAdd = false;
-  int64 offset = 0;
+  int32 offset = 0;
 
   Operand *o2 = nullptr;
   if (!cgFunc.HasVLAOrAlloca() && argsToStkPassSize > 0) {
@@ -1660,9 +1657,9 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    int saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-                       RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
-    offset -= saveareasize;
+    uint64 saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
+    offset -= static_cast<int32>(saveareasize);
   }
 
   /*
@@ -1768,14 +1765,15 @@ void AArch64GenProEpilog::GenerateEpilog(BB &bb) {
   if (!regsToSave.empty()) {
     GeneratePopRegs();
   } else {
-    int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+    auto stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
     if (stackFrameSize > 0) {
       if (currCG->GenerateVerboseCG()) {
         cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("pop up activation frame"));
       }
 
       if (cgFunc.HasVLAOrAlloca()) {
-        stackFrameSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->GetSegArgsStkPass().GetSize();
+        auto size = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->GetSegArgsStkPass().GetSize();
+        stackFrameSize = stackFrameSize < size ? 0 : stackFrameSize - size;
       }
 
       if (stackFrameSize > 0) {
