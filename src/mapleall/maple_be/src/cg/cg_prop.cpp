@@ -39,11 +39,9 @@ void CGProp::DoTargetProp() {
       TargetProp(*insn);
     }
   }
-  /*
-   * pattern  level opt
-   * wait for performance test
-   */
-  if (CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+  
+  /* pattern  level opt */ 
+  if (CGOptions::GetInstance().GetOptimizeLevel() == 2) {
     PropPatternOpt();
   }
 }

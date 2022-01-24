@@ -125,7 +125,7 @@ void CGSSAInfo::RenamePhi(BB &bb) {
     Insn *phiInsn = phiInsnIt.second;
     CHECK_FATAL(phiInsn != nullptr, "get phi insn failed");
     auto *phiDefOpnd = static_cast<RegOperand*>(&phiInsn->GetOperand(kInsnFirstOpnd));
-    VRegVersion *newVst = CreateNewVersion(*phiDefOpnd, *phiInsn, true);
+    VRegVersion *newVst = CreateNewVersion(*phiDefOpnd, *phiInsn, kInsnFirstOpnd, true);
     phiInsn->SetOperand(kInsnFirstOpnd, *newVst->GetSSAvRegOpnd());
   }
 }
@@ -139,7 +139,7 @@ void CGSSAInfo::RenameSuccPhiUse(BB &bb) {
       CHECK_FATAL(phiListOpnd->IsPhi(), "unexpect phi operand");
       MapleMap<uint32, RegOperand*> &phiList = static_cast<PhiOperand*>(phiListOpnd)->GetOperands();
       ASSERT(phiList.size() <= sucBB->GetPreds().size(), "unexpect phiList size need check");
-      for (auto phiOpndIt = phiList.begin(); phiOpndIt != phiList.end(); phiOpndIt++) {
+      for (auto phiOpndIt = phiList.begin(); phiOpndIt != phiList.end(); ++phiOpndIt) {
         if (phiOpndIt->first == bb.GetId()) {
           RegOperand *renamedOpnd = GetRenamedOperand(*(phiOpndIt->second), false, *phiInsn, kInsnSecondOpnd);
           phiList[phiOpndIt->first] = renamedOpnd;

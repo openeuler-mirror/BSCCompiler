@@ -20,37 +20,6 @@
 #include "aarch64_cgfunc.h"
 #include "aarch64_strldr.h"
 namespace maplebe{
-
-class PropOptimizeManager {
-public:
-  PropOptimizeManager(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : cgFunc(cgFunc), optSsaInfo(cgssaInfo) {}
-  ~PropOptimizeManager() = default;
-  template<typename PropOptimizePattern>
-  void Optimize() {
-    PropOptimizePattern optPattern(cgFunc, optSsaInfo);
-    optPattern.Run();
-  }
-private:
-  CGFunc &cgFunc;
-  CGSSAInfo *optSsaInfo;
-};
-
-class PropOptimizePattern {
-public:
-  PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : cgFunc(cgFunc), optSsaInfo(cgssaInfo) {}
-  virtual ~PropOptimizePattern() = default;
-  virtual bool CheckCondition(Insn &insn) = 0;
-  virtual void Optimize(Insn &insn) = 0;
-  virtual void Run() = 0;
-protected:
-  std::string PhaseName() const {
-    return "propopt";
-  }
-  virtual void Init() = 0;
-  CGFunc &cgFunc;
-  CGSSAInfo *optSsaInfo = nullptr;
-};
-
 class AArch64Prop : public CGProp {
  public:
   AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
@@ -63,11 +32,14 @@ class AArch64Prop : public CGProp {
    * 1. extended register prop
    * 2. shift register prop
    * 3. add/ext/shf prop -> str/ldr
+   * 4. const prop
    */
   void TargetProp(Insn &insn) override;
   void PropPatternOpt() override;
 
   void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion);
+  /* do not extend life range */
+  bool IsInLimitCopyRange(VRegVersion *toBeReplaced);
 };
 
 class A64StrLdrProp {
@@ -103,6 +75,14 @@ class A64StrLdrProp {
   CGDce *cgDce = nullptr;
 };
 
+enum ArithmeticType {
+  kAArch64Add,
+  kAArch64Sub,
+  kAArch64Orr,
+  kAArch64Eor,
+  kUndefArith
+};
+
 class A64ConstProp {
  public:
   A64ConstProp(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo, Insn &insn)
@@ -111,13 +91,6 @@ class A64ConstProp {
         ssaInfo(&sInfo),
         curInsn(&insn) {}
   void DoOpt();
-  enum ArithmeticType {
-    kAArch64Add,
-    kAArch64Sub,
-    kAArch64Orr,
-    kAARch64Eor,
-    kUndef
-  };
   /* false : default lsl #0 true: lsl #12 (only support 12 bit left shift in aarch64) */
   static MOperator GetRegImmMOP(MOperator regregMop, bool withLeftShift);
   static MOperator GetReversalMOP(MOperator arithMop);
@@ -125,15 +98,13 @@ class A64ConstProp {
 
  private:
   bool ConstProp(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
-  AArch64ImmOperand *CanDoConstFold(AArch64ImmOperand &value1, AArch64ImmOperand &value2,
-                                    ArithmeticType aT, bool is64Bit);
-  /* SP/FP will not be varied in function, prop them as const */
-  void SPFPProp();
   /* use xzr/wzr in aarch64 to shrink register live range */
   void ZeroRegProp(DUInsnInfo &useDUInfo, RegOperand &toReplaceReg);
 
   /* replace old Insn with new Insn, update ssa info automatically */
   void ReplaceInsnAndUpdateSSA(Insn &oriInsn, Insn &newInsn);
+  AArch64ImmOperand *CanDoConstFold(AArch64ImmOperand &value1, AArch64ImmOperand &value2,
+                                    ArithmeticType aT, bool is64Bit);
 
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
@@ -145,6 +116,39 @@ class A64ConstProp {
   CGFunc *cgFunc;
   CGSSAInfo *ssaInfo;
   Insn *curInsn;
+};
+
+/*
+ * frame pointer and stack pointer will not be varied in function body
+ * treat them as const
+ */
+class FpSpConstProp : public PropOptimizePattern {
+ public:
+  FpSpConstProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~FpSpConstProp() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    fpSpBase = nullptr;
+    shiftOpnd = nullptr;
+    aT = kUndefArith;
+    replaced = nullptr;
+  }
+
+ private:
+  bool GetValidSSAInfo(Operand &opnd);
+  void PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn);
+  void PropInArith(DUInsnInfo &useDUInfo, Insn &useInsn, ArithmeticType curAT);
+  void PropInCopy(DUInsnInfo &useDUInfo, Insn &useInsn, MOperator oriMop);
+  int64 ArithmeticFold(int64 valInUse, ArithmeticType useAT);
+
+  RegOperand *fpSpBase = nullptr;
+  AArch64ImmOperand *shiftOpnd = nullptr;
+  ArithmeticType aT = kUndefArith;
+  VRegVersion *replaced = nullptr;
 };
 
 /*
@@ -175,7 +179,7 @@ protected:
 
 private:
   bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
-  bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
+  bool CheckSrcReg(regno_t srcRegNo, uint32 validNum);
 
   MOperator replaceMop = MOP_undef;
 };
@@ -233,7 +237,7 @@ protected:
 private:
   void SelectExtendOrShift(const Insn &def);
   bool CheckDefUseInfo(Insn &use, uint32 size);
-  SuffixType CheckOpType(Operand &lastOpnd);
+  SuffixType CheckOpType(Operand &lastOpnd) const;
   void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
   void SetExMOpType(Insn &use);
   void SetLsMOpType(Insn &use);
@@ -245,7 +249,6 @@ private:
   Insn *defInsn;
   Insn *newInsn;
   bool optSuccess;
-  bool removeDefInsn;
   ExMOpType exMOpType;
   LsMOpType lsMOpType;
 };
