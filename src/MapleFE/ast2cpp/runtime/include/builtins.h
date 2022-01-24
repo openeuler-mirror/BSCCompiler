@@ -16,6 +16,8 @@
 #ifndef __BUILTINS_H__
 #define __BUILTINS_H__
 
+#include <sstream>
+
 namespace t2crt {
 
 template <typename T1, typename T2>
@@ -38,6 +40,24 @@ class Array : public Object {
     T& operator[](int i) {return elements[i];}
     void operator = (const std::vector<T> &v) { elements = v; }
     long size() { return elements.size(); }
+
+    // Dump output to string (recurses if multi-dim array via ostream output operator overload in t2cpp.cpp)
+    virtual std::string Dump(void) {
+      std::stringstream ss;
+      std::streambuf* old = std::cout.rdbuf(ss.rdbuf());
+      if (elements.empty())
+        std::cout << "[]";
+      else {
+        std::cout << "[ ";
+        auto i = elements.begin(), e = elements.end();
+        std::cout << *i++;
+        for (; i != e; ++i)
+          std::cout << ", " << *i;
+        std::cout << " ]";
+      }
+      std::cout.rdbuf(old);
+      return ss.str();
+    }
 
     // Put JS Array.prototype props as static fields and methods in this class
     // and add to proplist of Array_ctor.prototype object on system init.
