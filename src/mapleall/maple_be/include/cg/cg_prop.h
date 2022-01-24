@@ -55,6 +55,40 @@ class CGProp {
   CGDce *cgDce = nullptr;
 };
 
+class PropOptimizeManager {
+ public:
+  PropOptimizeManager(CGFunc &cgFunc, CGSSAInfo *cgssaInfo)
+      : cgFunc(cgFunc),
+        optSsaInfo(cgssaInfo) {}
+  ~PropOptimizeManager() = default;
+  template<typename PropOptimizePattern>
+  void Optimize() {
+    PropOptimizePattern optPattern(cgFunc, optSsaInfo);
+    optPattern.Run();
+  }
+ private:
+  CGFunc &cgFunc;
+  CGSSAInfo *optSsaInfo;
+};
+
+class PropOptimizePattern {
+ public:
+  PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo)
+    : cgFunc(cgFunc),
+      optSsaInfo(cgssaInfo) {}
+  virtual ~PropOptimizePattern() = default;
+  virtual bool CheckCondition(Insn &insn) = 0;
+  virtual void Optimize(Insn &insn) = 0;
+  virtual void Run() = 0;
+ protected:
+  std::string PhaseName() const {
+    return "propopt";
+  }
+  virtual void Init() = 0;
+  CGFunc &cgFunc;
+  CGSSAInfo *optSsaInfo = nullptr;
+};
+
 class ReplaceRegOpndVisitor : public OperandVisitorBase,
                               public OperandVisitors<RegOperand, ListOperand, MemOperand>,
                               public OperandVisitor<PhiOperand> {
