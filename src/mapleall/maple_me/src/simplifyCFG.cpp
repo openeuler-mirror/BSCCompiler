@@ -746,6 +746,7 @@ class SimplifyCFG {
 
   // for sub-pattern in SimplifyCondBB
   MeExpr *TryToSimplifyCombinedCond(const MeExpr &expr);
+  MeExpr *CombineCondByOffset(const MeExpr &expr);
   bool FoldBranchToCommonDest(BB *pred, BB *succ);
   bool FoldBranchToCommonDest();
   bool SkipRedundantCond();
@@ -941,7 +942,7 @@ bool SimplifyCFG::SimplifyBranchBBToUncondBB(BB &bb) {
               << "BB" << LOG_BBID(&bb) << " to unconditional BB\n";
   // delete all empty bb between bb and destBB
   // note : bb and destBB will be connected after empty BB is deleted
-  for (int i = bb.GetSucc().size() - 1; i >= 0; --i) {
+  for (int i = static_cast<int>(bb.GetSucc().size()) - 1; i >= 0; --i) {
     EliminateEmptyConnectingBB(&bb, bb.GetSucc(i), destBB, *cfg);
   }
   while (bb.GetSucc().size() != 1) { // bb is an unconditional bb now, and its successor num should be 1
@@ -1092,7 +1093,7 @@ bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
     // make currBB connect to common exit for post dominance updating
     currBB->SetAttributes(kBBAttrWontExit);
     BB *retBB = GetFirstReturnBB();
-    EliminateRedundantPhiList(retBB);
+    (void)EliminateRedundantPhiList(retBB);
     DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
     currBB->AddSucc(*retBB);
     auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
@@ -1141,7 +1142,7 @@ BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
   if (!isSuccEmpty) {
     if (isMeIR) {
       MeStmt *stmt = succ->GetFirstMe();
-      while (stmt && (!succ->IsMeStmtEmpty())) {
+      while (stmt != nullptr && (!succ->IsMeStmtEmpty())) {
         MeStmt *next = stmt->GetNextMeStmt();
         succ->RemoveMeStmt(stmt);
         pred->AddMeStmtLast(stmt);
@@ -1149,7 +1150,7 @@ BB *SimplifyCFG::MergeSuccIntoPred(BB *pred, BB *succ) {
       }
     } else {
       StmtNode *stmt = &succ->GetFirst();
-      while (stmt && (!succ->IsEmpty())) {
+      while (stmt != nullptr && (!succ->IsEmpty())) {
         StmtNode *next = stmt->GetNext();
         succ->RemoveStmtNode(stmt);
         pred->AddStmtNode(stmt);
@@ -1279,7 +1280,7 @@ bool SimplifyCFG::CondBranchToSelect() {
   BB *ftBB = FindFirstRealSucc(currBB->GetSucc(0)); // fallthruBB
   BB *gtBB = FindFirstRealSucc(currBB->GetSucc(1)); // gotoBB
   if (ftBB == gtBB) {
-    SimplifyBranchBBToUncondBB(*currBB);
+    (void)SimplifyBranchBBToUncondBB(*currBB);
     return true;
   }
   // if ftBB or gtBB itself is jointBB, just return itself; otherwise return real succ
@@ -1409,7 +1410,7 @@ bool SimplifyCFG::CondBranchToSelect() {
   if (ftStmt != nullptr) {
     ftBB->RemoveMeStmt(ftStmt);
   }
-  SimplifyBranchBBToUncondBB(*currBB);
+  (void)SimplifyBranchBBToUncondBB(*currBB);
   // update phi
   if (jointBB->GetPred().size() == 1) { // jointBB has only currBB as its pred
     // just remove phinode
@@ -2048,27 +2049,88 @@ bool SimplifyCFG::SimplifySwitchBB() {
   return true;
 }
 
+// deal with expr like:
+// lior ( le/lt (sameExpr, intval1), ge/gt (sameExpr, intval2))
+// We use an offset(i.e. intval1) to make the little num overflow (wrap around)
+// (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
+MeExpr *SimplifyCFG::CombineCondByOffset(const MeExpr &expr) {
+  if (expr.GetOp() != OP_lior) {
+    return nullptr;
+  }
+  MeExpr *leExpr = expr.GetOpnd(0);
+  MeExpr *geExpr = expr.GetOpnd(1);
+  Opcode leOp = leExpr->GetOp();
+  Opcode geOp = geExpr->GetOp();
+  if ((leOp != OP_le && leOp != OP_lt) || (geOp != OP_ge && geOp != OP_gt)) {
+    return nullptr;
+  }
+  PrimType opndPtyp = static_cast<OpMeExpr*>(leExpr)->GetOpndType();
+  if (opndPtyp != static_cast<OpMeExpr*>(geExpr)->GetOpndType()) {
+    return nullptr;
+  }
+  MeExpr *sameExpr = leExpr->GetOpnd(0);
+  if (sameExpr != geExpr->GetOpnd(0)) {
+    return nullptr;
+  }
+  MeExpr *leConst = leExpr->GetOpnd(1);
+  MeExpr *geConst = geExpr->GetOpnd(1);
+  PrimType lePtyp = leConst->GetPrimType();
+  PrimType gePtyp = geConst->GetPrimType();
+  if (leConst->GetOp() != OP_constval || geConst->GetOp() != OP_constval ||
+      lePtyp != gePtyp || !IsPrimitiveInteger(lePtyp)) { // only allowed for integer, because float cannot wrap around
+    return nullptr;
+  }
+  int64 leVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(leConst)->GetConstVal())->GetValue();
+  int64 geVal = static_cast<MIRIntConst*>(static_cast<ConstMeExpr*>(geConst)->GetConstVal())->GetValue();
+  if (leOp == OP_le) {
+    // (x <= val1) <==> (x < val1 + 1)
+    // if we still use (x <= val1) here, (x - val1) <= 0 may not overflow (if x == val1)
+    ++leVal;
+  }
+  // check if we can simplify it early
+  int64 newGeVal = geOp == OP_ge ? geVal - 1 : geVal;
+  if ((!IsPrimitiveUnsigned(lePtyp) && leVal > newGeVal) ||
+      (IsPrimitiveUnsigned(lePtyp) && static_cast<uint64>(leVal) > static_cast<uint64>(newGeVal))) {
+    // e.g. x < 3 || x > 2 <==> true
+    return irmap->CreateIntConstMeExpr(1, PTY_u1);
+  } else if (leVal == newGeVal) { // e.g. x < 3 || x > 3 <==> x != 3
+    return irmap->CreateMeExprBinary(OP_ne, PTY_u1, *sameExpr, *irmap->CreateIntConstMeExpr(newGeVal, lePtyp));
+  }
+  // (x < val1 || x > val2) <==> ((unsigned)(x - val1) > (val2 - val1))
+  MeExpr *newLeConst = irmap->CreateIntConstMeExpr(leVal, opndPtyp);
+  PrimType unsignedPtyp = GetUnsignedPrimType(opndPtyp);
+  MeExpr *subExpr = irmap->CreateMeExprBinary(OP_sub, unsignedPtyp, *sameExpr, *newLeConst);
+  MeExpr *newGeConst = irmap->CreateIntConstMeExpr(geVal - leVal, opndPtyp);
+  OpMeExpr *cmpExpr = static_cast<OpMeExpr*>(irmap->CreateMeExprBinary(geOp, PTY_u1, *subExpr, *newGeConst));
+  cmpExpr->SetOpndType(unsignedPtyp);
+  return cmpExpr;
+}
+
 MeExpr *SimplifyCFG::TryToSimplifyCombinedCond(const MeExpr &expr) {
   Opcode op = expr.GetOp();
   if (op != OP_land && op != OP_lior) {
     return nullptr;
   }
+  MeExpr *expr1 = expr.GetOpnd(0);
+  MeExpr *expr2 = expr.GetOpnd(1);
   // we can only deal with "and/or(cmpop1(sameExpr, constExpr1/scalarExpr), cmpop2(sameExpr, constExpr2/scalarExpr))"
-  if (expr.GetOpnd(0)->GetOpnd(0) != expr.GetOpnd(1)->GetOpnd(0)) {
+  if (expr1->GetOpnd(0) != expr2->GetOpnd(0)) {
     return nullptr;
   }
-  auto vr1 = GetVRForSimpleCmpExpr(*expr.GetOpnd(0));
-  auto vr2 = GetVRForSimpleCmpExpr(*expr.GetOpnd(1));
+  auto vr1 = GetVRForSimpleCmpExpr(*expr1);
+  auto vr2 = GetVRForSimpleCmpExpr(*expr2);
   if (vr1.get() == nullptr || vr2.get() == nullptr) {
     return nullptr;
   }
   auto vrRes = MergeVR(*vr1, *vr2, op == OP_land);
-  MeExpr *resExpr = GetCmpExprFromVR(vrRes.get(), *expr.GetOpnd(0)->GetOpnd(0), irmap);
+  MeExpr *resExpr = GetCmpExprFromVR(vrRes.get(), *expr1->GetOpnd(0), irmap);
   if (resExpr != nullptr) {
     resExpr->SetPtyp(expr.GetPrimType());
     if (!IsCompareHasReverseOp(resExpr->GetOp())) {
       return nullptr;
     }
+  } else {
+    resExpr = CombineCondByOffset(expr);
   }
   return resExpr;
 }

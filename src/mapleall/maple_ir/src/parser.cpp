@@ -2193,7 +2193,7 @@ bool MIRParser::ParseInitValue(MIRConstPtr &theConst, TyIdx tyIdx, bool allowEmp
           Error("expect field ID in struct initialization but get ");
           return false;
         }
-        theFieldIdx = lexer.GetTheIntVal();
+        theFieldIdx = static_cast<uint32>(lexer.GetTheIntVal());
         if (lexer.NextToken() != TK_eqsign) {
           Error("expect = after field ID in struct initialization but get ");
           return false;
@@ -2678,7 +2678,7 @@ bool MIRParser::ParseMIRForID() {
     Error("expect integer after id but get ");
     return false;
   }
-  mod.SetID(lexer.GetTheIntVal());
+  mod.SetID(static_cast<uint16>(lexer.GetTheIntVal()));
   lexer.NextToken();
   return true;
 }
