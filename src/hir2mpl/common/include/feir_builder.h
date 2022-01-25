@@ -139,7 +139,7 @@ class FEIRBuilder {
   static UniqueFEIRStmt CreateStmtRetype(UniqueFEIRVar varDst, const UniqueFEIRVar &varSrc);
   static UniqueFEIRStmt CreateStmtComment(const std::string &comment);
   static UniqueFEIRExpr ReadExprField(UniqueFEIRExpr expr, FieldID fieldID, UniqueFEIRType fieldType);
-  static UniqueFEIRStmt AssginStmtField(UniqueFEIRExpr addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID);
+  static UniqueFEIRStmt AssginStmtField(const UniqueFEIRExpr &addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID);
   static bool IsZeroConstExpr(const UniqueFEIRExpr &expr);
 };  // class FEIRBuilder
 }  // namespace maple

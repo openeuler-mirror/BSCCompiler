@@ -89,7 +89,7 @@ class ASTParser {
   const clang::Expr *PeelParen(const clang::Expr &expr);
   const clang::Expr *PeelParen2(const clang::Expr &expr);
   ASTUnaryOperatorExpr *AllocUnaryOperatorExpr(MapleAllocator &allocator, const clang::UnaryOperator &expr);
-  ASTValue *AllocASTValue(MapleAllocator &allocator) const;
+  ASTValue *AllocASTValue(const MapleAllocator &allocator) const;
   ASTValue *TranslateExprEval(MapleAllocator &allocator, const clang::Expr *expr) const;
   ASTExpr *EvaluateExprAsConst(MapleAllocator &allocator, const clang::Expr *expr);
   ASTExpr *ProcessExpr(MapleAllocator &allocator, const clang::Expr *expr);

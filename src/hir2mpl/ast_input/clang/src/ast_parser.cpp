@@ -969,7 +969,7 @@ ASTUnaryOperatorExpr *ASTParser::AllocUnaryOperatorExpr(MapleAllocator &allocato
   }
 }
 
-ASTValue *ASTParser::AllocASTValue(MapleAllocator &allocator) const {
+ASTValue *ASTParser::AllocASTValue(const MapleAllocator &allocator) const {
   return allocator.GetMemPool()->New<ASTValue>();
 }
 

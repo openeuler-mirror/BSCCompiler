@@ -687,7 +687,7 @@ UniqueFEIRExpr FEIRBuilder::ReadExprField(UniqueFEIRExpr expr, FieldID fieldID, 
   return expr;
 }
 
-UniqueFEIRStmt FEIRBuilder::AssginStmtField(UniqueFEIRExpr addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID) {
+UniqueFEIRStmt FEIRBuilder::AssginStmtField(const UniqueFEIRExpr &addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID) {
   UniqueFEIRStmt stmt;
   FieldID baseID = addrExpr->GetFieldID();
   UniqueFEIRType addrType = addrExpr->GetType()->Clone();

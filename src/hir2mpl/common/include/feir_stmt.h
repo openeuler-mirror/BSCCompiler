@@ -308,7 +308,7 @@ class FEIRStmt : public FELinkListNode {
   }
 
   FEIRNodeKind kind;
-  uint32 id;
+  uint32 id = 0;
   uint32 srcFileIndex = 0;
   uint32 srcFileLineNum = 0;
   uint32 hexPC = UINT32_MAX;
@@ -855,7 +855,7 @@ class FEIRExprAddrofFunc : public FEIRExpr {
 // ---------- FEIRExprAddrofArray ----------
 class FEIRExprAddrofArray : public FEIRExpr {
  public:
-  FEIRExprAddrofArray(UniqueFEIRType argTypeNativeArray, UniqueFEIRExpr argExprArray, std::string argArrayName,
+  FEIRExprAddrofArray(UniqueFEIRType argTypeNativeArray, UniqueFEIRExpr argExprArray, const std::string &argArrayName,
                       std::list<UniqueFEIRExpr> &argExprIndexs);
   ~FEIRExprAddrofArray() = default;
 
@@ -1598,7 +1598,7 @@ class FEIRStmtIAssign : public FEIRStmt {
   std::list<StmtNode *> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
 
  private:
-  void InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &baseType, std::list<StmtNode*> &ans) const;
+  void InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRType &baseType, std::list<StmtNode*> &ans) const;
   void CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
   void CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
   void AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;

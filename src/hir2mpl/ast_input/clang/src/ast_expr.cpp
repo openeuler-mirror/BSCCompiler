@@ -1362,7 +1362,7 @@ void ASTInitListExpr::ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar
   }
 }
 
-MIRIntrinsicID ASTInitListExpr::SetVectorSetLane(MIRType &type) const {
+MIRIntrinsicID ASTInitListExpr::SetVectorSetLane(const MIRType &type) const {
   MIRIntrinsicID Intrinsic;
   switch (type.GetPrimType()) {
 #define SETQ_LANE(TY)                                                          \
@@ -2326,7 +2326,7 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
 }
 
 void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &offsetVar,
-                                          VaArgInfo &info) const {
+                                          const VaArgInfo &info) const {
   if (!FEOptions::GetInstance().IsBigEndian()) {
     return;
   }
@@ -2363,7 +2363,7 @@ void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, co
   stmts.emplace_back(std::move(stmt));
 }
 
-VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(MIRType &type) const {
+VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(const MIRType &type) const {
   VaArgInfo info;
   if (type.IsScalarType()) {
     switch (type.GetPrimType()) {
@@ -2387,7 +2387,7 @@ VaArgInfo ASTVAArgExpr::ProcessValistArgInfo(MIRType &type) const {
   } else if (type.IsMIRPtrType()) {
     info = { true, 8, 8, false, nullptr };
   } else if (type.IsStructType()) {
-    MIRStructType structType = static_cast<MIRStructType&>(type);
+    MIRStructType structType = static_cast<const MIRStructType&>(type);
     size_t size = structType.GetSize();
     size = (size + 7) & -8;  // size round up 8
     if (size > 16) {

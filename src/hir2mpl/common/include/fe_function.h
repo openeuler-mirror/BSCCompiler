@@ -86,7 +86,7 @@ class FEFunction {
     return boundaryMap;
   }
 
-  void SetBoundaryMap(uint32 tag, std::pair<StIdx, StIdx> boundaryVar) {
+  void SetBoundaryMap(uint32 tag, const std::pair<StIdx, StIdx> &boundaryVar) {
     boundaryMap[tag] = boundaryVar;
   }
 

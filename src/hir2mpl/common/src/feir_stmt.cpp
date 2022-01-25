@@ -2522,7 +2522,7 @@ BaseNode *FEIRExprIRead::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 FEIRExprAddrofConstArray::FEIRExprAddrofConstArray(const std::vector<uint32> &arrayIn, MIRType *typeIn)
     : FEIRExpr(FEIRNodeKind::kExprAddrof, FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
       arrayName(FEOptions::GetInstance().GetFuncInlineSize() != 0 ? FEUtils::GetSequentialName("const_array_") +
-                FEUtils::GetFileNameHashStr(FEManager::GetManager().GetModule().GetFileName()) :
+                FEUtils::GetFileNameHashStr(FEManager::GetModule().GetFileName()) :
                 FEUtils::GetSequentialName("const_array_")),
       elemType(typeIn) {
   std::copy(arrayIn.begin(), arrayIn.end(), std::back_inserter(array));
@@ -2635,7 +2635,7 @@ BaseNode *FEIRExprAddrofFunc::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
 
 // ---------- FEIRExprAddrofArray ----------
 FEIRExprAddrofArray::FEIRExprAddrofArray(UniqueFEIRType argTypeNativeArray, UniqueFEIRExpr argExprArray,
-                                         std::string argArrayName, std::list<UniqueFEIRExpr> &argExprIndexs)
+                                         const std::string &argArrayName, std::list<UniqueFEIRExpr> &argExprIndexs)
     : FEIRExpr(FEIRNodeKind::kExprAddrofArray,
                FEIRTypeHelper::CreateTypeNative(*GlobalTables::GetTypeTable().GetPtrType())),
       typeNativeArray(std::move(argTypeNativeArray)),
@@ -4182,13 +4182,13 @@ std::list<StmtNode*> FEIRStmtIAssign::GenMIRStmtsImpl(MIRBuilder &mirBuilder) co
   return ans;
 }
 
-void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, MIRType &baseType,
+void FEIRStmtIAssign::InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRType &baseType,
                                             std::list<StmtNode*> &ans) const {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
   FieldID tmpID = fieldID;
-  FieldPair fieldPair = static_cast<MIRStructType&>(baseType).TraverseToFieldRef(tmpID);
+  FieldPair fieldPair = static_cast<const MIRStructType&>(baseType).TraverseToFieldRef(tmpID);
   if (fieldPair.second.second.GetAttr(FLDATTR_nonnull)) {
     if (ENCChecker::HasNullExpr(baseExpr)) {
       FE_ERR(kLncErr, "%s:%d error: null assignment of nonnull pointer",
