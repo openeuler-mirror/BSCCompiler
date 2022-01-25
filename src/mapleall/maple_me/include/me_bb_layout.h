@@ -236,6 +236,7 @@ class BBLayout {
   void LayoutWithoutProf();
   void RunLayout();
   void DumpBBPhyOrder() const;
+  void VerifyBB();
 
  private:
   void FixEndTryBB(BB &bb);
@@ -244,17 +245,16 @@ class BBLayout {
   void UpdateNewBBWithAttrTry(const BB &bb, BB &fallthru) const;
   void SetAttrTryForTheCanBeMovedBB(BB &bb, BB &fallthru) const;
   void RebuildFreq();
-  bool IsBBInCurrContext(BB &bb, const MapleVector<bool> *context) const;
+  bool IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context) const;
   void InitBBChains();
   void BuildChainForFunc();
   void BuildChainForLoops();
   void BuildChainForLoop(LoopDesc *loop, MapleVector<bool> *context);
   BB *FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context);
-  void DoBuildChain(BB &header, BBChain &chain, const MapleVector<bool> *context);
-  BB *GetBestSucc(BB &bb, BBChain &chain, const MapleVector<bool> *context, BB *excludeHeader,
-                  bool considerBetterPredForSucc);
-  bool IsCandidateSucc(BB &bb, BB &succ, const MapleVector<bool> *context);
-  bool HasBetterLayoutPred(BB &bb, BB &succ, const MapleVector<bool> *context);
+  void DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context);
+  BB *GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPredForSucc);
+  bool IsCandidateSucc(const BB &bb, BB &succ, const MapleVector<bool> *context);
+  bool HasBetterLayoutPred(const BB &bb, BB &succ);
 
   MeFunction &func;
   MapleAllocator layoutAlloc;
