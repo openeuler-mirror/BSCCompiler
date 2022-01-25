@@ -156,10 +156,6 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<ExtLslToBitFieldInsertPattern>(true);
       break;
     }
-    case MOP_xubfxrri6i6: {
-      manager->Optimize<UbfxToUxtwPattern>(true);
-      break;
-    }
     default:
       break;
   }
@@ -722,7 +718,7 @@ void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-void CmpCsetOpt::Run(BB &bb, Insn &csetInsn) {
+void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
   if (!CheckCondition(csetInsn)) {
     return;
   }
@@ -1183,30 +1179,6 @@ bool OrrToMovPattern::CheckCondition(Insn &insn) {
   CHECK_FATAL(opndOfOrr->IsIntImmediate(), "expects immediate operand");
   ImmOperand *immOpnd = static_cast<ImmOperand*>(opndOfOrr);
   if (immOpnd->GetValue() != 0) {
-    return false;
-  }
-  return true;
-}
-
-void UbfxToUxtwPattern::Run(BB &bb, Insn &insn) {
-  if (!CheckCondition(insn)) {
-    return;
-  }
-  Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
-      MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
-  bb.ReplaceInsn(insn, *newInsn);
-  ssaInfo->ReplaceInsn(insn, *newInsn);
-  if (CG_PEEP_DUMP) {
-    std::vector<Insn*> prevs;
-    prevs.emplace_back(&insn);
-    DumpAfterPattern(prevs, newInsn, nullptr);
-  }
-}
-
-bool UbfxToUxtwPattern::CheckCondition(Insn &insn) {
-  AArch64ImmOperand &imm0 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
-  AArch64ImmOperand &imm1 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
-  if ((imm0.GetValue() != 0) || (imm1.GetValue() != k32BitSize)) {
     return false;
   }
   return true;
@@ -4563,9 +4535,6 @@ void UbfxToUxtwAArch64::Run(BB &bb , Insn &insn) {
     newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
         MOP_wmovrr, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
   } else {
-    if (CGOptions::DoCGSSA()) {
-      CHECK_FATAL(false, "check this case in ssa opt");
-    }
     newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
         MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
   }
