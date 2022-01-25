@@ -480,24 +480,6 @@ class OrrToMovPattern : public CGPeepPattern {
 };
 
 /*
- * Optimize the following patterns:
- * ubfx  x201, x202, #0, #32
- * ====>
- * uxtw x201, w202
- */
-class UbfxToUxtwPattern : public CGPeepPattern {
- public:
-  UbfxToUxtwPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
-      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~UbfxToUxtwPattern() override = default;
-  void Run(BB &bb, Insn &insn) override;
-  bool CheckCondition(Insn &insn) override;
-  std::string GetPatternName() override {
-    return "UbfxToUxtwPattern";
-  }
-};
-
-/*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
  * 1. str + str
