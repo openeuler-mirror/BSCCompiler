@@ -224,10 +224,6 @@ bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   if (prevMop != MOP_wcsetrc && prevMop != MOP_xcsetrc) {
     return false;
   }
-  auto &ccReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
-  if (IsCCRegCrossVersion(*prevInsn, insn, ccReg)) {
-    return false;
-  }
   return true;
 }
 

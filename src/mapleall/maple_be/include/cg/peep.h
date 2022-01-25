@@ -66,11 +66,9 @@ class CGPeepPattern {
   virtual void Run(BB &bb, Insn &insn) = 0;
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual std::string GetPatternName() = 0;
-  Insn *GetDefInsn(RegOperand &useReg);
+  Insn *GetDefInsn(const RegOperand &useReg);
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replacedInsn, Insn *newInsn);
   int64 GetLogValueAtBase2(int64 val) const;
-  /* The CC reg is unique and cannot cross-version props. */
-  bool IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOperand &ccReg);
 
  protected:
   CGFunc *cgFunc;

@@ -191,7 +191,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
 
   ADDMAPLECGPHASE("cgssaconstruct", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgcopyprop", CGOptions::DoCGSSA());
-  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA());
+  ADDMAPLECGPHASE("cgpeephole", CGOptions::DoCGSSA()  && CGOptions::GetInstance().GetOptimizeLevel() < 0);
   ADDMAPLECGPHASE("cgtargetprop", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgdeadcodeelimination", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CGOptions::DoCGSSA());
