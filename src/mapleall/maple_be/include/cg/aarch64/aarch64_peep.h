@@ -102,9 +102,9 @@ class CselToCsetPattern : public CGPeepPattern {
   std::string GetPatternName() override;
 
  private:
-  bool IsOpndDefByZero(Insn &insn);
-  bool IsOpndDefByOne(Insn &insn);
-  AArch64CC_t GetInversedCondCode(const CondOperand &condOpnd);
+  bool IsOpndDefByZero(const Insn &insn);
+  bool IsOpndDefByOne(const Insn &insn);
+  AArch64CC_t GetInversedCondCode(const CondOperand &condOpnd) const;
   Insn *prevMovInsn1 = nullptr;
   Insn *prevMovInsn2 = nullptr;
 };
@@ -230,7 +230,7 @@ class AndCmpBranchesToTbzPattern : public CGPeepPattern {
   std::string GetPatternName() override;
 
  private:
-  bool CheckAndSelectPattern(Insn &currInsn);
+  bool CheckAndSelectPattern(const Insn &currInsn);
   Insn *prevAndInsn = nullptr;
   Insn *prevCmpInsn = nullptr;
   MOperator newMop = MOP_undef;
@@ -270,7 +270,7 @@ class ZeroCmpBranchesToTbzPattern : public CGPeepPattern {
   std::string GetPatternName() override;
 
  private:
-  bool CheckAndSelectPattern(Insn &currInsn);
+  bool CheckAndSelectPattern(const Insn &currInsn);
   Insn *prevInsn = nullptr;
   MOperator newMop = MOP_undef;
   RegOperand *regOpnd = nullptr;
@@ -480,6 +480,24 @@ class OrrToMovPattern : public CGPeepPattern {
 };
 
 /*
+ * Optimize the following patterns:
+ * ubfx  x201, x202, #0, #32
+ * ====>
+ * uxtw x201, w202
+ */
+class UbfxToUxtwPattern : public CGPeepPattern {
+ public:
+  UbfxToUxtwPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~UbfxToUxtwPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "UbfxToUxtwPattern";
+  }
+};
+
+/*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
  * 1. str + str
@@ -528,10 +546,10 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore, int32 baseOfst);
+  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int32 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop) const;
-  bool SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd);
+  bool SplitOfstWithAddToCombine(Insn &insn, const AArch64MemOperand &memOpnd);
   bool doAggressiveCombine = false;
 };
 
@@ -1210,7 +1228,7 @@ class CselZeroOneToCsetOpt : public PeepPattern {
  private:
   Insn *trueMovInsn = nullptr;
   Insn *falseMovInsn = nullptr;
-  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, Insn &insn);
+  Insn *FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn);
   AArch64CC_t GetReverseCond(const CondOperand &cond) const;
  protected:
   CGFunc *cgFunc;
@@ -1231,7 +1249,7 @@ class ComplexExtendWordLslAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
 
   private:
-  bool IsExtendWordLslPattern(Insn &insn);
+  bool IsExtendWordLslPattern(const Insn &insn);
 };
 
 class AArch64PeepHole : public PeepPatternMatch {
