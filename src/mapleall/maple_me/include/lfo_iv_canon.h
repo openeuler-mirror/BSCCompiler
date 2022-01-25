@@ -29,8 +29,8 @@ class IVDesc {
   PrimType primType;
   MeExpr *initExpr = nullptr;
   int32 stepValue = 0;
+  bool canBePrimary = true;
 
- public:
   explicit IVDesc(OriginalSt *o) : ost(o) {
     MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ost->GetTyIdx());
     primType = mirType->GetPrimType();
@@ -53,13 +53,12 @@ class IVCanon {
   int32 idxPrimaryIV = -1;      // the index in ivvec of the primary IV
   MeExpr *tripCount = nullptr;
 
- public:
   IVCanon(MemPool *m, MeFunction *f, Dominance *dom, LoopDesc *ldesc, uint32 id, PreMeWhileInfo *winfo)
       : mp(m), alloc(m), func(f), dominance(dom), ssatab(f->GetMeSSATab()),
         aloop(ldesc), loopID(id), whileInfo(winfo), ivvec(alloc.Adapter()) {}
   virtual ~IVCanon() = default;
   bool ResolveExprValue(MeExpr *x, ScalarMeExpr *philhs);
-  int32 ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearances);
+  int32 ComputeIncrAmt(MeExpr *x, ScalarMeExpr *philhs, int32 *appearances, bool &canBePrimary);
   void CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackversion, ScalarMeExpr *philhs);
   void FindPrimaryIV();
   bool IsLoopInvariant(MeExpr *x);

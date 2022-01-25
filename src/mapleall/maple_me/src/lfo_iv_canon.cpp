@@ -63,8 +63,10 @@ bool IVCanon::ResolveExprValue(MeExpr *x, ScalarMeExpr *phiLHS) {
 }
 
 // appearances accumulates the number of appearances of the induction variable;
-// it is negative if it is subtracted
-int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearances) {
+// it is negative if it is subtracted;
+// canBePrimary is set to false if it takes more than one increment statements
+// to get to phiLHS
+int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearances, bool &canBePrimary) {
   switch (x->GetMeOp()) {
     case kMeOpConst: {
       MIRConst *konst = static_cast<ConstMeExpr *>(x)->GetConstVal();
@@ -81,15 +83,24 @@ int32 IVCanon::ComputeIncrAmt(MeExpr *x, ScalarMeExpr *phiLHS, int32 *appearance
       ScalarMeExpr *scalar = static_cast<ScalarMeExpr *>(x);
       CHECK_FATAL(scalar->GetDefBy() == kDefByStmt, "ComputeIncrAmt: cannot be here");
       AssignMeStmt *defstmt = static_cast<AssignMeStmt*>(scalar->GetDefStmt());
-      return ComputeIncrAmt(defstmt->GetRHS(), phiLHS, appearances);
+      return ComputeIncrAmt(defstmt->GetRHS(), phiLHS, appearances, canBePrimary);
     }
     case kMeOpOp: {
       CHECK_FATAL(x->GetOp() == OP_add || x->GetOp() == OP_sub, "ComputeIncrAmt: cannot be here");
       OpMeExpr *opexp = static_cast<OpMeExpr *>(x);
       int32 appear0 = 0;
-      int32 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), phiLHS, &appear0);
+      if (canBePrimary) {
+        if ((opexp->GetOpnd(0)->GetMeOp() == kMeOpVar || opexp->GetOpnd(0)->GetMeOp() == kMeOpReg) &&
+            opexp->GetOpnd(0) != phiLHS) {
+          canBePrimary = false;
+        } else if ((opexp->GetOpnd(1)->GetMeOp() == kMeOpVar || opexp->GetOpnd(1)->GetMeOp() == kMeOpReg) &&
+                   opexp->GetOpnd(1) != phiLHS) {
+          canBePrimary = false;
+        }
+      }
+      int32 incrAmt0 = ComputeIncrAmt(opexp->GetOpnd(0), phiLHS, &appear0, canBePrimary);
       int32 appear1 = 0;
-      int32 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), phiLHS, &appear1);
+      int32 incrAmt1 = ComputeIncrAmt(opexp->GetOpnd(1), phiLHS, &appear1, canBePrimary);
       if (x->GetOp() == OP_sub) {
         *appearances = appear0 - appear1;
         return incrAmt0 - incrAmt1;
@@ -122,7 +133,7 @@ void IVCanon::CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackve
     ivdesc->initExpr = initversion;
   }
   int32 appearances = 0;
-  ivdesc->stepValue = ComputeIncrAmt(loopbackversion, philhs, &appearances);
+  ivdesc->stepValue = ComputeIncrAmt(loopbackversion, philhs, &appearances, ivdesc->canBePrimary);
   if (appearances == 1) {
     ivvec.push_back(ivdesc);
   }
@@ -131,6 +142,9 @@ void IVCanon::CharacterizeIV(ScalarMeExpr *initversion, ScalarMeExpr *loopbackve
 void IVCanon::FindPrimaryIV() {
   for (uint32 i = 0; i < ivvec.size(); i++) {
     IVDesc *ivdesc = ivvec[i];
+    if (!ivdesc->canBePrimary) {
+      continue;
+    }
     if (ivdesc->stepValue == 1) {
       bool injected = false;
       if (ivdesc->ost->IsSymbolOst() &&
