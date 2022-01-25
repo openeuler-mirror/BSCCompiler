@@ -2154,7 +2154,7 @@ void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, 
 // ---------------------------
 // process safe region
 // ---------------------------
-bool ENCChecker::IsSafeRegion(MIRBuilder &mirBuilder) {
+bool ENCChecker::IsSafeRegion(const MIRBuilder &mirBuilder) {
   bool isSafe = false;
   if (FEOptions::GetInstance().IsEnableSafeRegion()) {
     isSafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_safed);
@@ -2165,7 +2165,7 @@ bool ENCChecker::IsSafeRegion(MIRBuilder &mirBuilder) {
   return isSafe;
 }
 
-bool ENCChecker::IsUnsafeRegion(MIRBuilder &mirBuilder) {
+bool ENCChecker::IsUnsafeRegion(const MIRBuilder &mirBuilder) {
   bool isUnsafe = false;
   if (FEOptions::GetInstance().IsEnableSafeRegion()) {
     isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);

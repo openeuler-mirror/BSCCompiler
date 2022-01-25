@@ -49,7 +49,7 @@ class DexOp : public BCInstruction {
   virtual void SetVCImpl(uint32 num) {}
   virtual void SetVHImpl(uint32 num) {}
 
-  StructElemNameIdx *structElemNameIdx;
+  StructElemNameIdx *structElemNameIdx = nullptr;
 };
 
 struct DexReg : public BCReg {
@@ -591,7 +591,7 @@ class DexOpUnaryOp : public DexOp {
   }
   DexReg vA;
   DexReg vB;
-  Opcode mirOp;
+  Opcode mirOp = OP_undef;
 };
 
 // 0x90, 0xaf

@@ -2,14 +2,9 @@
 
 namespace t2crt {
 
-Object::Ctor   Object::ctor  (&Function::ctor, Function::ctor.prototype);
-Function::Ctor Function::ctor(&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
-Number::Ctor   Number::ctor  (&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
-
-IteratorProto                IteratorPrototype(&Object::ctor, Object::ctor.prototype);
-GeneratorFunctionPrototype   Generator(&GeneratorFunction, Function::ctor.prototype, &IteratorPrototype);
-GeneratorFunc                GeneratorFunction(&Function::ctor, &Function::ctor, Function::ctor.prototype, &Generator);
-Object* GeneratorPrototype = Generator.prototype;
+Object::Ctor   Object::ctor = Object::Ctor    (&Function::ctor, Function::ctor.prototype);
+Function::Ctor Function::ctor = Function::Ctor(&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
+Number::Ctor   Number::ctor = Number::Ctor    (&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
 
 ARR_CTOR_DEF(int)
 ARR_CTOR_DEF(long)

@@ -88,14 +88,14 @@ struct JS_Val {
   JS_Val(bool b)    { x.val_bool = b; type = TY_Bool; }
   JS_Val(int64_t l) { x.val_long = l; type = TY_Long; }
   JS_Val(double d)  { x.val_double = d; type = TY_Double; }
-  JS_Val(Object* o) { x.val_obj = o; type = TY_Object; }
-  JS_Val(Object* o, JS_Type t) { x.val_obj = o; type = t; }
+  JS_Val(Object* o){ x.val_obj = o; type = TY_Object; }
   JS_Val(Function* o){ x.val_func = o; type = TY_Function; }
   JS_Val(std::string* s) { x.val_string = s; type = TY_String; }
   JS_Val(std::string s) { x.val_string = new std::string(s); type = TY_String; }
   JS_Val(const char* s) { x.val_string = new std::string(s); type = TY_String; }
   JS_Val(int i) { x.val_long = i; type = TY_Long; }
   JS_Val(JS_Type jstype, bool v) { x.val_long = (int64_t)v; type = jstype; }
+
   // Prop directly generated as class fields when TS is compiled into CPP
   JS_Val(JS_Type jstype, void* field) { x.field = field; type = static_cast<JS_Type>(jstype|TY_CXX); }
 
@@ -216,7 +216,6 @@ class Object {
     virtual ~Object() {}
     class Ctor;
     static Ctor ctor;
-    virtual std::string Dump(void) { return("Object"); }
 
     JS_Val& operator[] (std::string key)
     {
@@ -317,13 +316,6 @@ class Function : public Object {
       prototype = new Object(this, prototype_proto);
       prototype->AddProp("constructor", val);
     }
-    // Special constructor for creating builtin constructor function "GeneratorFunction" see builtins.h
-    Function(Function* ctor, Object* proto, Object* prototype_proto, Object* prototype_obj) : Object(ctor, proto) {
-      JS_Val val(this);
-      prototype =  prototype_obj;
-      prototype->AddProp("constructor", val);
-    }
-
     class Ctor;
     static Ctor ctor;
 
@@ -331,11 +323,11 @@ class Function : public Object {
       return true;
     }
 
+    Object* bind(Object* obj, ArgsT* argv);
+    virtual JS_Val func(Object* obj, ArgsT& args) {JS_Val res; return res;}
+
     // Put code for JS Function.prototype props as static fields and methods in this class
     // and add to propList of Function_ctor.prototype object on system init.
-    virtual Object* bind (Object* obj, ArgsT* argv) { return nullptr; }
-    virtual JS_Val  call (Object* obj, ArgsT* argv) { JS_Val res; return res; }
-    virtual JS_Val  apply(Object* obj, ArgsT* argv) { JS_Val res; return res; }
 
     std::string TypeId() override {
       return "function"s;
@@ -362,7 +354,6 @@ class Object::Ctor : public Function {
 class Function::Ctor : public Function {
   public:
     Ctor(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) {}
-    Ctor(Function* ctor, Object* proto, Object* prototype_proto, Object* prototype_obj) : Function(ctor, proto, prototype_proto, prototype_obj) {}
 };
 
 template <class T>

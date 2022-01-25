@@ -19,7 +19,7 @@ namespace maple {
 namespace bc {
 class DexClass : public BCClass {
  public:
-  DexClass(uint32 idx, BCParserBase &parser) : BCClass(idx, parser) {}
+  DexClass(uint32 idx, const BCParserBase &parser) : BCClass(idx, parser) {}
   ~DexClass() = default;
 };
 

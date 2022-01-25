@@ -624,7 +624,7 @@ class ASTInitListExpr : public ASTExpr {
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessVectorInitList(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                              ASTInitListExpr *initList, std::list<UniqueFEIRStmt> &stmts) const;
-  MIRIntrinsicID SetVectorSetLane(MIRType &type) const;
+  MIRIntrinsicID SetVectorSetLane(const MIRType &type) const;
   void ProcessDesignatedInitUpdater(std::variant<std::pair<UniqueFEIRVar, FieldID>, UniqueFEIRExpr> &base,
                                     ASTExpr *expr, std::list<UniqueFEIRStmt> &stmts) const;
   void ProcessStringLiteralInitList(const UniqueFEIRExpr &addrOfCharArray, const UniqueFEIRExpr &addrOfStringLiteral,
@@ -1325,7 +1325,7 @@ class ASTCharacterLiteral : public ASTExpr {
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   int64 val = 0;
-  PrimType type;
+  PrimType type = PTY_begin;
 };
 
 struct VaArgInfo {
@@ -1349,11 +1349,12 @@ class ASTVAArgExpr : public ASTExpr {
 
  private:
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
-  VaArgInfo ProcessValistArgInfo(MIRType &type) const;
+  VaArgInfo ProcessValistArgInfo(const MIRType &type) const;
   MIRType *IsHFAType(const MIRStructType &type) const;
   void CvtHFA2Struct(const MIRStructType &type, MIRType &fieldType, const UniqueFEIRVar &vaArgVar,
                      std::list<UniqueFEIRStmt> &stmts) const;
-  void ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &offsetVar, VaArgInfo &info) const;
+  void ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts,
+                              const UniqueFEIRVar &offsetVar, const VaArgInfo &info) const;
   void ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &vaArgVar) const;
 
   ASTExpr *child = nullptr;
@@ -1592,7 +1593,7 @@ class ASTAtomicExpr : public ASTExpr {
   ASTExpr *objExpr = nullptr;
   ASTExpr *valExpr1 = nullptr;
   ASTExpr *valExpr2 = nullptr;
-  ASTAtomicOp atomicOp;
+  ASTAtomicOp atomicOp = kAtomicBinaryOpAdd;
   bool isFromStmt = false;
 };
 
