@@ -638,8 +638,6 @@ ParseStatus Parser::ParseStmt() {
     if (tree) {
       if (!mLineMode) {
         mASTModule->AddTree(tree);
-        if (tree->IsImport())
-          mASTModule->AddImport(static_cast<ImportNode*>(tree));
       }
     }
 
