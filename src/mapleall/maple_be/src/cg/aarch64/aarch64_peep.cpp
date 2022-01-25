@@ -156,6 +156,10 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<ExtLslToBitFieldInsertPattern>(true);
       break;
     }
+    case MOP_xubfxrri6i6: {
+      manager->Optimize<UbfxToUxtwPattern>(true);
+      break;
+    }
     default:
       break;
   }
@@ -336,7 +340,7 @@ std::string CselToCsetPattern::GetPatternName() {
   return "CselToCsetPattern";
 }
 
-bool CselToCsetPattern::IsOpndDefByZero(Insn &insn) {
+bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) {
   MOperator movMop = insn.GetMachineOpcode();
   switch (movMop) {
     case MOP_xmovrr:
@@ -356,7 +360,7 @@ bool CselToCsetPattern::IsOpndDefByZero(Insn &insn) {
   }
 }
 
-bool CselToCsetPattern::IsOpndDefByOne(Insn &insn) {
+bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) {
   MOperator movMop = insn.GetMachineOpcode();
   switch (movMop) {
     case MOP_xmovri32:
@@ -396,7 +400,7 @@ bool CselToCsetPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
-AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) {
+AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) const {
   switch (condOpnd.GetCode()) {
     case CC_NE:
       return CC_EQ;
@@ -455,7 +459,7 @@ std::string AndCmpBranchesToTbzPattern::GetPatternName() {
   return "AndCmpBranchesToTbzPattern";
 }
 
-bool AndCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
+bool AndCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
   MOperator curMop = currInsn.GetMachineOpcode();
   MOperator prevAndMop = prevAndInsn->GetMachineOpcode();
   auto &andImmOpnd = static_cast<ImmOperand&>(prevAndInsn->GetOperand(kInsnThirdOpnd));
@@ -547,7 +551,7 @@ std::string ZeroCmpBranchesToTbzPattern::GetPatternName() {
   return "ZeroCmpBranchesToTbzPattern";
 }
 
-bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(Insn &currInsn) {
+bool ZeroCmpBranchesToTbzPattern::CheckAndSelectPattern(const Insn &currInsn) {
   MOperator currMop = currInsn.GetMachineOpcode();
   MOperator prevMop = prevInsn->GetMachineOpcode();
   switch (prevMop) {
@@ -718,7 +722,7 @@ void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
   }
 }
 
-void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
+void CmpCsetOpt::Run(BB &bb, Insn &csetInsn) {
   if (!CheckCondition(csetInsn)) {
     return;
   }
@@ -1184,6 +1188,30 @@ bool OrrToMovPattern::CheckCondition(Insn &insn) {
   return true;
 }
 
+void UbfxToUxtwPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  Insn *newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(
+      MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
+  bb.ReplaceInsn(insn, *newInsn);
+  ssaInfo->ReplaceInsn(insn, *newInsn);
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(&insn);
+    DumpAfterPattern(prevs, newInsn, nullptr);
+  }
+}
+
+bool UbfxToUxtwPattern::CheckCondition(Insn &insn) {
+  AArch64ImmOperand &imm0 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+  AArch64ImmOperand &imm1 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
+  if ((imm0.GetValue() != 0) || (imm1.GetValue() != k32BitSize)) {
+    return false;
+  }
+  return true;
+}
+
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
   optimizations[kRemoveIdenticalLoadAndStoreOpt] = optOwnMemPool->New<RemoveIdenticalLoadAndStoreAArch64>(cgFunc);
@@ -1617,7 +1645,7 @@ bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
           (uxtDestOpnd.GetRegisterNumber() == uxtFromOpnd.GetRegisterNumber()));
 }
 
-bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno_t regNO, bool isStore,
+bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore,
                                                                int32 baseOfst) {
   uint32 opndNum = insn.GetOperandSize();
   bool sameMemAccess = false; /* both store or load */
@@ -1690,7 +1718,7 @@ bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(Insn &insn, regno
   return false;
 }
 
-bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(Insn &insn) {
+bool ComplexExtendWordLslAArch64::IsExtendWordLslPattern(const Insn &insn) {
   Insn *nextInsn = insn.GetNext();
   if(nextInsn == nullptr) {
     return false;
@@ -1751,7 +1779,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
   return prevContiInsns;
 }
 
-bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, AArch64MemOperand &memOpnd) {
+bool CombineContiLoadAndStoreAArch64::SplitOfstWithAddToCombine(Insn &insn, const AArch64MemOperand &memOpnd) {
   auto *baseRegOpnd = static_cast<AArch64RegOperand*>(memOpnd.GetBaseRegister());
   auto *ofstOpnd = static_cast<AArch64OfstOperand*>(memOpnd.GetOffsetImmediate());
   CHECK_FATAL(insn.GetOperand(kInsnFirstOpnd).GetSize() == insn.GetOperand(kInsnSecondOpnd).GetSize(),
@@ -2510,7 +2538,7 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
   return;
 }
 
-Insn *CselZeroOneToCsetOpt::FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, Insn &insn) {
+Insn *CselZeroOneToCsetOpt::FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) {
   tempOp = &opnd;
   bool alreadyFindCsel = false;
   bool isRegDefined = false;
@@ -2798,7 +2826,7 @@ void AndCmpBranchesToCsetAArch64::Run(BB &bb, Insn &insn) {
 
       /* create ubfx insn */
       MOperator ubfxOp = (csetReg.GetSize() <= k32BitSize) ? MOP_wubfxrri5i5 : MOP_xubfxrri6i6;
-      if (ubfxOp == MOP_wubfxrri5i5 && n >= k32BitSize) {
+      if (ubfxOp == MOP_wubfxrri5i5 && static_cast<uint32>(n) >= k32BitSize) {
         return;
       }
       auto &dstReg = static_cast<AArch64RegOperand&>(csetReg);
@@ -4535,6 +4563,9 @@ void UbfxToUxtwAArch64::Run(BB &bb , Insn &insn) {
     newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
         MOP_wmovrr, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
   } else {
+    if (CGOptions::DoCGSSA()) {
+      CHECK_FATAL(false, "check this case in ssa opt");
+    }
     newInsn = &cgFunc.GetCG()->BuildInstruction<AArch64Insn>(
         MOP_xuxtw64, insn.GetOperand(kInsnFirstOpnd), insn.GetOperand(kInsnSecondOpnd));
   }
