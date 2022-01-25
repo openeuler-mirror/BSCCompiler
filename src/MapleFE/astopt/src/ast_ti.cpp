@@ -1473,10 +1473,8 @@ IdentifierNode *TypeInferVisitor::VisitIdentifierNode(IdentifierNode *node) {
       TreeNode *uptype = gTypeTable.GetTypeFromTypeIdx(upper->GetTypeIdx());
       if (uptype) {
         scope = uptype->GetScope();
-        decl = scope->FindDeclOf(node->GetStrIdx());
-        if (!decl) {
-          decl = scope->FindExportedDeclOf(node->GetStrIdx());
-        }
+        node->SetScope(scope);
+        decl = mHandler->FindDecl(node, true);
       }
     } else {
       NOTYETIMPL("node not in field");
