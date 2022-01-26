@@ -145,7 +145,7 @@ class AArch64CGFunc : public CGFunc {
 
   void SelectAddrof(Operand &result, StImmOperand &stImm, FieldID field = 0);
   void SelectAddrof(Operand &result, AArch64MemOperand &memOpnd, FieldID field = 0);
-  Operand *SelectCSyncCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
+  Operand *SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool = false);
   Operand *SelectAddrof(AddrofNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofFunc(AddroffuncNode &expr, const BaseNode &parent) override;
   Operand &SelectAddrofLabel(AddroflabelNode &expr, const BaseNode &parent) override;
@@ -247,9 +247,9 @@ class AArch64CGFunc : public CGFunc {
   void SelectCopyImm(Operand &dest, PrimType dType, ImmOperand &src, PrimType sType);
   void SelectCopyImm(Operand &dest, ImmOperand &src, PrimType dtype);
   void SelectLibCall(const std::string&, std::vector<Operand*>&, PrimType, PrimType, bool is2ndRet = false);
-  bool IsRegRematCand(RegOperand &reg);
-  void ClearRegRematInfo(RegOperand &reg);
-  bool IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc);
+  bool IsRegRematCand(const RegOperand &reg);
+  void ClearRegRematInfo(const RegOperand &reg);
+  bool IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc);
   void ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, Insn &insn) override;
   void CleanupDeadMov(bool dump = false) override;
   void GetRealCallerSaveRegs(const Insn &insn, std::set<regno_t> &realSaveRegs) override;
@@ -742,7 +742,7 @@ class AArch64CGFunc : public CGFunc {
                                         AArch64ListOperand &srcOpnds);
   void SelectParmListForAggregate(BaseNode &argExpr, AArch64ListOperand &srcOpnds, ParmLocator &parmLocator,
                                   int32 &structCopyOffset);
-  uint32 SelectParmListGetStructReturnSize(StmtNode &naryNode);
+  size_t SelectParmListGetStructReturnSize(StmtNode &naryNode);
   void SelectParmListPreprocessLargeStruct(BaseNode &argExpr, int32 &structCopyOffset);
   void SelectParmListPreprocess(const StmtNode &naryNode, size_t start);
   void SelectParmList(StmtNode &naryNode, AArch64ListOperand &srcOpnds, bool isCallNative = false);
@@ -765,7 +765,7 @@ class AArch64CGFunc : public CGFunc {
   Operand *SelectRoundLibCall(RoundType roundType, const TypeCvtNode &node, Operand &opnd0);
   Operand *SelectRoundOperator(RoundType roundType, const TypeCvtNode &node, Operand &opnd0, const BaseNode &parent);
   Operand *SelectAArch64ffs(Operand &argOpnd, PrimType argType);
-  Operand *SelectAArch64align(IntrinsicopNode &intrnNode, bool isUp /* false for align down */);
+  Operand *SelectAArch64align(const IntrinsicopNode &intrnNode, bool isUp /* false for align down */);
   int64 GetOrCreatSpillRegLocation(regno_t vrNum) {
     AArch64SymbolAlloc *symLoc = static_cast<AArch64SymbolAlloc*>(GetMemlayout()->GetLocOfSpillRegister(vrNum));
     return static_cast<int64>(GetBaseOffset(*symLoc));
@@ -778,9 +778,9 @@ class AArch64CGFunc : public CGFunc {
   void GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize);
   void SelectCVaStart(const IntrinsiccallNode &intrnNode);
   void SelectMPLClinitCheck(IntrinsiccallNode&);
-  void SelectMPLProfCounterInc(IntrinsiccallNode &intrnNode);
+  void SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode);
 
-  Operand *SelectAArch64CSyncFetch(maple::IntrinsicopNode &intrinopNode, PrimType pty, bool CalculBefore, bool isAdd);
+  Operand *SelectAArch64CSyncFetch(const maple::IntrinsicopNode &intrinopNode, PrimType pty, bool CalculBefore, bool isAdd);
   /* Helper functions for translating complex Maple IR instructions/inrinsics */
   void SelectDassign(StIdx stIdx, FieldID fieldId, PrimType rhsPType, Operand &opnd0);
   LabelIdx CreateLabeledBB(StmtNode &stmt);
@@ -811,11 +811,11 @@ class AArch64CGFunc : public CGFunc {
   void GenerateIntrnInsnForStrIndexOf(BB &bb, RegOperand &srcString, RegOperand &patternString,
                                       RegOperand &srcCountOpnd, RegOperand &patternLengthOpnd,
                                       PrimType countPty, LabelIdx jumpLabIdx);
-  MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode &addrExpr, int64 offset,
+  MemOperand *CheckAndCreateExtendMemOpnd(PrimType ptype, const BaseNode &addrExpr, int64 offset,
                                           AArch64isa::MemoryOrdering memOrd);
   MemOperand &CreateNonExtendMemOpnd(PrimType ptype, const BaseNode &parent, BaseNode &addrExpr, int64 offset);
   std::string GenerateMemOpndVerbose(const Operand &src);
-  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
+  RegOperand *PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal, RegOperand &BaseReg);
   RegOperand *PrepareMemcpyParamOpnd(int64 offset, Operand &exprOpnd);
   RegOperand *PrepareMemcpyParamOpnd(uint64 copySize);
   Insn *AggtStrLdrInsert(bool bothUnion, Insn *lastStrLdr, Insn &newStrLdr);

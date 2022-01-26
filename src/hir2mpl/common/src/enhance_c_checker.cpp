@@ -52,8 +52,11 @@ void ASTParser::ProcessNonnullFuncPtrAttrs(const clang::ValueDecl &valueDecl, AS
       *GlobalTables::GetTypeTable().GetOrCreatePointerType(*newFuncType))});
 }
 
-bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr) {
+bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr, bool isNested) {
   if (expr->GetKind() == kExprDRead) {
+    if (isNested) {  // skip multi-dimensional pointer
+      return true;
+    }
     FEIRExprDRead *dread = static_cast<FEIRExprDRead*>(expr.get());
     MIRSymbol *symbol = dread->GetVar()->GenerateMIRSymbol(mirBuilder);
     if (expr->GetFieldID() == 0) {
@@ -67,8 +70,8 @@ bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIREx
   } else if (expr->GetKind() == kExprIRead) {
     FEIRExprIRead *iread = static_cast<FEIRExprIRead*>(expr.get());
     FieldID fieldID = expr->GetFieldID();
-    if (fieldID == 0) {  // multi-dimensional pointer
-      return HasNonnullAttrInExpr(mirBuilder, iread->GetClonedOpnd());
+    if (fieldID == 0) {
+      return HasNonnullAttrInExpr(mirBuilder, iread->GetClonedOpnd(), true);
     }
     MIRType *pointerType = iread->GetClonedPtrType()->GenerateMIRTypeAuto();
     CHECK_FATAL(pointerType->IsMIRPtrType(), "Must be ptr type!");
@@ -76,6 +79,8 @@ bool ENCChecker::HasNonnullAttrInExpr(MIRBuilder &mirBuilder, const UniqueFEIREx
     CHECK_FATAL(baseType->IsStructType(), "basetype must be StructType");
     FieldPair fieldPair = static_cast<MIRStructType*>(baseType)->TraverseToFieldRef(fieldID);
     return fieldPair.second.second.GetAttr(FLDATTR_nonnull);
+  } else if (isNested && expr->GetKind() == kExprAddrofArray) {
+    return false;
   } else {
     return true;
   }
@@ -149,8 +154,7 @@ void ENCChecker::CheckNonnullLocalVarInit(const MIRSymbol &sym, const UniqueFEIR
            sym.GetSrcPosition().LineNum());
     return;
   }
-  if ((initFEExpr->GetKind() == kExprDRead || initFEExpr->GetKind() == kExprIRead) &&
-      initFEExpr->GetPrimType() == PTY_ptr) {
+  if (initFEExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assignassertnonnull, initFEExpr->Clone());
     stmt->SetSrcFileInfo(sym.GetSrcPosition().FileNum(), sym.GetSrcPosition().LineNum());
     stmts.emplace_back(std::move(stmt));

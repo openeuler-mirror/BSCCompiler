@@ -151,7 +151,7 @@ class AArch64MemLayout : public MemLayout {
 
   SymbolAlloc *AssignLocationToSpillReg(regno_t vrNum) override;
 
-  uint32 StackFrameSize();
+  uint64 StackFrameSize();
 
   uint32 RealStackFrameSize();
 

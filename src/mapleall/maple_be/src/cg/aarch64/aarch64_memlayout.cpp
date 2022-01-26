@@ -476,8 +476,8 @@ SymbolAlloc *AArch64MemLayout::AssignLocationToSpillReg(regno_t vrNum) {
   return symLoc;
 }
 
-uint32 AArch64MemLayout::StackFrameSize() {
-  uint32 total = segArgsRegPassed.GetSize() + static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() +
+uint64 AArch64MemLayout::StackFrameSize() {
+  uint64 total = segArgsRegPassed.GetSize() + static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() +
                  GetSizeOfRefLocals() + locals().GetSize() + GetSizeOfSpillReg();
 
   if (GetSizeOfGRSaveArea() > 0) {
@@ -499,9 +499,9 @@ uint32 AArch64MemLayout::StackFrameSize() {
 uint32 AArch64MemLayout::RealStackFrameSize() {
   auto size = StackFrameSize();
   if (cgFunc->GetCG()->AddStackGuard()) {
-    size += kAarch64StackPtrAlignment;
+    size += static_cast<uint32>(kAarch64StackPtrAlignment);
   }
-  return size;
+  return static_cast<uint32>(size);
 }
 
 int32 AArch64MemLayout::GetRefLocBaseLoc() const {

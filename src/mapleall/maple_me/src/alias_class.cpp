@@ -80,7 +80,7 @@ inline bool OriginalStIsAuto(const OriginalSt *ost) {
 
 // if epxr is type convertion, get the expr before convertion
 // expr op like cvt/retype/floor/round/ceil/trunc is type convertion
-inline BaseNode *RemoveTypeConvertionIfExist(BaseNode *expr) {
+inline BaseNode *RemoveTypeConversionIfExist(BaseNode *expr) {
   while (kOpcodeInfo.IsTypeCvt(expr->GetOpCode())) {
     expr = expr->Opnd(0);
   }
@@ -229,14 +229,22 @@ OffsetType AliasClass::OffsetInBitOfArrayElement(const ArrayNode *arrayNode) {
   }
 }
 
+// tyIdx is pointer type of memory type, fld is the field of memory type,
+// offset is the offset of base.
+//     |-----offset------|---|---|-----|
+// prevLevOst          tyIdx fld
 OriginalSt *AliasClass::FindOrCreateExtraLevOst(SSATab *ssaTab, OriginalSt *prevLevOst, const TyIdx &tyIdx,
     FieldID fld, OffsetType offset) {
   return ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(prevLevOst, tyIdx, fld, offset);
 }
 
+// return next level of baseAddress. Argument tyIdx specifies the pointer of the memory accessed.
+// fieldId represent offset from type of this memory.
+// Example: iread <*type> fld (base) or iassign <*type> fld (base):
+//   tyIdx is TyIdx of <*type>(notice not <type>), fieldId is fld
 AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &baseAddress, const TyIdx &tyIdx,
                                                      FieldID fieldId, bool typeHasBeenCasted) {
-  auto *baseAddr = RemoveTypeConvertionIfExist(&baseAddress);
+  auto *baseAddr = RemoveTypeConversionIfExist(&baseAddress);
   AliasInfo aliasInfoOfBaseAddress = CreateAliasElemsExpr(*baseAddr);
   if (aliasInfoOfBaseAddress.ae == nullptr) {
     return FindOrCreateDummyNADSAe();
@@ -245,9 +253,30 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &baseAddress, cons
   if (mirModule.IsCModule() && IsNullOrDummySymbolOst(baseOst)) {
     return FindOrCreateDummyNADSAe();
   }
+  // calculate the offset of extraLevOst (i.e. offset from baseAddr)
+  OffsetType offset = typeHasBeenCasted ? OffsetType(kOffsetUnknown) : aliasInfoOfBaseAddress.offset;
+  // If base has a valid baseFld, check type of this baseFld. If it is the same as tyIdx,
+  // update tyIdx as base memory type (not fieldType now), update fieldId by merging fieldId and baseFld
+  TyIdx newTyIdx = tyIdx;
+  FieldID baseFld = aliasInfoOfBaseAddress.fieldID;
+  MIRType *baseType = baseOst->GetType();
+  if (!aliasInfoOfBaseAddress.offset.IsInvalid() && baseFld != 0 && baseType->IsMIRPtrType()) {
+    MIRType *baseMemType = static_cast<MIRPtrType*>(baseType)->GetPointedType();
+    if (baseMemType->IsStructType() && baseMemType->NumberOfFieldIDs() >= baseFld) {
+      MIRType *fieldType = static_cast<MIRStructType*>(baseMemType)->GetFieldType(baseFld);
+      MIRType *memType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
+      ASSERT(memType->IsMIRPtrType(), "tyIdx is TyIdx of iread/iassign, must be pointer type!");
+      // Get memory type from base, and find it the same as iread/iassign
+      if (fieldType->GetTypeIndex() == static_cast<MIRPtrType*>(memType)->GetPointedTyIdx()) {
+        fieldId += baseFld;
+        newTyIdx = baseType->GetTypeIndex();
+        // We use base type instead of field type, the offset should be set zero if it is valid.
+        offset = offset.IsInvalid() ? offset : OffsetType(0);
+      }
+    }
+  }
 
-  auto newOst = FindOrCreateExtraLevOst(&ssaTab, baseOst, tyIdx, fieldId,
-      typeHasBeenCasted ? OffsetType(kOffsetUnknown) : aliasInfoOfBaseAddress.offset);
+  auto newOst = FindOrCreateExtraLevOst(&ssaTab, baseOst, newTyIdx, fieldId, offset);
 
   CHECK_FATAL(newOst != nullptr, "null ptr check");
   if (newOst->GetIndex() == osym2Elem.size()) {
@@ -433,7 +462,7 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
 
     MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsost->GetTyIdx());
     MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
-    uint32 numFieldIDs = mirStructType->NumberOfFieldIDs();
+    uint32 numFieldIDs = static_cast<uint32>(mirStructType->NumberOfFieldIDs());
     for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = mirStructType->GetFieldType(fieldID);
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
@@ -493,7 +522,7 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
 bool AliasClass::SetNextLevNADSForEscapePtr(AliasElem &lhsAe, BaseNode &rhs) {
   TyIdx lhsTyIdx = lhsAe.GetOriginalSt().GetTyIdx();
   PrimType lhsPtyp = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx)->GetPrimType();
-  BaseNode *realRhs = RemoveTypeConvertionIfExist(&rhs);
+  BaseNode *realRhs = RemoveTypeConversionIfExist(&rhs);
   PrimType rhsPtyp = realRhs->GetPrimType();
   if (lhsPtyp != rhsPtyp) {
     if ((IsPotentialAddress(lhsPtyp, &mirModule) && !IsPotentialAddress(rhsPtyp, &mirModule)) ||
@@ -1557,7 +1586,7 @@ bool AliasResultInNegtiveOffset(const OriginalSt *ostA, const OriginalSt *ostB) 
   OffsetType offsetB = ostB->GetOffset();
   auto typeA = GlobalTables::GetTypeTable().GetTypeFromTyIdx(ostA->GetTyIdx());
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
-    int32 bitSizeA = GetTypeBitSize(typeA);
+    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(typeA));
     return (offsetA + bitSizeA) < offsetB;
   }
   return false;
@@ -1612,8 +1641,8 @@ bool AliasClass::MayAliasBasicAA(const OriginalSt *ostA, const OriginalSt *ostB)
   // alias analysis based on offset.
   if (!offsetA.IsInvalid() && !offsetB.IsInvalid()) {
     // return if memory of ostA and ostB overlap
-    int32 bitSizeA = GetTypeBitSize(ostA->GetType());
-    int32 bitSizeB = GetTypeBitSize(ostB->GetType());
+    int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA->GetType()));
+    int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB->GetType()));
     return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
   }
   return true;
@@ -2109,7 +2138,7 @@ void AliasClass::CollectMayUseForCallOpnd(const StmtNode &stmt, std::set<Origina
   size_t opndId = kOpcodeInfo.IsICall(stmt.GetOpCode()) ? 1 : 0;
   for (; opndId < stmt.NumOpnds(); ++opndId) {
     BaseNode *expr = stmt.Opnd(opndId);
-    expr = RemoveTypeConvertionIfExist(expr);
+    expr = RemoveTypeConversionIfExist(expr);
     if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
       continue;
     }
@@ -2141,7 +2170,7 @@ void AliasClass::CollectMayDefUseForCallOpnd(const StmtNode &stmt,
       continue;
     }
     BaseNode *expr = stmt.Opnd(opndId);
-    expr = RemoveTypeConvertionIfExist(expr);
+    expr = RemoveTypeConversionIfExist(expr);
     if (!IsPotentialAddress(expr->GetPrimType(), &mirModule)) {
       continue;
     }

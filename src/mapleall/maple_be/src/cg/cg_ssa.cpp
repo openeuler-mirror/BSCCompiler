@@ -48,7 +48,7 @@ void CGSSAInfo::InsertPhiInsn() {
   }
 }
 
-void CGSSAInfo::PrunedPhiInsertion(BB &bb, RegOperand &virtualOpnd) {
+void CGSSAInfo::PrunedPhiInsertion(const BB &bb, RegOperand &virtualOpnd) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
   MapleVector<uint32> frontiers = domInfo->GetDomFrontier(bb.GetId());
   for (auto i : frontiers) {
@@ -97,7 +97,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   std::vector<int32> oriStackSize(tempSize, -1);
   for (auto it : vRegStk) {
     ASSERT(it.first < oriStackSize.size(), "out of range");
-    oriStackSize[it.first] = it.second.size();
+    oriStackSize[it.first] = static_cast<int32>(it.second.size());
   }
   RenamePhi(bb);
   FOR_BB_INSNS(insn, &bb) {
@@ -112,7 +112,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   /* stack pop up */
   for (auto &it : vRegStk) {
     if (it.first < oriStackSize.size() && oriStackSize[it.first] >= 0) {
-      while (it.second.size() > oriStackSize[it.first]) {
+      while (static_cast<int32>(it.second.size()) > oriStackSize[it.first]) {
         ASSERT(!it.second.empty(), "empty stack");
         it.second.pop();
       }
@@ -130,7 +130,7 @@ void CGSSAInfo::RenamePhi(BB &bb) {
   }
 }
 
-void CGSSAInfo::RenameSuccPhiUse(BB &bb) {
+void CGSSAInfo::RenameSuccPhiUse(const BB &bb) {
   for (auto *sucBB : bb.GetSuccs()) {
     for (auto phiInsnIt : sucBB->GetPhiInsns()) {
       Insn *phiInsn = phiInsnIt.second;
@@ -187,7 +187,7 @@ VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn,
   return newVst;
 }
 
-VRegVersion *CGSSAInfo::GetVersion(RegOperand &virtualOpnd) {
+VRegVersion *CGSSAInfo::GetVersion(const RegOperand &virtualOpnd) {
   regno_t vRegNO = virtualOpnd.GetRegisterNumber();
   auto vRegIt = vRegStk.find(vRegNO);
   return vRegIt != vRegStk.end() ? vRegIt->second.top() : nullptr;
@@ -253,7 +253,7 @@ void VRegVersion::AddUseInsn(CGSSAInfo &ssaInfo, Insn &useInsn, uint32 idx) {
   }
 }
 
-void VRegVersion::RemoveUseInsn(Insn &useInsn, uint32 idx) {
+void VRegVersion::RemoveUseInsn(const Insn &useInsn, uint32 idx) {
   auto useInsnIt = useInsnInfos.find(useInsn.GetId());
   ASSERT(useInsnIt != useInsnInfos.end(), "use Insn not found");
   useInsnIt->second->DecreaseDU(idx);
@@ -262,7 +262,7 @@ void VRegVersion::RemoveUseInsn(Insn &useInsn, uint32 idx) {
   }
 }
 
-void VRegVersion::CheckDeadUse(Insn &useInsn) {
+void VRegVersion::CheckDeadUse(const Insn &useInsn) {
   auto useInsnIt = useInsnInfos.find(useInsn.GetId());
   ASSERT(useInsnIt != useInsnInfos.end(), "use Insn not found");
   if (useInsnIt->second->HasNoDU()) {

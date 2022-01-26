@@ -54,7 +54,7 @@ void PEGNode::Dump() {
 }
 
 PEGNode *ProgramExprGraph::GetOrCreateNodeOf(OriginalSt *ost) {
-  uint32 nodeId = allNodes.size();
+  uint32 nodeId = static_cast<uint32>(allNodes.size());
   const auto &itPair = idOfVal2IdOfNode.insert(std::make_pair(ost->GetIndex(), nodeId));
   // insert op fail, PEGNode of ost has created
   if (!itPair.second) {
@@ -333,7 +333,6 @@ PEGBuilder::PtrValueRecorder PEGBuilder::BuildPEGNodeOfExpr(const BaseNode *expr
       }
       return PtrValueRecorder(nullptr, 0, OffsetType(0));
   }
-
 }
 
 inline bool CallStmtOpndEscape(const StmtNode *stmt) {
@@ -342,7 +341,7 @@ inline bool CallStmtOpndEscape(const StmtNode *stmt) {
   }
 
   auto *mirFunc = GlobalTables::GetFunctionTable().GetFunctionFromPuidx(static_cast<const CallNode*>(stmt)->GetPUIdx());
-  if (mirFunc->GetFuncAttrs().GetAttr(FUNCATTR_pure)) {
+  if (mirFunc->GetFuncDesc().IsPure() || mirFunc->GetFuncDesc().IsConst()) {
     return false;
   }
   return true;
@@ -415,7 +414,7 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         return;
       }
       auto *structType = static_cast<MIRStructType *>(lhsType);
-      for (size_t fieldId = 1; fieldId <= structType->NumberOfFieldIDs(); ++fieldId) {
+      for (int32 fieldId = 1; fieldId <= static_cast<int32>(structType->NumberOfFieldIDs()); ++fieldId) {
         auto *fieldType = structType->GetFieldType(fieldId);
         if (!IsAddress(fieldType->GetPrimType())) {
           continue;
@@ -538,7 +537,7 @@ void PEGBuilder::BuildPEGNodeInDirectCall(const CallNode *call) {
 }
 
 void PEGBuilder::BuildPEGNodeInIcall(const IcallNode *icall) {
-  BuildPEGNodeOfExpr(icall->IcallNode::Opnd(0));
+  (void)BuildPEGNodeOfExpr(icall->IcallNode::Opnd(0));
   for (uint32 opndId = 1; opndId < icall->NumOpnds(); ++opndId) {
     const auto &opndPtrNode = BuildPEGNodeOfExpr(icall->IcallNode::Opnd(opndId));
     auto *pegNode = opndPtrNode.pegNode;
@@ -561,7 +560,7 @@ void PEGBuilder::BuildPEGNodeInVirtualcall(const NaryStmtNode *virtualCall) {
 void PEGBuilder::BuildPEGNodeInIntrinsicCall(const IntrinsiccallNode *intrinsiccall) {
   uint32 opndId = 0;
   if (intrinsiccall->GetIntrinsic() == INTRN_JAVA_POLYMORPHIC_CALL) {
-    BuildPEGNodeOfExpr(intrinsiccall->Opnd(opndId));
+    (void)BuildPEGNodeOfExpr(intrinsiccall->Opnd(opndId));
     ++opndId;
     for (; opndId < intrinsiccall->NumOpnds(); ++opndId) {
       const auto &opndPtrNode = BuildPEGNodeOfExpr(intrinsiccall->Opnd(opndId));
@@ -576,7 +575,7 @@ void PEGBuilder::BuildPEGNodeInIntrinsicCall(const IntrinsiccallNode *intrinsicc
     opndPtrNode.pegNode->attr[kAliasAttrNextLevNotAllDefsSeen] = true;
   }
   for (; opndId < intrinsiccall->NumOpnds(); ++opndId) {
-    BuildPEGNodeOfExpr(intrinsiccall->Opnd(opndId));
+    (void)BuildPEGNodeOfExpr(intrinsiccall->Opnd(opndId));
   }
 }
 

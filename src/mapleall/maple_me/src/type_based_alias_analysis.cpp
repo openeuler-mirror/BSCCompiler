@@ -50,8 +50,8 @@ bool TypeBasedAliasAnalysis::MayAlias(const OriginalSt *ostA, const OriginalSt *
     MIRType *aggTypeA = GetStructTypeOstEmbedded(ostA);
     MIRType *aggTypeB = GetStructTypeOstEmbedded(ostB);
     if (aggTypeA == aggTypeB) { // We should check type compatibility here actually
-      int32 bitSizeA = GetTypeBitSize(ostA->GetType());
-      int32 bitSizeB = GetTypeBitSize(ostB->GetType());
+      int32 bitSizeA = static_cast<int32>(GetTypeBitSize(ostA->GetType()));
+      int32 bitSizeB = static_cast<int32>(GetTypeBitSize(ostB->GetType()));
       return IsMemoryOverlap(offsetA, bitSizeA, offsetB, bitSizeB);
     }
   }

@@ -1849,7 +1849,7 @@ std::vector<Insn*> CombineContiLoadAndStoreAArch64::FindPrevStrLdr(Insn &insn, r
     if (curInsn->IsRegDefined(memBaseRegNO)) {
       return prevContiInsns;
     }
-    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), baseOfst)) {
+    if (IsRegNotSameMemUseInInsn(*curInsn, memBaseRegNO, insn.IsStore(), static_cast<int32>(baseOfst))) {
       return prevContiInsns;
     }
     /* return continuous STD/LDR insn */

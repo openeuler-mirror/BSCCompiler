@@ -1459,10 +1459,10 @@ Operand *AArch64Insn::GetMemOpnd() const {
 
 /* Set the first memory access operand. */
 void AArch64Insn::SetMemOpnd(MemOperand *memOpnd) {
-  for (size_t i = 0; i < opnds.size(); ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(opnds.size()); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.IsMemoryAccessOperand()) {
-      SetOperand(static_cast<uint32>(i), *memOpnd);
+      SetOperand(i, *memOpnd);
       return;
     }
   }

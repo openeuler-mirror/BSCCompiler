@@ -68,7 +68,7 @@ void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &node
   int SecondLastNodeIndexFromBack = 2;
   int LastNodeIndexFromBack = 1;
   int FirstNodeIndex = 0;
-  int minimumBBSize = 2;
+  size_t minimumBBSize = 2;
   /* Add split point for the last instruction in return BB */
   if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize) {
     splitterIndexes.emplace_back(nodes.size() - SecondLastNodeIndexFromBack);
@@ -701,7 +701,7 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
     for (auto &defReg : node->GetDefRegnos()) {
       UpdateLiveReg(*node, defReg, true);
     }
-    int currentPressure = liveReg.size();
+    int currentPressure = static_cast<int>(liveReg.size());
     if (currentPressure > maximumPressure) {
       maximumPressure = currentPressure;
     }
@@ -727,7 +727,7 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
  * Split the series into multiple parts and conduct pre-scheduling in every part
  */
 void RegPressureSchedule::PartialScheduling(MapleVector<DepNode*> &nodes) {
-  for (int i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
+  for (size_t i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
     int lastTwoNodeIndex = 2;
     int begin = splitterIndexes.at(i);
     int end = splitterIndexes.at(i + 1);
