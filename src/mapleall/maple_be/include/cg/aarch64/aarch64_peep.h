@@ -214,7 +214,7 @@ class ExtLslToBitFieldInsertPattern : public CGPeepPattern {
  *
  *  and  x0, x6, #32  ====> tbnz  x6, #5, .label
  *  cmp  x0, #0
- *  bne  .label
+ *  bne  .labelSimplifyMulArithmeticPattern
  *
  * Conditions:
  * 1. (cmp_imm value is 0) || (cmp_imm == and_imm)
@@ -222,8 +222,8 @@ class ExtLslToBitFieldInsertPattern : public CGPeepPattern {
  */
 class AndCmpBranchesToTbzPattern : public CGPeepPattern {
  public:
-  AndCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  AndCmpBranchesToTbzPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
   ~AndCmpBranchesToTbzPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
@@ -432,6 +432,79 @@ class LogicShiftAndOrrToExtrPattern : public CGPeepPattern {
   Insn *prevLslInsn = nullptr;
   int64 shiftValue = 0;
   bool is64Bits = false;
+};
+
+/*
+ * Simplify Mul and Basic Arithmetic. There are three scenes:
+ * 1. currInsn is add:
+ * Example 1)
+ *  mul   x1, x1, x2           or     mul   x0, x1, x2
+ *  add   x0, x0, x1                  add   x0, x0, x1
+ *  ===> madd x0, x1, x2, x0          ===> madd x0, x1, x2, x1
+ *
+ * Example 2)
+ *  fmul  d1, d1, d2           or     fmul  d0, d1, d2
+ *  fadd  d0, d0, d1                  fadd  d0, d0, d1
+ *  ===> fmadd d0, d1, d2, d0         ===> fmadd d0, d1, d2, d1
+ *
+ * cases: addInsn second opnd || addInsn third opnd
+ *
+ *
+ * 2. currInsn is sub:
+ * Example 1)                         Example 2)
+ *  mul   x1, x1, x2                   fmul  d1, d1, d2
+ *  sub   x0, x0, x1                   fsub  d0, d0, d1
+ *  ===> msub x0, x1, x2, x0           ===> fmsub d0, d1, d2, d0
+ *
+ * cases: subInsn third opnd
+ *
+ * 3. currInsn is neg:
+ * Example 1)                         Example 2)
+ *  mul   x1, x1, x2                   fmul     d1, d1, d2
+ *  neg   x0, x1                       fneg     d0, d1
+ *  ===> mneg x0, x1, x2               ===> fnmul d0, d1, d2
+ *
+ * cases: negInsn second opnd
+ */
+class SimplifyMulArithmeticPattern : public CGPeepPattern {
+ public:
+  SimplifyMulArithmeticPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~SimplifyMulArithmeticPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override;
+
+ protected:
+  enum ArithmeticType : uint8 {
+    kUndef = 0,
+    kAdd,
+    kFAdd,
+    kSub,
+    kFSub,
+    kNeg,
+    kFNeg,
+    kArithmeticTypeSize
+  };
+  static constexpr uint8 newMopNum = 2;
+  MOperator curMop2NewMopTable[kArithmeticTypeSize][newMopNum] = {
+      /* {32bit_mop, 64bit_mop} */
+      {MOP_undef,     MOP_undef},        /* kUndef  */
+      {MOP_wmaddrrrr, MOP_xmaddrrrr},    /* kAdd    */
+      {MOP_smadd,     MOP_dmadd},        /* kFAdd   */
+      {MOP_wmsubrrrr, MOP_xmsubrrrr},    /* kSub    */
+      {MOP_smsub,     MOP_dmsub},        /* kFSub   */
+      {MOP_wmnegrrr,  MOP_xmnegrrr},     /* kNeg    */
+      {MOP_snmul,     MOP_dnmul}         /* kFNeg   */
+  };
+
+ private:
+  void SetArithType(Insn &currInsn);
+  void DoOptimize(BB &currBB, Insn &currInsn);
+  ArithmeticType arithType = kUndef;
+  int32 validOpndIdx = -1;
+  Insn *prevInsn = nullptr;
+  bool isFloat = false;
 };
 
 /*
