@@ -108,6 +108,13 @@ ASTStmt *ASTParser::ProcessStmtCompoundStmt(MapleAllocator &allocator, const cla
     return astStmt;                                                                   \
   }
 
+#define ATTR_STMT_CASE(CLASS)                                                         \
+  case clang::Stmt::CLASS##Class: {                                                   \
+    ASTStmt *astStmt = ProcessStmt##CLASS(allocator,                                  \
+             llvm::cast<clang::AttributedStmt>(llvm::cast<clang::ValueStmt>(stmt)));  \
+    return astStmt;                                                                   \
+}
+
 ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &stmt) {
   switch (stmt.getStmtClass()) {
     STMT_CASE(UnaryOperator);
@@ -143,11 +150,18 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
     STMT_CASE(GCCAsmStmt);
     STMT_CASE(OffsetOfExpr);
     STMT_CASE(GenericSelectionExpr);
+    ATTR_STMT_CASE(AttributedStmt);
     default: {
       CHECK_FATAL(false, "ASTStmt: %s NIY", stmt.getStmtClassName());
       return nullptr;
     }
   }
+}
+
+ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &attributedStmt) {
+  ASTAttributedStmt *astAttributedStmt  = nullptr;
+  CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
+  return astAttributedStmt;
 }
 
 ASTStmt *ASTParser::ProcessStmtOffsetOfExpr(MapleAllocator &allocator, const clang::OffsetOfExpr &expr) {
