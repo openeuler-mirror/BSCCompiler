@@ -102,8 +102,8 @@ class Dominance : public AnalysisResult {
   MapleVector<uint32> &GetReversePostOrderId() {
     if (reversePostOrderId.empty()) {
       reversePostOrderId.resize(bbVec.size(), 0);
-      for (auto id = 0; id < reversePostOrder.size(); ++id) {
-        reversePostOrderId[reversePostOrder[id]->GetBBId()] = id;
+      for (size_t id = 0; id < reversePostOrder.size(); ++id) {
+        reversePostOrderId[reversePostOrder[id]->GetBBId()] = static_cast<uint32>(id);
       }
     }
     return reversePostOrderId;

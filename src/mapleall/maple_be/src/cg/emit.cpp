@@ -566,7 +566,7 @@ void Emitter::EmitStr(const std::string& mplStr, bool emitAscii, bool emitNewlin
    * don't expand special character in a writeout to .s,
    * convert all \s to \\s in string for storing in .string
    */
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     /* Referred to GNU AS: 3.6.1.1 Strings */
     constexpr int kBufSize = 5;
     constexpr int kFirstChar = 0;
@@ -621,9 +621,9 @@ void Emitter::EmitStrConstant(const MIRStrConst &mirStrConst, bool isIndirect) {
       stringPtr[strId] = mirStrConst.GetValue();
     }
     if (CGOptions::IsArm64ilp32()) {
-      Emit("\t.word\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+      (void)Emit("\t.word\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
     } else {
-      Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
+      (void)Emit("\t.dword\t").Emit(".LSTR__").Emit(std::to_string(strId).c_str());
     }
     return;
   }
@@ -731,17 +731,17 @@ void Emitter::EmitScalarConstant(MIRConst &mirConst, bool newLine, bool flag32, 
       }
       if (stIdx.IsGlobal() == false && symAddrSym->GetStorageClass() == kScPstatic) {
         PUIdx pIdx = GetCG()->GetMIRModule()->CurFunction()->GetPuidx();
-        Emit("\t" + str + "\t" + symAddrSym->GetName() + std::to_string(pIdx));
+        (void)Emit("\t" + str + "\t" + symAddrSym->GetName() + std::to_string(pIdx));
       } else {
-        Emit("\t" + str + "\t" + symAddrSym->GetName());
+        (void)Emit("\t" + str + "\t" + symAddrSym->GetName());
       }
       if (symAddr.GetOffset() != 0) {
-        Emit(" + ").Emit(symAddr.GetOffset());
+        (void)Emit(" + ").Emit(symAddr.GetOffset());
       }
       if (symAddr.GetFieldID() > 1) {
         MIRStructType *structType = static_cast<MIRStructType *>(symAddrSym->GetType());
         ASSERT(structType != nullptr, "EmitScalarConstant: non-zero fieldID for non-structure");
-        Emit(" + ").Emit(Globals::GetInstance()->GetBECommon()->GetFieldOffset(
+        (void)Emit(" + ").Emit(Globals::GetInstance()->GetBECommon()->GetFieldOffset(
             *structType, symAddr.GetFieldID()).first);
       }
       break;
@@ -1327,7 +1327,7 @@ void Emitter::EmitIntConst(const MIRSymbol &mirSymbol, MIRAggConst &aggConst, ui
     /* left shift 2 bit to get low 30 bit data for MIRIntConst */
     elemConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(index >> 2, elemConst->GetType());
     intConst = safe_cast<MIRIntConst>(elemConst);
-    aggConst.SetItem(idx, intConst, aggConst.GetFieldIdItem(idx));
+    aggConst.SetItem(static_cast<uint32>(idx), intConst, aggConst.GetFieldIdItem(idx));
 #ifdef USE_32BIT_REF
     if (stName.find(ITAB_CONFLICT_PREFIX_STR) == 0) {
       EmitScalarConstant(*elemConst, false, true);
@@ -1676,10 +1676,10 @@ void Emitter::EmitVectorConstant(MIRConst &mirConst) {
       ASSERT(false, "should not run here");
     }
   }
-  int lanes = GetVecLanes(mirType.GetPrimType());
+  size_t lanes = GetVecLanes(mirType.GetPrimType());
   if (lanes > uNum) {
     MIRIntConst zConst(0, vecCt.GetConstVecItem(0)->GetType());
-    for (int32 i = uNum; i < lanes; i++) {
+    for (size_t i = uNum; i < lanes; i++) {
       EmitScalarConstant(zConst, true, false, false);
     }
   }
@@ -2027,7 +2027,7 @@ void Emitter::MarkVtabOrItabEndFlag(const std::vector<MIRSymbol*> &mirSymbolVec)
       tabConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
           static_cast<int64>(static_cast<uint64>(tabConst->GetValue()) | 0X4000000000000000), tabConst->GetType());
 #endif
-      aggConst->SetItem(size - 1, tabConst, aggConst->GetFieldIdItem(size - 1));
+      aggConst->SetItem(static_cast<uint32>(size) - 1, tabConst, aggConst->GetFieldIdItem(size - 1));
     }
   }
 }
@@ -2055,7 +2055,7 @@ void Emitter::EmitLocalVariable(const CGFunc &cgfunc) {
       /* anything larger than is created by cg */
       size_t lsize = cgfunc.GetLSymSize();
       for (size_t i = 0; i < lsize; i++) {
-        MIRSymbol *st = lSymTab->GetSymbolFromStIdx(i);
+        MIRSymbol *st = lSymTab->GetSymbolFromStIdx(static_cast<uint32>(i));
         if (st != nullptr && st->GetStorageClass() == kScPstatic) {
           /*
            * Local static names can repeat.
@@ -3084,7 +3084,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           if (!fnameAttr) {
             DBGDieAttr *specAttr = LFindAttribute(subpgm->GetAttrVec(), DW_AT_specification);
             CHECK_FATAL(specAttr, "pointer is null");
-            DBGDie *twin = di->GetDie(specAttr->GetU());
+            DBGDie *twin = di->GetDie(static_cast<uint32>(specAttr->GetU()));
             fnameAttr = LFindAttribute(twin->GetAttrVec(), DW_AT_name);
           }
           CHECK_FATAL(fnameAttr, "");
@@ -3102,7 +3102,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
       break;
     case DW_FORM_ref4:
       if (attrName == DW_AT_type) {
-        DBGDie *die0 = di->GetDie(attr->GetU());
+        DBGDie *die0 = di->GetDie(static_cast<uint32>(attr->GetU()));
         if (die0->GetOffset()) {
           EmitHexUnsigned(die0->GetOffset());
         } else {
@@ -3111,7 +3111,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           Emit(CMNT "Warning: dummy type used");
         }
       } else if (attrName == DW_AT_specification || attrName == DW_AT_sibling) {
-        DBGDie *die0 = di->GetDie(attr->GetU());
+        DBGDie *die0 = di->GetDie(static_cast<uint32>(attr->GetU()));
         ASSERT(die0->GetOffset(), "");
         EmitHexUnsigned(die0->GetOffset());
       } else if (attrName == DW_AT_object_pointer) {
@@ -3244,7 +3244,7 @@ void Emitter::EmitDIDebugInfoSection(DebugInfo *mirdi) {
       }
     }
 
-    for (int i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
+    for (size_t i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       DBGDieAttr *attr = LFindAttribute(die->GetAttrVec(), DwAt(apl[i]));
       if (!LShouldEmit(unsigned(apl[i + 1]))) {
         continue;
@@ -3324,7 +3324,7 @@ void Emitter::EmitDIDebugAbbrevSection(DebugInfo *mirdi) {
     }
     Emit("\n");
 
-    for (int i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
+    for (size_t i = 0; i < diae->GetAttrPairs().size(); i += k2ByteSize) {
       /* odd entry -- DW_AT_*, even entry -- DW_FORM_* */
       Emit("\t.uleb128 ");
       EmitHexUnsigned(apl[i]);
@@ -3435,7 +3435,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
                     Globals::GetInstance()->GetBECommon()->GetSizeOfStructFieldCountTable(), "");
         int embeddedIDs = 0;
         MIRStructType *prevSubstruct = nullptr;
-        for (int i = 0; i < sty->GetFields().size(); i++) {
+        for (size_t i = 0; i < sty->GetFields().size(); i++) {
           TyIdx fieldtyidx = sty->GetFieldsElemt(i).second.first;
           MIRType *fieldty = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldtyidx);
           if (prevSubstruct) {
@@ -3443,7 +3443,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
                 Globals::GetInstance()->GetBECommon()->GetStructFieldCount(prevSubstruct->GetTypeIndex().GetIdx());
           }
           prevSubstruct = fieldty->EmbeddedStructType();
-          FieldID fieldID = i + embeddedIDs + 1;
+          FieldID fieldID = static_cast<int>(i) + embeddedIDs + 1;
           int offset = Globals::GetInstance()->GetBECommon()->GetFieldOffset(*sty, fieldID).first;
           GStrIdx fldName = sty->GetFieldsElemt(i).first;
           DBGDie *cdie = LFindChildDieWithName(die, DW_TAG_member, fldName);
@@ -3464,7 +3464,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
   mirdi->ComputeSizeAndOffsets();
 }
 
-void Emitter::EmitAliasAndRef(MIRSymbol &sym) {
+void Emitter::EmitAliasAndRef(const MIRSymbol &sym) {
   MIRFunction *mFunc = sym.GetFunction();
   if (mFunc == nullptr || !mFunc->GetAttr(FUNCATTR_alias)) {
     return;

@@ -346,7 +346,7 @@ AArch64MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(AArch64MemO
   Operand *nextOfstOpnd = nextMemOpnd->GetOffsetImmediate()->Clone(memPool);
   AArch64OfstOperand *aarchNextOfstOpnd = static_cast<AArch64OfstOperand*>(nextOfstOpnd);
   CHECK_NULL_FATAL(aarchNextOfstOpnd);
-  int32 offsetVal = aarchNextOfstOpnd->GetOffsetValue();
+  int32 offsetVal = static_cast<int32>(aarchNextOfstOpnd->GetOffsetValue());
   aarchNextOfstOpnd->SetOffsetValue(offsetVal + byteSize);
   nextMemOpnd->SetOffsetImmediate(*aarchNextOfstOpnd);
   return nextMemOpnd;

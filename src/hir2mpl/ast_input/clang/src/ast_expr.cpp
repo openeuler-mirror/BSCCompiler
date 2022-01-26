@@ -240,8 +240,7 @@ void ASTCallExpr::AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, s
 }
 
 void ASTCallExpr::InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr->GetPrimType() != PTY_ptr ||
-      !(expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead)) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || expr->GetPrimType() != PTY_ptr) {
     return;
   }
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, expr->Clone());
@@ -772,7 +771,7 @@ void ASTUODerefExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uni
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
-  if (baseExpr->GetKind() == kExprDRead || baseExpr->GetKind() == kExprIRead) {
+  if (baseExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseExpr));
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
@@ -1493,9 +1492,7 @@ bool ASTArraySubscriptExpr::CheckFirstDimIfZero() const {
 
 void ASTArraySubscriptExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
                                                   const UniqueFEIRExpr &baseAddrExpr) const {
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic() ||
-      idxExpr->GetKind() != kExprConst ||
-      (baseAddrExpr->GetKind() != kExprDRead && baseAddrExpr->GetKind() != kExprIRead)) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || idxExpr->GetKind() != kExprConst) {
     return;
   }
   if (FEIRBuilder::IsZeroConstExpr(idxExpr)) {  // insert nonnull checking when ptr[0]
@@ -1638,7 +1635,7 @@ void ASTMemberExpr::InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, Uniq
   if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
     return;
   }
-  if (baseFEExpr->GetKind() == kExprDRead || baseFEExpr->GetKind() == kExprIRead) {
+  if (baseFEExpr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_assertnonnull, std::move(baseFEExpr));
     stmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
     stmts.emplace_back(std::move(stmt));
@@ -2199,13 +2196,15 @@ UniqueFEIRExpr ASTConditionalOperator::Emit2FEExprImpl(std::list<UniqueFEIRStmt>
   UniqueFEIRVar tempVarCloned1 = tempVar->Clone();
   UniqueFEIRVar tempVarCloned2 = tempVar->Clone();
   UniqueFEIRStmt retTrueStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVar), std::move(trueFEIRExpr));
+  retTrueStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   trueStmts.emplace_back(std::move(retTrueStmt));
   UniqueFEIRStmt retFalseStmt = FEIRBuilder::CreateStmtDAssign(std::move(tempVarCloned1), std::move(falseFEIRExpr));
+  retFalseStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   falseStmts.emplace_back(std::move(retFalseStmt));
   UniqueFEIRStmt stmtIf = FEIRBuilder::CreateStmtIf(std::move(condFEIRExpr), trueStmts, falseStmts);
   stmts.emplace_back(std::move(stmtIf));
   UniqueFEIRExpr expr = FEIRBuilder::CreateExprDRead(std::move(tempVarCloned2));
-  if (!FEOptions::GetInstance().IsNpeCheckDynamic()) {
+  if (!FEOptions::GetInstance().IsNpeCheckDynamic() || !FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
     expr->SetKind(kExprTernary);
   }
   return expr;

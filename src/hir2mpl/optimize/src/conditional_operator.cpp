@@ -17,7 +17,7 @@
 
 namespace maple {
 bool ConditionalOptimize::IsCompletedConditional(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) {
-  if (FEOptions::GetInstance().IsNpeCheckDynamic()) {
+  if (FEOptions::GetInstance().IsNpeCheckDynamic() || FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
     return false;
   }
 
@@ -43,7 +43,7 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts) {
+  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     UniqueFEIRExpr srcExpr = dassignStmt->GetExpr()->Clone();
     PrimType srcPty = srcExpr->GetPrimType();
@@ -60,13 +60,14 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     }
 
     auto stmt = std::make_unique<FEIRStmtDAssign>(var->Clone(), srcExpr->Clone(), fieldID);
+    stmt->SetSrcFileInfo(srcStmt.GetSrcFileIdx(), srcStmt.GetSrcFileLineNum());
     stmts.pop_back();
     stmts.emplace_back(std::move(stmt));
   };
 
   FEIRStmtIf *ifStmt = static_cast<FEIRStmtIf*>(stmts.back().get());
-  ReplaceBackStmt(ifStmt->GetThenStmt());
-  ReplaceBackStmt(ifStmt->GetElseStmt());
+  ReplaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
+  ReplaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
   return true;
 }
 
@@ -75,16 +76,17 @@ bool ConditionalOptimize::DeleteRedundantTmpVar(const UniqueFEIRExpr &expr, std:
     return false;
   }
 
-  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts) {
+  auto ReplaceBackStmt = [&](std::list<UniqueFEIRStmt> &stmts, const FEIRStmt &srcStmt) {
     auto dassignStmt = static_cast<FEIRStmtDAssign*>(stmts.back().get());
     auto stmt = std::make_unique<FEIRStmtReturn>(dassignStmt->GetExpr()->Clone());
+    stmt->SetSrcFileInfo(srcStmt.GetSrcFileIdx(), srcStmt.GetSrcFileLineNum());
     stmts.pop_back();
     stmts.emplace_back(std::move(stmt));
   };
 
   FEIRStmtIf *ifStmt = static_cast<FEIRStmtIf*>(stmts.back().get());
-  ReplaceBackStmt(ifStmt->GetThenStmt());
-  ReplaceBackStmt(ifStmt->GetElseStmt());
+  ReplaceBackStmt(ifStmt->GetThenStmt(), *ifStmt);
+  ReplaceBackStmt(ifStmt->GetElseStmt(), *ifStmt);
   return true;
 }
 }

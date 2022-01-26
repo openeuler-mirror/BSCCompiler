@@ -55,9 +55,6 @@ const std::list<ASTStmt*> &ASTCompoundStmt::GetASTStmtList() const {
 std::list<UniqueFEIRStmt> ASTCompoundStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;
   auto insertStmt = [&](bool flag) {
-    if (!FEOptions::GetInstance().IsEnableSafeRegion()) {
-      return;
-    }
     if (safeSS == kSafeSS) {
       stmts.emplace_back(std::make_unique<FEIRStmtPesudoSafe>(flag));
     } else if (safeSS == kUnsafeSS) {

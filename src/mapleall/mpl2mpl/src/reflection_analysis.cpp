@@ -945,7 +945,8 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
   uint32 fieldID = 1;
   uint32 signatureIdx = FindOrInsertReflectString(signature);
   mirBuilder.AddIntFieldConst(methodSignatureType, *newConst, fieldID++, signatureIdx);
-  MIRSymbol *parameterTypesSymbol = GetParameterTypesSymbol(typeNames.size(), mapMethodSignature.size());
+  MIRSymbol *parameterTypesSymbol = GetParameterTypesSymbol(static_cast<uint32>(typeNames.size()),
+                                                            static_cast<uint32>(mapMethodSignature.size()));
   mirBuilder.AddAddrofFieldConst(methodSignatureType, *newConst, fieldID++, *parameterTypesSymbol);
 
   MIRSymbol *methodSignatureSt =

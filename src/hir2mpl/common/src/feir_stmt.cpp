@@ -872,7 +872,7 @@ void FEIRStmtReturn::InsertNonnullChecking(MIRBuilder &mirBuilder, std::list<Stm
            mirBuilder.GetCurrentFunction()->GetName().c_str());
     return;
   }
-  if ((expr->GetKind() == kExprDRead || expr->GetKind() == kExprIRead) && expr->GetPrimType() == PTY_ptr) {
+  if (expr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtAssertNonnull>(OP_returnassertnonnull, expr->Clone());
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
     ans.splice(ans.end(), stmts);
@@ -1871,8 +1871,7 @@ void FEIRStmtCallAssign::InsertNonnullCheckingInArgs(const UniqueFEIRExpr &expr,
            ENCChecker::GetNthStr(index).c_str());
     return;
   }
-  if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
-      (expr->GetKind() == kExprIRead && expr->GetFieldID() != 0 && expr->GetPrimType() == PTY_ptr)) {
+  if (expr->GetPrimType() == PTY_ptr) {
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(OP_callassertnonnull, expr->Clone(),
                                                                       funcName, index);
     std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);
@@ -1987,8 +1986,7 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
              ENCChecker::GetNthStr(idx).c_str());
       continue;
     }
-    if ((expr->GetKind() == kExprDRead && expr->GetPrimType() == PTY_ptr) ||
-        (expr->GetKind() == kExprIRead && expr->GetFieldID() != 0 && expr->GetPrimType() == PTY_ptr)) {
+    if (expr->GetPrimType() == PTY_ptr) {
       UniqueFEIRStmt stmt = std::make_unique<FEIRStmtCallAssertNonnull>(
           OP_callassertnonnull, expr->Clone(), "function_pointer", idx);
       std::list<StmtNode*> stmts = stmt->GenMIRStmts(mirBuilder);

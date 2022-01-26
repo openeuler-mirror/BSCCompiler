@@ -95,7 +95,8 @@ uint32 ProcessStructWhenClassifyAggregate(const BECommon &be, MIRStructType &str
                                           AArch64ArgumentClass classes[kMaxRegCount],
                                           size_t classesLength, uint32 &fpSize) {
   CHECK_FATAL(classesLength > 0, "classLength must > 0");
-  uint32 sizeOfTyInDwords = RoundUp(be.GetTypeSize(structType.GetTypeIndex()), k8ByteSize) >> k8BitShift;
+  uint32 sizeOfTyInDwords = static_cast<uint32>(
+      RoundUp(be.GetTypeSize(structType.GetTypeIndex()), k8ByteSize) >> k8BitShift);
   bool isF32 = false;
   bool isF64 = false;
   uint32 numRegs = 0;
@@ -326,7 +327,7 @@ PrimType IsVectorArrayType(MIRType *ty, uint32 &arraySize) {
         MIRArrayType *arrayTy = static_cast<MIRArrayType *>(fieldTy);
         MIRType *arrayElemTy = arrayTy->GetElemType();
         arraySize = arrayTy->GetSizeArrayItem(0);
-        if (arrayTy->GetDim() == k1BitSize && arraySize <= k4BitSize &&
+        if (arrayTy->GetDim() == k1BitSize && arraySize <= static_cast<int32>(k4BitSize) &&
             IsPrimitiveVector(arrayElemTy->GetPrimType())) {
           return arrayElemTy->GetPrimType();
         }
@@ -412,7 +413,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
   if (isFirst) {
     MIRFunction *func = tFunc != nullptr ? tFunc : const_cast<MIRFunction *>(beCommon.GetMIRModule().CurFunction());
     if (beCommon.HasFuncReturnType(*func)) {
-      uint32 size = beCommon.GetTypeSize(beCommon.GetFuncReturnType(*func));
+      size_t size = beCommon.GetTypeSize(beCommon.GetFuncReturnType(*func));
       if (size == 0) {
         /* For return struct size 0 there is no return value. */
         return 0;
@@ -562,7 +563,7 @@ int32 ParmLocator::ProcessPtyAggWhenLocateNextParm(MIRType &mirType, PLocInfo &p
   typeSize = beCommon.GetTypeSize(mirType.GetTypeIndex().GetIdx());
   int32 aggCopySize = 0;
   if (typeSize > k16ByteSize) {
-    aggCopySize = RoundUp(typeSize, kSizeOfPtr);
+    aggCopySize = static_cast<int32>(RoundUp(typeSize, kSizeOfPtr));
   }
   /*
    * alignment requirement

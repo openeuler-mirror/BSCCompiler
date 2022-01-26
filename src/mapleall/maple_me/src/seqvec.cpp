@@ -473,7 +473,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
   MIRPtrType *ptrType = static_cast<MIRPtrType*>(&mirType);
   PrimType ptType = ptrType->GetPointedType()->GetPrimType();
   uint32_t maxLanes = 16 / GetPrimTypeSize((ptrType->GetPointedType()->GetPrimType()));
-  uint32 len = cands.size();
+  uint32 len = static_cast<uint32>(cands.size());
   uint32 start = 0;
   do {
     IassignNode *iassign = cands[start];
@@ -520,7 +520,7 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     }
 
     // delete merged iassignode
-    for (uint32 i = start + 1; i < start + lanes; i++) {
+    for (uint32 i = start + 1; i < start + lanes; ++i) {
       blockParent->RemoveStmt(cands[i]);
     }
     len = len - lanes;
@@ -536,11 +536,11 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
   bool needReverse = true;
   cands.clear();
   ResetRhsStatus(); // reset rhs is const flag
-  for (size_t i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; ++i) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
-    for (size_t j = i + 1; j < len; j++) {
+    for (size_t j = i + 1; j < len; ++j) {
       IassignNode *store2 = (*storelist)[j];
       if (CanSeqVec(cands.back(), store2)) {
         cands.push_back(store2);
@@ -556,11 +556,11 @@ void SeqVectorize::LegalityCheckAndTransform(StoreList *storelist) {
 
   if (!needReverse) return;
   ResetRhsStatus(); // reset rhs is const flag
-  for (int i = len - 1; i >= 0; i--) {
+  for (int i = static_cast<int>(len) - 1; i >= 0; --i) {
     IassignNode *store1 = (*storelist)[i];
     MIRPtrType *ptrType = static_cast<MIRPtrType*>(&GetTypeFromTyIdx(store1->GetTyIdx()));
     cands.push_back(store1);
-    for (int j = i - 1; j >= 0; j--) {
+    for (int j = i - 1; j >= 0; --j) {
       IassignNode *store2 = (*storelist)[j];
       if (CanSeqVec(cands.back(), store2)) {
         cands.push_back(store2);
