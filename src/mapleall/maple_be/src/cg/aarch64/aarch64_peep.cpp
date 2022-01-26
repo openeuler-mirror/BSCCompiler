@@ -153,7 +153,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       break;
     }
     case MOP_xlslrri6: {
-      manager->Optimize<ExtLslToBitFieldInsertPattern>(true);
+      manager->Optimize<ExtLslToBitFieldInsertPattern>();
       break;
     }
     default:
@@ -4566,8 +4566,5 @@ void ComplexExtendWordLslAArch64::Run(BB &bb , Insn &insn) {
       nextOpnd0, reg1, nextOpnd2, newImm);
   bb.RemoveInsn(*nextInsn);
   bb.ReplaceInsn(insn, newInsnSbfiz);
-  if (CGOptions::DoCGSSA()) {
-    CHECK_FATAL(false, "check this case in ssa opt");
-  }
 }
 }  /* namespace maplebe */

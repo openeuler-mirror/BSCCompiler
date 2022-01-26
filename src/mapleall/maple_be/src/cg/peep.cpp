@@ -26,6 +26,43 @@
 #endif
 
 namespace maplebe {
+bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOperand &ccReg) {
+  if (startInsn.GetBB() != endInsn.GetBB()) {
+    return true;
+  }
+  CHECK_FATAL(ssaInfo != nullptr, "must have ssaInfo");
+  CHECK_FATAL(ccReg.IsSSAForm(), "cc reg must be ssa form");
+  for (auto *curInsn = startInsn.GetNext(); curInsn != nullptr && curInsn != &endInsn; curInsn = curInsn->GetNext()) {
+    if (!curInsn->IsMachineInstruction()) {
+      continue;
+    }
+    if (curInsn->IsCall()) {
+      return true;
+    }
+    uint32 opndNum = curInsn->GetOpndNum();
+    for (uint32 i = 0; i < opndNum; ++i) {
+      Operand &opnd = curInsn->GetOperand(static_cast<int32>(i));
+      if (!opnd.IsRegister()) {
+        continue;
+      }
+      auto &regOpnd = static_cast<RegOperand&>(opnd);
+      if (!curInsn->IsRegDefined(regOpnd.GetRegisterNumber())) {
+        continue;
+      }
+      if (static_cast<RegOperand&>(opnd).IsOfCC()) {
+        VRegVersion *ccVersion = ssaInfo->FindSSAVersion(ccReg.GetRegisterNumber());
+        VRegVersion *curCCVersion = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
+        CHECK_FATAL(ccVersion != nullptr && curCCVersion != nullptr, "RegVersion must not be null based on ssa");
+        CHECK_FATAL(!ccVersion->IsDeleted() && !curCCVersion->IsDeleted(), "deleted version");
+        if (ccVersion->GetVersionIdx() != curCCVersion->GetVersionIdx()) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 int64 CGPeepPattern::GetLogValueAtBase2(int64 val) const {
   return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
