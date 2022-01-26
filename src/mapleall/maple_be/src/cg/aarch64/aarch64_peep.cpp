@@ -123,6 +123,21 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<CmpCsetOpt>();
       break;
     }
+    case MOP_waddrrr:
+    case MOP_xaddrrr:
+    case MOP_dadd:
+    case MOP_sadd:
+    case MOP_wsubrrr:
+    case MOP_xsubrrr:
+    case MOP_dsub:
+    case MOP_ssub:
+    case MOP_xinegrr:
+    case MOP_winegrr:
+    case MOP_wfnegrr:
+    case MOP_xfnegrr: {
+      manager->Optimize<SimplifyMulArithmeticPattern>();
+      break;
+    }
     case MOP_wandrri12:
     case MOP_xandrri13: {
       manager->Optimize<LsrAndToUbfxPattern>();
@@ -1014,6 +1029,131 @@ void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
     prevs.emplace_back(prevLslInsn);
     DumpAfterPattern(prevs, &insn, &newInsn);
   }
+}
+
+std::string SimplifyMulArithmeticPattern::GetPatternName() {
+  return "SimplifyMulArithmeticPattern";
+}
+
+void SimplifyMulArithmeticPattern::SetArithType(Insn &currInsn) {
+  MOperator mOp = currInsn.GetMachineOpcode();
+  switch (mOp) {
+    case MOP_waddrrr:
+    case MOP_xaddrrr: {
+      arithType = kAdd;
+      isFloat = false;
+      break;
+    }
+    case MOP_dadd:
+    case MOP_sadd: {
+      arithType = kFAdd;
+      isFloat = true;
+      break;
+    }
+    case MOP_wsubrrr:
+    case MOP_xsubrrr: {
+      arithType = kSub;
+      isFloat = false;
+      validOpndIdx = kInsnThirdOpnd;
+      break;
+    }
+    case MOP_dsub:
+    case MOP_ssub: {
+      arithType = kFSub;
+      isFloat = true;
+      validOpndIdx = kInsnThirdOpnd;
+      break;
+    }
+    case MOP_xinegrr:
+    case MOP_winegrr: {
+      arithType = kNeg;
+      isFloat = false;
+      validOpndIdx = kInsnSecondOpnd;
+      break;
+    }
+    case MOP_wfnegrr:
+    case MOP_xfnegrr: {
+      arithType = kFNeg;
+      isFloat = true;
+      validOpndIdx = kInsnSecondOpnd;
+      break;
+    }
+    default: {
+      CHECK_FATAL(false, "must be above mop");
+      break;
+    }
+  }
+}
+
+bool SimplifyMulArithmeticPattern::CheckCondition(Insn &insn) {
+  if (arithType == kUndef || validOpndIdx < 0) {
+    return false;
+  }
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(validOpndIdx));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  MOperator currMop = insn.GetMachineOpcode();
+  if (currMop == MOP_dadd || currMop == MOP_sadd || currMop == MOP_dsub || currMop == MOP_ssub ||
+      currMop == MOP_wfnegrr || currMop == MOP_xfnegrr) {
+    isFloat = true;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  if (prevMop != MOP_wmulrrr && prevMop != MOP_xmulrrr && prevMop != MOP_xvmuld && prevMop != MOP_xvmuls) {
+    return false;
+  }
+  if (isFloat && (prevMop == MOP_wmulrrr || prevMop == MOP_xmulrrr)) {
+    return false;
+  }
+  if (!isFloat && (prevMop == MOP_xvmuld || prevMop == MOP_xvmuls)) {
+    return false;
+  }
+  return true;
+}
+
+void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
+  Operand &resOpnd = currInsn.GetOperand(kInsnFirstOpnd);
+  Operand &opndMulOpnd1 = prevInsn->GetOperand(kInsnSecondOpnd);
+  Operand &opndMulOpnd2 = prevInsn->GetOperand(kInsnThirdOpnd);
+  bool is64Bits = (static_cast<RegOperand&>(resOpnd).GetSize() == k64BitSize);
+  MOperator newMop = is64Bits ? curMop2NewMopTable[arithType][1] : curMop2NewMopTable[arithType][0];
+  Insn *newInsn = nullptr;
+  if (arithType == kNeg || arithType == kFNeg) {
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1, opndMulOpnd2));
+  } else {
+    Operand &opnd3 = (validOpndIdx == kInsnSecondOpnd) ? currInsn.GetOperand(kInsnThirdOpnd) :
+                                                         currInsn.GetOperand(kInsnSecondOpnd);
+    newInsn = &(cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, resOpnd, opndMulOpnd1,
+                                                               opndMulOpnd2, opnd3));
+  }
+  CHECK_FATAL(newInsn != nullptr, "must create newInsn");
+  currBB.ReplaceInsn(currInsn, *newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(currInsn, *newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &currInsn, newInsn);
+  }
+}
+
+void SimplifyMulArithmeticPattern::Run(BB &bb, Insn &insn) {
+  SetArithType(insn);
+  if (arithType == kAdd || arithType == kFAdd) {
+    validOpndIdx = kInsnSecondOpnd;
+    if (CheckCondition(insn)) {
+      DoOptimize(bb, insn);
+      return;
+    } else {
+      validOpndIdx = kInsnThirdOpnd;
+    }
+  }
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  DoOptimize(bb, insn);
 }
 
 void OneHoleBranchPattern::FindNewMop(const BB &bb, const Insn &insn) {
