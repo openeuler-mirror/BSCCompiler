@@ -18,7 +18,7 @@
 #include "common_utils.h"
 
 namespace maplebe {
-uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) {
+uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) const {
   if (addr == 0) {
     return addr;
   }
@@ -36,7 +36,7 @@ uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) {
    *
    * =======> max[range, kAlignPseudoSize]
    */
-  uint32 range = ((1 << alignPower) - (((addr - 1) * kInsnSize) & ((1 << alignPower) - 1))) / kInsnSize - 1;
+  uint32 range = ((1U << alignPower) - (((addr - 1) * kInsnSize) & ((1U << alignPower) - 1))) / kInsnSize - 1;
   return range > kAlignPseudoSize ? range : kAlignPseudoSize;
 }
 

@@ -275,11 +275,11 @@ class OriginalSt {
     nextLevOsts.push_back(nextLevelOst);
   }
 
-  uint32 NumSSAVersions() {
+  uint32 NumSSAVersions() const {
     if (zeroVersionIndex == 0 || !IsPregOst()) {
-      return versionsIndices.size();
+      return static_cast<uint32>(versionsIndices.size());
     }
-    return versionsIndices.size() - 1;  // preg's zero version not counted
+    return static_cast<uint32>(versionsIndices.size()) - 1;  // preg's zero version not counted
   }
 
  private:
@@ -334,7 +334,7 @@ class SymbolFieldPair {
  public:
   SymbolFieldPair(const StIdx &stIdx, FieldID fld, const TyIdx &tyIdx,
                   const OffsetType &offset = OffsetType(kOffsetUnknown))
-      : stIdx(stIdx), fldIDAndOffset((static_cast<int64>(offset.val) << 32) + fld), tyIdx(tyIdx) {}
+      : stIdx(stIdx), fldIDAndOffset((static_cast<int64>(offset.val) << 32U) + fld), tyIdx(tyIdx) {}
   ~SymbolFieldPair() = default;
   bool operator==(const SymbolFieldPair& pairA) const {
     return (pairA.stIdx == stIdx) && (pairA.fldIDAndOffset == fldIDAndOffset) && (tyIdx == pairA.tyIdx);
@@ -439,7 +439,7 @@ class OriginalStTable {
                                                      const OffsetType &offset = OffsetType(kOffsetUnknown),
                                                      const KlassHierarchy *klassHierarchy = nullptr);
   OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, MIRType *type, FieldID fld,
-                                     const OffsetType &offset = OffsetType(kOffsetUnknown));
+                                     const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
 
  private:
   MapleAllocator alloc;

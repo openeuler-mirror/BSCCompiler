@@ -1431,7 +1431,7 @@ AArch64MemOperand *AArch64CGFunc::GenLargeAggFormalMemOpnd(const MIRSymbol &sym,
   return FixLargeMemOpnd(*memOpnd, align);
 }
 
-RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(bool isLo12, MIRSymbol &symbol, int64 offsetVal,
+RegOperand *AArch64CGFunc::PrepareMemcpyParamOpnd(bool isLo12, const MIRSymbol &symbol, int64 offsetVal,
                                                   RegOperand &BaseReg) {
   RegOperand *tgtAddr = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
   if (isLo12) {
@@ -5426,7 +5426,7 @@ Operand *AArch64CGFunc::SelectJarrayMalloc(JarrayMallocNode &node, Operand &opnd
   return &resOpnd;
 }
 
-bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
+bool AArch64CGFunc::IsRegRematCand(const RegOperand &reg) {
   MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber(), CGOptions::DoCGSSA());
   if (preg != nullptr && preg->GetOp() != OP_undef) {
     if (preg->GetOp() == OP_constval && cg->GetRematLevel() >= 1) {
@@ -5443,14 +5443,14 @@ bool AArch64CGFunc::IsRegRematCand(RegOperand &reg) {
   }
 }
 
-void AArch64CGFunc::ClearRegRematInfo(RegOperand &reg) {
+void AArch64CGFunc::ClearRegRematInfo(const RegOperand &reg) {
   MIRPreg *preg = GetPseudoRegFromVirtualRegNO(reg.GetRegisterNumber(), CGOptions::DoCGSSA());
   if (preg != nullptr && preg->GetOp() != OP_undef) {
     preg->SetOp(OP_undef);
   }
 }
 
-bool AArch64CGFunc::IsRegSameRematInfo(RegOperand &regDest, RegOperand &regSrc) {
+bool AArch64CGFunc::IsRegSameRematInfo(const RegOperand &regDest, const RegOperand &regSrc) {
   MIRPreg *pregDest = GetPseudoRegFromVirtualRegNO(regDest.GetRegisterNumber(), CGOptions::DoCGSSA());
   MIRPreg *pregSrc = GetPseudoRegFromVirtualRegNO(regSrc.GetRegisterNumber(), CGOptions::DoCGSSA());
   if (pregDest != nullptr && pregDest == pregSrc) {
@@ -6593,8 +6593,8 @@ void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, const MIRSym
                                                      RegOperand *addrOpnd, int32 baseOffset) {
   MemOperand *ldMopnd = nullptr;
   MemOperand *stMopnd = nullptr;
-  int numRegNeeded = (static_cast<uint32>(symSize) <= k8ByteSize) ? kOneRegister : kTwoRegister;
-  for (int j = 0; j < numRegNeeded; j++) {
+  uint32 numRegNeeded = (symSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+  for (int j = 0; j < static_cast<int>(numRegNeeded); j++) {
     if (sym) {
       ldMopnd = &GetOrCreateMemOpnd(*sym, (j * static_cast<int>(kSizeOfPtr)), k64BitSize);
     } else {
@@ -7783,7 +7783,7 @@ uint32 AArch64CGFunc::GetAggCopySize(uint32 offset1, uint32 offset2, uint32 alig
   /* Generating a larger sized mem op than alignment if allowed by aggregate starting address */
   uint32 offsetAlign1 = (offset1 == 0) ? k8ByteSize : offset1;
   uint32 offsetAlign2 = (offset2 == 0) ? k8ByteSize : offset2;
-  uint32 alignOffset = 1 << (std::min(__builtin_ffs(offsetAlign1), __builtin_ffs(offsetAlign2)) - 1);
+  uint32 alignOffset = 1U << (std::min(__builtin_ffs(offsetAlign1), __builtin_ffs(offsetAlign2)) - 1);
   if (alignOffset == k8ByteSize || alignOffset == k4ByteSize || alignOffset == k2ByteSize) {
     return alignOffset;
   } else {
@@ -8078,7 +8078,7 @@ RegOperand &AArch64CGFunc::GenStructParamIndex(RegOperand &base, const BaseNode 
  * case 3 : iread u32 <* u8> 0 (add a64 (regread a64 %61, regread a64 %65))
  * case 4 : iread u32 <* u8> 0 (add a64 (cvt a64 i32(regread  %n)))
  */
-MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, BaseNode &addrExpr, int64 offset,
+MemOperand *AArch64CGFunc::CheckAndCreateExtendMemOpnd(PrimType ptype, const BaseNode &addrExpr, int64 offset,
                                                        AArch64isa::MemoryOrdering memOrd) {
   aggParamReg = nullptr;
   if (memOrd != AArch64isa::kMoNone || addrExpr.GetOpCode() != OP_add || offset != 0) {
@@ -8819,7 +8819,7 @@ bool AArch64CGFunc::IsDuplicateAsmList(const MIRSymbol &sym) const {
   return false;
 }
 
-void AArch64CGFunc::SelectMPLProfCounterInc(IntrinsiccallNode &intrnNode) {
+void AArch64CGFunc::SelectMPLProfCounterInc(const IntrinsiccallNode &intrnNode) {
   ASSERT(intrnNode.NumOpnds() == 1, "must be 1 operand");
   BaseNode *arg1 = intrnNode.Opnd(0);
   ASSERT(arg1 != nullptr, "nullptr check");
@@ -9264,7 +9264,7 @@ Operand *AArch64CGFunc::SelectCisaligned(IntrinsicopNode &intrnNode) {
   return opnd0;
 }
 
-Operand *AArch64CGFunc::SelectAArch64CSyncFetch(IntrinsicopNode &intrinopNode,
+Operand *AArch64CGFunc::SelectAArch64CSyncFetch(const IntrinsicopNode &intrinopNode,
                                                 PrimType pty, bool CalculBefore, bool isAdd) {
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
   Operand *calculateEndOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
@@ -9309,7 +9309,7 @@ Operand *AArch64CGFunc::SelectAArch64CSyncFetch(IntrinsicopNode &intrinopNode,
   return CalculBefore ? addResult : fetchVal;
 }
 
-Operand *AArch64CGFunc::SelectCSyncCmpSwap(IntrinsicopNode &intrinopNode, PrimType pty, bool retBool) {
+Operand *AArch64CGFunc::SelectCSyncCmpSwap(const IntrinsicopNode &intrinopNode, PrimType pty, bool retBool) {
   Operand *addrOpnd = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnFirstOpnd));
   Operand *oldVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnSecondOpnd));
   Operand *newVal = HandleExpr(intrinopNode, *intrinopNode.GetNopndAt(kInsnThirdOpnd));
@@ -9480,7 +9480,7 @@ Operand *AArch64CGFunc::SelectCaligndown(IntrinsicopNode &intrnNode) {
   return SelectAArch64align(intrnNode, false);
 }
 
-Operand *AArch64CGFunc::SelectAArch64align(IntrinsicopNode &intrnNode, bool isUp) {
+Operand *AArch64CGFunc::SelectAArch64align(const IntrinsicopNode &intrnNode, bool isUp) {
   /* Handle Two args */
   BaseNode *argexpr0 = intrnNode.Opnd(0);
   PrimType ptype0 = argexpr0->GetPrimType();
@@ -10286,7 +10286,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
   if (!imm->IsConstImmediate()) {
     CHECK_FATAL(0, "VectorUShiftImm has invalid shift const");
   }
-  uint32 shift = ValidShiftConst(rType);
+  int32 shift = static_cast<int32>(ValidShiftConst(rType));
   bool needDup = false;
   if (opc == OP_shl) {
     if ((shift == k8BitSize && (sVal < 0 || static_cast<uint32>(sVal) >= shift)) ||

@@ -99,7 +99,7 @@ bool StrLdrSignedOfstValid(int64 value, uint wordSize) {
   if (value <= k256BitSize && value >= kNegative256BitSize) {
     return true;
   } else if ((value > k256BitSize) && (value <= kMaxPimm[wordSize])) {
-    uint64 mask = (1 << wordSize) - 1U;
+    uint64 mask = (1U << wordSize) - 1U;
     return (static_cast<uint64>(value) & mask) ? false : true;
   }
   return false;

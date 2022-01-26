@@ -61,11 +61,7 @@ BaseNode* ExtConstantFold::DispatchFold(BaseNode *node) {
     case OP_band:
     case OP_bior:
     case OP_bxor:
-//  case OP_cand:
-//  case OP_cior:
     case OP_div:
-//  case OP_land:
-//  case OP_lior:
     case OP_lshr:
     case OP_max:
     case OP_min:
@@ -256,8 +252,8 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
 
     bool isWorkable = true;
     for (uint32 i = 0; i < 64; i++) {
-      if ((lmVal & (1 << i)) == (rmVal & (1 << i)) &&
-          (lcVal & (1 << i)) != (rcVal & (1 << i))) {
+      if ((lmVal & (1U << i)) == (rmVal & (1U << i)) &&
+          (lcVal & (1U << i)) != (rcVal & (1U << i))) {
         isWorkable = false;
         break;
       }
