@@ -159,7 +159,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
 }
 
 ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &attributedStmt) {
-  ASTAttributedStmt *astAttributedStmt  = nullptr;
+  ASTAttributedStmt *astAttributedStmt  = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
   CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
   return astAttributedStmt;
 }
