@@ -464,7 +464,7 @@ bool SeqVectorize::CanSeqVec(IassignNode *s1, IassignNode *s2) {
 }
 
 static int PreviousPowerOfTwo(unsigned int x) {
-  return 1 << ((sizeof(x)*8 - 1) - __builtin_clz(x));
+  return 1U << ((sizeof(x)*8 - 1) - __builtin_clz(x));
 }
 
 void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {

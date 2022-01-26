@@ -32,7 +32,7 @@ constexpr uint32 kMaxIndex = 2;
 constexpr uint32 kLoopBodyNum = 1;
 constexpr uint32 kOperandNum = 2;
 
-bool ProfileCheck(maple::MeFunction &f) {
+bool ProfileCheck(const maple::MeFunction &f) {
   auto &profile = f.GetMIRModule().GetProfile();
   if (!profile.IsValid()) {
     if (LoopUnrollingExecutor::enableDebug) {
@@ -311,7 +311,7 @@ void LoopUnrolling::ResetFrequency(BB &bb) {
   if (freq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
     freq = 1;
   }
-  bb.SetFrequency(freq + partialCount);
+  bb.SetFrequency(static_cast<uint32>(freq + partialCount));
   for (size_t i = 0; i < bb.GetSucc().size(); ++i) {
     auto currFreq = bb.GetEdgeFreq(i) / replicatedLoopNum;
     if (currFreq == 0 && partialCount == 0 && bb.GetFrequency() != 0) {
@@ -327,16 +327,16 @@ void LoopUnrolling::ResetFrequency() {
   auto latchBB = loop->latch;
   if (isUnrollWithVar) {
     auto latchFreq = loop->head->GetFrequency() % replicatedLoopNum - loop->preheader->GetFrequency();
-    exitBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum - latchFreq);
+    exitBB->SetFrequency(static_cast<uint32>(loop->head->GetFrequency() % replicatedLoopNum - latchFreq));
     exitBB->SetEdgeFreq(latchBB, latchFreq);
-    latchBB->SetFrequency(latchFreq);
+    latchBB->SetFrequency(static_cast<uint32>(latchFreq));
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   } else {
     auto exitFreq = exitBB->GetFrequency() / replicatedLoopNum;
     if (exitFreq == 0 && exitBB->GetFrequency() != 0) {
       exitFreq = 1;
     }
-    exitBB->SetFrequency(exitFreq);
+    exitBB->SetFrequency(static_cast<uint32>(exitFreq));
     auto exitEdgeFreq = exitBB->GetEdgeFreq(latchBB) / replicatedLoopNum;
     if(exitEdgeFreq == 0 && exitBB->GetEdgeFreq(latchBB) != 0) {
       exitEdgeFreq = 1;
@@ -346,7 +346,7 @@ void LoopUnrolling::ResetFrequency() {
     if (latchFreq == 0 && latchBB->GetFrequency() != 0) {
       latchFreq = 1;
     }
-    latchBB->SetFrequency(latchFreq);
+    latchBB->SetFrequency(static_cast<uint32>(latchFreq));
     latchBB->SetEdgeFreq(loop->head, latchFreq);
   }
 }
@@ -620,7 +620,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   auto *preheader = cfg->NewBasicBlock();
   preheader->SetAttributes(kBBAttrArtificial);
   preheader->SetKind(kBBFallthru);
-  auto preheaderFreq = 0;
+  uint64 preheaderFreq = 0;
   if (profValid) {
     preheaderFreq = oldPreHeader->GetEdgeFreq(head);
   }
@@ -636,7 +636,7 @@ void LoopUnrolling::AddPreHeader(BB *oldPreHeader, BB *head) {
   head->AddPred(*preheader, index);
   if (profValid) {
     preheader->PushBackSuccFreq(preheaderFreq);
-    preheader->SetFrequency(preheaderFreq);
+    preheader->SetFrequency(static_cast<uint32>(preheaderFreq));
   }
   CondGotoMeStmt *condGotoStmt = static_cast<CondGotoMeStmt*>(oldPreHeader->GetLastMe());
   LabelIdx oldlabIdx = condGotoStmt->GetOffset();
@@ -658,7 +658,7 @@ bool LoopUnrolling::LoopPartialUnrollWithConst(uint64 tripCount) {
   if (tripCount / unrollTime < 1) {
     return false;
   }
-  uint32 remainder = (tripCount + kLoopBodyNum) % unrollTime;
+  uint32 remainder = (static_cast<uint32>(tripCount) + kLoopBodyNum) % unrollTime;
   if (!SplitCondGotoBB()) {
     return false;
   }
@@ -811,7 +811,8 @@ void LoopUnrolling::CopyLoopForPartial(BB &partialCondGoto, BB &exitedBB, BB &ex
   partialCondGoto.AddSucc(*partialHead);
   if (profValid) {
     partialCondGoto.PushBackSuccFreq(loop->head->GetFrequency() % replicatedLoopNum);
-    partialCondGoto.SetFrequency(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) + partialCondGoto.GetEdgeFreq(1));
+    partialCondGoto.SetFrequency(static_cast<uint32>(partialCondGoto.GetEdgeFreq(static_cast<size_t>(0)) +
+        partialCondGoto.GetEdgeFreq(1)));
   }
   CHECK_FATAL(partialCondGoto.GetKind() == kBBCondGoto, "must be partialCondGoto");
   CHECK_FATAL(!partialCondGoto.GetMeStmts().empty(), "must not be empty");
@@ -1024,7 +1025,7 @@ void LoopUnrollingExecutor::SetNestedLoop(const IdentifyLoops &meLoop,
   }
 }
 
-bool LoopUnrollingExecutor::IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const {
+bool LoopUnrollingExecutor::IsDoWhileLoop(const MeFunction &func, LoopDesc &loop) const {
   if (loop.inloopBB2exitBBs.find(loop.head->GetBBId()) != loop.inloopBB2exitBBs.end()) {
     // if head and exit are the same bb, this must be a do-while loop
     return true;
@@ -1043,7 +1044,7 @@ bool LoopUnrollingExecutor::IsDoWhileLoop(MeFunction &func, LoopDesc &loop) cons
   return true;
 }
 
-bool LoopUnrollingExecutor::PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) const {
+bool LoopUnrollingExecutor::PredIsOutOfLoopBB(const MeFunction &func, LoopDesc &loop) const {
   MeCFG *cfg = func.GetCfg();
   for (auto bbID : loop.loopBBs) {
     auto bb = cfg->GetBBFromID(bbID);
@@ -1145,7 +1146,7 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
 }
 
 void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
-    std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc) {
+    std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, const MapleAllocator &alloc) {
   if (enableDebug) {
     LogInfo::MapleLogger() << func.GetName() << "\n";
   }
@@ -1191,7 +1192,10 @@ void LoopUnrollingExecutor::ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMa
       if (loopUnrolling.LoopUnrollingWithConst(tripCount)) {
         isCFGChange = true;
       }
-    } else if ((type == kVarCR || type == kVarCondition) && itCR->GetOpndsSize() == kOperandNum) {
+    } else if ((type == kVarCR || type == kVarCondition) && itCR->GetOpndsSize() == kOperandNum &&
+               // Will create stmt : tripCount = (n - start) / stride, so the stride must not be zero.
+               itCR->GetOpnd(1)->GetCRType() == kCRConstNode &&
+               static_cast<CRConstNode*>(itCR->GetOpnd(1))->GetConstValue() != 0) {
       if (loopUnrolling.LoopPartialUnrollWithVar(*itCR, *conditionCRNode, i)) {
         isCFGChange = true;
       }

@@ -92,7 +92,7 @@ class AArch64RegOperand : public RegOperand {
     if64Vec = true;
   }
 
-  bool GetIF64Vec() {
+  bool GetIF64Vec() const {
     return if64Vec;
   }
 
@@ -116,7 +116,7 @@ class AArch64RegOperand : public RegOperand {
     vecElementSize = size;
   }
 
-  uint32 GetVecElementSize() const {
+  uint64 GetVecElementSize() const {
     return vecElementSize;
   }
 
@@ -746,7 +746,7 @@ class AArch64MemOperand : public MemOperand {
              static_cast<uint32>((1U << static_cast<uint32>(GetImmediateOffsetAlignment(dSize))) - 1)) != 0);
   }
 
-  static bool IsSIMMOffsetOutOfRange(int32 offset, bool is64bit, bool isLDSTPair) {
+  static bool IsSIMMOffsetOutOfRange(int64 offset, bool is64bit, bool isLDSTPair) {
     if (!isLDSTPair) {
       return (offset < kMinSimm32 || offset > kMaxSimm32);
     }
@@ -809,7 +809,7 @@ class AArch64MemOperand : public MemOperand {
   }
 
   void UpdateExtend(ExtendInfo flag) {
-    extend = flag | (1 << ShiftAmount());
+    extend = flag | (1U << ShiftAmount());
   }
 
   bool SignedExtend() const {
@@ -1015,11 +1015,11 @@ class ExtendShiftOperand : public OperandVisitable<ExtendShiftOperand> {
     return memPool.Clone<ExtendShiftOperand>(*this);
   }
 
-  uint32 GetShiftAmount() {
+  uint32 GetShiftAmount() const {
     return shiftAmount;
   }
 
-  ExtendOp GetExtendOp() {
+  ExtendOp GetExtendOp() const {
     return extendOp;
   }
 
@@ -1065,7 +1065,7 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
     return shiftAmount;
   }
 
-  ShiftOp GetShiftOp() {
+  ShiftOp GetShiftOp() const {
     return shiftOp;
   }
 

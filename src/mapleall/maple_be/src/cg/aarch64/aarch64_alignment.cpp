@@ -124,7 +124,7 @@ void AArch64AlignAnalysis::ComputeJumpAlign() {
   }
 }
 
-uint32 AArch64AlignAnalysis::GetAlignRange(uint32 alignedVal, uint32 addr) {
+uint32 AArch64AlignAnalysis::GetAlignRange(uint32 alignedVal, uint32 addr) const {
   if (addr == 0) {
     return addr;
   }
@@ -132,7 +132,7 @@ uint32 AArch64AlignAnalysis::GetAlignRange(uint32 alignedVal, uint32 addr) {
   return range;
 }
 
-bool AArch64AlignAnalysis::IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uint32 alignedRegionSize) {
+bool AArch64AlignAnalysis::IsInSameAlignedRegion(uint32 addr1, uint32 addr2, uint32 alignedRegionSize) const {
   return (((addr1 - 1) * kInsnSize) / alignedRegionSize) == (((addr2 - 1) * kInsnSize) / alignedRegionSize);
 }
 
@@ -142,7 +142,7 @@ bool AArch64AlignAnalysis::MarkCondBranchAlign() {
   bool change = false;
   FOR_ALL_BB(bb, aarFunc) {
     if (bb != nullptr && bb->IsBBNeedAlign()) {
-      uint32 alignedVal = (1 << bb->GetAlignPower());
+      uint32 alignedVal = (1U << bb->GetAlignPower());
       uint32 alignNopNum = GetAlignRange(alignedVal, addr);
       addr += alignNopNum;
       bb->SetAlignNopNum(alignNopNum);
@@ -202,7 +202,7 @@ void AArch64AlignAnalysis::UpdateInsnId() {
   uint32 id = 0;
   FOR_ALL_BB(bb, aarFunc) {
     if (bb != nullptr && bb->IsBBNeedAlign()) {
-      uint32 alignedVal = 1 << (bb->GetAlignPower());
+      uint32 alignedVal = 1U << (bb->GetAlignPower());
       uint32 range = GetAlignRange(alignedVal, id);
       id = id + (range > kAlignPseudoSize ? range : kAlignPseudoSize);
     }

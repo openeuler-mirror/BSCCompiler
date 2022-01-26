@@ -1754,7 +1754,7 @@ bool IsSameRegisterOperation(const RegOperand &desMovOpnd,
 }
 
 bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore,
-                                                               int32 baseOfst) {
+                                                               int64 baseOfst) {
   uint32 opndNum = insn.GetOperandSize();
   bool sameMemAccess = false; /* both store or load */
   if (insn.IsStore() == isStore) {
@@ -1778,7 +1778,7 @@ bool CombineContiLoadAndStoreAArch64::IsRegNotSameMemUseInInsn(const Insn &insn,
       regno_t stackBaseRegNO = cgFunc.UseFP() ? R29 : RSP;
       if (!sameMemAccess && base != nullptr) {
         regno_t curBaseRegNO = base->GetRegisterNumber();
-        uint32 memBarrierRange = insn.IsLoadStorePair() ? k16BitSize : k8BitSize;
+        int64 memBarrierRange = static_cast<int64>(insn.IsLoadStorePair() ? k16BitSize : k8BitSize);
         if (!(curBaseRegNO == regNO && memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
             memOpnd.GetOffsetImmediate() != nullptr &&
             (memOpnd.GetOffsetImmediate()->GetOffsetValue() <= (baseOfst - memBarrierRange) ||

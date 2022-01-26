@@ -601,7 +601,7 @@ class CombineContiLoadAndStoreAArch64 : public PeepPattern {
    * bl foo (change memory)
    * str x21, [x19, #16]
    */
-  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int32 baseOfst);
+  bool IsRegNotSameMemUseInInsn(const Insn &insn, regno_t regNO, bool isStore, int64 baseOfst);
   void RemoveInsnAndKeepComment(BB &bb, Insn &insn, Insn &prevInsn);
   MOperator GetMopHigherByte(MOperator mop) const;
   bool SplitOfstWithAddToCombine(Insn &insn, const AArch64MemOperand &memOpnd);

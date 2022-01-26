@@ -1840,7 +1840,7 @@ bool MIRStructType::HasVolatileField() const {
 }
 
 int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) {
-  CHECK_FATAL(fieldID <= NumberOfFieldIDs(), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
+  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
   }
@@ -1863,8 +1863,9 @@ int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) {
       } else {
         // if target field id is in the embedded structure, we should go into it by recursively call
         // otherwise, just add the field-id number of the embedded structure, and continue to next field
-        if ((curFieldID + subStructType->NumberOfFieldIDs()) < fieldID) {
-          curFieldID += subStructType->NumberOfFieldIDs() + 1; // 1 represents subStructType itself
+        if ((curFieldID + static_cast<FieldID>(subStructType->NumberOfFieldIDs())) < fieldID) {
+          // 1 represents subStructType itself
+          curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1;
         } else {
           return subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
         }
@@ -1876,7 +1877,7 @@ int64 MIRStructType::GetBitOffsetFromUnionBaseAddr(FieldID fieldID) {
 }
 
 int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
-  CHECK_FATAL(fieldID <= NumberOfFieldIDs(), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
+  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromUnionBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
   }
@@ -1884,7 +1885,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
   uint64 allocedSize = 0; // space need for all fields before currentField
   uint64 allocedBitSize = 0;
   FieldID curFieldID = 1;
-  constexpr uint64 bitsPerByte = 8; // 8 bits per byte
+  constexpr uint32 bitsPerByte = 8; // 8 bits per byte
   FieldVector fieldPairs = GetFields();
   // process the struct fields
   // There are 4 possible kinds of field in a MIRStructureType:
@@ -1952,7 +1953,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
       continue;
     } // case 2 end
 
-    uint32 fldSizeInBits = fieldTypeSize * bitsPerByte;
+    uint32 fldSizeInBits = static_cast<uint32>(fieldTypeSize) * bitsPerByte;
     bool leftOverBits = false;
     uint64 offset = 0;
     // no bit field before current field
@@ -1963,7 +1964,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
       // still some leftover bits on allocated words, we calculate things based on bits then.
       if (allocedBitSize / fieldAlignBits != (allocedBitSize + fldSizeInBits - 1) / fieldAlignBits) {
         // the field is crossing the align boundary of its base type
-        allocedBitSize = RoundUp(allocedBitSize, fieldAlignBits);
+        allocedBitSize = RoundUp(allocedBitSize, static_cast<uint32>(fieldAlignBits));
       }
       allocedSize = RoundUp(allocedSize, fieldAlign);
       offset = (allocedBitSize / fieldAlignBits) * fieldAlign;
@@ -1981,8 +1982,8 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
       // case 3 : normal (not empty) structure(struct/union) field;
       // if target field id is in the embedded structure, we should go into it by recursively call
       // otherwise, just add the field-id number of the embedded structure, and continue to next field
-      if ((curFieldID + subStructType->NumberOfFieldIDs()) < fieldID) {
-        curFieldID += subStructType->NumberOfFieldIDs() + 1; // 1 represents subStructType itself
+      if ((curFieldID + static_cast<FieldID>(subStructType->NumberOfFieldIDs())) < fieldID) {
+        curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1; // 1 represents subStructType itself
       } else {
         int64 result = subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
         return result + allocedSize * bitsPerByte;
@@ -1991,7 +1992,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
 
     if (leftOverBits) {
       allocedBitSize += fldSizeInBits;
-      allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, fieldAlignBits) / bitsPerByte);
+      allocedSize = std::max(allocedSize, RoundUp(allocedBitSize, static_cast<uint32>(fieldAlignBits)) / bitsPerByte);
     } else {
       allocedSize += fieldTypeSize;
       allocedBitSize = allocedSize * bitsPerByte;
@@ -2002,7 +2003,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
 }
 
 int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) {
-  CHECK_FATAL(fieldID <= NumberOfFieldIDs(), "GetBitOffsetFromBaseAddr: fieldID too large");
+  CHECK_FATAL(fieldID <= static_cast<FieldID>(NumberOfFieldIDs()), "GetBitOffsetFromBaseAddr: fieldID too large");
   if (fieldID == 0) {
     return 0;
   }
@@ -2028,7 +2029,7 @@ int64 MIRStructType::GetBitOffsetFromBaseAddr(FieldID fieldID) {
 // Whether the memory layout of struct has paddings
 bool MIRStructType::HasPadding() const {
   size_t sumValidSize = 0;
-  for (size_t i = 0; i < fields.size(); ++i) {
+  for (uint32 i = 0; i < fields.size(); ++i) {
     TyIdxFieldAttrPair pair = GetTyidxFieldAttrPair(i);
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(pair.first);
     if (fieldType->IsStructType() && static_cast<MIRStructType*>(fieldType)->HasPadding()) {
