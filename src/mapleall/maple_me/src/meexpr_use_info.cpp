@@ -158,7 +158,7 @@ bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, Sca
 
   for (auto it = useList->begin(); it != end; it = next) {
     next = std::next(it);
-    auto& useSite = *it;
+    auto &useSite = *it;
 
     if (useSite.IsUseByStmt()) {
       auto *useStmt = useSite.GetStmt();
@@ -168,7 +168,7 @@ bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, Sca
         useList->erase(it);
       }
     } else {
-      assert(useSite.IsUseByPhi() && "Invalid use type!");
+      ASSERT(useSite.IsUseByPhi(), "Invalid use type!");
 
       if (scalarA->GetOst() != scalarB->GetOst()) {
         replacedAll = false;
