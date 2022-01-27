@@ -329,13 +329,6 @@ std::list<UniqueFEIRStmt> ASTNullStmt::Emit2FEStmtImpl() const {
   return stmts;
 }
 
-// ---------- ASTAttributeStmt ----------
-std::list<UniqueFEIRStmt> ASTAttributedStmt::Emit2FEStmtImpl() const {
-  //there is no need to handle fallthrough - clang will
-  std::list<UniqueFEIRStmt> stmts;
-  return stmts;
-}
-
 // ---------- ASTDeclStmt ----------
 std::list<UniqueFEIRStmt> ASTDeclStmt::Emit2FEStmtImpl() const {
   std::list<UniqueFEIRStmt> stmts;

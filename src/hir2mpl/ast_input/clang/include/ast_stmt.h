@@ -14,7 +14,6 @@
  */
 #ifndef HIR2MPL_AST_INPUT_INCLUDE_AST_STMT_H
 #define HIR2MPL_AST_INPUT_INCLUDE_AST_STMT_H
-#include "clang/AST/Attr.h"
 #include "ast_op.h"
 #include "ast_expr.h"
 #include "feir_stmt.h"
@@ -111,11 +110,11 @@ class ASTReturnStmt : public ASTStmt {
 
 class ASTAttributedStmt : public ASTStmt {
   public:
-  ASTAttributedStmt() : ASTStmt(kASTStmtReturn) {}
-  ~ASTAttributedStmt() = default;
+  ASTAttributedStmt() : ASTStmt(kASTStmtAttributed) {}
+  ~ASTAttributedStmt() override = default;
 
   private:
-    std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override;
+    std::list<UniqueFEIRStmt> Emit2FEStmtImpl() const override{ return {}; };
 };
 
 class ASTIfStmt : public ASTStmt {
