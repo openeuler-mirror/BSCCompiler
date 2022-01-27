@@ -61,7 +61,7 @@ static void CreateGoto(BB &bb, MeFunction &func, BB &fallthru) {
   bb.SetKind(kBBGoto);
 }
 
-bool BBLayout::IsBBInCurrContext(BB &bb, const MapleVector<bool> *context) const {
+bool BBLayout::IsBBInCurrContext(const BB &bb, const MapleVector<bool> *context) const {
   if (context == nullptr) {
     return true;
   }
@@ -166,17 +166,17 @@ BB *BBLayout::FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context)
   return nullptr;
 }
 
-void BBLayout::DoBuildChain(BB &header, BBChain &chain, const MapleVector<bool> *context) {
+void BBLayout::DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context) {
   CHECK_FATAL(bb2chain[header.GetBBId()] == &chain, "bb2chain mis-match");
   BB *bb = chain.GetTail();
-  BB *bestSucc = GetBestSucc(*bb, chain, context, &header, false);
+  BB *bestSucc = GetBestSucc(*bb, chain, context, false);
   while (bestSucc != nullptr) {
     BBChain *succChain = bb2chain[bestSucc->GetBBId()];
     succChain->UpdateSuccChainBeforeMerged(chain, context, readyToLayoutChains);
     chain.MergeFrom(succChain);
     readyToLayoutChains.erase(succChain);
     bb = chain.GetTail();
-    bestSucc = GetBestSucc(*bb, chain, context, &header, false);
+    bestSucc = GetBestSucc(*bb, chain, context, false);
   }
   if (debugChainLayout) {
     bool inLoop = context != nullptr;
@@ -185,7 +185,7 @@ void BBLayout::DoBuildChain(BB &header, BBChain &chain, const MapleVector<bool> 
   }
 }
 
-bool BBLayout::IsCandidateSucc(BB &bb, BB &succ, const MapleVector<bool> *context) {
+bool BBLayout::IsCandidateSucc(const BB &bb, BB &succ, const MapleVector<bool> *context) {
   if (!IsBBInCurrContext(succ, context)) { // succ must be in the current context (current loop or current func)
     return false;
   }
@@ -199,7 +199,7 @@ bool BBLayout::IsCandidateSucc(BB &bb, BB &succ, const MapleVector<bool> *contex
 }
 
 // Whether succ has a better layout pred than bb
-bool BBLayout::HasBetterLayoutPred(BB &bb, BB &succ, const MapleVector<bool> *context) {
+bool BBLayout::HasBetterLayoutPred(const BB &bb, BB &succ) {
   auto &predList = succ.GetPred();
   // predList.size() may be 0 if bb is common entry BB
   if (predList.size() <= 1) {
@@ -213,7 +213,7 @@ bool BBLayout::HasBetterLayoutPred(BB &bb, BB &succ, const MapleVector<bool> *co
     if (predList[i] == &bb) {
       continue;
     }
-    uint32 edgeFreq = predList[i]->GetEdgeFreq(&succ);
+    uint32 edgeFreq = static_cast<uint32>(predList[i]->GetEdgeFreq(&succ));
     if (edgeFreq > (sumEdgeFreq - hotEdgeFreq)) {
       return true;
     }
@@ -223,7 +223,7 @@ bool BBLayout::HasBetterLayoutPred(BB &bb, BB &succ, const MapleVector<bool> *co
 
 // considerBetterPredForSucc: whether consider better layout pred for succ, we found better
 // performance when this argument is disabled
-BB *BBLayout::GetBestSucc(BB &bb, BBChain &chain, const MapleVector<bool> *context, BB *excludeHeader,
+BB *BBLayout::GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context,
                           bool considerBetterPredForSucc) {
   // (1) search in succ
   CHECK_FATAL(bb2chain[bb.GetBBId()] == &chain, "bb2chain mis-match");
@@ -234,10 +234,10 @@ BB *BBLayout::GetBestSucc(BB &bb, BBChain &chain, const MapleVector<bool> *conte
     if (!IsCandidateSucc(bb, *succ, context)) {
       continue;
     }
-    if (considerBetterPredForSucc && HasBetterLayoutPred(bb, *succ, context)) {
+    if (considerBetterPredForSucc && HasBetterLayoutPred(bb, *succ)) {
       continue;
     }
-    uint32 currEdgeFreq = bb.GetEdgeFreq(i);  // attention: entryBB->succFreq[i] is always 0
+    uint32 currEdgeFreq = static_cast<uint32>(bb.GetEdgeFreq(i));  // attention: entryBB->succFreq[i] is always 0
     if (bb.GetBBId() == 0) {  // special case for common entry BB
       CHECK_FATAL(bb.GetSucc().size() == 1, "common entry BB should not have more than 1 succ");
       bestSucc = succ;
@@ -273,7 +273,7 @@ BB *BBLayout::GetBestSucc(BB &bb, BBChain &chain, const MapleVector<bool> *conte
     } else { // use edge freq
       uint32 subBestFreq = 0;
       for (auto *pred : header->GetPred()) {
-        uint32 curFreq = pred->GetEdgeFreq(header);
+        uint32 curFreq = static_cast<uint32>(pred->GetEdgeFreq(header));
         if (curFreq > subBestFreq) {
           subBestFreq = curFreq;
         }
@@ -533,7 +533,7 @@ bool BBLayout::BBIsEmpty(BB *bb) {
 
 void BBLayout::OptimizeCaseTargets(BB *switchBB, CaseVector *swTable) {
   CaseVector::iterator caseIt = swTable->begin();
-  for (; caseIt != swTable->end(); caseIt++) {
+  for (; caseIt != swTable->end(); ++caseIt) {
     LabelIdx lidx = caseIt->second;
     BB *brTargetBB = func.GetCfg()->GetLabelBBAt(lidx);
     if (brTargetBB->GetSucc().size() != 0) {
@@ -947,16 +947,27 @@ BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
 void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
   if (needDealWithTryBB) { return; }
   auto *fallthru = bb.GetSucc().front();
-  if (fallthru && fallthru->GetBBLabel() == 0 &&
-      (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
-    if (fallthru->GetSucc().front() == bb.GetSucc().back()) {
-      bb.ReplaceSucc(fallthru, bb.GetSucc().back());
+  while (fallthru && (fallthru->GetPred().size() == 1) &&
+         (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
+    BB *newFallthru = fallthru->GetSucc().front();
+    if (newFallthru == bb.GetSucc().back()) {
+      bb.ReplaceSucc(fallthru, newFallthru);
       ASSERT(fallthru->GetPred().empty(), "fallthru should not has other pred");
       ChangeToFallthruFromCondGoto(bb);
       bb.GetSucc().resize(1); // resize succ to 1
-      laidOut[fallthru->GetBBId()] = true;
-      RemoveUnreachable(*fallthru);
+    } else if (newFallthru->GetPred().size() == 1) {
+      if (newFallthru->GetBBLabel() != 0) {
+        // reset newFallthru label
+        newFallthru->SetBBLabel(0);
+      }
+      // replace empty fallthru with fallthru's succ
+      bb.ReplaceSucc(fallthru, newFallthru);
+    } else {
+      break;
     }
+    laidOut[fallthru->GetBBId()] = true;
+    RemoveUnreachable(*fallthru);
+    fallthru = newFallthru;
   }
 }
 
@@ -992,7 +1003,20 @@ void BBLayout::OptimiseCFG() {
       }
     }
   }
-  cfg->UnreachCodeAnalysis(false);
+  (void)cfg->UnreachCodeAnalysis(false);
+
+  // do 2nd fallthru optimize if succs of bb were optimized by first iteration
+  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
+    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
+      continue;
+    }
+    auto *bb = *bIt;
+    if (bb->GetKind() == kBBCondGoto) {
+      OptimizeEmptyFallThruBB(*bb);
+    }
+  }
+  (void)cfg->UnreachCodeAnalysis(false);
+
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
@@ -1152,7 +1176,7 @@ void BBLayout::AddBBProf(BB &bb) {
         condGotoNode.SetOpCode((condGotoNode.GetOpCode() == OP_brtrue) ? OP_brfalse : OP_brtrue);
       }
     } else if (&bb != fallthru) {
-      CreateGotoBBAfterCondBB(*curBB, *fallthru);
+      (void)CreateGotoBBAfterCondBB(*curBB, *fallthru);
     }
   }
   AddBB(bb);
@@ -1292,7 +1316,7 @@ void BBLayout::LayoutWithProf(bool useChainLayout) {
       }
     } else if (lastBB->GetKind() == kBBCondGoto) {
       BB *fallthru = lastBB->GetSucc(0);
-      CreateGotoBBAfterCondBB(*lastBB, *fallthru);
+      (void)CreateGotoBBAfterCondBB(*lastBB, *fallthru);
     }
   }
 }
@@ -1303,6 +1327,21 @@ void BBLayout::RunLayout() {
     LayoutWithProf(true);
   } else {
     LayoutWithoutProf();
+  }
+}
+
+// check condBB if they have same succs
+void BBLayout::VerifyBB() {
+  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
+    auto *bb = *bIt;
+    if (bb->GetKind() == kBBCondGoto) {
+      auto *fallthru = bb->GetSucc(0);
+      auto *targetBB = bb->GetSucc(1);
+      if (fallthru == targetBB ||
+          (BBEmptyAndFallthru(*fallthru) && (fallthru->GetSucc(0) == targetBB))) {
+        LogInfo::MapleLogger() << "WARN: cond BB " << bb->GetBBId() << " has same target";
+      }
+    }
   }
 }
 
@@ -1322,7 +1361,10 @@ bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
   }
   bbLayout->RunLayout();
   f.SetLaidOutBBs(bbLayout->GetBBs());
+
   if (DEBUGFUNC_NEWPM(f)) {
+    // verify CFG : check condBB's succs should be different
+    bbLayout->VerifyBB();
     bbLayout->DumpBBPhyOrder();
     cfg->DumpToFile("afterBBLayout", false);
   }
