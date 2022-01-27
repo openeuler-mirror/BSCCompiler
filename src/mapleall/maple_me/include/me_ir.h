@@ -473,7 +473,7 @@ class MePhiNode {
     isLive = isLiveVal;
   }
 
-  bool GetIsLive() {
+  bool GetIsLive() const {
     return isLive;
   }
 
@@ -660,11 +660,11 @@ class FieldsDistMeExpr : public MeExpr {
     return tyIdx;
   }
 
-  FieldID GetFieldID1() {
+  FieldID GetFieldID1() const {
     return fieldID1;
   }
 
-  FieldID GetFieldID2() {
+  FieldID GetFieldID2() const {
     return fieldID2;
   }
 
@@ -1128,7 +1128,7 @@ class NaryMeExpr : public MeExpr {
   uint8 GetDepth() const override {
     return depth;
   }
-  bool IsIdentical(NaryMeExpr&) const;
+  bool IsIdentical(const NaryMeExpr&) const;
   bool IsUseSameSymbol(const MeExpr&) const override;
   BaseNode &EmitExpr(SSATab&) override;
   MeExpr *GetIdenticalExpr(MeExpr &expr, bool) const override;
@@ -1283,7 +1283,7 @@ class MeStmt {
     return nullptr;
   }
 
-  void CopyBase(MeStmt &meStmt) {
+  void CopyBase(const MeStmt &meStmt) {
     bb = meStmt.bb;
     srcPos = meStmt.srcPos;
     isLive = meStmt.isLive;
@@ -1408,7 +1408,7 @@ class MeStmt {
     op = currOp;
   }
 
-  uint32 GetOriginalId() {
+  uint32 GetOriginalId() const {
     return originalId;
   }
 
@@ -1603,7 +1603,7 @@ class PiassignMeStmt : public MeStmt {
     isToken = t;
   }
 
-  bool GetIsToken() {
+  bool GetIsToken() const {
     return isToken;
   }
 
@@ -1723,7 +1723,7 @@ class DassignMeStmt : public AssignMeStmt {
     return &chiList;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
+  void SetChiList(const MapleMap<OStIdx, ChiMeNode*> &value) {
     chiList = value;
   }
 
@@ -1753,7 +1753,7 @@ class DassignMeStmt : public AssignMeStmt {
     return static_cast<VarMeExpr *>(lhs);
   }
 
-  bool GetOmitEmit() {
+  bool GetOmitEmit() const {
     return omitEmit;
   }
 
@@ -1761,7 +1761,7 @@ class DassignMeStmt : public AssignMeStmt {
     omitEmit = val;
   }
 
-  bool GetEmitDassignoff() {
+  bool GetEmitDassignoff() const {
     return emitDassignoff;
   }
 
@@ -1809,7 +1809,7 @@ class MaydassignMeStmt : public MeStmt {
     return &chiList;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
+  void SetChiList(const MapleMap<OStIdx, ChiMeNode*> &value) {
     chiList = value;
   }
 
@@ -1948,7 +1948,7 @@ class IassignMeStmt : public MeStmt {
     return &chiList;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
+  void SetChiList(const MapleMap<OStIdx, ChiMeNode*> &value) {
     chiList = value;
   }
 
@@ -1999,7 +1999,7 @@ class IassignMeStmt : public MeStmt {
     tyIdx = val->GetTyIdx();
   }
 
-  bool GetOmitEmit() {
+  bool GetOmitEmit() const {
     return omitEmit;
   }
 
@@ -2007,7 +2007,7 @@ class IassignMeStmt : public MeStmt {
     omitEmit = val;
   }
 
-  bool GetEmitIassignoff() {
+  bool GetEmitIassignoff() const {
     return emitIassignoff;
   }
 
@@ -2067,7 +2067,7 @@ class NaryMeStmt : public MeStmt {
     opnds.pop_back();
   }
 
-  void SetOpnds(MapleVector<MeExpr*> &opndsVal) {
+  void SetOpnds(const MapleVector<MeExpr*> &opndsVal) {
     opnds = opndsVal;
   }
 
@@ -2104,7 +2104,7 @@ class MuChiMePart {
     return &chiList;
   }
 
-  void SetChiList(MapleMap<OStIdx, ChiMeNode*> &value) {
+  void SetChiList(const MapleMap<OStIdx, ChiMeNode*> &value) {
     chiList = value;
   }
 
@@ -2551,7 +2551,7 @@ class AsmMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
     return &mustDefList;
   }
   StmtNode &EmitStmt(SSATab &ssaTab);
- public:
+
   MapleString asmString;
   MapleVector<UStrIdx> inputConstraints;  // length is numOpnds
   MapleVector<UStrIdx> outputConstraints; // length is returnValues.size()
@@ -2617,16 +2617,20 @@ class UnaryMeStmt : public MeStmt {
 
 class SafetyCallCheckMeStmt {
  public:
-  SafetyCallCheckMeStmt(const std::string& funcName, size_t paramIndex)
-      : funcNameIdx(GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName)),
-        paramIndex(paramIndex) {}
+  SafetyCallCheckMeStmt(GStrIdx funcNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
+      : funcNameIdx(funcNameIdx), paramIndex(paramIndex), stmtFuncNameIdx(stmtFuncNameIdx) {}
   explicit SafetyCallCheckMeStmt(const SafetyCallCheckMeStmt& stmt)
-      : funcNameIdx(stmt.GetFuncNameIdx()), paramIndex(stmt.GetParamIndex()) {}
+      : funcNameIdx(stmt.GetFuncNameIdx()), paramIndex(stmt.GetParamIndex()),
+        stmtFuncNameIdx(stmt.GetStmtFuncNameIdx()) {}
 
   virtual ~SafetyCallCheckMeStmt() = default;
 
   const std::string& GetFuncName() const {
     return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
+  }
+
+  const std::string& GetStmtFuncName() const {
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(stmtFuncNameIdx);
   }
 
   GStrIdx GetFuncNameIdx() const {
@@ -2636,27 +2640,82 @@ class SafetyCallCheckMeStmt {
   size_t GetParamIndex() const {
     return paramIndex;
   }
+
+  GStrIdx GetStmtFuncNameIdx() const {
+    return stmtFuncNameIdx;
+  }
+
  private:
   GStrIdx funcNameIdx;
   size_t paramIndex;
+  GStrIdx stmtFuncNameIdx;
+};
+
+class SafetyCheckMeStmt {
+ public:
+  explicit SafetyCheckMeStmt(GStrIdx funcNameIdx)
+      : funcNameIdx(funcNameIdx) {}
+  explicit SafetyCheckMeStmt(const SafetyCheckMeStmt& stmt)
+      : funcNameIdx(stmt.GetFuncNameIdx()) {}
+  SafetyCheckMeStmt() {}
+
+  virtual ~SafetyCheckMeStmt() = default;
+
+  const std::string& GetFuncName() const {
+    return GlobalTables::GetStrTable().GetStringFromStrIdx(funcNameIdx);
+  }
+
+  GStrIdx GetFuncNameIdx() const {
+    return funcNameIdx;
+  }
+
+ private:
+  GStrIdx funcNameIdx;
+};
+
+class AssertNonnullMeStmt : public UnaryMeStmt, public SafetyCheckMeStmt {
+ public:
+  explicit AssertNonnullMeStmt(const AssertNonnullStmtNode *stt)
+      : UnaryMeStmt(stt), SafetyCheckMeStmt(stt->GetFuncNameIdx()) {}
+  explicit AssertNonnullMeStmt(const UnaryStmtNode *stt)
+      : UnaryMeStmt(stt), SafetyCheckMeStmt() {}
+  explicit AssertNonnullMeStmt(const AssertNonnullMeStmt &stt)
+      : UnaryMeStmt(&stt), SafetyCheckMeStmt(static_cast<const SafetyCheckMeStmt&>(stt)) {}
+  ~AssertNonnullMeStmt() = default;
+  StmtNode &EmitStmt(SSATab &ssaTab);
 };
 
 class CallAssertNonnullMeStmt : public UnaryMeStmt, public SafetyCallCheckMeStmt {
  public:
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullStmtNode *stt)
-      : UnaryMeStmt(stt), SafetyCallCheckMeStmt(stt->GetFuncName(), stt->GetParamIndex()) {}
-  CallAssertNonnullMeStmt(Opcode o, std::string &funcName, size_t paramIndex)
-      : UnaryMeStmt(o), SafetyCallCheckMeStmt(funcName, paramIndex) {}
+      : UnaryMeStmt(stt), SafetyCallCheckMeStmt(stt->GetFuncNameIdx(), stt->GetParamIndex(),
+                                                stt->GetStmtFuncNameIdx()) {}
+  CallAssertNonnullMeStmt(Opcode o, GStrIdx funcNameIdx, size_t paramIndex, GStrIdx stmtFuncNameIdx)
+      : UnaryMeStmt(o), SafetyCallCheckMeStmt(funcNameIdx, paramIndex, stmtFuncNameIdx) {}
   explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt &stt)
-      : UnaryMeStmt(&stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+      : UnaryMeStmt(stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
+  explicit CallAssertNonnullMeStmt(const CallAssertNonnullMeStmt *stt)
+      : UnaryMeStmt(*stt), SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(*stt)) {}
   ~CallAssertNonnullMeStmt() = default;
+  StmtNode &EmitStmt(SSATab &ssaTab);
+};
+
+class AssertBoundaryMeStmt : public NaryMeStmt, public SafetyCheckMeStmt {
+ public:
+  AssertBoundaryMeStmt(MapleAllocator *alloc, const AssertBoundaryStmtNode *stt)
+      : NaryMeStmt(alloc, stt), SafetyCheckMeStmt(stt->GetFuncNameIdx()) {}
+  AssertBoundaryMeStmt(MapleAllocator *alloc, const AssertBoundaryMeStmt &stt)
+      : NaryMeStmt(alloc, static_cast<const NaryMeStmt*>(&stt)),
+        SafetyCheckMeStmt(static_cast<const SafetyCheckMeStmt&>(stt)) {}
+  ~AssertBoundaryMeStmt() = default;
   StmtNode &EmitStmt(SSATab &ssaTab);
 };
 
 class CallAssertBoundaryMeStmt : public NaryMeStmt, public SafetyCallCheckMeStmt {
  public:
   CallAssertBoundaryMeStmt(MapleAllocator *alloc, const CallAssertBoundaryStmtNode *stt)
-      : NaryMeStmt(alloc, stt), SafetyCallCheckMeStmt(stt->GetFuncName(), stt->GetParamIndex()) {}
+      : NaryMeStmt(alloc, stt), SafetyCallCheckMeStmt(stt->GetFuncNameIdx(), stt->GetParamIndex(),
+                                                      stt->GetStmtFuncNameIdx()) {}
   CallAssertBoundaryMeStmt(MapleAllocator *alloc, const CallAssertBoundaryMeStmt &stt)
       : NaryMeStmt(alloc, static_cast<const NaryMeStmt*>(&stt)),
         SafetyCallCheckMeStmt(static_cast<const SafetyCallCheckMeStmt&>(stt)) {}
@@ -2826,7 +2885,7 @@ class SwitchMeStmt : public UnaryMeStmt {
     defaultLabel = curr;
   }
 
-  void SetCaseLabel(uint32 caseIdx, LabelIdx label) {
+  void SetCaseLabel(size_t caseIdx, LabelIdx label) {
     switchTable[caseIdx].second = label;
   }
 

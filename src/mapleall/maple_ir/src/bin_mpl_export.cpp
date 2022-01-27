@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -243,6 +243,7 @@ void OutputTypeStruct(const MIRType &ty, BinaryMplExport &mplExport, bool) {
     kind = kTypeStructIncomplete;
   }
   mplExport.WriteNum(kind);
+  mplExport.OutputTypeAttrs(type.GetTypeAttrs());
   if (kind != kTypeStructIncomplete) {
     mplExport.OutputStructTypeData(type);
   }
@@ -621,6 +622,7 @@ void BinaryMplExport::OutputSymbol(MIRSymbol *sym) {
   WriteNum(sym->GetScopeIdx());
   OutputStr(sym->GetNameStrIdx());
   OutputUsrStr(sym->sectionAttr);
+  OutputUsrStr(sym->GetAsmAttr());
   WriteNum(sym->GetSKind());
   WriteNum(sym->GetStorageClass());
   size_t mark = symMark.size();
@@ -879,10 +881,10 @@ void BinaryMplExport::WriteSeField() {
   WriteNum(~kBinSeStart);
 }
 
-void BinaryMplExport::OutEaCgBaseNode(EACGBaseNode &node, bool firstPart) {
+void BinaryMplExport::OutEaCgBaseNode(const EACGBaseNode &node, bool firstPart) {
   if (firstPart) {
     WriteNum(node.eaStatus);
-    WriteInt(node.id);
+    WriteInt(static_cast<int32>(node.id));
   } else {
     // in and out set in base node is not necessary to be outed
     // start to out point-to set
@@ -938,7 +940,7 @@ void BinaryMplExport::OutEaCgObjNode(EACGObjectNode &obj) {
   Fixup(outFieldSizeIdx, size);
 }
 
-void BinaryMplExport::OutEaCgRefNode(EACGRefNode &ref) {
+void BinaryMplExport::OutEaCgRefNode(const EACGRefNode &ref) {
   Write(uint8(ref.isStaticField));
 }
 
@@ -955,7 +957,7 @@ void BinaryMplExport::OutEaCgFieldNode(EACGFieldNode &field) {
   Write(uint8(field.isPhantom));
 }
 
-void BinaryMplExport::OutEaCgActNode(EACGActualNode &act) {
+void BinaryMplExport::OutEaCgActNode(const EACGActualNode &act) {
   Write(uint8(act.isPhantom));
   Write(uint8(act.isReturn));
   Write(act.argIdx);
@@ -1085,7 +1087,6 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       ASSERT(!(s->IsWpoFakeParm() || s->IsWpoFakeRet()) || s->IsDeleted(), "wpofake var not deleted");
       MIRStorageClass storageClass = s->GetStorageClass();
       MIRSymKind sKind = s->GetSKind();
-
       if (s->IsDeleted() || storageClass == kScUnused ||
           (s->GetIsImported() && !s->GetAppearsInCode()) ||
           (storageClass == kScExtern && sKind == kStFunc)) {
@@ -1095,7 +1096,6 @@ void BinaryMplExport::WriteSymField(uint64 contentIdx) {
       size++;
     }
   }
-
   Fixup(totalSizeIdx, buf.size() - totalSizeIdx);
   Fixup(outsymSizeIdx, size);
   WriteNum(~kBinSymStart);
@@ -1273,7 +1273,7 @@ void BinaryMplExport::OutputType(TyIdx tyIdx, bool canUseTypename) {
   }
 }
 
-void DoUpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
+void UpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
   BinaryMplImport &binImport = binMplt.GetBinImport();
   BinaryMplExport &binExport = binMplt.GetBinExport();
   binImport.SetBufI(0);
@@ -1308,17 +1308,4 @@ void DoUpdateMplt::UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg) {
   binExport.AppendAt(filename, cgStart);
 }
 
-AnalysisResult *DoUpdateMplt::Run(MIRModule *module, ModuleResultMgr *moduleResultMgr) {
-  if (moduleResultMgr == nullptr) {
-    return nullptr;
-  }
-  auto *cg = static_cast<CallGraph*>(moduleResultMgr->GetAnalysisResult(MoPhase_CALLGRAPH_ANALYSIS, module));
-  CHECK_FATAL(cg != nullptr, "Expecting a valid CallGraph, found nullptr.");
-  BinaryMplt *binMplt = module->GetBinMplt();
-  CHECK_FATAL(binMplt != nullptr, "Expecting a valid binMplt, found nullptr.");
-  UpdateCgField(*binMplt, *cg);
-  delete module->GetBinMplt();
-  module->SetBinMplt(nullptr);
-  return nullptr;
-}
 }  // namespace maple

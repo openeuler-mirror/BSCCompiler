@@ -399,7 +399,7 @@ class ValueRangePropagation {
   bool TheValueOfOpndIsInvaliedInABCO(const BB &bb, MeStmt *meStmt, MeExpr &boundOpnd, bool updateCaches = true);
 
  private:
-  bool IsBiggerThanMaxInt64(ValueRange &valueRange) const;
+  bool IsBiggerThanMaxInt64(const ValueRange &valueRange) const;
 
   std::unique_ptr<ValueRange> CreateValueRangeOfNotEqualZero(PrimType pType) const {
     return std::make_unique<ValueRange>(Bound(nullptr, 0, pType), kNotEqual);
@@ -436,14 +436,14 @@ class ValueRangePropagation {
     }
   }
 
-  void Insert2NewMergeBB2Opnd(BB &bb, MeExpr &opnd) {
+  void Insert2NewMergeBB2Opnd(BB &bb, const MeExpr &opnd) {
     auto ret = newMergeBB2Opnd.emplace(&bb, opnd.GetExprID());
     if (!ret.second) {
       CHECK_FATAL(ret.first->second == opnd.GetExprID(), "must be equal");
     }
   }
 
-  BB *GetNewCopyFallthruBB(BB &trueOrFalseBranch, BB &bb) {
+  BB *GetNewCopyFallthruBB(BB &trueOrFalseBranch, const BB &bb) {
     auto it = trueOrFalseBranch2NewCopyFallthru.find(&trueOrFalseBranch);
     if (it == trueOrFalseBranch2NewCopyFallthru.end()) {
       return nullptr;
@@ -500,38 +500,43 @@ class ValueRangePropagation {
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
   void InsertValueRangeOfCondExpr2Caches(BB &bb, const MeStmt &stmt);
-  void DealWithBrStmtWithOneOpnd(BB &bb, CondGotoMeStmt &stmt, MeExpr &opnd, Opcode op);
+  void DealWithBrStmtWithOneOpnd(BB &bb, const CondGotoMeStmt &stmt, MeExpr &opnd, Opcode op);
   bool OverflowOrUnderflow(PrimType pType, int64 lhs, int64 rhs) const;
-  void DealWithAssign(BB &bb, MeStmt &stmt);
+  void DealWithAssign(BB &bb, const MeStmt &stmt);
   bool IsConstant(const BB &bb, MeExpr &expr, int64 &constant, bool canNotBeNotEqual = true);
   std::unique_ptr<ValueRange> CreateValueRangeForPhi(
-      LoopDesc &loop, BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, ScalarMeExpr &lhsOfPhi);
-  bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res);
+      LoopDesc &loop, const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge,
+      const ScalarMeExpr &lhsOfPhi);
+  bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
-  std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, OpMeExpr &opMeExpr);
-  bool CanComputeLoopIndVar(MeExpr &phiLHS, MeExpr &expr, int64 &constant);
+  std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
+  bool CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant);
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
-  InRangeType InRange(const BB &bb, ValueRange &rangeTemp, ValueRange &range, bool lowerIsZero = false);
-  std::unique_ptr<ValueRange> CombineTwoValueRange(ValueRange &leftRange, ValueRange &rightRange, bool merge = false);
+  InRangeType InRange(const BB &bb, const ValueRange &rangeTemp, const ValueRange &range, bool lowerIsZero = false);
+  std::unique_ptr<ValueRange> CombineTwoValueRange(const ValueRange &leftRange,
+                                                   const ValueRange &rightRange, bool merge = false);
   void DealWithArrayLength(const BB &bb, MeExpr &lhs, MeExpr &rhs);
   void DealWithArrayCheck(BB &bb, MeStmt &meStmt, MeExpr &meExpr);
   void DealWithArrayCheck();
-  bool IfAnalysisedBefore(BB &bb, MeStmt &stmt);
+  bool IfAnalysisedBefore(const BB &bb, const MeStmt &stmt);
   std::unique_ptr<ValueRange> MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode);
   void ReplaceBoundForSpecialLoopRangeValue(LoopDesc &loop, ValueRange &valueRangeOfIndex, bool upperIsSpecial);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicIncreaseVar(
-      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride);
+      const LoopDesc &loop, BB &exitBB, const BB &bb, OpMeExpr &opMeExpr,
+      MeExpr &opnd1, Bound &initBound, int64 stride);
   std::unique_ptr<ValueRange> CreateValueRangeForMonotonicDecreaseVar(
-      LoopDesc &loop, BB &exitBB, BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd1, Bound &initBound, int64 stride);
-  void CreateValueRangeForLeOrLt(MeExpr &opnd, ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
-                                 BB &trueBranch, BB &falseBranch);
-  void CreateValueRangeForGeOrGt(MeExpr &opnd,  ValueRange *leftRange, Bound newRightUpper, Bound newRightLower,
-                                 BB &trueBranch, BB &falseBranch);
+      const LoopDesc &loop, BB &exitBB, const BB &bb, OpMeExpr &opMeExpr,
+      MeExpr &opnd1, Bound &initBound, int64 stride);
+  void CreateValueRangeForLeOrLt(const MeExpr &opnd, ValueRange *leftRange, Bound newRightUpper,
+                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch);
+  void CreateValueRangeForGeOrGt(const MeExpr &opnd,  ValueRange *leftRange, Bound newRightUpper,
+                                 Bound newRightLower, const BB &trueBranch, const BB &falseBranch);
   void CreateValueRangeForCondGoto(
-      BB &bb, MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch);
+      BB &bb, const MeExpr &opnd, Opcode op, ValueRange *leftRange,
+      ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch);
   void DealWithCondGoto(BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt);
   bool CreateNewBoundWhenAddOrSub(Opcode op, Bound bound, int64 rhsConstant, Bound &res);
@@ -542,20 +547,20 @@ class ValueRangePropagation {
   void InsertOstOfPhi2Cands(BB &bb, size_t i, bool setPhiIsDead = false);
   void AnalysisUnreachableBBOrEdge(BB &bb, BB &unreachableBB, BB &succBB);
   void CreateValueRangeForNeOrEq(
-      MeExpr &opnd, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch);
+       const MeExpr &opnd, ValueRange *leftRange, ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch);
   void DeleteUnreachableBBs();
-  bool BrStmtInRange(const BB &bb, ValueRange &leftRange, ValueRange &rightRange, Opcode op,
+  bool BrStmtInRange(const BB &bb, const ValueRange &leftRange, const ValueRange &rightRange, Opcode op,
                      PrimType opndType, bool judgeNotInRange = false);
-  void ChangeLoop2Goto(LoopDesc &loop, BB &bb, BB &succBB, BB &unreachableBB);
+  void ChangeLoop2Goto(LoopDesc &loop, BB &bb, BB &succBB, const BB &unreachableBB);
   void UpdateTryAttribute(BB &bb);
   void GetTrueAndFalseBranch(Opcode op, BB &bb, BB *&trueBranch, BB *&falseBranch) const;
   Opcode GetTheOppositeOp(Opcode op) const;
-  bool GetValueRangeOfCondGotoOpnd(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
+  bool GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
   bool ConditionEdgeCanBeDeleted(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
-      ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op);
+      const ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op);
   void GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB);
   bool ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,
                                  BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto = nullptr);
@@ -568,11 +573,11 @@ class ValueRangePropagation {
   bool CopyFallthruBBAndRemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBranch);
   size_t GetRealPredSize(const BB &bb) const;
   bool RemoveTheEdgeOfPredBB(BB &pred, BB &bb, BB &trueBranch);
-  void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, MeExpr &opnd0, MeExpr &opnd1,
+  void DealWithCondGotoWhenRightRangeIsNotExist(BB &bb, const MeExpr &opnd0, MeExpr &opnd1,
                                                 Opcode opOfBrStmt, Opcode conditionalOp);
   MeExpr *GetDefOfBase(const IvarMeExpr &ivar) const;
-  void DealWithMeOp(const BB &bb, MeStmt &stmt);
-  void ReplaceOpndByDef(BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
+  void DealWithMeOp(const BB &bb, const MeStmt &stmt);
+  void ReplaceOpndByDef(const BB &bb, MeExpr &currOpnd, MeExpr *&predOpnd,
       MapleVector<ScalarMeExpr*> &phiOpnds, bool &thePhiIsInBB);
   bool AnalysisValueRangeInPredsOfCondGotoBB(BB &bb, MeExpr &opnd0, MeExpr &currOpnd,
       ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op, BB *condGoto = nullptr);
@@ -581,58 +586,59 @@ class ValueRangePropagation {
   void DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &meExpr);
   void CollectMeExpr(const BB &bb, MeStmt &stmt, MeExpr &meExpr,
                      std::map<MeExpr*, std::pair<int64, PrimType>> &expr2ConstantValue);
-  void ReplaceOpndWithConstMeExpr(BB &bb, MeStmt &stmt);
+  void ReplaceOpndWithConstMeExpr(const BB &bb, MeStmt &stmt);
   bool OnlyHaveOneCondGotoPredBB(const BB &bb, const BB &condGotoBB) const;
-  void GetValueRangeForUnsignedInt(BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd, ValueRange *&valueRange,
+  void GetValueRangeForUnsignedInt(const BB &bb, OpMeExpr &opMeExpr, const MeExpr &opnd, ValueRange *&valueRange,
                                    std::unique_ptr<ValueRange> &rightRangePtr);
-  void GetValueRangeOfCRNode(BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange,
+  void GetValueRangeOfCRNode(const BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange,
                              PrimType pTypeOfArray);
   std::unique_ptr<ValueRange> GetValueRangeOfCRNodes(
       BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes);
-  bool DealWithAssertNonnull(BB &bb, MeStmt &meStmt);
+  bool DealWithAssertNonnull(BB &bb, const MeStmt &meStmt);
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   MeExpr *GetAddressOfIndexOrBound(MeExpr &expr) const;
-  std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(BB &bb, MeExpr &opnd);
+  std::unique_ptr<ValueRange> FindValueRangeInCurrBBOrDominateBBs(const BB &bb, MeExpr &opnd);
   bool ThePhiLHSIsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   bool IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const;
   void CollectIndexOpndWithBoundInLoop(
       LoopDesc &loop, BB &bb, MeStmt &meStmt, MeExpr &opnd, std::map<MeExpr*, MeExpr*> &index2NewExpr);
   std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
-      std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
+      const std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
       int64 constant);
   std::unique_ptr<ValueRange> ComputeTheValueRangeOfIndex(
       std::unique_ptr<ValueRange> &valueRangeOfIndex, std::unique_ptr<ValueRange> &valueRangOfOpnd,
       ValueRange &constantValueRange);
   bool CompareConstantOfIndexAndLength(
-      MeStmt &meStmt, ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op);
-  bool CompareIndexWithUpper(BB &bb, MeStmt &meStmt, ValueRange &valueRangeOfIndex,
+      const MeStmt &meStmt, const ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op);
+  bool CompareIndexWithUpper(const BB &bb, const MeStmt &meStmt, const ValueRange &valueRangeOfIndex,
                              ValueRange &valueRangeOfLengthPtr, Opcode op, MeExpr *indexOpnd = nullptr);
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
-  std::unique_ptr<ValueRange> ZeroIsInRange(ValueRange &valueRange);
+  std::unique_ptr<ValueRange> ZeroIsInRange(const ValueRange &valueRange);
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
-  bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
-  bool DealWithSpecialCondGoto(OpMeExpr &opMeExpr, ValueRange &leftRange, ValueRange &rightRange,
+  bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
+          const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
+  bool DealWithSpecialCondGoto(OpMeExpr &opMeExpr, const ValueRange &leftRange, ValueRange &rightRange,
                                CondGotoMeStmt &brMeStmt);
   void UpdateOrDeleteValueRange(const MeExpr &opnd, std::unique_ptr<ValueRange> valueRange, const BB &branch);
   void Insert2UnreachableBBs(BB &unreachableBB);
   void DeleteThePhiNodeWhichOnlyHasOneOpnd(BB &bb);
-  void DealWithCallassigned(BB &bb, MeStmt &stmt);
+  void DealWithCallassigned(const BB &bb, MeStmt &stmt);
   void DeleteAssertNonNull();
   void DeleteBoundaryCheck();
   bool MustBeFallthruOrGoto(const BB &defBB, const BB &bb) const;
   std::unique_ptr<ValueRange> AntiValueRange(ValueRange &valueRange);
   void DeleteUnreachableBBs(BB &curBB, BB &falseBranch, BB &trueBranch);
   void PropValueRangeFromCondGotoToTrueAndFalseBranch(
-      MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch, BB &trueBranch);
+      const MeExpr &opnd0, ValueRange &rightRange, const BB &falseBranch, const BB &trueBranch);
   bool CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const BB &bb);
-  void ComputeCodeSize(MeExpr &meExpr, uint32 &cost);
+  void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
   void DealWithSwitch(MeStmt &stmt);
-  bool AnalysisUnreachableForGeOrGt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
-  bool AnalysisUnreachableForLeOrLt(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
-  bool AnalysisUnreachableForEqOrNe(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
-  bool DealWithVariableRange(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange);
+  bool AnalysisUnreachableForGeOrGt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
+  bool AnalysisUnreachableForLeOrLt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
+  bool AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
+  bool DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   std::unique_ptr<ValueRange> MergeValuerangeOfPhi(std::vector<std::unique_ptr<ValueRange>> &valueRangeOfPhi);
   std::unique_ptr<ValueRange> MakeMonotonicIncreaseOrDecreaseValueRangeForPhi(int stride, Bound &initBound) const;
 

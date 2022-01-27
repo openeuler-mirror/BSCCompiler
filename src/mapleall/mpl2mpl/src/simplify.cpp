@@ -688,8 +688,9 @@ static CondGotoNode *CreateOverlapCheckStmt(BaseNode &expr1, BaseNode &expr2, ui
 //   @curLabel
 //   regassign i32 %1 (constval i32 errNum)
 //   goto @finalLabel
-static void AddNullptrHandlerIR(StmtNode &stmt, MIRBuilder *mirBuilder, BlockNode &block, StmtNode *retAssign,
-                                LabelIdx curLabIdx, LabelIdx finalLabIdx, bool debug) {
+static void AddNullptrHandlerIR(const StmtNode &stmt, MIRBuilder *mirBuilder, BlockNode &block,
+                                StmtNode *retAssign, LabelIdx curLabIdx, LabelIdx finalLabIdx,
+                                bool debug) {
   auto *curLabelNode = mirBuilder->CreateStmtLabel(curLabIdx);
   auto *gotoFinal = mirBuilder->CreateStmtGoto(OP_goto, finalLabIdx);
   InsertAndMayPrintStmtList(block, stmt, debug, { curLabelNode, retAssign, gotoFinal });
@@ -700,7 +701,7 @@ static void AddNullptrHandlerIR(StmtNode &stmt, MIRBuilder *mirBuilder, BlockNod
 //   call memset  # new genrated memset will be expanded if possible
 //   regassign i32 %1 (constval i32 errNum)
 //   goto @finalLabel
-static void AddOverlapHandlerIR(StmtNode &stmt, MIRFunction &func, BlockNode &block, StmtNode *retAssign,
+static void AddOverlapHandlerIR(const StmtNode &stmt, MIRFunction &func, BlockNode &block, StmtNode *retAssign,
                                 LabelIdx curLabIdx, LabelIdx finalLabIdx, BaseNode *addrExpr, bool debug) {
   MIRBuilder *mirBuilder = func.GetModule()->GetMIRBuilder();
   auto *curLabelNode = mirBuilder->CreateStmtLabel(curLabIdx);
@@ -719,8 +720,8 @@ static void AddOverlapHandlerIR(StmtNode &stmt, MIRFunction &func, BlockNode &bl
   InsertAndMayPrintStmt(block, stmt, debug, gotoFinal);
 }
 
-static BaseNode *TryToExtractComplexExpr(BaseNode *expr, MIRFunction &func, BlockNode &block, StmtNode &anchor,
-    bool debug) {
+static BaseNode *TryToExtractComplexExpr(BaseNode *expr, MIRFunction &func, BlockNode &block,
+                                         const StmtNode &anchor, bool debug) {
   if (!IsComplexExpr(expr, func)) {
     return expr;
   }

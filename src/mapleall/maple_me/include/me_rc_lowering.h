@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2019-2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2019-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -14,10 +14,9 @@
  */
 #ifndef MAPLE_ME_INCLUDE_ME_RC_LOWERING_H
 #define MAPLE_ME_INCLUDE_ME_RC_LOWERING_H
-#include "class_hierarchy.h"
+#include "class_hierarchy_phase.h"
 #include "me_function.h"
-#include "me_irmap.h"
-#include "me_phase.h"
+#include "me_irmap_build.h"
 #include "mir_builder.h"
 #include "me_cfg.h"
 
@@ -83,9 +82,9 @@ class RCLowering {
   bool IsInitialized(IvarMeExpr &ivar);
   void PreprocessAssignMeStmt(MeStmt &stmt);
   void HandleAssignMeStmtRHS(MeStmt &stmt);
-  void HandleAssignMeStmtRegLHS(MeStmt &stmt);
+  void HandleAssignMeStmtRegLHS(const MeStmt &stmt);
   void HandleAssignToGlobalVar(const MeStmt &stmt);
-  void HandleAssignToLocalVar(MeStmt &stmt, MeExpr *pendingDec);
+  void HandleAssignToLocalVar(const MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtIvarLHS(MeStmt &stmt);
   void HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec);
@@ -93,7 +92,7 @@ class RCLowering {
   void HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec);
   void HandleReturnVar(RetMeStmt &ret);
   void HandleReturnGlobal(RetMeStmt &ret);
-  void HandleReturnRegread(RetMeStmt &ret);
+  void HandleReturnRegread(const RetMeStmt &ret);
   void HandleReturnFormal(RetMeStmt &ret);
   void HandleReturnIvar(RetMeStmt &ret);
   void HandleReturnReg(RetMeStmt &ret);
@@ -110,7 +109,7 @@ class RCLowering {
   void FastLowerRetStmt(MeStmt &stmt);
   void FastLowerRetVar(RetMeStmt &stmt);
   void FastLowerRetIvar(RetMeStmt &stmt);
-  void FastLowerRetReg(RetMeStmt &stmt);
+  void FastLowerRetReg(const RetMeStmt &stmt);
   void FastLowerAssignToVar(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerAssignToIvar(MeStmt &stmt);
   void FastLowerCallAssignedStmt(MeStmt &stmt);
@@ -147,17 +146,6 @@ class RCLowering {
   bool enabledDebug;
 };
 
-class MeDoRCLowering : public MeFuncPhase {
- public:
-  explicit MeDoRCLowering(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoRCLowering() = default;
-
-  AnalysisResult *Run(MeFunction*, MeFuncResultMgr*, ModuleResultMgr*) override;
-
-  std::string PhaseName() const override {
-    return "rclowering";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MERCLowering, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_RC_LOWERING_H

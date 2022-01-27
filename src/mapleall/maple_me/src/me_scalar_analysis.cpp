@@ -438,7 +438,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateLoopInvariantCR(MeExpr &expr) {
   return GetOrCreateCRVarNode(expr);
 }
 
-CRNode* LoopScalarAnalysisResult::GetOrCreateCRAddNode(MeExpr *expr, std::vector<CRNode*> &crAddNodes) {
+CRNode* LoopScalarAnalysisResult::GetOrCreateCRAddNode(MeExpr *expr, const std::vector<CRNode*> &crAddNodes) {
   if (expr == nullptr) {
     std::unique_ptr<CRAddNode> crAdd = std::make_unique<CRAddNode>(nullptr);
     CRAddNode *crPtr = crAdd.get();
@@ -476,7 +476,7 @@ CRNode *LoopScalarAnalysisResult::GetOrCreateCR(MeExpr &expr, CRNode &start, CRN
   return crPtr;
 }
 
-CRNode *LoopScalarAnalysisResult::GetOrCreateCR(MeExpr *expr, std::vector<CRNode*> &crNodes) {
+CRNode *LoopScalarAnalysisResult::GetOrCreateCR(MeExpr *expr, const std::vector<CRNode*> &crNodes) {
   auto it = expr2CR.find(expr);
   if (it != expr2CR.end()) {
     return it->second;
@@ -734,7 +734,7 @@ CRNode *LoopScalarAnalysisResult::GetCRMulNode(MeExpr *expr, std::vector<CRNode*
   return GetOrCreateCRMulNode(expr, crMulOpnds);
 }
 
-CRNode *LoopScalarAnalysisResult::GetOrCreateCRMulNode(MeExpr *expr, std::vector<CRNode*> &crMulNodes) {
+CRNode *LoopScalarAnalysisResult::GetOrCreateCRMulNode(MeExpr *expr, const std::vector<CRNode*> &crMulNodes) {
   std::unique_ptr<CRMulNode> crMul = std::make_unique<CRMulNode>(expr);
   CRMulNode *crMulPtr = crMul.get();
   allCRNodes.insert(std::move(crMul));
@@ -1282,7 +1282,7 @@ void LoopScalarAnalysisResult::SortOperatorCRNode(std::vector<CRNode*> &crNodeOp
 }
 
 void LoopScalarAnalysisResult::PutTheAddrExprAtTheFirstOfVector(
-    std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr) {
+    std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr) {
   if (crNodeOperands.size() >= 1 && crNodeOperands[0]->GetExpr() == &addrExpr) {
     return;
   }
@@ -1340,7 +1340,7 @@ void LoopScalarAnalysisResult::DumpTripCount(const CR &cr, int32 value, const Me
   LogInfo::MapleLogger() << "==========Dump CR End=========\n";
 }
 
-TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint64 &tripCountResult,
+TripCountType LoopScalarAnalysisResult::ComputeTripCount(const MeFunction &func, uint64 &tripCountResult,
                                                          CRNode *&conditionCRNode, CR *&itCR) {
   if (loop == nullptr) {
     return kCouldNotComputeCR;
@@ -1399,7 +1399,7 @@ TripCountType LoopScalarAnalysisResult::ComputeTripCount(MeFunction &func, uint6
       return kCouldNotComputeCR;
     }
     if (enableDebug) {
-      DumpTripCount(*cr, constNode->GetConstValue(), nullptr);
+      DumpTripCount(*cr, static_cast<int32>(constNode->GetConstValue()), nullptr);
     }
     for (auto opnd : cr->GetOpnds()) {
       if (opnd->GetCRType() != kCRConstNode) {

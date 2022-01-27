@@ -18,7 +18,7 @@
 #include "common_utils.h"
 
 namespace maplebe {
-uint32 AArch64FixShortBranch::CalculateAlignRange(BB &bb, uint32 addr) const {
+uint32 AArch64FixShortBranch::CalculateAlignRange(const BB &bb, uint32 addr) const {
   if (addr == 0) {
     return addr;
   }

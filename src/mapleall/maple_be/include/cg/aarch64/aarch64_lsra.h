@@ -417,9 +417,9 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   ~LSRALinearScanRegAllocator() override = default;
 
   bool AllocateRegisters() override;
-  bool CheckForReg(Operand &opnd, Insn &insn, LiveInterval &li, regno_t regNO, bool isDef) const;
+  bool CheckForReg(Operand &opnd, const Insn &insn, const LiveInterval &li, regno_t regNO, bool isDef) const;
   void PrintRegSet(const MapleSet<uint32> &set, const std::string &str) const;
-  void PrintLiveInterval(LiveInterval &li, const std::string &str) const;
+  void PrintLiveInterval(const LiveInterval &li, const std::string &str) const;
   void PrintLiveRanges() const;
   void PrintParamQueue(const std::string &str);
   void PrintCallQueue(const std::string &str) const;
@@ -440,11 +440,11 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   void ComputeLiveInterval();
   void FindLowestPrioInActive(LiveInterval *&li, RegType regType = kRegTyInt, bool startRa = false);
   void LiveIntervalAnalysis();
-  bool OpndNeedAllocation(Insn &insn, Operand &opnd, bool isDef, uint32 insnNum);
+  bool OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum);
   void InsertParamToActive(Operand &opnd);
   void InsertToActive(Operand &opnd, uint32 insnNum);
-  void ReturnPregToSet(LiveInterval &li, uint32 preg);
-  void ReleasePregToSet(LiveInterval &li, uint32 preg);
+  void ReturnPregToSet(const LiveInterval &li, uint32 preg);
+  void ReleasePregToSet(const LiveInterval &li, uint32 preg);
   void UpdateActiveAtRetirement(uint32 insnID);
   void RetireFromActive(const Insn &insn);
   void AssignPhysRegsForInsn(Insn &insn);
@@ -459,7 +459,7 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   MemOperand *GetSpillMem(uint32 vregNO, bool isDest, Insn &insn, AArch64reg regNO, bool &isOutOfRange);
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
   uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0);
-  uint32 AssignSpecialPhysRegPattern(Insn &insn, LiveInterval &li);
+  uint32 AssignSpecialPhysRegPattern(const Insn &insn, LiveInterval &li);
   uint32 FindAvailablePhyReg(LiveInterval &li, Insn &insn);
   RegOperand *AssignPhysRegs(Operand &opnd, Insn &insn);
   void SetupIntervalRangesByOperand(Operand &opnd, const Insn &insn, uint32 blockFrom, bool isDef, bool isUse);

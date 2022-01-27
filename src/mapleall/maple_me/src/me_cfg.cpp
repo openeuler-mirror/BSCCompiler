@@ -995,7 +995,7 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
       "indianred1", "darkorange1", "lightyellow1", "green3", "cyan", "dodgerblue2", "purple2"
     };
     uint32 colorIdx = 0;
-    uint32 clusterSize = laidOut->size() / colors.size();
+    size_t clusterSize = laidOut->size() / colors.size();
     uint32 cnt = 0;
     for (uint32 i = 0; i < laidOut->size(); ++i) {
       auto *bb = (*laidOut)[i];
@@ -1582,7 +1582,7 @@ void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccN
         lowestOrder[id] = lowestOrder[succId];
       }
     } else if (inStack[succId]) {
-      backEdges.insert(std::pair<uint32, uint32>(id, succId));
+      backEdges.emplace(std::pair<uint32, uint32>(id, succId));
       if (visitedOrder[succId] < lowestOrder[id]) {
         lowestOrder[id] = visitedOrder[succId];
       }
@@ -1648,7 +1648,7 @@ void MeCFG::SCCTopologicalSort(std::vector<SCCOfBBs*> &sccNodes) {
 }
 
 void MeCFG::BuildSCC() {
-  uint32_t  n = GetAllBBs().size();
+  size_t n = GetAllBBs().size();
   sccTopologicalVec.clear();
   sccOfBB.clear();
   sccOfBB.assign(n, nullptr);
@@ -1672,7 +1672,7 @@ void MeCFG::BuildSCC() {
 }
 
 // After currBB's succ is changed, we can update currBB's target
-void MeCFG::UpdateBranchTarget(BB &currBB, BB &oldTarget, BB &newTarget, MeFunction &func) {
+void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &func) {
   bool forMeIR = func.GetIRMap() != nullptr;
   // update statement offset if succ is goto target
   if (currBB.IsGoto()) {
@@ -1772,7 +1772,7 @@ bool MEMeCfg::PhaseRun(MeFunction &f) {
   }
   theCFG->ReplaceWithAssertnonnull();
   theCFG->VerifyLabels();
-  theCFG->UnreachCodeAnalysis();
+  (void)theCFG->UnreachCodeAnalysis();
   theCFG->WontExitAnalysis();
   theCFG->Verify();
   return false;

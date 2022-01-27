@@ -54,9 +54,9 @@ class OptimizePattern {
   void ReplaceAllUsedOpndWithNewOpnd(const InsnSet &useInsnSet, uint32 regNO,
                                      Operand &newOpnd, bool updateInfo) const;
 
-  static bool InsnDefOne(Insn &insn);
-  static bool InsnDefZero(Insn &insn);
-  static bool InsnDefOneOrZero(Insn &insn);
+  static bool InsnDefOne(const Insn &insn);
+  static bool InsnDefZero(const Insn &insn);
+  static bool InsnDefOneOrZero(const Insn &insn);
 
   std::string PhaseName() const {
     return "globalopt";
@@ -103,7 +103,7 @@ class ForwardPropPattern : public OptimizePattern {
 class BackPropPattern : public OptimizePattern {
  public:
   explicit BackPropPattern(CGFunc &cgFunc) : OptimizePattern(cgFunc) {
-    globalProp = cgFunc.GetMirModule().IsCModule();
+    globalProp = cgFunc.GetMirModule().IsCModule() && !cgFunc.IsAfterRegAlloc();
   }
   ~BackPropPattern() override = default;
   bool CheckCondition(Insn &insn) final;
@@ -114,7 +114,7 @@ class BackPropPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool CheckAndGetOpnd(Insn &insn);
+  bool CheckAndGetOpnd(const Insn &insn);
   bool DestOpndHasUseInsns(Insn &insn);
   bool DestOpndLiveOutToEHSuccs(Insn &insn);
   bool CheckSrcOpndDefAndUseInsns(Insn &insn);
@@ -234,7 +234,7 @@ class RedundantUxtPattern : public OptimizePattern {
 
  private:
   uint32 GetMaximumValidBit(Insn &insn, uint8 udIdx, InsnSet &insnChecked) const;
-  static uint32 GetInsnValidBit(Insn &insn);
+  static uint32 GetInsnValidBit(const Insn &insn);
   InsnSet useInsnSet;
   uint32 firstRegNO = 0;
   Operand *secondOpnd = nullptr;
@@ -260,10 +260,10 @@ class LocalVarSaveInsnPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool CheckFirstInsn(Insn &firstInsn);
+  bool CheckFirstInsn(const Insn &firstInsn);
   bool CheckSecondInsn();
   bool CheckAndGetUseInsn(Insn &firstInsn);
-  bool CheckLiveRange(Insn &firstInsn);
+  bool CheckLiveRange(const Insn &firstInsn);
   Operand *firstInsnSrcOpnd = nullptr;
   Operand *firstInsnDestOpnd = nullptr;
   Operand *secondInsnSrcOpnd = nullptr;
@@ -325,10 +325,10 @@ class ExtendShiftOptPattern : public OptimizePattern {
  private:
   void SelectExtendOrShift(const Insn &def);
   bool CheckDefUseInfo(Insn &use, uint32 size);
-  SuffixType CheckOpType(Operand &lastOpnd);
-  void ReplaceUseInsn(Insn &use, Insn &def, uint32 amount);
-  void SetExMOpType(Insn &use);
-  void SetLsMOpType(Insn &use);
+  SuffixType CheckOpType(const Operand &lastOpnd) const;
+  void ReplaceUseInsn(Insn &use, const Insn &def, uint32 amount);
+  void SetExMOpType(const Insn &use);
+  void SetLsMOpType(const Insn &use);
 
   MOperator replaceOp;
   uint32 replaceIdx;
@@ -369,7 +369,7 @@ class ExtenToMovPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool CheckHideUxtw(Insn &insn, regno_t regno);
+  bool CheckHideUxtw(const Insn &insn, regno_t regno);
   bool CheckUxtw(Insn &insn);
   bool BitNotAffected(Insn &insn, uint32 validNum); /* check whether significant bits are affected */
   bool CheckSrcReg(Insn &insn, regno_t srcRegNo, uint32 validNum);
@@ -416,7 +416,7 @@ class AndCbzPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  int64 CalculateLogValue(int64 val);
+  int64 CalculateLogValue(int64 val) const;
   bool IsAdjacentArea(Insn &prev, Insn &curr);
   Insn *prevInsn;
 };
@@ -453,7 +453,7 @@ class SameRHSPropPattern : public OptimizePattern {
   void Init() final;
 
  private:
-  bool IsSameOperand(Operand *opnd1, Operand *opnd2);
+  bool IsSameOperand(Operand *opnd1, Operand *opnd2) const;
   bool FindSameRHSInsnInBB(Insn &insn);
   Insn *prevInsn;
   std::vector<MOperator> candidates;

@@ -140,8 +140,8 @@ class TypeTable {
     return GetOrCreateMIRTypeNode(*pType)->GetTypeIndex();
   }
 
-  size_t GetTypeTableSize() const {
-    return typeTable.size();
+  uint32 GetTypeTableSize() const {
+    return static_cast<uint32>(typeTable.size());
   }
 
   // Get primtive types.
@@ -382,9 +382,9 @@ class TypeTable {
 
   // Get or Create derived types.
   MIRType *GetOrCreatePointerType(const TyIdx &pointedTyIdx, PrimType primType = PTY_ptr,
-                                  const std::vector<TypeAttrs> attrs = std::vector<TypeAttrs>());
+                                  const TypeAttrs &attrs = TypeAttrs());
   MIRType *GetOrCreatePointerType(const MIRType &pointTo, PrimType primType = PTY_ptr,
-                                  const std::vector<TypeAttrs> attrs = std::vector<TypeAttrs>());
+                                  const TypeAttrs &attrs = TypeAttrs());
   const MIRType *GetPointedTypeIfApplicable(MIRType &type) const;
   MIRType *GetPointedTypeIfApplicable(MIRType &type);
   MIRType *GetVoidPtr() const {
@@ -393,8 +393,10 @@ class TypeTable {
   }
 
   void UpdateMIRType(const MIRType &pType, const TyIdx tyIdx);
-  MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray);
-  MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint32 size);  // For one dimention array
+  MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray,
+                                     const TypeAttrs &attrs = TypeAttrs());
+  // For one dimention array
+  MIRArrayType *GetOrCreateArrayType(const MIRType &elem, uint32 size, const TypeAttrs &attrs = TypeAttrs());
   MIRType *GetOrCreateFarrayType(const MIRType &elem);
   MIRType *GetOrCreateJarrayType(const MIRType &elem);
   MIRType *GetOrCreateFunctionType(const TyIdx&, const std::vector<TyIdx>&, const std::vector<TypeAttrs>&,
@@ -417,8 +419,8 @@ class TypeTable {
     return GetOrCreateClassOrInterface(name, module, false);
   }
 
-  void PushIntoFieldVector(FieldVector &fields, const std::string &name, MIRType &type);
-  void AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, MIRType &fieldType);
+  void PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type);
+  void AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, const MIRType &fieldType);
 
   TyIdx lastDefaultTyIdx;
  private:
@@ -436,7 +438,7 @@ class TypeTable {
   };
 
   // create an entry in typeTable for the type node
-  MIRType *CreateType(MIRType &oldType) {
+  MIRType *CreateType(const MIRType &oldType) {
     MIRType *newType = oldType.CopyMIRTypeNode();
     newType->SetTypeIndex(TyIdx(typeTable.size()));
     typeTable.push_back(newType);
@@ -449,7 +451,8 @@ class TypeTable {
   void CreateMirTypeNodeAt(MIRType &pType, TyIdx tyIdxUsed, MIRModule *module, bool isObject, bool isIncomplete);
   MIRType *CreateAndUpdateMirTypeNode(MIRType &pType);
   MIRType *GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields, const FieldVector &printFields,
-                                    MIRModule &module, bool forStruct = true);
+                                    MIRModule &module, bool forStruct = true,
+                                    const TypeAttrs &attrs = TypeAttrs());
   MIRType *GetOrCreateClassOrInterface(const std::string &name, MIRModule &module, bool forClass);
 
   MIRType *CreateMirType(uint32 primTypeIdx) const;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -37,7 +37,7 @@ class GCWriteBarrierOpt {
   void Finish();
 
  private:
-  bool IsWriteBarrier(const MeStmt&);
+  bool IsWriteBarrier(const MeStmt&) const;
   void ResetMeStmt(IntrinsiccallMeStmt&);
   OStIdx GetOStIdx(MeExpr&);
   bool IsCall(const MeStmt&);
@@ -58,6 +58,7 @@ class GCWriteBarrierOpt {
   bool enabledDebug;
 };
 
+#ifdef NOT_USED
 class MeDoGCWriteBarrierOpt : public MeFuncPhase {
  public:
   explicit MeDoGCWriteBarrierOpt(MePhaseID id) : MeFuncPhase(id) {}
@@ -68,5 +69,6 @@ class MeDoGCWriteBarrierOpt : public MeFuncPhase {
     return "GCWriteBarrierOpt";
   }
 };
+#endif
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_GC_WRITE_BARRIER_OPT_H

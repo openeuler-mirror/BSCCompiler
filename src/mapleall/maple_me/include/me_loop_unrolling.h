@@ -110,7 +110,7 @@ class LoopUnrollingExecutor {
   static bool enableDump;
 
   void ExecuteLoopUnrolling(MeFunction &func, MeIRMap &irMap,
-      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, MapleAllocator &alloc);
+      std::map<OStIdx, std::unique_ptr<std::set<BBId>>> &cands, IdentifyLoops &meLoop, const MapleAllocator &alloc);
   bool IsCFGChange() const {
     return isCFGChange;
   }
@@ -118,9 +118,9 @@ class LoopUnrollingExecutor {
  private:
   void SetNestedLoop(const IdentifyLoops &meloop, std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
   void VerifyCondGotoBB(BB &exitBB) const;
-  bool IsDoWhileLoop(MeFunction &func, LoopDesc &loop) const;
-  bool PredIsOutOfLoopBB(MeFunction &func, LoopDesc &loop) const;
-  bool IsCanonicalAndOnlyOneExitLoop(MeFunction &func, LoopDesc &loop,
+  bool IsDoWhileLoop(const MeFunction &func, LoopDesc &loop) const;
+  bool PredIsOutOfLoopBB(const MeFunction &func, LoopDesc &loop) const;
+  bool IsCanonicalAndOnlyOneExitLoop(const MeFunction &func, LoopDesc &loop,
                                      const std::unordered_map<LoopDesc*, std::set<LoopDesc*>> &parentLoop) const;
   MemPool *innerMp;
   bool isCFGChange = false;

@@ -374,7 +374,7 @@ class OriginalStTable {
   OriginalSt *FindOrCreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
   OriginalSt *CreateSymbolOriginalSt(MIRSymbol &mirSt, PUIdx pidx, FieldID fld);
   OriginalSt *CreatePregOriginalSt(PregIdx pregIdx, PUIdx puIdx);
-  OriginalSt *FindSymbolOriginalSt(MIRSymbol &mirSt);
+  OriginalSt *FindSymbolOriginalSt(const MIRSymbol &mirSt);
   const OriginalSt *GetOriginalStFromID(OStIdx id, bool checkFirst = false) const {
     if (checkFirst && id >= originalStVector.size()) {
       return nullptr;

@@ -140,7 +140,7 @@ bool OptimizePattern::OpndDefByOneOrZero(Insn &insn, int32 useIdx) const {
 }
 
 /* if defined operand(must be first insn currently) in insn is const one, return true */
-bool OptimizePattern::InsnDefOne(Insn &insn) {
+bool OptimizePattern::InsnDefOne(const Insn &insn) {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
     case MOP_xmovri32:
@@ -160,7 +160,7 @@ bool OptimizePattern::InsnDefOne(Insn &insn) {
 }
 
 /* if defined operand(must be first insn currently) in insn is const zero, return true */
-bool OptimizePattern::InsnDefZero(Insn &insn) {
+bool OptimizePattern::InsnDefZero(const Insn &insn) {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
     case MOP_xmovri32:
@@ -183,7 +183,7 @@ bool OptimizePattern::InsnDefZero(Insn &insn) {
 }
 
 /* if defined operand(must be first insn currently) in insn has only one valid bit, return true */
-bool OptimizePattern::InsnDefOneOrZero(Insn &insn) {
+bool OptimizePattern::InsnDefOneOrZero(const Insn &insn) {
   MOperator defMop = insn.GetMachineOpcode();
   switch (defMop) {
     case MOP_wcsetrc:
@@ -450,7 +450,7 @@ void ForwardPropPattern::Run() {
   } while (!modifiedBB.empty());
 }
 
-bool BackPropPattern::CheckAndGetOpnd(Insn &insn) {
+bool BackPropPattern::CheckAndGetOpnd(const Insn &insn) {
   if (!insn.IsMachineInstruction()) {
     return false;
   }
@@ -617,7 +617,7 @@ bool BackPropPattern::CheckReplacedUseInsn(Insn &insn) {
       }
       continue;
     }
-    auto checkOneDefOnly = [](InsnSet &defSet, Insn &oneDef, bool checkHasDef = false)->bool {
+    auto checkOneDefOnly = [](const InsnSet &defSet, const Insn &oneDef, bool checkHasDef = false)->bool {
       if (defSet.size() > 1) {
         return false;
       } else if (defSet.size() == 1) {
@@ -964,7 +964,7 @@ void CselPattern::Run() {
   }
 }
 
-uint32 RedundantUxtPattern::GetInsnValidBit(Insn &insn) {
+uint32 RedundantUxtPattern::GetInsnValidBit(const Insn &insn) {
   MOperator mOp = insn.GetMachineOpcode();
   uint32 nRet;
   switch (mOp) {
@@ -1110,7 +1110,7 @@ void RedundantUxtPattern::Run() {
   }
 }
 
-bool LocalVarSaveInsnPattern::CheckFirstInsn(Insn &firstInsn) {
+bool LocalVarSaveInsnPattern::CheckFirstInsn(const Insn &firstInsn) {
   MOperator mOp = firstInsn.GetMachineOpcode();
   if (mOp != MOP_xmovrr && mOp != MOP_wmovrr) {
     return false;
@@ -1164,7 +1164,7 @@ bool LocalVarSaveInsnPattern::CheckAndGetUseInsn(Insn &firstInsn) {
   return true;
 }
 
-bool LocalVarSaveInsnPattern::CheckLiveRange(Insn &firstInsn) {
+bool LocalVarSaveInsnPattern::CheckLiveRange(const Insn &firstInsn) {
   uint32 maxInsnNO = cgFunc.GetRD()->GetMaxInsnNO();
   uint32 useInsnID = useInsn->GetId();
   uint32 defInsnID = firstInsn.GetId();
@@ -1266,7 +1266,7 @@ void LocalVarSaveInsnPattern::Run() {
   }
 }
 
-void ExtendShiftOptPattern::SetExMOpType(Insn &use) {
+void ExtendShiftOptPattern::SetExMOpType(const Insn &use) {
   MOperator op = use.GetMachineOpcode();
   switch (op) {
     case MOP_xaddrrr:
@@ -1323,7 +1323,7 @@ void ExtendShiftOptPattern::SetExMOpType(Insn &use) {
   }
 }
 
-void ExtendShiftOptPattern::SetLsMOpType(Insn &use) {
+void ExtendShiftOptPattern::SetLsMOpType(const Insn &use) {
   MOperator op = use.GetMachineOpcode();
   switch (op) {
     case MOP_xaddrrr:
@@ -1492,7 +1492,7 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
 }
 
 /* Check whether ExtendShiftOptPattern optimization can be performed. */
-ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &lastOpnd) const {
+ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(const Operand &lastOpnd) const {
   /* Assign values to useType and defType. */
   uint32 useType = ExtendShiftOptPattern::kNoSuffix;
   uint32 defType = shiftOp;
@@ -1500,10 +1500,10 @@ ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &la
     defType = ExtendShiftOptPattern::kExten;
   }
   if (lastOpnd.IsOpdShift()) {
-    BitShiftOperand lastShiftOpnd = static_cast<BitShiftOperand&>(lastOpnd);
+    BitShiftOperand lastShiftOpnd = static_cast<const BitShiftOperand&>(lastOpnd);
     useType = lastShiftOpnd.GetShiftOp();
   } else if (lastOpnd.IsOpdExtend()) {
-    ExtendShiftOperand lastExtendOpnd = static_cast<ExtendShiftOperand&>(lastOpnd);
+    ExtendShiftOperand lastExtendOpnd = static_cast<const ExtendShiftOperand&>(lastOpnd);
     useType = ExtendShiftOptPattern::kExten;
     /* two insn is exten and exten ,value is exten(oneself) */
     if (useType == defType && extendOp != lastExtendOpnd.GetExtendOp()) {
@@ -1524,7 +1524,7 @@ ExtendShiftOptPattern::SuffixType ExtendShiftOptPattern::CheckOpType(Operand &la
  * (useMop)   (defMop)
  * =====================
  */
-void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, Insn &def, uint32 amount) {
+void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 amount) {
   AArch64CGFunc &a64CGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   uint32 lastIdx = use.GetOperandSize() - k1BitSize;
   Operand &lastOpnd = use.GetOperand(lastIdx);
@@ -1703,8 +1703,8 @@ void ExtenToMovPattern::Run() {
 }
 
 /* Check for Implicit uxtw */
-bool ExtenToMovPattern::CheckHideUxtw(Insn &insn, regno_t regno) {
-  const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(insn).GetMachineOpcode()];
+bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) {
+  const AArch64MD *md = &AArch64CG::kMd[insn.GetMachineOpcode()];
   if (md->IsMove()) {
     return false;
   }

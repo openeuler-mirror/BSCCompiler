@@ -3899,7 +3899,7 @@ void DeleteMovAfterCbzOrCbnzAArch64::ProcessBBHandle(BB *processBB, const BB &bb
 /* ldr wn, [x1, wn, SXTW]
  * add x2, wn, x2
  */
-bool ComplexMemOperandAddAArch64::IsExpandBaseOpnd(const Insn &insn, Insn &prevInsn) {
+bool ComplexMemOperandAddAArch64::IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn) {
   MOperator prevMop = prevInsn.GetMachineOpcode();
   if (prevMop >= MOP_wldrsb && prevMop <= MOP_xldr &&
       prevInsn.GetOperand(kInsnFirstOpnd).Equals(insn.GetOperand(kInsnSecondOpnd))) {

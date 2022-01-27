@@ -397,7 +397,7 @@ static std::string GetSignatureFromFullName(const std::string &fullname) {
   FATAL(kLncFatal, "can not find \"|\" in fullname");
 }
 
-int ReflectionAnalysis::SolveAnnotation(MIRStructType &classType, MIRFunction &func) {
+int ReflectionAnalysis::SolveAnnotation(MIRStructType &classType, const MIRFunction &func) {
   std::string annoArray1;
   std::map<int, int> idxNumMap;
   GenAnnotation(idxNumMap, annoArray1, classType, kPragmaFunc, func.GetName(), invalidIdx);
@@ -792,7 +792,7 @@ uint32 ReflectionAnalysis::GetMethodFlag(const MIRFunction &func) const {
 }
 
 void ReflectionAnalysis::GenMethodMeta(const Klass &klass, MIRStructType &methodsInfoType,
-                                       MIRSymbol &funcSym, MIRAggConst &aggConst, int idx,
+                                       const MIRSymbol &funcSym, MIRAggConst &aggConst, int idx,
                                        std::unordered_map<uint32, std::string> &baseNameMp,
                                        std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRFunction &func = *funcSym.GetFunction();
@@ -959,7 +959,7 @@ MIRSymbol *ReflectionAnalysis::GetMethodSignatureSymbol(std::string signature) {
 }
 
 void ReflectionAnalysis::GenMethodMetaCompact(const Klass &klass, MIRStructType &methodsInfoCompactType, int idx,
-                                              MIRSymbol &funcSym, MIRAggConst &aggConst, int &allDeclaringClassOffset,
+                                              const MIRSymbol &funcSym, MIRAggConst &aggConst, int &allDeclaringClassOffset,
                                               std::unordered_map<uint32, std::string> &baseNameMp,
                                               std::unordered_map<uint32, std::string> &fullNameMp) {
   MIRFunction &func = *funcSym.GetFunction();
@@ -1080,7 +1080,7 @@ MIRSymbol *ReflectionAnalysis::GenMethodsMetaData(const Klass &klass, bool isHot
 }
 
 void ReflectionAnalysis::GenFieldOffsetConst(MIRAggConst &newConst, const Klass &klass,
-                                             const MIRStructType &type, std::pair<FieldPair, int> &fieldInfo,
+                                             const MIRStructType &type, const std::pair<FieldPair, int> &fieldInfo,
                                              uint32 metaFieldID) {
   bool isStaticField = (fieldInfo.second == -1);
   FieldPair fieldP = fieldInfo.first;
@@ -1194,7 +1194,7 @@ static void ConvertFieldName(std::string &fieldname, bool staticfield) {
 
 void ReflectionAnalysis::GenFieldMeta(const Klass &klass, MIRStructType &fieldsInfoType,
                                       std::pair<FieldPair, int> &fieldInfo, MIRAggConst &aggConst,
-                                      int idx, std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
+                                      int idx, const std::vector<std::pair<FieldPair, uint16>> &fieldHashVec) {
   FieldPair fieldP = fieldInfo.first;
   MIRAggConst *newConst = mirModule->GetMemPool()->New<MIRAggConst>(*mirModule, fieldsInfoType);
   ASSERT(newConst != nullptr, "null ptr check!");

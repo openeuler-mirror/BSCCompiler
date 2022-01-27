@@ -262,7 +262,7 @@ bool CGLowerer::IsComplexSelect(const TernaryNode &tNode) const {
 }
 
 /* Lower agg select node back to if-then-else stmt. */
-BaseNode *CGLowerer::LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode) {
+BaseNode *CGLowerer::LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode) {
   MIRBuilder *mirbuilder = mirModule.GetMIRBuilder();
 
   MIRType *resultTy = 0;
@@ -3305,7 +3305,7 @@ BaseNode *CGLowerer::LowerIntrinsicopwithtype(const BaseNode &parent, Intrinsico
   return &intrinNode;
 }
 
-StmtNode *CGLowerer::LowerIntrinsicMplClearStack(IntrinsiccallNode &intrincall, BlockNode &newBlk) {
+StmtNode *CGLowerer::LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrincall, BlockNode &newBlk) {
   StmtNode *newStmt = mirBuilder->CreateStmtIassign(
       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt8()), 0,
       intrincall.Opnd(0), mirBuilder->GetConstUInt8(0));
@@ -3353,7 +3353,7 @@ StmtNode *CGLowerer::LowerIntrinsicMplClearStack(IntrinsiccallNode &intrincall, 
   return newStmt;
 }
 
-StmtNode *CGLowerer::LowerIntrinsicRCCall(IntrinsiccallNode &intrincall) {
+StmtNode *CGLowerer::LowerIntrinsicRCCall(const IntrinsiccallNode &intrincall) {
   /* If GCONLY enabled, lowering RC intrinsics in another way. */
   MIRIntrinsicID intrnID = intrincall.GetIntrinsic();
   IntrinDesc *intrinDesc = &IntrinDesc::intrinTable[intrnID];
@@ -3375,7 +3375,7 @@ StmtNode *CGLowerer::LowerIntrinsicRCCall(IntrinsiccallNode &intrincall) {
   return callStmt;
 }
 
-void CGLowerer::LowerArrayStore(IntrinsiccallNode &intrincall, BlockNode &newBlk) {
+void CGLowerer::LowerArrayStore(const IntrinsiccallNode &intrincall, BlockNode &newBlk) {
   bool needCheckStore = true;
   BaseNode *arrayNode = intrincall.Opnd(0);
   MIRType *arrayElemType = GetArrayNodeType(*arrayNode);

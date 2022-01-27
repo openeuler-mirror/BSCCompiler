@@ -19,9 +19,7 @@
 #include "mir_function.h"
 #include "mir_preg.h"
 #include "parser_opt.h"
-#include "module_phase.h"
 #include "ea_connection_graph.h"
-#include "call_graph.h"
 
 namespace maple {
 enum : uint8 {
@@ -132,13 +130,13 @@ class BinaryMplExport {
   void OutputInterfaceTypeData(const MIRInterfaceType &type);
   void OutputSrcPos(const SrcPosition &pos);
   void OutputAliasMap(MapleMap<GStrIdx, MIRAliasVars> &aliasVarMap);
-  void OutputInfoVector(const MIRInfoVector &infovector, const MapleVector<bool> &infovector_isstring);
+  void OutputInfoVector(const MIRInfoVector &infoVector, const MapleVector<bool> &infoVectorIsString);
   void OutputFuncIdInfo(MIRFunction *func);
   void OutputLocalSymbol(MIRSymbol *sym);
   void OutputLocalSymTab(const MIRFunction *func);
   void OutputPregTab(const MIRFunction *func);
   void OutputLabelTab(const MIRFunction *func);
-  void OutputLocalTypeNameTab(const MIRTypeNameTable *tnametab);
+  void OutputLocalTypeNameTab(const MIRTypeNameTable *tyNameTab);
   void OutputFormalsStIdx(MIRFunction *func);
   void OutputFuncViaSymName(PUIdx puIdx);
   void OutputExpression(BaseNode *e);
@@ -150,7 +148,21 @@ class BinaryMplExport {
     return mod;
   }
 
+  bool not2mplt;  // this export is not to an mplt file
+
  private:
+  using CallSite = std::pair<CallInfo*, PUIdx>;
+  void WriteEaField(const CallGraph &cg);
+  void WriteEaCgField(EAConnectionGraph *eaCg);
+  void OutEaCgNode(EACGBaseNode &node);
+  void OutEaCgBaseNode(const EACGBaseNode &node, bool firstPart);
+  void OutEaCgFieldNode(EACGFieldNode &node);
+  void OutEaCgRefNode(const EACGRefNode &node);
+  void OutEaCgActNode(const EACGActualNode &node);
+  void OutEaCgObjNode(EACGObjectNode &node);
+  void WriteCgField(uint64 contentIdx, const CallGraph *cg);
+  void WriteSeField();
+  void OutputCallInfo(CallInfo &callInfo);
   void WriteContentField4mplt(int fieldNum, uint64 *fieldStartP);
   void WriteContentField4nonmplt(int fieldNum, uint64 *fieldStartP);
   void WriteContentField4nonJava(int fieldNum, uint64 *fieldStartP);
@@ -178,12 +190,67 @@ class BinaryMplExport {
   std::unordered_map<UStrIdx, int64, UStrIdxHash> uStrMark;
   std::unordered_map<const MIRSymbol*, int64> symMark;
   std::unordered_map<MIRType*, int64> typMark;
-  static int typeMarkOffset;  // offset of mark (tag in binmplimport) resulting from duplicated function
-
- public:
-  bool not2mplt;  // this export is not to an mplt file
+  friend class UpdateMplt;
   std::unordered_map<uint32, int64> callInfoMark;
+  std::map<GStrIdx, uint8> *func2SEMap = nullptr;
+  std::unordered_map<EACGBaseNode*, int64> eaNodeMark;
+  bool inIPA = false;
+  static int typeMarkOffset;  // offset of mark (tag in binmplimport) resulting from duplicated function
 };
 
+class UpdateMplt  {
+ public:
+  UpdateMplt() = default;
+  ~UpdateMplt() = default;
+  class ManualSideEffect {
+   public:
+    ManualSideEffect(std::string name, bool p, bool u, bool d, bool o, bool e)
+        : funcName(name), pure(p), defArg(u), def(d), object(o), exception(e) {};
+    virtual ~ManualSideEffect() = default;
+
+    const std::string &GetFuncName() const {
+      return funcName;
+    }
+
+    bool GetPure() const {
+      return pure;
+    }
+
+    bool GetDefArg() const {
+      return defArg;
+    }
+
+    bool GetDef() const {
+      return def;
+    }
+
+    bool GetObject() const {
+      return object;
+    }
+
+    bool GetException() const {
+      return exception;
+    }
+
+    bool GetPrivateUse() const {
+      return privateUse;
+    }
+
+    bool GetPrivateDef() const {
+      return privateDef;
+    }
+
+   private:
+    std::string funcName;
+    bool pure;
+    bool defArg;
+    bool def;
+    bool object;
+    bool exception;
+    bool privateUse = false;
+    bool privateDef = false;
+  };
+  void UpdateCgField(BinaryMplt &binMplt, const CallGraph &cg);
+};
 }  // namespace maple
 #endif  // MAPLE_IR_INCLUDE_BIN_MPL_EXPORT_H

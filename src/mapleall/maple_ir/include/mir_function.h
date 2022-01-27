@@ -23,6 +23,7 @@
 #include "file_layout.h"
 #include "mir_nodes.h"
 #include "profile.h"
+#include "func_desc.h"
 
 #define DEBUGME true
 
@@ -32,6 +33,12 @@ struct MIRAliasVars {
   GStrIdx memPoolStrIdx;
   TyIdx tyIdx;
   GStrIdx sigStrIdx;
+};
+
+enum PointerAttr: uint32_t {
+  kPointerUndeiced = 0x1,
+  kPointerNull = 0x2,
+  kPointerNoNull = 0x3
 };
 
 enum FuncAttrProp : uint32_t {
@@ -54,6 +61,7 @@ class FormalDef {
   TypeAttrs formalAttrs = TypeAttrs();  // the formal's type attributes
 
   FormalDef() {};
+  virtual ~FormalDef() {}
   FormalDef(MIRSymbol *s, const TyIdx &tidx, const TypeAttrs &at) : formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
   FormalDef(const GStrIdx &sidx, MIRSymbol *s, const TyIdx &tidx, const TypeAttrs &at)
       : formalStrIdx(sidx), formalSym(s), formalTyIdx(tidx), formalAttrs(at) {}
@@ -208,6 +216,7 @@ class MIRFunction {
   FuncAttrs GetAttrs() const {
     return funcAttrs;
   }
+
   void SetAttrs(FuncAttrs attr) {
     funcAttrs = attr;
   }
@@ -215,9 +224,11 @@ class MIRFunction {
   bool GetAttr(FuncAttrKind attrKind) const {
     return funcAttrs.GetAttr(attrKind);
   }
+
   void SetAttr(FuncAttrKind attrKind) {
     funcAttrs.SetAttr(attrKind);
   }
+
   void UnSetAttr(FuncAttrKind attrKind) {
     funcAttrs.SetAttr(attrKind, true);
   }
@@ -232,6 +243,10 @@ class MIRFunction {
 
   bool IsStatic() const {
     return funcAttrs.GetAttr(FUNCATTR_static);
+  }
+
+  bool IsExtern() const {
+    return funcAttrs.GetAttr(FUNCATTR_extern);
   }
 
   bool IsNative() const {
@@ -300,6 +315,14 @@ class MIRFunction {
 
   bool IsFirstArgReturn() const {
     return funcAttrs.GetAttr(FUNCATTR_firstarg_return);
+  }
+
+  bool IsUnSafe() const {
+    return !funcAttrs.GetAttr(FUNCATTR_safed) || funcAttrs.GetAttr(FUNCATTR_unsafed);
+  }
+
+  bool IsSafe() const {
+    return funcAttrs.GetAttr(FUNCATTR_safed);
   }
 
   void SetVarArgs() {
@@ -375,7 +398,7 @@ class MIRFunction {
 
   bool IsReturnStruct() const;
   void SetReturnStruct();
-  void SetReturnStruct(MIRType &retType);
+  void SetReturnStruct(const MIRType &retType);
 
   bool IsUserFunc() const;
   void SetUserFunc();
@@ -417,6 +440,15 @@ class MIRFunction {
     return 0xffffffff;
   }
 
+  FormalDef &GetFormalDefFromMIRSymbol(const MIRSymbol *symbol) {
+    for (auto &formalDef : formalDefVec) {
+      if (formalDef.formalSym == symbol) {
+        return formalDef;
+      }
+    }
+    CHECK_FATAL(false, "Impossible.");
+  }
+
   bool IsAFormalName(const GStrIdx idx) const {
     for (const auto &formalDef : formalDefVec) {
       if (idx == formalDef.formalStrIdx) {
@@ -455,6 +487,7 @@ class MIRFunction {
 
   void ReleaseCodeMemory() {
     if (codeMemPool != nullptr) {
+      codeMemPoolAllocator.SetMemPool(nullptr);
       delete codeMemPool;
       SetMemPool(nullptr);
     }
@@ -550,7 +583,7 @@ class MIRFunction {
       typeNameTab = module->GetMemPool()->New<MIRTypeNameTable>(module->GetMPAllocator());
     }
   }
-  bool HaveTypeNameTab() {
+  bool HaveTypeNameTab() const {
     return typeNameTab != nullptr;
   }
   const MapleMap<GStrIdx, TyIdx> &GetGStrIdxToTyIdxMap() const {
@@ -666,7 +699,7 @@ class MIRFunction {
     infoIsString.push_back(isString);
   }
 
-  bool NeedEmitAliasInfo() {
+  bool NeedEmitAliasInfo() const {
     return aliasVarMap != nullptr;
   }
 
@@ -676,7 +709,7 @@ class MIRFunction {
     }
     return *aliasVarMap;
   }
-  void SetAliasVarMap(GStrIdx idx, MIRAliasVars &vars) {
+  void SetAliasVarMap(GStrIdx idx, const MIRAliasVars &vars) {
     if (aliasVarMap == nullptr) {
       aliasVarMap = module->GetMemPool()->New<MapleMap<GStrIdx, MIRAliasVars>>(module->GetMPAllocator().Adapter());
     }
@@ -690,17 +723,17 @@ class MIRFunction {
     hasVlaOrAlloca = has;
   }
 
-  bool HasFreqMap() {
-    return floatReqMap != nullptr;
+  bool HasFreqMap() const {
+    return freqMap != nullptr;
   }
   const MapleMap<uint32, uint32> &GetFreqMap() const {
-    return *floatReqMap;
+    return *freqMap;
   }
   void SetFreqMap(uint32 stmtID, uint32 freq) {
-    if (floatReqMap == nullptr) {
-      floatReqMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
+    if (freqMap == nullptr) {
+      freqMap = module->GetMemPool()->New<MapleMap<uint32, uint32>>(module->GetMPAllocator().Adapter());
     }
-    (*floatReqMap)[stmtID] = freq;
+    (*freqMap)[stmtID] = freq;
   }
 
   bool WithLocInfo() const {
@@ -837,6 +870,10 @@ class MIRFunction {
     return formalDefVec[i];
   }
 
+  FormalDef &GetFormalDefAt(size_t i) {
+    return formalDefVec[i];
+  }
+
   const MIRSymbol *GetFormal(size_t i) const {
     return formalDefVec[i].formalSym;
   }
@@ -951,6 +988,14 @@ class MIRFunction {
     return genericArg;
   }
 
+  void SetRetrunAttrKind(const PointerAttr kind) {
+    returnKind = kind;
+  }
+
+  PointerAttr GetRetrunAttrKind() const {
+    return returnKind;
+  }
+
   AnnotationType *GetFuncGenericRet() {
     return genericRet;
   }
@@ -970,6 +1015,52 @@ class MIRFunction {
     return codeMemPoolTmp;
   }
 
+  bool CheckParamNullType(MIRSymbol *sym) {
+    return paramNonullTypeMap.find(sym) != paramNonullTypeMap.end();
+  }
+
+  PointerAttr GetParamNonull(MIRSymbol *sym) {
+    return paramNonullTypeMap[sym];
+  }
+
+  void SetParamNonull(MIRSymbol *sym, PointerAttr type) {
+    paramNonullTypeMap[sym] = type;
+  }
+
+  void CopyReferedRegs(std::set<uint32> regs) {
+    for (auto reg : regs) {
+      referedPregs.insert(reg);
+    }
+  }
+
+  MapleSet<uint32> GetReferedRegs() const {
+    return referedPregs;
+  }
+
+  bool IsReferedRegsValid() const {
+    return referedRegsValid;
+  }
+
+  void SetReferedRegsValid(bool val) {
+    referedRegsValid = val;
+  }
+
+  FuncDesc &GetFuncDesc() {
+    return funcDesc;
+  }
+
+  void SetFuncDesc(const FuncDesc &value) {
+    funcDesc = value;
+  }
+
+  void InitFuncDescToBest() {
+    funcDesc.InitToBest();
+  }
+
+  const FuncDesc &GetFuncDesc() const {
+    return funcDesc;
+  }
+
   void AddProfileDesc(uint64 hash, uint32 start, uint32 end) {
     profileDesc = module->GetMemPool()->New<IRProfileDesc>(hash, start, end);
   }
@@ -982,6 +1073,12 @@ class MIRFunction {
     return profileDesc;
   }
 
+  bool IsVisited() const {
+    return isVisited;
+  }
+  void SetIsVisited() {
+    isVisited = true;
+  }
  private:
   MIRModule *module;     // the module that owns this function
   PUIdx puIdx = 0;           // the PU index of this function
@@ -1016,10 +1113,12 @@ class MIRFunction {
   MapleVector<bool> infoIsString{module->GetMPAllocator().Adapter()};  // tells if an entry has string value
   MapleMap<GStrIdx, MIRAliasVars> *aliasVarMap = nullptr;  // source code alias variables
                                                                                     // for debuginfo
-  MapleMap<uint32, uint32> *floatReqMap = nullptr;  // save bb frequency in its last_stmt.
+  MapleMap<uint32, uint32> *freqMap = nullptr;  // save bb frequency in its last_stmt, key is stmtId
+  MapleSet<uint32> referedPregs{module->GetMPAllocator().Adapter()};
+  bool referedRegsValid = false;
   bool hasVlaOrAlloca = false;
   bool withLocInfo = true;
-
+  bool isVisited = false;   // only used in inline phase.
   bool isDirty = false;
   bool fromMpltInline = false;  // Whether this function is imported from mplt_inline file or not.
   uint8_t layoutType = kLayoutUnused;
@@ -1072,6 +1171,9 @@ class MIRFunction {
   MemPool *codeMemPoolTmp{nullptr};
   MapleAllocator codeMemPoolTmpAllocator{nullptr};
   bool useTmpMemPool = false;
+  PointerAttr returnKind = PointerAttr::kPointerUndeiced;
+  std::map<MIRSymbol*, PointerAttr> paramNonullTypeMap;
+  FuncDesc funcDesc;
 
   void DumpFlavorLoweredThanMmpl() const;
   MIRFuncType *ReconstructFormals(const std::vector<MIRSymbol*> &symbols, bool clearOldArgs);

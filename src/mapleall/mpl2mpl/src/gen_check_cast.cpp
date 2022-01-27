@@ -323,13 +323,13 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //   intrinsiccallwithtypeassigned <* <$targetClass>> JAVA_CHECK_CAST (dread ref %Reg2_R45718) { dassign %Reg2_R45709 0}
 //   ==>
 //   ## check nullptr
-//   if (ne u1 ptr (dread ref %Reg2_R45718, constval ptr 0)) {
+//   Example: if (ne u1 ptr (dread ref %Reg2_R45718, constval ptr 0)) {
 //     dassign %objClass 0 (iread ptr <* <$Ljava_2Flang_2FObject_3B>> 1 (dread ref %Reg2_R45718))
 //     dassign %targetClass 0 (intrinsicopwithtype ref <* <$targetClass>> JAVA_CONST_CLASS ())
 //   ## check type
 //     dassign %isAssignableFromResult 0
 //        (intrinsicopwithtype ref <* <$targetClass>> JAVA_ISASSIGNABLEFROM (dread ptr %objClass))
-//     if (eq u1 ptr (dread u1 %isAssignableFromResult, constval u1 0)) {
+//     Example: if (eq u1 ptr (dread u1 %isAssignableFromResult, constval u1 0)) {
 //       call &MCC_ThrowCastException (dread ptr %targetClass, dread ref %Reg2_R45718)
 //     }
 //   }
@@ -339,10 +339,10 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //   dassign %Reg0_Z 0 (intrinsicopwithtype u1 <* <$targetClass>> JAVA_INSTANCE_OF (dread ref %Reg0_R45718))
 //   ==>
 //   ## check nullptr
-//   if (ne u1 ptr (dread ref %Reg0_R45718, constval ptr 0)) {
+//   Example: if (ne u1 ptr (dread ref %Reg0_R45718, constval ptr 0)) {
 //     dassign %objClass 0 (iread ptr <* <$Ljava_2Flang_2FObject_3B>> 1 (dread ref %Reg0_R45718))
 //     dassign %Reg0_Z 0 (intrinsicopwithtype ref <* <$targetClass>> JAVA_ISASSIGNABLEFROM (dread ptr %objClass))
-//   } else {
+//   Example: } else {
 //     dassign %Reg0_Z 0 (constval u1 0)
 //   }
 //
@@ -373,17 +373,17 @@ BaseNode *CheckCastGenerator::GetObjectShadow(BaseNode *opnd) {
 //   ==>
 //   ##set result true first
 //   dassign %Reg0_Z 0 (constval u1 1)
-//   if (ne u1 ptr (dread ptr %objClass, dread ptr %targetClass)) {
+//   Example: if (ne u1 ptr (dread ptr %objClass, dread ptr %targetClass)) {
 //     // load cacheTrueClass, it stored in runtime
 //     dassign %cacheTrueClass 0 (iread u64 <* <$__class_meta__>> 11 (dread ptr %objClass))
-//     if (ne u1 ptr (dread ptr %targetClass, dread u64 %cacheTrueClass)) {
+//     Example: if (ne u1 ptr (dread ptr %targetClass, dread u64 %cacheTrueClass)) {
 //       ##load cacheFalseClass, it stored in runtime
 //       dassign %cacheFalseClass 0 (iread u64 <* <$__class_meta__>> 10 (dread ptr %objClass))
-//       if (eq u1 ptr (
+//       Example: if (eq u1 ptr (
 //         dread ptr %targetClass,
 //         lshr u64 (dread u64 %cacheFalseClass, constval u8 32))) {
 //         dassign %Reg0_Z 0 (constval u1 0)
-//       } else {
+//       Example: } else {
 //         ##check cache fail, got to slow path, check in runtime
 //         callassigned &MCC_IsAssignableFrom (dread ptr %objClass, dread ptr %targetClass) { dassign %Reg0_Z 0 }
 //       }
@@ -580,7 +580,7 @@ void CheckCastGenerator::ReplaceNoSubClassIsAssignableFrom(BlockNode &blockNode,
   blockNode.ReplaceStmt1WithStmt2(&stmt, innerIfStmt);
 }
 
-bool CheckCastGenerator::IsDefinedConstClass(StmtNode &stmt, const MIRPtrType &targetClassType,
+bool CheckCastGenerator::IsDefinedConstClass(const StmtNode &stmt, const MIRPtrType &targetClassType,
                                              PregIdx &classSymPregIdx, MIRSymbol *&classSym) {
   StmtNode *stmtPre = stmt.GetPrev();
   Opcode opPre = stmtPre->GetOpCode();

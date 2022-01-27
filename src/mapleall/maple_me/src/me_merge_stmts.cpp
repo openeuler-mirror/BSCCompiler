@@ -24,7 +24,7 @@ uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fiel
   if (fieldType->GetKind() == kTypeBitField) {
     fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
   } else {
-    fieldBitSize = fieldType->GetSize() * 8;
+    fieldBitSize = static_cast<uint32>(fieldType->GetSize()) * 8;
   }
   return fieldBitSize;
 }
@@ -32,7 +32,7 @@ uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fiel
 uint32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
   MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
   MIRType *PointedMirType = ptrMirType->GetPointedType();
-  return PointedMirType->GetSize() * 8;
+  return static_cast<uint32>(PointedMirType->GetSize()) * 8;
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
@@ -43,7 +43,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
 
   std::sort(iassignCandidates.begin(), iassignCandidates.end());
 
-  int32 numOfCandidates = iassignCandidates.size();
+  int32 numOfCandidates = static_cast<uint32>(iassignCandidates.size());
   int32 startCandidate = 0;
   int32 endCandidate = numOfCandidates - 1;
   ASSERT(iassignCandidates[startCandidate].second->GetOp() == OP_iassign, "Candidate MeStmt must be Iassign");
@@ -157,7 +157,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
 
   sort(dassignCandidates.begin(), dassignCandidates.end());
 
-  int32 numOfCandidates = dassignCandidates.size();
+  int32 numOfCandidates = static_cast<int32>(dassignCandidates.size());
   int32 startCandidate = 0;
   int32 endCandidate = numOfCandidates - 1;
   ASSERT(dassignCandidates[startCandidate].second->GetOp() == OP_dassign, "Candidate MeStmt must be Dassign");
@@ -245,7 +245,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
 }
 
 IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
-                                          MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
+                                          const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar1.SetOffset(offset);
   IvarMeExpr *dstIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(iVar1));
@@ -256,7 +256,7 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMe
 }
 
 IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr& valMeExpr,
-                                          MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
+                                          const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx) {
   MeIRMap *irMap = func.GetIRMap();
   iVar.SetOffset(offset);
   IvarMeExpr *dstIvar = static_cast<IvarMeExpr *>(irMap->HashMeExpr(iVar));
@@ -265,7 +265,8 @@ IassignMeStmt *MergeStmts::genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr&
 }
 
 void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
-                             IntrinsiccallMeStmt* memsetCallStmt, MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
+                             IntrinsiccallMeStmt* memsetCallStmt,
+                             const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi) {
 
     MIRType *uXTgtPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*uXTgtMirType, PTY_ptr);
     IvarMeExpr iVarBase(kInvalidExprID, uXTgtMirType->GetPrimType(), uXTgtPtrType->GetTypeIndex(), 0);
@@ -276,7 +277,7 @@ void MergeStmts::genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMir
     xIassignStmt->CopyInfo(*memsetCallStmt);
 }
 
-const uint32 simdThreshold = 128;
+const int32 simdThreshold = 128;
 
 void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
   ASSERT(memcpyCallStmt->GetIntrinsic() == INTRN_C_memcpy, "The stmt is NOT intrinsic memcpy");
@@ -286,7 +287,7 @@ void MergeStmts::simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt) {
       lengthExpr->GetConstVal()->GetKind() != kConstInt) {
     return;
   }
-  int32 copyLength = lengthExpr->GetIntValue();
+  int32 copyLength = static_cast<int32>(lengthExpr->GetIntValue());
   if (copyLength <= 0 || copyLength > simdThreshold || copyLength % 8 != 0) {
     return;
   }
@@ -364,7 +365,7 @@ void MergeStmts::simdMemset(IntrinsiccallMeStmt* memsetCallStmt) {
       numExpr->GetConstVal()->GetKind() != kConstInt) {
     return;
   }
-  int32 setLength = numExpr->GetIntValue();
+  int32 setLength = static_cast<int32>(numExpr->GetIntValue());
   // It seems unlikely that setLength is just a few bytes long
   if (setLength <= 0 || setLength > simdThreshold) {
     return;
@@ -586,7 +587,7 @@ void MergeStmts::MergeMeStmts() {
               MIRPtrType *lhsMirPtrType =
                 static_cast<MIRPtrType*>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsTyIdx));
               MIRStructType *lhsStructType = static_cast<MIRStructType *>(lhsMirPtrType->GetPointedType());
-              int32 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVarIassignStmt->GetFieldID());
+              int64 fieldBitOffset = lhsStructType->GetBitOffsetFromBaseAddr(iVarIassignStmt->GetFieldID());
               if (uniqueCheck[fieldBitOffset] != nullptr) {
                 bb->RemoveMeStmt(uniqueCheck[fieldBitOffset]);
               }

@@ -78,11 +78,11 @@ class CGLowerer {
 
   BaseNode *LowerIntrinsicopwithtype(const BaseNode&, IntrinsicopNode&, BlockNode&);
 
-  StmtNode *LowerIntrinsicMplClearStack(IntrinsiccallNode &intrinCall, BlockNode &newBlk);
+  StmtNode *LowerIntrinsicMplClearStack(const IntrinsiccallNode &intrinCall, BlockNode &newBlk);
 
-  StmtNode *LowerIntrinsicRCCall(IntrinsiccallNode &intrinCall);
+  StmtNode *LowerIntrinsicRCCall(const IntrinsiccallNode &intrinCall);
 
-  void LowerArrayStore(IntrinsiccallNode &intrinCall, BlockNode &newBlk);
+  void LowerArrayStore(const IntrinsiccallNode &intrinCall, BlockNode &newBlk);
 
   StmtNode *LowerDefaultIntrinsicCall(IntrinsiccallNode &intrinCall, MIRSymbol &st, MIRFunction &fn);
 
@@ -130,7 +130,7 @@ class CGLowerer {
 
   void LowerJarrayMalloc(const StmtNode &stmt, const JarrayMallocNode &node, BlockNode &block, bool perm = false);
 
-  BaseNode *LowerAddrof(AddrofNode &addrof) {
+  BaseNode *LowerAddrof(AddrofNode &addrof) const {
     return &addrof;
   }
 
@@ -138,7 +138,7 @@ class CGLowerer {
   BaseNode *SplitBinaryNodeOpnd1(BinaryNode &bNode, BlockNode &blkNode);
   BaseNode *SplitTernaryNodeResult(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   bool IsComplexSelect(const TernaryNode &tNode) const;
-  BaseNode *LowerComplexSelect(TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
+  BaseNode *LowerComplexSelect(const TernaryNode &tNode, BaseNode &parent, BlockNode &blkNode);
   BaseNode *LowerFarray(ArrayNode &array);
   BaseNode *LowerArrayDim(ArrayNode &array, int32 dim);
   BaseNode *LowerArrayForLazyBiding(BaseNode &baseNode, BaseNode &offsetNode, const BaseNode &parent);
@@ -146,7 +146,8 @@ class CGLowerer {
   BaseNode *LowerCArray(ArrayNode &array);
 
   DassignNode *SaveReturnValueInLocal(StIdx, uint16);
-  void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false);
+  void LowerCallStmt(StmtNode&, StmtNode*&, BlockNode&, MIRType *retty = nullptr, bool uselvar = false,
+                     bool isIntrinAssign = false);
   BlockNode *LowerCallAssignedStmt(StmtNode &stmt, bool uselvar = false);
   bool LowerStructReturn(BlockNode &blk, StmtNode *stmt, StmtNode *nextStmt, bool &lvar);
   BlockNode *LowerMemop(StmtNode&);
@@ -162,6 +163,8 @@ class CGLowerer {
   void RegisterExternalLibraryFunctions();
 
   BlockNode *LowerBlock(BlockNode &block);
+
+  void SimplifyBlock(BlockNode &block);
 
   void LowerTryCatchBlocks(BlockNode &body);
 
@@ -239,7 +242,7 @@ class CGLowerer {
    */
   bool IsIntrinsicCallHandledAtLowerLevel(MIRIntrinsicID intrinsic) const;
 
-  bool IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic);
+  bool IsIntrinsicOpHandledAtLowerLevel(MIRIntrinsicID intrinsic) const;
 
  private:
 

@@ -494,7 +494,7 @@ MeStmt *GetNoReturnStmt(BB *bb) {
   return nullptr;
 }
 
-bool SkipSimplifyCFG(maple::MeFunction &f) {
+bool SkipSimplifyCFG(const maple::MeFunction &f) {
   for (auto bbIt = f.GetCfg()->valid_begin(); bbIt != f.GetCfg()->valid_end(); ++bbIt) {
     if ((*bbIt)->GetKind() == kBBIgoto || (*bbIt)->GetAttributes(kBBAttrIsTry)) {
       return true;
@@ -503,7 +503,7 @@ bool SkipSimplifyCFG(maple::MeFunction &f) {
   return false;
 }
 
-bool RemoveUnreachableBB(maple::MeFunction &f) {
+bool RemoveUnreachableBB(const maple::MeFunction &f) {
   if (f.GetCfg()->UnreachCodeAnalysis(true)) {
     DEBUG_LOG() << "Remove unreachable BB\n";
     return true;
@@ -511,7 +511,7 @@ bool RemoveUnreachableBB(maple::MeFunction &f) {
   return false;
 }
 
-bool MergeEmptyReturnBB(maple::MeFunction &f) {
+bool MergeEmptyReturnBB(const maple::MeFunction &f) {
   // WORK TO BE DONE
   (void)f;
   return false;

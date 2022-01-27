@@ -803,11 +803,11 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
   void InsertOpnd(uint32 bbId, RegOperand &phiParam) {
     ASSERT(!phiList.count(bbId), "cannot insert duplicate operand");
-    phiList.insert(std::pair(bbId, &phiParam));
+    phiList.emplace(std::pair(bbId, &phiParam));
   }
 
   void UpdateOpnd(uint32 bbId, uint32 newId, RegOperand &phiParam) {
-    phiList.insert(std::pair(newId, &phiParam));
+    phiList.emplace(std::pair(newId, &phiParam));
     phiList.erase(bbId);
   }
 

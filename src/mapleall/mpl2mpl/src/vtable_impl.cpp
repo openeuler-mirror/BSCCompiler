@@ -346,8 +346,9 @@ void VtableImpl::ReplaceResolveInterface(StmtNode &stmt, const ResolveFuncNode &
   }
 }
 
-void VtableImpl::ItabProcess(StmtNode &stmt, const ResolveFuncNode &resolveNode, const std::string &signature,
-                             PregIdx &pregFuncPtr, const MIRType &compactPtrType, const PrimType &compactPtrPrim) {
+void VtableImpl::ItabProcess(const StmtNode &stmt, const ResolveFuncNode &resolveNode, const std::string &signature,
+                             const PregIdx &pregFuncPtr, const MIRType &compactPtrType,
+                             const PrimType &compactPtrPrim) {
   int64 hashCode = GetHashIndex(signature.c_str());
   uint64 secondHashCode = GetSecondHashIndex(signature.c_str());
   PregIdx pregItabAddress = currFunc->GetPregTab()->CreatePreg(PTY_ptr);

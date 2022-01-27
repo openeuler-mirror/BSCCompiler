@@ -142,7 +142,7 @@ void BECommon::ComputeStructTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     }
     return;
   }
-  for (size_t j = 0; j < fields.size(); ++j) {
+  for (uint32 j = 0; j < fields.size(); ++j) {
     TyIdx fieldTyIdx = fields[j].second.first;
     MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTyIdx);
     uint32 fieldTypeSize = GetTypeSize(fieldTyIdx);
@@ -321,18 +321,21 @@ void BECommon::ComputeArrayTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
     CHECK_FATAL(elemSize != 0, "elemSize should not equal 0");
     CHECK_FATAL(elemType->GetTypeIndex() != 0u, "elemType's idx should not equal 0");
   }
-  uint32 elemAlign = arrayType.GetTypeAttrs().GetAlign();
+  uint32 arrayAlign = arrayType.GetTypeAttrs().GetAlign();
   elemSize = std::max(elemSize, static_cast<uint32>(GetTypeAlign(elemType->GetTypeIndex())));
-  elemSize = std::max(elemSize, elemAlign);
+  elemSize = std::max(elemSize, arrayAlign);
   /* compute total number of elements from the multipel dimensions */
   uint64 numElems = 1;
   for (int d = 0; d < arrayType.GetDim(); ++d) {
     numElems *= arrayType.GetSizeArrayItem(d);
   }
-  SetTypeSize(tyIdx, elemSize * numElems);
-  SetTypeAlign(tyIdx, GetTypeAlign(elemType->GetTypeIndex()));
-  if (GetTypeAlign(tyIdx) < elemAlign) {
-    SetTypeAlign(tyIdx, elemAlign);
+  auto typeSize = elemSize * numElems;
+  SetTypeSize(tyIdx, typeSize);
+  if (typeSize == 0) {
+    SetTypeAlign(tyIdx, arrayAlign);
+  } else {
+    auto maxAlign = std::max(static_cast<uint32>(GetTypeAlign(elemType->GetTypeIndex())), arrayAlign);
+    SetTypeAlign(tyIdx, maxAlign);
   }
 }
 
@@ -529,7 +532,7 @@ void BECommon::GenFieldOffsetMap(MIRClassType &classType, FILE &outFile) {
   }
 }
 
-void BECommon::GenObjSize(MIRClassType &classType, FILE &outFile) {
+void BECommon::GenObjSize(const MIRClassType &classType, FILE &outFile) {
   const std::string &className = classType.GetName();
   uint64_t objSize = GetTypeSize(classType.GetTypeIndex());
   if (objSize == 0) {
@@ -698,7 +701,7 @@ void BECommon::AddElementToFuncReturnType(MIRFunction &func, const TyIdx tyIdx) 
 }
 
 MIRType *BECommon::BeGetOrCreatePointerType(const MIRType &pointedType) {
-  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(pointedType, PTY_a64);
+  MIRType *newType = GlobalTables::GetTypeTable().GetOrCreatePointerType(pointedType, LOWERED_PTR_TYPE);
   if (TyIsInSizeAlignTable(*newType)) {
     return newType;
   }
@@ -748,7 +751,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
       std::pair<int32, int32> byteBitOffset =
           GetFieldOffset(static_cast<MIRStructType&>(*pointedType), iNode.GetFieldID());
 #if TARGAARCH64 || TARGRISCV64
-      ASSERT(GetAddressPrimType() == PTY_a64, "incorrect address type, expect a PTY_a64");
+      ASSERT(GetAddressPrimType() == LOWERED_PTR_TYPE, "incorrect address type, expect a LOWERED_PTR_TYPE");
 #endif
       return mirModule.GetMIRBuilder()->CreateExprBinary(
           OP_add, *GlobalTables::GetTypeTable().GetPrimType(GetAddressPrimType()),
@@ -760,7 +763,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
   }
 }
 
-bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) {
+bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) const {
   (void) attr;
   (void) narynode;
   return false;

@@ -32,7 +32,7 @@ class AArch64FixShortBranch {
  private:
   CGFunc *cgFunc;
   CG *cg;
-  uint32 CalculateAlignRange(BB &bb, uint32 addr);
+  uint32 CalculateAlignRange(const BB &bb, uint32 addr) const;
   void SetInsnId();
 };  /* class AArch64ShortBranch */
 

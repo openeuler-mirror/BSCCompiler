@@ -212,7 +212,7 @@ class IVOptimizer {
   void ComputeCandCost();
   int64 ComputeRatioOfStep(MeExpr &candStep, MeExpr &groupStep);
   MeExpr *ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase, int64 ratio, bool &replaced);
-  uint32 ComputeCandCostForGroup(IVCand &cand, IVGroup &group);
+  uint32 ComputeCandCostForGroup(const IVCand &cand, IVGroup &group);
   void ComputeGroupCost();
   uint32 ComputeSetCost(CandSet &set);
   // step5: greedily find the best set of candidates in all uses
@@ -1523,7 +1523,7 @@ static bool CheckOverflow(MeExpr *opnd0, MeExpr *opnd1, Opcode op, PrimType ptyp
   return true;
 }
 
-uint32 IVOptimizer::ComputeCandCostForGroup(IVCand &cand, IVGroup &group) {
+uint32 IVOptimizer::ComputeCandCostForGroup(const IVCand &cand, IVGroup &group) {
   if (GetPrimTypeSize(cand.iv->expr->GetPrimType()) < GetPrimTypeSize(group.uses[0]->iv->expr->GetPrimType())) {
     return kInfinityCost;
   }
@@ -1930,7 +1930,7 @@ void IVOptimizer::UseReplace() {
   auto *latchBB = data->currLoop->latch;
   auto *incPos = GetIncPos();
 
-  for (int i = 0; i < data->groups.size(); ++i) {
+  for (size_t i = 0; i < data->groups.size(); ++i) {
     auto *group = data->groups[i];
     auto *cand = data->set->chosenCands[i];
     if (cand->incPos == kOriginal && cand->originTmp == nullptr) {

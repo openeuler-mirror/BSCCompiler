@@ -66,7 +66,11 @@ void PhiEliminate::UpdateRematInfo() {
 void PhiEliminate::PlaceMovInPredBB(uint32 predBBId, Insn &movInsn) {
   BB *predBB = cgFunc->GetBBFromID(predBBId);
   ASSERT(movInsn.GetOperand(kInsnSecondOpnd).IsRegister(), "unexpect operand");
-  AppendMovAfterLastVregDef(*predBB, movInsn);
+  if (predBB->GetKind() == BB::kBBFallthru) {
+    predBB->AppendInsn(movInsn);
+  } else {
+    AppendMovAfterLastVregDef(*predBB, movInsn);
+  }
 }
 
 regno_t PhiEliminate::GetAndIncreaseTempRegNO() {
@@ -85,16 +89,18 @@ RegOperand *PhiEliminate::MakeRoomForNoDefVreg(RegOperand &conflictReg) {
     return rVregIt->second;
   } else {
     RegOperand *regForRecreate = &CreateTempRegForCSSA(conflictReg);
-    replaceVreg.insert(std::pair<regno_t, RegOperand*>(conflictVregNO, regForRecreate));
+    replaceVreg.emplace(std::pair<regno_t, RegOperand*>(conflictVregNO, regForRecreate));
     return regForRecreate;
   }
 }
 
 void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
   if (remateInfoAfterSSA.count(vRegNO)) {
-    CHECK_FATAL(remateInfoAfterSSA[vRegNO] == pIdx, "new remat on same reg opnd");
+    if (remateInfoAfterSSA[vRegNO] != pIdx) {
+      remateInfoAfterSSA.erase(vRegNO);
+    }
   } else {
-    remateInfoAfterSSA.insert(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
+    remateInfoAfterSSA.emplace(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
   }
 }
 

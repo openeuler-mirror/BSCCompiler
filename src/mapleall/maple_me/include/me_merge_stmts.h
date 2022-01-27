@@ -34,14 +34,15 @@ class MergeStmts {
   void mergeDassigns(vOffsetStmt& dassignCandidates);
   uint32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
   IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
-                                MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+                                const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr& regVal,
-                                MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
+                                const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   void genShortSet(MeExpr *dstMeExpr, uint32 offset, MIRType *uXTgtMirType, RegMeExpr *srcRegMeExpr,
-                   IntrinsiccallMeStmt* memsetCallStmt, MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi);
+                   IntrinsiccallMeStmt* memsetCallStmt,
+                   const MapleMap<OStIdx, ChiMeNode *> &memsetCallStmtChi);
   void simdMemcpy(IntrinsiccallMeStmt* memcpyCallStmt);
   void simdMemset(IntrinsiccallMeStmt* memcpyCallStmt);
- private:
+
   MeFunction &func;
 };
 }  // namespace maple

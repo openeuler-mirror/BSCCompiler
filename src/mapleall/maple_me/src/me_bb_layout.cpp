@@ -185,7 +185,7 @@ void BBLayout::DoBuildChain(const BB &header, BBChain &chain, const MapleVector<
   }
 }
 
-bool BBLayout::IsCandidateSucc(const BB &bb, BB &succ, const MapleVector<bool> *context) {
+bool BBLayout::IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context) {
   if (!IsBBInCurrContext(succ, context)) { // succ must be in the current context (current loop or current func)
     return false;
   }

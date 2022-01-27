@@ -162,21 +162,15 @@ MIRType* TypeTable::GetOrCreateMIRTypeNode(MIRType &pType) {
 
 MIRType *TypeTable::voidPtrType = nullptr;
 // get or create a type that pointing to pointedTyIdx
-  MIRType *TypeTable::GetOrCreatePointerType(const TyIdx &pointedTyIdx, PrimType primType,
-                                             const std::vector<TypeAttrs> attrs) {
+MIRType *TypeTable::GetOrCreatePointerType(const TyIdx &pointedTyIdx, PrimType primType, const TypeAttrs &attrs) {
   MIRPtrType type(pointedTyIdx, primType);
-  if (!attrs.empty()) {
-    for (auto &attr : attrs) {
-      type.SetTypeAttrs(attr);
-    }
-  }
+  type.SetTypeAttrs(attrs);
   TyIdx tyIdx = GetOrCreateMIRType(&type);
   ASSERT(tyIdx < typeTable.size(), "index out of range in TypeTable::GetOrCreatePointerType");
   return typeTable.at(tyIdx);
 }
 
-MIRType *TypeTable::GetOrCreatePointerType(const MIRType &pointTo, PrimType primType,
-                                           const std::vector<TypeAttrs> attrs) {
+MIRType *TypeTable::GetOrCreatePointerType(const MIRType &pointTo, PrimType primType, const TypeAttrs &attrs) {
   if (pointTo.GetPrimType() == PTY_constStr) {
     primType = PTY_ptr;
   }
@@ -194,19 +188,21 @@ MIRType *TypeTable::GetPointedTypeIfApplicable(MIRType &type) {
   return const_cast<MIRType*>(const_cast<const TypeTable*>(this)->GetPointedTypeIfApplicable(type));
 }
 
-MIRArrayType *TypeTable::GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray) {
+MIRArrayType *TypeTable::GetOrCreateArrayType(const MIRType &elem, uint8 dim, const uint32 *sizeArray,
+                                              const TypeAttrs &attrs) {
   std::vector<uint32> sizeVector;
   for (size_t i = 0; i < dim; ++i) {
     sizeVector.push_back(sizeArray != nullptr ? sizeArray[i] : 0);
   }
   MIRArrayType arrayType(elem.GetTypeIndex(), sizeVector);
+  arrayType.SetTypeAttrs(attrs);
   TyIdx tyIdx = GetOrCreateMIRType(&arrayType);
   return static_cast<MIRArrayType*>(typeTable[tyIdx]);
 }
 
 // For one dimension array
-MIRArrayType *TypeTable::GetOrCreateArrayType(const MIRType &elem, uint32 size) {
-  return GetOrCreateArrayType(elem, 1, &size);
+MIRArrayType *TypeTable::GetOrCreateArrayType(const MIRType &elem, uint32 size, const TypeAttrs &attrs) {
+  return GetOrCreateArrayType(elem, 1, &size, attrs);
 }
 
 MIRType *TypeTable::GetOrCreateFarrayType(const MIRType &elem) {
@@ -236,11 +232,14 @@ MIRType *TypeTable::GetOrCreateFunctionType(const TyIdx &retTyIdx, const std::ve
 }
 
 MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const FieldVector &fields,
-                                             const FieldVector &parentFields, MIRModule &module, bool forStruct) {
+                                             const FieldVector &parentFields, MIRModule &module, bool forStruct,
+                                             const TypeAttrs &attrs) {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   MIRStructType type(forStruct ? kTypeStruct : kTypeUnion, strIdx);
   type.SetFields(fields);
   type.SetParentFields(parentFields);
+  type.SetTypeAttrs(attrs);
+
   TyIdx tyIdx = GetOrCreateMIRType(&type);
   // Global?
   module.GetTypeNameTab()->SetGStrIdxToTyIdx(strIdx, tyIdx);
@@ -249,7 +248,7 @@ MIRType *TypeTable::GetOrCreateStructOrUnion(const std::string &name, const Fiel
   return typeTable.at(tyIdx);
 }
 
-void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, MIRType &type) {
+void TypeTable::PushIntoFieldVector(FieldVector &fields, const std::string &name, const MIRType &type) {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(name);
   fields.push_back(FieldPair(strIdx, TyIdxFieldAttrPair(type.GetTypeIndex(), FieldAttrs())));
 }
@@ -275,7 +274,8 @@ MIRType *TypeTable::GetOrCreateClassOrInterface(const std::string &name, MIRModu
   return typeTable.at(tyIdx);
 }
 
-void TypeTable::AddFieldToStructType(MIRStructType &structType, const std::string &fieldName, MIRType &fieldType) {
+void TypeTable::AddFieldToStructType(MIRStructType &structType, const std::string &fieldName,
+                                     const MIRType &fieldType) {
   GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(fieldName);
   FieldAttrs fieldAttrs;
   fieldAttrs.SetAttr(FLDATTR_final);  // Mark compiler-generated struct fields as final to improve AliasAnalysis

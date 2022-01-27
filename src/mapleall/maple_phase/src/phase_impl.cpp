@@ -107,7 +107,7 @@ void FuncOptimizeIterator::RunSerial() {
 
   CHECK_NULL_FATAL(phaseImpl);
   for (MIRFunction *func : phaseImpl->GetMIRModule().GetFunctionList()) {
-    auto dumpPhase = [func](bool dump, std::string &&s, std::string &name) {
+    auto dumpPhase = [func](bool dump, std::string &&s, const std::string &name) {
       if (dump &&
           (Options::dumpFunc == "*" || func->GetName().find(Options::dumpFunc) != std::string::npos) &&
           (Options::dumpPhase == name || Options::dumpPhase == "*")) {

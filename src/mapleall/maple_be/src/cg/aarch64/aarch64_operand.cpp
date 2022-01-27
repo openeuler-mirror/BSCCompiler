@@ -440,7 +440,7 @@ bool AArch64MemOperand::Equals(Operand &operand) const {
   return Equals(static_cast<AArch64MemOperand&>(operand));
 }
 
-bool AArch64MemOperand::Equals(AArch64MemOperand &op) const {
+bool AArch64MemOperand::Equals(const AArch64MemOperand &op) const {
   if (&op == this) {
     return true;
   }
@@ -526,7 +526,7 @@ bool AArch64MemOperand::Less(const Operand &right) const {
   }
 }
 
-bool AArch64MemOperand::NoAlias(AArch64MemOperand &rightOpnd) const {
+bool AArch64MemOperand::NoAlias(const AArch64MemOperand &rightOpnd) const {
   if (addrMode == kAddrModeBOi && rightOpnd.addrMode == kAddrModeBOi && idxOpt == kIntact &&
       rightOpnd.idxOpt == kIntact) {
     RegOperand *baseReg = GetBaseRegister();
@@ -644,7 +644,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
   (void)prop;
   ASSERT(shiftAmount <= k4BitSize && shiftAmount >= 0,
          "shift amount out of range in ExtendShiftOperand");
-  auto emitExtendShift = [&](const std::string &extendKind)->void {
+  auto emitExtendShift = [&emitter, this](const std::string &extendKind)->void {
     emitter.Emit(extendKind);
     if (shiftAmount != 0) {
       emitter.Emit(" #").Emit(shiftAmount);
@@ -682,7 +682,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
 }
 
 void ExtendShiftOperand::Dump() const {
-  auto dumpExtendShift = [&](const std::string &extendKind)->void {
+  auto dumpExtendShift = [this](const std::string &extendKind)->void {
     LogInfo::MapleLogger() << extendKind;
     if (shiftAmount != 0) {
       LogInfo::MapleLogger() << " : " << shiftAmount;

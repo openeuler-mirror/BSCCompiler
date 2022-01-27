@@ -466,7 +466,7 @@ void Emitter::EmitNullConstant(uint64 size) {
 
 void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
   uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
-  auto emitBfldValue = [&](bool flag) {
+  auto emitBfldValue = [&structEmitInfo, charBitWidth, this](bool flag) {
     while (structEmitInfo.GetCombineBitFieldWidth() > charBitWidth) {
       uint8 shift = flag ? (structEmitInfo.GetCombineBitFieldWidth() - charBitWidth) : 0U;
       uint64 tmp = (structEmitInfo.GetCombineBitFieldValue() >> shift) & 0x00000000000000ffUL;

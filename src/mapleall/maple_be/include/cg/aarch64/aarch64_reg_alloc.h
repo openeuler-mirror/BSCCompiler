@@ -39,11 +39,11 @@ class AArch64RegAllocator : public RegAllocator {
   ~AArch64RegAllocator() override = default;
 
   void InitAvailReg();
-  bool AllocatePhysicalRegister(RegOperand &opnd);
+  bool AllocatePhysicalRegister(const RegOperand &opnd);
   void PreAllocate();
   void ReleaseReg(AArch64reg reg);
-  void ReleaseReg(RegOperand &regOpnd);
-  void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end);
+  void ReleaseReg(const RegOperand &regOpnd);
+  void GetPhysicalRegisterBank(RegType regType, uint8 &start, uint8 &end) const;
   void AllocHandleDestList(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx);
   void AllocHandleSrcList(Insn &insn, Operand &opnd, uint32 idx);
@@ -52,7 +52,7 @@ class AArch64RegAllocator : public RegAllocator {
   bool IsYieldPointReg(AArch64reg regNO) const;
   bool IsSpecialReg(AArch64reg reg) const;
   bool IsUntouchableReg(uint32 regNO) const;
-  void SaveCalleeSavedReg(RegOperand &opnd);
+  void SaveCalleeSavedReg(const RegOperand &opnd);
 
   std::string PhaseName() const {
     return "regalloc";

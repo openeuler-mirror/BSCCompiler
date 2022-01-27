@@ -276,7 +276,8 @@ bool A64ConstProp::ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOpera
   return false;
 }
 
-bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT) {
+bool A64ConstProp::ArithmeticConstFold(DUInsnInfo &useDUInfo, const AArch64ImmOperand &constOpnd,
+                                       ArithmeticType aT) {
   Insn *useInsn = useDUInfo.GetInsn();
   if (useDUInfo.GetOperands().size() == 1) {
     Operand &existedImm = useInsn->GetOperand(kInsnThirdOpnd);
@@ -417,7 +418,8 @@ void A64StrLdrProp::DoOpt() {
 }
 
 bool A64StrLdrProp::ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, Insn *defInsn) {
-  auto GetDefInsn =  [&](const RegOperand &regOpnd, std::vector<Insn*> &allUseInsns)->void{
+  auto GetDefInsn = [&defInsn, this](const RegOperand &regOpnd,
+      std::vector<Insn*> &allUseInsns)->void{
     if (regOpnd.IsSSAForm() && defInsn == nullptr) {
       VRegVersion *replacedV = ssaInfo->FindSSAVersion(regOpnd.GetRegisterNumber());
       if (replacedV->GetDefInsnInfo() != nullptr) {
@@ -559,7 +561,7 @@ MemPropMode A64StrLdrProp::SelectStrLdrPropMode(const AArch64MemOperand &currMem
   return innerMemPropMode;
 }
 
-AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(Insn &defInsn,  const AArch64MemOperand &currMemOpnd) {
+AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(const Insn &defInsn,  const AArch64MemOperand &currMemOpnd) {
   AArch64MemOperand *newMemOpnd = nullptr;
   Operand *offset = currMemOpnd.GetOffset();
   RegOperand *base = currMemOpnd.GetBaseRegister();
@@ -719,7 +721,7 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceExt(const Insn &defInsn, RegOpera
   return newMemOpnd;
 }
 
-bool A64StrLdrProp::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx) {
+bool A64StrLdrProp::CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx) {
   auto *a64CgFunc = static_cast<AArch64CGFunc*>(cgFunc);
   if ((newMemOpnd->GetOffsetImmediate() != nullptr) &&
       !a64CgFunc->IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, opndIdx)) {
