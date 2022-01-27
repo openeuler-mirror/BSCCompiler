@@ -323,6 +323,193 @@ class AndCbzToTbzPattern : public CGPeepPattern {
   Insn *prevInsn = nullptr;
 };
 
+
+/*
+ * Specific Extension Elimination, includes sxt[b|h|w] & uxt[b|h|w]. There are  scenes:
+ * 1. PrevInsn is mov
+ * Example 1)
+ *  mov    w0, #imm                    or    mov    w0, #imm
+ *  sxt{}  w0, w0                            uxt{}  w0, w0
+ *  ===> mov w0, #imm                        ===> mov w0, #imm
+ *       mov w0, w0                               mov w0, w0
+ *
+ * Example 2)
+ *  mov    w0, R0
+ *  uxt{}  w0, w0
+ *  ===> mov w0, R0
+ *       mov w0, w0
+ *
+ * Conditions:
+ * 1) #imm is not out of range depend on extention valid bits.
+ * 2) [mov w0, R0] is return value of call and return size is not of range
+ * 3) mov.destOpnd.size = ext.destOpnd.size
+ *
+ *
+ * 2. PrevInsn is ldr[b|h|sb|sh]
+ * Example 1)
+ *  ldrb x1, []
+ *  and  x1, x1, #imm
+ *  ===> ldrb x1, []
+ *       mov  x1, x1
+ *
+ * Example 2)
+ *  ldrb x1, []           or   ldrb x1, []          or   ldrsb x1, []          or   ldrsb x1, []          or
+ *  sxtb x1, x1                uxtb x1, x1               sxtb  x1, x1               uxtb  x1, x1
+ *  ===> ldrsb x1, []          ===> ldrb x1, []          ===> ldrsb x1, []          ===> ldrb x1, []
+ *       mov   x1, x1               mov  x1, x1               mov   x1, x1               mov  x1, x1
+ *
+ *  ldrh x1, []           or   ldrh x1, []          or   ldrsh x1, []          or   ldrsh x1, []          or
+ *  sxth x1, x1                uxth x1, x1               sxth  x1, x1               uxth  x1, x1
+ *  ===> ldrsh x1, []          ===> ldrh x1, []          ===> ldrsh x1, []          ===> ldrb x1, []
+ *       mov   x1, x1               mov  x1, x1               mov   x1, x1               mov  x1, x1
+ *
+ *  ldrsw x1, []          or   ldrsw x1, []
+ *  sxtw  x1, x1               uxtw x1, x1
+ *  ===> ldrsw x1, []          ===> no change
+ *       mov   x1, x1
+ *
+ * Example 3)
+ *  ldrb x1, []           or   ldrb x1, []          or   ldrsb x1, []          or   ldrsb x1, []          or
+ *  sxth x1, x1                uxth x1, x1               sxth  x1, x1               uxth  x1, x1
+ *  ===> ldrb x1, []           ===> ldrb x1, []          ===> ldrsb x1, []          ===> no change
+ *       mov  x1, x1                mov  x1, x1               mov   x1, x1
+ *
+ *  ldrb x1, []           or   ldrh x1, []          or   ldrsb x1, []          or   ldrsh x1, []          or
+ *  sxtw x1, x1                sxtw x1, x1               sxtw  x1, x1               sxtw  x1, x1
+ *  ===> ldrb x1, []           ===> ldrh x1, []          ===> ldrsb x1, []          ===> ldrsh x1, []
+ *       mov  x1, x1                mov  x1, x1               mov   x1, x1               mov   x1, x1
+ *
+ *  ldr  x1, []
+ *  sxtw x1, x1
+ *  ===> ldrsw x1, []
+ *       mov   x1, x1
+ *
+ * Cases:
+ * 1) extension size == load size -> change the load type or eliminate the extension
+ * 2) extension size >  load size -> possibly eliminating the extension
+ *
+ *
+ * 3. PrevInsn is same sxt / uxt
+ * Example 1)
+ *  sxth x1, x2
+ *  sxth x3, x1
+ *  ===> sxth x1, x2
+ *       mov  x3, x1
+ *
+ * Example 2)
+ *  sxtb x1, x2          or    uxtb  w0, w0
+ *  sxth x3, x1                uxth  w0, w0
+ *  ===> sxtb x1, x2           ===> uxtb  w0, w0
+ *       mov  x3, x1                mov   x0, x0
+ *
+ * Conditions:
+ * 1) ext1.destOpnd.size == ext2.destOpnd.size
+ * 2) ext1.destOpnd.regNo == ext2.destOpnd.regNo
+ *    === prop ext1.destOpnd to ext2.srcOpnd, transfer ext2 to mov
+ *
+ * Cases:
+ * 1) ext1 type == ext2 type ((sxth32 & sxth32) || (sxth64 & sxth64) || ...)
+ * 2) ext1 type  < ext2 type ((sxtb32 & sxth32) || (sxtb64 & sxth64) || (sxtb64 & sxtw64) ||
+ *                            (sxth64 & sxtw64) || (uxtb32 & uxth32))
+ */
+class ElimSpecificExtensionPattern : CGPeepPattern {
+ public:
+  ElimSpecificExtensionPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
+      : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~ElimSpecificExtensionPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override;
+
+ protected:
+  enum SpecificExtType : uint8 {
+    EXTUNDEF = 0,
+    AND,
+    SXTB,
+    SXTH,
+    SXTW,
+    UXTB,
+    UXTH,
+    UXTW,
+    SpecificExtTypeSize
+  };
+  enum OptSceneType : uint8 {
+    kSceneUndef = 0,
+    kSceneMov,
+    kSceneLoad,
+    kSceneSameExt
+  };
+  static constexpr uint8 kPrevLoadPatternNum = 6;
+  static constexpr uint8 kPrevLoadMappingNum = 2;
+  static constexpr uint8 kValueTypeNum = 2;
+  static constexpr uint64 kInvalidValue = 0;
+  static constexpr uint8 kSameExtPatternNum = 4;
+  static constexpr uint8 kSameExtMappingNum = 2;
+  uint64 extValueRangeTable[SpecificExtTypeSize][kValueTypeNum] = {
+      /* {minValue, maxValue} */
+      {kInvalidValue, kInvalidValue},          /* UNDEF */
+      {kInvalidValue, kInvalidValue},          /* AND */
+      {0xFFFFFFFFFFFFFF80, 0x7F},              /* SXTB */
+      {0xFFFFFFFFFFFF8000, 0x7FFF},            /* SXTH */
+      {0xFFFFFFFF80000000, kInvalidValue},     /* SXTW */
+      {0xFFFFFFFFFFFFFF00, kInvalidValue},     /* UXTB */
+      {0xFFFFFFFFFFFF0000, kInvalidValue},     /* UXTH */
+      {kInvalidValue, kInvalidValue}           /* UXTW */
+  };
+  MOperator loadMappingTable[SpecificExtTypeSize][kPrevLoadPatternNum][kPrevLoadMappingNum] = {
+      /* {prevOrigMop, prevNewMop} */
+      {{MOP_undef, MOP_undef},   {MOP_undef, MOP_undef},      {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* UNDEF */
+      {{MOP_wldrb, MOP_wldrb},   {MOP_undef, MOP_undef},      {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* AND */
+      {{MOP_wldrb, MOP_wldrsb},  {MOP_wldrsb, MOP_wldrsb},    {MOP_wldr, MOP_wldrsb},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* SXTB */
+      {{MOP_wldrh, MOP_wldrsh},  {MOP_wldrb, MOP_wldrb},      {MOP_wldrsb, MOP_wldrsb},   {MOP_wldrsh, MOP_wldrsh},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* SXTH */
+      {{MOP_wldrh, MOP_wldrh},   {MOP_wldrsh, MOP_wldrsh},    {MOP_wldrb, MOP_wldrb},     {MOP_wldrsb, MOP_wldrsb},
+       {MOP_wldr,  MOP_xldrsw},  {MOP_xldrsw, MOP_xldrsw}}, /* SXTW */
+      {{MOP_wldrb, MOP_wldrb},   {MOP_wldrsb, MOP_wldrb},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* UXTB */
+      {{MOP_wldrh, MOP_wldrh},   {MOP_wldrb, MOP_wldrb},      {MOP_wldr, MOP_wldrh},      {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}},   /* UXTH */
+      {{MOP_wldr,  MOP_wldr},    {MOP_wldrh, MOP_wldrh},      {MOP_wldrb, MOP_wldrb},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef},   {MOP_undef, MOP_undef}}    /* UXTW */
+  };
+  MOperator sameExtMappingTable[SpecificExtTypeSize][kSameExtPatternNum][kSameExtMappingNum] = {
+      /* {prevMop, currMop} */
+      {{MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}},       /* UNDEF */
+      {{MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}},       /* AND */
+      {{MOP_xsxtb32, MOP_xsxtb32}, {MOP_xsxtb64, MOP_xsxtb64}, {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}},       /* SXTB */
+      {{MOP_xsxtb32, MOP_xsxth32}, {MOP_xsxtb64, MOP_xsxth64}, {MOP_xsxth32, MOP_xsxth32},
+       {MOP_xsxth64, MOP_xsxth64}},   /* SXTH */
+      {{MOP_xsxtb64, MOP_xsxtw64}, {MOP_xsxth64, MOP_xsxtw64}, {MOP_xsxtw64, MOP_xsxtw64},
+       {MOP_undef, MOP_undef}},       /* SXTW */
+      {{MOP_xuxtb32, MOP_xuxtb32}, {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}},       /* UXTB */
+      {{MOP_xuxtb32, MOP_xuxth32}, {MOP_xuxth32, MOP_xuxth32}, {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}},       /* UXTH */
+      {{MOP_xuxtw64, MOP_xuxtw64}, {MOP_undef, MOP_undef},     {MOP_undef, MOP_undef},
+       {MOP_undef, MOP_undef}}        /* UXTW */
+  };
+
+ private:
+  void SetSpecificExtType(Insn &currInsn);
+  void SetOptSceneType();
+  bool IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop);
+  MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop);
+  void ElimExtensionAfterLoad(Insn &currInsn);
+  void ElimExtensionAfterMov(Insn &currInsn);
+  void ElimExtensionAfterSameExt(Insn &currInsn);
+  void ReplaceExtWithMov(Insn &currInsn);
+  Insn *prevInsn = nullptr;
+  SpecificExtType extTypeIdx = EXTUNDEF;
+  OptSceneType sceneType = kSceneUndef;
+  bool is64Bits = false;
+};
+
 /*
  * We optimize the following pattern in this function:
  * if w0's valid bits is one
