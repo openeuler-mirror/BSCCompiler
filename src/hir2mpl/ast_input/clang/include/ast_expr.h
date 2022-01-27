@@ -1557,6 +1557,10 @@ class ASTAtomicExpr : public ASTExpr {
     objExpr = obj;
   }
 
+  void SetOrderExpr(ASTExpr *order) {
+    orderExpr = order;
+  }
+
   const ASTExpr *GetValExpr1() const {
     return valExpr1;
   }
@@ -1567,6 +1571,10 @@ class ASTAtomicExpr : public ASTExpr {
 
   const ASTExpr *GetObjExpr() const {
     return objExpr;
+  }
+
+  const ASTExpr *GetOrderExpr() const {
+    return orderExpr;
   }
 
   void SetVal1Type(MIRType *ty) {
@@ -1593,7 +1601,8 @@ class ASTAtomicExpr : public ASTExpr {
   ASTExpr *objExpr = nullptr;
   ASTExpr *valExpr1 = nullptr;
   ASTExpr *valExpr2 = nullptr;
-  ASTAtomicOp atomicOp = kAtomicBinaryOpAdd;
+  ASTExpr *orderExpr = nullptr;
+  ASTAtomicOp atomicOp = kAtomicOpUndefined;
   bool isFromStmt = false;
 };
 

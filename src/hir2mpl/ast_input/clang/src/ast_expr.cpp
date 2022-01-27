@@ -2508,17 +2508,16 @@ UniqueFEIRExpr ASTDependentScopeDeclRefExpr::Emit2FEExprImpl(std::list<UniqueFEI
 // ---------- ASTAtomicExpr ----------
 UniqueFEIRExpr ASTAtomicExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const {
   auto atomicExpr = std::make_unique<FEIRExprAtomic>(mirType, refType, objExpr->Emit2FEExpr(stmts), atomicOp);
-  if (atomicOp != kAtomicOpLoad) {
+  if (atomicOp != kAtomicOpLoadN) {
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Expr(valExpr1->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal1Type(val1Type);
   }
-
-  if (atomicOp == kAtomicOpCompareExchange) {
+  if (atomicOp == kAtomicOpExchange) {
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Expr(valExpr2->Emit2FEExpr(stmts));
     static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetVal2Type(val2Type);
   }
-  auto var = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("ret.var."),
-                                            *refType, false, false);
+  static_cast<FEIRExprAtomic*>(atomicExpr.get())->SetOrderExpr(orderExpr->Emit2FEExpr(stmts));
+  auto var = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("ret.var."), *refType, false, false);
   atomicExpr->SetValVar(var->Clone());
   if (!isFromStmt) {
     auto stmt = std::make_unique<FEIRStmtAtomic>(std::move(atomicExpr));

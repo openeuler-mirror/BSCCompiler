@@ -2058,60 +2058,38 @@ ASTExpr *ASTParser::ProcessExprAtomicExpr(MapleAllocator &allocator,
   astExpr->SetObjExpr(ProcessExpr(allocator, atomicExpr.getPtr()));
   astExpr->SetType(astFile->CvtType(atomicExpr.getPtr()->getType()));
   astExpr->SetRefType(astFile->CvtType(atomicExpr.getPtr()->getType()->getPointeeType()));
-  if (atomicExpr.getOp() != clang::AtomicExpr::AO__atomic_load_n &&
-      atomicExpr.getOp() != clang::AtomicExpr::AO__c11_atomic_load) {
+  if (atomicExpr.getOp() != clang::AtomicExpr::AO__atomic_load_n) {
     astExpr->SetValExpr1(ProcessExpr(allocator, atomicExpr.getVal1()));
     astExpr->SetVal1Type(astFile->CvtType(atomicExpr.getVal1()->getType()));
   }
-  switch (atomicExpr.getOp()) {
-    case clang::AtomicExpr::AO__atomic_add_fetch:
-    case clang::AtomicExpr::AO__atomic_fetch_add:
-    case clang::AtomicExpr::AO__c11_atomic_fetch_add:
-      astExpr->SetAtomicOp(kAtomicBinaryOpAdd);
-      break;
-    case clang::AtomicExpr::AO__atomic_sub_fetch:
-    case clang::AtomicExpr::AO__atomic_fetch_sub:
-    case clang::AtomicExpr::AO__c11_atomic_fetch_sub:
-      astExpr->SetAtomicOp(kAtomicBinaryOpSub);
-      break;
-    case clang::AtomicExpr::AO__atomic_and_fetch:
-    case clang::AtomicExpr::AO__atomic_fetch_and:
-    case clang::AtomicExpr::AO__c11_atomic_fetch_and:
-      astExpr->SetAtomicOp(kAtomicBinaryOpAnd);
-      break;
-    case clang::AtomicExpr::AO__atomic_or_fetch:
-    case clang::AtomicExpr::AO__atomic_fetch_or:
-    case clang::AtomicExpr::AO__c11_atomic_fetch_or:
-      astExpr->SetAtomicOp(kAtomicBinaryOpOr);
-      break;
-    case clang::AtomicExpr::AO__atomic_xor_fetch:
-    case clang::AtomicExpr::AO__atomic_fetch_xor:
-    case clang::AtomicExpr::AO__c11_atomic_fetch_xor:
-      astExpr->SetAtomicOp(kAtomicBinaryOpXor);
-      break;
-    case clang::AtomicExpr::AO__atomic_load_n:
-    case clang::AtomicExpr::AO__c11_atomic_load:
-      astExpr->SetAtomicOp(kAtomicOpLoad);
-      break;
-    case clang::AtomicExpr::AO__atomic_store_n:
-    case clang::AtomicExpr::AO__c11_atomic_store:
-      astExpr->SetAtomicOp(kAtomicOpStore);
-      break;
-    case clang::AtomicExpr::AO__atomic_exchange_n:
-    case clang::AtomicExpr::AO__c11_atomic_exchange:
-      astExpr->SetAtomicOp(kAtomicOpExchange);
-      break;
-    case clang::AtomicExpr::AO__atomic_compare_exchange_n:
-    case clang::AtomicExpr::AO__c11_atomic_compare_exchange_weak:
-    case clang::AtomicExpr::AO__c11_atomic_compare_exchange_strong:
-      astExpr->SetValExpr2(ProcessExpr(allocator, atomicExpr.getVal2()));
-      astExpr->SetVal2Type(astFile->CvtType(atomicExpr.getVal2()->getType()));
-      astExpr->SetAtomicOp(kAtomicOpCompareExchange);
-      break;
-    default:
-      astExpr->SetAtomicOp(kAtomicOpLast);
-      break;
+  if (atomicExpr.getOp() == clang::AtomicExpr::AO__atomic_exchange) {
+    astExpr->SetValExpr2(ProcessExpr(allocator, atomicExpr.getVal2()));
+    astExpr->SetVal2Type(astFile->CvtType(atomicExpr.getVal2()->getType()));
   }
+  astExpr->SetOrderExpr(ProcessExpr(allocator, atomicExpr.getOrder()));
+
+  static std::unordered_map<clang::AtomicExpr::AtomicOp, ASTAtomicOp> astOpMap = {
+    {clang::AtomicExpr::AO__atomic_load_n, kAtomicOpLoadN},
+    {clang::AtomicExpr::AO__atomic_load, kAtomicOpLoad},
+    {clang::AtomicExpr::AO__atomic_store_n, kAtomicOpStoreN},
+    {clang::AtomicExpr::AO__atomic_store, kAtomicOpStore},
+    {clang::AtomicExpr::AO__atomic_exchange, kAtomicOpExchange},
+    {clang::AtomicExpr::AO__atomic_exchange_n, kAtomicOpExchangeN},
+    {clang::AtomicExpr::AO__atomic_add_fetch, kAtomicOpAddFetch},
+    {clang::AtomicExpr::AO__atomic_sub_fetch, kAtomicOpSubFetch},
+    {clang::AtomicExpr::AO__atomic_and_fetch, kAtomicOpAndFetch},
+    {clang::AtomicExpr::AO__atomic_xor_fetch, kAtomicOpXorFetch},
+    {clang::AtomicExpr::AO__atomic_or_fetch, kAtomicOpOrFetch},
+    {clang::AtomicExpr::AO__atomic_nand_fetch, kAtomicOpNandFetch},
+    {clang::AtomicExpr::AO__atomic_fetch_add, kAtomicOpFetchAdd},
+    {clang::AtomicExpr::AO__atomic_fetch_sub, kAtomicOpFetchSub},
+    {clang::AtomicExpr::AO__atomic_fetch_and, kAtomicOpFetchAnd},
+    {clang::AtomicExpr::AO__atomic_fetch_xor, kAtomicOpFetchXor},
+    {clang::AtomicExpr::AO__atomic_fetch_or, kAtomicOpFetchOr},
+    {clang::AtomicExpr::AO__atomic_fetch_nand, kAtomicOpFetchNand},
+  };
+  CHECK(astOpMap.find(atomicExpr.getOp()) != astOpMap.end(), "atomic expr op not supported!");
+  astExpr->SetAtomicOp(astOpMap[atomicExpr.getOp()]);
   return astExpr;
 }
 

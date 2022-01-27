@@ -1412,16 +1412,25 @@ class FEIRExprCStyleCast : public FEIRExpr {
 };
 
 enum ASTAtomicOp {
-  kAtomicBinaryOpAdd,
-  kAtomicBinaryOpSub,
-  kAtomicBinaryOpAnd,
-  kAtomicBinaryOpOr,
-  kAtomicBinaryOpXor,
+  kAtomicOpUndefined,
   kAtomicOpLoad,
+  kAtomicOpLoadN,
   kAtomicOpStore,
+  kAtomicOpStoreN,
   kAtomicOpExchange,
-  kAtomicOpCompareExchange,
-  kAtomicOpLast,
+  kAtomicOpExchangeN,
+  kAtomicOpAddFetch,
+  kAtomicOpSubFetch,
+  kAtomicOpAndFetch,
+  kAtomicOpXorFetch,
+  kAtomicOpOrFetch,
+  kAtomicOpNandFetch,
+  kAtomicOpFetchAdd,
+  kAtomicOpFetchSub,
+  kAtomicOpFetchAnd,
+  kAtomicOpFetchXor,
+  kAtomicOpFetchOr,
+  kAtomicOpFetchNand,
 };
 
 class FEIRExprAtomic : public FEIRExpr {
@@ -1445,6 +1454,10 @@ class FEIRExprAtomic : public FEIRExpr {
     valExpr2 = std::move(expr);
   }
 
+  void SetOrderExpr(UniqueFEIRExpr order) {
+    orderExpr = std::move(order);
+  }
+
   void SetValVar(UniqueFEIRVar value) {
     val = std::move(value);
   }
@@ -1454,15 +1467,6 @@ class FEIRExprAtomic : public FEIRExpr {
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
 
  private:
-  void ProcessAtomicBinary(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                           MIRSymbol &valueVar) const;
-  void ProcessAtomicLoad(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                         const MIRSymbol &valueVar) const;
-  void ProcessAtomicStore(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode) const;
-  void ProcessAtomicExchange(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                             const MIRSymbol &valueVar) const;
-  void ProcessAtomicCompareExchange(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                                    const MIRSymbol *valueVar) const;
   MIRType *mirType = nullptr;
   MIRType *refType = nullptr;
   MIRType *ptrType = nullptr;
@@ -1471,6 +1475,7 @@ class FEIRExprAtomic : public FEIRExpr {
   UniqueFEIRExpr objExpr;
   UniqueFEIRExpr valExpr1;
   UniqueFEIRExpr valExpr2;
+  UniqueFEIRExpr orderExpr;
   ASTAtomicOp atomicOp;
   UniqueFEIRVar val;
 };
