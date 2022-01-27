@@ -508,6 +508,7 @@ class ValueRangePropagation {
       LoopDesc &loop, const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge,
       const ScalarMeExpr &lhsOfPhi);
   bool AddOrSubWithConstant(PrimType pType, Opcode op, int64 lhsConstant, int64 rhsConstant, int64 &res) const;
+  std::unique_ptr<ValueRange> NegValueRange(const BB &bb, MeExpr &opnd);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(Opcode op, ValueRange &valueRange, int64 rhsConstant);
   std::unique_ptr<ValueRange> AddOrSubWithValueRange(
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
@@ -615,6 +616,7 @@ class ValueRangePropagation {
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(const ValueRange &valueRange);
+  void DealWithNeg(const BB &bb, OpMeExpr &opMeExpr);
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;
@@ -634,7 +636,7 @@ class ValueRangePropagation {
   bool CodeSizeIsOverflowOrTheOpOfStmtIsNotSupported(const BB &bb);
   void ComputeCodeSize(const MeExpr &meExpr, uint32 &cost);
   void ComputeCodeSize(const MeStmt &meStmt, uint32 &cost);
-  void DealWithSwitch(MeStmt &stmt);
+  void DealWithSwitch(BB &bb, MeStmt &stmt);
   bool AnalysisUnreachableForGeOrGt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForLeOrLt(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
   bool AnalysisUnreachableForEqOrNe(BB &bb, const CondGotoMeStmt &brMeStmt, const ValueRange &leftRange);
