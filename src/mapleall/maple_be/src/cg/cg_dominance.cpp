@@ -42,13 +42,13 @@ void DomAnalysis::GenPostOrderID() {
   PostOrderWalk(commonEntryBB, postOrderID, visitedMap);
   // initialize reversePostOrder
   int32 maxPostOrderID = postOrderID - 1;
-  reversePostOrder.resize(maxPostOrderID + 1);
+  reversePostOrder.resize(static_cast<uint32>(maxPostOrderID + 1));
   for (size_t i = 0; i < postOrderIDVec.size(); ++i) {
     int32 postOrderNo = postOrderIDVec[i];
     if (postOrderNo == -1) {
       continue;
     }
-    reversePostOrder[maxPostOrderID - postOrderNo] = bbVec[i];
+    reversePostOrder[static_cast<uint32>(maxPostOrderID - postOrderNo)] = bbVec[i];
   }
 }
 
@@ -93,13 +93,13 @@ void DomAnalysis::ComputeDominance() {
       } else {
         pre = *it;
       }
-      it++;
+      ++it;
       while ((GetDom(pre->GetId()) == nullptr || pre == bb) && it != bb->GetPredsEnd()) {
         pre = *it;
-        it++;
+        ++it;
       }
       BB *newIDom = pre;
-      for (; it != bb->GetPredsEnd(); it++) {
+      for (; it != bb->GetPredsEnd(); ++it) {
         pre = *it;
         if (GetDom(pre->GetId()) != nullptr && pre != bb) {
           newIDom = Intersect(*pre, *newIDom);
@@ -280,13 +280,13 @@ void PostDomAnalysis::PdomGenPostOrderID() {
   PdomPostOrderWalk(commonExitBB, postOrderID, visitedMap);
   // initialize pdomReversePostOrder
   int32 maxPostOrderID = postOrderID - 1;
-  pdomReversePostOrder.resize(maxPostOrderID + 1);
+  pdomReversePostOrder.resize(static_cast<uint32>(maxPostOrderID + 1));
   for (size_t i = 0; i < pdomPostOrderIDVec.size(); ++i) {
     int32 postOrderNo = pdomPostOrderIDVec[i];
     if (postOrderNo == -1) {
       continue;
     }
-    pdomReversePostOrder[maxPostOrderID - postOrderNo] = bbVec[i];
+    pdomReversePostOrder[static_cast<uint32>(maxPostOrderID - postOrderNo)] = bbVec[i];
   }
 }
 
@@ -320,16 +320,16 @@ void PostDomAnalysis::ComputePostDominance() {
       } else {
         suc = *it;
       }
-      it++;
+      ++it;
       while ((GetPdom(suc->GetId()) == nullptr || suc == bb) && it != bb->GetSuccsEnd()) {
         suc = *it;
-        it++;
+        ++it;
       }
       if (GetPdom(suc->GetId()) == nullptr) {
         suc = &commonExitBB;
       }
       BB *newIDom = suc;
-      for (; it != bb->GetSuccsEnd(); it++) {
+      for (; it != bb->GetSuccsEnd(); ++it) {
         suc = *it;
         if (GetPdom(suc->GetId()) != nullptr && suc != bb) {
           newIDom = PdomIntersect(*suc, *newIDom);

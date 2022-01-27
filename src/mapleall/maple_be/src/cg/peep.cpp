@@ -64,7 +64,7 @@ bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOpera
 }
 
 int64 CGPeepPattern::GetLogValueAtBase2(int64 val) const {
-  return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : -1;
+  return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
 Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
@@ -80,7 +80,7 @@ Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
   return defInfo == nullptr ? nullptr : defInfo->GetInsn();
 }
 
-void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replacedInsn, Insn *newInsn) {
+void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn) {
   auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
   LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
   if (!prevInsns.empty()) {
@@ -122,7 +122,7 @@ void CGPeepPattern::DumpAfterPattern(std::vector<Insn*> &prevInsns, Insn *replac
 }
 
 int PeepPattern::logValueAtBase2(int64 val) const {
-  return (__builtin_popcountll(val) == 1) ? (__builtin_ffsll(val) - 1) : (-1);
+  return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : (-1);
 }
 
 /* Check if a regOpnd is live after insn. True if live, otherwise false. */
@@ -162,7 +162,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
       }
 #if TARGAARCH64 || TARGRISCV64
       const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*>(nextInsn)->GetMachineOpcode()];
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       const Arm32MD *md = &Arm32CG::kMd[static_cast<Arm32Insn*>(nextInsn)->GetMachineOpcode()];
@@ -278,7 +278,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(i);
 #if TARGAARCH64 || TARGRISCV64
-      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+      auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
 #endif
 #if TARGARM32
       auto *regProp = static_cast<Arm32OpndProp*>(md->operand[i]);
@@ -295,14 +295,14 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
       } else if (opnd.IsList()) {
         auto &listOpnd = static_cast<ListOperand&>(opnd);
         if (insn->GetMachineOpcode() == MOP_asm) {
-          if (i == kAsmOutputListOpnd || i == kAsmClobberListOpnd) {
+          if (static_cast<uint32>(i) == kAsmOutputListOpnd || static_cast<uint32>(i) == kAsmClobberListOpnd) {
             for (auto op : listOpnd.GetOperands()) {
               if (op->GetRegisterNumber() == regOpnd.GetRegisterNumber()) {
                 return kResDefFirst;
               }
             }
             continue;
-          } else if (i != kAsmInputListOpnd) {
+          } else if (static_cast<uint32>(i) != kAsmInputListOpnd) {
             continue;
           }
           /* fall thru for kAsmInputListOpnd */

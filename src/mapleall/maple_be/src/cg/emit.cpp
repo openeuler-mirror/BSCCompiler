@@ -220,7 +220,7 @@ void Emitter::EmitFileInfo(const std::string &fileName) {
     SetFileMapValue(1, irFile);   /* save ir file in 1 */
     if (cg->GetCGOptions().WithSrc()) {
       /* insert a list of src files */
-      int i = 2;
+      uint32 i = 2;
       for (auto it : cg->GetMIRModule()->GetSrcFileInfo()) {
         if (cg->GetCGOptions().WithAsm()) {
           Emit("\t// ");
@@ -468,7 +468,7 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
   uint8 charBitWidth = GetPrimTypeSize(PTY_i8) * kBitsPerByte;
   auto emitBfldValue = [&](bool flag) {
     while (structEmitInfo.GetCombineBitFieldWidth() > charBitWidth) {
-      uint8 shift = flag ? (structEmitInfo.GetCombineBitFieldWidth() - charBitWidth) : 0;
+      uint8 shift = flag ? (structEmitInfo.GetCombineBitFieldWidth() - charBitWidth) : 0U;
       uint64 tmp = (structEmitInfo.GetCombineBitFieldValue() >> shift) & 0x00000000000000ffUL;
       EmitAsmLabel(kAsmByte);
       Emit(std::to_string(tmp));
@@ -485,7 +485,7 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
      * If the total number of bits in the bit field is not a multiple of 8,
      * the bits must be aligned to 8 bits to prevent errors in the emit.
      */
-    uint64 width = RoundUp(structEmitInfo.GetCombineBitFieldWidth(), charBitWidth);
+    auto width = static_cast<uint8>(RoundUp(structEmitInfo.GetCombineBitFieldWidth(), charBitWidth));
     if(structEmitInfo.GetCombineBitFieldWidth() < width) {
       structEmitInfo.SetCombineBitFieldValue(structEmitInfo.GetCombineBitFieldValue() <<
                                              (width - structEmitInfo.GetCombineBitFieldWidth()));
@@ -3043,7 +3043,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           }
         }
       } else {
-        EmitHexUnsigned(attr->GetI());
+        EmitHexUnsigned(static_cast<uint64>(attr->GetI()));
       }
       break;
     case DW_FORM_sec_offset:
@@ -3148,7 +3148,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
           Emit("\n\t.8byte   ");
-          Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(elp->GetGvarStridx()).c_str());
+          Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
         case DW_OP_fbreg:
           EmitHexUnsigned(1 + namemangler::GetSleb128Size(elp->GetFboffset()));
@@ -3380,7 +3380,7 @@ void Emitter::FillInClassByteSize(DBGDie *die, DBGDieAttr *byteSizeAttr) {
   ASSERT(byteSizeAttr->GetDwForm() == DW_FORM_data1 || byteSizeAttr->GetDwForm() == DW_FORM_data2 ||
          byteSizeAttr->GetDwForm() == DW_FORM_data4 || byteSizeAttr->GetDwForm() == DW_FORM_data8,
          "Unknown FORM value for DW_AT_byte_size");
-  if (byteSizeAttr->GetI() == static_cast<uint32>(kDbgDefaultVal)) {
+  if (static_cast<uint32>(byteSizeAttr->GetI()) == kDbgDefaultVal) {
     /* get class size */
     DBGDieAttr *nameAttr = LFindDieAttr(die, DW_AT_name);
     CHECK_FATAL(nameAttr != nullptr, "name_attr is nullptr in Emitter::FillInClassByteSize");
@@ -3433,7 +3433,7 @@ void Emitter::SetupDBGInfo(DebugInfo *mirdi) {
         CHECK_FATAL(sty != nullptr, "pointer cast failed");
         CHECK_FATAL(sty->GetTypeIndex().GetIdx() <
                     Globals::GetInstance()->GetBECommon()->GetSizeOfStructFieldCountTable(), "");
-        int embeddedIDs = 0;
+        uint32 embeddedIDs = 0;
         MIRStructType *prevSubstruct = nullptr;
         for (size_t i = 0; i < sty->GetFields().size(); i++) {
           TyIdx fieldtyidx = sty->GetFieldsElemt(i).second.first;

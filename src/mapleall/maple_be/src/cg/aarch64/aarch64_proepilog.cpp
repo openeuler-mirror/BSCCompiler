@@ -90,7 +90,7 @@ bool AArch64GenProEpilog::HasLoop() {
  *  Remove redundant mov and mark optimizable bl/blr insn in the BB.
  *  Return value: true to call this modified block again.
  */
-bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, BB &exitBB) {
+bool AArch64GenProEpilog::OptimizeTailBB(BB &bb, std::set<Insn*> &callInsns, const BB &exitBB) {
   if (bb.NumInsn() == 1 &&
       (bb.GetLastInsn()->GetMachineOpcode() != MOP_xbr &&
        bb.GetLastInsn()->GetMachineOpcode() != MOP_xblr &&
@@ -213,13 +213,13 @@ bool AArch64GenProEpilog::TailCallOpt() {
   } else {
     exitBB = cgFunc.GetExitBBsVec().front();
   }
-  int i = 1;
-  int optCount = 0;
+  uint32 i = 1;
+  uint32 optCount = 0;
   do {
     std::set<Insn*> callInsns;
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
     if (callInsns.size() != 0) {
-      optCount += static_cast<int>(callInsns.size());
+      optCount += callInsns.size();
       exitBB2CallSitesMap[exitBB] = callInsns;
     }
     if (i < exitBBSize) {
@@ -339,7 +339,7 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
       }
     }
 
-    int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+    auto stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
     if (useFP) {
       stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
     }
@@ -401,7 +401,7 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
 
   AArch64RegOperand &checkOp =
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
-  int32 stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  auto stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
   if (useFP) {
     stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
   }
@@ -1210,16 +1210,16 @@ void AArch64GenProEpilog::GeneratePushRegs() {
   CHECK_FATAL(*it == RLR, "The second callee saved reg is expected to be RLR");
   ++it;
 
-  int32 offset = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize() -
-                 (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
-                 cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+  auto offset = static_cast<int32>(static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout())->RealStackFrameSize() -
+      (aarchCGFunc.SizeOfCalleeSaved() - (kDivide2 * kIntregBytelen) /* for FP/LR */) -
+      cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
 
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    uint64 saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
-    offset -= static_cast<int32>(saveareasize);
+    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    offset -= saveareasize;
   }
 
   for (; it != regsToSave.end(); ++it) {
@@ -1262,11 +1262,11 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *memlayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
     uint32 dataSizeBits = kSizeOfPtr * kBitsPerByte;
-    int32 offset = memlayout->GetGRSaveAreaBaseLoc();
+    uint32 offset = memlayout->GetGRSaveAreaBaseLoc();
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
       offset += kSizeOfPtr;  /* End of area should be aligned. Hole between VR and GR area */
     }
-    int32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
+    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
     ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
     for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
       Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
@@ -1657,9 +1657,9 @@ void AArch64GenProEpilog::GeneratePopRegs() {
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     /* GR/VR save areas are above the callee save area */
     AArch64MemLayout *ml = static_cast<AArch64MemLayout *>(cgFunc.GetMemlayout());
-    uint64 saveareasize = RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
-        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize);
-    offset -= static_cast<int32>(saveareasize);
+    auto saveareasize = static_cast<int32>(RoundUp(ml->GetSizeOfGRSaveArea(), kSizeOfPtr * k2BitSize) +
+        RoundUp(ml->GetSizeOfVRSaveArea(), kSizeOfPtr * k2BitSize));
+    offset -= saveareasize;
   }
 
   /*

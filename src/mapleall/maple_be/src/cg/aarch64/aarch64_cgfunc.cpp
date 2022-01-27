@@ -5707,7 +5707,7 @@ AArch64CGFunc::MovkLslOperandArray AArch64CGFunc::movkLslOperands = {
 /* kShiftAmount12 = 12, less than 16, use 4 bit to store, bitLen is 4 */
 LogicalShiftLeftOperand AArch64CGFunc::addSubLslOperand(kShiftAmount12, 4);
 
-AArch64MemOperand &AArch64CGFunc::CreateStkTopOpnd(int32 offset, int32 size) {
+AArch64MemOperand &AArch64CGFunc::CreateStkTopOpnd(uint32 offset, uint32 size) {
   return *memPool->New<AArch64MemOperand>(RFP, offset, size);
 }
 

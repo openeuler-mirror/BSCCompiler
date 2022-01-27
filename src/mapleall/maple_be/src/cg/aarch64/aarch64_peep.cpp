@@ -2064,7 +2064,7 @@ void EnhanceStrLdrAArch64::Run(BB &bb, Insn &insn) {
           static_cast<AArch64RegOperand&>(prevInsn->GetOperand(kInsnSecondOpnd)));
       auto &ofstOpnd = static_cast<ImmOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
       AArch64OfstOperand &offOpnd = static_cast<AArch64CGFunc&>(cgFunc).GetOrCreateOfstOpnd(
-          ofstOpnd.GetValue(), k32BitSize);
+          static_cast<uint64>(ofstOpnd.GetValue()), k32BitSize);
       auto *origOffOpnd = concreteMemOpnd.GetOffsetImmediate();
       concreteMemOpnd.SetOffsetImmediate(offOpnd);
       if (!static_cast<AArch64CGFunc&>(cgFunc).IsOperandImmValid(insn.GetMachineOpcode(), &memOpnd, kInsnSecondOpnd)) {
@@ -2323,7 +2323,7 @@ void CombineContiLoadAndStoreAArch64::Run(BB &bb, Insn &insn) {
     }
     int64 offsetVal = offsetOpnd->GetOffsetValue();
     int64 prevOffsetVal = prevOffsetOpnd->GetOffsetValue();
-    int64 diffVal = std::abs(offsetVal - prevOffsetVal);
+    auto diffVal = std::abs(offsetVal - prevOffsetVal);
     /* do combination str/ldr -> stp/ldp */
     if ((insn.IsStore() || destOpnd.GetRegisterNumber() != prevDestOpnd.GetRegisterNumber()) ||
         (destOpnd.GetRegisterNumber() == RZR && prevDestOpnd.GetRegisterNumber() == RZR)) {

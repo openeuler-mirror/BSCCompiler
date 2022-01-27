@@ -236,7 +236,6 @@ class BBLayout {
   void LayoutWithoutProf();
   void RunLayout();
   void DumpBBPhyOrder() const;
-  void VerifyBB();
 
  private:
   void FixEndTryBB(BB &bb);

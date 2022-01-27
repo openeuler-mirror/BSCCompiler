@@ -441,7 +441,7 @@ void AArch64RegAllocator::AllocHandleDest(Insn &insn, Operand &opnd, uint32 idx)
   }
 
   if (opnd.IsRegister()) {
-    insn.SetOperand(static_cast<int32>(idx), *AllocDestOpnd(opnd, insn));
+    insn.SetOperand(idx, *AllocDestOpnd(opnd, insn));
     SaveCalleeSavedReg(static_cast<RegOperand&>(opnd));
   }
 }

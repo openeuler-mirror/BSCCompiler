@@ -469,7 +469,7 @@ bool A64StrLdrProp::ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, Insn *d
   return false;
 }
 
-bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, AArch64MemOperand *memOpnd) {
+bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, const AArch64MemOperand *memOpnd) {
   if (memOpnd != nullptr && memPropMode != kUndef) {
     if (memPropMode == kPropBase) {
       return replacedReg.GetRegisterNumber() ==  memOpnd->GetBaseRegister()->GetRegisterNumber();
@@ -483,7 +483,7 @@ bool A64StrLdrProp::CheckSameReplace(const RegOperand &replacedReg, AArch64MemOp
 }
 
 uint32 A64StrLdrProp::GetMemOpndIdx(AArch64MemOperand *newMemOpnd, const Insn &insn) {
-  int32 opndIdx = kInsnMaxOpnd;
+  uint32 opndIdx = kInsnMaxOpnd;
   if (insn.IsLoadPair() || insn.IsStorePair()) {
     ASSERT(newMemOpnd->GetOffsetImmediate() != nullptr, "unexpect insn");
     opndIdx = kInsnThirdOpnd;
@@ -540,7 +540,7 @@ MemPropMode A64StrLdrProp::SelectStrLdrPropMode(const AArch64MemOperand &currMem
     }
     case AArch64MemOperand::kAddrModeBOrX: {
       innerMemPropMode = kPropOffset;
-      uint32 amount = currMemOpnd.ShiftAmount();
+      auto amount = currMemOpnd.ShiftAmount();
       if (currMemOpnd.GetExtendAsString() == "LSL") {
         if (amount != 0) {
           innerMemPropMode = kPropShift;
@@ -658,11 +658,11 @@ AArch64MemOperand *A64StrLdrProp::SelectReplaceMem(Insn &defInsn,  const AArch64
       break;
     }
     case MOP_xsxtw64: {
-      newMemOpnd = SelectReplaceExt(defInsn, *base, currMemOpnd.ShiftAmount(),true);
+      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()),true);
       break;
     }
     case MOP_xuxtw64: {
-      newMemOpnd = SelectReplaceExt(defInsn, *base, currMemOpnd.ShiftAmount(), false);
+      newMemOpnd = SelectReplaceExt(defInsn, *base, static_cast<uint32>(currMemOpnd.ShiftAmount()), false);
       break;
     }
     default:
@@ -725,7 +725,7 @@ bool A64StrLdrProp::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd,
       !a64CgFunc->IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, opndIdx)) {
     return false;
   }
-  uint32 newAmount = newMemOpnd->ShiftAmount();
+  auto newAmount = static_cast<uint32>(newMemOpnd->ShiftAmount());
   if (!AArch64StoreLoadOpt::CheckNewAmount(insn, newAmount)) {
     return false;
   }

@@ -111,8 +111,8 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     }
   }
   auto it = memUseInsnSet.begin();
-  it++;
-  for (; it != memUseInsnSet.end(); it++) {
+  ++it;
+  for (; it != memUseInsnSet.end(); ++it) {
     Insn *curInsn = *it;
     if (InsnState[curInsn] == false) {
       continue;
@@ -127,7 +127,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     }
     auto prevIt = it;
     do {
-      prevIt--;
+      --prevIt;
       Insn *prevInsn = *prevIt;
       if (InsnState[prevInsn] == false) {
         continue;
@@ -409,7 +409,7 @@ bool AArch64StoreLoadOpt::CheckDefInsn(Insn &defInsn, Insn &currInsn) {
   return true;
 }
 
-bool AArch64StoreLoadOpt::CheckNewAmount(Insn &insn, uint32 newAmount) {
+bool AArch64StoreLoadOpt::CheckNewAmount(const Insn &insn, uint32 newAmount) {
   MOperator mOp = insn.GetMachineOpcode();
   switch (mOp) {
     case MOP_wstrb:
@@ -447,7 +447,7 @@ bool AArch64StoreLoadOpt::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMe
       !a64CgFunc.IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, opndIdx)) {
     return false;
   }
-  uint32 newAmount = newMemOpnd->ShiftAmount();
+  auto newAmount = newMemOpnd->ShiftAmount();
   if (!CheckNewAmount(insn, newAmount)) {
     return false;
   }
@@ -458,7 +458,7 @@ bool AArch64StoreLoadOpt::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMe
   return true;
 }
 
-AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(Insn &defInsn, RegOperand &base, bool isSigned) {
+AArch64MemOperand *AArch64StoreLoadOpt::SelectReplaceExt(const Insn &defInsn, RegOperand &base, bool isSigned) {
   AArch64MemOperand *newMemOpnd = nullptr;
   AArch64RegOperand *newOffset = static_cast<AArch64RegOperand*>(&defInsn.GetOperand(kInsnSecondOpnd));
   CHECK_FATAL(newOffset != nullptr, "newOffset is null!");
@@ -737,7 +737,7 @@ bool AArch64StoreLoadOpt::ReplaceMemOpnd(Insn &insn, regno_t regNo, RegOperand &
   return true;
 }
 
-bool AArch64StoreLoadOpt::CanDoMemProp(Insn *insn) {
+bool AArch64StoreLoadOpt::CanDoMemProp(const Insn *insn) {
   if (!cgFunc.GetMirModule().IsCModule()) {
     return false;
   }
@@ -763,7 +763,7 @@ bool AArch64StoreLoadOpt::CanDoMemProp(Insn *insn) {
   return false;
 }
 
-void AArch64StoreLoadOpt::SelectPropMode(AArch64MemOperand &currMemOpnd) {
+void AArch64StoreLoadOpt::SelectPropMode(const AArch64MemOperand &currMemOpnd) {
   AArch64MemOperand::AArch64AddressingMode currAddrMode = currMemOpnd.GetAddrMode();
   switch (currAddrMode) {
     case AArch64MemOperand::kAddrModeBOi: {
@@ -918,7 +918,7 @@ void AArch64StoreLoadOpt::StrLdrIndexModeOpt(Insn &currInsn) {
   }
 }
 
-bool AArch64StoreLoadOpt::CanDoIndexOpt(AArch64MemOperand &MemOpnd) {
+bool AArch64StoreLoadOpt::CanDoIndexOpt(const AArch64MemOperand &MemOpnd) {
   if (MemOpnd.GetAddrMode() != AArch64MemOperand::kAddrModeBOi || !MemOpnd.IsIntactIndexed()) {
     return false;
   }
@@ -954,7 +954,7 @@ int64 AArch64StoreLoadOpt::GetOffsetForNewIndex(Insn &defInsn, Insn &insn, regno
 };
 
 
-AArch64MemOperand *AArch64StoreLoadOpt::SelectIndexOptMode(Insn &insn, AArch64MemOperand &curMemOpnd) {
+AArch64MemOperand *AArch64StoreLoadOpt::SelectIndexOptMode(Insn &insn, const AArch64MemOperand &curMemOpnd) {
   AArch64ReachingDefinition *a64RD = static_cast<AArch64ReachingDefinition*>(cgFunc.GetRD());
   ASSERT((a64RD != nullptr), "check a64RD!");
   regno_t baseRegisterNO = curMemOpnd.GetBaseRegister()->GetRegisterNumber();

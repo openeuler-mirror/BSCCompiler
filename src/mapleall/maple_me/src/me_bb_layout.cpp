@@ -947,27 +947,16 @@ BB *BBLayout::CreateGotoBBAfterCondBB(BB &bb, BB &fallthru) {
 void BBLayout::OptimizeEmptyFallThruBB(BB &bb) {
   if (needDealWithTryBB) { return; }
   auto *fallthru = bb.GetSucc().front();
-  while (fallthru && (fallthru->GetPred().size() == 1) &&
-         (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
-    BB *newFallthru = fallthru->GetSucc().front();
-    if (newFallthru == bb.GetSucc().back()) {
-      bb.ReplaceSucc(fallthru, newFallthru);
+  if (fallthru && fallthru->GetBBLabel() == 0 &&
+      (BBEmptyAndFallthru(*fallthru) || BBContainsOnlyGoto(*fallthru))) {
+    if (fallthru->GetSucc().front() == bb.GetSucc().back()) {
+      bb.ReplaceSucc(fallthru, bb.GetSucc().back());
       ASSERT(fallthru->GetPred().empty(), "fallthru should not has other pred");
       ChangeToFallthruFromCondGoto(bb);
       bb.GetSucc().resize(1); // resize succ to 1
-    } else if (newFallthru->GetPred().size() == 1) {
-      if (newFallthru->GetBBLabel() != 0) {
-        // reset newFallthru label
-        newFallthru->SetBBLabel(0);
-      }
-      // replace empty fallthru with fallthru's succ
-      bb.ReplaceSucc(fallthru, newFallthru);
-    } else {
-      break;
+      laidOut[fallthru->GetBBId()] = true;
+      RemoveUnreachable(*fallthru);
     }
-    laidOut[fallthru->GetBBId()] = true;
-    RemoveUnreachable(*fallthru);
-    fallthru = newFallthru;
   }
 }
 
@@ -1004,19 +993,6 @@ void BBLayout::OptimiseCFG() {
     }
   }
   (void)cfg->UnreachCodeAnalysis(false);
-
-  // do 2nd fallthru optimize if succs of bb were optimized by first iteration
-  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
-    if (bIt == cfg->common_entry() || bIt == cfg->common_exit()) {
-      continue;
-    }
-    auto *bb = *bIt;
-    if (bb->GetKind() == kBBCondGoto) {
-      OptimizeEmptyFallThruBB(*bb);
-    }
-  }
-  (void)cfg->UnreachCodeAnalysis(false);
-
 }
 
 void BBLayout::SetAttrTryForTheCanBeMovedBB(BB &bb, BB &canBeMovedBB) const {
@@ -1330,21 +1306,6 @@ void BBLayout::RunLayout() {
   }
 }
 
-// check condBB if they have same succs
-void BBLayout::VerifyBB() {
-  for (auto bIt = cfg->valid_begin(); bIt != cfg->valid_end(); ++bIt) {
-    auto *bb = *bIt;
-    if (bb->GetKind() == kBBCondGoto) {
-      auto *fallthru = bb->GetSucc(0);
-      auto *targetBB = bb->GetSucc(1);
-      if (fallthru == targetBB ||
-          (BBEmptyAndFallthru(*fallthru) && (fallthru->GetSucc(0) == targetBB))) {
-        LogInfo::MapleLogger() << "WARN: cond BB " << bb->GetBBId() << " has same target";
-      }
-    }
-  }
-}
-
 void MEBBLayout::GetAnalysisDependence(maple::AnalysisDep &aDep) const {
   aDep.AddRequired<MEMeCfg>();
   aDep.AddRequired<MELoopAnalysis>();
@@ -1361,10 +1322,7 @@ bool MEBBLayout::PhaseRun(maple::MeFunction &f) {
   }
   bbLayout->RunLayout();
   f.SetLaidOutBBs(bbLayout->GetBBs());
-
   if (DEBUGFUNC_NEWPM(f)) {
-    // verify CFG : check condBB's succs should be different
-    bbLayout->VerifyBB();
     bbLayout->DumpBBPhyOrder();
     cfg->DumpToFile("afterBBLayout", false);
   }

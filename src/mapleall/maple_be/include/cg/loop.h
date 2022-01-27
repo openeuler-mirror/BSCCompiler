@@ -138,7 +138,7 @@ class LoopFinder : public AnalysisResult {
   void MergeLoops();
   void SortLoops();
   void UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer);
-  void UpdateOuterLoop(LoopHierarchy *outer);
+  void UpdateOuterLoop(const LoopHierarchy *loop);
   void CreateInnerLoop(LoopHierarchy &inner, LoopHierarchy &outer);
   void DetectInnerLoop();
   void UpdateCGFunc();

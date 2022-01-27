@@ -27,13 +27,13 @@
 
 namespace maplebe {
 /* pressure standard value; pressure under this value will not lead to spill operation */
-static int g_pressureStandard = 27;
+static constexpr int g_pressureStandard = 27;
 /* optimistic scheduling option */
-static bool g_optimisticScheduling = false;
+static constexpr bool g_optimisticScheduling = false;
 /* brute maximum count limit option */
-static bool g_bruteMaximumLimit = true;
+static constexpr bool g_bruteMaximumLimit = true;
 /* brute maximum count */
-static int g_schedulingMaximumCount = 20000;
+static constexpr int g_schedulingMaximumCount = 20000;
 
 /* ---- RegPressureSchedule function ---- */
 void RegPressureSchedule::InitBBInfo(BB &b, MemPool &memPool, const MapleVector<DepNode*> &nodes) {
@@ -65,10 +65,10 @@ void RegPressureSchedule::BuildPhyRegInfo(const std::vector<int32> &regNumVec) {
 /* Initialize pre-scheduling split point in BB */
 void RegPressureSchedule::initPartialSplitters(const MapleVector<DepNode*> &nodes) {
   bool addFirstAndLastNodeIndex = false;
-  int SecondLastNodeIndexFromBack = 2;
-  int LastNodeIndexFromBack = 1;
-  int FirstNodeIndex = 0;
-  size_t minimumBBSize = 2;
+  constexpr uint32 SecondLastNodeIndexFromBack = 2;
+  constexpr uint32 LastNodeIndexFromBack = 1;
+  constexpr uint32 FirstNodeIndex = 0;
+  constexpr uint32 minimumBBSize = 2;
   /* Add split point for the last instruction in return BB */
   if (bb->GetKind() == BB::kBBReturn && nodes.size() > minimumBBSize) {
     splitterIndexes.emplace_back(nodes.size() - SecondLastNodeIndexFromBack);
@@ -445,7 +445,7 @@ void RegPressureSchedule::BruteUpdateReadyList(const DepNode &node, std::vector<
  * Restore the ready list status when finishing one brute scheduling series generation
  */
 void RegPressureSchedule::RestoreReadyList(DepNode &node, std::vector<bool> &changedToReady) {
-  int i = 0;
+  uint32 i = 0;
   /* restore state information of the successors and delete them from readyList */
   for (auto *succ : node.GetSuccs()) {
     DepNode &succNode = succ->GetTo();
@@ -715,7 +715,7 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
 #endif
   }
   /* Restore the Schedule State */
-  int i = 0;
+  uint32 i = 0;
   for (auto node : nodes){
     node->SetState(restoreStateSeries.at(i));
     ++i;
@@ -727,11 +727,11 @@ int RegPressureSchedule::CalculateRegisterPressure(MapleVector<DepNode*> &nodes)
  * Split the series into multiple parts and conduct pre-scheduling in every part
  */
 void RegPressureSchedule::PartialScheduling(MapleVector<DepNode*> &nodes) {
-  for (size_t i = 0; i < splitterIndexes.size() - 1; i = i + 1) {
-    int lastTwoNodeIndex = 2;
-    int begin = splitterIndexes.at(i);
-    int end = splitterIndexes.at(i + 1);
-    for (int j = begin; j < end; j = j + 1) {
+  for (size_t i = 0; i < splitterIndexes.size() - 1; ++i) {
+    constexpr uint32 lastTwoNodeIndex = 2;
+    auto begin = static_cast<uint32>(splitterIndexes.at(i));
+    auto end = static_cast<uint32>(splitterIndexes.at(i + 1));
+    for (uint32 j = begin; j < end; ++j) {
       partialList.emplace_back(nodes.at(j));
     }
     if (i == splitterIndexes.size() - lastTwoNodeIndex) {
@@ -810,7 +810,7 @@ void RegPressureSchedule::BruteForceScheduling() {
  * Calculate the pred size based on the dependency information
  */
 void RegPressureSchedule::CalculatePredSize(DepNode &node) {
-  int emptyPredsSize = 0;
+  constexpr uint32 emptyPredsSize = 0;
   node.SetValidPredsSize(emptyPredsSize);
   for (auto pred : node.GetPreds()) {
     DepNode &from = pred->GetFrom();

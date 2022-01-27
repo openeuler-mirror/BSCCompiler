@@ -519,7 +519,7 @@ class AArch64CGFunc : public CGFunc {
     return cleanEANode;
   }
 
-  AArch64MemOperand &CreateStkTopOpnd(int32 offset, int32 size);
+  AArch64MemOperand &CreateStkTopOpnd(uint32 offset, uint32 size);
 
   /* if offset < 0, allocation; otherwise, deallocation */
   AArch64MemOperand &CreateCallFrameOperand(int32 offset, int32 size);
