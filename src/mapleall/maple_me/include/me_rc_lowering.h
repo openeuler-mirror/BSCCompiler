@@ -82,9 +82,9 @@ class RCLowering {
   bool IsInitialized(IvarMeExpr &ivar);
   void PreprocessAssignMeStmt(MeStmt &stmt);
   void HandleAssignMeStmtRHS(MeStmt &stmt);
-  void HandleAssignMeStmtRegLHS(const MeStmt &stmt);
+  void HandleAssignMeStmtRegLHS(MeStmt &stmt);
   void HandleAssignToGlobalVar(MeStmt &stmt);
-  void HandleAssignToLocalVar(const MeStmt &stmt, MeExpr *pendingDec);
+  void HandleAssignToLocalVar(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtVarLHS(MeStmt &stmt, MeExpr *pendingDec);
   void HandleAssignMeStmtIvarLHS(MeStmt &stmt);
   void HandleCallAssignedMeStmt(MeStmt &stmt, MeExpr *pendingDec);
@@ -92,7 +92,7 @@ class RCLowering {
   void HandleRetOfCallAssignedMeStmt(MeStmt &stmt, MeExpr &pendingDec);
   void HandleReturnVar(RetMeStmt &ret);
   void HandleReturnGlobal(RetMeStmt &ret);
-  void HandleReturnRegread(const RetMeStmt &ret);
+  void HandleReturnRegread(RetMeStmt &ret);
   void HandleReturnFormal(RetMeStmt &ret);
   void HandleReturnIvar(RetMeStmt &ret);
   void HandleReturnReg(RetMeStmt &ret);
@@ -109,7 +109,7 @@ class RCLowering {
   void FastLowerRetStmt(MeStmt &stmt);
   void FastLowerRetVar(RetMeStmt &stmt);
   void FastLowerRetIvar(RetMeStmt &stmt);
-  void FastLowerRetReg(const RetMeStmt &stmt);
+  void FastLowerRetReg(RetMeStmt &stmt);
   void FastLowerAssignToVar(MeStmt &stmt, MapleMap<uint32, MeStmt*> &exceptionAllocsites);
   void FastLowerAssignToIvar(MeStmt &stmt);
   void FastLowerCallAssignedStmt(MeStmt &stmt);

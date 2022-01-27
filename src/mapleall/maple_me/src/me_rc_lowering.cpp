@@ -463,7 +463,7 @@ void RCLowering::PreprocessAssignMeStmt(MeStmt &stmt) {
   }
 }
 
-void RCLowering::HandleAssignMeStmtRegLHS(const MeStmt &stmt) {
+void RCLowering::HandleAssignMeStmtRegLHS(MeStmt &stmt) {
   if (!stmt.NeedIncref()) {
     return;
   }
@@ -561,7 +561,7 @@ void RCLowering::HandleAssignToGlobalVar(MeStmt &stmt) {
   CheckArrayStore(*writeRefCall);
 }
 
-void RCLowering::HandleAssignToLocalVar(const MeStmt &stmt, MeExpr *pendingDec) {
+void RCLowering::HandleAssignToLocalVar(MeStmt &stmt, MeExpr *pendingDec) {
   MeExpr *lhs = stmt.GetLHS();
   CHECK_FATAL(lhs != nullptr, "null ptr check");
   MeExpr *rhs = stmt.GetRHS();
@@ -963,7 +963,7 @@ void RCLowering::HandleReturnGlobal(RetMeStmt &ret) {
   }
 }
 
-void RCLowering::HandleReturnRegread(const RetMeStmt &ret) {
+void RCLowering::HandleReturnRegread(RetMeStmt &ret) {
   BB *bb = ret.GetBB();
   CHECK_FATAL(bb != nullptr, "bb null ptr check");
   auto *retVar = static_cast<VarMeExpr*>(ret.GetOpnd(0));
@@ -1521,7 +1521,7 @@ void RCLowering::FastLowerRetIvar(RetMeStmt &stmt) {
   stmt.SetOpnd(0, tmpRet->GetLHS());
 }
 
-void RCLowering::FastLowerRetReg(const RetMeStmt &stmt) {
+void RCLowering::FastLowerRetReg(RetMeStmt &stmt) {
   auto *regRet = static_cast<RegMeExpr*>(stmt.GetOpnd(0));
   if (regRet->GetDefBy() == kDefByStmt && CheckOp(regRet->GetDefStmt(), OP_regassign)) {
     MeExpr *rhs = regRet->GetDefStmt()->GetRHS();

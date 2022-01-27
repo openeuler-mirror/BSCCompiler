@@ -163,7 +163,7 @@ MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
   return base;
 }
 
-void GCLowering::HandleWriteReferent(const IassignMeStmt &stmt) {
+void GCLowering::HandleWriteReferent(IassignMeStmt &stmt) {
   if (!isReferent) {
     return;
   }
