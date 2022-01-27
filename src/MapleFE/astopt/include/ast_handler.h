@@ -129,6 +129,8 @@ class Module_Handler {
   std::unordered_map<unsigned, TreeNode *> mNodeId2Decl;
   // array's element type: decl node id to typeid
   std::unordered_map<unsigned, TypeId> mArrayDeclId2EleTypeIdMap;
+  // array literal's dim: decl node id to dim
+  std::unordered_map<unsigned, DimensionNode *> mArrayDeclId2DimMap;
   // fields' nodeid set
   std::unordered_set<unsigned> mDirectFieldSet;
   // alias type, identifier node id
@@ -233,6 +235,31 @@ class Module_Handler {
 
   Module_Handler *GetModuleHandler(unsigned i) {return mASTHandler->GetModuleHandler(i);}
   Module_Handler *GetModuleHandler(TreeNode *node) {return mASTHandler->GetModuleHandler(node);}
+
+  // array's element typeid
+  TypeId GetArrayElemTypeId(unsigned nid) {
+    TypeId tid = TY_None;
+    if (mArrayDeclId2EleTypeIdMap.find(nid) != mArrayDeclId2EleTypeIdMap.end()) {
+      tid = mArrayDeclId2EleTypeIdMap[nid];
+    }
+    return tid;
+  }
+
+  void SetArrayElemTypeId(unsigned nid, TypeId tid) {
+    mArrayDeclId2EleTypeIdMap[nid] = tid;
+  }
+
+  DimensionNode *GetArrayDim(unsigned nid) {
+    DimensionNode *dim = NULL;
+    if (mArrayDeclId2DimMap.find(nid) != mArrayDeclId2DimMap.end()) {
+      dim = mArrayDeclId2DimMap[nid];
+    }
+    return dim;
+  }
+
+  void SetArrayDim(unsigned nid, DimensionNode *dim) {
+    mArrayDeclId2DimMap[nid] = dim;
+  }
 
   // API to check a node is c++ field which satisfy both:
   // 1. direct field

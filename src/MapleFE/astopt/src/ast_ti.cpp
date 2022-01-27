@@ -424,7 +424,7 @@ bool static IsScalar(TypeId tid) {
 // caller arguments to be consistent with the array type parameter
 void TypeInferVisitor::UpdateArgArrayDecls(unsigned nid, TypeId tid) {
   for (auto id: mParam2ArgArrayDeclMap[nid]) {
-    mHandler->mArrayDeclId2EleTypeIdMap[nid] = tid;
+    mHandler->SetArrayElemTypeId(nid, tid);
     if (id && id->IsDecl()) {
       id = static_cast<DeclNode *>(id)->GetVar();
     }
@@ -549,13 +549,8 @@ void TypeInferVisitor::UpdateFuncRetTypeId(FunctionNode *node, TypeId tid, unsig
 }
 
 TypeId TypeInferVisitor::GetArrayElemTypeId(TreeNode *node) {
-  TypeId tid = TY_None;
-  unsigned nodeid = node->GetNodeId();
-  auto it = mHandler->mArrayDeclId2EleTypeIdMap.find(nodeid);
-  if (it != mHandler->mArrayDeclId2EleTypeIdMap.end()) {
-    tid = mHandler->mArrayDeclId2EleTypeIdMap[nodeid];
-  }
-  return tid;
+  unsigned nid = node->GetNodeId();
+  return mHandler->GetArrayElemTypeId(nid);
 }
 
 void TypeInferVisitor::UpdateArrayElemTypeIdMap(TreeNode *node, TypeId tid) {
@@ -563,12 +558,10 @@ void TypeInferVisitor::UpdateArrayElemTypeIdMap(TreeNode *node, TypeId tid) {
     return;
   }
   unsigned nodeid = node->GetNodeId();
-  auto it = mHandler->mArrayDeclId2EleTypeIdMap.find(nodeid);
-  if (it != mHandler->mArrayDeclId2EleTypeIdMap.end()) {
-    tid = MergeTypeId(tid, mHandler->mArrayDeclId2EleTypeIdMap[nodeid]);
-  }
-  if (mHandler->mArrayDeclId2EleTypeIdMap[nodeid] != tid) {
-    mHandler->mArrayDeclId2EleTypeIdMap[node->GetNodeId()] = tid;
+  TypeId currtid = mHandler->GetArrayElemTypeId(nodeid);
+  tid = MergeTypeId(tid, currtid);
+  if (currtid != tid) {
+    mHandler->SetArrayElemTypeId(node->GetNodeId(), tid);
     SetUpdated();
 
     // update array's PrimType node with a new node
@@ -580,6 +573,7 @@ void TypeInferVisitor::UpdateArrayElemTypeIdMap(TreeNode *node, TypeId tid) {
       IdentifierNode *in = static_cast<IdentifierNode *>(node);
       node = in->GetType();
     }
+
     if (node->IsPrimArrayType()) {
       PrimArrayTypeNode *pat = static_cast<PrimArrayTypeNode *>(node);
       PrimTypeNode *pt = pat->GetPrim();
@@ -587,6 +581,10 @@ void TypeInferVisitor::UpdateArrayElemTypeIdMap(TreeNode *node, TypeId tid) {
       pat->SetPrim(new_pt);
     }
   }
+}
+
+void TypeInferVisitor::UpdateArrayDimMap(TreeNode *node, DimensionNode *dim) {
+  mHandler->SetArrayDim(node->GetNodeId(), dim);
 }
 
 // return true if identifier is constructor
@@ -622,29 +620,15 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
-      if (IsPrimTypeId(tid)) {
+      if (IsPrimTypeId(tid) || tid == TY_Merge) {
         PrimTypeNode *pt = mHandler->NewTreeNode<PrimTypeNode>();
         pt->SetPrimType(tid);
 
         PrimArrayTypeNode *pat = mHandler->NewTreeNode<PrimArrayTypeNode>();
         pat->SetPrim(pt);
 
-        DimensionNode *dims = mHandler->NewTreeNode<DimensionNode>();
+        DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
         pat->SetDims(dims);
-
-        // add each dimension
-        TreeNode *n = init;
-        while (n->IsArrayLiteral()) {
-          ArrayLiteralNode *al = static_cast<ArrayLiteralNode *>(n);
-          if (al->GetLiteralsNum()) {
-            //dims->AddDimension(al->GetLiteralsNum());
-            dims->AddDimension(0); // Do not specify its length for an array type
-            n = al->GetLiteral(0);
-          } else {
-            dims->AddDimension(0);
-            break;
-          }
-        }
 
         pat->SetParent(idnode);
         idnode->SetType(pat);
@@ -772,7 +756,7 @@ ArrayElementNode *TypeInferVisitor::VisitArrayElementNode(ArrayElementNode *node
           UpdateTypeId(array, TY_Array);
           UpdateTypeId(decl, array);
           UpdateArrayElemTypeIdMap(decl, node->GetTypeId());
-          UpdateTypeId(node, mHandler->mArrayDeclId2EleTypeIdMap[decl->GetNodeId()]);
+          UpdateTypeId(node, mHandler->GetArrayElemTypeId(decl->GetNodeId()));
         }
       } else {
         NOTYETIMPL("array not declared");
@@ -809,20 +793,59 @@ ArrayLiteralNode *TypeInferVisitor::VisitArrayLiteralNode(ArrayLiteralNode *node
   UpdateTypeId(node, TY_Array);
   (void) AstVisitor::VisitArrayLiteralNode(node);
   ArrayLiteralNode *al = node;
-  TreeNode *n = node;
-  while (n->IsArrayLiteral()) {
-    al = static_cast<ArrayLiteralNode *>(n);
-    if (al->GetLiteralsNum()) {
-      n = al->GetLiteral(0);
-    } else {
-      break;
+  if (node->IsArrayLiteral()) {
+    al = static_cast<ArrayLiteralNode *>(node);
+    unsigned size = al->GetLiteralsNum();
+    TypeId tid = TY_None;
+    bool allElemArray = true;
+    for (unsigned i = 0; i < size; i++) {
+      TreeNode *n = al->GetLiteral(i);
+      TypeId id = n->GetTypeId();
+      tid = MergeTypeId(tid, id);
+      if (tid != TY_Array) {
+        allElemArray = false;
+      }
     }
+
+    DimensionNode *dim = mHandler->NewTreeNode<DimensionNode>();
+    dim->AddDimension(size);
+
+    // n-D array: elements are all arrays
+    if (allElemArray) {
+      unsigned elemdim = DEFAULTVALUE;
+      // recalculate element typeid
+      tid = TY_None;
+      for (unsigned i = 0; i < size; i++) {
+        TreeNode *n = al->GetLiteral(i);
+        if (n->IsArrayLiteral()) {
+          DimensionNode * dn = mHandler->GetArrayDim(n->GetNodeId());
+          unsigned currdim = dn ? dn->GetDimensionsNum() : 0;
+          // find min dim of all elements
+          if (elemdim == DEFAULTVALUE) {
+            elemdim = currdim;
+            tid = mHandler->GetArrayElemTypeId(n->GetNodeId());
+          } else if (currdim < elemdim) {
+            elemdim = currdim;
+            tid = TY_Merge;
+          } else if (currdim > elemdim) {
+            tid = TY_Merge;
+          } else {
+            tid = MergeTypeId(tid, mHandler->GetArrayElemTypeId(n->GetNodeId()));
+          }
+        }
+      }
+      if (elemdim != DEFAULTVALUE) {
+        for (unsigned i = 0; i < elemdim; i++) {
+          // with unspecified length, can add details later
+          dim->AddDimension(0);
+        }
+      }
+    }
+
+    UpdateArrayElemTypeIdMap(node, tid);
+    UpdateArrayDimMap(node, dim);
   }
 
-  if (al->GetLiteralsNum()) {
-    TypeId tid = al->GetLiteral(0)->GetTypeId();
-    UpdateArrayElemTypeIdMap(node, tid);
-  }
   return node;
 }
 
