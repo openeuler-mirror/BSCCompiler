@@ -3763,112 +3763,57 @@ std::unique_ptr<FEIRExpr> FEIRExprAtomic::CloneImpl() const {
   return expr;
 }
 
-void FEIRExprAtomic::ProcessAtomicBinary(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                                         MIRSymbol &valueVar) const {
-  BaseNode *constNode = valExpr1.get()->GenMIRNode(mirBuilder);
-  BaseNode *ireadNode = mirBuilder.CreateExprIread(*refType, *ptrType, 0, &lockNode);
-  Opcode opcode = OP_add;
-  if (atomicOp == kAtomicBinaryOpAdd) {
-    opcode = OP_add;
-  } else if (atomicOp == kAtomicBinaryOpSub) {
-    opcode = OP_sub;
-  } else if (atomicOp == kAtomicBinaryOpAnd) {
-    opcode = OP_band;
-  } else if (atomicOp == kAtomicBinaryOpOr) {
-    opcode = OP_bior;
-  } else if (atomicOp == kAtomicBinaryOpXor) {
-    opcode = OP_bxor;
-  } else {
-  }
-  BinaryNode *binNode = mirBuilder.CreateExprBinary(opcode, *val1Type, ireadNode, constNode);
-  StmtNode *addStmt = mirBuilder.CreateStmtIassign(*ptrType, 0, &lockNode, binNode);
-  block.AddStatement(addStmt);
-}
-
-void FEIRExprAtomic::ProcessAtomicLoad(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                                       const MIRSymbol &valueVar) const {
-  BaseNode *ireadNode = mirBuilder.CreateExprIread(*refType, *ptrType, 0, &lockNode);
-  StmtNode *loadStmt = mirBuilder.CreateStmtDassign(valueVar, 0, ireadNode);
-  block.AddStatement(loadStmt);
-}
-
-void FEIRExprAtomic::ProcessAtomicStore(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode) const {
-  BaseNode *constNode = valExpr1.get()->GenMIRNode(mirBuilder);
-  StmtNode *storeStmt = mirBuilder.CreateStmtIassign(*ptrType, 0, &lockNode, constNode);
-  block.AddStatement(storeStmt);
-}
-
-void FEIRExprAtomic::ProcessAtomicExchange(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                                           const MIRSymbol &valueVar) const {
-  BaseNode *ireadNode = mirBuilder.CreateExprIread(*refType, *ptrType, 0, &lockNode);
-  StmtNode *storeStmt = mirBuilder.CreateStmtDassign(valueVar, 0, ireadNode);
-  block.AddStatement(storeStmt);
-  BaseNode *constNode = valExpr1.get()->GenMIRNode(mirBuilder);
-  StmtNode *setStmt = mirBuilder.CreateStmtIassign(*ptrType, 0, &lockNode, constNode);
-  block.AddStatement(setStmt);
-}
-
-void FEIRExprAtomic::ProcessAtomicCompareExchange(MIRBuilder &mirBuilder, BlockNode &block, BaseNode &lockNode,
-                                                  const MIRSymbol *valueVar) const {
-  StmtNode *retStmt = mirBuilder.CreateStmtDassign(*valueVar, 0, mirBuilder.GetConstUInt1(false));
-  block.AddStatement(retStmt);
-  BaseNode *expectNode = mirBuilder.CreateExprIread(*refType, *ptrType, 0,
-                                                    valExpr1.get()->GenMIRNode(mirBuilder));
-  BaseNode *desiredNode = valExpr2.get()->GenMIRNode(mirBuilder);
-  BaseNode *ireadNode = mirBuilder.CreateExprIread(*refType, *ptrType, 0, &lockNode);
-  BaseNode *cond = mirBuilder.CreateExprCompare(OP_eq, *(GlobalTables::GetTypeTable().GetUInt1()),
-                                                *refType, expectNode, ireadNode);
-  IfStmtNode *ifStmt = mirBuilder.CreateStmtIf(cond);
-  block.AddStatement(ifStmt);
-  StmtNode *setStmt = mirBuilder.CreateStmtIassign(*ptrType, 0, &lockNode, desiredNode);
-  ifStmt->GetThenPart()->AddStatement(setStmt);
-  StmtNode *storeStmt = mirBuilder.CreateStmtDassign(*valueVar, 0, mirBuilder.GetConstUInt1(true));
-  ifStmt->GetThenPart()->AddStatement(storeStmt);
-}
-
 BaseNode *FEIRExprAtomic::GenMIRNodeImpl(MIRBuilder &mirBuilder) const {
-  MIRModule &module = FEManager::GetModule();
-  BlockNode *block = module.CurFuncCodeMemPool()->New<BlockNode>();
-  BaseNode *objNode = objExpr.get()->GenMIRNode(mirBuilder);
-  NaryStmtNode *syncenter = mirBuilder.CreateStmtNary(OP_syncenter, objNode);
-  block->AddStatement(syncenter);
-  MIRSymbol *valueVar = nullptr;
+  MIRSymbol *retVar = nullptr;
   if (atomicOp != kAtomicOpStore) {
-    valueVar = val->GenerateMIRSymbol(mirBuilder);
+    retVar = val->GenerateMIRSymbol(mirBuilder);
   }
-  switch (atomicOp) {
-    case kAtomicBinaryOpAdd:
-    case kAtomicBinaryOpSub:
-    case kAtomicBinaryOpAnd:
-    case kAtomicBinaryOpOr:
-    case kAtomicBinaryOpXor: {
-      ProcessAtomicBinary(mirBuilder, *block, *objNode, *valueVar);
-      break;
+  MapleVector<BaseNode*> args(mirBuilder.GetCurrentFuncCodeMpAllocator()->Adapter());
+  BaseNode *objNode = objExpr.get()->GenMIRNode(mirBuilder);
+  args.emplace_back(objNode);
+  bool retVoid = false;
+  if (atomicOp != kAtomicOpLoadN) {
+    args.emplace_back(valExpr1->GenMIRNode(mirBuilder));
+    if (atomicOp == kAtomicOpExchange) {
+      args.emplace_back(valExpr2->GenMIRNode(mirBuilder));
     }
-    case kAtomicOpLoad: {
-      ProcessAtomicLoad(mirBuilder, *block, *objNode, *valueVar);
-      break;
-    }
-    case kAtomicOpStore: {
-      ProcessAtomicStore(mirBuilder, *block, *objNode);
-      break;
-    }
-    case kAtomicOpExchange: {
-      ProcessAtomicExchange(mirBuilder, *block, *objNode, *valueVar);
-      break;
-    }
-    case kAtomicOpCompareExchange: {
-      ProcessAtomicCompareExchange(mirBuilder, *block, *objNode, valueVar);
-      break;
-    }
-    default: {
-      CHECK_FATAL(false, "atomic opcode not yet supported %u", static_cast<uint32>(atomicOp));
-      break;
+    if (atomicOp == kAtomicOpExchangeN ||
+        (atomicOp >= kAtomicOpAddFetch && atomicOp <= kAtomicOpFetchNand)) {
+      retVoid = false;
+    } else {
+      retVoid = true;
     }
   }
-  NaryStmtNode *syncExit = mirBuilder.CreateStmtNary(OP_syncexit, objNode);
-  block->AddStatement(syncExit);
-  return block;
+  static std::unordered_map<ASTAtomicOp, MIRIntrinsicID> intrinsicIDMap = {
+    {kAtomicOpLoadN, INTRN_C___atomic_load_n},
+    {kAtomicOpLoad, INTRN_C___atomic_load},
+    {kAtomicOpStoreN, INTRN_C___atomic_store_n},
+    {kAtomicOpStore, INTRN_C___atomic_store},
+    {kAtomicOpExchangeN, INTRN_C___atomic_exchange_n},
+    {kAtomicOpExchange, INTRN_C___atomic_compare_exchange},
+    {kAtomicOpAddFetch, INTRN_C___atomic_add_fetch},
+    {kAtomicOpSubFetch, INTRN_C___atomic_sub_fetch},
+    {kAtomicOpAndFetch, INTRN_C___atomic_and_fetch},
+    {kAtomicOpXorFetch, INTRN_C___atomic_xor_fetch},
+    {kAtomicOpOrFetch, INTRN_C___atomic_or_fetch},
+    {kAtomicOpNandFetch, INTRN_C___atomic_nand_fetch},
+    {kAtomicOpFetchAdd, INTRN_C___atomic_fetch_add},
+    {kAtomicOpFetchSub, INTRN_C___atomic_fetch_sub},
+    {kAtomicOpFetchAnd, INTRN_C___atomic_fetch_and},
+    {kAtomicOpFetchXor, INTRN_C___atomic_fetch_xor},
+    {kAtomicOpFetchOr, INTRN_C___atomic_fetch_or},
+    {kAtomicOpFetchNand, INTRN_C___atomic_fetch_nand},
+  };
+  CHECK(intrinsicIDMap.find(atomicOp) != intrinsicIDMap.end(), "atomic opcode not yet supported!");
+  MIRIntrinsicID intrinsicID = intrinsicIDMap[atomicOp];
+  args.emplace_back(orderExpr->GenMIRNode(mirBuilder));
+  StmtNode *stmt = nullptr;
+  if (!retVoid) {
+    stmt = mirBuilder.CreateStmtIntrinsicCallAssigned(intrinsicID, std::move(args), retVar);
+  } else {
+    stmt = mirBuilder.CreateStmtIntrinsicCall(intrinsicID, std::move(args), TyIdx(0));
+  }
+  return stmt;
 }
 
 // ---------- FEIRStmtPesudoLabel ----------
@@ -4245,10 +4190,8 @@ FEIRStmtAtomic::FEIRStmtAtomic(UniqueFEIRExpr expr)
 std::list<StmtNode*> FEIRStmtAtomic::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
   std::list<StmtNode*> stmts;
   FEIRExprAtomic *atom = static_cast<FEIRExprAtomic*>(atomicExpr.get());
-  auto block = static_cast<BlockNode*>(atom->GenMIRNode(mirBuilder));
-  for (auto &it : block->GetStmtNodes()) {
-    stmts.emplace_back(&it);
-  }
+  auto stmt = static_cast<StmtNode*>(atom->GenMIRNode(mirBuilder));
+  stmts.emplace_back(stmt);
   return stmts;
 }
 
