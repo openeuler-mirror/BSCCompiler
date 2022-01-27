@@ -100,7 +100,7 @@ void BB::RemoveInsn(Insn &insn) {
   }
 }
 
-void BB::RemoveInsnPair(Insn &insn, Insn &nextInsn) {
+void BB::RemoveInsnPair(Insn &insn, const Insn &nextInsn) {
   ASSERT(insn.GetNext() == &nextInsn, "next_insn is supposed to follow insn");
   ASSERT(nextInsn.GetPrev() == &insn, "next_insn is supposed to follow insn");
   if ((firstInsn == &insn) && (lastInsn == &nextInsn)) {
@@ -119,7 +119,7 @@ void BB::RemoveInsnPair(Insn &insn, Insn &nextInsn) {
 }
 
 /* Remove insns in this bb from insn1 to insn2. */
-void BB::RemoveInsnSequence(Insn &insn1, Insn &insn2) {
+void BB::RemoveInsnSequence(Insn &insn1, const Insn &insn2) {
   ASSERT(insn1.GetBB() == this, "remove insn sequence in one bb");
   ASSERT(insn2.GetBB() == this, "remove insn sequence in one bb");
   if ((firstInsn == &insn1) && (lastInsn == &insn2)) {
@@ -256,7 +256,7 @@ BB *BB::GetValidPrev() {
   return pre;
 }
 
-bool Bfs::AllPredBBVisited(BB &bb, long &level) const {
+bool Bfs::AllPredBBVisited(const BB &bb, long &level) const {
   bool isAllPredsVisited = true;
   for (const auto *predBB : bb.GetPreds()) {
     /* See if pred bb is a loop back edge */

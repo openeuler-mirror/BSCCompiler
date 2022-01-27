@@ -140,7 +140,7 @@ class CGFunc {
 
   void GenerateLoc(StmtNode *stmt, unsigned &lastSrcLoc, unsigned &lastMplLoc);
   void GenerateInstruction();
-  bool MemBarOpt(StmtNode &membar);
+  bool MemBarOpt(const StmtNode &membar);
   void UpdateCallBBFrequency();
   void HandleFunction();
   void ProcessExitBBVec();
@@ -401,7 +401,7 @@ class CGFunc {
     return 0;
   }
 
-  RegType GetRegTyFromPrimTy(PrimType primType) {
+  RegType GetRegTyFromPrimTy(PrimType primType) const {
     switch (primType) {
       case PTY_u1:
       case PTY_i8:
@@ -695,7 +695,7 @@ class CGFunc {
     return exitBBVec;
   }
 
-  size_t ExitBBsVecSize() {
+  size_t ExitBBsVecSize() const {
     return exitBBVec.size();
   }
 
@@ -905,7 +905,7 @@ class CGFunc {
     return newBB;
   }
 
-  void UpdateFrequency(StmtNode &stmt) {
+  void UpdateFrequency(const StmtNode &stmt) {
     bool withFreqInfo = func.HasFreqMap() && !func.GetFreqMap().empty();
     if (!withFreqInfo) {
       return;

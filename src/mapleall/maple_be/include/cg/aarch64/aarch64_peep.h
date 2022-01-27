@@ -1132,7 +1132,7 @@ class ComplexMemOperandAddAArch64 : public PeepPattern {
   void Run(BB &bb, Insn &insn) override;
  private:
 
-  bool IsExpandBaseOpnd(const Insn &insn, Insn &prevInsn);
+  bool IsExpandBaseOpnd(const Insn &insn, const Insn &prevInsn);
 };
 
 /*

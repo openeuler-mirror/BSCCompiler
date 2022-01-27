@@ -54,6 +54,15 @@ class CRNode {
     CHECK_FATAL(false, "can not be here");
   }
 
+  virtual const std::vector<CRNode*> &GetOpnds() const {
+    CHECK_FATAL(false, "can not be here");
+  }
+
+  bool IsEqual(const CRNode &crNode) const;
+  void PutTheSubNode2Vector(std::vector<CRNode*> &curVector);
+  void GetTheUnequalSubNodesOfIndexAndBound(
+      CRNode &boundCRNode, std::vector<CRNode*> &indexVector, std::vector<CRNode*> &boundVector);
+
  private:
   MeExpr *expr;
   CRNodeType crType;
@@ -67,7 +76,7 @@ class CRUnKnownNode : public CRNode {
 
 class CRConstNode : public CRNode {
  public:
-  CRConstNode(MeExpr *e, int v) : CRNode(e, kCRConstNode), value(v) {}
+  CRConstNode(MeExpr *e, int64 v) : CRNode(e, kCRConstNode), value(v) {}
   ~CRConstNode() = default;
 
   int64 GetConstValue() const {
@@ -105,7 +114,7 @@ class CRAddNode : public CRNode {
   explicit CRAddNode(MeExpr *e) : CRNode(e, kCRAddNode) {}
   ~CRAddNode() = default;
 
-  void SetOpnds(std::vector<CRNode*> &o) {
+  void SetOpnds(const std::vector<CRNode*> &o) {
     opnds = o;
   }
 
@@ -150,11 +159,11 @@ class CRMulNode : public CRNode {
     return opnds.size();
   }
 
-  void SetOpnds(std::vector<CRNode*> &o) {
+  void SetOpnds(const std::vector<CRNode*> &o) {
     opnds = o;
   }
 
-  std::vector<CRNode*> &GetOpnds() {
+  const std::vector<CRNode*> &GetOpnds() const {
     return opnds;
   }
 
@@ -197,7 +206,7 @@ class CR : public CRNode {
   explicit CR(MeExpr *e) : CRNode(e, kCRNode) {}
   ~CR() = default;
 
-  void SetOpnds(std::vector<CRNode*> &o) {
+  void SetOpnds(const std::vector<CRNode*> &o) {
     opnds = o;
   }
 
@@ -298,23 +307,26 @@ class LoopScalarAnalysisResult {
   CRNode *GetCRAddNode(MeExpr *expr, std::vector<CRNode*> &crAddOpnds);
   CRNode *GetCRMulNode(MeExpr *expr, std::vector<CRNode*> &crMulOpnds);
   CRNode *GetOrCreateCR(MeExpr &expr, CRNode &start, CRNode &stride);
-  CRNode *GetOrCreateCR(MeExpr *expr, std::vector<CRNode*> &crNodes);
+  CRNode *GetOrCreateCR(MeExpr *expr, const std::vector<CRNode*> &crNodes);
   CRNode *GetOrCreateLoopInvariantCR(MeExpr &expr);
   CRNode *ChangeNegative2MulCRNode(CRNode &crNode);
-  CRNode *GetOrCreateCRConstNode(MeExpr *expr, int32 value);
+  CRNode *GetOrCreateCRConstNode(MeExpr *expr, int64 value);
   CRNode *GetOrCreateCRVarNode(MeExpr &expr);
-  CRNode *GetOrCreateCRAddNode(MeExpr *expr, std::vector<CRNode*> &crAddNodes);
-  CRNode *GetOrCreateCRMulNode(MeExpr *expr, std::vector<CRNode*> &crMulNodes);
+  CRNode *GetOrCreateCRAddNode(MeExpr *expr, const std::vector<CRNode*> &crAddNodes);
+  CRNode *GetOrCreateCRMulNode(MeExpr *expr, const std::vector<CRNode*> &crMulNodes);
   CRNode *GetOrCreateCRDivNode(MeExpr *expr, CRNode &lhsCRNode, CRNode &rhsCRNode);
   CRNode *ComputeCRNodeWithOperator(MeExpr &expr, CRNode &lhsCRNode, CRNode &rhsCRNode, Opcode op);
   CRNode *CreateSimpleCRForPhi(MePhiNode &phiNode, VarMeExpr &startExpr, const VarMeExpr &backEdgeExpr);
   CRNode *CreateCRForPhi(MePhiNode &phiNode);
   CRNode *GetOrCreateCRNode(MeExpr &expr);
   CRNode *DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &expr);
-  TripCountType ComputeTripCount(MeFunction &func, uint64 &tripCountResult, CRNode *&conditionCRNode, CR *&itCR);
-  void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, MeExpr &addrExpr);
+  TripCountType ComputeTripCount(const MeFunction &func, uint64 &tripCountResult, CRNode *&conditionCRNode, CR *&itCR);
+  void PutTheAddrExprAtTheFirstOfVector(std::vector<CRNode*> &crNodeOperands, const MeExpr &addrExpr);
   CRNode &SortCROperand(CRNode &crNode, MeExpr &expr);
   void SortOperatorCRNode(std::vector<CRNode*> &crNodeOperands, MeExpr &expr);
+  bool NormalizationWithByteCount(std::vector<CRNode*> &crNodeVector, uint8 byteSize);
+  uint8 GetByteSize(std::vector<CRNode*> &crNodeVector);
+  PrimType GetPrimType(std::vector<CRNode*> &crNodeVector);
 
  private:
   MeIRMap *irMap;

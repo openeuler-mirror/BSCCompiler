@@ -110,7 +110,7 @@ static inline void CheckRemove(const MeStmt *stmt, Opcode op) {
   }
 }
 
-MIRIntrinsicID GCLowering::PrepareVolatileCall(MeStmt &stmt, MIRIntrinsicID intrnId) {
+MIRIntrinsicID GCLowering::PrepareVolatileCall(const MeStmt &stmt, MIRIntrinsicID intrnId) {
   CheckRemove(stmt.GetPrev(), OP_membarrelease);
   CheckRemove(stmt.GetNext(), OP_membarstoreload);
   return intrnId;
@@ -163,7 +163,7 @@ MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
   return base;
 }
 
-void GCLowering::HandleWriteReferent(IassignMeStmt &stmt) {
+void GCLowering::HandleWriteReferent(const IassignMeStmt &stmt) {
   if (!isReferent) {
     return;
   }

@@ -333,7 +333,7 @@ bool OpMeExpr::IsIdentical(const OpMeExpr &meExpr) const {
   return false;
 }
 
-bool NaryMeExpr::IsIdentical(NaryMeExpr &meExpr) const {
+bool NaryMeExpr::IsIdentical(const NaryMeExpr &meExpr) const {
   if (meExpr.GetOp() != GetOp() || meExpr.tyIdx != tyIdx || meExpr.GetIntrinsic() != intrinsic ||
       meExpr.boundCheck != boundCheck) {
     return false;

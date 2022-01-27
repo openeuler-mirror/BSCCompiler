@@ -1442,7 +1442,7 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
   }
 
   // used for NaryStmtNode when clone
-  StmtNode(Opcode o, PrimType typ, uint8 numOpr, SrcPosition srcPosition, uint32 stmtOriginalID, StmtAttrs attrs)
+  StmtNode(Opcode o, PrimType typ, uint8 numOpr, const SrcPosition &srcPosition, uint32 stmtOriginalID, StmtAttrs attrs)
       : BaseNode(o, typ, numOpr), PtrListNodeBase(), srcPosition(srcPosition), stmtID(stmtIDNext),
         stmtOriginalID(stmtOriginalID), stmtAttrs(attrs) {
     ++stmtIDNext;
@@ -1933,7 +1933,7 @@ class SwitchNode : public StmtNode {
     switchTable.push_back(pair);
   }
 
-  void UpdateCaseLabelAt(uint32_t i, LabelIdx idx) {
+  void UpdateCaseLabelAt(size_t i, LabelIdx idx) {
     switchTable[i] = std::make_pair(switchTable[i].first, idx);
   }
 
@@ -3148,7 +3148,7 @@ class CallNode : public NaryStmtNode {
     return returnValues[i];
   }
 
-  void SetReturnVec(CallReturnVector &vec) {
+  void SetReturnVec(const CallReturnVector &vec) {
     returnValues = vec;
   }
 
@@ -3227,7 +3227,7 @@ class IcallNode : public NaryStmtNode {
     return returnValues;
   }
 
-  void SetReturnVec(CallReturnVector &vec) {
+  void SetReturnVec(const CallReturnVector &vec) {
     returnValues = vec;
   }
 
@@ -3317,7 +3317,7 @@ class IntrinsiccallNode : public NaryStmtNode {
     return returnValues;
   }
 
-  void SetReturnVec(CallReturnVector &vec) {
+  void SetReturnVec(const CallReturnVector &vec) {
     returnValues = vec;
   }
 
@@ -3454,7 +3454,7 @@ class CommentNode : public StmtNode {
     comment = com;
   }
 
-  void SetComment(std::string &str) {
+  void SetComment(const std::string &str) {
     comment = str;
   }
 

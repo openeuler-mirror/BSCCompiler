@@ -56,11 +56,11 @@ class A64StrLdrProp {
   AArch64MemOperand *StrLdrPropPreCheck(const Insn &insn, MemPropMode prevMod = kUndef);
   static MemPropMode SelectStrLdrPropMode(const  AArch64MemOperand &currMemOpnd);
   bool ReplaceMemOpnd(const AArch64MemOperand &currMemOpnd, Insn *defInsn);
-  AArch64MemOperand *SelectReplaceMem(Insn &defInsn, const AArch64MemOperand &currMemOpnd);
+  AArch64MemOperand *SelectReplaceMem(const Insn &defInsn, const AArch64MemOperand &currMemOpnd);
   AArch64RegOperand *GetReplaceReg(AArch64RegOperand &a64Reg);
   AArch64MemOperand *HandleArithImmDef(AArch64RegOperand &replace, Operand *oldOffset, int64 defVal);
   AArch64MemOperand *SelectReplaceExt(const Insn &defInsn, RegOperand &base, uint32 amount, bool isSigned);
-  bool CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
+  bool CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx);
   void DoMemReplace(const RegOperand &replacedReg, AArch64MemOperand &newMem, Insn &useInsn);
   uint32 GetMemOpndIdx(AArch64MemOperand *newMemOpnd, const Insn &insn);
 
@@ -109,7 +109,7 @@ class A64ConstProp {
   /* optimization */
   bool MovConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd);
   bool ArithmeticConstReplace(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT);
-  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, AArch64ImmOperand &constOpnd, ArithmeticType aT);
+  bool ArithmeticConstFold(DUInsnInfo &useDUInfo, const AArch64ImmOperand &constOpnd, ArithmeticType aT);
   bool ShiftConstReplace(DUInsnInfo &useDUInfo, const AArch64ImmOperand &constOpnd);
 
   MemPool *constPropMp;

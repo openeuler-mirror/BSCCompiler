@@ -19,6 +19,8 @@
 #include "aarch64_cgfunc.h"
 #include "aarch64_ssa.h"
 #include "aarch64_phi_elimination.h"
+#include "aarch64_prop.h"
+#include "aarch64_dce.h"
 
 namespace maplebe {
 constexpr int64 kShortBRDistance = (8 * 1024);
@@ -91,7 +93,7 @@ class GCTIBPattern {
 
   ~GCTIBPattern() = default;
 
-  int GetId() {
+  int GetId() const {
     static int id = 0;
     return id++;
   }
@@ -152,6 +154,12 @@ class AArch64CG : public CG {
   }
   PhiEliminate *CreatePhiElimintor(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
     return mp.New<AArch64PhiEliminate>(f, ssaInfo, mp);
+  }
+  CGProp *CreateCGProp(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
+    return mp.New<AArch64Prop>(mp, f, ssaInfo);
+  }
+  CGDce *CreateCGDce(MemPool &mp, CGFunc &f, CGSSAInfo &ssaInfo) const override {
+    return mp.New<AArch64Dce>(mp, f, ssaInfo);
   }
 
   static const AArch64MD kMd[kMopLast];

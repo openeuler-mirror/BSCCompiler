@@ -843,7 +843,7 @@ void DemandDrivenAliasAnalysis::Propagate(WorkListType &workList, PEGNode *to, c
   const auto &newNode = AddReachNode(to, reachItem.src, reachItem.state, reachItem.offset);
   const auto &offset = newNode.second->offset;
   if (newNode.first) {
-    workList.push_back(WorkListItem(to, reachItem.src, reachItem.state, offset));
+    workList.emplace_back(WorkListItem(to, reachItem.src, reachItem.state, offset));
     to->CopyAttrFromValueAliasedNode(reachItem.src);
     if (enableDebug) {
       LogInfo::MapleLogger() << "===New candidate: ";

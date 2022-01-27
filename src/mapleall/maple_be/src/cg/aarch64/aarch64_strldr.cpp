@@ -441,7 +441,7 @@ bool AArch64StoreLoadOpt::CheckNewAmount(const Insn &insn, uint32 newAmount) {
   }
 }
 
-bool AArch64StoreLoadOpt::CheckNewMemOffset(Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx) {
+bool AArch64StoreLoadOpt::CheckNewMemOffset(const Insn &insn, AArch64MemOperand *newMemOpnd, uint32 opndIdx) {
   AArch64CGFunc &a64CgFunc = static_cast<AArch64CGFunc&>(cgFunc);
   if ((newMemOpnd->GetOffsetImmediate() != nullptr) &&
       !a64CgFunc.IsOperandImmValid(insn.GetMachineOpcode(), newMemOpnd, opndIdx)) {

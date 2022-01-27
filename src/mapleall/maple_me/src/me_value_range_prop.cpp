@@ -529,8 +529,8 @@ bool ValueRangePropagation::CompareConstantOfIndexAndLength(
       valueRangeOfIndex.GetUpper().GetConstant() < valueRangeOfLengthPtr.GetBound().GetConstant());
 }
 
-bool ValueRangePropagation::CompareIndexWithUpper(BB &bb, MeStmt &meStmt, ValueRange &valueRangeOfIndex,
-    ValueRange &valueRangeOfLengthPtr, Opcode op, MeExpr *indexOpnd) {
+bool ValueRangePropagation::CompareIndexWithUpper(const BB &bb, const MeStmt &meStmt,
+    const ValueRange &valueRangeOfIndex, ValueRange &valueRangeOfLengthPtr, Opcode op, MeExpr *indexOpnd) {
   if (valueRangeOfIndex.GetRangeType() == kNotEqual || valueRangeOfLengthPtr.GetRangeType() == kNotEqual) {
     return false;
   }
@@ -833,7 +833,7 @@ MeExpr *ValueRangePropagation::GetAddressOfIndexOrBound(MeExpr &expr) const {
 }
 
 void ValueRangePropagation::GetValueRangeOfCRNode(
-    BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange, PrimType pTypeOfArray) {
+    const BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange, PrimType pTypeOfArray) {
   // Deal with the operand which is a constant.
   if (opndOfCRNode.GetCRType() == kCRConstNode) {
     int64 constant = static_cast<CRConstNode&>(opndOfCRNode).GetConstValue();
@@ -963,9 +963,11 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
     return false;
   }
   if (ValueRangePropagation::isDebug) {
-    std::for_each(indexVector.begin(), indexVector.end(), [&](CRNode *cr) { sa.Dump(*cr); std::cout << " ";});
+    std::for_each(indexVector.begin(), indexVector.end(), [this](CRNode *cr) {
+        sa.Dump(*cr); std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
-    std::for_each(boundVector.begin(), boundVector.end(), [&](CRNode *cr) { sa.Dump(*cr); std::cout << " ";});
+    std::for_each(boundVector.begin(), boundVector.end(), [this](CRNode *cr) {
+        sa.Dump(*cr); std::cout << " ";});
     LogInfo::MapleLogger() << "\n";
   }
   // Get the valueRange of index and bound
@@ -1913,7 +1915,7 @@ void ValueRangePropagation::DealWithMeOp(const BB &bb, const MeStmt &stmt) {
 }
 
 // Create new value range when deal with assign.
-void ValueRangePropagation::DealWithAssign(BB &bb, MeStmt &stmt) {
+void ValueRangePropagation::DealWithAssign(BB &bb, const MeStmt &stmt) {
   auto *lhs = stmt.GetLHS();
   auto *rhs = stmt.GetRHS();
   if (lhs == nullptr || rhs == nullptr) {
@@ -2133,7 +2135,7 @@ std::unique_ptr<ValueRange> ValueRangePropagation::MakeMonotonicIncreaseOrDecrea
 
 // Create new value range when deal with phinode.
 std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDesc &loop,
-    BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, ScalarMeExpr &lhsOfPhi) {
+    const BB &bb, ScalarMeExpr &init, ScalarMeExpr &backedge, const ScalarMeExpr &lhsOfPhi) {
   Bound initBound;
   ValueRange *valueRangeOfInit = FindValueRange(bb, init);
   bool initIsConstant = false;
@@ -3238,7 +3240,7 @@ bool ValueRangePropagation::RemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBran
 }
 
 bool ValueRangePropagation::ConditionEdgeCanBeDeleted(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
-    ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op) {
+    const ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op) {
   if (leftRange == nullptr) {
     return false;
   }
@@ -3469,7 +3471,8 @@ Opcode ValueRangePropagation::GetTheOppositeOp(Opcode op) const {
 }
 
 void ValueRangePropagation::CreateValueRangeForCondGoto(
-    BB &bb, MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange, BB &trueBranch, BB &falseBranch) {
+    BB &bb, const MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
+    const BB &trueBranch, const BB &falseBranch) {
   auto newRightUpper = rightRange.GetUpper();
   auto newRightLower = rightRange.GetLower();
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
@@ -3878,7 +3881,8 @@ bool ValueRangePropagation::AnalysisUnreachableForEqOrNe(
 // This function deals with the case like this:
 // Example: first brfalse mx1 eq(ne/gt/le/ge/lt) mx2
 //          second brfalse mx1 eq(ne/gt/le/ge/lt) mx2 ==>  remove falseBranch or trueBranch
-bool ValueRangePropagation::DealWithVariableRange(BB &bb, CondGotoMeStmt &brMeStmt, ValueRange &leftRange) {
+bool ValueRangePropagation::DealWithVariableRange(BB &bb, const CondGotoMeStmt &brMeStmt,
+                                                  const ValueRange &leftRange) {
   MeExpr *opnd1 = static_cast<OpMeExpr*>(brMeStmt.GetOpnd())->GetOpnd(1);
   // Example1: deal with like if (mx1 > mx2), when the valuerange of mx1 is [mx2+1, max(mx2_type)]
   // Example2: deal with like if (mx1 >= mx2), when the valuerange of mx1 is [mx2, max(mx2_type)]

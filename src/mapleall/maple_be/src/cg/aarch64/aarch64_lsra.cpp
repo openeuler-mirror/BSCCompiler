@@ -62,7 +62,7 @@ void LSRALinearScanRegAllocator::PrintRegSet(const MapleSet<uint32> &set, const 
   LogInfo::MapleLogger() << "\n";
 }
 
-bool LSRALinearScanRegAllocator::CheckForReg(Operand &opnd, Insn &insn, LiveInterval &li, regno_t regNO,
+bool LSRALinearScanRegAllocator::CheckForReg(Operand &opnd, const Insn &insn, const LiveInterval &li, regno_t regNO,
                                              bool isDef) const {
   if (!opnd.IsRegister()) {
     return false;
@@ -189,7 +189,7 @@ void LSRALinearScanRegAllocator::PrintLiveRanges() const {
   LogInfo::MapleLogger().rdbuf(coutBuf);
 }
 
-void LSRALinearScanRegAllocator::PrintLiveInterval(LiveInterval &li, const std::string &str) const {
+void LSRALinearScanRegAllocator::PrintLiveInterval(const LiveInterval &li, const std::string &str) const {
   LogInfo::MapleLogger() << str << "\n";
   if (li.GetIsCall() != nullptr) {
     LogInfo::MapleLogger() << " firstDef " << li.GetFirstDef();
@@ -656,7 +656,7 @@ void LSRALinearScanRegAllocator::BuildIntervalRangesForEachOperand(const Insn &i
 
 /* Support finding holes by searching for ranges where holes exist. */
 void LSRALinearScanRegAllocator::BuildIntervalRanges() {
-  uint32 bbIdx = bfs->sortedBBs.size();
+  size_t bbIdx = bfs->sortedBBs.size();
   if (bbIdx == 0) {
     return;
   }
@@ -974,7 +974,7 @@ void LSRALinearScanRegAllocator::ComputeLiveInterval() {
 }
 
 /* A physical register is freed at the end of the live interval.  Return to pool. */
-void LSRALinearScanRegAllocator::ReturnPregToSet(LiveInterval &li, uint32 preg) {
+void LSRALinearScanRegAllocator::ReturnPregToSet(const LiveInterval &li, uint32 preg) {
   if (preg == 0) {
     return;
   }
@@ -1015,7 +1015,7 @@ void LSRALinearScanRegAllocator::ReturnPregToSet(LiveInterval &li, uint32 preg) 
 }
 
 /* A physical register is removed from allocation as it is assigned. */
-void LSRALinearScanRegAllocator::ReleasePregToSet(LiveInterval &li, uint32 preg) {
+void LSRALinearScanRegAllocator::ReleasePregToSet(const LiveInterval &li, uint32 preg) {
   if (preg == 0) {
     return;
   }
@@ -1187,7 +1187,7 @@ uint32 LSRALinearScanRegAllocator::GetRegFromSet(MapleSet<uint32> &set, regno_t 
  * Handle adrp register assignment. Use the same register for the next
  * instruction.
  */
-uint32 LSRALinearScanRegAllocator::AssignSpecialPhysRegPattern(Insn &insn, LiveInterval &li) {
+uint32 LSRALinearScanRegAllocator::AssignSpecialPhysRegPattern(const Insn &insn, LiveInterval &li) {
   MOperator opCode = insn.GetMachineOpcode();
   if (opCode != MOP_xadrp) {
     return 0;
@@ -1788,7 +1788,7 @@ RegOperand *LSRALinearScanRegAllocator::HandleSpillForInsn(Insn &insn, Operand &
   return newOpnd;
 }
 
-bool LSRALinearScanRegAllocator::OpndNeedAllocation(Insn &insn, Operand &opnd, bool isDef, uint32 insnNum) {
+bool LSRALinearScanRegAllocator::OpndNeedAllocation(const Insn &insn, Operand &opnd, bool isDef, uint32 insnNum) {
   if (!opnd.IsRegister()) {
     return false;
   }

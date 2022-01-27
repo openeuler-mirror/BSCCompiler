@@ -95,6 +95,7 @@ class AArch64Insn : public Insn {
   }
 
   bool IsCall() const final;
+  bool IsAsmInsn() const final;
   bool IsTailCall() const final;
   bool IsClinit() const final;
   bool IsLazyLoad() const final;
@@ -113,6 +114,7 @@ class AArch64Insn : public Insn {
   bool IsCondBranch() const final;
   bool IsUnCondBranch() const final;
   bool IsMove() const final;
+  bool IsMoveRegReg() const final;
   bool IsPhi() const final;
   bool IsLoad() const final;
   bool IsLoadLabel() const final;
@@ -132,7 +134,7 @@ class AArch64Insn : public Insn {
   bool IsVectorOp() const final;
 
   Operand *GetCallTargetOperand() const override {
-    ASSERT(IsCall(), "should be call");
+    ASSERT(IsCall() || IsTailCall(), "should be call");
     return &GetOperand(0);
   }
   uint32 GetAtomicNum() const override;
@@ -178,10 +180,12 @@ class AArch64Insn : public Insn {
 
   std::set<uint32> GetDefRegs() const override;
 
+  uint32 GetBothDefUseOpnd() const override;
+
   bool IsRegDefOrUse(regno_t regNO) const;
 
  private:
-  void CheckOpnd(Operand &opnd, OpndProp &mopd) const;
+  void CheckOpnd(const Operand &opnd, const OpndProp &mopd) const;
   void EmitClinit(const CG&, Emitter&) const;
   void EmitAdrpLdr(const CG&, Emitter&) const;
   void EmitLazyBindingRoutine(Emitter&) const;
@@ -244,7 +248,7 @@ class AArch64VectorInsn : public AArch64Insn {
     return ret;
   }
 
-  int GetNumOfRegSpec() const {
+  size_t GetNumOfRegSpec() const {
     if (IsVectorOp() && !regSpecList.empty()) {
       return regSpecList.size();
     }
@@ -255,7 +259,7 @@ class AArch64VectorInsn : public AArch64Insn {
     return regSpecList;
   }
 
-  void SetRegSpecList(MapleVector<VectorRegSpec*> &vec) {
+  void SetRegSpecList(const MapleVector<VectorRegSpec*> &vec) {
     regSpecList = vec;
   }
 

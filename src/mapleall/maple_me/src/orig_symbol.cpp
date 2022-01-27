@@ -48,6 +48,7 @@ void OriginalSt::Dump() const {
     LogInfo::MapleLogger() << "%" << GetMIRPreg()->GetPregNo();
     LogInfo::MapleLogger() << "<" << static_cast<int32>(indirectLev) << ">";
   }
+  LogInfo::MapleLogger() << "[idx:" << GetIndex() <<"]";
 }
 
 OriginalStTable::OriginalStTable(MemPool &memPool, MIRModule &mod)
@@ -64,8 +65,11 @@ OriginalStTable::OriginalStTable(MemPool &memPool, MIRModule &mod)
 void OriginalStTable::Dump() {
   mirModule.GetOut() << "==========original st table===========\n";
   for (size_t i = 1; i < Size(); ++i) {
-    const OriginalSt *verst = GetOriginalStFromID(OStIdx(i));
-    verst->Dump();
+    const OriginalSt *oriSt = GetOriginalStFromID(OStIdx(i));
+    if (oriSt == nullptr) {
+      continue;
+    }
+    oriSt->Dump();
   }
   mirModule.GetOut() << "\n=======end original st table===========\n";
 }
@@ -151,7 +155,7 @@ OriginalSt *OriginalStTable::CreatePregOriginalSt(PregIdx regidx, PUIdx pidx) {
   return ost;
 }
 
-OriginalSt *OriginalStTable::FindSymbolOriginalSt(MIRSymbol &mirst) {
+OriginalSt *OriginalStTable::FindSymbolOriginalSt(const MIRSymbol &mirst) {
   auto it = mirSt2Ost.find(SymbolFieldPair(mirst.GetStIdx(), 0, mirst.GetTyIdx(), OffsetType(0)));
   if (it == mirSt2Ost.end()) {
     return nullptr;
@@ -266,7 +270,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyI
 }
 
 OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, MIRType *type,
-                                                    FieldID fld, const OffsetType &offset) {
+                                                    FieldID fld, const OffsetType &offset) const {
   for (OriginalSt *nextLevelOst : nextLevelOsts) {
     if (nextLevelOst->GetOffset() == offset && nextLevelOst->GetType() == type) {
       if (nextLevelOst->GetFieldID() == fld || fld == 0) {

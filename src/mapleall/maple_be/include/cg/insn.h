@@ -115,7 +115,7 @@ class Insn {
     retSize = size;
   }
 
-  uint32 GetRetSize() {
+  uint32 GetRetSize() const {
     ASSERT(IsCall(), "Insn should be a call.");
     return retSize;
   }

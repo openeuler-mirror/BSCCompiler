@@ -665,7 +665,7 @@ class LiveRange {
     this->addrUpper = addrUpper;
   }
 
-  void CopyRematerialization(LiveRange &lr) {
+  void CopyRematerialization(const LiveRange &lr) {
     op = lr.op;
     rematInfo = lr.rematInfo;
     fieldID = lr.fieldID;
@@ -1134,13 +1134,13 @@ class LocalRegAllocator {
   }
 
  private:
-  void ClearBitArrElement(uint64 *vec) {
+  void ClearBitArrElement(uint64 *vec) const {
     for (uint32 i = 0; i < buckets; ++i) {
       vec[i] = 0UL;
     }
   }
 
-  void SetBitArrElement(uint64 *vec, regno_t regNO) {
+  void SetBitArrElement(uint64 *vec, regno_t regNO) const {
     uint32 index = regNO / kU64;
     uint64 bit = regNO % kU64;
     vec[index] |= 1ULL << bit;
@@ -1272,7 +1272,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
       return nullptr;
     }
   }
-  const MapleMap<regno_t, LiveRange*> &GetLrMap() {
+  const MapleMap<regno_t, LiveRange*> &GetLrMap() const {
     return lrMap;
   }
   Insn *SpillOperand(Insn &insn, const Operand &opnd, bool isDef, AArch64RegOperand &phyOpnd, bool forCall = false);
@@ -1323,12 +1323,12 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void CalculatePriority(LiveRange &lr) const;
   bool CreateLiveRangeHandleLocal(regno_t regNO, const BB &bb, bool isDef);
   LiveRange *CreateLiveRangeAllocateAndUpdate(regno_t regNO, const BB &bb, bool isDef, uint32 currId);
-  void CreateLiveRange(regno_t regNO, BB &bb, bool isDef, uint32 currPoint, bool updateCount);
-  bool SetupLiveRangeByOpHandlePhysicalReg(RegOperand &op, Insn &insn, regno_t regNO, bool isDef);
+  void CreateLiveRange(regno_t regNO, const BB &bb, bool isDef, uint32 currPoint, bool updateCount);
+  bool SetupLiveRangeByOpHandlePhysicalReg(const RegOperand &op, Insn &insn, regno_t regNO, bool isDef);
   void SetupLiveRangeByOp(Operand &op, Insn &insn, bool isDef, uint32 &numUses);
   void SetupLiveRangeByRegNO(regno_t liveOut, BB &bb, uint32 currPoint);
   bool UpdateInsnCntAndSkipUseless(Insn &insn, uint32 &currPoint);
-  void UpdateCallInfo(uint32 bbId, uint32 currPoint, Insn &insn);
+  void UpdateCallInfo(uint32 bbId, uint32 currPoint, const Insn &insn);
   void ClassifyOperand(std::unordered_set<regno_t> &pregs, std::unordered_set<regno_t> &vregs, const Operand &opnd);
   void SetOpndConflict(const Insn &insn, bool onlyDef);
   void UpdateOpndConflict(const Insn &insn, bool multiDef);
@@ -1351,7 +1351,7 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SplitAndColor();
   void ColorForOptPrologEpilog();
   bool IsLocalReg(regno_t regNO) const;
-  bool IsLocalReg(LiveRange &lr) const;
+  bool IsLocalReg(const LiveRange &lr) const;
   void HandleLocalRaDebug(regno_t regNO, const LocalRegAllocator &localRa, bool isInt) const;
   void HandleLocalRegAssignment(regno_t regNO, LocalRegAllocator &localRa, bool isInt);
   void UpdateLocalRegDefUseCount(regno_t regNO, LocalRegAllocator &localRa, bool isDef, bool isInt) const;
@@ -1363,8 +1363,8 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void LocalRaForEachDefOperand(const Insn &insn, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo);
   void LocalRaForEachUseOperand(const Insn &insn, LocalRegAllocator &localRa, const BBAssignInfo *bbInfo);
   void LocalRaPrepareBB(BB &bb, LocalRegAllocator &localRa);
-  void LocalRaFinalAssignment(LocalRegAllocator &localRa, BBAssignInfo &bbInfo);
-  void LocalRaDebug(BB &bb, LocalRegAllocator &localRa);
+  void LocalRaFinalAssignment(const LocalRegAllocator &localRa, BBAssignInfo &bbInfo);
+  void LocalRaDebug(const BB &bb, const LocalRegAllocator &localRa);
   void LocalRegisterAllocator(bool allocate);
   MemOperand *GetSpillOrReuseMem(LiveRange &lr, uint32 regSize, bool &isOutOfRange, Insn &insn, bool isDef);
   void SpillOperandForSpillPre(Insn &insn, const Operand &opnd, RegOperand &phyOpnd, uint32 spillIdx, bool needSpill);
@@ -1380,11 +1380,11 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void CollectCannotUseReg(std::unordered_set<regno_t> &cannotUseReg, const LiveRange &lr, Insn &insn);
   regno_t PickRegForSpill(uint64 &usedRegMask, RegType regType, uint32 spillIdx, bool &needSpillLr);
   bool SetRegForSpill(LiveRange &lr, Insn &insn, uint32 spillIdx, uint64 &usedRegMask, bool isDef);
-  bool GetSpillReg(Insn &insn, LiveRange &lr, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
+  bool GetSpillReg(Insn &insn, LiveRange &lr, const uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   RegOperand *GetReplaceOpndForLRA(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
-  bool EncountPrevRef(BB &pred, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
+  bool EncountPrevRef(const BB &pred, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
   bool FoundPrevBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
-  bool EncountNextRef(BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
+  bool EncountNextRef(const BB &succ, LiveRange &lr, bool isDef, std::vector<bool>& visitedMap);
   bool FoundNextBeforeCall(Insn &insn, LiveRange &lr, bool isDef);
   bool HavePrevRefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
   bool HaveNextDefInCurBB(Insn &insn, LiveRange &lr, bool &contSearch);
@@ -1392,35 +1392,36 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   RegOperand *GetReplaceOpnd(Insn &insn, const Operand &opnd, uint32 &spillIdx, uint64 &usedRegMask, bool isDef);
   void MarkCalleeSaveRegs();
   void MarkUsedRegs(Operand &opnd, uint64 &usedRegMask);
-  uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, Insn &insn, bool &needProcess);
+  uint64 FinalizeRegisterPreprocess(FinalizeRegisterInfo &fInfo, const Insn &insn, bool &needProcess);
   void SplitVregAroundLoop(const CGFuncLoops &loop, const std::vector<LiveRange*> &lrs,
-                           BB &headerPred, BB &exitSucc, std::set<regno_t> &cands);
+                           BB &headerPred, BB &exitSucc, const std::set<regno_t> &cands);
   bool LoopNeedSplit(const CGFuncLoops &loop, std::set<regno_t> &cands);
-  bool LrGetBadReg(LiveRange &lr) const;
+  bool LrGetBadReg(const LiveRange &lr) const;
   void AnalysisLoopPressureAndSplit(const CGFuncLoops &loop);
   void AnalysisLoop(const CGFuncLoops &);
   void OptCallerSave();
   void FinalizeRegisters();
-  void GenerateSpillFillRegs(Insn &insn);
-  RegOperand *CreateSpillFillCode(RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
+  void GenerateSpillFillRegs(const Insn &insn);
+  RegOperand *CreateSpillFillCode(const RegOperand &opnd, Insn &insn, uint32 spillCnt, bool isdef = false);
   bool SpillLiveRangeForSpills();
 
   MapleVector<LiveRange*>::iterator GetHighPriorityLr(MapleVector<LiveRange*> &lrSet) const;
-  void UpdateForbiddenForNeighbors(LiveRange &lr) const;
-  void UpdatePregvetoForNeighbors(LiveRange &lr) const;
-  regno_t FindColorForLr(LiveRange &lr) const;
-  regno_t TryToAssignCallerSave(LiveRange &lr) const;
+  void UpdateForbiddenForNeighbors(const LiveRange &lr) const;
+  void UpdatePregvetoForNeighbors(const LiveRange &lr) const;
+  regno_t FindColorForLr(const LiveRange &lr) const;
+  regno_t TryToAssignCallerSave(const LiveRange &lr) const;
   bool ShouldUseCallee(LiveRange &lr, const MapleSet<regno_t> &calleeUsed,
                        const MapleVector<LiveRange*> &delayed) const;
   void AddCalleeUsed(regno_t regNO, RegType regType);
   bool AssignColorToLr(LiveRange &lr, bool isDelayed = false);
   void PruneLrForSplit(LiveRange &lr, BB &bb, bool remove, std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
-  bool UseIsUncovered(BB &bb, const BB &startBB, std::vector<bool> &visitedBB);
+  bool UseIsUncovered(const BB &bb, const BB &startBB, std::vector<bool> &visitedBB);
   void FindUseForSplit(LiveRange &lr, SplitBBInfo &bbInfo, bool &remove,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                        std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
-  void FindBBSharedInSplit(LiveRange &lr, std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
+  void FindBBSharedInSplit(LiveRange &lr,
+                           const std::set<CGFuncLoops*, CGFuncLoopCmp> &candidateInLoop,
                            std::set<CGFuncLoops*, CGFuncLoopCmp> &defInLoop);
   void ComputeBBForNewSplit(LiveRange &newLr, LiveRange &oldLr);
   void ClearLrBBFlags(const std::set<BB*, SortedBBCmpFunc> &member);
@@ -1436,8 +1437,9 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   void SplitLrFixNewLrCallsAndRlod(LiveRange &newLr, const std::set<CGFuncLoops*, CGFuncLoopCmp> &origLoops);
   void SplitLrFixOrigLrCalls(LiveRange &lr);
   void SplitLrUpdateInterference(LiveRange &lr);
-  void SplitLrUpdateRegInfo(LiveRange &origLr, LiveRange &newLr, std::unordered_set<regno_t> &conflictRegs);
-  void SplitLrErrorCheckAndDebug(LiveRange &origLr);
+  void SplitLrUpdateRegInfo(const LiveRange &origLr, LiveRange &newLr,
+                            std::unordered_set<regno_t> &conflictRegs);
+  void SplitLrErrorCheckAndDebug(const LiveRange &origLr) const;
   void SplitLr(LiveRange &lr);
 
   static constexpr uint16 kMaxUint16 = 0x7fff;

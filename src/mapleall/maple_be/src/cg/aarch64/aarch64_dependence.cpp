@@ -338,7 +338,7 @@ bool AArch64DepAnalysis::IsFrameReg(const RegOperand &opnd) const {
   return (opnd.GetRegisterNumber() == RFP) || (opnd.GetRegisterNumber() == RSP);
 }
 
-AArch64MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(AArch64MemOperand &aarchMemOpnd,
+AArch64MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(const AArch64MemOperand &aarchMemOpnd,
                                                                      uint32 byteSize) const {
   AArch64MemOperand *nextMemOpnd = nullptr;
   Operand *nextOpnd = aarchMemOpnd.Clone(memPool);
@@ -353,7 +353,7 @@ AArch64MemOperand *AArch64DepAnalysis::BuildNextMemOperandByByteSize(AArch64MemO
 }
 
 /* Get the second memory access operand of stp/ldp instructions. */
-AArch64MemOperand *AArch64DepAnalysis::GetNextMemOperand(Insn &insn, AArch64MemOperand &aarchMemOpnd) const {
+AArch64MemOperand *AArch64DepAnalysis::GetNextMemOperand(const Insn &insn, AArch64MemOperand &aarchMemOpnd) const {
   AArch64MemOperand *nextMemOpnd = nullptr;
   switch (insn.GetMachineOpcode()) {
     case MOP_wldp:

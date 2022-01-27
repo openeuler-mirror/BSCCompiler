@@ -32,7 +32,7 @@ class AArch64SymbolAlloc : public SymbolAlloc {
     reg3 = r3;
   }
 
-  inline bool IsRegister() {
+  inline bool IsRegister() const {
     return reg0 != kRinvalid;
   }
 
@@ -183,7 +183,7 @@ class AArch64MemLayout : public MemLayout {
     return segVrSaveArea.GetSize();
   }
 
-  uint32 GetSizeOfRefLocals() {
+  uint32 GetSizeOfRefLocals() const {
     return segRefLocals.GetSize();
   }
 

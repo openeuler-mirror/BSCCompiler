@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -15,11 +15,11 @@
 #ifndef MAPLEME_INCLUDE_ME_ABCOPT
 #define MAPLEME_INCLUDE_ME_ABCOPT
 #include "me_function.h"
-#include "me_irmap.h"
+#include "me_irmap_build.h"
 #include "me_ir.h"
 #include "me_inequality_graph.h"
 #include "me_cfg.h"
-#include "dominance.h"
+#include "me_dominance.h"
 #include "mir_module.h"
 #include "mir_builder.h"
 #include "me_ssi.h"
@@ -109,7 +109,7 @@ class MeABC {
   void AddEdgePair(ESSABaseNode &from, ESSABaseNode &to, int64 value, EdgeType type);
   bool BuildArrayCheckInGraph(MeStmt &meStmt);
   bool BuildBrMeStmtInGraph(MeStmt &meStmt);
-  bool BuildAssignInGraph(MeStmt &meStmt);
+  bool BuildAssignInGraph(const MeStmt &meStmt);
   MeExpr *TryToResolveVar(MeExpr &expr, bool isConst);
   MeExpr *TryToResolveVar(MeExpr &expr, std::set<MePhiNode*> &visitedPhi, MeExpr &dummyExpr, bool isConst);
   bool BuildStmtInGraph(MeStmt &meStmt);
@@ -119,7 +119,7 @@ class MeABC {
   void BuildInequalityGraph();
   bool IsLessOrEuqal(const MeExpr &opnd1, const MeExpr &opnd2);
   void ProcessCallParameters(CallMeStmt &callNode);
-  void FindRedundantABC(MeStmt &meStmt, NaryMeExpr &naryMeExpr);
+  void FindRedundantABC(MeStmt &meStmt, const NaryMeExpr &naryMeExpr);
   void InitNewStartPoint(MeStmt &meStmt, MeExpr &opnd1, MeExpr &opnd2, bool clearGraph = true);
   void DeleteABC();
   bool CleanABCInStmt(MeStmt &meStmt, NaryMeExpr &naryMeExpr);
@@ -164,15 +164,6 @@ class MeABC {
   std::map<std::pair<MeExpr*, MeExpr*>, MeExpr*> unresolveEdge;
 };
 
-class MeDoABCOpt : public MeFuncPhase {
- public:
-  explicit MeDoABCOpt(MePhaseID id) : MeFuncPhase(id) {}
-  ~MeDoABCOpt() = default;
-  AnalysisResult *Run(MeFunction *func, MeFuncResultMgr *frm, ModuleResultMgr *mrm) override;
-
-  std::string PhaseName() const override {
-    return "abcopt";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEABCOpt, MeFunction)
 }
 #endif

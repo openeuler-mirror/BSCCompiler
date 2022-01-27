@@ -91,6 +91,9 @@ class SSA {
   virtual ~SSA() = default;
 
   void InitRenameStack(const OriginalStTable&, size_t, const VersionStTable&);
+  void UpdateDom(Dominance *dm) {
+    dom = dm;
+  }
   VersionSt *CreateNewVersion(VersionSt &vSym, BB &defBB);
   void RenamePhi(BB &bb);
   void RenameDefs(StmtNode &stmt, BB &defBB);
@@ -98,7 +101,7 @@ class SSA {
   void RenameExpr(BaseNode &expr);
   void RenameUses(StmtNode &stmt);
   void RenamePhiUseInSucc(const BB &bb);
-  void RenameMayUses(BaseNode &node);
+  void RenameMayUses(const BaseNode &node);
   void RenameBB(BB &bb);
 
   MapleAllocator &GetSSAAlloc() {

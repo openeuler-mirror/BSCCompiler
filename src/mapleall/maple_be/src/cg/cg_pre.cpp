@@ -58,7 +58,7 @@ void CGPre::CreateSortedOccs() {
   // merge varPhiDfns to dfPhiDfns
   dfPhiDfns.insert(varPhiDfns.begin(), varPhiDfns.end());
 
-  auto comparator = [=](const CgPhiOpndOcc *occA, const CgPhiOpndOcc *occB) -> bool {
+  auto comparator = [this](const CgPhiOpndOcc *occA, const CgPhiOpndOcc *occB) -> bool {
     return dom->GetDtDfnItem(occA->GetBB()->GetId()) < dom->GetDtDfnItem(occB->GetBB()->GetId());
   };
 

@@ -1791,11 +1791,11 @@ int32 AArch64Insn::CopyOperands() const {
   return -1;
 }
 
-void AArch64Insn::CheckOpnd(Operand &opnd, OpndProp &prop) const {
+void AArch64Insn::CheckOpnd(const Operand &opnd, const OpndProp &prop) const {
   (void)opnd;
   (void)prop;
 #if DEBUG
-  auto &mopd = static_cast<AArch64OpndProp&>(prop);
+  auto &mopd = static_cast<const AArch64OpndProp&>(prop);
   switch (opnd.GetKind()) {
     case Operand::kOpdRegister:
       ASSERT(mopd.IsRegister(), "expect reg");

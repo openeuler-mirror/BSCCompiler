@@ -67,7 +67,7 @@ bool CollectIpaInfo::IsConstKindValue(MeExpr *expr) {
          constV->GetKind() == kConstDoubleConst;
 }
 
-bool CollectIpaInfo::CheckImpExprStmt(MeStmt &meStmt) {
+bool CollectIpaInfo::CheckImpExprStmt(const MeStmt &meStmt) {
   auto *node = meStmt.GetOpnd(0);
   return IsConstKindValue(node->GetOpnd(0)) || IsConstKindValue(node->GetOpnd(1));
 }
@@ -81,7 +81,7 @@ bool CollectIpaInfo::IsParameterOrUseParameter(VarMeExpr *varExpr) {
 }
 
 // Now we just resolve two cases, we will collect more case in the future.
-bool CollectIpaInfo::CollectImportantExpression(MeStmt &meStmt) {
+bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt) {
   auto *opnd = meStmt.GetOpnd(0);
   if (opnd->GetOp() == OP_eq || opnd->GetOp() == OP_ne || opnd->GetOp() == OP_gt ||
       opnd->GetOp() == OP_ge || opnd->GetOp() == OP_lt || opnd->GetOp() == OP_le) {
@@ -172,7 +172,7 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
   }
 }
 
-void CollectIpaInfo::Perform(MeFunction &func) {
+void CollectIpaInfo::Perform(const MeFunction &func) {
   // Pre-order traverse the dominance tree, so that each def is traversed
   // before its use
   std::vector<bool> bbVisited(func.GetCfg()->GetAllBBs().size(), false);

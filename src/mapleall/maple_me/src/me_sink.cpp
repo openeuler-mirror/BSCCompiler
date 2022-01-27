@@ -14,60 +14,9 @@
  */
 
 #include "me_sink.h"
+#include "meexpr_use_info.h"
 
 namespace maple {
-enum UseType {
-  kUseByStmt,
-  kUseByPhi,
-};
-
-class UseItem {
- public:
-  explicit UseItem(MeStmt *useStmt) : useType(kUseByStmt) {
-    useNode.stmt = useStmt;
-  }
-
-  explicit UseItem(BB *bb) : useType(kUseByPhi) {
-    useNode.bb = bb;
-  }
-  ~UseItem() = default;
-
-  BB *GetUseBB() const {
-    if (useType == kUseByStmt) {
-      return useNode.stmt->GetBB();
-    }
-    ASSERT(useType == kUseByPhi, "must used in phi");
-    return useNode.bb;
-  }
-
-  bool IsUseByPhi() const {
-    return useType == kUseByPhi;
-  }
-
-  bool IsUseByStmt() const {
-    return useType == kUseByStmt;
-  }
-
-  MeStmt *GetStmt() const {
-    return useNode.stmt;
-  }
-
-  bool SameUseItem(const MeStmt *stmt) const {
-    return stmt == useNode.stmt;
-  }
-
-  bool SameUseItem(const BB *bb) const {
-    return bb == useNode.bb;
-  }
-
- private:
-  UseType useType;
-  union UseSite {
-    MeStmt *stmt;
-    BB *bb;
-  } useNode;
-};
-
 struct DefUseInfoOfPhi {
   bool allOpndsUsedOnlyInPhi; // true only if all opnds of phi used only in current phi
   bool allOpndsDefedByStmt; // true only if all opnds of phi defined by stmt (assign/callassign)
@@ -88,14 +37,11 @@ class MeSink {
   MeExpr *ConstructExpr(MeExpr *expr, const BB *predBB, const BB *phiBB);
   static bool ExprsHasSameValue(const MeExpr *exprA, const MeExpr *exprB);
   bool OpndOfExprRedefined(const MeExpr *expr) const;
-  template <class T>
-  void AddScalarUseSite(const ScalarMeExpr *scalar, T *useSite);
   bool ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *stmt,
                                std::set<const ScalarMeExpr*> &visitedScalars) const;
   void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB);
   void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB);
 
-  std::list<UseItem> *GetUseSitesOf(const ScalarMeExpr *expr) const;
   bool MeExprSinkable(MeExpr *expr) const;
   bool DefStmtSinkable(MeStmt *defStmt) const;
   void AddNewDefinedScalar(ScalarMeExpr *scalar);
@@ -106,7 +52,7 @@ class MeSink {
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts);
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts,
       std::set<MePhiNode*> &processedPhi, std::set<MePhiNode*> &phisUseCurrPhiOpnds);
-  bool ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar);
+  void ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar);
   bool PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
                                             std::map<ScalarMeExpr*, MeStmt*> &defStmtsOfPhiOpnds);
   bool MergeAssignStmtWithPhi(AssignMeStmt *assign, MePhiNode *phi);
@@ -120,23 +66,18 @@ class MeSink {
   void ProcessPhiList(BB *bb);
   void SinkStmtsInBB(BB *bb);
 
-  void ReplaceUsesOfScalar(const ScalarMeExpr *replacedScalar, ScalarMeExpr *replaceeScalar);
   BB *BestSinkBB(BB *fromBB, BB *toBB);
-  std::pair<BB*, bool> CalCandSinkBBForUseSites(std::list<UseItem> &useList);
+  std::pair<BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
   BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
   void CalSinkSites();
-  void CollectUseSitesInExpr(MeExpr *expr, MeStmt *stmt);
-  void CollectUseSitesInStmt(MeStmt *stmt);
-  void CollectUseSitesInBB(BB *bb);
   void Run();
 
  private:
-  MeFunction *func;
-  IRMap *irMap;
-  Dominance *domTree;
-  IdentifyLoops *loopInfo;
-  std::vector<const ScalarMeExpr*> scalars; // index is exprId
-  std::vector<std::unique_ptr<std::list<UseItem>>> useSites; // index is exprId
+  MeFunction *func = nullptr;
+  IRMap *irMap = nullptr;
+  Dominance *domTree = nullptr;
+  IdentifyLoops *loopInfo = nullptr;
+  MeExprUseInfo *useInfoOfExprs = nullptr;
   std::vector<std::unique_ptr<std::list<MeStmt*>>> defStmtsSinkToHeader; // index is bbId
   std::vector<std::unique_ptr<std::list<MeStmt*>>> defStmtsSinkToBottom; // index is bbId
   std::vector<std::unique_ptr<std::list<ScalarMeExpr*>>> versionStack; // index is ostIdx
@@ -185,37 +126,6 @@ void MeSink::AddNewDefinedScalar(ScalarMeExpr *scalar) {
         bufferSize + static_cast<uint32>(scalar->GetExprID()) - scalarHasValidDef.size(), false);
   }
   scalarHasValidDef[static_cast<uint32>(scalar->GetExprID())] = true;
-}
-
-template <class T>
-void MeSink::AddScalarUseSite(const ScalarMeExpr *scalar, T *useSite) {
-  if (scalar->GetOst()->GetIndirectLev() > 0) {
-    return;
-  }
-  constexpr uint32 bufferSize = 10;
-  if (scalars.size() <= scalar->GetExprID()) {
-    size_t newSize = static_cast<size_t>(scalar->GetExprID()) - scalars.size() + bufferSize;
-    (void)scalars.insert(scalars.end(), newSize, nullptr);
-  }
-  scalars[scalar->GetExprID()] = scalar;
-
-  if (useSites.size() <= scalar->GetExprID()) {
-    useSites.resize(scalar->GetExprID() + bufferSize);
-  }
-  if (useSites[scalar->GetExprID()] == nullptr) {
-    useSites[scalar->GetExprID()] = std::make_unique<std::list<UseItem>>(1, UseItem(useSite));
-    return;
-  }
-  if (!useSites[scalar->GetExprID()]->front().SameUseItem(useSite)) {
-    useSites[scalar->GetExprID()]->push_front(UseItem(useSite));
-  }
-}
-
-std::list<UseItem> *MeSink::GetUseSitesOf(const ScalarMeExpr *expr) const {
-  if (useSites.size() > expr->GetExprID()) {
-    return useSites[expr->GetExprID()].get();
-  }
-  return nullptr;
 }
 
 bool MeSink::MeExprSinkable(maple::MeExpr *expr) const {
@@ -344,7 +254,7 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
       for (auto &ost2chi : *chiList) {
         auto it = chiListOfCall->find(ost2chi.first);
         if (it == chiListOfCall->end()) {
-          chiListOfCall->insert({ost2chi.first, ost2chi.second});
+          chiListOfCall->emplace(ost2chi.first, ost2chi.second);
           ost2chi.second->SetBase(const_cast<MeStmt*>(callAssignStmt));
         } else {
           it->second->SetLHS(ost2chi.second->GetLHS());
@@ -366,7 +276,7 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
   DefUseInfoOfPhi defInfo{true, true, true, true, nullptr};
   auto &opnds = phi->GetOpnds();
   for (auto *opnd : opnds) {
-    auto *useSitesOfOpnd = GetUseSitesOf(opnd);
+    auto *useSitesOfOpnd = useInfoOfExprs->GetUseSitesOfExpr(opnd);
     // use sites of phi-opnd has not been traced
     if (useSitesOfOpnd == nullptr) {
       return {false, false, false, false, nullptr};
@@ -376,16 +286,9 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
         defInfo.allOpndsUsedOnlyInPhi = false;
         break;
       }
-      auto *useBB = useSite.GetUseBB();
-      for (auto *succBB : useBB->GetSucc()) {
-        auto &phiList = succBB->GetMePhiList();
-        if (phiList.empty()) {
-          continue;
-        }
-        const auto &phiIt = phiList.find(phi->GetLHS()->GetOstIdx());
-        if (phiIt != phiList.end() && phiIt->second->GetIsLive()) {
-          phisUseCurrPhiOpnds.insert(phiIt->second);
-        }
+      auto *phiUsingOpnd = useSite.GetPhi();
+      if (phiUsingOpnd->GetIsLive()) {
+        phisUseCurrPhiOpnds.insert(phiUsingOpnd);
       }
     }
 
@@ -439,32 +342,31 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
   return defUseInfo;
 }
 
-bool MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
+void MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
   if (!phi->GetIsLive()) {
-    return false;
+    return;
   }
   phi->SetIsLive(false);
   auto *bb = phi->GetDefBB();
   auto *newMePhi = irMap->New<MePhiNode>(&irMap->GetIRMapAlloc());
   newMePhi->SetLHS(scalar);
   newMePhi->SetDefBB(bb);
-  bb->GetMePhiList().insert(std::pair<OStIdx, MePhiNode*>(scalar->GetOstIdx(), newMePhi));
+  bb->GetMePhiList().emplace(std::pair<OStIdx, MePhiNode*>(scalar->GetOstIdx(), newMePhi));
   scalar->SetDefBy(kDefByPhi);
   scalar->SetDefPhi(*newMePhi);
   AddNewDefinedScalar(scalar);
   for (auto *opnd : phi->GetOpnds()) {
     auto *newVerScalar = irMap->CreateRegOrVarMeExprVersion(scalar->GetOstIdx());
-    auto idxOfPred = newMePhi->GetOpnds().size();
     if (opnd->IsDefByStmt()) {
       auto *defStmt = opnd->GetDefStmt();
       if (!defStmt->GetIsLive()) {
         continue;
       }
-      // if rhs is the same var with scalar, not create self copy
+      // if rhs is the same ost with scalar, not create self copy
       if (kOpcodeInfo.AssignActualVar(defStmt->GetOp())) {
         auto *rhs = static_cast<AssignMeStmt*>(defStmt)->GetRHS();
         if (rhs->IsScalar() && static_cast<ScalarMeExpr*>(rhs)->GetOst() == scalar->GetOst()) {
-          AddScalarUseSite(static_cast<ScalarMeExpr*>(rhs), bb->GetPred(idxOfPred));
+          useInfoOfExprs->AddUseSiteOfExpr(rhs, newMePhi);
           newMePhi->GetOpnds().push_back(static_cast<ScalarMeExpr*>(rhs));
           defStmt->GetBB()->RemoveMeStmt(defStmt);
           defStmt->SetIsLive(false);
@@ -483,7 +385,7 @@ bool MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
       newVerScalar->SetDefBy(kDefByStmt);
       newVerScalar->SetDefByStmt(*defStmt);
       AddNewDefinedScalar(newVerScalar);
-      AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
+      useInfoOfExprs->AddUseSiteOfExpr(newVerScalar, newMePhi);
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else if (opnd->IsDefByMustDef()) {
       auto &mustDef = opnd->GetDefMustDef();
@@ -491,18 +393,17 @@ bool MeSink::ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar) {
       newVerScalar->SetDefBy(kDefByMustDef);
       newVerScalar->SetDefMustDef(mustDef);
       AddNewDefinedScalar(newVerScalar);
-      AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
+      useInfoOfExprs->AddUseSiteOfExpr(newVerScalar, newMePhi);
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else if (opnd->IsDefByPhi()) {
       auto &defPhi = opnd->GetDefPhi();
       ReplacePhiWithNewDataFlow(&defPhi, newVerScalar);
-      AddScalarUseSite(newVerScalar, bb->GetPred(idxOfPred));
+      useInfoOfExprs->AddUseSiteOfExpr(newVerScalar, newMePhi);
       newMePhi->GetOpnds().push_back(newVerScalar);
     } else {
       CHECK_FATAL(false, "scalar defined by no or chi cannot be replaced");
     }
   }
-  return true;
 }
 
 bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
@@ -547,12 +448,26 @@ bool MeSink::PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB
   // To keep validation of data-flow of scalar,
   // dominator of new define stmts should not dominate use sites of top-version.
   if (topVer != nullptr) {
-    auto *useSitesOfTopVer = GetUseSitesOf(topVer);
+    auto *useSitesOfTopVer = useInfoOfExprs->GetUseSitesOfExpr(topVer);
     if (useSitesOfTopVer != nullptr) {
       for (const auto &useSite : *useSitesOfTopVer) {
-        auto *bbOfUseSite = useSite.GetUseBB();
-        if (domTree->Dominate(*domBBOfDefStmts, *bbOfUseSite)) {
-          return false;
+        if (useSite.IsUseByStmt()) {
+          auto *bbOfUseSite = useSite.GetStmt()->GetBB();
+          if (domTree->Dominate(*domBBOfDefStmts, *bbOfUseSite)) {
+            return false;
+          }
+        } else {
+          CHECK_FATAL(useSite.IsUseByPhi(), "must be use by phi");
+          auto *phiUseTopVer = useSite.GetPhi();
+          auto &phiOpnds = phiUseTopVer->GetOpnds();
+          for (size_t id = 0; id < phiOpnds.size(); ++id) {
+            if (phiOpnds[id] == topVer) {
+              auto *predBB = phiUseTopVer->GetDefBB()->GetPred(id);
+              if (domTree->Dominate(*domBBOfDefStmts, *predBB)) {
+                return false;
+              }
+            }
+          }
         }
       }
     }
@@ -840,7 +755,7 @@ bool MeSink::ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *s
     return true;
   }
 
-  auto *useSitesOfExpr = GetUseSitesOf(scalar);
+  auto *useSitesOfExpr = useInfoOfExprs->GetUseSitesOfExpr(scalar);
   if (useSitesOfExpr == nullptr) {
     if (visitedScalars.size() == 1) {
       return false;
@@ -855,23 +770,14 @@ bool MeSink::ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *s
         return false;
       }
     } else if (useItem.IsUseByPhi()) {
-      auto *bb = useItem.GetUseBB();
-      auto &succs = bb->GetSucc();
-      for (auto *succBB : succs) {
-        auto &phiList = succBB->GetMePhiList();
-        auto phiIt = phiList.find(scalar->GetOstIdx());
-        if (phiIt == phiList.end()) {
-          continue;
-        }
-        auto *phi = phiIt->second;
-        if (!phi->GetIsLive()) {
-          continue;
-        }
+      auto *phi = useItem.GetPhi();
+      if (!phi->GetIsLive()) {
+        continue;
+      }
 
-        bool usedOnlyInCurStmt = ScalarOnlyUsedInCurStmt(phi->GetLHS(), stmt, visitedScalars);
-        if (!usedOnlyInCurStmt) {
-          return false;
-        }
+      bool usedOnlyInCurStmt = ScalarOnlyUsedInCurStmt(phi->GetLHS(), stmt, visitedScalars);
+      if (!usedOnlyInCurStmt) {
+        return false;
       }
     }
   }
@@ -940,7 +846,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
   }
   // if exist a defstmt not post-domed by phi, that defstmt may cannot be removed after merge.
   // set a threld at 4, above which, abandon merge phi with defstmts.
-  constexpr uint32 threldOfSinkPreAssign = 4u;
+  constexpr int threldOfSinkPreAssign = 4;
   if (domCnt < (notDomCnt * threldOfSinkPreAssign)) {
     return false;
   }
@@ -975,7 +881,7 @@ bool MeSink::MergePhiWithPrevAssign(MePhiNode *phi, BB *bb) {
       return false;
     }
 
-    auto *useSitesOfOpnd = GetUseSitesOf(opnd);
+    auto *useSitesOfOpnd = useInfoOfExprs->GetUseSitesOfExpr(opnd);
     if (useSitesOfOpnd == nullptr || useSitesOfOpnd->size() != 1) {
       return false;
     }
@@ -1138,44 +1044,6 @@ BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
   return toBB;
 }
 
-void MeSink::ReplaceUsesOfScalar(const ScalarMeExpr *replacedScalar, ScalarMeExpr *replaceeScalar) {
-  auto *useList = GetUseSitesOf(replacedScalar);
-  if (useList == nullptr || useList->empty()) {
-    return;
-  }
-
-  for (auto &useSite : *useList) {
-    if (useSite.IsUseByStmt()) {
-      auto *useStmt = useSite.GetStmt();
-      auto replaced = irMap->ReplaceMeExprStmt(*useStmt, *replacedScalar, *replaceeScalar);
-      if (replaced) {
-        AddScalarUseSite(replaceeScalar, useStmt);
-      }
-      continue;
-    }
-    if (useSite.IsUseByPhi()) {
-      const auto &succs = useSite.GetUseBB()->GetSucc();
-      for (auto *succ : succs) {
-        auto &phiList = succ->GetMePhiList();
-        if (phiList.empty()) {
-          continue;
-        }
-        const auto &it = phiList.find(replacedScalar->GetOstIdx());
-        if (it == phiList.end()) {
-          continue;
-        }
-
-        auto idx = succ->GetPredIndex(*useSite.GetUseBB());
-        auto *phi = it->second;
-        if (phi->GetOpnd(idx) == replacedScalar) {
-          phi->SetOpnd(idx, replaceeScalar);
-          AddScalarUseSite(replacedScalar, useSite.GetUseBB());
-        }
-      }
-    }
-  }
-}
-
 void MeSink::RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB) {
   if (defStmtsSinkToHeader[targetBB->GetBBId()] == nullptr) {
     defStmtsSinkToHeader[targetBB->GetBBId()] = std::make_unique<std::list<MeStmt *>>();
@@ -1190,16 +1058,39 @@ void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB) {
   defStmtsSinkToBottom[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-std::pair<BB*, bool> MeSink::CalCandSinkBBForUseSites(std::list<UseItem> &useList) {
+std::pair<BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) {
   if (useList.empty()) {
     return {nullptr, false};
   }
 
-  auto *candSinkBB = useList.back().GetUseBB();
+  BB *candSinkBB = nullptr;
   for (auto it = useList.rbegin(); it != useList.rend(); ++it) {
-    auto *useBB = it->GetUseBB();
-    while (candSinkBB != useBB && !domTree->Dominate(*candSinkBB, *useBB)) {
-      candSinkBB = domTree->GetDom(candSinkBB->GetBBId());
+    const auto &useItem = *it;
+    if (useItem.IsUseByStmt()) {
+      auto *useBB = it->GetUseBB();
+      if (candSinkBB == nullptr) {
+        candSinkBB = useBB;
+        continue;
+      }
+      while (candSinkBB != useBB && !domTree->Dominate(*candSinkBB, *useBB)) {
+        candSinkBB = domTree->GetDom(candSinkBB->GetBBId());
+      }
+    } else {
+      auto *usePhi = it->GetPhi();
+      auto *useBB = it->GetUseBB();
+      for (size_t id = 0; id < usePhi->GetOpnds().size(); ++id) {
+        if (usePhi->GetOpnd(id) != scalar) {
+          continue;
+        }
+        auto *predBB = useBB->GetPred(id);
+        if (candSinkBB == nullptr) {
+          candSinkBB = predBB;
+          continue;
+        }
+        while (candSinkBB != predBB && !domTree->Dominate(*candSinkBB, *predBB)) {
+          candSinkBB = domTree->GetDom(candSinkBB->GetBBId());
+        }
+      }
     }
   }
 
@@ -1215,7 +1106,7 @@ BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
   if (scalar->IsVolatile() || scalar->GetPrimType() == PTY_ref) {
     return nullptr;
   }
-  auto *useList = GetUseSitesOf(scalar);
+  auto *useList = useInfoOfExprs->GetUseSitesOfExpr(scalar);
   if (useList == nullptr || useList->empty()) {
     return nullptr;
   }
@@ -1238,13 +1129,13 @@ BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
 
   // remove self copies like: a_2 = a_1;
   if (auto *rhsScalar = IsSelfCopy(static_cast<AssignMeStmt *>(defStmt))) {
-    ReplaceUsesOfScalar(scalar, rhsScalar);
+    (void)useInfoOfExprs->ReplaceScalar(irMap, scalar, rhsScalar);
     defStmt->GetBB()->RemoveMeStmt(defStmt);
     defStmt->SetIsLive(false);
     return nullptr;
   }
 
-  const auto &candSinkSite = CalCandSinkBBForUseSites(*useList);
+  const auto &candSinkSite = CalCandSinkBBForUseSites(scalar, *useList);
   BB *candSinkBB = candSinkSite.first;
   if (candSinkBB == nullptr) {
     // scalar defined without use, the defStmt should be removed
@@ -1289,7 +1180,7 @@ void MeSink::ProcessPhiList(BB *bb) {
     if (!ost2Phi.second->GetIsLive()) {
       continue;
     }
-    MergePhiWithPrevAssign(ost2Phi.second, bb);
+    (void)MergePhiWithPrevAssign(ost2Phi.second, bb);
   }
 }
 
@@ -1358,7 +1249,7 @@ void MeSink::SinkStmtsToHeaderOfBB(BB *bb) {
         CollectUsedScalar(opnd, scalarVec);
       }
       for (auto *scalar : scalarVec) {
-        CalSinkSiteOfScalarDefStmt(scalar);
+        (void)CalSinkSiteOfScalarDefStmt(scalar);
       }
     }
   }
@@ -1436,7 +1327,7 @@ void MeSink::SinkStmtsToBottomOfBB(BB *bb) {
         CollectUsedScalar(opnd, scalarVec);
       }
       for (auto *scalar : scalarVec) {
-        CalSinkSiteOfScalarDefStmt(scalar);
+        (void)CalSinkSiteOfScalarDefStmt(scalar);
       }
       changed = true;
     }
@@ -1450,7 +1341,7 @@ void MeSink::SinkStmtsInBB(BB *bb) {
 
   std::vector<uint32> curStackSizeVec(versionStack.size(), 0);
   for (size_t i = 1; i < versionStack.size(); ++i) {
-    curStackSizeVec[i] = versionStack[i]->size();
+    curStackSizeVec[i] = static_cast<uint32>(versionStack[i]->size());
   }
 
   ProcessPhiList(bb);
@@ -1475,83 +1366,32 @@ void MeSink::SinkStmtsInBB(BB *bb) {
 }
 
 void MeSink::CalSinkSites() {
-  for (auto *scalar : scalars) {
-    if (scalar == nullptr) {
+  for (auto &scalar2UseSites : useInfoOfExprs->GetUseSites()) {
+    auto *expr = scalar2UseSites.first;
+    if (expr == nullptr) {
       continue;
     }
-    (void)CalSinkSiteOfScalarDefStmt(scalar);
-  }
-}
-
-void MeSink::CollectUseSitesInExpr(MeExpr *expr, MeStmt *stmt) {
-  if (expr == nullptr) {
-    return;
-  }
-
-  if (expr->IsScalar()) {
-    AddScalarUseSite(static_cast<ScalarMeExpr *>(expr), stmt);
-    return;
-  }
-  if (expr->GetMeOp() == kMeOpIvar) {
-    auto *mu = static_cast<IvarMeExpr *>(expr)->GetMu();
-    AddScalarUseSite(mu, stmt);
-  }
-
-  for (size_t opndId = 0; opndId < expr->GetNumOpnds(); ++opndId) {
-    auto opnd = expr->GetOpnd(opndId);
-    CollectUseSitesInExpr(opnd, stmt);
-  }
-}
-
-void MeSink::CollectUseSitesInStmt(MeStmt *stmt) {
-  for (size_t opndId = 0; opndId < stmt->NumMeStmtOpnds(); ++opndId) {
-    auto *opnd = stmt->GetOpnd(opndId);
-    CollectUseSitesInExpr(opnd, stmt);
-  }
-
-  auto *muList = stmt->GetMuList();
-  if (muList != nullptr) {
-    for (const auto &ost2mu : *muList) {
-      AddScalarUseSite(ost2mu.second, stmt);
-    }
-  }
-}
-
-void MeSink::CollectUseSitesInBB(BB *bb) {
-  if (bb == nullptr) {
-    return;
-  }
-
-  auto &phiList = bb->GetMePhiList();
-  auto &preds = bb->GetPred();
-  for (const auto &ost2phi : phiList) {
-    auto *phi = ost2phi.second;
-    if (!phi->GetIsLive()) {
+    if (!expr->IsScalar()) {
       continue;
     }
-    auto &phiOpnds = phi->GetOpnds();
-    for (size_t opndId = 0; opndId < preds.size(); ++opndId) {
-      auto *opnd = phiOpnds[opndId];
-      AddScalarUseSite(opnd, preds[opndId]);
-    }
-  }
-
-  for (auto &stmt : bb->GetMeStmts()) {
-    CollectUseSitesInStmt(&stmt);
+    (void)CalSinkSiteOfScalarDefStmt(static_cast<ScalarMeExpr*>(expr));
   }
 }
 
 void MeSink::Run() {
   // 1: collect use sites and calculate the candidate sinking stmts
-  const auto &rpoBBVector = domTree->GetReversePostOrder();
-  for (auto *bb : rpoBBVector) {
-    if (bb->GetKind() == kBBIgoto) {
+  for (auto *bb : func->GetCfg()->GetAllBBs()) {
+    if (bb != nullptr && bb->GetKind() == kBBIgoto) {
       if (debug) {
         LogInfo::MapleLogger() << "skip func(" << func->GetName() << ") contains igoto." << std::endl;
       }
       return;
     }
-    CollectUseSitesInBB(bb);
+  }
+
+  useInfoOfExprs = &irMap->GetExprUseInfo();
+  if (!useInfoOfExprs->UseInfoOfScalarIsValid()) { // sink only depends on use info of scalar
+    useInfoOfExprs->CollectUseInfoInFunc(irMap, domTree, kUseInfoOfScalar);
   }
 
   // 2: calculate sink site based pre-collected usesites.
@@ -1560,6 +1400,7 @@ void MeSink::Run() {
   // 3: sink stmts
   auto *entryBB = func->GetCfg()->GetCommonEntryBB();
   SinkStmtsInBB(entryBB->GetSucc(0));
+  useInfoOfExprs->InvalidUseInfo();
 }
 
 void MEMeSink::GetAnalysisDependence(maple::AnalysisDep &aDep) const {

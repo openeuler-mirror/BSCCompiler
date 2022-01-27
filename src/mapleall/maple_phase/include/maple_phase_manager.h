@@ -30,11 +30,13 @@ class AnalysisDataManager {
     innerCtrler = &mempool.GetCtrler();
   }
 
+  ~AnalysisDataManager() = default;
+
   bool UseGlobalMpCtrler() const {
     return useGlobalMpCtrler;
   }
 
-  void CopyAnalysisResultFrom(AnalysisDataManager &other) {
+  void CopyAnalysisResultFrom(const AnalysisDataManager &other) {
     analysisPhaseMemPool = other.analysisPhaseMemPool;
     availableAnalysisPhases = other.availableAnalysisPhases;
   }
@@ -96,14 +98,14 @@ class MaplePhaseManager {
   if (!Options::IsSkipPhase(PhaseName) && IsRunMpl2Mpl()) {   \
     AddPhase(PhaseName, condition);                           \
   }
-  void AddPhase(std::string phaseName, bool condition);
+  void AddPhase(const std::string &phaseName, bool condition);
   AnalysisDep *FindAnalysisDep(const MaplePhase *phase);
 
   void SetQuiet(bool value) {
     quiet = value;
   }
 
-  bool IsQuiet() {
+  bool IsQuiet() const {
     return quiet;
   }
 
@@ -158,7 +160,7 @@ class MaplePhaseManager {
   PhaseTimeHandler *phaseTh = nullptr;
   bool skipFromFlag = false;
   bool skipAfterFlag = false;
-  bool quiet;
+  bool quiet = false;
 
   /*
    * use global/local mempool controller to allocate mempool
@@ -176,6 +178,7 @@ class AnalysisInfoHook {
         adManager(adm),
         bindingPM(bpm),
         analysisPhasesData(allocator.Adapter()){}
+  virtual ~AnalysisInfoHook() = default;
   void AddAnalysisData(uint32 phaseKey, MaplePhaseID id, MaplePhase *phaseImpl) {
     (void)analysisPhasesData.emplace(std::pair<AnalysisMemKey, MaplePhase*>(AnalysisMemKey(phaseKey, id), phaseImpl));
   }
@@ -198,7 +201,7 @@ class AnalysisInfoHook {
 
   /* Find analysis Data which is at higher IR level */
   template <typename AIMPHASE, typename IRUnit>
-  MaplePhase *GetOverIRAnalyisData(IRUnit &u) {
+  MaplePhase *GetOverIRAnalyisData(const IRUnit &u) {
     MaplePhase *it = dynamic_cast<MaplePhase*>(bindingPM);
     ASSERT(it != nullptr, "find Over IR info failed");
     return it->GetAnalysisInfoHook()->FindAnalysisData(u.GetUniqueID(), it, &AIMPHASE::id);
@@ -206,7 +209,7 @@ class AnalysisInfoHook {
 
   /* Find analysis Data which is at highest IR level */
   template <typename AIMPHASE, typename IRUnit>
-  MaplePhase *GetTopLevelAnalyisData(IRUnit &u) {
+  MaplePhase *GetTopLevelAnalyisData(const IRUnit &u) {
     MaplePhase *curPhase = nullptr;
     MaplePhase *upperPhase = dynamic_cast<MaplePhase*>(bindingPM);
     ASSERT(upperPhase != nullptr, "find Over IR info failed");

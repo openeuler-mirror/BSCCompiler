@@ -77,7 +77,7 @@ class InequalEdge {
     CHECK_FATAL(value.varValue != nullptr, "New fail in InequalEdge ctor!");
   }
 
-  InequalEdge(InequalEdge &edge, InequalEdge &nextEdge)
+  InequalEdge(const InequalEdge &edge, const InequalEdge &nextEdge)
       : edgeType(edge.GetEdgeType()),
         isVarValue(false),
         pairEdge(nullptr) {
@@ -141,7 +141,7 @@ class InequalEdge {
     return edgeType == kUpper ? value.constValue >= val : value.constValue <= val;
   }
 
-  bool IsSame(InequalEdge &e) const {
+  bool IsSame(const InequalEdge &e) const {
     if (edgeType != e.GetEdgeType()) {
       return false;
     }
@@ -203,19 +203,19 @@ class ESSABaseNode {
   }
 
   virtual void InsertOutWithConstEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)outWithConstEdge.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)outWithConstEdge.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
 
   virtual void InsertOutWithVarEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)outWithVarEdge.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)outWithVarEdge.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
 
   virtual void InsertInWithConstEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)inWithConstEdge.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)inWithConstEdge.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
 
   virtual void InsertInWithVarEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)inWithVarEdge.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)inWithVarEdge.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
 
   virtual void InsertEdges(std::unique_ptr<InequalEdge> e) {
@@ -293,10 +293,10 @@ class ESSAPhiNode : public ESSABaseNode {
     return outPhiNodes;
   }
   void InsertInPhiEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)inPhiNodes.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)inPhiNodes.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
   void InsertOutPhiEdgeMap(ESSABaseNode &node, InequalEdge &e) {
-    (void)outPhiNodes.insert(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
+    (void)outPhiNodes.emplace(std::pair<ESSABaseNode*, InequalEdge*>(&node, &e));
   }
 
  private:
@@ -333,13 +333,13 @@ class InequalityGraph {
  private:
   std::string GetColor(EdgeType type) const;
   bool HasNode(int64 value) const;
-  InequalEdge *HasEdge(ESSABaseNode &from, ESSABaseNode &to, InequalEdge &type) const;
-  std::string GetName(ESSABaseNode &node) const;
+  InequalEdge *HasEdge(const ESSABaseNode &from, ESSABaseNode &to, InequalEdge &type) const;
+  std::string GetName(const ESSABaseNode &node) const;
   std::string GetName(const MeExpr &meExpr) const;
   void DumpDotNodes(std::ostream &out, DumpType dumpType,
                     const std::map<int64, std::unique_ptr<ESSABaseNode>> &nodes) const;
   void DumpDotEdges(const std::pair<ESSABaseNode*, InequalEdge*> &map,
-                    std::ostream &out, std::string &from) const;
+                    std::ostream &out, const std::string &from) const;
 
   MeFunction *meFunction;
   std::map<int64, std::unique_ptr<ESSABaseNode>> varNodes;

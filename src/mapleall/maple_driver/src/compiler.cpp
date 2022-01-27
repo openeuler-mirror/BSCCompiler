@@ -99,16 +99,10 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
   }
 
   for (const Option &opt : exeOption->second) {
-    std::string prefix;
-    if (opt.GetPrefixType() == mapleOption::shortOptPrefix) {
-      prefix = "-";
-    } else if (opt.GetPrefixType() == mapleOption::longOptPrefix) {
-      prefix = "--";
-    }
-
-    const std::string baseKey = opt.OptionKey();
+    std::string prefix = opt.GetPrefix();
+    const std::string &baseKey = opt.OptionKey();
     const std::string key = prefix + baseKey;
-    const std::string value  = opt.Args();
+    const std::string &value  = opt.Args();
 
     /* Default behaviour: extra options do not replace default options,
      * because it can be some additional option with the same key.
@@ -119,7 +113,7 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
     if (baseKey == "o") {
       ReplaceOrInsertOption(finalOptions, key, value);
     } else {
-      finalOptions.push_back(MplOption(key, value));
+      finalOptions.emplace_back(MplOption(key, value));
     }
   }
 
@@ -144,7 +138,7 @@ void Compiler::ReplaceOrInsertOption(std::vector<MplOption> &finalOptions,
   }
 
   if (!wasFound) {
-    finalOptions.push_back(MplOption(key, value));
+    finalOptions.emplace_back(MplOption(key, value));
   }
 }
 
@@ -155,7 +149,7 @@ void Compiler::AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
   StringUtils::Split(inputFileNames, splittedInputFileNames, ' ');
 
   for (auto &inputFileName : splittedInputFileNames) {
-    (void)finalOptions.push_back(MplOption(inputFileName, ""));
+    (void)finalOptions.emplace_back(MplOption(inputFileName, ""));
   }
 }
 

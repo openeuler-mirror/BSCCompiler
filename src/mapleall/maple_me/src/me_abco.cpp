@@ -332,7 +332,7 @@ MeExpr *MeABC::TryToResolveVar(MeExpr &expr, std::set<MePhiNode*> &visitedPhi, M
   return nullptr;
 }
 
-bool MeABC::BuildAssignInGraph(MeStmt &meStmt) {
+bool MeABC::BuildAssignInGraph(const MeStmt &meStmt) {
   MeExpr *lhs = meStmt.GetLHS();
   MeExpr *rhs = meStmt.GetRHS();
   CHECK_NULL_FATAL(lhs);
@@ -834,7 +834,7 @@ bool MeABC::IsLessOrEuqal(const MeExpr &opnd1, const MeExpr &opnd2) {
   }
 }
 
-void MeABC::FindRedundantABC(MeStmt &meStmt, NaryMeExpr &naryMeExpr) {
+void MeABC::FindRedundantABC(MeStmt &meStmt, const NaryMeExpr &naryMeExpr) {
   MeExpr *opnd1 = naryMeExpr.GetOpnd(0);
   MeExpr *opnd2 = naryMeExpr.GetOpnd(1);
   CHECK_FATAL(opnd1->GetMeOp() == kMeOpVar, "must be");

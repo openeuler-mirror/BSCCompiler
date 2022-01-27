@@ -196,7 +196,7 @@ class AArch64ImmOperand : public ImmOperand {
     return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(size));
   }
 
-  bool IsBitmaskImmediate(uint32 destSize) {
+  bool IsBitmaskImmediate(uint32 destSize) const {
     ASSERT(!IsZero(), " 0 is reserved for bitmask immediate");
     ASSERT(!IsAllOnes(), " -1 is reserved for bitmask immediate");
     return maplebe::IsBitmaskImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize));
@@ -791,7 +791,7 @@ class AArch64MemOperand : public MemOperand {
 
   bool Less(const Operand &right) const override;
 
-  bool NoAlias(AArch64MemOperand &rightOpnd) const;
+  bool NoAlias(const AArch64MemOperand &rightOpnd) const;
 
   bool NoOverlap(const AArch64MemOperand &rightOpnd) const;
 
@@ -863,7 +863,7 @@ class AArch64MemOperand : public MemOperand {
 
   /* Return true if given operand has the same base reg and offset with this. */
   bool Equals(Operand &operand) const override;
-  bool Equals(AArch64MemOperand &opnd) const;
+  bool Equals(const AArch64MemOperand &opnd) const;
 
  private:
   static constexpr int32 kLdpStp32SimmUpperBound = 252;
@@ -1061,7 +1061,7 @@ class BitShiftOperand : public OperandVisitable<BitShiftOperand> {
 
   bool Less(const Operand &right) const override;
 
-  uint32 GetShiftAmount() {
+  uint32 GetShiftAmount() const {
     return shiftAmount;
   }
 

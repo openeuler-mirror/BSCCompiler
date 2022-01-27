@@ -113,7 +113,7 @@ struct LSDACallSite {
   uint32 csAction;
 
  public:
-  void Init(LabelPair &start, LabelPair &length, LabelPair &landingPad, uint32 action) {
+  void Init(const LabelPair &start, const LabelPair &length, const LabelPair &landingPad, uint32 action) {
     csStart = start;
     csLength = length;
     csLandingPad = landingPad;
@@ -186,7 +186,7 @@ class LSDACallSiteTable {
   }
 
   void RemoveCallSite(const BB &bb) {
-    for (size_t i = callSiteTable.size() - 1; i > -1; --i) {
+    for (int32 i = static_cast<int32>(callSiteTable.size()) - 1; i > -1; --i) {
       if (callSiteTable[i]->csStart.GetEndOffset() != nullptr) {
         if (callSiteTable[i]->csStart.GetEndOffset()->GetLabelIdx() == bb.GetLabIdx()) {
           callSiteTable.erase(callSiteTable.begin() + i);

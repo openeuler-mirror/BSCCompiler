@@ -179,7 +179,7 @@ VRegVersion *CGSSAInfo::CreateNewVersion(RegOperand &virtualOpnd, Insn &defInsn,
   auto it = vRegStk.find(vRegNO);
   if (it == vRegStk.end()) {
     MapleStack<VRegVersion*> vRegVersionStack(ssaAlloc.Adapter());
-    auto ret = vRegStk.insert(std::pair<regno_t, MapleStack<VRegVersion*>>(vRegNO, vRegVersionStack));
+    auto ret = vRegStk.emplace(std::pair<regno_t, MapleStack<VRegVersion*>>(vRegNO, vRegVersionStack));
     CHECK_FATAL(ret.second, "insert failed");
     it = ret.first;
   }

@@ -28,8 +28,13 @@ namespace maplebe {
 using namespace maple;
 
 #if TARGX86_64 || TARGAARCH64 || TARGRISCV64
+#if ILP32
+#define LOWERED_PTR_TYPE PTY_a32
+constexpr uint8 kSizeOfPtr = 4;
+#else
 #define LOWERED_PTR_TYPE PTY_a64
 constexpr uint8 kSizeOfPtr = 8;
+#endif
 #elif TARGX86 || TARGARM32 || TARGVM
 #define LOWERED_PTR_TYPE PTY_a32
 constexpr uint8 kSizeOfPtr = 4;
@@ -97,7 +102,7 @@ class BECommon {
 
   void GenFieldOffsetMap(MIRClassType &classType, FILE &outFile);
 
-  void GenObjSize(MIRClassType &classType, FILE &outFile);
+  void GenObjSize(const MIRClassType &classType, FILE &outFile);
 
   std::pair<int32, int32> GetFieldOffset(MIRStructType &structType, FieldID fieldID);
 
@@ -133,7 +138,7 @@ class BECommon {
 
   BaseNode *GetAddressOfNode(const BaseNode &node);
 
-  bool CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode);
+  bool CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) const;
 
   PrimType GetAddressPrimType() const {
     return LOWERED_PTR_TYPE;
@@ -192,7 +197,7 @@ class BECommon {
   uint8 GetTypeAlign(uint32 idx) const {
     return typeAlignTable.at(idx);
   }
-  uint32 GetSizeOfTypeAlignTable() const {
+  size_t GetSizeOfTypeAlignTable() const {
     return typeAlignTable.size();
   }
   bool IsEmptyOfTypeAlignTable() const {

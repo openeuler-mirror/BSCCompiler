@@ -1,5 +1,5 @@
 /*
- * Copyright (c) [2020] Huawei Technologies Co.,Ltd.All rights reserved.
+ * Copyright (c) [2020-2021] Huawei Technologies Co.,Ltd.All rights reserved.
  *
  * OpenArkCompiler is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,9 +16,9 @@
 #define MAPLE_ME_INCLUDE_ME_GC_LOWERING_H
 #include "me_function.h"
 #include "me_irmap.h"
-#include "me_phase.h"
 #include "mir_builder.h"
 #include "me_cfg.h"
+#include "me_irmap_build.h"
 
 namespace maple {
 class GCLowering {
@@ -44,8 +44,8 @@ class GCLowering {
   void HandleIvarAssignMeStmt(MeStmt&);
   MeExpr *GetBase(IvarMeExpr &ivar);
   MIRIntrinsicID SelectWriteBarrier(MeStmt&);
-  MIRIntrinsicID PrepareVolatileCall(MeStmt&, MIRIntrinsicID);
-  void HandleWriteReferent(IassignMeStmt&);
+  MIRIntrinsicID PrepareVolatileCall(const MeStmt&, MIRIntrinsicID);
+  void HandleWriteReferent(const IassignMeStmt&);
   void CheckRefs();
   void ParseCheckFlag();
   void CheckFormals();
@@ -64,15 +64,6 @@ class GCLowering {
   bool checkRefReturn = false;
 };
 
-class MeDoGCLowering : public MeFuncPhase {
- public:
-  explicit MeDoGCLowering(MePhaseID id) : MeFuncPhase(id) {}
-
-  virtual ~MeDoGCLowering() = default;
-  AnalysisResult *Run(MeFunction*, MeFuncResultMgr*, ModuleResultMgr*) override;
-  std::string PhaseName() const override {
-    return "gclowering";
-  }
-};
+MAPLE_FUNC_PHASE_DECLARE(MEGCLowering, MeFunction)
 }  // namespace maple
 #endif  // MAPLE_ME_INCLUDE_ME_GC_LOWERING_H

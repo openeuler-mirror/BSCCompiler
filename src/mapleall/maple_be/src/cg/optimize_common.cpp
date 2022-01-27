@@ -190,7 +190,7 @@ bool DotGenerator::FoundMemAccessOpndRegNum(const MemOperand &memOperand, const 
   return exist;
 }
 
-bool DotGenerator::FoundNormalOpndRegNum(RegOperand &regOpnd, const Insn &insnObj, regno_t vReg) {
+bool DotGenerator::FoundNormalOpndRegNum(const RegOperand &regOpnd, const Insn &insnObj, regno_t vReg) {
   bool exist = false;
   if (regOpnd.GetRegisterNumber() == vReg) {
     LogInfo::MapleLogger() << "BB" << insnObj.GetBB()->GetId() << " [style=filled, fillcolor=red];\n";
@@ -248,8 +248,8 @@ void DotGenerator::DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, st
 }
 
 /* Generate dot file for cfg */
-void DotGenerator::GenerateDot(const std::string &preFix, CGFunc &cgFunc, const MIRModule &mod, bool includeEH,
-                               const std::string fname, regno_t vReg) {
+void DotGenerator::GenerateDot(const std::string &preFix, const CGFunc &cgFunc, const MIRModule &mod,
+                               bool includeEH, const std::string fname, regno_t vReg) {
   std::ofstream cfgFile;
   std::streambuf *coutBuf = std::cout.rdbuf(); /* keep original cout buffer */
   std::streambuf *buf = cfgFile.rdbuf();
@@ -292,13 +292,13 @@ void OptimizeLogger::Log(const std::string &patternName) {
   if (itemInGlobal != globalStat.end()) {
     itemInGlobal->second++;
   } else {
-    (void)globalStat.insert(std::pair<const std::string, int>(patternName, 1));
+    (void)globalStat.emplace(std::pair<const std::string, int>(patternName, 1));
   }
   auto itemInLocal = localStat.find(patternName);
   if (itemInLocal != localStat.end()) {
     itemInLocal->second++;
   } else {
-    (void)localStat.insert(std::pair<const std::string, int>(patternName, 1));
+    (void)localStat.emplace(std::pair<const std::string, int>(patternName, 1));
   }
 }
 

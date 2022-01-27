@@ -111,9 +111,10 @@ class MIRSymbol {
     wpoFakeRet = true;
   }
 
-  void SetIsTmpUnused(bool used) {
-    isTmpUnused = used;
+  void SetIsTmpUnused(bool unused) {
+    isTmpUnused = unused;
   }
+
   void SetIsImportedDecl(bool imported) {
     isImportedDecl = imported;
   }
@@ -517,7 +518,7 @@ class MIRSymbol {
 
 class MIRSymbolTable {
  public:
-  explicit MIRSymbolTable(MapleAllocator &allocator)
+  explicit MIRSymbolTable(const MapleAllocator &allocator)
       : mAllocator(allocator),
         strIdxToStIdxMap(mAllocator.Adapter()),
         symbolTable({ nullptr }, mAllocator.Adapter()) {}
@@ -641,7 +642,7 @@ class MIRLabelTable {
     return it->second;
   }
 
-  bool AddToStringLabelMap(LabelIdx lidx);
+  void AddToStringLabelMap(LabelIdx lidx);
   size_t GetLabelTableSize() const {
     return labelTable.size();
   }

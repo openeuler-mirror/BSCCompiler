@@ -114,17 +114,17 @@ class OptimizeLogger {
 class DotGenerator {
  public:
   static void SetColor(uint32 bbID, const std::string &color);
-  static void GenerateDot(const std::string &preFix, CGFunc &cgFunc, const MIRModule &mod,
+  static void GenerateDot(const std::string &preFix, const CGFunc &cgFunc, const MIRModule &mod,
                           bool includeEH = false, const std::string fname = "", regno_t vReg = 0);
  private:
   static std::map<uint32, std::string> coloringMap;
   static std::string GetFileName(const MIRModule &mirModule, const std::string &filePreFix);
-  static bool IsBackEdge(const CGFunc &cgFunc, const BB *from, const BB *to);
+  static bool IsBackEdge(const CGFunc &cgFunc, const BB &from, const BB &to);
   static void DumpEdge(const CGFunc &cgFunction, std::ofstream &cfgFileOfStream, bool isIncludeEH);
   static void DumpBBInstructions(const CGFunc &cgFunction, regno_t vReg, std::ofstream &cfgFile);
   static bool FoundListOpndRegNum(ListOperand &listOpnd, const Insn &insnObj, regno_t vReg);
   static bool FoundMemAccessOpndRegNum(const MemOperand &memOperand, const Insn &insnObj, regno_t vReg);
-  static bool FoundNormalOpndRegNum(RegOperand &regOpnd, const Insn &insnObj, regno_t vReg);
+  static bool FoundNormalOpndRegNum(const RegOperand &regOpnd, const Insn &insnObj, regno_t vReg);
 };
 }  /* namespace maplebe */
 

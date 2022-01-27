@@ -92,7 +92,7 @@ void GCWriteBarrierOpt::GCLower(BB &bb, std::map<OStIdx, std::vector<MeStmt*>> &
   }
 }
 
-bool GCWriteBarrierOpt::IsWriteBarrier(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::IsWriteBarrier(const MeStmt &stmt) const {
   if (stmt.GetOp() != OP_intrinsiccall) {
     return false;
   }

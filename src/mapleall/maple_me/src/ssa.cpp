@@ -21,7 +21,9 @@
 
 namespace maple {
 void SSA::InitRenameStack(const OriginalStTable &oTable, size_t bbSize, const VersionStTable &verStTab) {
+  vstStacks.clear();
   vstStacks.resize(oTable.Size());
+  bbRenamed.clear();
   bbRenamed.resize(bbSize, false);
   for (size_t i = 1; i < oTable.Size(); ++i) {
     const OriginalSt *ost = oTable.GetOriginalStFromID(OStIdx(i));
@@ -36,15 +38,17 @@ void SSA::InitRenameStack(const OriginalStTable &oTable, size_t bbSize, const Ve
 }
 
 VersionSt *SSA::CreateNewVersion(VersionSt &vSym, BB &defBB) {
-  CHECK_FATAL(vSym.GetVersion() == 0, "rename before?");
+  if (!runRenameOnly) {
+    CHECK_FATAL(vSym.GetVersion() == 0, "rename before?");
+  }
   // volatile variables will keep zero version.
   const OriginalSt *oSt = vSym.GetOst();
   if (oSt->IsVolatile() || oSt->IsSpecialPreg()) {
     return &vSym;
   }
-  ASSERT(vSym.GetVersion() == kInitVersion, "renamed before");
   VersionSt *newVersionSym = nullptr;
   if (!runRenameOnly) {
+    ASSERT(vSym.GetVersion() == kInitVersion, "renamed before");
     newVersionSym = ssaTab->GetVersionStTable().CreateNextVersionSt(vSym.GetOst());
   } else {
     newVersionSym = &vSym;
@@ -105,8 +109,8 @@ void SSA::RenameMustDefs(const StmtNode &stmt, BB &defBB) {
   }
 }
 
-void SSA::RenameMayUses(BaseNode &node) {
-  TypeOfMayUseList &mayUseList = ssaTab->GetStmtsSSAPart().GetMayUseNodesOf(static_cast<StmtNode&>(node));
+void SSA::RenameMayUses(const BaseNode &node) {
+  TypeOfMayUseList &mayUseList = ssaTab->GetStmtsSSAPart().GetMayUseNodesOf(static_cast<const StmtNode&>(node));
   auto it = mayUseList.begin();
   for (; it != mayUseList.end(); ++it) {
     MayUseNode &mayUse = it->second;
@@ -118,7 +122,7 @@ void SSA::RenameMayUses(BaseNode &node) {
 
 void SSA::RenameExpr(BaseNode &expr) {
   if (expr.IsSSANode()) {
-    auto &ssaNode = static_cast<AddrofSSANode&>(expr);
+    auto &ssaNode = static_cast<SSANode&>(expr);
     VersionSt *vSym = ssaNode.GetSSAVar();
     CHECK_FATAL(vSym->GetOrigIdx() < vstStacks.size(), "index out of range in SSA::RenameExpr");
     ssaNode.SetSSAVar(*vstStacks[vSym->GetOrigIdx()]->top());
@@ -171,7 +175,7 @@ void SSA::RenameBB(BB &bb) {
     if (GetVstStacks()[i] == nullptr) {
       continue;
     }
-    oriStackSize[i] = GetVstStack(i)->size();
+    oriStackSize[i] = static_cast<uint32>(GetVstStack(i)->size());
   }
   RenamePhi(bb);
   for (auto &stmt : bb.GetStmtNodes()) {

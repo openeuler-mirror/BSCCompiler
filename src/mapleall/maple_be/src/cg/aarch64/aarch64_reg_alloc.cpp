@@ -231,7 +231,7 @@ void AArch64RegAllocator::AllocHandleCallee(Insn &insn, const AArch64MD &md) {
   }
 }
 
-void AArch64RegAllocator::GetPhysicalRegisterBank(RegType regTy, uint8 &begin, uint8 &end) {
+void AArch64RegAllocator::GetPhysicalRegisterBank(RegType regTy, uint8 &begin, uint8 &end) const {
   switch (regTy) {
     case kRegTyVary:
     case kRegTyCc:
@@ -313,7 +313,7 @@ bool AArch64RegAllocator::IsUntouchableReg(uint32 regNO) const {
   return false;
 }
 
-void AArch64RegAllocator::ReleaseReg(RegOperand &regOpnd) {
+void AArch64RegAllocator::ReleaseReg(const RegOperand &regOpnd) {
   ReleaseReg(regMap[regOpnd.GetRegisterNumber()]);
 }
 
@@ -326,7 +326,7 @@ void AArch64RegAllocator::ReleaseReg(AArch64reg reg) {
 }
 
 /* trying to allocate a physical register to opnd. return true if success */
-bool AArch64RegAllocator::AllocatePhysicalRegister(RegOperand &opnd) {
+bool AArch64RegAllocator::AllocatePhysicalRegister(const RegOperand &opnd) {
   RegType regType = opnd.GetRegisterType();
   uint8 regStart = 0;
   uint8 regEnd = 0;
@@ -346,7 +346,7 @@ bool AArch64RegAllocator::AllocatePhysicalRegister(RegOperand &opnd) {
 }
 
 /* If opnd is a callee saved register, save it in the prolog and restore it in the epilog */
-void AArch64RegAllocator::SaveCalleeSavedReg(RegOperand &regOpnd) {
+void AArch64RegAllocator::SaveCalleeSavedReg(const RegOperand &regOpnd) {
   regno_t regNO = regOpnd.GetRegisterNumber();
   auto a64Reg = static_cast<AArch64reg>(regOpnd.IsVirtualRegister() ? regMap[regNO] : regNO);
   /* when yieldpoint is enabled, skip the reserved register for yieldpoint. */

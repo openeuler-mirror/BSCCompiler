@@ -253,7 +253,7 @@ class BBLayout {
   BB *FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context);
   void DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context);
   BB *GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPredForSucc);
-  bool IsCandidateSucc(const BB &bb, BB &succ, const MapleVector<bool> *context);
+  bool IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context);
   bool HasBetterLayoutPred(const BB &bb, BB &succ);
 
   MeFunction &func;
