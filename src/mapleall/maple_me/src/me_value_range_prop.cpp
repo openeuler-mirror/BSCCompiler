@@ -139,7 +139,7 @@ void ValueRangePropagation::Execute() {
           break;
         }
         case OP_switch: {
-          DealWithSwitch(*it);
+          DealWithSwitch(*bb, *it);
           break;
         }
         case OP_igoto:
@@ -168,7 +168,7 @@ void ValueRangePropagation::DealWithCallassigned(const BB &bb, MeStmt &stmt) {
   }
 }
 
-void ValueRangePropagation::DealWithSwitch(MeStmt &stmt) {
+void ValueRangePropagation::DealWithSwitch(BB &bb, MeStmt &stmt) {
   auto &switchMeStmt = static_cast<SwitchMeStmt&>(stmt);
   auto *opnd = switchMeStmt.GetOpnd();
   std::set<BBId> bbOfCases;
@@ -176,7 +176,9 @@ void ValueRangePropagation::DealWithSwitch(MeStmt &stmt) {
   if (defalutBB != nullptr) {
     bbOfCases.insert(defalutBB->GetBBId());
   }
+  std::vector<int64> valueOfCase;
   for (auto &pair : switchMeStmt.GetSwitchTable()) {
+    valueOfCase.push_back(pair.first);
     auto *bb = func.GetCfg()->GetLabelBBAt(pair.second);
     // Can prop value range to target bb only when the pred size of target bb is one and
     // only one case can jump to the target bb.
@@ -186,6 +188,33 @@ void ValueRangePropagation::DealWithSwitch(MeStmt &stmt) {
     } else {
       (void)Insert2Caches(bb->GetBBId(), opnd->GetExprID(), nullptr);
     }
+  }
+  if (dealWithCheck || defalutBB == nullptr) {
+    return;
+  }
+  // Delete the default branch when it is unreachable.
+  auto *currBB = &bb;
+  auto *valueRange = FindValueRange(*currBB, *opnd);
+  while (valueRange == nullptr && currBB->GetPred().size() == 1) {
+    currBB = currBB->GetPred(0);
+    valueRange = FindValueRange(*currBB, *opnd);
+  }
+  if (valueRange == nullptr || !valueRange->IsConstantRange()) {
+    return;
+  }
+  auto upper = valueRange->GetUpper().GetConstant();
+  auto lower = valueRange->GetLower().GetConstant();
+  if (upper < lower || upper - lower + 1 != valueOfCase.size()) {
+    return;
+  }
+  std::sort(valueOfCase.begin(), valueOfCase.end());
+  if (valueOfCase.front() == lower && valueOfCase.back() == upper) {
+    if (ValueRangePropagation::isDebug) {
+      LogInfo::MapleLogger() << "===========delete defaultBranch " << defalutBB->GetBBId() << "===========\n";
+    }
+    switchMeStmt.SetDefaultLabel(0);
+    defalutBB->RemovePred(bb);
+    isCFGChange = true;
   }
 }
 
@@ -1313,6 +1342,10 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
           }
           break;
         }
+        case OP_neg: {
+          DealWithNeg(bb, opMeExpr);
+          break;
+        }
         default:
           break;
       }
@@ -1333,6 +1366,13 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
   for (int32 i = 0; i < meExpr.GetNumOpnds(); ++i) {
     DealWithOperand(bb, stmt, *(meExpr.GetOpnd(i)));
   }
+}
+
+void ValueRangePropagation::DealWithNeg(const BB &bb, OpMeExpr &opMeExpr) {
+  CHECK_FATAL(opMeExpr.GetNumOpnds() == 1, "must have one opnd");
+  auto *opnd = opMeExpr.GetOpnd(0);
+  auto res = NegValueRange(bb, *opnd);
+  (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), std::move(res));
 }
 
 // If the value of opnd of cvt would not overflow or underflow after convert, delete the cvt.
@@ -2360,8 +2400,31 @@ void ValueRangePropagation::JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueR
   }
 }
 
+std::unique_ptr<ValueRange> ValueRangePropagation::NegValueRange(const BB &bb, MeExpr &opnd) {
+  auto *valueRange = FindValueRange(bb, opnd);
+  if (valueRange == nullptr) {
+    return nullptr;
+  }
+  auto constantZero = CreateValueRangeOfEqualZero(opnd.GetPrimType());
+  auto valueRangePtr = AddOrSubWithValueRange(OP_sub, *constantZero, *valueRange);
+  if (valueRangePtr == nullptr) {
+    return nullptr;
+  }
+  auto lower = valueRangePtr->GetLower();
+  valueRangePtr->SetLower(valueRangePtr->GetUpper());
+  valueRangePtr->SetUpper(lower);
+  return valueRangePtr;
+}
+
 ValueRange *ValueRangePropagation::FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr) {
   auto op = expr.GetOp();
+  if (op == OP_neg) {
+    auto *opnd = expr.GetOpnd(0);
+    auto valueRangePtr = NegValueRange(bb, *opnd);
+    auto *resValueRange = valueRangePtr.get();
+    (void)Insert2Caches(bb.GetBBId(), expr.GetExprID(), std::move(valueRangePtr));
+    return resValueRange;
+  }
   if (!IsCompareHasReverseOp(op)) {
     return nullptr;
   }

@@ -114,7 +114,9 @@ RangeGotoNode *SwitchLowerer::BuildRangeGotoNode(int32 startIdx, int32 endIdx) {
     while ((stmt->GetCasePair(i).first != (lastCaseTag + 1)) && (stmt->GetCasePair(i).first != lastCaseTag)) {
       /* fill in a gap in the case tags */
       curTag = (++lastCaseTag) - node->GetTagOffset();
-      node->AddRangeGoto(curTag, stmt->GetDefaultLabel());
+      if (stmt->GetDefaultLabel() != 0) {
+        node->AddRangeGoto(curTag, stmt->GetDefaultLabel());
+      }
     }
     curTag = static_cast<uint32>(stmt->GetCasePair(i).first - node->GetTagOffset());
     node->AddRangeGoto(curTag, stmt->GetCasePair(i).second);
@@ -145,6 +147,9 @@ CompareNode *SwitchLowerer::BuildCmpNode(Opcode opCode, uint32 idx) {
 }
 
 GotoNode *SwitchLowerer::BuildGotoNode(int32 idx) {
+  if (idx == -1 && stmt->GetDefaultLabel() == 0) {
+    return nullptr;
+  }
   GotoNode *gotoStmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
   if (idx == -1) {
     gotoStmt->SetOffset(stmt->GetDefaultLabel());
@@ -155,6 +160,9 @@ GotoNode *SwitchLowerer::BuildGotoNode(int32 idx) {
 }
 
 CondGotoNode *SwitchLowerer::BuildCondGotoNode(int32 idx, Opcode opCode, BaseNode &cond) {
+  if (idx == -1 && stmt->GetDefaultLabel() == 0) {
+    return nullptr;
+  }
   CondGotoNode *cGotoStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(opCode);
   cGotoStmt->SetOpnd(&cond, 0);
   if (idx == -1) {
@@ -187,14 +195,20 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       if (!(IsUnsignedInteger(stmt->GetSwitchOpnd()->GetPrimType()) &&
           (stmt->GetCasePair(static_cast<size_t>(switchItems[static_cast<uint64>(start)].first)).first == 0))) {
         cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_lt, switchItems[start].first));
-        localBlk->AddStatement(cGoto);
+        if (cGoto != nullptr) {
+          localBlk->AddStatement(cGoto);
+        }
       }
     }
     rangeGoto = BuildRangeGotoNode(switchItems[start].first, switchItems[start].second);
-    cmpNode = BuildCmpNode(OP_le, switchItems[start].second);
-    ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
-    ifStmt->GetThenPart()->AddStatement(rangeGoto);
-    localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
+    if (stmt->GetDefaultLabel() == 0) {
+      localBlk->AddStatement(rangeGoto);
+    } else {
+      cmpNode = BuildCmpNode(OP_le, switchItems[start].second);
+      ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
+      ifStmt->GetThenPart()->AddStatement(rangeGoto);
+      localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
+    }
     if (start < end) {
       lowBlockNodeChecked = (stmt->GetCasePair(switchItems[start].second).first + 1 ==
                        stmt->GetCasePair(switchItems[start + 1].first).first);
@@ -205,14 +219,20 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   while ((start <= end) && (switchItems[end].second != 0)) {
     if (!highBlockNodeChecked) {
       cGoto = BuildCondGotoNode(-1, OP_brtrue, *BuildCmpNode(OP_gt, switchItems[end].second));
-      localBlk->AddStatement(cGoto);
+      if (cGoto != nullptr) {
+        localBlk->AddStatement(cGoto);
+      }
       highBlockNodeChecked = true;
     }
     rangeGoto = BuildRangeGotoNode(switchItems[end].first, switchItems[end].second);
-    cmpNode = BuildCmpNode(OP_ge, switchItems[end].first);
-    ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
-    ifStmt->GetThenPart()->AddStatement(rangeGoto);
-    localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
+    if (stmt->GetDefaultLabel() == 0) {
+      localBlk->AddStatement(rangeGoto);
+    } else {
+      cmpNode = BuildCmpNode(OP_ge, switchItems[end].first);
+      ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
+      ifStmt->GetThenPart()->AddStatement(rangeGoto);
+      localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
+    }
     if (start < end) {
       highBlockNodeChecked =
           (stmt->GetCasePair(switchItems[end].first).first - 1 ==
@@ -225,14 +245,19 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   if (start > end) {
     if (!lowBlockNodeChecked || !highBlockNodeChecked) {
       GotoNode *gotoDft = BuildGotoNode(-1);
-      localBlk->AddStatement(gotoDft);
-      jumpToDefaultBlockGenerated = true;
+      if (gotoDft != nullptr) {
+        localBlk->AddStatement(gotoDft);
+        jumpToDefaultBlockGenerated = true;
+      }
     }
     return localBlk;
   }
   if ((start == end) && lowBlockNodeChecked && highBlockNodeChecked) {
     /* only 1 case with 1 tag remains */
-    localBlk->AddStatement(BuildGotoNode(switchItems[start].first));
+    auto *gotoStmt = BuildGotoNode(switchItems[start].first);
+    if (gotoStmt != nullptr ) {
+      localBlk->AddStatement(gotoStmt);
+    }
     return localBlk;
   }
   if (end < (start + kClusterSwitchCutoff)) {
@@ -243,7 +268,9 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       } else {
         cGoto = BuildCondGotoNode(switchItems[start].first, OP_brtrue, *BuildCmpNode(OP_eq, switchItems[start].first));
       }
-      localBlk->AddStatement(cGoto);
+      if (cGoto != nullptr) {
+        localBlk->AddStatement(cGoto);
+      }
       if (lowBlockNodeChecked && (start < end)) {
         lowBlockNodeChecked = (stmt->GetCasePair(switchItems[start].first).first + 1 ==
                          stmt->GetCasePair(switchItems[start + 1].first).first);
@@ -256,8 +283,10 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
       localBlk->AppendStatementsFromBlock(*tmp);
     } else if (!lowBlockNodeChecked || !highBlockNodeChecked) {
       GotoNode *gotoDft = BuildGotoNode(-1);
-      localBlk->AddStatement(gotoDft);
-      jumpToDefaultBlockGenerated = true;
+      if (gotoDft != nullptr) {
+        localBlk->AddStatement(gotoDft);
+        jumpToDefaultBlockGenerated = true;
+      }
     }
     return localBlk;
   }
@@ -284,18 +313,20 @@ BlockNode *SwitchLowerer::BuildCodeForSwitchItems(int32 start, int32 end, bool l
   ASSERT(mid >= start, "switch lowering logic mid should greater than or equal start");
   ASSERT(mid <= end, "switch lowering logic mid should less than or equal end");
   /* generate test for binary search */
-  cmpNode = BuildCmpNode(OP_lt, static_cast<uint32>(switchItems[static_cast<uint64>(mid)].first));
-  ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
-  bool leftHighBNdChecked = (stmt->GetCasePair(switchItems.at(mid - 1).first).first + 1 ==
-                             stmt->GetCasePair(switchItems.at(mid).first).first) ||
-                            (stmt->GetCasePair(switchItems.at(mid - 1).second).first + 1 ==
-                             stmt->GetCasePair(switchItems.at(mid).first).first);
-  ifStmt->SetThenPart(BuildCodeForSwitchItems(start, mid - 1, lowBlockNodeChecked, leftHighBNdChecked));
-  ifStmt->SetElsePart(BuildCodeForSwitchItems(mid, end, true, highBlockNodeChecked));
-  if (ifStmt->GetElsePart()) {
-    ifStmt->SetNumOpnds(kOperandNumTernary);
+  if (stmt->GetDefaultLabel() != 0) {
+    cmpNode = BuildCmpNode(OP_lt, static_cast<uint32>(switchItems[static_cast<uint64>(mid)].first));
+    ifStmt = static_cast<IfStmtNode*>(mirModule.GetMIRBuilder()->CreateStmtIf(cmpNode));
+    bool leftHighBNdChecked = (stmt->GetCasePair(switchItems.at(mid - 1).first).first + 1 ==
+                               stmt->GetCasePair(switchItems.at(mid).first).first) ||
+                              (stmt->GetCasePair(switchItems.at(mid - 1).second).first + 1 ==
+                               stmt->GetCasePair(switchItems.at(mid).first).first);
+    ifStmt->SetThenPart(BuildCodeForSwitchItems(start, mid - 1, lowBlockNodeChecked, leftHighBNdChecked));
+    ifStmt->SetElsePart(BuildCodeForSwitchItems(mid, end, true, highBlockNodeChecked));
+    if (ifStmt->GetElsePart()) {
+      ifStmt->SetNumOpnds(kOperandNumTernary);
+    }
+    localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
   }
-  localBlk->AppendStatementsFromBlock(*mirLowerer.LowerIfStmt(*ifStmt, false));
   return localBlk;
 }
 
@@ -303,7 +334,9 @@ BlockNode *SwitchLowerer::LowerSwitch() {
   if (stmt->GetSwitchTable().empty()) {  /* change to goto */
     BlockNode *localBlk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
     GotoNode *gotoDft = BuildGotoNode(-1);
-    localBlk->AddStatement(gotoDft);
+    if (gotoDft != nullptr) {
+      localBlk->AddStatement(gotoDft);
+    }
     return localBlk;
   }
 
@@ -320,7 +353,9 @@ BlockNode *SwitchLowerer::LowerSwitch() {
   BlockNode *blkNode = BuildCodeForSwitchItems(0, static_cast<int>(switchItems.size()) - 1, false, false);
   if (!jumpToDefaultBlockGenerated) {
     GotoNode *gotoDft = BuildGotoNode(-1);
-    blkNode->AddStatement(gotoDft);
+    if (gotoDft != nullptr) {
+      blkNode->AddStatement(gotoDft);
+    }
   }
   return blkNode;
 }
