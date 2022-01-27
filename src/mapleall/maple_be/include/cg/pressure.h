@@ -25,7 +25,7 @@ struct RegList {
 };
 
 #define FOR_ALL_REGCLASS(i) \
-  for (int32 i = 0; i < RegPressure::GetMaxRegClassNum(); ++i)
+  for (uint32 i = 0; i < static_cast<uint32>(RegPressure::GetMaxRegClassNum()); ++i)
 
 class RegPressure {
  public:

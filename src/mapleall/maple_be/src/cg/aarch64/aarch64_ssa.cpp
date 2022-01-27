@@ -24,8 +24,8 @@ void AArch64CGSSAInfo::RenameInsn(Insn &insn) {
     return;
   }
   for (int i = opndNum - 1; i >= 0; --i) {
-    Operand &opnd = insn.GetOperand(i);
-    auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
+    Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
+    auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint32>(i)]);
     A64SSAOperandRenameVisitor renameVisitor(*this, insn, *opndProp, i);
     opnd.Accept(renameVisitor);
   }
@@ -70,7 +70,7 @@ VRegVersion *AArch64CGSSAInfo::RenamedOperandSpecialCase(RegOperand &vRegOpnd, I
 }
 
 RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
-  regno_t ssaRegNO = GetAllSSAOperands().size() + SSARegNObase;
+  regno_t ssaRegNO = static_cast<regno_t>(GetAllSSAOperands().size()) + SSARegNObase;
   while (GetAllSSAOperands().count(ssaRegNO)) {
     ssaRegNO++;
     SSARegNObase++;
@@ -80,15 +80,11 @@ RegOperand *AArch64CGSSAInfo::CreateSSAOperand(RegOperand &virtualOpnd) {
   return newVreg;
 }
 
-void AArch64CGSSAInfo::AddInsn(Insn &newInsn) {
-  CHECK_FATAL(false, "NYI");
-}
-
 void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
   A64OpndSSAUpdateVsitor ssaUpdator(*this);
   auto UpdateInsnSSAInfo = [&ssaUpdator](Insn &curInsn, bool isDelete) {
     const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn&>(curInsn).GetMachineOpcode()];
-    for (int i = 0; i < curInsn.GetOperandSize(); ++i) {
+    for (uint32 i = 0; i < curInsn.GetOperandSize(); ++i) {
       Operand &opnd = curInsn.GetOperand(i);
       auto *opndProp = static_cast<AArch64OpndProp*>(md->operand[i]);
       if (isDelete) {

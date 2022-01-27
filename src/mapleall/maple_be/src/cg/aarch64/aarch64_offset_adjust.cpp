@@ -116,7 +116,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
         Insn &tempMov = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(tempMovOp, tempReg, immOpnd);
         insn.SetOperand(index, tempReg);
         insn.SetMOperator(is64bit ? MOP_xsubrrr : MOP_wsubrrr);
-        insn.GetBB()->InsertInsnBefore(insn, tempMov);
+        (void)insn.GetBB()->InsertInsnBefore(insn, tempMov);
       }
     } else {
       CHECK_FATAL(false, "NIY");
@@ -142,7 +142,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
         if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi) {
           OfstOperand *ofstOpnd = memOpnd.GetOffsetOperand();
           OfstOperand *newOfstOpnd = &aarchCGFunc.GetOrCreateOfstOpnd(
-              ofstOpnd->GetValue() + static_cast<int64>(offset), ofstOpnd->GetSize());
+              static_cast<uint64>(ofstOpnd->GetValue() + offset), ofstOpnd->GetSize());
           AArch64MemOperand &newOfstMemOpnd = aarchCGFunc.GetOrCreateMemOpnd(
               AArch64MemOperand::kAddrModeBOi, memOpnd.GetSize(), memOpnd.GetBaseRegister(), memOpnd.GetIndexRegister(),
               newOfstOpnd, memOpnd.GetSymbol());
@@ -157,7 +157,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
         } else if (memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOrX) {
           CHECK_FATAL(false, "Unexpect adjust insn");
         } else {
-          (void)insn.Dump();
+          insn.Dump();
           CHECK_FATAL(false, "Unexpect adjust insn");
         }
       }
@@ -198,7 +198,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFu
         break;
       }
       default:
-        (void)insn.Dump();
+        insn.Dump();
         CHECK_FATAL(false, "Unexpect offset adjustment insn");
     }
   }

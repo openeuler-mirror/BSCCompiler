@@ -64,7 +64,7 @@ bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) {
         }
       } else {
         if (regCandidate == optVal.GetReplaceReg()) {
-          nInsn->SetOperand(i, *optVal.GetRenameOpnd());
+          nInsn->SetOperand(static_cast<uint32>(i), *optVal.GetRenameOpnd());
         }
       }
     }
@@ -318,7 +318,7 @@ void VregRename::PrintAllRenameInfo() const {
   }
 }
 
-bool VregRename::IsProfitableToRename(VregRenameInfo *info) {
+bool VregRename::IsProfitableToRename(const VregRenameInfo *info) const{
   if ((info->numInnerDefs == 0) && (info->numUses != info->numInnerUses)) {
     return true;
   }

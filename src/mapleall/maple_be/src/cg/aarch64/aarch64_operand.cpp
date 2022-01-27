@@ -87,7 +87,7 @@ void AArch64RegOperand::EmitVectorOpnd(Emitter &emitter) const {
       break;
   }
   emitter.Emit(AArch64CG::vectorRegNames[regNO]);
-  uint32 lanePos = GetVecLanePosition();
+  int32 lanePos = GetVecLanePosition();
   if (lanePos == -1) {
     emitter.Emit("." + std::to_string(GetVecLaneSize()) + width);
   } else {
@@ -300,7 +300,7 @@ void AArch64MemOperand::Emit(Emitter &emitter, const OpndProp *opndProp) const {
         } else {
           uint32 dsize = size;
           if (size > k8BitSize) {
-            dsize = RoundUp(size, k8BitSize);
+            dsize = static_cast<uint32>(RoundUp(size, k8BitSize));
           }
           if (!offset->IsZero()) {
             emitter.Emit(",");
@@ -644,7 +644,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
   (void)prop;
   ASSERT(shiftAmount <= k4BitSize && shiftAmount >= 0,
          "shift amount out of range in ExtendShiftOperand");
-  auto emitExtendShift = [&](const std::string extendKind)->void {
+  auto emitExtendShift = [&](const std::string &extendKind)->void {
     emitter.Emit(extendKind);
     if (shiftAmount != 0) {
       emitter.Emit(" #").Emit(shiftAmount);
@@ -682,7 +682,7 @@ void ExtendShiftOperand::Emit(Emitter &emitter, const OpndProp *prop) const {
 }
 
 void ExtendShiftOperand::Dump() const {
-  auto dumpExtendShift = [&](const std::string extendKind)->void {
+  auto dumpExtendShift = [&](const std::string &extendKind)->void {
     LogInfo::MapleLogger() << extendKind;
     if (shiftAmount != 0) {
       LogInfo::MapleLogger() << " : " << shiftAmount;

@@ -221,7 +221,7 @@ void Ebo::SetOpndInfo(const Operand &opnd, OpndInfo *opndInfo, int32 hashVal) {
     return;
   }
 
-  CHECK_FATAL(hashVal < exprInfoTable.size(), "SetOpndInfo hashval outof range!");
+  CHECK_FATAL(static_cast<uint64>(hashVal) < exprInfoTable.size(), "SetOpndInfo hashval outof range!");
   opndInfo->hashVal = hashVal;
   opndInfo->hashNext = exprInfoTable.at(hashVal);
   exprInfoTable.at(hashVal) = opndInfo;
@@ -410,7 +410,7 @@ void Ebo::HashInsn(Insn &insn, const MapleVector<OpndInfo*> &origInfo, const Map
   insnInfo->same = insnInfoTable.at(hashVal);
 
   if (!beforeRegAlloc) {
-    if (insn.IsCall() && !insn.GetIsThrow()) {
+    if ((insn.IsCall() || insn.IsTailCall() || insn.IsAsmInsn()) && !insn.GetIsThrow()) {
       DefineCallerSaveRegisters(*insnInfo);
     } else if (IsClinitCheck(insn)) {
       DefineClinitSpecialRegisters(*insnInfo);
@@ -469,7 +469,7 @@ void Ebo::RemoveUses(uint32 opndNum, const MapleVector<OpndInfo*> &origInfo) {
   }
 }
 
-OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, int32 opndIndex) {
+OpndInfo *Ebo::BuildMemOpndInfo(BB &bb, Insn &insn, Operand &opnd, uint32 opndIndex) {
   auto *memOpnd = static_cast<AArch64MemOperand*>(&opnd);
   Operand *base = memOpnd->GetBaseRegister();
   Operand *offset = memOpnd->GetOffset();
@@ -602,7 +602,7 @@ bool Ebo::ForwardPropagateOpnd(Insn &insn, Operand *&opnd, uint32 opndIndex,
     return false;
   }
   /* Copies to and from the same register are not needed. */
-  if (!beforeRegAlloc && insn.IsEffectiveCopy() && (insn.CopyOperands() == opndIndex) &&
+  if (!beforeRegAlloc && insn.IsEffectiveCopy() && (static_cast<uint32>(insn.CopyOperands()) == opndIndex) &&
       RegistersIdentical(*opnd, *(insn.GetResult(0)))) {
     if (EBO_DUMP) {
       LogInfo::MapleLogger() << "===replace operand " << opndIndex << " of insn: \n";
@@ -1075,11 +1075,11 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
             }
           }
         }
+      }
 
-        if (!beforeRegAlloc && opndInfo != nullptr && insn->GetOperand(kInsnSecondOpnd).IsImmediate() &&
-            IsSameRedefine(bb, *insn, *opndInfo)) {
-          goto can_be_removed;
-        }
+      if (!beforeRegAlloc && insn->IsEffectiveCopy() && opndInfo != nullptr &&
+          insn->GetOperand(kInsnSecondOpnd).IsImmediate() && IsSameRedefine(bb, *insn, *opndInfo)) {
+        goto can_be_removed;
       }
 #endif
       /* end special case optimize */

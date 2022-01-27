@@ -130,7 +130,7 @@ class VregRename {
 
   void RenameFindLoopVregs(const CGFuncLoops *loop);
   void RenameFindVregsToRename(const CGFuncLoops *loop);
-  bool IsProfitableToRename(VregRenameInfo *info);
+  bool IsProfitableToRename(const VregRenameInfo *info) const;
   void RenameProfitableVreg(RegOperand *ropnd, const CGFuncLoops *loop);
   void RenameGetFuncVregInfo();
   void UpdateVregInfo(regno_t reg, BB *bb, bool isInner, bool isDef);

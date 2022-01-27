@@ -820,8 +820,8 @@ class AArch64MemOperand : public MemOperand {
     return IsExtendedRegisterMode() && !SignedExtend();
   }
 
-  int32 ShiftAmount() const {
-    int32 scale = extend & 0xF;
+  uint32 ShiftAmount() const {
+    uint32 scale = extend & 0xF;
     /* 8 is 1 << 3, 4 is 1 << 2, 2 is 1 << 1, 1 is 1 << 0; */
     return (scale == 8) ? 3 : ((scale == 4) ? 2 : ((scale == 2) ? 1 : 0));
   }

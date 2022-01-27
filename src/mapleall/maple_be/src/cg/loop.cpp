@@ -336,7 +336,7 @@ void LoopFinder::markExtraEntryAndEncl() {
     }
 
     // Setup loop body
-    for (int id = 0; id < loopEnclosure.size(); id++) {
+    for (size_t id = 0; id < loopEnclosure.size(); id++) {
       if (loopEnclosure[id] != nullptr) {
         loop->InsertLoopMembers(*loopEnclosure[id]);
       }
@@ -487,7 +487,7 @@ void LoopFinder::UpdateOuterForInnerLoop(BB *bb, LoopHierarchy *outer) {
   }
 }
 
-void LoopFinder::UpdateOuterLoop(LoopHierarchy *loop) {
+void LoopFinder::UpdateOuterLoop(const LoopHierarchy *loop) {
   for (auto inner : loop->GetInnerLoops()) {
     UpdateOuterLoop(inner);
   }

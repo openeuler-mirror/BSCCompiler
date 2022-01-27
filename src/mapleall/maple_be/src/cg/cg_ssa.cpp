@@ -28,7 +28,7 @@ void CGSSAInfo::ConstructSSA() {
 void CGSSAInfo::MarkInsnsInSSA(Insn &insn) {
   CHECK_FATAL(insn.GetId() == 0, "insn is not clean !!"); /* change to assert*/
   insnCount++;
-  insn.SetId(insnCount);
+  insn.SetId(static_cast<uint32>(insnCount));
 }
 
 void CGSSAInfo::InsertPhiInsn() {
@@ -112,7 +112,7 @@ void CGSSAInfo::RenameBB(BB &bb) {
   /* stack pop up */
   for (auto &it : vRegStk) {
     if (it.first < oriStackSize.size() && oriStackSize[it.first] >= 0) {
-      while (static_cast<int32>(it.second.size()) > oriStackSize[it.first]) {
+      while (static_cast<int32>(it.second.size()) > oriStackSize[static_cast<uint64>(it.first)]) {
         ASSERT(!it.second.empty(), "empty stack");
         it.second.pop();
       }
