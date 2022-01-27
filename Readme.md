@@ -77,3 +77,6 @@ C example:
 ## Real-time Chat Channel
 - [Discord-OpenArkCompiler](https://discord.gg/CJeJWQXxMP)
 - 9:00 am - 10:30 am everyday, developers can discuss community issues in the voice channel "panel discussion"
+
+- [Discord-MapleFE](https://discord.gg/sBj3cc4GhM)
+- we have weekly meeting about projects related to MapleFE
