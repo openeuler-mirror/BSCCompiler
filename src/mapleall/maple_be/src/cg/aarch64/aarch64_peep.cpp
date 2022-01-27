@@ -141,6 +141,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_wandrri12:
     case MOP_xandrri13: {
       manager->Optimize<LsrAndToUbfxPattern>();
+      manager->Optimize<ElimSpecificExtensionPattern>();
       break;
     }
     case MOP_wcselrrrc:
@@ -169,6 +170,17 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     }
     case MOP_xlslrri6: {
       manager->Optimize<ExtLslToBitFieldInsertPattern>();
+      break;
+    }
+    case MOP_xsxtb32:
+    case MOP_xsxtb64:
+    case MOP_xsxth32:
+    case MOP_xsxth64:
+    case MOP_xsxtw64:
+    case MOP_xuxtb32:
+    case MOP_xuxth32:
+    case MOP_xuxtw64: {
+      manager->Optimize<ElimSpecificExtensionPattern>();
       break;
     }
     default:
@@ -1154,6 +1166,330 @@ void SimplifyMulArithmeticPattern::Run(BB &bb, Insn &insn) {
     return;
   }
   DoOptimize(bb, insn);
+}
+
+std::string ElimSpecificExtensionPattern::GetPatternName() {
+  return "ElimSpecificExtensionPattern";
+}
+
+void ElimSpecificExtensionPattern::SetSpecificExtType(Insn &currInsn) {
+  MOperator mOp = currInsn.GetMachineOpcode();
+  switch (mOp) {
+    case MOP_wandrri12: {
+      is64Bits = false;
+      extTypeIdx = AND;
+      break;
+    }
+    case MOP_xandrri13: {
+      is64Bits = true;
+      extTypeIdx = AND;
+      break;
+    }
+    case MOP_xsxtb32: {
+      is64Bits = false;
+      extTypeIdx = SXTB;
+      break;
+    }
+    case MOP_xsxtb64: {
+      is64Bits = true;
+      extTypeIdx = SXTB;
+      break;
+    }
+    case MOP_xsxth32: {
+      is64Bits = false;
+      extTypeIdx = SXTH;
+      break;
+    }
+    case MOP_xsxth64: {
+      is64Bits = true;
+      extTypeIdx = SXTH;
+      break;
+    }
+    case MOP_xsxtw64: {
+      is64Bits = true;
+      extTypeIdx = SXTW;
+      break;
+    }
+    case MOP_xuxtb32: {
+      is64Bits = false;
+      extTypeIdx = UXTB;
+      break;
+    }
+    case MOP_xuxth32: {
+      is64Bits = false;
+      extTypeIdx = UXTH;
+      break;
+    }
+    case MOP_xuxtw64: {
+      is64Bits = true;
+      extTypeIdx = UXTW;
+      break;
+    }
+    default: {
+      extTypeIdx = EXTUNDEF;
+    }
+  }
+}
+
+void ElimSpecificExtensionPattern::SetOptSceneType() {
+  if (prevInsn->IsCall()) {
+    sceneType = kSceneMov;
+    return;
+  }
+  MOperator preMop = prevInsn->GetMachineOpcode();
+  switch (preMop) {
+    case MOP_wldr:
+    case MOP_wldrb:
+    case MOP_wldrsb:
+    case MOP_wldrh:
+    case MOP_wldrsh:
+    case MOP_xldrsw: {
+      sceneType = kSceneLoad;
+      break;
+    }
+    case MOP_xmovri32:
+    case MOP_xmovri64: {
+      sceneType = kSceneMov;
+      break;
+    }
+    case MOP_xsxtb32:
+    case MOP_xsxtb64:
+    case MOP_xsxth32:
+    case MOP_xsxth64:
+    case MOP_xsxtw64:
+    case MOP_xuxtb32:
+    case MOP_xuxth32:
+    case MOP_xuxtw64: {
+      sceneType = kSceneSameExt;
+      break;
+    }
+    default: {
+      sceneType = kSceneUndef;
+    }
+  }
+}
+
+void ElimSpecificExtensionPattern::ReplaceExtWithMov(Insn &currInsn) {
+  auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+  auto &currDstOpnd = static_cast<RegOperand&>(currInsn.GetOperand(kInsnFirstOpnd));
+  MOperator newMop = is64Bits ? MOP_xmovrr : MOP_wmovrr;
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, currDstOpnd, prevDstOpnd);
+  currBB->ReplaceInsn(currInsn, newInsn);
+  /* update ssa info */
+  ssaInfo->ReplaceInsn(currInsn, newInsn);
+  /* dump pattern info */
+  if (CG_PEEP_DUMP) {
+    std::vector<Insn*> prevs;
+    prevs.emplace_back(prevInsn);
+    DumpAfterPattern(prevs, &currInsn, &newInsn);
+  }
+}
+
+void ElimSpecificExtensionPattern::ElimExtensionAfterMov(Insn &insn) {
+  if (&insn == currBB->GetFirstInsn()) {
+    return;
+  }
+  auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+  auto &currDstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  auto &currSrcOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  if (prevDstOpnd.GetSize() != currDstOpnd.GetSize()) {
+    return;
+  }
+  MOperator currMop = insn.GetMachineOpcode();
+  /* example 2) [mov w0, R0] is return value of call and return size is not of range */
+  if (prevInsn->IsCall() && (currSrcOpnd.GetRegisterNumber() == R0 || currSrcOpnd.GetRegisterNumber() == V0) &&
+      currDstOpnd.GetRegisterNumber() == currSrcOpnd.GetRegisterNumber()) {
+    uint32 retSize = prevInsn->GetRetSize();
+    if (retSize > 0 &&
+        ((currMop == MOP_xuxtb32 && retSize <= k1ByteSize) ||
+         (currMop == MOP_xuxth32 && retSize <= k2ByteSize) ||
+         (currMop == MOP_xuxtw64 && retSize <= k4ByteSize))) {
+      ReplaceExtWithMov(insn);
+    }
+    return;
+  }
+  if (prevInsn->IsCall() && prevInsn->GetIsCallReturnSigned()) {
+    return;
+  }
+  auto &immMovOpnd = static_cast<AArch64ImmOperand&>(prevInsn->GetOperand(kInsnSecondOpnd));
+  int64 value = immMovOpnd.GetValue();
+  uint64 minRange = extValueRangeTable[extTypeIdx][0];
+  uint64 maxRange = extValueRangeTable[extTypeIdx][1];
+  if (currMop == MOP_xsxtb32 || currMop == MOP_xsxth32) {
+    /* value should be in valid range */
+    if (value >= minRange && value <= maxRange && immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
+      ReplaceExtWithMov(insn);
+    }
+  } else if (currMop == MOP_xuxtb32 || currMop == MOP_xuxth32) {
+    if (!(static_cast<uint64>(value) & minRange)) {
+      ReplaceExtWithMov(insn);
+    }
+  } else if (currMop == MOP_xuxtw64) {
+    ReplaceExtWithMov(insn);
+  } else {
+    /* MOP_xsxtb64 & MOP_xsxth64 & MOP_xsxtw64 */
+    if (!(static_cast<uint64>(value) & minRange) && immMovOpnd.IsSingleInstructionMovable(currDstOpnd.GetSize())) {
+      ReplaceExtWithMov(insn);
+    }
+  }
+}
+
+bool ElimSpecificExtensionPattern::IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop) {
+  if (oldMop == newMop) {
+    return true;
+  }
+  auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
+  auto *memOpnd = static_cast<AArch64MemOperand*>(prevInsn->GetMemOpnd());
+  ASSERT(!prevInsn->IsStorePair(), "do not do ElimSpecificExtensionPattern for str pair");
+  ASSERT(!prevInsn->IsLoadPair(), "do not do ElimSpecificExtensionPattern for ldr pair");
+  if (memOpnd->GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
+      !aarFunc->IsOperandImmValid(newMop, memOpnd, kInsnSecondOpnd)) {
+    return false;
+  }
+  int32 shiftAmount = memOpnd->ShiftAmount();
+  if (shiftAmount == 0) {
+    return true;
+  }
+  const AArch64MD *md = &AArch64CG::kMd[newMop];
+  uint32 memSize = md->GetOperandSize() / k8BitSize;
+  uint32 validShiftAmount = ((memSize == k8BitSize) ? k3BitSize : ((memSize == k4BitSize) ? k2BitSize :
+      ((memSize == k2BitSize) ? k1BitSize : k0BitSize)));
+  if (shiftAmount != validShiftAmount) {
+    return false;
+  }
+  return true;
+}
+
+MOperator ElimSpecificExtensionPattern::SelectNewLoadMopByBitSize(MOperator lowBitMop) {
+  auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+  switch (lowBitMop) {
+    case MOP_wldrsb: {
+      prevDstOpnd.SetValidBitsNum(k64BitSize);
+      prevDstOpnd.SetSize(k64BitSize);
+      return MOP_xldrsb;
+    }
+    case MOP_wldrsh: {
+      prevDstOpnd.SetValidBitsNum(k64BitSize);
+      prevDstOpnd.SetSize(k64BitSize);
+      return MOP_xldrsh;
+    }
+    default:
+      break;
+  }
+  return lowBitMop;
+}
+
+void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
+  if (extTypeIdx == EXTUNDEF) {
+    return;
+  }
+  if (extTypeIdx == AND) {
+    auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
+    if (immOpnd.GetValue() != 0xff) {
+      return;
+    }
+  }
+  MOperator prevOrigMop = prevInsn->GetMachineOpcode();
+  for (uint8 i = 0; i < kPrevLoadPatternNum; i++) {
+    if (prevOrigMop != loadMappingTable[extTypeIdx][i][0]) {
+      continue;
+    }
+    MOperator prevNewMop = loadMappingTable[extTypeIdx][i][1];
+    if (!IsValidLoadExtPattern(insn, prevOrigMop, prevNewMop)) {
+      return;
+    }
+    if (is64Bits && extTypeIdx >= SXTB && extTypeIdx <= SXTW) {
+      prevNewMop = SelectNewLoadMopByBitSize(prevNewMop);
+    }
+    auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+    auto &currDstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+    /* to avoid {mov [64], [32]} in the case of big endian */
+    if (prevDstOpnd.GetSize() != currDstOpnd.GetSize() && CGOptions::IsBigEndian()) {
+      return;
+    }
+    /* to make sure two validBitsNum of mov are same */
+    if (is64Bits) {
+      prevDstOpnd.SetValidBitsNum(currDstOpnd.GetValidBitsNum());
+    }
+    auto *aarCGSSAInfo = static_cast<AArch64CGSSAInfo*>(ssaInfo);
+    if (CG_PEEP_DUMP) {
+      LogInfo::MapleLogger() << ">>>>>>> In " << GetPatternName() << " : <<<<<<<\n";
+      if (prevOrigMop != prevNewMop) {
+        LogInfo::MapleLogger() << "======= OrigPrevInsn : \n";
+        prevInsn->Dump();
+        aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
+      }
+    }
+    prevInsn->SetMOP(prevNewMop);
+    if ((prevOrigMop != prevNewMop) && CG_PEEP_DUMP) {
+      LogInfo::MapleLogger() << "======= NewPrevInsn : \n";
+      prevInsn->Dump();
+      aarCGSSAInfo->DumpInsnInSSAForm(*prevInsn);
+    }
+    MOperator movMop = is64Bits ? MOP_xmovrr : MOP_wmovrr;
+    Insn &newMovInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(movMop, insn.GetOperand(kInsnFirstOpnd),
+                                                                      prevInsn->GetOperand(kInsnFirstOpnd));
+    currBB->ReplaceInsn(insn, newMovInsn);
+    /* update ssa info */
+    ssaInfo->ReplaceInsn(insn, newMovInsn);
+    /* dump pattern info */
+    if (CG_PEEP_DUMP) {
+      LogInfo::MapleLogger() << "======= ReplacedInsn :\n";
+      insn.Dump();
+      aarCGSSAInfo->DumpInsnInSSAForm(insn);
+      LogInfo::MapleLogger() << "======= NewInsn :\n";
+      newMovInsn.Dump();
+      aarCGSSAInfo->DumpInsnInSSAForm(newMovInsn);
+    }
+  }
+}
+
+void ElimSpecificExtensionPattern::ElimExtensionAfterSameExt(Insn &insn) {
+  if (extTypeIdx == EXTUNDEF || extTypeIdx == AND) {
+    return;
+  }
+  auto &prevDstOpnd = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnFirstOpnd));
+  auto &currDstOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  if (prevDstOpnd.GetSize() != currDstOpnd.GetSize()) {
+    return;
+  }
+  MOperator prevMop = prevInsn->GetMachineOpcode();
+  MOperator currMop = insn.GetMachineOpcode();
+  for (uint8 i = 0; i < kSameExtPatternNum; i++) {
+    if (sameExtMappingTable[extTypeIdx][i][0] == MOP_undef || sameExtMappingTable[extTypeIdx][i][1] == MOP_undef) {
+      continue;
+    }
+    if (prevMop == sameExtMappingTable[extTypeIdx][i][0] && currMop == sameExtMappingTable[extTypeIdx][i][1]) {
+      ReplaceExtWithMov(insn);
+    }
+  }
+}
+
+bool ElimSpecificExtensionPattern::CheckCondition(Insn &insn) {
+  auto &useReg = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  prevInsn = GetDefInsn(useReg);
+  if (prevInsn == nullptr) {
+    return false;
+  }
+  SetOptSceneType();
+  SetSpecificExtType(insn);
+  if (sceneType == kSceneUndef) {
+    return false;
+  }
+  return true;
+}
+
+void ElimSpecificExtensionPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  if (sceneType == kSceneMov) {
+    ElimExtensionAfterMov(insn);
+  } else if (sceneType == kSceneLoad) {
+    ElimExtensionAfterLoad(insn);
+  } else if (sceneType == kSceneSameExt) {
+    ElimExtensionAfterSameExt(insn);
+  }
 }
 
 void OneHoleBranchPattern::FindNewMop(const BB &bb, const Insn &insn) {
