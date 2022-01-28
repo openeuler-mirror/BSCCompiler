@@ -121,5 +121,9 @@ bool CppEmitter::IsVarTypeClass(TreeNode* var) {
   return false;
 }
 
+void CppEmitter::InsertEscapes(std::string& str) {
+  Emitter::Replace(str, "\\", "\\\\", 0);
+  Emitter::Replace(str, "\"", "\\\"", 0);
+}
 
 } // namespace maplefe

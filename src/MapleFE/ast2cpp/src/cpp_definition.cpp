@@ -536,11 +536,14 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
 
   std::string str, varStr;
   TreeNode* idType = nullptr;
+  TypeId varType = TY_None;
+
   //std::string str(Emitter::GetEnumDeclProp(node->GetProp()));
 
   // For func var of JS_Var and global vars, emit var name
   // For func var of JS_Let/JS_Const, emit both var type & name
   if (auto n = node->GetVar()) {
+    varType = n->GetTypeId();
     if (mIsInit || node->GetProp() == JS_Var) {
       // handle declnode inside for-of/for-in (uses GetSet() and has null GetInit())
       if (!node->GetInit() && node->GetParent() && !node->GetParent()->IsForLoop())
@@ -565,8 +568,14 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
         str += varStr + " = new "s + "Cls_" + n->GetName() + "()"s;
         hFuncTable.AddNameIsTopLevelFunc(varStr);
       }
-    } else
-      str += varStr + " = "s + EmitTreeNode(n);
+    } else {
+      // if no type info, assume type is any and wrap initializer in JS_Val.
+      str += varStr + " = ";
+      if (varType == TY_None)
+        str += "t2crt::JS_Val("s + EmitTreeNode(n) + ")"s;
+      else
+        str += EmitTreeNode(n);
+    }
   } else {
     str = varStr;
   }
@@ -1524,6 +1533,14 @@ std::string &CppDef::HandleTreeNode(std::string &str, TreeNode *node) {
       str = AddParentheses(str, node) + " as const"s;
   */
   return str;
+}
+
+std::string CppDef::EmitRegExprNode(RegExprNode *node) {
+  if (node == nullptr)
+    return std::string();
+  std::string source = Emitter::EmitRegExprNode(node);
+  InsertEscapes(source);
+  return "RegExp::ctor._new(\""s + source + "\")"s;
 }
 
 } // namespace maplefe

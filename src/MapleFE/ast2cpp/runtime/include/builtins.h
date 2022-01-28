@@ -96,6 +96,18 @@ class JSON : public Object {
 
 class RegExp : public Object {
   // TODO
+public:
+  RegExp(Function* ctor, Object* proto): Object(ctor, proto) { }
+  RegExp(Function* ctor, Object* proto, std::string src): Object(ctor, proto) {  source = src; }
+  ~RegExp(){}
+  std::string source;               // text of the pattern
+  class Ctor : public Function {
+  public:
+    Ctor(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
+    RegExp* _new(std::string src) {return new RegExp(this, this->prototype, src);}
+    virtual const char* __GetClassName() const {return "RegExp ";}
+  };
+  static Ctor ctor;
 };
 
 class Number : public Object {

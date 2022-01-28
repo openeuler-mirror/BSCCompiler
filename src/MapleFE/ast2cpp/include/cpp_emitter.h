@@ -33,6 +33,7 @@ public:
   std::string GetQualifiedName(IdentifierNode *node);
   bool IsClassId(TreeNode *node);
   bool IsVarTypeClass(TreeNode* var);
+  void InsertEscapes(std::string& str);
 };
 
 } // namespace maplefe
