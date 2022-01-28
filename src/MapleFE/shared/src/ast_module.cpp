@@ -27,6 +27,7 @@ ModuleNode::ModuleNode() : TreeNode(NK_Module), mPackage(NULL), mSrcLang(SrcLang
 
 ModuleNode::~ModuleNode() {
   mTrees.Release();
+  //mImports.Release();
 }
 
 // AFAIK, all languages allow only one package name if it allows.
