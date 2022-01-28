@@ -371,7 +371,7 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
           break;
         case TY_Array:
           fieldVal = EmitArrayLiteral(nullptr, lit);
-          str += "std::make_pair(\""s + fieldName + "\", t2crt::Arr2JsVal( "s + fieldVal + " ))"s;
+          str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + fieldVal + "))"s;
           break;
         case TY_Boolean:
           str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(bool("s + fieldVal + ")))"s;
