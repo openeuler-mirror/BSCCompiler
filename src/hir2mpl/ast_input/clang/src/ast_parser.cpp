@@ -153,6 +153,7 @@ ASTStmt *ASTParser::ProcessStmt(MapleAllocator &allocator, const clang::Stmt &st
 }
 
 ASTStmt *ASTParser::ProcessStmtAttributedStmt(MapleAllocator &allocator, const clang::AttributedStmt &AttrStmt) {
+  CHECK_FATAL(strcmp(AttrStmt.getAttrs()[0]->getSpelling(), "fallthrough") == 0 , "AttrStmt is not fallthrough");
   ASTAttributedStmt *astAttributedStmt  = ASTDeclsBuilder::ASTStmtBuilder<ASTAttributedStmt>(allocator);
   CHECK_FATAL(astAttributedStmt != nullptr, "astAttributedStmt is nullptr");
   return astAttributedStmt;
