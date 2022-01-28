@@ -36,6 +36,7 @@ NODEKIND(NameTypePair)
 // Type related
 NODEKIND(PrimType)
 NODEKIND(PrimArrayType)
+NODEKIND(ArrayType)
 NODEKIND(UserType)
 NODEKIND(TypeParameter)
 NODEKIND(AsType)

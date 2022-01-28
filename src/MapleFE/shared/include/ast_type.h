@@ -136,6 +136,30 @@ public:
   void Dump(unsigned);
 };
 
+class ArrayTypeNode : public TreeNode {
+private:
+  TreeNode      *mElemType;
+  DimensionNode *mDims;
+  SmallVector<AttrId> mAttrs;
+
+public:
+  ArrayTypeNode() : TreeNode(NK_ArrayType), mElemType(NULL), mDims(NULL) {}
+  ~ArrayTypeNode(){}
+
+  void SetElemType(TreeNode *n)  {mElemType = n; SETPARENT(n);}
+  void SetDims(DimensionNode *d) {mDims = d; SETPARENT(d);}
+  TreeNode*  GetElemType()       {return mElemType;}
+  DimensionNode* GetDims()       {return mDims;}
+
+  // Attributes related
+  unsigned GetAttrsNum() const        {return mAttrs.GetNum();}
+  void     AddAttr(AttrId a)          {mAttrs.PushBack(a);}
+  AttrId   GetAttrAtIndex(unsigned i) {return mAttrs.ValueAtIndex(i);}
+  void     SetAttrAtIndex(unsigned i, AttrId n) {*(mAttrs.RefAtIndex(i)) = n;}
+
+  void Dump(unsigned);
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //                          PrimTypeNode & PrimTypePool
 // The size of PrimTypeNode is fixed, so it's good to use container for the storage.
