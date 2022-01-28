@@ -3403,7 +3403,7 @@ bool ValueRangePropagation::RemoveUnreachableEdge(BB &pred, BB &bb, BB &trueBran
   return true;
 }
 
-bool ValueRangePropagation::ConditionEdgeCanBeDeleted(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
+bool ValueRangePropagation::ConditionEdgeCanBeDeleted(BB &pred, BB &bb, ValueRange *leftRange,
     const ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op) {
   if (leftRange == nullptr) {
     return false;
@@ -3551,7 +3551,7 @@ bool ValueRangePropagation::AnalysisValueRangeInPredsOfCondGotoBB(
       }
     }
     auto *valueRangeInPred = FindValueRange(*pred, *predOpnd);
-    if (ConditionEdgeCanBeDeleted(opnd0, *pred, bb, valueRangeInPred, rightRange,
+    if (ConditionEdgeCanBeDeleted(*pred, bb, valueRangeInPred, rightRange,
                                   falseBranch, trueBranch, opndType, op)) {
       opt = true;
     } else {
@@ -3634,9 +3634,8 @@ Opcode ValueRangePropagation::GetTheOppositeOp(Opcode op) const {
   }
 }
 
-void ValueRangePropagation::CreateValueRangeForCondGoto(
-    BB &bb, const MeExpr &opnd, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
-    const BB &trueBranch, const BB &falseBranch) {
+void ValueRangePropagation::CreateValueRangeForCondGoto(const MeExpr &opnd, Opcode op, ValueRange *leftRange,
+    ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch) {
   auto newRightUpper = rightRange.GetUpper();
   auto newRightLower = rightRange.GetLower();
   CHECK_FATAL(IsEqualPrimType(newRightUpper.GetPrimType(), newRightLower.GetPrimType()), "must be equal");
@@ -3696,7 +3695,7 @@ void ValueRangePropagation::DealWithCondGoto(
   BB *falseBranch = nullptr;
   GetTrueAndFalseBranch(brMeStmt.GetOp(), bb, trueBranch, falseBranch);
   if (dealWithCheck) {
-    CreateValueRangeForCondGoto(bb, *opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
+    CreateValueRangeForCondGoto(*opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
     return;
   }
   // When the redundant branch can be inferred directly from the condGoto stmt
@@ -3709,7 +3708,7 @@ void ValueRangePropagation::DealWithCondGoto(
   } else {
     ConditionEdgeCanBeDeleted(bb, *opnd0, rightRange, *falseBranch, *trueBranch, primType, op);
   }
-  CreateValueRangeForCondGoto(bb, *opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
+  CreateValueRangeForCondGoto(*opnd0, op, leftRange, rightRange, *trueBranch, *falseBranch);
 }
 
 bool ValueRangePropagation::GetValueRangeOfCondGotoOpnd(const BB &bb, OpMeExpr &opMeExpr, MeExpr &opnd,

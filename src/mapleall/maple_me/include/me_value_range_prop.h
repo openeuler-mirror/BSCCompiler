@@ -539,7 +539,7 @@ class ValueRangePropagation {
   void CreateValueRangeForGeOrGt(const MeExpr &opnd,  ValueRange *leftRange, Bound newRightUpper,
                                  Bound newRightLower, const BB &trueBranch, const BB &falseBranch);
   void CreateValueRangeForCondGoto(
-      BB &bb, const MeExpr &opnd, Opcode op, ValueRange *leftRange,
+      const MeExpr &opnd, Opcode op, ValueRange *leftRange,
       ValueRange &rightRange, const BB &trueBranch, const BB &falseBranch);
   void DealWithCondGoto(BB &bb, Opcode op, ValueRange *leftRange, ValueRange &rightRange,
                         const CondGotoMeStmt &brMeStmt);
@@ -563,7 +563,7 @@ class ValueRangePropagation {
                                    std::unique_ptr<ValueRange> &rightRangePtr);
   bool ConditionBBCanBeDeletedAfterOPNeOrEq(BB &bb, ValueRange &leftRange, ValueRange &rightRange, BB &falseBranch,
                                             BB &trueBranch);
-  bool ConditionEdgeCanBeDeleted(MeExpr &opnd, BB &pred, BB &bb, ValueRange *leftRange,
+  bool ConditionEdgeCanBeDeleted(BB &pred, BB &bb, ValueRange *leftRange,
       const ValueRange &rightRange, BB &falseBranch, BB &trueBranch, PrimType opndType, Opcode op);
   void GetSizeOfUnreachableBBsAndReachableBB(BB &bb, size_t &unreachableBB, BB *&reachableBB);
   bool ConditionEdgeCanBeDeleted(BB &bb, MeExpr &opnd0, ValueRange &rightRange, BB &falseBranch,

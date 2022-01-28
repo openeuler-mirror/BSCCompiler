@@ -920,7 +920,7 @@ void ExtendShiftPattern::SelectExtendOrShift(const Insn &def) {
 }
 
 /* first use must match SelectExtendOrShift */
-bool ExtendShiftPattern::CheckDefUseInfo(Insn &use, uint32 size) {
+bool ExtendShiftPattern::CheckDefUseInfo(uint32 size) {
   auto &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
   Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
@@ -1138,7 +1138,7 @@ bool ExtendShiftPattern::CheckCondition(Insn &insn) {
   if ((extendOp == ExtendShiftOperand::kUndef) && (shiftOp == BitShiftOperand::kUndef)) {
     return false;
   }
-  return CheckDefUseInfo(insn, regOperand.GetSize());
+  return CheckDefUseInfo(regOperand.GetSize());
 }
 
 void ExtendShiftPattern::Init() {

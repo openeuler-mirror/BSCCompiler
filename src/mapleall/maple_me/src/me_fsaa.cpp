@@ -283,7 +283,7 @@ void FSAA::RemoveMayDefByDreadRHS(AddrofSSANode *rhs, TypeOfMayDefList &mayDefNo
 // Case 2: The MayDef is alias with lhs, their memories overlap completely(not partially). Storing rhs to
 //         lhs will update the MayDef's value, but the value is the same as before.
 // Therefore, for typesafe, we can delete this MayDef from MayDefList.
-void FSAA::RemoveMayDefIfSameAsRHS(IassignNode *stmt, BB *bb) {
+void FSAA::RemoveMayDefIfSameAsRHS(IassignNode *stmt) {
   if (!MeOption::tbaa) {
     return; // type-safe constraint is not valid, do nothing
   }
@@ -303,7 +303,7 @@ void FSAA::ProcessBB(BB *bb) {
       continue;
     }
     IassignNode *iass = static_cast<IassignNode *>(&*itStmt);
-    RemoveMayDefIfSameAsRHS(iass, bb);
+    RemoveMayDefIfSameAsRHS(iass);
     VersionSt *vst = nullptr;
     if (iass->addrExpr->GetOpCode() == OP_dread) {
       vst = static_cast<AddrofSSANode *>(iass->addrExpr)->GetSSAVar();

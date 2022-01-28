@@ -375,7 +375,7 @@ void BinaryMplExport::WriteNum(int64 x) {
 }
 
 void BinaryMplExport::WriteAsciiStr(const std::string &str) {
-  WriteNum(str.size());
+  WriteNum(static_cast<int64>(str.size()));
   for (size_t i = 0; i < str.size(); ++i) {
     Write(static_cast<uint8>(str[i]));
   }
@@ -676,11 +676,11 @@ void BinaryMplExport::OutputFunction(PUIdx puIdx) {
   WriteNum(func->GetFlag());
   OutputTypeViaTypeName(func->GetClassTyIdx());
   // output formal parameter information
-  WriteNum(func->GetFormalDefVec().size());
+  WriteNum(static_cast<int64>(func->GetFormalDefVec().size()));
   for (FormalDef formalDef : func->GetFormalDefVec()) {
     OutputStr(formalDef.formalStrIdx);
     OutputType(formalDef.formalTyIdx, false);
-    WriteNum(formalDef.formalAttrs.GetAttrFlag());
+    WriteNum(static_cast<int64>(formalDef.formalAttrs.GetAttrFlag()));
   }
   //  store Side Effect for each func
   if (func2SEMap) {
@@ -743,18 +743,18 @@ void BinaryMplExport::WriteHeaderField(uint64 contentIdx) {
   WriteAsciiStr(mod.GetEntryFuncName());
   OutputInfoVector(mod.GetFileInfo(), mod.GetFileInfoIsString());
 
-  WriteNum(mod.GetSrcFileInfo().size());
+  WriteNum(static_cast<int64>(mod.GetSrcFileInfo().size()));
   for (uint32 i = 0; i < mod.GetSrcFileInfo().size(); i++) {
     OutputStr(mod.GetSrcFileInfo()[i].first);
     WriteNum(mod.GetSrcFileInfo()[i].second);
   }
 
-  WriteNum(mod.GetImportFiles().size());
+  WriteNum(static_cast<int64>(mod.GetImportFiles().size()));
   for (GStrIdx strIdx : mod.GetImportFiles()) {
     OutputStr(strIdx);
   }
 
-  WriteNum(mod.GetAsmDecls().size());
+  WriteNum(static_cast<int64>(mod.GetAsmDecls().size()));
   for (MapleString mapleStr : mod.GetAsmDecls()) {
     std::string str(mapleStr.c_str());
     WriteAsciiStr(str);

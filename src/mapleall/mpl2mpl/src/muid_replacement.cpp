@@ -665,7 +665,7 @@ void MUIDReplacement::GenerateFuncDefTable() {
       uint32 funcProfInfFieldID = 1;
 
       builder->AddIntFieldConst(*funcProfInfTabEntryType,
-          *funcProfInfEntryConst, funcProfInfFieldID++, funcProfInf->funcHash);
+          *funcProfInfEntryConst, funcProfInfFieldID++, static_cast<int64>(funcProfInf->funcHash));
       builder->AddIntFieldConst(*funcProfInfTabEntryType,
           *funcProfInfEntryConst, funcProfInfFieldID++, funcProfInf->counterStart);
       builder->AddIntFieldConst(*funcProfInfTabEntryType,

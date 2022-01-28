@@ -295,7 +295,7 @@ MeExpr *IRMapBuild::BuildOpMeExprForJarrayMalloc(const BaseNode &mirNode) const 
 
 MeExpr *IRMapBuild::BuildOpMeExprForResolveFunc(const BaseNode &mirNode) const {
   OpMeExpr *meExpr = BuildOpMeExpr(mirNode);
-  meExpr->SetFieldID(static_cast<const ResolveFuncNode&>(mirNode).GetPuIdx());
+  meExpr->SetFieldID(static_cast<FieldID>(static_cast<const ResolveFuncNode&>(mirNode).GetPuIdx()));
   return meExpr;
 }
 

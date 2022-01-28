@@ -1974,7 +1974,7 @@ std::pair<BaseNode*, int64> ConstantFold::FoldDepositbits(DepositbitsNode *node)
     op1ExtractVal = (static_cast<uint64>(intConst1->GetValue()) << bitsOffset) &
                     ((1ULL << (bitsSize + bitsOffset)) - 1);
     constValue = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
-        op0ExtractVal | op1ExtractVal, constValue->GetType());
+        static_cast<int64>(op0ExtractVal | op1ExtractVal), constValue->GetType());
     resultConst->SetConstVal(constValue);
     result = resultConst;
   } else {

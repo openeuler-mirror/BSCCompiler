@@ -17,22 +17,22 @@
 #include "mpl_options.h"
 
 namespace maple {
-uint32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID) {
+int32 MergeStmts::GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID) {
   TyIdx fieldTypeIdx = structType->GetFieldTyIdx(fieldID);
   MIRType *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
   uint32 fieldBitSize;
   if (fieldType->GetKind() == kTypeBitField) {
     fieldBitSize = static_cast<MIRBitFieldType*>(fieldType)->GetFieldSize();
   } else {
-    fieldBitSize = static_cast<uint32>(fieldType->GetSize()) * 8;
+    fieldBitSize = static_cast<int32>(fieldType->GetSize() * 8);
   }
   return fieldBitSize;
 }
 
-uint32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
+int32 MergeStmts::GetPointedTypeBitSize(TyIdx ptrTypeIdx) {
   MIRPtrType *ptrMirType = static_cast<MIRPtrType *>(GlobalTables::GetTypeTable().GetTypeFromTyIdx(ptrTypeIdx));
   MIRType *PointedMirType = ptrMirType->GetPointedType();
-  return static_cast<uint32>(PointedMirType->GetSize()) * 8;
+  return static_cast<int32>(PointedMirType->GetSize() * 8);
 }
 
 // Candidate stmts LHS must cover contiguous memory and RHS expr must be const
@@ -43,7 +43,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
 
   std::sort(iassignCandidates.begin(), iassignCandidates.end());
 
-  int32 numOfCandidates = static_cast<uint32>(iassignCandidates.size());
+  int32 numOfCandidates = static_cast<int32>(iassignCandidates.size());
   int32 startCandidate = 0;
   int32 endCandidate = numOfCandidates - 1;
   ASSERT(iassignCandidates[startCandidate].second->GetOp() == OP_iassign, "Candidate MeStmt must be Iassign");
@@ -130,7 +130,7 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
       // Iassignoff is NOT part of MeStmt yet
       IassignMeStmt *firstIassignStmt = static_cast<IassignMeStmt*>(iassignCandidates[startCandidate].second);
       PrimType newValType = (targetBitSize == 16) ? PTY_u16 : ((targetBitSize == 32) ? PTY_u32 : PTY_u64);
-      MeExpr *newVal = func.GetIRMap()->CreateIntConstMeExpr(combinedVal, newValType);
+      MeExpr *newVal = func.GetIRMap()->CreateIntConstMeExpr(static_cast<int64>(combinedVal), newValType);
       firstIassignStmt->SetRHS(newVal);
       firstIassignStmt->SetEmitIassignoff(true);
       firstIassignStmt->SetOmitEmit(false);
@@ -224,7 +224,7 @@ void MergeStmts::mergeDassigns(vOffsetStmt& dassignCandidates) {
       // Dassignoff is NOT part of MeStmt yet
       DassignMeStmt *firstDassignStmt = static_cast<DassignMeStmt*>(dassignCandidates[startCandidate].second);
       PrimType newValType = (targetBitSize == 16) ? PTY_u16 : ((targetBitSize == 32) ? PTY_u32 : PTY_u64) ;
-      MeExpr *newVal =  func.GetIRMap()->CreateIntConstMeExpr(combinedVal, newValType);
+      MeExpr *newVal =  func.GetIRMap()->CreateIntConstMeExpr(static_cast<int64>(combinedVal), newValType);
       firstDassignStmt->SetRHS(newVal);
       firstDassignStmt->SetEmitDassignoff(true);
       firstDassignStmt->SetOmitEmit(false);

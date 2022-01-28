@@ -127,7 +127,7 @@ Predictor MePrediction::ReturnPrediction(const MeExpr *val, Prediction &predicti
   return kPredNoPrediction;
 }
 
-bool MePrediction::HasEdgePredictedBy(Edge &edge, Predictor predictor) {
+bool MePrediction::HasEdgePredictedBy(const Edge &edge, Predictor predictor) {
   EdgePrediction *curr = bbPredictions[edge.src.GetBBId()];
   while (curr != nullptr) {
     if (curr->epPredictor == predictor) {
@@ -160,7 +160,7 @@ void MePrediction::PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken
   PredictEdge(edge, predictor, probability);
 }
 
-void MePrediction::PredictForPostDomFrontier(BB &bb, Predictor predictor, Prediction direction) {
+void MePrediction::PredictForPostDomFrontier(const BB &bb, Predictor predictor, Prediction direction) {
   // prediction for frontier condgoto BB
   const auto &frontier = dom->GetPdomFrontierItem(bb.GetBBId());
   for (auto bbId : frontier) {
@@ -643,7 +643,7 @@ void MePrediction::CombinePredForBB(const BB &bb) {
   second->probability = kProbBase - combinedProbability;
 }
 
-void MePrediction::FindSCCHeaders(SCCOfBBs &scc, std::vector<BB*> &headers) {
+void MePrediction::FindSCCHeaders(const SCCOfBBs &scc, std::vector<BB*> &headers) {
   // init inSCCPtr
   if (inSCCPtr == nullptr) {
     inSCCPtr = tmpAlloc.GetMemPool()->New<MapleVector<std::pair<bool, uint32>>>(
@@ -989,7 +989,7 @@ void MePrediction::SavePredictResultIntoCfg() {
         if (lastMeStmt != nullptr) {
           Opcode op = lastMeStmt->GetOp();
           CHECK_FATAL(op == OP_brtrue || op == OP_brfalse, "must be");
-          static_cast<CondGotoMeStmt*>(lastMeStmt)->SetBranchProb(edge->probability);
+          static_cast<CondGotoMeStmt*>(lastMeStmt)->SetBranchProb(static_cast<int32>(edge->probability));
         }
       }
       edge = edge->next;
@@ -1002,7 +1002,7 @@ void MePrediction::SavePredictResultIntoCfg() {
   VerifyFreq(*func);
 }
 
-bool MePrediction::VerifyFreq(MeFunction &func) {
+void MePrediction::VerifyFreq(const MeFunction &func) {
   const auto &bbVec = func.GetCfg()->GetAllBBs();
   for (size_t i = 2; i < bbVec.size(); ++i) {  // skip common entry and common exit
     auto *bb = bbVec[i];
@@ -1010,7 +1010,7 @@ bool MePrediction::VerifyFreq(MeFunction &func) {
       continue;
     }
     // bb freq == sum(out edge freq)
-    uint32 succSumFreq = 0;
+    uint64 succSumFreq = 0;
     for (auto succFreq : bb->GetSuccFreq()) {
       succSumFreq += succFreq;
     }
@@ -1021,7 +1021,6 @@ bool MePrediction::VerifyFreq(MeFunction &func) {
       CHECK_FATAL(false, "VerifyFreq failure: bb freq != succ freq sum");
     }
   }
-  return true;
 }
 
 // Prediction will sort meLoop

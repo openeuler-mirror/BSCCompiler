@@ -1456,7 +1456,7 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
   for (auto &itCand : candMap) {
     auto itGroup = groupMap.find(itCand.first);
     if (itCand.first == kInvalidExprID) {
-      candConst = static_cast<uint64>(itCand.second.second) * ratio;
+      candConst = static_cast<int64>(itCand.second.second * ratio);
       groupConst = itGroup == groupMap.end() ? 0 : itGroup->second.second;
       continue;
     }
@@ -2014,7 +2014,7 @@ void IVOptimizer::UseReplace() {
                 auto *candBase = cand->iv->base;
                 auto *candStep = cand->iv->step;
                 auto *tmp = irMap->CreateMeExprBinary(OP_mul, candStep->GetPrimType(), *candStep,
-                    *irMap->CreateIntConstMeExpr(data->realIterNum, candStep->GetPrimType()));
+                    *irMap->CreateIntConstMeExpr(static_cast<int64>(data->realIterNum), candStep->GetPrimType()));
                 simplified = irMap->SimplifyMeExpr(tmp);
                 tmp = simplified == nullptr ? tmp : simplified;
                 mayOverflow = CheckOverflow(candBase, tmp, OP_add, tmp->GetPrimType()) ||

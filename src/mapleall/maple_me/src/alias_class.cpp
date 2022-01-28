@@ -379,7 +379,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       } else {
         ASSERT(expr.GetOpCode() == OP_add, "Wrong operation!");
       }
-      OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * bitsPerByte;
+      OffsetType newOffset = aliasInfo.offset + constVal * bitsPerByte;
       return AliasInfo(aliasInfo.ae, 0, newOffset);
     }
     case OP_array: {
@@ -462,8 +462,8 @@ void AliasClass::ApplyUnionForFieldsInCopiedAgg() {
 
     MIRType *mirType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(lhsost->GetTyIdx());
     MIRStructType *mirStructType = static_cast<MIRStructType *>(mirType);
-    uint32 numFieldIDs = static_cast<uint32>(mirStructType->NumberOfFieldIDs());
-    for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
+    FieldID numFieldIDs = static_cast<FieldID>(mirStructType->NumberOfFieldIDs());
+    for (FieldID fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = mirStructType->GetFieldType(fieldID);
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
         continue;
@@ -661,8 +661,8 @@ void AliasClass::SetAggPtrFieldsNextLevNADS(const OriginalSt &ost) {
       return;
     }
     // if prevOst not exist, all ptr field should be set NextLevNADS
-    size_t numFieldIDs = structType->NumberOfFieldIDs();
-    for (uint32 fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
+    FieldID numFieldIDs = static_cast<FieldID>(structType->NumberOfFieldIDs());
+    for (FieldID fieldID = 1; fieldID <= numFieldIDs; fieldID++) {
       MIRType *fieldType = structType->GetFieldType(fieldID);
       if (!IsPotentialAddress(fieldType->GetPrimType(), &mirModule)) {
         continue;

@@ -1221,6 +1221,7 @@ void HandleAssertNull(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleAbort(StmtNode &stmt, CGFunc &cgFunc) {
+  (void)stmt;
   cgFunc.SelectAbort();
 }
 

@@ -98,7 +98,7 @@ void MeSSALPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
     CHECK_NULL_FATAL(mustDefList);
     CHECK_FATAL(!mustDefList->empty(), "empty mustdef in callassigned stmt");
     MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
-    for (; it != mustDefList->end(); it++) {
+    for (; it != mustDefList->end(); ++it) {
       MustDefMeNode *mustDefMeNode = &(*it);
       VarMeExpr *theLHS = static_cast<VarMeExpr*>(mustDefMeNode->GetLHS());
       // check that this var is the worklist item being worked on
@@ -263,7 +263,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
     size_t i = 0; /* count for inline asm out put constraints */
     bool isAsm = meStmt.GetOp() == OP_asm;
-    for (; it != mustDefList->end(); it++) {
+    for (; it != mustDefList->end(); ++it) {
       if ((*it).GetLHS()->GetMeOp() != kMeOpVar) {
         continue;
       }
@@ -392,7 +392,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (intConst == nullptr) {
         break;
       }
-      if ((intConst->GetValue() >> 12) == 0) {
+      if ((static_cast<uint64>(intConst->GetValue()) >> 12) == 0) {
         break;  // not promoting if value fits in 12 bits
       }
       if (!meStmt.GetBB()->GetAttributes(kBBAttrIsInLoop)) {
