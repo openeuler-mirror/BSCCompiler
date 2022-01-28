@@ -1057,19 +1057,21 @@ BB *SimplifyCFG::GetFirstReturnBB() {
 bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
   CHECK_CURR_BB();
   ONLY_FOR_MEIR();
-  if (currBB->IsMeStmtEmpty() || currBB->GetSucc().empty()) {
+  if (currBB->IsMeStmtEmpty()) {
     return false;
   }
   MeStmt *exceptionStmt = GetNoReturnStmt(currBB);
   if (exceptionStmt != nullptr) {
     DEBUG_LOG() << "RemoveSuccFromNoReturnBB : Remove all successors from pred BB" << LOG_BBID(currBB)
                 << ", and remove all stmts after noreturn stmt\n";
-    if (currBB->IsPredBB(*cfg->GetCommonExitBB()) ||
+    if ((currBB->IsPredBB(*cfg->GetCommonExitBB()) && currBB->GetLastMe() == exceptionStmt) ||
         (currBB->GetAttributes(kBBAttrWontExit) && currBB->GetSucc(0)->GetKind() == kBBReturn)) {
       // it has been dealt with before or it has been connected to commonExit, do nothing
       return false;
     }
-    currBB->RemoveAllSucc();
+    if (!currBB->GetSucc().empty()) {
+      currBB->RemoveAllSucc();
+    }
     while (currBB->GetLastMe() != exceptionStmt) {
       currBB->GetLastMe()->SetIsLive(false);
       currBB->RemoveLastMeStmt();
@@ -1093,22 +1095,24 @@ bool SimplifyCFG::RemoveSuccFromNoReturnBB() {
     // make currBB connect to common exit for post dominance updating
     currBB->SetAttributes(kBBAttrWontExit);
     BB *retBB = GetFirstReturnBB();
-    (void)EliminateRedundantPhiList(retBB);
-    DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
-    currBB->AddSucc(*retBB);
-    auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
-    currBB->AddMeStmtLast(gotoStmt);
-    currBB->SetKind(kBBGoto);
-    if (!retBB->GetMePhiList().empty()) {
-      for (auto &phi : retBB->GetMePhiList()) {
-        MePhiNode *phiNode = phi.second;
-        if (phiNode->GetOpnds().size() <= 1) {
-          break;
+    if (retBB != currBB) {
+      (void)EliminateRedundantPhiList(retBB);
+      DEBUG_LOG() << "Connect BB" << LOG_BBID(currBB) << " to return BB" << LOG_BBID(retBB) << "\n";
+      currBB->AddSucc(*retBB);
+      auto *gotoStmt = irmap->CreateGotoMeStmt(f.GetOrCreateBBLabel(*retBB), currBB);
+      currBB->AddMeStmtLast(gotoStmt);
+      currBB->SetKind(kBBGoto);
+      if (!retBB->GetMePhiList().empty()) {
+        for (auto &phi : retBB->GetMePhiList()) {
+          MePhiNode *phiNode = phi.second;
+          if (phiNode->GetOpnds().size() <= 1) {
+            break;
+          }
+          phiNode->GetOpnds().push_back(phiNode->GetOpnd(0)); // to maintain opnd num and predNum
         }
-        phiNode->GetOpnds().push_back(phiNode->GetOpnd(0)); // to maintain opnd num and predNum
       }
+      ResetBBRunAgain();
     }
-    ResetBBRunAgain();
     return true;
   }
   return false;
