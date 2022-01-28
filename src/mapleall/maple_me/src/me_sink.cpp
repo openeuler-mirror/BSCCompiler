@@ -39,8 +39,8 @@ class MeSink {
   bool OpndOfExprRedefined(const MeExpr *expr) const;
   bool ScalarOnlyUsedInCurStmt(const ScalarMeExpr *scalar, const MeStmt *stmt,
                                std::set<const ScalarMeExpr*> &visitedScalars) const;
-  void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB);
-  void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB);
+  void RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, const BB *targetBB);
+  void RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetBB);
 
   bool MeExprSinkable(MeExpr *expr) const;
   bool DefStmtSinkable(MeStmt *defStmt) const;
@@ -51,7 +51,7 @@ class MeSink {
   bool MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAssign);
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts);
   DefUseInfoOfPhi DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts,
-      std::set<MePhiNode*> &processedPhi, std::set<MePhiNode*> &phisUseCurrPhiOpnds);
+      std::set<MePhiNode*> &processedPhi, std::set<const MePhiNode*> &phisUseCurrPhiOpnds);
   void ReplacePhiWithNewDataFlow(MePhiNode *phi, ScalarMeExpr *scalar);
   bool PhiCanBeReplacedWithDataFlowOfScalar(ScalarMeExpr *scalar, const BB *defBBOfScalar, MePhiNode *phi,
                                             std::map<ScalarMeExpr*, MeStmt*> &defStmtsOfPhiOpnds);
@@ -66,9 +66,9 @@ class MeSink {
   void ProcessPhiList(BB *bb);
   void SinkStmtsInBB(BB *bb);
 
-  BB *BestSinkBB(BB *fromBB, BB *toBB);
-  std::pair<BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
-  BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
+  const BB *BestSinkBB(const BB *fromBB, const BB *toBB);
+  std::pair<const BB*, bool> CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList);
+  const BB *CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar);
   void CalSinkSites();
   void Run();
 
@@ -272,7 +272,7 @@ bool MeSink::MergeAssignStmtWithCallAssign(AssignMeStmt *assign, MeStmt *callAss
 
 DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts,
                                                 std::set<MePhiNode*> &processedPhi,
-                                                std::set<MePhiNode*> &phisUseCurrPhiOpnds) {
+                                                std::set<const MePhiNode*> &phisUseCurrPhiOpnds) {
   DefUseInfoOfPhi defInfo{true, true, true, true, nullptr};
   auto &opnds = phi->GetOpnds();
   for (auto *opnd : opnds) {
@@ -336,7 +336,7 @@ DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarM
 
 DefUseInfoOfPhi MeSink::DefAndUseInfoOfPhiOpnds(MePhiNode *phi, std::map<ScalarMeExpr*, MeStmt*> &defStmts) {
   std::set<MePhiNode*> processedPhi{phi};
-  std::set<MePhiNode*> phisUseCurrPhiOpnds{phi};
+  std::set<const MePhiNode*> phisUseCurrPhiOpnds{phi};
   auto defUseInfo = DefAndUseInfoOfPhiOpnds(phi, defStmts, processedPhi, phisUseCurrPhiOpnds);
   defUseInfo.opndsOnlyFlowIntoTargetPhi = (phisUseCurrPhiOpnds.size() <= processedPhi.size());
   return defUseInfo;
@@ -1024,7 +1024,7 @@ static bool BBIsEmptyOrContainsSingleGoto(const BB *bb) {
 
 // we should not sink stmt from non-loop BB into loop BB or from outter loop into inner loop.
 // if toBB is in a different loop with fromBB, return a dominator of toBB which is in the same loop with fromBB.
-BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
+const BB *MeSink::BestSinkBB(const BB *fromBB, const BB *toBB) {
   CHECK_FATAL(domTree->Dominate(*fromBB, *toBB), "fromBB must dom toBB");
   if (fromBB == toBB) {
     return toBB;
@@ -1044,26 +1044,26 @@ BB *MeSink::BestSinkBB(BB *fromBB, BB *toBB) {
   return toBB;
 }
 
-void MeSink::RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, BB *targetBB) {
+void MeSink::RecordStmtSinkToHeaderOfTargetBB(MeStmt *defStmt, const BB *targetBB) {
   if (defStmtsSinkToHeader[targetBB->GetBBId()] == nullptr) {
     defStmtsSinkToHeader[targetBB->GetBBId()] = std::make_unique<std::list<MeStmt *>>();
   }
   defStmtsSinkToHeader[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, BB *targetBB) {
+void MeSink::RecordStmtSinkToBottomOfTargetBB(MeStmt *defStmt, const BB *targetBB) {
   if (defStmtsSinkToBottom[targetBB->GetBBId()] == nullptr) {
     defStmtsSinkToBottom[targetBB->GetBBId()] = std::make_unique<std::list<MeStmt *>>();
   }
   defStmtsSinkToBottom[targetBB->GetBBId()]->push_front(defStmt);
 }
 
-std::pair<BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) {
+std::pair<const BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar, const UseSitesType &useList) {
   if (useList.empty()) {
     return {nullptr, false};
   }
 
-  BB *candSinkBB = nullptr;
+  const BB *candSinkBB = nullptr;
   for (auto it = useList.rbegin(); it != useList.rend(); ++it) {
     const auto &useItem = *it;
     if (useItem.IsUseByStmt()) {
@@ -1102,7 +1102,7 @@ std::pair<BB*, bool> MeSink::CalCandSinkBBForUseSites(const ScalarMeExpr *scalar
   return {candSinkBB, useSitesDomByCandSinkBB};
 }
 
-BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
+const BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
   if (scalar->IsVolatile() || scalar->GetPrimType() == PTY_ref) {
     return nullptr;
   }
@@ -1136,7 +1136,7 @@ BB *MeSink::CalSinkSiteOfScalarDefStmt(const ScalarMeExpr *scalar) {
   }
 
   const auto &candSinkSite = CalCandSinkBBForUseSites(scalar, *useList);
-  BB *candSinkBB = candSinkSite.first;
+  const BB *candSinkBB = candSinkSite.first;
   if (candSinkBB == nullptr) {
     // scalar defined without use, the defStmt should be removed
     return nullptr;

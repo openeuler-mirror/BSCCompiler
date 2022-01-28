@@ -18,6 +18,7 @@
 #include "ver_symbol.h"
 #include "ssa_tab.h"
 #include "me_ir.h"
+#include "meexpr_use_info.h"
 
 namespace maple {
 class IRMapBuild; // circular dependency exists, no other choice
@@ -34,7 +35,8 @@ class IRMap : public AnalysisResult {
         hashTable(mapHashLength, nullptr, irMapAlloc.Adapter()),
         verst2MeExprTable(ssaTab.GetVersionStTableSize(), nullptr, irMapAlloc.Adapter()),
         lpreTmps(irMapAlloc.Adapter()),
-        vst2Decrefs(irMapAlloc.Adapter()) {}
+        vst2Decrefs(irMapAlloc.Adapter()),
+        exprUseInfo(&memPool) {}
 
   virtual ~IRMap() = default;
   virtual BB *GetBB(BBId id) = 0;
@@ -124,6 +126,7 @@ class IRMap : public AnalysisResult {
   MeExpr *CreateMeExprExt(Opcode, PrimType, uint32, MeExpr&);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd);
   UnaryMeStmt *CreateUnaryMeStmt(Opcode op, MeExpr *opnd, BB *bb, const SrcPosition *src);
+  GotoMeStmt *CreateGotoMeStmt(uint32 offset, BB *bb, const SrcPosition *src = nullptr);
   IntrinsiccallMeStmt *CreateIntrinsicCallMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
                                                  TyIdx tyIdx = TyIdx());
   IntrinsiccallMeStmt *CreateIntrinsicCallAssignedMeStmt(MIRIntrinsicID idx, std::vector<MeExpr*> &opnds,
@@ -137,14 +140,17 @@ class IRMap : public AnalysisResult {
   MeExpr *FoldConstExpr(PrimType primType, Opcode op, ConstMeExpr *opndA, ConstMeExpr *opndB);
   MeExpr *SimplifyAddExpr(OpMeExpr *addExpr);
   MeExpr *SimplifyMulExpr(OpMeExpr *mulExpr);
+  MeExpr *SimplifyCmpExpr(OpMeExpr *cmpExpr);
   MeExpr *SimplifyOpMeExpr(OpMeExpr *opmeexpr);
   MeExpr *SimplifyMeExpr(MeExpr *x);
   void SimplifyCastForAssign(MeStmt *assignStmt);
+  void SimplifyAssign(AssignMeStmt *assignStmt);
   MeExpr *SimplifyCast(MeExpr *expr);
   MeExpr* SimplifyIvarWithConstOffset(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvarWithAddrofBase(IvarMeExpr *ivar);
   MeExpr *SimplifyIvarWithIaddrofBase(IvarMeExpr *ivar, bool lhsIvar);
   MeExpr *SimplifyIvar(IvarMeExpr *ivar, bool lhsIvar);
+  void UpdateIncDecAttr(MeStmt &meStmt);
 
   template <class T, typename... Arguments>
   T *NewInPool(Arguments&&... args) {
@@ -235,6 +241,13 @@ class IRMap : public AnalysisResult {
   void SetDumpStmtNum(bool num) {
     dumpStmtNum = num;
   }
+  const MeExprUseInfo &GetExprUseInfo() const {
+    return exprUseInfo;
+  }
+
+  MeExprUseInfo &GetExprUseInfo() {
+    return exprUseInfo;
+  }
 
  private:
   SSATab &ssaTab;
@@ -246,13 +259,14 @@ class IRMap : public AnalysisResult {
   MapleVector<MeExpr*> verst2MeExprTable;          // map versionst to MeExpr.
   MapleUnorderedMap<OStIdx, RegMeExpr*> lpreTmps;  // for passing LPRE's temp usage to SPRE
   MapleUnorderedMap<VarMeExpr*, MapleSet<MeStmt*>*> vst2Decrefs;  // map versionst to decrefreset.
+  MeExprUseInfo exprUseInfo;
   bool needAnotherPass = false;                    // set to true if CFG has changed
   bool dumpStmtNum = false;
   BB *curBB = nullptr;  // current maple_me::BB being visited
 
   bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
   void PutToBucket(uint32, MeExpr&);
-  BB *GetFalseBrBB(const CondGotoMeStmt&);
+  const BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
   MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
   bool IfMeExprIsU1Type(const MeExpr *expr) const;

@@ -334,7 +334,7 @@ void SSAPre::CodeMotion() {
         MeExpr *regorvar = SRRepairInjuries(compOcc, &needRepairInjuringDefs, &repairedInjuringDefs);
         OpMeExpr *newCompare = FormLFTRCompare(compOcc, regorvar);
         // replace compOcc->mestmt's occ with newCompare
-        irMap->ReplaceMeExprStmt(*compOcc->GetMeStmt(), *compOcc->GetMeExpr(), *newCompare);
+        (void)irMap->ReplaceMeExprStmt(*compOcc->GetMeStmt(), *compOcc->GetMeExpr(), *newCompare);
         CreateCompOcc(compOcc->GetMeStmt(), compOcc->GetSequence(), newCompare, true);
         break;
       }
@@ -1341,7 +1341,7 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
       if (meStmt == nullptr) {
         return true;  // it's a original variable dominate everything
       }
-      BB *defBB = meStmt->GetBB();
+      const BB *defBB = meStmt->GetBB();
       if (occBB == defBB) {
         return false;
       }

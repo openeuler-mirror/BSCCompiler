@@ -44,7 +44,7 @@ Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd)
   return *insn;
 }
 
-RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, Insn &curInsn) {
+RegOperand &AArch64PhiEliminate::GetCGVirtualOpearnd(RegOperand &ssaOpnd, const Insn &curInsn) {
   VRegVersion *ssaVersion = GetSSAInfo()->FindSSAVersion(ssaOpnd.GetRegisterNumber());
   ASSERT(ssaVersion != nullptr, "find ssaVersion failed");
   ASSERT(!ssaVersion->IsDeleted(), "ssaVersion has been deleted");
@@ -170,14 +170,19 @@ void A64OperandPhiElmVisitor::Visit(RegOperand *v) {
 
 void A64OperandPhiElmVisitor::Visit(ListOperand *v) {
   std::list<RegOperand*> tempRegStore;
-  for (auto *regOpnd : v->GetOperands()) {
+  auto& opndList = v->GetOperands();
+
+  while (!opndList.empty()) {
+    auto *regOpnd = opndList.front();
+    opndList.pop_front();
+
     if (regOpnd->IsSSAForm()) {
       tempRegStore.push_back(&a64PhiEliminator->GetCGVirtualOpearnd(*regOpnd, *insn));
     } else {
       tempRegStore.push_back(regOpnd);
     }
-    v->RemoveOpnd(*regOpnd);
   }
+
   ASSERT(v->GetOperands().empty(), "need to clean list");
   v->GetOperands().assign(tempRegStore.begin(), tempRegStore.end());
 }

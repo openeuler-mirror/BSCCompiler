@@ -142,13 +142,13 @@ OStIdx GCWriteBarrierOpt::GetOStIdx(MeExpr &meExpr) {
   return OStIdx(0);
 }
 
-bool GCWriteBarrierOpt::IsCall(const MeStmt &stmt) {
+bool GCWriteBarrierOpt::IsCall(const MeStmt &stmt) const {
   return kOpcodeInfo.IsCall(stmt.GetOp()) && !IsWriteBarrier(stmt);
 }
 
 bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
-  BB *startBB = start.GetBB();
-  BB *endBB = end.GetBB();
+  const BB *startBB = start.GetBB();
+  const BB *endBB = end.GetBB();
   if (startBB == endBB) {
     return HasCallBetweenStmt(start, end);
   }

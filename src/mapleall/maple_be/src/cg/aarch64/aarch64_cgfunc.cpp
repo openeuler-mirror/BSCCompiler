@@ -5476,12 +5476,19 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
       std::list<RegOperand*> tempRegStore;
-      for (auto regOpnd : static_cast<AArch64ListOperand&>(opnd).GetOperands()) {
+      auto& opndList = static_cast<AArch64ListOperand&>(opnd).GetOperands();
+
+      for (auto it = opndList.begin(), end = opndList.end(); it != end;) {
+        auto *regOpnd = *it;
+
         if (regOpnd->Equals(regDest)) {
           tempRegStore.push_back(&regSrc);
-          static_cast<AArch64ListOperand&>(opnd).RemoveOpnd(*regOpnd);
+          it = opndList.erase(it);
+        } else {
+          ++it;
         }
       }
+
       for (auto newOpnd : tempRegStore) {
         static_cast<AArch64ListOperand&>(opnd).PushOpnd(*newOpnd);
       }

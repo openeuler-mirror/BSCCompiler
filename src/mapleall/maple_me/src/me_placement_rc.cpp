@@ -229,7 +229,7 @@ static bool CannotInsertAfterStmt(const MeStmt &occStmt, OStIdx ostIdx, bool rea
   if (occStmt.GetOp() == OP_return || occStmt.GetOp() == OP_throw) {
     return true;
   }
-  BB *lastUseBB = occStmt.GetBB();
+  const BB *lastUseBB = occStmt.GetBB();
   if (&occStmt == to_ptr(lastUseBB->GetMeStmts().rbegin()) && lastUseBB->GetKind() != kBBFallthru) {
     return true;
   }
@@ -449,7 +449,7 @@ void PlacementRC::SetFormalParamsAttr(MIRFunction &mirFunc) const {
   }
 }
 
-void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryIncref) const {
+void PlacementRC::DeleteEntryIncref(SRealOcc &realOcc, UnaryMeStmt *entryIncref) const {
   CHECK_NULL_FATAL(entryIncref);
   CHECK_FATAL(workCand->GetOst()->IsFormal(), "PlacementRC::CodeMotion: realOcc->meStmt cannot be null");
 
@@ -559,7 +559,7 @@ void PlacementRC::CodeMotionForSLambdares(SLambdaResOcc &lambdaResOcc) {
   CheckAndInsert(lambdaResOcc.GetBB(), lambdaRealOcc);
 }
 
-void PlacementRC::CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref) {
+void PlacementRC::CodeMotionForReal(SOcc &occ, UnaryMeStmt *entryIncref) {
   SRealOcc &realOcc = static_cast<SRealOcc&>(occ);
   if (realOcc.GetRedundant()) {
     return;

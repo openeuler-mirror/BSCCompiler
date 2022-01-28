@@ -404,6 +404,9 @@ MeExpr *IRMap::SimplifyIvarWithAddrofBase(IvarMeExpr *ivar) {
 
   auto fieldTypeIdx = ptrTypeOfIvar->GetPointedTyIdxWithFieldID(ivar->GetFieldID());
   auto *fieldType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(fieldTypeIdx);
+  if (offset.IsInvalid()) {
+    return nullptr;
+  }
   auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(
       ost->GetPrevLevelOst()->GetNextLevelOsts(), fieldType, 0, offset);
   if (fieldOst == nullptr) {
@@ -768,10 +771,10 @@ AssignMeStmt *IRMap::CreateAssignMeStmt(ScalarMeExpr &lhs, MeExpr &rhs, BB &curr
 
 // get the false goto bb, if condgoto is brtrue, take the other bb of brture @lable
 // otherwise, take the bb of @lable
-BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
+const BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
   LabelIdx lblIdx = (LabelIdx)condgoto.GetOffset();
   BB *gotoBB = GetBBForLabIdx(lblIdx);
-  BB *bb = condgoto.GetBB();
+  const BB *bb = condgoto.GetBB();
   ASSERT(bb->GetSucc().size() == kBBVectorInitialSize, "array size error");
   if (condgoto.GetOp() == OP_brfalse) {
     return gotoBB;
@@ -1126,6 +1129,16 @@ MeExpr *IRMap::SimplifyAddExpr(OpMeExpr *addExpr) {
     if (!IsPrimitiveInteger(opnd0->GetPrimType())) {
       return nullptr;
     }
+  } else if (opnd0->GetOp() == OP_iaddrof) {
+    auto *iaddrof = static_cast<OpMeExpr*>(opnd0);
+    auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(iaddrof->GetTyIdx());
+    auto *pointedType = static_cast<MIRPtrType*>(type)->GetPointedType();
+    CHECK_FATAL(pointedType != nullptr, "expect a pointed type of iaddrof");
+    auto offset = pointedType->GetBitOffsetFromBaseAddr(iaddrof->GetFieldID()) / 8;
+    auto *newExpr = CreateMeExprBinary(OP_add, iaddrof->GetPrimType(), *iaddrof->GetOpnd(0),
+                                       *CreateIntConstMeExpr(offset, iaddrof->GetOpnd(0)->GetPrimType()));
+    auto *simplified = SimplifyMeExpr(newExpr);
+    opnd0 = simplified == nullptr ? newExpr : simplified;
   }
 
   OpMeExpr *retOpMeExpr = nullptr;
@@ -1833,21 +1846,6 @@ MeExpr *IRMap::SimplifyOpMeExpr(OpMeExpr *opmeexpr) {
         return CreateIntConstMeExpr(-static_cast<ConstMeExpr*>(opnd)->GetIntValue(), opmeexpr->GetPrimType());
       }
       return nullptr;
-    }
-    case OP_iaddrof: {
-      if (mirModule.IsJavaModule()) {
-        // keep type info in java
-        return nullptr;
-      }
-      auto *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(opmeexpr->GetTyIdx());
-      auto *pointedType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(
-          static_cast<MIRPtrType*>(type)->GetPointedTyIdx());
-      CHECK_FATAL(pointedType != nullptr, "expect a pointed type of iaddrof");
-      auto offset = pointedType->GetBitOffsetFromBaseAddr(opmeexpr->GetFieldID()) / 8;
-      auto *newExpr = CreateMeExprBinary(OP_add, opmeexpr->GetPrimType(), *opmeexpr->GetOpnd(0),
-                                         *CreateIntConstMeExpr(offset, opmeexpr->GetOpnd(0)->GetPrimType()));
-      auto *simplified = SimplifyMeExpr(newExpr);
-      return simplified == nullptr ? newExpr : simplified;
     }
     default:
       return nullptr;

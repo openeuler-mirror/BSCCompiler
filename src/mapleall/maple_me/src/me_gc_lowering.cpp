@@ -104,7 +104,7 @@ MIRIntrinsicID GCLowering::SelectWriteBarrier(MeStmt &stmt) {
   return meOp == kMeOpVar ? INTRN_MCCWriteS : INTRN_MCCWrite;
 }
 
-static inline void CheckRemove(const MeStmt *stmt, Opcode op) {
+static void CheckRemove(MeStmt *stmt, Opcode op) {
   if (stmt != nullptr && stmt->GetOp() == op) {
     stmt->GetBB()->RemoveMeStmt(stmt);
   }
@@ -163,7 +163,7 @@ MeExpr *GCLowering::GetBase(IvarMeExpr &ivar) {
   return base;
 }
 
-void GCLowering::HandleWriteReferent(const IassignMeStmt &stmt) {
+void GCLowering::HandleWriteReferent(IassignMeStmt &stmt) {
   if (!isReferent) {
     return;
   }
