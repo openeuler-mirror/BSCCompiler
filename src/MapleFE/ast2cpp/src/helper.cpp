@@ -25,7 +25,7 @@ std::unordered_map<TypeId, std::string>TypeIdToJSTypeCXX = {
   {TY_String,  "t2crt::TY_CXX_String"},
   {TY_Number,  "t2crt::TY_CXX_Double"},
   {TY_Double,  "t2crt::TY_CXX_Double"},
-  {TY_Array,   "t2crt::TY_CXX_Array"},
+  {TY_Array,   "t2crt::TY_CXX_Object"},
   {TY_Class,   "t2crt::TY_CXX_Object"},
   {TY_Any,     "t2crt::TY_CXX_Any"},
 };
