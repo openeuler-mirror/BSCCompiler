@@ -94,17 +94,17 @@ MIRFunction &NativeStubFuncGeneration::GetOrCreateDefaultNativeFunc(MIRFunction 
 
 //   Create function body of the stub func.
 //   syncenter (dread ref %_this or classinfo) // if native func is synchronized
-//   if (not critical_native)
+//   Example: if (not critical_native)
 //     callassigned MCC_PreNativeCall() {Env}
 //     call native_func(Env, [classinfo], oringinal_args){retv}
 //   else
 //     call native_func(oringinal_args){}
 //   if (type of retv is ref)
 //     callassigned &MCC_DecodeReference(dread ref %retv) {dassign ref %retv}
-//   if (not critical_native)
+//   Example: if (not critical_native)
 //     callassigned &__MRT_PostNativeCall (dread ptr %env_ptr) {}
 //   syncexit (dread ref %_this or classinfo) // if native func is synchronized
-//   if (not critical_native)
+//   Example: if (not critical_native)
 //     callassigned &MCC_CheckThrowPendingException () {}
 void NativeStubFuncGeneration::ProcessFunc(MIRFunction *func) {
   // FUNCATTR_bridge for function to exclude
@@ -352,7 +352,8 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
   size_t loc = regFuncTabConst->GetConstVec().size();
   auto &arrayType = static_cast<MIRArrayType&>(regFuncTabConst->GetType());
   AddrofNode *regFuncExpr = builder->CreateExprAddrof(0, *regFuncSymbol);
-  ArrayNode *arrayExpr = builder->CreateExprArray(arrayType, regFuncExpr, builder->CreateIntConst(loc - 1, PTY_i32));
+  ArrayNode *arrayExpr = builder->CreateExprArray(arrayType, regFuncExpr,
+                                                  builder->CreateIntConst(static_cast<int64>(loc) - 1, PTY_i32));
   arrayExpr->SetBoundsCheck(false);
   auto *elemType = static_cast<MIRArrayType&>(arrayType).GetElemType();
   BaseNode *ireadExpr =
@@ -526,10 +527,10 @@ void NativeStubFuncGeneration::GenerateRegisteredNativeFuncCall(MIRFunction &fun
 // Use wrapper to call the native function, the logic is:
 //     if func is fast_native or critical_native {
 //      icall[assigned](args, ...)[{ret}]
-//    } else {
+//    Example: } else {
 //      if num_of_args < 8 {
 //        call MCC_CallSlowNative(nativeFunc, ...)
-//      } else {
+//      Example: } else {
 //        call MCC_CallSlowNativeExt(nativeFunc, num_of_args, ...)
 //      }
 //    }

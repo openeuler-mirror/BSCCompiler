@@ -29,10 +29,10 @@ class MergeStmts {
   void MergeMeStmts();
 
  private:
-  uint32 GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID);
+  int32 GetStructFieldBitSize(MIRStructType* structType, FieldID fieldID);
   void mergeIassigns(vOffsetStmt& iassignCandidates);
   void mergeDassigns(vOffsetStmt& dassignCandidates);
-  uint32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
+  int32 GetPointedTypeBitSize(TyIdx ptrTypeIdx);
   IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar1, IvarMeExpr iVar2,
                                 const MapleMap<OStIdx, ChiMeNode *> &stmtChi, TyIdx ptrTypeIdx);
   IassignMeStmt *genSimdIassign(int32 offset, IvarMeExpr iVar, MeExpr& regVal,

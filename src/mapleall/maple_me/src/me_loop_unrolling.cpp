@@ -1111,7 +1111,7 @@ bool LoopUnrolling::LoopUnrollingWithConst(uint64 tripCount, bool onlyFully) {
                                                        std::to_string(loop->head->GetBBId()));
   }
   // fully unroll
-  ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(tripCount);
+  ReturnKindOfFullyUnroll returnKind = LoopFullyUnroll(static_cast<int64>(tripCount));
   if (returnKind == LoopUnrolling::kCanNotSplitCondGoto) {
     return false;
   }

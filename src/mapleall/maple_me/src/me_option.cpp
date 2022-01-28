@@ -273,8 +273,8 @@ const Descriptor kUsage[] = {
     {} },
   { kMeOptL1,
     0,
-    "",
     "O1",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O1                         \tDo some optimization.\n",
@@ -282,8 +282,8 @@ const Descriptor kUsage[] = {
     {} },
   { kMeOptL2,
     0,
-    "",
     "O2",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                         \tDo some optimization.\n",
@@ -291,8 +291,8 @@ const Descriptor kUsage[] = {
     {} },
   { kMeOptL3,
     0,
-    "",
     "O3",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O3                         \tDo aggressive optimizations.\n",
@@ -1332,13 +1332,13 @@ void MeOption::DecideMeRealLevel(const std::deque<mapleOption::Option> &inputOpt
   for (const mapleOption::Option &opt : inputOptions) {
     switch (opt.Index()) {
       case kMeOptL1:
-        realLevel = kLevelOne;
+        realLevel = static_cast<int>(kLevelOne);
         break;
       case kMeOptL2:
-        realLevel = kLevelTwo;
+        realLevel = static_cast<int>(kLevelTwo);
         break;
       case kMeOptL3:
-        realLevel = kLevelThree;
+        realLevel = static_cast<int>(kLevelThree);
         break;
       default:
         break;
@@ -1507,40 +1507,40 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         warnNativeFunc = (opt.Type() == kEnable);
         break;
       case kEpreLimit:
-        epreLimit = std::stoul(opt.Args(), nullptr);
+        epreLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kEprepuLimit:
-        eprePULimit = std::stoul(opt.Args(), nullptr);
+        eprePULimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kStmtPrepuLimit:
-        stmtprePULimit = std::stoul(opt.Args(), nullptr);
+        stmtprePULimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kLpreLimit:
-        lpreLimit = std::stoul(opt.Args(), nullptr);
+        lpreLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kLprepulLimit:
-        lprePULimit = std::stoul(opt.Args(), nullptr);
+        lprePULimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kPregreNameLimit:
-        pregRenameLimit = std::stoul(opt.Args(), nullptr);
+        pregRenameLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kRename2pregLimit:
-        rename2pregLimit = std::stoul(opt.Args(), nullptr);
+        rename2pregLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kPropLimit:
-        propLimit = std::stoul(opt.Args(), nullptr);
+        propLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kCopyPropLimit:
-        copyPropLimit = std::stoul(opt.Args(), nullptr);
+        copyPropLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kDelrcpuLimit:
-        delRcPULimit = std::stoul(opt.Args(), nullptr);
+        delRcPULimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kProfileBBHotRate:
-        profileBBHotRate = std::stoul(opt.Args(), nullptr);
+        profileBBHotRate = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kProfileBBColdRate:
-        profileBBColdRate = std::stoul(opt.Args(), nullptr);
+        profileBBColdRate = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kIgnoreIpa:
         ignoreIPA = (opt.Type() == kEnable);
@@ -1694,7 +1694,7 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         decoupleStatic = (opt.Type() == kEnable);
         break;
       case kMeThreads:
-        threads = std::stoul(opt.Args(), nullptr);
+        threads = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kMeIgnoreInferredRetType:
         ignoreInferredRetType = (opt.Type() == kEnable);
@@ -1703,19 +1703,19 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         meVerify = (opt.Type() == kEnable);
         break;
       case kDseRunsLimit:
-        dseRunsLimit = std::stoul(opt.Args(), nullptr);
+        dseRunsLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kHdseRunsLimit:
-        hdseRunsLimit = std::stoul(opt.Args(), nullptr);
+        hdseRunsLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kHpropRunsLimit:
-        hpropRunsLimit = std::stoul(opt.Args(), nullptr);
+        hpropRunsLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kSinkLimit:
-        sinkLimit = std::stoul(opt.Args(), nullptr);
+        sinkLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kSinkPULimit:
-        sinkPULimit = std::stoul(opt.Args(), nullptr);
+        sinkPULimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kLoopVec:
         loopVec = (opt.Type() == kEnable);
@@ -1724,16 +1724,16 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         seqVec = (opt.Type() == kEnable);
         break;
       case kRematLevel:
-        rematLevel = std::stoul(opt.Args(), nullptr);
+        rematLevel = static_cast<uint8>(std::stoul(opt.Args(), nullptr));
         break;
       case kLayoutWithPredict:
         layoutWithPredict = (opt.Type() == kEnable);
         break;
       case kvecLoops:
-        vecLoopLimit = std::stoul(opt.Args(), nullptr);
+        vecLoopLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
       case kIvoptsLimit:
-        ivoptsLimit = std::stoul(opt.Args(), nullptr);
+        ivoptsLimit = static_cast<uint32>(std::stoul(opt.Args(), nullptr));
         break;
 #if MIR_JAVA
       case kMeAcquireFunc:
@@ -1743,7 +1743,7 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         releaseFuncName = opt.Args();
         break;
       case kMeWarnLevel:
-        warningLevel = std::stoul(opt.Args());
+        warningLevel = static_cast<uint32>(std::stoul(opt.Args()));
         break;
       case kMeToolOnly:
         mplToolOnly = (opt.Type() == kEnable);

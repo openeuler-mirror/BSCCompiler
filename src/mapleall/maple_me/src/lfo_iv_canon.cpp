@@ -153,7 +153,7 @@ void IVCanon::FindPrimaryIV() {
       }
       if (injected) {
         if (idxPrimaryIV == -1) {
-          idxPrimaryIV = i;
+          idxPrimaryIV = static_cast<int32>(i);
         }
       } else {
         // verify its increment is the last statement in loop body
@@ -174,7 +174,7 @@ void IVCanon::FindPrimaryIV() {
           lastdass = static_cast<DassignMeStmt *>(laststmt);
         }
         if (lastdass->GetLHS()->GetOst() == ivdesc->ost) {
-          idxPrimaryIV = i;
+          idxPrimaryIV = static_cast<int32>(i);
           return;
         }
       }

@@ -213,7 +213,7 @@ static StmtNode *SplitAggCopy(AssignType *assignNode, MIRStructType *structureTy
     return nullptr;
   }
 
-  for (uint id = 1; id <= structureType->NumberOfFieldIDs(); ++id) {
+  for (FieldID id = 1; id <= static_cast<FieldID>(structureType->NumberOfFieldIDs()); ++id) {
     MIRType *fieldType = structureType->GetFieldType(id);
     if (fieldType->GetSize() == 0) {
       continue; // field size is zero for empty struct/union;
@@ -486,7 +486,7 @@ static BaseNode *ConstructConstvalNode(int64 val, PrimType primType, MIRBuilder 
 
 static BaseNode *ConstructConstvalNode(int64 byte, int64 num, PrimType primType, MIRBuilder &mirBuilder) {
   auto val = JoinBytes(static_cast<int32>(byte), static_cast<uint32>(num));
-  return ConstructConstvalNode(val, primType, mirBuilder);
+  return ConstructConstvalNode(static_cast<int64>(val), primType, mirBuilder);
 }
 
 // Input total size of memory, split the memory into several blocks, the max block size is 8 bytes
@@ -777,7 +777,7 @@ void MemEntry::ExpandMemsetLowLevel(int64 byte, int64 size, MIRFunction &func, S
     if (debug) {
       iassignoff->Dump(0);
     }
-    offset += curSize;
+    offset += static_cast<int32>(curSize);
   }
   // handle memset return val
   auto *retAssign = GenMemopRetAssign(stmt, func, true, memOpKind, errorNumber);
@@ -877,7 +877,8 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
         continue;
       }
       // now the fieldType is primitive type
-      BaseNode *rhsExpr = ConstructConstvalNode(byte, fieldType->GetSize(), fieldType->GetPrimType(), *mirBuilder);
+      BaseNode *rhsExpr = ConstructConstvalNode(byte, static_cast<int64>(fieldType->GetSize()),
+                                                fieldType->GetPrimType(), *mirBuilder);
       StmtNode *fieldAssign = nullptr;
       if (addrExpr->GetOpCode() == OP_addrof) {
         auto *addrof = static_cast<AddrofNode*>(addrExpr);
@@ -902,7 +903,7 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
       MayPrintLog(debug, false, memOpKind, "element size < 4, don't expand it to  avoid to genearte lots of strb/strh");
       return false;
     }
-    size_t elemCnt = arrayType->GetSizeArrayItem(0);
+    int64 elemCnt = arrayType->GetSizeArrayItem(0);
     if (elemType->GetSize() * elemCnt != size) {
       MayPrintLog(debug, false, memOpKind, "array size not equal");
       return false;
@@ -910,7 +911,8 @@ bool MemEntry::ExpandMemset(int64 byte, int64 size, MIRFunction &func,
     for (size_t i = 0; i < elemCnt; ++i) {
       BaseNode *indexExpr = ConstructConstvalNode(i, PTY_u32, *mirBuilder);
       auto *arrayExpr = mirBuilder->CreateExprArray(*arrayType, addrExpr, indexExpr);
-      auto *newValOpnd = ConstructConstvalNode(byte, elemType->GetSize(), elemType->GetPrimType(), *mirBuilder);
+      auto *newValOpnd = ConstructConstvalNode(byte, static_cast<int64>(elemType->GetSize()),
+                                               elemType->GetPrimType(), *mirBuilder);
       MIRType *elemPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*elemType);
       auto *arrayElementAssign = mirBuilder->CreateStmtIassign(*elemPtrType, 0, arrayExpr, newValOpnd);
       InsertAndMayPrintStmt(block, stmt, debug, arrayElementAssign);
@@ -939,7 +941,7 @@ static std::pair<StmtNode*, StmtNode*> GenerateMemoryCopyPair(MIRBuilder *mirBui
   }
   BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
   auto *regassign = mirBuilder->CreateStmtRegassign(PTY_u64, tmpRegIdx, rhsExpr);
-  auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, lhs,
+  auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, static_cast<int32>(offset), lhs,
       mirBuilder->CreateExprRegread(PTY_u64, tmpRegIdx));
   return { regassign, iassignoff };
 }
@@ -999,7 +1001,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRF
       BaseNode *rhsExpr = mirBuilder->CreateExprIread(*constMIRType, *constMIRPtrType, 0, rhsAddrExpr);
       auto *iassignoff = mirBuilder->CreateStmtIassignoff(constType, offset, realDstExpr, rhsExpr);
       InsertAndMayPrintStmt(block, stmt, debug, iassignoff);
-      offset += curSize;
+      offset += static_cast<int32>(curSize);
       continue;
     }
 
@@ -1012,7 +1014,7 @@ void MemEntry::ExpandMemcpyLowLevel(const MemEntry &srcMem, int64 copySize, MIRF
     auto pair2 = GenerateMemoryCopyPair(mirBuilder, realSrcExpr, realDstExpr, offset + curSize, curSize, tmpRegIdx2);
     // insert order: regassign1, regassign2, iassignoff1, iassignoff2
     InsertAndMayPrintStmtList(block, stmt, debug, { pair1.first, pair2.first, pair1.second, pair2.second});
-    offset += (2 * curSize);
+    offset += static_cast<int32>((2 * curSize));
     ++i;
   }
   // handle memcpy return val
@@ -1114,7 +1116,7 @@ bool MemEntry::ExpandMemcpy(const MemEntry &srcMem, int64 copySize, MIRFunction 
     MIRType *u32Type = GlobalTables::GetTypeTable().GetUInt32();
     for (size_t i = 0; i < elemCnt; ++i) {
       ConstvalNode *indexExpr = mirBuilder->CreateConstval(
-          GlobalTables::GetIntConstTable().GetOrCreateIntConst(i, *u32Type));
+          GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(i), *u32Type));
       auto *arrayExpr = mirBuilder->CreateExprArray(*arrayType, addrExpr, indexExpr);
       auto *rhsArrayExpr = mirBuilder->CreateExprArray(*arrayType, srcMem.addrExpr, indexExpr);
       auto *rhsIreadExpr = mirBuilder->CreateExprIread(*elemType, *elemPtrType, 0, rhsArrayExpr);

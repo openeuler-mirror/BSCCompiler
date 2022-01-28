@@ -29,7 +29,7 @@ BaseNode *LfoUnrollOneLoop::CloneIVNode() {
   }
 }
 
-bool LfoUnrollOneLoop::IsIVNode(BaseNode *x) {
+bool LfoUnrollOneLoop::IsIVNode(BaseNode *x) const {
   if (doloop->IsPreg()) {
     if (x->GetOpCode() != OP_regread) {
       return false;
@@ -98,7 +98,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
       // generate remDoloop's termination
       BaseNode *terminationRHS = codeMP->New<BinaryNode>(OP_add, ivPrimType,
           doloop->GetStartExpr()->CloneTree(*preEmit->GetCodeMPAlloc()),
-          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+          mirBuilder->CreateIntConst(static_cast<int64>(remainderTripCount), ivPrimType));
       remDoloop->SetContExpr(codeMP->New<CompareNode>(OP_lt, PTY_i32, ivPrimType, CloneIVNode(), terminationRHS));
       unrolledBlk = codeMP->New<BlockNode>();
       unrolledBlk->AddStatement(remDoloop);
@@ -117,7 +117,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
           mirBuilder->CreateIntConst(1, ivPrimType));
     }
     tripsExpr = codeMP->New<BinaryNode>(OP_rem, ivPrimType, tripsExpr,
-        mirBuilder->CreateIntConst(times, ivPrimType));
+        mirBuilder->CreateIntConst(static_cast<int64>(times), ivPrimType));
     BaseNode *remLoopEndExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType,
         startExpr->CloneTree(*preEmit->GetCodeMPAlloc()), tripsExpr);
     // store in a preg
@@ -149,7 +149,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   if (tripCount != 0) {
     if (remainderTripCount != 0) {
       BaseNode *newStartExpr = codeMP->New<BinaryNode>(OP_add, ivPrimType, unrolledDoloop->GetStartExpr(),
-          mirBuilder->CreateIntConst(remainderTripCount, ivPrimType));
+          mirBuilder->CreateIntConst(static_cast<int64>(remainderTripCount), ivPrimType));
       unrolledDoloop->SetStartExpr(newStartExpr);
     }
   } else {
@@ -159,7 +159,7 @@ BlockNode *LfoUnrollOneLoop::DoUnroll(size_t times, size_t tripCount) {
   // update incrExpr
   ConstvalNode *stepNode = static_cast<ConstvalNode *>(unrolledDoloop->GetIncrExpr());
   int64 origIncr = static_cast<MIRIntConst *>(stepNode->GetConstVal())->GetValue();
-  unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(origIncr*times, ivPrimType));
+  unrolledDoloop->SetIncrExpr(mirBuilder->CreateIntConst(static_cast<int64>(origIncr * times), ivPrimType));
   unrolledBlk->AddStatement(unrolledDoloop);
   return unrolledBlk;
 }
@@ -274,7 +274,7 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
   uint32 savedCountOfLoopsUnrolled = LfoUnrollOneLoop::countOfLoopsUnrolled;
 
   MapleMap<DoloopNode *, DoloopInfo *>::iterator mapit = lfoDepInfo->doloopInfoMap.begin();
-  for (; mapit != lfoDepInfo->doloopInfoMap.end(); mapit++) {
+  for (; mapit != lfoDepInfo->doloopInfoMap.end(); ++mapit) {
     if (!mapit->second->children.empty() || mapit->second->hasBeenVectorized) {
       continue;
     }

@@ -197,7 +197,8 @@ BaseNode *ExtConstantFold::ExtFoldIor(BinaryNode *node) {
       MIRType *cmpMirType = (nPrimType == PTY_i64 || nPrimType == PTY_u64) ?
                             GlobalTables::GetTypeTable().GetUInt64() :
                             GlobalTables::GetTypeTable().GetUInt32();
-      ConstvalNode *deltaVal = mirModule->GetMIRBuilder()->CreateIntConst(uniqOperands.size() - 1, cmpPrimType);
+      ConstvalNode *deltaVal = mirModule->GetMIRBuilder()->CreateIntConst(
+          static_cast<int64>(uniqOperands.size()) - 1, cmpPrimType);
       CompareNode *result;
       result = mirModule->GetMIRBuilder()->CreateExprCompare(OP_le, *cmpMirType, *cmpMirType, diffVal, deltaVal);
       return result;
@@ -263,9 +264,9 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
       uint64 mVal = lmVal | rmVal;
       uint64 cVal = lcVal | rcVal;
       PrimType mPrimType = lnode->Opnd(0)->Opnd(1)->GetPrimType();
-      ConstvalNode *mIntConst = mirModule->GetMIRBuilder()->CreateIntConst(mVal, mPrimType);
+      ConstvalNode *mIntConst = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<int64>(mVal), mPrimType);
       PrimType cPrimType = lnode->Opnd(1)->GetPrimType();
-      ConstvalNode *cIntConst = mirModule->GetMIRBuilder()->CreateIntConst(cVal, cPrimType);
+      ConstvalNode *cIntConst = mirModule->GetMIRBuilder()->CreateIntConst(static_cast<int64>(cVal), cPrimType);
       BinaryNode *eqNode = static_cast<BinaryNode *>(lnode);
       BinaryNode *bandNode = static_cast<BinaryNode *>(eqNode->Opnd(0));
       bandNode->SetOpnd(mIntConst, 1);

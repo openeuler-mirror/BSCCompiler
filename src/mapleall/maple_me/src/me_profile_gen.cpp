@@ -69,7 +69,7 @@ void MeProfGen::Init() {
 void MeProfGen::InstrumentBB(BB &bb) {
   /* append intrinsic call at the begin of bb */
   CHECK_FATAL(counterIdx != (UINT32_MAX / GetPrimTypeSize(PTY_u32)), "profile counter overflow");
-  MeExpr *arg0 = hMap->CreateIntConstMeExpr(counterIdx, PTY_u32);
+  MeExpr *arg0 = hMap->CreateIntConstMeExpr(static_cast<int64>(counterIdx), PTY_u32);
   std::vector<MeExpr*> opnds = { arg0 };
   IntrinsiccallMeStmt *counterIncCall = hMap->CreateIntrinsicCallMeStmt(INTRN_MPL_PROF_COUNTER_INC, opnds);
   bb.AddMeStmtFirst(counterIncCall);
@@ -98,7 +98,7 @@ void MeProfGen::InstrumentFunc() {
   std::vector<BB*> instrumentBBs;
   GetInstrumentBBs(instrumentBBs);
   // record the current counter start, used in the function profile description
-  uint32 counterStart = counterIdx;
+  uint32 counterStart = static_cast<uint32>(counterIdx);
   MIRAggConst *bbProfileTab = safe_cast<MIRAggConst>(bbCounterTabSym->GetKonst());
   for (auto *bb : instrumentBBs) {
     MIRIntConst *indexConst =
@@ -107,7 +107,7 @@ void MeProfGen::InstrumentFunc() {
     InstrumentBB(*bb);
   }
 
-  uint32 counterEnd = counterIdx - 1;
+  uint32 counterEnd = static_cast<uint32>(counterIdx - 1);
   uint64 hash = ComputeFuncHash();
   func->AddProfileDesc(hash, counterStart, counterEnd);
   instrumentBB += instrumentBBs.size();

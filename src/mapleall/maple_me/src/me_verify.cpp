@@ -65,7 +65,7 @@ void DealWithFuncType(const MIRType &type, std::string &str) {
 }
 
 void GetAttrOfType(const MIRType &type, std::string &str) {
-  str += "_" + std::to_string(type.GetPrimType());
+  str += "_" + std::to_string(static_cast<int>(type.GetPrimType()));
   AddTypeKindToStr(type, str);
   switch (type.GetKind()) {
     case kTypePointer: {
@@ -80,7 +80,7 @@ void GetAttrOfType(const MIRType &type, std::string &str) {
     }
     case kTypeArray: {
       auto arryType = static_cast<const MIRArrayType&>(type);
-      for (size_t i = 0; i < arryType.GetDim(); ++i) {
+      for (uint32 i = 0; i < arryType.GetDim(); ++i) {
         str += "_" + std::to_string(arryType.GetSizeArrayItem(i));
         break;
       }
@@ -520,9 +520,9 @@ void MeVerify::VerifySwitchBB(const BB &bb) const {
   VerifyPredBBOfSuccBB(bb, bb.GetSucc());
 }
 
-AnalysisResult *MeDoVerify::Run(MeFunction *func, MeFuncResultMgr*, ModuleResultMgr*) {
-  MeVerify meVerify(*func);
+bool MEVerify::PhaseRun(maple::MeFunction &f) {
+  MeVerify meVerify(f);
   meVerify.VerifyFunction();
-  return nullptr;
+  return false;
 }
 } // namespace maple

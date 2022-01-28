@@ -1606,7 +1606,7 @@ int64 MIRFarrayType::GetBitOffsetFromArrayAddress(int64 arrayIndex) {
   if (elemsize == 0 || arrayIndex == 0) {
     return 0;
   }
-  size_t elemAlign = GetElemType()->GetAlign();
+  uint32 elemAlign = GetElemType()->GetAlign();
   elemsize = RoundUp(elemsize, elemAlign);
   constexpr int64 bitsPerByte = 8;
   return arrayIndex * static_cast<int64>(elemsize) * bitsPerByte;
