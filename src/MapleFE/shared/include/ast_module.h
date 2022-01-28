@@ -36,7 +36,6 @@ class ModuleNode : public TreeNode {
 public:
   const char              *mFilename;
   PackageNode             *mPackage;
-  //SmallVector<ImportNode*> mImports;
 public:
   SmallList<TreeNode*>   mTrees;     // All trees in the module.
   ASTScope              *mRootScope; // the scope corresponding to a module. All other scopes
@@ -63,11 +62,6 @@ public:
   void    SetSrcLang(SrcLang l);
   SrcLang GetSrcLang();
   std::string GetSrcLangString();
-
-  //unsigned    GetImportsNum()       {return mImports.GetNum();}
-  //ImportNode* GetImport(unsigned i) {return mImports.ValueAtIndex(i);}
-  //void        SetImport(unsigned i, ImportNode* n) {*(mImports.RefAtIndex(i)) = n;}
-  //void        AddImport(ImportNode *imp) {mImports.PushBack(imp); if(imp) imp->SetParent(this);}
 
   unsigned  GetTreesNum()       {return mTrees.GetNum();}
   TreeNode* GetTree(unsigned i) {return mTrees.ValueAtIndex(i);}
