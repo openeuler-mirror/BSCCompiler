@@ -146,7 +146,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     }
     case MOP_wcselrrrc:
     case MOP_xcselrrrc: {
-      manager->Optimize<CselToCsetPattern>();
+      manager->Optimize<CselToCsetPattern>(true);
       break;
     }
     case MOP_wiorrrr:
@@ -369,10 +369,7 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) {
     case MOP_xmovri32:
     case MOP_xmovri64: {
       auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if (immOpnd.GetValue() == 0) {
-        return true;
-      }
-      return false;
+      return immOpnd.GetValue() == 0;
     }
     default:
       return false;
@@ -381,18 +378,11 @@ bool CselToCsetPattern::IsOpndDefByZero(const Insn &insn) {
 
 bool CselToCsetPattern::IsOpndDefByOne(const Insn &insn) {
   MOperator movMop = insn.GetMachineOpcode();
-  switch (movMop) {
-    case MOP_xmovri32:
-    case MOP_xmovri64: {
-      auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
-      if (immOpnd.GetValue() == 1) {
-        return true;
-      }
-      return false;
-    }
-    default:
-      return false;
+  if ((movMop != MOP_xmovri32) && (movMop != MOP_xmovri64)) {
+    return false;
   }
+  auto &immOpnd = static_cast<ImmOperand&>(insn.GetOperand(kInsnSecondOpnd));
+  return immOpnd.GetValue() == 1;
 }
 
 bool CselToCsetPattern::CheckCondition(Insn &insn) {
@@ -425,6 +415,22 @@ AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) 
       return CC_EQ;
     case CC_EQ:
       return CC_NE;
+    case CC_HS:
+      return CC_LO;
+    case CC_LO:
+      return CC_HS;
+    case CC_MI:
+      return CC_PL;
+    case CC_PL:
+      return CC_MI;
+    case CC_VS:
+      return CC_VC;
+    case CC_VC:
+      return CC_VS;
+    case CC_HI:
+      return CC_LS;
+    case CC_LS:
+      return CC_HI;
     case CC_LT:
       return CC_GE;
     case CC_GE:
@@ -434,8 +440,9 @@ AArch64CC_t CselToCsetPattern::GetInversedCondCode(const CondOperand &condOpnd) 
     case CC_LE:
       return CC_GT;
     default:
-      return kCcLast;
+      CHECK_FATAL(0, "Not support yet.");
   }
+  return kCcLast;
 }
 
 void CselToCsetPattern::Run(BB &bb, Insn &insn) {
@@ -2959,7 +2966,7 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
       CondOperand &condOperand = static_cast<CondOperand&>(insn.GetOperand(kInsnFourthOpnd));
       MOperator mopCode = (reg.GetSize() == k64BitSize) ? MOP_xcsetrc : MOP_wcsetrc;
       /* get new cond  ccCode */
-      AArch64CC_t ccCode = (inverse == true) ? condOperand.GetCode() : GetReverseCond(condOperand);
+      AArch64CC_t ccCode = inverse ? condOperand.GetCode() : GetReverseCond(condOperand);
       if (ccCode == kCcLast) {
         return;
       }
@@ -2979,7 +2986,6 @@ void CselZeroOneToCsetOpt::Run(BB &bb, Insn &insn) {
       }
     }
   }
-  return;
 }
 
 Insn *CselZeroOneToCsetOpt::FindFixedValue(Operand &opnd, BB &bb, Operand *&tempOp, const Insn &insn) {
