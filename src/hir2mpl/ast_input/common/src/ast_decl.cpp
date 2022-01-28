@@ -113,7 +113,7 @@ void ASTVar::GenerateInitStmt4StringLiteral(ASTExpr *initASTExpr, const UniqueFE
       auto addExpr = FEIRBuilder::CreateExprBinary(OP_add, std::move(dstExpr), sizeExpr->Clone());
       argExprList->emplace_back(std::move(addExpr));
       argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(0));
-      argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(needInitFurtherCnt));
+      argExprList->emplace_back(FEIRBuilder::CreateExprConstI32(needInitFurtherCnt * elemSize));
       std::unique_ptr<FEIRStmtIntrinsicCallAssign> memsetStmt = std::make_unique<FEIRStmtIntrinsicCallAssign>(
           INTRN_C_memset, nullptr, nullptr, std::move(argExprList));
       stmts.emplace_back(std::move(memsetStmt));
