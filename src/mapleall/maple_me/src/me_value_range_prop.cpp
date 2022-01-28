@@ -585,7 +585,8 @@ bool ValueRangePropagation::CompareIndexWithUpper(const BB &bb, const MeStmt &me
     }
     auto *loop = loops->GetBBLoopParent(bb.GetBBId());
     if (indexOpnd != nullptr && loop != nullptr && loop->IsCanonicalLoop() && loop->inloopBB2exitBBs.size() == 1 &&
-        loop->inloopBB2exitBBs.begin()->second->size() == 1 && IsLoopVariable(*loop, *indexOpnd)) {
+        loop->inloopBB2exitBBs.begin()->second != nullptr && loop->inloopBB2exitBBs.begin()->second->size() == 1 &&
+        IsLoopVariable(*loop, *indexOpnd)) {
       if (safetyCheckBoundary->HandleAssertltOrAssertle(meStmt, op, valueRangeOfIndex.GetUpper().GetConstant(),
                                                         upperOfLength)) {
         return true;
@@ -764,6 +765,9 @@ void ValueRangePropagation::JudgeTheConsistencyOfDefPointsOfBoundaryCheck(
 }
 
 bool ValueRangePropagation::IsLoopVariable(const LoopDesc &loop, const MeExpr &opnd) const {
+  if (!opnd.IsScalar()) {
+    return false;
+  }
   bool opndIsLoopVar = false;
   auto defBy = static_cast<const ScalarMeExpr&>(opnd).GetDefBy();
   // Check whether it is a loop variable.
@@ -1781,6 +1785,99 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
   return nullptr;
 }
 
+// deal with the case like var % x, range is [1-x, x-1]
+std::unique_ptr<ValueRange> ValueRangePropagation::RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant) {
+  int64 res = 0;
+  int64 upperRes = 0;
+  int64 lowerRes = 0;
+  if (rhsConstant > 0) {
+    if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_sub, 1, rhsConstant, res)) {
+      lowerRes = res;
+    } else {
+      return nullptr;
+    }
+    if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_sub, rhsConstant, 1, res)) {
+      upperRes = res;
+    } else {
+      return nullptr;
+    }
+  } else {
+    if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_add, 1, rhsConstant, res)) {
+      lowerRes = res;
+    } else {
+      return nullptr;
+    }
+    if (AddOrSubWithConstant(opMeExpr.GetPrimType(), OP_sub, -rhsConstant, 1, res)) {
+      upperRes = res;
+    } else {
+      return nullptr;
+    }
+  }
+  Bound lower = Bound(nullptr, lowerRes, opMeExpr.GetPrimType());
+  Bound upper = Bound(nullptr, upperRes, opMeExpr.GetPrimType());
+  return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
+}
+
+// Create new valueRange when old valueRange rem with a constant.
+std::unique_ptr<ValueRange> ValueRangePropagation::RemWithValueRange(const BB &bb, const OpMeExpr &opMeExpr,
+    int64 rhsConstant) {
+  auto remValueRange = RemWithRhsValueRange(opMeExpr, rhsConstant);
+  if (remValueRange == nullptr) {
+    return nullptr;
+  }
+  auto *valueRange = FindValueRange(bb, *opMeExpr.GetOpnd(0));
+  if (valueRange == nullptr) {
+    return remValueRange;
+  }
+  if (!valueRange->IsConstantLowerAndUpper()) {
+    return remValueRange;
+  } else if (valueRange->GetRangeType() == kEqual) {
+    int64 res = valueRange->GetBound().GetConstant() % rhsConstant;
+    Bound bound = Bound(nullptr, res, valueRange->GetBound().GetPrimType());
+    return std::make_unique<ValueRange>(bound, valueRange->GetRangeType());
+  } else {
+    std::unique_ptr<ValueRange> combineRes = CombineTwoValueRange(*remValueRange, *valueRange);
+    int64 lowerRes = combineRes->GetLower().GetConstant();
+    int64 upperRes = combineRes->GetUpper().GetConstant();
+    if (upperRes <= lowerRes) {
+      return remValueRange;
+    }
+    Bound lower = Bound(nullptr, lowerRes, opMeExpr.GetPrimType());
+    Bound upper = Bound(nullptr, upperRes, opMeExpr.GetPrimType());
+    return std::make_unique<ValueRange>(lower, upper, kLowerAndUpper);
+  }
+  return nullptr;
+}
+
+// Create valueRange when deal with OP_rem.
+std::unique_ptr<ValueRange> ValueRangePropagation::DealWithRem(
+    const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr) {
+  auto *opnd0 = opMeExpr.GetOpnd(0);
+  auto *opnd1 = opMeExpr.GetOpnd(1);
+  int64 lhsConstant = 0;
+  int64 rhsConstant = 0;
+  bool lhsIsConstant = IsConstant(bb, *opnd0, lhsConstant);
+  bool rhsIsConstant = IsConstant(bb, *opnd1, rhsConstant);
+  if (rhsIsConstant == 0) {
+    return nullptr;
+  }
+  std::unique_ptr<ValueRange> newValueRange;
+  if (lhsIsConstant && rhsIsConstant) {
+    int64 res = lhsConstant % rhsConstant;
+    newValueRange = std::make_unique<ValueRange>(Bound(res, opMeExpr.GetPrimType()), kEqual);
+  } else if (rhsIsConstant) {
+    newValueRange = RemWithValueRange(bb, opMeExpr, rhsConstant);
+  }
+  if (newValueRange != nullptr) {
+    auto *valueRangePtr = newValueRange.get();
+    if (Insert2Caches(bb.GetBBId(), lhsVar.GetExprID(), CopyValueRange(*valueRangePtr))) {
+      (void)Insert2Caches(bb.GetBBId(), opMeExpr.GetExprID(), CopyValueRange(*valueRangePtr));
+      return CopyValueRange(*valueRangePtr);
+    }
+  }
+  return nullptr;
+}
+
 // Create valueRange when deal with OP_add or OP_sub.
 std::unique_ptr<ValueRange> ValueRangePropagation::DealWithAddOrSub(
     const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr) {
@@ -1947,6 +2044,10 @@ void ValueRangePropagation::DealWithMeOp(const BB &bb, const MeStmt &stmt) {
     }
     case OP_gcmallocjarray: {
       DealWithArrayLength(bb, *lhs, *opMeExpr->GetOpnd(0));
+      break;
+    }
+    case OP_rem: {
+      (void)DealWithRem(bb, *lhs, *opMeExpr);
       break;
     }
     default:

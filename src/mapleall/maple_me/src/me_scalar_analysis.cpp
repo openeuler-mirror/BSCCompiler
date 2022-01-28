@@ -1046,6 +1046,9 @@ CRNode *LoopScalarAnalysisResult::DealWithMeOpOp(MeExpr &currOpMeExpr, MeExpr &e
     case OP_iaddrof: {
       return GetOrCreateCRNode(*opMeExpr.GetOpnd(0));
     }
+    case OP_rem: {
+      return GetOrCreateCRVarNode(expr);
+    }
     default:
       InsertExpr2CR(expr, nullptr);
       return nullptr;

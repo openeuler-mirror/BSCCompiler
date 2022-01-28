@@ -514,6 +514,9 @@ class ValueRangePropagation {
       Opcode op, ValueRange &valueRangeLeft, ValueRange &valueRangeRight);
   std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
   bool CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant);
+  std::unique_ptr<ValueRange> RemWithValueRange(const BB &bb, const OpMeExpr &opMeExpr, int64 rhsConstant);
+  std::unique_ptr<ValueRange> RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant);
+  std::unique_ptr<ValueRange> DealWithRem(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
   InRangeType InRange(const BB &bb, const ValueRange &rangeTemp, const ValueRange &range, bool lowerIsZero = false);
