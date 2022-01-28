@@ -379,6 +379,9 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
         case TY_None:
           if (fieldVal.compare("true") == 0 || fieldVal.compare("false") == 0)
             str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(bool("s + fieldVal + ")))"s;
+          else
+            // if no type info, use type any (JS_Val)
+            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + fieldVal + "))"s;
           break;
         case TY_Int:
           str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(int64_t("s + fieldVal + ")))"s;
