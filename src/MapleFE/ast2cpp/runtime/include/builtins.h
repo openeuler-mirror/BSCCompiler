@@ -42,7 +42,7 @@ class Array : public Object {
     long size() { return elements.size(); }
 
     // Output array to string (recurses if multi-dim array via ostream output operator overload in t2cpp.cpp)
-    virtual std::string Dump(void) {
+    std::string Dump (void) override {
       std::stringstream ss;
       std::streambuf* old = std::cout.rdbuf(ss.rdbuf());
       if (elements.empty())
@@ -101,6 +101,8 @@ public:
   RegExp(Function* ctor, Object* proto, std::string src): Object(ctor, proto) {  source = src; }
   ~RegExp(){}
   std::string source;               // text of the pattern
+  std::string Dump(void) override { return source; }
+
   class Ctor : public Function {
   public:
     Ctor(Function* ctor, Object* proto, Object* prototype_proto) : Function(ctor, proto, prototype_proto) { }
