@@ -231,7 +231,7 @@ bool IsAllOpndsNotDefByCurrBB(const MeExpr &expr, const BB &currBB, std::set<con
 
 // opnds is defined by stmt not in currBB or defined by phiNode(no matter whether in currBB)
 bool IsAllOpndsNotDefByCurrBB(const MeStmt &stmt) {
-  BB *currBB = stmt.GetBB();
+  const BB *currBB = stmt.GetBB();
   for (size_t i = 0; i < stmt.NumMeStmtOpnds(); ++i) {
     std::set<const ScalarMeExpr*> infLoopCheck;
     if (!IsAllOpndsNotDefByCurrBB(*stmt.GetOpnd(i), *currBB, infLoopCheck)) {

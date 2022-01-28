@@ -249,7 +249,7 @@ bool SSADevirtual::NeedNullCheck(const MeExpr &receiver) const {
 // Java requires to throw Null-Pointer-Execption if the receiver of
 // the virtualcall is null. We insert an eval(iread recevier, 0)
 // statment perform the null-check.
-void SSADevirtual::InsertNullCheck(const CallMeStmt &callStmt, MeExpr &receiver) const {
+void SSADevirtual::InsertNullCheck(CallMeStmt &callStmt, MeExpr &receiver) const {
   UnaryMeStmt *nullCheck = irMap->New<UnaryMeStmt>(OP_assertnonnull);
   nullCheck->SetBB(callStmt.GetBB());
   nullCheck->SetSrcPos(callStmt.GetSrcPosition());

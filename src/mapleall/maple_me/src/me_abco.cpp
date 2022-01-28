@@ -125,11 +125,11 @@ void MeABC::BuildSoloPiInGraph(const PiassignMeStmt &piMeStmt) {
 
 bool MeABC::PiExecuteBeforeCurrentCheck(const PiassignMeStmt &piMeStmt) {
   BB *currentCheckBB = currentCheck->GetBB();
-  BB *piBB = piMeStmt.GetBB();
+  const BB *piBB = piMeStmt.GetBB();
   if (currentCheckBB != piBB) {
     return dom->Dominate(*piBB, *currentCheckBB);
   }
-  MeStmt *lastMeStmt = piBB->GetLastMe();
+  const MeStmt *lastMeStmt = piBB->GetLastMe();
   CHECK_FATAL(lastMeStmt->GetNextMeStmt() == nullptr, "must be");
   MeStmt *tmpMeStmt = piMeStmt.GetNextMeStmt();
   while (tmpMeStmt != nullptr) {

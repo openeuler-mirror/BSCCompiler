@@ -730,26 +730,11 @@ class ListOperand : public OperandVisitable<ListOperand> {
       opndList(allocator.Adapter()) {}
 
   ~ListOperand() override = default;
+
   using OperandVisitable<ListOperand>::OperandVisitable;
-
-  void PopOpnd() {
-    opndList.pop_back();
-  }
-
-  void PopFrontOpnd() {
-    opndList.pop_front();
-  }
 
   void PushOpnd(RegOperand &opnd) {
     opndList.push_back(&opnd);
-  }
-
-  void PushFront(RegOperand &opnd) {
-    opndList.push_front(&opnd);
-  }
-
-  void RemoveOpnd(RegOperand &opnd) {
-    opndList.remove(&opnd);
   }
 
   MapleList<RegOperand*> &GetOperands() {

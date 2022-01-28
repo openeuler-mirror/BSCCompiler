@@ -18,7 +18,7 @@
 #include "me_irmap_build.h"
 
 // We find the following pattern in JAVA code:
-// if (empty) { a = 1; } else { a = 3; }
+// Examples: if (empty) { a = 1; } else { a = 3; }
 //
 // It will generate the following IR in mpl file:
 // brfalse @label1 (dread u1 %Reg4_Z)
@@ -125,9 +125,9 @@ bool MeCfgOpt::IsExpensiveOp(Opcode op) {
   }
 }
 
-const MeStmt *MeCfgOpt::GetCondBrStmtFromBB(const BB &bb) const {
+MeStmt *MeCfgOpt::GetCondBrStmtFromBB(BB &bb) const {
   CHECK_FATAL(bb.GetKind() == kBBCondGoto, "must be cond goto");
-  const MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
+  MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
   if (meStmt->IsCondBr()) {
     return meStmt;
   }
@@ -245,7 +245,7 @@ bool MeCfgOpt::Run(MeCFG &cfg) {
     auto *bb = *bIt;
     constexpr uint32 numOfSuccs = 2;
     if (bb->GetKind() == kBBCondGoto && bb->GetSucc().size() == numOfSuccs) {
-      const MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
+      MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
       if (condMeStmt == nullptr || !condMeStmt->IsCondBr()) {
         continue;
       }
@@ -331,7 +331,7 @@ bool MeCfgOpt::Run(MeCFG &cfg) {
   return isCfgChanged;
 }
 
-bool CheckAnalysisResult(MeFunction &func) {
+bool CheckAnalysisResult(const MeFunction &func) {
   if (func.GetCfg()->NumBBs() > 0) {
     return func.HasLaidOut();
   }
@@ -378,7 +378,7 @@ bool FindLocalRefVarUses(const MeIRMap &irMap, const MeExpr &expr,
   return false;
 }
 
-bool MePostCfgOpt(MeFunction &func, MeIRMap &irMap) {
+bool MePostCfgOpt(const MeFunction &func, const MeIRMap &irMap) {
   // check all basic blocks searching for split case
   for (BB *bb : func.GetCfg()->GetAllBBs()) {
     if (bb == nullptr || !(bb->GetAttributes(kBBAttrIsTry))) {

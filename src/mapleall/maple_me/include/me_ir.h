@@ -1362,9 +1362,8 @@ class MeStmt {
     prev = node;
   }
 
-  BB *GetBB() const {
-    return bb;
-  }
+  const BB *GetBB() const { return bb; }
+  BB *GetBB() { return bb; }
 
   void SetBB(BB *curBB) {
     bb = curBB;
