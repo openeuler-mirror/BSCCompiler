@@ -18,56 +18,65 @@
 #include "me_ir.h"
 #include "me_function.h"
 
-#include <variant>
-
 namespace maple {
+enum UseType {
+  kUseByStmt,
+  kUseByPhi,
+};
 
 class UseItem final {
-public:
-  explicit UseItem(MeStmt *useStmt) : useNode(useStmt) {}
-  explicit UseItem(MePhiNode *phi) : useNode(phi) {}
+ public:
+  explicit UseItem(MeStmt *useStmt) : useType(kUseByStmt) {
+    useNode.stmt = useStmt;
+  }
 
-  const BB *GetUseBB() const {
-    return std::visit(
-        [this](auto &&arg) {
-          using T = std::decay_t<decltype(arg)>;
-          if constexpr (std::is_same_v<T, MeStmt *>) {
-            return Get<MeStmt>()->GetBB();
-          } else {
-            return Get<MePhiNode>()->GetDefBB();
-          }
-        },
-        useNode);
+  explicit UseItem(MePhiNode *phi) : useType(kUseByPhi) {
+    useNode.phi = phi;
+  }
+  ~UseItem() = default;
+
+  BB *GetUseBB() const {
+    if (useType == kUseByStmt) {
+      return useNode.stmt->GetBB();
+    }
+    ASSERT(useType == kUseByPhi, "must used in phi");
+    return useNode.phi->GetDefBB();
   }
 
   bool IsUseByPhi() const {
-    return std::holds_alternative<MePhiNode *>(useNode);
+    return useType == kUseByPhi;
   }
 
-  bool IsUseByStmt() const { return std::holds_alternative<MeStmt *>(useNode); }
+  bool IsUseByStmt() const {
+    return useType == kUseByStmt;
+  }
 
-  const MeStmt *GetStmt() const { return Get<MeStmt>(); }
-  MeStmt *GetStmt() { return Get<MeStmt>(); }
+  MeStmt *GetStmt() const {
+    return useNode.stmt;
+  }
 
-  const MePhiNode *GetPhi() const { return Get<MePhiNode>(); }
-  MePhiNode *GetPhi() { return Get<MePhiNode>(); }
+  MePhiNode *GetPhi() const {
+    return useNode.phi;
+  }
+
+  bool SameUseItem(const MeStmt *stmt) const {
+    return stmt == useNode.stmt;
+  }
+
+  bool SameUseItem(const MePhiNode *phi) const {
+    return phi == useNode.phi;
+  }
 
   bool operator==(const UseItem &other) const {
-    return useNode == other.useNode;
-  }
-  bool operator!=(const UseItem &other) const { return !(*this == other); }
-
-private:
-  template <typename T> const T *Get() const {
-    assert(std::holds_alternative<T *>(useNode) && "Invalid use type.");
-    return std::get<T *>(useNode);
-  }
-  template <typename T> T *Get() {
-    assert(std::holds_alternative<T *>(useNode) && "Invalid use type.");
-    return std::get<T *>(useNode);
+    return useType == other.useType && useNode.stmt == other.useNode.stmt;
   }
 
-  std::variant<MeStmt *, MePhiNode *> useNode;
+ private:
+  UseType useType;
+  union UseSite {
+    MeStmt *stmt;
+    MePhiNode *phi;
+  } useNode;
 };
 
 enum MeExprUseInfoState {
@@ -94,6 +103,8 @@ class MeExprUseInfo final {
 
   template<class T>
   void AddUseSiteOfExpr(MeExpr *expr, T *useSite);
+  template<class T>
+  void RemoveUseSiteOfExpr(const MeExpr *expr, T *useSite);
 
   void CollectUseInfoInExpr(MeExpr *expr, MeStmt *stmt);
   void CollectUseInfoInStmt(MeStmt *stmt);

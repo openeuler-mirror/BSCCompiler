@@ -23,7 +23,7 @@ void LfoDepInfo::CreateDoloopInfo(BlockNode *block, DoloopInfo *parent) {
       case OP_doloop: {
         DoloopNode *doloop = static_cast<DoloopNode *>(stmt);
         DoloopInfo *doloopInfo = memPool->New<DoloopInfo>(&alloc, this, doloop, parent);
-        doloopInfoMap.emplace(std::pair<DoloopNode *, DoloopInfo *>(doloop, doloopInfo));
+        (void)doloopInfoMap.emplace(std::pair<DoloopNode *, DoloopInfo *>(doloop, doloopInfo));
         if (parent != nullptr) {
           parent->children.push_back(doloopInfo);
         } else {
@@ -399,13 +399,13 @@ void DoloopInfo::CreateDepTestLists() {
     for (j = i + 1; j < lhsArrays.size(); ++j) {
       if (lhsArrays[i]->arrayOst != nullptr && lhsArrays[j]->arrayOst != nullptr) {
         if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(lhsArrays[j]->arrayOst)) {
-          outputDepTestList.emplace_back(DepTestPair(i, j));
+          (void)outputDepTestList.emplace_back(DepTestPair(i, j));
         }
       } else if (lhsArrays[i]->arrayOst == nullptr && lhsArrays[j]->arrayOst == nullptr) {
         BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
         BaseNode *arry1 = lhsArrays[j]->theArray->Opnd(0);
         if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
-          outputDepTestList.emplace_back(DepTestPair(i, j));
+          (void)outputDepTestList.emplace_back(DepTestPair(i, j));
         }
       }
     }
@@ -414,13 +414,13 @@ void DoloopInfo::CreateDepTestLists() {
     for (j = 0; j < rhsArrays.size(); ++j) {
       if (lhsArrays[i]->arrayOst != nullptr && rhsArrays[j]->arrayOst != nullptr) {
         if (lhsArrays[i]->arrayOst->IsSameSymOrPreg(rhsArrays[j]->arrayOst)) {
-          flowDepTestList.emplace_back(DepTestPair(i, j));
+          (void)flowDepTestList.emplace_back(DepTestPair(i, j));
         }
       } else if (lhsArrays[i]->arrayOst == nullptr && rhsArrays[j]->arrayOst == nullptr) {
         BaseNode *arry0 = lhsArrays[i]->theArray->Opnd(0);
         BaseNode *arry1 = rhsArrays[j]->theArray->Opnd(0);
         if (depInfo->preEmit->GetMexpr(arry0) == depInfo->preEmit->GetMexpr(arry1)) {
-          flowDepTestList.emplace_back(DepTestPair(i, j));
+          (void)flowDepTestList.emplace_back(DepTestPair(i, j));
         }
       }
     }

@@ -5476,19 +5476,12 @@ void AArch64CGFunc::ReplaceOpndInInsn(RegOperand &regDest, RegOperand &regSrc, I
     Operand &opnd = insn.GetOperand(i);
     if (opnd.IsList()) {
       std::list<RegOperand*> tempRegStore;
-      auto& opndList = static_cast<AArch64ListOperand&>(opnd).GetOperands();
-
-      for (auto it = opndList.begin(), end = opndList.end(); it != end;) {
-        auto *regOpnd = *it;
-
+      for (auto regOpnd : static_cast<AArch64ListOperand&>(opnd).GetOperands()) {
         if (regOpnd->Equals(regDest)) {
           tempRegStore.push_back(&regSrc);
-          it = opndList.erase(it);
-        } else {
-          ++it;
+          static_cast<AArch64ListOperand&>(opnd).RemoveOpnd(*regOpnd);
         }
       }
-
       for (auto newOpnd : tempRegStore) {
         static_cast<AArch64ListOperand&>(opnd).PushOpnd(*newOpnd);
       }
@@ -7752,7 +7745,7 @@ AArch64RegOperand &AArch64CGFunc::GetOrCreatePhysicalRegisterOperand(AArch64reg 
     phyRegOpnd = phyRegOperandTable[aarch64PhyRegIdx];
   } else {
     phyRegOpnd = memPool->New<AArch64RegOperand>(regNO, size, kind, flag);
-    phyRegOperandTable.emplace(aarch64PhyRegIdx, phyRegOpnd);
+    (void)phyRegOperandTable.emplace(aarch64PhyRegIdx, phyRegOpnd);
   }
   return *phyRegOpnd;
 }

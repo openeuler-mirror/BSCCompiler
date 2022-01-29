@@ -36,7 +36,7 @@ class PropParamType {
   virtual ~PropParamType() = default;
   bool CheckOpndZero(MeExpr *expr);
   void ResolveCallStmt(MeStmt &meStmt);
-  void InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
+  void InsertNullCheck(const CallMeStmt &callStmt, const std::string &funcName, uint32 index, MeExpr &receiver);
   bool CheckCondtionStmt(const MeStmt &meStmt);
   void ResolveIreadExpr(MeExpr &expr);
   void TraversalMeStmt(MeStmt &meStmt);

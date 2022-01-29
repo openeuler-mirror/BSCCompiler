@@ -68,7 +68,7 @@ void PropParamType::ResolveIreadExpr(MeExpr &expr) {
   }
 }
 
-void PropParamType::InsertNullCheck(CallMeStmt &callStmt, const std::string &funcName,
+void PropParamType::InsertNullCheck(const CallMeStmt &callStmt, const std::string &funcName,
                                     uint32 index, MeExpr &receiver) {
   auto *irMap = curFunc->GetMeFunc()->GetIRMap();
   GStrIdx stridx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(funcName);

@@ -170,19 +170,14 @@ void A64OperandPhiElmVisitor::Visit(RegOperand *v) {
 
 void A64OperandPhiElmVisitor::Visit(ListOperand *v) {
   std::list<RegOperand*> tempRegStore;
-  auto& opndList = v->GetOperands();
-
-  while (!opndList.empty()) {
-    auto *regOpnd = opndList.front();
-    opndList.pop_front();
-
+  for (auto *regOpnd : v->GetOperands()) {
     if (regOpnd->IsSSAForm()) {
       tempRegStore.push_back(&a64PhiEliminator->GetCGVirtualOpearnd(*regOpnd, *insn));
     } else {
       tempRegStore.push_back(regOpnd);
     }
+    v->RemoveOpnd(*regOpnd);
   }
-
   ASSERT(v->GetOperands().empty(), "need to clean list");
   v->GetOperands().assign(tempRegStore.begin(), tempRegStore.end());
 }

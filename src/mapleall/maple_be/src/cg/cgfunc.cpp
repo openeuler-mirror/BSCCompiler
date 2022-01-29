@@ -1169,7 +1169,7 @@ void HandleIassignoff(StmtNode &stmt, CGFunc &cgFunc) {
 }
 
 void HandleEval(const StmtNode &stmt, CGFunc &cgFunc) {
-  cgFunc.HandleExpr(stmt, *static_cast<const UnaryStmtNode&>(stmt).Opnd(0));
+  (void)cgFunc.HandleExpr(stmt, *static_cast<const UnaryStmtNode&>(stmt).Opnd(0));
 }
 
 void HandleRangeGoto(StmtNode &stmt, CGFunc &cgFunc) {

@@ -48,7 +48,7 @@ class MeCfgOpt {
   }
 
   bool HasFloatCmp(const MeExpr &meExpr) const;
-  MeStmt *GetCondBrStmtFromBB(BB &bb) const;
+  const MeStmt *GetCondBrStmtFromBB(const BB &bb) const;
   MeStmt *GetTheOnlyMeStmtFromBB(BB &bb) const;
   MeStmt *GetTheOnlyMeStmtWithGotoFromBB(BB &bb) const;
   MeIRMap *meIrMap;

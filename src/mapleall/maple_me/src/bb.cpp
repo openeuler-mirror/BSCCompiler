@@ -359,26 +359,20 @@ void BB::SetLastMe(MeStmt *stmt) {
 }
 
 MeStmt *BB::GetFirstMe() {
-  return meStmtList.empty() ? nullptr : &meStmtList.front();
-}
-
-const MeStmt *BB::GetFirstMe() const {
-  return meStmtList.empty() ? nullptr : &meStmtList.front();
+  if (meStmtList.empty()) return nullptr;
+  return &meStmtList.front();
 }
 
 MeStmt *BB::GetLastMe() {
-  return meStmtList.empty() ? nullptr : &meStmtList.back();
-}
-
-const MeStmt *BB::GetLastMe() const {
-  return meStmtList.empty() ? nullptr : &meStmtList.back();
+  if (meStmtList.empty()) return nullptr;
+  return &meStmtList.back();
 }
 
 void BB::RemoveLastMeStmt() {
   meStmtList.pop_back();
 }
 
-void BB::RemoveMeStmt(MeStmt *meStmt) {
+void BB::RemoveMeStmt(const MeStmt *meStmt) {
   CHECK_FATAL(meStmt != nullptr, "null ptr check");
   meStmtList.erase(meStmt);
 }
@@ -423,7 +417,7 @@ void BB::InsertMeStmtLastBr(MeStmt *inStmt) {
   }
 }
 
-void BB::ReplaceMeStmt(MeStmt *stmt, MeStmt *newStmt) {
+void BB::ReplaceMeStmt(const MeStmt *stmt, MeStmt *newStmt) {
   InsertMeStmtBefore(stmt, newStmt);
   RemoveMeStmt(stmt);
 }

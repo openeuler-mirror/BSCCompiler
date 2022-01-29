@@ -35,10 +35,18 @@ void MeExprUseInfo::AddUseSiteOfExpr(MeExpr *expr, T *useSite) {
     (*useSites)[uintExprID] = {expr, newList};
     return;
   }
-  UseItem use(useSite);
-  if ((*useSites)[uintExprID].second->front() != use) {
-    (*useSites)[uintExprID].second->emplace_front(use);
+  if (!(*useSites)[uintExprID].second->front().SameUseItem(useSite)) {
+    (*useSites)[uintExprID].second->emplace_front(UseItem(useSite));
   }
+}
+
+template<class T>
+void MeExprUseInfo::RemoveUseSiteOfExpr(const MeExpr *expr, T *useSite) {
+  auto *useSitesOfExpr = GetUseSitesOfExpr(expr);
+  if (useSitesOfExpr == nullptr) {
+    return;
+  }
+  useSitesOfExpr->remove(UseItem(useSite));
 }
 
 MapleList<UseItem> *MeExprUseInfo::GetUseSitesOfExpr(const MeExpr *expr) const {
@@ -146,49 +154,38 @@ void MeExprUseInfo::CollectUseInfoInFunc(IRMap *irMap, Dominance *domTree, MeExp
 
 bool MeExprUseInfo::ReplaceScalar(IRMap *irMap, const ScalarMeExpr *scalarA, ScalarMeExpr *scalarB) {
   auto *useList = GetUseSitesOfExpr(scalarA);
-
-  if (!useList || useList->empty()) {
+  if (useList == nullptr || useList->empty()) {
     return true;
   }
 
   bool replacedAll = true;
-
-  auto end = useList->end();
-  decltype(end) next;
-
-  for (auto it = useList->begin(); it != end; it = next) {
-    next = std::next(it);
-    auto &useSite = *it;
-
+  for (auto &useSite : *useList) {
     if (useSite.IsUseByStmt()) {
       auto *useStmt = useSite.GetStmt();
-
-      if (irMap->ReplaceMeExprStmt(*useStmt, *scalarA, *scalarB)) {
+      auto replaced = irMap->ReplaceMeExprStmt(*useStmt, *scalarA, *scalarB);
+      if (replaced) {
         AddUseSiteOfExpr(scalarB, useStmt);
-        useList->erase(it);
+        RemoveUseSiteOfExpr(scalarA, useStmt);
       }
-    } else {
-      ASSERT(useSite.IsUseByPhi(), "Invalid use type!");
+      continue;
+    }
 
+    if (useSite.IsUseByPhi()) {
       if (scalarA->GetOst() != scalarB->GetOst()) {
         replacedAll = false;
         continue;
       }
-
       auto *phi = useSite.GetPhi();
-
       for (size_t id = 0; id < phi->GetOpnds().size(); ++id) {
         if (phi->GetOpnd(id) != scalarA) {
           continue;
         }
-
         phi->GetOpnds()[id] = scalarB;
         AddUseSiteOfExpr(scalarB, phi);
-        useList->erase(it);
+        RemoveUseSiteOfExpr(scalarA, phi);
       }
     }
   }
-
   return replacedAll;
 }
 } // namespace maple

@@ -69,7 +69,7 @@ class SSADevirtual {
   void PropIvarInferredType(IvarMeExpr&) const;
   void ReturnTyIdxInferring(const RetMeStmt&);
   bool NeedNullCheck(const MeExpr&) const;
-  void InsertNullCheck(CallMeStmt&, MeExpr&) const;
+  void InsertNullCheck(const CallMeStmt&, MeExpr&) const;
   bool DevirtualizeCall(CallMeStmt&);
   void SSADevirtualize(CallNode &stmt);
   void ReplaceCall(CallMeStmt&, const MIRFunction&);

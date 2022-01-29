@@ -730,11 +730,26 @@ class ListOperand : public OperandVisitable<ListOperand> {
       opndList(allocator.Adapter()) {}
 
   ~ListOperand() override = default;
-
   using OperandVisitable<ListOperand>::OperandVisitable;
+
+  void PopOpnd() {
+    opndList.pop_back();
+  }
+
+  void PopFrontOpnd() {
+    opndList.pop_front();
+  }
 
   void PushOpnd(RegOperand &opnd) {
     opndList.push_back(&opnd);
+  }
+
+  void PushFront(RegOperand &opnd) {
+    opndList.push_front(&opnd);
+  }
+
+  void RemoveOpnd(RegOperand &opnd) {
+    opndList.remove(&opnd);
   }
 
   MapleList<RegOperand*> &GetOperands() {
@@ -788,11 +803,11 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
 
   void InsertOpnd(uint32 bbId, RegOperand &phiParam) {
     ASSERT(!phiList.count(bbId), "cannot insert duplicate operand");
-    phiList.emplace(std::pair(bbId, &phiParam));
+    (void)phiList.emplace(std::pair(bbId, &phiParam));
   }
 
   void UpdateOpnd(uint32 bbId, uint32 newId, RegOperand &phiParam) {
-    phiList.emplace(std::pair(newId, &phiParam));
+    (void)phiList.emplace(std::pair(newId, &phiParam));
     phiList.erase(bbId);
   }
 

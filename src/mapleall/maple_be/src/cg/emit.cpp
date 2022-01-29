@@ -3148,7 +3148,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           Emit("\n\t.byte    ");
           EmitHexUnsigned(elp->GetOp());
           Emit("\n\t.8byte   ");
-          Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(static_cast<uint32>(elp->GetGvarStridx())).c_str());
+          (void)Emit(GlobalTables::GetStrTable().GetStringFromStrIdx(static_cast<uint32>(elp->GetGvarStridx())).c_str());
           break;
         case DW_OP_fbreg:
           EmitHexUnsigned(1 + namemangler::GetSleb128Size(elp->GetFboffset()));
