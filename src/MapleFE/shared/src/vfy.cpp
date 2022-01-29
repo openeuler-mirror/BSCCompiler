@@ -563,4 +563,9 @@ void Verifier::VerifyStructLiteral(StructLiteralNode *tree){
 void Verifier::VerifyFieldLiteral(FieldLiteralNode *tree){
   return;
 }
+
+void Verifier::VerifyArrayType(ArrayTypeNode *tree){
+  return;
+}
+
 }
