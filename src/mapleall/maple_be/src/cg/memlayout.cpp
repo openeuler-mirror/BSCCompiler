@@ -60,8 +60,8 @@ uint32 MemLayout::FindLargestActualArea(int32 &aggCopySize) {
     if (size > maxParamStackSize) {
       maxParamStackSize = size;
     }
-    if (copySize > maxCopyStackSize) {
-      maxCopyStackSize = copySize;
+    if (static_cast<uint32>(copySize) > maxCopyStackSize) {
+      maxCopyStackSize = static_cast<uint32>(copySize);
     }
     if ((maxParamStackSize + maxCopyStackSize) > maxActualSize) {
       maxActualSize = maxParamStackSize + maxCopyStackSize;
@@ -69,7 +69,11 @@ uint32 MemLayout::FindLargestActualArea(int32 &aggCopySize) {
   }
   aggCopySize = maxCopyStackSize;
   /* kSizeOfPtr * 2's pow 2 is 4, set the low 4 bit of maxActualSize to 0 */
-  maxActualSize = RoundUp(maxActualSize, kSizeOfPtr * 2);
+  if (CGOptions::IsArm64ilp32()) {
+    maxActualSize = RoundUp(maxActualSize, k8ByteSize * 2);
+  } else {
+    maxActualSize = RoundUp(maxActualSize, kSizeOfPtr * 2);
+  }
   return maxActualSize;
 }
 
@@ -80,5 +84,4 @@ bool CgLayoutFrame::PhaseRun(maplebe::CGFunc &f) {
   f.LayoutStackFrame();
   return false;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgLayoutFrame, layoutstackframe)
 }  /* namespace maplebe */

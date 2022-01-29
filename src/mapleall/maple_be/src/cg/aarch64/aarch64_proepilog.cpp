@@ -910,34 +910,40 @@ Insn &AArch64GenProEpilog::AppendInstructionForAllocateOrDeallocateCallFrame(int
   auto &aarchCGFunc = static_cast<AArch64CGFunc&>(cgFunc);
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopPair] : pushPopOps[kRegsPopOp][rty][kPushPopPair];
+  uint8 size;
+  if (CGOptions::IsArm64ilp32()) {
+    size = k8ByteSize;
+  } else {
+    size = kSizeOfPtr;
+  }
   if (argsToStkPassSize <= kStrLdrImm64UpperBound - kOffset8MemPos) {
     mOp = isAllocate ? pushPopOps[kRegsPushOp][rty][kPushPopSingle] : pushPopOps[kRegsPopOp][rty][kPushPopSingle];
-    AArch64RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
+    AArch64RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
     AArch64MemOperand *o2 = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RSP, argsToStkPassSize,
-                                                                                kSizeOfPtr * kBitsPerByte);
+                                                                                size * kBitsPerByte);
     Insn &insn1 = currCG->BuildInstruction<AArch64Insn>(mOp, o0, *o2);
     AppendInstructionTo(insn1, cgFunc);
-    AArch64RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-    o2 = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RSP, argsToStkPassSize + kSizeOfPtr,
-                                                             kSizeOfPtr * kBitsPerByte);
+    AArch64RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
+    o2 = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(RSP, argsToStkPassSize + size,
+                                                             size * kBitsPerByte);
     Insn &insn2 = currCG->BuildInstruction<AArch64Insn>(mOp, o1, *o2);
     AppendInstructionTo(insn2, cgFunc);
     return insn2;
   } else {
-    AArch64RegOperand &oo = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    AArch64RegOperand &oo = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R9, size * kBitsPerByte, kRegTyInt);
     AArch64ImmOperand &io1 = aarchCGFunc.CreateImmOperand(argsToStkPassSize, k64BitSize, true);
     aarchCGFunc.SelectCopyImm(oo, io1, PTY_i64);
-    AArch64RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
-    AArch64RegOperand &rsp = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, kSizeOfPtr * kBitsPerByte, kRegTyInt);
+    AArch64RegOperand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, size * kBitsPerByte, rty);
+    AArch64RegOperand &rsp = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, size * kBitsPerByte, kRegTyInt);
     AArch64MemOperand *mo = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(
-        AArch64MemOperand::kAddrModeBOrX, kSizeOfPtr * kBitsPerByte, rsp, oo, 0);
+        AArch64MemOperand::kAddrModeBOrX, size * kBitsPerByte, rsp, oo, 0);
     Insn &insn1 = currCG->BuildInstruction<AArch64Insn>(isAllocate ? MOP_xstr : MOP_xldr, o0, *mo);
     AppendInstructionTo(insn1, cgFunc);
-    AArch64ImmOperand &io2 = aarchCGFunc.CreateImmOperand(kSizeOfPtr, k64BitSize, true);
+    AArch64ImmOperand &io2 = aarchCGFunc.CreateImmOperand(size, k64BitSize, true);
     aarchCGFunc.SelectAdd(oo, oo, io2, PTY_i64);
-    AArch64RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
+    AArch64RegOperand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, size * kBitsPerByte, rty);
     mo = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(AArch64MemOperand::kAddrModeBOrX,
-                                                             kSizeOfPtr * kBitsPerByte, rsp, oo, 0);
+                                                             size * kBitsPerByte, rsp, oo, 0);
     Insn &insn2 = currCG->BuildInstruction<AArch64Insn>(isAllocate ? MOP_xstr : MOP_xldr, o1, *mo);
     AppendInstructionTo(insn2, cgFunc);
     return insn2;
@@ -1261,34 +1267,52 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
   CG *currCG = cgFunc.GetCG();
   if (cgFunc.GetMirModule().IsCModule() && cgFunc.GetFunction().GetAttr(FUNCATTR_varargs)) {
     AArch64MemLayout *memlayout = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout());
-    uint32 dataSizeBits = kSizeOfPtr * kBitsPerByte;
+    uint8 size;
+    if (CGOptions::IsArm64ilp32()) {
+      size = k8ByteSize;
+    } else {
+      size = kSizeOfPtr;
+    }
+    uint32 dataSizeBits = size * kBitsPerByte;
     uint32 offset = memlayout->GetGRSaveAreaBaseLoc();
     if (memlayout->GetSizeOfGRSaveArea() % kAarch64StackPtrAlignment) {
-      offset += kSizeOfPtr;  /* End of area should be aligned. Hole between VR and GR area */
+      offset += size;  /* End of area should be aligned. Hole between VR and GR area */
     }
-    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / kSizeOfPtr);
+    uint32 start_regno = k8BitSize - (memlayout->GetSizeOfGRSaveArea() / size);
     ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for GR Save Area");
     for (uint32 i = start_regno + static_cast<uint32>(R0); i < static_cast<uint32>(R8); i++) {
-      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
+      int32 tmpOffset = 0;
+      if (CGOptions::IsBigEndian()) {
+        if((dataSizeBits >> 3) < 8) {
+          tmpOffset += 8 - (dataSizeBits >> 3);
+        }
+      }
+      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
       Insn &inst =
           currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_i64), reg, stackloc);
       cgFunc.GetCurBB()->AppendInsn(inst);
-      offset += kSizeOfPtr;
+      offset += size;
     }
     if (!CGOptions::UseGeneralRegOnly()) {
       offset = memlayout->GetVRSaveAreaBaseLoc();
-      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (kSizeOfPtr * k2BitSize));
+      start_regno = k8BitSize - (memlayout->GetSizeOfVRSaveArea() / (size * k2BitSize));
       ASSERT(start_regno <= k8BitSize, "Incorrect starting GR regno for VR Save Area");
       for (uint32 i = start_regno + static_cast<uint32>(V0); i < static_cast<uint32>(V8); i++) {
-        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset, dataSizeBits);
+        int32 tmpOffset = 0;
+        if (CGOptions::IsBigEndian()) {
+          if((dataSizeBits >> 3) < 16) {
+            tmpOffset += 16 - (dataSizeBits >> 3);
+          }
+        }
+        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
         Insn &inst =
             currCG->BuildInstruction<AArch64Insn>(aarchCGFunc.PickStInsn(dataSizeBits, PTY_f64), reg, stackloc);
         cgFunc.GetCurBB()->AppendInsn(inst);
-        offset += (kSizeOfPtr * k2BitSize);
+        offset += (size * k2BitSize);
       }
     }
   }
