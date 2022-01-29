@@ -1888,7 +1888,7 @@ void MUIDReplacement::GenerateSourceInfo() {
           uint32 sourceMethodIndex = static_cast<uint32>(elemVector[2]->GetI64Val());
           bool isVirtual = elemVector[3]->GetI64Val() == 1 ? true : false;
           SourceFileMethod methodInf = {sourceFileIndex, sourceClassIndex, sourceMethodIndex, isVirtual};
-          sourceFileMethodMap.emplace(std::pair<MUID, SourceFileMethod>(muid, methodInf));
+          (void)sourceFileMethodMap.emplace(std::pair<MUID, SourceFileMethod>(muid, methodInf));
         } else if (prag->GetKind() == kPragmaField) {
           std::string fieldName = GlobalTables::GetStrTable().GetStringFromStrIdx(prag->GetStrIdx());
           MUID muid = GetMUID(fieldName);
@@ -1896,7 +1896,7 @@ void MUIDReplacement::GenerateSourceInfo() {
           uint32 sourceClassIndex = static_cast<uint32>(elemVector[1]->GetI64Val());
           uint32 sourceFieldIndex = static_cast<uint32>(elemVector[2]->GetI64Val());
           SourceFileField fieldInf = {sourceFileIndex, sourceClassIndex, sourceFieldIndex};
-          sourceFileFieldMap.emplace(std::pair<MUID, SourceFileField>(muid, fieldInf));
+          (void)sourceFileFieldMap.emplace(std::pair<MUID, SourceFileField>(muid, fieldInf));
         }
       }
     }

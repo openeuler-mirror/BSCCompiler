@@ -259,7 +259,7 @@ void LoopUnrolling::CopyLoopBodyForProfile(BB &newHeadBB, std::unordered_map<BB*
         }
         curCopyBB->AddSucc(*newBB);
         ResetFrequency(*curBB, *succ, exitBB, *curCopyBB, copyAllLoop);
-        old2NewBB.emplace(succ, newBB);
+        (void)old2NewBB.emplace(succ, newBB);
         bbQue.push(succ);
         if (succ->GetBBLabel() != 0) {
           (void)func->GetOrCreateBBLabel(*newBB);
@@ -292,7 +292,7 @@ void LoopUnrolling::CopyLoopBody(BB &newHeadBB, std::unordered_map<BB*, BB*> &ol
         BB *newBB = CopyBB(*succ, true);
         curCopyBB->AddSucc(*newBB);
         CHECK_NULL_FATAL(newBB);
-        old2NewBB.emplace(succ, newBB);
+        (void)old2NewBB.emplace(succ, newBB);
         bbQue.push(succ);
         if (succ->GetBBLabel() != 0) {
           (void)func->GetOrCreateBBLabel(*newBB);
@@ -407,7 +407,7 @@ void LoopUnrolling::CopyAndInsertBB(bool isPartial) {
       (loop->head->GetFrequency() - 1 == 0 ? newHeadBB->SetFrequency(loop->head->GetFrequency()) :
           newHeadBB->SetFrequency(loop->head->GetFrequency() - 1)) :
           newHeadBB->SetFrequency(loop->head->GetFrequency());
-  old2NewBB.emplace(loop->head, newHeadBB);
+  (void)old2NewBB.emplace(loop->head, newHeadBB);
   std::set<BB*> labelBBs;
   profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, false) :
               CopyLoopBody(*newHeadBB, old2NewBB, labelBBs, *exitBB, false);
@@ -703,7 +703,7 @@ void LoopUnrolling::CopyLoopForPartialAndPre(BB *&newHead, BB *&newExiting) {
   if (profValid) {
     newHeadBB->SetFrequency(loop->head->GetFrequency() % replicatedLoopNum);
   }
-  old2NewBB.emplace(loop->head, newHeadBB);
+  (void)old2NewBB.emplace(loop->head, newHeadBB);
   std::set<BB*> labelBBs;
   resetFreqForUnrollWithVar = true;
   profValid ? CopyLoopBodyForProfile(*newHeadBB, old2NewBB, labelBBs, *exitBB, true) :

@@ -1857,7 +1857,7 @@ void AliasClass::InsertMayUseAll(const StmtNode &stmt) {
     if (aliasElem->GetOriginalSt().GetIndirectLev() >= 0 && !aliasElem->GetOriginalSt().IsPregOst()) {
       MayUseNode mayUse = MayUseNode(
           ssaTab.GetVersionStTable().GetVersionStVectorItem(aliasElem->GetOriginalSt().GetZeroVersionIndex()));
-      mayUseNodes.emplace(mayUse.GetOpnd()->GetOrigIdx(), mayUse);
+      (void)mayUseNodes.emplace(mayUse.GetOpnd()->GetOrigIdx(), mayUse);
     }
   }
 }

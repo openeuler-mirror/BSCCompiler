@@ -47,13 +47,13 @@ class PlacementRC : public MeSSUPre {
   void ResetHasReal();
   void UpdateHasRealWithRealOccs(const MapleVector<SOcc*> &realOccs);
   void SetFormalParamsAttr(MIRFunction &mirFunc) const;
-  void DeleteEntryIncref(SRealOcc &realOcc, UnaryMeStmt *entryIncref) const;
+  void DeleteEntryIncref(SRealOcc &realOcc, const UnaryMeStmt *entryIncref) const;
   void UpdateCatchBlocks2Insert(const BB &lastUseBB);
   void ReplaceOpndWithReg(MeExpr &opnd, BB &lastUseBB, const SRealOcc &realOcc, uint32 idx) const;
   void HandleCanInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB);
   void HandleCannotInsertAfterStmt(const SRealOcc &realOcc, UnaryMeStmt &decrefStmt, BB &lastUseBB);
   void CodeMotionForSLambdares(SLambdaResOcc &lambdaResOcc);
-  void CodeMotionForReal(SOcc &occ, UnaryMeStmt *entryIncref);
+  void CodeMotionForReal(SOcc &occ, const UnaryMeStmt *entryIncref);
   void SetNeedIncref(MeStmt &stmt) const;
   void ReplaceRHSWithPregForDassign(MeStmt &stmt, BB &bb) const;
   bool DoesDassignInsertedForCallAssigned(MeStmt &stmt, BB &bb) const;

@@ -1341,7 +1341,7 @@ bool SSAPre::DefVarDominateOcc(const MeExpr *meExpr, const MeOccur &meOcc) const
       if (meStmt == nullptr) {
         return true;  // it's a original variable dominate everything
       }
-      const BB *defBB = meStmt->GetBB();
+      BB *defBB = meStmt->GetBB();
       if (occBB == defBB) {
         return false;
       }

@@ -771,10 +771,10 @@ AssignMeStmt *IRMap::CreateAssignMeStmt(ScalarMeExpr &lhs, MeExpr &rhs, BB &curr
 
 // get the false goto bb, if condgoto is brtrue, take the other bb of brture @lable
 // otherwise, take the bb of @lable
-const BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
+BB *IRMap::GetFalseBrBB(const CondGotoMeStmt &condgoto) {
   LabelIdx lblIdx = (LabelIdx)condgoto.GetOffset();
   BB *gotoBB = GetBBForLabIdx(lblIdx);
-  const BB *bb = condgoto.GetBB();
+  BB *bb = condgoto.GetBB();
   ASSERT(bb->GetSucc().size() == kBBVectorInitialSize, "array size error");
   if (condgoto.GetOp() == OP_brfalse) {
     return gotoBB;

@@ -147,8 +147,8 @@ bool GCWriteBarrierOpt::IsCall(const MeStmt &stmt) const {
 }
 
 bool GCWriteBarrierOpt::HasYieldPoint(const MeStmt &start, const MeStmt &end) {
-  const BB *startBB = start.GetBB();
-  const BB *endBB = end.GetBB();
+  BB *startBB = start.GetBB();
+  BB *endBB = end.GetBB();
   if (startBB == endBB) {
     return HasCallBetweenStmt(start, end);
   }

@@ -1582,7 +1582,7 @@ void MeCFG::BuildSCCDFS(BB &bb, uint32 &visitIndex, std::vector<SCCOfBBs*> &sccN
         lowestOrder[id] = lowestOrder[succId];
       }
     } else if (inStack[succId]) {
-      backEdges.emplace(std::pair<uint32, uint32>(id, succId));
+      (void)backEdges.emplace(std::pair<uint32, uint32>(id, succId));
       if (visitedOrder[succId] < lowestOrder[id]) {
         lowestOrder[id] = visitedOrder[succId];
       }

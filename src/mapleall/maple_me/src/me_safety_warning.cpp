@@ -298,7 +298,7 @@ bool MESafetyWarning::PhaseRun(MeFunction &meFunction) {
   auto *dom = GET_ANALYSIS(MEDominance, meFunction);
   auto &mod = meFunction.GetMIRModule();
   auto fileInfos = mod.GetSrcFileInfo();
-  MapleVector<MeStmt*> removeStmts(mod.GetMPAllocator().Adapter());
+  MapleVector<const MeStmt*> removeStmts(mod.GetMPAllocator().Adapter());
   for (auto *bb : dom->GetReversePostOrder()) {
     for (auto &stmt : bb->GetMeStmts()) {
       auto *handle = FindHandler(stmt.GetOp());

@@ -89,7 +89,7 @@ RegOperand *PhiEliminate::MakeRoomForNoDefVreg(RegOperand &conflictReg) {
     return rVregIt->second;
   } else {
     RegOperand *regForRecreate = &CreateTempRegForCSSA(conflictReg);
-    replaceVreg.emplace(std::pair<regno_t, RegOperand*>(conflictVregNO, regForRecreate));
+    (void)replaceVreg.emplace(std::pair<regno_t, RegOperand*>(conflictVregNO, regForRecreate));
     return regForRecreate;
   }
 }
@@ -100,7 +100,7 @@ void PhiEliminate::RecordRematInfo(regno_t vRegNO, PregIdx pIdx) {
       remateInfoAfterSSA.erase(vRegNO);
     }
   } else {
-    remateInfoAfterSSA.emplace(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
+    (void)remateInfoAfterSSA.emplace(std::pair<regno_t, PregIdx>(vRegNO, pIdx));
   }
 }
 

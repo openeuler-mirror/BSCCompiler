@@ -125,9 +125,9 @@ bool MeCfgOpt::IsExpensiveOp(Opcode op) {
   }
 }
 
-MeStmt *MeCfgOpt::GetCondBrStmtFromBB(BB &bb) const {
+const MeStmt *MeCfgOpt::GetCondBrStmtFromBB(const BB &bb) const {
   CHECK_FATAL(bb.GetKind() == kBBCondGoto, "must be cond goto");
-  MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
+  const MeStmt *meStmt = to_ptr(bb.GetMeStmts().rbegin());
   if (meStmt->IsCondBr()) {
     return meStmt;
   }
@@ -245,7 +245,7 @@ bool MeCfgOpt::Run(MeCFG &cfg) {
     auto *bb = *bIt;
     constexpr uint32 numOfSuccs = 2;
     if (bb->GetKind() == kBBCondGoto && bb->GetSucc().size() == numOfSuccs) {
-      MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
+      const MeStmt *condMeStmt = GetCondBrStmtFromBB(*bb);
       if (condMeStmt == nullptr || !condMeStmt->IsCondBr()) {
         continue;
       }

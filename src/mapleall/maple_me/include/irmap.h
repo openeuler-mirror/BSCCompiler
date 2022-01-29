@@ -266,7 +266,7 @@ class IRMap : public AnalysisResult {
 
   bool ReplaceMeExprStmtOpnd(uint32, MeStmt&, const MeExpr&, MeExpr&);
   void PutToBucket(uint32, MeExpr&);
-  const BB *GetFalseBrBB(const CondGotoMeStmt&);
+  BB *GetFalseBrBB(const CondGotoMeStmt&);
   MeExpr *ReplaceMeExprExpr(MeExpr &origExpr, MeExpr &newExpr, size_t opndsSize, const MeExpr &meExpr, MeExpr &repExpr);
   MeExpr *SimplifyCompareSameExpr(OpMeExpr *opmeexpr);
   bool IfMeExprIsU1Type(const MeExpr *expr) const;

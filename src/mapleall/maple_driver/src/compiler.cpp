@@ -113,7 +113,7 @@ void Compiler::AppendExtraOptions(std::vector<MplOption> &finalOptions,
     if (baseKey == "o") {
       ReplaceOrInsertOption(finalOptions, key, value);
     } else {
-      finalOptions.emplace_back(MplOption(key, value));
+      (void)finalOptions.emplace_back(MplOption(key, value));
     }
   }
 
@@ -138,7 +138,7 @@ void Compiler::ReplaceOrInsertOption(std::vector<MplOption> &finalOptions,
   }
 
   if (!wasFound) {
-    finalOptions.emplace_back(MplOption(key, value));
+    (void)finalOptions.emplace_back(MplOption(key, value));
   }
 }
 
