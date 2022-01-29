@@ -1771,12 +1771,6 @@ void AArch64CGFunc::SelectAggDassign(DassignNode &stmt) {
             if (r[i] == kRinvalid) {
               break;
             }
-            if (CGOptions::IsBigEndian()) {
-              if (pLoc.numFpPureRegs == 0) {
-                regSize = ((lhsSize - i * k8ByteSize) <= k4ByteSize) ? k4ByteSize : k8ByteSize;
-                regSize *= kBitsPerByte;
-              }
-            }
             RegOperand &parm = GetOrCreatePhysicalRegisterOperand(r[i], regSize, regType);
             Operand &mOpnd = GetOrCreateMemOpnd(*lhsSymbol, memSize * i, regSize);
             GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(PickStInsn(regSize, retPtype), parm, mOpnd));
@@ -1958,18 +1952,20 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
         regType = kRegTyFloat;
         retPty = (pLoc.fpSize == k4ByteSize) ? PTY_f32 : PTY_f64;
       } else {
-        loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
-        numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
-        regType = kRegTyInt;
-        retPty = PTY_u32;
+        if (CGOptions::IsBigEndian()) {
+          loadSize = k8ByteSize;
+          numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+          regType = kRegTyInt;
+          retPty = PTY_u64;
+        } else {
+          loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
+          numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+          regType = kRegTyInt;
+          retPty = PTY_u32;
+        }
       }
       bool parmCopy = IsParamStructCopy(*rhsSymbol);
       for (uint32 i = 0; i < numRegs; i++) {
-        if (CGOptions::IsBigEndian()) {
-          if (pLoc.numFpPureRegs == 0) {
-            loadSize = ((lhsSize - i * k8ByteSize) <= k4ByteSize) ? k4ByteSize : k8ByteSize;
-          }
-        }
         if (parmCopy) {
           rhsmemopnd = &LoadStructCopyBase(*rhsSymbol,
                                            (rhsOffset + static_cast<int64>(i * (fpParm ? loadSize : k8ByteSize))),
@@ -1992,7 +1988,6 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       for (uint32 i = 0; i < numRegs; i++) {
         AArch64reg preg;
         MOperator mop2;
-        loadSize = ((lhsSize - i * k8ByteSize) <= k4ByteSize) ? k4ByteSize : k8ByteSize;
         if (fpParm) {
           preg = regs[i];
           mop2 = (loadSize == k4ByteSize) ? MOP_xvmovs : MOP_xvmovd;
@@ -2141,7 +2136,12 @@ void AArch64CGFunc::SelectAggIassign(IassignNode &stmt, Operand &AddrOpnd) {
       /* generate move to regs. */
       CHECK_FATAL(lhsSize <= k16ByteSize, "SelectAggIassign: illegal struct size");
       RegOperand *result[kTwoRegister]; /* maximum 16 bytes, 2 registers */
-      uint32 loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
+      uint32 loadSize;
+      if (CGOptions::IsBigEndian()) {
+        loadSize = k8ByteSize;
+      } else {
+        loadSize = (lhsSize <= k4ByteSize) ? k4ByteSize : k8ByteSize;
+      }
       uint32 numRegs = (lhsSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
       for (uint32 i = 0; i < numRegs; i++) {
         AArch64OfstOperand *rhsOffOpnd = &GetOrCreateOfstOpnd(rhsOffset + i * loadSize, loadSize * kBitsPerByte);
@@ -2400,9 +2400,9 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
     Operand *srcOpnd = &result;
     if (!IsAfterRegAlloc()) {
       // Create a new vreg/preg for the upper bits of the address
-      PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(PTY_a64);
+      PregIdx pregIdx = GetFunction().GetPregTab()->CreatePreg(LOWERED_PTR_TYPE);
       MIRPreg *tmpPreg = GetFunction().GetPregTab()->PregFromPregIdx(pregIdx);
-      regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(PTY_a64));
+      regno_t vRegNO = NewVReg(kRegTyInt, GetPrimTypeSize(LOWERED_PTR_TYPE));
       RegOperand &tmpreg = GetOrCreateVirtualRegisterOperand(vRegNO);
 
       // Register this vreg mapping
@@ -2424,7 +2424,9 @@ void AArch64CGFunc::SelectAddrof(Operand &result, StImmOperand &stImm, FieldID f
       AArch64OfstOperand &offset = CreateOfstOpnd(*stImm.GetSymbol(), stImm.GetOffset(), stImm.GetRelocs());
       AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
           static_cast<AArch64RegOperand*>(srcOpnd), nullptr, &offset, nullptr);
-      GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
+      GetCurBB()->AppendInsn(
+          GetCG()->BuildInstruction<AArch64Insn>(memOpnd.GetSize() == k64BitSize ? MOP_xldr : MOP_wldr,
+          result, memOpnd));
 
       if (stImm.GetOffset() > 0) {
         AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
@@ -6600,14 +6602,27 @@ void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, const MIRSym
   uint32 numRegNeeded = (symSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
   for (int j = 0; j < static_cast<int>(numRegNeeded); j++) {
     if (sym) {
-      ldMopnd = &GetOrCreateMemOpnd(*sym, (j * static_cast<int>(kSizeOfPtr)), k64BitSize);
+      if (CGOptions::IsArm64ilp32()) {
+        ldMopnd = &GetOrCreateMemOpnd(*sym, (j * static_cast<int>(k8ByteSize)), k64BitSize);
+      } else {
+        ldMopnd = &GetOrCreateMemOpnd(*sym, (j * static_cast<int>(kSizeOfPtr)), k64BitSize);
+      }
     } else {
-      ldMopnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, addrOpnd, nullptr,
-          &GetOrCreateOfstOpnd(static_cast<uint32>(j) * kSizeOfPtr, k32BitSize), nullptr);
+      if (CGOptions::IsArm64ilp32()) {
+        ldMopnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, addrOpnd, nullptr,
+            &GetOrCreateOfstOpnd(static_cast<uint32>(j) * k8ByteSize, k32BitSize), nullptr);
+      } else {
+        ldMopnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, addrOpnd, nullptr,
+            &GetOrCreateOfstOpnd(static_cast<uint32>(j) * kSizeOfPtr, k32BitSize), nullptr);
+      }
     }
     RegOperand *vreg = &CreateVirtualRegisterOperand(NewVReg(kRegTyInt, k8ByteSize));
     GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(PickLdInsn(k64BitSize, PTY_i64), *vreg, *ldMopnd));
-    stMopnd = &CreateMemOpnd(RSP, (static_cast<int64>(baseOffset) + (j * kSizeOfPtr)), k64BitSize);
+    if (CGOptions::IsArm64ilp32()) {
+      stMopnd = &CreateMemOpnd(RSP, (static_cast<int64>(baseOffset) + (j * k8ByteSize)), k64BitSize);
+    } else {
+      stMopnd = &CreateMemOpnd(RSP, (static_cast<int64>(baseOffset) + (j * kSizeOfPtr)), k64BitSize);
+    }
     GetCurBB()->AppendInsn(cg->BuildInstruction<AArch64Insn>(PickStInsn(k64BitSize, PTY_i64), *vreg, *stMopnd));
   }
 }
@@ -7822,7 +7837,8 @@ void AArch64CGFunc::SelectAddrofAfterRa(Operand &result, StImmOperand &stImm, st
     AArch64MemOperand &memOpnd = GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, kSizeOfPtr * kBitsPerByte,
                                                     static_cast<AArch64RegOperand*>(srcOpnd), nullptr,
                                                     &offset, nullptr);
-    rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(MOP_xldr, result, memOpnd));
+    rematInsns.emplace_back(&GetCG()->BuildInstruction<AArch64Insn>(
+        memOpnd.GetSize() == k64BitSize ? MOP_xldr : MOP_wldr, result, memOpnd));
 
     if (stImm.GetOffset() > 0) {
       AArch64ImmOperand &immOpnd = CreateImmOperand(stImm.GetOffset(), result.GetSize(), false);
@@ -8911,36 +8927,48 @@ void AArch64CGFunc::GenCVaStartIntrin(RegOperand &opnd, uint32 stkSize) {
   /* __stack */
   AArch64ImmOperand *offsOpnd = &CreateImmOperand(0, k64BitSize, true, kUnAdjustVary); /* isvary reset StackFrameSize */
   AArch64ImmOperand *offsOpnd2 = &CreateImmOperand(stkSize, k64BitSize, false);
-  RegOperand &vReg = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, GetPrimTypeSize(PTY_a64)));
+  RegOperand &vReg = CreateVirtualRegisterOperand(NewVReg(kRegTyInt, GetPrimTypeSize(LOWERED_PTR_TYPE)));
   if (stkSize) {
-    SelectAdd(vReg, *offsOpnd, *offsOpnd2, PTY_a64);
-    SelectAdd(vReg, stkOpnd, vReg, PTY_a64);
+    SelectAdd(vReg, *offsOpnd, *offsOpnd2, LOWERED_PTR_TYPE);
+    SelectAdd(vReg, stkOpnd, vReg, LOWERED_PTR_TYPE);
   } else {
-    SelectAdd(vReg, stkOpnd, *offsOpnd, PTY_a64);
+    SelectAdd(vReg, stkOpnd, *offsOpnd, LOWERED_PTR_TYPE);
   }
   AArch64OfstOperand *offOpnd = &GetOrCreateOfstOpnd(0, k64BitSize);
   /* mem operand in va_list struct (lhs) */
   MemOperand *strOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, &opnd, nullptr,
                                             offOpnd, static_cast<MIRSymbol*>(nullptr));
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, vReg, *strOpnd));
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
+    vReg.GetSize() == k64BitSize ? MOP_xstr : MOP_wstr, vReg, *strOpnd));
 
   /* __gr_top   ; it's the same as __stack before the 1st va_arg */
-  offOpnd = &GetOrCreateOfstOpnd(k8BitSize, k64BitSize);
+  if (CGOptions::IsArm64ilp32()) {
+    offOpnd = &GetOrCreateOfstOpnd(kSizeOfPtr, k64BitSize);
+  } else {
+    offOpnd = &GetOrCreateOfstOpnd(k8BitSize, k64BitSize);
+  }
   strOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, &opnd, nullptr,
                                 offOpnd, static_cast<MIRSymbol*>(nullptr));
-  SelectAdd(vReg, stkOpnd, *offsOpnd, PTY_a64);
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, vReg, *strOpnd));
+  SelectAdd(vReg, stkOpnd, *offsOpnd, LOWERED_PTR_TYPE);
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
+    vReg.GetSize() == k64BitSize ? MOP_xstr : MOP_wstr, vReg, *strOpnd));
 
   /* __vr_top */
   int32 grAreaSize = static_cast<AArch64MemLayout*>(GetMemlayout())->GetSizeOfGRSaveArea();
-  offsOpnd2 = &CreateImmOperand(static_cast<int64>(RoundUp(static_cast<uint64>(grAreaSize), kSizeOfPtr * 2)),
-                                k64BitSize, false);
-  SelectSub(vReg, *offsOpnd, *offsOpnd2, PTY_a64);  /* if 1st opnd is register => sub */
-  SelectAdd(vReg, stkOpnd, vReg, PTY_a64);
-  offOpnd = &GetOrCreateOfstOpnd(k16BitSize, k64BitSize);
+  if (CGOptions::IsArm64ilp32()) {
+    offsOpnd2 = &CreateImmOperand(static_cast<int64>(RoundUp(static_cast<uint64>(grAreaSize), k8ByteSize * 2)),
+                                  k64BitSize, false);
+  } else {
+    offsOpnd2 = &CreateImmOperand(static_cast<int64>(RoundUp(static_cast<uint64>(grAreaSize), kSizeOfPtr * 2)),
+                                  k64BitSize, false);
+  }
+  SelectSub(vReg, *offsOpnd, *offsOpnd2, LOWERED_PTR_TYPE);  /* if 1st opnd is register => sub */
+  SelectAdd(vReg, stkOpnd, vReg, LOWERED_PTR_TYPE);
+  offOpnd = &GetOrCreateOfstOpnd(kSizeOfPtr * 2, k64BitSize);
   strOpnd = &GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOi, k64BitSize, &opnd, nullptr,
                                 offOpnd, static_cast<MIRSymbol*>(nullptr));
-  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(MOP_xstr, vReg, *strOpnd));
+  GetCurBB()->AppendInsn(GetCG()->BuildInstruction<AArch64Insn>(
+    vReg.GetSize() == k64BitSize ? MOP_xstr : MOP_wstr, vReg, *strOpnd));
 
   /* __gr_offs */
   int32 offs = 0 - grAreaSize;
@@ -8972,7 +9000,7 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
   isIntrnCallForC = true;
   BaseNode *argExpr = intrnNode.Opnd(0);
   Operand *opnd = HandleExpr(intrnNode, *argExpr);
-  RegOperand &opnd0 = LoadIntoRegister(*opnd, PTY_a64);  /* first argument of intrinsic */
+  RegOperand &opnd0 = LoadIntoRegister(*opnd, LOWERED_PTR_TYPE);  /* first argument of intrinsic */
 
   /* Find beginning of unnamed arg on stack.
    * Ex. void foo(int i1, int i2, ... int i8, struct S r, struct S s, ...)
@@ -8988,7 +9016,11 @@ void AArch64CGFunc::SelectCVaStart(const IntrinsiccallNode &intrnNode) {
       stkSize = static_cast<uint32_t>(pLoc.memOffset + pLoc.memSize);
     }
   }
-  stkSize = static_cast<uint32>(RoundUp(stkSize, kSizeOfPtr));
+  if (CGOptions::IsArm64ilp32()) {
+    stkSize = static_cast<uint32>(RoundUp(stkSize, k8ByteSize));
+  } else {
+    stkSize = static_cast<uint32>(RoundUp(stkSize, kSizeOfPtr));
+  }
 
   GenCVaStartIntrin(opnd0, stkSize);
 

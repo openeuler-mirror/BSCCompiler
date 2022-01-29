@@ -1509,58 +1509,25 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
 
                 uint32 origSize = size;
                 PregIdx pIdxR, pIdx1R, pIdx2R;
-                StmtNode *aStmt;
-                RegreadNode *reg;
-                if (CGOptions::IsBigEndian()) {
-                  if (origSize <= k4ByteSize) {
-                    reg = mirBuilder->CreateExprRegread(PTY_u32, -kSregRetval0);
-                    pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u32);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u32, pIdx1R, reg);
-                    newBlk.AddStatement(aStmt);
-                  } else if (origSize <= k8ByteSize) {
-                    reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
-                    pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
-                    newBlk.AddStatement(aStmt);
-                  } else if (origSize <= k12ByteSize) {
-                    reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
-                    pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
-                    newBlk.AddStatement(aStmt);
-                    reg = mirBuilder->CreateExprRegread(PTY_u32, -kSregRetval1);
-                    pIdx2R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u32);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u32, pIdx2R, reg);
-                    newBlk.AddStatement(aStmt);
-                  } else {
-                    reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
-                    pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
-                    newBlk.AddStatement(aStmt);
-                    reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval1);
-                    pIdx2R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx2R, reg);
-                    newBlk.AddStatement(aStmt);
-                  }
-                } else {
-                  /* save x0 */
-                  reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
-                  pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                  aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
-                  newBlk.AddStatement(aStmt);
+                /* save x0 */
+                RegreadNode *reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval0);
+                pIdx1R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
+                StmtNode *aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx1R, reg);
+                newBlk.AddStatement(aStmt);
 
-                  /* save x1 */
-                  if (origSize > k8ByteSize) {
-                    reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval1);
-                    pIdx2R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                    aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx2R, reg);
-                    newBlk.AddStatement(aStmt);
-                  }
+                /* save x1 */
+                if (origSize > k8ByteSize) {
+                  reg = mirBuilder->CreateExprRegread(PTY_u64, -kSregRetval1);
+                  pIdx2R = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
+                  aStmt = mirBuilder->CreateStmtRegassign(PTY_u64, pIdx2R, reg);
+                  newBlk.AddStatement(aStmt);
                 }
+
                 /* save &s */
                 BaseNode *regAddr = mirBuilder->CreateExprAddrof(0, *symbol);
                 LowerTypePtr(*regAddr);
                 PregIdx pIdxL = GetCurrentFunc()->GetPregTab()->CreatePreg(LOWERED_PTR_TYPE);
-                aStmt = mirBuilder->CreateStmtRegassign(PTY_a64, pIdxL, regAddr);
+                aStmt = mirBuilder->CreateStmtRegassign(LOWERED_PTR_TYPE, pIdxL, regAddr);
                 newBlk.AddStatement(aStmt);
 
                 uint32 curSize = 0;
@@ -1572,6 +1539,7 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                   }
                   BaseNode *addr;
                   BaseNode *shift;
+                  BaseNode *shift1;
                   if (origSize != size) {
                     MIRType *addrType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(LOWERED_PTR_TYPE);
                     addr = mirBuilder->CreateExprBinary(OP_add, *addrType,
@@ -1587,70 +1555,82 @@ bool CGLowerer::LowerStructReturn(BlockNode &newBlk, StmtNode *stmt, StmtNode *n
                     size -= k8ByteSize;
                     curSize += k8ByteSize;
                   } else if (size >= k4ByteSize) {
+                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
+                    if (CGOptions::IsBigEndian()) {
+                      shift1 = mirBuilder->CreateExprBinary(
+                        OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k32BitSize, PTY_i32));
+                    } else {
+                      shift1 = mirBuilder->CreateExprRegread(PTY_u32, pIdxR);
+                    }
                     aStmt = mirBuilder->CreateStmtIassign(
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt32()),
-                      0, addr, mirBuilder->CreateExprRegread(PTY_u32, pIdxR));
-                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    StmtNode *sStmp;
-                    if (CGOptions::IsArm64ilp32()) {
+                      0, addr, shift1);
+                    if (CGOptions::IsBigEndian()) {
                       shift = mirBuilder->CreateExprBinary(OP_shl, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
-                                                           mirBuilder->CreateIntConst(0, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u32);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u32, pIdxS, shift);
+                        mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k32BitSize, PTY_i32));
                     } else {
                       shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
-                                                           mirBuilder->CreateIntConst(k32BitSize, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
+                        mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k32BitSize, PTY_i32));
                     }
+                    pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
+                    StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
                     newBlk.AddStatement(sStmp);
                     size -= k4ByteSize;
                     curSize += k4ByteSize;
                   } else if (size >= k2ByteSize) {
+                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
+                    if (CGOptions::IsBigEndian()) {
+                      shift1 = mirBuilder->CreateExprBinary(
+                        OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k16BitSize, PTY_i32));
+                    } else {
+                      shift1 = mirBuilder->CreateExprRegread(PTY_u16, pIdxR);
+                    }
                     aStmt = mirBuilder->CreateStmtIassign(
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt16()),
-                      0, addr, mirBuilder->CreateExprRegread(PTY_u16, pIdxR));
-                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    StmtNode *sStmp;
-                    if (CGOptions::IsArm64ilp32()) {
+                      0, addr, shift1);
+                    if (CGOptions::IsBigEndian()) {
                       shift = mirBuilder->CreateExprBinary(OP_shl, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u32, pIdxR),
-                                                           mirBuilder->CreateIntConst(0, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u16);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u16, pIdxS, shift);
+                        mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k16BitSize, PTY_i32));
                     } else {
                       shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
-                                                           mirBuilder->CreateIntConst(k16BitSize, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
+                        mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k16BitSize, PTY_i32));
                     }
+                    pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
+                    StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
                     newBlk.AddStatement(sStmp);
                     size -= k2ByteSize;
                     curSize += k2ByteSize;
                   } else {
+                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
+                    if (CGOptions::IsBigEndian()) {
+                      shift1 = mirBuilder->CreateExprBinary(
+                        OP_lshr, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k8BitSize, PTY_i32));
+                    } else {
+                      shift1 = mirBuilder->CreateExprRegread(PTY_u8, pIdxR);
+                    }
                     aStmt = mirBuilder->CreateStmtIassign(
                       *beCommon.BeGetOrCreatePointerType(*GlobalTables::GetTypeTable().GetUInt8()),
-                      0, addr, mirBuilder->CreateExprRegread(PTY_u8, pIdxR));
-                    MIRType *type = GlobalTables::GetTypeTable().GetTypeFromTyIdx(PTY_u64);
-                    StmtNode *sStmp;
-                    if (CGOptions::IsArm64ilp32()) {
-                      shift = mirBuilder->CreateExprBinary(OP_shl, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u32, pIdxR),
-                                                           mirBuilder->CreateIntConst(0, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u16);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u16, pIdxS, shift);
+                      0, addr, shift1);
+                    if (CGOptions::IsBigEndian()) {
+                      shift = mirBuilder->CreateExprBinary(
+                        OP_shl, *type, mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k64BitSize - k8BitSize, PTY_i32));
                     } else {
                       shift = mirBuilder->CreateExprBinary(OP_lshr, *type,
-                                                           mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
-                                                           mirBuilder->CreateIntConst(k8BitSize, PTY_i32));
-                      pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
-                      sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
+                        mirBuilder->CreateExprRegread(PTY_u64, pIdxR),
+                        mirBuilder->CreateIntConst(k8BitSize, PTY_i32));
                     }
+                    pIdxS = GetCurrentFunc()->GetPregTab()->CreatePreg(PTY_u64);
+                    StmtNode *sStmp = mirBuilder->CreateStmtRegassign(PTY_u64, pIdxS, shift);
                     pIdx1R = pIdx2R = pIdxS;
                     newBlk.AddStatement(sStmp);
                     size -= k1ByteSize;

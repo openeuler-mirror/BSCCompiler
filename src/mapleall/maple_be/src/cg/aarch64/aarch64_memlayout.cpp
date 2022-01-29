@@ -172,11 +172,19 @@ void AArch64MemLayout::LayoutVarargParams() {
         }
       }
     }
-    SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * kSizeOfPtr);
+    if (CGOptions::IsArm64ilp32()) {
+      SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * k8ByteSize);
+    } else {
+      SetSizeOfGRSaveArea((k8BitSize - nIntRegs) * kSizeOfPtr);
+    }
     if (CGOptions::UseGeneralRegOnly()) {
       SetSizeOfVRSaveArea(0);
     } else {
-      SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * k2ByteSize);
+      if (CGOptions::IsArm64ilp32()) {
+        SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * k8ByteSize * k2ByteSize);
+      } else {
+        SetSizeOfVRSaveArea((k8BitSize - nFpRegs) * kSizeOfPtr * k2ByteSize);
+      }
     }
   }
 }
@@ -195,7 +203,11 @@ void AArch64MemLayout::LayoutFormalParams() {
         symLoc->SetOffset(GetSegArgsRegPassed().GetSize());
         TyIdx tidx = be.GetFuncReturnType(*mirFunction);
         if (be.GetTypeSize(tidx.GetIdx()) > k16ByteSize) {
-          segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + kSizeOfPtr);
+          if (CGOptions::IsArm64ilp32()) {
+            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + k8ByteSize);
+          } else {
+            segArgsRegPassed.SetSize(segArgsRegPassed.GetSize() + kSizeOfPtr);
+          }
         }
         continue;
       }
@@ -404,9 +416,14 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
    * requires imm be aligned at a 8/4-byte boundary,
    * and local varirables may need 8-byte alignment.
    */
-  segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), kSizeOfPtr));
+  if (CGOptions::IsArm64ilp32()) {
+    segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), k8ByteSize));
   /* we do need this as SP has to be aligned at a 16-bytes bounardy */
-  segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr + kSizeOfPtr));
+    segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), k8ByteSize + k8ByteSize));
+  } else {
+    segArgsRegPassed.SetSize(RoundUp(segArgsRegPassed.GetSize(), kSizeOfPtr));
+    segArgsStkPassed.SetSize(RoundUp(segArgsStkPassed.GetSize(), kSizeOfPtr + kSizeOfPtr));
+  }
   /* allocate the local variables in the stack */
   std::vector<MIRSymbol*> EATempVar;
   std::vector<MIRSymbol*> retDelays;
@@ -451,7 +468,11 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
    * Allocate additional stack space for "thrownval".
    * segLocals need 8 bit align
    */
-  segLocals.SetSize(RoundUp(segLocals.GetSize(), kSizeOfPtr));
+  if (CGOptions::IsArm64ilp32()) {
+    segLocals.SetSize(RoundUp(segLocals.GetSize(), k8ByteSize));
+  } else {
+    segLocals.SetSize(RoundUp(segLocals.GetSize(), kSizeOfPtr));
+  }
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegOperand &baseOpnd = aarchCGFunc->GetOrCreateStackBaseRegOperand();
   int32 offset = segLocals.GetSize();
@@ -462,7 +483,11 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
       AArch64MemOperand::kAddrModeBOi, k64BitSize, baseOpnd, static_cast<AArch64RegOperand*>(nullptr), offsetOpnd,
       nullptr);
   aarchCGFunc->SetCatchOpnd(*throwMem);
-  segLocals.SetSize(segLocals.GetSize() + kSizeOfPtr);
+  if (CGOptions::IsArm64ilp32()) {
+    segLocals.SetSize(segLocals.GetSize() + k8ByteSize);
+  } else {
+    segLocals.SetSize(segLocals.GetSize() + kSizeOfPtr);
+  }
 }
 
 SymbolAlloc *AArch64MemLayout::AssignLocationToSpillReg(regno_t vrNum) {
@@ -476,7 +501,7 @@ SymbolAlloc *AArch64MemLayout::AssignLocationToSpillReg(regno_t vrNum) {
   return symLoc;
 }
 
-uint64 AArch64MemLayout::StackFrameSize() {
+uint64 AArch64MemLayout::StackFrameSize() const {
   uint64 total = segArgsRegPassed.GetSize() + static_cast<AArch64CGFunc*>(cgFunc)->SizeOfCalleeSaved() +
                  GetSizeOfRefLocals() + locals().GetSize() + GetSizeOfSpillReg();
 

@@ -2337,6 +2337,13 @@ void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, cons
   } else if (!info.isGPReg && !mirType->IsStructType() && mirType->GetSize() < 16) {  // fp/simd reg
     offset = 16 - mirType->GetSize();
   }
+#if ILP32
+  if(mirType->IsStructType() && mirType->GetSize() > 16) {
+    offset = 8 - GetPrimTypeSize(PTY_a32);
+  } else if(mirType->IsStructType() && mirType->GetSize() <= 4) {
+    offset = 4;
+  }
+#endif
   if (offset == 0) {
     return;
   }
@@ -2347,11 +2354,20 @@ void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, cons
 }
 
 void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &vaArgVar) const {
-  if (!FEOptions::GetInstance().IsBigEndian() ||
-      mirType->IsStructType() || mirType->GetSize() >= 8) {
+  if (!FEOptions::GetInstance().IsBigEndian()) {
     return;
   }
-  uint64 offset = 8 - mirType->GetSize();
+  int offset = 0;
+#if ILP32
+  if(mirType->IsStructType() && mirType->GetSize() > 16) {
+    offset = 8 - GetPrimTypeSize(PTY_a32);
+  } else if(mirType->IsStructType() && mirType->GetSize() <= 4) {
+    offset = 4;
+  }
+#endif
+  if (!mirType->IsStructType() && mirType->GetSize() < 8) {
+    offset = 8 - mirType->GetSize();
+  }
   if (offset == 0) {
     return;
   }
