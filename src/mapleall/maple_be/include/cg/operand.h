@@ -815,6 +815,30 @@ class PhiOperand : public OperandVisitable<PhiOperand> {
     return phiList;
   }
 
+  uint32 GetLeastCommonValidBit() {
+    uint32 leastCommonVb = 0;
+    for (auto phiOpnd : phiList) {
+      uint32 curVb = phiOpnd.second->GetValidBitsNum();
+      if (curVb > leastCommonVb) {
+        leastCommonVb = curVb;
+      }
+    }
+    return leastCommonVb;
+  }
+
+  bool IsRedundancy() {
+    uint32 srcSsaIdx = 0;
+    for (auto phiOpnd : phiList) {
+      if (srcSsaIdx == 0) {
+        srcSsaIdx = phiOpnd.second->GetRegisterNumber();
+      }
+      if (srcSsaIdx != phiOpnd.second->GetRegisterNumber()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   bool Less(const Operand &right) const override {
     /* For different type. */
     if (opndKind != right.GetKind()) {

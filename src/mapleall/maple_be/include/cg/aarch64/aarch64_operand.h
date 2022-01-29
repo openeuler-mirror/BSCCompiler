@@ -133,8 +133,8 @@ class AArch64RegOperand : public RegOperand {
     ASSERT(regType < kRegTyLast, "unexpected regType");
     regno_t reg = isVirtual ? regNO : (regNO - 1);
     LogInfo::MapleLogger() << (isVirtual ? "vreg:" : " reg:") << prims[regType] << reg
-                           << " class: " << classes[regType] << " validBitNum: ["
-                           << static_cast<uint32>(validBitsNum) << "]";
+                           << " Ty: " << classes[regType] << " Vb: [" << static_cast<uint32>(validBitsNum) << "]"
+                           << " Sz: [" << size << "]" ;
   }
 
   bool IsSPOrFP() const override;
@@ -208,7 +208,7 @@ class AArch64ImmOperand : public ImmOperand {
             IsBitmaskImmediate());
   }
 
-  bool IsSingleInstructionMovable(uint32 destSize) {
+  bool IsSingleInstructionMovable(uint32 destSize) const {
     return (IsMoveWidableImmediate(static_cast<uint64>(value), static_cast<uint32>(destSize)) ||
             IsMoveWidableImmediate(~static_cast<uint64>(value), static_cast<uint32>(destSize)) ||
             IsBitmaskImmediate(destSize));

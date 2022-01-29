@@ -25,8 +25,10 @@ class AArch64Prop : public CGProp {
   AArch64Prop(MemPool &mp, CGFunc &f, CGSSAInfo &sInfo)
       : CGProp(mp, f, sInfo){}
 
+  /* do not extend life range */
+  static bool IsInLimitCopyRange(VRegVersion *toBeReplaced);
  private:
-  void CopyProp(Insn &insn) override;
+  void CopyProp() override;
   /*
    * for aarch64
    * 1. extended register prop
@@ -36,10 +38,6 @@ class AArch64Prop : public CGProp {
    */
   void TargetProp(Insn &insn) override;
   void PropPatternOpt() override;
-
-  void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion);
-  /* do not extend life range */
-  bool IsInLimitCopyRange(VRegVersion *toBeReplaced);
 };
 
 class A64StrLdrProp {
@@ -118,6 +116,62 @@ class A64ConstProp {
   Insn *curInsn;
 };
 
+class CopyRegProp : PropOptimizePattern {
+ public:
+  CopyRegProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~CopyRegProp() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+ private:
+  void VaildateImplicitCvt(RegOperand &destReg, RegOperand &srcReg, Insn &movInsn);
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
+};
+
+class RedundantPhiProp : PropOptimizePattern {
+ public:
+  RedundantPhiProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~RedundantPhiProp() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+
+ private:
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
+};
+
+class ValidBitNumberProp : PropOptimizePattern {
+ public:
+  ValidBitNumberProp(CGFunc &cgFunc, CGSSAInfo *cgssaInfo) : PropOptimizePattern(cgFunc, cgssaInfo) {}
+  ~ValidBitNumberProp() override = default;
+  bool CheckCondition(Insn &insn) final;
+  void Optimize(Insn &insn) final;
+  void Run() final;
+
+ protected:
+  void Init() final {
+    destVersion = nullptr;
+    srcVersion = nullptr;
+  }
+ private:
+  VRegVersion *destVersion = nullptr;
+  VRegVersion *srcVersion = nullptr;
+};
+
 /*
  * frame pointer and stack pointer will not be varied in function body
  * treat them as const
@@ -143,7 +197,7 @@ class FpSpConstProp : public PropOptimizePattern {
   void PropInMem(DUInsnInfo &useDUInfo, Insn &useInsn);
   void PropInArith(DUInsnInfo &useDUInfo, Insn &useInsn, ArithmeticType curAT);
   void PropInCopy(DUInsnInfo &useDUInfo, Insn &useInsn, MOperator oriMop);
-  int64 ArithmeticFold(int64 valInUse, ArithmeticType useAT);
+  int64 ArithmeticFold(int64 valInUse, ArithmeticType useAT) const;
 
   RegOperand *fpSpBase = nullptr;
   AArch64ImmOperand *shiftOpnd = nullptr;

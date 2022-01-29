@@ -44,12 +44,17 @@ class PeepOptimizeManager {
     }
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
     optPattern.Run(*currBB, *currInsn);
+    optSuccess = optPattern.GetPatternRes();
+  }
+  bool OptSuccess() {
+    return optSuccess;
   }
  private:
   CGFunc *cgFunc;
   BB *currBB;
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
+  bool optSuccess = false;
 };
 
 class AArch64CGPeepHole {
@@ -67,7 +72,7 @@ class AArch64CGPeepHole {
   ~AArch64CGPeepHole() = default;
 
   void Run();
-  void DoOptimize(BB &bb, Insn &insn);
+  bool DoOptimize(BB &bb, Insn &insn);
 
  protected:
   CGFunc *cgFunc;
@@ -412,7 +417,7 @@ class AndCbzToTbzPattern : public CGPeepPattern {
  * 2) ext1 type  < ext2 type ((sxtb32 & sxth32) || (sxtb64 & sxth64) || (sxtb64 & sxtw64) ||
  *                            (sxth64 & sxtw64) || (uxtb32 & uxth32))
  */
-class ElimSpecificExtensionPattern : CGPeepPattern {
+class ElimSpecificExtensionPattern : public CGPeepPattern {
  public:
   ElimSpecificExtensionPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info)
       : CGPeepPattern(cgFunc, currBB, currInsn, info) {}
@@ -496,7 +501,7 @@ class ElimSpecificExtensionPattern : CGPeepPattern {
   };
 
  private:
-  void SetSpecificExtType(Insn &currInsn);
+  void SetSpecificExtType(const Insn &currInsn);
   void SetOptSceneType();
   bool IsValidLoadExtPattern(Insn &currInsn, MOperator oldMop, MOperator newMop);
   MOperator SelectNewLoadMopByBitSize(MOperator lowBitMop);
@@ -686,7 +691,7 @@ class SimplifyMulArithmeticPattern : public CGPeepPattern {
   };
 
  private:
-  void SetArithType(Insn &currInsn);
+  void SetArithType(const Insn &currInsn);
   void DoOptimize(BB &currBB, Insn &currInsn);
   ArithmeticType arithType = kUndef;
   int32 validOpndIdx = -1;
@@ -739,6 +744,24 @@ class OrrToMovPattern : public CGPeepPattern {
   AArch64RegOperand *reg2 = nullptr;
 };
 
+class CombineFmovLdLiPattern : public CGPeepPattern {
+ public:
+  CombineFmovLdLiPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~CombineFmovLdLiPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override {
+    return "CombineFmovLdrPattern";
+  }
+
+ private:
+  MOperator newMop = MOP_undef;
+  RegOperand *newDest = nullptr;
+  Insn *useInsn = nullptr;
+};
+
+/* ======== CGPeepPattern End ======== */
 /*
  * Looking for identical mem insn to eliminate.
  * If two back-to-back is:
@@ -1304,7 +1327,7 @@ class ComplexMemOperandLSLAArch64 : public PeepPattern {
  public:
   explicit ComplexMemOperandLSLAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~ComplexMemOperandLSLAArch64() override = default;
-  bool CheckShiftValid(const Insn &insn, BitShiftOperand &lsl) const;
+  bool CheckShiftValid(const Insn &insn, const BitShiftOperand &lsl) const;
   void Run(BB &bb, Insn &insn) override;
 };
 

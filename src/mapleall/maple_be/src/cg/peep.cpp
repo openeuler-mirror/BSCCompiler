@@ -67,14 +67,28 @@ int64 CGPeepPattern::GetLogValueAtBase2(int64 val) const {
   return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
+Insn *CGPeepPattern::GetUseInsn(const RegOperand &defReg) {
+  ASSERT(defReg.IsRegister(), "must be regOpnd");
+  if (ssaInfo != nullptr) {
+    if (!defReg.IsSSAForm()) {
+      VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
+      ASSERT(defVersion != nullptr, "useVRegVersion must not be null based on ssa");
+      if (defVersion->GetAllUseInsns().size() == 1) {
+        return defVersion->GetAllUseInsns().begin()->second->GetInsn();
+      }
+    }
+  }
+  return nullptr;
+}
+
 Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
-  CHECK_FATAL(useReg.IsRegister(), "must be regOpnd");
+  ASSERT(useReg.IsRegister(), "must be regOpnd");
   if (!useReg.IsSSAForm()) {
     return nullptr;
   }
   regno_t useRegNO = useReg.GetRegisterNumber();
   VRegVersion *useVersion = ssaInfo->FindSSAVersion(useRegNO);
-  CHECK_FATAL(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
+  ASSERT(useVersion != nullptr, "useVRegVersion must not be null based on ssa");
   CHECK_FATAL(!useVersion->IsDeleted(), "deleted version");
   DUInsnInfo *defInfo = useVersion->GetDefInsnInfo();
   return defInfo == nullptr ? nullptr : defInfo->GetInsn();

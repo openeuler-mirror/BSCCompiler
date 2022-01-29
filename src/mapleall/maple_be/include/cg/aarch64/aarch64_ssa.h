@@ -27,7 +27,7 @@ class AArch64CGSSAInfo : public CGSSAInfo {
   RegOperand *GetRenamedOperand(RegOperand &vRegOpnd, bool isDef, Insn &curInsn, uint32 idx) override;
   AArch64MemOperand *CreateMemOperand(AArch64MemOperand &memOpnd, bool isOnSSA /* false = on cgfunc */);
   void ReplaceInsn(Insn &oriInsn, Insn &newInsn) override;
-  void AddInsn(Insn &newInsn) override;
+  void ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) override;
 
  private:
   void RenameInsn(Insn &insn) override;
@@ -56,7 +56,7 @@ class A64OpndSSAUpdateVsitor : public SSAOperandVisitor {
   void MarkDecrease() {
     isDecrease = true;
   };
-  bool HasDeleteDef() {
+  bool HasDeleteDef() const {
     return !deletedDef.empty();
   }
   void Visit(RegOperand *v) final;

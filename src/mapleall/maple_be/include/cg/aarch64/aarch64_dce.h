@@ -33,6 +33,7 @@ class A64DeleteRegUseVisitor : public DeleteRegUseVisitor {
   void Visit(RegOperand *v) final;
   void Visit(ListOperand *v) final;
   void Visit(MemOperand *v) final;
+  void Visit(PhiOperand *v) final;
 };
 }
 #endif /* MAPLEBE_INCLUDE_AARCH64_DCE_H */

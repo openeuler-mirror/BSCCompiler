@@ -609,6 +609,10 @@ class BB {
     ASSERT(!phiInsnList.count(regNO), "repeat phiInsn");
     phiInsnList.emplace(std::pair<regno_t, Insn*>(regNO, &insn));
   }
+  void RemovePhiInsn(regno_t regNO) {
+    ASSERT(phiInsnList.count(regNO), "no such insn");
+    phiInsnList.erase(regNO);
+  }
   bool HasPhiInsn(regno_t regNO) {
     return phiInsnList.find(regNO) != phiInsnList.end();
   }

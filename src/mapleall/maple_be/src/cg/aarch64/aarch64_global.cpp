@@ -393,6 +393,9 @@ void ForwardPropPattern::Optimize(Insn &insn) {
 }
 
 void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
+  if (CGOptions::DoCGSSA()) {
+    CHECK_FATAL(false, "check case in ssa");
+  }
   auto &secondOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   auto &destOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
   uint32 destRegNo = destOpnd.GetRegisterNumber();
@@ -1438,11 +1441,16 @@ void ExtendShiftOptPattern::SelectExtendOrShift(const Insn &def) {
 
 /* first use must match SelectExtendOrShift */
 bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
-  AArch64RegOperand &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
+  auto &regOperand = static_cast<AArch64RegOperand&>(defInsn->GetOperand(kInsnFirstOpnd));
   Operand &defSrcOpnd = defInsn->GetOperand(kInsnSecondOpnd);
   CHECK_FATAL(defSrcOpnd.IsRegister(), "defSrcOpnd must be register!");
-  AArch64RegOperand &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
+  auto &regDefSrc = static_cast<AArch64RegOperand&>(defSrcOpnd);
   if (regDefSrc.IsPhysicalRegister()) {
+    return false;
+  }
+  /* has Implict cvt */
+  if ((shiftOp != BitShiftOperand::kUndef || extendOp != ExtendShiftOperand::kUndef)
+      && (regDefSrc.GetSize() > regOperand.GetSize())) {
     return false;
   }
   regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
