@@ -21,7 +21,6 @@ RegOperand &AArch64PhiEliminate::CreateTempRegForCSSA(RegOperand &oriOpnd) {
 }
 
 Insn &AArch64PhiEliminate::CreateMov(RegOperand &destOpnd, RegOperand &fromOpnd) {
-  ASSERT(destOpnd.GetSize() == fromOpnd.GetSize(), "do not support this move in aarch64");
   ASSERT(destOpnd.GetRegisterType() == fromOpnd.GetRegisterType(), "do not support this move in aarch64");
   bool is64bit = destOpnd.GetSize() == k64BitSize;
   bool isFloat = destOpnd.IsOfFloatOrSIMDClass();

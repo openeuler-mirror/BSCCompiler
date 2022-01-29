@@ -68,15 +68,19 @@ class CGPeepPattern {
   virtual std::string GetPatternName() = 0;
   Insn *GetDefInsn(const RegOperand &useReg);
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
+  Insn *GetUseInsn(const RegOperand &defReg);
   int64 GetLogValueAtBase2(int64 val) const;
   /* The CC reg is unique and cannot cross-version props. */
-  bool IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOperand &ccReg);
-
+  bool IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg);
+  bool GetPatternRes() {
+    return optSuccess;
+  }
  protected:
   CGFunc *cgFunc;
   BB *currBB;
   Insn *currInsn;
   CGSSAInfo *ssaInfo;
+  bool optSuccess = false;
 };
 
 class PeepHoleOptimizer {

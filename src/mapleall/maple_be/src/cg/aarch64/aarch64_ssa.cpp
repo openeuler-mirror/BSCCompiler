@@ -102,6 +102,26 @@ void AArch64CGSSAInfo::ReplaceInsn(Insn &oriInsn, Insn &newInsn) {
   CHECK_FATAL(!ssaUpdator.HasDeleteDef(), "delete def point in replace insn, please check");
 }
 
+void AArch64CGSSAInfo::ReplaceAllUse(VRegVersion *toBeReplaced, VRegVersion *newVersion) {
+  MapleUnorderedMap<uint32, DUInsnInfo*> &useList = toBeReplaced->GetAllUseInsns();
+  for (auto it = useList.begin(); it != useList.end();) {
+    Insn *useInsn = it->second->GetInsn();
+    if (useInsn->GetMachineOpcode() == MOP_asm) {
+      ++it;
+      continue;
+    }
+    for (auto &opndIt : it->second->GetOperands()) {
+      Operand &opnd = useInsn->GetOperand(opndIt.first);
+      A64ReplaceRegOpndVisitor replaceRegOpndVisitor(
+          *cgFunc, *useInsn, opndIt.first, *toBeReplaced->GetSSAvRegOpnd(), *newVersion->GetSSAvRegOpnd());
+      opnd.Accept(replaceRegOpndVisitor);
+      newVersion->AddUseInsn(*this, *useInsn, opndIt.first);
+      it->second->ClearDU(opndIt.first);
+    }
+    it = useList.erase(it);
+  }
+}
+
 void AArch64CGSSAInfo::DumpInsnInSSAForm(const Insn &insn) const {
   auto &a64Insn = static_cast<const AArch64Insn&>(insn);
   MOperator mOp = a64Insn.GetMachineOpcode();

@@ -48,7 +48,7 @@ class CGProp {
   }
 
  private:
-  virtual void CopyProp(Insn &insn) = 0;
+  virtual void CopyProp() = 0;
   virtual void TargetProp(Insn &insn) = 0;
   virtual void PropPatternOpt() = 0;
   CGSSAInfo *ssaInfo;
@@ -74,8 +74,8 @@ class PropOptimizeManager {
 class PropOptimizePattern {
  public:
   PropOptimizePattern(CGFunc &cgFunc, CGSSAInfo *cgssaInfo)
-    : cgFunc(cgFunc),
-      optSsaInfo(cgssaInfo) {}
+      : cgFunc(cgFunc),
+        optSsaInfo(cgssaInfo) {}
   virtual ~PropOptimizePattern() = default;
   virtual bool CheckCondition(Insn &insn) = 0;
   virtual void Optimize(Insn &insn) = 0;

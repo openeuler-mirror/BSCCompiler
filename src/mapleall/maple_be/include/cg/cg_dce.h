@@ -39,7 +39,8 @@ class CGDce {
 };
 
 class DeleteRegUseVisitor : public OperandVisitorBase,
-                            public OperandVisitors<RegOperand, ListOperand, MemOperand> {
+                            public OperandVisitors<RegOperand, ListOperand, MemOperand>,
+                            public OperandVisitor<PhiOperand> {
  public:
   DeleteRegUseVisitor(CGSSAInfo &cgSSAInfo, uint32 dInsnID) : deleteInsnId(dInsnID), ssaInfo(&cgSSAInfo) {}
   virtual ~DeleteRegUseVisitor() = default;

@@ -269,11 +269,6 @@ DEFINE_MOP(MOP_wiorrrrs, {mopdReg32ID,mopdReg32IS,mopdReg32IS,mopdBitShift32},0,
 /* MOP_wiorrri12 */
 DEFINE_MOP(MOP_wiorrri12, {mopdReg32ID,mopdReg32IS,mopdImmBm12},0,kLtAlu,"orr","0,1,2",1)
 
-/* MOP_xiorri13r */
-DEFINE_MOP(MOP_xiorri13r, {mopdReg64ID,mopdImmBm13,mopdReg64IS},0,kLtAlu,"orr","0,2,1",1)
-/* MOP_wiorri12r */
-DEFINE_MOP(MOP_wiorri12r, {mopdReg32ID,mopdImmBm12,mopdReg32IS},0,kLtAlu,"orr","0,2,1",1)
-
 /* MOP_xeorrrr */
 DEFINE_MOP(MOP_xeorrrr, {mopdReg64ID,mopdReg64IS,mopdReg64IS},0,kLtAlu,"eor","0,1,2",1)
 /* MOP_xeorrrrs */

@@ -595,8 +595,7 @@ bool AArch64Ebo::SimplifyConstOperand(Insn &insn, const MapleVector<Operand*> &o
    * orr resOp, imm1, #0  |  orr resOp, #0, imm1
    * =======>
    * mov resOp, imm1 */
-  if (((insn.GetMachineOpcode() == MOP_wiorrri12) || (insn.GetMachineOpcode() == MOP_xiorrri13) ||
-       (insn.GetMachineOpcode() == MOP_xiorri13r) || (insn.GetMachineOpcode() == MOP_wiorri12r)) && immOpnd->IsZero()) {
+  if (((insn.GetMachineOpcode() == MOP_wiorrri12) || (insn.GetMachineOpcode() == MOP_xiorrri13)) && immOpnd->IsZero()) {
     MOperator mOp = opndSize == k64BitSize ? MOP_xmovrr : MOP_wmovrr;
     Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, *res, *op);
     bb->ReplaceInsn(insn, newInsn);
@@ -713,10 +712,8 @@ bool AArch64Ebo::SimplifyBothConst(BB &bb, Insn &insn, const AArch64ImmOperand &
       val = static_cast<int64>(opndValue0 & opndValue1);
       break;
     case MOP_wiorrri12:
-    case MOP_wiorri12r:
     case MOP_wiorrrr:
     case MOP_xiorrri13:
-    case MOP_xiorri13r:
     case MOP_xiorrrr:
       val = static_cast<int64>(opndValue0 | opndValue1);
       break;

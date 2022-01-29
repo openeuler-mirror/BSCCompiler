@@ -17,19 +17,12 @@
 
 namespace maplebe {
 void CGProp::DoCopyProp() {
-  FOR_ALL_BB(bb, cgFunc) {
-    FOR_BB_INSNS(insn, bb) {
-      if (!insn->IsMachineInstruction()) {
-        continue;
-      }
-      /* change to optimize level opt */
-      CopyProp(*insn);
-    }
-  }
+  CopyProp();
   cgDce->DoDce();
 }
 
 void CGProp::DoTargetProp() {
+  DoCopyProp();
   /* instruction level opt */
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS(insn, bb) {
@@ -39,8 +32,7 @@ void CGProp::DoTargetProp() {
       TargetProp(*insn);
     }
   }
-  
-  /* pattern  level opt */ 
+  /* pattern  level opt */
   if (CGOptions::GetInstance().GetOptimizeLevel() == 2) {
     PropPatternOpt();
   }

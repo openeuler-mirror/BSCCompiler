@@ -101,9 +101,7 @@ bool AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
       manager->Optimize<MvnAndToBicPattern>(true);
       break;
     }
-    case MOP_wiorri12r:
     case MOP_wiorrri12:
-    case MOP_xiorri13r:
     case MOP_xiorrri13: {
       manager->Optimize<OrrToMovPattern>(true);
       break;
@@ -1672,22 +1670,10 @@ bool OrrToMovPattern::CheckCondition(Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   Operand *opndOfOrr = nullptr;
   switch (thisMop) {
-    case MOP_wiorri12r: {  /* opnd1 is Reg32 and opnd2 is immediate. */
-      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
-      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-      newMop = MOP_wmovrr;
-      break;
-    }
     case MOP_wiorrri12: {  /* opnd1 is reg32 and opnd3 is immediate. */
       opndOfOrr = &(insn.GetOperand(kInsnThirdOpnd));
       reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       newMop = MOP_wmovrr;
-      break;
-    }
-    case MOP_xiorri13r: {  /* opnd1 is Reg64 and opnd2 is immediate. */
-      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
-      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-      newMop = MOP_xmovrr;
       break;
     }
     case MOP_xiorrri13: {  /* opnd1 is reg64 and opnd3 is immediate. */
@@ -1707,6 +1693,50 @@ bool OrrToMovPattern::CheckCondition(Insn &insn) {
   return true;
 }
 /* ======== CGPeepPattern End ======== */
+
+void CombineFmovLdLiPattern::Run(BB &bb, Insn &insn) {
+  if (!CheckCondition(insn)) {
+    return;
+  }
+  if (ssaInfo != nullptr) {
+    insn.SetMOperator(newMop);
+    insn.SetOperand(kInsnFirstOpnd, *newDest);
+    VRegVersion *useDestVersion = ssaInfo->FindSSAVersion(newDest->GetRegisterNumber());
+    ASSERT(useDestVersion != nullptr, "useVRegVersion must not be null based on ssa");
+    useDestVersion->SetDefInsn(ssaInfo->CreateDUInsnInfo(&insn, kInsnFirstOpnd), kDefByInsn);
+    bb.RemoveInsn(*useInsn);
+  }
+}
+
+bool CombineFmovLdLiPattern::CheckCondition(Insn &insn) {
+  MOperator thisMop = insn.GetMachineOpcode();
+  MOperator useMop = MOP_undef;
+  switch (thisMop) {
+    case MOP_xldli:
+      newMop = MOP_dldli;
+      useMop = MOP_xvmovdr;
+      break;
+    case MOP_wldli:
+      newMop = MOP_sldli;
+      useMop= MOP_xvmovsr;
+      break;
+    default:
+      return false;
+  }
+  auto &destReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  useInsn = GetUseInsn(destReg);
+  if (useInsn->GetMachineOpcode() == useMop) {
+    auto &useDestReg = static_cast<RegOperand&>(useInsn->GetOperand(kInsnFirstOpnd));
+    if (ssaInfo != nullptr) {
+      if (useDestReg.IsSSAForm()) {
+        ssaInfo->FindSSAVersion(destReg.GetRegisterNumber())->MarkDeleted();
+        newDest = &useDestReg;
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
@@ -1905,9 +1935,7 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
       (static_cast<LoadFloatPointAArch64*>(optimizations[kLoadFloatPointOpt]))->Run(bb, insn);
       break;
     }
-    case MOP_wiorri12r:
     case MOP_wiorrri12:
-    case MOP_xiorri13r:
     case MOP_xiorrri13: {
       (static_cast<ReplaceOrrToMovAArch64*>(optimizations[kReplaceOrrToMovOpt]))->Run(bb, insn);
       break;
@@ -1967,7 +1995,7 @@ void AArch64PrePeepHole::Run(BB &bb, Insn &insn) {
       break;
     }
     case MOP_xubfxrri6i6: {
-      (static_cast<EnhanceStrLdrAArch64*>(optimizations[kUbfxToUxtw]))->Run(bb, insn);
+      (static_cast<UbfxToUxtwAArch64*>(optimizations[kUbfxToUxtw]))->Run(bb, insn);
       break;
     }
     default:
@@ -4201,22 +4229,10 @@ void ReplaceOrrToMovAArch64::Run(BB &bb, Insn &insn){
   MOperator thisMop = insn.GetMachineOpcode();
   MOperator newMop = MOP_undef;
   switch (thisMop) {
-    case MOP_wiorri12r: {  /* opnd1 is Reg32 and opnd2 is immediate. */
-      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
-      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-      newMop = MOP_wmovrr;
-      break;
-    }
     case MOP_wiorrri12: {  /* opnd1 is reg32 and opnd3 is immediate. */
       opndOfOrr = &(insn.GetOperand(kInsnThirdOpnd));
       reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
       newMop = MOP_wmovrr;
-      break;
-    }
-    case MOP_xiorri13r: {  /* opnd1 is Reg64 and opnd2 is immediate. */
-      opndOfOrr = &(insn.GetOperand(kInsnSecondOpnd));
-      reg2 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
-      newMop = MOP_xmovrr;
       break;
     }
     case MOP_xiorrri13: {  /* opnd1 is reg64 and opnd3 is immediate. */
@@ -4595,7 +4611,6 @@ void ComplexMemOperandLSLAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-
 void ComplexMemOperandLabelAArch64::Run(BB &bb, Insn &insn) {
   Insn *nextInsn = insn.GetNextMachineInsn();
   if (nextInsn == nullptr) {
@@ -4619,7 +4634,10 @@ void ComplexMemOperandLabelAArch64::Run(BB &bb, Insn &insn) {
   if (IfOperandIsLiveAfterInsn(regOpnd, *nextInsn)) {
     return;
   }
-
+  if (CGOptions::DoCGSSA()) {
+    /* same as CombineFmovLdrPattern in ssa */
+    CHECK_FATAL(false, "check this case in ssa");
+  }
   Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(MOP_dldli, nextInsn->GetOperand(kInsnFirstOpnd),
                                                                 insn.GetOperand(kInsnSecondOpnd));
   bb.InsertInsnAfter(*nextInsn, newInsn);
@@ -5031,6 +5049,9 @@ void RemoveSxtBeforeStrAArch64::Run(BB &bb , Insn &insn) {
 }
 
 void UbfxToUxtwAArch64::Run(BB &bb , Insn &insn) {
+  if (CGOptions::DoCGSSA()) {
+    return;
+  }
   AArch64ImmOperand &imm0 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnThirdOpnd));
   AArch64ImmOperand &imm1 = static_cast<AArch64ImmOperand&>(insn.GetOperand(kInsnFourthOpnd));
   if ((imm0.GetValue() != 0) || (imm1.GetValue() != k32BitSize)) {
