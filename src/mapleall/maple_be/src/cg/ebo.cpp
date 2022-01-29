@@ -1089,8 +1089,8 @@ void Ebo::RemoveUnusedInsns(BB &bb, bool normal) {
       /* Copies to and from the same register are not needed. */
       if (insn->IsEffectiveCopy()) {
         int32 idx = insn->CopyOperands();
-        if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(idx)) &&
-            RegistersIdentical(*opnd, insn->GetOperand(idx))) {
+        if (HasAssignedReg(*opnd) && HasAssignedReg(insn->GetOperand(static_cast<uint32>(idx))) &&
+            RegistersIdentical(*opnd, insn->GetOperand(static_cast<uint32>(idx)))) {
           /* We may be able to get rid of the copy, but be sure that the operand is marked live into this block. */
           if ((insnInfo->origOpnd[idx] != nullptr) && (&bb != insnInfo->origOpnd[idx]->bb)) {
             MarkOpndLiveIntoBB(*opnd, bb, *insnInfo->origOpnd[idx]->bb);

@@ -66,17 +66,21 @@ MOperator GetLoadOperator(uint32 refSize, bool isVolatile) {
 }
 
 void AArch64CGPeepHole::Run() {
+  bool optSuccess = false;
   FOR_ALL_BB(bb, cgFunc) {
     FOR_BB_INSNS_SAFE(insn, bb, nextInsn) {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
-      DoOptimize(*bb, *insn);
+      optSuccess = DoOptimize(*bb, *insn);
     }
+  }
+  if (optSuccess) {
+    Run();
   }
 }
 
-void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
+bool AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
   MOperator thisMop = insn.GetMachineOpcode();
   if (ssaInfo != nullptr) {
     manager = peepMemPool->New<PeepOptimizeManager>(*cgFunc, bb, insn, *ssaInfo);
@@ -94,28 +98,28 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     }
     case MOP_xandrrr:
     case MOP_wandrrr: {
-      manager->Optimize<MvnAndToBicPattern>();
+      manager->Optimize<MvnAndToBicPattern>(true);
       break;
     }
     case MOP_wiorri12r:
     case MOP_wiorrri12:
     case MOP_xiorri13r:
     case MOP_xiorrri13: {
-      manager->Optimize<OrrToMovPattern>();
+      manager->Optimize<OrrToMovPattern>(true);
       break;
     }
     case MOP_wcbz:
     case MOP_xcbz:
     case MOP_wcbnz:
     case MOP_xcbnz: {
-      manager->Optimize<AndCbzToTbzPattern>();
-      manager->Optimize<CsetCbzToBeqPattern>();
-      manager->Optimize<OneHoleBranchPattern>();
+      manager->Optimize<AndCbzToTbzPattern>(true);
+      manager->Optimize<CsetCbzToBeqPattern>(true);
+      manager->Optimize<OneHoleBranchPattern>(true);
       break;
     }
     case MOP_beq:
     case MOP_bne: {
-      manager->Optimize<AndCmpBranchesToTbzPattern>();
+      manager->Optimize<AndCmpBranchesToTbzPattern>(true);
       break;
     }
     case MOP_wcsetrc:
@@ -140,7 +144,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     }
     case MOP_wandrri12:
     case MOP_xandrri13: {
-      manager->Optimize<LsrAndToUbfxPattern>();
+      manager->Optimize<LsrAndToUbfxPattern>(true);
       manager->Optimize<ElimSpecificExtensionPattern>();
       break;
     }
@@ -153,19 +157,19 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     case MOP_xiorrrr:
     case MOP_wiorrrrs:
     case MOP_xiorrrrs: {
-      manager->Optimize<LogicShiftAndOrrToExtrPattern>();
+      manager->Optimize<LogicShiftAndOrrToExtrPattern>(true);
       break;
     }
     case MOP_bge:
     case MOP_ble:
     case MOP_blt:
     case MOP_bgt: {
-      manager->Optimize<ZeroCmpBranchesToTbzPattern>();
+      manager->Optimize<ZeroCmpBranchesToTbzPattern>(true);
       break;
     }
     case MOP_wcmprr:
     case MOP_xcmprr: {
-      manager->Optimize<NegCmpToCmnPattern>();
+      manager->Optimize<NegCmpToCmnPattern>(true);
       break;
     }
     case MOP_xlslrri6: {
@@ -186,6 +190,7 @@ void AArch64CGPeepHole::DoOptimize(BB &bb, Insn &insn) {
     default:
       break;
   }
+  return manager->OptSuccess();
 }
 
 std::string NegCmpToCmnPattern::GetPatternName() {
@@ -229,6 +234,7 @@ void NegCmpToCmnPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, *newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -249,6 +255,10 @@ bool CsetCbzToBeqPattern::CheckCondition(Insn &insn) {
   }
   MOperator prevMop = prevInsn->GetMachineOpcode();
   if (prevMop != MOP_wcsetrc && prevMop != MOP_xcsetrc) {
+    return false;
+  }
+  auto &ccReg = static_cast<RegOperand&>(prevInsn->GetOperand(kInsnThirdOpnd));
+  if (IsCCRegCrossVersion(*prevInsn, insn, ccReg)) {
     return false;
   }
   return true;
@@ -303,6 +313,7 @@ void CsetCbzToBeqPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -347,6 +358,7 @@ void ExtLslToBitFieldInsertPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -472,6 +484,7 @@ void CselToCsetPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, *newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -559,11 +572,12 @@ void AndCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   auto *aarFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto &labelOpnd = static_cast<LabelOperand&>(insn.GetOperand(kInsnSecondOpnd));
   ImmOperand &tbzImmOpnd = aarFunc->CreateImmOperand(tbzImmVal, k8BitSize, false);
-  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevAndInsn->GetOperand(kInsnFirstOpnd),
+  Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, prevAndInsn->GetOperand(kInsnSecondOpnd),
                                                                  tbzImmOpnd, labelOpnd);
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -678,6 +692,7 @@ void ZeroCmpBranchesToTbzPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -712,6 +727,23 @@ bool LsrAndToUbfxPattern::CheckCondition(Insn &insn) {
   auto &currUseOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnSecondOpnd));
   /* check def-use reg size found by ssa */
   CHECK_FATAL(prevDstOpnd.GetSize() == currUseOpnd.GetSize(), "def-use reg size must be same");
+  auto &andDstReg = static_cast<RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
+  VRegVersion *andDstVersion = ssaInfo->FindSSAVersion(andDstReg.GetRegisterNumber());
+  ASSERT(andDstVersion != nullptr, "find destReg Version failed");
+  for (auto useDUInfoIt : andDstVersion->GetAllUseInsns()) {
+    if (useDUInfoIt.second == nullptr) {
+      continue;
+    }
+    Insn *useInsn = (useDUInfoIt.second)->GetInsn();
+    if (useInsn == nullptr) {
+      continue;
+    }
+    MOperator useMop = useInsn->GetMachineOpcode();
+    /* combine [and & cbz --> tbz] first, to eliminate more insns becase of incompleted copy prop */
+    if (useMop == MOP_wcbz || useMop == MOP_xcbz || useMop == MOP_wcbnz || useMop == MOP_xcbnz) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -740,6 +772,7 @@ void LsrAndToUbfxPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -763,6 +796,7 @@ void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
     newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
     bb.ReplaceInsn(csetInsn, *newInsn);
     ssaInfo->ReplaceInsn(csetInsn, *newInsn);
+    optSuccess = true;
   } else if ((cmpConstVal == 1 && cond.GetCode() == CC_NE) || (cmpConstVal == 0 && cond.GetCode() == CC_EQ)) {
     /* cmpFirstOpnd == 0 */
     MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
@@ -770,8 +804,9 @@ void CmpCsetOpt::Run(BB &bb, Insn &csetInsn)  {
     newInsn = &cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
     bb.ReplaceInsn(csetInsn, *newInsn);
     ssaInfo->ReplaceInsn(csetInsn, *newInsn);
+    optSuccess = true;
   }
-  if (CG_PEEP_DUMP) {
+  if (CG_PEEP_DUMP && (newInsn != nullptr)) {
     std::vector<Insn*> prevInsns;
     prevInsns.emplace_back(cmpInsn);
     prevInsns.emplace_back(&csetInsn);
@@ -879,6 +914,7 @@ void MvnAndToBicPattern::Run(BB &bb , Insn &insn) {
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
   bb.ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -940,6 +976,7 @@ void AndCbzToTbzPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -1041,6 +1078,7 @@ void LogicShiftAndOrrToExtrPattern::Run(BB &bb, Insn &insn) {
   bb.ReplaceInsn(insn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -1054,7 +1092,7 @@ std::string SimplifyMulArithmeticPattern::GetPatternName() {
   return "SimplifyMulArithmeticPattern";
 }
 
-void SimplifyMulArithmeticPattern::SetArithType(Insn &currInsn) {
+void SimplifyMulArithmeticPattern::SetArithType(const Insn &currInsn) {
   MOperator mOp = currInsn.GetMachineOpcode();
   switch (mOp) {
     case MOP_waddrrr:
@@ -1150,6 +1188,7 @@ void SimplifyMulArithmeticPattern::DoOptimize(BB &currBB, Insn &currInsn) {
   currBB.ReplaceInsn(currInsn, *newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(currInsn, *newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -1179,7 +1218,7 @@ std::string ElimSpecificExtensionPattern::GetPatternName() {
   return "ElimSpecificExtensionPattern";
 }
 
-void ElimSpecificExtensionPattern::SetSpecificExtType(Insn &currInsn) {
+void ElimSpecificExtensionPattern::SetSpecificExtType(const Insn &currInsn) {
   MOperator mOp = currInsn.GetMachineOpcode();
   switch (mOp) {
     case MOP_wandrri12: {
@@ -1284,6 +1323,7 @@ void ElimSpecificExtensionPattern::ReplaceExtWithMov(Insn &currInsn) {
   currBB->ReplaceInsn(currInsn, newInsn);
   /* update ssa info */
   ssaInfo->ReplaceInsn(currInsn, newInsn);
+  optSuccess = true;
   /* dump pattern info */
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
@@ -1439,6 +1479,7 @@ void ElimSpecificExtensionPattern::ElimExtensionAfterLoad(Insn &insn) {
     currBB->ReplaceInsn(insn, newMovInsn);
     /* update ssa info */
     ssaInfo->ReplaceInsn(insn, newMovInsn);
+    optSuccess = true;
     /* dump pattern info */
     if (CG_PEEP_DUMP) {
       LogInfo::MapleLogger() << "======= ReplacedInsn :\n";
@@ -1549,6 +1590,7 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
         insn.GetMachineOpcode(), prevInsn->GetOperand(kInsnSecondOpnd), label);
     bb.ReplaceInsn(insn, newCbzInsn);
     ssaInfo->ReplaceInsn(insn, newCbzInsn);
+    optSuccess = true;
     if (CG_PEEP_DUMP) {
       std::vector<Insn*> prevs;
       prevs.emplace_back(prevInsn);
@@ -1568,6 +1610,7 @@ void OneHoleBranchPattern::Run(BB &bb, Insn &insn) {
     Insn &newTbzInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newOp, regOperand, oneHoleOpnd, label);
     bb.ReplaceInsn(insn, newTbzInsn);
     ssaInfo->ReplaceInsn(insn, newTbzInsn);
+    optSuccess = true;
     if (CG_PEEP_DUMP) {
       std::vector<Insn*> prevs;
       prevs.emplace_back(prevInsn);
@@ -1617,6 +1660,7 @@ void OrrToMovPattern::Run(BB &bb, Insn &insn) {
   Insn &newInsn = cgFunc->GetCG()->BuildInstruction<AArch64Insn>(newMop, *reg1, *reg2);
   bb.ReplaceInsn(insn, newInsn);
   ssaInfo->ReplaceInsn(insn, newInsn);
+  optSuccess = true;
   if (CG_PEEP_DUMP) {
     std::vector<Insn*> prevs;
     prevs.emplace_back(&insn);
@@ -1662,6 +1706,7 @@ bool OrrToMovPattern::CheckCondition(Insn &insn) {
   }
   return true;
 }
+/* ======== CGPeepPattern End ======== */
 
 void AArch64PeepHole::InitOpts() {
   optimizations.resize(kPeepholeOptsNum);
@@ -3466,9 +3511,6 @@ void ZeroCmpBranchesAArch64::Run(BB &bb, Insn &insn) {
   auto aarch64CGFunc = static_cast<AArch64CGFunc*>(&cgFunc);
   ImmOperand &bitp = aarch64CGFunc->CreateImmOperand(
       (regOpnd->GetSize() <= k32BitSize) ? (k32BitSize - 1) : (k64BitSize - 1), k8BitSize, false);
-  if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-    CHECK_FATAL(false, "check this case in ssa opt");
-  }
   bb.InsertInsnAfter(
       insn, cg->BuildInstruction<AArch64Insn>(newOp, *static_cast<AArch64RegOperand*>(regOpnd), bitp, *label));
   bb.RemoveInsn(insn);
@@ -3582,14 +3624,14 @@ const Insn *CmpCsetAArch64::DefInsnOfOperandInBB(const Insn &startInsn, const In
         RegOperand *base = memOpnd.GetBaseRegister();
         ASSERT(base != nullptr, "nullptr check");
         ASSERT(base->IsRegister(), "expects RegOperand");
-        if (RegOperand::IsSameRegNO(*base, checkInsn.GetOperand(opndIdx)) &&
+        if (RegOperand::IsSameRegNO(*base, checkInsn.GetOperand(static_cast<uint32>(opndIdx))) &&
             memOpnd.GetAddrMode() == AArch64MemOperand::kAddrModeBOi &&
             (memOpnd.IsPostIndexed() || memOpnd.IsPreIndexed())) {
           return insn;
         }
       } else {
         ASSERT(opnd.IsRegister(), "expects RegOperand");
-        if (RegOperand::IsSameRegNO(checkInsn.GetOperand(opndIdx), opnd)) {
+        if (RegOperand::IsSameRegNO(checkInsn.GetOperand(static_cast<uint32>(opndIdx)), opnd)) {
           return insn;
         }
       }
@@ -3638,7 +3680,7 @@ bool CmpCsetAArch64::CheckOpndDefPoints(Insn &checkInsn, int opndIdx) {
   if (checkInsn.GetBB()->GetPrev() == nullptr) {
     /* For 1st BB, be conservative for def of parameter registers */
     /* Since peep is light weight, do not want to insert pseudo defs */
-    regno_t reg = static_cast<RegOperand&>(checkInsn.GetOperand(opndIdx)).GetRegisterNumber();
+    regno_t reg = static_cast<RegOperand&>(checkInsn.GetOperand(static_cast<uint32>(opndIdx))).GetRegisterNumber();
     if ((reg >= R0 && reg <= R7) || (reg >= D0 && reg <= D7)) {
       return false;
     }
@@ -3722,9 +3764,6 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
     auto &cond = static_cast<CondOperand&>(csetInsn->GetOperand(kInsnSecondOpnd));
     if ((cmpConstVal == 0 && cond.GetCode() == CC_NE) || (cmpConstVal == 1 && cond.GetCode() == CC_EQ)) {
       if (RegOperand::IsSameRegNO(cmpFirstOpnd, csetFirstOpnd)) {
-        if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-          CHECK_FATAL(false, "check this case in ssa opt");
-        }
         bb.RemoveInsn(insn);
         bb.RemoveInsn(*csetInsn);
       } else {
@@ -3733,9 +3772,6 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
         }
         MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xmovrr : MOP_wmovrr;
         Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd);
-        if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-          CHECK_FATAL(false, "check this case in ssa opt");
-        }
         bb.ReplaceInsn(insn, newInsn);
         bb.RemoveInsn(*csetInsn);
       }
@@ -3746,9 +3782,6 @@ void CmpCsetAArch64::Run(BB &bb, Insn &insn)  {
       MOperator mopCode = (cmpFirstOpnd.GetSize() == k64BitSize) ? MOP_xeorrri13 : MOP_weorrri12;
       ImmOperand &one = static_cast<AArch64CGFunc*>(&cgFunc)->CreateImmOperand(1, k8BitSize, false);
       Insn &newInsn = cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopCode, csetFirstOpnd, cmpFirstOpnd, one);
-      if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-        CHECK_FATAL(false, "check this case in ssa opt");
-      }
       bb.ReplaceInsn(insn, newInsn);
       bb.RemoveInsn(*csetInsn);
     }
@@ -4030,7 +4063,7 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
       return;
     }
     insn.SetOperand(kInsnFirstOpnd, prevInsn->GetOperand(kInsnSecondOpnd));
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    if (CGOptions::DoCGSSA()) {
       CHECK_FATAL(false, "check this case in ssa opt");
     }
     bb.RemoveInsn(*prevInsn);
@@ -4054,7 +4087,7 @@ void OneHoleBranchesPreAArch64::Run(BB &bb, Insn &insn) {
     }
     ImmOperand &oneHoleOpnd = aarch64CGFunc->CreateImmOperand(0, k8BitSize, false);
     auto &regOperand = static_cast<AArch64RegOperand&>(prevPrevInsn->GetOperand(kInsnSecondOpnd));
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    if (CGOptions::DoCGSSA()) {
       CHECK_FATAL(false, "check this case in ssa opt");
     }
     bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newOp, regOperand, oneHoleOpnd, label));
@@ -4199,7 +4232,7 @@ void ReplaceOrrToMovAArch64::Run(BB &bb, Insn &insn){
   immOpnd = static_cast<ImmOperand*>(opndOfOrr);
   if (immOpnd->GetValue() == 0) {
     reg1 = &static_cast<AArch64RegOperand&>(insn.GetOperand(kInsnFirstOpnd));
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
+    if (CGOptions::DoCGSSA()) {
       CHECK_FATAL(false, "check this case in ssa opt");
     }
     bb.ReplaceInsn(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(newMop, *reg1, *reg2));
@@ -4482,7 +4515,8 @@ void ComplexMemOperandPreAddAArch64::Run(BB &bb, Insn &insn) {
   }
 }
 
-bool ComplexMemOperandLSLAArch64::CheckShiftValid(const Insn &insn, BitShiftOperand &lsl) const {
+bool ComplexMemOperandLSLAArch64::CheckShiftValid(const Insn &insn,
+                                                  const BitShiftOperand &lsl) const {
   /* check if shift amount is valid */
   uint32 lslAmount = lsl.GetShiftAmount();
   constexpr uint8 twoShiftBits = 2;
@@ -4883,7 +4917,7 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
     return;
   }
 
-  int opndIdx = 2;
+  uint32 opndIdx = 2;
   if (!prevPrevInsn->GetOperand(opndIdx).IsIntImmediate() || !prevInsn->GetOperand(opndIdx).IsIntImmediate()) {
     return;
   }
@@ -4921,9 +4955,6 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-      CHECK_FATAL(false, "check this case in ssa opt");
-    }
     (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);
@@ -4962,9 +4993,6 @@ void AndCmpBranchesToTbzAArch64::Run(BB &bb, Insn &insn) {
         break;
     }
     ImmOperand &newImm = aarch64CGFunc->CreateImmOperand(n, k8BitSize, false);
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-      CHECK_FATAL(false, "check this case in ssa opt");
-    }
     (void)bb.InsertInsnAfter(insn, cgFunc.GetCG()->BuildInstruction<AArch64Insn>(mopNew,
         prevPrevInsn->GetOperand(kInsnSecondOpnd), newImm, label));
     bb.RemoveInsn(insn);

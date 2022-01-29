@@ -910,7 +910,7 @@ void ValueRangePropagation::GetValueRangeOfCRNode(
 // assertge(ptr, ptr + 8) -> the valueRange of index is 8
 // assertge(ptr, ptr + len * 4 - 8) -> the valueRange of index is len - 2
 std::unique_ptr<ValueRange> ValueRangePropagation::GetValueRangeOfCRNodes(
-    BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes) {
+    const BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes) {
   if (crNodes.empty()) {
     return CreateValueRangeOfEqualZero(pTypeOfArray);
   }
@@ -949,9 +949,6 @@ bool ValueRangePropagation::DealWithBoundaryCheck(BB &bb, MeStmt &meStmt) {
   CHECK_FATAL(meStmt.NumMeStmtOpnds() == kNumOperands, "must have two opnds");
   auto &naryMeStmt = static_cast<NaryMeStmt&>(meStmt);
   auto *boundOpnd = naryMeStmt.GetOpnd(1);
-  if (TheValueOfOpndIsInvaliedInABCO(bb, &meStmt, *boundOpnd)) {
-    return true;
-  }
   auto *indexOpnd = naryMeStmt.GetOpnd(0);
   safetyCheckBoundary->HandleAssignWithDeadBeef(bb, meStmt, *indexOpnd, *boundOpnd);
   CRNode *indexCR = sa.GetOrCreateCRNode(*indexOpnd);
@@ -1372,7 +1369,7 @@ void ValueRangePropagation::DealWithOperand(const BB &bb, MeStmt &stmt, MeExpr &
   }
 }
 
-void ValueRangePropagation::DealWithNeg(const BB &bb, OpMeExpr &opMeExpr) {
+void ValueRangePropagation::DealWithNeg(const BB &bb, const OpMeExpr &opMeExpr) {
   CHECK_FATAL(opMeExpr.GetNumOpnds() == 1, "must have one opnd");
   auto *opnd = opMeExpr.GetOpnd(0);
   auto res = NegValueRange(bb, *opnd);
@@ -2369,7 +2366,6 @@ std::unique_ptr<ValueRange> ValueRangePropagation::CreateValueRangeForPhi(LoopDe
 
 // Calculate the valuerange of def-operand according to the valuerange of each rhs operand.
 std::unique_ptr<ValueRange> ValueRangePropagation::MergeValueRangeOfPhiOperands(const BB &bb, MePhiNode &mePhiNode) {
-  std::unique_ptr<ValueRange> mergeRange = nullptr;
   auto *resValueRange = FindValueRange(*bb.GetPred(0), *mePhiNode.GetOpnd(0));
   if (resValueRange == nullptr || !resValueRange->IsConstant()) {
     return nullptr;
@@ -2614,7 +2610,7 @@ ValueRange *ValueRangePropagation::FindValueRange(const BB &bb, MeExpr &expr) {
 }
 
 // Calculate the valuerange of the operands according to the mePhiNode.
-void ValueRangePropagation::DealWithPhi(BB &bb, MePhiNode &mePhiNode) {
+void ValueRangePropagation::DealWithPhi(const BB &bb, MePhiNode &mePhiNode) {
   std::unique_ptr<ValueRange> valueRangeOfPhi = MergeValueRangeOfPhiOperands(bb, mePhiNode);
   if (valueRangeOfPhi != nullptr) {
     (void)Insert2Caches(bb.GetBBId(), mePhiNode.GetLHS()->GetExprID(), std::move(valueRangeOfPhi));
@@ -4193,7 +4189,6 @@ bool MEValueRangePropagation::PhaseRun(maple::MeFunction &f) {
     f.GetCfg()->DumpToFile("valuerange-before" + std::to_string(f.vrpRuns));
   }
   auto *valueRangeMemPool = GetPhaseMemPool();
-  MapleAllocator valueRangeAlloc = MapleAllocator(valueRangeMemPool);
   std::map<OStIdx, std::unique_ptr<std::set<BBId>>> cands((std::less<OStIdx>()));
   LoopScalarAnalysisResult sa(*irMap, nullptr);
   sa.SetComputeTripCountForLoopUnroll(false);

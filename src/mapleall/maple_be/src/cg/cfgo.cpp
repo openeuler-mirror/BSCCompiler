@@ -410,7 +410,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
         break;
       }
       if (origIt != gotoTarget->GetPredsBegin()) {
-        origIt--;
+        --origIt;
         gotoTarget->InsertPred(origIt, curBB);
       } else {
         gotoTarget->PushFrontPreds(curBB);
@@ -426,7 +426,7 @@ void SequentialJumpPattern::UpdateSwitchSucc(BB &curBB, BB &sucBB) {
         break;
       }
       if (origIt != curBB.GetSuccsBegin()) {
-        origIt--;
+        --origIt;
         curBB.InsertSucc(origIt, *gotoTarget);
       } else {
         curBB.PushFrontSuccs(*gotoTarget);
@@ -586,7 +586,7 @@ bool FlipBRPattern::Optimize(BB &curBB) {
            (!IsLabelInLSDAOrSwitchTable(tgtBB->GetLabIdx()) &&
             cgFunc->GetTheCFG()->CanMerge(*ftBB, *tgtBB)))) {
         curBBBranchInsn->SetMOperator(mOp);
-        Operand &brTarget = brInsn->GetOperand(static_cast<int>(brInsn->GetJumpTargetIdx()));
+        Operand &brTarget = brInsn->GetOperand(brInsn->GetJumpTargetIdx());
         curBBBranchInsn->SetOperand(targetIdx, brTarget);
         /* Insert ftBB's insn at the beginning of tgtBB. */
         if (!ftBB->IsSoloGoto()) {
