@@ -44,7 +44,7 @@ void CfiInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   CfiDescr &cfiDescr = cfiDescrTable[mOp];
   LogInfo::MapleLogger() << "CFI " << cfiDescr.name;
-  for (int32 i = 0; i < cfiDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
     LogInfo::MapleLogger() << (i == 0 ? " : " : " ");
     Operand &curOperand = GetOperand(i);
     curOperand.Dump();
@@ -55,7 +55,7 @@ void CfiInsn::Dump() const {
 bool CfiInsn::Check() const {
   CfiDescr &cfiDescr = cfiDescrTable[GetMachineOpcode()];
   /* cfi instruction's 3rd /4th/5th operand must be null */
-  for (int32 i = 0; i < cfiDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < cfiDescr.opndCount; ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != cfiDescr.opndTypes[i]) {
       ASSERT(false, "incorrect operand");
@@ -72,7 +72,7 @@ void CfiInsn::Emit(const CG &cg, Emitter &emitter) const {
   emitter.Emit("\t").Emit(cfiDescr.name);
   for (int32 i = 0; i < cfiDescr.opndCount; ++i) {
     emitter.Emit(" ");
-    Operand &curOperand = GetOperand(i);
+    Operand &curOperand = GetOperand(static_cast<uint32>(i));
     curOperand.Emit(emitter, nullptr);
     if (i < (cfiDescr.opndCount - 1)) {
       emitter.Emit(",");
@@ -127,5 +127,4 @@ bool CgGenCfi::PhaseRun(maplebe::CGFunc &f) {
   f.GenerateCfiPrologEpilog();
   return true;
 }
-MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 }  /* namespace maplebe */

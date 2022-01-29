@@ -489,7 +489,8 @@ void Emitter::EmitCombineBfldValue(StructEmitInfo &structEmitInfo) {
     if(structEmitInfo.GetCombineBitFieldWidth() < width) {
       structEmitInfo.SetCombineBitFieldValue(structEmitInfo.GetCombineBitFieldValue() <<
                                              (width - structEmitInfo.GetCombineBitFieldWidth()));
-      structEmitInfo.IncreaseCombineBitFieldWidth(width - structEmitInfo.GetCombineBitFieldWidth());
+      structEmitInfo.IncreaseCombineBitFieldWidth(static_cast<uint8>(
+          width - structEmitInfo.GetCombineBitFieldWidth()));
     }
     emitBfldValue(true);
   } else {

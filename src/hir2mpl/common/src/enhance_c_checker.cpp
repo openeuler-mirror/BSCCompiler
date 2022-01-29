@@ -1110,9 +1110,8 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
         // Insert a undef boundary r-value
         // when there is a l-value boundary var and r-value without a boundary var
         lowerStmt = mirBuilder.CreateStmtDassign(*lLowerSym, 0, baseExpr->GenMIRNode(mirBuilder));
-        UniqueFEIRExpr binExpr = FEIRBuilder::CreateExprBinary(
-            OP_add, baseExpr->Clone(), std::make_unique<FEIRExprConst>(kUndefValue, PTY_ptr));
-        upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, binExpr->GenMIRNode(mirBuilder));
+        UniqueFEIRExpr undef = std::make_unique<FEIRExprConst>(kUndefValue, PTY_ptr);
+        upperStmt = mirBuilder.CreateStmtDassign(*lUpperSym, 0, undef->GenMIRNode(mirBuilder));
       }
     }
     if (lowerStmt == nullptr || upperStmt == nullptr) {

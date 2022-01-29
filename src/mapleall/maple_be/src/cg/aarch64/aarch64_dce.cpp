@@ -38,7 +38,7 @@ bool AArch64Dce::RemoveUnuseDef(VRegVersion &defVersion) {
       defVersion.MarkDeleted();
       uint32 opndNum = defInsn->GetOperandSize();
       for (int i = opndNum - 1; i >= 0; --i) {
-        Operand &opnd = defInsn->GetOperand(i);
+        Operand &opnd = defInsn->GetOperand(static_cast<uint32>(i));
         A64DeleteRegUseVisitor deleteUseRegVisitor(*GetSSAInfo(), defInsn->GetId());
         CHECK_FATAL(!opnd.IsPhi(), "unexpect phi insn");
         opnd.Accept(deleteUseRegVisitor);

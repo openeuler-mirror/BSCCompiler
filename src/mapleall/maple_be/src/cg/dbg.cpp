@@ -41,7 +41,7 @@ void DbgInsn::Dump() const {
   MOperator mOp = GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   LogInfo::MapleLogger() << "DBG " << dbgDescr.name;
-  for (int32 i = 0; i < dbgDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
     LogInfo::MapleLogger() << (i == 0 ? " : " : " ");
     Operand &curOperand = GetOperand(i);
     curOperand.Dump();
@@ -52,7 +52,7 @@ void DbgInsn::Dump() const {
 bool DbgInsn::Check() const {
   DbgDescr &dbgDescr = dbgDescrTable[GetMachineOpcode()];
   /* dbg instruction's 3rd /4th/5th operand must be null */
-  for (int32 i = 0; i < dbgDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.GetKind() != dbgDescr.opndTypes[i]) {
       ASSERT(false, "incorrect operand");
@@ -67,7 +67,7 @@ void DbgInsn::Emit(const CG &cg, Emitter &emitter) const {
   MOperator mOp = GetMachineOpcode();
   DbgDescr &dbgDescr = dbgDescrTable[mOp];
   emitter.Emit("\t.").Emit(dbgDescr.name);
-  for (int32 i = 0; i < dbgDescr.opndCount; ++i) {
+  for (uint32 i = 0; i < static_cast<uint32>(dbgDescr.opndCount); ++i) {
     emitter.Emit(" ");
     Operand &curOperand = GetOperand(i);
     curOperand.Emit(emitter, nullptr);
@@ -79,7 +79,7 @@ uint32 DbgInsn::GetLoc() const {
   if (mOp != OP_DBG_loc) {
     return 0;
   }
-  return static_cast<ImmOperand *>(opnds[0])->GetVal();
+  return static_cast<uint32>(static_cast<ImmOperand *>(opnds[0])->GetVal());
 }
 
 void ImmOperand::Emit(Emitter &emitter, const OpndProp*) const {

@@ -154,7 +154,7 @@ void AArch64PhiEliminate::MaintainRematInfo(RegOperand &destOpnd, RegOperand &fr
 void AArch64PhiEliminate::ReCreateRegOperand(Insn &insn) {
   auto opndNum = static_cast<int32>(insn.GetOperandSize());
   for (int i = opndNum - 1; i >= 0; --i) {
-    Operand &opnd = insn.GetOperand(i);
+    Operand &opnd = insn.GetOperand(static_cast<uint32>(i));
     A64OperandPhiElmVisitor a64OpndPhiElmVisitor(this, insn, i);
     opnd.Accept(a64OpndPhiElmVisitor);
   }

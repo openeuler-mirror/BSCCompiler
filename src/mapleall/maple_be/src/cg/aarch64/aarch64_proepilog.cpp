@@ -214,7 +214,7 @@ bool AArch64GenProEpilog::TailCallOpt() {
     exitBB = cgFunc.GetExitBBsVec().front();
   }
   uint32 i = 1;
-  uint32 optCount = 0;
+  size_t optCount = 0;
   do {
     std::set<Insn*> callInsns;
     TailCallBBOpt(*exitBB, callInsns, *exitBB);
@@ -852,7 +852,7 @@ void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg 
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopPair];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
   Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(offset, kSizeOfPtr * kBitsPerByte);
+  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
 
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");
@@ -880,7 +880,7 @@ void AArch64GenProEpilog::AppendInstructionPushSingle(AArch64reg reg, RegType rt
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPushOp][rty][kPushPopSingle];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(offset, kSizeOfPtr * kBitsPerByte);
+  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
 
   AArch64MemOperand *aarchMemO1 = static_cast<AArch64MemOperand*>(o1);
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
@@ -1477,7 +1477,7 @@ void AArch64GenProEpilog::AppendInstructionPopSingle(AArch64reg reg, RegType rty
   CG *currCG = cgFunc.GetCG();
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopSingle];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(offset, kSizeOfPtr * kBitsPerByte);
+  Operand *o1 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
   AArch64MemOperand *aarchMemO1 = static_cast<AArch64MemOperand*>(o1);
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   if (aarchMemO1->GetMemVaryType() == kNotVary && aarchCGFunc.IsImmediateOffsetOutOfRange(*aarchMemO1, dataSize)) {
@@ -1500,7 +1500,7 @@ void AArch64GenProEpilog::AppendInstructionPopPair(AArch64reg reg0, AArch64reg r
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
   Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(offset, kSizeOfPtr * kBitsPerByte);
+  Operand *o2 = &aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset), kSizeOfPtr * kBitsPerByte);
 
   uint32 dataSize = kSizeOfPtr * kBitsPerByte;
   CHECK_FATAL(offset >= 0, "offset must >= 0");

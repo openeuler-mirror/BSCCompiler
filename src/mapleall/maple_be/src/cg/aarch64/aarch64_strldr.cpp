@@ -82,7 +82,7 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
     }
 
     Operand &resOpnd = ldrInsn->GetOperand(kInsnFirstOpnd);
-    Operand &srcOpnd = strInsn.GetOperand(strSrcIdx);
+    Operand &srcOpnd = strInsn.GetOperand(static_cast<uint32>(strSrcIdx));
     if (resOpnd.GetSize() != srcOpnd.GetSize()) {
       return;
     }
@@ -298,7 +298,7 @@ void AArch64StoreLoadOpt::DoLoadZeroToMoveTransfer(const Insn &strInsn, short st
     }
 
     auto &resOpnd = ldrInsn->GetOperand(0);
-    auto &srcOpnd = strInsn.GetOperand(strSrcIdx);
+    auto &srcOpnd = strInsn.GetOperand(static_cast<uint32>(strSrcIdx));
 
     if (resOpnd.GetSize() != srcOpnd.GetSize()) {
       return;
@@ -1024,7 +1024,7 @@ void AArch64StoreLoadOpt::ProcessStrPair(Insn &insn) {
     if (memUseInsnSet.empty()) {
       return;
     }
-    auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(regIndex));
+    auto &regOpnd = static_cast<RegOperand&>(insn.GetOperand(static_cast<uint32>(regIndex)));
     if (regOpnd.IsZeroRegister()) {
       DoLoadZeroToMoveTransfer(insn, regIndex, memUseInsnSet);
     } else {

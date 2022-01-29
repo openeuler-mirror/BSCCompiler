@@ -26,7 +26,7 @@
 #endif
 
 namespace maplebe {
-bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOperand &ccReg) {
+bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg) {
   if (startInsn.GetBB() != endInsn.GetBB()) {
     return true;
   }
@@ -41,7 +41,7 @@ bool CGPeepPattern::IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, RegOpera
     }
     uint32 opndNum = curInsn->GetOpndNum();
     for (uint32 i = 0; i < opndNum; ++i) {
-      Operand &opnd = curInsn->GetOperand(static_cast<int32>(i));
+      Operand &opnd = curInsn->GetOperand(i);
       if (!opnd.IsRegister()) {
         continue;
       }
@@ -133,7 +133,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
     }
     int32 lastOpndId = nextInsn->GetOperandSize() - 1;
     for (int32 i = lastOpndId; i >= 0; --i) {
-      Operand &opnd = nextInsn->GetOperand(i);
+      Operand &opnd = nextInsn->GetOperand(static_cast<uint32>(i));
       if (opnd.IsMemoryAccessOperand()) {
         auto &mem = static_cast<MemOperand&>(opnd);
         Operand *base = mem.GetBaseRegister();
@@ -276,7 +276,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
 #endif
     int32 lastOpndId = insn->GetOperandSize() - 1;
     for (int32 i = lastOpndId; i >= 0; --i) {
-      Operand &opnd = insn->GetOperand(i);
+      Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64
       auto *regProp = static_cast<AArch64OpndProp*>(md->operand[static_cast<uint64>(i)]);
 #endif

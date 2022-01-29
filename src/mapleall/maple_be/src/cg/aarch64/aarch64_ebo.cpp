@@ -784,7 +784,7 @@ bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
 }
 
 bool AArch64Ebo::ValidPatternForCombineExtAndLoad(OpndInfo *prevOpndInfo, Insn *insn, MOperator newMop,
-                                                  MOperator oldMop, RegOperand& opnd) {
+                                                  MOperator oldMop, const RegOperand& opnd) {
   if (newMop == oldMop) {
     return true;
   }
@@ -956,7 +956,7 @@ bool AArch64Ebo::CombineMultiplyNeg(Insn *insn, OpndInfo *opndInfo, bool is64bit
   return false;
 }
 
-bool AArch64Ebo::CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bool isFp) {
+bool AArch64Ebo::CombineLsrAnd(Insn &insn, const OpndInfo &opndInfo, bool is64bits, bool isFp) {
   if (opndInfo.insn == nullptr) {
     return false;
   }
@@ -993,9 +993,6 @@ bool AArch64Ebo::CombineLsrAnd(Insn &insn, OpndInfo &opndInfo, bool is64bits, bo
     MOperator mOp = (is64bits ? MOP_xubfxrri6i6 : MOP_wubfxrri5i5);
     insn.GetBB()->ReplaceInsn(insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, opnd1,
                                                                                    immOpnd1, immOpnd2));
-    if (CGOptions::DoCGSSA() && CGOptions::GetInstance().GetOptimizeLevel() < 0) {
-       CHECK_FATAL(false, "check this case in ssa opt");
-    }
     return true;
   }
   return false;

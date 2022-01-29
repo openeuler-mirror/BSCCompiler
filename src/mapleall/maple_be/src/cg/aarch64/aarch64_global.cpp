@@ -877,7 +877,6 @@ void CmpCsetPattern::Optimize(Insn &insn) {
     bb.ReplaceInsn(insn, newInsn);
     bb.RemoveInsn(*csetInsn);
   }
-
   cgFunc.GetRD()->UpdateInOut(bb, true);
 }
 

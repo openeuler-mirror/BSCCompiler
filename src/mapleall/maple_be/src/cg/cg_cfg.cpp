@@ -66,7 +66,8 @@ void CGCFG::BuildCFG() {
         ASSERT(branchInsn->IsCondBranch(), "must be a conditional branch generated from an intrinsic");
         /* Assume the last non-null operand is the branch target */
         int lastOpndIndex = curBB->GetLastInsn()->GetOperandSize() - 1;
-        Operand &lastOpnd = branchInsn->GetOperand(lastOpndIndex);
+        ASSERT(lastOpndIndex > -1, "lastOpndIndex's opnd is greater than -1");
+        Operand &lastOpnd = branchInsn->GetOperand(static_cast<uint32>(lastOpndIndex));
         ASSERT(lastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
         auto &labelOpnd = static_cast<LabelOperand&>(lastOpnd);
         BB *brToBB = cgFunc->GetBBFromLab2BBMap(labelOpnd.GetLabelIndex());
@@ -740,7 +741,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
       auto origIt = it;
       succ.ErasePreds(it);
       if (origIt != succ.GetPredsBegin()) {
-        origIt--;
+        --origIt;
         succ.InsertPred(origIt, newBB);
       } else {
         succ.PushFrontPreds(newBB);
@@ -756,7 +757,7 @@ void CGCFG::UpdatePredsSuccsAfterSplit(BB &pred, BB &succ, BB &newBB) {
       auto origIt = it;
       pred.EraseSuccs(it);
       if (origIt != succ.GetSuccsBegin()) {
-        origIt--;
+        --origIt;
         pred.InsertSucc(origIt, newBB);
       } else {
         pred.PushFrontSuccs(newBB);
@@ -817,8 +818,7 @@ void CGCFG::BreakCriticalEdge(BB &pred, BB &succ) {
   /* update offset if succ is goto target */
   if (pred.GetKind() == BB::kBBIf) {
     Insn *brInsn = FindLastCondBrInsn(pred);
-    LabelOperand &brTarget = static_cast<LabelOperand&>(
-        brInsn->GetOperand(static_cast<int>(brInsn->GetJumpTargetIdx())));
+    LabelOperand &brTarget = static_cast<LabelOperand&>(brInsn->GetOperand(brInsn->GetJumpTargetIdx()));
     if (brTarget.GetLabelIndex() == succ.GetLabIdx()) {
       brInsn->SetOperand(brInsn->GetJumpTargetIdx(), cgFunc->GetOrCreateLabelOperand(newLblIdx));
     }
