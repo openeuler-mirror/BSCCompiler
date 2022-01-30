@@ -1449,8 +1449,8 @@ bool ExtendShiftOptPattern::CheckDefUseInfo(Insn &use, uint32 size) {
     return false;
   }
   /* has Implict cvt */
-  if ((shiftOp != BitShiftOperand::kUndef || extendOp != ExtendShiftOperand::kUndef)
-      && (regDefSrc.GetSize() > regOperand.GetSize())) {
+  if ((shiftOp != BitShiftOperand::kUndef || extendOp != ExtendShiftOperand::kUndef) &&
+      (regDefSrc.GetSize() > regOperand.GetSize())) {
     return false;
   }
   regno_t defSrcRegNo = regDefSrc.GetRegisterNumber();
