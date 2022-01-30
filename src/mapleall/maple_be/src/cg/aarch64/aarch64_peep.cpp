@@ -4605,7 +4605,8 @@ void ComplexMemOperandLSLAArch64::Run(BB &bb, Insn &insn) {
     auto &newIndexOpnd = static_cast<RegOperand&>(insn.GetOperand(kInsnThirdOpnd));
     AArch64MemOperand &newMemOpnd =
         aarch64CGFunc->GetOrCreateMemOpnd(AArch64MemOperand::kAddrModeBOrX, memOpnd->GetSize(), &newBaseOpnd,
-                                          &newIndexOpnd, lsl.GetShiftAmount(), false);
+                                          &newIndexOpnd, static_cast<int32>(lsl.GetShiftAmount()),
+                                          false);
     nextInsn->SetOperand(kInsnSecondOpnd, newMemOpnd);
     bb.RemoveInsn(insn);
   }

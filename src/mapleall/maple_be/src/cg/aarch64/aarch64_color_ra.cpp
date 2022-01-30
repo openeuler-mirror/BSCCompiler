@@ -3718,16 +3718,16 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
       }
       hasVirtual = true;
       if (i == kAsmOutputListOpnd) {
-        fInfo.SetDefOperand(opnd, static_cast<const int32>(i));
+        fInfo.SetDefOperand(opnd, static_cast<int32>(i));
       }
       if (i == kAsmInputListOpnd) {
-        fInfo.SetUseOperand(opnd, static_cast<const int32>(i));
+        fInfo.SetUseOperand(opnd, static_cast<int32>(i));
       }
     } else if (opnd.IsMemoryAccessOperand()) {
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       Operand *base = memOpnd.GetBaseRegister();
       if (base != nullptr) {
-        fInfo.SetBaseOperand(opnd, static_cast<const int32>(i));
+        fInfo.SetBaseOperand(opnd, static_cast<int32>(i));
         MarkUsedRegs(*base, usedRegMask);
         hasVirtual |= static_cast<RegOperand*>(base)->IsVirtualRegister();
       }
@@ -3740,7 +3740,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
     } else {
       bool isDef = md->GetOperand(i)->IsRegDef();
       if (isDef) {
-        fInfo.SetDefOperand(opnd, static_cast<const int32>(i));
+        fInfo.SetDefOperand(opnd, static_cast<int32>(i));
         /*
          * Need to exclude def also, since it will clobber the result when the
          * original value is reloaded.
@@ -3748,7 +3748,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
         hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
         MarkUsedRegs(opnd, usedRegMask);
       } else {
-        fInfo.SetUseOperand(opnd, static_cast<const int32>(i));
+        fInfo.SetUseOperand(opnd, static_cast<int32>(i));
         if (opnd.IsRegister()) {
           hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
           MarkUsedRegs(opnd, usedRegMask);

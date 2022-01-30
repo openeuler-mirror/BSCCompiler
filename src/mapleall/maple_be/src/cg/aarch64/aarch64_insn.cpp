@@ -1013,7 +1013,7 @@ void AArch64Insn::EmitArrayClassCacheLoad(Emitter &emitter) const {
   uint32 propIndex = 0;
   Operand *opnd0 = opnds[opndIndex++];
   Operand *opnd1 = opnds[opndIndex++];
-  AArch64OpndProp *prop0 = md->GetOperand(propIndex++);
+  AArch64OpndProp *prop0 = md->GetOperand(static_cast<int>(propIndex++));
   auto *stImmOpnd = static_cast<StImmOperand*>(opnd1);
   CHECK_FATAL(stImmOpnd != nullptr, "stImmOpnd is null in AArch64Insn::EmitLazyLoadStatic");
 

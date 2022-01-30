@@ -35,6 +35,14 @@ constexpr std::array<uint64, kMaxBitTableSize> bitmaskImmMultTable = {
 };
 };
 
+bool IsBitSizeImmediate(uint64 val, uint32 bitLen, uint32 nLowerZeroBits) {
+    /* mask1 is a 64bits number that is all 1 shifts left size bits */
+    const uint64 mask1 = 0xffffffffffffffffUL << bitLen;
+    /* mask2 is a 64 bits number that nlowerZeroBits are all 1, higher bits aro all 0 */
+    uint64 mask2 = (1UL << static_cast<uint64>(nLowerZeroBits)) - 1UL;
+    return (mask2 & val) == 0UL && (mask1 & ((static_cast<uint64>(val)) >> nLowerZeroBits)) == 0UL;
+};
+
 bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   ASSERT(val != 0, "IsBitmaskImmediate() don's accept 0 or -1");
   ASSERT(static_cast<int64>(val) != -1, "IsBitmaskImmediate() don's accept 0 or -1");
@@ -68,13 +76,11 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   tmpVal = tmpVal & (tmpVal - 1);
   if (tmpVal == 0) {
     if (!expectedOutcome) {
-      LogInfo::MapleLogger() << "0x" << std::hex << std::setw(k16ByteSize) << std::setfill('0') <<
-                                static_cast<uint64>(val) << "\n";
+      LogInfo::MapleLogger() << "0x" << std::hex << std::setw(static_cast<int>(k16ByteSize)) <<
+          std::setfill('0') << static_cast<uint64>(val) << "\n";
       return false;
     }
-#if DEBUG
     ASSERT(expectedOutcome, "incorrect implementation: not valid value but returning true");
-#endif
     /* power of two or zero ; return true */
     return true;
   }
@@ -90,7 +96,7 @@ bool IsBitmaskImmediate(uint64 val, uint32 bitLen) {
   }
 
   int32 logDiff = __builtin_ctzll(diff);
-  int64 pattern = val & ((1ULL << static_cast<uint64>(diff)) - 1);
+  int64 pattern = static_cast<int64>(val & ((1ULL << static_cast<uint64>(diff)) - 1));
 #if DEBUG
   bool ret = (val == pattern * bitmaskImmMultTable[kMaxBitTableSize - logDiff]);
   ASSERT(expectedOutcome == ret, "incorrect implementation: return value does not match expected outcome");

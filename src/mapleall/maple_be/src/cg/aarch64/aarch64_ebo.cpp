@@ -739,7 +739,7 @@ bool AArch64Ebo::OperandLiveAfterInsn(const RegOperand &regOpnd, Insn &insn) {
     if (!nextInsn->IsMachineInstruction()) {
       continue;
     }
-    int32 lastOpndId = nextInsn->GetOperandSize() - 1;
+    int32 lastOpndId = static_cast<int32>(nextInsn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = nextInsn->GetOperand(i);
       if (opnd.IsMemoryAccessOperand()) {
@@ -1141,7 +1141,8 @@ bool AArch64Ebo::SpecialSequence(Insn &insn, const MapleVector<OpndInfo*> &origI
           uint32 xLslrriBitLen = 6;
           uint32 wLslrriBitLen = 5;
           Operand &shiftOpnd = aarchFunc->CreateBitShiftOperand(BitShiftOperand::kLSL,
-              static_cast<uint32>(immOpnd.GetValue()),(opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen);
+              static_cast<uint32>(immOpnd.GetValue()),static_cast<int32>((
+              opCode == MOP_xlslrri6) ? xLslrriBitLen : wLslrriBitLen));
           MOperator mOp = (is64bits ? MOP_xaddrrrs : MOP_waddrrrs);
           insn.GetBB()->ReplaceInsn(insn, cgFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, res, op0,
                                                                                          opnd1, shiftOpnd));

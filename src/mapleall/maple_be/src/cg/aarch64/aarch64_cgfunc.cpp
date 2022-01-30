@@ -186,12 +186,12 @@ MOperator AArch64CGFunc::PickExtInsn(PrimType dtype, PrimType stype) const {
       sBitSize = static_cast<int32>(k64BitSize);
     }
     /* __builtin_ffs(x) returns: 8 -> 4, 16 -> 5, 32 -> 6, 64 -> 7 */
-    uint32 row = static_cast<uint32>(__builtin_ffs(static_cast<int32>(sBitSize))) - k4BitSize;
+    uint32 row = static_cast<uint32>(__builtin_ffs(sBitSize)) - k4BitSize;
     ASSERT(row <= 3, "wrong bitSize");
     if (dtype == PTY_i128 || dtype == PTY_u128) {
       dBitSize = static_cast<int32>(k64BitSize);
     }
-    uint32 col = static_cast<uint32>(__builtin_ffs(static_cast<int32>(dBitSize))) - k4BitSize;
+    uint32 col = static_cast<uint32>(__builtin_ffs(dBitSize)) - k4BitSize;
     ASSERT(col <= 3, "wrong bitSize");
     return table[row][col];
   }
