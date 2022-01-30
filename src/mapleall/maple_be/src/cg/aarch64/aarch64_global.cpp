@@ -1544,13 +1544,13 @@ void ExtendShiftOptPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 am
     if (amount > k4BitSize) {
       return;
     }
-    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
+    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, static_cast<int32>(k64BitSize));
   } else {
     replaceOp = lsMOpTable[lsMOpType];
     if (amount >= k32BitSize) {
       return;
     }
-    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
+    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, static_cast<int32>(k64BitSize));
   }
   if (replaceOp == MOP_undef) {
     return;
@@ -1715,7 +1715,7 @@ bool ExtenToMovPattern::CheckHideUxtw(const Insn &insn, regno_t regno) {
   if (md->IsMove()) {
     return false;
   }
-  int optSize = insn.GetOperandSize();
+  int optSize = static_cast<int>(insn.GetOperandSize());
   for (int i = 0; i < optSize; i++) {
     if (regno == static_cast<RegOperand&>(insn.GetOperand(i)).GetRegisterNumber()) {
       AArch64OpndProp *curOpndProp = md->GetOperand(i);

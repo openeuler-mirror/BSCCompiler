@@ -63,8 +63,8 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForOpnd(Insn &insn, AArch64CGF
         continue;
       }
       if (ofstOpnd->GetVary() == kUnAdjustVary) {
-        ofstOpnd->AdjustOffset(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize() -
-                               memLayout->SizeOfArgsToStackPass());
+        ofstOpnd->AdjustOffset(static_cast<int32>(static_cast<AArch64MemLayout*>(memLayout)->RealStackFrameSize()
+            - memLayout->SizeOfArgsToStackPass()));
         ofstOpnd->SetVary(kAdjustVary);
       }
       if (!stackBaseOpnd && (ofstOpnd->GetVary() == kAdjustVary || ofstOpnd->GetVary() == kNotVary)) {
@@ -127,7 +127,7 @@ void AArch64FPLROffsetAdjustment::AdjustmentOffsetForImmOpnd(Insn &insn, uint32 
 
 void AArch64FPLROffsetAdjustment::AdjustmentStackPointer(Insn &insn, AArch64CGFunc &aarchCGFunc) {
   AArch64MemLayout *aarch64memlayout = static_cast<AArch64MemLayout*>(aarchCGFunc.GetMemlayout());
-  int32 offset = aarch64memlayout->SizeOfArgsToStackPass();
+  int32 offset = static_cast<int32>(aarch64memlayout->SizeOfArgsToStackPass());
   if (offset == 0) {
     return;
   }

@@ -339,9 +339,9 @@ void AArch64GenProEpilog::GenStackGuard(BB &bb) {
       }
     }
 
-    auto stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+    int32 stkSize = static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
     if (useFP) {
-      stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
+      stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
     }
     AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg,
         stkSize - kOffset8MemPos - static_cast<int32>(vArea), kSizeOfPtr * kBitsPerByte);
@@ -401,9 +401,9 @@ BB &AArch64GenProEpilog::GenStackGuardCheckInsn(BB &bb) {
 
   AArch64RegOperand &checkOp =
       aarchCGFunc.GetOrCreatePhysicalRegisterOperand(R10, kSizeOfPtr * kBitsPerByte, kRegTyInt);
-  auto stkSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  int32 stkSize = static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   if (useFP) {
-    stkSize -= static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass();
+    stkSize -= static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->SizeOfArgsToStackPass());
   }
   AArch64MemOperand *downStk = aarchCGFunc.GetMemoryPool()->New<AArch64MemOperand>(stackBaseReg,
       stkSize - kOffset8MemPos - static_cast<int32>(vArea), kSizeOfPtr * kBitsPerByte);
@@ -866,8 +866,9 @@ void AArch64GenProEpilog::AppendInstructionPushPair(AArch64reg reg0, AArch64reg 
 
   /* Append CFi code */
   if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
-    int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
-    stackFrameSize -= cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+    int32 stackFrameSize = static_cast<int32>(
+        static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
+    stackFrameSize -= static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
     int32 cfiOffset = stackFrameSize - offset;
     BB *curBB = cgFunc.GetCurBB();
     Insn *newInsn = curBB->InsertInsnAfter(pushInsn, aarchCGFunc.CreateCfiOffsetInsn(reg0, -cfiOffset, k64BitSize));
@@ -896,8 +897,9 @@ void AArch64GenProEpilog::AppendInstructionPushSingle(AArch64reg reg, RegType rt
 
   /* Append CFI code */
   if (cgFunc.GenCfi() && !CGOptions::IsNoCalleeCFI()) {
-    int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
-    stackFrameSize -= cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
+    int32 stackFrameSize = static_cast<int32>(
+        static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
+    stackFrameSize -= static_cast<int32>(cgFunc.GetMemlayout()->SizeOfArgsToStackPass());
     int32 cfiOffset = stackFrameSize - offset;
     cgFunc.GetCurBB()->InsertInsnAfter(pushInsn,
                                        aarchCGFunc.CreateCfiOffsetInsn(reg, -cfiOffset, k64BitSize));
@@ -989,7 +991,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrame(AArch64reg reg0, AA
    * stackFrameSize includes the size of args to stack-pass
    * if a function has neither VLA nor alloca.
    */
-  int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  int32 stackFrameSize = static_cast<int32>(
+      static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
   /*
    * ldp/stp's imm should be within -512 and 504;
@@ -1078,7 +1081,8 @@ void AArch64GenProEpilog::AppendInstructionAllocateCallFrameDebug(AArch64reg reg
     cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("allocate activation frame for debugging"));
   }
 
-  int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  int32 stackFrameSize = static_cast<int32>(
+      static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
 
   Insn *ipoint = nullptr;
@@ -1287,7 +1291,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
           tmpOffset += 8 - (dataSizeBits >> 3);
         }
       }
-      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
+      Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset + tmpOffset), dataSizeBits);
       RegOperand &reg =
           aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyInt);
       Insn &inst =
@@ -1306,7 +1310,7 @@ void AArch64GenProEpilog::GeneratePushUnnamedVarargRegs() {
             tmpOffset += 16 - (dataSizeBits >> 3);
           }
         }
-        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(offset + tmpOffset, dataSizeBits);
+        Operand &stackloc = aarchCGFunc.CreateStkTopOpnd(static_cast<uint32>(offset + tmpOffset), dataSizeBits);
         RegOperand &reg =
             aarchCGFunc.GetOrCreatePhysicalRegisterOperand(static_cast<AArch64reg>(i), k64BitSize, kRegTyFloat);
         Insn &inst =
@@ -1389,7 +1393,8 @@ void AArch64GenProEpilog::GenerateProlog(BB &bb) {
     GeneratePushRegs();
   } else {
     Operand &spOpnd = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(RSP, k64BitSize, kRegTyInt);
-    int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+    int32 stackFrameSize = static_cast<int32>(
+        static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
     if (stackFrameSize > 0) {
       if (currCG->GenerateVerboseCG()) {
         cgFunc.GetCurBB()->AppendInsn(aarchCGFunc.CreateCommentInsn("allocate activation frame"));
@@ -1525,7 +1530,8 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrame(AArch64reg reg0, 
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
   Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  int32 stackFrameSize = static_cast<int32>(
+      static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
   /*
    * ldp/stp's imm should be within -512 and 504;
@@ -1591,7 +1597,8 @@ void AArch64GenProEpilog::AppendInstructionDeallocateCallFrameDebug(AArch64reg r
   MOperator mOp = pushPopOps[kRegsPopOp][rty][kPushPopPair];
   Operand &o0 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg0, kSizeOfPtr * kBitsPerByte, rty);
   Operand &o1 = aarchCGFunc.GetOrCreatePhysicalRegisterOperand(reg1, kSizeOfPtr * kBitsPerByte, rty);
-  int32 stackFrameSize = static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize();
+  int32 stackFrameSize = static_cast<int32>(
+      static_cast<AArch64MemLayout*>(cgFunc.GetMemlayout())->RealStackFrameSize());
   int64 argsToStkPassSize = cgFunc.GetMemlayout()->SizeOfArgsToStackPass();
   /*
    * ldp/stp's imm should be within -512 and 504;

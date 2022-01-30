@@ -847,7 +847,7 @@ void LSRALinearScanRegAllocator::ComputeLiveIntervalForEachOperand(Insn &insn) {
    * we need to process src opnd first just in case the src/dest vreg are the same and the src vreg belongs to the
    * last interval.
    */
-  int32 lastOpndId = insn.GetOperandSize() - 1;
+  int32 lastOpndId = static_cast<int32>(insn.GetOperandSize() - 1);
   for (int32 i = lastOpndId; i >= 0; --i) {
     Operand &opnd = insn.GetOperand(i);
     bool isDef = static_cast<AArch64OpndProp*>(md->operand[i])->IsRegDef();
@@ -1306,7 +1306,8 @@ bool LSRALinearScanRegAllocator::NeedSaveAcrossCall(LiveInterval &li) {
   return saveAcrossCall;
 }
 
-uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, Insn &insn, bool isIntReg) {
+uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, const Insn &insn,
+                                                       bool isIntReg) {
   uint32 regNO = 0;
   MapleSet<uint32> &callerRegSet = isIntReg ? intCallerRegSet : fpCallerRegSet;
   MapleSet<uint32> &calleeRegSet = isIntReg ? intCalleeRegSet : fpCalleeRegSet;

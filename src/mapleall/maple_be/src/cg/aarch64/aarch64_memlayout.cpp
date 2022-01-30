@@ -354,7 +354,7 @@ void AArch64MemLayout::LayoutReturnRef(std::vector<MIRSymbol*> &returnDelays,
     segRefLocals.SetSize(segRefLocals.GetSize() + be.GetTypeSize(tyIdx));
   }
   segArgsToStkPass.SetSize(FindLargestActualArea(structCopySize));
-  maxParmStackSize = segArgsToStkPass.GetSize();
+  maxParmStackSize = static_cast<int32>(segArgsToStkPass.GetSize());
   if (Globals::GetInstance()->GetOptimLevel() == 0) {
     AssignSpillLocationsToPseudoRegisters();
   } else {
@@ -439,7 +439,7 @@ void AArch64MemLayout::LayoutStackFrame(int32 &structCopySize, int32 &maxParmSta
    */
   LayoutActualParams();
 
-  fixStackSize = RealStackFrameSize();
+  fixStackSize = static_cast<int32>(RealStackFrameSize());
   cgFunc->SetUseFP(cgFunc->UseFP() || fixStackSize > kMaxPimm32);
 }
 
@@ -475,7 +475,7 @@ void AArch64MemLayout::AssignSpillLocationsToPseudoRegisters() {
   }
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   RegOperand &baseOpnd = aarchCGFunc->GetOrCreateStackBaseRegOperand();
-  int32 offset = segLocals.GetSize();
+  int32 offset = static_cast<int32>(segLocals.GetSize());
 
   AArch64OfstOperand *offsetOpnd =
       aarchCGFunc->GetMemoryPool()->New<AArch64OfstOperand>(offset + k16BitSize, k64BitSize);
@@ -533,9 +533,9 @@ int32 AArch64MemLayout::GetRefLocBaseLoc() const {
   AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   auto beforeSize = GetSizeOfLocals();
   if (aarchCGFunc->UsedStpSubPairForCallFrameAllocation()) {
-    return beforeSize;
+    return static_cast<int32>(beforeSize);
   }
-  return beforeSize + kSizeOfFplr;
+  return static_cast<int32>(beforeSize + kSizeOfFplr);
 }
 
 int32 AArch64MemLayout::GetGRSaveAreaBaseLoc() {
