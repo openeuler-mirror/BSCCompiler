@@ -1300,7 +1300,8 @@ bool CopyRegProp::CheckCondition(Insn &insn) {
 
 void CopyRegProp::Optimize(Insn &insn) {
   /* do not extend register live range at current stage */
-  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO() || AArch64Prop::IsInLimitCopyRange(destVersion)) {
+  if (destVersion->GetOriginalRegNO() == srcVersion->GetOriginalRegNO() ||
+      AArch64Prop::IsInLimitCopyRange(destVersion)) {
     optSsaInfo->ReplaceAllUse(destVersion, srcVersion);
   }
 }
