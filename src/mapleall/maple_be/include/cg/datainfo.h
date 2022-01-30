@@ -170,7 +170,7 @@ class DataInfo {
       uint32 baseWord = 0;
       bool firstTime = true;
       while (word) {
-        int32 index = __builtin_ffsll(word);
+        int32 index = __builtin_ffsll(static_cast<int64>(word));
         if (index == 0) {
           continue;
         }

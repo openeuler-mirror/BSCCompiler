@@ -176,7 +176,7 @@ int32 ClassifyAggregate(const BECommon &be, MIRType &mirType, AArch64ArgumentCla
   }
   if (mirType.GetKind() == kTypeStruct) {
     MIRStructType &structType = static_cast<MIRStructType&>(mirType);
-    return ProcessStructWhenClassifyAggregate(be, structType, classes, classesLength, fpSize);
+    return static_cast<int32>(ProcessStructWhenClassifyAggregate(be, structType, classes, classesLength, fpSize));
   }
   /* post merger clean-up */
   for (i = 0; i < sizeOfTyInDwords; ++i) {

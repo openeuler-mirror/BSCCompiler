@@ -393,11 +393,13 @@ BaseNode *CGLowerer::LowerFarray(ArrayNode &array) {
   if ((farrayType->GetKind() == kTypeJArray) && (resNode->GetOpCode() == OP_constval)) {
     ConstvalNode *idxNode = static_cast<ConstvalNode*>(resNode);
     int64 idx = safe_cast<MIRIntConst>(idxNode->GetConstVal())->GetValue();
-    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(idx * eSize, arrayType);
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+        static_cast<int64>(idx * eSize), arrayType);
     rMul = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     rMul->SetPrimType(array.GetPrimType());
   } else {
-    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(eSize, arrayType);
+    MIRIntConst *eConst = GlobalTables::GetIntConstTable().GetOrCreateIntConst(
+        static_cast<int64>(eSize), arrayType);
     BaseNode *eSizeNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     eSizeNode->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);
@@ -519,7 +521,7 @@ BaseNode *CGLowerer::LowerArray(ArrayNode &array, const BaseNode &parent) {
     }
   } else {
     MIRIntConst *eConst =
-        GlobalTables::GetIntConstTable().GetOrCreateIntConst(eSize, arrayTypes);
+        GlobalTables::GetIntConstTable().GetOrCreateIntConst(static_cast<int64>(eSize), arrayTypes);
     BaseNode *tmpNode = mirModule.CurFuncCodeMemPool()->New<ConstvalNode>(eConst);
     tmpNode->SetPrimType(array.GetPrimType());
     rMul = mirModule.CurFuncCodeMemPool()->New<BinaryNode>(OP_mul);

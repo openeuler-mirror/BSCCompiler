@@ -1475,6 +1475,10 @@ MeExpr *IVOptimizer::ComputeExtraExprOfBase(MeExpr &candBase, MeExpr &groupBase,
           extraExpr = irMap->CreateMeExprTypeCvt(ptyp, extraExpr->GetPrimType(), *extraExpr);
         }
       }
+      if (GetPrimTypeSize(expr->GetPrimType()) != GetPrimTypeSize(ptyp) ||
+          IsSignedInteger(expr->GetPrimType()) != IsSignedInteger(ptyp)) {
+        expr = irMap->CreateMeExprTypeCvt(ptyp, expr->GetPrimType(), *expr);
+      }
       expr = irMap->CreateMeExprBinary(OP_mul, ptyp, *expr, *constExpr);
       extraExpr = extraExpr == nullptr ? expr
                                        : irMap->CreateMeExprBinary(OP_add, ptyp, *extraExpr, *expr);
@@ -1920,7 +1924,6 @@ MeStmt *IVOptimizer::GetIncPos() {
 }
 
 void IVOptimizer::UseReplace() {
-  std::vector<bool> initedCand(data->cands.size(), false);
   std::unordered_map<int32, MeExpr*> invariables;
   bool replaced = true;
   auto *preheaderLast = data->currLoop->preheader->GetLastMe();
@@ -2058,6 +2061,19 @@ void IVOptimizer::UseReplace() {
                 extraExpr = invariables[extraExpr->GetExprID()];
               }
               if (ratio == -1) {
+                // swap comparison
+                OpMeExpr newOpExpr(static_cast<OpMeExpr&>(*use->expr), kInvalidExprID);
+                auto op = newOpExpr.GetOp();
+                CHECK_FATAL(IsCompareHasReverseOp(op), "should be known op!");
+                auto newOp = op == OP_ge ? OP_le
+                                         : op == OP_le ? OP_ge
+                                                       : op == OP_lt ? OP_gt
+                                                                     : op == OP_gt ? OP_lt
+                                                                                   : op;
+                newOpExpr.SetOp(newOp);
+                auto *hashed = irMap->HashMeExpr(newOpExpr);
+                (void)irMap->ReplaceMeExprStmt(*use->stmt, *use->expr, *hashed);
+                use->expr = hashed;
                 extraExpr = irMap->CreateMeExprBinary(OP_mul, extraExpr->GetPrimType(), *extraExpr,
                                                       *irMap->CreateIntConstMeExpr(-1, extraExpr->GetPrimType()));
                 ratio = 1;
