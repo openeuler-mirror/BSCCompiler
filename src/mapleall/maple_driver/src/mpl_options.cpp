@@ -71,7 +71,7 @@ int MplOptions::Parse(int argc, char **argv) {
   optionParser->RegisteUsages(Options::GetInstance());
   optionParser->RegisteUsages(MeOption::GetInstance());
   optionParser->RegisteUsages(CGOptions::GetInstance());
-  exeFolder = FileUtils::GetFileFolder(*argv);
+  exeFolder = FileUtils::GetFileFolder(FileUtils::GetExecutable());
   int ret = optionParser->Parse(argc, argv);
   if (ret != kErrorNoError) {
     return ret;
@@ -110,7 +110,7 @@ int MplOptions::Parse(int argc, char **argv) {
      * DecideRunningPhases(runningExes) creates ActionsTree in kCustomRun mode.
      * Maybe we can create Actions tree in DecideRunType in order to not use runningExes?
     */
-    ret = DecideRunningPhases(runningExes);
+    ret = static_cast<int>(DecideRunningPhases(runningExes));
     if (ret != kErrorNoError) {
       return ret;
     }
@@ -126,7 +126,7 @@ int MplOptions::Parse(int argc, char **argv) {
 
   if (isDriverPhasesDumpCmd) {
     DumpActionTree();
-    return kErrorExitHelp;
+    return static_cast<int>(kErrorExitHelp);
   }
 
   return ret;
@@ -145,7 +145,7 @@ ErrorCode MplOptions::HandleGeneralOptions() {
             return kErrorExitHelp;
           }
         }
-        optionParser->PrintUsage("all", helpLevel);
+        optionParser->PrintUsage("driver", helpLevel);
         return kErrorExitHelp;
       }
       case kVersion: {
@@ -641,21 +641,31 @@ ErrorCode MplOptions::CheckFileExits() {
 
 ErrorCode MplOptions::AddOption(const mapleOption::Option &option) {
   if (!option.HasExtra()) {
-    if (option.GetExeName() == "all") {
+    if (option.GetExeName() == "driver") {
       /* If it doesn't have extra options and it's a common option for driver,
-       * set this option in exeOptions as "all"" to use this info in debug print.
+       * set this option in exeOptions as "driver"" to use this info in debug print.
        */
       exeOptions[option.GetExeName()].push_back(option);
     }
     return kErrorNoError;
   }
+
   for (const auto &exeName : option.GetExtras()) {
-    auto iter = std::find(runningExes.begin(), runningExes.end(), exeName);
+
+    /* extras field in Descriptor allows to register an option in additional tool.
+     * If extras exeName == driver name ("driver"), it means that this option
+     * is registered outside the driver, but this option can be used by the driver.
+     * In this case the tool is set in Descriptor.exeName (not in Descriptor.extras).
+     * And Descriptor.extras=="driver" shows only that this option can be handled by the driver.
+     */
+    const std::string &exe = (exeName == "driver") ? option.GetExeName() : exeName;
+
+    auto iter = std::find(runningExes.begin(), runningExes.end(), exe);
     if (iter == runningExes.end()) {
       continue;
     }
     // For compilers, such as me, mpl2mpl
-    exeOptions[exeName].push_back(option);
+    exeOptions[exe].push_back(option);
   }
   return kErrorNoError;
 }
@@ -664,17 +674,11 @@ std::string MplOptions::GetCommonOptionsStr() const {
   static DriverOptionIndex exclude[] = { kRun, kOption, kInFile, kMeOpt, kMpl2MplOpt, kMplcgOpt };
 
   std::string driverOptions;
-  auto it = exeOptions.find("all");
+  auto it = exeOptions.find("driver");
   if (it != exeOptions.end()) {
     for (const mapleOption::Option &opt : it->second) {
       if (!(std::find(std::begin(exclude), std::end(exclude), opt.Index()) != std::end(exclude))) {
-        std::string prefix;
-        if (opt.GetPrefixType() == mapleOption::shortOptPrefix) {
-          prefix = "-";
-        } else if (opt.GetPrefixType() == mapleOption::longOptPrefix) {
-          prefix = "--";
-        }
-
+        std::string prefix = opt.GetPrefix();
         auto connectSym = !opt.Args().empty() ? "=" : "";
         driverOptions += " " + prefix + opt.OptionKey() + connectSym + opt.Args();
       }
@@ -841,11 +845,12 @@ ErrorCode MplOptions::UpdatePhaseOption(const std::string &args, const std::stri
     LogInfo::MapleLogger(kLlErr) << "Cannot find phase " << exeName << '\n';
     return kErrorExit;
   }
-  std::vector<std::string> tmpArgs;
-  // Split options with ' '
-  StringUtils::Split(args, tmpArgs, ' ');
+
+  std::vector<Arg> inputArgs;
+  StringUtils::SplitSV(args, inputArgs, ' ');
+
   auto &exeOption = exeOptions[exeName];
-  ErrorCode ret = optionParser->HandleInputArgs(tmpArgs, exeName, exeOption);
+  ErrorCode ret = optionParser->HandleInputArgs(inputArgs, exeName, exeOption);
   if (ret != kErrorNoError) {
     return ret;
   }
@@ -949,7 +954,8 @@ void MplOptions::connectOptStr(std::string &optionStr, const std::string &exeNam
     auto it = exeOptions.find(exeName);
     for (const mapleOption::Option &opt : it->second) {
       connectSym = !opt.Args().empty() ? "=" : "";
-      optionStr += (" --" + opt.OptionKey() + connectSym + opt.Args());;
+      auto prefixStr = opt.GetPrefix();
+      optionStr += (" " + prefixStr + opt.OptionKey() + connectSym + opt.Args());
     }
   }
 }

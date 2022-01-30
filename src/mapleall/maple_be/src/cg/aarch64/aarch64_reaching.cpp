@@ -1051,7 +1051,7 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
     memOffSet = indexOrOffset;
   }
   std::vector<Insn*> defInsnVec;
-  if (memGen[insn.GetBB()->GetId()]->TestBit(memOffSet / kMemZoomSize)) {
+  if (memGen[insn.GetBB()->GetId()]->TestBit(static_cast<uint32>(memOffSet / kMemZoomSize))) {
     defInsnVec = FindMemDefBetweenInsn(memOffSet, insn.GetBB()->GetFirstInsn(), insn.GetPrev());
   }
 
@@ -1068,7 +1068,7 @@ InsnSet AArch64ReachingDefinition::FindDefForMemOpnd(Insn &insn, uint32 indexOrO
           continue;
         }
 
-        if (memGen[bb->GetId()]->TestBit(memOffSet / kMemZoomSize)) {
+        if (memGen[bb->GetId()]->TestBit(static_cast<uint32>(memOffSet / kMemZoomSize))) {
           FindMemDefInBB(memOffSet, *bb, defInsnSet);
         }
       }
@@ -1105,7 +1105,7 @@ InsnSet AArch64ReachingDefinition::FindUseForMemOpnd(Insn &insn, uint8 index, bo
   /* memOperand may be redefined in current BB */
   bool findFinish = FindMemUseBetweenInsn(memOffSet, insn.GetNext(), insn.GetBB()->GetLastInsn(), useInsnSet);
   std::vector<bool> visitedBB(kMaxBBNum, false);
-  if (findFinish || !memOut[insn.GetBB()->GetId()]->TestBit(memOffSet / kMemZoomSize)) {
+  if (findFinish || !memOut[insn.GetBB()->GetId()]->TestBit(static_cast<uint32>(memOffSet / kMemZoomSize))) {
     if (insn.GetBB()->GetEhSuccs().size() != 0) {
       DFSFindUseForMemOpnd(*insn.GetBB(), memOffSet, visitedBB, useInsnSet, true);
     }
@@ -1113,10 +1113,10 @@ InsnSet AArch64ReachingDefinition::FindUseForMemOpnd(Insn &insn, uint8 index, bo
     DFSFindUseForMemOpnd(*insn.GetBB(), memOffSet, visitedBB, useInsnSet, false);
   }
   if (!insn.GetBB()->IsCleanup() && firstCleanUpBB) {
-    if (memUse[firstCleanUpBB->GetId()]->TestBit(memOffSet / kMemZoomSize)) {
+    if (memUse[firstCleanUpBB->GetId()]->TestBit(static_cast<uint32>(memOffSet / kMemZoomSize))) {
       findFinish = FindMemUseBetweenInsn(memOffSet, firstCleanUpBB->GetFirstInsn(),
                                          firstCleanUpBB->GetLastInsn(), useInsnSet);
-      if (findFinish || !memOut[firstCleanUpBB->GetId()]->TestBit(memOffSet / kMemZoomSize)) {
+      if (findFinish || !memOut[firstCleanUpBB->GetId()]->TestBit(static_cast<uint32>(memOffSet / kMemZoomSize))) {
         return useInsnSet;
       }
     }
@@ -1190,7 +1190,7 @@ void AArch64ReachingDefinition::InitMemInfoForClearStackCall(Insn &callInsn) {
   }
   int64 secondOffset = callInsn.GetClearStackOffset(kSecondClearMemIndex);
   if (secondOffset != defaultValOfClearMemOffset) {
-    memGen[callInsn.GetBB()->GetId()]->SetBit(secondOffset / kMemZoomSize);
+    memGen[callInsn.GetBB()->GetId()]->SetBit(static_cast<uint32>(secondOffset / kMemZoomSize));
   }
 }
 
@@ -1210,7 +1210,7 @@ void AArch64ReachingDefinition::InitInfoForMemOperand(Insn &insn, Operand &opnd,
     }
     CHECK_FATAL(index == nullptr, "Existing [x29 + index] Memory Address");
     ASSERT(memOpnd.GetOffsetImmediate(), "offset must be a immediate value");
-    int32 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
+    int64 offsetVal = memOpnd.GetOffsetImmediate()->GetOffsetValue();
     if ((offsetVal % kMemZoomSize) != 0) {
       SetAnalysisMode(kRDRegAnalysis);
     }
@@ -1269,7 +1269,7 @@ void AArch64ReachingDefinition::InitInfoForRegOpnd(const BB &bb, Operand &opnd, 
 
 int32 AArch64ReachingDefinition::GetStackSize() const {
   const int sizeofFplr = kDivide2 * kIntregBytelen;
-  return static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() + sizeofFplr;
+  return static_cast<int32>(static_cast<AArch64MemLayout*>(cgFunc->GetMemlayout())->RealStackFrameSize() + sizeofFplr);
 }
 
 bool AArch64ReachingDefinition::IsCallerSavedReg(uint32 regNO) const {

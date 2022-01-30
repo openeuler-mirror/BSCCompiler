@@ -28,14 +28,6 @@ namespace maplebe {
 
 #define REGCOAL_DUMP CG_DEBUG_FUNC(*cgFunc)
 
-bool AArch64RegisterCoalesce::IsSimpleMov(Insn &insn) {
-  if (insn.GetMachineOpcode() == MOP_xmovrr || insn.GetMachineOpcode() == MOP_wmovrr ||
-      insn.GetMachineOpcode() == MOP_xvmovs || insn.GetMachineOpcode() == MOP_xvmovd) {
-    return true;
-  }
-  return false;
-}
-
 bool AArch64RegisterCoalesce::IsUnconcernedReg(const RegOperand &regOpnd) const {
   RegType regType = regOpnd.GetRegisterType();
   if (regType == kRegTyCc || regType == kRegTyVary) {
@@ -60,7 +52,7 @@ LiveInterval *AArch64RegisterCoalesce::GetOrCreateLiveInterval(regno_t regNO) {
   return lr;
 }
 
-void AArch64RegisterCoalesce::UpdateCallInfo(uint32 bbId, uint32 currPoint) {
+void AArch64RegisterCoalesce::UpdateCallInfo() {
   for (auto vregNO : vregLive) {
     LiveInterval *lr = GetLiveInterval(vregNO);
     lr->IncNumCall();
@@ -109,7 +101,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachDefOperand(Insn &insn) 
         SetupLiveIntervalByOp(opnd, insn, true);
       }
     }
-    if (!md->GetOperand(i)->IsRegDef()) {
+    if (!md->GetOperand(static_cast<int>(i))->IsRegDef()) {
       continue;
     }
     SetupLiveIntervalByOp(opnd, insn, true);
@@ -126,7 +118,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) 
       }
       continue;
     }
-    if (md->GetOperand(i)->IsRegDef() && !md->GetOperand(i)->IsRegUse()) {
+    if (md->GetOperand(static_cast<int>(i))->IsRegDef() && !md->GetOperand(static_cast<int>(i))->IsRegUse()) {
       continue;
     }
     Operand &opnd = insn.GetOperand(i);
@@ -152,7 +144,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervalsForEachUseOperand(Insn &insn) 
 }
 
 /* handle live range for bb->live_out */
-void AArch64RegisterCoalesce::SetupLiveIntervalInLiveOut(regno_t liveOut, BB &bb, uint32 currPoint) {
+void AArch64RegisterCoalesce::SetupLiveIntervalInLiveOut(regno_t liveOut, const BB &bb, uint32 currPoint) {
   --currPoint;
 
   if (liveOut >= kAllRegNum) {
@@ -171,7 +163,7 @@ void AArch64RegisterCoalesce::CollectCandidate() {
       if (!insn->IsMachineInstruction()) {
         continue;
       }
-      if (IsSimpleMov(*insn)) {
+      if (insn->IsMoveRegReg()) {
         RegOperand &regDest = static_cast<RegOperand&>(insn->GetOperand(kInsnFirstOpnd));
         RegOperand &regSrc = static_cast<RegOperand&>(insn->GetOperand(kInsnSecondOpnd));
         if (regDest.GetRegisterNumber() == regSrc.GetRegisterNumber()) {
@@ -192,7 +184,8 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
   /* colloct refpoints and build interfere only for cands. */
   CollectCandidate();
 
-  uint32 currPoint = cgFunc->GetTotalNumberOfInstructions() + bfs->sortedBBs.size();
+  uint32 currPoint = static_cast<uint32>(cgFunc->GetTotalNumberOfInstructions()) +
+      static_cast<uint32>(bfs->sortedBBs.size());
   /* distinguish use/def */
   CHECK_FATAL(currPoint < (INT_MAX >> 2), "integer overflow check");
   currPoint = currPoint << 2;
@@ -206,7 +199,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
     --currPoint;
 
     if (bb->GetLastInsn() != nullptr && bb->GetLastInsn()->IsCall()) {
-      UpdateCallInfo(bb->GetId(), currPoint);
+      UpdateCallInfo();
     }
 
     FOR_BB_INSNS_REV_SAFE(insn, bb, ninsn) {
@@ -214,7 +207,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
       if (!insn->IsMachineInstruction()) {
         --currPoint;
         if (ninsn != nullptr && ninsn->IsCall()) {
-          UpdateCallInfo(bb->GetId(), currPoint);
+          UpdateCallInfo();
         }
         continue;
       }
@@ -223,7 +216,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
       ComputeLiveIntervalsForEachUseOperand(*insn);
 
       if (ninsn != nullptr && ninsn->IsCall()) {
-        UpdateCallInfo(bb->GetId(), currPoint - 2);
+        UpdateCallInfo();
       }
 
       /* distinguish use/def */
@@ -242,7 +235,7 @@ void AArch64RegisterCoalesce::ComputeLiveIntervals() {
   }
 
   if (REGCOAL_DUMP) {
-    LogInfo::MapleLogger() << "After ComputeLiveIntervals\n";
+    LogInfo::MapleLogger() << "\nAfter ComputeLiveIntervals\n";
     Dump();
   }
 }
@@ -315,7 +308,7 @@ void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &m
     if (!insn->IsMachineInstruction()) {
       continue;
     }
-    if (IsSimpleMov(*insn)) {
+    if (insn->IsMoveRegReg()) {
       RegOperand &regDest = static_cast<RegOperand &>(insn->GetOperand(kInsnFirstOpnd));
       RegOperand &regSrc = static_cast<RegOperand &>(insn->GetOperand(kInsnSecondOpnd));
       if (!regSrc.IsVirtualRegister() || !regDest.IsVirtualRegister()) {
@@ -329,7 +322,7 @@ void AArch64RegisterCoalesce::CollectMoveForEachBB(BB &bb, std::vector<Insn*> &m
   }
 }
 
-void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns) {
+void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns, bool phiOnly) {
   AArch64CGFunc *a64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
   bool changed = false;
   do {
@@ -340,12 +333,25 @@ void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns) {
       if (regSrc.GetRegisterNumber() == regDest.GetRegisterNumber()) {
         continue;
       }
-      if (a64CGFunc->IsRegRematCand(regDest) != a64CGFunc->IsRegRematCand(regSrc)) {
+      if (!insn->IsPhiMovInsn() && phiOnly) {
         continue;
+      }
+      if (a64CGFunc->IsRegRematCand(regDest) != a64CGFunc->IsRegRematCand(regSrc)) {
+        if (insn->IsPhiMovInsn()) {
+          a64CGFunc->ClearRegRematInfo(regDest);
+          a64CGFunc->ClearRegRematInfo(regSrc);
+        } else {
+          continue;
+        }
       }
       if (a64CGFunc->IsRegRematCand(regDest) && a64CGFunc->IsRegRematCand(regSrc) &&
           !a64CGFunc->IsRegSameRematInfo(regDest, regSrc)) {
-        continue;
+        if (insn->IsPhiMovInsn()) {
+          a64CGFunc->ClearRegRematInfo(regDest);
+          a64CGFunc->ClearRegRematInfo(regSrc);
+        } else {
+          continue;
+        }
       }
       LiveInterval *li1 = GetLiveInterval(regDest.GetRegisterNumber());
       LiveInterval *li2 = GetLiveInterval(regSrc.GetRegisterNumber());
@@ -358,6 +364,11 @@ void AArch64RegisterCoalesce::CoalesceMoves(std::vector<Insn*> &movInsns) {
         }
         CoalesceRegPair(regDest, regSrc);
         changed = true;
+      } else {
+        if (insn->IsPhiMovInsn() && phiOnly && REGCOAL_DUMP) {
+          LogInfo::MapleLogger() << "fail to coalesce: " << regDest.GetRegisterNumber() << " <- "
+                                 << regSrc.GetRegisterNumber() << std::endl;
+        }
       }
     }
   } while (changed);
@@ -386,10 +397,12 @@ void AArch64RegisterCoalesce::CoalesceRegisters() {
     }
     CollectMoveForEachBB(*bb, movInsns);
   }
-  CoalesceMoves(movInsns);
+
+  /* handle phi move first. */
+  CoalesceMoves(movInsns, true);
 
   /* clean up dead mov */
-  a64CGFunc->CleanupDeadMov();
+  a64CGFunc->CleanupDeadMov(REGCOAL_DUMP);
 }
 
 }  /* namespace maplebe */

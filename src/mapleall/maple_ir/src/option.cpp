@@ -526,8 +526,8 @@ const Descriptor kUsage[] = {
     {} },
   { kMpl2MplOptL0,
     0,
-    "",
     "O0",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O0                         \tDo some optimization.\n",
@@ -535,8 +535,8 @@ const Descriptor kUsage[] = {
     {} },
   { kMpl2MplOptL2,
     0,
-    "",
     "O2",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                         \tDo some optimization.\n",
@@ -883,10 +883,10 @@ void Options::DecideMpl2MplRealLevel(const std::deque<mapleOption::Option> &inpu
   for (const mapleOption::Option &opt : inputOptions) {
     switch (opt.Index()) {
       case kMpl2MplOptL0:
-        realLevel = kLevelZero;
+        realLevel = static_cast<int>(kLevelZero);
         break;
       case kMpl2MplOptL2:
-        realLevel = kLevelTwo;
+        realLevel = static_cast<int>(kLevelTwo);
         break;
       default:
         break;
@@ -966,7 +966,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-small-function-threshold\n";
           result = false;
         } else {
-          inlineSmallFunctionThreshold = std::stoul(opt.Args());
+          inlineSmallFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kInlineHotFunctionThreshold:
@@ -974,7 +974,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-hot-function-threshold\n";
           result = false;
         } else {
-          inlineHotFunctionThreshold = std::stoul(opt.Args());
+          inlineHotFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kInlineRecursiveFunctionThreshold:
@@ -982,7 +982,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-recursive-function-threshold\n";
           result = false;
         } else {
-          inlineRecursiveFunctionThreshold = std::stoul(opt.Args());
+          inlineRecursiveFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kInlineDepth:
@@ -990,7 +990,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-depth\n";
           result = false;
         } else {
-          inlineDepth = std::stoul(opt.Args());
+          inlineDepth = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kInlineModuleGrowth:
@@ -998,7 +998,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-module-growth\n";
           result = false;
         } else {
-          inlineModuleGrowth = std::stoul(opt.Args());
+          inlineModuleGrowth = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kInlineColdFunctionThreshold:
@@ -1006,7 +1006,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --inline-cold-function-threshold\n";
           result = false;
         } else {
-          inlineColdFunctionThreshold = std::stoul(opt.Args());
+          inlineColdFunctionThreshold = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kProfileHotCount:
@@ -1014,7 +1014,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-hot-count\n";
           result = false;
         } else {
-          profileHotCount = std::stoul(opt.Args());
+          profileHotCount = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kProfileColdCount:
@@ -1022,7 +1022,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-cold-count\n";
           result = false;
         } else {
-          profileColdCount = std::stoul(opt.Args());
+          profileColdCount = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kProfileHotRate:
@@ -1030,7 +1030,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-hot-rate\n";
           result = false;
         } else {
-          profileHotRate = std::stoul(opt.Args());
+          profileHotRate = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kProfileColdRate:
@@ -1038,7 +1038,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           LogInfo::MapleLogger(kLlErr) << "expecting not empty for --profile-cold-rate\n";
           result = false;
         } else {
-          profileColdRate = std::stoul(opt.Args());
+          profileColdRate = static_cast<uint32>(std::stoul(opt.Args()));
         }
         break;
       case kMpl2MplMapleLinker:
@@ -1123,7 +1123,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
           buildApp = 1;
         } else if (opt.Args().size() == 1 &&
                    (opt.Args()[0] == '0' || opt.Args()[0] == '1' || opt.Args()[0] == '2')) {
-          buildApp = std::stoul(opt.Args());
+          buildApp = static_cast<uint32>(std::stoul(opt.Args()));
         } else {
           LogInfo::MapleLogger(kLlErr) << "expecting 0,1,2 or empty for --build-app\n";
           result = false;
@@ -1181,7 +1181,7 @@ bool Options::SolveOptions(const std::deque<Option> &opts, bool isDebug) const {
         dumpClassLoaderInvocation = (opt.Type() == kEnable);
         break;
       case kMpl2MplWarnLevel:
-        warningLevel = std::stoul(opt.Args());
+        warningLevel = static_cast<uint32>(std::stoul(opt.Args()));
         break;
       case kMpl2MplLazyBinding:
         lazyBinding = (opt.Type() == kEnable);
