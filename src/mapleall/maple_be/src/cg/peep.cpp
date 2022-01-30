@@ -145,7 +145,7 @@ bool PeepPattern::IfOperandIsLiveAfterInsn(const RegOperand &regOpnd, Insn &insn
     if (!nextInsn->IsMachineInstruction()) {
       continue;
     }
-    int32 lastOpndId = nextInsn->GetOperandSize() - 1;
+    int32 lastOpndId = static_cast<int32>(nextInsn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = nextInsn->GetOperand(static_cast<uint32>(i));
       if (opnd.IsMemoryAccessOperand()) {
@@ -288,7 +288,7 @@ ReturnType PeepPattern::IsOpndLiveinBB(const RegOperand &regOpnd, const BB &bb) 
 #if TARGARM32
     const Arm32MD *md = &Arm32CG::kMd[static_cast<const Arm32Insn*>(insn)->GetMachineOpcode()];
 #endif
-    int32 lastOpndId = insn->GetOperandSize() - 1;
+    int32 lastOpndId = static_cast<int32>(insn->GetOperandSize() - 1);
     for (int32 i = lastOpndId; i >= 0; --i) {
       Operand &opnd = insn->GetOperand(static_cast<uint32>(i));
 #if TARGAARCH64 || TARGRISCV64

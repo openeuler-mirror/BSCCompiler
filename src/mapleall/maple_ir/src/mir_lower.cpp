@@ -137,7 +137,7 @@ LabelIdx MIRLower::CreateCondGotoStmt(Opcode op, BlockNode &blk, const IfStmtNod
   brStmt->SetOpnd(ifStmt.Opnd(), 0);
   brStmt->SetSrcPos(ifStmt.GetSrcPos());
   LabelIdx lableIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lableIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lableIdx);
   brStmt->SetOffset(lableIdx);
   blk.AddStatement(brStmt);
   bool thenEmpty = (ifStmt.GetThenPart() == nullptr) || (ifStmt.GetThenPart()->GetFirst() == nullptr);
@@ -171,7 +171,7 @@ void MIRLower::CreateBrFalseAndGotoStmt(BlockNode &blk, const IfStmtNode &ifStmt
   if (fallThroughFromThen) {
     auto *gotoStmt = mirModule.CurFuncCodeMemPool()->New<GotoNode>(OP_goto);
     gotoLableIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-    (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(gotoLableIdx);
+    mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(gotoLableIdx);
     gotoStmt->SetOffset(gotoLableIdx);
     blk.AddStatement(gotoStmt);
   }
@@ -228,7 +228,7 @@ BlockNode *MIRLower::LowerIfStmt(IfStmtNode &ifStmt, bool recursive) {
 
 static bool ConsecutiveCaseValsAndSameTarget(const CaseVector *switchTable) {
   size_t caseNum = switchTable->size();
-  int lastVal = (*switchTable)[0].first;
+  int lastVal = static_cast<int>((*switchTable)[0].first);
   LabelIdx lblIdx = (*switchTable)[0].second;
   for (size_t id = 1; id < caseNum; id++) {
     lastVal++;
@@ -308,11 +308,11 @@ BlockNode *MIRLower::LowerWhileStmt(WhileStmtNode &whileStmt) {
   brFalseStmt->SetOpnd(whileStmt.Opnd(0), 0);
   brFalseStmt->SetSrcPos(whileStmt.GetSrcPos());
   LabelIdx lalbeIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lalbeIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lalbeIdx);
   brFalseStmt->SetOffset(lalbeIdx);
   blk->AddStatement(brFalseStmt);
   LabelIdx bodyLableIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLableIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLableIdx);
   auto *lableStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   lableStmt->SetLabelIdx(bodyLableIdx);
   blk->AddStatement(lableStmt);
@@ -361,11 +361,11 @@ BlockNode *MIRLower::LowerDoloopStmt(DoloopNode &doloop) {
   auto *brFalseStmt = mirModule.CurFuncCodeMemPool()->New<CondGotoNode>(OP_brfalse);
   brFalseStmt->SetOpnd(doloop.GetCondExpr(), 0);
   LabelIdx lIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
   brFalseStmt->SetOffset(lIdx);
   blk->AddStatement(brFalseStmt);
   LabelIdx bodyLabelIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLabelIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(bodyLabelIdx);
   auto *labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   labelStmt->SetLabelIdx(bodyLabelIdx);
   blk->AddStatement(labelStmt);
@@ -417,7 +417,7 @@ BlockNode *MIRLower::LowerDowhileStmt(WhileStmtNode &doWhileStmt) {
   doWhileStmt.SetBody(LowerBlock(*doWhileStmt.GetBody()));
   auto *blk = mirModule.CurFuncCodeMemPool()->New<BlockNode>();
   LabelIdx lIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-  (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
+  mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
   auto *labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
   labelStmt->SetLabelIdx(lIdx);
   blk->AddStatement(labelStmt);
@@ -485,7 +485,7 @@ BaseNode* MIRLower::LowerEmbeddedCandCior(BaseNode *x, StmtNode *curstmt, BlockN
     RegassignNode *regass = builder->CreateStmtRegassign(x->GetPrimType(), pregIdx, bnode->Opnd(0));
     blk->InsertBefore(curstmt, regass);
     LabelIdx labIdx = mirFunc->GetLabelTab()->CreateLabel();
-    (void)mirFunc->GetLabelTab()->AddToStringLabelMap(labIdx);
+    mirFunc->GetLabelTab()->AddToStringLabelMap(labIdx);
     BaseNode *cond = builder->CreateExprRegread(x->GetPrimType(), pregIdx);
     CondGotoNode *cgoto = mirFunc->GetCodeMempool()->New<CondGotoNode>(
         x->GetOpCode() == OP_cior ? OP_brtrue : OP_brfalse);
@@ -539,7 +539,7 @@ do {
           lIdx = labelStmt->GetLabelIdx();
         } else {
           lIdx = mirModule.CurFunction()->GetLabelTab()->CreateLabel();
-          (void)mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
+          mirModule.CurFunction()->GetLabelTab()->AddToStringLabelMap(lIdx);
           labelStmt = mirModule.CurFuncCodeMemPool()->New<LabelNode>();
           labelStmt->SetLabelIdx(lIdx);
           block.InsertAfter(condGoto, labelStmt);
@@ -591,7 +591,7 @@ BaseNode *MIRLower::LowerFarray(ArrayNode *array) {
     if (constvalNode->GetConstVal()->GetKind() == kConstInt) {
       const MIRIntConst *pIntConst = static_cast<const MIRIntConst*>(constvalNode->GetConstVal());
       CHECK_FATAL(mirModule.IsJavaModule() || pIntConst->GetValue() >= 0, "Array index should >= 0.");
-      int64 eleOffset = pIntConst->GetValue() * eSize;
+      int64 eleOffset = static_cast<int64>(pIntConst->GetValue() * eSize);
 
       BaseNode *baseNode = array->GetBase();
       if (eleOffset == 0) {

@@ -36,11 +36,12 @@ constexpr uint32 kClinitTailAdvanceCycle = 4;
 }
 
 uint32 AArch64Schedule::maxUnitIndex = 0;
-int AArch64Schedule::intRegPressureThreshold = R27 - R0; /* reserve two register for special purpose */
-int AArch64Schedule::fpRegPressureThreshold = V30 - V0;
-int AArch64Schedule::intCalleeSaveThresholdBase = R29 - R19;
-int AArch64Schedule::intCalleeSaveThresholdEnhance = R30 - R19;
-int AArch64Schedule::fpCalleeSaveThreshold = R16 - R8;
+/* reserve two register for special purpose */
+int AArch64Schedule::intRegPressureThreshold = static_cast<int>(R27 - R0);
+int AArch64Schedule::fpRegPressureThreshold = static_cast<int>(V30 - V0);
+int AArch64Schedule::intCalleeSaveThresholdBase = static_cast<int>(R29 - R19);
+int AArch64Schedule::intCalleeSaveThresholdEnhance = static_cast<int>(R30 - R19);
+int AArch64Schedule::fpCalleeSaveThreshold = static_cast<int>(R16 - R8);
 /* Init schedule's data struction. */
 void AArch64Schedule::Init() {
   readyList.clear();
@@ -111,7 +112,7 @@ bool AArch64Schedule::CanCombine(const Insn &insn) const {
   if (offset == nullptr) {
     return false;
   }
-  int32 offsetValue = offset->GetOffsetValue();
+  int32 offsetValue = static_cast<int32>(offset->GetOffsetValue());
   if (size == kIntregBytelen) {              /* 64 bit */
     if ((offsetValue <= kStpLdpImm64LowerBound) || (offsetValue >= kStpLdpImm64UpperBound)) {
       return false;
@@ -181,7 +182,7 @@ void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*>
   AArch64MemOperand *currMemOpnd = static_cast<AArch64MemOperand*>(memList[0]->GetInsn()->GetMemOpnd());
   ASSERT(currMemOpnd != nullptr, "opnd should not be nullptr");
   ASSERT(currMemOpnd->IsMemoryAccessOperand(), "opnd should be memOpnd");
-  int32 currOffsetVal = currMemOpnd->GetOffsetImmediate()->GetOffsetValue();
+  int32 currOffsetVal = static_cast<int32>(currMemOpnd->GetOffsetImmediate()->GetOffsetValue());
   MOperator currMop = memList[0]->GetInsn()->GetMachineOpcode();
   /* find a depNode to combine with memList[0], and break; */
   for (auto it = std::next(memList.begin(), 1); it != memList.end(); ++it) {
@@ -191,7 +192,7 @@ void AArch64Schedule::FindAndCombineMemoryAccessPair(const std::vector<DepNode*>
       AArch64MemOperand *nextMemOpnd = static_cast<AArch64MemOperand*>((*it)->GetInsn()->GetMemOpnd());
       CHECK_FATAL(nextMemOpnd != nullptr, "opnd should not be nullptr");
       CHECK_FATAL(nextMemOpnd->IsMemoryAccessOperand(), "opnd should be MemOperand");
-      int32 nextOffsetVal = nextMemOpnd->GetOffsetImmediate()->GetOffsetValue();
+      int32 nextOffsetVal = static_cast<int32>(nextMemOpnd->GetOffsetImmediate()->GetOffsetValue());
       uint32 size = currMemOpnd->GetSize() >> kLog2BitsPerByte;
       if ((nextMemOpnd->GetBaseRegister() == currMemOpnd->GetBaseRegister()) &&
           (nextMemOpnd->GetSize() == currMemOpnd->GetSize()) &&
@@ -478,7 +479,7 @@ void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], cons
   (void)arraySize;
   ASSERT(arraySize >= kUnitKindLast, "CG internal error. unit kind number is not correct.");
   uint32 unitKind = depNode.GetUnitKind();
-  int32 index = __builtin_ffs(unitKind);
+  int32 index = static_cast<int32>(__builtin_ffs(unitKind));
   while (index) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
     ++array[index];
@@ -490,7 +491,7 @@ void AArch64Schedule::CountUnitKind(const DepNode &depNode, uint32 array[], cons
 /* Check if a node use a specific unit kind. */
 bool AArch64Schedule::IfUseUnitKind(const DepNode &depNode, uint32 index) {
   uint32 unitKind = depNode.GetUnitKind();
-  int32 idx = __builtin_ffs(unitKind);
+  int32 idx = static_cast<int32>(__builtin_ffs(unitKind));
   while (idx) {
     ASSERT(index < kUnitKindLast, "CG internal error. index error.");
     if (idx == index) {
@@ -626,7 +627,7 @@ void AArch64Schedule::SelectNode(AArch64ScheduleProcessInfo &scheduleInfo) {
   UpdateAdvanceCycle(scheduleInfo, *targetNode);
 }
 
-void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, DepNode &targetNode) {
+void AArch64Schedule::UpdateAdvanceCycle(AArch64ScheduleProcessInfo &scheduleInfo, const DepNode &targetNode) {
   switch (targetNode.GetInsn()->GetLatencyType()) {
     case kLtClinit:
       scheduleInfo.SetAdvanceCycle(kClinitAdvanceCycle);
@@ -693,7 +694,7 @@ int AArch64Schedule::CalSeriesCycles(const MapleVector<DepNode*> &nodes) {
     /* calculate the latest begin time of this node based on its predecessor's issue time and latency */
     for (auto pred : node->GetPreds()) {
       DepNode &from = pred->GetFrom();
-      uint32 latency = pred->GetLatency();
+      int latency = static_cast<int>(pred->GetLatency());
       int fromCycle = scheduledCycleMap[&from];
       if (fromCycle + latency > latencyCycle) {
         latencyCycle = fromCycle + latency;
@@ -782,7 +783,7 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
   RegisterInfoUnit defRIU1 = GetDepNodeDefType(node1, cgFunc);
   RegisterInfoUnit defRIU2 = GetDepNodeDefType(node2, cgFunc);
   /* do not increase callee save pressure before call */
-  if (scheduleInfo.SizeOfCalleeSaveLiveRegister(true) >= intCalleeSaveThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfCalleeSaveLiveRegister(true)) >= intCalleeSaveThreshold) {
     if (defRIU1.intRegNum > 0 && defRIU2.intRegNum > 0) {
       CSRResult csrInfo = ScheduleCrossCall(node1, node2);
       if ((csrInfo == kNode1 && defRIU1.intRegNum >= scheduleInfo.GetFreeIntRegs(node1)) ||
@@ -791,7 +792,7 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
       }
     }
   }
-  if (scheduleInfo.SizeOfCalleeSaveLiveRegister(false) >= fpCalleeSaveThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfCalleeSaveLiveRegister(false)) >= fpCalleeSaveThreshold) {
     if (defRIU1.fpRegNum > 0 && defRIU2.fpRegNum > 0) {
       CSRResult csrInfo = ScheduleCrossCall(node1, node2);
       if ((csrInfo == kNode1 && defRIU1.fpRegNum >= scheduleInfo.GetFreeFpRegs(node1)) ||
@@ -810,26 +811,26 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
     }
     return kDoCSP;
   };
-  if (scheduleInfo.SizeOfIntLiveRegSet() >= intRegPressureThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfIntLiveRegSet()) >= intRegPressureThreshold) {
     if (FindFreeRegNode(true) != kDoCSP) {
       return FindFreeRegNode(true);
     }
   }
-  if (scheduleInfo.SizeOfFpLiveRegSet() >= fpRegPressureThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfFpLiveRegSet()) >= fpRegPressureThreshold) {
     if (FindFreeRegNode(false) != kDoCSP) {
       return FindFreeRegNode(false);
     }
   }
 
   bool canDoCSPFurther = false;
-  if (scheduleInfo.SizeOfIntLiveRegSet() >= intRegPressureThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfIntLiveRegSet()) >= intRegPressureThreshold) {
     if (defRIU1.intRegNum != defRIU2.intRegNum) {
       return defRIU1.intRegNum < defRIU2.intRegNum ? kNode1 : kNode2;
     } else  {
       canDoCSPFurther = defRIU1.intRegNum == 0;
     }
   }
-  if (scheduleInfo.SizeOfFpLiveRegSet() >= fpRegPressureThreshold) {
+  if (static_cast<int>(scheduleInfo.SizeOfFpLiveRegSet()) >= fpRegPressureThreshold) {
     if (defRIU1.fpRegNum != defRIU2.fpRegNum) {
       return defRIU1.fpRegNum < defRIU2.fpRegNum ? kNode1 : kNode2;
     } else {
@@ -840,7 +841,7 @@ AArch64Schedule::CSRResult AArch64Schedule::DoCSR(DepNode &node1, DepNode &node2
   return canDoCSPFurther ? kDoCSP : (node1.GetInsn()->GetId() < node2.GetInsn()->GetId() ? kNode1 : kNode2);
 }
 
-AArch64Schedule::CSRResult AArch64Schedule::ScheduleCrossCall(DepNode &node1, DepNode &node2) const {
+AArch64Schedule::CSRResult AArch64Schedule::ScheduleCrossCall(const DepNode &node1, const DepNode &node2) const {
   uint32 node1ID = node1.GetInsn()->GetId();
   uint32 node2ID = node2.GetInsn()->GetId();
   bool order = node1ID < node2ID; /* true -- node1 before node2  false -- node1 after node2 */
@@ -1064,6 +1065,9 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DepAnalysis &depAnalysis)
   for (auto node : nodes) {
     /* Append comments first. */
     for (auto comment : node->GetComments()) {
+      if (comment->GetPrev() != nullptr && comment->GetPrev()->IsDbgInsn()) {
+        bb.AppendInsn(*comment->GetPrev());
+      }
       bb.AppendInsn(*comment);
     }
     /* Append insn. */
@@ -1072,6 +1076,9 @@ void AArch64Schedule::FinalizeScheduling(BB &bb, const DepAnalysis &depAnalysis)
         bb.AppendInsn(*clinit);
       }
     } else if (node->GetType() == kNodeTypeNormal) {
+      if (node->GetInsn()->GetPrev() != nullptr && node->GetInsn()->GetPrev()->IsDbgInsn()) {
+        bb.AppendInsn(*node->GetInsn()->GetPrev());
+      }
       bb.AppendInsn(*node->GetInsn());
     }
 

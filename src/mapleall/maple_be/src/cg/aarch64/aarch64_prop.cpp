@@ -260,7 +260,7 @@ bool A64ConstProp::ShiftConstReplace(DUInsnInfo &useDUInfo, const AArch64ImmOper
       } else if (shiftBit.GetShiftOp() == BitShiftOperand::kLSR) {
         val = val >> shiftBit.GetShiftAmount();
       } else if (shiftBit.GetShiftOp() == BitShiftOperand::kASR) {
-        val = (static_cast<uint64>(val)) >> shiftBit.GetShiftAmount();
+        val = static_cast<int64>((static_cast<uint64>(val)) >> shiftBit.GetShiftAmount());
       } else {
         CHECK_FATAL(false, "shift type is not defined");
       }
@@ -979,13 +979,13 @@ void ExtendShiftPattern::ReplaceUseInsn(Insn &use, const Insn &def, uint32 amoun
     if (amount > k4BitSize) {
       return;
     }
-    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, k64BitSize);
+    shiftOpnd = &a64CGFunc.CreateExtendShiftOperand(extendOp, amount, static_cast<int32>(k64BitSize));
   } else {
     replaceOp = lsMopTable[lsMOpType];
     if (amount >= k32BitSize) {
       return;
     }
-    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, k64BitSize);
+    shiftOpnd = &a64CGFunc.CreateBitShiftOperand(shiftOp, amount, static_cast<int32>(k64BitSize));
   }
   if (replaceOp == MOP_undef) {
     return;

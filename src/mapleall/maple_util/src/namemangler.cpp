@@ -66,7 +66,7 @@ static inline void FreeCodecBuf(char *buf) {
 
 static std::string CompressName(std::string &name, const StringMap &mapping = kInternalMangleTable) {
   for (auto &entry : mapping) {
-    if (name.find(entry.first) != name.npos) {
+    if (name.find(entry.first) != std::string::npos) {
       name = std::regex_replace(name, std::regex(entry.first), entry.second);
     }
   }
@@ -75,7 +75,7 @@ static std::string CompressName(std::string &name, const StringMap &mapping = kI
 
 static std::string DecompressName(std::string &name, const StringMap &mapping = kInternalMangleTable) {
   for (auto &entry : mapping) {
-    if (name.find(entry.second) != name.npos) {
+    if (name.find(entry.second) != std::string::npos) {
       name = std::regex_replace(name, std::regex(entry.second), entry.first);
     }
   }
@@ -111,7 +111,7 @@ std::string EncodeName(const std::string &name) {
     } else if (c == '[') {
       buf[pos++] = 'A';
     } else if (isalnum(c)) {
-      buf[pos++] = c;
+      buf[pos++] = static_cast<char>(c);
     } else if (c <= 0x7F) {
       // _XX: '_' followed by ascii code in hex
       if (c == '.') {
@@ -127,7 +127,7 @@ std::string EncodeName(const std::string &name) {
       // process one 16-bit char at a time
       unsigned int n = UTF8ToUTF16(str16, str.substr(i), 1, false);
       buf[pos++] = '_';
-      if ((n >> 16) == 1) {
+      if ((n >> 16) == 1) { // if n is 16-bit
         unsigned short m = str16[0];
         buf[pos++] = 'u';
         buf[pos++] = GETHEXCHAR((m & 0xF000) >> 12);
@@ -147,7 +147,7 @@ std::string EncodeName(const std::string &name) {
         buf[pos++] = GETHEXCHAR((m & 0x00F0) >> 4);
         buf[pos++] = GETHEXCHAR(m & 0x000F);
       }
-      i += int32_t(n & 0xFFFF) - 1;
+      i += static_cast<size_t>(int32_t(n & 0xFFFF) - 1);
     }
     i++;
   }
@@ -218,13 +218,13 @@ std::string DecodeName(const std::string &name) {
         str.clear();
         str16.clear();
         i++;
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b1 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b2 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b3 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         uint8_t b4 = (c <= '9') ? c - '0' : c - 'a' + kNumLimit;
         uint32_t codepoint = (b1 << kCodeOffset3) | (b2 << kCodeOffset2) | (b3 << kCodeOffset) | b4;
         str16 += (char16_t)codepoint;
@@ -243,13 +243,13 @@ std::string DecodeName(const std::string &name) {
           newName[pos++] = str[3];
         }
       } else {
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         unsigned int v = (c <= '9') ? c - '0' : c - 'A' + kNumLimit;
         unsigned int asc = v << kCodeOffset;
         if (i >= nameLen) {
           break;
         }
-        c = namePtr[i++];
+        c = static_cast<unsigned char>(namePtr[i++]);
         v = (c <= '9') ? c - '0' : c - 'A' + kNumLimit;
         asc += v;
 
@@ -263,7 +263,7 @@ std::string DecodeName(const std::string &name) {
       }
     } else {
       if (splitNo < 2) { // split: class 0 | method 1 | signature 2
-        newName[pos++] = c;
+        newName[pos++] = static_cast<char>(c);
         continue;
       }
 
@@ -271,7 +271,7 @@ std::string DecodeName(const std::string &name) {
       if (primType) {
         newName[pos++] = (c == 'A') ? '[' : c;
       } else {
-        newName[pos++] = c;
+        newName[pos++] = static_cast<char>(c);
       }
     }
   }
@@ -285,7 +285,7 @@ std::string DecodeName(const std::string &name) {
 void DecodeMapleNameToJavaDescriptor(const std::string &nameIn, std::string &nameOut) {
   nameOut = DecodeName(nameIn);
   if (nameOut[0] == 'A') {
-    int i = 0;
+    size_t i = 0;
     while (nameOut[i] == 'A') {
       nameOut[i++] = '[';
     }
@@ -483,17 +483,17 @@ uint32_t GetCodePoint(const std::string &str8, uint32_t &i) {
   if (a <= 0x7F) { // 0...
     codePoint = a;
   } else if (a >= 0xF0) { // 11110...
-    b = str8[i++];
-    c = str8[i++];
-    d = str8[i++];
+    b = static_cast<uint32_t>(str8[i++]);
+    c = static_cast<uint32_t>(str8[i++]);
+    d = static_cast<uint32_t>(str8[i++]);
     codePoint = ((a & 0x7) << kCodepointOffset3) | ((b & 0x3F) << kCodepointOffset2) |
                 ((c & 0x3F) << kCodepointOffset1) | (d & 0x3F);
   } else if (a >= 0xE0) { // 1110...
-    b = str8[i++];
-    c = str8[i++];
+    b = static_cast<uint32_t>(str8[i++]);
+    c = static_cast<uint32_t>(str8[i++]);
     codePoint = ((a & 0xF) << kCodepointOffset2) | ((b & 0x3F) << kCodepointOffset1) | (c & 0x3F);
   } else if (a >= 0xC0) { // 110...
-    b = str8[i++];
+    b = static_cast<uint32_t>(str8[i++]);
     codePoint = ((a & 0x1F) << kCodepointOffset1) | (b & 0x3F);
   } else {
     ASSERT(false && "invalid UTF-8");
@@ -537,7 +537,7 @@ unsigned UTF8ToUTF16(std::u16string &str16, const std::string &str8, unsigned sh
   return i;
 }
 
-const int kGreybackOffset = 7;
+const uint32_t kGreybackOffset = 7;
 void GetUnsignedLeb128Encode(std::vector<uint8_t> &dest, uint32_t value) {
   bool done = false;
   do {
@@ -555,7 +555,7 @@ uint32_t GetUnsignedLeb128Decode(const uint8_t **data) {
   ASSERT(data != nullptr && "data in GetUnsignedLeb128Decode() is nullptr");
   const uint8_t *ptr = *data;
   uint32_t result = 0;
-  int shift = 0;
+  uint32_t shift = 0;
   uint8_t byte = 0;
   while (true) {
     byte = *(ptr++);
@@ -599,7 +599,7 @@ uint64_t GetUleb128Decode(uint64_t val) {
 }
 
 int64_t GetSleb128Decode(uint64_t val) {
-  return val;
+  return static_cast<int64_t>(val);
 }
 
 size_t GetUleb128Size(uint64_t v) {
@@ -619,7 +619,7 @@ size_t GetSleb128Size(int32_t v) {
     hasMore = (rem != end) || ((rem & 1) != ((v >> 6) & 1)); // judege whether has More valid rem
     size++;
     v = rem;
-    rem >>= kGreybackOffset; // intended signed shift: block codedex here
+    rem >>= static_cast<int>(kGreybackOffset); // intended signed shift: block codedex here
   }
   return size;
 }

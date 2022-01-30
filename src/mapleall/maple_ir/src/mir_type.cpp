@@ -1544,7 +1544,7 @@ int64 MIRArrayType::GetBitOffsetFromArrayAddress(std::vector<int64> &indexArray)
   }
   elemsize = RoundUp(elemsize, typeAttrs.GetAlign());
   constexpr int64 bitsPerByte = 8;
-  int64 offset = sum * elemsize * bitsPerByte;
+  int64 offset = static_cast<int64>(sum * elemsize * bitsPerByte);
   if (GetElemType()->GetKind() == kTypeArray && indexArray.size() > dim) {
     std::vector<int64> subIndexArray(indexArray.begin() + dim, indexArray.end());
     offset += static_cast<MIRArrayType*>(GetElemType())->GetBitOffsetFromArrayAddress(subIndexArray);
@@ -1930,7 +1930,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
 
       // target field id is found
       if (curFieldID == fieldID) {
-        return allocedBitSize;
+        return static_cast<int64>(allocedBitSize);
       } else {
         ++curFieldID;
       }
@@ -1947,7 +1947,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
     // if fieldTypeSize is 0, no extra space will be allocated, just return or continue to next field
     if (fieldTypeSize == 0) {
       if (curFieldID == fieldID) {
-        return allocedBitSize;
+        return static_cast<int64>(allocedBitSize);
       }
       ++curFieldID;
       continue;
@@ -1972,7 +1972,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
     }
     // target field id is found
     if (curFieldID == fieldID) {
-      return offset * bitsPerByte;
+      return static_cast<int64>(offset * bitsPerByte);
     }
     // case 4 : primtive field;
     MIRStructType *subStructType = fieldType->EmbeddedStructType();
@@ -1986,7 +1986,7 @@ int64 MIRStructType::GetBitOffsetFromStructBaseAddr(FieldID fieldID) {
         curFieldID += static_cast<FieldID>(subStructType->NumberOfFieldIDs()) + 1; // 1 represents subStructType itself
       } else {
         int64 result = subStructType->GetBitOffsetFromBaseAddr(fieldID - curFieldID);
-        return result + allocedSize * bitsPerByte;
+        return static_cast<int64>(result + allocedSize * bitsPerByte);
       }
     }
 

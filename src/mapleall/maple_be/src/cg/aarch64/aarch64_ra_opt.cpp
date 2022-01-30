@@ -37,7 +37,7 @@ bool RaX0Opt::PropagateX0CanReplace(Operand *opnd, regno_t replaceReg) const {
 bool RaX0Opt::PropagateRenameReg(Insn *nInsn, const X0OptInfo &optVal) {
   uint32 renameReg = static_cast<RegOperand*>(optVal.GetRenameOpnd())->GetRegisterNumber();
   const AArch64MD *md = &AArch64CG::kMd[static_cast<AArch64Insn*> (nInsn)->GetMachineOpcode()];
-  int32 lastOpndId = nInsn->GetOperandSize() - 1;
+  int32 lastOpndId = static_cast<int32>(nInsn->GetOperandSize() - 1);
   for (int32_t i = lastOpndId; i >= 0; i--) {
     Operand &opnd = nInsn->GetOperand(static_cast<uint32>(i));
 
@@ -91,7 +91,7 @@ bool RaX0Opt::PropagateX0DetectX0(const Insn *insn, X0OptInfo &optVal) {
 
 bool RaX0Opt::PropagateX0DetectRedefine(const AArch64MD *md, const Insn *ninsn, const X0OptInfo &optVal,
                                         uint32 index) {
-  bool isdef = static_cast<AArch64OpndProp*>(md->GetOperand(index))->IsRegDef();
+  bool isdef = static_cast<AArch64OpndProp*>(md->GetOperand(static_cast<int>(index)))->IsRegDef();
   if (isdef) {
     RegOperand &opnd = static_cast<RegOperand&>(ninsn->GetOperand(index));
     if (opnd.GetRegisterNumber() == optVal.GetReplaceReg()) {
