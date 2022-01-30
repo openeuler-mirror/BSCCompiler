@@ -708,7 +708,7 @@ class AArch64MemOperand : public MemOperand {
     ASSERT(dSize <= k128BitSize, "error val:dSize");
     ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
     /* dSize==8: 0, dSize==16 : 1, dSize==32: 2, dSize==64: 3 */
-    return __builtin_ctz(dSize) - kBaseOffsetAlignment;
+    return static_cast<int32>(__builtin_ctz(dSize) - kBaseOffsetAlignment);
   }
 
   static int32 GetMaxPIMM(uint32 dSize) {

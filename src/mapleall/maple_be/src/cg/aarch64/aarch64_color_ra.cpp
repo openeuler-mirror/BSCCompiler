@@ -2349,7 +2349,7 @@ void GraphColorRegAllocator::SplitLr(LiveRange &lr) {
   /* Copy the original conflict vector for spill reuse optimization */
   lr.SetOldConflict(memPool->NewArray<uint64>(regBuckets));
   for (uint32 i = 0; i < regBuckets; ++i) {
-    lr.SetBBConflictElem(i, lr.GetBBConflictElem(i));
+    lr.SetBBConflictElem(static_cast<int32>(i), lr.GetBBConflictElem(static_cast<int32>(i)));
   }
 #endif  /* REUSE_SPILLMEM */
 
@@ -3718,16 +3718,16 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
       }
       hasVirtual = true;
       if (i == kAsmOutputListOpnd) {
-        fInfo.SetDefOperand(opnd, i);
+        fInfo.SetDefOperand(opnd, static_cast<const int32>(i));
       }
       if (i == kAsmInputListOpnd) {
-        fInfo.SetUseOperand(opnd, i);
+        fInfo.SetUseOperand(opnd, static_cast<const int32>(i));
       }
     } else if (opnd.IsMemoryAccessOperand()) {
       auto &memOpnd = static_cast<AArch64MemOperand&>(opnd);
       Operand *base = memOpnd.GetBaseRegister();
       if (base != nullptr) {
-        fInfo.SetBaseOperand(opnd, i);
+        fInfo.SetBaseOperand(opnd, static_cast<const int32>(i));
         MarkUsedRegs(*base, usedRegMask);
         hasVirtual |= static_cast<RegOperand*>(base)->IsVirtualRegister();
       }
@@ -3740,7 +3740,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
     } else {
       bool isDef = md->GetOperand(i)->IsRegDef();
       if (isDef) {
-        fInfo.SetDefOperand(opnd, i);
+        fInfo.SetDefOperand(opnd, static_cast<const int32>(i));
         /*
          * Need to exclude def also, since it will clobber the result when the
          * original value is reloaded.
@@ -3748,7 +3748,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
         hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
         MarkUsedRegs(opnd, usedRegMask);
       } else {
-        fInfo.SetUseOperand(opnd, i);
+        fInfo.SetUseOperand(opnd, static_cast<const int32>(i));
         if (opnd.IsRegister()) {
           hasVirtual |= static_cast<RegOperand&>(opnd).IsVirtualRegister();
           MarkUsedRegs(opnd, usedRegMask);
@@ -3836,8 +3836,8 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
         }
       }
     } else if (opnd->IsRegister()) {
-      bool isDef = md->GetOperand(opndIdx)->IsRegDef();
-      bool isUse = md->GetOperand(opndIdx)->IsRegUse();
+      bool isDef = md->GetOperand(static_cast<int>(opndIdx))->IsRegDef();
+      bool isUse = md->GetOperand(static_cast<int>(opndIdx))->IsRegUse();
       RegOperand *ropnd = static_cast<RegOperand*>(opnd);
       if (IsUnconcernedReg(*ropnd)) {
         continue;
@@ -4331,7 +4331,7 @@ void CallerSavePre::Rename1() {
       case kOccUse: {
         if (occStack.empty()) {
           // assign new class
-          occ->SetClassID(classCount++);
+          occ->SetClassID(static_cast<int>(classCount++));
           occStack.push(occ);
           break;
         }
@@ -4357,7 +4357,7 @@ void CallerSavePre::Rename1() {
       }
       case kOccPhiocc: {
         // assign new class
-        occ->SetClassID(classCount++);
+        occ->SetClassID(static_cast<int>(classCount++));
         occStack.push(occ);
         break;
       }
@@ -4383,7 +4383,7 @@ void CallerSavePre::Rename1() {
         }
 
         // assign new class
-        occ->SetClassID(classCount++);
+        occ->SetClassID(static_cast<int>(classCount++));
         occStack.push(occ);
         break;
       }
@@ -4399,7 +4399,7 @@ void CallerSavePre::Rename1() {
         }
 
         // assign new class
-        occ->SetClassID(classCount++);
+        occ->SetClassID(static_cast<int>(classCount++));
         occStack.push(occ);
         break;
       }
