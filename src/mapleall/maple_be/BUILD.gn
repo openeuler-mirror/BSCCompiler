@@ -34,7 +34,7 @@ deps_libcg = []
 
 deps_libmplbe = [ ":libcglowerer" ]
 
-if (TARGET == "aarch64") {
+if (TARGET == "aarch64" || TARGET == "aarch64_ilp32") {
   include_directories += [
     "${MAPLEALL_ROOT}/maple_be/include/cg/aarch64",
     "${MAPLEALL_ROOT}/maple_be/include/be/aarch64",
@@ -185,6 +185,7 @@ src_libcg = [
   "src/cg/reg_coalesce.cpp",
   "src/cg/alignment.cpp",
   "src/cg/cg_ssu_pre.cpp",
+  "src/cg/cg_ssa_pre.cpp",
 ]
 
 cflags_cc -= [ "-DRC_NO_MMAP" ]
