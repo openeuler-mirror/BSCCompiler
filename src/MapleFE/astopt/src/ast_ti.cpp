@@ -620,12 +620,27 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       }
     } else if (init->IsArrayLiteral()) {
       TypeId tid = GetArrayElemTypeId(init);
-      if (IsPrimTypeId(tid) || tid == TY_Merge) {
+      if (IsPrimTypeId(tid)) {
         PrimTypeNode *pt = mHandler->NewTreeNode<PrimTypeNode>();
         pt->SetPrimType(tid);
 
         PrimArrayTypeNode *pat = mHandler->NewTreeNode<PrimArrayTypeNode>();
         pat->SetPrim(pt);
+
+        DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
+        pat->SetDims(dims);
+
+        pat->SetParent(idnode);
+        idnode->SetType(pat);
+        SetUpdated();
+      } else {
+        TreeNode *t = gTypeTable.GetTypeFromTypeIdx(init->GetTypeIdx());
+        if (!t) {
+          t = gTypeTable.GetTypeFromTypeId(tid);
+        }
+
+        ArrayTypeNode *pat = mHandler->NewTreeNode<ArrayTypeNode>();
+        pat->SetElemType(t);
 
         DimensionNode *dims = mHandler->GetArrayDim(init->GetNodeId());
         pat->SetDims(dims);
