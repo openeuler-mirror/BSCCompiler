@@ -359,6 +359,7 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
     }
 
     if (match) {
+      node->SetTypeIdx(s->GetTypeIdx());
       return s;
     }
   }
@@ -377,6 +378,7 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
     if (!anony) {
       return node;
     } else {
+      node->SetTypeIdx(anony->GetTypeIdx());
       node = anony;
     }
   }
@@ -477,6 +479,7 @@ TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
     IdentifierNode *id = snode->GetStructId();
     if (!id) {
       id = CreateIdentifierNode(0);
+      id->SetScope(snode->GetScope());
       snode->SetStructId(id);
     }
 
@@ -485,6 +488,7 @@ TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
   }
 
   ModuleNode *module = mHandler->GetASTModule();
+  module->GetScope()->AddType(newnode);
   module->AddTreeFront(newnode);
   return newnode;
 }
