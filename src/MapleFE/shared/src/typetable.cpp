@@ -55,25 +55,29 @@ TypeEntry::TypeEntry(TreeNode *node) {
 
 TreeNode *TypeTable::CreatePrimType(std::string name, TypeId tid) {
   unsigned stridx = gStringPool.GetStrIdx(name);
-  PrimTypeNode *node = (PrimTypeNode*)gTreePool.NewTreeNode(sizeof(PrimTypeNode));
-  new (node) PrimTypeNode();
-  node->SetStrIdx(stridx);
-  node->SetPrimType(tid);
-  node->SetTypeId(tid);
-  return node;
+  PrimTypeNode *ptype = (PrimTypeNode*)gTreePool.NewTreeNode(sizeof(PrimTypeNode));
+  new (ptype) PrimTypeNode();
+  ptype->SetStrIdx(stridx);
+  ptype->SetPrimType(tid);
+  ptype->SetTypeId(tid);
+
+  mTypeId2TypeMap[tid] = ptype;
+  return ptype;
 }
 
 TreeNode *TypeTable::CreateBuiltinType(std::string name, TypeId tid) {
   unsigned stridx = gStringPool.GetStrIdx(name);
-  IdentifierNode *node = (IdentifierNode*)gTreePool.NewTreeNode(sizeof(IdentifierNode));
-  new (node) IdentifierNode(stridx);
-  node->SetTypeId(tid);
+  IdentifierNode *id = (IdentifierNode*)gTreePool.NewTreeNode(sizeof(IdentifierNode));
+  new (id) IdentifierNode(stridx);
+  id->SetTypeId(tid);
 
   UserTypeNode *utype = (UserTypeNode*)gTreePool.NewTreeNode(sizeof(UserTypeNode));
-  new (utype) UserTypeNode(node);
+  new (utype) UserTypeNode(id);
   utype->SetStrIdx(stridx);
   utype->SetTypeId(TY_Class);
-  node->SetParent(utype);
+  id->SetParent(utype);
+
+  mTypeId2TypeMap[tid] = utype;
   return utype;
 }
 
@@ -82,9 +86,9 @@ bool TypeTable::AddType(TreeNode *node) {
   if (mNodeId2TypeIdxMap.find(id) != mNodeId2TypeIdxMap.end()) {
     return false;
   }
-  unsigned tyidx = mTypeTable.size();
-  mNodeId2TypeIdxMap[id] = tyidx;
-  node->SetTypeIdx(tyidx);
+  unsigned tid = mTypeTable.size();
+  mNodeId2TypeIdxMap[id] = tid;
+  node->SetTypeIdx(tid);
   TypeEntry *entry = new TypeEntry(node);
   mTypeTable.push_back(entry);
   return true;
@@ -147,8 +151,10 @@ void TypeTable::Dump() {
     }
     std::cout << "  " << idx << " : " << node->GetName() << " : " <<
               AstDump::GetEnumNodeKind(node->GetKind()) << " " <<
-              AstDump::GetEnumTypeId(tid) << " " << tid << " " <<
-              node->GetNodeId() << std::endl;
+              AstDump::GetEnumTypeId(tid) << " " <<
+              "(typeid " << tid << ") " <<
+              "(typeidx " << node->GetTypeIdx() << ") " <<
+              "(nodeid " << node->GetNodeId() << ")" << std::endl;
   }
   std::cout << "===================== End TypeTable =====================" << std::endl;
 }

@@ -50,6 +50,7 @@ class TypeTable {
 private:
   std::vector<TypeEntry *> mTypeTable;
   std::unordered_map<unsigned, unsigned> mNodeId2TypeIdxMap;
+  std::unordered_map<TypeId, TreeNode*> mTypeId2TypeMap;
   unsigned mPrimSize;
   unsigned mPreBuildSize;
 
@@ -60,12 +61,13 @@ public:
   unsigned size() { return mTypeTable.size(); }
   unsigned GetPreBuildSize() { return mPreBuildSize; }
   unsigned GetPrimSize() { return mPrimSize; }
-  TreeNode *CreatePrimType(std::string name, TypeId tyid);
-  TreeNode *CreateBuiltinType(std::string name, TypeId tyid);
+  TreeNode *CreatePrimType(std::string name, TypeId tid);
+  TreeNode *CreateBuiltinType(std::string name, TypeId tid);
   void AddPrimAndBuiltinTypes();
   bool AddType(TreeNode *node);
-  TypeEntry *GetTypeEntryFromTypeIdx(unsigned idx);
-  TreeNode *GetTypeFromTypeIdx(unsigned idx);
+  TypeEntry *GetTypeEntryFromTypeIdx(unsigned tidx);
+  TreeNode  *GetTypeFromTypeIdx(unsigned tidx);
+  TreeNode  *GetTypeFromTypeId(TypeId tid) { return mTypeId2TypeMap[tid]; }
   void Dump();
 };
 
