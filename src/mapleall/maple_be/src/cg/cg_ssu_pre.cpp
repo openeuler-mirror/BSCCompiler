@@ -521,22 +521,38 @@ void SSUPre::PropagateNotAvail(BB *bb, std::set<BB*, BBIdCmp> *visitedBBs) {
 }
 
 void SSUPre::FormReals() {
-  std::set<BB*, BBIdCmp> visitedBBs;
-  fullyAvailBBs[cgFunc->GetCommonExitBB()->GetId()] = false;
-  PropagateNotAvail(cgFunc->GetFirstBB(), &visitedBBs);
-
-  for (uint32 i = 0; i < pdom->GetPdtPreOrderSize(); i++) {
-    BBId bbid = pdom->GetPdtPreOrderItem(i);
-    BB *cgbb = cgFunc->GetAllBBs()[bbid];
-    if (fullyAvailBBs[cgbb->GetId()]) {
-      SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
-      realOccs.push_back(realOcc);
+  if (redundanciesAmongSaves) {
+    for (uint32 i = 0; i < pdom->GetPdtPreOrderSize(); i++) {
+      BBId bbid = pdom->GetPdtPreOrderItem(i);
+      BB *cgbb = cgFunc->GetAllBBs()[bbid];
       if (workCand->saveBBs.count(cgbb->GetId()) != 0) {
+        SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
+        realOccs.push_back(realOcc);
         SKillOcc *killOcc = spreMp->New<SKillOcc>(cgbb);
         realOccs.push_back(killOcc);
+      } else if (workCand->occBBs.count(cgbb->GetId()) != 0) {
+        SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
+        realOccs.push_back(realOcc);
+      }
+    }
+  } else {
+    std::set<BB*, BBIdCmp> visitedBBs;
+    fullyAvailBBs[cgFunc->GetCommonExitBB()->GetId()] = false;
+    PropagateNotAvail(cgFunc->GetFirstBB(), &visitedBBs);
+    for (uint32 i = 0; i < pdom->GetPdtPreOrderSize(); i++) {
+      BBId bbid = pdom->GetPdtPreOrderItem(i);
+      BB *cgbb = cgFunc->GetAllBBs()[bbid];
+      if (fullyAvailBBs[cgbb->GetId()]) {
+        SRealOcc *realOcc = spreMp->New<SRealOcc>(cgbb);
+        realOccs.push_back(realOcc);
+        if (workCand->saveBBs.count(cgbb->GetId()) != 0) {
+          SKillOcc *killOcc = spreMp->New<SKillOcc>(cgbb);
+          realOccs.push_back(killOcc);
+        }
       }
     }
   }
+
   if (enabledDebug) {
     LogInfo::MapleLogger() << "Placement Optimization for callee-save restores" << '\n';
     LogInfo::MapleLogger() << "-----------------------------------------------" << '\n';
@@ -577,7 +593,8 @@ void SSUPre::ApplySSUPre() {
 
 void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_ssu_pre", true);
-  SSUPre cgssupre(f, pdom, tempMP, workCand, false/*enabledDebug*/);
+  SSUPre cgssupre(f, pdom, tempMP, workCand, true/*redundanciesAmongSaves*/,
+                  false/*enabledDebug*/);
 
   cgssupre.ApplySSUPre();
 
