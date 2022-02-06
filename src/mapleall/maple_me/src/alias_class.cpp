@@ -379,7 +379,7 @@ AliasInfo AliasClass::CreateAliasElemsExpr(BaseNode &expr) {
       } else {
         ASSERT(expr.GetOpCode() == OP_add, "Wrong operation!");
       }
-      OffsetType newOffset = aliasInfo.offset + constVal * bitsPerByte;
+      OffsetType newOffset = aliasInfo.offset + static_cast<uint64>(constVal) * static_cast<uint64>(bitsPerByte);
       return AliasInfo(aliasInfo.ae, 0, newOffset);
     }
     case OP_array: {
