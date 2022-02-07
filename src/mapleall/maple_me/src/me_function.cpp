@@ -76,6 +76,11 @@ void MeFunction::DumpFunctionNoSSA() const {
   if (isLfo) {
     return;
   }
+  if (theCFG == nullptr) {
+    LogInfo::MapleLogger()  << "Warning: no cfg analysis, just dump ir" << '\n';
+    mirFunc->Dump();
+    return;
+  }
   auto eIt = theCFG->valid_end();
   for (auto bIt = theCFG->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;

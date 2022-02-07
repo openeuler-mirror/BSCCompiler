@@ -285,6 +285,8 @@ bool MELfoUnroll::PhaseRun(MeFunction &f) {
     LogInfo::MapleLogger() << "\n**** After lfo loop unrolling ****\n";
     f.GetMirFunc()->Dump();
   }
+  // cfg is invalid for now
+  f.SetTheCfg(nullptr);
   return false;
 }
 
