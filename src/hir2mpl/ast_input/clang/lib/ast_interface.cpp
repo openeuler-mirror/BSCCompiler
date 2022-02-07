@@ -291,6 +291,20 @@ void LibAstFile::CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs 
   }
 }
 
+void LibAstFile::CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access) {
+  CollectAttrs(decl, genAttrs, access);
+  // handle __thread
+  if (decl.getTLSKind() == clang::VarDecl::TLS_Static) {
+    genAttrs.SetAttr(GENATTR_tls_static);
+  } else if (decl.getTLSKind() == clang::VarDecl::TLS_Dynamic) {
+    genAttrs.SetAttr(GENATTR_tls_dynamic);
+  }
+  // one elem vector type
+  if (IsOneElementVector(decl.getType())) {
+    genAttrs.SetAttr(GENATTR_oneelem_simd);
+  }
+}
+
 void LibAstFile::EmitTypeName(const clang::QualType qualType, std::stringstream &ss) {
   switch (qualType->getTypeClass()) {
     case clang::Type::LValueReference: {

@@ -832,7 +832,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
  private:
   ASTExpr *FindFinalBase() const;
   MIRConst *GenerateMIRConstImpl() const override;
-  bool CheckFirstDimIfZero() const;
+  bool CheckFirstDimIfZero(const MIRType *arrayType) const;
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
                              const UniqueFEIRExpr &addrOfArray) const;

@@ -65,6 +65,7 @@ class LibAstFile {
   void GetQualAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs);
   void CollectAttrs(const clang::NamedDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   void CollectFuncAttrs(const clang::FunctionDecl &decl, GenericAttrs &genAttrs, AccessKind access);
+  void CollectVarAttrs(const clang::VarDecl &decl, GenericAttrs &genAttrs, AccessKind access);
   MIRType *CvtPrimType(const clang::QualType qualType) const;
   PrimType CvtPrimType(const clang::BuiltinType::Kind) const;
   MIRType *CvtType(const clang::QualType qualType);

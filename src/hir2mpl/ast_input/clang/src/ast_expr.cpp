@@ -1480,8 +1480,8 @@ MIRConst *ASTArraySubscriptExpr::GenerateMIRConstImpl() const {
   }
 }
 
-bool ASTArraySubscriptExpr::CheckFirstDimIfZero() const {
-  auto tmpArrayType = static_cast<MIRArrayType*>(arrayType);
+bool ASTArraySubscriptExpr::CheckFirstDimIfZero(const MIRType *arrayType) const {
+  auto tmpArrayType = static_cast<const MIRArrayType*>(arrayType);
   uint32 size = tmpArrayType->GetSizeArrayItem(0);
   uint32 oriDim = tmpArrayType->GetDim();
   if (size == 0 && oriDim >= 2) { // 2 is the array dim
@@ -1528,7 +1528,7 @@ UniqueFEIRExpr ASTArraySubscriptExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> 
   auto fePtrType = std::make_unique<FEIRTypeNative>(*mirPtrType);
   UniqueFEIRExpr addrOfArray;
   if (arrayTypeOpt->GetKind() == MIRTypeKind::kTypeArray && !isVLA) {
-    if(CheckFirstDimIfZero()) {
+    if(CheckFirstDimIfZero(arrayTypeOpt)) {
       // return multi-dim array addr directly if its first dim size was 0.
       return baseAddrFEExpr;
     }
