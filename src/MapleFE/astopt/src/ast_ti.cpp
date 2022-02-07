@@ -1591,6 +1591,10 @@ StructNode *TypeInferVisitor::VisitStructNode(StructNode *node) {
       tid = MergeTypeId(tid, t->GetTypeId());
       tidx = MergeTypeIdx(tidx, t->GetTypeIdx());
     }
+    if (tid == TY_None) {
+      tid = TY_Int;
+      tidx = (unsigned)TY_Int;
+    }
     for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
       TreeNode *t = node->GetField(i);
       SetTypeId(t, tid);
