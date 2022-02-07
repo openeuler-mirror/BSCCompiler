@@ -2446,15 +2446,12 @@ ASTDecl *ASTParser::ProcessDeclVarDecl(MapleAllocator &allocator, const clang::V
     return nullptr;
   }
   GenericAttrs attrs;
-  astFile->CollectAttrs(varDecl, attrs, kNone);
+  astFile->CollectVarAttrs(varDecl, attrs, kNone);
   // for inline optimize
   if (attrs.GetAttr(GENATTR_static) && FEOptions::GetInstance().GetFuncInlineSize() != 0) {
     varName = varName + astFile->GetAstFileNameHashStr();
   }
-  // one elem vector type
-  if (LibAstFile::IsOneElementVector(qualType)) {
-    attrs.SetAttr(GENATTR_oneelem_simd);
-  }
+
   if (llvm::isa<clang::VariableArrayType>(varDecl.getType())) {
     CHECK_FATAL(FEOptions::GetInstance().IsEnableVariableArray(),
                 "Intercepts variable arrays, because the backend does not yet support.");
