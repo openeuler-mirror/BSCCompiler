@@ -5,6 +5,7 @@ namespace t2crt {
 Object::Ctor   Object::ctor  (&Function::ctor, Function::ctor.prototype);
 Function::Ctor Function::ctor(&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
 Number::Ctor   Number::ctor  (&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
+RegExp::Ctor   RegExp::ctor  (&Function::ctor, Function::ctor.prototype, Object::ctor.prototype);
 
 IteratorProto                IteratorPrototype(&Object::ctor, Object::ctor.prototype);
 GeneratorFunctionPrototype   Generator(&GeneratorFunction, Function::ctor.prototype, &IteratorPrototype);

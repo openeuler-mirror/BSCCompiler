@@ -107,23 +107,11 @@ StructLiteralNode *AdjustASTVisitor::VisitStructLiteralNode(StructLiteralNode *n
     }
   }
 
-  TreeNode *parent = node->GetParent();
-
-  // create anonymous struct for structliteral in decl init
-  if (parent && parent->IsDecl()) {
-    DeclNode *decl = static_cast<DeclNode *>(parent);
-    TreeNode *var = decl->GetVar();
-    if (var->IsIdentifier()) {
-      IdentifierNode *id = static_cast<IdentifierNode *>(var);
-      if (!id->GetType()) {
-        TreeNode *newnode = mInfo->GetCanonicStructNode(node);
-        if (newnode != node) {
-          UserTypeNode *utype = mInfo->CreateUserTypeNode(newnode->GetStrIdx());
-          static_cast<IdentifierNode *>(var)->SetType(utype);
-        }
-      }
-    }
+  TreeNode *newnode = mInfo->GetCanonicStructNode(node);
+  if (newnode != node) {
+    node->SetTypeIdx(newnode->GetTypeIdx());
   }
+
   return node;
 }
 

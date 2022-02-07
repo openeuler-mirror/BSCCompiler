@@ -12,6 +12,7 @@ class MyCar extends Car {
 let car = new Car("A car");
 let myCar = new MyCar("My car");
 let arr = [1, 2, 3]
+let regexpr = /ab+c/i
 
 function* generator() { yield 1; }
 const gpt = generator.prototype.__proto__;
@@ -36,7 +37,7 @@ let graphData = {
   Class    : ["Array", "arr", "myCar", "car"],
   Generator: ["generator", [generator(), "generator_instance"], [gpt, "GeneratorPrototype"],
               [gpt.__proto__, "IteratorPrototype"], [generator.__proto__, "Generator"]],
-  Builtin  : ["Symbol", "Math", "JSON", "Promise"],
+  Builtin  : ["Symbol", "Math", "JSON", "Promise", "RegExp", "regexpr"],
   Closure  : ["makeClosure", "closure"],
   Iterator : ["myMap", "myMapIterator", "MapIteratorPrototype", [gpt.__proto__, "IteratorPrototype"]],
   Async    : ["asyncFunction", "asyncGenerator", [asyncGenerator(), "asyncGenerator_instance"], [agpt, "AsyncGeneratorPrototype"],

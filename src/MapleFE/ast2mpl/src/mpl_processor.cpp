@@ -994,6 +994,10 @@ maple::BaseNode *Ast2MplBuilder::ProcessYield(StmtExprKind skind, TreeNode *tnod
   return nullptr;
 }
 
+maple::BaseNode *Ast2MplBuilder::ProcessArrayType(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
+  return nullptr;
+}
+
 maple::BaseNode *Ast2MplBuilder::ProcessCondBranch(StmtExprKind skind, TreeNode *tnode, BlockNode *block) {
   CondBranchNode *node = static_cast<CondBranchNode *>(tnode);
   maple::BaseNode *cond = ProcessNode(SK_Expr, node->GetCond(), block);

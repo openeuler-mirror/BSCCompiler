@@ -1986,6 +1986,12 @@ std::string Emitter::EmitPrimArrayTypeNode(PrimArrayTypeNode *node) {
   return HandleTreeNode(str, node);
 }
 
+std::string Emitter::EmitArrayTypeNode(ArrayTypeNode *node) {
+  // TODO
+  std::string str = "";
+  return str;
+}
+
 std::string Emitter::EmitTreeNode(TreeNode *node) {
   if (node == nullptr)
     return std::string();
@@ -2031,6 +2037,9 @@ std::string Emitter::EmitTreeNode(TreeNode *node) {
     break;
   case NK_PrimArrayType:
     return EmitPrimArrayTypeNode(static_cast<PrimArrayTypeNode *>(node));
+    break;
+  case NK_ArrayType:
+    return EmitArrayTypeNode(static_cast<ArrayTypeNode *>(node));
     break;
   case NK_UserType:
     return EmitUserTypeNode(static_cast<UserTypeNode *>(node));
