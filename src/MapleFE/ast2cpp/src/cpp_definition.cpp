@@ -345,10 +345,15 @@ std::string CppDef::EmitIdentifierNode(IdentifierNode *node) {
   return str;
 }
 
-// Generate vector of t2crt::ObjectProp to be passed to t2crt::Object constructor.
+// Generate code to create object instance that was declared using
+// an object literal. First process the object literals in the
+// StructLiteralNode argument to build the proplist list (vector of
+// type ObjectProp) to be used as initializer, then generate call to
+// the  builtin Object constructor with initializer as parameter.
 std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
   std::string str;
   int stops = 2;
+  // Build proplist to be used as initializer
   str += "\n"s + tab(stops) + "std::vector<t2crt::ObjectProp>({\n"s;
   for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
     if (i)
@@ -365,7 +370,8 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
         case TY_Function:
           break;
         case TY_Array:
-          //str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(t2crt::Object*("s + fieldVal + ")))"s;
+          fieldVal = EmitArrayLiteral(nullptr, lit);
+          str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + fieldVal + "))"s;
           break;
         case TY_Boolean:
           str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(bool("s + fieldVal + ")))"s;
@@ -373,6 +379,9 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
         case TY_None:
           if (fieldVal.compare("true") == 0 || fieldVal.compare("false") == 0)
             str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(bool("s + fieldVal + ")))"s;
+          else
+            // if no type info, use type any (JS_Val)
+            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + fieldVal + "))"s;
           break;
         case TY_Int:
           str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(int64_t("s + fieldVal + ")))"s;
@@ -388,17 +397,19 @@ std::string CppDef::EmitStructLiteralNode(StructLiteralNode* node) {
           // Handle embedded t2crt::ObjectLiterals recursively
           if (lit->IsStructLiteral()) {
             std::string props = EmitStructLiteralNode(static_cast<StructLiteralNode*>(lit));
-            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val(t2crt::Object::ctor._new("s + props + ")))"s;
+            str += "std::make_pair(\""s + fieldName + "\", t2crt::JS_Val("s + props + "))"s;
           }
           break;
       }
     }
   }
   str += " })"s;
+  // Generate code to call builtin Object constructor with the initializer proplist.
+  str = "t2crt::Object::ctor._new("s + str + ")"s;
   return str;
 }
 
-std::string CppDef::EmitDirectFieldInit(std::string varName, StructLiteralNode* node) {
+std::string CppDef::GenDirectFieldInit(std::string varName, StructLiteralNode* node) {
   std::string str;
   //str += ";\n"s;
   for (unsigned i = 0; i < node->GetFieldsNum(); ++i) {
@@ -415,7 +426,7 @@ std::string CppDef::EmitDirectFieldInit(std::string varName, StructLiteralNode* 
   return str;
 }
 
-std::string CppDef::EmitObjPropInit(TreeNode* var, std::string varName, TreeNode* varIdType, StructLiteralNode* node) {
+std::string CppDef::GenObjectLiteral(TreeNode* var, std::string varName, TreeNode* varIdType, StructLiteralNode* node) {
   if (varName.empty())
     return std::string();
 
@@ -425,22 +436,47 @@ std::string CppDef::EmitObjPropInit(TreeNode* var, std::string varName, TreeNode
 
   if (userType == nullptr) {
     // no type info - create instance of builtin t2crt::Object with proplist
-    str = varName+ " = t2crt::Object::ctor._new("s + EmitTreeNode(node) + ")"s;
+    str = varName+ " = "s + EmitTreeNode(node);
   } else if (IsVarTypeClass(var)) {
     // init var of type TS class
     // - create obj instance of user defined class and do direct field access init
     // - todo: handle class with generics
     str = varName+ " = "s +userType->GetId()->GetName()+ "::ctor._new();\n"s;
-    str += EmitDirectFieldInit(varName, node);
+    str += GenDirectFieldInit(varName, node);
   } else {
     // type is builtin (e.g. t2crt::Record) and StructNode types (e.g. TSInterface)
     // create instance of type but set constructor to the builtin t2crt::Object.
     str = varName+ " = new "s +EmitUserTypeNode(userType)+ "(&t2crt::Object::ctor, t2crt::Object::ctor.prototype);\n"s;
     auto n = mHandler->FindDecl(static_cast<IdentifierNode*>(userType->GetId()));
     if (n && n->IsStruct() && static_cast<StructNode*>(n)->GetProp() == SProp_TSInterface) {
-      str += EmitDirectFieldInit(varName, node); // do direct field init
+      str += GenDirectFieldInit(varName, node); // do direct field init
     }
   }
+  return str;
+}
+
+// Generate code to construct an array of type any from an ArrayLiteral.
+std::string CppDef::GenArrayOfAny(TreeNode *node) {
+  if (node == nullptr || !node->IsArrayLiteral())
+    return std::string();
+
+  // Generate array ctor call to instantiate array
+  std::string literals;
+  for (unsigned i = 0; i < static_cast<ArrayLiteralNode*>(node)->GetLiteralsNum(); ++i) {
+    if (i)
+      literals += ", "s;
+    if (auto n = static_cast<ArrayLiteralNode*>(node)->GetLiteral(i)) {
+      if (n->IsArrayLiteral())
+        // Recurse to handle array elements that are arrays
+        literals += GenArrayOfAny(n);
+      else {
+        // Wrap element in JS_Val. C++ class constructor of JS_Val 
+        // will set tupe tag in JS_Val according to element type. 
+        literals += "t2crt::JS_Val("s + EmitTreeNode(n) + ")"s;
+      }
+    }
+  }
+  std::string str = ArrayCtorName(1, "t2crt::JS_Val") + "._new({"s + literals + "})"s;
   return str;
 }
 
@@ -470,10 +506,13 @@ std::string CppDef::EmitArrayLiterals(TreeNode *node, int dim, std::string type)
 std::string CppDef::EmitArrayLiteral(TreeNode* arrType, TreeNode* arrLiteral) {
   std::string str, type;
   int dims = 1;  // default to 1 dim array if no Dims info
-  if (arrType == nullptr || arrLiteral == nullptr)
+  if (arrLiteral == nullptr)
     return "nullptr"s;
 
-  if (arrType->IsUserType()) {             // array of usertyp
+  if (arrType == nullptr) {
+    // if no arrary type info proceed as array of type any (JS_Val)
+    str = GenArrayOfAny(arrLiteral);
+  } else if (arrType->IsUserType()) {             // array of usertyp
     if (static_cast<UserTypeNode*>(arrType)->GetDims())
       dims = static_cast<UserTypeNode*>(arrType)->GetDimsNum();
     if (auto id = static_cast<UserTypeNode*>(arrType)->GetId()) {
@@ -487,7 +526,7 @@ std::string CppDef::EmitArrayLiteral(TreeNode* arrType, TreeNode* arrLiteral) {
       dims = static_cast<PrimArrayTypeNode *>(arrType)->GetDims()->GetDimensionsNum();
     type= EmitPrimTypeNode(static_cast<PrimArrayTypeNode*>(arrType)->GetPrim());
     str = EmitArrayLiterals(arrLiteral, dims, type);
-  }
+  } 
   return str;
 }
 
@@ -500,11 +539,14 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
 
   std::string str, varStr;
   TreeNode* idType = nullptr;
+  TypeId varType = TY_None;
+
   //std::string str(Emitter::GetEnumDeclProp(node->GetProp()));
 
   // For func var of JS_Var and global vars, emit var name
   // For func var of JS_Let/JS_Const, emit both var type & name
   if (auto n = node->GetVar()) {
+    varType = n->GetTypeId();
     if (mIsInit || node->GetProp() == JS_Var) {
       // handle declnode inside for-of/for-in (uses GetSet() and has null GetInit())
       if (!node->GetInit() && node->GetParent() && !node->GetParent()->IsForLoop())
@@ -521,7 +563,7 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
     if (n->IsArrayLiteral())
       str += varStr + " = " + EmitArrayLiteral(idType, n);
     else if (n->IsStructLiteral())
-      str += EmitObjPropInit(node->GetVar(), varStr, idType, static_cast<StructLiteralNode*>(n));
+      str += GenObjectLiteral(node->GetVar(), varStr, idType, static_cast<StructLiteralNode*>(n));
     else if (node->GetVar()->IsIdentifier() && n->IsIdentifier() && n->IsTypeIdClass())
       str += varStr + "= &"s + n->GetName() + "::ctor"s;           // init with ctor address
     else if (n->IsFunction()) {
@@ -529,8 +571,14 @@ std::string CppDef::EmitDeclNode(DeclNode *node) {
         str += varStr + " = new "s + "Cls_" + n->GetName() + "()"s;
         hFuncTable.AddNameIsTopLevelFunc(varStr);
       }
-    } else
-      str += varStr + " = "s + EmitTreeNode(n);
+    } else {
+      // if no type info, assume type is any and wrap initializer in JS_Val.
+      str += varStr + " = ";
+      if (varType == TY_None)
+        str += "t2crt::JS_Val("s + EmitTreeNode(n) + ")"s;
+      else
+        str += EmitTreeNode(n);
+    }
   } else {
     str = varStr;
   }
@@ -1488,6 +1536,14 @@ std::string &CppDef::HandleTreeNode(std::string &str, TreeNode *node) {
       str = AddParentheses(str, node) + " as const"s;
   */
   return str;
+}
+
+std::string CppDef::EmitRegExprNode(RegExprNode *node) {
+  if (node == nullptr)
+    return std::string();
+  std::string source = Emitter::EmitRegExprNode(node);
+  InsertEscapes(source);
+  return "RegExp::ctor._new(\""s + source + "\")"s;
 }
 
 } // namespace maplefe

@@ -380,11 +380,6 @@ StructNode *BuildScopeVisitor::VisitStructNode(StructNode *node) {
 
 StructLiteralNode *BuildScopeVisitor::VisitStructLiteralNode(StructLiteralNode *node) {
   ASTScope *parent = mScopeStack.top();
-  // struct is a decl
-  if (parent) {
-    AddDecl(parent, node);
-    AddType(parent, node);
-  }
 
   ASTScope *scope = NewScope(parent, node);
 

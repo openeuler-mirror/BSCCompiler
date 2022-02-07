@@ -16,7 +16,6 @@ std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
     case t2crt::TY_Symbol: out << "symbol"; break;
     case t2crt::TY_Function: out << "function"; break;
     case t2crt::TY_Object: out << v.x.val_obj; break;
-    case t2crt::TY_Array: out << v.x.val_obj->Dump(); break;
 
     case t2crt::TY_CXX_Undef: out  << "undefined"; break;
     case t2crt::TY_CXX_Null: out   << "null"; break;
@@ -28,15 +27,25 @@ std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v) {
     case t2crt::TY_CXX_Symbol: out << "symbol"; break;
     case t2crt::TY_CXX_Function: out << "function"; break;
     case t2crt::TY_CXX_Object: out << *(Object**)v.x.field; break;
-    case t2crt::TY_CXX_Array: out << (*(Object**)v.x.field)->Dump(); break;
   }
   return out;
 }
 
-std::ostream& operator<< (std::ostream& out, const t2crt::Object *obj) {
-  out << obj->constructor->__GetClassName();
-  if (obj->IsEmpty())
-    out << "{}";
+std::ostream& operator<< (std::ostream& out, t2crt::Object *obj) {
+  out << obj->Dump();
+  return out;
+}
+
+const t2crt::JS_Val undefined = { 0, t2crt::TY_Undef, false };
+const t2crt::JS_Val null = { 0, t2crt::TY_Null, false };
+
+namespace t2crt {
+
+std::string Object::Dump(void) {
+  std::string str;
+  str += this->constructor->__GetClassName();
+  if (this->IsEmpty())
+    str += "{}";
   else {
     std::vector<std::string> vec;
     unsigned cnt = 0;
@@ -44,7 +53,7 @@ std::ostream& operator<< (std::ostream& out, const t2crt::Object *obj) {
     buf << std::boolalpha;
     // non-object fields go first
     for (bool flag: { false, true }) {
-      for (auto it = obj->propList.begin(); it != obj->propList.end(); it++) {
+      for (auto it = this->propList.begin(); it != this->propList.end(); it++) {
         auto k = it->second.type;
         auto b = k == t2crt::TY_Object || k == t2crt::TY_CXX_Object;
         if (b == flag) {
@@ -72,18 +81,13 @@ std::ostream& operator<< (std::ostream& out, const t2crt::Object *obj) {
     }
     const char *p = "{ ";
     for (auto prop: vec) {
-      out << p << prop;
+      str += p + prop;
       p = ", ";
     }
-    out << " }";
+    str += " }";
   }
-  return out;
+  return str;
 }
-
-const t2crt::JS_Val undefined = { 0, t2crt::TY_Undef, false };
-const t2crt::JS_Val null = { 0, t2crt::TY_Null, false };
-
-namespace t2crt {
 
 bool InstanceOf(JS_Val val, Function* ctor) {
   if (val.type != TY_Object || val.x.val_obj == nullptr || ctor == nullptr)

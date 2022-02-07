@@ -306,7 +306,7 @@ bool AST_INFO::IsFieldCompatibleTo(TreeNode *field, TreeNode *target) {
   else if (field->IsFieldLiteral()) {
     FieldLiteralNode *fln = static_cast<FieldLiteralNode *>(field);
     TreeNode *name = fln->GetFieldName();
-    if (name->IsIdentifier()) {
+    if (name && name->IsIdentifier()) {
       stridx_field = name->GetStrIdx();
     }
     if (stridx_field != stridx_target) {
@@ -359,6 +359,7 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
     }
 
     if (match) {
+      node->SetTypeIdx(s->GetTypeIdx());
       return s;
     }
   }
@@ -377,6 +378,7 @@ TreeNode *AST_INFO::GetCanonicStructNode(TreeNode *node) {
     if (!anony) {
       return node;
     } else {
+      node->SetTypeIdx(anony->GetTypeIdx());
       node = anony;
     }
   }
@@ -477,6 +479,7 @@ TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
     IdentifierNode *id = snode->GetStructId();
     if (!id) {
       id = CreateIdentifierNode(0);
+      id->SetScope(snode->GetScope());
       snode->SetStructId(id);
     }
 
@@ -485,6 +488,7 @@ TreeNode *AST_INFO::GetAnonymousStruct(TreeNode *node) {
   }
 
   ModuleNode *module = mHandler->GetASTModule();
+  module->GetScope()->AddType(newnode);
   module->AddTreeFront(newnode);
   return newnode;
 }
@@ -719,6 +723,13 @@ StructLiteralNode *ClassStructVisitor::VisitStructLiteralNode(StructLiteralNode 
     }
     // sort fields
     mInfo->SortFields<StructLiteralNode, FieldLiteralNode>(node);
+  } else if (mInfo->GetPass() == 2) {
+    // create a anonymous struct for it
+    mInfo->SetNameAnonyStruct(true);
+    TreeNode *csn = mInfo->GetCanonicStructNode(node);
+    if (csn && csn != node) {
+      VisitTreeNode(csn);
+    }
   }
   return node;
 }

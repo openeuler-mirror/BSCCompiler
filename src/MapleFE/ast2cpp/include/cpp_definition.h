@@ -63,14 +63,13 @@ public:
   std::string EmitDeclareNode(DeclareNode *node) override;
   std::string EmitAsTypeNode(AsTypeNode *node) override;
   std::string EmitNamespaceNode(NamespaceNode *node) override;
+  std::string EmitRegExprNode(RegExprNode *node);
   std::string& HandleTreeNode(std::string &str, TreeNode *node) override;
 
   std::string EmitClassProps(TreeNode *node);
   std::string EmitFuncScopeVarDecls(FunctionNode *node);
   std::string EmitStructNode(StructNode *node);
   std::string EmitStructLiteralNode(StructLiteralNode* node);
-  std::string EmitObjPropInit(TreeNode* var, std::string varName, TreeNode* idType, StructLiteralNode* n);
-  std::string EmitDirectFieldInit(std::string varName, StructLiteralNode* node);
   std::string EmitCppCtor(ClassNode* node);
   std::string EmitCtorInstance(ClassNode *c);
   std::string EmitDefaultCtor(ClassNode *c);
@@ -82,6 +81,9 @@ public:
   std::string GetTypeForTemplateArg(TreeNode* node);
   TreeNode*   FindDeclType(TreeNode* node);
   std::string GetThisParamObjType(TreeNode *node);
+  std::string GenArrayOfAny(TreeNode* node);
+  std::string GenObjectLiteral(TreeNode* var, std::string varName, TreeNode* idType, StructLiteralNode* n);
+  std::string GenDirectFieldInit(std::string varName, StructLiteralNode* node);
 };
 
 } // namespace maplefe

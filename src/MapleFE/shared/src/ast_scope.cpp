@@ -208,7 +208,7 @@ void ASTScope::Dump(unsigned indent) {
     TreeNode *node = GetType(i);
     node->DumpIndentation(indent);
     std::string name = node->GetStrIdx() ? node->GetName() : "-";
-    std::cout << "      type: " << name << " " << node->GetNodeId() << std::endl;
+    std::cout << "      type: " << name << " " << node->GetTypeIdx() << std::endl;
   }
 
   for (unsigned i = 0; i < GetChildrenNum(); i++) {

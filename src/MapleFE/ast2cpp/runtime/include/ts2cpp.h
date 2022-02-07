@@ -216,7 +216,7 @@ class Object {
     virtual ~Object() {}
     class Ctor;
     static Ctor ctor;
-    virtual std::string Dump(void) { return("Object"); }
+    virtual std::string Dump(void);
 
     JS_Val& operator[] (std::string key)
     {
@@ -492,7 +492,7 @@ std::ostream& operator<< (std::ostream& out, const t2crt::Array<T>& v) {
   return out;
 }
 extern std::ostream& operator<< (std::ostream& out, const t2crt::JS_Val& v);
-extern std::ostream& operator<< (std::ostream& out, const t2crt::Object* obj);
+extern std::ostream& operator<< (std::ostream& out, t2crt::Object* obj);
 extern const t2crt::JS_Val undefined;
 extern const t2crt::JS_Val null;
 #define debugger (0)

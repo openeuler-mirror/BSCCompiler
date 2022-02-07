@@ -5,6 +5,10 @@ git clone https://gitee.com/openarkcompiler/OpenArkCompiler -b dev_MapleFE
 
 2. ENVIRONMENT
 ==============
+System software versions used:
+  Ubuntu: 20.04
+  Typescript: 4.5.5
+  Nodejs: 14.7.0
 
 export MFE=~/OpenArkCompiler/src/MapleFE
 export tsbin=$MFE/output/typescript/bin

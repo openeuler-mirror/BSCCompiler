@@ -582,6 +582,31 @@ bool TypescriptParser::TraverseASI(RuleTable *rule_table,
     //     {foo()}   <-- , is missed before }
     if (curr_token->IsSeparator() && (curr_token->GetSepId() == SEP_Rbrace))
       return true;
+
+    // case 3. This is a special case we want to catch:
+    //     foo(x) a=b;  <-- , is missing before a=b
+    // There could be many more similar cases, but we just match this special one in our
+    // unit test. We don't encourage people write weird code.
+    if ( (curr_token->IsIdentifier() || curr_token->IsKeyword()) &&
+         (prev_token->IsSeparator() && (prev_token->GetSepId() == SEP_Rparen)) ){
+      Token *prev_2_token = GetActiveToken(mCurToken - 2);
+      Token *prev_3_token = GetActiveToken(mCurToken - 3);
+      Token *prev_4_token = GetActiveToken(mCurToken - 4);
+      if ( prev_4_token->mLineBegin &&
+           (prev_4_token->IsIdentifier() || prev_4_token->IsKeyword()) &&
+           (prev_2_token->IsIdentifier() || prev_2_token->IsKeyword()) &&
+           (prev_3_token->IsSeparator() && (prev_3_token->GetSepId() == SEP_Lparen)) ){
+        // NOTE: Need make sure foo(x) is not if(x) or while(x).
+        found = true;
+        if (prev_4_token->IsKeyword() &&
+             (!strncmp(prev_4_token->GetName(), "if", 2) ||
+              !strncmp(prev_4_token->GetName(), "while", 5)) )
+          found = false;
+
+        if (found)
+          return true;
+      }
+    }
   }
 
   if (child) {
