@@ -183,9 +183,9 @@ void SSAPre::UpdateInsertedPhiOccOpnd() {
       (void)phiOcc->GetBB()->GetMePhiList().insert(std::make_pair(phiReg->GetOpnd(0)->GetOstIdx(), phiReg));
       if (workCand->NeedLocalRefVar() && phiOcc->GetVarPhi() != nullptr) {
         MePhiNode *phiVar = phiOcc->GetVarPhi();
-        const MapleVector<MePhiOpndOcc *> &phiopnds = phiOcc->GetPhiOpnds();
-        for (uint32 i = 0; i < phiopnds.size(); i++) {
-          RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiopnds[i]->phiOpnd4Temp);
+        const MapleVector<MePhiOpndOcc *> &phiOpnds = phiOcc->GetPhiOpnds();
+        for (uint32 i = 0; i < phiOpnds.size(); i++) {
+          RegMeExpr *regOpnd = static_cast<RegMeExpr *>(phiOpnds[i]->phiOpnd4Temp);
           VarMeExpr *localRefVarOpnd = nullptr;
           if (regOpnd == nullptr) {
             // create a zero version

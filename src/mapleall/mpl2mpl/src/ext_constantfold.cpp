@@ -253,8 +253,8 @@ BaseNode *ExtConstantFold::ExtFoldXand(BinaryNode *node) {
 
     bool isWorkable = true;
     for (uint32 i = 0; i < 64; i++) {
-      if ((lmVal & (1U << i)) == (rmVal & (1U << i)) &&
-          (lcVal & (1U << i)) != (rcVal & (1U << i))) {
+      if ((lmVal & static_cast<uint64>(1U << i)) == (rmVal & static_cast<uint64>(1U << i)) &&
+          (lcVal & static_cast<uint64>(1U << i)) != (rcVal & static_cast<uint64>(1U << i))) {
         isWorkable = false;
         break;
       }

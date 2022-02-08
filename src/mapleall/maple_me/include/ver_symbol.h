@@ -83,8 +83,8 @@ class VersionSt {
     return ost;
   }
 
-  void SetOst(OriginalSt *ost) {
-    this->ost = ost;
+  void SetOst(OriginalSt *originalSt) {
+    this->ost = originalSt;
   }
 
   const StmtNode *GetAssignNode() const {

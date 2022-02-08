@@ -1217,8 +1217,8 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, const MeStmt &meStmt) 
       while (IsGotoOrFallthruBB(*pred) && pred->GetPred().size() == 1 && IsGotoOrFallthruBB(*pred->GetPred(0))) {
         pred = pred->GetPred(0);
       }
-      auto *valueRange = FindValueRange(*pred, *opnd);
-      if (valueRange != nullptr && valueRange->IsNotEqualZero()) {
+      auto *predValueRange = FindValueRange(*pred, *opnd);
+      if (predValueRange != nullptr && predValueRange->IsNotEqualZero()) {
         return true;
       }
     }
@@ -3137,7 +3137,6 @@ size_t ValueRangePropagation::GetRealPredSize(const BB &bb) const {
     }
   }
   auto res = bb.GetPred().size() - unreachablePredSize;
-  CHECK_FATAL(res >= 0, "must be greater than zero");
   return res;
 }
 
@@ -4129,7 +4128,7 @@ void ValueRangePropagation::DealWithCondGoto(BB &bb, MeStmt &stmt) {
 
 void ValueRangePropagation::DumpCaches() {
   LogInfo::MapleLogger() << "================Dump value range===================" << "\n";
-  for (int i = 0; i < caches.size(); ++i) {
+  for (size_t i = 0; i < caches.size(); ++i) {
     LogInfo::MapleLogger() << "BBId: " << i << "\n";
     auto &it = caches[i];
     for (auto bIt = it.begin(), eIt = it.end(); bIt != eIt; ++bIt) {

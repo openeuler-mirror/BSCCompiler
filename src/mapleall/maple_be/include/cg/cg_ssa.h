@@ -118,7 +118,7 @@ class VRegVersion {
   void SetImplicitCvt() {
     hasImplicitCvt = true;
   }
-  bool HasImplicitCvt() {
+  bool HasImplicitCvt() const {
     return hasImplicitCvt;
   }
 
@@ -241,10 +241,10 @@ class SSAOperandVisitor : public OperandVisitorBase,
   SSAOperandVisitor(Insn &cInsn, OpndProp &cProp, uint32 idx) : insn(&cInsn), opndProp(&cProp), idx(idx) {}
   SSAOperandVisitor() = default;
   virtual ~SSAOperandVisitor() = default;
-  void SetInsnOpndInfo(Insn &cInsn, OpndProp &cProp, uint32 idx) {
+  void SetInsnOpndInfo(Insn &cInsn, OpndProp &cProp, uint32 index) {
     insn = &cInsn;
     opndProp = &cProp;
-    this->idx = idx;
+    this->idx = index;
   }
 
  protected:

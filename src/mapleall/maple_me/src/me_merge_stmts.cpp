@@ -73,8 +73,8 @@ void MergeStmts::mergeIassigns(vOffsetStmt& iassignCandidates) {
         if (targetBitSize == 16 || targetBitSize == 32 || targetBitSize == 64) {
           int32 coveredBitSize = 0;
           for (int32 i = startCandidate; i <= end; i++) {
-            TyIdx lhsPtrTypeIdx = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetTyIdx();
-            coveredBitSize += GetPointedTypeBitSize(lhsPtrTypeIdx);
+            TyIdx lhsPtrTypeIndex = static_cast<IassignMeStmt*>(iassignCandidates[i].second)->GetLHSVal()->GetTyIdx();
+            coveredBitSize += GetPointedTypeBitSize(lhsPtrTypeIndex);
           }
           if (coveredBitSize == targetBitSize) {
             found = true;

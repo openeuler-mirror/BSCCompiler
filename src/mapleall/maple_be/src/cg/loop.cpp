@@ -65,17 +65,17 @@ void LoopHierarchy::PrintLoops(const std::string &name) const {
   }
 }
 
-void CGFuncLoops::CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &innerLoops,
-                                             const MapleVector<BB*> &loopMembers) const {
-  for (auto iloop : innerLoops) {
+void CGFuncLoops::CheckOverlappingInnerLoops(const MapleVector<CGFuncLoops*> &iLoops,
+                                             const MapleVector<BB*> &loopMem) const {
+  for (auto iloop : iLoops) {
     CHECK_FATAL(iloop->loopMembers.size() > 0, "Empty loop");
     for (auto bb: iloop->loopMembers) {
-      if (find(loopMembers.begin(), loopMembers.end(), bb) != loopMembers.end()) {
+      if (find(loopMem.begin(), loopMem.end(), bb) != loopMem.end()) {
         LogInfo::MapleLogger() << "Error: inconsistent loop member";
         CHECK_FATAL(0, "loop member overlap with inner loop");
       }
     }
-    CheckOverlappingInnerLoops(iloop->innerLoops, loopMembers);
+    CheckOverlappingInnerLoops(iloop->innerLoops, loopMem);
   }
 }
 
@@ -301,13 +301,13 @@ void LoopFinder::markExtraEntryAndEncl() {
           dfsBBs.push(bb);
           visitedBBs[bb->GetId()] = true;
           while (!dfsBBs.empty()) {
-            BB *bb = dfsBBs.top();
-            visitedBBs[bb->GetId()] = true;
+            BB *currBB = dfsBBs.top();
+            visitedBBs[currBB->GetId()] = true;
             dfsBBs.pop();
-            for (const auto succBB : bb->GetSuccs()) {
+            for (const auto succBB : currBB->GetSuccs()) {
               // check if entering a loop.
               if ((loopEnclosure[succBB->GetId()] != nullptr) &&
-                  (loopEnclosure[bb->GetId()] == nullptr)) {
+                  (loopEnclosure[currBB->GetId()] == nullptr)) {
                 newEntries[succBB->GetId()] = succBB;
                 if (origEntries[succBB->GetId()] == nullptr) {
                   foundNewEntry = true;
@@ -543,7 +543,6 @@ void LoopFinder::DetectInnerLoop() {
               loopHierarchy2Members.end()) {
             bool allin = true;
             // Make sure body is included
-            auto loopHierarchy2Members = loopHierarchy2->GetLoopMembers();
             for (auto *bb1 : loopHierarchy1->GetLoopMembers()) {
               if (find(loopHierarchy2Members.begin(), loopHierarchy2Members.end(), bb1) ==
                   loopHierarchy2Members.end()) {

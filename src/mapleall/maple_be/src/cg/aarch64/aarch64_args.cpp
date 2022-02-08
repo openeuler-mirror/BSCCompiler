@@ -401,12 +401,12 @@ void AArch64MoveRegArgs::MoveArgsToVReg(const PLocInfo &ploc, MIRSymbol &mirSym)
   MOperator mOp = aarchCGFunc->PickMovBetweenRegs(stype, stype);
   if (mOp == MOP_vmovvv || mOp == MOP_vmovuu) {
     Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64VectorInsn>(mOp, dstRegOpnd, srcRegOpnd);
-    AArch64CGFunc *aarchCGFunc = static_cast<AArch64CGFunc*>(cgFunc);
-    VectorRegSpec *vecSpec1 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
-    VectorRegSpec *vecSpec2 = aarchCGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
+    AArch64CGFunc *aarch64CGFunc = static_cast<AArch64CGFunc*>(cgFunc);
+    VectorRegSpec *vecSpec1 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
+    VectorRegSpec *vecSpec2 = aarch64CGFunc->GetMemoryPool()->New<VectorRegSpec>(srcBitSize >> k3ByteSize, k8BitSize);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec1);
     static_cast<AArch64VectorInsn&>(insn).PushRegSpecEntry(vecSpec2);
-    aarchCGFunc->GetCurBB()->InsertInsnBegin(insn);
+    aarch64CGFunc->GetCurBB()->InsertInsnBegin(insn);
     return;
   }
   Insn &insn = aarchCGFunc->GetCG()->BuildInstruction<AArch64Insn>(mOp, dstRegOpnd, srcRegOpnd);

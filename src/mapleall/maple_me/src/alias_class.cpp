@@ -262,7 +262,7 @@ AliasElem *AliasClass::FindOrCreateExtraLevAliasElem(BaseNode &baseAddress, cons
   MIRType *baseType = baseOst->GetType();
   if (!aliasInfoOfBaseAddress.offset.IsInvalid() && baseFld != 0 && baseType->IsMIRPtrType()) {
     MIRType *baseMemType = static_cast<MIRPtrType*>(baseType)->GetPointedType();
-    if (baseMemType->IsStructType() && baseMemType->NumberOfFieldIDs() >= baseFld) {
+    if (baseMemType->IsStructType() && static_cast<int32>(baseMemType->NumberOfFieldIDs()) >= baseFld) {
       MIRType *fieldType = static_cast<MIRStructType*>(baseMemType)->GetFieldType(baseFld);
       MIRType *memType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(tyIdx);
       ASSERT(memType->IsMIRPtrType(), "tyIdx is TyIdx of iread/iassign, must be pointer type!");
@@ -999,8 +999,8 @@ void AliasClass::UnionNextLevelOfAliasOst(std::set<AliasElem *> &aesToUnionNextL
           if (valAliasId == id) {
             continue;
           }
-          auto &nextLevOsts = id2Elem[valAliasId]->GetOst()->GetNextLevelOsts();
-          (void)mayAliasOsts.insert(nextLevOsts.begin(), nextLevOsts.end());
+          auto &nextLevelOsts = id2Elem[valAliasId]->GetOst()->GetNextLevelOsts();
+          (void)mayAliasOsts.insert(nextLevelOsts.begin(), nextLevelOsts.end());
         }
       }
 
@@ -1728,7 +1728,7 @@ void AliasClass::InsertMayUseNode(std::set<OriginalSt*> &mayUseOsts, AccessSSANo
 void AliasClass::CollectMayUseFromFormals(std::set<OriginalSt*> &mayUseOsts) {
   auto *curFunc = mirModule.CurFunction();
   std::set<OriginalSt*> restrictFormalOsts;
-  for (auto formalId = 0; formalId < curFunc->GetFormalCount(); ++formalId) {
+  for (size_t formalId = 0; formalId < curFunc->GetFormalCount(); ++formalId) {
     auto *formal = curFunc->GetFormal(formalId);
     if (formal->GetAttr(ATTR_restrict)) {
       (void)restrictFormalOsts.insert(ssaTab.FindOrCreateSymbolOriginalSt(*formal, curFunc->GetPuidx(), 0));

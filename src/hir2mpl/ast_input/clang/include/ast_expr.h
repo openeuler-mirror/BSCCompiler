@@ -1353,9 +1353,10 @@ class ASTVAArgExpr : public ASTExpr {
   MIRType *IsHFAType(const MIRStructType &type) const;
   void CvtHFA2Struct(const MIRStructType &type, MIRType &fieldType, const UniqueFEIRVar &vaArgVar,
                      std::list<UniqueFEIRStmt> &stmts) const;
-  void ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts,
+  void ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, MIRType &vaArgType,
                               const UniqueFEIRVar &offsetVar, const VaArgInfo &info) const;
-  void ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &vaArgVar) const;
+  void ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, MIRType &vaArgType,
+                                const UniqueFEIRVar &vaArgVar) const;
 
   ASTExpr *child = nullptr;
 };

@@ -374,28 +374,28 @@ class LiveRange {
     callDef.resize(kMaxRegNum);
   }
 
-  bool GetPregveto(regno_t regNO) const {
-    return pregveto[regNO];
+  bool GetPregveto(regno_t regno) const {
+    return pregveto[regno];
   }
 
   size_t GetPregvetoSize() const {
     return numPregveto;
   }
 
-  void InsertElemToPregveto(regno_t regNO) {
-    if (!pregveto[regNO]) {
-      pregveto[regNO] = true;
+  void InsertElemToPregveto(regno_t regno) {
+    if (!pregveto[regno]) {
+      pregveto[regno] = true;
       ++numPregveto;
     }
   }
 
-  bool GetCallDef(regno_t regNO) const {
-    return callDef[regNO];
+  bool GetCallDef(regno_t regno) const {
+    return callDef[regno];
   }
 
-  void InsertElemToCallDef(regno_t regNO) {
-    if (!callDef[regNO]) {
-      callDef[regNO] = true;
+  void InsertElemToCallDef(regno_t regno) {
+    if (!callDef[regno]) {
+      callDef[regno] = true;
       ++numCallDef;
     }
   }
@@ -417,24 +417,24 @@ class LiveRange {
     return forbidden;
   }
 
-  bool GetForbidden(regno_t regNO) const {
-    return forbidden[regNO];
+  bool GetForbidden(regno_t regno) const {
+    return forbidden[regno];
   }
 
   size_t GetForbiddenSize() const {
     return numForbidden;
   }
 
-  void InsertElemToForbidden(regno_t regNO) {
-    if (!forbidden[regNO]) {
-      forbidden[regNO] = true;
+  void InsertElemToForbidden(regno_t regno) {
+    if (!forbidden[regno]) {
+      forbidden[regno] = true;
       ++numForbidden;
     }
   }
 
-  void EraseElemFromForbidden(regno_t regNO) {
-    if (forbidden[regNO]) {
-      forbidden[regNO] = false;
+  void EraseElemFromForbidden(regno_t regno) {
+    if (forbidden[regno]) {
+      forbidden[regno] = false;
       --numForbidden;
     }
   }
@@ -658,11 +658,11 @@ class LiveRange {
     rematInfo.mirConst = c;
   }
 
-  void SetRematerializable(Opcode op, const MIRSymbol *sym, FieldID fieldID, bool addrUpper) {
-    this->op = op;
-    rematInfo.sym = sym;
-    this->fieldID = fieldID;
-    this->addrUpper = addrUpper;
+  void SetRematerializable(Opcode opcode, const MIRSymbol *symbol, FieldID fieldId, bool addrUp) {
+    this->op = opcode;
+    rematInfo.sym = symbol;
+    this->fieldID = fieldId;
+    this->addrUpper = addrUp;
   }
 
   void CopyRematerialization(const LiveRange &lr) {
@@ -1247,9 +1247,6 @@ class GraphColorRegAllocator : public AArch64RegAllocator {
   ~GraphColorRegAllocator() override = default;
 
   bool AllocateRegisters() override;
-  std::string PhaseName() const {
-    return "regalloc";
-  }
 
   enum SpillMemCheck : uint8 {
     kSpillMemPre,

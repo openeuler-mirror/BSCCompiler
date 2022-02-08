@@ -1145,8 +1145,8 @@ bool ExtendMovPattern::CheckSrcReg(regno_t srcRegNo, uint32 validNum) {
   if (defInfo == nullptr) {
     return false;
   }
-  Insn *defInsn = defInfo->GetInsn();
-  srcDefSet.insert(defInsn);
+  Insn *insn = defInfo->GetInsn();
+  srcDefSet.insert(insn);
   /* reserve insn set for non ssa version. */
   for (auto defInsn : srcDefSet) {
     CHECK_FATAL((defInsn != nullptr), "defInsn is null!");
@@ -1306,7 +1306,7 @@ void CopyRegProp::Optimize(Insn &insn) {
   }
 }
 
-void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, RegOperand &srcReg, Insn &movInsn) {
+void CopyRegProp::VaildateImplicitCvt(RegOperand &destReg, const RegOperand &srcReg, Insn &movInsn) {
   ASSERT(movInsn.GetMachineOpcode() == MOP_xmovrr || movInsn.GetMachineOpcode() == MOP_wmovrr, "NIY explicit CVT");
   if (destReg.GetSize() == k64BitSize && srcReg.GetSize() == k32BitSize) {
     movInsn.SetMOperator(MOP_xuxtw64);

@@ -121,30 +121,6 @@ class BaseNode : public BaseNodeT {
     return numOpnds;
   }
 
-  uint8 GetNumOpnds() const {
-    return numOpnds;
-  }
-
-  void SetNumOpnds(uint8 num) {
-    numOpnds = num;
-  }
-
-  Opcode GetOpCode() const {
-    return op;
-  }
-
-  void SetOpCode(Opcode o) {
-    op = o;
-  }
-
-  PrimType GetPrimType() const {
-    return ptyp;
-  }
-
-  void SetPrimType(PrimType type) {
-    ptyp = type;
-  }
-
   virtual BaseNode *Opnd(size_t) const {
     ASSERT(0, "override needed");
     return nullptr;
@@ -612,7 +588,7 @@ class BinaryOpnds {
     bOpnd[i] = node;
   }
 
-  bool IsSameContent(const BaseNode *node) const;
+  virtual bool IsSameContent(const BaseNode *node) const;
 
  private:
   BaseNode *bOpnd[kOperandNumBinary];
@@ -631,8 +607,8 @@ class BinaryNode : public BaseNode, public BinaryOpnds {
 
   virtual ~BinaryNode() = default;
 
+  using BaseNode::Dump;
   void Dump(int32 indent) const override;
-  void Dump() const;
   bool Verify() const override;
 
   BinaryNode *CloneTree(MapleAllocator &allocator) const override {
@@ -692,8 +668,8 @@ class CompareNode : public BinaryNode {
 
   virtual ~CompareNode() = default;
 
+  using BinaryNode::Dump;
   void Dump(int32 indent) const override;
-  void Dump() const;
   bool Verify() const override;
 
   CompareNode *CloneTree(MapleAllocator &allocator) const override {
@@ -1450,9 +1426,9 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
 
   virtual ~StmtNode() = default;
 
+  using BaseNode::Dump;
   void DumpBase(int32 indent) const override;
   void Dump(int32 indent) const override;
-  void Dump() const;
   void InsertAfterThis(StmtNode &pos);
   void InsertBeforeThis(StmtNode &pos);
 
@@ -1520,8 +1496,8 @@ class StmtNode : public BaseNode, public PtrListNodeBase<StmtNode> {
     stmtAttrs.SetAttr(STMTATTR_insaferegion);
   }
 
-  void CopySafeRegionAttr(const StmtAttrs &stmtAttrs) {
-    this->stmtAttrs.AppendAttr(stmtAttrs.GetTargetAttrFlag(STMTATTR_insaferegion));
+  void CopySafeRegionAttr(const StmtAttrs &stmtAttr) {
+    this->stmtAttrs.AppendAttr(stmtAttr.GetTargetAttrFlag(STMTATTR_insaferegion));
   }
 
   const StmtAttrs &GetStmtAttrs() const {
@@ -1545,7 +1521,7 @@ class IassignNode : public StmtNode {
 
   IassignNode(TyIdx tyIdx, FieldID fieldID, BaseNode *addrOpnd, BaseNode *rhsOpnd)
       : StmtNode(OP_iassign), tyIdx(tyIdx), fieldID(fieldID), addrExpr(addrOpnd), rhs(rhsOpnd) {
-    SetNumOpnds(kOperandNumBinary);
+    BaseNodeT::SetNumOpnds(kOperandNumBinary);
   }
 
   virtual ~IassignNode() = default;
@@ -1708,8 +1684,8 @@ class TryNode : public StmtNode {
   TryNode &operator=(const TryNode &node) = delete;
   virtual ~TryNode() = default;
 
+  using StmtNode::Dump;
   void Dump(int32 indent) const override;
-  void Dump() const;
 
   MapleVector<LabelIdx> &GetOffsets() {
     return offsets;
@@ -1781,8 +1757,8 @@ class CatchNode : public StmtNode {
   CatchNode &operator=(const CatchNode &node) = delete;
   virtual ~CatchNode() = default;
 
+  using StmtNode::Dump;
   void Dump(int32 indent) const override;
-  void Dump() const;
 
   TyIdx GetExceptionTyIdxVecElement(size_t i) const {
     CHECK_FATAL(i < exceptionTyIdxVec.size(), "array index out of range");
@@ -2026,8 +2002,8 @@ class UnaryStmtNode : public StmtNode {
 
   virtual ~UnaryStmtNode() = default;
 
+  using StmtNode::Dump;
   void Dump(int32 indent) const override;
-  void Dump() const;
   void DumpOpnd(const MIRModule &mod, int32 indent) const;
   void DumpOpnd(int32 indent) const;
 
@@ -2231,7 +2207,7 @@ class CondGotoNode : public UnaryStmtNode {
   explicit CondGotoNode(Opcode o) : CondGotoNode(o, 0, nullptr) {}
 
   CondGotoNode(Opcode o, uint32 offset, BaseNode *opnd) : UnaryStmtNode(o, kPtyInvalid, opnd), offset(offset) {
-    SetNumOpnds(kOperandNumUnary);
+    BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
   virtual ~CondGotoNode() = default;
@@ -2515,7 +2491,7 @@ class IfStmtNode : public UnaryStmtNode {
 class WhileStmtNode : public UnaryStmtNode {
  public:
   explicit WhileStmtNode(Opcode o) : UnaryStmtNode(o) {
-    SetNumOpnds(kOperandNumBinary);
+    BaseNodeT::SetNumOpnds(kOperandNumBinary);
   }
 
   virtual ~WhileStmtNode() = default;
@@ -2682,7 +2658,7 @@ class DoloopNode : public StmtNode {
 class ForeachelemNode : public StmtNode {
  public:
   ForeachelemNode() : StmtNode(OP_foreachelem) {
-    SetNumOpnds(kOperandNumUnary);
+    BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
   virtual ~ForeachelemNode() = default;
@@ -2777,7 +2753,7 @@ class IassignoffNode : public BinaryStmtNode {
   explicit IassignoffNode(int32 ofst) : BinaryStmtNode(OP_iassignoff), offset(ofst) {}
 
   IassignoffNode(PrimType primType, int32 offset, BaseNode *addrOpnd, BaseNode *srcOpnd) : IassignoffNode(offset) {
-    SetPrimType(primType);
+    BaseNodeT::SetPrimType(primType);
     SetBOpnd(addrOpnd, 0);
     SetBOpnd(srcOpnd, 1);
   }
@@ -2814,8 +2790,8 @@ class IassignFPoffNode : public UnaryStmtNode {
   explicit IassignFPoffNode(int32 ofst) : UnaryStmtNode(OP_iassignfpoff), offset(ofst) {}
 
   IassignFPoffNode(PrimType primType, int32 offset, BaseNode *src) : IassignFPoffNode(offset) {
-    SetPrimType(primType);
-    SetOpnd(src, 0);
+    BaseNodeT::SetPrimType(primType);
+    UnaryStmtNode::SetOpnd(src, 0);
   }
 
   virtual ~IassignFPoffNode() = default;
@@ -3175,12 +3151,12 @@ class IcallNode : public NaryStmtNode {
  public:
   IcallNode(MapleAllocator &allocator, Opcode o)
       : NaryStmtNode(allocator, o), retTyIdx(0), returnValues(allocator.Adapter()) {
-    SetNumOpnds(kOperandNumUnary);
+    BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
   IcallNode(MapleAllocator &allocator, Opcode o, TyIdx idx)
       : NaryStmtNode(allocator, o), retTyIdx(idx), returnValues(allocator.Adapter()) {
-    SetNumOpnds(kOperandNumUnary);
+    BaseNodeT::SetNumOpnds(kOperandNumUnary);
   }
 
   IcallNode(const MIRModule &mod, Opcode o) : IcallNode(mod.GetCurFuncCodeMPAllocator(), o) {}

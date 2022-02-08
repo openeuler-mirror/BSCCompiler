@@ -1022,14 +1022,14 @@ void MeCFG::DumpToFile(const std::string &prefix, bool dumpInStrs, bool dumpEdge
 }
 
 BB *MeCFG::NewBasicBlock() {
-  BB *newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+  BB *newBB = memPool->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
   bbVec.push_back(newBB);
   return newBB;
 }
 
 // new a basic block and insert before position or after position
 BB &MeCFG::InsertNewBasicBlock(const BB &position, bool isInsertBefore) {
-  BB *newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+  BB *newBB = memPool->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
 
   auto bIt = std::find(begin(), end(), &position);
   auto idx = position.GetBBId();
@@ -1116,7 +1116,7 @@ void MeCFG::SplitBBPhysically(BB &bb, StmtNode &splitPoint, BB &newBB) {
 /* Split BB at split_point */
 BB &MeCFG::SplitBB(BB &bb, StmtNode &splitPoint, BB *newBB) {
   if (newBB == nullptr) {
-    newBB = mp->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
+    newBB = memPool->New<BB>(&mecfgAlloc, &func.GetVersAlloc(), BBId(nextBBId++));
   }
   SplitBBPhysically(bb, splitPoint, *newBB);
   // Fix BB in CFG
@@ -1672,12 +1672,12 @@ void MeCFG::BuildSCC() {
 }
 
 // After currBB's succ is changed, we can update currBB's target
-void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &func) {
-  bool forMeIR = func.GetIRMap() != nullptr;
+void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, MeFunction &meFunc) {
+  bool forMeIR = meFunc.GetIRMap() != nullptr;
   // update statement offset if succ is goto target
   if (currBB.IsGoto()) {
     ASSERT(currBB.GetSucc(0) == &newTarget, "[FUNC: %s]Goto's target BB is not newTarget", func.GetName().c_str());
-    LabelIdx label = func.GetOrCreateBBLabel(newTarget);
+    LabelIdx label = meFunc.GetOrCreateBBLabel(newTarget);
     if (forMeIR) {
       auto *gotoBr = static_cast<GotoMeStmt*>(currBB.GetLastMe());
       if (gotoBr->GetOffset() != label) {
@@ -1695,7 +1695,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
     }
     BB *gotoBB = currBB.GetSucc().at(1);
     ASSERT(gotoBB == &newTarget, "[FUNC: %s]newTarget is not one of CondGoto's succ BB", func.GetName().c_str());
-    LabelIdx label = func.GetOrCreateBBLabel(*gotoBB);
+    LabelIdx label = meFunc.GetOrCreateBBLabel(*gotoBB);
     if (forMeIR) {
       auto *condBr = static_cast<CondGotoMeStmt*>(currBB.GetLastMe());
       if (condBr->GetOffset() != label) {
@@ -1710,7 +1710,7 @@ void MeCFG::UpdateBranchTarget(BB &currBB, const BB &oldTarget, BB &newTarget, M
     }
   } else if (currBB.GetKind() == kBBSwitch) {
     LabelIdx oldLabelIdx = oldTarget.GetBBLabel();
-    LabelIdx label = func.GetOrCreateBBLabel(newTarget);
+    LabelIdx label = meFunc.GetOrCreateBBLabel(newTarget);
     if (forMeIR) {
       auto *switchStmt = static_cast<SwitchMeStmt*>(currBB.GetLastMe());
       if (switchStmt->GetDefaultLabel() == oldLabelIdx) {

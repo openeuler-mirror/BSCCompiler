@@ -1424,8 +1424,8 @@ class MeStmt {
     stmtAttrs.SetAttr(STMTATTR_insaferegion);
   }
 
-  void CopySafeRegionAttr(const StmtAttrs &stmtAttrs) {
-    this->stmtAttrs.AppendAttr(stmtAttrs.GetTargetAttrFlag(STMTATTR_insaferegion));
+  void CopySafeRegionAttr(const StmtAttrs &stmtAttr) {
+    this->stmtAttrs.AppendAttr(stmtAttr.GetTargetAttrFlag(STMTATTR_insaferegion));
   }
 
   const StmtAttrs &GetStmtAttr() const {

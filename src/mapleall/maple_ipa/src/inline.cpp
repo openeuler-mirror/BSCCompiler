@@ -298,7 +298,7 @@ void MInline::ReplaceSymbols(BaseNode *baseNode, uint32 stIdxOff,
     }
   } else if (returnVector != nullptr) {
     // Skip globals.
-    for (int i = 0; i < returnVector->size(); i++) {
+    for (size_t i = 0; i < returnVector->size(); ++i) {
       if (!(*returnVector).at(i).second.IsReg() && (*returnVector).at(i).first.Islocal()) {
         (*returnVector)[i].first = UpdateIdx((*returnVector).at(i).first, stIdxOff, oldStIdx2New);
       }
@@ -540,6 +540,7 @@ GotoNode *MInline::UpdateReturnStmts(const MIRFunction &caller, BlockNode &newBo
             const MIRPreg *mirPreg = caller.GetPregTab()->PregFromPregIdx(pregIdx);
             dStmt = builder.CreateStmtRegassign(mirPreg->GetPrimType(), pregIdx, currBaseNode);
           }
+          dStmt->SetSrcPos(stmt.GetSrcPos());
           newBody.ReplaceStmt1WithStmt2(&stmt, dStmt);
           newBody.InsertAfter(dStmt, gotoNode);
         } else {
@@ -1274,7 +1275,7 @@ bool MInline::CalleeReturnValueCheck(StmtNode &stmtNode, CallNode &callStmt) {
   }
   return false;
 }
-bool MInline::SuitableForTailCallOpt(BaseNode &enclosingBlk, StmtNode &stmtNode, CallNode &callStmt) {
+bool MInline::SuitableForTailCallOpt(BaseNode &enclosingBlk, const StmtNode &stmtNode, CallNode &callStmt) {
   // if call stmt have arguments, it may be better to be inlined
   if (!module.IsCModule() || callStmt.GetNumOpnds() != 0) {
     return false;
@@ -1655,8 +1656,8 @@ void MInline::MarkSymbolUsed(const StIdx &symbolIdx) const {
     switch (konst->GetKind()) {
       case kConstAddrof: {
         auto *addrofKonst = static_cast<MIRAddrofConst*>(konst);
-        MIRSymbol *symbol = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx());
-        MarkSymbolUsed(symbol->GetStIdx());
+        MIRSymbol *sym = GlobalTables::GetGsymTable().GetSymbolFromStidx(addrofKonst->GetSymbolIndex().Idx());
+        MarkSymbolUsed(sym->GetStIdx());
         break;
       }
       case kConstAddrofFunc: {

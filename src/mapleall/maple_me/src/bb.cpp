@@ -179,7 +179,7 @@ void BB::RemoveBBFromSucc(const BB &bb) {
 
 int BB::GetPredIndex(const BB &predBB) const {
   int i = 0;
-  while (i < pred.size()) {
+  while (static_cast<size_t>(i) < pred.size()) {
     if (pred[i] == &predBB) {
       return i;
     }
@@ -190,7 +190,7 @@ int BB::GetPredIndex(const BB &predBB) const {
 
 int BB::GetSuccIndex(const BB &succBB) const {
   int i = 0;
-  while (i < succ.size()) {
+  while (static_cast<size_t>(i) < succ.size()) {
     if (succ[i] == &succBB) {
       return i;
     }

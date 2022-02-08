@@ -1822,11 +1822,21 @@ class FEIRStmtAssertBoundary : public FEIRStmtNary {
  public:
   FEIRStmtAssertBoundary(Opcode opIn,
       std::list<std::unique_ptr<FEIRExpr>> argExprsIn) : FEIRStmtNary(opIn, std::move(argExprsIn)) {}
-
   ~FEIRStmtAssertBoundary() = default;
+
+  void SetIsComputable(bool flag) {
+    isComputable = flag;
+  }
+
+  bool IsComputable() const {
+    return isComputable;
+  }
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
+
+ private:
+  bool isComputable = false;
 };
 
 // ---------- FEIRStmtReturn ----------

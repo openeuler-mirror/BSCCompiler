@@ -204,7 +204,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *
       if (fld == 0) {
         offsetOfNextLevOst = offset;
         typeOfExtraLevOst = pointedType;
-      } else if (fld <= pointedType->NumberOfFieldIDs()) {
+      } else if (static_cast<size_t>(fld) <= pointedType->NumberOfFieldIDs()) {
         CHECK_FATAL(pointedType->IsStructType(), "must be struct type");
         typeOfExtraLevOst = static_cast<MIRStructType*>(pointedType)->GetFieldType(fld);
         offsetOfNextLevOst = offset + pointedType->GetBitOffsetFromBaseAddr(fld);

@@ -138,9 +138,9 @@ void AArch64StoreLoadOpt::DoLoadToMoveTransfer(Insn &strInsn, short strSrcIdx,
       if (!prevInsn->IsLoad() || (prevInsn->GetResultNum() > 1) || prevInsn->GetBB()->IsCleanup()) {
         continue;
       }
-      InsnSet memDefInsnSet = cgFunc.GetRD()->FindDefForMemOpnd(*curInsn, kInsnSecondOpnd);
-      ASSERT(!memDefInsnSet.empty(), "load insn should have definitions.");
-      if (memDefInsnSet.size() > 1) {
+      InsnSet memoryDefInsnSet = cgFunc.GetRD()->FindDefForMemOpnd(*curInsn, kInsnSecondOpnd);
+      ASSERT(!memoryDefInsnSet.empty(), "load insn should have definitions.");
+      if (memoryDefInsnSet.size() > 1) {
         break;
       }
       Operand &resOpnd = curInsn->GetOperand(kInsnFirstOpnd);

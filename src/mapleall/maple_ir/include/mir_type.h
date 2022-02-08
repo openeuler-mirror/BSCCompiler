@@ -25,7 +25,7 @@
 #endif  // MIR_FEATURE_FULL
 
 namespace maple {
-constexpr int kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
+constexpr uint32 kTypeHashLength = 12289;  // hash length for mirtype, ref: planetmath.org/goodhashtableprimes
 
 class FieldAttrs;  // circular dependency exists, no other choice
 using TyIdxFieldAttrPair = std::pair<TyIdx, FieldAttrs>;
@@ -1152,7 +1152,7 @@ class MIRStructType : public MIRType {
     return TraverseToField(id).second;
   }
 
-  TyIdxFieldAttrPair GetTyidxFieldAttrPair(uint32 n) const {
+  TyIdxFieldAttrPair GetTyidxFieldAttrPair(size_t n) const {
     return fields.at(n).second;
   }
 

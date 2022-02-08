@@ -271,7 +271,7 @@ SubscriptDesc *DoloopInfo::BuildOneSubscriptDesc(BaseNode *subsX) {
   return subsDesc;
 }
 
-ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parent) {
+ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *parentNode) {
   MIRType *atype =  arr->GetArrayType(GlobalTables::GetTypeTable());
   ASSERT(atype->GetKind() == kTypeArray, "type was wrong");
   MIRArrayType *arryty = static_cast<MIRArrayType *>(atype);
@@ -287,13 +287,13 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   OriginalSt *arryOst = nullptr;
   OpMeExpr *arrayMeExpr = static_cast<OpMeExpr *>(depInfo->preEmit->GetMexpr(arr));
   if (arrayMeExpr == nullptr || arrayMeExpr->GetOp() == OP_add) {  // the array is converted from add
-  } else if (parent->op == OP_iread) {
-    ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parent));
+  } else if (parentNode->op == OP_iread) {
+    ivarMeExpr = static_cast<IvarMeExpr *>(depInfo->preEmit->GetMexpr(parentNode));
     CHECK_FATAL(ivarMeExpr->GetMu() != nullptr, "BuildOneArrayAccessDesc: no mu corresponding to iread");
     arryOst = ivarMeExpr->GetMu()->GetOst();
-  } else if (parent->op == OP_iassign) {
+  } else if (parentNode->op == OP_iassign) {
     IassignMeStmt *iassMeStmt = static_cast<IassignMeStmt *>(depInfo->preEmit->
-        GetMeStmt(static_cast<IassignNode *>(parent)->GetStmtID()));
+        GetMeStmt(static_cast<IassignNode *>(parentNode)->GetStmtID()));
     ivarMeExpr = iassMeStmt->GetLHSVal();
     if (ivarMeExpr->GetMu()) {
       arryOst = ivarMeExpr->GetMu()->GetOst();
@@ -308,7 +308,7 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   }
 
   ArrayAccessDesc *arrDesc = alloc->GetMemPool()->New<ArrayAccessDesc>(alloc, arr, arryOst);
-  if (parent->op == OP_iassign) {
+  if (parentNode->op == OP_iassign) {
     lhsArrays.push_back(arrDesc);
   } else {
     rhsArrays.push_back(arrDesc);
@@ -320,15 +320,15 @@ ArrayAccessDesc *DoloopInfo::BuildOneArrayAccessDesc(ArrayNode *arr, BaseNode *p
   return arrDesc;
 }
 
-void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parent) {
+void DoloopInfo::CreateRHSArrayAccessDesc(BaseNode *x, BaseNode *parentNode) {
   if (x->GetOpCode() == OP_array) {
-    if (parent->GetOpCode() != OP_iread) { // skip arrays not underneath iread unless loop-invariant
+    if (parentNode->GetOpCode() != OP_iread) { // skip arrays not underneath iread unless loop-invariant
       if (IsLoopInvariant2(x)) {
         return;
       }
       hasPtrAccess = true;
     } else {
-      (void)BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), parent);
+      (void)BuildOneArrayAccessDesc(static_cast<ArrayNode *>(x), parentNode);
     }
     return;
   }

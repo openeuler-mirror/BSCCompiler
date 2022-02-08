@@ -658,7 +658,7 @@ void AArch64Insn::EmitInlineAsm(const CG &cg, Emitter &emitter) const {
       AsmStringOutputRegNum(isInt, regNO, R0, V0, stringToEmit);
     }
   };
-  for (int i = 0; i < asmStr.length(); ++i) {
+  for (size_t i = 0; i < asmStr.length(); ++i) {
     switch (asmStr[i]) {
       case '$': {
         char c = asmStr[++i];
@@ -1448,7 +1448,7 @@ Operand *AArch64Insn::GetOpnd(uint32 id) const {
 }
 /* Return the first memory access operand. */
 Operand *AArch64Insn::GetMemOpnd() const {
-  for (int32 i = 0; i < opnds.size(); ++i) {
+  for (uint32 i = 0; i < opnds.size(); ++i) {
     Operand &opnd = GetOperand(i);
     if (opnd.IsMemoryAccessOperand()) {
       return &opnd;

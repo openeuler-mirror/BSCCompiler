@@ -78,8 +78,8 @@ void LiveUnit::PrintLiveUnit() const {
   }
 }
 
-bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) const {
-  if (rematLevel == rematOff)
+bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLev) const {
+  if (rematLev == rematOff)
     return false;
 
   switch (op) {
@@ -102,7 +102,7 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
     return IsBitmaskImmediate(uval, GetSpillSize());
   }
   case OP_addrof: {
-    if (rematLevel < rematAddr) {
+    if (rematLev < rematAddr) {
       return false;
     }
     const MIRSymbol *symbol = rematInfo.sym;
@@ -118,7 +118,7 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
     return true;
   }
   case OP_dread: {
-    if (rematLevel < rematDreadLocal) {
+    if (rematLev < rematDreadLocal) {
       return false;
     }
     const MIRSymbol *symbol = rematInfo.sym;
@@ -146,7 +146,7 @@ bool LiveRange::IsRematerializable(AArch64CGFunc &cgFunc, uint8 rematLevel) cons
     if (!immOpnd.IsInBitSize(kMaxImmVal12Bits, 0)) {
       return false;
     }
-    if (rematLevel < rematDreadGlobal && !symbol->IsLocal()) {
+    if (rematLev < rematDreadGlobal && !symbol->IsLocal()) {
       return false;
     }
     return true;
@@ -4478,9 +4478,9 @@ void CallerSavePre::BuildWorkList() {
               FuncNameOperand *target = static_cast<FuncNameOperand*>(targetOpnd);
               const MIRSymbol *funcSt = target->GetFunctionSymbol();
               ASSERT(funcSt->GetSKind() == kStFunc, "funcst must be a function name symbol");
-              MIRFunction *func = funcSt->GetFunction();
-              if (func != nullptr && func->IsReferedRegsValid()) {
-                auto regSet = func->GetReferedRegs();
+              MIRFunction *mirFunc = funcSt->GetFunction();
+              if (mirFunc != nullptr && mirFunc->IsReferedRegsValid()) {
+                auto regSet = mirFunc->GetReferedRegs();
                 if (regSet.find(lr->GetAssignedRegNO()) == regSet.end()) {
                   continue;
                 }
