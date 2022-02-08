@@ -850,7 +850,7 @@ void MeStmtPre::VersionStackChiListUpdate(const MapleMap<OStIdx, ChiMeNode*> &ch
 }
 
 // verify that there is no prior use of lhsVar before stmt in its BB
-static bool NoPriorUseInBB(const OStIdx &ostIdx, MeStmt *defStmt) {
+static bool NoPriorUseInBB(const OStIdx &ostIdx, const MeStmt *defStmt) {
   for (MeStmt *stmt = defStmt->GetPrev(); stmt != nullptr; stmt = stmt->GetPrev()) {
     for (size_t i = 0; i < stmt->NumMeStmtOpnds(); ++i) {
       CHECK_FATAL(stmt->GetOpnd(i) != nullptr, "null ptr check");
@@ -1112,7 +1112,7 @@ void MeStmtPre::BuildWorkListBB(BB *bb) {
       // update version stacks
       MapleVector<MustDefMeNode> *mustDefList = stmt.GetMustDefList();
       MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
-      for (; it != mustDefList->end(); it++) {
+      for (; it != mustDefList->end(); ++it) {
         MeExpr *meLHS = (*it).GetLHS();
         if (meLHS->GetMeOp() == kMeOpVar) {
           auto *lhsVar = static_cast<VarMeExpr*>(meLHS);

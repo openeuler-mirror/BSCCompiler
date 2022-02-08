@@ -60,7 +60,7 @@ class SSARename2Preg {
   void UpdateMirFunctionFormal();
   void SetupParmUsed(const VarMeExpr *);
   void Init();
-  void CollectUsedOst(MeExpr *meExpr);
+  void CollectUsedOst(const MeExpr *meExpr);
   void CollectDefUseInfoOfOst();
   std::string PhaseName() const {
     return "rename2preg";

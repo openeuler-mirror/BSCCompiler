@@ -179,6 +179,8 @@ class BCClassMethod : public BCClassElem {
   void SetSrcPositionInfo(const std::map<uint32, uint32> &srcPosInfo) {
 #ifdef DEBUG
     pSrcPosInfo = &srcPosInfo;
+#else
+    (void) srcPosInfo;
 #endif
   }
 

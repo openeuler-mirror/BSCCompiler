@@ -36,7 +36,9 @@ class DexOp : public BCInstruction {
   static std::string GetArrayElementTypeFromArrayType(const std::string &typeName);
 
  protected:
-  void ParseImpl(BCClassMethod &method) override {}
+  void ParseImpl(BCClassMethod &method) override {
+    (void) method;
+  }
   // Should be removed after all instruction impled
   std::list<UniqueFEIRStmt> EmitToFEIRStmtsImpl() override {
     return std::list<UniqueFEIRStmt>();

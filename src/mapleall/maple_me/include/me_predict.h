@@ -58,7 +58,7 @@ struct EdgePrediction {
 class MePrediction : public AnalysisResult {
  public:
   static const PredictorInfo predictorInfo[kEndPrediction + 1];
-  static bool VerifyFreq(MeFunction &func);
+  static void VerifyFreq(const MeFunction &func);
   static void RebuildFreq(MeFunction &func, Dominance &dom, IdentifyLoops &meLoop);
   MePrediction(MemPool &memPool, MemPool &tmpPool, MeFunction &mf, Dominance &dom, IdentifyLoops &loops,
                MeIRMap &map)
@@ -84,8 +84,8 @@ class MePrediction : public AnalysisResult {
   Predictor ReturnPrediction(const MeExpr *meExpr, Prediction &prediction) const;
   void PredictEdge(Edge &edge, Predictor predictor, int probability);
   void PredEdgeDef(Edge &edge, Predictor predictor, Prediction taken);
-  bool HasEdgePredictedBy(Edge &edge, Predictor predictor);
-  void PredictForPostDomFrontier(BB &bb, Predictor predictor, Prediction direction);
+  bool HasEdgePredictedBy(const Edge &edge, Predictor predictor);
+  void PredictForPostDomFrontier(const BB &bb, Predictor predictor, Prediction direction);
   void BBLevelPredictions();
   void Init();
   bool PredictedByLoopHeuristic(const BB &bb) const;
@@ -95,17 +95,17 @@ class MePrediction : public AnalysisResult {
   void EstimateBBProb(BB &bb);
   void ClearBBPredictions(const BB &bb);
   void CombinePredForBB(const BB &bb);
-  bool DoPropFreq(BB *head, std::vector<BB*> *headers, BB &bb);
+  bool DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb);
   void PropFreqInLoops();
   void PropFreqInIrreducibleSCCs();
   bool PropFreqInFunc();
   void ComputeBBFreq();
-  void EstimateBranchProb(bool isRebuild);
-  void Run(bool isRebuild = false);
+  void EstimateBranchProb();
+  void Run();
   void SetPredictDebug(bool val);
   void SavePredictResultIntoCfg();
   void BuildSCC();
-  void FindSCCHeaders(SCCOfBBs &scc, std::vector<BB*> &headers);
+  void FindSCCHeaders(const SCCOfBBs &scc, std::vector<BB*> &headers);
 
  protected:
   MapleAllocator mePredAlloc;

@@ -46,6 +46,8 @@ std::string JBCConstTagName::GetTagName(JBCConstTag tag) {
 
 // ---------- JBCConst ----------
 SimpleXMLElem *JBCConst::GenXMLElemImpl(MapleAllocator &allocIn, uint32 id) const {
+  (void) allocIn;
+  (void) id;
   return nullptr;
 }
 
@@ -110,10 +112,13 @@ bool JBCConstUTF8::ParseFileImpl(BasicIORead &io) {
 }
 
 bool JBCConstUTF8::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *JBCConstUTF8::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -139,10 +144,13 @@ bool JBCConst4Byte::ParseFileImpl(BasicIORead &io) {
 }
 
 bool JBCConst4Byte::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *JBCConst4Byte::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -168,10 +176,13 @@ bool JBCConst8Byte::ParseFileImpl(BasicIORead &io) {
 }
 
 bool JBCConst8Byte::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *JBCConst8Byte::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -225,6 +236,8 @@ bool JBCConstClass::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstClass::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -258,6 +271,8 @@ bool JBCConstString::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstString::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -313,6 +328,8 @@ bool JBCConstRef::PrepareFEStructElemInfo() {
 }
 
 SimpleXMLElem *JBCConstRef::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -359,6 +376,8 @@ bool JBCConstNameAndType::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstNameAndType::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -421,6 +440,8 @@ bool JBCConstMethodHandleInfo::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstMethodHandleInfo::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -446,6 +467,8 @@ bool JBCConstMethodType::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstMethodType::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 
@@ -488,6 +511,8 @@ bool JBCConstInvokeDynamic::PreProcessImpl(const JBCConstPool &constPool) {
 }
 
 SimpleXMLElem *JBCConstInvokeDynamic::GenXMLElemImpl(MapleAllocator &alloc, uint32 id) const {
+  (void) alloc;
+  (void) id;
   return nullptr;
 }
 }  // namespace jbc

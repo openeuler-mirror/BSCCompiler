@@ -34,6 +34,7 @@ ExceptionTableItem::~ExceptionTableItem() {
 }
 
 bool ExceptionTableItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   startPC = io.ReadUInt16(success);
   endPC = io.ReadUInt16(success);
@@ -58,6 +59,9 @@ bool ExceptionTableItem::PreProcessImpl(const JBCConstPool &constPool) {
 
 SimpleXMLElem *ExceptionTableItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                   uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -76,6 +80,7 @@ VerificationTypeInfo::~VerificationTypeInfo() {
 }
 
 bool VerificationTypeInfo::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   uint8 t = io.ReadUInt8(success);
   tag = static_cast<VerificationTypeInfoTag>(t);
@@ -102,11 +107,15 @@ bool VerificationTypeInfo::ParseFileImpl(MapleAllocator &allocator, BasicIORead 
 }
 
 bool VerificationTypeInfo::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *VerificationTypeInfo::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                     uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -220,15 +229,21 @@ StackMapFrameItem *StackMapFrameItem::NewItem(MapleAllocator &allocator, BasicIO
 StackMapFrameItemSame::StackMapFrameItemSame(uint8 frameType) : StackMapFrameItem(frameType, kStackSame) {}
 
 bool StackMapFrameItemSame::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
+  (void) io;
   return true;
 }
 
 bool StackMapFrameItemSame::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemSame::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                      uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -249,11 +264,15 @@ bool StackMapFrameItemSameLocals1::ParseFileImpl(MapleAllocator &allocator, Basi
 }
 
 bool StackMapFrameItemSameLocals1::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemSameLocals1::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                             uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -278,11 +297,15 @@ bool StackMapFrameItemSameLocals1Ex::ParseFileImpl(MapleAllocator &allocator, Ba
 }
 
 bool StackMapFrameItemSameLocals1Ex::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemSameLocals1Ex::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                               uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -292,17 +315,22 @@ StackMapFrameItemChop::StackMapFrameItemChop(uint8 frameType)
       offsetDelta(0) {}
 
 bool StackMapFrameItemChop::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   offsetDelta = io.ReadUInt16(success);
   return success;
 }
 
 bool StackMapFrameItemChop::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemChop::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                      uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -312,17 +340,22 @@ StackMapFrameItemSameEx::StackMapFrameItemSameEx(uint8 frameType)
       offsetDelta(0) {}
 
 bool StackMapFrameItemSameEx::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   offsetDelta = io.ReadUInt16(success);
   return success;
 }
 
 bool StackMapFrameItemSameEx::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemSameEx::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                        uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -346,11 +379,15 @@ bool StackMapFrameItemAppend::ParseFileImpl(MapleAllocator &allocator, BasicIORe
 }
 
 bool StackMapFrameItemAppend::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemAppend::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                        uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -384,11 +421,15 @@ bool StackMapFrameItemFull::ParseFileImpl(MapleAllocator &allocator, BasicIORead
 }
 
 bool StackMapFrameItemFull::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *StackMapFrameItemFull::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                      uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -409,6 +450,7 @@ InnerClassItem::~InnerClassItem() {
 }
 
 bool InnerClassItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   innerClassInfoIdx = io.ReadUInt16(success);
   outerClassInfoIdx = io.ReadUInt16(success);
@@ -418,11 +460,15 @@ bool InnerClassItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool InnerClassItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *InnerClassItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                               uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -430,6 +476,7 @@ SimpleXMLElem *InnerClassItem::GenXmlElemImpl(MapleAllocator &allocator, const J
 LineNumberTableItem::LineNumberTableItem() : startPC(0), lineNumber(0) {}
 
 bool LineNumberTableItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   startPC = io.ReadUInt16(success);
   lineNumber = io.ReadUInt16(success);
@@ -437,11 +484,15 @@ bool LineNumberTableItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &
 }
 
 bool LineNumberTableItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *LineNumberTableItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                    uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -464,6 +515,7 @@ LocalVariableTableItem::~LocalVariableTableItem() {
 }
 
 bool LocalVariableTableItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   startPC = io.ReadUInt16(success);
   length = io.ReadUInt16(success);
@@ -487,6 +539,9 @@ bool LocalVariableTableItem::PreProcessImpl(const JBCConstPool &constPool) {
 
 SimpleXMLElem *LocalVariableTableItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                       uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -507,6 +562,7 @@ LocalVariableTypeTableItem::~LocalVariableTypeTableItem() {
 }
 
 bool LocalVariableTypeTableItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   startPC = io.ReadUInt16(success);
   length = io.ReadUInt16(success);
@@ -529,6 +585,9 @@ bool LocalVariableTypeTableItem::PreProcessImpl(const JBCConstPool &constPool) {
 
 SimpleXMLElem *LocalVariableTypeTableItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                           uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -550,11 +609,15 @@ bool ParamAnnotationItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &
 }
 
 bool ParamAnnotationItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *ParamAnnotationItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                    uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -571,6 +634,7 @@ BootstrapMethodItem::~BootstrapMethodItem() {
 }
 
 bool BootstrapMethodItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   methodRefIdx = io.ReadUInt16(success);
   nArgs = io.ReadUInt16(success);
@@ -582,11 +646,15 @@ bool BootstrapMethodItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &
 }
 
 bool BootstrapMethodItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *BootstrapMethodItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                    uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -599,6 +667,7 @@ MethodParamItem::~MethodParamItem() {
 }
 
 bool MethodParamItem::MethodParamItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   nameIdx = io.ReadUInt16(success);
   accessFlag = io.ReadUInt16(success);
@@ -606,11 +675,15 @@ bool MethodParamItem::MethodParamItem::ParseFileImpl(MapleAllocator &allocator, 
 }
 
 bool MethodParamItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *MethodParamItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -637,10 +710,14 @@ bool Annotation::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool Annotation::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *Annotation::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -734,17 +811,22 @@ ElementValueConst::~ElementValueConst() {
 }
 
 bool ElementValueConst::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   constValueIdx = io.ReadUInt16(success);
   return success;
 }
 
 bool ElementValueConst::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *ElementValueConst::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                  uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -762,6 +844,7 @@ ElementValueEnum::~ElementValueEnum() {
 }
 
 bool ElementValueEnum::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   typeNameIdx = io.ReadUInt16(success);
   constNameIdx = io.ReadUInt16(success);
@@ -769,11 +852,15 @@ bool ElementValueEnum::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io)
 }
 
 bool ElementValueEnum::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *ElementValueEnum::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                 uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -788,17 +875,22 @@ ElementValueClassInfo::~ElementValueClassInfo() {
 }
 
 bool ElementValueClassInfo::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   classInfoIdx = io.ReadUInt16(success);
   return success;
 }
 
 bool ElementValueClassInfo::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *ElementValueClassInfo::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                      uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -818,11 +910,15 @@ bool ElementValueAnnotation::ParseFileImpl(MapleAllocator &allocator, BasicIORea
 }
 
 bool ElementValueAnnotation::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *ElementValueAnnotation::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                       uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -844,11 +940,15 @@ bool ElementValueArray::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io
 }
 
 bool ElementValueArray::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *ElementValueArray::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                  uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -868,11 +968,15 @@ bool ElementValue::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool ElementValue::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return false;
 }
 
 SimpleXMLElem *ElementValue::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                             uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -894,11 +998,15 @@ bool ElementValuePair::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io)
 }
 
 bool ElementValuePair::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *ElementValuePair::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                 uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -992,17 +1100,22 @@ TargetInfoItem *TargetInfoItem::NewItem(MapleAllocator &allocator, BasicIORead &
 TargetTypeParam::TargetTypeParam() : TargetInfoItem(kTargetTagTypeParam), paramIdx(0) {}
 
 bool TargetTypeParam::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   paramIdx = io.ReadUInt8(success);
   return success;
 }
 
 bool TargetTypeParam::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetTypeParam::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1010,17 +1123,22 @@ SimpleXMLElem *TargetTypeParam::GenXmlElemImpl(MapleAllocator &allocator, const 
 TargetSuperType::TargetSuperType() : TargetInfoItem(kTargetTagSuperType), index(0) {}
 
 bool TargetSuperType::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   index = io.ReadUInt16(success);
   return success;
 }
 
 bool TargetSuperType::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetSuperType::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1028,6 +1146,7 @@ SimpleXMLElem *TargetSuperType::GenXmlElemImpl(MapleAllocator &allocator, const 
 TargetTypeParamBound::TargetTypeParamBound() : TargetInfoItem(kTargetTagTypeParamBound), paramIdx(0), boundIdx(0) {}
 
 bool TargetTypeParamBound::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   paramIdx = io.ReadUInt8(success);
   boundIdx = io.ReadUInt8(success);
@@ -1035,11 +1154,15 @@ bool TargetTypeParamBound::ParseFileImpl(MapleAllocator &allocator, BasicIORead 
 }
 
 bool TargetTypeParamBound::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetTypeParamBound::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                     uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1047,14 +1170,20 @@ SimpleXMLElem *TargetTypeParamBound::GenXmlElemImpl(MapleAllocator &allocator, c
 TargetEmpty::TargetEmpty() : TargetInfoItem(kTargetTagEmpty) {}
 
 bool TargetEmpty::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
+  (void) io;
   return true;
 }
 
 bool TargetEmpty::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetEmpty::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1062,17 +1191,22 @@ SimpleXMLElem *TargetEmpty::GenXmlElemImpl(MapleAllocator &allocator, const JBCC
 TargetFormalParam::TargetFormalParam() : TargetInfoItem(kTargetTagFormalParam), paramIdx(0) {}
 
 bool TargetFormalParam::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   paramIdx = io.ReadUInt8(success);
   return success;
 }
 
 bool TargetFormalParam::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetFormalParam::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                  uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1080,17 +1214,22 @@ SimpleXMLElem *TargetFormalParam::GenXmlElemImpl(MapleAllocator &allocator, cons
 TargetThrows::TargetThrows() : TargetInfoItem(kTargetTagThrows), typeIdx(0) {}
 
 bool TargetThrows::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   typeIdx = io.ReadUInt16(success);
   return success;
 }
 
 bool TargetThrows::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetThrows::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                             uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1098,6 +1237,7 @@ SimpleXMLElem *TargetThrows::GenXmlElemImpl(MapleAllocator &allocator, const JBC
 TargetLocalVarItem::TargetLocalVarItem() : TargetInfoItem(kTargetTagLocalVar), startPC(0), length(0), index(0) {}
 
 bool TargetLocalVarItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   startPC = io.ReadUInt16(success);
   length = io.ReadUInt16(success);
@@ -1105,11 +1245,15 @@ bool TargetLocalVarItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &i
   return success;
 }
 bool TargetLocalVarItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetLocalVarItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                   uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1131,11 +1275,15 @@ bool TargetLocalVar::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool TargetLocalVar::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetLocalVar::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                               uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1143,16 +1291,21 @@ SimpleXMLElem *TargetLocalVar::GenXmlElemImpl(MapleAllocator &allocator, const J
 TargetCatch::TargetCatch() : TargetInfoItem(kTargetTagCatch), exTableIdx(0) {}
 
 bool TargetCatch::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   exTableIdx = io.ReadUInt16(success);
   return true;
 }
 
 bool TargetCatch::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetCatch::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1160,17 +1313,22 @@ SimpleXMLElem *TargetCatch::GenXmlElemImpl(MapleAllocator &allocator, const JBCC
 TargetOffset::TargetOffset() : TargetInfoItem(kTargetTagOffset), offset(0) {}
 
 bool TargetOffset::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   offset = io.ReadUInt16(success);
   return success;
 }
 
 bool TargetOffset::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetOffset::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                             uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1178,6 +1336,7 @@ SimpleXMLElem *TargetOffset::GenXmlElemImpl(MapleAllocator &allocator, const JBC
 TargetTypeArg::TargetTypeArg() : TargetInfoItem(kTargetTagTypeArg), offset(0), typeArgIdx(0) {}
 
 bool TargetTypeArg::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   offset = io.ReadUInt16(success);
   typeArgIdx = io.ReadUInt8(success);
@@ -1185,11 +1344,15 @@ bool TargetTypeArg::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool TargetTypeArg::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TargetTypeArg::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                              uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1226,11 +1389,15 @@ bool TypeAnnotationItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &i
 }
 
 bool TypeAnnotationItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TypeAnnotationItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                                   uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1238,6 +1405,7 @@ SimpleXMLElem *TypeAnnotationItem::GenXmlElemImpl(MapleAllocator &allocator, con
 TypePathItem::TypePathItem() : typePathKind(0), typeArgIdx(0) {}
 
 bool TypePathItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
+  (void) allocator;
   bool success = false;
   typePathKind = io.ReadUInt8(success);
   typeArgIdx = io.ReadUInt8(success);
@@ -1245,11 +1413,15 @@ bool TypePathItem::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool TypePathItem::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TypePathItem::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool,
                                             uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -1270,10 +1442,14 @@ bool TypePath::ParseFileImpl(MapleAllocator &allocator, BasicIORead &io) {
 }
 
 bool TypePath::PreProcessImpl(const JBCConstPool &constPool) {
+  (void) constPool;
   return true;
 }
 
 SimpleXMLElem *TypePath::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) const {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 }  // namespace attr

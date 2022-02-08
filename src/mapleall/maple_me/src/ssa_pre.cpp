@@ -273,7 +273,7 @@ void SSAPre::CodeMotion() {
             bool isreplaced = irMap->ReplaceMeExprStmt(*realOcc->GetMeStmt(), *realOcc->GetMeExpr(), *regorvar);
             // update worklist
             if (isreplaced) {
-              BuildWorkListStmt(*realOcc->GetMeStmt(), realOcc->GetSequence(), true, regorvar);
+              BuildWorkListStmt(*realOcc->GetMeStmt(), static_cast<uint32>(realOcc->GetSequence()), true, regorvar);
             }
           }
         }
@@ -366,7 +366,7 @@ void SSAPre::Finalize1() {
   std::vector<MeOccur*> availDefVec(classCount, nullptr);
   // traversal in preoder DT
   for (MeOccur *occ : allOccs) {
-    int classX = occ->GetClassID();
+    auto classX = static_cast<size_t>(occ->GetClassID());
     switch (occ->GetOccType()) {
       case kOccPhiocc: {
         auto *phiOcc = static_cast<MePhiOcc*>(occ);
@@ -1459,7 +1459,7 @@ void SSAPre::CreateRealOcc(MeStmt &meStmt, int seqStmt, MeExpr &meExpr, bool ins
   }
   // determine onlyInvariantOpnds flag
   wkCand->onlyInvariantOpnds = true;
-  for (int i = 0; i < meExpr.GetNumOpnds(); i++) {
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); i++) {
     ScalarMeExpr *scalarOpnd = dynamic_cast<ScalarMeExpr *>(meExpr.GetOpnd(i));
     if (scalarOpnd != nullptr && scalarOpnd->GetOst()->NumSSAVersions() > 1) {
       wkCand->onlyInvariantOpnds = false;

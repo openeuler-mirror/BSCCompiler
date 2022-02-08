@@ -230,7 +230,8 @@ uint32 PreWorkCandHashTable::ComputeWorkCandHashIndex(const MeExpr &meExpr) {
     case kMeOpIvar: {
       auto &iVar = static_cast<const IvarMeExpr&>(meExpr);
       hashIdx = ComputeWorkCandHashIndex(*iVar.GetBase()) +
-          (static_cast<uint32>(iVar.GetTyIdx()) << kOffsetIvarMeExprTyIdx) + iVar.GetFieldID() + iVar.GetOffset();
+                (static_cast<uint32>(iVar.GetTyIdx()) << kOffsetIvarMeExprTyIdx) +
+                static_cast<uint32>(iVar.GetFieldID()) + static_cast<uint32>(iVar.GetOffset());
       break;
     }
     case kMeOpOp: {

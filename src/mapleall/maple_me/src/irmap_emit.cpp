@@ -534,7 +534,7 @@ StmtNode &AsmMeStmt::EmitStmt(SSATab &ssaTab) {
   for (size_t i = 0; i < NumMeStmtOpnds(); ++i) {
     asmNode->SetOpnd(&GetOpnd(i)->EmitExpr(ssaTab), i);
   }
-  asmNode->SetNumOpnds(asmNode->GetNopndSize());
+  asmNode->SetNumOpnds(static_cast<uint8>(asmNode->GetNopndSize()));
   EmitCallReturnVector(*asmNode->GetCallReturnVector());
   for (size_t j = 0; j < asmNode->GetCallReturnVector()->size(); ++j) {
     CallReturnPair retPair = (*asmNode->GetCallReturnVector())[j];
@@ -601,7 +601,7 @@ StmtNode &AssertBoundaryMeStmt::EmitStmt(SSATab &ssaTab) {
   for (size_t i = 0; i < NumMeStmtOpnds(); ++i) {
     ret->SetOpnd(&GetOpnd(i)->EmitExpr(ssaTab), i);
   }
-  ret->SetNumOpnds(ret->GetNopndSize());
+  ret->SetNumOpnds(static_cast<uint8>(ret->GetNopndSize()));
   return *ret;
 }
 
@@ -616,7 +616,7 @@ StmtNode &CallAssertBoundaryMeStmt::EmitStmt(SSATab &ssaTab) {
   for (size_t i = 0; i < NumMeStmtOpnds(); ++i) {
     ret->SetOpnd(&GetOpnd(i)->EmitExpr(ssaTab), i);
   }
-  ret->SetNumOpnds(ret->GetNopndSize());
+  ret->SetNumOpnds(static_cast<uint8>(ret->GetNopndSize()));
   return *ret;
 }
 

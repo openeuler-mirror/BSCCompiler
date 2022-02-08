@@ -1070,7 +1070,7 @@ class IvarMeExpr : public MeExpr {
 
   uint32 GetHashIndex() const override {
     constexpr uint32 kIvarHashShift = 4;
-    return static_cast<uint32>(op) + fieldID + static_cast<uint32>(offset) +
+    return static_cast<uint32>(op) + static_cast<uint32>(fieldID) + static_cast<uint32>(offset) +
            (static_cast<uint32>(base->GetExprID()) << kIvarHashShift);
   }
 
@@ -2152,7 +2152,7 @@ class CallMeStmt : public NaryMeStmt, public MuChiMePart, public AssignedPart {
   CallMeStmt(MapleAllocator *alloc, Opcode op)
       : NaryMeStmt(alloc, op), MuChiMePart(alloc), AssignedPart(alloc) {}
 
-  CallMeStmt(MapleAllocator *alloc, NaryMeStmt *cstmt, PUIdx idx)
+  CallMeStmt(MapleAllocator *alloc, const NaryMeStmt *cstmt, PUIdx idx)
       : NaryMeStmt(alloc, cstmt),
         MuChiMePart(alloc),
         AssignedPart(alloc),
@@ -2858,7 +2858,7 @@ class CppCatchMeStmt : public MeStmt {
  public:
   TyIdx exceptionTyIdx;
 
-  CppCatchMeStmt(MapleAllocator *alloc, StmtNode *stt) : MeStmt(stt) {
+  CppCatchMeStmt(const MapleAllocator *alloc, const StmtNode *stt) : MeStmt(stt) {
     (void)alloc;
   }
 

@@ -438,7 +438,7 @@ class OriginalStTable {
   OriginalSt *FindOrCreateExtraLevSymOrRegOriginalSt(OriginalSt *ost, TyIdx tyIdx, FieldID fld,
                                                      const OffsetType &offset = OffsetType(kOffsetUnknown),
                                                      const KlassHierarchy *klassHierarchy = nullptr);
-  OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, MIRType *type, FieldID fld,
+  OriginalSt *FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, const MIRType *type, FieldID fld,
                                      const OffsetType &offset = OffsetType(kOffsetUnknown)) const;
 
  private:

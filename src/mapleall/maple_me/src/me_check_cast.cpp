@@ -18,7 +18,6 @@
 
 namespace maple {
 MIRStructType *GetClassTypeFromName(const std::string &className);
-void FunctionGenericDump(MIRFunction &func);
 
 std::string GetLabel(AnnotationType &aType) {
   std::string lable;

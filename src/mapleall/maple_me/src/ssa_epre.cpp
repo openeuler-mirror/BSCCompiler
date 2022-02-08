@@ -73,7 +73,7 @@ void SSAEPre::GenerateSaveLHSRealocc(MeRealOcc &realOcc, ScalarMeExpr &regOrVar)
           newPrimType = PTY_i32;
         }
         OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(GetPrimTypeSize(lhsPrimType) * 8);
+        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(lhsPrimType)) * 8);
         opmeexpr.SetOpnd(0, savedRHS);
         savedRHS = irMap->HashMeExpr(opmeexpr);
       }
@@ -161,7 +161,7 @@ void SSAEPre::GenerateSaveRealOcc(MeRealOcc &realOcc) {
   bool isReplaced = irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);
   // rebuild worklist
   if (isReplaced  && !ReserveCalFuncAddrForDecouple(*realOcc.GetMeExpr())) {
-    BuildWorkListStmt(*realOcc.GetMeStmt(), realOcc.GetSequence(), true, regOrVar);
+    BuildWorkListStmt(*realOcc.GetMeStmt(), static_cast<uint32>(realOcc.GetSequence()), true, regOrVar);
   }
   realOcc.SetSavedExpr(*regOrVar);
 }
@@ -213,7 +213,7 @@ void SSAEPre::GenerateReloadRealOcc(MeRealOcc &realOcc) {
   bool isReplaced = irMap->ReplaceMeExprStmt(*realOcc.GetMeStmt(), *realOcc.GetMeExpr(), *regOrVar);
   // update worklist
   if (isReplaced && !ReserveCalFuncAddrForDecouple(*realOcc.GetMeExpr())) {
-    BuildWorkListStmt(*realOcc.GetMeStmt(), realOcc.GetSequence(), true, regOrVar);
+    BuildWorkListStmt(*realOcc.GetMeStmt(), static_cast<uint32>(realOcc.GetSequence()), true, regOrVar);
   }
 }
 
@@ -279,7 +279,7 @@ bool SSAEPre::AllVarsSameVersion(const MeRealOcc &realocc1, const MeRealOcc &rea
   }
   // for each var operand in realocc2, check if it can resolve to the
   // corresponding operand in realocc1 via ResolveOneInjuringDef()
-  for (int32 i = 0; i < realocc2.GetMeExpr()->GetNumOpnds(); i++) {
+  for (uint8 i = 0; i < realocc2.GetMeExpr()->GetNumOpnds(); i++) {
     MeExpr *curopnd = realocc2.GetMeExpr()->GetOpnd(i);
     if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
       continue;
@@ -312,7 +312,7 @@ void SSAEPre::ComputeVarAndDfPhis() {
     BB *defBB = realOcc->GetBB();
     GetIterDomFrontier(defBB, &dfPhiDfns);
     MeExpr *meExpr = realOcc->GetMeExpr();
-    for (int32 i = 0; i < meExpr->GetNumOpnds(); i++) {
+    for (uint8 i = 0; i < meExpr->GetNumOpnds(); i++) {
       SetVarPhis(meExpr->GetOpnd(i));
     }
     // for ivar, compute mu's phi too
@@ -374,7 +374,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       if (isRebuild && !hasTempVarAs1Opnd) {
         break;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
+      CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
       break;
     }
     case kMeOpNary: {
@@ -408,11 +408,11 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
           auto *ptrMIRType = static_cast<MIRPtrType*>(mirType);
           MIRJarrayType *arryType = safe_cast<MIRJarrayType>(ptrMIRType->GetPointedType());
           if (arryType == nullptr) {
-            (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
+            CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
           } else {
             int dim = arryType->GetDim();  // to compute the dim field
             if (dim <= 1) {
-              (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
+              CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
             } else {
               if (GetSSAPreDebug()) {
                 mirModule->GetOut() << "----- real occ suppressed for jarray with dim " << dim << '\n';
@@ -431,7 +431,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
             }
           }
           if (!intrinDesc->IsLoadMem()) {
-            (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
+            CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
           }
         }
       }
@@ -454,7 +454,7 @@ void SSAEPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr, b
       } else if (!epreIncludeRef && ivarMeExpr->GetPrimType() == PTY_ref) {
         break;
       } else if (!isRebuild || base->IsUseSameSymbol(*tempVar)) {
-        (void)CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
+        CreateRealOcc(meStmt, seqStmt, meExpr, insertSorted);
       }
       break;
     }
@@ -506,14 +506,14 @@ void SSAEPre::BuildWorkListIvarLHSOcc(MeStmt &meStmt, int32 seqStmt, bool isRebu
     return;
   }
   if (!isRebuild || base->IsUseSameSymbol(*tempVar)) {
-    (void)CreateRealOcc(meStmt, seqStmt, *ivarMeExpr, isRebuild, true);
+    CreateRealOcc(meStmt, seqStmt, *ivarMeExpr, isRebuild, true);
   }
 }
 
 // collect meExpr's variables and put them into varVec
 // varVec can only store RegMeExpr and VarMeExpr
 void SSAEPre::CollectVarForMeExpr(MeExpr &meExpr, std::vector<MeExpr*> &varVec) const {
-  for (int32 i = 0; i < meExpr.GetNumOpnds(); i++) {
+  for (uint8 i = 0; i < meExpr.GetNumOpnds(); i++) {
     MeExpr *opnd = meExpr.GetOpnd(i);
     if (opnd->GetMeOp() == kMeOpVar || opnd->GetMeOp() == kMeOpReg) {
       varVec.push_back(opnd);

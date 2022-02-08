@@ -148,7 +148,7 @@ void BBLayout::BuildChainForLoop(LoopDesc *loop, MapleVector<bool> *context) {
 
 // Multiple loops may share the same header, we try to find the best unplaced BB in the loop
 // This function can be improved
-BB *BBLayout::FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context) {
+BB *BBLayout::FindBestStartBBForLoop(LoopDesc *loop, const MapleVector<bool> *context) {
   // If the loop header has not been placed, take it as start BB of the loop chain
   auto *headerChain = bb2chain[loop->head->GetBBId()];
   if (headerChain->size() == 1) {
@@ -524,7 +524,7 @@ bool BBLayout::HasSameBranchCond(BB &bb1, BB &bb2) const {
   return true;
 }
 
-bool BBLayout::BBIsEmpty(BB *bb) {
+bool BBLayout::BBIsEmpty(const BB *bb) {
   if (func.GetIRMap() != nullptr) {
     return bb->IsMeStmtEmpty();
   }

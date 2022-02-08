@@ -440,9 +440,10 @@ class ValueRangePropagation {
   }
 
   void Insert2NewMergeBB2Opnd(BB &bb, const MeExpr &opnd) {
-    auto ret = newMergeBB2Opnd.emplace(&bb, opnd.GetExprID());
+    auto exprID = static_cast<uint32>(opnd.GetExprID());
+    auto ret = newMergeBB2Opnd.emplace(&bb, exprID);
     if (!ret.second) {
-      CHECK_FATAL(ret.first->second == opnd.GetExprID(), "must be equal");
+      CHECK_FATAL(ret.first->second == exprID, "must be equal");
     }
   }
 

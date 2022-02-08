@@ -73,7 +73,7 @@ PEGNode *ProgramExprGraph::GetOrCreateNodeOf(OriginalSt *ost) {
   return newNode;
 }
 
-PEGNode *ProgramExprGraph::GetNodeOf(OriginalSt *ost) const {
+PEGNode *ProgramExprGraph::GetNodeOf(const OriginalSt *ost) const {
   const auto &it = idOfVal2IdOfNode.find(ost->GetIndex());
   if (it == idOfVal2IdOfNode.end()) {
     return nullptr;

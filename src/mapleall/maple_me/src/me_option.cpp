@@ -1430,7 +1430,7 @@ bool MeOption::SolveOptions(const std::deque<mapleOption::Option> &opts, bool is
         break;
       }
       case kAliasAnalysisLevel:
-        aliasAnalysisLevel = std::stoul(opt.Args(), nullptr);
+        aliasAnalysisLevel = static_cast<uint8>(std::stoul(opt.Args(), nullptr));
         if (aliasAnalysisLevel > kLevelThree) {
           aliasAnalysisLevel = kLevelThree;
         }
