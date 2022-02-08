@@ -187,6 +187,7 @@ UserTypeNode *AdjustASTVisitor::VisitUserTypeNode(UserTypeNode *node) {
     node->SetDims(NULL);
     IdentifierNode *inode = static_cast<IdentifierNode *>(p);
     inode->SetType(arr);
+    mHandler->SetArrayElemTypeId(inode->GetNodeId(), id->GetTypeId());
   }
   return node;
 }
