@@ -28,11 +28,11 @@ class SafetyCheck {
  public:
   SafetyCheck() = default;
   explicit SafetyCheck(MeFunction &f) : func(&f) {}
-  ~SafetyCheck() = default;
+  virtual ~SafetyCheck() = default;
 
   bool NeedDeleteTheAssertAfterErrorOrWarn(const MeStmt &stmt) const;
   virtual void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) {}
-  virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {}
+  virtual void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) {}
   virtual bool HandleAssertError(const MeStmt &meStmt) {
     return false;
   }
@@ -49,15 +49,15 @@ class SafetyCheckWithNonnullError : public SafetyCheck {
  public:
   explicit SafetyCheckWithNonnullError(MeFunction &f)
       : SafetyCheck(f) {}
-  ~SafetyCheckWithNonnullError() = default;
-  void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) override;
+  ~SafetyCheckWithNonnullError() override = default;
+  void HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) override;
 };
 
 class SafetyCheckWithBoundaryError : public SafetyCheck {
  public:
   SafetyCheckWithBoundaryError(MeFunction &f, ValueRangePropagation &valueRangeProp)
       : SafetyCheck(f), vrp(valueRangeProp) {}
-  ~SafetyCheckWithBoundaryError() = default;
+  ~SafetyCheckWithBoundaryError() override = default;
   void HandleAssignWithDeadBeef(const BB &bb, MeStmt &meStmt, MeExpr &indexOpnd, MeExpr &boundOpnd) override;
   bool HandleAssertError(const MeStmt &meStmt) override;
   bool HandleAssertltOrAssertle(const MeStmt &meStmt, Opcode op, int64 indexValue, int64 lengthValue) override;
@@ -291,7 +291,10 @@ class ValueRange {
   void SetRangeType(RangeType type) {
     rangeType = type;
   }
-
+  bool IsZeroInRange() const {
+    return IsConstantLowerAndUpper() && GetUpper().GetConstant() >= 0 &&
+        GetLower().GetConstant() < GetUpper().GetConstant();
+  }
   bool IsConstantRange() {
     return (rangeType == kEqual && range.bound.GetVar() == nullptr) ||
            (rangeType == kNotEqual && range.bound.GetVar() == nullptr) ||
@@ -496,7 +499,7 @@ class ValueRangePropagation {
   void JudgeEqual(MeExpr &expr, ValueRange &vrOfLHS, ValueRange &vrOfRHS, std::unique_ptr<ValueRange> &valueRangePtr);
   ValueRange *FindValueRangeWithCompareOp(const BB &bb, MeExpr &expr);
   ValueRange *FindValueRange(const BB &bb, MeExpr &expr);
-  void DealWithPhi(BB &bb, MePhiNode &mePhiNode);
+  void DealWithPhi(const BB &bb, MePhiNode &mePhiNode);
   void DealWithCondGoto(BB &bb, MeStmt &stmt);
   void DealWithCondGotoWithOneOpnd(BB &bb, CondGotoMeStmt &brMeStmt);
   void InsertValueRangeOfCondExpr2Caches(BB &bb, const MeStmt &stmt);
@@ -515,7 +518,7 @@ class ValueRangePropagation {
   std::unique_ptr<ValueRange> DealWithAddOrSub(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
   bool CanComputeLoopIndVar(const MeExpr &phiLHS, MeExpr &expr, int64 &constant);
   std::unique_ptr<ValueRange> RemWithValueRange(const BB &bb, const OpMeExpr &opMeExpr, int64 rhsConstant);
-  std::unique_ptr<ValueRange> RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant);
+  std::unique_ptr<ValueRange> RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant) const;
   std::unique_ptr<ValueRange> DealWithRem(const BB &bb, const MeExpr &lhsVar, const OpMeExpr &opMeExpr);
   Bound Max(Bound leftBound, Bound rightBound);
   Bound Min(Bound leftBound, Bound rightBound);
@@ -597,7 +600,7 @@ class ValueRangePropagation {
   void GetValueRangeOfCRNode(const BB &bb, CRNode &opndOfCRNode, std::unique_ptr<ValueRange> &resValueRange,
                              PrimType pTypeOfArray);
   std::unique_ptr<ValueRange> GetValueRangeOfCRNodes(
-      BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes);
+      const BB &bb, PrimType pTypeOfArray, std::vector<CRNode*> &crNodes);
   bool DealWithAssertNonnull(BB &bb, const MeStmt &meStmt);
   bool DealWithBoundaryCheck(BB &bb, MeStmt &meStmt);
   MeExpr *GetAddressOfIndexOrBound(MeExpr &expr) const;
@@ -619,7 +622,7 @@ class ValueRangePropagation {
   bool DealWithAssertLtOrLe(BB &bb, MeStmt &meStmt, CRNode &indexCR, CRNode &boundCR, Opcode op);
   void DealWithCVT(const BB &bb, MeStmt &stmt, MeExpr *operand, size_t i, bool dealWithStmt = false);
   std::unique_ptr<ValueRange> ZeroIsInRange(const ValueRange &valueRange);
-  void DealWithNeg(const BB &bb, OpMeExpr &opMeExpr);
+  void DealWithNeg(const BB &bb, const OpMeExpr &opMeExpr);
   void DealWithCVT(const BB &bb, OpMeExpr &opMeExpr);
   bool IfTheLowerOrUpperOfLeftRangeEqualToTheRightRange(
           const ValueRange &leftRange, ValueRange &rightRange, bool isLower) const;

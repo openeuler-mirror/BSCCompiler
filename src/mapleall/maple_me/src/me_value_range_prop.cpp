@@ -523,8 +523,15 @@ void SafetyCheckWithBoundaryError::HandleAssignWithDeadBeef(
   vrp.JudgeTheConsistencyOfDefPointsOfBoundaryCheck(bb, boundOpnd, visitedLHS, stmts);
 }
 
-void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange &valueRangeOfIndex) {
-  if (valueRangeOfIndex.IsEqualZero()) {
+// Deal with this case :
+// valueRangeOfIndex zero is in range and in safe region mode, compiler err
+// valueRangeOfIndex is zero and not in safe region mode, compiler err
+void SafetyCheckWithNonnullError::HandleAssertNonnull(const MeStmt &meStmt, const ValueRange *valueRangeOfIndex) {
+  if ((valueRangeOfIndex == nullptr || valueRangeOfIndex->IsZeroInRange()) &&
+      meStmt.IsInSafeRegion() && MeOption::safeRegionMode) {
+    (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
+  }
+  if (valueRangeOfIndex != nullptr && valueRangeOfIndex->IsEqualZero()) {
     (void)NeedDeleteTheAssertAfterErrorOrWarn(meStmt);
   }
 }
@@ -1215,11 +1222,12 @@ bool ValueRangePropagation::DealWithAssertNonnull(BB &bb, const MeStmt &meStmt) 
         return true;
       }
     }
+    safetyCheckNonnull->HandleAssertNonnull(meStmt, valueRange);
     (void)Insert2Caches(bb.GetBBId(), opnd->GetExprID(),
                         std::make_unique<ValueRange>(Bound(nullptr, 0, opnd->GetPrimType()), kNotEqual));
     return false;
   }
-  safetyCheckNonnull->HandleAssertNonnull(meStmt, *valueRange);
+  safetyCheckNonnull->HandleAssertNonnull(meStmt, valueRange);
   auto newValueRange = ZeroIsInRange(*valueRange);
   if (newValueRange != nullptr) {
     (void)Insert2Caches(bb.GetBBId(), opnd->GetExprID(), std::move(newValueRange));
@@ -1783,7 +1791,8 @@ std::unique_ptr<ValueRange> ValueRangePropagation::AddOrSubWithValueRange(
 }
 
 // deal with the case like var % x, range is [1-x, x-1]
-std::unique_ptr<ValueRange> ValueRangePropagation::RemWithRhsValueRange(const OpMeExpr &opMeExpr, int64 rhsConstant) {
+std::unique_ptr<ValueRange> ValueRangePropagation::RemWithRhsValueRange(
+    const OpMeExpr &opMeExpr, int64 rhsConstant) const {
   int64 res = 0;
   int64 upperRes = 0;
   int64 lowerRes = 0;
