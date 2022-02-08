@@ -47,6 +47,7 @@ bool JBCOp::CheckNotWide(const BasicIORead &io) const {
 }
 
 std::string JBCOp::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   return GetOpcodeName();
 }
 
@@ -55,6 +56,7 @@ const std::vector<JBCPrimType> &JBCOp::GetInputTypesFromStackImpl() const {
 }
 
 std::vector<JBCPrimType> JBCOp::GetInputTypesFromStackImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   return GetInputTypesFromStackImpl();
 }
 
@@ -63,6 +65,7 @@ JBCPrimType JBCOp::GetOutputTypesToStackImpl() const {
 }
 
 JBCPrimType JBCOp::GetOutputTypesToStackImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   return GetOutputTypesToStackImpl();
 }
 
@@ -71,6 +74,7 @@ JBCOpUnused::JBCOpUnused(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcodeKin
     : JBCOp(allocator, opIn, kindIn, wideIn) {}
 
 bool JBCOpUnused::ParseFileImpl(BasicIORead &io) {
+  (void) io;
   WARN(kLncWarn, "Unused opcode %s", GetOpcodeName().c_str());
   return true;
 }
@@ -80,6 +84,7 @@ JBCOpReversed::JBCOpReversed(MapleAllocator &allocator, JBCOpcode opIn, JBCOpcod
     : JBCOp(allocator, opIn, kindIn, wideIn) {}
 
 bool JBCOpReversed::ParseFileImpl(BasicIORead &io) {
+  (void) io;
   ERR(kLncErr, "Reversed opcode %s", GetOpcodeName().c_str());
   return false;
 }
@@ -679,6 +684,7 @@ JBCPrimType JBCOpSlotOpr::GetOutputTypesToStackImpl() const {
 }
 
 std::string JBCOpSlotOpr::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " " << slotIdx;
   return ss.str();
@@ -882,6 +888,7 @@ bool JBCOpBranch::ParseFileImpl(BasicIORead &io) {
 }
 
 std::string JBCOpBranch::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " " << target;
   return ss.str();
@@ -940,6 +947,7 @@ bool JBCOpGoto::ParseFileImpl(BasicIORead &io) {
 }
 
 std::string JBCOpGoto::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " " << target;
   return ss.str();
@@ -990,6 +998,7 @@ const std::vector<JBCPrimType> &JBCOpSwitch::GetInputTypesFromStackImpl() const 
 }
 
 std::string JBCOpSwitch::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " { default=" << targetDefault;
   for (auto it : targets) {
@@ -1075,6 +1084,7 @@ std::string JBCOpFieldOpr::DumpImpl(const JBCConstPool &constPool) const {
 }
 
 std::vector<JBCPrimType> JBCOpFieldOpr::GetInputTypesFromStackForGet(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::vector<JBCPrimType> ans;
   if (op == kOpGetField) {
     ans.push_back(kTypeRef);
@@ -1267,6 +1277,7 @@ JBCPrimType JBCOpJsr::GetOutputTypesToStackImpl() const {
 }
 
 std::string JBCOpJsr::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " " << target;
   return ss.str();
@@ -1287,6 +1298,7 @@ bool JBCOpRet::ParseFileImpl(BasicIORead &io) {
 }
 
 std::string JBCOpRet::DumpImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::stringstream ss;
   ss << GetOpcodeName() << " " << index;
   return ss.str();
@@ -1469,6 +1481,7 @@ const std::vector<JBCPrimType> &JBCOpMultiANewArray::GetInputTypesFromStackImpl(
 }
 
 std::vector<JBCPrimType> JBCOpMultiANewArray::GetInputTypesFromStackImpl(const JBCConstPool &constPool) const {
+  (void) constPool;
   std::vector<JBCPrimType> ans;
   for (uint8 i = 0; i < dim; i++) {
     ans.push_back(kTypeInt);

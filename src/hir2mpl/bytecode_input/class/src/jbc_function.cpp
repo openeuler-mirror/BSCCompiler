@@ -140,6 +140,7 @@ void JBCFunction::VerifyGeneralFailCallBack() {
 }
 
 bool JBCFunction::GenerateAliasVars(const std::string &phaseName) {
+  (void) phaseName;
   return true;
 }
 

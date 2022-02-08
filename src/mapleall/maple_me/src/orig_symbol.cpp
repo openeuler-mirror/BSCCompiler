@@ -269,7 +269,7 @@ OriginalSt *OriginalStTable::FindOrCreateExtraLevOriginalSt(OriginalSt *ost, TyI
   return nullptr;
 }
 
-OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, MIRType *type,
+OriginalSt *OriginalStTable::FindExtraLevOriginalSt(const MapleVector<OriginalSt*> &nextLevelOsts, const MIRType *type,
                                                     FieldID fld, const OffsetType &offset) const {
   for (OriginalSt *nextLevelOst : nextLevelOsts) {
     if (nextLevelOst->GetOffset() == offset && nextLevelOst->GetType() == type) {

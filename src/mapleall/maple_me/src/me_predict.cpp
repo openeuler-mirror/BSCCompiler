@@ -704,7 +704,7 @@ void MePrediction::BuildSCC() {
 
 // Use head to propagate freq for normal loops. Use headers to propagate freq for irreducible SCCs
 // because there are multiple headers in irreducible SCCs.
-bool MePrediction::DoPropFreq(BB *head, std::vector<BB*> *headers, BB &bb) {
+bool MePrediction::DoPropFreq(const BB *head, std::vector<BB*> *headers, BB &bb) {
   if (bbVisited[bb.GetBBId()]) {
     return true;
   }

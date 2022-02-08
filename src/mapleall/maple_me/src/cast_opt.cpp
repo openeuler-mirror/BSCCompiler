@@ -125,18 +125,16 @@ bool CastOpt::IsCompareOp(Opcode op) {
 // castInfo.expr should be valid
 // input: castInfo.expr
 // output: castInfo.kind, castInfo.srcType, castInfo.dstType
-void CastOpt::DoComputeCastInfo(CastInfo &castInfo, bool isMeExpr) {
-  auto *meExpr = static_cast<MeExpr*>(castInfo.expr);
-  auto *mapleExpr = static_cast<BaseNode*>(castInfo.expr);
-  Opcode op = isMeExpr ? meExpr->GetOp() : mapleExpr->GetOpCode();
-  PrimType dstType = isMeExpr ? meExpr->GetPrimType() : mapleExpr->GetPrimType();
+template <typename T>
+void CastOpt::DoComputeCastInfo(CastInfo<T> &castInfo, bool isMeExpr) {
+  Opcode op = castInfo.GetOp();
+  PrimType dstType = castInfo.GetPrimType();
   PrimType srcType = PTY_begin;
   CastKind castKind = CAST_unknown;
   switch (op) {
     case OP_zext:
     case OP_sext: {
-      size_t sizeBit = isMeExpr ? static_cast<const OpMeExpr*>(castInfo.expr)->GetBitsSize() :
-                                  static_cast<const ExtractbitsNode*>(castInfo.expr)->GetBitsSize();
+      size_t sizeBit = castInfo.GetBitsSize();
       // The code can be improved
       // exclude: sext ixx 1 <expr> because there is no i1 type
       if (sizeBit == 1 && op == OP_sext) {
@@ -153,13 +151,7 @@ void CastOpt::DoComputeCastInfo(CastInfo &castInfo, bool isMeExpr) {
     }
     case OP_retype: {
       // retype's opndType is invalid, we use opnd's primType
-      if (isMeExpr) {
-        auto *opnd = static_cast<const OpMeExpr*>(castInfo.expr)->GetOpnd(0);
-        srcType = opnd->GetPrimType();
-      } else {
-        auto *opnd = static_cast<const RetypeNode*>(castInfo.expr)->Opnd(0);
-        srcType = opnd->GetPrimType();
-      }
+      srcType = castInfo.GetOpndType();
       if (GetPrimTypeActualBitSize(dstType) != GetPrimTypeActualBitSize(srcType)) {
         // Example: retype u8 <u8> (iread i32 <* i8> 0 ...)
         // In the above example, dstType is u8, but we get srcType i32 from iread.
@@ -171,55 +163,21 @@ void CastOpt::DoComputeCastInfo(CastInfo &castInfo, bool isMeExpr) {
       break;
     }
     case OP_cvt: {
-      srcType = isMeExpr ? static_cast<const OpMeExpr*>(castInfo.expr)->GetOpndType() :
-          static_cast<const TypeCvtNode*>(castInfo.expr)->FromType();
+      srcType = castInfo.GetOpndType();
       if (srcType == PTY_u1 && dstType != PTY_u1) {
         srcType = PTY_u8;  // From the codegen view, `cvt xx u1` is always same as `cvt xx u8`
       }
       castKind = GetCastKindByTwoType(srcType, dstType);
       break;
     }
+    case OP_iread:
+    case OP_dread:
     case OP_regread: {
-      if (isMeExpr) {
-        const auto *scalarExpr = static_cast<const ScalarMeExpr*>(castInfo.expr);
-        srcType = scalarExpr->GetOst()->GetType()->GetPrimType();
-      } else {
-        const auto *regread = static_cast<const RegreadNode*>(castInfo.expr);
-        PregIdx regIdx = regread->GetRegIdx();
-        MIRPreg *preg = theMIRModule->CurFunction()->GetPregItem(regIdx);
-        srcType = preg->GetPrimType();
-      }
-      // Only consider regread with implicit integer extension
-      if (IsPrimitiveInteger(srcType) && IsPrimitiveInteger(dstType) &&
-          GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-        castKind = (IsSignedInteger(srcType) ? CAST_sext : CAST_zext);
-      }
-      break;
-    }
-    case OP_iread: {
-      if (isMeExpr) {
-        const auto *ivarExpr = static_cast<const IvarMeExpr*>(castInfo.expr);
-        srcType = ivarExpr->GetType()->GetPrimType();
-      } else {
-        const auto *iread = static_cast<const IreadNode*>(castInfo.expr);
-        srcType = iread->GetType()->GetPrimType();
-      }
-      // Only consider iread with implicit integer extension
-      if (IsPrimitiveInteger(srcType) && IsPrimitiveInteger(dstType) &&
-          GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
-        castKind = (IsSignedInteger(srcType) ? CAST_sext : CAST_zext);
-      }
-      break;
-    }
-    case OP_dread: {
-      if (isMeExpr) {
+      if (op == OP_dread && isMeExpr) {
         break;
       }
-      const auto *dread = static_cast<const DreadNode*>(castInfo.expr);
-      StIdx stIdx = dread->GetStIdx();
-      MIRSymbol *symbol = theMIRModule->CurFunction()->GetLocalOrGlobalSymbol(stIdx);
-      srcType = symbol->GetType()->GetPrimType();
-      // Only consider dread with implicit integer extension
+      srcType = castInfo.GetOpndType();
+      // Only consider regread/iread/dread with implicit integer extension
       if (IsPrimitiveInteger(srcType) && IsPrimitiveInteger(dstType) &&
           GetPrimTypeActualBitSize(srcType) < GetPrimTypeActualBitSize(dstType)) {
         castKind = (IsSignedInteger(srcType) ? CAST_sext : CAST_zext);
@@ -397,15 +355,15 @@ int CastOpt::IsEliminableCastPair(CastKind firstCastKind, CastKind secondCastKin
   }
 }
 
-void MeCastOpt::ComputeCastInfo(CastInfo &castInfo) {
+void MeCastOpt::ComputeCastInfo(MeExprCastInfo &castInfo) {
   DoComputeCastInfo(castInfo, true);
 }
 
-void MapleCastOpt::ComputeCastInfo(CastInfo &castInfo) {
+void MapleCastOpt::ComputeCastInfo(BaseNodeCastInfo &castInfo) {
   DoComputeCastInfo(castInfo, false);
 }
 
-MeExpr *MeCastOpt::SimplifyCastSingle(IRMap &irMap, const CastInfo &castInfo) {
+MeExpr *MeCastOpt::SimplifyCastSingle(IRMap &irMap, const MeExprCastInfo &castInfo) {
   if (castInfo.IsInvalid()) {
     return nullptr;
   }
@@ -456,7 +414,8 @@ MeExpr *MeCastOpt::SimplifyCastSingle(IRMap &irMap, const CastInfo &castInfo) {
 
 // The firstCastExpr may be a implicit cast expr
 // The secondCastExpr must be a explicit cast expr
-MeExpr *MeCastOpt::SimplifyCastPair(IRMap &irMap, const CastInfo &firstCastInfo, const CastInfo &secondCastInfo) {
+MeExpr *MeCastOpt::SimplifyCastPair(IRMap &irMap, const MeExprCastInfo &firstCastInfo,
+                                    const MeExprCastInfo &secondCastInfo) {
   if (firstCastInfo.IsInvalid()) {
     // We can NOT eliminate the first cast, try to simplify the second cast individually
     return SimplifyCastSingle(irMap, secondCastInfo);
@@ -531,13 +490,13 @@ MeExpr *MeCastOpt::SimplifyCast(IRMap &irMap, MeExpr *expr) {
   if (!IsExplicitCastOp(opndOp) && !IsImplicitCastOp(opndOp)) {
     // only 1 cast
     // Exmaple: cvt i32 i64 (add i32)  ==>  add i32
-    CastInfo castInfo(expr);
+    MeExprCastInfo castInfo(expr);
     ComputeCastInfo(castInfo);
     return SimplifyCastSingle(irMap, castInfo);
   }
-  CastInfo firstCastInfo(opnd);
+  MeExprCastInfo firstCastInfo(opnd);
   ComputeCastInfo(firstCastInfo);
-  CastInfo secondCastInfo(expr);
+  MeExprCastInfo secondCastInfo(expr);
   ComputeCastInfo(secondCastInfo);
   auto *simplified1 = SimplifyCastPair(irMap, firstCastInfo, secondCastInfo);
   MeExpr *simplified2 = nullptr;
@@ -574,7 +533,7 @@ void MeCastOpt::SimplifyCastForAssign(MeStmt *assignStmt) {
     return;
   }
   MeExpr *cur = rhsExpr;
-  CastInfo castInfo(cur);
+  MeExprCastInfo castInfo(cur);
   do {
     castInfo.expr = cur;
     ComputeCastInfo(castInfo);
@@ -608,7 +567,7 @@ MeExpr *MeCastOpt::TransformCvtU1ToNe(IRMap &irMap, OpMeExpr *cvtExpr) {
   return irMap.CreateMeExprCompare(OP_ne, PTY_u1, fromType, *opnd, *irMap.CreateIntConstMeExpr(0, fromType));
 }
 
-BaseNode *MapleCastOpt::TransformCvtU1ToNe(MIRBuilder &mirBuilder, TypeCvtNode *cvtExpr) {
+BaseNode *MapleCastOpt::TransformCvtU1ToNe(MIRBuilder &mirBuilder, const TypeCvtNode *cvtExpr) {
   PrimType fromType = cvtExpr->FromType();
   auto *fromMIRType = GlobalTables::GetTypeTable().GetTypeFromTyIdx(TyIdx(fromType));
   // We use u8 instead of u1 because codegen can't recognize u1
@@ -637,13 +596,13 @@ BaseNode *MapleCastOpt::SimplifyCast(MIRBuilder &mirBuilder, BaseNode *expr) {
   if (!IsExplicitCastOp(opndOp) && !IsImplicitCastOp(opndOp)) {
     // only 1 cast
     // Exmaple: cvt i32 i64 (add i32)  ==>  add i32
-    CastInfo castInfo(expr);
+    BaseNodeCastInfo castInfo(expr);
     ComputeCastInfo(castInfo);
     return SimplifyCastSingle(mirBuilder, castInfo);
   }
-  CastInfo firstCastInfo(opnd);
+  BaseNodeCastInfo firstCastInfo(opnd);
   ComputeCastInfo(firstCastInfo);
-  CastInfo secondCastInfo(expr);
+  BaseNodeCastInfo secondCastInfo(expr);
   ComputeCastInfo(secondCastInfo);
   auto *simplified1 = SimplifyCastPair(mirBuilder, firstCastInfo, secondCastInfo);
   BaseNode *simplified2 = nullptr;
@@ -657,14 +616,14 @@ BaseNode *MapleCastOpt::SimplifyCast(MIRBuilder &mirBuilder, BaseNode *expr) {
     return simplified2;
   }
   if (simplified1 == nullptr) {
-    CastInfo castInfo(expr);
+    BaseNodeCastInfo castInfo(expr);
     ComputeCastInfo(castInfo);
     return SimplifyCastSingle(mirBuilder, castInfo);
   }
   return simplified1;
 }
 
-BaseNode *MapleCastOpt::SimplifyCastSingle(MIRBuilder &mirBuilder, const CastInfo &castInfo) {
+BaseNode *MapleCastOpt::SimplifyCastSingle(MIRBuilder &mirBuilder, const BaseNodeCastInfo &castInfo) {
   if (castInfo.IsInvalid()) {
     return nullptr;
   }
@@ -709,8 +668,8 @@ BaseNode *MapleCastOpt::SimplifyCastSingle(MIRBuilder &mirBuilder, const CastInf
   return nullptr;
 }
 
-BaseNode *MapleCastOpt::SimplifyCastPair(MIRBuilder &mirBuidler, const CastInfo &firstCastInfo,
-                                         const CastInfo &secondCastInfo) {
+BaseNode *MapleCastOpt::SimplifyCastPair(MIRBuilder &mirBuidler, const BaseNodeCastInfo &firstCastInfo,
+                                         const BaseNodeCastInfo &secondCastInfo) {
   if (firstCastInfo.IsInvalid()) {
     // We can NOT eliminate the first cast, try to simplify the second cast individually
     return SimplifyCastSingle(mirBuidler, secondCastInfo);

@@ -133,7 +133,7 @@ RegMeExpr *SSARename2Preg::RenameVar(const VarMeExpr *varmeexpr) {
 
 void SSARename2Preg::Rename2PregCallReturn(MapleVector<MustDefMeNode> &mustdeflist) {
   MapleVector<MustDefMeNode>::iterator it = mustdeflist.begin();
-  for (; it != mustdeflist.end(); it++) {
+  for (; it != mustdeflist.end(); ++it) {
     MustDefMeNode &mustdefmenode = *it;
     MeExpr *melhs = mustdefmenode.GetLHS();
     if (melhs->GetMeOp() != kMeOpVar) {
@@ -214,7 +214,7 @@ void SSARename2Preg::Rename2PregLeafLHS(MeStmt *mestmt, const VarMeExpr *varmeex
           newPrimType = PTY_i32;
         }
         OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(GetPrimTypeSize(varreg->GetPrimType()) * 8);
+        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(varreg->GetPrimType()) * 8));
         opmeexpr.SetOpnd(0, oldrhs);
         oldrhs = meirmap->HashMeExpr(opmeexpr);
       }
@@ -344,12 +344,12 @@ void SSARename2Preg::UpdateMirFunctionFormal() {
   }
 }
 
-void SSARename2Preg::CollectUsedOst(MeExpr *meExpr) {
+void SSARename2Preg::CollectUsedOst(const MeExpr *meExpr) {
   if (meExpr->GetMeOp() == kMeOpVar) {
-    auto ostIdx = static_cast<ScalarMeExpr*>(meExpr)->GetOstIdx();
+    auto ostIdx = static_cast<const ScalarMeExpr*>(meExpr)->GetOstIdx();
     ostUsedByDread[ostIdx] = true;
   } else if (meExpr->GetMeOp() == kMeOpAddrof) {
-    auto ostIdx = static_cast<AddrofMeExpr *>(meExpr)->GetOstIdx();
+    auto ostIdx = static_cast<const AddrofMeExpr *>(meExpr)->GetOstIdx();
     auto *ost = func->GetMeSSATab()->GetOriginalStFromID(ostIdx);
     ost->SetAddressTaken(true);
     auto *prevLevOst = ost->GetPrevLevelOst();
@@ -402,7 +402,7 @@ void SSARename2Preg::CollectDefUseInfoOfOst() {
 }
 
 void SSARename2Preg::Init() {
-  uint32 formalsize = func->GetMirFunc()->GetFormalDefVec().size();
+  size_t formalsize = func->GetMirFunc()->GetFormalDefVec().size();
   parm_used_vec.resize(formalsize);
   reg_formal_vec.resize(formalsize);
 }

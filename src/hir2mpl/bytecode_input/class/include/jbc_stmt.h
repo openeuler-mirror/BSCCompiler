@@ -179,6 +179,8 @@ class JBCStmtInstBranch : public JBCStmt {
   std::list<UniqueFEIRStmt> EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const override;
   JBCStmtPesudoLabel *GetTarget(const std::map<uint32, JBCStmtPesudoLabel*> &mapPCStmtLabel, uint32 pc) const;
   virtual std::list<UniqueFEIRStmt> EmitToFEIRForOpRetImpl(JBCFunctionContext &context, bool &success) const {
+    (void) context;
+    (void) success;
     return std::list<UniqueFEIRStmt>();
   }
 

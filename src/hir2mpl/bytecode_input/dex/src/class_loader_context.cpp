@@ -102,7 +102,9 @@ ClassLoaderInfo *ClassLoaderContext::ParseClassLoaderSpec(const std::string &spe
   std::string classpath = spec.substr(typeStrZize + 1, closingIndex - typeStrZize - 1);
   ClassLoaderInfo *info = mp.New<ClassLoaderInfo>();
   info->type = classLoaderType;
-  OpenDexFiles(classpath, info->hexElements);
+  if (!OpenDexFiles(classpath, info->hexElements)) {
+    return nullptr;
+  };
   if ((spec[spec.length() - 1] == kClassLoaderSharedLibraryClosingMark) &&
       (spec[spec.length() - 2] != kClassLoaderSharedLibraryOpeningMark)) {
     size_t startIndex = spec.find_first_of(kClassLoaderSharedLibraryOpeningMark);
@@ -223,7 +225,9 @@ ClassLoaderInfo *ClassLoaderContext::CreateClassLoader(const std::string &spec) 
   classLoader->type = kPathClassLoader;
   classLoader->parent = loaderChain;
   loaderChain = classLoader;
-  OpenDexFiles(spec, classLoader->hexElements);
+  if (!OpenDexFiles(spec, classLoader->hexElements)) {
+    CHECK_FATAL(false, "Fail to Open Dex Files!");
+  };
   return loaderChain;
 }
 

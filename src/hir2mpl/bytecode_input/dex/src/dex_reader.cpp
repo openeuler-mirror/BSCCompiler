@@ -185,6 +185,7 @@ std::unique_ptr<SrcLocalInfo> DexReader::ResovleSrcLocalInfo(const IDexMethodIte
 
 MapleMap<uint32, BCInstruction*> *DexReader::ResolveInstructions(
     MapleAllocator &allocator, const IDexMethodItem* dexMethodItem, bool mapled) const {
+  (void) mapled;
   std::map<uint32, std::unique_ptr<IDexInstruction>> pcInstMap;
   dexMethodItem->GetPCInstructionMap(GetIDexFile(), pcInstMap);
   return ConstructBCPCInstructionMap(allocator, pcInstMap);

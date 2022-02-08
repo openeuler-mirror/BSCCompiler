@@ -150,6 +150,7 @@ void DexOpMoveException::SetVAImpl(uint32 num) {
 }
 
 void DexOpMoveException::SetBCRegTypeImpl(const BCInstruction &inst) {
+  (void) inst;
   GStrIdx exceptionTypeNameIdx = *(catchedExTypeNamesIdx.begin());
   vA.regType = allocator.GetMemPool()->New<BCRegType>(allocator, vA, exceptionTypeNameIdx);
   // If exception type is primitive type, it should be <* void>
@@ -723,6 +724,7 @@ std::vector<uint32> DexOpGoto::GetTargetsImpl() const {
 }
 
 void DexOpGoto::ParseImpl(BCClassMethod &method) {
+  (void) method;
   target = offset + pc;
 }
 
@@ -870,6 +872,7 @@ std::vector<uint32> DexOpIfTest::GetTargetsImpl() const {
 }
 
 void DexOpIfTest::ParseImpl(BCClassMethod &method) {
+  (void) method;
   target = offset + pc;
 }
 
@@ -938,6 +941,7 @@ std::vector<uint32> DexOpIfTestZ::GetTargetsImpl() const {
 }
 
 void DexOpIfTestZ::ParseImpl(BCClassMethod &method) {
+  (void) method;
   target = offset + pc;
 }
 
@@ -986,6 +990,7 @@ void DexOpAget::SetVCImpl(uint32 num) {
 }
 
 void DexOpAget::ParseImpl(BCClassMethod &method) {
+  (void) method;
   GStrIdx elemTypeNameIdx;
   GStrIdx usedTypeNameIdx;
   bool isIndeterminateType = false;
@@ -1086,6 +1091,7 @@ void DexOpAput::SetVCImpl(uint32 num) {
 }
 
 void DexOpAput::ParseImpl(BCClassMethod &method) {
+  (void) method;
   GStrIdx elemTypeNameIdx;
   GStrIdx usedTypeNameIdx;
   bool isIndeterminate = false;

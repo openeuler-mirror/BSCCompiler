@@ -34,6 +34,8 @@ void DexParser::SetDexFile(std::unique_ptr<IDexFile> iDexFileIn) {
 }
 
 uint32 DexParser::CalculateCheckSumImpl(const uint8 *data, uint32 size) {
+  (void) data;
+  (void) size;
   return 0; // Not work in DexParser
 }
 
@@ -50,6 +52,7 @@ bool DexParser::RetrieveIndexTables() {
 }
 
 bool DexParser::RetrieveUserSpecifiedClasses(std::list<std::unique_ptr<BCClass>> &klasses) {
+  (void) klasses;
   return false;
 }
 

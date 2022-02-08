@@ -41,17 +41,15 @@ ScalarMeExpr* SSAEPre::ResolveAllInjuringDefs(ScalarMeExpr *regx) const {
   if (!workCand->isSRCand) {
     return regx;
   }
-  while (true) {
-    RegMeExpr *answer = ResolveOneInjuringDef(regx);
-    if (answer == regx) {
-      return answer;
-    } else {
-      regx = answer;
-    }
+  RegMeExpr *answer = ResolveOneInjuringDef(regx);
+  while (answer != regx) {
+    regx = answer;
+    answer = ResolveOneInjuringDef(regx);
   }
+  return answer;
 }
 
-bool SSAEPre::OpndInDefOcc(MeExpr *opnd, MeOccur *defocc, uint32 i) {
+bool SSAEPre::OpndInDefOcc(const MeExpr *opnd, MeOccur *defocc, uint32 i) {
   if (defocc->GetOccType() == kOccReal) {
     MeRealOcc *defrealocc = static_cast<MeRealOcc *>(defocc);
     MeExpr *defexpr = defrealocc->GetMeExpr();
@@ -89,7 +87,7 @@ void SSAEPre::SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInj
       return;
     }
   }
-  for (int32 i = 0; i < useexpr->GetNumOpnds(); i++) {
+  for (uint8 i = 0; i < useexpr->GetNumOpnds(); i++) {
     MeExpr *curopnd = useexpr->GetOpnd(i);
     if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
       continue;
@@ -113,7 +111,7 @@ static int64 GetIncreAmtAndRhsScalar(MeExpr *x, ScalarMeExpr *&rhsScalar) {
   return (opexpr->GetOp() == OP_sub) ? -amt : amt;
 }
 
-MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef) {
+MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, const MeStmt *injuringDef) {
   MeExpr *rhs = nullptr;
   if (increAmt >= 0) {
     rhs = irMap->CreateMeExprBinary(OP_add, temp->GetPrimType(), *temp,
@@ -139,11 +137,11 @@ MeExpr* SSAEPre::InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuring
   }
 }
 
-static MeExpr *FindLaterRepairedTemp(MeExpr *temp, MeStmt *injuringDef) {
+static MeExpr *FindLaterRepairedTemp(const MeExpr *temp, const MeStmt *injuringDef) {
   AssignMeStmt *ass = static_cast<AssignMeStmt *>(injuringDef->GetNext());
   while (ass != nullptr) {
     CHECK_FATAL(ass->isIncDecStmt, "FindLaterRepairedTemp: failed to find repair statement");
-    if (ass->GetLHS()->GetOst() == static_cast<ScalarMeExpr *>(temp)->GetOst()) {
+    if (ass->GetLHS()->GetOst() == static_cast<const ScalarMeExpr *>(temp)->GetOst()) {
       return ass->GetLHS();
     }
     ass = static_cast<AssignMeStmt *>(ass->GetNext());
@@ -168,7 +166,7 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
     ScalarMeExpr *rhsScalar = nullptr;
     do {
       increAmt += GetIncreAmtAndRhsScalar(ass->GetRHS(), rhsScalar);
-      if (OpndInDefOcc(rhsScalar, defocc, i)) {
+      if (OpndInDefOcc(rhsScalar, defocc, static_cast<uint32>(i))) {
         done = true;
       } else {
         scalarx = rhsScalar;
@@ -194,7 +192,7 @@ MeExpr* SSAEPre::SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
   return repairedTemp;
 }
 
-static bool IsScalarInWorkCandExpr(ScalarMeExpr *scalar, OpMeExpr *theMeExpr) {
+static bool IsScalarInWorkCandExpr(const ScalarMeExpr *scalar, const OpMeExpr *theMeExpr) {
   ScalarMeExpr *iv = dynamic_cast<ScalarMeExpr *>(theMeExpr->GetOpnd(0));
   if (iv && iv->GetOst() == scalar->GetOst()) {
     return true;
@@ -231,7 +229,7 @@ MeExpr* SSAEPre::SRRepairInjuries(MeOccur *useocc,
   if (useexpr == nullptr || repairedTemp == nullptr) {
     return repairedTemp;
   }
-  for (int32 i = 0; i < useexpr->GetNumOpnds(); i++) {
+  for (uint8 i = 0; i < useexpr->GetNumOpnds(); i++) {
     MeExpr *curopnd = useexpr->GetOpnd(i);
     if (curopnd->GetMeOp() != kMeOpVar && curopnd->GetMeOp() != kMeOpReg) {
       continue;

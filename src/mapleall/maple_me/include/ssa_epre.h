@@ -64,9 +64,9 @@ class SSAEPre : public SSAPre {
     return static_cast<MeExpr *>(ResolveAllInjuringDefs(static_cast<ScalarMeExpr *>(x)));
   }
   void SubstituteOpnd(MeExpr *x, MeExpr *oldopnd, MeExpr *newopnd) override;
-  bool OpndInDefOcc(MeExpr *opnd, MeOccur *defocc, uint32 i);
+  bool OpndInDefOcc(const MeExpr *opnd, MeOccur *defocc, uint32 i);
   void SRSetNeedRepair(MeOccur *useocc, std::set<MeStmt *> *needRepairInjuringDefs) override;
-  MeExpr *InsertRepairStmt(MeExpr *temp, int64 increAmt, MeStmt *injuringDef);
+  MeExpr *InsertRepairStmt(MeExpr *temp, int64 increAmt, const MeStmt *injuringDef);
   MeExpr *SRRepairOpndInjuries(MeExpr *curopnd, MeOccur *defocc, int32 i,
       MeExpr *tempAtDef, std::set<MeStmt *> *needRepairInjuringDefs,
       std::set<MeStmt *> *repairedInjuringDefs);

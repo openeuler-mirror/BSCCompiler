@@ -94,9 +94,9 @@ class Prop {
   bool IsVersionConsistent(const std::vector<const MeExpr*> &vstVec,
                            const MapleVector<MapleStack<MeExpr *> *> &vstLiveStack) const;
   bool IvarIsFinalField(const IvarMeExpr &ivarMeExpr) const;
-  bool CanBeReplacedByConst(MIRSymbol &symbol) const;
+  bool CanBeReplacedByConst(const MIRSymbol &symbol) const;
   int32 InvertibleOccurrences(ScalarMeExpr *scalar, MeExpr *x);
-  bool IsFunctionOfCurVersion(ScalarMeExpr *scalar, ScalarMeExpr *cur);
+  bool IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur);
   Propagatability Propagatable(MeExpr *x, BB *fromBB, bool atParm, bool checkInverse = false,
                                ScalarMeExpr *propagatingScalar = nullptr);
   MeExpr *FormInverse(ScalarMeExpr *v, MeExpr *x, MeExpr *formingExp);

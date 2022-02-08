@@ -452,6 +452,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpArrayLoad(JBCFunctionConte
   CHECK_FATAL(stackOutType != jbc::JBCPrimType::kTypeDefault, "invalid out type for ArrayLoad");
   PrimType ptyElem = JBCStack2FEHelper::JBCStackItemTypeToPrimType(stackOutType);
   UniqueFEIRVar varElem = stack2feHelper.PushItem(ptyElem);
+  success = true;
   return FEIRBuilder::CreateStmtArrayLoad(std::move(varElem), std::move(varArray), std::move(varIndex));
 }
 
@@ -467,6 +468,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpArrayStore(JBCFunctionCont
   UniqueFEIRVar varElem = stack2feHelper.PopItem(ptyElem);
   UniqueFEIRVar varIndex = stack2feHelper.PopItem(ptyIndex);
   UniqueFEIRVar varArray = stack2feHelper.PopItem(ptyArray);
+  success = true;
   return FEIRBuilder::CreateStmtArrayStore(std::move(varElem), std::move(varArray), std::move(varIndex));
 }
 
@@ -562,6 +564,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpMathInc(JBCFunctionContext
   UniqueFEIRExpr expr = FEIRBuilder::CreateExprMathBinary(OP_add, std::move(opnd0), std::move(opnd1));
   UniqueFEIRStmt stmt = FEIRBuilder::CreateStmtDAssign(std::move(varOut), std::move(expr));
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
@@ -616,7 +619,9 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpConvert(JBCFunctionContext
 }
 
 std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpCompare(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
+  success = true;
   return ans;
 }
 
@@ -667,6 +672,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpStaticFieldOpr(JBCFunction
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtFieldStore>(nullptr, std::move(var), *fieldInfo, true);
     ans.push_back(std::move(stmt));
   }
+  success = true;
   return ans;
 }
 
@@ -695,6 +701,7 @@ std::list<UniqueFEIRStmt> JBCStmtInst::EmitToFEIRForOpFieldOpr(JBCFunctionContex
     UniqueFEIRStmt stmt = std::make_unique<FEIRStmtFieldStore>(std::move(varObj), std::move(var), *fieldInfo, false);
     ans.push_back(std::move(stmt));
   }
+  success = true;
   return ans;
 }
 
@@ -1422,9 +1429,11 @@ std::string JBCStmtPesudoLabel::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoLabel::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoLabel>(labelIdx);
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
@@ -1446,6 +1455,7 @@ std::string JBCStmtPesudoCatch::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoCatch::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoCatch>(labelIdx);
   FEIRStmtPesudoCatch *feirStmt = static_cast<FEIRStmtPesudoCatch*>(stmt.get());
@@ -1453,6 +1463,7 @@ std::list<UniqueFEIRStmt> JBCStmtPesudoCatch::EmitToFEIRImpl(JBCFunctionContext 
     feirStmt->AddCatchTypeNameIdx(typeNameIdx);
   }
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
@@ -1474,6 +1485,7 @@ std::string JBCStmtPesudoTry::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoTry::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoJavaTry>();
   FEIRStmtPesudoJavaTry *feirStmt = static_cast<FEIRStmtPesudoJavaTry*>(stmt.get());
@@ -1481,6 +1493,7 @@ std::list<UniqueFEIRStmt> JBCStmtPesudoTry::EmitToFEIRImpl(JBCFunctionContext &c
     feirStmt->AddCatchLabelIdx(stmtCatch->GetLabelIdx());
   }
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
@@ -1498,14 +1511,17 @@ std::string JBCStmtPesudoEndTry::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoEndTry::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoEndTry>();
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
 // ---------- JBCStmtPesudoComment ----------
 void JBCStmtPesudoComment::DumpImpl(const std::string &prefix) const {
+  (void) prefix;
 }
 
 std::string JBCStmtPesudoComment::DumpDotStringImpl() const {
@@ -1513,9 +1529,11 @@ std::string JBCStmtPesudoComment::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoComment::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoComment>(content);
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 
@@ -1531,9 +1549,11 @@ std::string JBCStmtPesudoLOC::DumpDotStringImpl() const {
 }
 
 std::list<UniqueFEIRStmt> JBCStmtPesudoLOC::EmitToFEIRImpl(JBCFunctionContext &context, bool &success) const {
+  (void) context;
   std::list<UniqueFEIRStmt> ans;
   UniqueFEIRStmt stmt = std::make_unique<FEIRStmtPesudoLOC>(srcFileIdx, lineNumber);
   ans.push_back(std::move(stmt));
+  success = true;
   return ans;
 }
 }  // namespace maple

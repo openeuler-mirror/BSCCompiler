@@ -201,7 +201,7 @@ int32 Prop::InvertibleOccurrences(ScalarMeExpr *scalar, MeExpr *x) {
 }
 
 // return true if scalar can be expressed as a function of current version cur
-bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, ScalarMeExpr *cur) {
+bool Prop::IsFunctionOfCurVersion(ScalarMeExpr *scalar, const ScalarMeExpr *cur) {
   if (!config.propagateWithInverse) {
     return false;
   }
@@ -589,7 +589,7 @@ MeExpr *Prop::CheckTruncation(MeExpr *lhs, MeExpr *rhs) const {
           newPrimType = PTY_i32;
         }
         OpMeExpr opmeexpr(-1, extOp, newPrimType, 1);
-        opmeexpr.SetBitsSize(GetPrimTypeSize(lhsTy->GetPrimType()) * 8);
+        opmeexpr.SetBitsSize(static_cast<uint8>(GetPrimTypeSize(lhsTy->GetPrimType()) * 8));
         opmeexpr.SetOpnd(0, rhs);
         auto *simplifiedExpr = irMap.SimplifyOpMeExpr(&opmeexpr);
         return simplifiedExpr != nullptr ? simplifiedExpr : irMap.HashMeExpr(opmeexpr);
@@ -762,7 +762,7 @@ MeExpr &Prop::PropIvar(IvarMeExpr &ivarMeExpr) {
   return ivarMeExpr;
 }
 
-bool Prop::CanBeReplacedByConst(MIRSymbol &symbol) const {
+bool Prop::CanBeReplacedByConst(const MIRSymbol &symbol) const {
   PrimType primType = symbol.GetType()->GetPrimType();
   return (symbol.GetStorageClass() == kScFstatic) && (!symbol.HasPotentialAssignment()) &&
          !IsPrimitivePoint(primType) && (IsPrimitiveInteger(primType) || IsPrimitiveFloat(primType));
@@ -992,10 +992,10 @@ void Prop::PropEqualExpr(const MeExpr *replacedExpr, ConstMeExpr *constExpr, BB 
   }
 }
 
-static bool CheckFloatZero(MeExpr *expr) {
+static bool CheckFloatZero(const MeExpr *expr) {
   if (IsPrimitiveFloat(expr->GetPrimType()) &&
       expr->GetMeOp() == kMeOpConst &&
-      static_cast<ConstMeExpr*>(expr)->IsZero()) {
+      static_cast<const ConstMeExpr*>(expr)->IsZero()) {
     return true;
   }
   return false;

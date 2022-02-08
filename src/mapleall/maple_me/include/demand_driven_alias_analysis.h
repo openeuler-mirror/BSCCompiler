@@ -98,7 +98,7 @@ class PEGNode {
   void Dump();
 
   OriginalSt *ost = nullptr;
-  AliasAttr attr = {false};
+  AliasAttr attr = {0};
   std::vector<PtrValueNode> assignFrom;
   std::vector<PtrValueNode> assignTo;
   PEGNode *prevLevNode = nullptr;
@@ -126,7 +126,7 @@ class ProgramExprGraph {
   }
 
   PEGNode *GetOrCreateNodeOf(OriginalSt *ost);
-  PEGNode *GetNodeOf(OriginalSt *ost) const;
+  PEGNode *GetNodeOf(const OriginalSt *ost) const;
   void Dump() const;
 
  private:

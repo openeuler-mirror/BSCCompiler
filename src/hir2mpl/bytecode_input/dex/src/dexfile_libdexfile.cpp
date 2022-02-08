@@ -517,6 +517,7 @@ IDexMethodItem::IDexMethodItem(uint32_t methodIdx, uint32_t accessFlags, uint32_
     : methodIdx(methodIdx), accessFlags(accessFlags), codeOff(codeOff) {}
 
 uint32_t IDexMethodItem::GetMethodCodeOff(const IDexMethodItem *item) const {
+  (void) item;
   return codeOff;
 }
 
@@ -642,10 +643,14 @@ void IDexMethodItem::GetSrcPositionInfo(const IDexFile &dexFile, std::map<uint32
     return;
   }
   art::CodeItemDebugInfoAccessor accessor(*GetDexFile(dexFile), artCodeItem, GetMethodIdx());
-  accessor.DecodeDebugPositionInfo([&](const art::DexFile::PositionInfo& entry) {
+  bool succ = accessor.DecodeDebugPositionInfo([&](const art::DexFile::PositionInfo& entry) {
     srcPosInfo.emplace(entry.address_, entry.line_);
     return false;
   });
+  if (!succ) {
+    LOG(ERROR) << "ReadFileToString failed";
+    return;
+  }
 }
 
 void IDexMethodItem::GetSrcLocalInfo(const IDexFile &dexFile,

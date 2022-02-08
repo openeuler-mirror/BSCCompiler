@@ -147,6 +147,7 @@ std::string JBCClass2FEHelper::GetSrcFileNameImpl() const {
 
 // ---------- JBCClassField2FEHelper ----------
 bool JBCClassField2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  (void) allocator;
   CHECK_FATAL(false, "should not run here");
   return false;
 }

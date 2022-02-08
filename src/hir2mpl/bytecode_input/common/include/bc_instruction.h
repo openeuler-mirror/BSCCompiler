@@ -85,7 +85,9 @@ class BCInstruction {
   UniqueFEIRStmt GenTryLabelStmt() const;
   UniqueFEIRStmt GenTryEndLabelStmt() const;
   virtual void SetRegTypeInTypeInferImpl() {}
-  virtual void SetBCRegTypeImpl(const BCInstruction &inst) {}  // for move-result and move-exception
+  virtual void SetBCRegTypeImpl(const BCInstruction &inst) {
+    (void) inst;
+  }  // for move-result and move-exception
   std::list<UniqueFEIRStmt> GenRetypeStmtsAfterDef() const;
   std::list<UniqueFEIRStmt> GenRetypeStmtsBeforeUse() const;
   void SetSrcFileInfo(std::list<UniqueFEIRStmt> &stmts) const;

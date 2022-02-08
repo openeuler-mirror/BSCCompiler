@@ -121,11 +121,13 @@ FieldAttrs BCClassField2FEHelper::AccessFlag2Attribute(uint32 accessFlag) const 
 }
 
 bool BCClassField2FEHelper::ProcessDeclImpl(MapleAllocator &allocator) {
+  (void) allocator;
   CHECK_FATAL(false, "should not run here");
   return false;
 }
 
 bool BCClassField2FEHelper::ProcessDeclWithContainerImpl(MapleAllocator &allocator) {
+  (void) allocator;
   std::string klassNameMpl;
   std::string fieldNameMpl;
   std::string typeNameMpl;

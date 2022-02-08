@@ -257,7 +257,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
     if (lhs->GetPrimType() == PTY_agg) {
       return;
     }
-    (void)CreateRealOcc(meStmt, seqStmt, *lhs, false, true);
+    CreateRealOcc(meStmt, seqStmt, *lhs, false, true);
   } else if (kOpcodeInfo.IsCallAssigned(meStmt.GetOp())) {
     MapleVector<MustDefMeNode> *mustDefList = meStmt.GetMustDefList();
     MapleVector<MustDefMeNode>::iterator it = mustDefList->begin();
@@ -289,7 +289,7 @@ void MeSSALPre::BuildWorkListLHSOcc(MeStmt &meStmt, int32 seqStmt) {
       if (theLHS->GetPrimType() == PTY_agg) {
         continue;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
+      CreateRealOcc(meStmt, seqStmt, *theLHS, false, true);
     }
     return;
   }
@@ -348,7 +348,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (meExpr.GetPrimType() == PTY_agg) {
         break;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
+      CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
     }
     case kMeOpAddrof: {
@@ -365,7 +365,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
           break;
         }
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
+      CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
     }
     case kMeOpAddroffunc: {
@@ -375,7 +375,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (!MeOption::lpre4Address) {
         break;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
+      CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
     }
     case kMeOpConst: {
@@ -411,7 +411,7 @@ void MeSSALPre::BuildWorkListExpr(MeStmt &meStmt, int32 seqStmt, MeExpr &meExpr,
       if (compareX->GetOpnd(1) != &meExpr) {
         break;
       }
-      (void)CreateRealOcc(meStmt, seqStmt, meExpr, false);
+      CreateRealOcc(meStmt, seqStmt, meExpr, false);
       break;
     }
     case kMeOpOp: {

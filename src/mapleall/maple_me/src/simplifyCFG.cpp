@@ -97,7 +97,7 @@ void CollectUnsafeExpr(MeExpr *expr, std::set<MeExpr*> &exprSet) {
 }
 
 // expr not throw exception
-bool IsSafeExpr(MeExpr *expr) {
+bool IsSafeExpr(const MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpIvar) { // do not use HasIvar here for efficiency reasons
     return false;
   }
@@ -134,7 +134,7 @@ bool IsSimpleImm(uint64 imm) {
 int64 GetNonSimpleImm(MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpConst && IsPrimitiveInteger(expr->GetPrimType())) {
     int64 imm = static_cast<MIRIntConst *>(static_cast<ConstMeExpr *>(expr)->GetConstVal())->GetValue();
-    if (!IsSimpleImm(imm)) {
+    if (!IsSimpleImm(static_cast<uint64>(imm))) {
       return imm;
     }
   }
@@ -387,7 +387,7 @@ BB *GetCommonDest(BB *predBB, BB *succBB) {
 };
 
 // Collect all var expr to varSet iteratively
-bool DoesExprContainSubExpr(MeExpr *expr, MeExpr *subExpr) {
+bool DoesExprContainSubExpr(const MeExpr *expr, MeExpr *subExpr) {
   if (expr == subExpr) {
     return true;
   }
@@ -410,7 +410,7 @@ bool DoesExprContainSubExpr(MeExpr *expr, MeExpr *subExpr) {
 // we turn it to
 // a <- cond ? mx1 : mx2
 // so we should find oldVersion(mx1) from phi in jointBB
-MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, BB *ftOrGtBB, BB *jointBB, OStIdx ostIdx) {
+MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, const BB *ftOrGtBB, BB *jointBB, OStIdx ostIdx) {
   if (ftOrGtBB != jointBB) {
     return nullptr;
   }
@@ -422,7 +422,7 @@ MeExpr *FindCond2SelRHSFromPhiNode(BB *condBB, BB *ftOrGtBB, BB *jointBB, OStIdx
     return nullptr;
   }
   MePhiNode *phi = it->second;
-  ScalarMeExpr *ftOrGtRHS = phi->GetOpnd(predIdx);
+  ScalarMeExpr *ftOrGtRHS = phi->GetOpnd(static_cast<size_t>(predIdx));
   while (ftOrGtRHS->IsDefByPhi()) {
     MePhiNode &phiNode = ftOrGtRHS->GetDefPhi();
     BB *bb = phiNode.GetDefBB();
@@ -607,7 +607,7 @@ bool IsConnectingBB(BB &bb) {
 // If we want to find the non-empty succ of currBB, we start from the succ (i.e. the argument)
 // skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
 // func will stop at first non-connecting BB or stopBB
-BB *FindFirstRealSucc(BB *succ, BB *stopBB) {
+BB *FindFirstRealSucc(BB *succ, const BB *stopBB) {
   while (succ != stopBB && IsConnectingBB(*succ)) {
     succ = succ->GetSucc(0);
   }
@@ -618,7 +618,7 @@ BB *FindFirstRealSucc(BB *succ, BB *stopBB) {
 // If we want to find the non-empty pred of currBB, we start from the pred (i.e. the argument)
 // skip those connecting bb used to connect its pred and succ, like: pred -- connecting -- succ
 // func will stop at first non-connecting BB or stopBB
-BB *FindFirstRealPred(BB *pred, BB *stopBB) {
+BB *FindFirstRealPred(BB *pred, const BB *stopBB) {
   while (pred != stopBB && IsConnectingBB(*pred)) {
     pred = pred->GetPred(0);
   }
@@ -655,7 +655,7 @@ int GetRealSuccIdx(BB &pred, BB &realSucc) {
 // the result after this will be : pred -- succ
 // if no empty exist, return;
 // we will stop at stopBB(stopBB will not be deleted), if stopBB is nullptr, means no constraint
-void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg) {
+void EliminateEmptyConnectingBB(const BB *predBB, BB *emptyBB, const BB *stopBB, MeCFG &cfg) {
   if (emptyBB == stopBB && emptyBB != nullptr && predBB->IsPredBB(*stopBB)) {
     return;
   }
@@ -670,7 +670,7 @@ void EliminateEmptyConnectingBB(BB *predBB, BB *emptyBB, BB *stopBB, MeCFG &cfg)
       emptyBB->RemoveSucc(*succ, true);
     } else {
       int predIdx = succ->GetPredIndex(*emptyBB);
-      succ->SetPred(predIdx, pred);
+      succ->SetPred(static_cast<size_t>(predIdx), pred);
       int succIdx = pred->GetSuccIndex(*emptyBB);
       pred->SetSucc(succIdx, succ);
     }
@@ -763,7 +763,7 @@ class SimplifyCFG {
   // a phiOpnd will be removed from curr's philist, and a phiOpnd will be inserted to succ's philist
   // note: when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
   // otherwise we cannot get phiOpnd in this step
-  void UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr, BB *succ);
+  void UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *curr, BB *succ);
   // for ChangeCondBr2UnCond
   bool SimplifyBranchBBToUncondBB(BB &bb);
   // Get first return BB
@@ -775,7 +775,7 @@ class SimplifyCFG {
   bool CheckCurrBB();
   // Insert ost of philist in bb to cand, and set ost start from newBB(newBB will be bb itself if not specified)
   void UpdateSSACandForBBPhiList(BB *bb, BB *newBB = nullptr);
-  void UpdateSSACandForOst(OStIdx ostIdx, BB *bb);
+  void UpdateSSACandForOst(OStIdx ostIdx, const BB *bb);
   // replace oldBBID in cands with newBBID
   void UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID);
 
@@ -844,7 +844,7 @@ void SimplifyCFG::UpdateBBIdInSSACand(const BBId &oldBBID, const BBId &newBBID) 
   }
 }
 
-void SimplifyCFG::UpdateSSACandForOst(OStIdx ostIdx, BB *bb) {
+void SimplifyCFG::UpdateSSACandForOst(OStIdx ostIdx, const BB *bb) {
   MeSSAUpdate::InsertOstToSSACands(ostIdx, *bb, cands);
 }
 
@@ -1420,7 +1420,7 @@ bool SimplifyCFG::CondBranchToSelect() {
     MePhiNode *phiNode = jointBB->GetMePhiList()[resLHS->GetOstIdx()];
     int predIdx = GetRealPredIdx(*jointBB, *currBB);
     ASSERT(predIdx != -1, "[FUNC: %s]currBB is not a pred of jointBB", funcName);
-    phiNode->SetOpnd(predIdx, resLHS);
+    phiNode->SetOpnd(static_cast<size_t>(predIdx), resLHS);
   }
   // if newAssStmt is an dassign, copy old chilist to it
   if (!chiListCands.empty() && newAssStmt->GetOp() == OP_dassign) {
@@ -1527,7 +1527,7 @@ void SwapCmpOpnds(Opcode &op, MeExpr *&opnd0, MeExpr *&opnd1) {
 
 // Precondition : predCond branches to succCond
 // isPredTrueBrSucc : predCond->succCond is true branch or false branch
-BranchResult InferSuccCondBrFromPredCond(MeExpr *predCond, MeExpr *succCond, bool isPredTrueBrSucc) {
+BranchResult InferSuccCondBrFromPredCond(const MeExpr *predCond, const MeExpr *succCond, bool isPredTrueBrSucc) {
   if (!kOpcodeInfo.IsCompare(predCond->GetOp()) || !kOpcodeInfo.IsCompare(succCond->GetOp())) {
     return kBrUnknown;
   }
@@ -1790,7 +1790,7 @@ bool SimplifyCFG::SimplifyCondBB() {
 // 1.when replace pred's succ (i.e. curr) with succ, please DO NOT remove phiOpnd immediately,
 // otherwise we cannot get phiOpnd in this step
 // 2.predIdxForCurr should be get before disconnecting pred and curr
-void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr, BB *succ) {
+void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, const BB *pred, BB *curr, BB *succ) {
   auto &succPhiList = succ->GetMePhiList();
   auto &currPhilist = curr->GetMePhiList();
   int predPredIdx = succ->GetPredIndex(*pred);
@@ -1805,7 +1805,8 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
       // curr is already pred of succ, so all phiOpnds (except for pred) are phiNode lhs in curr
       phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phiNode.second->GetLHS());
       // pred is a new pred for succ, we copy its corresponding phiopnd in curr to succ
-      phiMeNode->SetOpnd(predPredIdx, phiNode.second->GetOpnd(predIdxForCurr));
+      phiMeNode->SetOpnd(static_cast<size_t>(predPredIdx),
+                         phiNode.second->GetOpnd(static_cast<size_t>(predIdxForCurr)));
       OStIdx ostIdx = phiNode.first;
       // create a new version for new phi
       phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
@@ -1821,13 +1822,13 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
       auto &phiOpnds = phi.second->GetOpnds();
       if (it != currPhilist.end()) {
         // curr has phiNode for this ost, we copy pred's corresponding phiOpnd in curr to succ
-        phiOpnds.insert(phiOpnds.begin() + predPredIdx, it->second->GetOpnd(predIdxForCurr));
+        phiOpnds.insert(phiOpnds.begin() + predPredIdx, it->second->GetOpnd(static_cast<size_t>(predIdxForCurr)));
       } else {
         // curr has no phiNode for this ost, pred's phiOpnd in succ will be the same as curr's phiOpnd in succ
         int index = GetRealPredIdx(*succ, *curr);
         ASSERT(index != -1, "[FUNC: %s]succ is not newTarget's real pred", f.GetName().c_str());
         // pred's phi opnd is the same as curr.
-        phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(index));
+        phiOpnds.insert(phiOpnds.begin() + predPredIdx, phi.second->GetOpnd(static_cast<size_t>(index)));
       }
     }
     // search philist in curr for phinode that is not in succ yet
@@ -1845,7 +1846,7 @@ void SimplifyCFG::UpdatePhiForMovingPred(int predIdxForCurr, BB *pred, BB *curr,
         // insert opnd into New phiNode : all phiOpnds (except for pred) are phiNode lhs in curr
         phiOpnds.insert(phiOpnds.end(), succ->GetPred().size(), phi.second->GetLHS());
         // pred is new pred for succ, we copy its corresponding phiopnd in curr to succ
-        phiMeNode->SetOpnd(predPredIdx, phi.second->GetOpnd(predIdxForCurr));
+        phiMeNode->SetOpnd(static_cast<size_t>(predPredIdx), phi.second->GetOpnd(static_cast<size_t>(predIdxForCurr)));
         // create a new version for new phinode
         phiMeNode->SetLHS(irmap->CreateRegOrVarMeExprVersion(ostIdx));
         UpdateSSACandForOst(ostIdx, succ);

@@ -20,12 +20,11 @@
 #include "union_find.h"
 
 namespace maple {
-namespace {
 constexpr int64 bitsPerByte = 8;
 
-inline int64 GetTypeBitSize(MIRType *type) {
+inline int64 GetTypeBitSize(const MIRType *type) {
   if (type->GetKind() == kTypeBitField) {
-    return static_cast<MIRBitFieldType*>(type)->GetFieldSize();
+    return static_cast<const MIRBitFieldType*>(type)->GetFieldSize();
   } else {
     return static_cast<int64>(type->GetSize()) * bitsPerByte;
   }
@@ -37,7 +36,6 @@ inline bool IsMemoryOverlap(OffsetType startA, int64 sizeA, OffsetType startB, i
   return startA < (startB + sizeB) &&
          startB < (startA + sizeA);
 }
-} // anonymous namespace
 
 class AliasElem {
   friend class AliasClass;
@@ -204,7 +202,7 @@ class AliasClass : public AnalysisResult {
   static OffsetType OffsetInBitOfArrayElement(const ArrayNode *arrayNode);
   static OriginalSt *FindOrCreateExtraLevOst(SSATab *ssaTab, OriginalSt *prevLevOst, const TyIdx &tyIdx,
                                              FieldID fld, OffsetType offset);
-  const MapleVector<AliasElem*> &Id2AliasElem() {
+  const MapleVector<AliasElem*> &Id2AliasElem() const {
     return id2Elem;
   }
 

@@ -106,6 +106,8 @@ void BCInstruction::SetSrcFileInfo(std::list<UniqueFEIRStmt> &stmts) const {
   if (FEOptions::GetInstance().IsDumpLOC() && !stmts.empty()) {
     (*stmts.begin())->SetSrcFileInfo(srcFileIdx, srcFileLineNum);
   }
+#else
+  (void) stmts;
 #endif
 }
 
@@ -215,6 +217,8 @@ void BCInstruction::GenCommentStmt(std::list<UniqueFEIRStmt> &stmts) const {
         (opName == nullptr ? "invalid op" : opName);
     stmts.emplace_back(FEIRBuilder::CreateStmtComment(oss.str()));
   }
+#else
+  (void) stmts;
 #endif
 }
 
@@ -277,6 +281,8 @@ void BCInstruction::SetSrcPositionInfo(uint32 fileIdxIn, uint32 lineNumIn) {
 void BCInstruction::SetOpName(const char *name) {
 #ifdef DEBUG
   opName = name;
+#else
+  (void) name;
 #endif
 }
 

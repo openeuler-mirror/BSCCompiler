@@ -68,6 +68,9 @@ JBCClassField::JBCClassField(MapleAllocator &allocator, const JBCClass &argKlass
     : JBCClassElem(allocator, argKlass) {}
 
 SimpleXMLElem *JBCClassField::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 
@@ -76,6 +79,9 @@ JBCClassMethod::JBCClassMethod(MapleAllocator &allocator, const JBCClass &argKla
     : JBCClassElem(allocator, argKlass) {}
 
 SimpleXMLElem *JBCClassMethod::GenXmlElemImpl(MapleAllocator &allocator, const JBCConstPool &constPool, uint32 idx) {
+  (void) allocator;
+  (void) constPool;
+  (void) idx;
   return nullptr;
 }
 

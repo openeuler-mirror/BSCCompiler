@@ -50,7 +50,7 @@ ArrayNode *PreMeEmitter::ConvertToArray(BaseNode *x, TyIdx ptrTyIdx) {
     if (constVal->GetKind() != kConstInt) {
       return nullptr;
     }
-    if (static_cast<MIRIntConst *>(constVal)->GetValue() != elemSize) {
+    if (static_cast<MIRIntConst *>(constVal)->GetValue() != static_cast<int64>(elemSize)) {
       return nullptr;
     }
     indexOpnd = opnd1->Opnd(0);
@@ -409,7 +409,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       for (uint32 i = 0; i < retMestmt->GetOpnds().size(); i++) {
         retNode->GetNopnd().push_back(EmitPreMeExpr(retMestmt->GetOpnd(i), retNode));
       }
-      retNode->SetNumOpnds(retMestmt->GetOpnds().size());
+      retNode->SetNumOpnds(static_cast<uint8>(retMestmt->GetOpnds().size()));
       retNode->SetSrcPos(retMestmt->GetSrcPosition());
       retNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       retNode->SetOriginalID(mestmt->GetOriginalId());
@@ -472,7 +472,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       CallNode *callnode = codeMP->New<CallNode>(*codeMPAlloc, mestmt->GetOp());
       callnode->SetPUIdx(callMeStmt->GetPUIdx());
       callnode->SetTyIdx(callMeStmt->GetTyIdx());
-      callnode->SetNumOpnds(callMeStmt->GetOpnds().size());
+      callnode->SetNumOpnds(static_cast<uint8>(callMeStmt->GetOpnds().size()));
       callnode->SetSrcPos(callMeStmt->GetSrcPosition());
       mestmt->EmitCallReturnVector(callnode->GetReturnVec());
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
@@ -491,7 +491,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       for (uint32 i = 0; i < icallMeStmt->GetOpnds().size(); i++) {
         icallnode->GetNopnd().push_back(EmitPreMeExpr(icallMeStmt->GetOpnd(i), icallnode));
       }
-      icallnode->SetNumOpnds(icallMeStmt->GetOpnds().size());
+      icallnode->SetNumOpnds(static_cast<uint8>(icallMeStmt->GetOpnds().size()));
       icallnode->SetSrcPos(mestmt->GetSrcPosition());
       mestmt->EmitCallReturnVector(icallnode->GetReturnVec());
       icallnode->SetRetTyIdx(TyIdx(PTY_void));
@@ -527,7 +527,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       for (uint32 i = 0; i < callMeStmt->GetOpnds().size(); i++) {
         callnode->GetNopnd().push_back(EmitPreMeExpr(callMeStmt->GetOpnd(i), callnode));
       }
-      callnode->SetNumOpnds(callnode->GetNopndSize());
+      callnode->SetNumOpnds(static_cast<uint8>(callnode->GetNopndSize()));
       callnode->SetSrcPos(mestmt->GetSrcPosition());
       if (kOpcodeInfo.IsCallAssigned(mestmt->GetOp())) {
         mestmt->EmitCallReturnVector(callnode->GetReturnVec());
@@ -543,7 +543,7 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       for (size_t i = 0; i < asmMeStmt->NumMeStmtOpnds(); ++i) {
         asmNode->GetNopnd().push_back(EmitPreMeExpr(asmMeStmt->GetOpnd(i), asmNode));
       }
-      asmNode->SetNumOpnds(asmNode->GetNopndSize());
+      asmNode->SetNumOpnds(static_cast<uint8>(asmNode->GetNopndSize()));
       asmNode->SetSrcPos(mestmt->GetSrcPosition());
       mestmt->EmitCallReturnVector(*asmNode->GetCallReturnVector());
       asmNode->asmString = asmMeStmt->asmString;
@@ -594,9 +594,9 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_try: {
       TryNode *jvTryNode = codeMP->New<TryNode>(*codeMPAlloc);
       TryMeStmt *tryMeStmt = static_cast<TryMeStmt *> (mestmt);
-      uint32 offsetsSize = tryMeStmt->GetOffsets().size();
+      size_t offsetsSize = tryMeStmt->GetOffsets().size();
       jvTryNode->ResizeOffsets(offsetsSize);
-      for (uint32 i = 0; i < offsetsSize; i++) {
+      for (size_t i = 0; i < offsetsSize; i++) {
         jvTryNode->SetOffset(tryMeStmt->GetOffsets()[i], i);
       }
       jvTryNode->SetSrcPos(tryMeStmt->GetSrcPosition());
@@ -637,8 +637,8 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     }
     case OP_callassertnonnull: {
       CallAssertNonnullMeStmt *assertNullStmt = static_cast<CallAssertNonnullMeStmt *>(mestmt);
-      CallAssertNonnullStmtNode *assertNullNode = codeMP->New<CallAssertNonnullStmtNode>(
-          mestmt->GetOp(), assertNullStmt->GetFuncNameIdx(), assertNullStmt->GetParamIndex());
+      CallAssertNonnullStmtNode *assertNullNode = codeMP->New<CallAssertNonnullStmtNode>(mestmt->GetOp(),
+          assertNullStmt->GetFuncNameIdx(), assertNullStmt->GetParamIndex(), assertNullStmt->GetStmtFuncNameIdx());
       assertNullNode->SetSrcPos(mestmt->GetSrcPosition());
       assertNullNode->SetOpnd(EmitPreMeExpr(assertNullStmt->GetOpnd(), assertNullNode), 0);
       assertNullNode->SetNumOpnds(1);
@@ -650,34 +650,18 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
     case OP_callassertle: {
       CallAssertBoundaryMeStmt *assertBoundaryStmt = static_cast<CallAssertBoundaryMeStmt *>(mestmt);
       CallAssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<CallAssertBoundaryStmtNode>(
-          *codeMPAlloc, mestmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx(), assertBoundaryStmt->GetParamIndex());
+          *codeMPAlloc, mestmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx(), assertBoundaryStmt->GetParamIndex(),
+          assertBoundaryStmt->GetStmtFuncNameIdx());
       assertBoundaryNode->SetSrcPos(mestmt->GetSrcPosition());
       for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
         assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
       }
-      assertBoundaryNode->SetNumOpnds(assertBoundaryNode->GetNopndSize());
+      assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
       assertBoundaryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       assertBoundaryNode->SetOriginalID(mestmt->GetOriginalId());
       PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
       return assertBoundaryNode;
     }
-    case OP_assertge:
-    case OP_assertlt:
-    case OP_assignassertle: {
-      NaryMeStmt *assertBoundaryStmt = static_cast<NaryMeStmt *>(mestmt);
-      NaryStmtNode *assertBoundaryNode = codeMP->New<NaryStmtNode>(*codeMPAlloc, mestmt->GetOp());
-      assertBoundaryNode->SetSrcPos(mestmt->GetSrcPosition());
-      for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
-        assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
-      }
-      assertBoundaryNode->SetNumOpnds(assertBoundaryNode->GetNopndSize());
-      assertBoundaryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
-      assertBoundaryNode->SetOriginalID(mestmt->GetOriginalId());
-      PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
-      return assertBoundaryNode;
-    }
-    case OP_assertnonnull:
-    case OP_assignassertnonnull:
     case OP_eval:
     case OP_free: {
       UnaryStmtNode *unaryStmtNode = codeMP->New<UnaryStmtNode>(mestmt->GetOp());
@@ -701,10 +685,12 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       PreMeStmtExtensionMap[switchNode->GetStmtID()] = pmeExt;
       return switchNode;
     }
+    case OP_assertnonnull:
+    case OP_assignassertnonnull:
     case OP_returnassertnonnull: {
-      ReturnAssertNonnullMeStmt *assertNullStmt = static_cast<ReturnAssertNonnullMeStmt *>(mestmt);
-      ReturnAssertNonnullStmtNode *assertNullNode = codeMP->New<ReturnAssertNonnullStmtNode>(
-          mestmt->GetOp(), assertNullStmt->GetFuncNameIdx());
+      AssertNonnullMeStmt *assertNullStmt = static_cast<AssertNonnullMeStmt *>(mestmt);
+      AssertNonnullStmtNode *assertNullNode = codeMP->New<AssertNonnullStmtNode>(
+      mestmt->GetOp(), assertNullStmt->GetFuncNameIdx());
       assertNullNode->SetSrcPos(mestmt->GetSrcPosition());
       assertNullNode->SetOpnd(EmitPreMeExpr(assertNullStmt->GetOpnd(), assertNullNode), 0);
       assertNullNode->SetNumOpnds(1);
@@ -713,15 +699,20 @@ StmtNode* PreMeEmitter::EmitPreMeStmt(MeStmt *mestmt, BaseNode *parent) {
       PreMeStmtExtensionMap[assertNullNode->GetStmtID()] = pmeExt;
       return assertNullNode;
     }
+    case OP_calcassertge:
+    case OP_calcassertlt:
+    case OP_assertge:
+    case OP_assertlt:
+    case OP_assignassertle:
     case OP_returnassertle: {
-      ReturnAssertBoundaryMeStmt *assertBoundaryStmt = static_cast<ReturnAssertBoundaryMeStmt *>(mestmt);
-      ReturnAssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<ReturnAssertBoundaryStmtNode>(
+      AssertBoundaryMeStmt *assertBoundaryStmt = static_cast<AssertBoundaryMeStmt *>(mestmt);
+      AssertBoundaryStmtNode *assertBoundaryNode = codeMP->New<AssertBoundaryStmtNode>(
           *codeMPAlloc, mestmt->GetOp(), assertBoundaryStmt->GetFuncNameIdx());
       assertBoundaryNode->SetSrcPos(mestmt->GetSrcPosition());
       for (uint32 i = 0; i < assertBoundaryStmt->GetOpnds().size(); i++) {
         assertBoundaryNode->GetNopnd().push_back(EmitPreMeExpr(assertBoundaryStmt->GetOpnd(i), assertBoundaryNode));
       }
-      assertBoundaryNode->SetNumOpnds(assertBoundaryNode->GetNopndSize());
+      assertBoundaryNode->SetNumOpnds(static_cast<uint8>(assertBoundaryNode->GetNopndSize()));
       assertBoundaryNode->CopySafeRegionAttr(mestmt->GetStmtAttr());
       assertBoundaryNode->SetOriginalID(mestmt->GetOriginalId());
       PreMeStmtExtensionMap[assertBoundaryNode->GetStmtID()] = pmeExt;
@@ -975,7 +966,7 @@ bool MEPreMeEmission::PhaseRun(MeFunction &f) {
   f.SetLfo(false);
 
   ConstantFold cf(f.GetMIRModule());
-  cf.Simplify(mirfunction->GetBody());
+  (void)cf.Simplify(mirfunction->GetBody());
 
   if (DEBUGFUNC_NEWPM(f)) {
     LogInfo::MapleLogger() << "\n**** After premeemit phase ****\n";

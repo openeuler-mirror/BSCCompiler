@@ -181,7 +181,7 @@ class BBLayout {
     return nullptr;
   }
 
-  bool BBIsEmpty(BB *bb);
+  bool BBIsEmpty(const BB *bb);
   void OptimizeCaseTargets(BB *switchBB, CaseVector *swTable);
   void OptimizeBranchTarget(BB &bb);
   bool BBEmptyAndFallthru(const BB &bb);
@@ -250,7 +250,7 @@ class BBLayout {
   void BuildChainForFunc();
   void BuildChainForLoops();
   void BuildChainForLoop(LoopDesc *loop, MapleVector<bool> *context);
-  BB *FindBestStartBBForLoop(LoopDesc *loop, MapleVector<bool> *context);
+  BB *FindBestStartBBForLoop(LoopDesc *loop, const MapleVector<bool> *context);
   void DoBuildChain(const BB &header, BBChain &chain, const MapleVector<bool> *context);
   BB *GetBestSucc(BB &bb, const BBChain &chain, const MapleVector<bool> *context, bool considerBetterPredForSucc);
   bool IsCandidateSucc(const BB &bb, const BB &succ, const MapleVector<bool> *context);
