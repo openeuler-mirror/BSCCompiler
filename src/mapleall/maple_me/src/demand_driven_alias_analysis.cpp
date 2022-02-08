@@ -419,15 +419,15 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         if (!IsAddress(fieldType->GetPrimType())) {
           continue;
         }
-        OffsetType offset(structType->GetBitOffsetFromBaseAddr(fieldId));
+        OffsetType bitOffset(structType->GetBitOffsetFromBaseAddr(fieldId));
 
         const auto &nextLevOstsOfLHS = preLevOfLHSOst->GetNextLevelOsts();
         auto fieldOstLHS =
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfLHS, fieldType, fieldId, offset);
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfLHS, fieldType, fieldId, bitOffset);
 
         const auto &nextLevOstsOfRHS = preLevOfRHSOst->GetNextLevelOsts();
         auto fieldOstRHS =
-            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfRHS, fieldType, fieldId, offset);
+            ssaTab->GetOriginalStTable().FindExtraLevOriginalSt(nextLevOstsOfRHS, fieldType, fieldId, bitOffset);
 
         if (fieldOstLHS == nullptr && fieldOstRHS == nullptr) {
           continue;
@@ -437,13 +437,13 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
         if (fieldOstLHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(lhsOst->GetTyIdx());
           fieldOstLHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfLHSOst, ptrType->GetTypeIndex(), fieldId, offset);
+              preLevOfLHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
         }
 
         if (fieldOstRHS == nullptr) {
           auto *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(rhsOst->GetTyIdx());
           fieldOstRHS = ssaTab->GetOriginalStTable().FindOrCreateExtraLevOriginalSt(
-              preLevOfRHSOst, ptrType->GetTypeIndex(), fieldId, offset);
+              preLevOfRHSOst, ptrType->GetTypeIndex(), fieldId, bitOffset);
         }
 
         auto pegNodeOfLhsField = peg->GetOrCreateNodeOf(fieldOstLHS);
@@ -460,7 +460,7 @@ void PEGBuilder::AddAssignEdge(const StmtNode *stmt, PEGNode *lhsNode, PEGNode *
           pegNodeOfRhsField->SetPrevLevelNode(prevLevNodeRhs);
         }
 
-        peg->AddAssignEdge(pegNodeOfLhsField, pegNodeOfRhsField, offset);
+        peg->AddAssignEdge(pegNodeOfLhsField, pegNodeOfRhsField, bitOffset);
       }
     }
   }

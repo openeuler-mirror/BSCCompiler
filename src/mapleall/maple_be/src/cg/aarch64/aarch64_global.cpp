@@ -402,9 +402,9 @@ void ForwardPropPattern::RemoveMopUxtwToMov(Insn &insn) {
   destOpnd.SetRegisterNumber(secondOpnd.GetRegisterNumber());
   auto *newOpnd = static_cast<RegOperand*>(destOpnd.Clone(*cgFunc.GetMemoryPool()));
   cgFunc.InsertExtendSet(secondOpnd.GetRegisterNumber());
-  InsnSet firstRegUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, destRegNo, true);
-  if (firstRegUseInsnSet.size() >= 1) {
-    for (auto useInsn : firstRegUseInsnSet) {
+  InsnSet regUseInsnSet = cgFunc.GetRD()->FindUseForRegOpnd(insn, destRegNo, true);
+  if (regUseInsnSet.size() >= 1) {
+    for (auto useInsn : regUseInsnSet) {
       uint32 optSize = useInsn->GetOperandSize();
       for (uint32 i = 0; i < optSize; i++) {
         ASSERT(useInsn->GetOperand(i).IsRegister(), "only design for register");

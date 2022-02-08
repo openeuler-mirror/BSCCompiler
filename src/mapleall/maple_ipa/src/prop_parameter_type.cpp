@@ -27,9 +27,9 @@
 #include "me_dominance.h"
 
 namespace maple {
-bool PropParamType::CheckOpndZero(MeExpr *expr) {
+bool PropParamType::CheckOpndZero(const MeExpr *expr) {
   if (expr->GetMeOp() == kMeOpConst &&
-      static_cast<ConstMeExpr*>(expr)->IsZero()) {
+      static_cast<const ConstMeExpr*>(expr)->IsZero()) {
     return true;
   }
   return false;
@@ -107,9 +107,9 @@ void PropParamType::ResolveCallStmt(MeStmt &meStmt) {
       if (calledFunc->CheckParamNullType(formalSt) &&
           calledFunc->GetParamNonull(formalSt) == PointerAttr::kPointerNoNull) {
         InsertNullCheck(*callMeStmt, calledFunc->GetName(), i, *callMeStmt->GetOpnd(i));
-        MIRSymbol *formalSt = calledFunc->GetFormal(i);
-        if (formalSt->IsFormal() && curFunc->GetParamNonull(formalSt) != PointerAttr::kPointerNull) {
-          formalMapLocal[formalSt] = PointerAttr::kPointerNoNull;
+        MIRSymbol *calledFuncFormalSt = calledFunc->GetFormal(i);
+        if (calledFuncFormalSt->IsFormal() && curFunc->GetParamNonull(calledFuncFormalSt) != PointerAttr::kPointerNull) {
+          formalMapLocal[calledFuncFormalSt] = PointerAttr::kPointerNoNull;
         }
       }
     }

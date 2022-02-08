@@ -86,12 +86,12 @@ void GCLowering::HandleVarAssignMeStmt(MeStmt &stmt) {
   stmt.GetBB()->ReplaceMeStmt(&stmt, writeRefCall);
 }
 
-MIRIntrinsicID GCLowering::SelectWriteBarrier(MeStmt &stmt) {
+MIRIntrinsicID GCLowering::SelectWriteBarrier(const MeStmt &stmt) {
   MeExpr *lhs = nullptr;
   if (stmt.GetOp() == OP_dassign) {
     lhs = stmt.GetLHS();
   } else if (stmt.GetOp() == OP_iassign) {
-    lhs = static_cast<IassignMeStmt&>(stmt).GetLHSVal();
+    lhs = static_cast<const IassignMeStmt&>(stmt).GetLHSVal();
   } else {
     CHECK_FATAL(false, "NIY");
   }
@@ -186,12 +186,12 @@ void GCLowering::HandleWriteReferent(const IassignMeStmt &stmt) {
 // LHS of type ref in assign
 // return value of type ref
 void GCLowering::CheckRefs() {
-  auto cfg = func.GetCfg();
+  auto theCFG = func.GetCfg();
   ParseCheckFlag();
   if (checkRefFormal) {
     CheckFormals();
   }
-  for (BB *bb : cfg->GetAllBBs()) {
+  for (BB *bb : theCFG->GetAllBBs()) {
     if (bb == nullptr) {
       continue;
     }

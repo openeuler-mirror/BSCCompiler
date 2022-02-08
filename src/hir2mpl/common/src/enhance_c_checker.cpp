@@ -1870,7 +1870,9 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
         } else if (op == OP_assignassertle) {
           FE_ERR(kLncErr, "%s:%d error: r-value requires a boundary pointer",
               FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
-        } else if (ENCChecker::IsSafeRegion(mirBuilder) && op == OP_calcassertge) {
+        } else if (ENCChecker::IsSafeRegion(mirBuilder) &&
+                   (op == OP_calcassertge ||
+                    (op == OP_assertge && static_cast<const FEIRStmtAssertBoundary*>(stmt)->IsComputable()))) {
           FE_ERR(kLncErr, "%s:%d error: calculation with pointer requires bounds in safe region",
               FEManager::GetModule().GetFileNameFromFileNum(stmt->GetSrcFileIdx()).c_str(), stmt->GetSrcFileLineNum());
         }
@@ -1908,14 +1910,16 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(idxExpr->Clone());
   lowerExprs.emplace_back(baseAddrFEExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
+  auto lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
+  lowerStmt->SetIsComputable(true);
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
   upperExprs.emplace_back(std::move(idxExpr));
   upperExprs.emplace_back(std::move(baseAddrFEExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
+  auto upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
+  upperStmt->SetIsComputable(true);
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
   return true;
@@ -1935,14 +1939,16 @@ bool ASTUODerefExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, Un
   std::list<UniqueFEIRExpr> lowerExprs;
   lowerExprs.emplace_back(expr->Clone());
   lowerExprs.emplace_back(baseExpr->Clone());
-  UniqueFEIRStmt lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
+  auto lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
+  lowerStmt->SetIsComputable(expr->GetKind() == kExprBinary);
   lowerStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
-  upperExprs.emplace_back(std::move(expr));
+  upperExprs.emplace_back(expr->Clone());
   upperExprs.emplace_back(std::move(baseExpr));
-  UniqueFEIRStmt upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
+  auto upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
+  upperStmt->SetIsComputable(expr->GetKind() == kExprBinary);
   upperStmt->SetSrcFileInfo(GetSrcFileIdx(), GetSrcFileLineNum());
   stmts.emplace_back(std::move(upperStmt));
   return true;

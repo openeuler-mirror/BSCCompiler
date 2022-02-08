@@ -165,8 +165,8 @@ class OriginalSt {
   const MapleVector<size_t> &GetVersionsIndices() const {
     return versionsIndices;
   }
-  void PushbackVersionsIndices(size_t index) {
-    versionsIndices.push_back(index);
+  void PushbackVersionsIndices(size_t versionIndex) {
+    versionsIndices.push_back(versionIndex);
   }
 
   size_t GetZeroVersionIndex() const {

@@ -21,10 +21,10 @@ void MeIRMap::Dump() {
   MIRFunction *mirFunction = func.GetMirFunc();
   MemPool *backup = mirFunction->GetCodeMempool();
   mirFunction->SetMemPool(new ThreadLocalMemPool(memPoolCtrler, "IR Dump"));
-  auto cfg = func.GetCfg();
+  auto theCFG = func.GetCfg();
   LogInfo::MapleLogger() << "===================Me IR dump==================\n";
-  auto eIt = cfg->valid_end();
-  for (auto bIt = cfg->valid_begin(); bIt != eIt; ++bIt) {
+  auto eIt = theCFG->valid_end();
+  for (auto bIt = theCFG->valid_begin(); bIt != eIt; ++bIt) {
     auto *bb = *bIt;
     bb->DumpHeader(&GetMIRModule());
     LogInfo::MapleLogger() << "frequency : " << bb->GetFrequency() << "\n";

@@ -1279,7 +1279,7 @@ bool SimplifyMemOp::SimplifyMemset(StmtNode &stmt, BlockNode &block, bool isLowL
       MayPrintLog(debug, false, memOpKind, "dst size is not int const");
       return false;
     }
-    if (dstSize == 0 || dstSize > kSecurecMemMaxLen) {
+    if (dstSize == 0 || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
       size = 0;
       errNum = ERRNO_RANGE;
     }
@@ -1375,7 +1375,7 @@ bool SimplifyMemOp::SimplifyMemcpy(StmtNode &stmt, BlockNode &block, bool isLowL
       MayPrintLog(debug, false, memOpKind, "dst size is not int const");
       return false;
     }
-    if (dstSize == 0 || dstSize > kSecurecMemMaxLen) {
+    if (dstSize == 0 || static_cast<uint64>(dstSize) > kSecurecMemMaxLen) {
       copySize = 0;
       errNum = ERRNO_RANGE;
     } else if (srcSize > dstSize) {

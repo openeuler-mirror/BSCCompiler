@@ -193,6 +193,10 @@ UniqueFEIRExpr FEIRBuilder::CreateExprConstF64(double val) {
   return std::make_unique<FEIRExprConst>(val);
 }
 
+UniqueFEIRExpr FEIRBuilder::CreateExprConstPtr(int64 val) {
+  return std::make_unique<FEIRExprConst>(val, PTY_ptr);
+}
+
 // Create a const expr of specified prime type with fixed value.
 // Note that loss of precision, byte value is only supported.
 UniqueFEIRExpr FEIRBuilder::CreateExprConstAnyScalar(PrimType primType, int64 val) {

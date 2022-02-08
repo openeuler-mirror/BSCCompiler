@@ -72,7 +72,7 @@ bool CollectIpaInfo::CheckImpExprStmt(const MeStmt &meStmt) {
   return IsConstKindValue(node->GetOpnd(0)) || IsConstKindValue(node->GetOpnd(1));
 }
 
-bool CollectIpaInfo::IsParameterOrUseParameter(VarMeExpr *varExpr) {
+bool CollectIpaInfo::IsParameterOrUseParameter(const VarMeExpr *varExpr) {
   OriginalSt *sym = varExpr->GetOst();
   if (sym->IsFormal() && sym->GetIndirectLev() == 0 && varExpr->IsDefByNo() && !varExpr->IsVolatile()) {
     return true;
@@ -103,9 +103,9 @@ bool CollectIpaInfo::CollectImportantExpression(const MeStmt &meStmt) {
           }
           if (varMeExpr->IsDefByPhi() && varMeExpr->GetOst()->GetIndirectLev() == 0) {
             MePhiNode *phiMeNode = varMeExpr->GetMePhiDef();
-            for (auto *opnd : phiMeNode->GetOpnds()) {
-              if (opnd->IsDefByStmt()) {
-                MeStmt *opndStmt = opnd->GetDefStmt();
+            for (auto *operand : phiMeNode->GetOpnds()) {
+              if (operand->IsDefByStmt()) {
+                MeStmt *opndStmt = operand->GetDefStmt();
                 if (opndStmt->GetOp() == OP_dassign) {
                   auto *varMeStmt = static_cast<DassignMeStmt*>(opndStmt);
                   if (varMeStmt->GetRHS()->GetMeOp() == kMeOpVar) {
@@ -175,7 +175,6 @@ void CollectIpaInfo::TraversalMeStmt(MeStmt &meStmt) {
 void CollectIpaInfo::Perform(const MeFunction &func) {
   // Pre-order traverse the dominance tree, so that each def is traversed
   // before its use
-  std::vector<bool> bbVisited(func.GetCfg()->GetAllBBs().size(), false);
   Dominance *dom = static_cast<MEDominance*>(dataMap.GetVaildAnalysisPhase(func.GetUniqueID(),
                                                                            &MEDominance::id))->GetResult();
   for (auto *bb : dom->GetReversePostOrder()) {

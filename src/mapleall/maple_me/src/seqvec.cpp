@@ -502,14 +502,14 @@ void SeqVectorize::MergeIassigns(MapleVector<IassignNode *> &cands) {
     } else if (iassign->GetRHS()->GetOpCode() == OP_iread) {
       // rhs is iread
       IreadNode *ireadnode = static_cast<IreadNode *>(iassign->GetRHS());
-      MIRType *mirType = ireadnode->GetType();
+      MIRType *ireadType = ireadnode->GetType();
       MIRType *rhsvecType = nullptr;
-      if (mirType->GetPrimType() == PTY_agg) {
+      if (ireadType->GetPrimType() == PTY_agg) {
         // iread variable from a struct, use iread type
         rhsvecType = GenVecType(ireadnode->GetPrimType(), lanes);
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
       } else {
-        rhsvecType = GenVecType(mirType->GetPrimType(), lanes);
+        rhsvecType = GenVecType(ireadType->GetPrimType(), lanes);
         ASSERT(rhsvecType != nullptr, "vector type should not be null");
         MIRType *rhspvecType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*rhsvecType, PTY_ptr);
         ireadnode->SetTyIdx(rhspvecType->GetTypeIndex()); // update ptr type
@@ -581,7 +581,6 @@ void SeqVectorize::CheckAndTransform() {
   }
   // legality check and merge nodes
   StoreListMap::iterator mapit = stores.begin();
-  MapleVector<IassignNode *> cands(localAlloc.Adapter());
   for (; mapit != stores.end(); ++mapit) {
     if (enableDebug) {
       DumpCandidates(mapit->first, mapit->second);

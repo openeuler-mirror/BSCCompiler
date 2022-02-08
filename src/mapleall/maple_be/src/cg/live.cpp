@@ -77,13 +77,13 @@ bool LiveAnalysis::GenerateLiveOut(BB &bb) {
 
 /* In[BB] = use[BB] Union (Out[BB]-def[BB]) */
 bool LiveAnalysis::GenerateLiveIn(BB &bb) {
-  LocalMapleAllocator alloc(stackMp);
-  const MapleVector<uint64> bbLiveInBak(bb.GetLiveIn()->GetInfo(), alloc.Adapter());
+  LocalMapleAllocator allocator(stackMp);
+  const MapleVector<uint64> bbLiveInBak(bb.GetLiveIn()->GetInfo(), allocator.Adapter());
   if (!bb.GetInsertUse()) {
     bb.SetLiveInInfo(*bb.GetUse());
     bb.SetInsertUse(true);
   }
-  DataInfo &bbLiveOut = bb.GetLiveOut()->Clone(alloc);
+  DataInfo &bbLiveOut = bb.GetLiveOut()->Clone(allocator);
   if (!bbLiveOut.NoneBit()) {
     bbLiveOut.Difference(*bb.GetDef());
     bb.LiveInOrBits(bbLiveOut);
@@ -91,7 +91,7 @@ bool LiveAnalysis::GenerateLiveIn(BB &bb) {
 
   if (!bb.GetEhSuccs().empty()) {
     /* If bb has eh successors, check if multi-gen exists. */
-    DataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), alloc);
+    DataInfo allInOfEhSuccs(cgFunc->GetMaxVReg(), allocator);
     for (auto ehSucc : bb.GetEhSuccs()) {
       allInOfEhSuccs.OrBits(*ehSucc->GetLiveIn());
     }

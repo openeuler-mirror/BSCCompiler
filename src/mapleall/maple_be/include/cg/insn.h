@@ -47,11 +47,7 @@ class Insn {
   static constexpr uint8 kMaxStackOffsetSize = 2;
 
   Insn(MemPool &memPool, MOperator opc)
-      : mOp(opc), localAlloc(&memPool), opnds(localAlloc.Adapter()), comment(&memPool) {
-#if !RELEASE
-    Check();
-#endif
-  }
+      : mOp(opc), localAlloc(&memPool), opnds(localAlloc.Adapter()), comment(&memPool) {}
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0) : Insn(memPool, opc) { opnds.emplace_back(&opnd0); }
   Insn(MemPool &memPool, MOperator opc, Operand &opnd0, Operand &opnd1) : Insn(memPool, opc) {
     opnds.emplace_back(&opnd0);
@@ -532,8 +528,8 @@ class Insn {
     return 0;
   }
 
-  virtual uint32 GetJumpTargetIdxFromMOp(MOperator mOp) const {
-    (void)mOp;
+  virtual uint32 GetJumpTargetIdxFromMOp(MOperator mOperator) const {
+    (void)mOperator;
     return 0;
   }
 

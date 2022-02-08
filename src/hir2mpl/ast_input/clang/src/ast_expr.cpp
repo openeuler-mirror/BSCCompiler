@@ -2278,14 +2278,15 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   UniqueFEIRStmt condGoTo2 = std::make_unique<FEIRStmtCondGotoForC>(cond2->Clone(), OP_brtrue, onStackStr);
   stmts.emplace_back(std::move(condGoTo2));
   // The va_arg will be got from GP or FP/SIMD arg reg
-  MIRType *uint64Type = GlobalTables::GetTypeTable().GetUInt64();
-  UniqueFEIRType uint64FEIRType = std::make_unique<FEIRTypeNative>(*uint64Type);
-  MIRType *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType((!info.isCopyedMem ? *mirType : *uint64Type));
+  MIRType *sizeType = GlobalTables::GetTypeTable().GetPtrType();
+  UniqueFEIRType sizeFEIRType = std::make_unique<FEIRTypeNative>(*sizeType);
+  MIRType *vaArgType = !info.isCopyedMem ? mirType : sizeType;
+  MIRType *ptrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(*vaArgType);
   UniqueFEIRVar vaArgVar = FEIRBuilder::CreateVarNameForC(FEUtils::GetSequentialName("va_arg_"), *ptrType);
   UniqueFEIRExpr dreadVaArgTop = FEIRBuilder::ReadExprField(
-      readVaList->Clone(), info.isGPReg ? 2 : 3, uint64FEIRType->Clone());
-  ProcessBigEndianForReg(stmts, offsetVar, info); // process big endian for reg
-  UniqueFEIRExpr cvtOffset = FEIRBuilder::CreateExprCastPrim(dreadOffsetVar->Clone(), PTY_u64);
+      readVaList->Clone(), info.isGPReg ? 2 : 3, sizeFEIRType->Clone());
+  ProcessBigEndianForReg(stmts, *vaArgType, offsetVar, info); // process big endian for reg
+  UniqueFEIRExpr cvtOffset = FEIRBuilder::CreateExprCastPrim(dreadOffsetVar->Clone(), PTY_i64);
   UniqueFEIRExpr addTopAndOffs = FEIRBuilder::CreateExprBinary(OP_add, std::move(dreadVaArgTop), std::move(cvtOffset));
   UniqueFEIRStmt dassignVaArgFromReg = FEIRBuilder::CreateStmtDAssign(vaArgVar->Clone(), std::move(addTopAndOffs));
   stmts.emplace_back(std::move(dassignVaArgFromReg));
@@ -2298,15 +2299,15 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   // Otherwise, the va_arg will be got from stack and set next stack setoff
   UniqueFEIRStmt onStackLabelStmt = std::make_unique<FEIRStmtLabel>(onStackStr);
   stmts.emplace_back(std::move(onStackLabelStmt));
-  UniqueFEIRExpr dreadStackTop = FEIRBuilder::ReadExprField(readVaList->Clone(), 1, uint64FEIRType->Clone());
+  UniqueFEIRExpr dreadStackTop = FEIRBuilder::ReadExprField(readVaList->Clone(), 1, sizeFEIRType->Clone());
   UniqueFEIRStmt dassignVaArgFromStack = FEIRBuilder::CreateStmtDAssign(vaArgVar->Clone(), dreadStackTop->Clone());
   UniqueFEIRExpr stackAUnitOffs = FEIRBuilder::CreateExprBinary(
-      OP_add, dreadStackTop->Clone(), FEIRBuilder::CreateExprConstU64(info.stackOffset));
+      OP_add, dreadStackTop->Clone(), FEIRBuilder::CreateExprConstPtr(info.stackOffset));
   stmts.emplace_back(std::move(dassignVaArgFromStack));
   UniqueFEIRStmt dassignStackNextOffs = FEIRBuilder::AssginStmtField(
       readVaList->Clone(), std::move(stackAUnitOffs), 1);
   stmts.emplace_back(std::move(dassignStackNextOffs));
-  ProcessBigEndianForStack(stmts, vaArgVar);  // process big endian for stack
+  ProcessBigEndianForStack(stmts, *vaArgType, vaArgVar);  // process big endian for stack
   // return va_arg
   UniqueFEIRStmt endLabelStmt = std::make_unique<FEIRStmtLabel>(endStr);
   stmts.emplace_back(std::move(endLabelStmt));
@@ -2315,7 +2316,7 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
     UniqueFEIRType ptrPtrFEIRType = std::make_unique<FEIRTypeNative>(
         *GlobalTables::GetTypeTable().GetOrCreatePointerType(*ptrType));
     dreadRetVar = FEIRBuilder::CreateExprIRead(
-        std::move(uint64FEIRType), std::move(ptrPtrFEIRType), std::move(dreadRetVar));
+        std::move(sizeFEIRType), std::move(ptrPtrFEIRType), std::move(dreadRetVar));
   }
   UniqueFEIRType baseFEIRType = std::make_unique<FEIRTypeNative>(*mirType);
   UniqueFEIRType ptrFEIRType = std::make_unique<FEIRTypeNative>(*ptrType);
@@ -2324,23 +2325,23 @@ UniqueFEIRExpr ASTVAArgExpr::Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) c
   return retExpr;
 }
 
-void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &offsetVar,
-                                          const VaArgInfo &info) const {
+void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, MIRType &vaArgType,
+                                          const UniqueFEIRVar &offsetVar, const VaArgInfo &info) const {
   if (!FEOptions::GetInstance().IsBigEndian()) {
     return;
   }
   int offset = 0;
-  if (info.isGPReg && !mirType->IsStructType() && mirType->GetSize() < 8) {  // general reg
-    offset = 8 - mirType->GetSize();
+  if (info.isGPReg && !vaArgType.IsStructType() && vaArgType.GetSize() < 8) {  // general reg
+    offset = 8 - vaArgType.GetSize();
   } else if (info.HFAType != nullptr) {  // HFA
     offset = 16 - info.HFAType->GetSize();
-  } else if (!info.isGPReg && !mirType->IsStructType() && mirType->GetSize() < 16) {  // fp/simd reg
-    offset = 16 - mirType->GetSize();
+  } else if (!info.isGPReg && !vaArgType.IsStructType() && vaArgType.GetSize() < 16) {  // fp/simd reg
+    offset = 16 - vaArgType.GetSize();
   }
 #if ILP32
-  if(mirType->IsStructType() && mirType->GetSize() > 16) {
+  if(vaArgType.IsStructType() && vaArgType.GetSize() > 16) {
     offset = 8 - GetPrimTypeSize(PTY_a32);
-  } else if(mirType->IsStructType() && mirType->GetSize() <= 4) {
+  } else if(vaArgType.IsStructType() && vaArgType.GetSize() <= 4) {
     offset = 4;
   }
 #endif
@@ -2353,20 +2354,21 @@ void ASTVAArgExpr::ProcessBigEndianForReg(std::list<UniqueFEIRStmt> &stmts, cons
   stmts.emplace_back(std::move(stmt));
 }
 
-void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRVar &vaArgVar) const {
+void ASTVAArgExpr::ProcessBigEndianForStack(std::list<UniqueFEIRStmt> &stmts, MIRType &vaArgType,
+                                            const UniqueFEIRVar &vaArgVar) const {
   if (!FEOptions::GetInstance().IsBigEndian()) {
     return;
   }
   int offset = 0;
 #if ILP32
-  if(mirType->IsStructType() && mirType->GetSize() > 16) {
+  if(vaArgType.IsStructType() && vaArgType.GetSize() > 16) {
     offset = 8 - GetPrimTypeSize(PTY_a32);
-  } else if(mirType->IsStructType() && mirType->GetSize() <= 4) {
+  } else if(vaArgType.IsStructType() && vaArgType.GetSize() <= 4) {
     offset = 4;
   }
 #endif
-  if (!mirType->IsStructType() && mirType->GetSize() < 8) {
-    offset = 8 - mirType->GetSize();
+  if (!vaArgType.IsStructType() && vaArgType.GetSize() < 8) {
+    offset = 8 - vaArgType.GetSize();
   }
   if (offset == 0) {
     return;
@@ -2466,13 +2468,13 @@ void ASTVAArgExpr::CvtHFA2Struct(const MIRStructType &type, MIRType &fieldType, 
     UniqueFEIRExpr dreadVaArg = FEIRBuilder::CreateExprDRead(vaArgVar->Clone());
     if (i != 0) {
       dreadVaArg = FEIRBuilder::CreateExprBinary(
-          OP_add, std::move(dreadVaArg), FEIRBuilder::CreateExprConstU64(16 * i));
+          OP_add, std::move(dreadVaArg), FEIRBuilder::CreateExprConstPtr(16 * i));
     }
     UniqueFEIRExpr ireadVaArg = FEIRBuilder::CreateExprIRead(baseType->Clone(), ptrType->Clone(), dreadVaArg->Clone());
     UniqueFEIRExpr addrofVar = FEIRBuilder::CreateExprAddrofVar(copyedVar->Clone());
     if(i != 0) {
       addrofVar = FEIRBuilder::CreateExprBinary(
-          OP_add, std::move(addrofVar), FEIRBuilder::CreateExprConstU64(fieldType.GetSize() * i));
+          OP_add, std::move(addrofVar), FEIRBuilder::CreateExprConstPtr(fieldType.GetSize() * i));
     }
     MIRType *fieldPtrType = GlobalTables::GetTypeTable().GetOrCreatePointerType(fieldType);
     UniqueFEIRType fieldFEIRType = std::make_unique<FEIRTypeNative>(*fieldPtrType);

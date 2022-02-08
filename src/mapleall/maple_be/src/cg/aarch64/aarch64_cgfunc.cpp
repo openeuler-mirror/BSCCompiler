@@ -896,7 +896,7 @@ AArch64MemOperand &AArch64CGFunc::SplitOffsetWithAddInstruction(const AArch64Mem
   int64 alignment = AArch64MemOperand::GetImmediateOffsetAlignment(bitLen);
   int64 q1 = static_cast<int64>(static_cast<uint64>(r0) >> static_cast<uint64>(alignment));
   int64 r1 = static_cast<int64>(static_cast<uint64>(r0) & ((1u << static_cast<uint64>(alignment)) - 1));
-  int64 remained = static_cast<uint32>(q1) << static_cast<uint32>(alignment);
+  int64 remained = static_cast<int64>(static_cast<uint32>(q1) << static_cast<uint32>(alignment));
   addend = addend + r1;
   if (addend > 0) {
     int64 suffixClear = 0xfff;
@@ -6466,19 +6466,19 @@ void AArch64CGFunc::SelectParmListDreadSmallAggregate(const MIRSymbol &sym, MIRT
     CreateCallStructParamPassByStack(symSize, &sym, nullptr, ploc.memOffset);
   } else {
     /* pass by param regs. */
-    AArch64RegOperand *parmOpnd = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 0);
-    srcOpnds.PushOpnd(*parmOpnd);
+    AArch64RegOperand *parmOpnd0 = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 0);
+    srcOpnds.PushOpnd(*parmOpnd0);
     if (ploc.reg1) {
-      AArch64RegOperand *parmOpnd = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 1);
-      srcOpnds.PushOpnd(*parmOpnd);
+      AArch64RegOperand *parmOpnd1 = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 1);
+      srcOpnds.PushOpnd(*parmOpnd1);
     }
     if (ploc.reg2) {
-      AArch64RegOperand *parmOpnd = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 2);
-      srcOpnds.PushOpnd(*parmOpnd);
+      AArch64RegOperand *parmOpnd2 = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 2);
+      srcOpnds.PushOpnd(*parmOpnd2);
     }
     if (ploc.reg3) {
-      AArch64RegOperand *parmOpnd = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 3);
-      srcOpnds.PushOpnd(*parmOpnd);
+      AArch64RegOperand *parmOpnd3 = SelectParmListDreadAccessField(sym, fieldID, ploc, offset, 3);
+      srcOpnds.PushOpnd(*parmOpnd3);
     }
   }
 }
@@ -6606,7 +6606,7 @@ void AArch64CGFunc::CreateCallStructParamPassByStack(int32 symSize, const MIRSym
                                                      RegOperand *addrOpnd, int32 baseOffset) {
   MemOperand *ldMopnd = nullptr;
   MemOperand *stMopnd = nullptr;
-  uint32 numRegNeeded = (symSize <= k8ByteSize) ? kOneRegister : kTwoRegister;
+  uint32 numRegNeeded = (static_cast<uint32>(symSize) <= k8ByteSize) ? kOneRegister : kTwoRegister;
   for (int j = 0; j < static_cast<int>(numRegNeeded); j++) {
     if (sym) {
       if (CGOptions::IsArm64ilp32()) {
@@ -10330,7 +10330,7 @@ RegOperand *AArch64CGFunc::SelectVectorShiftImm(PrimType rType, Operand *o1, Ope
   if (!imm->IsConstImmediate()) {
     CHECK_FATAL(0, "VectorUShiftImm has invalid shift const");
   }
-  int32 shift = static_cast<int32>(ValidShiftConst(rType));
+  uint32 shift = static_cast<uint32>(ValidShiftConst(rType));
   bool needDup = false;
   if (opc == OP_shl) {
     if ((shift == k8BitSize && (sVal < 0 || static_cast<uint32>(sVal) >= shift)) ||
