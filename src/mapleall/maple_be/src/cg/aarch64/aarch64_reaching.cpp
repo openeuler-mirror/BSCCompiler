@@ -800,7 +800,7 @@ bool AArch64ReachingDefinition::DFSFindRegInfoBetweenBB(const BB startBB, const 
   return false;
 }
 
-bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const {
+bool AArch64ReachingDefinition::FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, const Insn *endInsn) const {
   if (startInsn == nullptr || endInsn == nullptr) {
     return false;
   }

@@ -148,7 +148,7 @@ void AArch64AsmEmitter::EmitFullLSDA(FuncEmitInfo &funcEmitInfo) {
   emitter->EmitLabelPair(ehFunc->GetLSDACallSiteTable()->GetCSTable());
   /* callsite start */
   emitter->EmitStmtLabel(ehFunc->GetLSDACallSiteTable()->GetCSTable().GetStartOffset()->GetLabelIdx());
-  ehFunc->GetLSDACallSiteTable()->SortCallSiteTable([&aarchCGFunc](LSDACallSite *a, LSDACallSite *b) {
+  ehFunc->GetLSDACallSiteTable()->SortCallSiteTable([&aarchCGFunc](const LSDACallSite *a, const LSDACallSite *b) {
     CHECK_FATAL(a != nullptr, "nullptr check");
     CHECK_FATAL(b != nullptr, "nullptr check");
     LabelIDOrder id1 = aarchCGFunc.GetLabelOperand(a->csStart.GetEndOffset()->GetLabelIdx())->GetLabelOrder();
@@ -538,8 +538,8 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
       EmitFastLSDA(funcEmitInfo);
     }
   }
-  uint32 size = cgFunc.GetFunction().GetSymTab()->GetSymbolTableSize();
-  for (size_t i = 0; i < size; ++i) {
+  uint32 size = static_cast<uint32>(cgFunc.GetFunction().GetSymTab()->GetSymbolTableSize());
+  for (uint32 i = 0; i < size; ++i) {
     MIRSymbol *st = cgFunc.GetFunction().GetSymTab()->GetSymbolFromStIdx(i);
     if (st == nullptr) {
       continue;
@@ -577,9 +577,9 @@ void AArch64AsmEmitter::Run(FuncEmitInfo &funcEmitInfo) {
         case PTY_f64: {
           MIRDoubleConst *doubleConst = safe_cast<MIRDoubleConst>(st->GetKonst());
           auto emitF64 = [&](int64 first, int64 second) {
-            emitter.Emit("\t.word ").Emit(first).Emit("\n");
+            (void)emitter.Emit("\t.word ").Emit(first).Emit("\n");
             emitter.IncreaseJavaInsnCount();
-            emitter.Emit("\t.word ").Emit(second).Emit("\n");
+            (void)emitter.Emit("\t.word ").Emit(second).Emit("\n");
             emitter.IncreaseJavaInsnCount();
           };
           if (CGOptions::IsBigEndian()) {

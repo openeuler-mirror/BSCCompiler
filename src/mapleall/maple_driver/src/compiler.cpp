@@ -77,7 +77,7 @@ void Compiler::AppendDefaultOptions(std::vector<MplOption> &finalOptions,
                                     const std::vector<MplOption> &defaultOptions,
                                     bool isDebug) const {
   for (const auto &defaultIt : defaultOptions) {
-    (void)finalOptions.push_back(defaultIt);
+    finalOptions.push_back(defaultIt);
   }
 
   if (isDebug) {
@@ -149,7 +149,7 @@ void Compiler::AppendInputsAsOptions(std::vector<MplOption> &finalOptions,
   StringUtils::Split(inputFileNames, splittedInputFileNames, ' ');
 
   for (auto &inputFileName : splittedInputFileNames) {
-    (void)finalOptions.emplace_back(MplOption(inputFileName, ""));
+    finalOptions.emplace_back(MplOption(inputFileName, ""));
   }
 }
 
@@ -159,7 +159,7 @@ std::vector<MplOption> Compiler::MakeDefaultOptions(const MplOptions &options,
   std::vector<MplOption> defaultOptions;
   if (rawDefaultOptions.mplOptions != nullptr) {
     for (uint32_t i = 0; i < rawDefaultOptions.length; ++i) {
-      (void)defaultOptions.push_back(rawDefaultOptions.mplOptions[i]);
+      defaultOptions.push_back(rawDefaultOptions.mplOptions[i]);
     }
   }
   return defaultOptions;

@@ -37,7 +37,7 @@ class AArch64ReachingDefinition : public ReachingDefinition {
   InsnSet FindDefForRegOpnd(Insn &insn, uint32 indexOrRegNO, bool isRegNO = false) const final;
   InsnSet FindDefForMemOpnd(Insn &insn, uint32 indexOrOffset, bool isOffset = false) const final;
   InsnSet FindUseForMemOpnd(Insn &insn, uint8 index, bool secondMem = false) const final;
-  bool FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, Insn *endInsn) const;
+  bool FindRegUsingBetweenInsn(uint32 regNO, Insn *startInsn, const Insn *endInsn) const;
 
  protected:
   void InitStartGen() final;

@@ -311,7 +311,7 @@ Operand *HandleTrunc(const BaseNode &parent, BaseNode &expr, CGFunc &cgFunc) {
   return cgFunc.SelectTrunc(static_cast<TypeCvtNode&>(expr), *cgFunc.HandleExpr(expr, *expr.Opnd(0)), parent);
 }
 
-static bool HasCompare(BaseNode *expr) {
+static bool HasCompare(const BaseNode *expr) {
   if (kOpcodeInfo.IsCompare(expr->GetOpCode())) {
     return true;
   }
@@ -1220,7 +1220,7 @@ void HandleAssertNull(StmtNode &stmt, CGFunc &cgFunc) {
   cgFunc.SelectAssertNull(cgAssertNode);
 }
 
-void HandleAbort(StmtNode &stmt, CGFunc &cgFunc) {
+void HandleAbort(const StmtNode &stmt, CGFunc &cgFunc) {
   (void)stmt;
   cgFunc.SelectAbort();
 }
@@ -1358,7 +1358,7 @@ StmtNode *CGFunc::HandleFirstStmt() {
   return stmt;
 }
 
-bool CGFunc::CheckSkipMembarOp(StmtNode &stmt) {
+bool CGFunc::CheckSkipMembarOp(const StmtNode &stmt) {
   StmtNode *nextStmt = stmt.GetRealNext();
   if (nextStmt == nullptr) {
     return false;
