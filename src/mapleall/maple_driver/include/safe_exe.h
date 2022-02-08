@@ -103,7 +103,7 @@ class SafeExe {
       fflush(nullptr);
       if (execv(cmd.c_str(), argv) < 0) {
         /* last argv[argIndex] is nullptr, so it's j < argIndex (NOT j <= argIndex) */
-        for (size_t j = 0; j < argIndex; ++j) {
+        for (size_t j = 0; j < static_cast<size_t>(argIndex); ++j) {
           delete [] argv[j];
         }
         delete [] argv;
@@ -129,7 +129,7 @@ class SafeExe {
     }
 
     /* last argv[argIndex] is nullptr, so it's j < argIndex (NOT j <= argIndex) */
-    for (size_t j = 0; j < argIndex; ++j) {
+    for (size_t j = 0; j < static_cast<size_t>(argIndex); ++j) {
       delete [] argv[j];
     }
     delete [] argv;
@@ -255,7 +255,7 @@ class SafeExe {
   static std::tuple<char **, int> GenerateUnixArguments(const std::string &cmd,
                                                         const std::vector<MplOption> &options) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
-    int argSize = 2;
+    size_t argSize = 2;
 
     /* Calculate how many args are needed.
      * (* 2) is needed, because we have key and value arguments in each option
@@ -267,7 +267,7 @@ class SafeExe {
 
     // argv[0] is program name
     // copy args
-    int cmdSize = cmd.size() + 1; // +1 for NUL terminal
+    auto cmdSize = cmd.size() + 1; // +1 for NUL terminal
     argv[0] = new char[cmdSize];
     strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
 
@@ -277,8 +277,8 @@ class SafeExe {
       auto key = opt.GetKey();
       auto val = opt.GetValue();
       /* +1 for NUL terminal */
-      int keySize = key.size() + 1;
-      int valSize = val.size() + 1;
+      auto keySize = key.size() + 1;
+      auto valSize = val.size() + 1;
 
       if (keySize != 1) {
         argv[argIndex] = new char[keySize];

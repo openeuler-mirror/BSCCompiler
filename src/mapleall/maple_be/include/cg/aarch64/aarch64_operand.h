@@ -97,7 +97,7 @@ class AArch64RegOperand : public RegOperand {
   }
 
   void SetVecLanePosition(int32 pos) {
-    vecLane = pos;
+    vecLane = static_cast<int16>(pos);
   }
 
   int32 GetVecLanePosition() const {
@@ -105,7 +105,7 @@ class AArch64RegOperand : public RegOperand {
   }
 
   void SetVecLaneSize(uint32 size) {
-    vecLaneSize = size;
+    vecLaneSize = static_cast<uint16>(size);
   }
 
   uint32 GetVecLaneSize() const {
@@ -287,7 +287,8 @@ class AArch64OfstOperand : public OfstOperand {
     const uint64 mask1 = 0xffffffffffffffffUL << size;
     /* mask2 is a 64 bits number that nlowerZeroBits are all 1, higher bits aro all 0 */
     uint64 mask2 = (static_cast<uint64>(1) << static_cast<uint64>(nLowerZeroBits)) - 1UL;
-    return (mask2 & value) == 0UL && (mask1 & ((static_cast<uint64>(value)) >> nLowerZeroBits)) == 0UL;
+    return (mask2 & static_cast<uint64>(value)) == 0UL &&
+           (mask1 & ((static_cast<uint64>(value)) >> nLowerZeroBits)) == 0UL;
   }
 
   bool IsSymOffset() const {
@@ -708,7 +709,7 @@ class AArch64MemOperand : public MemOperand {
     ASSERT(dSize <= k128BitSize, "error val:dSize");
     ASSERT((dSize & (dSize - 1)) == 0, "error val:dSize");
     /* dSize==8: 0, dSize==16 : 1, dSize==32: 2, dSize==64: 3 */
-    return static_cast<int32>(__builtin_ctz(dSize) - kBaseOffsetAlignment);
+    return __builtin_ctz(dSize) - static_cast<int32>(kBaseOffsetAlignment);
   }
 
   static int32 GetMaxPIMM(uint32 dSize) {
@@ -731,7 +732,7 @@ class AArch64MemOperand : public MemOperand {
     /* alignment is between kAlignmentOf8Bit and kAlignmentOf64Bit */
     ASSERT(alignment >= kOffsetAlignmentOf32Bit, "error val:alignment");
     ASSERT(alignment <= kOffsetAlignmentOf128Bit, "error val:alignment");
-    return (kMaxPairPimm[alignment - k2BitSize]);
+    return (kMaxPairPimm[static_cast<uint32>(alignment) - k2BitSize]);
   }
 
   bool IsOffsetMisaligned(uint32 dSize) const {

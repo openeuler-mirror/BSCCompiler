@@ -215,7 +215,7 @@ const Descriptor kUsage[] = {
     "  --pie                       \tGenerate position-independent executable\n"
     "  --no-pie\n",
     "mplcg",
-    {} },
+    {"driver"} },
   { kPic,
     kEnable,
     "",
@@ -225,7 +225,7 @@ const Descriptor kUsage[] = {
     "  --fpic                      \tGenerate position-independent shared library\n"
     "  --no-fpic\n",
     "mplcg",
-    {} },
+    {"driver"} },
   { kCGVerbose,
     kEnable,
     "",
@@ -708,8 +708,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO0,
     0,
-    "",
     "O0",
+    "",
     kBuildTypeExperimental,
     kArgCheckPolicyNone,
     "  -O0                         \tNo optimization.\n",
@@ -717,8 +717,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO1,
     0,
-    "",
     "O1",
+    "",
     kBuildTypeExperimental,
     kArgCheckPolicyOptional,
     "  -O1                         \tDo some optimization.\n",
@@ -726,8 +726,8 @@ const Descriptor kUsage[] = {
     {} },
   { kCGO2,
     0,
-    "",
     "O2",
+    "",
     kBuildTypeProduct,
     kArgCheckPolicyOptional,
     "  -O2                          \tDo some optimization.\n",
@@ -1066,7 +1066,7 @@ const Descriptor kUsage[] = {
     " --omit-frame-pointer          \t do not use frame pointer \n"
     " --no-omit-frame-pointer\n",
     "mplcg",
-    {} },
+    {"driver"} },
   { kFastMath,
     kEnable,
     "",
@@ -1199,7 +1199,7 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         break;
       case kFastAlloc:
         EnableFastAlloc();
-        SetFastAllocMode(std::stoul(opt.Args(), nullptr));
+        SetFastAllocMode(static_cast<uint8>(std::stoul(opt.Args(), nullptr)));
         break;
       case kCGBarrier:
         (opt.Type() == kEnable) ? EnableBarriersForVolatile() : DisableBarriersForVolatile();
@@ -1433,7 +1433,7 @@ bool CGOptions::SolveOptions(const std::deque<Option> &opts, bool isDebug) {
         SetOverlapNum(std::stoul(opt.Args(), nullptr));
         break;
       case kRaRemat:
-        SetRematLevel(std::stoul(opt.Args(), nullptr));
+        SetRematLevel(static_cast<uint8>(std::stoul(opt.Args(), nullptr)));
         break;
       case kCGO0:
         // Already handled above in DecideMplcgRealLevel

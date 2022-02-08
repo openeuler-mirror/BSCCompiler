@@ -332,10 +332,10 @@ void BECommon::ComputeArrayTypeSizesAligns(MIRType &ty, const TyIdx &tyIdx) {
   auto typeSize = elemSize * numElems;
   SetTypeSize(tyIdx, typeSize);
   if (typeSize == 0) {
-    SetTypeAlign(tyIdx, arrayAlign);
+    SetTypeAlign(tyIdx, static_cast<uint8>(arrayAlign));
   } else {
     auto maxAlign = std::max(static_cast<uint32>(GetTypeAlign(elemType->GetTypeIndex())), arrayAlign);
-    SetTypeAlign(tyIdx, maxAlign);
+    SetTypeAlign(tyIdx, static_cast<uint8>(maxAlign));
   }
 }
 
@@ -763,7 +763,7 @@ BaseNode *BECommon::GetAddressOfNode(const BaseNode &node) {
   }
 }
 
-bool BECommon::CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) const {
+bool BECommon::CallIsOfAttr(FuncAttrKind attr, const StmtNode *narynode) const {
   (void) attr;
   (void) narynode;
   return false;

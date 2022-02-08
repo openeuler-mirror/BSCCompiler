@@ -234,7 +234,7 @@ private:
   std::string exeFolder = "";
   std::vector<std::string> linkInputFiles;
 
-  Compiler *compilerTool;
+  Compiler *compilerTool = nullptr;
 
   /* This vector contains a links to previous actions in Action tree */
   std::vector<std::unique_ptr<Action>> inputActions;
@@ -264,7 +264,7 @@ class MplOption {
     value = val;
   }
 
-  void SetKey(std::string k) {
+  void SetKey(const std::string &k) {
     key = k;
   }
 
@@ -430,7 +430,7 @@ class MplOptions {
   ErrorCode UpdatePhaseOption(const std::string &args, const std::string &exeName);
   ErrorCode UpdateExtraOptionOpt(const std::string &args);
   ErrorCode AppendDefaultOptions(const std::string &exeName, MplOption mplOptions[], unsigned int length);
-  void DumpAppendedOptions(const std::string &exeName, MplOption mplOptions[],
+  void DumpAppendedOptions(const std::string &exeName, const MplOption mplOptions[],
                            unsigned int length) const;
   void UpdateRunningExe(const std::string &args);
   void DumpActionTree(const Action &action, int idents) const;

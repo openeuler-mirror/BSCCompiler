@@ -793,7 +793,7 @@ ErrorCode MplOptions::AppendMplcgOptions(MIRSrcLang srcLang) {
 }
 
 void MplOptions::DumpAppendedOptions(const std::string &exeName,
-                                     MplOption mplOptions[], unsigned int length) const {
+                                     const MplOption mplOptions[], unsigned int length) const {
   LogInfo::MapleLogger() << exeName << " Default Options: ";
   for (size_t i = 0; i < length; ++i) {
     LogInfo::MapleLogger() << mplOptions[i].GetKey() << " "

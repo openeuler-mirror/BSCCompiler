@@ -138,7 +138,7 @@ class BECommon {
 
   BaseNode *GetAddressOfNode(const BaseNode &node);
 
-  bool CallIsOfAttr(FuncAttrKind attr, StmtNode *narynode) const;
+  bool CallIsOfAttr(FuncAttrKind attr, const StmtNode *narynode) const;
 
   PrimType GetAddressPrimType() const {
     return LOWERED_PTR_TYPE;
