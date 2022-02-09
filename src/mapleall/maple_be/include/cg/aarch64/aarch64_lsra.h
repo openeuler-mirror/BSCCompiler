@@ -460,8 +460,8 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
   void InsertCallerSave(Insn &insn, Operand &opnd, bool isDef);
   uint32 GetRegFromSet(MapleSet<uint32> &set, regno_t offset, LiveInterval &li, regno_t forcedReg = 0);
   uint32 AssignSpecialPhysRegPattern(const Insn &insn, LiveInterval &li);
-  uint32 FindAvailablePhyReg(LiveInterval &li, Insn &insn);
-  RegOperand *AssignPhysRegs(Operand &opnd, Insn &insn);
+  uint32 FindAvailablePhyReg(LiveInterval &li, const Insn &insn);
+  RegOperand *AssignPhysRegs(Operand &opnd, const Insn &insn);
   void SetupIntervalRangesByOperand(Operand &opnd, const Insn &insn, uint32 blockFrom, bool isDef, bool isUse);
   void BuildIntervalRangesForEachOperand(const Insn &insn, uint32 blockFrom);
   void BuildIntervalRanges();
@@ -470,7 +470,7 @@ class LSRALinearScanRegAllocator : public AArch64RegAllocator {
  private:
   uint32 FindAvailablePhyRegByFastAlloc(LiveInterval &li);
   bool NeedSaveAcrossCall(LiveInterval &li);
-  uint32 FindAvailablePhyReg(LiveInterval &li, Insn &insn, bool isIntReg);
+  uint32 FindAvailablePhyReg(LiveInterval &li, const Insn &insn, bool isIntReg);
 
   /* Comparison function for LiveInterval */
   static constexpr uint32 kMaxSpillRegNum = 3;

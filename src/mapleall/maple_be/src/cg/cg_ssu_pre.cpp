@@ -593,8 +593,7 @@ void SSUPre::ApplySSUPre() {
 
 void DoRestorePlacementOpt(CGFunc *f, PostDomAnalysis *pdom, SPreWorkCand *workCand) {
   MemPool *tempMP = memPoolCtrler.NewMemPool("cg_ssu_pre", true);
-  SSUPre cgssupre(f, pdom, tempMP, workCand, true/*redundanciesAmongSaves*/,
-                  false/*enabledDebug*/);
+  SSUPre cgssupre(f, pdom, tempMP, workCand, true/*redundanciesAmongSaves*/, false/*enabledDebug*/);
 
   cgssupre.ApplySSUPre();
 

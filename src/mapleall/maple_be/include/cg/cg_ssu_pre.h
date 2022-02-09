@@ -169,7 +169,7 @@ class SSUPre {
         allOccs(spreAllocator.Adapter()),
         lambdaOccs(spreAllocator.Adapter()),
         entryOccs(spreAllocator.Adapter()),
-        redundanciesAmongSaves(redSaves), 
+        redundanciesAmongSaves(redSaves),
         enabledDebug(enDebug) {
     CreateEntryOcc(cgfunc->GetFirstBB());
   }
