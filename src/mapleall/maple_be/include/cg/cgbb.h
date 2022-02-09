@@ -199,6 +199,8 @@ class BB {
 
   /* append all insns from bb into this bb */
   void InsertAtBeginning(BB &bb);
+  void InsertAtEnd(BB &bb);
+  void InsertAtEndMinus1(BB &bb);
 
   /* clear BB but don't remove insns of this */
   void ClearInsns() {
