@@ -721,6 +721,8 @@ bool AArch64ICOMorePredsPattern::Optimize(BB &curBB) {
       return false;
     }
   }
+  Insn *gotoBr = curBB.GetLastMachineInsn();
+  auto &gotoLabel = static_cast<LabelOperand&>(gotoBr->GetOperand(gotoBr->GetOperandSize() - 1));
   for (BB *preBB : curBB.GetPreds()) {
     Insn *condBr = cgFunc->GetTheCFG()->FindLastCondBrInsn(*preBB);
     ASSERT(condBr != nullptr, "nullptr check");
@@ -728,6 +730,10 @@ bool AArch64ICOMorePredsPattern::Optimize(BB &curBB) {
     ASSERT(condBrLastOpnd.IsLabelOpnd(), "label Operand must be exist in branch insn");
     auto &labelOpnd = static_cast<LabelOperand&>(condBrLastOpnd);
     if (labelOpnd.GetLabelIndex() != curBB.GetLabIdx()) {
+      return false;
+    }
+    if (gotoLabel.GetLabelIndex() != preBB->GetNext()->GetLabIdx()) {
+      /* do not if convert if 'else' clause present */
       return false;
     }
   }
@@ -755,7 +761,7 @@ bool AArch64ICOMorePredsPattern::CheckGotoBB(BB &gotoBB, std::vector<Insn*> &mov
 
 /* this BBGoto only has mov Insn */
 bool AArch64ICOMorePredsPattern::MovToCsel(std::vector<Insn*> &movInsn, std::vector<Insn*> &cselInsn,
-                                           Insn &branchInsn) {
+                                           const Insn &branchInsn) {
   Operand &branchOpnd0 = branchInsn.GetOperand(kInsnFirstOpnd);
   regno_t branchRegNo;
   if (branchOpnd0.IsRegister()) {
