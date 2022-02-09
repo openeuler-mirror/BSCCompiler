@@ -1373,7 +1373,7 @@ uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, const I
 }
 
 /* Return a phys register number for the live interval. */
-uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, Insn &insn) {
+uint32 LSRALinearScanRegAllocator::FindAvailablePhyReg(LiveInterval &li, const Insn &insn) {
   if (fastAlloc) {
     return FindAvailablePhyRegByFastAlloc(li);
   }
@@ -1504,7 +1504,7 @@ void LSRALinearScanRegAllocator::InsertCallerSave(Insn &insn, Operand &opnd, boo
 }
 
 /* Shell function to find a physical register for an operand. */
-RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, Insn &insn) {
+RegOperand *LSRALinearScanRegAllocator::AssignPhysRegs(Operand &opnd, const Insn &insn) {
   auto &regOpnd = static_cast<RegOperand&>(opnd);
   uint32 vRegNO = regOpnd.GetRegisterNumber();
   RegType regType = regOpnd.GetRegisterType();
