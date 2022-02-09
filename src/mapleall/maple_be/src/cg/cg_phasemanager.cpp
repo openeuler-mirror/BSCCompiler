@@ -48,6 +48,7 @@
 #include "proepilog.h"
 #include "ra_opt.h"
 #include "alignment.h"
+#include "regsaves.h"
 
 #if TARGAARCH64
 #include "aarch64/aarch64_cg.h"
@@ -213,6 +214,7 @@ void CgFuncPM::DoPhasesPopulate(const MIRModule &module) {
   ADDMAPLECGPHASE("raopt", CGOptions::DoPreLSRAOpt());
   ADDMAPLECGPHASE("cgsplitcriticaledge", CLANG);
   ADDMAPLECGPHASE("regalloc", true);
+  ADDMAPLECGPHASE("regsaves", CLANG && CGOptions::DoRegSavesOpt())
   ADDMAPLECGPHASE("storeloadopt", CLANG && CGOptions::DoStoreLoadOpt())
   ADDMAPLECGPHASE("globalopt", CGOptions::DoCGSSA());
   ADDMAPLECGPHASE("clearrdinfo", CLANG && (CGOptions::DoStoreLoadOpt() || CGOptions::DoGlobalOpt()))
@@ -456,6 +458,7 @@ MAPLE_TRANSFORM_PHASE_REGISTER(CgAlignAnalysis, alignanalysis)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgFixShortBranch, fixshortbranch)
 MAPLE_TRANSFORM_PHASE_REGISTER_CANSKIP(CgCriticalEdge, cgsplitcriticaledge)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegAlloc, regalloc)
+MAPLE_TRANSFORM_PHASE_REGISTER(CgRegSavesOpt, regsaves)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgGenCfi, gencfi)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgPhiElimination, cgphielimination)
 MAPLE_TRANSFORM_PHASE_REGISTER(CgRegCoalesce, cgregcoalesce)
