@@ -155,7 +155,7 @@ class SKillOcc : public SOcc {
 
 class SSUPre {
  public:
-  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool enDebug)
+  SSUPre(CGFunc *cgfunc, PostDomAnalysis *pd, MemPool *memPool, SPreWorkCand *wkcand, bool redSaves, bool enDebug)
       : cgFunc(cgfunc),
         pdom(pd),
         spreMp(memPool),
@@ -169,6 +169,7 @@ class SSUPre {
         allOccs(spreAllocator.Adapter()),
         lambdaOccs(spreAllocator.Adapter()),
         entryOccs(spreAllocator.Adapter()),
+        redundanciesAmongSaves(redSaves), 
         enabledDebug(enDebug) {
     CreateEntryOcc(cgfunc->GetFirstBB());
   }
@@ -227,6 +228,7 @@ class SSUPre {
   MapleVector<SOcc*> allOccs;
   MapleVector<SLambdaOcc*> lambdaOccs;
   MapleVector<SEntryOcc*> entryOccs;
+  bool redundanciesAmongSaves; // if there is redundancy among the input saves
   bool enabledDebug;
 };
 
