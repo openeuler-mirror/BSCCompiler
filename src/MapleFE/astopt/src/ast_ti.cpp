@@ -305,7 +305,17 @@ unsigned TypeInferVisitor::MergeTypeIdx(unsigned tia, unsigned tib) {
     return tib;
   }
 
-  unsigned result = tia;
+  unsigned result = 0;
+
+  TreeNode *ta = gTypeTable.GetTypeFromTypeIdx(tia);
+  TreeNode *tb = gTypeTable.GetTypeFromTypeIdx(tib);
+  if (ta->IsPrimType() && tb->IsPrimType()) {
+    TypeId tid = MergeTypeId(ta->GetTypeId(), tb->GetTypeId());
+    result = (unsigned)tid;
+  } else {
+    TreeNode *type = gTypeTable.GetTypeFromTypeId(TY_Merge);
+    result = type->GetTypeIdx();
+  }
 
   if (mFlags & FLG_trace_3) {
     std::cout << " Type idx Merge: "
