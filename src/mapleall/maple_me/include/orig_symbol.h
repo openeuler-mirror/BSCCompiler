@@ -323,6 +323,7 @@ class OriginalSt {
   bool epreLocalRefVar = false;  // is a localrefvar temp created by epre phase
  public:
   bool isPtrWithIncDec = false;  // is a pointer with self-increment/decrement
+  bool storesIVInitValue = false; // temp created to store IV's initial value
  private:
   SymOrPreg symOrPreg;
   PUIdx puIdx;
