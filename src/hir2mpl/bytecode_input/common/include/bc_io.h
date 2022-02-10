@@ -45,7 +45,7 @@ struct RawData {
 class BCReader : public BCIO, public BasicIORead {
  public:
   explicit BCReader(const std::string &fileName);
-  ~BCReader();
+  virtual ~BCReader();
   bool RetrieveHeader(RawData &data);
   void SetEndianTag(bool isBigEndian);
   template <typename T>

@@ -61,7 +61,7 @@ class ENCChecker {
                                                             const ASTCallExpr &astCallExpr);
   static UniqueFEIRExpr GetRealBoundaryLenExprInField(const UniqueFEIRExpr &lenExpr, MIRStructType &baseType,
                                                       const UniqueFEIRExpr &dstExpr);
-  static void InitBoundaryVarFromASTDecl(MapleAllocator &allocator, ASTDecl *ptrDecl,
+  static void InitBoundaryVarFromASTDecl(const MapleAllocator &allocator, ASTDecl *ptrDecl,
                                          ASTExpr *lenExpr, std::list<ASTStmt*> &stmts);
   static void InitBoundaryVar(MIRFunction &curFunction, const ASTDecl &ptrDecl,
                               UniqueFEIRExpr lenExpr, std::list<UniqueFEIRStmt> &stmts);

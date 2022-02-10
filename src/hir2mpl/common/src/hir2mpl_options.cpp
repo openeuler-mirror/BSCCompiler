@@ -90,19 +90,19 @@ enum OptionIndex : uint32 {
 const Descriptor kUsage[] = {
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========================================\n"
-    " Usage: hir2mpl [ options ] input1 input2 input3\n"
+    "\n====== Usage: hir2mpl [options] input1 input2 input3 ======\n"
     " options:", "hir2mpl", {} },
   { kHir2mplHelp, 0, "h", "help",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  -h, --help             : print usage and exit", "hir2mpl", {} },
+    "  -h, -help              : print usage and exit", "hir2mpl", {} },
   { kVersion, 0, "v", "version",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  -v, --version          : print version and exit", "hir2mpl", {} },
+    "  -v, -version           : print version and exit", "hir2mpl", {} },
+
   // input control options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== Input Control Options ==========", "hir2mpl", {} },
+    "\n====== Input Control Options ======", "hir2mpl", {} },
   { kMpltSys, 0, "", "mplt-sys",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -mplt-sys sys1.mplt,sys2.mplt\n"
@@ -117,206 +117,164 @@ const Descriptor kUsage[] = {
     "                         : input mplt files", "hir2mpl", {} },
   { kInClass, 0, "", "in-class",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --in-class file1.jar,file2.jar\n"
+    "  -in-class file1.jar,file2.jar\n"
     "                         : input class files", "hir2mpl", {} },
   { kInJar, 0, "", "in-jar",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --in-jar file1.jar,file2.jar\n"
+    "  -in-jar file1.jar,file2.jar\n"
     "                         : input jar files", "hir2mpl", {} },
   { kInDex, 0, "", "in-dex",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --in-dex file1.dex,file2.dex\n"
+    "  -in-dex file1.dex,file2.dex\n"
     "                         : input dex files", "hir2mpl", {} },
   { kInAST, 0, "", "in-ast",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --in-ast file1.ast,file2.ast\n"
+    "  -in-ast file1.ast,file2.ast\n"
     "                         : input ast files", "hir2mpl", {} },
   { kInMAST, 0, "", "in-mast",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --in-mast file1.mast,file2.mast\n"
+    "  -in-mast file1.mast,file2.mast\n"
     "                         : input mast files", "hir2mpl", {} },
 
   // output control options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== Output Control Options ==========", "hir2mpl", {} },
+    "\n====== Output Control Options ======", "hir2mpl", {} },
   { kOutputPath, 0, "p", "output",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -p, --output            : output path", "hir2mpl", {} },
+    "  -p, -output            : output path", "hir2mpl", {} },
   { kOutputName, 0, "o", "output-name",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -o, --output-name       : output name", "hir2mpl", {} },
+    "  -o, -output-name       : output name", "hir2mpl", {} },
   { kGenMpltOnly, 0, "t", "",
     kBuildTypeAll, kArgCheckPolicyNone,
     "  -t                     : generate mplt only", "hir2mpl", {} },
   { kGenAsciiMplt, 0, "", "asciimplt",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --asciimplt            : generate mplt in ascii format", "hir2mpl", {} },
+    "  -asciimplt             : generate mplt in ascii format", "hir2mpl", {} },
   { kDumpInstComment, 0, "", "dump-inst-comment",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-inst-comment    : dump instruction comment", "hir2mpl", {} },
+    "  -dump-inst-comment     : dump instruction comment", "hir2mpl", {} },
   { kNoMplFile, 0, "", "no-mpl-file",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --no-mpl-file          : disable dump mpl file", "hir2mpl", {} },
+    "  -no-mpl-file           : disable dump mpl file", "hir2mpl", {} },
 
   // debug info control options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== Debug Info Control Options ==========", "hir2mpl", {} },
+    "\n====== Debug Info Control Options ======", "hir2mpl", {} },
   { kDumpLevel, 0, "d", "dump-level",
     kBuildTypeAll, kArgCheckPolicyNumeric,
-    "  -d, --dump-level xx    : debug info dump level\n"
-    "                             [0] disable\n"
-    "                             [1] dump simple info\n"
-    "                             [2] dump detail info\n"
-    "                             [3] dump debug info", "hir2mpl", {} },
+    "  -d, -dump-level xx     : debug info dump level\n"
+    "                           [0] disable\n"
+    "                           [1] dump simple info\n"
+    "                           [2] dump detail info\n"
+    "                           [3] dump debug info", "hir2mpl", {} },
   { kDumpTime, 0, "", "dump-time",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-time            : dump time", "hir2mpl", {} },
+    "  -dump-time             : dump time", "hir2mpl", {} },
   { kDumpComment, 0, "", "dump-comment",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-comment         : gen comment stmt", "hir2mpl", {} },
+    "  -dump-comment          : gen comment stmt", "hir2mpl", {} },
   { kDumpLOC, 0, "", "dump-LOC",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-LOC             : gen LOC", "hir2mpl", {} },
+    "  -dump-LOC              : gen LOC", "hir2mpl", {} },
   { kDumpPhaseTime, 0, "", "dump-phase-time",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-phase-time      : dump total phase time", "hir2mpl", {} },
+    "  -dump-phase-time       : dump total phase time", "hir2mpl", {} },
   { kDumpPhaseTimeDetail, 0, "", "dump-phase-time-detail",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-phase-time-detail"
+    "  -dump-phase-time-detail\n" \
     "                         : dump phase time for each method", "hir2mpl", {} },
+
   // bc bytecode compile options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== BC Bytecode Compile Options ==========", "hir2mpl", {} },
+    "\n====== BC Bytecode Compile Options ======", "hir2mpl", {} },
   { kRC, 0, "", "rc",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --rc                   : enable rc", "hir2mpl", {} },
+    "  -rc                    : enable rc", "hir2mpl", {} },
   { kNoBarrier, 0, "", "nobarrier",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --nobarrier            : no barrier", "hir2mpl", {} },
+    "  -nobarrier             : no barrier", "hir2mpl", {} },
+
   // ast compiler options
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== ast Compile Options ==========", "hir2mpl", {} },
+    "\n====== ast Compile Options ======", "hir2mpl", {} },
   { kUseSignedChar, 0, "", "usesignedchar",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --usesignedchar        : use signed char", "hir2mpl", {} },
+    "  -usesignedchar         : use signed char", "hir2mpl", {} },
   { kFEBigEndian, 0, "", "be",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --be                   : enable big endian", "hir2mpl", {} },
-  // java bytecode compile options
-  { kUnknown, 0, "", "",
-    kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== Java Bytecode Compile Options ==========", "hir2mpl", {} },
-  { kJavaStaticFieldName, 0, "", "java-staticfield-name",
+    "  -be                    : enable big endian", "hir2mpl", {} },
+      { kO2, 0, "O2", "",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -O2                    : enable hir2mpl O2 optimize", "hir2mpl", {} },
+  { kSimplifyShortCircuit, 0, "", "simplify-short-circuit",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -simplify-short-circuit\n" \
+    "                         : enable simplify short circuit", "hir2mpl", {} },
+  { kEnableVariableArray, 0, "", "enable-variable-array",
+    kBuildTypeAll, kArgCheckPolicyNone,
+    "  -enable-variable-array\n" \
+    "                         : enable variable array", "hir2mpl", {} },
+  { kFuncInlineSize, 0, "", "func-inline-size",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --java-staticfield-name\n"
-    "                         : java static field name mode\n"
-    "                             [notype]  all static fields have no types in names\n"
-    "                             [alltype] all static fields have types in names\n"
-    "                             [smart]   only static fields in field-proguard class have types in names\n",
-    "hir2mpl", {} },
-  { kJBCInfoUsePathName, 0, "", "jbc-info-use-pathname",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --jbc-info-use-pathname\n"
-    "                         : use JBC pathname in file info", "hir2mpl", {} },
-  { kDumpJBCStmt, 0, "", "dump-jbc-stmt",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-jbc-stmt        : dump JBC Stmt", "hir2mpl", {} },
-  { kDumpJBCBB, 0, "", "dump-jbc-bb",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-jbc-bb          : dump JBC BB", "hir2mpl", {} },
-  { kDumpJBCAll, 0, "", "dump-jbc-all",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-jbc-all         : dump all JBC function", "hir2mpl", {} },
-  { kDumpJBCErrorOnly, 0, "", "dump-jbc-error-only",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-jbc-error-only\n"
-    "                         : dump JBC functions with errors", "hir2mpl", {} },
-  { kDumpJBCFuncName, 0, "", "dump-jbc-funcname",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --dump-jbc-funcname=name1,name2,...\n"
-    "                         : dump JBC functions with specified names\n"
-    "                         : name format: ClassName;|MethodName|Signature", "hir2mpl", {} },
-  // general stmt/bb/cfg debug options
-  { kDumpGenCFGGraph, 0, "", "dump-general-cfg-graph",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --dump-general-cfg-graph=graph.dot\n"
-    "                         : dump General CFG into graphviz dot file", "hir2mpl", {} },
-  { kEmitJBCLocalVarInfo, 0, "", "emit-jbc-localvar-info",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --emit-jbc-localvar-info\n"
-    "                         : emit jbc's LocalVar Info in mpl using comments", "hir2mpl", {} },
+    "  -func-inline-size      : set func inline size", "hir2mpl", {} },
+
   // multi-thread control
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== Multi-Thread Control Options ==========", "hir2mpl", {} },
+    "\n====== Multi-Thread Control Options ======", "hir2mpl", {} },
   { kNThreads, 0, "", "np",
     kBuildTypeAll, kArgCheckPolicyRequired,
-    "  --np num               : number of threads", "hir2mpl", {} },
+    "  -np num                : number of threads", "hir2mpl", {} },
   { kDumpThreadTime, 0, "", "dump-thread-time",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --dump-thread-time     : dump thread time in mpl schedular", "hir2mpl", {} },
-  // type-infer
-  { kTypeInfer, 0, "", "type-infer",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --type-infer           : enable type infer", "hir2mpl", {} },
+    "  -dump-thread-time      : dump thread time in mpl schedular", "hir2mpl", {} },
+
   // On Demand Type Creation
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyUnknown,
-    "========== On Demand Type Creation ==========", "hir2mpl", {} },
+    "\n====== On Demand Type Creation ======", "hir2mpl", {} },
   { kXBootClassPath, 0, "", "Xbootclasspath",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -Xbootclasspath=bootclasspath\n"\
-    "                       : boot class path list\n"\
-    "                       : boot class path list", "hir2mpl", {} },
+    "                         : boot class path list", "hir2mpl", {} },
   { kClassLoaderContext, 0, "", "classloadercontext",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -classloadercontext=pcl\n"\
-    "                       : class loader context \n"\
-    "                       : path class loader", "hir2mpl", {} },
-  { kInputFile, 0, "", "inputfile",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -classloadercontext=pcl\n"\
-    "                       : class loader context \n"\
-    "                       : path class loader", "hir2mpl", {} },
+    "                         : class loader context \n"\
+    "                         : path class loader", "hir2mpl", {} },
   { kCollectDepTypes, 0, "", "dep",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -dep=all or func\n"\
-    "                       : [all]  collect all dependent types\n"\
-    "                       : [func] collect dependent types in function", "hir2mpl", {} },
+    "                         : [all]  collect all dependent types\n"\
+    "                         : [func] collect dependent types in function", "hir2mpl", {} },
   { kDepSameNamePolicy, 0, "", "depsamename",
     kBuildTypeAll, kArgCheckPolicyRequired,
     "  -DepSameNamePolicy=sys or src\n"\
-    "                       : [sys] load type from sys when on-demand load same name type\n"\
-    "                       : [src] load type from src when on-demand load same name type", "hir2mpl", {} },
-  // EnhanceC
+    "                         : [sys] load type from sys when on-demand load same name type\n"\
+    "                         : [src] load type from src when on-demand load same name type", "hir2mpl", {} },
+
+  // security check
+  { kUnknown, 0, "", "",
+    kBuildTypeAll, kArgCheckPolicyUnknown,
+    "\n====== Security Check ======", "hir2mpl", {} },
   { kNpeCheckDynamic, 0, "", "npe-check-dynamic",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --npe-check-dynamic     : EnhanceC: nonnull pointr dynamic checking", "hir2mpl", {} },
+    "  -npe-check-dynamic     : Nonnull pointr dynamic checking", "hir2mpl", {} },
   { kBoundaryCheckDynamic, 0, "", "boundary-check-dynamic",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  --boundary-check-dynamic: EnhanceC: boundary dynamic checking", "hir2mpl", {} },
+    "  -boundary-check-dynamic\n" \
+    "                         : Boundary dynamic checking", "hir2mpl", {} },
   { kSafeRegion, 0, "", "safe-region",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "  -safe-region            : EnhanceC: enable safe region", "hir2mpl", {} },
-  { kO2, 0, "O2", "",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -O2                     : enable hir2mpl O2 optimize", "hir2mpl", {} },
-  { kSimplifyShortCircuit, 0, "", "simplify-short-circuit",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  -simplify-short-circuit : enable simplify short circuit", "hir2mpl", {} },
-  { kEnableVariableArray, 0, "", "enable-variable-array",
-    kBuildTypeAll, kArgCheckPolicyNone,
-    "  --enable-variable-array : enable variable array", "hir2mpl", {} },
-  { kFuncInlineSize, 0, "", "func-inline-size",
-    kBuildTypeAll, kArgCheckPolicyRequired,
-    "  -func-inline-size       : set func inline size", "hir2mpl", {} },
+    "  -safe-region           : Enable safe region", "hir2mpl", {} },
   { kUnknown, 0, "", "",
     kBuildTypeAll, kArgCheckPolicyNone,
-    "", "hir2mpl", {} }
+    "\n", "hir2mpl", {} }
 };
 
 HIR2MPLOptions::HIR2MPLOptions() {

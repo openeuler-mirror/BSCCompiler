@@ -238,7 +238,7 @@ void ENCChecker::CheckNonnullArgsAndRetForFuncPtr(const MIRType &dstType, const 
   }
 }
 
-void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder) const {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
@@ -249,7 +249,7 @@ void FEIRStmtDAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) c
   ENCChecker::CheckNonnullArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+void FEIRStmtIAssign::CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const {
   if (!FEOptions::GetInstance().IsNpeCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
@@ -904,7 +904,7 @@ UniqueFEIRExpr ENCChecker::FindBaseExprInPointerOperation(const UniqueFEIRExpr &
   }
   if (expr->GetKind() == kExprUnary) {
     FEIRExprUnary *cvtExpr = static_cast<FEIRExprUnary*>(expr.get());
-    UniqueFEIRExpr baseExpr = FindBaseExprInPointerOperation(cvtExpr->GetOpnd());
+    baseExpr = FindBaseExprInPointerOperation(cvtExpr->GetOpnd());
   } else if (expr->GetKind() == kExprAddrofArray) {
     FEIRExprAddrofArray *arrExpr = static_cast<FEIRExprAddrofArray*>(expr.get());
     baseExpr = FindBaseExprInPointerOperation(arrExpr->GetExprArray());
@@ -1022,6 +1022,9 @@ void ENCChecker::AssignBoundaryVar(MIRBuilder &mirBuilder, const UniqueFEIRExpr 
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() ||
       srcExpr->GetPrimType() != PTY_ptr || dstExpr->GetPrimType() != PTY_ptr) {
     return;
+  }
+  if (lRealLenExpr == nullptr && IsGlobalVarInExpr(dstExpr)) {
+    return;  // skip boundary assignment for global var whithout boundary attr
   }
   // Avoid inserting redundant boundary vars
   const std::string prefix = "_boundary.";
@@ -1192,7 +1195,7 @@ void ENCChecker::AssignUndefVal(MIRBuilder &mirBuilder, MIRSymbol &sym) {
   }
 }
 
-void ENCChecker::InitBoundaryVarFromASTDecl(MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
+void ENCChecker::InitBoundaryVarFromASTDecl(const MapleAllocator &allocator, ASTDecl *ptrDecl, ASTExpr *lenExpr,
                                             std::list<ASTStmt*> &stmts) {
   MIRType *ptrType = ptrDecl->GetTypeDesc().front();
   // insert lower boundary stmt
@@ -1744,7 +1747,7 @@ void FEIRStmtIAssign::AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRVar &var, FieldID fieldID,
                                              uint32 fileIdx, uint32 fileLine) {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
   bool isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
@@ -1775,7 +1778,8 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
 
 void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const UniqueFEIRType &addrType, FieldID fieldID,
                                              uint32 fileIdx, uint32 fileLine) {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || fieldID == 0) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion() ||
+      fieldID == 0) {
     return;
   }
   bool isUnsafe = mirBuilder.GetCurrentFunctionNotNull()->GetAttr(FUNCATTR_unsafed);
@@ -1797,7 +1801,7 @@ void ENCChecker::CheckBoundaryLenFinalAssign(MIRBuilder &mirBuilder, const Uniqu
 
 void ENCChecker::CheckBoundaryLenFinalAddr(MIRBuilder &mirBuilder, const UniqueFEIRExpr &expr,
                                            uint32 fileIdx, uint32 fileLine) {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || !FEOptions::GetInstance().IsEnableSafeRegion()) {
     return;
   }
   if (expr->GetKind() == kExprAddrofVar) {
@@ -1887,12 +1891,12 @@ MapleVector<BaseNode*> ENCChecker::ReplaceBoundaryChecking(MIRBuilder &mirBuilde
 }
 
 bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts,
-                                                   UniqueFEIRExpr idxExpr, UniqueFEIRExpr baseAddrFEExpr) const {
+                                                   UniqueFEIRExpr indexExpr, UniqueFEIRExpr baseAddrFEExpr) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic()) {
     return false;
   }
   if (arrayType->GetKind() == MIRTypeKind::kTypeArray) {
-    if (ENCChecker::IsConstantIndex(idxExpr)) {
+    if (ENCChecker::IsConstantIndex(indexExpr)) {
       return false;  // skip checking when all indexes are constants
     }
     while (baseAddrFEExpr != nullptr && baseAddrFEExpr->GetKind() == kExprAddrofArray) {
@@ -1908,7 +1912,7 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   ENCChecker::PeelNestedBoundaryChecking(stmts, baseAddrFEExpr);
   // insert lower boundary chencking, baseExpr will be replace by lower boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> lowerExprs;
-  lowerExprs.emplace_back(idxExpr->Clone());
+  lowerExprs.emplace_back(indexExpr->Clone());
   lowerExprs.emplace_back(baseAddrFEExpr->Clone());
   auto lowerStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertge, std::move(lowerExprs));
   lowerStmt->SetIsComputable(true);
@@ -1916,7 +1920,7 @@ bool ASTArraySubscriptExpr::InsertBoundaryChecking(std::list<UniqueFEIRStmt> &st
   stmts.emplace_back(std::move(lowerStmt));
   // insert upper boundary chencking, baseExpr will be replace by upper boundary var when FEIRStmtNary GenMIRStmts
   std::list<UniqueFEIRExpr> upperExprs;
-  upperExprs.emplace_back(std::move(idxExpr));
+  upperExprs.emplace_back(std::move(indexExpr));
   upperExprs.emplace_back(std::move(baseAddrFEExpr));
   auto upperStmt = std::make_unique<FEIRStmtAssertBoundary>(OP_assertlt, std::move(upperExprs));
   upperStmt->SetIsComputable(true);
@@ -2017,11 +2021,11 @@ void ASTCallExpr::InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts)
 }
 
 void ASTCallExpr::InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt> &stmts,
-                                                       const UniqueFEIRExpr &calleeExpr) const {
-  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || calleeExpr == nullptr) {
+                                                       const UniqueFEIRExpr &calleeFEExpr) const {
+  if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || calleeFEExpr == nullptr) {
     return;
   }
-  const MIRFuncType *funcType = FEUtils::GetFuncPtrType(*calleeExpr->GetType()->GenerateMIRType());
+  const MIRFuncType *funcType = FEUtils::GetFuncPtrType(*calleeFEExpr->GetType()->GenerateMIRType());
   if (funcType == nullptr) {
     return;
   }
@@ -2141,7 +2145,7 @@ void ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(const MIRType &dstType, const
   }
 }
 
-void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const {
+void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }
@@ -2152,7 +2156,7 @@ void FEIRStmtDAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) 
   ENCChecker::CheckBoundaryArgsAndRetForFuncPtr(*baseType, expr, srcFileIndex, srcFileLineNum);
 }
 
-void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const {
+void FEIRStmtIAssign::CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const {
   if (!FEOptions::GetInstance().IsBoundaryCheckDynamic() || ENCChecker::IsUnsafeRegion(mirBuilder)) {
     return;
   }

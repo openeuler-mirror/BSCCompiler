@@ -84,18 +84,19 @@ ASTStmt *ASTParser::ProcessStmtCompoundStmt(MapleAllocator &allocator, const cla
     }
   }
 
-
-  switch (cpdStmt.getSafeSpecifier()) {
-    case clang::SS_None:
-      astCompoundStmt->SetSafeSS(kNoneSS);
-      break;
-    case clang::SS_Unsafe:
-      astCompoundStmt->SetSafeSS(kUnsafeSS);
-      break;
-    case clang::SS_Safe:
-      astCompoundStmt->SetSafeSS(kSafeSS);
-      break;
-    default: break;
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    switch (cpdStmt.getSafeSpecifier()) {
+      case clang::SS_None:
+        astCompoundStmt->SetSafeSS(kNoneSS);
+        break;
+      case clang::SS_Unsafe:
+        astCompoundStmt->SetSafeSS(kUnsafeSS);
+        break;
+      case clang::SS_Safe:
+        astCompoundStmt->SetSafeSS(kSafeSS);
+        break;
+      default: break;
+    }
   }
   return astCompoundStmt;
 }
@@ -2317,10 +2318,12 @@ ASTDecl *ASTParser::ProcessDeclFunctionDecl(MapleAllocator &allocator, const cla
   if (LibAstFile::IsOneElementVector(qualType)) {
     attrs.SetAttr(GENATTR_oneelem_simd);
   }
-  if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
-    attrs.SetAttr(GENATTR_unsafed);
-  } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe) {
-    attrs.SetAttr(GENATTR_safed);
+  if (FEOptions::GetInstance().IsEnableSafeRegion()) {
+    if (funcDecl.getSafeSpecifier() == clang::SS_Unsafe) {
+      attrs.SetAttr(GENATTR_unsafed);
+    } else if (funcDecl.getSafeSpecifier() == clang::SS_Safe) {
+      attrs.SetAttr(GENATTR_safed);
+    }
   }
   astFunc = ASTDeclsBuilder::ASTFuncBuilder(
       allocator, fileName, funcName, typeDescIn, attrs, paramDecls, funcDecl.getID());

@@ -694,7 +694,6 @@ UniqueFEIRExpr FEIRBuilder::ReadExprField(UniqueFEIRExpr expr, FieldID fieldID, 
 UniqueFEIRStmt FEIRBuilder::AssginStmtField(const UniqueFEIRExpr &addrExpr, UniqueFEIRExpr srcExpr, FieldID fieldID) {
   UniqueFEIRStmt stmt;
   FieldID baseID = addrExpr->GetFieldID();
-  UniqueFEIRType addrType = addrExpr->GetType()->Clone();
   if (addrExpr->GetKind() == kExprDRead) {
     stmt = CreateStmtDAssignAggField(
         static_cast<FEIRExprDRead*>(addrExpr.get())->GetVar()->Clone(), std::move(srcExpr), baseID + fieldID);

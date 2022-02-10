@@ -836,7 +836,7 @@ class ASTArraySubscriptExpr : public ASTExpr {
   UniqueFEIRExpr Emit2FEExprImpl(std::list<UniqueFEIRStmt> &stmts) const override;
   void InsertNonnullChecking(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &idxExpr,
                              const UniqueFEIRExpr &addrOfArray) const;
-  bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr idxExpr,
+  bool InsertBoundaryChecking(std::list<UniqueFEIRStmt> &stmts, UniqueFEIRExpr indexExpr,
                               UniqueFEIRExpr baseAddrFEExpr) const;
 
   ASTExpr *baseExpr = nullptr;
@@ -1091,7 +1091,7 @@ class ASTCallExpr : public ASTExpr {
   void AddArgsExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt, std::list<UniqueFEIRStmt> &stmts) const;
   UniqueFEIRExpr AddRetExpr(const std::unique_ptr<FEIRStmtAssign> &callStmt) const;
   void InsertBoundaryCheckingInArgs(std::list<UniqueFEIRStmt> &stmts) const;
-  void InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &calleeExpr) const;
+  void InsertBoundaryCheckingInArgsForICall(std::list<UniqueFEIRStmt> &stmts, const UniqueFEIRExpr &calleeFEExpr) const;
   void InsertBoundaryVarInRet(std::list<UniqueFEIRStmt> &stmts) const;
   void InsertNonnullCheckingForIcall(const UniqueFEIRExpr &expr, std::list<UniqueFEIRStmt> &stmts) const;
   void CheckNonnullFieldInStruct() const;
