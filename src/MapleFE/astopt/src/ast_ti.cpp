@@ -626,7 +626,7 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
       if (n->GetId()) {
         TreeNode *id = n->GetId();
         if (id->IsIdentifier() && id->IsTypeIdClass()) {
-          UserTypeNode *utype = mHandler->GetINFO()->CreateUserTypeNode(id->GetStrIdx(), var->GetScope());
+          UserTypeNode *utype = mInfo->CreateUserTypeNode(id->GetStrIdx(), var->GetScope());
           utype->SetParent(idnode);
           idnode->SetType(utype);
           SetUpdated();
@@ -660,7 +660,7 @@ bool TypeInferVisitor::UpdateVarTypeWithInit(TreeNode *var, TreeNode *init) {
         SetUpdated();
       } else if (tidx != 0) {
         TreeNode *t = gTypeTable.GetTypeFromTypeIdx(tidx);
-        UserTypeNode *utype = mHandler->GetINFO()->CreateUserTypeNode(t->GetStrIdx(), var->GetScope());
+        UserTypeNode *utype = mInfo->CreateUserTypeNode(t->GetStrIdx(), var->GetScope());
 
         ArrayTypeNode *pat = mHandler->NewTreeNode<ArrayTypeNode>();
         pat->SetElemType(utype);
