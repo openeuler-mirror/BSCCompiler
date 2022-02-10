@@ -162,7 +162,6 @@ class SSUPre {
         spreAllocator(memPool),
         workCand(wkcand),
         fullyAvailBBs(cgfunc->GetAllBBs().size(), true, spreAllocator.Adapter()),
-        realOccDfns(std::less<uint32>(), spreAllocator.Adapter()),
         lambdaDfns(std::less<uint32>(), spreAllocator.Adapter()),
         classCount(0),
         realOccs(spreAllocator.Adapter()),
@@ -199,7 +198,6 @@ class SSUPre {
     }
   }
   void FormLambdas();
-  void FormLambdaRes();
   void CreateSortedOccs();
   // step 0 methods
   void CreateEntryOcc(BB *bb) {
@@ -214,13 +212,12 @@ class SSUPre {
   MemPool *spreMp;
   MapleAllocator spreAllocator;
   SPreWorkCand *workCand;
-  // following are set of BBs in terms of their dfn's; index into
-  // dominance->pdt_preorder to get their bbid's
   // step 0
   MapleVector<bool> fullyAvailBBs; // index is BBid; true if occ is fully available at BB exit
-  MapleSet<uint32> realOccDfns; // set by FormReals()
   // step 1 lambda insertion data structures:
-  MapleSet<uint32> lambdaDfns;  // set by FormLambdas()
+  MapleSet<uint32> lambdaDfns;  // set by FormLambdas(); set of BBs in terms of
+                                // their dfn's; index into 
+                                // dominance->pdt_preorder to get their bbid's
   // step 2 renaming
   uint32 classCount;  // for assigning new class id
   // the following 4 lists are all maintained in order of pdt_preorder
