@@ -73,7 +73,7 @@ TEST_F(FEIRStmtLOCTest, GetLOCForStmt) {
   const FEIRStmtPesudoLOC *expectedLOC = jbcFunction.GetLOCForStmt(*static_cast<FEIRStmt *>(stmtDAssign.get()));
   std::list<StmtNode*> mirStmts = stmtDAssign->GenMIRStmts(mirBuilder);
   mirStmts.front()->GetSrcPos().SetFileNum(static_cast<uint16>(expectedLOC->GetSrcFileIdx()));
-  mirStmts.front()->GetSrcPos().SetLineNum(expectedLOC->GetLineNumber());
+  mirStmts.front()->GetSrcPos().SetLineNum(expectedLOC->GetSrcFileLineNum());
   RedirectCout();
   mirStmts.front()->Dump();
   std::string dumpStr = GetBufferString();

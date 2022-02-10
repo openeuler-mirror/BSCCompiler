@@ -1189,7 +1189,7 @@ FEIRStmtCaseForC::FEIRStmtCaseForC(int64 label)
 void FEIRStmtCaseForC::AddCaseTag2CaseVec(int64 lCaseTag, int64 rCaseTag) {
   auto pLabel = std::make_unique<FEIRStmtPesudoLabel>(lCaseLabel);
   for (int64 csTag = lCaseTag; csTag <= rCaseTag; ++csTag) {
-    pesudoLabelMap.insert(std::pair<int64, std::unique_ptr<FEIRStmtPesudoLabel>>(csTag, std::move(pLabel)));
+    pesudoLabelMap.insert(std::make_pair(csTag, std::move(pLabel)));
   }
 }
 
@@ -1972,7 +1972,6 @@ void FEIRStmtICallAssign::InsertNonnullCheckingInArgs(MIRBuilder &mirBuilder, st
   if (funcType == nullptr) {
     return;
   }
-  std::vector<TypeAttrs> attrsVec = funcType->GetParamAttrsList();
   int idx = -2; // the first arg is function pointer
   size_t size = funcType->GetParamAttrsList().size();
   for (const auto &expr : exprArgs) {
@@ -3861,10 +3860,9 @@ std::list<StmtNode*> FEIRStmtPesudoLabel2::GenMIRStmtsImpl(MIRBuilder &mirBuilde
 
 // ---------- FEIRStmtPesudoLOC ----------
 FEIRStmtPesudoLOC::FEIRStmtPesudoLOC(uint32 argSrcFileIdx, uint32 argLineNumber)
-    : FEIRStmt(kStmtPesudoLOC),
-      srcFileIdx(argSrcFileIdx),
-      lineNumber(argLineNumber) {
+    : FEIRStmt(kStmtPesudoLOC) {
   isAuxPre = true;
+  SetSrcFileInfo(argSrcFileIdx, argLineNumber);
 }
 
 std::list<StmtNode*> FEIRStmtPesudoLOC::GenMIRStmtsImpl(MIRBuilder &mirBuilder) const {
@@ -4019,7 +4017,7 @@ std::list<StmtNode*> FEIRStmtPesudoSafe::GenMIRStmtsImpl(MIRBuilder &mirBuilder)
     if (curFEFunc.GetSafeRegionFlag().empty() || !curFEFunc.GetSafeRegionFlag().top()) {
       CHECK_FATAL(false, "pop safe region error");
     }
-    (void)curFEFunc.GetSafeRegionFlag().pop();
+    curFEFunc.GetSafeRegionFlag().pop();
   } else {
     curFEFunc.GetSafeRegionFlag().push(true);
   }
@@ -4047,7 +4045,7 @@ std::list<StmtNode*> FEIRStmtPesudoUnsafe::GenMIRStmtsImpl(MIRBuilder &mirBuilde
     if (curFEFunc.GetSafeRegionFlag().empty() || curFEFunc.GetSafeRegionFlag().top()) {
       CHECK_FATAL(false, "pop unsafe region error");
     }
-    (void)curFEFunc.GetSafeRegionFlag().pop();
+    curFEFunc.GetSafeRegionFlag().pop();
   } else {
     curFEFunc.GetSafeRegionFlag().push(false);
   }

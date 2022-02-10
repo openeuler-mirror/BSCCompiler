@@ -64,8 +64,8 @@ class FEInputGlobalVarHelper {
     return ProcessDecl(allocator);
   }
 
-  bool ProcessDecl(MapleAllocator &allocator) {
-    return ProcessDeclImpl(allocator);
+  bool ProcessDecl(MapleAllocator &allocatorIn) {
+    return ProcessDeclImpl(allocatorIn);
   }
 
  protected:
@@ -82,8 +82,8 @@ class FEInputFileScopeAsmHelper {
     return ProcessDecl(allocator);
   }
 
-  bool ProcessDecl(MapleAllocator &allocator) {
-    return ProcessDeclImpl(allocator);
+  bool ProcessDecl(MapleAllocator &allocatorIn) {
+    return ProcessDeclImpl(allocatorIn);
   }
 
  protected:
@@ -165,8 +165,8 @@ class FEInputMethodHelper {
     return ProcessDecl(allocator);
   }
 
-  bool ProcessDecl(MapleAllocator &allocator) {
-    return ProcessDeclImpl(allocator);
+  bool ProcessDecl(MapleAllocator &allocatorIn) {
+    return ProcessDeclImpl(allocatorIn);
   }
 
   void SolveReturnAndArgTypes(MapleAllocator &allocator) {

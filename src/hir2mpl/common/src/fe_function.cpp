@@ -842,7 +842,7 @@ void FEFunction::AddLocForStmt(const FEIRStmt &stmt, std::list<StmtNode*> &mirSt
   const FEIRStmtPesudoLOC *pesudoLoc = GetLOCForStmt(stmt);
   if (pesudoLoc != nullptr) {
     mirStmts.front()->GetSrcPos().SetFileNum(static_cast<uint16>(pesudoLoc->GetSrcFileIdx()));
-    mirStmts.front()->GetSrcPos().SetLineNum(pesudoLoc->GetLineNumber());
+    mirStmts.front()->GetSrcPos().SetLineNum(pesudoLoc->GetSrcFileLineNum());
   }
 }
 }  // namespace maple

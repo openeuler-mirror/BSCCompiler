@@ -1004,15 +1004,15 @@ class FEIRExprExtractBits : public FEIRExprUnary {
     bitSize = size;
   }
 
-  uint32 HashImpl() const override {
-    return FEIRExprUnary::HashImpl() + (static_cast<uint32>(bitOffset) << 16) + static_cast<uint32>(bitSize);
-  }
-
  protected:
   std::unique_ptr<FEIRExpr> CloneImpl() const override;
   void RegisterDFGNodes2CheckPointImpl(FEIRStmtCheckPoint &checkPoint) override;
   bool CalculateDefs4AllUsesImpl(FEIRStmtCheckPoint &checkPoint, FEIRUseDefChain &udChain) override;
   BaseNode *GenMIRNodeImpl(MIRBuilder &mirBuilder) const override;
+
+  uint32 HashImpl() const override {
+    return FEIRExprUnary::HashImpl() + (static_cast<uint32>(bitOffset) << 16) + static_cast<uint32>(bitSize);
+  }
 
  private:
   using FuncPtrGenMIRNode = BaseNode* (FEIRExprExtractBits::*)(MIRBuilder &mirBuilder) const;
@@ -1484,7 +1484,7 @@ class FEIRExprAtomic : public FEIRExpr {
 class FEIRStmtNary : public FEIRStmt {
  public:
   FEIRStmtNary(Opcode opIn, std::list<std::unique_ptr<FEIRExpr>> argExprsIn);
-  ~FEIRStmtNary() = default;
+  virtual ~FEIRStmtNary() = default;
 
   void SetOP(Opcode opIn) {
     op = opIn;
@@ -1581,8 +1581,8 @@ class FEIRStmtDAssign : public FEIRStmtAssign {
  private:
   void InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRSymbol &dstSym, std::list<StmtNode*> &ans) const;
   void AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
-  void CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const;
-  void CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder) const;
+  void CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder) const;
+  void CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder) const;
 
   std::unique_ptr<FEIRExpr> expr;
   FieldID fieldID;
@@ -1604,8 +1604,8 @@ class FEIRStmtIAssign : public FEIRStmt {
 
  private:
   void InsertNonnullChecking(MIRBuilder &mirBuilder, const MIRType &baseType, std::list<StmtNode*> &ans) const;
-  void CheckNonnullArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
-  void CheckBoundaryArgsAndRetForFuncPtr(MIRBuilder &mirBuilder, const MIRType &baseType) const;
+  void CheckNonnullArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const;
+  void CheckBoundaryArgsAndRetForFuncPtr(const MIRBuilder &mirBuilder, const MIRType &baseType) const;
   void AssignBoundaryVarAndChecking(MIRBuilder &mirBuilder, std::list<StmtNode*> &ans) const;
 
   UniqueFEIRType addrType;
@@ -1730,7 +1730,7 @@ class FEIRStmtUseOnly : public FEIRStmt {
  public:
   FEIRStmtUseOnly(FEIRNodeKind argKind, Opcode argOp, std::unique_ptr<FEIRExpr> argExpr);
   FEIRStmtUseOnly(Opcode argOp, std::unique_ptr<FEIRExpr> argExpr);
-  ~FEIRStmtUseOnly() = default;
+  virtual ~FEIRStmtUseOnly() = default;
 
   const std::unique_ptr<FEIRExpr> &GetExpr() const {
     return expr;
@@ -1844,10 +1844,6 @@ class FEIRStmtReturn : public FEIRStmtUseOnly {
  public:
   explicit FEIRStmtReturn(std::unique_ptr<FEIRExpr> argExpr);
   ~FEIRStmtReturn() = default;
-
-  const std::unique_ptr<FEIRExpr> &GetExpr() const {
-    return expr;
-  }
 
  protected:
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
@@ -2517,21 +2513,10 @@ class FEIRStmtPesudoLOC : public FEIRStmt {
  public:
   FEIRStmtPesudoLOC(uint32 argSrcFileIdx, uint32 argLineNumber);
   ~FEIRStmtPesudoLOC() = default;
-  uint32 GetSrcFileIdx() const {
-    return srcFileIdx;
-  }
-
-  uint32 GetLineNumber() const {
-    return lineNumber;
-  }
 
  protected:
   std::string DumpDotStringImpl() const override;
   std::list<StmtNode*> GenMIRStmtsImpl(MIRBuilder &mirBuilder) const override;
-
- private:
-  uint32 srcFileIdx;
-  uint32 lineNumber;
 };
 
 // ---------- FEIRStmtPesudoJavaTry ----------

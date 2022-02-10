@@ -231,7 +231,7 @@ class FETypeManager {
   }
 
   void InsertBoundaryLenExprHashMap(uint32 hash, UniqueFEIRExpr expr) {
-    (void)boundaryLenExprHashMap.insert(std::pair<uint32, UniqueFEIRExpr>(hash, std::move(expr)));
+    (void)boundaryLenExprHashMap.insert(std::make_pair(hash, std::move(expr)));
   }
 
   UniqueFEIRExpr GetBoundaryLenExprFromMap(uint32 hash) {
