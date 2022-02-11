@@ -45,8 +45,16 @@ class PeepOptimizeManager {
     OptimizePattern optPattern(*cgFunc, *currBB, *currInsn, *ssaInfo);
     optPattern.Run(*currBB, *currInsn);
     optSuccess = optPattern.GetPatternRes();
+    if (optSuccess && optPattern.GetCurrInsn() != nullptr) {
+      currInsn = optPattern.GetCurrInsn();
+    }
   }
-  bool OptSuccess() {
+  template<typename OptimizePattern>
+  void NormalPatternOpt() {
+    OptimizePattern optPattern(*cgFunc, *currBB, *currInsn);
+    optPattern.Run(*currBB, *currInsn);
+  }
+  bool OptSuccess() const {
     return optSuccess;
   }
  private:
@@ -72,13 +80,43 @@ class AArch64CGPeepHole {
   ~AArch64CGPeepHole() = default;
 
   void Run();
-  bool DoOptimize(BB &bb, Insn &insn);
+  bool DoSSAOptimize(BB &bb, Insn &insn);
+  void DoNormalOptimize(BB &bb, Insn &insn);
 
  protected:
   CGFunc *cgFunc;
   MemPool *peepMemPool;
   CGSSAInfo *ssaInfo;
   PeepOptimizeManager *manager = nullptr;
+};
+
+/*
+* i.   cmp     x0, x1
+*      cset    w0, EQ     ===>   cmp x0, x1
+*      cmp     w0, #0            cset w0, EQ
+*      cset    w0, NE
+*
+* ii.  cmp     x0, x1
+*      cset    w0, EQ     ===>   cmp x0, x1
+*      cmp     w0, #0            cset w0, NE
+*      cset    w0, EQ
+*/
+class ContinuousCmpCsetPattern : public CGPeepPattern {
+ public:
+  ContinuousCmpCsetPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
+      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
+  ~ContinuousCmpCsetPattern() override = default;
+  void Run(BB &bb, Insn &insn) override;
+  bool CheckCondition(Insn &insn) override;
+  std::string GetPatternName() override;
+
+ private:
+  bool CheckCondCode(const CondOperand &condOpnd) const;
+  AArch64CC_t GetReverseCondCode(const CondOperand &condOpnd) const;
+  Insn *prevCmpInsn = nullptr;
+  Insn *prevCsetInsn1 = nullptr;
+  Insn *prevCmpInsn1 = nullptr;
+  bool reverse = false;
 };
 
 /*
@@ -581,6 +619,7 @@ class CmpCsetOpt : public CGPeepPattern {
   };
 
  private:
+  bool IsContinuousCmpCset(const Insn &curInsn);
   bool OpndDefByOneValidBit(const Insn &defInsn);
   Insn *cmpInsn = nullptr;
   int64 cmpConstVal = -1;
@@ -744,21 +783,21 @@ class OrrToMovPattern : public CGPeepPattern {
   AArch64RegOperand *reg2 = nullptr;
 };
 
-class CombineFmovLdLiPattern : public CGPeepPattern {
+/*
+ * Optimize the following patterns:
+ * ubfx  x201, x202, #0, #32
+ * ====>
+ * uxtw x201, w202
+ */
+class UbfxToUxtwPattern : public CGPeepPattern {
  public:
-  CombineFmovLdLiPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn, CGSSAInfo &info) :
-      CGPeepPattern(cgFunc, currBB, currInsn, info) {}
-  ~CombineFmovLdLiPattern() override = default;
+  UbfxToUxtwPattern(CGFunc &cgFunc, BB &currBB, Insn &currInsn) : CGPeepPattern(cgFunc, currBB, currInsn) {}
+  ~UbfxToUxtwPattern() override = default;
   void Run(BB &bb, Insn &insn) override;
   bool CheckCondition(Insn &insn) override;
   std::string GetPatternName() override {
-    return "CombineFmovLdrPattern";
+    return "UbfxToUxtwPattern";
   }
-
- private:
-  MOperator newMop = MOP_undef;
-  RegOperand *newDest = nullptr;
-  Insn *useInsn = nullptr;
 };
 
 /* ======== CGPeepPattern End ======== */
@@ -1462,18 +1501,6 @@ class RemoveSxtBeforeStrAArch64 : public PeepPattern {
  public:
   explicit RemoveSxtBeforeStrAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
   ~RemoveSxtBeforeStrAArch64() override = default;
-  void Run(BB &bb, Insn &insn) override;
-};
-/*
- * Optimize the following patterns:
- * ubfx  x201, x202, #0, #32
- * ====>
- * uxtw x201, w202
- */
-class UbfxToUxtwAArch64 : public PeepPattern {
- public:
-  explicit UbfxToUxtwAArch64(CGFunc &cgFunc) : PeepPattern(cgFunc) {}
-  ~UbfxToUxtwAArch64() override = default;
   void Run(BB &bb, Insn &insn) override;
 };
 
