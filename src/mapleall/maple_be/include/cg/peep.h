@@ -68,13 +68,20 @@ class CGPeepPattern {
   virtual std::string GetPatternName() = 0;
   Insn *GetDefInsn(const RegOperand &useReg);
   void DumpAfterPattern(std::vector<Insn*> &prevInsns, const Insn *replacedInsn, const Insn *newInsn);
-  Insn *GetUseInsn(const RegOperand &defReg);
+  InsnSet GetAllUseInsn(const RegOperand &defReg);
   int64 GetLogValueAtBase2(int64 val) const;
   /* The CC reg is unique and cannot cross-version props. */
   bool IsCCRegCrossVersion(Insn &startInsn, Insn &endInsn, const RegOperand &ccReg);
-  bool GetPatternRes() {
+  bool GetPatternRes() const {
     return optSuccess;
   }
+  Insn *GetCurrInsn() {
+    return currInsn;
+  }
+  void SetCurrInsn(Insn *updateInsn) {
+    currInsn = updateInsn;
+  }
+
  protected:
   CGFunc *cgFunc;
   BB *currBB;
@@ -134,6 +141,8 @@ class PeepOptimizer {
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgPeepHole, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole, maplebe::CGFunc)
+MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole0, maplebe::CGFunc)
 MAPLE_FUNC_PHASE_DECLARE_END
 MAPLE_FUNC_PHASE_DECLARE_BEGIN(CgPrePeepHole1, maplebe::CGFunc)

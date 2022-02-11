@@ -67,18 +67,17 @@ int64 CGPeepPattern::GetLogValueAtBase2(int64 val) const {
   return (__builtin_popcountll(static_cast<uint64>(val)) == 1) ? (__builtin_ffsll(val) - 1) : -1;
 }
 
-Insn *CGPeepPattern::GetUseInsn(const RegOperand &defReg) {
-  ASSERT(defReg.IsRegister(), "must be regOpnd");
-  if (ssaInfo != nullptr) {
-    if (!defReg.IsSSAForm()) {
-      VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
-      ASSERT(defVersion != nullptr, "useVRegVersion must not be null based on ssa");
-      if (defVersion->GetAllUseInsns().size() == 1) {
-        return defVersion->GetAllUseInsns().begin()->second->GetInsn();
-      }
+InsnSet CGPeepPattern::GetAllUseInsn(const RegOperand &defReg) {
+  InsnSet allUseInsn;
+  if ((ssaInfo != nullptr) && defReg.IsSSAForm()) {
+    VRegVersion *defVersion = ssaInfo->FindSSAVersion(defReg.GetRegisterNumber());
+    CHECK_FATAL(defVersion != nullptr, "useVRegVersion must not be null based on ssa");
+    for (auto insnInfo : defVersion->GetAllUseInsns()) {
+      Insn *currInsn = insnInfo.second->GetInsn();
+      allUseInsn.emplace(currInsn);
     }
   }
-  return nullptr;
+  return allUseInsn;
 }
 
 Insn *CGPeepPattern::GetDefInsn(const RegOperand &useReg) {
@@ -485,6 +484,14 @@ void CgPeepHole::GetAnalysisDependence(AnalysisDep &aDep) const {
 }
 
 /* === Physical form === */
+bool CgPrePeepHole::PhaseRun(maplebe::CGFunc &f) {
+  MemPool *mp = GetPhaseMemPool();
+  auto *cgpeep = mp->New<AArch64CGPeepHole>(f, mp);
+  CHECK_FATAL(cgpeep != nullptr, "PeepHoleOptimizer instance create failure");
+  cgpeep->Run();
+  return false;
+}
+
 bool CgPrePeepHole0::PhaseRun(maplebe::CGFunc &f) {
   auto *peep = GetPhaseMemPool()->New<PeepHoleOptimizer>(&f);
   CHECK_FATAL(peep != nullptr, "PeepHoleOptimizer instance create failure");
