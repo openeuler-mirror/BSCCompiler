@@ -129,6 +129,8 @@ class Module_Handler {
   std::unordered_map<unsigned, TreeNode *> mNodeId2Decl;
   // array's element type: decl node id to typeid
   std::unordered_map<unsigned, TypeId> mArrayDeclId2EleTypeIdMap;
+  // array's element typeidx: decl node id to typeidx
+  std::unordered_map<unsigned, unsigned> mArrayDeclId2EleTypeIdxMap;
   // array literal's dim: decl node id to dim
   std::unordered_map<unsigned, DimensionNode *> mArrayDeclId2DimMap;
   // fields' nodeid set
@@ -247,6 +249,19 @@ class Module_Handler {
 
   void SetArrayElemTypeId(unsigned nid, TypeId tid) {
     mArrayDeclId2EleTypeIdMap[nid] = tid;
+  }
+
+  // array's element typeidx
+  unsigned GetArrayElemTypeIdx(unsigned nid) {
+    unsigned tidx = 0;
+    if (mArrayDeclId2EleTypeIdxMap.find(nid) != mArrayDeclId2EleTypeIdxMap.end()) {
+      tidx = mArrayDeclId2EleTypeIdxMap[nid];
+    }
+    return tidx;
+  }
+
+  void SetArrayElemTypeIdx(unsigned nid, unsigned tidx) {
+    mArrayDeclId2EleTypeIdxMap[nid] = tidx;
   }
 
   DimensionNode *GetArrayDim(unsigned nid) {
