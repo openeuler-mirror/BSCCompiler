@@ -28,7 +28,7 @@ class PhiEliminate {
       eliminatedBB(phiEliAlloc.Adapter()),
       replaceVreg(phiEliAlloc.Adapter()),
       remateInfoAfterSSA(phiEliAlloc.Adapter()) {
-    tempRegNO = GetSSAInfo()->GetAllSSAOperands().size() + CGSSAInfo::SSARegNObase;
+    tempRegNO = static_cast<uint32_t>(GetSSAInfo()->GetAllSSAOperands().size()) + CGSSAInfo::SSARegNObase;
   }
   virtual ~PhiEliminate() = default;
   CGSSAInfo *GetSSAInfo() {
@@ -45,7 +45,7 @@ class PhiEliminate {
   void UpdateRematInfo();
   regno_t GetAndIncreaseTempRegNO();
   RegOperand *MakeRoomForNoDefVreg(RegOperand &conflictReg);
-  void RecordRematInfo(regno_t vRegNO, PregIdx pIdx);
+  void RecordRematInfo(regno_t vRegNO, PregIdx pIdx, PrimType primType = kPtyInvalid, MIRType *mirType = nullptr);
   PregIdx FindRematInfo(regno_t vRegNO) {
     return remateInfoAfterSSA.count(vRegNO) ? remateInfoAfterSSA[vRegNO] : -1;
   }
@@ -67,8 +67,7 @@ class PhiEliminate {
 };
 
 class OperandPhiElmVisitor : public OperandVisitorBase,
-                             public OperandVisitors<RegOperand, ListOperand, MemOperand>,
-                             public OperandVisitor<PhiOperand> {
+                             public OperandVisitors<RegOperand, ListOperand, MemOperand> {
 };
 
 MAPLE_FUNC_PHASE_DECLARE(CgPhiElimination, maplebe::CGFunc)

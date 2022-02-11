@@ -138,7 +138,7 @@ void AArch64PhiEliminate::MaintainRematInfo(RegOperand &destOpnd, RegOperand &fr
       regno_t rematRegNO = fromSSAVersion->GetOriginalRegNO();
       MIRPreg *fPreg = static_cast<AArch64CGFunc*>(cgFunc)->GetPseudoRegFromVirtualRegNO(rematRegNO);
       if (fPreg != nullptr) {
-        RecordRematInfo(destOpnd.GetRegisterNumber(), fPreg->GetPregNo());
+        RecordRematInfo(destOpnd.GetRegisterNumber(), fPreg->GetPregNo(), fPreg->GetPrimType(), fPreg->GetMIRType());
       }
     } else {
       regno_t rematRegNO = fromOpnd.GetRegisterNumber();
