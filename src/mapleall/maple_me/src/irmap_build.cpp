@@ -682,7 +682,7 @@ MeStmt *IRMapBuild::BuildIassignMeStmt(StmtNode &stmt, AccessSSANodes &ssaPart) 
       if (fldId != 0) {
         auto preLevType = ost->GetPrevLevelOst()->GetType();
         auto type = static_cast<MIRPtrType*>(preLevType)->GetPointedType();
-        CHECK_FATAL(static_cast<size_t>(fldId) <= type->NumberOfFieldIDs(), "field id out of range");
+        CHECK_FATAL(static_cast<uint32>(fldId) <= type->NumberOfFieldIDs(), "field id out of range");
         auto fieldType = static_cast<MIRStructType*>(type)->GetFieldType(fldId);
         OffsetType offset(static_cast<MIRStructType*>(type)->GetBitOffsetFromBaseAddr(fldId));
         auto fieldOst = ssaTab.GetOriginalStTable().FindExtraLevOriginalSt(

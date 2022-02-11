@@ -86,7 +86,7 @@ class SafeExe {
 
   static ErrorCode HandleCommand(const std::string &cmd,
                                  const std::vector<MplOption> &options) {
-    int argIndex;
+    size_t argIndex;
     char **argv;
     std::tie(argv, argIndex) = GenerateUnixArguments(cmd, options);
 
@@ -103,7 +103,7 @@ class SafeExe {
       fflush(nullptr);
       if (execv(cmd.c_str(), argv) < 0) {
         /* last argv[argIndex] is nullptr, so it's j < argIndex (NOT j <= argIndex) */
-        for (size_t j = 0; j < static_cast<size_t>(argIndex); ++j) {
+        for (size_t j = 0; j < argIndex; ++j) {
           delete [] argv[j];
         }
         delete [] argv;
@@ -129,7 +129,7 @@ class SafeExe {
     }
 
     /* last argv[argIndex] is nullptr, so it's j < argIndex (NOT j <= argIndex) */
-    for (size_t j = 0; j < static_cast<size_t>(argIndex); ++j) {
+    for (size_t j = 0; j < argIndex; ++j) {
       delete [] argv[j];
     }
     delete [] argv;
@@ -252,7 +252,7 @@ class SafeExe {
     return tmpArgs;
   }
 
-  static std::tuple<char **, int> GenerateUnixArguments(const std::string &cmd,
+  static std::tuple<char **, size_t> GenerateUnixArguments(const std::string &cmd,
                                                         const std::vector<MplOption> &options) {
     /* argSize=2, because we reserve 1st arg as exe binary, and another arg as last nullptr arg */
     size_t argSize = 2;
@@ -272,7 +272,7 @@ class SafeExe {
     strncpy_s(argv[0], cmdSize, cmd.c_str(), cmdSize); // c_str includes NUL terminal
 
     /* Allocate and fill all arguments */
-    int argIndex = 1; // firts index is reserved for cmd, so it starts with 1
+    size_t argIndex = 1; // firts index is reserved for cmd, so it starts with 1
     for (auto &opt : options) {
       auto key = opt.GetKey();
       auto val = opt.GetValue();

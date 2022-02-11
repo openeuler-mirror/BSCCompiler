@@ -221,7 +221,8 @@ void Ebo::SetOpndInfo(const Operand &opnd, OpndInfo *opndInfo, int32 hashVal) {
     return;
   }
 
-  CHECK_FATAL(static_cast<uint64>(hashVal) < exprInfoTable.size(), "SetOpndInfo hashval outof range!");
+  CHECK_FATAL(static_cast<uint64>(static_cast<int64>(hashVal)) < exprInfoTable.size(),
+              "SetOpndInfo hashval outof range!");
   opndInfo->hashVal = hashVal;
   opndInfo->hashNext = exprInfoTable.at(hashVal);
   exprInfoTable.at(hashVal) = opndInfo;

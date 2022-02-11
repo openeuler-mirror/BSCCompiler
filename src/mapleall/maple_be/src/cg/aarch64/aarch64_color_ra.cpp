@@ -206,8 +206,7 @@ std::vector<Insn *> LiveRange::Rematerialize(AArch64CGFunc *cgFunc,
           static_cast<MIRStructType *>(symbol->GetType());
       ASSERT(structType != nullptr,
              "Rematerialize: non-zero fieldID for non-structure");
-      offset =
-          cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
+      offset = cgFunc->GetBecommon().GetFieldOffset(*structType, fieldID).first;
     }
     StImmOperand &stImm = cgFunc->CreateStImmOperand(*symbol, offset, 0);
     if ((symbol->GetStorageClass() == kScAuto) ||
@@ -3709,7 +3708,7 @@ uint64 GraphColorRegAllocator::FinalizeRegisterPreprocess(FinalizeRegisterInfo &
   uint32 opndNum = insn.GetOperandSize();
   bool hasVirtual = false;
   for (uint32 i = 0; i < opndNum; ++i) {
-    Operand &opnd = insn.GetOperand(static_cast<int32>(i));
+    Operand &opnd = insn.GetOperand(i);
     ASSERT(md->GetOperand(i) != nullptr, "pointer is null in GraphColorRegAllocator::FinalizeRegisters");
 
     if (opnd.IsList()) {
@@ -3791,7 +3790,7 @@ void GraphColorRegAllocator::GenerateSpillFillRegs(const Insn &insn) {
   const AArch64MD *md = &AArch64CG::kMd[static_cast<const AArch64Insn*>(&insn)->GetMachineOpcode()];
   bool isIndexedMemOp = false;
   for (uint32 opndIdx = 0; opndIdx < opndNum; ++opndIdx) {
-    Operand *opnd = &insn.GetOperand(static_cast<int32>(opndIdx));
+    Operand *opnd = &insn.GetOperand(opndIdx);
     if (opnd == nullptr) {
       continue;
     }

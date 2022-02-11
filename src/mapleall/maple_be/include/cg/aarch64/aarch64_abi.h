@@ -96,7 +96,7 @@ class ParmLocator {
 
  private:
   BECommon &beCommon;
-  int32 paramNum           = 0;  /* number of all types of parameters processed so far */
+  uint64 paramNum           = 0;  /* number of all types of parameters processed so far */
   int32 nextGeneralRegNO   = 0;  /* number of integer parameters processed so far */
   uint32 nextFloatRegNO    = 0;  /* number of float parameters processed so far */
   int32 nextStackArgAdress = 0;
