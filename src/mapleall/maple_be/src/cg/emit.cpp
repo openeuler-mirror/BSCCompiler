@@ -3044,7 +3044,7 @@ void Emitter::EmitDIAttrValue(DBGDie *die, DBGDieAttr *attr, DwAt attrName, DwTa
           }
         }
       } else {
-        EmitHexUnsigned(static_cast<uint64>(attr->GetI()));
+        EmitHexUnsigned(static_cast<uint64>(static_cast<int64>(attr->GetI())));
       }
       break;
     case DW_FORM_sec_offset:

@@ -407,7 +407,7 @@ int32 ParmLocator::LocateNextParm(MIRType &mirType, PLocInfo &pLoc, bool isFirst
 
   bool is64x1vec = false;
   if (tFunc != nullptr && tFunc->GetParamSize() > 0) {
-    is64x1vec = tFunc->GetNthParamAttr(static_cast<size_t>(paramNum)).GetAttr(ATTR_oneelem_simd) != 0;
+    is64x1vec = tFunc->GetNthParamAttr(paramNum).GetAttr(ATTR_oneelem_simd) != 0;
   }
 
   if (isFirst) {

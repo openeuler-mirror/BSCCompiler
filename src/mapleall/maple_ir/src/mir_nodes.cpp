@@ -257,10 +257,6 @@ void CatchNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
-void CatchNode::Dump() const {
-  this->BaseNode::Dump();
-}
-
 void CppCatchNode::Dump(int32 indent) const {
   PrintIndentation(indent);
   LogInfo::MapleLogger() << kOpcodeInfo.GetName(op);
@@ -343,10 +339,6 @@ void BinaryNode::Dump(int32 indent) const {
   BinaryOpnds::Dump(indent);
 }
 
-void BinaryNode::Dump() const {
-  this->BaseNode::Dump();
-}
-
 void BinaryOpnds::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " (";
   if (bOpnd[0]->IsLeaf() && bOpnd[1]->IsLeaf()) {
@@ -375,10 +367,6 @@ void CompareNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << kOpcodeInfo.GetTableItemAt(GetOpCode()).name << " " << GetPrimTypeName(GetPrimType());
   LogInfo::MapleLogger() << " " << GetPrimTypeName(opndType);
   BinaryOpnds::Dump(indent);
-}
-
-void CompareNode::Dump() const {
-  this->BaseNode::Dump();
 }
 
 void DepositbitsNode::Dump(int32 indent) const {
@@ -641,10 +629,6 @@ void StmtNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << '\n';
 }
 
-void StmtNode::Dump() const {
-  this->BaseNode::Dump();
-}
-
 // Get the next stmt skip the comment stmt.
 StmtNode *StmtNode::GetRealNext() const {
   StmtNode *stmt = this->GetNext();
@@ -811,10 +795,6 @@ void TryNode::Dump(int32 indent) const {
   LogInfo::MapleLogger() << " }\n";
 }
 
-void TryNode::Dump() const {
-  this->BaseNode::Dump();
-}
-
 void CondGotoNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   LogInfo::MapleLogger() << " @" << theMIRModule->CurFunction()->GetLabelName((LabelIdx)offset);
@@ -889,10 +869,6 @@ void UnaryStmtNode::DumpOpnd(int32 indent) const {
 void UnaryStmtNode::Dump(int32 indent) const {
   StmtNode::DumpBase(indent);
   DumpOpnd(indent);
-}
-
-void UnaryStmtNode::Dump() const {
-  this->BaseNode::Dump();
 }
 
 void GCMallocNode::Dump(int32) const {
@@ -1343,7 +1319,7 @@ AsmNode *AsmNode::CloneTree(MapleAllocator &allocator) const {
   for (size_t i = 0; i < gotoLabels.size(); ++i) {
     node->gotoLabels.push_back(gotoLabels[i]);
   }
-  node->SetNumOpnds(GetNopndSize());
+  node->SetNumOpnds(static_cast<uint8>(GetNopndSize()));
   return node;
 }
 
