@@ -375,6 +375,7 @@ void IVCanon::CanonEntryValues() {
       initName.append(".init");
       GStrIdx strIdx = GlobalTables::GetStrTable().GetOrCreateStrIdxFromName(initName);
       ScalarMeExpr *scalarMeExpr = func->GetIRMap()->CreateNewVar(strIdx, ivdesc->primType, false);
+      scalarMeExpr->GetOst()->storesIVInitValue = true;
 #else // create preg
       ScalarMeExpr *scalarmeexpr = func->irMap->CreateRegMeExpr(ivdesc->primType);
 #endif
