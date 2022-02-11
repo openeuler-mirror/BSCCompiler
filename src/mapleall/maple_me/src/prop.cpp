@@ -645,7 +645,11 @@ MeExpr &Prop::PropVar(VarMeExpr &varMeExpr, bool atParm, bool checkPhi) {
     DassignMeStmt *defStmt = static_cast<DassignMeStmt*>(varMeExpr.GetDefStmt());
     ASSERT(defStmt != nullptr, "dynamic cast result is nullptr");
     MeExpr *rhs = defStmt->GetRHS();
-    if (rhs->GetDepth() > kPropTreeLevel) {
+    uint32 treeLevelLimitUsed = kPropTreeLevel;
+    if (varMeExpr.GetOst()->storesIVInitValue) {
+      treeLevelLimitUsed = treeLevelLimitUsed >> 2;
+    }
+    if (rhs->GetDepth() > treeLevelLimitUsed) {
       return varMeExpr;
     }
     if (rhs->GetOp() == OP_select) {
@@ -1181,7 +1185,8 @@ void Prop::TraversalBB(BB &bb) {
   curBB = &bb;
 
   // record stack size for variable versions before processing rename. It is used for stack pop up.
-  std::vector<size_t> curStackSizeVec(vstLiveStackVec.size());
+  MapleVector<size_t> curStackSizeVec(propMapAlloc.Adapter());
+  curStackSizeVec.resize(vstLiveStackVec.size());
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
     curStackSizeVec[i] = vstLiveStackVec[i]->size();
   }
@@ -1204,9 +1209,12 @@ void Prop::TraversalBB(BB &bb) {
 
   for (size_t i = 1; i < vstLiveStackVec.size(); ++i) {
     MapleStack<MeExpr*> *liveStack = vstLiveStackVec[i];
-    size_t curSize = curStackSizeVec[i];
-    while (liveStack->size() > curSize) {
-      liveStack->pop();
+    if (i < curStackSizeVec.size()) {
+      while (liveStack->size() > curStackSizeVec[i]) {
+        liveStack->pop();
+      }
+    } else { // clear temp expr
+      liveStack->clear();
     }
   }
 }
